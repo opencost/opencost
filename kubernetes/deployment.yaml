@@ -1,0 +1,33 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: cost-model
+  labels:
+    app: cost-model
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: cost-model
+    spec:
+      restartPolicy: Always
+      serviceAccountName: cost-model
+      containers:
+        - image: ajaytripathy/kubecost-cost-model:latest
+          name: cost-model
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "55M"
+          env:
+            - name: PROMETHEUS_SERVER_ENDPOINT
+              value: <add a prometheus server endpoint> # kube-state-metrics and prometheus must be installed.
+            - name: CLOUD_PROVIDER_API_KEY
+              value: "" # The GCP Pricing API requires a key.
+          imagePullPolicy: Always

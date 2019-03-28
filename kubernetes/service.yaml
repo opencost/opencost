@@ -1,0 +1,12 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: cost-model
+spec:
+  selector:
+    app: cost-model
+  type: ClusterIP
+  ports:
+    - name: cost-model
+      port: 9001
+      targetPort: 9001
