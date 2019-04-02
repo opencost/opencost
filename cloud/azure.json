@@ -1,0 +1,8 @@
+{
+    "provider": "Azure",
+    "description": "Azure estimates based on April 2019 advertised prices",
+    "CPU": "0.03900",
+    "spotCPU": "0.007764", 
+    "RAM": "0.001917", 
+    "spotRAM": "0.000382"
+}
