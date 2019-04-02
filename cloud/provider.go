@@ -43,27 +43,142 @@ type Provider interface {
 	QuerySQL(string) ([]byte, error)
 }
 
+func GetDefaultPricingData() (*CustomPricing, error) {
+	jsonFile, err := os.Open("/models/default.json")
+	if err != nil {
+		return nil, err
+	}
+	defer jsonFile.Close()
+	byteValue, err := ioutil.ReadAll(jsonFile)
+	if err != nil {
+		return nil, err
+	}
+	var customPricing *CustomPricing = &CustomPricing{}
+	err = json.Unmarshal([]byte(byteValue), customPricing)
+	if err != nil {
+		return nil, err
+	}
+	return customPricing, nil
+}
+
+type CustomPricing struct {
+	Provider       string `json:"provider"`
+	Description    string `json:"description"`
+	CPU            string `json:"CPU"`
+	SpotCPU        string `json:"spotCPU"`
+	RAM            string `json:"RAM"`
+	SpotRAM        string `json:"spotRAM"`
+	SpotLabel      string `json:"spotLabel,omitempty"`
+	SpotLabelValue string `json:"spotLabel,omitempty"`
+}
+
+type NodePrice struct {
+	CPU string
+	RAM string
+}
+
+type CustomProvider struct {
+	Clientset      *kubernetes.Clientset
+	Pricing        map[string]*NodePrice
+	SpotLabel      string
+	SpotLabelValue string
+}
+
+func (*CustomProvider) ClusterName() ([]byte, error) {
+	return nil, nil
+}
+
+func (*CustomProvider) AddServiceKey(url.Values) error {
+	return nil
+}
+
+func (*CustomProvider) GetDisks() ([]byte, error) {
+	return nil, nil
+}
+
+func (c *CustomProvider) AllNodePricing() (interface{}, error) {
+	return c.Pricing, nil
+}
+
+func (c *CustomProvider) NodePricing(key string) (*Node, error) {
+	if _, ok := c.Pricing[key]; !ok {
+		key = "default"
+	}
+	return &Node{
+		VCPUCost: c.Pricing[key].CPU,
+		RAMCost:  c.Pricing[key].RAM,
+	}, nil
+}
+
+func (c *CustomProvider) DownloadPricingData() error {
+
+	if c.Pricing == nil {
+		m := make(map[string]*NodePrice)
+		c.Pricing = m
+	}
+	p, err := GetDefaultPricingData()
+	if err != nil {
+		return err
+	}
+	c.Pricing["default"] = &NodePrice{
+		CPU: p.CPU,
+		RAM: p.RAM,
+	}
+	c.Pricing["default,spot"] = &NodePrice{
+		CPU: p.SpotCPU,
+		RAM: p.SpotRAM,
+	}
+	return nil
+}
+
+func (c *CustomProvider) GetKey(labels map[string]string) string {
+	if labels[c.SpotLabel] != "" && labels[c.SpotLabel] == c.SpotLabelValue {
+		return "default,spot"
+	}
+	return "default" // TODO: multiple custom pricing support.
+}
+
+func (*CustomProvider) QuerySQL(query string) ([]byte, error) {
+	return nil, nil
+}
+
 type Node struct {
-	Cost        string
-	VCPU        string
-	VCPUCost    string
-	RAM         string
-	RAMCost     string
-	Storage     string
-	StorageCost string
+	Cost             string `json:"hourlyCost"`
+	VCPU             string `json:"CPU"`
+	VCPUCost         string `json:"CPUHourlyCost"`
+	RAM              string `json:"RAM"`
+	RAMCost          string `json:"RAMGBHourlyCost"`
+	Storage          string `json:"storage"`
+	StorageCost      string `json:"storageHourlyCost"`
+	UsesBaseCPUPrice bool   `json:"usesDefaultPrice"`
+	BaseCPUPrice     string `json:"baseCPUPrice"` // Used to compute an implicit RAM GB/Hr price when RAM pricing is not provided.
 }
 
 func NewProvider(clientset *kubernetes.Clientset, apiKey string) (Provider, error) {
 	if metadata.OnGCE() {
-		log.Printf("ON GCP AND KEY IS: %s", apiKey)
+		if apiKey == "" {
+			return nil, fmt.Errorf("Supply a GCP Key to start getting data")
+		}
 		return &GCP{
 			Clientset: clientset,
 			ApiKey:    apiKey,
 		}, nil
 	} else {
-		return &AWS{
-			Clientset: clientset,
-		}, nil
+		nodes, err := clientset.CoreV1().Nodes().List(metav1.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+		provider := strings.ToLower(nodes.Items[0].Spec.ProviderID)
+		if strings.HasPrefix(provider, "aws") {
+			return &AWS{
+				Clientset: clientset,
+			}, nil
+		} else {
+			log.Printf("Unsupported provider, falling back to default")
+			return &CustomProvider{
+				Clientset: clientset,
+			}, nil
+		}
 	}
 }
 
@@ -78,9 +193,10 @@ func (t userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error)
 }
 
 type GCP struct {
-	Pricing   map[string]*GCPPricing
-	Clientset *kubernetes.Clientset
-	ApiKey    string
+	Pricing      map[string]*GCPPricing
+	Clientset    *kubernetes.Clientset
+	ApiKey       string
+	BaseCPUPrice string
 }
 
 func (*GCP) QuerySQL(query string) ([]byte, error) {
@@ -210,6 +326,13 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]bool) (map[string]*G
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "CUSTOM") {
 					instanceType = "custom"
 				}
+				// instance.toLowerCase() === “f1micro”
+				var partialCPU float64
+				if strings.ToLower(instanceType) == "f1micro" {
+					partialCPU = 0.2
+				} else if strings.ToLower(instanceType) == "g1small" {
+					partialCPU = 0.5
+				}
 
 				for _, sr := range product.ServiceRegions {
 					region := sr
@@ -228,13 +351,18 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]bool) (map[string]*G
 						if hourlyPrice == 0 {
 							continue
 						} else if strings.Contains(strings.ToUpper(product.Description), "RAM") {
+							if instanceType == "custom" {
+								log.Printf("RAM custom sku is: " + product.Name)
+							}
 							if _, ok := gcpPricingList[candidateKey]; ok {
 								gcpPricingList[candidateKey].Node.RAMCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 							} else {
 								product.Node = &Node{
 									RAMCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 								}
-								log.Printf("NODE: %v", product.Node)
+								if partialCPU != 0 {
+									product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+								}
 								gcpPricingList[candidateKey] = product
 							}
 							break
@@ -245,7 +373,9 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]bool) (map[string]*G
 								product.Node = &Node{
 									VCPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 								}
-								log.Printf("NODE: %v", product.Node)
+								if partialCPU != 0 {
+									product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+								}
 								gcpPricingList[candidateKey] = product
 							}
 							break
@@ -293,7 +423,17 @@ func (gcp *GCP) parsePages(inputKeys map[string]bool) (map[string]*GCPPricing, e
 	returnPages := make(map[string]*GCPPricing)
 	for _, page := range pages {
 		for k, v := range page {
-			returnPages[k] = v
+			if val, ok := returnPages[k]; ok { //keys may need to be merged
+				if val.Node.RAMCost != "" && val.Node.VCPUCost == "" {
+					val.Node.VCPUCost = v.Node.VCPUCost
+				} else if val.Node.VCPUCost != "" && val.Node.RAMCost == "" {
+					val.Node.RAMCost = v.Node.RAMCost
+				} else {
+					returnPages[k] = v
+				}
+			} else {
+				returnPages[k] = v
+			}
 		}
 	}
 	return returnPages, err
@@ -319,6 +459,12 @@ func (gcp *GCP) DownloadPricingData() error {
 		return err
 	}
 	gcp.Pricing = pages
+	c, err := GetDefaultPricingData()
+	if err != nil {
+		log.Printf("Error downloading default pricing data: %s", err.Error())
+	}
+	gcp.BaseCPUPrice = c.CPU
+
 	return nil
 }
 
@@ -346,6 +492,8 @@ func (gcp *GCP) AllNodePricing() (interface{}, error) {
 
 func (gcp *GCP) NodePricing(key string) (*Node, error) {
 	if n, ok := gcp.Pricing[key]; ok {
+		log.Printf("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
+		n.Node.BaseCPUPrice = gcp.BaseCPUPrice
 		return n.Node, nil
 	} else {
 		log.Printf("Warning: no pricing data found for %s", key)
@@ -357,6 +505,7 @@ type AWS struct {
 	Pricing          map[string]*AWSProductTerms
 	ValidPricingKeys map[string]bool
 	Clientset        *kubernetes.Clientset
+	BaseCPUPrice     string
 }
 
 type AWSPricing struct {
@@ -538,7 +687,11 @@ func (aws *AWS) DownloadPricingData() error {
 	if err != nil {
 		return err
 	}
-	log.Printf("Body Parsed")
+	c, err := GetDefaultPricingData()
+	if err != nil {
+		log.Printf("Error downloading default pricing data: %s", err.Error())
+	}
+	aws.BaseCPUPrice = c.CPU
 	return nil
 }
 
@@ -565,10 +718,11 @@ func (aws *AWS) NodePricing(key string) (*Node, error) {
 		terms := aws.Pricing[key]
 		cost := terms.OnDemand.PriceDimensions[terms.Sku+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
 		return &Node{
-			Cost:    cost,
-			VCPU:    terms.VCpu,
-			RAM:     terms.Memory,
-			Storage: terms.Storage,
+			Cost:         cost,
+			VCPU:         terms.VCpu,
+			RAM:          terms.Memory,
+			Storage:      terms.Storage,
+			BaseCPUPrice: aws.BaseCPUPrice,
 		}, nil
 	} else {
 		return nil, errors.New("Invalid Pricing Key: " + key + "\n")

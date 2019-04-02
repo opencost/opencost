@@ -3,7 +3,9 @@ package costmodel
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -35,23 +37,25 @@ const (
 )
 
 type CostData struct {
-	Name         string                  `json:"name"`
-	PodName      string                  `json:"podName"`
-	NodeName     string                  `json:"nodeName"`
-	NodeData     *costAnalyzerCloud.Node `json:"node"`
-	Namespace    string                  `json:"namespace"`
-	Deployments  []string                `json:"deployments"`
-	Services     []string                `json:"services"`
-	Daemonsets   []string                `json:"daemonsets"`
-	Statefulsets []string                `json:"statefulsets"`
-	Jobs         []string                `json:"jobs"`
-	RAMReq       []*Vector               `json:"ramreq"`
-	RAMUsed      []*Vector               `json:"ramused"`
-	CPUReq       []*Vector               `json:"cpureq"`
-	CPUUsed      []*Vector               `json:"cpuused"`
-	GPUReq       []*Vector               `json:"gpureq"`
-	PVData       []*PersistentVolumeData `json:"pvData"`
-	Labels       map[string]string       `json:"labels"`
+	Name          string                  `json:"name"`
+	PodName       string                  `json:"podName"`
+	NodeName      string                  `json:"nodeName"`
+	NodeData      *costAnalyzerCloud.Node `json:"node"`
+	Namespace     string                  `json:"namespace"`
+	Deployments   []string                `json:"deployments"`
+	Services      []string                `json:"services"`
+	Daemonsets    []string                `json:"daemonsets"`
+	Statefulsets  []string                `json:"statefulsets"`
+	Jobs          []string                `json:"jobs"`
+	RAMReq        []*Vector               `json:"ramreq"`
+	RAMUsed       []*Vector               `json:"ramused"`
+	CPUReq        []*Vector               `json:"cpureq"`
+	CPUUsed       []*Vector               `json:"cpuused"`
+	RAMAllocation []*Vector               `json:"ramallocated"`
+	CPUAllocation []*Vector               `json:"cpuallocated"`
+	GPUReq        []*Vector               `json:"gpureq"`
+	PVData        []*PersistentVolumeData `json:"pvData"`
+	Labels        map[string]string       `json:"labels"`
 }
 
 type Vector struct {
@@ -177,11 +181,30 @@ func ComputeCostData(cli prometheusClient.Client, clientset *kubernetes.Clientse
 				PVData:       pvReq,
 				Labels:       labels,
 			}
-
+			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
+			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
 			containerNameCost[ns+","+podName+","+containerName] = costs
 		}
 	}
 	return containerNameCost, err
+}
+
+func getContainerAllocation(req []*Vector, used []*Vector) []*Vector {
+	if req == nil || len(req) == 0 {
+		return used
+	}
+	if used == nil || len(used) == 0 {
+		return req
+	}
+	var allocation []*Vector
+	for i, reqV := range req {
+		usedV := used[i]
+		allocation = append(allocation, &Vector{
+			Timestamp: usedV.Timestamp,
+			Value:     math.Max(usedV.Value, reqV.Value),
+		})
+	}
+	return allocation
 }
 
 func getNodeCost(clientset *kubernetes.Clientset, cloud costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.Node, error) {
@@ -196,6 +219,45 @@ func getNodeCost(clientset *kubernetes.Clientset, cloud costAnalyzerCloud.Provid
 		cnode, err := cloud.NodePricing(cloud.GetKey(labels))
 		if err != nil {
 			log.Printf("Error getting node. Error: " + err.Error())
+		}
+
+		var cpu float64
+		if cnode.VCPU == "" {
+			cpu = float64(n.Status.Capacity.Cpu().Value())
+			cnode.VCPU = n.Status.Capacity.Cpu().String()
+		} else {
+			cpu, _ = strconv.ParseFloat(cnode.VCPU, 64)
+		}
+		var ram float64
+		log.Printf("CNODE RAM : %s", cnode.RAM)
+		if cnode.RAM == "" {
+			log.Printf("RAMSTRING: %s", n.Status.Capacity.Memory().String())
+			cnode.RAM = n.Status.Capacity.Memory().String()
+			ram = float64(n.Status.Capacity.Memory().Value())
+		} else {
+			ram, _ = strconv.ParseFloat(cnode.RAM, 64)
+		}
+		log.Printf("RAM USAGE: %f", ram)
+		if cnode.RAMCost == "" { // We couldn't find a ramcost, so fix cpu and allocate ram accordingly
+			basePrice, _ := strconv.ParseFloat(cnode.BaseCPUPrice, 64)
+			log.Printf("BASEPRICE: %f", basePrice)
+			totalCPUPrice := basePrice * cpu
+			log.Printf("TOTALCPUPRICE: %f", basePrice)
+			var nodePrice float64
+			if cnode.Cost != "" {
+				log.Printf("Use given nodeprice as whole node price")
+				nodePrice, _ = strconv.ParseFloat(cnode.Cost, 64)
+			} else {
+				log.Printf("Use cpuprice as whole node price")
+				nodePrice, _ = strconv.ParseFloat(cnode.VCPUCost, 64) // all the price was allocated the the CPU
+			}
+			log.Printf("NODEPRICE: %f", basePrice)
+			ramPrice := (nodePrice - totalCPUPrice) / (ram / 1024 / 1024 / 1024)
+			if ramPrice < 0 {
+				ramPrice = 0
+			}
+			cnode.RAMCost = fmt.Sprintf("%f", ramPrice)
+			log.Printf(cnode.RAMCost)
 		}
 		nodes[name] = cnode
 	}
@@ -414,7 +476,8 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset *kubernetes.Cli
 				PVData:       pvReq,
 				Labels:       labels,
 			}
-
+			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
+			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 			containerNameCost[ns+","+podName+","+containerName] = costs
 		}
 	}

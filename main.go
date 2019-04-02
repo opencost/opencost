@@ -111,12 +111,15 @@ func main() {
 		Cloud:            cloudProvider,
 	}
 
-	a.Cloud.DownloadPricingData()
+	err = a.Cloud.DownloadPricingData()
+	if err != nil {
+		log.Printf("Failed to download pricing data: " + err.Error())
+	}
 
 	router := httprouter.New()
 	router.GET("/costDataModel", a.CostDataModel)
 	router.GET("/costDataModelRange", a.CostDataModelRange)
 	router.POST("/refreshPricing", a.RefreshPricingData)
 
-	log.Fatal(http.ListenAndServe(":9001", router))
+	log.Fatal(http.ListenAndServe(":9003", router))
 }

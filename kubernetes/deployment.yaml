@@ -29,5 +29,5 @@ spec:
             - name: PROMETHEUS_SERVER_ENDPOINT
               value: <add a prometheus server endpoint> # kube-state-metrics and prometheus must be installed.
             - name: CLOUD_PROVIDER_API_KEY
-              value: "" # The GCP Pricing API requires a key.
+              value: "AIzaSyDXQPG_MHUEy9neR7stolq6l0ujXmjJlvk" # The GCP Pricing API requires a key.
           imagePullPolicy: Always
