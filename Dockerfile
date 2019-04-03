@@ -12,6 +12,7 @@ ENV PATH=$GOPATH/bin:$PATH
 RUN mkdir -p $GOPATH/src/app 
 RUN mkdir -p /models
 ADD ./cloud/default.json /models/default.json
+ADD ./cloud/azure.json /models/azure.json
 ADD . $GOPATH/src/app
 ADD ./cloud/ /go/src/app/vendor/github.com/kubecost/cost-model/cloud/
 ADD ./costmodel/ /go/src/app/vendor/github.com/kubecost/cost-model/costmodel/

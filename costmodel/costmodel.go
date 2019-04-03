@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 
@@ -197,13 +198,41 @@ func getContainerAllocation(req []*Vector, used []*Vector) []*Vector {
 		return req
 	}
 	var allocation []*Vector
-	for i, reqV := range req {
-		usedV := used[i]
-		allocation = append(allocation, &Vector{
-			Timestamp: usedV.Timestamp,
-			Value:     math.Max(usedV.Value, reqV.Value),
-		})
+
+	var timestamps []float64
+	reqMap := make(map[float64]float64)
+	for _, reqV := range req {
+		if reqV.Timestamp == 0 {
+			continue
+		}
+		reqV.Timestamp = math.Round(reqV.Timestamp/10) * 10
+		reqMap[reqV.Timestamp] = reqV.Value
+		timestamps = append(timestamps, reqV.Timestamp)
 	}
+	usedMap := make(map[float64]float64)
+	for _, usedV := range used {
+		usedV.Timestamp = math.Round(usedV.Timestamp/10) * 10
+		usedMap[usedV.Timestamp] = usedV.Value
+		timestamps = append(timestamps, usedV.Timestamp)
+	}
+
+	sort.Float64s(timestamps)
+	for _, t := range timestamps {
+		rv, okR := reqMap[t]
+		uv, okU := usedMap[t]
+		allocationVector := &Vector{
+			Timestamp: t,
+		}
+		if okR && okU {
+			allocationVector.Value = math.Max(rv, uv)
+		} else if okR {
+			allocationVector.Value = rv
+		} else if okU {
+			allocationVector.Value = uv
+		}
+		allocation = append(allocation, allocationVector)
+	}
+
 	return allocation
 }
 
@@ -229,20 +258,13 @@ func getNodeCost(clientset *kubernetes.Clientset, cloud costAnalyzerCloud.Provid
 			cpu, _ = strconv.ParseFloat(cnode.VCPU, 64)
 		}
 		var ram float64
-		log.Printf("CNODE RAM : %s", cnode.RAM)
 		if cnode.RAM == "" {
-			log.Printf("RAMSTRING: %s", n.Status.Capacity.Memory().String())
 			cnode.RAM = n.Status.Capacity.Memory().String()
-			ram = float64(n.Status.Capacity.Memory().Value())
-		} else {
-			ram, _ = strconv.ParseFloat(cnode.RAM, 64)
 		}
-		log.Printf("RAM USAGE: %f", ram)
+		ram = float64(n.Status.Capacity.Memory().Value())
 		if cnode.RAMCost == "" { // We couldn't find a ramcost, so fix cpu and allocate ram accordingly
 			basePrice, _ := strconv.ParseFloat(cnode.BaseCPUPrice, 64)
-			log.Printf("BASEPRICE: %f", basePrice)
 			totalCPUPrice := basePrice * cpu
-			log.Printf("TOTALCPUPRICE: %f", basePrice)
 			var nodePrice float64
 			if cnode.Cost != "" {
 				log.Printf("Use given nodeprice as whole node price")
@@ -251,11 +273,13 @@ func getNodeCost(clientset *kubernetes.Clientset, cloud costAnalyzerCloud.Provid
 				log.Printf("Use cpuprice as whole node price")
 				nodePrice, _ = strconv.ParseFloat(cnode.VCPUCost, 64) // all the price was allocated the the CPU
 			}
-			log.Printf("NODEPRICE: %f", basePrice)
-			ramPrice := (nodePrice - totalCPUPrice) / (ram / 1024 / 1024 / 1024)
-			if ramPrice < 0 {
-				ramPrice = 0
+			if totalCPUPrice >= nodePrice {
+				totalCPUPrice = 0.9 * nodePrice // just allocate RAM costs to 10% of the node price here to avoid 0 or negative in the numerator
 			}
+			ramPrice := (nodePrice - totalCPUPrice) / (ram / 1024 / 1024 / 1024)
+			cpuPrice := totalCPUPrice / cpu
+
+			cnode.VCPUCost = fmt.Sprintf("%f", cpuPrice)
 			cnode.RAMCost = fmt.Sprintf("%f", ramPrice)
 			log.Printf(cnode.RAMCost)
 		}
