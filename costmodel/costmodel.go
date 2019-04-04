@@ -13,7 +13,7 @@ import (
 
 	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
 	prometheusClient "github.com/prometheus/client_golang/api"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
@@ -289,7 +289,8 @@ func getNodeCost(clientset *kubernetes.Clientset, cloud costAnalyzerCloud.Provid
 }
 
 func getPodServices(clientset *kubernetes.Clientset, podList *v1.PodList) (map[string]map[string][]string, error) {
-	servicesList, err := clientset.Core().Services("").List(metav1.ListOptions{})
+	//servicesList, err := clientset.Core().Services("").List(metav1.ListOptions{})
+	servicesList, err := clientset.CoreV1().Services("").List(metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}

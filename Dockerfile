@@ -1,22 +1,19 @@
-FROM golang:latest
-EXPOSE 9001
+FROM golang:latest as build-env
 
-EXPOSE 8080
+RUN mkdir /app
+WORKDIR /app
+COPY go.mod .
+COPY go.sum .
 
-RUN  mkdir -p /go/src \
-  && mkdir -p /go/bin \
-  && mkdir -p /go/pkg
-ENV GOPATH=/go
-ENV PATH=$GOPATH/bin:$PATH   
+# Get dependancies - will also be cached if we won't change mod/sum
+RUN go mod download
+# COPY the source code as the last step
+COPY . .
 
-RUN mkdir -p $GOPATH/src/app 
-RUN mkdir -p /models
+# Build the binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o /go/bin/app
+FROM scratch
+COPY --from=build-env /go/bin/app /go/bin/app
 ADD ./cloud/default.json /models/default.json
 ADD ./cloud/azure.json /models/azure.json
-ADD . $GOPATH/src/app
-ADD ./cloud/ /go/src/app/vendor/github.com/kubecost/cost-model/cloud/
-ADD ./costmodel/ /go/src/app/vendor/github.com/kubecost/cost-model/costmodel/
-
-WORKDIR $GOPATH/src/app 
-RUN go build -o myapp . 
-CMD ["/go/src/app/myapp"]
+ENTRYPOINT ["/go/bin/app"]
