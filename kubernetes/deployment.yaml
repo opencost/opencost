@@ -27,7 +27,7 @@ spec:
               memory: "55M"
           env:
             - name: PROMETHEUS_SERVER_ENDPOINT
-              value: <add a prometheus server endpoint> # kube-state-metrics and prometheus must be installed.
+              value: # kube-state-metrics and prometheus must be installed. The endpoint should have the form http://<pod-name>.<namespace>.svc.cluster.local
             - name: CLOUD_PROVIDER_API_KEY
               value: "AIzaSyD29bGxmHAVEOBYtgd8sYM2gM2ekfxQX4U" # The GCP Pricing API requires a key.
           imagePullPolicy: Always
