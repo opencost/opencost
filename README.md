@@ -37,7 +37,10 @@ If you want to just run the cost model directly on your cluster, complete the fo
 3. `kubectl apply -f kubernetes/ --namespace cost-model`
 4. `kubectl port-forward --namespace cost-model service/cost-model 9001`
 
+To test that the server is running, you can hit http://localhost:9001/costDataModel?timeWindow=1d
+
 Note: the following dependencies mentioned above are required for this installation path.
+
 
 ## Licensing
 
