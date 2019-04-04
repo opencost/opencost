@@ -32,9 +32,10 @@ We welcome any contributions to the project!
 
 If you want to just run the cost model directly on your cluster, complete the following steps:
 
-1. Set [this environment variable](https://github.com/kubecost/cost-model/blob/master/kubernetes/deployment.yaml#L30) to the address of your prometheus server 
-2. `kubectl apply -f kubernetes/ --namespace cost-model`
-3. `kubectl port-forward --namespace cost-model service/cost-model 9090`
+1. Set [this environment variable](https://github.com/kubecost/cost-model/blob/master/kubernetes/deployment.yaml#L30) to the address of your prometheus server
+2. `kubectl create namespace cost-model`
+3. `kubectl apply -f kubernetes/ --namespace cost-model`
+4. `kubectl port-forward --namespace cost-model service/cost-model 9001`
 
 Note: the following dependencies mentioned above are required for this installation path.
 
