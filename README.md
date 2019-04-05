@@ -22,7 +22,7 @@ Here is a summary of features enabled by this cost model:
 ## Installation
 
 You can run Kubecost models on any Kubernetes 1.8+ cluster in a matter of minutes, if not seconds. 
-The recommended way to install the Kubecost cost model (along with dashboards) is with the [Helm chart install](https://app.kubemonitor.com/install) on our website. Note that this Helm installation also contains closed source code today, but is provided free for evaluation purposes. 
+The recommended way to install the Kubecost cost model (along with dashboards) is with the [Helm chart install](https://app.kubemonitor.com/install) on our website. Note that this Helm installation also contains closed source dashboards today, but they are provided free for evaluation purposes. 
 
 Compared to building from source, this is faster and includes all necessary dependencies. The Kubecost cost model is also available as a container (kubecost/cost-model) and you can deploy run the Golang code yourself as described in the section below.
 
@@ -30,7 +30,7 @@ Compared to building from source, this is faster and includes all necessary depe
 
 We welcome any contributions to the project! 
 
-If you want to just run the cost model directly on your cluster, complete the following steps:
+If you want to just run the cost model (w/o dashboards) directly on your cluster, complete the following steps:
 
 1. Set [this environment variable](https://github.com/kubecost/cost-model/blob/master/kubernetes/deployment.yaml#L30) to the address of your prometheus server
 2. `kubectl create namespace cost-model`
@@ -58,9 +58,9 @@ Kubernetes.
 
 Kubecost models start by pegging to a CPU price for this machine (currently depends on spot/preemptible vs ondemand). This CPU price value is also customizable. The price of RAM is then determined by the total node cost less the total price of all CPUs (i.e. # of CPUs attached to the node multiplied by the per CPU price). The value of both are then normalized to ensure RAM + CPU costs are never greater than the total price of the node.
 
-    CPU_PRICE = CONFIGURABLE_CPU_PRICE
+    CPUHourlyCost = CONFIGURABLE_CPU_PRICE (if not directly supplied by Cloud provider)
 
-    MEM = TOTAL_NODE_COST - CPU_PRICE * # of CPUS
+    RAMGBHourlyCost = TOTAL_NODE_COST - CPUHourlyCost * # of CPUS
 
 ***How do we allocate RAM/CPU to an individual pod or container?***
 
