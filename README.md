@@ -22,7 +22,7 @@ Here is a summary of features enabled by this cost model:
 ## Installation
 
 You can run Kubecost models on any Kubernetes 1.8+ cluster in a matter of minutes, if not seconds. 
-The recommended way to install the Kubecost cost model (along with dashboards) is with the [Helm chart install](https://app.kubemonitor.com/install) on our website. Note that this Helm installation also contains closed source dashboards today, but they are provided free for evaluation purposes. 
+The recommended way to install the Kubecost cost model (along with dashboards) is with the [Helm chart install](https://kubecost.com/install) on our website. Note that this Helm installation also contains closed source dashboards today, but they are provided free for evaluation purposes. 
 
 Compared to building from source, this is faster and includes all necessary dependencies. The Kubecost cost model is also available as a container (kubecost/cost-model) and you can deploy run the Golang code yourself as described in the section below.
 
