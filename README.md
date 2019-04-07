@@ -33,9 +33,9 @@ If you want to just run the cost model (w/o dashboards) directly on your cluster
 1. Set [this environment variable](https://github.com/kubecost/cost-model/blob/master/kubernetes/deployment.yaml#L30) to the address of your prometheus server
 2. `kubectl create namespace cost-model`
 3. `kubectl apply -f kubernetes/ --namespace cost-model`
-4. `kubectl port-forward --namespace cost-model service/cost-model 9001`
+4. `kubectl port-forward --namespace cost-model service/cost-model 9003`
 
-To test that the server is running, you can hit http://localhost:9001/costDataModel?timeWindow=1d
+To test that the server is running, you can hit [http://localhost:9003/costDataModel?timeWindow=1d](http://localhost:9003/costDataModel?timeWindow=1d)
 
 Note: the following dependencies mentioned above are required for this installation path.
 
@@ -48,7 +48,7 @@ We welcome any contributions to the project! To test, you'll need to build the c
 3. Set [this environment variable](https://github.com/kubecost/cost-model/blob/master/kubernetes/deployment.yaml#L30) to the address of your prometheus server
 4. `kubectl create namespace cost-model`
 5. `kubectl apply -f kubernetes/ --namespace cost-model`
-6. `kubectl port-forward --namespace cost-model service/cost-model 9001`
+6. `kubectl port-forward --namespace cost-model service/cost-model 9003`
 
 ## Licensing
 
