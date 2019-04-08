@@ -8,5 +8,5 @@ spec:
   type: ClusterIP
   ports:
     - name: cost-model
-      port: 9001
-      targetPort: 9001
+      port: 9003
+      targetPort: 9003
