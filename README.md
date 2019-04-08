@@ -10,6 +10,7 @@ Here is a summary of features enabled by this cost model:
 - Supports on-prem k8s clusters with custom pricing sheets
 - Allocation for in-cluster resources like CPU, GPU, memory, and persistent volumes.
 - Allocation for out-of-cluster resources like RDS instances and S3 buckets with key (AWS only today)
+- Easily export pricing data to Prometheus with /metrics endpoint
 - Free and open source distribution (Apache2 license)
 
 ## Requirements
