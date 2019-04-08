@@ -5,20 +5,28 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
 	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
 	costModel "github.com/kubecost/cost-model/costmodel"
 	prometheusClient "github.com/prometheus/client_golang/api"
+	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
 
 type Accesses struct {
-	PrometheusClient prometheusClient.Client
-	KubeClientSet    *kubernetes.Clientset
-	Cloud            costAnalyzerCloud.Provider
+	PrometheusClient       prometheusClient.Client
+	KubeClientSet          *kubernetes.Clientset
+	Cloud                  costAnalyzerCloud.Provider
+	CPUPriceRecorder       *prometheus.GaugeVec
+	RAMPriceRecorder       *prometheus.GaugeVec
+	NodeTotalPriceRecorder *prometheus.GaugeVec
 }
 
 type DataEnvelope struct {
@@ -80,7 +88,35 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	w.Write(wrapData(data, err))
 }
 
+func (a *Accesses) recordPrices() {
+	go func() {
+		for {
+			log.Printf("Recording prices...")
+			data, err := costModel.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "1h")
+			if err != nil {
+				log.Printf("Error in price recording: " + err.Error())
+			}
+			for _, costs := range data {
+				nodeName := costs.NodeName
+				node := costs.NodeData
+				cpuCost, _ := strconv.ParseFloat(node.VCPUCost, 64)
+				cpu, _ := strconv.ParseFloat(node.VCPU, 64)
+				ramCost, _ := strconv.ParseFloat(node.RAMCost, 64)
+				ram, _ := strconv.ParseFloat(node.RAMBytes, 64)
+
+				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024)
+
+				a.CPUPriceRecorder.WithLabelValues(nodeName).Set(cpuCost)
+				a.RAMPriceRecorder.WithLabelValues(nodeName).Set(ramCost)
+				a.NodeTotalPriceRecorder.WithLabelValues(nodeName).Set(totalCost)
+			}
+			time.Sleep(time.Minute)
+		}
+	}()
+}
+
 func main() {
+
 	address := os.Getenv("PROMETHEUS_SERVER_ENDPOINT")
 	if address == "" {
 		log.Fatal("No address for prometheus set. Aborting.")
@@ -106,10 +142,32 @@ func main() {
 		panic(err.Error())
 	}
 
+	cpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "node_cpu_hourly_cost",
+		Help: "node_cpu_hourly_cost cost for each cpu on this node",
+	}, []string{"instance"})
+
+	ramGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "node_ram_hourly_cost",
+		Help: "node_ram_hourly_cost cost for each gb of ram on this node",
+	}, []string{"instance"})
+
+	totalGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "node_total_hourly_cost",
+		Help: "node_total_hourly_cost Total node cost per hour",
+	}, []string{"instance"})
+
+	prometheus.MustRegister(cpuGv)
+	prometheus.MustRegister(ramGv)
+	prometheus.MustRegister(totalGv)
+
 	a := Accesses{
-		PrometheusClient: promCli,
-		KubeClientSet:    kubeClientset,
-		Cloud:            cloudProvider,
+		PrometheusClient:       promCli,
+		KubeClientSet:          kubeClientset,
+		Cloud:                  cloudProvider,
+		CPUPriceRecorder:       cpuGv,
+		RAMPriceRecorder:       ramGv,
+		NodeTotalPriceRecorder: totalGv,
 	}
 
 	err = a.Cloud.DownloadPricingData()
@@ -117,10 +175,16 @@ func main() {
 		log.Printf("Failed to download pricing data: " + err.Error())
 	}
 
+	a.recordPrices()
+
 	router := httprouter.New()
 	router.GET("/costDataModel", a.CostDataModel)
 	router.GET("/costDataModelRange", a.CostDataModelRange)
 	router.POST("/refreshPricing", a.RefreshPricingData)
 
-	log.Fatal(http.ListenAndServe(":9003", router))
+	rootMux := http.NewServeMux()
+	rootMux.Handle("/", router)
+	rootMux.Handle("/metrics", promhttp.Handler())
+
+	log.Fatal(http.ListenAndServe(":9003", rootMux))
 }
