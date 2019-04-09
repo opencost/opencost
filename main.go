@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -12,6 +13,8 @@ import (
 	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
 	costModel "github.com/kubecost/cost-model/costmodel"
 	prometheusClient "github.com/prometheus/client_golang/api"
+	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
+
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -121,10 +124,18 @@ func main() {
 	if address == "" {
 		log.Fatal("No address for prometheus set. Aborting.")
 	}
+
 	pc := prometheusClient.Config{
 		Address: address,
 	}
 	promCli, _ := prometheusClient.NewClient(pc)
+
+	api := prometheusAPI.NewAPI(promCli)
+	_, err := api.Config(context.Background())
+	if err != nil {
+		log.Fatal("Failed to use Prometheus at " + address + " Error: " + err.Error())
+	}
+	log.Printf("Checked prometheus endpoint: " + address)
 
 	// Kubernetes API setup
 	kc, err := rest.InClusterConfig()
