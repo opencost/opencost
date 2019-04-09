@@ -27,7 +27,7 @@ spec:
               memory: "55M"
           env:
             - name: PROMETHEUS_SERVER_ENDPOINT
-              value:  #The endpoint should have the form http://<service-name>.<namespace-name>.svc.cluster.local 
+              value: "{{prometheusEndpoint}}"  #The endpoint should have the form http://<service-name>.<namespace-name>.svc.cluster.local 
             - name: CLOUD_PROVIDER_API_KEY
               value: "AIzaSyD29bGxmHAVEOBYtgd8sYM2gM2ekfxQX4U" # The GCP Pricing API requires a key.
           imagePullPolicy: Always
