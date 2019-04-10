@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -89,6 +90,9 @@ type AWSProductTerms struct {
 	Storage  string        `json:"storage"`
 	VCpu     string        `json:"vcpu"`
 }
+
+// ClusterIdEnvVar is the environment variable in which one can manually set the ClusterId
+const ClusterIdEnvVar = "AWS_CLUSTER_ID"
 
 // OnDemandRateCode is appended to an node sku
 const OnDemandRateCode = ".JRTCKXETXF"
@@ -316,14 +320,75 @@ func (aws *AWS) NodePricing(key string) (*Node, error) {
 }
 
 // ClusterName returns an object that represents the cluster. TODO: actually return the name of the cluster. Blocked on cluster federation.
-func (*AWS) ClusterName() ([]byte, error) {
+func (awsProvider *AWS) ClusterName() ([]byte, error) {
+	makeStructure := func(clusterName string) ([]byte, error) {
+		log.Printf("Returning \"%s\" as ClusterName", clusterName)
+		m := make(map[string]string)
+		m["name"] = clusterName
+		m["provider"] = "AWS"
+		return json.Marshal(m)
+	}
 
-	attribute := "AWS Cluster #1"
-
-	m := make(map[string]string)
-	m["name"] = attribute
-	m["provider"] = "AWS"
-	return json.Marshal(m)
+	maybeClusterId := os.Getenv(ClusterIdEnvVar)
+	if len(maybeClusterId) != 0 {
+		return makeStructure(maybeClusterId)
+	}
+	provIdRx := regexp.MustCompile("aws:///([^/]+)/([^/]+)")
+	clusterIdRx := regexp.MustCompile("^kubernetes\\.io/cluster/([^/]+)")
+	nodeList, err := awsProvider.Clientset.CoreV1().Nodes().List(metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for _, n := range nodeList.Items {
+		region := ""
+		instanceId := ""
+		providerId := n.Spec.ProviderID
+		for matchNum, group := range provIdRx.FindStringSubmatch(providerId) {
+			if matchNum == 1 {
+				region = group
+			} else if matchNum == 2 {
+				instanceId = group
+			}
+		}
+		if len(instanceId) == 0 {
+			log.Printf("Unable to decode Node.ProviderID \"%s\", skipping it", providerId)
+			continue
+		}
+		c := &aws.Config{
+			Region: aws.String(region),
+		}
+		s := session.Must(session.NewSession(c))
+		ec2Svc := ec2.New(s)
+		di, diErr := ec2Svc.DescribeInstances(&ec2.DescribeInstancesInput{
+			InstanceIds: []*string{
+				aws.String(instanceId),
+			},
+		})
+		if diErr != nil {
+			// maybe log this?
+			continue
+		}
+		if len(di.Reservations) != 1 {
+			log.Printf("Expected 1 Reservation back from DescribeInstances(%s), received %d", instanceId, len(di.Reservations))
+			continue
+		}
+		res := di.Reservations[0]
+		if len(res.Instances) != 1 {
+			log.Printf("Expected 1 Instance back from DescribeInstances(%s), received %d", instanceId, len(res.Instances))
+			continue
+		}
+		inst := res.Instances[0]
+		for _, tag := range inst.Tags {
+			tagKey := *tag.Key
+			for matchNum, group := range clusterIdRx.FindStringSubmatch(tagKey) {
+				if matchNum != 1 {
+					continue
+				}
+				return makeStructure(group)
+			}
+		}
+	}
+	return nil, fmt.Errorf("Unable to sniff out cluster ID, perhaps set $%s to force one", ClusterIdEnvVar)
 }
 
 // AddServiceKey adds an AWS service key, useful for pulling down out-of-cluster costs. Optional-- the container this runs in can be directly authorized.
