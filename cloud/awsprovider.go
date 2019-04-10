@@ -289,7 +289,11 @@ func (aws *AWS) NodePricing(key string) (*Node, error) {
 		if err != nil {
 			return nil, err
 		}
-		terms := aws.Pricing[key]
+		terms, termsOk := aws.Pricing[key]
+		if !termsOk {
+			log.Printf("Unable to find any Pricing data for \"%s\"", key)
+			return nil, errors.New("Missing aws.Pricing")
+		}
 		if aws.isPreemptible(key) {
 			return &Node{
 				VCPU:         terms.VCpu,
