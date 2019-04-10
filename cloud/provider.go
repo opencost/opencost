@@ -2,7 +2,7 @@ package cloud
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io/ioutil"
 	"log"
 	"net/url"
@@ -147,8 +147,9 @@ func (*CustomProvider) QuerySQL(query string) ([]byte, error) {
 // NewProvider looks at the nodespec or provider metadata server to decide which provider to instantiate.
 func NewProvider(clientset *kubernetes.Clientset, apiKey string) (Provider, error) {
 	if metadata.OnGCE() {
+		log.Print("metadata reports we are in GCE")
 		if apiKey == "" {
-			return nil, fmt.Errorf("Supply a GCP Key to start getting data")
+			return nil, errors.New("Supply a GCP Key to start getting data")
 		}
 		return &GCP{
 			Clientset: clientset,
@@ -161,17 +162,19 @@ func NewProvider(clientset *kubernetes.Clientset, apiKey string) (Provider, erro
 	}
 	provider := strings.ToLower(nodes.Items[0].Spec.ProviderID)
 	if strings.HasPrefix(provider, "aws") {
+		log.Print("Found ProviderID starting with \"aws\", using AWS Provider")
 		return &AWS{
 			Clientset: clientset,
 		}, nil
 	} else if strings.HasPrefix(provider, "azure") {
+		log.Print("Found ProviderID starting with \"azure\", using Azure Provider")
 		return &Azure{
 			CustomProvider: &CustomProvider{
 				Clientset: clientset,
 			},
 		}, nil
 	} else {
-		log.Printf("Unsupported provider, falling back to default")
+		log.Print("Unsupported provider, falling back to default")
 		return &CustomProvider{
 			Clientset: clientset,
 		}, nil

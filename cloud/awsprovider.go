@@ -2,7 +2,6 @@ package cloud
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -169,8 +168,11 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.ValidPricingKeys = make(map[string]bool)
 	skusToKeys := make(map[string]string)
 
-	resp, err := http.Get("https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/index.json")
+	pricingURL := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/index.json"
+	log.Printf("starting download of \"%s\", which is quite large ...", pricingURL)
+	resp, err := http.Get(pricingURL)
 	if err != nil {
+		log.Printf("Bogus fetch of \"%s\": %v", pricingURL, err)
 		return err
 	}
 
@@ -178,7 +180,7 @@ func (aws *AWS) DownloadPricingData() error {
 	for {
 		t, err := dec.Token()
 		if err == io.EOF {
-			fmt.Printf("done \n")
+			log.Printf("done loading \"%s\"\n", pricingURL)
 			break
 		}
 		if t == "products" {
@@ -189,7 +191,7 @@ func (aws *AWS) DownloadPricingData() error {
 				err := dec.Decode(&product)
 
 				if err != nil {
-					fmt.Printf("Error: " + err.Error())
+					log.Printf("Error parsing response from \"%s\": %v", pricingURL, err.Error())
 					break
 				}
 				if product.Attributes.PreInstalledSw == "NA" &&
@@ -222,7 +224,7 @@ func (aws *AWS) DownloadPricingData() error {
 					offerTerm := &AWSOfferTerm{}
 					err := dec.Decode(&offerTerm)
 					if err != nil {
-						fmt.Printf("Error: " + err.Error())
+						log.Printf("Error decoding AWS Offer Term: " + err.Error())
 					}
 					if sku.(string)+OnDemandRateCode == skuOnDemand {
 						key, ok := skusToKeys[sku.(string)]
@@ -315,7 +317,7 @@ func (aws *AWS) NodePricing(key string) (*Node, error) {
 			UsageType:    usageType,
 		}, nil
 	} else {
-		return nil, errors.New("Invalid Pricing Key: " + key + "\n")
+		return nil, fmt.Errorf("Invalid Pricing Key \"%s\"", key)
 	}
 }
 
@@ -337,11 +339,11 @@ func (*AWS) AddServiceKey(formValues url.Values) error {
 	m := make(map[string]string)
 	m["access_key_ID"] = keyID
 	m["secret_access_key"] = key
-	json, err := json.Marshal(m)
+	result, err := json.Marshal(m)
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile("/var/configs/key.json", json, 0644)
+	return ioutil.WriteFile("/var/configs/key.json", result, 0644)
 }
 
 // GetDisks returns the AWS disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
@@ -354,7 +356,7 @@ func (*AWS) GetDisks() ([]byte, error) {
 		os.Setenv("AWS_ACCESS_KEY_ID", result["access_key_ID"])
 		os.Setenv("AWS_SECRET_ACCESS_KEY", result["secret_access_key"])
 	} else if os.IsNotExist(err) {
-		log.Printf("Using Default Credentials")
+		log.Print("Using Default Credentials")
 	} else {
 		return nil, err
 	}
@@ -402,7 +404,7 @@ func (*AWS) QuerySQL(query string) ([]byte, error) {
 		os.Setenv("AWS_ACCESS_KEY_ID", result["access_key_ID"])
 		os.Setenv("AWS_SECRET_ACCESS_KEY", result["secret_access_key"])
 	} else if os.IsNotExist(err) {
-		log.Printf("Using Default Credentials")
+		log.Print("Using Default Credentials")
 	} else {
 		return nil, err
 	}
@@ -442,8 +444,8 @@ func (*AWS) QuerySQL(query string) ([]byte, error) {
 		return nil, err
 	}
 
-	fmt.Println("StartQueryExecution result:")
-	fmt.Println(res.GoString())
+	log.Println("StartQueryExecution result:")
+	log.Println(res.GoString())
 
 	var qri athena.GetQueryExecutionInput
 	qri.SetQueryExecutionId(*res.QueryExecutionId)
