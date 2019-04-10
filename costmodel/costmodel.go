@@ -84,7 +84,8 @@ func ComputeCostData(cli prometheusClient.Client, clientset *kubernetes.Clientse
 
 	nodes, err := getNodeCost(clientset, cloud)
 	if err != nil {
-		log.Printf("Warning, no cost model available: " + err.Error())
+		log.Printf("Warning, no Node cost model available: " + err.Error())
+		return nil, err
 	}
 
 	podlist, err := clientset.CoreV1().Pods("").List(metav1.ListOptions{})
@@ -248,6 +249,7 @@ func getNodeCost(clientset *kubernetes.Clientset, cloud costAnalyzerCloud.Provid
 		cnode, err := cloud.NodePricing(cloud.GetKey(labels))
 		if err != nil {
 			log.Printf("Error getting node. Error: " + err.Error())
+			continue
 		}
 
 		var cpu float64
