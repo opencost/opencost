@@ -282,7 +282,7 @@ func getNodeCost(clientset *kubernetes.Clientset, cloud costAnalyzerCloud.Provid
 			cnode.VCPUCost = fmt.Sprintf("%f", cpuPrice)
 			cnode.RAMCost = fmt.Sprintf("%f", ramPrice)
 			cnode.RAMBytes = fmt.Sprintf("%f", ram)
-			log.Printf(cnode.RAMCost)
+			log.Printf("Node \"%s\" RAM Cost := %v", name, cnode.RAMCost)
 		}
 		nodes[name] = cnode
 	}
