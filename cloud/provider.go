@@ -2,7 +2,7 @@ package cloud
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io/ioutil"
 	"log"
 	"net/url"
@@ -149,7 +149,7 @@ func NewProvider(clientset *kubernetes.Clientset, apiKey string) (Provider, erro
 	if metadata.OnGCE() {
 		log.Print("metadata reports we are in GCE")
 		if apiKey == "" {
-			return nil, fmt.Errorf("Supply a GCP Key to start getting data")
+			return nil, errors.New("Supply a GCP Key to start getting data")
 		}
 		return &GCP{
 			Clientset: clientset,
@@ -174,7 +174,7 @@ func NewProvider(clientset *kubernetes.Clientset, apiKey string) (Provider, erro
 			},
 		}, nil
 	} else {
-		log.Printf("Unsupported provider, falling back to default")
+		log.Print("Unsupported provider, falling back to default")
 		return &CustomProvider{
 			Clientset: clientset,
 		}, nil

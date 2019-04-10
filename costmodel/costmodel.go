@@ -267,10 +267,10 @@ func getNodeCost(clientset *kubernetes.Clientset, cloud costAnalyzerCloud.Provid
 			totalCPUPrice := basePrice * cpu
 			var nodePrice float64
 			if cnode.Cost != "" {
-				log.Printf("Use given nodeprice as whole node price")
+				log.Print("Use given nodeprice as whole node price")
 				nodePrice, _ = strconv.ParseFloat(cnode.Cost, 64)
 			} else {
-				log.Printf("Use cpuprice as whole node price")
+				log.Print("Use cpuprice as whole node price")
 				nodePrice, _ = strconv.ParseFloat(cnode.VCPUCost, 64) // all the price was allocated the the CPU
 			}
 			if totalCPUPrice >= nodePrice {
