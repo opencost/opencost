@@ -100,7 +100,7 @@ func (a *Accesses) Healthz(w http.ResponseWriter, r *http.Request, ps httprouter
 func (a *Accesses) recordPrices() {
 	go func() {
 		for {
-			log.Printf("Recording prices...")
+			log.Print("Recording prices...")
 			data, err := costModel.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "1h")
 			if err != nil {
 				log.Printf("Error in price recording: " + err.Error())
