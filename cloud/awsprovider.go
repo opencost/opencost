@@ -169,8 +169,11 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.ValidPricingKeys = make(map[string]bool)
 	skusToKeys := make(map[string]string)
 
-	resp, err := http.Get("https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/index.json")
+	pricingURL := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/index.json"
+	log.Printf("starting download of \"%s\", which is quite large ...", pricingURL)
+	resp, err := http.Get(pricingURL)
 	if err != nil {
+		log.Printf("Bogus fetch of \"%s\": %v", pricingURL, err)
 		return err
 	}
 
