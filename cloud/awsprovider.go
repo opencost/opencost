@@ -293,8 +293,7 @@ func (aws *AWS) NodePricing(key string) (*Node, error) {
 		}
 		terms, termsOk := aws.Pricing[key]
 		if !termsOk {
-			log.Printf("Unable to find any Pricing data for \"%s\"", key)
-			return nil, errors.New("Missing aws.Pricing")
+			return nil, fmt.Errorf("Unable to find any Pricing data for \"%s\"", key)
 		}
 		if aws.isPreemptible(key) {
 			return &Node{
