@@ -321,6 +321,7 @@ func (aws *AWS) NodePricing(key string) (*Node, error) {
 
 // ClusterName returns an object that represents the cluster. TODO: actually return the name of the cluster. Blocked on cluster federation.
 func (awsProvider *AWS) ClusterName() ([]byte, error) {
+	defaultClusterName := "AWS Cluster #1"
 	makeStructure := func(clusterName string) ([]byte, error) {
 		log.Printf("Returning \"%s\" as ClusterName", clusterName)
 		m := make(map[string]string)
@@ -388,7 +389,8 @@ func (awsProvider *AWS) ClusterName() ([]byte, error) {
 			}
 		}
 	}
-	return nil, fmt.Errorf("Unable to sniff out cluster ID, perhaps set $%s to force one", ClusterIdEnvVar)
+	log.Printf("Unable to sniff out cluster ID, perhaps set $%s to force one", ClusterIdEnvVar)
+	return makeStructure(defaultClusterName)
 }
 
 // AddServiceKey adds an AWS service key, useful for pulling down out-of-cluster costs. Optional-- the container this runs in can be directly authorized.
