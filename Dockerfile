@@ -17,4 +17,5 @@ RUN apk add --update --no-cache ca-certificates git
 COPY --from=build-env /go/bin/app /go/bin/app
 ADD ./cloud/default.json /models/default.json
 ADD ./cloud/azure.json /models/azure.json
+ADD ./cloud/aws.json /models/aws.json
 ENTRYPOINT ["/go/bin/app"]

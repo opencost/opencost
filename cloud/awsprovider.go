@@ -31,6 +31,8 @@ type AWS struct {
 	BaseCPUPrice     string
 	BaseSpotCPUPrice string
 	BaseSpotRAMPrice string
+	SpotLabelName    string
+	SpotLabelValue   string
 }
 
 // AWSPricing maps a k8s node to an AWS Pricing "product"
@@ -143,6 +145,10 @@ func (aws *AWS) GetKey(labels map[string]string) string {
 		usageType := "preemptible"
 		return region + "," + instanceType + "," + operatingSystem + "," + usageType
 	}
+	if l, ok := labels[aws.SpotLabelName]; ok && l == aws.SpotLabelValue {
+		usageType := "preemptible"
+		return region + "," + instanceType + "," + operatingSystem + "," + usageType
+	}
 	return region + "," + instanceType + "," + operatingSystem
 }
 
@@ -203,12 +209,14 @@ func (aws *AWS) DownloadPricingData() error {
 					key := aws.KubeAttrConversion(product.Attributes.Location, product.Attributes.InstanceType, product.Attributes.OperatingSystem)
 					spotKey := key + ",preemptible"
 					if inputkeys[key] || inputkeys[spotKey] { // Just grab the sku even if spot, and change the price later.
-						aws.Pricing[key] = &AWSProductTerms{
+						productTerms := &AWSProductTerms{
 							Sku:     product.Sku,
 							Memory:  product.Attributes.Memory,
 							Storage: product.Attributes.Storage,
 							VCpu:    product.Attributes.VCpu,
 						}
+						aws.Pricing[key] = productTerms
+						aws.Pricing[spotKey] = productTerms
 						skusToKeys[product.Sku] = key
 					}
 					aws.ValidPricingKeys[key] = true
@@ -232,8 +240,10 @@ func (aws *AWS) DownloadPricingData() error {
 					}
 					if sku.(string)+OnDemandRateCode == skuOnDemand {
 						key, ok := skusToKeys[sku.(string)]
+						spotKey := key + ",preemptible"
 						if ok {
 							aws.Pricing[key].OnDemand = offerTerm
+							aws.Pricing[spotKey].OnDemand = offerTerm
 						}
 					}
 					dec.Token()
@@ -246,13 +256,15 @@ func (aws *AWS) DownloadPricingData() error {
 	if err != nil {
 		return err
 	}
-	c, err := GetDefaultPricingData("default.json")
+	c, err := GetDefaultPricingData("aws.json")
 	if err != nil {
 		log.Printf("Error downloading default pricing data: %s", err.Error())
 	}
 	aws.BaseCPUPrice = c.CPU
 	aws.BaseSpotCPUPrice = c.SpotCPU
 	aws.BaseSpotRAMPrice = c.SpotRAM
+	aws.SpotLabelName = c.SpotLabel
+	aws.SpotLabelValue = c.SpotLabelValue
 	return nil
 }
 
