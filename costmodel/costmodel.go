@@ -13,7 +13,7 @@ import (
 
 	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
 	prometheusClient "github.com/prometheus/client_golang/api"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
@@ -111,7 +111,7 @@ func ComputeCostData(cli prometheusClient.Client, clientset *kubernetes.Clientse
 	for _, pod := range podlist.Items {
 		podName := pod.GetObjectMeta().GetName()
 		ns := pod.GetObjectMeta().GetNamespace()
-		labels := pod.GetObjectMeta().GetLabels()
+		podLabels := pod.GetObjectMeta().GetLabels()
 		nodeName := pod.Spec.NodeName
 		var nodeData *costAnalyzerCloud.Node
 		if _, ok := nodes[nodeName]; ok {
@@ -180,7 +180,7 @@ func ComputeCostData(cli prometheusClient.Client, clientset *kubernetes.Clientse
 				CPUUsed:      []*Vector{findContainerMetric(resultCPUUsage, containerName, podName, ns)},
 				GPUReq:       []*Vector{GPUReqV},
 				PVData:       pvReq,
-				Labels:       labels,
+				Labels:       podLabels,
 			}
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
@@ -244,8 +244,8 @@ func getNodeCost(clientset *kubernetes.Clientset, cloud costAnalyzerCloud.Provid
 	nodes := make(map[string]*costAnalyzerCloud.Node)
 	for _, n := range nodeList.Items {
 		name := n.GetObjectMeta().GetName()
-		labels := n.GetObjectMeta().GetLabels()
-		cnode, err := cloud.NodePricing(cloud.GetKey(labels))
+		nodeLabels := n.GetObjectMeta().GetLabels()
+		cnode, err := cloud.NodePricing(cloud.GetKey(nodeLabels))
 		if err != nil {
 			log.Printf("Error getting node. Error: " + err.Error())
 		}
@@ -290,7 +290,6 @@ func getNodeCost(clientset *kubernetes.Clientset, cloud costAnalyzerCloud.Provid
 }
 
 func getPodServices(clientset *kubernetes.Clientset, podList *v1.PodList) (map[string]map[string][]string, error) {
-	//servicesList, err := clientset.Core().Services("").List(metav1.ListOptions{})
 	servicesList, err := clientset.CoreV1().Services("").List(metav1.ListOptions{})
 	if err != nil {
 		return nil, err
@@ -421,7 +420,7 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset *kubernetes.Cli
 	for _, pod := range podlist.Items {
 		podName := pod.GetObjectMeta().GetName()
 		ns := pod.GetObjectMeta().GetNamespace()
-		labels := pod.GetObjectMeta().GetLabels()
+		podLabels := pod.GetObjectMeta().GetLabels()
 		nodeName := pod.Spec.NodeName
 		var nodeData *costAnalyzerCloud.Node
 		if _, ok := nodes[nodeName]; ok {
@@ -500,7 +499,7 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset *kubernetes.Cli
 				CPUUsed:      findContainerMetricVectors(resultCPUUsage, containerName, podName, ns),
 				GPUReq:       GPUReqV,
 				PVData:       pvReq,
-				Labels:       labels,
+				Labels:       podLabels,
 			}
 			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)

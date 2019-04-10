@@ -333,11 +333,11 @@ func (*AWS) AddServiceKey(formValues url.Values) error {
 	m := make(map[string]string)
 	m["access_key_ID"] = keyID
 	m["secret_access_key"] = key
-	json, err := json.Marshal(m)
+	result, err := json.Marshal(m)
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile("/var/configs/key.json", json, 0644)
+	return ioutil.WriteFile("/var/configs/key.json", result, 0644)
 }
 
 // GetDisks returns the AWS disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
