@@ -91,14 +91,6 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	w.Write(wrapData(data, err))
 }
 
-func (a *Accesses) ClusterName(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	data, err := a.Cloud.ClusterName()
-	w.Write(wrapData(data, err))
-}
-
 func Healthz(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.WriteHeader(200)
 	w.Header().Set("Content-Length", "0")
@@ -212,7 +204,6 @@ func main() {
 	router.GET("/costDataModel", a.CostDataModel)
 	router.GET("/costDataModelRange", a.CostDataModelRange)
 	router.GET("/healthz", Healthz)
-	router.GET("/clusterName", a.ClusterName)
 	router.POST("/refreshPricing", a.RefreshPricingData)
 
 	rootMux := http.NewServeMux()
