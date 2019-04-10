@@ -91,6 +91,12 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	w.Write(wrapData(data, err))
 }
 
+func (a *Accesses) Healthz(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.WriteHeader(200)
+	w.Header().Set("Content-Length", "0")
+	w.Header().Set("Content-Type", "text/plain")
+}
+
 func (a *Accesses) recordPrices() {
 	go func() {
 		for {
@@ -191,6 +197,7 @@ func main() {
 	router := httprouter.New()
 	router.GET("/costDataModel", a.CostDataModel)
 	router.GET("/costDataModelRange", a.CostDataModelRange)
+	router.GET("/healthz", a.Healthz)
 	router.POST("/refreshPricing", a.RefreshPricingData)
 
 	rootMux := http.NewServeMux()
