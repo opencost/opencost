@@ -91,10 +91,16 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	w.Write(wrapData(data, err))
 }
 
+func Healthz(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+	w.WriteHeader(200)
+	w.Header().Set("Content-Length", "0")
+	w.Header().Set("Content-Type", "text/plain")
+}
+
 func (a *Accesses) recordPrices() {
 	go func() {
 		for {
-			log.Printf("Recording prices...")
+			log.Print("Recording prices...")
 			data, err := costModel.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "1h")
 			if err != nil {
 				log.Printf("Error in price recording: " + err.Error())
@@ -191,6 +197,7 @@ func main() {
 	router := httprouter.New()
 	router.GET("/costDataModel", a.CostDataModel)
 	router.GET("/costDataModelRange", a.CostDataModelRange)
+	router.GET("/healthz", Healthz)
 	router.POST("/refreshPricing", a.RefreshPricingData)
 
 	rootMux := http.NewServeMux()
