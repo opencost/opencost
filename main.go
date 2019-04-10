@@ -91,37 +91,17 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	w.Write(wrapData(data, err))
 }
 
-func (a *Accesses) ClusterName(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	data, err := a.Cloud.ClusterName()
-	w.Write(wrapData(data, err))
-}
-
-func Healthz(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
-	w.WriteHeader(200)
-	w.Header().Set("Content-Length", "0")
-	w.Header().Set("Content-Type", "text/plain")
-}
-
 func (a *Accesses) recordPrices() {
 	go func() {
 		for {
-			log.Print("Recording prices...")
+			log.Printf("Recording prices...")
 			data, err := costModel.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "1h")
 			if err != nil {
 				log.Printf("Error in price recording: " + err.Error())
-				// zero the for loop so the time.Sleep will still work
-				data = map[string]*costModel.CostData{}
 			}
 			for _, costs := range data {
 				nodeName := costs.NodeName
 				node := costs.NodeData
-				if node == nil {
-					log.Printf("Skipping Node \"%s\" due to missing Node Data costs", nodeName)
-					continue
-				}
 				cpuCost, _ := strconv.ParseFloat(node.VCPUCost, 64)
 				cpu, _ := strconv.ParseFloat(node.VCPU, 64)
 				ramCost, _ := strconv.ParseFloat(node.RAMCost, 64)
@@ -211,8 +191,6 @@ func main() {
 	router := httprouter.New()
 	router.GET("/costDataModel", a.CostDataModel)
 	router.GET("/costDataModelRange", a.CostDataModelRange)
-	router.GET("/healthz", Healthz)
-	router.GET("/clusterName", a.ClusterName)
 	router.POST("/refreshPricing", a.RefreshPricingData)
 
 	rootMux := http.NewServeMux()
