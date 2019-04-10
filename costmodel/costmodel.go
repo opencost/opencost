@@ -248,6 +248,7 @@ func getNodeCost(clientset *kubernetes.Clientset, cloud costAnalyzerCloud.Provid
 		cnode, err := cloud.NodePricing(cloud.GetKey(labels))
 		if err != nil {
 			log.Printf("Error getting node. Error: " + err.Error())
+			continue
 		}
 
 		var cpu float64
