@@ -13,7 +13,7 @@ import (
 
 	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
 	prometheusClient "github.com/prometheus/client_golang/api"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
@@ -72,15 +72,39 @@ func ComputeCostData(cli prometheusClient.Client, clientset *kubernetes.Clientse
 	queryGPURequests := `avg(label_replace(label_replace(avg((count_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD"}[` + window + `]) *  avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD"}[` + window + `]))) by (namespace,container,pod) , "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)") ) by (namespace,container_name, pod_name)`
 	queryPVRequests := `(sum(kube_persistentvolumeclaim_info) by (persistentvolumeclaim, storageclass) + on (persistentvolumeclaim) group_right(storageclass) sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) by (persistentvolumeclaim, namespace))`
 	normalization := `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[` + window + `]))`
-	resultRAMRequests, _ := query(cli, queryRAMRequests)
-	resultRAMUsage, _ := query(cli, queryRAMUsage)
-	resultCPURequests, _ := query(cli, queryCPURequests)
-	resultCPUUsage, _ := query(cli, queryCPUUsage)
-	resultGPURequests, _ := query(cli, queryGPURequests)
-	resultPVRequests, _ := query(cli, queryPVRequests)
-	normalizationResult, _ := query(cli, normalization)
+	resultRAMRequests, err := query(cli, queryRAMRequests)
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching RAM requests: " + err.Error())
+	}
+	resultRAMUsage, err := query(cli, queryRAMUsage)
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching RAM usage: " + err.Error())
+	}
+	resultCPURequests, err := query(cli, queryCPURequests)
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching CPU requests: " + err.Error())
+	}
+	resultCPUUsage, err := query(cli, queryCPUUsage)
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching CPUUsage requests: " + err.Error())
+	}
+	resultGPURequests, err := query(cli, queryGPURequests)
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching GPU requests: " + err.Error())
+	}
+	resultPVRequests, err := query(cli, queryPVRequests)
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching PV requests: " + err.Error())
+	}
+	normalizationResult, err := query(cli, normalization)
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching normalization data: " + err.Error())
+	}
 
-	normalizationValue := getNormalization(normalizationResult)
+	normalizationValue, err := getNormalization(normalizationResult)
+	if err != nil {
+		return nil, err
+	}
 
 	nodes, err := getNodeCost(clientset, cloud)
 	if err != nil {
@@ -381,16 +405,39 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset *kubernetes.Cli
 		log.Printf("Error parsing time " + windowString + ". Error: " + err.Error())
 		return nil, err
 	}
-	resultRAMRequests, _ := queryRange(cli, queryRAMRequests, start, end, window)
-	resultRAMUsage, _ := queryRange(cli, queryRAMUsage, start, end, window)
-	resultCPURequests, _ := queryRange(cli, queryCPURequests, start, end, window)
-	resultCPUUsage, _ := queryRange(cli, queryCPUUsage, start, end, window)
-	resultGPURequests, _ := queryRange(cli, queryGPURequests, start, end, window)
-	resultPVRequests, _ := queryRange(cli, queryPVRequests, start, end, window)
+	resultRAMRequests, err := queryRange(cli, queryRAMRequests, start, end, window)
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching RAM requests: " + err.Error())
+	}
+	resultRAMUsage, err := queryRange(cli, queryRAMUsage, start, end, window)
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching RAM usage: " + err.Error())
+	}
+	resultCPURequests, err := queryRange(cli, queryCPURequests, start, end, window)
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching CPU requests: " + err.Error())
+	}
+	resultCPUUsage, err := queryRange(cli, queryCPUUsage, start, end, window)
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching CPU usage: " + err.Error())
+	}
+	resultGPURequests, err := queryRange(cli, queryGPURequests, start, end, window)
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching GPU requests: " + err.Error())
+	}
+	resultPVRequests, err := queryRange(cli, queryPVRequests, start, end, window)
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching PV requests: " + err.Error())
+	}
+	normalizationResult, err := query(cli, normalization)
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching normalization data: " + err.Error())
+	}
 
-	normalizationResult, _ := query(cli, normalization)
-
-	normalizationValue := getNormalization(normalizationResult)
+	normalizationValue, err := getNormalization(normalizationResult)
+	if err != nil {
+		return nil, err
+	}
 
 	nodes, err := getNodeCost(clientset, cloud)
 	if err != nil {
@@ -654,10 +701,25 @@ func query(cli prometheusClient.Client, query string) (interface{}, error) {
 }
 
 //todo: don't cast, implement unmarshaler interface
-func getNormalization(qr interface{}) float64 {
-	strNorm := qr.(map[string]interface{})["data"].(map[string]interface{})["result"].([]interface{})[0].(map[string]interface{})["value"].([]interface{})[1].(string)
-	val, _ := strconv.ParseFloat(strNorm, 64)
-	return val
+func getNormalization(qr interface{}) (float64, error) {
+	data, ok := qr.(map[string]interface{})["data"]
+	if !ok {
+		return 0, fmt.Errorf("Data field not found in normalization response, aborting")
+	}
+	results, ok := data.(map[string]interface{})["result"].([]interface{})
+	if !ok {
+		return 0, fmt.Errorf("Result field not found in normalization response, aborting")
+	}
+	if len(results) > 0 {
+		dataPoint := results[0].(map[string]interface{})["value"].([]interface{})
+		if len(dataPoint) == 2 {
+			strNorm := dataPoint[1].(string)
+			val, _ := strconv.ParseFloat(strNorm, 64)
+			return val, nil
+		}
+		return 0, fmt.Errorf("Improperly formatted datapoint from Prometheus")
+	}
+	return 0, fmt.Errorf("Normalization data is empty, kube-state-metrics or node-exporter may not be running")
 }
 
 //todo: don't cast, implement unmarshaler interface...
