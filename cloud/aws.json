@@ -1,0 +1,10 @@
+{
+    "provider": "custom",
+    "description": "Default prices used to compute allocation between RAM and CPU. AWS pricing API data still used for total node cost.",
+    "CPU": "0.031611",
+    "spotCPU": "0.006655",
+    "RAM": "0.004237",
+    "spotRAM": "0.000892",
+    "spotLabel": "kops.k8s.io/instancegroup",
+    "spotLabelValue": "spotinstance-nodes"
+}
