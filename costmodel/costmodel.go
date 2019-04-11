@@ -459,7 +459,7 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset *kubernetes.Cli
 		return nil, err
 	}
 
-	pvClaimMapping := getPVInfoVectors(resultPVRequests)
+	pvClaimMapping, err := getPVInfoVectors(resultPVRequests)
 	if err != nil {
 		return nil, err
 	}
@@ -593,19 +593,35 @@ type PersistentVolumeData struct {
 	Values    []*Vector `json:"values"`
 }
 
-func getPVInfoVectors(qr interface{}) map[string]*PersistentVolumeData {
+func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeData, error) {
 	pvmap := make(map[string]*PersistentVolumeData)
 	for _, val := range qr.(map[string]interface{})["data"].(map[string]interface{})["result"].([]interface{}) {
-		pvclaim := val.(map[string]interface{})["metric"].(map[string]interface{})["persistentvolumeclaim"]
-		pvclass := val.(map[string]interface{})["metric"].(map[string]interface{})["storageclass"]
-		pvnamespace := val.(map[string]interface{})["metric"].(map[string]interface{})["namespace"]
-		values := val.(map[string]interface{})["values"].([]interface{})
+		metricInterface, ok := val.(map[string]interface{})["metric"]
+		if !ok {
+			return nil, fmt.Errorf("Metric field does not exist in data result vector")
+		}
+		metricMap, ok := metricInterface.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("Metric field is improperly formatted")
+		}
+		pvclaim := metricMap["persistentvolumeclaim"]
+		pvclass := metricMap["storageclass"]
+		pvnamespace := metricMap["namespace"]
+		values, ok := val.(map[string]interface{})["values"].([]interface{})
+		if !ok {
+			return nil, fmt.Errorf("Values field is improperly formatted")
+		}
 		var vectors []*Vector
 		for _, value := range values {
-			strVal := value.([]interface{})[1].(string)
+			dataPoint, ok := value.([]interface{})
+			if !ok || len(dataPoint) != 2 {
+				return nil, fmt.Errorf("Value field is improperly formatted")
+			}
+
+			strVal := dataPoint[1].(string)
 			v, _ := strconv.ParseFloat(strVal, 64)
 			vectors = append(vectors, &Vector{
-				Timestamp: value.([]interface{})[0].(float64),
+				Timestamp: dataPoint[0].(float64),
 				Value:     v,
 			})
 		}
@@ -617,7 +633,7 @@ func getPVInfoVectors(qr interface{}) map[string]*PersistentVolumeData {
 			Values:    vectors,
 		}
 	}
-	return pvmap
+	return pvmap, nil
 }
 
 func getPVInfoVector(qr interface{}) (map[string]*PersistentVolumeData, error) {
