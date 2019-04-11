@@ -100,14 +100,20 @@ func Healthz(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 func (a *Accesses) recordPrices() {
 	go func() {
 		for {
-			log.Printf("Recording prices...")
+			log.Print("Recording prices...")
 			data, err := costModel.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "1h")
 			if err != nil {
 				log.Printf("Error in price recording: " + err.Error())
+				// zero the for loop so the time.Sleep will still work
+				data = map[string]*costModel.CostData{}
 			}
 			for _, costs := range data {
 				nodeName := costs.NodeName
 				node := costs.NodeData
+				if node == nil {
+					log.Printf("Skipping Node \"%s\" due to missing Node Data costs", nodeName)
+					continue
+				}
 				cpuCost, _ := strconv.ParseFloat(node.VCPUCost, 64)
 				cpu, _ := strconv.ParseFloat(node.VCPU, 64)
 				ramCost, _ := strconv.ParseFloat(node.RAMCost, 64)
