@@ -127,7 +127,7 @@ func ComputeCostData(cli prometheusClient.Client, clientset *kubernetes.Clientse
 		return nil, err
 	}
 
-	pvClaimMapping := getPVInfoVector(resultPVRequests)
+	pvClaimMapping, err := getPVInfoVector(resultPVRequests)
 	if err != nil {
 		return nil, err
 	}
@@ -620,14 +620,29 @@ func getPVInfoVectors(qr interface{}) map[string]*PersistentVolumeData {
 	return pvmap
 }
 
-func getPVInfoVector(qr interface{}) map[string]*PersistentVolumeData {
+func getPVInfoVector(qr interface{}) (map[string]*PersistentVolumeData, error) {
 	pvmap := make(map[string]*PersistentVolumeData)
 	log.Printf("Interface %v. If the interface is nil, prometheus is not running!", qr)
 	for _, val := range qr.(map[string]interface{})["data"].(map[string]interface{})["result"].([]interface{}) {
-		pvclaim := val.(map[string]interface{})["metric"].(map[string]interface{})["persistentvolumeclaim"]
-		pvclass := val.(map[string]interface{})["metric"].(map[string]interface{})["storageclass"]
-		pvnamespace := val.(map[string]interface{})["metric"].(map[string]interface{})["namespace"]
-		value := val.(map[string]interface{})["value"].([]interface{})
+		metricInterface, ok := val.(map[string]interface{})["metric"]
+		if !ok {
+			return nil, fmt.Errorf("Metric field does not exist in data result vector")
+		}
+		metricMap, ok := metricInterface.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("Metric field is improperly formatted")
+		}
+		pvclaim := metricMap["persistentvolumeclaim"]
+		pvclass := metricMap["storageclass"]
+		pvnamespace := metricMap["namespace"]
+		dataPoint, ok := val.(map[string]interface{})["value"]
+		if !ok {
+			return nil, fmt.Errorf("Value field does not exist in data result vector")
+		}
+		value, ok := dataPoint.([]interface{})
+		if !ok || len(value) != 2 {
+			return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
+		}
 		var vectors []*Vector
 		strVal := value[1].(string)
 		v, _ := strconv.ParseFloat(strVal, 64)
@@ -645,7 +660,7 @@ func getPVInfoVector(qr interface{}) map[string]*PersistentVolumeData {
 			Values:    vectors,
 		}
 	}
-	return pvmap
+	return pvmap, nil
 }
 
 func queryRange(cli prometheusClient.Client, query string, start, end time.Time, step time.Duration) (interface{}, error) {
