@@ -105,7 +105,7 @@ func (a *Accesses) recordPrices() {
 			klog.V(3).Info("Recording prices...")
 			data, err := costModel.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "1h")
 			if err != nil {
-				klog.V(3).Info("Error in price recording: " + err.Error())
+				klog.V(1).Info("Error in price recording: " + err.Error())
 				// zero the for loop so the time.Sleep will still work
 				data = map[string]*costModel.CostData{}
 			}

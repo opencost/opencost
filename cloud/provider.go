@@ -163,19 +163,19 @@ func NewProvider(clientset *kubernetes.Clientset, apiKey string) (Provider, erro
 	}
 	provider := strings.ToLower(nodes.Items[0].Spec.ProviderID)
 	if strings.HasPrefix(provider, "aws") {
-		klog.V(3).Info("Found ProviderID starting with \"aws\", using AWS Provider")
+		klog.V(2).Info("Found ProviderID starting with \"aws\", using AWS Provider")
 		return &AWS{
 			Clientset: clientset,
 		}, nil
 	} else if strings.HasPrefix(provider, "azure") {
-		klog.V(3).Info("Found ProviderID starting with \"azure\", using Azure Provider")
+		klog.V(2).Info("Found ProviderID starting with \"azure\", using Azure Provider")
 		return &Azure{
 			CustomProvider: &CustomProvider{
 				Clientset: clientset,
 			},
 		}, nil
 	} else {
-		klog.V(3).Info("Unsupported provider, falling back to default")
+		klog.V(2).Info("Unsupported provider, falling back to default")
 		return &CustomProvider{
 			Clientset: clientset,
 		}, nil
