@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
-	"log"
 	"net/url"
 	"os"
 	"strings"
+
+	"k8s.io/klog"
 
 	"cloud.google.com/go/compute/metadata"
 
@@ -147,7 +148,7 @@ func (*CustomProvider) QuerySQL(query string) ([]byte, error) {
 // NewProvider looks at the nodespec or provider metadata server to decide which provider to instantiate.
 func NewProvider(clientset *kubernetes.Clientset, apiKey string) (Provider, error) {
 	if metadata.OnGCE() {
-		log.Print("metadata reports we are in GCE")
+		klog.V(3).Info("metadata reports we are in GCE")
 		if apiKey == "" {
 			return nil, errors.New("Supply a GCP Key to start getting data")
 		}
@@ -162,19 +163,19 @@ func NewProvider(clientset *kubernetes.Clientset, apiKey string) (Provider, erro
 	}
 	provider := strings.ToLower(nodes.Items[0].Spec.ProviderID)
 	if strings.HasPrefix(provider, "aws") {
-		log.Print("Found ProviderID starting with \"aws\", using AWS Provider")
+		klog.V(3).Info("Found ProviderID starting with \"aws\", using AWS Provider")
 		return &AWS{
 			Clientset: clientset,
 		}, nil
 	} else if strings.HasPrefix(provider, "azure") {
-		log.Print("Found ProviderID starting with \"azure\", using Azure Provider")
+		klog.V(3).Info("Found ProviderID starting with \"azure\", using Azure Provider")
 		return &Azure{
 			CustomProvider: &CustomProvider{
 				Clientset: clientset,
 			},
 		}, nil
 	} else {
-		log.Print("Unsupported provider, falling back to default")
+		klog.V(3).Info("Unsupported provider, falling back to default")
 		return &CustomProvider{
 			Clientset: clientset,
 		}, nil

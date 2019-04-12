@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"math"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"k8s.io/klog"
 
 	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/oauth2"
@@ -201,7 +202,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]bool) (map[string]*G
 							continue
 						} else if strings.Contains(strings.ToUpper(product.Description), "RAM") {
 							if instanceType == "custom" {
-								log.Printf("RAM custom sku is: " + product.Name)
+								klog.V(2).Infof("RAM custom sku is: " + product.Name)
 							}
 							if _, ok := gcpPricingList[candidateKey]; ok {
 								gcpPricingList[candidateKey].Node.RAMCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
@@ -238,7 +239,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]bool) (map[string]*G
 		if t == "nextPageToken" {
 			pageToken, err := dec.Token()
 			if err != nil {
-				log.Printf("Error parsing nextpage token: " + err.Error())
+				klog.V(2).Infof("Error parsing nextpage token: " + err.Error())
 				break
 			}
 			if pageToken.(string) != "" {
@@ -254,7 +255,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]bool) (map[string]*G
 func (gcp *GCP) parsePages(inputKeys map[string]bool) (map[string]*GCPPricing, error) {
 	var pages []map[string]*GCPPricing
 	url := "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus?key=" + gcp.APIKey //AIzaSyDXQPG_MHUEy9neR7stolq6l0ujXmjJlvk
-	log.Printf("URL: %s", url)
+	klog.V(2).Infof("URL: %s", url)
 	var parsePagesHelper func(string) error
 	parsePagesHelper = func(pageToken string) error {
 		if pageToken == "done" {
@@ -313,7 +314,7 @@ func (gcp *GCP) DownloadPricingData() error {
 	gcp.Pricing = pages
 	c, err := GetDefaultPricingData("default.json")
 	if err != nil {
-		log.Printf("Error downloading default pricing data: %s", err.Error())
+		klog.V(2).Infof("Error downloading default pricing data: %s", err.Error())
 	}
 	gcp.BaseCPUPrice = c.CPU
 
@@ -347,10 +348,10 @@ func (gcp *GCP) AllNodePricing() (interface{}, error) {
 // NodePricing returns GCP pricing data for a single node
 func (gcp *GCP) NodePricing(key string) (*Node, error) {
 	if n, ok := gcp.Pricing[key]; ok {
-		log.Printf("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
+		klog.V(2).Infof("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
 		n.Node.BaseCPUPrice = gcp.BaseCPUPrice
 		return n.Node, nil
 	}
-	log.Printf("Warning: no pricing data found for %s", key)
+	klog.V(1).Infof("Warning: no pricing data found for %s", key)
 	return nil, fmt.Errorf("Warning: no pricing data found for %s", key)
 }

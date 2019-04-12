@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"flag"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
+
+	"k8s.io/klog"
 
 	"github.com/julienschmidt/httprouter"
 	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
@@ -100,10 +102,10 @@ func Healthz(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 func (a *Accesses) recordPrices() {
 	go func() {
 		for {
-			log.Print("Recording prices...")
+			klog.V(3).Info("Recording prices...")
 			data, err := costModel.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "1h")
 			if err != nil {
-				log.Printf("Error in price recording: " + err.Error())
+				klog.V(3).Info("Error in price recording: " + err.Error())
 				// zero the for loop so the time.Sleep will still work
 				data = map[string]*costModel.CostData{}
 			}
@@ -111,7 +113,7 @@ func (a *Accesses) recordPrices() {
 				nodeName := costs.NodeName
 				node := costs.NodeData
 				if node == nil {
-					log.Printf("Skipping Node \"%s\" due to missing Node Data costs", nodeName)
+					klog.V(3).Info("Skipping Node \"%s\" due to missing Node Data costs", nodeName)
 					continue
 				}
 				cpuCost, _ := strconv.ParseFloat(node.VCPUCost, 64)
@@ -131,10 +133,13 @@ func (a *Accesses) recordPrices() {
 }
 
 func main() {
+	klog.InitFlags(nil)
+	flag.Set("v", "3")
+	flag.Parse()
 
 	address := os.Getenv("PROMETHEUS_SERVER_ENDPOINT")
 	if address == "" {
-		log.Fatal("No address for prometheus set. Aborting.")
+		klog.Fatal("No address for prometheus set. Aborting.")
 	}
 
 	pc := prometheusClient.Config{
@@ -145,9 +150,9 @@ func main() {
 	api := prometheusAPI.NewAPI(promCli)
 	_, err := api.Config(context.Background())
 	if err != nil {
-		log.Fatal("Failed to use Prometheus at " + address + " Error: " + err.Error())
+		klog.Fatal("Failed to use Prometheus at " + address + " Error: " + err.Error())
 	}
-	log.Printf("Checked prometheus endpoint: " + address)
+	klog.V(1).Info("Checked prometheus endpoint: " + address)
 
 	// Kubernetes API setup
 	kc, err := rest.InClusterConfig()
@@ -195,7 +200,7 @@ func main() {
 
 	err = a.Cloud.DownloadPricingData()
 	if err != nil {
-		log.Printf("Failed to download pricing data: " + err.Error())
+		klog.V(1).Info("Failed to download pricing data: " + err.Error())
 	}
 
 	a.recordPrices()
@@ -210,5 +215,5 @@ func main() {
 	rootMux.Handle("/", router)
 	rootMux.Handle("/metrics", promhttp.Handler())
 
-	log.Fatal(http.ListenAndServe(":9003", rootMux))
+	klog.Fatal(http.ListenAndServe(":9003", rootMux))
 }

@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"regexp"
 	"strings"
 	"time"
+
+	"k8s.io/klog"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -179,10 +180,10 @@ func (aws *AWS) DownloadPricingData() error {
 	skusToKeys := make(map[string]string)
 
 	pricingURL := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/index.json"
-	log.Printf("starting download of \"%s\", which is quite large ...", pricingURL)
+	klog.V(2).Infof("starting download of \"%s\", which is quite large ...", pricingURL)
 	resp, err := http.Get(pricingURL)
 	if err != nil {
-		log.Printf("Bogus fetch of \"%s\": %v", pricingURL, err)
+		klog.V(2).Infof("Bogus fetch of \"%s\": %v", pricingURL, err)
 		return err
 	}
 
@@ -190,7 +191,7 @@ func (aws *AWS) DownloadPricingData() error {
 	for {
 		t, err := dec.Token()
 		if err == io.EOF {
-			log.Printf("done loading \"%s\"\n", pricingURL)
+			klog.V(2).Infof("done loading \"%s\"\n", pricingURL)
 			break
 		}
 		if t == "products" {
@@ -201,7 +202,7 @@ func (aws *AWS) DownloadPricingData() error {
 				err := dec.Decode(&product)
 
 				if err != nil {
-					log.Printf("Error parsing response from \"%s\": %v", pricingURL, err.Error())
+					klog.V(1).Infof("Error parsing response from \"%s\": %v", pricingURL, err.Error())
 					break
 				}
 				if product.Attributes.PreInstalledSw == "NA" &&
@@ -236,7 +237,7 @@ func (aws *AWS) DownloadPricingData() error {
 					offerTerm := &AWSOfferTerm{}
 					err := dec.Decode(&offerTerm)
 					if err != nil {
-						log.Printf("Error decoding AWS Offer Term: " + err.Error())
+						klog.V(1).Infof("Error decoding AWS Offer Term: " + err.Error())
 					}
 					if sku.(string)+OnDemandRateCode == skuOnDemand {
 						key, ok := skusToKeys[sku.(string)]
@@ -258,7 +259,7 @@ func (aws *AWS) DownloadPricingData() error {
 	}
 	c, err := GetDefaultPricingData("aws.json")
 	if err != nil {
-		log.Printf("Error downloading default pricing data: %s", err.Error())
+		klog.V(1).Infof("Error downloading default pricing data: %s", err.Error())
 	}
 	aws.BaseCPUPrice = c.CPU
 	aws.BaseSpotCPUPrice = c.SpotCPU
@@ -340,7 +341,7 @@ func (aws *AWS) NodePricing(key string) (*Node, error) {
 func (awsProvider *AWS) ClusterName() ([]byte, error) {
 	defaultClusterName := "AWS Cluster #1"
 	makeStructure := func(clusterName string) ([]byte, error) {
-		log.Printf("Returning \"%s\" as ClusterName", clusterName)
+		klog.V(2).Infof("Returning \"%s\" as ClusterName", clusterName)
 		m := make(map[string]string)
 		m["name"] = clusterName
 		m["provider"] = "AWS"
@@ -369,7 +370,7 @@ func (awsProvider *AWS) ClusterName() ([]byte, error) {
 			}
 		}
 		if len(instanceId) == 0 {
-			log.Printf("Unable to decode Node.ProviderID \"%s\", skipping it", providerId)
+			klog.V(2).Infof("Unable to decode Node.ProviderID \"%s\", skipping it", providerId)
 			continue
 		}
 		c := &aws.Config{
@@ -387,12 +388,12 @@ func (awsProvider *AWS) ClusterName() ([]byte, error) {
 			continue
 		}
 		if len(di.Reservations) != 1 {
-			log.Printf("Expected 1 Reservation back from DescribeInstances(%s), received %d", instanceId, len(di.Reservations))
+			klog.V(2).Infof("Expected 1 Reservation back from DescribeInstances(%s), received %d", instanceId, len(di.Reservations))
 			continue
 		}
 		res := di.Reservations[0]
 		if len(res.Instances) != 1 {
-			log.Printf("Expected 1 Instance back from DescribeInstances(%s), received %d", instanceId, len(res.Instances))
+			klog.V(2).Infof("Expected 1 Instance back from DescribeInstances(%s), received %d", instanceId, len(res.Instances))
 			continue
 		}
 		inst := res.Instances[0]
@@ -406,7 +407,7 @@ func (awsProvider *AWS) ClusterName() ([]byte, error) {
 			}
 		}
 	}
-	log.Printf("Unable to sniff out cluster ID, perhaps set $%s to force one", ClusterIdEnvVar)
+	klog.V(2).Infof("Unable to sniff out cluster ID, perhaps set $%s to force one", ClusterIdEnvVar)
 	return makeStructure(defaultClusterName)
 }
 
@@ -434,7 +435,7 @@ func (*AWS) GetDisks() ([]byte, error) {
 		os.Setenv("AWS_ACCESS_KEY_ID", result["access_key_ID"])
 		os.Setenv("AWS_SECRET_ACCESS_KEY", result["secret_access_key"])
 	} else if os.IsNotExist(err) {
-		log.Print("Using Default Credentials")
+		klog.V(2).Infof("Using Default Credentials")
 	} else {
 		return nil, err
 	}
@@ -482,7 +483,7 @@ func (*AWS) QuerySQL(query string) ([]byte, error) {
 		os.Setenv("AWS_ACCESS_KEY_ID", result["access_key_ID"])
 		os.Setenv("AWS_SECRET_ACCESS_KEY", result["secret_access_key"])
 	} else if os.IsNotExist(err) {
-		log.Print("Using Default Credentials")
+		klog.V(2).Infof("Using Default Credentials")
 	} else {
 		return nil, err
 	}
@@ -522,8 +523,8 @@ func (*AWS) QuerySQL(query string) ([]byte, error) {
 		return nil, err
 	}
 
-	log.Println("StartQueryExecution result:")
-	log.Println(res.GoString())
+	klog.V(2).Infof("StartQueryExecution result:")
+	klog.V(2).Infof(res.GoString())
 
 	var qri athena.GetQueryExecutionInput
 	qri.SetQueryExecutionId(*res.QueryExecutionId)
