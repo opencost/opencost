@@ -42,7 +42,8 @@ Note: the following dependencies mentioned above are required for this installat
 
 ## Contributing
 
-We welcome any contributions to the project! To test, you'll need to build the cost-model docker container then push it to a kubernetes cluster with a running prometheus.
+We :heart: pull requests! See [`CONTRIBUTING.md`](CONTRIBUTING.md) for info on
+contributing changes. To test, you'll need to build the cost-model docker container then push it to a kubernetes cluster with a running prometheus.
 
 1. `docker build --rm -f "Dockerfile" -t <repo>/kubecost-cost-model:<tag> .`
 2. Edit the [pulled image](https://github.com/kubecost/cost-model/blob/master/kubernetes/deployment.yaml#L22) in the deployment.yaml to <repo>/kubecost-cost-model:<tag>
@@ -63,15 +64,21 @@ Kubernetes.
 
 ## Questions
 
-***How do we allocate RAM/CPU costs for a node when this data isn’t provided by a cloud provider (e.g. EC2 worker nodes)?***
+***How do you measure the cost of a CPU/RAM for a container, pod, deployment, etc.***
 
-Kubecost models start by pegging to a CPU price for this machine (currently depends on spot/preemptible vs ondemand). This CPU price value is also customizable. The price of RAM is then determined by the total node cost less the total price of all CPUs (i.e. # of CPUs attached to the node multiplied by the per CPU price). The value of both are then normalized to ensure RAM + CPU costs are never greater than the total price of the node.
+Kubecost models collect pricing data from major cloud providers, e.g. GCP and AWS, to provide the real-time cost of running workloads. Based on this information, each container inherits a cost per CPU hour and cost per RAM gb hour depending on the node where it's scheduled. This means containers of the same size, as measured by requests or usage, could be charged different rates if they are scheduled in different regions, on nodes with different usage types (on-demand vs preemptible), etc.
+
+Measuring the cost of a pod, deployment, service, namespace, etc is simply the aggregation of its individual container costs.
+
+***How do you determine RAM/CPU costs for a node when this data isn’t provided by a cloud provider?***
+
+Kubecost models start by pegging to a default CPU price when this information is not supplied by a cloud provider or when Kubecost is deployed into an on-prem cluster. This CPU price value is configuable and supplied via json. The price of RAM is then determined by the total node cost less the combined price of all CPUs (i.e. # of CPUs attached to the node multiplied by the per CPU price). The value of both are then normalized to ensure RAM + CPU costs are never greater than the total price of the node when a cloud provider is able to provide total node cost.
 
     CPUHourlyCost = CONFIGURABLE_CPU_PRICE (if not directly supplied by Cloud provider)
 
     RAMGBHourlyCost = TOTAL_NODE_COST - CPUHourlyCost * # of CPUS
 
-***How do we allocate RAM/CPU to an individual pod or container?***
+***How do you allocate a specific amount of RAM/CPU to an individual pod or container?***
 
 Resources are allocated based on the maximum of Request and Usage time-weighted for the measured period. For pods with BestEffort quality of service (i.e. no requests) allocation is done solely on resource usage. 
 
