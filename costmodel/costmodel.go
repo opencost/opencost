@@ -174,14 +174,34 @@ func ComputeCostData(cli prometheusClient.Client, clientset *kubernetes.Clientse
 		for i, container := range pod.Spec.Containers {
 			containerName := container.Name
 
-			RAMReqV := findContainerMetric(resultRAMRequests, containerName, podName, ns)
+			RAMReqV, err := findContainerMetric(resultRAMRequests, containerName, podName, ns)
+			if err != nil {
+				return nil, err
+			}
 			RAMReqV.Value = RAMReqV.Value / normalizationValue
-			RAMUsedV := findContainerMetric(resultRAMUsage, containerName, podName, ns)
+			RAMUsedV, err := findContainerMetric(resultRAMUsage, containerName, podName, ns)
+			if err != nil {
+				return nil, err
+			}
 			RAMUsedV.Value = RAMUsedV.Value / normalizationValue
-			CPUReqV := findContainerMetric(resultCPURequests, containerName, podName, ns)
+			CPUReqV, err := findContainerMetric(resultCPURequests, containerName, podName, ns)
+			if err != nil {
+				return nil, err
+			}
 			CPUReqV.Value = CPUReqV.Value / normalizationValue
-			GPUReqV := findContainerMetric(resultGPURequests, containerName, podName, ns)
+			if err != nil {
+				return nil, err
+			}
+			GPUReqV, err := findContainerMetric(resultGPURequests, containerName, podName, ns)
+			if err != nil {
+				return nil, err
+			}
 			GPUReqV.Value = GPUReqV.Value / normalizationValue
+
+			CPUUsedV, err := findContainerMetric(resultCPUUsage, containerName, podName, ns) // No need to normalize here, as this comes from a counter
+			if err != nil {
+				return nil, err
+			}
 
 			var pvReq []*PersistentVolumeData
 			if i == 0 { // avoid duplicating by just assigning all claims to the first container.
@@ -202,7 +222,7 @@ func ComputeCostData(cli prometheusClient.Client, clientset *kubernetes.Clientse
 				RAMReq:       []*Vector{RAMReqV},
 				RAMUsed:      []*Vector{RAMUsedV},
 				CPUReq:       []*Vector{CPUReqV},
-				CPUUsed:      []*Vector{findContainerMetric(resultCPUUsage, containerName, podName, ns)},
+				CPUUsed:      []*Vector{CPUUsedV},
 				GPUReq:       []*Vector{GPUReqV},
 				PVData:       pvReq,
 				Labels:       podLabels,
@@ -506,24 +526,41 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset *kubernetes.Cli
 		for i, container := range pod.Spec.Containers {
 			containerName := container.Name
 
-			RAMReqV := findContainerMetricVectors(resultRAMRequests, containerName, podName, ns)
+			RAMReqV, err := findContainerMetricVectors(resultRAMRequests, containerName, podName, ns)
+			if err != nil {
+				return nil, err
+			}
 			for _, v := range RAMReqV {
 				v.Value = v.Value / normalizationValue
 			}
 
-			RAMUsedV := findContainerMetricVectors(resultRAMUsage, containerName, podName, ns)
+			RAMUsedV, err := findContainerMetricVectors(resultRAMUsage, containerName, podName, ns)
+			if err != nil {
+				return nil, err
+			}
 			for _, v := range RAMUsedV {
 				v.Value = v.Value / normalizationValue
 			}
 
-			CPUReqV := findContainerMetricVectors(resultCPURequests, containerName, podName, ns)
+			CPUReqV, err := findContainerMetricVectors(resultCPURequests, containerName, podName, ns)
+			if err != nil {
+				return nil, err
+			}
 			for _, v := range CPUReqV {
 				v.Value = v.Value / normalizationValue
 			}
 
-			GPUReqV := findContainerMetricVectors(resultGPURequests, containerName, podName, ns)
+			GPUReqV, err := findContainerMetricVectors(resultGPURequests, containerName, podName, ns)
+			if err != nil {
+				return nil, err
+			}
 			for _, v := range GPUReqV {
 				v.Value = v.Value / normalizationValue
+			}
+
+			CPUUsedV, err := findContainerMetricVectors(resultCPUUsage, containerName, podName, ns) // There's no need to normalize a counter
+			if err != nil {
+				return nil, err
 			}
 
 			var pvReq []*PersistentVolumeData
@@ -545,7 +582,7 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset *kubernetes.Cli
 				RAMReq:       RAMReqV,
 				RAMUsed:      RAMUsedV,
 				CPUReq:       CPUReqV,
-				CPUUsed:      findContainerMetricVectors(resultCPUUsage, containerName, podName, ns),
+				CPUUsed:      CPUUsedV,
 				GPUReq:       GPUReqV,
 				PVData:       pvReq,
 				Labels:       podLabels,
@@ -615,7 +652,7 @@ func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeData, error) 
 		for _, value := range values {
 			dataPoint, ok := value.([]interface{})
 			if !ok || len(dataPoint) != 2 {
-				return nil, fmt.Errorf("Value field is improperly formatted")
+				return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
 			}
 
 			strVal := dataPoint[1].(string)
@@ -754,43 +791,84 @@ func getNormalization(qr interface{}) (float64, error) {
 }
 
 //todo: don't cast, implement unmarshaler interface...
-func findContainerMetric(qr interface{}, cname string, podname string, namespace string) *Vector {
-	for _, val := range qr.(map[string]interface{})["data"].(map[string]interface{})["result"].([]interface{}) {
-		if val.(map[string]interface{})["metric"].(map[string]interface{})["container_name"] == cname &&
-			val.(map[string]interface{})["metric"].(map[string]interface{})["pod_name"] == podname &&
-			val.(map[string]interface{})["metric"].(map[string]interface{})["namespace"] == namespace {
-
-			strVal := val.(map[string]interface{})["value"].([]interface{})[1].(string)
-			value, _ := strconv.ParseFloat(strVal, 64)
+func findContainerMetric(qr interface{}, cname string, podname string, namespace string) (*Vector, error) {
+	data, ok := qr.(map[string]interface{})["data"]
+	if !ok {
+		return nil, fmt.Errorf("Improperly formatted response from prometheus, response has no data field")
+	}
+	r, ok := data.(map[string]interface{})["result"]
+	if !ok {
+		return nil, fmt.Errorf("Improperly formatted data from prometheus, data has no result field")
+	}
+	results, ok := r.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Improperly formatted results from prometheus, result field is not a slice")
+	}
+	for _, val := range results {
+		metric, ok := val.(map[string]interface{})["metric"].(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("Prometheus vector does not have metric labels")
+		}
+		if metric["container_name"] == cname && metric["pod_name"] == podname && metric["namespace"] == namespace {
+			value, ok := val.(map[string]interface{})["value"]
+			if !ok {
+				return nil, fmt.Errorf("Improperly formatted results from prometheus, values is not a slice")
+			}
+			dataPoint, ok := value.([]interface{})
+			if !ok || len(dataPoint) != 2 {
+				return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
+			}
+			strVal := dataPoint[1].(string)
+			v, _ := strconv.ParseFloat(strVal, 64)
 
 			toReturn := &Vector{
-				Timestamp: val.(map[string]interface{})["value"].([]interface{})[0].(float64),
-				Value:     value,
+				Timestamp: dataPoint[0].(float64),
+				Value:     v,
 			}
-			return toReturn
-
+			return toReturn, nil
 		}
 	}
-	return &Vector{}
+	return &Vector{}, nil
 }
 
-func findContainerMetricVectors(qr interface{}, cname string, podname string, namespace string) []*Vector {
-	for _, val := range qr.(map[string]interface{})["data"].(map[string]interface{})["result"].([]interface{}) {
-		if val.(map[string]interface{})["metric"].(map[string]interface{})["container_name"] == cname &&
-			val.(map[string]interface{})["metric"].(map[string]interface{})["pod_name"] == podname &&
-			val.(map[string]interface{})["metric"].(map[string]interface{})["namespace"] == namespace {
-			values := val.(map[string]interface{})["values"].([]interface{})
+func findContainerMetricVectors(qr interface{}, cname string, podname string, namespace string) ([]*Vector, error) {
+	data, ok := qr.(map[string]interface{})["data"]
+	if !ok {
+		return nil, fmt.Errorf("Improperly formatted response from prometheus, response has no data field")
+	}
+	r, ok := data.(map[string]interface{})["result"]
+	if !ok {
+		return nil, fmt.Errorf("Improperly formatted data from prometheus, data has no result field")
+	}
+	results, ok := r.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Improperly formatted results from prometheus, result field is not a slice")
+	}
+	for _, val := range results {
+		metric, ok := val.(map[string]interface{})["metric"].(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("Prometheus vector does not have metric labels")
+		}
+		if metric["container_name"] == cname && metric["pod_name"] == podname && metric["namespace"] == namespace {
+			values, ok := val.(map[string]interface{})["values"].([]interface{})
+			if !ok {
+				return nil, fmt.Errorf("Improperly formatted results from prometheus, values is not a slice")
+			}
 			var vectors []*Vector
 			for _, value := range values {
-				strVal := value.([]interface{})[1].(string)
+				dataPoint, ok := value.([]interface{})
+				if !ok || len(dataPoint) != 2 {
+					return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
+				}
+				strVal := dataPoint[1].(string)
 				v, _ := strconv.ParseFloat(strVal, 64)
 				vectors = append(vectors, &Vector{
-					Timestamp: value.([]interface{})[0].(float64),
+					Timestamp: dataPoint[0].(float64),
 					Value:     v,
 				})
 			}
-			return vectors
+			return vectors, nil
 		}
 	}
-	return []*Vector{}
+	return []*Vector{}, nil
 }
