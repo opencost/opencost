@@ -14,5 +14,6 @@ require (
 	k8s.io/api v0.0.0-20190404065945-709cf190c7b7
 	k8s.io/apimachinery v0.0.0-20190404065847-4a4abcd45006
 	k8s.io/client-go v0.0.0-20190404172613-2e1a3ed22ac5
+	k8s.io/klog v0.0.0-20190306015804-8e90cee79f82
 	k8s.io/utils v0.0.0-20190308190857-21c4ce38f2a7 // indirect
 )

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math"
 	"net/http"
 	"sort"
@@ -17,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/klog"
 )
 
 const (
@@ -108,7 +108,7 @@ func ComputeCostData(cli prometheusClient.Client, clientset *kubernetes.Clientse
 
 	nodes, err := getNodeCost(clientset, cloud)
 	if err != nil {
-		log.Printf("Warning, no Node cost model available: " + err.Error())
+		klog.V(1).Infof("Warning, no Node cost model available: " + err.Error())
 		return nil, err
 	}
 
@@ -292,7 +292,7 @@ func getNodeCost(clientset *kubernetes.Clientset, cloud costAnalyzerCloud.Provid
 		nodeLabels := n.GetObjectMeta().GetLabels()
 		cnode, err := cloud.NodePricing(cloud.GetKey(nodeLabels))
 		if err != nil {
-			log.Printf("Error getting node. Error: " + err.Error())
+			klog.V(1).Infof("Error getting node. Error: " + err.Error())
 			continue
 		}
 
@@ -313,10 +313,10 @@ func getNodeCost(clientset *kubernetes.Clientset, cloud costAnalyzerCloud.Provid
 			totalCPUPrice := basePrice * cpu
 			var nodePrice float64
 			if cnode.Cost != "" {
-				log.Print("Use given nodeprice as whole node price")
+				klog.V(3).Infof("Use given nodeprice as whole node price")
 				nodePrice, _ = strconv.ParseFloat(cnode.Cost, 64)
 			} else {
-				log.Print("Use cpuprice as whole node price")
+				klog.V(3).Infof("Use cpuprice as whole node price")
 				nodePrice, _ = strconv.ParseFloat(cnode.VCPUCost, 64) // all the price was allocated the the CPU
 			}
 			if totalCPUPrice >= nodePrice {
@@ -328,7 +328,7 @@ func getNodeCost(clientset *kubernetes.Clientset, cloud costAnalyzerCloud.Provid
 			cnode.VCPUCost = fmt.Sprintf("%f", cpuPrice)
 			cnode.RAMCost = fmt.Sprintf("%f", ramPrice)
 			cnode.RAMBytes = fmt.Sprintf("%f", ram)
-			log.Printf("Node \"%s\" RAM Cost := %v", name, cnode.RAMCost)
+			klog.V(2).Infof("Node \"%s\" RAM Cost := %v", name, cnode.RAMCost)
 		}
 		nodes[name] = cnode
 	}
@@ -350,7 +350,7 @@ func getPodServices(clientset *kubernetes.Clientset, podList *v1.PodList) (map[s
 		}
 		s := labels.Set(service.Spec.Selector).AsSelectorPreValidated()
 		if err != nil {
-			log.Printf("Error doing service label conversion: " + err.Error())
+			klog.V(2).Infof("Error doing service label conversion: " + err.Error())
 		}
 		for _, pod := range podList.Items {
 			labelSet := labels.Set(pod.GetObjectMeta().GetLabels())
@@ -381,7 +381,7 @@ func getPodDeployments(clientset *kubernetes.Clientset, podList *v1.PodList) (ma
 		}
 		s, err := metav1.LabelSelectorAsSelector(deployment.Spec.Selector)
 		if err != nil {
-			log.Printf("Error doing deployment label conversion: " + err.Error())
+			klog.V(2).Infof("Error doing deployment label conversion: " + err.Error())
 		}
 		for _, pod := range podList.Items {
 			labelSet := labels.Set(pod.GetObjectMeta().GetLabels())
@@ -412,17 +412,17 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset *kubernetes.Cli
 
 	start, err := time.Parse(layout, startString)
 	if err != nil {
-		log.Printf("Error parsing time " + startString + ". Error: " + err.Error())
+		klog.V(1).Infof("Error parsing time " + startString + ". Error: " + err.Error())
 		return nil, err
 	}
 	end, err := time.Parse(layout, endString)
 	if err != nil {
-		log.Printf("Error parsing time " + endString + ". Error: " + err.Error())
+		klog.V(1).Infof("Error parsing time " + endString + ". Error: " + err.Error())
 		return nil, err
 	}
 	window, err := time.ParseDuration(windowString)
 	if err != nil {
-		log.Printf("Error parsing time " + windowString + ". Error: " + err.Error())
+		klog.V(1).Infof("Error parsing time " + windowString + ". Error: " + err.Error())
 		return nil, err
 	}
 	resultRAMRequests, err := queryRange(cli, queryRAMRequests, start, end, window)
@@ -462,7 +462,7 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset *kubernetes.Cli
 	nodes, err := getNodeCost(clientset, cloud)
 	if err != nil {
 		//return nil, err
-		log.Printf("Warning, no cost model available: " + err.Error())
+		klog.V(1).Infof("Warning, no cost model available: " + err.Error())
 	}
 
 	podlist, err := clientset.CoreV1().Pods("").List(metav1.ListOptions{})
@@ -675,7 +675,6 @@ func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeData, error) 
 
 func getPVInfoVector(qr interface{}) (map[string]*PersistentVolumeData, error) {
 	pvmap := make(map[string]*PersistentVolumeData)
-	log.Printf("Interface %v. If the interface is nil, prometheus is not running!", qr)
 	for _, val := range qr.(map[string]interface{})["data"].(map[string]interface{})["result"].([]interface{}) {
 		metricInterface, ok := val.(map[string]interface{})["metric"]
 		if !ok {
@@ -732,7 +731,7 @@ func queryRange(cli prometheusClient.Client, query string, start, end time.Time,
 
 	_, body, err := cli.Do(context.Background(), req)
 	if err != nil {
-		log.Print("ERROR" + err.Error())
+		klog.V(1).Infof("ERROR" + err.Error())
 	}
 	if err != nil {
 		return nil, err
@@ -740,7 +739,7 @@ func queryRange(cli prometheusClient.Client, query string, start, end time.Time,
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		log.Print("ERROR" + err.Error())
+		klog.V(1).Infof("ERROR" + err.Error())
 	}
 	return toReturn, err
 }
@@ -763,7 +762,7 @@ func query(cli prometheusClient.Client, query string) (interface{}, error) {
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		log.Print("ERROR" + err.Error())
+		klog.V(1).Infof("ERROR" + err.Error())
 	}
 	return toReturn, err
 }
