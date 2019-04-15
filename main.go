@@ -113,7 +113,7 @@ func (a *Accesses) recordPrices() {
 				nodeName := costs.NodeName
 				node := costs.NodeData
 				if node == nil {
-					klog.V(3).Info("Skipping Node \"%s\" due to missing Node Data costs", nodeName)
+					klog.V(3).Infof("Skipping Node \"%s\" due to missing Node Data costs", nodeName)
 					continue
 				}
 				cpuCost, _ := strconv.ParseFloat(node.VCPUCost, 64)
