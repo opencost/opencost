@@ -583,115 +583,202 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset *kubernetes.Cli
 	}
 
 	containerNameCost := make(map[string]*CostData)
+	containers := make(map[string]bool)
 
+	RAMReqMap, err := getContainerMetricVectors(resultRAMRequests, true, normalizationValue)
+	if err != nil {
+		return nil, err
+	}
+	for key := range RAMReqMap {
+		containers[key] = true
+	}
+
+	RAMUsedMap, err := getContainerMetricVectors(resultRAMUsage, true, normalizationValue)
+	if err != nil {
+		return nil, err
+	}
+	for key := range RAMUsedMap {
+		containers[key] = true
+	}
+	CPUReqMap, err := getContainerMetricVectors(resultCPURequests, true, normalizationValue)
+	if err != nil {
+		return nil, err
+	}
+	for key := range CPUReqMap {
+		containers[key] = true
+	}
+	GPUReqMap, err := getContainerMetricVectors(resultGPURequests, true, normalizationValue)
+	if err != nil {
+		return nil, err
+	}
+	for key := range GPUReqMap {
+		containers[key] = true
+	}
+	CPUUsedMap, err := getContainerMetricVectors(resultCPUUsage, false, 0) // No need to normalize here, as this comes from a counter
+	if err != nil {
+		return nil, err
+	}
+	for key := range CPUUsedMap {
+		containers[key] = true
+	}
+	currentContainers := make(map[string]v1.Pod)
 	for _, pod := range podlist.Items {
-		podName := pod.GetObjectMeta().GetName()
-		ns := pod.GetObjectMeta().GetNamespace()
-		podLabels := pod.GetObjectMeta().GetLabels()
-		nodeName := pod.Spec.NodeName
-		var nodeData *costAnalyzerCloud.Node
-		if _, ok := nodes[nodeName]; ok {
-			nodeData = nodes[nodeName]
+		cs, err := newContainerMetricsFromPod(pod)
+		if err != nil {
+			return nil, err
 		}
-		var podDeployments []string
-		if _, ok := podDeploymentsMapping[ns]; ok {
-			if ds, ok := podDeploymentsMapping[ns][pod.GetObjectMeta().GetName()]; ok {
-				podDeployments = ds
-			} else {
-				podDeployments = []string{}
-			}
+		for _, c := range cs {
+			containers[c.Key()] = true // captures any containers that existed for a time < a prometheus scrape interval. We currently charge 0 for this but should charge something.
+			currentContainers[c.Key()] = pod
 		}
-		var podServices []string
-		if _, ok := podServicesMapping[ns]; ok {
-			if svcs, ok := podServicesMapping[ns][pod.GetObjectMeta().GetName()]; ok {
-				podServices = svcs
-			} else {
-				podServices = []string{}
-			}
-		}
+	}
 
-		var podPVs []*PersistentVolumeData
-		podClaims := pod.Spec.Volumes
-		for _, vol := range podClaims {
-			if vol.PersistentVolumeClaim != nil {
-				name := vol.PersistentVolumeClaim.ClaimName
-				if pvClaim, ok := pvClaimMapping[ns+","+name]; ok {
-					podPVs = append(podPVs, pvClaim)
+	for key := range containers {
+		if _, ok := containerNameCost[key]; ok {
+			continue // because ordering is important for the allocation model (all PV's applied to the first), just dedupe if it's already been added.
+		}
+		if pod, ok := currentContainers[key]; ok {
+			podName := pod.GetObjectMeta().GetName()
+			ns := pod.GetObjectMeta().GetNamespace()
+			podLabels := pod.GetObjectMeta().GetLabels()
+			nodeName := pod.Spec.NodeName
+			var nodeData *costAnalyzerCloud.Node
+			if _, ok := nodes[nodeName]; ok {
+				nodeData = nodes[nodeName]
+			}
+			var podDeployments []string
+			if _, ok := podDeploymentsMapping[ns]; ok {
+				if ds, ok := podDeploymentsMapping[ns][pod.GetObjectMeta().GetName()]; ok {
+					podDeployments = ds
+				} else {
+					podDeployments = []string{}
 				}
 			}
-		}
 
-		for i, container := range pod.Spec.Containers {
-			containerName := container.Name
-
-			RAMReqV, err := findContainerMetricVectors(resultRAMRequests, containerName, podName, ns)
-			if err != nil {
-				return nil, err
-			}
-			for _, v := range RAMReqV {
-				v.Value = v.Value / normalizationValue
-			}
-
-			RAMUsedV, err := findContainerMetricVectors(resultRAMUsage, containerName, podName, ns)
-			if err != nil {
-				return nil, err
-			}
-			for _, v := range RAMUsedV {
-				v.Value = v.Value / normalizationValue
+			var podPVs []*PersistentVolumeData
+			podClaims := pod.Spec.Volumes
+			for _, vol := range podClaims {
+				if vol.PersistentVolumeClaim != nil {
+					name := vol.PersistentVolumeClaim.ClaimName
+					if pvClaim, ok := pvClaimMapping[ns+","+name]; ok {
+						podPVs = append(podPVs, pvClaim)
+					}
+				}
 			}
 
-			CPUReqV, err := findContainerMetricVectors(resultCPURequests, containerName, podName, ns)
-			if err != nil {
-				return nil, err
-			}
-			for _, v := range CPUReqV {
-				v.Value = v.Value / normalizationValue
-			}
-
-			GPUReqV, err := findContainerMetricVectors(resultGPURequests, containerName, podName, ns)
-			if err != nil {
-				return nil, err
-			}
-			for _, v := range GPUReqV {
-				v.Value = v.Value / normalizationValue
+			var podServices []string
+			if _, ok := podServicesMapping[ns]; ok {
+				if svcs, ok := podServicesMapping[ns][pod.GetObjectMeta().GetName()]; ok {
+					podServices = svcs
+				} else {
+					podServices = []string{}
+				}
 			}
 
-			CPUUsedV, err := findContainerMetricVectors(resultCPUUsage, containerName, podName, ns) // There's no need to normalize a counter
-			if err != nil {
-				return nil, err
+			for i, container := range pod.Spec.Containers {
+				containerName := container.Name
+
+				RAMReqV, ok := RAMReqMap[key]
+				if !ok {
+					klog.V(2).Info("no RAM requests for " + key)
+					RAMReqV = []*Vector{}
+				}
+				RAMUsedV, ok := RAMUsedMap[key]
+				if !ok {
+					klog.V(2).Info("no RAM usage for " + key)
+					RAMUsedV = []*Vector{}
+				}
+				CPUReqV, ok := CPUReqMap[key]
+				if !ok {
+					klog.V(2).Info("no CPU requests for " + key)
+					CPUReqV = []*Vector{}
+				}
+				GPUReqV, ok := GPUReqMap[key]
+				if !ok {
+					klog.V(2).Info("no GPU requests for " + key)
+					GPUReqV = []*Vector{}
+				}
+				CPUUsedV, ok := CPUUsedMap[key]
+				if !ok {
+					klog.V(2).Info("no CPU usage for " + key)
+					CPUUsedV = []*Vector{}
+				}
+
+				var pvReq []*PersistentVolumeData
+				if i == 0 { // avoid duplicating by just assigning all claims to the first container.
+					pvReq = podPVs
+				}
+
+				costs := &CostData{
+					Name:         containerName,
+					PodName:      podName,
+					NodeName:     nodeName,
+					Namespace:    ns,
+					Deployments:  podDeployments,
+					Services:     podServices,
+					Daemonsets:   getDaemonsetsOfPod(pod),
+					Jobs:         getJobsOfPod(pod),
+					Statefulsets: getStatefulSetsOfPod(pod),
+					NodeData:     nodeData,
+					RAMReq:       RAMReqV,
+					RAMUsed:      RAMUsedV,
+					CPUReq:       CPUReqV,
+					CPUUsed:      CPUUsedV,
+					GPUReq:       GPUReqV,
+					PVData:       pvReq,
+					Labels:       podLabels,
+				}
+				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
+				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
+				containerNameCost[key] = costs
 			}
 
-			var pvReq []*PersistentVolumeData
-			if i == 0 { // avoid duplicating by just assigning all claims to the first container.
-				pvReq = podPVs
+		} else {
+			// The container has been deleted. Not all information is sent to prometheus via ksm, so fill out what we can without k8s api
+			// TODO: The nodename should be available from the prometheus query. Check if that node still exists and use that price
+			klog.V(3).Info("The node " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
+			c, _ := newContainerMetricFromKey(key)
+			RAMReqV, ok := RAMReqMap[key]
+			if !ok {
+				klog.V(2).Info("no RAM requests for " + key)
+				RAMReqV = []*Vector{}
 			}
-
-			costs := &CostData{
-				Name:         containerName,
-				PodName:      podName,
-				NodeName:     nodeName,
-				NodeData:     nodeData,
-				Namespace:    ns,
-				Deployments:  podDeployments,
-				Services:     podServices,
-				Daemonsets:   getDaemonsetsOfPod(pod),
-				Jobs:         getJobsOfPod(pod),
-				Statefulsets: getStatefulSetsOfPod(pod),
-				RAMReq:       RAMReqV,
-				RAMUsed:      RAMUsedV,
-				CPUReq:       CPUReqV,
-				CPUUsed:      CPUUsedV,
-				GPUReq:       GPUReqV,
-				PVData:       pvReq,
-				Labels:       podLabels,
+			RAMUsedV, ok := RAMUsedMap[key]
+			if !ok {
+				klog.V(2).Info("no RAM usage for " + key)
+				RAMUsedV = []*Vector{}
 			}
-			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
+			CPUReqV, ok := CPUReqMap[key]
+			if !ok {
+				klog.V(2).Info("no CPU requests for " + key)
+				CPUReqV = []*Vector{}
+			}
+			GPUReqV, ok := GPUReqMap[key]
+			if !ok {
+				klog.V(2).Info("no GPU requests for " + key)
+				GPUReqV = []*Vector{}
+			}
+			CPUUsedV, ok := CPUUsedMap[key]
+			if !ok {
+				klog.V(2).Info("no CPU usage for " + key)
+				CPUUsedV = []*Vector{}
+			}
+			costs := &CostData{ // TODO: Expand the prometheus query/use prometheus to query for more data here if it exists.
+				Name:      c.ContainerName,
+				PodName:   c.PodName,
+				Namespace: c.Namespace,
+				RAMReq:    RAMReqV,
+				RAMUsed:   RAMUsedV,
+				CPUReq:    CPUReqV,
+				CPUUsed:   CPUUsedV,
+				GPUReq:    GPUReqV,
+			}
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
-			containerNameCost[ns+","+podName+","+containerName] = costs
+			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
+			containerNameCost[key] = costs
 		}
 	}
 	return containerNameCost, err
-
 }
 
 func getDaemonsetsOfPod(pod v1.Pod) []string {
@@ -981,7 +1068,7 @@ func getContainerMetricVector(qr interface{}, normalize bool, normalizationValue
 		}
 		value, ok := val.(map[string]interface{})["value"]
 		if !ok {
-			return nil, fmt.Errorf("Improperly formatted results from prometheus, values is not a slice")
+			return nil, fmt.Errorf("Improperly formatted results from prometheus, value is not a field in the vector")
 		}
 		dataPoint, ok := value.([]interface{})
 		if !ok || len(dataPoint) != 2 {
@@ -1025,7 +1112,11 @@ func getContainerMetricVectors(qr interface{}, normalize bool, normalizationValu
 		if err != nil {
 			return nil, err
 		}
-		values, ok := val.(map[string]interface{})["values"].([]interface{})
+		vs, ok := val.(map[string]interface{})["values"]
+		if !ok {
+			return nil, fmt.Errorf("Improperly formatted results from prometheus, values is not a field in the vector")
+		}
+		values, ok := vs.([]interface{})
 		if !ok {
 			return nil, fmt.Errorf("Improperly formatted results from prometheus, values is not a slice")
 		}
@@ -1048,87 +1139,4 @@ func getContainerMetricVectors(qr interface{}, normalize bool, normalizationValu
 		containerData[containerMetric.Key()] = vectors
 	}
 	return containerData, nil
-}
-
-//todo: don't cast, implement unmarshaler interface...
-func findContainerMetric(qr interface{}, cname string, podname string, namespace string) (*Vector, error) {
-	data, ok := qr.(map[string]interface{})["data"]
-	if !ok {
-		return nil, fmt.Errorf("Improperly formatted response from prometheus, response has no data field")
-	}
-	r, ok := data.(map[string]interface{})["result"]
-	if !ok {
-		return nil, fmt.Errorf("Improperly formatted data from prometheus, data has no result field")
-	}
-	results, ok := r.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("Improperly formatted results from prometheus, result field is not a slice")
-	}
-	for _, val := range results {
-		metric, ok := val.(map[string]interface{})["metric"].(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("Prometheus vector does not have metric labels")
-		}
-		if metric["container_name"] == cname && metric["pod_name"] == podname && metric["namespace"] == namespace {
-			value, ok := val.(map[string]interface{})["value"]
-			if !ok {
-				return nil, fmt.Errorf("Improperly formatted results from prometheus, values is not a slice")
-			}
-			dataPoint, ok := value.([]interface{})
-			if !ok || len(dataPoint) != 2 {
-				return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
-			}
-			strVal := dataPoint[1].(string)
-			v, _ := strconv.ParseFloat(strVal, 64)
-
-			toReturn := &Vector{
-				Timestamp: dataPoint[0].(float64),
-				Value:     v,
-			}
-			return toReturn, nil
-		}
-	}
-	return &Vector{}, nil
-}
-
-func findContainerMetricVectors(qr interface{}, cname string, podname string, namespace string) ([]*Vector, error) {
-	data, ok := qr.(map[string]interface{})["data"]
-	if !ok {
-		return nil, fmt.Errorf("Improperly formatted response from prometheus, response has no data field")
-	}
-	r, ok := data.(map[string]interface{})["result"]
-	if !ok {
-		return nil, fmt.Errorf("Improperly formatted data from prometheus, data has no result field")
-	}
-	results, ok := r.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("Improperly formatted results from prometheus, result field is not a slice")
-	}
-	for _, val := range results {
-		metric, ok := val.(map[string]interface{})["metric"].(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("Prometheus vector does not have metric labels")
-		}
-		if metric["container_name"] == cname && metric["pod_name"] == podname && metric["namespace"] == namespace {
-			values, ok := val.(map[string]interface{})["values"].([]interface{})
-			if !ok {
-				return nil, fmt.Errorf("Improperly formatted results from prometheus, values is not a slice")
-			}
-			var vectors []*Vector
-			for _, value := range values {
-				dataPoint, ok := value.([]interface{})
-				if !ok || len(dataPoint) != 2 {
-					return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
-				}
-				strVal := dataPoint[1].(string)
-				v, _ := strconv.ParseFloat(strVal, 64)
-				vectors = append(vectors, &Vector{
-					Timestamp: dataPoint[0].(float64),
-					Value:     v,
-				})
-			}
-			return vectors, nil
-		}
-	}
-	return []*Vector{}, nil
 }
