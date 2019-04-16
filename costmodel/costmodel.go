@@ -65,7 +65,7 @@ type Vector struct {
 	Value     float64 `json:"value"`
 }
 
-func ComputeCostData(cli prometheusClient.Client, clientset *kubernetes.Clientset, cloud costAnalyzerCloud.Provider, window string) (map[string]*CostData, error) {
+func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface, cloud costAnalyzerCloud.Provider, window string) (map[string]*CostData, error) {
 	queryRAMRequests := `avg(label_replace(label_replace(avg((count_over_time(kube_pod_container_resource_requests_memory_bytes{container!="",container!="POD"}[` + window + `]) *  avg_over_time(kube_pod_container_resource_requests_memory_bytes{container!="",container!="POD"}[` + window + `]))) by (namespace,container,pod) , "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)") ) by (namespace,container_name, pod_name)`
 	queryRAMUsage := `sort_desc(avg(count_over_time(container_memory_usage_bytes{container_name!="",container_name!="POD"}[` + window + `]) * avg_over_time(container_memory_usage_bytes{container_name!="",container_name!="POD"}[` + window + `])) by (namespace,container_name,pod_name,instance))`
 	queryCPURequests := `avg(label_replace(label_replace(avg((count_over_time(kube_pod_container_resource_requests_cpu_cores{container!="",container!="POD"}[` + window + `]) *  avg_over_time(kube_pod_container_resource_requests_cpu_cores{container!="",container!="POD"}[` + window + `]))) by (namespace,container,pod) , "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)") ) by (namespace,container_name, pod_name)`
@@ -382,7 +382,7 @@ func getContainerAllocation(req []*Vector, used []*Vector) []*Vector {
 	return allocation
 }
 
-func getNodeCost(clientset *kubernetes.Clientset, cloud costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.Node, error) {
+func getNodeCost(clientset kubernetes.Interface, cloud costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.Node, error) {
 	nodeList, err := clientset.CoreV1().Nodes().List(metav1.ListOptions{})
 	if err != nil {
 		return nil, err
@@ -436,7 +436,7 @@ func getNodeCost(clientset *kubernetes.Clientset, cloud costAnalyzerCloud.Provid
 	return nodes, nil
 }
 
-func getPodServices(clientset *kubernetes.Clientset, podList *v1.PodList) (map[string]map[string][]string, error) {
+func getPodServices(clientset kubernetes.Interface, podList *v1.PodList) (map[string]map[string][]string, error) {
 	servicesList, err := clientset.CoreV1().Services("").List(metav1.ListOptions{})
 	if err != nil {
 		return nil, err
@@ -468,7 +468,7 @@ func getPodServices(clientset *kubernetes.Clientset, podList *v1.PodList) (map[s
 	return podServicesMapping, nil
 }
 
-func getPodDeployments(clientset *kubernetes.Clientset, podList *v1.PodList) (map[string]map[string][]string, error) {
+func getPodDeployments(clientset kubernetes.Interface, podList *v1.PodList) (map[string]map[string][]string, error) {
 	deploymentsList, err := clientset.AppsV1().Deployments("").List(metav1.ListOptions{})
 	if err != nil {
 		return nil, err
@@ -499,7 +499,7 @@ func getPodDeployments(clientset *kubernetes.Clientset, podList *v1.PodList) (ma
 	return podDeploymentsMapping, nil
 }
 
-func ComputeCostDataRange(cli prometheusClient.Client, clientset *kubernetes.Clientset, cloud costAnalyzerCloud.Provider,
+func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Interface, cloud costAnalyzerCloud.Provider,
 	startString, endString, windowString string) (map[string]*CostData, error) {
 	queryRAMRequests := `avg(label_replace(label_replace(avg((count_over_time(kube_pod_container_resource_requests_memory_bytes{container!="",container!="POD"}[` + windowString + `]) *  avg_over_time(kube_pod_container_resource_requests_memory_bytes{container!="",container!="POD"}[` + windowString + `]))) by (namespace,container,pod) , "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)") ) by (namespace,container_name, pod_name)`
 	queryRAMUsage := `sort_desc(avg(count_over_time(container_memory_usage_bytes{container_name!="",container_name!="POD"}[` + windowString + `]) * avg_over_time(container_memory_usage_bytes{container_name!="",container_name!="POD"}[` + windowString + `])) by (namespace,container_name,pod_name,instance))`

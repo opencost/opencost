@@ -27,7 +27,7 @@ import (
 
 type Accesses struct {
 	PrometheusClient       prometheusClient.Client
-	KubeClientSet          *kubernetes.Clientset
+	KubeClientSet          kubernetes.Interface
 	Cloud                  costAnalyzerCloud.Provider
 	CPUPriceRecorder       *prometheus.GaugeVec
 	RAMPriceRecorder       *prometheus.GaugeVec
