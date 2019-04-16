@@ -12,7 +12,6 @@ import (
 func TestCostModel(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
-	// Assert that Bar() is invoked.
 	defer ctrl.Finish()
 
 	u, _ := url.Parse("http://localhost:9003")
