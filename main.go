@@ -32,6 +32,8 @@ type Accesses struct {
 	CPUPriceRecorder       *prometheus.GaugeVec
 	RAMPriceRecorder       *prometheus.GaugeVec
 	NodeTotalPriceRecorder *prometheus.GaugeVec
+	RAMAllocationRecorder  *prometheus.GaugeVec
+	CPUAllocationRecorder  *prometheus.GaugeVec
 }
 
 type DataEnvelope struct {
@@ -103,7 +105,7 @@ func (a *Accesses) recordPrices() {
 	go func() {
 		for {
 			klog.V(3).Info("Recording prices...")
-			data, err := costModel.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "1h")
+			data, err := costModel.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "1m")
 			if err != nil {
 				klog.V(1).Info("Error in price recording: " + err.Error())
 				// zero the for loop so the time.Sleep will still work
@@ -126,6 +128,16 @@ func (a *Accesses) recordPrices() {
 				a.CPUPriceRecorder.WithLabelValues(nodeName).Set(cpuCost)
 				a.RAMPriceRecorder.WithLabelValues(nodeName).Set(ramCost)
 				a.NodeTotalPriceRecorder.WithLabelValues(nodeName).Set(totalCost)
+
+				namespace := costs.Namespace
+				podName := costs.PodName
+				containerName := costs.Name
+				if len(costs.RAMAllocation) > 0 {
+					a.RAMAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName).Set(costs.RAMAllocation[0].Value)
+				}
+				if len(costs.CPUAllocation) > 0 {
+					a.CPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName).Set(costs.CPUAllocation[0].Value)
+				}
 			}
 			time.Sleep(time.Minute)
 		}
@@ -185,9 +197,21 @@ func main() {
 		Help: "node_total_hourly_cost Total node cost per hour",
 	}, []string{"instance"})
 
+	RAMAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "container_memory_allocation_bytes",
+		Help: "container_memory_allocation_bytes Bytes of RAM used",
+	}, []string{"namespace", "pod", "container", "instance"})
+
+	CPUAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "container_cpu_allocation",
+		Help: "container_cpu_allocation Percent of a single CPU used in a minute",
+	}, []string{"namespace", "pod", "container", "instance"})
+
 	prometheus.MustRegister(cpuGv)
 	prometheus.MustRegister(ramGv)
 	prometheus.MustRegister(totalGv)
+	prometheus.MustRegister(RAMAllocation)
+	prometheus.MustRegister(CPUAllocation)
 
 	a := Accesses{
 		PrometheusClient:       promCli,
@@ -196,6 +220,8 @@ func main() {
 		CPUPriceRecorder:       cpuGv,
 		RAMPriceRecorder:       ramGv,
 		NodeTotalPriceRecorder: totalGv,
+		RAMAllocationRecorder:  RAMAllocation,
+		CPUAllocationRecorder:  CPUAllocation,
 	}
 
 	err = a.Cloud.DownloadPricingData()

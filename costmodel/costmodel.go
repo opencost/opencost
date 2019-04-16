@@ -355,6 +355,9 @@ func getContainerAllocation(req []*Vector, used []*Vector) []*Vector {
 	}
 	usedMap := make(map[float64]float64)
 	for _, usedV := range used {
+		if usedV.Timestamp == 0 {
+			continue
+		}
 		usedV.Timestamp = math.Round(usedV.Timestamp/10) * 10
 		usedMap[usedV.Timestamp] = usedV.Value
 		if _, ok := reqMap[usedV.Timestamp]; !ok { // no need to double add, since we'll range over sorted timestamps and check.
