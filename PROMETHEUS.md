@@ -20,21 +20,23 @@ After deploying the Kubecost model (see [README](README.md) for more info on ins
 
 Below are a set of sample queries that can be run after Prometheus begins ingesting Kubecost data:
 
-__Calculating the cost of each container (as measured over last 24 hours)__
+__Monthly cost of top 5 containers__
 
 ```
-avg_over_time(container_memory_allocation_bytes[24h]) * on(instance) group_left() avg_over_time(node_ram_hourly_cost[24h])  / 1024 / 1024 / 1024
-+ 
-avg_over_time(container_cpu_allocation[24h]) * on(instance) group_left() avg_over_time(node_cpu_hourly_cost[24h])   
+topk( 5, 
+  container_memory_allocation_bytes* on(instance) group_left() node_ram_hourly_cost  / 1024 / 1024 / 1024 * 730
+  + 
+  container_cpu_allocation * on(instance) group_left() node_cpu_hourly_cost * 730
+)
 ```
 
-__Get memory cost for *default* namespace (measured over the last week)__
+__Memory cost for the *default* namespace__
 
 ```
 sum(
-  avg_over_time(container_memory_allocation_bytes{namespace="default"}[7d]) 
+  container_memory_allocation_bytes{namespace="default"} 
   * 
-  on(instance) group_left() avg_over_time(node_ram_hourly_cost[7d])  / 1024 / 1024 / 1024
+  on(instance) group_left() node_ram_hourly_cost  / 1024 / 1024 / 1024
 ) by (namespace)
 ```
 
