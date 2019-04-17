@@ -1,4 +1,4 @@
-Kubecost allows you to export pricing data to Prometheus and then write custom queries to gain cost insights. Below are instructions for accomplishing this.
+Kubecost allows you to export pricing data to Prometheus and then write custom queries for cost insights. Below are instructions for accomplishing this and a set of example queries to get you started.
 
 ## Configuration
 
@@ -20,7 +20,7 @@ After deploying the Kubecost model (see [README](README.md) for more info on ins
 
 Below are a set of sample queries that can be run after Prometheus begins ingesting Kubecost data:
 
-__Calculate cost of running each container (as measured over last 24 hours)__
+__Calculating the cost of each container (as measured over last 24 hours)__
 
 ```
 avg_over_time(container_memory_allocation_bytes[24h]) * on(instance) group_left() avg_over_time(node_ram_hourly_cost[24h])  / 1024 / 1024 / 1024
@@ -32,9 +32,9 @@ __Get memory cost for *default* namespace (measured over the last week)__
 
 ```
 sum(
-  avg_over_time(container_memory_allocation_bytes{namespace="default"}[24h]) 
+  avg_over_time(container_memory_allocation_bytes{namespace="default"}[7d]) 
   * 
-  on(instance) group_left() avg_over_time(node_ram_hourly_cost[24h])  / 1024 / 1024 / 1024
+  on(instance) group_left() avg_over_time(node_ram_hourly_cost[7d])  / 1024 / 1024 / 1024
 ) by (namespace)
 ```
 
@@ -47,8 +47,10 @@ sum(node_total_hourly_cost) * 730
 
 ## Available Metrics
 
-* node_cpu_hourly_cost
-* node_ram_hourly_cost
-* node_total_hourly_cost
-* container_memory_allocation_bytes
-* container_cpu_allocation
+| Metric       | Description                                                                                            |
+| ------------ | ------------------------------------------------------------------------------------------------------ |
+| node_cpu_hourly_cost | Hourly cost per vCPU on this node  |
+| node_ram_hourly_cost   | Hourly cost per Gb of memory on this node                       |
+| node_total_hourly_cost   | Total node cost per hour                       |
+| container_cpu_allocation   | Average number of CPUs allocated -- measured by max(Request,Usage)                      |
+| container_memory_allocation_bytes   | Average bytes of RAM allocated -- measured by max(Request,Usage)                  |
