@@ -231,29 +231,32 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 			for i, container := range pod.Spec.Containers {
 				containerName := container.Name
 
-				RAMReqV, ok := RAMReqMap[key]
+				// recreate the key and look up data for this container
+				newKey := ns + "," + podName + "," + containerName
+
+				RAMReqV, ok := RAMReqMap[newKey]
 				if !ok {
-					klog.V(2).Info("no RAM requests for " + key)
+					klog.V(2).Info("no RAM requests for " + newKey)
 					RAMReqV = []*Vector{&Vector{}}
 				}
-				RAMUsedV, ok := RAMUsedMap[key]
+				RAMUsedV, ok := RAMUsedMap[newKey]
 				if !ok {
-					klog.V(2).Info("no RAM usage for " + key)
+					klog.V(2).Info("no RAM usage for " + newKey)
 					RAMUsedV = []*Vector{&Vector{}}
 				}
-				CPUReqV, ok := CPUReqMap[key]
+				CPUReqV, ok := CPUReqMap[newKey]
 				if !ok {
-					klog.V(2).Info("no CPU requests for " + key)
+					klog.V(2).Info("no CPU requests for " + newKey)
 					CPUReqV = []*Vector{&Vector{}}
 				}
-				GPUReqV, ok := GPUReqMap[key]
+				GPUReqV, ok := GPUReqMap[newKey]
 				if !ok {
-					klog.V(2).Info("no GPU requests for " + key)
+					klog.V(2).Info("no GPU requests for " + newKey)
 					GPUReqV = []*Vector{&Vector{}}
 				}
-				CPUUsedV, ok := CPUUsedMap[key]
+				CPUUsedV, ok := CPUUsedMap[newKey]
 				if !ok {
-					klog.V(2).Info("no CPU usage for " + key)
+					klog.V(2).Info("no CPU usage for " + newKey)
 					CPUUsedV = []*Vector{&Vector{}}
 				}
 
@@ -283,13 +286,13 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 				}
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
-				containerNameCost[key] = costs
+				containerNameCost[newKey] = costs
 			}
 
 		} else {
 			// The container has been deleted. Not all information is sent to prometheus via ksm, so fill out what we can without k8s api
 			// TODO: The nodename should be available from the prometheus query. Check if that node still exists and use that price
-			klog.V(3).Info("The node " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
+			klog.V(3).Info("The container " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
 			c, _ := newContainerMetricFromKey(key)
 			RAMReqV, ok := RAMReqMap[key]
 			if !ok {
@@ -687,29 +690,31 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 			for i, container := range pod.Spec.Containers {
 				containerName := container.Name
 
-				RAMReqV, ok := RAMReqMap[key]
+				newKey := ns + "," + podName + "," + containerName
+
+				RAMReqV, ok := RAMReqMap[newKey]
 				if !ok {
-					klog.V(2).Info("no RAM requests for " + key)
+					klog.V(2).Info("no RAM requests for " + newKey)
 					RAMReqV = []*Vector{}
 				}
-				RAMUsedV, ok := RAMUsedMap[key]
+				RAMUsedV, ok := RAMUsedMap[newKey]
 				if !ok {
-					klog.V(2).Info("no RAM usage for " + key)
+					klog.V(2).Info("no RAM usage for " + newKey)
 					RAMUsedV = []*Vector{}
 				}
-				CPUReqV, ok := CPUReqMap[key]
+				CPUReqV, ok := CPUReqMap[newKey]
 				if !ok {
-					klog.V(2).Info("no CPU requests for " + key)
+					klog.V(2).Info("no CPU requests for " + newKey)
 					CPUReqV = []*Vector{}
 				}
-				GPUReqV, ok := GPUReqMap[key]
+				GPUReqV, ok := GPUReqMap[newKey]
 				if !ok {
-					klog.V(2).Info("no GPU requests for " + key)
+					klog.V(2).Info("no GPU requests for " + newKey)
 					GPUReqV = []*Vector{}
 				}
-				CPUUsedV, ok := CPUUsedMap[key]
+				CPUUsedV, ok := CPUUsedMap[newKey]
 				if !ok {
-					klog.V(2).Info("no CPU usage for " + key)
+					klog.V(2).Info("no CPU usage for " + newKey)
 					CPUUsedV = []*Vector{}
 				}
 
@@ -739,13 +744,13 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 				}
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
-				containerNameCost[key] = costs
+				containerNameCost[newKey] = costs
 			}
 
 		} else {
 			// The container has been deleted. Not all information is sent to prometheus via ksm, so fill out what we can without k8s api
 			// TODO: The nodename should be available from the prometheus query. Check if that node still exists and use that price
-			klog.V(3).Info("The node " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
+			klog.V(3).Info("The container " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
 			c, _ := newContainerMetricFromKey(key)
 			RAMReqV, ok := RAMReqMap[key]
 			if !ok {
