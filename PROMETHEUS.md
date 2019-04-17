@@ -13,7 +13,7 @@ After deploying the Kubecost model (see [README](README.md) for more info on ins
   scheme: http
   static_configs:
   - targets:
-    - kubecost-cost-analyzer.kubecost:9003
+    - < address of cost-model service> # example: <service-name>.<namespace>:<port>
 ``` 
 
 ## Example queries
