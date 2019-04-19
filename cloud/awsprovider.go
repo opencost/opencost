@@ -1,10 +1,14 @@
 package cloud
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,6 +24,10 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/athena"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/jszwec/csvutil"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -27,6 +35,7 @@ import (
 // AWS represents an Amazon Provider
 type AWS struct {
 	Pricing          map[string]*AWSProductTerms
+	SpotPricing      map[string]*spotInfo
 	ValidPricingKeys map[string]bool
 	Clientset        *kubernetes.Clientset
 	BaseCPUPrice     string
@@ -34,6 +43,12 @@ type AWS struct {
 	BaseSpotRAMPrice string
 	SpotLabelName    string
 	SpotLabelValue   string
+	ServiceKeyName   string
+	ServiceKeySecret string
+	SpotDataRegion   string
+	SpotDataBucket   string
+	SpotDataPrefix   string
+	ProjectID        string
 }
 
 // AWSPricing maps a k8s node to an AWS Pricing "product"
@@ -137,20 +152,44 @@ func (aws *AWS) KubeAttrConversion(location, instanceType, operatingSystem strin
 	return region + "," + instanceType + "," + operatingSystem
 }
 
+type awsKey struct {
+	SpotLabelName  string
+	SpotLabelValue string
+	Labels         map[string]string
+	ProviderID     string
+}
+
+func (k *awsKey) ID() string {
+	parsedProviderID := strings.Split(k.ProviderID, "/")
+	if len(parsedProviderID) == 5 { // It's of the form aws:///us-east-2a/i-0fea4fd46592d050b and we want i-0fea4fd46592d050b, if it exists
+		return parsedProviderID[4]
+	}
+	return ""
+}
+
 // GetKey maps node labels to information needed to retrieve pricing data
-func (aws *AWS) GetKey(labels map[string]string) string {
-	instanceType := labels["beta.kubernetes.io/instance-type"]
-	operatingSystem := labels["beta.kubernetes.io/os"]
-	region := labels["failure-domain.beta.kubernetes.io/region"]
-	if l, ok := labels["lifecycle"]; ok && l == "EC2Spot" {
+func (k *awsKey) Features() string {
+	instanceType := k.Labels["beta.kubernetes.io/instance-type"]
+	operatingSystem := k.Labels["beta.kubernetes.io/os"]
+	region := k.Labels["failure-domain.beta.kubernetes.io/region"]
+	if l, ok := k.Labels["lifecycle"]; ok && l == "EC2Spot" {
 		usageType := "preemptible"
 		return region + "," + instanceType + "," + operatingSystem + "," + usageType
 	}
-	if l, ok := labels[aws.SpotLabelName]; ok && l == aws.SpotLabelValue {
+	if l, ok := k.Labels[k.SpotLabelName]; ok && l == k.SpotLabelValue {
 		usageType := "preemptible"
 		return region + "," + instanceType + "," + operatingSystem + "," + usageType
 	}
 	return region + "," + instanceType + "," + operatingSystem
+}
+
+func (aws *AWS) GetKey(labels map[string]string) Key {
+	return &awsKey{
+		SpotLabelName:  aws.SpotLabelName,
+		SpotLabelValue: aws.SpotLabelValue,
+		Labels:         labels,
+		ProviderID:     labels["providerID"],
+	}
 }
 
 func (aws *AWS) isPreemptible(key string) bool {
@@ -172,7 +211,7 @@ func (aws *AWS) DownloadPricingData() error {
 	for _, n := range nodeList.Items {
 		labels := n.GetObjectMeta().GetLabels()
 		key := aws.GetKey(labels)
-		inputkeys[key] = true
+		inputkeys[key.Features()] = true
 	}
 
 	aws.Pricing = make(map[string]*AWSProductTerms)
@@ -266,6 +305,20 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.BaseSpotRAMPrice = c.SpotRAM
 	aws.SpotLabelName = c.SpotLabel
 	aws.SpotLabelValue = c.SpotLabelValue
+	aws.SpotDataBucket = c.SpotDataBucket
+	aws.SpotDataPrefix = c.SpotDataPrefix
+	aws.ProjectID = c.ProjectID
+	aws.SpotDataRegion = c.SpotDataRegion
+	aws.ServiceKeyName = c.ServiceKeyName
+	aws.ServiceKeySecret = c.ServiceKeySecret
+
+	sp, err := parseSpotData(aws.SpotDataBucket, aws.SpotDataPrefix, aws.ProjectID, aws.SpotDataRegion, aws.ServiceKeyName, aws.ServiceKeySecret)
+	if err != nil {
+		klog.V(1).Infof("ERROR DOWNLOADING SPOT DATA")
+	} else {
+		aws.SpotPricing = sp
+	}
+
 	return nil
 }
 
@@ -274,35 +327,59 @@ func (aws *AWS) AllNodePricing() (interface{}, error) {
 	return aws.Pricing, nil
 }
 
-// NodePricing takes in a key from GetKey and returns a Node object for use in building the cost model.
-func (aws *AWS) NodePricing(key string) (*Node, error) {
-	//return json.Marshal(aws.Pricing[key])
-	usageType := "ondemand"
+func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*Node, error) {
+	key := k.Features()
 	if aws.isPreemptible(key) {
-		usageType = "preemptible"
-	}
-	terms, ok := aws.Pricing[key]
-	if ok {
-		if aws.isPreemptible(key) {
+		if spotInfo, ok := aws.SpotPricing[k.ID()]; ok { // try and match directly to an ID for pricing. We'll still need the features
+			var spotcost string
+			arr := strings.Split(spotInfo.Charge, " ")
+			if len(arr) == 2 {
+				spotcost = arr[0]
+			} else {
+				klog.V(2).Infof("Spot node %s not found", k.ID())
+			}
 			return &Node{
+				Cost:         spotcost,
 				VCPU:         terms.VCpu,
-				VCPUCost:     aws.BaseSpotCPUPrice,
 				RAM:          terms.Memory,
-				RAMCost:      aws.BaseSpotRAMPrice,
 				Storage:      terms.Storage,
 				BaseCPUPrice: aws.BaseCPUPrice,
 				UsageType:    usageType,
 			}, nil
 		}
-		cost := terms.OnDemand.PriceDimensions[terms.Sku+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
 		return &Node{
-			Cost:         cost,
 			VCPU:         terms.VCpu,
+			VCPUCost:     aws.BaseSpotCPUPrice,
 			RAM:          terms.Memory,
+			RAMCost:      aws.BaseSpotRAMPrice,
 			Storage:      terms.Storage,
 			BaseCPUPrice: aws.BaseCPUPrice,
 			UsageType:    usageType,
 		}, nil
+	}
+	cost := terms.OnDemand.PriceDimensions[terms.Sku+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
+	return &Node{
+		Cost:         cost,
+		VCPU:         terms.VCpu,
+		RAM:          terms.Memory,
+		Storage:      terms.Storage,
+		BaseCPUPrice: aws.BaseCPUPrice,
+		UsageType:    usageType,
+	}, nil
+}
+
+// NodePricing takes in a key from GetKey and returns a Node object for use in building the cost model.
+func (aws *AWS) NodePricing(k Key) (*Node, error) {
+	//return json.Marshal(aws.Pricing[key])
+	key := k.Features()
+	usageType := "ondemand"
+	if aws.isPreemptible(key) {
+		usageType = "preemptible"
+	}
+
+	terms, ok := aws.Pricing[key]
+	if ok {
+		return aws.createNode(terms, usageType, k)
 	} else if _, ok := aws.ValidPricingKeys[key]; ok {
 		err := aws.DownloadPricingData()
 		if err != nil {
@@ -312,26 +389,7 @@ func (aws *AWS) NodePricing(key string) (*Node, error) {
 		if !termsOk {
 			return nil, fmt.Errorf("Unable to find any Pricing data for \"%s\"", key)
 		}
-		if aws.isPreemptible(key) {
-			return &Node{
-				VCPU:         terms.VCpu,
-				VCPUCost:     aws.BaseSpotCPUPrice,
-				RAM:          terms.Memory,
-				RAMCost:      aws.BaseSpotRAMPrice,
-				Storage:      terms.Storage,
-				BaseCPUPrice: aws.BaseCPUPrice,
-				UsageType:    usageType,
-			}, nil
-		}
-		cost := terms.OnDemand.PriceDimensions[terms.Sku+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
-		return &Node{
-			Cost:         cost,
-			VCPU:         terms.VCpu,
-			RAM:          terms.Memory,
-			Storage:      terms.Storage,
-			BaseCPUPrice: aws.BaseCPUPrice,
-			UsageType:    usageType,
-		}, nil
+		return aws.createNode(terms, usageType, k)
 	} else {
 		return nil, fmt.Errorf("Invalid Pricing Key \"%s\"", key)
 	}
@@ -560,4 +618,113 @@ func (*AWS) QuerySQL(query string) ([]byte, error) {
 	}
 	return nil, fmt.Errorf("Error getting query results : %s", *qrop.QueryExecution.Status.State)
 
+}
+
+type spotInfo struct {
+	Timestamp   string `csv:"Timestamp"`
+	UsageType   string `csv:"UsageType"`
+	Operation   string `csv:"Operation`
+	InstanceID  string `csv:"InstanceID`
+	MyBidID     string `csv:"MyBidID"`
+	MyMaxPrice  string `csv:"MyMaxPrice"`
+	MarketPrice string `csv:"MarketPrice"`
+	Charge      string `csv:"Charge"`
+	Version     string `csv:"Version"`
+}
+
+func parseSpotData(bucket string, prefix string, projectID string, region string, accessKeyID string, accessKeySecret string) (map[string]*spotInfo, error) {
+	log.Print("bucket " + bucket)
+	log.Print("prefix " + prefix)
+	log.Print("pID " + projectID)
+	log.Print("region " + region)
+	log.Print("accessKeyName " + accessKeyID)
+	log.Print("secret " + accessKeySecret)
+
+	if accessKeyID != "" && accessKeySecret != "" { // credentials may exist on the actual AWS node-- if so, use those. If not, override with the service key
+		os.Setenv("AWS_ACCESS_KEY_ID", accessKeyID)
+		os.Setenv("AWS_SECRET_ACCESS_KEY", accessKeySecret)
+	}
+	c := &aws.Config{
+		Region:      aws.String(region),
+		Credentials: credentials.NewEnvCredentials(),
+	}
+	s := session.Must(session.NewSession(c))
+	s3Svc := s3.New(s)
+	downloader := s3manager.NewDownloaderWithClient(s3Svc)
+
+	t := time.Now().Add(time.Duration(-60) * time.Minute)
+	ls := &s3.ListObjectsInput{
+		Bucket: aws.String(bucket),
+		Prefix: aws.String(prefix + "/" + projectID + "." + t.Format("2006-01-02-15")),
+	}
+	lso, err := s3Svc.ListObjects(ls)
+	if err != nil {
+		log.Printf(err.Error())
+	}
+	var keys []*string
+	log.Printf("GETTING LSO CONTNETS")
+	for _, obj := range lso.Contents {
+		log.Printf("KEY: %s", *obj.Key)
+		keys = append(keys, obj.Key)
+	}
+	spots := make(map[string]*spotInfo)
+	for _, key := range keys {
+		log.Printf("KEY: %s", *key)
+		getObj := &s3.GetObjectInput{
+			Bucket: aws.String(bucket),
+			Key:    key,
+		}
+
+		buf := aws.NewWriteAtBuffer([]byte{})
+		_, err := downloader.Download(buf, getObj)
+		if err != nil {
+			log.Print(err.Error())
+		}
+
+		r := bytes.NewReader(buf.Bytes())
+
+		gr, err := gzip.NewReader(r)
+		if err != nil {
+			log.Print(err.Error())
+			return nil, err
+		}
+		defer gr.Close()
+
+		csvReader := csv.NewReader(gr)
+		csvReader.Comma = '\t'
+		header, err := csvutil.Header(spotInfo{}, "csv")
+		if err != nil {
+			log.Fatal(err)
+		}
+		dec, err := csvutil.NewDecoder(csvReader, header...)
+		if err != nil {
+			return nil, err
+		}
+
+		//header := dec.Header()
+		for {
+			log.Printf("TEST")
+			//log.Printf(strings.Join(dec.Record(), ","))
+			if err := dec.Decode(&spotInfo{}); err == io.EOF {
+				break
+			}
+			st := dec.Record()
+			if len(st) == 9 { // it's tab separated but not quite a tsv
+				log.Printf("SPOT INFO %+v", st)
+				spot := &spotInfo{
+					Timestamp:   st[0],
+					UsageType:   st[1],
+					Operation:   st[2],
+					InstanceID:  st[3],
+					MyBidID:     st[4],
+					MyMaxPrice:  st[5],
+					MarketPrice: st[6],
+					Charge:      st[7],
+					Version:     st[8],
+				}
+				spots[spot.InstanceID] = spot
+			}
+		}
+	}
+	return spots, nil
 }

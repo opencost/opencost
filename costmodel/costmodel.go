@@ -397,6 +397,7 @@ func getNodeCost(clientset kubernetes.Interface, cloud costAnalyzerCloud.Provide
 	for _, n := range nodeList.Items {
 		name := n.GetObjectMeta().GetName()
 		nodeLabels := n.GetObjectMeta().GetLabels()
+		nodeLabels["providerID"] = n.Spec.ProviderID
 		cnode, err := cloud.NodePricing(cloud.GetKey(nodeLabels))
 		if err != nil {
 			klog.V(1).Infof("Error getting node. Error: " + err.Error())

@@ -303,7 +303,7 @@ func (gcp *GCP) DownloadPricingData() error {
 	for _, n := range nodeList.Items {
 		labels := n.GetObjectMeta().GetLabels()
 		key := gcp.GetKey(labels)
-		inputkeys[key] = true
+		inputkeys[key.Features()] = true
 	}
 
 	pages, err := gcp.parsePages(inputkeys)
@@ -321,18 +321,32 @@ func (gcp *GCP) DownloadPricingData() error {
 	return nil
 }
 
-// GetKey maps node labels to information needed to retrieve pricing data
-func (gcp *GCP) GetKey(labels map[string]string) string {
+type gcpKey struct {
+	Labels map[string]string
+}
 
-	instanceType := strings.ToLower(strings.Join(strings.Split(labels["beta.kubernetes.io/instance-type"], "-")[:2], ""))
+func (gcp *GCP) GetKey(labels map[string]string) Key {
+	return &gcpKey{
+		Labels: labels,
+	}
+}
+
+func (gcp *gcpKey) ID() string {
+	return ""
+}
+
+// GetKey maps node labels to information needed to retrieve pricing data
+func (gcp *gcpKey) Features() string {
+
+	instanceType := strings.ToLower(strings.Join(strings.Split(gcp.Labels["beta.kubernetes.io/instance-type"], "-")[:2], ""))
 	if instanceType == "n1highmem" || instanceType == "n1highcpu" {
 		instanceType = "n1standard" // These are priced the same. TODO: support n1ultrahighmem
 	} else if strings.HasPrefix(instanceType, "custom") {
 		instanceType = "custom" // The suffix of custom does not matter
 	}
-	region := strings.ToLower(labels["failure-domain.beta.kubernetes.io/region"])
+	region := strings.ToLower(gcp.Labels["failure-domain.beta.kubernetes.io/region"])
 	var usageType string
-	if t, ok := labels["cloud.google.com/gke-preemptible"]; ok && t == "true" {
+	if t, ok := gcp.Labels["cloud.google.com/gke-preemptible"]; ok && t == "true" {
 		usageType = "preemptible"
 	} else {
 		usageType = "ondemand"
@@ -346,8 +360,8 @@ func (gcp *GCP) AllNodePricing() (interface{}, error) {
 }
 
 // NodePricing returns GCP pricing data for a single node
-func (gcp *GCP) NodePricing(key string) (*Node, error) {
-	if n, ok := gcp.Pricing[key]; ok {
+func (gcp *GCP) NodePricing(key Key) (*Node, error) {
+	if n, ok := gcp.Pricing[key.Features()]; ok {
 		klog.V(2).Infof("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
 		n.Node.BaseCPUPrice = gcp.BaseCPUPrice
 		return n.Node, nil

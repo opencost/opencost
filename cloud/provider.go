@@ -32,15 +32,21 @@ type Node struct {
 	UsageType        string `json:"usageType"`
 }
 
+// Key represents a way for nodes to match between the k8s API and a pricing API
+type Key interface {
+	ID() string       // ID represents an exact match
+	Features() string // Features are a comma separated string of node metadata that could match pricing
+}
+
 // Provider represents a k8s provider.
 type Provider interface {
 	ClusterName() ([]byte, error)
 	AddServiceKey(url.Values) error
 	GetDisks() ([]byte, error)
-	NodePricing(string) (*Node, error)
+	NodePricing(Key) (*Node, error)
 	AllNodePricing() (interface{}, error)
 	DownloadPricingData() error
-	GetKey(map[string]string) string
+	GetKey(map[string]string) Key
 
 	QuerySQL(string) ([]byte, error)
 }
@@ -65,14 +71,20 @@ func GetDefaultPricingData(fname string) (*CustomPricing, error) {
 }
 
 type CustomPricing struct {
-	Provider       string `json:"provider"`
-	Description    string `json:"description"`
-	CPU            string `json:"CPU"`
-	SpotCPU        string `json:"spotCPU"`
-	RAM            string `json:"RAM"`
-	SpotRAM        string `json:"spotRAM"`
-	SpotLabel      string `json:"spotLabel,omitempty"`
-	SpotLabelValue string `json:"spotLabelValue,omitempty"`
+	Provider         string `json:"provider"`
+	Description      string `json:"description"`
+	CPU              string `json:"CPU"`
+	SpotCPU          string `json:"spotCPU"`
+	RAM              string `json:"RAM"`
+	SpotRAM          string `json:"spotRAM"`
+	SpotLabel        string `json:"spotLabel,omitempty"`
+	SpotLabelValue   string `json:"spotLabelValue,omitempty"`
+	ServiceKeyName   string `json:"awsServiceKeyName,omitempty"`
+	ServiceKeySecret string `json:"awsServiceKeySecret,omitempty"`
+	SpotDataRegion   string `json:"awsSpotDataRegion,omitempty"`
+	SpotDataBucket   string `json:"awsSpotDataBucket,omitempty"`
+	SpotDataPrefix   string `json:"awsSpotDataPrefix,omitempty"`
+	ProjectID        string `json:"awsProjectID,omitempty"`
 }
 
 type NodePrice struct {
@@ -103,13 +115,14 @@ func (c *CustomProvider) AllNodePricing() (interface{}, error) {
 	return c.Pricing, nil
 }
 
-func (c *CustomProvider) NodePricing(key string) (*Node, error) {
-	if _, ok := c.Pricing[key]; !ok {
-		key = "default"
+func (c *CustomProvider) NodePricing(key Key) (*Node, error) {
+	k := key.Features()
+	if _, ok := c.Pricing[k]; !ok {
+		k = "default"
 	}
 	return &Node{
-		VCPUCost: c.Pricing[key].CPU,
-		RAMCost:  c.Pricing[key].RAM,
+		VCPUCost: c.Pricing[k].CPU,
+		RAMCost:  c.Pricing[k].RAM,
 	}, nil
 }
 
@@ -134,11 +147,29 @@ func (c *CustomProvider) DownloadPricingData() error {
 	return nil
 }
 
-func (c *CustomProvider) GetKey(labels map[string]string) string {
-	if labels[c.SpotLabel] != "" && labels[c.SpotLabel] == c.SpotLabelValue {
+type customProviderKey struct {
+	SpotLabel      string
+	SpotLabelValue string
+	Labels         map[string]string
+}
+
+func (c *customProviderKey) ID() string {
+	return ""
+}
+
+func (c *customProviderKey) Features() string {
+	if c.Labels[c.SpotLabel] != "" && c.Labels[c.SpotLabel] == c.SpotLabelValue {
 		return "default,spot"
 	}
 	return "default" // TODO: multiple custom pricing support.
+}
+
+func (c *CustomProvider) GetKey(labels map[string]string) Key {
+	return &customProviderKey{
+		SpotLabel:      c.SpotLabel,
+		SpotLabelValue: c.SpotLabelValue,
+		Labels:         labels,
+	}
 }
 
 func (*CustomProvider) QuerySQL(query string) ([]byte, error) {
