@@ -632,6 +632,25 @@ type spotInfo struct {
 	Version     string `csv:"Version"`
 }
 
+type fnames []*string
+
+func (f fnames) Len() int {
+	return len(f)
+}
+
+func (f fnames) Swap(i, j int) {
+	f[i], f[j] = f[j], f[i]
+}
+
+func (f fnames) Less(i, j int) bool {
+	key1 := strings.Split(*f[i], ".")
+	key2 := strings.Split(*f[j], ".")
+
+	t1, _ := time.Parse("2006-01-02-15", key1[1])
+	t2, _ := time.Parse("2006-01-02-15", key2[1])
+	return t1.Before(t2)
+}
+
 func parseSpotData(bucket string, prefix string, projectID string, region string, accessKeyID string, accessKeySecret string) (map[string]*spotInfo, error) {
 	log.Print("bucket " + bucket)
 	log.Print("prefix " + prefix)
@@ -652,24 +671,36 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 	s3Svc := s3.New(s)
 	downloader := s3manager.NewDownloaderWithClient(s3Svc)
 
-	t := time.Now().Add(time.Duration(-60) * time.Minute)
+	tOneDayAgo := time.Now().Add(time.Duration(-60) * time.Minute) // Also get files from one day ago to avoid boundary conditions
 	ls := &s3.ListObjectsInput{
 		Bucket: aws.String(bucket),
-		Prefix: aws.String(prefix + "/" + projectID + "." + t.Format("2006-01-02-15")),
+		Prefix: aws.String(prefix + "/" + projectID + "." + tOneDayAgo.Format("2006-01-02")),
+	}
+	ls2 := &s3.ListObjectsInput{
+		Bucket: aws.String(bucket),
+		Prefix: aws.String(prefix + "/" + projectID + "." + time.Now().Format("2006-01-02")),
 	}
 	lso, err := s3Svc.ListObjects(ls)
 	if err != nil {
-		log.Printf(err.Error())
+		return nil, err
 	}
+	klog.V(2).Info("Found " + string(len(lso.Contents)) + " files from yesterday")
+	lso2, err := s3Svc.ListObjects(ls2)
+	if err != nil {
+		return nil, err
+	}
+	klog.V(2).Info("Found " + string(len(lso.Contents)) + " files from today")
+
 	var keys []*string
-	log.Printf("GETTING LSO CONTNETS")
 	for _, obj := range lso.Contents {
-		log.Printf("KEY: %s", *obj.Key)
 		keys = append(keys, obj.Key)
 	}
+	for _, obj := range lso2.Contents {
+		keys = append(keys, obj.Key)
+	}
+
 	spots := make(map[string]*spotInfo)
 	for _, key := range keys {
-		log.Printf("KEY: %s", *key)
 		getObj := &s3.GetObjectInput{
 			Bucket: aws.String(bucket),
 			Key:    key,
@@ -701,16 +732,13 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 			return nil, err
 		}
 
-		//header := dec.Header()
 		for {
-			log.Printf("TEST")
-			//log.Printf(strings.Join(dec.Record(), ","))
 			if err := dec.Decode(&spotInfo{}); err == io.EOF {
 				break
 			}
 			st := dec.Record()
 			if len(st) == 9 { // it's tab separated but not quite a tsv
-				log.Printf("SPOT INFO %+v", st)
+				klog.V(3).Infof("Found spot info %+v", st)
 				spot := &spotInfo{
 					Timestamp:   st[0],
 					UsageType:   st[1],
