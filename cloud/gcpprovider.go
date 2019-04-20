@@ -17,6 +17,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -159,7 +160,6 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]bool) (map[string]*G
 		if err == io.EOF {
 			break
 		}
-		//fmt.Printf("%v  \n", t)
 		if t == "skus" {
 			dec.Token() // [
 			for dec.More() {
@@ -176,7 +176,6 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]bool) (map[string]*G
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "CUSTOM") {
 					instanceType = "custom"
 				}
-				// instance.toLowerCase() === “f1micro”
 				var partialCPU float64
 				if strings.ToLower(instanceType) == "f1micro" {
 					partialCPU = 0.2
@@ -337,15 +336,15 @@ func (gcp *gcpKey) ID() string {
 
 // GetKey maps node labels to information needed to retrieve pricing data
 func (gcp *gcpKey) Features() string {
-
-	instanceType := strings.ToLower(strings.Join(strings.Split(gcp.Labels["beta.kubernetes.io/instance-type"], "-")[:2], ""))
+	instanceType := strings.ToLower(strings.Join(strings.Split(gcp.Labels[v1.LabelInstanceType], "-")[:2], ""))
 	if instanceType == "n1highmem" || instanceType == "n1highcpu" {
 		instanceType = "n1standard" // These are priced the same. TODO: support n1ultrahighmem
 	} else if strings.HasPrefix(instanceType, "custom") {
 		instanceType = "custom" // The suffix of custom does not matter
 	}
-	region := strings.ToLower(gcp.Labels["failure-domain.beta.kubernetes.io/region"])
+	region := strings.ToLower(gcp.Labels[v1.LabelZoneRegion])
 	var usageType string
+
 	if t, ok := gcp.Labels["cloud.google.com/gke-preemptible"]; ok && t == "true" {
 		usageType = "preemptible"
 	} else {
