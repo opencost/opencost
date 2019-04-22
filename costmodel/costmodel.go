@@ -131,6 +131,10 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 	if err != nil {
 		return nil, err
 	}
+	namespaceLabelsMapping, err := getNamespaceLabels(clientset)
+	if err != nil {
+		return nil, err
+	}
 
 	pvClaimMapping, err := getPVInfoVector(resultPVRequests)
 	if err != nil {
@@ -195,11 +199,7 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 			podName := pod.GetObjectMeta().GetName()
 			ns := pod.GetObjectMeta().GetNamespace()
 
-			nsInfo, err := clientset.CoreV1().Namespaces().Get(ns, metav1.GetOptions{})
-			if err != nil {
-				return nil, err
-			}
-			nsLabels := nsInfo.Labels
+			nsLabels := namespaceLabelsMapping[ns]
 
 			podLabels := pod.GetObjectMeta().GetLabels()
 			nodeName := pod.Spec.NodeName
@@ -597,7 +597,10 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 	if err != nil {
 		return nil, err
 	}
-
+	namespaceLabelsMapping, err := getNamespaceLabels(clientset)
+	if err != nil {
+		return nil, err
+	}
 	pvClaimMapping, err := getPVInfoVectors(resultPVRequests)
 	if err != nil {
 		return nil, err
@@ -696,11 +699,7 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 				}
 			}
 
-			nsInfo, err := clientset.CoreV1().Namespaces().Get(ns, metav1.GetOptions{})
-			if err != nil {
-				return nil, err
-			}
-			nsLabels := nsInfo.Labels
+			nsLabels := namespaceLabelsMapping[ns]
 
 			for i, container := range pod.Spec.Containers {
 				containerName := container.Name
@@ -809,6 +808,18 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 		}
 	}
 	return containerNameCost, err
+}
+
+func getNamespaceLabels(clientset kubernetes.Interface) (map[string]map[string]string, error) {
+	nsToLabels := make(map[string]map[string]string)
+	nss, err := clientset.CoreV1().Namespaces().List(metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for _, ns := range nss.Items {
+		nsToLabels[ns.Name] = ns.Labels
+	}
+	return nsToLabels, nil
 }
 
 func getDaemonsetsOfPod(pod v1.Pod) []string {
