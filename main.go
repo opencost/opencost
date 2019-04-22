@@ -95,6 +95,14 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	w.Write(wrapData(data, err))
 }
 
+func (p *Accesses) GetAllNodePricing(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	data, err := p.Cloud.AllNodePricing()
+	w.Write(wrapData(data, err))
+}
+
 func Healthz(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.WriteHeader(200)
 	w.Header().Set("Content-Length", "0")
@@ -234,6 +242,7 @@ func main() {
 	router := httprouter.New()
 	router.GET("/costDataModel", a.CostDataModel)
 	router.GET("/costDataModelRange", a.CostDataModelRange)
+	router.GET("/allNodePricing", a.GetAllNodePricing)
 	router.GET("/healthz", Healthz)
 	router.POST("/refreshPricing", a.RefreshPricingData)
 
