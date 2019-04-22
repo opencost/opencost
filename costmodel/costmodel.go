@@ -39,25 +39,26 @@ const (
 )
 
 type CostData struct {
-	Name          string                  `json:"name"`
-	PodName       string                  `json:"podName"`
-	NodeName      string                  `json:"nodeName"`
-	NodeData      *costAnalyzerCloud.Node `json:"node"`
-	Namespace     string                  `json:"namespace"`
-	Deployments   []string                `json:"deployments"`
-	Services      []string                `json:"services"`
-	Daemonsets    []string                `json:"daemonsets"`
-	Statefulsets  []string                `json:"statefulsets"`
-	Jobs          []string                `json:"jobs"`
-	RAMReq        []*Vector               `json:"ramreq"`
-	RAMUsed       []*Vector               `json:"ramused"`
-	CPUReq        []*Vector               `json:"cpureq"`
-	CPUUsed       []*Vector               `json:"cpuused"`
-	RAMAllocation []*Vector               `json:"ramallocated"`
-	CPUAllocation []*Vector               `json:"cpuallocated"`
-	GPUReq        []*Vector               `json:"gpureq"`
-	PVData        []*PersistentVolumeData `json:"pvData"`
-	Labels        map[string]string       `json:"labels"`
+	Name            string                  `json:"name"`
+	PodName         string                  `json:"podName"`
+	NodeName        string                  `json:"nodeName"`
+	NodeData        *costAnalyzerCloud.Node `json:"node"`
+	Namespace       string                  `json:"namespace"`
+	Deployments     []string                `json:"deployments"`
+	Services        []string                `json:"services"`
+	Daemonsets      []string                `json:"daemonsets"`
+	Statefulsets    []string                `json:"statefulsets"`
+	Jobs            []string                `json:"jobs"`
+	RAMReq          []*Vector               `json:"ramreq"`
+	RAMUsed         []*Vector               `json:"ramused"`
+	CPUReq          []*Vector               `json:"cpureq"`
+	CPUUsed         []*Vector               `json:"cpuused"`
+	RAMAllocation   []*Vector               `json:"ramallocated"`
+	CPUAllocation   []*Vector               `json:"cpuallocated"`
+	GPUReq          []*Vector               `json:"gpureq"`
+	PVData          []*PersistentVolumeData `json:"pvData"`
+	Labels          map[string]string       `json:"labels"`
+	NamespaceLabels map[string]string       `json:"namespaceLabels"`
 }
 
 type Vector struct {
@@ -130,6 +131,10 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 	if err != nil {
 		return nil, err
 	}
+	namespaceLabelsMapping, err := getNamespaceLabels(clientset)
+	if err != nil {
+		return nil, err
+	}
 
 	pvClaimMapping, err := getPVInfoVector(resultPVRequests)
 	if err != nil {
@@ -193,6 +198,9 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 		if pod, ok := currentContainers[key]; ok {
 			podName := pod.GetObjectMeta().GetName()
 			ns := pod.GetObjectMeta().GetNamespace()
+
+			nsLabels := namespaceLabelsMapping[ns]
+
 			podLabels := pod.GetObjectMeta().GetLabels()
 			nodeName := pod.Spec.NodeName
 			var nodeData *costAnalyzerCloud.Node
@@ -266,23 +274,24 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 				}
 
 				costs := &CostData{
-					Name:         containerName,
-					PodName:      podName,
-					NodeName:     nodeName,
-					Namespace:    ns,
-					Deployments:  podDeployments,
-					Services:     podServices,
-					Daemonsets:   getDaemonsetsOfPod(pod),
-					Jobs:         getJobsOfPod(pod),
-					Statefulsets: getStatefulSetsOfPod(pod),
-					NodeData:     nodeData,
-					RAMReq:       RAMReqV,
-					RAMUsed:      RAMUsedV,
-					CPUReq:       CPUReqV,
-					CPUUsed:      CPUUsedV,
-					GPUReq:       GPUReqV,
-					PVData:       pvReq,
-					Labels:       podLabels,
+					Name:            containerName,
+					PodName:         podName,
+					NodeName:        nodeName,
+					Namespace:       ns,
+					Deployments:     podDeployments,
+					Services:        podServices,
+					Daemonsets:      getDaemonsetsOfPod(pod),
+					Jobs:            getJobsOfPod(pod),
+					Statefulsets:    getStatefulSetsOfPod(pod),
+					NodeData:        nodeData,
+					RAMReq:          RAMReqV,
+					RAMUsed:         RAMUsedV,
+					CPUReq:          CPUReqV,
+					CPUUsed:         CPUUsedV,
+					GPUReq:          GPUReqV,
+					PVData:          pvReq,
+					Labels:          podLabels,
+					NamespaceLabels: nsLabels,
 				}
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
@@ -589,7 +598,10 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 	if err != nil {
 		return nil, err
 	}
-
+	namespaceLabelsMapping, err := getNamespaceLabels(clientset)
+	if err != nil {
+		return nil, err
+	}
 	pvClaimMapping, err := getPVInfoVectors(resultPVRequests)
 	if err != nil {
 		return nil, err
@@ -688,6 +700,8 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 				}
 			}
 
+			nsLabels := namespaceLabelsMapping[ns]
+
 			for i, container := range pod.Spec.Containers {
 				containerName := container.Name
 
@@ -725,23 +739,24 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 				}
 
 				costs := &CostData{
-					Name:         containerName,
-					PodName:      podName,
-					NodeName:     nodeName,
-					Namespace:    ns,
-					Deployments:  podDeployments,
-					Services:     podServices,
-					Daemonsets:   getDaemonsetsOfPod(pod),
-					Jobs:         getJobsOfPod(pod),
-					Statefulsets: getStatefulSetsOfPod(pod),
-					NodeData:     nodeData,
-					RAMReq:       RAMReqV,
-					RAMUsed:      RAMUsedV,
-					CPUReq:       CPUReqV,
-					CPUUsed:      CPUUsedV,
-					GPUReq:       GPUReqV,
-					PVData:       pvReq,
-					Labels:       podLabels,
+					Name:            containerName,
+					PodName:         podName,
+					NodeName:        nodeName,
+					Namespace:       ns,
+					Deployments:     podDeployments,
+					Services:        podServices,
+					Daemonsets:      getDaemonsetsOfPod(pod),
+					Jobs:            getJobsOfPod(pod),
+					Statefulsets:    getStatefulSetsOfPod(pod),
+					NodeData:        nodeData,
+					RAMReq:          RAMReqV,
+					RAMUsed:         RAMUsedV,
+					CPUReq:          CPUReqV,
+					CPUUsed:         CPUUsedV,
+					GPUReq:          GPUReqV,
+					PVData:          pvReq,
+					Labels:          podLabels,
+					NamespaceLabels: nsLabels,
 				}
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
@@ -794,6 +809,18 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 		}
 	}
 	return containerNameCost, err
+}
+
+func getNamespaceLabels(clientset kubernetes.Interface) (map[string]map[string]string, error) {
+	nsToLabels := make(map[string]map[string]string)
+	nss, err := clientset.CoreV1().Namespaces().List(metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for _, ns := range nss.Items {
+		nsToLabels[ns.Name] = ns.Labels
+	}
+	return nsToLabels, nil
 }
 
 func getDaemonsetsOfPod(pod v1.Pod) []string {
