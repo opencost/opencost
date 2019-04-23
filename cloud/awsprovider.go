@@ -33,6 +33,7 @@ import (
 
 const awsAccessKeyIDEnvVar = "AWS_ACCESS_KEY_ID"
 const awsAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
+const supportedSpotFeedVersion = "1"
 
 // AWS represents an Amazon Provider
 type AWS struct {
@@ -789,6 +790,9 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 					MarketPrice: st[6],
 					Charge:      st[7],
 					Version:     st[8],
+				}
+				if spot.Version != supportedSpotFeedVersion {
+					klog.V(1).Infof("Possibly unsupported spot data feed version " + spot.Version)
 				}
 				spots[spot.InstanceID] = spot
 			}
