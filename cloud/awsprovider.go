@@ -1,6 +1,9 @@
 package cloud
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,24 +19,39 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/athena"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/jszwec/csvutil"
+
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
+const awsAccessKeyIDEnvVar = "AWS_ACCESS_KEY_ID"
+const awsAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
+const supportedSpotFeedVersion = "1"
+
 // AWS represents an Amazon Provider
 type AWS struct {
-	Pricing          map[string]*AWSProductTerms
-	ValidPricingKeys map[string]bool
-	Clientset        *kubernetes.Clientset
-	BaseCPUPrice     string
-	BaseSpotCPUPrice string
-	BaseSpotRAMPrice string
-	SpotLabelName    string
-	SpotLabelValue   string
+	Pricing                 map[string]*AWSProductTerms
+	SpotPricingByInstanceID map[string]*spotInfo
+	ValidPricingKeys        map[string]bool
+	Clientset               *kubernetes.Clientset
+	BaseCPUPrice            string
+	BaseSpotCPUPrice        string
+	BaseSpotRAMPrice        string
+	SpotLabelName           string
+	SpotLabelValue          string
+	ServiceKeyName          string
+	ServiceKeySecret        string
+	SpotDataRegion          string
+	SpotDataBucket          string
+	SpotDataPrefix          string
+	ProjectID               string
 }
 
 // AWSPricing maps a k8s node to an AWS Pricing "product"
@@ -137,20 +155,54 @@ func (aws *AWS) KubeAttrConversion(location, instanceType, operatingSystem strin
 	return region + "," + instanceType + "," + operatingSystem
 }
 
-// GetKey maps node labels to information needed to retrieve pricing data
-func (aws *AWS) GetKey(labels map[string]string) string {
-	instanceType := labels["beta.kubernetes.io/instance-type"]
-	operatingSystem := labels["beta.kubernetes.io/os"]
-	region := labels["failure-domain.beta.kubernetes.io/region"]
-	if l, ok := labels["lifecycle"]; ok && l == "EC2Spot" {
-		usageType := "preemptible"
-		return region + "," + instanceType + "," + operatingSystem + "," + usageType
+type awsKey struct {
+	SpotLabelName  string
+	SpotLabelValue string
+	Labels         map[string]string
+	ProviderID     string
+}
+
+func (k *awsKey) ID() string {
+	provIdRx := regexp.MustCompile("aws:///([^/]+)/([^/]+)") // It's of the form aws:///us-east-2a/i-0fea4fd46592d050b and we want i-0fea4fd46592d050b, if it exists
+	for matchNum, group := range provIdRx.FindStringSubmatch(k.ProviderID) {
+		if matchNum == 2 {
+			return group
+		}
 	}
-	if l, ok := labels[aws.SpotLabelName]; ok && l == aws.SpotLabelValue {
-		usageType := "preemptible"
-		return region + "," + instanceType + "," + operatingSystem + "," + usageType
+	klog.V(3).Info("Could not find instance ID in " + k.ProviderID)
+	return ""
+}
+
+func (k *awsKey) Features() string {
+
+	instanceType := k.Labels[v1.LabelInstanceType]
+	var operatingSystem string
+	operatingSystem, ok := k.Labels[v1.LabelOSStable]
+	if !ok {
+		operatingSystem = k.Labels["beta.kubernetes.io/os"]
+	}
+	region := k.Labels[v1.LabelZoneRegion]
+
+	key := region + "," + instanceType + "," + operatingSystem
+	usageType := "preemptible"
+	spotKey := key + "," + usageType
+	if l, ok := k.Labels["lifecycle"]; ok && l == "EC2Spot" {
+		return spotKey
+	}
+	if l, ok := k.Labels[k.SpotLabelName]; ok && l == k.SpotLabelValue {
+		return spotKey
 	}
 	return region + "," + instanceType + "," + operatingSystem
+}
+
+// GetKey maps node labels to information needed to retrieve pricing data
+func (aws *AWS) GetKey(labels map[string]string) Key {
+	return &awsKey{
+		SpotLabelName:  aws.SpotLabelName,
+		SpotLabelValue: aws.SpotLabelValue,
+		Labels:         labels,
+		ProviderID:     labels["providerID"],
+	}
 }
 
 func (aws *AWS) isPreemptible(key string) bool {
@@ -172,7 +224,7 @@ func (aws *AWS) DownloadPricingData() error {
 	for _, n := range nodeList.Items {
 		labels := n.GetObjectMeta().GetLabels()
 		key := aws.GetKey(labels)
-		inputkeys[key] = true
+		inputkeys[key.Features()] = true
 	}
 
 	aws.Pricing = make(map[string]*AWSProductTerms)
@@ -266,6 +318,20 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.BaseSpotRAMPrice = c.SpotRAM
 	aws.SpotLabelName = c.SpotLabel
 	aws.SpotLabelValue = c.SpotLabelValue
+	aws.SpotDataBucket = c.SpotDataBucket
+	aws.SpotDataPrefix = c.SpotDataPrefix
+	aws.ProjectID = c.ProjectID
+	aws.SpotDataRegion = c.SpotDataRegion
+	aws.ServiceKeyName = c.ServiceKeyName
+	aws.ServiceKeySecret = c.ServiceKeySecret
+
+	sp, err := parseSpotData(aws.SpotDataBucket, aws.SpotDataPrefix, aws.ProjectID, aws.SpotDataRegion, aws.ServiceKeyName, aws.ServiceKeySecret)
+	if err != nil {
+		klog.V(1).Infof("Error downloading spot data %s", err.Error())
+	} else {
+		aws.SpotPricingByInstanceID = sp
+	}
+
 	return nil
 }
 
@@ -274,35 +340,59 @@ func (aws *AWS) AllNodePricing() (interface{}, error) {
 	return aws.Pricing, nil
 }
 
-// NodePricing takes in a key from GetKey and returns a Node object for use in building the cost model.
-func (aws *AWS) NodePricing(key string) (*Node, error) {
-	//return json.Marshal(aws.Pricing[key])
-	usageType := "ondemand"
+func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*Node, error) {
+	key := k.Features()
 	if aws.isPreemptible(key) {
-		usageType = "preemptible"
-	}
-	terms, ok := aws.Pricing[key]
-	if ok {
-		if aws.isPreemptible(key) {
+		if spotInfo, ok := aws.SpotPricingByInstanceID[k.ID()]; ok { // try and match directly to an ID for pricing. We'll still need the features
+			var spotcost string
+			arr := strings.Split(spotInfo.Charge, " ")
+			if len(arr) == 2 {
+				spotcost = arr[0]
+			} else {
+				klog.V(2).Infof("Spot data for node %s is missing", k.ID())
+			}
 			return &Node{
+				Cost:         spotcost,
 				VCPU:         terms.VCpu,
-				VCPUCost:     aws.BaseSpotCPUPrice,
 				RAM:          terms.Memory,
-				RAMCost:      aws.BaseSpotRAMPrice,
 				Storage:      terms.Storage,
 				BaseCPUPrice: aws.BaseCPUPrice,
 				UsageType:    usageType,
 			}, nil
 		}
-		cost := terms.OnDemand.PriceDimensions[terms.Sku+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
 		return &Node{
-			Cost:         cost,
 			VCPU:         terms.VCpu,
+			VCPUCost:     aws.BaseSpotCPUPrice,
 			RAM:          terms.Memory,
+			RAMCost:      aws.BaseSpotRAMPrice,
 			Storage:      terms.Storage,
 			BaseCPUPrice: aws.BaseCPUPrice,
 			UsageType:    usageType,
 		}, nil
+	}
+	cost := terms.OnDemand.PriceDimensions[terms.Sku+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
+	return &Node{
+		Cost:         cost,
+		VCPU:         terms.VCpu,
+		RAM:          terms.Memory,
+		Storage:      terms.Storage,
+		BaseCPUPrice: aws.BaseCPUPrice,
+		UsageType:    usageType,
+	}, nil
+}
+
+// NodePricing takes in a key from GetKey and returns a Node object for use in building the cost model.
+func (aws *AWS) NodePricing(k Key) (*Node, error) {
+	//return json.Marshal(aws.Pricing[key])
+	key := k.Features()
+	usageType := "ondemand"
+	if aws.isPreemptible(key) {
+		usageType = "preemptible"
+	}
+
+	terms, ok := aws.Pricing[key]
+	if ok {
+		return aws.createNode(terms, usageType, k)
 	} else if _, ok := aws.ValidPricingKeys[key]; ok {
 		err := aws.DownloadPricingData()
 		if err != nil {
@@ -312,26 +402,7 @@ func (aws *AWS) NodePricing(key string) (*Node, error) {
 		if !termsOk {
 			return nil, fmt.Errorf("Unable to find any Pricing data for \"%s\"", key)
 		}
-		if aws.isPreemptible(key) {
-			return &Node{
-				VCPU:         terms.VCpu,
-				VCPUCost:     aws.BaseSpotCPUPrice,
-				RAM:          terms.Memory,
-				RAMCost:      aws.BaseSpotRAMPrice,
-				Storage:      terms.Storage,
-				BaseCPUPrice: aws.BaseCPUPrice,
-				UsageType:    usageType,
-			}, nil
-		}
-		cost := terms.OnDemand.PriceDimensions[terms.Sku+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
-		return &Node{
-			Cost:         cost,
-			VCPU:         terms.VCpu,
-			RAM:          terms.Memory,
-			Storage:      terms.Storage,
-			BaseCPUPrice: aws.BaseCPUPrice,
-			UsageType:    usageType,
-		}, nil
+		return aws.createNode(terms, usageType, k)
 	} else {
 		return nil, fmt.Errorf("Invalid Pricing Key \"%s\"", key)
 	}
@@ -431,9 +502,18 @@ func (*AWS) GetDisks() ([]byte, error) {
 	if err == nil {
 		byteValue, _ := ioutil.ReadAll(jsonFile)
 		var result map[string]string
-		json.Unmarshal([]byte(byteValue), &result)
-		os.Setenv("AWS_ACCESS_KEY_ID", result["access_key_ID"])
-		os.Setenv("AWS_SECRET_ACCESS_KEY", result["secret_access_key"])
+		err := json.Unmarshal([]byte(byteValue), &result)
+		if err != nil {
+			return nil, err
+		}
+		err = os.Setenv(awsAccessKeyIDEnvVar, result["access_key_ID"])
+		if err != nil {
+			return nil, err
+		}
+		err = os.Setenv(awsAccessKeySecretEnvVar, result["secret_access_key"])
+		if err != nil {
+			return nil, err
+		}
 	} else if os.IsNotExist(err) {
 		klog.V(2).Infof("Using Default Credentials")
 	} else {
@@ -445,13 +525,18 @@ func (*AWS) GetDisks() ([]byte, error) {
 		return nil, err
 	}
 	defer clusterConfig.Close()
-	bytes, _ := ioutil.ReadAll(clusterConfig)
+	b, err := ioutil.ReadAll(clusterConfig)
+	if err != nil {
+		return nil, err
+	}
 	var clusterConf map[string]string
-	json.Unmarshal([]byte(bytes), &clusterConf)
+	err = json.Unmarshal([]byte(b), &clusterConf)
+	if err != nil {
+		return nil, err
+	}
 	region := aws.String(clusterConf["region"])
 	c := &aws.Config{
-		Region:      region,
-		Credentials: credentials.NewEnvCredentials(),
+		Region: region,
 	}
 	s := session.Must(session.NewSession(c))
 
@@ -480,8 +565,14 @@ func (*AWS) QuerySQL(query string) ([]byte, error) {
 		byteValue, _ := ioutil.ReadAll(jsonFile)
 		var result map[string]string
 		json.Unmarshal([]byte(byteValue), &result)
-		os.Setenv("AWS_ACCESS_KEY_ID", result["access_key_ID"])
-		os.Setenv("AWS_SECRET_ACCESS_KEY", result["secret_access_key"])
+		err = os.Setenv(awsAccessKeyIDEnvVar, result["access_key_ID"])
+		if err != nil {
+			return nil, err
+		}
+		err = os.Setenv(awsAccessKeySecretEnvVar, result["secret_access_key"])
+		if err != nil {
+			return nil, err
+		}
 	} else if os.IsNotExist(err) {
 		klog.V(2).Infof("Using Default Credentials")
 	} else {
@@ -493,16 +584,18 @@ func (*AWS) QuerySQL(query string) ([]byte, error) {
 		return nil, err
 	}
 	defer athenaConfigs.Close()
-	bytes, _ := ioutil.ReadAll(athenaConfigs)
+	b, err := ioutil.ReadAll(athenaConfigs)
+	if err != nil {
+		return nil, err
+	}
 	var athenaConf map[string]string
-	json.Unmarshal([]byte(bytes), &athenaConf)
+	json.Unmarshal([]byte(b), &athenaConf)
 	region := aws.String(athenaConf["region"])
 	resultsBucket := athenaConf["output"]
 	database := athenaConf["database"]
 
 	c := &aws.Config{
-		Region:      region,
-		Credentials: credentials.NewEnvCredentials(),
+		Region: region,
 	}
 	s := session.Must(session.NewSession(c))
 	svc := athena.New(s)
@@ -551,13 +644,160 @@ func (*AWS) QuerySQL(query string) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		bytes, err := json.Marshal(op.ResultSet)
+		b, err := json.Marshal(op.ResultSet)
 		if err != nil {
 			return nil, err
 		}
 
-		return bytes, nil
+		return b, nil
 	}
 	return nil, fmt.Errorf("Error getting query results : %s", *qrop.QueryExecution.Status.State)
 
+}
+
+type spotInfo struct {
+	Timestamp   string `csv:"Timestamp"`
+	UsageType   string `csv:"UsageType"`
+	Operation   string `csv:"Operation"`
+	InstanceID  string `csv:"InstanceID"`
+	MyBidID     string `csv:"MyBidID"`
+	MyMaxPrice  string `csv:"MyMaxPrice"`
+	MarketPrice string `csv:"MarketPrice"`
+	Charge      string `csv:"Charge"`
+	Version     string `csv:"Version"`
+}
+
+type fnames []*string
+
+func (f fnames) Len() int {
+	return len(f)
+}
+
+func (f fnames) Swap(i, j int) {
+	f[i], f[j] = f[j], f[i]
+}
+
+func (f fnames) Less(i, j int) bool {
+	key1 := strings.Split(*f[i], ".")
+	key2 := strings.Split(*f[j], ".")
+
+	t1, err := time.Parse("2006-01-02-15", key1[1])
+	if err != nil {
+		klog.V(1).Info("Unable to parse timestamp" + key1[1])
+		return false
+	}
+	t2, err := time.Parse("2006-01-02-15", key2[1])
+	if err != nil {
+		klog.V(1).Info("Unable to parse timestamp" + key2[1])
+		return false
+	}
+	return t1.Before(t2)
+}
+
+func parseSpotData(bucket string, prefix string, projectID string, region string, accessKeyID string, accessKeySecret string) (map[string]*spotInfo, error) {
+
+	if accessKeyID != "" && accessKeySecret != "" { // credentials may exist on the actual AWS node-- if so, use those. If not, override with the service key
+		err := os.Setenv(awsAccessKeyIDEnvVar, accessKeyID)
+		if err != nil {
+			return nil, err
+		}
+		err = os.Setenv(awsAccessKeySecretEnvVar, accessKeySecret)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	c := aws.NewConfig().WithRegion(region)
+
+	s := session.Must(session.NewSession(c))
+	s3Svc := s3.New(s)
+	downloader := s3manager.NewDownloaderWithClient(s3Svc)
+
+	tNow := time.Now()
+	tOneDayAgo := tNow.Add(time.Duration(-24) * time.Hour) // Also get files from one day ago to avoid boundary conditions
+	ls := &s3.ListObjectsInput{
+		Bucket: aws.String(bucket),
+		Prefix: aws.String(prefix + "/" + projectID + "." + tOneDayAgo.Format("2006-01-02")),
+	}
+	ls2 := &s3.ListObjectsInput{
+		Bucket: aws.String(bucket),
+		Prefix: aws.String(prefix + "/" + projectID + "." + tNow.Format("2006-01-02")),
+	}
+	lso, err := s3Svc.ListObjects(ls)
+	if err != nil {
+		return nil, err
+	}
+	klog.V(2).Infof("Found %s files from yesterday", string(len(lso.Contents)))
+	lso2, err := s3Svc.ListObjects(ls2)
+	if err != nil {
+		return nil, err
+	}
+	klog.V(2).Infof("Found %s files from today", string(len(lso.Contents)))
+
+	var keys []*string
+	for _, obj := range lso.Contents {
+		keys = append(keys, obj.Key)
+	}
+	for _, obj := range lso2.Contents {
+		keys = append(keys, obj.Key)
+	}
+
+	spots := make(map[string]*spotInfo)
+	for _, key := range keys {
+		getObj := &s3.GetObjectInput{
+			Bucket: aws.String(bucket),
+			Key:    key,
+		}
+
+		buf := aws.NewWriteAtBuffer([]byte{})
+		_, err := downloader.Download(buf, getObj)
+		if err != nil {
+			return nil, err
+		}
+
+		r := bytes.NewReader(buf.Bytes())
+
+		gr, err := gzip.NewReader(r)
+		if err != nil {
+			return nil, err
+		}
+
+		csvReader := csv.NewReader(gr)
+		csvReader.Comma = '\t'
+		header, err := csvutil.Header(spotInfo{}, "csv")
+		if err != nil {
+			return nil, err
+		}
+		dec, err := csvutil.NewDecoder(csvReader, header...)
+		if err != nil {
+			return nil, err
+		}
+
+		for {
+			if err := dec.Decode(&spotInfo{}); err == io.EOF {
+				break
+			}
+			st := dec.Record()
+			if len(st) == 9 { // it's tab separated but not quite a tsv
+				klog.V(3).Infof("Found spot info %+v", st)
+				spot := &spotInfo{
+					Timestamp:   st[0],
+					UsageType:   st[1],
+					Operation:   st[2],
+					InstanceID:  st[3],
+					MyBidID:     st[4],
+					MyMaxPrice:  st[5],
+					MarketPrice: st[6],
+					Charge:      st[7],
+					Version:     st[8],
+				}
+				if spot.Version != supportedSpotFeedVersion {
+					klog.V(1).Infof("Possibly unsupported spot data feed version " + spot.Version)
+				}
+				spots[spot.InstanceID] = spot
+			}
+		}
+		gr.Close()
+	}
+	return spots, nil
 }
