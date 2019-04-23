@@ -169,7 +169,7 @@ func (k *awsKey) ID() string {
 			return group
 		}
 	}
-	klog.V(3).Info("Could not find instance ID in " + k.ProviderID)
+	klog.V(3).Info("Could not find instance ID in \"%s\"", k.ProviderID)
 	return ""
 }
 
@@ -192,7 +192,7 @@ func (k *awsKey) Features() string {
 	if l, ok := k.Labels[k.SpotLabelName]; ok && l == k.SpotLabelValue {
 		return spotKey
 	}
-	return region + "," + instanceType + "," + operatingSystem
+	return key
 }
 
 // GetKey maps node labels to information needed to retrieve pricing data
@@ -727,12 +727,12 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 	if err != nil {
 		return nil, err
 	}
-	klog.V(2).Infof("Found %s files from yesterday", string(len(lso.Contents)))
+	klog.V(2).Infof("Found %d spot data files from yesterday", len(lso.Contents))
 	lso2, err := s3Svc.ListObjects(ls2)
 	if err != nil {
 		return nil, err
 	}
-	klog.V(2).Infof("Found %s files from today", string(len(lso.Contents)))
+	klog.V(2).Infof("Found %d spot data files from today", len(lso.Contents))
 
 	var keys []*string
 	for _, obj := range lso.Contents {
