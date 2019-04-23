@@ -8,6 +8,7 @@ require (
 	cloud.google.com/go v0.34.0
 	github.com/aws/aws-sdk-go v1.19.10
 	github.com/golang/mock v1.2.0
+	github.com/jszwec/csvutil v1.2.1
 	github.com/julienschmidt/httprouter v1.2.0
 	github.com/prometheus/client_golang v0.9.3-0.20190127221311-3c4408c8b829
 	golang.org/x/oauth2 v0.0.0-20190402181905-9f3314589c9a

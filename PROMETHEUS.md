@@ -54,5 +54,5 @@ sum(node_total_hourly_cost) * 730
 | node_cpu_hourly_cost | Hourly cost per vCPU on this node  |
 | node_ram_hourly_cost   | Hourly cost per Gb of memory on this node                       |
 | node_total_hourly_cost   | Total node cost per hour                       |
-| container_cpu_allocation   | Average number of CPUs allocated -- measured by max(Request,Usage)                      |
-| container_memory_allocation_bytes   | Average bytes of RAM allocated -- measured by max(Request,Usage)                  |
+| container_cpu_allocation   | Average number of CPUs requested/used over last 1m                      |
+| container_memory_allocation_bytes   | Average bytes of RAM requested/used over last 1m                 |
