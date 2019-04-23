@@ -6,5 +6,11 @@
     "RAM": "0.004237",
     "spotRAM": "0.000892",
     "spotLabel": "kops.k8s.io/instancegroup",
-    "spotLabelValue": "spotinstance-nodes"
+    "spotLabelValue": "spotinstance-nodes",
+    "awsServiceKeyName": "AKIAXW6UVLRR7ZKG5V6U",
+    "awsServiceKeySecret": "",
+    "awsSpotDataRegion":"us-east-2",
+    "awsSpotDataBucket": "kc-test-spot",
+    "awsSpotDataPrefix": "spotdata",
+    "awsProjectID": "530337586275"
 }
