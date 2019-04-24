@@ -216,6 +216,22 @@ func (aws *AWS) isPreemptible(key string) bool {
 // DownloadPricingData fetches data from the AWS Pricing API
 func (aws *AWS) DownloadPricingData() error {
 
+	c, err := GetDefaultPricingData("aws.json")
+	if err != nil {
+		klog.V(1).Infof("Error downloading default pricing data: %s", err.Error())
+	}
+	aws.BaseCPUPrice = c.CPU
+	aws.BaseSpotCPUPrice = c.SpotCPU
+	aws.BaseSpotRAMPrice = c.SpotRAM
+	aws.SpotLabelName = c.SpotLabel
+	aws.SpotLabelValue = c.SpotLabelValue
+	aws.SpotDataBucket = c.SpotDataBucket
+	aws.SpotDataPrefix = c.SpotDataPrefix
+	aws.ProjectID = c.ProjectID
+	aws.SpotDataRegion = c.SpotDataRegion
+	aws.ServiceKeyName = c.ServiceKeyName
+	aws.ServiceKeySecret = c.ServiceKeySecret
+
 	nodeList, err := aws.Clientset.CoreV1().Nodes().List(metav1.ListOptions{})
 	if err != nil {
 		return err
@@ -238,6 +254,7 @@ func (aws *AWS) DownloadPricingData() error {
 		klog.V(2).Infof("Bogus fetch of \"%s\": %v", pricingURL, err)
 		return err
 	}
+	klog.V(2).Infof("Finished downloading \"%s\"", pricingURL)
 
 	dec := json.NewDecoder(resp.Body)
 	for {
@@ -309,21 +326,6 @@ func (aws *AWS) DownloadPricingData() error {
 	if err != nil {
 		return err
 	}
-	c, err := GetDefaultPricingData("aws.json")
-	if err != nil {
-		klog.V(1).Infof("Error downloading default pricing data: %s", err.Error())
-	}
-	aws.BaseCPUPrice = c.CPU
-	aws.BaseSpotCPUPrice = c.SpotCPU
-	aws.BaseSpotRAMPrice = c.SpotRAM
-	aws.SpotLabelName = c.SpotLabel
-	aws.SpotLabelValue = c.SpotLabelValue
-	aws.SpotDataBucket = c.SpotDataBucket
-	aws.SpotDataPrefix = c.SpotDataPrefix
-	aws.ProjectID = c.ProjectID
-	aws.SpotDataRegion = c.SpotDataRegion
-	aws.ServiceKeyName = c.ServiceKeyName
-	aws.ServiceKeySecret = c.ServiceKeySecret
 
 	sp, err := parseSpotData(aws.SpotDataBucket, aws.SpotDataPrefix, aws.ProjectID, aws.SpotDataRegion, aws.ServiceKeyName, aws.ServiceKeySecret)
 	if err != nil {
@@ -403,8 +405,14 @@ func (aws *AWS) NodePricing(k Key) (*Node, error) {
 			return nil, fmt.Errorf("Unable to find any Pricing data for \"%s\"", key)
 		}
 		return aws.createNode(terms, usageType, k)
-	} else {
-		return nil, fmt.Errorf("Invalid Pricing Key \"%s\"", key)
+	} else { // Fall back to base pricing if we can't find the key.
+		klog.V(1).Infof("Invalid Pricing Key \"%s\"", key)
+		return &Node{
+			Cost:             aws.BaseCPUPrice,
+			BaseCPUPrice:     aws.BaseCPUPrice,
+			UsageType:        usageType,
+			UsesBaseCPUPrice: true,
+		}, nil
 	}
 }
 
@@ -732,7 +740,7 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 	if err != nil {
 		return nil, err
 	}
-	klog.V(2).Infof("Found %d spot data files from today", len(lso.Contents))
+	klog.V(2).Infof("Found %d spot data files from today", len(lso2.Contents))
 
 	var keys []*string
 	for _, obj := range lso.Contents {
