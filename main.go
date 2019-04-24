@@ -25,6 +25,10 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+const (
+	prometheusServerEndpointEnvVar = "PROMETHEUS_SERVER_ENDPOINT"
+)
+
 type Accesses struct {
 	PrometheusClient       prometheusClient.Client
 	KubeClientSet          kubernetes.Interface
@@ -157,9 +161,9 @@ func main() {
 	flag.Set("v", "3")
 	flag.Parse()
 
-	address := os.Getenv("PROMETHEUS_SERVER_ENDPOINT")
+	address := os.Getenv(prometheusServerEndpointEnvVar)
 	if address == "" {
-		klog.Fatal("No address for prometheus set. Aborting.")
+		klog.Fatalf("No address for prometheus set in $%s. Aborting.", prometheusServerEndpointEnvVar)
 	}
 
 	pc := prometheusClient.Config{
