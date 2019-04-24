@@ -29,6 +29,11 @@ const (
 	prometheusServerEndpointEnvVar = "PROMETHEUS_SERVER_ENDPOINT"
 )
 
+var (
+	// gitCommit is set by the build system
+	gitCommit string
+)
+
 type Accesses struct {
 	PrometheusClient       prometheusClient.Client
 	KubeClientSet          kubernetes.Interface
@@ -160,6 +165,7 @@ func main() {
 	klog.InitFlags(nil)
 	flag.Set("v", "3")
 	flag.Parse()
+	klog.V(1).Infof("Starting cost-model (git commit \"%s\")", gitCommit)
 
 	address := os.Getenv(prometheusServerEndpointEnvVar)
 	if address == "" {
