@@ -165,7 +165,7 @@ func main() {
 	klog.InitFlags(nil)
 	flag.Set("v", "3")
 	flag.Parse()
-	klog.V(1).Info("Starting cost-model (git commit \"%s\")", gitCommit)
+	klog.V(1).Infof("Starting cost-model (git commit \"%s\")", gitCommit)
 
 	address := os.Getenv(prometheusServerEndpointEnvVar)
 	if address == "" {
