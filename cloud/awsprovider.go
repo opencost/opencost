@@ -714,6 +714,10 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 			return nil, err
 		}
 	}
+	s3Prefix := projectID
+	if len(prefix) != 0 {
+		s3Prefix = prefix + "/" + s3Prefix
+	}
 
 	c := aws.NewConfig().WithRegion(region)
 
@@ -725,22 +729,30 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 	tOneDayAgo := tNow.Add(time.Duration(-24) * time.Hour) // Also get files from one day ago to avoid boundary conditions
 	ls := &s3.ListObjectsInput{
 		Bucket: aws.String(bucket),
-		Prefix: aws.String(prefix + "/" + projectID + "." + tOneDayAgo.Format("2006-01-02")),
+		Prefix: aws.String(s3Prefix + "." + tOneDayAgo.Format("2006-01-02")),
 	}
 	ls2 := &s3.ListObjectsInput{
 		Bucket: aws.String(bucket),
-		Prefix: aws.String(prefix + "/" + projectID + "." + tNow.Format("2006-01-02")),
+		Prefix: aws.String(s3Prefix + "." + tNow.Format("2006-01-02")),
 	}
 	lso, err := s3Svc.ListObjects(ls)
 	if err != nil {
 		return nil, err
 	}
-	klog.V(2).Infof("Found %d spot data files from yesterday", len(lso.Contents))
+	lsoLen := len(lso.Contents)
+	klog.V(2).Infof("Found %d spot data files from yesterday", lsoLen)
+	if lsoLen == 0 {
+		klog.V(5).Infof("ListObjects \"s3://%s/%s\" produced no keys", ls.Bucket, ls.Prefix)
+	}
 	lso2, err := s3Svc.ListObjects(ls2)
 	if err != nil {
 		return nil, err
 	}
-	klog.V(2).Infof("Found %d spot data files from today", len(lso2.Contents))
+	lso2Len := len(lso2.Contents)
+	klog.V(2).Infof("Found %d spot data files from today", lso2Len)
+	if lso2Len == 0 {
+		klog.V(5).Infof("ListObjects \"s3://%s/%s\" produced no keys", ls2.Bucket, ls2.Prefix)
+	}
 
 	var keys []*string
 	for _, obj := range lso.Contents {
