@@ -1,6 +1,7 @@
 package cloud
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 
 	"k8s.io/klog"
 
+	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -42,7 +44,18 @@ type GCP struct {
 
 // QuerySQL should query BigQuery for billing data for out of cluster costs. TODO: Implement.
 func (*GCP) QuerySQL(query string) ([]byte, error) {
-	return nil, nil
+	ctx := context.Background()
+	client, err := bigquery.NewClient(ctx, "guestbook-219823")
+	if err != nil {
+		return nil, err
+	}
+
+	q := client.Query()
+	it, err := q.Read(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 }
 
 // ClusterName returns the name of a GKE cluster, as provided by metadata.
