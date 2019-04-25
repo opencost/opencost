@@ -264,16 +264,23 @@ func (aws *AWS) DownloadPricingData() error {
 			break
 		}
 		if t == "products" {
-			dec.Token() //{
+			_, err := dec.Token() // this should parse the opening "{""
+			if err != nil {
+				return err
+			}
 			for dec.More() {
-				dec.Token() // the sku token
+				_, err := dec.Token() // the sku token
+				if err != nil {
+					return err
+				}
 				product := &AWSProduct{}
-				err := dec.Decode(&product)
 
+				err = dec.Decode(&product)
 				if err != nil {
 					klog.V(1).Infof("Error parsing response from \"%s\": %v", pricingURL, err.Error())
 					break
 				}
+
 				if product.Attributes.PreInstalledSw == "NA" &&
 					(strings.HasPrefix(product.Attributes.UsageType, "BoxUsage") || strings.Contains(product.Attributes.UsageType, "-BoxUsage")) {
 					key := aws.KubeAttrConversion(product.Attributes.Location, product.Attributes.InstanceType, product.Attributes.OperatingSystem)
@@ -295,16 +302,34 @@ func (aws *AWS) DownloadPricingData() error {
 			}
 		}
 		if t == "terms" {
-			dec.Token()
-			termType, _ := dec.Token()
+			_, err := dec.Token() // this should parse the opening "{""
+			if err != nil {
+				return err
+			}
+			termType, err := dec.Token()
+			if err != nil {
+				return err
+			}
 			if termType == "OnDemand" {
-				dec.Token()
+				_, err := dec.Token()
+				if err != nil { // again, should parse an opening "{"
+					return err
+				}
 				for dec.More() {
-					sku, _ := dec.Token()
-					dec.Token()
-					skuOnDemand, _ := dec.Token()
+					sku, err := dec.Token()
+					if err != nil {
+						return err
+					}
+					_, err = dec.Token() // another opening "{"
+					if err != nil {
+						return err
+					}
+					skuOnDemand, err := dec.Token()
+					if err != nil {
+						return err
+					}
 					offerTerm := &AWSOfferTerm{}
-					err := dec.Decode(&offerTerm)
+					err = dec.Decode(&offerTerm)
 					if err != nil {
 						klog.V(1).Infof("Error decoding AWS Offer Term: " + err.Error())
 					}
@@ -316,15 +341,17 @@ func (aws *AWS) DownloadPricingData() error {
 							aws.Pricing[spotKey].OnDemand = offerTerm
 						}
 					}
-					dec.Token()
+					_, err = dec.Token()
+					if err != nil {
+						return err
+					}
 				}
-				dec.Token()
+				_, err = dec.Token()
+				if err != nil {
+					return err
+				}
 			}
 		}
-	}
-
-	if err != nil {
-		return err
 	}
 
 	sp, err := parseSpotData(aws.SpotDataBucket, aws.SpotDataPrefix, aws.ProjectID, aws.SpotDataRegion, aws.ServiceKeyName, aws.ServiceKeySecret)
