@@ -466,9 +466,6 @@ func getPodServices(clientset kubernetes.Interface, podList *v1.PodList) (map[st
 			podServicesMapping[namespace] = make(map[string][]string)
 		}
 		s := labels.Set(service.Spec.Selector).AsSelectorPreValidated()
-		if err != nil {
-			klog.V(2).Infof("Error doing service label conversion: " + err.Error())
-		}
 		for _, pod := range podList.Items {
 			labelSet := labels.Set(pod.GetObjectMeta().GetLabels())
 			if s.Matches(labelSet) && pod.GetObjectMeta().GetNamespace() == namespace {
@@ -581,7 +578,6 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 
 	nodes, err := getNodeCost(clientset, cloud)
 	if err != nil {
-		//return nil, err
 		klog.V(1).Infof("Warning, no cost model available: " + err.Error())
 	}
 
