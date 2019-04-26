@@ -87,8 +87,7 @@ func (gcp *GCP) ExternalAllocations(start string, end string) ([]*OutOfClusterAl
 						LEFT JOIN UNNEST(labels) as labels
 						ON labels.key = "kubernetes_namespace" OR labels.key = "kubernetes_container" OR labels.key = "kubernetes_deployment" OR labels.key = "kubernetes_pod" OR labels.key = "kubernetes_daemonset"
 				GROUP BY aggregator, environment, service;`, gcp.BillingDataDataset, start, end) // For example, "billing_data.gcp_billing_export_v1_01AC9F_74CF1D_5565A2"
-	klog.V(3).Infof("HERE IS THE PROJECT ID: %s", gcp.ProjectID)
-	klog.V(3).Infof("HERE IS THE QUERY STRING: %s", queryString)
+	klog.V(3).Infof("Querying \"%s\" with : %s", gcp.ProjectID, queryString)
 	return gcp.QuerySQL(queryString)
 }
 
@@ -226,7 +225,7 @@ type GCPResourceInfo struct {
 	UsageType          string `json:"usageType"`
 }
 
-func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]bool) (map[string]*GCPPricing, string) {
+func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]bool) (map[string]*GCPPricing, string, error) {
 	gcpPricingList := make(map[string]*GCPPricing)
 	var nextPageToken string
 	dec := json.NewDecoder(r)
@@ -236,14 +235,16 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]bool) (map[string]*G
 			break
 		}
 		if t == "skus" {
-			dec.Token() // [
+			_, err := dec.Token() // consumes [
+			if err != nil {
+				return nil, "", err
+			}
 			for dec.More() {
 
 				product := &GCPPricing{}
 				err := dec.Decode(&product)
 				if err != nil {
-					fmt.Printf("Error: " + err.Error())
-					break
+					return nil, "", err
 				}
 				usageType := strings.ToLower(product.Category.UsageType)
 				instanceType := strings.ToLower(product.Category.ResourceGroup)
@@ -314,7 +315,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]bool) (map[string]*G
 			pageToken, err := dec.Token()
 			if err != nil {
 				klog.V(2).Infof("Error parsing nextpage token: " + err.Error())
-				break
+				return nil, "", err
 			}
 			if pageToken.(string) != "" {
 				nextPageToken = pageToken.(string)
@@ -323,13 +324,13 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]bool) (map[string]*G
 			}
 		}
 	}
-	return gcpPricingList, nextPageToken
+	return gcpPricingList, nextPageToken, nil
 }
 
 func (gcp *GCP) parsePages(inputKeys map[string]bool) (map[string]*GCPPricing, error) {
 	var pages []map[string]*GCPPricing
-	url := "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus?key=" + gcp.APIKey //AIzaSyDXQPG_MHUEy9neR7stolq6l0ujXmjJlvk
-	klog.V(2).Infof("URL: %s", url)
+	url := "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus?key=" + gcp.APIKey
+	klog.V(2).Infof("Fetch GCP Billing Data from URL: %s", url)
 	var parsePagesHelper func(string) error
 	parsePagesHelper = func(pageToken string) error {
 		if pageToken == "done" {
@@ -341,11 +342,17 @@ func (gcp *GCP) parsePages(inputKeys map[string]bool) (map[string]*GCPPricing, e
 		if err != nil {
 			return err
 		}
-		page, token := gcp.parsePage(resp.Body, inputKeys)
+		page, token, err := gcp.parsePage(resp.Body, inputKeys)
+		if err != nil {
+			return err
+		}
 		pages = append(pages, page)
 		return parsePagesHelper(token)
 	}
 	err := parsePagesHelper("")
+	if err != nil {
+		return nil, err
+	}
 	returnPages := make(map[string]*GCPPricing)
 	for _, page := range pages {
 		for k, v := range page {
