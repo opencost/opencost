@@ -19,6 +19,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
+	"google.golang.org/api/iterator"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -36,26 +37,87 @@ func (t userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error)
 
 // GCP implements a provider interface for GCP
 type GCP struct {
-	Pricing      map[string]*GCPPricing
-	Clientset    *kubernetes.Clientset
-	APIKey       string
-	BaseCPUPrice string
+	Pricing            map[string]*GCPPricing
+	Clientset          *kubernetes.Clientset
+	APIKey             string
+	BaseCPUPrice       string
+	ProjectID          string
+	BillingDataDataset string
 }
 
-// QuerySQL should query BigQuery for billing data for out of cluster costs. TODO: Implement.
-func (*GCP) QuerySQL(query string) ([]byte, error) {
+type gcpAllocation struct {
+	Aggregator  bigquery.NullString
+	Environment bigquery.NullString
+	Service     string
+	Cost        float64
+}
+
+func gcpAllocationToOutOfClusterAllocation(gcpAlloc gcpAllocation) *OutOfClusterAllocation {
+	var aggregator string
+	if gcpAlloc.Aggregator.Valid {
+		aggregator = gcpAlloc.Aggregator.StringVal
+	}
+
+	var environment string
+	if gcpAlloc.Environment.Valid {
+		environment = gcpAlloc.Environment.StringVal
+	}
+
+	return &OutOfClusterAllocation{
+		Aggregator:  aggregator,
+		Environment: environment,
+		Service:     gcpAlloc.Service,
+		Cost:        gcpAlloc.Cost,
+	}
+}
+
+func (gcp *GCP) ExternalAllocations(start string, end string) ([]*OutOfClusterAllocation, error) {
+	// start, end formatted like: "2019-04-20 00:00:00"
+	queryString := fmt.Sprintf(`SELECT
+					service,
+					labels.key as aggregator,
+					labels.value as environment,
+					SUM(cost) as cost
+				FROM  (SELECT 
+							service.description as service,
+							labels,
+							cost 
+						FROM %s
+						WHERE usage_start_time >= "%s" AND usage_start_time < "%s")
+						LEFT JOIN UNNEST(labels) as labels
+						ON labels.key = "namespace" OR labels.key = "container"
+				GROUP BY aggregator, environment, service;`, gcp.BillingDataDataset, start, end) // For example, "billing_data.gcp_billing_export_v1_01AC9F_74CF1D_5565A2"
+	klog.V(3).Infof("HERE IS THE PROJECT ID: %s", gcp.ProjectID)
+	klog.V(3).Infof("HERE IS THE QUERY STRING: %s", queryString)
+	return gcp.QuerySQL(queryString)
+}
+
+// QuerySQL should query BigQuery for billing data for out of cluster costs.
+func (gcp *GCP) QuerySQL(query string) ([]*OutOfClusterAllocation, error) {
 	ctx := context.Background()
-	client, err := bigquery.NewClient(ctx, "guestbook-219823")
+	client, err := bigquery.NewClient(ctx, gcp.ProjectID) // For example, "guestbook-227502"
 	if err != nil {
 		return nil, err
 	}
 
-	q := client.Query()
+	q := client.Query(query)
 	it, err := q.Read(ctx)
 	if err != nil {
 		return nil, err
 	}
-
+	var allocations []*OutOfClusterAllocation
+	for {
+		var a gcpAllocation
+		err := it.Next(&a)
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		allocations = append(allocations, gcpAllocationToOutOfClusterAllocation(a))
+	}
+	return allocations, nil
 }
 
 // ClusterName returns the name of a GKE cluster, as provided by metadata.
@@ -306,6 +368,14 @@ func (gcp *GCP) parsePages(inputKeys map[string]bool) (map[string]*GCPPricing, e
 // DownloadPricingData fetches data from the GCP Pricing API. Requires a key-- a kubecost key is provided for quickstart, but should be replaced by a users.
 func (gcp *GCP) DownloadPricingData() error {
 
+	c, err := GetDefaultPricingData("gcp.json")
+	if err != nil {
+		klog.V(2).Infof("Error downloading default pricing data: %s", err.Error())
+	}
+	gcp.BaseCPUPrice = c.CPU
+	gcp.ProjectID = c.ProjectID
+	gcp.BillingDataDataset = c.BillingDataDataset
+
 	nodeList, err := gcp.Clientset.CoreV1().Nodes().List(metav1.ListOptions{})
 	if err != nil {
 		return err
@@ -324,11 +394,6 @@ func (gcp *GCP) DownloadPricingData() error {
 		return err
 	}
 	gcp.Pricing = pages
-	c, err := GetDefaultPricingData("default.json")
-	if err != nil {
-		klog.V(2).Infof("Error downloading default pricing data: %s", err.Error())
-	}
-	gcp.BaseCPUPrice = c.CPU
 
 	return nil
 }

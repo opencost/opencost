@@ -104,6 +104,17 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	w.Write(wrapData(data, err))
 }
 
+func (a *Accesses) OutofClusterCosts(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	start := r.URL.Query().Get("start")
+	end := r.URL.Query().Get("end")
+
+	data, err := a.Cloud.ExternalAllocations(start, end)
+	w.Write(wrapData(data, err))
+}
+
 func (p *Accesses) GetAllNodePricing(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -252,6 +263,7 @@ func main() {
 	router := httprouter.New()
 	router.GET("/costDataModel", a.CostDataModel)
 	router.GET("/costDataModelRange", a.CostDataModelRange)
+	router.GET("/outOfClusterCosts", a.OutofClusterCosts)
 	router.GET("/allNodePricing", a.GetAllNodePricing)
 	router.GET("/healthz", Healthz)
 	router.POST("/refreshPricing", a.RefreshPricingData)

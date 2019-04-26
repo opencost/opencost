@@ -38,6 +38,15 @@ type Key interface {
 	Features() string // Features are a comma separated string of node metadata that could match pricing
 }
 
+// OutOfClusterAllocation represents a cloud provider cost not associated with kubernetes
+type OutOfClusterAllocation struct {
+	Aggregator  string  `json:"aggregator"`
+	Environment string  `json:"environment"`
+	Service     string  `json:"service"`
+	Cost        float64 `json:"cost"`
+	Cluster     string  `json:"cluster"`
+}
+
 // Provider represents a k8s provider.
 type Provider interface {
 	ClusterName() ([]byte, error)
@@ -48,7 +57,7 @@ type Provider interface {
 	DownloadPricingData() error
 	GetKey(map[string]string) Key
 
-	QuerySQL(string) ([]byte, error)
+	ExternalAllocations(string, string) ([]*OutOfClusterAllocation, error)
 }
 
 // GetDefaultPricingData will search for a json file representing pricing data in /models/ and use it for base pricing info.
@@ -71,20 +80,21 @@ func GetDefaultPricingData(fname string) (*CustomPricing, error) {
 }
 
 type CustomPricing struct {
-	Provider         string `json:"provider"`
-	Description      string `json:"description"`
-	CPU              string `json:"CPU"`
-	SpotCPU          string `json:"spotCPU"`
-	RAM              string `json:"RAM"`
-	SpotRAM          string `json:"spotRAM"`
-	SpotLabel        string `json:"spotLabel,omitempty"`
-	SpotLabelValue   string `json:"spotLabelValue,omitempty"`
-	ServiceKeyName   string `json:"awsServiceKeyName,omitempty"`
-	ServiceKeySecret string `json:"awsServiceKeySecret,omitempty"`
-	SpotDataRegion   string `json:"awsSpotDataRegion,omitempty"`
-	SpotDataBucket   string `json:"awsSpotDataBucket,omitempty"`
-	SpotDataPrefix   string `json:"awsSpotDataPrefix,omitempty"`
-	ProjectID        string `json:"awsProjectID,omitempty"`
+	Provider           string `json:"provider"`
+	Description        string `json:"description"`
+	CPU                string `json:"CPU"`
+	SpotCPU            string `json:"spotCPU"`
+	RAM                string `json:"RAM"`
+	SpotRAM            string `json:"spotRAM"`
+	SpotLabel          string `json:"spotLabel,omitempty"`
+	SpotLabelValue     string `json:"spotLabelValue,omitempty"`
+	ServiceKeyName     string `json:"awsServiceKeyName,omitempty"`
+	ServiceKeySecret   string `json:"awsServiceKeySecret,omitempty"`
+	SpotDataRegion     string `json:"awsSpotDataRegion,omitempty"`
+	SpotDataBucket     string `json:"awsSpotDataBucket,omitempty"`
+	SpotDataPrefix     string `json:"awsSpotDataPrefix,omitempty"`
+	ProjectID          string `json:"projectID,omitempty"`
+	BillingDataDataset string `json:"billingDataDataset,omitempty"`
 }
 
 type NodePrice struct {
@@ -170,6 +180,10 @@ func (c *CustomProvider) GetKey(labels map[string]string) Key {
 		SpotLabelValue: c.SpotLabelValue,
 		Labels:         labels,
 	}
+}
+
+func (*CustomProvider) ExternalAllocations(start string, end string) ([]*OutOfClusterAllocation, error) {
+	return nil, nil // TODO: transform the QuerySQL lines into the new OutOfClusterAllocation Struct
 }
 
 func (*CustomProvider) QuerySQL(query string) ([]byte, error) {

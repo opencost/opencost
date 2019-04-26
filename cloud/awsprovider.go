@@ -169,7 +169,7 @@ func (k *awsKey) ID() string {
 			return group
 		}
 	}
-	klog.V(3).Info("Could not find instance ID in \"%s\"", k.ProviderID)
+	klog.V(3).Infof("Could not find instance ID in \"%s\"", k.ProviderID)
 	return ""
 }
 
@@ -558,6 +558,10 @@ func (*AWS) GetDisks() ([]byte, error) {
 		}
 	}
 	return json.Marshal(volumeResult)
+}
+
+func (*AWS) ExternalAllocations(start string, end string) ([]*OutOfClusterAllocation, error) {
+	return nil, nil // TODO: transform the QuerySQL lines into the new OutOfClusterAllocation Struct
 }
 
 // QuerySQL can query a properly configured Athena database.

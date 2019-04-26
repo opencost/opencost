@@ -12,5 +12,5 @@
     "awsSpotDataRegion":"us-east-2",
     "awsSpotDataBucket": "kc-test-spot",
     "awsSpotDataPrefix": "spotdata",
-    "awsProjectID": "530337586275"
+    "projectID": "530337586275"
 }
