@@ -733,7 +733,7 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 	}
 	ls2 := &s3.ListObjectsInput{
 		Bucket: aws.String(bucket),
-		Prefix: aws.String(prefix + "/" + projectID + "." + tNow.Format("2006-01-02")),
+		Prefix: aws.String(s3Prefix + "." + tOneDayAgo.Format("2006-01-02")),
 	}
 	lso, err := s3Svc.ListObjects(ls)
 	if err != nil {
