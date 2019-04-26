@@ -78,14 +78,14 @@ func (gcp *GCP) ExternalAllocations(start string, end string) ([]*OutOfClusterAl
 					labels.key as aggregator,
 					labels.value as environment,
 					SUM(cost) as cost
-				FROM  (SELECT 
+					FROM  (SELECT 
 							service.description as service,
 							labels,
 							cost 
 						FROM %s
 						WHERE usage_start_time >= "%s" AND usage_start_time < "%s")
 						LEFT JOIN UNNEST(labels) as labels
-						ON labels.key = "namespace" OR labels.key = "container"
+						ON labels.key = "kubernetes_namespace" OR labels.key = "kubernetes_container" OR labels.key = "kubernetes_deployment" OR labels.key = "kubernetes_pod" OR labels.key = "kubernetes_daemonset"
 				GROUP BY aggregator, environment, service;`, gcp.BillingDataDataset, start, end) // For example, "billing_data.gcp_billing_export_v1_01AC9F_74CF1D_5565A2"
 	klog.V(3).Infof("HERE IS THE PROJECT ID: %s", gcp.ProjectID)
 	klog.V(3).Infof("HERE IS THE QUERY STRING: %s", queryString)
