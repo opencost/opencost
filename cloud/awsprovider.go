@@ -232,6 +232,9 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.ServiceKeyName = c.ServiceKeyName
 	aws.ServiceKeySecret = c.ServiceKeySecret
 
+	if len(aws.SpotDataBucket) != 0 && len(aws.ProjectID) == 0 {
+		return fmt.Errorf("using SpotDataBucket \"%s\" without ProjectID will not end well", aws.SpotDataBucket)
+	}
 	nodeList, err := aws.Clientset.CoreV1().Nodes().List(metav1.ListOptions{})
 	if err != nil {
 		return err
