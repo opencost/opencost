@@ -836,13 +836,20 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 		for {
 			spot := spotInfo{}
 			err := dec.Decode(&spot)
+			csvParseErr, isCsvParseErr := err.(*csv.ParseError)
 			if err == io.EOF {
 				break
-			} else if err == csvutil.ErrFieldCount {
+			} else if err == csvutil.ErrFieldCount || (isCsvParseErr && csvParseErr.Err == csv.ErrFieldCount) {
 				rec := dec.Record()
 				// the first two "Record()" will be the comment lines
+				// and they show up as len() == 1
 				// the first of which is "#Version"
-				if len(rec) == 1 && len(foundVersion) == 0 {
+				// the second of which is "#Fields: "
+				if len(rec) != 1 {
+					klog.V(2).Infof("Expected %d spot info fields but received %d: %s", fieldsPerRecord, len(rec), rec)
+					continue
+				}
+				if len(foundVersion) == 0 {
 					spotFeedVersion := rec[0]
 					klog.V(3).Infof("Spot feed version is \"%s\"", spotFeedVersion)
 					matches := versionRx.FindStringSubmatch(spotFeedVersion)
@@ -854,11 +861,14 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 						}
 					}
 					continue
+				} else if strings.Index(rec[0], "#") == 0 {
+					continue
+				} else {
+					klog.V(3).Infof("skipping non-TSV line: %s", rec)
+					continue
 				}
-				klog.V(3).Infof("Expected %d spot info fields but received %d: %s", fieldsPerRecord, len(rec), rec)
-				continue
 			} else if err != nil {
-				klog.V(2).Infof("Error during spot info decode: %s", err)
+				klog.V(2).Infof("Error during spot info decode: %+v", err)
 				continue
 			}
 
