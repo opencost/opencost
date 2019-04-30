@@ -287,6 +287,9 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.ServiceKeyName = c.ServiceKeyName
 	aws.ServiceKeySecret = c.ServiceKeySecret
 
+	if len(aws.SpotDataBucket) != 0 && len(aws.ProjectID) == 0 {
+		return fmt.Errorf("using SpotDataBucket \"%s\" without ProjectID will not end well", aws.SpotDataBucket)
+	}
 	nodeList, err := aws.Clientset.CoreV1().Nodes().List(metav1.ListOptions{})
 	if err != nil {
 		return err
@@ -852,6 +855,13 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 		keys = append(keys, obj.Key)
 	}
 
+	versionRx := regexp.MustCompile("^#Version: (\\d+)\\.\\d+$")
+	header, err := csvutil.Header(spotInfo{}, "csv")
+	if err != nil {
+		return nil, err
+	}
+	fieldsPerRecord := len(header)
+
 	spots := make(map[string]*spotInfo)
 	for _, key := range keys {
 		getObj := &s3.GetObjectInput{
@@ -874,38 +884,55 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 
 		csvReader := csv.NewReader(gr)
 		csvReader.Comma = '\t'
-		header, err := csvutil.Header(spotInfo{}, "csv")
-		if err != nil {
-			return nil, err
-		}
+		csvReader.FieldsPerRecord = fieldsPerRecord
+
 		dec, err := csvutil.NewDecoder(csvReader, header...)
 		if err != nil {
 			return nil, err
 		}
 
+		var foundVersion string
 		for {
-			if err := dec.Decode(&spotInfo{}); err == io.EOF {
+			spot := spotInfo{}
+			err := dec.Decode(&spot)
+			csvParseErr, isCsvParseErr := err.(*csv.ParseError)
+			if err == io.EOF {
 				break
-			}
-			st := dec.Record()
-			if len(st) == 9 { // it's tab separated but not quite a tsv
-				klog.V(3).Infof("Found spot info %+v", st)
-				spot := &spotInfo{
-					Timestamp:   st[0],
-					UsageType:   st[1],
-					Operation:   st[2],
-					InstanceID:  st[3],
-					MyBidID:     st[4],
-					MyMaxPrice:  st[5],
-					MarketPrice: st[6],
-					Charge:      st[7],
-					Version:     st[8],
+			} else if err == csvutil.ErrFieldCount || (isCsvParseErr && csvParseErr.Err == csv.ErrFieldCount) {
+				rec := dec.Record()
+				// the first two "Record()" will be the comment lines
+				// and they show up as len() == 1
+				// the first of which is "#Version"
+				// the second of which is "#Fields: "
+				if len(rec) != 1 {
+					klog.V(2).Infof("Expected %d spot info fields but received %d: %s", fieldsPerRecord, len(rec), rec)
+					continue
 				}
-				if spot.Version != supportedSpotFeedVersion {
-					klog.V(1).Infof("Possibly unsupported spot data feed version " + spot.Version)
+				if len(foundVersion) == 0 {
+					spotFeedVersion := rec[0]
+					klog.V(3).Infof("Spot feed version is \"%s\"", spotFeedVersion)
+					matches := versionRx.FindStringSubmatch(spotFeedVersion)
+					if matches != nil {
+						foundVersion = matches[1]
+						if foundVersion != supportedSpotFeedVersion {
+							klog.V(2).Infof("Unsupported spot info feed version: wanted \"%s\" got \"%s\"", supportedSpotFeedVersion, foundVersion)
+							break
+						}
+					}
+					continue
+				} else if strings.Index(rec[0], "#") == 0 {
+					continue
+				} else {
+					klog.V(3).Infof("skipping non-TSV line: %s", rec)
+					continue
 				}
-				spots[spot.InstanceID] = spot
+			} else if err != nil {
+				klog.V(2).Infof("Error during spot info decode: %+v", err)
+				continue
 			}
+
+			klog.V(3).Infof("Found spot info %+v", spot)
+			spots[spot.InstanceID] = &spot
 		}
 		gr.Close()
 	}
