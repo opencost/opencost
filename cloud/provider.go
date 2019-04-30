@@ -3,6 +3,7 @@ package cloud
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -30,12 +31,16 @@ type Node struct {
 	UsesBaseCPUPrice bool   `json:"usesDefaultPrice"`
 	BaseCPUPrice     string `json:"baseCPUPrice"` // Used to compute an implicit RAM GB/Hr price when RAM pricing is not provided.
 	UsageType        string `json:"usageType"`
+	GPU              string `json:"gpu"`
+	GPUName          string `json:"gpuName"`
+	GPUCost          string `json:"gpuCost"`
 }
 
 // Key represents a way for nodes to match between the k8s API and a pricing API
 type Key interface {
 	ID() string       // ID represents an exact match
 	Features() string // Features are a comma separated string of node metadata that could match pricing
+	GPUType() string  // GPUType returns "" if no GPU exists, but the name of the GPU otherwise
 }
 
 // OutOfClusterAllocation represents a cloud provider cost not associated with kubernetes
@@ -56,6 +61,8 @@ type Provider interface {
 	AllNodePricing() (interface{}, error)
 	DownloadPricingData() error
 	GetKey(map[string]string) Key
+	UpdateConfig(r io.Reader) (*CustomPricing, error)
+	GetConfig() (*CustomPricing, error)
 
 	ExternalAllocations(string, string) ([]*OutOfClusterAllocation, error)
 }
@@ -107,6 +114,14 @@ type CustomProvider struct {
 	Pricing        map[string]*NodePrice
 	SpotLabel      string
 	SpotLabelValue string
+}
+
+func (*CustomProvider) GetConfig() (*CustomPricing, error) {
+	return nil, nil
+}
+
+func (*CustomProvider) UpdateConfig(r io.Reader) (*CustomPricing, error) {
+	return nil, nil
 }
 
 func (*CustomProvider) ClusterName() ([]byte, error) {
@@ -161,6 +176,10 @@ type customProviderKey struct {
 	SpotLabel      string
 	SpotLabelValue string
 	Labels         map[string]string
+}
+
+func (c *customProviderKey) GPUType() string {
+	return ""
 }
 
 func (c *customProviderKey) ID() string {

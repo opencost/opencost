@@ -425,28 +425,60 @@ func getNodeCost(clientset kubernetes.Interface, cloud costAnalyzerCloud.Provide
 			cnode.RAM = n.Status.Capacity.Memory().String()
 		}
 		ram = float64(n.Status.Capacity.Memory().Value())
-		if cnode.RAMCost == "" { // We couldn't find a ramcost, so fix cpu and allocate ram accordingly
-			basePrice, _ := strconv.ParseFloat(cnode.BaseCPUPrice, 64)
-			totalCPUPrice := basePrice * cpu
-			var nodePrice float64
-			if cnode.Cost != "" {
-				klog.V(3).Infof("Use given nodeprice as whole node price")
-				nodePrice, _ = strconv.ParseFloat(cnode.Cost, 64)
-			} else {
-				klog.V(3).Infof("Use cpuprice as whole node price")
-				nodePrice, _ = strconv.ParseFloat(cnode.VCPUCost, 64) // all the price was allocated the the CPU
-			}
-			if totalCPUPrice >= nodePrice {
-				totalCPUPrice = 0.9 * nodePrice // just allocate RAM costs to 10% of the node price here to avoid 0 or negative in the numerator
-			}
-			ramPrice := (nodePrice - totalCPUPrice) / (ram / 1024 / 1024 / 1024)
-			cpuPrice := totalCPUPrice / cpu
 
-			cnode.VCPUCost = fmt.Sprintf("%f", cpuPrice)
+		if cnode.GPU != "" && cnode.GPUCost == "" { // We couldn't find a gpu cost, so fix cpu and ram, then accordingly
+			klog.V(3).Infof("GPU without cost found, calculating...")
+			basePrice, err := strconv.ParseFloat(cnode.BaseCPUPrice, 64)
+			if err != nil {
+				return nil, err
+			}
+			nodePrice, err := strconv.ParseFloat(cnode.Cost, 64)
+			if err != nil {
+				return nil, err
+			}
+			totalCPUPrice := basePrice * cpu
+			totalRAMPrice := 0.1 * totalCPUPrice
+			ramPrice := totalRAMPrice / (ram / 1024 / 1024 / 1024)
+			gpuPrice := nodePrice - totalCPUPrice - totalRAMPrice
+			cnode.VCPUCost = fmt.Sprintf("%f", basePrice)
 			cnode.RAMCost = fmt.Sprintf("%f", ramPrice)
 			cnode.RAMBytes = fmt.Sprintf("%f", ram)
-			klog.V(2).Infof("Node \"%s\" RAM Cost := %v", name, cnode.RAMCost)
+			cnode.GPUCost = fmt.Sprintf("%f", gpuPrice)
+			klog.V(2).Infof("Computed \"%s\" GPU Cost := %v", name, cnode.GPUCost)
+		} else {
+			if cnode.RAMCost == "" { // We couldn't find a ramcost, so fix cpu and allocate ram accordingly
+				basePrice, err := strconv.ParseFloat(cnode.BaseCPUPrice, 64)
+				if err != nil {
+					return nil, err
+				}
+				totalCPUPrice := basePrice * cpu
+				var nodePrice float64
+				if cnode.Cost != "" {
+					klog.V(3).Infof("Use given nodeprice as whole node price")
+					nodePrice, err = strconv.ParseFloat(cnode.Cost, 64)
+					if err != nil {
+						return nil, err
+					}
+				} else {
+					klog.V(3).Infof("Use cpuprice as whole node price")
+					nodePrice, err = strconv.ParseFloat(cnode.VCPUCost, 64) // all the price was allocated the the CPU
+					if err != nil {
+						return nil, err
+					}
+				}
+				if totalCPUPrice >= nodePrice {
+					totalCPUPrice = 0.9 * nodePrice // just allocate RAM costs to 10% of the node price here to avoid 0 or negative in the numerator
+				}
+				ramPrice := (nodePrice - totalCPUPrice) / (ram / 1024 / 1024 / 1024)
+				cpuPrice := totalCPUPrice / cpu
+
+				cnode.VCPUCost = fmt.Sprintf("%f", cpuPrice)
+				cnode.RAMCost = fmt.Sprintf("%f", ramPrice)
+				cnode.RAMBytes = fmt.Sprintf("%f", ram)
+				klog.V(3).Infof("Computed \"%s\" RAM Cost := %v", name, cnode.RAMCost)
+			}
 		}
+
 		nodes[name] = cnode
 	}
 	return nodes, nil
@@ -864,30 +896,9 @@ func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeData, error) 
 		if !ok {
 			return nil, fmt.Errorf("Metric field is improperly formatted")
 		}
-		pvclaim, ok := metricMap["persistentvolumeclaim"]
-		if !ok {
-			return nil, fmt.Errorf("Claim field does not exist in data result vector")
-		}
-		pvclaimStr, ok := pvclaim.(string)
-		if !ok {
-			return nil, fmt.Errorf("Claim field improperly formatted")
-		}
-		pvclass, ok := metricMap["storageclass"]
-		if !ok {
-			return nil, fmt.Errorf("StorageClass field does not exist in data result vector")
-		}
-		pvclassStr, ok := pvclass.(string)
-		if !ok {
-			return nil, fmt.Errorf("StorageClass field improperly formatted")
-		}
-		pvnamespace, ok := metricMap["namespace"]
-		if !ok {
-			return nil, fmt.Errorf("Namespace field does not exist in data result vector")
-		}
-		pvnamespaceStr, ok := pvnamespace.(string)
-		if !ok {
-			return nil, fmt.Errorf("StorageClass field improperly formatted")
-		}
+		pvclaim := metricMap["persistentvolumeclaim"]
+		pvclass := metricMap["storageclass"]
+		pvnamespace := metricMap["namespace"]
 		values, ok := val.(map[string]interface{})["values"].([]interface{})
 		if !ok {
 			return nil, fmt.Errorf("Values field is improperly formatted")
@@ -906,11 +917,11 @@ func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeData, error) 
 				Value:     v,
 			})
 		}
-		key := pvnamespaceStr + "," + pvclaimStr
+		key := pvnamespace.(string) + "," + pvclaim.(string)
 		pvmap[key] = &PersistentVolumeData{
-			Class:     pvclassStr,
-			Claim:     pvclaimStr,
-			Namespace: pvnamespaceStr,
+			Class:     pvclass.(string),
+			Claim:     pvclaim.(string),
+			Namespace: pvnamespace.(string),
 			Values:    vectors,
 		}
 	}
@@ -928,30 +939,9 @@ func getPVInfoVector(qr interface{}) (map[string]*PersistentVolumeData, error) {
 		if !ok {
 			return nil, fmt.Errorf("Metric field is improperly formatted")
 		}
-		pvclaim, ok := metricMap["persistentvolumeclaim"]
-		if !ok {
-			return nil, fmt.Errorf("Claim field does not exist in data result vector")
-		}
-		pvclaimStr, ok := pvclaim.(string)
-		if !ok {
-			return nil, fmt.Errorf("Claim field improperly formatted")
-		}
-		pvclass, ok := metricMap["storageclass"]
-		if !ok {
-			return nil, fmt.Errorf("StorageClass field does not exist in data result vector")
-		}
-		pvclassStr, ok := pvclass.(string)
-		if !ok {
-			return nil, fmt.Errorf("StorageClass field improperly formatted")
-		}
-		pvnamespace, ok := metricMap["namespace"]
-		if !ok {
-			return nil, fmt.Errorf("Namespace field does not exist in data result vector")
-		}
-		pvnamespaceStr, ok := pvnamespace.(string)
-		if !ok {
-			return nil, fmt.Errorf("StorageClass field improperly formatted")
-		}
+		pvclaim := metricMap["persistentvolumeclaim"]
+		pvclass := metricMap["storageclass"]
+		pvnamespace := metricMap["namespace"]
 		dataPoint, ok := val.(map[string]interface{})["value"]
 		if !ok {
 			return nil, fmt.Errorf("Value field does not exist in data result vector")
@@ -969,11 +959,11 @@ func getPVInfoVector(qr interface{}) (map[string]*PersistentVolumeData, error) {
 			Value:     v,
 		})
 
-		key := pvnamespaceStr + "," + pvclaimStr
+		key := pvclaim.(string) + "," + pvnamespace.(string)
 		pvmap[key] = &PersistentVolumeData{
-			Class:     pvclassStr,
-			Claim:     pvclaimStr,
-			Namespace: pvnamespaceStr,
+			Class:     pvclass.(string),
+			Claim:     pvclaim.(string),
+			Namespace: pvnamespace.(string),
 			Values:    vectors,
 		}
 	}

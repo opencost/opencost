@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -69,6 +70,14 @@ func gcpAllocationToOutOfClusterAllocation(gcpAlloc gcpAllocation) *OutOfCluster
 		Service:     gcpAlloc.Service,
 		Cost:        gcpAlloc.Cost,
 	}
+}
+
+func (gcp *GCP) GetConfig() (*CustomPricing, error) {
+	return nil, nil
+}
+
+func (gcp *GCP) UpdateConfig(r io.Reader) (*CustomPricing, error) {
+	return nil, nil
 }
 
 func (gcp *GCP) ExternalAllocations(start string, end string) ([]*OutOfClusterAllocation, error) {
@@ -225,7 +234,7 @@ type GCPResourceInfo struct {
 	UsageType          string `json:"usageType"`
 }
 
-func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]bool) (map[string]*GCPPricing, string, error) {
+func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key) (map[string]*GCPPricing, string, error) {
 	gcpPricingList := make(map[string]*GCPPricing)
 	var nextPageToken string
 	dec := json.NewDecoder(r)
@@ -252,6 +261,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]bool) (map[string]*G
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "CUSTOM") {
 					instanceType = "custom"
 				}
+
 				var partialCPU float64
 				if strings.ToLower(instanceType) == "f1micro" {
 					partialCPU = 0.2
@@ -259,11 +269,21 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]bool) (map[string]*G
 					partialCPU = 0.5
 				}
 
+				var gpuType string
+				provIdRx := regexp.MustCompile("(Nvidia Tesla [^ ]+) ")
+				for matchnum, group := range provIdRx.FindStringSubmatch(product.Description) {
+					if matchnum == 1 {
+						gpuType = strings.ToLower(strings.Join(strings.Split(group, " "), "-"))
+						klog.V(3).Info("GPU TYPE FOUND: " + gpuType)
+					}
+				}
+
 				for _, sr := range product.ServiceRegions {
 					region := sr
-
 					candidateKey := region + "," + instanceType + "," + usageType
-					if _, ok := inputKeys[candidateKey]; ok {
+					candidateKeyGPU := candidateKey + ",gpu"
+
+					if gpuType != "" {
 						lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
 						var nanos float64
 						if len(product.PricingInfo) > 0 {
@@ -271,41 +291,98 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]bool) (map[string]*G
 						} else {
 							continue
 						}
-
 						hourlyPrice := nanos * math.Pow10(-9)
-						if hourlyPrice == 0 {
-							continue
-						} else if strings.Contains(strings.ToUpper(product.Description), "RAM") {
-							if instanceType == "custom" {
-								klog.V(2).Infof("RAM custom sku is: " + product.Name)
+
+						for k, key := range inputKeys {
+							if key.GPUType() == gpuType {
+								if region == strings.Split(k, ",")[0] {
+									klog.V(3).Infof("MATCHED GPU TO NODE in region " + region)
+									candidateKeyGPU = key.Features()
+									if pl, ok := gcpPricingList[candidateKeyGPU]; ok {
+										pl.Node.GPUName = gpuType
+										pl.Node.GPUCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
+										pl.Node.GPU = "1"
+									} else {
+										product.Node = &Node{
+											GPUName: gpuType,
+											GPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
+											GPU:     "1",
+										}
+										klog.V(3).Infof("Added data for " + candidateKeyGPU)
+										gcpPricingList[candidateKeyGPU] = product
+									}
+								}
 							}
-							if _, ok := gcpPricingList[candidateKey]; ok {
-								gcpPricingList[candidateKey].Node.RAMCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
+						}
+					} else {
+						if _, ok := inputKeys[candidateKey]; ok {
+							lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
+							var nanos float64
+							if len(product.PricingInfo) > 0 {
+								nanos = product.PricingInfo[0].PricingExpression.TieredRates[lastRateIndex].UnitPrice.Nanos
 							} else {
-								product.Node = &Node{
-									RAMCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
-								}
-								if partialCPU != 0 {
-									product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
-								}
-								product.Node.UsageType = usageType
-								gcpPricingList[candidateKey] = product
+								continue
 							}
-							break
-						} else {
-							if _, ok := gcpPricingList[candidateKey]; ok {
-								gcpPricingList[candidateKey].Node.VCPUCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
+							hourlyPrice := nanos * math.Pow10(-9)
+
+							if hourlyPrice == 0 {
+								continue
+							} else if strings.Contains(strings.ToUpper(product.Description), "RAM") {
+								if instanceType == "custom" {
+									klog.V(2).Infof("RAM custom sku is: " + product.Name)
+								}
+								if _, ok := gcpPricingList[candidateKey]; ok {
+									gcpPricingList[candidateKey].Node.RAMCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
+								} else {
+									product.Node = &Node{
+										RAMCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
+									}
+									if partialCPU != 0 {
+										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+									}
+									product.Node.UsageType = usageType
+									gcpPricingList[candidateKey] = product
+								}
+								if _, ok := gcpPricingList[candidateKeyGPU]; ok {
+									gcpPricingList[candidateKeyGPU].Node.RAMCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
+								} else {
+									product.Node = &Node{
+										RAMCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
+									}
+									if partialCPU != 0 {
+										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+									}
+									product.Node.UsageType = usageType
+									gcpPricingList[candidateKeyGPU] = product
+								}
+								break
 							} else {
-								product.Node = &Node{
-									VCPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
+								if _, ok := gcpPricingList[candidateKey]; ok {
+									gcpPricingList[candidateKey].Node.VCPUCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
+								} else {
+									product.Node = &Node{
+										VCPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
+									}
+									if partialCPU != 0 {
+										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+									}
+									product.Node.UsageType = usageType
+									gcpPricingList[candidateKey] = product
 								}
-								if partialCPU != 0 {
-									product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+								if _, ok := gcpPricingList[candidateKeyGPU]; ok {
+									gcpPricingList[candidateKey].Node.VCPUCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
+								} else {
+									product.Node = &Node{
+										VCPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
+									}
+									if partialCPU != 0 {
+										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+									}
+									product.Node.UsageType = usageType
+									gcpPricingList[candidateKeyGPU] = product
 								}
-								product.Node.UsageType = usageType
-								gcpPricingList[candidateKey] = product
+								break
 							}
-							break
 						}
 					}
 				}
@@ -327,7 +404,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]bool) (map[string]*G
 	return gcpPricingList, nextPageToken, nil
 }
 
-func (gcp *GCP) parsePages(inputKeys map[string]bool) (map[string]*GCPPricing, error) {
+func (gcp *GCP) parsePages(inputKeys map[string]Key) (map[string]*GCPPricing, error) {
 	var pages []map[string]*GCPPricing
 	url := "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus?key=" + gcp.APIKey
 	klog.V(2).Infof("Fetch GCP Billing Data from URL: %s", url)
@@ -387,12 +464,12 @@ func (gcp *GCP) DownloadPricingData() error {
 	if err != nil {
 		return err
 	}
-	inputkeys := make(map[string]bool)
+	inputkeys := make(map[string]Key)
 
 	for _, n := range nodeList.Items {
 		labels := n.GetObjectMeta().GetLabels()
 		key := gcp.GetKey(labels)
-		inputkeys[key.Features()] = true
+		inputkeys[key.Features()] = key
 	}
 
 	pages, err := gcp.parsePages(inputkeys)
@@ -419,6 +496,14 @@ func (gcp *gcpKey) ID() string {
 	return ""
 }
 
+func (gcp *gcpKey) GPUType() string {
+	if t, ok := gcp.Labels["cloud.google.com/gke-accelerator"]; ok {
+		klog.V(3).Infof("GPU of type: \"%s\" found", t)
+		return t
+	}
+	return ""
+}
+
 // GetKey maps node labels to information needed to retrieve pricing data
 func (gcp *gcpKey) Features() string {
 	instanceType := strings.ToLower(strings.Join(strings.Split(gcp.Labels[v1.LabelInstanceType], "-")[:2], ""))
@@ -435,6 +520,11 @@ func (gcp *gcpKey) Features() string {
 	} else {
 		usageType = "ondemand"
 	}
+
+	if _, ok := gcp.Labels["cloud.google.com/gke-accelerator"]; ok {
+		return region + "," + instanceType + "," + usageType + "," + "gpu"
+	}
+
 	return region + "," + instanceType + "," + usageType
 }
 
@@ -450,6 +540,6 @@ func (gcp *GCP) NodePricing(key Key) (*Node, error) {
 		n.Node.BaseCPUPrice = gcp.BaseCPUPrice
 		return n.Node, nil
 	}
-	klog.V(1).Infof("Warning: no pricing data found for %s", key)
+	klog.V(1).Infof("Warning: no pricing data found for %s: %s", key.Features(), key)
 	return nil, fmt.Errorf("Warning: no pricing data found for %s", key)
 }

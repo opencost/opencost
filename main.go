@@ -123,6 +123,29 @@ func (p *Accesses) GetAllNodePricing(w http.ResponseWriter, r *http.Request, ps 
 	w.Write(wrapData(data, err))
 }
 
+func (p *Accesses) GetConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	data, err := p.Cloud.GetConfig()
+	w.Write(wrapData(data, err))
+}
+
+func (p *Accesses) UpdateConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	data, err := p.Cloud.UpdateConfig(r.Body)
+	if err != nil {
+		w.Write(wrapData(data, err))
+		return
+	}
+	w.Write(wrapData(data, err))
+	err = p.Cloud.DownloadPricingData()
+	if err != nil {
+		klog.V(1).Infof("Error redownloading data on config update")
+	}
+	return
+}
+
 func Healthz(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.WriteHeader(200)
 	w.Header().Set("Content-Length", "0")
@@ -266,7 +289,9 @@ func main() {
 	router.GET("/outOfClusterCosts", a.OutofClusterCosts)
 	router.GET("/allNodePricing", a.GetAllNodePricing)
 	router.GET("/healthz", Healthz)
+	router.GET("/getConfigs", a.GetConfigs)
 	router.POST("/refreshPricing", a.RefreshPricingData)
+	router.POST("/updateConfigs", a.UpdateConfigs)
 
 	rootMux := http.NewServeMux()
 	rootMux.Handle("/", router)
