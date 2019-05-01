@@ -165,6 +165,8 @@ type AwsSpotFeedInfo struct {
 	AccountID        string `json:"accountId"`
 	ServiceKeyName   string `json:"serviceKeyName"`
 	ServiceKeySecret string `json:"serviceKeySecret"`
+	SpotLabel        string `json:"spotLabel"`
+	SpotLabelValue   string `json:"spotLabelValue"`
 }
 
 func (aws *AWS) GetConfig() (*CustomPricing, error) {
@@ -192,13 +194,19 @@ func (aws *AWS) UpdateConfig(r io.Reader) (*CustomPricing, error) {
 	c.SpotDataBucket = a.BucketName
 	c.ProjectID = a.AccountID
 	c.SpotDataRegion = a.Region
+	c.SpotLabel = a.SpotLabel
+	c.SpotLabelValue = a.SpotLabelValue
 
 	cj, err := json.Marshal(c)
 	if err != nil {
 		return nil, err
 	}
-
-	err = ioutil.WriteFile("/models/aws.json", cj, 0644)
+	path := os.Getenv("CONFIG_PATH")
+	if path == "" {
+		path = "/models/"
+	}
+	path += "aws.json"
+	err = ioutil.WriteFile(path, cj, 0644)
 	if err != nil {
 		return nil, err
 	}
@@ -460,7 +468,11 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 			UsageType:    usageType,
 		}, nil
 	}
-	cost := terms.OnDemand.PriceDimensions[terms.Sku+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
+	c, ok  := terms.OnDemand.PriceDimensions[terms.Sku+OnDemandRateCode+HourlyRateCode]
+	if !ok {
+		return nil, fmt.Errorf("Could not fetch data for \"%s\"", k.ID())
+	}
+	cost := c.PricePerUnit.USD
 	return &Node{
 		Cost:         cost,
 		VCPU:         terms.VCpu,

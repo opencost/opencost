@@ -69,21 +69,49 @@ type Provider interface {
 
 // GetDefaultPricingData will search for a json file representing pricing data in /models/ and use it for base pricing info.
 func GetDefaultPricingData(fname string) (*CustomPricing, error) {
-	jsonFile, err := os.Open("/models/" + fname)
-	if err != nil {
+	path := os.Getenv("CONFIG_PATH")
+	if path == "" {
+		path = "/models/"
+	}
+	path += fname
+	if _, err := os.Stat(path); err == nil {
+		jsonFile, err := os.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		defer jsonFile.Close()
+		byteValue, err := ioutil.ReadAll(jsonFile)
+		if err != nil {
+			return nil, err
+		}
+		var customPricing = &CustomPricing{}
+		err = json.Unmarshal([]byte(byteValue), customPricing)
+		if err != nil {
+			return nil, err
+		}
+		return customPricing, nil
+	} else if os.IsNotExist(err) {
+		c := &CustomPricing{
+			Provider:    fname,
+			Description: "Default prices based on GCP us-central1",
+			CPU:         "0.031611",
+			SpotCPU:     "0.006655",
+			RAM:         "0.004237",
+			SpotRAM:     "0.000892",
+		}
+		cj, err := json.Marshal(c)
+		if err != nil {
+			return nil, err
+		}
+
+		err = ioutil.WriteFile(path, cj, 0644)
+		if err != nil {
+			return nil, err
+		}
+		return c, nil
+	} else {
 		return nil, err
 	}
-	defer jsonFile.Close()
-	byteValue, err := ioutil.ReadAll(jsonFile)
-	if err != nil {
-		return nil, err
-	}
-	var customPricing = &CustomPricing{}
-	err = json.Unmarshal([]byte(byteValue), customPricing)
-	if err != nil {
-		return nil, err
-	}
-	return customPricing, nil
 }
 
 type CustomPricing struct {

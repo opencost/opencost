@@ -286,27 +286,27 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 
 				RAMReqV, ok := RAMReqMap[newKey]
 				if !ok {
-					klog.V(2).Info("no RAM requests for " + newKey)
+					klog.V(4).Info("no RAM requests for " + newKey)
 					RAMReqV = []*Vector{&Vector{}}
 				}
 				RAMUsedV, ok := RAMUsedMap[newKey]
 				if !ok {
-					klog.V(2).Info("no RAM usage for " + newKey)
+					klog.V(4).Info("no RAM usage for " + newKey)
 					RAMUsedV = []*Vector{&Vector{}}
 				}
 				CPUReqV, ok := CPUReqMap[newKey]
 				if !ok {
-					klog.V(2).Info("no CPU requests for " + newKey)
+					klog.V(4).Info("no CPU requests for " + newKey)
 					CPUReqV = []*Vector{&Vector{}}
 				}
 				GPUReqV, ok := GPUReqMap[newKey]
 				if !ok {
-					klog.V(2).Info("no GPU requests for " + newKey)
+					klog.V(4).Info("no GPU requests for " + newKey)
 					GPUReqV = []*Vector{&Vector{}}
 				}
 				CPUUsedV, ok := CPUUsedMap[newKey]
 				if !ok {
-					klog.V(2).Info("no CPU usage for " + newKey)
+					klog.V(4).Info("no CPU usage for " + newKey)
 					CPUUsedV = []*Vector{&Vector{}}
 				}
 
@@ -342,34 +342,34 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 
 		} else {
 			// The container has been deleted. Not all information is sent to prometheus via ksm, so fill out what we can without k8s api
-			klog.V(3).Info("The container " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
+			klog.V(4).Info("The container " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
 			c, err := newContainerMetricFromKey(key)
 			if err != nil {
 				return nil, err
 			}
 			RAMReqV, ok := RAMReqMap[key]
 			if !ok {
-				klog.V(2).Info("no RAM requests for " + key)
+				klog.V(4).Info("no RAM requests for " + key)
 				RAMReqV = []*Vector{&Vector{}}
 			}
 			RAMUsedV, ok := RAMUsedMap[key]
 			if !ok {
-				klog.V(2).Info("no RAM usage for " + key)
+				klog.V(4).Info("no RAM usage for " + key)
 				RAMUsedV = []*Vector{&Vector{}}
 			}
 			CPUReqV, ok := CPUReqMap[key]
 			if !ok {
-				klog.V(2).Info("no CPU requests for " + key)
+				klog.V(4).Info("no CPU requests for " + key)
 				CPUReqV = []*Vector{&Vector{}}
 			}
 			GPUReqV, ok := GPUReqMap[key]
 			if !ok {
-				klog.V(2).Info("no GPU requests for " + key)
+				klog.V(4).Info("no GPU requests for " + key)
 				GPUReqV = []*Vector{&Vector{}}
 			}
 			CPUUsedV, ok := CPUUsedMap[key]
 			if !ok {
-				klog.V(2).Info("no CPU usage for " + key)
+				klog.V(4).Info("no CPU usage for " + key)
 				CPUUsedV = []*Vector{&Vector{}}
 			}
 
@@ -889,7 +889,7 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 
 		} else {
 			// The container has been deleted. Not all information is sent to prometheus via ksm, so fill out what we can without k8s api
-			klog.V(3).Info("The container " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
+			klog.V(4).Info("The container " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
 			c, _ := newContainerMetricFromKey(key)
 			RAMReqV, ok := RAMReqMap[key]
 			if !ok {
@@ -1279,7 +1279,7 @@ func getContainerMetricVector(qr interface{}, normalize bool, normalizationValue
 			Timestamp: dataPoint[0].(float64),
 			Value:     v,
 		}
-		klog.V(2).Info("key: " + containerMetric.Key())
+		klog.V(4).Info("key: " + containerMetric.Key())
 		containerData[containerMetric.Key()] = []*Vector{toReturn}
 	}
 	return containerData, nil
