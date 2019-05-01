@@ -1000,9 +1000,30 @@ func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeData, error) 
 		if !ok {
 			return nil, fmt.Errorf("Metric field is improperly formatted")
 		}
-		pvclaim := metricMap["persistentvolumeclaim"]
-		pvclass := metricMap["storageclass"]
-		pvnamespace := metricMap["namespace"]
+		pvclaim, ok := metricMap["persistentvolumeclaim"]
+		if !ok {
+			return nil, fmt.Errorf("Claim field does not exist in data result vector")
+		}
+		pvclaimStr, ok := pvclaim.(string)
+		if !ok {
+			return nil, fmt.Errorf("Claim field improperly formatted")
+		}
+		pvclass, ok := metricMap["storageclass"]
+		if !ok {
+			return nil, fmt.Errorf("StorageClass field does not exist in data result vector")
+		}
+		pvclassStr, ok := pvclass.(string)
+		if !ok {
+			return nil, fmt.Errorf("StorageClass field improperly formatted")
+		}
+		pvnamespace, ok := metricMap["namespace"]
+		if !ok {
+			return nil, fmt.Errorf("Namespace field does not exist in data result vector")
+		}
+		pvnamespaceStr, ok := pvnamespace.(string)
+		if !ok {
+			return nil, fmt.Errorf("StorageClass field improperly formatted")
+		}
 		values, ok := val.(map[string]interface{})["values"].([]interface{})
 		if !ok {
 			return nil, fmt.Errorf("Values field is improperly formatted")
@@ -1021,11 +1042,11 @@ func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeData, error) 
 				Value:     v,
 			})
 		}
-		key := pvnamespace.(string) + "," + pvclaim.(string)
+		key := pvnamespaceStr + "," + pvclaimStr
 		pvmap[key] = &PersistentVolumeData{
-			Class:     pvclass.(string),
-			Claim:     pvclaim.(string),
-			Namespace: pvnamespace.(string),
+			Class:     pvclassStr,
+			Claim:     pvclaimStr,
+			Namespace: pvnamespaceStr,
 			Values:    vectors,
 		}
 	}
@@ -1043,9 +1064,30 @@ func getPVInfoVector(qr interface{}) (map[string]*PersistentVolumeData, error) {
 		if !ok {
 			return nil, fmt.Errorf("Metric field is improperly formatted")
 		}
-		pvclaim := metricMap["persistentvolumeclaim"]
-		pvclass := metricMap["storageclass"]
-		pvnamespace := metricMap["namespace"]
+		pvclaim, ok := metricMap["persistentvolumeclaim"]
+		if !ok {
+			return nil, fmt.Errorf("Claim field does not exist in data result vector")
+		}
+		pvclaimStr, ok := pvclaim.(string)
+		if !ok {
+			return nil, fmt.Errorf("Claim field improperly formatted")
+		}
+		pvclass, ok := metricMap["storageclass"]
+		if !ok {
+			return nil, fmt.Errorf("StorageClass field does not exist in data result vector")
+		}
+		pvclassStr, ok := pvclass.(string)
+		if !ok {
+			return nil, fmt.Errorf("StorageClass field improperly formatted")
+		}
+		pvnamespace, ok := metricMap["namespace"]
+		if !ok {
+			return nil, fmt.Errorf("Namespace field does not exist in data result vector")
+		}
+		pvnamespaceStr, ok := pvnamespace.(string)
+		if !ok {
+			return nil, fmt.Errorf("StorageClass field improperly formatted")
+		}
 		dataPoint, ok := val.(map[string]interface{})["value"]
 		if !ok {
 			return nil, fmt.Errorf("Value field does not exist in data result vector")
@@ -1063,11 +1105,11 @@ func getPVInfoVector(qr interface{}) (map[string]*PersistentVolumeData, error) {
 			Value:     v,
 		})
 
-		key := pvclaim.(string) + "," + pvnamespace.(string)
+		key := pvnamespaceStr + "," + pvclaimStr
 		pvmap[key] = &PersistentVolumeData{
-			Class:     pvclass.(string),
-			Claim:     pvclaim.(string),
-			Namespace: pvnamespace.(string),
+			Class:     pvclassStr,
+			Claim:     pvclaimStr,
+			Namespace: pvnamespaceStr,
 			Values:    vectors,
 		}
 	}
