@@ -3,6 +3,7 @@ package cloud
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -30,12 +31,16 @@ type Node struct {
 	UsesBaseCPUPrice bool   `json:"usesDefaultPrice"`
 	BaseCPUPrice     string `json:"baseCPUPrice"` // Used to compute an implicit RAM GB/Hr price when RAM pricing is not provided.
 	UsageType        string `json:"usageType"`
+	GPU              string `json:"gpu"` // GPU represents the number of GPU on the instance
+	GPUName          string `json:"gpuName"`
+	GPUCost          string `json:"gpuCost"`
 }
 
 // Key represents a way for nodes to match between the k8s API and a pricing API
 type Key interface {
 	ID() string       // ID represents an exact match
 	Features() string // Features are a comma separated string of node metadata that could match pricing
+	GPUType() string  // GPUType returns "" if no GPU exists, but the name of the GPU otherwise
 }
 
 // OutOfClusterAllocation represents a cloud provider cost not associated with kubernetes
@@ -56,27 +61,57 @@ type Provider interface {
 	AllNodePricing() (interface{}, error)
 	DownloadPricingData() error
 	GetKey(map[string]string) Key
+	UpdateConfig(r io.Reader) (*CustomPricing, error)
+	GetConfig() (*CustomPricing, error)
 
 	ExternalAllocations(string, string) ([]*OutOfClusterAllocation, error)
 }
 
 // GetDefaultPricingData will search for a json file representing pricing data in /models/ and use it for base pricing info.
 func GetDefaultPricingData(fname string) (*CustomPricing, error) {
-	jsonFile, err := os.Open("/models/" + fname)
-	if err != nil {
+	path := os.Getenv("CONFIG_PATH")
+	if path == "" {
+		path = "/models/"
+	}
+	path += fname
+	if _, err := os.Stat(path); err == nil {
+		jsonFile, err := os.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		defer jsonFile.Close()
+		byteValue, err := ioutil.ReadAll(jsonFile)
+		if err != nil {
+			return nil, err
+		}
+		var customPricing = &CustomPricing{}
+		err = json.Unmarshal([]byte(byteValue), customPricing)
+		if err != nil {
+			return nil, err
+		}
+		return customPricing, nil
+	} else if os.IsNotExist(err) {
+		c := &CustomPricing{
+			Provider:    fname,
+			Description: "Default prices based on GCP us-central1",
+			CPU:         "0.031611",
+			SpotCPU:     "0.006655",
+			RAM:         "0.004237",
+			SpotRAM:     "0.000892",
+		}
+		cj, err := json.Marshal(c)
+		if err != nil {
+			return nil, err
+		}
+
+		err = ioutil.WriteFile(path, cj, 0644)
+		if err != nil {
+			return nil, err
+		}
+		return c, nil
+	} else {
 		return nil, err
 	}
-	defer jsonFile.Close()
-	byteValue, err := ioutil.ReadAll(jsonFile)
-	if err != nil {
-		return nil, err
-	}
-	var customPricing = &CustomPricing{}
-	err = json.Unmarshal([]byte(byteValue), customPricing)
-	if err != nil {
-		return nil, err
-	}
-	return customPricing, nil
 }
 
 type CustomPricing struct {
@@ -107,6 +142,14 @@ type CustomProvider struct {
 	Pricing        map[string]*NodePrice
 	SpotLabel      string
 	SpotLabelValue string
+}
+
+func (*CustomProvider) GetConfig() (*CustomPricing, error) {
+	return nil, nil
+}
+
+func (*CustomProvider) UpdateConfig(r io.Reader) (*CustomPricing, error) {
+	return nil, nil
 }
 
 func (*CustomProvider) ClusterName() ([]byte, error) {
@@ -161,6 +204,10 @@ type customProviderKey struct {
 	SpotLabel      string
 	SpotLabelValue string
 	Labels         map[string]string
+}
+
+func (c *customProviderKey) GPUType() string {
+	return ""
 }
 
 func (c *customProviderKey) ID() string {

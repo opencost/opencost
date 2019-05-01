@@ -76,6 +76,8 @@ type AWSProductAttributes struct {
 	UsageType       string `json:"usagetype"`
 	OperatingSystem string `json:"operatingSystem"`
 	PreInstalledSw  string `json:"preInstalledSw"`
+	InstanceFamily  string `json:"instanceFamily"`
+	GPU             string `json:"gpu"` // GPU represents the number of GPU on the instance
 }
 
 // AWSPricingTerms are how you pay for the node: OnDemand, Reserved, or (TODO) Spot
@@ -109,6 +111,7 @@ type AWSProductTerms struct {
 	Memory   string        `json:"memory"`
 	Storage  string        `json:"storage"`
 	VCpu     string        `json:"vcpu"`
+	GPU      string        `json:"gpu"` // GPU represents the number of GPU on the instance
 }
 
 // ClusterIdEnvVar is the environment variable in which one can manually set the ClusterId
@@ -155,11 +158,71 @@ func (aws *AWS) KubeAttrConversion(location, instanceType, operatingSystem strin
 	return region + "," + instanceType + "," + operatingSystem
 }
 
+type AwsSpotFeedInfo struct {
+	BucketName       string `json:"bucketName"`
+	Prefix           string `json:"prefix"`
+	Region           string `json:"region"`
+	AccountID        string `json:"accountId"`
+	ServiceKeyName   string `json:"serviceKeyName"`
+	ServiceKeySecret string `json:"serviceKeySecret"`
+	SpotLabel        string `json:"spotLabel"`
+	SpotLabelValue   string `json:"spotLabelValue"`
+}
+
+func (aws *AWS) GetConfig() (*CustomPricing, error) {
+	c, err := GetDefaultPricingData("aws.json")
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+func (aws *AWS) UpdateConfig(r io.Reader) (*CustomPricing, error) {
+	a := AwsSpotFeedInfo{}
+	err := json.NewDecoder(r).Decode(&a)
+	if err != nil {
+		return nil, err
+	}
+
+	c, err := GetDefaultPricingData("aws.json")
+	if err != nil {
+		return nil, err
+	}
+	c.ServiceKeyName = a.ServiceKeyName
+	c.ServiceKeySecret = a.ServiceKeySecret
+	c.SpotDataPrefix = a.Prefix
+	c.SpotDataBucket = a.BucketName
+	c.ProjectID = a.AccountID
+	c.SpotDataRegion = a.Region
+	c.SpotLabel = a.SpotLabel
+	c.SpotLabelValue = a.SpotLabelValue
+
+	cj, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+	path := os.Getenv("CONFIG_PATH")
+	if path == "" {
+		path = "/models/"
+	}
+	path += "aws.json"
+	err = ioutil.WriteFile(path, cj, 0644)
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
+
+}
+
 type awsKey struct {
 	SpotLabelName  string
 	SpotLabelValue string
 	Labels         map[string]string
 	ProviderID     string
+}
+
+func (k *awsKey) GPUType() string {
+	return ""
 }
 
 func (k *awsKey) ID() string {
@@ -294,6 +357,7 @@ func (aws *AWS) DownloadPricingData() error {
 							Memory:  product.Attributes.Memory,
 							Storage: product.Attributes.Storage,
 							VCpu:    product.Attributes.VCpu,
+							GPU:     product.Attributes.GPU,
 						}
 						aws.Pricing[key] = productTerms
 						aws.Pricing[spotKey] = productTerms
@@ -387,6 +451,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 				Cost:         spotcost,
 				VCPU:         terms.VCpu,
 				RAM:          terms.Memory,
+				GPU:          terms.GPU,
 				Storage:      terms.Storage,
 				BaseCPUPrice: aws.BaseCPUPrice,
 				UsageType:    usageType,
@@ -396,17 +461,23 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 			VCPU:         terms.VCpu,
 			VCPUCost:     aws.BaseSpotCPUPrice,
 			RAM:          terms.Memory,
+			GPU:          terms.GPU,
 			RAMCost:      aws.BaseSpotRAMPrice,
 			Storage:      terms.Storage,
 			BaseCPUPrice: aws.BaseCPUPrice,
 			UsageType:    usageType,
 		}, nil
 	}
-	cost := terms.OnDemand.PriceDimensions[terms.Sku+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
+	c, ok := terms.OnDemand.PriceDimensions[terms.Sku+OnDemandRateCode+HourlyRateCode]
+	if !ok {
+		return nil, fmt.Errorf("Could not fetch data for \"%s\"", k.ID())
+	}
+	cost := c.PricePerUnit.USD
 	return &Node{
 		Cost:         cost,
 		VCPU:         terms.VCpu,
 		RAM:          terms.Memory,
+		GPU:          terms.GPU,
 		Storage:      terms.Storage,
 		BaseCPUPrice: aws.BaseCPUPrice,
 		UsageType:    usageType,
