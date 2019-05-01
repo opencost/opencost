@@ -1008,19 +1008,21 @@ func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeData, error) 
 		if !ok {
 			return nil, fmt.Errorf("Claim field improperly formatted")
 		}
-		pvclass, ok := metricMap["storageclass"]
-		if !ok {
-			return nil, fmt.Errorf("StorageClass field does not exist in data result vector")
-		}
-		pvclassStr, ok := pvclass.(string)
-		if !ok {
-			return nil, fmt.Errorf("StorageClass field improperly formatted")
-		}
+
 		pvnamespace, ok := metricMap["namespace"]
 		if !ok {
 			return nil, fmt.Errorf("Namespace field does not exist in data result vector")
 		}
 		pvnamespaceStr, ok := pvnamespace.(string)
+		if !ok {
+			return nil, fmt.Errorf("Namespace field improperly formatted")
+		}
+		pvclass, ok := metricMap["storageclass"]
+		if !ok { // TODO: We need to look up the actual PV and PV capacity. For now just proceed with "".
+			klog.V(2).Infof("Storage Class not found for claim \"%s/%s\".", pvnamespaceStr, pvclaimStr)
+			pvclass = ""
+		}
+		pvclassStr, ok := pvclass.(string)
 		if !ok {
 			return nil, fmt.Errorf("StorageClass field improperly formatted")
 		}
@@ -1072,19 +1074,20 @@ func getPVInfoVector(qr interface{}) (map[string]*PersistentVolumeData, error) {
 		if !ok {
 			return nil, fmt.Errorf("Claim field improperly formatted")
 		}
-		pvclass, ok := metricMap["storageclass"]
-		if !ok {
-			return nil, fmt.Errorf("StorageClass field does not exist in data result vector")
-		}
-		pvclassStr, ok := pvclass.(string)
-		if !ok {
-			return nil, fmt.Errorf("StorageClass field improperly formatted")
-		}
 		pvnamespace, ok := metricMap["namespace"]
 		if !ok {
 			return nil, fmt.Errorf("Namespace field does not exist in data result vector")
 		}
 		pvnamespaceStr, ok := pvnamespace.(string)
+		if !ok {
+			return nil, fmt.Errorf("Namespace field improperly formatted")
+		}
+		pvclass, ok := metricMap["storageclass"]
+		if !ok { // TODO: We need to look up the actual PV and PV capacity. For now just proceed with "".
+			klog.V(2).Infof("Storage Class not found for claim \"%s/%s\".", pvnamespaceStr, pvclaimStr)
+			pvclass = ""
+		}
+		pvclassStr, ok := pvclass.(string)
 		if !ok {
 			return nil, fmt.Errorf("StorageClass field improperly formatted")
 		}
