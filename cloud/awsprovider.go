@@ -77,7 +77,7 @@ type AWSProductAttributes struct {
 	OperatingSystem string `json:"operatingSystem"`
 	PreInstalledSw  string `json:"preInstalledSw"`
 	InstanceFamily  string `json:"instanceFamily"`
-	GPU             string `json:gpu`
+	GPU             string `json:"gpu"` // GPU represents the number of GPU on the instance
 }
 
 // AWSPricingTerms are how you pay for the node: OnDemand, Reserved, or (TODO) Spot
@@ -111,7 +111,7 @@ type AWSProductTerms struct {
 	Memory   string        `json:"memory"`
 	Storage  string        `json:"storage"`
 	VCpu     string        `json:"vcpu"`
-	GPU      string        `json:"gpu"`
+	GPU      string        `json:"gpu"` // GPU represents the number of GPU on the instance
 }
 
 // ClusterIdEnvVar is the environment variable in which one can manually set the ClusterId
@@ -468,7 +468,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 			UsageType:    usageType,
 		}, nil
 	}
-	c, ok  := terms.OnDemand.PriceDimensions[terms.Sku+OnDemandRateCode+HourlyRateCode]
+	c, ok := terms.OnDemand.PriceDimensions[terms.Sku+OnDemandRateCode+HourlyRateCode]
 	if !ok {
 		return nil, fmt.Errorf("Could not fetch data for \"%s\"", k.ID())
 	}

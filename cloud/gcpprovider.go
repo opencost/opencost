@@ -26,6 +26,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+const GKE_GPU_TAG = "cloud.google.com/gke-accelerator"
+
 type userAgentTransport struct {
 	userAgent string
 	base      http.RoundTripper
@@ -296,7 +298,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key) (map[string]*GC
 						for k, key := range inputKeys {
 							if key.GPUType() == gpuType {
 								if region == strings.Split(k, ",")[0] {
-									klog.V(3).Infof("MATCHED GPU TO NODE in region " + region)
+									klog.V(3).Infof("Matched GPU to node in region \"%s\"", region)
 									candidateKeyGPU = key.Features()
 									if pl, ok := gcpPricingList[candidateKeyGPU]; ok {
 										pl.Node.GPUName = gpuType
@@ -497,7 +499,7 @@ func (gcp *gcpKey) ID() string {
 }
 
 func (gcp *gcpKey) GPUType() string {
-	if t, ok := gcp.Labels["cloud.google.com/gke-accelerator"]; ok {
+	if t, ok := gcp.Labels[GKE_GPU_TAG]; ok {
 		klog.V(3).Infof("GPU of type: \"%s\" found", t)
 		return t
 	}
@@ -521,7 +523,7 @@ func (gcp *gcpKey) Features() string {
 		usageType = "ondemand"
 	}
 
-	if _, ok := gcp.Labels["cloud.google.com/gke-accelerator"]; ok {
+	if _, ok := gcp.Labels[GKE_GPU_TAG]; ok {
 		return region + "," + instanceType + "," + usageType + "," + "gpu"
 	}
 

@@ -141,7 +141,7 @@ func (p *Accesses) UpdateConfigs(w http.ResponseWriter, r *http.Request, ps http
 	w.Write(wrapData(data, err))
 	err = p.Cloud.DownloadPricingData()
 	if err != nil {
-		klog.V(1).Infof("Error redownloading data on config update")
+		klog.V(1).Infof("Error redownloading data on config update: %s", err.Error())
 	}
 	return
 }

@@ -31,7 +31,7 @@ type Node struct {
 	UsesBaseCPUPrice bool   `json:"usesDefaultPrice"`
 	BaseCPUPrice     string `json:"baseCPUPrice"` // Used to compute an implicit RAM GB/Hr price when RAM pricing is not provided.
 	UsageType        string `json:"usageType"`
-	GPU              string `json:"gpu"`
+	GPU              string `json:"gpu"` // GPU represents the number of GPU on the instance
 	GPUName          string `json:"gpuName"`
 	GPUCost          string `json:"gpuCost"`
 }
