@@ -40,6 +40,7 @@ type Accesses struct {
 	Cloud                  costAnalyzerCloud.Provider
 	CPUPriceRecorder       *prometheus.GaugeVec
 	RAMPriceRecorder       *prometheus.GaugeVec
+	GPUPriceRecorder       *prometheus.GaugeVec
 	NodeTotalPriceRecorder *prometheus.GaugeVec
 	RAMAllocationRecorder  *prometheus.GaugeVec
 	CPUAllocationRecorder  *prometheus.GaugeVec
@@ -173,11 +174,15 @@ func (a *Accesses) recordPrices() {
 				cpu, _ := strconv.ParseFloat(node.VCPU, 64)
 				ramCost, _ := strconv.ParseFloat(node.RAMCost, 64)
 				ram, _ := strconv.ParseFloat(node.RAMBytes, 64)
+				gpu, _ := strconv.ParseFloat(node.GPU, 64)
+				gpuCost, _ := strconv.ParseFloat(node.GPUCost, 64)
 
-				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024)
+				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
 				a.CPUPriceRecorder.WithLabelValues(nodeName).Set(cpuCost)
 				a.RAMPriceRecorder.WithLabelValues(nodeName).Set(ramCost)
+				a.GPUPriceRecorder.WithLabelValues(nodeName).Set(gpuCost)
+
 				a.NodeTotalPriceRecorder.WithLabelValues(nodeName).Set(totalCost)
 
 				namespace := costs.Namespace
@@ -244,6 +249,11 @@ func main() {
 		Help: "node_ram_hourly_cost cost for each gb of ram on this node",
 	}, []string{"instance"})
 
+	gpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "node_gpu_hourly_cost",
+		Help: "node_gpu_hourly_cost cost for each gb of ram on this node",
+	}, []string{"instance"})
+
 	totalGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_total_hourly_cost",
 		Help: "node_total_hourly_cost Total node cost per hour",
@@ -261,6 +271,7 @@ func main() {
 
 	prometheus.MustRegister(cpuGv)
 	prometheus.MustRegister(ramGv)
+	prometheus.MustRegister(gpuGv)
 	prometheus.MustRegister(totalGv)
 	prometheus.MustRegister(RAMAllocation)
 	prometheus.MustRegister(CPUAllocation)
@@ -271,6 +282,7 @@ func main() {
 		Cloud:                  cloudProvider,
 		CPUPriceRecorder:       cpuGv,
 		RAMPriceRecorder:       ramGv,
+		GPUPriceRecorder:       gpuGv,
 		NodeTotalPriceRecorder: totalGv,
 		RAMAllocationRecorder:  RAMAllocation,
 		CPUAllocationRecorder:  CPUAllocation,
