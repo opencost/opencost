@@ -241,17 +241,17 @@ func main() {
 
 	cpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_cpu_hourly_cost",
-		Help: "node_cpu_hourly_cost cost for each cpu on this node",
+		Help: "node_cpu_hourly_cost hourly cost for each cpu on this node",
 	}, []string{"instance"})
 
 	ramGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_ram_hourly_cost",
-		Help: "node_ram_hourly_cost cost for each gb of ram on this node",
+		Help: "node_ram_hourly_cost hourly cost for each gb of ram on this node",
 	}, []string{"instance"})
 
 	gpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_gpu_hourly_cost",
-		Help: "node_gpu_hourly_cost cost for each gb of ram on this node",
+		Help: "node_gpu_hourly_cost hourly cost for each gpu on this node",
 	}, []string{"instance"})
 
 	totalGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
