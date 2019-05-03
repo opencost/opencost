@@ -49,9 +49,12 @@ sum(node_total_hourly_cost) * 730
 
 ## Available Metrics
 
+**Note:** node metrics today have both *instance* and *node* labels. The *instance* label will be deprecated in a future version.
+
 | Metric       | Description                                                                                            |
 | ------------ | ------------------------------------------------------------------------------------------------------ |
 | node_cpu_hourly_cost | Hourly cost per vCPU on this node  |
+| node_gpu_hourly_cost | Hourly cost per GPU on this node  |
 | node_ram_hourly_cost   | Hourly cost per Gb of memory on this node                       |
 | node_total_hourly_cost   | Total node cost per hour                       |
 | container_cpu_allocation   | Average number of CPUs requested/used over last 1m                      |
