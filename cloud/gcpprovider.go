@@ -276,7 +276,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key) (map[string]*GC
 				for matchnum, group := range provIdRx.FindStringSubmatch(product.Description) {
 					if matchnum == 1 {
 						gpuType = strings.ToLower(strings.Join(strings.Split(group, " "), "-"))
-						klog.V(3).Info("GPU TYPE FOUND: " + gpuType)
+						klog.V(4).Info("GPU TYPE FOUND: " + gpuType)
 					}
 				}
 
@@ -331,7 +331,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key) (map[string]*GC
 								continue
 							} else if strings.Contains(strings.ToUpper(product.Description), "RAM") {
 								if instanceType == "custom" {
-									klog.V(2).Infof("RAM custom sku is: " + product.Name)
+									klog.V(4).Infof("RAM custom sku is: " + product.Name)
 								}
 								if _, ok := gcpPricingList[candidateKey]; ok {
 									gcpPricingList[candidateKey].Node.RAMCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
@@ -500,7 +500,7 @@ func (gcp *gcpKey) ID() string {
 
 func (gcp *gcpKey) GPUType() string {
 	if t, ok := gcp.Labels[GKE_GPU_TAG]; ok {
-		klog.V(3).Infof("GPU of type: \"%s\" found", t)
+		klog.V(4).Infof("GPU of type: \"%s\" found", t)
 		return t
 	}
 	return ""
@@ -538,7 +538,7 @@ func (gcp *GCP) AllNodePricing() (interface{}, error) {
 // NodePricing returns GCP pricing data for a single node
 func (gcp *GCP) NodePricing(key Key) (*Node, error) {
 	if n, ok := gcp.Pricing[key.Features()]; ok {
-		klog.V(2).Infof("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
+		klog.V(4).Infof("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
 		n.Node.BaseCPUPrice = gcp.BaseCPUPrice
 		return n.Node, nil
 	}
