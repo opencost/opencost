@@ -40,6 +40,7 @@ type Accesses struct {
 	Cloud                  costAnalyzerCloud.Provider
 	CPUPriceRecorder       *prometheus.GaugeVec
 	RAMPriceRecorder       *prometheus.GaugeVec
+	GPUPriceRecorder       *prometheus.GaugeVec
 	NodeTotalPriceRecorder *prometheus.GaugeVec
 	RAMAllocationRecorder  *prometheus.GaugeVec
 	CPUAllocationRecorder  *prometheus.GaugeVec
@@ -173,21 +174,27 @@ func (a *Accesses) recordPrices() {
 				cpu, _ := strconv.ParseFloat(node.VCPU, 64)
 				ramCost, _ := strconv.ParseFloat(node.RAMCost, 64)
 				ram, _ := strconv.ParseFloat(node.RAMBytes, 64)
+				gpu, _ := strconv.ParseFloat(node.GPU, 64)
+				gpuCost, _ := strconv.ParseFloat(node.GPUCost, 64)
 
-				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024)
+				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
-				a.CPUPriceRecorder.WithLabelValues(nodeName).Set(cpuCost)
-				a.RAMPriceRecorder.WithLabelValues(nodeName).Set(ramCost)
-				a.NodeTotalPriceRecorder.WithLabelValues(nodeName).Set(totalCost)
+				a.CPUPriceRecorder.WithLabelValues(nodeName, nodeName).Set(cpuCost)
+				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeName).Set(ramCost)
+				if gpu > 0 {
+					a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName).Set(gpuCost)
+				}
+
+				a.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName).Set(totalCost)
 
 				namespace := costs.Namespace
 				podName := costs.PodName
 				containerName := costs.Name
 				if len(costs.RAMAllocation) > 0 {
-					a.RAMAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName).Set(costs.RAMAllocation[0].Value)
+					a.RAMAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.RAMAllocation[0].Value)
 				}
 				if len(costs.CPUAllocation) > 0 {
-					a.CPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName).Set(costs.CPUAllocation[0].Value)
+					a.CPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.CPUAllocation[0].Value)
 				}
 			}
 			time.Sleep(time.Minute)
@@ -236,31 +243,37 @@ func main() {
 
 	cpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_cpu_hourly_cost",
-		Help: "node_cpu_hourly_cost cost for each cpu on this node",
-	}, []string{"instance"})
+		Help: "node_cpu_hourly_cost hourly cost for each cpu on this node",
+	}, []string{"instance", "node"})
 
 	ramGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_ram_hourly_cost",
-		Help: "node_ram_hourly_cost cost for each gb of ram on this node",
-	}, []string{"instance"})
+		Help: "node_ram_hourly_cost hourly cost for each gb of ram on this node",
+	}, []string{"instance", "node"})
+
+	gpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "node_gpu_hourly_cost",
+		Help: "node_gpu_hourly_cost hourly cost for each gpu on this node",
+	}, []string{"instance", "node"})
 
 	totalGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_total_hourly_cost",
 		Help: "node_total_hourly_cost Total node cost per hour",
-	}, []string{"instance"})
+	}, []string{"instance", "node"})
 
 	RAMAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "container_memory_allocation_bytes",
 		Help: "container_memory_allocation_bytes Bytes of RAM used",
-	}, []string{"namespace", "pod", "container", "instance"})
+	}, []string{"namespace", "pod", "container", "instance", "node"})
 
 	CPUAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "container_cpu_allocation",
 		Help: "container_cpu_allocation Percent of a single CPU used in a minute",
-	}, []string{"namespace", "pod", "container", "instance"})
+	}, []string{"namespace", "pod", "container", "instance", "node"})
 
 	prometheus.MustRegister(cpuGv)
 	prometheus.MustRegister(ramGv)
+	prometheus.MustRegister(gpuGv)
 	prometheus.MustRegister(totalGv)
 	prometheus.MustRegister(RAMAllocation)
 	prometheus.MustRegister(CPUAllocation)
@@ -271,6 +284,7 @@ func main() {
 		Cloud:                  cloudProvider,
 		CPUPriceRecorder:       cpuGv,
 		RAMPriceRecorder:       ramGv,
+		GPUPriceRecorder:       gpuGv,
 		NodeTotalPriceRecorder: totalGv,
 		RAMAllocationRecorder:  RAMAllocation,
 		CPUAllocationRecorder:  CPUAllocation,
