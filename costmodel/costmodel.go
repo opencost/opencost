@@ -907,7 +907,7 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 
 				RAMReqV, ok := RAMReqMap[newKey]
 				if !ok {
-					klog.V(2).Info("no RAM requests for " + newKey)
+					klog.V(4).Info("no RAM requests for " + newKey)
 					RAMReqV = []*Vector{}
 				}
 				RAMUsedV, ok := RAMUsedMap[newKey]

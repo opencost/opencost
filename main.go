@@ -181,9 +181,7 @@ func (a *Accesses) recordPrices() {
 
 				a.CPUPriceRecorder.WithLabelValues(nodeName, nodeName).Set(cpuCost)
 				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeName).Set(ramCost)
-				if gpu > 0 {
-					a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName).Set(gpuCost)
-				}
+				a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName).Set(gpuCost)
 
 				a.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName).Set(totalCost)
 

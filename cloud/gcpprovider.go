@@ -276,7 +276,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key) (map[string]*GC
 				for matchnum, group := range provIdRx.FindStringSubmatch(product.Description) {
 					if matchnum == 1 {
 						gpuType = strings.ToLower(strings.Join(strings.Split(group, " "), "-"))
-						klog.V(4).Info("GPU TYPE FOUND: " + gpuType)
+						klog.V(4).Info("GPU type found: " + gpuType)
 					}
 				}
 
@@ -317,7 +317,9 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key) (map[string]*GC
 							}
 						}
 					} else {
-						if _, ok := inputKeys[candidateKey]; ok {
+						_, ok := inputKeys[candidateKey]
+						_, ok2 := inputKeys[candidateKeyGPU]
+						if ok || ok2 {
 							lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
 							var nanos float64
 							if len(product.PricingInfo) > 0 {
@@ -372,7 +374,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key) (map[string]*GC
 									gcpPricingList[candidateKey] = product
 								}
 								if _, ok := gcpPricingList[candidateKeyGPU]; ok {
-									gcpPricingList[candidateKey].Node.VCPUCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
+									gcpPricingList[candidateKeyGPU].Node.VCPUCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 								} else {
 									product.Node = &Node{
 										VCPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
