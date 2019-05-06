@@ -233,6 +233,7 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 			currentContainers[c.Key()] = pod
 		}
 	}
+	missingNodes := make(map[string]*costAnalyzerCloud.Node)
 	for key := range containers {
 		if _, ok := containerNameCost[key]; ok {
 			continue // because ordering is important for the allocation model (all PV's applied to the first), just dedupe if it's already been added.
@@ -373,12 +374,15 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 				CPUUsedV = []*Vector{&Vector{}}
 			}
 
-			var node *costAnalyzerCloud.Node
-			if n, ok := nodes[c.NodeName]; !ok {
-				//TODO: The node has been deleted from kubernetes as well. You will need to query historical node data to get it.
+			node, ok := nodes[c.NodeName]
+			if !ok {
 				klog.V(2).Infof("Node \"%s\" has been deleted from Kubernetes. Query historical data to get it.", c.NodeName)
-			} else {
-				node = n
+				if n, ok := missingNodes[c.NodeName]; ok {
+					node = n
+				} else {
+					node = &costAnalyzerCloud.Node{}
+					missingNodes[c.NodeName] = node
+				}
 			}
 			costs := &CostData{
 				Name:      c.ContainerName,
@@ -397,7 +401,75 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 			containerNameCost[key] = costs
 		}
 	}
+	err = findDeletedNodeInfo(cli, missingNodes, window)
+
+	if err != nil {
+		return nil, err
+	}
 	return containerNameCost, err
+}
+
+func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*costAnalyzerCloud.Node, window string) error {
+	if len(missingNodes) > 0 {
+		q := make([]string, 0, len(missingNodes))
+		for nodename := range missingNodes {
+			klog.V(3).Infof("Finding data for deleted node %v", nodename)
+			q = append(q, nodename)
+		}
+		l := strings.Join(q, "|")
+
+		queryHistoricalCPUCost := fmt.Sprintf(`avg_over_time(node_cpu_hourly_cost{instance=~"%s"}[%s])`, l, window)
+		queryHistoricalRAMCost := fmt.Sprintf(`avg_over_time(node_ram_hourly_cost{instance=~"%s"}[%s])`, l, window)
+		queryHistoricalGPUCost := fmt.Sprintf(`avg_over_time(node_gpu_hourly_cost{instance=~"%s"}[%s])`, l, window)
+
+		cpuCostResult, err := query(cli, queryHistoricalCPUCost)
+		if err != nil {
+			return fmt.Errorf("Error fetching cpu cost data: " + err.Error())
+		}
+		ramCostResult, err := query(cli, queryHistoricalRAMCost)
+		if err != nil {
+			return fmt.Errorf("Error fetching ram cost data: " + err.Error())
+		}
+		gpuCostResult, err := query(cli, queryHistoricalGPUCost)
+		if err != nil {
+			return fmt.Errorf("Error fetching gpu cost data: " + err.Error())
+		}
+
+		cpuCosts, err := getCost(cpuCostResult)
+		if err != nil {
+			return err
+		}
+		ramCosts, err := getCost(ramCostResult)
+		if err != nil {
+			return err
+		}
+		gpuCosts, err := getCost(gpuCostResult)
+		if err != nil {
+			return err
+		}
+
+		if len(cpuCosts) == 0 {
+			klog.V(1).Infof("Historical data for node prices not available. Ingest this server's /metrics endpoint to get that data.")
+		}
+
+		for node, costv := range cpuCosts {
+			if _, ok := missingNodes[node]; ok {
+				missingNodes[node].VCPUCost = fmt.Sprintf("%f", costv[0].Value)
+			}
+		}
+		for node, costv := range ramCosts {
+			if _, ok := missingNodes[node]; ok {
+				missingNodes[node].RAMCost = fmt.Sprintf("%f", costv[0].Value)
+			}
+		}
+		for node, costv := range gpuCosts {
+			if _, ok := missingNodes[node]; ok {
+				missingNodes[node].GPUCost = fmt.Sprintf("%f", costv[0].Value)
+			}
+		}
+
+	}
+	return nil
 }
 
 func getContainerAllocation(req []*Vector, used []*Vector) []*Vector {
@@ -782,6 +854,8 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 		}
 	}
 
+	missingNodes := make(map[string]*costAnalyzerCloud.Node)
+
 	for key := range containers {
 		if _, ok := containerNameCost[key]; ok {
 			continue // because ordering is important for the allocation model (all PV's applied to the first), just dedupe if it's already been added.
@@ -838,22 +912,22 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 				}
 				RAMUsedV, ok := RAMUsedMap[newKey]
 				if !ok {
-					klog.V(2).Info("no RAM usage for " + newKey)
+					klog.V(4).Info("no RAM usage for " + newKey)
 					RAMUsedV = []*Vector{}
 				}
 				CPUReqV, ok := CPUReqMap[newKey]
 				if !ok {
-					klog.V(2).Info("no CPU requests for " + newKey)
+					klog.V(4).Info("no CPU requests for " + newKey)
 					CPUReqV = []*Vector{}
 				}
 				GPUReqV, ok := GPUReqMap[newKey]
 				if !ok {
-					klog.V(2).Info("no GPU requests for " + newKey)
+					klog.V(4).Info("no GPU requests for " + newKey)
 					GPUReqV = []*Vector{}
 				}
 				CPUUsedV, ok := CPUUsedMap[newKey]
 				if !ok {
-					klog.V(2).Info("no CPU usage for " + newKey)
+					klog.V(4).Info("no CPU usage for " + newKey)
 					CPUUsedV = []*Vector{}
 				}
 
@@ -893,35 +967,39 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 			c, _ := newContainerMetricFromKey(key)
 			RAMReqV, ok := RAMReqMap[key]
 			if !ok {
-				klog.V(2).Info("no RAM requests for " + key)
+				klog.V(4).Info("no RAM requests for " + key)
 				RAMReqV = []*Vector{}
 			}
 			RAMUsedV, ok := RAMUsedMap[key]
 			if !ok {
-				klog.V(2).Info("no RAM usage for " + key)
+				klog.V(4).Info("no RAM usage for " + key)
 				RAMUsedV = []*Vector{}
 			}
 			CPUReqV, ok := CPUReqMap[key]
 			if !ok {
-				klog.V(2).Info("no CPU requests for " + key)
+				klog.V(4).Info("no CPU requests for " + key)
 				CPUReqV = []*Vector{}
 			}
 			GPUReqV, ok := GPUReqMap[key]
 			if !ok {
-				klog.V(2).Info("no GPU requests for " + key)
+				klog.V(4).Info("no GPU requests for " + key)
 				GPUReqV = []*Vector{}
 			}
 			CPUUsedV, ok := CPUUsedMap[key]
 			if !ok {
-				klog.V(2).Info("no CPU usage for " + key)
+				klog.V(4).Info("no CPU usage for " + key)
 				CPUUsedV = []*Vector{}
 			}
-			var node *costAnalyzerCloud.Node
-			if n, ok := nodes[c.NodeName]; !ok {
-				//TODO: The node has been deleted from kubernetes as well. You will need to query historical node data to get it.
+
+			node, ok := nodes[c.NodeName]
+			if !ok {
 				klog.V(2).Infof("Node \"%s\" has been deleted from Kubernetes. Query historical data to get it.", c.NodeName)
-			} else {
-				node = n
+				if n, ok := missingNodes[c.NodeName]; ok {
+					node = n
+				} else {
+					node = &costAnalyzerCloud.Node{}
+					missingNodes[c.NodeName] = node
+				}
 			}
 			costs := &CostData{
 				Name:      c.ContainerName,
@@ -940,6 +1018,16 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 			containerNameCost[key] = costs
 		}
 	}
+
+	w := end.Sub(start)
+	if w.Minutes() > 0 {
+		wStr := fmt.Sprintf("%dm", int(w.Minutes()))
+		err = findDeletedNodeInfo(cli, missingNodes, wStr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return containerNameCost, err
 }
 
@@ -987,6 +1075,47 @@ type PersistentVolumeData struct {
 	Claim     string    `json:"claim"`
 	Namespace string    `json:"namespace"`
 	Values    []*Vector `json:"values"`
+}
+
+func getCost(qr interface{}) (map[string][]*Vector, error) {
+	toReturn := make(map[string][]*Vector)
+	for _, val := range qr.(map[string]interface{})["data"].(map[string]interface{})["result"].([]interface{}) {
+		metricInterface, ok := val.(map[string]interface{})["metric"]
+		if !ok {
+			return nil, fmt.Errorf("Metric field does not exist in data result vector")
+		}
+		metricMap, ok := metricInterface.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("Metric field is improperly formatted")
+		}
+		instance, ok := metricMap["instance"]
+		if !ok {
+			return nil, fmt.Errorf("Instance field does not exist in data result vector")
+		}
+		instanceStr, ok := instance.(string)
+		if !ok {
+			return nil, fmt.Errorf("Instance is improperly formatted")
+		}
+		dataPoint, ok := val.(map[string]interface{})["value"]
+		if !ok {
+			return nil, fmt.Errorf("Value field does not exist in data result vector")
+		}
+		value, ok := dataPoint.([]interface{})
+		if !ok || len(value) != 2 {
+			return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
+		}
+		var vectors []*Vector
+		strVal := value[1].(string)
+		v, _ := strconv.ParseFloat(strVal, 64)
+
+		vectors = append(vectors, &Vector{
+			Timestamp: value[0].(float64),
+			Value:     v,
+		})
+		toReturn[instanceStr] = vectors
+	}
+
+	return toReturn, nil
 }
 
 func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeData, error) {
