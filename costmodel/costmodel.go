@@ -410,7 +410,6 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 }
 
 func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*costAnalyzerCloud.Node, window string) error {
-	klog.V(1).Infof("Using %s as window", window)
 	if len(missingNodes) > 0 {
 		q := make([]string, 0, len(missingNodes))
 		for nodename := range missingNodes {
