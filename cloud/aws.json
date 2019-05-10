@@ -7,10 +7,14 @@
     "spotRAM": "0.000892",
     "spotLabel": "kops.k8s.io/instancegroup",
     "spotLabelValue": "spotinstance-nodes",
-    "awsServiceKeyName": "AKIAXW6UVLRRTBCUKQFP",
-    "awsServiceKeySecret": "",
+    "awsServiceKeyName": "AKIAXW6UVLRRY5RQGGUX",
+    "awsServiceKeySecret": "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",
     "awsSpotDataRegion":"us-east-2",
     "awsSpotDataBucket": "kc-test-spot",
     "awsSpotDataPrefix": "spotdata",
+    "athenaBucketName": "s3://aws-athena-query-results-530337586275-us-east-1",
+	"athenaRegion": "us-east-1",
+	"athenaDatabase": "athenacurcfn_athena_test",
+	"athenaTable": "athena_test",
     "projectID": "530337586275"
 }
