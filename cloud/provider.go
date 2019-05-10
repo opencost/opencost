@@ -3,10 +3,12 @@ package cloud
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 
 	"k8s.io/klog"
@@ -61,10 +63,10 @@ type Provider interface {
 	AllNodePricing() (interface{}, error)
 	DownloadPricingData() error
 	GetKey(map[string]string) Key
-	UpdateConfig(r io.Reader) (*CustomPricing, error)
+	UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error)
 	GetConfig() (*CustomPricing, error)
 
-	ExternalAllocations(string, string) ([]*OutOfClusterAllocation, error)
+	ExternalAllocations(string, string, string) ([]*OutOfClusterAllocation, error)
 }
 
 // GetDefaultPricingData will search for a json file representing pricing data in /models/ and use it for base pricing info.
@@ -114,6 +116,8 @@ func GetDefaultPricingData(fname string) (*CustomPricing, error) {
 	}
 }
 
+const KeyUpdateType = "athenainfo"
+
 type CustomPricing struct {
 	Provider           string `json:"provider"`
 	Description        string `json:"description"`
@@ -129,7 +133,33 @@ type CustomPricing struct {
 	SpotDataBucket     string `json:"awsSpotDataBucket,omitempty"`
 	SpotDataPrefix     string `json:"awsSpotDataPrefix,omitempty"`
 	ProjectID          string `json:"projectID,omitempty"`
+	AthenaBucketName   string `json:"athenaBucketName"`
+	AthenaRegion       string `json:"athenaRegion"`
+	AthenaDatabase     string `json:"athenaDatabase"`
+	AthenaTable        string `json:"athenaTable"`
 	BillingDataDataset string `json:"billingDataDataset,omitempty"`
+}
+
+func SetCustomPricingField(obj *CustomPricing, name string, value string) error {
+	structValue := reflect.ValueOf(obj).Elem()
+	structFieldValue := structValue.FieldByName(name)
+
+	if !structFieldValue.IsValid() {
+		return fmt.Errorf("No such field: %s in obj", name)
+	}
+
+	if !structFieldValue.CanSet() {
+		return fmt.Errorf("Cannot set %s field value", name)
+	}
+
+	structFieldType := structFieldValue.Type()
+	val := reflect.ValueOf(value)
+	if structFieldType != val.Type() {
+		return fmt.Errorf("Provided value type didn't match custom pricing field type")
+	}
+
+	structFieldValue.Set(val)
+	return nil
 }
 
 type NodePrice struct {
@@ -148,7 +178,7 @@ func (*CustomProvider) GetConfig() (*CustomPricing, error) {
 	return nil, nil
 }
 
-func (*CustomProvider) UpdateConfig(r io.Reader) (*CustomPricing, error) {
+func (*CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
 	return nil, nil
 }
 
@@ -229,7 +259,7 @@ func (c *CustomProvider) GetKey(labels map[string]string) Key {
 	}
 }
 
-func (*CustomProvider) ExternalAllocations(start string, end string) ([]*OutOfClusterAllocation, error) {
+func (*CustomProvider) ExternalAllocations(start string, end string, aggregator string) ([]*OutOfClusterAllocation, error) {
 	return nil, nil // TODO: transform the QuerySQL lines into the new OutOfClusterAllocation Struct
 }
 

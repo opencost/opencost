@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -27,6 +28,7 @@ import (
 )
 
 const GKE_GPU_TAG = "cloud.google.com/gke-accelerator"
+const BigqueryUpdateType = "bigqueryupdate"
 
 type userAgentTransport struct {
 	userAgent string
@@ -46,6 +48,7 @@ type GCP struct {
 	BaseCPUPrice       string
 	ProjectID          string
 	BillingDataDataset string
+	*CustomProvider
 }
 
 type gcpAllocation struct {
@@ -75,14 +78,82 @@ func gcpAllocationToOutOfClusterAllocation(gcpAlloc gcpAllocation) *OutOfCluster
 }
 
 func (gcp *GCP) GetConfig() (*CustomPricing, error) {
-	return nil, nil
+	c, err := GetDefaultPricingData("gcp.json")
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
 }
 
-func (gcp *GCP) UpdateConfig(r io.Reader) (*CustomPricing, error) {
-	return nil, nil
+type BigQueryConfig struct {
+	ProjectID          string            `json:"projectID"`
+	BillingDataDataset string            `json:"billingDataDataset"`
+	Key                map[string]string `json:"key"`
 }
 
-func (gcp *GCP) ExternalAllocations(start string, end string) ([]*OutOfClusterAllocation, error) {
+func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
+	c, err := GetDefaultPricingData("gcp.json")
+	if err != nil {
+		return nil, err
+	}
+	path := os.Getenv("CONFIG_PATH")
+	if path == "" {
+		path = "/models/"
+	}
+	if updateType == BigqueryUpdateType {
+		a := BigQueryConfig{}
+		err = json.NewDecoder(r).Decode(&a)
+		if err != nil {
+			return nil, err
+		}
+
+		c.ProjectID = a.ProjectID
+		c.BillingDataDataset = a.BillingDataDataset
+
+		j, err := json.Marshal(a.Key)
+		if err != nil {
+			return nil, err
+		}
+
+		keyPath := path + "key.json"
+		err = ioutil.WriteFile(keyPath, j, 0644)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		a := make(map[string]string)
+		err = json.NewDecoder(r).Decode(&a)
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range a {
+			kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+			err := SetCustomPricingField(c, kUpper, v)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	cj, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+
+	configPath := path + "gcp.json"
+	err = ioutil.WriteFile(configPath, cj, 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	return c, nil
+
+}
+
+func (gcp *GCP) ExternalAllocations(start string, end string, aggregator string) ([]*OutOfClusterAllocation, error) {
+	c, err := GetDefaultPricingData("gcp.json")
+	if err != nil {
+		return nil, err
+	}
 	// start, end formatted like: "2019-04-20 00:00:00"
 	queryString := fmt.Sprintf(`SELECT
 					service,
@@ -97,8 +168,8 @@ func (gcp *GCP) ExternalAllocations(start string, end string) ([]*OutOfClusterAl
 						WHERE usage_start_time >= "%s" AND usage_start_time < "%s")
 						LEFT JOIN UNNEST(labels) as labels
 						ON labels.key = "kubernetes_namespace" OR labels.key = "kubernetes_container" OR labels.key = "kubernetes_deployment" OR labels.key = "kubernetes_pod" OR labels.key = "kubernetes_daemonset"
-				GROUP BY aggregator, environment, service;`, gcp.BillingDataDataset, start, end) // For example, "billing_data.gcp_billing_export_v1_01AC9F_74CF1D_5565A2"
-	klog.V(3).Infof("Querying \"%s\" with : %s", gcp.ProjectID, queryString)
+				GROUP BY aggregator, environment, service;`, c.BillingDataDataset, start, end) // For example, "billing_data.gcp_billing_export_v1_01AC9F_74CF1D_5565A2"
+	klog.V(3).Infof("Querying \"%s\" with : %s", c.ProjectID, queryString)
 	return gcp.QuerySQL(queryString)
 }
 
