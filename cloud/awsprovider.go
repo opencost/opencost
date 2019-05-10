@@ -709,6 +709,9 @@ func (*AWS) GetDisks() ([]byte, error) {
 	return json.Marshal(volumeResult)
 }
 
+// ExternalAllocations represents tagged assets outside the scope of kubernetes.
+// "start" and "end" are dates of the format YYYY-MM-DD
+// "aggregator" is the tag used to determine how to allocate those assets, ie namespace, pod, etc.
 func (a *AWS) ExternalAllocations(start string, end string, aggregator string) ([]*OutOfClusterAllocation, error) {
 	customPricing, err := a.GetConfig()
 	if err != nil {

@@ -149,6 +149,9 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 
 }
 
+// ExternalAllocations represents tagged assets outside the scope of kubernetes.
+// "start" and "end" are dates of the format YYYY-MM-DD
+// "aggregator" is the tag used to determine how to allocate those assets, ie namespace, pod, etc.
 func (gcp *GCP) ExternalAllocations(start string, end string, aggregator string) ([]*OutOfClusterAllocation, error) {
 	c, err := GetDefaultPricingData("gcp.json")
 	if err != nil {

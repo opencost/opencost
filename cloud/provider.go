@@ -259,6 +259,9 @@ func (c *CustomProvider) GetKey(labels map[string]string) Key {
 	}
 }
 
+// ExternalAllocations represents tagged assets outside the scope of kubernetes.
+// "start" and "end" are dates of the format YYYY-MM-DD
+// "aggregator" is the tag used to determine how to allocate those assets, ie namespace, pod, etc.
 func (*CustomProvider) ExternalAllocations(start string, end string, aggregator string) ([]*OutOfClusterAllocation, error) {
 	return nil, nil // TODO: transform the QuerySQL lines into the new OutOfClusterAllocation Struct
 }
