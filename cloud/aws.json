@@ -1,0 +1,20 @@
+{
+    "provider": "custom",
+    "description": "Default prices used to compute allocation between RAM and CPU. AWS pricing API data still used for total node cost.",
+    "CPU": "0.031611",
+    "spotCPU": "0.006655",
+    "RAM": "0.004237",
+    "spotRAM": "0.000892",
+    "spotLabel": "kops.k8s.io/instancegroup",
+    "spotLabelValue": "spotinstance-nodes",
+    "awsServiceKeyName": "AKIAXW6UVLRRY5RQGGUX",
+    "awsServiceKeySecret": "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",
+    "awsSpotDataRegion":"us-east-2",
+    "awsSpotDataBucket": "kc-test-spot",
+    "awsSpotDataPrefix": "spotdata",
+    "athenaBucketName": "s3://aws-athena-query-results-530337586275-us-east-1",
+	"athenaRegion": "us-east-1",
+	"athenaDatabase": "athenacurcfn_athena_test",
+	"athenaTable": "athena_test",
+    "projectID": "530337586275"
+}
