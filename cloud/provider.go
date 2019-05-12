@@ -3,10 +3,12 @@ package cloud
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 
 	"k8s.io/klog"
@@ -61,10 +63,10 @@ type Provider interface {
 	AllNodePricing() (interface{}, error)
 	DownloadPricingData() error
 	GetKey(map[string]string) Key
-	UpdateConfig(r io.Reader) (*CustomPricing, error)
+	UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error)
 	GetConfig() (*CustomPricing, error)
 
-	ExternalAllocations(string, string) ([]*OutOfClusterAllocation, error)
+	ExternalAllocations(string, string, string) ([]*OutOfClusterAllocation, error)
 }
 
 // GetDefaultPricingData will search for a json file representing pricing data in /models/ and use it for base pricing info.
@@ -92,12 +94,14 @@ func GetDefaultPricingData(fname string) (*CustomPricing, error) {
 		return customPricing, nil
 	} else if os.IsNotExist(err) {
 		c := &CustomPricing{
-			Provider:    fname,
-			Description: "Default prices based on GCP us-central1",
-			CPU:         "0.031611",
-			SpotCPU:     "0.006655",
-			RAM:         "0.004237",
-			SpotRAM:     "0.000892",
+			Provider:            fname,
+			Description:         "Default prices based on GCP us-central1",
+			CPU:                 "0.031611",
+			SpotCPU:             "0.006655",
+			RAM:                 "0.004237",
+			SpotRAM:             "0.000892",
+			GPU:                 "0.95",
+			CustomPricesEnabled: "false",
 		}
 		cj, err := json.Marshal(c)
 		if err != nil {
@@ -114,22 +118,52 @@ func GetDefaultPricingData(fname string) (*CustomPricing, error) {
 	}
 }
 
+const KeyUpdateType = "athenainfo"
+
 type CustomPricing struct {
-	Provider           string `json:"provider"`
-	Description        string `json:"description"`
-	CPU                string `json:"CPU"`
-	SpotCPU            string `json:"spotCPU"`
-	RAM                string `json:"RAM"`
-	SpotRAM            string `json:"spotRAM"`
-	SpotLabel          string `json:"spotLabel,omitempty"`
-	SpotLabelValue     string `json:"spotLabelValue,omitempty"`
-	ServiceKeyName     string `json:"awsServiceKeyName,omitempty"`
-	ServiceKeySecret   string `json:"awsServiceKeySecret,omitempty"`
-	SpotDataRegion     string `json:"awsSpotDataRegion,omitempty"`
-	SpotDataBucket     string `json:"awsSpotDataBucket,omitempty"`
-	SpotDataPrefix     string `json:"awsSpotDataPrefix,omitempty"`
-	ProjectID          string `json:"projectID,omitempty"`
-	BillingDataDataset string `json:"billingDataDataset,omitempty"`
+	Provider            string `json:"provider"`
+	Description         string `json:"description"`
+	CPU                 string `json:"CPU"`
+	SpotCPU             string `json:"spotCPU"`
+	RAM                 string `json:"RAM"`
+	SpotRAM             string `json:"spotRAM"`
+	GPU                 string `json:"GPU"`
+	SpotLabel           string `json:"spotLabel,omitempty"`
+	SpotLabelValue      string `json:"spotLabelValue,omitempty"`
+	ServiceKeyName      string `json:"awsServiceKeyName,omitempty"`
+	ServiceKeySecret    string `json:"awsServiceKeySecret,omitempty"`
+	SpotDataRegion      string `json:"awsSpotDataRegion,omitempty"`
+	SpotDataBucket      string `json:"awsSpotDataBucket,omitempty"`
+	SpotDataPrefix      string `json:"awsSpotDataPrefix,omitempty"`
+	ProjectID           string `json:"projectID,omitempty"`
+	AthenaBucketName    string `json:"athenaBucketName"`
+	AthenaRegion        string `json:"athenaRegion"`
+	AthenaDatabase      string `json:"athenaDatabase"`
+	AthenaTable         string `json:"athenaTable"`
+	BillingDataDataset  string `json:"billingDataDataset,omitempty"`
+	CustomPricesEnabled string `json:"customPricesEnabled"`
+}
+
+func SetCustomPricingField(obj *CustomPricing, name string, value string) error {
+	structValue := reflect.ValueOf(obj).Elem()
+	structFieldValue := structValue.FieldByName(name)
+
+	if !structFieldValue.IsValid() {
+		return fmt.Errorf("No such field: %s in obj", name)
+	}
+
+	if !structFieldValue.CanSet() {
+		return fmt.Errorf("Cannot set %s field value", name)
+	}
+
+	structFieldType := structFieldValue.Type()
+	val := reflect.ValueOf(value)
+	if structFieldType != val.Type() {
+		return fmt.Errorf("Provided value type didn't match custom pricing field type")
+	}
+
+	structFieldValue.Set(val)
+	return nil
 }
 
 type NodePrice struct {
@@ -148,7 +182,7 @@ func (*CustomProvider) GetConfig() (*CustomPricing, error) {
 	return nil, nil
 }
 
-func (*CustomProvider) UpdateConfig(r io.Reader) (*CustomPricing, error) {
+func (*CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
 	return nil, nil
 }
 
@@ -229,7 +263,10 @@ func (c *CustomProvider) GetKey(labels map[string]string) Key {
 	}
 }
 
-func (*CustomProvider) ExternalAllocations(start string, end string) ([]*OutOfClusterAllocation, error) {
+// ExternalAllocations represents tagged assets outside the scope of kubernetes.
+// "start" and "end" are dates of the format YYYY-MM-DD
+// "aggregator" is the tag used to determine how to allocate those assets, ie namespace, pod, etc.
+func (*CustomProvider) ExternalAllocations(start string, end string, aggregator string) ([]*OutOfClusterAllocation, error) {
 	return nil, nil // TODO: transform the QuerySQL lines into the new OutOfClusterAllocation Struct
 }
 

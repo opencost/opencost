@@ -111,8 +111,9 @@ func (a *Accesses) OutofClusterCosts(w http.ResponseWriter, r *http.Request, ps 
 
 	start := r.URL.Query().Get("start")
 	end := r.URL.Query().Get("end")
+	aggregator := r.URL.Query().Get("aggregator")
 
-	data, err := a.Cloud.ExternalAllocations(start, end)
+	data, err := a.Cloud.ExternalAllocations(start, end, aggregator)
 	w.Write(wrapData(data, err))
 }
 
@@ -131,10 +132,10 @@ func (p *Accesses) GetConfigs(w http.ResponseWriter, r *http.Request, ps httprou
 	w.Write(wrapData(data, err))
 }
 
-func (p *Accesses) UpdateConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (p *Accesses) UpdateSpotInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := p.Cloud.UpdateConfig(r.Body)
+	data, err := p.Cloud.UpdateConfig(r.Body, costAnalyzerCloud.SpotInfoUpdateType)
 	if err != nil {
 		w.Write(wrapData(data, err))
 		return
@@ -144,6 +145,42 @@ func (p *Accesses) UpdateConfigs(w http.ResponseWriter, r *http.Request, ps http
 	if err != nil {
 		klog.V(1).Infof("Error redownloading data on config update: %s", err.Error())
 	}
+	return
+}
+
+func (p *Accesses) UpdateAthenaInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	data, err := p.Cloud.UpdateConfig(r.Body, costAnalyzerCloud.AthenaInfoUpdateType)
+	if err != nil {
+		w.Write(wrapData(data, err))
+		return
+	}
+	w.Write(wrapData(data, err))
+	return
+}
+
+func (p *Accesses) UpdateBigQueryInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	data, err := p.Cloud.UpdateConfig(r.Body, costAnalyzerCloud.BigqueryUpdateType)
+	if err != nil {
+		w.Write(wrapData(data, err))
+		return
+	}
+	w.Write(wrapData(data, err))
+	return
+}
+
+func (p *Accesses) UpdateConfigByKey(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	data, err := p.Cloud.UpdateConfig(r.Body, "")
+	if err != nil {
+		w.Write(wrapData(data, err))
+		return
+	}
+	w.Write(wrapData(data, err))
 	return
 }
 
@@ -303,7 +340,10 @@ func main() {
 	router.GET("/healthz", Healthz)
 	router.GET("/getConfigs", a.GetConfigs)
 	router.POST("/refreshPricing", a.RefreshPricingData)
-	router.POST("/updateConfigs", a.UpdateConfigs)
+	router.POST("/updateSpotInfoConfigs", a.UpdateSpotInfoConfigs)
+	router.POST("/updateAthenaInfoConfigs", a.UpdateAthenaInfoConfigs)
+	router.POST("/updateBigQueryInfoConfigs", a.UpdateBigQueryInfoConfigs)
+	router.POST("/updateConfigByKey", a.UpdateConfigByKey)
 
 	rootMux := http.NewServeMux()
 	rootMux.Handle("/", router)
