@@ -173,6 +173,8 @@ func (p *Accesses) UpdateBigQueryInfoConfigs(w http.ResponseWriter, r *http.Requ
 }
 
 func (p *Accesses) UpdateConfigByKey(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	data, err := p.Cloud.UpdateConfig(r.Body, "")
 	if err != nil {
 		w.Write(wrapData(data, err))

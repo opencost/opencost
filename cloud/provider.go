@@ -94,12 +94,14 @@ func GetDefaultPricingData(fname string) (*CustomPricing, error) {
 		return customPricing, nil
 	} else if os.IsNotExist(err) {
 		c := &CustomPricing{
-			Provider:    fname,
-			Description: "Default prices based on GCP us-central1",
-			CPU:         "0.031611",
-			SpotCPU:     "0.006655",
-			RAM:         "0.004237",
-			SpotRAM:     "0.000892",
+			Provider:            fname,
+			Description:         "Default prices based on GCP us-central1",
+			CPU:                 "0.031611",
+			SpotCPU:             "0.006655",
+			RAM:                 "0.004237",
+			SpotRAM:             "0.000892",
+			GPU:                 "0.95",
+			CustomPricesEnabled: "false",
 		}
 		cj, err := json.Marshal(c)
 		if err != nil {
@@ -119,25 +121,27 @@ func GetDefaultPricingData(fname string) (*CustomPricing, error) {
 const KeyUpdateType = "athenainfo"
 
 type CustomPricing struct {
-	Provider           string `json:"provider"`
-	Description        string `json:"description"`
-	CPU                string `json:"CPU"`
-	SpotCPU            string `json:"spotCPU"`
-	RAM                string `json:"RAM"`
-	SpotRAM            string `json:"spotRAM"`
-	SpotLabel          string `json:"spotLabel,omitempty"`
-	SpotLabelValue     string `json:"spotLabelValue,omitempty"`
-	ServiceKeyName     string `json:"awsServiceKeyName,omitempty"`
-	ServiceKeySecret   string `json:"awsServiceKeySecret,omitempty"`
-	SpotDataRegion     string `json:"awsSpotDataRegion,omitempty"`
-	SpotDataBucket     string `json:"awsSpotDataBucket,omitempty"`
-	SpotDataPrefix     string `json:"awsSpotDataPrefix,omitempty"`
-	ProjectID          string `json:"projectID,omitempty"`
-	AthenaBucketName   string `json:"athenaBucketName"`
-	AthenaRegion       string `json:"athenaRegion"`
-	AthenaDatabase     string `json:"athenaDatabase"`
-	AthenaTable        string `json:"athenaTable"`
-	BillingDataDataset string `json:"billingDataDataset,omitempty"`
+	Provider            string `json:"provider"`
+	Description         string `json:"description"`
+	CPU                 string `json:"CPU"`
+	SpotCPU             string `json:"spotCPU"`
+	RAM                 string `json:"RAM"`
+	SpotRAM             string `json:"spotRAM"`
+	GPU                 string `json:"GPU"`
+	SpotLabel           string `json:"spotLabel,omitempty"`
+	SpotLabelValue      string `json:"spotLabelValue,omitempty"`
+	ServiceKeyName      string `json:"awsServiceKeyName,omitempty"`
+	ServiceKeySecret    string `json:"awsServiceKeySecret,omitempty"`
+	SpotDataRegion      string `json:"awsSpotDataRegion,omitempty"`
+	SpotDataBucket      string `json:"awsSpotDataBucket,omitempty"`
+	SpotDataPrefix      string `json:"awsSpotDataPrefix,omitempty"`
+	ProjectID           string `json:"projectID,omitempty"`
+	AthenaBucketName    string `json:"athenaBucketName"`
+	AthenaRegion        string `json:"athenaRegion"`
+	AthenaDatabase      string `json:"athenaDatabase"`
+	AthenaTable         string `json:"athenaTable"`
+	BillingDataDataset  string `json:"billingDataDataset,omitempty"`
+	CustomPricesEnabled string `json:"customPricesEnabled"`
 }
 
 func SetCustomPricingField(obj *CustomPricing, name string, value string) error {

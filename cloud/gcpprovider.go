@@ -533,6 +533,7 @@ func (gcp *GCP) DownloadPricingData() error {
 	c, err := GetDefaultPricingData("gcp.json")
 	if err != nil {
 		klog.V(2).Infof("Error downloading default pricing data: %s", err.Error())
+		return err
 	}
 	gcp.BaseCPUPrice = c.CPU
 	gcp.ProjectID = c.ProjectID
