@@ -269,6 +269,7 @@ type GCPPricing struct {
 	PricingInfo         []*PricingInfo   `json:"pricingInfo"`
 	ServiceProviderName string           `json:"serviceProviderName"`
 	Node                *Node            `json:"node"`
+	PV                  *PV              `json:"pv"`
 }
 
 // PricingInfo contains metadata about a cost.
@@ -310,7 +311,7 @@ type GCPResourceInfo struct {
 	UsageType          string `json:"usageType"`
 }
 
-func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key) (map[string]*GCPPricing, string, error) {
+func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[string]PVKey) (map[string]*GCPPricing, string, error) {
 	gcpPricingList := make(map[string]*GCPPricing)
 	var nextPageToken string
 	dec := json.NewDecoder(r)
@@ -333,6 +334,52 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key) (map[string]*GC
 				}
 				usageType := strings.ToLower(product.Category.UsageType)
 				instanceType := strings.ToLower(product.Category.ResourceGroup)
+
+				if instanceType == "ssd" {
+					lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
+					var nanos float64
+					if len(product.PricingInfo) > 0 {
+						nanos = product.PricingInfo[0].PricingExpression.TieredRates[lastRateIndex].UnitPrice.Nanos
+					} else {
+						continue
+					}
+					hourlyPrice := (nanos * math.Pow10(-9)) / 730
+
+					for _, sr := range product.ServiceRegions {
+						region := sr
+						candidateKey := region + "," + "ssd"
+						if _, ok := pvKeys[candidateKey]; ok {
+							product.PV = &PV{
+								Cost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
+							}
+							gcpPricingList[candidateKey] = product
+							continue
+						}
+					}
+					continue
+				} else if instanceType == "pdstandard" {
+					lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
+					var nanos float64
+					if len(product.PricingInfo) > 0 {
+						nanos = product.PricingInfo[0].PricingExpression.TieredRates[lastRateIndex].UnitPrice.Nanos
+					} else {
+						continue
+					}
+					hourlyPrice := (nanos * math.Pow10(-9)) / 730
+					for _, sr := range product.ServiceRegions {
+						region := sr
+						candidateKey := region + "," + "pdstandard"
+						if _, ok := pvKeys[candidateKey]; ok {
+							klog.V(1).Infof("Found match")
+							product.PV = &PV{
+								Cost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
+							}
+							gcpPricingList[candidateKey] = product
+							continue
+						}
+					}
+					continue
+				}
 
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "CUSTOM") {
 					instanceType = "custom"
@@ -482,7 +529,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key) (map[string]*GC
 	return gcpPricingList, nextPageToken, nil
 }
 
-func (gcp *GCP) parsePages(inputKeys map[string]Key) (map[string]*GCPPricing, error) {
+func (gcp *GCP) parsePages(inputKeys map[string]Key, pvKeys map[string]PVKey) (map[string]*GCPPricing, error) {
 	var pages []map[string]*GCPPricing
 	url := "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus?key=" + gcp.APIKey
 	klog.V(2).Infof("Fetch GCP Billing Data from URL: %s", url)
@@ -497,7 +544,7 @@ func (gcp *GCP) parsePages(inputKeys map[string]Key) (map[string]*GCPPricing, er
 		if err != nil {
 			return err
 		}
-		page, token, err := gcp.parsePage(resp.Body, inputKeys)
+		page, token, err := gcp.parsePage(resp.Body, inputKeys, pvKeys)
 		if err != nil {
 			return err
 		}
@@ -512,12 +559,20 @@ func (gcp *GCP) parsePages(inputKeys map[string]Key) (map[string]*GCPPricing, er
 	for _, page := range pages {
 		for k, v := range page {
 			if val, ok := returnPages[k]; ok { //keys may need to be merged
-				if val.Node.RAMCost != "" && val.Node.VCPUCost == "" {
-					val.Node.VCPUCost = v.Node.VCPUCost
-				} else if val.Node.VCPUCost != "" && val.Node.RAMCost == "" {
-					val.Node.RAMCost = v.Node.RAMCost
-				} else {
-					returnPages[k] = v
+				if val.Node != nil {
+					if val.Node.RAMCost != "" && val.Node.VCPUCost == "" {
+						val.Node.VCPUCost = v.Node.VCPUCost
+					} else if val.Node.VCPUCost != "" && val.Node.RAMCost == "" {
+						val.Node.RAMCost = v.Node.RAMCost
+					} else {
+						returnPages[k] = v
+					}
+				} else if val.PV != nil {
+					if val.PV.Cost != "" {
+						val.PV.Cost = v.PV.Cost
+					} else {
+						returnPages[k] = v
+					}
 				}
 			} else {
 				returnPages[k] = v
@@ -551,7 +606,30 @@ func (gcp *GCP) DownloadPricingData() error {
 		inputkeys[key.Features()] = key
 	}
 
-	pages, err := gcp.parsePages(inputkeys)
+	pvList, err := gcp.Clientset.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+
+	storageClasses, err := gcp.Clientset.StorageV1().StorageClasses().List(metav1.ListOptions{})
+	storageClassMap := make(map[string]map[string]string)
+	for _, storageClass := range storageClasses.Items {
+		params := storageClass.Parameters
+		storageClassMap[storageClass.ObjectMeta.Name] = params
+	}
+
+	pvkeys := make(map[string]PVKey)
+	for _, pv := range pvList.Items {
+		params, ok := storageClassMap[pv.Spec.StorageClassName]
+		if !ok {
+			klog.Infof("Unable to find params for storageClassName %s", pv.Name)
+			continue
+		}
+		key := gcp.GetPVKey(&pv, params)
+		pvkeys[key.Features()] = key
+	}
+
+	pages, err := gcp.parsePages(inputkeys, pvkeys)
 
 	if err != nil {
 		return err
@@ -559,6 +637,39 @@ func (gcp *GCP) DownloadPricingData() error {
 	gcp.Pricing = pages
 
 	return nil
+}
+
+func (gcp *GCP) PVPricing(pvk PVKey) (*PV, error) {
+	pricing, ok := gcp.Pricing[pvk.Features()]
+	if !ok {
+		klog.V(2).Infof("Persistent Volume pricing not found for %s", pvk)
+		return &PV{}, nil
+	}
+	return pricing.PV, nil
+}
+
+type pvKey struct {
+	Labels                 map[string]string
+	StorageClass           string
+	StorageClassParameters map[string]string
+}
+
+func (gcp *GCP) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string) PVKey {
+	return &pvKey{
+		Labels:                 pv.Labels,
+		StorageClass:           pv.Spec.StorageClassName,
+		StorageClassParameters: parameters,
+	}
+}
+
+func (key *pvKey) Features() string {
+	storageClass := key.StorageClassParameters["type"]
+	if storageClass == "pd-ssd" {
+		storageClass = "ssd"
+	} else if storageClass == "pd-standard" {
+		storageClass = "pdstandard"
+	}
+	return key.Labels[v1.LabelZoneRegion] + "," + storageClass
 }
 
 type gcpKey struct {
