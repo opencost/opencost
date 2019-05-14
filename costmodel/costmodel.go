@@ -543,7 +543,7 @@ func addPVData(clientset kubernetes.Interface, pvClaimMapping map[string]*Persis
 	for _, pv := range pvs.Items {
 		parameters, ok := storageClassMap[pv.Spec.StorageClassName]
 		if !ok {
-			klog.Infof("Unable to find parameters for storage class \"%s\"", pv.Spec.StorageClassName)
+			klog.V(2).Infof("Unable to find parameters for storage class \"%s\"", pv.Spec.StorageClassName)
 		}
 		cacPv := &costAnalyzerCloud.PV{
 			Class:      pv.Spec.StorageClassName,

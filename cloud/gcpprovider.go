@@ -370,7 +370,6 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 						region := sr
 						candidateKey := region + "," + "pdstandard"
 						if _, ok := pvKeys[candidateKey]; ok {
-							klog.V(1).Infof("Found match")
 							product.PV = &PV{
 								Cost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 							}
