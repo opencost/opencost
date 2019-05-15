@@ -16,6 +16,8 @@ import (
 	costModel "github.com/kubecost/cost-model/costmodel"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -35,15 +37,16 @@ var (
 )
 
 type Accesses struct {
-	PrometheusClient       prometheusClient.Client
-	KubeClientSet          kubernetes.Interface
-	Cloud                  costAnalyzerCloud.Provider
-	CPUPriceRecorder       *prometheus.GaugeVec
-	RAMPriceRecorder       *prometheus.GaugeVec
-	GPUPriceRecorder       *prometheus.GaugeVec
-	NodeTotalPriceRecorder *prometheus.GaugeVec
-	RAMAllocationRecorder  *prometheus.GaugeVec
-	CPUAllocationRecorder  *prometheus.GaugeVec
+	PrometheusClient              prometheusClient.Client
+	KubeClientSet                 kubernetes.Interface
+	Cloud                         costAnalyzerCloud.Provider
+	CPUPriceRecorder              *prometheus.GaugeVec
+	RAMPriceRecorder              *prometheus.GaugeVec
+	PersistentVolumePriceRecorder *prometheus.GaugeVec
+	GPUPriceRecorder              *prometheus.GaugeVec
+	NodeTotalPriceRecorder        *prometheus.GaugeVec
+	RAMAllocationRecorder         *prometheus.GaugeVec
+	CPUAllocationRecorder         *prometheus.GaugeVec
 }
 
 type DataEnvelope struct {
@@ -216,6 +219,13 @@ func (a *Accesses) recordPrices() {
 
 				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
+				if costs.PVCData != nil {
+					for _, pvc := range costs.PVCData {
+						pvCost, _ := strconv.ParseFloat(pvc.Volume.Cost, 64)
+						a.PersistentVolumePriceRecorder.WithLabelValues(pvc.VolumeName, pvc.VolumeName).Set(pvCost)
+					}
+				}
+
 				a.CPUPriceRecorder.WithLabelValues(nodeName, nodeName).Set(cpuCost)
 				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeName).Set(ramCost)
 				a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName).Set(gpuCost)
@@ -231,6 +241,31 @@ func (a *Accesses) recordPrices() {
 				if len(costs.CPUAllocation) > 0 {
 					a.CPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.CPUAllocation[0].Value)
 				}
+
+				storageClasses, _ := a.KubeClientSet.StorageV1().StorageClasses().List(metav1.ListOptions{})
+
+				storageClassMap := make(map[string]map[string]string)
+				for _, storageClass := range storageClasses.Items {
+					params := storageClass.Parameters
+					storageClassMap[storageClass.ObjectMeta.Name] = params
+				}
+
+				pvs, _ := a.KubeClientSet.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
+				for _, pv := range pvs.Items {
+					parameters, ok := storageClassMap[pv.Spec.StorageClassName]
+					if !ok {
+						klog.V(2).Infof("Unable to find parameters for storage class \"%s\"", pv.Spec.StorageClassName)
+					}
+					cacPv := &costAnalyzerCloud.PV{
+						Class:      pv.Spec.StorageClassName,
+						Region:     pv.Labels[v1.LabelZoneRegion],
+						Parameters: parameters,
+					}
+					costModel.GetPVCost(cacPv, &pv, a.Cloud)
+					c, _ := strconv.ParseFloat(cacPv.Cost, 64)
+					a.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name).Set(c)
+				}
+
 			}
 			time.Sleep(time.Minute)
 		}
@@ -296,6 +331,11 @@ func main() {
 		Help: "node_total_hourly_cost Total node cost per hour",
 	}, []string{"instance", "node"})
 
+	pvGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "pv_hourly_cost",
+		Help: "pv_hourly_cost Cost per GB per hour on a persistent disk",
+	}, []string{"volumename", "persistentvolume"})
+
 	RAMAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "container_memory_allocation_bytes",
 		Help: "container_memory_allocation_bytes Bytes of RAM used",
@@ -310,19 +350,21 @@ func main() {
 	prometheus.MustRegister(ramGv)
 	prometheus.MustRegister(gpuGv)
 	prometheus.MustRegister(totalGv)
+	prometheus.MustRegister(pvGv)
 	prometheus.MustRegister(RAMAllocation)
 	prometheus.MustRegister(CPUAllocation)
 
 	a := Accesses{
-		PrometheusClient:       promCli,
-		KubeClientSet:          kubeClientset,
-		Cloud:                  cloudProvider,
-		CPUPriceRecorder:       cpuGv,
-		RAMPriceRecorder:       ramGv,
-		GPUPriceRecorder:       gpuGv,
-		NodeTotalPriceRecorder: totalGv,
-		RAMAllocationRecorder:  RAMAllocation,
-		CPUAllocationRecorder:  CPUAllocation,
+		PrometheusClient:              promCli,
+		KubeClientSet:                 kubeClientset,
+		Cloud:                         cloudProvider,
+		CPUPriceRecorder:              cpuGv,
+		RAMPriceRecorder:              ramGv,
+		GPUPriceRecorder:              gpuGv,
+		NodeTotalPriceRecorder:        totalGv,
+		RAMAllocationRecorder:         RAMAllocation,
+		CPUAllocationRecorder:         CPUAllocation,
+		PersistentVolumePriceRecorder: pvGv,
 	}
 
 	err = a.Cloud.DownloadPricingData()

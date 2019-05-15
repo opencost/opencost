@@ -302,6 +302,31 @@ func (k *awsKey) Features() string {
 	return key
 }
 
+func (aws *AWS) PVPricing(pvk PVKey) (*PV, error) {
+	return nil, nil
+}
+
+func (key *awsPVKey) Features() string {
+	storageClass := key.StorageClassName
+	if storageClass == "standard" {
+		storageClass = "pdstandard"
+	}
+	return key.Labels[v1.LabelZoneRegion] + storageClass
+}
+
+type awsPVKey struct {
+	Labels                 map[string]string
+	StorageClassParameters map[string]string
+	StorageClassName       string
+}
+
+func (aws *AWS) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string) PVKey {
+	return &awsPVKey{
+		Labels:           pv.Labels,
+		StorageClassName: pv.Spec.StorageClassName,
+	}
+}
+
 // GetKey maps node labels to information needed to retrieve pricing data
 func (aws *AWS) GetKey(labels map[string]string) Key {
 	return &awsKey{

@@ -15,11 +15,12 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
-// Node is the interface by which the provider and cost model communicate.
+// Node is the interface by which the provider and cost model communicate Node prices.
 // The provider will best-effort try to fill out this struct.
 type Node struct {
 	Cost             string `json:"hourlyCost"`
@@ -38,11 +39,25 @@ type Node struct {
 	GPUCost          string `json:"gpuCost"`
 }
 
+// PV is the interface by which the provider and cost model communicate PV prices.
+// The provider will best-effort try to fill out this struct.
+type PV struct {
+	Cost       string            `json:"hourlyCost"`
+	Class      string            `json:"storageClass"`
+	Size       string            `json:"size"`
+	Region     string            `json:"region"`
+	Parameters map[string]string `json:"parameters"`
+}
+
 // Key represents a way for nodes to match between the k8s API and a pricing API
 type Key interface {
 	ID() string       // ID represents an exact match
 	Features() string // Features are a comma separated string of node metadata that could match pricing
 	GPUType() string  // GPUType returns "" if no GPU exists, but the name of the GPU otherwise
+}
+
+type PVKey interface {
+	Features() string
 }
 
 // OutOfClusterAllocation represents a cloud provider cost not associated with kubernetes
@@ -60,9 +75,11 @@ type Provider interface {
 	AddServiceKey(url.Values) error
 	GetDisks() ([]byte, error)
 	NodePricing(Key) (*Node, error)
+	PVPricing(PVKey) (*PV, error)
 	AllNodePricing() (interface{}, error)
 	DownloadPricingData() error
 	GetKey(map[string]string) Key
+	GetPVKey(*v1.PersistentVolume, map[string]string) PVKey
 	UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error)
 	GetConfig() (*CustomPricing, error)
 
@@ -272,6 +289,17 @@ func (*CustomProvider) ExternalAllocations(start string, end string, aggregator 
 
 func (*CustomProvider) QuerySQL(query string) ([]byte, error) {
 	return nil, nil
+}
+
+func (*CustomProvider) PVPricing(pvk PVKey) (*PV, error) {
+	return nil, nil
+}
+
+func (*CustomProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string) PVKey {
+	return &awsPVKey{
+		Labels:           pv.Labels,
+		StorageClassName: pv.Spec.StorageClassName,
+	}
 }
 
 // NewProvider looks at the nodespec or provider metadata server to decide which provider to instantiate.

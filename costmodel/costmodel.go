@@ -39,26 +39,26 @@ const (
 )
 
 type CostData struct {
-	Name            string                  `json:"name"`
-	PodName         string                  `json:"podName"`
-	NodeName        string                  `json:"nodeName"`
-	NodeData        *costAnalyzerCloud.Node `json:"node"`
-	Namespace       string                  `json:"namespace"`
-	Deployments     []string                `json:"deployments"`
-	Services        []string                `json:"services"`
-	Daemonsets      []string                `json:"daemonsets"`
-	Statefulsets    []string                `json:"statefulsets"`
-	Jobs            []string                `json:"jobs"`
-	RAMReq          []*Vector               `json:"ramreq"`
-	RAMUsed         []*Vector               `json:"ramused"`
-	CPUReq          []*Vector               `json:"cpureq"`
-	CPUUsed         []*Vector               `json:"cpuused"`
-	RAMAllocation   []*Vector               `json:"ramallocated"`
-	CPUAllocation   []*Vector               `json:"cpuallocated"`
-	GPUReq          []*Vector               `json:"gpureq"`
-	PVData          []*PersistentVolumeData `json:"pvData"`
-	Labels          map[string]string       `json:"labels"`
-	NamespaceLabels map[string]string       `json:"namespaceLabels"`
+	Name            string                       `json:"name"`
+	PodName         string                       `json:"podName"`
+	NodeName        string                       `json:"nodeName"`
+	NodeData        *costAnalyzerCloud.Node      `json:"node"`
+	Namespace       string                       `json:"namespace"`
+	Deployments     []string                     `json:"deployments"`
+	Services        []string                     `json:"services"`
+	Daemonsets      []string                     `json:"daemonsets"`
+	Statefulsets    []string                     `json:"statefulsets"`
+	Jobs            []string                     `json:"jobs"`
+	RAMReq          []*Vector                    `json:"ramreq"`
+	RAMUsed         []*Vector                    `json:"ramused"`
+	CPUReq          []*Vector                    `json:"cpureq"`
+	CPUUsed         []*Vector                    `json:"cpuused"`
+	RAMAllocation   []*Vector                    `json:"ramallocated"`
+	CPUAllocation   []*Vector                    `json:"cpuallocated"`
+	GPUReq          []*Vector                    `json:"gpureq"`
+	PVCData         []*PersistentVolumeClaimData `json:"pvcData"`
+	Labels          map[string]string            `json:"labels"`
+	NamespaceLabels map[string]string            `json:"namespaceLabels"`
 }
 
 type Vector struct {
@@ -114,9 +114,9 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 			), "pod_name","$1","pod","(.+)"
 		) 
 	) by (namespace,container_name,pod_name,node)`
-	queryPVRequests := `avg(kube_persistentvolumeclaim_info) by (persistentvolumeclaim, storageclass, namespace) 
+	queryPVRequests := `avg(kube_persistentvolumeclaim_info) by (persistentvolumeclaim, storageclass, namespace, volumename) 
 	                    * 
-	                    on (persistentvolumeclaim, namespace) group_right(storageclass) 
+	                    on (persistentvolumeclaim, namespace) group_right(storageclass, volumename) 
 			    sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) by (persistentvolumeclaim, namespace)`
 	normalization := `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[` + window + `]))`
 	resultRAMRequests, err := query(cli, queryRAMRequests)
@@ -179,6 +179,11 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 	}
 
 	pvClaimMapping, err := getPVInfoVector(resultPVRequests)
+	if err != nil {
+		return nil, err
+	}
+
+	err = addPVData(clientset, pvClaimMapping, cloud)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +264,7 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 				}
 			}
 
-			var podPVs []*PersistentVolumeData
+			var podPVs []*PersistentVolumeClaimData
 			podClaims := pod.Spec.Volumes
 			for _, vol := range podClaims {
 				if vol.PersistentVolumeClaim != nil {
@@ -311,7 +316,7 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 					CPUUsedV = []*Vector{&Vector{}}
 				}
 
-				var pvReq []*PersistentVolumeData
+				var pvReq []*PersistentVolumeClaimData
 				if i == 0 { // avoid duplicating by just assigning all claims to the first container.
 					pvReq = podPVs
 				}
@@ -332,7 +337,7 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 					CPUReq:          CPUReqV,
 					CPUUsed:         CPUUsedV,
 					GPUReq:          GPUReqV,
-					PVData:          pvReq,
+					PVCData:         pvReq,
 					Labels:          podLabels,
 					NamespaceLabels: nsLabels,
 				}
@@ -521,6 +526,54 @@ func getContainerAllocation(req []*Vector, used []*Vector) []*Vector {
 	}
 
 	return allocation
+}
+func addPVData(clientset kubernetes.Interface, pvClaimMapping map[string]*PersistentVolumeClaimData, cloud costAnalyzerCloud.Provider) error {
+	storageClasses, err := clientset.StorageV1().StorageClasses().List(metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+	storageClassMap := make(map[string]map[string]string)
+	for _, storageClass := range storageClasses.Items {
+		params := storageClass.Parameters
+		storageClassMap[storageClass.ObjectMeta.Name] = params
+	}
+
+	pvs, err := clientset.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
+	pvMap := make(map[string]*costAnalyzerCloud.PV)
+	for _, pv := range pvs.Items {
+		parameters, ok := storageClassMap[pv.Spec.StorageClassName]
+		if !ok {
+			klog.V(2).Infof("Unable to find parameters for storage class \"%s\"", pv.Spec.StorageClassName)
+		}
+		cacPv := &costAnalyzerCloud.PV{
+			Class:      pv.Spec.StorageClassName,
+			Region:     pv.Labels[v1.LabelZoneRegion],
+			Parameters: parameters,
+		}
+		err := GetPVCost(cacPv, &pv, cloud)
+		if err != nil {
+			return err
+		}
+		pvMap[pv.Name] = cacPv
+	}
+
+	for _, pvc := range pvClaimMapping {
+		pvc.Volume = pvMap[pvc.VolumeName]
+	}
+	return nil
+}
+
+func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cloud costAnalyzerCloud.Provider) error {
+	key := cloud.GetPVKey(kpv, pv.Parameters)
+	pvWithCost, err := cloud.PVPricing(key)
+	if err != nil {
+		return err
+	}
+	if pvWithCost == nil {
+		return nil
+	}
+	pv.Cost = pvWithCost.Cost
+	return err
 }
 
 func getNodeCost(clientset kubernetes.Interface, cloud costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.Node, error) {
@@ -719,9 +772,9 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 				), "pod_name","$1","pod","(.+)"
 			) 
 		) by (namespace,container_name,pod_name,node)`
-	queryPVRequests := `avg(kube_persistentvolumeclaim_info) by (persistentvolumeclaim, storageclass, namespace) 
+	queryPVRequests := `avg(kube_persistentvolumeclaim_info) by (persistentvolumeclaim, storageclass, namespace, volumename) 
 							* 
-							on (persistentvolumeclaim, namespace) group_right(storageclass) 
+							on (persistentvolumeclaim, namespace) group_right(storageclass, volumename) 
 					sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) by (persistentvolumeclaim, namespace)`
 	normalization := `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[` + windowString + `]))`
 
@@ -803,6 +856,11 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 		return nil, err
 	}
 
+	err = addPVData(clientset, pvClaimMapping, cloud)
+	if err != nil {
+		return nil, err
+	}
+
 	containerNameCost := make(map[string]*CostData)
 	containers := make(map[string]bool)
 
@@ -878,7 +936,7 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 				}
 			}
 
-			var podPVs []*PersistentVolumeData
+			var podPVs []*PersistentVolumeClaimData
 			podClaims := pod.Spec.Volumes
 			for _, vol := range podClaims {
 				if vol.PersistentVolumeClaim != nil {
@@ -931,7 +989,7 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 					CPUUsedV = []*Vector{}
 				}
 
-				var pvReq []*PersistentVolumeData
+				var pvReq []*PersistentVolumeClaimData
 				if i == 0 { // avoid duplicating by just assigning all claims to the first container.
 					pvReq = podPVs
 				}
@@ -952,7 +1010,7 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 					CPUReq:          CPUReqV,
 					CPUUsed:         CPUUsedV,
 					GPUReq:          GPUReqV,
-					PVData:          pvReq,
+					PVCData:         pvReq,
 					Labels:          podLabels,
 					NamespaceLabels: nsLabels,
 				}
@@ -1070,11 +1128,13 @@ func getStatefulSetsOfPod(pod v1.Pod) []string {
 	return []string{}
 }
 
-type PersistentVolumeData struct {
-	Class     string    `json:"class"`
-	Claim     string    `json:"claim"`
-	Namespace string    `json:"namespace"`
-	Values    []*Vector `json:"values"`
+type PersistentVolumeClaimData struct {
+	Class      string                `json:"class"`
+	Claim      string                `json:"claim"`
+	Namespace  string                `json:"namespace"`
+	VolumeName string                `json:"volumeName"`
+	Volume     *costAnalyzerCloud.PV `json:"persistentVolume"`
+	Values     []*Vector             `json:"values"`
 }
 
 func getCost(qr interface{}) (map[string][]*Vector, error) {
@@ -1118,8 +1178,8 @@ func getCost(qr interface{}) (map[string][]*Vector, error) {
 	return toReturn, nil
 }
 
-func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeData, error) {
-	pvmap := make(map[string]*PersistentVolumeData)
+func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeClaimData, error) {
+	pvmap := make(map[string]*PersistentVolumeClaimData)
 	for _, val := range qr.(map[string]interface{})["data"].(map[string]interface{})["result"].([]interface{}) {
 		metricInterface, ok := val.(map[string]interface{})["metric"]
 		if !ok {
@@ -1137,7 +1197,6 @@ func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeData, error) 
 		if !ok {
 			return nil, fmt.Errorf("Claim field improperly formatted")
 		}
-
 		pvnamespace, ok := metricMap["namespace"]
 		if !ok {
 			return nil, fmt.Errorf("Namespace field does not exist in data result vector")
@@ -1145,6 +1204,14 @@ func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeData, error) 
 		pvnamespaceStr, ok := pvnamespace.(string)
 		if !ok {
 			return nil, fmt.Errorf("Namespace field improperly formatted")
+		}
+		pv, ok := metricMap["volumename"]
+		if !ok {
+			return nil, fmt.Errorf("Volumename field does not exist in data result vector")
+		}
+		pvStr, ok := pv.(string)
+		if !ok {
+			return nil, fmt.Errorf("Volumename field improperly formatted")
 		}
 		pvclass, ok := metricMap["storageclass"]
 		if !ok { // TODO: We need to look up the actual PV and PV capacity. For now just proceed with "".
@@ -1174,18 +1241,19 @@ func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeData, error) 
 			})
 		}
 		key := pvnamespaceStr + "," + pvclaimStr
-		pvmap[key] = &PersistentVolumeData{
-			Class:     pvclassStr,
-			Claim:     pvclaimStr,
-			Namespace: pvnamespaceStr,
-			Values:    vectors,
+		pvmap[key] = &PersistentVolumeClaimData{
+			Class:      pvclassStr,
+			Claim:      pvclaimStr,
+			Namespace:  pvnamespaceStr,
+			VolumeName: pvStr,
+			Values:     vectors,
 		}
 	}
 	return pvmap, nil
 }
 
-func getPVInfoVector(qr interface{}) (map[string]*PersistentVolumeData, error) {
-	pvmap := make(map[string]*PersistentVolumeData)
+func getPVInfoVector(qr interface{}) (map[string]*PersistentVolumeClaimData, error) {
+	pvmap := make(map[string]*PersistentVolumeClaimData)
 	for _, val := range qr.(map[string]interface{})["data"].(map[string]interface{})["result"].([]interface{}) {
 		metricInterface, ok := val.(map[string]interface{})["metric"]
 		if !ok {
@@ -1210,6 +1278,14 @@ func getPVInfoVector(qr interface{}) (map[string]*PersistentVolumeData, error) {
 		pvnamespaceStr, ok := pvnamespace.(string)
 		if !ok {
 			return nil, fmt.Errorf("Namespace field improperly formatted")
+		}
+		pv, ok := metricMap["volumename"]
+		if !ok {
+			return nil, fmt.Errorf("Volumename field does not exist in data result vector")
+		}
+		pvStr, ok := pv.(string)
+		if !ok {
+			return nil, fmt.Errorf("Volumename field improperly formatted")
 		}
 		pvclass, ok := metricMap["storageclass"]
 		if !ok { // TODO: We need to look up the actual PV and PV capacity. For now just proceed with "".
@@ -1238,11 +1314,12 @@ func getPVInfoVector(qr interface{}) (map[string]*PersistentVolumeData, error) {
 		})
 
 		key := pvnamespaceStr + "," + pvclaimStr
-		pvmap[key] = &PersistentVolumeData{
-			Class:     pvclassStr,
-			Claim:     pvclaimStr,
-			Namespace: pvnamespaceStr,
-			Values:    vectors,
+		pvmap[key] = &PersistentVolumeClaimData{
+			Class:      pvclassStr,
+			Claim:      pvclaimStr,
+			Namespace:  pvnamespaceStr,
+			VolumeName: pvStr,
+			Values:     vectors,
 		}
 	}
 	return pvmap, nil
