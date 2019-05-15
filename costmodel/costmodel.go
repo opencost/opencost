@@ -569,6 +569,9 @@ func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cloud costAna
 	if err != nil {
 		return err
 	}
+	if pvWithCost == nil {
+		return nil
+	}
 	pv.Cost = pvWithCost.Cost
 	return err
 }
