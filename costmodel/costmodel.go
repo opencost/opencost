@@ -550,7 +550,7 @@ func addPVData(clientset kubernetes.Interface, pvClaimMapping map[string]*Persis
 			Region:     pv.Labels[v1.LabelZoneRegion],
 			Parameters: parameters,
 		}
-		err := getPVCost(cacPv, &pv, cloud)
+		err := GetPVCost(cacPv, &pv, cloud)
 		if err != nil {
 			return err
 		}
@@ -563,7 +563,7 @@ func addPVData(clientset kubernetes.Interface, pvClaimMapping map[string]*Persis
 	return nil
 }
 
-func getPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cloud costAnalyzerCloud.Provider) error {
+func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cloud costAnalyzerCloud.Provider) error {
 	key := cloud.GetPVKey(kpv, pv.Parameters)
 	pvWithCost, err := cloud.PVPricing(key)
 	if err != nil {
