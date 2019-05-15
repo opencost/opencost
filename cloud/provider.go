@@ -10,6 +10,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 
 	"k8s.io/klog"
 
@@ -189,10 +190,11 @@ type NodePrice struct {
 }
 
 type CustomProvider struct {
-	Clientset      *kubernetes.Clientset
-	Pricing        map[string]*NodePrice
-	SpotLabel      string
-	SpotLabelValue string
+	Clientset               *kubernetes.Clientset
+	Pricing                 map[string]*NodePrice
+	SpotLabel               string
+	SpotLabelValue          string
+	DownloadPricingDataLock sync.RWMutex
 }
 
 func (*CustomProvider) GetConfig() (*CustomPricing, error) {
@@ -216,10 +218,16 @@ func (*CustomProvider) GetDisks() ([]byte, error) {
 }
 
 func (c *CustomProvider) AllNodePricing() (interface{}, error) {
+	c.DownloadPricingDataLock.RLock()
+	defer c.DownloadPricingDataLock.RUnlock()
+
 	return c.Pricing, nil
 }
 
 func (c *CustomProvider) NodePricing(key Key) (*Node, error) {
+	c.DownloadPricingDataLock.RLock()
+	defer c.DownloadPricingDataLock.RUnlock()
+
 	k := key.Features()
 	if _, ok := c.Pricing[k]; !ok {
 		k = "default"
@@ -231,6 +239,8 @@ func (c *CustomProvider) NodePricing(key Key) (*Node, error) {
 }
 
 func (c *CustomProvider) DownloadPricingData() error {
+	c.DownloadPricingDataLock.Lock()
+	defer c.DownloadPricingDataLock.Unlock()
 
 	if c.Pricing == nil {
 		m := make(map[string]*NodePrice)

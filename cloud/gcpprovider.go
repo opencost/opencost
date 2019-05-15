@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"k8s.io/klog"
 
@@ -42,12 +43,13 @@ func (t userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error)
 
 // GCP implements a provider interface for GCP
 type GCP struct {
-	Pricing            map[string]*GCPPricing
-	Clientset          *kubernetes.Clientset
-	APIKey             string
-	BaseCPUPrice       string
-	ProjectID          string
-	BillingDataDataset string
+	Pricing                 map[string]*GCPPricing
+	Clientset               *kubernetes.Clientset
+	APIKey                  string
+	BaseCPUPrice            string
+	ProjectID               string
+	BillingDataDataset      string
+	DownloadPricingDataLock sync.RWMutex
 	*CustomProvider
 }
 
@@ -583,7 +585,8 @@ func (gcp *GCP) parsePages(inputKeys map[string]Key, pvKeys map[string]PVKey) (m
 
 // DownloadPricingData fetches data from the GCP Pricing API. Requires a key-- a kubecost key is provided for quickstart, but should be replaced by a users.
 func (gcp *GCP) DownloadPricingData() error {
-
+	gcp.DownloadPricingDataLock.Lock()
+	defer gcp.DownloadPricingDataLock.Unlock()
 	c, err := GetDefaultPricingData("gcp.json")
 	if err != nil {
 		klog.V(2).Infof("Error downloading default pricing data: %s", err.Error())
@@ -634,11 +637,12 @@ func (gcp *GCP) DownloadPricingData() error {
 		return err
 	}
 	gcp.Pricing = pages
-
 	return nil
 }
 
 func (gcp *GCP) PVPricing(pvk PVKey) (*PV, error) {
+	gcp.DownloadPricingDataLock.RLock()
+	defer gcp.DownloadPricingDataLock.RUnlock()
 	pricing, ok := gcp.Pricing[pvk.Features()]
 	if !ok {
 		klog.V(2).Infof("Persistent Volume pricing not found for %s", pvk)
@@ -719,11 +723,15 @@ func (gcp *gcpKey) Features() string {
 
 // AllNodePricing returns the GCP pricing objects stored
 func (gcp *GCP) AllNodePricing() (interface{}, error) {
+	gcp.DownloadPricingDataLock.RLock()
+	defer gcp.DownloadPricingDataLock.RUnlock()
 	return gcp.Pricing, nil
 }
 
 // NodePricing returns GCP pricing data for a single node
 func (gcp *GCP) NodePricing(key Key) (*Node, error) {
+	gcp.DownloadPricingDataLock.RLock()
+	defer gcp.DownloadPricingDataLock.RUnlock()
 	if n, ok := gcp.Pricing[key.Features()]; ok {
 		klog.V(4).Infof("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
 		n.Node.BaseCPUPrice = gcp.BaseCPUPrice

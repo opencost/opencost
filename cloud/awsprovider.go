@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"k8s.io/klog"
@@ -55,6 +56,7 @@ type AWS struct {
 	SpotDataBucket          string
 	SpotDataPrefix          string
 	ProjectID               string
+	DownloadPricingDataLock sync.RWMutex
 	*CustomProvider
 }
 
@@ -347,7 +349,8 @@ func (aws *AWS) isPreemptible(key string) bool {
 
 // DownloadPricingData fetches data from the AWS Pricing API
 func (aws *AWS) DownloadPricingData() error {
-
+	aws.DownloadPricingDataLock.Lock()
+	defer aws.DownloadPricingDataLock.Unlock()
 	c, err := GetDefaultPricingData("aws.json")
 	if err != nil {
 		klog.V(1).Infof("Error downloading default pricing data: %s", err.Error())
@@ -502,6 +505,8 @@ func (aws *AWS) DownloadPricingData() error {
 
 // AllNodePricing returns all the billing data fetched.
 func (aws *AWS) AllNodePricing() (interface{}, error) {
+	aws.DownloadPricingDataLock.RLock()
+	defer aws.DownloadPricingDataLock.RUnlock()
 	return aws.Pricing, nil
 }
 
@@ -555,7 +560,9 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 
 // NodePricing takes in a key from GetKey and returns a Node object for use in building the cost model.
 func (aws *AWS) NodePricing(k Key) (*Node, error) {
-	//return json.Marshal(aws.Pricing[key])
+	aws.DownloadPricingDataLock.RLock()
+	defer aws.DownloadPricingDataLock.RUnlock()
+
 	key := k.Features()
 	usageType := "ondemand"
 	if aws.isPreemptible(key) {
@@ -566,7 +573,9 @@ func (aws *AWS) NodePricing(k Key) (*Node, error) {
 	if ok {
 		return aws.createNode(terms, usageType, k)
 	} else if _, ok := aws.ValidPricingKeys[key]; ok {
+		aws.DownloadPricingDataLock.RUnlock()
 		err := aws.DownloadPricingData()
+		aws.DownloadPricingDataLock.RLock()
 		if err != nil {
 			return nil, err
 		}
