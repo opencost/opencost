@@ -59,3 +59,4 @@ sum(node_total_hourly_cost) * 730
 | node_total_hourly_cost   | Total node cost per hour                       |
 | container_cpu_allocation   | Average number of CPUs requested/used over last 1m                      |
 | container_memory_allocation_bytes   | Average bytes of RAM requested/used over last 1m                 |
+| pv_hourly_cost   | Hourly cost per GP on a persistent volume                 |
