@@ -217,7 +217,6 @@ func (a *Accesses) recordPrices() {
 				gpu, _ := strconv.ParseFloat(node.GPU, 64)
 				gpuCost, _ := strconv.ParseFloat(node.GPUCost, 64)
 
-				klog.V(1).Info("Multiplying: %f*%f + %f*(%f/1024/1024/1024) + %f*%f", cpu, cpuCost, ramCost, ram, gpu, gpuCost)
 				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
 				if costs.PVCData != nil {
