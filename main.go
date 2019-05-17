@@ -254,7 +254,7 @@ func (a *Accesses) recordPrices() {
 				for _, pv := range pvs.Items {
 					parameters, ok := storageClassMap[pv.Spec.StorageClassName]
 					if !ok {
-						klog.V(4).Infof("Unable to find parameters for storage class \"%s\"", pv.Spec.StorageClassName)
+						klog.V(4).Infof("Unable to find parameters for storage class \"%s\". Does pv \"%s\" have a storageClassName?", pv.Spec.StorageClassName, pv.Name)
 					}
 					cacPv := &costAnalyzerCloud.PV{
 						Class:      pv.Spec.StorageClassName,
