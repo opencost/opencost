@@ -217,6 +217,7 @@ func (a *Accesses) recordPrices() {
 				gpu, _ := strconv.ParseFloat(node.GPU, 64)
 				gpuCost, _ := strconv.ParseFloat(node.GPUCost, 64)
 
+				klog.V(1).Info("Multiplying: %f*%f + %f*(%f/1024/1024/1024) + %f*%f", cpu, cpuCost, ramCost, ram, gpu, gpuCost)
 				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
 				if costs.PVCData != nil {
@@ -254,7 +255,7 @@ func (a *Accesses) recordPrices() {
 				for _, pv := range pvs.Items {
 					parameters, ok := storageClassMap[pv.Spec.StorageClassName]
 					if !ok {
-						klog.V(2).Infof("Unable to find parameters for storage class \"%s\"", pv.Spec.StorageClassName)
+						klog.V(4).Infof("Unable to find parameters for storage class \"%s\"", pv.Spec.StorageClassName)
 					}
 					cacPv := &costAnalyzerCloud.PV{
 						Class:      pv.Spec.StorageClassName,
