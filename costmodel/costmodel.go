@@ -539,11 +539,14 @@ func addPVData(clientset kubernetes.Interface, pvClaimMapping map[string]*Persis
 	}
 
 	pvs, err := clientset.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
 	pvMap := make(map[string]*costAnalyzerCloud.PV)
 	for _, pv := range pvs.Items {
 		parameters, ok := storageClassMap[pv.Spec.StorageClassName]
 		if !ok {
-			klog.V(2).Infof("Unable to find parameters for storage class \"%s\"", pv.Spec.StorageClassName)
+			klog.V(4).Infof("Unable to find parameters for storage class \"%s\". Does pv \"%s\" have a storageClassName?", pv.Spec.StorageClassName, pv.Name)
 		}
 		cacPv := &costAnalyzerCloud.PV{
 			Class:      pv.Spec.StorageClassName,
@@ -633,13 +636,11 @@ func getNodeCost(clientset kubernetes.Interface, cloud costAnalyzerCloud.Provide
 				totalCPUPrice := basePrice * cpu
 				var nodePrice float64
 				if cnode.Cost != "" {
-					klog.V(3).Infof("Use given nodeprice as whole node price")
 					nodePrice, err = strconv.ParseFloat(cnode.Cost, 64)
 					if err != nil {
 						return nil, err
 					}
 				} else {
-					klog.V(3).Infof("Use cpuprice as whole node price")
 					nodePrice, err = strconv.ParseFloat(cnode.VCPUCost, 64) // all the price was allocated the the CPU
 					if err != nil {
 						return nil, err
@@ -654,7 +655,7 @@ func getNodeCost(clientset kubernetes.Interface, cloud costAnalyzerCloud.Provide
 				cnode.VCPUCost = fmt.Sprintf("%f", cpuPrice)
 				cnode.RAMCost = fmt.Sprintf("%f", ramPrice)
 				cnode.RAMBytes = fmt.Sprintf("%f", ram)
-				klog.V(3).Infof("Computed \"%s\" RAM Cost := %v", name, cnode.RAMCost)
+				klog.V(4).Infof("Computed \"%s\" RAM Cost := %v", name, cnode.RAMCost)
 			}
 		}
 
