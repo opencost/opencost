@@ -734,6 +734,52 @@ func (*AWS) GetDisks() ([]byte, error) {
 	return json.Marshal(volumeResult)
 }
 
+// ConvertToGlueColumnFormat takes a string and runs through various regex
+// and string replacement statements to convert it to a format compatible
+// with AWS Glue and Athena column names.
+// Following guidance from AWS provided here ('Column Names' section):
+// https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/run-athena-sql.html
+// It returns a string containing the column name in proper column name format and length.
+func ConvertToGlueColumnFormat(column_name string) string {
+	klog.V(2).Infof("Converting string \"%s\" to proper AWS Glue column name.", column_name)
+
+	// An underscore is added in front of uppercase letters
+	capital_underscore := regexp.MustCompile(`[A-Z]`)
+	final := capital_underscore.ReplaceAllString(column_name, `_$0`)
+
+	// Any non-alphanumeric characters are replaced with an underscore
+	no_space_punc := regexp.MustCompile(`[\s]{1,}|[^A-Za-z0-9]`)
+	final = no_space_punc.ReplaceAllString(final, "_")
+
+	// Duplicate underscores are removed
+	no_dup_underscore := regexp.MustCompile(`_{2,}`)
+	final = no_dup_underscore.ReplaceAllString(final, "_")
+
+	// Any leading and trailing underscores are removed
+	no_front_end_underscore := regexp.MustCompile(`(^\_|\_$)`)
+	final = no_front_end_underscore.ReplaceAllString(final, "")
+
+	// Uppercase to lowercase
+	final = strings.ToLower(final)
+
+	// Longer column name than expected - remove _ left to right
+	allowed_col_len := 128
+	undersc_to_remove := len(final) - allowed_col_len
+	if undersc_to_remove > 0 {
+		final = strings.Replace(final, "_", "", undersc_to_remove)
+	}
+
+	// If removing all of the underscores still didn't
+	// make the column name < 128 characters, trim it!
+	if len(final) > allowed_col_len {
+		final = final[:allowed_col_len]
+	}
+
+	klog.V(2).Infof("Column name being returned: \"%s\". Length: \"%d\".", final, len(final))
+
+	return final
+}
+
 // ExternalAllocations represents tagged assets outside the scope of kubernetes.
 // "start" and "end" are dates of the format YYYY-MM-DD
 // "aggregator" is the tag used to determine how to allocate those assets, ie namespace, pod, etc.
@@ -742,14 +788,16 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregator string) (
 	if err != nil {
 		return nil, err
 	}
+	aggregator_column_name := "resource_tags_user_kubernetes_" + aggregator
+	aggregator_column_name = ConvertToGlueColumnFormat(aggregator_column_name)
 	query := fmt.Sprintf(`SELECT   
 		CAST(line_item_usage_start_date AS DATE) as start_date,
-		resource_tags_user_kubernetes_%s,
+		%s,
 		line_item_product_code,
 		SUM(line_item_blended_cost) as blended_cost
 	FROM %s as cost_data
 	WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s'
-	GROUP BY 1,2,3`, aggregator, customPricing.AthenaTable, start, end)
+	GROUP BY 1,2,3`, aggregator_column_name, customPricing.AthenaTable, start, end)
 
 	if customPricing.ServiceKeyName != "" {
 		err = os.Setenv(awsAccessKeyIDEnvVar, customPricing.ServiceKeyName)
