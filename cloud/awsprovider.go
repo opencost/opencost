@@ -741,7 +741,7 @@ func (*AWS) GetDisks() ([]byte, error) {
 // https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/run-athena-sql.html
 // It returns a string containing the column name in proper column name format and length.
 func ConvertToGlueColumnFormat(column_name string) string {
-	klog.V(2).Infof("Converting string \"%s\" to proper AWS Glue column name.", column_name)
+	klog.V(5).Infof("Converting string \"%s\" to proper AWS Glue column name.", column_name)
 
 	// An underscore is added in front of uppercase letters
 	capital_underscore := regexp.MustCompile(`[A-Z]`)
@@ -775,7 +775,7 @@ func ConvertToGlueColumnFormat(column_name string) string {
 		final = final[:allowed_col_len]
 	}
 
-	klog.V(2).Infof("Column name being returned: \"%s\". Length: \"%d\".", final, len(final))
+	klog.V(5).Infof("Column name being returned: \"%s\". Length: \"%d\".", final, len(final))
 
 	return final
 }
