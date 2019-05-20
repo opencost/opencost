@@ -196,11 +196,44 @@ type CustomProvider struct {
 }
 
 func (*CustomProvider) GetConfig() (*CustomPricing, error) {
-	return nil, nil
+	return GetDefaultPricingData("default.json")
 }
 
 func (*CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
-	return nil, nil
+	c, err := GetDefaultPricingData("default.json")
+	if err != nil {
+		return nil, err
+	}
+	path := os.Getenv("CONFIG_PATH")
+	if path == "" {
+		path = "/models/"
+	}
+	a := make(map[string]string)
+	err = json.NewDecoder(r).Decode(&a)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range a {
+		kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+		err := SetCustomPricingField(c, kUpper, v)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	cj, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+
+	configPath := path + "default.json"
+	err = ioutil.WriteFile(configPath, cj, 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	return c, nil
+
 }
 
 func (*CustomProvider) ClusterName() ([]byte, error) {
@@ -337,5 +370,4 @@ func NewProvider(clientset *kubernetes.Clientset, apiKey string) (Provider, erro
 			Clientset: clientset,
 		}, nil
 	}
-
 }

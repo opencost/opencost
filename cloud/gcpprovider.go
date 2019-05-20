@@ -178,8 +178,12 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregator string)
 
 // QuerySQL should query BigQuery for billing data for out of cluster costs.
 func (gcp *GCP) QuerySQL(query string) ([]*OutOfClusterAllocation, error) {
+	c, err := GetDefaultPricingData("gcp.json")
+	if err != nil {
+		return nil, err
+	}
 	ctx := context.Background()
-	client, err := bigquery.NewClient(ctx, gcp.ProjectID) // For example, "guestbook-227502"
+	client, err := bigquery.NewClient(ctx, c.ProjectID) // For example, "guestbook-227502"
 	if err != nil {
 		return nil, err
 	}
