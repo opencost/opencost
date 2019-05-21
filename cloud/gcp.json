@@ -1,0 +1,10 @@
+{
+    "provider": "custom",
+    "description": "Default prices used to compute allocation between RAM and CPU. AWS pricing API data still used for total node cost.",
+    "CPU": "0.031611",
+    "spotCPU": "0.006655",
+    "RAM": "0.004237",
+    "spotRAM": "0.000892",
+    "projectID": "guestbook-227502",
+    "billingDataDataset": "billing_data.gcp_billing_export_v1_01AC9F_74CF1D_5565A2"
+}
