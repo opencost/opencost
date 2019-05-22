@@ -491,9 +491,21 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 
 func getContainerAllocation(req []*Vector, used []*Vector) []*Vector {
 	if req == nil || len(req) == 0 {
+		for _, usedV := range used {
+			if usedV.Timestamp == 0 {
+				continue
+			}
+			usedV.Timestamp = math.Round(usedV.Timestamp/10) * 10
+		}
 		return used
 	}
 	if used == nil || len(used) == 0 {
+		for _, reqV := range req {
+			if reqV.Timestamp == 0 {
+				continue
+			}
+			reqV.Timestamp = math.Round(reqV.Timestamp/10) * 10
+		}
 		return req
 	}
 	var allocation []*Vector
