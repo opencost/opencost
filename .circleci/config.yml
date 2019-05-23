@@ -1,10 +1,11 @@
-workflows:
-  version: 2
-  jobs:       
-    build:
-      machine: true
-      TAG=0.1.$CIRCLE_BUILD_NUM
-      - run: docker login -u $DOCKER_USER -p $DOCKER_PASS
-      - run: docker build -t ajaytripathy/kubecost-cost-model:latest .
-      - run: docker push ajaytripathy/kubecost-cost-model:$TAG
-          
+version: 2
+jobs:                 
+  build:
+    machine: true
+    steps:
+      - checkout
+      - run: | 
+          TAG=0.1.$CIRCLE_BUILD_NUM
+          docker login -u $DOCKER_USER -p $DOCKER_PASS
+          docker build -t ajaytripathy/kubecost-cost-model:latest .
+          docker push ajaytripathy/kubecost-cost-model:$TAG
