@@ -66,59 +66,71 @@ type Vector struct {
 	Value     float64 `json:"value"`
 }
 
-func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface, cloud costAnalyzerCloud.Provider, window string) (map[string]*CostData, error) {
-	queryRAMRequests := `avg(
+const (
+	queryRAMRequestsStr = `avg(
 		label_replace(
 			label_replace(
 				avg(
-					count_over_time(kube_pod_container_resource_requests_memory_bytes{container!="",container!="POD", node!=""}[` + window + `]) 
+					count_over_time(kube_pod_container_resource_requests_memory_bytes{container!="",container!="POD", node!=""}[%s] %s) 
 					*  
-					avg_over_time(kube_pod_container_resource_requests_memory_bytes{container!="",container!="POD", node!=""}[` + window + `])
+					avg_over_time(kube_pod_container_resource_requests_memory_bytes{container!="",container!="POD", node!=""}[%s] %s)
 				) by (namespace,container,pod,node) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		)
 	) by (namespace,container_name,pod_name,node)`
-	queryRAMUsage := `sort_desc(
+	queryRAMUsageStr = `sort_desc(
 		avg(
-			label_replace(count_over_time(container_memory_usage_bytes{container_name!="",container_name!="POD", instance!=""}[` + window + `]), "node", "$1", "instance","(.+)") 
+			label_replace(count_over_time(container_memory_usage_bytes{container_name!="",container_name!="POD", instance!=""}[%s] %s), "node", "$1", "instance","(.+)") 
 			* 
-			label_replace(avg_over_time(container_memory_usage_bytes{container_name!="",container_name!="POD", instance!=""}[` + window + `]), "node", "$1", "instance","(.+)") 
+			label_replace(avg_over_time(container_memory_usage_bytes{container_name!="",container_name!="POD", instance!=""}[%s] %s), "node", "$1", "instance","(.+)") 
 		) by (namespace,container_name,pod_name,node)
 	)`
-	queryCPURequests := `avg(
+	queryCPURequestsStr = `avg(
 		label_replace(
 			label_replace(
 				avg(
-					count_over_time(kube_pod_container_resource_requests_cpu_cores{container!="",container!="POD", node!=""}[` + window + `]) 
+					count_over_time(kube_pod_container_resource_requests_cpu_cores{container!="",container!="POD", node!=""}[%s] %s) 
 					*  
-					avg_over_time(kube_pod_container_resource_requests_cpu_cores{container!="",container!="POD", node!=""}[` + window + `])
+					avg_over_time(kube_pod_container_resource_requests_cpu_cores{container!="",container!="POD", node!=""}[%s] %s)
 				) by (namespace,container,pod,node) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		) 
 	) by (namespace,container_name,pod_name,node)`
-	queryCPUUsage := `avg(
+	queryCPUUsageStr = `avg(
 		label_replace(
-		  rate( 
-			container_cpu_usage_seconds_total{container_name!="",container_name!="POD",instance!=""}[` + window + `]
-		  ) , "node", "$1", "instance", "(.+)"
+		rate( 
+			container_cpu_usage_seconds_total{container_name!="",container_name!="POD",instance!=""}[%s] %s
+		) , "node", "$1", "instance", "(.+)"
 		)
 	) by (namespace,container_name,pod_name,node)`
-	queryGPURequests := `avg(
+	queryGPURequestsStr = `avg(
 		label_replace(
 			label_replace(
 				avg(
-					count_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[` + window + `]) 
+					count_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s] %s) 
 					*  
-					avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[` + window + `])
+					avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s] %s)
 				) by (namespace,container,pod,node) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		) 
 	) by (namespace,container_name,pod_name,node)`
-	queryPVRequests := `avg(kube_persistentvolumeclaim_info) by (persistentvolumeclaim, storageclass, namespace, volumename) 
-	                    * 
-	                    on (persistentvolumeclaim, namespace) group_right(storageclass, volumename) 
-			    sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) by (persistentvolumeclaim, namespace)`
-	normalization := `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[` + window + `]))`
+	queryPVRequestsStr = `avg(kube_persistentvolumeclaim_info) by (persistentvolumeclaim, storageclass, namespace, volumename) 
+						* 
+						on (persistentvolumeclaim, namespace) group_right(storageclass, volumename) 
+				sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) by (persistentvolumeclaim, namespace)`
+	normalizationStr = `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[%s] %s))`
+)
+
+func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface, cloud costAnalyzerCloud.Provider, window string, offset string) (map[string]*CostData, error) {
+	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, window, offset, window, offset)
+	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, window, offset, window, offset)
+	klog.V(1).Infof("query: %s", queryRAMUsage)
+	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, window, offset, window, offset)
+	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, window, offset)
+	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, window, offset, window, offset)
+	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
+	normalization := fmt.Sprintf(normalizationStr, window, offset)
+
 	resultRAMRequests, err := query(cli, queryRAMRequests)
 	if err != nil {
 		return nil, fmt.Errorf("Error fetching RAM requests: " + err.Error())
@@ -479,9 +491,21 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 
 func getContainerAllocation(req []*Vector, used []*Vector) []*Vector {
 	if req == nil || len(req) == 0 {
+		for _, usedV := range used {
+			if usedV.Timestamp == 0 {
+				continue
+			}
+			usedV.Timestamp = math.Round(usedV.Timestamp/10) * 10
+		}
 		return used
 	}
 	if used == nil || len(used) == 0 {
+		for _, reqV := range req {
+			if reqV.Timestamp == 0 {
+				continue
+			}
+			reqV.Timestamp = math.Round(reqV.Timestamp/10) * 10
+		}
 		return req
 	}
 	var allocation []*Vector
@@ -726,58 +750,13 @@ func getPodDeployments(clientset kubernetes.Interface, podList *v1.PodList) (map
 
 func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Interface, cloud costAnalyzerCloud.Provider,
 	startString, endString, windowString string) (map[string]*CostData, error) {
-	queryRAMRequests := `avg(
-			label_replace(
-				label_replace(
-					avg(
-						count_over_time(kube_pod_container_resource_requests_memory_bytes{container!="",container!="POD", node!=""}[` + windowString + `]) 
-						*  
-						avg_over_time(kube_pod_container_resource_requests_memory_bytes{container!="",container!="POD", node!=""}[` + windowString + `])
-					) by (namespace,container,pod,node) , "container_name","$1","container","(.+)"
-				), "pod_name","$1","pod","(.+)"
-			)
-		) by (namespace,container_name,pod_name,node)`
-	queryRAMUsage := `sort_desc(
-		avg(
-			label_replace(count_over_time(container_memory_usage_bytes{container_name!="",container_name!="POD", instance!=""}[` + windowString + `]), "node", "$1", "instance","(.+)") 
-			* 
-			label_replace(avg_over_time(container_memory_usage_bytes{container_name!="",container_name!="POD", instance!=""}[` + windowString + `]), "node", "$1", "instance","(.+)") 
-		) by (namespace,container_name,pod_name,node)
-	)`
-	queryCPURequests := `avg(
-			label_replace(
-				label_replace(
-					avg(
-						count_over_time(kube_pod_container_resource_requests_cpu_cores{container!="",container!="POD", node!=""}[` + windowString + `]) 
-						*  
-						avg_over_time(kube_pod_container_resource_requests_cpu_cores{container!="",container!="POD", node!=""}[` + windowString + `])
-					) by (namespace,container,pod,node) , "container_name","$1","container","(.+)"
-				), "pod_name","$1","pod","(.+)"
-			) 
-		) by (namespace,container_name,pod_name,node)`
-	queryCPUUsage := `avg(
-			label_replace(
-			  rate( 
-				container_cpu_usage_seconds_total{container_name!="",container_name!="POD", instance!=""}[` + windowString + `]
-			  ) , "node", "$1", "instance", "(.+)"
-			)
-		) by (namespace,container_name,pod_name,node)`
-	queryGPURequests := `avg(
-			label_replace(
-				label_replace(
-					avg(
-						count_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[` + windowString + `]) 
-						*  
-						avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[` + windowString + `])
-					) by (namespace,container,pod,node) , "container_name","$1","container","(.+)"
-				), "pod_name","$1","pod","(.+)"
-			) 
-		) by (namespace,container_name,pod_name,node)`
-	queryPVRequests := `avg(kube_persistentvolumeclaim_info) by (persistentvolumeclaim, storageclass, namespace, volumename) 
-							* 
-							on (persistentvolumeclaim, namespace) group_right(storageclass, volumename) 
-					sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) by (persistentvolumeclaim, namespace)`
-	normalization := `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[` + windowString + `]))`
+	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, windowString, "", windowString, "")
+	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, windowString, "", windowString, "")
+	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, windowString, "", windowString, "")
+	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, windowString, "")
+	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, windowString, "", windowString, "")
+	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
+	normalization := fmt.Sprintf(normalizationStr, windowString, "")
 
 	layout := "2006-01-02T15:04:05.000Z"
 
