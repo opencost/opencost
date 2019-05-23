@@ -9,3 +9,15 @@ jobs:
           docker login -u $DOCKER_USER -p $DOCKER_PASS
           docker build -t ajaytripathy/kubecost-cost-model:$TAG .
           docker push ajaytripathy/kubecost-cost-model:$TAG
+  deploy:
+    machine: true
+    filters:
+      branches:
+      only:
+        - master
+    steps:
+      - checkout
+      - run: |
+          docker login -u $DOCKER_USER -p $DOCKER_PASS
+          docker build -t ajaytripathy/kubecost-cost-model:latest .
+          docker push ajaytripathy/kubecost-cost-model:latest
