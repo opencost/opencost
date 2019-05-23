@@ -7,5 +7,5 @@ jobs:
       - run: | 
           TAG=0.1.$CIRCLE_BUILD_NUM
           docker login -u $DOCKER_USER -p $DOCKER_PASS
-          docker build -t ajaytripathy/kubecost-cost-model:latest .
+          docker build -t ajaytripathy/kubecost-cost-model:$TAG .
           docker push ajaytripathy/kubecost-cost-model:$TAG
