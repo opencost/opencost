@@ -13,8 +13,8 @@ jobs:
     machine: true
     filters:
       branches:
-      only:
-        - master
+        only:
+          - master
     steps:
       - checkout
       - run: |
