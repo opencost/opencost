@@ -22,5 +22,5 @@ func TestCostModel(t *testing.T) {
 	clientset := mocks.NewMockInterface(ctrl)
 	provider := mocks.NewMockProvider(ctrl)
 
-	costModel.ComputeCostData(cli, clientset, provider, "1d")
+	costModel.ComputeCostData(cli, clientset, provider, "1d", "")
 }
