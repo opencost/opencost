@@ -124,7 +124,6 @@ const (
 func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface, cloud costAnalyzerCloud.Provider, window string, offset string) (map[string]*CostData, error) {
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, window, offset, window, offset)
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, window, offset, window, offset)
-	klog.V(1).Infof("query: %s", queryRAMUsage)
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, window, offset, window, offset)
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, window, offset)
 	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, window, offset, window, offset)
