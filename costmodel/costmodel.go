@@ -632,10 +632,10 @@ func getNodeCost(clientset kubernetes.Interface, cloud costAnalyzerCloud.Provide
 		ram = float64(n.Status.Capacity.Memory().Value())
 
 		if cnode.GPU != "" && cnode.GPUCost == "" { // We couldn't find a gpu cost, so fix cpu and ram, then accordingly
-			klog.V(3).Infof("GPU without cost found, calculating...")
+			klog.V(3).Infof("GPU without cost found for %s, calculating...", cloud.GetKey(nodeLabels).Features())
 			basePrice, err := strconv.ParseFloat(cnode.BaseCPUPrice, 64)
 			if err != nil {
-				return nil, err
+				klog.V(1).Infof("Error getting node. Error: " + err.Error())
 			}
 			nodePrice, err := strconv.ParseFloat(cnode.Cost, 64)
 			if err != nil {
@@ -652,8 +652,10 @@ func getNodeCost(clientset kubernetes.Interface, cloud costAnalyzerCloud.Provide
 			klog.V(2).Infof("Computed \"%s\" GPU Cost := %v", name, cnode.GPUCost)
 		} else {
 			if cnode.RAMCost == "" { // We couldn't find a ramcost, so fix cpu and allocate ram accordingly
+				klog.V(3).Infof("No RAM cost found for %s, calculating...", cloud.GetKey(nodeLabels).Features())
 				basePrice, err := strconv.ParseFloat(cnode.BaseCPUPrice, 64)
 				if err != nil {
+					klog.V(3).Infof("Could not find base total node price")
 					return nil, err
 				}
 				totalCPUPrice := basePrice * cpu
@@ -661,11 +663,13 @@ func getNodeCost(clientset kubernetes.Interface, cloud costAnalyzerCloud.Provide
 				if cnode.Cost != "" {
 					nodePrice, err = strconv.ParseFloat(cnode.Cost, 64)
 					if err != nil {
+						klog.V(3).Infof("Could not parse total node price")
 						return nil, err
 					}
 				} else {
 					nodePrice, err = strconv.ParseFloat(cnode.VCPUCost, 64) // all the price was allocated the the CPU
 					if err != nil {
+						klog.V(3).Infof("Could not parse node vcpu price")
 						return nil, err
 					}
 				}

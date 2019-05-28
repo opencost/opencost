@@ -474,8 +474,10 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 									gcpPricingList[candidateKey] = product
 								}
 								if _, ok := gcpPricingList[candidateKeyGPU]; ok {
+									klog.V(1).Infof("Adding RAM %f for %s", hourlyPrice, candidateKeyGPU)
 									gcpPricingList[candidateKeyGPU].Node.RAMCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 								} else {
+									klog.V(1).Infof("Adding RAM %f for %s", hourlyPrice, candidateKeyGPU)
 									product.Node = &Node{
 										RAMCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
@@ -565,18 +567,19 @@ func (gcp *GCP) parsePages(inputKeys map[string]Key, pvKeys map[string]PVKey) (m
 		for k, v := range page {
 			if val, ok := returnPages[k]; ok { //keys may need to be merged
 				if val.Node != nil {
-					if val.Node.RAMCost != "" && val.Node.VCPUCost == "" {
+					if val.Node.VCPUCost == "" {
 						val.Node.VCPUCost = v.Node.VCPUCost
-					} else if val.Node.VCPUCost != "" && val.Node.RAMCost == "" {
-						val.Node.RAMCost = v.Node.RAMCost
-					} else {
-						returnPages[k] = v
 					}
-				} else if val.PV != nil {
-					if val.PV.Cost != "" {
+					if val.Node.RAMCost == "" {
+						val.Node.RAMCost = v.Node.RAMCost
+					}
+					if val.Node.GPUCost == "" {
+						val.Node.GPUCost = v.Node.GPUCost
+					}
+				}
+				if val.PV != nil {
+					if val.PV.Cost == "" {
 						val.PV.Cost = v.PV.Cost
-					} else {
-						returnPages[k] = v
 					}
 				}
 			} else {
