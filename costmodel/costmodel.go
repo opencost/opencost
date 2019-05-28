@@ -635,10 +635,12 @@ func getNodeCost(clientset kubernetes.Interface, cloud costAnalyzerCloud.Provide
 			klog.V(3).Infof("GPU without cost found for %s, calculating...", cloud.GetKey(nodeLabels).Features())
 			basePrice, err := strconv.ParseFloat(cnode.BaseCPUPrice, 64)
 			if err != nil {
-				klog.V(1).Infof("Error getting node. Error: " + err.Error())
+				klog.V(3).Infof("Error parsing node base price. Error: " + err.Error())
+				return nil, err
 			}
 			nodePrice, err := strconv.ParseFloat(cnode.Cost, 64)
 			if err != nil {
+				klog.V(3).Infof("Error parsing node cost. Error: " + err.Error())
 				return nil, err
 			}
 			totalCPUPrice := basePrice * cpu
