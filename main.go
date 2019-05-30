@@ -29,6 +29,7 @@ import (
 
 const (
 	prometheusServerEndpointEnvVar = "PROMETHEUS_SERVER_ENDPOINT"
+	prometheusTroubleshootingEp    = "http://docs.kubecost.com/custom-prom#troubleshoot"
 )
 
 var (
@@ -296,9 +297,15 @@ func main() {
 	api := prometheusAPI.NewAPI(promCli)
 	_, err := api.Config(context.Background())
 	if err != nil {
-		klog.Fatal("Failed to use Prometheus at " + address + " Error: " + err.Error())
+		klog.Fatalf("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prometheusTroubleshootingEp)
 	}
-	klog.V(1).Info("Checked prometheus endpoint: " + address)
+	klog.V(1).Info("Success: retrieved a prometheus config file from: " + address)
+
+	err = costModel.ValidatePrometheus(promCli)
+	if err != nil {
+		klog.Fatalf("Failed to query prometheus at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prometheusTroubleshootingEp)
+	}
+	klog.V(1).Info("Success: retrieved the 'up' query against prometheus at: " + address)
 
 	// Kubernetes API setup
 	kc, err := rest.InClusterConfig()
