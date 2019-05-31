@@ -267,7 +267,6 @@ func getMachineTypeVariants(mt string) []string {
 func (az *Azure) DownloadPricingData() error {
 
 	config, err := az.GetConfig()
-	klog.V(1).Infof(" DATA: %s, %s, %s", config.AzureClientID, config.AzureClientSecret, config.AzureTenantID)
 	if err != nil {
 		return err
 	}
@@ -314,12 +313,12 @@ func (az *Azure) DownloadPricingData() error {
 	rateCardFilter := "OfferDurableId eq 'MS-AZR-0003p' and Currency eq 'USD' and Locale eq 'en-US' and RegionInfo eq 'US'"
 	result, err := rcClient.Get(context.TODO(), rateCardFilter)
 	if err != nil {
-		log.Fatal(err.Error())
+		return err
 	}
 	allPrices := make(map[string]*Node)
 	regions, err := getRegions("compute", sClient, providersClient, config.AzureSubscriptionID)
 	if err != nil {
-		log.Fatalf(err.Error())
+		return err
 	}
 
 	c, err := az.GetConfig()
