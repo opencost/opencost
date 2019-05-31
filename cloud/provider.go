@@ -160,6 +160,10 @@ type CustomPricing struct {
 	AthenaTable         string `json:"athenaTable"`
 	BillingDataDataset  string `json:"billingDataDataset,omitempty"`
 	CustomPricesEnabled string `json:"customPricesEnabled"`
+	AzureSubscriptionID string `json:"azureSubscriptionID"`
+	AzureClientID       string `json:"azureClientID"`
+	AzureClientSecret   string `json:"azureClientSecret"`
+	AzureTenantID       string `json:"azureTenantID"`
 }
 
 func SetCustomPricingField(obj *CustomPricing, name string, value string) error {

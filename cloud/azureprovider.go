@@ -2,10 +2,13 @@ package cloud
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/url"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -17,6 +20,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2016-06-01/subscriptions"
 	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2018-05-01/resources"
 	"github.com/Azure/go-autorest/autorest"
+	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
@@ -60,13 +64,13 @@ func (r regionParts) String() string {
 	return result
 }
 
-func getRegions(service string, subscriptionsClient subscriptions.Client, providersClient resources.ProvidersClient) (map[string]string, error) {
+func getRegions(service string, subscriptionsClient subscriptions.Client, providersClient resources.ProvidersClient, subscriptionID string) (map[string]string, error) {
 
 	allLocations := make(map[string]string)
 	supLocations := make(map[string]string)
 
 	// retrieve all locations for the subscription id (some of them may not be supported by the required provider)
-	if locations, err := subscriptionsClient.ListLocations(context.TODO(), "054a7688-d090-43a0-bfa4-795cced8cd68"); err == nil {
+	if locations, err := subscriptionsClient.ListLocations(context.TODO(), subscriptionID); err == nil {
 		// fill up the map: DisplayName - > Name
 		for _, loc := range *locations.Value {
 			allLocations[*loc.DisplayName] = *loc.Name
@@ -261,29 +265,34 @@ func getMachineTypeVariants(mt string) []string {
 
 // DownloadPricingData uses provided azure "best guesses" for pricing
 func (az *Azure) DownloadPricingData() error {
-	var authorizer autorest.Authorizer
-	credentialsConfig := auth.NewClientCredentialsConfig("2794fafb-0768-4ba9-b4c4-6f1b503d3cf0", "dae2f052-deb6-45ad-807c-27bf991e11dc", "d87ca648-de70-4044-9064-e63fd27a901e")
-	a, err := credentialsConfig.Authorizer()
+
+	config, err := az.GetConfig()
+	klog.V(1).Infof(" DATA: %s, %s, %s", config.AzureClientID, config.AzureClientSecret, config.AzureTenantID)
 	if err != nil {
-		log.Fatal("failed to build authorizer")
+		return err
+	}
+	var authorizer autorest.Authorizer
+
+	if config.AzureClientID != "" && config.AzureClientSecret != "" && config.AzureTenantID != "" {
+		credentialsConfig := auth.NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID)
+		a, err := credentialsConfig.Authorizer()
+		if err != nil {
+			return err
+		}
+		authorizer = a
 	}
 
-	authorizer = a
-
-	/*
-		if authorizer == nil {
-			a, err := auth.NewAuthorizerFromEnvironment()
-			authorizer = a
-			if err != nil { // Failed to create authorizer from environment, try from file
-				a, err := auth.NewAuthorizerFromFile(azure.PublicCloud.ResourceManagerEndpoint)
-				if err != nil {
-					return nil, errors.Wrap(err, "failed to get authorizer from both env and file")
-				}
-
-				authorizer = a
+	if authorizer == nil {
+		a, err := auth.NewAuthorizerFromEnvironment()
+		authorizer = a
+		if err != nil { // Failed to create authorizer from environment, try from file
+			a, err := auth.NewAuthorizerFromFile(azure.PublicCloud.ResourceManagerEndpoint)
+			if err != nil {
+				return err
 			}
+			authorizer = a
 		}
-	*/
+	}
 
 	sClient := subscriptions.NewClient()
 	sClient.Authorizer = authorizer
@@ -308,7 +317,7 @@ func (az *Azure) DownloadPricingData() error {
 		log.Fatal(err.Error())
 	}
 	allPrices := make(map[string]*Node)
-	regions, err := getRegions("compute", sClient, providersClient)
+	regions, err := getRegions("compute", sClient, providersClient, config.AzureSubscriptionID)
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
@@ -442,10 +451,41 @@ func (az *Azure) AddServiceKey(url url.Values) error {
 }
 
 func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
-	return nil, nil
+	c, err := GetDefaultPricingData("azure.json")
+	if err != nil {
+		return nil, err
+	}
+	path := os.Getenv("CONFIG_PATH")
+	if path == "" {
+		path = "/models/"
+	}
+	a := make(map[string]string)
+	err = json.NewDecoder(r).Decode(&a)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range a {
+		kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+		err := SetCustomPricingField(c, kUpper, v)
+		if err != nil {
+			return nil, err
+		}
+	}
+	cj, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+
+	configPath := path + "azure.json"
+	err = ioutil.WriteFile(configPath, cj, 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	return c, nil
 }
 func (az *Azure) GetConfig() (*CustomPricing, error) {
-	c, err := GetDefaultPricingData("default.json")
+	c, err := GetDefaultPricingData("aws.json")
 	if err != nil {
 		return nil, err
 	}
