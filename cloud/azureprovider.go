@@ -96,7 +96,7 @@ func getRegions(service string, subscriptionsClient subscriptions.Client, provid
 						if loc, ok := allLocations[displName]; ok {
 							supLocations[loc] = displName
 						} else {
-							log.Printf("unsupported location")
+							klog.V(1).Infof("unsupported cloud region %s", loc)
 						}
 					}
 					break
@@ -114,14 +114,13 @@ func getRegions(service string, subscriptionsClient subscriptions.Client, provid
 						if loc, ok := allLocations[displName]; ok {
 							supLocations[loc] = displName
 						} else {
-							log.Printf("unsupported location")
+							klog.V(1).Infof("unsupported cloud region %s", loc)
 						}
 					}
 					break
 				}
 			}
 		} else {
-			log.Printf("unsupported location")
 			return nil, err
 		}
 
@@ -308,8 +307,6 @@ func (az *Azure) DownloadPricingData() error {
 	containerServiceClient := containerservice.NewContainerServicesClient("054a7688-d090-43a0-bfa4-795cced8cd68")
 	containerServiceClient.Authorizer = authorizer
 
-	log.Printf("initializing price info")
-
 	rateCardFilter := "OfferDurableId eq 'MS-AZR-0003p' and Currency eq 'USD' and Locale eq 'en-US' and RegionInfo eq 'US'"
 	result, err := rcClient.Get(context.TODO(), rateCardFilter)
 	if err != nil {
@@ -363,7 +360,7 @@ func (az *Azure) DownloadPricingData() error {
 		var priceInUsd float64
 
 		if len(v.MeterRates) < 1 {
-			log.Printf("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *v.MeterSubCategory, "region": region})
+			klog.V(1).Infof("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *v.MeterSubCategory, "region": region})
 			continue
 		}
 		for _, rate := range v.MeterRates {
@@ -484,7 +481,7 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 	return c, nil
 }
 func (az *Azure) GetConfig() (*CustomPricing, error) {
-	c, err := GetDefaultPricingData("aws.json")
+	c, err := GetDefaultPricingData("azure.json")
 	if err != nil {
 		return nil, err
 	}
