@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/url"
 	"os"
 	"regexp"
@@ -368,7 +367,7 @@ func (az *Azure) DownloadPricingData() error {
 		}
 		priceStr := fmt.Sprintf("%f", priceInUsd)
 		for _, instanceType := range instanceTypes {
-			log.Printf("region: %s \n", region)
+			klog.V(1).Infof("region: %s \n", region)
 			key := fmt.Sprintf("%s,%s,%s", region, instanceType, usageType)
 			allPrices[key] = &Node{
 				Cost:         priceStr,
