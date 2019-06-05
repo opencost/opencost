@@ -6,7 +6,7 @@ To see more on the functionality of the full Kubecost product, please visit the 
 Here is a summary of features enabled by this cost model:
 
 - Real-time cost allocation for native Kubernetes concepts: service, deployment, namespace, label, daemonset, pod, container, and more
-- Dynamic asset pricing enabled by integrations with AWS and GCP billing APIs, estimates for Azure 
+- Dynamic asset pricing enabled by integrations with AWS, Azure and GCP billing APIs 
 - Supports on-prem k8s clusters with custom pricing sheets
 - Allocation for in-cluster resources like CPU, GPU, memory, and persistent volumes.
 - Allocation for out-of-cluster resources like RDS instances and S3 buckets with key (AWS and GCP)
@@ -66,7 +66,7 @@ Kubernetes.
 
 ***How do you measure the cost of a CPU/RAM for a container, pod, deployment, etc.***
 
-Kubecost models collect pricing data from major cloud providers, e.g. GCP and AWS, to provide the real-time cost of running workloads. Based on this information, each container inherits a cost per CPU hour and cost per RAM gb hour depending on the node where it's scheduled. This means containers of the same size, as measured by requests or usage, could be charged different rates if they are scheduled in different regions, on nodes with different usage types (on-demand vs preemptible), etc.
+Kubecost models collect pricing data from major cloud providers, e.g. GCP, Azure and AWS, to provide the real-time cost of running workloads. Based on this information, each container inherits a cost per CPU hour and cost per RAM gb hour depending on the node where it's scheduled. This means containers of the same size, as measured by requests or usage, could be charged different rates if they are scheduled in different regions, on nodes with different usage types (on-demand vs preemptible), etc.
 
 Measuring the cost of a pod, deployment, service, namespace, etc is simply the aggregation of its individual container costs.
 
