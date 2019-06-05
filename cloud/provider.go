@@ -160,6 +160,10 @@ type CustomPricing struct {
 	AthenaTable         string `json:"athenaTable"`
 	BillingDataDataset  string `json:"billingDataDataset,omitempty"`
 	CustomPricesEnabled string `json:"customPricesEnabled"`
+	AzureSubscriptionID string `json:"azureSubscriptionID"`
+	AzureClientID       string `json:"azureClientID"`
+	AzureClientSecret   string `json:"azureClientSecret"`
+	AzureTenantID       string `json:"azureTenantID"`
 }
 
 func SetCustomPricingField(obj *CustomPricing, name string, value string) error {
@@ -369,11 +373,7 @@ func NewProvider(clientset *kubernetes.Clientset, apiKey string) (Provider, erro
 		}, nil
 	} else if strings.HasPrefix(provider, "azure") {
 		klog.V(2).Info("Found ProviderID starting with \"azure\", using Azure Provider")
-		return &Azure{
-			CustomProvider: &CustomProvider{
-				Clientset: clientset,
-			},
-		}, nil
+		return &Azure{}, nil
 	} else {
 		klog.V(2).Info("Unsupported provider, falling back to default")
 		return &CustomProvider{

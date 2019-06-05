@@ -121,6 +121,62 @@ const (
 	normalizationStr = `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[%s] %s))`
 )
 
+// ValidatePrometheus tells the model what data prometheus has on it.
+func ValidatePrometheus(cli prometheusClient.Client) error {
+	data, err := query(cli, "up")
+	if err != nil {
+		return err
+	}
+	v, err := getUptimeData(data)
+	if err != nil {
+		return err
+	}
+	if len(v) > 0 {
+		return nil
+	} else {
+		return fmt.Errorf("No running jobs found on Prometheus at %s", cli.URL(epQuery, nil).Path)
+	}
+}
+
+func getUptimeData(qr interface{}) ([]*Vector, error) {
+	data, ok := qr.(map[string]interface{})["data"]
+	if !ok {
+		return nil, fmt.Errorf("Improperly formatted response from prometheus, response has no data field")
+	}
+	r, ok := data.(map[string]interface{})["result"]
+	if !ok {
+		return nil, fmt.Errorf("Improperly formatted data from prometheus, data has no result field")
+	}
+	results, ok := r.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Improperly formatted results from prometheus, result field is not a slice")
+	}
+	jobData := []*Vector{}
+	for _, val := range results {
+		// For now, just do this for validation. TODO: This can be parsed to figure out the exact running jobs.
+		_, ok := val.(map[string]interface{})["metric"].(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("Prometheus vector does not have metric labels")
+		}
+		value, ok := val.(map[string]interface{})["value"]
+		if !ok {
+			return nil, fmt.Errorf("Improperly formatted results from prometheus, value is not a field in the vector")
+		}
+		dataPoint, ok := value.([]interface{})
+		if !ok || len(dataPoint) != 2 {
+			return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
+		}
+		strVal := dataPoint[1].(string)
+		v, _ := strconv.ParseFloat(strVal, 64)
+		toReturn := &Vector{
+			Timestamp: dataPoint[0].(float64),
+			Value:     v,
+		}
+		jobData = append(jobData, toReturn)
+	}
+	return jobData, nil
+}
+
 func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface, cloud costAnalyzerCloud.Provider, window string, offset string) (map[string]*CostData, error) {
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, window, offset, window, offset)
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, window, offset, window, offset)
