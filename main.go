@@ -6,7 +6,9 @@ import (
 	"flag"
 	"net/http"
 	"os"
+	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"k8s.io/klog"
@@ -87,19 +89,53 @@ func (a *Accesses) RefreshPricingData(w http.ResponseWriter, r *http.Request, ps
 	w.Write(wrapData(nil, err))
 }
 
+func filterFields(fields string, data map[string]*costModel.CostData) map[string]costModel.CostData {
+	fs := strings.Split(fields, ",")
+	fmap := make(map[string]bool)
+	for _, f := range fs {
+		fieldNameLower := strings.ToLower(f) // convert to go struct name by uppercasing first letter
+		klog.V(1).Infof("to delete: %s", fieldNameLower)
+		fmap[fieldNameLower] = true
+	}
+	filteredData := make(map[string]costModel.CostData)
+	for cname, costdata := range data {
+		s := reflect.TypeOf(*costdata)
+		val := reflect.ValueOf(*costdata)
+		costdata2 := costModel.CostData{}
+		cd2 := reflect.New(reflect.Indirect(reflect.ValueOf(costdata2)).Type()).Elem()
+		n := s.NumField()
+		for i := 0; i < n; i++ {
+			field := s.Field(i)
+			value := val.Field(i)
+			value2 := cd2.Field(i)
+			if _, ok := fmap[strings.ToLower(field.Name)]; !ok {
+				value2.Set(reflect.Value(value))
+			}
+		}
+		filteredData[cname] = cd2.Interface().(costModel.CostData)
+	}
+	return filteredData
+}
+
 func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	window := r.URL.Query().Get("timeWindow")
 	offset := r.URL.Query().Get("offset")
+	fields := r.URL.Query().Get("filterFields")
 
 	if offset != "" {
 		offset = "offset " + offset
 	}
 
 	data, err := costModel.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, window, offset)
-	w.Write(wrapData(data, err))
+	if fields != "" {
+		filteredData := filterFields(fields, data)
+		w.Write(wrapData(filteredData, err))
+	} else {
+		w.Write(wrapData(data, err))
+	}
 }
 
 func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -109,9 +145,15 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	start := r.URL.Query().Get("start")
 	end := r.URL.Query().Get("end")
 	window := r.URL.Query().Get("window")
+	fields := r.URL.Query().Get("filterFields")
 
 	data, err := costModel.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, window)
-	w.Write(wrapData(data, err))
+	if fields != "" {
+		filteredData := filterFields(fields, data)
+		w.Write(wrapData(filteredData, err))
+	} else {
+		w.Write(wrapData(data, err))
+	}
 }
 
 func (a *Accesses) OutofClusterCosts(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
