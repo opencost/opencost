@@ -1277,7 +1277,7 @@ func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeClaimData, er
 			strVal := dataPoint[1].(string)
 			v, _ := strconv.ParseFloat(strVal, 64)
 			vectors = append(vectors, &Vector{
-				Timestamp: dataPoint[0].(float64),
+				Timestamp: math.Round(dataPoint[0].(float64)/10) * 10,
 				Value:     v,
 			})
 		}
@@ -1620,7 +1620,7 @@ func getContainerMetricVectors(qr interface{}, normalize bool, normalizationValu
 				v = v / normalizationValue
 			}
 			vectors = append(vectors, &Vector{
-				Timestamp: dataPoint[0].(float64),
+				Timestamp: math.Round(dataPoint[0].(float64)/10) * 10,
 				Value:     v,
 			})
 		}

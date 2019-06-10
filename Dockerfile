@@ -34,4 +34,5 @@ ADD ./cloud/default.json /models/default.json
 ADD ./cloud/azure.json /models/azure.json
 ADD ./cloud/aws.json /models/aws.json
 ADD ./cloud/gcp.json /models/gcp.json
+USER 1001
 ENTRYPOINT ["/go/bin/app"]

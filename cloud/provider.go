@@ -164,6 +164,7 @@ type CustomPricing struct {
 	AzureClientID       string `json:"azureClientID"`
 	AzureClientSecret   string `json:"azureClientSecret"`
 	AzureTenantID       string `json:"azureTenantID"`
+	CurrencyCode        string `json:"currencyCode"`
 }
 
 func SetCustomPricingField(obj *CustomPricing, name string, value string) error {

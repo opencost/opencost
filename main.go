@@ -50,6 +50,7 @@ type Accesses struct {
 	NodeTotalPriceRecorder        *prometheus.GaugeVec
 	RAMAllocationRecorder         *prometheus.GaugeVec
 	CPUAllocationRecorder         *prometheus.GaugeVec
+	GPUAllocationRecorder         *prometheus.GaugeVec
 }
 
 type DataEnvelope struct {
@@ -136,6 +137,23 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 	} else {
 		w.Write(wrapData(data, err))
 	}
+}
+
+func (a *Accesses) ClusterCostsOverTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	start := r.URL.Query().Get("start")
+	end := r.URL.Query().Get("end")
+	window := r.URL.Query().Get("timeWindow")
+	offset := r.URL.Query().Get("offset")
+
+	if offset != "" {
+		offset = "offset " + offset
+	}
+
+	data, err := costModel.ClusterCostsOverTime(a.PrometheusClient, start, end, window, offset)
+	w.Write(wrapData(data, err))
 }
 
 func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -245,7 +263,7 @@ func (a *Accesses) recordPrices() {
 	go func() {
 		for {
 			klog.V(3).Info("Recording prices...")
-			data, err := costModel.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "1m", "")
+			data, err := costModel.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "2m", "")
 			if err != nil {
 				klog.V(1).Info("Error in price recording: " + err.Error())
 				// zero the for loop so the time.Sleep will still work
@@ -288,6 +306,10 @@ func (a *Accesses) recordPrices() {
 				}
 				if len(costs.CPUAllocation) > 0 {
 					a.CPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.CPUAllocation[0].Value)
+				}
+				if len(costs.GPUReq) > 0 {
+					// allocation here is set to the request because shared GPU usage not yet supported.
+					a.GPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.GPUReq[0].Value)
 				}
 
 				storageClasses, _ := a.KubeClientSet.StorageV1().StorageClasses().List(metav1.ListOptions{})
@@ -400,6 +422,11 @@ func main() {
 		Help: "container_cpu_allocation Percent of a single CPU used in a minute",
 	}, []string{"namespace", "pod", "container", "instance", "node"})
 
+	GPUAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "container_gpu_allocation",
+		Help: "container_gpu_allocation GPU used",
+	}, []string{"namespace", "pod", "container", "instance", "node"})
+
 	prometheus.MustRegister(cpuGv)
 	prometheus.MustRegister(ramGv)
 	prometheus.MustRegister(gpuGv)
@@ -418,6 +445,7 @@ func main() {
 		NodeTotalPriceRecorder:        totalGv,
 		RAMAllocationRecorder:         RAMAllocation,
 		CPUAllocationRecorder:         CPUAllocation,
+		GPUAllocationRecorder:         GPUAllocation,
 		PersistentVolumePriceRecorder: pvGv,
 	}
 
@@ -440,6 +468,7 @@ func main() {
 	router.POST("/updateAthenaInfoConfigs", a.UpdateAthenaInfoConfigs)
 	router.POST("/updateBigQueryInfoConfigs", a.UpdateBigQueryInfoConfigs)
 	router.POST("/updateConfigByKey", a.UpdateConfigByKey)
+	router.GET("/clusterCostsOverTime", a.ClusterCostsOverTime)
 
 	rootMux := http.NewServeMux()
 	rootMux.Handle("/", router)
