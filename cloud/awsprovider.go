@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -118,6 +119,7 @@ type AWSProductTerms struct {
 	Storage  string        `json:"storage"`
 	VCpu     string        `json:"vcpu"`
 	GPU      string        `json:"gpu"` // GPU represents the number of GPU on the instance
+	PV       *PV           `json:"pv"`
 }
 
 // ClusterIdEnvVar is the environment variable in which one can manually set the ClusterId
@@ -305,15 +307,12 @@ func (k *awsKey) Features() string {
 }
 
 func (aws *AWS) PVPricing(pvk PVKey) (*PV, error) {
-	return nil, nil
-}
-
-func (key *awsPVKey) Features() string {
-	storageClass := key.StorageClassName
-	if storageClass == "standard" {
-		storageClass = "pdstandard"
+	pricing, ok := aws.Pricing[pvk.Features()]
+	if !ok {
+		klog.V(2).Infof("Persistent Volume pricing not found for %s", pvk)
+		return &PV{}, nil
 	}
-	return key.Labels[v1.LabelZoneRegion] + storageClass
+	return pricing.PV, nil
 }
 
 type awsPVKey struct {
@@ -327,6 +326,14 @@ func (aws *AWS) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string) 
 		Labels:           pv.Labels,
 		StorageClassName: pv.Spec.StorageClassName,
 	}
+}
+
+func (key *awsPVKey) Features() string {
+	storageClass := key.StorageClassName
+	if storageClass == "standard" {
+		storageClass = "pdstandard"
+	}
+	return key.Labels[v1.LabelZoneRegion] + "," + storageClass
 }
 
 // GetKey maps node labels to information needed to retrieve pricing data
@@ -381,9 +388,43 @@ func (aws *AWS) DownloadPricingData() error {
 		inputkeys[key.Features()] = true
 	}
 
+	pvList, err := aws.Clientset.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+
+	storageClasses, err := aws.Clientset.StorageV1().StorageClasses().List(metav1.ListOptions{})
+	storageClassMap := make(map[string]map[string]string)
+	for _, storageClass := range storageClasses.Items {
+		params := storageClass.Parameters
+		storageClassMap[storageClass.ObjectMeta.Name] = params
+	}
+
+	pvkeys := make(map[string]PVKey)
+	for _, pv := range pvList.Items {
+		params, ok := storageClassMap[pv.Spec.StorageClassName]
+		if !ok {
+			klog.Infof("Unable to find params for storageClassName %s", pv.Name)
+			continue
+		}
+		key := aws.GetPVKey(&pv, params)
+		pvkeys[key.Features()] = key
+	}
+
 	aws.Pricing = make(map[string]*AWSProductTerms)
 	aws.ValidPricingKeys = make(map[string]bool)
 	skusToKeys := make(map[string]string)
+
+	// Maps AWS pricing UsageTypes to EBS volume types which likely
+	// are used in naming Kubernetes StorageClasses in AWS
+	volTypes := map[string]string{
+		"EBS:VolumeUsage.gp2": "gp2",
+		"EBS:VolumeUsage": "standard",
+		"EBS:VolumeUsage.sc1": "sc1", 
+		"EBS:VolumeP-IOPS.piops": "io1",
+		"EBS:VolumeUsage.st1": "st1",
+		"EBS:VolumeUsage.piops": "io1",
+	}
 
 	pricingURL := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/index.json"
 	klog.V(2).Infof("starting download of \"%s\", which is quite large ...", pricingURL)
@@ -437,6 +478,20 @@ func (aws *AWS) DownloadPricingData() error {
 					}
 					aws.ValidPricingKeys[key] = true
 					aws.ValidPricingKeys[spotKey] = true
+				} else if strings.HasPrefix(product.Attributes.UsageType, "EBS:Volume") {
+					key := product.Attributes.Location + "," + product.Attributes.UsageType
+					pv := &PV{
+						Class:      volTypes[product.Attributes.UsageType],
+						Region:     product.Attributes.Location,
+					}
+					productTerms := &AWSProductTerms{
+						Sku: product.Sku,
+						PV:  pv,
+					}
+					aws.Pricing[key] = productTerms
+					skusToKeys[product.Sku] = key
+					aws.ValidPricingKeys[key] = true
+				
 				}
 			}
 		}
@@ -478,6 +533,14 @@ func (aws *AWS) DownloadPricingData() error {
 						if ok {
 							aws.Pricing[key].OnDemand = offerTerm
 							aws.Pricing[spotKey].OnDemand = offerTerm
+							// Check whether this is a volume or not
+							// If so, we need to get hourly cost and add it to the PV object
+							if strings.Contains(key, "EBS:Volume") {
+								cost := offerTerm.PriceDimensions[sku.(string)+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
+								cost1, _ := strconv.ParseFloat(cost, 64)
+								hourlyPrice := (cost1 * math.Pow10(-9)) / 730
+								aws.Pricing[key].PV.Cost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
+							}
 						}
 					}
 					_, err = dec.Token()
