@@ -134,32 +134,51 @@ const ReservedRateCode = ".38NPMPTW36"
 // HourlyRateCode is appended to a node sku
 const HourlyRateCode = ".6YS6EN2CT7"
 
+// volTypes are used to map between AWS UsageTypes and 
+// EBS volume types, as they would appear in K8s storage class
+// name and the EC2 API.
+var volTypes = map[string]string{
+	"EBS:VolumeUsage.gp2":     "gp2",
+	"EBS:VolumeUsage":         "standard",
+	"EBS:VolumeUsage.sc1":     "sc1", 
+	"EBS:VolumeP-IOPS.piops":  "io1",
+	"EBS:VolumeUsage.st1":     "st1",
+	"EBS:VolumeUsage.piops":   "io1",
+	"gp2":                     "EBS:VolumeUsage.gp2",
+	"standard":                "EBS:VolumeUsage",
+	"sc1":                     "EBS:VolumeUsage.sc1",
+	"io1":                     "EBS:VolumeUsage.piops",
+	"st1":                     "EBS:VolumeUsage.st1",
+}
+
+// locationToRegion maps AWS region names (As they come from Billing)
+// to actual region identifiers
+var locationToRegion = map[string]string{
+	"US East (Ohio)":             "us-east-2",
+	"US East (N. Virginia)":      "us-east-1",
+	"US West (N. California)":    "us-west-1",
+	"US West (Oregon)":           "us-west-2",
+	"Asia Pacific (Mumbai)":      "ap-south-1",
+	"Asia Pacific (Osaka-Local)": "ap-northeast-3",
+	"Asia Pacific (Seoul)":       "ap-northeast-2",
+	"Asia Pacific (Singapore)":   "ap-southeast-1",
+	"Asia Pacific (Sydney)":      "ap-southeast-2",
+	"Asia Pacific (Tokyo)":       "ap-northeast-1",
+	"Canada (Central)":           "ca-central-1",
+	"China (Beijing)":            "cn-north-1",
+	"China (Ningxia)":            "cn-northwest-1",
+	"EU (Frankfurt)":             "eu-central-1",
+	"EU (Ireland)":               "eu-west-1",
+	"EU (London)":                "eu-west-2",
+	"EU (Paris)":                 "eu-west-3",
+	"EU (Stockholm)":             "eu-north-1",
+	"South America (São Paulo)":  "sa-east-1",
+	"AWS GovCloud (US-East)":     "us-gov-east-1",
+	"AWS GovCloud (US)":          "us-gov-west-1",
+}
+
 // KubeAttrConversion maps the k8s labels for region to an aws region
 func (aws *AWS) KubeAttrConversion(location, instanceType, operatingSystem string) string {
-	locationToRegion := map[string]string{
-		"US East (Ohio)":             "us-east-2",
-		"US East (N. Virginia)":      "us-east-1",
-		"US West (N. California)":    "us-west-1",
-		"US West (Oregon)":           "us-west-2",
-		"Asia Pacific (Mumbai)":      "ap-south-1",
-		"Asia Pacific (Osaka-Local)": "ap-northeast-3",
-		"Asia Pacific (Seoul)":       "ap-northeast-2",
-		"Asia Pacific (Singapore)":   "ap-southeast-1",
-		"Asia Pacific (Sydney)":      "ap-southeast-2",
-		"Asia Pacific (Tokyo)":       "ap-northeast-1",
-		"Canada (Central)":           "ca-central-1",
-		"China (Beijing)":            "cn-north-1",
-		"China (Ningxia)":            "cn-northwest-1",
-		"EU (Frankfurt)":             "eu-central-1",
-		"EU (Ireland)":               "eu-west-1",
-		"EU (London)":                "eu-west-2",
-		"EU (Paris)":                 "eu-west-3",
-		"EU (Stockholm)":             "eu-north-1",
-		"South America (São Paulo)":  "sa-east-1",
-		"AWS GovCloud (US-East)":     "us-gov-east-1",
-		"AWS GovCloud (US)":          "us-gov-west-1",
-	}
-
 	operatingSystem = strings.ToLower(operatingSystem)
 
 	region := locationToRegion[location]
@@ -331,9 +350,12 @@ func (aws *AWS) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string) 
 func (key *awsPVKey) Features() string {
 	storageClass := key.StorageClassName
 	if storageClass == "standard" {
-		storageClass = "pdstandard"
+		storageClass = "gp2"
 	}
-	return key.Labels[v1.LabelZoneRegion] + "," + storageClass
+	// Storage class names are generally EBS volume types (gp2)
+	// Keys in Pricing are based on UsageTypes (EBS:VolumeType.gp2)
+	// Converts between the 2
+	return key.Labels[v1.LabelZoneRegion] + "," + volTypes[storageClass]
 }
 
 // GetKey maps node labels to information needed to retrieve pricing data
@@ -415,17 +437,6 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.ValidPricingKeys = make(map[string]bool)
 	skusToKeys := make(map[string]string)
 
-	// Maps AWS pricing UsageTypes to EBS volume types which likely
-	// are used in naming Kubernetes StorageClasses in AWS
-	volTypes := map[string]string{
-		"EBS:VolumeUsage.gp2": "gp2",
-		"EBS:VolumeUsage": "standard",
-		"EBS:VolumeUsage.sc1": "sc1", 
-		"EBS:VolumeP-IOPS.piops": "io1",
-		"EBS:VolumeUsage.st1": "st1",
-		"EBS:VolumeUsage.piops": "io1",
-	}
-
 	pricingURL := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/index.json"
 	klog.V(2).Infof("starting download of \"%s\", which is quite large ...", pricingURL)
 	resp, err := http.Get(pricingURL)
@@ -479,19 +490,21 @@ func (aws *AWS) DownloadPricingData() error {
 					aws.ValidPricingKeys[key] = true
 					aws.ValidPricingKeys[spotKey] = true
 				} else if strings.HasPrefix(product.Attributes.UsageType, "EBS:Volume") {
-					key := product.Attributes.Location + "," + product.Attributes.UsageType
+					key := locationToRegion[product.Attributes.Location] + "," + product.Attributes.UsageType
+					spotKey := key + ",preemptible"
 					pv := &PV{
 						Class:      volTypes[product.Attributes.UsageType],
-						Region:     product.Attributes.Location,
+						Region:     locationToRegion[product.Attributes.Location],
 					}
 					productTerms := &AWSProductTerms{
 						Sku: product.Sku,
 						PV:  pv,
 					}
 					aws.Pricing[key] = productTerms
+					aws.Pricing[spotKey] = productTerms
 					skusToKeys[product.Sku] = key
 					aws.ValidPricingKeys[key] = true
-				
+					aws.ValidPricingKeys[spotKey] = true
 				}
 			}
 		}
@@ -533,12 +546,20 @@ func (aws *AWS) DownloadPricingData() error {
 						if ok {
 							aws.Pricing[key].OnDemand = offerTerm
 							aws.Pricing[spotKey].OnDemand = offerTerm
-							// Check whether this is a volume or not
-							// If so, we need to get hourly cost and add it to the PV object
-							if strings.Contains(key, "EBS:Volume") {
+							if strings.HasSuffix(key, "EBS:VolumeP-IOPS.piops") {
+								// If the specific UsageType is the per IO cost used on io1 volumes
+								// we need to add the per IO cost to the io1 PV cost
+								curr_region := strings.Split(key, ",")[0]
 								cost := offerTerm.PriceDimensions[sku.(string)+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
-								cost1, _ := strconv.ParseFloat(cost, 64)
-								hourlyPrice := (cost1 * math.Pow10(-9)) / 730
+								cost_F, _ := strconv.ParseFloat(cost, 64)
+								piops_key := curr_region + ",EBS:VolumeUsage.piops"
+								// Add the per IO cost to the PV object for the io1 volume type
+								aws.Pricing[piops_key].PV.CostPerIO = strconv.FormatFloat(cost_F, 'f', -1, 64)
+							} else if strings.Contains(key, "EBS:Volume") {
+								// If volume, we need to get hourly cost and add it to the PV object
+								cost := offerTerm.PriceDimensions[sku.(string)+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
+								cost_F, _ := strconv.ParseFloat(cost, 64)
+								hourlyPrice := (cost_F * math.Pow10(-9)) / 730
 								aws.Pricing[key].PV.Cost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 							}
 						}
