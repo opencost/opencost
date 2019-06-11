@@ -134,20 +134,21 @@ const ReservedRateCode = ".38NPMPTW36"
 // HourlyRateCode is appended to a node sku
 const HourlyRateCode = ".6YS6EN2CT7"
 
-// volTypes are used to map between AWS UsageTypes and 
+// volTypes are used to map between AWS UsageTypes and
 // EBS volume types, as they would appear in K8s storage class
 // name and the EC2 API.
 var volTypes = map[string]string{
-	"EBS:VolumeUsage.gp2":     "gp2",
-	"EBS:VolumeUsage":         "standard",
-	"EBS:VolumeUsage.sc1":     "sc1",
-	"EBS:VolumeUsage.st1":     "st1",
-	"EBS:VolumeUsage.piops":   "io1",
-	"gp2":                     "EBS:VolumeUsage.gp2",
-	"standard":                "EBS:VolumeUsage",
-	"sc1":                     "EBS:VolumeUsage.sc1",
-	"io1":                     "EBS:VolumeUsage.piops",
-	"st1":                     "EBS:VolumeUsage.st1",
+	"EBS:VolumeUsage.gp2":    "gp2",
+	"EBS:VolumeUsage":        "standard",
+	"EBS:VolumeUsage.sc1":    "sc1",
+	"EBS:VolumeP-IOPS.piops": "io1",
+	"EBS:VolumeUsage.st1":    "st1",
+	"EBS:VolumeUsage.piops":  "io1",
+	"gp2":                    "EBS:VolumeUsage.gp2",
+	"standard":               "EBS:VolumeUsage",
+	"sc1":                    "EBS:VolumeUsage.sc1",
+	"io1":                    "EBS:VolumeUsage.piops",
+	"st1":                    "EBS:VolumeUsage.st1",
 }
 
 // locationToRegion maps AWS region names (As they come from Billing)
@@ -178,28 +179,28 @@ var locationToRegion = map[string]string{
 }
 
 var regionToBillingRegionCode = map[string]string{
-	"us-east-2":			"USE2",
-	"us-east-1":			"",
-	"us-west-1":			"USW1",
-	"us-west-2":			"USW2",
-	"ap-east-1":			"APE1",
-	"ap-south-1":			"APS3",
-	"ap-northeast-3":		"APN3",
-	"ap-northeast-2":		"APN2",
-	"ap-southeast-1":		"APS1",
-	"ap-southeast-2":		"APS2",
-	"ap-northeast-1":		"APN1",
-	"ca-central-1":			"CAN1",
-	"cn-north-1":			"",
-	"cn-northwest-1":		"",
-	"eu-central-1":			"EUC1",
-	"eu-west-1":			"EU",
-	"eu-west-2":			"EUW2",
-	"eu-west-3":			"EUW3",
-	"eu-north-1":			"EUN1",
-	"sa-east-1":			"SAE1",
-	"us-gov-east-1":		"UGE1",
-	"us-gov-west-1":		"UGW1",
+	"us-east-2":      "USE2",
+	"us-east-1":      "",
+	"us-west-1":      "USW1",
+	"us-west-2":      "USW2",
+	"ap-east-1":      "APE1",
+	"ap-south-1":     "APS3",
+	"ap-northeast-3": "APN3",
+	"ap-northeast-2": "APN2",
+	"ap-southeast-1": "APS1",
+	"ap-southeast-2": "APS2",
+	"ap-northeast-1": "APN1",
+	"ca-central-1":   "CAN1",
+	"cn-north-1":     "",
+	"cn-northwest-1": "",
+	"eu-central-1":   "EUC1",
+	"eu-west-1":      "EU",
+	"eu-west-2":      "EUW2",
+	"eu-west-3":      "EUW3",
+	"eu-north-1":     "EUN1",
+	"sa-east-1":      "SAE1",
+	"us-gov-east-1":  "UGE1",
+	"us-gov-west-1":  "UGW1",
 }
 
 // KubeAttrConversion maps the k8s labels for region to an aws region
@@ -353,7 +354,7 @@ func (k *awsKey) Features() string {
 func (aws *AWS) PVPricing(pvk PVKey) (*PV, error) {
 	pricing, ok := aws.Pricing[pvk.Features()]
 	if !ok {
-		klog.V(2).Infof("Persistent Volume pricing not found for %s", pvk)
+		klog.V(2).Infof("Persistent Volume pricing not found for %s", pvk.Features())
 		return &PV{}, nil
 	}
 	return pricing.PV, nil
@@ -515,16 +516,17 @@ func (aws *AWS) DownloadPricingData() error {
 					aws.ValidPricingKeys[key] = true
 					aws.ValidPricingKeys[spotKey] = true
 				} else if strings.Contains(product.Attributes.UsageType, "EBS:Volume") {
-					key := locationToRegion[product.Attributes.Location] + "," + product.Attributes.UsageType
 					// UsageTypes may be prefixed with a region code - we're removing this when using
 					// volTypes to keep lookups generic
 					usageTypeRegx := regexp.MustCompile(".*(-|^)(EBS.+)")
 					usageTypeMatch := usageTypeRegx.FindStringSubmatch(product.Attributes.UsageType)
 					usageTypeNoRegion := usageTypeMatch[len(usageTypeMatch)-1]
+					key := locationToRegion[product.Attributes.Location] + "," + usageTypeNoRegion
 					spotKey := key + ",preemptible"
+					klog.V(1).Infof("KEY %s", key)
 					pv := &PV{
-						Class:      volTypes[usageTypeNoRegion],
-						Region:     locationToRegion[product.Attributes.Location],
+						Class:  volTypes[usageTypeNoRegion],
+						Region: locationToRegion[product.Attributes.Location],
 					}
 					productTerms := &AWSProductTerms{
 						Sku: product.Sku,
@@ -579,25 +581,15 @@ func (aws *AWS) DownloadPricingData() error {
 							if strings.Contains(key, "EBS:VolumeP-IOPS.piops") {
 								// If the specific UsageType is the per IO cost used on io1 volumes
 								// we need to add the per IO cost to the io1 PV cost
-								currRegion := strings.Split(key, ",")[0]
 								cost := offerTerm.PriceDimensions[sku.(string)+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
-								// UsageType in most regions starts with a region identifier
-								// Here we get that region identifier and then use it as part of
-								// the key for looking up and storing the per IO cost with the io1 price
-								billingRegionCode := regionToBillingRegionCode[currRegion]
-								piopsKey := ""
-								if billingRegionCode != "" {
-									piopsKey = currRegion + "," + billingRegionCode + "-EBS:VolumeUsage.piops"
-								} else {
-									piopsKey = currRegion + "," + "EBS:VolumeUsage.piops"
-								}
 								// Add the per IO cost to the PV object for the io1 volume type
-								aws.Pricing[piopsKey].PV.CostPerIO = cost
+								aws.Pricing[key].PV.CostPerIO = cost
 							} else if strings.Contains(key, "EBS:Volume") {
 								// If volume, we need to get hourly cost and add it to the PV object
 								cost := offerTerm.PriceDimensions[sku.(string)+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
 								costFloat, _ := strconv.ParseFloat(cost, 64)
 								hourlyPrice := (costFloat * math.Pow10(-9)) / 730
+
 								aws.Pricing[key].PV.Cost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 							}
 						}
