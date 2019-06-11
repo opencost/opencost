@@ -575,25 +575,25 @@ func (aws *AWS) DownloadPricingData() error {
 							if strings.Contains(key, "EBS:VolumeP-IOPS.piops") {
 								// If the specific UsageType is the per IO cost used on io1 volumes
 								// we need to add the per IO cost to the io1 PV cost
-								curr_region := strings.Split(key, ",")[0]
+								currRegion := strings.Split(key, ",")[0]
 								cost := offerTerm.PriceDimensions[sku.(string)+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
 								// UsageType in most regions starts with a region identifier
 								// Here we get that region identifier and then use it as part of
 								// the key for looking up and storing the per IO cost with the io1 price
-								billing_region_code := regionToBillingRegionCode[curr_region]
-								piops_key := ""
-								if billing_region_code != "" {
-									piops_key = curr_region + "," + billing_region_code + "-EBS:VolumeUsage.piops"
+								billingRegionCode := regionToBillingRegionCode[currRegion]
+								piopsKey := ""
+								if billingRegionCode != "" {
+									piopsKey = currRegion + "," + billingRegionCode + "-EBS:VolumeUsage.piops"
 								} else {
-									piops_key = curr_region + "," + "EBS:VolumeUsage.piops"
+									piopsKey = currRegion + "," + "EBS:VolumeUsage.piops"
 								}
 								// Add the per IO cost to the PV object for the io1 volume type
-								aws.Pricing[piops_key].PV.CostPerIO = cost
+								aws.Pricing[piopsKey].PV.CostPerIO = cost
 							} else if strings.Contains(key, "EBS:Volume") {
 								// If volume, we need to get hourly cost and add it to the PV object
 								cost := offerTerm.PriceDimensions[sku.(string)+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
-								cost_F, _ := strconv.ParseFloat(cost, 64)
-								hourlyPrice := (cost_F * math.Pow10(-9)) / 730
+								costFloat, _ := strconv.ParseFloat(cost, 64)
+								hourlyPrice := (costFloat * math.Pow10(-9)) / 730
 								aws.Pricing[key].PV.Cost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 							}
 						}
