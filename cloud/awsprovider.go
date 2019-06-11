@@ -140,8 +140,7 @@ const HourlyRateCode = ".6YS6EN2CT7"
 var volTypes = map[string]string{
 	"EBS:VolumeUsage.gp2":     "gp2",
 	"EBS:VolumeUsage":         "standard",
-	"EBS:VolumeUsage.sc1":     "sc1", 
-	"EBS:VolumeP-IOPS.piops":  "io1",
+	"EBS:VolumeUsage.sc1":     "sc1",
 	"EBS:VolumeUsage.st1":     "st1",
 	"EBS:VolumeUsage.piops":   "io1",
 	"gp2":                     "EBS:VolumeUsage.gp2",
@@ -517,9 +516,14 @@ func (aws *AWS) DownloadPricingData() error {
 					aws.ValidPricingKeys[spotKey] = true
 				} else if strings.Contains(product.Attributes.UsageType, "EBS:Volume") {
 					key := locationToRegion[product.Attributes.Location] + "," + product.Attributes.UsageType
+					// UsageTypes may be prefixed with a region code - we're removing this when using
+					// volTypes to keep lookups generic
+					usageTypeRegx := regexp.MustCompile(".*(-|^)(EBS.+)")
+					usageTypeMatch := usageTypeRegx.FindStringSubmatch(product.Attributes.UsageType)
+					usageTypeNoRegion := usageTypeMatch[len(usageTypeMatch)-1]
 					spotKey := key + ",preemptible"
 					pv := &PV{
-						Class:      volTypes[product.Attributes.UsageType],
+						Class:      volTypes[usageTypeNoRegion],
 						Region:     locationToRegion[product.Attributes.Location],
 					}
 					productTerms := &AWSProductTerms{
