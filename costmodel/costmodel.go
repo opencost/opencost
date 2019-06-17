@@ -80,9 +80,9 @@ const (
 	) by (namespace,container_name,pod_name,node)`
 	queryRAMUsageStr = `sort_desc(
 		avg(
-			label_replace(count_over_time(container_memory_usage_bytes{container_name!="",container_name!="POD", instance!=""}[%s] %s), "node", "$1", "instance","(.+)") 
+			label_replace(count_over_time(container_memory_working_set_bytes{container_name!="",container_name!="POD", instance!=""}[%s] %s), "node", "$1", "instance","(.+)") 
 			* 
-			label_replace(avg_over_time(container_memory_usage_bytes{container_name!="",container_name!="POD", instance!=""}[%s] %s), "node", "$1", "instance","(.+)") 
+			label_replace(avg_over_time(container_memory_working_set_bytes{container_name!="",container_name!="POD", instance!=""}[%s] %s), "node", "$1", "instance","(.+)") 
 		) by (namespace,container_name,pod_name,node)
 	)`
 	queryCPURequestsStr = `avg(
@@ -247,7 +247,13 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 
 	pvClaimMapping, err := getPVInfoVector(resultPVRequests)
 	if err != nil {
-		return nil, err
+		klog.Infof("Unable to get PV Data: %s", err.Error())
+	}
+	if pvClaimMapping != nil {
+		err = addPVData(clientset, pvClaimMapping, cloud)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	err = addPVData(clientset, pvClaimMapping, cloud)
@@ -659,6 +665,10 @@ func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cloud costAna
 }
 
 func getNodeCost(clientset kubernetes.Interface, cloud costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.Node, error) {
+	cfg, err := cloud.GetConfig()
+	if err != nil {
+		return nil, err
+	}
 	nodeList, err := clientset.CoreV1().Nodes().List(metav1.ListOptions{})
 	if err != nil {
 		return nil, err
@@ -689,34 +699,68 @@ func getNodeCost(clientset kubernetes.Interface, cloud costAnalyzerCloud.Provide
 
 		if cnode.GPU != "" && cnode.GPUCost == "" { // We couldn't find a gpu cost, so fix cpu and ram, then accordingly
 			klog.V(3).Infof("GPU without cost found for %s, calculating...", cloud.GetKey(nodeLabels).Features())
-			basePrice, err := strconv.ParseFloat(cnode.BaseCPUPrice, 64)
+			defaultCPU, err := strconv.ParseFloat(cfg.CPU, 64)
 			if err != nil {
-				klog.V(3).Infof("Error parsing node base price. Error: " + err.Error())
+				klog.V(3).Infof("Could not parse default cpu price")
 				return nil, err
 			}
-			nodePrice, err := strconv.ParseFloat(cnode.Cost, 64)
+			defaultRAM, err := strconv.ParseFloat(cfg.RAM, 64)
 			if err != nil {
-				klog.V(3).Infof("Error parsing node cost. Error: " + err.Error())
+				klog.V(3).Infof("Could not parse default ram price")
 				return nil, err
 			}
-			totalCPUPrice := basePrice * cpu
-			totalRAMPrice := 0.1 * totalCPUPrice
-			ramPrice := totalRAMPrice / (ram / 1024 / 1024 / 1024)
-			gpuPrice := nodePrice - totalCPUPrice - totalRAMPrice
-			cnode.VCPUCost = fmt.Sprintf("%f", basePrice)
+			defaultGPU, err := strconv.ParseFloat(cfg.RAM, 64)
+			if err != nil {
+				klog.V(3).Infof("Could not parse default gpu price")
+				return nil, err
+			}
+			cpuToRAMRatio := defaultCPU / defaultRAM
+			gpuToRAMRatio := defaultGPU / defaultRAM
+
+			ramGB := ram / 1024 / 1024 / 1024
+			ramMultiple := gpuToRAMRatio + cpu*cpuToRAMRatio + ramGB
+			var nodePrice float64
+			if cnode.Cost != "" {
+				nodePrice, err = strconv.ParseFloat(cnode.Cost, 64)
+				if err != nil {
+					klog.V(3).Infof("Could not parse total node price")
+					return nil, err
+				}
+			} else {
+				nodePrice, err = strconv.ParseFloat(cnode.VCPUCost, 64) // all the price was allocated the the CPU
+				if err != nil {
+					klog.V(3).Infof("Could not parse node vcpu price")
+					return nil, err
+				}
+			}
+
+			ramPrice := (nodePrice / ramMultiple)
+			cpuPrice := ramPrice * cpuToRAMRatio
+			gpuPrice := ramPrice * gpuToRAMRatio
+			cnode.VCPUCost = fmt.Sprintf("%f", cpuPrice)
 			cnode.RAMCost = fmt.Sprintf("%f", ramPrice)
 			cnode.RAMBytes = fmt.Sprintf("%f", ram)
 			cnode.GPUCost = fmt.Sprintf("%f", gpuPrice)
-			klog.V(2).Infof("Computed \"%s\" GPU Cost := %v", name, cnode.GPUCost)
+
 		} else {
 			if cnode.RAMCost == "" { // We couldn't find a ramcost, so fix cpu and allocate ram accordingly
 				klog.V(3).Infof("No RAM cost found for %s, calculating...", cloud.GetKey(nodeLabels).Features())
-				basePrice, err := strconv.ParseFloat(cnode.BaseCPUPrice, 64)
+				defaultCPU, err := strconv.ParseFloat(cfg.CPU, 64)
 				if err != nil {
-					klog.V(3).Infof("Could not find base total node price")
+					klog.V(3).Infof("Could not parse default cpu price")
 					return nil, err
 				}
-				totalCPUPrice := basePrice * cpu
+				defaultRAM, err := strconv.ParseFloat(cfg.RAM, 64)
+				if err != nil {
+					klog.V(3).Infof("Could not parse default ram price")
+					return nil, err
+				}
+				cpuToRAMRatio := defaultCPU / defaultRAM
+
+				ramGB := ram / 1024 / 1024 / 1024
+
+				ramMultiple := cpu*cpuToRAMRatio + ramGB
+
 				var nodePrice float64
 				if cnode.Cost != "" {
 					nodePrice, err = strconv.ParseFloat(cnode.Cost, 64)
@@ -731,11 +775,9 @@ func getNodeCost(clientset kubernetes.Interface, cloud costAnalyzerCloud.Provide
 						return nil, err
 					}
 				}
-				if totalCPUPrice >= nodePrice {
-					totalCPUPrice = 0.9 * nodePrice // just allocate RAM costs to 10% of the node price here to avoid 0 or negative in the numerator
-				}
-				ramPrice := (nodePrice - totalCPUPrice) / (ram / 1024 / 1024 / 1024)
-				cpuPrice := totalCPUPrice / cpu
+
+				ramPrice := (nodePrice / ramMultiple)
+				cpuPrice := ramPrice * cpuToRAMRatio
 
 				cnode.VCPUCost = fmt.Sprintf("%f", cpuPrice)
 				cnode.RAMCost = fmt.Sprintf("%f", ramPrice)
@@ -894,12 +936,14 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 	}
 	pvClaimMapping, err := getPVInfoVectors(resultPVRequests)
 	if err != nil {
-		return nil, err
+		// Just log for compatibility with KSM less than 1.6
+		klog.Infof("Unable to get PV Data: %s", err.Error())
 	}
-
-	err = addPVData(clientset, pvClaimMapping, cloud)
-	if err != nil {
-		return nil, err
+	if pvClaimMapping != nil {
+		err = addPVData(clientset, pvClaimMapping, cloud)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	containerNameCost := make(map[string]*CostData)
@@ -1277,7 +1321,7 @@ func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeClaimData, er
 			strVal := dataPoint[1].(string)
 			v, _ := strconv.ParseFloat(strVal, 64)
 			vectors = append(vectors, &Vector{
-				Timestamp: dataPoint[0].(float64),
+				Timestamp: math.Round(dataPoint[0].(float64)/10) * 10,
 				Value:     v,
 			})
 		}
@@ -1620,7 +1664,7 @@ func getContainerMetricVectors(qr interface{}, normalize bool, normalizationValu
 				v = v / normalizationValue
 			}
 			vectors = append(vectors, &Vector{
-				Timestamp: dataPoint[0].(float64),
+				Timestamp: math.Round(dataPoint[0].(float64)/10) * 10,
 				Value:     v,
 			})
 		}

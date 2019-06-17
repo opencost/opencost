@@ -4,6 +4,7 @@
     "CPU": "0.031611",
     "spotCPU": "0.006655",
     "RAM": "0.004237",
+    "GPU": "0.95",
     "spotRAM": "0.000892",
     "spotLabel": "kops.k8s.io/instancegroup",
     "spotLabelValue": "spotinstance-nodes",

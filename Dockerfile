@@ -27,7 +27,7 @@ RUN set -e ;\
         -ldflags "-X main.gitCommit=${GIT_COMMIT}${GIT_DIRTY}" \
         -o /go/bin/app
 
-FROM alpine:3.4
+FROM alpine:3.9.4
 RUN apk add --update --no-cache ca-certificates
 COPY --from=build-env /go/bin/app /go/bin/app
 ADD ./cloud/default.json /models/default.json
