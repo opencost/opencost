@@ -63,6 +63,7 @@ type DataEnvelope struct {
 func wrapData(data interface{}, err error) []byte {
 	var resp []byte
 	if err != nil {
+		klog.V(1).Infof("Error returned to client: %s", err.Error())
 		resp, _ = json.Marshal(&DataEnvelope{
 			Code:    500,
 			Status:  "error",
