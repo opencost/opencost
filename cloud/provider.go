@@ -46,6 +46,7 @@ type Node struct {
 // The provider will best-effort try to fill out this struct.
 type PV struct {
 	Cost       string            `json:"hourlyCost"`
+	CostPerIO  string            `json:"costPerIOOperation"`
 	Class      string            `json:"storageClass"`
 	Size       string            `json:"size"`
 	Region     string            `json:"region"`
