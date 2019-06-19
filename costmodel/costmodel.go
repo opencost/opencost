@@ -141,7 +141,11 @@ func ValidatePrometheus(cli prometheusClient.Client) error {
 func getUptimeData(qr interface{}) ([]*Vector, error) {
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
-		return nil, fmt.Errorf("Improperly formatted response from prometheus, response has no data field")
+		e, err := wrapPrometheusError(qr)
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf(e)
 	}
 	r, ok := data.(map[string]interface{})["result"]
 	if !ok {
@@ -1466,7 +1470,11 @@ func query(cli prometheusClient.Client, query string) (interface{}, error) {
 func getNormalization(qr interface{}) (float64, error) {
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
-		return 0, fmt.Errorf("Data field not found in normalization response, aborting")
+		e, err := wrapPrometheusError(qr)
+		if err != nil {
+			return 0, err
+		}
+		return 0, fmt.Errorf(e)
 	}
 	results, ok := data.(map[string]interface{})["result"].([]interface{})
 	if !ok {
@@ -1578,7 +1586,11 @@ func newContainerMetricFromPrometheus(metrics map[string]interface{}) (*Containe
 func getContainerMetricVector(qr interface{}, normalize bool, normalizationValue float64) (map[string][]*Vector, error) {
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
-		return nil, fmt.Errorf("Improperly formatted response from prometheus, response has no data field")
+		e, err := wrapPrometheusError(qr)
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf(e)
 	}
 	r, ok := data.(map[string]interface{})["result"]
 	if !ok {
@@ -1624,7 +1636,11 @@ func getContainerMetricVector(qr interface{}, normalize bool, normalizationValue
 func getContainerMetricVectors(qr interface{}, normalize bool, normalizationValue float64) (map[string][]*Vector, error) {
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
-		return nil, fmt.Errorf("Improperly formatted response from prometheus, response has no data field")
+		e, err := wrapPrometheusError(qr)
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf(e)
 	}
 	r, ok := data.(map[string]interface{})["result"]
 	if !ok {
@@ -1671,4 +1687,13 @@ func getContainerMetricVectors(qr interface{}, normalize bool, normalizationValu
 		containerData[containerMetric.Key()] = vectors
 	}
 	return containerData, nil
+}
+
+func wrapPrometheusError(qr interface{}) (string, error) {
+	e, ok := qr.(map[string]interface{})["error"]
+	if !ok {
+		return "", fmt.Errorf("Unexpected response from Prometheus")
+	}
+	eStr, ok := e.(string)
+	return eStr, nil
 }
