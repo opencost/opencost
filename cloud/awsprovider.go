@@ -527,7 +527,6 @@ func (aws *AWS) DownloadPricingData() error {
 					usageTypeNoRegion := usageTypeMatch[len(usageTypeMatch)-1]
 					key := locationToRegion[product.Attributes.Location] + "," + usageTypeNoRegion
 					spotKey := key + ",preemptible"
-					klog.V(1).Infof("KEY %s", key)
 					pv := &PV{
 						Class:  volTypes[usageTypeNoRegion],
 						Region: locationToRegion[product.Attributes.Location],
