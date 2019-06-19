@@ -34,6 +34,8 @@ type Node struct {
 	StorageCost      string `json:"storageHourlyCost"`
 	UsesBaseCPUPrice bool   `json:"usesDefaultPrice"`
 	BaseCPUPrice     string `json:"baseCPUPrice"` // Used to compute an implicit RAM GB/Hr price when RAM pricing is not provided.
+	BaseRAMPrice     string `json:"baseRAMPrice"` // Used to compute an implicit RAM GB/Hr price when RAM pricing is not provided.
+	BaseGPUPrice     string `json:"baseGPUPrice"`
 	UsageType        string `json:"usageType"`
 	GPU              string `json:"gpu"` // GPU represents the number of GPU on the instance
 	GPUName          string `json:"gpuName"`
@@ -161,6 +163,11 @@ type CustomPricing struct {
 	AthenaTable         string `json:"athenaTable"`
 	BillingDataDataset  string `json:"billingDataDataset,omitempty"`
 	CustomPricesEnabled string `json:"customPricesEnabled"`
+	AzureSubscriptionID string `json:"azureSubscriptionID"`
+	AzureClientID       string `json:"azureClientID"`
+	AzureClientSecret   string `json:"azureClientSecret"`
+	AzureTenantID       string `json:"azureTenantID"`
+	CurrencyCode        string `json:"currencyCode"`
 }
 
 func SetCustomPricingField(obj *CustomPricing, name string, value string) error {
@@ -370,11 +377,7 @@ func NewProvider(clientset *kubernetes.Clientset, apiKey string) (Provider, erro
 		}, nil
 	} else if strings.HasPrefix(provider, "azure") {
 		klog.V(2).Info("Found ProviderID starting with \"azure\", using Azure Provider")
-		return &Azure{
-			CustomProvider: &CustomProvider{
-				Clientset: clientset,
-			},
-		}, nil
+		return &Azure{}, nil
 	} else {
 		klog.V(2).Info("Unsupported provider, falling back to default")
 		return &CustomProvider{

@@ -47,6 +47,8 @@ type AWS struct {
 	ValidPricingKeys        map[string]bool
 	Clientset               *kubernetes.Clientset
 	BaseCPUPrice            string
+	BaseRAMPrice            string
+	BaseGPUPrice            string
 	BaseSpotCPUPrice        string
 	BaseSpotRAMPrice        string
 	SpotLabelName           string
@@ -411,6 +413,8 @@ func (aws *AWS) DownloadPricingData() error {
 		klog.V(1).Infof("Error downloading default pricing data: %s", err.Error())
 	}
 	aws.BaseCPUPrice = c.CPU
+	aws.BaseRAMPrice = c.RAM
+	aws.BaseGPUPrice = c.GPU
 	aws.BaseSpotCPUPrice = c.SpotCPU
 	aws.BaseSpotRAMPrice = c.SpotRAM
 	aws.SpotLabelName = c.SpotLabel
@@ -642,6 +646,8 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 				GPU:          terms.GPU,
 				Storage:      terms.Storage,
 				BaseCPUPrice: aws.BaseCPUPrice,
+				BaseRAMPrice: aws.BaseRAMPrice,
+				BaseGPUPrice: aws.BaseGPUPrice,
 				UsageType:    usageType,
 			}, nil
 		}
@@ -653,6 +659,8 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 			RAMCost:      aws.BaseSpotRAMPrice,
 			Storage:      terms.Storage,
 			BaseCPUPrice: aws.BaseCPUPrice,
+			BaseRAMPrice: aws.BaseRAMPrice,
+			BaseGPUPrice: aws.BaseGPUPrice,
 			UsageType:    usageType,
 		}, nil
 	}
@@ -668,6 +676,8 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 		GPU:          terms.GPU,
 		Storage:      terms.Storage,
 		BaseCPUPrice: aws.BaseCPUPrice,
+		BaseRAMPrice: aws.BaseRAMPrice,
+		BaseGPUPrice: aws.BaseGPUPrice,
 		UsageType:    usageType,
 	}, nil
 }
@@ -703,6 +713,8 @@ func (aws *AWS) NodePricing(k Key) (*Node, error) {
 		return &Node{
 			Cost:             aws.BaseCPUPrice,
 			BaseCPUPrice:     aws.BaseCPUPrice,
+			BaseRAMPrice:     aws.BaseRAMPrice,
+			BaseGPUPrice:     aws.BaseGPUPrice,
 			UsageType:        usageType,
 			UsesBaseCPUPrice: true,
 		}, nil

@@ -6,7 +6,7 @@ To see more on the functionality of the full Kubecost product, please visit the 
 Here is a summary of features enabled by this cost model:
 
 - Real-time cost allocation for native Kubernetes concepts: service, deployment, namespace, label, daemonset, pod, container, and more
-- Dynamic asset pricing enabled by integrations with AWS and GCP billing APIs, estimates for Azure 
+- Dynamic asset pricing enabled by integrations with AWS, Azure and GCP billing APIs 
 - Supports on-prem k8s clusters with custom pricing sheets
 - Allocation for in-cluster resources like CPU, GPU, memory, and persistent volumes.
 - Allocation for out-of-cluster resources like RDS instances and S3 buckets with key (AWS and GCP)
@@ -64,15 +64,17 @@ Kubernetes.
 
 ## Questions
 
-***How do you measure the cost of a CPU/RAM for a container, pod, deployment, etc.***
+***How do you measure the cost of a CPU/RAM/GPU for a container, pod, deployment, etc.***
 
-Kubecost models collect pricing data from major cloud providers, e.g. GCP and AWS, to provide the real-time cost of running workloads. Based on this information, each container inherits a cost per CPU hour and cost per RAM gb hour depending on the node where it's scheduled. This means containers of the same size, as measured by requests or usage, could be charged different rates if they are scheduled in different regions, on nodes with different usage types (on-demand vs preemptible), etc.
+The Kubecost model collects pricing data from major cloud providers, e.g. GCP, Azure and AWS, to provide the real-time cost of running workloads. Based on data from these APIs, each container/pod inherits a cost per CPU hour, GPU hour, and cost per RAM Gb hour based on the node where it was running. This means containers of the same size, as measured by the max of requests or usage, could be charged different resource rates if they are scheduled in seperate regions, on nodes with different usage types (on-demand vs preemptible), etc. 
 
-Measuring the cost of a pod, deployment, service, namespace, etc is simply the aggregation of its individual container costs.
+For on-prem clusters, these resource prices can be configred directly with custom pricing sheetsc (more below).
+
+Measuring the CPU/RAM/GPU cost of a deployment, service, namespace, etc is the aggregation of its individual container costs.
 
 ***How do you determine RAM/CPU costs for a node when this data isn’t provided by a cloud provider?***
 
-Kubecost models start by pegging to a default CPU price when this information is not supplied by a cloud provider or when Kubecost is deployed into an on-prem cluster. This CPU price value is configuable and supplied via json. The price of RAM is then determined by the total node cost less the combined price of all CPUs (i.e. # of CPUs attached to the node multiplied by the per CPU price). The value of both are then normalized to ensure RAM + CPU costs are never greater than the total price of the node when a cloud provider is able to provide total node cost.
+The Kubecost model starts by pegging to a default CPU price when this information is not supplied by a cloud provider or when Kubecost is deployed into an on-prem cluster. This CPU price value is configuable and supplied via json. The price of RAM is then determined by the total node cost less the combined price of all CPUs (i.e. # of CPUs attached to the node multiplied by the per CPU price). The value of both are then normalized to ensure RAM + CPU costs are never greater than the total price of the node when a cloud provider is able to provide total node cost.
 
     CPUHourlyCost = CONFIGURABLE_CPU_PRICE (if not directly supplied by Cloud provider)
 
@@ -80,7 +82,7 @@ Kubecost models start by pegging to a default CPU price when this information is
 
 ***How do you allocate a specific amount of RAM/CPU to an individual pod or container?***
 
-Resources are allocated based on the maximum of Request and Usage time-weighted for the measured period. For pods with BestEffort quality of service (i.e. no requests) allocation is done solely on resource usage. 
+Resources are allocated based on the time-weighted maximum of resource Requests and Usage over the measured period. For example, a pod with no usage and 1 CPU requested for 12 hours out of a 24 hour window would be allocated 12 CPU hours. For pods with BestEffort quality of service (i.e. no requests) allocation is done solely on resource usage. 
 
 ***How do I set my AWS spot bids for allocation?***
 
