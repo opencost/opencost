@@ -278,6 +278,14 @@ func (az *Azure) DownloadPricingData() error {
 		}
 		authorizer = a
 	}
+	else {
+		a, err := auth.NewAuthorizerFromEnvironment()
+		if err != nil {
+		    return err
+		}
+		
+		authorizer = a
+	}
 
 	if authorizer == nil {
 		a, err := auth.NewAuthorizerFromEnvironment()
