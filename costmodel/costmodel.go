@@ -221,7 +221,7 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 
 	normalizationValue, err := getNormalization(normalizationResult)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error parsing normalization values: " + err.Error())
 	}
 
 	nodes, err := getNodeCost(clientset, cloud)
@@ -913,12 +913,13 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 
 	normalizationValue, err := getNormalization(normalizationResult)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error parsing normalization values: " + err.Error())
 	}
 
 	nodes, err := getNodeCost(clientset, cloud)
 	if err != nil {
 		klog.V(1).Infof("Warning, no cost model available: " + err.Error())
+		return nil, err
 	}
 
 	podlist, err := clientset.CoreV1().Pods("").List(metav1.ListOptions{})
@@ -1269,7 +1270,27 @@ func getCost(qr interface{}) (map[string][]*Vector, error) {
 
 func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeClaimData, error) {
 	pvmap := make(map[string]*PersistentVolumeClaimData)
-	for _, val := range qr.(map[string]interface{})["data"].(map[string]interface{})["result"].([]interface{}) {
+	data, ok := qr.(map[string]interface{})["data"]
+	if !ok {
+		e, err := wrapPrometheusError(qr)
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf(e)
+	}
+	d, ok := data.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Data field improperly formatted in prometheus repsonse")
+	}
+	result, ok := d["result"]
+	if !ok {
+		return nil, fmt.Errorf("Result field not present in prometheus response")
+	}
+	results, ok := result.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Result field improperly formatted in prometheus response")
+	}
+	for _, val := range results {
 		metricInterface, ok := val.(map[string]interface{})["metric"]
 		if !ok {
 			return nil, fmt.Errorf("Metric field does not exist in data result vector")
@@ -1343,7 +1364,27 @@ func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeClaimData, er
 
 func getPVInfoVector(qr interface{}) (map[string]*PersistentVolumeClaimData, error) {
 	pvmap := make(map[string]*PersistentVolumeClaimData)
-	for _, val := range qr.(map[string]interface{})["data"].(map[string]interface{})["result"].([]interface{}) {
+	data, ok := qr.(map[string]interface{})["data"]
+	if !ok {
+		e, err := wrapPrometheusError(qr)
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf(e)
+	}
+	d, ok := data.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Data field improperly formatted in prometheus repsonse")
+	}
+	result, ok := d["result"]
+	if !ok {
+		return nil, fmt.Errorf("Result field not present in prometheus response")
+	}
+	results, ok := result.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Result field improperly formatted in prometheus response")
+	}
+	for _, val := range results {
 		metricInterface, ok := val.(map[string]interface{})["metric"]
 		if !ok {
 			return nil, fmt.Errorf("Metric field does not exist in data result vector")

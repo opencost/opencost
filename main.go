@@ -146,7 +146,7 @@ func (a *Accesses) ClusterCostsOverTime(w http.ResponseWriter, r *http.Request, 
 
 	start := r.URL.Query().Get("start")
 	end := r.URL.Query().Get("end")
-	window := r.URL.Query().Get("timeWindow")
+	window := r.URL.Query().Get("window")
 	offset := r.URL.Query().Get("offset")
 
 	if offset != "" {
