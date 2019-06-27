@@ -121,54 +121,79 @@ const (
 	normalizationStr = `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[%s] %s))`
 )
 
+type PrometheusMetadata struct {
+	Running            bool `json:"running"`
+	KubecostDataExists bool `json:"kubecostDataExists"`
+}
+
 // ValidatePrometheus tells the model what data prometheus has on it.
-func ValidatePrometheus(cli prometheusClient.Client) error {
+func ValidatePrometheus(cli prometheusClient.Client) (*PrometheusMetadata, error) {
 	data, err := query(cli, "up")
 	if err != nil {
-		return err
+		return &PrometheusMetadata{
+			Running:            false,
+			KubecostDataExists: false,
+		}, err
 	}
-	v, err := getUptimeData(data)
+	v, kcmetrics, err := getUptimeData(data)
 	if err != nil {
-		return err
+		return &PrometheusMetadata{
+			Running:            false,
+			KubecostDataExists: false,
+		}, err
 	}
 	if len(v) > 0 {
-		return nil
+		return &PrometheusMetadata{
+			Running:            true,
+			KubecostDataExists: kcmetrics,
+		}, nil
 	} else {
-		return fmt.Errorf("No running jobs found on Prometheus at %s", cli.URL(epQuery, nil).Path)
+		return &PrometheusMetadata{
+			Running:            false,
+			KubecostDataExists: false,
+		}, fmt.Errorf("No running jobs found on Prometheus at %s", cli.URL(epQuery, nil).Path)
 	}
 }
 
-func getUptimeData(qr interface{}) ([]*Vector, error) {
+func getUptimeData(qr interface{}) ([]*Vector, bool, error) {
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
 		e, err := wrapPrometheusError(qr)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
-		return nil, fmt.Errorf(e)
+		return nil, false, fmt.Errorf(e)
 	}
 	r, ok := data.(map[string]interface{})["result"]
 	if !ok {
-		return nil, fmt.Errorf("Improperly formatted data from prometheus, data has no result field")
+		return nil, false, fmt.Errorf("Improperly formatted data from prometheus, data has no result field")
 	}
 	results, ok := r.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("Improperly formatted results from prometheus, result field is not a slice")
+		return nil, false, fmt.Errorf("Improperly formatted results from prometheus, result field is not a slice")
 	}
 	jobData := []*Vector{}
+	kubecostMetrics := false
 	for _, val := range results {
 		// For now, just do this for validation. TODO: This can be parsed to figure out the exact running jobs.
-		_, ok := val.(map[string]interface{})["metric"].(map[string]interface{})
+		metrics, ok := val.(map[string]interface{})["metric"].(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("Prometheus vector does not have metric labels")
+			return nil, false, fmt.Errorf("Prometheus vector does not have metric labels")
+		}
+		jobname, ok := metrics["job"]
+		if !ok {
+			return nil, false, fmt.Errorf("up query does not have job names")
+		}
+		if jobname == "kubecost" {
+			kubecostMetrics = true
 		}
 		value, ok := val.(map[string]interface{})["value"]
 		if !ok {
-			return nil, fmt.Errorf("Improperly formatted results from prometheus, value is not a field in the vector")
+			return nil, false, fmt.Errorf("Improperly formatted results from prometheus, value is not a field in the vector")
 		}
 		dataPoint, ok := value.([]interface{})
 		if !ok || len(dataPoint) != 2 {
-			return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
+			return nil, false, fmt.Errorf("Improperly formatted datapoint from Prometheus")
 		}
 		strVal := dataPoint[1].(string)
 		v, _ := strconv.ParseFloat(strVal, 64)
@@ -178,7 +203,7 @@ func getUptimeData(qr interface{}) ([]*Vector, error) {
 		}
 		jobData = append(jobData, toReturn)
 	}
-	return jobData, nil
+	return jobData, kubecostMetrics, nil
 }
 
 func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface, cloud costAnalyzerCloud.Provider, window string, offset string) (map[string]*CostData, error) {
