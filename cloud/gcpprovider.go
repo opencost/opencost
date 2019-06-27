@@ -422,11 +422,11 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 						hourlyPrice := nanos * math.Pow10(-9)
 
 						for k, key := range inputKeys {
-							if key.GPUType() == gpuType {
+							if key.GPUType() == gpuType+","+usageType {
 								if region == strings.Split(k, ",")[0] {
 									klog.V(3).Infof("Matched GPU to node in region \"%s\"", region)
-									candidateKeyGPU = key.Features()
-									if pl, ok := gcpPricingList[candidateKeyGPU]; ok {
+									matchedKey := key.Features()
+									if pl, ok := gcpPricingList[matchedKey]; ok {
 										pl.Node.GPUName = gpuType
 										pl.Node.GPUCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 										pl.Node.GPU = "1"
@@ -436,9 +436,9 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 											GPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 											GPU:     "1",
 										}
-										klog.V(3).Infof("Added data for " + candidateKeyGPU)
-										gcpPricingList[candidateKeyGPU] = product
+										gcpPricingList[matchedKey] = product
 									}
+									klog.V(3).Infof("Added data for " + matchedKey)
 								}
 							}
 						}
@@ -464,6 +464,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 								if _, ok := gcpPricingList[candidateKey]; ok {
 									gcpPricingList[candidateKey].Node.RAMCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 								} else {
+									product = &GCPPricing{}
 									product.Node = &Node{
 										RAMCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
@@ -478,6 +479,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 									gcpPricingList[candidateKeyGPU].Node.RAMCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 								} else {
 									klog.V(1).Infof("Adding RAM %f for %s", hourlyPrice, candidateKeyGPU)
+									product = &GCPPricing{}
 									product.Node = &Node{
 										RAMCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
@@ -492,6 +494,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 								if _, ok := gcpPricingList[candidateKey]; ok {
 									gcpPricingList[candidateKey].Node.VCPUCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 								} else {
+									product = &GCPPricing{}
 									product.Node = &Node{
 										VCPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
@@ -504,6 +507,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 								if _, ok := gcpPricingList[candidateKeyGPU]; ok {
 									gcpPricingList[candidateKeyGPU].Node.VCPUCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 								} else {
+									product = &GCPPricing{}
 									product.Node = &Node{
 										VCPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
@@ -698,8 +702,14 @@ func (gcp *gcpKey) ID() string {
 
 func (gcp *gcpKey) GPUType() string {
 	if t, ok := gcp.Labels[GKE_GPU_TAG]; ok {
+		var usageType string
+		if t, ok := gcp.Labels["cloud.google.com/gke-preemptible"]; ok && t == "true" {
+			usageType = "preemptible"
+		} else {
+			usageType = "ondemand"
+		}
 		klog.V(4).Infof("GPU of type: \"%s\" found", t)
-		return t
+		return t + "," + usageType
 	}
 	return ""
 }
