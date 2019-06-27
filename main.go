@@ -260,6 +260,12 @@ func Healthz(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "text/plain")
 }
 
+func (p *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Write(wrapData(costModel.ValidatePrometheus(p.PrometheusClient)))
+}
+
 func (a *Accesses) recordPrices() {
 	go func() {
 		for {
@@ -366,7 +372,7 @@ func main() {
 	}
 	klog.V(1).Info("Success: retrieved a prometheus config file from: " + address)
 
-	err = costModel.ValidatePrometheus(promCli)
+	_, err = costModel.ValidatePrometheus(promCli)
 	if err != nil {
 		klog.Fatalf("Failed to query prometheus at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prometheusTroubleshootingEp)
 	}
@@ -470,6 +476,7 @@ func main() {
 	router.POST("/updateBigQueryInfoConfigs", a.UpdateBigQueryInfoConfigs)
 	router.POST("/updateConfigByKey", a.UpdateConfigByKey)
 	router.GET("/clusterCostsOverTime", a.ClusterCostsOverTime)
+	router.GET("/validatePrometheus", a.GetPrometheusMetadata)
 
 	rootMux := http.NewServeMux()
 	rootMux.Handle("/", router)
