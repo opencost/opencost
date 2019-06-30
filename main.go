@@ -140,6 +140,21 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 	}
 }
 
+func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	window := r.URL.Query().Get("window")
+	offset := r.URL.Query().Get("offset")
+
+	if offset != "" {
+		offset = "offset " + offset
+	}
+
+	data, err := costModel.ClusterCosts(a.PrometheusClient, window, offset)
+	w.Write(wrapData(data, err))
+}
+
 func (a *Accesses) ClusterCostsOverTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -476,6 +491,7 @@ func main() {
 	router.POST("/updateBigQueryInfoConfigs", a.UpdateBigQueryInfoConfigs)
 	router.POST("/updateConfigByKey", a.UpdateConfigByKey)
 	router.GET("/clusterCostsOverTime", a.ClusterCostsOverTime)
+	router.GET("/clusterCosts", a.ClusterCosts)
 	router.GET("/validatePrometheus", a.GetPrometheusMetadata)
 
 	rootMux := http.NewServeMux()
