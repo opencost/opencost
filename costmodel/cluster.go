@@ -54,7 +54,7 @@ func resultToTotals(qr interface{}) ([][]string, error) {
 		return nil, fmt.Errorf("Improperly formatted results from prometheus, result field is not a slice")
 	}
 	if len(results) == 0 {
-		return nil, fmt.Errorf("Not enough data available in the results vector")
+		return nil, fmt.Errorf("Not enough data available in the selected time range")
 	}
 	res, ok := results[0].(map[string]interface{})["values"]
 	totals := [][]string{}
