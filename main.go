@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"net"
 	"net/http"
 	"os"
 	"reflect"
@@ -375,8 +376,18 @@ func main() {
 		klog.Fatalf("No address for prometheus set in $%s. Aborting.", prometheusServerEndpointEnvVar)
 	}
 
+	var LongTimeoutRoundTripper http.RoundTripper = &http.Transport{ // may be necessary for long prometheus queries. TODO: make this configurable
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   120 * time.Second,
+			KeepAlive: 120 * time.Second,
+		}).DialContext,
+		TLSHandshakeTimeout: 10 * time.Second,
+	}
+
 	pc := prometheusClient.Config{
-		Address: address,
+		Address:      address,
+		RoundTripper: LongTimeoutRoundTripper,
 	}
 	promCli, _ := prometheusClient.NewClient(pc)
 
