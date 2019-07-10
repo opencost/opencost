@@ -379,8 +379,8 @@ func main() {
 	var LongTimeoutRoundTripper http.RoundTripper = &http.Transport{ // may be necessary for long prometheus queries. TODO: make this configurable
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
-			Timeout:   300 * time.Second,
-			KeepAlive: 300 * time.Second,
+			Timeout:   120 * time.Second,
+			KeepAlive: 120 * time.Second,
 		}).DialContext,
 		TLSHandshakeTimeout: 10 * time.Second,
 	}
