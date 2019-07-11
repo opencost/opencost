@@ -270,6 +270,19 @@ func (p *Accesses) UpdateConfigByKey(w http.ResponseWriter, r *http.Request, ps 
 	return
 }
 
+func (p *Accesses) ManagementPlatform(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	data, err := p.Cloud.GetManagementPlatform()
+	if err != nil {
+		w.Write(wrapData(data, err))
+		return
+	}
+	w.Write(wrapData(data, err))
+	return
+}
+
 func Healthz(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.WriteHeader(200)
 	w.Header().Set("Content-Length", "0")
@@ -504,6 +517,7 @@ func main() {
 	router.GET("/clusterCostsOverTime", a.ClusterCostsOverTime)
 	router.GET("/clusterCosts", a.ClusterCosts)
 	router.GET("/validatePrometheus", a.GetPrometheusMetadata)
+	router.GET("/managementPlatform", a.ManagementPlatform)
 
 	rootMux := http.NewServeMux()
 	rootMux.Handle("/", router)

@@ -234,6 +234,24 @@ type AwsAthenaInfo struct {
 	AccountID        string `json:"projectID"`
 }
 
+func (aws *AWS) GetManagementPlatform() (string, error) {
+	nodes, err := aws.Clientset.CoreV1().Nodes().List(metav1.ListOptions{})
+	if err != nil {
+		return "", err
+	}
+	if len(nodes.Items) > 0 {
+		n := nodes.Items[0]
+		version := n.Status.NodeInfo.KubeletVersion
+		if strings.Contains(version, "eks") {
+			return "eks", nil
+		}
+		if _, ok := n.Labels["kops.k8s.io/instancegroup"]; ok {
+			return "kops", nil
+		}
+	}
+	return "", nil
+}
+
 func (aws *AWS) GetConfig() (*CustomPricing, error) {
 	c, err := GetDefaultPricingData("aws.json")
 	if err != nil {
