@@ -9,7 +9,7 @@ Here is a summary of features enabled by this cost model:
 - Dynamic asset pricing enabled by integrations with AWS, Azure and GCP billing APIs 
 - Supports on-prem k8s clusters with custom pricing sheets
 - Allocation for in-cluster resources like CPU, GPU, memory, and persistent volumes.
-- Allocation for out-of-cluster resources like RDS instances and S3 buckets with key (AWS and GCP)
+- Allocation for AWS & GCP out-of-cluster resources like RDS instances and S3 buckets with key (optional)
 - Easily export pricing data to Prometheus with /metrics endpoint ([learn more](PROMETHEUS.md))
 - Free and open source distribution (Apache2 license)
 
@@ -23,13 +23,13 @@ Here is a summary of features enabled by this cost model:
 ## Installation
 
 You can run Kubecost models on any Kubernetes 1.8+ cluster in a matter of minutes, if not seconds. 
-The recommended way to install the Kubecost cost model (along with dashboards) is with the [Helm chart install](https://kubecost.com/install) on our website. Note that this Helm installation also contains closed source dashboards today, but they are provided free on small clusters and for evaluation purposes. 
+The recommended way to install the Kubecost cost model (along with dashboards) is with the [install instructions](https://kubecost.com/install) on our website. Note: this installation also contains closed source dashboards today, but they are provided for free on small clusters and for evaluation purposes. 
 
 Compared to building from source, this is faster and includes all necessary dependencies. The Kubecost cost model is also available as a container (kubecost/cost-model) and you can deploy run the Golang code yourself as described in the section below.
 
 ## Deploying as a pod
 
-If you want to just run the cost model (w/o dashboards) directly on your cluster, complete the following steps:
+If you would like to run the cost model (w/o dashboards mentioned above) directly on your cluster, complete the following steps:
 
 1. Set [this environment variable](https://github.com/kubecost/cost-model/blob/master/kubernetes/deployment.yaml#L30) to the address of your prometheus server
 2. `kubectl create namespace cost-model`
