@@ -86,6 +86,7 @@ type Provider interface {
 	GetPVKey(*v1.PersistentVolume, map[string]string) PVKey
 	UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error)
 	GetConfig() (*CustomPricing, error)
+	GetManagementPlatform() (string, error)
 
 	ExternalAllocations(string, string, string) ([]*OutOfClusterAllocation, error)
 }
@@ -168,6 +169,7 @@ type CustomPricing struct {
 	AzureClientSecret   string `json:"azureClientSecret"`
 	AzureTenantID       string `json:"azureTenantID"`
 	CurrencyCode        string `json:"currencyCode"`
+	Discount            string `json:"discount"`
 }
 
 func SetCustomPricingField(obj *CustomPricing, name string, value string) error {
@@ -207,6 +209,10 @@ type CustomProvider struct {
 
 func (*CustomProvider) GetConfig() (*CustomPricing, error) {
 	return GetDefaultPricingData("default.json")
+}
+
+func (*CustomProvider) GetManagementPlatform() (string, error) {
+	return "", nil
 }
 
 func (*CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
@@ -377,7 +383,9 @@ func NewProvider(clientset *kubernetes.Clientset, apiKey string) (Provider, erro
 		}, nil
 	} else if strings.HasPrefix(provider, "azure") {
 		klog.V(2).Info("Found ProviderID starting with \"azure\", using Azure Provider")
-		return &Azure{}, nil
+		return &Azure{
+			Clientset: clientset,
+		}, nil
 	} else {
 		klog.V(2).Info("Unsupported provider, falling back to default")
 		return &CustomProvider{

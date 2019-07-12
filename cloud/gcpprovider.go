@@ -93,6 +93,21 @@ type BigQueryConfig struct {
 	Key                map[string]string `json:"key"`
 }
 
+func (gcp *GCP) GetManagementPlatform() (string, error) {
+	nodes, err := gcp.Clientset.CoreV1().Nodes().List(metav1.ListOptions{})
+	if err != nil {
+		return "", err
+	}
+	if len(nodes.Items) > 0 {
+		n := nodes.Items[0]
+		version := n.Status.NodeInfo.KubeletVersion
+		if strings.Contains(version, "gke") {
+			return "gke", nil
+		}
+	}
+	return "", nil
+}
+
 func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
 	c, err := GetDefaultPricingData("gcp.json")
 	if err != nil {
