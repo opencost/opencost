@@ -474,7 +474,7 @@ func (aws *AWS) DownloadPricingData() error {
 	for _, pv := range pvList.Items {
 		params, ok := storageClassMap[pv.Spec.StorageClassName]
 		if !ok {
-			klog.Infof("Unable to find params for storageClassName %s", pv.Name)
+			klog.Infof("Unable to find params for storageClassName %s, falling back to default pricing", pv.Name)
 			continue
 		}
 		key := aws.GetPVKey(&pv, params)
@@ -630,7 +630,7 @@ func (aws *AWS) DownloadPricingData() error {
 
 	sp, err := parseSpotData(aws.SpotDataBucket, aws.SpotDataPrefix, aws.ProjectID, aws.SpotDataRegion, aws.ServiceKeyName, aws.ServiceKeySecret)
 	if err != nil {
-		klog.V(1).Infof("Error downloading spot data %s", err.Error())
+		klog.V(1).Infof("Skipping AWS spot data download: %s", err.Error())
 	} else {
 		aws.SpotPricingByInstanceID = sp
 	}
