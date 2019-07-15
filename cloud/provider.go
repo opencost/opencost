@@ -123,6 +123,7 @@ func GetDefaultPricingData(fname string) (*CustomPricing, error) {
 			RAM:                 "0.004237",
 			SpotRAM:             "0.000892",
 			GPU:                 "0.95",
+			Storage:             "0.00005479452",
 			CustomPricesEnabled: "false",
 		}
 		cj, err := json.Marshal(c)
@@ -150,6 +151,7 @@ type CustomPricing struct {
 	RAM                 string `json:"RAM"`
 	SpotRAM             string `json:"spotRAM"`
 	GPU                 string `json:"GPU"`
+	Storage             string `json:"storage"`
 	SpotLabel           string `json:"spotLabel,omitempty"`
 	SpotLabelValue      string `json:"spotLabelValue,omitempty"`
 	ServiceKeyName      string `json:"awsServiceKeyName,omitempty"`

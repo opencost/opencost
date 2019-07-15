@@ -681,16 +681,18 @@ func addPVData(clientset kubernetes.Interface, pvClaimMapping map[string]*Persis
 }
 
 func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cloud costAnalyzerCloud.Provider) error {
+	cfg, err := cloud.GetConfig()
 	key := cloud.GetPVKey(kpv, pv.Parameters)
 	pvWithCost, err := cloud.PVPricing(key)
 	if err != nil {
 		return err
 	}
-	if pvWithCost == nil {
-		return nil
+	if pvWithCost == nil || pvWithCost.Cost == "" {
+		pv.Cost = cfg.Storage
+		return nil // set default cost
 	}
 	pv.Cost = pvWithCost.Cost
-	return err
+	return nil
 }
 
 func getNodeCost(clientset kubernetes.Interface, cloud costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.Node, error) {
