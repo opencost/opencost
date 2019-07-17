@@ -24,6 +24,7 @@ require (
 	golang.org/x/crypto v0.0.0-20190418165655-df01cb2cc480 // indirect
 	golang.org/x/oauth2 v0.0.0-20190402181905-9f3314589c9a
 	google.golang.org/api v0.4.0
+	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.0.0-20190404065945-709cf190c7b7
 	k8s.io/apimachinery v0.0.0-20190404065847-4a4abcd45006
 	k8s.io/client-go v0.0.0-20190404172613-2e1a3ed22ac5
