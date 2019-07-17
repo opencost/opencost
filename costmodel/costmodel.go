@@ -39,26 +39,26 @@ const (
 )
 
 type CostData struct {
-	Name            string                       `json:"name"`
-	PodName         string                       `json:"podName"`
-	NodeName        string                       `json:"nodeName"`
-	NodeData        *costAnalyzerCloud.Node      `json:"node"`
-	Namespace       string                       `json:"namespace"`
-	Deployments     []string                     `json:"deployments"`
-	Services        []string                     `json:"services"`
-	Daemonsets      []string                     `json:"daemonsets"`
-	Statefulsets    []string                     `json:"statefulsets"`
-	Jobs            []string                     `json:"jobs"`
-	RAMReq          []*Vector                    `json:"ramreq"`
-	RAMUsed         []*Vector                    `json:"ramused"`
-	CPUReq          []*Vector                    `json:"cpureq"`
-	CPUUsed         []*Vector                    `json:"cpuused"`
-	RAMAllocation   []*Vector                    `json:"ramallocated"`
-	CPUAllocation   []*Vector                    `json:"cpuallocated"`
-	GPUReq          []*Vector                    `json:"gpureq"`
-	PVCData         []*PersistentVolumeClaimData `json:"pvcData"`
-	Labels          map[string]string            `json:"labels"`
-	NamespaceLabels map[string]string            `json:"namespaceLabels"`
+	Name            string                       `json:"name,omitempty"`
+	PodName         string                       `json:"podName,omitempty"`
+	NodeName        string                       `json:"nodeName,omitempty"`
+	NodeData        *costAnalyzerCloud.Node      `json:"node,omitempty"`
+	Namespace       string                       `json:"namespace,omitempty"`
+	Deployments     []string                     `json:"deployments,omitempty"`
+	Services        []string                     `json:"services,omitempty"`
+	Daemonsets      []string                     `json:"daemonsets,omitempty"`
+	Statefulsets    []string                     `json:"statefulsets,omitempty"`
+	Jobs            []string                     `json:"jobs,omitempty"`
+	RAMReq          []*Vector                    `json:"ramreq,omitempty"`
+	RAMUsed         []*Vector                    `json:"ramused,omitempty"`
+	CPUReq          []*Vector                    `json:"cpureq,omitempty"`
+	CPUUsed         []*Vector                    `json:"cpuused,omitempty"`
+	RAMAllocation   []*Vector                    `json:"ramallocated,omitempty"`
+	CPUAllocation   []*Vector                    `json:"cpuallocated,omitempty"`
+	GPUReq          []*Vector                    `json:"gpureq,omitempty"`
+	PVCData         []*PersistentVolumeClaimData `json:"pvcData,omitempty"`
+	Labels          map[string]string            `json:"labels,omitempty"`
+	NamespaceLabels map[string]string            `json:"namespaceLabels,omitempty"`
 }
 
 type Vector struct {
@@ -206,7 +206,7 @@ func getUptimeData(qr interface{}) ([]*Vector, bool, error) {
 	return jobData, kubecostMetrics, nil
 }
 
-func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface, cloud costAnalyzerCloud.Provider, window string, offset string) (map[string]*CostData, error) {
+func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface, cloud costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, window, offset, window, offset)
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, window, offset, window, offset)
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, window, offset, window, offset)
@@ -445,9 +445,12 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 				}
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
-				containerNameCost[newKey] = costs
+				if filterNamespace == "" {
+					containerNameCost[newKey] = costs
+				} else if costs.Namespace == filterNamespace {
+					containerNameCost[newKey] = costs
+				}
 			}
-
 		} else {
 			// The container has been deleted. Not all information is sent to prometheus via ksm, so fill out what we can without k8s api
 			klog.V(4).Info("The container " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
@@ -505,7 +508,11 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 			}
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
-			containerNameCost[key] = costs
+			if filterNamespace == "" {
+				containerNameCost[key] = costs
+			} else if costs.Namespace == filterNamespace {
+				containerNameCost[key] = costs
+			}
 		}
 	}
 	err = findDeletedNodeInfo(cli, missingNodes, window)
@@ -885,7 +892,7 @@ func getPodDeployments(clientset kubernetes.Interface, podList *v1.PodList) (map
 }
 
 func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Interface, cloud costAnalyzerCloud.Provider,
-	startString, endString, windowString string) (map[string]*CostData, error) {
+	startString, endString, windowString string, filterNamespace string) (map[string]*CostData, error) {
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, windowString, "", windowString, "")
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, windowString, "", windowString, "")
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, windowString, "", windowString, "")
@@ -1135,7 +1142,11 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 				}
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
-				containerNameCost[newKey] = costs
+				if filterNamespace == "" {
+					containerNameCost[newKey] = costs
+				} else if costs.Namespace == filterNamespace {
+					containerNameCost[newKey] = costs
+				}
 			}
 
 		} else {
@@ -1192,7 +1203,11 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 			}
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
-			containerNameCost[key] = costs
+			if filterNamespace == "" {
+				containerNameCost[key] = costs
+			} else if costs.Namespace == filterNamespace {
+				containerNameCost[key] = costs
+			}
 		}
 	}
 

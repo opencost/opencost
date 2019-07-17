@@ -127,12 +127,13 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 	window := r.URL.Query().Get("timeWindow")
 	offset := r.URL.Query().Get("offset")
 	fields := r.URL.Query().Get("filterFields")
+	namespace := r.URL.Query().Get("namespace")
 
 	if offset != "" {
 		offset = "offset " + offset
 	}
 
-	data, err := costModel.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, window, offset)
+	data, err := costModel.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, window, offset, namespace)
 	if fields != "" {
 		filteredData := filterFields(fields, data)
 		w.Write(wrapData(filteredData, err))
@@ -181,8 +182,9 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	end := r.URL.Query().Get("end")
 	window := r.URL.Query().Get("window")
 	fields := r.URL.Query().Get("filterFields")
+	namespace := r.URL.Query().Get("namespace")
 
-	data, err := costModel.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, window)
+	data, err := costModel.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, window, namespace)
 	if fields != "" {
 		filteredData := filterFields(fields, data)
 		w.Write(wrapData(filteredData, err))
@@ -299,7 +301,7 @@ func (a *Accesses) recordPrices() {
 	go func() {
 		for {
 			klog.V(3).Info("Recording prices...")
-			data, err := costModel.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "2m", "")
+			data, err := costModel.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "2m", "", "")
 			if err != nil {
 				klog.V(1).Info("Error in price recording: " + err.Error())
 				// zero the for loop so the time.Sleep will still work
