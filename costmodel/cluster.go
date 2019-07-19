@@ -25,14 +25,14 @@ const (
 		avg(avg_over_time(pv_hourly_cost[%s] %s)) by (persistentvolume) * 730 
 		* avg(avg_over_time(kube_persistentvolume_capacity_bytes[%s] %s)) by (persistentvolume) / 1024 / 1024 / 1024
 	  ) +
-	  (sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance) / 1024 / 1024 / 1024) * %f`
+	  sum(avg(container_fs_limit_bytes{device!="tmpfs", id="/"} %s) by (instance) / 1024 / 1024 / 1024) * %f`
 
 	queryTotal = `sum(avg(node_total_hourly_cost) by (node)) * 730 +
 	  sum(
 		avg(avg_over_time(pv_hourly_cost[1h])) by (persistentvolume) * 730 
 		* avg(avg_over_time(kube_persistentvolume_capacity_bytes[1h])) by (persistentvolume) / 1024 / 1024 / 1024
 	  ) +
-	  (sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance) / 1024 / 1024 / 1024) * %f`
+	  sum(avg(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance) / 1024 / 1024 / 1024) * %f`
 )
 
 type Totals struct {
