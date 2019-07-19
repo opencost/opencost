@@ -5,7 +5,9 @@ import (
 	"log"
 	"time"
 
+	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
 	prometheusClient "github.com/prometheus/client_golang/api"
+
 	"k8s.io/klog"
 )
 
@@ -23,14 +25,14 @@ const (
 		avg(avg_over_time(pv_hourly_cost[%s] %s)) by (persistentvolume) * 730 
 		* avg(avg_over_time(kube_persistentvolume_capacity_bytes[%s] %s)) by (persistentvolume) / 1024 / 1024 / 1024
 	  ) +
-	  sum(avg(container_fs_limit_bytes{device!="tmpfs", id="/"} %s) by (instance) / 1024 / 1024 / 1024) * 0.04`
+	  (sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance) / 1024 / 1024 / 1024) * %f`
 
 	queryTotal = `sum(avg(node_total_hourly_cost) by (node)) * 730 +
 	  sum(
 		avg(avg_over_time(pv_hourly_cost[1h])) by (persistentvolume) * 730 
 		* avg(avg_over_time(kube_persistentvolume_capacity_bytes[1h])) by (persistentvolume) / 1024 / 1024 / 1024
 	  ) +
-	  sum(avg(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance) / 1024 / 1024 / 1024) * 0.04`
+	  (sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance) / 1024 / 1024 / 1024) * %f`
 )
 
 type Totals struct {
@@ -110,12 +112,17 @@ func resultToTotal(qr interface{}) ([][]string, error) {
 }
 
 // ClusterCostsOverTime gives the current full cluster costs averaged over a window of time.
-func ClusterCosts(cli prometheusClient.Client, windowString, offset string) (*Totals, error) {
+func ClusterCosts(cli prometheusClient.Client, cloud costAnalyzerCloud.Provider, windowString, offset string) (*Totals, error) {
+
+	localStorageCost, err := cloud.GetLocalStorageCost()
+	if err != nil {
+		return nil, err
+	}
 
 	qCores := fmt.Sprintf(queryClusterCores, offset, offset, offset)
 	qRAM := fmt.Sprintf(queryClusterRAM, offset, offset)
-	qStorage := fmt.Sprintf(queryStorage, windowString, offset, windowString, offset, offset)
-	qTotal := fmt.Sprintf(queryTotal)
+	qStorage := fmt.Sprintf(queryStorage, windowString, offset, windowString, offset, offset, localStorageCost)
+	qTotal := fmt.Sprintf(queryTotal, localStorageCost)
 	log.Printf("%s", qTotal)
 
 	resultClusterCores, err := query(cli, qCores)
@@ -167,7 +174,12 @@ func ClusterCosts(cli prometheusClient.Client, windowString, offset string) (*To
 }
 
 // ClusterCostsOverTime gives the full cluster costs over time
-func ClusterCostsOverTime(cli prometheusClient.Client, startString, endString, windowString, offset string) (*Totals, error) {
+func ClusterCostsOverTime(cli prometheusClient.Client, cloud costAnalyzerCloud.Provider, startString, endString, windowString, offset string) (*Totals, error) {
+
+	localStorageCost, err := cloud.GetLocalStorageCost()
+	if err != nil {
+		return nil, err
+	}
 
 	layout := "2006-01-02T15:04:05.000Z"
 
@@ -189,8 +201,8 @@ func ClusterCostsOverTime(cli prometheusClient.Client, startString, endString, w
 
 	qCores := fmt.Sprintf(queryClusterCores, offset, offset, offset)
 	qRAM := fmt.Sprintf(queryClusterRAM, offset, offset)
-	qStorage := fmt.Sprintf(queryStorage, windowString, offset, windowString, offset, offset)
-	qTotal := fmt.Sprintf(queryTotal)
+	qStorage := fmt.Sprintf(queryStorage, windowString, offset, windowString, offset, offset, localStorageCost)
+	qTotal := fmt.Sprintf(queryTotal, localStorageCost)
 	log.Printf("%s", qTotal)
 
 	resultClusterCores, err := queryRange(cli, qCores, start, end, window)

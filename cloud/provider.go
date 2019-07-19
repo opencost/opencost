@@ -87,6 +87,7 @@ type Provider interface {
 	UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error)
 	GetConfig() (*CustomPricing, error)
 	GetManagementPlatform() (string, error)
+	GetLocalStorageCost() (float64, error)
 
 	ExternalAllocations(string, string, string) ([]*OutOfClusterAllocation, error)
 }
@@ -207,6 +208,10 @@ type CustomProvider struct {
 	SpotLabel               string
 	SpotLabelValue          string
 	DownloadPricingDataLock sync.RWMutex
+}
+
+func (*CustomProvider) GetLocalStorageCost() (float64, error) {
+	return 0.04, nil
 }
 
 func (*CustomProvider) GetConfig() (*CustomPricing, error) {

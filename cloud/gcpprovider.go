@@ -79,8 +79,15 @@ func gcpAllocationToOutOfClusterAllocation(gcpAlloc gcpAllocation) *OutOfCluster
 	}
 }
 
+func (gcp *GCP) GetLocalStorageCost() (float64, error) {
+	return 0.04, nil
+}
+
 func (gcp *GCP) GetConfig() (*CustomPricing, error) {
 	c, err := GetDefaultPricingData("gcp.json")
+	if c.Discount == "" {
+		c.Discount = "30%"
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -356,7 +363,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 				usageType := strings.ToLower(product.Category.UsageType)
 				instanceType := strings.ToLower(product.Category.ResourceGroup)
 
-				if instanceType == "ssd" {
+				if instanceType == "ssd" && !strings.Contains(product.Description, "Regional") { // TODO: support regional
 					lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
 					var nanos float64
 					if len(product.PricingInfo) > 0 {
@@ -378,7 +385,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 						}
 					}
 					continue
-				} else if instanceType == "pdstandard" {
+				} else if instanceType == "pdstandard" && !strings.Contains(product.Description, "Regional") { // TODO: support regional
 					lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
 					var nanos float64
 					if len(product.PricingInfo) > 0 {
@@ -702,6 +709,7 @@ func (gcp *GCP) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string) 
 }
 
 func (key *pvKey) Features() string {
+	// TODO: regional cluster pricing.
 	storageClass := key.StorageClassParameters["type"]
 	if storageClass == "pd-ssd" {
 		storageClass = "ssd"

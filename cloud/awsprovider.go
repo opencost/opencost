@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -205,6 +204,10 @@ var regionToBillingRegionCode = map[string]string{
 	"us-gov-west-1":  "UGW1",
 }
 
+func (aws *AWS) GetLocalStorageCost() (float64, error) {
+	return 0, nil
+}
+
 // KubeAttrConversion maps the k8s labels for region to an aws region
 func (aws *AWS) KubeAttrConversion(location, instanceType, operatingSystem string) string {
 	operatingSystem = strings.ToLower(operatingSystem)
@@ -254,6 +257,9 @@ func (aws *AWS) GetManagementPlatform() (string, error) {
 
 func (aws *AWS) GetConfig() (*CustomPricing, error) {
 	c, err := GetDefaultPricingData("aws.json")
+	if c.Discount == "" {
+		c.Discount = "0%"
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -609,7 +615,7 @@ func (aws *AWS) DownloadPricingData() error {
 								// If volume, we need to get hourly cost and add it to the PV object
 								cost := offerTerm.PriceDimensions[sku.(string)+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
 								costFloat, _ := strconv.ParseFloat(cost, 64)
-								hourlyPrice := (costFloat * math.Pow10(-9)) / 730
+								hourlyPrice := costFloat / 730
 
 								aws.Pricing[key].PV.Cost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 							}
