@@ -153,7 +153,7 @@ func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httpr
 		offset = "offset " + offset
 	}
 
-	data, err := costModel.ClusterCosts(a.PrometheusClient, window, offset)
+	data, err := costModel.ClusterCosts(a.PrometheusClient, a.Cloud, window, offset)
 	w.Write(wrapData(data, err))
 }
 
@@ -170,7 +170,7 @@ func (a *Accesses) ClusterCostsOverTime(w http.ResponseWriter, r *http.Request, 
 		offset = "offset " + offset
 	}
 
-	data, err := costModel.ClusterCostsOverTime(a.PrometheusClient, start, end, window, offset)
+	data, err := costModel.ClusterCostsOverTime(a.PrometheusClient, a.Cloud, start, end, window, offset)
 	w.Write(wrapData(data, err))
 }
 

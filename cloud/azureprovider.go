@@ -512,3 +512,7 @@ func (az *Azure) ExternalAllocations(string, string, string) ([]*OutOfClusterAll
 func (az *Azure) PVPricing(PVKey) (*PV, error) {
 	return nil, nil
 }
+
+func (az *Azure) GetLocalStorageCost() (float64, error) {
+	return 0.04, nil
+}
