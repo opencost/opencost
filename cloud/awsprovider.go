@@ -204,8 +204,8 @@ var regionToBillingRegionCode = map[string]string{
 	"us-gov-west-1":  "UGW1",
 }
 
-func (aws *AWS) GetLocalStorageCost() (float64, error) {
-	return 0, nil
+func (aws *AWS) GetLocalStorageQuery() (string, error) {
+	return "", nil
 }
 
 // KubeAttrConversion maps the k8s labels for region to an aws region
@@ -744,15 +744,15 @@ func (aws *AWS) NodePricing(k Key) (*Node, error) {
 	}
 }
 
-// ClusterName returns an object that represents the cluster. TODO: actually return the name of the cluster. Blocked on cluster federation.
-func (awsProvider *AWS) ClusterName() ([]byte, error) {
+// ClusterInfo returns an object that represents the cluster. TODO: actually return the name of the cluster. Blocked on cluster federation.
+func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 	defaultClusterName := "AWS Cluster #1"
-	makeStructure := func(clusterName string) ([]byte, error) {
+	makeStructure := func(clusterName string) (map[string]string, error) {
 		klog.V(2).Infof("Returning \"%s\" as ClusterName", clusterName)
 		m := make(map[string]string)
 		m["name"] = clusterName
 		m["provider"] = "AWS"
-		return json.Marshal(m)
+		return m, nil
 	}
 
 	maybeClusterId := os.Getenv(ClusterIdEnvVar)

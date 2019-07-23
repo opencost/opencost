@@ -43,8 +43,8 @@ var (
 		"za": "southafrica",
 	}
 
-	// mtBasic, _     = regexp.Compile("^BASIC.A\\d+[_Promo]*$")
-	// mtStandardA, _ = regexp.Compile("^A\\d+[_Promo]*$")
+	mtBasic, _     = regexp.Compile("^BASIC.A\\d+[_Promo]*$")
+	mtStandardA, _ = regexp.Compile("^A\\d+[_Promo]*$")
 	mtStandardB, _ = regexp.Compile(`^Standard_B\d+m?[_v\d]*[_Promo]*$`)
 	mtStandardD, _ = regexp.Compile(`^Standard_D\d[_v\d]*[_Promo]*$`)
 	mtStandardE, _ = regexp.Compile(`^Standard_E\d+i?[_v\d]*[_Promo]*$`)
@@ -342,68 +342,70 @@ func (az *Azure) DownloadPricingData() error {
 	baseCPUPrice := c.CPU
 
 	for _, v := range *result.Meters {
-		region, err := toRegionID(*v.MeterRegion, regions)
-		if err != nil {
-			continue
-		}
+		if !strings.Contains(*v.MeterSubCategory, "Windows") {
 
-		meterName := *v.MeterName
-		sc := *v.MeterSubCategory
-
-		// not available now
-		if strings.Contains(sc, "Promo") {
-			continue
-		}
-
-		usageType := ""
-		if !strings.Contains(meterName, "Low Priority") {
-			usageType = "ondemand"
-		} else {
-			usageType = "preemptible"
-		}
-
-		var instanceTypes []string
-		name := strings.TrimSuffix(meterName, " Low Priority")
-		instanceType := strings.Split(name, "/")
-		for _, it := range instanceType {
-			instanceTypes = append(instanceTypes, strings.Replace(it, " ", "_", 1))
-		}
-
-		instanceTypes = transformMachineType(sc, instanceTypes)
-		if strings.Contains(name, "Expired") {
-			instanceTypes = []string{}
-		}
-
-		var priceInUsd float64
-
-		if len(v.MeterRates) < 1 {
-			klog.V(1).Infof("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *v.MeterSubCategory, "region": region})
-			continue
-		}
-		for _, rate := range v.MeterRates {
-			priceInUsd += *rate
-		}
-		priceStr := fmt.Sprintf("%f", priceInUsd)
-		for _, instanceType := range instanceTypes {
-			klog.V(1).Infof("region: %s \n", region)
-			key := fmt.Sprintf("%s,%s,%s", region, instanceType, usageType)
-			allPrices[key] = &Node{
-				Cost:         priceStr,
-				BaseCPUPrice: baseCPUPrice,
+			region, err := toRegionID(*v.MeterRegion, regions)
+			if err != nil {
+				continue
 			}
 
-			mts := getMachineTypeVariants(instanceType)
-			for _, mt := range mts {
-				key := fmt.Sprintf("%s,%s,%s", region, mt, usageType)
+			meterName := *v.MeterName
+			sc := *v.MeterSubCategory
+
+			// not available now
+			if strings.Contains(sc, "Promo") {
+				continue
+			}
+
+			usageType := ""
+			if !strings.Contains(meterName, "Low Priority") {
+				usageType = "ondemand"
+			} else {
+				usageType = "preemptible"
+			}
+
+			var instanceTypes []string
+			name := strings.TrimSuffix(meterName, " Low Priority")
+			instanceType := strings.Split(name, "/")
+			for _, it := range instanceType {
+				instanceTypes = append(instanceTypes, strings.Replace(it, " ", "_", 1))
+			}
+
+			instanceTypes = transformMachineType(sc, instanceTypes)
+			if strings.Contains(name, "Expired") {
+				instanceTypes = []string{}
+			}
+
+			var priceInUsd float64
+
+			if len(v.MeterRates) < 1 {
+				klog.V(1).Infof("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *v.MeterSubCategory, "region": region})
+				continue
+			}
+			for _, rate := range v.MeterRates {
+				priceInUsd += *rate
+			}
+			priceStr := fmt.Sprintf("%f", priceInUsd)
+			for _, instanceType := range instanceTypes {
+				klog.V(1).Infof("region: %s \n", region)
+				key := fmt.Sprintf("%s,%s,%s", region, instanceType, usageType)
 				allPrices[key] = &Node{
 					Cost:         priceStr,
 					BaseCPUPrice: baseCPUPrice,
 				}
-			}
 
+				mts := getMachineTypeVariants(instanceType)
+				for _, mt := range mts {
+					key := fmt.Sprintf("%s,%s,%s", region, mt, usageType)
+					allPrices[key] = &Node{
+						Cost:         priceStr,
+						BaseCPUPrice: baseCPUPrice,
+					}
+				}
+
+			}
 		}
 	}
-
 	az.allPrices = allPrices
 	return nil
 }
@@ -455,8 +457,12 @@ func (*Azure) GetDisks() ([]byte, error) {
 	return nil, nil
 }
 
-func (az *Azure) ClusterName() ([]byte, error) {
-	return nil, nil
+func (az *Azure) ClusterInfo() (map[string]string, error) {
+	m := make(map[string]string)
+	m["name"] = "Azure Cluster #1"
+	m["provider"] = "azure"
+	return m, nil
+
 }
 
 func (az *Azure) AddServiceKey(url url.Values) error {
@@ -513,6 +519,6 @@ func (az *Azure) PVPricing(PVKey) (*PV, error) {
 	return nil, nil
 }
 
-func (az *Azure) GetLocalStorageCost() (float64, error) {
-	return 0.04, nil
+func (az *Azure) GetLocalStorageQuery() (string, error) {
+	return "", nil
 }
