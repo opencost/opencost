@@ -79,8 +79,9 @@ func gcpAllocationToOutOfClusterAllocation(gcpAlloc gcpAllocation) *OutOfCluster
 	}
 }
 
-func (gcp *GCP) GetLocalStorageCost() (float64, error) {
-	return 0.04, nil
+func (gcp *GCP) GetLocalStorageQuery() (string, error) {
+	localStorageCost := 0.04 // TODO: Set to the price for the appropriate storage class. It's not trivial to determine the local storage disk type
+	return fmt.Sprintf(`sum(sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance) / 1024 / 1024 / 1024) * %f`, localStorageCost), nil
 }
 
 func (gcp *GCP) GetConfig() (*CustomPricing, error) {
@@ -233,7 +234,7 @@ func (gcp *GCP) QuerySQL(query string) ([]*OutOfClusterAllocation, error) {
 }
 
 // ClusterName returns the name of a GKE cluster, as provided by metadata.
-func (*GCP) ClusterName() ([]byte, error) {
+func (*GCP) ClusterInfo() (map[string]string, error) {
 	metadataClient := metadata.NewClient(&http.Client{Transport: userAgentTransport{
 		userAgent: "kubecost",
 		base:      http.DefaultTransport,
@@ -247,7 +248,7 @@ func (*GCP) ClusterName() ([]byte, error) {
 	m := make(map[string]string)
 	m["name"] = attribute
 	m["provider"] = "GCP"
-	return json.Marshal(m)
+	return m, nil
 }
 
 // AddServiceKey adds the service key as required for GetDisks
@@ -412,13 +413,14 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 					instanceType = "custom"
 				}
 
-				var partialCPU float64
-				if strings.ToLower(instanceType) == "f1micro" {
-					partialCPU = 0.2
-				} else if strings.ToLower(instanceType) == "g1small" {
-					partialCPU = 0.5
-				}
-
+				/*
+					var partialCPU float64
+					if strings.ToLower(instanceType) == "f1micro" {
+						partialCPU = 0.2
+					} else if strings.ToLower(instanceType) == "g1small" {
+						partialCPU = 0.5
+					}
+				*/
 				var gpuType string
 				provIdRx := regexp.MustCompile("(Nvidia Tesla [^ ]+) ")
 				for matchnum, group := range provIdRx.FindStringSubmatch(product.Description) {
@@ -490,9 +492,11 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 									product.Node = &Node{
 										RAMCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
-									if partialCPU != 0 {
-										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
-									}
+									/*
+										if partialCPU != 0 {
+											product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+										}
+									*/
 									product.Node.UsageType = usageType
 									gcpPricingList[candidateKey] = product
 								}
@@ -505,9 +509,11 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 									product.Node = &Node{
 										RAMCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
-									if partialCPU != 0 {
-										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
-									}
+									/*
+										if partialCPU != 0 {
+											product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+										}
+									*/
 									product.Node.UsageType = usageType
 									gcpPricingList[candidateKeyGPU] = product
 								}
@@ -520,9 +526,11 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 									product.Node = &Node{
 										VCPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
-									if partialCPU != 0 {
-										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
-									}
+									/*
+										if partialCPU != 0 {
+											product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+										}
+									*/
 									product.Node.UsageType = usageType
 									gcpPricingList[candidateKey] = product
 								}
@@ -533,9 +541,11 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 									product.Node = &Node{
 										VCPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
-									if partialCPU != 0 {
-										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
-									}
+									/*
+										if partialCPU != 0 {
+											product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+										}
+									*/
 									product.Node.UsageType = usageType
 									gcpPricingList[candidateKeyGPU] = product
 								}

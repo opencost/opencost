@@ -75,7 +75,7 @@ type OutOfClusterAllocation struct {
 
 // Provider represents a k8s provider.
 type Provider interface {
-	ClusterName() ([]byte, error)
+	ClusterInfo() (map[string]string, error)
 	AddServiceKey(url.Values) error
 	GetDisks() ([]byte, error)
 	NodePricing(Key) (*Node, error)
@@ -87,7 +87,7 @@ type Provider interface {
 	UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error)
 	GetConfig() (*CustomPricing, error)
 	GetManagementPlatform() (string, error)
-	GetLocalStorageCost() (float64, error)
+	GetLocalStorageQuery() (string, error)
 
 	ExternalAllocations(string, string, string) ([]*OutOfClusterAllocation, error)
 }
@@ -210,8 +210,8 @@ type CustomProvider struct {
 	DownloadPricingDataLock sync.RWMutex
 }
 
-func (*CustomProvider) GetLocalStorageCost() (float64, error) {
-	return 0.04, nil
+func (*CustomProvider) GetLocalStorageQuery() (string, error) {
+	return "", nil
 }
 
 func (*CustomProvider) GetConfig() (*CustomPricing, error) {
@@ -259,8 +259,10 @@ func (*CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomPric
 
 }
 
-func (*CustomProvider) ClusterName() ([]byte, error) {
-	return nil, nil
+func (*CustomProvider) ClusterInfo() (map[string]string, error) {
+	m := make(map[string]string)
+	m["provider"] = "custom"
+	return m, nil
 }
 
 func (*CustomProvider) AddServiceKey(url.Values) error {

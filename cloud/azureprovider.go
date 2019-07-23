@@ -43,8 +43,8 @@ var (
 		"za": "southafrica",
 	}
 
-	// mtBasic, _     = regexp.Compile("^BASIC.A\\d+[_Promo]*$")
-	// mtStandardA, _ = regexp.Compile("^A\\d+[_Promo]*$")
+	mtBasic, _     = regexp.Compile("^BASIC.A\\d+[_Promo]*$")
+	mtStandardA, _ = regexp.Compile("^A\\d+[_Promo]*$")
 	mtStandardB, _ = regexp.Compile(`^Standard_B\d+m?[_v\d]*[_Promo]*$`)
 	mtStandardD, _ = regexp.Compile(`^Standard_D\d[_v\d]*[_Promo]*$`)
 	mtStandardE, _ = regexp.Compile(`^Standard_E\d+i?[_v\d]*[_Promo]*$`)
@@ -455,8 +455,12 @@ func (*Azure) GetDisks() ([]byte, error) {
 	return nil, nil
 }
 
-func (az *Azure) ClusterName() ([]byte, error) {
-	return nil, nil
+func (az *Azure) ClusterInfo() (map[string]string, error) {
+	m := make(map[string]string)
+	m["name"] = "Azure Cluster #1"
+	m["provider"] = "azure"
+	return m, nil
+
 }
 
 func (az *Azure) AddServiceKey(url url.Values) error {
@@ -513,6 +517,6 @@ func (az *Azure) PVPricing(PVKey) (*PV, error) {
 	return nil, nil
 }
 
-func (az *Azure) GetLocalStorageCost() (float64, error) {
-	return 0.04, nil
+func (az *Azure) GetLocalStorageQuery() (string, error) {
+	return "", nil
 }
