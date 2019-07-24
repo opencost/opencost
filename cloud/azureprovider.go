@@ -43,8 +43,8 @@ var (
 		"za": "southafrica",
 	}
 
-	mtBasic, _     = regexp.Compile("^BASIC.A\\d+[_Promo]*$")
-	mtStandardA, _ = regexp.Compile("^A\\d+[_Promo]*$")
+	//mtBasic, _     = regexp.Compile("^BASIC.A\\d+[_Promo]*$")
+	//mtStandardA, _ = regexp.Compile("^A\\d+[_Promo]*$")
 	mtStandardB, _ = regexp.Compile(`^Standard_B\d+m?[_v\d]*[_Promo]*$`)
 	mtStandardD, _ = regexp.Compile(`^Standard_D\d[_v\d]*[_Promo]*$`)
 	mtStandardE, _ = regexp.Compile(`^Standard_E\d+i?[_v\d]*[_Promo]*$`)
@@ -387,22 +387,13 @@ func (az *Azure) DownloadPricingData() error {
 			}
 			priceStr := fmt.Sprintf("%f", priceInUsd)
 			for _, instanceType := range instanceTypes {
-				klog.V(1).Infof("region: %s \n", region)
+
 				key := fmt.Sprintf("%s,%s,%s", region, instanceType, usageType)
+				klog.V(2).Infof("%s: %s : %s", *v.MeterSubCategory, key, priceStr)
 				allPrices[key] = &Node{
 					Cost:         priceStr,
 					BaseCPUPrice: baseCPUPrice,
 				}
-
-				mts := getMachineTypeVariants(instanceType)
-				for _, mt := range mts {
-					key := fmt.Sprintf("%s,%s,%s", region, mt, usageType)
-					allPrices[key] = &Node{
-						Cost:         priceStr,
-						BaseCPUPrice: baseCPUPrice,
-					}
-				}
-
 			}
 		}
 	}

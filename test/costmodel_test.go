@@ -1,14 +1,6 @@
 package costmodel_test
 
-import (
-	"net/url"
-	"testing"
-
-	"github.com/golang/mock/gomock"
-	costModel "github.com/kubecost/cost-model/costmodel"
-	"github.com/kubecost/test/mocks"
-)
-
+/*
 func TestCostModel(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
@@ -24,3 +16,4 @@ func TestCostModel(t *testing.T) {
 
 	costModel.ComputeCostData(cli, clientset, provider, "1d", "")
 }
+*/
