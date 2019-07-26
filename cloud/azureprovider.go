@@ -312,16 +312,16 @@ func (az *Azure) DownloadPricingData() error {
 	sClient := subscriptions.NewClient()
 	sClient.Authorizer = authorizer
 
-	rcClient := commerce.NewRateCardClient("054a7688-d090-43a0-bfa4-795cced8cd68")
+	rcClient := commerce.NewRateCardClient(config.AzureSubscriptionID)
 	rcClient.Authorizer = authorizer
 
-	skusClient := skus.NewResourceSkusClient("054a7688-d090-43a0-bfa4-795cced8cd68")
+	skusClient := skus.NewResourceSkusClient(config.AzureSubscriptionID)
 	skusClient.Authorizer = authorizer
 
-	providersClient := resources.NewProvidersClient("054a7688-d090-43a0-bfa4-795cced8cd68")
+	providersClient := resources.NewProvidersClient(config.AzureSubscriptionID)
 	providersClient.Authorizer = authorizer
 
-	containerServiceClient := containerservice.NewContainerServicesClient("054a7688-d090-43a0-bfa4-795cced8cd68")
+	containerServiceClient := containerservice.NewContainerServicesClient(config.AzureSubscriptionID)
 	containerServiceClient.Authorizer = authorizer
 
 	rateCardFilter := "OfferDurableId eq 'MS-AZR-0003p' and Currency eq 'USD' and Locale eq 'en-US' and RegionInfo eq 'US'"
@@ -389,7 +389,6 @@ func (az *Azure) DownloadPricingData() error {
 			for _, instanceType := range instanceTypes {
 
 				key := fmt.Sprintf("%s,%s,%s", region, instanceType, usageType)
-				klog.V(2).Infof("%s: %s : %s", *v.MeterSubCategory, key, priceStr)
 				allPrices[key] = &Node{
 					Cost:         priceStr,
 					BaseCPUPrice: baseCPUPrice,
