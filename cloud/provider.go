@@ -152,9 +152,12 @@ type CustomPricing struct {
 	RAM                 string `json:"RAM"`
 	SpotRAM             string `json:"spotRAM"`
 	GPU                 string `json:"GPU"`
+	SpotGPU             string `json:"spotGPU"`
 	Storage             string `json:"storage"`
 	SpotLabel           string `json:"spotLabel,omitempty"`
 	SpotLabelValue      string `json:"spotLabelValue,omitempty"`
+	GpuLabel            string `json:"gpuLabel,omitempty"`
+	GpuLabelValue       string `json:"gpuLabelValue,omitempty"`
 	ServiceKeyName      string `json:"awsServiceKeyName,omitempty"`
 	ServiceKeySecret    string `json:"awsServiceKeySecret,omitempty"`
 	SpotDataRegion      string `json:"awsSpotDataRegion,omitempty"`
@@ -200,6 +203,7 @@ func SetCustomPricingField(obj *CustomPricing, name string, value string) error 
 type NodePrice struct {
 	CPU string
 	RAM string
+	GPU string
 }
 
 type CustomProvider struct {
@@ -207,6 +211,8 @@ type CustomProvider struct {
 	Pricing                 map[string]*NodePrice
 	SpotLabel               string
 	SpotLabelValue          string
+	GPULabel                string
+	GPULabelValue           string
 	DownloadPricingDataLock sync.RWMutex
 }
 
@@ -222,7 +228,7 @@ func (*CustomProvider) GetManagementPlatform() (string, error) {
 	return "", nil
 }
 
-func (*CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
+func (cprov *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
 	c, err := GetDefaultPricingData("default.json")
 	if err != nil {
 		return nil, err
@@ -254,7 +260,7 @@ func (*CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomPric
 	if err != nil {
 		return nil, err
 	}
-
+	defer cprov.DownloadPricingData()
 	return c, nil
 
 }
@@ -285,12 +291,19 @@ func (c *CustomProvider) NodePricing(key Key) (*Node, error) {
 	defer c.DownloadPricingDataLock.RUnlock()
 
 	k := key.Features()
+	var gpuCount string
 	if _, ok := c.Pricing[k]; !ok {
 		k = "default"
+	}
+	if key.GPUType() != "" {
+		k += ",gpu"    // TODO: support multiple custom gpu types.
+		gpuCount = "1" // TODO: support more than one gpu.
 	}
 	return &Node{
 		VCPUCost: c.Pricing[k].CPU,
 		RAMCost:  c.Pricing[k].RAM,
+		GPUCost:  c.Pricing[k].GPU,
+		GPU:      gpuCount,
 	}, nil
 }
 
@@ -306,6 +319,10 @@ func (c *CustomProvider) DownloadPricingData() error {
 	if err != nil {
 		return err
 	}
+	c.SpotLabel = p.SpotLabel
+	c.SpotLabelValue = p.SpotLabelValue
+	c.GPULabel = p.GpuLabel
+	c.GPULabelValue = p.GpuLabelValue
 	c.Pricing["default"] = &NodePrice{
 		CPU: p.CPU,
 		RAM: p.RAM,
@@ -314,16 +331,26 @@ func (c *CustomProvider) DownloadPricingData() error {
 		CPU: p.SpotCPU,
 		RAM: p.SpotRAM,
 	}
+	c.Pricing["default,gpu"] = &NodePrice{
+		CPU: p.CPU,
+		RAM: p.RAM,
+		GPU: p.GPU,
+	}
 	return nil
 }
 
 type customProviderKey struct {
 	SpotLabel      string
 	SpotLabelValue string
+	GPULabel       string
+	GPULabelValue  string
 	Labels         map[string]string
 }
 
 func (c *customProviderKey) GPUType() string {
+	if t, ok := c.Labels[c.GPULabel]; ok {
+		return t
+	}
 	return ""
 }
 
@@ -342,6 +369,8 @@ func (c *CustomProvider) GetKey(labels map[string]string) Key {
 	return &customProviderKey{
 		SpotLabel:      c.SpotLabel,
 		SpotLabelValue: c.SpotLabelValue,
+		GPULabel:       c.GPULabel,
+		GPULabelValue:  c.GPULabelValue,
 		Labels:         labels,
 	}
 }
@@ -357,8 +386,14 @@ func (*CustomProvider) QuerySQL(query string) ([]byte, error) {
 	return nil, nil
 }
 
-func (*CustomProvider) PVPricing(pvk PVKey) (*PV, error) {
-	return nil, nil
+func (c *CustomProvider) PVPricing(pvk PVKey) (*PV, error) {
+	cpricing, err := GetDefaultPricingData("default")
+	if err != nil {
+		return nil, err
+	}
+	return &PV{
+		Cost: cpricing.Storage,
+	}, nil
 }
 
 func (*CustomProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string) PVKey {

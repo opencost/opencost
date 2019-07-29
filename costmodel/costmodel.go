@@ -206,6 +206,27 @@ func getUptimeData(qr interface{}) ([]*Vector, bool, error) {
 	return jobData, kubecostMetrics, nil
 }
 
+func ComputeUptimes(cli prometheusClient.Client) (map[string]float64, error) {
+	res, err := query(cli, `container_start_time_seconds{container_name != "POD",container_name != ""}`)
+	if err != nil {
+		return nil, err
+	}
+	vectors, err := getContainerMetricVector(res, false, 0)
+	if err != nil {
+		return nil, err
+	}
+	results := make(map[string]float64)
+	for key, vector := range vectors {
+		if err != nil {
+			return nil, err
+		}
+		val := vector[0].Value
+		uptime := time.Now().Sub(time.Unix(int64(val), 0)).Seconds()
+		results[key] = uptime
+	}
+	return results, nil
+}
+
 func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface, cloud costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, window, offset, window, offset)
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, window, offset, window, offset)
@@ -454,7 +475,7 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 		} else {
 			// The container has been deleted. Not all information is sent to prometheus via ksm, so fill out what we can without k8s api
 			klog.V(4).Info("The container " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
-			c, err := newContainerMetricFromKey(key)
+			c, err := NewContainerMetricFromKey(key)
 			if err != nil {
 				return nil, err
 			}
@@ -1152,7 +1173,7 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 		} else {
 			// The container has been deleted. Not all information is sent to prometheus via ksm, so fill out what we can without k8s api
 			klog.V(4).Info("The container " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
-			c, _ := newContainerMetricFromKey(key)
+			c, _ := NewContainerMetricFromKey(key)
 			RAMReqV, ok := RAMReqMap[key]
 			if !ok {
 				klog.V(4).Info("no RAM requests for " + key)
@@ -1455,7 +1476,8 @@ func getPVInfoVector(qr interface{}) (map[string]*PersistentVolumeClaimData, err
 		}
 		pv, ok := metricMap["volumename"]
 		if !ok {
-			return nil, fmt.Errorf("Volumename field does not exist in data result vector")
+			klog.V(3).Infof("Warning: Unfulfilled claim %s: volumename field does not exist in data result vector", pvclaimStr)
+			pv = ""
 		}
 		pvStr, ok := pv.(string)
 		if !ok {
@@ -1588,7 +1610,7 @@ func (c *ContainerMetric) Key() string {
 	return c.Namespace + "," + c.PodName + "," + c.ContainerName + "," + c.NodeName
 }
 
-func newContainerMetricFromKey(key string) (*ContainerMetric, error) {
+func NewContainerMetricFromKey(key string) (*ContainerMetric, error) {
 	s := strings.Split(key, ",")
 	if len(s) == 4 {
 		return &ContainerMetric{
@@ -1654,11 +1676,12 @@ func newContainerMetricFromPrometheus(metrics map[string]interface{}) (*Containe
 	}
 	node, ok := metrics["node"]
 	if !ok {
-		return nil, fmt.Errorf("Prometheus vector does not have node name")
+		klog.V(4).Info("Prometheus vector does not have node name")
+		node = ""
 	}
 	nodeName, ok := node.(string)
 	if !ok {
-		return nil, fmt.Errorf("Prometheus vector does not have string nodename")
+		return nil, fmt.Errorf("Prometheus vector does not have string node")
 	}
 	return &ContainerMetric{
 		ContainerName: containerName,
