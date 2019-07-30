@@ -307,7 +307,7 @@ func (p *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request,
 	w.Write(wrapData(costModel.ValidatePrometheus(p.PrometheusClient)))
 }
 
-func (p *Accesses) PodUptimes(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+func (p *Accesses) ContainerUptimes(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	res, err := costModel.ComputeUptimes(p.PrometheusClient)
@@ -549,7 +549,7 @@ func main() {
 	router.GET("/validatePrometheus", a.GetPrometheusMetadata)
 	router.GET("/managementPlatform", a.ManagementPlatform)
 	router.GET("/clusterInfo", a.ClusterInfo)
-	router.GET("/containerUptimes", a.containerUptimes)
+	router.GET("/containerUptimes", a.ContainerUptimes)
 
 	rootMux := http.NewServeMux()
 	rootMux.Handle("/", router)
