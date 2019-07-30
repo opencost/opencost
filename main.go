@@ -52,6 +52,7 @@ type Accesses struct {
 	RAMAllocationRecorder         *prometheus.GaugeVec
 	CPUAllocationRecorder         *prometheus.GaugeVec
 	GPUAllocationRecorder         *prometheus.GaugeVec
+	ContainerUptimeRecorder       *prometheus.GaugeVec
 }
 
 type DataEnvelope struct {
@@ -306,6 +307,13 @@ func (p *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request,
 	w.Write(wrapData(costModel.ValidatePrometheus(p.PrometheusClient)))
 }
 
+func (p *Accesses) ContainerUptimes(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	res, err := costModel.ComputeUptimes(p.PrometheusClient)
+	w.Write(wrapData(res, err))
+}
+
 func (a *Accesses) recordPrices() {
 	go func() {
 		for {
@@ -382,7 +390,11 @@ func (a *Accesses) recordPrices() {
 					c, _ := strconv.ParseFloat(cacPv.Cost, 64)
 					a.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name).Set(c)
 				}
-
+				containerUptime, _ := costModel.ComputeUptimes(a.PrometheusClient)
+				for key, uptime := range containerUptime {
+					container, _ := costModel.NewContainerMetricFromKey(key)
+					a.ContainerUptimeRecorder.WithLabelValues(container.Namespace, container.PodName, container.ContainerName).Set(uptime)
+				}
 			}
 			time.Sleep(time.Minute)
 		}
@@ -484,6 +496,11 @@ func main() {
 		Help: "container_gpu_allocation GPU used",
 	}, []string{"namespace", "pod", "container", "instance", "node"})
 
+	ContainerUptimeRecorder := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "container_uptime_seconds",
+		Help: "container_uptime_seconds Seconds a container has been running",
+	}, []string{"namespace", "pod", "container"})
+
 	prometheus.MustRegister(cpuGv)
 	prometheus.MustRegister(ramGv)
 	prometheus.MustRegister(gpuGv)
@@ -491,6 +508,7 @@ func main() {
 	prometheus.MustRegister(pvGv)
 	prometheus.MustRegister(RAMAllocation)
 	prometheus.MustRegister(CPUAllocation)
+	prometheus.MustRegister(ContainerUptimeRecorder)
 
 	a := Accesses{
 		PrometheusClient:              promCli,
@@ -503,6 +521,7 @@ func main() {
 		RAMAllocationRecorder:         RAMAllocation,
 		CPUAllocationRecorder:         CPUAllocation,
 		GPUAllocationRecorder:         GPUAllocation,
+		ContainerUptimeRecorder:       ContainerUptimeRecorder,
 		PersistentVolumePriceRecorder: pvGv,
 	}
 
@@ -530,6 +549,7 @@ func main() {
 	router.GET("/validatePrometheus", a.GetPrometheusMetadata)
 	router.GET("/managementPlatform", a.ManagementPlatform)
 	router.GET("/clusterInfo", a.ClusterInfo)
+	router.GET("/containerUptimes", a.ContainerUptimes)
 
 	rootMux := http.NewServeMux()
 	rootMux.Handle("/", router)

@@ -451,7 +451,7 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.ServiceKeySecret = c.ServiceKeySecret
 
 	if len(aws.SpotDataBucket) != 0 && len(aws.ProjectID) == 0 {
-		return fmt.Errorf("using SpotDataBucket \"%s\" without ProjectID will not end well", aws.SpotDataBucket)
+		klog.V(1).Infof("using SpotDataBucket \"%s\" without ProjectID will not end well", aws.SpotDataBucket)
 	}
 	nodeList, err := aws.Clientset.CoreV1().Nodes().List(metav1.ListOptions{})
 	if err != nil {
@@ -480,7 +480,7 @@ func (aws *AWS) DownloadPricingData() error {
 	for _, pv := range pvList.Items {
 		params, ok := storageClassMap[pv.Spec.StorageClassName]
 		if !ok {
-			klog.Infof("Unable to find params for storageClassName %s, falling back to default pricing", pv.Name)
+			klog.V(2).Infof("Unable to find params for storageClassName %s, falling back to default pricing", pv.Name)
 			continue
 		}
 		key := aws.GetPVKey(&pv, params)
@@ -662,6 +662,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 			} else {
 				klog.V(2).Infof("Spot data for node %s is missing", k.ID())
 			}
+			klog.V(1).Infof("SPOT COST FOR %s: %s", k.Features, spotcost)
 			return &Node{
 				Cost:         spotcost,
 				VCPU:         terms.VCpu,
