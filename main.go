@@ -549,7 +549,7 @@ func main() {
 	router.GET("/validatePrometheus", a.GetPrometheusMetadata)
 	router.GET("/managementPlatform", a.ManagementPlatform)
 	router.GET("/clusterInfo", a.ClusterInfo)
-	router.GET("/podUptimes", a.PodUptimes)
+	router.GET("/containerUptimes", a.containerUptimes)
 
 	rootMux := http.NewServeMux()
 	rootMux.Handle("/", router)
