@@ -281,6 +281,8 @@ func (az *Azure) GetManagementPlatform() (string, error) {
 
 // DownloadPricingData uses provided azure "best guesses" for pricing
 func (az *Azure) DownloadPricingData() error {
+	az.DownloadPricingDataLock.Lock()
+	defer az.DownloadPricingDataLock.Unlock()
 
 	config, err := az.GetConfig()
 	if err != nil {
@@ -460,6 +462,7 @@ func (az *Azure) AddServiceKey(url url.Values) error {
 }
 
 func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
+	defer az.DownloadPricingData()
 	c, err := GetDefaultPricingData("azure.json")
 	if err != nil {
 		return nil, err
