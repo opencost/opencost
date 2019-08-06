@@ -62,6 +62,7 @@ type Key interface {
 
 type PVKey interface {
 	Features() string
+	GetStorageClass() string
 }
 
 // OutOfClusterAllocation represents a cloud provider cost not associated with kubernetes

@@ -435,6 +435,10 @@ func (az *Azure) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string)
 	}
 }
 
+func (key *azurePvKey) GetStorageClass() string {
+	return key.StorageClass
+}
+
 func (key *azurePvKey) Features() string {
 	storageClass := key.StorageClassParameters["type"]
 	if storageClass == "pd-ssd" {

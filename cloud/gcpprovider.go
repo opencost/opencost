@@ -694,6 +694,10 @@ func (gcp *GCP) DownloadPricingData() error {
 }
 
 func (gcp *GCP) PVPricing(pvk PVKey) (*PV, error) {
+	if pvk.GetStorageClass() == "" {
+		klog.V(3).Infof("Disk in %s does not have a storageclass set, cannot look up pricing info.", pvk.Features())
+		return &PV{}, nil
+	}
 	gcp.DownloadPricingDataLock.RLock()
 	defer gcp.DownloadPricingDataLock.RUnlock()
 	pricing, ok := gcp.Pricing[pvk.Features()]
@@ -708,6 +712,10 @@ type pvKey struct {
 	Labels                 map[string]string
 	StorageClass           string
 	StorageClassParameters map[string]string
+}
+
+func (key *pvKey) GetStorageClass() string {
+	return key.StorageClass
 }
 
 func (gcp *GCP) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string) PVKey {
