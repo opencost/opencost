@@ -90,6 +90,9 @@ func resultToTotal(qr interface{}) ([][]string, error) {
 	if !ok {
 		return nil, fmt.Errorf("Improperly formatted results from prometheus, result field is not a slice")
 	}
+	if len(results) == 0 {
+		return nil, fmt.Errorf("Not enough data available in the selected time range")
+	}
 	val, ok := results[0].(map[string]interface{})["value"]
 	totals := [][]string{}
 	if !ok {

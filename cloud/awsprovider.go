@@ -378,6 +378,10 @@ func (k *awsKey) Features() string {
 }
 
 func (aws *AWS) PVPricing(pvk PVKey) (*PV, error) {
+	if pvk.GetStorageClass() == "" {
+		klog.V(3).Infof("Disk in %s does not have a storageclass set, cannot look up pricing info.", pvk.Features())
+		return &PV{}, nil
+	}
 	pricing, ok := aws.Pricing[pvk.Features()]
 	if !ok {
 		klog.V(2).Infof("Persistent Volume pricing not found for %s", pvk.Features())
@@ -397,6 +401,10 @@ func (aws *AWS) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string) 
 		Labels:           pv.Labels,
 		StorageClassName: pv.Spec.StorageClassName,
 	}
+}
+
+func (key *awsPVKey) GetStorageClass() string {
+	return key.StorageClassName
 }
 
 func (key *awsPVKey) Features() string {
