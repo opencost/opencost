@@ -1006,6 +1006,8 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		klog.Infof("WHY IS THIS NIL??")
 	}
 
 	containerNameCost := make(map[string]*CostData)
@@ -1382,7 +1384,8 @@ func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeClaimData, er
 		}
 		pv, ok := metricMap["volumename"]
 		if !ok {
-			return nil, fmt.Errorf("Volumename field does not exist in data result vector")
+			klog.V(3).Infof("Warning: Unfulfilled claim %s: volumename field does not exist in data result vector", pvclaimStr)
+			pv = ""
 		}
 		pvStr, ok := pv.(string)
 		if !ok {
