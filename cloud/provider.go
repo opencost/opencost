@@ -177,6 +177,7 @@ type CustomPricing struct {
 	AzureTenantID       string `json:"azureTenantID"`
 	CurrencyCode        string `json:"currencyCode"`
 	Discount            string `json:"discount"`
+	ClusterName         string `json:"clusterName"`
 }
 
 func SetCustomPricingField(obj *CustomPricing, name string, value string) error {
@@ -266,8 +267,15 @@ func (cprov *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*Cust
 
 }
 
-func (*CustomProvider) ClusterInfo() (map[string]string, error) {
+func (c *CustomProvider) ClusterInfo() (map[string]string, error) {
+	conf, err := c.GetConfig()
+	if err != nil {
+		return nil, err
+	}
 	m := make(map[string]string)
+	if conf.ClusterName != "" {
+		m["name"] = conf.ClusterName
+	}
 	m["provider"] = "custom"
 	return m, nil
 }

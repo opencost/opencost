@@ -756,6 +756,13 @@ func (aws *AWS) NodePricing(k Key) (*Node, error) {
 // ClusterInfo returns an object that represents the cluster. TODO: actually return the name of the cluster. Blocked on cluster federation.
 func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 	defaultClusterName := "AWS Cluster #1"
+	c, err := awsProvider.GetConfig()
+	if c.ClusterName != "" {
+		m := make(map[string]string)
+		m["name"] = c.ClusterName
+		m["provider"] = "AWS"
+		return m, nil
+	}
 	makeStructure := func(clusterName string) (map[string]string, error) {
 		klog.V(2).Infof("Returning \"%s\" as ClusterName", clusterName)
 		m := make(map[string]string)

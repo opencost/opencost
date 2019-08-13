@@ -234,7 +234,7 @@ func (gcp *GCP) QuerySQL(query string) ([]*OutOfClusterAllocation, error) {
 }
 
 // ClusterName returns the name of a GKE cluster, as provided by metadata.
-func (*GCP) ClusterInfo() (map[string]string, error) {
+func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	metadataClient := metadata.NewClient(&http.Client{Transport: userAgentTransport{
 		userAgent: "kubecost",
 		base:      http.DefaultTransport,
@@ -243,6 +243,14 @@ func (*GCP) ClusterInfo() (map[string]string, error) {
 	attribute, err := metadataClient.InstanceAttributeValue("cluster-name")
 	if err != nil {
 		return nil, err
+	}
+
+	c, err := gcp.GetConfig()
+	if err != nil {
+		klog.V(1).Infof("Error opening config: %s", err.Error())
+	}
+	if c.ClusterName != "" {
+		attribute = c.ClusterName
 	}
 
 	m := make(map[string]string)

@@ -456,6 +456,13 @@ func (*Azure) GetDisks() ([]byte, error) {
 func (az *Azure) ClusterInfo() (map[string]string, error) {
 	m := make(map[string]string)
 	m["name"] = "Azure Cluster #1"
+	c, err := az.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	if c.ClusterName != "" {
+		m["name"] = c.ClusterName
+	}
 	m["provider"] = "azure"
 	return m, nil
 
