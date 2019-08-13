@@ -418,7 +418,15 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 		return n, nil
 	}
 	klog.V(1).Infof("Warning: no pricing data found for %s: %s", key.Features(), key)
-	return nil, fmt.Errorf("Warning: no pricing data found for %s", key)
+	c, err := az.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("No default pricing data available")
+	}
+	return &Node{
+		VCPUCost:         c.CPU,
+		RAMCost:          c.RAM,
+		UsesBaseCPUPrice: true,
+	}, nil
 }
 
 type azurePvKey struct {
