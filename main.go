@@ -317,7 +317,7 @@ func (p *Accesses) ContainerUptimes(w http.ResponseWriter, _ *http.Request, _ ht
 func (a *Accesses) recordPrices() {
 	go func() {
 		for {
-			klog.V(3).Info("Recording prices...")
+			klog.V(4).Info("Recording prices...")
 			data, err := costModel.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "2m", "", "")
 			if err != nil {
 				klog.V(1).Info("Error in price recording: " + err.Error())
@@ -328,7 +328,7 @@ func (a *Accesses) recordPrices() {
 				nodeName := costs.NodeName
 				node := costs.NodeData
 				if node == nil {
-					klog.V(3).Infof("Skipping Node \"%s\" due to missing Node Data costs", nodeName)
+					klog.V(4).Infof("Skipping Node \"%s\" due to missing Node Data costs", nodeName)
 					continue
 				}
 				cpuCost, _ := strconv.ParseFloat(node.VCPUCost, 64)

@@ -2,7 +2,6 @@ package costmodel
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
@@ -63,7 +62,6 @@ func resultToTotals(qr interface{}) ([][]string, error) {
 			return nil, fmt.Errorf("Improperly formatted results from prometheus, value is not a field in the vector")
 		}
 		dataPoint, ok := val.([]interface{})
-		//log.Printf("%+v", dataPoint)
 		if !ok || len(dataPoint) != 2 {
 			return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
 		}
@@ -99,7 +97,6 @@ func resultToTotal(qr interface{}) ([][]string, error) {
 		return nil, fmt.Errorf("Improperly formatted results from prometheus, value is not a field in the vector")
 	}
 	dataPoint, ok := val.([]interface{})
-	//log.Printf("%+v", dataPoint)
 	if !ok || len(dataPoint) != 2 {
 		return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
 	}
@@ -127,7 +124,6 @@ func ClusterCosts(cli prometheusClient.Client, cloud costAnalyzerCloud.Provider,
 	qRAM := fmt.Sprintf(queryClusterRAM, offset, offset)
 	qStorage := fmt.Sprintf(queryStorage, windowString, offset, windowString, offset, localStorageQuery)
 	qTotal := fmt.Sprintf(queryTotal, localStorageQuery)
-	log.Printf("%s", qTotal)
 
 	resultClusterCores, err := query(cli, qCores)
 	if err != nil {
@@ -210,7 +206,6 @@ func ClusterCostsOverTime(cli prometheusClient.Client, cloud costAnalyzerCloud.P
 	qRAM := fmt.Sprintf(queryClusterRAM, offset, offset)
 	qStorage := fmt.Sprintf(queryStorage, windowString, offset, windowString, offset, localStorageQuery)
 	qTotal := fmt.Sprintf(queryTotal, localStorageQuery)
-	log.Printf("%s", qTotal)
 
 	resultClusterCores, err := queryRange(cli, qCores, start, end, window)
 	if err != nil {

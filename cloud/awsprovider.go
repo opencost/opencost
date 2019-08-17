@@ -733,11 +733,25 @@ func (aws *AWS) NodePricing(k Key) (*Node, error) {
 		err := aws.DownloadPricingData()
 		aws.DownloadPricingDataLock.RLock()
 		if err != nil {
-			return nil, err
+			return &Node{
+				Cost:             aws.BaseCPUPrice,
+				BaseCPUPrice:     aws.BaseCPUPrice,
+				BaseRAMPrice:     aws.BaseRAMPrice,
+				BaseGPUPrice:     aws.BaseGPUPrice,
+				UsageType:        usageType,
+				UsesBaseCPUPrice: true,
+			}, err
 		}
 		terms, termsOk := aws.Pricing[key]
 		if !termsOk {
-			return nil, fmt.Errorf("Unable to find any Pricing data for \"%s\"", key)
+			return &Node{
+				Cost:             aws.BaseCPUPrice,
+				BaseCPUPrice:     aws.BaseCPUPrice,
+				BaseRAMPrice:     aws.BaseRAMPrice,
+				BaseGPUPrice:     aws.BaseGPUPrice,
+				UsageType:        usageType,
+				UsesBaseCPUPrice: true,
+			}, fmt.Errorf("Unable to find any Pricing data for \"%s\"", key)
 		}
 		return aws.createNode(terms, usageType, k)
 	} else { // Fall back to base pricing if we can't find the key.
