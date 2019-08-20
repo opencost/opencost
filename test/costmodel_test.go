@@ -1,6 +1,16 @@
 package costmodel_test
 
-/*
+// Mocks can be regenerated with something like GO111MODULE=on mockgen -destination ./test/mocks/mock_provider.go  -package mocks github.com/kubecost/cost-model/cloud Provider
+
+import (
+	"net/url"
+	"testing"
+
+	"github.com/golang/mock/gomock"
+	costModel "github.com/kubecost/cost-model/costmodel"
+	"github.com/kubecost/test/mocks"
+)
+
 func TestCostModel(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
@@ -14,6 +24,5 @@ func TestCostModel(t *testing.T) {
 	clientset := mocks.NewMockInterface(ctrl)
 	provider := mocks.NewMockProvider(ctrl)
 
-	costModel.ComputeCostData(cli, clientset, provider, "1d", "")
+	costModel.ComputeCostData(cli, clientset, provider, "1d", "", "")
 }
-*/
