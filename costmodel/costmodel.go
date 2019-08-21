@@ -352,6 +352,9 @@ func ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface
 	}
 	currentContainers := make(map[string]v1.Pod)
 	for _, pod := range podlist.Items {
+		if pod.Status.Phase != "Running" {
+			continue
+		}
 		cs, err := newContainerMetricsFromPod(pod)
 		if err != nil {
 			return nil, err
@@ -1052,6 +1055,9 @@ func ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Inte
 	}
 	currentContainers := make(map[string]v1.Pod)
 	for _, pod := range podlist.Items {
+		if pod.Status.Phase != "Running" {
+			continue
+		}
 		cs, err := newContainerMetricsFromPod(pod)
 		if err != nil {
 			return nil, err
