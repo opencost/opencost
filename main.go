@@ -317,35 +317,36 @@ func (p *Accesses) ContainerUptimes(w http.ResponseWriter, _ *http.Request, _ ht
 func (a *Accesses) recordPrices() {
 	go func() {
 
-		// zero out the allocation gauges since we want to reset them based on the kubernetes API
-		RAMAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "container_memory_allocation_bytes",
-			Help: "container_memory_allocation_bytes Bytes of RAM used",
-		}, []string{"namespace", "pod", "container", "instance", "node"})
-
-		CPUAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "container_cpu_allocation",
-			Help: "container_cpu_allocation Percent of a single CPU used in a minute",
-		}, []string{"namespace", "pod", "container", "instance", "node"})
-
-		GPUAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "container_gpu_allocation",
-			Help: "container_gpu_allocation GPU used",
-		}, []string{"namespace", "pod", "container", "instance", "node"})
-
-		prometheus.Unregister(a.RAMAllocationRecorder)
-		prometheus.Unregister(a.CPUAllocationRecorder)
-		prometheus.Unregister(a.GPUAllocationRecorder)
-
-		prometheus.MustRegister(RAMAllocation)
-		prometheus.MustRegister(CPUAllocation)
-		prometheus.MustRegister(GPUAllocation)
-
-		a.RAMAllocationRecorder = RAMAllocation
-		a.CPUAllocationRecorder = CPUAllocation
-		a.GPUAllocationRecorder = GPUAllocation
-
 		for {
+			// Zero out allocations here to avoid entering gauge for deleted pods.
+			prometheus.Unregister(a.RAMAllocationRecorder)
+			prometheus.Unregister(a.CPUAllocationRecorder)
+			prometheus.Unregister(a.GPUAllocationRecorder)
+
+			// zero out the allocation gauges since we want to reset them based on the kubernetes API
+			RAMAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "container_memory_allocation_bytes",
+				Help: "container_memory_allocation_bytes Bytes of RAM used",
+			}, []string{"namespace", "pod", "container", "instance", "node"})
+
+			CPUAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "container_cpu_allocation",
+				Help: "container_cpu_allocation Percent of a single CPU used in a minute",
+			}, []string{"namespace", "pod", "container", "instance", "node"})
+
+			GPUAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "container_gpu_allocation",
+				Help: "container_gpu_allocation GPU used",
+			}, []string{"namespace", "pod", "container", "instance", "node"})
+
+			prometheus.MustRegister(RAMAllocation)
+			prometheus.MustRegister(CPUAllocation)
+			prometheus.MustRegister(GPUAllocation)
+
+			a.RAMAllocationRecorder = RAMAllocation
+			a.CPUAllocationRecorder = CPUAllocation
+			a.GPUAllocationRecorder = GPUAllocation
+
 			klog.V(4).Info("Recording prices...")
 			data, err := costModel.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "2m", "", "")
 			if err != nil {
