@@ -53,6 +53,7 @@ type Accesses struct {
 	CPUAllocationRecorder         *prometheus.GaugeVec
 	GPUAllocationRecorder         *prometheus.GaugeVec
 	ContainerUptimeRecorder       *prometheus.GaugeVec
+	Model                         *costModel.CostModel
 }
 
 type DataEnvelope struct {
@@ -134,7 +135,7 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 		offset = "offset " + offset
 	}
 
-	data, err := costModel.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, window, offset, namespace)
+	data, err := a.Model.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, window, offset, namespace)
 	if fields != "" {
 		filteredData := filterFields(fields, data)
 		w.Write(wrapData(filteredData, err))
@@ -185,7 +186,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	fields := r.URL.Query().Get("filterFields")
 	namespace := r.URL.Query().Get("namespace")
 
-	data, err := costModel.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, window, namespace)
+	data, err := a.Model.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, window, namespace)
 	if fields != "" {
 		filteredData := filterFields(fields, data)
 		w.Write(wrapData(filteredData, err))
@@ -348,7 +349,7 @@ func (a *Accesses) recordPrices() {
 			a.GPUAllocationRecorder = GPUAllocation
 
 			klog.V(4).Info("Recording prices...")
-			data, err := costModel.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "2m", "", "")
+			data, err := a.Model.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "2m", "", "")
 			if err != nil {
 				klog.V(1).Info("Error in price recording: " + err.Error())
 				// zero the for loop so the time.Sleep will still work
@@ -553,6 +554,7 @@ func main() {
 		GPUAllocationRecorder:         GPUAllocation,
 		ContainerUptimeRecorder:       ContainerUptimeRecorder,
 		PersistentVolumePriceRecorder: pvGv,
+		Model:                         costModel.NewCostModel(kubeClientset),
 	}
 
 	err = a.Cloud.DownloadPricingData()
