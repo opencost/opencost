@@ -323,6 +323,7 @@ func (a *Accesses) recordPrices() {
 			prometheus.Unregister(a.RAMAllocationRecorder)
 			prometheus.Unregister(a.CPUAllocationRecorder)
 			prometheus.Unregister(a.GPUAllocationRecorder)
+			prometheus.Unregister(a.ContainerUptimeRecorder)
 
 			// zero out the allocation gauges since we want to reset them based on the kubernetes API
 			RAMAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -340,13 +341,20 @@ func (a *Accesses) recordPrices() {
 				Help: "container_gpu_allocation GPU used",
 			}, []string{"namespace", "pod", "container", "instance", "node"})
 
+	                ContainerUptime := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+                                Name: "container_uptime_seconds",
+                                Help: "container_uptime_seconds Seconds a container has been running",
+	                }, []string{"namespace", "pod", "container"})
+
 			prometheus.MustRegister(RAMAllocation)
 			prometheus.MustRegister(CPUAllocation)
 			prometheus.MustRegister(GPUAllocation)
+			prometheus.MustRegister(ContainerUptime)
 
 			a.RAMAllocationRecorder = RAMAllocation
 			a.CPUAllocationRecorder = CPUAllocation
 			a.GPUAllocationRecorder = GPUAllocation
+			a.ContainerUptimeRecorder = ContainerUptime
 
 			klog.V(4).Info("Recording prices...")
 			data, err := a.Model.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "2m", "", "")
