@@ -318,12 +318,33 @@ func (p *Accesses) ContainerUptimes(w http.ResponseWriter, _ *http.Request, _ ht
 func (a *Accesses) recordPrices() {
 	go func() {
 
+		RAMAllocSeen := make(map[string]string)
+		CPUAllocSeen := make(map[string]string)
+		GPUAllocSeen := make(map[string]string)
+		ContainerUptimeSeen := make(map[string]string)
+		CPUPriceSeen := make(map[string]string)
+		RAMPriceSeen := make(map[string]string)
+		PVPriceSeen := make(map[string]string)
+		GPUPriceSeen := make(map[string]string)
+		TotalPriceSeen := make(map[string]string)
+
 		for {
-			// Zero out allocations here to avoid entering gauge for deleted pods.
+			klog.V(4).Info("Recording prices...")
+			data, err := a.Model.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "2m", "", "")
+			if err != nil {
+				klog.V(1).Info("Error in price recording: " + err.Error())
+				// zero the for loop so the time.Sleep will still work
+				data = map[string]*costModel.CostData{}
+			}
 			prometheus.Unregister(a.RAMAllocationRecorder)
 			prometheus.Unregister(a.CPUAllocationRecorder)
 			prometheus.Unregister(a.GPUAllocationRecorder)
 			prometheus.Unregister(a.ContainerUptimeRecorder)
+			prometheus.Unregister(a.CPUPriceRecorder)
+			prometheus.Unregister(a.RAMPriceRecorder)
+			prometheus.Unregister(a.PersistentVolumePriceRecorder)
+			prometheus.Unregister(a.GPUPriceRecorder)
+			prometheus.Unregister(a.NodeTotalPriceRecorder)
 
 			// zero out the allocation gauges since we want to reset them based on the kubernetes API
 			RAMAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -341,28 +362,56 @@ func (a *Accesses) recordPrices() {
 				Help: "container_gpu_allocation GPU used",
 			}, []string{"namespace", "pod", "container", "instance", "node"})
 
-	                ContainerUptime := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-                                Name: "container_uptime_seconds",
-                                Help: "container_uptime_seconds Seconds a container has been running",
-	                }, []string{"namespace", "pod", "container"})
+			ContainerUptime := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "container_uptime_seconds",
+				Help: "container_uptime_seconds Seconds a container has been running",
+			}, []string{"namespace", "pod", "container"})
+
+			cpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "node_cpu_hourly_cost",
+				Help: "node_cpu_hourly_cost hourly cost for each cpu on this node",
+			}, []string{"instance", "node"})
+
+			ramGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "node_ram_hourly_cost",
+				Help: "node_ram_hourly_cost hourly cost for each gb of ram on this node",
+			}, []string{"instance", "node"})
+
+			gpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "node_gpu_hourly_cost",
+				Help: "node_gpu_hourly_cost hourly cost for each gpu on this node",
+			}, []string{"instance", "node"})
+
+			totalGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "node_total_hourly_cost",
+				Help: "node_total_hourly_cost Total node cost per hour",
+			}, []string{"instance", "node"})
+
+			pvGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "pv_hourly_cost",
+				Help: "pv_hourly_cost Cost per GB per hour on a persistent disk",
+			}, []string{"volumename", "persistentvolume"})
 
 			prometheus.MustRegister(RAMAllocation)
 			prometheus.MustRegister(CPUAllocation)
 			prometheus.MustRegister(GPUAllocation)
 			prometheus.MustRegister(ContainerUptime)
+			prometheus.MustRegister(cpuGv)
+			prometheus.MustRegister(ramGv)
+			prometheus.MustRegister(gpuGv)
+			prometheus.MustRegister(totalGv)
+			prometheus.MustRegister(pvGv)
 
 			a.RAMAllocationRecorder = RAMAllocation
 			a.CPUAllocationRecorder = CPUAllocation
 			a.GPUAllocationRecorder = GPUAllocation
 			a.ContainerUptimeRecorder = ContainerUptime
+			a.CPUPriceRecorder = cpuGv
+			a.RAMPriceRecorder = ramGv
+			a.PersistentVolumePriceRecorder = pvGv
+			a.GPUPriceRecorder = gpuGv
+			a.NodeTotalPriceRecorder = totalGv
 
-			klog.V(4).Info("Recording prices...")
-			data, err := a.Model.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "2m", "", "")
-			if err != nil {
-				klog.V(1).Info("Error in price recording: " + err.Error())
-				// zero the for loop so the time.Sleep will still work
-				data = map[string]*costModel.CostData{}
-			}
 			for _, costs := range data {
 				nodeName := costs.NodeName
 				node := costs.NodeData
