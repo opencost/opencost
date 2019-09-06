@@ -317,16 +317,16 @@ func (p *Accesses) ContainerUptimes(w http.ResponseWriter, _ *http.Request, _ ht
 
 func (a *Accesses) recordPrices() {
 	go func() {
+		containerSeen := make(map[string]bool)
+		nodeSeen := make(map[string]bool)
+		pvSeen := make(map[string]bool)
 
-		RAMAllocSeen := make(map[string]string)
-		CPUAllocSeen := make(map[string]string)
-		GPUAllocSeen := make(map[string]string)
-		ContainerUptimeSeen := make(map[string]string)
-		CPUPriceSeen := make(map[string]string)
-		RAMPriceSeen := make(map[string]string)
-		PVPriceSeen := make(map[string]string)
-		GPUPriceSeen := make(map[string]string)
-		TotalPriceSeen := make(map[string]string)
+		getKeyFromLabelStrings := func(labels ...string) string {
+			return strings.Join(labels, ",")
+		}
+		getLabelStringsFromKey := func(key string) []string {
+			return strings.Split(key, ",")
+		}
 
 		for {
 			klog.V(4).Info("Recording prices...")
@@ -336,81 +336,6 @@ func (a *Accesses) recordPrices() {
 				// zero the for loop so the time.Sleep will still work
 				data = map[string]*costModel.CostData{}
 			}
-			prometheus.Unregister(a.RAMAllocationRecorder)
-			prometheus.Unregister(a.CPUAllocationRecorder)
-			prometheus.Unregister(a.GPUAllocationRecorder)
-			prometheus.Unregister(a.ContainerUptimeRecorder)
-			prometheus.Unregister(a.CPUPriceRecorder)
-			prometheus.Unregister(a.RAMPriceRecorder)
-			prometheus.Unregister(a.PersistentVolumePriceRecorder)
-			prometheus.Unregister(a.GPUPriceRecorder)
-			prometheus.Unregister(a.NodeTotalPriceRecorder)
-
-			// zero out the allocation gauges since we want to reset them based on the kubernetes API
-			RAMAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "container_memory_allocation_bytes",
-				Help: "container_memory_allocation_bytes Bytes of RAM used",
-			}, []string{"namespace", "pod", "container", "instance", "node"})
-
-			CPUAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "container_cpu_allocation",
-				Help: "container_cpu_allocation Percent of a single CPU used in a minute",
-			}, []string{"namespace", "pod", "container", "instance", "node"})
-
-			GPUAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "container_gpu_allocation",
-				Help: "container_gpu_allocation GPU used",
-			}, []string{"namespace", "pod", "container", "instance", "node"})
-
-			ContainerUptime := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "container_uptime_seconds",
-				Help: "container_uptime_seconds Seconds a container has been running",
-			}, []string{"namespace", "pod", "container"})
-
-			cpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "node_cpu_hourly_cost",
-				Help: "node_cpu_hourly_cost hourly cost for each cpu on this node",
-			}, []string{"instance", "node"})
-
-			ramGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "node_ram_hourly_cost",
-				Help: "node_ram_hourly_cost hourly cost for each gb of ram on this node",
-			}, []string{"instance", "node"})
-
-			gpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "node_gpu_hourly_cost",
-				Help: "node_gpu_hourly_cost hourly cost for each gpu on this node",
-			}, []string{"instance", "node"})
-
-			totalGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "node_total_hourly_cost",
-				Help: "node_total_hourly_cost Total node cost per hour",
-			}, []string{"instance", "node"})
-
-			pvGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Name: "pv_hourly_cost",
-				Help: "pv_hourly_cost Cost per GB per hour on a persistent disk",
-			}, []string{"volumename", "persistentvolume"})
-
-			prometheus.MustRegister(RAMAllocation)
-			prometheus.MustRegister(CPUAllocation)
-			prometheus.MustRegister(GPUAllocation)
-			prometheus.MustRegister(ContainerUptime)
-			prometheus.MustRegister(cpuGv)
-			prometheus.MustRegister(ramGv)
-			prometheus.MustRegister(gpuGv)
-			prometheus.MustRegister(totalGv)
-			prometheus.MustRegister(pvGv)
-
-			a.RAMAllocationRecorder = RAMAllocation
-			a.CPUAllocationRecorder = CPUAllocation
-			a.GPUAllocationRecorder = GPUAllocation
-			a.ContainerUptimeRecorder = ContainerUptime
-			a.CPUPriceRecorder = cpuGv
-			a.RAMPriceRecorder = ramGv
-			a.PersistentVolumePriceRecorder = pvGv
-			a.GPUPriceRecorder = gpuGv
-			a.NodeTotalPriceRecorder = totalGv
 
 			for _, costs := range data {
 				nodeName := costs.NodeName
@@ -438,8 +363,9 @@ func (a *Accesses) recordPrices() {
 				a.CPUPriceRecorder.WithLabelValues(nodeName, nodeName).Set(cpuCost)
 				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeName).Set(ramCost)
 				a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName).Set(gpuCost)
-
 				a.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName).Set(totalCost)
+				labelKey := getKeyFromLabelStrings(nodeName, nodeName)
+				nodeSeen[labelKey] = true
 
 				namespace := costs.Namespace
 				podName := costs.PodName
@@ -454,6 +380,8 @@ func (a *Accesses) recordPrices() {
 					// allocation here is set to the request because shared GPU usage not yet supported.
 					a.GPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.GPUReq[0].Value)
 				}
+				labelKey = getKeyFromLabelStrings(namespace, podName, containerName, nodeName, nodeName)
+				containerSeen[labelKey] = true
 
 				storageClasses, _ := a.KubeClientSet.StorageV1().StorageClasses().List(metav1.ListOptions{})
 
@@ -477,12 +405,44 @@ func (a *Accesses) recordPrices() {
 					costModel.GetPVCost(cacPv, &pv, a.Cloud)
 					c, _ := strconv.ParseFloat(cacPv.Cost, 64)
 					a.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name).Set(c)
+					labelKey := getKeyFromLabelStrings(pv.Name, pv.Name)
+					pvSeen[labelKey] = true
 				}
 				containerUptime, _ := costModel.ComputeUptimes(a.PrometheusClient)
 				for key, uptime := range containerUptime {
 					container, _ := costModel.NewContainerMetricFromKey(key)
 					a.ContainerUptimeRecorder.WithLabelValues(container.Namespace, container.PodName, container.ContainerName).Set(uptime)
 				}
+			}
+			for labelString, seen := range nodeSeen {
+				if !seen {
+					labels := getLabelStringsFromKey(labelString)
+					a.NodeTotalPriceRecorder.DeleteLabelValues(labels...)
+					a.CPUPriceRecorder.DeleteLabelValues(labels...)
+					a.GPUPriceRecorder.DeleteLabelValues(labels...)
+					a.RAMPriceRecorder.DeleteLabelValues(labels...)
+					delete(nodeSeen, labelString)
+				}
+				nodeSeen[labelString] = false
+			}
+			for labelString, seen := range containerSeen {
+				if !seen {
+					labels := getLabelStringsFromKey(labelString)
+					a.RAMAllocationRecorder.DeleteLabelValues(labels...)
+					a.CPUAllocationRecorder.DeleteLabelValues(labels...)
+					a.GPUAllocationRecorder.DeleteLabelValues(labels...)
+					a.ContainerUptimeRecorder.DeleteLabelValues(labels...)
+					delete(containerSeen, labelString)
+				}
+				containerSeen[labelString] = false
+			}
+			for labelString, seen := range pvSeen {
+				if !seen {
+					labels := getLabelStringsFromKey(labelString)
+					a.PersistentVolumePriceRecorder.DeleteLabelValues(labels...)
+					delete(pvSeen, labelString)
+				}
+				pvSeen[labelString] = false
 			}
 			time.Sleep(time.Minute)
 		}
