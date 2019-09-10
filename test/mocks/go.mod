@@ -2,6 +2,8 @@ module github.com/kubecost/test/mocks
 
 go 1.12
 
+replace git.apache.org/thrift.git@v0.12.0 => github.com/apache/thrift v0.12.0
+
 require (
 	github.com/golang/mock v1.2.0
 	github.com/golang/protobuf v1.3.1 // indirect

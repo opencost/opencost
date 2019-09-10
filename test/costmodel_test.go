@@ -5,10 +5,16 @@ package costmodel_test
 import (
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
-	costModel "github.com/kubecost/cost-model/costmodel"
+	//costModel "github.com/kubecost/cost-model/costmodel"
 	"github.com/kubecost/test/mocks"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	//testclient "k8s.io/client-go/kubernetes/fake"
+	fakecontroller "k8s.io/client-go/tools/cache/testing"
 )
 
 func TestCostModel(t *testing.T) {
@@ -21,8 +27,24 @@ func TestCostModel(t *testing.T) {
 	cli.EXPECT().URL(gomock.Any(), gomock.Any()).AnyTimes().Return(u)
 	cli.EXPECT().Do(gomock.Any(), gomock.Any()).AnyTimes()
 
-	clientset := mocks.NewMockInterface(ctrl)
-	provider := mocks.NewMockProvider(ctrl)
+	//clientset := testclient.NewSimpleClientset()
+	//provider := mocks.NewMockProvider(ctrl)
 
-	costModel.ComputeCostData(cli, clientset, provider, "1d", "", "")
+	fc := fakecontroller.NewFakeControllerSource()
+	//cm := costModel.NewCostModel(fc)
+	fc.Add(&v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "foo",
+		},
+	})
+	time.Sleep(100 * time.Millisecond)
+	/*
+		c, err := cm.ComputeCostData(cli, clientset, provider, "1d", "", "")
+		if err != nil {
+			panic(err)
+		}
+		for _, costs := range c {
+			assert.Equal(t, "foo", costs.PodName)
+		}
+	*/
 }

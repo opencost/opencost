@@ -26,8 +26,10 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 )
 
 const (
@@ -193,6 +195,21 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	} else {
 		w.Write(wrapData(data, err))
 	}
+}
+
+func (a *Accesses) CostDataModelRangeLarge(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	/*
+		start := r.URL.Query().Get("start")
+		end := r.URL.Query().Get("end")
+		window := r.URL.Query().Get("window")
+		fields := r.URL.Query().Get("filterFields")
+		namespace := r.URL.Query().Get("namespace")
+	*/
+	data, err := costModel.CostDataRangeFromSQL("", "", "", "", "")
+	w.Write(wrapData(data, err))
 }
 
 func (a *Accesses) OutofClusterCosts(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -558,6 +575,8 @@ func main() {
 	prometheus.MustRegister(CPUAllocation)
 	prometheus.MustRegister(ContainerUptimeRecorder)
 
+	podCache := cache.NewListWatchFromClient(kubeClientset.CoreV1().RESTClient(), "pods", "", fields.Everything())
+
 	a := Accesses{
 		PrometheusClient:              promCli,
 		KubeClientSet:                 kubeClientset,
@@ -571,7 +590,7 @@ func main() {
 		GPUAllocationRecorder:         GPUAllocation,
 		ContainerUptimeRecorder:       ContainerUptimeRecorder,
 		PersistentVolumePriceRecorder: pvGv,
-		Model:                         costModel.NewCostModel(kubeClientset),
+		Model:                         costModel.NewCostModel(podCache),
 	}
 
 	err = a.Cloud.DownloadPricingData()
@@ -584,6 +603,7 @@ func main() {
 	router := httprouter.New()
 	router.GET("/costDataModel", a.CostDataModel)
 	router.GET("/costDataModelRange", a.CostDataModelRange)
+	router.GET("/costDataModelRangeLarge", a.CostDataModelRangeLarge)
 	router.GET("/outOfClusterCosts", a.OutofClusterCosts)
 	router.GET("/allNodePricing", a.GetAllNodePricing)
 	router.GET("/healthz", Healthz)

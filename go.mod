@@ -4,6 +4,8 @@ require github.com/kubecost/test/mocks v0.0.0
 
 replace github.com/kubecost/test/mocks v0.0.0 => ./test/mocks
 
+replace git.apache.org/thrift.git => github.com/apache/thrift v0.12.0
+
 require (
 	cloud.google.com/go v0.34.0
 	contrib.go.opencensus.io/exporter/ocagent v0.5.0 // indirect
@@ -16,6 +18,7 @@ require (
 	github.com/googleapis/gax-go v2.0.2+incompatible // indirect
 	github.com/jszwec/csvutil v1.2.1
 	github.com/julienschmidt/httprouter v1.2.0
+	github.com/lib/pq v1.2.0
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/prometheus/client_golang v0.9.3-0.20190127221311-3c4408c8b829
 	github.com/satori/go.uuid v1.2.0 // indirect
