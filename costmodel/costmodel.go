@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -39,6 +40,7 @@ const (
 	epCleanTombstones = apiPrefix + "/admin/tsdb/clean_tombstones"
 	epConfig          = apiPrefix + "/status/config"
 	epFlags           = apiPrefix + "/status/flags"
+	remoteEnabled     = "REMOTE_WRITE_ENABLED"
 )
 
 type CostModel struct {
@@ -753,6 +755,9 @@ func addPVData(clientset kubernetes.Interface, pvClaimMapping map[string]*Persis
 	for _, storageClass := range storageClasses.Items {
 		params := storageClass.Parameters
 		storageClassMap[storageClass.ObjectMeta.Name] = params
+		if storageClass.GetAnnotations()["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.GetAnnotations()["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
+			storageClassMap["default"] = params
+		}
 	}
 
 	pvs, err := clientset.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
@@ -1015,6 +1020,12 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		klog.V(1).Infof("Error parsing time " + windowString + ". Error: " + err.Error())
 		return nil, err
 	}
+	remoteEnabled := os.Getenv(remoteEnabled)
+	if remoteEnabled == "true" && (end.Sub(start) > time.Hour*168) {
+		klog.V(1).Infof("Using remote database for query from %s to %s with window %s", startString, endString, windowString)
+		return CostDataRangeFromSQL("", "", windowString, startString, endString)
+	}
+
 	var wg sync.WaitGroup
 	wg.Add(8)
 

@@ -384,7 +384,7 @@ func (aws *AWS) PVPricing(pvk PVKey) (*PV, error) {
 	}
 	pricing, ok := aws.Pricing[pvk.Features()]
 	if !ok {
-		klog.V(2).Infof("Persistent Volume pricing not found for %s", pvk.Features())
+		klog.V(4).Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
 		return &PV{}, nil
 	}
 	return pricing.PV, nil
@@ -394,6 +394,7 @@ type awsPVKey struct {
 	Labels                 map[string]string
 	StorageClassParameters map[string]string
 	StorageClassName       string
+	Name                   string
 }
 
 func (aws *AWS) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string) PVKey {
@@ -401,6 +402,7 @@ func (aws *AWS) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string) 
 		Labels:                 pv.Labels,
 		StorageClassName:       pv.Spec.StorageClassName,
 		StorageClassParameters: parameters,
+		Name:                   pv.Name,
 	}
 }
 
@@ -416,7 +418,15 @@ func (key *awsPVKey) Features() string {
 	// Storage class names are generally EBS volume types (gp2)
 	// Keys in Pricing are based on UsageTypes (EBS:VolumeType.gp2)
 	// Converts between the 2
-	return key.Labels[v1.LabelZoneRegion] + "," + volTypes[storageClass]
+	region := key.Labels[v1.LabelZoneRegion]
+	//if region == "" {
+	//	region = "us-east-1"
+	//}
+	class, ok := volTypes[storageClass]
+	if !ok {
+		klog.Infof("No voltype mapping for %s's storageClass: %s", key.Name, storageClass)
+	}
+	return region + "," + class
 }
 
 // GetKey maps node labels to information needed to retrieve pricing data
@@ -483,13 +493,16 @@ func (aws *AWS) DownloadPricingData() error {
 	for _, storageClass := range storageClasses.Items {
 		params := storageClass.Parameters
 		storageClassMap[storageClass.ObjectMeta.Name] = params
+		if storageClass.GetAnnotations()["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.GetAnnotations()["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
+			storageClassMap["default"] = params
+		}
 	}
 
 	pvkeys := make(map[string]PVKey)
 	for _, pv := range pvList.Items {
 		params, ok := storageClassMap[pv.Spec.StorageClassName]
 		if !ok {
-			klog.V(2).Infof("Unable to find params for storageClassName %s, falling back to default pricing", pv.Name)
+			klog.V(2).Infof("Unable to find params for storageClassName %s, falling back to default pricing", pv.Spec.StorageClassName)
 			continue
 		}
 		key := aws.GetPVKey(&pv, params)

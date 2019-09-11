@@ -406,6 +406,9 @@ func (a *Accesses) recordPrices() {
 				for _, storageClass := range storageClasses.Items {
 					params := storageClass.Parameters
 					storageClassMap[storageClass.ObjectMeta.Name] = params
+					if storageClass.GetAnnotations()["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.GetAnnotations()["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
+						storageClassMap["default"] = params
+					}
 				}
 
 				pvs, _ := a.KubeClientSet.CoreV1().PersistentVolumes().List(metav1.ListOptions{})

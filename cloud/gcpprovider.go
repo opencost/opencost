@@ -679,6 +679,9 @@ func (gcp *GCP) DownloadPricingData() error {
 	for _, storageClass := range storageClasses.Items {
 		params := storageClass.Parameters
 		storageClassMap[storageClass.ObjectMeta.Name] = params
+		if storageClass.GetAnnotations()["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.GetAnnotations()["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
+			storageClassMap["default"] = params
+		}
 	}
 
 	pvkeys := make(map[string]PVKey)
@@ -710,7 +713,7 @@ func (gcp *GCP) PVPricing(pvk PVKey) (*PV, error) {
 	defer gcp.DownloadPricingDataLock.RUnlock()
 	pricing, ok := gcp.Pricing[pvk.Features()]
 	if !ok {
-		klog.V(2).Infof("Persistent Volume pricing not found for %s", pvk)
+		klog.V(4).Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
 		return &PV{}, nil
 	}
 	return pricing.PV, nil
