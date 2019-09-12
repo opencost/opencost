@@ -402,10 +402,7 @@ func (aws *AWS) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string) 
 		Labels:                 pv.Labels,
 		StorageClassName:       pv.Spec.StorageClassName,
 		StorageClassParameters: parameters,
-<<<<<<< HEAD
 		Name:                   pv.Name,
-=======
->>>>>>> 7448293f1c4aa8807d38e942f05c16d877264dec
 	}
 }
 
