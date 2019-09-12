@@ -418,6 +418,7 @@ func (a *Accesses) recordPrices() {
 					storageClassMap[storageClass.ObjectMeta.Name] = params
 					if storageClass.GetAnnotations()["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.GetAnnotations()["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
 						storageClassMap["default"] = params
+						storageClassMap[""] = params
 					}
 				}
 
