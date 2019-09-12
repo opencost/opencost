@@ -378,10 +378,6 @@ func (k *awsKey) Features() string {
 }
 
 func (aws *AWS) PVPricing(pvk PVKey) (*PV, error) {
-	if pvk.GetStorageClass() == "" {
-		klog.V(3).Infof("Disk in %s does not have a storageclass set, cannot look up pricing info.", pvk.Features())
-		return &PV{}, nil
-	}
 	pricing, ok := aws.Pricing[pvk.Features()]
 	if !ok {
 		klog.V(4).Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
@@ -495,6 +491,7 @@ func (aws *AWS) DownloadPricingData() error {
 		storageClassMap[storageClass.ObjectMeta.Name] = params
 		if storageClass.GetAnnotations()["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.GetAnnotations()["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
 			storageClassMap["default"] = params
+			storageClassMap[""] = params
 		}
 	}
 

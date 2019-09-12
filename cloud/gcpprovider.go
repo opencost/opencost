@@ -681,6 +681,7 @@ func (gcp *GCP) DownloadPricingData() error {
 		storageClassMap[storageClass.ObjectMeta.Name] = params
 		if storageClass.GetAnnotations()["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.GetAnnotations()["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
 			storageClassMap["default"] = params
+			storageClassMap[""] = params
 		}
 	}
 
@@ -705,10 +706,6 @@ func (gcp *GCP) DownloadPricingData() error {
 }
 
 func (gcp *GCP) PVPricing(pvk PVKey) (*PV, error) {
-	if pvk.GetStorageClass() == "" {
-		klog.V(3).Infof("Disk in %s does not have a storageclass set, cannot look up pricing info.", pvk.Features())
-		return &PV{}, nil
-	}
 	gcp.DownloadPricingDataLock.RLock()
 	defer gcp.DownloadPricingDataLock.RUnlock()
 	pricing, ok := gcp.Pricing[pvk.Features()]
