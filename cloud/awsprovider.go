@@ -398,8 +398,9 @@ type awsPVKey struct {
 
 func (aws *AWS) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string) PVKey {
 	return &awsPVKey{
-		Labels:           pv.Labels,
-		StorageClassName: pv.Spec.StorageClassName,
+		Labels:                 pv.Labels,
+		StorageClassName:       pv.Spec.StorageClassName,
+		StorageClassParameters: parameters,
 	}
 }
 
@@ -408,7 +409,7 @@ func (key *awsPVKey) GetStorageClass() string {
 }
 
 func (key *awsPVKey) Features() string {
-	storageClass := key.StorageClassName
+	storageClass := key.StorageClassParameters["type"]
 	if storageClass == "standard" {
 		storageClass = "gp2"
 	}
