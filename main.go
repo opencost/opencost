@@ -347,6 +347,11 @@ func (a *Accesses) recordPrices() {
 
 		for {
 			klog.V(4).Info("Recording prices...")
+			podlist := a.Model.Controller.GetAll()
+			podStatus := make(map[string]v1.PodPhase)
+			for _, pod := range podlist {
+				podStatus[pod.Name] = pod.Status.Phase
+			}
 			data, err := a.Model.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "2m", "", "")
 			if err != nil {
 				klog.V(1).Info("Error in price recording: " + err.Error())
@@ -398,7 +403,12 @@ func (a *Accesses) recordPrices() {
 					a.GPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.GPUReq[0].Value)
 				}
 				labelKey = getKeyFromLabelStrings(namespace, podName, containerName, nodeName, nodeName)
-				containerSeen[labelKey] = true
+				if podStatus[podName] == v1.PodRunning { // Only report data for current pods
+					containerSeen[labelKey] = true
+				} else {
+					klog.Infof("Container %s not running", labelKey)
+					containerSeen[labelKey] = false
+				}
 
 				storageClasses, _ := a.KubeClientSet.StorageV1().StorageClasses().List(metav1.ListOptions{})
 
