@@ -35,6 +35,7 @@ import (
 const (
 	prometheusServerEndpointEnvVar = "PROMETHEUS_SERVER_ENDPOINT"
 	prometheusTroubleshootingEp    = "http://docs.kubecost.com/custom-prom#troubleshoot"
+	remoteEnabled                  = "REMOTE_WRITE_ENABLED"
 )
 
 var (
@@ -55,6 +56,8 @@ type Accesses struct {
 	CPUAllocationRecorder         *prometheus.GaugeVec
 	GPUAllocationRecorder         *prometheus.GaugeVec
 	ContainerUptimeRecorder       *prometheus.GaugeVec
+	ServiceSelectorRecorder       *prometheus.GaugeVec
+	DeploymentSelectorRecorder    *prometheus.GaugeVec
 	Model                         *costModel.CostModel
 }
 
@@ -197,11 +200,13 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	}
 }
 
+// CostDataModelRangeLarge is experimental multi-cluster and long-term data storage in SQL support.
 func (a *Accesses) CostDataModelRangeLarge(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	/*
+		TODO: Accept these fields and pass them down to the SQL query
 		start := r.URL.Query().Get("start")
 		end := r.URL.Query().Get("end")
 		window := r.URL.Query().Get("window")
@@ -377,8 +382,10 @@ func (a *Accesses) recordPrices() {
 
 				if costs.PVCData != nil {
 					for _, pvc := range costs.PVCData {
-						pvCost, _ := strconv.ParseFloat(pvc.Volume.Cost, 64)
-						a.PersistentVolumePriceRecorder.WithLabelValues(pvc.VolumeName, pvc.VolumeName).Set(pvCost)
+						if pvc.Volume != nil {
+							pvCost, _ := strconv.ParseFloat(pvc.Volume.Cost, 64)
+							a.PersistentVolumePriceRecorder.WithLabelValues(pvc.VolumeName, pvc.VolumeName).Set(pvCost)	
+						}
 					}
 				}
 
@@ -588,6 +595,12 @@ func main() {
 	prometheus.MustRegister(RAMAllocation)
 	prometheus.MustRegister(CPUAllocation)
 	prometheus.MustRegister(ContainerUptimeRecorder)
+	prometheus.MustRegister(costModel.ServiceCollector{
+		KubeClientSet: kubeClientset,
+	})
+	prometheus.MustRegister(costModel.DeploymentCollector{
+		KubeClientSet: kubeClientset,
+	})
 
 	podCache := cache.NewListWatchFromClient(kubeClientset.CoreV1().RESTClient(), "pods", "", fields.Everything())
 
@@ -605,6 +618,19 @@ func main() {
 		ContainerUptimeRecorder:       ContainerUptimeRecorder,
 		PersistentVolumePriceRecorder: pvGv,
 		Model:                         costModel.NewCostModel(podCache),
+	}
+
+	remoteEnabled := os.Getenv(remoteEnabled)
+	if remoteEnabled == "true" {
+		info, err := cloudProvider.ClusterInfo()
+		klog.Infof("Saving cluster  with id:'%s', and name:'%s' to durable storage", info["id"], info["name"])
+		if err != nil {
+			klog.Infof("Error saving cluster id %s", err.Error())
+		}
+		_, _, err = costAnalyzerCloud.GetOrCreateClusterMeta(info["id"], info["name"])
+		if err != nil {
+			klog.Infof("Unable to set cluster id '%s' for cluster '%s', %s", info["id"], info["name"], err.Error())
+		}
 	}
 
 	err = a.Cloud.DownloadPricingData()

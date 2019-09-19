@@ -113,6 +113,7 @@ type CostData struct {
 	PVCData         []*PersistentVolumeClaimData `json:"pvcData,omitempty"`
 	Labels          map[string]string            `json:"labels,omitempty"`
 	NamespaceLabels map[string]string            `json:"namespaceLabels,omitempty"`
+	ClusterID       string                       `json:"clusterId"`
 }
 
 type Vector struct {
@@ -449,6 +450,9 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 
 			nsLabels := namespaceLabelsMapping[ns]
 			podLabels := pod.GetObjectMeta().GetLabels()
+			if podLabels == nil {
+				podLabels = make(map[string]string)
+			}
 
 			for k, v := range nsLabels {
 				if _, ok := podLabels[k]; !ok {
@@ -753,6 +757,10 @@ func getContainerAllocation(req []*Vector, used []*Vector) []*Vector {
 	return allocation
 }
 func addPVData(clientset kubernetes.Interface, pvClaimMapping map[string]*PersistentVolumeClaimData, cloud costAnalyzerCloud.Provider) error {
+	cfg, err := cloud.GetConfig()
+	if err != nil {
+		return err
+	}
 	storageClasses, err := clientset.StorageV1().StorageClasses().List(metav1.ListOptions{})
 	if err != nil {
 		return err
@@ -790,16 +798,27 @@ func addPVData(clientset kubernetes.Interface, pvClaimMapping map[string]*Persis
 	}
 
 	for _, pvc := range pvClaimMapping {
-		pvc.Volume = pvMap[pvc.VolumeName]
+		if vol, ok := pvMap[pvc.VolumeName]; ok {
+			pvc.Volume = vol
+		} else {
+			klog.V(1).Infof("PV not found, using default")
+			pvc.Volume = &costAnalyzerCloud.PV{
+				Cost: cfg.Storage,
+			}
+		}
 	}
 	return nil
 }
 
 func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cloud costAnalyzerCloud.Provider) error {
 	cfg, err := cloud.GetConfig()
+	if err != nil {
+		return err
+	}
 	key := cloud.GetPVKey(kpv, pv.Parameters)
 	pvWithCost, err := cloud.PVPricing(key)
 	if err != nil {
+		pv.Cost = cfg.Storage
 		return err
 	}
 	if pvWithCost == nil || pvWithCost.Cost == "" {
@@ -1028,9 +1047,12 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		return nil, err
 	}
 	remoteEnabled := os.Getenv(remoteEnabled)
-	if remoteEnabled == "true" && (end.Sub(start) > time.Hour*168) {
+	if remoteEnabled == "true" {
+		remoteLayout := "2006-01-02T15:04:05Z"
+		remoteStartStr := start.Format(remoteLayout)
+		remoteEndStr := end.Format(remoteLayout)
 		klog.V(1).Infof("Using remote database for query from %s to %s with window %s", startString, endString, windowString)
-		return CostDataRangeFromSQL("", "", windowString, startString, endString)
+		return CostDataRangeFromSQL("", "", windowString, remoteStartStr, remoteEndStr)
 	}
 
 	var wg sync.WaitGroup
@@ -1228,6 +1250,10 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 
 			nsLabels := namespaceLabelsMapping[ns]
 			podLabels := pod.GetObjectMeta().GetLabels()
+
+			if podLabels == nil {
+				podLabels = make(map[string]string)
+			}
 
 			for k, v := range nsLabels {
 				if _, ok := podLabels[k]; !ok {
@@ -1666,7 +1692,7 @@ func QueryRange(cli prometheusClient.Client, query string, start, end time.Time,
 		return nil, err
 	}
 
-	_, body, err := cli.Do(context.Background(), req)
+	_, body, _, err := cli.Do(context.Background(), req)
 	if err != nil {
 		klog.V(1).Infof("ERROR" + err.Error())
 	}
@@ -1692,7 +1718,7 @@ func query(cli prometheusClient.Client, query string) (interface{}, error) {
 		return nil, err
 	}
 
-	_, body, err := cli.Do(context.Background(), req)
+	_, body, _, err := cli.Do(context.Background(), req)
 	if err != nil {
 		return nil, err
 	}
