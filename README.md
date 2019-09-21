@@ -20,30 +20,19 @@ Here is a summary of features enabled by this cost model:
 - Node exporter
 - Prometheus
 
-## Installation
+## Getting Started
 
-You can run Kubecost models on any Kubernetes 1.8+ cluster in a matter of minutes, if not seconds. 
-The recommended way to install the Kubecost cost model (along with dashboards) is with the [install instructions](https://kubecost.com/install) on our website. Note: this installation also contains closed source dashboards today, but they are provided for free on small clusters and for evaluation purposes. 
+You can deploy Kubecost on any Kubernetes 1.8+ cluster in a matter of minutes, if not seconds. 
+Visit the Kubecost docs for [recommended install options](https://docs.kubecost.com/install).
 
-Compared to building from source, this is faster and includes all necessary dependencies. The Kubecost cost model is also available as a container (kubecost/cost-model) and you can deploy run the Golang code yourself as described in the section below.
-
-## Deploying as a pod
-
-If you would like to run the cost model (w/o dashboards mentioned above) directly on your cluster, complete the following steps:
-
-1. Set [this environment variable](https://github.com/kubecost/cost-model/blob/master/kubernetes/deployment.yaml#L30) to the address of your prometheus server
-2. `kubectl create namespace cost-model`
-3. `kubectl apply -f kubernetes/ --namespace cost-model`
-4. `kubectl port-forward --namespace cost-model service/cost-model 9003`
-
-To test that the server is running, you can hit [http://localhost:9003/costDataModel?timeWindow=1d](http://localhost:9003/costDataModel?timeWindow=1d)
-
-Note: the following dependencies mentioned above are required for this installation path.
+Compared to building from source, installing from Helm is faster and includes all necessary dependencies. 
 
 ## Contributing
 
 We :heart: pull requests! See [`CONTRIBUTING.md`](CONTRIBUTING.md) for information on buiding the project from source
 and contributing changes. 
+
+To test that the server is running, you can hit [http://localhost:9003/costDataModel?timeWindow=1d](http://localhost:9003/costDataModel?timeWindow=1d)
 
 ## Licensing
 
