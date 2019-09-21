@@ -18,7 +18,7 @@ Follow these steps to build from source and deploy:
 5. `kubectl apply -f kubernetes/ --namespace cost-model`
 6. `kubectl port-forward --namespace cost-model service/cost-model 9003`
 
-To test, you'll need to build the cost-model docker container then push it to a kubernetes cluster with a running prometheus.
+To test, build the cost-model docker container and then push it to a Kubernetes cluster with a running Prometheus.
 
 ## Certification of Origin ##
 
