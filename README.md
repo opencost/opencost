@@ -42,15 +42,8 @@ Note: the following dependencies mentioned above are required for this installat
 
 ## Contributing
 
-We :heart: pull requests! See [`CONTRIBUTING.md`](CONTRIBUTING.md) for info on
-contributing changes. To test, you'll need to build the cost-model docker container then push it to a kubernetes cluster with a running prometheus.
-
-1. `docker build --rm -f "Dockerfile" -t <repo>/kubecost-cost-model:<tag> .`
-2. Edit the [pulled image](https://github.com/kubecost/cost-model/blob/master/kubernetes/deployment.yaml#L22) in the deployment.yaml to <repo>/kubecost-cost-model:<tag>
-3. Set [this environment variable](https://github.com/kubecost/cost-model/blob/master/kubernetes/deployment.yaml#L30) to the address of your prometheus server
-4. `kubectl create namespace cost-model`
-5. `kubectl apply -f kubernetes/ --namespace cost-model`
-6. `kubectl port-forward --namespace cost-model service/cost-model 9003`
+We :heart: pull requests! See [`CONTRIBUTING.md`](CONTRIBUTING.md) for information on buiding the project from source
+and contributing changes. 
 
 ## Licensing
 
