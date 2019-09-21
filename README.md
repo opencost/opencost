@@ -30,8 +30,6 @@ Visit the Kubecost docs for [recommended install options](https://docs.kubecost.
 We :heart: pull requests! See [`CONTRIBUTING.md`](CONTRIBUTING.md) for information on buiding the project from source
 and contributing changes. 
 
-To test that the server is running, you can hit [http://localhost:9003/costDataModel?timeWindow=1d](http://localhost:9003/costDataModel?timeWindow=1d)
-
 ## Licensing
 
 Licensed under the Apache License, Version 2.0 (the "License")
