@@ -55,7 +55,7 @@ Golang application.
 Prometheus. 
 Kubernetes. 
 
-## Questions
+## Frequently Asked Questions
 
 ***How do you measure the cost of CPU/RAM/GPU/storage for a container, pod, deployment, etc.***
 
