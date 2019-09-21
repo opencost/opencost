@@ -20,6 +20,9 @@ Follow these steps to build from source and deploy:
 
 To test, build the cost-model docker container and then push it to a Kubernetes cluster with a running Prometheus.
 
+To confirm that the server is running, you can hit [http://localhost:9003/costDataModel?timeWindow=1d](http://localhost:9003/costDataModel?timeWindow=1d)
+
+
 ## Certification of Origin ##
 
 By contributing to this project you certify that your contribution was created in whole or in part by you and that you have the right to submit it under the open source license indicated in the project. In other words, please confirm that you, as a contributor, have the legal right to make the contribution. 
