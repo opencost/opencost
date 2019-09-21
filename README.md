@@ -25,7 +25,7 @@ Here is a summary of features enabled by this cost model:
 You can deploy Kubecost on any Kubernetes 1.8+ cluster in a matter of minutes, if not seconds. 
 Visit the Kubecost docs for [recommended install options](https://docs.kubecost.com/install).
 
-Compared to building from source, install from Helm is faster and includes all necessary dependencies. 
+Compared to building from source, installing from Helm is faster and includes all necessary dependencies. 
 
 ## Contributing
 
