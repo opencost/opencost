@@ -448,8 +448,14 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 			ns := pod.GetObjectMeta().GetNamespace()
 
 			nsLabels := namespaceLabelsMapping[ns]
-
 			podLabels := pod.GetObjectMeta().GetLabels()
+
+			for k, v := range nsLabels {
+				if _, ok := podLabels[k]; !ok {
+					podLabels[k] = v
+				}
+			}
+
 			nodeName := pod.Spec.NodeName
 			var nodeData *costAnalyzerCloud.Node
 			if _, ok := nodes[nodeName]; ok {
@@ -1186,7 +1192,6 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		if pod, ok := currentContainers[key]; ok {
 			podName := pod.GetObjectMeta().GetName()
 			ns := pod.GetObjectMeta().GetNamespace()
-			podLabels := pod.GetObjectMeta().GetLabels()
 			nodeName := pod.Spec.NodeName
 			var nodeData *costAnalyzerCloud.Node
 			if _, ok := nodes[nodeName]; ok {
@@ -1222,6 +1227,13 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 			}
 
 			nsLabels := namespaceLabelsMapping[ns]
+			podLabels := pod.GetObjectMeta().GetLabels()
+
+			for k, v := range nsLabels {
+				if _, ok := podLabels[k]; !ok {
+					podLabels[k] = v
+				}
+			}
 
 			for i, container := range pod.Spec.Containers {
 				containerName := container.Name
