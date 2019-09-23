@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -211,15 +212,35 @@ func (a *Accesses) CostDataModelRangeLarge(w http.ResponseWriter, r *http.Reques
 
 	layout := "2006-01-02T15:04:05.000Z"
 
-	start, err := time.Parse(layout, startString)
-	if err != nil {
-		klog.V(1).Infof("Error parsing time " + startString + ". Error: " + err.Error())
-		w.Write(wrapData(nil, err))
+	var start time.Time
+	var end time.Time
+	var err error
+
+	if windowString == "" {
+		windowString = "1h"
 	}
-	end, err := time.Parse(layout, endString)
-	if err != nil {
-		klog.V(1).Infof("Error parsing time " + endString + ". Error: " + err.Error())
-		w.Write(wrapData(nil, err))
+	if startString != "" {
+		start, err = time.Parse(layout, startString)
+		if err != nil {
+			klog.V(1).Infof("Error parsing time " + startString + ". Error: " + err.Error())
+			w.Write(wrapData(nil, err))
+		}
+	} else {
+		window, err := time.ParseDuration(windowString)
+		if err != nil {
+			w.Write(wrapData(nil, fmt.Errorf("Invalid duration '%s'", windowString)))
+
+		}
+		start = time.Now().Add(-2 * window)
+	}
+	if endString != "" {
+		end, err = time.Parse(layout, endString)
+		if err != nil {
+			klog.V(1).Infof("Error parsing time " + endString + ". Error: " + err.Error())
+			w.Write(wrapData(nil, err))
+		}
+	} else {
+		end = time.Now()
 	}
 
 	remoteLayout := "2006-01-02T15:04:05Z"
