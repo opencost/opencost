@@ -205,15 +205,29 @@ func (a *Accesses) CostDataModelRangeLarge(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	/*
-		TODO: Accept these fields and pass them down to the SQL query
-		start := r.URL.Query().Get("start")
-		end := r.URL.Query().Get("end")
-		window := r.URL.Query().Get("window")
-		fields := r.URL.Query().Get("filterFields")
-		namespace := r.URL.Query().Get("namespace")
-	*/
-	data, err := costModel.CostDataRangeFromSQL("", "", "", "", "")
+	startString := r.URL.Query().Get("start")
+	endString := r.URL.Query().Get("end")
+	windowString := r.URL.Query().Get("window")
+
+	layout := "2006-01-02T15:04:05.000Z"
+
+	start, err := time.Parse(layout, startString)
+	if err != nil {
+		klog.V(1).Infof("Error parsing time " + startString + ". Error: " + err.Error())
+		w.Write(wrapData(nil, err))
+	}
+	end, err := time.Parse(layout, endString)
+	if err != nil {
+		klog.V(1).Infof("Error parsing time " + endString + ". Error: " + err.Error())
+		w.Write(wrapData(nil, err))
+	}
+
+	remoteLayout := "2006-01-02T15:04:05Z"
+	remoteStartStr := start.Format(remoteLayout)
+	remoteEndStr := end.Format(remoteLayout)
+	klog.V(1).Infof("Using remote database for query from %s to %s with window %s", startString, endString, windowString)
+
+	data, err := costModel.CostDataRangeFromSQL("", "", windowString, remoteStartStr, remoteEndStr)
 	w.Write(wrapData(data, err))
 }
 
@@ -384,7 +398,7 @@ func (a *Accesses) recordPrices() {
 					for _, pvc := range costs.PVCData {
 						if pvc.Volume != nil {
 							pvCost, _ := strconv.ParseFloat(pvc.Volume.Cost, 64)
-							a.PersistentVolumePriceRecorder.WithLabelValues(pvc.VolumeName, pvc.VolumeName).Set(pvCost)	
+							a.PersistentVolumePriceRecorder.WithLabelValues(pvc.VolumeName, pvc.VolumeName).Set(pvCost)
 						}
 					}
 				}
