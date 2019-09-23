@@ -113,6 +113,7 @@ type CostData struct {
 	PVCData         []*PersistentVolumeClaimData `json:"pvcData,omitempty"`
 	Labels          map[string]string            `json:"labels,omitempty"`
 	NamespaceLabels map[string]string            `json:"namespaceLabels,omitempty"`
+	ClusterID       string                       `json:"clusterId"`
 }
 
 type Vector struct {
@@ -439,6 +440,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		}
 	}
 	missingNodes := make(map[string]*costAnalyzerCloud.Node)
+	missingContainers := make(map[string]*CostData)
 	for key := range containers {
 		if _, ok := containerNameCost[key]; ok {
 			continue // because ordering is important for the allocation model (all PV's applied to the first), just dedupe if it's already been added.
@@ -449,6 +451,9 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 
 			nsLabels := namespaceLabelsMapping[ns]
 			podLabels := pod.GetObjectMeta().GetLabels()
+			if podLabels == nil {
+				podLabels = make(map[string]string)
+			}
 
 			for k, v := range nsLabels {
 				if _, ok := podLabels[k]; !ok {
@@ -598,24 +603,31 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 					missingNodes[c.NodeName] = node
 				}
 			}
+			namespacelabels, ok := namespaceLabelsMapping[c.Namespace]
+			if !ok {
+				klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
+			}
 			costs := &CostData{
-				Name:      c.ContainerName,
-				PodName:   c.PodName,
-				NodeName:  c.NodeName,
-				NodeData:  node,
-				Namespace: c.Namespace,
-				RAMReq:    RAMReqV,
-				RAMUsed:   RAMUsedV,
-				CPUReq:    CPUReqV,
-				CPUUsed:   CPUUsedV,
-				GPUReq:    GPUReqV,
+				Name:            c.ContainerName,
+				PodName:         c.PodName,
+				NodeName:        c.NodeName,
+				NodeData:        node,
+				Namespace:       c.Namespace,
+				RAMReq:          RAMReqV,
+				RAMUsed:         RAMUsedV,
+				CPUReq:          CPUReqV,
+				CPUUsed:         CPUUsedV,
+				GPUReq:          GPUReqV,
+				NamespaceLabels: namespacelabels,
 			}
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
 			if filterNamespace == "" {
 				containerNameCost[key] = costs
+				missingContainers[key] = costs
 			} else if costs.Namespace == filterNamespace {
 				containerNameCost[key] = costs
+				missingContainers[key] = costs
 			}
 		}
 	}
@@ -624,7 +636,84 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	if err != nil {
 		return nil, err
 	}
+	err = findDeletedPodInfo(cli, missingContainers, window)
+	if err != nil {
+		return nil, err
+	}
 	return containerNameCost, err
+}
+
+func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[string]*CostData, window string) error {
+	if len(missingContainers) > 0 {
+		q := make([]string, 0, len(missingContainers))
+		for key := range missingContainers {
+			cm, _ := NewContainerMetricFromKey(key)
+			q = append(q, cm.PodName)
+		}
+		l := strings.Join(q, "|")
+		queryHistoricalPodLabels := fmt.Sprintf(`kube_pod_labels{pod=~"%s"}[%s]`, l, window)
+
+		podLabelsResult, err := query(cli, queryHistoricalPodLabels)
+		if err != nil {
+			return fmt.Errorf("Error fetching historical pod labels: " + err.Error())
+		}
+		podLabels, err := labelsFromPrometheusQuery(podLabelsResult)
+		for key, costData := range missingContainers {
+			cm, _ := NewContainerMetricFromKey(key)
+			labels, ok := podLabels[cm.PodName]
+			if !ok {
+				klog.V(1).Infof("Unable to find historical data for pod '%s'", cm.PodName)
+			}
+			for k, v := range costData.NamespaceLabels {
+				if _, ok := labels[k]; !ok {
+					labels[k] = v
+				}
+			}
+			costData.Labels = labels
+		}
+	}
+
+	return nil
+}
+
+func labelsFromPrometheusQuery(qr interface{}) (map[string]map[string]string, error) {
+	toReturn := make(map[string]map[string]string)
+	for _, val := range qr.(map[string]interface{})["data"].(map[string]interface{})["result"].([]interface{}) {
+		metricInterface, ok := val.(map[string]interface{})["metric"]
+		if !ok {
+			return nil, fmt.Errorf("Metric field does not exist in data result vector")
+		}
+		metricMap, ok := metricInterface.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("Metric field is improperly formatted")
+		}
+		pod, ok := metricMap["pod"]
+		if !ok {
+			return nil, fmt.Errorf("pod field does not exist in data result vector")
+		}
+		podName, ok := pod.(string)
+		if !ok {
+			return nil, fmt.Errorf("pod field is improperly formatted")
+		}
+
+		for labelName, labelValue := range metricMap {
+			parsedLabelName := labelName
+			parsedLv, ok := labelValue.(string)
+			if !ok {
+				return nil, fmt.Errorf("label value is improperly formatted")
+			}
+			if strings.HasPrefix(parsedLabelName, "label_") {
+				l := strings.Replace(parsedLabelName, "label_", "", 1)
+				if podLabels, ok := toReturn[podName]; ok {
+					podLabels[l] = parsedLv
+				} else {
+					toReturn[podName] = make(map[string]string)
+					toReturn[podName][l] = parsedLv
+				}
+			}
+		}
+	}
+	return toReturn, nil
 }
 
 func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*costAnalyzerCloud.Node, window string) error {
@@ -753,6 +842,10 @@ func getContainerAllocation(req []*Vector, used []*Vector) []*Vector {
 	return allocation
 }
 func addPVData(clientset kubernetes.Interface, pvClaimMapping map[string]*PersistentVolumeClaimData, cloud costAnalyzerCloud.Provider) error {
+	cfg, err := cloud.GetConfig()
+	if err != nil {
+		return err
+	}
 	storageClasses, err := clientset.StorageV1().StorageClasses().List(metav1.ListOptions{})
 	if err != nil {
 		return err
@@ -790,16 +883,27 @@ func addPVData(clientset kubernetes.Interface, pvClaimMapping map[string]*Persis
 	}
 
 	for _, pvc := range pvClaimMapping {
-		pvc.Volume = pvMap[pvc.VolumeName]
+		if vol, ok := pvMap[pvc.VolumeName]; ok {
+			pvc.Volume = vol
+		} else {
+			klog.V(1).Infof("PV not found, using default")
+			pvc.Volume = &costAnalyzerCloud.PV{
+				Cost: cfg.Storage,
+			}
+		}
 	}
 	return nil
 }
 
 func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cloud costAnalyzerCloud.Provider) error {
 	cfg, err := cloud.GetConfig()
+	if err != nil {
+		return err
+	}
 	key := cloud.GetPVKey(kpv, pv.Parameters)
 	pvWithCost, err := cloud.PVPricing(key)
 	if err != nil {
+		pv.Cost = cfg.Storage
 		return err
 	}
 	if pvWithCost == nil || pvWithCost.Cost == "" {
@@ -1028,9 +1132,12 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		return nil, err
 	}
 	remoteEnabled := os.Getenv(remoteEnabled)
-	if remoteEnabled == "true" && (end.Sub(start) > time.Hour*168) {
+	if remoteEnabled == "true" {
+		remoteLayout := "2006-01-02T15:04:05Z"
+		remoteStartStr := start.Format(remoteLayout)
+		remoteEndStr := end.Format(remoteLayout)
 		klog.V(1).Infof("Using remote database for query from %s to %s with window %s", startString, endString, windowString)
-		return CostDataRangeFromSQL("", "", windowString, startString, endString)
+		return CostDataRangeFromSQL("", "", windowString, remoteStartStr, remoteEndStr)
 	}
 
 	var wg sync.WaitGroup
@@ -1184,7 +1291,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	}
 
 	missingNodes := make(map[string]*costAnalyzerCloud.Node)
-
+	missingContainers := make(map[string]*CostData)
 	for key := range containers {
 		if _, ok := containerNameCost[key]; ok {
 			continue // because ordering is important for the allocation model (all PV's applied to the first), just dedupe if it's already been added.
@@ -1228,6 +1335,10 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 
 			nsLabels := namespaceLabelsMapping[ns]
 			podLabels := pod.GetObjectMeta().GetLabels()
+
+			if podLabels == nil {
+				podLabels = make(map[string]string)
+			}
 
 			for k, v := range nsLabels {
 				if _, ok := podLabels[k]; !ok {
@@ -1340,32 +1451,45 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 					missingNodes[c.NodeName] = node
 				}
 			}
+			namespacelabels, ok := namespaceLabelsMapping[c.Namespace]
+			if !ok {
+				klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
+			}
 			costs := &CostData{
-				Name:      c.ContainerName,
-				PodName:   c.PodName,
-				NodeName:  c.NodeName,
-				NodeData:  node,
-				Namespace: c.Namespace,
-				RAMReq:    RAMReqV,
-				RAMUsed:   RAMUsedV,
-				CPUReq:    CPUReqV,
-				CPUUsed:   CPUUsedV,
-				GPUReq:    GPUReqV,
+				Name:            c.ContainerName,
+				PodName:         c.PodName,
+				NodeName:        c.NodeName,
+				NodeData:        node,
+				Namespace:       c.Namespace,
+				RAMReq:          RAMReqV,
+				RAMUsed:         RAMUsedV,
+				CPUReq:          CPUReqV,
+				CPUUsed:         CPUUsedV,
+				GPUReq:          GPUReqV,
+				NamespaceLabels: namespacelabels,
 			}
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
 			if filterNamespace == "" {
 				containerNameCost[key] = costs
+				missingContainers[key] = costs
 			} else if costs.Namespace == filterNamespace {
 				containerNameCost[key] = costs
+				missingContainers[key] = costs
 			}
 		}
 	}
 
 	w := end.Sub(start)
+	w += window
 	if w.Minutes() > 0 {
 		wStr := fmt.Sprintf("%dm", int(w.Minutes()))
 		err = findDeletedNodeInfo(cli, missingNodes, wStr)
+		if err != nil {
+			return nil, err
+		}
+		klog.Infof("Finding deleted pod info from range query:")
+		err = findDeletedPodInfo(cli, missingContainers, wStr)
 		if err != nil {
 			return nil, err
 		}
@@ -1666,7 +1790,7 @@ func QueryRange(cli prometheusClient.Client, query string, start, end time.Time,
 		return nil, err
 	}
 
-	_, body, err := cli.Do(context.Background(), req)
+	_, body, _, err := cli.Do(context.Background(), req)
 	if err != nil {
 		klog.V(1).Infof("ERROR" + err.Error())
 	}
@@ -1692,7 +1816,7 @@ func query(cli prometheusClient.Client, query string) (interface{}, error) {
 		return nil, err
 	}
 
-	_, body, err := cli.Do(context.Background(), req)
+	_, body, _, err := cli.Do(context.Background(), req)
 	if err != nil {
 		return nil, err
 	}
