@@ -4,8 +4,6 @@ require github.com/kubecost/test/mocks v0.0.0
 
 replace github.com/kubecost/test/mocks v0.0.0 => ./test/mocks
 
-replace git.apache.org/thrift.git => github.com/apache/thrift v0.12.0
-
 replace github.com/golang/lint => golang.org/x/lint v0.0.0-20180702182130-06c8688daad7
 
 require (
