@@ -429,6 +429,32 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 	}, nil
 }
 
+// Stubbed NetworkPricing for Azure. Pull directly from azure.json for now
+func (c *Azure) NetworkPricing() (*Network, error) {
+	cpricing, err := GetDefaultPricingData("azure.json")
+	if err != nil {
+		return nil, err
+	}
+	znec, err := strconv.ParseFloat(cpricing.ZoneNetworkEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+	rnec, err := strconv.ParseFloat(cpricing.RegionNetworkEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+	inec, err := strconv.ParseFloat(cpricing.InternetNetworkEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Network{
+		ZoneNetworkEgressCost:     znec,
+		RegionNetworkEgressCost:   rnec,
+		InternetNetworkEgressCost: inec,
+	}, nil
+}
+
 type azurePvKey struct {
 	Labels                 map[string]string
 	StorageClass           string

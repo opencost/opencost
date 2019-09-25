@@ -663,6 +663,32 @@ func (aws *AWS) DownloadPricingData() error {
 	return nil
 }
 
+// Stubbed NetworkPricing for AWS. Pull directly from aws.json for now
+func (c *AWS) NetworkPricing() (*Network, error) {
+	cpricing, err := GetDefaultPricingData("aws.json")
+	if err != nil {
+		return nil, err
+	}
+	znec, err := strconv.ParseFloat(cpricing.ZoneNetworkEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+	rnec, err := strconv.ParseFloat(cpricing.RegionNetworkEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+	inec, err := strconv.ParseFloat(cpricing.InternetNetworkEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Network{
+		ZoneNetworkEgressCost:     znec,
+		RegionNetworkEgressCost:   rnec,
+		InternetNetworkEgressCost: inec,
+	}, nil
+}
+
 // AllNodePricing returns all the billing data fetched.
 func (aws *AWS) AllNodePricing() (interface{}, error) {
 	aws.DownloadPricingDataLock.RLock()

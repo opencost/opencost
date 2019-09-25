@@ -55,6 +55,9 @@ type Accesses struct {
 	CPUAllocationRecorder         *prometheus.GaugeVec
 	GPUAllocationRecorder         *prometheus.GaugeVec
 	ContainerUptimeRecorder       *prometheus.GaugeVec
+	NetworkZoneEgressRecorder     *prometheus.GaugeVec
+	NetworkRegionEgressRecorder   *prometheus.GaugeVec
+	NetworkInternetEgressRecorder *prometheus.GaugeVec
 	Model                         *costModel.CostModel
 }
 
@@ -580,6 +583,19 @@ func main() {
 		Help: "container_uptime_seconds Seconds a container has been running",
 	}, []string{"namespace", "pod", "container"})
 
+	NetworkZoneEgressRecorder := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "kubecost_network_zone_egress_cost",
+		Help: "kubecost_network_zone_egress_cost Total cost per GB egress across zones",
+	}, []string{"namespace", "pod"})
+	NetworkRegionEgressRecorder := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "kubecost_network_region_egress_cost",
+		Help: "kubecost_network_region_egress_cost Total cost per GB egress across regions",
+	}, []string{"namespace", "pod"})
+	NetworkInternetEgressRecorder := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "kubecost_network_internet_egress_cost",
+		Help: "kubecost_network_internet_egress_cost Total cost per GB of internet egress.",
+	}, []string{"namespace", "pod"})
+
 	prometheus.MustRegister(cpuGv)
 	prometheus.MustRegister(ramGv)
 	prometheus.MustRegister(gpuGv)
@@ -588,6 +604,7 @@ func main() {
 	prometheus.MustRegister(RAMAllocation)
 	prometheus.MustRegister(CPUAllocation)
 	prometheus.MustRegister(ContainerUptimeRecorder)
+	prometheus.MustRegister(NetworkZoneEgressRecorder, NetworkRegionEgressRecorder, NetworkInternetEgressRecorder)
 
 	podCache := cache.NewListWatchFromClient(kubeClientset.CoreV1().RESTClient(), "pods", "", fields.Everything())
 
@@ -603,6 +620,9 @@ func main() {
 		CPUAllocationRecorder:         CPUAllocation,
 		GPUAllocationRecorder:         GPUAllocation,
 		ContainerUptimeRecorder:       ContainerUptimeRecorder,
+		NetworkZoneEgressRecorder:     NetworkZoneEgressRecorder,
+		NetworkRegionEgressRecorder:   NetworkRegionEgressRecorder,
+		NetworkInternetEgressRecorder: NetworkInternetEgressRecorder,
 		PersistentVolumePriceRecorder: pvGv,
 		Model:                         costModel.NewCostModel(podCache),
 	}

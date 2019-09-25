@@ -4,8 +4,6 @@ require github.com/kubecost/test/mocks v0.0.0
 
 replace github.com/kubecost/test/mocks v0.0.0 => ./test/mocks
 
-replace git.apache.org/thrift.git => github.com/apache/thrift v0.12.0
-
 require (
 	cloud.google.com/go v0.34.0
 	contrib.go.opencensus.io/exporter/ocagent v0.5.0 // indirect
