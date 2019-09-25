@@ -498,6 +498,7 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 		m["name"] = c.ClusterName
 	}
 	m["provider"] = "azure"
+	m["id"] = os.Getenv(KC_CLUSTER_ID)
 	return m, nil
 
 }
@@ -531,6 +532,13 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 	cj, err := json.Marshal(c)
 	if err != nil {
 		return nil, err
+	}
+	remoteEnabled := os.Getenv(remoteEnabled)
+	if remoteEnabled == "true" {
+		err = UpdateClusterMeta(os.Getenv(KC_CLUSTER_ID), c.ClusterName)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	configPath := path + "azure.json"

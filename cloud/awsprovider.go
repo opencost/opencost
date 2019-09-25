@@ -326,6 +326,13 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 		path = "/models/"
 	}
 	path += "aws.json"
+	remoteEnabled := os.Getenv(remoteEnabled)
+	if remoteEnabled == "true" {
+		err = UpdateClusterMeta(os.Getenv(KC_CLUSTER_ID), c.ClusterName)
+		if err != nil {
+			return nil, err
+		}
+	}
 	err = ioutil.WriteFile(path, cj, 0644)
 	if err != nil {
 		return nil, err
@@ -819,6 +826,7 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 		m := make(map[string]string)
 		m["name"] = clusterName
 		m["provider"] = "AWS"
+		m["id"] = os.Getenv(KC_CLUSTER_ID)
 		return m, nil
 	}
 

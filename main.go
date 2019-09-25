@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -35,6 +36,7 @@ import (
 const (
 	prometheusServerEndpointEnvVar = "PROMETHEUS_SERVER_ENDPOINT"
 	prometheusTroubleshootingEp    = "http://docs.kubecost.com/custom-prom#troubleshoot"
+	remoteEnabled                  = "REMOTE_WRITE_ENABLED"
 )
 
 var (
@@ -58,6 +60,8 @@ type Accesses struct {
 	NetworkZoneEgressRecorder     *prometheus.GaugeVec
 	NetworkRegionEgressRecorder   *prometheus.GaugeVec
 	NetworkInternetEgressRecorder *prometheus.GaugeVec
+	ServiceSelectorRecorder       *prometheus.GaugeVec
+	DeploymentSelectorRecorder    *prometheus.GaugeVec
 	Model                         *costModel.CostModel
 }
 
@@ -200,18 +204,54 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	}
 }
 
+// CostDataModelRangeLarge is experimental multi-cluster and long-term data storage in SQL support.
 func (a *Accesses) CostDataModelRangeLarge(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	/*
-		start := r.URL.Query().Get("start")
-		end := r.URL.Query().Get("end")
-		window := r.URL.Query().Get("window")
-		fields := r.URL.Query().Get("filterFields")
-		namespace := r.URL.Query().Get("namespace")
-	*/
-	data, err := costModel.CostDataRangeFromSQL("", "", "", "", "")
+	startString := r.URL.Query().Get("start")
+	endString := r.URL.Query().Get("end")
+	windowString := r.URL.Query().Get("window")
+
+	layout := "2006-01-02T15:04:05.000Z"
+
+	var start time.Time
+	var end time.Time
+	var err error
+
+	if windowString == "" {
+		windowString = "1h"
+	}
+	if startString != "" {
+		start, err = time.Parse(layout, startString)
+		if err != nil {
+			klog.V(1).Infof("Error parsing time " + startString + ". Error: " + err.Error())
+			w.Write(wrapData(nil, err))
+		}
+	} else {
+		window, err := time.ParseDuration(windowString)
+		if err != nil {
+			w.Write(wrapData(nil, fmt.Errorf("Invalid duration '%s'", windowString)))
+
+		}
+		start = time.Now().Add(-2 * window)
+	}
+	if endString != "" {
+		end, err = time.Parse(layout, endString)
+		if err != nil {
+			klog.V(1).Infof("Error parsing time " + endString + ". Error: " + err.Error())
+			w.Write(wrapData(nil, err))
+		}
+	} else {
+		end = time.Now()
+	}
+
+	remoteLayout := "2006-01-02T15:04:05Z"
+	remoteStartStr := start.Format(remoteLayout)
+	remoteEndStr := end.Format(remoteLayout)
+	klog.V(1).Infof("Using remote database for query from %s to %s with window %s", startString, endString, windowString)
+
+	data, err := costModel.CostDataRangeFromSQL("", "", windowString, remoteStartStr, remoteEndStr)
 	w.Write(wrapData(data, err))
 }
 
@@ -380,8 +420,10 @@ func (a *Accesses) recordPrices() {
 
 				if costs.PVCData != nil {
 					for _, pvc := range costs.PVCData {
-						pvCost, _ := strconv.ParseFloat(pvc.Volume.Cost, 64)
-						a.PersistentVolumePriceRecorder.WithLabelValues(pvc.VolumeName, pvc.VolumeName).Set(pvCost)
+						if pvc.Volume != nil {
+							pvCost, _ := strconv.ParseFloat(pvc.Volume.Cost, 64)
+							a.PersistentVolumePriceRecorder.WithLabelValues(pvc.VolumeName, pvc.VolumeName).Set(pvCost)
+						}
 					}
 				}
 
@@ -605,6 +647,12 @@ func main() {
 	prometheus.MustRegister(CPUAllocation)
 	prometheus.MustRegister(ContainerUptimeRecorder)
 	prometheus.MustRegister(NetworkZoneEgressRecorder, NetworkRegionEgressRecorder, NetworkInternetEgressRecorder)
+	prometheus.MustRegister(costModel.ServiceCollector{
+		KubeClientSet: kubeClientset,
+	})
+	prometheus.MustRegister(costModel.DeploymentCollector{
+		KubeClientSet: kubeClientset,
+	})
 
 	podCache := cache.NewListWatchFromClient(kubeClientset.CoreV1().RESTClient(), "pods", "", fields.Everything())
 
@@ -625,6 +673,19 @@ func main() {
 		NetworkInternetEgressRecorder: NetworkInternetEgressRecorder,
 		PersistentVolumePriceRecorder: pvGv,
 		Model:                         costModel.NewCostModel(podCache),
+	}
+
+	remoteEnabled := os.Getenv(remoteEnabled)
+	if remoteEnabled == "true" {
+		info, err := cloudProvider.ClusterInfo()
+		klog.Infof("Saving cluster  with id:'%s', and name:'%s' to durable storage", info["id"], info["name"])
+		if err != nil {
+			klog.Infof("Error saving cluster id %s", err.Error())
+		}
+		_, _, err = costAnalyzerCloud.GetOrCreateClusterMeta(info["id"], info["name"])
+		if err != nil {
+			klog.Infof("Unable to set cluster id '%s' for cluster '%s', %s", info["id"], info["name"], err.Error())
+		}
 	}
 
 	err = a.Cloud.DownloadPricingData()
