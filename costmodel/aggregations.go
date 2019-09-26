@@ -1,225 +1,199 @@
 package costmodel
 
 import (
-	"database/sql"
-	"fmt"
-	"os"
-	"time"
-
-	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
-	_ "github.com/lib/pq"
+	"math"
+	"sort"
+	"strconv"
 )
 
-const remotePW = "REMOTE_WRITE_PASSWORD"
-const sqlAddress = "SQL_ADDRESS"
-
-func getNodeCosts(db *sql.DB) (map[string]*costAnalyzerCloud.Node, error) {
-
-	nodes := make(map[string]*costAnalyzerCloud.Node)
-
-	query := `SELECT name, avg(value),labels->>'instance' AS instance, labels->>'cluster_id' AS clusterid
-	FROM metrics
-	WHERE (name='node_cpu_hourly_cost' OR name='node_ram_hourly_cost' OR name='node_gpu_hourly_cost')  AND value != 'NaN' AND value != 0
-	GROUP BY instance,name,clusterid`
-	rows, err := db.Query(query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var (
-			name      string
-			avg       float64
-			instance  string
-			clusterid string
-		)
-		if err := rows.Scan(&name, &avg, &instance, &clusterid); err != nil {
-			return nil, err
-		}
-		if data, ok := nodes[instance]; ok {
-			if name == "node_cpu_hourly_cost" {
-				data.VCPUCost = fmt.Sprintf("%f", avg)
-			} else if name == "node_ram_hourly_cost" {
-				data.RAMCost = fmt.Sprintf("%f", avg)
-			} else if name == "node_gpu_hourly_cost" {
-				data.GPUCost = fmt.Sprintf("%f", avg)
-			}
-		} else {
-			nodes[instance] = &costAnalyzerCloud.Node{}
-			data := nodes[instance]
-			if name == "node_cpu_hourly_cost" {
-				data.VCPUCost = fmt.Sprintf("%f", avg)
-			} else if name == "node_ram_hourly_cost" {
-				data.RAMCost = fmt.Sprintf("%f", avg)
-			} else if name == "node_gpu_hourly_cost" {
-				data.GPUCost = fmt.Sprintf("%f", avg)
-			}
-		}
-
-	}
-
-	return nodes, nil
+type Aggregation struct {
+	Aggregator         string    `json:"aggregator"`
+	AggregatorSubField string    `json:"aggregatorSubField"`
+	Environment        string    `json:"environment"`
+	Cluster            string    `json:"cluster"`
+	CPUAllocation      []*Vector `json:"-"`
+	CPUCostVector      []*Vector `json:"-"`
+	RAMAllocation      []*Vector `json:"-"`
+	RAMCostVector      []*Vector `json:"-"`
+	PVCostVector       []*Vector `json:"-"`
+	GPUAllocation      []*Vector `json:"-"`
+	GPUCostVector      []*Vector `json:"-"`
+	CPUCost            float64   `json:"cpuCost"`
+	RAMCost            float64   `json:"ramCost"`
+	GPUCost            float64   `json:"gpuCost"`
+	PVCost             float64   `json:"pvCost"`
+	NetworkCost        float64   `json:"networkCost"`
+	TotalCost          float64   `json:"totalCost"`
 }
 
-func CostDataRangeFromSQL(field string, value string, window string, start string, end string) (map[string]*CostData, error) {
-	pw := os.Getenv(remotePW)
-	address := os.Getenv(sqlAddress)
-	connStr := fmt.Sprintf("postgres://postgres:%s@%s:5432?sslmode=disable", pw, address)
-	db, err := sql.Open("postgres", connStr)
-	defer db.Close()
-	if err != nil {
-		return nil, err
-	}
-	nodes, err := getNodeCosts(db)
-	if err != nil {
-		return nil, err
-	}
-	model := make(map[string]*CostData)
-	query := `SELECT time_bucket($1, time) AS bucket, name, avg(value),labels->>'container' AS container,labels->>'pod' AS pod,labels->>'namespace' AS namespace, labels->>'instance' AS instance, labels->>'cluster_id' AS clusterid
-	FROM metrics
-	WHERE (name='container_cpu_allocation') AND
-	  time > $2 AND time < $3 AND value != 'NaN'
-	GROUP BY container,pod,bucket,namespace,instance,clusterid,name
-	ORDER BY container,bucket;
-	`
-	rows, err := db.Query(query, window, start, end)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var (
-			bucket    string
-			name      string
-			sum       float64
-			container string
-			pod       string
-			namespace string
-			instance  string
-			clusterid string
-		)
-		if err := rows.Scan(&bucket, &name, &sum, &container, &pod, &namespace, &instance, &clusterid); err != nil {
-			return nil, err
+func AggregateCostModel(costData map[string]*CostData, aggregationField string, aggregationSubField string) map[string]*Aggregation {
+	aggregations := make(map[string]*Aggregation)
+	for _, costDatum := range costData {
+		if aggregationField == "cluster" {
+			aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.ClusterID, aggregations)
+		} else if aggregationField == "namespace" {
+			aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.Namespace, aggregations)
+		} else if aggregationField == "service" {
+			if len(costDatum.Services) > 0 {
+				aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.Services[0], aggregations)
+			}
+		} else if aggregationField == "deployment" {
+			if len(costDatum.Deployments) > 0 {
+				aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.Deployments[0], aggregations)
+			}
+		} else if aggregationField == "label" {
+			if costDatum.Labels != nil {
+				if subfieldName, ok := costDatum.Labels[aggregationSubField]; ok {
+					aggregationHelper(costDatum, aggregationField, aggregationSubField, subfieldName, aggregations)
+				}
+			}
 		}
-		layout := "2006-01-02T15:04:05Z"
-		t, err := time.Parse(layout, bucket)
-		if err != nil {
-			return nil, err
-		}
+	}
+	for _, agg := range aggregations {
+		agg.CPUCost = totalVector(agg.CPUCostVector)
+		agg.RAMCost = totalVector(agg.RAMCostVector)
+		agg.GPUCost = totalVector(agg.GPUCostVector)
+		agg.PVCost = totalVector(agg.PVCostVector)
+		agg.TotalCost = agg.CPUCost + agg.RAMCost + agg.GPUCost + agg.PVCost
+	}
+	return aggregations
+}
 
-		k := newContainerMetricFromValues(namespace, pod, container, instance)
-		key := k.Key()
+func aggregationHelper(costDatum *CostData, aggregator string, aggregatorSubField string, key string, aggregations map[string]*Aggregation) {
+	if _, ok := aggregations[key]; !ok {
+		agg := &Aggregation{}
+		agg.Aggregator = aggregator
+		agg.AggregatorSubField = aggregatorSubField
+		agg.Environment = key
+		agg.Cluster = costDatum.ClusterID
+		aggregations[key] = agg
+	}
+	mergeVectors(costDatum, aggregations[key])
+}
+
+func mergeVectors(costDatum *CostData, aggregation *Aggregation) {
+	aggregation.CPUAllocation = addVectors(costDatum.CPUAllocation, aggregation.CPUAllocation)
+	aggregation.RAMAllocation = addVectors(costDatum.RAMAllocation, aggregation.RAMAllocation)
+	aggregation.GPUAllocation = addVectors(costDatum.GPUReq, aggregation.GPUAllocation)
+
+	cpuv, ramv, gpuv, pvvs := getPriceVectors(costDatum)
+	aggregation.CPUCostVector = addVectors(cpuv, aggregation.CPUCostVector)
+	aggregation.RAMCostVector = addVectors(ramv, aggregation.RAMCostVector)
+	aggregation.GPUCostVector = addVectors(gpuv, aggregation.GPUCostVector)
+	for _, vectorList := range pvvs {
+		aggregation.PVCostVector = addVectors(aggregation.PVCostVector, vectorList)
+	}
+}
+
+func getPriceVectors(costDatum *CostData) ([]*Vector, []*Vector, []*Vector, [][]*Vector) {
+	cpuv := make([]*Vector, 0, len(costDatum.CPUAllocation))
+	for _, val := range costDatum.CPUAllocation {
+		cost, _ := strconv.ParseFloat(costDatum.NodeData.VCPUCost, 64)
+		cpuv = append(cpuv, &Vector{
+			Timestamp: math.Round(val.Timestamp/10) * 10,
+			Value:     val.Value * cost,
+		})
+	}
+	ramv := make([]*Vector, 0, len(costDatum.RAMAllocation))
+	for _, val := range costDatum.RAMAllocation {
+		cost, _ := strconv.ParseFloat(costDatum.NodeData.RAMCost, 64)
+		ramv = append(ramv, &Vector{
+			Timestamp: math.Round(val.Timestamp/10) * 10,
+			Value:     (val.Value / 1024 / 1024 / 1024) * cost,
+		})
+	}
+	gpuv := make([]*Vector, 0, len(costDatum.GPUReq))
+	for _, val := range costDatum.GPUReq {
+		cost, _ := strconv.ParseFloat(costDatum.NodeData.GPUCost, 64)
+		gpuv = append(gpuv, &Vector{
+			Timestamp: math.Round(val.Timestamp/10) * 10,
+			Value:     val.Value * cost,
+		})
+	}
+	pvvs := make([][]*Vector, 0, len(costDatum.PVCData))
+	for _, pvcData := range costDatum.PVCData {
+		pvv := make([]*Vector, 0, len(pvcData.Values))
+		if pvcData.Volume != nil {
+			cost, _ := strconv.ParseFloat(pvcData.Volume.Cost, 64)
+			for _, val := range pvcData.Values {
+				pvv = append(pvv, &Vector{
+					Timestamp: math.Round(val.Timestamp/10) * 10,
+					Value:     (val.Value / 1024 / 1024 / 1024) * cost,
+				})
+			}
+			pvvs = append(pvvs, pvv)
+		}
+	}
+	return cpuv, ramv, gpuv, pvvs
+}
+
+func totalVector(vectors []*Vector) float64 {
+	total := 0.0
+	for _, vector := range vectors {
+		total += vector.Value
+	}
+	return total
+}
+
+func addVectors(req []*Vector, used []*Vector) []*Vector {
+	if req == nil || len(req) == 0 {
+		for _, usedV := range used {
+			if usedV.Timestamp == 0 {
+				continue
+			}
+			usedV.Timestamp = math.Round(usedV.Timestamp/10) * 10
+		}
+		return used
+	}
+	if used == nil || len(used) == 0 {
+		for _, reqV := range req {
+			if reqV.Timestamp == 0 {
+				continue
+			}
+			reqV.Timestamp = math.Round(reqV.Timestamp/10) * 10
+		}
+		return req
+	}
+	var allocation []*Vector
+
+	var timestamps []float64
+	reqMap := make(map[float64]float64)
+	for _, reqV := range req {
+		if reqV.Timestamp == 0 {
+			continue
+		}
+		reqV.Timestamp = math.Round(reqV.Timestamp/10) * 10
+		reqMap[reqV.Timestamp] = reqV.Value
+		timestamps = append(timestamps, reqV.Timestamp)
+	}
+	usedMap := make(map[float64]float64)
+	for _, usedV := range used {
+		if usedV.Timestamp == 0 {
+			continue
+		}
+		usedV.Timestamp = math.Round(usedV.Timestamp/10) * 10
+		usedMap[usedV.Timestamp] = usedV.Value
+		if _, ok := reqMap[usedV.Timestamp]; !ok { // no need to double add, since we'll range over sorted timestamps and check.
+			timestamps = append(timestamps, usedV.Timestamp)
+		}
+	}
+
+	sort.Float64s(timestamps)
+	for _, t := range timestamps {
+		rv, okR := reqMap[t]
+		uv, okU := usedMap[t]
 		allocationVector := &Vector{
-			Timestamp: float64(t.Unix()),
-			Value:     sum,
+			Timestamp: t,
 		}
-		if data, ok := model[key]; ok {
-			if name == "container_cpu_allocation" {
-				data.CPUAllocation = append(data.CPUAllocation, allocationVector)
-			} else if name == "container_memory_allocation_bytes" {
-				data.RAMAllocation = append(data.RAMAllocation, allocationVector)
-			} else if name == "container_gpu_allocation" {
-				data.GPUReq = append(data.GPUReq, allocationVector)
-			}
-		} else {
-			node, ok := nodes[instance]
-			if !ok {
-				return nil, fmt.Errorf("No node found")
-			}
-			model[key] = &CostData{
-				Name:          container,
-				PodName:       pod,
-				NodeName:      instance,
-				NodeData:      node,
-				CPUAllocation: []*Vector{},
-				RAMAllocation: []*Vector{},
-				GPUReq:        []*Vector{},
-				Namespace:     namespace,
-				ClusterID:     clusterid,
-			}
-			data := model[key]
-			if name == "container_cpu_allocation" {
-				data.CPUAllocation = append(data.CPUAllocation, allocationVector)
-			} else if name == "container_memory_allocation_bytes" {
-				data.RAMAllocation = append(data.RAMAllocation, allocationVector)
-			} else if name == "container_gpu_allocation" {
-				data.GPUReq = append(data.GPUReq, allocationVector)
-			}
+		if okR && okU {
+			allocationVector.Value = rv + uv
+		} else if okR {
+			allocationVector.Value = rv
+		} else if okU {
+			allocationVector.Value = uv
 		}
+		allocation = append(allocation, allocationVector)
 	}
-	query = `SELECT time_bucket($1, time) AS bucket, name, avg(value),labels->>'container' AS container,labels->>'pod' AS pod,labels->>'namespace' AS namespace, labels->>'instance' AS instance, labels->>'cluster_id' AS clusterid
-	FROM metrics
-	WHERE (name='container_memory_allocation_bytes') AND
-		time > $2 AND time < $3 AND value != 'NaN'
-	GROUP BY container,pod,bucket,namespace,instance,clusterid,name
-	ORDER BY container,bucket;
-	`
-	rows, err = db.Query(query, window, start, end)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var (
-			bucket    string
-			name      string
-			sum       float64
-			container string
-			pod       string
-			namespace string
-			instance  string
-			clusterid string
-		)
-		if err := rows.Scan(&bucket, &name, &sum, &container, &pod, &namespace, &instance, &clusterid); err != nil {
-			return nil, err
-		}
-		layout := "2006-01-02T15:04:05Z"
-		t, err := time.Parse(layout, bucket)
-		if err != nil {
-			return nil, err
-		}
-
-		k := newContainerMetricFromValues(namespace, pod, container, instance)
-		key := k.Key()
-		allocationVector := &Vector{
-			Timestamp: float64(t.Unix()),
-			Value:     sum,
-		}
-		if data, ok := model[key]; ok {
-			if name == "container_cpu_allocation" {
-				data.CPUAllocation = append(data.CPUAllocation, allocationVector)
-			} else if name == "container_memory_allocation_bytes" {
-				data.RAMAllocation = append(data.RAMAllocation, allocationVector)
-			} else if name == "container_gpu_allocation" {
-				data.GPUReq = append(data.GPUReq, allocationVector)
-			}
-		} else {
-			node, ok := nodes[instance]
-			if !ok {
-				return nil, fmt.Errorf("No node found")
-			}
-			model[key] = &CostData{
-				Name:          container,
-				PodName:       pod,
-				NodeName:      instance,
-				NodeData:      node,
-				CPUAllocation: []*Vector{},
-				RAMAllocation: []*Vector{},
-				GPUReq:        []*Vector{},
-				Namespace:     namespace,
-				ClusterID:     clusterid,
-			}
-			data := model[key]
-			if name == "container_cpu_allocation" {
-				data.CPUAllocation = append(data.CPUAllocation, allocationVector)
-			} else if name == "container_memory_allocation_bytes" {
-				data.RAMAllocation = append(data.RAMAllocation, allocationVector)
-			} else if name == "container_gpu_allocation" {
-				data.GPUReq = append(data.GPUReq, allocationVector)
-			}
-		}
-	}
-	return model, nil
+	return allocation
 }

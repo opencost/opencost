@@ -136,17 +136,24 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 	offset := r.URL.Query().Get("offset")
 	fields := r.URL.Query().Get("filterFields")
 	namespace := r.URL.Query().Get("namespace")
+	aggregation := r.URL.Query().Get("aggregation")
+	aggregationSubField := r.URL.Query().Get("aggregationSubfield")
 
 	if offset != "" {
 		offset = "offset " + offset
 	}
 
 	data, err := a.Model.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, window, offset, namespace)
-	if fields != "" {
-		filteredData := filterFields(fields, data)
-		w.Write(wrapData(filteredData, err))
+	if aggregation != "" {
+		agg := costModel.AggregateCostModel(data, aggregation, aggregationSubField)
+		w.Write(wrapData(agg, nil))
 	} else {
-		w.Write(wrapData(data, err))
+		if fields != "" {
+			filteredData := filterFields(fields, data)
+			w.Write(wrapData(filteredData, err))
+		} else {
+			w.Write(wrapData(data, err))
+		}
 	}
 }
 
@@ -182,6 +189,45 @@ func (a *Accesses) ClusterCostsOverTime(w http.ResponseWriter, r *http.Request, 
 	w.Write(wrapData(data, err))
 }
 
+func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	window := r.URL.Query().Get("window")
+	offset := r.URL.Query().Get("offset")
+	aggregation := r.URL.Query().Get("aggregation")
+	namespace := r.URL.Query().Get("namespace")
+	aggregationSubField := r.URL.Query().Get("aggregationSubfield")
+
+	endTime := time.Now()
+	if offset != "" {
+		o, err := time.ParseDuration(offset)
+		if err != nil {
+			w.Write(wrapData(nil, err))
+			return
+		}
+
+		endTime = endTime.Add(-1 * o)
+	}
+	d, err := time.ParseDuration(window)
+	if err != nil {
+		w.Write(wrapData(nil, err))
+		return
+	}
+	startTime := endTime.Add(-1 * d)
+	layout := "2006-01-02T15:04:05.000Z"
+	start := startTime.Format(layout)
+	end := startTime.Format(layout)
+	data, err := a.Model.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, "1h", namespace)
+	if err != nil {
+		w.Write(wrapData(nil, err))
+		return
+	}
+	if aggregation != "" {
+		agg := costModel.AggregateCostModel(data, aggregation, aggregationSubField)
+		w.Write(wrapData(agg, nil))
+	}
+}
+
 func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -191,13 +237,23 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	window := r.URL.Query().Get("window")
 	fields := r.URL.Query().Get("filterFields")
 	namespace := r.URL.Query().Get("namespace")
+	aggregation := r.URL.Query().Get("aggregation")
+	aggregationSubField := r.URL.Query().Get("aggregationSubfield")
 
 	data, err := a.Model.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, window, namespace)
-	if fields != "" {
-		filteredData := filterFields(fields, data)
-		w.Write(wrapData(filteredData, err))
+	if err != nil {
+		w.Write(wrapData(nil, err))
+	}
+	if aggregation != "" {
+		agg := costModel.AggregateCostModel(data, aggregation, aggregationSubField)
+		w.Write(wrapData(agg, nil))
 	} else {
-		w.Write(wrapData(data, err))
+		if fields != "" {
+			filteredData := filterFields(fields, data)
+			w.Write(wrapData(filteredData, err))
+		} else {
+			w.Write(wrapData(data, err))
+		}
 	}
 }
 
@@ -694,6 +750,7 @@ func main() {
 	router.GET("/managementPlatform", a.ManagementPlatform)
 	router.GET("/clusterInfo", a.ClusterInfo)
 	router.GET("/containerUptimes", a.ContainerUptimes)
+	router.GET("/aggregatedPrices", a.AggregateCostModel)
 
 	rootMux := http.NewServeMux()
 	rootMux.Handle("/", router)
