@@ -408,7 +408,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		}
 	}
 
-	networkUsageMap, err := getNetworkUsageData(resultNetZoneRequests, resultNetRegionRequests, resultNetInternetRequests, false)
+	networkUsageMap, err := GetNetworkUsageData(resultNetZoneRequests, resultNetRegionRequests, resultNetInternetRequests, false)
 	if err != nil {
 		klog.V(1).Infof("Unable to get Network Cost Data: %s", err.Error())
 		return nil, err
@@ -516,7 +516,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 
 			var podNetCosts []*Vector
 			if usage, ok := networkUsageMap[ns+","+podName]; ok {
-				netCosts, err := getNetworkCost(usage, cloud)
+				netCosts, err := GetNetworkCost(usage, cloud)
 				if err != nil {
 					klog.V(3).Infof("Error pulling network costs: %s", err.Error())
 				} else {
@@ -1153,6 +1153,9 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, windowString, "")
 	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, windowString, "", windowString, "")
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
+	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, windowString, "")
+	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, windowString, "")
+	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, windowString, "")
 	normalization := fmt.Sprintf(normalizationStr, windowString, "")
 
 	layout := "2006-01-02T15:04:05.000Z"
@@ -1182,7 +1185,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(8)
+	wg.Add(11)
 
 	var promErr error
 	var resultRAMRequests interface{}
@@ -1213,6 +1216,21 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	var resultPVRequests interface{}
 	go func() {
 		resultPVRequests, promErr = QueryRange(cli, queryPVRequests, start, end, window)
+		defer wg.Done()
+	}()
+	var resultNetZoneRequests interface{}
+	go func() {
+		resultNetZoneRequests, promErr = QueryRange(cli, queryNetZoneRequests, start, end, window)
+		defer wg.Done()
+	}()
+	var resultNetRegionRequests interface{}
+	go func() {
+		resultNetRegionRequests, promErr = QueryRange(cli, queryNetRegionRequests, start, end, window)
+		defer wg.Done()
+	}()
+	var resultNetInternetRequests interface{}
+	go func() {
+		resultNetInternetRequests, promErr = QueryRange(cli, queryNetInternetRequests, start, end, window)
 		defer wg.Done()
 	}()
 	var normalizationResult interface{}
@@ -1275,6 +1293,12 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	networkUsageMap, err := GetNetworkUsageData(resultNetZoneRequests, resultNetRegionRequests, resultNetInternetRequests, true)
+	if err != nil {
+		klog.V(1).Infof("Unable to get Network Cost Data: %s", err.Error())
+		return nil, err
 	}
 
 	containerNameCost := make(map[string]*CostData)
@@ -1365,6 +1389,16 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 				}
 			}
 
+			var podNetCosts []*Vector
+			if usage, ok := networkUsageMap[ns+","+podName]; ok {
+				netCosts, err := GetNetworkCost(usage, cloud)
+				if err != nil {
+					klog.V(3).Infof("Error pulling network costs: %s", err.Error())
+				} else {
+					podNetCosts = netCosts
+				}
+			}
+
 			var podServices []string
 			if _, ok := podServicesMapping[ns]; ok {
 				if svcs, ok := podServicesMapping[ns][pod.GetObjectMeta().GetName()]; ok {
@@ -1419,8 +1453,10 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 				}
 
 				var pvReq []*PersistentVolumeClaimData
+				var netReq []*Vector
 				if i == 0 { // avoid duplicating by just assigning all claims to the first container.
 					pvReq = podPVs
+					netReq = podNetCosts
 				}
 
 				costs := &CostData{
@@ -1441,6 +1477,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 					GPUReq:          GPUReqV,
 					PVCData:         pvReq,
 					Labels:          podLabels,
+					NetworkData:     netReq,
 					NamespaceLabels: nsLabels,
 				}
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
@@ -1585,22 +1622,6 @@ type PersistentVolumeClaimData struct {
 	VolumeName string                `json:"volumeName"`
 	Volume     *costAnalyzerCloud.PV `json:"persistentVolume"`
 	Values     []*Vector             `json:"values"`
-}
-
-// NetworkUsageVNetworkUsageDataector contains the network usage values for egress network traffic
-type NetworkUsageData struct {
-	PodName               string
-	Namespace             string
-	NetworkZoneEgress     []*Vector
-	NetworkRegionEgress   []*Vector
-	NetworkInternetEgress []*Vector
-}
-
-// NetworkUsageVector contains a network usage vector for egress network traffic
-type NetworkUsageVector struct {
-	PodName   string
-	Namespace string
-	Values    []*Vector
 }
 
 func getCost(qr interface{}) (map[string][]*Vector, error) {
@@ -2107,282 +2128,6 @@ func GetContainerMetricVectors(qr interface{}, normalize bool, normalizationValu
 		containerData[containerMetric.Key()] = vectors
 	}
 	return containerData, nil
-}
-
-func getNetworkUsageData(zr interface{}, rr interface{}, ir interface{}, isRange bool) (map[string]*NetworkUsageData, error) {
-	var vectorFn func(interface{}) (map[string]*NetworkUsageVector, error)
-
-	if isRange {
-		vectorFn = getNetworkUsageVectors
-	} else {
-		vectorFn = getNetworkUsageVector
-	}
-
-	zoneNetworkMap, err := vectorFn(zr)
-	if err != nil {
-		return nil, err
-	}
-
-	regionNetworkMap, err := vectorFn(rr)
-	if err != nil {
-		return nil, err
-	}
-
-	internetNetworkMap, err := vectorFn(ir)
-	if err != nil {
-		return nil, err
-	}
-
-	usageData := make(map[string]*NetworkUsageData)
-	for k, v := range zoneNetworkMap {
-		existing, ok := usageData[k]
-		if !ok {
-			usageData[k] = &NetworkUsageData{
-				PodName:           v.PodName,
-				Namespace:         v.Namespace,
-				NetworkZoneEgress: v.Values,
-			}
-			continue
-		}
-
-		existing.NetworkZoneEgress = v.Values
-	}
-
-	for k, v := range regionNetworkMap {
-		existing, ok := usageData[k]
-		if !ok {
-			usageData[k] = &NetworkUsageData{
-				PodName:             v.PodName,
-				Namespace:           v.Namespace,
-				NetworkRegionEgress: v.Values,
-			}
-			continue
-		}
-
-		existing.NetworkRegionEgress = v.Values
-	}
-
-	for k, v := range internetNetworkMap {
-		existing, ok := usageData[k]
-		if !ok {
-			usageData[k] = &NetworkUsageData{
-				PodName:               v.PodName,
-				Namespace:             v.Namespace,
-				NetworkInternetEgress: v.Values,
-			}
-			continue
-		}
-
-		existing.NetworkInternetEgress = v.Values
-	}
-
-	return usageData, nil
-}
-
-func getNetworkUsageVector(qr interface{}) (map[string]*NetworkUsageVector, error) {
-	ncdmap := make(map[string]*NetworkUsageVector)
-	data, ok := qr.(map[string]interface{})["data"]
-	if !ok {
-		e, err := wrapPrometheusError(qr)
-		if err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf(e)
-	}
-	d, ok := data.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("Data field improperly formatted in prometheus repsonse")
-	}
-	result, ok := d["result"]
-	if !ok {
-		return nil, fmt.Errorf("Result field not present in prometheus response")
-	}
-	results, ok := result.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("Result field improperly formatted in prometheus response")
-	}
-	for _, val := range results {
-		metricInterface, ok := val.(map[string]interface{})["metric"]
-		if !ok {
-			return nil, fmt.Errorf("Metric field does not exist in data result vector")
-		}
-		metricMap, ok := metricInterface.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("Metric field is improperly formatted")
-		}
-
-		podName, ok := metricMap["pod_name"]
-		if !ok {
-			return nil, fmt.Errorf("Pod Name does not exist in data result vector")
-		}
-		podNameStr, ok := podName.(string)
-		if !ok {
-			return nil, fmt.Errorf("Pod Name field improperly formatted")
-		}
-		namespace, ok := metricMap["namespace"]
-		if !ok {
-			return nil, fmt.Errorf("Namespace field does not exist in data result vector")
-		}
-		namespaceStr, ok := namespace.(string)
-		if !ok {
-			return nil, fmt.Errorf("Namespace field improperly formatted")
-		}
-		dataPoint, ok := val.(map[string]interface{})["value"]
-		if !ok {
-			return nil, fmt.Errorf("Value field does not exist in data result vector")
-		}
-		value, ok := dataPoint.([]interface{})
-		if !ok || len(value) != 2 {
-			return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
-		}
-		var vectors []*Vector
-		strVal := value[1].(string)
-		v, _ := strconv.ParseFloat(strVal, 64)
-
-		vectors = append(vectors, &Vector{
-			Timestamp: value[0].(float64),
-			Value:     v,
-		})
-
-		key := namespaceStr + "," + podNameStr
-		ncdmap[key] = &NetworkUsageVector{
-			Namespace: namespaceStr,
-			PodName:   podNameStr,
-			Values:    vectors,
-		}
-	}
-	return ncdmap, nil
-}
-
-func getNetworkUsageVectors(qr interface{}) (map[string]*NetworkUsageVector, error) {
-	ncdmap := make(map[string]*NetworkUsageVector)
-	data, ok := qr.(map[string]interface{})["data"]
-	if !ok {
-		e, err := wrapPrometheusError(qr)
-		if err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf(e)
-	}
-	d, ok := data.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("Data field improperly formatted in prometheus repsonse")
-	}
-	result, ok := d["result"]
-	if !ok {
-		return nil, fmt.Errorf("Result field not present in prometheus response")
-	}
-	results, ok := result.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("Result field improperly formatted in prometheus response")
-	}
-	for _, val := range results {
-		metricInterface, ok := val.(map[string]interface{})["metric"]
-		if !ok {
-			return nil, fmt.Errorf("Metric field does not exist in data result vector")
-		}
-		metricMap, ok := metricInterface.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("Metric field is improperly formatted")
-		}
-
-		podName, ok := metricMap["pod_name"]
-		if !ok {
-			return nil, fmt.Errorf("Pod Name does not exist in data result vector")
-		}
-		podNameStr, ok := podName.(string)
-		if !ok {
-			return nil, fmt.Errorf("Pod Name field improperly formatted")
-		}
-		namespace, ok := metricMap["namespace"]
-		if !ok {
-			return nil, fmt.Errorf("Namespace field does not exist in data result vector")
-		}
-		namespaceStr, ok := namespace.(string)
-		if !ok {
-			return nil, fmt.Errorf("Namespace field improperly formatted")
-		}
-		values, ok := val.(map[string]interface{})["values"].([]interface{})
-		if !ok {
-			return nil, fmt.Errorf("Values field is improperly formatted")
-		}
-		var vectors []*Vector
-		for _, value := range values {
-			dataPoint, ok := value.([]interface{})
-			if !ok || len(dataPoint) != 2 {
-				return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
-			}
-
-			strVal := dataPoint[1].(string)
-			v, _ := strconv.ParseFloat(strVal, 64)
-			vectors = append(vectors, &Vector{
-				Timestamp: math.Round(dataPoint[0].(float64)/10) * 10,
-				Value:     v,
-			})
-		}
-
-		key := namespaceStr + "," + podNameStr
-		ncdmap[key] = &NetworkUsageVector{
-			Namespace: namespaceStr,
-			PodName:   podNameStr,
-			Values:    vectors,
-		}
-	}
-	return ncdmap, nil
-}
-
-func max(x int, rest ...int) int {
-	curr := x
-	for _, v := range rest {
-		if v > curr {
-			curr = v
-		}
-	}
-	return curr
-}
-
-func getNetworkCost(usage *NetworkUsageData, cloud costAnalyzerCloud.Provider) ([]*Vector, error) {
-	var results []*Vector
-
-	pricing, err := cloud.NetworkPricing()
-	if err != nil {
-		return nil, err
-	}
-	zoneCost := pricing.ZoneNetworkEgressCost
-	regionCost := pricing.RegionNetworkEgressCost
-	internetCost := pricing.InternetNetworkEgressCost
-
-	zlen := len(usage.NetworkZoneEgress)
-	rlen := len(usage.NetworkRegionEgress)
-	ilen := len(usage.NetworkInternetEgress)
-
-	l := max(zlen, rlen, ilen)
-	for i := 0; i < l; i++ {
-		var cost float64 = 0
-		var timestamp float64
-
-		if i < zlen {
-			cost += usage.NetworkZoneEgress[i].Value * zoneCost
-			timestamp = usage.NetworkZoneEgress[i].Timestamp
-		}
-
-		if i < rlen {
-			cost += usage.NetworkRegionEgress[i].Value * regionCost
-			timestamp = usage.NetworkRegionEgress[i].Timestamp
-		}
-
-		if i < ilen {
-			cost += usage.NetworkInternetEgress[i].Value * internetCost
-			timestamp = usage.NetworkInternetEgress[i].Timestamp
-		}
-
-		results = append(results, &Vector{
-			Value:     cost,
-			Timestamp: timestamp,
-		})
-	}
-
-	return results, nil
 }
 
 func wrapPrometheusError(qr interface{}) (string, error) {
