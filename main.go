@@ -208,6 +208,18 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 
 		endTime = endTime.Add(-1 * o)
 	}
+
+	if window[len(window)-1:] == "d" {
+		count := window[:len(window)-1]
+		val, err := strconv.ParseInt(count, 10, 64)
+		if err != nil {
+			w.Write(wrapData(nil, err))
+			return
+		}
+		val = val * 24
+		window = fmt.Sprintf("%dh", val)
+	}
+
 	d, err := time.ParseDuration(window)
 	if err != nil {
 		w.Write(wrapData(nil, err))
@@ -216,7 +228,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	startTime := endTime.Add(-1 * d)
 	layout := "2006-01-02T15:04:05.000Z"
 	start := startTime.Format(layout)
-	end := startTime.Format(layout)
+	end := endTime.Format(layout)
 	data, err := a.Model.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, "1h", namespace)
 	if err != nil {
 		w.Write(wrapData(nil, err))
