@@ -183,7 +183,7 @@ type PrometheusMetadata struct {
 
 // ValidatePrometheus tells the model what data prometheus has on it.
 func ValidatePrometheus(cli prometheusClient.Client) (*PrometheusMetadata, error) {
-	data, err := query(cli, "up")
+	data, err := Query(cli, "up")
 	if err != nil {
 		return &PrometheusMetadata{
 			Running:            false,
@@ -262,11 +262,11 @@ func getUptimeData(qr interface{}) ([]*Vector, bool, error) {
 }
 
 func ComputeUptimes(cli prometheusClient.Client) (map[string]float64, error) {
-	res, err := query(cli, `container_start_time_seconds{container_name != "POD",container_name != ""}`)
+	res, err := Query(cli, `container_start_time_seconds{container_name != "POD",container_name != ""}`)
 	if err != nil {
 		return nil, err
 	}
-	vectors, err := getContainerMetricVector(res, false, 0)
+	vectors, err := GetContainerMetricVector(res, false, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -297,37 +297,37 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	var promErr error
 	var resultRAMRequests interface{}
 	go func() {
-		resultRAMRequests, promErr = query(cli, queryRAMRequests)
+		resultRAMRequests, promErr = Query(cli, queryRAMRequests)
 		defer wg.Done()
 	}()
 	var resultRAMUsage interface{}
 	go func() {
-		resultRAMUsage, promErr = query(cli, queryRAMUsage)
+		resultRAMUsage, promErr = Query(cli, queryRAMUsage)
 		defer wg.Done()
 	}()
 	var resultCPURequests interface{}
 	go func() {
-		resultCPURequests, promErr = query(cli, queryCPURequests)
+		resultCPURequests, promErr = Query(cli, queryCPURequests)
 		defer wg.Done()
 	}()
 	var resultCPUUsage interface{}
 	go func() {
-		resultCPUUsage, promErr = query(cli, queryCPUUsage)
+		resultCPUUsage, promErr = Query(cli, queryCPUUsage)
 		defer wg.Done()
 	}()
 	var resultGPURequests interface{}
 	go func() {
-		resultGPURequests, promErr = query(cli, queryGPURequests)
+		resultGPURequests, promErr = Query(cli, queryGPURequests)
 		defer wg.Done()
 	}()
 	var resultPVRequests interface{}
 	go func() {
-		resultPVRequests, promErr = query(cli, queryPVRequests)
+		resultPVRequests, promErr = Query(cli, queryPVRequests)
 		defer wg.Done()
 	}()
 	var normalizationResult interface{}
 	go func() {
-		normalizationResult, promErr = query(cli, normalization)
+		normalizationResult, promErr = Query(cli, normalization)
 		defer wg.Done()
 	}()
 
@@ -389,7 +389,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	containerNameCost := make(map[string]*CostData)
 	containers := make(map[string]bool)
 
-	RAMReqMap, err := getContainerMetricVector(resultRAMRequests, true, normalizationValue)
+	RAMReqMap, err := GetContainerMetricVector(resultRAMRequests, true, normalizationValue)
 	if err != nil {
 		return nil, err
 	}
@@ -397,28 +397,28 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		containers[key] = true
 	}
 
-	RAMUsedMap, err := getContainerMetricVector(resultRAMUsage, true, normalizationValue)
+	RAMUsedMap, err := GetContainerMetricVector(resultRAMUsage, true, normalizationValue)
 	if err != nil {
 		return nil, err
 	}
 	for key := range RAMUsedMap {
 		containers[key] = true
 	}
-	CPUReqMap, err := getContainerMetricVector(resultCPURequests, true, normalizationValue)
+	CPUReqMap, err := GetContainerMetricVector(resultCPURequests, true, normalizationValue)
 	if err != nil {
 		return nil, err
 	}
 	for key := range CPUReqMap {
 		containers[key] = true
 	}
-	GPUReqMap, err := getContainerMetricVector(resultGPURequests, true, normalizationValue)
+	GPUReqMap, err := GetContainerMetricVector(resultGPURequests, true, normalizationValue)
 	if err != nil {
 		return nil, err
 	}
 	for key := range GPUReqMap {
 		containers[key] = true
 	}
-	CPUUsedMap, err := getContainerMetricVector(resultCPUUsage, false, 0) // No need to normalize here, as this comes from a counter
+	CPUUsedMap, err := GetContainerMetricVector(resultCPUUsage, false, 0) // No need to normalize here, as this comes from a counter
 	if err != nil {
 		return nil, err
 	}
@@ -653,7 +653,7 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 		l := strings.Join(q, "|")
 		queryHistoricalPodLabels := fmt.Sprintf(`kube_pod_labels{pod=~"%s"}[%s]`, l, window)
 
-		podLabelsResult, err := query(cli, queryHistoricalPodLabels)
+		podLabelsResult, err := Query(cli, queryHistoricalPodLabels)
 		if err != nil {
 			return fmt.Errorf("Error fetching historical pod labels: " + err.Error())
 		}
@@ -663,6 +663,7 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 			labels, ok := podLabels[cm.PodName]
 			if !ok {
 				klog.V(1).Infof("Unable to find historical data for pod '%s'", cm.PodName)
+				labels = make(map[string]string)
 			}
 			for k, v := range costData.NamespaceLabels {
 				if _, ok := labels[k]; !ok {
@@ -729,15 +730,15 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 		queryHistoricalRAMCost := fmt.Sprintf(`avg_over_time(node_ram_hourly_cost{instance=~"%s"}[%s])`, l, window)
 		queryHistoricalGPUCost := fmt.Sprintf(`avg_over_time(node_gpu_hourly_cost{instance=~"%s"}[%s])`, l, window)
 
-		cpuCostResult, err := query(cli, queryHistoricalCPUCost)
+		cpuCostResult, err := Query(cli, queryHistoricalCPUCost)
 		if err != nil {
 			return fmt.Errorf("Error fetching cpu cost data: " + err.Error())
 		}
-		ramCostResult, err := query(cli, queryHistoricalRAMCost)
+		ramCostResult, err := Query(cli, queryHistoricalRAMCost)
 		if err != nil {
 			return fmt.Errorf("Error fetching ram cost data: " + err.Error())
 		}
-		gpuCostResult, err := query(cli, queryHistoricalGPUCost)
+		gpuCostResult, err := Query(cli, queryHistoricalGPUCost)
 		if err != nil {
 			return fmt.Errorf("Error fetching gpu cost data: " + err.Error())
 		}
@@ -1176,7 +1177,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	}()
 	var normalizationResult interface{}
 	go func() {
-		normalizationResult, promErr = query(cli, normalization)
+		normalizationResult, promErr = Query(cli, normalization)
 		defer wg.Done()
 	}()
 
@@ -1805,7 +1806,7 @@ func QueryRange(cli prometheusClient.Client, query string, start, end time.Time,
 	return toReturn, err
 }
 
-func query(cli prometheusClient.Client, query string) (interface{}, error) {
+func Query(cli prometheusClient.Client, query string) (interface{}, error) {
 	u := cli.URL(epQuery, nil)
 	q := u.Query()
 	q.Set("query", query)
@@ -1946,7 +1947,7 @@ func newContainerMetricFromPrometheus(metrics map[string]interface{}) (*Containe
 	}, nil
 }
 
-func getContainerMetricVector(qr interface{}, normalize bool, normalizationValue float64) (map[string][]*Vector, error) {
+func GetContainerMetricVector(qr interface{}, normalize bool, normalizationValue float64) (map[string][]*Vector, error) {
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
 		e, err := wrapPrometheusError(qr)
