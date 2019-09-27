@@ -750,7 +750,7 @@ func main() {
 	router.GET("/managementPlatform", a.ManagementPlatform)
 	router.GET("/clusterInfo", a.ClusterInfo)
 	router.GET("/containerUptimes", a.ContainerUptimes)
-	router.GET("/aggregatedPrices", a.AggregateCostModel)
+	router.GET("/aggregatedCostModel", a.AggregateCostModel)
 
 	rootMux := http.NewServeMux()
 	rootMux.Handle("/", router)
