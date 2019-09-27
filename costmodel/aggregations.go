@@ -7,8 +7,8 @@ import (
 )
 
 type Aggregation struct {
-	Aggregator         string    `json:"aggregator"`
-	AggregatorSubField string    `json:"aggregatorSubfield"`
+	Aggregator         string    `json:"aggregation"`
+	AggregatorSubField string    `json:"aggregationSubfield"`
 	Environment        string    `json:"environment"`
 	Cluster            string    `json:"cluster"`
 	CPUAllocation      []*Vector `json:"-"`
