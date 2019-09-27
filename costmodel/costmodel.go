@@ -663,6 +663,7 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 			labels, ok := podLabels[cm.PodName]
 			if !ok {
 				klog.V(1).Infof("Unable to find historical data for pod '%s'", cm.PodName)
+				labels = make(map[string]string)
 			}
 			for k, v := range costData.NamespaceLabels {
 				if _, ok := labels[k]; !ok {
