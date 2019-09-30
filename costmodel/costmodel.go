@@ -41,6 +41,7 @@ const (
 	epConfig          = apiPrefix + "/status/config"
 	epFlags           = apiPrefix + "/status/flags"
 	remoteEnabled     = "REMOTE_WRITE_ENABLED"
+	CLUSTER_ID        = "CLUSTER_ID"
 )
 
 type CostModel struct {
@@ -290,6 +291,8 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, window, offset, window, offset)
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
 	normalization := fmt.Sprintf(normalizationStr, window, offset)
+
+	clustID := os.Getenv(CLUSTER_ID)
 
 	var wg sync.WaitGroup
 	wg.Add(8)
@@ -551,6 +554,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 					PVCData:         pvReq,
 					Labels:          podLabels,
 					NamespaceLabels: nsLabels,
+					ClusterID:       clustID,
 				}
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
@@ -619,6 +623,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 				CPUUsed:         CPUUsedV,
 				GPUReq:          GPUReqV,
 				NamespaceLabels: namespacelabels,
+				ClusterID:       clustID,
 			}
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
@@ -1132,6 +1137,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		klog.V(1).Infof("Error parsing time " + windowString + ". Error: " + err.Error())
 		return nil, err
 	}
+	clustID := os.Getenv(CLUSTER_ID)
 	remoteEnabled := os.Getenv(remoteEnabled)
 	if remoteEnabled == "true" {
 		remoteLayout := "2006-01-02T15:04:05Z"
@@ -1402,6 +1408,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 					PVCData:         pvReq,
 					Labels:          podLabels,
 					NamespaceLabels: nsLabels,
+					ClusterID:       clustID,
 				}
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
@@ -1468,6 +1475,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 				CPUUsed:         CPUUsedV,
 				GPUReq:          GPUReqV,
 				NamespaceLabels: namespacelabels,
+				ClusterID:       clustID,
 			}
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
