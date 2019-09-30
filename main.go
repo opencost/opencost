@@ -145,7 +145,16 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 
 	data, err := a.Model.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, window, offset, namespace)
 	if aggregation != "" {
-		agg := costModel.AggregateCostModel(data, aggregation, aggregationSubField)
+		c, err := a.Cloud.GetConfig()
+		if err != nil {
+			w.Write(wrapData(nil, err))
+		}
+		discount, err := strconv.ParseFloat(c.Discount[:len(c.Discount)-1], 64)
+		if err != nil {
+			w.Write(wrapData(nil, err))
+		}
+
+		agg := costModel.AggregateCostModel(data, discount, aggregation, aggregationSubField)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {
@@ -234,8 +243,16 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		w.Write(wrapData(nil, err))
 		return
 	}
+	c, err := a.Cloud.GetConfig()
+	if err != nil {
+		w.Write(wrapData(nil, err))
+	}
+	discount, err := strconv.ParseFloat(c.Discount[:len(c.Discount)-1], 64)
+	if err != nil {
+		w.Write(wrapData(nil, err))
+	}
 	if aggregation != "" {
-		agg := costModel.AggregateCostModel(data, aggregation, aggregationSubField)
+		agg := costModel.AggregateCostModel(data, discount*0.01, aggregation, aggregationSubField)
 		w.Write(wrapData(agg, nil))
 	}
 }
@@ -257,7 +274,15 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 		w.Write(wrapData(nil, err))
 	}
 	if aggregation != "" {
-		agg := costModel.AggregateCostModel(data, aggregation, aggregationSubField)
+		c, err := a.Cloud.GetConfig()
+		if err != nil {
+			w.Write(wrapData(nil, err))
+		}
+		discount, err := strconv.ParseFloat(c.Discount[:len(c.Discount)-1], 64)
+		if err != nil {
+			w.Write(wrapData(nil, err))
+		}
+		agg := costModel.AggregateCostModel(data, discount, aggregation, aggregationSubField)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {
