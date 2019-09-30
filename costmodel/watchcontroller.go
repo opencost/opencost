@@ -23,6 +23,9 @@ type WatchHandler = func(interface{})
 // WatchController defines a contract for an object which watches a specific resource set for
 // add, updates, and removals
 type WatchController interface {
+	// Initializes the cache
+	WarmUp(chan struct{})
+
 	// Run starts the watching process
 	Run(int, chan struct{})
 
@@ -167,20 +170,22 @@ func (c *CachingWatchController) handleErr(err error, key interface{}) {
 	klog.Infof("Dropping %s %q out of the queue: %v", c.resourceType, key, err)
 }
 
+func (c *CachingWatchController) WarmUp(cancelCh chan struct{}) {
+	go c.informer.Run(cancelCh)
+
+	// Wait for all involved caches to be synced, before processing items from the queue is started
+	if !cache.WaitForCacheSync(cancelCh, c.informer.HasSynced) {
+		runtime.HandleError(fmt.Errorf("Timed out waiting for caches to sync"))
+		return
+	}
+}
+
 func (c *CachingWatchController) Run(threadiness int, stopCh chan struct{}) {
 	defer runtime.HandleCrash()
 
 	// Let the workers stop when we are done
 	defer c.queue.ShutDown()
 	klog.V(3).Infof("Starting %s controller", c.resourceType)
-
-	go c.informer.Run(stopCh)
-
-	// Wait for all involved caches to be synced, before processing items from the queue is started
-	if !cache.WaitForCacheSync(stopCh, c.informer.HasSynced) {
-		runtime.HandleError(fmt.Errorf("Timed out waiting for caches to sync"))
-		return
-	}
 
 	for i := 0; i < threadiness; i++ {
 		go wait.Until(c.runWorker, time.Second, stopCh)

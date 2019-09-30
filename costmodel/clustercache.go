@@ -1,6 +1,8 @@
 package costmodel
 
 import (
+	"sync"
+
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	stv1 "k8s.io/api/storage/v1"
@@ -49,12 +51,17 @@ type KubernetesClusterCache struct {
 	storageClassWatch WatchController
 }
 
+func initializeCache(wc WatchController, wg *sync.WaitGroup, cancel chan struct{}) {
+	defer wg.Done()
+	wc.WarmUp(cancel)
+}
+
 func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 	coreRestClient := client.CoreV1().RESTClient()
 	appsRestClient := client.AppsV1().RESTClient()
 	storageRestClient := client.StorageV1().RESTClient()
 
-	return &KubernetesClusterCache{
+	kcc := &KubernetesClusterCache{
 		client:            client,
 		namespaceWatch:    NewCachingWatcher(coreRestClient, "namespaces", &v1.Namespace{}, "", fields.Everything()),
 		nodeWatch:         NewCachingWatcher(coreRestClient, "nodes", &v1.Node{}, "", fields.Everything()),
@@ -64,6 +71,24 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 		pvWatch:           NewCachingWatcher(coreRestClient, "persistentvolumes", &v1.PersistentVolume{}, "", fields.Everything()),
 		storageClassWatch: NewCachingWatcher(storageRestClient, "storageclasses", &stv1.StorageClass{}, "", fields.Everything()),
 	}
+
+	// Wait for each caching watcher to initialize
+	var wg sync.WaitGroup
+	wg.Add(7)
+
+	cancel := make(chan struct{})
+
+	go initializeCache(kcc.namespaceWatch, &wg, cancel)
+	go initializeCache(kcc.nodeWatch, &wg, cancel)
+	go initializeCache(kcc.podWatch, &wg, cancel)
+	go initializeCache(kcc.serviceWatch, &wg, cancel)
+	go initializeCache(kcc.deploymentsWatch, &wg, cancel)
+	go initializeCache(kcc.pvWatch, &wg, cancel)
+	go initializeCache(kcc.storageClassWatch, &wg, cancel)
+
+	wg.Wait()
+
+	return kcc
 }
 
 func (kcc *KubernetesClusterCache) Run(stopCh chan struct{}) {
