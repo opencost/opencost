@@ -2,9 +2,12 @@ package costmodel
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"time"
+
+	"k8s.io/klog"
 
 	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
 	_ "github.com/lib/pq"
@@ -159,8 +162,6 @@ func CostDataRangeFromSQL(field string, value string, window string, start strin
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
 	for rows.Next() {
 		var (
 			bucket    string
@@ -221,5 +222,57 @@ func CostDataRangeFromSQL(field string, value string, window string, start strin
 			}
 		}
 	}
+	query = `SELECT DISTINCT ON (labels->>'namespace') * FROM METRICS WHERE name='kube_namespace_labels' ORDER BY labels->>'namespace',time DESC;`
+	rows, err = db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	cols, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+	rawResult := make([][]byte, len(cols))
+	result := make([]string, len(cols))
+	dest := make([]interface{}, len(cols)) // A temporary interface{} slice
+	for i, _ := range rawResult {
+		dest[i] = &rawResult[i] // Put pointers to each string in the interface slice
+	}
+	nsToLabels := make(map[string]map[string]string)
+	for rows.Next() {
+		err = rows.Scan(dest...)
+		if err != nil {
+			return nil, err
+		}
+
+		for i, raw := range rawResult {
+			if raw == nil {
+				result[i] = "\\N"
+			} else {
+				result[i] = string(raw)
+			}
+		}
+
+		klog.Infof("%#v\n", result)
+		var dat map[string]string
+		err := json.Unmarshal([]byte(result[4]), &dat)
+		if err != nil {
+			return nil, err
+		}
+
+		ns, ok := dat["namespace"]
+		if !ok {
+			return nil, fmt.Errorf("No namespace found")
+		}
+		nsToLabels[ns] = dat
+	}
+
+	for _, cd := range model {
+		ns := cd.Namespace
+		if labels, ok := nsToLabels[ns]; ok {
+			cd.NamespaceLabels = labels
+			cd.Labels = labels // TODO: override with podlabels
+		}
+	}
+
 	return model, nil
 }
