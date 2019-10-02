@@ -53,6 +53,7 @@ type Accesses struct {
 	RAMAllocationRecorder         *prometheus.GaugeVec
 	CPUAllocationRecorder         *prometheus.GaugeVec
 	GPUAllocationRecorder         *prometheus.GaugeVec
+	PVAllocationRecorder          *prometheus.GaugeVec
 	ContainerUptimeRecorder       *prometheus.GaugeVec
 	NetworkZoneEgressRecorder     prometheus.Gauge
 	NetworkRegionEgressRecorder   prometheus.Gauge
@@ -470,6 +471,7 @@ func (a *Accesses) recordPrices() {
 		containerSeen := make(map[string]bool)
 		nodeSeen := make(map[string]bool)
 		pvSeen := make(map[string]bool)
+		pvcSeen := make(map[string]bool)
 
 		getKeyFromLabelStrings := func(labels ...string) string {
 			return strings.Join(labels, ",")
@@ -519,11 +521,16 @@ func (a *Accesses) recordPrices() {
 
 				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
+				namespace := costs.Namespace
+				podName := costs.PodName
+				containerName := costs.Name
+
 				if costs.PVCData != nil {
 					for _, pvc := range costs.PVCData {
 						if pvc.Volume != nil {
-							pvCost, _ := strconv.ParseFloat(pvc.Volume.Cost, 64)
-							a.PersistentVolumePriceRecorder.WithLabelValues(pvc.VolumeName, pvc.VolumeName).Set(pvCost)
+							a.PVAllocationRecorder.WithLabelValues(namespace, podName, pvc.Claim, pvc.VolumeName).Set(pvc.Values[0].Value)
+							labelKey := getKeyFromLabelStrings(namespace, podName, pvc.Claim, pvc.VolumeName)
+							pvcSeen[labelKey] = true
 						}
 					}
 				}
@@ -535,9 +542,6 @@ func (a *Accesses) recordPrices() {
 				labelKey := getKeyFromLabelStrings(nodeName, nodeName)
 				nodeSeen[labelKey] = true
 
-				namespace := costs.Namespace
-				podName := costs.PodName
-				containerName := costs.Name
 				if len(costs.RAMAllocation) > 0 {
 					a.RAMAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.RAMAllocation[0].Value)
 				}
@@ -619,6 +623,14 @@ func (a *Accesses) recordPrices() {
 					delete(pvSeen, labelString)
 				}
 				pvSeen[labelString] = false
+			}
+			for labelString, seen := range pvcSeen {
+				if !seen {
+					labels := getLabelStringsFromKey(labelString)
+					a.PVAllocationRecorder.DeleteLabelValues(labels...)
+					delete(pvcSeen, labelString)
+				}
+				pvcSeen[labelString] = false
 			}
 			time.Sleep(time.Minute)
 		}
@@ -719,6 +731,10 @@ func main() {
 		Name: "container_gpu_allocation",
 		Help: "container_gpu_allocation GPU used",
 	}, []string{"namespace", "pod", "container", "instance", "node"})
+	PVAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "pod_pvc_allocation",
+		Help: "pod_pvc_allocation Bytes used by a PVC attached to a pod",
+	}, []string{"namespace", "pod", "persistentvolumeclaim", "persistentvolume"})
 
 	ContainerUptimeRecorder := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "container_uptime_seconds",
@@ -746,6 +762,7 @@ func main() {
 	prometheus.MustRegister(RAMAllocation)
 	prometheus.MustRegister(CPUAllocation)
 	prometheus.MustRegister(ContainerUptimeRecorder)
+	prometheus.MustRegister(PVAllocation)
 	prometheus.MustRegister(NetworkZoneEgressRecorder, NetworkRegionEgressRecorder, NetworkInternetEgressRecorder)
 	prometheus.MustRegister(costModel.ServiceCollector{
 		KubeClientSet: kubeClientset,
@@ -765,6 +782,7 @@ func main() {
 		RAMAllocationRecorder:         RAMAllocation,
 		CPUAllocationRecorder:         CPUAllocation,
 		GPUAllocationRecorder:         GPUAllocation,
+		PVAllocationRecorder:          PVAllocation,
 		ContainerUptimeRecorder:       ContainerUptimeRecorder,
 		NetworkZoneEgressRecorder:     NetworkZoneEgressRecorder,
 		NetworkRegionEgressRecorder:   NetworkRegionEgressRecorder,
