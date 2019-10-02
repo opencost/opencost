@@ -308,7 +308,7 @@ func CostDataRangeFromSQL(field string, value string, window string, start strin
 		query = `SELECT time_bucket($1, time) AS bucket, name, avg(value), labels->>'persistentvolumeclaim' AS claim, labels->>'pod' AS pod,labels->>'namespace' AS namespace, labels->>'persistentvolume' AS volumename, labels->>'cluster_id' AS clusterid
 		FROM metrics
 		WHERE (name='pod_pvc_allocation') AND
-			time > $2 AND time < $3 AND value != 'NaN' AND volumename IS NOT NULL
+			time > $2 AND time < $3 AND value != 'NaN'
 		GROUP BY claim,pod,bucket,namespace,volumename,clusterid,name
 		ORDER BY pod,bucket;`
 
@@ -343,31 +343,31 @@ func CostDataRangeFromSQL(field string, value string, window string, start strin
 			if pvcd, ok := pvcData[claim]; ok {
 				pvcd.Values = append(pvcd.Values, allocationVector)
 			} else {
-				vname := ""
 				if volumename.Valid {
-					vname = volumename.String
-				}
-				d := &PersistentVolumeClaimData{
-					Namespace:  namespace,
-					VolumeName: vname,
-					Claim:      claim,
-				}
-				if volume, ok := volumes[vname]; ok {
-					volume.Size = fmt.Sprintf("%f", sum) // Just assume the claim is the whole volume for now
-					d.Volume = volume
-				}
-				d.Values = append(d.Values, allocationVector)
-				pvcData[claim] = d
-				for _, cd := range model { // TODO: make this not doubly nested
-					if cd.PodName == pod && cd.Namespace == namespace {
-						if len(cd.PVCData) > 0 {
-							cd.PVCData = append(cd.PVCData, d)
-						} else {
-							cd.PVCData = []*PersistentVolumeClaimData{d}
+					vname := volumename.String
+					d := &PersistentVolumeClaimData{
+						Namespace:  namespace,
+						VolumeName: vname,
+						Claim:      claim,
+					}
+					if volume, ok := volumes[vname]; ok {
+						volume.Size = fmt.Sprintf("%f", sum) // Just assume the claim is the whole volume for now
+						d.Volume = volume
+					}
+					d.Values = append(d.Values, allocationVector)
+					pvcData[claim] = d
+					for _, cd := range model { // TODO: make this not doubly nested
+						if cd.PodName == pod && cd.Namespace == namespace {
+							if len(cd.PVCData) > 0 {
+								cd.PVCData = append(cd.PVCData, d)
+							} else {
+								cd.PVCData = []*PersistentVolumeClaimData{d}
+							}
+							break // break so we only assign to the first
 						}
-						break // break so we only assign to the first
 					}
 				}
+
 			}
 		}
 	}
