@@ -1,8 +1,8 @@
 package costmodel
 
 import (
-	"math"
 	"fmt"
+	"math"
 	"strconv"
 
 	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
@@ -199,7 +199,10 @@ func getNetworkUsageVector(qr interface{}) (map[string]*NetworkUsageVector, erro
 		}
 		var vectors []*Vector
 		strVal := value[1].(string)
-		v, _ := strconv.ParseFloat(strVal, 64)
+		v, err := strconv.ParseFloat(strVal, 64)
+		if err != nil {
+			return nil, err
+		}
 
 		vectors = append(vectors, &Vector{
 			Timestamp: value[0].(float64),

@@ -411,7 +411,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	networkUsageMap, err := GetNetworkUsageData(resultNetZoneRequests, resultNetRegionRequests, resultNetInternetRequests, false)
 	if err != nil {
 		klog.V(1).Infof("Unable to get Network Cost Data: %s", err.Error())
-		return nil, err
+		networkUsageMap = make(map[string]*NetworkUsageData)
 	}
 
 	containerNameCost := make(map[string]*CostData)
@@ -1298,7 +1298,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	networkUsageMap, err := GetNetworkUsageData(resultNetZoneRequests, resultNetRegionRequests, resultNetInternetRequests, true)
 	if err != nil {
 		klog.V(1).Infof("Unable to get Network Cost Data: %s", err.Error())
-		return nil, err
+		networkUsageMap = make(map[string]*NetworkUsageData)
 	}
 
 	containerNameCost := make(map[string]*CostData)
