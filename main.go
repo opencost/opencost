@@ -515,7 +515,7 @@ func (a *Accesses) recordPrices() {
 						if pvc.Volume != nil {
 							pvCost, _ := strconv.ParseFloat(pvc.Volume.Cost, 64)
 							a.PersistentVolumePriceRecorder.WithLabelValues(pvc.VolumeName, pvc.VolumeName).Set(pvCost)
-							a.PVAllocationRecorder.WithLabelValues(namespace, podName, pvc.Claim).Set(pvc.Values[0].Value)
+							a.PVAllocationRecorder.WithLabelValues(namespace, podName, pvc.Claim, pvc.VolumeName).Set(pvc.Values[0].Value)
 						}
 					}
 				}
@@ -711,7 +711,7 @@ func main() {
 	PVAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "pod_pvc_allocation",
 		Help: "pod_pvc_allocation Bytes used by a PVC attached to a pod",
-	}, []string{"namespace", "pod", "persistentvolumeclaim"})
+	}, []string{"namespace", "pod", "persistentvolumeclaim", "persistentvolume"})
 
 	ContainerUptimeRecorder := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "container_uptime_seconds",
