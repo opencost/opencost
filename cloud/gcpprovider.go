@@ -86,11 +86,11 @@ func (gcp *GCP) GetLocalStorageQuery() (string, error) {
 
 func (gcp *GCP) GetConfig() (*CustomPricing, error) {
 	c, err := GetDefaultPricingData("gcp.json")
-	if c.Discount == "" {
-		c.Discount = "30%"
-	}
 	if err != nil {
 		return nil, err
+	}
+	if c.Discount == "" {
+		c.Discount = "30%"
 	}
 	return c, nil
 }
