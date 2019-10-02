@@ -21,16 +21,13 @@ import (
 	prometheusClient "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/cache"
 )
 
 const (
@@ -139,17 +136,33 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 	offset := r.URL.Query().Get("offset")
 	fields := r.URL.Query().Get("filterFields")
 	namespace := r.URL.Query().Get("namespace")
+	aggregation := r.URL.Query().Get("aggregation")
+	aggregationSubField := r.URL.Query().Get("aggregationSubfield")
 
 	if offset != "" {
 		offset = "offset " + offset
 	}
 
 	data, err := a.Model.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, window, offset, namespace)
-	if fields != "" {
-		filteredData := filterFields(fields, data)
-		w.Write(wrapData(filteredData, err))
+	if aggregation != "" {
+		c, err := a.Cloud.GetConfig()
+		if err != nil {
+			w.Write(wrapData(nil, err))
+		}
+		discount, err := strconv.ParseFloat(c.Discount[:len(c.Discount)-1], 64)
+		if err != nil {
+			w.Write(wrapData(nil, err))
+		}
+
+		agg := costModel.AggregateCostModel(data, discount, aggregation, aggregationSubField)
+		w.Write(wrapData(agg, nil))
 	} else {
-		w.Write(wrapData(data, err))
+		if fields != "" {
+			filteredData := filterFields(fields, data)
+			w.Write(wrapData(filteredData, err))
+		} else {
+			w.Write(wrapData(data, err))
+		}
 	}
 }
 
@@ -185,6 +198,65 @@ func (a *Accesses) ClusterCostsOverTime(w http.ResponseWriter, r *http.Request, 
 	w.Write(wrapData(data, err))
 }
 
+func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	window := r.URL.Query().Get("window")
+	offset := r.URL.Query().Get("offset")
+	aggregation := r.URL.Query().Get("aggregation")
+	namespace := r.URL.Query().Get("namespace")
+	aggregationSubField := r.URL.Query().Get("aggregationSubfield")
+
+	endTime := time.Now()
+	if offset != "" {
+		o, err := time.ParseDuration(offset)
+		if err != nil {
+			w.Write(wrapData(nil, err))
+			return
+		}
+
+		endTime = endTime.Add(-1 * o)
+	}
+
+	if window[len(window)-1:] == "d" {
+		count := window[:len(window)-1]
+		val, err := strconv.ParseInt(count, 10, 64)
+		if err != nil {
+			w.Write(wrapData(nil, err))
+			return
+		}
+		val = val * 24
+		window = fmt.Sprintf("%dh", val)
+	}
+
+	d, err := time.ParseDuration(window)
+	if err != nil {
+		w.Write(wrapData(nil, err))
+		return
+	}
+	startTime := endTime.Add(-1 * d)
+	layout := "2006-01-02T15:04:05.000Z"
+	start := startTime.Format(layout)
+	end := endTime.Format(layout)
+	data, err := a.Model.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, "1h", namespace)
+	if err != nil {
+		w.Write(wrapData(nil, err))
+		return
+	}
+	c, err := a.Cloud.GetConfig()
+	if err != nil {
+		w.Write(wrapData(nil, err))
+	}
+	discount, err := strconv.ParseFloat(c.Discount[:len(c.Discount)-1], 64)
+	if err != nil {
+		w.Write(wrapData(nil, err))
+	}
+	if aggregation != "" {
+		agg := costModel.AggregateCostModel(data, discount*0.01, aggregation, aggregationSubField)
+		w.Write(wrapData(agg, nil))
+	}
+}
+
 func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -194,13 +266,31 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	window := r.URL.Query().Get("window")
 	fields := r.URL.Query().Get("filterFields")
 	namespace := r.URL.Query().Get("namespace")
+	aggregation := r.URL.Query().Get("aggregation")
+	aggregationSubField := r.URL.Query().Get("aggregationSubfield")
 
 	data, err := a.Model.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, window, namespace)
-	if fields != "" {
-		filteredData := filterFields(fields, data)
-		w.Write(wrapData(filteredData, err))
+	if err != nil {
+		w.Write(wrapData(nil, err))
+	}
+	if aggregation != "" {
+		c, err := a.Cloud.GetConfig()
+		if err != nil {
+			w.Write(wrapData(nil, err))
+		}
+		discount, err := strconv.ParseFloat(c.Discount[:len(c.Discount)-1], 64)
+		if err != nil {
+			w.Write(wrapData(nil, err))
+		}
+		agg := costModel.AggregateCostModel(data, discount, aggregation, aggregationSubField)
+		w.Write(wrapData(agg, nil))
 	} else {
-		w.Write(wrapData(data, err))
+		if fields != "" {
+			filteredData := filterFields(fields, data)
+			w.Write(wrapData(filteredData, err))
+		} else {
+			w.Write(wrapData(data, err))
+		}
 	}
 }
 
@@ -390,7 +480,7 @@ func (a *Accesses) recordPrices() {
 
 		for {
 			klog.V(4).Info("Recording prices...")
-			podlist := a.Model.Controller.GetAll()
+			podlist := a.Model.Cache.GetAllPods()
 			podStatus := make(map[string]v1.PodPhase)
 			for _, pod := range podlist {
 				podStatus[pod.Name] = pod.Status.Phase
@@ -466,10 +556,9 @@ func (a *Accesses) recordPrices() {
 					containerSeen[labelKey] = false
 				}
 
-				storageClasses, _ := a.KubeClientSet.StorageV1().StorageClasses().List(metav1.ListOptions{})
-
+				storageClasses := a.Model.Cache.GetAllStorageClasses()
 				storageClassMap := make(map[string]map[string]string)
-				for _, storageClass := range storageClasses.Items {
+				for _, storageClass := range storageClasses {
 					params := storageClass.Parameters
 					storageClassMap[storageClass.ObjectMeta.Name] = params
 					if storageClass.GetAnnotations()["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.GetAnnotations()["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
@@ -478,8 +567,8 @@ func (a *Accesses) recordPrices() {
 					}
 				}
 
-				pvs, _ := a.KubeClientSet.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
-				for _, pv := range pvs.Items {
+				pvs := a.Model.Cache.GetAllPersistentVolumes()
+				for _, pv := range pvs {
 					parameters, ok := storageClassMap[pv.Spec.StorageClassName]
 					if !ok {
 						klog.V(4).Infof("Unable to find parameters for storage class \"%s\". Does pv \"%s\" have a storageClassName?", pv.Spec.StorageClassName, pv.Name)
@@ -489,7 +578,7 @@ func (a *Accesses) recordPrices() {
 						Region:     pv.Labels[v1.LabelZoneRegion],
 						Parameters: parameters,
 					}
-					costModel.GetPVCost(cacPv, &pv, a.Cloud)
+					costModel.GetPVCost(cacPv, pv, a.Cloud)
 					c, _ := strconv.ParseFloat(cacPv.Cost, 64)
 					a.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name).Set(c)
 					labelKey := getKeyFromLabelStrings(pv.Name, pv.Name)
@@ -665,8 +754,6 @@ func main() {
 		KubeClientSet: kubeClientset,
 	})
 
-	podCache := cache.NewListWatchFromClient(kubeClientset.CoreV1().RESTClient(), "pods", "", fields.Everything())
-
 	a := Accesses{
 		PrometheusClient:              promCli,
 		KubeClientSet:                 kubeClientset,
@@ -683,7 +770,7 @@ func main() {
 		NetworkRegionEgressRecorder:   NetworkRegionEgressRecorder,
 		NetworkInternetEgressRecorder: NetworkInternetEgressRecorder,
 		PersistentVolumePriceRecorder: pvGv,
-		Model:                         costModel.NewCostModel(podCache),
+		Model:                         costModel.NewCostModel(kubeClientset),
 	}
 
 	remoteEnabled := os.Getenv(remoteEnabled)
@@ -725,6 +812,7 @@ func main() {
 	router.GET("/managementPlatform", a.ManagementPlatform)
 	router.GET("/clusterInfo", a.ClusterInfo)
 	router.GET("/containerUptimes", a.ContainerUptimes)
+	router.GET("/aggregatedCostModel", a.AggregateCostModel)
 
 	rootMux := http.NewServeMux()
 	rootMux.Handle("/", router)

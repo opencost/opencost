@@ -19,8 +19,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 )
 
@@ -41,55 +39,24 @@ const (
 	epConfig          = apiPrefix + "/status/config"
 	epFlags           = apiPrefix + "/status/flags"
 	remoteEnabled     = "REMOTE_WRITE_ENABLED"
+	CLUSTER_ID        = "CLUSTER_ID"
 )
 
 type CostModel struct {
-	Controller *Controller
+	Cache ClusterCache
+
+	stop chan struct{}
 }
 
-func NewCostModel(podListWatcher cache.ListerWatcher) *CostModel {
-	cm := &CostModel{}
-	cm.ContainerWatcher(podListWatcher)
-	return cm
-}
+func NewCostModel(client kubernetes.Interface) *CostModel {
+	stopCh := make(chan struct{})
+	cache := NewKubernetesClusterCache(client)
+	cache.Run(stopCh)
 
-func (cm *CostModel) ContainerWatcher(podListWatcher cache.ListerWatcher) {
-
-	// create the workqueue
-	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-
-	// Bind the workqueue to a cache with the help of an informer. This way we make sure that
-	// whenever the cache is updated, the pod key is added to the workqueue.
-	// Note that when we finally process the item from the workqueue, we might see a newer version
-	// of the Pod than the version which was responsible for triggering the update.
-	indexer, informer := cache.NewIndexerInformer(podListWatcher, &v1.Pod{}, 0, cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			key, err := cache.MetaNamespaceKeyFunc(obj)
-			if err == nil {
-				queue.Add(key)
-			}
-		},
-		UpdateFunc: func(old interface{}, new interface{}) {
-			key, err := cache.MetaNamespaceKeyFunc(new)
-			if err == nil {
-				queue.Add(key)
-			}
-		},
-		DeleteFunc: func(obj interface{}) {
-			// IndexerInformer uses a delta queue, therefore for deletes we have to use this
-			// key function.
-			key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
-			if err == nil {
-				queue.Add(key)
-			}
-		},
-	}, cache.Indexers{})
-
-	cm.Controller = NewController(queue, indexer, informer)
-	// Now let's start the controller
-	stop := make(chan struct{})
-	//defer close(stop)
-	go cm.Controller.Run(1, stop)
+	return &CostModel{
+		Cache: cache,
+		stop:  stopCh,
+	}
 }
 
 type CostData struct {
@@ -187,7 +154,7 @@ type PrometheusMetadata struct {
 
 // ValidatePrometheus tells the model what data prometheus has on it.
 func ValidatePrometheus(cli prometheusClient.Client) (*PrometheusMetadata, error) {
-	data, err := query(cli, "up")
+	data, err := Query(cli, "up")
 	if err != nil {
 		return &PrometheusMetadata{
 			Running:            false,
@@ -266,11 +233,11 @@ func getUptimeData(qr interface{}) ([]*Vector, bool, error) {
 }
 
 func ComputeUptimes(cli prometheusClient.Client) (map[string]float64, error) {
-	res, err := query(cli, `container_start_time_seconds{container_name != "POD",container_name != ""}`)
+	res, err := Query(cli, `container_start_time_seconds{container_name != "POD",container_name != ""}`)
 	if err != nil {
 		return nil, err
 	}
-	vectors, err := getContainerMetricVector(res, false, 0)
+	vectors, err := GetContainerMetricVector(res, false, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -298,38 +265,40 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, window, "")
 	normalization := fmt.Sprintf(normalizationStr, window, offset)
 
+	clustID := os.Getenv(CLUSTER_ID)
+
 	var wg sync.WaitGroup
 	wg.Add(11)
 
 	var promErr error
 	var resultRAMRequests interface{}
 	go func() {
-		resultRAMRequests, promErr = query(cli, queryRAMRequests)
+		resultRAMRequests, promErr = Query(cli, queryRAMRequests)
 		defer wg.Done()
 	}()
 	var resultRAMUsage interface{}
 	go func() {
-		resultRAMUsage, promErr = query(cli, queryRAMUsage)
+		resultRAMUsage, promErr = Query(cli, queryRAMUsage)
 		defer wg.Done()
 	}()
 	var resultCPURequests interface{}
 	go func() {
-		resultCPURequests, promErr = query(cli, queryCPURequests)
+		resultCPURequests, promErr = Query(cli, queryCPURequests)
 		defer wg.Done()
 	}()
 	var resultCPUUsage interface{}
 	go func() {
-		resultCPUUsage, promErr = query(cli, queryCPUUsage)
+		resultCPUUsage, promErr = Query(cli, queryCPUUsage)
 		defer wg.Done()
 	}()
 	var resultGPURequests interface{}
 	go func() {
-		resultGPURequests, promErr = query(cli, queryGPURequests)
+		resultGPURequests, promErr = Query(cli, queryGPURequests)
 		defer wg.Done()
 	}()
 	var resultPVRequests interface{}
 	go func() {
-		resultPVRequests, promErr = query(cli, queryPVRequests)
+		resultPVRequests, promErr = Query(cli, queryPVRequests)
 		defer wg.Done()
 	}()
 	var resultNetZoneRequests interface{}
@@ -349,28 +318,28 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	}()
 	var normalizationResult interface{}
 	go func() {
-		normalizationResult, promErr = query(cli, normalization)
+		normalizationResult, promErr = Query(cli, normalization)
 		defer wg.Done()
 	}()
 
 	podDeploymentsMapping := make(map[string]map[string][]string)
 	podServicesMapping := make(map[string]map[string][]string)
 	namespaceLabelsMapping := make(map[string]map[string]string)
-	podlist := cm.Controller.GetAll()
+	podlist := cm.Cache.GetAllPods()
 	var k8sErr error
 	go func() {
 		defer wg.Done()
 
-		podDeploymentsMapping, k8sErr = getPodDeployments(clientset, podlist)
+		podDeploymentsMapping, k8sErr = getPodDeployments(cm.Cache, podlist)
 		if k8sErr != nil {
 			return
 		}
 
-		podServicesMapping, k8sErr = getPodServices(clientset, podlist)
+		podServicesMapping, k8sErr = getPodServices(cm.Cache, podlist)
 		if k8sErr != nil {
 			return
 		}
-		namespaceLabelsMapping, k8sErr = getNamespaceLabels(clientset)
+		namespaceLabelsMapping, k8sErr = getNamespaceLabels(cm.Cache)
 		if k8sErr != nil {
 			return
 		}
@@ -391,7 +360,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		return nil, fmt.Errorf("Error parsing normalization values: " + err.Error())
 	}
 
-	nodes, err := getNodeCost(clientset, cloud)
+	nodes, err := getNodeCost(cm.Cache, cloud)
 	if err != nil {
 		klog.V(1).Infof("Warning, no Node cost model available: " + err.Error())
 		return nil, err
@@ -402,7 +371,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		klog.Infof("Unable to get PV Data: %s", err.Error())
 	}
 	if pvClaimMapping != nil {
-		err = addPVData(clientset, pvClaimMapping, cloud)
+		err = addPVData(cm.Cache, pvClaimMapping, cloud)
 		if err != nil {
 			return nil, err
 		}
@@ -417,7 +386,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	containerNameCost := make(map[string]*CostData)
 	containers := make(map[string]bool)
 
-	RAMReqMap, err := getContainerMetricVector(resultRAMRequests, true, normalizationValue)
+	RAMReqMap, err := GetContainerMetricVector(resultRAMRequests, true, normalizationValue)
 	if err != nil {
 		return nil, err
 	}
@@ -425,28 +394,28 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		containers[key] = true
 	}
 
-	RAMUsedMap, err := getContainerMetricVector(resultRAMUsage, true, normalizationValue)
+	RAMUsedMap, err := GetContainerMetricVector(resultRAMUsage, true, normalizationValue)
 	if err != nil {
 		return nil, err
 	}
 	for key := range RAMUsedMap {
 		containers[key] = true
 	}
-	CPUReqMap, err := getContainerMetricVector(resultCPURequests, true, normalizationValue)
+	CPUReqMap, err := GetContainerMetricVector(resultCPURequests, true, normalizationValue)
 	if err != nil {
 		return nil, err
 	}
 	for key := range CPUReqMap {
 		containers[key] = true
 	}
-	GPUReqMap, err := getContainerMetricVector(resultGPURequests, true, normalizationValue)
+	GPUReqMap, err := GetContainerMetricVector(resultGPURequests, true, normalizationValue)
 	if err != nil {
 		return nil, err
 	}
 	for key := range GPUReqMap {
 		containers[key] = true
 	}
-	CPUUsedMap, err := getContainerMetricVector(resultCPUUsage, false, 0) // No need to normalize here, as this comes from a counter
+	CPUUsedMap, err := GetContainerMetricVector(resultCPUUsage, false, 0) // No need to normalize here, as this comes from a counter
 	if err != nil {
 		return nil, err
 	}
@@ -592,6 +561,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 					NetworkData:     netReq,
 					Labels:          podLabels,
 					NamespaceLabels: nsLabels,
+					ClusterID:       clustID,
 				}
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
@@ -660,6 +630,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 				CPUUsed:         CPUUsedV,
 				GPUReq:          GPUReqV,
 				NamespaceLabels: namespacelabels,
+				ClusterID:       clustID,
 			}
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
@@ -694,7 +665,7 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 		l := strings.Join(q, "|")
 		queryHistoricalPodLabels := fmt.Sprintf(`kube_pod_labels{pod=~"%s"}[%s]`, l, window)
 
-		podLabelsResult, err := query(cli, queryHistoricalPodLabels)
+		podLabelsResult, err := Query(cli, queryHistoricalPodLabels)
 		if err != nil {
 			return fmt.Errorf("Error fetching historical pod labels: " + err.Error())
 		}
@@ -704,6 +675,7 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 			labels, ok := podLabels[cm.PodName]
 			if !ok {
 				klog.V(1).Infof("Unable to find historical data for pod '%s'", cm.PodName)
+				labels = make(map[string]string)
 			}
 			for k, v := range costData.NamespaceLabels {
 				if _, ok := labels[k]; !ok {
@@ -770,15 +742,15 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 		queryHistoricalRAMCost := fmt.Sprintf(`avg_over_time(node_ram_hourly_cost{instance=~"%s"}[%s])`, l, window)
 		queryHistoricalGPUCost := fmt.Sprintf(`avg_over_time(node_gpu_hourly_cost{instance=~"%s"}[%s])`, l, window)
 
-		cpuCostResult, err := query(cli, queryHistoricalCPUCost)
+		cpuCostResult, err := Query(cli, queryHistoricalCPUCost)
 		if err != nil {
 			return fmt.Errorf("Error fetching cpu cost data: " + err.Error())
 		}
-		ramCostResult, err := query(cli, queryHistoricalRAMCost)
+		ramCostResult, err := Query(cli, queryHistoricalRAMCost)
 		if err != nil {
 			return fmt.Errorf("Error fetching ram cost data: " + err.Error())
 		}
-		gpuCostResult, err := query(cli, queryHistoricalGPUCost)
+		gpuCostResult, err := Query(cli, queryHistoricalGPUCost)
 		if err != nil {
 			return fmt.Errorf("Error fetching gpu cost data: " + err.Error())
 		}
@@ -882,17 +854,14 @@ func getContainerAllocation(req []*Vector, used []*Vector) []*Vector {
 
 	return allocation
 }
-func addPVData(clientset kubernetes.Interface, pvClaimMapping map[string]*PersistentVolumeClaimData, cloud costAnalyzerCloud.Provider) error {
+func addPVData(cache ClusterCache, pvClaimMapping map[string]*PersistentVolumeClaimData, cloud costAnalyzerCloud.Provider) error {
 	cfg, err := cloud.GetConfig()
 	if err != nil {
 		return err
 	}
-	storageClasses, err := clientset.StorageV1().StorageClasses().List(metav1.ListOptions{})
-	if err != nil {
-		return err
-	}
+	storageClasses := cache.GetAllStorageClasses()
 	storageClassMap := make(map[string]map[string]string)
-	for _, storageClass := range storageClasses.Items {
+	for _, storageClass := range storageClasses {
 		params := storageClass.Parameters
 		storageClassMap[storageClass.ObjectMeta.Name] = params
 		if storageClass.GetAnnotations()["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.GetAnnotations()["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
@@ -901,12 +870,9 @@ func addPVData(clientset kubernetes.Interface, pvClaimMapping map[string]*Persis
 		}
 	}
 
-	pvs, err := clientset.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
-	if err != nil {
-		return err
-	}
+	pvs := cache.GetAllPersistentVolumes()
 	pvMap := make(map[string]*costAnalyzerCloud.PV)
-	for _, pv := range pvs.Items {
+	for _, pv := range pvs {
 		parameters, ok := storageClassMap[pv.Spec.StorageClassName]
 		if !ok {
 			klog.V(4).Infof("Unable to find parameters for storage class \"%s\". Does pv \"%s\" have a storageClassName?", pv.Spec.StorageClassName, pv.Name)
@@ -916,7 +882,7 @@ func addPVData(clientset kubernetes.Interface, pvClaimMapping map[string]*Persis
 			Region:     pv.Labels[v1.LabelZoneRegion],
 			Parameters: parameters,
 		}
-		err := GetPVCost(cacPv, &pv, cloud)
+		err := GetPVCost(cacPv, pv, cloud)
 		if err != nil {
 			return err
 		}
@@ -955,17 +921,14 @@ func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cloud costAna
 	return nil
 }
 
-func getNodeCost(clientset kubernetes.Interface, cloud costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.Node, error) {
+func getNodeCost(cache ClusterCache, cloud costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.Node, error) {
 	cfg, err := cloud.GetConfig()
 	if err != nil {
 		return nil, err
 	}
-	nodeList, err := clientset.CoreV1().Nodes().List(metav1.ListOptions{})
-	if err != nil {
-		return nil, err
-	}
+	nodeList := cache.GetAllNodes()
 	nodes := make(map[string]*costAnalyzerCloud.Node)
-	for _, n := range nodeList.Items {
+	for _, n := range nodeList {
 		name := n.GetObjectMeta().GetName()
 		nodeLabels := n.GetObjectMeta().GetLabels()
 		nodeLabels["providerID"] = n.Spec.ProviderID
@@ -1085,13 +1048,10 @@ func getNodeCost(clientset kubernetes.Interface, cloud costAnalyzerCloud.Provide
 	return nodes, nil
 }
 
-func getPodServices(clientset kubernetes.Interface, podList []*v1.Pod) (map[string]map[string][]string, error) {
-	servicesList, err := clientset.CoreV1().Services("").List(metav1.ListOptions{})
-	if err != nil {
-		return nil, err
-	}
+func getPodServices(cache ClusterCache, podList []*v1.Pod) (map[string]map[string][]string, error) {
+	servicesList := cache.GetAllServices()
 	podServicesMapping := make(map[string]map[string][]string)
-	for _, service := range servicesList.Items {
+	for _, service := range servicesList {
 		namespace := service.GetObjectMeta().GetNamespace()
 		name := service.GetObjectMeta().GetName()
 
@@ -1114,13 +1074,10 @@ func getPodServices(clientset kubernetes.Interface, podList []*v1.Pod) (map[stri
 	return podServicesMapping, nil
 }
 
-func getPodDeployments(clientset kubernetes.Interface, podList []*v1.Pod) (map[string]map[string][]string, error) {
-	deploymentsList, err := clientset.AppsV1().Deployments("").List(metav1.ListOptions{})
-	if err != nil {
-		return nil, err
-	}
+func getPodDeployments(cache ClusterCache, podList []*v1.Pod) (map[string]map[string][]string, error) {
+	deploymentsList := cache.GetAllDeployments()
 	podDeploymentsMapping := make(map[string]map[string][]string) // namespace: podName: [deploymentNames]
-	for _, deployment := range deploymentsList.Items {
+	for _, deployment := range deploymentsList {
 		namespace := deployment.GetObjectMeta().GetNamespace()
 		name := deployment.GetObjectMeta().GetName()
 		if _, ok := podDeploymentsMapping[namespace]; !ok {
@@ -1175,6 +1132,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		klog.V(1).Infof("Error parsing time " + windowString + ". Error: " + err.Error())
 		return nil, err
 	}
+	clustID := os.Getenv(CLUSTER_ID)
 	remoteEnabled := os.Getenv(remoteEnabled)
 	if remoteEnabled == "true" {
 		remoteLayout := "2006-01-02T15:04:05Z"
@@ -1235,27 +1193,27 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	}()
 	var normalizationResult interface{}
 	go func() {
-		normalizationResult, promErr = query(cli, normalization)
+		normalizationResult, promErr = Query(cli, normalization)
 		defer wg.Done()
 	}()
 
 	podDeploymentsMapping := make(map[string]map[string][]string)
 	podServicesMapping := make(map[string]map[string][]string)
 	namespaceLabelsMapping := make(map[string]map[string]string)
-	podlist := cm.Controller.GetAll()
+	podlist := cm.Cache.GetAllPods()
 	var k8sErr error
 	go func() {
 
-		podDeploymentsMapping, k8sErr = getPodDeployments(clientset, podlist)
+		podDeploymentsMapping, k8sErr = getPodDeployments(cm.Cache, podlist)
 		if k8sErr != nil {
 			return
 		}
 
-		podServicesMapping, k8sErr = getPodServices(clientset, podlist)
+		podServicesMapping, k8sErr = getPodServices(cm.Cache, podlist)
 		if k8sErr != nil {
 			return
 		}
-		namespaceLabelsMapping, k8sErr = getNamespaceLabels(clientset)
+		namespaceLabelsMapping, k8sErr = getNamespaceLabels(cm.Cache)
 		if k8sErr != nil {
 			return
 		}
@@ -1277,7 +1235,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		return nil, fmt.Errorf("Error parsing normalization values: " + err.Error())
 	}
 
-	nodes, err := getNodeCost(clientset, cloud)
+	nodes, err := getNodeCost(cm.Cache, cloud)
 	if err != nil {
 		klog.V(1).Infof("Warning, no cost model available: " + err.Error())
 		return nil, err
@@ -1289,7 +1247,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		klog.Infof("Unable to get PV Data: %s", err.Error())
 	}
 	if pvClaimMapping != nil {
-		err = addPVData(clientset, pvClaimMapping, cloud)
+		err = addPVData(cm.Cache, pvClaimMapping, cloud)
 		if err != nil {
 			return nil, err
 		}
@@ -1479,6 +1437,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 					Labels:          podLabels,
 					NetworkData:     netReq,
 					NamespaceLabels: nsLabels,
+					ClusterID:       clustID,
 				}
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
@@ -1545,6 +1504,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 				CPUUsed:         CPUUsedV,
 				GPUReq:          GPUReqV,
 				NamespaceLabels: namespacelabels,
+				ClusterID:       clustID,
 			}
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
@@ -1576,13 +1536,10 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	return containerNameCost, err
 }
 
-func getNamespaceLabels(clientset kubernetes.Interface) (map[string]map[string]string, error) {
+func getNamespaceLabels(cache ClusterCache) (map[string]map[string]string, error) {
 	nsToLabels := make(map[string]map[string]string)
-	nss, err := clientset.CoreV1().Namespaces().List(metav1.ListOptions{})
-	if err != nil {
-		return nil, err
-	}
-	for _, ns := range nss.Items {
+	nss := cache.GetAllNamespaces()
+	for _, ns := range nss {
 		nsToLabels[ns.Name] = ns.Labels
 	}
 	return nsToLabels, nil
@@ -1883,7 +1840,7 @@ func QueryRange(cli prometheusClient.Client, query string, start, end time.Time,
 	return toReturn, err
 }
 
-func query(cli prometheusClient.Client, query string) (interface{}, error) {
+func Query(cli prometheusClient.Client, query string) (interface{}, error) {
 	u := cli.URL(epQuery, nil)
 	q := u.Query()
 	q.Set("query", query)
@@ -2024,7 +1981,7 @@ func newContainerMetricFromPrometheus(metrics map[string]interface{}) (*Containe
 	}, nil
 }
 
-func getContainerMetricVector(qr interface{}, normalize bool, normalizationValue float64) (map[string][]*Vector, error) {
+func GetContainerMetricVector(qr interface{}, normalize bool, normalizationValue float64) (map[string][]*Vector, error) {
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
 		e, err := wrapPrometheusError(qr)

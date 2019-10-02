@@ -125,21 +125,21 @@ func ClusterCosts(cli prometheusClient.Client, cloud costAnalyzerCloud.Provider,
 	qStorage := fmt.Sprintf(queryStorage, windowString, offset, windowString, offset, localStorageQuery)
 	qTotal := fmt.Sprintf(queryTotal, localStorageQuery)
 
-	resultClusterCores, err := query(cli, qCores)
+	resultClusterCores, err := Query(cli, qCores)
 	if err != nil {
 		return nil, err
 	}
-	resultClusterRAM, err := query(cli, qRAM)
-	if err != nil {
-		return nil, err
-	}
-
-	resultStorage, err := query(cli, qStorage)
+	resultClusterRAM, err := Query(cli, qRAM)
 	if err != nil {
 		return nil, err
 	}
 
-	resultTotal, err := query(cli, qTotal)
+	resultStorage, err := Query(cli, qStorage)
+	if err != nil {
+		return nil, err
+	}
+
+	resultTotal, err := Query(cli, qTotal)
 	if err != nil {
 		return nil, err
 	}

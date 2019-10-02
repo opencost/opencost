@@ -551,6 +551,9 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 }
 func (az *Azure) GetConfig() (*CustomPricing, error) {
 	c, err := GetDefaultPricingData("azure.json")
+	if c.Discount == "" {
+		c.Discount = "0%"
+	}
 	if err != nil {
 		return nil, err
 	}
