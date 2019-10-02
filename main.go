@@ -468,6 +468,7 @@ func (a *Accesses) recordPrices() {
 		containerSeen := make(map[string]bool)
 		nodeSeen := make(map[string]bool)
 		pvSeen := make(map[string]bool)
+		pvcSeen := make(map[string]bool)
 
 		getKeyFromLabelStrings := func(labels ...string) string {
 			return strings.Join(labels, ",")
@@ -513,9 +514,9 @@ func (a *Accesses) recordPrices() {
 				if costs.PVCData != nil {
 					for _, pvc := range costs.PVCData {
 						if pvc.Volume != nil {
-							pvCost, _ := strconv.ParseFloat(pvc.Volume.Cost, 64)
-							a.PersistentVolumePriceRecorder.WithLabelValues(pvc.VolumeName, pvc.VolumeName).Set(pvCost)
 							a.PVAllocationRecorder.WithLabelValues(namespace, podName, pvc.Claim, pvc.VolumeName).Set(pvc.Values[0].Value)
+							labelKey := getKeyFromLabelStrings(namespace, podName, pvc.Claim, pvc.VolumeName)
+							pvcSeen[labelKey] = true
 						}
 					}
 				}
@@ -606,6 +607,14 @@ func (a *Accesses) recordPrices() {
 					labels := getLabelStringsFromKey(labelString)
 					a.PersistentVolumePriceRecorder.DeleteLabelValues(labels...)
 					delete(pvSeen, labelString)
+				}
+				pvSeen[labelString] = false
+			}
+			for labelString, seen := range pvcSeen {
+				if !seen {
+					labels := getLabelStringsFromKey(labelString)
+					a.PVAllocationRecorder.DeleteLabelValues(labels...)
+					delete(pvcSeen, labelString)
 				}
 				pvSeen[labelString] = false
 			}
