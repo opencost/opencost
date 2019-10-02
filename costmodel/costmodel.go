@@ -303,17 +303,17 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	}()
 	var resultNetZoneRequests interface{}
 	go func() {
-		resultNetZoneRequests, promErr = query(cli, queryNetZoneRequests)
+		resultNetZoneRequests, promErr = Query(cli, queryNetZoneRequests)
 		defer wg.Done()
 	}()
 	var resultNetRegionRequests interface{}
 	go func() {
-		resultNetRegionRequests, promErr = query(cli, queryNetRegionRequests)
+		resultNetRegionRequests, promErr = Query(cli, queryNetRegionRequests)
 		defer wg.Done()
 	}()
 	var resultNetInternetRequests interface{}
 	go func() {
-		resultNetInternetRequests, promErr = query(cli, queryNetInternetRequests)
+		resultNetInternetRequests, promErr = Query(cli, queryNetInternetRequests)
 		defer wg.Done()
 	}()
 	var normalizationResult interface{}
