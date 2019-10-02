@@ -280,7 +280,6 @@ func CostDataRangeFromSQL(field string, value string, window string, start strin
 			}
 		}
 
-		klog.Infof("%#v\n", result)
 		var dat map[string]string
 		err := json.Unmarshal([]byte(result[4]), &dat)
 		if err != nil {
@@ -309,7 +308,7 @@ func CostDataRangeFromSQL(field string, value string, window string, start strin
 		query = `SELECT time_bucket($1, time) AS bucket, name, avg(value), labels->>'persistentvolumeclaim' AS claim, labels->>'pod' AS pod,labels->>'namespace' AS namespace, labels->>'persistentvolume' AS volumename, labels->>'cluster_id' AS clusterid
 		FROM metrics
 		WHERE (name='pod_pvc_allocation') AND
-			time > $2 AND time < $3 AND value != 'NaN'
+			time > $2 AND time < $3 AND value != 'NaN' AND volumename IS NOT NULL
 		GROUP BY claim,pod,bucket,namespace,volumename,clusterid,name
 		ORDER BY pod,bucket;`
 
