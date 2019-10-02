@@ -616,7 +616,7 @@ func (a *Accesses) recordPrices() {
 					a.PVAllocationRecorder.DeleteLabelValues(labels...)
 					delete(pvcSeen, labelString)
 				}
-				pvSeen[labelString] = false
+				pvcSeen[labelString] = false
 			}
 			time.Sleep(time.Minute)
 		}
