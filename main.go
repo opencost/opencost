@@ -762,11 +762,8 @@ func main() {
 	prometheus.MustRegister(RAMAllocation)
 	prometheus.MustRegister(CPUAllocation)
 	prometheus.MustRegister(ContainerUptimeRecorder)
-<<<<<<< HEAD
 	prometheus.MustRegister(PVAllocation)
-=======
 	prometheus.MustRegister(NetworkZoneEgressRecorder, NetworkRegionEgressRecorder, NetworkInternetEgressRecorder)
->>>>>>> 82ec229e122566565cb40a9930c7500ba5b59b1c
 	prometheus.MustRegister(costModel.ServiceCollector{
 		KubeClientSet: kubeClientset,
 	})
