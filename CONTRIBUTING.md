@@ -22,6 +22,14 @@ To test, build the cost-model docker container and then push it to a Kubernetes 
 
 To confirm that the server is running, you can hit [http://localhost:9003/costDataModel?timeWindow=1d](http://localhost:9003/costDataModel?timeWindow=1d)
 
+## Running the integration tests ##
+To run these tests:
+* Make sure you have a kubeconfig that can point to your cluster
+* Connect to your the prometheus kubecost emits to on localhost:9003: 
+```kubectl port-forward --namespace kubecost service/kubecost-prometheus-server 9003:80```
+* Navigate to cost-model/test
+* Run ```go test -timeout 700s``` from the testing directory. The tests right now take about 10 minutes (600s) to run because they bring up and down pods and wait for Prometheus to scrape data about them.
+
 
 ## Certification of Origin ##
 
