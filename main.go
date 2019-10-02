@@ -54,6 +54,9 @@ type Accesses struct {
 	CPUAllocationRecorder         *prometheus.GaugeVec
 	GPUAllocationRecorder         *prometheus.GaugeVec
 	ContainerUptimeRecorder       *prometheus.GaugeVec
+	NetworkZoneEgressRecorder     prometheus.Gauge
+	NetworkRegionEgressRecorder   prometheus.Gauge
+	NetworkInternetEgressRecorder prometheus.Gauge
 	ServiceSelectorRecorder       *prometheus.GaugeVec
 	DeploymentSelectorRecorder    *prometheus.GaugeVec
 	Model                         *costModel.CostModel
@@ -482,6 +485,17 @@ func (a *Accesses) recordPrices() {
 			for _, pod := range podlist {
 				podStatus[pod.Name] = pod.Status.Phase
 			}
+
+			// Record network pricing at global scope
+			networkCosts, err := a.Cloud.NetworkPricing()
+			if err != nil {
+				klog.V(4).Infof("Failed to retrieve network costs: %s", err.Error())
+			} else {
+				a.NetworkZoneEgressRecorder.Set(networkCosts.ZoneNetworkEgressCost)
+				a.NetworkRegionEgressRecorder.Set(networkCosts.RegionNetworkEgressCost)
+				a.NetworkInternetEgressRecorder.Set(networkCosts.InternetNetworkEgressCost)
+			}
+
 			data, err := a.Model.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "2m", "", "")
 			if err != nil {
 				klog.V(1).Info("Error in price recording: " + err.Error())
@@ -711,6 +725,19 @@ func main() {
 		Help: "container_uptime_seconds Seconds a container has been running",
 	}, []string{"namespace", "pod", "container"})
 
+	NetworkZoneEgressRecorder := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "kubecost_network_zone_egress_cost",
+		Help: "kubecost_network_zone_egress_cost Total cost per GB egress across zones",
+	})
+	NetworkRegionEgressRecorder := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "kubecost_network_region_egress_cost",
+		Help: "kubecost_network_region_egress_cost Total cost per GB egress across regions",
+	})
+	NetworkInternetEgressRecorder := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "kubecost_network_internet_egress_cost",
+		Help: "kubecost_network_internet_egress_cost Total cost per GB of internet egress.",
+	})
+
 	prometheus.MustRegister(cpuGv)
 	prometheus.MustRegister(ramGv)
 	prometheus.MustRegister(gpuGv)
@@ -719,6 +746,7 @@ func main() {
 	prometheus.MustRegister(RAMAllocation)
 	prometheus.MustRegister(CPUAllocation)
 	prometheus.MustRegister(ContainerUptimeRecorder)
+	prometheus.MustRegister(NetworkZoneEgressRecorder, NetworkRegionEgressRecorder, NetworkInternetEgressRecorder)
 	prometheus.MustRegister(costModel.ServiceCollector{
 		KubeClientSet: kubeClientset,
 	})
@@ -738,6 +766,9 @@ func main() {
 		CPUAllocationRecorder:         CPUAllocation,
 		GPUAllocationRecorder:         GPUAllocation,
 		ContainerUptimeRecorder:       ContainerUptimeRecorder,
+		NetworkZoneEgressRecorder:     NetworkZoneEgressRecorder,
+		NetworkRegionEgressRecorder:   NetworkRegionEgressRecorder,
+		NetworkInternetEgressRecorder: NetworkInternetEgressRecorder,
 		PersistentVolumePriceRecorder: pvGv,
 		Model:                         costModel.NewCostModel(kubeClientset),
 	}

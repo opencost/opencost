@@ -78,6 +78,7 @@ type CostData struct {
 	CPUAllocation   []*Vector                    `json:"cpuallocated,omitempty"`
 	GPUReq          []*Vector                    `json:"gpureq,omitempty"`
 	PVCData         []*PersistentVolumeClaimData `json:"pvcData,omitempty"`
+	NetworkData     []*Vector                    `json:"network,omitempty"`
 	Labels          map[string]string            `json:"labels,omitempty"`
 	NamespaceLabels map[string]string            `json:"namespaceLabels,omitempty"`
 	ClusterID       string                       `json:"clusterId"`
@@ -140,7 +141,10 @@ const (
 						* 
 						on (persistentvolumeclaim, namespace) group_right(storageclass, volumename) 
 				sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) by (persistentvolumeclaim, namespace)`
-	normalizationStr = `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[%s] %s))`
+	queryZoneNetworkUsage     = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s] %s)) by (namespace,pod_name) / 1024 / 1024 / 1024`
+	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s] %s)) by (namespace,pod_name) / 1024 / 1024 / 1024`
+	queryInternetNetworkUsage = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s] %s)) by (namespace,pod_name) / 1024 / 1024 / 1024`
+	normalizationStr          = `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[%s] %s))`
 )
 
 type PrometheusMetadata struct {
@@ -256,12 +260,15 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, window, offset)
 	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, window, offset, window, offset)
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
+	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, window, "")
+	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, window, "")
+	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, window, "")
 	normalization := fmt.Sprintf(normalizationStr, window, offset)
 
 	clustID := os.Getenv(CLUSTER_ID)
 
 	var wg sync.WaitGroup
-	wg.Add(8)
+	wg.Add(11)
 
 	var promErr error
 	var resultRAMRequests interface{}
@@ -292,6 +299,21 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	var resultPVRequests interface{}
 	go func() {
 		resultPVRequests, promErr = Query(cli, queryPVRequests)
+		defer wg.Done()
+	}()
+	var resultNetZoneRequests interface{}
+	go func() {
+		resultNetZoneRequests, promErr = Query(cli, queryNetZoneRequests)
+		defer wg.Done()
+	}()
+	var resultNetRegionRequests interface{}
+	go func() {
+		resultNetRegionRequests, promErr = Query(cli, queryNetRegionRequests)
+		defer wg.Done()
+	}()
+	var resultNetInternetRequests interface{}
+	go func() {
+		resultNetInternetRequests, promErr = Query(cli, queryNetInternetRequests)
 		defer wg.Done()
 	}()
 	var normalizationResult interface{}
@@ -353,6 +375,12 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	networkUsageMap, err := GetNetworkUsageData(resultNetZoneRequests, resultNetRegionRequests, resultNetInternetRequests, false)
+	if err != nil {
+		klog.V(1).Infof("Unable to get Network Cost Data: %s", err.Error())
+		networkUsageMap = make(map[string]*NetworkUsageData)
 	}
 
 	containerNameCost := make(map[string]*CostData)
@@ -455,6 +483,16 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 				}
 			}
 
+			var podNetCosts []*Vector
+			if usage, ok := networkUsageMap[ns+","+podName]; ok {
+				netCosts, err := GetNetworkCost(usage, cloud)
+				if err != nil {
+					klog.V(3).Infof("Error pulling network costs: %s", err.Error())
+				} else {
+					podNetCosts = netCosts
+				}
+			}
+
 			var podServices []string
 			if _, ok := podServicesMapping[ns]; ok {
 				if svcs, ok := podServicesMapping[ns][pod.GetObjectMeta().GetName()]; ok {
@@ -497,8 +535,10 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 				}
 
 				var pvReq []*PersistentVolumeClaimData
+				var netReq []*Vector
 				if i == 0 { // avoid duplicating by just assigning all claims to the first container.
 					pvReq = podPVs
+					netReq = podNetCosts
 				}
 
 				costs := &CostData{
@@ -518,6 +558,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 					CPUUsed:         CPUUsedV,
 					GPUReq:          GPUReqV,
 					PVCData:         pvReq,
+					NetworkData:     netReq,
 					Labels:          podLabels,
 					NamespaceLabels: nsLabels,
 					ClusterID:       clustID,
@@ -1069,6 +1110,9 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, windowString, "")
 	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, windowString, "", windowString, "")
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
+	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, windowString, "")
+	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, windowString, "")
+	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, windowString, "")
 	normalization := fmt.Sprintf(normalizationStr, windowString, "")
 
 	layout := "2006-01-02T15:04:05.000Z"
@@ -1099,7 +1143,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(8)
+	wg.Add(11)
 
 	var promErr error
 	var resultRAMRequests interface{}
@@ -1130,6 +1174,21 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	var resultPVRequests interface{}
 	go func() {
 		resultPVRequests, promErr = QueryRange(cli, queryPVRequests, start, end, window)
+		defer wg.Done()
+	}()
+	var resultNetZoneRequests interface{}
+	go func() {
+		resultNetZoneRequests, promErr = QueryRange(cli, queryNetZoneRequests, start, end, window)
+		defer wg.Done()
+	}()
+	var resultNetRegionRequests interface{}
+	go func() {
+		resultNetRegionRequests, promErr = QueryRange(cli, queryNetRegionRequests, start, end, window)
+		defer wg.Done()
+	}()
+	var resultNetInternetRequests interface{}
+	go func() {
+		resultNetInternetRequests, promErr = QueryRange(cli, queryNetInternetRequests, start, end, window)
 		defer wg.Done()
 	}()
 	var normalizationResult interface{}
@@ -1192,6 +1251,12 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	networkUsageMap, err := GetNetworkUsageData(resultNetZoneRequests, resultNetRegionRequests, resultNetInternetRequests, true)
+	if err != nil {
+		klog.V(1).Infof("Unable to get Network Cost Data: %s", err.Error())
+		networkUsageMap = make(map[string]*NetworkUsageData)
 	}
 
 	containerNameCost := make(map[string]*CostData)
@@ -1282,6 +1347,16 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 				}
 			}
 
+			var podNetCosts []*Vector
+			if usage, ok := networkUsageMap[ns+","+podName]; ok {
+				netCosts, err := GetNetworkCost(usage, cloud)
+				if err != nil {
+					klog.V(3).Infof("Error pulling network costs: %s", err.Error())
+				} else {
+					podNetCosts = netCosts
+				}
+			}
+
 			var podServices []string
 			if _, ok := podServicesMapping[ns]; ok {
 				if svcs, ok := podServicesMapping[ns][pod.GetObjectMeta().GetName()]; ok {
@@ -1336,8 +1411,10 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 				}
 
 				var pvReq []*PersistentVolumeClaimData
+				var netReq []*Vector
 				if i == 0 { // avoid duplicating by just assigning all claims to the first container.
 					pvReq = podPVs
+					netReq = podNetCosts
 				}
 
 				costs := &CostData{
@@ -1358,6 +1435,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 					GPUReq:          GPUReqV,
 					PVCData:         pvReq,
 					Labels:          podLabels,
+					NetworkData:     netReq,
 					NamespaceLabels: nsLabels,
 					ClusterID:       clustID,
 				}
