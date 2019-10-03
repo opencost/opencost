@@ -43,7 +43,7 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 	if err != nil || totalClusterCost == 0.0 {
 		return 0.0, err
 	}
-	totalClusterCostOverWindow := (totalClusterCost / 730) * windowDuration.Hours()
+	totalClusterCostOverWindow := (totalClusterCost / 730) * windowDuration.Hours() * (1 - discount)
 	totalContainerCost := 0.0
 	for _, costDatum := range costData {
 		cpuv, ramv, gpuv, pvvs := getPriceVectors(costDatum, discount, 1)
