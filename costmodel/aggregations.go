@@ -4,6 +4,10 @@ import (
 	"math"
 	"sort"
 	"strconv"
+	"time"
+
+	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
+	prometheusClient "github.com/prometheus/client_golang/api"
 )
 
 type Aggregation struct {
@@ -26,25 +30,53 @@ type Aggregation struct {
 	TotalCost          float64   `json:"totalCost"`
 }
 
-func AggregateCostModel(costData map[string]*CostData, discount float64, aggregationField string, aggregationSubField string) map[string]*Aggregation {
+func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.Client, cloud costAnalyzerCloud.Provider, discount float64, windowString, offset string) (float64, error) {
+	windowDuration, err := time.ParseDuration(windowString)
+	if err != nil {
+		return 0.0, err
+	}
+	totals, err := ClusterCosts(cli, cloud, windowString, offset)
+	if err != nil {
+		return 0.0, err
+	}
+	totalClusterCost, err := strconv.ParseFloat(totals.TotalCost[0][1], 64)
+	if err != nil || totalClusterCost == 0.0 {
+		return 0.0, err
+	}
+	totalClusterCostOverWindow := (totalClusterCost / 730) * windowDuration.Hours()
+	totalContainerCost := 0.0
+	for _, costDatum := range costData {
+		cpuv, ramv, gpuv, pvvs := getPriceVectors(costDatum, discount, 1)
+		totalContainerCost += totalVector(cpuv)
+		totalContainerCost += totalVector(ramv)
+		totalContainerCost += totalVector(gpuv)
+		for _, pv := range pvvs {
+			totalContainerCost += totalVector(pv)
+		}
+	}
+
+	return (totalContainerCost / totalClusterCostOverWindow), nil
+}
+
+func AggregateCostModel(costData map[string]*CostData, discount float64, idleCoefficient float64, aggregationField string, aggregationSubField string) map[string]*Aggregation {
 	aggregations := make(map[string]*Aggregation)
 	for _, costDatum := range costData {
 		if aggregationField == "cluster" {
-			aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.ClusterID, aggregations, discount)
+			aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.ClusterID, aggregations, discount, idleCoefficient)
 		} else if aggregationField == "namespace" {
-			aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.Namespace, aggregations, discount)
+			aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.Namespace, aggregations, discount, idleCoefficient)
 		} else if aggregationField == "service" {
 			if len(costDatum.Services) > 0 {
-				aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.Services[0], aggregations, discount)
+				aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.Services[0], aggregations, discount, idleCoefficient)
 			}
 		} else if aggregationField == "deployment" {
 			if len(costDatum.Deployments) > 0 {
-				aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.Deployments[0], aggregations, discount)
+				aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.Deployments[0], aggregations, discount, idleCoefficient)
 			}
 		} else if aggregationField == "label" {
 			if costDatum.Labels != nil {
 				if subfieldName, ok := costDatum.Labels[aggregationSubField]; ok {
-					aggregationHelper(costDatum, aggregationField, aggregationSubField, subfieldName, aggregations, discount)
+					aggregationHelper(costDatum, aggregationField, aggregationSubField, subfieldName, aggregations, discount, idleCoefficient)
 				}
 			}
 		}
@@ -59,7 +91,7 @@ func AggregateCostModel(costData map[string]*CostData, discount float64, aggrega
 	return aggregations
 }
 
-func aggregationHelper(costDatum *CostData, aggregator string, aggregatorSubField string, key string, aggregations map[string]*Aggregation, discount float64) {
+func aggregationHelper(costDatum *CostData, aggregator string, aggregatorSubField string, key string, aggregations map[string]*Aggregation, discount float64, idleCoefficient float64) {
 	if _, ok := aggregations[key]; !ok {
 		agg := &Aggregation{}
 		agg.Aggregator = aggregator
@@ -68,15 +100,15 @@ func aggregationHelper(costDatum *CostData, aggregator string, aggregatorSubFiel
 		agg.Cluster = costDatum.ClusterID
 		aggregations[key] = agg
 	}
-	mergeVectors(costDatum, aggregations[key], discount)
+	mergeVectors(costDatum, aggregations[key], discount, idleCoefficient)
 }
 
-func mergeVectors(costDatum *CostData, aggregation *Aggregation, discount float64) {
+func mergeVectors(costDatum *CostData, aggregation *Aggregation, discount float64, idleCoefficient float64) {
 	aggregation.CPUAllocation = addVectors(costDatum.CPUAllocation, aggregation.CPUAllocation)
 	aggregation.RAMAllocation = addVectors(costDatum.RAMAllocation, aggregation.RAMAllocation)
 	aggregation.GPUAllocation = addVectors(costDatum.GPUReq, aggregation.GPUAllocation)
 
-	cpuv, ramv, gpuv, pvvs := getPriceVectors(costDatum, discount)
+	cpuv, ramv, gpuv, pvvs := getPriceVectors(costDatum, discount, idleCoefficient)
 	aggregation.CPUCostVector = addVectors(cpuv, aggregation.CPUCostVector)
 	aggregation.RAMCostVector = addVectors(ramv, aggregation.RAMCostVector)
 	aggregation.GPUCostVector = addVectors(gpuv, aggregation.GPUCostVector)
@@ -85,13 +117,13 @@ func mergeVectors(costDatum *CostData, aggregation *Aggregation, discount float6
 	}
 }
 
-func getPriceVectors(costDatum *CostData, discount float64) ([]*Vector, []*Vector, []*Vector, [][]*Vector) {
+func getPriceVectors(costDatum *CostData, discount float64, idleCoefficient float64) ([]*Vector, []*Vector, []*Vector, [][]*Vector) {
 	cpuv := make([]*Vector, 0, len(costDatum.CPUAllocation))
 	for _, val := range costDatum.CPUAllocation {
 		cost, _ := strconv.ParseFloat(costDatum.NodeData.VCPUCost, 64)
 		cpuv = append(cpuv, &Vector{
 			Timestamp: math.Round(val.Timestamp/10) * 10,
-			Value:     val.Value * cost * (1 - discount),
+			Value:     val.Value * cost * (1 - discount) * 1 / idleCoefficient,
 		})
 	}
 	ramv := make([]*Vector, 0, len(costDatum.RAMAllocation))
@@ -99,7 +131,7 @@ func getPriceVectors(costDatum *CostData, discount float64) ([]*Vector, []*Vecto
 		cost, _ := strconv.ParseFloat(costDatum.NodeData.RAMCost, 64)
 		ramv = append(ramv, &Vector{
 			Timestamp: math.Round(val.Timestamp/10) * 10,
-			Value:     (val.Value / 1024 / 1024 / 1024) * cost * (1 - discount),
+			Value:     (val.Value / 1024 / 1024 / 1024) * cost * (1 - discount) * 1 / idleCoefficient,
 		})
 	}
 	gpuv := make([]*Vector, 0, len(costDatum.GPUReq))
@@ -107,7 +139,7 @@ func getPriceVectors(costDatum *CostData, discount float64) ([]*Vector, []*Vecto
 		cost, _ := strconv.ParseFloat(costDatum.NodeData.GPUCost, 64)
 		gpuv = append(gpuv, &Vector{
 			Timestamp: math.Round(val.Timestamp/10) * 10,
-			Value:     val.Value * cost * (1 - discount),
+			Value:     val.Value * cost * (1 - discount) * 1 / idleCoefficient,
 		})
 	}
 	pvvs := make([][]*Vector, 0, len(costDatum.PVCData))
@@ -118,7 +150,7 @@ func getPriceVectors(costDatum *CostData, discount float64) ([]*Vector, []*Vecto
 			for _, val := range pvcData.Values {
 				pvv = append(pvv, &Vector{
 					Timestamp: math.Round(val.Timestamp/10) * 10,
-					Value:     (val.Value / 1024 / 1024 / 1024) * cost * (1 - discount),
+					Value:     (val.Value / 1024 / 1024 / 1024) * cost * (1 - discount) * 1 / idleCoefficient,
 				})
 			}
 			pvvs = append(pvvs, pvv)

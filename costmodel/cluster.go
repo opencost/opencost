@@ -42,7 +42,11 @@ type Totals struct {
 func resultToTotals(qr interface{}) ([][]string, error) {
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
-		return nil, fmt.Errorf("Improperly formatted response from prometheus, response %+v has no data field", data)
+		e, err := wrapPrometheusError(qr)
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf(e)
 	}
 	r, ok := data.(map[string]interface{})["result"]
 	if !ok {
@@ -78,7 +82,11 @@ func resultToTotals(qr interface{}) ([][]string, error) {
 func resultToTotal(qr interface{}) ([][]string, error) {
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
-		return nil, fmt.Errorf("Improperly formatted response from prometheus, response %+v has no data field", data)
+		e, err := wrapPrometheusError(qr)
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf(e)
 	}
 	r, ok := data.(map[string]interface{})["result"]
 	if !ok {

@@ -154,8 +154,8 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 		if err != nil {
 			w.Write(wrapData(nil, err))
 		}
-
-		agg := costModel.AggregateCostModel(data, discount, aggregation, aggregationSubField)
+		discount = discount * 0.01
+		agg := costModel.AggregateCostModel(data, discount, 1.0, aggregation, aggregationSubField)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {
@@ -207,6 +207,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	aggregation := r.URL.Query().Get("aggregation")
 	namespace := r.URL.Query().Get("namespace")
 	aggregationSubField := r.URL.Query().Get("aggregationSubfield")
+	allocateIdle := r.URL.Query().Get("allocateIdle")
 
 	endTime := time.Now()
 	if offset != "" {
@@ -235,25 +236,40 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		w.Write(wrapData(nil, err))
 		return
 	}
+
 	startTime := endTime.Add(-1 * d)
 	layout := "2006-01-02T15:04:05.000Z"
 	start := startTime.Format(layout)
 	end := endTime.Format(layout)
+
 	data, err := a.Model.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, "1h", namespace)
 	if err != nil {
 		w.Write(wrapData(nil, err))
 		return
 	}
+
 	c, err := a.Cloud.GetConfig()
 	if err != nil {
 		w.Write(wrapData(nil, err))
+		return
 	}
 	discount, err := strconv.ParseFloat(c.Discount[:len(c.Discount)-1], 64)
 	if err != nil {
 		w.Write(wrapData(nil, err))
+		return
 	}
+	discount = discount * 0.01
+
+	idleCoefficient := 1.0
+	if allocateIdle == "true" {
+		idleCoefficient, err = costModel.ComputeIdleCoefficient(data, a.PrometheusClient, a.Cloud, discount, fmt.Sprintf("%dh", int(d.Hours())), offset)
+		if err != nil {
+			w.Write(wrapData(nil, err))
+		}
+	}
+
 	if aggregation != "" {
-		agg := costModel.AggregateCostModel(data, discount*0.01, aggregation, aggregationSubField)
+		agg := costModel.AggregateCostModel(data, discount, idleCoefficient, aggregation, aggregationSubField)
 		w.Write(wrapData(agg, nil))
 	}
 }
@@ -283,7 +299,8 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 		if err != nil {
 			w.Write(wrapData(nil, err))
 		}
-		agg := costModel.AggregateCostModel(data, discount, aggregation, aggregationSubField)
+		discount = discount * 0.01
+		agg := costModel.AggregateCostModel(data, discount, 1.0, aggregation, aggregationSubField)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {
