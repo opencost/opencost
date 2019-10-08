@@ -41,6 +41,8 @@ var (
 	gitCommit string
 )
 
+var Router = httprouter.New()
+
 type Accesses struct {
 	PrometheusClient              prometheusClient.Client
 	KubeClientSet                 kubernetes.Interface
@@ -155,7 +157,7 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 			w.Write(wrapData(nil, err))
 		}
 		discount = discount * 0.01
-		agg := costModel.AggregateCostModel(data, discount, 1.0, aggregation, aggregationSubField)
+		agg := costModel.AggregateCostModel(data, discount, 1.0, nil, aggregation, aggregationSubField)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {
@@ -208,6 +210,9 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	namespace := r.URL.Query().Get("namespace")
 	aggregationSubField := r.URL.Query().Get("aggregationSubfield")
 	allocateIdle := r.URL.Query().Get("allocateIdle")
+	sharedNamespaces := r.URL.Query().Get("sharedNamespaces")
+	sharedLabelNames := r.URL.Query().Get("sharedLabelNames")
+	sharedLabelValues := r.URL.Query().Get("sharedLabelValues")
 
 	endTime := time.Now()
 	if offset != "" {
@@ -242,7 +247,15 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	start := startTime.Format(layout)
 	end := endTime.Format(layout)
 
-	data, err := a.Model.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, "1h", namespace)
+	remote := r.URL.Query().Get("remote")
+
+	remoteAvailable := os.Getenv(remoteEnabled)
+	remoteEnabled := false
+	if remoteAvailable == "true" && remote != "false" {
+		remoteEnabled = true
+	}
+	klog.Infof("REMOTE ENABLED: %t", remoteEnabled)
+	data, err := a.Model.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, "1h", namespace, remoteEnabled)
 	if err != nil {
 		w.Write(wrapData(nil, err))
 		return
@@ -269,7 +282,25 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	if aggregation != "" {
-		agg := costModel.AggregateCostModel(data, discount, idleCoefficient, aggregation, aggregationSubField)
+		sn := []string{}
+		sln := []string{}
+		slv := []string{}
+		if sharedNamespaces != "" {
+			sn = strings.Split(sharedNamespaces, ",")
+		}
+		if sharedLabelNames != "" {
+			sln = strings.Split(sharedLabelNames, ",")
+			slv = strings.Split(sharedLabelValues, ",")
+			if len(sln) != len(slv) || slv[0] == "" {
+				w.Write(wrapData(nil, fmt.Errorf("Supply exacly one label value per label name")))
+				return
+			}
+		}
+		var s *costModel.SharedResourceInfo
+		if len(sn) > 0 || len(sln) > 0 {
+			s = costModel.NewSharedResourceInfo(true, sn, sln, slv)
+		}
+		agg := costModel.AggregateCostModel(data, discount, idleCoefficient, s, aggregation, aggregationSubField)
 		w.Write(wrapData(agg, nil))
 	}
 }
@@ -285,8 +316,14 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	namespace := r.URL.Query().Get("namespace")
 	aggregation := r.URL.Query().Get("aggregation")
 	aggregationSubField := r.URL.Query().Get("aggregationSubfield")
+	remote := r.URL.Query().Get("remote")
 
-	data, err := a.Model.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, window, namespace)
+	remoteAvailable := os.Getenv(remoteEnabled)
+	remoteEnabled := false
+	if remoteAvailable == "true" && remote != "false" {
+		remoteEnabled = true
+	}
+	data, err := a.Model.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, window, namespace, remoteEnabled)
 	if err != nil {
 		w.Write(wrapData(nil, err))
 	}
@@ -300,7 +337,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 			w.Write(wrapData(nil, err))
 		}
 		discount = discount * 0.01
-		agg := costModel.AggregateCostModel(data, discount, 1.0, aggregation, aggregationSubField)
+		agg := costModel.AggregateCostModel(data, discount, 1.0, nil, aggregation, aggregationSubField)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {
@@ -573,7 +610,6 @@ func (a *Accesses) recordPrices() {
 				if podStatus[podName] == v1.PodRunning { // Only report data for current pods
 					containerSeen[labelKey] = true
 				} else {
-					klog.Infof("Container %s not running", labelKey)
 					containerSeen[labelKey] = false
 				}
 
@@ -828,29 +864,28 @@ func main() {
 
 	a.recordPrices()
 
-	router := httprouter.New()
-	router.GET("/costDataModel", a.CostDataModel)
-	router.GET("/costDataModelRange", a.CostDataModelRange)
-	router.GET("/costDataModelRangeLarge", a.CostDataModelRangeLarge)
-	router.GET("/outOfClusterCosts", a.OutofClusterCosts)
-	router.GET("/allNodePricing", a.GetAllNodePricing)
-	router.GET("/healthz", Healthz)
-	router.GET("/getConfigs", a.GetConfigs)
-	router.POST("/refreshPricing", a.RefreshPricingData)
-	router.POST("/updateSpotInfoConfigs", a.UpdateSpotInfoConfigs)
-	router.POST("/updateAthenaInfoConfigs", a.UpdateAthenaInfoConfigs)
-	router.POST("/updateBigQueryInfoConfigs", a.UpdateBigQueryInfoConfigs)
-	router.POST("/updateConfigByKey", a.UpdateConfigByKey)
-	router.GET("/clusterCostsOverTime", a.ClusterCostsOverTime)
-	router.GET("/clusterCosts", a.ClusterCosts)
-	router.GET("/validatePrometheus", a.GetPrometheusMetadata)
-	router.GET("/managementPlatform", a.ManagementPlatform)
-	router.GET("/clusterInfo", a.ClusterInfo)
-	router.GET("/containerUptimes", a.ContainerUptimes)
-	router.GET("/aggregatedCostModel", a.AggregateCostModel)
+	Router.GET("/costDataModel", a.CostDataModel)
+	Router.GET("/costDataModelRange", a.CostDataModelRange)
+	Router.GET("/costDataModelRangeLarge", a.CostDataModelRangeLarge)
+	Router.GET("/outOfClusterCosts", a.OutofClusterCosts)
+	Router.GET("/allNodePricing", a.GetAllNodePricing)
+	Router.GET("/healthz", Healthz)
+	Router.GET("/getConfigs", a.GetConfigs)
+	Router.POST("/refreshPricing", a.RefreshPricingData)
+	Router.POST("/updateSpotInfoConfigs", a.UpdateSpotInfoConfigs)
+	Router.POST("/updateAthenaInfoConfigs", a.UpdateAthenaInfoConfigs)
+	Router.POST("/updateBigQueryInfoConfigs", a.UpdateBigQueryInfoConfigs)
+	Router.POST("/updateConfigByKey", a.UpdateConfigByKey)
+	Router.GET("/clusterCostsOverTime", a.ClusterCostsOverTime)
+	Router.GET("/clusterCosts", a.ClusterCosts)
+	Router.GET("/validatePrometheus", a.GetPrometheusMetadata)
+	Router.GET("/managementPlatform", a.ManagementPlatform)
+	Router.GET("/clusterInfo", a.ClusterInfo)
+	Router.GET("/containerUptimes", a.ContainerUptimes)
+	Router.GET("/aggregatedCostModel", a.AggregateCostModel)
 
 	rootMux := http.NewServeMux()
-	rootMux.Handle("/", router)
+	rootMux.Handle("/", Router)
 	rootMux.Handle("/metrics", promhttp.Handler())
 
 	klog.Fatal(http.ListenAndServe(":9003", rootMux))

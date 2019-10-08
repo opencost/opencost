@@ -242,6 +242,11 @@ func (gcp *GCP) QuerySQL(query string) ([]*OutOfClusterAllocation, error) {
 
 // ClusterName returns the name of a GKE cluster, as provided by metadata.
 func (gcp *GCP) ClusterInfo() (map[string]string, error) {
+	remote := os.Getenv(remoteEnabled)
+	remoteEnabled := false
+	if os.Getenv(remote) == "true" {
+		remoteEnabled = true
+	}
 	metadataClient := metadata.NewClient(&http.Client{Transport: userAgentTransport{
 		userAgent: "kubecost",
 		base:      http.DefaultTransport,
@@ -264,6 +269,7 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	m["name"] = attribute
 	m["provider"] = "GCP"
 	m["id"] = os.Getenv(KC_CLUSTER_ID)
+	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	return m, nil
 }
 

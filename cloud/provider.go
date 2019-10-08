@@ -205,6 +205,7 @@ type CustomPricing struct {
 	AzureClientID         string `json:"azureClientID"`
 	AzureClientSecret     string `json:"azureClientSecret"`
 	AzureTenantID         string `json:"azureTenantID"`
+	AzureBillingRegion    string `json:"azureBillingRegion"`
 	CurrencyCode          string `json:"currencyCode"`
 	Discount              string `json:"discount"`
 	ClusterName           string `json:"clusterName"`

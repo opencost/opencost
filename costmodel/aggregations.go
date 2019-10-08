@@ -27,7 +27,44 @@ type Aggregation struct {
 	GPUCost            float64   `json:"gpuCost"`
 	PVCost             float64   `json:"pvCost"`
 	NetworkCost        float64   `json:"networkCost"`
+	SharedCost         float64   `json:"sharedCost"`
 	TotalCost          float64   `json:"totalCost"`
+}
+
+type SharedResourceInfo struct {
+	ShareResources  bool
+	SharedNamespace map[string]bool
+	LabelSelectors  map[string]string
+}
+
+func (s *SharedResourceInfo) IsSharedResource(costDatum *CostData) bool {
+	if _, ok := s.SharedNamespace[costDatum.Namespace]; ok {
+		return true
+	}
+	for labelName, labelValue := range s.LabelSelectors {
+		if val, ok := costDatum.Labels[labelName]; ok {
+			if val == labelValue {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func NewSharedResourceInfo(shareResources bool, sharedNamespaces []string, labelnames []string, labelvalues []string) *SharedResourceInfo {
+	sr := &SharedResourceInfo{
+		ShareResources:  shareResources,
+		SharedNamespace: make(map[string]bool),
+		LabelSelectors:  make(map[string]string),
+	}
+	for _, ns := range sharedNamespaces {
+		sr.SharedNamespace[ns] = true
+	}
+	sr.SharedNamespace["kube-system"] = true // kube-system should be split by default
+	for i := range labelnames {
+		sr.LabelSelectors[labelnames[i]] = labelvalues[i]
+	}
+	return sr
 }
 
 func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.Client, cloud costAnalyzerCloud.Provider, discount float64, windowString, offset string) (float64, error) {
@@ -58,25 +95,36 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 	return (totalContainerCost / totalClusterCostOverWindow), nil
 }
 
-func AggregateCostModel(costData map[string]*CostData, discount float64, idleCoefficient float64, aggregationField string, aggregationSubField string) map[string]*Aggregation {
+func AggregateCostModel(costData map[string]*CostData, discount float64, idleCoefficient float64, sr *SharedResourceInfo, aggregationField string, aggregationSubField string) map[string]*Aggregation {
 	aggregations := make(map[string]*Aggregation)
+	sharedResourceCost := 0.0
 	for _, costDatum := range costData {
-		if aggregationField == "cluster" {
-			aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.ClusterID, aggregations, discount, idleCoefficient)
-		} else if aggregationField == "namespace" {
-			aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.Namespace, aggregations, discount, idleCoefficient)
-		} else if aggregationField == "service" {
-			if len(costDatum.Services) > 0 {
-				aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.Services[0], aggregations, discount, idleCoefficient)
+		if sr != nil && sr.ShareResources && sr.IsSharedResource(costDatum) {
+			cpuv, ramv, gpuv, pvvs := getPriceVectors(costDatum, discount, idleCoefficient)
+			sharedResourceCost += totalVector(cpuv)
+			sharedResourceCost += totalVector(ramv)
+			sharedResourceCost += totalVector(gpuv)
+			for _, pv := range pvvs {
+				sharedResourceCost += totalVector(pv)
 			}
-		} else if aggregationField == "deployment" {
-			if len(costDatum.Deployments) > 0 {
-				aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.Deployments[0], aggregations, discount, idleCoefficient)
-			}
-		} else if aggregationField == "label" {
-			if costDatum.Labels != nil {
-				if subfieldName, ok := costDatum.Labels[aggregationSubField]; ok {
-					aggregationHelper(costDatum, aggregationField, aggregationSubField, subfieldName, aggregations, discount, idleCoefficient)
+		} else {
+			if aggregationField == "cluster" {
+				aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.ClusterID, aggregations, discount, idleCoefficient)
+			} else if aggregationField == "namespace" {
+				aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.Namespace, aggregations, discount, idleCoefficient)
+			} else if aggregationField == "service" {
+				if len(costDatum.Services) > 0 {
+					aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.Services[0], aggregations, discount, idleCoefficient)
+				}
+			} else if aggregationField == "deployment" {
+				if len(costDatum.Deployments) > 0 {
+					aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.Deployments[0], aggregations, discount, idleCoefficient)
+				}
+			} else if aggregationField == "label" {
+				if costDatum.Labels != nil {
+					if subfieldName, ok := costDatum.Labels[aggregationSubField]; ok {
+						aggregationHelper(costDatum, aggregationField, aggregationSubField, subfieldName, aggregations, discount, idleCoefficient)
+					}
 				}
 			}
 		}
@@ -86,7 +134,8 @@ func AggregateCostModel(costData map[string]*CostData, discount float64, idleCoe
 		agg.RAMCost = totalVector(agg.RAMCostVector)
 		agg.GPUCost = totalVector(agg.GPUCostVector)
 		agg.PVCost = totalVector(agg.PVCostVector)
-		agg.TotalCost = agg.CPUCost + agg.RAMCost + agg.GPUCost + agg.PVCost
+		agg.SharedCost = sharedResourceCost / float64(len(aggregations))
+		agg.TotalCost = agg.CPUCost + agg.RAMCost + agg.GPUCost + agg.PVCost + agg.SharedCost
 	}
 	return aggregations
 }

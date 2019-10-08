@@ -667,9 +667,12 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 
 		podLabelsResult, err := Query(cli, queryHistoricalPodLabels)
 		if err != nil {
-			return fmt.Errorf("Error fetching historical pod labels: " + err.Error())
+			return fmt.Errorf("Error fetching historical pod labels: %s", err.Error())
 		}
 		podLabels, err := labelsFromPrometheusQuery(podLabelsResult)
+		if err != nil {
+			klog.V(1).Infof("Error parsing historical labels: %s", err.Error())
+		}
 		for key, costData := range missingContainers {
 			cm, _ := NewContainerMetricFromKey(key)
 			labels, ok := podLabels[cm.PodName]
@@ -690,8 +693,16 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 }
 
 func labelsFromPrometheusQuery(qr interface{}) (map[string]map[string]string, error) {
+	data, ok := qr.(map[string]interface{})["data"]
+	if !ok {
+		e, err := wrapPrometheusError(qr)
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf(e)
+	}
 	toReturn := make(map[string]map[string]string)
-	for _, val := range qr.(map[string]interface{})["data"].(map[string]interface{})["result"].([]interface{}) {
+	for _, val := range data.(map[string]interface{})["result"].([]interface{}) {
 		metricInterface, ok := val.(map[string]interface{})["metric"]
 		if !ok {
 			return nil, fmt.Errorf("Metric field does not exist in data result vector")
@@ -1103,7 +1114,7 @@ func getPodDeployments(cache ClusterCache, podList []*v1.Pod) (map[string]map[st
 }
 
 func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Interface, cloud costAnalyzerCloud.Provider,
-	startString, endString, windowString string, filterNamespace string) (map[string]*CostData, error) {
+	startString, endString, windowString string, filterNamespace string, remoteEnabled bool) (map[string]*CostData, error) {
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, windowString, "", windowString, "")
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, windowString, "", windowString, "")
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, windowString, "", windowString, "")
@@ -1133,8 +1144,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		return nil, err
 	}
 	clustID := os.Getenv(CLUSTER_ID)
-	remoteEnabled := os.Getenv(remoteEnabled)
-	if remoteEnabled == "true" {
+	if remoteEnabled == true {
 		remoteLayout := "2006-01-02T15:04:05Z"
 		remoteStartStr := start.Format(remoteLayout)
 		remoteEndStr := end.Format(remoteLayout)
@@ -1526,7 +1536,6 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		if err != nil {
 			return nil, err
 		}
-		klog.Infof("Finding deleted pod info from range query:")
 		err = findDeletedPodInfo(cli, missingContainers, wStr)
 		if err != nil {
 			return nil, err
