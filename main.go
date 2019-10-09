@@ -183,7 +183,7 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 			w.Write(wrapData(nil, err))
 		}
 		discount = discount * 0.01
-		agg := costModel.AggregateCostModel(data, discount, 1.0, nil, aggregation, aggregationSubField)
+		agg := costModel.AggregateCostModel(data, discount, 1.0, nil, aggregationField, aggregationSubField)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {
