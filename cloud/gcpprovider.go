@@ -622,12 +622,6 @@ func (gcp *GCP) parsePages(inputKeys map[string]Key, pvKeys map[string]PVKey) (m
 	}
 	returnPages := make(map[string]*GCPPricing)
 	for _, page := range pages {
-		klog.V(1).Infof("Page: %s : %+v", page)
-		for k, v := range page {
-			klog.V(1).Infof("Unmerged Page: %s : %+v", k, v)
-		}
-	}
-	for _, page := range pages {
 		for k, v := range page {
 			if val, ok := returnPages[k]; ok { //keys may need to be merged
 				if val.Node != nil {
