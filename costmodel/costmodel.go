@@ -646,30 +646,30 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	err = findDeletedNodeInfo(cli, missingNodes, window)
 
 	if err != nil {
-		return nil, err
+		klog.V(1).Infof("Error fetching historical node data: %s", err.Error())
 	}
 	err = findDeletedPodInfo(cli, missingContainers, window)
 	if err != nil {
-		return nil, err
+		klog.V(1).Infof("Error fetching historical pod data: %s", err.Error())
 	}
 	return containerNameCost, err
 }
 
 func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[string]*CostData, window string) error {
 	if len(missingContainers) > 0 {
-		q := make([]string, 0, len(missingContainers))
-		for key := range missingContainers {
-			cm, _ := NewContainerMetricFromKey(key)
-			q = append(q, cm.PodName)
-		}
-		l := strings.Join(q, "|")
-		queryHistoricalPodLabels := fmt.Sprintf(`kube_pod_labels{pod=~"%s"}[%s]`, l, window)
+		queryHistoricalPodLabels := fmt.Sprintf(`kube_pod_labels{}[%s]`, window)
 
 		podLabelsResult, err := Query(cli, queryHistoricalPodLabels)
 		if err != nil {
-			return fmt.Errorf("Error fetching historical pod labels: " + err.Error())
+			klog.V(1).Infof("Error parsing historical labels: %s", err.Error())
 		}
-		podLabels, err := labelsFromPrometheusQuery(podLabelsResult)
+		podLabels := make(map[string]map[string]string)
+		if podLabelsResult != nil {
+			podLabels, err = labelsFromPrometheusQuery(podLabelsResult)
+			if err != nil {
+				klog.V(1).Infof("Error parsing historical labels: %s", err.Error())
+			}
+		}
 		for key, costData := range missingContainers {
 			cm, _ := NewContainerMetricFromKey(key)
 			labels, ok := podLabels[cm.PodName]
@@ -691,29 +691,37 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 
 func labelsFromPrometheusQuery(qr interface{}) (map[string]map[string]string, error) {
 	toReturn := make(map[string]map[string]string)
-	for _, val := range qr.(map[string]interface{})["data"].(map[string]interface{})["result"].([]interface{}) {
+	data, ok := qr.(map[string]interface{})["data"]
+	if !ok {
+		e, err := wrapPrometheusError(qr)
+		if err != nil {
+			return toReturn, err
+		}
+		return toReturn, fmt.Errorf(e)
+	}
+	for _, val := range data.(map[string]interface{})["result"].([]interface{}) {
 		metricInterface, ok := val.(map[string]interface{})["metric"]
 		if !ok {
-			return nil, fmt.Errorf("Metric field does not exist in data result vector")
+			return toReturn, fmt.Errorf("Metric field does not exist in data result vector")
 		}
 		metricMap, ok := metricInterface.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("Metric field is improperly formatted")
+			return toReturn, fmt.Errorf("Metric field is improperly formatted")
 		}
 		pod, ok := metricMap["pod"]
 		if !ok {
-			return nil, fmt.Errorf("pod field does not exist in data result vector")
+			return toReturn, fmt.Errorf("pod field does not exist in data result vector")
 		}
 		podName, ok := pod.(string)
 		if !ok {
-			return nil, fmt.Errorf("pod field is improperly formatted")
+			return toReturn, fmt.Errorf("pod field is improperly formatted")
 		}
 
 		for labelName, labelValue := range metricMap {
 			parsedLabelName := labelName
 			parsedLv, ok := labelValue.(string)
 			if !ok {
-				return nil, fmt.Errorf("label value is improperly formatted")
+				return toReturn, fmt.Errorf("label value is improperly formatted")
 			}
 			if strings.HasPrefix(parsedLabelName, "label_") {
 				l := strings.Replace(parsedLabelName, "label_", "", 1)
@@ -1103,7 +1111,7 @@ func getPodDeployments(cache ClusterCache, podList []*v1.Pod) (map[string]map[st
 }
 
 func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Interface, cloud costAnalyzerCloud.Provider,
-	startString, endString, windowString string, filterNamespace string) (map[string]*CostData, error) {
+	startString, endString, windowString string, filterNamespace string, remoteEnabled bool) (map[string]*CostData, error) {
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, windowString, "", windowString, "")
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, windowString, "", windowString, "")
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, windowString, "", windowString, "")
@@ -1133,8 +1141,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		return nil, err
 	}
 	clustID := os.Getenv(CLUSTER_ID)
-	remoteEnabled := os.Getenv(remoteEnabled)
-	if remoteEnabled == "true" {
+	if remoteEnabled == true {
 		remoteLayout := "2006-01-02T15:04:05Z"
 		remoteStartStr := start.Format(remoteLayout)
 		remoteEndStr := end.Format(remoteLayout)
@@ -1524,12 +1531,11 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		wStr := fmt.Sprintf("%dm", int(w.Minutes()))
 		err = findDeletedNodeInfo(cli, missingNodes, wStr)
 		if err != nil {
-			return nil, err
+			klog.V(1).Infof("Error fetching historical node data: %s", err.Error())
 		}
-		klog.Infof("Finding deleted pod info from range query:")
 		err = findDeletedPodInfo(cli, missingContainers, wStr)
 		if err != nil {
-			return nil, err
+			klog.V(1).Infof("Error fetching historical pod data: %s", err.Error())
 		}
 	}
 
@@ -1820,22 +1826,22 @@ func QueryRange(cli prometheusClient.Client, query string, start, end time.Time,
 	q.Set("step", strconv.FormatFloat(step.Seconds(), 'f', 3, 64))
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, err := http.NewRequest(http.MethodPost, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	_, body, _, err := cli.Do(context.Background(), req)
-	if err != nil {
-		klog.V(1).Infof("ERROR" + err.Error())
+	resp, body, warnings, err := cli.Do(context.Background(), req)
+	for _, w := range warnings {
+		klog.V(3).Infof("%s", w)
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s Error %s fetching query %s", resp.StatusCode, err.Error(), query)
 	}
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		klog.V(1).Infof("ERROR" + err.Error())
+		return nil, fmt.Errorf("Error %s fetching query %s", err.Error(), query)
 	}
 	return toReturn, err
 }
@@ -1846,21 +1852,24 @@ func Query(cli prometheusClient.Client, query string) (interface{}, error) {
 	q.Set("query", query)
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, err := http.NewRequest(http.MethodPost, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	_, body, _, err := cli.Do(context.Background(), req)
+	resp, body, warnings, err := cli.Do(context.Background(), req)
+	for _, w := range warnings {
+		klog.V(3).Infof("%s", w)
+	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s Error %s fetching query %s", resp.StatusCode, err.Error(), query)
 	}
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		klog.V(1).Infof("ERROR" + err.Error())
+		return nil, fmt.Errorf("Error %s fetching query %s", err.Error(), query)
 	}
-	return toReturn, err
+	return toReturn, nil
 }
 
 //todo: don't cast, implement unmarshaler interface

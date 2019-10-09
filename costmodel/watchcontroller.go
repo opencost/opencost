@@ -7,7 +7,6 @@ import (
 
 	"k8s.io/klog"
 
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	rt "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/runtime"
@@ -129,14 +128,10 @@ func (c *CachingWatchController) handle(key string) error {
 	}
 
 	if !exists {
-		klog.V(3).Infof("Removed %s for key: %s\n", c.resourceType, key)
-
 		if c.removeHandler != nil {
 			c.removeHandler(key)
 		}
 	} else {
-		klog.V(3).Infof("Updated %s: %s\n", c.resourceType, obj.(v1.Object).GetName())
-
 		if c.updateHandler != nil {
 			c.updateHandler(obj)
 		}
