@@ -815,10 +815,18 @@ func (aws *AWS) NodePricing(k Key) (*Node, error) {
 func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 	defaultClusterName := "AWS Cluster #1"
 	c, err := awsProvider.GetConfig()
+	remote := os.Getenv(remoteEnabled)
+	remoteEnabled := false
+	if os.Getenv(remote) == "true" {
+		remoteEnabled = true
+	}
+
 	if c.ClusterName != "" {
 		m := make(map[string]string)
 		m["name"] = c.ClusterName
 		m["provider"] = "AWS"
+		m["id"] = os.Getenv(KC_CLUSTER_ID)
+		m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 		return m, nil
 	}
 	makeStructure := func(clusterName string) (map[string]string, error) {
@@ -827,6 +835,7 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 		m["name"] = clusterName
 		m["provider"] = "AWS"
 		m["id"] = os.Getenv(KC_CLUSTER_ID)
+		m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 		return m, nil
 	}
 

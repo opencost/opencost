@@ -326,7 +326,8 @@ func (az *Azure) DownloadPricingData() error {
 	containerServiceClient := containerservice.NewContainerServicesClient(config.AzureSubscriptionID)
 	containerServiceClient.Authorizer = authorizer
 
-	rateCardFilter := "OfferDurableId eq 'MS-AZR-0003p' and Currency eq 'USD' and Locale eq 'en-US' and RegionInfo eq 'US'"
+	rateCardFilter := fmt.Sprintf("OfferDurableId eq 'MS-AZR-0003p' and Currency eq '%s' and Locale eq 'en-US' and RegionInfo eq '%s'", config.CurrencyCode, config.AzureBillingRegion)
+	klog.Infof("Using ratecard query %s", rateCardFilter)
 	result, err := rcClient.Get(context.TODO(), rateCardFilter)
 	if err != nil {
 		return err
@@ -488,6 +489,12 @@ func (*Azure) GetDisks() ([]byte, error) {
 }
 
 func (az *Azure) ClusterInfo() (map[string]string, error) {
+	remote := os.Getenv(remoteEnabled)
+	remoteEnabled := false
+	if os.Getenv(remote) == "true" {
+		remoteEnabled = true
+	}
+
 	m := make(map[string]string)
 	m["name"] = "Azure Cluster #1"
 	c, err := az.GetConfig()
@@ -498,6 +505,7 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 		m["name"] = c.ClusterName
 	}
 	m["provider"] = "azure"
+	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	m["id"] = os.Getenv(KC_CLUSTER_ID)
 	return m, nil
 
@@ -553,6 +561,12 @@ func (az *Azure) GetConfig() (*CustomPricing, error) {
 	c, err := GetDefaultPricingData("azure.json")
 	if c.Discount == "" {
 		c.Discount = "0%"
+	}
+	if c.CurrencyCode == "" {
+		c.CurrencyCode = "USD"
+	}
+	if c.AzureBillingRegion == "" {
+		c.AzureBillingRegion = "US"
 	}
 	if err != nil {
 		return nil, err
