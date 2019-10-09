@@ -21,11 +21,9 @@ import (
 	"github.com/patrickmn/go-cache"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	v1 "k8s.io/api/core/v1"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -240,10 +238,9 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	disableCache := r.URL.Query().Get("disableCache") == "true"
 	clearCache := r.URL.Query().Get("clearCache") == "true"
 
-	// TODO nikovacevic-caching this should be required, right? Can we return 400 Bad Request if not set?
 	if aggregationField == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(wrapDataWithMessage(nil, fmt.Errorf("Invalid aggregation field"), fmt.Sprintf("cache miss")))
+		w.Write(wrapData(nil, fmt.Errorf("Missing aggregation parameter")))
 		return
 	}
 
@@ -285,9 +282,6 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	start := startTime.Format(layout)
 	end := endTime.Format(layout)
 
-	// TODO nikovacevic-caching
-	// move clear/disable/key logic into a centralized component
-
 	// clear cache prior to checking the cache so that a clearCache=true
 	// request always returns a freshly computed value
 	if clearCache {
@@ -304,24 +298,19 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		return
 	}
 
-	// TODO nikovacevic-caching cache raw cost data and unmarshal it
-	// rawKey := fmt.Sprintf("raw:%s:%s:%s:%s", start, end, "1h", namespace)
-	// data, found := a.Cache.Get(rawKey)
-	// if !found || disableCache ...
-
 	data, err := a.Model.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, "1h", namespace)
 	if err != nil {
-		w.Write(wrapDataWithMessage(nil, err, fmt.Sprintf("cache miss")))
+		w.Write(wrapDataWithMessage(nil, err, fmt.Sprintf("cache miss: %s", aggKey)))
 		return
 	}
 	c, err := a.Cloud.GetConfig()
 	if err != nil {
-		w.Write(wrapDataWithMessage(nil, err, fmt.Sprintf("cache miss")))
+		w.Write(wrapDataWithMessage(nil, err, fmt.Sprintf("cache miss: %s", aggKey)))
 		return
 	}
 	discount, err := strconv.ParseFloat(c.Discount[:len(c.Discount)-1], 64)
 	if err != nil {
-		w.Write(wrapDataWithMessage(nil, err, fmt.Sprintf("cache miss")))
+		w.Write(wrapDataWithMessage(nil, err, fmt.Sprintf("cache miss: %s", aggKey)))
 		return
 	}
 
@@ -329,7 +318,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	result := costModel.AggregateCostModel(data, discount*0.01, aggregationField, aggregationSubField)
 	a.Cache.Set(aggKey, result, cache.DefaultExpiration)
 
-	w.Write(wrapDataWithMessage(result, nil, fmt.Sprintf("cache miss")))
+	w.Write(wrapDataWithMessage(result, nil, fmt.Sprintf("cache miss: %s", aggKey)))
 }
 
 func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -909,13 +898,6 @@ func main() {
 	router.GET("/clusterInfo", a.ClusterInfo)
 	router.GET("/containerUptimes", a.ContainerUptimes)
 	router.GET("/aggregatedCostModel", a.AggregateCostModel)
-
-	router.GET("/image", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Write([]byte("nikovacevic/kubecost-cost-model:caching-4"))
-		return
-	})
 
 	rootMux := http.NewServeMux()
 	rootMux.Handle("/", router)
