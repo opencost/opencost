@@ -661,24 +661,15 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 
 		podLabelsResult, err := Query(cli, queryHistoricalPodLabels)
 		if err != nil {
-<<<<<<< Updated upstream
-			return fmt.Errorf("Error fetching historical pod labels: %s", err.Error())
-		}
-		podLabels, err := labelsFromPrometheusQuery(podLabelsResult)
-		if err != nil {
-			klog.V(1).Infof("Error parsing historical labels: %s", err.Error())
-		}
-=======
 			klog.V(1).Infof("Error parsing historical labels: %s", err.Error())
 		}
 		podLabels := make(map[string]map[string]string)
 		if podLabelsResult != nil {
-			podLabels, err := labelsFromPrometheusQuery(podLabelsResult)
+			podLabels, err = labelsFromPrometheusQuery(podLabelsResult)
 			if err != nil {
 				klog.V(1).Infof("Error parsing historical labels: %s", err.Error())
 			}
 		}
->>>>>>> Stashed changes
 		for key, costData := range missingContainers {
 			cm, _ := NewContainerMetricFromKey(key)
 			labels, ok := podLabels[cm.PodName]
@@ -711,26 +702,26 @@ func labelsFromPrometheusQuery(qr interface{}) (map[string]map[string]string, er
 	for _, val := range data.(map[string]interface{})["result"].([]interface{}) {
 		metricInterface, ok := val.(map[string]interface{})["metric"]
 		if !ok {
-			return nil, fmt.Errorf("Metric field does not exist in data result vector")
+			return toReturn, fmt.Errorf("Metric field does not exist in data result vector")
 		}
 		metricMap, ok := metricInterface.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("Metric field is improperly formatted")
+			return toReturn, fmt.Errorf("Metric field is improperly formatted")
 		}
 		pod, ok := metricMap["pod"]
 		if !ok {
-			return nil, fmt.Errorf("pod field does not exist in data result vector")
+			return toReturn, fmt.Errorf("pod field does not exist in data result vector")
 		}
 		podName, ok := pod.(string)
 		if !ok {
-			return nil, fmt.Errorf("pod field is improperly formatted")
+			return toReturn, fmt.Errorf("pod field is improperly formatted")
 		}
 
 		for labelName, labelValue := range metricMap {
 			parsedLabelName := labelName
 			parsedLv, ok := labelValue.(string)
 			if !ok {
-				return nil, fmt.Errorf("label value is improperly formatted")
+				return toReturn, fmt.Errorf("label value is improperly formatted")
 			}
 			if strings.HasPrefix(parsedLabelName, "label_") {
 				l := strings.Replace(parsedLabelName, "label_", "", 1)
