@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kubecost/cost-model/cloud"
 	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	v1 "k8s.io/api/core/v1"
@@ -25,8 +26,7 @@ import (
 const (
 	statusAPIError = 422
 
-	apiPrefix = "/api/v1"
-
+	apiPrefix         = "/api/v1"
 	epAlertManagers   = apiPrefix + "/alertmanagers"
 	epQuery           = apiPrefix + "/query"
 	epQueryRange      = apiPrefix + "/query_range"
@@ -38,8 +38,9 @@ const (
 	epCleanTombstones = apiPrefix + "/admin/tsdb/clean_tombstones"
 	epConfig          = apiPrefix + "/status/config"
 	epFlags           = apiPrefix + "/status/flags"
-	remoteEnabled     = "REMOTE_WRITE_ENABLED"
-	CLUSTER_ID        = "CLUSTER_ID"
+
+	clusterIDKey  = "CLUSTER_ID"
+	remoteEnabled = "REMOTE_WRITE_ENABLED"
 )
 
 type CostModel struct {
@@ -253,7 +254,7 @@ func ComputeUptimes(cli prometheusClient.Client) (map[string]float64, error) {
 	return results, nil
 }
 
-func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface, cloud costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
+func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, window, offset, window, offset)
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, window, offset, window, offset)
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, window, offset, window, offset)
@@ -265,7 +266,8 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, window, "")
 	normalization := fmt.Sprintf(normalizationStr, window, offset)
 
-	clustID := os.Getenv(CLUSTER_ID)
+	// Retrieve cluster ID from cloud provider's cluster info
+	clusterName := cloud.ClusterName(cp)
 
 	var wg sync.WaitGroup
 	wg.Add(11)
@@ -360,7 +362,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		return nil, fmt.Errorf("Error parsing normalization values: " + err.Error())
 	}
 
-	nodes, err := getNodeCost(cm.Cache, cloud)
+	nodes, err := getNodeCost(cm.Cache, cp)
 	if err != nil {
 		klog.V(1).Infof("Warning, no Node cost model available: " + err.Error())
 		return nil, err
@@ -371,7 +373,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		klog.Infof("Unable to get PV Data: %s", err.Error())
 	}
 	if pvClaimMapping != nil {
-		err = addPVData(cm.Cache, pvClaimMapping, cloud)
+		err = addPVData(cm.Cache, pvClaimMapping, cp)
 		if err != nil {
 			return nil, err
 		}
@@ -485,7 +487,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 
 			var podNetCosts []*Vector
 			if usage, ok := networkUsageMap[ns+","+podName]; ok {
-				netCosts, err := GetNetworkCost(usage, cloud)
+				netCosts, err := GetNetworkCost(usage, cp)
 				if err != nil {
 					klog.V(3).Infof("Error pulling network costs: %s", err.Error())
 				} else {
@@ -561,7 +563,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 					NetworkData:     netReq,
 					Labels:          podLabels,
 					NamespaceLabels: nsLabels,
-					ClusterID:       clustID,
+					ClusterID:       clusterName,
 				}
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
@@ -630,7 +632,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 				CPUUsed:         CPUUsedV,
 				GPUReq:          GPUReqV,
 				NamespaceLabels: namespacelabels,
-				ClusterID:       clustID,
+				ClusterID:       clusterName,
 			}
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
@@ -1140,7 +1142,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		klog.V(1).Infof("Error parsing time " + windowString + ". Error: " + err.Error())
 		return nil, err
 	}
-	clustID := os.Getenv(CLUSTER_ID)
+	clustID := os.Getenv(clusterIDKey)
 	if remoteEnabled == true {
 		remoteLayout := "2006-01-02T15:04:05Z"
 		remoteStartStr := start.Format(remoteLayout)

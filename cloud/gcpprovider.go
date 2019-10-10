@@ -165,7 +165,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 	}
 	remoteEnabled := os.Getenv(remoteEnabled)
 	if remoteEnabled == "true" {
-		err = UpdateClusterMeta(os.Getenv(KC_CLUSTER_ID), c.ClusterName)
+		err = UpdateClusterMeta(os.Getenv(clusterIDKey), c.ClusterName)
 		if err != nil {
 			return nil, err
 		}
@@ -268,7 +268,7 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	m := make(map[string]string)
 	m["name"] = attribute
 	m["provider"] = "GCP"
-	m["id"] = os.Getenv(KC_CLUSTER_ID)
+	m["id"] = os.Getenv(clusterIDKey)
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	return m, nil
 }

@@ -10,9 +10,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
-	"strconv"
 	"strings"
-	"sync"
 
 	"k8s.io/klog"
 
@@ -23,10 +21,10 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-const KC_CLUSTER_ID = "CLUSTER_ID"
+const clusterIDKey = "CLUSTER_ID"
+const remoteEnabled = "REMOTE_WRITE_ENABLED"
 const remotePW = "REMOTE_WRITE_PASSWORD"
 const sqlAddress = "SQL_ADDRESS"
-const remoteEnabled = "REMOTE_WRITE_ENABLED"
 
 var createTableStatements = []string{
 	`CREATE TABLE IF NOT EXISTS names (
@@ -97,6 +95,45 @@ type OutOfClusterAllocation struct {
 	Cluster     string  `json:"cluster"`
 }
 
+type CustomPricing struct {
+	Provider              string `json:"provider"`
+	Description           string `json:"description"`
+	CPU                   string `json:"CPU"`
+	SpotCPU               string `json:"spotCPU"`
+	RAM                   string `json:"RAM"`
+	SpotRAM               string `json:"spotRAM"`
+	GPU                   string `json:"GPU"`
+	SpotGPU               string `json:"spotGPU"`
+	Storage               string `json:"storage"`
+	ZoneNetworkEgress     string `json:"zoneNetworkEgress"`
+	RegionNetworkEgress   string `json:"regionNetworkEgress"`
+	InternetNetworkEgress string `json:"internetNetworkEgress"`
+	SpotLabel             string `json:"spotLabel,omitempty"`
+	SpotLabelValue        string `json:"spotLabelValue,omitempty"`
+	GpuLabel              string `json:"gpuLabel,omitempty"`
+	GpuLabelValue         string `json:"gpuLabelValue,omitempty"`
+	ServiceKeyName        string `json:"awsServiceKeyName,omitempty"`
+	ServiceKeySecret      string `json:"awsServiceKeySecret,omitempty"`
+	SpotDataRegion        string `json:"awsSpotDataRegion,omitempty"`
+	SpotDataBucket        string `json:"awsSpotDataBucket,omitempty"`
+	SpotDataPrefix        string `json:"awsSpotDataPrefix,omitempty"`
+	ProjectID             string `json:"projectID,omitempty"`
+	AthenaBucketName      string `json:"athenaBucketName"`
+	AthenaRegion          string `json:"athenaRegion"`
+	AthenaDatabase        string `json:"athenaDatabase"`
+	AthenaTable           string `json:"athenaTable"`
+	BillingDataDataset    string `json:"billingDataDataset,omitempty"`
+	CustomPricesEnabled   string `json:"customPricesEnabled"`
+	AzureSubscriptionID   string `json:"azureSubscriptionID"`
+	AzureClientID         string `json:"azureClientID"`
+	AzureClientSecret     string `json:"azureClientSecret"`
+	AzureTenantID         string `json:"azureTenantID"`
+	AzureBillingRegion    string `json:"azureBillingRegion"`
+	CurrencyCode          string `json:"currencyCode"`
+	Discount              string `json:"discount"`
+	ClusterName           string `json:"clusterName"`
+}
+
 // Provider represents a k8s provider.
 type Provider interface {
 	ClusterInfo() (map[string]string, error)
@@ -113,8 +150,23 @@ type Provider interface {
 	GetConfig() (*CustomPricing, error)
 	GetManagementPlatform() (string, error)
 	GetLocalStorageQuery() (string, error)
-
 	ExternalAllocations(string, string, string) ([]*OutOfClusterAllocation, error)
+}
+
+// ClusterName returns the name defined in cluster info, defaulting to the
+// CLUSTER_ID environment variable
+func ClusterName(p Provider) string {
+	info, err := p.ClusterInfo()
+	if err != nil {
+		return os.Getenv(clusterIDKey)
+	}
+
+	name, ok := info["name"]
+	if !ok {
+		return os.Getenv(clusterIDKey)
+	}
+
+	return name
 }
 
 // GetDefaultPricingData will search for a json file representing pricing data in /models/ and use it for base pricing info.
@@ -170,47 +222,6 @@ func GetDefaultPricingData(fname string) (*CustomPricing, error) {
 	}
 }
 
-const KeyUpdateType = "athenainfo"
-
-type CustomPricing struct {
-	Provider              string `json:"provider"`
-	Description           string `json:"description"`
-	CPU                   string `json:"CPU"`
-	SpotCPU               string `json:"spotCPU"`
-	RAM                   string `json:"RAM"`
-	SpotRAM               string `json:"spotRAM"`
-	GPU                   string `json:"GPU"`
-	SpotGPU               string `json:"spotGPU"`
-	Storage               string `json:"storage"`
-	ZoneNetworkEgress     string `json:"zoneNetworkEgress"`
-	RegionNetworkEgress   string `json:"regionNetworkEgress"`
-	InternetNetworkEgress string `json:"internetNetworkEgress"`
-	SpotLabel             string `json:"spotLabel,omitempty"`
-	SpotLabelValue        string `json:"spotLabelValue,omitempty"`
-	GpuLabel              string `json:"gpuLabel,omitempty"`
-	GpuLabelValue         string `json:"gpuLabelValue,omitempty"`
-	ServiceKeyName        string `json:"awsServiceKeyName,omitempty"`
-	ServiceKeySecret      string `json:"awsServiceKeySecret,omitempty"`
-	SpotDataRegion        string `json:"awsSpotDataRegion,omitempty"`
-	SpotDataBucket        string `json:"awsSpotDataBucket,omitempty"`
-	SpotDataPrefix        string `json:"awsSpotDataPrefix,omitempty"`
-	ProjectID             string `json:"projectID,omitempty"`
-	AthenaBucketName      string `json:"athenaBucketName"`
-	AthenaRegion          string `json:"athenaRegion"`
-	AthenaDatabase        string `json:"athenaDatabase"`
-	AthenaTable           string `json:"athenaTable"`
-	BillingDataDataset    string `json:"billingDataDataset,omitempty"`
-	CustomPricesEnabled   string `json:"customPricesEnabled"`
-	AzureSubscriptionID   string `json:"azureSubscriptionID"`
-	AzureClientID         string `json:"azureClientID"`
-	AzureClientSecret     string `json:"azureClientSecret"`
-	AzureTenantID         string `json:"azureTenantID"`
-	AzureBillingRegion    string `json:"azureBillingRegion"`
-	CurrencyCode          string `json:"currencyCode"`
-	Discount              string `json:"discount"`
-	ClusterName           string `json:"clusterName"`
-}
-
 func SetCustomPricingField(obj *CustomPricing, name string, value string) error {
 	structValue := reflect.ValueOf(obj).Elem()
 	structFieldValue := structValue.FieldByName(name)
@@ -231,241 +242,6 @@ func SetCustomPricingField(obj *CustomPricing, name string, value string) error 
 
 	structFieldValue.Set(val)
 	return nil
-}
-
-type NodePrice struct {
-	CPU string
-	RAM string
-	GPU string
-}
-
-type CustomProvider struct {
-	Clientset               *kubernetes.Clientset
-	Pricing                 map[string]*NodePrice
-	SpotLabel               string
-	SpotLabelValue          string
-	GPULabel                string
-	GPULabelValue           string
-	DownloadPricingDataLock sync.RWMutex
-}
-
-func (*CustomProvider) GetLocalStorageQuery() (string, error) {
-	return "", nil
-}
-
-func (*CustomProvider) GetConfig() (*CustomPricing, error) {
-	return GetDefaultPricingData("default.json")
-}
-
-func (*CustomProvider) GetManagementPlatform() (string, error) {
-	return "", nil
-}
-
-func (cprov *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
-	c, err := GetDefaultPricingData("default.json")
-	if err != nil {
-		return nil, err
-	}
-	path := os.Getenv("CONFIG_PATH")
-	if path == "" {
-		path = "/models/"
-	}
-	a := make(map[string]string)
-	err = json.NewDecoder(r).Decode(&a)
-	if err != nil {
-		return nil, err
-	}
-	for k, v := range a {
-		kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
-		err := SetCustomPricingField(c, kUpper, v)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	cj, err := json.Marshal(c)
-	if err != nil {
-		return nil, err
-	}
-
-	configPath := path + "default.json"
-	err = ioutil.WriteFile(configPath, cj, 0644)
-	if err != nil {
-		return nil, err
-	}
-	defer cprov.DownloadPricingData()
-	return c, nil
-
-}
-
-func (c *CustomProvider) ClusterInfo() (map[string]string, error) {
-	conf, err := c.GetConfig()
-	if err != nil {
-		return nil, err
-	}
-	m := make(map[string]string)
-	if conf.ClusterName != "" {
-		m["name"] = conf.ClusterName
-	}
-	m["provider"] = "custom"
-	return m, nil
-}
-
-func (*CustomProvider) AddServiceKey(url.Values) error {
-	return nil
-}
-
-func (*CustomProvider) GetDisks() ([]byte, error) {
-	return nil, nil
-}
-
-func (c *CustomProvider) AllNodePricing() (interface{}, error) {
-	c.DownloadPricingDataLock.RLock()
-	defer c.DownloadPricingDataLock.RUnlock()
-
-	return c.Pricing, nil
-}
-
-func (c *CustomProvider) NodePricing(key Key) (*Node, error) {
-	c.DownloadPricingDataLock.RLock()
-	defer c.DownloadPricingDataLock.RUnlock()
-
-	k := key.Features()
-	var gpuCount string
-	if _, ok := c.Pricing[k]; !ok {
-		k = "default"
-	}
-	if key.GPUType() != "" {
-		k += ",gpu"    // TODO: support multiple custom gpu types.
-		gpuCount = "1" // TODO: support more than one gpu.
-	}
-	return &Node{
-		VCPUCost: c.Pricing[k].CPU,
-		RAMCost:  c.Pricing[k].RAM,
-		GPUCost:  c.Pricing[k].GPU,
-		GPU:      gpuCount,
-	}, nil
-}
-
-func (c *CustomProvider) DownloadPricingData() error {
-	c.DownloadPricingDataLock.Lock()
-	defer c.DownloadPricingDataLock.Unlock()
-
-	if c.Pricing == nil {
-		m := make(map[string]*NodePrice)
-		c.Pricing = m
-	}
-	p, err := GetDefaultPricingData("default.json")
-	if err != nil {
-		return err
-	}
-	c.SpotLabel = p.SpotLabel
-	c.SpotLabelValue = p.SpotLabelValue
-	c.GPULabel = p.GpuLabel
-	c.GPULabelValue = p.GpuLabelValue
-	c.Pricing["default"] = &NodePrice{
-		CPU: p.CPU,
-		RAM: p.RAM,
-	}
-	c.Pricing["default,spot"] = &NodePrice{
-		CPU: p.SpotCPU,
-		RAM: p.SpotRAM,
-	}
-	c.Pricing["default,gpu"] = &NodePrice{
-		CPU: p.CPU,
-		RAM: p.RAM,
-		GPU: p.GPU,
-	}
-	return nil
-}
-
-type customProviderKey struct {
-	SpotLabel      string
-	SpotLabelValue string
-	GPULabel       string
-	GPULabelValue  string
-	Labels         map[string]string
-}
-
-func (c *customProviderKey) GPUType() string {
-	if t, ok := c.Labels[c.GPULabel]; ok {
-		return t
-	}
-	return ""
-}
-
-func (c *customProviderKey) ID() string {
-	return ""
-}
-
-func (c *customProviderKey) Features() string {
-	if c.Labels[c.SpotLabel] != "" && c.Labels[c.SpotLabel] == c.SpotLabelValue {
-		return "default,spot"
-	}
-	return "default" // TODO: multiple custom pricing support.
-}
-
-func (c *CustomProvider) GetKey(labels map[string]string) Key {
-	return &customProviderKey{
-		SpotLabel:      c.SpotLabel,
-		SpotLabelValue: c.SpotLabelValue,
-		GPULabel:       c.GPULabel,
-		GPULabelValue:  c.GPULabelValue,
-		Labels:         labels,
-	}
-}
-
-// ExternalAllocations represents tagged assets outside the scope of kubernetes.
-// "start" and "end" are dates of the format YYYY-MM-DD
-// "aggregator" is the tag used to determine how to allocate those assets, ie namespace, pod, etc.
-func (*CustomProvider) ExternalAllocations(start string, end string, aggregator string) ([]*OutOfClusterAllocation, error) {
-	return nil, nil // TODO: transform the QuerySQL lines into the new OutOfClusterAllocation Struct
-}
-
-func (*CustomProvider) QuerySQL(query string) ([]byte, error) {
-	return nil, nil
-}
-
-func (c *CustomProvider) PVPricing(pvk PVKey) (*PV, error) {
-	cpricing, err := GetDefaultPricingData("default")
-	if err != nil {
-		return nil, err
-	}
-	return &PV{
-		Cost: cpricing.Storage,
-	}, nil
-}
-
-func (c *CustomProvider) NetworkPricing() (*Network, error) {
-	cpricing, err := GetDefaultPricingData("default")
-	if err != nil {
-		return nil, err
-	}
-	znec, err := strconv.ParseFloat(cpricing.ZoneNetworkEgress, 64)
-	if err != nil {
-		return nil, err
-	}
-	rnec, err := strconv.ParseFloat(cpricing.RegionNetworkEgress, 64)
-	if err != nil {
-		return nil, err
-	}
-	inec, err := strconv.ParseFloat(cpricing.InternetNetworkEgress, 64)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Network{
-		ZoneNetworkEgressCost:     znec,
-		RegionNetworkEgressCost:   rnec,
-		InternetNetworkEgressCost: inec,
-	}, nil
-}
-
-func (*CustomProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string) PVKey {
-	return &awsPVKey{
-		Labels:           pv.Labels,
-		StorageClassName: pv.Spec.StorageClassName,
-	}
 }
 
 // NewProvider looks at the nodespec or provider metadata server to decide which provider to instantiate.
@@ -587,5 +363,4 @@ func GetOrCreateClusterMeta(cluster_id, cluster_name string) (string, string, er
 	}
 
 	return id, name, nil
-
 }
