@@ -38,6 +38,7 @@ var (
 )
 
 var Router = httprouter.New()
+var A Accesses
 
 type Accesses struct {
 	PrometheusClient              prometheusClient.Client
@@ -885,7 +886,7 @@ func init() {
 	// cache responses from model for a default of 2 minutes; clear expired responses every 10 minutes
 	modelCache := cache.New(time.Minute*2, time.Minute*10)
 
-	a := Accesses{
+	A = Accesses{
 		PrometheusClient:              promCli,
 		KubeClientSet:                 kubeClientset,
 		Cloud:                         cloudProvider,
@@ -919,30 +920,30 @@ func init() {
 		}
 	}
 
-	err = a.Cloud.DownloadPricingData()
+	err = A.Cloud.DownloadPricingData()
 	if err != nil {
 		klog.V(1).Info("Failed to download pricing data: " + err.Error())
 	}
 
-	a.recordPrices()
+	A.recordPrices()
 
-	Router.GET("/costDataModel", a.CostDataModel)
-	Router.GET("/costDataModelRange", a.CostDataModelRange)
-	Router.GET("/costDataModelRangeLarge", a.CostDataModelRangeLarge)
-	Router.GET("/outOfClusterCosts", a.OutofClusterCosts)
-	Router.GET("/allNodePricing", a.GetAllNodePricing)
+	Router.GET("/costDataModel", A.CostDataModel)
+	Router.GET("/costDataModelRange", A.CostDataModelRange)
+	Router.GET("/costDataModelRangeLarge", A.CostDataModelRangeLarge)
+	Router.GET("/outOfClusterCosts", A.OutofClusterCosts)
+	Router.GET("/allNodePricing", A.GetAllNodePricing)
 	Router.GET("/healthz", Healthz)
-	Router.GET("/getConfigs", a.GetConfigs)
-	Router.POST("/refreshPricing", a.RefreshPricingData)
-	Router.POST("/updateSpotInfoConfigs", a.UpdateSpotInfoConfigs)
-	Router.POST("/updateAthenaInfoConfigs", a.UpdateAthenaInfoConfigs)
-	Router.POST("/updateBigQueryInfoConfigs", a.UpdateBigQueryInfoConfigs)
-	Router.POST("/updateConfigByKey", a.UpdateConfigByKey)
-	Router.GET("/clusterCostsOverTime", a.ClusterCostsOverTime)
-	Router.GET("/clusterCosts", a.ClusterCosts)
-	Router.GET("/validatePrometheus", a.GetPrometheusMetadata)
-	Router.GET("/managementPlatform", a.ManagementPlatform)
-	Router.GET("/clusterInfo", a.ClusterInfo)
-	Router.GET("/containerUptimes", a.ContainerUptimes)
-	Router.GET("/aggregatedCostModel", a.AggregateCostModel)
+	Router.GET("/getConfigs", A.GetConfigs)
+	Router.POST("/refreshPricing", A.RefreshPricingData)
+	Router.POST("/updateSpotInfoConfigs", A.UpdateSpotInfoConfigs)
+	Router.POST("/updateAthenaInfoConfigs", A.UpdateAthenaInfoConfigs)
+	Router.POST("/updateBigQueryInfoConfigs", A.UpdateBigQueryInfoConfigs)
+	Router.POST("/updateConfigByKey", A.UpdateConfigByKey)
+	Router.GET("/clusterCostsOverTime", A.ClusterCostsOverTime)
+	Router.GET("/clusterCosts", A.ClusterCosts)
+	Router.GET("/validatePrometheus", A.GetPrometheusMetadata)
+	Router.GET("/managementPlatform", A.ManagementPlatform)
+	Router.GET("/clusterInfo", A.ClusterInfo)
+	Router.GET("/containerUptimes", A.ContainerUptimes)
+	Router.GET("/aggregatedCostModel", A.AggregateCostModel)
 }
