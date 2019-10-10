@@ -1,9 +1,5 @@
 module github.com/kubecost/cost-model
 
-require github.com/kubecost/test/mocks v0.0.0
-
-replace github.com/kubecost/test/mocks v0.0.0 => ./test/mocks
-
 replace github.com/golang/lint => golang.org/x/lint v0.0.0-20180702182130-06c8688daad7
 
 require (
