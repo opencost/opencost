@@ -186,6 +186,7 @@ func mergeVectors(costDatum *CostData, aggregation *Aggregation, discount float6
 	}
 }
 
+// TODO nikovacevic-caching
 func getPriceVectors(costDatum *CostData, discount float64, idleCoefficient float64) ([]*Vector, []*Vector, []*Vector, [][]*Vector) {
 	cpuv := make([]*Vector, 0, len(costDatum.CPUAllocation))
 	for _, val := range costDatum.CPUAllocation {
@@ -195,6 +196,7 @@ func getPriceVectors(costDatum *CostData, discount float64, idleCoefficient floa
 			Value:     val.Value * cost * (1 - discount) * 1 / idleCoefficient,
 		})
 	}
+
 	ramv := make([]*Vector, 0, len(costDatum.RAMAllocation))
 	for _, val := range costDatum.RAMAllocation {
 		cost, _ := strconv.ParseFloat(costDatum.NodeData.RAMCost, 64)
@@ -203,6 +205,7 @@ func getPriceVectors(costDatum *CostData, discount float64, idleCoefficient floa
 			Value:     (val.Value / 1024 / 1024 / 1024) * cost * (1 - discount) * 1 / idleCoefficient,
 		})
 	}
+
 	gpuv := make([]*Vector, 0, len(costDatum.GPUReq))
 	for _, val := range costDatum.GPUReq {
 		cost, _ := strconv.ParseFloat(costDatum.NodeData.GPUCost, 64)
@@ -211,6 +214,7 @@ func getPriceVectors(costDatum *CostData, discount float64, idleCoefficient floa
 			Value:     val.Value * cost * (1 - discount) * 1 / idleCoefficient,
 		})
 	}
+
 	pvvs := make([][]*Vector, 0, len(costDatum.PVCData))
 	for _, pvcData := range costDatum.PVCData {
 		pvv := make([]*Vector, 0, len(pvcData.Values))
@@ -225,6 +229,7 @@ func getPriceVectors(costDatum *CostData, discount float64, idleCoefficient floa
 			pvvs = append(pvvs, pvv)
 		}
 	}
+
 	return cpuv, ramv, gpuv, pvvs
 }
 
