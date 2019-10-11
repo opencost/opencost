@@ -252,6 +252,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	window := r.URL.Query().Get("window")
 	offset := r.URL.Query().Get("offset")
 	namespace := r.URL.Query().Get("namespace")
+	cluster := r.URL.Query().Get("cluster")
 	field := r.URL.Query().Get("aggregation")
 	subfield := r.URL.Query().Get("aggregationSubfield")
 	allocateIdle := r.URL.Query().Get("allocateIdle")
@@ -347,7 +348,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	}
 	klog.Infof("REMOTE ENABLED: %t", remoteEnabled)
 
-	data, err := a.Model.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, "1h", namespace, remoteEnabled)
+	data, err := a.Model.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, "1h", namespace, cluster, remoteEnabled)
 	if err != nil {
 		w.Write(wrapData(nil, err))
 		return
@@ -408,6 +409,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	window := r.URL.Query().Get("window")
 	fields := r.URL.Query().Get("filterFields")
 	namespace := r.URL.Query().Get("namespace")
+	cluster := r.URL.Query().Get("cluster")
 	aggregationField := r.URL.Query().Get("aggregation")
 	aggregationSubField := r.URL.Query().Get("aggregationSubfield")
 	remote := r.URL.Query().Get("remote")
@@ -417,7 +419,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	if remoteAvailable == "true" && remote != "false" {
 		remoteEnabled = true
 	}
-	data, err := a.Model.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, window, namespace, remoteEnabled)
+	data, err := a.Model.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, window, namespace, cluster, remoteEnabled)
 	if err != nil {
 		w.Write(wrapData(nil, err))
 	}

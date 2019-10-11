@@ -55,7 +55,7 @@ func TestClusterConvergence(t *testing.T) {
 	log.Printf("Ending at %s \n", endStr)
 	provider.DownloadPricingData()
 
-	data, err := cm.ComputeCostDataRange(promCli, rclient, provider, startStr, endStr, "1h", "", false)
+	data, err := cm.ComputeCostDataRange(promCli, rclient, provider, startStr, endStr, "1h", "", "", false)
 	if err != nil {
 		panic(err)
 	}
@@ -63,13 +63,13 @@ func TestClusterConvergence(t *testing.T) {
 	os.Setenv("SQL_ADDRESS", "ab5cfc235d64e11e9b8280265f54018f-778641917.us-east-2.elb.amazonaws.com")
 	os.Setenv("REMOTE_WRITE_PASSWORD", "savemoney123")
 
-	data2, err := cm.ComputeCostDataRange(promCli, rclient, provider, startStr, endStr, "1h", "", true)
+	data2, err := cm.ComputeCostDataRange(promCli, rclient, provider, startStr, endStr, "1h", "", "", true)
 	if err != nil {
 		panic(err)
 	}
 
-	agg := costModel.AggregateCostModel(data, 0.0, 1.0, nil, "namespace", "")
-	agg2 := costModel.AggregateCostModel(data2, 0.0, 1.0, nil, "namespace", "")
+	agg := costModel.AggregateCostModel(data, "namespace", "", false, 0.0, 1.0, nil)
+	agg2 := costModel.AggregateCostModel(data2, "namespace", "", false, 0.0, 1.0, nil)
 
 	assert.Equal(t, agg["kubecost"].TotalCost, agg2["kubecost"].TotalCost)
 

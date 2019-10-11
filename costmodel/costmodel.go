@@ -912,13 +912,13 @@ func addPVData(cache ClusterCache, pvClaimMapping map[string]*PersistentVolumeCl
 	return nil
 }
 
-func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cloud costAnalyzerCloud.Provider) error {
-	cfg, err := cloud.GetConfig()
+func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cp costAnalyzerCloud.Provider) error {
+	cfg, err := cp.GetConfig()
 	if err != nil {
 		return err
 	}
-	key := cloud.GetPVKey(kpv, pv.Parameters)
-	pvWithCost, err := cloud.PVPricing(key)
+	key := cp.GetPVKey(kpv, pv.Parameters)
+	pvWithCost, err := cloud.PVPricing(cp, key)
 	if err != nil {
 		pv.Cost = cfg.Storage
 		return err
@@ -944,7 +944,7 @@ func getNodeCost(cache ClusterCache, cp costAnalyzerCloud.Provider) (map[string]
 		nodeLabels := n.GetObjectMeta().GetLabels()
 		nodeLabels["providerID"] = n.Spec.ProviderID
 
-		cnode, err := cp.NodePricing(cp.GetKey(nodeLabels))
+		cnode, err := cloud.NodePricing(cp, cp.GetKey(nodeLabels))
 		if err != nil {
 			klog.V(1).Infof("Error getting node. Error: " + err.Error())
 			nodes[name] = cnode
@@ -1093,8 +1093,15 @@ func getPodDeployments(cache ClusterCache, podList []*v1.Pod) (map[string]map[st
 	return podDeploymentsMapping, nil
 }
 
+func costDataPassesFilters(costs *CostData, namespace string, cluster string) bool {
+	passesNamespace := namespace == "" || costs.Namespace == namespace
+	passesCluster := cluster == "" || costs.ClusterID == cluster
+
+	return passesNamespace && passesCluster
+}
+
 func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider,
-	startString, endString, windowString string, filterNamespace string, remoteEnabled bool) (map[string]*CostData, error) {
+	startString, endString, windowString string, filterNamespace string, filterCluster string, remoteEnabled bool) (map[string]*CostData, error) {
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, windowString, "", windowString, "")
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, windowString, "", windowString, "")
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, windowString, "", windowString, "")
@@ -1432,13 +1439,9 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
 
-				if filterNamespace == "" {
-					containerNameCost[newKey] = costs
-				} else if costs.Namespace == filterNamespace {
+				if costDataPassesFilters(costs, filterNamespace, filterCluster) {
 					containerNameCost[newKey] = costs
 				}
-
-				// TODO nikovacevic-caching filter cluster ID
 			}
 
 		} else {
@@ -1502,15 +1505,10 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
 
-			if filterNamespace == "" {
-				containerNameCost[key] = costs
-				missingContainers[key] = costs
-			} else if costs.Namespace == filterNamespace {
+			if costDataPassesFilters(costs, filterNamespace, filterCluster) {
 				containerNameCost[key] = costs
 				missingContainers[key] = costs
 			}
-
-			// TODO nikovacevic-caching filter cluster ID
 		}
 	}
 

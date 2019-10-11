@@ -129,32 +129,10 @@ func (cp *CustomProvider) NodePricing(key Key) (*Node, error) {
 		gpuCount = "1" // TODO: support more than one gpu.
 	}
 
-	cpu := cp.Pricing[k].CPU
-	ram := cp.Pricing[k].RAM
-	gpu := cp.Pricing[k].GPU
-
-	// If custom pricing is enabled and can be retrieved, replace
-	// default cost values with custom values
-	customPricing, err := cp.GetConfig()
-	if CustomPricesEnabled(cp) && err == nil {
-		// TODO nikovacevic-caching how to determine if it is spot?
-		isSpot := false
-
-		if isSpot {
-			cpu = customPricing.SpotCPU
-			ram = customPricing.SpotRAM
-			gpu = customPricing.SpotGPU
-		} else {
-			cpu = customPricing.CPU
-			ram = customPricing.RAM
-			gpu = customPricing.GPU
-		}
-	}
-
 	return &Node{
-		VCPUCost: cpu,
-		RAMCost:  ram,
-		GPUCost:  gpu,
+		VCPUCost: cp.Pricing[k].CPU,
+		RAMCost:  cp.Pricing[k].RAM,
+		GPUCost:  cp.Pricing[k].GPU,
 		GPU:      gpuCount,
 	}, nil
 }
