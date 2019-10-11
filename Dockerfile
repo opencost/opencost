@@ -5,11 +5,6 @@ WORKDIR /app
 COPY go.mod .
 COPY go.sum .
 
-RUN mkdir ./test
-RUN mkdir ./test/mocks
-COPY ./test/mocks/go.mod ./test/mocks/go.mod
-COPY ./test/mocks/go.sum ./test/mocks/go.sum
-
 # Get dependencies - will also be cached if we won't change mod/sum
 RUN go mod download
 # COPY the source code as the last step
