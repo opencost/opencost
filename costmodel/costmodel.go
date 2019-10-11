@@ -939,6 +939,7 @@ func getNodeCost(cache ClusterCache, cp costAnalyzerCloud.Provider) (map[string]
 
 	nodeList := cache.GetAllNodes()
 	nodes := make(map[string]*costAnalyzerCloud.Node)
+
 	for _, n := range nodeList {
 		name := n.GetObjectMeta().GetName()
 		nodeLabels := n.GetObjectMeta().GetLabels()
@@ -967,49 +968,49 @@ func getNodeCost(cache ClusterCache, cp costAnalyzerCloud.Provider) (map[string]
 		ram = float64(n.Status.Capacity.Memory().Value())
 		newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 
-		defaultCPU, err := strconv.ParseFloat(cfg.CPU, 64)
-		if err != nil {
-			klog.V(3).Infof("Could not parse default cpu price")
-			return nil, err
-		}
-
-		defaultRAM, err := strconv.ParseFloat(cfg.RAM, 64)
-		if err != nil {
-			klog.V(3).Infof("Could not parse default ram price")
-			return nil, err
-		}
-
-		defaultGPU, err := strconv.ParseFloat(cfg.RAM, 64)
-		if err != nil {
-			klog.V(3).Infof("Could not parse default gpu price")
-			return nil, err
-		}
-
-		var nodePrice float64
-		if newCnode.Cost != "" {
-			nodePrice, err = strconv.ParseFloat(newCnode.Cost, 64)
-			if err != nil {
-				klog.V(3).Infof("Could not parse total node price")
-				return nil, err
-			}
-		} else {
-			nodePrice, err = strconv.ParseFloat(newCnode.VCPUCost, 64) // all the price was allocated the the CPU
-			if err != nil {
-				klog.V(3).Infof("Could not parse node vcpu price")
-				return nil, err
-			}
-		}
-
-		cpuToRAMRatio := defaultCPU / defaultRAM
-
-		ramGB := ram / 1024 / 1024 / 1024
-
 		if newCnode.GPU != "" && newCnode.GPUCost == "" {
 			// We couldn't find a gpu cost, so fix cpu and ram, then accordingly
 			klog.V(4).Infof("GPU without cost found for %s, calculating...", cp.GetKey(nodeLabels).Features())
 
+			defaultCPU, err := strconv.ParseFloat(cfg.CPU, 64)
+			if err != nil {
+				klog.V(3).Infof("Could not parse default cpu price")
+				return nil, err
+			}
+
+			defaultRAM, err := strconv.ParseFloat(cfg.RAM, 64)
+			if err != nil {
+				klog.V(3).Infof("Could not parse default ram price")
+				return nil, err
+			}
+
+			defaultGPU, err := strconv.ParseFloat(cfg.RAM, 64)
+			if err != nil {
+				klog.V(3).Infof("Could not parse default gpu price")
+				return nil, err
+			}
+
+			cpuToRAMRatio := defaultCPU / defaultRAM
 			gpuToRAMRatio := defaultGPU / defaultRAM
+
+			ramGB := ram / 1024 / 1024 / 1024
 			ramMultiple := gpuToRAMRatio + cpu*cpuToRAMRatio + ramGB
+
+			var nodePrice float64
+			if newCnode.Cost != "" {
+				nodePrice, err = strconv.ParseFloat(newCnode.Cost, 64)
+				if err != nil {
+					klog.V(3).Infof("Could not parse total node price")
+					return nil, err
+				}
+			} else {
+				nodePrice, err = strconv.ParseFloat(newCnode.VCPUCost, 64) // all the price was allocated the the CPU
+				if err != nil {
+					klog.V(3).Infof("Could not parse node vcpu price")
+					return nil, err
+				}
+			}
+
 			ramPrice := (nodePrice / ramMultiple)
 			cpuPrice := ramPrice * cpuToRAMRatio
 			gpuPrice := ramPrice * gpuToRAMRatio
@@ -1022,7 +1023,37 @@ func getNodeCost(cache ClusterCache, cp costAnalyzerCloud.Provider) (map[string]
 			// We couldn't find a ramcost, so fix cpu and allocate ram accordingly
 			klog.V(4).Infof("No RAM cost found for %s, calculating...", cp.GetKey(nodeLabels).Features())
 
+			defaultCPU, err := strconv.ParseFloat(cfg.CPU, 64)
+			if err != nil {
+				klog.V(3).Infof("Could not parse default cpu price")
+				return nil, err
+			}
+
+			defaultRAM, err := strconv.ParseFloat(cfg.RAM, 64)
+			if err != nil {
+				klog.V(3).Infof("Could not parse default ram price")
+				return nil, err
+			}
+
+			cpuToRAMRatio := defaultCPU / defaultRAM
+			ramGB := ram / 1024 / 1024 / 1024
 			ramMultiple := cpu*cpuToRAMRatio + ramGB
+
+			var nodePrice float64
+			if newCnode.Cost != "" {
+				nodePrice, err = strconv.ParseFloat(newCnode.Cost, 64)
+				if err != nil {
+					klog.V(3).Infof("Could not parse total node price")
+					return nil, err
+				}
+			} else {
+				nodePrice, err = strconv.ParseFloat(newCnode.VCPUCost, 64) // all the price was allocated the the CPU
+				if err != nil {
+					klog.V(3).Infof("Could not parse node vcpu price")
+					return nil, err
+				}
+			}
+
 			ramPrice := (nodePrice / ramMultiple)
 			cpuPrice := ramPrice * cpuToRAMRatio
 
