@@ -186,7 +186,6 @@ func mergeVectors(costDatum *CostData, aggregation *Aggregation, discount float6
 	}
 }
 
-// TODO nikovacevic-caching
 func getPriceVectors(costDatum *CostData, discount float64, idleCoefficient float64) ([]*Vector, []*Vector, []*Vector, [][]*Vector) {
 	cpuv := make([]*Vector, 0, len(costDatum.CPUAllocation))
 	for _, val := range costDatum.CPUAllocation {

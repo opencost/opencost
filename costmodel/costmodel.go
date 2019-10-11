@@ -931,18 +931,20 @@ func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cloud costAna
 	return nil
 }
 
-func getNodeCost(cache ClusterCache, cloud costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.Node, error) {
-	cfg, err := cloud.GetConfig()
+func getNodeCost(cache ClusterCache, cp costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.Node, error) {
+	cfg, err := cp.GetConfig()
 	if err != nil {
 		return nil, err
 	}
+
 	nodeList := cache.GetAllNodes()
 	nodes := make(map[string]*costAnalyzerCloud.Node)
 	for _, n := range nodeList {
 		name := n.GetObjectMeta().GetName()
 		nodeLabels := n.GetObjectMeta().GetLabels()
 		nodeLabels["providerID"] = n.Spec.ProviderID
-		cnode, err := cloud.NodePricing(cloud.GetKey(nodeLabels))
+
+		cnode, err := cp.NodePricing(cp.GetKey(nodeLabels))
 		if err != nil {
 			klog.V(1).Infof("Error getting node. Error: " + err.Error())
 			nodes[name] = cnode
@@ -957,6 +959,7 @@ func getNodeCost(cache ClusterCache, cloud costAnalyzerCloud.Provider) (map[stri
 		} else {
 			cpu, _ = strconv.ParseFloat(newCnode.VCPU, 64)
 		}
+
 		var ram float64
 		if newCnode.RAM == "" {
 			newCnode.RAM = n.Status.Capacity.Memory().String()
@@ -964,97 +967,75 @@ func getNodeCost(cache ClusterCache, cloud costAnalyzerCloud.Provider) (map[stri
 		ram = float64(n.Status.Capacity.Memory().Value())
 		newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 
-		if newCnode.GPU != "" && newCnode.GPUCost == "" { // We couldn't find a gpu cost, so fix cpu and ram, then accordingly
-			klog.V(4).Infof("GPU without cost found for %s, calculating...", cloud.GetKey(nodeLabels).Features())
-			defaultCPU, err := strconv.ParseFloat(cfg.CPU, 64)
+		defaultCPU, err := strconv.ParseFloat(cfg.CPU, 64)
+		if err != nil {
+			klog.V(3).Infof("Could not parse default cpu price")
+			return nil, err
+		}
+
+		defaultRAM, err := strconv.ParseFloat(cfg.RAM, 64)
+		if err != nil {
+			klog.V(3).Infof("Could not parse default ram price")
+			return nil, err
+		}
+
+		defaultGPU, err := strconv.ParseFloat(cfg.RAM, 64)
+		if err != nil {
+			klog.V(3).Infof("Could not parse default gpu price")
+			return nil, err
+		}
+
+		var nodePrice float64
+		if newCnode.Cost != "" {
+			nodePrice, err = strconv.ParseFloat(newCnode.Cost, 64)
 			if err != nil {
-				klog.V(3).Infof("Could not parse default cpu price")
+				klog.V(3).Infof("Could not parse total node price")
 				return nil, err
 			}
-			defaultRAM, err := strconv.ParseFloat(cfg.RAM, 64)
+		} else {
+			nodePrice, err = strconv.ParseFloat(newCnode.VCPUCost, 64) // all the price was allocated the the CPU
 			if err != nil {
-				klog.V(3).Infof("Could not parse default ram price")
+				klog.V(3).Infof("Could not parse node vcpu price")
 				return nil, err
 			}
-			defaultGPU, err := strconv.ParseFloat(cfg.RAM, 64)
-			if err != nil {
-				klog.V(3).Infof("Could not parse default gpu price")
-				return nil, err
-			}
-			cpuToRAMRatio := defaultCPU / defaultRAM
+		}
+
+		cpuToRAMRatio := defaultCPU / defaultRAM
+
+		ramGB := ram / 1024 / 1024 / 1024
+
+		if newCnode.GPU != "" && newCnode.GPUCost == "" {
+			// We couldn't find a gpu cost, so fix cpu and ram, then accordingly
+			klog.V(4).Infof("GPU without cost found for %s, calculating...", cp.GetKey(nodeLabels).Features())
+
 			gpuToRAMRatio := defaultGPU / defaultRAM
-
-			ramGB := ram / 1024 / 1024 / 1024
 			ramMultiple := gpuToRAMRatio + cpu*cpuToRAMRatio + ramGB
-			var nodePrice float64
-			if newCnode.Cost != "" {
-				nodePrice, err = strconv.ParseFloat(newCnode.Cost, 64)
-				if err != nil {
-					klog.V(3).Infof("Could not parse total node price")
-					return nil, err
-				}
-			} else {
-				nodePrice, err = strconv.ParseFloat(newCnode.VCPUCost, 64) // all the price was allocated the the CPU
-				if err != nil {
-					klog.V(3).Infof("Could not parse node vcpu price")
-					return nil, err
-				}
-			}
-
 			ramPrice := (nodePrice / ramMultiple)
 			cpuPrice := ramPrice * cpuToRAMRatio
 			gpuPrice := ramPrice * gpuToRAMRatio
+
 			newCnode.VCPUCost = fmt.Sprintf("%f", cpuPrice)
 			newCnode.RAMCost = fmt.Sprintf("%f", ramPrice)
 			newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 			newCnode.GPUCost = fmt.Sprintf("%f", gpuPrice)
+		} else if newCnode.RAMCost == "" {
+			// We couldn't find a ramcost, so fix cpu and allocate ram accordingly
+			klog.V(4).Infof("No RAM cost found for %s, calculating...", cp.GetKey(nodeLabels).Features())
 
-		} else {
-			if newCnode.RAMCost == "" { // We couldn't find a ramcost, so fix cpu and allocate ram accordingly
-				klog.V(4).Infof("No RAM cost found for %s, calculating...", cloud.GetKey(nodeLabels).Features())
-				defaultCPU, err := strconv.ParseFloat(cfg.CPU, 64)
-				if err != nil {
-					klog.V(3).Infof("Could not parse default cpu price")
-					return nil, err
-				}
-				defaultRAM, err := strconv.ParseFloat(cfg.RAM, 64)
-				if err != nil {
-					klog.V(3).Infof("Could not parse default ram price")
-					return nil, err
-				}
-				cpuToRAMRatio := defaultCPU / defaultRAM
+			ramMultiple := cpu*cpuToRAMRatio + ramGB
+			ramPrice := (nodePrice / ramMultiple)
+			cpuPrice := ramPrice * cpuToRAMRatio
 
-				ramGB := ram / 1024 / 1024 / 1024
+			newCnode.VCPUCost = fmt.Sprintf("%f", cpuPrice)
+			newCnode.RAMCost = fmt.Sprintf("%f", ramPrice)
+			newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 
-				ramMultiple := cpu*cpuToRAMRatio + ramGB
-
-				var nodePrice float64
-				if newCnode.Cost != "" {
-					nodePrice, err = strconv.ParseFloat(newCnode.Cost, 64)
-					if err != nil {
-						klog.V(3).Infof("Could not parse total node price")
-						return nil, err
-					}
-				} else {
-					nodePrice, err = strconv.ParseFloat(newCnode.VCPUCost, 64) // all the price was allocated the the CPU
-					if err != nil {
-						klog.V(3).Infof("Could not parse node vcpu price")
-						return nil, err
-					}
-				}
-
-				ramPrice := (nodePrice / ramMultiple)
-				cpuPrice := ramPrice * cpuToRAMRatio
-
-				newCnode.VCPUCost = fmt.Sprintf("%f", cpuPrice)
-				newCnode.RAMCost = fmt.Sprintf("%f", ramPrice)
-				newCnode.RAMBytes = fmt.Sprintf("%f", ram)
-				klog.V(4).Infof("Computed \"%s\" RAM Cost := %v", name, newCnode.RAMCost)
-			}
+			klog.V(4).Infof("Computed \"%s\" RAM Cost := %v", name, newCnode.RAMCost)
 		}
 
 		nodes[name] = &newCnode
 	}
+
 	return nodes, nil
 }
 
@@ -1450,11 +1431,14 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 				}
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
+
 				if filterNamespace == "" {
 					containerNameCost[newKey] = costs
 				} else if costs.Namespace == filterNamespace {
 					containerNameCost[newKey] = costs
 				}
+
+				// TODO nikovacevic-caching filter cluster ID
 			}
 
 		} else {
@@ -1517,6 +1501,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 			}
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
+
 			if filterNamespace == "" {
 				containerNameCost[key] = costs
 				missingContainers[key] = costs
@@ -1524,6 +1509,8 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 				containerNameCost[key] = costs
 				missingContainers[key] = costs
 			}
+
+			// TODO nikovacevic-caching filter cluster ID
 		}
 	}
 

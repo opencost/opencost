@@ -169,6 +169,17 @@ func ClusterName(p Provider) string {
 	return name
 }
 
+// CustomPricesEnabled returns the boolean equivalent of the cloup provider's custom prices flag,
+// indicating whether or not the cluster is using custom pricing.
+func CustomPricesEnabled(p Provider) bool {
+	config, err := p.GetConfig()
+	if err != nil {
+		return false
+	}
+
+	return config.CustomPricesEnabled == "true"
+}
+
 // GetDefaultPricingData will search for a json file representing pricing data in /models/ and use it for base pricing info.
 func GetDefaultPricingData(fname string) (*CustomPricing, error) {
 	path := os.Getenv("CONFIG_PATH")
@@ -256,10 +267,12 @@ func NewProvider(clientset *kubernetes.Clientset, apiKey string) (Provider, erro
 			APIKey:    apiKey,
 		}, nil
 	}
+
 	nodes, err := clientset.CoreV1().Nodes().List(metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
+
 	provider := strings.ToLower(nodes.Items[0].Spec.ProviderID)
 	if strings.HasPrefix(provider, "aws") {
 		klog.V(2).Info("Found ProviderID starting with \"aws\", using AWS Provider")
