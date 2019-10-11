@@ -196,7 +196,7 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 			w.Write(wrapData(nil, err))
 		}
 		discount = discount * 0.01
-		agg := AggregateCostModel(data, aggregationField, aggregationSubField, false, discount, 1.0, nil)
+		agg := AggregateCostModel(a.Cloud, data, aggregationField, aggregationSubField, false, discount, 1.0, nil)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {
@@ -386,7 +386,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	// aggregate cost model data by given fields and cache the result for the default expiration
-	result := AggregateCostModel(data, field, subfield, timeSeries, discount, idleCoefficient, sr)
+	result := AggregateCostModel(a.Cloud, data, field, subfield, timeSeries, discount, idleCoefficient, sr)
 	a.Cache.Set(aggKey, result, cache.DefaultExpiration)
 
 	w.Write(wrapDataWithMessage(result, nil, fmt.Sprintf("cache miss: %s", aggKey)))
@@ -425,7 +425,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 			w.Write(wrapData(nil, err))
 		}
 		discount = discount * 0.01
-		agg := AggregateCostModel(data, aggregationField, aggregationSubField, false, discount, 1.0, nil)
+		agg := AggregateCostModel(a.Cloud, data, aggregationField, aggregationSubField, false, discount, 1.0, nil)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {

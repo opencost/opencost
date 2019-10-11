@@ -185,50 +185,6 @@ func CustomPricesEnabled(p Provider) bool {
 	return config.CustomPricesEnabled == "true"
 }
 
-// NodePricing pulls pricing data from the given provider for the node at the given key.
-// If custom pricing is enabled, those pricing data are returned instead.
-func NodePricing(p Provider, k Key) (*Node, error) {
-	node, err := p.NodePricing(k)
-	if err != nil {
-		return nil, err
-	}
-
-	// If custom pricing is enabled and can be retrieved, replace
-	// default cost values with custom values
-	customPricing, err := p.GetConfig()
-	if CustomPricesEnabled(p) && err == nil {
-		if node.IsSpot() {
-			node.VCPUCost = customPricing.SpotCPU
-			node.RAMCost = customPricing.SpotRAM
-			node.GPUCost = customPricing.SpotGPU
-		} else {
-			node.VCPUCost = customPricing.CPU
-			node.RAMCost = customPricing.RAM
-			node.GPUCost = customPricing.GPU
-		}
-	}
-
-	return node, nil
-}
-
-// PVPricing pulls pricing data from the given provider for the persisten volume at the
-// given key. If custom pricing is enabled, those pricing data are returned instead.
-func PVPricing(p Provider, k PVKey) (*PV, error) {
-	pv, err := p.PVPricing(k)
-	if err != nil {
-		return nil, err
-	}
-
-	// If custom pricing is enabled and can be retrieved, replace
-	// default cost values with custom values
-	customPricing, err := p.GetConfig()
-	if CustomPricesEnabled(p) && err == nil {
-		pv.Cost = customPricing.Storage
-	}
-
-	return pv, nil
-}
-
 // GetDefaultPricingData will search for a json file representing pricing data in /models/ and use it for base pricing info.
 func GetDefaultPricingData(fname string) (*CustomPricing, error) {
 	path := os.Getenv("CONFIG_PATH")
