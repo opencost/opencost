@@ -298,15 +298,9 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		endTime = endTime.Add(-1 * o)
 	}
 
-	// if window or offset are defined in terms of days, convert to hours
+	// if window is defined in terms of days, convert to hours
 	// e.g. convert "2d" to "48h"
 	window, err := normalizeTimeParam(window)
-	if err != nil {
-		w.Write(wrapData(nil, err))
-		return
-	}
-
-	offset, err = normalizeTimeParam(offset)
 	if err != nil {
 		w.Write(wrapData(nil, err))
 		return
