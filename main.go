@@ -72,6 +72,21 @@ type DataEnvelope struct {
 	Message string      `json:"message,omitempty"`
 }
 
+func normalizeTimeParam(param string) (string, error) {
+	// convert days to hours
+	if param[len(param)-1:] == "d" {
+		count := param[:len(param)-1]
+		val, err := strconv.ParseInt(count, 10, 64)
+		if err != nil {
+			return "", err
+		}
+		val = val * 24
+		param = fmt.Sprintf("%dh", val)
+	}
+
+	return param, nil
+}
+
 func wrapDataWithMessage(data interface{}, err error, message string) []byte {
 	var resp []byte
 
@@ -183,7 +198,7 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 			w.Write(wrapData(nil, err))
 		}
 		discount = discount * 0.01
-		agg := costModel.AggregateCostModel(data, discount, 1.0, nil, aggregationField, aggregationSubField)
+		agg := costModel.AggregateCostModel(data, aggregationField, aggregationSubField, false, discount, 1.0, nil)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {
@@ -227,6 +242,9 @@ func (a *Accesses) ClusterCostsOverTime(w http.ResponseWriter, r *http.Request, 
 	w.Write(wrapData(data, err))
 }
 
+// AggregateCostModel handles HTTP requests to the aggregated cost model API, which can be parametrized
+// by time period using window and offset, aggregation field using field and subfield (in cases like
+// field=label, subfield=app for grouping by label.app), and filtered by namespace.
 func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -234,19 +252,37 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	window := r.URL.Query().Get("window")
 	offset := r.URL.Query().Get("offset")
 	namespace := r.URL.Query().Get("namespace")
-	aggregationField := r.URL.Query().Get("aggregation")
-	aggregationSubField := r.URL.Query().Get("aggregationSubfield")
+	field := r.URL.Query().Get("aggregation")
+	subfield := r.URL.Query().Get("aggregationSubfield")
 	allocateIdle := r.URL.Query().Get("allocateIdle")
 	sharedNamespaces := r.URL.Query().Get("sharedNamespaces")
 	sharedLabelNames := r.URL.Query().Get("sharedLabelNames")
 	sharedLabelValues := r.URL.Query().Get("sharedLabelValues")
+	remote := r.URL.Query().Get("remote")
 
+	// timeSeries == true maintains the time series dimension of the data,
+	// which by default gets summed over the entire interval
+	timeSeries := r.URL.Query().Get("timeSeries") == "true"
+
+	// disableCache, if set to "true", tells this function to recompute and
+	// cache the requested data
 	disableCache := r.URL.Query().Get("disableCache") == "true"
+
+	// clearCache, if set to "true", tells this function to flush the cache,
+	// then recompute and cache the requested data
 	clearCache := r.URL.Query().Get("clearCache") == "true"
 
-	if aggregationField == "" {
+	// aggregation field is required
+	if field == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(wrapData(nil, fmt.Errorf("Missing aggregation parameter")))
+		w.Write(wrapData(nil, fmt.Errorf("Missing aggregation field parameter")))
+		return
+	}
+
+	// aggregation subfield is required when aggregation field is "label"
+	if field == "label" && subfield == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(wrapData(nil, fmt.Errorf("Missing aggregation subfield parameter for aggregation by label")))
 		return
 	}
 
@@ -263,17 +299,18 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		endTime = endTime.Add(-1 * o)
 	}
 
-	// if window is defined in terms of days, convert it to hours
+	// if window or offset are defined in terms of days, convert to hours
 	// e.g. convert "2d" to "48h"
-	if window[len(window)-1:] == "d" {
-		count := window[:len(window)-1]
-		val, err := strconv.ParseInt(count, 10, 64)
-		if err != nil {
-			w.Write(wrapData(nil, err))
-			return
-		}
-		val = val * 24
-		window = fmt.Sprintf("%dh", val)
+	window, err := normalizeTimeParam(window)
+	if err != nil {
+		w.Write(wrapData(nil, err))
+		return
+	}
+
+	offset, err = normalizeTimeParam(offset)
+	if err != nil {
+		w.Write(wrapData(nil, err))
+		return
 	}
 
 	// convert time window into start and end times, formatted
@@ -295,17 +332,13 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		a.Cache.Flush()
 	}
 
-	aggKey := fmt.Sprintf("aggregate:%s:%s:%s:%s:%s", window, offset, namespace, aggregationField, aggregationSubField)
+	aggKey := fmt.Sprintf("aggregate:%s:%s:%s:%s:%s:%t", window, offset, namespace, field, subfield, timeSeries)
 
 	// check the cache for aggregated response; if cache is hit and not disabled, return response
 	if result, found := a.Cache.Get(aggKey); found && !disableCache {
-		// TODO send http.StatusNotModified when testing is complete
-		w.WriteHeader(http.StatusOK)
 		w.Write(wrapDataWithMessage(result, nil, fmt.Sprintf("cache hit: %s", aggKey)))
 		return
 	}
-
-	remote := r.URL.Query().Get("remote")
 
 	remoteAvailable := os.Getenv(remoteEnabled)
 	remoteEnabled := false
@@ -354,13 +387,13 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 			return
 		}
 	}
-	var s *costModel.SharedResourceInfo
+	var sr *costModel.SharedResourceInfo
 	if len(sn) > 0 || len(sln) > 0 {
-		s = costModel.NewSharedResourceInfo(true, sn, sln, slv)
+		sr = costModel.NewSharedResourceInfo(true, sn, sln, slv)
 	}
 
 	// aggregate cost model data by given fields and cache the result for the default expiration
-	result := costModel.AggregateCostModel(data, discount, idleCoefficient, s, aggregationField, aggregationSubField)
+	result := costModel.AggregateCostModel(data, field, subfield, timeSeries, discount, idleCoefficient, sr)
 	a.Cache.Set(aggKey, result, cache.DefaultExpiration)
 
 	w.Write(wrapDataWithMessage(result, nil, fmt.Sprintf("cache miss: %s", aggKey)))
@@ -398,7 +431,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 			w.Write(wrapData(nil, err))
 		}
 		discount = discount * 0.01
-		agg := costModel.AggregateCostModel(data, discount, 1.0, nil, aggregationField, aggregationSubField)
+		agg := costModel.AggregateCostModel(data, aggregationField, aggregationSubField, false, discount, 1.0, nil)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {

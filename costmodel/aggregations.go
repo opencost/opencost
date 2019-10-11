@@ -16,12 +16,12 @@ type Aggregation struct {
 	Environment        string    `json:"environment"`
 	Cluster            string    `json:"cluster"`
 	CPUAllocation      []*Vector `json:"-"`
-	CPUCostVector      []*Vector `json:"-"`
+	CPUCostVector      []*Vector `json:"cpuCostVector,omitempty"`
 	RAMAllocation      []*Vector `json:"-"`
-	RAMCostVector      []*Vector `json:"-"`
-	PVCostVector       []*Vector `json:"-"`
+	RAMCostVector      []*Vector `json:"ramCostVector,omitempty"`
+	PVCostVector       []*Vector `json:"pvCostVector,omitempty"`
 	GPUAllocation      []*Vector `json:"-"`
-	GPUCostVector      []*Vector `json:"-"`
+	GPUCostVector      []*Vector `json:"gpuCostVector,omitempty"`
 	CPUCost            float64   `json:"cpuCost"`
 	RAMCost            float64   `json:"ramCost"`
 	GPUCost            float64   `json:"gpuCost"`
@@ -95,9 +95,17 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 	return (totalContainerCost / totalClusterCostOverWindow), nil
 }
 
-func AggregateCostModel(costData map[string]*CostData, discount float64, idleCoefficient float64, sr *SharedResourceInfo, aggregationField string, aggregationSubField string) map[string]*Aggregation {
+// AggregateCostModel reduces the dimensions of raw cost data by field and, optionally, by time. The field parameter determines the field
+// by which to group data, with an optional subfield, e.g. for groupings like field="label" and subfield="app" for grouping by "label.app".
+func AggregateCostModel(costData map[string]*CostData, field string, subfield string, timeSeries bool, discount float64, idleCoefficient float64, sr *SharedResourceInfo) map[string]*Aggregation {
+	// aggregations collects key-value pairs of resource group-to-aggregated data
+	// e.g. namespace-to-data or label-value-to-data
 	aggregations := make(map[string]*Aggregation)
+
+	// sharedResourceCost is the running total cost of resources that should be reported
+	// as shared across all other resources, rather than reported as a stand-alone category
 	sharedResourceCost := 0.0
+
 	for _, costDatum := range costData {
 		if sr != nil && sr.ShareResources && sr.IsSharedResource(costDatum) {
 			cpuv, ramv, gpuv, pvvs := getPriceVectors(costDatum, discount, idleCoefficient)
@@ -108,27 +116,28 @@ func AggregateCostModel(costData map[string]*CostData, discount float64, idleCoe
 				sharedResourceCost += totalVector(pv)
 			}
 		} else {
-			if aggregationField == "cluster" {
-				aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.ClusterID, aggregations, discount, idleCoefficient)
-			} else if aggregationField == "namespace" {
-				aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.Namespace, aggregations, discount, idleCoefficient)
-			} else if aggregationField == "service" {
+			if field == "cluster" {
+				aggregateDatum(aggregations, costDatum, field, subfield, costDatum.ClusterID, discount, idleCoefficient)
+			} else if field == "namespace" {
+				aggregateDatum(aggregations, costDatum, field, subfield, costDatum.Namespace, discount, idleCoefficient)
+			} else if field == "service" {
 				if len(costDatum.Services) > 0 {
-					aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.Services[0], aggregations, discount, idleCoefficient)
+					aggregateDatum(aggregations, costDatum, field, subfield, costDatum.Services[0], discount, idleCoefficient)
 				}
-			} else if aggregationField == "deployment" {
+			} else if field == "deployment" {
 				if len(costDatum.Deployments) > 0 {
-					aggregationHelper(costDatum, aggregationField, aggregationSubField, costDatum.Deployments[0], aggregations, discount, idleCoefficient)
+					aggregateDatum(aggregations, costDatum, field, subfield, costDatum.Deployments[0], discount, idleCoefficient)
 				}
-			} else if aggregationField == "label" {
+			} else if field == "label" {
 				if costDatum.Labels != nil {
-					if subfieldName, ok := costDatum.Labels[aggregationSubField]; ok {
-						aggregationHelper(costDatum, aggregationField, aggregationSubField, subfieldName, aggregations, discount, idleCoefficient)
+					if subfieldName, ok := costDatum.Labels[subfield]; ok {
+						aggregateDatum(aggregations, costDatum, field, subfield, subfieldName, discount, idleCoefficient)
 					}
 				}
 			}
 		}
 	}
+
 	for _, agg := range aggregations {
 		agg.CPUCost = totalVector(agg.CPUCostVector)
 		agg.RAMCost = totalVector(agg.RAMCostVector)
@@ -136,19 +145,30 @@ func AggregateCostModel(costData map[string]*CostData, discount float64, idleCoe
 		agg.PVCost = totalVector(agg.PVCostVector)
 		agg.SharedCost = sharedResourceCost / float64(len(aggregations))
 		agg.TotalCost = agg.CPUCost + agg.RAMCost + agg.GPUCost + agg.PVCost + agg.SharedCost
+
+		// remove time series data if it is not explicitly requested
+		if !timeSeries {
+			agg.CPUCostVector = nil
+			agg.RAMCostVector = nil
+			agg.PVCostVector = nil
+			agg.GPUCostVector = nil
+		}
 	}
+
 	return aggregations
 }
 
-func aggregationHelper(costDatum *CostData, aggregator string, aggregatorSubField string, key string, aggregations map[string]*Aggregation, discount float64, idleCoefficient float64) {
+func aggregateDatum(aggregations map[string]*Aggregation, costDatum *CostData, field string, subfield string, key string, discount float64, idleCoefficient float64) {
+	// add new entry to aggregation results if a new
 	if _, ok := aggregations[key]; !ok {
 		agg := &Aggregation{}
-		agg.Aggregator = aggregator
-		agg.AggregatorSubField = aggregatorSubField
+		agg.Aggregator = field
+		agg.AggregatorSubField = subfield
 		agg.Environment = key
 		agg.Cluster = costDatum.ClusterID
 		aggregations[key] = agg
 	}
+
 	mergeVectors(costDatum, aggregations[key], discount, idleCoefficient)
 }
 
