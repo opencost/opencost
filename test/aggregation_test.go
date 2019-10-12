@@ -101,7 +101,7 @@ func TestAggregation(t *testing.T) {
 	costData := make(map[string]*costModel.CostData)
 	costData["test1,foo,nginx,testnode"] = cd1
 	costData["test1,bar,nginx,testnode"] = cd2
-	agg := costModel.AggregateCostModel(costData, 0.0, 1.0, nil, "namespace", "")
+	agg := costModel.AggregateCostModel(costData, "namespace", "", false, 0.0, 1.0, nil)
 	log.Printf("agg: %+v", agg["test1"])
 	assert.Equal(t, agg["test1"].TotalCost, 8.0)
 }

@@ -506,7 +506,7 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 	}
 	m["provider"] = "azure"
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
-	m["id"] = os.Getenv(KC_CLUSTER_ID)
+	m["id"] = os.Getenv(clusterIDKey)
 	return m, nil
 
 }
@@ -543,7 +543,7 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 	}
 	remoteEnabled := os.Getenv(remoteEnabled)
 	if remoteEnabled == "true" {
-		err = UpdateClusterMeta(os.Getenv(KC_CLUSTER_ID), c.ClusterName)
+		err = UpdateClusterMeta(os.Getenv(clusterIDKey), c.ClusterName)
 		if err != nil {
 			return nil, err
 		}

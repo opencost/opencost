@@ -328,7 +328,7 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 	path += "aws.json"
 	remoteEnabled := os.Getenv(remoteEnabled)
 	if remoteEnabled == "true" {
-		err = UpdateClusterMeta(os.Getenv(KC_CLUSTER_ID), c.ClusterName)
+		err = UpdateClusterMeta(os.Getenv(clusterIDKey), c.ClusterName)
 		if err != nil {
 			return nil, err
 		}
@@ -825,7 +825,7 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 		m := make(map[string]string)
 		m["name"] = c.ClusterName
 		m["provider"] = "AWS"
-		m["id"] = os.Getenv(KC_CLUSTER_ID)
+		m["id"] = os.Getenv(clusterIDKey)
 		m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 		return m, nil
 	}
@@ -834,7 +834,7 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 		m := make(map[string]string)
 		m["name"] = clusterName
 		m["provider"] = "AWS"
-		m["id"] = os.Getenv(KC_CLUSTER_ID)
+		m["id"] = os.Getenv(clusterIDKey)
 		m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 		return m, nil
 	}
