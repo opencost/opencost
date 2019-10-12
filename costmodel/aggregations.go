@@ -8,6 +8,7 @@ import (
 
 	"github.com/kubecost/cost-model/cloud"
 	prometheusClient "github.com/prometheus/client_golang/api"
+	"k8s.io/klog"
 )
 
 type Aggregation struct {
@@ -195,6 +196,9 @@ func getPriceVectors(cp cloud.Provider, costDatum *CostData, discount float64, i
 	// If custom pricing is enabled and can be retrieved, replace
 	// default cost values with custom values
 	customPricing, err := cp.GetConfig()
+	if err != nil {
+		klog.Errorf("failed to load custom pricing: %s", err)
+	}
 	if cloud.CustomPricesEnabled(cp) && err == nil {
 		if costDatum.NodeData.IsSpot() {
 			cpuCostStr = customPricing.SpotCPU
