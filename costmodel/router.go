@@ -466,8 +466,14 @@ func (a *Accesses) OutofClusterCosts(w http.ResponseWriter, r *http.Request, ps 
 	start := r.URL.Query().Get("start")
 	end := r.URL.Query().Get("end")
 	aggregator := r.URL.Query().Get("aggregator")
-
-	data, err := a.Cloud.ExternalAllocations(start, end, aggregator)
+	customAggregation := r.URL.Query().Get("customAggregation")
+	var data []*costAnalyzerCloud.OutOfClusterAllocation
+	var err error
+	if customAggregation != "" {
+		data, err = a.Cloud.ExternalAllocations(start, end, customAggregation)
+	} else {
+		data, err = a.Cloud.ExternalAllocations(start, end, "kubernetes_"+aggregator)
+	}
 	w.Write(wrapData(data, err))
 }
 

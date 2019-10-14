@@ -1030,7 +1030,7 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregator string) (
 	if err != nil {
 		return nil, err
 	}
-	aggregator_column_name := "resource_tags_user_kubernetes_" + aggregator
+	aggregator_column_name := "resource_tags_user_" + aggregator
 	aggregator_column_name = ConvertToGlueColumnFormat(aggregator_column_name)
 	query := fmt.Sprintf(`SELECT   
 		CAST(line_item_usage_start_date AS DATE) as start_date,

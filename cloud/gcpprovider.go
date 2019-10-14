@@ -202,8 +202,8 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregator string)
 						FROM %s
 						WHERE usage_start_time >= "%s" AND usage_start_time < "%s")
 						LEFT JOIN UNNEST(labels) as labels
-						ON labels.key = "kubernetes_namespace" OR labels.key = "kubernetes_container" OR labels.key = "kubernetes_deployment" OR labels.key = "kubernetes_pod" OR labels.key = "kubernetes_daemonset"
-				GROUP BY aggregator, environment, service;`, c.BillingDataDataset, start, end) // For example, "billing_data.gcp_billing_export_v1_01AC9F_74CF1D_5565A2"
+						ON labels.key = "%s"
+				GROUP BY aggregator, environment, service;`, c.BillingDataDataset, start, end, aggregator) // For example, "billing_data.gcp_billing_export_v1_01AC9F_74CF1D_5565A2"
 	klog.V(4).Infof("Querying \"%s\" with : %s", c.ProjectID, queryString)
 	return gcp.QuerySQL(queryString)
 }
