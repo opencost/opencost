@@ -8,8 +8,6 @@ import (
 	//	"math"
 	//	"net"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 
 	//	"testing"
@@ -21,8 +19,6 @@ import (
 
 	//	v1 "k8s.io/api/core/v1"
 	//	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
@@ -34,30 +30,6 @@ const address = "http://localhost:9003"
 const apiPrefix = "/api/v1"
 
 const epQuery = apiPrefix + "/query"
-
-func homeDir() string {
-	if h := os.Getenv("HOME"); h != "" {
-		return h
-	}
-	return os.Getenv("USERPROFILE") // windows
-}
-
-func getKubernetesClient() (*kubernetes.Clientset, error) {
-	var kubeconfig string
-
-	if home := homeDir(); home != "" {
-		kubeconfig = filepath.Join(home, ".kube", "config")
-	} else {
-		return nil, fmt.Errorf("Unable to find home directory")
-	}
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-	if err != nil {
-		return nil, err
-	}
-
-	return kubernetes.NewForConfig(config)
-
-}
 
 // The integration test assumes a GKE cluster in us-central-1 or an AWS cluster in us-east-2, with the following instance types
 // and storage classes.
