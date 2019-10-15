@@ -42,6 +42,7 @@ var A Accesses
 
 type Accesses struct {
 	PrometheusClient              prometheusClient.Client
+	ThanosClient                  prometheusClient.Client
 	KubeClientSet                 kubernetes.Interface
 	Cloud                         costAnalyzerCloud.Provider
 	CPUPriceRecorder              *prometheus.GaugeVec
@@ -340,7 +341,15 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	}
 	klog.Infof("REMOTE ENABLED: %t", remoteEnabled)
 
-	data, err := a.Model.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, "1h", namespace, cluster, remoteEnabled)
+	// Use Thanos Client if it exists and remote != false
+	var pClient prometheusClient.Client
+	if remote != "false" && a.ThanosClient != nil {
+		pClient = a.ThanosClient
+	} else {
+		pClient = a.PrometheusClient
+	}
+
+	data, err := a.Model.ComputeCostDataRange(pClient, a.KubeClientSet, a.Cloud, start, end, "1h", namespace, cluster, remoteEnabled)
 	if err != nil {
 		w.Write(wrapData(nil, err))
 		return
@@ -411,7 +420,16 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	if remoteAvailable == "true" && remote != "false" {
 		remoteEnabled = true
 	}
-	data, err := a.Model.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, window, namespace, cluster, remoteEnabled)
+
+	// Use Thanos Client if it exists and remote != false
+	var pClient prometheusClient.Client
+	if remote != "false" && a.ThanosClient != nil {
+		pClient = a.ThanosClient
+	} else {
+		pClient = a.PrometheusClient
+	}
+
+	data, err := a.Model.ComputeCostDataRange(pClient, a.KubeClientSet, a.Cloud, start, end, window, namespace, cluster, remoteEnabled)
 	if err != nil {
 		w.Write(wrapData(nil, err))
 	}
@@ -952,6 +970,31 @@ func init() {
 		_, _, err = costAnalyzerCloud.GetOrCreateClusterMeta(info["id"], info["name"])
 		if err != nil {
 			klog.Infof("Unable to set cluster id '%s' for cluster '%s', %s", info["id"], info["name"], err.Error())
+		}
+	}
+
+	// Thanos Client
+	if os.Getenv(thanosEnabled) == "true" {
+		thanosUrl := os.Getenv(thanosQueryUrl)
+		if thanosUrl != "" {
+			var thanosRT http.RoundTripper = &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				DialContext: (&net.Dialer{
+					Timeout:   120 * time.Second,
+					KeepAlive: 120 * time.Second,
+				}).DialContext,
+				TLSHandshakeTimeout: 10 * time.Second,
+			}
+
+			thanosConfig := prometheusClient.Config{
+				Address:      thanosUrl,
+				RoundTripper: thanosRT,
+			}
+			thanosCli, _ := prometheusClient.NewClient(thanosConfig)
+
+			A.ThanosClient = thanosCli
+		} else {
+			klog.Infof("Error resolving environment variable: $%s", thanosQueryUrl)
 		}
 	}
 

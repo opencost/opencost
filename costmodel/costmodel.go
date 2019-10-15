@@ -38,8 +38,10 @@ const (
 	epConfig          = apiPrefix + "/status/config"
 	epFlags           = apiPrefix + "/status/flags"
 
-	clusterIDKey  = "CLUSTER_ID"
-	remoteEnabled = "REMOTE_WRITE_ENABLED"
+	clusterIDKey   = "CLUSTER_ID"
+	remoteEnabled  = "REMOTE_WRITE_ENABLED"
+	thanosEnabled  = "THANOS_ENABLED"
+	thanosQueryUrl = "THANOS_QUERY_URL"
 )
 
 type CostModel struct {
