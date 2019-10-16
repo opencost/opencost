@@ -427,7 +427,7 @@ func (key *awsPVKey) Features() string {
 	//}
 	class, ok := volTypes[storageClass]
 	if !ok {
-		klog.Infof("No voltype mapping for %s's storageClass: %s", key.Name, storageClass)
+		klog.V(4).Infof("No voltype mapping for %s's storageClass: %s", key.Name, storageClass)
 	}
 	return region + "," + class
 }
