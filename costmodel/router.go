@@ -317,6 +317,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		if offset != "" {
 			o, err := time.ParseDuration(offset)
 			if err != nil {
+				klog.V(1).Infof("error parsing offset: %s", err)
 				w.Write(wrapData(nil, err))
 				return
 			}
@@ -342,6 +343,8 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 
 		start = startTime.Format(layout)
 		end = endTime.Format(layout)
+
+		klog.V(1).Infof("start: %s, end: %s", start, end)
 	}
 
 	// dataCount is the number of time series data expected for the given interval,
@@ -396,6 +399,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 
 	data, err := a.Model.ComputeCostDataRange(a.PrometheusClient, a.KubeClientSet, a.Cloud, start, end, "1h", namespace, cluster, remoteEnabled)
 	if err != nil {
+		klog.V(1).Infof("error computing cost data range: start=%s, end=%s, err=%s", start, end, err)
 		w.Write(wrapData(nil, err))
 		return
 	}
@@ -414,9 +418,12 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 
 	idleCoefficient := 1.0
 	if allocateIdle {
-		idleCoefficient, err = ComputeIdleCoefficient(data, a.PrometheusClient, a.Cloud, discount, fmt.Sprintf("%dh", int(dur.Hours())), offset)
+		windowStr := fmt.Sprintf("%dh", int(dur.Hours()))
+		idleCoefficient, err = ComputeIdleCoefficient(data, a.PrometheusClient, a.Cloud, discount, windowStr, offset)
 		if err != nil {
+			klog.V(1).Infof("error computing idle coefficient: windowString=%s, offset=%s, err=%s", windowStr, offset, err)
 			w.Write(wrapData(nil, err))
+			return
 		}
 	}
 

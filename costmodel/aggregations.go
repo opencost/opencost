@@ -89,7 +89,7 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 	totalClusterCostOverWindow := (totalClusterCost / 730) * windowDuration.Hours() * (1 - discount)
 	totalContainerCost := 0.0
 	for _, costDatum := range costData {
-		// TODO nikovacevic-caching does this need to be parametrized by rate?
+		// TODO does this need to be parametrized by rate when a rate is set?
 		cpuv, ramv, gpuv, pvvs := getPriceVectors(cp, costDatum, "", discount, 1)
 		totalContainerCost += totalVector(cpuv)
 		totalContainerCost += totalVector(ramv)
@@ -191,6 +191,9 @@ func aggregateDatum(cp cloud.Provider, aggregations map[string]*Aggregation, cos
 		agg.Cluster = costDatum.ClusterID
 		aggregations[key] = agg
 	}
+
+	// TODO nikovacevic-caching
+	// costDatum.NetworkData appears to be a Vector where index 0 stores all the network data (see costmodel.ComputeCostData)
 
 	mergeVectors(cp, costDatum, aggregations[key], rate, discount, idleCoefficient)
 }
@@ -297,7 +300,7 @@ func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discou
 		}
 	}
 
-	return cpuv, ramv, gpuv, pvvs
+	return cpuv, ramv, gpuv, pvvs, netv
 }
 
 func totalVector(vectors []*Vector) float64 {
