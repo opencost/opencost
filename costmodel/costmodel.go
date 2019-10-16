@@ -454,9 +454,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 			}
 
 			for k, v := range nsLabels {
-				if _, ok := podLabels[k]; !ok {
-					podLabels[k] = v
-				}
+				podLabels[k] = v
 			}
 
 			nodeName := pod.Spec.NodeName
@@ -679,9 +677,7 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 				labels = make(map[string]string)
 			}
 			for k, v := range costData.NamespaceLabels {
-				if _, ok := labels[k]; !ok {
-					labels[k] = v
-				}
+				labels[k] = v
 			}
 			costData.Labels = labels
 		}
