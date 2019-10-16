@@ -101,16 +101,16 @@ const (
 					count_over_time(kube_pod_container_resource_requests_memory_bytes{container!="",container!="POD", node!=""}[%s] %s) 
 					*  
 					avg_over_time(kube_pod_container_resource_requests_memory_bytes{container!="",container!="POD", node!=""}[%s] %s)
-				) by (namespace,container,pod,node) , "container_name","$1","container","(.+)"
+				) by (namespace,container,pod,node,cluster_id) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		)
-	) by (namespace,container_name,pod_name,node)`
+	) by (namespace,container_name,pod_name,node,cluster_id)`
 	queryRAMUsageStr = `sort_desc(
 		avg(
 			label_replace(count_over_time(container_memory_working_set_bytes{container_name!="",container_name!="POD", instance!=""}[%s] %s), "node", "$1", "instance","(.+)") 
 			* 
 			label_replace(avg_over_time(container_memory_working_set_bytes{container_name!="",container_name!="POD", instance!=""}[%s] %s), "node", "$1", "instance","(.+)") 
-		) by (namespace,container_name,pod_name,node)
+		) by (namespace,container_name,pod_name,node,cluster_id)
 	)`
 	queryCPURequestsStr = `avg(
 		label_replace(
@@ -119,17 +119,17 @@ const (
 					count_over_time(kube_pod_container_resource_requests_cpu_cores{container!="",container!="POD", node!=""}[%s] %s) 
 					*  
 					avg_over_time(kube_pod_container_resource_requests_cpu_cores{container!="",container!="POD", node!=""}[%s] %s)
-				) by (namespace,container,pod,node) , "container_name","$1","container","(.+)"
+				) by (namespace,container,pod,node,cluster_id) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		) 
-	) by (namespace,container_name,pod_name,node)`
+	) by (namespace,container_name,pod_name,node,cluster_id)`
 	queryCPUUsageStr = `avg(
 		label_replace(
 		rate( 
 			container_cpu_usage_seconds_total{container_name!="",container_name!="POD",instance!=""}[%s] %s
 		) , "node", "$1", "instance", "(.+)"
 		)
-	) by (namespace,container_name,pod_name,node)`
+	) by (namespace,container_name,pod_name,node,cluster_id)`
 	queryGPURequestsStr = `avg(
 		label_replace(
 			label_replace(
@@ -137,17 +137,17 @@ const (
 					count_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s] %s) 
 					*  
 					avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s] %s)
-				) by (namespace,container,pod,node) , "container_name","$1","container","(.+)"
+				) by (namespace,container,pod,node,cluster_id) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		) 
-	) by (namespace,container_name,pod_name,node)`
-	queryPVRequestsStr = `avg(kube_persistentvolumeclaim_info) by (persistentvolumeclaim, storageclass, namespace, volumename) 
+	) by (namespace,container_name,pod_name,node,cluster_id)`
+	queryPVRequestsStr = `avg(kube_persistentvolumeclaim_info) by (persistentvolumeclaim, storageclass, namespace, volumename, cluster_id) 
 						* 
-						on (persistentvolumeclaim, namespace) group_right(storageclass, volumename) 
-				sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) by (persistentvolumeclaim, namespace)`
-	queryZoneNetworkUsage     = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s] %s)) by (namespace,pod_name) / 1024 / 1024 / 1024`
-	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s] %s)) by (namespace,pod_name) / 1024 / 1024 / 1024`
-	queryInternetNetworkUsage = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s] %s)) by (namespace,pod_name) / 1024 / 1024 / 1024`
+						on (persistentvolumeclaim, namespace, cluster_id) group_right(storageclass, volumename) 
+				sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) by (persistentvolumeclaim, namespace, cluster_id)`
+	queryZoneNetworkUsage     = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
+	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
+	queryInternetNetworkUsage = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	normalizationStr          = `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[%s] %s))`
 )
 
@@ -434,7 +434,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		if pod.Status.Phase != v1.PodRunning {
 			continue
 		}
-		cs, err := newContainerMetricsFromPod(*pod)
+		cs, err := newContainerMetricsFromPod(*pod, clusterID)
 		if err != nil {
 			return nil, err
 		}
@@ -511,7 +511,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 				containerName := container.Name
 
 				// recreate the key and look up data for this container
-				newKey := newContainerMetricFromValues(ns, podName, containerName, pod.Spec.NodeName).Key()
+				newKey := newContainerMetricFromValues(ns, podName, containerName, pod.Spec.NodeName, clusterID).Key()
 
 				RAMReqV, ok := RAMReqMap[newKey]
 				if !ok {
@@ -1165,7 +1165,8 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		klog.V(1).Infof("Error parsing time " + windowString + ". Error: " + err.Error())
 		return nil, err
 	}
-	clusterName := cloud.ClusterName(cp)
+	clusterID := os.Getenv(clusterIDKey)
+
 	if remoteEnabled == true {
 		remoteLayout := "2006-01-02T15:04:05Z"
 		remoteStartStr := start.Format(remoteLayout)
@@ -1335,7 +1336,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		if pod.Status.Phase != v1.PodRunning {
 			continue
 		}
-		cs, err := newContainerMetricsFromPod(*pod)
+		cs, err := newContainerMetricsFromPod(*pod, clusterID)
 		if err != nil {
 			return nil, err
 		}
@@ -1373,14 +1374,14 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 			for _, vol := range podClaims {
 				if vol.PersistentVolumeClaim != nil {
 					name := vol.PersistentVolumeClaim.ClaimName
-					if pvClaim, ok := pvClaimMapping[ns+","+name]; ok {
+					if pvClaim, ok := pvClaimMapping[ns+","+name+","+clusterID]; ok {
 						podPVs = append(podPVs, pvClaim)
 					}
 				}
 			}
 
 			var podNetCosts []*Vector
-			if usage, ok := networkUsageMap[ns+","+podName]; ok {
+			if usage, ok := networkUsageMap[ns+","+podName+","+clusterID]; ok {
 				netCosts, err := GetNetworkCost(usage, cp)
 				if err != nil {
 					klog.V(3).Infof("Error pulling network costs: %s", err.Error())
@@ -1412,7 +1413,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 			for i, container := range pod.Spec.Containers {
 				containerName := container.Name
 
-				newKey := newContainerMetricFromValues(ns, podName, containerName, pod.Spec.NodeName).Key()
+				newKey := newContainerMetricFromValues(ns, podName, containerName, pod.Spec.NodeName, clusterID).Key()
 
 				RAMReqV, ok := RAMReqMap[newKey]
 				if !ok {
@@ -1467,7 +1468,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 					Labels:          podLabels,
 					NetworkData:     netReq,
 					NamespaceLabels: nsLabels,
-					ClusterID:       clusterName,
+					ClusterID:       clusterID,
 				}
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
@@ -1533,7 +1534,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 				CPUUsed:         CPUUsedV,
 				GPUReq:          GPUReqV,
 				NamespaceLabels: namespacelabels,
-				ClusterID:       clusterName,
+				ClusterID:       c.ClusterID,
 			}
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
@@ -1602,6 +1603,7 @@ type PersistentVolumeClaimData struct {
 	Class      string                `json:"class"`
 	Claim      string                `json:"claim"`
 	Namespace  string                `json:"namespace"`
+	ClusterID  string                `json:"clusterId"`
 	VolumeName string                `json:"volumeName"`
 	Volume     *costAnalyzerCloud.PV `json:"persistentVolume"`
 	Values     []*Vector             `json:"values"`
@@ -1713,6 +1715,16 @@ func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeClaimData, er
 		if !ok {
 			return nil, fmt.Errorf("StorageClass field improperly formatted")
 		}
+		cid, ok := metricMap["cluster_id"]
+		if !ok {
+			klog.V(4).Info("Prometheus vector does not have cluster id")
+			cid = ""
+		}
+		clusterID, ok := cid.(string)
+		if !ok {
+			return nil, fmt.Errorf("Prometheus vector does not have string cluster_id")
+		}
+
 		values, ok := val.(map[string]interface{})["values"].([]interface{})
 		if !ok {
 			return nil, fmt.Errorf("Values field is improperly formatted")
@@ -1731,11 +1743,12 @@ func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeClaimData, er
 				Value:     v,
 			})
 		}
-		key := pvnamespaceStr + "," + pvclaimStr
+		key := pvnamespaceStr + "," + pvclaimStr + "," + clusterID
 		pvmap[key] = &PersistentVolumeClaimData{
 			Class:      pvclassStr,
 			Claim:      pvclaimStr,
 			Namespace:  pvnamespaceStr,
+			ClusterID:  clusterID,
 			VolumeName: pvStr,
 			Values:     vectors,
 		}
@@ -1808,6 +1821,15 @@ func getPVInfoVector(qr interface{}) (map[string]*PersistentVolumeClaimData, err
 		if !ok {
 			return nil, fmt.Errorf("StorageClass field improperly formatted")
 		}
+		cid, ok := metricMap["cluster_id"]
+		if !ok {
+			klog.V(4).Info("Prometheus vector does not have cluster id")
+			cid = ""
+		}
+		clusterID, ok := cid.(string)
+		if !ok {
+			return nil, fmt.Errorf("Prometheus vector does not have string cluster_id")
+		}
 		dataPoint, ok := val.(map[string]interface{})["value"]
 		if !ok {
 			return nil, fmt.Errorf("Value field does not exist in data result vector")
@@ -1825,11 +1847,12 @@ func getPVInfoVector(qr interface{}) (map[string]*PersistentVolumeClaimData, err
 			Value:     v,
 		})
 
-		key := pvnamespaceStr + "," + pvclaimStr
+		key := pvnamespaceStr + "," + pvclaimStr + "," + clusterID
 		pvmap[key] = &PersistentVolumeClaimData{
 			Class:      pvclassStr,
 			Claim:      pvclaimStr,
 			Namespace:  pvnamespaceStr,
+			ClusterID:  clusterID,
 			VolumeName: pvStr,
 			Values:     vectors,
 		}
@@ -1927,35 +1950,38 @@ type ContainerMetric struct {
 	PodName       string
 	ContainerName string
 	NodeName      string
+	ClusterID     string
 }
 
 func (c *ContainerMetric) Key() string {
-	return c.Namespace + "," + c.PodName + "," + c.ContainerName + "," + c.NodeName
+	return c.Namespace + "," + c.PodName + "," + c.ContainerName + "," + c.NodeName + "," + c.ClusterID
 }
 
 func NewContainerMetricFromKey(key string) (*ContainerMetric, error) {
 	s := strings.Split(key, ",")
-	if len(s) == 4 {
+	if len(s) == 5 {
 		return &ContainerMetric{
 			Namespace:     s[0],
 			PodName:       s[1],
 			ContainerName: s[2],
 			NodeName:      s[3],
+			ClusterID:     s[4],
 		}, nil
 	}
 	return nil, fmt.Errorf("Not a valid key")
 }
 
-func newContainerMetricFromValues(ns string, podName string, containerName string, nodeName string) *ContainerMetric {
+func newContainerMetricFromValues(ns string, podName string, containerName string, nodeName string, clusterId string) *ContainerMetric {
 	return &ContainerMetric{
 		Namespace:     ns,
 		PodName:       podName,
 		ContainerName: containerName,
 		NodeName:      nodeName,
+		ClusterID:     clusterId,
 	}
 }
 
-func newContainerMetricsFromPod(pod v1.Pod) ([]*ContainerMetric, error) {
+func newContainerMetricsFromPod(pod v1.Pod, clusterID string) ([]*ContainerMetric, error) {
 	podName := pod.GetObjectMeta().GetName()
 	ns := pod.GetObjectMeta().GetNamespace()
 	node := pod.Spec.NodeName
@@ -1967,6 +1993,7 @@ func newContainerMetricsFromPod(pod v1.Pod) ([]*ContainerMetric, error) {
 			PodName:       podName,
 			ContainerName: containerName,
 			NodeName:      node,
+			ClusterID:     clusterID,
 		})
 	}
 	return cs, nil
@@ -2006,11 +2033,21 @@ func newContainerMetricFromPrometheus(metrics map[string]interface{}) (*Containe
 	if !ok {
 		return nil, fmt.Errorf("Prometheus vector does not have string node")
 	}
+	cid, ok := metrics["cluster_id"]
+	if !ok {
+		klog.V(4).Info("Prometheus vector does not have cluster id")
+		cid = ""
+	}
+	clusterID, ok := cid.(string)
+	if !ok {
+		return nil, fmt.Errorf("Prometheus vector does not have string cluster_id")
+	}
 	return &ContainerMetric{
 		ContainerName: containerName,
 		PodName:       podName,
 		Namespace:     namespace,
 		NodeName:      nodeName,
+		ClusterID:     clusterID,
 	}, nil
 }
 
