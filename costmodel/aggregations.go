@@ -290,7 +290,7 @@ func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discou
 			for _, val := range pvcData.Values {
 				pvv = append(pvv, &Vector{
 					Timestamp: math.Round(val.Timestamp/10) * 10,
-					Value:     ((val.Value / 1024 / 1024 / 1024) * cost * (1 - discount) / idleCoefficient) * rateCoeff,
+					Value:     ((val.Value / 1024 / 1024 / 1024) * cost / idleCoefficient) * rateCoeff,
 				})
 			}
 			pvvs = append(pvvs, pvv)
