@@ -5,9 +5,12 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"k8s.io/klog"
 
 	"gotest.tools/assert"
 
@@ -18,6 +21,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
 	prometheusClient "github.com/prometheus/client_golang/api"
@@ -25,23 +30,51 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 )
 
-func getDynamicKubernetesClient() (dynamic.Interface, error) {
-	var kubeconfig string
+var PrometheusEndpoint string
 
-	if home := homeDir(); home != "" {
-		kubeconfig = filepath.Join(home, ".kube", "config")
-	} else {
-		return nil, fmt.Errorf("Unable to find home directory")
+const PROMETHEUS_SERVER_ENDPOINT = "PROMETHEUS_SERVER_ENDPOINT"
+
+func homeDir() string {
+	if h := os.Getenv("HOME"); h != "" {
+		return h
 	}
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-	if err != nil {
-		return nil, err
-	}
-
-	return dynamic.NewForConfig(config)
-
+	return os.Getenv("USERPROFILE") // windows
 }
 
+func getKubernetesClient() (*kubernetes.Clientset, error) {
+	var kubeconfig string
+	config, err := rest.InClusterConfig()
+	if err != nil {
+
+		if home := homeDir(); home != "" {
+			kubeconfig = filepath.Join(home, ".kube", "config")
+		} else {
+			return nil, fmt.Errorf("Unable to find home directory")
+		}
+		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return kubernetes.NewForConfig(config)
+
+}
+func getDynamicKubernetesClient() (dynamic.Interface, error) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		var kubeconfig string
+		if home := homeDir(); home != "" {
+			kubeconfig = filepath.Join(home, ".kube", "config")
+		} else {
+			return nil, fmt.Errorf("Unable to find home directory")
+		}
+		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return dynamic.NewForConfig(config)
+}
 func TestPodUpDown(t *testing.T) {
 	client, err := getDynamicKubernetesClient()
 	if err != nil {
@@ -59,9 +92,9 @@ func TestPodUpDown(t *testing.T) {
 		}).DialContext,
 		TLSHandshakeTimeout: 10 * time.Second,
 	}
-
+	a := os.Getenv(PROMETHEUS_SERVER_ENDPOINT)
 	pc := prometheusClient.Config{
-		Address:      address,
+		Address:      a,
 		RoundTripper: LongTimeoutRoundTripper,
 	}
 	promCli, err := prometheusClient.NewClient(pc)
@@ -122,15 +155,18 @@ func TestPodUpDown(t *testing.T) {
 	labels["testaggregation"] = "foo"
 	namespace := &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   "test",
+			Name:   "test2",
 			Labels: labels,
 		},
 	}
+	klog.Infof("Creating namespace test2")
 	rclient.CoreV1().Namespaces().Create(namespace)
-	_, err = client.Resource(deploymentRes).Namespace("test").Create(deployment, metav1.CreateOptions{})
+	klog.Infof("Creating deployments in test2")
+	_, err = client.Resource(deploymentRes).Namespace("test2").Create(deployment, metav1.CreateOptions{})
 	if err != nil {
 		panic(err)
 	}
+	klog.Infof("Sleeping 5 minutes to wait for steady state.")
 	time.Sleep(5 * time.Minute)
 
 	qr := `label_replace(label_replace(container_cpu_allocation{container='web',namespace='test'}, "container_name", "$1", "container","(.+)"), "pod_name", "$1", "pod","(.+)")`
@@ -161,7 +197,7 @@ func TestPodUpDown(t *testing.T) {
 	deleteOptions := &metav1.DeleteOptions{
 		PropagationPolicy: &deletePolicy,
 	}
-	if err := client.Resource(deploymentRes).Namespace("test").Delete("demo-deployment", deleteOptions); err != nil {
+	if err := client.Resource(deploymentRes).Namespace("test2").Delete("demo-deployment", deleteOptions); err != nil {
 		panic(err)
 	}
 
