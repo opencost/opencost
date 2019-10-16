@@ -992,7 +992,15 @@ func init() {
 			}
 			thanosCli, _ := prometheusClient.NewClient(thanosConfig)
 
-			A.ThanosClient = thanosCli
+			_, err = ValidatePrometheus(thanosCli)
+			if err != nil {
+				klog.Fatalf("Failed to query Thanos at %s. Error: %s.", thanosUrl, err.Error())
+			} else {
+				klog.V(1).Info("Success: retrieved the 'up' query against Thanos at: " + thanosUrl)
+
+				A.ThanosClient = thanosCli
+			}
+
 		} else {
 			klog.Infof("Error resolving environment variable: $%s", thanosQueryUrl)
 		}

@@ -1882,6 +1882,10 @@ func Query(cli prometheusClient.Client, query string) (interface{}, error) {
 		klog.V(3).Infof("%s", w)
 	}
 	if err != nil {
+		if resp == nil {
+			return nil, fmt.Errorf("Error %s fetching query %s", err.Error(), query)
+		}
+
 		return nil, fmt.Errorf("%s Error %s fetching query %s", resp.StatusCode, err.Error(), query)
 	}
 	var toReturn interface{}
