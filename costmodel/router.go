@@ -180,7 +180,7 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 	fields := r.URL.Query().Get("filterFields")
 	namespace := r.URL.Query().Get("namespace")
 	aggregationField := r.URL.Query().Get("aggregation")
-	aggregationSubField := r.URL.Query().Get("aggregationSubfield")
+	subfields := strings.Split(r.URL.Query().Get("aggregationSubfield"), ",")
 
 	if offset != "" {
 		offset = "offset " + offset
@@ -191,13 +191,28 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 		c, err := a.Cloud.GetConfig()
 		if err != nil {
 			w.Write(wrapData(nil, err))
+			return
 		}
+
 		discount, err := strconv.ParseFloat(c.Discount[:len(c.Discount)-1], 64)
 		if err != nil {
 			w.Write(wrapData(nil, err))
+			return
 		}
 		discount = discount * 0.01
-		agg := AggregateCostModel(a.Cloud, data, aggregationField, aggregationSubField, false, discount, 1.0, nil)
+
+		dur, err := time.ParseDuration(window)
+		if err != nil {
+			w.Write(wrapData(nil, err))
+			return
+		}
+		// dataCount is the number of time series data expected for the given interval,
+		// which we compute because Prometheus time series vectors omit zero values.
+		// This assumes hourly data, incremented by one to capture the 0th data point.
+		dataCount := int64(dur.Hours()) + 1
+		klog.V(1).Infof("for duration %s dataCount = %d", dur.String(), dataCount)
+
+		agg := AggregateCostData(a.Cloud, data, dataCount, aggregationField, subfields, "", false, discount, 1.0, nil)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {
@@ -242,8 +257,8 @@ func (a *Accesses) ClusterCostsOverTime(w http.ResponseWriter, r *http.Request, 
 }
 
 // AggregateCostModel handles HTTP requests to the aggregated cost model API, which can be parametrized
-// by time period using window and offset, aggregation field using field and subfield (in cases like
-// field=label, subfield=app for grouping by label.app), and filtered by namespace.
+// by time period using window and offset, aggregation field and subfield (e.g. grouping by label.app
+// using aggregation=label, aggregationSubfield=app), and filtered by namespace and cluster.
 func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -253,8 +268,9 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	namespace := r.URL.Query().Get("namespace")
 	cluster := r.URL.Query().Get("cluster")
 	field := r.URL.Query().Get("aggregation")
-	subfield := r.URL.Query().Get("aggregationSubfield")
-	allocateIdle := r.URL.Query().Get("allocateIdle")
+	subfields := strings.Split(r.URL.Query().Get("aggregationSubfield"), ",")
+	rate := r.URL.Query().Get("rate")
+	allocateIdle := r.URL.Query().Get("allocateIdle") == "true"
 	sharedNamespaces := r.URL.Query().Get("sharedNamespaces")
 	sharedLabelNames := r.URL.Query().Get("sharedLabelNames")
 	sharedLabelValues := r.URL.Query().Get("sharedLabelValues")
@@ -272,6 +288,72 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	// then recompute and cache the requested data
 	clearCache := r.URL.Query().Get("clearCache") == "true"
 
+	// time window must be defined, whether by window and offset or by manually
+	// setting the start and end times as ISO time strings
+	var start, end string
+	var dur time.Duration
+	layout := "2006-01-02T15:04:05.000Z"
+	if window == "" {
+		start = r.URL.Query().Get("start")
+		startTime, err := time.Parse(layout, start)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write(wrapData(nil, fmt.Errorf("Invalid start parameter: %s", start)))
+			return
+		}
+
+		end = r.URL.Query().Get("end")
+		endTime, err := time.Parse(layout, end)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write(wrapData(nil, fmt.Errorf("Invalid end parameter: %s", end)))
+			return
+		}
+
+		dur = endTime.Sub(startTime)
+	} else {
+		// endTime defaults to the current time, unless an offset is explicity declared,
+		// in which case it shifts endTime back by given duration
+		endTime := time.Now()
+		if offset != "" {
+			o, err := time.ParseDuration(offset)
+			if err != nil {
+				klog.V(1).Infof("error parsing offset: %s", err)
+				w.Write(wrapData(nil, err))
+				return
+			}
+			endTime = endTime.Add(-1 * o)
+		}
+
+		// if window is defined in terms of days, convert to hours
+		// e.g. convert "2d" to "48h"
+		window, err := normalizeTimeParam(window)
+		if err != nil {
+			w.Write(wrapData(nil, err))
+			return
+		}
+
+		// convert time window into start and end times, formatted
+		// as ISO datetime strings
+		dur, err = time.ParseDuration(window)
+		if err != nil {
+			w.Write(wrapData(nil, err))
+			return
+		}
+		startTime := endTime.Add(-1 * dur)
+
+		start = startTime.Format(layout)
+		end = endTime.Format(layout)
+
+		klog.V(1).Infof("start: %s, end: %s", start, end)
+	}
+
+	// dataCount is the number of time series data expected for the given interval,
+	// which we compute because Prometheus time series vectors omit zero values.
+	// This assumes hourly data, incremented by one to capture the 0th data point.
+	dataCount := int64(dur.Hours()) + 1
+	klog.V(1).Infof("for duration %s dataCount = %d", dur.String(), dataCount)
+
 	// aggregation field is required
 	if field == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -280,45 +362,18 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	// aggregation subfield is required when aggregation field is "label"
-	if field == "label" && subfield == "" {
+	if field == "label" && len(subfields) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write(wrapData(nil, fmt.Errorf("Missing aggregation subfield parameter for aggregation by label")))
 		return
 	}
 
-	// endTime defaults to the current time, unless an offset is explicity declared,
-	// in which case it shifts endTime back by given duration
-	endTime := time.Now()
-	if offset != "" {
-		o, err := time.ParseDuration(offset)
-		if err != nil {
-			w.Write(wrapData(nil, err))
-			return
-		}
-
-		endTime = endTime.Add(-1 * o)
-	}
-
-	// if window is defined in terms of days, convert to hours
-	// e.g. convert "2d" to "48h"
-	window, err := normalizeTimeParam(window)
-	if err != nil {
-		w.Write(wrapData(nil, err))
+	// enforce one of four available rate options
+	if rate != "" && rate != "hourly" && rate != "daily" && rate != "monthly" {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(wrapData(nil, fmt.Errorf("If set, rate parameter must be one of: 'hourly', 'daily', 'monthly'")))
 		return
 	}
-
-	// convert time window into start and end times, formatted
-	// as ISO datetime strings
-	d, err := time.ParseDuration(window)
-	if err != nil {
-		w.Write(wrapData(nil, err))
-		return
-	}
-
-	startTime := endTime.Add(-1 * d)
-	layout := "2006-01-02T15:04:05.000Z"
-	start := startTime.Format(layout)
-	end := endTime.Format(layout)
 
 	// clear cache prior to checking the cache so that a clearCache=true
 	// request always returns a freshly computed value
@@ -326,7 +381,9 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		a.Cache.Flush()
 	}
 
-	aggKey := fmt.Sprintf("aggregate:%s:%s:%s:%s:%s:%s:%t", window, offset, namespace, cluster, field, subfield, timeSeries)
+	// parametrize cache key by all request parameters
+	aggKey := fmt.Sprintf("aggregate:%s:%s:%s:%s:%s:%s:%s:%t:%t",
+		window, offset, namespace, cluster, field, strings.Join(subfields, ","), rate, timeSeries, allocateIdle)
 
 	// check the cache for aggregated response; if cache is hit and not disabled, return response
 	if result, found := a.Cache.Get(aggKey); found && !disableCache {
@@ -351,6 +408,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 
 	data, err := a.Model.ComputeCostDataRange(pClient, a.KubeClientSet, a.Cloud, start, end, "1h", namespace, cluster, remoteEnabled)
 	if err != nil {
+		klog.V(1).Infof("error computing cost data range: start=%s, end=%s, err=%s", start, end, err)
 		w.Write(wrapData(nil, err))
 		return
 	}
@@ -368,10 +426,13 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	discount = discount * 0.01
 
 	idleCoefficient := 1.0
-	if allocateIdle == "true" {
-		idleCoefficient, err = ComputeIdleCoefficient(data, a.PrometheusClient, a.Cloud, discount, fmt.Sprintf("%dh", int(d.Hours())), offset)
+	if allocateIdle {
+		windowStr := fmt.Sprintf("%dh", int(dur.Hours()))
+		idleCoefficient, err = ComputeIdleCoefficient(data, a.PrometheusClient, a.Cloud, discount, windowStr, offset)
 		if err != nil {
+			klog.V(1).Infof("error computing idle coefficient: windowString=%s, offset=%s, err=%s", windowStr, offset, err)
 			w.Write(wrapData(nil, err))
+			return
 		}
 	}
 
@@ -395,7 +456,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	// aggregate cost model data by given fields and cache the result for the default expiration
-	result := AggregateCostModel(a.Cloud, data, field, subfield, timeSeries, discount, idleCoefficient, sr)
+	result := AggregateCostData(a.Cloud, data, dataCount, field, subfields, rate, timeSeries, discount, idleCoefficient, sr)
 	a.Cache.Set(aggKey, result, cache.DefaultExpiration)
 
 	w.Write(wrapDataWithMessage(result, nil, fmt.Sprintf("cache miss: %s", aggKey)))
@@ -412,7 +473,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	namespace := r.URL.Query().Get("namespace")
 	cluster := r.URL.Query().Get("cluster")
 	aggregationField := r.URL.Query().Get("aggregation")
-	aggregationSubField := r.URL.Query().Get("aggregationSubfield")
+	subfields := strings.Split(r.URL.Query().Get("aggregationSubfield"), ",")
 	remote := r.URL.Query().Get("remote")
 
 	remoteAvailable := os.Getenv(remoteEnabled)
@@ -437,13 +498,41 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 		c, err := a.Cloud.GetConfig()
 		if err != nil {
 			w.Write(wrapData(nil, err))
+			return
 		}
+
 		discount, err := strconv.ParseFloat(c.Discount[:len(c.Discount)-1], 64)
 		if err != nil {
 			w.Write(wrapData(nil, err))
 		}
 		discount = discount * 0.01
-		agg := AggregateCostModel(a.Cloud, data, aggregationField, aggregationSubField, false, discount, 1.0, nil)
+
+		layout := "2006-01-02T15:04:05.000Z"
+		startTime, err := time.Parse(layout, start)
+		if err != nil {
+			w.Write(wrapData(nil, err))
+			return
+		}
+		endTime, err := time.Parse(layout, end)
+		if err != nil {
+			w.Write(wrapData(nil, err))
+			return
+		}
+
+		dur := endTime.Sub(startTime)
+		if err != nil {
+			w.Write(wrapData(nil, err))
+			return
+		}
+		windowHrs, err := strconv.ParseInt(window[:len(window)-1], 10, 64)
+
+		// dataCount is the number of time series data expected for the given interval,
+		// which we compute because Prometheus time series vectors omit zero values.
+		// This assumes hourly data, incremented by one to capture the 0th data point.
+		dataCount := (int64(dur.Hours()) / windowHrs) + 1
+		klog.V(1).Infof("for duration %s dataCount = %d", dur.String(), dataCount)
+
+		agg := AggregateCostData(a.Cloud, data, dataCount, aggregationField, subfields, "", false, discount, 1.0, nil)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {

@@ -11,6 +11,8 @@ import (
 )
 
 func TestAggregation(t *testing.T) {
+	cp := &cloud.CustomProvider{}
+
 	cd1 := &costModel.CostData{
 		Namespace: "test1",
 		NodeName:  "testnode",
@@ -101,7 +103,14 @@ func TestAggregation(t *testing.T) {
 	costData := make(map[string]*costModel.CostData)
 	costData["test1,foo,nginx,testnode"] = cd1
 	costData["test1,bar,nginx,testnode"] = cd2
-	agg := costModel.AggregateCostModel(costData, "namespace", "", false, 0.0, 1.0, nil)
+
+	dataCount := int64(1)
+
+	field := "namespace"
+	subfields := []string{""}
+	rate := ""
+
+	agg := costModel.AggregateCostData(cp, costData, dataCount, field, subfields, rate, false, 0.0, 1.0, nil)
 	log.Printf("agg: %+v", agg["test1"])
 	assert.Equal(t, agg["test1"].TotalCost, 8.0)
 }
