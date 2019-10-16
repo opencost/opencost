@@ -369,7 +369,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		return nil, err
 	}
 
-	pvClaimMapping, err := getPVInfoVector(resultPVRequests)
+	pvClaimMapping, err := getPVInfoVector(resultPVRequests, clusterID)
 	if err != nil {
 		klog.Infof("Unable to get PV Data: %s", err.Error())
 	}
@@ -380,7 +380,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		}
 	}
 
-	networkUsageMap, err := GetNetworkUsageData(resultNetZoneRequests, resultNetRegionRequests, resultNetInternetRequests, false)
+	networkUsageMap, err := GetNetworkUsageData(resultNetZoneRequests, resultNetRegionRequests, resultNetInternetRequests, clusterID, false)
 	if err != nil {
 		klog.V(1).Infof("Unable to get Network Cost Data: %s", err.Error())
 		networkUsageMap = make(map[string]*NetworkUsageData)
@@ -1268,7 +1268,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		return nil, err
 	}
 
-	pvClaimMapping, err := getPVInfoVectors(resultPVRequests)
+	pvClaimMapping, err := getPVInfoVectors(resultPVRequests, clusterID)
 	if err != nil {
 		// Just log for compatibility with KSM less than 1.6
 		klog.Infof("Unable to get PV Data: %s", err.Error())
@@ -1280,7 +1280,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		}
 	}
 
-	networkUsageMap, err := GetNetworkUsageData(resultNetZoneRequests, resultNetRegionRequests, resultNetInternetRequests, true)
+	networkUsageMap, err := GetNetworkUsageData(resultNetZoneRequests, resultNetRegionRequests, resultNetInternetRequests, clusterID, true)
 	if err != nil {
 		klog.V(1).Infof("Unable to get Network Cost Data: %s", err.Error())
 		networkUsageMap = make(map[string]*NetworkUsageData)
@@ -1644,7 +1644,7 @@ func getCost(qr interface{}) (map[string][]*Vector, error) {
 	return toReturn, nil
 }
 
-func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeClaimData, error) {
+func getPVInfoVectors(qr interface{}, defaultClusterID string) (map[string]*PersistentVolumeClaimData, error) {
 	pvmap := make(map[string]*PersistentVolumeClaimData)
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
@@ -1712,7 +1712,7 @@ func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeClaimData, er
 		cid, ok := metricMap["cluster_id"]
 		if !ok {
 			klog.V(4).Info("Prometheus vector does not have cluster id")
-			cid = ""
+			cid = defaultClusterID
 		}
 		clusterID, ok := cid.(string)
 		if !ok {
@@ -1750,7 +1750,7 @@ func getPVInfoVectors(qr interface{}) (map[string]*PersistentVolumeClaimData, er
 	return pvmap, nil
 }
 
-func getPVInfoVector(qr interface{}) (map[string]*PersistentVolumeClaimData, error) {
+func getPVInfoVector(qr interface{}, defaultClusterID string) (map[string]*PersistentVolumeClaimData, error) {
 	pvmap := make(map[string]*PersistentVolumeClaimData)
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
@@ -1818,7 +1818,7 @@ func getPVInfoVector(qr interface{}) (map[string]*PersistentVolumeClaimData, err
 		cid, ok := metricMap["cluster_id"]
 		if !ok {
 			klog.V(4).Info("Prometheus vector does not have cluster id")
-			cid = ""
+			cid = defaultClusterID
 		}
 		clusterID, ok := cid.(string)
 		if !ok {

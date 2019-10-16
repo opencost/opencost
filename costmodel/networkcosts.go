@@ -29,8 +29,8 @@ type NetworkUsageVector struct {
 
 // GetNetworkUsageData performs a join of the the results of zone, region, and internet usage queries to return a single
 // map containing network costs for each namespace+pod
-func GetNetworkUsageData(zr interface{}, rr interface{}, ir interface{}, isRange bool) (map[string]*NetworkUsageData, error) {
-	var vectorFn func(interface{}) (map[string]*NetworkUsageVector, error)
+func GetNetworkUsageData(zr interface{}, rr interface{}, ir interface{}, defaultClusterID string, isRange bool) (map[string]*NetworkUsageData, error) {
+	var vectorFn func(interface{}, string) (map[string]*NetworkUsageVector, error)
 
 	if isRange {
 		vectorFn = getNetworkUsageVectors
@@ -38,17 +38,17 @@ func GetNetworkUsageData(zr interface{}, rr interface{}, ir interface{}, isRange
 		vectorFn = getNetworkUsageVector
 	}
 
-	zoneNetworkMap, err := vectorFn(zr)
+	zoneNetworkMap, err := vectorFn(zr, defaultClusterID)
 	if err != nil {
 		return nil, err
 	}
 
-	regionNetworkMap, err := vectorFn(rr)
+	regionNetworkMap, err := vectorFn(rr, defaultClusterID)
 	if err != nil {
 		return nil, err
 	}
 
-	internetNetworkMap, err := vectorFn(ir)
+	internetNetworkMap, err := vectorFn(ir, defaultClusterID)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +147,7 @@ func GetNetworkCost(usage *NetworkUsageData, cloud costAnalyzerCloud.Provider) (
 	return results, nil
 }
 
-func getNetworkUsageVector(qr interface{}) (map[string]*NetworkUsageVector, error) {
+func getNetworkUsageVector(qr interface{}, defaultClusterID string) (map[string]*NetworkUsageVector, error) {
 	ncdmap := make(map[string]*NetworkUsageVector)
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
@@ -197,7 +197,7 @@ func getNetworkUsageVector(qr interface{}) (map[string]*NetworkUsageVector, erro
 		cid, ok := metricMap["cluster_id"]
 		if !ok {
 			klog.V(4).Info("Prometheus vector does not have cluster id")
-			cid = ""
+			cid = defaultClusterID
 		}
 		clusterID, ok := cid.(string)
 		if !ok {
@@ -234,7 +234,7 @@ func getNetworkUsageVector(qr interface{}) (map[string]*NetworkUsageVector, erro
 	return ncdmap, nil
 }
 
-func getNetworkUsageVectors(qr interface{}) (map[string]*NetworkUsageVector, error) {
+func getNetworkUsageVectors(qr interface{}, defaultClusterID string) (map[string]*NetworkUsageVector, error) {
 	ncdmap := make(map[string]*NetworkUsageVector)
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
@@ -284,7 +284,7 @@ func getNetworkUsageVectors(qr interface{}) (map[string]*NetworkUsageVector, err
 		cid, ok := metricMap["cluster_id"]
 		if !ok {
 			klog.V(4).Info("Prometheus vector does not have cluster id")
-			cid = ""
+			cid = defaultClusterID
 		}
 		clusterID, ok := cid.(string)
 		if !ok {
