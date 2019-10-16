@@ -478,14 +478,14 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 			for _, vol := range podClaims {
 				if vol.PersistentVolumeClaim != nil {
 					name := vol.PersistentVolumeClaim.ClaimName
-					if pvClaim, ok := pvClaimMapping[ns+","+name]; ok {
+					if pvClaim, ok := pvClaimMapping[ns+","+name+","+clusterID]; ok {
 						podPVs = append(podPVs, pvClaim)
 					}
 				}
 			}
 
 			var podNetCosts []*Vector
-			if usage, ok := networkUsageMap[ns+","+podName]; ok {
+			if usage, ok := networkUsageMap[ns+","+podName+","+clusterID]; ok {
 				netCosts, err := GetNetworkCost(usage, cp)
 				if err != nil {
 					klog.V(3).Infof("Error pulling network costs: %s", err.Error())
