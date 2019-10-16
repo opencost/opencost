@@ -117,7 +117,7 @@ func resultToTotal(qr interface{}) ([][]string, error) {
 	return totals, nil
 }
 
-// ClusterCostsOverTime gives the current full cluster costs averaged over a window of time.
+// ClusterCosts gives the current full cluster costs averaged over a window of time.
 func ClusterCosts(cli prometheusClient.Client, cloud costAnalyzerCloud.Provider, windowString, offset string) (*Totals, error) {
 
 	localStorageQuery, err := cloud.GetLocalStorageQuery()
@@ -126,6 +126,11 @@ func ClusterCosts(cli prometheusClient.Client, cloud costAnalyzerCloud.Provider,
 	}
 	if localStorageQuery != "" {
 		localStorageQuery = fmt.Sprintf("+ %s", localStorageQuery)
+	}
+
+	// turn offsets of the format "[0-9+]h" into the format "offset [0-9+]h" for use in query templatess
+	if offset != "" {
+		offset = fmt.Sprintf("offset %s", offset)
 	}
 
 	qCores := fmt.Sprintf(queryClusterCores, offset, offset, offset)
@@ -178,7 +183,6 @@ func ClusterCosts(cli prometheusClient.Client, cloud costAnalyzerCloud.Provider,
 		MemCost:     ramTotal,
 		StorageCost: storageTotal,
 	}, nil
-
 }
 
 // ClusterCostsOverTime gives the full cluster costs over time
