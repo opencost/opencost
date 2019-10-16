@@ -1398,9 +1398,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 			}
 
 			for k, v := range nsLabels {
-				if _, ok := podLabels[k]; !ok {
-					podLabels[k] = v
-				}
+				podLabels[k] = v
 			}
 
 			for i, container := range pod.Spec.Containers {
