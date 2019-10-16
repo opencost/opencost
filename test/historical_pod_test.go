@@ -190,11 +190,13 @@ func TestPodUpDown(t *testing.T) {
 	log.Printf("Starting at %s \n", startStr)
 	log.Printf("Ending at %s \n", endStr)
 	provider.DownloadPricingData()
+
 	data, err := cm.ComputeCostDataRange(promCli, rclient, provider, startStr, endStr, "1m", "", "", false)
 	if err != nil {
 		panic(err)
 	}
-	agg := costModel.AggregateCostModel(data, "namespace", "", false, 0.0, 1.0, nil)
+
+	agg := costModel.AggregateCostData(provider, data, 1, "namespace", []string{""}, "", false, 0.0, 1.0, nil)
 	_, ok := agg["test"]
 	assert.Assert(t, ok)
 
@@ -202,11 +204,12 @@ func TestPodUpDown(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	agg2 := costModel.AggregateCostModel(data2, "namespace", "", false, 0.0, 1.0, nil)
+
+	agg2 := costModel.AggregateCostData(provider, data2, 1, "namespace", []string{""}, "", false, 0.0, 1.0, nil)
 	_, ok2 := agg2["test"]
 	assert.Assert(t, ok2)
 
-	agg3 := costModel.AggregateCostModel(data, "label", "testaggregation", false, 0.0, 1.0, nil)
+	agg3 := costModel.AggregateCostData(provider, data, 1, "label", []string{"testaggregation"}, "", false, 0.0, 1.0, nil)
 	_, ok3 := agg3["foo"]
 	assert.Assert(t, ok3)
 }
