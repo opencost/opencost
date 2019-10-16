@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -84,6 +85,7 @@ type CostData struct {
 	Labels          map[string]string            `json:"labels,omitempty"`
 	NamespaceLabels map[string]string            `json:"namespaceLabels,omitempty"`
 	ClusterID       string                       `json:"clusterId"`
+	ClusterName     string                       `json:"clusterName"`
 }
 
 type Vector struct {
@@ -267,7 +269,9 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, window, "")
 	normalization := fmt.Sprintf(normalizationStr, window, offset)
 
-	// Retrieve cluster ID from cloud provider's cluster info
+	// Retrieve cluster ID environment
+	clusterID := os.Getenv(clusterIDKey)
+	// Retrieve cluster name from provider
 	clusterName := cloud.ClusterName(cp)
 
 	var wg sync.WaitGroup
@@ -562,7 +566,8 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 					NetworkData:     netReq,
 					Labels:          podLabels,
 					NamespaceLabels: nsLabels,
-					ClusterID:       clusterName,
+					ClusterID:       clusterID,
+					ClusterName:     clusterName,
 				}
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
@@ -631,7 +636,8 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 				CPUUsed:         CPUUsedV,
 				GPUReq:          GPUReqV,
 				NamespaceLabels: namespacelabels,
-				ClusterID:       clusterName,
+				ClusterID:       clusterID,
+				ClusterName:     clusterName,
 			}
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
