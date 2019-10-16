@@ -38,8 +38,10 @@ const (
 	epConfig          = apiPrefix + "/status/config"
 	epFlags           = apiPrefix + "/status/flags"
 
-	clusterIDKey  = "CLUSTER_ID"
-	remoteEnabled = "REMOTE_WRITE_ENABLED"
+	clusterIDKey   = "CLUSTER_ID"
+	remoteEnabled  = "REMOTE_WRITE_ENABLED"
+	thanosEnabled  = "THANOS_ENABLED"
+	thanosQueryUrl = "THANOS_QUERY_URL"
 )
 
 type CostModel struct {
@@ -1880,6 +1882,10 @@ func Query(cli prometheusClient.Client, query string) (interface{}, error) {
 		klog.V(3).Infof("%s", w)
 	}
 	if err != nil {
+		if resp == nil {
+			return nil, fmt.Errorf("Error %s fetching query %s", err.Error(), query)
+		}
+
 		return nil, fmt.Errorf("%s Error %s fetching query %s", resp.StatusCode, err.Error(), query)
 	}
 	var toReturn interface{}
