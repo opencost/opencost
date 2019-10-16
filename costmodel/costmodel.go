@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/kubecost/cost-model/cloud"
 	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	v1 "k8s.io/api/core/v1"
@@ -267,8 +267,8 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, window, "")
 	normalization := fmt.Sprintf(normalizationStr, window, offset)
 
-	// Retrieve cluster ID from cloud provider's cluster info
-	clusterName := cloud.ClusterName(cp)
+	// Cluster ID is specific to the source cluster
+	clusterID := os.Getenv(clusterIDKey)
 
 	var wg sync.WaitGroup
 	wg.Add(11)
@@ -562,7 +562,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 					NetworkData:     netReq,
 					Labels:          podLabels,
 					NamespaceLabels: nsLabels,
-					ClusterID:       clusterName,
+					ClusterID:       clusterID,
 				}
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
@@ -631,7 +631,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 				CPUUsed:         CPUUsedV,
 				GPUReq:          GPUReqV,
 				NamespaceLabels: namespacelabels,
-				ClusterID:       clusterName,
+				ClusterID:       c.ClusterID,
 			}
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
 			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
