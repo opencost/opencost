@@ -6,10 +6,12 @@ import (
 	"strconv"
 
 	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
+	"k8s.io/klog"
 )
 
 // NetworkUsageVNetworkUsageDataector contains the network usage values for egress network traffic
 type NetworkUsageData struct {
+	ClusterID             string
 	PodName               string
 	Namespace             string
 	NetworkZoneEgress     []*Vector
@@ -19,6 +21,7 @@ type NetworkUsageData struct {
 
 // NetworkUsageVector contains a network usage vector for egress network traffic
 type NetworkUsageVector struct {
+	ClusterID string
 	PodName   string
 	Namespace string
 	Values    []*Vector
@@ -26,8 +29,8 @@ type NetworkUsageVector struct {
 
 // GetNetworkUsageData performs a join of the the results of zone, region, and internet usage queries to return a single
 // map containing network costs for each namespace+pod
-func GetNetworkUsageData(zr interface{}, rr interface{}, ir interface{}, isRange bool) (map[string]*NetworkUsageData, error) {
-	var vectorFn func(interface{}) (map[string]*NetworkUsageVector, error)
+func GetNetworkUsageData(zr interface{}, rr interface{}, ir interface{}, defaultClusterID string, isRange bool) (map[string]*NetworkUsageData, error) {
+	var vectorFn func(interface{}, string) (map[string]*NetworkUsageVector, error)
 
 	if isRange {
 		vectorFn = getNetworkUsageVectors
@@ -35,17 +38,17 @@ func GetNetworkUsageData(zr interface{}, rr interface{}, ir interface{}, isRange
 		vectorFn = getNetworkUsageVector
 	}
 
-	zoneNetworkMap, err := vectorFn(zr)
+	zoneNetworkMap, err := vectorFn(zr, defaultClusterID)
 	if err != nil {
 		return nil, err
 	}
 
-	regionNetworkMap, err := vectorFn(rr)
+	regionNetworkMap, err := vectorFn(rr, defaultClusterID)
 	if err != nil {
 		return nil, err
 	}
 
-	internetNetworkMap, err := vectorFn(ir)
+	internetNetworkMap, err := vectorFn(ir, defaultClusterID)
 	if err != nil {
 		return nil, err
 	}
@@ -55,6 +58,7 @@ func GetNetworkUsageData(zr interface{}, rr interface{}, ir interface{}, isRange
 		existing, ok := usageData[k]
 		if !ok {
 			usageData[k] = &NetworkUsageData{
+				ClusterID:         v.ClusterID,
 				PodName:           v.PodName,
 				Namespace:         v.Namespace,
 				NetworkZoneEgress: v.Values,
@@ -69,6 +73,7 @@ func GetNetworkUsageData(zr interface{}, rr interface{}, ir interface{}, isRange
 		existing, ok := usageData[k]
 		if !ok {
 			usageData[k] = &NetworkUsageData{
+				ClusterID:           v.ClusterID,
 				PodName:             v.PodName,
 				Namespace:           v.Namespace,
 				NetworkRegionEgress: v.Values,
@@ -83,6 +88,7 @@ func GetNetworkUsageData(zr interface{}, rr interface{}, ir interface{}, isRange
 		existing, ok := usageData[k]
 		if !ok {
 			usageData[k] = &NetworkUsageData{
+				ClusterID:             v.ClusterID,
 				PodName:               v.PodName,
 				Namespace:             v.Namespace,
 				NetworkInternetEgress: v.Values,
@@ -141,7 +147,7 @@ func GetNetworkCost(usage *NetworkUsageData, cloud costAnalyzerCloud.Provider) (
 	return results, nil
 }
 
-func getNetworkUsageVector(qr interface{}) (map[string]*NetworkUsageVector, error) {
+func getNetworkUsageVector(qr interface{}, defaultClusterID string) (map[string]*NetworkUsageVector, error) {
 	ncdmap := make(map[string]*NetworkUsageVector)
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
@@ -172,7 +178,6 @@ func getNetworkUsageVector(qr interface{}) (map[string]*NetworkUsageVector, erro
 		if !ok {
 			return nil, fmt.Errorf("Metric field is improperly formatted")
 		}
-
 		podName, ok := metricMap["pod_name"]
 		if !ok {
 			return nil, fmt.Errorf("Pod Name does not exist in data result vector")
@@ -188,6 +193,15 @@ func getNetworkUsageVector(qr interface{}) (map[string]*NetworkUsageVector, erro
 		namespaceStr, ok := namespace.(string)
 		if !ok {
 			return nil, fmt.Errorf("Namespace field improperly formatted")
+		}
+		cid, ok := metricMap["cluster_id"]
+		if !ok {
+			klog.V(4).Info("Prometheus vector does not have cluster id")
+			cid = defaultClusterID
+		}
+		clusterID, ok := cid.(string)
+		if !ok {
+			return nil, fmt.Errorf("Prometheus vector does not have string cluster_id")
 		}
 		dataPoint, ok := val.(map[string]interface{})["value"]
 		if !ok {
@@ -209,8 +223,9 @@ func getNetworkUsageVector(qr interface{}) (map[string]*NetworkUsageVector, erro
 			Value:     v,
 		})
 
-		key := namespaceStr + "," + podNameStr
+		key := namespaceStr + "," + podNameStr + "," + clusterID
 		ncdmap[key] = &NetworkUsageVector{
+			ClusterID: clusterID,
 			Namespace: namespaceStr,
 			PodName:   podNameStr,
 			Values:    vectors,
@@ -219,7 +234,7 @@ func getNetworkUsageVector(qr interface{}) (map[string]*NetworkUsageVector, erro
 	return ncdmap, nil
 }
 
-func getNetworkUsageVectors(qr interface{}) (map[string]*NetworkUsageVector, error) {
+func getNetworkUsageVectors(qr interface{}, defaultClusterID string) (map[string]*NetworkUsageVector, error) {
 	ncdmap := make(map[string]*NetworkUsageVector)
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
@@ -250,7 +265,6 @@ func getNetworkUsageVectors(qr interface{}) (map[string]*NetworkUsageVector, err
 		if !ok {
 			return nil, fmt.Errorf("Metric field is improperly formatted")
 		}
-
 		podName, ok := metricMap["pod_name"]
 		if !ok {
 			return nil, fmt.Errorf("Pod Name does not exist in data result vector")
@@ -267,6 +281,16 @@ func getNetworkUsageVectors(qr interface{}) (map[string]*NetworkUsageVector, err
 		if !ok {
 			return nil, fmt.Errorf("Namespace field improperly formatted")
 		}
+		cid, ok := metricMap["cluster_id"]
+		if !ok {
+			klog.V(4).Info("Prometheus vector does not have cluster id")
+			cid = defaultClusterID
+		}
+		clusterID, ok := cid.(string)
+		if !ok {
+			return nil, fmt.Errorf("Prometheus vector does not have string cluster_id")
+		}
+
 		values, ok := val.(map[string]interface{})["values"].([]interface{})
 		if !ok {
 			return nil, fmt.Errorf("Values field is improperly formatted")
@@ -286,8 +310,9 @@ func getNetworkUsageVectors(qr interface{}) (map[string]*NetworkUsageVector, err
 			})
 		}
 
-		key := namespaceStr + "," + podNameStr
+		key := namespaceStr + "," + podNameStr + "," + clusterID
 		ncdmap[key] = &NetworkUsageVector{
+			ClusterID: clusterID,
 			Namespace: namespaceStr,
 			PodName:   podNameStr,
 			Values:    vectors,
