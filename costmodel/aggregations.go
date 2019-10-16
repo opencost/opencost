@@ -12,24 +12,25 @@ import (
 )
 
 type Aggregation struct {
-	Aggregator    string    `json:"aggregation"`
-	Subfields     []string  `json:"subfields"`
-	Environment   string    `json:"environment"`
-	Cluster       string    `json:"cluster"`
-	CPUAllocation []*Vector `json:"-"`
-	CPUCostVector []*Vector `json:"cpuCostVector,omitempty"`
-	RAMAllocation []*Vector `json:"-"`
-	RAMCostVector []*Vector `json:"ramCostVector,omitempty"`
-	PVCostVector  []*Vector `json:"pvCostVector,omitempty"`
-	GPUAllocation []*Vector `json:"-"`
-	GPUCostVector []*Vector `json:"gpuCostVector,omitempty"`
-	CPUCost       float64   `json:"cpuCost"`
-	RAMCost       float64   `json:"ramCost"`
-	GPUCost       float64   `json:"gpuCost"`
-	PVCost        float64   `json:"pvCost"`
-	NetworkCost   float64   `json:"networkCost"`
-	SharedCost    float64   `json:"sharedCost"`
-	TotalCost     float64   `json:"totalCost"`
+	Aggregator        string    `json:"aggregation"`
+	Subfields         []string  `json:"subfields"`
+	Environment       string    `json:"environment"`
+	Cluster           string    `json:"cluster"`
+	CPUAllocation     []*Vector `json:"-"`
+	CPUCostVector     []*Vector `json:"cpuCostVector,omitempty"`
+	RAMAllocation     []*Vector `json:"-"`
+	RAMCostVector     []*Vector `json:"ramCostVector,omitempty"`
+	PVCostVector      []*Vector `json:"pvCostVector,omitempty"`
+	GPUAllocation     []*Vector `json:"-"`
+	GPUCostVector     []*Vector `json:"gpuCostVector,omitempty"`
+	NetworkCostVector []*Vector `json:"networkCostVector,omitempty"`
+	CPUCost           float64   `json:"cpuCost"`
+	RAMCost           float64   `json:"ramCost"`
+	GPUCost           float64   `json:"gpuCost"`
+	PVCost            float64   `json:"pvCost"`
+	NetworkCost       float64   `json:"networkCost"`
+	SharedCost        float64   `json:"sharedCost"`
+	TotalCost         float64   `json:"totalCost"`
 }
 
 const (
@@ -90,10 +91,11 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 	totalContainerCost := 0.0
 	for _, costDatum := range costData {
 		// TODO does this need to be parametrized by rate when a rate is set?
-		cpuv, ramv, gpuv, pvvs := getPriceVectors(cp, costDatum, "", discount, 1)
+		cpuv, ramv, gpuv, pvvs, netv := getPriceVectors(cp, costDatum, "", discount, 1)
 		totalContainerCost += totalVector(cpuv)
 		totalContainerCost += totalVector(ramv)
 		totalContainerCost += totalVector(gpuv)
+		totalContainerCost += totalVector(netv)
 		for _, pv := range pvvs {
 			totalContainerCost += totalVector(pv)
 		}
@@ -115,10 +117,11 @@ func AggregateCostData(cp cloud.Provider, costData map[string]*CostData, dataCou
 
 	for _, costDatum := range costData {
 		if sr != nil && sr.ShareResources && sr.IsSharedResource(costDatum) {
-			cpuv, ramv, gpuv, pvvs := getPriceVectors(cp, costDatum, rate, discount, idleCoefficient)
+			cpuv, ramv, gpuv, pvvs, netv := getPriceVectors(cp, costDatum, rate, discount, idleCoefficient)
 			sharedResourceCost += totalVector(cpuv)
 			sharedResourceCost += totalVector(ramv)
 			sharedResourceCost += totalVector(gpuv)
+			sharedResourceCost += totalVector(netv)
 			for _, pv := range pvvs {
 				sharedResourceCost += totalVector(pv)
 			}
@@ -153,6 +156,7 @@ func AggregateCostData(cp cloud.Provider, costData map[string]*CostData, dataCou
 		agg.RAMCost = totalVector(agg.RAMCostVector)
 		agg.GPUCost = totalVector(agg.GPUCostVector)
 		agg.PVCost = totalVector(agg.PVCostVector)
+		agg.NetworkCost = totalVector(agg.NetworkCostVector)
 		agg.SharedCost = sharedResourceCost / float64(len(aggregations))
 
 		if rate != "" {
@@ -163,18 +167,20 @@ func AggregateCostData(cp cloud.Provider, costData map[string]*CostData, dataCou
 				agg.RAMCost /= float64(dataCount)
 				agg.GPUCost /= float64(dataCount)
 				agg.PVCost /= float64(dataCount)
+				agg.NetworkCost /= float64(dataCount)
 				agg.SharedCost /= float64(dataCount)
 			}
 		}
 
-		agg.TotalCost = agg.CPUCost + agg.RAMCost + agg.GPUCost + agg.PVCost + agg.SharedCost
+		agg.TotalCost = agg.CPUCost + agg.RAMCost + agg.GPUCost + agg.PVCost + agg.NetworkCost + agg.SharedCost
 
 		// remove time series data if it is not explicitly requested
 		if !timeSeries {
 			agg.CPUCostVector = nil
 			agg.RAMCostVector = nil
-			agg.PVCostVector = nil
 			agg.GPUCostVector = nil
+			agg.PVCostVector = nil
+			agg.NetworkCostVector = nil
 		}
 	}
 
@@ -203,16 +209,17 @@ func mergeVectors(cp cloud.Provider, costDatum *CostData, aggregation *Aggregati
 	aggregation.RAMAllocation = addVectors(costDatum.RAMAllocation, aggregation.RAMAllocation)
 	aggregation.GPUAllocation = addVectors(costDatum.GPUReq, aggregation.GPUAllocation)
 
-	cpuv, ramv, gpuv, pvvs := getPriceVectors(cp, costDatum, rate, discount, idleCoefficient)
+	cpuv, ramv, gpuv, pvvs, netv := getPriceVectors(cp, costDatum, rate, discount, idleCoefficient)
 	aggregation.CPUCostVector = addVectors(cpuv, aggregation.CPUCostVector)
 	aggregation.RAMCostVector = addVectors(ramv, aggregation.RAMCostVector)
 	aggregation.GPUCostVector = addVectors(gpuv, aggregation.GPUCostVector)
+	aggregation.NetworkCostVector = addVectors(netv, aggregation.NetworkCostVector)
 	for _, vectorList := range pvvs {
 		aggregation.PVCostVector = addVectors(aggregation.PVCostVector, vectorList)
 	}
 }
 
-func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discount float64, idleCoefficient float64) ([]*Vector, []*Vector, []*Vector, [][]*Vector) {
+func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discount float64, idleCoefficient float64) ([]*Vector, []*Vector, []*Vector, [][]*Vector, []*Vector) {
 	cpuCostStr := costDatum.NodeData.VCPUCost
 	ramCostStr := costDatum.NodeData.RAMCost
 	gpuCostStr := costDatum.NodeData.GPUCost
@@ -299,6 +306,8 @@ func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discou
 			pvvs = append(pvvs, pvv)
 		}
 	}
+
+	netv := costDatum.NetworkData
 
 	return cpuv, ramv, gpuv, pvvs, netv
 }
