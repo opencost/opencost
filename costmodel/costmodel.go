@@ -74,9 +74,9 @@ type CostData struct {
 	Jobs            []string                     `json:"jobs,omitempty"`
 	RAMReq          []*Vector                    `json:"ramreq,omitempty"`
 	RAMUsed         []*Vector                    `json:"ramused,omitempty"`
+	RAMAllocation   []*Vector                    `json:"ramallocated,omitempty"`
 	CPUReq          []*Vector                    `json:"cpureq,omitempty"`
 	CPUUsed         []*Vector                    `json:"cpuused,omitempty"`
-	RAMAllocation   []*Vector                    `json:"ramallocated,omitempty"`
 	CPUAllocation   []*Vector                    `json:"cpuallocated,omitempty"`
 	GPUReq          []*Vector                    `json:"gpureq,omitempty"`
 	PVCData         []*PersistentVolumeClaimData `json:"pvcData,omitempty"`
@@ -1873,7 +1873,7 @@ func QueryRange(cli prometheusClient.Client, query string, start, end time.Time,
 		klog.V(3).Infof("%s", w)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("%s Error %s fetching query %s", resp.StatusCode, err.Error(), query)
+		return nil, fmt.Errorf("%d Error %s fetching query %s", resp.StatusCode, err.Error(), query)
 	}
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
@@ -1903,7 +1903,7 @@ func Query(cli prometheusClient.Client, query string) (interface{}, error) {
 			return nil, fmt.Errorf("Error %s fetching query %s", err.Error(), query)
 		}
 
-		return nil, fmt.Errorf("%s Error %s fetching query %s", resp.StatusCode, err.Error(), query)
+		return nil, fmt.Errorf("%d Error %s fetching query %s", resp.StatusCode, err.Error(), query)
 	}
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)

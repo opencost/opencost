@@ -232,7 +232,7 @@ func TestPodUpDown(t *testing.T) {
 		panic(err)
 	}
 
-	agg := costModel.AggregateCostData(provider, data, 1, "namespace", []string{""}, "", false, 0.0, 1.0, nil)
+	agg := costModel.AggregateCostData(data, "namespace", []string{""}, provider, nil)
 	_, ok := agg["test"]
 	assert.Assert(t, ok)
 
@@ -241,11 +241,11 @@ func TestPodUpDown(t *testing.T) {
 		panic(err)
 	}
 
-	agg2 := costModel.AggregateCostData(provider, data2, 1, "namespace", []string{""}, "", false, 0.0, 1.0, nil)
+	agg2 := costModel.AggregateCostData(data2, "namespace", []string{""}, provider, nil)
 	_, ok2 := agg2["test"]
 	assert.Assert(t, ok2)
 
-	agg3 := costModel.AggregateCostData(provider, data, 1, "label", []string{"testaggregation"}, "", false, 0.0, 1.0, nil)
+	agg3 := costModel.AggregateCostData(data, "label", []string{"testaggregation"}, provider, nil)
 	_, ok3 := agg3["foo"]
 	assert.Assert(t, ok3)
 }
