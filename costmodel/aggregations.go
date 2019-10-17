@@ -83,18 +83,29 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 	if err != nil {
 		return 0.0, err
 	}
-	totalClusterCost, err := strconv.ParseFloat(totals.TotalCost[0][1], 64)
+	cpuCost, err := strconv.ParseFloat(totals.CPUCost[0][1], 64)
+	if err != nil {
+		return 0.0, err
+	}
+	memCost, err := strconv.ParseFloat(totals.MemCost[0][1], 64)
+	if err != nil {
+		return 0.0, err
+	}
+	storageCost, err := strconv.ParseFloat(totals.StorageCost[0][1], 64)
+	if err != nil {
+		return 0.0, err
+	}
+	totalClusterCost := (cpuCost * (1 - discount)) + (memCost * (1 - discount)) + storageCost
 	if err != nil || totalClusterCost == 0.0 {
 		return 0.0, err
 	}
-	totalClusterCostOverWindow := (totalClusterCost / 730) * windowDuration.Hours() * (1 - discount)
+	totalClusterCostOverWindow := (totalClusterCost / 730) * windowDuration.Hours()
 	totalContainerCost := 0.0
 	for _, costDatum := range costData {
-		cpuv, ramv, gpuv, pvvs, netv := getPriceVectors(cp, costDatum, "", discount, 1)
+		cpuv, ramv, gpuv, pvvs, _ := getPriceVectors(cp, costDatum, "", discount, 1)
 		totalContainerCost += totalVector(cpuv)
 		totalContainerCost += totalVector(ramv)
 		totalContainerCost += totalVector(gpuv)
-		totalContainerCost += totalVector(netv)
 		for _, pv := range pvvs {
 			totalContainerCost += totalVector(pv)
 		}
