@@ -15,7 +15,7 @@ type Aggregation struct {
 	Aggregator        string    `json:"aggregation"`
 	Subfields         []string  `json:"subfields"`
 	Environment       string    `json:"environment"`
-	Cluster           string    `json:"cluster"`
+	Cluster           string    `json:"cluster,omitempty"`
 	CPUAllocation     []*Vector `json:"-"`
 	CPUCostVector     []*Vector `json:"cpuCostVector,omitempty"`
 	RAMAllocation     []*Vector `json:"-"`
@@ -204,7 +204,6 @@ func aggregateDatum(cp cloud.Provider, aggregations map[string]*Aggregation, cos
 		agg.Aggregator = field
 		agg.Subfields = subfields
 		agg.Environment = key
-		agg.Cluster = costDatum.ClusterID
 		aggregations[key] = agg
 	}
 
