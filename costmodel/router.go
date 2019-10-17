@@ -231,10 +231,6 @@ func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httpr
 	window := r.URL.Query().Get("window")
 	offset := r.URL.Query().Get("offset")
 
-	if offset != "" {
-		offset = "offset " + offset
-	}
-
 	data, err := ClusterCosts(a.PrometheusClient, a.Cloud, window, offset)
 	w.Write(wrapData(data, err))
 }
@@ -247,10 +243,6 @@ func (a *Accesses) ClusterCostsOverTime(w http.ResponseWriter, r *http.Request, 
 	end := r.URL.Query().Get("end")
 	window := r.URL.Query().Get("window")
 	offset := r.URL.Query().Get("offset")
-
-	if offset != "" {
-		offset = "offset " + offset
-	}
 
 	data, err := ClusterCostsOverTime(a.PrometheusClient, a.Cloud, start, end, window, offset)
 	w.Write(wrapData(data, err))

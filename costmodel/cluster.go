@@ -214,6 +214,11 @@ func ClusterCostsOverTime(cli prometheusClient.Client, cloud costAnalyzerCloud.P
 		return nil, err
 	}
 
+	// turn offsets of the format "[0-9+]h" into the format "offset [0-9+]h" for use in query templatess
+	if offset != "" {
+		offset = fmt.Sprintf("offset %s", offset)
+	}
+
 	qCores := fmt.Sprintf(queryClusterCores, offset, offset, offset)
 	qRAM := fmt.Sprintf(queryClusterRAM, offset, offset)
 	qStorage := fmt.Sprintf(queryStorage, windowString, offset, windowString, offset, localStorageQuery)
