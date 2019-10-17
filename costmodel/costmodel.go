@@ -239,7 +239,7 @@ func ComputeUptimes(cli prometheusClient.Client) (map[string]float64, error) {
 	if err != nil {
 		return nil, err
 	}
-	vectors, err := GetContainerMetricVector(res, false, 0)
+	vectors, err := GetContainerMetricVector(res, false, 0, os.Getenv(clusterIDKey))
 	if err != nil {
 		return nil, err
 	}
@@ -389,7 +389,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	containerNameCost := make(map[string]*CostData)
 	containers := make(map[string]bool)
 
-	RAMReqMap, err := GetContainerMetricVector(resultRAMRequests, true, normalizationValue)
+	RAMReqMap, err := GetContainerMetricVector(resultRAMRequests, true, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
@@ -397,28 +397,28 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		containers[key] = true
 	}
 
-	RAMUsedMap, err := GetContainerMetricVector(resultRAMUsage, true, normalizationValue)
+	RAMUsedMap, err := GetContainerMetricVector(resultRAMUsage, true, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
 	for key := range RAMUsedMap {
 		containers[key] = true
 	}
-	CPUReqMap, err := GetContainerMetricVector(resultCPURequests, true, normalizationValue)
+	CPUReqMap, err := GetContainerMetricVector(resultCPURequests, true, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
 	for key := range CPUReqMap {
 		containers[key] = true
 	}
-	GPUReqMap, err := GetContainerMetricVector(resultGPURequests, true, normalizationValue)
+	GPUReqMap, err := GetContainerMetricVector(resultGPURequests, true, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
 	for key := range GPUReqMap {
 		containers[key] = true
 	}
-	CPUUsedMap, err := GetContainerMetricVector(resultCPUUsage, false, 0) // No need to normalize here, as this comes from a counter
+	CPUUsedMap, err := GetContainerMetricVector(resultCPUUsage, false, 0, clusterID) // No need to normalize here, as this comes from a counter
 	if err != nil {
 		return nil, err
 	}
@@ -1289,7 +1289,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	containerNameCost := make(map[string]*CostData)
 	containers := make(map[string]bool)
 
-	RAMReqMap, err := GetContainerMetricVectors(resultRAMRequests, true, normalizationValue)
+	RAMReqMap, err := GetContainerMetricVectors(resultRAMRequests, true, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
@@ -1297,28 +1297,28 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		containers[key] = true
 	}
 
-	RAMUsedMap, err := GetContainerMetricVectors(resultRAMUsage, true, normalizationValue)
+	RAMUsedMap, err := GetContainerMetricVectors(resultRAMUsage, true, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
 	for key := range RAMUsedMap {
 		containers[key] = true
 	}
-	CPUReqMap, err := GetContainerMetricVectors(resultCPURequests, true, normalizationValue)
+	CPUReqMap, err := GetContainerMetricVectors(resultCPURequests, true, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
 	for key := range CPUReqMap {
 		containers[key] = true
 	}
-	GPUReqMap, err := GetContainerMetricVectors(resultGPURequests, true, normalizationValue)
+	GPUReqMap, err := GetContainerMetricVectors(resultGPURequests, true, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
 	for key := range GPUReqMap {
 		containers[key] = true
 	}
-	CPUUsedMap, err := GetContainerMetricVectors(resultCPUUsage, false, 0) // No need to normalize here, as this comes from a counter
+	CPUUsedMap, err := GetContainerMetricVectors(resultCPUUsage, false, 0, clusterID) // No need to normalize here, as this comes from a counter
 	if err != nil {
 		return nil, err
 	}
@@ -1993,7 +1993,7 @@ func newContainerMetricsFromPod(pod v1.Pod, clusterID string) ([]*ContainerMetri
 	return cs, nil
 }
 
-func newContainerMetricFromPrometheus(metrics map[string]interface{}) (*ContainerMetric, error) {
+func newContainerMetricFromPrometheus(metrics map[string]interface{}, defaultClusterID string) (*ContainerMetric, error) {
 	cName, ok := metrics["container_name"]
 	if !ok {
 		return nil, fmt.Errorf("Prometheus vector does not have container name")
@@ -2030,7 +2030,7 @@ func newContainerMetricFromPrometheus(metrics map[string]interface{}) (*Containe
 	cid, ok := metrics["cluster_id"]
 	if !ok {
 		klog.V(4).Info("Prometheus vector does not have cluster id")
-		cid = ""
+		cid = defaultClusterID
 	}
 	clusterID, ok := cid.(string)
 	if !ok {
@@ -2045,7 +2045,7 @@ func newContainerMetricFromPrometheus(metrics map[string]interface{}) (*Containe
 	}, nil
 }
 
-func GetContainerMetricVector(qr interface{}, normalize bool, normalizationValue float64) (map[string][]*Vector, error) {
+func GetContainerMetricVector(qr interface{}, normalize bool, normalizationValue float64, defaultClusterID string) (map[string][]*Vector, error) {
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
 		e, err := wrapPrometheusError(qr)
@@ -2068,7 +2068,7 @@ func GetContainerMetricVector(qr interface{}, normalize bool, normalizationValue
 		if !ok {
 			return nil, fmt.Errorf("Prometheus vector does not have metric labels")
 		}
-		containerMetric, err := newContainerMetricFromPrometheus(metric)
+		containerMetric, err := newContainerMetricFromPrometheus(metric, defaultClusterID)
 		if err != nil {
 			return nil, err
 		}
@@ -2095,7 +2095,7 @@ func GetContainerMetricVector(qr interface{}, normalize bool, normalizationValue
 	return containerData, nil
 }
 
-func GetContainerMetricVectors(qr interface{}, normalize bool, normalizationValue float64) (map[string][]*Vector, error) {
+func GetContainerMetricVectors(qr interface{}, normalize bool, normalizationValue float64, defaultClusterID string) (map[string][]*Vector, error) {
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
 		e, err := wrapPrometheusError(qr)
@@ -2118,7 +2118,7 @@ func GetContainerMetricVectors(qr interface{}, normalize bool, normalizationValu
 		if !ok {
 			return nil, fmt.Errorf("Prometheus vector does not have metric labels")
 		}
-		containerMetric, err := newContainerMetricFromPrometheus(metric)
+		containerMetric, err := newContainerMetricFromPrometheus(metric, defaultClusterID)
 		if err != nil {
 			return nil, err
 		}
