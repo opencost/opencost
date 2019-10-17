@@ -1,22 +1,17 @@
-apiVersion: extensions/v1beta1
-kind: Deployment
+apiVersion: batch/v1
+kind: Job
 metadata:
   name: cost-model-test
   labels:
     app: cost-model-test
 spec:
-  replicas: 1
-  strategy:
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 1
-    type: RollingUpdate
+  backoffLimit: 0
   template:
     metadata:
       labels:
         app: cost-model-test
     spec:
-      restartPolicy: Always
+      restartPolicy: Never
       serviceAccountName: cost-model
       containers:
         - image: ajaytripathy/kubecost-cost-model-integration:latest
