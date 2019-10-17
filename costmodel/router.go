@@ -275,7 +275,10 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 
 	// timeSeries == true maintains the time series dimension of the data,
 	// which by default gets summed over the entire interval
-	timeSeries := r.URL.Query().Get("timeSeries") == "true"
+	includeTimeSeries := r.URL.Query().Get("timeSeries") == "true"
+
+	// efficiency == true aggregates and returns usage and efficiency data
+	includeEfficiency := r.URL.Query().Get("efficiency") == "true"
 
 	// disableCache, if set to "true", tells this function to recompute and
 	// cache the requested data
@@ -380,7 +383,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 
 	// parametrize cache key by all request parameters
 	aggKey := fmt.Sprintf("aggregate:%s:%s:%s:%s:%s:%s:%s:%t:%t",
-		window, offset, namespace, cluster, field, strings.Join(subfields, ","), rate, timeSeries, allocateIdle)
+		window, offset, namespace, cluster, field, strings.Join(subfields, ","), rate, includeTimeSeries, allocateIdle)
 
 	// check the cache for aggregated response; if cache is hit and not disabled, return response
 	if result, found := a.Cache.Get(aggKey); found && !disableCache {
@@ -457,7 +460,8 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		DataCount:          dataCount,
 		Discount:           discount,
 		IdleCoefficient:    idleCoefficient,
-		IncludeTimeSeries:  timeSeries,
+		IncludeEfficiency:  includeEfficiency,
+		IncludeTimeSeries:  includeTimeSeries,
 		Rate:               rate,
 		SharedResourceInfo: sr,
 	}
