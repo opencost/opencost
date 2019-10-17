@@ -197,10 +197,13 @@ func TestPodUpDown(t *testing.T) {
 	deleteOptions := &metav1.DeleteOptions{
 		PropagationPolicy: &deletePolicy,
 	}
+
+	klog.Infof("Deleting deployment in namespace test2")
 	if err := client.Resource(deploymentRes).Namespace("test2").Delete("demo-deployment", deleteOptions); err != nil {
 		panic(err)
 	}
 
+	klog.Infof("Sleeping 5 minutes to wait for steady state.")
 	time.Sleep(5 * time.Minute)
 
 	res, err = costModel.Query(promCli, qr)
