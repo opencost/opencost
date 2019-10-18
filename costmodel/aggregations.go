@@ -13,7 +13,7 @@ import (
 
 type Aggregation struct {
 	Aggregator          string    `json:"aggregation"`
-	Subfields           []string  `json:"subfields"`
+	Subfields           []string  `json:"subfields,omitempty"`
 	Environment         string    `json:"environment"`
 	Cluster             string    `json:"cluster,omitempty"`
 	CPUAllocationVector []*Vector `json:"-"`
@@ -259,7 +259,9 @@ func aggregateDatum(cp cloud.Provider, aggregations map[string]*Aggregation, cos
 	if _, ok := aggregations[key]; !ok {
 		agg := &Aggregation{}
 		agg.Aggregator = field
-		agg.Subfields = subfields
+		if len(subfields) > 0 {
+			agg.Subfields = subfields
+		}
 		agg.Environment = key
 		aggregations[key] = agg
 	}
