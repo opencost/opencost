@@ -16,6 +16,8 @@ spec:
       containers:
         - image: ajaytripathy/kubecost-cost-model-integration:latest
           name: cost-model
+          securityContext:
+            runAsUser: 0
           resources:
             requests:
               cpu: "10m"

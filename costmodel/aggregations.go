@@ -74,44 +74,53 @@ func NewSharedResourceInfo(shareResources bool, sharedNamespaces []string, label
 	return sr
 }
 
-func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.Client, cp cloud.Provider, discount float64, windowString, offset string) (float64, error) {
+func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.Client, cp cloud.Provider, discount float64, windowString, offset string) (map[string]float64, error) {
+
+	coefficients := make(map[string]float64)
+
 	windowDuration, err := time.ParseDuration(windowString)
 	if err != nil {
-		return 0.0, err
+		return nil, err
 	}
-	totals, err := ClusterCosts(cli, cp, windowString, offset)
+	aggregateContainerCosts := AggregateCostData(cp, costData, 0, "cluster", []string{}, "", false, discount, 1, nil)
+	allTotals, err := ClusterCostsForAllClusters(cli, cp, windowString, offset)
 	if err != nil {
-		return 0.0, err
+		return nil, err
 	}
-	cpuCost, err := strconv.ParseFloat(totals.CPUCost[0][1], 64)
-	if err != nil {
-		return 0.0, err
-	}
-	memCost, err := strconv.ParseFloat(totals.MemCost[0][1], 64)
-	if err != nil {
-		return 0.0, err
-	}
-	storageCost, err := strconv.ParseFloat(totals.StorageCost[0][1], 64)
-	if err != nil {
-		return 0.0, err
-	}
-	totalClusterCost := (cpuCost * (1 - discount)) + (memCost * (1 - discount)) + storageCost
-	if err != nil || totalClusterCost == 0.0 {
-		return 0.0, err
-	}
-	totalClusterCostOverWindow := (totalClusterCost / 730) * windowDuration.Hours()
-	totalContainerCost := 0.0
-	for _, costDatum := range costData {
-		cpuv, ramv, gpuv, pvvs, _ := getPriceVectors(cp, costDatum, "", discount, 1)
-		totalContainerCost += totalVector(cpuv)
-		totalContainerCost += totalVector(ramv)
-		totalContainerCost += totalVector(gpuv)
-		for _, pv := range pvvs {
-			totalContainerCost += totalVector(pv)
+	for cid, totals := range allTotals {
+
+		cpuCost, err := strconv.ParseFloat(totals.CPUCost[0][1], 64)
+		if err != nil {
+			return nil, err
 		}
+		memCost, err := strconv.ParseFloat(totals.MemCost[0][1], 64)
+		if err != nil {
+			return nil, err
+		}
+		storageCost, err := strconv.ParseFloat(totals.StorageCost[0][1], 64)
+		if err != nil {
+			return nil, err
+		}
+		totalClusterCost := (cpuCost * (1 - discount)) + (memCost * (1 - discount)) + storageCost
+		if err != nil || totalClusterCost == 0.0 {
+			return nil, err
+		}
+		totalClusterCostOverWindow := (totalClusterCost / 730) * windowDuration.Hours()
+		totalContainerCost := 0.0
+		for _, costDatum := range costData {
+			cpuv, ramv, gpuv, pvvs, _ := getPriceVectors(cp, costDatum, "", discount, 1)
+			totalContainerCost += totalVector(cpuv)
+			totalContainerCost += totalVector(ramv)
+			totalContainerCost += totalVector(gpuv)
+			for _, pv := range pvvs {
+				totalContainerCost += totalVector(pv)
+			}
+		}
+
+		coefficients[cid] = aggregateContainerCosts[cid].TotalCost / totalClusterCostOverWindow
 	}
 
-	return (totalContainerCost / totalClusterCostOverWindow), nil
+	return coefficients, nil
 }
 
 // AggregateCostData reduces the dimensions of raw cost data by field and, optionally, by time. The field parameter determines the field
