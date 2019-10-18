@@ -382,8 +382,8 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	// parametrize cache key by all request parameters
-	aggKey := fmt.Sprintf("aggregate:%s:%s:%s:%s:%s:%s:%s:%t:%t",
-		window, offset, namespace, cluster, field, strings.Join(subfields, ","), rate, includeTimeSeries, allocateIdle)
+	aggKey := fmt.Sprintf("aggregate:%s:%s:%s:%s:%s:%s:%s:%t:%t:%t",
+		window, offset, namespace, cluster, field, strings.Join(subfields, ","), rate, allocateIdle, includeTimeSeries, includeEfficiency)
 
 	// check the cache for aggregated response; if cache is hit and not disabled, return response
 	if result, found := a.Cache.Get(aggKey); found && !disableCache {

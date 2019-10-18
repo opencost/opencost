@@ -20,8 +20,9 @@ type Aggregation struct {
 	CPUCost             float64   `json:"cpuCost"`
 	CPUCostVector       []*Vector `json:"cpuCostVector,omitempty"`
 	CPUEfficiency       float64   `json:"cpuEfficiency"`
-	CPUEfficiencyVector []*Vector `json:"cpuEfficiencyVector,omitempty"`
-	CPURequestVector    []*Vector `json:"cpuRequestVector,omitempty"`
+	CPURequestedVector  []*Vector `json:"-"`
+	CPUUsedVector       []*Vector `json:"-"`
+	Efficiency          float64   `json:"efficiency"`
 	GPUAllocation       []*Vector `json:"-"`
 	GPUCost             float64   `json:"gpuCost"`
 	GPUCostVector       []*Vector `json:"gpuCostVector,omitempty"`
@@ -29,11 +30,10 @@ type Aggregation struct {
 	RAMCost             float64   `json:"ramCost"`
 	RAMCostVector       []*Vector `json:"ramCostVector,omitempty"`
 	RAMEfficiency       float64   `json:"ramEfficiency"`
-	RAMEfficiencyVector []*Vector `json:"ramEfficiencyVector,omitempty"`
+	RAMRequestedVector  []*Vector `json:"-"`
+	RAMUsedVector       []*Vector `json:"-"`
 	PVCost              float64   `json:"pvCost"`
 	PVCostVector        []*Vector `json:"pvCostVector,omitempty"`
-	PVEfficiency        float64   `json:"pvEfficiency"`
-	PVEfficiencyVector  []*Vector `json:"pvEfficiencyVector,omitempty"`
 	NetworkCost         float64   `json:"networkCost"`
 	NetworkCostVector   []*Vector `json:"networkCostVector,omitempty"`
 	SharedCost          float64   `json:"sharedCost"`
@@ -210,17 +210,35 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 		agg.TotalCost = agg.CPUCost + agg.RAMCost + agg.GPUCost + agg.PVCost + agg.NetworkCost + agg.SharedCost
 
 		if includeEfficiency {
+			// Default both RAM and CPU to 100% efficiency so that a 0-requested, 0-allocated, 0-used situation
+			// returns 100% efficiency, which should be a red-flag.
+			//
+			// If non-zero numbers are available, then efficiency is defined as:
+			//   idlePercentage =  (requested - used) / allocated
+			//   efficiency = (1.0 - idlePercentage)
+			//
+			// It is possible to score > 100% efficiency, which is meant to be interpreted as a red flag.
+			// It is not possible to score < 0% efficiency.
+
 			agg.CPUEfficiency = 100.0
 			avgCPUAllocation := totalVector(agg.CPUAllocationVector) / float64(len(agg.CPUAllocationVector))
 			if avgCPUAllocation > 0.0 {
 				avgCPURequested := totalVector(agg.CPURequestedVector) / float64(len(agg.CPURequestedVector))
-				avgCPURequested := totalVector(agg.CPURequestedVector) / float64(len(agg.CPURequestedVector))
-				agg.CPUEfficiency = (avgCPURequested - avgCPUUsed) / avgCPUAllocation
+				avgCPUUsed := totalVector(agg.CPUUsedVector) / float64(len(agg.CPUUsedVector))
+				agg.CPUEfficiency = 1.0 - ((avgCPURequested - avgCPUUsed) / avgCPUAllocation)
 			}
 
-			// TODO agg.RAMEfficiency
+			agg.RAMEfficiency = 100.0
+			avgRAMAllocation := totalVector(agg.RAMAllocationVector) / float64(len(agg.RAMAllocationVector))
+			if avgRAMAllocation > 0.0 {
+				avgRAMRequested := totalVector(agg.RAMRequestedVector) / float64(len(agg.RAMRequestedVector))
+				avgRAMUsed := totalVector(agg.RAMUsedVector) / float64(len(agg.RAMUsedVector))
+				agg.RAMEfficiency = 1.0 - ((avgRAMRequested - avgRAMUsed) / avgRAMAllocation)
+			}
 
-			// TODO agg.PVEfficiency
+			// Score total efficiency by the sum of CPU and RAM efficiency, weighted by their
+			// respective total costs.
+			agg.Efficiency = ((agg.CPUCost * agg.CPUEfficiency) + (agg.RAMCost * agg.RAMEfficiency)) / (agg.CPUCost + agg.RAMCost)
 		}
 
 		// remove time series data if it is not explicitly requested
@@ -250,13 +268,15 @@ func aggregateDatum(cp cloud.Provider, aggregations map[string]*Aggregation, cos
 }
 
 func mergeVectors(cp cloud.Provider, costDatum *CostData, aggregation *Aggregation, rate string, discount float64, idleCoefficient float64) {
-	aggregation.CPUAllocationVector = addVectors(costDatum.CPUAllocationVector, aggregation.CPUAllocationVector)
-	aggregation.RAMAllocation = addVectors(costDatum.RAMAllocation, aggregation.RAMAllocation)
-	aggregation.GPUAllocation = addVectors(costDatum.GPUReq, aggregation.GPUAllocation)
+	aggregation.CPUAllocationVector = addVectors(costDatum.CPUAllocation, aggregation.CPUAllocationVector)
+	aggregation.CPURequestedVector = addVectors(costDatum.CPUReq, aggregation.CPURequestedVector)
+	aggregation.CPUUsedVector = addVectors(costDatum.CPUUsed, aggregation.CPUUsedVector)
 
-	aggregation.CPURequestVector = addVectors(costDatum.CPUReq, aggregation.CPURequestVector)
-	aggregation.RAMRequestVector = addVectors(costDatum.RAMReq, aggregation.RAMRequestVector)
-	// TODO nikovacevic-agg-efficiency
+	aggregation.RAMAllocationVector = addVectors(costDatum.RAMAllocation, aggregation.RAMAllocationVector)
+	aggregation.RAMRequestedVector = addVectors(costDatum.RAMReq, aggregation.RAMRequestedVector)
+	aggregation.RAMUsedVector = addVectors(costDatum.RAMUsed, aggregation.RAMUsedVector)
+
+	aggregation.GPUAllocation = addVectors(costDatum.GPUReq, aggregation.GPUAllocation)
 
 	cpuv, ramv, gpuv, pvvs, netv := getPriceVectors(cp, costDatum, rate, discount, idleCoefficient)
 	aggregation.CPUCostVector = addVectors(cpuv, aggregation.CPUCostVector)
@@ -311,8 +331,8 @@ func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discou
 	default:
 	}
 
-	cpuv := make([]*Vector, 0, len(costDatum.CPUAllocationVector))
-	for _, val := range costDatum.CPUAllocationVector {
+	cpuv := make([]*Vector, 0, len(costDatum.CPUAllocation))
+	for _, val := range costDatum.CPUAllocation {
 		cpuv = append(cpuv, &Vector{
 			Timestamp: math.Round(val.Timestamp/10) * 10,
 			Value:     (val.Value * cpuCost * (1 - discount) / idleCoefficient) * rateCoeff,
