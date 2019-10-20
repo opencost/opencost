@@ -151,11 +151,15 @@ func AggregateCostData(cp cloud.Provider, costData map[string]*CostData, dataCou
 				aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace, discount, idleCoefficient)
 			} else if field == "service" {
 				if len(costDatum.Services) > 0 {
-					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Services[0], discount, idleCoefficient)
+					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.Services[0], discount, idleCoefficient)
 				}
 			} else if field == "deployment" {
 				if len(costDatum.Deployments) > 0 {
-					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Deployments[0], discount, idleCoefficient)
+					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.Deployments[0], discount, idleCoefficient)
+				}
+			} else if field == "daemonset" {
+				if len(costDatum.Daemonsets) > 0 {
+					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.Daemonsets[0], discount, idleCoefficient)
 				}
 			} else if field == "label" {
 				if costDatum.Labels != nil {
@@ -166,6 +170,8 @@ func AggregateCostData(cp cloud.Provider, costData map[string]*CostData, dataCou
 						}
 					}
 				}
+			} else if field == "pod" {
+				aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.PodName, discount, idleCoefficient)
 			}
 		}
 	}
