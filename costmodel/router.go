@@ -213,9 +213,9 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 		klog.V(1).Infof("for duration %s dataCount = %d", dur.String(), dataCount)
 
 		opts := &AggregationOptions{
-			DataCount:       dataCount,
-			Discount:        discount,
-			IdleCoefficient: 1.0,
+			DataCount:        dataCount,
+			Discount:         discount,
+			IdleCoefficients: make(map[string]float64),
 		}
 		agg := AggregateCostData(data, aggregationField, subfields, a.Cloud, opts)
 		w.Write(wrapData(agg, nil))
@@ -430,10 +430,13 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	}
 	discount = discount * 0.01
 
-	idleCoefficient := 1.0
+	idleCoefficients := make(map[string]float64)
 	if allocateIdle {
 		windowStr := fmt.Sprintf("%dh", int(dur.Hours()))
-		idleCoefficient, err = ComputeIdleCoefficient(data, a.PrometheusClient, a.Cloud, discount, windowStr, offset)
+		if a.ThanosClient != nil {
+			offset = "3h"
+		}
+		idleCoefficients, err = ComputeIdleCoefficient(data, pClient, a.Cloud, discount, windowStr, offset)
 		if err != nil {
 			klog.V(1).Infof("error computing idle coefficient: windowString=%s, offset=%s, err=%s", windowStr, offset, err)
 			w.Write(wrapData(nil, err))
@@ -464,7 +467,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	opts := &AggregationOptions{
 		DataCount:          dataCount,
 		Discount:           discount,
-		IdleCoefficient:    idleCoefficient,
+		IdleCoefficients:   idleCoefficients,
 		IncludeEfficiency:  includeEfficiency,
 		IncludeTimeSeries:  includeTimeSeries,
 		Rate:               rate,
@@ -547,9 +550,9 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 		klog.V(1).Infof("for duration %s dataCount = %d", dur.String(), dataCount)
 
 		opts := &AggregationOptions{
-			DataCount:       dataCount,
-			Discount:        discount,
-			IdleCoefficient: 1.0,
+			DataCount:        dataCount,
+			Discount:         discount,
+			IdleCoefficients: make(map[string]float64),
 		}
 		agg := AggregateCostData(data, aggregationField, subfields, a.Cloud, opts)
 		w.Write(wrapData(agg, nil))

@@ -81,54 +81,64 @@ func NewSharedResourceInfo(shareResources bool, sharedNamespaces []string, label
 	return sr
 }
 
-func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.Client, cp cloud.Provider, discount float64, windowString, offset string) (float64, error) {
+func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.Client, cp cloud.Provider, discount float64, windowString, offset string) (map[string]float64, error) {
+
+	coefficients := make(map[string]float64)
+
 	windowDuration, err := time.ParseDuration(windowString)
 	if err != nil {
-		return 0.0, err
-	}
-	totals, err := ClusterCosts(cli, cp, windowString, offset)
-	if err != nil {
-		return 0.0, err
-	}
-	cpuCost, err := strconv.ParseFloat(totals.CPUCost[0][1], 64)
-	if err != nil {
-		return 0.0, err
-	}
-	memCost, err := strconv.ParseFloat(totals.MemCost[0][1], 64)
-	if err != nil {
-		return 0.0, err
-	}
-	storageCost, err := strconv.ParseFloat(totals.StorageCost[0][1], 64)
-	if err != nil {
-		return 0.0, err
-	}
-	totalClusterCost := (cpuCost * (1 - discount)) + (memCost * (1 - discount)) + storageCost
-	if err != nil || totalClusterCost == 0.0 {
-		return 0.0, err
-	}
-	totalClusterCostOverWindow := (totalClusterCost / 730) * windowDuration.Hours()
-	totalContainerCost := 0.0
-	for _, costDatum := range costData {
-		cpuv, ramv, gpuv, pvvs, _ := getPriceVectors(cp, costDatum, "", discount, 1)
-		totalContainerCost += totalVectors(cpuv)
-		totalContainerCost += totalVectors(ramv)
-		totalContainerCost += totalVectors(gpuv)
-		for _, pv := range pvvs {
-			totalContainerCost += totalVectors(pv)
-		}
+		return nil, err
 	}
 
-	return (totalContainerCost / totalClusterCostOverWindow), nil
+	aggregateContainerCosts := AggregateCostData(costData, "cluster", []string{}, cp, &AggregationOptions{Discount: discount})
+	allTotals, err := ClusterCostsForAllClusters(cli, cp, windowString, offset)
+	if err != nil {
+		return nil, err
+	}
+	for cid, totals := range allTotals {
+
+		cpuCost, err := strconv.ParseFloat(totals.CPUCost[0][1], 64)
+		if err != nil {
+			return nil, err
+		}
+		memCost, err := strconv.ParseFloat(totals.MemCost[0][1], 64)
+		if err != nil {
+			return nil, err
+		}
+		storageCost, err := strconv.ParseFloat(totals.StorageCost[0][1], 64)
+		if err != nil {
+			return nil, err
+		}
+		totalClusterCost := (cpuCost * (1 - discount)) + (memCost * (1 - discount)) + storageCost
+		if err != nil || totalClusterCost == 0.0 {
+			return nil, err
+		}
+		totalClusterCostOverWindow := (totalClusterCost / 730) * windowDuration.Hours()
+		totalContainerCost := 0.0
+		for _, costDatum := range costData {
+			cpuv, ramv, gpuv, pvvs, _ := getPriceVectors(cp, costDatum, "", discount, 1)
+			totalContainerCost += totalVectors(cpuv)
+			totalContainerCost += totalVectors(ramv)
+			totalContainerCost += totalVectors(gpuv)
+			for _, pv := range pvvs {
+				totalContainerCost += totalVectors(pv)
+			}
+		}
+
+		coefficients[cid] = aggregateContainerCosts[cid].TotalCost / totalClusterCostOverWindow
+	}
+
+	return coefficients, nil
 }
 
 // AggregationOptions provides optional parameters to AggregateCostData, allowing callers to perform more complex operations
 type AggregationOptions struct {
-	DataCount          int64   // number of cost data points expected; ensures proper rate calculation if data is incomplete
-	Discount           float64 // percent by which to discount CPU, RAM, and GPU cost
-	IdleCoefficient    float64 // scales costs by amount of idle resources
-	IncludeEfficiency  bool    // set to true to receive efficiency/usage data
-	IncludeTimeSeries  bool    // set to true to receive time series data
-	Rate               string  // set to "hourly", "daily", or "monthly" to receive cost rate, rather than cumulative cost
+	DataCount          int64              // number of cost data points expected; ensures proper rate calculation if data is incomplete
+	Discount           float64            // percent by which to discount CPU, RAM, and GPU cost
+	IdleCoefficients   map[string]float64 // scales costs by amount of idle resources on a per-cluster basis
+	IncludeEfficiency  bool               // set to true to receive efficiency/usage data
+	IncludeTimeSeries  bool               // set to true to receive time series data
+	Rate               string             // set to "hourly", "daily", or "monthly" to receive cost rate, rather than cumulative cost
 	SharedResourceInfo *SharedResourceInfo
 }
 
@@ -140,11 +150,15 @@ type AggregationOptions struct {
 func AggregateCostData(costData map[string]*CostData, field string, subfields []string, cp cloud.Provider, opts *AggregationOptions) map[string]*Aggregation {
 	dataCount := opts.DataCount
 	discount := opts.Discount
-	idleCoefficient := opts.IdleCoefficient
+	idleCoefficients := opts.IdleCoefficients
 	includeTimeSeries := opts.IncludeTimeSeries
 	includeEfficiency := opts.IncludeEfficiency
 	rate := opts.Rate
 	sr := opts.SharedResourceInfo
+
+	if idleCoefficients == nil {
+		idleCoefficients = make(map[string]float64)
+	}
 
 	// aggregations collects key-value pairs of resource group-to-aggregated data
 	// e.g. namespace-to-data or label-value-to-data
@@ -155,6 +169,10 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 	sharedResourceCost := 0.0
 
 	for _, costDatum := range costData {
+		idleCoefficient, ok := idleCoefficients[costDatum.ClusterID]
+		if !ok {
+			idleCoefficient = 1.0
+		}
 		if sr != nil && sr.ShareResources && sr.IsSharedResource(costDatum) {
 			cpuv, ramv, gpuv, pvvs, netv := getPriceVectors(cp, costDatum, rate, discount, idleCoefficient)
 			sharedResourceCost += totalVectors(cpuv)
@@ -171,11 +189,15 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 				aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace, discount, idleCoefficient)
 			} else if field == "service" {
 				if len(costDatum.Services) > 0 {
-					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Services[0], discount, idleCoefficient)
+					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.Services[0], discount, idleCoefficient)
 				}
 			} else if field == "deployment" {
 				if len(costDatum.Deployments) > 0 {
-					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Deployments[0], discount, idleCoefficient)
+					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.Deployments[0], discount, idleCoefficient)
+				}
+			} else if field == "daemonset" {
+				if len(costDatum.Daemonsets) > 0 {
+					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.Daemonsets[0], discount, idleCoefficient)
 				}
 			} else if field == "label" {
 				if costDatum.Labels != nil {
@@ -186,6 +208,8 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 						}
 					}
 				}
+			} else if field == "pod" {
+				aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.PodName, discount, idleCoefficient)
 			}
 		}
 	}

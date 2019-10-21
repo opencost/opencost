@@ -1,22 +1,10 @@
 package costmodel_test
 
 import (
-	"log"
-	"net"
-	"net/http"
-	"os"
-	"testing"
-	"time"
-
-	"github.com/kubecost/cost-model/cloud"
-	costModel "github.com/kubecost/cost-model/costmodel"
-	"gotest.tools/assert"
-
-	prometheusClient "github.com/prometheus/client_golang/api"
-
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 )
 
+/*
 func TestClusterConvergence(t *testing.T) {
 	rclient, err := getKubernetesClient()
 	if err != nil {
@@ -32,7 +20,7 @@ func TestClusterConvergence(t *testing.T) {
 	}
 
 	pc := prometheusClient.Config{
-		Address:      address,
+		Address:      os.Getenv(PROMETHEUS_SERVER_ENDPOINT),
 		RoundTripper: LongTimeoutRoundTripper,
 	}
 	promCli, err := prometheusClient.NewClient(pc)
@@ -74,3 +62,4 @@ func TestClusterConvergence(t *testing.T) {
 	assert.Equal(t, agg["kubecost"].TotalCost, agg2["kubecost"].TotalCost)
 
 }
+*/
