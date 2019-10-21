@@ -1868,12 +1868,12 @@ func QueryRange(cli prometheusClient.Client, query string, start, end time.Time,
 		return nil, err
 	}
 
-	resp, body, warnings, err := cli.Do(context.Background(), req)
+	_, body, warnings, err := cli.Do(context.Background(), req)
 	for _, w := range warnings {
 		klog.V(3).Infof("%s", w)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("%s Error %s fetching query %s", resp.StatusCode, err.Error(), query)
+		return nil, fmt.Errorf("Error %s fetching query %s", err.Error(), query)
 	}
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)

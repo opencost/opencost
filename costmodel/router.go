@@ -211,8 +211,8 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 		// This assumes hourly data, incremented by one to capture the 0th data point.
 		dataCount := int64(dur.Hours()) + 1
 		klog.V(1).Infof("for duration %s dataCount = %d", dur.String(), dataCount)
-
-		agg := AggregateCostData(a.Cloud, data, dataCount, aggregationField, subfields, "", false, discount, 1.0, nil)
+		defaultIdleCoefficientMap := make(map[string]float64)
+		agg := AggregateCostData(a.Cloud, data, dataCount, aggregationField, subfields, "", false, discount, defaultIdleCoefficientMap, nil)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {
@@ -417,10 +417,13 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	}
 	discount = discount * 0.01
 
-	idleCoefficient := 1.0
+	idleCoefficient := make(map[string]float64)
 	if allocateIdle {
 		windowStr := fmt.Sprintf("%dh", int(dur.Hours()))
-		idleCoefficient, err = ComputeIdleCoefficient(data, a.PrometheusClient, a.Cloud, discount, windowStr, offset)
+		if a.ThanosClient != nil {
+			offset = "3h"
+		}
+		idleCoefficient, err = ComputeIdleCoefficient(data, pClient, a.Cloud, discount, windowStr, offset)
 		if err != nil {
 			klog.V(1).Infof("error computing idle coefficient: windowString=%s, offset=%s, err=%s", windowStr, offset, err)
 			w.Write(wrapData(nil, err))
@@ -524,7 +527,8 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 		dataCount := (int64(dur.Hours()) / windowHrs) + 1
 		klog.V(1).Infof("for duration %s dataCount = %d", dur.String(), dataCount)
 
-		agg := AggregateCostData(a.Cloud, data, dataCount, aggregationField, subfields, "", false, discount, 1.0, nil)
+		defaultIdleCoefficientMap := make(map[string]float64)
+		agg := AggregateCostData(a.Cloud, data, dataCount, aggregationField, subfields, "", false, discount, defaultIdleCoefficientMap, nil)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {

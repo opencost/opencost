@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cost-model-test
+  labels:
+    app: cost-model-test
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: cost-model-test
+    spec:
+      restartPolicy: Never
+      serviceAccountName: cost-model
+      containers:
+        - image: ajaytripathy/kubecost-cost-model-integration:latest
+          name: cost-model
+          securityContext:
+            runAsUser: 0
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "55M"
+          env:
+            - name: PROMETHEUS_SERVER_ENDPOINT
+              value: http://kubecost-prometheus-server.kubecost #The endpoint should have the form http://<service-name>.<namespace-name>.svc.cluster.local 
+            - name: CLOUD_PROVIDER_API_KEY
+              value: "AIzaSyDXQPG_MHUEy9neR7stolq6l0ujXmjJlvk" # The GCP Pricing API requires a key.
+          imagePullPolicy: Always

@@ -25,8 +25,6 @@ import (
 	"log"
 )
 
-const address = "http://localhost:9003"
-
 const apiPrefix = "/api/v1"
 
 const epQuery = apiPrefix + "/query"
