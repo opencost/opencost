@@ -56,8 +56,8 @@ func TestClusterConvergence(t *testing.T) {
 		panic(err)
 	}
 
-	agg := costModel.AggregateCostData(provider, data, 1, "namespace", []string{""}, "", false, 0.0, 1.0, nil)
-	agg2 := costModel.AggregateCostData(provider, data2, 1, "namespace", []string{""}, "", false, 0.0, 1.0, nil)
+	agg := costModel.AggregateCostData(data, "namespace", []string{""}, provider, nil)
+	agg2 := costModel.AggregateCostData(data2, "namespace", []string{""}, provider, nil)
 
 	assert.Equal(t, agg["kubecost"].TotalCost, agg2["kubecost"].TotalCost)
 

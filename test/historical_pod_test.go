@@ -243,8 +243,10 @@ func TestPodUpDown(t *testing.T) {
 		panic(err)
 	}
 
-	agg := costModel.AggregateCostData(provider, data, 1, "namespace", []string{""}, "", false, 0.0, 1.0, nil)
-	_, ok := agg["test2"]
+	agg := costModel.AggregateCostData(data, "namespace", []string{""}, provider, nil)
+	_, ok := agg["test"]
+	assert.Assert(t, ok)
+	_, ok = agg["test2"]
 	if !ok {
 		panic("No test2 namespace!")
 	}
@@ -254,13 +256,15 @@ func TestPodUpDown(t *testing.T) {
 		panic(err)
 	}
 
-	agg2 := costModel.AggregateCostData(provider, data2, 1, "namespace", []string{""}, "", false, 0.0, 1.0, nil)
-	_, ok2 := agg2["test2"]
+	agg2 := costModel.AggregateCostData(data2, "namespace", []string{""}, provider, nil)
+	_, ok2 := agg2["test"]
+	assert.Assert(t, ok2)
+	_, ok2 = agg2["test2"]
 	if !ok2 {
 		panic("No test2 namespace!")
 	}
 
-	agg3 := costModel.AggregateCostData(provider, data, 1, "label", []string{"testaggregation"}, "", false, 0.0, 1.0, nil)
+	agg3 := costModel.AggregateCostData(data, "label", []string{"testaggregation"}, provider, nil)
 	_, ok3 := agg3["foo"]
 	if !ok3 {
 		panic("No label foo aggregate!")

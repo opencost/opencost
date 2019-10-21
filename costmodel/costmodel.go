@@ -74,9 +74,9 @@ type CostData struct {
 	Jobs            []string                     `json:"jobs,omitempty"`
 	RAMReq          []*Vector                    `json:"ramreq,omitempty"`
 	RAMUsed         []*Vector                    `json:"ramused,omitempty"`
+	RAMAllocation   []*Vector                    `json:"ramallocated,omitempty"`
 	CPUReq          []*Vector                    `json:"cpureq,omitempty"`
 	CPUUsed         []*Vector                    `json:"cpuused,omitempty"`
-	RAMAllocation   []*Vector                    `json:"ramallocated,omitempty"`
 	CPUAllocation   []*Vector                    `json:"cpuallocated,omitempty"`
 	GPUReq          []*Vector                    `json:"gpureq,omitempty"`
 	PVCData         []*PersistentVolumeClaimData `json:"pvcData,omitempty"`
@@ -84,6 +84,13 @@ type CostData struct {
 	Labels          map[string]string            `json:"labels,omitempty"`
 	NamespaceLabels map[string]string            `json:"namespaceLabels,omitempty"`
 	ClusterID       string                       `json:"clusterId"`
+}
+
+func (cd *CostData) String() string {
+	return fmt.Sprintf("\n\tName: %s; PodName: %s, NodeName: %s\n\tNamespace: %s\n\tDeployments: %s\n\tServices: %s\n\tCPU (req, used, alloc): %d, %d, %d\n\tRAM (req, used, alloc): %d, %d, %d",
+		cd.Name, cd.PodName, cd.NodeName, cd.Namespace, strings.Join(cd.Deployments, ", "), strings.Join(cd.Services, ", "),
+		len(cd.CPUReq), len(cd.CPUUsed), len(cd.CPUAllocation),
+		len(cd.RAMReq), len(cd.RAMUsed), len(cd.RAMAllocation))
 }
 
 type Vector struct {
@@ -1903,7 +1910,7 @@ func Query(cli prometheusClient.Client, query string) (interface{}, error) {
 			return nil, fmt.Errorf("Error %s fetching query %s", err.Error(), query)
 		}
 
-		return nil, fmt.Errorf("%s Error %s fetching query %s", resp.StatusCode, err.Error(), query)
+		return nil, fmt.Errorf("%d Error %s fetching query %s", resp.StatusCode, err.Error(), query)
 	}
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)

@@ -12,25 +12,32 @@ import (
 )
 
 type Aggregation struct {
-	Aggregator        string    `json:"aggregation"`
-	Subfields         []string  `json:"subfields"`
-	Environment       string    `json:"environment"`
-	Cluster           string    `json:"cluster,omitempty"`
-	CPUAllocation     []*Vector `json:"-"`
-	CPUCostVector     []*Vector `json:"cpuCostVector,omitempty"`
-	RAMAllocation     []*Vector `json:"-"`
-	RAMCostVector     []*Vector `json:"ramCostVector,omitempty"`
-	PVCostVector      []*Vector `json:"pvCostVector,omitempty"`
-	GPUAllocation     []*Vector `json:"-"`
-	GPUCostVector     []*Vector `json:"gpuCostVector,omitempty"`
-	NetworkCostVector []*Vector `json:"networkCostVector,omitempty"`
-	CPUCost           float64   `json:"cpuCost"`
-	RAMCost           float64   `json:"ramCost"`
-	GPUCost           float64   `json:"gpuCost"`
-	PVCost            float64   `json:"pvCost"`
-	NetworkCost       float64   `json:"networkCost"`
-	SharedCost        float64   `json:"sharedCost"`
-	TotalCost         float64   `json:"totalCost"`
+	Aggregator           string    `json:"aggregation"`
+	Subfields            []string  `json:"subfields,omitempty"`
+	Environment          string    `json:"environment"`
+	Cluster              string    `json:"cluster,omitempty"`
+	CPUAllocationVectors []*Vector `json:"-"`
+	CPUCost              float64   `json:"cpuCost"`
+	CPUCostVector        []*Vector `json:"cpuCostVector,omitempty"`
+	CPUEfficiency        float64   `json:"cpuEfficiency"`
+	CPURequestedVectors  []*Vector `json:"-"`
+	CPUUsedVectors       []*Vector `json:"-"`
+	Efficiency           float64   `json:"efficiency"`
+	GPUAllocation        []*Vector `json:"-"`
+	GPUCost              float64   `json:"gpuCost"`
+	GPUCostVector        []*Vector `json:"gpuCostVector,omitempty"`
+	RAMAllocationVectors []*Vector `json:"-"`
+	RAMCost              float64   `json:"ramCost"`
+	RAMCostVector        []*Vector `json:"ramCostVector,omitempty"`
+	RAMEfficiency        float64   `json:"ramEfficiency"`
+	RAMRequestedVectors  []*Vector `json:"-"`
+	RAMUsedVectors       []*Vector `json:"-"`
+	PVCost               float64   `json:"pvCost"`
+	PVCostVector         []*Vector `json:"pvCostVector,omitempty"`
+	NetworkCost          float64   `json:"networkCost"`
+	NetworkCostVector    []*Vector `json:"networkCostVector,omitempty"`
+	SharedCost           float64   `json:"sharedCost"`
+	TotalCost            float64   `json:"totalCost"`
 }
 
 const (
@@ -82,9 +89,8 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 	if err != nil {
 		return nil, err
 	}
-	tempCoefficient := make(map[string]float64)
 
-	aggregateContainerCosts := AggregateCostData(cp, costData, 0, "cluster", []string{}, "", false, discount, tempCoefficient, nil)
+	aggregateContainerCosts := AggregateCostData(costData, "cluster", []string{}, cp, &AggregationOptions{Discount: discount})
 	allTotals, err := ClusterCostsForAllClusters(cli, cp, windowString, offset)
 	if err != nil {
 		return nil, err
@@ -111,11 +117,11 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 		totalContainerCost := 0.0
 		for _, costDatum := range costData {
 			cpuv, ramv, gpuv, pvvs, _ := getPriceVectors(cp, costDatum, "", discount, 1)
-			totalContainerCost += totalVector(cpuv)
-			totalContainerCost += totalVector(ramv)
-			totalContainerCost += totalVector(gpuv)
+			totalContainerCost += totalVectors(cpuv)
+			totalContainerCost += totalVectors(ramv)
+			totalContainerCost += totalVectors(gpuv)
 			for _, pv := range pvvs {
-				totalContainerCost += totalVector(pv)
+				totalContainerCost += totalVectors(pv)
 			}
 		}
 
@@ -125,9 +131,35 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 	return coefficients, nil
 }
 
-// AggregateCostData reduces the dimensions of raw cost data by field and, optionally, by time. The field parameter determines the field
-// by which to group data, with an optional subfield, e.g. for groupings like field="label" and subfield="app" for grouping by "label.app".
-func AggregateCostData(cp cloud.Provider, costData map[string]*CostData, dataCount int64, field string, subfields []string, rate string, timeSeries bool, discount float64, idleCoefficients map[string]float64, sr *SharedResourceInfo) map[string]*Aggregation {
+// AggregationOptions provides optional parameters to AggregateCostData, allowing callers to perform more complex operations
+type AggregationOptions struct {
+	DataCount          int64              // number of cost data points expected; ensures proper rate calculation if data is incomplete
+	Discount           float64            // percent by which to discount CPU, RAM, and GPU cost
+	IdleCoefficients   map[string]float64 // scales costs by amount of idle resources on a per-cluster basis
+	IncludeEfficiency  bool               // set to true to receive efficiency/usage data
+	IncludeTimeSeries  bool               // set to true to receive time series data
+	Rate               string             // set to "hourly", "daily", or "monthly" to receive cost rate, rather than cumulative cost
+	SharedResourceInfo *SharedResourceInfo
+}
+
+// AggregateCostData aggregates raw cost data by field; e.g. namespace, cluster, service, or label. In the case of label, callers
+// must pass a slice of subfields indicating the labels by which to group. Provider is used to define custom resource pricing.
+// See AggregationOptions for optional parameters.
+// TODO: Can we restructure custom pricing code to allow that to be optional? Having to pass an entire Provider instance is way
+// overkill and tightly couples this code to the cloud package.
+func AggregateCostData(costData map[string]*CostData, field string, subfields []string, cp cloud.Provider, opts *AggregationOptions) map[string]*Aggregation {
+	dataCount := opts.DataCount
+	discount := opts.Discount
+	idleCoefficients := opts.IdleCoefficients
+	includeTimeSeries := opts.IncludeTimeSeries
+	includeEfficiency := opts.IncludeEfficiency
+	rate := opts.Rate
+	sr := opts.SharedResourceInfo
+
+	if idleCoefficients == nil {
+		idleCoefficients = make(map[string]float64)
+	}
+
 	// aggregations collects key-value pairs of resource group-to-aggregated data
 	// e.g. namespace-to-data or label-value-to-data
 	aggregations := make(map[string]*Aggregation)
@@ -143,12 +175,12 @@ func AggregateCostData(cp cloud.Provider, costData map[string]*CostData, dataCou
 		}
 		if sr != nil && sr.ShareResources && sr.IsSharedResource(costDatum) {
 			cpuv, ramv, gpuv, pvvs, netv := getPriceVectors(cp, costDatum, rate, discount, idleCoefficient)
-			sharedResourceCost += totalVector(cpuv)
-			sharedResourceCost += totalVector(ramv)
-			sharedResourceCost += totalVector(gpuv)
-			sharedResourceCost += totalVector(netv)
+			sharedResourceCost += totalVectors(cpuv)
+			sharedResourceCost += totalVectors(ramv)
+			sharedResourceCost += totalVectors(gpuv)
+			sharedResourceCost += totalVectors(netv)
 			for _, pv := range pvvs {
-				sharedResourceCost += totalVector(pv)
+				sharedResourceCost += totalVectors(pv)
 			}
 		} else {
 			if field == "cluster" {
@@ -183,30 +215,75 @@ func AggregateCostData(cp cloud.Provider, costData map[string]*CostData, dataCou
 	}
 
 	for _, agg := range aggregations {
-		agg.CPUCost = totalVector(agg.CPUCostVector)
-		agg.RAMCost = totalVector(agg.RAMCostVector)
-		agg.GPUCost = totalVector(agg.GPUCostVector)
-		agg.PVCost = totalVector(agg.PVCostVector)
-		agg.NetworkCost = totalVector(agg.NetworkCostVector)
+		agg.CPUCost = totalVectors(agg.CPUCostVector)
+		agg.RAMCost = totalVectors(agg.RAMCostVector)
+		agg.GPUCost = totalVectors(agg.GPUCostVector)
+		agg.PVCost = totalVectors(agg.PVCostVector)
+		agg.NetworkCost = totalVectors(agg.NetworkCostVector)
 		agg.SharedCost = sharedResourceCost / float64(len(aggregations))
 
-		if rate != "" {
-			klog.V(1).Infof("scaling '%s' costs to '%s' rate by %d", agg.Environment, rate, dataCount)
-
-			if dataCount > 0 {
-				agg.CPUCost /= float64(dataCount)
-				agg.RAMCost /= float64(dataCount)
-				agg.GPUCost /= float64(dataCount)
-				agg.PVCost /= float64(dataCount)
-				agg.NetworkCost /= float64(dataCount)
-				agg.SharedCost /= float64(dataCount)
-			}
+		if rate != "" && dataCount > 0 {
+			agg.CPUCost /= float64(dataCount)
+			agg.RAMCost /= float64(dataCount)
+			agg.GPUCost /= float64(dataCount)
+			agg.PVCost /= float64(dataCount)
+			agg.NetworkCost /= float64(dataCount)
+			agg.SharedCost /= float64(dataCount)
 		}
 
 		agg.TotalCost = agg.CPUCost + agg.RAMCost + agg.GPUCost + agg.PVCost + agg.NetworkCost + agg.SharedCost
 
+		if includeEfficiency {
+			// Default both RAM and CPU to 100% efficiency so that a 0-requested, 0-allocated, 0-used situation
+			// returns 100% efficiency, which should be a red-flag.
+			//
+			// If non-zero numbers are available, then efficiency is defined as:
+			//   idlePercentage =  (requested - used) / allocated
+			//   efficiency = (1.0 - idlePercentage)
+			//
+			// It is possible to score > 100% efficiency, which is meant to be interpreted as a red flag.
+			// It is not possible to score < 0% efficiency.
+
+			klog.V(1).Infof("\n\tlen(CPU allocation): %d\n\tlen(CPU requested): %d\n\tlen(CPU used): %d",
+				len(agg.CPUAllocationVectors),
+				len(agg.CPURequestedVectors),
+				len(agg.CPUUsedVectors))
+
+			agg.CPUEfficiency = 1.0
+			CPUIdle := 0.0
+			avgCPUAllocation := totalVectors(agg.CPUAllocationVectors) / float64(len(agg.CPUAllocationVectors))
+			if avgCPUAllocation > 0.0 {
+				avgCPURequested := averageVectors(agg.CPURequestedVectors)
+				avgCPUUsed := averageVectors(agg.CPUUsedVectors)
+				CPUIdle = ((avgCPURequested - avgCPUUsed) / avgCPUAllocation)
+				agg.CPUEfficiency = 1.0 - CPUIdle
+			}
+
+			klog.V(1).Infof("\n\tlen(RAM allocation): %d\n\tlen(RAM requested): %d\n\tlen(RAM used): %d",
+				len(agg.RAMAllocationVectors),
+				len(agg.RAMRequestedVectors),
+				len(agg.RAMUsedVectors))
+
+			agg.RAMEfficiency = 1.0
+			RAMIdle := 0.0
+			avgRAMAllocation := totalVectors(agg.RAMAllocationVectors) / float64(len(agg.RAMAllocationVectors))
+			if avgRAMAllocation > 0.0 {
+				avgRAMRequested := averageVectors(agg.RAMRequestedVectors)
+				avgRAMUsed := averageVectors(agg.RAMUsedVectors)
+				RAMIdle = ((avgRAMRequested - avgRAMUsed) / avgRAMAllocation)
+				agg.RAMEfficiency = 1.0 - RAMIdle
+			}
+
+			// Score total efficiency by the sum of CPU and RAM efficiency, weighted by their
+			// respective total costs.
+			agg.Efficiency = 1.0
+			if (agg.CPUCost + agg.RAMCost) > 0 {
+				agg.Efficiency = 1.0 - ((agg.CPUCost*CPUIdle)+(agg.RAMCost*RAMIdle))/(agg.CPUCost+agg.RAMCost)
+			}
+		}
+
 		// remove time series data if it is not explicitly requested
-		if !timeSeries {
+		if !includeTimeSeries {
 			agg.CPUCostVector = nil
 			agg.RAMCostVector = nil
 			agg.GPUCostVector = nil
@@ -219,21 +296,31 @@ func AggregateCostData(cp cloud.Provider, costData map[string]*CostData, dataCou
 }
 
 func aggregateDatum(cp cloud.Provider, aggregations map[string]*Aggregation, costDatum *CostData, field string, subfields []string, rate string, key string, discount float64, idleCoefficient float64) {
-	// add new entry to aggregation results if a new
+	// add new entry to aggregation results if a new key is encountered
 	if _, ok := aggregations[key]; !ok {
 		agg := &Aggregation{}
 		agg.Aggregator = field
-		agg.Subfields = subfields
+		if len(subfields) > 0 {
+			agg.Subfields = subfields
+		}
 		agg.Environment = key
 		aggregations[key] = agg
 	}
+
+	klog.V(1).Infoln(costDatum)
 
 	mergeVectors(cp, costDatum, aggregations[key], rate, discount, idleCoefficient)
 }
 
 func mergeVectors(cp cloud.Provider, costDatum *CostData, aggregation *Aggregation, rate string, discount float64, idleCoefficient float64) {
-	aggregation.CPUAllocation = addVectors(costDatum.CPUAllocation, aggregation.CPUAllocation)
-	aggregation.RAMAllocation = addVectors(costDatum.RAMAllocation, aggregation.RAMAllocation)
+	aggregation.CPUAllocationVectors = addVectors(costDatum.CPUAllocation, aggregation.CPUAllocationVectors)
+	aggregation.CPURequestedVectors = addVectors(costDatum.CPUReq, aggregation.CPURequestedVectors)
+	aggregation.CPUUsedVectors = addVectors(costDatum.CPUUsed, aggregation.CPUUsedVectors)
+
+	aggregation.RAMAllocationVectors = addVectors(costDatum.RAMAllocation, aggregation.RAMAllocationVectors)
+	aggregation.RAMRequestedVectors = addVectors(costDatum.RAMReq, aggregation.RAMRequestedVectors)
+	aggregation.RAMUsedVectors = addVectors(costDatum.RAMUsed, aggregation.RAMUsedVectors)
+
 	aggregation.GPUAllocation = addVectors(costDatum.GPUReq, aggregation.GPUAllocation)
 
 	cpuv, ramv, gpuv, pvvs, netv := getPriceVectors(cp, costDatum, rate, discount, idleCoefficient)
@@ -339,7 +426,14 @@ func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discou
 	return cpuv, ramv, gpuv, pvvs, netv
 }
 
-func totalVector(vectors []*Vector) float64 {
+func averageVectors(vectors []*Vector) float64 {
+	if len(vectors) == 0 {
+		return 0.0
+	}
+	return totalVectors(vectors) / float64(len(vectors))
+}
+
+func totalVectors(vectors []*Vector) float64 {
 	total := 0.0
 	for _, vector := range vectors {
 		total += vector.Value
@@ -347,65 +441,84 @@ func totalVector(vectors []*Vector) float64 {
 	return total
 }
 
-func addVectors(req []*Vector, used []*Vector) []*Vector {
-	if req == nil || len(req) == 0 {
-		for _, usedV := range used {
-			if usedV.Timestamp == 0 {
-				continue
-			}
-			usedV.Timestamp = math.Round(usedV.Timestamp/10) * 10
-		}
-		return used
-	}
-	if used == nil || len(used) == 0 {
-		for _, reqV := range req {
-			if reqV.Timestamp == 0 {
-				continue
-			}
-			reqV.Timestamp = math.Round(reqV.Timestamp/10) * 10
-		}
-		return req
-	}
-	var allocation []*Vector
+// roundTimestamp rounds the given timestamp to the given precision; e.g. a
+// timestamp given in seconds, rounded to precision 10, will be rounded
+// to the nearest value dividible by 10 (24 goes to 20, but 25 goes to 30).
+func roundTimestamp(ts float64, precision float64) float64 {
+	return math.Round(ts/precision) * precision
+}
 
+// addVectors adds two slices of Vectors. Vector timestamps are rounded to the
+// nearest ten seconds to allow matching of Vectors within a delta allowance.
+// Matching Vectors are summed, while unmatched Vectors are passed through.
+// e.g. [(t=1, 1), (t=2, 2)] + [(t=2, 2), (t=3, 3)] = [(t=1, 1), (t=2, 4), (t=3, 3)]
+func addVectors(xvs []*Vector, yvs []*Vector) []*Vector {
+	// round all non-zero timestamps to the nearest 10 second mark
+	for _, yv := range yvs {
+		if yv.Timestamp != 0 {
+			yv.Timestamp = roundTimestamp(yv.Timestamp, 10.0)
+		}
+	}
+	for _, xv := range xvs {
+		if xv.Timestamp != 0 {
+			xv.Timestamp = roundTimestamp(xv.Timestamp, 10.0)
+		}
+	}
+
+	// if xvs is empty, return yvs
+	if xvs == nil || len(xvs) == 0 {
+		return yvs
+	}
+
+	// if yvs is empty, return xvs
+	if yvs == nil || len(yvs) == 0 {
+		return xvs
+	}
+
+	// sum stores the sum of the vector slices xvs and yvs
+	var sum []*Vector
+
+	// timestamps stores all timestamps present in both vector slices
+	// without duplicates
 	var timestamps []float64
-	reqMap := make(map[float64]float64)
-	for _, reqV := range req {
-		if reqV.Timestamp == 0 {
+
+	// turn each vector slice into a map of timestamp-to-value so that
+	// values at equal timestamps can be lined-up and summed
+	xMap := make(map[float64]float64)
+	for _, xv := range xvs {
+		if xv.Timestamp == 0 {
 			continue
 		}
-		reqV.Timestamp = math.Round(reqV.Timestamp/10) * 10
-		reqMap[reqV.Timestamp] = reqV.Value
-		timestamps = append(timestamps, reqV.Timestamp)
+		xMap[xv.Timestamp] = xv.Value
+		timestamps = append(timestamps, xv.Timestamp)
 	}
-	usedMap := make(map[float64]float64)
-	for _, usedV := range used {
-		if usedV.Timestamp == 0 {
+	yMap := make(map[float64]float64)
+	for _, yv := range yvs {
+		if yv.Timestamp == 0 {
 			continue
 		}
-		usedV.Timestamp = math.Round(usedV.Timestamp/10) * 10
-		usedMap[usedV.Timestamp] = usedV.Value
-		if _, ok := reqMap[usedV.Timestamp]; !ok { // no need to double add, since we'll range over sorted timestamps and check.
-			timestamps = append(timestamps, usedV.Timestamp)
+		yMap[yv.Timestamp] = yv.Value
+		if _, ok := xMap[yv.Timestamp]; !ok {
+			// no need to double add, since we'll range over sorted timestamps and check.
+			timestamps = append(timestamps, yv.Timestamp)
 		}
 	}
 
+	// iterate over each timestamp to produce a final summed vector slice
 	sort.Float64s(timestamps)
 	for _, t := range timestamps {
-		rv, okR := reqMap[t]
-		uv, okU := usedMap[t]
-		allocationVector := &Vector{
-			Timestamp: t,
+		x, okX := xMap[t]
+		y, okY := yMap[t]
+		sv := &Vector{Timestamp: t}
+		if okX && okY {
+			sv.Value = x + y
+		} else if okX {
+			sv.Value = x
+		} else if okY {
+			sv.Value = y
 		}
-		if okR && okU {
-			allocationVector.Value = rv + uv
-		} else if okR {
-			allocationVector.Value = rv
-		} else if okU {
-			allocationVector.Value = uv
-		}
-		allocation = append(allocation, allocationVector)
+		sum = append(sum, sv)
 	}
 
-	return allocation
+	return sum
 }

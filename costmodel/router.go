@@ -211,8 +211,13 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 		// This assumes hourly data, incremented by one to capture the 0th data point.
 		dataCount := int64(dur.Hours()) + 1
 		klog.V(1).Infof("for duration %s dataCount = %d", dur.String(), dataCount)
-		defaultIdleCoefficientMap := make(map[string]float64)
-		agg := AggregateCostData(a.Cloud, data, dataCount, aggregationField, subfields, "", false, discount, defaultIdleCoefficientMap, nil)
+
+		opts := &AggregationOptions{
+			DataCount:        dataCount,
+			Discount:         discount,
+			IdleCoefficients: make(map[string]float64),
+		}
+		agg := AggregateCostData(data, aggregationField, subfields, a.Cloud, opts)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {
@@ -260,7 +265,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	namespace := r.URL.Query().Get("namespace")
 	cluster := r.URL.Query().Get("cluster")
 	field := r.URL.Query().Get("aggregation")
-	subfields := strings.Split(r.URL.Query().Get("aggregationSubfield"), ",")
+	subfieldStr := r.URL.Query().Get("aggregationSubfield")
 	rate := r.URL.Query().Get("rate")
 	allocateIdle := r.URL.Query().Get("allocateIdle") == "true"
 	sharedNamespaces := r.URL.Query().Get("sharedNamespaces")
@@ -268,9 +273,17 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	sharedLabelValues := r.URL.Query().Get("sharedLabelValues")
 	remote := r.URL.Query().Get("remote")
 
+	subfields := []string{}
+	if len(subfieldStr) > 0 {
+		subfields = strings.Split(r.URL.Query().Get("aggregationSubfield"), ",")
+	}
+
 	// timeSeries == true maintains the time series dimension of the data,
 	// which by default gets summed over the entire interval
-	timeSeries := r.URL.Query().Get("timeSeries") == "true"
+	includeTimeSeries := r.URL.Query().Get("timeSeries") == "true"
+
+	// efficiency == true aggregates and returns usage and efficiency data
+	includeEfficiency := r.URL.Query().Get("efficiency") == "true"
 
 	// disableCache, if set to "true", tells this function to recompute and
 	// cache the requested data
@@ -374,8 +387,8 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	// parametrize cache key by all request parameters
-	aggKey := fmt.Sprintf("aggregate:%s:%s:%s:%s:%s:%s:%s:%t:%t",
-		window, offset, namespace, cluster, field, strings.Join(subfields, ","), rate, timeSeries, allocateIdle)
+	aggKey := fmt.Sprintf("aggregate:%s:%s:%s:%s:%s:%s:%s:%t:%t:%t",
+		window, offset, namespace, cluster, field, strings.Join(subfields, ","), rate, allocateIdle, includeTimeSeries, includeEfficiency)
 
 	// check the cache for aggregated response; if cache is hit and not disabled, return response
 	if result, found := a.Cache.Get(aggKey); found && !disableCache {
@@ -417,13 +430,13 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	}
 	discount = discount * 0.01
 
-	idleCoefficient := make(map[string]float64)
+	idleCoefficients := make(map[string]float64)
 	if allocateIdle {
 		windowStr := fmt.Sprintf("%dh", int(dur.Hours()))
 		if a.ThanosClient != nil {
 			offset = "3h"
 		}
-		idleCoefficient, err = ComputeIdleCoefficient(data, pClient, a.Cloud, discount, windowStr, offset)
+		idleCoefficients, err = ComputeIdleCoefficient(data, pClient, a.Cloud, discount, windowStr, offset)
 		if err != nil {
 			klog.V(1).Infof("error computing idle coefficient: windowString=%s, offset=%s, err=%s", windowStr, offset, err)
 			w.Write(wrapData(nil, err))
@@ -451,7 +464,16 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	// aggregate cost model data by given fields and cache the result for the default expiration
-	result := AggregateCostData(a.Cloud, data, dataCount, field, subfields, rate, timeSeries, discount, idleCoefficient, sr)
+	opts := &AggregationOptions{
+		DataCount:          dataCount,
+		Discount:           discount,
+		IdleCoefficients:   idleCoefficients,
+		IncludeEfficiency:  includeEfficiency,
+		IncludeTimeSeries:  includeTimeSeries,
+		Rate:               rate,
+		SharedResourceInfo: sr,
+	}
+	result := AggregateCostData(data, field, subfields, a.Cloud, opts)
 	a.Cache.Set(aggKey, result, cache.DefaultExpiration)
 
 	w.Write(wrapDataWithMessage(result, nil, fmt.Sprintf("cache miss: %s", aggKey)))
@@ -527,8 +549,12 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 		dataCount := (int64(dur.Hours()) / windowHrs) + 1
 		klog.V(1).Infof("for duration %s dataCount = %d", dur.String(), dataCount)
 
-		defaultIdleCoefficientMap := make(map[string]float64)
-		agg := AggregateCostData(a.Cloud, data, dataCount, aggregationField, subfields, "", false, discount, defaultIdleCoefficientMap, nil)
+		opts := &AggregationOptions{
+			DataCount:        dataCount,
+			Discount:         discount,
+			IdleCoefficients: make(map[string]float64),
+		}
+		agg := AggregateCostData(data, aggregationField, subfields, a.Cloud, opts)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {
