@@ -411,7 +411,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		pClient = a.PrometheusClient
 	}
 
-	data, err := a.Model.ComputeCostDataRange(pClient, a.KubeClientSet, a.Cloud, start, end, "1h", namespace, cluster, remoteEnabled)
+	data, err := GetCachedCostDataRange(a, pClient, start, end, "1h", namespace, cluster, remoteEnabled, disableCache)
 	if err != nil {
 		klog.V(1).Infof("error computing cost data range: start=%s, end=%s, err=%s", start, end, err)
 		w.Write(wrapData(nil, err))
@@ -477,6 +477,27 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	a.Cache.Set(aggKey, result, cache.DefaultExpiration)
 
 	w.Write(wrapDataWithMessage(result, nil, fmt.Sprintf("cache miss: %s", aggKey)))
+}
+
+func GetCachedCostDataRange(a *Accesses, pc prometheusClient.Client, start, end, window, namespace, cluster string, remoteEnabled, disableCache bool) (map[string]*CostData, error) {
+	// TODO filter by namespace and cluster afterwards
+	key := fmt.Sprintf(`raw:%s:%s:%s:%s:%s:%t`, start, end, window, namespace, cluster, remoteEnabled)
+
+	if value, found := a.Cache.Get(key); found && !disableCache {
+		klog.V(1).Infof("cache hit: %s", key)
+		if data, ok := value.(map[string]*CostData); ok {
+			return data, nil
+		}
+		klog.V(1).Infof("failed to cast data to struct")
+	}
+
+	klog.V(1).Infof("cache miss: %s", key)
+	data, err := a.Model.ComputeCostDataRange(pc, a.KubeClientSet, a.Cloud, start, end, "1h", namespace, cluster, remoteEnabled)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
 }
 
 func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
