@@ -1047,8 +1047,8 @@ func init() {
 		KubeClientSet: kubeClientset,
 	})
 
-	// cache responses from model for a default of 2 minutes; clear expired responses every 10 minutes
-	modelCache := cache.New(time.Minute*2, time.Minute*10)
+	// cache responses from model for a default of 5 minutes; clear expired responses every 10 minutes
+	modelCache := cache.New(time.Minute*5, time.Minute*10)
 
 	A = Accesses{
 		PrometheusClient:              promCli,
