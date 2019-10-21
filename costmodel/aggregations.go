@@ -82,7 +82,9 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 	if err != nil {
 		return nil, err
 	}
-	aggregateContainerCosts := AggregateCostData(cp, costData, 0, "cluster", []string{}, "", false, discount, 1, nil)
+	tempCoefficient := make(map[string]float64)
+
+	aggregateContainerCosts := AggregateCostData(cp, costData, 0, "cluster", []string{}, "", false, discount, tempCoefficient, nil)
 	allTotals, err := ClusterCostsForAllClusters(cli, cp, windowString, offset)
 	if err != nil {
 		return nil, err
@@ -125,7 +127,7 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 
 // AggregateCostData reduces the dimensions of raw cost data by field and, optionally, by time. The field parameter determines the field
 // by which to group data, with an optional subfield, e.g. for groupings like field="label" and subfield="app" for grouping by "label.app".
-func AggregateCostData(cp cloud.Provider, costData map[string]*CostData, dataCount int64, field string, subfields []string, rate string, timeSeries bool, discount float64, idleCoefficient float64, sr *SharedResourceInfo) map[string]*Aggregation {
+func AggregateCostData(cp cloud.Provider, costData map[string]*CostData, dataCount int64, field string, subfields []string, rate string, timeSeries bool, discount float64, idleCoefficients map[string]float64, sr *SharedResourceInfo) map[string]*Aggregation {
 	// aggregations collects key-value pairs of resource group-to-aggregated data
 	// e.g. namespace-to-data or label-value-to-data
 	aggregations := make(map[string]*Aggregation)
@@ -135,6 +137,10 @@ func AggregateCostData(cp cloud.Provider, costData map[string]*CostData, dataCou
 	sharedResourceCost := 0.0
 
 	for _, costDatum := range costData {
+		idleCoefficient, ok := idleCoefficients[costDatum.ClusterID]
+		if !ok {
+			idleCoefficient = 1.0
+		}
 		if sr != nil && sr.ShareResources && sr.IsSharedResource(costDatum) {
 			cpuv, ramv, gpuv, pvvs, netv := getPriceVectors(cp, costDatum, rate, discount, idleCoefficient)
 			sharedResourceCost += totalVector(cpuv)
@@ -171,7 +177,7 @@ func AggregateCostData(cp cloud.Provider, costData map[string]*CostData, dataCou
 					}
 				}
 			} else if field == "pod" {
-				aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.PodName, discount, idleCoefficient)
+				aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.PodName, discount, idleCoefficient)
 			}
 		}
 	}

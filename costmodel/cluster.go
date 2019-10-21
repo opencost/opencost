@@ -18,7 +18,7 @@ const (
 	  ) by (cluster_id)`
 
 	queryClusterRAM = `sum(
-		avg(kube_node_status_capacity_memory_bytes %s) by (node) / 1024 / 1024 / 1024 * avg(node_ram_hourly_cost %s) by (node, cluster_id) * 730
+		avg(kube_node_status_capacity_memory_bytes %s) by (node, cluster_id) / 1024 / 1024 / 1024 * avg(node_ram_hourly_cost %s) by (node, cluster_id) * 730
 	  ) by (cluster_id)`
 
 	queryStorage = `sum(
@@ -89,7 +89,7 @@ func resultToTotal(qr interface{}) (map[string][][]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		return nil, fmt.Errorf(e)
+		return nil, fmt.Errorf("Prometheus query error: %s", e)
 	}
 	r, ok := data.(map[string]interface{})["result"]
 	if !ok {
@@ -143,48 +143,34 @@ func resultToTotal(qr interface{}) (map[string][][]string, error) {
 
 // ClusterCostsForAllClusters gives the cluster costs averaged over a window of time for all clusters.
 func ClusterCostsForAllClusters(cli prometheusClient.Client, cloud costAnalyzerCloud.Provider, windowString, offset string) (map[string]*Totals, error) {
-	localStorageQuery, err := cloud.GetLocalStorageQuery()
-	if err != nil {
-		return nil, err
-	}
-	if localStorageQuery != "" {
-		localStorageQuery = fmt.Sprintf("+ %s", localStorageQuery)
-	}
 
-	// turn offsets of the format "[0-9+]h" into the format "offset [0-9+]h" for use in query templatess
 	if offset != "" {
-		offset = fmt.Sprintf("offset %s", offset)
+		offset = fmt.Sprintf("offset 3h") // Set offset to 3h for block sync
 	}
 
 	qCores := fmt.Sprintf(queryClusterCores, offset, offset, offset)
 	qRAM := fmt.Sprintf(queryClusterRAM, offset, offset)
-	qStorage := fmt.Sprintf(queryStorage, windowString, offset, windowString, offset, localStorageQuery)
-	qTotal := fmt.Sprintf(queryTotal, localStorageQuery)
+	qStorage := fmt.Sprintf(queryStorage, windowString, offset, windowString, offset, "")
 
 	resultClusterCores, err := Query(cli, qCores)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error for query %s: %s", qCores, err.Error())
 	}
 	resultClusterRAM, err := Query(cli, qRAM)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error for query %s: %s", qRAM, err.Error())
 	}
 
 	resultStorage, err := Query(cli, qStorage)
 	if err != nil {
-		return nil, err
-	}
-
-	resultTotal, err := Query(cli, qTotal)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error for query %s: %s", qStorage, err.Error())
 	}
 
 	toReturn := make(map[string]*Totals)
 
 	coreTotal, err := resultToTotal(resultClusterCores)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error for query %s: %s", qCores, err.Error())
 	}
 	for clusterID, total := range coreTotal {
 		if _, ok := toReturn[clusterID]; !ok {
@@ -195,7 +181,7 @@ func ClusterCostsForAllClusters(cli prometheusClient.Client, cloud costAnalyzerC
 
 	ramTotal, err := resultToTotal(resultClusterRAM)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error for query %s: %s", qRAM, err.Error())
 	}
 	for clusterID, total := range ramTotal {
 		if _, ok := toReturn[clusterID]; !ok {
@@ -206,24 +192,13 @@ func ClusterCostsForAllClusters(cli prometheusClient.Client, cloud costAnalyzerC
 
 	storageTotal, err := resultToTotal(resultStorage)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error for query %s: %s", qStorage, err.Error())
 	}
 	for clusterID, total := range storageTotal {
 		if _, ok := toReturn[clusterID]; !ok {
 			toReturn[clusterID] = &Totals{}
 		}
 		toReturn[clusterID].StorageCost = total
-	}
-
-	clusterTotal, err := resultToTotal(resultTotal)
-	if err != nil {
-		return nil, err
-	}
-	for clusterID, total := range clusterTotal {
-		if _, ok := toReturn[clusterID]; !ok {
-			toReturn[clusterID] = &Totals{}
-		}
-		toReturn[clusterID].TotalCost = total
 	}
 
 	return toReturn, nil
@@ -289,11 +264,13 @@ func ClusterCosts(cli prometheusClient.Client, cloud costAnalyzerCloud.Provider,
 		return nil, err
 	}
 
+	defaultClusterID := os.Getenv(clusterIDKey)
+
 	return &Totals{
-		TotalCost:   clusterTotal,
-		CPUCost:     coreTotal,
-		MemCost:     ramTotal,
-		StorageCost: storageTotal,
+		TotalCost:   clusterTotal[defaultClusterID],
+		CPUCost:     coreTotal[defaultClusterID],
+		MemCost:     ramTotal[defaultClusterID],
+		StorageCost: storageTotal[defaultClusterID],
 	}, nil
 }
 
