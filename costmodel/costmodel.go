@@ -143,6 +143,8 @@ const (
 						* 
 						on (persistentvolumeclaim, namespace, cluster_id) group_right(storageclass, volumename) 
 				sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) by (persistentvolumeclaim, namespace, cluster_id)`
+	queryPVCAllocationStr     = `avg_over_time(pod_pvc_allocation{cluster_id="%s", namespace="%s", pod="%s"}[24h])`
+	queryPVHourlyCostStr      = `avg_over_time(pv_hourly_cost{cluster_id="%s", volumename="%s"}[24h])`
 	queryZoneNetworkUsage     = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	queryInternetNetworkUsage = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
@@ -619,6 +621,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 			if !ok {
 				klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
 			}
+
 			costs := &CostData{
 				Name:            c.ContainerName,
 				PodName:         c.PodName,
@@ -1516,6 +1519,30 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 			if !ok {
 				klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
 			}
+
+			// For PVC data, we'll need to find the claim mapping and cost data. Will need to append
+			// cost data since that was populated by cluster data previously. We do this with
+			// the pod_pvc_allocation metric
+			podPVs, err := findPVCData(cli, c.ClusterID, c.Namespace, c.PodName)
+			if err != nil {
+				klog.V(1).Infof("Failed to locate missing pod PV data: %s", err.Error())
+			}
+			if podPVs != nil {
+				addMetricPVData(cli, c.ClusterID, podPVs)
+			}
+
+			// For network costs, we'll use existing map since it should still contain the
+			// correct data.
+			var podNetCosts []*Vector
+			if usage, ok := networkUsageMap[c.Namespace+","+c.PodName+","+c.ClusterID]; ok {
+				netCosts, err := GetNetworkCost(usage, cp)
+				if err != nil {
+					klog.V(3).Infof("Error pulling network costs: %s", err.Error())
+				} else {
+					podNetCosts = netCosts
+				}
+			}
+
 			costs := &CostData{
 				Name:            c.ContainerName,
 				PodName:         c.PodName,
@@ -1528,6 +1555,8 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 				CPUUsed:         CPUUsedV,
 				GPUReq:          GPUReqV,
 				NamespaceLabels: namespacelabels,
+				PVCData:         podPVs,
+				NetworkData:     podNetCosts,
 				ClusterID:       c.ClusterID,
 			}
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
@@ -1555,6 +1584,148 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	}
 
 	return containerNameCost, err
+}
+
+func findPVCData(cli prometheusClient.Client, clusterID string, ns string, pod string) ([]*PersistentVolumeClaimData, error) {
+	var toReturn []*PersistentVolumeClaimData
+	queryPVCData := fmt.Sprintf(queryPVCAllocationStr, clusterID, ns, pod)
+	pvcResult, err := Query(cli, queryPVCData)
+	if err != nil {
+		return toReturn, err
+	}
+
+	data, ok := pvcResult.(map[string]interface{})["data"]
+	if !ok {
+		e, err := wrapPrometheusError(pvcResult)
+		if err != nil {
+			return toReturn, err
+		}
+		return toReturn, fmt.Errorf(e)
+	}
+
+	for _, val := range data.(map[string]interface{})["result"].([]interface{}) {
+		metricInterface, ok := val.(map[string]interface{})["metric"]
+		if !ok {
+			return toReturn, fmt.Errorf("Metric field does not exist in data result vector")
+		}
+		metricMap, ok := metricInterface.(map[string]interface{})
+		if !ok {
+			return toReturn, fmt.Errorf("Metric field is improperly formatted")
+		}
+
+		pvcField, ok := metricMap["persistentvolumeclaim"]
+		if !ok {
+			return toReturn, fmt.Errorf("persistentvolumeclaim field does not exist in data result vector")
+		}
+
+		pvcName, ok := pvcField.(string)
+		if !ok {
+			return toReturn, fmt.Errorf("persistentvolumeclaim field is improperly formatted")
+		}
+
+		// TODO: Could we use original pvClaimMapping to simplify this?
+		// pvClaimData, ok := pvClaimMapping[ns+pvcName+clusterID]
+		// if ok {
+		// 	toReturn = append(toReturn, pvClaimData)
+		// 	continue
+		// }
+
+		pvField, ok := metricMap["persistentvolume"]
+		if !ok {
+			return toReturn, fmt.Errorf("persistentvolume field does not exist in data result vector")
+		}
+		pvName, ok := pvField.(string)
+		if !ok {
+			return toReturn, fmt.Errorf("persistentvolume field is improperly formatted")
+		}
+
+		dataPoint, ok := val.(map[string]interface{})["value"]
+		if !ok {
+			return nil, fmt.Errorf("Value field does not exist in data result vector")
+		}
+		value, ok := dataPoint.([]interface{})
+		if !ok || len(value) != 2 {
+			return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
+		}
+		var vectors []*Vector
+		strVal := value[1].(string)
+		v, _ := strconv.ParseFloat(strVal, 64)
+
+		vectors = append(vectors, &Vector{
+			Timestamp: value[0].(float64),
+			Value:     v,
+		})
+
+		pvcData := &PersistentVolumeClaimData{
+			Class:      "",
+			Claim:      pvcName,
+			Namespace:  ns,
+			ClusterID:  clusterID,
+			VolumeName: pvName,
+			Values:     vectors,
+		}
+
+		toReturn = append(toReturn, pvcData)
+	}
+
+	return toReturn, nil
+}
+
+func addMetricPVData(cli prometheusClient.Client, clusterID string, pvData []*PersistentVolumeClaimData) {
+	for _, pvcd := range pvData {
+		hourlyCost, err := getMetricPVCost(cli, clusterID, pvcd.VolumeName)
+		if err != nil {
+			klog.V(1).Infof("Failed to parse hourly cost metric for clusterID: %s, volume: %s, Error: %s", clusterID, pvcd.VolumeName, err.Error())
+			continue
+		}
+
+		pvcd.Volume = &costAnalyzerCloud.PV{
+			Cost: fmt.Sprintf("%f", hourlyCost),
+		}
+	}
+}
+
+func getMetricPVCost(cli prometheusClient.Client, clusterID string, volumeName string) (float64, error) {
+	queryPVHourlyCost := fmt.Sprintf(queryPVHourlyCostStr, clusterID, volumeName)
+	pvCostResult, err := Query(cli, queryPVHourlyCost)
+	if err != nil {
+		return 0, err
+	}
+
+	data, ok := pvCostResult.(map[string]interface{})["data"]
+	if !ok {
+		e, err := wrapPrometheusError(pvCostResult)
+		if err != nil {
+			return 0, err
+		}
+		return 0, fmt.Errorf(e)
+	}
+
+	resultArray, ok := data.(map[string]interface{})["result"].([]interface{})
+	if !ok {
+		return 0, fmt.Errorf("Result field not part of data")
+	}
+
+	if len(resultArray) == 0 {
+		return 0, fmt.Errorf("Result array was empty")
+	}
+
+	result := resultArray[0]
+	dataPoint, ok := result.(map[string]interface{})["value"]
+	if !ok {
+		return 0, fmt.Errorf("Value field does not exist in data result vector")
+	}
+	value, ok := dataPoint.([]interface{})
+	if !ok || len(value) != 2 {
+		return 0, fmt.Errorf("Improperly formatted datapoint from Prometheus")
+	}
+
+	strVal, ok := value[1].(string)
+	if !ok {
+		return 0, fmt.Errorf("Improperly formatted datapoint from Prometheus")
+	}
+
+	return strconv.ParseFloat(strVal, 64)
 }
 
 func getNamespaceLabels(cache ClusterCache) (map[string]map[string]string, error) {
