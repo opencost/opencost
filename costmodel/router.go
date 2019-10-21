@@ -265,13 +265,18 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	namespace := r.URL.Query().Get("namespace")
 	cluster := r.URL.Query().Get("cluster")
 	field := r.URL.Query().Get("aggregation")
-	subfields := strings.Split(r.URL.Query().Get("aggregationSubfield"), ",")
+	subfieldStr := r.URL.Query().Get("aggregationSubfield")
 	rate := r.URL.Query().Get("rate")
 	allocateIdle := r.URL.Query().Get("allocateIdle") == "true"
 	sharedNamespaces := r.URL.Query().Get("sharedNamespaces")
 	sharedLabelNames := r.URL.Query().Get("sharedLabelNames")
 	sharedLabelValues := r.URL.Query().Get("sharedLabelValues")
 	remote := r.URL.Query().Get("remote")
+
+	subfields := []string{}
+	if len(subfieldStr) > 0 {
+		subfields = strings.Split(r.URL.Query().Get("aggregationSubfield"), ",")
+	}
 
 	// timeSeries == true maintains the time series dimension of the data,
 	// which by default gets summed over the entire interval

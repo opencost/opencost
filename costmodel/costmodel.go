@@ -86,6 +86,13 @@ type CostData struct {
 	ClusterID       string                       `json:"clusterId"`
 }
 
+func (cd *CostData) String() string {
+	return fmt.Sprintf("\n\tName: %s; PodName: %s, NodeName: %s\n\tNamespace: %s\n\tDeployments: %s\n\tServices: %s\n\tCPU (req, used, alloc): %d, %d, %d\n\tRAM (req, used, alloc): %d, %d, %d",
+		cd.Name, cd.PodName, cd.NodeName, cd.Namespace, strings.Join(cd.Deployments, ", "), strings.Join(cd.Services, ", "),
+		len(cd.CPUReq), len(cd.CPUUsed), len(cd.CPUAllocation),
+		len(cd.RAMReq), len(cd.RAMUsed), len(cd.RAMAllocation))
+}
+
 type Vector struct {
 	Timestamp float64 `json:"timestamp"`
 	Value     float64 `json:"value"`
