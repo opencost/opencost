@@ -244,11 +244,6 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 			// It is possible to score > 100% efficiency, which is meant to be interpreted as a red flag.
 			// It is not possible to score < 0% efficiency.
 
-			klog.V(1).Infof("\n\tlen(CPU allocation): %d\n\tlen(CPU requested): %d\n\tlen(CPU used): %d",
-				len(agg.CPUAllocationVectors),
-				len(agg.CPURequestedVectors),
-				len(agg.CPUUsedVectors))
-
 			agg.CPUEfficiency = 1.0
 			CPUIdle := 0.0
 			avgCPUAllocation := totalVectors(agg.CPUAllocationVectors) / float64(len(agg.CPUAllocationVectors))
@@ -258,11 +253,6 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 				CPUIdle = ((avgCPURequested - avgCPUUsed) / avgCPUAllocation)
 				agg.CPUEfficiency = 1.0 - CPUIdle
 			}
-
-			klog.V(1).Infof("\n\tlen(RAM allocation): %d\n\tlen(RAM requested): %d\n\tlen(RAM used): %d",
-				len(agg.RAMAllocationVectors),
-				len(agg.RAMRequestedVectors),
-				len(agg.RAMUsedVectors))
 
 			agg.RAMEfficiency = 1.0
 			RAMIdle := 0.0
@@ -306,8 +296,6 @@ func aggregateDatum(cp cloud.Provider, aggregations map[string]*Aggregation, cos
 		agg.Environment = key
 		aggregations[key] = agg
 	}
-
-	klog.V(1).Infoln(costDatum)
 
 	mergeVectors(cp, costDatum, aggregations[key], rate, discount, idleCoefficient)
 }

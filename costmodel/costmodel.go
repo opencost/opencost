@@ -1129,9 +1129,9 @@ func getPodDeployments(cache ClusterCache, podList []*v1.Pod) (map[string]map[st
 	return podDeploymentsMapping, nil
 }
 
-func costDataPassesFilters(costs *CostData, namespace string, cluster string) bool {
+func costDataPassesFilters(costs *CostData, namespace string, clusterId string) bool {
 	passesNamespace := namespace == "" || costs.Namespace == namespace
-	passesCluster := cluster == "" || costs.ClusterID == cluster
+	passesCluster := clusterId == "" || costs.ClusterID == clusterId
 
 	return passesNamespace && passesCluster
 }
