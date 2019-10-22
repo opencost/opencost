@@ -320,7 +320,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	includeEfficiency := r.URL.Query().Get("efficiency") == "true"
 	// disableCache, if set to "true", tells this function to recompute and
 	// cache the requested data
-	disableCache := r.URL.Query().Get("disableCache") == "true"
+	disableCache := r.URL.Query().Get("disableCache") == "true" || allocateIdle
 	// clearCache, if set to "true", tells this function to flush the cache,
 	// then recompute and cache the requested data
 	clearCache := r.URL.Query().Get("clearCache") == "true"
@@ -440,6 +440,10 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	var sr *SharedResourceInfo
 	if len(sn) > 0 || len(sln) > 0 {
 		sr = NewSharedResourceInfo(true, sn, sln, slv)
+	}
+
+	for cid, idleCoefficient := range idleCoefficients {
+		klog.Infof("Idle Coeff: %s: %f", cid, idleCoefficient)
 	}
 
 	// aggregate cost model data by given fields and cache the result for the default expiration

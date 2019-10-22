@@ -90,13 +90,17 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 		return nil, err
 	}
 
-	aggregateContainerCosts := AggregateCostData(costData, "cluster", []string{}, cp, &AggregationOptions{Discount: discount})
 	allTotals, err := ClusterCostsForAllClusters(cli, cp, windowString, offset)
 	if err != nil {
 		return nil, err
 	}
 	for cid, totals := range allTotals {
-
+		klog.Infof("%s: %+v", cid, totals)
+		if !(len(totals.CPUCost) > 0 && len(totals.MemCost) > 0 && len(totals.StorageCost) > 0) {
+			klog.V(1).Infof("WARNING: NO DATA FOR CLUSTER %s. Is it emitting data?", cid)
+			coefficients[cid] = 1.0
+			continue
+		}
 		cpuCost, err := strconv.ParseFloat(totals.CPUCost[0][1], 64)
 		if err != nil {
 			return nil, err
@@ -116,16 +120,19 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 		totalClusterCostOverWindow := (totalClusterCost / 730) * windowDuration.Hours()
 		totalContainerCost := 0.0
 		for _, costDatum := range costData {
-			cpuv, ramv, gpuv, pvvs, _ := getPriceVectors(cp, costDatum, "", discount, 1)
-			totalContainerCost += totalVectors(cpuv)
-			totalContainerCost += totalVectors(ramv)
-			totalContainerCost += totalVectors(gpuv)
-			for _, pv := range pvvs {
-				totalContainerCost += totalVectors(pv)
+			if costDatum.ClusterID == cid {
+				cpuv, ramv, gpuv, pvvs, _ := getPriceVectors(cp, costDatum, "", discount, 1)
+				totalContainerCost += totalVectors(cpuv)
+				totalContainerCost += totalVectors(ramv)
+				totalContainerCost += totalVectors(gpuv)
+				for _, pv := range pvvs {
+					totalContainerCost += totalVectors(pv)
+				}
 			}
+
 		}
 
-		coefficients[cid] = aggregateContainerCosts[cid].TotalCost / totalClusterCostOverWindow
+		coefficients[cid] = totalContainerCost / totalClusterCostOverWindow
 	}
 
 	return coefficients, nil
