@@ -96,7 +96,12 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 		return nil, err
 	}
 	for cid, totals := range allTotals {
-
+		klog.Infof("%+v", totals)
+		if !(len(totals.CPUCost) > 0 && len(totals.MemCost) > 0 && len(totals.StorageCost) > 0) {
+			klog.V(1).Infof("WARNING: NO DATA FOR CLUSTER %s. Is it emitting data?", cid)
+			coefficients[cid] = 1.0
+			continue
+		}
 		cpuCost, err := strconv.ParseFloat(totals.CPUCost[0][1], 64)
 		if err != nil {
 			return nil, err
@@ -306,8 +311,6 @@ func aggregateDatum(cp cloud.Provider, aggregations map[string]*Aggregation, cos
 		agg.Environment = key
 		aggregations[key] = agg
 	}
-
-	klog.V(1).Infoln(costDatum)
 
 	mergeVectors(cp, costDatum, aggregations[key], rate, discount, idleCoefficient)
 }
