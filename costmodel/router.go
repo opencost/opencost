@@ -114,34 +114,16 @@ func normalizeTimeParam(param string) (string, error) {
 	return param, nil
 }
 
-// parseTimeRange returns a start and end time, respectively, which are determined from
-// one of either a duration and offset (defined with Prometheus-style syntax) or a start
-// and end string (defined with ISO 8601 UTC syntax). If both are given, then duration
-// and offset take precedence.
-func parseTimeRange(duration, offset, start, end string) (*time.Time, *time.Time, error) {
-	layout := "2006-01-02T15:04:05.000Z"
-
-	if duration == "" {
-		startTime, err := time.Parse(layout, start)
-		if err != nil {
-			return nil, nil, fmt.Errorf("invalid start parameter: %s", start)
-		}
-
-		endTime, err := time.Parse(layout, end)
-		if err != nil {
-			return nil, nil, fmt.Errorf("invalid end parameter: %s", end)
-		}
-
-		return &startTime, &endTime, nil
-	}
-
+// parseTimeRange returns a start and end time, respectively, which are converted from
+// a duration and offset, defined as strings with Prometheus-style syntax.
+func parseTimeRange(duration, offset string) (*time.Time, *time.Time, error) {
 	// endTime defaults to the current time, unless an offset is explicity declared,
 	// in which case it shifts endTime back by given duration
 	endTime := time.Now()
 	if offset != "" {
 		o, err := time.ParseDuration(offset)
 		if err != nil {
-			return nil, nil, fmt.Errorf("Er")
+			return nil, nil, fmt.Errorf("error parsing offset (%s): %s", offset, err)
 		}
 		endTime = endTime.Add(-1 * o)
 	}
@@ -317,8 +299,6 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	// setting the start and end times as ISO time strings
 	window := r.URL.Query().Get("window")
 	offset := r.URL.Query().Get("offset")
-	start := r.URL.Query().Get("start")
-	end := r.URL.Query().Get("end")
 	// optional cost data filters
 	namespace := r.URL.Query().Get("namespace")
 	cluster := r.URL.Query().Get("cluster")
@@ -387,19 +367,6 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		a.Cache.Flush()
 	}
 
-	startTime, endTime, err := parseTimeRange(window, offset, start, end)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write(wrapData(nil, err))
-		return
-	}
-	dur := endTime.Sub(*startTime)
-
-	// dataCount is the number of time series data expected for the given interval,
-	// which we compute because Prometheus time series vectors omit zero values.
-	// This assumes hourly data, incremented by one to capture the 0th data point.
-	dataCount := int64(dur.Hours())
-
 	// check the cache for aggregated response; if cache is hit and not disabled, return response
 	aggKey := fmt.Sprintf("aggregate:%s:%s:%s:%s:%s:%s:%s:%t:%t:%t",
 		window, offset, namespace, cluster, field, strings.Join(subfields, ","), rate,
@@ -411,7 +378,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	resolution := "1h"
-	data, err := CostDataRangeWithCache(a, pClient, window, offset, start, end, resolution, remoteEnabled, disableCache)
+	data, err := a.CostDataRangeWithCache(pClient, window, offset, resolution, remoteEnabled, disableCache)
 	if err != nil {
 		w.Write(wrapData(nil, err))
 		return
@@ -429,6 +396,18 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		return
 	}
 	discount = discount * 0.01
+
+	startTime, endTime, err := parseTimeRange(window, offset)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(wrapData(nil, err))
+		return
+	}
+	dur := endTime.Sub(*startTime)
+	// dataCount is the number of time series data expected for the given interval,
+	// which we compute because Prometheus time series vectors omit zero values.
+	// This assumes hourly data, incremented by one to capture the 0th data point.
+	dataCount := int64(dur.Hours())
 
 	idleCoefficients := make(map[string]float64)
 	if allocateIdle {
@@ -482,18 +461,28 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 // CostDataRangeWithCache attempts to retrieve cost data for the given range from a cache, computing and caching the data
 // if it is not already available. Filtering by namespace and cluster is disallowed here to maximize likelihood of
 // cache hits.
-func CostDataRangeWithCache(a *Accesses, pc prometheusClient.Client, duration, offset, start, end, resolution string, remoteEnabled, disableCache bool) (map[string]*CostData, error) {
-	key := fmt.Sprintf(`raw:%s:%s:%s:%t`, duration, offset, resolution, remoteEnabled)
+func (a *Accesses) CostDataRangeWithCache(pc prometheusClient.Client, duration, offset, resolution string, remoteEnabled, disableCache bool) (map[string]*CostData, error) {
+	// convert duration and offset to start and end times
+	startTime, endTime, err := parseTimeRange(duration, offset)
+	if err != nil {
+		return nil, err
+	}
 
+	// attempt to retrieve cost data from cache
+	key := fmt.Sprintf(`raw:%s:%s:%s:%t`, duration, offset, resolution, remoteEnabled)
 	if value, found := a.Cache.Get(key); found && !disableCache {
 		klog.V(1).Infof("raw cache hit: %s", key)
 		if data, ok := value.(map[string]*CostData); ok {
 			return data, nil
 		}
-		klog.V(1).Infof("failed to cast data to struct")
+		klog.Errorf("caching error: failed to cast data to struct: %s", key)
 	}
 	klog.V(1).Infof("raw cache miss: %s", key)
 
+	// cache miss; compute data and cache it
+	layout := "2006-01-02T15:04:05.000Z"
+	start := startTime.Format(layout)
+	end := endTime.Format(layout)
 	data, err := a.Model.ComputeCostDataRange(pc, a.KubeClientSet, a.Cloud, start, end, resolution, "", "", remoteEnabled)
 	if err != nil {
 		return nil, err
