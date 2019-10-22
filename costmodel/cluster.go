@@ -150,15 +150,17 @@ func ClusterCostsForAllClusters(cli prometheusClient.Client, cloud costAnalyzerC
 	qRAM := fmt.Sprintf(queryClusterRAM, offset, offset)
 	qStorage := fmt.Sprintf(queryStorage, windowString, offset, windowString, offset, "")
 
+	klog.V(4).Infof("Running query %s", qCores)
 	resultClusterCores, err := Query(cli, qCores)
 	if err != nil {
 		return nil, fmt.Errorf("Error for query %s: %s", qCores, err.Error())
 	}
+	klog.V(4).Infof("Running query %s", qRAM)
 	resultClusterRAM, err := Query(cli, qRAM)
 	if err != nil {
 		return nil, fmt.Errorf("Error for query %s: %s", qRAM, err.Error())
 	}
-
+	klog.V(4).Infof("Running query %s", qRAM)
 	resultStorage, err := Query(cli, qStorage)
 	if err != nil {
 		return nil, fmt.Errorf("Error for query %s: %s", qStorage, err.Error())
