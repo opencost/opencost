@@ -1321,6 +1321,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 
 	containerNameCost := make(map[string]*CostData)
 	containers := make(map[string]bool)
+	otherClusterPVRecorded := make(map[string]bool)
 
 	RAMReqMap, err := GetContainerMetricVectors(resultRAMRequests, true, normalizationValue, clusterID)
 	if err != nil {
@@ -1506,7 +1507,8 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 			}
 
 		} else {
-			// The container has been deleted. Not all information is sent to prometheus via ksm, so fill out what we can without k8s api
+			// The container has been deleted, or is from a different clusterID
+			// Not all information is sent to prometheus via ksm, so fill out what we can without k8s api
 			klog.V(4).Info("The container " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
 			c, _ := NewContainerMetricFromKey(key)
 			RAMReqV, ok := RAMReqMap[key]
@@ -1550,24 +1552,37 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 				klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
 			}
 
+			var podPVs []*PersistentVolumeClaimData
+			var podNetCosts []*Vector
+
 			// For PVC data, we'll need to find the claim mapping and cost data. Will need to append
 			// cost data since that was populated by cluster data previously. We do this with
 			// the pod_pvc_allocation metric
-			podPVs, ok := pvAllocationMapping[c.Namespace+","+c.PodName+","+c.ClusterID]
+			podPVData, ok := pvAllocationMapping[c.Namespace+","+c.PodName+","+c.ClusterID]
 			if !ok {
 				klog.V(3).Infof("Failed to locate pv allocation mapping for missing pod.")
 			}
 
 			// For network costs, we'll use existing map since it should still contain the
 			// correct data.
-			var podNetCosts []*Vector
+			var podNetworkCosts []*Vector
 			if usage, ok := networkUsageMap[c.Namespace+","+c.PodName+","+c.ClusterID]; ok {
 				netCosts, err := GetNetworkCost(usage, cp)
 				if err != nil {
 					klog.V(3).Infof("Error pulling network costs: %s", err.Error())
 				} else {
-					podNetCosts = netCosts
+					podNetworkCosts = netCosts
 				}
+			}
+
+			// Check to see if any other data has been recorded for this namespace, pod, clusterId
+			// Follow the pattern of only allowing claims data per pod
+			podKey := c.Namespace + "," + c.PodName + "," + c.ClusterID
+			if !otherClusterPVRecorded[podKey] {
+				otherClusterPVRecorded[podKey] = true
+
+				podPVs = podPVData
+				podNetCosts = podNetworkCosts
 			}
 
 			costs := &CostData{
