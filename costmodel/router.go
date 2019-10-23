@@ -114,6 +114,33 @@ func normalizeTimeParam(param string) (string, error) {
 	return param, nil
 }
 
+// parseDuration converts a Prometheus-style resolution string into a Duration
+func parseDuration(duration string) (*time.Duration, error) {
+	unitStr := duration[len(duration)-1:]
+	var unit time.Duration
+	switch unitStr {
+	case "s":
+		unit = time.Second
+	case "m":
+		unit = time.Minute
+	case "h":
+		unit = time.Hour
+	case "d":
+		unit = 24.0 * time.Hour
+	default:
+		return nil, fmt.Errorf("error parsing duration: %s did not match expected format [0-9+](s|m|d|h)", duration)
+	}
+
+	amountStr := duration[:len(duration)-1]
+	amount, err := strconv.ParseInt(amountStr, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing duration: %s did not match expected format [0-9+](s|m|d|h)", duration)
+	}
+
+	dur := time.Duration(amount) * unit
+	return &dur, nil
+}
+
 // parseTimeRange returns a start and end time, respectively, which are converted from
 // a duration and offset, defined as strings with Prometheus-style syntax.
 func parseTimeRange(duration, offset string) (*time.Time, *time.Time, error) {
@@ -413,9 +440,6 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	// which we compute because Prometheus time series vectors omit zero values.
 	dataLength := int(dur.Hours())
 
-	klog.V(1).Infof("\n\tduration: %s\n\toffset: %s\n\tresolution: %s\n\tstart: %s\n\tend: %s\n\tdata length: %d",
-		window, offset, resolution, startTime.Format("2006-01-02T15:04:05.000Z"), endTime.Format("2006-01-02T15:04:05.000Z"), dataLength)
-
 	idleCoefficients := make(map[string]float64)
 	if allocateIdle {
 		windowStr := fmt.Sprintf("%dh", int(dur.Hours()))
@@ -488,6 +512,16 @@ func (a *Accesses) CostDataRangeWithCache(pc prometheusClient.Client, duration, 
 	if err != nil {
 		return nil, err
 	}
+
+	resolutionDuration, err := parseDuration(resolution)
+	if err != nil {
+		return nil, err
+	}
+
+	// exclude the last window of the time frame to match Prometheus definitions of range, offset, and resolution
+	//   e.g. requesting duration=2d, offset=1d, resolution=1h on Jan 4 12:00:00 should provide data for Jan 1 12:00 - Jan 3 12:00
+	//        which has the equivalent start and end times of Jan 1 1:00 and Jan 3 12:00, respectively.
+	*startTime = startTime.Add(1 * *resolutionDuration)
 
 	// attempt to retrieve cost data from cache
 	key := fmt.Sprintf(`raw:%s:%s:%s:%t`, duration, offset, resolution, remoteEnabled)
