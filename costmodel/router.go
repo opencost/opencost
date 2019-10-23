@@ -244,12 +244,17 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 		dataCount := int64(dur.Hours()) + 1
 		klog.V(1).Infof("for duration %s dataCount = %d", dur.String(), dataCount)
 
+		customPricing, err := a.Cloud.GetConfig()
+		if err != nil {
+			klog.Errorf("error retrieving cloud config: %s", err)
+		}
+
 		opts := &AggregationOptions{
-			DataCount:        dataCount,
+			CustomPricing:    customPricing,
 			Discount:         discount,
 			IdleCoefficients: make(map[string]float64),
 		}
-		agg := AggregateCostData(data, aggregationField, subfields, a.Cloud, opts)
+		agg := AggregateCostData(data, aggregationField, subfields, opts)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {
@@ -404,10 +409,12 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		return
 	}
 	dur := endTime.Sub(*startTime)
-	// dataCount is the number of time series data expected for the given interval,
+	// dataLength is the number of time series data expected for the given interval,
 	// which we compute because Prometheus time series vectors omit zero values.
-	// This assumes hourly data, incremented by one to capture the 0th data point.
-	dataCount := int64(dur.Hours())
+	dataLength := int(dur.Hours())
+
+	klog.V(1).Infof("\n\tduration: %s\n\toffset: %s\n\tresolution: %s\n\tstart: %s\n\tend: %s\n\tdata length: %d",
+		window, offset, resolution, startTime.Format("2006-01-02T15:04:05.000Z"), endTime.Format("2006-01-02T15:04:05.000Z"), dataLength)
 
 	idleCoefficients := make(map[string]float64)
 	if allocateIdle {
@@ -415,7 +422,11 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		if a.ThanosClient != nil {
 			offset = "3h"
 		}
-		idleCoefficients, err = ComputeIdleCoefficient(data, pClient, a.Cloud, discount, windowStr, offset)
+		customPricing, err := a.Cloud.GetConfig()
+		if err != nil {
+			klog.Errorf("error retrieving cloud config: %s", err)
+		}
+		idleCoefficients, err = ComputeIdleCoefficient(data, pClient, customPricing, discount, windowStr, offset)
 		if err != nil {
 			klog.V(1).Infof("error computing idle coefficient: windowString=%s, offset=%s, err=%s", windowStr, offset, err)
 			w.Write(wrapData(nil, err))
@@ -446,9 +457,15 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		klog.Infof("Idle Coeff: %s: %f", cid, idleCoefficient)
 	}
 
+	customPricing, err := a.Cloud.GetConfig()
+	if err != nil {
+		klog.Errorf("error retrieving cloud config: %s", err)
+	}
+
 	// aggregate cost model data by given fields and cache the result for the default expiration
 	opts := &AggregationOptions{
-		DataCount:          dataCount,
+		CustomPricing:      customPricing,
+		DataLength:         dataLength,
 		Discount:           discount,
 		IdleCoefficients:   idleCoefficients,
 		IncludeEfficiency:  includeEfficiency,
@@ -456,7 +473,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		Rate:               rate,
 		SharedResourceInfo: sr,
 	}
-	result := AggregateCostData(data, field, subfields, a.Cloud, opts)
+	result := AggregateCostData(data, field, subfields, opts)
 	a.Cache.Set(aggKey, result, cache.DefaultExpiration)
 
 	w.Write(wrapDataWithMessage(result, nil, fmt.Sprintf("aggregate cache miss: %s", aggKey)))
@@ -553,37 +570,17 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 		}
 		discount = discount * 0.01
 
-		layout := "2006-01-02T15:04:05.000Z"
-		startTime, err := time.Parse(layout, start)
+		customPricing, err := a.Cloud.GetConfig()
 		if err != nil {
-			w.Write(wrapData(nil, err))
-			return
+			klog.Errorf("error retrieving cloud config: %s", err)
 		}
-		endTime, err := time.Parse(layout, end)
-		if err != nil {
-			w.Write(wrapData(nil, err))
-			return
-		}
-
-		dur := endTime.Sub(startTime)
-		if err != nil {
-			w.Write(wrapData(nil, err))
-			return
-		}
-		windowHrs, err := strconv.ParseInt(window[:len(window)-1], 10, 64)
-
-		// dataCount is the number of time series data expected for the given interval,
-		// which we compute because Prometheus time series vectors omit zero values.
-		// This assumes hourly data, incremented by one to capture the 0th data point.
-		dataCount := (int64(dur.Hours()) / windowHrs) + 1
-		klog.V(1).Infof("for duration %s dataCount = %d", dur.String(), dataCount)
 
 		opts := &AggregationOptions{
-			DataCount:        dataCount,
+			CustomPricing:    customPricing,
 			Discount:         discount,
 			IdleCoefficients: make(map[string]float64),
 		}
-		agg := AggregateCostData(data, aggregationField, subfields, a.Cloud, opts)
+		agg := AggregateCostData(data, aggregationField, subfields, opts)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {
