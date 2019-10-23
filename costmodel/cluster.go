@@ -144,7 +144,9 @@ func resultToTotal(qr interface{}) (map[string][][]string, error) {
 // ClusterCostsForAllClusters gives the cluster costs averaged over a window of time for all clusters.
 func ClusterCostsForAllClusters(cli prometheusClient.Client, cloud costAnalyzerCloud.Provider, windowString, offset string) (map[string]*Totals, error) {
 
-	offset = fmt.Sprintf("offset 3h") // Set offset to 3h for block sync
+	if offset != "" {
+		offset = fmt.Sprintf("offset %s", offset)
+	}
 
 	qCores := fmt.Sprintf(queryClusterCores, offset, offset, offset)
 	qRAM := fmt.Sprintf(queryClusterRAM, offset, offset)

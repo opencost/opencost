@@ -401,7 +401,6 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	if remoteAvailable == "true" && remote != "false" {
 		remoteEnabled = true
 	}
-	klog.Infof("REMOTE ENABLED: %t", remoteEnabled)
 
 	// Use Thanos Client if it exists (enabled) and remote flag set
 	var pClient prometheusClient.Client
@@ -433,7 +432,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	idleCoefficients := make(map[string]float64)
 	if allocateIdle {
 		windowStr := fmt.Sprintf("%dh", int(dur.Hours()))
-		if a.ThanosClient != nil {
+		if a.ThanosClient != nil && remoteEnabled {
 			offset = "3h"
 		}
 		idleCoefficients, err = ComputeIdleCoefficient(data, pClient, a.Cloud, discount, windowStr, offset)
