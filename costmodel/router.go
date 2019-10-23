@@ -746,7 +746,7 @@ func (a *Accesses) OutOfClusterCostsWithCache(w http.ResponseWriter, r *http.Req
 	klog.V(1).Infof("out of cluster cache miss: %s", key)
 
 	data, err := a.Cloud.ExternalAllocations(start, end, aggregation)
-	if err != nil {
+	if err == nil {
 		a.OutOfClusterCache.Set(key, data, cache.DefaultExpiration)
 	}
 
