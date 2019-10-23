@@ -152,6 +152,7 @@ const (
 				sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) by (persistentvolumeclaim, namespace, cluster_id)`
 	queryPVCAllocation        = `avg_over_time(pod_pvc_allocation[24h])`
 	queryPVHourlyCost         = `avg_over_time(pv_hourly_cost[24h])`
+	queryNSLabels             = `avg_over_time(kube_namespace_labels[24h)`
 	queryZoneNetworkUsage     = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	queryInternetNetworkUsage = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
@@ -351,7 +352,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		if k8sErr != nil {
 			return
 		}
-		namespaceLabelsMapping, k8sErr = getNamespaceLabels(cm.Cache)
+		namespaceLabelsMapping, k8sErr = getNamespaceLabels(cm.Cache, clusterID)
 		if k8sErr != nil {
 			return
 		}
@@ -458,7 +459,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 			podName := pod.GetObjectMeta().GetName()
 			ns := pod.GetObjectMeta().GetNamespace()
 
-			nsLabels := namespaceLabelsMapping[ns]
+			nsLabels := namespaceLabelsMapping[ns+","+clusterID]
 			podLabels := pod.GetObjectMeta().GetLabels()
 			if podLabels == nil {
 				podLabels = make(map[string]string)
@@ -624,7 +625,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 					missingNodes[c.NodeName] = node
 				}
 			}
-			namespacelabels, ok := namespaceLabelsMapping[c.Namespace]
+			namespacelabels, ok := namespaceLabelsMapping[c.Namespace+","+c.ClusterID]
 			if !ok {
 				klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
 			}
@@ -1180,7 +1181,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(13)
+	wg.Add(14)
 
 	var promErr error
 	var resultRAMRequests interface{}
@@ -1238,6 +1239,11 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		pvCostResults, promErr = Query(cli, queryPVHourlyCost)
 		defer wg.Done()
 	}()
+	var nsLabelsResults interface{}
+	go func() {
+		nsLabelsResults, promErr = Query(cli, queryNSLabels)
+		defer wg.Done()
+	}()
 	var normalizationResult interface{}
 	go func() {
 		normalizationResult, promErr = Query(cli, normalization)
@@ -1260,7 +1266,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		if k8sErr != nil {
 			return
 		}
-		namespaceLabelsMapping, k8sErr = getNamespaceLabels(cm.Cache)
+		namespaceLabelsMapping, k8sErr = getNamespaceLabels(cm.Cache, clusterID)
 		if k8sErr != nil {
 			return
 		}
@@ -1311,6 +1317,14 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	}
 	if pvAllocationMapping != nil {
 		addMetricPVData(pvAllocationMapping, pvCostMapping, cp)
+	}
+
+	nsLabels, err := getNamespaceLabelsMetrics(nsLabelsResults)
+	if err != nil {
+		klog.V(1).Infof("Unable to get Namespace Labels for Metrics: %s", err.Error())
+	}
+	if nsLabels != nil {
+		appendNamespaceLabels(namespaceLabelsMapping, nsLabels)
 	}
 
 	networkUsageMap, err := GetNetworkUsageData(resultNetZoneRequests, resultNetRegionRequests, resultNetInternetRequests, clusterID, true)
@@ -1427,7 +1441,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 				}
 			}
 
-			nsLabels := namespaceLabelsMapping[ns]
+			nsLabels := namespaceLabelsMapping[ns+","+clusterID]
 			podLabels := pod.GetObjectMeta().GetLabels()
 
 			if podLabels == nil {
@@ -1547,7 +1561,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 					missingNodes[c.NodeName] = node
 				}
 			}
-			namespacelabels, ok := namespaceLabelsMapping[c.Namespace]
+			namespacelabels, ok := namespaceLabelsMapping[c.Namespace+","+c.ClusterID]
 			if !ok {
 				klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
 			}
@@ -1794,7 +1808,74 @@ func addMetricPVData(pvAllocationMap map[string][]*PersistentVolumeClaimData, pv
 	}
 }
 
-func getNamespaceLabels(cache ClusterCache) (map[string]map[string]string, error) {
+func getNamespaceLabelsMetrics(queryResult interface{}) (map[string]map[string]string, error) {
+	toReturn := make(map[string]map[string]string)
+	data, ok := queryResult.(map[string]interface{})["data"]
+	if !ok {
+		e, err := wrapPrometheusError(queryResult)
+		if err != nil {
+			return toReturn, err
+		}
+		return toReturn, fmt.Errorf(e)
+	}
+
+	for _, val := range data.(map[string]interface{})["result"].([]interface{}) {
+		metricInterface, ok := val.(map[string]interface{})["metric"]
+		if !ok {
+			return toReturn, fmt.Errorf("Metric field does not exist in data result vector")
+		}
+		metricMap, ok := metricInterface.(map[string]interface{})
+		if !ok {
+			return toReturn, fmt.Errorf("Metric field is improperly formatted")
+		}
+
+		// We want Namespace and ClusterID for key generation purposes
+		ns, err := parseStringField(metricMap, "namespace")
+		if err != nil {
+			return toReturn, err
+		}
+
+		clusterID, err := parseStringField(metricMap, "cluster_id")
+		if err != nil {
+			return toReturn, err
+		}
+
+		nsKey := ns + "," + clusterID
+
+		// Find All keys with prefix label_, remove prefix, add to labels
+		for k, v := range metricMap {
+			if !strings.HasPrefix(k, "label_") {
+				continue
+			}
+
+			label := k[6:]
+			value, ok := v.(string)
+			if !ok {
+				klog.V(3).Infof("Failed to parse label value for label: %s", label)
+				continue
+			}
+
+			if toReturn[nsKey] == nil {
+				toReturn[nsKey] = make(map[string]string)
+			}
+
+			toReturn[nsKey][label] = value
+		}
+	}
+
+	return toReturn, nil
+}
+
+// Append labels into nsLabels iff the ns key doesn't already exist
+func appendNamespaceLabels(nsLabels map[string]map[string]string, labels map[string]map[string]string) {
+	for k, v := range labels {
+		if _, ok := nsLabels[k]; !ok {
+			nsLabels[k] = v
+		}
+	}
+}
+
+func getNamespaceLabels(cache ClusterCache, clusterID string) (map[string]map[string]string, error) {
 	nsToLabels := make(map[string]map[string]string)
 	nss := cache.GetAllNamespaces()
 	for _, ns := range nss {
