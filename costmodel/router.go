@@ -61,7 +61,9 @@ type Accesses struct {
 	ServiceSelectorRecorder       *prometheus.GaugeVec
 	DeploymentSelectorRecorder    *prometheus.GaugeVec
 	Model                         *CostModel
-	Cache                         *cache.Cache
+	AggregateCache                *cache.Cache
+	CostDataCache                 *cache.Cache
+	OutOfClusterCache             *cache.Cache
 }
 
 type DataEnvelope struct {
@@ -396,15 +398,16 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	// clear cache prior to checking the cache so that a clearCache=true
 	// request always returns a freshly computed value
 	if clearCache {
-		a.Cache.Flush()
+		a.AggregateCache.Flush()
+		a.CostDataCache.Flush()
 	}
 
 	// check the cache for aggregated response; if cache is hit and not disabled, return response
-	aggKey := fmt.Sprintf("aggregate:%s:%s:%s:%s:%s:%s:%s:%t:%t:%t",
+	aggKey := fmt.Sprintf("%s:%s:%s:%s:%s:%s:%s:%t:%t:%t",
 		window, offset, namespace, cluster, field, strings.Join(subfields, ","), rate,
 		allocateIdle, includeTimeSeries, includeEfficiency)
 
-	if result, found := a.Cache.Get(aggKey); found && !disableCache {
+	if result, found := a.AggregateCache.Get(aggKey); found && !disableCache {
 		w.Write(wrapDataWithMessage(result, nil, fmt.Sprintf("aggregate cache hit: %s", aggKey)))
 		return
 	}
@@ -498,7 +501,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		SharedResourceInfo: sr,
 	}
 	result := AggregateCostData(data, field, subfields, opts)
-	a.Cache.Set(aggKey, result, cache.DefaultExpiration)
+	a.AggregateCache.Set(aggKey, result, cache.DefaultExpiration)
 
 	w.Write(wrapDataWithMessage(result, nil, fmt.Sprintf("aggregate cache miss: %s", aggKey)))
 }
@@ -524,15 +527,15 @@ func (a *Accesses) CostDataRangeWithCache(pc prometheusClient.Client, duration, 
 	*startTime = startTime.Add(1 * *resolutionDuration)
 
 	// attempt to retrieve cost data from cache
-	key := fmt.Sprintf(`raw:%s:%s:%s:%t`, duration, offset, resolution, remoteEnabled)
-	if value, found := a.Cache.Get(key); found && !disableCache {
-		klog.V(1).Infof("raw cache hit: %s", key)
+	key := fmt.Sprintf(`%s:%s:%s:%t`, duration, offset, resolution, remoteEnabled)
+	if value, found := a.CostDataCache.Get(key); found && !disableCache {
+		klog.V(1).Infof("cost data cache hit: %s", key)
 		if data, ok := value.(map[string]*CostData); ok {
 			return data, nil
 		}
 		klog.Errorf("caching error: failed to cast data to struct: %s", key)
 	}
-	klog.V(1).Infof("raw cache miss: %s", key)
+	klog.V(1).Infof("cost data cache miss: %s", key)
 
 	// cache miss; compute data and cache it
 	layout := "2006-01-02T15:04:05.000Z"
@@ -543,7 +546,7 @@ func (a *Accesses) CostDataRangeWithCache(pc prometheusClient.Client, duration, 
 		return nil, err
 	}
 
-	a.Cache.Set(key, data, cache.DefaultExpiration)
+	a.CostDataCache.Set(key, data, cache.DefaultExpiration)
 
 	return data, nil
 }
@@ -677,22 +680,77 @@ func (a *Accesses) CostDataModelRangeLarge(w http.ResponseWriter, r *http.Reques
 	w.Write(wrapData(data, err))
 }
 
-func (a *Accesses) OutofClusterCosts(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *Accesses) OutOfClusterCosts(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
+	// start date for which to query costs, inclusive; format YYYY-MM-DD
 	start := r.URL.Query().Get("start")
+	// end date for which to query costs, inclusive; format YYYY-MM-DD
 	end := r.URL.Query().Get("end")
-	aggregator := r.URL.Query().Get("aggregator")
+	// aggregator sets the field by which to aggregate; default, prepended by "kubernetes_"
+	kubernetesAggregation := r.URL.Query().Get("aggregator")
+	// customAggregation allows full customization of aggregator w/o prepending
 	customAggregation := r.URL.Query().Get("customAggregation")
-	var data []*costAnalyzerCloud.OutOfClusterAllocation
-	var err error
+
+	aggregator := "kubernetes_" + kubernetesAggregation
 	if customAggregation != "" {
-		data, err = a.Cloud.ExternalAllocations(start, end, customAggregation)
-	} else {
-		data, err = a.Cloud.ExternalAllocations(start, end, "kubernetes_"+aggregator)
+		aggregator = customAggregation
 	}
+
+	data, err := a.Cloud.ExternalAllocations(start, end, aggregator)
+
 	w.Write(wrapData(data, err))
+}
+
+func (a *Accesses) OutOfClusterCostsWithCache(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	// start date for which to query costs, inclusive; format YYYY-MM-DD
+	start := r.URL.Query().Get("start")
+	// end date for which to query costs, inclusive; format YYYY-MM-DD
+	end := r.URL.Query().Get("end")
+	// aggregator sets the field by which to aggregate; default, prepended by "kubernetes_"
+	kubernetesAggregation := r.URL.Query().Get("aggregator")
+	// customAggregation allows full customization of aggregator w/o prepending
+	customAggregation := r.URL.Query().Get("customAggregation")
+	// disableCache, if set to "true", tells this function to recompute and
+	// cache the requested data
+	disableCache := r.URL.Query().Get("disableCache") == "true"
+	// clearCache, if set to "true", tells this function to flush the cache,
+	// then recompute and cache the requested data
+	clearCache := r.URL.Query().Get("clearCache") == "true"
+
+	aggregation := "kubernetes_" + kubernetesAggregation
+	if customAggregation != "" {
+		aggregation = customAggregation
+	}
+
+	// clear cache prior to checking the cache so that a clearCache=true
+	// request always returns a freshly computed value
+	if clearCache {
+		a.OutOfClusterCache.Flush()
+	}
+
+	// attempt to retrieve cost data from cache
+	key := fmt.Sprintf(`%s:%s:%s`, start, end, aggregation)
+	if value, found := a.OutOfClusterCache.Get(key); found && !disableCache {
+		klog.V(1).Infof("out of cluser cache hit: %s", key)
+		if data, ok := value.([]*costAnalyzerCloud.OutOfClusterAllocation); ok {
+			w.Write(wrapDataWithMessage(data, nil, fmt.Sprintf("out of cluser cache hit: %s", key)))
+			return
+		}
+		klog.Errorf("caching error: failed to type cast data: %s", key)
+	}
+	klog.V(1).Infof("out of cluster cache miss: %s", key)
+
+	data, err := a.Cloud.ExternalAllocations(start, end, aggregation)
+	if err != nil {
+		a.CostDataCache.Set(key, data, cache.DefaultExpiration)
+	}
+
+	w.Write(wrapDataWithMessage(data, err, fmt.Sprintf("out of cluser cache miss: %s", key)))
 }
 
 func (p *Accesses) GetAllNodePricing(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -1108,7 +1166,9 @@ func init() {
 	})
 
 	// cache responses from model for a default of 5 minutes; clear expired responses every 10 minutes
-	modelCache := cache.New(time.Minute*5, time.Minute*10)
+	aggregateCache := cache.New(time.Minute*5, time.Minute*10)
+	costDataCache := cache.New(time.Minute*5, time.Minute*10)
+	outOfClusterCache := cache.New(time.Minute*5, time.Minute*10)
 
 	A = Accesses{
 		PrometheusClient:              promCli,
@@ -1128,7 +1188,9 @@ func init() {
 		NetworkInternetEgressRecorder: NetworkInternetEgressRecorder,
 		PersistentVolumePriceRecorder: pvGv,
 		Model:                         NewCostModel(kubeClientset),
-		Cache:                         modelCache,
+		AggregateCache:                aggregateCache,
+		CostDataCache:                 costDataCache,
+		OutOfClusterCache:             outOfClusterCache,
 	}
 
 	remoteEnabled := os.Getenv(remoteEnabled)
@@ -1187,7 +1249,8 @@ func init() {
 	Router.GET("/costDataModel", A.CostDataModel)
 	Router.GET("/costDataModelRange", A.CostDataModelRange)
 	Router.GET("/costDataModelRangeLarge", A.CostDataModelRangeLarge)
-	Router.GET("/outOfClusterCosts", A.OutofClusterCosts)
+	Router.GET("/outOfClusterCosts", A.OutOfClusterCosts)
+	Router.GET("/outOfClusterCostsCached", A.OutOfClusterCostsWithCache)
 	Router.GET("/allNodePricing", A.GetAllNodePricing)
 	Router.GET("/healthz", Healthz)
 	Router.GET("/getConfigs", A.GetConfigs)
