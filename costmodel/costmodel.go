@@ -165,8 +165,12 @@ type PrometheusMetadata struct {
 }
 
 // ValidatePrometheus tells the model what data prometheus has on it.
-func ValidatePrometheus(cli prometheusClient.Client) (*PrometheusMetadata, error) {
-	data, err := Query(cli, "up offset 3h")
+func ValidatePrometheus(cli prometheusClient.Client, isThanos bool) (*PrometheusMetadata, error) {
+	q := "up"
+	if isThanos {
+		q += " offset 3h"
+	}
+	data, err := Query(cli, q)
 	if err != nil {
 		return &PrometheusMetadata{
 			Running:            false,
