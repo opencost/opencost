@@ -152,7 +152,7 @@ const (
 				sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) by (persistentvolumeclaim, namespace, cluster_id)`
 	queryPVCAllocation        = `avg_over_time(pod_pvc_allocation[24h])`
 	queryPVHourlyCost         = `avg_over_time(pv_hourly_cost[24h])`
-	queryNSLabels             = `avg_over_time(kube_namespace_labels[24h)`
+	queryNSLabels             = `avg_over_time(kube_namespace_labels[24h])`
 	queryZoneNetworkUsage     = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	queryInternetNetworkUsage = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
@@ -356,7 +356,6 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		if k8sErr != nil {
 			return
 		}
-
 	}()
 
 	wg.Wait()
@@ -1256,6 +1255,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	podlist := cm.Cache.GetAllPods()
 	var k8sErr error
 	go func() {
+		defer wg.Done()
 
 		podDeploymentsMapping, k8sErr = getPodDeployments(cm.Cache, podlist)
 		if k8sErr != nil {
@@ -1270,8 +1270,6 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		if k8sErr != nil {
 			return
 		}
-
-		wg.Done()
 	}()
 
 	wg.Wait()
@@ -1610,6 +1608,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 				CPUReq:          CPUReqV,
 				CPUUsed:         CPUUsedV,
 				GPUReq:          GPUReqV,
+				Labels:          namespacelabels,
 				NamespaceLabels: namespacelabels,
 				PVCData:         podPVs,
 				NetworkData:     podNetCosts,
@@ -1879,7 +1878,7 @@ func getNamespaceLabels(cache ClusterCache, clusterID string) (map[string]map[st
 	nsToLabels := make(map[string]map[string]string)
 	nss := cache.GetAllNamespaces()
 	for _, ns := range nss {
-		nsToLabels[ns.Name] = ns.Labels
+		nsToLabels[ns.Name+","+clusterID] = ns.Labels
 	}
 	return nsToLabels, nil
 }
