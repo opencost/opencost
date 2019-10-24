@@ -391,7 +391,8 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	// default to given Prometheus client, but use Thanos Client if it
 	// exists and remote is not disabled
 	pClient := a.PrometheusClient
-	if remote && a.ThanosClient != nil {
+	if remoteEnabled && a.ThanosClient != nil {
+		klog.Infof("using Thanos client")
 		pClient = a.ThanosClient
 	}
 
@@ -447,6 +448,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	if allocateIdle {
 		windowStr := fmt.Sprintf("%dh", int(dur.Hours()))
 		if a.ThanosClient != nil {
+			klog.Infof("Setting offset to 3h")
 			offset = "3h"
 		}
 		customPricing, err := a.Cloud.GetConfig()
@@ -514,6 +516,12 @@ func (a *Accesses) CostDataRangeWithCache(pc prometheusClient.Client, duration, 
 	startTime, endTime, err := parseTimeRange(duration, offset)
 	if err != nil {
 		return nil, err
+	}
+
+	threeHoursAgo := time.Now().Add(-3 * time.Hour)
+	if a.ThanosClient != nil && endTime.After(threeHoursAgo) {
+		klog.Infof("Setting end time backwards to first present data")
+		*endTime = time.Now().Add(-3 * time.Hour)
 	}
 
 	resolutionDuration, err := parseDuration(resolution)
@@ -851,7 +859,7 @@ func Healthz(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 func (p *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Write(wrapData(ValidatePrometheus(p.PrometheusClient)))
+	w.Write(wrapData(ValidatePrometheus(p.PrometheusClient, false)))
 }
 
 func (p *Accesses) ContainerUptimes(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
@@ -1064,7 +1072,7 @@ func init() {
 	}
 	klog.V(1).Info("Success: retrieved a prometheus config file from: " + address)
 
-	_, err = ValidatePrometheus(promCli)
+	_, err = ValidatePrometheus(promCli, false)
 	if err != nil {
 		klog.Fatalf("Failed to query prometheus at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prometheusTroubleshootingEp)
 	}
@@ -1225,7 +1233,7 @@ func init() {
 			}
 			thanosCli, _ := prometheusClient.NewClient(thanosConfig)
 
-			_, err = ValidatePrometheus(thanosCli)
+			_, err = ValidatePrometheus(thanosCli, true)
 			if err != nil {
 				klog.Fatalf("Failed to query Thanos at %s. Error: %s.", thanosUrl, err.Error())
 			} else {
