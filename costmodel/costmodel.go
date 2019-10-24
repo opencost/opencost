@@ -1308,12 +1308,12 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		}
 	}
 
-	pvCostMapping, err := getPVCostMetrics(pvCostResults)
+	pvCostMapping, err := getPVCostMetrics(pvCostResults, clusterID)
 	if err != nil {
 		klog.V(1).Infof("Unable to get PV Hourly Cost Data: %s", err.Error())
 	}
 
-	pvAllocationMapping, err := getPVAllocationMetrics(pvPodAllocationResults)
+	pvAllocationMapping, err := getPVAllocationMetrics(pvPodAllocationResults, clusterID)
 	if err != nil {
 		klog.V(1).Infof("Unable to get PV Allocation Cost Data: %s", err.Error())
 	}
@@ -1576,7 +1576,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 			// the pod_pvc_allocation metric
 			podPVData, ok := pvAllocationMapping[c.Namespace+","+c.PodName+","+c.ClusterID]
 			if !ok {
-				klog.V(3).Infof("Failed to locate pv allocation mapping for missing pod.")
+				klog.V(4).Infof("Failed to locate pv allocation mapping for missing pod.")
 			}
 
 			// For network costs, we'll use existing map since it should still contain the
@@ -1659,7 +1659,7 @@ func parseStringField(metricMap map[string]interface{}, field string) (string, e
 	return strField, nil
 }
 
-func getPVAllocationMetrics(queryResult interface{}) (map[string][]*PersistentVolumeClaimData, error) {
+func getPVAllocationMetrics(queryResult interface{}, defaultClusterID string) (map[string][]*PersistentVolumeClaimData, error) {
 	toReturn := make(map[string][]*PersistentVolumeClaimData)
 	data, ok := queryResult.(map[string]interface{})["data"]
 	if !ok {
@@ -1681,8 +1681,8 @@ func getPVAllocationMetrics(queryResult interface{}) (map[string][]*PersistentVo
 		}
 
 		clusterID, err := parseStringField(metricMap, "cluster_id")
-		if err != nil {
-			return toReturn, err
+		if clusterID == "" {
+			clusterID = defaultClusterID
 		}
 
 		ns, err := parseStringField(metricMap, "namespace")
@@ -1738,7 +1738,7 @@ func getPVAllocationMetrics(queryResult interface{}) (map[string][]*PersistentVo
 	return toReturn, nil
 }
 
-func getPVCostMetrics(queryResult interface{}) (map[string]*costAnalyzerCloud.PV, error) {
+func getPVCostMetrics(queryResult interface{}, defaultClusterID string) (map[string]*costAnalyzerCloud.PV, error) {
 	toReturn := make(map[string]*costAnalyzerCloud.PV)
 	data, ok := queryResult.(map[string]interface{})["data"]
 	if !ok {
@@ -1760,8 +1760,8 @@ func getPVCostMetrics(queryResult interface{}) (map[string]*costAnalyzerCloud.PV
 		}
 
 		clusterID, err := parseStringField(metricMap, "cluster_id")
-		if err != nil {
-			return toReturn, err
+		if clusterID == "" {
+			clusterID = defaultClusterID
 		}
 
 		volumeName, err := parseStringField(metricMap, "volumename")

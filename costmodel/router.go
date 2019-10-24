@@ -330,9 +330,11 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 			endTime = endTime.Add(-1 * o)
 		}
 
-		if endTime.After(time.Now().Add(-3 * time.Hour)) {
-			klog.Infof("Setting end time backwards to first present data")
-			endTime = time.Now().Add(-3 * time.Hour)
+		if a.ThanosClient != nil {
+			if endTime.After(time.Now().Add(-3 * time.Hour)) {
+				klog.Infof("Setting end time backwards to first present data")
+				endTime = time.Now().Add(-3 * time.Hour)
+			}
 		}
 
 		// if window is defined in terms of days, convert to hours
