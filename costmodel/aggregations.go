@@ -251,7 +251,7 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 			// It is possible to score > 100% efficiency, which is meant to be interpreted as a red flag.
 			// It is not possible to score < 0% efficiency.
 
-			klog.V(1).Infof("\n\tlen(CPU allocation): %d\n\tlen(CPU requested): %d\n\tlen(CPU used): %d",
+			klog.V(4).Infof("\n\tlen(CPU allocation): %d\n\tlen(CPU requested): %d\n\tlen(CPU used): %d",
 				len(agg.CPUAllocationVectors),
 				len(agg.CPURequestedVectors),
 				len(agg.CPUUsedVectors))
@@ -266,7 +266,7 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 				agg.CPUEfficiency = 1.0 - CPUIdle
 			}
 
-			klog.V(1).Infof("\n\tlen(RAM allocation): %d\n\tlen(RAM requested): %d\n\tlen(RAM used): %d",
+			klog.V(4).Infof("\n\tlen(RAM allocation): %d\n\tlen(RAM requested): %d\n\tlen(RAM used): %d",
 				len(agg.RAMAllocationVectors),
 				len(agg.RAMRequestedVectors),
 				len(agg.RAMUsedVectors))
@@ -451,6 +451,77 @@ func totalVectors(vectors []*Vector) float64 {
 // to the nearest value dividible by 10 (24 goes to 20, but 25 goes to 30).
 func roundTimestamp(ts float64, precision float64) float64 {
 	return math.Round(ts/precision) * precision
+}
+
+func NormalizeVectorByVector(xvs []*Vector, yvs []*Vector) []*Vector {
+	// round all non-zero timestamps to the nearest 10 second mark
+	for _, yv := range yvs {
+		if yv.Timestamp != 0 {
+			yv.Timestamp = roundTimestamp(yv.Timestamp, 10.0)
+		}
+	}
+	for _, xv := range xvs {
+		if xv.Timestamp != 0 {
+			xv.Timestamp = roundTimestamp(xv.Timestamp, 10.0)
+		}
+	}
+
+	// if xvs is empty, return yvs
+	if xvs == nil || len(xvs) == 0 {
+		return yvs
+	}
+
+	// if yvs is empty, return xvs
+	if yvs == nil || len(yvs) == 0 {
+		return xvs
+	}
+
+	// sum stores the sum of the vector slices xvs and yvs
+	var sum []*Vector
+
+	// timestamps stores all timestamps present in both vector slices
+	// without duplicates
+	var timestamps []float64
+
+	// turn each vector slice into a map of timestamp-to-value so that
+	// values at equal timestamps can be lined-up and summed
+	xMap := make(map[float64]float64)
+	for _, xv := range xvs {
+		if xv.Timestamp == 0 {
+			continue
+		}
+		xMap[xv.Timestamp] = xv.Value
+		timestamps = append(timestamps, xv.Timestamp)
+	}
+	yMap := make(map[float64]float64)
+	for _, yv := range yvs {
+		if yv.Timestamp == 0 {
+			continue
+		}
+		yMap[yv.Timestamp] = yv.Value
+		if _, ok := xMap[yv.Timestamp]; !ok {
+			// no need to double add, since we'll range over sorted timestamps and check.
+			timestamps = append(timestamps, yv.Timestamp)
+		}
+	}
+
+	// iterate over each timestamp to produce a final summed vector slice
+	sort.Float64s(timestamps)
+	for _, t := range timestamps {
+		x, okX := xMap[t]
+		y, okY := yMap[t]
+		sv := &Vector{Timestamp: t}
+		if okX && okY && y != 0 {
+			sv.Value = x / y
+		} else if okX {
+			sv.Value = x
+		} else if okY {
+			sv.Value = 0
+		}
+		sum = append(sum, sv)
+	}
+
+	return sum
 }
 
 // addVectors adds two slices of Vectors. Vector timestamps are rounded to the

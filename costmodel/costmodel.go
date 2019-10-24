@@ -166,7 +166,7 @@ type PrometheusMetadata struct {
 
 // ValidatePrometheus tells the model what data prometheus has on it.
 func ValidatePrometheus(cli prometheusClient.Client) (*PrometheusMetadata, error) {
-	data, err := Query(cli, "up")
+	data, err := Query(cli, "up offset 3h")
 	if err != nil {
 		return &PrometheusMetadata{
 			Running:            false,
@@ -1244,9 +1244,9 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		nsLabelsResults, promErr = Query(cli, queryNSLabels)
 		defer wg.Done()
 	}()
-	var normalizationResult interface{}
+	var normalizationResults interface{}
 	go func() {
-		normalizationResult, promErr = Query(cli, normalization)
+		normalizationResults, promErr = QueryRange(cli, normalization, start, end, window)
 		defer wg.Done()
 	}()
 
@@ -1283,7 +1283,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		return nil, fmt.Errorf("Error querying the kubernetes api: %s", k8sErr.Error())
 	}
 
-	normalizationValue, err := getNormalization(normalizationResult)
+	normalizationValue, err := getNormalizations(normalizationResults)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing normalization values: " + err.Error())
 	}
@@ -1366,7 +1366,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	for key := range GPUReqMap {
 		containers[key] = true
 	}
-	CPUUsedMap, err := GetContainerMetricVectors(resultCPUUsage, false, 0, clusterID) // No need to normalize here, as this comes from a counter
+	CPUUsedMap, err := GetContainerMetricVectors(resultCPUUsage, false, normalizationValue, clusterID) // No need to normalize here, as this comes from a counter
 	if err != nil {
 		return nil, err
 	}
@@ -1553,7 +1553,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 
 			node, ok := nodes[c.NodeName]
 			if !ok {
-				klog.V(2).Infof("Node \"%s\" has been deleted from Kubernetes. Query historical data to get it.", c.NodeName)
+				klog.V(4).Infof("Node \"%s\" has been deleted from Kubernetes. Query historical data to get it.", c.NodeName)
 				if n, ok := missingNodes[c.NodeName]; ok {
 					node = n
 				} else {
@@ -2232,6 +2232,43 @@ func Query(cli prometheusClient.Client, query string) (interface{}, error) {
 }
 
 //todo: don't cast, implement unmarshaler interface
+func getNormalizations(qr interface{}) ([]*Vector, error) {
+	data, ok := qr.(map[string]interface{})["data"]
+	if !ok {
+		e, err := wrapPrometheusError(qr)
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf(e)
+	}
+	results, ok := data.(map[string]interface{})["result"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Result field not found in normalization response, aborting")
+	}
+	if len(results) > 0 {
+		vectors := []*Vector{}
+		for i := range results {
+			klog.Infof("%+v", results[i])
+			values, ok := results[i].(map[string]interface{})["values"].([]interface{})
+			for _, d := range values {
+				dataPoint := d.([]interface{})
+				if !ok || len(dataPoint) != 2 {
+					return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
+				}
+				strVal := dataPoint[1].(string)
+				v, _ := strconv.ParseFloat(strVal, 64)
+				vectors = append(vectors, &Vector{
+					Timestamp: math.Round(dataPoint[0].(float64)/10) * 10,
+					Value:     v,
+				})
+			}
+		}
+		return vectors, nil
+	}
+	return nil, fmt.Errorf("Normalization data is empty, kube-state-metrics or node-exporter may not be running")
+}
+
+//todo: don't cast, implement unmarshaler interface
 func getNormalization(qr interface{}) (float64, error) {
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
@@ -2413,7 +2450,7 @@ func GetContainerMetricVector(qr interface{}, normalize bool, normalizationValue
 	return containerData, nil
 }
 
-func GetContainerMetricVectors(qr interface{}, normalize bool, normalizationValue float64, defaultClusterID string) (map[string][]*Vector, error) {
+func GetContainerMetricVectors(qr interface{}, normalize bool, normalizationValues []*Vector, defaultClusterID string) (map[string][]*Vector, error) {
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
 		e, err := wrapPrometheusError(qr)
@@ -2456,15 +2493,13 @@ func GetContainerMetricVectors(qr interface{}, normalize bool, normalizationValu
 			}
 			strVal := dataPoint[1].(string)
 			v, _ := strconv.ParseFloat(strVal, 64)
-			if normalize && normalizationValue != 0 {
-				v = v / normalizationValue
-			}
 			vectors = append(vectors, &Vector{
 				Timestamp: math.Round(dataPoint[0].(float64)/10) * 10,
 				Value:     v,
 			})
 		}
-		containerData[containerMetric.Key()] = vectors
+		normalizedVectors := NormalizeVectorByVector(vectors, normalizationValues)
+		containerData[containerMetric.Key()] = normalizedVectors
 	}
 	return containerData, nil
 }

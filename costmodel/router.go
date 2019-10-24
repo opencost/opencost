@@ -330,6 +330,11 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 			endTime = endTime.Add(-1 * o)
 		}
 
+		if endTime.After(time.Now().Add(-3 * time.Hour)) {
+			klog.Infof("Setting end time backwards to first present data")
+			endTime = time.Now().Add(-3 * time.Hour)
+		}
+
 		// if window is defined in terms of days, convert to hours
 		// e.g. convert "2d" to "48h"
 		window, err := normalizeTimeParam(window)
@@ -396,12 +401,11 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		return
 	}
 
-	remoteAvailable := os.Getenv(remoteEnabled)
+	remoteAvailable := os.Getenv(remoteEnabled) == "true"
 	remoteEnabled := false
-	if remoteAvailable == "true" && remote != "false" {
+	if remoteAvailable && remote != "false" {
 		remoteEnabled = true
 	}
-	klog.Infof("REMOTE ENABLED: %t", remoteEnabled)
 
 	// Use Thanos Client if it exists (enabled) and remote flag set
 	var pClient prometheusClient.Client
@@ -434,6 +438,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	if allocateIdle {
 		windowStr := fmt.Sprintf("%dh", int(dur.Hours()))
 		if a.ThanosClient != nil {
+			klog.Infof("Setting offset to 3h")
 			offset = "3h"
 		}
 		idleCoefficients, err = ComputeIdleCoefficient(data, pClient, a.Cloud, discount, windowStr, offset)
