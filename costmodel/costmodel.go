@@ -152,6 +152,7 @@ const (
 				sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) by (persistentvolumeclaim, namespace, cluster_id)`
 	queryPVCAllocation        = `avg_over_time(pod_pvc_allocation[24h])`
 	queryPVHourlyCost         = `avg_over_time(pv_hourly_cost[24h])`
+	queryNSLabels             = `avg_over_time(kube_namespace_labels[24h])`
 	queryZoneNetworkUsage     = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	queryInternetNetworkUsage = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
@@ -164,8 +165,12 @@ type PrometheusMetadata struct {
 }
 
 // ValidatePrometheus tells the model what data prometheus has on it.
-func ValidatePrometheus(cli prometheusClient.Client) (*PrometheusMetadata, error) {
-	data, err := Query(cli, "up")
+func ValidatePrometheus(cli prometheusClient.Client, isThanos bool) (*PrometheusMetadata, error) {
+	q := "up"
+	if isThanos {
+		q += " offset 3h"
+	}
+	data, err := Query(cli, q)
 	if err != nil {
 		return &PrometheusMetadata{
 			Running:            false,
@@ -351,11 +356,10 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		if k8sErr != nil {
 			return
 		}
-		namespaceLabelsMapping, k8sErr = getNamespaceLabels(cm.Cache)
+		namespaceLabelsMapping, k8sErr = getNamespaceLabels(cm.Cache, clusterID)
 		if k8sErr != nil {
 			return
 		}
-
 	}()
 
 	wg.Wait()
@@ -458,7 +462,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 			podName := pod.GetObjectMeta().GetName()
 			ns := pod.GetObjectMeta().GetNamespace()
 
-			nsLabels := namespaceLabelsMapping[ns]
+			nsLabels := namespaceLabelsMapping[ns+","+clusterID]
 			podLabels := pod.GetObjectMeta().GetLabels()
 			if podLabels == nil {
 				podLabels = make(map[string]string)
@@ -624,7 +628,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 					missingNodes[c.NodeName] = node
 				}
 			}
-			namespacelabels, ok := namespaceLabelsMapping[c.Namespace]
+			namespacelabels, ok := namespaceLabelsMapping[c.Namespace+","+c.ClusterID]
 			if !ok {
 				klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
 			}
@@ -1180,7 +1184,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(13)
+	wg.Add(14)
 
 	var promErr error
 	var resultRAMRequests interface{}
@@ -1238,9 +1242,14 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		pvCostResults, promErr = Query(cli, queryPVHourlyCost)
 		defer wg.Done()
 	}()
-	var normalizationResult interface{}
+	var nsLabelsResults interface{}
 	go func() {
-		normalizationResult, promErr = Query(cli, normalization)
+		nsLabelsResults, promErr = Query(cli, queryNSLabels)
+		defer wg.Done()
+	}()
+	var normalizationResults interface{}
+	go func() {
+		normalizationResults, promErr = QueryRange(cli, normalization, start, end, window)
 		defer wg.Done()
 	}()
 
@@ -1250,6 +1259,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	podlist := cm.Cache.GetAllPods()
 	var k8sErr error
 	go func() {
+		defer wg.Done()
 
 		podDeploymentsMapping, k8sErr = getPodDeployments(cm.Cache, podlist)
 		if k8sErr != nil {
@@ -1260,12 +1270,10 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		if k8sErr != nil {
 			return
 		}
-		namespaceLabelsMapping, k8sErr = getNamespaceLabels(cm.Cache)
+		namespaceLabelsMapping, k8sErr = getNamespaceLabels(cm.Cache, clusterID)
 		if k8sErr != nil {
 			return
 		}
-
-		wg.Done()
 	}()
 
 	wg.Wait()
@@ -1277,7 +1285,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		return nil, fmt.Errorf("Error querying the kubernetes api: %s", k8sErr.Error())
 	}
 
-	normalizationValue, err := getNormalization(normalizationResult)
+	normalizationValue, err := getNormalizations(normalizationResults)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing normalization values: " + err.Error())
 	}
@@ -1300,17 +1308,25 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		}
 	}
 
-	pvCostMapping, err := getPVCostMetrics(pvCostResults)
+	pvCostMapping, err := getPVCostMetrics(pvCostResults, clusterID)
 	if err != nil {
 		klog.V(1).Infof("Unable to get PV Hourly Cost Data: %s", err.Error())
 	}
 
-	pvAllocationMapping, err := getPVAllocationMetrics(pvPodAllocationResults)
+	pvAllocationMapping, err := getPVAllocationMetrics(pvPodAllocationResults, clusterID)
 	if err != nil {
 		klog.V(1).Infof("Unable to get PV Allocation Cost Data: %s", err.Error())
 	}
 	if pvAllocationMapping != nil {
 		addMetricPVData(pvAllocationMapping, pvCostMapping, cp)
+	}
+
+	nsLabels, err := getNamespaceLabelsMetrics(nsLabelsResults)
+	if err != nil {
+		klog.V(1).Infof("Unable to get Namespace Labels for Metrics: %s", err.Error())
+	}
+	if nsLabels != nil {
+		appendNamespaceLabels(namespaceLabelsMapping, nsLabels)
 	}
 
 	networkUsageMap, err := GetNetworkUsageData(resultNetZoneRequests, resultNetRegionRequests, resultNetInternetRequests, clusterID, true)
@@ -1321,6 +1337,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 
 	containerNameCost := make(map[string]*CostData)
 	containers := make(map[string]bool)
+	otherClusterPVRecorded := make(map[string]bool)
 
 	RAMReqMap, err := GetContainerMetricVectors(resultRAMRequests, true, normalizationValue, clusterID)
 	if err != nil {
@@ -1351,7 +1368,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	for key := range GPUReqMap {
 		containers[key] = true
 	}
-	CPUUsedMap, err := GetContainerMetricVectors(resultCPUUsage, false, 0, clusterID) // No need to normalize here, as this comes from a counter
+	CPUUsedMap, err := GetContainerMetricVectors(resultCPUUsage, false, normalizationValue, clusterID) // No need to normalize here, as this comes from a counter
 	if err != nil {
 		return nil, err
 	}
@@ -1426,7 +1443,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 				}
 			}
 
-			nsLabels := namespaceLabelsMapping[ns]
+			nsLabels := namespaceLabelsMapping[ns+","+clusterID]
 			podLabels := pod.GetObjectMeta().GetLabels()
 
 			if podLabels == nil {
@@ -1506,7 +1523,8 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 			}
 
 		} else {
-			// The container has been deleted. Not all information is sent to prometheus via ksm, so fill out what we can without k8s api
+			// The container has been deleted, or is from a different clusterID
+			// Not all information is sent to prometheus via ksm, so fill out what we can without k8s api
 			klog.V(4).Info("The container " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
 			c, _ := NewContainerMetricFromKey(key)
 			RAMReqV, ok := RAMReqMap[key]
@@ -1537,7 +1555,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 
 			node, ok := nodes[c.NodeName]
 			if !ok {
-				klog.V(2).Infof("Node \"%s\" has been deleted from Kubernetes. Query historical data to get it.", c.NodeName)
+				klog.V(4).Infof("Node \"%s\" has been deleted from Kubernetes. Query historical data to get it.", c.NodeName)
 				if n, ok := missingNodes[c.NodeName]; ok {
 					node = n
 				} else {
@@ -1545,29 +1563,42 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 					missingNodes[c.NodeName] = node
 				}
 			}
-			namespacelabels, ok := namespaceLabelsMapping[c.Namespace]
+			namespacelabels, ok := namespaceLabelsMapping[c.Namespace+","+c.ClusterID]
 			if !ok {
 				klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
 			}
 
+			var podPVs []*PersistentVolumeClaimData
+			var podNetCosts []*Vector
+
 			// For PVC data, we'll need to find the claim mapping and cost data. Will need to append
 			// cost data since that was populated by cluster data previously. We do this with
 			// the pod_pvc_allocation metric
-			podPVs, ok := pvAllocationMapping[c.Namespace+","+c.PodName+","+c.ClusterID]
+			podPVData, ok := pvAllocationMapping[c.Namespace+","+c.PodName+","+c.ClusterID]
 			if !ok {
-				klog.V(3).Infof("Failed to locate pv allocation mapping for missing pod.")
+				klog.V(4).Infof("Failed to locate pv allocation mapping for missing pod.")
 			}
 
 			// For network costs, we'll use existing map since it should still contain the
 			// correct data.
-			var podNetCosts []*Vector
+			var podNetworkCosts []*Vector
 			if usage, ok := networkUsageMap[c.Namespace+","+c.PodName+","+c.ClusterID]; ok {
 				netCosts, err := GetNetworkCost(usage, cp)
 				if err != nil {
 					klog.V(3).Infof("Error pulling network costs: %s", err.Error())
 				} else {
-					podNetCosts = netCosts
+					podNetworkCosts = netCosts
 				}
+			}
+
+			// Check to see if any other data has been recorded for this namespace, pod, clusterId
+			// Follow the pattern of only allowing claims data per pod
+			podKey := c.Namespace + "," + c.PodName + "," + c.ClusterID
+			if !otherClusterPVRecorded[podKey] {
+				otherClusterPVRecorded[podKey] = true
+
+				podPVs = podPVData
+				podNetCosts = podNetworkCosts
 			}
 
 			costs := &CostData{
@@ -1581,6 +1612,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 				CPUReq:          CPUReqV,
 				CPUUsed:         CPUUsedV,
 				GPUReq:          GPUReqV,
+				Labels:          namespacelabels,
 				NamespaceLabels: namespacelabels,
 				PVCData:         podPVs,
 				NetworkData:     podNetCosts,
@@ -1627,7 +1659,7 @@ func parseStringField(metricMap map[string]interface{}, field string) (string, e
 	return strField, nil
 }
 
-func getPVAllocationMetrics(queryResult interface{}) (map[string][]*PersistentVolumeClaimData, error) {
+func getPVAllocationMetrics(queryResult interface{}, defaultClusterID string) (map[string][]*PersistentVolumeClaimData, error) {
 	toReturn := make(map[string][]*PersistentVolumeClaimData)
 	data, ok := queryResult.(map[string]interface{})["data"]
 	if !ok {
@@ -1649,8 +1681,8 @@ func getPVAllocationMetrics(queryResult interface{}) (map[string][]*PersistentVo
 		}
 
 		clusterID, err := parseStringField(metricMap, "cluster_id")
-		if err != nil {
-			return toReturn, err
+		if clusterID == "" {
+			clusterID = defaultClusterID
 		}
 
 		ns, err := parseStringField(metricMap, "namespace")
@@ -1706,7 +1738,7 @@ func getPVAllocationMetrics(queryResult interface{}) (map[string][]*PersistentVo
 	return toReturn, nil
 }
 
-func getPVCostMetrics(queryResult interface{}) (map[string]*costAnalyzerCloud.PV, error) {
+func getPVCostMetrics(queryResult interface{}, defaultClusterID string) (map[string]*costAnalyzerCloud.PV, error) {
 	toReturn := make(map[string]*costAnalyzerCloud.PV)
 	data, ok := queryResult.(map[string]interface{})["data"]
 	if !ok {
@@ -1728,8 +1760,8 @@ func getPVCostMetrics(queryResult interface{}) (map[string]*costAnalyzerCloud.PV
 		}
 
 		clusterID, err := parseStringField(metricMap, "cluster_id")
-		if err != nil {
-			return toReturn, err
+		if clusterID == "" {
+			clusterID = defaultClusterID
 		}
 
 		volumeName, err := parseStringField(metricMap, "volumename")
@@ -1779,11 +1811,78 @@ func addMetricPVData(pvAllocationMap map[string][]*PersistentVolumeClaimData, pv
 	}
 }
 
-func getNamespaceLabels(cache ClusterCache) (map[string]map[string]string, error) {
+func getNamespaceLabelsMetrics(queryResult interface{}) (map[string]map[string]string, error) {
+	toReturn := make(map[string]map[string]string)
+	data, ok := queryResult.(map[string]interface{})["data"]
+	if !ok {
+		e, err := wrapPrometheusError(queryResult)
+		if err != nil {
+			return toReturn, err
+		}
+		return toReturn, fmt.Errorf(e)
+	}
+
+	for _, val := range data.(map[string]interface{})["result"].([]interface{}) {
+		metricInterface, ok := val.(map[string]interface{})["metric"]
+		if !ok {
+			return toReturn, fmt.Errorf("Metric field does not exist in data result vector")
+		}
+		metricMap, ok := metricInterface.(map[string]interface{})
+		if !ok {
+			return toReturn, fmt.Errorf("Metric field is improperly formatted")
+		}
+
+		// We want Namespace and ClusterID for key generation purposes
+		ns, err := parseStringField(metricMap, "namespace")
+		if err != nil {
+			return toReturn, err
+		}
+
+		clusterID, err := parseStringField(metricMap, "cluster_id")
+		if err != nil {
+			return toReturn, err
+		}
+
+		nsKey := ns + "," + clusterID
+
+		// Find All keys with prefix label_, remove prefix, add to labels
+		for k, v := range metricMap {
+			if !strings.HasPrefix(k, "label_") {
+				continue
+			}
+
+			label := k[6:]
+			value, ok := v.(string)
+			if !ok {
+				klog.V(3).Infof("Failed to parse label value for label: %s", label)
+				continue
+			}
+
+			if toReturn[nsKey] == nil {
+				toReturn[nsKey] = make(map[string]string)
+			}
+
+			toReturn[nsKey][label] = value
+		}
+	}
+
+	return toReturn, nil
+}
+
+// Append labels into nsLabels iff the ns key doesn't already exist
+func appendNamespaceLabels(nsLabels map[string]map[string]string, labels map[string]map[string]string) {
+	for k, v := range labels {
+		if _, ok := nsLabels[k]; !ok {
+			nsLabels[k] = v
+		}
+	}
+}
+
+func getNamespaceLabels(cache ClusterCache, clusterID string) (map[string]map[string]string, error) {
 	nsToLabels := make(map[string]map[string]string)
 	nss := cache.GetAllNamespaces()
 	for _, ns := range nss {
-		nsToLabels[ns.Name] = ns.Labels
+		nsToLabels[ns.Name+","+clusterID] = ns.Labels
 	}
 	return nsToLabels, nil
 }
@@ -2136,6 +2235,43 @@ func Query(cli prometheusClient.Client, query string) (interface{}, error) {
 }
 
 //todo: don't cast, implement unmarshaler interface
+func getNormalizations(qr interface{}) ([]*Vector, error) {
+	data, ok := qr.(map[string]interface{})["data"]
+	if !ok {
+		e, err := wrapPrometheusError(qr)
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf(e)
+	}
+	results, ok := data.(map[string]interface{})["result"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Result field not found in normalization response, aborting")
+	}
+	if len(results) > 0 {
+		vectors := []*Vector{}
+		for i := range results {
+			klog.Infof("%+v", results[i])
+			values, ok := results[i].(map[string]interface{})["values"].([]interface{})
+			for _, d := range values {
+				dataPoint := d.([]interface{})
+				if !ok || len(dataPoint) != 2 {
+					return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
+				}
+				strVal := dataPoint[1].(string)
+				v, _ := strconv.ParseFloat(strVal, 64)
+				vectors = append(vectors, &Vector{
+					Timestamp: math.Round(dataPoint[0].(float64)/10) * 10,
+					Value:     v,
+				})
+			}
+		}
+		return vectors, nil
+	}
+	return nil, fmt.Errorf("Normalization data is empty, kube-state-metrics or node-exporter may not be running")
+}
+
+//todo: don't cast, implement unmarshaler interface
 func getNormalization(qr interface{}) (float64, error) {
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
@@ -2317,7 +2453,7 @@ func GetContainerMetricVector(qr interface{}, normalize bool, normalizationValue
 	return containerData, nil
 }
 
-func GetContainerMetricVectors(qr interface{}, normalize bool, normalizationValue float64, defaultClusterID string) (map[string][]*Vector, error) {
+func GetContainerMetricVectors(qr interface{}, normalize bool, normalizationValues []*Vector, defaultClusterID string) (map[string][]*Vector, error) {
 	data, ok := qr.(map[string]interface{})["data"]
 	if !ok {
 		e, err := wrapPrometheusError(qr)
@@ -2360,15 +2496,13 @@ func GetContainerMetricVectors(qr interface{}, normalize bool, normalizationValu
 			}
 			strVal := dataPoint[1].(string)
 			v, _ := strconv.ParseFloat(strVal, 64)
-			if normalize && normalizationValue != 0 {
-				v = v / normalizationValue
-			}
 			vectors = append(vectors, &Vector{
 				Timestamp: math.Round(dataPoint[0].(float64)/10) * 10,
 				Value:     v,
 			})
 		}
-		containerData[containerMetric.Key()] = vectors
+		normalizedVectors := NormalizeVectorByVector(vectors, normalizationValues)
+		containerData[containerMetric.Key()] = normalizedVectors
 	}
 	return containerData, nil
 }

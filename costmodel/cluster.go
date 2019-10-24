@@ -13,12 +13,12 @@ import (
 
 const (
 	queryClusterCores = `sum(
-		avg(kube_node_status_capacity_cpu_cores %s) by (node, cluster_id) * avg(node_cpu_hourly_cost %s) by (node, cluster_id) * 730 +
-		avg(node_gpu_hourly_cost %s) by (node, cluster_id) * 730
+		avg(avg_over_time(kube_node_status_capacity_cpu_cores[%s] %s)) by (node, cluster_id) * avg(avg_over_time(node_cpu_hourly_cost[%s] %s)) by (node, cluster_id) * 730 +
+		avg(avg_over_time(node_gpu_hourly_cost[%s] %s)) by (node, cluster_id) * 730
 	  ) by (cluster_id)`
 
 	queryClusterRAM = `sum(
-		avg(kube_node_status_capacity_memory_bytes %s) by (node, cluster_id) / 1024 / 1024 / 1024 * avg(node_ram_hourly_cost %s) by (node, cluster_id) * 730
+		avg(avg_over_time(kube_node_status_capacity_memory_bytes[%s] %s)) by (node, cluster_id) / 1024 / 1024 / 1024 * avg(avg_over_time(node_ram_hourly_cost[%s] %s)) by (node, cluster_id) * 730
 	  ) by (cluster_id)`
 
 	queryStorage = `sum(
@@ -142,12 +142,14 @@ func resultToTotal(qr interface{}) (map[string][][]string, error) {
 }
 
 // ClusterCostsForAllClusters gives the cluster costs averaged over a window of time for all clusters.
-func ClusterCostsForAllClusters(cli prometheusClient.Client, windowString string) (map[string]*Totals, error) {
+func ClusterCostsForAllClusters(cli prometheusClient.Client, windowString, offset string) (map[string]*Totals, error) {
 
-	offset := fmt.Sprintf("offset 3h") // Set offset to 3h for block sync
+	if offset != "" {
+		offset = fmt.Sprintf("offset %s", offset)
+	}
 
-	qCores := fmt.Sprintf(queryClusterCores, offset, offset, offset)
-	qRAM := fmt.Sprintf(queryClusterRAM, offset, offset)
+	qCores := fmt.Sprintf(queryClusterCores, windowString, offset, windowString, offset, windowString, offset)
+	qRAM := fmt.Sprintf(queryClusterRAM, windowString, offset, windowString, offset)
 	qStorage := fmt.Sprintf(queryStorage, windowString, offset, windowString, offset, "")
 
 	klog.V(4).Infof("Running query %s", qCores)
@@ -220,8 +222,8 @@ func ClusterCosts(cli prometheusClient.Client, cloud costAnalyzerCloud.Provider,
 		offset = fmt.Sprintf("offset %s", offset)
 	}
 
-	qCores := fmt.Sprintf(queryClusterCores, offset, offset, offset)
-	qRAM := fmt.Sprintf(queryClusterRAM, offset, offset)
+	qCores := fmt.Sprintf(queryClusterCores, windowString, offset, windowString, offset, windowString, offset)
+	qRAM := fmt.Sprintf(queryClusterRAM, windowString, offset, windowString, offset)
 	qStorage := fmt.Sprintf(queryStorage, windowString, offset, windowString, offset, localStorageQuery)
 	qTotal := fmt.Sprintf(queryTotal, localStorageQuery)
 
@@ -308,8 +310,8 @@ func ClusterCostsOverTime(cli prometheusClient.Client, cloud costAnalyzerCloud.P
 		offset = fmt.Sprintf("offset %s", offset)
 	}
 
-	qCores := fmt.Sprintf(queryClusterCores, offset, offset, offset)
-	qRAM := fmt.Sprintf(queryClusterRAM, offset, offset)
+	qCores := fmt.Sprintf(queryClusterCores, windowString, offset, windowString, offset, windowString, offset)
+	qRAM := fmt.Sprintf(queryClusterRAM, windowString, offset, windowString, offset)
 	qStorage := fmt.Sprintf(queryStorage, windowString, offset, windowString, offset, localStorageQuery)
 	qTotal := fmt.Sprintf(queryTotal, localStorageQuery)
 
