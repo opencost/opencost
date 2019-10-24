@@ -117,7 +117,6 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 		if err != nil || totalClusterCost == 0.0 {
 			return nil, err
 		}
-		klog.Infof("TOTAL CLUSTER COST %f", totalClusterCost)
 		totalClusterCostOverWindow := (totalClusterCost / 730) * windowDuration.Hours()
 		totalContainerCost := 0.0
 		for _, costDatum := range costData {
