@@ -142,7 +142,7 @@ func resultToTotal(qr interface{}) (map[string][][]string, error) {
 }
 
 // ClusterCostsForAllClusters gives the cluster costs averaged over a window of time for all clusters.
-func ClusterCostsForAllClusters(cli prometheusClient.Client, cloud costAnalyzerCloud.Provider, windowString, offset string) (map[string]*Totals, error) {
+func ClusterCostsForAllClusters(cli prometheusClient.Client, windowString, offset string) (map[string]*Totals, error) {
 
 	if offset != "" {
 		offset = fmt.Sprintf("offset %s", offset)

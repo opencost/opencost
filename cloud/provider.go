@@ -139,6 +139,13 @@ type CustomPricing struct {
 	ClusterName           string `json:"clusterName"`
 }
 
+func (cp *CustomPricing) IsEnabled() bool {
+	if cp == nil {
+		return false
+	}
+	return cp.CustomPricesEnabled == "true"
+}
+
 // Provider represents a k8s provider.
 type Provider interface {
 	ClusterInfo() (map[string]string, error)

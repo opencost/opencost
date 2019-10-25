@@ -40,6 +40,28 @@ type Aggregation struct {
 	TotalCost            float64   `json:"totalCost"`
 }
 
+func (a *Aggregation) GetDataLength() int {
+	length := 0
+
+	if length < len(a.CPUCostVector) {
+		length = len(a.CPUCostVector)
+	}
+	if length < len(a.RAMCostVector) {
+		length = len(a.RAMCostVector)
+	}
+	if length < len(a.PVCostVector) {
+		length = len(a.PVCostVector)
+	}
+	if length < len(a.GPUCostVector) {
+		length = len(a.GPUCostVector)
+	}
+	if length < len(a.NetworkCostVector) {
+		length = len(a.NetworkCostVector)
+	}
+
+	return length
+}
+
 const (
 	hoursPerDay   = 24.0
 	hoursPerMonth = 730.0
@@ -81,7 +103,7 @@ func NewSharedResourceInfo(shareResources bool, sharedNamespaces []string, label
 	return sr
 }
 
-func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.Client, cp cloud.Provider, discount float64, windowString, offset string) (map[string]float64, error) {
+func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.Client, cp *cloud.CustomPricing, discount float64, windowString, offset string) (map[string]float64, error) {
 
 	coefficients := make(map[string]float64)
 
@@ -90,7 +112,7 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 		return nil, err
 	}
 
-	allTotals, err := ClusterCostsForAllClusters(cli, cp, windowString, offset)
+	allTotals, err := ClusterCostsForAllClusters(cli, windowString, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +143,7 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 		totalContainerCost := 0.0
 		for _, costDatum := range costData {
 			if costDatum.ClusterID == cid {
-				cpuv, ramv, gpuv, pvvs, _ := getPriceVectors(cp, costDatum, "", discount, 1)
+				cpuv, ramv, gpuv, pvvs, _ := getPriceVectors(costDatum, "", discount, 1, cp)
 				totalContainerCost += totalVectors(cpuv)
 				totalContainerCost += totalVectors(ramv)
 				totalContainerCost += totalVectors(gpuv)
@@ -140,22 +162,22 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 
 // AggregationOptions provides optional parameters to AggregateCostData, allowing callers to perform more complex operations
 type AggregationOptions struct {
-	DataCount          int64              // number of cost data points expected; ensures proper rate calculation if data is incomplete
-	Discount           float64            // percent by which to discount CPU, RAM, and GPU cost
-	IdleCoefficients   map[string]float64 // scales costs by amount of idle resources on a per-cluster basis
-	IncludeEfficiency  bool               // set to true to receive efficiency/usage data
-	IncludeTimeSeries  bool               // set to true to receive time series data
-	Rate               string             // set to "hourly", "daily", or "monthly" to receive cost rate, rather than cumulative cost
+	CustomPricing      *cloud.CustomPricing // custom pricing data; see cloud.CustomPricing struct
+	DataLength         int                  // manually set number of expected data points in cost vectors
+	Discount           float64              // percent by which to discount CPU, RAM, and GPU cost
+	IdleCoefficients   map[string]float64   // scales costs by amount of idle resources on a per-cluster basis
+	IncludeEfficiency  bool                 // set to true to receive efficiency/usage data
+	IncludeTimeSeries  bool                 // set to true to receive time series data
+	Rate               string               // set to "hourly", "daily", or "monthly" to receive cost rate, rather than cumulative cost
 	SharedResourceInfo *SharedResourceInfo
 }
 
 // AggregateCostData aggregates raw cost data by field; e.g. namespace, cluster, service, or label. In the case of label, callers
 // must pass a slice of subfields indicating the labels by which to group. Provider is used to define custom resource pricing.
 // See AggregationOptions for optional parameters.
-// TODO: Can we restructure custom pricing code to allow that to be optional? Having to pass an entire Provider instance is way
-// overkill and tightly couples this code to the cloud package.
-func AggregateCostData(costData map[string]*CostData, field string, subfields []string, cp cloud.Provider, opts *AggregationOptions) map[string]*Aggregation {
-	dataCount := opts.DataCount
+func AggregateCostData(costData map[string]*CostData, field string, subfields []string, opts *AggregationOptions) map[string]*Aggregation {
+	cp := opts.CustomPricing
+	dataLength := opts.DataLength
 	discount := opts.Discount
 	idleCoefficients := opts.IdleCoefficients
 	includeTimeSeries := opts.IncludeTimeSeries
@@ -181,7 +203,7 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 			idleCoefficient = 1.0
 		}
 		if sr != nil && sr.ShareResources && sr.IsSharedResource(costDatum) {
-			cpuv, ramv, gpuv, pvvs, netv := getPriceVectors(cp, costDatum, rate, discount, idleCoefficient)
+			cpuv, ramv, gpuv, pvvs, netv := getPriceVectors(costDatum, rate, discount, idleCoefficient, cp)
 			sharedResourceCost += totalVectors(cpuv)
 			sharedResourceCost += totalVectors(ramv)
 			sharedResourceCost += totalVectors(gpuv)
@@ -191,32 +213,32 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 			}
 		} else {
 			if field == "cluster" {
-				aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.ClusterID, discount, idleCoefficient)
+				aggregateDatum(aggregations, costDatum, field, subfields, rate, costDatum.ClusterID, discount, idleCoefficient, cp)
 			} else if field == "namespace" {
-				aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace, discount, idleCoefficient)
+				aggregateDatum(aggregations, costDatum, field, subfields, rate, costDatum.Namespace, discount, idleCoefficient, cp)
 			} else if field == "service" {
 				if len(costDatum.Services) > 0 {
-					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.Services[0], discount, idleCoefficient)
+					aggregateDatum(aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.Services[0], discount, idleCoefficient, cp)
 				}
 			} else if field == "deployment" {
 				if len(costDatum.Deployments) > 0 {
-					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.Deployments[0], discount, idleCoefficient)
+					aggregateDatum(aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.Deployments[0], discount, idleCoefficient, cp)
 				}
 			} else if field == "daemonset" {
 				if len(costDatum.Daemonsets) > 0 {
-					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.Daemonsets[0], discount, idleCoefficient)
+					aggregateDatum(aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.Daemonsets[0], discount, idleCoefficient, cp)
 				}
 			} else if field == "label" {
 				if costDatum.Labels != nil {
 					for _, sf := range subfields {
 						if subfieldName, ok := costDatum.Labels[sf]; ok {
-							aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, subfieldName, discount, idleCoefficient)
+							aggregateDatum(aggregations, costDatum, field, subfields, rate, subfieldName, discount, idleCoefficient, cp)
 							break
 						}
 					}
 				}
 			} else if field == "pod" {
-				aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.PodName, discount, idleCoefficient)
+				aggregateDatum(aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.PodName, discount, idleCoefficient, cp)
 			}
 		}
 	}
@@ -229,13 +251,17 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 		agg.NetworkCost = totalVectors(agg.NetworkCostVector)
 		agg.SharedCost = sharedResourceCost / float64(len(aggregations))
 
-		if rate != "" && dataCount > 0 {
-			agg.CPUCost /= float64(dataCount)
-			agg.RAMCost /= float64(dataCount)
-			agg.GPUCost /= float64(dataCount)
-			agg.PVCost /= float64(dataCount)
-			agg.NetworkCost /= float64(dataCount)
-			agg.SharedCost /= float64(dataCount)
+		if dataLength == 0 {
+			dataLength = agg.GetDataLength()
+		}
+
+		if rate != "" && dataLength > 0 {
+			agg.CPUCost /= float64(dataLength)
+			agg.RAMCost /= float64(dataLength)
+			agg.GPUCost /= float64(dataLength)
+			agg.PVCost /= float64(dataLength)
+			agg.NetworkCost /= float64(dataLength)
+			agg.SharedCost /= float64(dataLength)
 		}
 
 		agg.TotalCost = agg.CPUCost + agg.RAMCost + agg.GPUCost + agg.PVCost + agg.NetworkCost + agg.SharedCost
@@ -251,11 +277,6 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 			// It is possible to score > 100% efficiency, which is meant to be interpreted as a red flag.
 			// It is not possible to score < 0% efficiency.
 
-			klog.V(4).Infof("\n\tlen(CPU allocation): %d\n\tlen(CPU requested): %d\n\tlen(CPU used): %d",
-				len(agg.CPUAllocationVectors),
-				len(agg.CPURequestedVectors),
-				len(agg.CPUUsedVectors))
-
 			agg.CPUEfficiency = 1.0
 			CPUIdle := 0.0
 			avgCPUAllocation := totalVectors(agg.CPUAllocationVectors) / float64(len(agg.CPUAllocationVectors))
@@ -265,11 +286,6 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 				CPUIdle = ((avgCPURequested - avgCPUUsed) / avgCPUAllocation)
 				agg.CPUEfficiency = 1.0 - CPUIdle
 			}
-
-			klog.V(4).Infof("\n\tlen(RAM allocation): %d\n\tlen(RAM requested): %d\n\tlen(RAM used): %d",
-				len(agg.RAMAllocationVectors),
-				len(agg.RAMRequestedVectors),
-				len(agg.RAMUsedVectors))
 
 			agg.RAMEfficiency = 1.0
 			RAMIdle := 0.0
@@ -302,7 +318,7 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 	return aggregations
 }
 
-func aggregateDatum(cp cloud.Provider, aggregations map[string]*Aggregation, costDatum *CostData, field string, subfields []string, rate string, key string, discount float64, idleCoefficient float64) {
+func aggregateDatum(aggregations map[string]*Aggregation, costDatum *CostData, field string, subfields []string, rate string, key string, discount float64, idleCoefficient float64, cp *cloud.CustomPricing) {
 	// add new entry to aggregation results if a new key is encountered
 	if _, ok := aggregations[key]; !ok {
 		agg := &Aggregation{}
@@ -314,10 +330,10 @@ func aggregateDatum(cp cloud.Provider, aggregations map[string]*Aggregation, cos
 		aggregations[key] = agg
 	}
 
-	mergeVectors(cp, costDatum, aggregations[key], rate, discount, idleCoefficient)
+	mergeVectors(costDatum, aggregations[key], rate, discount, idleCoefficient, cp)
 }
 
-func mergeVectors(cp cloud.Provider, costDatum *CostData, aggregation *Aggregation, rate string, discount float64, idleCoefficient float64) {
+func mergeVectors(costDatum *CostData, aggregation *Aggregation, rate string, discount float64, idleCoefficient float64, cp *cloud.CustomPricing) {
 	aggregation.CPUAllocationVectors = addVectors(costDatum.CPUAllocation, aggregation.CPUAllocationVectors)
 	aggregation.CPURequestedVectors = addVectors(costDatum.CPUReq, aggregation.CPURequestedVectors)
 	aggregation.CPUUsedVectors = addVectors(costDatum.CPUUsed, aggregation.CPUUsedVectors)
@@ -328,7 +344,7 @@ func mergeVectors(cp cloud.Provider, costDatum *CostData, aggregation *Aggregati
 
 	aggregation.GPUAllocation = addVectors(costDatum.GPUReq, aggregation.GPUAllocation)
 
-	cpuv, ramv, gpuv, pvvs, netv := getPriceVectors(cp, costDatum, rate, discount, idleCoefficient)
+	cpuv, ramv, gpuv, pvvs, netv := getPriceVectors(costDatum, rate, discount, idleCoefficient, cp)
 	aggregation.CPUCostVector = addVectors(cpuv, aggregation.CPUCostVector)
 	aggregation.RAMCostVector = addVectors(ramv, aggregation.RAMCostVector)
 	aggregation.GPUCostVector = addVectors(gpuv, aggregation.GPUCostVector)
@@ -338,7 +354,7 @@ func mergeVectors(cp cloud.Provider, costDatum *CostData, aggregation *Aggregati
 	}
 }
 
-func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discount float64, idleCoefficient float64) ([]*Vector, []*Vector, []*Vector, [][]*Vector, []*Vector) {
+func getPriceVectors(costDatum *CostData, rate string, discount float64, idleCoefficient float64, cp *cloud.CustomPricing) ([]*Vector, []*Vector, []*Vector, [][]*Vector, []*Vector) {
 	cpuCostStr := costDatum.NodeData.VCPUCost
 	ramCostStr := costDatum.NodeData.RAMCost
 	gpuCostStr := costDatum.NodeData.GPUCost
@@ -346,21 +362,17 @@ func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discou
 
 	// If custom pricing is enabled and can be retrieved, replace
 	// default cost values with custom values
-	customPricing, err := cp.GetConfig()
-	if err != nil {
-		klog.Errorf("failed to load custom pricing: %s", err)
-	}
-	if cloud.CustomPricesEnabled(cp) && err == nil {
+	if cp.IsEnabled() {
 		if costDatum.NodeData.IsSpot() {
-			cpuCostStr = customPricing.SpotCPU
-			ramCostStr = customPricing.SpotRAM
-			gpuCostStr = customPricing.SpotGPU
+			cpuCostStr = cp.SpotCPU
+			ramCostStr = cp.SpotRAM
+			gpuCostStr = cp.SpotGPU
 		} else {
-			cpuCostStr = customPricing.CPU
-			ramCostStr = customPricing.RAM
-			gpuCostStr = customPricing.GPU
+			cpuCostStr = cp.CPU
+			ramCostStr = cp.RAM
+			gpuCostStr = cp.GPU
 		}
-		pvCostStr = customPricing.Storage
+		pvCostStr = cp.Storage
 	}
 
 	cpuCost, _ := strconv.ParseFloat(cpuCostStr, 64)
@@ -412,7 +424,7 @@ func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discou
 			cost, _ := strconv.ParseFloat(pvcData.Volume.Cost, 64)
 
 			// override with custom pricing if enabled
-			if cloud.CustomPricesEnabled(cp) {
+			if cp.IsEnabled() {
 				cost = pvCost
 			}
 
