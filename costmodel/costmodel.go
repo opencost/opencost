@@ -1428,7 +1428,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		addMetricPVData(pvAllocationMapping, pvCostMapping, cp)
 	}
 
-	nsLabels, err := GetNamespaceLabelsMetrics(nsLabelsResults)
+	nsLabels, err := GetNamespaceLabelsMetrics(nsLabelsResults, clusterID)
 	if err != nil {
 		klog.V(1).Infof("Unable to get Namespace Labels for Metrics: %s", err.Error())
 	}
@@ -1436,17 +1436,17 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		appendNamespaceLabels(namespaceLabelsMapping, nsLabels)
 	}
 
-	podLabels, err := GetPodLabelsMetrics(podLabelsResults)
+	podLabels, err := GetPodLabelsMetrics(podLabelsResults, clusterID)
 	if err != nil {
 		klog.V(1).Infof("Unable to get Pod Labels for Metrics: %s", err.Error())
 	}
 
-	serviceLabels, err := GetServiceSelectorLabelsMetrics(serviceLabelsResults)
+	serviceLabels, err := GetServiceSelectorLabelsMetrics(serviceLabelsResults, clusterID)
 	if err != nil {
 		klog.V(1).Infof("Unable to get Service Selector Labels for Metrics: %s", err.Error())
 	}
 
-	deploymentLabels, err := GetDeploymentMatchLabelsMetrics(deploymentLabelsResults)
+	deploymentLabels, err := GetDeploymentMatchLabelsMetrics(deploymentLabelsResults, clusterID)
 	if err != nil {
 		klog.V(1).Infof("Unable to get Deployment Match Labels for Metrics: %s", err.Error())
 	}
@@ -1538,9 +1538,11 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 			if _, ok := nodes[nodeName]; ok {
 				nodeData = nodes[nodeName]
 			}
+
+			nsKey := ns + "," + clusterID
 			var podDeployments []string
-			if _, ok := podDeploymentsMapping[ns]; ok {
-				if ds, ok := podDeploymentsMapping[ns][pod.GetObjectMeta().GetName()]; ok {
+			if _, ok := podDeploymentsMapping[nsKey]; ok {
+				if ds, ok := podDeploymentsMapping[nsKey][pod.GetObjectMeta().GetName()]; ok {
 					podDeployments = ds
 				} else {
 					podDeployments = []string{}
@@ -1569,15 +1571,15 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 			}
 
 			var podServices []string
-			if _, ok := podServicesMapping[ns]; ok {
-				if svcs, ok := podServicesMapping[ns][pod.GetObjectMeta().GetName()]; ok {
+			if _, ok := podServicesMapping[nsKey]; ok {
+				if svcs, ok := podServicesMapping[nsKey][pod.GetObjectMeta().GetName()]; ok {
 					podServices = svcs
 				} else {
 					podServices = []string{}
 				}
 			}
 
-			nsLabels := namespaceLabelsMapping[ns+","+clusterID]
+			nsLabels := namespaceLabelsMapping[nsKey]
 			podLabels := pod.GetObjectMeta().GetLabels()
 
 			if podLabels == nil {

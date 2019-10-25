@@ -230,7 +230,7 @@ func GetPVCostMetrics(queryResult interface{}, defaultClusterID string) (map[str
 	return toReturn, nil
 }
 
-func GetNamespaceLabelsMetrics(queryResult interface{}) (map[string]map[string]string, error) {
+func GetNamespaceLabelsMetrics(queryResult interface{}, defaultClusterID string) (map[string]map[string]string, error) {
 	toReturn := make(map[string]map[string]string)
 	result, err := NewQueryResults(queryResult)
 	if err != nil {
@@ -245,8 +245,8 @@ func GetNamespaceLabelsMetrics(queryResult interface{}) (map[string]map[string]s
 		}
 
 		clusterID, err := val.GetString("cluster_id")
-		if err != nil {
-			return toReturn, err
+		if clusterID == "" {
+			clusterID = defaultClusterID
 		}
 
 		nsKey := ns + "," + clusterID
@@ -256,7 +256,7 @@ func GetNamespaceLabelsMetrics(queryResult interface{}) (map[string]map[string]s
 	return toReturn, nil
 }
 
-func GetPodLabelsMetrics(queryResult interface{}) (map[string]map[string]string, error) {
+func GetPodLabelsMetrics(queryResult interface{}, defaultClusterID string) (map[string]map[string]string, error) {
 	toReturn := make(map[string]map[string]string)
 	result, err := NewQueryResults(queryResult)
 	if err != nil {
@@ -276,8 +276,8 @@ func GetPodLabelsMetrics(queryResult interface{}) (map[string]map[string]string,
 		}
 
 		clusterID, err := val.GetString("cluster_id")
-		if err != nil {
-			return toReturn, err
+		if clusterID == "" {
+			clusterID = defaultClusterID
 		}
 
 		nsKey := ns + "," + pod + "," + clusterID
@@ -287,7 +287,7 @@ func GetPodLabelsMetrics(queryResult interface{}) (map[string]map[string]string,
 	return toReturn, nil
 }
 
-func GetDeploymentMatchLabelsMetrics(queryResult interface{}) (map[string]map[string]string, error) {
+func GetDeploymentMatchLabelsMetrics(queryResult interface{}, defaultClusterID string) (map[string]map[string]string, error) {
 	toReturn := make(map[string]map[string]string)
 	result, err := NewQueryResults(queryResult)
 	if err != nil {
@@ -307,8 +307,8 @@ func GetDeploymentMatchLabelsMetrics(queryResult interface{}) (map[string]map[st
 		}
 
 		clusterID, err := val.GetString("cluster_id")
-		if err != nil {
-			return toReturn, err
+		if clusterID == "" {
+			clusterID = defaultClusterID
 		}
 
 		nsKey := ns + "," + deployment + "," + clusterID
@@ -318,7 +318,7 @@ func GetDeploymentMatchLabelsMetrics(queryResult interface{}) (map[string]map[st
 	return toReturn, nil
 }
 
-func GetServiceSelectorLabelsMetrics(queryResult interface{}) (map[string]map[string]string, error) {
+func GetServiceSelectorLabelsMetrics(queryResult interface{}, defaultClusterID string) (map[string]map[string]string, error) {
 	toReturn := make(map[string]map[string]string)
 	result, err := NewQueryResults(queryResult)
 	if err != nil {
@@ -338,8 +338,8 @@ func GetServiceSelectorLabelsMetrics(queryResult interface{}) (map[string]map[st
 		}
 
 		clusterID, err := val.GetString("cluster_id")
-		if err != nil {
-			return toReturn, err
+		if clusterID == "" {
+			clusterID = defaultClusterID
 		}
 
 		nsKey := ns + "," + service + "," + clusterID
