@@ -154,7 +154,7 @@ func parseDataPoint(dataPoint interface{}) (*Vector, error) {
 	}, nil
 }
 
-func getPVAllocationMetrics(queryResult interface{}, defaultClusterID string) (map[string][]*PersistentVolumeClaimData, error) {
+func GetPVAllocationMetrics(queryResult interface{}, defaultClusterID string) (map[string][]*PersistentVolumeClaimData, error) {
 	toReturn := make(map[string][]*PersistentVolumeClaimData)
 	result, err := NewQueryResults(queryResult)
 	if err != nil {
@@ -203,7 +203,7 @@ func getPVAllocationMetrics(queryResult interface{}, defaultClusterID string) (m
 	return toReturn, nil
 }
 
-func getPVCostMetrics(queryResult interface{}, defaultClusterID string) (map[string]*costAnalyzerCloud.PV, error) {
+func GetPVCostMetrics(queryResult interface{}, defaultClusterID string) (map[string]*costAnalyzerCloud.PV, error) {
 	toReturn := make(map[string]*costAnalyzerCloud.PV)
 	result, err := NewQueryResults(queryResult)
 	if err != nil {
@@ -256,6 +256,37 @@ func GetNamespaceLabelsMetrics(queryResult interface{}) (map[string]map[string]s
 	return toReturn, nil
 }
 
+func GetPodLabelsMetrics(queryResult interface{}) (map[string]map[string]string, error) {
+	toReturn := make(map[string]map[string]string)
+	result, err := NewQueryResults(queryResult)
+	if err != nil {
+		return toReturn, err
+	}
+
+	for _, val := range result {
+		// We want Pod, Namespace and ClusterID for key generation purposes
+		pod, err := val.GetString("pod")
+		if err != nil {
+			return toReturn, err
+		}
+
+		ns, err := val.GetString("namespace")
+		if err != nil {
+			return toReturn, err
+		}
+
+		clusterID, err := val.GetString("cluster_id")
+		if err != nil {
+			return toReturn, err
+		}
+
+		nsKey := ns + "," + pod + "," + clusterID
+		toReturn[nsKey] = val.GetLabels()
+	}
+
+	return toReturn, nil
+}
+
 func GetDeploymentMatchLabelsMetrics(queryResult interface{}) (map[string]map[string]string, error) {
 	toReturn := make(map[string]map[string]string)
 	result, err := NewQueryResults(queryResult)
@@ -295,7 +326,7 @@ func GetServiceSelectorLabelsMetrics(queryResult interface{}) (map[string]map[st
 	}
 
 	for _, val := range result {
-		// We want Namespace and ClusterID for key generation purposes
+		// We want Service, Namespace and ClusterID for key generation purposes
 		service, err := val.GetString("service")
 		if err != nil {
 			return toReturn, err

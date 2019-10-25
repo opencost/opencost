@@ -582,6 +582,6 @@ func (az *Azure) PVPricing(PVKey) (*PV, error) {
 	return nil, nil
 }
 
-func (az *Azure) GetLocalStorageQuery() (string, error) {
+func (az *Azure) GetLocalStorageQuery(offset string) (string, error) {
 	return "", nil
 }

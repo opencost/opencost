@@ -148,9 +148,17 @@ func ClusterCostsForAllClusters(cli prometheusClient.Client, cloud costAnalyzerC
 		offset = fmt.Sprintf("offset %s", offset)
 	}
 
+	localStorageQuery, err := cloud.GetLocalStorageQuery(offset)
+	if err != nil {
+		return nil, err
+	}
+	if localStorageQuery != "" {
+		localStorageQuery = fmt.Sprintf("+ %s", localStorageQuery)
+	}
+
 	qCores := fmt.Sprintf(queryClusterCores, windowString, offset, windowString, offset, windowString, offset)
 	qRAM := fmt.Sprintf(queryClusterRAM, windowString, offset, windowString, offset)
-	qStorage := fmt.Sprintf(queryStorage, windowString, offset, windowString, offset, "")
+	qStorage := fmt.Sprintf(queryStorage, windowString, offset, windowString, offset, localStorageQuery)
 
 	klog.V(4).Infof("Running query %s", qCores)
 	resultClusterCores, err := Query(cli, qCores)
@@ -209,17 +217,17 @@ func ClusterCostsForAllClusters(cli prometheusClient.Client, cloud costAnalyzerC
 // ClusterCosts gives the current full cluster costs averaged over a window of time.
 func ClusterCosts(cli prometheusClient.Client, cloud costAnalyzerCloud.Provider, windowString, offset string) (*Totals, error) {
 
-	localStorageQuery, err := cloud.GetLocalStorageQuery()
+	// turn offsets of the format "[0-9+]h" into the format "offset [0-9+]h" for use in query templatess
+	if offset != "" {
+		offset = fmt.Sprintf("offset %s", offset)
+	}
+
+	localStorageQuery, err := cloud.GetLocalStorageQuery(offset)
 	if err != nil {
 		return nil, err
 	}
 	if localStorageQuery != "" {
 		localStorageQuery = fmt.Sprintf("+ %s", localStorageQuery)
-	}
-
-	// turn offsets of the format "[0-9+]h" into the format "offset [0-9+]h" for use in query templatess
-	if offset != "" {
-		offset = fmt.Sprintf("offset %s", offset)
 	}
 
 	qCores := fmt.Sprintf(queryClusterCores, windowString, offset, windowString, offset, windowString, offset)
@@ -279,7 +287,7 @@ func ClusterCosts(cli prometheusClient.Client, cloud costAnalyzerCloud.Provider,
 // ClusterCostsOverTime gives the full cluster costs over time
 func ClusterCostsOverTime(cli prometheusClient.Client, cloud costAnalyzerCloud.Provider, startString, endString, windowString, offset string) (*Totals, error) {
 
-	localStorageQuery, err := cloud.GetLocalStorageQuery()
+	localStorageQuery, err := cloud.GetLocalStorageQuery(offset)
 	if err != nil {
 		return nil, err
 	}
