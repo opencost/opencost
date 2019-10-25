@@ -204,7 +204,7 @@ var regionToBillingRegionCode = map[string]string{
 	"us-gov-west-1":  "UGW1",
 }
 
-func (aws *AWS) GetLocalStorageQuery() (string, error) {
+func (aws *AWS) GetLocalStorageQuery(offset string) (string, error) {
 	return "", nil
 }
 

@@ -154,7 +154,7 @@ type Provider interface {
 	UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error)
 	GetConfig() (*CustomPricing, error)
 	GetManagementPlatform() (string, error)
-	GetLocalStorageQuery() (string, error)
+	GetLocalStorageQuery(offset string) (string, error)
 	ExternalAllocations(string, string, string) ([]*OutOfClusterAllocation, error)
 }
 
