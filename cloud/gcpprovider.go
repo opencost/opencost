@@ -79,9 +79,9 @@ func gcpAllocationToOutOfClusterAllocation(gcpAlloc gcpAllocation) *OutOfCluster
 	}
 }
 
-func (gcp *GCP) GetLocalStorageQuery() (string, error) {
+func (gcp *GCP) GetLocalStorageQuery(offset string) (string, error) {
 	localStorageCost := 0.04 // TODO: Set to the price for the appropriate storage class. It's not trivial to determine the local storage disk type
-	return fmt.Sprintf(`sum(sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance) / 1024 / 1024 / 1024) * %f`, localStorageCost), nil
+	return fmt.Sprintf(`sum(sum(container_fs_limit_bytes{device!="tmpfs", id="/"} %s) by (instance, cluster_id)) by (cluster_id) / 1024 / 1024 / 1024 * %f`, offset, localStorageCost), nil
 }
 
 func (gcp *GCP) GetConfig() (*CustomPricing, error) {

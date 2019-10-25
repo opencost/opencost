@@ -150,7 +150,7 @@ const (
 						* 
 						on (persistentvolumeclaim, namespace, cluster_id) group_right(storageclass, volumename) 
 				sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) by (persistentvolumeclaim, namespace, cluster_id)`
-	queryPVCAllocation        = `avg_over_time(pod_pvc_allocation[24h])`
+	queryPVCAllocation        = `pod_pvc_allocation`
 	queryPVHourlyCost         = `avg_over_time(pv_hourly_cost[24h])`
 	queryNSLabels             = `avg_over_time(kube_namespace_labels[24h])`
 	queryZoneNetworkUsage     = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
@@ -1234,12 +1234,12 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	}()
 	var pvPodAllocationResults interface{}
 	go func() {
-		pvPodAllocationResults, promErr = Query(cli, queryPVCAllocation)
+		pvPodAllocationResults, promErr = QueryRange(cli, queryPVCAllocation, start, end, window)
 		defer wg.Done()
 	}()
 	var pvCostResults interface{}
 	go func() {
-		pvCostResults, promErr = Query(cli, queryPVHourlyCost)
+		pvCostResults, promErr = QueryRange(cli, queryPVHourlyCost, start, end, window)
 		defer wg.Done()
 	}()
 	var nsLabelsResults interface{}
@@ -1670,6 +1670,7 @@ func getPVAllocationMetrics(queryResult interface{}, defaultClusterID string) (m
 		return toReturn, fmt.Errorf(e)
 	}
 
+	vectors := []*Vector{}
 	for _, val := range data.(map[string]interface{})["result"].([]interface{}) {
 		metricInterface, ok := val.(map[string]interface{})["metric"]
 		if !ok {
@@ -1704,23 +1705,19 @@ func getPVAllocationMetrics(queryResult interface{}, defaultClusterID string) (m
 		if err != nil {
 			return toReturn, err
 		}
-
-		dataPoint, ok := val.(map[string]interface{})["value"]
-		if !ok {
-			return nil, fmt.Errorf("Value field does not exist in data result vector")
+		values, ok := val.(map[string]interface{})["values"].([]interface{})
+		for _, d := range values {
+			dataPoint := d.([]interface{})
+			if !ok || len(dataPoint) != 2 {
+				return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
+			}
+			strVal := dataPoint[1].(string)
+			v, _ := strconv.ParseFloat(strVal, 64)
+			vectors = append(vectors, &Vector{
+				Timestamp: math.Round(dataPoint[0].(float64)/10) * 10,
+				Value:     v,
+			})
 		}
-		value, ok := dataPoint.([]interface{})
-		if !ok || len(value) != 2 {
-			return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
-		}
-		var vectors []*Vector
-		strVal := value[1].(string)
-		v, _ := strconv.ParseFloat(strVal, 64)
-
-		vectors = append(vectors, &Vector{
-			Timestamp: value[0].(float64),
-			Value:     v,
-		})
 
 		key := fmt.Sprintf("%s,%s,%s", ns, pod, clusterID)
 		pvcData := &PersistentVolumeClaimData{
