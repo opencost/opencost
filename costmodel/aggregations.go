@@ -103,7 +103,7 @@ func NewSharedResourceInfo(shareResources bool, sharedNamespaces []string, label
 	return sr
 }
 
-func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.Client, cp *cloud.CustomPricing, discount float64, windowString, offset string) (map[string]float64, error) {
+func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.Client, cp cloud.Provider, discount float64, windowString, offset string) (map[string]float64, error) {
 
 	coefficients := make(map[string]float64)
 
@@ -112,7 +112,7 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 		return nil, err
 	}
 
-	allTotals, err := ClusterCostsForAllClusters(cli, windowString, offset)
+	allTotals, err := ClusterCostsForAllClusters(cli, cp, windowString, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -162,21 +162,19 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 
 // AggregationOptions provides optional parameters to AggregateCostData, allowing callers to perform more complex operations
 type AggregationOptions struct {
-	CustomPricing      *cloud.CustomPricing // custom pricing data; see cloud.CustomPricing struct
-	DataLength         int                  // manually set number of expected data points in cost vectors
-	Discount           float64              // percent by which to discount CPU, RAM, and GPU cost
-	IdleCoefficients   map[string]float64   // scales costs by amount of idle resources on a per-cluster basis
-	IncludeEfficiency  bool                 // set to true to receive efficiency/usage data
-	IncludeTimeSeries  bool                 // set to true to receive time series data
-	Rate               string               // set to "hourly", "daily", or "monthly" to receive cost rate, rather than cumulative cost
+	DataLength         int                // manually set number of expected data points in cost vectors
+	Discount           float64            // percent by which to discount CPU, RAM, and GPU cost
+	IdleCoefficients   map[string]float64 // scales costs by amount of idle resources on a per-cluster basis
+	IncludeEfficiency  bool               // set to true to receive efficiency/usage data
+	IncludeTimeSeries  bool               // set to true to receive time series data
+	Rate               string             // set to "hourly", "daily", or "monthly" to receive cost rate, rather than cumulative cost
 	SharedResourceInfo *SharedResourceInfo
 }
 
 // AggregateCostData aggregates raw cost data by field; e.g. namespace, cluster, service, or label. In the case of label, callers
 // must pass a slice of subfields indicating the labels by which to group. Provider is used to define custom resource pricing.
 // See AggregationOptions for optional parameters.
-func AggregateCostData(costData map[string]*CostData, field string, subfields []string, opts *AggregationOptions) map[string]*Aggregation {
-	cp := opts.CustomPricing
+func AggregateCostData(costData map[string]*CostData, field string, subfields []string, cp cloud.Provider, opts *AggregationOptions) map[string]*Aggregation {
 	dataLength := opts.DataLength
 	discount := opts.Discount
 	idleCoefficients := opts.IdleCoefficients
@@ -318,7 +316,7 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 	return aggregations
 }
 
-func aggregateDatum(aggregations map[string]*Aggregation, costDatum *CostData, field string, subfields []string, rate string, key string, discount float64, idleCoefficient float64, cp *cloud.CustomPricing) {
+func aggregateDatum(aggregations map[string]*Aggregation, costDatum *CostData, field string, subfields []string, rate string, key string, discount float64, idleCoefficient float64, cp cloud.Provider) {
 	// add new entry to aggregation results if a new key is encountered
 	if _, ok := aggregations[key]; !ok {
 		agg := &Aggregation{}
@@ -333,7 +331,7 @@ func aggregateDatum(aggregations map[string]*Aggregation, costDatum *CostData, f
 	mergeVectors(costDatum, aggregations[key], rate, discount, idleCoefficient, cp)
 }
 
-func mergeVectors(costDatum *CostData, aggregation *Aggregation, rate string, discount float64, idleCoefficient float64, cp *cloud.CustomPricing) {
+func mergeVectors(costDatum *CostData, aggregation *Aggregation, rate string, discount float64, idleCoefficient float64, cp cloud.Provider) {
 	aggregation.CPUAllocationVectors = addVectors(costDatum.CPUAllocation, aggregation.CPUAllocationVectors)
 	aggregation.CPURequestedVectors = addVectors(costDatum.CPUReq, aggregation.CPURequestedVectors)
 	aggregation.CPUUsedVectors = addVectors(costDatum.CPUUsed, aggregation.CPUUsedVectors)
@@ -354,7 +352,7 @@ func mergeVectors(costDatum *CostData, aggregation *Aggregation, rate string, di
 	}
 }
 
-func getPriceVectors(costDatum *CostData, rate string, discount float64, idleCoefficient float64, cp *cloud.CustomPricing) ([]*Vector, []*Vector, []*Vector, [][]*Vector, []*Vector) {
+func getPriceVectors(costDatum *CostData, rate string, discount float64, idleCoefficient float64, cp cloud.Provider) ([]*Vector, []*Vector, []*Vector, [][]*Vector, []*Vector) {
 	cpuCostStr := costDatum.NodeData.VCPUCost
 	ramCostStr := costDatum.NodeData.RAMCost
 	gpuCostStr := costDatum.NodeData.GPUCost
@@ -362,17 +360,21 @@ func getPriceVectors(costDatum *CostData, rate string, discount float64, idleCoe
 
 	// If custom pricing is enabled and can be retrieved, replace
 	// default cost values with custom values
-	if cp.IsEnabled() {
+	customPricing, err := cp.GetConfig()
+	if err != nil {
+		klog.Errorf("failed to load custom pricing: %s", err)
+	}
+	if cloud.CustomPricesEnabled(cp) && err == nil {
 		if costDatum.NodeData.IsSpot() {
-			cpuCostStr = cp.SpotCPU
-			ramCostStr = cp.SpotRAM
-			gpuCostStr = cp.SpotGPU
+			cpuCostStr = customPricing.SpotCPU
+			ramCostStr = customPricing.SpotRAM
+			gpuCostStr = customPricing.SpotGPU
 		} else {
-			cpuCostStr = cp.CPU
-			ramCostStr = cp.RAM
-			gpuCostStr = cp.GPU
+			cpuCostStr = customPricing.CPU
+			ramCostStr = customPricing.RAM
+			gpuCostStr = customPricing.GPU
 		}
-		pvCostStr = cp.Storage
+		pvCostStr = customPricing.Storage
 	}
 
 	cpuCost, _ := strconv.ParseFloat(cpuCostStr, 64)
@@ -424,7 +426,7 @@ func getPriceVectors(costDatum *CostData, rate string, discount float64, idleCoe
 			cost, _ := strconv.ParseFloat(pvcData.Volume.Cost, 64)
 
 			// override with custom pricing if enabled
-			if cp.IsEnabled() {
+			if cloud.CustomPricesEnabled(cp) {
 				cost = pvCost
 			}
 

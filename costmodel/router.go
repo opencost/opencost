@@ -273,17 +273,11 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 		dataCount := int64(dur.Hours()) + 1
 		klog.V(1).Infof("for duration %s dataCount = %d", dur.String(), dataCount)
 
-		customPricing, err := a.Cloud.GetConfig()
-		if err != nil {
-			klog.Errorf("error retrieving cloud config: %s", err)
-		}
-
 		opts := &AggregationOptions{
-			CustomPricing:    customPricing,
 			Discount:         discount,
 			IdleCoefficients: make(map[string]float64),
 		}
-		agg := AggregateCostData(data, aggregationField, subfields, opts)
+		agg := AggregateCostData(data, aggregationField, subfields, a.Cloud, opts)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {
@@ -451,11 +445,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 			klog.Infof("Setting offset to 3h")
 			offset = "3h"
 		}
-		customPricing, err := a.Cloud.GetConfig()
-		if err != nil {
-			klog.Errorf("error retrieving cloud config: %s", err)
-		}
-		idleCoefficients, err = ComputeIdleCoefficient(data, pClient, customPricing, discount, windowStr, offset)
+		idleCoefficients, err = ComputeIdleCoefficient(data, pClient, a.Cloud, discount, windowStr, offset)
 		if err != nil {
 			klog.V(1).Infof("error computing idle coefficient: windowString=%s, offset=%s, err=%s", windowStr, offset, err)
 			w.Write(wrapData(nil, err))
@@ -486,14 +476,8 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		klog.Infof("Idle Coeff: %s: %f", cid, idleCoefficient)
 	}
 
-	customPricing, err := a.Cloud.GetConfig()
-	if err != nil {
-		klog.Errorf("error retrieving cloud config: %s", err)
-	}
-
 	// aggregate cost model data by given fields and cache the result for the default expiration
 	opts := &AggregationOptions{
-		CustomPricing:      customPricing,
 		DataLength:         dataLength,
 		Discount:           discount,
 		IdleCoefficients:   idleCoefficients,
@@ -502,7 +486,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		Rate:               rate,
 		SharedResourceInfo: sr,
 	}
-	result := AggregateCostData(data, field, subfields, opts)
+	result := AggregateCostData(data, field, subfields, a.Cloud, opts)
 	a.AggregateCache.Set(aggKey, result, cache.DefaultExpiration)
 
 	w.Write(wrapDataWithMessage(result, nil, fmt.Sprintf("aggregate cache miss: %s", aggKey)))
@@ -615,17 +599,11 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 		}
 		discount = discount * 0.01
 
-		customPricing, err := a.Cloud.GetConfig()
-		if err != nil {
-			klog.Errorf("error retrieving cloud config: %s", err)
-		}
-
 		opts := &AggregationOptions{
-			CustomPricing:    customPricing,
 			Discount:         discount,
 			IdleCoefficients: make(map[string]float64),
 		}
-		agg := AggregateCostData(data, aggregationField, subfields, opts)
+		agg := AggregateCostData(data, aggregationField, subfields, a.Cloud, opts)
 		w.Write(wrapData(agg, nil))
 	} else {
 		if fields != "" {
