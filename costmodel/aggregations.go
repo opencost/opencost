@@ -11,6 +11,11 @@ import (
 	"k8s.io/klog"
 )
 
+const (
+	hoursPerDay   = 24.0
+	hoursPerMonth = 730.0
+)
+
 type Aggregation struct {
 	Aggregator           string    `json:"aggregation"`
 	Subfields            []string  `json:"subfields,omitempty"`
@@ -40,10 +45,27 @@ type Aggregation struct {
 	TotalCost            float64   `json:"totalCost"`
 }
 
-const (
-	hoursPerDay   = 24.0
-	hoursPerMonth = 730.0
-)
+func (a *Aggregation) GetDataCount() int {
+	length := 0
+
+	if length < len(a.CPUCostVector) {
+		length = len(a.CPUCostVector)
+	}
+	if length < len(a.RAMCostVector) {
+		length = len(a.RAMCostVector)
+	}
+	if length < len(a.PVCostVector) {
+		length = len(a.PVCostVector)
+	}
+	if length < len(a.GPUCostVector) {
+		length = len(a.GPUCostVector)
+	}
+	if length < len(a.NetworkCostVector) {
+		length = len(a.NetworkCostVector)
+	}
+
+	return length
+}
 
 type SharedResourceInfo struct {
 	ShareResources  bool
@@ -140,7 +162,7 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 
 // AggregationOptions provides optional parameters to AggregateCostData, allowing callers to perform more complex operations
 type AggregationOptions struct {
-	DataCount          int64              // number of cost data points expected; ensures proper rate calculation if data is incomplete
+	DataCount          int                // number of cost data points expected; ensures proper rate calculation if data is incomplete
 	Discount           float64            // percent by which to discount CPU, RAM, and GPU cost
 	IdleCoefficients   map[string]float64 // scales costs by amount of idle resources on a per-cluster basis
 	IncludeEfficiency  bool               // set to true to receive efficiency/usage data
@@ -228,6 +250,10 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 		agg.PVCost = totalVectors(agg.PVCostVector)
 		agg.NetworkCost = totalVectors(agg.NetworkCostVector)
 		agg.SharedCost = sharedResourceCost / float64(len(aggregations))
+
+		if dataCount == 0 {
+			dataCount = agg.GetDataCount()
+		}
 
 		if rate != "" && dataCount > 0 {
 			agg.CPUCost /= float64(dataCount)
