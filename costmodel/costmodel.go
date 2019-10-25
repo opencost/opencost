@@ -393,7 +393,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		}
 	}
 
-	networkUsageMap, err := GetNetworkUsageData(resultNetZoneRequests, resultNetRegionRequests, resultNetInternetRequests, clusterID, false)
+	networkUsageMap, err := GetNetworkUsageData(resultNetZoneRequests, resultNetRegionRequests, resultNetInternetRequests, clusterID)
 	if err != nil {
 		klog.V(1).Infof("Unable to get Network Cost Data: %s", err.Error())
 		networkUsageMap = make(map[string]*NetworkUsageData)
@@ -1321,7 +1321,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		addMetricPVData(pvAllocationMapping, pvCostMapping, cp)
 	}
 
-	nsLabels, err := getNamespaceLabelsMetrics(nsLabelsResults)
+	nsLabels, err := GetNamespaceLabelsMetrics(nsLabelsResults)
 	if err != nil {
 		klog.V(1).Infof("Unable to get Namespace Labels for Metrics: %s", err.Error())
 	}
@@ -1329,7 +1329,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		appendNamespaceLabels(namespaceLabelsMapping, nsLabels)
 	}
 
-	networkUsageMap, err := GetNetworkUsageData(resultNetZoneRequests, resultNetRegionRequests, resultNetInternetRequests, clusterID, true)
+	networkUsageMap, err := GetNetworkUsageData(resultNetZoneRequests, resultNetRegionRequests, resultNetInternetRequests, clusterID)
 	if err != nil {
 		klog.V(1).Infof("Unable to get Network Cost Data: %s", err.Error())
 		networkUsageMap = make(map[string]*NetworkUsageData)
@@ -1645,148 +1645,6 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	return containerNameCost, err
 }
 
-func parseStringField(metricMap map[string]interface{}, field string) (string, error) {
-	f, ok := metricMap[field]
-	if !ok {
-		return "", fmt.Errorf("%s field does not exist in data result vector", field)
-	}
-
-	strField, ok := f.(string)
-	if !ok {
-		return "", fmt.Errorf("%s field is improperly formatted", field)
-	}
-
-	return strField, nil
-}
-
-func getPVAllocationMetrics(queryResult interface{}, defaultClusterID string) (map[string][]*PersistentVolumeClaimData, error) {
-	toReturn := make(map[string][]*PersistentVolumeClaimData)
-	data, ok := queryResult.(map[string]interface{})["data"]
-	if !ok {
-		e, err := wrapPrometheusError(queryResult)
-		if err != nil {
-			return toReturn, err
-		}
-		return toReturn, fmt.Errorf(e)
-	}
-
-	for _, val := range data.(map[string]interface{})["result"].([]interface{}) {
-		metricInterface, ok := val.(map[string]interface{})["metric"]
-		if !ok {
-			return toReturn, fmt.Errorf("Metric field does not exist in data result vector")
-		}
-		metricMap, ok := metricInterface.(map[string]interface{})
-		if !ok {
-			return toReturn, fmt.Errorf("Metric field is improperly formatted")
-		}
-
-		clusterID, err := parseStringField(metricMap, "cluster_id")
-		if clusterID == "" {
-			clusterID = defaultClusterID
-		}
-
-		ns, err := parseStringField(metricMap, "namespace")
-		if err != nil {
-			return toReturn, err
-		}
-
-		pod, err := parseStringField(metricMap, "pod")
-		if err != nil {
-			return toReturn, err
-		}
-
-		pvcName, err := parseStringField(metricMap, "persistentvolumeclaim")
-		if err != nil {
-			return toReturn, err
-		}
-
-		pvName, err := parseStringField(metricMap, "persistentvolume")
-		if err != nil {
-			return toReturn, err
-		}
-
-		dataPoint, ok := val.(map[string]interface{})["value"]
-		if !ok {
-			return nil, fmt.Errorf("Value field does not exist in data result vector")
-		}
-		value, ok := dataPoint.([]interface{})
-		if !ok || len(value) != 2 {
-			return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
-		}
-		var vectors []*Vector
-		strVal := value[1].(string)
-		v, _ := strconv.ParseFloat(strVal, 64)
-
-		vectors = append(vectors, &Vector{
-			Timestamp: value[0].(float64),
-			Value:     v,
-		})
-
-		key := fmt.Sprintf("%s,%s,%s", ns, pod, clusterID)
-		pvcData := &PersistentVolumeClaimData{
-			Class:      "",
-			Claim:      pvcName,
-			Namespace:  ns,
-			ClusterID:  clusterID,
-			VolumeName: pvName,
-			Values:     vectors,
-		}
-
-		toReturn[key] = append(toReturn[key], pvcData)
-	}
-
-	return toReturn, nil
-}
-
-func getPVCostMetrics(queryResult interface{}, defaultClusterID string) (map[string]*costAnalyzerCloud.PV, error) {
-	toReturn := make(map[string]*costAnalyzerCloud.PV)
-	data, ok := queryResult.(map[string]interface{})["data"]
-	if !ok {
-		e, err := wrapPrometheusError(queryResult)
-		if err != nil {
-			return toReturn, err
-		}
-		return toReturn, fmt.Errorf(e)
-	}
-
-	for _, val := range data.(map[string]interface{})["result"].([]interface{}) {
-		metricInterface, ok := val.(map[string]interface{})["metric"]
-		if !ok {
-			return toReturn, fmt.Errorf("Metric field does not exist in data result vector")
-		}
-		metricMap, ok := metricInterface.(map[string]interface{})
-		if !ok {
-			return toReturn, fmt.Errorf("Metric field is improperly formatted")
-		}
-
-		clusterID, err := parseStringField(metricMap, "cluster_id")
-		if clusterID == "" {
-			clusterID = defaultClusterID
-		}
-
-		volumeName, err := parseStringField(metricMap, "volumename")
-		if err != nil {
-			return toReturn, err
-		}
-
-		dataPoint, ok := val.(map[string]interface{})["value"]
-		if !ok {
-			return toReturn, fmt.Errorf("Value field does not exist in data result vector")
-		}
-		value, ok := dataPoint.([]interface{})
-		if !ok || len(value) != 2 {
-			return toReturn, fmt.Errorf("Improperly formatted datapoint from Prometheus")
-		}
-
-		key := fmt.Sprintf("%s,%s", volumeName, clusterID)
-		toReturn[key] = &costAnalyzerCloud.PV{
-			Cost: value[1].(string),
-		}
-	}
-
-	return toReturn, nil
-}
-
 func addMetricPVData(pvAllocationMap map[string][]*PersistentVolumeClaimData, pvCostMap map[string]*costAnalyzerCloud.PV, cp costAnalyzerCloud.Provider) {
 	cfg, err := cp.GetConfig()
 	if err != nil {
@@ -1809,64 +1667,6 @@ func addMetricPVData(pvAllocationMap map[string][]*PersistentVolumeClaimData, pv
 			pvcData.Volume = pvCost
 		}
 	}
-}
-
-func getNamespaceLabelsMetrics(queryResult interface{}) (map[string]map[string]string, error) {
-	toReturn := make(map[string]map[string]string)
-	data, ok := queryResult.(map[string]interface{})["data"]
-	if !ok {
-		e, err := wrapPrometheusError(queryResult)
-		if err != nil {
-			return toReturn, err
-		}
-		return toReturn, fmt.Errorf(e)
-	}
-
-	for _, val := range data.(map[string]interface{})["result"].([]interface{}) {
-		metricInterface, ok := val.(map[string]interface{})["metric"]
-		if !ok {
-			return toReturn, fmt.Errorf("Metric field does not exist in data result vector")
-		}
-		metricMap, ok := metricInterface.(map[string]interface{})
-		if !ok {
-			return toReturn, fmt.Errorf("Metric field is improperly formatted")
-		}
-
-		// We want Namespace and ClusterID for key generation purposes
-		ns, err := parseStringField(metricMap, "namespace")
-		if err != nil {
-			return toReturn, err
-		}
-
-		clusterID, err := parseStringField(metricMap, "cluster_id")
-		if err != nil {
-			return toReturn, err
-		}
-
-		nsKey := ns + "," + clusterID
-
-		// Find All keys with prefix label_, remove prefix, add to labels
-		for k, v := range metricMap {
-			if !strings.HasPrefix(k, "label_") {
-				continue
-			}
-
-			label := k[6:]
-			value, ok := v.(string)
-			if !ok {
-				klog.V(3).Infof("Failed to parse label value for label: %s", label)
-				continue
-			}
-
-			if toReturn[nsKey] == nil {
-				toReturn[nsKey] = make(map[string]string)
-			}
-
-			toReturn[nsKey][label] = value
-		}
-	}
-
-	return toReturn, nil
 }
 
 // Append labels into nsLabels iff the ns key doesn't already exist
