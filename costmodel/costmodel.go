@@ -1326,32 +1326,32 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	}()
 	var pvPodAllocationResults interface{}
 	go func() {
-		pvPodAllocationResults, promErr = QueryRange(cli, fmt.Sprintf(queryPVCAllocation, window), start, end, window)
+		pvPodAllocationResults, promErr = QueryRange(cli, fmt.Sprintf(queryPVCAllocation, windowString), start, end, window)
 		defer wg.Done()
 	}()
 	var pvCostResults interface{}
 	go func() {
-		pvCostResults, promErr = QueryRange(cli, fmt.Sprintf(queryPVHourlyCost, window), start, end, window)
+		pvCostResults, promErr = QueryRange(cli, fmt.Sprintf(queryPVHourlyCost, windowString), start, end, window)
 		defer wg.Done()
 	}()
 	var nsLabelsResults interface{}
 	go func() {
-		nsLabelsResults, promErr = QueryRange(cli, fmt.Sprintf(queryNSLabels, window), start, end, window)
+		nsLabelsResults, promErr = QueryRange(cli, fmt.Sprintf(queryNSLabels, windowString), start, end, window)
 		defer wg.Done()
 	}()
 	var podLabelsResults interface{}
 	go func() {
-		podLabelsResults, promErr = QueryRange(cli, fmt.Sprintf(queryPodLabels, window), start, end, window)
+		podLabelsResults, promErr = QueryRange(cli, fmt.Sprintf(queryPodLabels, windowString), start, end, window)
 		defer wg.Done()
 	}()
 	var serviceLabelsResults interface{}
 	go func() {
-		serviceLabelsResults, promErr = QueryRange(cli, fmt.Sprintf(queryServiceLabels, window), start, end, window)
+		serviceLabelsResults, promErr = QueryRange(cli, fmt.Sprintf(queryServiceLabels, windowString), start, end, window)
 		defer wg.Done()
 	}()
 	var deploymentLabelsResults interface{}
 	go func() {
-		deploymentLabelsResults, promErr = QueryRange(cli, fmt.Sprintf(queryDeploymentLabels, window), start, end, window)
+		deploymentLabelsResults, promErr = QueryRange(cli, fmt.Sprintf(queryDeploymentLabels, windowString), start, end, window)
 		defer wg.Done()
 	}()
 	var normalizationResults interface{}
@@ -1848,9 +1848,7 @@ func appendNamespaceLabels(nsLabels map[string]map[string]string, labels map[str
 
 func appendLabelsList(mainLabels map[string]map[string][]string, labels map[string]map[string][]string) {
 	for k, v := range labels {
-		if _, ok := mainLabels[k]; !ok {
-			mainLabels[k] = v
-		}
+		mainLabels[k] = v
 	}
 }
 
