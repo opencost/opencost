@@ -409,7 +409,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		remoteEnabled = true
 	}
 
-	// Use Thanos Client if it exists (enabled) and remote flag not set
+	// Use Thanos Client if it exists (enabled) and remote flag set
 	var pClient prometheusClient.Client
 	if remote != "false" && a.ThanosClient != nil {
 		pClient = a.ThanosClient

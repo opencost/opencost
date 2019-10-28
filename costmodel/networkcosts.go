@@ -1,10 +1,6 @@
 package costmodel
 
 import (
-	"fmt"
-	"math"
-	"strconv"
-
 	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
 	"k8s.io/klog"
 )
@@ -29,26 +25,18 @@ type NetworkUsageVector struct {
 
 // GetNetworkUsageData performs a join of the the results of zone, region, and internet usage queries to return a single
 // map containing network costs for each namespace+pod
-func GetNetworkUsageData(zr interface{}, rr interface{}, ir interface{}, defaultClusterID string, isRange bool) (map[string]*NetworkUsageData, error) {
-	var vectorFn func(interface{}, string) (map[string]*NetworkUsageVector, error)
-
-	if isRange {
-		vectorFn = getNetworkUsageVectors
-	} else {
-		vectorFn = getNetworkUsageVector
-	}
-
-	zoneNetworkMap, err := vectorFn(zr, defaultClusterID)
+func GetNetworkUsageData(zr interface{}, rr interface{}, ir interface{}, defaultClusterID string) (map[string]*NetworkUsageData, error) {
+	zoneNetworkMap, err := getNetworkUsage(zr, defaultClusterID)
 	if err != nil {
 		return nil, err
 	}
 
-	regionNetworkMap, err := vectorFn(rr, defaultClusterID)
+	regionNetworkMap, err := getNetworkUsage(rr, defaultClusterID)
 	if err != nil {
 		return nil, err
 	}
 
-	internetNetworkMap, err := vectorFn(ir, defaultClusterID)
+	internetNetworkMap, err := getNetworkUsage(ir, defaultClusterID)
 	if err != nil {
 		return nil, err
 	}
@@ -147,175 +135,36 @@ func GetNetworkCost(usage *NetworkUsageData, cloud costAnalyzerCloud.Provider) (
 	return results, nil
 }
 
-func getNetworkUsageVector(qr interface{}, defaultClusterID string) (map[string]*NetworkUsageVector, error) {
+func getNetworkUsage(qr interface{}, defaultClusterID string) (map[string]*NetworkUsageVector, error) {
 	ncdmap := make(map[string]*NetworkUsageVector)
-	data, ok := qr.(map[string]interface{})["data"]
-	if !ok {
-		e, err := wrapPrometheusError(qr)
+	result, err := NewQueryResults(qr)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, val := range result {
+		podName, err := val.GetString("pod_name")
 		if err != nil {
 			return nil, err
 		}
-		return nil, fmt.Errorf(e)
-	}
-	d, ok := data.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("Data field improperly formatted in prometheus repsonse")
-	}
-	result, ok := d["result"]
-	if !ok {
-		return nil, fmt.Errorf("Result field not present in prometheus response")
-	}
-	results, ok := result.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("Result field improperly formatted in prometheus response")
-	}
-	for _, val := range results {
-		metricInterface, ok := val.(map[string]interface{})["metric"]
-		if !ok {
-			return nil, fmt.Errorf("Metric field does not exist in data result vector")
+
+		namespace, err := val.GetString("namespace")
+		if err != nil {
+			return nil, err
 		}
-		metricMap, ok := metricInterface.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("Metric field is improperly formatted")
-		}
-		podName, ok := metricMap["pod_name"]
-		if !ok {
-			return nil, fmt.Errorf("Pod Name does not exist in data result vector")
-		}
-		podNameStr, ok := podName.(string)
-		if !ok {
-			return nil, fmt.Errorf("Pod Name field improperly formatted")
-		}
-		namespace, ok := metricMap["namespace"]
-		if !ok {
-			return nil, fmt.Errorf("Namespace field does not exist in data result vector")
-		}
-		namespaceStr, ok := namespace.(string)
-		if !ok {
-			return nil, fmt.Errorf("Namespace field improperly formatted")
-		}
-		cid, ok := metricMap["cluster_id"]
-		if !ok {
+
+		clusterID, err := val.GetString("cluster_id")
+		if clusterID == "" {
 			klog.V(4).Info("Prometheus vector does not have cluster id")
-			cid = defaultClusterID
-		}
-		clusterID, ok := cid.(string)
-		if !ok {
-			return nil, fmt.Errorf("Prometheus vector does not have string cluster_id")
-		}
-		dataPoint, ok := val.(map[string]interface{})["value"]
-		if !ok {
-			return nil, fmt.Errorf("Value field does not exist in data result vector")
-		}
-		value, ok := dataPoint.([]interface{})
-		if !ok || len(value) != 2 {
-			return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
-		}
-		var vectors []*Vector
-		strVal := value[1].(string)
-		v, err := strconv.ParseFloat(strVal, 64)
-		if err != nil {
-			return nil, err
+			clusterID = defaultClusterID
 		}
 
-		vectors = append(vectors, &Vector{
-			Timestamp: value[0].(float64),
-			Value:     v,
-		})
-
-		key := namespaceStr + "," + podNameStr + "," + clusterID
+		key := namespace + "," + podName + "," + clusterID
 		ncdmap[key] = &NetworkUsageVector{
 			ClusterID: clusterID,
-			Namespace: namespaceStr,
-			PodName:   podNameStr,
-			Values:    vectors,
-		}
-	}
-	return ncdmap, nil
-}
-
-func getNetworkUsageVectors(qr interface{}, defaultClusterID string) (map[string]*NetworkUsageVector, error) {
-	ncdmap := make(map[string]*NetworkUsageVector)
-	data, ok := qr.(map[string]interface{})["data"]
-	if !ok {
-		e, err := wrapPrometheusError(qr)
-		if err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf(e)
-	}
-	d, ok := data.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("Data field improperly formatted in prometheus repsonse")
-	}
-	result, ok := d["result"]
-	if !ok {
-		return nil, fmt.Errorf("Result field not present in prometheus response")
-	}
-	results, ok := result.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("Result field improperly formatted in prometheus response")
-	}
-	for _, val := range results {
-		metricInterface, ok := val.(map[string]interface{})["metric"]
-		if !ok {
-			return nil, fmt.Errorf("Metric field does not exist in data result vector")
-		}
-		metricMap, ok := metricInterface.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("Metric field is improperly formatted")
-		}
-		podName, ok := metricMap["pod_name"]
-		if !ok {
-			return nil, fmt.Errorf("Pod Name does not exist in data result vector")
-		}
-		podNameStr, ok := podName.(string)
-		if !ok {
-			return nil, fmt.Errorf("Pod Name field improperly formatted")
-		}
-		namespace, ok := metricMap["namespace"]
-		if !ok {
-			return nil, fmt.Errorf("Namespace field does not exist in data result vector")
-		}
-		namespaceStr, ok := namespace.(string)
-		if !ok {
-			return nil, fmt.Errorf("Namespace field improperly formatted")
-		}
-		cid, ok := metricMap["cluster_id"]
-		if !ok {
-			klog.V(4).Info("Prometheus vector does not have cluster id")
-			cid = defaultClusterID
-		}
-		clusterID, ok := cid.(string)
-		if !ok {
-			return nil, fmt.Errorf("Prometheus vector does not have string cluster_id")
-		}
-
-		values, ok := val.(map[string]interface{})["values"].([]interface{})
-		if !ok {
-			return nil, fmt.Errorf("Values field is improperly formatted")
-		}
-		var vectors []*Vector
-		for _, value := range values {
-			dataPoint, ok := value.([]interface{})
-			if !ok || len(dataPoint) != 2 {
-				return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
-			}
-
-			strVal := dataPoint[1].(string)
-			v, _ := strconv.ParseFloat(strVal, 64)
-			vectors = append(vectors, &Vector{
-				Timestamp: math.Round(dataPoint[0].(float64)/10) * 10,
-				Value:     v,
-			})
-		}
-
-		key := namespaceStr + "," + podNameStr + "," + clusterID
-		ncdmap[key] = &NetworkUsageVector{
-			ClusterID: clusterID,
-			Namespace: namespaceStr,
-			PodName:   podNameStr,
-			Values:    vectors,
+			Namespace: namespace,
+			PodName:   podName,
+			Values:    val.Values,
 		}
 	}
 	return ncdmap, nil
