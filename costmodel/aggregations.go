@@ -145,12 +145,12 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 		totalContainerCost := 0.0
 		for _, costDatum := range costData {
 			if costDatum.ClusterID == cid {
-				cpuv, ramv, gpuv, pvvs, _ := getPriceVectors(cp, costDatum, "", discount, 1, resolutionCoefficient)
-				totalContainerCost += totalVectors(cpuv)
-				totalContainerCost += totalVectors(ramv)
-				totalContainerCost += totalVectors(gpuv)
+				cpuv, ramv, gpuv, pvvs, _ := getPriceVectors(cp, costDatum, "", discount, 1)
+				totalContainerCost += totalVectors(cpuv) * resolutionCoefficient
+				totalContainerCost += totalVectors(ramv) * resolutionCoefficient
+				totalContainerCost += totalVectors(gpuv) * resolutionCoefficient
 				for _, pv := range pvvs {
-					totalContainerCost += totalVectors(pv)
+					totalContainerCost += totalVectors(pv) * resolutionCoefficient
 				}
 			}
 
@@ -211,51 +211,51 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 			idleCoefficient = 1.0
 		}
 		if sr != nil && sr.ShareResources && sr.IsSharedResource(costDatum) {
-			cpuv, ramv, gpuv, pvvs, netv := getPriceVectors(cp, costDatum, rate, discount, idleCoefficient, resolutionCoefficient)
-			sharedResourceCost += totalVectors(cpuv)
-			sharedResourceCost += totalVectors(ramv)
-			sharedResourceCost += totalVectors(gpuv)
+			cpuv, ramv, gpuv, pvvs, netv := getPriceVectors(cp, costDatum, rate, discount, idleCoefficient)
+			sharedResourceCost += totalVectors(cpuv) * resolutionCoefficient
+			sharedResourceCost += totalVectors(ramv) * resolutionCoefficient
+			sharedResourceCost += totalVectors(gpuv) * resolutionCoefficient
 			sharedResourceCost += totalVectors(netv)
 			for _, pv := range pvvs {
-				sharedResourceCost += totalVectors(pv)
+				sharedResourceCost += totalVectors(pv) * resolutionCoefficient
 			}
 		} else {
 			if field == "cluster" {
-				aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.ClusterID, discount, idleCoefficient, resolutionCoefficient)
+				aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.ClusterID, discount, idleCoefficient)
 			} else if field == "namespace" {
-				aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace, discount, idleCoefficient, resolutionCoefficient)
+				aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace, discount, idleCoefficient)
 			} else if field == "service" {
 				if len(costDatum.Services) > 0 {
-					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.Services[0], discount, idleCoefficient, resolutionCoefficient)
+					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.Services[0], discount, idleCoefficient)
 				}
 			} else if field == "deployment" {
 				if len(costDatum.Deployments) > 0 {
-					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.Deployments[0], discount, idleCoefficient, resolutionCoefficient)
+					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.Deployments[0], discount, idleCoefficient)
 				}
 			} else if field == "daemonset" {
 				if len(costDatum.Daemonsets) > 0 {
-					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.Daemonsets[0], discount, idleCoefficient, resolutionCoefficient)
+					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.Daemonsets[0], discount, idleCoefficient)
 				}
 			} else if field == "label" {
 				if costDatum.Labels != nil {
 					for _, sf := range subfields {
 						if subfieldName, ok := costDatum.Labels[sf]; ok {
-							aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, subfieldName, discount, idleCoefficient, resolutionCoefficient)
+							aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, subfieldName, discount, idleCoefficient)
 							break
 						}
 					}
 				}
 			} else if field == "pod" {
-				aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.PodName, discount, idleCoefficient, resolutionCoefficient)
+				aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.PodName, discount, idleCoefficient)
 			}
 		}
 	}
 
 	for _, agg := range aggregations {
-		agg.CPUCost = totalVectors(agg.CPUCostVector)
-		agg.RAMCost = totalVectors(agg.RAMCostVector)
-		agg.GPUCost = totalVectors(agg.GPUCostVector)
-		agg.PVCost = totalVectors(agg.PVCostVector)
+		agg.CPUCost = totalVectors(agg.CPUCostVector) * resolutionCoefficient
+		agg.RAMCost = totalVectors(agg.RAMCostVector) * resolutionCoefficient
+		agg.GPUCost = totalVectors(agg.GPUCostVector) * resolutionCoefficient
+		agg.PVCost = totalVectors(agg.PVCostVector) * resolutionCoefficient
 		agg.NetworkCost = totalVectors(agg.NetworkCostVector)
 		agg.SharedCost = sharedResourceCost / float64(len(aggregations))
 
@@ -336,7 +336,7 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 	return aggregations
 }
 
-func aggregateDatum(cp cloud.Provider, aggregations map[string]*Aggregation, costDatum *CostData, field string, subfields []string, rate string, key string, discount float64, idleCoefficient float64, resolutionCoefficient float64) {
+func aggregateDatum(cp cloud.Provider, aggregations map[string]*Aggregation, costDatum *CostData, field string, subfields []string, rate string, key string, discount float64, idleCoefficient float64) {
 	// add new entry to aggregation results if a new key is encountered
 	if _, ok := aggregations[key]; !ok {
 		agg := &Aggregation{}
@@ -348,10 +348,10 @@ func aggregateDatum(cp cloud.Provider, aggregations map[string]*Aggregation, cos
 		aggregations[key] = agg
 	}
 
-	mergeVectors(cp, costDatum, aggregations[key], rate, discount, idleCoefficient, resolutionCoefficient)
+	mergeVectors(cp, costDatum, aggregations[key], rate, discount, idleCoefficient)
 }
 
-func mergeVectors(cp cloud.Provider, costDatum *CostData, aggregation *Aggregation, rate string, discount float64, idleCoefficient float64, resolutionCoefficient float64) {
+func mergeVectors(cp cloud.Provider, costDatum *CostData, aggregation *Aggregation, rate string, discount float64, idleCoefficient float64) {
 	aggregation.CPUAllocationVectors = addVectors(costDatum.CPUAllocation, aggregation.CPUAllocationVectors)
 	aggregation.CPURequestedVectors = addVectors(costDatum.CPUReq, aggregation.CPURequestedVectors)
 	aggregation.CPUUsedVectors = addVectors(costDatum.CPUUsed, aggregation.CPUUsedVectors)
@@ -362,7 +362,7 @@ func mergeVectors(cp cloud.Provider, costDatum *CostData, aggregation *Aggregati
 
 	aggregation.GPUAllocation = addVectors(costDatum.GPUReq, aggregation.GPUAllocation)
 
-	cpuv, ramv, gpuv, pvvs, netv := getPriceVectors(cp, costDatum, rate, discount, idleCoefficient, resolutionCoefficient)
+	cpuv, ramv, gpuv, pvvs, netv := getPriceVectors(cp, costDatum, rate, discount, idleCoefficient)
 	aggregation.CPUCostVector = addVectors(cpuv, aggregation.CPUCostVector)
 	aggregation.RAMCostVector = addVectors(ramv, aggregation.RAMCostVector)
 	aggregation.GPUCostVector = addVectors(gpuv, aggregation.GPUCostVector)
@@ -372,7 +372,7 @@ func mergeVectors(cp cloud.Provider, costDatum *CostData, aggregation *Aggregati
 	}
 }
 
-func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discount float64, idleCoefficient float64, resolutionCoefficient float64) ([]*Vector, []*Vector, []*Vector, [][]*Vector, []*Vector) {
+func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discount float64, idleCoefficient float64) ([]*Vector, []*Vector, []*Vector, [][]*Vector, []*Vector) {
 	cpuCostStr := costDatum.NodeData.VCPUCost
 	ramCostStr := costDatum.NodeData.RAMCost
 	gpuCostStr := costDatum.NodeData.GPUCost
@@ -419,7 +419,7 @@ func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discou
 	for _, val := range costDatum.CPUAllocation {
 		cpuv = append(cpuv, &Vector{
 			Timestamp: math.Round(val.Timestamp/10) * 10,
-			Value:     (val.Value * cpuCost * (1 - discount) / idleCoefficient) * rateCoeff * resolutionCoefficient,
+			Value:     (val.Value * cpuCost * (1 - discount) / idleCoefficient) * rateCoeff,
 		})
 	}
 
@@ -427,7 +427,7 @@ func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discou
 	for _, val := range costDatum.RAMAllocation {
 		ramv = append(ramv, &Vector{
 			Timestamp: math.Round(val.Timestamp/10) * 10,
-			Value:     ((val.Value / 1024 / 1024 / 1024) * ramCost * (1 - discount) / idleCoefficient) * rateCoeff * resolutionCoefficient,
+			Value:     ((val.Value / 1024 / 1024 / 1024) * ramCost * (1 - discount) / idleCoefficient) * rateCoeff,
 		})
 	}
 
@@ -435,7 +435,7 @@ func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discou
 	for _, val := range costDatum.GPUReq {
 		gpuv = append(gpuv, &Vector{
 			Timestamp: math.Round(val.Timestamp/10) * 10,
-			Value:     (val.Value * gpuCost * (1 - discount) / idleCoefficient) * rateCoeff * resolutionCoefficient,
+			Value:     (val.Value * gpuCost * (1 - discount) / idleCoefficient) * rateCoeff,
 		})
 	}
 
@@ -453,7 +453,7 @@ func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discou
 			for _, val := range pvcData.Values {
 				pvv = append(pvv, &Vector{
 					Timestamp: math.Round(val.Timestamp/10) * 10,
-					Value:     ((val.Value / 1024 / 1024 / 1024) * cost / idleCoefficient) * rateCoeff * resolutionCoefficient,
+					Value:     ((val.Value / 1024 / 1024 / 1024) * cost / idleCoefficient) * rateCoeff,
 				})
 			}
 			pvvs = append(pvvs, pvv)
