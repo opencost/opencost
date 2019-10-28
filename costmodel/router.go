@@ -507,7 +507,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 			klog.Infof("Setting offset to 3h")
 			offset = "3h"
 		}
-		idleCoefficients, err = ComputeIdleCoefficient(costData, pClient, a.Cloud, discount, windowStr, offset)
+		idleCoefficients, err = ComputeIdleCoefficient(costData, pClient, a.Cloud, discount, windowStr, offset, resolution)
 		if err != nil {
 			klog.V(1).Infof("error computing idle coefficient: windowString=%s, offset=%s, err=%s", windowStr, offset, err)
 			w.Write(wrapData(nil, err))
@@ -543,13 +543,14 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 
 	// aggregate cost model data by given fields and cache the result for the default expiration
 	opts := &AggregationOptions{
-		DataCount:          dataCount,
-		Discount:           discount,
-		IdleCoefficients:   idleCoefficients,
-		IncludeEfficiency:  includeEfficiency,
-		IncludeTimeSeries:  includeTimeSeries,
-		Rate:               rate,
-		SharedResourceInfo: sr,
+		DataCount:             dataCount,
+		Discount:              discount,
+		IdleCoefficients:      idleCoefficients,
+		IncludeEfficiency:     includeEfficiency,
+		IncludeTimeSeries:     includeTimeSeries,
+		Rate:                  rate,
+		ResolutionCoefficient: resolutionHours,
+		SharedResourceInfo:    sr,
 	}
 	result := AggregateCostData(costData, field, subfields, a.Cloud, opts)
 	a.AggregateCache.Set(aggKey, result, cache.DefaultExpiration)
