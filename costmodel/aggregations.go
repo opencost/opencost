@@ -192,8 +192,11 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 		idleCoefficients = make(map[string]float64)
 	}
 
+	// resolution coefficient compensates for less-frequent-than-hourly samples by multiplying
+	// cumulative values by the hours between samples. does not apply to rate data and defaults
+	// to 1.0, which matches hourly sampling of hourly data.
 	resolutionCoefficient := opts.ResolutionCoefficient
-	if resolutionCoefficient == 0.0 {
+	if resolutionCoefficient == 0.0 || rate != "" {
 		resolutionCoefficient = 1.0
 	}
 
