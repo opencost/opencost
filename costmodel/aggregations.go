@@ -7,7 +7,10 @@ import (
 	"time"
 
 	"github.com/kubecost/cost-model/cloud"
+	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
+	"github.com/patrickmn/go-cache"
 	prometheusClient "github.com/prometheus/client_golang/api"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
 )
 
@@ -15,6 +18,122 @@ const (
 	hoursPerDay   = 24.0
 	hoursPerMonth = 730.0
 )
+
+type CumulativeCostDatum struct {
+	Name            string                  `json:"name,omitempty"`
+	PodName         string                  `json:"podName,omitempty"`
+	NodeName        string                  `json:"nodeName,omitempty"`
+	Namespace       string                  `json:"namespace,omitempty"`
+	Deployments     []string                `json:"deployments,omitempty"`
+	Services        []string                `json:"services,omitempty"`
+	Daemonsets      []string                `json:"daemonsets,omitempty"`
+	Statefulsets    []string                `json:"statefulsets,omitempty"`
+	Jobs            []string                `json:"jobs,omitempty"`
+	Labels          map[string]string       `json:"labels,omitempty"`
+	NamespaceLabels map[string]string       `json:"namespaceLabels,omitempty"`
+	ClusterID       string                  `json:"clusterId"`
+	NodeData        *costAnalyzerCloud.Node `json:"node,omitempty"`
+
+	CPUAllocated float64    `json:"cpuAllocated"`
+	CPUCost      float64    `json:"cpuCost"`
+	CPURequested float64    `json:"cpuRequested"`
+	CPUUsed      float64    `json:"cpuUsed"`
+	RAMAllocated float64    `json:"ramAllocated"`
+	RAMCost      float64    `json:"ramCost"`
+	RAMRequested float64    `json:"ramRequested"`
+	RAMUsed      float64    `json:"ramUsed"`
+	PVCost       float64    `json:"pvCost"`
+	PVDetails    []cloud.PV `json:"pvDetails"`
+	GPUCost      float64    `json:"gpuCost"`
+	GPURequested float64    `json:"gpuRequested"`
+	NetworkCost  float64    `json:"networkCost"`
+}
+
+type AccumulationOptions struct {
+	Cache         *cache.Cache
+	Filters       map[string]string
+	RemoteEnabled bool
+	IsThanos      bool
+}
+
+func AccumulateCostData(costData map[string]*CostData, cloudProvider cloud.Provider, kubeClient kubernetes.Interface, promClient *prometheusClient.Client, model *CostModel, opts *AccumulationOptions) (map[string]*CumulativeCostDatum, error) {
+	accData := map[string]*CumulativeCostDatum{}
+
+	for key, costDatum := range costData {
+		accData[key].Name = costDatum.Name
+		accData[key].PodName = costDatum.PodName
+		accData[key].NodeName = costDatum.NodeName
+		accData[key].Namespace = costDatum.Namespace
+		accData[key].Deployments = costDatum.Deployments
+		accData[key].Services = costDatum.Services
+		accData[key].Daemonsets = costDatum.Daemonsets
+		accData[key].Statefulsets = costDatum.Statefulsets
+		accData[key].Jobs = costDatum.Jobs
+		accData[key].Labels = costDatum.Labels
+		accData[key].NamespaceLabels = costDatum.NamespaceLabels
+		accData[key].ClusterID = costDatum.ClusterID
+		accData[key].NodeData = costDatum.NodeData
+
+		// determine cost per resource per unit time
+		cpuCostStr := costDatum.NodeData.VCPUCost
+		ramCostStr := costDatum.NodeData.RAMCost
+		gpuCostStr := costDatum.NodeData.GPUCost
+		pvCostStr := costDatum.NodeData.StorageCost
+
+		// if custom pricing is enabled and can be retrieved, replace
+		// default cost values with custom values
+		customPricing, err := cloudProvider.GetConfig()
+		if err != nil {
+			klog.Errorf("failed to load custom pricing: %s", err)
+		} else if cloud.CustomPricesEnabled(cloudProvider) {
+			if costDatum.NodeData.IsSpot() {
+				cpuCostStr = customPricing.SpotCPU
+				ramCostStr = customPricing.SpotRAM
+				gpuCostStr = customPricing.SpotGPU
+			} else {
+				cpuCostStr = customPricing.CPU
+				ramCostStr = customPricing.RAM
+				gpuCostStr = customPricing.GPU
+			}
+			pvCostStr = customPricing.Storage
+		}
+
+		cpuHourlyCost, _ := strconv.ParseFloat(cpuCostStr, 64)
+		ramHourlyCost, _ := strconv.ParseFloat(ramCostStr, 64)
+		gpuHourlyCost, _ := strconv.ParseFloat(gpuCostStr, 64)
+		pvHourlyCost, _ := strconv.ParseFloat(pvCostStr, 64)
+
+		accData[key].CPUAllocated = totalVectors(costDatum.CPUAllocation)
+		accData[key].CPURequested = totalVectors(costDatum.CPUReq)
+		accData[key].CPUUsed = totalVectors(costDatum.CPUUsed)
+		accData[key].CPUCost = accData[key].CPUAllocated * cpuHourlyCost
+
+		accData[key].RAMAllocated = totalVectors(costDatum.RAMAllocation)
+		accData[key].RAMRequested = totalVectors(costDatum.RAMReq)
+		accData[key].RAMUsed = totalVectors(costDatum.RAMUsed)
+		accData[key].RAMCost = (accData[key].RAMAllocated / 1024 / 1024 / 1024) * ramHourlyCost
+
+		accData[key].GPURequested = totalVectors(costDatum.GPUReq)
+		accData[key].GPUCost = accData[key].GPURequested * gpuHourlyCost
+
+		accData[key].PVCost = 0.0
+		for _, pvcData := range costDatum.PVCData {
+			if pvcData.Volume != nil {
+				cost, _ := strconv.ParseFloat(pvcData.Volume.Cost, 64)
+				// override with custom pricing if enabled
+				if cloud.CustomPricesEnabled(cloudProvider) {
+					cost = pvHourlyCost
+				}
+
+				for _, val := range pvcData.Values {
+					accData[key].PVCost += (val.Value / 1024 / 1024 / 1024) * cost
+				}
+			}
+		}
+	}
+
+	return accData, nil
+}
 
 type Aggregation struct {
 	Aggregator           string    `json:"aggregation"`
@@ -73,6 +192,20 @@ type SharedResourceInfo struct {
 	LabelSelectors  map[string]string
 }
 
+func (s *SharedResourceInfo) IsShared(costDatum *CostData) bool {
+	if _, ok := s.SharedNamespace[costDatum.Namespace]; ok {
+		return true
+	}
+	for labelName, labelValue := range s.LabelSelectors {
+		if val, ok := costDatum.Labels[labelName]; ok {
+			if val == labelValue {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (s *SharedResourceInfo) IsSharedResource(costDatum *CostData) bool {
 	if _, ok := s.SharedNamespace[costDatum.Namespace]; ok {
 		return true
@@ -103,8 +236,7 @@ func NewSharedResourceInfo(shareResources bool, sharedNamespaces []string, label
 	return sr
 }
 
-func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.Client, cp cloud.Provider, discount float64, windowString, offset string) (map[string]float64, error) {
-
+func ComputeIdleCoefficient(costData map[string]*CumulativeCostDatum, cli prometheusClient.Client, cp cloud.Provider, discount float64, windowString, offset string) (map[string]float64, error) {
 	coefficients := make(map[string]float64)
 
 	windowDuration, err := time.ParseDuration(windowString)
@@ -143,13 +275,10 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 		totalContainerCost := 0.0
 		for _, costDatum := range costData {
 			if costDatum.ClusterID == cid {
-				cpuv, ramv, gpuv, pvvs, _ := getPriceVectors(cp, costDatum, "", discount, 1)
-				totalContainerCost += totalVectors(cpuv)
-				totalContainerCost += totalVectors(ramv)
-				totalContainerCost += totalVectors(gpuv)
-				for _, pv := range pvvs {
-					totalContainerCost += totalVectors(pv)
-				}
+				totalContainerCost += costDatum.CPUCost
+				totalContainerCost += costDatum.RAMCost
+				totalContainerCost += costDatum.GPUCost
+				totalContainerCost += costDatum.PVCost
 			}
 
 		}
@@ -169,6 +298,161 @@ type AggregationOptions struct {
 	IncludeTimeSeries  bool               // set to true to receive time series data
 	Rate               string             // set to "hourly", "daily", or "monthly" to receive cost rate, rather than cumulative cost
 	SharedResourceInfo *SharedResourceInfo
+}
+
+// AggregateCumulativeCostData aggregates raw cost data by field; e.g. namespace, cluster, service, or label. In the case of label, callers
+// must pass a slice of subfields indicating the labels by which to group. Provider is used to define custom resource pricing.
+// See AggregationOptions for optional parameters.
+func AggregateCumulativeCostData(cumulativeData map[string]*CumulativeCostDatum, field string, subfields []string, cloudProvider cloud.Provider, opts *AggregationOptions) map[string]*Aggregation {
+	dataCount := opts.DataCount
+	discount := opts.Discount
+	idleCoefficients := opts.IdleCoefficients
+	includeTimeSeries := opts.IncludeTimeSeries
+	includeEfficiency := opts.IncludeEfficiency
+	rate := opts.Rate
+	sr := opts.SharedResourceInfo
+
+	if idleCoefficients == nil {
+		idleCoefficients = make(map[string]float64)
+	}
+
+	// aggregations collects key-value pairs of resource group-to-aggregated data
+	// e.g. namespace-to-data or label-value-to-data
+	aggregations := make(map[string]*Aggregation)
+
+	// sharedResourceCost is the running total cost of resources that should be reported
+	// as shared across all other resources, rather than reported as a stand-alone category
+	sharedResourceCost := 0.0
+
+	for _, datum := range cumulativeData {
+		idleCoefficient, ok := idleCoefficients[datum.ClusterID]
+		if !ok {
+			idleCoefficient = 1.0
+		}
+		if sr != nil && sr.ShareResources && sr.IsSharedResource(datum) {
+			cpuv, ramv, gpuv, pvvs, netv := getPriceVectors(cp, datum, rate, discount, idleCoefficient)
+			sharedResourceCost += totalVectors(cpuv)
+			sharedResourceCost += totalVectors(ramv)
+			sharedResourceCost += totalVectors(gpuv)
+			sharedResourceCost += totalVectors(netv)
+			for _, pv := range pvvs {
+				sharedResourceCost += totalVectors(pv)
+			}
+		} else {
+			if field == "cluster" {
+				aggregateDatum(cp, aggregations, datum, field, subfields, rate, datum.ClusterID, discount, idleCoefficient)
+			} else if field == "namespace" {
+				aggregateDatum(cp, aggregations, datum, field, subfields, rate, datum.Namespace, discount, idleCoefficient)
+			} else if field == "service" {
+				if len(datum.Services) > 0 {
+					aggregateDatum(cp, aggregations, datum, field, subfields, rate, datum.Namespace+"/"+datum.Services[0], discount, idleCoefficient)
+				}
+			} else if field == "deployment" {
+				if len(datum.Deployments) > 0 {
+					aggregateDatum(cp, aggregations, datum, field, subfields, rate, datum.Namespace+"/"+datum.Deployments[0], discount, idleCoefficient)
+				}
+			} else if field == "daemonset" {
+				if len(datum.Daemonsets) > 0 {
+					aggregateDatum(cp, aggregations, datum, field, subfields, rate, datum.Namespace+"/"+datum.Daemonsets[0], discount, idleCoefficient)
+				}
+			} else if field == "label" {
+				if datum.Labels != nil {
+					for _, sf := range subfields {
+						if subfieldName, ok := datum.Labels[sf]; ok {
+							aggregateDatum(cp, aggregations, datum, field, subfields, rate, subfieldName, discount, idleCoefficient)
+							break
+						}
+					}
+				}
+			} else if field == "pod" {
+				aggregateDatum(cp, aggregations, datum, field, subfields, rate, datum.Namespace+"/"+datum.PodName, discount, idleCoefficient)
+			}
+		}
+	}
+
+	for _, agg := range aggregations {
+		agg.CPUCost = totalVectors(agg.CPUCostVector)
+		agg.RAMCost = totalVectors(agg.RAMCostVector)
+		agg.GPUCost = totalVectors(agg.GPUCostVector)
+		agg.PVCost = totalVectors(agg.PVCostVector)
+		agg.NetworkCost = totalVectors(agg.NetworkCostVector)
+		agg.SharedCost = sharedResourceCost / float64(len(aggregations))
+
+		if dataCount == 0 {
+			dataCount = agg.GetDataCount()
+		}
+
+		if rate != "" && dataCount > 0 {
+			agg.CPUCost /= float64(dataCount)
+			agg.RAMCost /= float64(dataCount)
+			agg.GPUCost /= float64(dataCount)
+			agg.PVCost /= float64(dataCount)
+			agg.NetworkCost /= float64(dataCount)
+			agg.SharedCost /= float64(dataCount)
+		}
+
+		agg.TotalCost = agg.CPUCost + agg.RAMCost + agg.GPUCost + agg.PVCost + agg.NetworkCost + agg.SharedCost
+
+		if includeEfficiency {
+			// Default both RAM and CPU to 100% efficiency so that a 0-requested, 0-allocated, 0-used situation
+			// returns 100% efficiency, which should be a red-flag.
+			//
+			// If non-zero numbers are available, then efficiency is defined as:
+			//   idlePercentage =  (requested - used) / allocated
+			//   efficiency = (1.0 - idlePercentage)
+			//
+			// It is possible to score > 100% efficiency, which is meant to be interpreted as a red flag.
+			// It is not possible to score < 0% efficiency.
+
+			klog.V(4).Infof("\n\tlen(CPU allocation): %d\n\tlen(CPU requested): %d\n\tlen(CPU used): %d",
+				len(agg.CPUAllocationVectors),
+				len(agg.CPURequestedVectors),
+				len(agg.CPUUsedVectors))
+
+			agg.CPUEfficiency = 1.0
+			CPUIdle := 0.0
+			avgCPUAllocation := totalVectors(agg.CPUAllocationVectors) / float64(len(agg.CPUAllocationVectors))
+			if avgCPUAllocation > 0.0 {
+				avgCPURequested := averageVectors(agg.CPURequestedVectors)
+				avgCPUUsed := averageVectors(agg.CPUUsedVectors)
+				CPUIdle = ((avgCPURequested - avgCPUUsed) / avgCPUAllocation)
+				agg.CPUEfficiency = 1.0 - CPUIdle
+			}
+
+			klog.V(4).Infof("\n\tlen(RAM allocation): %d\n\tlen(RAM requested): %d\n\tlen(RAM used): %d",
+				len(agg.RAMAllocationVectors),
+				len(agg.RAMRequestedVectors),
+				len(agg.RAMUsedVectors))
+
+			agg.RAMEfficiency = 1.0
+			RAMIdle := 0.0
+			avgRAMAllocation := totalVectors(agg.RAMAllocationVectors) / float64(len(agg.RAMAllocationVectors))
+			if avgRAMAllocation > 0.0 {
+				avgRAMRequested := averageVectors(agg.RAMRequestedVectors)
+				avgRAMUsed := averageVectors(agg.RAMUsedVectors)
+				RAMIdle = ((avgRAMRequested - avgRAMUsed) / avgRAMAllocation)
+				agg.RAMEfficiency = 1.0 - RAMIdle
+			}
+
+			// Score total efficiency by the sum of CPU and RAM efficiency, weighted by their
+			// respective total costs.
+			agg.Efficiency = 1.0
+			if (agg.CPUCost + agg.RAMCost) > 0 {
+				agg.Efficiency = 1.0 - ((agg.CPUCost*CPUIdle)+(agg.RAMCost*RAMIdle))/(agg.CPUCost+agg.RAMCost)
+			}
+		}
+
+		// remove time series data if it is not explicitly requested
+		if !includeTimeSeries {
+			agg.CPUCostVector = nil
+			agg.RAMCostVector = nil
+			agg.GPUCostVector = nil
+			agg.PVCostVector = nil
+			agg.NetworkCostVector = nil
+		}
+	}
+
+	return aggregations
 }
 
 // AggregateCostData aggregates raw cost data by field; e.g. namespace, cluster, service, or label. In the case of label, callers

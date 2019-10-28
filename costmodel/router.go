@@ -30,6 +30,7 @@ import (
 const (
 	prometheusServerEndpointEnvVar = "PROMETHEUS_SERVER_ENDPOINT"
 	prometheusTroubleshootingEp    = "http://docs.kubecost.com/custom-prom#troubleshoot"
+	RFC3339Milli                   = "2006-01-02T15:04:05.000Z"
 )
 
 var (
@@ -62,7 +63,7 @@ type Accesses struct {
 	DeploymentSelectorRecorder    *prometheus.GaugeVec
 	Model                         *CostModel
 	AggregateCache                *cache.Cache
-	CostDataCache                 *cache.Cache
+	CumulativeCache               *cache.Cache
 	OutOfClusterCache             *cache.Cache
 }
 
@@ -321,8 +322,9 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	window := r.URL.Query().Get("window")
+	duration := r.URL.Query().Get("window")
 	offset := r.URL.Query().Get("offset")
+	resolution := "1h"
 	namespace := r.URL.Query().Get("namespace")
 	cluster := r.URL.Query().Get("cluster")
 	field := r.URL.Query().Get("aggregation")
@@ -348,7 +350,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 
 	// disableCache, if set to "true", tells this function to recompute and
 	// cache the requested data
-	disableCache := r.URL.Query().Get("disableCache") == "true" || allocateIdle
+	disableCache := r.URL.Query().Get("disableCache") == "true"
 
 	// clearCache, if set to "true", tells this function to flush the cache,
 	// then recompute and cache the requested data
@@ -368,7 +370,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		return
 	}
 
-	// enforce one of four available rate options
+	// enforce one of three available rate options, if rate is set
 	if rate != "" && rate != "hourly" && rate != "daily" && rate != "monthly" {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write(wrapData(nil, fmt.Errorf("If set, rate parameter must be one of: 'hourly', 'daily', 'monthly'")))
@@ -379,17 +381,17 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	// request always returns a freshly computed value
 	if clearCache {
 		a.AggregateCache.Flush()
-		a.CostDataCache.Flush()
+		a.CumulativeCache.Flush()
 	}
 
 	// parametrize cache key by all request parameters
 	aggKey := fmt.Sprintf("%s:%s:%s:%s:%s:%s:%s:%t:%t:%t",
-		window, offset, namespace, cluster, field, strings.Join(subfields, ","), rate,
+		duration, offset, namespace, cluster, field, strings.Join(subfields, ","), rate,
 		allocateIdle, includeTimeSeries, includeEfficiency)
 
 	// check the cache for aggregated response; if cache is hit and not disabled, return response
-	if result, found := a.AggregateCache.Get(aggKey); found && !disableCache {
-		w.Write(wrapDataWithMessage(result, nil, fmt.Sprintf("aggregate cache hit: %s", aggKey)))
+	if aggregateData, found := a.AggregateCache.Get(aggKey); found && !disableCache {
+		w.Write(wrapDataWithMessage(aggregateData, nil, fmt.Sprintf("aggregate cache hit: %s", aggKey)))
 		return
 	}
 
@@ -397,32 +399,70 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	remoteAvailable := os.Getenv(remoteEnabled) == "true"
 	remoteEnabled := remote && remoteAvailable
 
-	// Use Thanos Client if it exists (enabled) and remote flag not set
-	var pClient prometheusClient.Client
-	if remote && a.ThanosClient != nil {
+	// Use Thanos Client if it exists and remote is not disabled
+	pClient := a.PrometheusClient
+	if remoteEnabled && a.ThanosClient != nil {
 		pClient = a.ThanosClient
-	} else {
-		pClient = a.PrometheusClient
 	}
 
-	resolution := "1h"
-	data, err := a.CostDataRangeWithCache(pClient, window, offset, resolution, remoteEnabled, disableCache)
-	if err != nil {
-		w.Write(wrapData(nil, err))
-		return
-	}
-	data = FilterCostData(data, namespace, cluster)
-
-	startTime, endTime, err := parseTimeRange(window, offset)
+	// convert duration and offset to start and end times
+	startTime, endTime, err := parseTimeRange(duration, offset)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(wrapData(nil, err))
+		w.Write(wrapData(nil, fmt.Errorf("Error parsing window (%s) and offset (%s)", duration, offset)))
 		return
 	}
-	dur := endTime.Sub(*startTime)
+	resolutionDuration, err := parseDuration(resolution)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(wrapData(nil, fmt.Errorf("Error parsing resolution (%s)", resolution)))
+		return
+	}
+	threeHoursAgo := time.Now().Add(-3 * time.Hour)
+	// TODO what if !remoteEnabled? i.e. remote=false is passed
+	if a.ThanosClient != nil && endTime.After(threeHoursAgo) {
+		klog.Infof("Setting end time backwards to first present data")
+		*endTime = time.Now().Add(-3 * time.Hour)
+	}
+	// exclude the last window of the time frame to match Prometheus definitions of range, offset, and resolution
+	//   e.g. duration=2d, offset=1d, resolution=1h on Jan 4 12:00 should provide data for Jan 1 12:00 - Jan 3 12:00
+	//        which has the equivalent start and end times of Jan 1 01:00 and Jan 3 12:00, respectively.
+	*startTime = startTime.Add(1 * *resolutionDuration)
+	hours := int(endTime.Sub(*startTime).Hours())
 	// dataLength is the number of time series data expected for the given interval,
 	// which we compute because Prometheus time series vectors omit zero values.
-	dataCount := int(dur.Hours())
+	dataCount := int(hours)
+
+	// attempt to retrieve cumulative cost data from cache
+	var cumulativeCostData map[string]*CumulativeCostDatum
+	accKey := fmt.Sprintf(`%s:%s:%s:%t`, duration, offset, resolution, remoteEnabled)
+	cachedData, found := a.CumulativeCache.Get(accKey)
+	if !found || disableCache {
+		// cache miss; compute data and cache it
+		klog.V(1).Infof("cumulative cache miss: %s", accKey)
+
+		start := startTime.Format(RFC3339Milli)
+		end := endTime.Format(RFC3339Milli)
+		data, err := a.Model.ComputeCostDataRange(pClient, a.KubeClientSet, a.Cloud, start, end, resolution, "", "", remoteEnabled)
+		if err != nil {
+			w.Write(wrapData(nil, err))
+			return
+		}
+
+		a.CumulativeCache.Set(accKey, data, cache.DefaultExpiration)
+	} else {
+		// cache hit; cast data to proper type
+		klog.V(1).Infof("cumulative cache hit: %s", accKey)
+
+		var ok bool
+		cumulativeCostData, ok = cachedData.(map[string]*CumulativeCostDatum)
+		if !ok {
+			klog.Errorf("caching error: failed to cast data to struct: %s", accKey)
+			a.CumulativeCache.Flush()
+		}
+	}
+
+	cumulativeCostData = FilterCumulativeCostData(cumulativeCostData, filters)
 
 	c, err := a.Cloud.GetConfig()
 	if err != nil {
@@ -438,7 +478,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 
 	idleCoefficients := make(map[string]float64)
 	if allocateIdle {
-		windowStr := fmt.Sprintf("%dh", int(dur.Hours()))
+		windowStr := fmt.Sprintf("%dh", hours)
 		if a.ThanosClient != nil {
 			klog.Infof("Setting offset to 3h")
 			offset = "3h"
@@ -528,9 +568,8 @@ func (a *Accesses) CostDataRangeWithCache(pc prometheusClient.Client, duration, 
 	klog.V(1).Infof("cost data cache miss: %s", key)
 
 	// cache miss; compute data and cache it
-	layout := "2006-01-02T15:04:05.000Z"
-	start := startTime.Format(layout)
-	end := endTime.Format(layout)
+	start := startTime.Format(RFC3339Milli)
+	end := endTime.Format(RFC3339Milli)
 	data, err := a.Model.ComputeCostDataRange(pc, a.KubeClientSet, a.Cloud, start, end, resolution, "", "", remoteEnabled)
 	if err != nil {
 		return nil, err
@@ -1146,7 +1185,7 @@ func init() {
 
 	// cache responses from model for a default of 5 minutes; clear expired responses every 10 minutes
 	aggregateCache := cache.New(time.Minute*5, time.Minute*10)
-	costDataCache := cache.New(time.Minute*5, time.Minute*10)
+	cumulativeCache := cache.New(time.Minute*5, time.Minute*10)
 	outOfClusterCache := cache.New(time.Minute*5, time.Minute*10)
 
 	A = Accesses{
@@ -1168,7 +1207,7 @@ func init() {
 		PersistentVolumePriceRecorder: pvGv,
 		Model:                         NewCostModel(kubeClientset),
 		AggregateCache:                aggregateCache,
-		CostDataCache:                 costDataCache,
+		CumulativeCache:               cumulativeCache,
 		OutOfClusterCache:             outOfClusterCache,
 	}
 
