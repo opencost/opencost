@@ -282,8 +282,7 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 		// dataCount is the number of time series data expected for the given interval,
 		// which we compute because Prometheus time series vectors omit zero values.
 		// This assumes hourly data, incremented by one to capture the 0th data point.
-		dataCount := int(dur.Hours()) + 1
-		klog.V(1).Infof("for duration %s dataCount = %d", dur.String(), dataCount)
+		dataCount := int(dur.Hours())
 
 		opts := &AggregationOptions{
 			DataCount:        dataCount,
@@ -447,7 +446,6 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		// 2 days
 		resolution = "2h"
 	}
-	klog.V(1).Infof("resolution: %s", resolution)
 	resolutionDuration, err := parseDuration(resolution)
 	resolutionHours := resolutionDuration.Hours()
 	if err != nil {
@@ -466,14 +464,12 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	key := fmt.Sprintf(`%s:%s:%s:%t`, duration, offset, resolution, remoteEnabled)
 	cacheData, found := a.CostDataCache.Get(key)
 	if found && !disableCache {
-		klog.V(1).Infof("cost data cache hit: %s", key)
 		ok := false
 		costData, ok = cacheData.(map[string]*CostData)
 		if !ok {
 			klog.Errorf("caching error: failed to cast cost data to struct: %s", key)
 		}
 	} else {
-		klog.V(1).Infof("cost data cache miss: %s", key)
 		start := startTime.Format(RFC3339Milli)
 		end := endTime.Format(RFC3339Milli)
 		costData, err = a.Model.ComputeCostDataRange(pClient, a.KubeClientSet, a.Cloud, start, end, resolution, "", "", remoteEnabled)
@@ -509,7 +505,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		}
 		idleCoefficients, err = ComputeIdleCoefficient(costData, pClient, a.Cloud, discount, windowStr, offset, resolution)
 		if err != nil {
-			klog.V(1).Infof("error computing idle coefficient: windowString=%s, offset=%s, err=%s", windowStr, offset, err)
+			klog.Errorf("error computing idle coefficient: windowString=%s, offset=%s, err=%s", windowStr, offset, err)
 			w.Write(wrapData(nil, err))
 			return
 		}
