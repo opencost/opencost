@@ -1183,6 +1183,9 @@ func getPodDeploymentsWithMetrics(deploymentLabels map[string]map[string]string,
 		}
 	}
 
+	// Remove any duplicate data created by metric names
+	pruneDuplicateData(podDeploymentsMapping)
+
 	return podDeploymentsMapping, nil
 }
 
@@ -1225,7 +1228,52 @@ func getPodServicesWithMetrics(serviceLabels map[string]map[string]string, podLa
 			}
 		}
 	}
+
+	// Remove any duplicate data created by metric names
+	pruneDuplicateData(podServicesMapping)
+
 	return podServicesMapping, nil
+}
+
+// This method alleviates an issue with metrics that used a '_' to replace '-' in deployment
+// and service names. To avoid counting these as multiple deployments/services, we'll remove
+// the '_' version. Not optimal, but takes care of the issue
+func pruneDuplicateData(data map[string]map[string][]string) {
+	for _, podMap := range data {
+		for podName, values := range podMap {
+			podMap[podName] = pruneDuplicates(values)
+		}
+	}
+}
+
+// Determine if there is an underscore in the value of a slice. If so, replace _ with -, and then
+// check to see if the result exists in the slice. If both are true, then we DO NOT include that
+// original value in the new slice.
+func pruneDuplicates(s []string) []string {
+	m := sliceToSet(s)
+
+	var result []string
+	for _, v := range s {
+		if strings.Contains(v, "_") {
+			name := strings.Replace(v, "_", "-", -1)
+			if !m[name] {
+				result = append(result, v)
+			}
+		} else {
+			result = append(result, v)
+		}
+	}
+
+	return result
+}
+
+// Creates a map[string]bool containing the slice values as keys
+func sliceToSet(s []string) map[string]bool {
+	m := make(map[string]bool)
+	for _, v := range s {
+		m[v] = true
+	}
+	return m
 }
 
 func costDataPassesFilters(costs *CostData, namespace string, cluster string) bool {
