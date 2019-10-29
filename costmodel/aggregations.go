@@ -282,10 +282,8 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 
 		agg.CPUAllocationAverage = averageVectors(agg.CPUAllocationVectors)
 		agg.GPUAllocationAverage = averageVectors(agg.GPUAllocationVectors)
-		// convert RAM from bytes to GiB
-		agg.RAMAllocationAverage = averageVectors(agg.RAMAllocationVectors) / 1024 / 1024 / 1024
-		// convert storage from bytes to GiB
-		agg.PVAllocationAverage = averageVectors(agg.PVAllocationVectors) / 1024 / 1024 / 1024
+		agg.RAMAllocationAverage = averageVectors(agg.RAMAllocationVectors)
+		agg.PVAllocationAverage = averageVectors(agg.PVAllocationVectors)
 
 		if includeEfficiency {
 			// Default both RAM and CPU to 100% efficiency so that a 0-requested, 0-allocated, 0-used situation
@@ -323,6 +321,11 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 				agg.Efficiency = 1.0 - ((agg.CPUCost*CPUIdle)+(agg.RAMCost*RAMIdle))/(agg.CPUCost+agg.RAMCost)
 			}
 		}
+
+		// convert RAM from bytes to GiB
+		agg.RAMAllocationAverage = agg.RAMAllocationAverage / 1024 / 1024 / 1024
+		// convert storage from bytes to GiB
+		agg.PVAllocationAverage = agg.PVAllocationAverage / 1024 / 1024 / 1024
 
 		// remove time series data if it is not explicitly requested
 		if !includeTimeSeries {
