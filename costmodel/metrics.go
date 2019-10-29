@@ -46,7 +46,7 @@ func newDeploymentMetric(name, namespace, fqname string, labelNames []string, la
 		fqName:         fqname,
 		labelNames:     labelNames,
 		labelValues:    labelvalues,
-		help:           "service_selector_labels Service Selector Labels",
+		help:           "deployment_match_labels Deployment Match Labels",
 		deploymentName: name,
 		namespace:      namespace,
 	}
@@ -96,7 +96,7 @@ func (sc DeploymentCollector) Collect(ch chan<- prometheus.Metric) {
 	ds, _ := sc.KubeClientSet.AppsV1().Deployments("").List(metav1.ListOptions{})
 	for _, deployment := range ds.Items {
 		labels, values := kubeLabelsToPrometheusLabels(deployment.Spec.Selector.MatchLabels)
-		m := newDeploymentMetric(sanitizeLabelName(deployment.GetName()), sanitizeLabelName(deployment.GetNamespace()), "deployment_match_labels", labels, values)
+		m := newDeploymentMetric(deployment.GetName(), deployment.GetNamespace(), "deployment_match_labels", labels, values)
 		ch <- m
 	}
 }
@@ -164,7 +164,7 @@ func (sc ServiceCollector) Collect(ch chan<- prometheus.Metric) {
 	svcs, _ := sc.KubeClientSet.CoreV1().Services("").List(metav1.ListOptions{})
 	for _, svc := range svcs.Items {
 		labels, values := kubeLabelsToPrometheusLabels(svc.Spec.Selector)
-		m := newServiceMetric(sanitizeLabelName(svc.GetName()), sanitizeLabelName(svc.GetNamespace()), "service_selector_labels", labels, values)
+		m := newServiceMetric(svc.GetName(), svc.GetNamespace(), "service_selector_labels", labels, values)
 		ch <- m
 	}
 }
