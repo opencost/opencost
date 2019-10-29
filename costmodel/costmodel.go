@@ -1247,8 +1247,8 @@ func pruneDuplicateData(data map[string]map[string][]string) {
 }
 
 // Determine if there is an underscore in the value of a slice. If so, replace _ with -, and then
-// then check to see if the result exists in the slice. If both are true, then we DO NOT include
-// that original value in the new slice.
+// check to see if the result exists in the slice. If both are true, then we DO NOT include that
+// original value in the new slice.
 func pruneDuplicates(s []string) []string {
 	m := sliceToSet(s)
 
