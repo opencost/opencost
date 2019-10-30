@@ -64,8 +64,8 @@ type Accesses struct {
 	Model                         *CostModel
 	AggregateCache                *cache.Cache
 	CostDataCache                 *cache.Cache
-	CustomPricingCache            *cache.Cache
 	OutOfClusterCache             *cache.Cache
+	SettingsCache                 *cache.Cache
 }
 
 type DataEnvelope struct {
@@ -328,7 +328,7 @@ func (a *Accesses) ClusterCostsOverTime(w http.ResponseWriter, r *http.Request, 
 
 func (a *Accesses) CustomPricingHasChanged() bool {
 	customPricing, err := a.Cloud.GetConfig()
-	if err != nil {
+	if err != nil || customPricing == nil {
 		klog.Errorf("error accessing cloud provider configuration: %s", err)
 		return false
 	}
@@ -343,7 +343,7 @@ func (a *Accesses) CustomPricingHasChanged() bool {
 	// compare cached custom pricing parameters with current values
 	cpStr := encodeCustomPricing(customPricing)
 	cpStrCached := ""
-	val, found := a.CustomPricingCache.Get("customPricing")
+	val, found := a.SettingsCache.Get("customPricing")
 	if found {
 		ok := false
 		cpStrCached, ok = val.(string)
@@ -356,7 +356,7 @@ func (a *Accesses) CustomPricingHasChanged() bool {
 	}
 
 	// cache new custom pricing settings
-	a.CustomPricingCache.Set("customPricing", cpStr, cache.DefaultExpiration)
+	a.SettingsCache.Set("customPricing", cpStr, cache.DefaultExpiration)
 
 	return true
 }
@@ -424,7 +424,6 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 
 	// if custom pricing has changed, then clear the cache and recompute data
 	if a.CustomPricingHasChanged() {
-		klog.V(1).Infof("detected custom pricing change, flushing cache")
 		clearCache = true
 	}
 
@@ -1188,6 +1187,7 @@ func init() {
 	aggregateCache := cache.New(time.Minute*5, time.Minute*10)
 	costDataCache := cache.New(time.Minute*5, time.Minute*10)
 	outOfClusterCache := cache.New(time.Minute*5, time.Minute*10)
+	settingsCache := cache.New(cache.NoExpiration, cache.NoExpiration)
 
 	A = Accesses{
 		PrometheusClient:              promCli,
@@ -1210,6 +1210,7 @@ func init() {
 		AggregateCache:                aggregateCache,
 		CostDataCache:                 costDataCache,
 		OutOfClusterCache:             outOfClusterCache,
+		SettingsCache:                 settingsCache,
 	}
 
 	remoteEnabled := os.Getenv(remoteEnabled)
