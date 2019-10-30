@@ -1257,7 +1257,8 @@ func pruneDuplicates(s []string) []string {
 		if strings.Contains(v, "_") {
 			name := strings.Replace(v, "_", "-", -1)
 			if !m[name] {
-				result = append(result, v)
+				result = append(result, name)
+				m[name] = true
 			}
 		} else {
 			result = append(result, v)
