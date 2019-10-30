@@ -1252,20 +1252,17 @@ func pruneDuplicateData(data map[string]map[string][]string) {
 func pruneDuplicates(s []string) []string {
 	m := sliceToSet(s)
 
-	var result []string
 	for _, v := range s {
 		if strings.Contains(v, "_") {
 			name := strings.Replace(v, "_", "-", -1)
 			if !m[name] {
-				result = append(result, name)
 				m[name] = true
 			}
-		} else {
-			result = append(result, v)
+			delete(m, v)
 		}
 	}
 
-	return result
+	return setToSlice(m)
 }
 
 // Creates a map[string]bool containing the slice values as keys
@@ -1275,6 +1272,14 @@ func sliceToSet(s []string) map[string]bool {
 		m[v] = true
 	}
 	return m
+}
+
+func setToSlice(m map[string]bool) []string {
+	var result []string
+	for k, _ := range m {
+		result = append(result, k)
+	}
+	return result
 }
 
 func costDataPassesFilters(costs *CostData, namespace string, cluster string) bool {
