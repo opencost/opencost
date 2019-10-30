@@ -142,7 +142,11 @@ func parsePercentString(percentStr string) (float64, error) {
 	if err != nil {
 		return 0.0, err
 	}
-	return discount * 0.01, nil
+	discount *= 0.01
+
+	klog.V(1).Infof("parsePercentString(%s) = %f", percentStr, discount)
+
+	return discount, nil
 }
 
 // parseDuration converts a Prometheus-style duration string into a Duration
