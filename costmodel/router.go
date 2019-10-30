@@ -144,8 +144,6 @@ func parsePercentString(percentStr string) (float64, error) {
 	}
 	discount *= 0.01
 
-	klog.V(1).Infof("parsePercentString(%s) = %f", percentStr, discount)
-
 	return discount, nil
 }
 
