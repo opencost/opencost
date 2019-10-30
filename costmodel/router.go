@@ -481,9 +481,6 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		a.CostDataCache.Set(key, costData, cache.DefaultExpiration)
 	}
 
-	// filter cost data by namespace and cluster after caching for maximal cache hits
-	costData = filterCostData(costData, namespace, cluster)
-
 	c, err := a.Cloud.GetConfig()
 	if err != nil {
 		w.Write(wrapData(nil, err))
@@ -497,6 +494,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	discount = discount * 0.01
 
 	idleCoefficients := make(map[string]float64)
+
 	if allocateIdle {
 		windowStr := fmt.Sprintf("%dh", int(durationHours))
 		if a.ThanosClient != nil {
@@ -534,8 +532,10 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		klog.Infof("Idle Coeff: %s: %f", cid, idleCoefficient)
 	}
 
+	// filter cost data by namespace and cluster after caching for maximal cache hits
+	costData = filterCostData(costData, namespace, cluster)
+
 	dataCount := int(durationHours / resolutionHours)
-	klog.V(1).Infof("data count = %d for duration (%fh) resolution (%fh)", dataCount, durationHours, resolutionHours)
 
 	// aggregate cost model data by given fields and cache the result for the default expiration
 	opts := &AggregationOptions{
