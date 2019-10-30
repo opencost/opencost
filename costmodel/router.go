@@ -128,6 +128,23 @@ func normalizeTimeParam(param string) (string, error) {
 	return param, nil
 }
 
+// parsePercentString takes a string of expected format "N%" and returns a floating point 0.0N.
+// If the "%" symbol is missing, it just returns 0.0N. Empty string is interpreted as "0%" and
+// return 0.0.
+func parsePercentString(percentStr string) (float64, error) {
+	if len(percentStr) == 0 {
+		return 0.0, nil
+	}
+	if percentStr[len(percentStr)-1:] == "%" {
+		percentStr = percentStr[:len(percentStr)-1]
+	}
+	discount, err := strconv.ParseFloat(percentStr, 64)
+	if err != nil {
+		return 0.0, err
+	}
+	return discount * 0.01, nil
+}
+
 // parseDuration converts a Prometheus-style duration string into a Duration
 func parseDuration(duration string) (*time.Duration, error) {
 	unitStr := duration[len(duration)-1:]
@@ -267,12 +284,11 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 			return
 		}
 
-		discount, err := strconv.ParseFloat(c.Discount[:len(c.Discount)-1], 64)
+		discount, err := parsePercentString(c.Discount)
 		if err != nil {
 			w.Write(wrapData(nil, err))
 			return
 		}
-		discount = discount * 0.01
 
 		dur, err := time.ParseDuration(window)
 		if err != nil {
@@ -489,12 +505,11 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		w.Write(wrapData(nil, err))
 		return
 	}
-	discount, err := strconv.ParseFloat(c.Discount[:len(c.Discount)-1], 64)
+	discount, err := parsePercentString(c.Discount)
 	if err != nil {
 		w.Write(wrapData(nil, err))
 		return
 	}
-	discount = discount * 0.01
 
 	idleCoefficients := make(map[string]float64)
 	if allocateIdle {
@@ -593,11 +608,11 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 			return
 		}
 
-		discount, err := strconv.ParseFloat(c.Discount[:len(c.Discount)-1], 64)
+		discount, err := parsePercentString(c.Discount)
 		if err != nil {
 			w.Write(wrapData(nil, err))
+			return
 		}
-		discount = discount * 0.01
 
 		opts := &AggregationOptions{
 			Discount:         discount,
