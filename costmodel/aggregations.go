@@ -116,7 +116,7 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 		return nil, err
 	}
 
-	resolutionDuration, err := parseDuration(resolution)
+	resolutionDuration, err := ParseDuration(resolution)
 	resolutionCoefficient := resolutionDuration.Hours()
 
 	allTotals, err := ClusterCostsForAllClusters(cli, cp, windowString, offset)

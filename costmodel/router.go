@@ -75,8 +75,8 @@ type DataEnvelope struct {
 	Message string      `json:"message,omitempty"`
 }
 
-// filterCostData allows through only CostData that matches the given filters for namespace and clusterId
-func filterCostData(data map[string]*CostData, namespace, clusterId string) map[string]*CostData {
+// FilterCostData allows through only CostData that matches the given filters for namespace and clusterId
+func FilterCostData(data map[string]*CostData, namespace, clusterId string) map[string]*CostData {
 	result := make(map[string]*CostData)
 	for key, datum := range data {
 		if costDataPassesFilters(datum, namespace, clusterId) {
@@ -149,7 +149,7 @@ func parsePercentString(percentStr string) (float64, error) {
 }
 
 // parseDuration converts a Prometheus-style duration string into a Duration
-func parseDuration(duration string) (*time.Duration, error) {
+func ParseDuration(duration string) (*time.Duration, error) {
 	unitStr := duration[len(duration)-1:]
 	var unit time.Duration
 	switch unitStr {
@@ -175,9 +175,9 @@ func parseDuration(duration string) (*time.Duration, error) {
 	return &dur, nil
 }
 
-// parseTimeRange returns a start and end time, respectively, which are converted from
+// ParseTimeRange returns a start and end time, respectively, which are converted from
 // a duration and offset, defined as strings with Prometheus-style syntax.
-func parseTimeRange(duration, offset string) (*time.Time, *time.Time, error) {
+func ParseTimeRange(duration, offset string) (*time.Time, *time.Time, error) {
 	// endTime defaults to the current time, unless an offset is explicity declared,
 	// in which case it shifts endTime back by given duration
 	endTime := time.Now()
@@ -207,7 +207,7 @@ func parseTimeRange(duration, offset string) (*time.Time, *time.Time, error) {
 	return &startTime, &endTime, nil
 }
 
-func wrapDataWithMessage(data interface{}, err error, message string) []byte {
+func WrapDataWithMessage(data interface{}, err error, message string) []byte {
 	var resp []byte
 
 	if err != nil {
@@ -231,7 +231,7 @@ func wrapDataWithMessage(data interface{}, err error, message string) []byte {
 	return resp
 }
 
-func wrapData(data interface{}, err error) []byte {
+func WrapData(data interface{}, err error) []byte {
 	var resp []byte
 
 	if err != nil {
@@ -261,7 +261,7 @@ func (a *Accesses) RefreshPricingData(w http.ResponseWriter, r *http.Request, ps
 
 	err := a.Cloud.DownloadPricingData()
 
-	w.Write(wrapData(nil, err))
+	w.Write(WrapData(nil, err))
 }
 
 func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -283,19 +283,19 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 	if aggregationField != "" {
 		c, err := a.Cloud.GetConfig()
 		if err != nil {
-			w.Write(wrapData(nil, err))
+			w.Write(WrapData(nil, err))
 			return
 		}
 
 		discount, err := parsePercentString(c.Discount)
 		if err != nil {
-			w.Write(wrapData(nil, err))
+			w.Write(WrapData(nil, err))
 			return
 		}
 
 		dur, err := time.ParseDuration(window)
 		if err != nil {
-			w.Write(wrapData(nil, err))
+			w.Write(WrapData(nil, err))
 			return
 		}
 		// dataCount is the number of time series data expected for the given interval,
@@ -309,13 +309,13 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 			IdleCoefficients: make(map[string]float64),
 		}
 		agg := AggregateCostData(data, aggregationField, subfields, a.Cloud, opts)
-		w.Write(wrapData(agg, nil))
+		w.Write(WrapData(agg, nil))
 	} else {
 		if fields != "" {
 			filteredData := filterFields(fields, data)
-			w.Write(wrapData(filteredData, err))
+			w.Write(WrapData(filteredData, err))
 		} else {
-			w.Write(wrapData(data, err))
+			w.Write(WrapData(data, err))
 		}
 	}
 }
@@ -328,7 +328,7 @@ func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httpr
 	offset := r.URL.Query().Get("offset")
 
 	data, err := ClusterCosts(a.PrometheusClient, a.Cloud, window, offset)
-	w.Write(wrapData(data, err))
+	w.Write(WrapData(data, err))
 }
 
 func (a *Accesses) ClusterCostsOverTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -341,7 +341,7 @@ func (a *Accesses) ClusterCostsOverTime(w http.ResponseWriter, r *http.Request, 
 	offset := r.URL.Query().Get("offset")
 
 	data, err := ClusterCostsOverTime(a.PrometheusClient, a.Cloud, start, end, window, offset)
-	w.Write(wrapData(data, err))
+	w.Write(WrapData(data, err))
 }
 
 func (a *Accesses) CustomPricingHasChanged() bool {
@@ -422,21 +422,21 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	// aggregation field is required
 	if field == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(wrapData(nil, fmt.Errorf("Missing aggregation field parameter")))
+		w.Write(WrapData(nil, fmt.Errorf("Missing aggregation field parameter")))
 		return
 	}
 
 	// aggregation subfield is required when aggregation field is "label"
 	if field == "label" && len(subfields) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(wrapData(nil, fmt.Errorf("Missing aggregation subfield parameter for aggregation by label")))
+		w.Write(WrapData(nil, fmt.Errorf("Missing aggregation subfield parameter for aggregation by label")))
 		return
 	}
 
 	// enforce one of four available rate options
 	if rate != "" && rate != "hourly" && rate != "daily" && rate != "monthly" {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(wrapData(nil, fmt.Errorf("If set, rate parameter must be one of: 'hourly', 'daily', 'monthly'")))
+		w.Write(WrapData(nil, fmt.Errorf("If set, rate parameter must be one of: 'hourly', 'daily', 'monthly'")))
 		return
 	}
 
@@ -459,7 +459,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 
 	// check the cache for aggregated response; if cache is hit and not disabled, return response
 	if result, found := a.AggregateCache.Get(aggKey); found && !disableCache {
-		w.Write(wrapDataWithMessage(result, nil, fmt.Sprintf("aggregate cache hit: %s", aggKey)))
+		w.Write(WrapDataWithMessage(result, nil, fmt.Sprintf("aggregate cache hit: %s", aggKey)))
 		return
 	}
 
@@ -476,10 +476,10 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	// convert duration and offset to start and end times
-	startTime, endTime, err := parseTimeRange(duration, offset)
+	startTime, endTime, err := ParseTimeRange(duration, offset)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(wrapData(nil, fmt.Errorf("Error parsing duration (%s) and offset (%s)", duration, offset)))
+		w.Write(WrapData(nil, fmt.Errorf("Error parsing duration (%s) and offset (%s)", duration, offset)))
 		return
 	}
 	durationHours := endTime.Sub(*startTime).Hours()
@@ -505,11 +505,11 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		// 2 days
 		resolution = "2h"
 	}
-	resolutionDuration, err := parseDuration(resolution)
+	resolutionDuration, err := ParseDuration(resolution)
 	resolutionHours := resolutionDuration.Hours()
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(wrapData(nil, fmt.Errorf("Error parsing resolution (%s)", resolution)))
+		w.Write(WrapData(nil, fmt.Errorf("Error parsing resolution (%s)", resolution)))
 		return
 	}
 
@@ -533,7 +533,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		end := endTime.Format(RFC3339Milli)
 		costData, err = a.Model.ComputeCostDataRange(pClient, a.KubeClientSet, a.Cloud, start, end, resolution, "", "", remoteEnabled)
 		if err != nil {
-			w.Write(wrapData(nil, err))
+			w.Write(WrapData(nil, err))
 			return
 		}
 
@@ -542,12 +542,12 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 
 	c, err := a.Cloud.GetConfig()
 	if err != nil {
-		w.Write(wrapData(nil, err))
+		w.Write(WrapData(nil, err))
 		return
 	}
 	discount, err := parsePercentString(c.Discount)
 	if err != nil {
-		w.Write(wrapData(nil, err))
+		w.Write(WrapData(nil, err))
 		return
 	}
 
@@ -562,7 +562,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		idleCoefficients, err = ComputeIdleCoefficient(costData, pClient, a.Cloud, discount, windowStr, offset, resolution)
 		if err != nil {
 			klog.Errorf("error computing idle coefficient: windowString=%s, offset=%s, err=%s", windowStr, offset, err)
-			w.Write(wrapData(nil, err))
+			w.Write(WrapData(nil, err))
 			return
 		}
 	}
@@ -577,7 +577,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		sln = strings.Split(sharedLabelNames, ",")
 		slv = strings.Split(sharedLabelValues, ",")
 		if len(sln) != len(slv) || slv[0] == "" {
-			w.Write(wrapData(nil, fmt.Errorf("Supply exacly one label value per label name")))
+			w.Write(WrapData(nil, fmt.Errorf("Supply exacly one label value per label name")))
 			return
 		}
 	}
@@ -591,7 +591,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	// filter cost data by namespace and cluster after caching for maximal cache hits
-	costData = filterCostData(costData, namespace, cluster)
+	costData = FilterCostData(costData, namespace, cluster)
 
 	dataCount := int(durationHours / resolutionHours)
 
@@ -609,7 +609,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	result := AggregateCostData(costData, field, subfields, a.Cloud, opts)
 	a.AggregateCache.Set(aggKey, result, cache.DefaultExpiration)
 
-	w.Write(wrapDataWithMessage(result, nil, fmt.Sprintf("aggregate cache miss: %s", aggKey)))
+	w.Write(WrapDataWithMessage(result, nil, fmt.Sprintf("aggregate cache miss: %s", aggKey)))
 }
 
 func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -642,18 +642,18 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 
 	data, err := a.Model.ComputeCostDataRange(pClient, a.KubeClientSet, a.Cloud, start, end, window, namespace, cluster, remoteEnabled)
 	if err != nil {
-		w.Write(wrapData(nil, err))
+		w.Write(WrapData(nil, err))
 	}
 	if aggregationField != "" {
 		c, err := a.Cloud.GetConfig()
 		if err != nil {
-			w.Write(wrapData(nil, err))
+			w.Write(WrapData(nil, err))
 			return
 		}
 
 		discount, err := parsePercentString(c.Discount)
 		if err != nil {
-			w.Write(wrapData(nil, err))
+			w.Write(WrapData(nil, err))
 			return
 		}
 
@@ -662,13 +662,13 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 			IdleCoefficients: make(map[string]float64),
 		}
 		agg := AggregateCostData(data, aggregationField, subfields, a.Cloud, opts)
-		w.Write(wrapData(agg, nil))
+		w.Write(WrapData(agg, nil))
 	} else {
 		if fields != "" {
 			filteredData := filterFields(fields, data)
-			w.Write(wrapData(filteredData, err))
+			w.Write(WrapData(filteredData, err))
 		} else {
-			w.Write(wrapData(data, err))
+			w.Write(WrapData(data, err))
 		}
 	}
 }
@@ -693,12 +693,12 @@ func (a *Accesses) CostDataModelRangeLarge(w http.ResponseWriter, r *http.Reques
 		start, err = time.Parse(RFC3339Milli, startString)
 		if err != nil {
 			klog.V(1).Infof("Error parsing time " + startString + ". Error: " + err.Error())
-			w.Write(wrapData(nil, err))
+			w.Write(WrapData(nil, err))
 		}
 	} else {
 		window, err := time.ParseDuration(windowString)
 		if err != nil {
-			w.Write(wrapData(nil, fmt.Errorf("Invalid duration '%s'", windowString)))
+			w.Write(WrapData(nil, fmt.Errorf("Invalid duration '%s'", windowString)))
 
 		}
 		start = time.Now().Add(-2 * window)
@@ -707,7 +707,7 @@ func (a *Accesses) CostDataModelRangeLarge(w http.ResponseWriter, r *http.Reques
 		end, err = time.Parse(RFC3339Milli, endString)
 		if err != nil {
 			klog.V(1).Infof("Error parsing time " + endString + ". Error: " + err.Error())
-			w.Write(wrapData(nil, err))
+			w.Write(WrapData(nil, err))
 		}
 	} else {
 		end = time.Now()
@@ -719,7 +719,7 @@ func (a *Accesses) CostDataModelRangeLarge(w http.ResponseWriter, r *http.Reques
 	klog.V(1).Infof("Using remote database for query from %s to %s with window %s", startString, endString, windowString)
 
 	data, err := CostDataRangeFromSQL("", "", windowString, remoteStartStr, remoteEndStr)
-	w.Write(wrapData(data, err))
+	w.Write(WrapData(data, err))
 }
 
 func (a *Accesses) OutofClusterCosts(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -737,7 +737,7 @@ func (a *Accesses) OutofClusterCosts(w http.ResponseWriter, r *http.Request, ps 
 	} else {
 		data, err = a.Cloud.ExternalAllocations(start, end, "kubernetes_"+aggregator)
 	}
-	w.Write(wrapData(data, err))
+	w.Write(WrapData(data, err))
 }
 
 func (a *Accesses) OutOfClusterCostsWithCache(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -774,7 +774,7 @@ func (a *Accesses) OutOfClusterCostsWithCache(w http.ResponseWriter, r *http.Req
 	key := fmt.Sprintf(`%s:%s:%s`, start, end, aggregation)
 	if value, found := a.OutOfClusterCache.Get(key); found && !disableCache {
 		if data, ok := value.([]*costAnalyzerCloud.OutOfClusterAllocation); ok {
-			w.Write(wrapDataWithMessage(data, nil, fmt.Sprintf("out of cluser cache hit: %s", key)))
+			w.Write(WrapDataWithMessage(data, nil, fmt.Sprintf("out of cluser cache hit: %s", key)))
 			return
 		}
 		klog.Errorf("caching error: failed to type cast data: %s", key)
@@ -785,7 +785,7 @@ func (a *Accesses) OutOfClusterCostsWithCache(w http.ResponseWriter, r *http.Req
 		a.OutOfClusterCache.Set(key, data, cache.DefaultExpiration)
 	}
 
-	w.Write(wrapDataWithMessage(data, err, fmt.Sprintf("out of cluser cache miss: %s", key)))
+	w.Write(WrapDataWithMessage(data, err, fmt.Sprintf("out of cluser cache miss: %s", key)))
 }
 
 func (p *Accesses) GetAllNodePricing(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -793,14 +793,14 @@ func (p *Accesses) GetAllNodePricing(w http.ResponseWriter, r *http.Request, ps 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	data, err := p.Cloud.AllNodePricing()
-	w.Write(wrapData(data, err))
+	w.Write(WrapData(data, err))
 }
 
 func (p *Accesses) GetConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	data, err := p.Cloud.GetConfig()
-	w.Write(wrapData(data, err))
+	w.Write(WrapData(data, err))
 }
 
 func (p *Accesses) UpdateSpotInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -808,10 +808,10 @@ func (p *Accesses) UpdateSpotInfoConfigs(w http.ResponseWriter, r *http.Request,
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	data, err := p.Cloud.UpdateConfig(r.Body, costAnalyzerCloud.SpotInfoUpdateType)
 	if err != nil {
-		w.Write(wrapData(data, err))
+		w.Write(WrapData(data, err))
 		return
 	}
-	w.Write(wrapData(data, err))
+	w.Write(WrapData(data, err))
 	err = p.Cloud.DownloadPricingData()
 	if err != nil {
 		klog.V(1).Infof("Error redownloading data on config update: %s", err.Error())
@@ -824,10 +824,10 @@ func (p *Accesses) UpdateAthenaInfoConfigs(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	data, err := p.Cloud.UpdateConfig(r.Body, costAnalyzerCloud.AthenaInfoUpdateType)
 	if err != nil {
-		w.Write(wrapData(data, err))
+		w.Write(WrapData(data, err))
 		return
 	}
-	w.Write(wrapData(data, err))
+	w.Write(WrapData(data, err))
 	return
 }
 
@@ -836,10 +836,10 @@ func (p *Accesses) UpdateBigQueryInfoConfigs(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	data, err := p.Cloud.UpdateConfig(r.Body, costAnalyzerCloud.BigqueryUpdateType)
 	if err != nil {
-		w.Write(wrapData(data, err))
+		w.Write(WrapData(data, err))
 		return
 	}
-	w.Write(wrapData(data, err))
+	w.Write(WrapData(data, err))
 	return
 }
 
@@ -848,10 +848,10 @@ func (p *Accesses) UpdateConfigByKey(w http.ResponseWriter, r *http.Request, ps 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	data, err := p.Cloud.UpdateConfig(r.Body, "")
 	if err != nil {
-		w.Write(wrapData(data, err))
+		w.Write(WrapData(data, err))
 		return
 	}
-	w.Write(wrapData(data, err))
+	w.Write(WrapData(data, err))
 	return
 }
 
@@ -861,10 +861,10 @@ func (p *Accesses) ManagementPlatform(w http.ResponseWriter, r *http.Request, ps
 
 	data, err := p.Cloud.GetManagementPlatform()
 	if err != nil {
-		w.Write(wrapData(data, err))
+		w.Write(WrapData(data, err))
 		return
 	}
-	w.Write(wrapData(data, err))
+	w.Write(WrapData(data, err))
 	return
 }
 
@@ -873,7 +873,7 @@ func (p *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httpro
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	data, err := p.Cloud.ClusterInfo()
-	w.Write(wrapData(data, err))
+	w.Write(WrapData(data, err))
 
 }
 
@@ -886,14 +886,14 @@ func Healthz(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 func (p *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Write(wrapData(ValidatePrometheus(p.PrometheusClient, false)))
+	w.Write(WrapData(ValidatePrometheus(p.PrometheusClient, false)))
 }
 
 func (p *Accesses) ContainerUptimes(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	res, err := ComputeUptimes(p.PrometheusClient)
-	w.Write(wrapData(res, err))
+	w.Write(WrapData(res, err))
 }
 
 func (a *Accesses) recordPrices() {
@@ -1301,5 +1301,4 @@ func init() {
 	Router.GET("/managementPlatform", A.ManagementPlatform)
 	Router.GET("/clusterInfo", A.ClusterInfo)
 	Router.GET("/containerUptimes", A.ContainerUptimes)
-	Router.GET("/aggregatedCostModel", A.AggregateCostModel)
 }
