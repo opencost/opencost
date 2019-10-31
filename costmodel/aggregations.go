@@ -101,7 +101,6 @@ func NewSharedResourceInfo(shareResources bool, sharedNamespaces []string, label
 	for _, ns := range sharedNamespaces {
 		sr.SharedNamespace[ns] = true
 	}
-	sr.SharedNamespace["kube-system"] = true // kube-system should be split by default
 	for i := range labelnames {
 		sr.LabelSelectors[labelnames[i]] = labelvalues[i]
 	}
