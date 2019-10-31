@@ -394,8 +394,9 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	// parametrize cache key by all request parameters
-	aggKey := fmt.Sprintf("%s:%s:%s:%s:%s:%s:%s:%t:%t:%t",
+	aggKey := fmt.Sprintf("%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%t:%t:%t",
 		duration, offset, namespace, cluster, field, strings.Join(subfields, ","), rate,
+		sharedNamespaces, sharedLabelNames, sharedLabelValues,
 		allocateIdle, includeTimeSeries, includeEfficiency)
 
 	// check the cache for aggregated response; if cache is hit and not disabled, return response
@@ -1003,6 +1004,7 @@ func (a *Accesses) recordPrices() {
 				}
 				pvcSeen[labelString] = false
 			}
+
 			time.Sleep(time.Minute)
 		}
 	}()
@@ -1102,6 +1104,7 @@ func init() {
 		Name: "container_gpu_allocation",
 		Help: "container_gpu_allocation GPU used",
 	}, []string{"namespace", "pod", "container", "instance", "node"})
+
 	PVAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "pod_pvc_allocation",
 		Help: "pod_pvc_allocation Bytes used by a PVC attached to a pod",
