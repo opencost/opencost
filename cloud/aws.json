@@ -9,7 +9,7 @@
     "storage": "0.00005479452",
     "zoneNetworkEgress": "0.01",
     "regionNetworkEgress": "0.01",
-    "internetNetworkEgress": "0.15",
+    "internetNetworkEgress": "0.143",
     "spotLabel": "kops.k8s.io/instancegroup",
     "spotLabelValue": "spotinstance-nodes",
     "awsServiceKeyName": "AKIAXW6UVLRRY5RQGGUX",
