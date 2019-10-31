@@ -65,6 +65,7 @@ type Accesses struct {
 	AggregateCache                *cache.Cache
 	CostDataCache                 *cache.Cache
 	OutOfClusterCache             *cache.Cache
+	SettingsCache                 *cache.Cache
 }
 
 type DataEnvelope struct {
@@ -343,6 +344,41 @@ func (a *Accesses) ClusterCostsOverTime(w http.ResponseWriter, r *http.Request, 
 	w.Write(wrapData(data, err))
 }
 
+func (a *Accesses) CustomPricingHasChanged() bool {
+	customPricing, err := a.Cloud.GetConfig()
+	if err != nil || customPricing == nil {
+		klog.Errorf("error accessing cloud provider configuration: %s", err)
+		return false
+	}
+
+	// describe parameters by which we determine whether or not custom
+	// pricing settings have changed
+	encodeCustomPricing := func(cp *costAnalyzerCloud.CustomPricing) string {
+		return fmt.Sprintf("%s:%s:%s:%s:%s:%s:%s:%s", cp.CustomPricesEnabled, cp.CPU, cp.SpotCPU,
+			cp.RAM, cp.SpotRAM, cp.GPU, cp.Storage, cp.CurrencyCode)
+	}
+
+	// compare cached custom pricing parameters with current values
+	cpStr := encodeCustomPricing(customPricing)
+	cpStrCached := ""
+	val, found := a.SettingsCache.Get("customPricing")
+	if found {
+		ok := false
+		cpStrCached, ok = val.(string)
+		if !ok {
+			klog.Errorf("caching error: failed to cast custom pricing to string")
+		}
+	}
+	if cpStr == cpStrCached {
+		return false
+	}
+
+	// cache new custom pricing settings
+	a.SettingsCache.Set("customPricing", cpStr, cache.DefaultExpiration)
+
+	return true
+}
+
 // AggregateCostModel handles HTTP requests to the aggregated cost model API, which can be parametrized
 // by time period using window and offset, aggregation field and subfield (e.g. grouping by label.app
 // using aggregation=label, aggregationSubfield=app), and filtered by namespace and cluster.
@@ -402,6 +438,11 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write(wrapData(nil, fmt.Errorf("If set, rate parameter must be one of: 'hourly', 'daily', 'monthly'")))
 		return
+	}
+
+	// if custom pricing has changed, then clear the cache and recompute data
+	if a.CustomPricingHasChanged() {
+		clearCache = true
 	}
 
 	// clear cache prior to checking the cache so that a clearCache=true
@@ -1163,6 +1204,7 @@ func init() {
 	aggregateCache := cache.New(time.Minute*5, time.Minute*10)
 	costDataCache := cache.New(time.Minute*5, time.Minute*10)
 	outOfClusterCache := cache.New(time.Minute*5, time.Minute*10)
+	settingsCache := cache.New(cache.NoExpiration, cache.NoExpiration)
 
 	A = Accesses{
 		PrometheusClient:              promCli,
@@ -1185,6 +1227,7 @@ func init() {
 		AggregateCache:                aggregateCache,
 		CostDataCache:                 costDataCache,
 		OutOfClusterCache:             outOfClusterCache,
+		SettingsCache:                 settingsCache,
 	}
 
 	remoteEnabled := os.Getenv(remoteEnabled)
