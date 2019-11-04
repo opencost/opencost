@@ -198,6 +198,7 @@ func ParseTimeRange(duration, offset string) (*time.Time, *time.Time, error) {
 	// convert time duration into start and end times, formatted
 	// as ISO datetime strings
 	dur, err := time.ParseDuration(durationNorm)
+	klog.Infof("DURATION: %s", dur)
 	if err != nil {
 		return nil, nil, fmt.Errorf("errorf parsing duration (%s): %s", durationNorm, err)
 	}
@@ -450,8 +451,10 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	// determine resolution by size of duration
-	resolution := "1h"
-	if durationHours >= 2160 {
+	resolution := duration
+	if durationHours > 1 {
+		resolution = "1h"
+	} else if durationHours >= 2160 {
 		// 90 days
 		resolution = "72h"
 	} else if durationHours >= 720 {
@@ -1221,7 +1224,8 @@ func init() {
 
 			_, err = ValidatePrometheus(thanosCli, true)
 			if err != nil {
-				klog.Fatalf("Failed to query Thanos at %s. Error: %s.", thanosUrl, err.Error())
+				klog.V(1).Infof("Warning: Failed to query Thanos at %s. Error: %s.", thanosUrl, err.Error())
+				A.ThanosClient = thanosCli
 			} else {
 				klog.V(1).Info("Success: retrieved the 'up' query against Thanos at: " + thanosUrl)
 
