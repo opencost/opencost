@@ -442,7 +442,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	// if custom pricing has changed, then clear the cache and recompute data
-	if a.CustomPricingHasChanged() {
+	if A.CustomPricingHasChanged() {
 		clearCache = true
 	}
 
