@@ -132,7 +132,7 @@ func normalizeTimeParam(param string) (string, error) {
 // parsePercentString takes a string of expected format "N%" and returns a floating point 0.0N.
 // If the "%" symbol is missing, it just returns 0.0N. Empty string is interpreted as "0%" and
 // return 0.0.
-func parsePercentString(percentStr string) (float64, error) {
+func ParsePercentString(percentStr string) (float64, error) {
 	if len(percentStr) == 0 {
 		return 0.0, nil
 	}
@@ -287,7 +287,7 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 			return
 		}
 
-		discount, err := parsePercentString(c.Discount)
+		discount, err := ParsePercentString(c.Discount)
 		if err != nil {
 			w.Write(WrapData(nil, err))
 			return
@@ -441,6 +441,10 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		return
 	}
 
+	if a.CustomPricingHasChanged() {
+		clearCache = true
+	}
+
 	// clear cache prior to checking the cache so that a clearCache=true
 	// request always returns a freshly computed value
 	if clearCache {
@@ -546,12 +550,11 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		w.Write(WrapData(nil, err))
 		return
 	}
-	discount, err := strconv.ParseFloat(c.Discount[:len(c.Discount)-1], 64)
+	discount, err := ParsePercentString(c.Discount)
 	if err != nil {
 		w.Write(WrapData(nil, err))
 		return
 	}
-	discount = discount * 0.01
 
 	idleCoefficients := make(map[string]float64)
 
@@ -657,7 +660,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 			return
 		}
 
-		discount, err := parsePercentString(c.Discount)
+		discount, err := ParsePercentString(c.Discount)
 		if err != nil {
 			w.Write(WrapData(nil, err))
 			return
