@@ -2325,7 +2325,6 @@ func getNormalizations(qr interface{}) ([]*Vector, error) {
 	if len(results) > 0 {
 		vectors := []*Vector{}
 		for i := range results {
-			klog.Infof("%+v", results[i])
 			values, ok := results[i].(map[string]interface{})["values"].([]interface{})
 			for _, d := range values {
 				dataPoint := d.([]interface{})
