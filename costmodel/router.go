@@ -198,7 +198,6 @@ func ParseTimeRange(duration, offset string) (*time.Time, *time.Time, error) {
 	// convert time duration into start and end times, formatted
 	// as ISO datetime strings
 	dur, err := time.ParseDuration(durationNorm)
-	klog.Infof("DURATION: %s", dur)
 	if err != nil {
 		return nil, nil, fmt.Errorf("errorf parsing duration (%s): %s", durationNorm, err)
 	}
