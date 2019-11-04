@@ -492,9 +492,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 
 	// determine resolution by size of duration
 	resolution := duration
-	if durationHours > 1 {
-		resolution = "1h"
-	} else if durationHours >= 2160 {
+	if durationHours >= 2160 {
 		// 90 days
 		resolution = "72h"
 	} else if durationHours >= 720 {
@@ -506,6 +504,8 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	} else if durationHours >= 48 {
 		// 2 days
 		resolution = "2h"
+	} else if durationHours > 1 {
+		resolution = "1h"
 	}
 	resolutionDuration, err := ParseDuration(resolution)
 	resolutionHours := resolutionDuration.Hours()
