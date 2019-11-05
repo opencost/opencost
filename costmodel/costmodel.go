@@ -21,8 +21,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
 
-	"golang.org/x/sync/singleflight"
 	"github.com/google/uuid"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -1297,7 +1297,7 @@ func costDataPassesFilters(costs *CostData, namespace string, cluster string) bo
 	return passesNamespace && passesCluster
 }
 
-// Attempt to create a key for the request. Reduce the times to minutes in order to more easily group requests based on 
+// Attempt to create a key for the request. Reduce the times to minutes in order to more easily group requests based on
 // real time ranges. If for any reason, the key generation fails, return a uuid to ensure uniqueness.
 func requestKeyFor(startString string, endString string, windowString string, filterNamespace string, filterCluster string, remoteEnabled bool) string {
 	fullLayout := "2006-01-02T15:04:05.000Z"
@@ -1318,12 +1318,17 @@ func requestKeyFor(startString string, endString string, windowString string, fi
 	return fmt.Sprintf("%s,%s,%s,%s,%s,%t", startKey, endKey, windowString, filterNamespace, filterCluster, remoteEnabled)
 }
 
+// Executes a range query for cost data
 func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider,
 	startString, endString, windowString string, filterNamespace string, filterCluster string, remoteEnabled bool) (map[string]*CostData, error) {
+	// Create a request key for request grouping. This key will be used to represent the cost-model result
+	// for the specific inputs to prevent multiple queries for identical data.
 	key := requestKeyFor(startString, endString, windowString, filterNamespace, filterCluster, remoteEnabled)
 
-	klog.V(1).Infof("ComputeCostDataRange with Key: %s", key)
-	
+	klog.V(3).Infof("ComputeCostDataRange with Key: %s", key)
+
+	// If there is already a request out that uses the same data, wait for it to return to share the results.
+	// Otherwise, start executing.
 	result, err, _ := cm.RequestGroup.Do(key, func() (interface{}, error) {
 		return cm.costDataRange(cli, clientset, cp, startString, endString, windowString, filterNamespace, filterCluster, remoteEnabled)
 	})
@@ -1910,21 +1915,16 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 			}
 		}
 	}
-	/*
-		w := end.Sub(start)
-		w += window
-		if w.Minutes() > 0 {
-			wStr := fmt.Sprintf("%dm", int(w.Minutes()))
-			err = findDeletedNodeInfo(cli, missingNodes, wStr)
-			if err != nil {
-				klog.V(1).Infof("Error fetching historical node data: %s", err.Error())
-			}
-			err = findDeletedPodInfo(cli, missingContainers, wStr)
-			if err != nil {
-				klog.V(1).Infof("Error fetching historical pod data: %s", err.Error())
-			}
+
+	w := end.Sub(start)
+	w += window
+	if w.Minutes() > 0 {
+		wStr := fmt.Sprintf("%dm", int(w.Minutes()))
+		err = findDeletedNodeInfo(cli, missingNodes, wStr)
+		if err != nil {
+			klog.V(1).Infof("Error fetching historical node data: %s", err.Error())
 		}
-	*/
+	}
 
 	return containerNameCost, err
 }
@@ -2273,8 +2273,6 @@ func QueryRange(cli prometheusClient.Client, query string, start, end time.Time,
 	q.Set("end", end.Format(time.RFC3339Nano))
 	q.Set("step", strconv.FormatFloat(step.Seconds(), 'f', 3, 64))
 	u.RawQuery = q.Encode()
-
-	klog.V(1).Infof("Request: %s", u.String())
 
 	req, err := http.NewRequest(http.MethodPost, u.String(), nil)
 	if err != nil {
