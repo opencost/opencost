@@ -12,6 +12,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef // indirect
 	github.com/golang/mock v1.2.0
 	github.com/google/martian v2.1.0+incompatible // indirect
+	github.com/google/uuid v1.1.1
 	github.com/googleapis/gax-go v2.0.2+incompatible // indirect
 	github.com/gophercloud/gophercloud v0.2.0 // indirect
 	github.com/imdario/mergo v0.3.7 // indirect
@@ -28,7 +29,7 @@ require (
 	golang.org/x/crypto v0.0.0-20190510104115-cbcb75029529 // indirect
 	golang.org/x/lint v0.0.0-20190909230951-414d861bb4ac // indirect
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
-	golang.org/x/sync v0.0.0-20190423024810-112230192c58 // indirect
+	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	google.golang.org/api v0.4.0
 	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.0.0-20190913080256-21721929cffa
