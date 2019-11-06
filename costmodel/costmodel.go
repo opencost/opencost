@@ -1333,7 +1333,11 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 		return cm.costDataRange(cli, clientset, cp, startString, endString, windowString, filterNamespace, filterCluster, remoteEnabled)
 	})
 
-	data := result.(map[string]*CostData)
+	data, ok := result.(map[string]*CostData)
+	if !ok {
+		return nil, fmt.Errorf("Failed to cast result as map[string]*CostData")
+	}
+
 	return data, err
 }
 
