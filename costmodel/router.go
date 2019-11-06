@@ -132,7 +132,7 @@ func normalizeTimeParam(param string) (string, error) {
 // parsePercentString takes a string of expected format "N%" and returns a floating point 0.0N.
 // If the "%" symbol is missing, it just returns 0.0N. Empty string is interpreted as "0%" and
 // return 0.0.
-func parsePercentString(percentStr string) (float64, error) {
+func ParsePercentString(percentStr string) (float64, error) {
 	if len(percentStr) == 0 {
 		return 0.0, nil
 	}
@@ -287,7 +287,7 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 			return
 		}
 
-		discount, err := parsePercentString(c.Discount)
+		discount, err := ParsePercentString(c.Discount)
 		if err != nil {
 			w.Write(WrapData(nil, err))
 			return
@@ -383,6 +383,7 @@ func (a *Accesses) CustomPricingHasChanged() bool {
 // by time period using window and offset, aggregation field and subfield (e.g. grouping by label.app
 // using aggregation=label, aggregationSubfield=app), and filtered by namespace and cluster.
 func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -441,15 +442,15 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	// if custom pricing has changed, then clear the cache and recompute data
-	if a.CustomPricingHasChanged() {
+	if A.CustomPricingHasChanged() {
 		clearCache = true
 	}
 
 	// clear cache prior to checking the cache so that a clearCache=true
 	// request always returns a freshly computed value
 	if clearCache {
-		a.AggregateCache.Flush()
-		a.CostDataCache.Flush()
+		A.AggregateCache.Flush()
+		A.CostDataCache.Flush()
 	}
 
 	// parametrize cache key by all request parameters
@@ -458,7 +459,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		allocateIdle, includeTimeSeries, includeEfficiency)
 
 	// check the cache for aggregated response; if cache is hit and not disabled, return response
-	if result, found := a.AggregateCache.Get(aggKey); found && !disableCache {
+	if result, found := A.AggregateCache.Get(aggKey); found && !disableCache {
 		w.Write(WrapDataWithMessage(result, nil, fmt.Sprintf("aggregate cache hit: %s", aggKey)))
 		return
 	}
@@ -469,10 +470,10 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 
 	// Use Thanos Client if it exists (enabled) and remote flag set
 	var pClient prometheusClient.Client
-	if remote && a.ThanosClient != nil {
-		pClient = a.ThanosClient
+	if remote && A.ThanosClient != nil {
+		pClient = A.ThanosClient
 	} else {
-		pClient = a.PrometheusClient
+		pClient = A.PrometheusClient
 	}
 
 	// convert duration and offset to start and end times
@@ -485,16 +486,14 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	durationHours := endTime.Sub(*startTime).Hours()
 
 	threeHoursAgo := time.Now().Add(-3 * time.Hour)
-	if a.ThanosClient != nil && endTime.After(threeHoursAgo) {
+	if A.ThanosClient != nil && endTime.After(threeHoursAgo) {
 		klog.Infof("Setting end time backwards to first present data")
 		*endTime = time.Now().Add(-3 * time.Hour)
 	}
 
 	// determine resolution by size of duration
 	resolution := duration
-	if durationHours > 1 {
-		resolution = "1h"
-	} else if durationHours >= 2160 {
+	if durationHours >= 2160 {
 		// 90 days
 		resolution = "72h"
 	} else if durationHours >= 720 {
@@ -506,9 +505,14 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	} else if durationHours >= 48 {
 		// 2 days
 		resolution = "2h"
+	} else if durationHours > 1 {
+		resolution = "1h"
 	}
 	resolutionDuration, err := ParseDuration(resolution)
 	resolutionHours := resolutionDuration.Hours()
+	if resolutionHours < 1 {
+		resolutionHours = 1
+	}
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write(WrapData(nil, fmt.Errorf("Error parsing resolution (%s)", resolution)))
@@ -523,7 +527,7 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	// attempt to retrieve cost data from cache
 	var costData map[string]*CostData
 	key := fmt.Sprintf(`%s:%s:%s:%t`, duration, offset, resolution, remoteEnabled)
-	cacheData, found := a.CostDataCache.Get(key)
+	cacheData, found := A.CostDataCache.Get(key)
 	if found && !disableCache {
 		ok := false
 		costData, ok = cacheData.(map[string]*CostData)
@@ -533,21 +537,21 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	} else {
 		start := startTime.Format(RFC3339Milli)
 		end := endTime.Format(RFC3339Milli)
-		costData, err = a.Model.ComputeCostDataRange(pClient, a.KubeClientSet, a.Cloud, start, end, resolution, "", "", remoteEnabled)
+		costData, err = A.Model.ComputeCostDataRange(pClient, A.KubeClientSet, A.Cloud, start, end, resolution, "", "", remoteEnabled)
 		if err != nil {
 			w.Write(WrapData(nil, err))
 			return
 		}
 
-		a.CostDataCache.Set(key, costData, cache.DefaultExpiration)
+		A.CostDataCache.Set(key, costData, cache.DefaultExpiration)
 	}
 
-	c, err := a.Cloud.GetConfig()
+	c, err := A.Cloud.GetConfig()
 	if err != nil {
 		w.Write(WrapData(nil, err))
 		return
 	}
-	discount, err := parsePercentString(c.Discount)
+	discount, err := ParsePercentString(c.Discount)
 	if err != nil {
 		w.Write(WrapData(nil, err))
 		return
@@ -556,12 +560,16 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 	idleCoefficients := make(map[string]float64)
 
 	if allocateIdle {
-		windowStr := fmt.Sprintf("%dh", int(durationHours))
-		if a.ThanosClient != nil {
+		idleDurationCalcHours := durationHours
+		if durationHours < 1 {
+			idleDurationCalcHours = 1
+		}
+		windowStr := fmt.Sprintf("%dh", int(idleDurationCalcHours))
+		if A.ThanosClient != nil {
 			klog.Infof("Setting offset to 3h")
 			offset = "3h"
 		}
-		idleCoefficients, err = ComputeIdleCoefficient(costData, pClient, a.Cloud, discount, windowStr, offset, resolution)
+		idleCoefficients, err = ComputeIdleCoefficient(costData, pClient, A.Cloud, discount, windowStr, offset, resolution)
 		if err != nil {
 			klog.Errorf("error computing idle coefficient: windowString=%s, offset=%s, err=%s", windowStr, offset, err)
 			w.Write(WrapData(nil, err))
@@ -608,8 +616,8 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 		ResolutionCoefficient: resolutionHours,
 		SharedResourceInfo:    sr,
 	}
-	result := AggregateCostData(costData, field, subfields, a.Cloud, opts)
-	a.AggregateCache.Set(aggKey, result, cache.DefaultExpiration)
+	result := AggregateCostData(costData, field, subfields, A.Cloud, opts)
+	A.AggregateCache.Set(aggKey, result, cache.DefaultExpiration)
 
 	w.Write(WrapDataWithMessage(result, nil, fmt.Sprintf("aggregate cache miss: %s", aggKey)))
 }
@@ -653,7 +661,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 			return
 		}
 
-		discount, err := parsePercentString(c.Discount)
+		discount, err := ParsePercentString(c.Discount)
 		if err != nil {
 			w.Write(WrapData(nil, err))
 			return
