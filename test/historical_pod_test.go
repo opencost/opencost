@@ -180,7 +180,7 @@ func TestPodUpDown(t *testing.T) {
 		panic(err)
 	}
 
-	vectors, err := costModel.GetContainerMetricVectors(res, false, 0, "cluster-one")
+	vectors, err := costModel.GetContainerMetricVectors(res, false, []*costModel.Vector{&costModel.Vector{Value: 0, Timestamp: 0}}, "cluster-one")
 	if err != nil {
 		panic(err)
 	}

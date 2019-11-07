@@ -920,7 +920,23 @@ func (a *Accesses) recordPrices() {
 			return strings.Split(key, ",")
 		}
 
+		// Create job to refresh provider prices every week
+		// TODO: Make configurable?
+		refreshProviderCosts := NewTimedJob(7*24*time.Hour, func() error {
+			return a.Cloud.DownloadPricingData()
+		})
+
 		for {
+			// Update the provider costs if enough time has elapsed
+			updated, err := refreshProviderCosts.Update()
+			if updated {
+				klog.V(4).Infof("Refreshed Provider Costs")
+
+				if err != nil {
+					klog.V(1).Infof("Failed to refresh provider costs: %s", err.Error())
+				}
+			}
+
 			klog.V(4).Info("Recording prices...")
 			podlist := a.Model.Cache.GetAllPods()
 			podStatus := make(map[string]v1.PodPhase)
