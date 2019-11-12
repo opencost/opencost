@@ -1526,7 +1526,8 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	normalizationValue, err := getNormalizations(normalizationResults)
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing normalization values: " + err.Error())
+		return nil, fmt.Errorf("error computing normalization for start=%s, end=%s, window=%s: %s",
+			start, end, window, err.Error())
 	}
 
 	nodes, err := getNodeCost(cm.Cache, cp)
@@ -2327,7 +2328,7 @@ func getNormalizations(qr interface{}) ([]*Vector, error) {
 		}
 		return vectors, nil
 	}
-	return nil, fmt.Errorf("Normalization data is empty, kube-state-metrics or node-exporter may not be running")
+	return nil, fmt.Errorf("normalization data is empty: time window may be invalid or kube-state-metrics or node-exporter may not be running")
 }
 
 //todo: don't cast, implement unmarshaler interface
