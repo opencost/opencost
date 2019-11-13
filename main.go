@@ -16,6 +16,8 @@ func Healthz(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 }
 
 func main() {
+	costmodel.Initialize()
+
 	rootMux := http.NewServeMux()
 	costmodel.Router.GET("/healthz", Healthz)
 	rootMux.Handle("/", costmodel.Router)

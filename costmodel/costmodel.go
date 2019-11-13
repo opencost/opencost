@@ -1365,6 +1365,10 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 
 func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider,
 	startString, endString, windowString string, filterNamespace string, filterCluster string, remoteEnabled bool) (map[string]*CostData, error) {
+	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, windowString, "", windowString, "")
+	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, windowString, "", windowString, "")
+	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, windowString, "", windowString, "")
+	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, windowString, "")
 	queryRAMAlloc := fmt.Sprintf(queryRAMAllocation, windowString, "", windowString, "")
 	queryCPUAlloc := fmt.Sprintf(queryCPUAllocation, windowString, "", windowString, "")
 	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, windowString, "", windowString, "")
@@ -1402,9 +1406,33 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(15)
+	wg.Add(19)
 
 	var promErr error
+	var resultRAMRequests interface{}
+	go func() {
+		defer wg.Done()
+
+		resultRAMRequests, promErr = QueryRange(cli, queryRAMRequests, start, end, window)
+	}()
+	var resultRAMUsage interface{}
+	go func() {
+		defer wg.Done()
+
+		resultRAMUsage, promErr = QueryRange(cli, queryRAMUsage, start, end, window)
+	}()
+	var resultCPURequests interface{}
+	go func() {
+		defer wg.Done()
+
+		resultCPURequests, promErr = QueryRange(cli, queryCPURequests, start, end, window)
+	}()
+	var resultCPUUsage interface{}
+	go func() {
+		defer wg.Done()
+
+		resultCPUUsage, promErr = QueryRange(cli, queryCPUUsage, start, end, window)
+	}()
 	var resultRAMAllocations interface{}
 	go func() {
 		defer wg.Done()
@@ -1526,7 +1554,8 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	normalizationValue, err := getNormalizations(normalizationResults)
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing normalization values: " + err.Error())
+		return nil, fmt.Errorf("error computing normalization for start=%s, end=%s, window=%s: %s",
+			start, end, window, err.Error())
 	}
 
 	nodes, err := getNodeCost(cm.Cache, cp)
@@ -1605,6 +1634,36 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	containers := make(map[string]bool)
 	otherClusterPVRecorded := make(map[string]bool)
 
+	RAMReqMap, err := GetContainerMetricVectors(resultRAMRequests, true, normalizationValue, clusterID)
+	if err != nil {
+		return nil, err
+	}
+	for key := range RAMReqMap {
+		containers[key] = true
+	}
+	RAMUsedMap, err := GetContainerMetricVectors(resultRAMUsage, true, normalizationValue, clusterID)
+	if err != nil {
+		return nil, err
+	}
+	for key := range RAMUsedMap {
+		containers[key] = true
+	}
+
+	CPUReqMap, err := GetContainerMetricVectors(resultCPURequests, true, normalizationValue, clusterID)
+	if err != nil {
+		return nil, err
+	}
+	for key := range CPUReqMap {
+		containers[key] = true
+	}
+	CPUUsedMap, err := GetContainerMetricVectors(resultCPUUsage, false, normalizationValue, clusterID) // No need to normalize here, as this comes from a counter
+	if err != nil {
+		return nil, err
+	}
+	for key := range CPUUsedMap {
+		containers[key] = true
+	}
+
 	RAMAllocMap, err := GetContainerMetricVectors(resultRAMAllocations, true, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
@@ -1626,6 +1685,12 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	for key := range GPUReqMap {
 		containers[key] = true
 	}
+
+	// Request metrics can show up after pod eviction and completion.
+	// This method synchronizes requests to allocations such that when
+	// allocation is 0, so are requests
+	applyAllocationToRequests(RAMAllocMap, RAMReqMap)
+	applyAllocationToRequests(CPUAllocMap, CPUReqMap)
 
 	currentContainers := make(map[string]v1.Pod)
 	for _, pod := range podlist {
@@ -1712,6 +1777,26 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 				containerName := container.Name
 
 				newKey := newContainerMetricFromValues(ns, podName, containerName, pod.Spec.NodeName, clusterID).Key()
+				RAMReqV, ok := RAMReqMap[newKey]
+				if !ok {
+					klog.V(4).Info("no RAM requests for " + newKey)
+					RAMReqV = []*Vector{}
+				}
+				RAMUsedV, ok := RAMUsedMap[newKey]
+				if !ok {
+					klog.V(4).Info("no RAM usage for " + newKey)
+					RAMUsedV = []*Vector{}
+				}
+				CPUReqV, ok := CPUReqMap[newKey]
+				if !ok {
+					klog.V(4).Info("no CPU requests for " + newKey)
+					CPUReqV = []*Vector{}
+				}
+				CPUUsedV, ok := CPUUsedMap[newKey]
+				if !ok {
+					klog.V(4).Info("no CPU usage for " + newKey)
+					CPUUsedV = []*Vector{}
+				}
 				RAMAllocsV, ok := RAMAllocMap[newKey]
 				if !ok {
 					klog.V(4).Info("no RAM allocation for " + newKey)
@@ -1746,6 +1831,10 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 					Jobs:            getJobsOfPod(pod),
 					Statefulsets:    getStatefulSetsOfPod(pod),
 					NodeData:        nodeData,
+					RAMReq:          RAMReqV,
+					RAMUsed:         RAMUsedV,
+					CPUReq:          CPUReqV,
+					CPUUsed:         CPUUsedV,
 					RAMAllocation:   RAMAllocsV,
 					CPUAllocation:   CPUAllocsV,
 					GPUReq:          GPUReqV,
@@ -1766,7 +1855,26 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 			// Not all information is sent to prometheus via ksm, so fill out what we can without k8s api
 			klog.V(4).Info("The container " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
 			c, _ := NewContainerMetricFromKey(key)
-
+			RAMReqV, ok := RAMReqMap[key]
+			if !ok {
+				klog.V(4).Info("no RAM requests for " + key)
+				RAMReqV = []*Vector{}
+			}
+			RAMUsedV, ok := RAMUsedMap[key]
+			if !ok {
+				klog.V(4).Info("no RAM usage for " + key)
+				RAMUsedV = []*Vector{}
+			}
+			CPUReqV, ok := CPUReqMap[key]
+			if !ok {
+				klog.V(4).Info("no CPU requests for " + key)
+				CPUReqV = []*Vector{}
+			}
+			CPUUsedV, ok := CPUUsedMap[key]
+			if !ok {
+				klog.V(4).Info("no CPU usage for " + key)
+				CPUUsedV = []*Vector{}
+			}
 			RAMAllocsV, ok := RAMAllocMap[key]
 			if !ok {
 				klog.V(4).Info("no RAM allocation for " + key)
@@ -1869,6 +1977,10 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 				Namespace:       c.Namespace,
 				Services:        podServices,
 				Deployments:     podDeployments,
+				RAMReq:          RAMReqV,
+				RAMUsed:         RAMUsedV,
+				CPUReq:          CPUReqV,
+				CPUUsed:         CPUUsedV,
 				RAMAllocation:   RAMAllocsV,
 				CPUAllocation:   CPUAllocsV,
 				GPUReq:          GPUReqV,
@@ -1897,6 +2009,39 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	}
 
 	return containerNameCost, err
+}
+
+func applyAllocationToRequests(allocationMap map[string][]*Vector, requestMap map[string][]*Vector) {
+	// The result of the normalize operation will be a new []*Vector to replace the requests
+	normalizeOp := func(r *Vector, x *float64, y *float64) bool {
+		// Omit data (return false) if both x and y inputs don't exist
+		if x == nil || y == nil {
+			return false
+		}
+
+		// If the allocation value is 0, 0 out request value
+		if *x == 0 {
+			r.Value = 0
+		} else {
+			r.Value = *y
+		}
+
+		return true
+	}
+
+	// Run normalization on all request vectors in the mapping
+	for k, requests := range requestMap {
+
+		// Only run normalization where there are valid allocations
+		allocations, ok := allocationMap[k]
+		if !ok {
+			delete(requestMap, k)
+			continue
+		}
+
+		// Replace request map with normalized
+		requestMap[k] = ApplyVectorOp(allocations, requests, normalizeOp)
+	}
 }
 
 func addMetricPVData(pvAllocationMap map[string][]*PersistentVolumeClaimData, pvCostMap map[string]*costAnalyzerCloud.PV, cp costAnalyzerCloud.Provider) {
@@ -2327,7 +2472,7 @@ func getNormalizations(qr interface{}) ([]*Vector, error) {
 		}
 		return vectors, nil
 	}
-	return nil, fmt.Errorf("Normalization data is empty, kube-state-metrics or node-exporter may not be running")
+	return nil, fmt.Errorf("normalization data is empty: time window may be invalid or kube-state-metrics or node-exporter may not be running")
 }
 
 //todo: don't cast, implement unmarshaler interface

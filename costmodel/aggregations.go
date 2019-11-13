@@ -50,6 +50,24 @@ type Aggregation struct {
 	TotalCost            float64   `json:"totalCost"`
 }
 
+// VectorJoinOp is an operation func that accepts a result vector pointer
+// for a specific timestamp and two float64 pointers representing the
+// input vectors for that timestamp. x or y inputs can be nil, but not
+// both. The op should use x and y values to set the Value on the result
+// ptr. If a result could not be generated, the op should return false,
+// which will omit the vector for the specific timestamp. Otherwise,
+// return true denoting a successful op.
+type VectorJoinOp func(result *Vector, x *float64, y *float64) bool
+
+// returns a nil ptr or valid float ptr based on the ok bool
+func VectorValue(v float64, ok bool) *float64 {
+	if !ok {
+		return nil
+	}
+
+	return &v
+}
+
 func (a *Aggregation) GetDataCount() int {
 	length := 0
 
@@ -107,18 +125,12 @@ func NewSharedResourceInfo(shareResources bool, sharedNamespaces []string, label
 	return sr
 }
 
-func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.Client, cp cloud.Provider, discount float64, windowString, offset, resolution string) (map[string]float64, error) {
+func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.Client, cp cloud.Provider, discount float64, windowString, offset string) (map[string]float64, error) {
 	coefficients := make(map[string]float64)
 
 	windowDuration, err := time.ParseDuration(windowString)
 	if err != nil {
 		return nil, err
-	}
-
-	resolutionDuration, err := ParseDuration(resolution)
-	resolutionCoefficient := resolutionDuration.Hours()
-	if resolutionCoefficient < 1 {
-		resolutionCoefficient = 1 // just use 1 hour here, for numbers less than 1.
 	}
 
 	allTotals, err := ClusterCostsForAllClusters(cli, cp, windowString, offset)
@@ -153,11 +165,11 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 		for _, costDatum := range costData {
 			if costDatum.ClusterID == cid {
 				cpuv, ramv, gpuv, pvvs, _ := getPriceVectors(cp, costDatum, "", discount, 1)
-				totalContainerCost += totalVectors(cpuv) * resolutionCoefficient
-				totalContainerCost += totalVectors(ramv) * resolutionCoefficient
-				totalContainerCost += totalVectors(gpuv) * resolutionCoefficient
+				totalContainerCost += totalVectors(cpuv)
+				totalContainerCost += totalVectors(ramv)
+				totalContainerCost += totalVectors(gpuv)
 				for _, pv := range pvvs {
-					totalContainerCost += totalVectors(pv) * resolutionCoefficient
+					totalContainerCost += totalVectors(pv)
 				}
 			}
 
@@ -171,14 +183,31 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 
 // AggregationOptions provides optional parameters to AggregateCostData, allowing callers to perform more complex operations
 type AggregationOptions struct {
-	DataCount             int                // number of cost data points expected; ensures proper rate calculation if data is incomplete
-	Discount              float64            // percent by which to discount CPU, RAM, and GPU cost
-	IdleCoefficients      map[string]float64 // scales costs by amount of idle resources on a per-cluster basis
-	IncludeEfficiency     bool               // set to true to receive efficiency/usage data
-	IncludeTimeSeries     bool               // set to true to receive time series data
-	Rate                  string             // set to "hourly", "daily", or "monthly" to receive cost rate, rather than cumulative cost
-	ResolutionCoefficient float64            // coefficient for converting hourly costs to per-resolution cost; e.g. 6 for a 6h resolution
-	SharedResourceInfo    *SharedResourceInfo
+	DataCount          int                // number of cost data points expected; ensures proper rate calculation if data is incomplete
+	Discount           float64            // percent by which to discount CPU, RAM, and GPU cost
+	IdleCoefficients   map[string]float64 // scales costs by amount of idle resources on a per-cluster basis
+	IncludeEfficiency  bool               // set to true to receive efficiency/usage data
+	IncludeTimeSeries  bool               // set to true to receive time series data
+	Rate               string             // set to "hourly", "daily", or "monthly" to receive cost rate, rather than cumulative cost
+	SharedResourceInfo *SharedResourceInfo
+}
+
+// Helper method to test request/usgae values against allocation averages for efficiency scores. Generate a warning log if
+// clamp is required
+func clampAverage(requestsAvg float64, usedAverage float64, allocationAvg float64, resource string) (float64, float64) {
+	rAvg := requestsAvg
+	if rAvg > allocationAvg {
+		klog.V(3).Infof("Warning: Average %s Requested (%f) > Average %s Allocated (%f). Clamping.", resource, rAvg, resource, allocationAvg)
+		rAvg = allocationAvg
+	}
+
+	uAvg := usedAverage
+	if uAvg > allocationAvg {
+		klog.V(3).Infof("Warning: Average %s Used (%f) > Average %s Allocated (%f). Clamping.", resource, uAvg, resource, allocationAvg)
+		uAvg = allocationAvg
+	}
+
+	return rAvg, uAvg
 }
 
 // AggregateCostData aggregates raw cost data by field; e.g. namespace, cluster, service, or label. In the case of label, callers
@@ -197,14 +226,6 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 		idleCoefficients = make(map[string]float64)
 	}
 
-	// resolution coefficient compensates for less-frequent-than-hourly samples by multiplying
-	// cumulative values by the hours between samples. does not apply to rate data and defaults
-	// to 1.0, which matches hourly sampling of hourly data.
-	resolutionCoefficient := opts.ResolutionCoefficient
-	if resolutionCoefficient == 0.0 || rate != "" {
-		resolutionCoefficient = 1.0
-	}
-
 	// aggregations collects key-value pairs of resource group-to-aggregated data
 	// e.g. namespace-to-data or label-value-to-data
 	aggregations := make(map[string]*Aggregation)
@@ -220,12 +241,12 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 		}
 		if sr != nil && sr.ShareResources && sr.IsSharedResource(costDatum) {
 			cpuv, ramv, gpuv, pvvs, netv := getPriceVectors(cp, costDatum, rate, discount, idleCoefficient)
-			sharedResourceCost += totalVectors(cpuv) * resolutionCoefficient
-			sharedResourceCost += totalVectors(ramv) * resolutionCoefficient
-			sharedResourceCost += totalVectors(gpuv) * resolutionCoefficient
+			sharedResourceCost += totalVectors(cpuv)
+			sharedResourceCost += totalVectors(ramv)
+			sharedResourceCost += totalVectors(gpuv)
 			sharedResourceCost += totalVectors(netv)
 			for _, pv := range pvvs {
-				sharedResourceCost += totalVectors(pv) * resolutionCoefficient
+				sharedResourceCost += totalVectors(pv)
 			}
 		} else {
 			if field == "cluster" {
@@ -259,11 +280,11 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 		}
 	}
 
-	for _, agg := range aggregations {
-		agg.CPUCost = totalVectors(agg.CPUCostVector) * resolutionCoefficient
-		agg.RAMCost = totalVectors(agg.RAMCostVector) * resolutionCoefficient
-		agg.GPUCost = totalVectors(agg.GPUCostVector) * resolutionCoefficient
-		agg.PVCost = totalVectors(agg.PVCostVector) * resolutionCoefficient
+	for key, agg := range aggregations {
+		agg.CPUCost = totalVectors(agg.CPUCostVector)
+		agg.RAMCost = totalVectors(agg.RAMCostVector)
+		agg.GPUCost = totalVectors(agg.GPUCostVector)
+		agg.PVCost = totalVectors(agg.PVCostVector)
 		agg.NetworkCost = totalVectors(agg.NetworkCostVector)
 		agg.SharedCost = sharedResourceCost / float64(len(aggregations))
 
@@ -281,6 +302,13 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 		}
 
 		agg.TotalCost = agg.CPUCost + agg.RAMCost + agg.GPUCost + agg.PVCost + agg.NetworkCost + agg.SharedCost
+
+		// Evicted and Completed Pods can still show up here, but have 0 cost.
+		// Filter these by default. Any reason to keep them?
+		if agg.TotalCost == 0 {
+			delete(aggregations, key)
+			continue
+		}
 
 		agg.CPUAllocationAverage = averageVectors(agg.CPUAllocationVectors)
 		agg.GPUAllocationAverage = averageVectors(agg.GPUAllocationVectors)
@@ -303,6 +331,10 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 			if agg.CPUAllocationAverage > 0.0 {
 				avgCPURequested := averageVectors(agg.CPURequestedVectors)
 				avgCPUUsed := averageVectors(agg.CPUUsedVectors)
+
+				// Clamp averages, log range violations
+				avgCPURequested, avgCPUUsed = clampAverage(avgCPURequested, avgCPUUsed, agg.CPUAllocationAverage, "CPU")
+
 				CPUIdle = ((avgCPURequested - avgCPUUsed) / agg.CPUAllocationAverage)
 				agg.CPUEfficiency = 1.0 - CPUIdle
 			}
@@ -312,6 +344,10 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 			if agg.RAMAllocationAverage > 0.0 {
 				avgRAMRequested := averageVectors(agg.RAMRequestedVectors)
 				avgRAMUsed := averageVectors(agg.RAMUsedVectors)
+
+				// Clamp averages, log range violations
+				avgRAMRequested, avgRAMUsed = clampAverage(avgRAMRequested, avgRAMUsed, agg.RAMAllocationAverage, "RAM")
+
 				RAMIdle = ((avgRAMRequested - avgRAMUsed) / agg.RAMAllocationAverage)
 				agg.RAMEfficiency = 1.0 - RAMIdle
 			}
@@ -582,6 +618,24 @@ func NormalizeVectorByVector(xvs []*Vector, yvs []*Vector) []*Vector {
 // Matching Vectors are summed, while unmatched Vectors are passed through.
 // e.g. [(t=1, 1), (t=2, 2)] + [(t=2, 2), (t=3, 3)] = [(t=1, 1), (t=2, 4), (t=3, 3)]
 func addVectors(xvs []*Vector, yvs []*Vector) []*Vector {
+	sumOp := func(result *Vector, x *float64, y *float64) bool {
+		if x != nil && y != nil {
+			result.Value = *x + *y
+		} else if y != nil {
+			result.Value = *y
+		} else if x != nil {
+			result.Value = *x
+		}
+
+		return true
+	}
+
+	return ApplyVectorOp(xvs, yvs, sumOp)
+}
+
+// ApplyVectorOp accepts two vectors, synchronizes timestamps, and executes an operation
+// on each vector. See VectorJoinOp for details.
+func ApplyVectorOp(xvs []*Vector, yvs []*Vector, op VectorJoinOp) []*Vector {
 	// round all non-zero timestamps to the nearest 10 second mark
 	for _, yv := range yvs {
 		if yv.Timestamp != 0 {
@@ -604,8 +658,8 @@ func addVectors(xvs []*Vector, yvs []*Vector) []*Vector {
 		return xvs
 	}
 
-	// sum stores the sum of the vector slices xvs and yvs
-	var sum []*Vector
+	// result contains the final vector slice after joining xvs and yvs
+	var result []*Vector
 
 	// timestamps stores all timestamps present in both vector slices
 	// without duplicates
@@ -633,21 +687,17 @@ func addVectors(xvs []*Vector, yvs []*Vector) []*Vector {
 		}
 	}
 
-	// iterate over each timestamp to produce a final summed vector slice
+	// iterate over each timestamp to produce a final op vector slice
 	sort.Float64s(timestamps)
 	for _, t := range timestamps {
 		x, okX := xMap[t]
 		y, okY := yMap[t]
 		sv := &Vector{Timestamp: t}
-		if okX && okY {
-			sv.Value = x + y
-		} else if okX {
-			sv.Value = x
-		} else if okY {
-			sv.Value = y
+
+		if op(sv, VectorValue(x, okX), VectorValue(y, okY)) {
+			result = append(result, sv)
 		}
-		sum = append(sum, sv)
 	}
 
-	return sum
+	return result
 }
