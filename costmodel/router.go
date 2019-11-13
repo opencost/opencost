@@ -182,11 +182,11 @@ func ParseTimeRange(duration, offset string) (*time.Time, *time.Time, error) {
 	// in which case it shifts endTime back by given duration
 	endTime := time.Now()
 	if offset != "" {
-		o, err := time.ParseDuration(offset)
+		o, err := ParseDuration(offset)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error parsing offset (%s): %s", offset, err)
 		}
-		endTime = endTime.Add(-1 * o)
+		endTime = endTime.Add(-1 * *o)
 	}
 
 	// if duration is defined in terms of days, convert to hours
