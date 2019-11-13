@@ -9,6 +9,8 @@ import (
 )
 
 func main() {
+	costmodel.Initialize()
+
 	rootMux := http.NewServeMux()
 	rootMux.Handle("/", costmodel.Router)
 	rootMux.Handle("/metrics", promhttp.Handler())
