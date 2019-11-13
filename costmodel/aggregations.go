@@ -107,18 +107,12 @@ func NewSharedResourceInfo(shareResources bool, sharedNamespaces []string, label
 	return sr
 }
 
-func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.Client, cp cloud.Provider, discount float64, windowString, offset, resolution string) (map[string]float64, error) {
+func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.Client, cp cloud.Provider, discount float64, windowString, offset string) (map[string]float64, error) {
 	coefficients := make(map[string]float64)
 
 	windowDuration, err := time.ParseDuration(windowString)
 	if err != nil {
 		return nil, err
-	}
-
-	resolutionDuration, err := ParseDuration(resolution)
-	resolutionCoefficient := resolutionDuration.Hours()
-	if resolutionCoefficient < 1 {
-		resolutionCoefficient = 1 // just use 1 hour here, for numbers less than 1.
 	}
 
 	allTotals, err := ClusterCostsForAllClusters(cli, cp, windowString, offset)
@@ -153,11 +147,11 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 		for _, costDatum := range costData {
 			if costDatum.ClusterID == cid {
 				cpuv, ramv, gpuv, pvvs, _ := getPriceVectors(cp, costDatum, "", discount, 1)
-				totalContainerCost += totalVectors(cpuv) * resolutionCoefficient
-				totalContainerCost += totalVectors(ramv) * resolutionCoefficient
-				totalContainerCost += totalVectors(gpuv) * resolutionCoefficient
+				totalContainerCost += totalVectors(cpuv)
+				totalContainerCost += totalVectors(ramv)
+				totalContainerCost += totalVectors(gpuv)
 				for _, pv := range pvvs {
-					totalContainerCost += totalVectors(pv) * resolutionCoefficient
+					totalContainerCost += totalVectors(pv)
 				}
 			}
 
@@ -171,14 +165,13 @@ func ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.
 
 // AggregationOptions provides optional parameters to AggregateCostData, allowing callers to perform more complex operations
 type AggregationOptions struct {
-	DataCount             int                // number of cost data points expected; ensures proper rate calculation if data is incomplete
-	Discount              float64            // percent by which to discount CPU, RAM, and GPU cost
-	IdleCoefficients      map[string]float64 // scales costs by amount of idle resources on a per-cluster basis
-	IncludeEfficiency     bool               // set to true to receive efficiency/usage data
-	IncludeTimeSeries     bool               // set to true to receive time series data
-	Rate                  string             // set to "hourly", "daily", or "monthly" to receive cost rate, rather than cumulative cost
-	ResolutionCoefficient float64            // coefficient for converting hourly costs to per-resolution cost; e.g. 6 for a 6h resolution
-	SharedResourceInfo    *SharedResourceInfo
+	DataCount          int                // number of cost data points expected; ensures proper rate calculation if data is incomplete
+	Discount           float64            // percent by which to discount CPU, RAM, and GPU cost
+	IdleCoefficients   map[string]float64 // scales costs by amount of idle resources on a per-cluster basis
+	IncludeEfficiency  bool               // set to true to receive efficiency/usage data
+	IncludeTimeSeries  bool               // set to true to receive time series data
+	Rate               string             // set to "hourly", "daily", or "monthly" to receive cost rate, rather than cumulative cost
+	SharedResourceInfo *SharedResourceInfo
 }
 
 // AggregateCostData aggregates raw cost data by field; e.g. namespace, cluster, service, or label. In the case of label, callers
@@ -197,14 +190,6 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 		idleCoefficients = make(map[string]float64)
 	}
 
-	// resolution coefficient compensates for less-frequent-than-hourly samples by multiplying
-	// cumulative values by the hours between samples. does not apply to rate data and defaults
-	// to 1.0, which matches hourly sampling of hourly data.
-	resolutionCoefficient := opts.ResolutionCoefficient
-	if resolutionCoefficient == 0.0 || rate != "" {
-		resolutionCoefficient = 1.0
-	}
-
 	// aggregations collects key-value pairs of resource group-to-aggregated data
 	// e.g. namespace-to-data or label-value-to-data
 	aggregations := make(map[string]*Aggregation)
@@ -220,12 +205,12 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 		}
 		if sr != nil && sr.ShareResources && sr.IsSharedResource(costDatum) {
 			cpuv, ramv, gpuv, pvvs, netv := getPriceVectors(cp, costDatum, rate, discount, idleCoefficient)
-			sharedResourceCost += totalVectors(cpuv) * resolutionCoefficient
-			sharedResourceCost += totalVectors(ramv) * resolutionCoefficient
-			sharedResourceCost += totalVectors(gpuv) * resolutionCoefficient
+			sharedResourceCost += totalVectors(cpuv)
+			sharedResourceCost += totalVectors(ramv)
+			sharedResourceCost += totalVectors(gpuv)
 			sharedResourceCost += totalVectors(netv)
 			for _, pv := range pvvs {
-				sharedResourceCost += totalVectors(pv) * resolutionCoefficient
+				sharedResourceCost += totalVectors(pv)
 			}
 		} else {
 			if field == "cluster" {
@@ -260,10 +245,10 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 	}
 
 	for _, agg := range aggregations {
-		agg.CPUCost = totalVectors(agg.CPUCostVector) * resolutionCoefficient
-		agg.RAMCost = totalVectors(agg.RAMCostVector) * resolutionCoefficient
-		agg.GPUCost = totalVectors(agg.GPUCostVector) * resolutionCoefficient
-		agg.PVCost = totalVectors(agg.PVCostVector) * resolutionCoefficient
+		agg.CPUCost = totalVectors(agg.CPUCostVector)
+		agg.RAMCost = totalVectors(agg.RAMCostVector)
+		agg.GPUCost = totalVectors(agg.GPUCostVector)
+		agg.PVCost = totalVectors(agg.PVCostVector)
 		agg.NetworkCost = totalVectors(agg.NetworkCostVector)
 		agg.SharedCost = sharedResourceCost / float64(len(aggregations))
 
