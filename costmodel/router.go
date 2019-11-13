@@ -887,12 +887,6 @@ func (p *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httpro
 
 }
 
-func Healthz(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
-	w.WriteHeader(200)
-	w.Header().Set("Content-Length", "0")
-	w.Header().Set("Content-Type", "text/plain")
-}
-
 func (p *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -1299,7 +1293,6 @@ func init() {
 	Router.GET("/costDataModelRangeLarge", A.CostDataModelRangeLarge)
 	Router.GET("/outOfClusterCosts", A.OutOfClusterCostsWithCache)
 	Router.GET("/allNodePricing", A.GetAllNodePricing)
-	Router.GET("/healthz", Healthz)
 	Router.GET("/getConfigs", A.GetConfigs)
 	Router.POST("/refreshPricing", A.RefreshPricingData)
 	Router.POST("/updateSpotInfoConfigs", A.UpdateSpotInfoConfigs)
