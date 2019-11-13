@@ -50,6 +50,24 @@ type Aggregation struct {
 	TotalCost            float64   `json:"totalCost"`
 }
 
+// VectorJoinOp is an operation func that accepts a result vector pointer
+// for a specific timestamp and two float64 pointers representing the
+// input vectors for that timestamp. x or y inputs can be nil, but not
+// both. The op should use x and y values to set the Value on the result
+// ptr. If a result could not be generated, the op should return false,
+// which will omit the vector for the specific timestamp. Otherwise,
+// return true denoting a successful op.
+type VectorJoinOp func(result *Vector, x *float64, y *float64) bool
+
+// returns a nil ptr or valid float ptr based on the ok bool
+func VectorValue(v float64, ok bool) *float64 {
+	if !ok {
+		return nil
+	}
+
+	return &v
+}
+
 func (a *Aggregation) GetDataCount() int {
 	length := 0
 
@@ -174,6 +192,24 @@ type AggregationOptions struct {
 	SharedResourceInfo *SharedResourceInfo
 }
 
+// Helper method to test request/usgae values against allocation averages for efficiency scores. Generate a warning log if
+// clamp is required
+func clampAverage(requestsAvg float64, usedAverage float64, allocationAvg float64, resource string) (float64, float64) {
+	rAvg := requestsAvg
+	if rAvg > allocationAvg {
+		klog.V(3).Infof("Warning: Average %s Requested (%f) > Average %s Allocated (%f). Clamping.", resource, rAvg, resource, allocationAvg)
+		rAvg = allocationAvg
+	}
+
+	uAvg := usedAverage
+	if uAvg > allocationAvg {
+		klog.V(3).Infof("Warning: Average %s Used (%f) > Average %s Allocated (%f). Clamping.", resource, uAvg, resource, allocationAvg)
+		uAvg = allocationAvg
+	}
+
+	return rAvg, uAvg
+}
+
 // AggregateCostData aggregates raw cost data by field; e.g. namespace, cluster, service, or label. In the case of label, callers
 // must pass a slice of subfields indicating the labels by which to group. Provider is used to define custom resource pricing.
 // See AggregationOptions for optional parameters.
@@ -244,7 +280,7 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 		}
 	}
 
-	for _, agg := range aggregations {
+	for key, agg := range aggregations {
 		agg.CPUCost = totalVectors(agg.CPUCostVector)
 		agg.RAMCost = totalVectors(agg.RAMCostVector)
 		agg.GPUCost = totalVectors(agg.GPUCostVector)
@@ -267,6 +303,13 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 
 		agg.TotalCost = agg.CPUCost + agg.RAMCost + agg.GPUCost + agg.PVCost + agg.NetworkCost + agg.SharedCost
 
+		// Evicted and Completed Pods can still show up here, but have 0 cost.
+		// Filter these by default. Any reason to keep them?
+		if agg.TotalCost == 0 {
+			delete(aggregations, key)
+			continue
+		}
+
 		agg.CPUAllocationAverage = averageVectors(agg.CPUAllocationVectors)
 		agg.GPUAllocationAverage = averageVectors(agg.GPUAllocationVectors)
 		agg.RAMAllocationAverage = averageVectors(agg.RAMAllocationVectors)
@@ -288,6 +331,10 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 			if agg.CPUAllocationAverage > 0.0 {
 				avgCPURequested := averageVectors(agg.CPURequestedVectors)
 				avgCPUUsed := averageVectors(agg.CPUUsedVectors)
+
+				// Clamp averages, log range violations
+				avgCPURequested, avgCPUUsed = clampAverage(avgCPURequested, avgCPUUsed, agg.CPUAllocationAverage, "CPU")
+
 				CPUIdle = ((avgCPURequested - avgCPUUsed) / agg.CPUAllocationAverage)
 				agg.CPUEfficiency = 1.0 - CPUIdle
 			}
@@ -297,6 +344,10 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 			if agg.RAMAllocationAverage > 0.0 {
 				avgRAMRequested := averageVectors(agg.RAMRequestedVectors)
 				avgRAMUsed := averageVectors(agg.RAMUsedVectors)
+
+				// Clamp averages, log range violations
+				avgRAMRequested, avgRAMUsed = clampAverage(avgRAMRequested, avgRAMUsed, agg.RAMAllocationAverage, "RAM")
+
 				RAMIdle = ((avgRAMRequested - avgRAMUsed) / agg.RAMAllocationAverage)
 				agg.RAMEfficiency = 1.0 - RAMIdle
 			}
@@ -567,6 +618,24 @@ func NormalizeVectorByVector(xvs []*Vector, yvs []*Vector) []*Vector {
 // Matching Vectors are summed, while unmatched Vectors are passed through.
 // e.g. [(t=1, 1), (t=2, 2)] + [(t=2, 2), (t=3, 3)] = [(t=1, 1), (t=2, 4), (t=3, 3)]
 func addVectors(xvs []*Vector, yvs []*Vector) []*Vector {
+	sumOp := func(result *Vector, x *float64, y *float64) bool {
+		if x != nil && y != nil {
+			result.Value = *x + *y
+		} else if y != nil {
+			result.Value = *y
+		} else if x != nil {
+			result.Value = *x
+		}
+
+		return true
+	}
+
+	return ApplyVectorOp(xvs, yvs, sumOp)
+}
+
+// ApplyVectorOp accepts two vectors, synchronizes timestamps, and executes an operation
+// on each vector. See VectorJoinOp for details.
+func ApplyVectorOp(xvs []*Vector, yvs []*Vector, op VectorJoinOp) []*Vector {
 	// round all non-zero timestamps to the nearest 10 second mark
 	for _, yv := range yvs {
 		if yv.Timestamp != 0 {
@@ -589,8 +658,8 @@ func addVectors(xvs []*Vector, yvs []*Vector) []*Vector {
 		return xvs
 	}
 
-	// sum stores the sum of the vector slices xvs and yvs
-	var sum []*Vector
+	// result contains the final vector slice after joining xvs and yvs
+	var result []*Vector
 
 	// timestamps stores all timestamps present in both vector slices
 	// without duplicates
@@ -618,21 +687,17 @@ func addVectors(xvs []*Vector, yvs []*Vector) []*Vector {
 		}
 	}
 
-	// iterate over each timestamp to produce a final summed vector slice
+	// iterate over each timestamp to produce a final op vector slice
 	sort.Float64s(timestamps)
 	for _, t := range timestamps {
 		x, okX := xMap[t]
 		y, okY := yMap[t]
 		sv := &Vector{Timestamp: t}
-		if okX && okY {
-			sv.Value = x + y
-		} else if okX {
-			sv.Value = x
-		} else if okY {
-			sv.Value = y
+
+		if op(sv, VectorValue(x, okX), VectorValue(y, okY)) {
+			result = append(result, sv)
 		}
-		sum = append(sum, sv)
 	}
 
-	return sum
+	return result
 }
