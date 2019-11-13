@@ -607,14 +607,13 @@ func (a *Accesses) AggregateCostModel(w http.ResponseWriter, r *http.Request, ps
 
 	// aggregate cost model data by given fields and cache the result for the default expiration
 	opts := &AggregationOptions{
-		DataCount:             dataCount,
-		Discount:              discount,
-		IdleCoefficients:      idleCoefficients,
-		IncludeEfficiency:     includeEfficiency,
-		IncludeTimeSeries:     includeTimeSeries,
-		Rate:                  rate,
-		ResolutionCoefficient: resolutionHours,
-		SharedResourceInfo:    sr,
+		DataCount:          dataCount,
+		Discount:           discount,
+		IdleCoefficients:   idleCoefficients,
+		IncludeEfficiency:  includeEfficiency,
+		IncludeTimeSeries:  includeTimeSeries,
+		Rate:               rate,
+		SharedResourceInfo: sr,
 	}
 	result := AggregateCostData(costData, field, subfields, A.Cloud, opts)
 	A.AggregateCache.Set(aggKey, result, cache.DefaultExpiration)
@@ -1076,7 +1075,7 @@ func (a *Accesses) recordPrices() {
 	}()
 }
 
-func init() {
+func Initialize() {
 	klog.InitFlags(nil)
 	flag.Set("v", "3")
 	flag.Parse()
