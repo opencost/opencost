@@ -197,13 +197,13 @@ type AggregationOptions struct {
 func clampAverage(requestsAvg float64, usedAverage float64, allocationAvg float64, resource string) (float64, float64) {
 	rAvg := requestsAvg
 	if rAvg > allocationAvg {
-		klog.V(3).Infof("Warning: Average %s Requested (%f) > Average %s Allocated (%f). Clamping.", resource, rAvg, resource, allocationAvg)
+		klog.V(4).Infof("Warning: Average %s Requested (%f) > Average %s Allocated (%f). Clamping.", resource, rAvg, resource, allocationAvg)
 		rAvg = allocationAvg
 	}
 
 	uAvg := usedAverage
 	if uAvg > allocationAvg {
-		klog.V(3).Infof("Warning: Average %s Used (%f) > Average %s Allocated (%f). Clamping.", resource, uAvg, resource, allocationAvg)
+		klog.V(4).Infof("Warning: Average %s Used (%f) > Average %s Allocated (%f). Clamping.", resource, uAvg, resource, allocationAvg)
 		uAvg = allocationAvg
 	}
 

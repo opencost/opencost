@@ -1347,7 +1347,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	// for the specific inputs to prevent multiple queries for identical data.
 	key := requestKeyFor(startString, endString, windowString, filterNamespace, filterCluster, remoteEnabled)
 
-	klog.V(3).Infof("ComputeCostDataRange with Key: %s", key)
+	klog.V(4).Infof("ComputeCostDataRange with Key: %s", key)
 
 	// If there is already a request out that uses the same data, wait for it to return to share the results.
 	// Otherwise, start executing.

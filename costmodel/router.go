@@ -271,52 +271,20 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 	offset := r.URL.Query().Get("offset")
 	fields := r.URL.Query().Get("filterFields")
 	namespace := r.URL.Query().Get("namespace")
-	aggregationField := r.URL.Query().Get("aggregation")
-	subfields := strings.Split(r.URL.Query().Get("aggregationSubfield"), ",")
 
 	if offset != "" {
 		offset = "offset " + offset
 	}
 
 	data, err := a.Model.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, window, offset, namespace)
-	if aggregationField != "" {
-		c, err := a.Cloud.GetConfig()
-		if err != nil {
-			w.Write(WrapData(nil, err))
-			return
-		}
 
-		discount, err := ParsePercentString(c.Discount)
-		if err != nil {
-			w.Write(WrapData(nil, err))
-			return
-		}
-
-		dur, err := time.ParseDuration(window)
-		if err != nil {
-			w.Write(WrapData(nil, err))
-			return
-		}
-		// dataCount is the number of time series data expected for the given interval,
-		// which we compute because Prometheus time series vectors omit zero values.
-		// This assumes hourly data, incremented by one to capture the 0th data point.
-		dataCount := int(dur.Hours())
-
-		opts := &AggregationOptions{
-			DataCount:        dataCount,
-			Discount:         discount,
-			IdleCoefficients: make(map[string]float64),
-		}
-		agg := AggregateCostData(data, aggregationField, subfields, a.Cloud, opts)
-		w.Write(WrapData(agg, nil))
+	if fields != "" {
+		filteredData := filterFields(fields, data)
+		w.Write(WrapData(filteredData, err))
 	} else {
-		if fields != "" {
-			filteredData := filterFields(fields, data)
-			w.Write(WrapData(filteredData, err))
-		} else {
-			w.Write(WrapData(data, err))
-		}
+		w.Write(WrapData(data, err))
 	}
+
 }
 
 func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -388,8 +356,6 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	fields := r.URL.Query().Get("filterFields")
 	namespace := r.URL.Query().Get("namespace")
 	cluster := r.URL.Query().Get("cluster")
-	aggregationField := r.URL.Query().Get("aggregation")
-	subfields := strings.Split(r.URL.Query().Get("aggregationSubfield"), ",")
 	remote := r.URL.Query().Get("remote")
 
 	remoteAvailable := os.Getenv(remoteEnabled)
@@ -410,32 +376,11 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	if err != nil {
 		w.Write(WrapData(nil, err))
 	}
-	if aggregationField != "" {
-		c, err := a.Cloud.GetConfig()
-		if err != nil {
-			w.Write(WrapData(nil, err))
-			return
-		}
-
-		discount, err := ParsePercentString(c.Discount)
-		if err != nil {
-			w.Write(WrapData(nil, err))
-			return
-		}
-
-		opts := &AggregationOptions{
-			Discount:         discount,
-			IdleCoefficients: make(map[string]float64),
-		}
-		agg := AggregateCostData(data, aggregationField, subfields, a.Cloud, opts)
-		w.Write(WrapData(agg, nil))
+	if fields != "" {
+		filteredData := filterFields(fields, data)
+		w.Write(WrapData(filteredData, err))
 	} else {
-		if fields != "" {
-			filteredData := filterFields(fields, data)
-			w.Write(WrapData(filteredData, err))
-		} else {
-			w.Write(WrapData(data, err))
-		}
+		w.Write(WrapData(data, err))
 	}
 }
 
