@@ -101,11 +101,6 @@ func (cd *CostData) String() string {
 		len(cd.RAMReq), len(cd.RAMUsed), len(cd.RAMAllocation))
 }
 
-type Vector struct {
-	Timestamp float64 `json:"timestamp"`
-	Value     float64 `json:"value"`
-}
-
 const (
 	queryRAMRequestsStr = `avg(
 		label_replace(
