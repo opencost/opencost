@@ -14,6 +14,7 @@ import (
 	"time"
 
 	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
+	"github.com/kubecost/cost-model/clustercache"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -48,24 +49,17 @@ const (
 )
 
 type CostModel struct {
-	Cache        ClusterCache
+	Cache        clustercache.ClusterCache
 	RequestGroup *singleflight.Group
-
-	stop chan struct{}
 }
 
-func NewCostModel(client kubernetes.Interface) *CostModel {
+func NewCostModel(cache clustercache.ClusterCache) *CostModel {
 	// request grouping to prevent over-requesting the same data prior to caching
 	requestGroup := new(singleflight.Group)
-
-	stopCh := make(chan struct{})
-	cache := NewKubernetesClusterCache(client)
-	cache.Run(stopCh)
 
 	return &CostModel{
 		Cache:        cache,
 		RequestGroup: requestGroup,
-		stop:         stopCh,
 	}
 }
 
@@ -907,7 +901,7 @@ func getContainerAllocation(req []*Vector, used []*Vector) []*Vector {
 	return allocation
 }
 
-func addPVData(cache ClusterCache, pvClaimMapping map[string]*PersistentVolumeClaimData, cloud costAnalyzerCloud.Provider) error {
+func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*PersistentVolumeClaimData, cloud costAnalyzerCloud.Provider) error {
 	cfg, err := cloud.GetConfig()
 	if err != nil {
 		return err
@@ -974,7 +968,7 @@ func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cp costAnalyz
 	return nil
 }
 
-func getNodeCost(cache ClusterCache, cp costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.Node, error) {
+func getNodeCost(cache clustercache.ClusterCache, cp costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.Node, error) {
 	cfg, err := cp.GetConfig()
 	if err != nil {
 		return nil, err
@@ -1110,10 +1104,12 @@ func getNodeCost(cache ClusterCache, cp costAnalyzerCloud.Provider) (map[string]
 		nodes[name] = &newCnode
 	}
 
+	cp.ApplyReservedInstancePricing(nodes)
+
 	return nodes, nil
 }
 
-func getPodServices(cache ClusterCache, podList []*v1.Pod, clusterID string) (map[string]map[string][]string, error) {
+func getPodServices(cache clustercache.ClusterCache, podList []*v1.Pod, clusterID string) (map[string]map[string][]string, error) {
 	servicesList := cache.GetAllServices()
 	podServicesMapping := make(map[string]map[string][]string)
 	for _, service := range servicesList {
@@ -1139,7 +1135,7 @@ func getPodServices(cache ClusterCache, podList []*v1.Pod, clusterID string) (ma
 	return podServicesMapping, nil
 }
 
-func getPodDeployments(cache ClusterCache, podList []*v1.Pod, clusterID string) (map[string]map[string][]string, error) {
+func getPodDeployments(cache clustercache.ClusterCache, podList []*v1.Pod, clusterID string) (map[string]map[string][]string, error) {
 	deploymentsList := cache.GetAllDeployments()
 	podDeploymentsMapping := make(map[string]map[string][]string) // namespace: podName: [deploymentNames]
 	for _, deployment := range deploymentsList {
@@ -2078,7 +2074,7 @@ func appendLabelsList(mainLabels map[string]map[string][]string, labels map[stri
 	}
 }
 
-func getNamespaceLabels(cache ClusterCache, clusterID string) (map[string]map[string]string, error) {
+func getNamespaceLabels(cache clustercache.ClusterCache, clusterID string) (map[string]map[string]string, error) {
 	nsToLabels := make(map[string]map[string]string)
 	nss := cache.GetAllNamespaces()
 	for _, ns := range nss {

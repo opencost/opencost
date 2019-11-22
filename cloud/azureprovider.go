@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/kubecost/cost-model/clustercache"
+
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2017-09-01/skus"
 	"github.com/Azure/azure-sdk-for-go/services/containerservice/mgmt/2018-03-31/containerservice"
 	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
@@ -22,8 +24,6 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
 )
 
@@ -165,7 +165,7 @@ func checkRegionID(regionID string, regions map[string]string) bool {
 type Azure struct {
 	allPrices               map[string]*Node
 	DownloadPricingDataLock sync.RWMutex
-	Clientset               *kubernetes.Clientset
+	Clientset               clustercache.ClusterCache
 }
 
 type azureKey struct {
@@ -265,12 +265,10 @@ func getMachineTypeVariants(mt string) []string {
 }
 
 func (az *Azure) GetManagementPlatform() (string, error) {
-	nodes, err := az.Clientset.CoreV1().Nodes().List(metav1.ListOptions{})
-	if err != nil {
-		return "", err
-	}
-	if len(nodes.Items) > 0 {
-		n := nodes.Items[0]
+	nodes := az.Clientset.GetAllNodes()
+
+	if len(nodes) > 0 {
+		n := nodes[0]
 		providerID := n.Spec.ProviderID
 		if strings.Contains(providerID, "aks") {
 			return "aks", nil
@@ -576,6 +574,10 @@ func (az *Azure) GetConfig() (*CustomPricing, error) {
 
 func (az *Azure) ExternalAllocations(string, string, string) ([]*OutOfClusterAllocation, error) {
 	return nil, nil
+}
+
+func (az *Azure) ApplyReservedInstancePricing(nodes map[string]*Node) {
+
 }
 
 func (az *Azure) PVPricing(PVKey) (*PV, error) {

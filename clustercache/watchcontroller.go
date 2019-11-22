@@ -1,4 +1,4 @@
-package costmodel
+package clustercache
 
 import (
 	"fmt"

@@ -20,13 +20,12 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/compute/metadata"
+	"github.com/kubecost/cost-model/clustercache"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/iterator"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 )
 
 const GKE_GPU_TAG = "cloud.google.com/gke-accelerator"
@@ -45,12 +44,13 @@ func (t userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error)
 // GCP implements a provider interface for GCP
 type GCP struct {
 	Pricing                 map[string]*GCPPricing
-	Clientset               *kubernetes.Clientset
+	Clientset               clustercache.ClusterCache
 	APIKey                  string
 	BaseCPUPrice            string
 	ProjectID               string
 	BillingDataDataset      string
 	DownloadPricingDataLock sync.RWMutex
+	ReservedInstances       []*GCPReservedInstance
 	*CustomProvider
 }
 
@@ -103,12 +103,10 @@ type BigQueryConfig struct {
 }
 
 func (gcp *GCP) GetManagementPlatform() (string, error) {
-	nodes, err := gcp.Clientset.CoreV1().Nodes().List(metav1.ListOptions{})
-	if err != nil {
-		return "", err
-	}
-	if len(nodes.Items) > 0 {
-		n := nodes.Items[0]
+	nodes := gcp.Clientset.GetAllNodes()
+
+	if len(nodes) > 0 {
+		n := nodes[0]
 		version := n.Status.NodeInfo.KubeletVersion
 		if strings.Contains(version, "gke") {
 			return "gke", nil
@@ -666,26 +664,19 @@ func (gcp *GCP) DownloadPricingData() error {
 	gcp.ProjectID = c.ProjectID
 	gcp.BillingDataDataset = c.BillingDataDataset
 
-	nodeList, err := gcp.Clientset.CoreV1().Nodes().List(metav1.ListOptions{})
-	if err != nil {
-		return err
-	}
+	nodeList := gcp.Clientset.GetAllNodes()
 	inputkeys := make(map[string]Key)
 
-	for _, n := range nodeList.Items {
+	for _, n := range nodeList {
 		labels := n.GetObjectMeta().GetLabels()
 		key := gcp.GetKey(labels)
 		inputkeys[key.Features()] = key
 	}
 
-	pvList, err := gcp.Clientset.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
-	if err != nil {
-		return err
-	}
-
-	storageClasses, err := gcp.Clientset.StorageV1().StorageClasses().List(metav1.ListOptions{})
+	pvList := gcp.Clientset.GetAllPersistentVolumes()
+	storageClasses := gcp.Clientset.GetAllStorageClasses()
 	storageClassMap := make(map[string]map[string]string)
-	for _, storageClass := range storageClasses.Items {
+	for _, storageClass := range storageClasses {
 		params := storageClass.Parameters
 		storageClassMap[storageClass.ObjectMeta.Name] = params
 		if storageClass.GetAnnotations()["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.GetAnnotations()["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
@@ -695,13 +686,13 @@ func (gcp *GCP) DownloadPricingData() error {
 	}
 
 	pvkeys := make(map[string]PVKey)
-	for _, pv := range pvList.Items {
+	for _, pv := range pvList {
 		params, ok := storageClassMap[pv.Spec.StorageClassName]
 		if !ok {
 			klog.Infof("Unable to find params for storageClassName %s", pv.Name)
 			continue
 		}
-		key := gcp.GetPVKey(&pv, params)
+		key := gcp.GetPVKey(pv, params)
 		pvkeys[key.Features()] = key
 	}
 
@@ -710,8 +701,9 @@ func (gcp *GCP) DownloadPricingData() error {
 		klog.V(1).Infof("Failed to lookup reserved instance data: %s", err.Error())
 	} else {
 		klog.V(1).Infof("Found %d reserved instances", len(reserved))
+		gcp.ReservedInstances = reserved
 		for _, r := range reserved {
-			klog.V(1).Infof("Reserved: CPU: %d, RAM: %d", r.ReservedCPU, r.ReservedRAM)
+			klog.V(1).Infof("Reserved: CPU: %d, RAM: %d, Region: %s, Start: %s, End: %s", r.ReservedCPU, r.ReservedRAM, r.Region, r.StartDate.String(), r.EndDate.String())
 		}
 	}
 
@@ -784,6 +776,20 @@ type GCPReservedInstance struct {
 	Region      string
 }
 
+type ReservedCounter struct {
+	RemainingCPU int64
+	RemainingRAM int64
+	Instance     *GCPReservedInstance
+}
+
+func newReservedCounter(instance *GCPReservedInstance) *ReservedCounter {
+	return &ReservedCounter{
+		RemainingCPU: instance.ReservedCPU,
+		RemainingRAM: instance.ReservedRAM,
+		Instance:     instance,
+	}
+}
+
 // Two available Reservation plans for GCP, 1-year and 3-year
 var gcpReservedInstancePlans map[string]*GCPReservedInstancePlan = map[string]*GCPReservedInstancePlan{
 	GCPReservedInstancePlanOneYear: &GCPReservedInstancePlan{
@@ -796,6 +802,102 @@ var gcpReservedInstancePlans map[string]*GCPReservedInstancePlan = map[string]*G
 		CPUCost: 0.014225,
 		RAMCost: 0.001907,
 	},
+}
+
+func (gcp *GCP) ApplyReservedInstancePricing(nodes map[string]*Node) {
+	numReserved := len(gcp.ReservedInstances)
+
+	// Early return if no reserved instance data loaded
+	if numReserved == 0 {
+		klog.V(1).Infof("[Reserved] No Reserved Instances")
+		return
+	}
+
+	now := time.Now()
+
+	counters := make(map[string][]*ReservedCounter)
+	for _, r := range gcp.ReservedInstances {
+		if now.Before(r.StartDate) || now.After(r.EndDate) {
+			klog.V(1).Infof("[Reserved] Skipped Reserved Instance due to dates")
+			continue
+		}
+
+		_, ok := counters[r.Region]
+		counter := newReservedCounter(r)
+		if !ok {
+			counters[r.Region] = []*ReservedCounter{counter}
+		} else {
+			counters[r.Region] = append(counters[r.Region], counter)
+		}
+	}
+
+	gcpNodes := make(map[string]*v1.Node)
+	currentNodes := gcp.Clientset.GetAllNodes()
+
+	// Create a node name -> node map
+	for _, gcpNode := range currentNodes {
+		gcpNodes[gcpNode.GetName()] = gcpNode
+	}
+
+	// go through all provider nodes using k8s nodes for region
+	for nodeName, node := range nodes {
+		kNode, ok := gcpNodes[nodeName]
+		if !ok {
+			klog.V(1).Infof("[Reserved] Could not find K8s Node with name: %s", nodeName)
+			continue
+		}
+
+		nodeRegion, ok := kNode.Labels[v1.LabelZoneRegion]
+		if !ok {
+			klog.V(1).Infof("[Reserved] Could not find node region")
+			continue
+		}
+
+		reservedCounters, ok := counters[nodeRegion]
+		if !ok {
+			klog.V(1).Infof("[Reserved] Could not find counters for region: %s", nodeRegion)
+			continue
+		}
+		if node.Reserved != nil {
+			continue
+		}
+
+		node.Reserved = &ReservedInstanceData{
+			ReservedCPU: 0,
+			ReservedRAM: 0,
+		}
+
+		for _, reservedCounter := range reservedCounters {
+			if reservedCounter.RemainingCPU != 0 {
+				nodeCPU, _ := strconv.ParseInt(node.VCPU, 10, 64)
+				nodeCPU -= node.Reserved.ReservedCPU
+				node.Reserved.CPUCost = reservedCounter.Instance.Plan.CPUCost
+
+				if reservedCounter.RemainingCPU >= nodeCPU {
+					reservedCounter.RemainingCPU -= nodeCPU
+					node.Reserved.ReservedCPU += nodeCPU
+				} else {
+					node.Reserved.ReservedCPU += reservedCounter.RemainingCPU
+					reservedCounter.RemainingCPU = 0
+				}
+			}
+
+			if reservedCounter.RemainingRAM != 0 {
+				nodeRAMF, _ := strconv.ParseFloat(node.RAMBytes, 64)
+				nodeRAM := int64(nodeRAMF)
+				nodeRAM -= node.Reserved.ReservedRAM
+				node.Reserved.RAMCost = reservedCounter.Instance.Plan.RAMCost
+
+				if reservedCounter.RemainingRAM >= nodeRAM {
+					reservedCounter.RemainingRAM -= nodeRAM
+					node.Reserved.ReservedRAM += nodeRAM
+				} else {
+					node.Reserved.ReservedRAM += reservedCounter.RemainingRAM
+					reservedCounter.RemainingRAM = 0
+				}
+			}
+		}
+	}
 }
 
 func (gcp *GCP) getReservedInstances() ([]*GCPReservedInstance, error) {
@@ -823,7 +925,7 @@ func (gcp *GCP) getReservedInstances() ([]*GCPReservedInstance, error) {
 			for _, resource := range commit.Resources {
 				switch resource.Type {
 				case GCPReservedInstanceResourceTypeRAM:
-					ram = resource.Amount
+					ram = resource.Amount * 1024 * 1024
 				case GCPReservedInstanceResourceTypeCPU:
 					vcpu = resource.Amount
 				default:
