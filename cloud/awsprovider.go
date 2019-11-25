@@ -714,7 +714,6 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 			} else {
 				klog.V(2).Infof("Spot data for node %s is missing", k.ID())
 			}
-			klog.V(1).Infof("SPOT COST FOR %s: %s", k.Features, spotcost)
 			return &Node{
 				Cost:         spotcost,
 				VCPU:         terms.VCpu,
@@ -1373,7 +1372,7 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 				}
 				if len(foundVersion) == 0 {
 					spotFeedVersion := rec[0]
-					klog.V(3).Infof("Spot feed version is \"%s\"", spotFeedVersion)
+					klog.V(4).Infof("Spot feed version is \"%s\"", spotFeedVersion)
 					matches := versionRx.FindStringSubmatch(spotFeedVersion)
 					if matches != nil {
 						foundVersion = matches[1]
@@ -1394,7 +1393,7 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 				continue
 			}
 
-			klog.V(3).Infof("Found spot info %+v", spot)
+			klog.V(4).Infof("Found spot info %+v", spot)
 			spots[spot.InstanceID] = &spot
 		}
 		gr.Close()
