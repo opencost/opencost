@@ -841,6 +841,9 @@ func (gcp *GCP) ApplyReservedInstancePricing(nodes map[string]*Node) {
 
 	// go through all provider nodes using k8s nodes for region
 	for nodeName, node := range nodes {
+		// Reset reserved allocation to prevent double allocation
+		node.Reserved = nil
+
 		kNode, ok := gcpNodes[nodeName]
 		if !ok {
 			klog.V(1).Infof("[Reserved] Could not find K8s Node with name: %s", nodeName)
@@ -856,9 +859,6 @@ func (gcp *GCP) ApplyReservedInstancePricing(nodes map[string]*Node) {
 		reservedCounters, ok := counters[nodeRegion]
 		if !ok {
 			klog.V(1).Infof("[Reserved] Could not find counters for region: %s", nodeRegion)
-			continue
-		}
-		if node.Reserved != nil {
 			continue
 		}
 
