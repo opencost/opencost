@@ -108,72 +108,17 @@ func VectorValue(v float64, ok bool) *float64 {
 // which has had its timestamps rounded and its values divided by the values
 // of the Vectors of yvs, such that yvs is the "unit" Vector slice.
 func NormalizeVectorByVector(xvs []*Vector, yvs []*Vector) []*Vector {
-	// round all non-zero timestamps to the nearest 10 second mark
-	for _, yv := range yvs {
-		if yv.Timestamp != 0 {
-			yv.Timestamp = roundTimestamp(yv.Timestamp, 10.0)
+	normalizeOp := func(result *Vector, x *float64, y *float64) bool {
+		if x != nil && y != nil && *y != 0 {
+			result.Value = *x / *y
+		} else if x != nil {
+			result.Value = *x
+		} else if y != nil {
+			result.Value = 0
 		}
-	}
-	for _, xv := range xvs {
-		if xv.Timestamp != 0 {
-			xv.Timestamp = roundTimestamp(xv.Timestamp, 10.0)
-		}
+
+		return true
 	}
 
-	// if xvs is empty, return yvs
-	if xvs == nil || len(xvs) == 0 {
-		return yvs
-	}
-
-	// if yvs is empty, return xvs
-	if yvs == nil || len(yvs) == 0 {
-		return xvs
-	}
-
-	// sum stores the sum of the vector slices xvs and yvs
-	var sum []*Vector
-
-	// timestamps stores all timestamps present in both vector slices
-	// without duplicates
-	var timestamps []float64
-
-	// turn each vector slice into a map of timestamp-to-value so that
-	// values at equal timestamps can be lined-up and summed
-	xMap := make(map[float64]float64)
-	for _, xv := range xvs {
-		if xv.Timestamp == 0 {
-			continue
-		}
-		xMap[xv.Timestamp] = xv.Value
-		timestamps = append(timestamps, xv.Timestamp)
-	}
-	yMap := make(map[float64]float64)
-	for _, yv := range yvs {
-		if yv.Timestamp == 0 {
-			continue
-		}
-		yMap[yv.Timestamp] = yv.Value
-		if _, ok := xMap[yv.Timestamp]; !ok {
-			// no need to double add, since we'll range over sorted timestamps and check.
-			timestamps = append(timestamps, yv.Timestamp)
-		}
-	}
-
-	// iterate over each timestamp to produce a final normalized vector slice
-	sort.Float64s(timestamps)
-	for _, t := range timestamps {
-		x, okX := xMap[t]
-		y, okY := yMap[t]
-		sv := &Vector{Timestamp: t}
-		if okX && okY && y != 0 {
-			sv.Value = x / y
-		} else if okX {
-			sv.Value = x
-		} else if okY {
-			sv.Value = 0
-		}
-		sum = append(sum, sv)
-	}
-
-	return sum
+	return ApplyVectorOp(xvs, yvs, normalizeOp)
 }
