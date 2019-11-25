@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"k8s.io/klog"
 
@@ -704,6 +705,16 @@ func (gcp *GCP) DownloadPricingData() error {
 		pvkeys[key.Features()] = key
 	}
 
+	reserved, err := gcp.getReservedInstances()
+	if err != nil {
+		klog.V(1).Infof("Failed to lookup reserved instance data: %s", err.Error())
+	} else {
+		klog.V(1).Infof("Found %d reserved instances", len(reserved))
+		for _, r := range reserved {
+			klog.V(1).Infof("Reserved: CPU: %d, RAM: %d", r.ReservedCPU, r.ReservedRAM)
+		}
+	}
+
 	pages, err := gcp.parsePages(inputkeys, pvkeys)
 
 	if err != nil {
@@ -748,6 +759,115 @@ func (c *GCP) NetworkPricing() (*Network, error) {
 		RegionNetworkEgressCost:   rnec,
 		InternetNetworkEgressCost: inec,
 	}, nil
+}
+
+const (
+	GCPReservedInstanceResourceTypeRAM string = "MEMORY"
+	GCPReservedInstanceResourceTypeCPU string = "VCPU"
+	GCPReservedInstanceStatusActive    string = "ACTIVE"
+	GCPReservedInstancePlanOneYear     string = "TWELVE_MONTH"
+	GCPReservedInstancePlanThreeYear   string = "THIRTY_SIX_MONTH"
+)
+
+type GCPReservedInstancePlan struct {
+	Name    string
+	CPUCost float64
+	RAMCost float64
+}
+
+type GCPReservedInstance struct {
+	ReservedRAM int64
+	ReservedCPU int64
+	Plan        *GCPReservedInstancePlan
+	StartDate   time.Time
+	EndDate     time.Time
+	Region      string
+}
+
+// Two available Reservation plans for GCP, 1-year and 3-year
+var gcpReservedInstancePlans map[string]*GCPReservedInstancePlan = map[string]*GCPReservedInstancePlan{
+	GCPReservedInstancePlanOneYear: &GCPReservedInstancePlan{
+		Name:    GCPReservedInstancePlanOneYear,
+		CPUCost: 0.019915,
+		RAMCost: 0.002669,
+	},
+	GCPReservedInstancePlanThreeYear: &GCPReservedInstancePlan{
+		Name:    GCPReservedInstancePlanThreeYear,
+		CPUCost: 0.014225,
+		RAMCost: 0.001907,
+	},
+}
+
+func (gcp *GCP) getReservedInstances() ([]*GCPReservedInstance, error) {
+	var results []*GCPReservedInstance
+
+	ctx := context.Background()
+	computeService, err := compute.NewService(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	commitments, err := computeService.RegionCommitments.AggregatedList(gcp.ProjectID).Do()
+	if err != nil {
+		return nil, err
+	}
+
+	for regionKey, commitList := range commitments.Items {
+		for _, commit := range commitList.Commitments {
+			if commit.Status != GCPReservedInstanceStatusActive {
+				continue
+			}
+
+			var vcpu int64 = 0
+			var ram int64 = 0
+			for _, resource := range commit.Resources {
+				switch resource.Type {
+				case GCPReservedInstanceResourceTypeRAM:
+					ram = resource.Amount
+				case GCPReservedInstanceResourceTypeCPU:
+					vcpu = resource.Amount
+				default:
+					klog.V(4).Infof("Failed to handle resource type: %s", resource.Type)
+				}
+			}
+
+			var region string
+			regionStr := strings.Split(regionKey, "/")
+			if len(regionStr) == 2 {
+				region = regionStr[1]
+			}
+
+			timeLayout := "2006-01-02T15:04:05Z07:00"
+			startTime, err := time.Parse(timeLayout, commit.StartTimestamp)
+			if err != nil {
+				klog.V(1).Infof("Failed to parse start date: %s", commit.StartTimestamp)
+				continue
+			}
+
+			endTime, err := time.Parse(timeLayout, commit.EndTimestamp)
+			if err != nil {
+				klog.V(1).Infof("Failed to parse end date: %s", commit.EndTimestamp)
+				continue
+			}
+
+			// Look for a plan based on the name. Default to One Year if it fails
+			plan, ok := gcpReservedInstancePlans[commit.Plan]
+			if !ok {
+				plan = gcpReservedInstancePlans[GCPReservedInstancePlanOneYear]
+			}
+
+			results = append(results, &GCPReservedInstance{
+				Region:      region,
+				ReservedRAM: ram,
+				ReservedCPU: vcpu,
+				Plan:        plan,
+				StartDate:   startTime,
+				EndDate:     endTime,
+			})
+		}
+	}
+
+	return results, nil
 }
 
 type pvKey struct {

@@ -1400,3 +1400,42 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 	}
 	return spots, nil
 }
+
+/*
+func (aws *AWS) getReservedInstances() ([]interface{}, error) {
+	customPricing, err := a.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	if customPricing.ServiceKeyName != "" {
+		err = os.Setenv(awsAccessKeyIDEnvVar, customPricing.ServiceKeyName)
+		if err != nil {
+			return nil, err
+		}
+		err = os.Setenv(awsAccessKeySecretEnvVar, customPricing.ServiceKeySecret)
+		if err != nil {
+			return nil, err
+		}
+	}
+	athenaConfigs, err := os.Open("/var/configs/athena.json")
+	if err != nil {
+		return nil, err
+	}
+	defer athenaConfigs.Close()
+	b, err := ioutil.ReadAll(athenaConfigs)
+	if err != nil {
+		return nil, err
+	}
+	var athenaConf map[string]string
+	json.Unmarshal([]byte(b), &athenaConf)
+	region := aws.String(customPricing.AthenaRegion)
+
+	c := &aws.Config{
+		Region: region,
+	}
+	s := session.Must(session.NewSession(c))
+	svc := ec2.New(s)
+
+	svc.DescribeReservedInstances()
+}
+*/
