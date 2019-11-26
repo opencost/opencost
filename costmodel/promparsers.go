@@ -154,6 +154,56 @@ func parseDataPoint(dataPoint interface{}) (*Vector, error) {
 	}, nil
 }
 
+func GetPVInfo(qr interface{}, defaultClusterID string) (map[string]*PersistentVolumeClaimData, error) {
+	toReturn := make(map[string]*PersistentVolumeClaimData)
+	result, err := NewQueryResults(qr)
+	if err != nil {
+		return toReturn, err
+	}
+
+	for _, val := range result {
+		clusterID, err := val.GetString("cluster_id")
+		if clusterID == "" {
+			clusterID = defaultClusterID
+		}
+
+		ns, err := val.GetString("namespace")
+		if err != nil {
+			return toReturn, err
+		}
+
+		pvcName, err := val.GetString("persistentvolumeclaim")
+		if err != nil {
+			return toReturn, err
+		}
+
+		volumeName, err := val.GetString("volumename")
+		if err != nil {
+			klog.V(3).Infof("Warning: Unfulfilled claim %s: volumename field does not exist in data result vector", pvcName)
+			volumeName = ""
+		}
+
+		pvClass, err := val.GetString("storageclass")
+		if err != nil {
+			// TODO: We need to look up the actual PV and PV capacity. For now just proceed with "".
+			klog.V(2).Infof("Storage Class not found for claim \"%s/%s\".", ns, pvcName)
+			pvClass = ""
+		}
+
+		key := fmt.Sprintf("%s,%s,%s", ns, pvcName, clusterID)
+		toReturn[key] = &PersistentVolumeClaimData{
+			Class:      pvClass,
+			Claim:      pvcName,
+			Namespace:  ns,
+			ClusterID:  clusterID,
+			VolumeName: volumeName,
+			Values:     val.Values,
+		}
+	}
+
+	return toReturn, nil
+}
+
 func GetPVAllocationMetrics(queryResult interface{}, defaultClusterID string) (map[string][]*PersistentVolumeClaimData, error) {
 	toReturn := make(map[string][]*PersistentVolumeClaimData)
 	result, err := NewQueryResults(queryResult)
