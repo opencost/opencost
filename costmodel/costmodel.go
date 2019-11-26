@@ -7,7 +7,6 @@ import (
 	"math"
 	"net/http"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -404,7 +403,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		return nil, err
 	}
 
-	pvClaimMapping, err := getPVInfoVector(resultPVRequests, clusterID)
+	pvClaimMapping, err := GetPVInfo(resultPVRequests, clusterID)
 	if err != nil {
 		klog.Infof("Unable to get PV Data: %s", err.Error())
 	}
@@ -839,66 +838,20 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 }
 
 func getContainerAllocation(req []*Vector, used []*Vector) []*Vector {
-	if req == nil || len(req) == 0 {
-		for _, usedV := range used {
-			if usedV.Timestamp == 0 {
-				continue
-			}
-			usedV.Timestamp = math.Round(usedV.Timestamp/10) * 10
+	// The result of the normalize operation will be a new []*Vector to replace the requests
+	allocationOp := func(r *Vector, x *float64, y *float64) bool {
+		if x != nil && y != nil {
+			r.Value = math.Max(*x, *y)
+		} else if x != nil {
+			r.Value = *x
+		} else if y != nil {
+			r.Value = *y
 		}
-		return used
-	}
-	if used == nil || len(used) == 0 {
-		for _, reqV := range req {
-			if reqV.Timestamp == 0 {
-				continue
-			}
-			reqV.Timestamp = math.Round(reqV.Timestamp/10) * 10
-		}
-		return req
-	}
-	var allocation []*Vector
 
-	var timestamps []float64
-	reqMap := make(map[float64]float64)
-	for _, reqV := range req {
-		if reqV.Timestamp == 0 {
-			continue
-		}
-		reqV.Timestamp = math.Round(reqV.Timestamp/10) * 10
-		reqMap[reqV.Timestamp] = reqV.Value
-		timestamps = append(timestamps, reqV.Timestamp)
-	}
-	usedMap := make(map[float64]float64)
-	for _, usedV := range used {
-		if usedV.Timestamp == 0 {
-			continue
-		}
-		usedV.Timestamp = math.Round(usedV.Timestamp/10) * 10
-		usedMap[usedV.Timestamp] = usedV.Value
-		if _, ok := reqMap[usedV.Timestamp]; !ok { // no need to double add, since we'll range over sorted timestamps and check.
-			timestamps = append(timestamps, usedV.Timestamp)
-		}
+		return true
 	}
 
-	sort.Float64s(timestamps)
-	for _, t := range timestamps {
-		rv, okR := reqMap[t]
-		uv, okU := usedMap[t]
-		allocationVector := &Vector{
-			Timestamp: t,
-		}
-		if okR && okU {
-			allocationVector.Value = math.Max(rv, uv)
-		} else if okR {
-			allocationVector.Value = rv
-		} else if okU {
-			allocationVector.Value = uv
-		}
-		allocation = append(allocation, allocationVector)
-	}
-
-	return allocation
+	return ApplyVectorOp(req, used, allocationOp)
 }
 
 func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*PersistentVolumeClaimData, cloud costAnalyzerCloud.Provider) error {
@@ -1555,7 +1508,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		return nil, err
 	}
 
-	pvClaimMapping, err := getPVInfoVectors(resultPVRequests, clusterID)
+	pvClaimMapping, err := GetPVInfo(resultPVRequests, clusterID)
 	if err != nil {
 		// Just log for compatibility with KSM less than 1.6
 		klog.Infof("Unable to get PV Data: %s", err.Error())
@@ -2122,253 +2075,21 @@ type PersistentVolumeClaimData struct {
 
 func getCost(qr interface{}) (map[string][]*Vector, error) {
 	toReturn := make(map[string][]*Vector)
-	for _, val := range qr.(map[string]interface{})["data"].(map[string]interface{})["result"].([]interface{}) {
-		metricInterface, ok := val.(map[string]interface{})["metric"]
-		if !ok {
-			return nil, fmt.Errorf("Metric field does not exist in data result vector")
-		}
-		metricMap, ok := metricInterface.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("Metric field is improperly formatted")
-		}
-		instance, ok := metricMap["instance"]
-		if !ok {
-			return nil, fmt.Errorf("Instance field does not exist in data result vector")
-		}
-		instanceStr, ok := instance.(string)
-		if !ok {
-			return nil, fmt.Errorf("Instance is improperly formatted")
-		}
-		dataPoint, ok := val.(map[string]interface{})["value"]
-		if !ok {
-			return nil, fmt.Errorf("Value field does not exist in data result vector")
-		}
-		value, ok := dataPoint.([]interface{})
-		if !ok || len(value) != 2 {
-			return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
-		}
-		var vectors []*Vector
-		strVal := value[1].(string)
-		v, _ := strconv.ParseFloat(strVal, 64)
+	result, err := NewQueryResults(qr)
+	if err != nil {
+		return toReturn, err
+	}
 
-		vectors = append(vectors, &Vector{
-			Timestamp: value[0].(float64),
-			Value:     v,
-		})
-		toReturn[instanceStr] = vectors
+	for _, val := range result {
+		instance, err := val.GetString("instance")
+		if err != nil {
+			return toReturn, err
+		}
+
+		toReturn[instance] = val.Values
 	}
 
 	return toReturn, nil
-}
-
-func getPVInfoVectors(qr interface{}, defaultClusterID string) (map[string]*PersistentVolumeClaimData, error) {
-	pvmap := make(map[string]*PersistentVolumeClaimData)
-	data, ok := qr.(map[string]interface{})["data"]
-	if !ok {
-		e, err := wrapPrometheusError(qr)
-		if err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf(e)
-	}
-	d, ok := data.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("Data field improperly formatted in prometheus repsonse")
-	}
-	result, ok := d["result"]
-	if !ok {
-		return nil, fmt.Errorf("Result field not present in prometheus response")
-	}
-	results, ok := result.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("Result field improperly formatted in prometheus response")
-	}
-	for _, val := range results {
-		metricInterface, ok := val.(map[string]interface{})["metric"]
-		if !ok {
-			return nil, fmt.Errorf("Metric field does not exist in data result vector")
-		}
-		metricMap, ok := metricInterface.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("Metric field is improperly formatted")
-		}
-		pvclaim, ok := metricMap["persistentvolumeclaim"]
-		if !ok {
-			return nil, fmt.Errorf("Claim field does not exist in data result vector")
-		}
-		pvclaimStr, ok := pvclaim.(string)
-		if !ok {
-			return nil, fmt.Errorf("Claim field improperly formatted")
-		}
-		pvnamespace, ok := metricMap["namespace"]
-		if !ok {
-			return nil, fmt.Errorf("Namespace field does not exist in data result vector")
-		}
-		pvnamespaceStr, ok := pvnamespace.(string)
-		if !ok {
-			return nil, fmt.Errorf("Namespace field improperly formatted")
-		}
-		pv, ok := metricMap["volumename"]
-		if !ok {
-			klog.V(3).Infof("Warning: Unfulfilled claim %s: volumename field does not exist in data result vector", pvclaimStr)
-			pv = ""
-		}
-		pvStr, ok := pv.(string)
-		if !ok {
-			return nil, fmt.Errorf("Volumename field improperly formatted")
-		}
-		pvclass, ok := metricMap["storageclass"]
-		if !ok { // TODO: We need to look up the actual PV and PV capacity. For now just proceed with "".
-			klog.V(2).Infof("Storage Class not found for claim \"%s/%s\".", pvnamespaceStr, pvclaimStr)
-			pvclass = ""
-		}
-		pvclassStr, ok := pvclass.(string)
-		if !ok {
-			return nil, fmt.Errorf("StorageClass field improperly formatted")
-		}
-		cid, ok := metricMap["cluster_id"]
-		if !ok {
-			klog.V(4).Info("Prometheus vector does not have cluster id")
-			cid = defaultClusterID
-		}
-		clusterID, ok := cid.(string)
-		if !ok {
-			return nil, fmt.Errorf("Prometheus vector does not have string cluster_id")
-		}
-
-		values, ok := val.(map[string]interface{})["values"].([]interface{})
-		if !ok {
-			return nil, fmt.Errorf("Values field is improperly formatted")
-		}
-		var vectors []*Vector
-		for _, value := range values {
-			dataPoint, ok := value.([]interface{})
-			if !ok || len(dataPoint) != 2 {
-				return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
-			}
-
-			strVal := dataPoint[1].(string)
-			v, _ := strconv.ParseFloat(strVal, 64)
-			vectors = append(vectors, &Vector{
-				Timestamp: math.Round(dataPoint[0].(float64)/10) * 10,
-				Value:     v,
-			})
-		}
-		key := pvnamespaceStr + "," + pvclaimStr + "," + clusterID
-		pvmap[key] = &PersistentVolumeClaimData{
-			Class:      pvclassStr,
-			Claim:      pvclaimStr,
-			Namespace:  pvnamespaceStr,
-			ClusterID:  clusterID,
-			VolumeName: pvStr,
-			Values:     vectors,
-		}
-	}
-	return pvmap, nil
-}
-
-func getPVInfoVector(qr interface{}, defaultClusterID string) (map[string]*PersistentVolumeClaimData, error) {
-	pvmap := make(map[string]*PersistentVolumeClaimData)
-	data, ok := qr.(map[string]interface{})["data"]
-	if !ok {
-		e, err := wrapPrometheusError(qr)
-		if err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf(e)
-	}
-	d, ok := data.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("Data field improperly formatted in prometheus repsonse")
-	}
-	result, ok := d["result"]
-	if !ok {
-		return nil, fmt.Errorf("Result field not present in prometheus response")
-	}
-	results, ok := result.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("Result field improperly formatted in prometheus response")
-	}
-	for _, val := range results {
-		metricInterface, ok := val.(map[string]interface{})["metric"]
-		if !ok {
-			return nil, fmt.Errorf("Metric field does not exist in data result vector")
-		}
-		metricMap, ok := metricInterface.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("Metric field is improperly formatted")
-		}
-		pvclaim, ok := metricMap["persistentvolumeclaim"]
-		if !ok {
-			return nil, fmt.Errorf("Claim field does not exist in data result vector")
-		}
-		pvclaimStr, ok := pvclaim.(string)
-		if !ok {
-			return nil, fmt.Errorf("Claim field improperly formatted")
-		}
-		pvnamespace, ok := metricMap["namespace"]
-		if !ok {
-			return nil, fmt.Errorf("Namespace field does not exist in data result vector")
-		}
-		pvnamespaceStr, ok := pvnamespace.(string)
-		if !ok {
-			return nil, fmt.Errorf("Namespace field improperly formatted")
-		}
-		pv, ok := metricMap["volumename"]
-		if !ok {
-			klog.V(3).Infof("Warning: Unfulfilled claim %s: volumename field does not exist in data result vector", pvclaimStr)
-			pv = ""
-		}
-		pvStr, ok := pv.(string)
-		if !ok {
-			return nil, fmt.Errorf("Volumename field improperly formatted")
-		}
-		pvclass, ok := metricMap["storageclass"]
-		if !ok { // TODO: We need to look up the actual PV and PV capacity. For now just proceed with "".
-			klog.V(2).Infof("Storage Class not found for claim \"%s/%s\".", pvnamespaceStr, pvclaimStr)
-			pvclass = ""
-		}
-		pvclassStr, ok := pvclass.(string)
-		if !ok {
-			return nil, fmt.Errorf("StorageClass field improperly formatted")
-		}
-		cid, ok := metricMap["cluster_id"]
-		if !ok {
-			klog.V(4).Info("Prometheus vector does not have cluster id")
-			cid = defaultClusterID
-		}
-		clusterID, ok := cid.(string)
-		if !ok {
-			return nil, fmt.Errorf("Prometheus vector does not have string cluster_id")
-		}
-		dataPoint, ok := val.(map[string]interface{})["value"]
-		if !ok {
-			return nil, fmt.Errorf("Value field does not exist in data result vector")
-		}
-		value, ok := dataPoint.([]interface{})
-		if !ok || len(value) != 2 {
-			return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
-		}
-		var vectors []*Vector
-		strVal := value[1].(string)
-		v, _ := strconv.ParseFloat(strVal, 64)
-
-		vectors = append(vectors, &Vector{
-			Timestamp: value[0].(float64),
-			Value:     v,
-		})
-
-		key := pvnamespaceStr + "," + pvclaimStr + "," + clusterID
-		pvmap[key] = &PersistentVolumeClaimData{
-			Class:      pvclassStr,
-			Claim:      pvclaimStr,
-			Namespace:  pvnamespaceStr,
-			ClusterID:  clusterID,
-			VolumeName: pvStr,
-			Values:     vectors,
-		}
-	}
-	return pvmap, nil
 }
 
 func QueryRange(cli prometheusClient.Client, query string, start, end time.Time, step time.Duration) (interface{}, error) {
@@ -2431,65 +2152,38 @@ func Query(cli prometheusClient.Client, query string) (interface{}, error) {
 }
 
 //todo: don't cast, implement unmarshaler interface
-func getNormalizations(qr interface{}) ([]*Vector, error) {
-	data, ok := qr.(map[string]interface{})["data"]
-	if !ok {
-		e, err := wrapPrometheusError(qr)
-		if err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf(e)
-	}
-	results, ok := data.(map[string]interface{})["result"].([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("Result field not found in normalization response, aborting")
-	}
-	if len(results) > 0 {
-		vectors := []*Vector{}
-		for i := range results {
-			values, ok := results[i].(map[string]interface{})["values"].([]interface{})
-			for _, d := range values {
-				dataPoint := d.([]interface{})
-				if !ok || len(dataPoint) != 2 {
-					return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
-				}
-				strVal := dataPoint[1].(string)
-				v, _ := strconv.ParseFloat(strVal, 64)
-				vectors = append(vectors, &Vector{
-					Timestamp: math.Round(dataPoint[0].(float64)/10) * 10,
-					Value:     v,
-				})
-			}
-		}
-		return vectors, nil
-	}
-	return nil, fmt.Errorf("normalization data is empty: time window may be invalid or kube-state-metrics or node-exporter may not be running")
-}
-
-//todo: don't cast, implement unmarshaler interface
 func getNormalization(qr interface{}) (float64, error) {
-	data, ok := qr.(map[string]interface{})["data"]
-	if !ok {
-		e, err := wrapPrometheusError(qr)
-		if err != nil {
-			return 0, err
-		}
-		return 0, fmt.Errorf(e)
+	queryResults, err := NewQueryResults(qr)
+	if err != nil {
+		return 0, err
 	}
-	results, ok := data.(map[string]interface{})["result"].([]interface{})
-	if !ok {
-		return 0, fmt.Errorf("Result field not found in normalization response, aborting")
-	}
-	if len(results) > 0 {
-		dataPoint := results[0].(map[string]interface{})["value"].([]interface{})
-		if len(dataPoint) == 2 {
-			strNorm := dataPoint[1].(string)
-			val, _ := strconv.ParseFloat(strNorm, 64)
-			return val, nil
+
+	if len(queryResults) > 0 {
+		values := queryResults[0].Values
+
+		if len(values) > 0 {
+			return values[0].Value, nil
 		}
 		return 0, fmt.Errorf("Improperly formatted datapoint from Prometheus")
 	}
 	return 0, fmt.Errorf("Normalization data is empty, kube-state-metrics or node-exporter may not be running")
+}
+
+//todo: don't cast, implement unmarshaler interface
+func getNormalizations(qr interface{}) ([]*Vector, error) {
+	queryResults, err := NewQueryResults(qr)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(queryResults) > 0 {
+		vectors := []*Vector{}
+		for _, value := range queryResults {
+			vectors = append(vectors, value.Values...)
+		}
+		return vectors, nil
+	}
+	return nil, fmt.Errorf("normalization data is empty: time window may be invalid or kube-state-metrics or node-exporter may not be running")
 }
 
 type ContainerMetric struct {
