@@ -714,7 +714,6 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 			} else {
 				klog.V(2).Infof("Spot data for node %s is missing", k.ID())
 			}
-			klog.V(1).Infof("SPOT COST FOR %s: %s", k.Features, spotcost)
 			return &Node{
 				Cost:         spotcost,
 				VCPU:         terms.VCpu,
@@ -1106,20 +1105,23 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregator string) (
 		if err != nil {
 			return nil, err
 		}
+		if len(op.ResultSet.Rows) > 1 {
+			for _, r := range op.ResultSet.Rows[1:(len(op.ResultSet.Rows) - 1)] {
 
-		for _, r := range op.ResultSet.Rows[1:(len(op.ResultSet.Rows) - 1)] {
-
-			cost, err := strconv.ParseFloat(*r.Data[3].VarCharValue, 64)
-			if err != nil {
-				return nil, err
+				cost, err := strconv.ParseFloat(*r.Data[3].VarCharValue, 64)
+				if err != nil {
+					return nil, err
+				}
+				ooc := &OutOfClusterAllocation{
+					Aggregator:  aggregator,
+					Environment: *r.Data[1].VarCharValue,
+					Service:     *r.Data[2].VarCharValue,
+					Cost:        cost,
+				}
+				oocAllocs = append(oocAllocs, ooc)
 			}
-			ooc := &OutOfClusterAllocation{
-				Aggregator:  aggregator,
-				Environment: *r.Data[1].VarCharValue,
-				Service:     *r.Data[2].VarCharValue,
-				Cost:        cost,
-			}
-			oocAllocs = append(oocAllocs, ooc)
+		} else {
+			klog.V(1).Infof("No results available for %s at database %s between %s and %s", aggregator_column_name, customPricing.AthenaTable, start, end)
 		}
 	}
 
@@ -1373,7 +1375,7 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 				}
 				if len(foundVersion) == 0 {
 					spotFeedVersion := rec[0]
-					klog.V(3).Infof("Spot feed version is \"%s\"", spotFeedVersion)
+					klog.V(4).Infof("Spot feed version is \"%s\"", spotFeedVersion)
 					matches := versionRx.FindStringSubmatch(spotFeedVersion)
 					if matches != nil {
 						foundVersion = matches[1]
@@ -1394,7 +1396,7 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 				continue
 			}
 
-			klog.V(3).Infof("Found spot info %+v", spot)
+			klog.V(4).Infof("Found spot info %+v", spot)
 			spots[spot.InstanceID] = &spot
 		}
 		gr.Close()
