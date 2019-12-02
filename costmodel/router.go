@@ -72,14 +72,24 @@ type DataEnvelope struct {
 	Message string      `json:"message,omitempty"`
 }
 
-// FilterCostData allows through only CostData that matches the given filters for namespace and clusterId
-func FilterCostData(data map[string]*CostData, namespace, clusterId string) map[string]*CostData {
+// FilterFunc is a filter that returns true iff the given CostData should be filtered out
+type FilterFunc func(*CostData) bool
+
+// FilterCostData allows through only CostData that matches all the given filter functions
+func FilterCostData(data map[string]*CostData, filters ...FilterFunc) map[string]*CostData {
 	result := make(map[string]*CostData)
+
+DataLoop:
 	for key, datum := range data {
-		if costDataPassesFilters(datum, namespace, clusterId) {
-			result[key] = datum
+		for _, ff := range filters {
+			if !ff(datum) {
+				// if any filter function check fails, move on to the next datum
+				continue DataLoop
+			}
 		}
+		result[key] = datum
 	}
+
 	return result
 }
 
