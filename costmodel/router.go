@@ -15,9 +15,9 @@ import (
 
 	"k8s.io/klog"
 
-	"github.com/kubecost/cost-model/clustercache"
 	"github.com/julienschmidt/httprouter"
 	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
+	"github.com/kubecost/cost-model/clustercache"
 	"github.com/patrickmn/go-cache"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -904,7 +904,6 @@ func Initialize() {
 		NetworkInternetEgressRecorder: NetworkInternetEgressRecorder,
 		PersistentVolumePriceRecorder: pvGv,
 		Model:                         NewCostModel(k8sCache),
-		CostDataCache:                 costDataCache,
 		OutOfClusterCache:             outOfClusterCache,
 	}
 
