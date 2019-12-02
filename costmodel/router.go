@@ -62,9 +62,7 @@ type Accesses struct {
 	ServiceSelectorRecorder       *prometheus.GaugeVec
 	DeploymentSelectorRecorder    *prometheus.GaugeVec
 	Model                         *CostModel
-	CostDataCache                 *cache.Cache
 	OutOfClusterCache             *cache.Cache
-	SettingsCache                 *cache.Cache
 }
 
 type DataEnvelope struct {
@@ -309,41 +307,6 @@ func (a *Accesses) ClusterCostsOverTime(w http.ResponseWriter, r *http.Request, 
 
 	data, err := ClusterCostsOverTime(a.PrometheusClient, a.Cloud, start, end, window, offset)
 	w.Write(WrapData(data, err))
-}
-
-func (a *Accesses) CustomPricingHasChanged() bool {
-	customPricing, err := a.Cloud.GetConfig()
-	if err != nil || customPricing == nil {
-		klog.Errorf("error accessing cloud provider configuration: %s", err)
-		return false
-	}
-
-	// describe parameters by which we determine whether or not custom
-	// pricing settings have changed
-	encodeCustomPricing := func(cp *costAnalyzerCloud.CustomPricing) string {
-		return fmt.Sprintf("%s:%s:%s:%s:%s:%s:%s:%s", cp.CustomPricesEnabled, cp.CPU, cp.SpotCPU,
-			cp.RAM, cp.SpotRAM, cp.GPU, cp.Storage, cp.CurrencyCode)
-	}
-
-	// compare cached custom pricing parameters with current values
-	cpStr := encodeCustomPricing(customPricing)
-	cpStrCached := ""
-	val, found := a.SettingsCache.Get("customPricing")
-	if found {
-		ok := false
-		cpStrCached, ok = val.(string)
-		if !ok {
-			klog.Errorf("caching error: failed to cast custom pricing to string")
-		}
-	}
-	if cpStr == cpStrCached {
-		return false
-	}
-
-	// cache new custom pricing settings
-	a.SettingsCache.Set("customPricing", cpStr, cache.DefaultExpiration)
-
-	return true
 }
 
 func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -906,9 +869,7 @@ func Initialize() {
 	})
 
 	// cache responses from model for a default of 5 minutes; clear expired responses every 10 minutes
-	costDataCache := cache.New(time.Minute*5, time.Minute*10)
 	outOfClusterCache := cache.New(time.Minute*5, time.Minute*10)
-	settingsCache := cache.New(cache.NoExpiration, cache.NoExpiration)
 
 	A = Accesses{
 		PrometheusClient:              promCli,
@@ -928,9 +889,7 @@ func Initialize() {
 		NetworkInternetEgressRecorder: NetworkInternetEgressRecorder,
 		PersistentVolumePriceRecorder: pvGv,
 		Model:                         NewCostModel(kubeClientset),
-		CostDataCache:                 costDataCache,
 		OutOfClusterCache:             outOfClusterCache,
-		SettingsCache:                 settingsCache,
 	}
 
 	remoteEnabled := os.Getenv(remoteEnabled)
