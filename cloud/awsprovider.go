@@ -1105,20 +1105,23 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregator string) (
 		if err != nil {
 			return nil, err
 		}
+		if len(op.ResultSet.Rows) > 1 {
+			for _, r := range op.ResultSet.Rows[1:(len(op.ResultSet.Rows) - 1)] {
 
-		for _, r := range op.ResultSet.Rows[1:(len(op.ResultSet.Rows) - 1)] {
-
-			cost, err := strconv.ParseFloat(*r.Data[3].VarCharValue, 64)
-			if err != nil {
-				return nil, err
+				cost, err := strconv.ParseFloat(*r.Data[3].VarCharValue, 64)
+				if err != nil {
+					return nil, err
+				}
+				ooc := &OutOfClusterAllocation{
+					Aggregator:  aggregator,
+					Environment: *r.Data[1].VarCharValue,
+					Service:     *r.Data[2].VarCharValue,
+					Cost:        cost,
+				}
+				oocAllocs = append(oocAllocs, ooc)
 			}
-			ooc := &OutOfClusterAllocation{
-				Aggregator:  aggregator,
-				Environment: *r.Data[1].VarCharValue,
-				Service:     *r.Data[2].VarCharValue,
-				Cost:        cost,
-			}
-			oocAllocs = append(oocAllocs, ooc)
+		} else {
+			klog.V(1).Infof("No results available for %s at database %s between %s and %s", aggregator_column_name, customPricing.AthenaTable, start, end)
 		}
 	}
 
