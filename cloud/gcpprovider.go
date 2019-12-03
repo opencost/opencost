@@ -433,11 +433,10 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "CUSTOM") {
 					instanceType = "custom"
 				}
-				/*
-					if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "N2") {
-						instanceType = "n2standard"
-					}
-				*/
+
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "N2") {
+					instanceType = "n2standard"
+				}
 
 				/*
 					var partialCPU float64
