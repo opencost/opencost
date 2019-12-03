@@ -1398,12 +1398,26 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 	return spots, nil
 }
 
+type AWSReservedInstance struct {
+	Zone           string
+	InstanceType   string
+	InstanceCount  int64
+	InstanceTenacy string
+	StartDate      time.Time
+	EndDate        time.Time
+	PricePerHour   float64
+}
+
+type AWSReservedCounter struct {
+	RemainingInstances int64
+	Instance           *AWSReservedInstance
+}
+
 func (aws *AWS) ApplyReservedInstancePricing(nodes map[string]*Node) {
 
 }
 
-/*
-func (aws *AWS) getReservedInstances() ([]interface{}, error) {
+func (a *AWS) getReservedInstances() ([]*AWSReservedInstance, error) {
 	customPricing, err := a.GetConfig()
 	if err != nil {
 		return nil, err
@@ -1437,6 +1451,23 @@ func (aws *AWS) getReservedInstances() ([]interface{}, error) {
 	s := session.Must(session.NewSession(c))
 	svc := ec2.New(s)
 
-	svc.DescribeReservedInstances()
+	response, err := svc.DescribeReservedInstances(&ec2.DescribeReservedInstancesInput{})
+	if err != nil {
+		return nil, err
+	}
+
+	var reservedInstances []*AWSReservedInstance
+	for _, ri := range response.ReservedInstances {
+		reservedInstances = append(reservedInstances, &AWSReservedInstance{
+			Zone:           *ri.AvailabilityZone,
+			InstanceType:   *ri.InstanceType,
+			InstanceCount:  *ri.InstanceCount,
+			InstanceTenacy: *ri.InstanceTenancy,
+			StartDate:      *ri.Start,
+			EndDate:        *ri.End,
+		})
+	}
+
+	return reservedInstances, nil
+
 }
-*/

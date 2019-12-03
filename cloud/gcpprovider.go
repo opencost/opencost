@@ -776,14 +776,14 @@ type GCPReservedInstance struct {
 	Region      string
 }
 
-type ReservedCounter struct {
+type GCPReservedCounter struct {
 	RemainingCPU int64
 	RemainingRAM int64
 	Instance     *GCPReservedInstance
 }
 
-func newReservedCounter(instance *GCPReservedInstance) *ReservedCounter {
-	return &ReservedCounter{
+func newReservedCounter(instance *GCPReservedInstance) *GCPReservedCounter {
+	return &GCPReservedCounter{
 		RemainingCPU: instance.ReservedCPU,
 		RemainingRAM: instance.ReservedRAM,
 		Instance:     instance,
@@ -815,7 +815,7 @@ func (gcp *GCP) ApplyReservedInstancePricing(nodes map[string]*Node) {
 
 	now := time.Now()
 
-	counters := make(map[string][]*ReservedCounter)
+	counters := make(map[string][]*GCPReservedCounter)
 	for _, r := range gcp.ReservedInstances {
 		if now.Before(r.StartDate) || now.After(r.EndDate) {
 			klog.V(1).Infof("[Reserved] Skipped Reserved Instance due to dates")
@@ -825,7 +825,7 @@ func (gcp *GCP) ApplyReservedInstancePricing(nodes map[string]*Node) {
 		_, ok := counters[r.Region]
 		counter := newReservedCounter(r)
 		if !ok {
-			counters[r.Region] = []*ReservedCounter{counter}
+			counters[r.Region] = []*GCPReservedCounter{counter}
 		} else {
 			counters[r.Region] = append(counters[r.Region], counter)
 		}
