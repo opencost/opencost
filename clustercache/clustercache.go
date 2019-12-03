@@ -1,4 +1,4 @@
-package costmodel
+package clustercache
 
 import (
 	"sync"
@@ -14,7 +14,14 @@ import (
 // up to date resources using watchers
 type ClusterCache interface {
 	// Run starts the watcher processes
-	Run(stopCh chan struct{})
+	Run()
+
+	// Stops the watcher processes
+	Stop()
+
+	// Gets the underlying clientset
+	// TODO: Remove once we support all cached cluster components
+	GetClient() kubernetes.Interface
 
 	// GetAllNamespaces returns all the cached namespaces
 	GetAllNamespaces() []*v1.Namespace
@@ -49,6 +56,7 @@ type KubernetesClusterCache struct {
 	deploymentsWatch  WatchController
 	pvWatch           WatchController
 	storageClassWatch WatchController
+	stop              chan struct{}
 }
 
 func initializeCache(wc WatchController, wg *sync.WaitGroup, cancel chan struct{}) {
@@ -91,7 +99,12 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 	return kcc
 }
 
-func (kcc *KubernetesClusterCache) Run(stopCh chan struct{}) {
+func (kcc *KubernetesClusterCache) Run() {
+	if kcc.stop != nil {
+		return
+	}
+	stopCh := make(chan struct{})
+
 	go kcc.namespaceWatch.Run(1, stopCh)
 	go kcc.nodeWatch.Run(1, stopCh)
 	go kcc.podWatch.Run(1, stopCh)
@@ -99,6 +112,21 @@ func (kcc *KubernetesClusterCache) Run(stopCh chan struct{}) {
 	go kcc.deploymentsWatch.Run(1, stopCh)
 	go kcc.pvWatch.Run(1, stopCh)
 	go kcc.storageClassWatch.Run(1, stopCh)
+
+	kcc.stop = stopCh
+}
+
+func (kcc *KubernetesClusterCache) Stop() {
+	if kcc.stop == nil {
+		return
+	}
+
+	close(kcc.stop)
+	kcc.stop = nil
+}
+
+func (kcc *KubernetesClusterCache) GetClient() kubernetes.Interface {
+	return kcc.client
 }
 
 func (kcc *KubernetesClusterCache) GetAllNamespaces() []*v1.Namespace {
