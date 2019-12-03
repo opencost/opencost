@@ -19,6 +19,8 @@ import (
 
 	"k8s.io/klog"
 
+	"github.com/kubecost/cost-model/clustercache"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -29,8 +31,6 @@ import (
 	"github.com/jszwec/csvutil"
 
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 )
 
 const awsAccessKeyIDEnvVar = "AWS_ACCESS_KEY_ID"
@@ -44,7 +44,7 @@ type AWS struct {
 	Pricing                 map[string]*AWSProductTerms
 	SpotPricingByInstanceID map[string]*spotInfo
 	ValidPricingKeys        map[string]bool
-	Clientset               *kubernetes.Clientset
+	Clientset               clustercache.ClusterCache
 	BaseCPUPrice            string
 	BaseRAMPrice            string
 	BaseGPUPrice            string
@@ -238,12 +238,10 @@ type AwsAthenaInfo struct {
 }
 
 func (aws *AWS) GetManagementPlatform() (string, error) {
-	nodes, err := aws.Clientset.CoreV1().Nodes().List(metav1.ListOptions{})
-	if err != nil {
-		return "", err
-	}
-	if len(nodes.Items) > 0 {
-		n := nodes.Items[0]
+	nodes := aws.Clientset.GetAllNodes()
+
+	if len(nodes) > 0 {
+		n := nodes[0]
 		version := n.Status.NodeInfo.KubeletVersion
 		if strings.Contains(version, "eks") {
 			return "eks", nil
@@ -475,25 +473,20 @@ func (aws *AWS) DownloadPricingData() error {
 	if len(aws.SpotDataBucket) != 0 && len(aws.ProjectID) == 0 {
 		klog.V(1).Infof("using SpotDataBucket \"%s\" without ProjectID will not end well", aws.SpotDataBucket)
 	}
-	nodeList, err := aws.Clientset.CoreV1().Nodes().List(metav1.ListOptions{})
-	if err != nil {
-		return err
-	}
+	nodeList := aws.Clientset.GetAllNodes()
+
 	inputkeys := make(map[string]bool)
-	for _, n := range nodeList.Items {
+	for _, n := range nodeList {
 		labels := n.GetObjectMeta().GetLabels()
 		key := aws.GetKey(labels)
 		inputkeys[key.Features()] = true
 	}
 
-	pvList, err := aws.Clientset.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
-	if err != nil {
-		return err
-	}
+	pvList := aws.Clientset.GetAllPersistentVolumes()
 
-	storageClasses, err := aws.Clientset.StorageV1().StorageClasses().List(metav1.ListOptions{})
+	storageClasses := aws.Clientset.GetAllStorageClasses()
 	storageClassMap := make(map[string]map[string]string)
-	for _, storageClass := range storageClasses.Items {
+	for _, storageClass := range storageClasses {
 		params := storageClass.Parameters
 		storageClassMap[storageClass.ObjectMeta.Name] = params
 		if storageClass.GetAnnotations()["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.GetAnnotations()["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
@@ -503,13 +496,13 @@ func (aws *AWS) DownloadPricingData() error {
 	}
 
 	pvkeys := make(map[string]PVKey)
-	for _, pv := range pvList.Items {
+	for _, pv := range pvList {
 		params, ok := storageClassMap[pv.Spec.StorageClassName]
 		if !ok {
 			klog.V(2).Infof("Unable to find params for storageClassName %s, falling back to default pricing", pv.Spec.StorageClassName)
 			continue
 		}
-		key := aws.GetPVKey(&pv, params)
+		key := aws.GetPVKey(pv, params)
 		pvkeys[key.Features()] = key
 	}
 
@@ -814,6 +807,10 @@ func (aws *AWS) NodePricing(k Key) (*Node, error) {
 func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 	defaultClusterName := "AWS Cluster #1"
 	c, err := awsProvider.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	remote := os.Getenv(remoteEnabled)
 	remoteEnabled := false
 	if os.Getenv(remote) == "true" {
@@ -844,11 +841,8 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 	}
 	provIdRx := regexp.MustCompile("aws:///([^/]+)/([^/]+)")
 	clusterIdRx := regexp.MustCompile("^kubernetes\\.io/cluster/([^/]+)")
-	nodeList, err := awsProvider.Clientset.CoreV1().Nodes().List(metav1.ListOptions{})
-	if err != nil {
-		return nil, err
-	}
-	for _, n := range nodeList.Items {
+	nodeList := awsProvider.Clientset.GetAllNodes()
+	for _, n := range nodeList {
 		region := ""
 		instanceId := ""
 		providerId := n.Spec.ProviderID
@@ -1402,6 +1396,10 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 		gr.Close()
 	}
 	return spots, nil
+}
+
+func (aws *AWS) ApplyReservedInstancePricing(nodes map[string]*Node) {
+
 }
 
 /*

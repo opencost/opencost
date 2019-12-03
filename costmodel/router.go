@@ -17,6 +17,7 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
+	"github.com/kubecost/cost-model/clustercache"
 	"github.com/patrickmn/go-cache"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -793,8 +794,12 @@ func Initialize() {
 		panic(err.Error())
 	}
 
+	// Create Kubernetes Cluster Cache + Watchers
+	k8sCache := clustercache.NewKubernetesClusterCache(kubeClientset)
+	k8sCache.Run()
+
 	cloudProviderKey := os.Getenv("CLOUD_PROVIDER_API_KEY")
-	cloudProvider, err := costAnalyzerCloud.NewProvider(kubeClientset, cloudProviderKey)
+	cloudProvider, err := costAnalyzerCloud.NewProvider(k8sCache, cloudProviderKey)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -898,7 +903,7 @@ func Initialize() {
 		NetworkRegionEgressRecorder:   NetworkRegionEgressRecorder,
 		NetworkInternetEgressRecorder: NetworkInternetEgressRecorder,
 		PersistentVolumePriceRecorder: pvGv,
-		Model:                         NewCostModel(kubeClientset),
+		Model:                         NewCostModel(k8sCache),
 		OutOfClusterCache:             outOfClusterCache,
 	}
 

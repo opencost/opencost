@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/kubecost/cost-model/clustercache"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
 )
 
 type NodePrice struct {
@@ -21,7 +21,7 @@ type NodePrice struct {
 }
 
 type CustomProvider struct {
-	Clientset               *kubernetes.Clientset
+	Clientset               clustercache.ClusterCache
 	Pricing                 map[string]*NodePrice
 	SpotLabel               string
 	SpotLabelValue          string
@@ -48,6 +48,10 @@ func (*CustomProvider) GetConfig() (*CustomPricing, error) {
 
 func (*CustomProvider) GetManagementPlatform() (string, error) {
 	return "", nil
+}
+
+func (*CustomProvider) ApplyReservedInstancePricing(nodes map[string]*Node) {
+
 }
 
 func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {

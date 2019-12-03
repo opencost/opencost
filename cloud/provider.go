@@ -15,10 +15,9 @@ import (
 	"k8s.io/klog"
 
 	"cloud.google.com/go/compute/metadata"
+	"github.com/kubecost/cost-model/clustercache"
 
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 )
 
 const clusterIDKey = "CLUSTER_ID"
@@ -34,25 +33,35 @@ var createTableStatements = []string{
 	);`,
 }
 
+// ReservedInstanceData keeps record of resources on a node should be
+// priced at reserved rates
+type ReservedInstanceData struct {
+	ReservedCPU int64   `json:"reservedCPU"`
+	ReservedRAM int64   `json:"reservedRAM"`
+	CPUCost     float64 `json:"CPUHourlyCost"`
+	RAMCost     float64 `json:"RAMHourlyCost"`
+}
+
 // Node is the interface by which the provider and cost model communicate Node prices.
 // The provider will best-effort try to fill out this struct.
 type Node struct {
-	Cost             string `json:"hourlyCost"`
-	VCPU             string `json:"CPU"`
-	VCPUCost         string `json:"CPUHourlyCost"`
-	RAM              string `json:"RAM"`
-	RAMBytes         string `json:"RAMBytes"`
-	RAMCost          string `json:"RAMGBHourlyCost"`
-	Storage          string `json:"storage"`
-	StorageCost      string `json:"storageHourlyCost"`
-	UsesBaseCPUPrice bool   `json:"usesDefaultPrice"`
-	BaseCPUPrice     string `json:"baseCPUPrice"` // Used to compute an implicit RAM GB/Hr price when RAM pricing is not provided.
-	BaseRAMPrice     string `json:"baseRAMPrice"` // Used to compute an implicit RAM GB/Hr price when RAM pricing is not provided.
-	BaseGPUPrice     string `json:"baseGPUPrice"`
-	UsageType        string `json:"usageType"`
-	GPU              string `json:"gpu"` // GPU represents the number of GPU on the instance
-	GPUName          string `json:"gpuName"`
-	GPUCost          string `json:"gpuCost"`
+	Cost             string                `json:"hourlyCost"`
+	VCPU             string                `json:"CPU"`
+	VCPUCost         string                `json:"CPUHourlyCost"`
+	RAM              string                `json:"RAM"`
+	RAMBytes         string                `json:"RAMBytes"`
+	RAMCost          string                `json:"RAMGBHourlyCost"`
+	Storage          string                `json:"storage"`
+	StorageCost      string                `json:"storageHourlyCost"`
+	UsesBaseCPUPrice bool                  `json:"usesDefaultPrice"`
+	BaseCPUPrice     string                `json:"baseCPUPrice"` // Used to compute an implicit RAM GB/Hr price when RAM pricing is not provided.
+	BaseRAMPrice     string                `json:"baseRAMPrice"` // Used to compute an implicit RAM GB/Hr price when RAM pricing is not provided.
+	BaseGPUPrice     string                `json:"baseGPUPrice"`
+	UsageType        string                `json:"usageType"`
+	GPU              string                `json:"gpu"` // GPU represents the number of GPU on the instance
+	GPUName          string                `json:"gpuName"`
+	GPUCost          string                `json:"gpuCost"`
+	Reserved         *ReservedInstanceData `json:"reserved,omitempty"`
 }
 
 // IsSpot determines whether or not a Node uses spot by usage type
@@ -156,6 +165,7 @@ type Provider interface {
 	GetManagementPlatform() (string, error)
 	GetLocalStorageQuery(offset string) (string, error)
 	ExternalAllocations(string, string, string) ([]*OutOfClusterAllocation, error)
+	ApplyReservedInstancePricing(map[string]*Node)
 }
 
 // ClusterName returns the name defined in cluster info, defaulting to the
@@ -261,38 +271,38 @@ func SetCustomPricingField(obj *CustomPricing, name string, value string) error 
 }
 
 // NewProvider looks at the nodespec or provider metadata server to decide which provider to instantiate.
-func NewProvider(clientset *kubernetes.Clientset, apiKey string) (Provider, error) {
+func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, error) {
 	if metadata.OnGCE() {
 		klog.V(3).Info("metadata reports we are in GCE")
 		if apiKey == "" {
 			return nil, errors.New("Supply a GCP Key to start getting data")
 		}
 		return &GCP{
-			Clientset: clientset,
+			Clientset: cache,
 			APIKey:    apiKey,
 		}, nil
 	}
 
-	nodes, err := clientset.CoreV1().Nodes().List(metav1.ListOptions{})
-	if err != nil {
-		return nil, err
+	nodes := cache.GetAllNodes()
+	if len(nodes) == 0 {
+		return nil, fmt.Errorf("Could not locate any nodes for cluster.")
 	}
 
-	provider := strings.ToLower(nodes.Items[0].Spec.ProviderID)
+	provider := strings.ToLower(nodes[0].Spec.ProviderID)
 	if strings.HasPrefix(provider, "aws") {
 		klog.V(2).Info("Found ProviderID starting with \"aws\", using AWS Provider")
 		return &AWS{
-			Clientset: clientset,
+			Clientset: cache,
 		}, nil
 	} else if strings.HasPrefix(provider, "azure") {
 		klog.V(2).Info("Found ProviderID starting with \"azure\", using Azure Provider")
 		return &Azure{
-			Clientset: clientset,
+			Clientset: cache,
 		}, nil
 	} else {
 		klog.V(2).Info("Unsupported provider, falling back to default")
 		return &CustomProvider{
-			Clientset: clientset,
+			Clientset: cache,
 		}, nil
 	}
 }
