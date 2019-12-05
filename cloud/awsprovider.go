@@ -515,7 +515,7 @@ func (aws *AWS) DownloadPricingData() error {
 		klog.V(1).Infof("Found %d reserved instances", len(reserved))
 		aws.ReservedInstances = reserved
 		for _, r := range reserved {
-			klog.V(1).Infof("Reserved: CPU: %d, RAM: %d, Region: %s, Start: %s, End: %s", r.ReservedCPU, r.ReservedRAM, r.Region, r.StartDate.String(), r.EndDate.String())
+			klog.V(1).Infof("%s", r)
 		}
 	}
 
@@ -941,12 +941,12 @@ func configureAWSAuth(keyFile string) error {
 		return err
 	}
 
-	err = os.Setenv(awsAccessKeyIDEnvVar, result["access_key_id"])
+	err = os.Setenv(awsAccessKeyIDEnvVar, result["awsServiceKeyName"])
 	if err != nil {
 		return err
 	}
 
-	err = os.Setenv(awsAccessKeySecretEnvVar, result["secret_access_key"])
+	err = os.Setenv(awsAccessKeySecretEnvVar, result["awsServiceKeySecret"])
 	if err != nil {
 		return err
 	}
@@ -1444,6 +1444,21 @@ func (a *AWS) ApplyReservedInstancePricing(nodes map[string]*Node) {
 		return
 	}
 
+	cfg, err := a.GetConfig()
+	defaultCPU, err := strconv.ParseFloat(cfg.CPU, 64)
+	if err != nil {
+		klog.V(3).Infof("Could not parse default cpu price")
+		defaultCPU = 0.031611
+	}
+
+	defaultRAM, err := strconv.ParseFloat(cfg.RAM, 64)
+	if err != nil {
+		klog.V(3).Infof("Could not parse default ram price")
+		defaultRAM = 0.004237
+	}
+
+	cpuToRAMRatio := defaultCPU / defaultRAM
+
 	now := time.Now()
 
 	instances := make(map[string][]*AWSReservedInstance)
@@ -1509,6 +1524,8 @@ func (a *AWS) ApplyReservedInstancePricing(nodes map[string]*Node) {
 			continue
 		}
 
+		ramMultiple := cpu*cpuToRAMRatio + ramGB
+
 		node.Reserved = &ReservedInstanceData{
 			ReservedCPU: 0,
 			ReservedRAM: 0,
@@ -1520,10 +1537,10 @@ func (a *AWS) ApplyReservedInstancePricing(nodes map[string]*Node) {
 				node.Reserved.ReservedCPU = -1
 				node.Reserved.ReservedRAM = -1
 
-				// Set Costs -- Split evenly for RAM/CPU (resolves during aggregation)
-				costPerResource := reservedInstance.PricePerHour / (ramGB + cpu)
-				node.Reserved.CPUCost = costPerResource
-				node.Reserved.RAMCost = costPerResource
+				// Set Costs based on CPU/RAM ratios
+				ramPrice := reservedInstance.PricePerHour / ramMultiple
+				node.Reserved.CPUCost = ramPrice * cpuToRAMRatio
+				node.Reserved.RAMCost = ramPrice
 
 				// Remove the reserve from the temporary slice to prevent
 				// being reallocated
@@ -1623,7 +1640,7 @@ func getRegionReservedInstances(region string) ([]*AWSReservedInstance, error) {
 }
 
 func (a *AWS) getReservedInstances() ([]*AWSReservedInstance, error) {
-	err := configureAWSAuth("/var/configs/key.json")
+	err := configureAWSAuth("/var/configs/aws.json")
 	if err != nil {
 		return nil, err
 	}

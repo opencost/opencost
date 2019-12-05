@@ -703,7 +703,7 @@ func (gcp *GCP) DownloadPricingData() error {
 		klog.V(1).Infof("Found %d reserved instances", len(reserved))
 		gcp.ReservedInstances = reserved
 		for _, r := range reserved {
-			klog.V(1).Infof("Reserved: CPU: %d, RAM: %d, Region: %s, Start: %s, End: %s", r.ReservedCPU, r.ReservedRAM, r.Region, r.StartDate.String(), r.EndDate.String())
+			klog.V(1).Infof("%s", r)
 		}
 	}
 
@@ -774,6 +774,10 @@ type GCPReservedInstance struct {
 	StartDate   time.Time
 	EndDate     time.Time
 	Region      string
+}
+
+func (r *GCPReservedInstance) String() string {
+	return fmt.Sprintf("[CPU: %d, RAM: %d, Region: %s, Start: %s, End: %s]", r.ReservedCPU, r.ReservedRAM, r.Region, r.StartDate.String(), r.EndDate.String())
 }
 
 type GCPReservedCounter struct {
