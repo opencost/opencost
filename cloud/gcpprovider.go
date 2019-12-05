@@ -93,6 +93,9 @@ func (gcp *GCP) GetConfig() (*CustomPricing, error) {
 	if c.Discount == "" {
 		c.Discount = "30%"
 	}
+	if c.NegotiatedDiscount == "" {
+		c.NegotiatedDiscount = "0%"
+	}
 	return c, nil
 }
 
