@@ -258,6 +258,9 @@ func (aws *AWS) GetConfig() (*CustomPricing, error) {
 	if c.Discount == "" {
 		c.Discount = "0%"
 	}
+	if c.NegotiatedDiscount == "" {
+		c.NegotiatedDiscount = "0%"
+	}
 	if err != nil {
 		return nil, err
 	}

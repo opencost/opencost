@@ -145,6 +145,7 @@ type CustomPricing struct {
 	AzureBillingRegion    string `json:"azureBillingRegion"`
 	CurrencyCode          string `json:"currencyCode"`
 	Discount              string `json:"discount"`
+	NegotiatedDiscount    string `json:"negotiatedDiscount"`
 	ClusterName           string `json:"clusterName"`
 }
 
@@ -190,6 +191,9 @@ func CustomPricesEnabled(p Provider) bool {
 	config, err := p.GetConfig()
 	if err != nil {
 		return false
+	}
+	if config.NegotiatedDiscount == "" {
+		config.NegotiatedDiscount = "0%"
 	}
 
 	return config.CustomPricesEnabled == "true"

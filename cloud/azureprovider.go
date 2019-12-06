@@ -560,6 +560,9 @@ func (az *Azure) GetConfig() (*CustomPricing, error) {
 	if c.Discount == "" {
 		c.Discount = "0%"
 	}
+	if c.NegotiatedDiscount == "" {
+		c.NegotiatedDiscount = "0%"
+	}
 	if c.CurrencyCode == "" {
 		c.CurrencyCode = "USD"
 	}
