@@ -710,7 +710,7 @@ func (gcp *GCP) DownloadPricingData() error {
 		klog.V(1).Infof("Found %d reserved instances", len(reserved))
 		gcp.ReservedInstances = reserved
 		for _, r := range reserved {
-			klog.V(1).Infof("Reserved: CPU: %d, RAM: %d, Region: %s, Start: %s, End: %s", r.ReservedCPU, r.ReservedRAM, r.Region, r.StartDate.String(), r.EndDate.String())
+			klog.V(1).Infof("%s", r)
 		}
 	}
 
@@ -783,14 +783,18 @@ type GCPReservedInstance struct {
 	Region      string
 }
 
-type ReservedCounter struct {
+func (r *GCPReservedInstance) String() string {
+	return fmt.Sprintf("[CPU: %d, RAM: %d, Region: %s, Start: %s, End: %s]", r.ReservedCPU, r.ReservedRAM, r.Region, r.StartDate.String(), r.EndDate.String())
+}
+
+type GCPReservedCounter struct {
 	RemainingCPU int64
 	RemainingRAM int64
 	Instance     *GCPReservedInstance
 }
 
-func newReservedCounter(instance *GCPReservedInstance) *ReservedCounter {
-	return &ReservedCounter{
+func newReservedCounter(instance *GCPReservedInstance) *GCPReservedCounter {
+	return &GCPReservedCounter{
 		RemainingCPU: instance.ReservedCPU,
 		RemainingRAM: instance.ReservedRAM,
 		Instance:     instance,
@@ -822,7 +826,7 @@ func (gcp *GCP) ApplyReservedInstancePricing(nodes map[string]*Node) {
 
 	now := time.Now()
 
-	counters := make(map[string][]*ReservedCounter)
+	counters := make(map[string][]*GCPReservedCounter)
 	for _, r := range gcp.ReservedInstances {
 		if now.Before(r.StartDate) || now.After(r.EndDate) {
 			klog.V(1).Infof("[Reserved] Skipped Reserved Instance due to dates")
@@ -832,7 +836,7 @@ func (gcp *GCP) ApplyReservedInstancePricing(nodes map[string]*Node) {
 		_, ok := counters[r.Region]
 		counter := newReservedCounter(r)
 		if !ok {
-			counters[r.Region] = []*ReservedCounter{counter}
+			counters[r.Region] = []*GCPReservedCounter{counter}
 		} else {
 			counters[r.Region] = append(counters[r.Region], counter)
 		}
