@@ -644,7 +644,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 
 			node, ok := nodes[c.NodeName]
 			if !ok {
-				klog.V(2).Infof("Node \"%s\" has been deleted from Kubernetes. Query historical data to get it.", c.NodeName)
+				klog.V(4).Infof("Node \"%s\" has been deleted from Kubernetes. Query historical data to get it.", c.NodeName)
 				if n, ok := missingNodes[c.NodeName]; ok {
 					node = n
 				} else {
@@ -778,7 +778,7 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 	if len(missingNodes) > 0 {
 		q := make([]string, 0, len(missingNodes))
 		for nodename := range missingNodes {
-			klog.V(3).Infof("Finding data for deleted node %v", nodename)
+			klog.V(4).Infof("Finding data for deleted node %v", nodename)
 			q = append(q, nodename)
 		}
 		l := strings.Join(q, "|")
