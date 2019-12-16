@@ -63,16 +63,26 @@ func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomP
 	if path == "" {
 		path = "/models/"
 	}
-	a := make(map[string]string)
+	a := make(map[string]interface{})
 	err = json.NewDecoder(r).Decode(&a)
 	if err != nil {
 		return nil, err
 	}
 	for k, v := range a {
 		kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
-		err := SetCustomPricingField(c, kUpper, v)
-		if err != nil {
-			return nil, err
+		vstr, ok := v.(string)
+		if ok {
+			err := SetCustomPricingField(c, kUpper, vstr)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			sci := v.(map[string]interface{})
+			sc := make(map[string]string)
+			for k, val := range sci {
+				sc[k] = val.(string)
+			}
+			c.SharedCosts = sc //todo: support reflection/multiple map fields
 		}
 	}
 
