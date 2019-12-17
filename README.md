@@ -52,11 +52,11 @@ Measuring the CPU/RAM/GPU cost of a deployment, service, namespace, etc is the a
 
 ***How do you determine RAM/CPU costs for a node when this data isn’t provided by a cloud provider?***
 
-When explicit RAM or CPU prices are not provided by your cloud provider, the Kubecost model falls back to the base CPU and RAM price inputs supplied. These defaults are based on recent GCP rates but can be easily customized via json or in product Settings depending on your installation path. 
+When explicit RAM or CPU prices are not provided by your cloud provider, the Kubecost model falls back to the ratio of base CPU and RAM price inputs supplied. The default values for these parameters are based on the marginal resource rates of the cloud provider, but they can be customized within Kubecost.
 
 These base RAM/CPU prices are normalized to ensure the sum of each component is equal to the total price of the node provisioned, based on billing rates from your provider. When the sum of RAM/CPU costs is greater (or less) than the price of the node, then the ratio between the two input prices are held constant.  
 
-As an example, let's say you have a node with 1 CPU and 1 Gb of RAM that costs $20/mo. If your base CPU price is $30 and your RAM Gb price is $10, then these inputs will be normlized to $15 for CPU and $5 for RAM so that the sum equals the cost of the node. Note that the price of a CPU remains 3x the price of one Gb of RAM. 
+As an example, let's imagine a node with 1 CPU and 1 Gb of RAM that costs $20/mo. If your base CPU price is $30 and your RAM Gb price is $10, then these inputs will be normlized to $15 for CPU and $5 for RAM so that the sum equals the cost of the node. Note that the price of a CPU remains 3x the price of a Gb of RAM. 
 
     NodeHourlyCost = NORMALIZED_CPU_PRICE * # of CPUS + NORMALIZED_RAM_PRICE * # of RAM Gb
 
