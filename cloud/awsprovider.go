@@ -1068,21 +1068,43 @@ func ConvertToGlueColumnFormat(column_name string) string {
 // ExternalAllocations represents tagged assets outside the scope of kubernetes.
 // "start" and "end" are dates of the format YYYY-MM-DD
 // "aggregator" is the tag used to determine how to allocate those assets, ie namespace, pod, etc.
-func (a *AWS) ExternalAllocations(start string, end string, aggregator string) ([]*OutOfClusterAllocation, error) {
+func (a *AWS) ExternalAllocations(start string, end string, aggregator string, filterType string, filterValue string) ([]*OutOfClusterAllocation, error) {
 	customPricing, err := a.GetConfig()
 	if err != nil {
 		return nil, err
 	}
 	aggregator_column_name := "resource_tags_user_" + aggregator
 	aggregator_column_name = ConvertToGlueColumnFormat(aggregator_column_name)
-	query := fmt.Sprintf(`SELECT   
-		CAST(line_item_usage_start_date AS DATE) as start_date,
-		%s,
-		line_item_product_code,
-		SUM(line_item_blended_cost) as blended_cost
-	FROM %s as cost_data
-	WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s'
-	GROUP BY 1,2,3`, aggregator_column_name, customPricing.AthenaTable, start, end)
+
+	filter_column_name := "resource_tags_user_" + filterType
+	filter_column_name = ConvertToGlueColumnFormat(filter_column_name)
+
+	var query string
+	var lastIdx int
+	if filterType != "kubernetes_" { // This gets appended upstream and is equivalent to no filter.
+		query = fmt.Sprintf(`SELECT   
+			CAST(line_item_usage_start_date AS DATE) as start_date,
+			%s,
+			line_item_product_code,
+			%s,
+			SUM(line_item_blended_cost) as blended_cost
+		FROM %s as cost_data
+		WHERE (%s='%s' OR %s='') AND line_item_usage_start_date BETWEEN date '%s' AND date '%s'
+		GROUP BY 1,2,3,4`, aggregator_column_name, filter_column_name, customPricing.AthenaTable, filter_column_name, filterValue, filter_column_name, start, end)
+		lastIdx = 4
+	} else {
+		lastIdx = 3
+		query = fmt.Sprintf(`SELECT   
+			CAST(line_item_usage_start_date AS DATE) as start_date,
+			%s,
+			line_item_product_code,
+			SUM(line_item_blended_cost) as blended_cost
+		FROM %s as cost_data
+		WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s'
+		GROUP BY 1,2,3`, aggregator_column_name, customPricing.AthenaTable, start, end)
+	}
+
+	klog.V(3).Infof("Running Query: %s", query)
 
 	if customPricing.ServiceKeyName != "" {
 		err = os.Setenv(awsAccessKeyIDEnvVar, customPricing.ServiceKeyName)
@@ -1152,7 +1174,7 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregator string) (
 		if len(op.ResultSet.Rows) > 1 {
 			for _, r := range op.ResultSet.Rows[1:(len(op.ResultSet.Rows) - 1)] {
 
-				cost, err := strconv.ParseFloat(*r.Data[3].VarCharValue, 64)
+				cost, err := strconv.ParseFloat(*r.Data[lastIdx].VarCharValue, 64)
 				if err != nil {
 					return nil, err
 				}

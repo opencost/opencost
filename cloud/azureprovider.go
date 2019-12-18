@@ -585,7 +585,7 @@ func (az *Azure) GetConfig() (*CustomPricing, error) {
 	return c, nil
 }
 
-func (az *Azure) ExternalAllocations(string, string, string) ([]*OutOfClusterAllocation, error) {
+func (az *Azure) ExternalAllocations(string, string, string, string, string) ([]*OutOfClusterAllocation, error) {
 	return nil, nil
 }
 
