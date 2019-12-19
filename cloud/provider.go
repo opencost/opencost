@@ -148,6 +148,7 @@ type CustomPricing struct {
 	NegotiatedDiscount    string            `json:"negotiatedDiscount"`
 	SharedCosts           map[string]string `json:"sharedCost"`
 	ClusterName           string            `json:"clusterName"`
+	SharedNamespaces      string            `json:"sharedNamespaces"`
 }
 
 // Provider represents a k8s provider.
