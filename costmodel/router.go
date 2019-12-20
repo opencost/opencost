@@ -77,13 +77,14 @@ type DataEnvelope struct {
 type FilterFunc func(*CostData) bool
 
 // FilterCostData allows through only CostData that matches all the given filter functions
-func FilterCostData(data map[string]*CostData, filters ...FilterFunc) map[string]*CostData {
+func FilterCostData(data map[string]*CostData, filters ...FilterFunc) (map[string]*CostData, int) {
 	result := make(map[string]*CostData)
-
+	filteredContainerCount := 0
 DataLoop:
 	for key, datum := range data {
 		for _, ff := range filters {
 			if !ff(datum) {
+				filteredContainerCount += 1
 				// if any filter function check fails, move on to the next datum
 				continue DataLoop
 			}
@@ -91,7 +92,7 @@ DataLoop:
 		result[key] = datum
 	}
 
-	return result
+	return result, filteredContainerCount
 }
 
 func filterFields(fields string, data map[string]*CostData) map[string]CostData {
