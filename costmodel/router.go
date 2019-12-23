@@ -73,18 +73,29 @@ type DataEnvelope struct {
 	Message string      `json:"message,omitempty"`
 }
 
-// FilterFunc is a filter that returns true iff the given CostData should be filtered out
-type FilterFunc func(*CostData) bool
+// FilterFunc is a filter that returns true iff the given CostData should be filtered out, and the environment that was used as the filter criteria, if it was an aggregate
+type FilterFunc func(*CostData) (bool, string)
 
 // FilterCostData allows through only CostData that matches all the given filter functions
-func FilterCostData(data map[string]*CostData, filters ...FilterFunc) (map[string]*CostData, int) {
+func FilterCostData(data map[string]*CostData, retains []FilterFunc, filters []FilterFunc) (map[string]*CostData, int, map[string]int) {
 	result := make(map[string]*CostData)
-	filteredContainerCount := 0
+	filteredEnvironments := make(map[string]int)
+	filteredContainers := 0
 DataLoop:
 	for key, datum := range data {
+		for _, rf := range retains {
+			if ok, _ := rf(datum); ok {
+				result[key] = datum
+				// if any retain function passes, the data is retained and move on
+				continue DataLoop
+			}
+		}
 		for _, ff := range filters {
-			if !ff(datum) {
-				filteredContainerCount += 1
+			if ok, environment := ff(datum); !ok {
+				if environment != "" {
+					filteredEnvironments[environment]++
+				}
+				filteredContainers++
 				// if any filter function check fails, move on to the next datum
 				continue DataLoop
 			}
@@ -92,7 +103,7 @@ DataLoop:
 		result[key] = datum
 	}
 
-	return result, filteredContainerCount
+	return result, filteredContainers, filteredEnvironments
 }
 
 func filterFields(fields string, data map[string]*CostData) map[string]CostData {

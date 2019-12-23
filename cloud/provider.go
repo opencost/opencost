@@ -138,6 +138,7 @@ type CustomPricing struct {
 	AthenaTable           string            `json:"athenaTable"`
 	BillingDataDataset    string            `json:"billingDataDataset,omitempty"`
 	CustomPricesEnabled   string            `json:"customPricesEnabled"`
+	DefaultIdle           string            `json:"defaultIdle"`
 	AzureSubscriptionID   string            `json:"azureSubscriptionID"`
 	AzureClientID         string            `json:"azureClientID"`
 	AzureClientSecret     string            `json:"azureClientSecret"`
