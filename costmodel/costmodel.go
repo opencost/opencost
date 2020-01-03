@@ -141,7 +141,8 @@ const (
 				) by (namespace,container,pod,node,cluster_id) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		) 
-	) by (namespace,container_name,pod_name,node,cluster_id)`
+	) by (namespace,container_name,pod_name,node,cluster_id) 
+	* on (pod_name) group_right(namespace,container_name,node,cluster_id) label_replace(avg_over_time(kube_pod_status_phase{phase="Running"}[%s] %s), "pod_name","$1","pod","(.+)")`
 	queryPVRequestsStr = `avg(kube_persistentvolumeclaim_info) by (persistentvolumeclaim, storageclass, namespace, volumename, cluster_id) 
 						* 
 						on (persistentvolumeclaim, namespace, cluster_id) group_right(storageclass, volumename) 
@@ -295,7 +296,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, window, offset, window, offset)
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, window, offset, window, offset)
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, window, offset)
-	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, window, offset, window, offset)
+	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, window, offset, window, offset, window, offset)
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
 	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, window, "")
 	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, window, "")
@@ -1315,7 +1316,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, windowString, "")
 	queryRAMAlloc := fmt.Sprintf(queryRAMAllocation, windowString, "", windowString, "")
 	queryCPUAlloc := fmt.Sprintf(queryCPUAllocation, windowString, "", windowString, "")
-	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, windowString, "", windowString, "")
+	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, windowString, "", windowString, "", windowString, "")
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
 	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, windowString, "")
 	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, windowString, "")
