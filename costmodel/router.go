@@ -893,6 +893,7 @@ func Initialize() {
 	prometheus.MustRegister(CPUAllocation)
 	prometheus.MustRegister(ContainerUptimeRecorder)
 	prometheus.MustRegister(PVAllocation)
+	prometheus.MustRegister(GPUAllocation)
 	prometheus.MustRegister(NetworkZoneEgressRecorder, NetworkRegionEgressRecorder, NetworkInternetEgressRecorder)
 	prometheus.MustRegister(ServiceCollector{
 		KubeClientSet: kubeClientset,

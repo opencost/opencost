@@ -487,6 +487,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 							if key.GPUType() == gpuType+","+usageType {
 								if region == strings.Split(k, ",")[0] {
 									klog.V(3).Infof("Matched GPU to node in region \"%s\"", region)
+									klog.V(4).Infof("PRODUCT DESCRIPTION: %s", product.Description)
 									matchedKey := key.Features()
 									if pl, ok := gcpPricingList[matchedKey]; ok {
 										pl.Node.GPUName = gpuType
@@ -649,6 +650,8 @@ func (gcp *GCP) parsePages(inputKeys map[string]Key, pvKeys map[string]PVKey) (m
 					}
 					if val.Node.GPUCost == "" {
 						val.Node.GPUCost = v.Node.GPUCost
+						val.Node.GPU = v.Node.GPU
+						val.Node.GPUName = v.Node.GPUName
 					}
 				}
 				if val.PV != nil {
