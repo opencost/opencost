@@ -23,6 +23,7 @@ import (
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -821,6 +822,24 @@ func Initialize() {
 	if err != nil {
 		panic(err.Error())
 	}
+
+	watchConfigFunc := func(c interface{}) {
+		conf := c.(*v1.ConfigMap)
+		if conf.GetName() == "pricing-configs" {
+			_, err := cloudProvider.UpdateConfigFromConfigMap(conf.Data)
+			if err != nil {
+				klog.Infof("ERROR UPDATING CONFIG: %s", err.Error())
+			}
+		}
+	}
+	// We need an initial invocation because the init of the cache has happened before we had access to the provider.
+	configs, err := kubeClientset.CoreV1().ConfigMaps("kubecost").Get("pricing-configs", metav1.GetOptions{})
+	if err != nil {
+		klog.Infof("ERROR FETCHING configmap: %s", err.Error())
+	}
+	watchConfigFunc(configs)
+
+	k8sCache.SetConfigMapUpdateFunc(watchConfigFunc)
 
 	cpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_cpu_hourly_cost",

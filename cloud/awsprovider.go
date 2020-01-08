@@ -268,7 +268,18 @@ func (aws *AWS) GetConfig() (*CustomPricing, error) {
 	}
 	return c, nil
 }
-
+func (aws *AWS) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
+	c, err := GetDefaultPricingData("aws.json")
+	if err != nil {
+		return nil, err
+	}
+	path := os.Getenv("CONFIG_PATH")
+	if path == "" {
+		path = "/models/"
+	}
+	configPath := path + "aws.json"
+	return configmapUpdate(c, configPath, a)
+}
 func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
 	c, err := GetDefaultPricingData("aws.json")
 	if err != nil {

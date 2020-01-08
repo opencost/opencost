@@ -54,6 +54,19 @@ func (*CustomProvider) ApplyReservedInstancePricing(nodes map[string]*Node) {
 
 }
 
+func (cp *CustomProvider) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
+	c, err := GetDefaultPricingData("default.json")
+	if err != nil {
+		return nil, err
+	}
+	path := os.Getenv("CONFIG_PATH")
+	if path == "" {
+		path = "/models/"
+	}
+	configPath := path + "default.json"
+	return configmapUpdate(c, configPath, a)
+}
+
 func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
 	c, err := GetDefaultPricingData("default.json")
 	if err != nil {
