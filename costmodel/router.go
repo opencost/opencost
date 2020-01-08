@@ -632,13 +632,8 @@ func (a *Accesses) recordPrices() {
 				data = map[string]*CostData{}
 			}
 
-			for _, costs := range data {
-				nodeName := costs.NodeName
-				node := costs.NodeData
-				if node == nil {
-					klog.V(4).Infof("Skipping Node \"%s\" due to missing Node Data costs", nodeName)
-					continue
-				}
+			nodes, err := a.Model.GetNodeCost(a.Cloud)
+			for nodeName, node := range nodes {
 				cpuCost, _ := strconv.ParseFloat(node.VCPUCost, 64)
 				cpu, _ := strconv.ParseFloat(node.VCPU, 64)
 				ramCost, _ := strconv.ParseFloat(node.RAMCost, 64)
@@ -647,6 +642,17 @@ func (a *Accesses) recordPrices() {
 				gpuCost, _ := strconv.ParseFloat(node.GPUCost, 64)
 
 				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
+
+				a.CPUPriceRecorder.WithLabelValues(nodeName, nodeName).Set(cpuCost)
+				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeName).Set(ramCost)
+				a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName).Set(gpuCost)
+				a.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName).Set(totalCost)
+				labelKey := getKeyFromLabelStrings(nodeName, nodeName)
+				nodeSeen[labelKey] = true
+			}
+
+			for _, costs := range data {
+				nodeName := costs.NodeName
 
 				namespace := costs.Namespace
 				podName := costs.PodName
@@ -662,13 +668,6 @@ func (a *Accesses) recordPrices() {
 					}
 				}
 
-				a.CPUPriceRecorder.WithLabelValues(nodeName, nodeName).Set(cpuCost)
-				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeName).Set(ramCost)
-				a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName).Set(gpuCost)
-				a.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName).Set(totalCost)
-				labelKey := getKeyFromLabelStrings(nodeName, nodeName)
-				nodeSeen[labelKey] = true
-
 				if len(costs.RAMAllocation) > 0 {
 					a.RAMAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.RAMAllocation[0].Value)
 				}
@@ -679,7 +678,7 @@ func (a *Accesses) recordPrices() {
 					// allocation here is set to the request because shared GPU usage not yet supported.
 					a.GPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.GPUReq[0].Value)
 				}
-				labelKey = getKeyFromLabelStrings(namespace, podName, containerName, nodeName, nodeName)
+				labelKey := getKeyFromLabelStrings(namespace, podName, containerName, nodeName, nodeName)
 				if podStatus[podName] == v1.PodRunning { // Only report data for current pods
 					containerSeen[labelKey] = true
 				} else {

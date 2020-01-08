@@ -398,7 +398,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		return nil, fmt.Errorf("Error parsing normalization values: " + err.Error())
 	}
 
-	nodes, err := getNodeCost(cm.Cache, cp)
+	nodes, err := cm.GetNodeCost(cp)
 	if err != nil {
 		klog.V(1).Infof("Warning, no Node cost model available: " + err.Error())
 		return nil, err
@@ -922,13 +922,13 @@ func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cp costAnalyz
 	return nil
 }
 
-func getNodeCost(cache clustercache.ClusterCache, cp costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.Node, error) {
+func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.Node, error) {
 	cfg, err := cp.GetConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	nodeList := cache.GetAllNodes()
+	nodeList := cm.Cache.GetAllNodes()
 	nodes := make(map[string]*costAnalyzerCloud.Node)
 
 	for _, n := range nodeList {
@@ -1503,7 +1503,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 			start, end, window, err.Error())
 	}
 
-	nodes, err := getNodeCost(cm.Cache, cp)
+	nodes, err := cm.GetNodeCost(cp)
 	if err != nil {
 		klog.V(1).Infof("Warning, no cost model available: " + err.Error())
 		return nil, err
