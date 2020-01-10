@@ -142,7 +142,7 @@ const (
 			), "pod_name","$1","pod","(.+)"
 		) 
 	) by (namespace,container_name,pod_name,node,cluster_id) 
-	* on (pod_name) group_right(namespace,container_name,node,cluster_id) label_replace(avg_over_time(kube_pod_status_phase{phase="Running"}[%s] %s), "pod_name","$1","pod","(.+)")`
+	* on (pod_name, namespace, node, cluster_id) group_right(container_name) label_replace(avg_over_time(kube_pod_status_phase{phase="Running"}[%s] %s), "pod_name","$1","pod","(.+)")`
 	queryPVRequestsStr = `avg(kube_persistentvolumeclaim_info) by (persistentvolumeclaim, storageclass, namespace, volumename, cluster_id) 
 						* 
 						on (persistentvolumeclaim, namespace, cluster_id) group_right(storageclass, volumename) 
@@ -174,6 +174,7 @@ const (
 	queryNSLabels             = `avg_over_time(kube_namespace_labels[%s])`
 	queryPodLabels            = `avg_over_time(kube_pod_labels[%s])`
 	queryDeploymentLabels     = `avg_over_time(deployment_match_labels[%s])`
+	queryStatefulsetLabels    = `avg_over_time(statefulSet_match_labels[%s])`
 	queryServiceLabels        = `avg_over_time(service_selector_labels[%s])`
 	queryZoneNetworkUsage     = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
@@ -1089,6 +1090,37 @@ func getPodServices(cache clustercache.ClusterCache, podList []*v1.Pod, clusterI
 	return podServicesMapping, nil
 }
 
+func getPodStatefulsets(cache clustercache.ClusterCache, podList []*v1.Pod, clusterID string) (map[string]map[string][]string, error) {
+	ssList := cache.GetAllStatefulSets()
+	podSSMapping := make(map[string]map[string][]string) // namespace: podName: [deploymentNames]
+	for _, ss := range ssList {
+		namespace := ss.GetObjectMeta().GetNamespace()
+		name := ss.GetObjectMeta().GetName()
+
+		key := namespace + "," + clusterID
+		if _, ok := podSSMapping[key]; !ok {
+			podSSMapping[key] = make(map[string][]string)
+		}
+		s, err := metav1.LabelSelectorAsSelector(ss.Spec.Selector)
+		if err != nil {
+			klog.V(2).Infof("Error doing deployment label conversion: " + err.Error())
+		}
+		for _, pod := range podList {
+			labelSet := labels.Set(pod.GetObjectMeta().GetLabels())
+			if s.Matches(labelSet) && pod.GetObjectMeta().GetNamespace() == namespace {
+				sss, ok := podSSMapping[key][pod.GetObjectMeta().GetName()]
+				if ok {
+					podSSMapping[key][pod.GetObjectMeta().GetName()] = append(sss, name)
+				} else {
+					podSSMapping[key][pod.GetObjectMeta().GetName()] = []string{name}
+				}
+			}
+		}
+	}
+	return podSSMapping, nil
+
+}
+
 func getPodDeployments(cache clustercache.ClusterCache, podList []*v1.Pod, clusterID string) (map[string]map[string][]string, error) {
 	deploymentsList := cache.GetAllDeployments()
 	podDeploymentsMapping := make(map[string]map[string][]string) // namespace: podName: [deploymentNames]
@@ -1351,7 +1383,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(19)
+	wg.Add(20)
 
 	var promErr error
 	var resultRAMRequests interface{}
@@ -1456,6 +1488,11 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 		deploymentLabelsResults, promErr = QueryRange(cli, fmt.Sprintf(queryDeploymentLabels, windowString), start, end, window)
 	}()
+	var statefulsetLabelsResults interface{}
+	go func() {
+		defer wg.Done()
+		statefulsetLabelsResults, promErr = QueryRange(cli, fmt.Sprintf(queryStatefulsetLabels, windowString), start, end, window)
+	}()
 	var normalizationResults interface{}
 	go func() {
 		defer wg.Done()
@@ -1464,6 +1501,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	}()
 
 	podDeploymentsMapping := make(map[string]map[string][]string)
+	podStatefulsetsMapping := make(map[string]map[string][]string)
 	podServicesMapping := make(map[string]map[string][]string)
 	namespaceLabelsMapping := make(map[string]map[string]string)
 	podlist := cm.Cache.GetAllPods()
@@ -1472,6 +1510,11 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		defer wg.Done()
 
 		podDeploymentsMapping, k8sErr = getPodDeployments(cm.Cache, podlist, clusterID)
+		if k8sErr != nil {
+			return
+		}
+
+		podStatefulsetsMapping, k8sErr = getPodStatefulsets(cm.Cache, podlist, clusterID)
 		if k8sErr != nil {
 			return
 		}
@@ -1556,6 +1599,16 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	if err != nil {
 		klog.V(1).Infof("Unable to get Deployment Match Labels for Metrics: %s", err.Error())
 	}
+
+	statefulsetLabels, err := GetStatefulsetMatchLabelsMetrics(statefulsetLabelsResults, clusterID)
+	if err != nil {
+		klog.V(1).Infof("Unable to get Deployment Match Labels for Metrics: %s", err.Error())
+	}
+	podStatefulsetMetricsMapping, err := getPodDeploymentsWithMetrics(statefulsetLabels, podLabels)
+	if err != nil {
+		klog.V(1).Infof("Unable to get match Statefulset Labels Metrics to Pods: %s", err.Error())
+	}
+	appendLabelsList(podStatefulsetsMapping, podStatefulsetMetricsMapping)
 
 	podDeploymentsMetricsMapping, err := getPodDeploymentsWithMetrics(deploymentLabels, podLabels)
 	if err != nil {
@@ -1676,6 +1729,14 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 					podDeployments = []string{}
 				}
 			}
+			var podStatefulSets []string
+			if _, ok := podStatefulsetsMapping[nsKey]; ok {
+				if ds, ok := podStatefulsetsMapping[nsKey][pod.GetObjectMeta().GetName()]; ok {
+					podStatefulSets = ds
+				} else {
+					podStatefulSets = []string{}
+				}
+			}
 
 			var podPVs []*PersistentVolumeClaimData
 			podClaims := pod.Spec.Volumes
@@ -1774,7 +1835,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 					Services:        podServices,
 					Daemonsets:      getDaemonsetsOfPod(pod),
 					Jobs:            getJobsOfPod(pod),
-					Statefulsets:    getStatefulSetsOfPod(pod),
+					Statefulsets:    podStatefulSets,
 					NodeData:        nodeData,
 					RAMReq:          RAMReqV,
 					RAMUsed:         RAMUsedV,

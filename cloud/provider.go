@@ -165,6 +165,7 @@ type Provider interface {
 	GetKey(map[string]string) Key
 	GetPVKey(*v1.PersistentVolume, map[string]string) PVKey
 	UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error)
+	UpdateConfigFromConfigMap(map[string]string) (*CustomPricing, error)
 	GetConfig() (*CustomPricing, error)
 	GetManagementPlatform() (string, error)
 	GetLocalStorageQuery(offset string) (string, error)
@@ -253,6 +254,25 @@ func GetDefaultPricingData(fname string) (*CustomPricing, error) {
 	} else {
 		return nil, err
 	}
+}
+
+func configmapUpdate(c *CustomPricing, path string, a map[string]string) (*CustomPricing, error) {
+	for k, v := range a {
+		kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+		err := SetCustomPricingField(c, kUpper, v)
+		if err != nil {
+			return nil, err
+		}
+	}
+	cj, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+	err = ioutil.WriteFile(path, cj, 0644)
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
 }
 
 func SetCustomPricingField(obj *CustomPricing, name string, value string) error {

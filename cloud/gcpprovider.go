@@ -118,6 +118,19 @@ func (gcp *GCP) GetManagementPlatform() (string, error) {
 	return "", nil
 }
 
+func (gcp *GCP) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
+	c, err := GetDefaultPricingData("gcp.json")
+	if err != nil {
+		return nil, err
+	}
+	path := os.Getenv("CONFIG_PATH")
+	if path == "" {
+		path = "/models/"
+	}
+	configPath := path + "gcp.json"
+	return configmapUpdate(c, configPath, a)
+}
+
 func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
 	c, err := GetDefaultPricingData("gcp.json")
 	if err != nil {

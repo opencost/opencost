@@ -343,7 +343,7 @@ func (az *Azure) DownloadPricingData() error {
 	baseCPUPrice := c.CPU
 
 	for _, v := range *result.Meters {
-		if !strings.Contains(*v.MeterSubCategory, "Windows") {
+		if !strings.Contains(*v.MeterSubCategory, "Windows") && !strings.Contains(*v.MeterCategory, "Cloud Services") {
 
 			region, err := toRegionID(*v.MeterRegion, regions)
 			if err != nil {
@@ -511,6 +511,19 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 
 func (az *Azure) AddServiceKey(url url.Values) error {
 	return nil
+}
+
+func (az *Azure) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
+	c, err := GetDefaultPricingData("azure.json")
+	if err != nil {
+		return nil, err
+	}
+	path := os.Getenv("CONFIG_PATH")
+	if path == "" {
+		path = "/models/"
+	}
+	configPath := path + "azure.json"
+	return configmapUpdate(c, configPath, a)
 }
 
 func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
