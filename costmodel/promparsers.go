@@ -179,7 +179,7 @@ func GetPVInfo(qr interface{}, defaultClusterID string) (map[string]*PersistentV
 
 		volumeName, err := val.GetString("volumename")
 		if err != nil {
-			klog.V(3).Infof("Warning: Unfulfilled claim %s: volumename field does not exist in data result vector", pvcName)
+			klog.V(4).Infof("Warning: Unfulfilled claim %s: volumename field does not exist in data result vector", pvcName)
 			volumeName = ""
 		}
 
