@@ -894,7 +894,7 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 		if vol, ok := pvMap[pvc.VolumeName]; ok {
 			pvc.Volume = vol
 		} else {
-			klog.V(1).Infof("PV not found, using default")
+			klog.V(4).Infof("PV not found, using default")
 			pvc.Volume = &costAnalyzerCloud.PV{
 				Cost: cfg.Storage,
 			}
