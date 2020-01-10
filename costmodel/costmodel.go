@@ -142,7 +142,7 @@ const (
 			), "pod_name","$1","pod","(.+)"
 		) 
 	) by (namespace,container_name,pod_name,node,cluster_id) 
-	* on (pod_name, namespace) group_right(container_name,node,cluster_id) label_replace(avg_over_time(kube_pod_status_phase{phase="Running"}[%s] %s), "pod_name","$1","pod","(.+)")`
+	* on (pod_name, namespace, node) group_right(container_name,cluster_id) label_replace(avg_over_time(kube_pod_status_phase{phase="Running"}[%s] %s), "pod_name","$1","pod","(.+)")`
 	queryPVRequestsStr = `avg(kube_persistentvolumeclaim_info) by (persistentvolumeclaim, storageclass, namespace, volumename, cluster_id) 
 						* 
 						on (persistentvolumeclaim, namespace, cluster_id) group_right(storageclass, volumename) 
