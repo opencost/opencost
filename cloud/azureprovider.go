@@ -343,7 +343,7 @@ func (az *Azure) DownloadPricingData() error {
 	baseCPUPrice := c.CPU
 
 	for _, v := range *result.Meters {
-		if !strings.Contains(*v.MeterSubCategory, "Windows") {
+		if !strings.Contains(*v.MeterSubCategory, "Windows") && !strings.Contains(*v.MeterCategory, "Cloud Services") {
 
 			region, err := toRegionID(*v.MeterRegion, regions)
 			if err != nil {

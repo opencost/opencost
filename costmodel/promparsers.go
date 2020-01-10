@@ -337,6 +337,37 @@ func GetPodLabelsMetrics(queryResult interface{}, defaultClusterID string) (map[
 	return toReturn, nil
 }
 
+func GetStatefulsetMatchLabelsMetrics(queryResult interface{}, defaultClusterID string) (map[string]map[string]string, error) {
+	toReturn := make(map[string]map[string]string)
+	result, err := NewQueryResults(queryResult)
+	if err != nil {
+		return toReturn, err
+	}
+
+	for _, val := range result {
+		// We want Statefulset, Namespace and ClusterID for key generation purposes
+		ss, err := val.GetString("statefulSet")
+		if err != nil {
+			return toReturn, err
+		}
+
+		ns, err := val.GetString("namespace")
+		if err != nil {
+			return toReturn, err
+		}
+
+		clusterID, err := val.GetString("cluster_id")
+		if clusterID == "" {
+			clusterID = defaultClusterID
+		}
+
+		nsKey := ns + "," + ss + "," + clusterID
+		toReturn[nsKey] = val.GetLabels()
+	}
+
+	return toReturn, nil
+}
+
 func GetDeploymentMatchLabelsMetrics(queryResult interface{}, defaultClusterID string) (map[string]map[string]string, error) {
 	toReturn := make(map[string]map[string]string)
 	result, err := NewQueryResults(queryResult)

@@ -41,6 +41,9 @@ type ClusterCache interface {
 	// GetAllDeployments returns all the cached deployments
 	GetAllDeployments() []*appsv1.Deployment
 
+	// GetAllDeployments returns all the cached deployments
+	GetAllStatefulSets() []*appsv1.StatefulSet
+
 	// GetAllPersistentVolumes returns all the cached persistent volumes
 	GetAllPersistentVolumes() []*v1.PersistentVolume
 
@@ -61,6 +64,7 @@ type KubernetesClusterCache struct {
 	kubecostConfigMapWatch WatchController
 	serviceWatch           WatchController
 	deploymentsWatch       WatchController
+	statefulsetWatch       WatchController
 	pvWatch                WatchController
 	storageClassWatch      WatchController
 	stop                   chan struct{}
@@ -87,13 +91,14 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 		kubecostConfigMapWatch: NewCachingWatcher(coreRestClient, "configmaps", &v1.ConfigMap{}, kubecostNamespace, fields.Everything()),
 		serviceWatch:           NewCachingWatcher(coreRestClient, "services", &v1.Service{}, "", fields.Everything()),
 		deploymentsWatch:       NewCachingWatcher(appsRestClient, "deployments", &appsv1.Deployment{}, "", fields.Everything()),
+		statefulsetWatch:       NewCachingWatcher(appsRestClient, "statefulsets", &appsv1.StatefulSet{}, "", fields.Everything()),
 		pvWatch:                NewCachingWatcher(coreRestClient, "persistentvolumes", &v1.PersistentVolume{}, "", fields.Everything()),
 		storageClassWatch:      NewCachingWatcher(storageRestClient, "storageclasses", &stv1.StorageClass{}, "", fields.Everything()),
 	}
 
 	// Wait for each caching watcher to initialize
 	var wg sync.WaitGroup
-	wg.Add(8)
+	wg.Add(9)
 
 	cancel := make(chan struct{})
 
@@ -103,6 +108,7 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 	go initializeCache(kcc.kubecostConfigMapWatch, &wg, cancel)
 	go initializeCache(kcc.serviceWatch, &wg, cancel)
 	go initializeCache(kcc.deploymentsWatch, &wg, cancel)
+	go initializeCache(kcc.statefulsetWatch, &wg, cancel)
 	go initializeCache(kcc.pvWatch, &wg, cancel)
 	go initializeCache(kcc.storageClassWatch, &wg, cancel)
 
@@ -123,6 +129,7 @@ func (kcc *KubernetesClusterCache) Run() {
 	go kcc.serviceWatch.Run(1, stopCh)
 	go kcc.kubecostConfigMapWatch.Run(1, stopCh)
 	go kcc.deploymentsWatch.Run(1, stopCh)
+	go kcc.statefulsetWatch.Run(1, stopCh)
 	go kcc.pvWatch.Run(1, stopCh)
 	go kcc.storageClassWatch.Run(1, stopCh)
 
@@ -185,6 +192,15 @@ func (kcc *KubernetesClusterCache) GetAllDeployments() []*appsv1.Deployment {
 		deployments = append(deployments, deployment.(*appsv1.Deployment))
 	}
 	return deployments
+}
+
+func (kcc *KubernetesClusterCache) GetAllStatefulSets() []*appsv1.StatefulSet {
+	var statefulsets []*appsv1.StatefulSet
+	items := kcc.statefulsetWatch.GetAll()
+	for _, statefulset := range items {
+		statefulsets = append(statefulsets, statefulset.(*appsv1.StatefulSet))
+	}
+	return statefulsets
 }
 
 func (kcc *KubernetesClusterCache) GetAllPersistentVolumes() []*v1.PersistentVolume {

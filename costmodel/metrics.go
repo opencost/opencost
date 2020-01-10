@@ -33,12 +33,80 @@ func sanitizeLabelName(s string) string {
 	return invalidLabelCharRE.ReplaceAllString(s, "_")
 }
 
+type StatefulsetCollector struct {
+	KubeClientSet kubernetes.Interface
+}
+
+func (sc StatefulsetCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- prometheus.NewDesc("statefulSet_match_labels", "statfulSet match labels", []string{}, nil)
+}
+
 type DeploymentCollector struct {
 	KubeClientSet kubernetes.Interface
 }
 
 func (sc DeploymentCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- prometheus.NewInvalidDesc(nil)
+}
+
+func newStatefulsetMetric(name, namespace, fqname string, labelNames []string, labelvalues []string) StatefulsetMetric {
+	return StatefulsetMetric{
+		fqName:          fqname,
+		labelNames:      labelNames,
+		labelValues:     labelvalues,
+		help:            "statefulSet_match_labels StatefulSet Match Labels",
+		statefulsetName: name,
+		namespace:       namespace,
+	}
+}
+
+type StatefulsetMetric struct {
+	fqName          string
+	help            string
+	labelNames      []string
+	labelValues     []string
+	statefulsetName string
+	namespace       string
+}
+
+func (s StatefulsetMetric) Desc() *prometheus.Desc {
+	l := prometheus.Labels{"statefulSet": s.statefulsetName, "namespace": s.namespace}
+	return prometheus.NewDesc(s.fqName, s.help, s.labelNames, l)
+}
+
+func (s StatefulsetMetric) Write(m *dto.Metric) error {
+	h := float64(1)
+	m.Gauge = &dto.Gauge{
+		Value: &h,
+	}
+	var labels []*dto.LabelPair
+	for i := range s.labelNames {
+		labels = append(labels, &dto.LabelPair{
+			Name:  &s.labelNames[i],
+			Value: &s.labelValues[i],
+		})
+	}
+	n := "namespace"
+	labels = append(labels, &dto.LabelPair{
+		Name:  &n,
+		Value: &s.namespace,
+	})
+	r := "statefulSet"
+	labels = append(labels, &dto.LabelPair{
+		Name:  &r,
+		Value: &s.statefulsetName,
+	})
+	m.Label = labels
+	return nil
+}
+
+func (sc StatefulsetCollector) Collect(ch chan<- prometheus.Metric) {
+	ds, _ := sc.KubeClientSet.AppsV1().StatefulSets("").List(metav1.ListOptions{})
+	for _, statefulset := range ds.Items {
+		labels, values := kubeLabelsToPrometheusLabels(statefulset.Spec.Selector.MatchLabels)
+		m := newStatefulsetMetric(statefulset.GetName(), statefulset.GetNamespace(), "statefulSet_match_labels", labels, values)
+		ch <- m
+	}
 }
 
 func newDeploymentMetric(name, namespace, fqname string, labelNames []string, labelvalues []string) DeploymentMetric {

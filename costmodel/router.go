@@ -920,6 +920,9 @@ func Initialize() {
 	prometheus.MustRegister(DeploymentCollector{
 		KubeClientSet: kubeClientset,
 	})
+	prometheus.MustRegister(StatefulsetCollector{
+		KubeClientSet: kubeClientset,
+	})
 
 	// cache responses from model for a default of 5 minutes; clear expired responses every 10 minutes
 	outOfClusterCache := cache.New(time.Minute*5, time.Minute*10)
