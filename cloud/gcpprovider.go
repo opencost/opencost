@@ -883,19 +883,19 @@ func (gcp *GCP) ApplyReservedInstancePricing(nodes map[string]*Node) {
 
 		kNode, ok := gcpNodes[nodeName]
 		if !ok {
-			klog.V(1).Infof("[Reserved] Could not find K8s Node with name: %s", nodeName)
+			klog.V(4).Infof("[Reserved] Could not find K8s Node with name: %s", nodeName)
 			continue
 		}
 
 		nodeRegion, ok := kNode.Labels[v1.LabelZoneRegion]
 		if !ok {
-			klog.V(1).Infof("[Reserved] Could not find node region")
+			klog.V(4).Infof("[Reserved] Could not find node region")
 			continue
 		}
 
 		reservedCounters, ok := counters[nodeRegion]
 		if !ok {
-			klog.V(1).Infof("[Reserved] Could not find counters for region: %s", nodeRegion)
+			klog.V(4).Infof("[Reserved] Could not find counters for region: %s", nodeRegion)
 			continue
 		}
 
