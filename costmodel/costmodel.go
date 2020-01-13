@@ -976,7 +976,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 				return nil, err
 			}
 
-			defaultGPU, err := strconv.ParseFloat(cfg.RAM, 64)
+			defaultGPU, err := strconv.ParseFloat(cfg.GPU, 64)
 			if err != nil {
 				klog.V(3).Infof("Could not parse default gpu price")
 				return nil, err
