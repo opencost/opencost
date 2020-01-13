@@ -1486,7 +1486,7 @@ func (a *AWS) ApplyReservedInstancePricing(nodes map[string]*Node) {
 
 	// Early return if no reserved instance data loaded
 	if numReserved == 0 {
-		klog.V(1).Infof("[Reserved] No Reserved Instances")
+		klog.V(4).Infof("[Reserved] No Reserved Instances")
 		return
 	}
 
