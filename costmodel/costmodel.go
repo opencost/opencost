@@ -1546,11 +1546,13 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 			start, end, window, err.Error())
 	}
 
+	profileStart := time.Now()
 	nodes, err := cm.GetNodeCost(cp)
 	if err != nil {
 		klog.V(1).Infof("Warning, no cost model available: " + err.Error())
 		return nil, err
 	}
+	measureTime(profileStart, "GetNodeCost")
 
 	pvClaimMapping, err := GetPVInfo(resultPVRequests, clusterID)
 	if err != nil {
@@ -1628,6 +1630,8 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		networkUsageMap = make(map[string]*NetworkUsageData)
 	}
 
+	profileStart = time.Now()
+
 	containerNameCost := make(map[string]*CostData)
 	containers := make(map[string]bool)
 	otherClusterPVRecorded := make(map[string]bool)
@@ -1684,6 +1688,8 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		containers[key] = true
 	}
 
+	measureTime(profileStart, "GetContainerMetricVectors")
+
 	// Request metrics can show up after pod eviction and completion.
 	// This method synchronizes requests to allocations such that when
 	// allocation is 0, so are requests
@@ -1704,6 +1710,8 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 			currentContainers[c.Key()] = *pod
 		}
 	}
+
+	profileStart = time.Now()
 
 	missingNodes := make(map[string]*costAnalyzerCloud.Node)
 	missingContainers := make(map[string]*CostData)
@@ -2003,6 +2011,8 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 			}
 		}
 	}
+
+	measureTime(profileStart, "Build CostData map")
 
 	w := end.Sub(start)
 	w += window
