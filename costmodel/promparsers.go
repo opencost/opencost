@@ -440,7 +440,7 @@ func GetServiceSelectorLabelsMetrics(queryResult interface{}, defaultClusterID s
 func labelsForMetric(metricMap map[string]interface{}) string {
 	var pairs []string
 	for k, v := range metricMap {
-		pairs = append(pairs, fmt.Sprintf("%s:%+v", k, v))
+		pairs = append(pairs, fmt.Sprintf("%s: %+v", k, v))
 	}
 
 	return fmt.Sprintf("{%s}", strings.Join(pairs, ", "))
