@@ -148,6 +148,11 @@ func parseDataPoint(dataPoint interface{}) (*Vector, error) {
 		return nil, err
 	}
 
+	if math.IsNaN(v) {
+		klog.V(1).Infof("Warning: Found NaN value parsing vector data point.")
+		v = 0.0
+	}
+
 	return &Vector{
 		Timestamp: math.Round(value[0].(float64)/10) * 10,
 		Value:     v,
