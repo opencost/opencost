@@ -403,13 +403,13 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 
 	nodes, err := cm.GetNodeCost(cp)
 	if err != nil {
-		klog.V(1).Infof("Warning, no Node cost model available: " + err.Error())
+		klog.V(1).Infof("[Warning] no Node cost model available: " + err.Error())
 		return nil, err
 	}
 
 	pvClaimMapping, err := GetPVInfo(resultPVRequests, clusterID)
 	if err != nil {
-		klog.Infof("Unable to get PV Data: %s", err.Error())
+		klog.Infof("[Warning] Unable to get PV Data: %s", err.Error())
 	}
 	if pvClaimMapping != nil {
 		err = addPVData(cm.Cache, pvClaimMapping, cp)
@@ -420,7 +420,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 
 	networkUsageMap, err := GetNetworkUsageData(resultNetZoneRequests, resultNetRegionRequests, resultNetInternetRequests, clusterID)
 	if err != nil {
-		klog.V(1).Infof("Unable to get Network Cost Data: %s", err.Error())
+		klog.V(1).Infof("[Warning] Unable to get Network Cost Data: %s", err.Error())
 		networkUsageMap = make(map[string]*NetworkUsageData)
 	}
 
@@ -849,12 +849,12 @@ func getContainerAllocation(req []*Vector, used []*Vector, allocationType string
 		if x != nil && y != nil {
 			x1 := *x
 			if math.IsNaN(x1) {
-				klog.V(1).Infof("Warning: NaN value found during %s allocation calculation for requests.", allocationType)
+				klog.V(1).Infof("[Warning] NaN value found during %s allocation calculation for requests.", allocationType)
 				x1 = 0.0
 			}
 			y1 := *y
 			if math.IsNaN(y1) {
-				klog.V(1).Infof("Warning: NaN value found during %s allocation calculation for used.", allocationType)
+				klog.V(1).Infof("[Warning] NaN value found during %s allocation calculation for used.", allocationType)
 				y1 = 0.0
 			}
 
@@ -1565,7 +1565,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	nodes, err := cm.GetNodeCost(cp)
 	if err != nil {
-		klog.V(1).Infof("Warning, no cost model available: " + err.Error())
+		klog.V(1).Infof("[Warning] no cost model available: " + err.Error())
 		return nil, err
 	}
 

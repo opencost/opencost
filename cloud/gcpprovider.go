@@ -1106,6 +1106,6 @@ func (gcp *GCP) NodePricing(key Key) (*Node, error) {
 		n.Node.BaseCPUPrice = gcp.BaseCPUPrice
 		return n.Node, nil
 	}
-	klog.V(1).Infof("Warning: no pricing data found for %s: %s", key.Features(), key)
+	klog.V(1).Infof("[Warning] no pricing data found for %s: %s", key.Features(), key)
 	return nil, fmt.Errorf("Warning: no pricing data found for %s", key)
 }
