@@ -1379,10 +1379,6 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	clusterID := os.Getenv(clusterIDKey)
 
 	durHrs := end.Sub(start).Hours() + 1
-	durStr := fmt.Sprintf("%fh", durHrs)
-	if durHrs >= 24.0 {
-		durStr = fmt.Sprintf("%fd", durHrs/24.0)
-	}
 
 	if remoteEnabled == true {
 		remoteLayout := "2006-01-02T15:04:05Z"
@@ -1572,9 +1568,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	for msg := range queryProfileCh {
 		queryProfileBreakdown += "\n - " + msg
 	}
-	measureTime(queryProfileStart, fmt.Sprintf("costDataRange(%s): Prom/k8s Queries: %s", durStr, queryProfileBreakdown))
+	measureTime(queryProfileStart, fmt.Sprintf("costDataRange(%fh): Prom/k8s Queries: %s", durHrs, queryProfileBreakdown))
 
-	defer measureTime(time.Now(), fmt.Sprintf("costDataRange(%s): Processing Query Data", durStr))
+	defer measureTime(time.Now(), fmt.Sprintf("costDataRange(%fh): Processing Query Data", durHrs))
 
 	if promErr != nil {
 		return nil, fmt.Errorf("Error querying prometheus: %s", promErr.Error())
@@ -1591,7 +1587,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 			start, end, window, err.Error())
 	}
 
-	measureTime(profileStart, fmt.Sprintf("costDataRange(%s): compute normalizations", durStr))
+	measureTime(profileStart, fmt.Sprintf("costDataRange(%fh): compute normalizations", durHrs))
 
 	profileStart = time.Now()
 
@@ -1601,7 +1597,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		return nil, err
 	}
 
-	measureTime(profileStart, fmt.Sprintf("costDataRange(%s): GetNodeCost", durStr))
+	measureTime(profileStart, fmt.Sprintf("costDataRange(%fh): GetNodeCost", durHrs))
 
 	profileStart = time.Now()
 
@@ -1630,7 +1626,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		addMetricPVData(pvAllocationMapping, pvCostMapping, cp)
 	}
 
-	measureTime(profileStart, fmt.Sprintf("costDataRange(%s): process PV data", durStr))
+	measureTime(profileStart, fmt.Sprintf("costDataRange(%fh): process PV data", durHrs))
 
 	profileStart = time.Now()
 
@@ -1662,7 +1658,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		klog.V(1).Infof("Unable to get Deployment Match Labels for Metrics: %s", err.Error())
 	}
 
-	measureTime(profileStart, fmt.Sprintf("costDataRange(%s): process labels", durStr))
+	measureTime(profileStart, fmt.Sprintf("costDataRange(%fh): process labels", durHrs))
 
 	profileStart = time.Now()
 
@@ -1690,7 +1686,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		networkUsageMap = make(map[string]*NetworkUsageData)
 	}
 
-	measureTime(profileStart, fmt.Sprintf("costDataRange(%s): process deployments, services, and network usage", durStr))
+	measureTime(profileStart, fmt.Sprintf("costDataRange(%fh): process deployments, services, and network usage", durHrs))
 
 	profileStart = time.Now()
 
@@ -1750,7 +1746,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		containers[key] = true
 	}
 
-	measureTime(profileStart, fmt.Sprintf("costDataRange(%s): GetContainerMetricVectors", durStr))
+	measureTime(profileStart, fmt.Sprintf("costDataRange(%fh): GetContainerMetricVectors", durHrs))
 
 	profileStart = time.Now()
 
@@ -1775,7 +1771,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		}
 	}
 
-	measureTime(profileStart, fmt.Sprintf("costDataRange(%s): applyAllocationToRequests", durStr))
+	measureTime(profileStart, fmt.Sprintf("costDataRange(%fh): applyAllocationToRequests", durHrs))
 
 	profileStart = time.Now()
 
@@ -2078,7 +2074,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		}
 	}
 
-	measureTime(profileStart, fmt.Sprintf("costDataRange(%s): build CostData map", durStr))
+	measureTime(profileStart, fmt.Sprintf("costDataRange(%fh): build CostData map", durHrs))
 
 	w := end.Sub(start)
 	w += window
