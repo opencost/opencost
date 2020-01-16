@@ -1380,7 +1380,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	durHrs := end.Sub(start).Hours() + 1
 	durStr := fmt.Sprintf("%fh", durHrs)
-	if durHrs > 24.0 {
+	if durHrs >= 24.0 {
 		durStr = fmt.Sprintf("%fd", durHrs/24.0)
 	}
 
