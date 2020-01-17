@@ -96,7 +96,8 @@ func NewQueryResults(queryResult interface{}) ([]*PromQueryResult, error) {
 			return nil, fmt.Errorf("Metric field is improperly formatted")
 		}
 
-		labels := labelsForMetric(metricMap)
+		// Wrap execution of this lazily in case the data is not used
+		labels := func() string { return labelsForMetric(metricMap) }
 
 		// Determine if the result is a ranged data set or single value
 		_, isRange := resultInterface["values"]
@@ -138,7 +139,7 @@ func NewQueryResults(queryResult interface{}) ([]*PromQueryResult, error) {
 	return result, nil
 }
 
-func parseDataPoint(dataPoint interface{}, labels string) (*Vector, error) {
+func parseDataPoint(dataPoint interface{}, labels func() string) (*Vector, error) {
 	value, ok := dataPoint.([]interface{})
 	if !ok || len(value) != 2 {
 		return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
@@ -151,7 +152,7 @@ func parseDataPoint(dataPoint interface{}, labels string) (*Vector, error) {
 	}
 
 	if math.IsNaN(v) {
-		klog.V(1).Infof("[Warning] Found NaN value parsing vector data point for metric: %s", labels)
+		klog.V(1).Infof("[Warning] Found NaN value parsing vector data point for metric: %s", labels())
 		v = 0.0
 	}
 
