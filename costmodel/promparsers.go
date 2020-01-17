@@ -96,6 +96,8 @@ func NewQueryResults(queryResult interface{}) ([]*PromQueryResult, error) {
 			return nil, fmt.Errorf("Metric field is improperly formatted")
 		}
 
+		labels := labelsForMetric(metricMap)
+
 		// Determine if the result is a ranged data set or single value
 		_, isRange := resultInterface["values"]
 
@@ -106,7 +108,7 @@ func NewQueryResults(queryResult interface{}) ([]*PromQueryResult, error) {
 				return nil, fmt.Errorf("Value field does not exist in data result vector")
 			}
 
-			v, err := parseDataPoint(dataPoint)
+			v, err := parseDataPoint(dataPoint, labels)
 			if err != nil {
 				return nil, err
 			}
@@ -118,7 +120,7 @@ func NewQueryResults(queryResult interface{}) ([]*PromQueryResult, error) {
 			}
 
 			for _, value := range values {
-				v, err := parseDataPoint(value)
+				v, err := parseDataPoint(value, labels)
 				if err != nil {
 					return nil, err
 				}
@@ -136,7 +138,7 @@ func NewQueryResults(queryResult interface{}) ([]*PromQueryResult, error) {
 	return result, nil
 }
 
-func parseDataPoint(dataPoint interface{}) (*Vector, error) {
+func parseDataPoint(dataPoint interface{}, labels string) (*Vector, error) {
 	value, ok := dataPoint.([]interface{})
 	if !ok || len(value) != 2 {
 		return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
@@ -146,6 +148,11 @@ func parseDataPoint(dataPoint interface{}) (*Vector, error) {
 	v, err := strconv.ParseFloat(strVal, 64)
 	if err != nil {
 		return nil, err
+	}
+
+	if math.IsNaN(v) {
+		klog.V(1).Infof("[Warning] Found NaN value parsing vector data point for metric: %s", labels)
+		v = 0.0
 	}
 
 	return &Vector{
@@ -179,14 +186,14 @@ func GetPVInfo(qr interface{}, defaultClusterID string) (map[string]*PersistentV
 
 		volumeName, err := val.GetString("volumename")
 		if err != nil {
-			klog.V(4).Infof("Warning: Unfulfilled claim %s: volumename field does not exist in data result vector", pvcName)
+			klog.V(4).Infof("[Warning] Unfulfilled claim %s: volumename field does not exist in data result vector", pvcName)
 			volumeName = ""
 		}
 
 		pvClass, err := val.GetString("storageclass")
 		if err != nil {
 			// TODO: We need to look up the actual PV and PV capacity. For now just proceed with "".
-			klog.V(2).Infof("Storage Class not found for claim \"%s/%s\".", ns, pvcName)
+			klog.V(2).Infof("[Warning] Storage Class not found for claim \"%s/%s\".", ns, pvcName)
 			pvClass = ""
 		}
 
@@ -428,4 +435,13 @@ func GetServiceSelectorLabelsMetrics(queryResult interface{}, defaultClusterID s
 	}
 
 	return toReturn, nil
+}
+
+func labelsForMetric(metricMap map[string]interface{}) string {
+	var pairs []string
+	for k, v := range metricMap {
+		pairs = append(pairs, fmt.Sprintf("%s: %+v", k, v))
+	}
+
+	return fmt.Sprintf("{%s}", strings.Join(pairs, ", "))
 }

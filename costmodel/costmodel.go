@@ -403,13 +403,13 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 
 	nodes, err := cm.GetNodeCost(cp)
 	if err != nil {
-		klog.V(1).Infof("Warning, no Node cost model available: " + err.Error())
+		klog.V(1).Infof("[Warning] no Node cost model available: " + err.Error())
 		return nil, err
 	}
 
 	pvClaimMapping, err := GetPVInfo(resultPVRequests, clusterID)
 	if err != nil {
-		klog.Infof("Unable to get PV Data: %s", err.Error())
+		klog.Infof("[Warning] Unable to get PV Data: %s", err.Error())
 	}
 	if pvClaimMapping != nil {
 		err = addPVData(cm.Cache, pvClaimMapping, cp)
@@ -420,7 +420,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 
 	networkUsageMap, err := GetNetworkUsageData(resultNetZoneRequests, resultNetRegionRequests, resultNetInternetRequests, clusterID)
 	if err != nil {
-		klog.V(1).Infof("Unable to get Network Cost Data: %s", err.Error())
+		klog.V(1).Infof("[Warning] Unable to get Network Cost Data: %s", err.Error())
 		networkUsageMap = make(map[string]*NetworkUsageData)
 	}
 
@@ -605,8 +605,8 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 					NamespaceLabels: nsLabels,
 					ClusterID:       clusterID,
 				}
-				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
-				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
+				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed, "CPU")
+				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed, "RAM")
 				if filterNamespace == "" {
 					containerNameCost[newKey] = costs
 				} else if costs.Namespace == filterNamespace {
@@ -675,8 +675,8 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 				NamespaceLabels: namespacelabels,
 				ClusterID:       c.ClusterID,
 			}
-			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed)
-			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed)
+			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed, "CPU")
+			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed, "RAM")
 			if filterNamespace == "" {
 				containerNameCost[key] = costs
 				missingContainers[key] = costs
@@ -843,11 +843,22 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 	return nil
 }
 
-func getContainerAllocation(req []*Vector, used []*Vector) []*Vector {
+func getContainerAllocation(req []*Vector, used []*Vector, allocationType string) []*Vector {
 	// The result of the normalize operation will be a new []*Vector to replace the requests
 	allocationOp := func(r *Vector, x *float64, y *float64) bool {
 		if x != nil && y != nil {
-			r.Value = math.Max(*x, *y)
+			x1 := *x
+			if math.IsNaN(x1) {
+				klog.V(1).Infof("[Warning] NaN value found during %s allocation calculation for requests.", allocationType)
+				x1 = 0.0
+			}
+			y1 := *y
+			if math.IsNaN(y1) {
+				klog.V(1).Infof("[Warning] NaN value found during %s allocation calculation for used.", allocationType)
+				y1 = 0.0
+			}
+
+			r.Value = math.Max(x1, y1)
 		} else if x != nil {
 			r.Value = *x
 		} else if y != nil {
@@ -1593,7 +1604,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	nodes, err := cm.GetNodeCost(cp)
 	if err != nil {
-		klog.V(1).Infof("Warning, no cost model available: " + err.Error())
+		klog.V(1).Infof("[Warning] no cost model available: " + err.Error())
 		return nil, err
 	}
 

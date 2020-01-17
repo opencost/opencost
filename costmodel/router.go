@@ -982,7 +982,7 @@ func Initialize() {
 
 			_, err = ValidatePrometheus(thanosCli, true)
 			if err != nil {
-				klog.V(1).Infof("Warning: Failed to query Thanos at %s. Error: %s.", thanosUrl, err.Error())
+				klog.V(1).Infof("[Warning] Failed to query Thanos at %s. Error: %s.", thanosUrl, err.Error())
 				A.ThanosClient = thanosCli
 			} else {
 				klog.V(1).Info("Success: retrieved the 'up' query against Thanos at: " + thanosUrl)
