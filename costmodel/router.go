@@ -836,8 +836,9 @@ func Initialize() {
 	configs, err := kubeClientset.CoreV1().ConfigMaps(kubecostNamespace).Get("pricing-configs", metav1.GetOptions{})
 	if err != nil {
 		klog.Infof("ERROR FETCHING configmap: %s", err.Error())
+	} else {
+		watchConfigFunc(configs)
 	}
-	watchConfigFunc(configs)
 
 	k8sCache.SetConfigMapUpdateFunc(watchConfigFunc)
 
