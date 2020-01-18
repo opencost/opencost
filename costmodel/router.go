@@ -359,8 +359,8 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 		pClient = a.PrometheusClient
 	}
 
-	// TODO this should probably be a parsed version of window?
-	data, err := a.Model.ComputeCostDataRange(pClient, a.KubeClientSet, a.Cloud, start, end, window, 1.0, namespace, cluster, remoteEnabled)
+	resolutionHours := 1.0
+	data, err := a.Model.ComputeCostDataRange(pClient, a.KubeClientSet, a.Cloud, start, end, window, resolutionHours, namespace, cluster, remoteEnabled)
 	if err != nil {
 		w.Write(WrapData(nil, err))
 	}
