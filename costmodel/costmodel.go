@@ -1837,8 +1837,8 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	normalizationValue, err := getNormalizations(normalizationResults)
 	if err != nil {
-		return nil, fmt.Errorf("error computing normalization for start=%s, end=%s, window=%s: %s",
-			start, end, window, err.Error())
+		return nil, fmt.Errorf("error computing normalization for start=%s, end=%s, window=%s, res=%f: %s",
+			start, end, window, resolutionHours*60*60, err.Error())
 	}
 
 	measureTime(profileStart, fmt.Sprintf("costDataRange(%fh): compute normalizations", durHrs))
