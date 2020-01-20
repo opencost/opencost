@@ -1036,7 +1036,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 		cnode, err := cp.NodePricing(cp.GetKey(nodeLabels))
 		if err != nil {
-			klog.V(1).Infof("Error getting node. Error: " + err.Error())
+			klog.V(1).Infof("[Warning] Error getting node pricing. Error: " + err.Error())
 			nodes[name] = cnode
 			continue
 		}
@@ -1047,7 +1047,14 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 			cpu = float64(n.Status.Capacity.Cpu().Value())
 			newCnode.VCPU = n.Status.Capacity.Cpu().String()
 		} else {
-			cpu, _ = strconv.ParseFloat(newCnode.VCPU, 64)
+			cpu, err = strconv.ParseFloat(newCnode.VCPU, 64)
+			if err != nil {
+				klog.V(1).Infof("[Warning] parsing VCPU value: \"%s\" as float64", newCnode.VCPU)
+			}
+		}
+		if math.IsNaN(cpu) {
+			klog.V(1).Infof("[Warning] cpu parsed as NaN. Setting to 0.")
+			cpu = 0
 		}
 
 		var ram float64
@@ -1055,6 +1062,11 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 			newCnode.RAM = n.Status.Capacity.Memory().String()
 		}
 		ram = float64(n.Status.Capacity.Memory().Value())
+		if math.IsNaN(ram) {
+			klog.V(1).Infof("[Warning] ram parsed as NaN. Setting to 0.")
+			ram = 0
+		}
+
 		newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 
 		if newCnode.GPU != "" && newCnode.GPUCost == "" {
@@ -1066,11 +1078,19 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 				klog.V(3).Infof("Could not parse default cpu price")
 				return nil, err
 			}
+			if math.IsNaN(defaultCPU) {
+				klog.V(1).Infof("[Warning] defaultCPU parsed as NaN. Setting to 0.")
+				defaultCPU = 0
+			}
 
 			defaultRAM, err := strconv.ParseFloat(cfg.RAM, 64)
 			if err != nil {
 				klog.V(3).Infof("Could not parse default ram price")
 				return nil, err
+			}
+			if math.IsNaN(defaultRAM) {
+				klog.V(1).Infof("[Warning] defaultRAM parsed as NaN. Setting to 0.")
+				defaultRAM = 0
 			}
 
 			defaultGPU, err := strconv.ParseFloat(cfg.GPU, 64)
@@ -1078,12 +1098,34 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 				klog.V(3).Infof("Could not parse default gpu price")
 				return nil, err
 			}
+			if math.IsNaN(defaultGPU) {
+				klog.V(1).Infof("[Warning] defaultGPU parsed as NaN. Setting to 0.")
+				defaultGPU = 0
+			}
 
 			cpuToRAMRatio := defaultCPU / defaultRAM
+			if math.IsNaN(cpuToRAMRatio) {
+				klog.V(1).Infof("[Warning] cpuToRAMRatio[defaultCPU: %f / defaultRam: %f] is NaN. Setting to 0.", defaultCPU, defaultRAM)
+				cpuToRAMRatio = 0
+			}
+
 			gpuToRAMRatio := defaultGPU / defaultRAM
+			if math.IsNaN(gpuToRAMRatio) {
+				klog.V(1).Infof("[Warning] gpuToRAMRatio is NaN. Setting to 0.")
+				gpuToRAMRatio = 0
+			}
 
 			ramGB := ram / 1024 / 1024 / 1024
+			if math.IsNaN(ramGB) {
+				klog.V(1).Infof("[Warning] ramGB is NaN. Setting to 0.")
+				ramGB = 0
+			}
+
 			ramMultiple := gpuToRAMRatio + cpu*cpuToRAMRatio + ramGB
+			if math.IsNaN(ramMultiple) {
+				klog.V(1).Infof("[Warning] ramMultiple is NaN. Setting to 0.")
+				ramMultiple = 0
+			}
 
 			var nodePrice float64
 			if newCnode.Cost != "" {
@@ -1099,8 +1141,17 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 					return nil, err
 				}
 			}
+			if math.IsNaN(nodePrice) {
+				klog.V(1).Infof("[Warning] nodePrice parsed as NaN. Setting to 0.")
+				nodePrice = 0
+			}
 
 			ramPrice := (nodePrice / ramMultiple)
+			if math.IsNaN(ramPrice) {
+				klog.V(1).Infof("[Warning] ramPrice[nodePrice: %f / ramMultiple: %f] parsed as NaN. Setting to 0.", nodePrice, ramMultiple)
+				ramPrice = 0
+			}
+
 			cpuPrice := ramPrice * cpuToRAMRatio
 			gpuPrice := ramPrice * gpuToRAMRatio
 
@@ -1117,16 +1168,38 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 				klog.V(3).Infof("Could not parse default cpu price")
 				return nil, err
 			}
+			if math.IsNaN(defaultCPU) {
+				klog.V(1).Infof("[Warning] defaultCPU parsed as NaN. Setting to 0.")
+				defaultCPU = 0
+			}
 
 			defaultRAM, err := strconv.ParseFloat(cfg.RAM, 64)
 			if err != nil {
 				klog.V(3).Infof("Could not parse default ram price")
 				return nil, err
 			}
+			if math.IsNaN(defaultRAM) {
+				klog.V(1).Infof("[Warning] defaultRAM parsed as NaN. Setting to 0.")
+				defaultRAM = 0
+			}
 
 			cpuToRAMRatio := defaultCPU / defaultRAM
+			if math.IsNaN(cpuToRAMRatio) {
+				klog.V(1).Infof("[Warning] cpuToRAMRatio[defaultCPU: %f / defaultRam: %f] is NaN. Setting to 0.", defaultCPU, defaultRAM)
+				cpuToRAMRatio = 0
+			}
+
 			ramGB := ram / 1024 / 1024 / 1024
+			if math.IsNaN(ramGB) {
+				klog.V(1).Infof("[Warning] ramGB is NaN. Setting to 0.")
+				ramGB = 0
+			}
+
 			ramMultiple := cpu*cpuToRAMRatio + ramGB
+			if math.IsNaN(ramMultiple) {
+				klog.V(1).Infof("[Warning] ramMultiple is NaN. Setting to 0.")
+				ramMultiple = 0
+			}
 
 			var nodePrice float64
 			if newCnode.Cost != "" {
@@ -1142,8 +1215,17 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 					return nil, err
 				}
 			}
+			if math.IsNaN(nodePrice) {
+				klog.V(1).Infof("[Warning] nodePrice parsed as NaN. Setting to 0.")
+				nodePrice = 0
+			}
 
 			ramPrice := (nodePrice / ramMultiple)
+			if math.IsNaN(ramPrice) {
+				klog.V(1).Infof("[Warning] ramPrice[nodePrice: %f / ramMultiple: %f] parsed as NaN. Setting to 0.", nodePrice, ramMultiple)
+				ramPrice = 0
+			}
+
 			cpuPrice := ramPrice * cpuToRAMRatio
 
 			newCnode.VCPUCost = fmt.Sprintf("%f", cpuPrice)
