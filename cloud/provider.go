@@ -11,6 +11,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 
 	"k8s.io/klog"
 
@@ -270,7 +271,7 @@ func configmapUpdate(c *CustomPricing, path string, a map[string]string) (*Custo
 			return nil, err
 		}
 	}
-	
+
 	configLock.Lock()
 	defer configLock.Unlock()
 
