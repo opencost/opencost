@@ -33,6 +33,9 @@ var createTableStatements = []string{
 	);`,
 }
 
+// This Mutex is used to control read/writes to our default config file
+var configLock sync.Mutex
+
 // ReservedInstanceData keeps record of resources on a node should be
 // priced at reserved rates
 type ReservedInstanceData struct {
@@ -205,6 +208,9 @@ func CustomPricesEnabled(p Provider) bool {
 
 // GetDefaultPricingData will search for a json file representing pricing data in /models/ and use it for base pricing info.
 func GetDefaultPricingData(fname string) (*CustomPricing, error) {
+	configLock.Lock()
+	defer configLock.Unlock()
+
 	path := os.Getenv("CONFIG_PATH")
 	if path == "" {
 		path = "/models/"
@@ -264,6 +270,10 @@ func configmapUpdate(c *CustomPricing, path string, a map[string]string) (*Custo
 			return nil, err
 		}
 	}
+	
+	configLock.Lock()
+	defer configLock.Unlock()
+
 	cj, err := json.Marshal(c)
 	if err != nil {
 		return nil, err
