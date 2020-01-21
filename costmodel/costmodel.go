@@ -1544,24 +1544,12 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	klog.Infof("[Debug] costDataRange(window=%s, res=%d)", windowString, int(resolutionHours*60*60))
 
-	// newQueryCPUAllocation := `avg(
-	// 	label_replace(
-	// 		label_replace(
-	// 			avg(
-	// 				count_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s] %s)
-	// 				*
-	// 				avg_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s] %s)
-	// 			) by (namespace,container,pod,node,cluster_id) , "container_name","$1","container","(.+)"
-	// 		), "pod_name","$1","pod","(.+)"
-	// 	)
-	// ) by (namespace,container_name,pod_name,node,cluster_id)`
-
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, windowString, "", windowString, "")
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, windowString, "", windowString, "")
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, windowString, "", windowString, "")
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, windowString, "")
-	queryRAMAlloc := fmt.Sprintf(queryRAMAllocation, windowString, "", windowString, "")
-	queryCPUAlloc := fmt.Sprintf(queryCPUAllocation, windowString, "", windowString, "")
+	// queryRAMAlloc := fmt.Sprintf(queryRAMAllocation, windowString, "", windowString, "")
+	// queryCPUAlloc := fmt.Sprintf(queryCPUAllocation, windowString, "", windowString, "")
 	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, windowString, "", windowString, "", windowString, "")
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
 	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, windowString, "")
@@ -1569,25 +1557,36 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, windowString, "")
 	normalization := fmt.Sprintf(normalizationStr, windowString, "")
 
-	// TODO
-	scrapesPerMin := 1.0
-	newQueryRAMAllocation := `
-		label_replace(label_replace(
-			avg(
-				sum_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s])
-			) by (namespace,container,pod,node,cluster_id) / %f
-		, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")
-	`
-	queryRAMAlloc = fmt.Sprintf(newQueryRAMAllocation, windowString, scrapesPerMin)
+	// TODO un-hard-code this constant
+	// - Should this be a Prom query, or can we keep it as a constant? (I think constant.)
+	// - Should this deal with missed scrapes?
+	hoursPerScrape := 1.0 / 60.0
 
-	newQueryCPUAllocation := `
+	// queryRAMAllocationByteHours yields the total byte-hour RAM allocation over the given
+	// window, aggregated by container.
+	//   sum(all byte measurements within given window) = [byte*scrape] by metric
+	//   avg(") by unique container key = [byte*scrape] by container
+	//   (") * hoursPerScrape = [byte*hour]
+	queryRAMAllocationByteHours := `label_replace(label_replace(
+		avg(
+			sum_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s])
+		) by (namespace,container,pod,node,cluster_id) * %f
+	, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
+	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, windowString, hoursPerScrape)
+
+	// queryCPUAllocationVCPUHours yields the total VCPU-hour CPU allocation over the given
+	// window, aggregated by container.
+	//   sum(all VCPU measurements within given window) = [VCPU*scrape] by metric
+	//   avg(") by unique container key = [VCPU*scrape] by container
+	//   (") * hoursPerScrape = [VCPU*hour]
+	queryCPUAllocationVCPUHours := `
 		label_replace(label_replace(
 			avg(
 				sum_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s])
-			) by (namespace,container,pod,node,cluster_id) / %f
+			) by (namespace,container,pod,node,cluster_id) * %f
 		, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")
 	`
-	queryCPUAlloc = fmt.Sprintf(newQueryCPUAllocation, windowString, scrapesPerMin)
+	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, windowString, hoursPerScrape)
 
 	layout := "2006-01-02T15:04:05.000Z"
 
@@ -1985,16 +1984,15 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	containers := make(map[string]bool)
 	otherClusterPVRecorded := make(map[string]bool)
 
-	RAMReqMap, err := GetContainerMetricVectors(resultRAMRequests, true, normalizationValue, clusterID)
-	// RAMReqMap, err := GetContainerMetricVectors(resultRAMRequests, false, normalizationValue, clusterID)
+	RAMReqMap, err := GetNormalizedContainerMetricVectors(resultRAMRequests, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
 	for key := range RAMReqMap {
 		containers[key] = true
 	}
-	RAMUsedMap, err := GetContainerMetricVectors(resultRAMUsage, true, normalizationValue, clusterID)
-	// RAMUsedMap, err := GetContainerMetricVectors(resultRAMUsage, false, normalizationValue, clusterID)
+
+	RAMUsedMap, err := GetNormalizedContainerMetricVectors(resultRAMUsage, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
@@ -2002,8 +2000,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		containers[key] = true
 	}
 
-	CPUReqMap, err := GetContainerMetricVectors(resultCPURequests, true, normalizationValue, clusterID)
-	// CPUReqMap, err := GetContainerMetricVectors(resultCPURequests, false, normalizationValue, clusterID)
+	CPUReqMap, err := GetNormalizedContainerMetricVectors(resultCPURequests, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
@@ -2011,7 +2008,10 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		containers[key] = true
 	}
 
-	CPUUsedMap, err := GetContainerMetricVectors(resultCPUUsage, false, normalizationValue, clusterID) // No need to normalize here, as this comes from a counter
+	// No need to normalize here, as this comes from a counter
+	// CPUUsedMap, err := GetContainerMetricVectors(resultCPUUsage, clusterID)
+	// TODO Is that ^ true?? We were normalizing before, so I'm normalizing now.
+	CPUUsedMap, err := GetNormalizedContainerMetricVectors(resultCPUUsage, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
@@ -2019,8 +2019,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		containers[key] = true
 	}
 
-	// RAMAllocMap, err := GetContainerMetricVectors("RAM allocation", resultRAMAllocations, true, normalizationValue, clusterID)
-	RAMAllocMap, err := GetContainerMetricVectors(resultRAMAllocations, false, normalizationValue, clusterID)
+	RAMAllocMap, err := GetContainerMetricVectors(resultRAMAllocations, clusterID)
 	if err != nil {
 		return nil, err
 	}
@@ -2028,8 +2027,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		containers[key] = true
 	}
 
-	// CPUAllocMap, err := GetContainerMetricVectors(resultCPUAllocations, true, normalizationValue, clusterID)
-	CPUAllocMap, err := GetContainerMetricVectors(resultCPUAllocations, false, normalizationValue, clusterID)
+	CPUAllocMap, err := GetContainerMetricVectors(resultCPUAllocations, clusterID)
 	if err != nil {
 		return nil, err
 	}
@@ -2037,8 +2035,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		containers[key] = true
 	}
 
-	// GPUReqMap, err := GetContainerMetricVectors(resultGPURequests, true, normalizationValue, clusterID)
-	GPUReqMap, err := GetContainerMetricVectors(resultGPURequests, false, normalizationValue, clusterID)
+	GPUReqMap, err := GetContainerMetricVectors(resultGPURequests, clusterID)
 	if err != nil {
 		return nil, err
 	}
@@ -2767,7 +2764,7 @@ func GetContainerMetricVector(qr interface{}, normalize bool, normalizationValue
 	return containerData, nil
 }
 
-func GetContainerMetricVectors(qr interface{}, normalize bool, normalizationValues []*Vector, defaultClusterID string) (map[string][]*Vector, error) {
+func GetContainerMetricVectors(qr interface{}, defaultClusterID string) (map[string][]*Vector, error) {
 	result, err := NewQueryResults(qr)
 	if err != nil {
 		return nil, err
@@ -2779,12 +2776,24 @@ func GetContainerMetricVectors(qr interface{}, normalize bool, normalizationValu
 		if err != nil {
 			return nil, err
 		}
+		containerData[containerMetric.Key()] = val.Values
+	}
+	return containerData, nil
+}
 
-		values := val.Values
-		if normalize {
-			values = NormalizeVectorByVector(values, normalizationValues)
+func GetNormalizedContainerMetricVectors(qr interface{}, normalizationValues []*Vector, defaultClusterID string) (map[string][]*Vector, error) {
+	result, err := NewQueryResults(qr)
+	if err != nil {
+		return nil, err
+	}
+
+	containerData := make(map[string][]*Vector)
+	for _, val := range result {
+		containerMetric, err := newContainerMetricFromPrometheus(val.Metric, defaultClusterID)
+		if err != nil {
+			return nil, err
 		}
-		containerData[containerMetric.Key()] = values
+		containerData[containerMetric.Key()] = NormalizeVectorByVector(val.Values, normalizationValues)
 	}
 	return containerData, nil
 }
