@@ -416,7 +416,7 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 		klog.V(4).Infof("Returning pricing for node %s: %+v from key %s", key, n, key.Features())
 		return n, nil
 	}
-	klog.V(1).Infof("Warning: no pricing data found for %s: %s", key.Features(), key)
+	klog.V(1).Infof("[Warning] no pricing data found for %s: %s", key.Features(), key)
 	c, err := az.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("No default pricing data available")

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -359,7 +360,8 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 		pClient = a.PrometheusClient
 	}
 
-	data, err := a.Model.ComputeCostDataRange(pClient, a.KubeClientSet, a.Cloud, start, end, window, namespace, cluster, remoteEnabled)
+	resolutionHours := 1.0
+	data, err := a.Model.ComputeCostDataRange(pClient, a.KubeClientSet, a.Cloud, start, end, window, resolutionHours, namespace, cluster, remoteEnabled)
 	if err != nil {
 		w.Write(WrapData(nil, err))
 	}
@@ -616,6 +618,8 @@ func (a *Accesses) recordPrices() {
 				podStatus[pod.Name] = pod.Status.Phase
 			}
 
+			cfg, _ := a.Cloud.GetConfig()
+
 			// Record network pricing at global scope
 			networkCosts, err := a.Cloud.NetworkPricing()
 			if err != nil {
@@ -635,12 +639,40 @@ func (a *Accesses) recordPrices() {
 
 			nodes, err := a.Model.GetNodeCost(a.Cloud)
 			for nodeName, node := range nodes {
+				// Emit costs, guarding against NaN inputs for custom pricing.
 				cpuCost, _ := strconv.ParseFloat(node.VCPUCost, 64)
+				if math.IsNaN(cpuCost) || math.IsInf(cpuCost, 0) {
+					cpuCost, _ = strconv.ParseFloat(cfg.CPU, 64)
+					if  math.IsNaN(cpuCost) || math.IsInf(cpuCost, 0) {
+						cpuCost = 0
+					}
+				}
 				cpu, _ := strconv.ParseFloat(node.VCPU, 64)
+				if math.IsNaN(cpu) || math.IsInf(cpu, 0) {
+					cpu = 1 // Assume 1 CPU
+				}
 				ramCost, _ := strconv.ParseFloat(node.RAMCost, 64)
+				if math.IsNaN(ramCost) || math.IsInf(ramCost, 0) {
+					ramCost, _ = strconv.ParseFloat(cfg.RAM, 64)
+					if  math.IsNaN(ramCost) || math.IsInf(ramCost, 0) {
+						ramCost = 0
+					}
+				}
 				ram, _ := strconv.ParseFloat(node.RAMBytes, 64)
+				if math.IsNaN(ram) || math.IsInf(ram, 0) {
+					ram = 0
+				}
 				gpu, _ := strconv.ParseFloat(node.GPU, 64)
+				if math.IsNaN(gpu) || math.IsInf(gpu, 0) {
+					gpu = 0
+				}
 				gpuCost, _ := strconv.ParseFloat(node.GPUCost, 64)
+				if math.IsNaN(gpuCost) || math.IsInf(gpuCost, 0) {
+					gpuCost, _ = strconv.ParseFloat(cfg.GPU, 64)
+					if  math.IsNaN(gpuCost) || math.IsInf(gpuCost, 0) {
+						gpuCost = 0
+					}
+				}
 
 				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
@@ -983,7 +1015,7 @@ func Initialize() {
 
 			_, err = ValidatePrometheus(thanosCli, true)
 			if err != nil {
-				klog.V(1).Infof("Warning: Failed to query Thanos at %s. Error: %s.", thanosUrl, err.Error())
+				klog.V(1).Infof("[Warning] Failed to query Thanos at %s. Error: %s.", thanosUrl, err.Error())
 				A.ThanosClient = thanosCli
 			} else {
 				klog.V(1).Info("Success: retrieved the 'up' query against Thanos at: " + thanosUrl)

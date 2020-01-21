@@ -10,6 +10,16 @@ type Vector struct {
 	Value     float64 `json:"value"`
 }
 
+const MapPoolSize = 4
+
+type VectorSlice []*Vector
+
+func (p VectorSlice) Len() int           { return len(p) }
+func (p VectorSlice) Less(i, j int) bool { return p[i].Timestamp < p[j].Timestamp }
+func (p VectorSlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+
+var mapPool VectorMapPool = NewFlexibleMapPool(MapPoolSize)
+
 // roundTimestamp rounds the given timestamp to the given precision; e.g. a
 // timestamp given in seconds, rounded to precision 10, will be rounded
 // to the nearest value dividible by 10 (24 goes to 20, but 25 goes to 30).
@@ -17,21 +27,21 @@ func roundTimestamp(ts float64, precision float64) float64 {
 	return math.Round(ts/precision) * precision
 }
 
+// Makes a reasonable guess at capacity for vector join
+func capacityFor(xvs []*Vector, yvs []*Vector) int {
+	x := len(xvs)
+	y := len(yvs)
+
+	if x >= y {
+		return x + (y / 4)
+	}
+
+	return y + (x / 4)
+}
+
 // ApplyVectorOp accepts two vectors, synchronizes timestamps, and executes an operation
 // on each vector. See VectorJoinOp for details.
 func ApplyVectorOp(xvs []*Vector, yvs []*Vector, op VectorJoinOp) []*Vector {
-	// round all non-zero timestamps to the nearest 10 second mark
-	for _, yv := range yvs {
-		if yv.Timestamp != 0 {
-			yv.Timestamp = roundTimestamp(yv.Timestamp, 10.0)
-		}
-	}
-	for _, xv := range xvs {
-		if xv.Timestamp != 0 {
-			xv.Timestamp = roundTimestamp(xv.Timestamp, 10.0)
-		}
-	}
-
 	// if xvs is empty, return yvs
 	if xvs == nil || len(xvs) == 0 {
 		return yvs
@@ -42,46 +52,66 @@ func ApplyVectorOp(xvs []*Vector, yvs []*Vector, op VectorJoinOp) []*Vector {
 		return xvs
 	}
 
-	// result contains the final vector slice after joining xvs and yvs
-	var result []*Vector
-
-	// timestamps stores all timestamps present in both vector slices
-	// without duplicates
-	var timestamps []float64
+	// timestamps contains the vector slice after joining xvs and yvs
+	var timestamps []*Vector
 
 	// turn each vector slice into a map of timestamp-to-value so that
 	// values at equal timestamps can be lined-up and summed
-	xMap := make(map[float64]float64)
+	xMap := mapPool.Get()
+	defer mapPool.Put(xMap)
+
 	for _, xv := range xvs {
 		if xv.Timestamp == 0 {
 			continue
 		}
+
+		// round all non-zero timestamps to the nearest 10 second mark
+		xv.Timestamp = roundTimestamp(xv.Timestamp, 10.0)
+
 		xMap[xv.Timestamp] = xv.Value
-		timestamps = append(timestamps, xv.Timestamp)
+		timestamps = append(timestamps, &Vector{
+			Timestamp: xv.Timestamp,
+		})
 	}
-	yMap := make(map[float64]float64)
+
+	yMap := mapPool.Get()
+	defer mapPool.Put(yMap)
+
 	for _, yv := range yvs {
 		if yv.Timestamp == 0 {
 			continue
 		}
+
+		// round all non-zero timestamps to the nearest 10 second mark
+		yv.Timestamp = roundTimestamp(yv.Timestamp, 10.0)
+
 		yMap[yv.Timestamp] = yv.Value
 		if _, ok := xMap[yv.Timestamp]; !ok {
 			// no need to double add, since we'll range over sorted timestamps and check.
-			timestamps = append(timestamps, yv.Timestamp)
+			timestamps = append(timestamps, &Vector{
+				Timestamp: yv.Timestamp,
+			})
 		}
 	}
 
 	// iterate over each timestamp to produce a final op vector slice
-	sort.Float64s(timestamps)
-	for _, t := range timestamps {
-		x, okX := xMap[t]
-		y, okY := yMap[t]
-		sv := &Vector{Timestamp: t}
+	// reuse the existing slice to reduce allocations
+	result := timestamps[:0]
+	for _, sv := range timestamps {
+		x, okX := xMap[sv.Timestamp]
+		y, okY := yMap[sv.Timestamp]
 
 		if op(sv, VectorValue(x, okX), VectorValue(y, okY)) {
 			result = append(result, sv)
 		}
 	}
+
+	// nil out remaining vectors in timestamps to GC
+	for i := len(result); i < len(timestamps); i++ {
+		timestamps[i] = nil
+	}
+
+	sort.Sort(VectorSlice(result))
 
 	return result
 }

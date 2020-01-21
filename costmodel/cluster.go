@@ -41,39 +41,23 @@ type Totals struct {
 }
 
 func resultToTotals(qr interface{}) ([][]string, error) {
-	data, ok := qr.(map[string]interface{})["data"]
-	if !ok {
-		e, err := wrapPrometheusError(qr)
-		if err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf(e)
+	results, err := NewQueryResults(qr)
+	if err != nil {
+		return nil, err
 	}
-	r, ok := data.(map[string]interface{})["result"]
-	if !ok {
-		return nil, fmt.Errorf("Improperly formatted data from prometheus, data has no result field")
-	}
-	results, ok := r.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("Improperly formatted results from prometheus, result field is not a slice")
-	}
+
 	if len(results) == 0 {
 		return nil, fmt.Errorf("Not enough data available in the selected time range")
 	}
-	res, ok := results[0].(map[string]interface{})["values"]
+
+	result := results[0]
 	totals := [][]string{}
-	for _, val := range res.([]interface{}) {
-		if !ok {
-			return nil, fmt.Errorf("Improperly formatted results from prometheus, value is not a field in the vector")
-		}
-		dataPoint, ok := val.([]interface{})
-		if !ok || len(dataPoint) != 2 {
-			return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
-		}
-		d0 := fmt.Sprintf("%f", dataPoint[0].(float64))
+	for _, value := range result.Values {
+		d0 := fmt.Sprintf("%f", value.Timestamp)
+		d1 := fmt.Sprintf("%f", value.Value)
 		toAppend := []string{
 			d0,
-			dataPoint[1].(string),
+			d1,
 		}
 		totals = append(totals, toAppend)
 	}
@@ -83,54 +67,30 @@ func resultToTotals(qr interface{}) ([][]string, error) {
 func resultToTotal(qr interface{}) (map[string][][]string, error) {
 	defaultClusterID := os.Getenv(clusterIDKey)
 
-	data, ok := qr.(map[string]interface{})["data"]
-	if !ok {
-		e, err := wrapPrometheusError(qr)
-		if err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf("Prometheus query error: %s", e)
+	results, err := NewQueryResults(qr)
+	if err != nil {
+		return nil, err
 	}
-	r, ok := data.(map[string]interface{})["result"]
-	if !ok {
-		return nil, fmt.Errorf("Improperly formatted data from prometheus, data has no result field")
-	}
-	results, ok := r.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("Improperly formatted results from prometheus, result field is not a slice")
-	}
-	if len(results) == 0 {
-		return nil, fmt.Errorf("Not enough data available in the selected time range")
-	}
+
 	toReturn := make(map[string][][]string)
-	for i := range results {
-		metrics, ok := results[i].(map[string]interface{})["metric"]
-		if !ok {
-			return nil, fmt.Errorf("Improperly formatted results from prometheus, metric is not a field in the vector")
-		}
-		metricMap, ok := metrics.(map[string]interface{})
-		cid, ok := metricMap["cluster_id"]
-		if !ok {
-			klog.V(4).Info("Prometheus vector does not have cluster id")
-			cid = defaultClusterID
-		}
-		clusterID, ok := cid.(string)
-		if !ok {
-			return nil, fmt.Errorf("Prometheus vector does not have string cluster_id")
+	for _, result := range results {
+		clusterID, _ := result.GetString("cluster_id")
+		if clusterID == "" {
+			clusterID = defaultClusterID
 		}
 
-		val, ok := results[i].(map[string]interface{})["value"]
-		if !ok {
-			return nil, fmt.Errorf("Improperly formatted results from prometheus, value is not a field in the vector")
+		// Expect a single value only
+		if len(result.Values) == 0 {
+			klog.V(1).Infof("[Warning] Metric values did not contain any valid data.")
+			continue
 		}
-		dataPoint, ok := val.([]interface{})
-		if !ok || len(dataPoint) != 2 {
-			return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
-		}
-		d0 := fmt.Sprintf("%f", dataPoint[0].(float64))
+
+		value := result.Values[0]
+		d0 := fmt.Sprintf("%f", value.Timestamp)
+		d1 := fmt.Sprintf("%f", value.Value)
 		toAppend := []string{
 			d0,
-			dataPoint[1].(string),
+			d1,
 		}
 		if t, ok := toReturn[clusterID]; ok {
 			t = append(t, toAppend)
@@ -138,6 +98,7 @@ func resultToTotal(qr interface{}) (map[string][][]string, error) {
 			toReturn[clusterID] = [][]string{toAppend}
 		}
 	}
+
 	return toReturn, nil
 }
 
