@@ -1574,7 +1574,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	newQueryRAMAllocation := `
 		label_replace(label_replace(
 			avg(
-				sum(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s])
+				sum_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s])
 			) by (namespace,container,pod,node,cluster_id) / %f
 		, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")
 	`
@@ -1583,7 +1583,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	newQueryCPUAllocation := `
 		label_replace(label_replace(
 			avg(
-				sum(container_cpu_allocation{container!="",container!="POD", node!=""}[%s])
+				sum_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s])
 			) by (namespace,container,pod,node,cluster_id) / %f
 		, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")
 	`
@@ -2780,8 +2780,11 @@ func GetContainerMetricVectors(qr interface{}, normalize bool, normalizationValu
 			return nil, err
 		}
 
-		normalizedVectors := NormalizeVectorByVector(val.Values, normalizationValues)
-		containerData[containerMetric.Key()] = normalizedVectors
+		values := val.Values
+		if normalize {
+			values = NormalizeVectorByVector(values, normalizationValues)
+		}
+		containerData[containerMetric.Key()] = values
 	}
 	return containerData, nil
 }
