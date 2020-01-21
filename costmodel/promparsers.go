@@ -151,7 +151,11 @@ func parseDataPoint(dataPoint interface{}, labels func() string) (*Vector, error
 		return nil, err
 	}
 
-	if math.IsNaN(v) {
+	// Test for +Inf and -Inf (sign: 0), Test for NaN
+	if math.IsInf(v, 0) {
+		klog.V(1).Infof("[Warning] Found Inf value parsing vector data point for metric: %s", labels())
+		v = 0.0
+	} else if math.IsNaN(v) {
 		klog.V(1).Infof("[Warning] Found NaN value parsing vector data point for metric: %s", labels())
 		v = 0.0
 	}
