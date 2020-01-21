@@ -215,7 +215,8 @@ const (
 	queryZoneNetworkUsage     = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	queryInternetNetworkUsage = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
-	normalizationStr          = `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[%s] %s) / %f)`
+	//normalizationStr          = `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[%s] %s) / %f)`
+	normalizationStr = `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[%s] %s))`
 )
 
 type PrometheusMetadata struct {
@@ -338,7 +339,8 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, window, "")
 	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, window, "")
 	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, window, "")
-	normalization := fmt.Sprintf(normalizationStr, window, offset, 1.0)
+	//normalization := fmt.Sprintf(normalizationStr, window, offset, 1.0)
+	normalization := fmt.Sprintf(normalizationStr, window, offset)
 
 	// Cluster ID is specific to the source cluster
 	clusterID := os.Getenv(clusterIDKey)
@@ -1539,6 +1541,21 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 
 func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider,
 	startString, endString, windowString string, resolutionHours float64, filterNamespace string, filterCluster string, remoteEnabled bool) (map[string]*CostData, error) {
+
+	klog.Infof("[Debug] costDataRange(window=%s, res=%d)", windowString, int(resolutionHours*60*60))
+
+	// newQueryCPUAllocation := `avg(
+	// 	label_replace(
+	// 		label_replace(
+	// 			avg(
+	// 				count_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s] %s)
+	// 				*
+	// 				avg_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s] %s)
+	// 			) by (namespace,container,pod,node,cluster_id) , "container_name","$1","container","(.+)"
+	// 		), "pod_name","$1","pod","(.+)"
+	// 	)
+	// ) by (namespace,container_name,pod_name,node,cluster_id)`
+
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, windowString, "", windowString, "")
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, windowString, "", windowString, "")
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, windowString, "", windowString, "")
@@ -1550,7 +1567,27 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, windowString, "")
 	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, windowString, "")
 	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, windowString, "")
-	normalization := fmt.Sprintf(normalizationStr, windowString, "", resolutionHours)
+	normalization := fmt.Sprintf(normalizationStr, windowString, "")
+
+	// TODO
+	scrapesPerMin := 1.0
+	newQueryRAMAllocation := `
+		label_replace(label_replace(
+			avg(
+				sum(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s])
+			) by (namespace,container,pod,node,cluster_id) / %f
+		, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")
+	`
+	queryRAMAlloc = fmt.Sprintf(newQueryRAMAllocation, windowString, scrapesPerMin)
+
+	newQueryCPUAllocation := `
+		label_replace(label_replace(
+			avg(
+				sum(container_cpu_allocation{container!="",container!="POD", node!=""}[%s])
+			) by (namespace,container,pod,node,cluster_id) / %f
+		, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")
+	`
+	queryCPUAlloc = fmt.Sprintf(newQueryCPUAllocation, windowString, scrapesPerMin)
 
 	layout := "2006-01-02T15:04:05.000Z"
 
@@ -1949,6 +1986,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	otherClusterPVRecorded := make(map[string]bool)
 
 	RAMReqMap, err := GetContainerMetricVectors(resultRAMRequests, true, normalizationValue, clusterID)
+	// RAMReqMap, err := GetContainerMetricVectors(resultRAMRequests, false, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
@@ -1956,6 +1994,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		containers[key] = true
 	}
 	RAMUsedMap, err := GetContainerMetricVectors(resultRAMUsage, true, normalizationValue, clusterID)
+	// RAMUsedMap, err := GetContainerMetricVectors(resultRAMUsage, false, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
@@ -1964,12 +2003,14 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	}
 
 	CPUReqMap, err := GetContainerMetricVectors(resultCPURequests, true, normalizationValue, clusterID)
+	// CPUReqMap, err := GetContainerMetricVectors(resultCPURequests, false, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
 	for key := range CPUReqMap {
 		containers[key] = true
 	}
+
 	CPUUsedMap, err := GetContainerMetricVectors(resultCPUUsage, false, normalizationValue, clusterID) // No need to normalize here, as this comes from a counter
 	if err != nil {
 		return nil, err
@@ -1978,21 +2019,26 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		containers[key] = true
 	}
 
-	RAMAllocMap, err := GetContainerMetricVectors(resultRAMAllocations, true, normalizationValue, clusterID)
+	// RAMAllocMap, err := GetContainerMetricVectors("RAM allocation", resultRAMAllocations, true, normalizationValue, clusterID)
+	RAMAllocMap, err := GetContainerMetricVectors(resultRAMAllocations, false, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
 	for key := range RAMAllocMap {
 		containers[key] = true
 	}
-	CPUAllocMap, err := GetContainerMetricVectors(resultCPUAllocations, true, normalizationValue, clusterID)
+
+	// CPUAllocMap, err := GetContainerMetricVectors(resultCPUAllocations, true, normalizationValue, clusterID)
+	CPUAllocMap, err := GetContainerMetricVectors(resultCPUAllocations, false, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
 	for key := range CPUAllocMap {
 		containers[key] = true
 	}
-	GPUReqMap, err := GetContainerMetricVectors(resultGPURequests, true, normalizationValue, clusterID)
+
+	// GPUReqMap, err := GetContainerMetricVectors(resultGPURequests, true, normalizationValue, clusterID)
+	GPUReqMap, err := GetContainerMetricVectors(resultGPURequests, false, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
