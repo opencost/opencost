@@ -643,7 +643,7 @@ func (a *Accesses) recordPrices() {
 				cpuCost, _ := strconv.ParseFloat(node.VCPUCost, 64)
 				if math.IsNaN(cpuCost) || math.IsInf(cpuCost, 0) {
 					cpuCost, _ = strconv.ParseFloat(cfg.CPU, 64)
-					if  math.IsNaN(cpuCost) || math.IsInf(cpuCost, 0) {
+					if math.IsNaN(cpuCost) || math.IsInf(cpuCost, 0) {
 						cpuCost = 0
 					}
 				}
@@ -654,7 +654,7 @@ func (a *Accesses) recordPrices() {
 				ramCost, _ := strconv.ParseFloat(node.RAMCost, 64)
 				if math.IsNaN(ramCost) || math.IsInf(ramCost, 0) {
 					ramCost, _ = strconv.ParseFloat(cfg.RAM, 64)
-					if  math.IsNaN(ramCost) || math.IsInf(ramCost, 0) {
+					if math.IsNaN(ramCost) || math.IsInf(ramCost, 0) {
 						ramCost = 0
 					}
 				}
@@ -669,7 +669,7 @@ func (a *Accesses) recordPrices() {
 				gpuCost, _ := strconv.ParseFloat(node.GPUCost, 64)
 				if math.IsNaN(gpuCost) || math.IsInf(gpuCost, 0) {
 					gpuCost, _ = strconv.ParseFloat(cfg.GPU, 64)
-					if  math.IsNaN(gpuCost) || math.IsInf(gpuCost, 0) {
+					if math.IsNaN(gpuCost) || math.IsInf(gpuCost, 0) {
 						gpuCost = 0
 					}
 				}
@@ -1040,12 +1040,7 @@ func Initialize() {
 	Router.GET("/costDataModelRangeLarge", A.CostDataModelRangeLarge)
 	Router.GET("/outOfClusterCosts", A.OutOfClusterCostsWithCache)
 	Router.GET("/allNodePricing", A.GetAllNodePricing)
-	Router.GET("/getConfigs", A.GetConfigs)
 	Router.POST("/refreshPricing", A.RefreshPricingData)
-	Router.POST("/updateSpotInfoConfigs", A.UpdateSpotInfoConfigs)
-	Router.POST("/updateAthenaInfoConfigs", A.UpdateAthenaInfoConfigs)
-	Router.POST("/updateBigQueryInfoConfigs", A.UpdateBigQueryInfoConfigs)
-	Router.POST("/updateConfigByKey", A.UpdateConfigByKey)
 	Router.GET("/clusterCostsOverTime", A.ClusterCostsOverTime)
 	Router.GET("/clusterCosts", A.ClusterCosts)
 	Router.GET("/validatePrometheus", A.GetPrometheusMetadata)
