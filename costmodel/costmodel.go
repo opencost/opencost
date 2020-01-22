@@ -902,7 +902,7 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 		}
 
 		if len(cpuCosts) == 0 {
-			klog.V(1).Infof("Historical data for node prices not available. Ingest this server's /metrics endpoint to get that data.")
+			klog.V(1).Infof("Kubecost prometheus metrics not currently available. Ingest this server's /metrics endpoint to get that data.")
 		}
 
 		for node, costv := range cpuCosts {
