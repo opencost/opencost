@@ -154,6 +154,7 @@ type CustomPricing struct {
 	SharedCosts           map[string]string `json:"sharedCost"`
 	ClusterName           string            `json:"clusterName"`
 	SharedNamespaces      string            `json:"sharedNamespaces"`
+	ReadOnly              string            `json:"readOnly"`
 }
 
 // Provider represents a k8s provider.

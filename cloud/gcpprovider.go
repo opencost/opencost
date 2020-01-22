@@ -279,7 +279,7 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 
 	attribute, err := metadataClient.InstanceAttributeValue("cluster-name")
 	if err != nil {
-		return nil, err
+		klog.Infof("Error loading metadata cluster-name: %s", err.Error())
 	}
 
 	c, err := gcp.GetConfig()
