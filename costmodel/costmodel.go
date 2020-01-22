@@ -183,28 +183,34 @@ const (
 						* 
 						on (persistentvolumeclaim, namespace, cluster_id) group_right(storageclass, volumename) 
 				sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) by (persistentvolumeclaim, namespace, cluster_id)`
-	queryRAMAllocation = `avg(
-		label_replace(
-			label_replace(
-				avg(
-					count_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s] %s) 
-					*  
-					avg_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s] %s)
-				) by (namespace,container,pod,node,cluster_id) , "container_name","$1","container","(.+)"
-			), "pod_name","$1","pod","(.+)"
-		) 
-	) by (namespace,container_name,pod_name,node,cluster_id)`
-	queryCPUAllocation = `avg(
-		label_replace(
-			label_replace(
-				avg(
-					count_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s] %s) 
-					*  
-					avg_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s] %s)
-				) by (namespace,container,pod,node,cluster_id) , "container_name","$1","container","(.+)"
-			), "pod_name","$1","pod","(.+)"
-		) 
-	) by (namespace,container_name,pod_name,node,cluster_id)`
+	// queryRAMAllocationByteHours yields the total byte-hour RAM allocation over the given
+	// window, aggregated by container.
+	//  [line 3]     sum(all byte measurements) = [byte*scrape] by metric
+	//  [lines 4-6]  (") / (approximate scrape count per hour) = [byte*hour] by metric
+	//  [lines 2,7]     sum(") by unique container key = [byte*hour] by container
+	//  [lines 1,8]  relabeling
+	queryRAMAllocationByteHours = `label_replace(label_replace(
+		sum(
+			sum_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s])
+			/ clamp_min(
+				count_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s])/%f,
+				scalar(avg(avg_over_time(prometheus_target_interval_length_seconds[%s])))*%f)
+		) by (namespace,container,pod,node,cluster_id)
+	, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
+	// queryCPUAllocationVCPUHours yields the total VCPU-hour CPU allocation over the given
+	// window, aggregated by container.
+	//  [line 3]     sum(all VCPU measurements within given window) = [VCPU*scrape] by metric
+	//  [lines 4-6]  (") / (approximate scrape count per hour) = [VCPU*hour] by metric
+	//  [lines 2,7]     sum(") by unique container key = [VCPU*hour] by container
+	//  [lines 1,8]  relabeling
+	queryCPUAllocationVCPUHours = `label_replace(label_replace(
+		sum(
+			sum_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s])
+			/ clamp_min(
+				count_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s])/%f,
+				scalar(avg(avg_over_time(prometheus_target_interval_length_seconds[%s])))*%f)
+		) by (namespace,container,pod,node,cluster_id)
+	, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
 	queryPVCAllocation        = `avg_over_time(pod_pvc_allocation[%s])`
 	queryPVHourlyCost         = `avg_over_time(pv_hourly_cost[%s])`
 	queryNSLabels             = `avg_over_time(kube_namespace_labels[%s])`
@@ -1540,54 +1546,22 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider,
 	startString, endString, windowString string, resolutionHours float64, filterNamespace string, filterCluster string, remoteEnabled bool) (map[string]*CostData, error) {
 
+	// Use a heuristic to tell the difference between missed scrapes and an incomplete window
+	// of data due to fresh install, etc.
+	minimumExpectedScrapeRate := 0.95
+
+	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, windowString, windowString, resolutionHours, windowString, minimumExpectedScrapeRate)
+	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, windowString, windowString, resolutionHours, windowString, minimumExpectedScrapeRate)
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, windowString, "", windowString, "")
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, windowString, "", windowString, "")
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, windowString, "", windowString, "")
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, windowString, "")
-	// queryRAMAlloc := fmt.Sprintf(queryRAMAllocation, windowString, "", windowString, "")
-	// queryCPUAlloc := fmt.Sprintf(queryCPUAllocation, windowString, "", windowString, "")
 	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, windowString, "", windowString, "", windowString, "")
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
 	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, windowString, "")
 	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, windowString, "")
 	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, windowString, "")
 	normalization := fmt.Sprintf(normalizationStr, windowString, "")
-
-	// Use a heuristic to tell the difference between missed scrapes and an incomplete window
-	// of data due to fresh install, etc.
-	minimumExpectedScrapeRate := 0.95
-
-	// queryRAMAllocationByteHours yields the total byte-hour RAM allocation over the given
-	// window, aggregated by container.
-	//  [line 3]     sum(all byte measurements) = [byte*scrape] by metric
-	//  [lines 4-7]  (") / (approximate scrape count per hour) = [byte*hour] by metric
-	//  [line 2]     sum(") by unique container key = [byte*hour] by container
-	queryRAMAllocationByteHours := `label_replace(label_replace(
-		sum(
-			sum_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s])
-			/ clamp_min(
-				count_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s])/%f,
-				scalar(avg(avg_over_time(prometheus_target_interval_length_seconds[%s])))*%f
-			)
-		) by (namespace,container,pod,node,cluster_id)
-	, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
-	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, windowString, windowString, resolutionHours, windowString, minimumExpectedScrapeRate)
-
-	// queryCPUAllocationVCPUHours yields the total VCPU-hour CPU allocation over the given
-	// window, aggregated by container.
-	//  [line 3]     sum(all VCPU measurements within given window) = [VCPU*scrape] by metric
-	//  [lines 4-7]  (") / (approximate scrape count per hour) = [VCPU*hour] by metric
-	//  [line 2]     sum(") by unique container key = [VCPU*hour] by container
-	queryCPUAllocationVCPUHours := `label_replace(label_replace(
-		sum(
-			sum_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s])
-			/ clamp_min(
-				count_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s])/%f,
-				scalar(avg(avg_over_time(prometheus_target_interval_length_seconds[%s])))*%f
-			)
-		) by (namespace,container,pod,node,cluster_id)
-	, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
-	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, windowString, windowString, resolutionHours, windowString, minimumExpectedScrapeRate)
 
 	layout := "2006-01-02T15:04:05.000Z"
 
@@ -2010,9 +1984,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	}
 
 	// No need to normalize here, as this comes from a counter
-	// CPUUsedMap, err := GetContainerMetricVectors(resultCPUUsage, clusterID)
+	CPUUsedMap, err := GetContainerMetricVectors(resultCPUUsage, clusterID)
 	// TODO Is that ^ true? We were normalizing before (in spite of the comment) so I'm keeping it.
-	CPUUsedMap, err := GetNormalizedContainerMetricVectors(resultCPUUsage, normalizationValue, clusterID)
+	// CPUUsedMap, err := GetNormalizedContainerMetricVectors(resultCPUUsage, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
