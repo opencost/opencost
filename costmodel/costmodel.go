@@ -215,8 +215,7 @@ const (
 	queryZoneNetworkUsage     = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	queryInternetNetworkUsage = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
-	//normalizationStr          = `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[%s] %s) / %f)`
-	normalizationStr = `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[%s] %s))`
+	normalizationStr          = `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[%s] %s))`
 )
 
 type PrometheusMetadata struct {
@@ -1557,36 +1556,41 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, windowString, "")
 	normalization := fmt.Sprintf(normalizationStr, windowString, "")
 
-	// TODO un-hard-code this constant
-	// - Should this be a Prom query, or can we keep it as a constant? (I think constant.)
-	// - Should this deal with missed scrapes?
-	hoursPerScrape := 1.0 / 60.0
+	// Use a heuristic to tell the difference between missed scrapes and an incomplete window
+	// of data due to fresh install, etc.
+	minimumExpectedScrapeRate := 0.95
 
 	// queryRAMAllocationByteHours yields the total byte-hour RAM allocation over the given
 	// window, aggregated by container.
-	//   sum(all byte measurements within given window) = [byte*scrape] by metric
-	//   avg(") by unique container key = [byte*scrape] by container
-	//   (") * hoursPerScrape = [byte*hour]
+	//  [line 3]     sum(all byte measurements) = [byte*scrape] by metric
+	//  [lines 4-7]  (") / (approximate scrape count per hour) = [byte*hour] by metric
+	//  [line 2]     sum(") by unique container key = [byte*hour] by container
 	queryRAMAllocationByteHours := `label_replace(label_replace(
-		avg(
+		sum(
 			sum_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s])
-		) by (namespace,container,pod,node,cluster_id) * %f
+			/ clamp_min(
+				count_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s])/%f,
+				scalar(avg(avg_over_time(prometheus_target_interval_length_seconds[%s])))*%f
+			)
+		) by (namespace,container,pod,node,cluster_id)
 	, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
-	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, windowString, hoursPerScrape)
+	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, windowString, windowString, resolutionHours, windowString, minimumExpectedScrapeRate)
 
 	// queryCPUAllocationVCPUHours yields the total VCPU-hour CPU allocation over the given
 	// window, aggregated by container.
-	//   sum(all VCPU measurements within given window) = [VCPU*scrape] by metric
-	//   avg(") by unique container key = [VCPU*scrape] by container
-	//   (") * hoursPerScrape = [VCPU*hour]
-	queryCPUAllocationVCPUHours := `
-		label_replace(label_replace(
-			avg(
-				sum_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s])
-			) by (namespace,container,pod,node,cluster_id) * %f
-		, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")
-	`
-	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, windowString, hoursPerScrape)
+	//  [line 3]     sum(all VCPU measurements within given window) = [VCPU*scrape] by metric
+	//  [lines 4-7]  (") / (approximate scrape count per hour) = [VCPU*hour] by metric
+	//  [line 2]     sum(") by unique container key = [VCPU*hour] by container
+	queryCPUAllocationVCPUHours := `label_replace(label_replace(
+		sum(
+			sum_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s])
+			/ clamp_min(
+				count_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s])/%f,
+				scalar(avg(avg_over_time(prometheus_target_interval_length_seconds[%s])))*%f
+			)
+		) by (namespace,container,pod,node,cluster_id)
+	, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
+	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, windowString, windowString, resolutionHours, windowString, minimumExpectedScrapeRate)
 
 	layout := "2006-01-02T15:04:05.000Z"
 
