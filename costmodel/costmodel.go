@@ -2011,7 +2011,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	// No need to normalize here, as this comes from a counter
 	// CPUUsedMap, err := GetContainerMetricVectors(resultCPUUsage, clusterID)
-	// TODO Is that ^ true?? We were normalizing before, so I'm normalizing now.
+	// TODO Is that ^ true? We were normalizing before (in spite of the comment) so I'm keeping it.
 	CPUUsedMap, err := GetNormalizedContainerMetricVectors(resultCPUUsage, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
