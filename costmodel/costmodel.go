@@ -1540,8 +1540,6 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider,
 	startString, endString, windowString string, resolutionHours float64, filterNamespace string, filterCluster string, remoteEnabled bool) (map[string]*CostData, error) {
 
-	klog.Infof("[Debug] costDataRange(window=%s, res=%d)", windowString, int(resolutionHours*60*60))
-
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, windowString, "", windowString, "")
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, windowString, "", windowString, "")
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, windowString, "", windowString, "")
