@@ -1228,8 +1228,12 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 			cpuPrice := ramPrice * cpuToRAMRatio
 
-			newCnode.VCPUCost = fmt.Sprintf("%f", cpuPrice)
-			newCnode.RAMCost = fmt.Sprintf("%f", ramPrice)
+			if defaultRAM != 0 {
+				newCnode.VCPUCost = fmt.Sprintf("%f", cpuPrice)
+				newCnode.RAMCost = fmt.Sprintf("%f", ramPrice)
+			} else { // just assign the full price to CPU
+				newCnode.VCPUCost = fmt.Sprintf("%f", nodePrice)
+			}
 			newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 
 			klog.V(4).Infof("Computed \"%s\" RAM Cost := %v", name, newCnode.RAMCost)
