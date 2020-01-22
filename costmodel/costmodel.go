@@ -902,7 +902,7 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 		}
 
 		if len(cpuCosts) == 0 {
-			klog.V(1).Infof("Historical data for node prices not available. Ingest this server's /metrics endpoint to get that data.")
+			klog.V(1).Infof("Kubecost prometheus metrics not currently available. Ingest this server's /metrics endpoint to get that data.")
 		}
 
 		for node, costv := range cpuCosts {
@@ -1106,13 +1106,13 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 			cpuToRAMRatio := defaultCPU / defaultRAM
 			if math.IsNaN(cpuToRAMRatio) {
 				klog.V(1).Infof("[Warning] cpuToRAMRatio[defaultCPU: %f / defaultRam: %f] is NaN. Setting to 0.", defaultCPU, defaultRAM)
-				cpuToRAMRatio = 1
+				cpuToRAMRatio = 0
 			}
 
 			gpuToRAMRatio := defaultGPU / defaultRAM
 			if math.IsNaN(gpuToRAMRatio) {
 				klog.V(1).Infof("[Warning] gpuToRAMRatio is NaN. Setting to 0.")
-				gpuToRAMRatio = 1
+				gpuToRAMRatio = 0
 			}
 
 			ramGB := ram / 1024 / 1024 / 1024
@@ -1186,7 +1186,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 			cpuToRAMRatio := defaultCPU / defaultRAM
 			if math.IsNaN(cpuToRAMRatio) {
 				klog.V(1).Infof("[Warning] cpuToRAMRatio[defaultCPU: %f / defaultRam: %f] is NaN. Setting to 0.", defaultCPU, defaultRAM)
-				cpuToRAMRatio = 1
+				cpuToRAMRatio = 0
 			}
 
 			ramGB := ram / 1024 / 1024 / 1024
@@ -1228,8 +1228,12 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 			cpuPrice := ramPrice * cpuToRAMRatio
 
-			newCnode.VCPUCost = fmt.Sprintf("%f", cpuPrice)
-			newCnode.RAMCost = fmt.Sprintf("%f", ramPrice)
+			if defaultRAM != 0 {
+				newCnode.VCPUCost = fmt.Sprintf("%f", cpuPrice)
+				newCnode.RAMCost = fmt.Sprintf("%f", ramPrice)
+			} else { // just assign the full price to CPU
+				newCnode.VCPUCost = fmt.Sprintf("%f", nodePrice)
+			}
 			newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 
 			klog.V(4).Infof("Computed \"%s\" RAM Cost := %v", name, newCnode.RAMCost)
