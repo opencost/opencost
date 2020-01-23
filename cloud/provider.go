@@ -208,6 +208,26 @@ func CustomPricesEnabled(p Provider) bool {
 	return config.CustomPricesEnabled == "true"
 }
 
+// SharedNamespace returns a list of names of shared namespaces, as defined in the application settings
+func SharedNamespaces(p Provider) []string {
+	config, err := p.GetConfig()
+	if err != nil {
+		return []string{}
+	}
+
+	return strings.Split(config.SharedNamespaces, ",")
+}
+
+// AllocateIdleByDefault returns true if the application settings specify to allocate idle by default
+func AllocateIdleByDefault(p Provider) bool {
+	config, err := p.GetConfig()
+	if err != nil {
+		return false
+	}
+
+	return config.DefaultIdle == "true"
+}
+
 // GetDefaultPricingData will search for a json file representing pricing data in /models/ and use it for base pricing info.
 func GetDefaultPricingData(fname string) (*CustomPricing, error) {
 	configLock.Lock()
