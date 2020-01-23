@@ -243,6 +243,7 @@ func SharedLabels(p Provider) ([]string, []string) {
 	vs := strings.Split(config.SharedLabelValues, ",")
 	if len(ks) != len(vs) {
 		klog.V(2).Infof("[Warning] Shared labels have mis-matched lengths: %d names, %d values", len(ks), len(vs))
+		return names, values
 	}
 
 	for i := range ks {
