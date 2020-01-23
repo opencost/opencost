@@ -228,29 +228,29 @@ func SharedNamespaces(p Provider) []string {
 }
 
 // SharedLabel returns the configured set of shared labels as a parallel tuple of keys to values; e.g.
-// for app=kubecost,type=staging this returns (["app", "type"], ["kubecost", "staging"]) in order to
+// for app:kubecost,type:staging this returns (["app", "type"], ["kubecost", "staging"]) in order to
 // match the signature of the NewSharedResourceInfo
 func SharedLabels(p Provider) ([]string, []string) {
-	keys := []string{}
+	names := []string{}
 	values := []string{}
 
 	config, err := p.GetConfig()
 	if err != nil {
-		return keys, values
+		return names, values
 	}
 
-	keyValPairs := strings.Split(config.SharedLabels, ",")
-	for _, kv := range keyValPairs {
-		keyVal := strings.Split(kv, "=")
-		if len(keyVal) != 2 {
-			klog.V(2).Infof("[Warning] Illegal key value pair in shared labels: %s", keyVal)
-			continue
-		}
-		keys = append(keys, strings.Trim(keyVal[0], " "))
-		values = append(values, strings.Trim(keyVal[1], " "))
+	ks := strings.Split(config.SharedLabelNames, ",")
+	vs := strings.Split(config.SharedLabelValues, ",")
+	if len(ks) != len(vs) {
+		klog.V(2).Infof("[Warning] Shared labels have mis-matched lengths: %d names, %d values", len(ks), len(vs))
 	}
 
-	return keys, values
+	for i := range ks {
+		names = append(names, strings.Trim(ks[i], " "))
+		values = append(values, strings.Trim(vs[i], " "))
+	}
+
+	return names, values
 }
 
 // AllocateIdleByDefault returns true if the application settings specify to allocate idle by default
