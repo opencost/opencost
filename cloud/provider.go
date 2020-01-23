@@ -211,12 +211,44 @@ func CustomPricesEnabled(p Provider) bool {
 
 // SharedNamespace returns a list of names of shared namespaces, as defined in the application settings
 func SharedNamespaces(p Provider) []string {
+	namespaces := []string{}
+
 	config, err := p.GetConfig()
 	if err != nil {
-		return []string{}
+		return namespaces
 	}
 
-	return strings.Split(config.SharedNamespaces, ",")
+	// trim spaces so that "kube-system, kubecost" is equivalent to "kube-system,kubecost"
+	for _, ns := range strings.Split(config.SharedNamespaces, ",") {
+		namespaces = append(namespaces, strings.Trim(ns, " "))
+	}
+
+	return namespaces
+}
+
+// SharedLabel returns the configured set of shared labels as a parallel tuple of keys to values; e.g.
+// for app=kubecost,type=staging this returns (["app", "type"], ["kubecost", "staging"]) in order to
+// match the signature of the NewSharedResourceInfo
+func SharedLabels(p Provider) ([]string, []string) {
+	keys := []string{}
+	values := []string{}
+
+	config, err := p.GetConfig()
+	if err != nil {
+		return keys, values
+	}
+
+	keyValPairs := strings.Split(config.SharedLabels, ",")
+	for _, kv := range keyValPairs {
+		keyVal := strings.Split(kv, "=")
+		if len(keyVal) != 2 {
+			klog.V(2).Infof("[Warning] Illegal key value pair in shared labels: %s", keyVal)
+		}
+		keys = append(keys, strings.Trim(keyVal[0], " "))
+		values = append(values, strings.Trim(keyVal[1], " "))
+	}
+
+	return keys, values
 }
 
 // AllocateIdleByDefault returns true if the application settings specify to allocate idle by default
