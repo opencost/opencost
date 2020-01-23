@@ -154,6 +154,7 @@ type CustomPricing struct {
 	SharedCosts           map[string]string `json:"sharedCost"`
 	ClusterName           string            `json:"clusterName"`
 	SharedNamespaces      string            `json:"sharedNamespaces"`
+	SharedLabels          string            `json:"sharedLabels"`
 	ReadOnly              string            `json:"readOnly"`
 }
 
