@@ -243,6 +243,7 @@ func SharedLabels(p Provider) ([]string, []string) {
 		keyVal := strings.Split(kv, "=")
 		if len(keyVal) != 2 {
 			klog.V(2).Infof("[Warning] Illegal key value pair in shared labels: %s", keyVal)
+			continue
 		}
 		keys = append(keys, strings.Trim(keyVal[0], " "))
 		values = append(values, strings.Trim(keyVal[1], " "))
