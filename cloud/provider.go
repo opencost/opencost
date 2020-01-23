@@ -251,6 +251,8 @@ func SharedLabels(p Provider) ([]string, []string) {
 		values = append(values, strings.Trim(vs[i], " "))
 	}
 
+	klog.V(2).Infof("[Debug] Shared labels: %v, %v", ks, vs)
+
 	return names, values
 }
 
