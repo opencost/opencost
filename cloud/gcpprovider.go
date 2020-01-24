@@ -123,12 +123,8 @@ func (gcp *GCP) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, 
 	if err != nil {
 		return nil, err
 	}
-	path := os.Getenv("CONFIG_PATH")
-	if path == "" {
-		path = "/models/"
-	}
-	configPath := path + "gcp.json"
-	return configmapUpdate(c, configPath, a)
+
+	return configmapUpdate(c, configPathFor("gcp.json"), a)
 }
 
 func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
@@ -184,6 +180,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 			}
 		}
 	}
+
 	cj, err := json.Marshal(c)
 	if err != nil {
 		return nil, err
@@ -197,6 +194,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 	}
 
 	configPath := path + "gcp.json"
+
 	configLock.Lock()
 	err = ioutil.WriteFile(configPath, cj, 0644)
 	configLock.Unlock()
@@ -205,7 +203,6 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 	}
 
 	return c, nil
-
 }
 
 // ExternalAllocations represents tagged assets outside the scope of kubernetes.

@@ -233,29 +233,17 @@ func GetCustomPricingData(fname string) (*CustomPricing, error) {
 	configLock.Lock()
 	defer configLock.Unlock()
 
-	path := os.Getenv("CONFIG_PATH")
-	if path == "" {
-		path = "/models/"
+	path := configPathFor(fname)
+
+	exists, err := fileExists(path)
+	// File Error other than NotExists
+	if err != nil {
+		klog.Infof("Custom Pricing file at path '%s' read error: '%s'", path, err.Error())
+		return DefaultPricing(), err
 	}
-	path += fname
-	if _, err := os.Stat(path); err == nil {
-		jsonFile, err := os.Open(path)
-		if err != nil {
-			return nil, err
-		}
-		defer jsonFile.Close()
-		byteValue, err := ioutil.ReadAll(jsonFile)
-		if err != nil {
-			return nil, err
-		}
-		var customPricing = &CustomPricing{}
-		err = json.Unmarshal([]byte(byteValue), customPricing)
-		if err != nil {
-			klog.Infof("Could not decode Custom Pricing file at path %s", path)
-			return DefaultPricing(), err
-		}
-		return customPricing, nil
-	} else if os.IsNotExist(err) {
+
+	// File Doesn't Exist
+	if !exists {
 		klog.Infof("Could not find Custom Pricing file at path '%s'", path)
 		c := DefaultPricing()
 		cj, err := json.Marshal(c)
@@ -266,13 +254,27 @@ func GetCustomPricingData(fname string) (*CustomPricing, error) {
 		err = ioutil.WriteFile(path, cj, 0644)
 		if err != nil {
 			klog.Infof("Could not write Custom Pricing file to path '%s'", path)
-			return nil, err
+			return c, err
 		}
+
 		return c, nil
-	} else {
-		klog.Infof("Custom Pricing file at path '%s' read error: '%s'", path, err.Error())
+	}
+
+	// File Exists - Read all contents of file, unmarshal json
+	byteValue, err := ioutil.ReadFile(path)
+	if err != nil {
+		klog.Infof("Could not read Custom Pricing file at path %s", path)
 		return DefaultPricing(), err
 	}
+
+	var customPricing CustomPricing
+	err = json.Unmarshal(byteValue, &customPricing)
+	if err != nil {
+		klog.Infof("Could not decode Custom Pricing file at path %s", path)
+		return DefaultPricing(), err
+	}
+
+	return &customPricing, nil
 }
 
 func configmapUpdate(c *CustomPricing, path string, a map[string]string) (*CustomPricing, error) {
@@ -284,17 +286,19 @@ func configmapUpdate(c *CustomPricing, path string, a map[string]string) (*Custo
 		}
 	}
 
-	configLock.Lock()
-	defer configLock.Unlock()
-
 	cj, err := json.Marshal(c)
 	if err != nil {
-		return nil, err
+		return c, err
 	}
+
+	configLock.Lock()
 	err = ioutil.WriteFile(path, cj, 0644)
+	configLock.Unlock()
+
 	if err != nil {
-		return nil, err
+		return c, err
 	}
+
 	return c, nil
 }
 
@@ -441,4 +445,33 @@ func GetOrCreateClusterMeta(cluster_id, cluster_name string) (string, string, er
 	}
 
 	return id, name, nil
+}
+
+// File exists has three different return cases that should be handled:
+//   1. File exists and is not a directory (true, nil)
+//   2. File does not exist (false, nil)
+//   3. File may or may not exist. Error occurred during stat (false, error)
+// The third case represents the scenario where the stat returns an error,
+// but the error isn't relevant to the path. This can happen when the current
+// user doesn't have permission to access the file.
+func fileExists(filename string) (bool, error) {
+	info, err := os.Stat(filename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return !info.IsDir(), nil
+}
+
+// Returns the configuration directory concatenated with a specific config file name
+func configPathFor(filename string) string {
+	path := os.Getenv("CONFIG_PATH")
+	if path == "" {
+		path = "/models/"
+	}
+	return path + filename
 }

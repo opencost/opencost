@@ -518,24 +518,18 @@ func (az *Azure) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing,
 	if err != nil {
 		return nil, err
 	}
-	path := os.Getenv("CONFIG_PATH")
-	if path == "" {
-		path = "/models/"
-	}
-	configPath := path + "azure.json"
-	return configmapUpdate(c, configPath, a)
+
+	return configmapUpdate(c, configPathFor("azure.json"), a)
 }
 
 func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
 	defer az.DownloadPricingData()
+
 	c, err := GetCustomPricingData("azure.json")
 	if err != nil {
 		return nil, err
 	}
-	path := os.Getenv("CONFIG_PATH")
-	if path == "" {
-		path = "/models/"
-	}
+
 	a := make(map[string]interface{})
 	err = json.NewDecoder(r).Decode(&a)
 	if err != nil {
@@ -558,10 +552,12 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 			c.SharedCosts = sc //todo: support reflection/multiple map fields
 		}
 	}
+
 	cj, err := json.Marshal(c)
 	if err != nil {
 		return nil, err
 	}
+
 	remoteEnabled := os.Getenv(remoteEnabled)
 	if remoteEnabled == "true" {
 		err = UpdateClusterMeta(os.Getenv(clusterIDKey), c.ClusterName)
@@ -570,10 +566,12 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 		}
 	}
 
-	configPath := path + "azure.json"
+	configPath := configPathFor("azure.json")
+
 	configLock.Lock()
 	err = ioutil.WriteFile(configPath, cj, 0644)
 	configLock.Unlock()
+
 	if err != nil {
 		return nil, err
 	}

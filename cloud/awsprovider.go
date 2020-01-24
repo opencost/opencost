@@ -273,13 +273,10 @@ func (aws *AWS) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, 
 	if err != nil {
 		return nil, err
 	}
-	path := os.Getenv("CONFIG_PATH")
-	if path == "" {
-		path = "/models/"
-	}
-	configPath := path + "aws.json"
-	return configmapUpdate(c, configPath, a)
+
+	return configmapUpdate(c, configPathFor("aws.json"), a)
 }
+
 func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
 	c, err := GetCustomPricingData("aws.json")
 	if err != nil {
@@ -345,11 +342,9 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 	if err != nil {
 		return nil, err
 	}
-	path := os.Getenv("CONFIG_PATH")
-	if path == "" {
-		path = "/models/"
-	}
-	path += "aws.json"
+
+	path := configPathFor("aws.json")
+
 	remoteEnabled := os.Getenv(remoteEnabled)
 	if remoteEnabled == "true" {
 		err = UpdateClusterMeta(os.Getenv(clusterIDKey), c.ClusterName)
@@ -357,9 +352,11 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 			return nil, err
 		}
 	}
+
 	configLock.Lock()
 	err = ioutil.WriteFile(path, cj, 0644)
-	defer configLock.Unlock()
+	configLock.Unlock()
+
 	if err != nil {
 		return nil, err
 	}

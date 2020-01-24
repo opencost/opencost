@@ -5,7 +5,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -59,12 +58,8 @@ func (cp *CustomProvider) UpdateConfigFromConfigMap(a map[string]string) (*Custo
 	if err != nil {
 		return nil, err
 	}
-	path := os.Getenv("CONFIG_PATH")
-	if path == "" {
-		path = "/models/"
-	}
-	configPath := path + "default.json"
-	return configmapUpdate(c, configPath, a)
+
+	return configmapUpdate(c, configPathFor("default.json"), a)
 }
 
 func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
@@ -72,10 +67,7 @@ func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomP
 	if err != nil {
 		return nil, err
 	}
-	path := os.Getenv("CONFIG_PATH")
-	if path == "" {
-		path = "/models/"
-	}
+
 	a := make(map[string]interface{})
 	err = json.NewDecoder(r).Decode(&a)
 	if err != nil {
@@ -104,10 +96,12 @@ func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomP
 		return nil, err
 	}
 
-	configPath := path + "default.json"
+	configPath := configPathFor("default.json")
+
 	configLock.Lock()
 	err = ioutil.WriteFile(configPath, cj, 0644)
 	configLock.Unlock()
+
 	if err != nil {
 		return nil, err
 	}
