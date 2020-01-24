@@ -210,62 +210,6 @@ func CustomPricesEnabled(p Provider) bool {
 	return config.CustomPricesEnabled == "true"
 }
 
-// SharedNamespace returns a list of names of shared namespaces, as defined in the application settings
-func SharedNamespaces(p Provider) []string {
-	namespaces := []string{}
-
-	config, err := p.GetConfig()
-	if err != nil {
-		return namespaces
-	}
-
-	// trim spaces so that "kube-system, kubecost" is equivalent to "kube-system,kubecost"
-	for _, ns := range strings.Split(config.SharedNamespaces, ",") {
-		namespaces = append(namespaces, strings.Trim(ns, " "))
-	}
-
-	return namespaces
-}
-
-// SharedLabel returns the configured set of shared labels as a parallel tuple of keys to values; e.g.
-// for app:kubecost,type:staging this returns (["app", "type"], ["kubecost", "staging"]) in order to
-// match the signature of the NewSharedResourceInfo
-func SharedLabels(p Provider) ([]string, []string) {
-	names := []string{}
-	values := []string{}
-
-	config, err := p.GetConfig()
-	if err != nil {
-		return names, values
-	}
-
-	ks := strings.Split(config.SharedLabelNames, ",")
-	vs := strings.Split(config.SharedLabelValues, ",")
-	if len(ks) != len(vs) {
-		klog.V(2).Infof("[Warning] Shared labels have mis-matched lengths: %d names, %d values", len(ks), len(vs))
-		return names, values
-	}
-
-	for i := range ks {
-		names = append(names, strings.Trim(ks[i], " "))
-		values = append(values, strings.Trim(vs[i], " "))
-	}
-
-	klog.V(2).Infof("[Debug] Shared labels: %v, %v", ks, vs)
-
-	return names, values
-}
-
-// AllocateIdleByDefault returns true if the application settings specify to allocate idle by default
-func AllocateIdleByDefault(p Provider) bool {
-	config, err := p.GetConfig()
-	if err != nil {
-		return false
-	}
-
-	return config.DefaultIdle == "true"
-}
-
 // GetDefaultPricingData will search for a json file representing pricing data in /models/ and use it for base pricing info.
 func GetDefaultPricingData(fname string) (*CustomPricing, error) {
 	configLock.Lock()
