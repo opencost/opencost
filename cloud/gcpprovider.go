@@ -86,7 +86,7 @@ func (gcp *GCP) GetLocalStorageQuery(offset string) (string, error) {
 }
 
 func (gcp *GCP) GetConfig() (*CustomPricing, error) {
-	c, err := GetDefaultPricingData("gcp.json")
+	c, err := GetCustomPricingData("gcp.json")
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func (gcp *GCP) GetManagementPlatform() (string, error) {
 }
 
 func (gcp *GCP) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
-	c, err := GetDefaultPricingData("gcp.json")
+	c, err := GetCustomPricingData("gcp.json")
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +132,7 @@ func (gcp *GCP) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, 
 }
 
 func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
-	c, err := GetDefaultPricingData("gcp.json")
+	c, err := GetCustomPricingData("gcp.json")
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +197,9 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 	}
 
 	configPath := path + "gcp.json"
+	configLock.Lock()
 	err = ioutil.WriteFile(configPath, cj, 0644)
+	configLock.Unlock()
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +212,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 // "start" and "end" are dates of the format YYYY-MM-DD
 // "aggregator" is the tag used to determine how to allocate those assets, ie namespace, pod, etc.
 func (gcp *GCP) ExternalAllocations(start string, end string, aggregator string, filterType string, filterValue string) ([]*OutOfClusterAllocation, error) {
-	c, err := GetDefaultPricingData("gcp.json")
+	c, err := GetCustomPricingData("gcp.json")
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +237,7 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregator string,
 
 // QuerySQL should query BigQuery for billing data for out of cluster costs.
 func (gcp *GCP) QuerySQL(query string) ([]*OutOfClusterAllocation, error) {
-	c, err := GetDefaultPricingData("gcp.json")
+	c, err := GetCustomPricingData("gcp.json")
 	if err != nil {
 		return nil, err
 	}
@@ -688,7 +690,7 @@ func (gcp *GCP) parsePages(inputKeys map[string]Key, pvKeys map[string]PVKey) (m
 func (gcp *GCP) DownloadPricingData() error {
 	gcp.DownloadPricingDataLock.Lock()
 	defer gcp.DownloadPricingDataLock.Unlock()
-	c, err := GetDefaultPricingData("gcp.json")
+	c, err := GetCustomPricingData("gcp.json")
 	if err != nil {
 		klog.V(2).Infof("Error downloading default pricing data: %s", err.Error())
 		return err
@@ -762,7 +764,7 @@ func (gcp *GCP) PVPricing(pvk PVKey) (*PV, error) {
 
 // Stubbed NetworkPricing for GCP. Pull directly from gcp.json for now
 func (c *GCP) NetworkPricing() (*Network, error) {
-	cpricing, err := GetDefaultPricingData("gcp.json")
+	cpricing, err := GetCustomPricingData("gcp.json")
 	if err != nil {
 		return nil, err
 	}

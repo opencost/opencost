@@ -430,7 +430,7 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 
 // Stubbed NetworkPricing for Azure. Pull directly from azure.json for now
 func (c *Azure) NetworkPricing() (*Network, error) {
-	cpricing, err := GetDefaultPricingData("azure.json")
+	cpricing, err := GetCustomPricingData("azure.json")
 	if err != nil {
 		return nil, err
 	}
@@ -514,7 +514,7 @@ func (az *Azure) AddServiceKey(url url.Values) error {
 }
 
 func (az *Azure) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
-	c, err := GetDefaultPricingData("azure.json")
+	c, err := GetCustomPricingData("azure.json")
 	if err != nil {
 		return nil, err
 	}
@@ -528,7 +528,7 @@ func (az *Azure) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing,
 
 func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
 	defer az.DownloadPricingData()
-	c, err := GetDefaultPricingData("azure.json")
+	c, err := GetCustomPricingData("azure.json")
 	if err != nil {
 		return nil, err
 	}
@@ -571,7 +571,9 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 	}
 
 	configPath := path + "azure.json"
+	configLock.Lock()
 	err = ioutil.WriteFile(configPath, cj, 0644)
+	configLock.Unlock()
 	if err != nil {
 		return nil, err
 	}
@@ -579,7 +581,7 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 	return c, nil
 }
 func (az *Azure) GetConfig() (*CustomPricing, error) {
-	c, err := GetDefaultPricingData("azure.json")
+	c, err := GetCustomPricingData("azure.json")
 	if c.Discount == "" {
 		c.Discount = "0%"
 	}

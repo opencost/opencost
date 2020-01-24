@@ -256,7 +256,7 @@ func (aws *AWS) GetManagementPlatform() (string, error) {
 }
 
 func (aws *AWS) GetConfig() (*CustomPricing, error) {
-	c, err := GetDefaultPricingData("aws.json")
+	c, err := GetCustomPricingData("aws.json")
 	if c.Discount == "" {
 		c.Discount = "0%"
 	}
@@ -269,7 +269,7 @@ func (aws *AWS) GetConfig() (*CustomPricing, error) {
 	return c, nil
 }
 func (aws *AWS) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
-	c, err := GetDefaultPricingData("aws.json")
+	c, err := GetCustomPricingData("aws.json")
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +281,7 @@ func (aws *AWS) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, 
 	return configmapUpdate(c, configPath, a)
 }
 func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
-	c, err := GetDefaultPricingData("aws.json")
+	c, err := GetCustomPricingData("aws.json")
 	if err != nil {
 		return nil, err
 	}
@@ -357,7 +357,9 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 			return nil, err
 		}
 	}
+	configLock.Lock()
 	err = ioutil.WriteFile(path, cj, 0644)
+	defer configLock.Unlock()
 	if err != nil {
 		return nil, err
 	}
@@ -478,7 +480,7 @@ func (aws *AWS) isPreemptible(key string) bool {
 func (aws *AWS) DownloadPricingData() error {
 	aws.DownloadPricingDataLock.Lock()
 	defer aws.DownloadPricingDataLock.Unlock()
-	c, err := GetDefaultPricingData("aws.json")
+	c, err := GetCustomPricingData("aws.json")
 	if err != nil {
 		klog.V(1).Infof("Error downloading default pricing data: %s", err.Error())
 	}
@@ -702,7 +704,7 @@ func (aws *AWS) DownloadPricingData() error {
 
 // Stubbed NetworkPricing for AWS. Pull directly from aws.json for now
 func (c *AWS) NetworkPricing() (*Network, error) {
-	cpricing, err := GetDefaultPricingData("aws.json")
+	cpricing, err := GetCustomPricingData("aws.json")
 	if err != nil {
 		return nil, err
 	}

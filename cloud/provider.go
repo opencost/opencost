@@ -210,8 +210,26 @@ func CustomPricesEnabled(p Provider) bool {
 	return config.CustomPricesEnabled == "true"
 }
 
+// DefaultPricing should be returned so we can do computation even if no file is supplied.
+func DefaultPricing() *CustomPricing {
+	return &CustomPricing{
+		Provider:              "base",
+		Description:           "Default prices based on GCP us-central1",
+		CPU:                   "0.031611",
+		SpotCPU:               "0.006655",
+		RAM:                   "0.004237",
+		SpotRAM:               "0.000892",
+		GPU:                   "0.95",
+		Storage:               "0.00005479452",
+		ZoneNetworkEgress:     "0.01",
+		RegionNetworkEgress:   "0.01",
+		InternetNetworkEgress: "0.12",
+		CustomPricesEnabled:   "false",
+	}
+}
+
 // GetDefaultPricingData will search for a json file representing pricing data in /models/ and use it for base pricing info.
-func GetDefaultPricingData(fname string) (*CustomPricing, error) {
+func GetCustomPricingData(fname string) (*CustomPricing, error) {
 	configLock.Lock()
 	defer configLock.Unlock()
 
@@ -233,36 +251,27 @@ func GetDefaultPricingData(fname string) (*CustomPricing, error) {
 		var customPricing = &CustomPricing{}
 		err = json.Unmarshal([]byte(byteValue), customPricing)
 		if err != nil {
-			return nil, err
+			klog.Infof("Could not decode Custom Pricing file at path %s", path)
+			return DefaultPricing(), err
 		}
 		return customPricing, nil
 	} else if os.IsNotExist(err) {
-		c := &CustomPricing{
-			Provider:              fname,
-			Description:           "Default prices based on GCP us-central1",
-			CPU:                   "0.031611",
-			SpotCPU:               "0.006655",
-			RAM:                   "0.004237",
-			SpotRAM:               "0.000892",
-			GPU:                   "0.95",
-			Storage:               "0.00005479452",
-			ZoneNetworkEgress:     "0.01",
-			RegionNetworkEgress:   "0.01",
-			InternetNetworkEgress: "0.12",
-			CustomPricesEnabled:   "false",
-		}
+		klog.Infof("Could not find Custom Pricing file at path '%s'", path)
+		c := DefaultPricing()
 		cj, err := json.Marshal(c)
 		if err != nil {
-			return nil, err
+			return c, err
 		}
 
 		err = ioutil.WriteFile(path, cj, 0644)
 		if err != nil {
+			klog.Infof("Could not write Custom Pricing file to path '%s'", path)
 			return nil, err
 		}
 		return c, nil
 	} else {
-		return nil, err
+		klog.Infof("Custom Pricing file at path '%s' read error: '%s'", path, err.Error())
+		return DefaultPricing(), err
 	}
 }
 
