@@ -5,7 +5,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -43,7 +42,7 @@ func (*CustomProvider) GetLocalStorageQuery(offset string) (string, error) {
 }
 
 func (*CustomProvider) GetConfig() (*CustomPricing, error) {
-	return GetDefaultPricingData("default.json")
+	return GetCustomPricingData("default.json")
 }
 
 func (*CustomProvider) GetManagementPlatform() (string, error) {
@@ -55,27 +54,20 @@ func (*CustomProvider) ApplyReservedInstancePricing(nodes map[string]*Node) {
 }
 
 func (cp *CustomProvider) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
-	c, err := GetDefaultPricingData("default.json")
+	c, err := GetCustomPricingData("default.json")
 	if err != nil {
 		return nil, err
 	}
-	path := os.Getenv("CONFIG_PATH")
-	if path == "" {
-		path = "/models/"
-	}
-	configPath := path + "default.json"
-	return configmapUpdate(c, configPath, a)
+
+	return configmapUpdate(c, configPathFor("default.json"), a)
 }
 
 func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
-	c, err := GetDefaultPricingData("default.json")
+	c, err := GetCustomPricingData("default.json")
 	if err != nil {
 		return nil, err
 	}
-	path := os.Getenv("CONFIG_PATH")
-	if path == "" {
-		path = "/models/"
-	}
+
 	a := make(map[string]interface{})
 	err = json.NewDecoder(r).Decode(&a)
 	if err != nil {
@@ -104,8 +96,12 @@ func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomP
 		return nil, err
 	}
 
-	configPath := path + "default.json"
+	configPath := configPathFor("default.json")
+
+	configLock.Lock()
 	err = ioutil.WriteFile(configPath, cj, 0644)
+	configLock.Unlock()
+
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +168,7 @@ func (cp *CustomProvider) DownloadPricingData() error {
 		m := make(map[string]*NodePrice)
 		cp.Pricing = m
 	}
-	p, err := GetDefaultPricingData("default.json")
+	p, err := GetCustomPricingData("default.json")
 	if err != nil {
 		return err
 	}
@@ -218,7 +214,7 @@ func (*CustomProvider) QuerySQL(query string) ([]byte, error) {
 }
 
 func (*CustomProvider) PVPricing(pvk PVKey) (*PV, error) {
-	cpricing, err := GetDefaultPricingData("default")
+	cpricing, err := GetCustomPricingData("default.json")
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +224,7 @@ func (*CustomProvider) PVPricing(pvk PVKey) (*PV, error) {
 }
 
 func (*CustomProvider) NetworkPricing() (*Network, error) {
-	cpricing, err := GetDefaultPricingData("default")
+	cpricing, err := GetCustomPricingData("default.json")
 	if err != nil {
 		return nil, err
 	}

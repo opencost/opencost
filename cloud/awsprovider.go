@@ -256,7 +256,7 @@ func (aws *AWS) GetManagementPlatform() (string, error) {
 }
 
 func (aws *AWS) GetConfig() (*CustomPricing, error) {
-	c, err := GetDefaultPricingData("aws.json")
+	c, err := GetCustomPricingData("aws.json")
 	if c.Discount == "" {
 		c.Discount = "0%"
 	}
@@ -269,19 +269,16 @@ func (aws *AWS) GetConfig() (*CustomPricing, error) {
 	return c, nil
 }
 func (aws *AWS) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
-	c, err := GetDefaultPricingData("aws.json")
+	c, err := GetCustomPricingData("aws.json")
 	if err != nil {
 		return nil, err
 	}
-	path := os.Getenv("CONFIG_PATH")
-	if path == "" {
-		path = "/models/"
-	}
-	configPath := path + "aws.json"
-	return configmapUpdate(c, configPath, a)
+
+	return configmapUpdate(c, configPathFor("aws.json"), a)
 }
+
 func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
-	c, err := GetDefaultPricingData("aws.json")
+	c, err := GetCustomPricingData("aws.json")
 	if err != nil {
 		return nil, err
 	}
@@ -345,11 +342,9 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 	if err != nil {
 		return nil, err
 	}
-	path := os.Getenv("CONFIG_PATH")
-	if path == "" {
-		path = "/models/"
-	}
-	path += "aws.json"
+
+	path := configPathFor("aws.json")
+
 	remoteEnabled := os.Getenv(remoteEnabled)
 	if remoteEnabled == "true" {
 		err = UpdateClusterMeta(os.Getenv(clusterIDKey), c.ClusterName)
@@ -357,7 +352,11 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 			return nil, err
 		}
 	}
+
+	configLock.Lock()
 	err = ioutil.WriteFile(path, cj, 0644)
+	configLock.Unlock()
+
 	if err != nil {
 		return nil, err
 	}
@@ -478,7 +477,7 @@ func (aws *AWS) isPreemptible(key string) bool {
 func (aws *AWS) DownloadPricingData() error {
 	aws.DownloadPricingDataLock.Lock()
 	defer aws.DownloadPricingDataLock.Unlock()
-	c, err := GetDefaultPricingData("aws.json")
+	c, err := GetCustomPricingData("aws.json")
 	if err != nil {
 		klog.V(1).Infof("Error downloading default pricing data: %s", err.Error())
 	}
@@ -702,7 +701,7 @@ func (aws *AWS) DownloadPricingData() error {
 
 // Stubbed NetworkPricing for AWS. Pull directly from aws.json for now
 func (c *AWS) NetworkPricing() (*Network, error) {
-	cpricing, err := GetDefaultPricingData("aws.json")
+	cpricing, err := GetCustomPricingData("aws.json")
 	if err != nil {
 		return nil, err
 	}
