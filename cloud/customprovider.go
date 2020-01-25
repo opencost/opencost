@@ -214,7 +214,7 @@ func (*CustomProvider) QuerySQL(query string) ([]byte, error) {
 }
 
 func (*CustomProvider) PVPricing(pvk PVKey) (*PV, error) {
-	cpricing, err := GetCustomPricingData("default")
+	cpricing, err := GetCustomPricingData("default.json")
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +224,7 @@ func (*CustomProvider) PVPricing(pvk PVKey) (*PV, error) {
 }
 
 func (*CustomProvider) NetworkPricing() (*Network, error) {
-	cpricing, err := GetCustomPricingData("default")
+	cpricing, err := GetCustomPricingData("default.json")
 	if err != nil {
 		return nil, err
 	}
