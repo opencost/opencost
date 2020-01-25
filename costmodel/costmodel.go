@@ -178,7 +178,7 @@ const (
 			), "pod_name","$1","pod","(.+)"
 		) 
 	) by (namespace,container_name,pod_name,node,cluster_id) 
-	* on (pod_name, namespace, node, cluster_id) group_right(container_name) label_replace(avg_over_time(kube_pod_status_phase{phase="Running"}[%s] %s), "pod_name","$1","pod","(.+)")`
+	* on (pod_name, namespace, cluster_id) group_left(container) label_replace(max(avg_over_time(kube_pod_status_phase{phase="Running"}[%s] %s)) by (pod,namespace,cluster_id), "pod_name","$1","pod","(.+)")`
 	queryPVRequestsStr = `avg(kube_persistentvolumeclaim_info) by (persistentvolumeclaim, storageclass, namespace, volumename, cluster_id) 
 						* 
 						on (persistentvolumeclaim, namespace, cluster_id) group_right(storageclass, volumename) 
@@ -1232,7 +1232,11 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 				newCnode.VCPUCost = fmt.Sprintf("%f", cpuPrice)
 				newCnode.RAMCost = fmt.Sprintf("%f", ramPrice)
 			} else { // just assign the full price to CPU
-				newCnode.VCPUCost = fmt.Sprintf("%f", nodePrice)
+				if cpu != 0 {
+					newCnode.VCPUCost = fmt.Sprintf("%f", nodePrice/cpu)
+				} else {
+					newCnode.VCPUCost = fmt.Sprintf("%f", nodePrice)
+				}
 			}
 			newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 
