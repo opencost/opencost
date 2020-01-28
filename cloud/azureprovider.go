@@ -325,6 +325,7 @@ func (az *Azure) DownloadPricingData() error {
 	containerServiceClient.Authorizer = authorizer
 
 	rateCardFilter := fmt.Sprintf("OfferDurableId eq 'MS-AZR-0003p' and Currency eq '%s' and Locale eq 'en-US' and RegionInfo eq '%s'", config.CurrencyCode, config.AzureBillingRegion)
+
 	klog.Infof("Using ratecard query %s", rateCardFilter)
 	result, err := rcClient.Get(context.TODO(), rateCardFilter)
 	if err != nil {
@@ -343,7 +344,7 @@ func (az *Azure) DownloadPricingData() error {
 	baseCPUPrice := c.CPU
 
 	for _, v := range *result.Meters {
-		if !strings.Contains(*v.MeterSubCategory, "Windows") && !strings.Contains(*v.MeterCategory, "Cloud Services") {
+		if !strings.Contains(*v.MeterSubCategory, "Windows") && strings.Contains(*v.MeterCategory, "Virtual Machines") {
 
 			region, err := toRegionID(*v.MeterRegion, regions)
 			if err != nil {
