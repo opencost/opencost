@@ -480,7 +480,7 @@ func (a *Accesses) OutOfClusterCostsWithCache(w http.ResponseWriter, r *http.Req
 	key := fmt.Sprintf(`%s:%s:%s:%s:%s`, start, end, aggregation, filterType, filterValue)
 	if value, found := a.OutOfClusterCache.Get(key); found && !disableCache {
 		if data, ok := value.([]*costAnalyzerCloud.OutOfClusterAllocation); ok {
-			w.Write(WrapDataWithMessage(data, nil, fmt.Sprintf("out of cluser cache hit: %s", key)))
+			w.Write(WrapDataWithMessage(data, nil, fmt.Sprintf("out of cluster cache hit: %s", key)))
 			return
 		}
 		klog.Errorf("caching error: failed to type cast data: %s", key)
