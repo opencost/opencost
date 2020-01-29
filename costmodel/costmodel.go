@@ -2017,7 +2017,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		containers[key] = true
 	}
 
-	GPUReqMap, err := GetContainerMetricVectors(resultGPURequests, clusterID)
+	GPUReqMap, err := GetNormalizedContainerMetricVectors(resultGPURequests, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
