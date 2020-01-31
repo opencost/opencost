@@ -2042,13 +2042,6 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	if err != nil {
 		return nil, err
 	}
-	for key := range GPUReqMap {
-		containers[key] = true
-		klog.Infof("GPUMAP: %s", key)
-		for _, vec := range GPUReqMap[key] {
-			klog.Infof("%f: %f", vec.Timestamp, vec.Value)
-		}
-	}
 
 	measureTime(profileStart, fmt.Sprintf("costDataRange(%fh): GetContainerMetricVectors", durHrs))
 
