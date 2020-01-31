@@ -2072,7 +2072,6 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		}
 		// The container has been deleted, or is from a different clusterID
 		// Not all information is sent to prometheus via ksm, so fill out what we can without k8s api
-		klog.V(4).Info("The container " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
 		c, _ := NewContainerMetricFromKey(key)
 		RAMReqV, ok := RAMReqMap[key]
 		if !ok {
