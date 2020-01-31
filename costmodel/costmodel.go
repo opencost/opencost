@@ -2071,7 +2071,6 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 			continue // because ordering is important for the allocation model (all PV's applied to the first), just dedupe if it's already been added.
 		}
 		// The container has been deleted, or is from a different clusterID
-		// Not all information is sent to prometheus via ksm, so fill out what we can without k8s api
 		c, _ := NewContainerMetricFromKey(key)
 		RAMReqV, ok := RAMReqMap[key]
 		if !ok {
