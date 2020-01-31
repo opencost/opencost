@@ -28,7 +28,7 @@ import (
 const (
 	statusAPIError = 422
 
-	profileThreshold = 500 * 1000 * 1000 // 500ms (in ns)
+	profileThreshold = 1000 * 1000 * 1000 // 1s (in ns)
 
 	apiPrefix         = "/api/v1"
 	epAlertManagers   = apiPrefix + "/alertmanagers"
