@@ -867,7 +867,7 @@ func Initialize() {
 	// We need an initial invocation because the init of the cache has happened before we had access to the provider.
 	configs, err := kubeClientset.CoreV1().ConfigMaps(kubecostNamespace).Get("pricing-configs", metav1.GetOptions{})
 	if err != nil {
-		klog.Infof("ERROR FETCHING configmap: %s", err.Error())
+		klog.Infof("No configs found at installtime, using existing configs: %s", err.Error())
 	} else {
 		watchConfigFunc(configs)
 	}

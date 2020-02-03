@@ -169,7 +169,9 @@ type Azure struct {
 }
 
 type azureKey struct {
-	Labels map[string]string
+	Labels        map[string]string
+	GPULabel      string
+	GPULabelValue string
 }
 
 func (k *azureKey) Features() string {
@@ -180,7 +182,11 @@ func (k *azureKey) Features() string {
 }
 
 func (k *azureKey) GPUType() string {
+	if t, ok := k.Labels[k.GPULabel]; ok {
+		return t
+	}
 	return ""
+
 }
 
 func (k *azureKey) ID() string {
@@ -188,8 +194,23 @@ func (k *azureKey) ID() string {
 }
 
 func (az *Azure) GetKey(labels map[string]string) Key {
+	cfg, err := az.GetConfig()
+	if err != nil {
+		klog.Infof("Error loading azure custom pricing information")
+	}
+	// azure defaults, see https://docs.microsoft.com/en-us/azure/aks/gpu-cluster
+	gpuLabel := "accelerator"
+	gpuLabelValue := "nvidia"
+	if cfg.GpuLabel != "" {
+		gpuLabel = cfg.GpuLabel
+	}
+	if cfg.GpuLabelValue != "" {
+		gpuLabelValue = cfg.GpuLabelValue
+	}
 	return &azureKey{
-		Labels: labels,
+		Labels:        labels,
+		GPULabel:      gpuLabel,
+		GPULabelValue: gpuLabelValue,
 	}
 }
 
@@ -415,12 +436,23 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 	defer az.DownloadPricingDataLock.RUnlock()
 	if n, ok := az.allPrices[key.Features()]; ok {
 		klog.V(4).Infof("Returning pricing for node %s: %+v from key %s", key, n, key.Features())
+		if key.GPUType() != "" {
+			n.GPU = "1" // TODO: support multiple GPUs
+		}
 		return n, nil
 	}
 	klog.V(1).Infof("[Warning] no pricing data found for %s: %s", key.Features(), key)
 	c, err := az.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("No default pricing data available")
+	}
+	if key.GPUType() != "" {
+		return &Node{
+			VCPUCost: c.CPU,
+			RAMCost:  c.RAM,
+			GPUCost:  c.GPU,
+			GPU:      "1", // TODO: support multiple GPUs
+		}, nil
 	}
 	return &Node{
 		VCPUCost:         c.CPU,

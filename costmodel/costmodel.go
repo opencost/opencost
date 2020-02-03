@@ -176,6 +176,7 @@ const (
 					count_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s] %s) 
 					*  
 					avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s] %s)
+					* %f
 				) by (namespace,container,pod,node,cluster_id) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		) 
@@ -341,7 +342,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, window, offset, window, offset)
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, window, offset, window, offset)
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, window, offset)
-	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, window, offset, window, offset, window, offset)
+	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, window, offset, window, offset, 1.0, window, offset)
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
 	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, window, "")
 	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, window, "")
@@ -488,7 +489,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 
 	normalizationValue, err := getNormalization(normalizationResult)
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing normalization values: " + err.Error())
+		return nil, fmt.Errorf("Error parsing normalization values from %s: %s", normalization, err.Error())
 	}
 
 	nodes, err := cm.GetNodeCost(cp)
@@ -1077,6 +1078,28 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 		newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 
+		// Azure does not seem to provide a GPU count in its pricing API. GKE supports attaching multiple GPUs
+		// So the k8s api will often report more accurate results for GPU count under status > capacity > nvidia.com/gpu than the cloud providers billing data
+		// not all providers are guaranteed to use this, so don't overwrite a Provider assignment if we can't find something under that capacity exists
+		gpuc := 0.0
+		q, ok := n.Status.Capacity["nvidia.com/gpu"]
+		if ok {
+			gpuCount := q.Value()
+			if gpuCount != 0 {
+				newCnode.GPU = fmt.Sprintf("%d", q.Value())
+				gpuc = float64(gpuCount)
+			}
+		} else {
+			gpuc, err = strconv.ParseFloat(newCnode.GPU, 64)
+			if err != nil {
+				gpuc = 0.0
+			}
+		}
+		if math.IsNaN(gpuc) {
+			klog.V(1).Infof("[Warning] gpu count parsed as NaN. Setting to 0.")
+			gpuc = 0.0
+		}
+
 		if newCnode.GPU != "" && newCnode.GPUCost == "" {
 			// We couldn't find a gpu cost, so fix cpu and ram, then accordingly
 			klog.V(4).Infof("GPU without cost found for %s, calculating...", cp.GetKey(nodeLabels).Features())
@@ -1129,7 +1152,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 				ramGB = 0
 			}
 
-			ramMultiple := gpuToRAMRatio + cpu*cpuToRAMRatio + ramGB
+			ramMultiple := gpuc*gpuToRAMRatio + cpu*cpuToRAMRatio + ramGB
 			if math.IsNaN(ramMultiple) {
 				klog.V(1).Infof("[Warning] ramMultiple is NaN. Setting to 0.")
 				ramMultiple = 0
@@ -1566,7 +1589,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, windowString, "", windowString, "")
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, windowString, "", windowString, "")
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, windowString, "")
-	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, windowString, "", windowString, "", windowString, "")
+	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, windowString, "", windowString, "", resolutionHours, windowString, "")
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
 	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, windowString, "")
 	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, windowString, "")
@@ -1858,7 +1881,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	normalizationValue, err := getNormalizations(normalizationResults)
 	if err != nil {
-		return nil, fmt.Errorf("error computing normalization for start=%s, end=%s, window=%s, res=%f: %s",
+		return nil, fmt.Errorf("error computing normalization %s for start=%s, end=%s, window=%s, res=%f: %s", normalization,
 			start, end, window, resolutionHours*60*60, err.Error())
 	}
 
@@ -2037,21 +2060,6 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	applyAllocationToRequests(RAMAllocMap, RAMReqMap)
 	applyAllocationToRequests(CPUAllocMap, CPUReqMap)
 
-	currentContainers := make(map[string]v1.Pod)
-	for _, pod := range podlist {
-		if pod.Status.Phase != v1.PodRunning {
-			continue
-		}
-		cs, err := newContainerMetricsFromPod(*pod, clusterID)
-		if err != nil {
-			return nil, err
-		}
-		for _, c := range cs {
-			containers[c.Key()] = true // captures any containers that existed for a time < a prometheus scrape interval. We currently charge 0 for this but should charge something.
-			currentContainers[c.Key()] = *pod
-		}
-	}
-
 	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): applyAllocationToRequests", durHrs))
 
 	profileStart = time.Now()
@@ -2062,296 +2070,146 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		if _, ok := containerNameCost[key]; ok {
 			continue // because ordering is important for the allocation model (all PV's applied to the first), just dedupe if it's already been added.
 		}
-		if pod, ok := currentContainers[key]; ok {
-			podName := pod.GetObjectMeta().GetName()
-			ns := pod.GetObjectMeta().GetNamespace()
-			nodeName := pod.Spec.NodeName
-			var nodeData *costAnalyzerCloud.Node
-			if _, ok := nodes[nodeName]; ok {
-				nodeData = nodes[nodeName]
-			}
+		c, _ := NewContainerMetricFromKey(key)
+		RAMReqV, ok := RAMReqMap[key]
+		if !ok {
+			klog.V(4).Info("no RAM requests for " + key)
+			RAMReqV = []*Vector{}
+		}
+		RAMUsedV, ok := RAMUsedMap[key]
+		if !ok {
+			klog.V(4).Info("no RAM usage for " + key)
+			RAMUsedV = []*Vector{}
+		}
+		CPUReqV, ok := CPUReqMap[key]
+		if !ok {
+			klog.V(4).Info("no CPU requests for " + key)
+			CPUReqV = []*Vector{}
+		}
+		CPUUsedV, ok := CPUUsedMap[key]
+		if !ok {
+			klog.V(4).Info("no CPU usage for " + key)
+			CPUUsedV = []*Vector{}
+		}
+		RAMAllocsV, ok := RAMAllocMap[key]
+		if !ok {
+			klog.V(4).Info("no RAM allocation for " + key)
+			RAMAllocsV = []*Vector{}
+		}
+		CPUAllocsV, ok := CPUAllocMap[key]
+		if !ok {
+			klog.V(4).Info("no CPU allocation for " + key)
+			CPUAllocsV = []*Vector{}
+		}
+		GPUReqV, ok := GPUReqMap[key]
+		if !ok {
+			klog.V(4).Info("no GPU requests for " + key)
+			GPUReqV = []*Vector{}
+		}
 
-			nsKey := ns + "," + clusterID
-			var podDeployments []string
-			if _, ok := podDeploymentsMapping[nsKey]; ok {
-				if ds, ok := podDeploymentsMapping[nsKey][pod.GetObjectMeta().GetName()]; ok {
-					podDeployments = ds
-				} else {
-					podDeployments = []string{}
-				}
+		node, ok := nodes[c.NodeName]
+		if !ok {
+			klog.V(4).Infof("Node \"%s\" has been deleted from Kubernetes. Query historical data to get it.", c.NodeName)
+			if n, ok := missingNodes[c.NodeName]; ok {
+				node = n
+			} else {
+				node = &costAnalyzerCloud.Node{}
+				missingNodes[c.NodeName] = node
 			}
-			var podStatefulSets []string
-			if _, ok := podStatefulsetsMapping[nsKey]; ok {
-				if ds, ok := podStatefulsetsMapping[nsKey][pod.GetObjectMeta().GetName()]; ok {
-					podStatefulSets = ds
-				} else {
-					podStatefulSets = []string{}
-				}
+		}
+
+		nsKey := c.Namespace + "," + c.ClusterID
+		podKey := c.Namespace + "," + c.PodName + "," + c.ClusterID
+
+		namespaceLabels, ok := namespaceLabelsMapping[nsKey]
+		if !ok {
+			klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
+		}
+
+		pLabels := podLabels[podKey]
+		if pLabels == nil {
+			pLabels = make(map[string]string)
+		}
+
+		for k, v := range namespaceLabels {
+			pLabels[k] = v
+		}
+
+		var podDeployments []string
+		if _, ok := podDeploymentsMapping[nsKey]; ok {
+			if ds, ok := podDeploymentsMapping[nsKey][c.PodName]; ok {
+				podDeployments = ds
+			} else {
+				podDeployments = []string{}
 			}
+		}
 
-			var podPVs []*PersistentVolumeClaimData
-			podClaims := pod.Spec.Volumes
-			for _, vol := range podClaims {
-				if vol.PersistentVolumeClaim != nil {
-					name := vol.PersistentVolumeClaim.ClaimName
-					if pvClaim, ok := pvClaimMapping[ns+","+name+","+clusterID]; ok {
-						podPVs = append(podPVs, pvClaim)
-					}
-				}
+		var podServices []string
+		if _, ok := podServicesMapping[nsKey]; ok {
+			if svcs, ok := podServicesMapping[nsKey][c.PodName]; ok {
+				podServices = svcs
+			} else {
+				podServices = []string{}
 			}
+		}
 
-			var podNetCosts []*Vector
-			if usage, ok := networkUsageMap[ns+","+podName+","+clusterID]; ok {
-				netCosts, err := GetNetworkCost(usage, cp)
-				if err != nil {
-					klog.V(3).Infof("Error pulling network costs: %s", err.Error())
-				} else {
-					podNetCosts = netCosts
-				}
+		var podPVs []*PersistentVolumeClaimData
+		var podNetCosts []*Vector
+
+		// For PVC data, we'll need to find the claim mapping and cost data. Will need to append
+		// cost data since that was populated by cluster data previously. We do this with
+		// the pod_pvc_allocation metric
+		podPVData, ok := pvAllocationMapping[podKey]
+		if !ok {
+			klog.V(4).Infof("Failed to locate pv allocation mapping for missing pod.")
+		}
+
+		// For network costs, we'll use existing map since it should still contain the
+		// correct data.
+		var podNetworkCosts []*Vector
+		if usage, ok := networkUsageMap[podKey]; ok {
+			netCosts, err := GetNetworkCost(usage, cp)
+			if err != nil {
+				klog.V(3).Infof("Error pulling network costs: %s", err.Error())
+			} else {
+				podNetworkCosts = netCosts
 			}
+		}
 
-			var podServices []string
-			if _, ok := podServicesMapping[nsKey]; ok {
-				if svcs, ok := podServicesMapping[nsKey][pod.GetObjectMeta().GetName()]; ok {
-					podServices = svcs
-				} else {
-					podServices = []string{}
-				}
-			}
+		// Check to see if any other data has been recorded for this namespace, pod, clusterId
+		// Follow the pattern of only allowing claims data per pod
+		if !otherClusterPVRecorded[podKey] {
+			otherClusterPVRecorded[podKey] = true
 
-			nsLabels := namespaceLabelsMapping[nsKey]
-			podLabels := pod.GetObjectMeta().GetLabels()
+			podPVs = podPVData
+			podNetCosts = podNetworkCosts
+		}
 
-			if podLabels == nil {
-				podLabels = make(map[string]string)
-			}
+		costs := &CostData{
+			Name:            c.ContainerName,
+			PodName:         c.PodName,
+			NodeName:        c.NodeName,
+			NodeData:        node,
+			Namespace:       c.Namespace,
+			Services:        podServices,
+			Deployments:     podDeployments,
+			RAMReq:          RAMReqV,
+			RAMUsed:         RAMUsedV,
+			CPUReq:          CPUReqV,
+			CPUUsed:         CPUUsedV,
+			RAMAllocation:   RAMAllocsV,
+			CPUAllocation:   CPUAllocsV,
+			GPUReq:          GPUReqV,
+			Labels:          pLabels,
+			NamespaceLabels: namespaceLabels,
+			PVCData:         podPVs,
+			NetworkData:     podNetCosts,
+			ClusterID:       c.ClusterID,
+		}
 
-			for k, v := range nsLabels {
-				podLabels[k] = v
-			}
-
-			for i, container := range pod.Spec.Containers {
-				containerName := container.Name
-
-				newKey := newContainerMetricFromValues(ns, podName, containerName, pod.Spec.NodeName, clusterID).Key()
-				RAMReqV, ok := RAMReqMap[newKey]
-				if !ok {
-					klog.V(4).Info("no RAM requests for " + newKey)
-					RAMReqV = []*Vector{}
-				}
-				RAMUsedV, ok := RAMUsedMap[newKey]
-				if !ok {
-					klog.V(4).Info("no RAM usage for " + newKey)
-					RAMUsedV = []*Vector{}
-				}
-				CPUReqV, ok := CPUReqMap[newKey]
-				if !ok {
-					klog.V(4).Info("no CPU requests for " + newKey)
-					CPUReqV = []*Vector{}
-				}
-				CPUUsedV, ok := CPUUsedMap[newKey]
-				if !ok {
-					klog.V(4).Info("no CPU usage for " + newKey)
-					CPUUsedV = []*Vector{}
-				}
-				RAMAllocsV, ok := RAMAllocMap[newKey]
-				if !ok {
-					klog.V(4).Info("no RAM allocation for " + newKey)
-					RAMAllocsV = []*Vector{}
-				}
-				CPUAllocsV, ok := CPUAllocMap[newKey]
-				if !ok {
-					klog.V(4).Info("no CPU allocation for " + newKey)
-					CPUAllocsV = []*Vector{}
-				}
-				GPUReqV, ok := GPUReqMap[newKey]
-				if !ok {
-					klog.V(4).Info("no GPU requests for " + newKey)
-					GPUReqV = []*Vector{}
-				}
-
-				var pvReq []*PersistentVolumeClaimData
-				var netReq []*Vector
-				if i == 0 { // avoid duplicating by just assigning all claims to the first container.
-					pvReq = podPVs
-					netReq = podNetCosts
-				}
-
-				costs := &CostData{
-					Name:            containerName,
-					PodName:         podName,
-					NodeName:        nodeName,
-					Namespace:       ns,
-					Deployments:     podDeployments,
-					Services:        podServices,
-					Daemonsets:      getDaemonsetsOfPod(pod),
-					Jobs:            getJobsOfPod(pod),
-					Statefulsets:    podStatefulSets,
-					NodeData:        nodeData,
-					RAMReq:          RAMReqV,
-					RAMUsed:         RAMUsedV,
-					CPUReq:          CPUReqV,
-					CPUUsed:         CPUUsedV,
-					RAMAllocation:   RAMAllocsV,
-					CPUAllocation:   CPUAllocsV,
-					GPUReq:          GPUReqV,
-					PVCData:         pvReq,
-					Labels:          podLabels,
-					NetworkData:     netReq,
-					NamespaceLabels: nsLabels,
-					ClusterID:       clusterID,
-				}
-
-				if costDataPassesFilters(costs, filterNamespace, filterCluster) {
-					containerNameCost[newKey] = costs
-				}
-			}
-
-		} else {
-			// The container has been deleted, or is from a different clusterID
-			// Not all information is sent to prometheus via ksm, so fill out what we can without k8s api
-			klog.V(4).Info("The container " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
-			c, _ := NewContainerMetricFromKey(key)
-			RAMReqV, ok := RAMReqMap[key]
-			if !ok {
-				klog.V(4).Info("no RAM requests for " + key)
-				RAMReqV = []*Vector{}
-			}
-			RAMUsedV, ok := RAMUsedMap[key]
-			if !ok {
-				klog.V(4).Info("no RAM usage for " + key)
-				RAMUsedV = []*Vector{}
-			}
-			CPUReqV, ok := CPUReqMap[key]
-			if !ok {
-				klog.V(4).Info("no CPU requests for " + key)
-				CPUReqV = []*Vector{}
-			}
-			CPUUsedV, ok := CPUUsedMap[key]
-			if !ok {
-				klog.V(4).Info("no CPU usage for " + key)
-				CPUUsedV = []*Vector{}
-			}
-			RAMAllocsV, ok := RAMAllocMap[key]
-			if !ok {
-				klog.V(4).Info("no RAM allocation for " + key)
-				RAMAllocsV = []*Vector{}
-			}
-			CPUAllocsV, ok := CPUAllocMap[key]
-			if !ok {
-				klog.V(4).Info("no CPU allocation for " + key)
-				CPUAllocsV = []*Vector{}
-			}
-			GPUReqV, ok := GPUReqMap[key]
-			if !ok {
-				klog.V(4).Info("no GPU requests for " + key)
-				GPUReqV = []*Vector{}
-			}
-
-			node, ok := nodes[c.NodeName]
-			if !ok {
-				klog.V(4).Infof("Node \"%s\" has been deleted from Kubernetes. Query historical data to get it.", c.NodeName)
-				if n, ok := missingNodes[c.NodeName]; ok {
-					node = n
-				} else {
-					node = &costAnalyzerCloud.Node{}
-					missingNodes[c.NodeName] = node
-				}
-			}
-
-			nsKey := c.Namespace + "," + c.ClusterID
-			podKey := c.Namespace + "," + c.PodName + "," + c.ClusterID
-
-			namespaceLabels, ok := namespaceLabelsMapping[nsKey]
-			if !ok {
-				klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
-			}
-
-			pLabels := podLabels[podKey]
-			if pLabels == nil {
-				pLabels = make(map[string]string)
-			}
-
-			for k, v := range namespaceLabels {
-				pLabels[k] = v
-			}
-
-			var podDeployments []string
-			if _, ok := podDeploymentsMapping[nsKey]; ok {
-				if ds, ok := podDeploymentsMapping[nsKey][c.PodName]; ok {
-					podDeployments = ds
-				} else {
-					podDeployments = []string{}
-				}
-			}
-
-			var podServices []string
-			if _, ok := podServicesMapping[nsKey]; ok {
-				if svcs, ok := podServicesMapping[nsKey][c.PodName]; ok {
-					podServices = svcs
-				} else {
-					podServices = []string{}
-				}
-			}
-
-			var podPVs []*PersistentVolumeClaimData
-			var podNetCosts []*Vector
-
-			// For PVC data, we'll need to find the claim mapping and cost data. Will need to append
-			// cost data since that was populated by cluster data previously. We do this with
-			// the pod_pvc_allocation metric
-			podPVData, ok := pvAllocationMapping[podKey]
-			if !ok {
-				klog.V(4).Infof("Failed to locate pv allocation mapping for missing pod.")
-			}
-
-			// For network costs, we'll use existing map since it should still contain the
-			// correct data.
-			var podNetworkCosts []*Vector
-			if usage, ok := networkUsageMap[podKey]; ok {
-				netCosts, err := GetNetworkCost(usage, cp)
-				if err != nil {
-					klog.V(3).Infof("Error pulling network costs: %s", err.Error())
-				} else {
-					podNetworkCosts = netCosts
-				}
-			}
-
-			// Check to see if any other data has been recorded for this namespace, pod, clusterId
-			// Follow the pattern of only allowing claims data per pod
-			if !otherClusterPVRecorded[podKey] {
-				otherClusterPVRecorded[podKey] = true
-
-				podPVs = podPVData
-				podNetCosts = podNetworkCosts
-			}
-
-			costs := &CostData{
-				Name:            c.ContainerName,
-				PodName:         c.PodName,
-				NodeName:        c.NodeName,
-				NodeData:        node,
-				Namespace:       c.Namespace,
-				Services:        podServices,
-				Deployments:     podDeployments,
-				RAMReq:          RAMReqV,
-				RAMUsed:         RAMUsedV,
-				CPUReq:          CPUReqV,
-				CPUUsed:         CPUUsedV,
-				RAMAllocation:   RAMAllocsV,
-				CPUAllocation:   CPUAllocsV,
-				GPUReq:          GPUReqV,
-				Labels:          pLabels,
-				NamespaceLabels: namespaceLabels,
-				PVCData:         podPVs,
-				NetworkData:     podNetCosts,
-				ClusterID:       c.ClusterID,
-			}
-
-			if costDataPassesFilters(costs, filterNamespace, filterCluster) {
-				containerNameCost[key] = costs
-				missingContainers[key] = costs
-			}
+		if costDataPassesFilters(costs, filterNamespace, filterCluster) {
+			containerNameCost[key] = costs
+			missingContainers[key] = costs
 		}
 	}
 
