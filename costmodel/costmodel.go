@@ -340,7 +340,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, window, offset, window, offset)
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, window, offset, window, offset)
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, window, offset)
-	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, window, offset, window, offset, 1, window, offset)
+	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, window, offset, window, offset, 1.0, window, offset)
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
 	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, window, "")
 	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, window, "")
@@ -487,7 +487,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 
 	normalizationValue, err := getNormalization(normalizationResult)
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing normalization values: " + err.Error())
+		return nil, fmt.Errorf("Error parsing normalization values from %s: %s", normalization, err.Error())
 	}
 
 	nodes, err := cm.GetNodeCost(cp)
@@ -735,14 +735,16 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 				CPUUsedV = []*Vector{&Vector{}}
 			}
 
-			var node *costAnalyzerCloud.Node
-			if n, ok := missingNodes[c.NodeName]; ok {
-				node = n
-			} else {
-				node = &costAnalyzerCloud.Node{}
-				missingNodes[c.NodeName] = node
+			node, ok := nodes[c.NodeName]
+			if !ok {
+				klog.V(4).Infof("Node \"%s\" has been deleted from Kubernetes. Query historical data to get it.", c.NodeName)
+				if n, ok := missingNodes[c.NodeName]; ok {
+					node = n
+				} else {
+					node = &costAnalyzerCloud.Node{}
+					missingNodes[c.NodeName] = node
+				}
 			}
-
 			namespacelabels, ok := namespaceLabelsMapping[c.Namespace+","+c.ClusterID]
 			if !ok {
 				klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
@@ -1877,7 +1879,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	normalizationValue, err := getNormalizations(normalizationResults)
 	if err != nil {
-		return nil, fmt.Errorf("error computing normalization for start=%s, end=%s, window=%s, res=%f: %s",
+		return nil, fmt.Errorf("error computing normalization %s for start=%s, end=%s, window=%s, res=%f: %s", normalization,
 			start, end, window, resolutionHours*60*60, err.Error())
 	}
 
