@@ -387,7 +387,6 @@ func GetPodDaemonsetsWithMetrics(queryResult interface{}, defaultClusterID strin
 		return toReturn, err
 	}
 	for _, val := range result {
-		// We want Deployment, Namespace and ClusterID for key generation purposes
 		ds, err := val.GetString("owner_name")
 		if err != nil {
 			return toReturn, err
@@ -404,10 +403,10 @@ func GetPodDaemonsetsWithMetrics(queryResult interface{}, defaultClusterID strin
 		}
 
 		pod, err := val.GetString("pod")
-		if clusterID == "" {
-			clusterID = defaultClusterID
+		if err != nil {
+			return toReturn, err
 		}
-		
+
 		nsKey := ns + "," + pod + "," + clusterID
 		toReturn[nsKey] = ds
 	}
