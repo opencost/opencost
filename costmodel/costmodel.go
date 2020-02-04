@@ -28,6 +28,8 @@ import (
 const (
 	statusAPIError = 422
 
+	profileThreshold = 1000 * 1000 * 1000 // 1s (in ns)
+
 	apiPrefix         = "/api/v1"
 	epAlertManagers   = apiPrefix + "/alertmanagers"
 	epQuery           = apiPrefix + "/query"
@@ -174,6 +176,7 @@ const (
 					count_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s] %s) 
 					*  
 					avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s] %s)
+					* %f
 				) by (namespace,container,pod,node,cluster_id) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		) 
@@ -217,6 +220,7 @@ const (
 	queryPodLabels            = `avg_over_time(kube_pod_labels[%s])`
 	queryDeploymentLabels     = `avg_over_time(deployment_match_labels[%s])`
 	queryStatefulsetLabels    = `avg_over_time(statefulSet_match_labels[%s])`
+	queryPodDaemonsets        = `sum(kube_pod_owner{owner_kind="DaemonSet"}) by (namespace,pod,owner_name,cluster_id)`
 	queryServiceLabels        = `avg_over_time(service_selector_labels[%s])`
 	queryZoneNetworkUsage     = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
@@ -339,7 +343,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, window, offset, window, offset)
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, window, offset, window, offset)
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, window, offset)
-	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, window, offset, window, offset, window, offset)
+	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, window, offset, window, offset, 1.0, window, offset)
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
 	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, window, "")
 	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, window, "")
@@ -471,7 +475,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 
 	wg.Wait()
 
-	defer measureTime(time.Now(), "ComputeCostData: Processing Query Data")
+	defer measureTime(time.Now(), profileThreshold, "ComputeCostData: Processing Query Data")
 
 	if ec.IsError() {
 		for _, promErr := range ec.Errors() {
@@ -486,7 +490,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 
 	normalizationValue, err := getNormalization(normalizationResult)
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing normalization values: " + err.Error())
+		return nil, fmt.Errorf("Error parsing normalization values from %s: %s", normalization, err.Error())
 	}
 
 	nodes, err := cm.GetNodeCost(cp)
@@ -868,7 +872,7 @@ func labelsFromPrometheusQuery(qr interface{}) (map[string]map[string]string, er
 
 func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*costAnalyzerCloud.Node, window string) error {
 	if len(missingNodes) > 0 {
-		defer measureTime(time.Now(), "Finding Deleted Node Info")
+		defer measureTime(time.Now(), profileThreshold, "Finding Deleted Node Info")
 
 		q := make([]string, 0, len(missingNodes))
 		for nodename := range missingNodes {
@@ -1043,8 +1047,15 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 		cnode, err := cp.NodePricing(cp.GetKey(nodeLabels))
 		if err != nil {
 			klog.V(1).Infof("[Warning] Error getting node pricing. Error: " + err.Error())
-			nodes[name] = cnode
-			continue
+			if cnode != nil {
+				nodes[name] = cnode
+				continue
+			} else {
+				cnode = &costAnalyzerCloud.Node{
+					VCPUCost: cfg.CPU,
+					RAMCost:  cfg.RAM,
+				}
+			}
 		}
 		newCnode := *cnode
 
@@ -1074,6 +1085,28 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 		}
 
 		newCnode.RAMBytes = fmt.Sprintf("%f", ram)
+
+		// Azure does not seem to provide a GPU count in its pricing API. GKE supports attaching multiple GPUs
+		// So the k8s api will often report more accurate results for GPU count under status > capacity > nvidia.com/gpu than the cloud providers billing data
+		// not all providers are guaranteed to use this, so don't overwrite a Provider assignment if we can't find something under that capacity exists
+		gpuc := 0.0
+		q, ok := n.Status.Capacity["nvidia.com/gpu"]
+		if ok {
+			gpuCount := q.Value()
+			if gpuCount != 0 {
+				newCnode.GPU = fmt.Sprintf("%d", q.Value())
+				gpuc = float64(gpuCount)
+			}
+		} else {
+			gpuc, err = strconv.ParseFloat(newCnode.GPU, 64)
+			if err != nil {
+				gpuc = 0.0
+			}
+		}
+		if math.IsNaN(gpuc) {
+			klog.V(1).Infof("[Warning] gpu count parsed as NaN. Setting to 0.")
+			gpuc = 0.0
+		}
 
 		if newCnode.GPU != "" && newCnode.GPUCost == "" {
 			// We couldn't find a gpu cost, so fix cpu and ram, then accordingly
@@ -1127,7 +1160,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 				ramGB = 0
 			}
 
-			ramMultiple := gpuToRAMRatio + cpu*cpuToRAMRatio + ramGB
+			ramMultiple := gpuc*gpuToRAMRatio + cpu*cpuToRAMRatio + ramGB
 			if math.IsNaN(ramMultiple) {
 				klog.V(1).Infof("[Warning] ramMultiple is NaN. Setting to 0.")
 				ramMultiple = 0
@@ -1564,7 +1597,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, windowString, "", windowString, "")
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, windowString, "", windowString, "")
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, windowString, "")
-	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, windowString, "", windowString, "", windowString, "")
+	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, windowString, "", windowString, "", resolutionHours, windowString, "")
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
 	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, windowString, "")
 	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, windowString, "")
@@ -1600,7 +1633,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		return CostDataRangeFromSQL("", "", windowString, remoteStartStr, remoteEndStr)
 	}
 
-	numQueries := 20
+	numQueries := 21
 
 	var wg sync.WaitGroup
 	wg.Add(numQueries)
@@ -1612,7 +1645,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	var resultRAMRequests interface{}
 	go func() {
 		defer wg.Done()
-		defer measureTimeAsync(time.Now(), "RAMRequests", queryProfileCh)
+		defer measureTimeAsync(time.Now(), profileThreshold, "RAMRequests", queryProfileCh)
 
 		var promErr error
 		resultRAMRequests, promErr = QueryRange(cli, queryRAMRequests, start, end, window)
@@ -1622,7 +1655,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	var resultRAMUsage interface{}
 	go func() {
 		defer wg.Done()
-		defer measureTimeAsync(time.Now(), "RAMUsage", queryProfileCh)
+		defer measureTimeAsync(time.Now(), profileThreshold, "RAMUsage", queryProfileCh)
 
 		var promErr error
 		resultRAMUsage, promErr = QueryRange(cli, queryRAMUsage, start, end, window)
@@ -1632,7 +1665,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	var resultCPURequests interface{}
 	go func() {
 		defer wg.Done()
-		defer measureTimeAsync(time.Now(), "CPURequests", queryProfileCh)
+		defer measureTimeAsync(time.Now(), profileThreshold, "CPURequests", queryProfileCh)
 
 		var promErr error
 		resultCPURequests, promErr = QueryRange(cli, queryCPURequests, start, end, window)
@@ -1642,7 +1675,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	var resultCPUUsage interface{}
 	go func() {
 		defer wg.Done()
-		defer measureTimeAsync(time.Now(), "CPUUsage", queryProfileCh)
+		defer measureTimeAsync(time.Now(), profileThreshold, "CPUUsage", queryProfileCh)
 
 		var promErr error
 		resultCPUUsage, promErr = QueryRange(cli, queryCPUUsage, start, end, window)
@@ -1652,7 +1685,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	var resultRAMAllocations interface{}
 	go func() {
 		defer wg.Done()
-		defer measureTimeAsync(time.Now(), "RAMAllocations", queryProfileCh)
+		defer measureTimeAsync(time.Now(), profileThreshold, "RAMAllocations", queryProfileCh)
 
 		var promErr error
 		resultRAMAllocations, promErr = QueryRange(cli, queryRAMAlloc, start, end, window)
@@ -1662,7 +1695,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	var resultCPUAllocations interface{}
 	go func() {
 		defer wg.Done()
-		defer measureTimeAsync(time.Now(), "CPUAllocations", queryProfileCh)
+		defer measureTimeAsync(time.Now(), profileThreshold, "CPUAllocations", queryProfileCh)
 
 		var promErr error
 		resultCPUAllocations, promErr = QueryRange(cli, queryCPUAlloc, start, end, window)
@@ -1672,7 +1705,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	var resultGPURequests interface{}
 	go func() {
 		defer wg.Done()
-		defer measureTimeAsync(time.Now(), "GPURequests", queryProfileCh)
+		defer measureTimeAsync(time.Now(), profileThreshold, "GPURequests", queryProfileCh)
 
 		var promErr error
 		resultGPURequests, promErr = QueryRange(cli, queryGPURequests, start, end, window)
@@ -1682,7 +1715,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	var resultPVRequests interface{}
 	go func() {
 		defer wg.Done()
-		defer measureTimeAsync(time.Now(), "PVRequests", queryProfileCh)
+		defer measureTimeAsync(time.Now(), profileThreshold, "PVRequests", queryProfileCh)
 
 		var promErr error
 		resultPVRequests, promErr = QueryRange(cli, queryPVRequests, start, end, window)
@@ -1692,7 +1725,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	var resultNetZoneRequests interface{}
 	go func() {
 		defer wg.Done()
-		defer measureTimeAsync(time.Now(), "NetZoneRequests", queryProfileCh)
+		defer measureTimeAsync(time.Now(), profileThreshold, "NetZoneRequests", queryProfileCh)
 
 		var promErr error
 		resultNetZoneRequests, promErr = QueryRange(cli, queryNetZoneRequests, start, end, window)
@@ -1702,7 +1735,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	var resultNetRegionRequests interface{}
 	go func() {
 		defer wg.Done()
-		defer measureTimeAsync(time.Now(), "NetRegionRequests", queryProfileCh)
+		defer measureTimeAsync(time.Now(), profileThreshold, "NetRegionRequests", queryProfileCh)
 
 		var promErr error
 		resultNetRegionRequests, promErr = QueryRange(cli, queryNetRegionRequests, start, end, window)
@@ -1712,7 +1745,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	var resultNetInternetRequests interface{}
 	go func() {
 		defer wg.Done()
-		defer measureTimeAsync(time.Now(), "NetInternetRequests", queryProfileCh)
+		defer measureTimeAsync(time.Now(), profileThreshold, "NetInternetRequests", queryProfileCh)
 
 		var promErr error
 		resultNetInternetRequests, promErr = QueryRange(cli, queryNetInternetRequests, start, end, window)
@@ -1722,7 +1755,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	var pvPodAllocationResults interface{}
 	go func() {
 		defer wg.Done()
-		defer measureTimeAsync(time.Now(), "PVPodAllocation", queryProfileCh)
+		defer measureTimeAsync(time.Now(), profileThreshold, "PVPodAllocation", queryProfileCh)
 
 		var promErr error
 		pvPodAllocationResults, promErr = QueryRange(cli, fmt.Sprintf(queryPVCAllocation, windowString), start, end, window)
@@ -1732,7 +1765,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	var pvCostResults interface{}
 	go func() {
 		defer wg.Done()
-		defer measureTimeAsync(time.Now(), "PVCost", queryProfileCh)
+		defer measureTimeAsync(time.Now(), profileThreshold, "PVCost", queryProfileCh)
 
 		var promErr error
 		pvCostResults, promErr = QueryRange(cli, fmt.Sprintf(queryPVHourlyCost, windowString), start, end, window)
@@ -1742,7 +1775,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	var nsLabelsResults interface{}
 	go func() {
 		defer wg.Done()
-		defer measureTimeAsync(time.Now(), "NSLabels", queryProfileCh)
+		defer measureTimeAsync(time.Now(), profileThreshold, "NSLabels", queryProfileCh)
 
 		var promErr error
 		nsLabelsResults, promErr = QueryRange(cli, fmt.Sprintf(queryNSLabels, windowString), start, end, window)
@@ -1752,7 +1785,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	var podLabelsResults interface{}
 	go func() {
 		defer wg.Done()
-		defer measureTimeAsync(time.Now(), "PodLabels", queryProfileCh)
+		defer measureTimeAsync(time.Now(), profileThreshold, "PodLabels", queryProfileCh)
 
 		var promErr error
 		podLabelsResults, promErr = QueryRange(cli, fmt.Sprintf(queryPodLabels, windowString), start, end, window)
@@ -1762,7 +1795,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	var serviceLabelsResults interface{}
 	go func() {
 		defer wg.Done()
-		defer measureTimeAsync(time.Now(), "ServiceLabels", queryProfileCh)
+		defer measureTimeAsync(time.Now(), profileThreshold, "ServiceLabels", queryProfileCh)
 
 		var promErr error
 		serviceLabelsResults, promErr = QueryRange(cli, fmt.Sprintf(queryServiceLabels, windowString), start, end, window)
@@ -1772,17 +1805,26 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	var deploymentLabelsResults interface{}
 	go func() {
 		defer wg.Done()
-		defer measureTimeAsync(time.Now(), "DeploymentLabels", queryProfileCh)
+		defer measureTimeAsync(time.Now(), profileThreshold, "DeploymentLabels", queryProfileCh)
 
 		var promErr error
 		deploymentLabelsResults, promErr = QueryRange(cli, fmt.Sprintf(queryDeploymentLabels, windowString), start, end, window)
 
 		ec.Report(promErr)
 	}()
+	var daemonsetResults interface{}
+	go func() {
+		defer wg.Done()
+		defer measureTimeAsync(time.Now(), profileThreshold, "Daemonsets", queryProfileCh)
+
+		var promErr error
+		daemonsetResults, promErr = QueryRange(cli, fmt.Sprintf(queryPodDaemonsets), start, end, window)
+		ec.Report(promErr)
+	}()
 	var statefulsetLabelsResults interface{}
 	go func() {
 		defer wg.Done()
-		defer measureTimeAsync(time.Now(), "StatefulSetLabels", queryProfileCh)
+		defer measureTimeAsync(time.Now(), profileThreshold, "StatefulSetLabels", queryProfileCh)
 
 		var promErr error
 		statefulsetLabelsResults, promErr = QueryRange(cli, fmt.Sprintf(queryStatefulsetLabels, windowString), start, end, window)
@@ -1792,7 +1834,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	var normalizationResults interface{}
 	go func() {
 		defer wg.Done()
-		defer measureTimeAsync(time.Now(), "Normalization", queryProfileCh)
+		defer measureTimeAsync(time.Now(), profileThreshold, "Normalization", queryProfileCh)
 
 		var promErr error
 		normalizationResults, promErr = QueryRange(cli, normalization, start, end, window)
@@ -1837,9 +1879,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	for msg := range queryProfileCh {
 		queryProfileBreakdown += "\n - " + msg
 	}
-	measureTime(queryProfileStart, fmt.Sprintf("costDataRange(%fh): Prom/k8s Queries: %s", durHrs, queryProfileBreakdown))
+	measureTime(queryProfileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): Prom/k8s Queries: %s", durHrs, queryProfileBreakdown))
 
-	defer measureTime(time.Now(), fmt.Sprintf("costDataRange(%fh): Processing Query Data", durHrs))
+	defer measureTime(time.Now(), profileThreshold, fmt.Sprintf("costDataRange(%fh): Processing Query Data", durHrs))
 
 	if ec.IsError() {
 		for _, promErr := range ec.Errors() {
@@ -1856,11 +1898,11 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	normalizationValue, err := getNormalizations(normalizationResults)
 	if err != nil {
-		return nil, fmt.Errorf("error computing normalization for start=%s, end=%s, window=%s, res=%f: %s",
+		return nil, fmt.Errorf("error computing normalization %s for start=%s, end=%s, window=%s, res=%f: %s", normalization,
 			start, end, window, resolutionHours*60*60, err.Error())
 	}
 
-	measureTime(profileStart, fmt.Sprintf("costDataRange(%fh): compute normalizations", durHrs))
+	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): compute normalizations", durHrs))
 
 	profileStart = time.Now()
 
@@ -1870,7 +1912,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		return nil, err
 	}
 
-	measureTime(profileStart, fmt.Sprintf("costDataRange(%fh): GetNodeCost", durHrs))
+	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): GetNodeCost", durHrs))
 
 	profileStart = time.Now()
 
@@ -1899,7 +1941,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		addMetricPVData(pvAllocationMapping, pvCostMapping, cp)
 	}
 
-	measureTime(profileStart, fmt.Sprintf("costDataRange(%fh): process PV data", durHrs))
+	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): process PV data", durHrs))
 
 	profileStart = time.Now()
 
@@ -1931,7 +1973,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		klog.V(1).Infof("Unable to get Deployment Match Labels for Metrics: %s", err.Error())
 	}
 
-	measureTime(profileStart, fmt.Sprintf("costDataRange(%fh): process labels", durHrs))
+	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): process labels", durHrs))
 
 	profileStart = time.Now()
 
@@ -1947,6 +1989,11 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	}
 	appendLabelsList(podDeploymentsMapping, podDeploymentsMetricsMapping)
 
+	podDaemonsets, err := GetPodDaemonsetsWithMetrics(daemonsetResults, clusterID)
+	if err != nil {
+		klog.V(1).Infof("Unable to get Pod Daemonsets for Metrics: %s", err.Error())
+	}
+
 	podServicesMetricsMapping, err := getPodServicesWithMetrics(serviceLabels, podLabels)
 	if err != nil {
 		klog.V(1).Infof("Unable to get match Service Labels Metrics to Pods: %s", err.Error())
@@ -1959,7 +2006,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		networkUsageMap = make(map[string]*NetworkUsageData)
 	}
 
-	measureTime(profileStart, fmt.Sprintf("costDataRange(%fh): process deployments, services, and network usage", durHrs))
+	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): process deployments, services, and network usage", durHrs))
 
 	profileStart = time.Now()
 
@@ -2025,7 +2072,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		containers[key] = true
 	}
 
-	measureTime(profileStart, fmt.Sprintf("costDataRange(%fh): GetContainerMetricVectors", durHrs))
+	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): GetContainerMetricVectors", durHrs))
 
 	profileStart = time.Now()
 
@@ -2035,22 +2082,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	applyAllocationToRequests(RAMAllocMap, RAMReqMap)
 	applyAllocationToRequests(CPUAllocMap, CPUReqMap)
 
-	currentContainers := make(map[string]v1.Pod)
-	for _, pod := range podlist {
-		if pod.Status.Phase != v1.PodRunning {
-			continue
-		}
-		cs, err := newContainerMetricsFromPod(*pod, clusterID)
-		if err != nil {
-			return nil, err
-		}
-		for _, c := range cs {
-			containers[c.Key()] = true // captures any containers that existed for a time < a prometheus scrape interval. We currently charge 0 for this but should charge something.
-			currentContainers[c.Key()] = *pod
-		}
-	}
-
-	measureTime(profileStart, fmt.Sprintf("costDataRange(%fh): applyAllocationToRequests", durHrs))
+	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): applyAllocationToRequests", durHrs))
 
 	profileStart = time.Now()
 
@@ -2060,300 +2092,167 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		if _, ok := containerNameCost[key]; ok {
 			continue // because ordering is important for the allocation model (all PV's applied to the first), just dedupe if it's already been added.
 		}
-		if pod, ok := currentContainers[key]; ok {
-			podName := pod.GetObjectMeta().GetName()
-			ns := pod.GetObjectMeta().GetNamespace()
-			nodeName := pod.Spec.NodeName
-			var nodeData *costAnalyzerCloud.Node
-			if _, ok := nodes[nodeName]; ok {
-				nodeData = nodes[nodeName]
+		c, _ := NewContainerMetricFromKey(key)
+		RAMReqV, ok := RAMReqMap[key]
+		if !ok {
+			klog.V(4).Info("no RAM requests for " + key)
+			RAMReqV = []*Vector{}
+		}
+		RAMUsedV, ok := RAMUsedMap[key]
+		if !ok {
+			klog.V(4).Info("no RAM usage for " + key)
+			RAMUsedV = []*Vector{}
+		}
+		CPUReqV, ok := CPUReqMap[key]
+		if !ok {
+			klog.V(4).Info("no CPU requests for " + key)
+			CPUReqV = []*Vector{}
+		}
+		CPUUsedV, ok := CPUUsedMap[key]
+		if !ok {
+			klog.V(4).Info("no CPU usage for " + key)
+			CPUUsedV = []*Vector{}
+		}
+		RAMAllocsV, ok := RAMAllocMap[key]
+		if !ok {
+			klog.V(4).Info("no RAM allocation for " + key)
+			RAMAllocsV = []*Vector{}
+		}
+		CPUAllocsV, ok := CPUAllocMap[key]
+		if !ok {
+			klog.V(4).Info("no CPU allocation for " + key)
+			CPUAllocsV = []*Vector{}
+		}
+		GPUReqV, ok := GPUReqMap[key]
+		if !ok {
+			klog.V(4).Info("no GPU requests for " + key)
+			GPUReqV = []*Vector{}
+		}
+
+		node, ok := nodes[c.NodeName]
+		if !ok {
+			klog.V(4).Infof("Node \"%s\" has been deleted from Kubernetes. Query historical data to get it.", c.NodeName)
+			if n, ok := missingNodes[c.NodeName]; ok {
+				node = n
+			} else {
+				node = &costAnalyzerCloud.Node{}
+				missingNodes[c.NodeName] = node
+			}
+		}
+
+		nsKey := c.Namespace + "," + c.ClusterID
+		podKey := c.Namespace + "," + c.PodName + "," + c.ClusterID
+
+		namespaceLabels, ok := namespaceLabelsMapping[nsKey]
+		if !ok {
+			klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
+		}
+
+		pLabels := podLabels[podKey]
+		if pLabels == nil {
+			pLabels = make(map[string]string)
+		}
+
+		for k, v := range namespaceLabels {
+			pLabels[k] = v
+		}
+
+		var podDeployments []string
+		if _, ok := podDeploymentsMapping[nsKey]; ok {
+			if ds, ok := podDeploymentsMapping[nsKey][c.PodName]; ok {
+				podDeployments = ds
+			} else {
+				podDeployments = []string{}
+			}
+		}
+
+		var podStatefulSets []string
+		if _, ok := podStatefulsetsMapping[nsKey]; ok {
+			if ss, ok := podStatefulsetsMapping[nsKey][c.PodName]; ok {
+				podStatefulSets = ss
+			} else {
+				podStatefulSets = []string{}
 			}
 
-			nsKey := ns + "," + clusterID
-			var podDeployments []string
-			if _, ok := podDeploymentsMapping[nsKey]; ok {
-				if ds, ok := podDeploymentsMapping[nsKey][pod.GetObjectMeta().GetName()]; ok {
-					podDeployments = ds
-				} else {
-					podDeployments = []string{}
-				}
-			}
-			var podStatefulSets []string
-			if _, ok := podStatefulsetsMapping[nsKey]; ok {
-				if ds, ok := podStatefulsetsMapping[nsKey][pod.GetObjectMeta().GetName()]; ok {
-					podStatefulSets = ds
-				} else {
-					podStatefulSets = []string{}
-				}
-			}
+		}
 
-			var podPVs []*PersistentVolumeClaimData
-			podClaims := pod.Spec.Volumes
-			for _, vol := range podClaims {
-				if vol.PersistentVolumeClaim != nil {
-					name := vol.PersistentVolumeClaim.ClaimName
-					if pvClaim, ok := pvClaimMapping[ns+","+name+","+clusterID]; ok {
-						podPVs = append(podPVs, pvClaim)
-					}
-				}
+		var podServices []string
+		if _, ok := podServicesMapping[nsKey]; ok {
+			if svcs, ok := podServicesMapping[nsKey][c.PodName]; ok {
+				podServices = svcs
+			} else {
+				podServices = []string{}
 			}
+		}
 
-			var podNetCosts []*Vector
-			if usage, ok := networkUsageMap[ns+","+podName+","+clusterID]; ok {
-				netCosts, err := GetNetworkCost(usage, cp)
-				if err != nil {
-					klog.V(3).Infof("Error pulling network costs: %s", err.Error())
-				} else {
-					podNetCosts = netCosts
-				}
+		var podPVs []*PersistentVolumeClaimData
+		var podNetCosts []*Vector
+
+		// For PVC data, we'll need to find the claim mapping and cost data. Will need to append
+		// cost data since that was populated by cluster data previously. We do this with
+		// the pod_pvc_allocation metric
+		podPVData, ok := pvAllocationMapping[podKey]
+		if !ok {
+			klog.V(4).Infof("Failed to locate pv allocation mapping for missing pod.")
+		}
+
+		// For network costs, we'll use existing map since it should still contain the
+		// correct data.
+		var podNetworkCosts []*Vector
+		if usage, ok := networkUsageMap[podKey]; ok {
+			netCosts, err := GetNetworkCost(usage, cp)
+			if err != nil {
+				klog.V(3).Infof("Error pulling network costs: %s", err.Error())
+			} else {
+				podNetworkCosts = netCosts
 			}
+		}
 
-			var podServices []string
-			if _, ok := podServicesMapping[nsKey]; ok {
-				if svcs, ok := podServicesMapping[nsKey][pod.GetObjectMeta().GetName()]; ok {
-					podServices = svcs
-				} else {
-					podServices = []string{}
-				}
-			}
+		// Check to see if any other data has been recorded for this namespace, pod, clusterId
+		// Follow the pattern of only allowing claims data per pod
+		if !otherClusterPVRecorded[podKey] {
+			otherClusterPVRecorded[podKey] = true
 
-			nsLabels := namespaceLabelsMapping[nsKey]
-			podLabels := pod.GetObjectMeta().GetLabels()
+			podPVs = podPVData
+			podNetCosts = podNetworkCosts
+		}
 
-			if podLabels == nil {
-				podLabels = make(map[string]string)
-			}
+		pds := []string{}
+		if ds, ok := podDaemonsets[podKey]; ok {
+			pds = []string{ds}
+		}
 
-			for k, v := range nsLabels {
-				podLabels[k] = v
-			}
+		costs := &CostData{
+			Name:            c.ContainerName,
+			PodName:         c.PodName,
+			NodeName:        c.NodeName,
+			NodeData:        node,
+			Namespace:       c.Namespace,
+			Services:        podServices,
+			Deployments:     podDeployments,
+			Daemonsets:      pds,
+			Statefulsets:    podStatefulSets,
+			RAMReq:          RAMReqV,
+			RAMUsed:         RAMUsedV,
+			CPUReq:          CPUReqV,
+			CPUUsed:         CPUUsedV,
+			RAMAllocation:   RAMAllocsV,
+			CPUAllocation:   CPUAllocsV,
+			GPUReq:          GPUReqV,
+			Labels:          pLabels,
+			NamespaceLabels: namespaceLabels,
+			PVCData:         podPVs,
+			NetworkData:     podNetCosts,
+			ClusterID:       c.ClusterID,
+		}
 
-			for i, container := range pod.Spec.Containers {
-				containerName := container.Name
-
-				newKey := newContainerMetricFromValues(ns, podName, containerName, pod.Spec.NodeName, clusterID).Key()
-				RAMReqV, ok := RAMReqMap[newKey]
-				if !ok {
-					klog.V(4).Info("no RAM requests for " + newKey)
-					RAMReqV = []*Vector{}
-				}
-				RAMUsedV, ok := RAMUsedMap[newKey]
-				if !ok {
-					klog.V(4).Info("no RAM usage for " + newKey)
-					RAMUsedV = []*Vector{}
-				}
-				CPUReqV, ok := CPUReqMap[newKey]
-				if !ok {
-					klog.V(4).Info("no CPU requests for " + newKey)
-					CPUReqV = []*Vector{}
-				}
-				CPUUsedV, ok := CPUUsedMap[newKey]
-				if !ok {
-					klog.V(4).Info("no CPU usage for " + newKey)
-					CPUUsedV = []*Vector{}
-				}
-				RAMAllocsV, ok := RAMAllocMap[newKey]
-				if !ok {
-					klog.V(4).Info("no RAM allocation for " + newKey)
-					RAMAllocsV = []*Vector{}
-				}
-				CPUAllocsV, ok := CPUAllocMap[newKey]
-				if !ok {
-					klog.V(4).Info("no CPU allocation for " + newKey)
-					CPUAllocsV = []*Vector{}
-				}
-				GPUReqV, ok := GPUReqMap[newKey]
-				if !ok {
-					klog.V(4).Info("no GPU requests for " + newKey)
-					GPUReqV = []*Vector{}
-				}
-
-				var pvReq []*PersistentVolumeClaimData
-				var netReq []*Vector
-				if i == 0 { // avoid duplicating by just assigning all claims to the first container.
-					pvReq = podPVs
-					netReq = podNetCosts
-				}
-
-				costs := &CostData{
-					Name:            containerName,
-					PodName:         podName,
-					NodeName:        nodeName,
-					Namespace:       ns,
-					Deployments:     podDeployments,
-					Services:        podServices,
-					Daemonsets:      getDaemonsetsOfPod(pod),
-					Jobs:            getJobsOfPod(pod),
-					Statefulsets:    podStatefulSets,
-					NodeData:        nodeData,
-					RAMReq:          RAMReqV,
-					RAMUsed:         RAMUsedV,
-					CPUReq:          CPUReqV,
-					CPUUsed:         CPUUsedV,
-					RAMAllocation:   RAMAllocsV,
-					CPUAllocation:   CPUAllocsV,
-					GPUReq:          GPUReqV,
-					PVCData:         pvReq,
-					Labels:          podLabels,
-					NetworkData:     netReq,
-					NamespaceLabels: nsLabels,
-					ClusterID:       clusterID,
-				}
-
-				if costDataPassesFilters(costs, filterNamespace, filterCluster) {
-					containerNameCost[newKey] = costs
-				}
-			}
-
-		} else {
-			// The container has been deleted, or is from a different clusterID
-			// Not all information is sent to prometheus via ksm, so fill out what we can without k8s api
-			klog.V(4).Info("The container " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
-			c, _ := NewContainerMetricFromKey(key)
-			RAMReqV, ok := RAMReqMap[key]
-			if !ok {
-				klog.V(4).Info("no RAM requests for " + key)
-				RAMReqV = []*Vector{}
-			}
-			RAMUsedV, ok := RAMUsedMap[key]
-			if !ok {
-				klog.V(4).Info("no RAM usage for " + key)
-				RAMUsedV = []*Vector{}
-			}
-			CPUReqV, ok := CPUReqMap[key]
-			if !ok {
-				klog.V(4).Info("no CPU requests for " + key)
-				CPUReqV = []*Vector{}
-			}
-			CPUUsedV, ok := CPUUsedMap[key]
-			if !ok {
-				klog.V(4).Info("no CPU usage for " + key)
-				CPUUsedV = []*Vector{}
-			}
-			RAMAllocsV, ok := RAMAllocMap[key]
-			if !ok {
-				klog.V(4).Info("no RAM allocation for " + key)
-				RAMAllocsV = []*Vector{}
-			}
-			CPUAllocsV, ok := CPUAllocMap[key]
-			if !ok {
-				klog.V(4).Info("no CPU allocation for " + key)
-				CPUAllocsV = []*Vector{}
-			}
-			GPUReqV, ok := GPUReqMap[key]
-			if !ok {
-				klog.V(4).Info("no GPU requests for " + key)
-				GPUReqV = []*Vector{}
-			}
-
-			node, ok := nodes[c.NodeName]
-			if !ok {
-				klog.V(4).Infof("Node \"%s\" has been deleted from Kubernetes. Query historical data to get it.", c.NodeName)
-				if n, ok := missingNodes[c.NodeName]; ok {
-					node = n
-				} else {
-					node = &costAnalyzerCloud.Node{}
-					missingNodes[c.NodeName] = node
-				}
-			}
-
-			nsKey := c.Namespace + "," + c.ClusterID
-			podKey := c.Namespace + "," + c.PodName + "," + c.ClusterID
-
-			namespaceLabels, ok := namespaceLabelsMapping[nsKey]
-			if !ok {
-				klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
-			}
-
-			pLabels := podLabels[podKey]
-			if pLabels == nil {
-				pLabels = make(map[string]string)
-			}
-
-			for k, v := range namespaceLabels {
-				pLabels[k] = v
-			}
-
-			var podDeployments []string
-			if _, ok := podDeploymentsMapping[nsKey]; ok {
-				if ds, ok := podDeploymentsMapping[nsKey][c.PodName]; ok {
-					podDeployments = ds
-				} else {
-					podDeployments = []string{}
-				}
-			}
-
-			var podServices []string
-			if _, ok := podServicesMapping[nsKey]; ok {
-				if svcs, ok := podServicesMapping[nsKey][c.PodName]; ok {
-					podServices = svcs
-				} else {
-					podServices = []string{}
-				}
-			}
-
-			var podPVs []*PersistentVolumeClaimData
-			var podNetCosts []*Vector
-
-			// For PVC data, we'll need to find the claim mapping and cost data. Will need to append
-			// cost data since that was populated by cluster data previously. We do this with
-			// the pod_pvc_allocation metric
-			podPVData, ok := pvAllocationMapping[podKey]
-			if !ok {
-				klog.V(4).Infof("Failed to locate pv allocation mapping for missing pod.")
-			}
-
-			// For network costs, we'll use existing map since it should still contain the
-			// correct data.
-			var podNetworkCosts []*Vector
-			if usage, ok := networkUsageMap[podKey]; ok {
-				netCosts, err := GetNetworkCost(usage, cp)
-				if err != nil {
-					klog.V(3).Infof("Error pulling network costs: %s", err.Error())
-				} else {
-					podNetworkCosts = netCosts
-				}
-			}
-
-			// Check to see if any other data has been recorded for this namespace, pod, clusterId
-			// Follow the pattern of only allowing claims data per pod
-			if !otherClusterPVRecorded[podKey] {
-				otherClusterPVRecorded[podKey] = true
-
-				podPVs = podPVData
-				podNetCosts = podNetworkCosts
-			}
-
-			costs := &CostData{
-				Name:            c.ContainerName,
-				PodName:         c.PodName,
-				NodeName:        c.NodeName,
-				NodeData:        node,
-				Namespace:       c.Namespace,
-				Services:        podServices,
-				Deployments:     podDeployments,
-				RAMReq:          RAMReqV,
-				RAMUsed:         RAMUsedV,
-				CPUReq:          CPUReqV,
-				CPUUsed:         CPUUsedV,
-				RAMAllocation:   RAMAllocsV,
-				CPUAllocation:   CPUAllocsV,
-				GPUReq:          GPUReqV,
-				Labels:          pLabels,
-				NamespaceLabels: namespaceLabels,
-				PVCData:         podPVs,
-				NetworkData:     podNetCosts,
-				ClusterID:       c.ClusterID,
-			}
-
-			if costDataPassesFilters(costs, filterNamespace, filterCluster) {
-				containerNameCost[key] = costs
-				missingContainers[key] = costs
-			}
+		if costDataPassesFilters(costs, filterNamespace, filterCluster) {
+			containerNameCost[key] = costs
+			missingContainers[key] = costs
 		}
 	}
 
-	measureTime(profileStart, fmt.Sprintf("costDataRange(%fh): build CostData map", durHrs))
+	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): build CostData map", durHrs))
 
 	w := end.Sub(start)
 	w += window
@@ -2789,12 +2688,16 @@ func wrapPrometheusError(qr interface{}) (string, error) {
 	return eStr, nil
 }
 
-func measureTime(start time.Time, name string) {
+func measureTime(start time.Time, threshold time.Duration, name string) {
 	elapsed := time.Since(start)
-
-	klog.V(3).Infof("[Profiler] %s: %s", elapsed, name)
+	if elapsed > threshold {
+		klog.V(3).Infof("[Profiler] %s: %s", elapsed, name)
+	}
 }
 
-func measureTimeAsync(start time.Time, name string, ch chan string) {
-	ch <- fmt.Sprintf("%s took %s", name, time.Since(start))
+func measureTimeAsync(start time.Time, threshold time.Duration, name string, ch chan string) {
+	elapsed := time.Since(start)
+	if elapsed > threshold {
+		ch <- fmt.Sprintf("%s took %s", name, time.Since(start))
+	}
 }
