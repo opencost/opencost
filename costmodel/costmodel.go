@@ -621,7 +621,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 			if usage, ok := networkUsageMap[ns+","+podName+","+clusterID]; ok {
 				netCosts, err := GetNetworkCost(usage, cp)
 				if err != nil {
-					klog.V(3).Infof("Error pulling network costs: %s", err.Error())
+					klog.V(4).Infof("Error pulling network costs: %s", err.Error())
 				} else {
 					podNetCosts = netCosts
 				}
