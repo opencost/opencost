@@ -103,8 +103,7 @@ func resultToTotal(qr interface{}) (map[string][][]string, error) {
 }
 
 // ClusterCostsForAllClusters gives the cluster costs averaged over a window of time for all clusters.
-func ClusterCostsForAllClusters(cli prometheusClient.Client, cloud costAnalyzerCloud.Provider, windowString, offset string) (map[string]*Totals, error) {
-
+func ClusterCostsForAllClusters(cli prometheusClient.Client, cloud costAnalyzerCloud.Provider, window, offset string) (map[string]*Totals, error) {
 	if offset != "" {
 		offset = fmt.Sprintf("offset %s", offset)
 	}
@@ -117,20 +116,26 @@ func ClusterCostsForAllClusters(cli prometheusClient.Client, cloud costAnalyzerC
 		localStorageQuery = fmt.Sprintf("+ %s", localStorageQuery)
 	}
 
-	qCores := fmt.Sprintf(queryClusterCores, windowString, offset, windowString, offset, windowString, offset)
-	qRAM := fmt.Sprintf(queryClusterRAM, windowString, offset, windowString, offset)
-	qStorage := fmt.Sprintf(queryStorage, windowString, offset, windowString, offset, localStorageQuery)
+	qCores := fmt.Sprintf(queryClusterCores, window, offset, window, offset, window, offset)
+	qRAM := fmt.Sprintf(queryClusterRAM, window, offset, window, offset)
+	qStorage := fmt.Sprintf(queryStorage, window, offset, window, offset, localStorageQuery)
+
+	klog.Infof("[Debug] qCores: %s", qCores)
+	klog.Infof("[Debug] qRAM: %s", qRAM)
+	klog.Infof("[Debug] qStorage: %s", qStorage)
 
 	klog.V(4).Infof("Running query %s", qCores)
 	resultClusterCores, err := Query(cli, qCores)
 	if err != nil {
 		return nil, fmt.Errorf("Error for query %s: %s", qCores, err.Error())
 	}
+
 	klog.V(4).Infof("Running query %s", qRAM)
 	resultClusterRAM, err := Query(cli, qRAM)
 	if err != nil {
 		return nil, fmt.Errorf("Error for query %s: %s", qRAM, err.Error())
 	}
+
 	klog.V(4).Infof("Running query %s", qRAM)
 	resultStorage, err := Query(cli, qStorage)
 	if err != nil {
@@ -177,7 +182,6 @@ func ClusterCostsForAllClusters(cli prometheusClient.Client, cloud costAnalyzerC
 
 // ClusterCosts gives the current full cluster costs averaged over a window of time.
 func ClusterCosts(cli prometheusClient.Client, cloud costAnalyzerCloud.Provider, windowString, offset string) (*Totals, error) {
-
 	// turn offsets of the format "[0-9+]h" into the format "offset [0-9+]h" for use in query templatess
 	if offset != "" {
 		offset = fmt.Sprintf("offset %s", offset)
