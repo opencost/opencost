@@ -380,6 +380,40 @@ func GetStatefulsetMatchLabelsMetrics(queryResult interface{}, defaultClusterID 
 	return toReturn, nil
 }
 
+func GetPodDaemonsetsWithMetrics(queryResult interface{}, defaultClusterID string) (map[string]string, error) {
+	toReturn := make(map[string]string)
+	result, err := NewQueryResults(queryResult)
+	if err != nil {
+		return toReturn, err
+	}
+	for _, val := range result {
+		ds, err := val.GetString("owner_name")
+		if err != nil {
+			return toReturn, err
+		}
+
+		ns, err := val.GetString("namespace")
+		if err != nil {
+			return toReturn, err
+		}
+
+		clusterID, err := val.GetString("cluster_id")
+		if clusterID == "" {
+			clusterID = defaultClusterID
+		}
+
+		pod, err := val.GetString("pod")
+		if err != nil {
+			return toReturn, err
+		}
+
+		nsKey := ns + "," + pod + "," + clusterID
+		toReturn[nsKey] = ds
+	}
+
+	return toReturn, nil
+}
+
 func GetDeploymentMatchLabelsMetrics(queryResult interface{}, defaultClusterID string) (map[string]map[string]string, error) {
 	toReturn := make(map[string]map[string]string)
 	result, err := NewQueryResults(queryResult)
