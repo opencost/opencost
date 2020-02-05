@@ -875,10 +875,13 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 	if len(maybeClusterId) != 0 {
 		return makeStructure(maybeClusterId)
 	}
-	provIdRx := regexp.MustCompile("aws:///([^/]+)/([^/]+)")
-	clusterIdRx := regexp.MustCompile("^kubernetes\\.io/cluster/([^/]+)")
-	nodeList := awsProvider.Clientset.GetAllNodes()
-	for _, n := range nodeList {
+	// TODO: This should be cached, it can take a long time to hit the API
+	//provIdRx := regexp.MustCompile("aws:///([^/]+)/([^/]+)")
+	//clusterIdRx := regexp.MustCompile("^kubernetes\\.io/cluster/([^/]+)")
+	//klog.Infof("nodelist get here %s", time.Now())
+	//nodeList := awsProvider.Clientset.GetAllNodes()
+	//klog.Infof("nodelist done here %s", time.Now())
+	/*for _, n := range nodeList {
 		region := ""
 		instanceId := ""
 		providerId := n.Spec.ProviderID
@@ -904,7 +907,7 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 			},
 		})
 		if diErr != nil {
-			// maybe log this?
+			klog.Infof("Error describing instances: %s", diErr)
 			continue
 		}
 		if len(di.Reservations) != 1 {
@@ -926,7 +929,7 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 				return makeStructure(group)
 			}
 		}
-	}
+	}*/
 	klog.V(2).Infof("Unable to sniff out cluster ID, perhaps set $%s to force one", ClusterIdEnvVar)
 	return makeStructure(defaultClusterName)
 }
