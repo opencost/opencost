@@ -1906,12 +1906,6 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	profileStart = time.Now()
 
-	nodes, err := cm.GetNodeCost(cp)
-	if err != nil {
-		klog.V(1).Infof("[Warning] no cost model available: " + err.Error())
-		return nil, err
-	}
-
 	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): GetNodeCost", durHrs))
 
 	profileStart = time.Now()
@@ -2129,15 +2123,12 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 			GPUReqV = []*Vector{}
 		}
 
-		node, ok := nodes[c.NodeName]
-		if !ok {
-			klog.V(4).Infof("Node \"%s\" has been deleted from Kubernetes. Query historical data to get it.", c.NodeName)
-			if n, ok := missingNodes[c.NodeName]; ok {
-				node = n
-			} else {
-				node = &costAnalyzerCloud.Node{}
-				missingNodes[c.NodeName] = node
-			}
+		var node *costAnalyzerCloud.Node
+		if n, ok := missingNodes[c.NodeName]; ok {
+			node = n
+		} else {
+			node = &costAnalyzerCloud.Node{}
+			missingNodes[c.NodeName] = node
 		}
 
 		nsKey := c.Namespace + "," + c.ClusterID
