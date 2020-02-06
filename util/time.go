@@ -7,6 +7,7 @@ import (
 )
 
 const (
+	MinsPerHour   = 60.0
 	HoursPerDay   = 24.0
 	HoursPerMonth = 730.0
 	DaysPerMonth  = 30.42

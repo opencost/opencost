@@ -37,8 +37,8 @@ type customProviderKey struct {
 	Labels         map[string]string
 }
 
-func (*CustomProvider) GetLocalStorageQuery(offset string) (string, error) {
-	return "", nil
+func (*CustomProvider) GetLocalStorageQuery(window, offset string, rate bool) string {
+	return ""
 }
 
 func (*CustomProvider) GetConfig() (*CustomPricing, error) {

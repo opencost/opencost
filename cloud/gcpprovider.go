@@ -80,9 +80,30 @@ func gcpAllocationToOutOfClusterAllocation(gcpAlloc gcpAllocation) *OutOfCluster
 	}
 }
 
-func (gcp *GCP) GetLocalStorageQuery(offset string) (string, error) {
-	localStorageCost := 0.04 // TODO: Set to the price for the appropriate storage class. It's not trivial to determine the local storage disk type
-	return fmt.Sprintf(`sum(sum(container_fs_limit_bytes{device!="tmpfs", id="/"} %s) by (instance, cluster_id)) by (cluster_id) / 1024 / 1024 / 1024 * %f`, offset, localStorageCost), nil
+func (gcp *GCP) GetLocalStorageQuery(window, offset string, rate bool) string {
+	// TODO Set to the price for the appropriate storage class. It's not trivial to determine the local storage disk type
+	// See https://cloud.google.com/compute/disks-image-pricing#persistentdisk
+	localStorageCost := 0.04
+
+	fmtOffset := ""
+	if offset != "" {
+		fmtOffset = fmt.Sprintf("offset %s", offset)
+	}
+
+	fmtCumulativeQuery := `sum(
+		sum_over_time(container_fs_limit_bytes{device!="tmpfs", id="/"}[%s:1m]%s)
+	) by (cluster_id) / 60 / 730 / 1024 / 1024 / 1024 * %f`
+
+	fmtMonthlyQuery := `sum(
+		avg_over_time(container_fs_limit_bytes{device!="tmpfs", id="/"}[%s:1m]%s)
+	) by (cluster_id) / 1024 / 1024 / 1024 * %f`
+
+	fmtQuery := fmtCumulativeQuery
+	if rate {
+		fmtQuery = fmtMonthlyQuery
+	}
+
+	return fmt.Sprintf(fmtQuery, window, fmtOffset, localStorageCost)
 }
 
 func (gcp *GCP) GetConfig() (*CustomPricing, error) {
