@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"regexp"
@@ -166,6 +165,7 @@ type Azure struct {
 	allPrices               map[string]*Node
 	DownloadPricingDataLock sync.RWMutex
 	Clientset               clustercache.ClusterCache
+	Config                  *ProviderConfig
 }
 
 type azureKey struct {
@@ -462,8 +462,8 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 }
 
 // Stubbed NetworkPricing for Azure. Pull directly from azure.json for now
-func (c *Azure) NetworkPricing() (*Network, error) {
-	cpricing, err := GetCustomPricingData("azure.json")
+func (az *Azure) NetworkPricing() (*Network, error) {
+	cpricing, err := az.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
 	}
@@ -547,72 +547,49 @@ func (az *Azure) AddServiceKey(url url.Values) error {
 }
 
 func (az *Azure) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
-	c, err := GetCustomPricingData("azure.json")
-	if err != nil {
-		return nil, err
-	}
-
-	return configmapUpdate(c, configPathFor("azure.json"), a)
+	return az.Config.UpdateFromMap(a)
 }
 
 func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
 	defer az.DownloadPricingData()
 
-	c, err := GetCustomPricingData("azure.json")
-	if err != nil {
-		return nil, err
-	}
-
-	a := make(map[string]interface{})
-	err = json.NewDecoder(r).Decode(&a)
-	if err != nil {
-		return nil, err
-	}
-	for k, v := range a {
-		kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
-		vstr, ok := v.(string)
-		if ok {
-			err := SetCustomPricingField(c, kUpper, vstr)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			sci := v.(map[string]interface{})
-			sc := make(map[string]string)
-			for k, val := range sci {
-				sc[k] = val.(string)
-			}
-			c.SharedCosts = sc //todo: support reflection/multiple map fields
-		}
-	}
-
-	cj, err := json.Marshal(c)
-	if err != nil {
-		return nil, err
-	}
-
-	remoteEnabled := os.Getenv(remoteEnabled)
-	if remoteEnabled == "true" {
-		err = UpdateClusterMeta(os.Getenv(clusterIDKey), c.ClusterName)
+	return az.Config.Update(func(c *CustomPricing) error {
+		a := make(map[string]interface{})
+		err := json.NewDecoder(r).Decode(&a)
 		if err != nil {
-			return nil, err
+			return err
 		}
-	}
+		for k, v := range a {
+			kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+			vstr, ok := v.(string)
+			if ok {
+				err := SetCustomPricingField(c, kUpper, vstr)
+				if err != nil {
+					return err
+				}
+			} else {
+				sci := v.(map[string]interface{})
+				sc := make(map[string]string)
+				for k, val := range sci {
+					sc[k] = val.(string)
+				}
+				c.SharedCosts = sc //todo: support reflection/multiple map fields
+			}
+		}
 
-	configPath := configPathFor("azure.json")
+		remoteEnabled := os.Getenv(remoteEnabled)
+		if remoteEnabled == "true" {
+			err := UpdateClusterMeta(os.Getenv(clusterIDKey), c.ClusterName)
+			if err != nil {
+				return err
+			}
+		}
 
-	configLock.Lock()
-	err = ioutil.WriteFile(configPath, cj, 0644)
-	configLock.Unlock()
-
-	if err != nil {
-		return nil, err
-	}
-
-	return c, nil
+		return nil
+	})
 }
 func (az *Azure) GetConfig() (*CustomPricing, error) {
-	c, err := GetCustomPricingData("azure.json")
+	c, err := az.Config.GetCustomPricingData()
 	if c.Discount == "" {
 		c.Discount = "0%"
 	}

@@ -51,6 +51,7 @@ type GCP struct {
 	BillingDataDataset      string
 	DownloadPricingDataLock sync.RWMutex
 	ReservedInstances       []*GCPReservedInstance
+	Config                  *ProviderConfig
 	*CustomProvider
 }
 
@@ -86,7 +87,7 @@ func (gcp *GCP) GetLocalStorageQuery(offset string) (string, error) {
 }
 
 func (gcp *GCP) GetConfig() (*CustomPricing, error) {
-	c, err := GetCustomPricingData("gcp.json")
+	c, err := gcp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
 	}
@@ -119,97 +120,78 @@ func (gcp *GCP) GetManagementPlatform() (string, error) {
 }
 
 func (gcp *GCP) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
-	c, err := GetCustomPricingData("gcp.json")
-	if err != nil {
-		return nil, err
-	}
-
-	return configmapUpdate(c, configPathFor("gcp.json"), a)
+	return gcp.Config.UpdateFromMap(a)
 }
 
 func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
-	c, err := GetCustomPricingData("gcp.json")
-	if err != nil {
-		return nil, err
-	}
-	path := os.Getenv("CONFIG_PATH")
-	if path == "" {
-		path = "/models/"
-	}
-	if updateType == BigqueryUpdateType {
-		a := BigQueryConfig{}
-		err = json.NewDecoder(r).Decode(&a)
-		if err != nil {
-			return nil, err
-		}
+	return gcp.Config.Update(func(c *CustomPricing) error {
+		if updateType == BigqueryUpdateType {
+			a := BigQueryConfig{}
+			err := json.NewDecoder(r).Decode(&a)
+			if err != nil {
+				return err
+			}
 
-		c.ProjectID = a.ProjectID
-		c.BillingDataDataset = a.BillingDataDataset
+			c.ProjectID = a.ProjectID
+			c.BillingDataDataset = a.BillingDataDataset
 
-		j, err := json.Marshal(a.Key)
-		if err != nil {
-			return nil, err
-		}
+			j, err := json.Marshal(a.Key)
+			if err != nil {
+				return err
+			}
 
-		keyPath := path + "key.json"
-		err = ioutil.WriteFile(keyPath, j, 0644)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		a := make(map[string]interface{})
-		err = json.NewDecoder(r).Decode(&a)
-		if err != nil {
-			return nil, err
-		}
-		for k, v := range a {
-			kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
-			vstr, ok := v.(string)
-			if ok {
-				err := SetCustomPricingField(c, kUpper, vstr)
-				if err != nil {
-					return nil, err
+			path := os.Getenv("CONFIG_PATH")
+			if path == "" {
+				path = "/models/"
+			}
+
+			keyPath := path + "key.json"
+			err = ioutil.WriteFile(keyPath, j, 0644)
+			if err != nil {
+				return err
+			}
+		} else {
+			a := make(map[string]interface{})
+			err := json.NewDecoder(r).Decode(&a)
+			if err != nil {
+				return err
+			}
+			for k, v := range a {
+				kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+				vstr, ok := v.(string)
+				if ok {
+					err := SetCustomPricingField(c, kUpper, vstr)
+					if err != nil {
+						return err
+					}
+				} else {
+					sci := v.(map[string]interface{})
+					sc := make(map[string]string)
+					for k, val := range sci {
+						sc[k] = val.(string)
+					}
+					c.SharedCosts = sc //todo: support reflection/multiple map fields
 				}
-			} else {
-				sci := v.(map[string]interface{})
-				sc := make(map[string]string)
-				for k, val := range sci {
-					sc[k] = val.(string)
-				}
-				c.SharedCosts = sc //todo: support reflection/multiple map fields
 			}
 		}
-	}
 
-	cj, err := json.Marshal(c)
-	if err != nil {
-		return nil, err
-	}
-	remoteEnabled := os.Getenv(remoteEnabled)
-	if remoteEnabled == "true" {
-		err = UpdateClusterMeta(os.Getenv(clusterIDKey), c.ClusterName)
-		if err != nil {
-			return nil, err
+		remoteEnabled := os.Getenv(remoteEnabled)
+		if remoteEnabled == "true" {
+			err := UpdateClusterMeta(os.Getenv(clusterIDKey), c.ClusterName)
+			if err != nil {
+				return err
+			}
 		}
-	}
 
-	configPath := path + "gcp.json"
-
-	configLock.Lock()
-	err = ioutil.WriteFile(configPath, cj, 0644)
-	configLock.Unlock()
-	if err != nil {
-		return nil, err
-	}
-
-	return c, nil
+		return nil
+	})
 }
 
 // ExternalAllocations represents tagged assets outside the scope of kubernetes.
 // "start" and "end" are dates of the format YYYY-MM-DD
 // "aggregator" is the tag used to determine how to allocate those assets, ie namespace, pod, etc.
 func (gcp *GCP) ExternalAllocations(start string, end string, aggregator string, filterType string, filterValue string) ([]*OutOfClusterAllocation, error) {
-	c, err := GetCustomPricingData("gcp.json")
+	c, err := gcp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +216,7 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregator string,
 
 // QuerySQL should query BigQuery for billing data for out of cluster costs.
 func (gcp *GCP) QuerySQL(query string) ([]*OutOfClusterAllocation, error) {
-	c, err := GetCustomPricingData("gcp.json")
+	c, err := gcp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
 	}
@@ -687,7 +669,7 @@ func (gcp *GCP) parsePages(inputKeys map[string]Key, pvKeys map[string]PVKey) (m
 func (gcp *GCP) DownloadPricingData() error {
 	gcp.DownloadPricingDataLock.Lock()
 	defer gcp.DownloadPricingDataLock.Unlock()
-	c, err := GetCustomPricingData("gcp.json")
+	c, err := gcp.Config.GetCustomPricingData()
 	if err != nil {
 		klog.V(2).Infof("Error downloading default pricing data: %s", err.Error())
 		return err
@@ -760,8 +742,8 @@ func (gcp *GCP) PVPricing(pvk PVKey) (*PV, error) {
 }
 
 // Stubbed NetworkPricing for GCP. Pull directly from gcp.json for now
-func (c *GCP) NetworkPricing() (*Network, error) {
-	cpricing, err := GetCustomPricingData("gcp.json")
+func (gcp *GCP) NetworkPricing() (*Network, error) {
+	cpricing, err := gcp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
 	}
