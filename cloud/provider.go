@@ -2,16 +2,12 @@ package cloud
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/url"
 	"os"
-	"reflect"
 	"strings"
-	"sync"
 
 	"k8s.io/klog"
 
@@ -33,9 +29,6 @@ var createTableStatements = []string{
 		PRIMARY KEY (cluster_id)
 	);`,
 }
-
-// This Mutex is used to control read/writes to our default config file
-var configLock sync.Mutex
 
 // ReservedInstanceData keeps record of resources on a node should be
 // priced at reserved rates
@@ -210,120 +203,6 @@ func CustomPricesEnabled(p Provider) bool {
 	return config.CustomPricesEnabled == "true"
 }
 
-// DefaultPricing should be returned so we can do computation even if no file is supplied.
-func DefaultPricing() *CustomPricing {
-	return &CustomPricing{
-		Provider:              "base",
-		Description:           "Default prices based on GCP us-central1",
-		CPU:                   "0.031611",
-		SpotCPU:               "0.006655",
-		RAM:                   "0.004237",
-		SpotRAM:               "0.000892",
-		GPU:                   "0.95",
-		Storage:               "0.00005479452",
-		ZoneNetworkEgress:     "0.01",
-		RegionNetworkEgress:   "0.01",
-		InternetNetworkEgress: "0.12",
-		CustomPricesEnabled:   "false",
-	}
-}
-
-// GetDefaultPricingData will search for a json file representing pricing data in /models/ and use it for base pricing info.
-func GetCustomPricingData(fname string) (*CustomPricing, error) {
-	configLock.Lock()
-	defer configLock.Unlock()
-
-	path := configPathFor(fname)
-
-	exists, err := fileExists(path)
-	// File Error other than NotExists
-	if err != nil {
-		klog.Infof("Custom Pricing file at path '%s' read error: '%s'", path, err.Error())
-		return DefaultPricing(), err
-	}
-
-	// File Doesn't Exist
-	if !exists {
-		klog.Infof("Could not find Custom Pricing file at path '%s'", path)
-		c := DefaultPricing()
-		cj, err := json.Marshal(c)
-		if err != nil {
-			return c, err
-		}
-
-		err = ioutil.WriteFile(path, cj, 0644)
-		if err != nil {
-			klog.Infof("Could not write Custom Pricing file to path '%s'", path)
-			return c, err
-		}
-
-		return c, nil
-	}
-
-	// File Exists - Read all contents of file, unmarshal json
-	byteValue, err := ioutil.ReadFile(path)
-	if err != nil {
-		klog.Infof("Could not read Custom Pricing file at path %s", path)
-		return DefaultPricing(), err
-	}
-
-	var customPricing CustomPricing
-	err = json.Unmarshal(byteValue, &customPricing)
-	if err != nil {
-		klog.Infof("Could not decode Custom Pricing file at path %s", path)
-		return DefaultPricing(), err
-	}
-
-	return &customPricing, nil
-}
-
-func configmapUpdate(c *CustomPricing, path string, a map[string]string) (*CustomPricing, error) {
-	for k, v := range a {
-		kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
-		err := SetCustomPricingField(c, kUpper, v)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	cj, err := json.Marshal(c)
-	if err != nil {
-		return c, err
-	}
-
-	configLock.Lock()
-	err = ioutil.WriteFile(path, cj, 0644)
-	configLock.Unlock()
-
-	if err != nil {
-		return c, err
-	}
-
-	return c, nil
-}
-
-func SetCustomPricingField(obj *CustomPricing, name string, value string) error {
-	structValue := reflect.ValueOf(obj).Elem()
-	structFieldValue := structValue.FieldByName(name)
-
-	if !structFieldValue.IsValid() {
-		return fmt.Errorf("No such field: %s in obj", name)
-	}
-
-	if !structFieldValue.CanSet() {
-		return fmt.Errorf("Cannot set %s field value", name)
-	}
-
-	structFieldType := structFieldValue.Type()
-	val := reflect.ValueOf(value)
-	if structFieldType != val.Type() {
-		return fmt.Errorf("Provided value type didn't match custom pricing field type")
-	}
-
-	structFieldValue.Set(val)
-	return nil
-}
-
 // NewProvider looks at the nodespec or provider metadata server to decide which provider to instantiate.
 func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, error) {
 	if metadata.OnGCE() {
@@ -334,6 +213,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, erro
 		return &GCP{
 			Clientset: cache,
 			APIKey:    apiKey,
+			Config:    NewProviderConfig("gcp.json"),
 		}, nil
 	}
 
@@ -347,16 +227,19 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, erro
 		klog.V(2).Info("Found ProviderID starting with \"aws\", using AWS Provider")
 		return &AWS{
 			Clientset: cache,
+			Config:    NewProviderConfig("aws.json"),
 		}, nil
 	} else if strings.HasPrefix(provider, "azure") {
 		klog.V(2).Info("Found ProviderID starting with \"azure\", using Azure Provider")
 		return &Azure{
 			Clientset: cache,
+			Config:    NewProviderConfig("azure.json"),
 		}, nil
 	} else {
 		klog.V(2).Info("Unsupported provider, falling back to default")
 		return &CustomProvider{
 			Clientset: cache,
+			Config:    NewProviderConfig("default.json"),
 		}, nil
 	}
 }
@@ -445,33 +328,4 @@ func GetOrCreateClusterMeta(cluster_id, cluster_name string) (string, string, er
 	}
 
 	return id, name, nil
-}
-
-// File exists has three different return cases that should be handled:
-//   1. File exists and is not a directory (true, nil)
-//   2. File does not exist (false, nil)
-//   3. File may or may not exist. Error occurred during stat (false, error)
-// The third case represents the scenario where the stat returns an error,
-// but the error isn't relevant to the path. This can happen when the current
-// user doesn't have permission to access the file.
-func fileExists(filename string) (bool, error) {
-	info, err := os.Stat(filename)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-
-		return false, err
-	}
-
-	return !info.IsDir(), nil
-}
-
-// Returns the configuration directory concatenated with a specific config file name
-func configPathFor(filename string) string {
-	path := os.Getenv("CONFIG_PATH")
-	if path == "" {
-		path = "/models/"
-	}
-	return path + filename
 }

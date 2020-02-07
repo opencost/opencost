@@ -621,7 +621,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 			if usage, ok := networkUsageMap[ns+","+podName+","+clusterID]; ok {
 				netCosts, err := GetNetworkCost(usage, cp)
 				if err != nil {
-					klog.V(3).Infof("Error pulling network costs: %s", err.Error())
+					klog.V(4).Infof("Error pulling network costs: %s", err.Error())
 				} else {
 					podNetCosts = netCosts
 				}
@@ -2418,9 +2418,9 @@ func QueryRange(cli prometheusClient.Client, query string, start, end time.Time,
 		return nil, err
 	}
 
-	_, body, warnings, err := cli.Do(context.Background(), req)
+	resp, body, warnings, err := cli.Do(context.Background(), req)
 	for _, w := range warnings {
-		klog.V(3).Infof("%s", w)
+		klog.V(3).Infof("Warning '%s' fetching query '%s'", w, query)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("Error %s fetching query %s", err.Error(), query)
@@ -2428,7 +2428,7 @@ func QueryRange(cli prometheusClient.Client, query string, start, end time.Time,
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		return nil, fmt.Errorf("Error %s fetching query %s", err.Error(), query)
+		return nil, fmt.Errorf("%d Error %s fetching query %s", resp.StatusCode, err.Error(), query)
 	}
 	return toReturn, err
 }
@@ -2446,7 +2446,7 @@ func Query(cli prometheusClient.Client, query string) (interface{}, error) {
 
 	resp, body, warnings, err := cli.Do(context.Background(), req)
 	for _, w := range warnings {
-		klog.V(3).Infof("%s", w)
+		klog.V(3).Infof("Warning '%s' fetching query '%s'", w, query)
 	}
 	if err != nil {
 		if resp == nil {
