@@ -70,7 +70,7 @@ type ClusterCosts struct {
 	RAMMonthly        float64    `json:"ramMonthlyCost"`
 	StorageCumulative float64    `json:"storageCumulativeCost"`
 	StorageMonthly    float64    `json:"storageMonthlyCost"`
-	TotalCumulative   float64    `json:"totalCulumativeCost"`
+	TotalCumulative   float64    `json:"totalCumulativeCost"`
 	TotalMonthly      float64    `json:"totalMonthlyCost"`
 }
 
@@ -82,8 +82,14 @@ func NewClusterCostsFromCumulative(cpu, gpu, ram, storage float64, window, offse
 		return nil, err
 	}
 
+	// If the number of hours is not given (i.e. is zero) compute one from the window and offset
 	if dataHours == 0 {
 		dataHours = end.Sub(*start).Hours()
+	}
+
+	// Do not allow zero-length windows to prevent divide-by-zero issues
+	if dataHours == 0 {
+		return nil, fmt.Errorf("illegal time range: window %s, offset %s", window, offset)
 	}
 
 	cc := &ClusterCosts{
@@ -143,12 +149,10 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	}
 	mins := end.Sub(*start).Minutes()
 
-	// TODO revise use of 1m resolution
-
 	const fmtQueryDataCount = `max(count_over_time(kube_node_status_capacity_cpu_cores[%s:1m]%s))`
 
 	const fmtQueryTotalGPU = `sum(
-		sum_over_time(node_gpu_hourly_cost[%s:1m]%s)
+		sum_over_time(node_gpu_hourly_cost[%s:1m]%s) / 60
 	) by (node, cluster_id)`
 
 	const fmtQueryTotalCPU = `sum(
@@ -183,12 +187,11 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	queryTotalStorage := fmt.Sprintf(fmtQueryTotalStorage, window, fmtOffset, window, fmtOffset, queryTotalLocalStorage)
 	numQueries := 5
 
-	// TODO V(4)
-	klog.Infof("[Debug] queryDataCount: %s", queryDataCount)
-	klog.Infof("[Debug] queryTotalGPU: %s", queryTotalGPU)
-	klog.Infof("[Debug] queryTotalCPU: %s", queryTotalCPU)
-	klog.Infof("[Debug] queryTotalRAM: %s", queryTotalRAM)
-	klog.Infof("[Debug] queryTotalStorage: %s", queryTotalStorage)
+	klog.V(4).Infof("[Debug] queryDataCount: %s", queryDataCount)
+	klog.V(4).Infof("[Debug] queryTotalGPU: %s", queryTotalGPU)
+	klog.V(4).Infof("[Debug] queryTotalCPU: %s", queryTotalCPU)
+	klog.V(4).Infof("[Debug] queryTotalRAM: %s", queryTotalRAM)
+	klog.V(4).Infof("[Debug] queryTotalStorage: %s", queryTotalStorage)
 
 	// Submit queries to Prometheus asynchronously
 	var ec util.ErrorCollector
