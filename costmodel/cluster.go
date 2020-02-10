@@ -118,8 +118,14 @@ func NewClusterCostsFromMonthly(cpuMonthly, gpuMonthly, ramMonthly, storageMonth
 		return nil, err
 	}
 
+	// If the number of hours is not given (i.e. is zero) compute one from the window and offset
 	if dataHours == 0 {
 		dataHours = end.Sub(*start).Hours()
+	}
+
+	// Do not allow zero-length windows to prevent divide-by-zero issues
+	if dataHours == 0 {
+		return nil, fmt.Errorf("illegal time range: window %s, offset %s", window, offset)
 	}
 
 	cc := &ClusterCosts{
