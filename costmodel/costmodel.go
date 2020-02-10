@@ -1906,10 +1906,6 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	profileStart = time.Now()
 
-	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): GetNodeCost", durHrs))
-
-	profileStart = time.Now()
-
 	pvClaimMapping, err := GetPVInfo(resultPVRequests, clusterID)
 	if err != nil {
 		// Just log for compatibility with KSM less than 1.6
