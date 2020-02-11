@@ -159,22 +159,22 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 
 	const fmtQueryTotalGPU = `sum(
 		sum_over_time(node_gpu_hourly_cost[%s:1m]%s) / 60
-	) by (node, cluster_id)`
+	) by (cluster_id)`
 
 	const fmtQueryTotalCPU = `sum(
 		sum(sum_over_time(kube_node_status_capacity_cpu_cores[%s:1m]%s)) by (node, cluster_id) *
 		avg(avg_over_time(node_cpu_hourly_cost[%s:1m]%s)) by (node, cluster_id) / 60
-	)`
+	) by (cluster_id)`
 
 	const fmtQueryTotalRAM = `sum(
 		sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:1m]%s) / 1024 / 1024 / 1024) by (node, cluster_id) *
 		avg(avg_over_time(node_ram_hourly_cost[%s:1m]%s)) by (node, cluster_id) / 60
-	)`
+	) by (cluster_id)`
 
 	const fmtQueryTotalStorage = `sum(
 		sum(sum_over_time(kube_persistentvolume_capacity_bytes[%s:1m]%s)) by (persistentvolume, cluster_id) / 1024 / 1024 / 1024 *
 		avg(avg_over_time(pv_hourly_cost[%s:1m]%s)) by (persistentvolume, cluster_id) / 60
-	)%s`
+	) by (cluster_id) %s`
 
 	queryTotalLocalStorage := provider.GetLocalStorageQuery(window, offset, false)
 	if queryTotalLocalStorage != "" {
