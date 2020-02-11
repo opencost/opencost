@@ -489,7 +489,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 
 				candidateKeys := []string{}
 				for _, region := range product.ServiceRegions {
-					if instanceType == "e2" { // this needs ot be done to handle a partial cpu mapping
+					if instanceType == "e2" { // this needs to be done to handle a partial cpu mapping
 						candidateKeys = append(candidateKeys, region+","+"e2micro"+","+usageType)
 						candidateKeys = append(candidateKeys, region+","+"e2small"+","+usageType)
 						candidateKeys = append(candidateKeys, region+","+"e2medium"+","+usageType)
