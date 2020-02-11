@@ -463,6 +463,13 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 					instanceType = "n2standard"
 				}
 
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "E2 INSTANCE") {
+					instanceType = "e2"
+				}
+				partialCPUMap := make(map[string]float64)
+				partialCPUMap["e2micro"] = 0.25
+				partialCPUMap["e2small"] = 0.5
+				partialCPUMap["e2medium"] = 1
 				/*
 					var partialCPU float64
 					if strings.ToLower(instanceType) == "f1micro" {
@@ -480,11 +487,23 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 					}
 				}
 
-				for _, sr := range product.ServiceRegions {
-					region := sr
-					candidateKey := region + "," + instanceType + "," + usageType
-					candidateKeyGPU := candidateKey + ",gpu"
+				candidateKeys := []string{}
+				for _, region := range product.ServiceRegions {
+					if instanceType == "e2" { // this needs ot be done to handle a partial cpu mapping
+						candidateKeys = append(candidateKeys, region+","+"e2micro"+","+usageType)
+						candidateKeys = append(candidateKeys, region+","+"e2small"+","+usageType)
+						candidateKeys = append(candidateKeys, region+","+"e2medium"+","+usageType)
+						candidateKeys = append(candidateKeys, region+","+"e2standard"+","+usageType)
+					} else {
+						candidateKey := region + "," + instanceType + "," + usageType
+						candidateKeys = append(candidateKeys, candidateKey)
+					}
+				}
 
+				for _, candidateKey := range candidateKeys {
+					instanceType = strings.Split(candidateKey, ",")[1] // we may have overriden this while generating candidate keys
+					region := strings.Split(candidateKey, ",")[0]
+					candidateKeyGPU := candidateKey + ",gpu"
 					if gpuType != "" {
 						lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
 						var nanos float64
@@ -543,11 +562,10 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 									product.Node = &Node{
 										RAMCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
-									/*
-										if partialCPU != 0 {
-											product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
-										}
-									*/
+									partialCPU, pcok := partialCPUMap[instanceType]
+									if pcok {
+										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+									}
 									product.Node.UsageType = usageType
 									gcpPricingList[candidateKey] = product
 								}
@@ -560,11 +578,10 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 									product.Node = &Node{
 										RAMCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
-									/*
-										if partialCPU != 0 {
-											product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
-										}
-									*/
+									partialCPU, pcok := partialCPUMap[instanceType]
+									if pcok {
+										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+									}
 									product.Node.UsageType = usageType
 									gcpPricingList[candidateKeyGPU] = product
 								}
@@ -577,11 +594,10 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 									product.Node = &Node{
 										VCPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
-									/*
-										if partialCPU != 0 {
-											product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
-										}
-									*/
+									partialCPU, pcok := partialCPUMap[instanceType]
+									if pcok {
+										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+									}
 									product.Node.UsageType = usageType
 									gcpPricingList[candidateKey] = product
 								}
@@ -592,11 +608,10 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 									product.Node = &Node{
 										VCPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
-									/*
-										if partialCPU != 0 {
-											product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
-										}
-									*/
+									partialCPU, pcok := partialCPUMap[instanceType]
+									if pcok {
+										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+									}
 									product.Node.UsageType = usageType
 									gcpPricingList[candidateKeyGPU] = product
 								}
@@ -1070,6 +1085,8 @@ func (gcp *gcpKey) Features() string {
 	instanceType := strings.ToLower(strings.Join(strings.Split(gcp.Labels[v1.LabelInstanceType], "-")[:2], ""))
 	if instanceType == "n1highmem" || instanceType == "n1highcpu" {
 		instanceType = "n1standard" // These are priced the same. TODO: support n1ultrahighmem
+	} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
+		instanceType = "e2standard"
 	} else if strings.HasPrefix(instanceType, "custom") {
 		instanceType = "custom" // The suffix of custom does not matter
 	}
