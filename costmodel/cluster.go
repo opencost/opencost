@@ -271,8 +271,6 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	setCostsFromResults(costData, resultsTotalRAM, "ram")
 	setCostsFromResults(costData, resultsTotalStorage, "storage")
 
-	// TODO consider using a heuristic threshold to interpolate for missed scrapes (e.g. within 5% of expected minutes, scale totals)
-
 	// Convert intermediate structure to Costs instances
 	costsByCluster := map[string]*ClusterCosts{}
 	for id, cd := range costData {
