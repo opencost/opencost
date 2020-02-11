@@ -207,8 +207,8 @@ var regionToBillingRegionCode = map[string]string{
 	"us-gov-west-1":  "UGW1",
 }
 
-func (aws *AWS) GetLocalStorageQuery(offset string) (string, error) {
-	return "", nil
+func (aws *AWS) GetLocalStorageQuery(window, offset string, rate bool) string {
+	return ""
 }
 
 // KubeAttrConversion maps the k8s labels for region to an aws region
