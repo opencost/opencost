@@ -3,7 +3,6 @@ package cloud
 import (
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"net/url"
 	"strconv"
 	"strings"
@@ -27,6 +26,7 @@ type CustomProvider struct {
 	GPULabel                string
 	GPULabelValue           string
 	DownloadPricingDataLock sync.RWMutex
+	Config                  *ProviderConfig
 }
 
 type customProviderKey struct {
@@ -37,12 +37,12 @@ type customProviderKey struct {
 	Labels         map[string]string
 }
 
-func (*CustomProvider) GetLocalStorageQuery(offset string) (string, error) {
-	return "", nil
+func (*CustomProvider) GetLocalStorageQuery(window, offset string, rate bool) string {
+	return ""
 }
 
-func (*CustomProvider) GetConfig() (*CustomPricing, error) {
-	return GetCustomPricingData("default.json")
+func (cp *CustomProvider) GetConfig() (*CustomPricing, error) {
+	return cp.Config.GetCustomPricingData()
 }
 
 func (*CustomProvider) GetManagementPlatform() (string, error) {
@@ -54,60 +54,46 @@ func (*CustomProvider) ApplyReservedInstancePricing(nodes map[string]*Node) {
 }
 
 func (cp *CustomProvider) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
-	c, err := GetCustomPricingData("default.json")
-	if err != nil {
-		return nil, err
-	}
-
-	return configmapUpdate(c, configPathFor("default.json"), a)
+	return cp.Config.UpdateFromMap(a)
 }
 
 func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
-	c, err := GetCustomPricingData("default.json")
-	if err != nil {
-		return nil, err
-	}
-
+	// Parse config updates from reader
 	a := make(map[string]interface{})
-	err = json.NewDecoder(r).Decode(&a)
+	err := json.NewDecoder(r).Decode(&a)
 	if err != nil {
 		return nil, err
 	}
-	for k, v := range a {
-		kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
-		vstr, ok := v.(string)
-		if ok {
-			err := SetCustomPricingField(c, kUpper, vstr)
-			if err != nil {
-				return nil, err
+
+	// Update Config
+	c, err := cp.Config.Update(func(c *CustomPricing) error {
+		for k, v := range a {
+			kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+			vstr, ok := v.(string)
+			if ok {
+				err := SetCustomPricingField(c, kUpper, vstr)
+				if err != nil {
+					return err
+				}
+			} else {
+				sci := v.(map[string]interface{})
+				sc := make(map[string]string)
+				for k, val := range sci {
+					sc[k] = val.(string)
+				}
+				c.SharedCosts = sc //todo: support reflection/multiple map fields
 			}
-		} else {
-			sci := v.(map[string]interface{})
-			sc := make(map[string]string)
-			for k, val := range sci {
-				sc[k] = val.(string)
-			}
-			c.SharedCosts = sc //todo: support reflection/multiple map fields
 		}
-	}
 
-	cj, err := json.Marshal(c)
-	if err != nil {
-		return nil, err
-	}
-
-	configPath := configPathFor("default.json")
-
-	configLock.Lock()
-	err = ioutil.WriteFile(configPath, cj, 0644)
-	configLock.Unlock()
+		return nil
+	})
 
 	if err != nil {
 		return nil, err
 	}
+
 	defer cp.DownloadPricingData()
 	return c, nil
-
 }
 
 func (cp *CustomProvider) ClusterInfo() (map[string]string, error) {
@@ -168,7 +154,7 @@ func (cp *CustomProvider) DownloadPricingData() error {
 		m := make(map[string]*NodePrice)
 		cp.Pricing = m
 	}
-	p, err := GetCustomPricingData("default.json")
+	p, err := cp.Config.GetCustomPricingData()
 	if err != nil {
 		return err
 	}
@@ -213,8 +199,8 @@ func (*CustomProvider) QuerySQL(query string) ([]byte, error) {
 	return nil, nil
 }
 
-func (*CustomProvider) PVPricing(pvk PVKey) (*PV, error) {
-	cpricing, err := GetCustomPricingData("default.json")
+func (cp *CustomProvider) PVPricing(pvk PVKey) (*PV, error) {
+	cpricing, err := cp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
 	}
@@ -223,8 +209,8 @@ func (*CustomProvider) PVPricing(pvk PVKey) (*PV, error) {
 	}, nil
 }
 
-func (*CustomProvider) NetworkPricing() (*Network, error) {
-	cpricing, err := GetCustomPricingData("default.json")
+func (cp *CustomProvider) NetworkPricing() (*Network, error) {
+	cpricing, err := cp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
 	}

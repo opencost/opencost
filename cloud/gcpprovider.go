@@ -51,6 +51,7 @@ type GCP struct {
 	BillingDataDataset      string
 	DownloadPricingDataLock sync.RWMutex
 	ReservedInstances       []*GCPReservedInstance
+	Config                  *ProviderConfig
 	*CustomProvider
 }
 
@@ -80,13 +81,34 @@ func gcpAllocationToOutOfClusterAllocation(gcpAlloc gcpAllocation) *OutOfCluster
 	}
 }
 
-func (gcp *GCP) GetLocalStorageQuery(offset string) (string, error) {
-	localStorageCost := 0.04 // TODO: Set to the price for the appropriate storage class. It's not trivial to determine the local storage disk type
-	return fmt.Sprintf(`sum(sum(container_fs_limit_bytes{device!="tmpfs", id="/"} %s) by (instance, cluster_id)) by (cluster_id) / 1024 / 1024 / 1024 * %f`, offset, localStorageCost), nil
+func (gcp *GCP) GetLocalStorageQuery(window, offset string, rate bool) string {
+	// TODO Set to the price for the appropriate storage class. It's not trivial to determine the local storage disk type
+	// See https://cloud.google.com/compute/disks-image-pricing#persistentdisk
+	localStorageCost := 0.04
+
+	fmtOffset := ""
+	if offset != "" {
+		fmtOffset = fmt.Sprintf("offset %s", offset)
+	}
+
+	fmtCumulativeQuery := `sum(
+		sum_over_time(container_fs_limit_bytes{device!="tmpfs", id="/"}[%s:1m]%s)
+	) by (cluster_id) / 60 / 730 / 1024 / 1024 / 1024 * %f`
+
+	fmtMonthlyQuery := `sum(
+		avg_over_time(container_fs_limit_bytes{device!="tmpfs", id="/"}[%s:1m]%s)
+	) by (cluster_id) / 1024 / 1024 / 1024 * %f`
+
+	fmtQuery := fmtCumulativeQuery
+	if rate {
+		fmtQuery = fmtMonthlyQuery
+	}
+
+	return fmt.Sprintf(fmtQuery, window, fmtOffset, localStorageCost)
 }
 
 func (gcp *GCP) GetConfig() (*CustomPricing, error) {
-	c, err := GetCustomPricingData("gcp.json")
+	c, err := gcp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
 	}
@@ -119,97 +141,78 @@ func (gcp *GCP) GetManagementPlatform() (string, error) {
 }
 
 func (gcp *GCP) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
-	c, err := GetCustomPricingData("gcp.json")
-	if err != nil {
-		return nil, err
-	}
-
-	return configmapUpdate(c, configPathFor("gcp.json"), a)
+	return gcp.Config.UpdateFromMap(a)
 }
 
 func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
-	c, err := GetCustomPricingData("gcp.json")
-	if err != nil {
-		return nil, err
-	}
-	path := os.Getenv("CONFIG_PATH")
-	if path == "" {
-		path = "/models/"
-	}
-	if updateType == BigqueryUpdateType {
-		a := BigQueryConfig{}
-		err = json.NewDecoder(r).Decode(&a)
-		if err != nil {
-			return nil, err
-		}
+	return gcp.Config.Update(func(c *CustomPricing) error {
+		if updateType == BigqueryUpdateType {
+			a := BigQueryConfig{}
+			err := json.NewDecoder(r).Decode(&a)
+			if err != nil {
+				return err
+			}
 
-		c.ProjectID = a.ProjectID
-		c.BillingDataDataset = a.BillingDataDataset
+			c.ProjectID = a.ProjectID
+			c.BillingDataDataset = a.BillingDataDataset
 
-		j, err := json.Marshal(a.Key)
-		if err != nil {
-			return nil, err
-		}
+			j, err := json.Marshal(a.Key)
+			if err != nil {
+				return err
+			}
 
-		keyPath := path + "key.json"
-		err = ioutil.WriteFile(keyPath, j, 0644)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		a := make(map[string]interface{})
-		err = json.NewDecoder(r).Decode(&a)
-		if err != nil {
-			return nil, err
-		}
-		for k, v := range a {
-			kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
-			vstr, ok := v.(string)
-			if ok {
-				err := SetCustomPricingField(c, kUpper, vstr)
-				if err != nil {
-					return nil, err
+			path := os.Getenv("CONFIG_PATH")
+			if path == "" {
+				path = "/models/"
+			}
+
+			keyPath := path + "key.json"
+			err = ioutil.WriteFile(keyPath, j, 0644)
+			if err != nil {
+				return err
+			}
+		} else {
+			a := make(map[string]interface{})
+			err := json.NewDecoder(r).Decode(&a)
+			if err != nil {
+				return err
+			}
+			for k, v := range a {
+				kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+				vstr, ok := v.(string)
+				if ok {
+					err := SetCustomPricingField(c, kUpper, vstr)
+					if err != nil {
+						return err
+					}
+				} else {
+					sci := v.(map[string]interface{})
+					sc := make(map[string]string)
+					for k, val := range sci {
+						sc[k] = val.(string)
+					}
+					c.SharedCosts = sc //todo: support reflection/multiple map fields
 				}
-			} else {
-				sci := v.(map[string]interface{})
-				sc := make(map[string]string)
-				for k, val := range sci {
-					sc[k] = val.(string)
-				}
-				c.SharedCosts = sc //todo: support reflection/multiple map fields
 			}
 		}
-	}
 
-	cj, err := json.Marshal(c)
-	if err != nil {
-		return nil, err
-	}
-	remoteEnabled := os.Getenv(remoteEnabled)
-	if remoteEnabled == "true" {
-		err = UpdateClusterMeta(os.Getenv(clusterIDKey), c.ClusterName)
-		if err != nil {
-			return nil, err
+		remoteEnabled := os.Getenv(remoteEnabled)
+		if remoteEnabled == "true" {
+			err := UpdateClusterMeta(os.Getenv(clusterIDKey), c.ClusterName)
+			if err != nil {
+				return err
+			}
 		}
-	}
 
-	configPath := path + "gcp.json"
-
-	configLock.Lock()
-	err = ioutil.WriteFile(configPath, cj, 0644)
-	configLock.Unlock()
-	if err != nil {
-		return nil, err
-	}
-
-	return c, nil
+		return nil
+	})
 }
 
 // ExternalAllocations represents tagged assets outside the scope of kubernetes.
 // "start" and "end" are dates of the format YYYY-MM-DD
 // "aggregator" is the tag used to determine how to allocate those assets, ie namespace, pod, etc.
 func (gcp *GCP) ExternalAllocations(start string, end string, aggregator string, filterType string, filterValue string) ([]*OutOfClusterAllocation, error) {
-	c, err := GetCustomPricingData("gcp.json")
+	c, err := gcp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +237,7 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregator string,
 
 // QuerySQL should query BigQuery for billing data for out of cluster costs.
 func (gcp *GCP) QuerySQL(query string) ([]*OutOfClusterAllocation, error) {
-	c, err := GetCustomPricingData("gcp.json")
+	c, err := gcp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
 	}
@@ -463,6 +466,13 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 					instanceType = "n2standard"
 				}
 
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "E2 INSTANCE") {
+					instanceType = "e2"
+				}
+				partialCPUMap := make(map[string]float64)
+				partialCPUMap["e2micro"] = 0.25
+				partialCPUMap["e2small"] = 0.5
+				partialCPUMap["e2medium"] = 1
 				/*
 					var partialCPU float64
 					if strings.ToLower(instanceType) == "f1micro" {
@@ -480,11 +490,23 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 					}
 				}
 
-				for _, sr := range product.ServiceRegions {
-					region := sr
-					candidateKey := region + "," + instanceType + "," + usageType
-					candidateKeyGPU := candidateKey + ",gpu"
+				candidateKeys := []string{}
+				for _, region := range product.ServiceRegions {
+					if instanceType == "e2" { // this needs to be done to handle a partial cpu mapping
+						candidateKeys = append(candidateKeys, region+","+"e2micro"+","+usageType)
+						candidateKeys = append(candidateKeys, region+","+"e2small"+","+usageType)
+						candidateKeys = append(candidateKeys, region+","+"e2medium"+","+usageType)
+						candidateKeys = append(candidateKeys, region+","+"e2standard"+","+usageType)
+					} else {
+						candidateKey := region + "," + instanceType + "," + usageType
+						candidateKeys = append(candidateKeys, candidateKey)
+					}
+				}
 
+				for _, candidateKey := range candidateKeys {
+					instanceType = strings.Split(candidateKey, ",")[1] // we may have overriden this while generating candidate keys
+					region := strings.Split(candidateKey, ",")[0]
+					candidateKeyGPU := candidateKey + ",gpu"
 					if gpuType != "" {
 						lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
 						var nanos float64
@@ -543,11 +565,10 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 									product.Node = &Node{
 										RAMCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
-									/*
-										if partialCPU != 0 {
-											product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
-										}
-									*/
+									partialCPU, pcok := partialCPUMap[instanceType]
+									if pcok {
+										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+									}
 									product.Node.UsageType = usageType
 									gcpPricingList[candidateKey] = product
 								}
@@ -560,11 +581,10 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 									product.Node = &Node{
 										RAMCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
-									/*
-										if partialCPU != 0 {
-											product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
-										}
-									*/
+									partialCPU, pcok := partialCPUMap[instanceType]
+									if pcok {
+										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+									}
 									product.Node.UsageType = usageType
 									gcpPricingList[candidateKeyGPU] = product
 								}
@@ -577,11 +597,10 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 									product.Node = &Node{
 										VCPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
-									/*
-										if partialCPU != 0 {
-											product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
-										}
-									*/
+									partialCPU, pcok := partialCPUMap[instanceType]
+									if pcok {
+										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+									}
 									product.Node.UsageType = usageType
 									gcpPricingList[candidateKey] = product
 								}
@@ -592,11 +611,10 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 									product.Node = &Node{
 										VCPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
-									/*
-										if partialCPU != 0 {
-											product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
-										}
-									*/
+									partialCPU, pcok := partialCPUMap[instanceType]
+									if pcok {
+										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
+									}
 									product.Node.UsageType = usageType
 									gcpPricingList[candidateKeyGPU] = product
 								}
@@ -687,7 +705,7 @@ func (gcp *GCP) parsePages(inputKeys map[string]Key, pvKeys map[string]PVKey) (m
 func (gcp *GCP) DownloadPricingData() error {
 	gcp.DownloadPricingDataLock.Lock()
 	defer gcp.DownloadPricingDataLock.Unlock()
-	c, err := GetCustomPricingData("gcp.json")
+	c, err := gcp.Config.GetCustomPricingData()
 	if err != nil {
 		klog.V(2).Infof("Error downloading default pricing data: %s", err.Error())
 		return err
@@ -760,8 +778,8 @@ func (gcp *GCP) PVPricing(pvk PVKey) (*PV, error) {
 }
 
 // Stubbed NetworkPricing for GCP. Pull directly from gcp.json for now
-func (c *GCP) NetworkPricing() (*Network, error) {
-	cpricing, err := GetCustomPricingData("gcp.json")
+func (gcp *GCP) NetworkPricing() (*Network, error) {
+	cpricing, err := gcp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
 	}
@@ -1070,6 +1088,8 @@ func (gcp *gcpKey) Features() string {
 	instanceType := strings.ToLower(strings.Join(strings.Split(gcp.Labels[v1.LabelInstanceType], "-")[:2], ""))
 	if instanceType == "n1highmem" || instanceType == "n1highcpu" {
 		instanceType = "n1standard" // These are priced the same. TODO: support n1ultrahighmem
+	} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
+		instanceType = "e2standard"
 	} else if strings.HasPrefix(instanceType, "custom") {
 		instanceType = "custom" // The suffix of custom does not matter
 	}

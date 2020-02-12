@@ -317,7 +317,7 @@ func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httpr
 	window := r.URL.Query().Get("window")
 	offset := r.URL.Query().Get("offset")
 
-	data, err := ClusterCosts(a.PrometheusClient, a.Cloud, window, offset)
+	data, err := ComputeClusterCosts(a.PrometheusClient, a.Cloud, window, offset)
 	w.Write(WrapData(data, err))
 }
 

@@ -1906,16 +1906,6 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	profileStart = time.Now()
 
-	nodes, err := cm.GetNodeCost(cp)
-	if err != nil {
-		klog.V(1).Infof("[Warning] no cost model available: " + err.Error())
-		return nil, err
-	}
-
-	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): GetNodeCost", durHrs))
-
-	profileStart = time.Now()
-
 	pvClaimMapping, err := GetPVInfo(resultPVRequests, clusterID)
 	if err != nil {
 		// Just log for compatibility with KSM less than 1.6
@@ -2129,15 +2119,12 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 			GPUReqV = []*Vector{}
 		}
 
-		node, ok := nodes[c.NodeName]
-		if !ok {
-			klog.V(4).Infof("Node \"%s\" has been deleted from Kubernetes. Query historical data to get it.", c.NodeName)
-			if n, ok := missingNodes[c.NodeName]; ok {
-				node = n
-			} else {
-				node = &costAnalyzerCloud.Node{}
-				missingNodes[c.NodeName] = node
-			}
+		var node *costAnalyzerCloud.Node
+		if n, ok := missingNodes[c.NodeName]; ok {
+			node = n
+		} else {
+			node = &costAnalyzerCloud.Node{}
+			missingNodes[c.NodeName] = node
 		}
 
 		nsKey := c.Namespace + "," + c.ClusterID
@@ -2420,15 +2407,15 @@ func QueryRange(cli prometheusClient.Client, query string, start, end time.Time,
 
 	resp, body, warnings, err := cli.Do(context.Background(), req)
 	for _, w := range warnings {
-		klog.V(3).Infof("Warning '%s' fetching query '%s'", w, query)
+		klog.V(3).Infof("[Warning] '%s' fetching query '%s'", w, query)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("Error %s fetching query %s", err.Error(), query)
+		return nil, fmt.Errorf("[Error] %s fetching query %s", err.Error(), query)
 	}
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		return nil, fmt.Errorf("%d Error %s fetching query %s", resp.StatusCode, err.Error(), query)
+		return nil, fmt.Errorf("[Error] %d %s fetching query %s", resp.StatusCode, err.Error(), query)
 	}
 	return toReturn, err
 }
