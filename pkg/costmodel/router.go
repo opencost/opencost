@@ -17,8 +17,8 @@ import (
 	"k8s.io/klog"
 
 	"github.com/julienschmidt/httprouter"
-	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
-	"github.com/kubecost/cost-model/clustercache"
+	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/patrickmn/go-cache"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"

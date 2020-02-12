@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/cost-model/cloud"
-	"github.com/kubecost/cost-model/util"
+	"github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/util"
 	prometheus "github.com/prometheus/client_golang/api"
 	"k8s.io/klog"
 )
@@ -42,7 +42,7 @@ type PromQueryContext struct {
 }
 
 // TODO move this to a package-accessible helper function once dependencies are able to
-// be extricated from costmodel package (PromQueryResult -> Vector). Otherwise, circular deps.
+// be extricated from costmodel package (PromQueryResult -> util.Vecto). Otherwise, circular deps.
 func AsyncPromQuery(query string, resultCh chan []*PromQueryResult, ctx PromQueryContext) {
 	if ctx.wg != nil {
 		defer ctx.wg.Done()

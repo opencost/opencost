@@ -19,7 +19,7 @@ import (
 
 	"k8s.io/klog"
 
-	"github.com/kubecost/cost-model/clustercache"
+	"github.com/kubecost/cost-model/pkg/clustercache"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"

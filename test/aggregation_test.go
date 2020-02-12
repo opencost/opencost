@@ -6,8 +6,8 @@ import (
 
 	"gotest.tools/assert"
 
-	"github.com/kubecost/cost-model/cloud"
-	costModel "github.com/kubecost/cost-model/costmodel"
+	"github.com/kubecost/cost-model/pkg/cloud"
+	costModel "github.com/kubecost/cost-model/pkg/costmodel"
 )
 
 func TestAggregation(t *testing.T) {
