@@ -579,6 +579,17 @@ func (p *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httpro
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	data, err := p.Cloud.ClusterInfo()
+
+	kc, ok := p.KubeClientSet.(*kubernetes.Clientset)
+	if ok {
+		v, err := kc.ServerVersion()
+		if err != nil {
+			klog.Infof("Could not get k8s version info: %s", err.Error())
+		}
+		data["version"] = v.Major + "." + v.Minor
+	} else {
+		klog.Infof("Could not get k8s version info: %s", err.Error())
+	}
 	w.Write(WrapData(data, err))
 
 }
