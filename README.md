@@ -1,3 +1,5 @@
+## Kubecost
+
 Kubecost models give teams visibility into current and historical Kubernetes spend and resource allocation. These models  provide cost transparency in Kubernetes environments that support multiple applications, teams, departments, etc.
 
 To see more on the functionality of the full Kubecost product, please visit the [features page](https://kubecost.com/#features) on our website. 
