@@ -42,7 +42,7 @@ type PromQueryContext struct {
 }
 
 // TODO move this to a package-accessible helper function once dependencies are able to
-// be extricated from costmodel package (PromQueryResult -> util.Vecto). Otherwise, circular deps.
+// be extricated from costmodel package (PromQueryResult -> util.Vector). Otherwise, circular deps.
 func AsyncPromQuery(query string, resultCh chan []*PromQueryResult, ctx PromQueryContext) {
 	if ctx.wg != nil {
 		defer ctx.wg.Done()
