@@ -581,12 +581,13 @@ func (p *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httpro
 	data, err := p.Cloud.ClusterInfo()
 
 	kc, ok := p.KubeClientSet.(*kubernetes.Clientset)
-	if ok {
+	if ok && data != nil {
 		v, err := kc.ServerVersion()
 		if err != nil {
 			klog.Infof("Could not get k8s version info: %s", err.Error())
+		} else if v != nil {
+			data["version"] = v.Major + "." + v.Minor
 		}
-		data["version"] = v.Major + "." + v.Minor
 	} else {
 		klog.Infof("Could not get k8s version info: %s", err.Error())
 	}
