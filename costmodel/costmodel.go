@@ -1300,7 +1300,10 @@ func getPodServices(cache clustercache.ClusterCache, podList []*v1.Pod, clusterI
 		if _, ok := podServicesMapping[key]; !ok {
 			podServicesMapping[key] = make(map[string][]string)
 		}
-		s := labels.Set(service.Spec.Selector).AsSelectorPreValidated()
+		s := labels.Nothing()
+		if service.Spec.Selector != nil && len(service.Spec.Selector) > 0 {
+			s = labels.Set(service.Spec.Selector).AsSelectorPreValidated()
+		}
 		for _, pod := range podList {
 			labelSet := labels.Set(pod.GetObjectMeta().GetLabels())
 			if s.Matches(labelSet) && pod.GetObjectMeta().GetNamespace() == namespace {
@@ -1439,7 +1442,10 @@ func getPodServicesWithMetrics(serviceLabels map[string]map[string]string, podLa
 		if _, ok := podServicesMapping[key]; !ok {
 			podServicesMapping[key] = make(map[string][]string)
 		}
-		s := labels.Set(servLabels).AsSelectorPreValidated()
+		s := labels.Nothing()
+		if servLabels != nil && len(servLabels) > 0 {
+			s = labels.Set(servLabels).AsSelectorPreValidated()
+		}
 
 		for podKey, pLabels := range podLabels {
 			pkey, err := NewKeyTuple(podKey)
