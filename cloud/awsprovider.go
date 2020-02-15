@@ -1080,8 +1080,8 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregator string, f
 			%s,
 			SUM(line_item_blended_cost) as blended_cost
 		FROM %s as cost_data
-		WHERE (%s='%s' OR %s='') AND line_item_usage_start_date BETWEEN date '%s' AND date '%s'
-		GROUP BY 1,2,3,4`, aggregator_column_name, filter_column_name, customPricing.AthenaTable, filter_column_name, filterValue, filter_column_name, start, end)
+		WHERE (%s='%s') AND line_item_usage_start_date BETWEEN date '%s' AND date '%s'
+		GROUP BY 1,2,3,4`, aggregator_column_name, filter_column_name, customPricing.AthenaTable, filter_column_name, filterValue, start, end)
 		lastIdx = 4
 	} else {
 		lastIdx = 3
