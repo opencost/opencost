@@ -62,6 +62,35 @@ type gcpAllocation struct {
 	Cost        float64
 }
 
+type multiKeyGCPAllocation struct {
+	Keys    bigquery.NullString
+	Service string
+	Cost    float64
+}
+
+func multiKeyGCPAllocationToOutOfClusterAllocation(gcpAlloc multiKeyGCPAllocation, aggregatorName string) *OutOfClusterAllocation {
+	var keys []map[string]string
+	var environment string
+	if gcpAlloc.Keys.Valid {
+		err := json.Unmarshal([]byte(gcpAlloc.Keys.StringVal), &keys)
+		if err != nil {
+			klog.Infof("Invalid unmarshaling response from BigQuery filtered query: %s", err.Error())
+		}
+		for _, label := range keys {
+			if label["key"] == aggregatorName {
+				environment = label["value"]
+			}
+			break
+		}
+	}
+	return &OutOfClusterAllocation{
+		Aggregator:  aggregatorName,
+		Environment: environment,
+		Service:     gcpAlloc.Service,
+		Cost:        gcpAlloc.Cost,
+	}
+}
+
 func gcpAllocationToOutOfClusterAllocation(gcpAlloc gcpAllocation) *OutOfClusterAllocation {
 	var aggregator string
 	if gcpAlloc.Aggregator.Valid {
@@ -216,23 +245,81 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregator string,
 	if err != nil {
 		return nil, err
 	}
-	// start, end formatted like: "2019-04-20 00:00:00"
-	queryString := fmt.Sprintf(`SELECT
-					service,
-					labels.key as aggregator,
-					labels.value as environment,
-					SUM(cost) as cost
-					FROM  (SELECT 
-							service.description as service,
-							labels,
-							cost 
-						FROM %s
-						WHERE usage_start_time >= "%s" AND usage_start_time < "%s")
-						LEFT JOIN UNNEST(labels) as labels
-						ON labels.key = "%s"
-				GROUP BY aggregator, environment, service;`, c.BillingDataDataset, start, end, aggregator) // For example, "billing_data.gcp_billing_export_v1_01AC9F_74CF1D_5565A2"
-	klog.V(4).Infof("Querying \"%s\" with : %s", c.ProjectID, queryString)
-	return gcp.QuerySQL(queryString)
+	if filterType == "" {
+		// start, end formatted like: "2019-04-20 00:00:00"
+		queryString := fmt.Sprintf(`SELECT
+						service,
+						labels.key as aggregator,
+						labels.value as environment,
+						SUM(cost) as cost
+						FROM  (SELECT 
+								service.description as service,
+								labels,
+								cost 
+							FROM %s
+							WHERE usage_start_time >= "%s" AND usage_start_time < "%s")
+							LEFT JOIN UNNEST(labels) as labels
+							ON labels.key = "%s"
+					GROUP BY aggregator, environment, service;`, c.BillingDataDataset, start, end, aggregator) // For example, "billing_data.gcp_billing_export_v1_01AC9F_74CF1D_5565A2"
+		klog.V(4).Infof("Querying \"%s\" with : %s", c.ProjectID, queryString)
+		return gcp.QuerySQL(queryString)
+	} else {
+		queryString := fmt.Sprintf(`(SELECT
+			service.description as service,
+			TO_JSON_STRING(labels) as gl,
+			SUM(cost)
+		  	FROM  %s
+		 	WHERE
+				EXISTS (SELECT * FROM UNNEST(labels) AS l WHERE l.key = "%s" AND l.value = "%s")
+				AND EXISTS(SELECT * FROM UNNEST(labels) AS l2 WHERE l2.key = "%s")
+				AND usage_start_time >= "%s" AND usage_start_time < "%s"
+			GROUP BY  service,gl)`, c.BillingDataDataset, filterType, filterValue, aggregator, start, end)
+		return gcp.multiLabelQuery(queryString, aggregator)
+	}
+}
+
+/*
+  (SELECT
+    service.description as service,
+    TO_JSON_STRING(labels) as gl,
+    SUM(cost)
+  FROM  `guestbook-227502.billing_data.gcp_billing_export_v1_01AC9F_74CF1D_5565A2`
+  WHERE
+    EXISTS (SELECT * FROM UNNEST(labels) AS l WHERE l.key = "kubernetes_namespace" AND l.value = "kubecost")
+    AND EXISTS(SELECT * FROM UNNEST(labels) AS l2 WHERE l2.key = "kubernetes_label_app")
+    AND usage_start_time >= "2020-02-10" AND usage_start_time < "2020-02-13"
+	GROUP BY  service,gl)
+*/
+
+func (gcp *GCP) multiLabelQuery(query, aggregator string) ([]*OutOfClusterAllocation, error) {
+	c, err := gcp.Config.GetCustomPricingData()
+	if err != nil {
+		return nil, err
+	}
+	ctx := context.Background()
+	client, err := bigquery.NewClient(ctx, c.ProjectID) // For example, "guestbook-227502"
+	if err != nil {
+		return nil, err
+	}
+
+	q := client.Query(query)
+	it, err := q.Read(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var allocations []*OutOfClusterAllocation
+	for {
+		var a multiKeyGCPAllocation
+		err := it.Next(&a)
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		allocations = append(allocations, multiKeyGCPAllocationToOutOfClusterAllocation(a, aggregator))
+	}
+	return allocations, nil
 }
 
 // QuerySQL should query BigQuery for billing data for out of cluster costs.
