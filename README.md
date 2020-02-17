@@ -5,7 +5,7 @@ Kubecost models give teams visibility into current and historical Kubernetes spe
 To see more on the functionality of the full Kubecost product, please visit the [features page](https://kubecost.com/#features) on our website. 
 Here is a summary of features enabled by this cost model:
 
-- Real-time cost allocation for native Kubernetes concepts: service, deployment, namespace, label, daemonset, pod, container, and more
+- Real-time cost allocation by Kubernetes service, deployment, namespace, label, statefulset, daemonset, pod, and container
 - Dynamic asset pricing enabled by integrations with AWS, Azure, and GCP billing APIs 
 - Supports on-prem k8s clusters with custom pricing sheets
 - Allocation for in-cluster resources like CPU, GPU, memory, and persistent volumes.
