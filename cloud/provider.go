@@ -58,6 +58,7 @@ type Node struct {
 	GPU              string                `json:"gpu"` // GPU represents the number of GPU on the instance
 	GPUName          string                `json:"gpuName"`
 	GPUCost          string                `json:"gpuCost"`
+	InstanceType     string                `json:"instanceType,omitempty"`
 	Reserved         *ReservedInstanceData `json:"reserved,omitempty"`
 }
 
