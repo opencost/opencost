@@ -35,13 +35,16 @@ func (cs *MapDBClusterStorage) Remove(key string) error {
 	return nil
 }
 
-// Retrieve all the keys stored
-func (cs *MapDBClusterStorage) Each(handler func(string, []byte)) error {
+// Iterates through all key/values for the storage and calls the handler func. If a handler returns
+// an error, the iteration stops.
+func (cs *MapDBClusterStorage) Each(handler func(string, []byte) error) error {
 	for k, v := range cs.store {
 		value := make([]byte, len(v))
 		copy(value, v)
 
-		handler(k, value)
+		if err := handler(k, value); err != nil {
+			return err
+		}
 	}
 	return nil
 }

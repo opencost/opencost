@@ -39,8 +39,9 @@ type ClusterStorage interface {
 	// Removes a key from the cluster storage
 	Remove(key string) error
 
-	// Call a handler to receive each key and value stored
-	Each(handler func(string, []byte)) error
+	// Iterates through all key/values for the storage and calls the handler func. If a handler returns
+	// an error, the iteration stops.
+	Each(handler func(string, []byte) error) error
 
 	// Closes the backing storage
 	Close() error

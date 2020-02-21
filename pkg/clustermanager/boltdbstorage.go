@@ -64,8 +64,9 @@ func (cs *BoltDBClusterStorage) Remove(key string) error {
 	})
 }
 
-// Retrieve all the keys stored
-func (cs *BoltDBClusterStorage) Each(handler func(string, []byte)) error {
+// Iterates through all key/values for the storage and calls the handler func. If a handler returns
+// an error, the iteration stops.
+func (cs *BoltDBClusterStorage) Each(handler func(string, []byte) error) error {
 	return cs.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket(cs.bucket)
 
@@ -77,7 +78,10 @@ func (cs *BoltDBClusterStorage) Each(handler func(string, []byte)) error {
 			copy(key, k)
 			copy(value, v)
 
-			handler(string(key), value)
+			if err := handler(string(key), value); err != nil {
+				return err
+			}
+
 			return nil
 		})
 	})
