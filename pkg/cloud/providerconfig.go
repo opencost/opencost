@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/kubecost/cost-model/pkg/util"
+
 	"k8s.io/klog"
 )
 
@@ -194,16 +196,7 @@ func SetCustomPricingField(obj *CustomPricing, name string, value string) error 
 // but the error isn't relevant to the path. This can happen when the current
 // user doesn't have permission to access the file.
 func fileExists(filename string) (bool, error) {
-	info, err := os.Stat(filename)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-
-		return false, err
-	}
-
-	return !info.IsDir(), nil
+	return util.FileExists(filename) // delegate to utility method
 }
 
 // Returns the configuration directory concatenated with a specific config file name
