@@ -303,7 +303,7 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 			c.AthenaTable = a.AthenaTable
 			c.ServiceKeyName = a.ServiceKeyName
 			c.ServiceKeySecret = a.ServiceKeySecret
-			c.ProjectID = a.AccountID
+			c.AthenaProjectID = a.AccountID
 		} else {
 			a := make(map[string]interface{})
 			err := json.NewDecoder(r).Decode(&a)
@@ -1056,16 +1056,29 @@ func ConvertToGlueColumnFormat(column_name string) string {
 	return final
 }
 
+func generateAWSGroupBy(lastIdx int) string {
+	sequence := []string{}
+	for i := 1; i < lastIdx+1; i++ {
+		sequence = append(sequence, strconv.Itoa(i))
+	}
+	return strings.Join(sequence, ",")
+}
+
 // ExternalAllocations represents tagged assets outside the scope of kubernetes.
 // "start" and "end" are dates of the format YYYY-MM-DD
 // "aggregator" is the tag used to determine how to allocate those assets, ie namespace, pod, etc.
-func (a *AWS) ExternalAllocations(start string, end string, aggregator string, filterType string, filterValue string) ([]*OutOfClusterAllocation, error) {
+func (a *AWS) ExternalAllocations(start string, end string, aggregators []string, filterType string, filterValue string) ([]*OutOfClusterAllocation, error) {
 	customPricing, err := a.GetConfig()
 	if err != nil {
 		return nil, err
 	}
-	aggregator_column_name := "resource_tags_user_" + aggregator
-	aggregator_column_name = ConvertToGlueColumnFormat(aggregator_column_name)
+	formattedAggregators := []string{}
+	for _, agg := range aggregators {
+		aggregator_column_name := "resource_tags_user_" + agg
+		aggregator_column_name = ConvertToGlueColumnFormat(aggregator_column_name)
+		formattedAggregators = append(formattedAggregators, aggregator_column_name)
+	}
+	aggregatorNames := strings.Join(formattedAggregators, ",")
 
 	filter_column_name := "resource_tags_user_" + filterType
 	filter_column_name = ConvertToGlueColumnFormat(filter_column_name)
@@ -1073,6 +1086,8 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregator string, f
 	var query string
 	var lastIdx int
 	if filterType != "kubernetes_" { // This gets appended upstream and is equivalent to no filter.
+		lastIdx = len(formattedAggregators) + 3
+		groupby := generateAWSGroupBy(lastIdx)
 		query = fmt.Sprintf(`SELECT   
 			CAST(line_item_usage_start_date AS DATE) as start_date,
 			%s,
@@ -1080,11 +1095,11 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregator string, f
 			%s,
 			SUM(line_item_blended_cost) as blended_cost
 		FROM %s as cost_data
-		WHERE (%s='%s' OR %s='') AND line_item_usage_start_date BETWEEN date '%s' AND date '%s'
-		GROUP BY 1,2,3,4`, aggregator_column_name, filter_column_name, customPricing.AthenaTable, filter_column_name, filterValue, filter_column_name, start, end)
-		lastIdx = 4
+		WHERE (%s='%s') AND line_item_usage_start_date BETWEEN date '%s' AND date '%s'
+		GROUP BY %s`, aggregatorNames, filter_column_name, customPricing.AthenaTable, filter_column_name, filterValue, start, end, groupby)
 	} else {
-		lastIdx = 3
+		lastIdx = len(formattedAggregators) + 2
+		groupby := generateAWSGroupBy(lastIdx)
 		query = fmt.Sprintf(`SELECT   
 			CAST(line_item_usage_start_date AS DATE) as start_date,
 			%s,
@@ -1092,7 +1107,7 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregator string, f
 			SUM(line_item_blended_cost) as blended_cost
 		FROM %s as cost_data
 		WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s'
-		GROUP BY 1,2,3`, aggregator_column_name, customPricing.AthenaTable, start, end)
+		GROUP BY %s`, aggregatorNames, customPricing.AthenaTable, start, end, groupby)
 	}
 
 	klog.V(3).Infof("Running Query: %s", query)
@@ -1110,7 +1125,6 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregator string, f
 	region := aws.String(customPricing.AthenaRegion)
 	resultsBucket := customPricing.AthenaBucketName
 	database := customPricing.AthenaDatabase
-
 	c := &aws.Config{
 		Region: region,
 	}
@@ -1169,17 +1183,36 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregator string, f
 				if err != nil {
 					return nil, err
 				}
+				environment := ""
+				for _, d := range r.Data[1 : len(formattedAggregators)+1] {
+					if *d.VarCharValue != "" {
+						environment = *d.VarCharValue // just set to the first nonempty match
+					}
+					break
+				}
 				ooc := &OutOfClusterAllocation{
-					Aggregator:  aggregator,
-					Environment: *r.Data[1].VarCharValue,
-					Service:     *r.Data[2].VarCharValue,
+					Aggregator:  strings.Join(aggregators, ","),
+					Environment: environment,
+					Service:     *r.Data[len(formattedAggregators)+1].VarCharValue,
 					Cost:        cost,
 				}
 				oocAllocs = append(oocAllocs, ooc)
 			}
 		} else {
-			klog.V(1).Infof("No results available for %s at database %s between %s and %s", aggregator_column_name, customPricing.AthenaTable, start, end)
+			klog.V(1).Infof("No results available for %s at database %s between %s and %s", strings.Join(formattedAggregators, ","), customPricing.AthenaTable, start, end)
 		}
+	}
+
+	if customPricing.BillingDataDataset != "" { // There is GCP data, meaning someone has tried to configure a GCP out-of-cluster allocation.
+		gcp, err := NewCrossClusterProvider("gcp", "gcp.json", a.Clientset)
+		if err != nil {
+			klog.Infof("Could not instantiate cross-cluster provider %s", err.Error())
+		}
+		gcpOOC, err := gcp.ExternalAllocations(start, end, aggregators, filterType, filterValue)
+		if err != nil {
+			klog.Infof("Could not fetch cross-cluster costs %s", err.Error())
+		}
+		oocAllocs = append(oocAllocs, gcpOOC...)
 	}
 
 	return oocAllocs, nil // TODO: transform the QuerySQL lines into the new OutOfClusterAllocation Struct

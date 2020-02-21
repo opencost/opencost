@@ -344,7 +344,14 @@ func GetPodLabelsMetrics(queryResult interface{}, defaultClusterID string) (map[
 		}
 
 		nsKey := ns + "," + pod + "," + clusterID
-		toReturn[nsKey] = val.GetLabels()
+		if labels, ok := toReturn[nsKey]; ok {
+			newlabels := val.GetLabels()
+			for k, v := range newlabels {
+				labels[k] = v
+			}
+		} else {
+			toReturn[nsKey] = val.GetLabels()
+		}
 	}
 
 	return toReturn, nil
