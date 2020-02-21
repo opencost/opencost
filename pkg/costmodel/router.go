@@ -583,6 +583,18 @@ func (p *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httpro
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	data, err := p.Cloud.ClusterInfo()
+
+	kc, ok := p.KubeClientSet.(*kubernetes.Clientset)
+	if ok && data != nil {
+		v, err := kc.ServerVersion()
+		if err != nil {
+			klog.Infof("Could not get k8s version info: %s", err.Error())
+		} else if v != nil {
+			data["version"] = v.Major + "." + v.Minor
+		}
+	} else {
+		klog.Infof("Could not get k8s version info: %s", err.Error())
+	}
 	w.Write(WrapData(data, err))
 
 }
@@ -677,13 +689,14 @@ func (a *Accesses) recordPrices() {
 						gpuCost = 0
 					}
 				}
+				nodeType := node.InstanceType
 
 				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
-				a.CPUPriceRecorder.WithLabelValues(nodeName, nodeName).Set(cpuCost)
-				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeName).Set(ramCost)
-				a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName).Set(gpuCost)
-				a.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName).Set(totalCost)
+				a.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType).Set(cpuCost)
+				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType).Set(ramCost)
+				a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType).Set(gpuCost)
+				a.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType).Set(totalCost)
 				labelKey := getKeyFromLabelStrings(nodeName, nodeName)
 				nodeSeen[labelKey] = true
 			}
@@ -908,22 +921,22 @@ func Initialize() {
 	cpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_cpu_hourly_cost",
 		Help: "node_cpu_hourly_cost hourly cost for each cpu on this node",
-	}, []string{"instance", "node"})
+	}, []string{"instance", "node", "instance_type"})
 
 	ramGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_ram_hourly_cost",
 		Help: "node_ram_hourly_cost hourly cost for each gb of ram on this node",
-	}, []string{"instance", "node"})
+	}, []string{"instance", "node", "instance_type"})
 
 	gpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_gpu_hourly_cost",
 		Help: "node_gpu_hourly_cost hourly cost for each gpu on this node",
-	}, []string{"instance", "node"})
+	}, []string{"instance", "node", "instance_type"})
 
 	totalGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_total_hourly_cost",
 		Help: "node_total_hourly_cost Total node cost per hour",
-	}, []string{"instance", "node"})
+	}, []string{"instance", "node", "instance_type"})
 
 	pvGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "pv_hourly_cost",
