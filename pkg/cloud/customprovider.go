@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/kubecost/cost-model/clustercache"
+	"github.com/kubecost/cost-model/pkg/clustercache"
 	v1 "k8s.io/api/core/v1"
 )
 

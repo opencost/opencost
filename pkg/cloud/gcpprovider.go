@@ -20,7 +20,7 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/compute/metadata"
-	"github.com/kubecost/cost-model/clustercache"
+	"github.com/kubecost/cost-model/pkg/clustercache"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/kubecost/cost-model/clustercache"
+	"github.com/kubecost/cost-model/pkg/clustercache"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2017-09-01/skus"
 	"github.com/Azure/azure-sdk-for-go/services/containerservice/mgmt/2018-03-31/containerservice"
