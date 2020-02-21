@@ -19,12 +19,15 @@ import (
 	"github.com/julienschmidt/httprouter"
 	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/clustercache"
-	"github.com/patrickmn/go-cache"
+	cm "github.com/kubecost/cost-model/pkg/clustermanager"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
-	"github.com/prometheus/client_golang/prometheus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	bolt "github.com/etcd-io/bbolt"
+	"github.com/patrickmn/go-cache"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -48,6 +51,7 @@ type Accesses struct {
 	PrometheusClient              prometheusClient.Client
 	ThanosClient                  prometheusClient.Client
 	KubeClientSet                 kubernetes.Interface
+	ClusterManager                *cm.ClusterManager
 	Cloud                         costAnalyzerCloud.Provider
 	CPUPriceRecorder              *prometheus.GaugeVec
 	RAMPriceRecorder              *prometheus.GaugeVec
@@ -808,6 +812,27 @@ func (a *Accesses) recordPrices() {
 	}()
 }
 
+// Creates a new ClusterManager instance using a boltdb storage. If that fails,
+// then we fall back to a memory-only storage.
+func newClusterManager() *cm.ClusterManager {
+	clustersConfigFile := "/var/configs/clusters/default-clusters.yaml"
+
+	path := os.Getenv("CONFIG_PATH")
+	db, err := bolt.Open(path+"costmodel.db", 0600, nil)
+	if err != nil {
+		klog.V(1).Infof("[Error] Failed to create costmodel.db: %s", err.Error())
+		return cm.NewConfiguredClusterManager(cm.NewMapDBClusterStorage(), clustersConfigFile)
+	}
+
+	store, err := cm.NewBoltDBClusterStorage("clusters", db)
+	if err != nil {
+		klog.V(1).Infof("[Error] Failed to Create Cluster Storage: %s", err.Error())
+		return cm.NewConfiguredClusterManager(cm.NewMapDBClusterStorage(), clustersConfigFile)
+	}
+
+	return cm.NewConfiguredClusterManager(store, clustersConfigFile)
+}
+
 func Initialize() {
 	klog.InitFlags(nil)
 	flag.Set("v", "3")
@@ -872,7 +897,7 @@ func Initialize() {
 		if conf.GetName() == "pricing-configs" {
 			_, err := cloudProvider.UpdateConfigFromConfigMap(conf.Data)
 			if err != nil {
-				klog.Infof("ERROR UPDATING CONFIG: %s", err.Error())
+				klog.Infof("[Error] Failed to update config: %s", err.Error())
 			}
 		}
 	}
@@ -886,6 +911,12 @@ func Initialize() {
 	}
 
 	k8sCache.SetConfigMapUpdateFunc(watchConfigFunc)
+
+	// TODO: General Architecture Note: Several passes have been made to modularize a lot of
+	// TODO: our code, but the router still continues to be the obvious entry point for new \
+	// TODO: features. We should look to spliting out the actual "router" functionality and
+	// TODO: implement a builder -> controller for stitching new features and other dependencies.
+	clusterManager := newClusterManager()
 
 	cpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_cpu_hourly_cost",
@@ -976,6 +1007,7 @@ func Initialize() {
 	A = Accesses{
 		PrometheusClient:              promCli,
 		KubeClientSet:                 kubeClientset,
+		ClusterManager:                clusterManager,
 		Cloud:                         cloudProvider,
 		CPUPriceRecorder:              cpuGv,
 		RAMPriceRecorder:              ramGv,
@@ -1048,6 +1080,8 @@ func Initialize() {
 
 	A.recordPrices()
 
+	managerEndpoints := cm.NewClusterManagerEndpoints(A.ClusterManager)
+
 	Router.GET("/costDataModel", A.CostDataModel)
 	Router.GET("/costDataModelRange", A.CostDataModelRange)
 	Router.GET("/costDataModelRangeLarge", A.CostDataModelRangeLarge)
@@ -1060,4 +1094,7 @@ func Initialize() {
 	Router.GET("/managementPlatform", A.ManagementPlatform)
 	Router.GET("/clusterInfo", A.ClusterInfo)
 	Router.GET("/containerUptimes", A.ContainerUptimes)
+	Router.GET("/clusters", managerEndpoints.GetAllClusters)
+	Router.PUT("/clusters", managerEndpoints.PutCluster)
+	Router.DELETE("/clusters/:id", managerEndpoints.DeleteCluster)
 }
