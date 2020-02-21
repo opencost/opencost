@@ -820,7 +820,12 @@ func (a *Accesses) recordPrices() {
 	}()
 }
 
-func Initialize() {
+type ConfigWatchers struct {
+	ConfigmapName string
+	WatchFunc     func(string, map[string]string) error
+}
+
+func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	klog.InitFlags(nil)
 	flag.Set("v", "3")
 	flag.Parse()
@@ -884,7 +889,15 @@ func Initialize() {
 		if conf.GetName() == "pricing-configs" {
 			_, err := cloudProvider.UpdateConfigFromConfigMap(conf.Data)
 			if err != nil {
-				klog.Infof("ERROR UPDATING CONFIG: %s", err.Error())
+				klog.Infof("ERROR UPDATING %s CONFIG: %s", "pricing-configs", err.Error())
+			}
+		}
+		for _, cw := range additionalConfigWatchers {
+			if conf.GetName() == cw.ConfigmapName {
+				err := cw.WatchFunc(conf.GetName(), conf.Data)
+				if err != nil {
+					klog.Infof("ERROR UPDATING %s CONFIG: %s", cw.ConfigmapName, err.Error())
+				}
 			}
 		}
 	}
@@ -892,9 +905,18 @@ func Initialize() {
 	// We need an initial invocation because the init of the cache has happened before we had access to the provider.
 	configs, err := kubeClientset.CoreV1().ConfigMaps(kubecostNamespace).Get("pricing-configs", metav1.GetOptions{})
 	if err != nil {
-		klog.Infof("No configs found at installtime, using existing configs: %s", err.Error())
+		klog.Infof("No %s configmap found at installtime, using existing configs: %s", "pricing-configs", err.Error())
 	} else {
 		watchConfigFunc(configs)
+	}
+
+	for _, cw := range additionalConfigWatchers {
+		configs, err := kubeClientset.CoreV1().ConfigMaps(kubecostNamespace).Get(cw.ConfigmapName, metav1.GetOptions{})
+		if err != nil {
+			klog.Infof("No %s configmap found at installtime, using existing configs: %s", cw.ConfigmapName, err.Error())
+		} else {
+			watchConfigFunc(configs)
+		}
 	}
 
 	k8sCache.SetConfigMapUpdateFunc(watchConfigFunc)
