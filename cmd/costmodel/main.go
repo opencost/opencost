@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/kubecost/cost-model/costmodel"
+	"github.com/kubecost/cost-model/pkg/costmodel"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"k8s.io/klog"
 )
