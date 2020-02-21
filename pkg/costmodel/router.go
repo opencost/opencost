@@ -915,7 +915,6 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		if conf.GetName() == "pricing-configs" {
 			_, err := cloudProvider.UpdateConfigFromConfigMap(conf.Data)
 			if err != nil {
-<<<<<<< HEAD
 				klog.Infof("ERROR UPDATING %s CONFIG: %s", "pricing-configs", err.Error())
 			}
 		}
@@ -925,9 +924,6 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 				if err != nil {
 					klog.Infof("ERROR UPDATING %s CONFIG: %s", cw.ConfigmapName, err.Error())
 				}
-=======
-				klog.Infof("[Error] Failed to update config: %s", err.Error())
->>>>>>> 288c807c9cb0bc007d3369f758f45bcc27857c7f
 			}
 		}
 	}
