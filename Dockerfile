@@ -17,6 +17,7 @@ RUN set -e ;\
     if test -n "`git status --porcelain --untracked-files=no | grep '\.go'`"; then \
       GIT_DIRTY='+dirty' ;\
     fi ;\
+    cd cmd/costmodel;\
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -a -installsuffix cgo \
         -ldflags "-X main.gitCommit=${GIT_COMMIT}${GIT_DIRTY}" \
@@ -25,9 +26,9 @@ RUN set -e ;\
 FROM alpine:3.10.2
 RUN apk add --update --no-cache ca-certificates
 COPY --from=build-env /go/bin/app /go/bin/app
-ADD ./cloud/default.json /models/default.json
-ADD ./cloud/azure.json /models/azure.json
-ADD ./cloud/aws.json /models/aws.json
-ADD ./cloud/gcp.json /models/gcp.json
+ADD ./configs/default.json /models/default.json
+ADD ./configs/azure.json /models/azure.json
+ADD ./configs/aws.json /models/aws.json
+ADD ./configs/gcp.json /models/gcp.json
 USER 1001
 ENTRYPOINT ["/go/bin/app"]

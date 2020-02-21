@@ -1,7 +1,8 @@
 package costmodel
 
 import (
-	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
+	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/util"
 	"k8s.io/klog"
 )
 
@@ -10,9 +11,9 @@ type NetworkUsageData struct {
 	ClusterID             string
 	PodName               string
 	Namespace             string
-	NetworkZoneEgress     []*Vector
-	NetworkRegionEgress   []*Vector
-	NetworkInternetEgress []*Vector
+	NetworkZoneEgress     []*util.Vector
+	NetworkRegionEgress   []*util.Vector
+	NetworkInternetEgress []*util.Vector
 }
 
 // NetworkUsageVector contains a network usage vector for egress network traffic
@@ -20,7 +21,7 @@ type NetworkUsageVector struct {
 	ClusterID string
 	PodName   string
 	Namespace string
-	Values    []*Vector
+	Values    []*util.Vector
 }
 
 // GetNetworkUsageData performs a join of the the results of zone, region, and internet usage queries to return a single
@@ -91,8 +92,8 @@ func GetNetworkUsageData(zr interface{}, rr interface{}, ir interface{}, default
 }
 
 // GetNetworkCost computes the actual cost for NetworkUsageData based on data provided by the Provider.
-func GetNetworkCost(usage *NetworkUsageData, cloud costAnalyzerCloud.Provider) ([]*Vector, error) {
-	var results []*Vector
+func GetNetworkCost(usage *NetworkUsageData, cloud costAnalyzerCloud.Provider) ([]*util.Vector, error) {
+	var results []*util.Vector
 
 	pricing, err := cloud.NetworkPricing()
 	if err != nil {
@@ -126,7 +127,7 @@ func GetNetworkCost(usage *NetworkUsageData, cloud costAnalyzerCloud.Provider) (
 			timestamp = usage.NetworkInternetEgress[i].Timestamp
 		}
 
-		results = append(results, &Vector{
+		results = append(results, &util.Vector{
 			Value:     cost,
 			Timestamp: timestamp,
 		})

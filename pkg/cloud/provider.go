@@ -12,7 +12,7 @@ import (
 	"k8s.io/klog"
 
 	"cloud.google.com/go/compute/metadata"
-	"github.com/kubecost/cost-model/clustercache"
+	"github.com/kubecost/cost-model/pkg/clustercache"
 
 	v1 "k8s.io/api/core/v1"
 )
