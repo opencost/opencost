@@ -422,6 +422,26 @@ func (a *Accesses) CostDataModelRangeLarge(w http.ResponseWriter, r *http.Reques
 	w.Write(WrapData(data, err))
 }
 
+func parseAggregations(customAggregation, aggregator, filterType string) (string, []string, string) {
+	var key string
+	var filter string
+	var val []string
+	if customAggregation != "" {
+		key = customAggregation
+		filter = filterType
+		val = strings.Split(customAggregation, ",")
+	} else {
+		aggregations := strings.Split(aggregator, ",")
+		for i, agg := range aggregations {
+			aggregations[i] = "kubernetes_" + agg
+		}
+		key = strings.Join(aggregations, ",")
+		filter = "kubernetes_" + filterType
+		val = aggregations
+	}
+	return key, val, filter
+}
+
 func (a *Accesses) OutofClusterCosts(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -434,11 +454,8 @@ func (a *Accesses) OutofClusterCosts(w http.ResponseWriter, r *http.Request, ps 
 	filterValue := r.URL.Query().Get("filterValue")
 	var data []*costAnalyzerCloud.OutOfClusterAllocation
 	var err error
-	if customAggregation != "" {
-		data, err = a.Cloud.ExternalAllocations(start, end, customAggregation, filterType, filterValue)
-	} else {
-		data, err = a.Cloud.ExternalAllocations(start, end, "kubernetes_"+aggregator, "kubernetes_"+filterType, filterValue)
-	}
+	_, aggregations, filter := parseAggregations(customAggregation, aggregator, filterType)
+	data, err = a.Cloud.ExternalAllocations(start, end, aggregations, filter, filterValue)
 	w.Write(WrapData(data, err))
 }
 
@@ -464,11 +481,7 @@ func (a *Accesses) OutOfClusterCostsWithCache(w http.ResponseWriter, r *http.Req
 	filterType := r.URL.Query().Get("filterType")
 	filterValue := r.URL.Query().Get("filterValue")
 
-	aggregation := "kubernetes_" + kubernetesAggregation
-	filterType = "kubernetes_" + filterType
-	if customAggregation != "" {
-		aggregation = customAggregation
-	}
+	aggregationkey, aggregation, filter := parseAggregations(customAggregation, kubernetesAggregation, filterType)
 
 	// clear cache prior to checking the cache so that a clearCache=true
 	// request always returns a freshly computed value
@@ -477,7 +490,7 @@ func (a *Accesses) OutOfClusterCostsWithCache(w http.ResponseWriter, r *http.Req
 	}
 
 	// attempt to retrieve cost data from cache
-	key := fmt.Sprintf(`%s:%s:%s:%s:%s`, start, end, aggregation, filterType, filterValue)
+	key := fmt.Sprintf(`%s:%s:%s:%s:%s`, start, end, aggregationkey, filter, filterValue)
 	if value, found := a.OutOfClusterCache.Get(key); found && !disableCache {
 		if data, ok := value.([]*costAnalyzerCloud.OutOfClusterAllocation); ok {
 			w.Write(WrapDataWithMessage(data, nil, fmt.Sprintf("out of cluster cache hit: %s", key)))
@@ -486,7 +499,7 @@ func (a *Accesses) OutOfClusterCostsWithCache(w http.ResponseWriter, r *http.Req
 		klog.Errorf("caching error: failed to type cast data: %s", key)
 	}
 
-	data, err := a.Cloud.ExternalAllocations(start, end, aggregation, filterType, filterValue)
+	data, err := a.Cloud.ExternalAllocations(start, end, aggregation, filter, filterValue)
 	if err == nil {
 		a.OutOfClusterCache.Set(key, data, cache.DefaultExpiration)
 	}

@@ -129,6 +129,7 @@ type CustomPricing struct {
 	SpotDataBucket        string            `json:"awsSpotDataBucket,omitempty"`
 	SpotDataPrefix        string            `json:"awsSpotDataPrefix,omitempty"`
 	ProjectID             string            `json:"projectID,omitempty"`
+	AthenaProjectID       string            `json:"athenaProjectID,omitempty"`
 	AthenaBucketName      string            `json:"athenaBucketName"`
 	AthenaRegion          string            `json:"athenaRegion"`
 	AthenaDatabase        string            `json:"athenaDatabase"`
@@ -169,7 +170,7 @@ type Provider interface {
 	GetConfig() (*CustomPricing, error)
 	GetManagementPlatform() (string, error)
 	GetLocalStorageQuery(string, string, bool) string
-	ExternalAllocations(string, string, string, string, string) ([]*OutOfClusterAllocation, error)
+	ExternalAllocations(string, string, []string, string, string) ([]*OutOfClusterAllocation, error)
 	ApplyReservedInstancePricing(map[string]*Node)
 }
 
@@ -201,6 +202,19 @@ func CustomPricesEnabled(p Provider) bool {
 	}
 
 	return config.CustomPricesEnabled == "true"
+}
+
+func NewCrossClusterProvider(ctype string, overrideConfigPath string, cache clustercache.ClusterCache) (Provider, error) {
+	if ctype == "aws" {
+		return &AWS{
+			Clientset: cache,
+			Config:    NewProviderConfig(overrideConfigPath),
+		}, nil
+	}
+	return &CustomProvider{
+		Clientset: cache,
+		Config:    NewProviderConfig(overrideConfigPath),
+	}, nil
 }
 
 // NewProvider looks at the nodespec or provider metadata server to decide which provider to instantiate.
