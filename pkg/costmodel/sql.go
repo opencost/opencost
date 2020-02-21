@@ -9,7 +9,8 @@ import (
 
 	"k8s.io/klog"
 
-	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
+	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/util"
 	_ "github.com/lib/pq"
 )
 
@@ -141,7 +142,7 @@ func CostDataRangeFromSQL(field string, value string, window string, start strin
 
 		k := newContainerMetricFromValues(namespace, pod, container, instance, clusterid)
 		key := k.Key()
-		allocationVector := &Vector{
+		allocationVector := &util.Vector{
 			Timestamp: float64(t.Unix()),
 			Value:     sum,
 		}
@@ -163,9 +164,9 @@ func CostDataRangeFromSQL(field string, value string, window string, start strin
 				PodName:       pod,
 				NodeName:      instance,
 				NodeData:      node,
-				CPUAllocation: []*Vector{},
-				RAMAllocation: []*Vector{},
-				GPUReq:        []*Vector{},
+				CPUAllocation: []*util.Vector{},
+				RAMAllocation: []*util.Vector{},
+				GPUReq:        []*util.Vector{},
 				Namespace:     namespace,
 				ClusterID:     clusterid,
 			}
@@ -212,7 +213,7 @@ func CostDataRangeFromSQL(field string, value string, window string, start strin
 
 		k := newContainerMetricFromValues(namespace, pod, container, instance, clusterid)
 		key := k.Key()
-		allocationVector := &Vector{
+		allocationVector := &util.Vector{
 			Timestamp: float64(t.Unix()),
 			Value:     sum,
 		}
@@ -234,9 +235,9 @@ func CostDataRangeFromSQL(field string, value string, window string, start strin
 				PodName:       pod,
 				NodeName:      instance,
 				NodeData:      node,
-				CPUAllocation: []*Vector{},
-				RAMAllocation: []*Vector{},
-				GPUReq:        []*Vector{},
+				CPUAllocation: []*util.Vector{},
+				RAMAllocation: []*util.Vector{},
+				GPUReq:        []*util.Vector{},
 				Namespace:     namespace,
 				ClusterID:     clusterid,
 			}
@@ -336,7 +337,7 @@ func CostDataRangeFromSQL(field string, value string, window string, start strin
 			if err != nil {
 				return nil, err
 			}
-			allocationVector := &Vector{
+			allocationVector := &util.Vector{
 				Timestamp: float64(t.Unix()),
 				Value:     sum,
 			}

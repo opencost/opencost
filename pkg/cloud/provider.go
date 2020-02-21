@@ -12,7 +12,7 @@ import (
 	"k8s.io/klog"
 
 	"cloud.google.com/go/compute/metadata"
-	"github.com/kubecost/cost-model/clustercache"
+	"github.com/kubecost/cost-model/pkg/clustercache"
 
 	v1 "k8s.io/api/core/v1"
 )
@@ -58,6 +58,7 @@ type Node struct {
 	GPU              string                `json:"gpu"` // GPU represents the number of GPU on the instance
 	GPUName          string                `json:"gpuName"`
 	GPUCost          string                `json:"gpuCost"`
+	InstanceType     string                `json:"instanceType,omitempty"`
 	Reserved         *ReservedInstanceData `json:"reserved,omitempty"`
 }
 

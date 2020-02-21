@@ -6,14 +6,15 @@ import (
 	"strconv"
 	"strings"
 
-	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
+	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/util"
 	"k8s.io/klog"
 )
 
 // PromQueryResult contains a single result from a prometheus query
 type PromQueryResult struct {
 	Metric map[string]interface{}
-	Values []*Vector
+	Values []*util.Vector
 }
 
 func (pqr *PromQueryResult) GetString(field string) (string, error) {
@@ -102,7 +103,7 @@ func NewQueryResults(queryResult interface{}) ([]*PromQueryResult, error) {
 		// Determine if the result is a ranged data set or single value
 		_, isRange := resultInterface["values"]
 
-		var vectors []*Vector
+		var vectors []*util.Vector
 		if !isRange {
 			dataPoint, ok := resultInterface["value"]
 			if !ok {
@@ -139,7 +140,7 @@ func NewQueryResults(queryResult interface{}) ([]*PromQueryResult, error) {
 	return result, nil
 }
 
-func parseDataPoint(dataPoint interface{}, labels func() string) (*Vector, error) {
+func parseDataPoint(dataPoint interface{}, labels func() string) (*util.Vector, error) {
 	value, ok := dataPoint.([]interface{})
 	if !ok || len(value) != 2 {
 		return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
@@ -160,7 +161,7 @@ func parseDataPoint(dataPoint interface{}, labels func() string) (*Vector, error
 		v = 0.0
 	}
 
-	return &Vector{
+	return &util.Vector{
 		Timestamp: math.Round(value[0].(float64)/10) * 10,
 		Value:     v,
 	}, nil
