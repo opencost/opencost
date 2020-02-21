@@ -140,15 +140,16 @@ func (cm *ClusterManager) Remove(id string) error {
 func (cm *ClusterManager) GetAll() []*ClusterDefinition {
 	clusters := []*ClusterDefinition{}
 
-	err := cm.storage.Each(func(key string, cluster []byte) {
+	err := cm.storage.Each(func(key string, cluster []byte) error {
 		var cd ClusterDefinition
 		err := json.Unmarshal(cluster, &cd)
 		if err != nil {
 			klog.V(1).Infof("[Error] Failed to unmarshal json cluster definition for key: %s", key)
-			return
+			return nil
 		}
 
 		clusters = append(clusters, &cd)
+		return nil
 	})
 
 	if err != nil {
