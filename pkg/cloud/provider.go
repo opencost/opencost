@@ -211,6 +211,11 @@ func NewCrossClusterProvider(ctype string, overrideConfigPath string, cache clus
 			Clientset: cache,
 			Config:    NewProviderConfig(overrideConfigPath),
 		}, nil
+	} else if ctype == "gcp" {
+		return &GCP{
+			Clientset: cache,
+			Config:    NewProviderConfig(overrideConfigPath),
+		}, nil
 	}
 	return &CustomProvider{
 		Clientset: cache,

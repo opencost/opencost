@@ -73,7 +73,6 @@ func multiKeyGCPAllocationToOutOfClusterAllocation(gcpAlloc multiKeyGCPAllocatio
 	var environment string
 	var usedAggregatorName string
 	if gcpAlloc.Keys.Valid {
-		klog.Infof("VALID!!!!!!!!")
 		err := json.Unmarshal([]byte(gcpAlloc.Keys.StringVal), &keys)
 		if err != nil {
 			klog.Infof("Invalid unmarshaling response from BigQuery filtered query: %s", err.Error())
@@ -84,8 +83,6 @@ func multiKeyGCPAllocationToOutOfClusterAllocation(gcpAlloc multiKeyGCPAllocatio
 				if label["key"] == aggregatorName {
 					environment = label["value"]
 					usedAggregatorName = label["key"]
-					klog.Infof("ENVIRONMENT: %s", environment)
-					klog.Infof("AGGREGATOR NAME: %s", usedAggregatorName)
 					break keyloop
 				}
 			}
@@ -343,19 +340,6 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregators []stri
 	}
 	return s, qerr
 }
-
-/*
-  (SELECT
-    service.description as service,
-    TO_JSON_STRING(labels) as gl,
-    SUM(cost)
-  FROM  `guestbook-227502.billing_data.gcp_billing_export_v1_01AC9F_74CF1D_5565A2`
-  WHERE
-    EXISTS (SELECT * FROM UNNEST(labels) AS l WHERE l.key = "kubernetes_namespace" AND l.value = "kubecost")
-    AND EXISTS(SELECT * FROM UNNEST(labels) AS l2 WHERE l2.key = "kubernetes_label_app")
-    AND usage_start_time >= "2020-02-10" AND usage_start_time < "2020-02-13"
-	GROUP BY  service,gl)
-*/
 
 func (gcp *GCP) multiLabelQuery(query string, aggregators []string) ([]*OutOfClusterAllocation, error) {
 	c, err := gcp.Config.GetCustomPricingData()
