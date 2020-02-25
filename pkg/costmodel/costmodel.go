@@ -500,6 +500,8 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		return nil, err
 	}
 
+	// Unmounted PVs represent the PVs that are not mounted or tied to a volume on a container
+	unmountedPVs := make(map[string][]*PersistentVolumeClaimData)
 	pvClaimMapping, err := GetPVInfo(resultPVRequests, clusterID)
 	if err != nil {
 		klog.Infof("[Warning] Unable to get PV Data: %s", err.Error())
@@ -508,6 +510,10 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		err = addPVData(cm.Cache, pvClaimMapping, cp)
 		if err != nil {
 			return nil, err
+		}
+		// copy claim mappings into zombies, then remove as they're discovered
+		for k, v := range pvClaimMapping {
+			unmountedPVs[k] = []*PersistentVolumeClaimData{v}
 		}
 	}
 
@@ -612,8 +618,12 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 			for _, vol := range podClaims {
 				if vol.PersistentVolumeClaim != nil {
 					name := vol.PersistentVolumeClaim.ClaimName
-					if pvClaim, ok := pvClaimMapping[ns+","+name+","+clusterID]; ok {
+					key := ns + "," + name + "," + clusterID
+					if pvClaim, ok := pvClaimMapping[key]; ok {
 						podPVs = append(podPVs, pvClaim)
+
+						// Remove entry from potential unmounted pvs
+						delete(unmountedPVs, key)
 					}
 				}
 			}
@@ -779,16 +789,73 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 			}
 		}
 	}
-	err = findDeletedNodeInfo(cli, missingNodes, window)
+	// Use unmounted pvs to create a mapping of "Unmounted-<Namespace>" containers
+	// to pass along the cost data
+	unmounted := findUnmountedPVCostData(unmountedPVs, namespaceLabelsMapping)
+	for k, costs := range unmounted {
+		klog.V(3).Infof("Unmounted PVs in Namespace/ClusterID: %s/%s", costs.Namespace, costs.ClusterID)
 
+		if filterNamespace == "" {
+			containerNameCost[k] = costs
+		} else if costs.Namespace == filterNamespace {
+			containerNameCost[k] = costs
+		}
+	}
+
+	err = findDeletedNodeInfo(cli, missingNodes, window)
 	if err != nil {
 		klog.V(1).Infof("Error fetching historical node data: %s", err.Error())
 	}
+
 	err = findDeletedPodInfo(cli, missingContainers, window)
 	if err != nil {
 		klog.V(1).Infof("Error fetching historical pod data: %s", err.Error())
 	}
 	return containerNameCost, err
+}
+
+func findUnmountedPVCostData(unmountedPVs map[string][]*PersistentVolumeClaimData, namespaceLabelsMapping map[string]map[string]string) map[string]*CostData {
+	costs := make(map[string]*CostData)
+	if len(unmountedPVs) == 0 {
+		return costs
+	}
+
+	for k, pv := range unmountedPVs {
+		keyParts := strings.Split(k, ",")
+		if len(keyParts) != 3 {
+			klog.V(1).Infof("Unmounted PV used key with incorrect parts: %s", k)
+			continue
+		}
+
+		ns, _, clusterID := keyParts[0], keyParts[1], keyParts[2]
+
+		namespacelabels, ok := namespaceLabelsMapping[ns+","+clusterID]
+		if !ok {
+			klog.V(3).Infof("Missing data for namespace %s", ns)
+		}
+
+		// Should be a unique "Unmounted" cost data type
+		name := "unmounted-pvs"
+
+		metric := newContainerMetricFromValues(ns, name, name, "", clusterID)
+		key := metric.Key()
+
+		if costData, ok := costs[key]; !ok {
+			costs[key] = &CostData{
+				Name:            name,
+				PodName:         name,
+				NodeName:        "",
+				Namespace:       ns,
+				NamespaceLabels: namespacelabels,
+				ClusterID:       clusterID,
+				PVCData:         pv,
+			}
+		} else {
+			costData.PVCData = append(costData.PVCData, pv...)
+		}
+	}
+
+	return costs
 }
 
 func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[string]*CostData, window string) error {
@@ -1023,6 +1090,7 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -1947,12 +2015,16 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		klog.V(1).Infof("Unable to get PV Hourly Cost Data: %s", err.Error())
 	}
 
+	unmountedPVs := make(map[string][]*PersistentVolumeClaimData)
 	pvAllocationMapping, err := GetPVAllocationMetrics(pvPodAllocationResults, clusterID)
 	if err != nil {
 		klog.V(1).Infof("Unable to get PV Allocation Cost Data: %s", err.Error())
 	}
 	if pvAllocationMapping != nil {
 		addMetricPVData(pvAllocationMapping, pvCostMapping, cp)
+		for k, v := range pvAllocationMapping {
+			unmountedPVs[k] = v
+		}
 	}
 
 	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): process PV data", durHrs))
@@ -2207,6 +2279,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 			klog.V(4).Infof("Failed to locate pv allocation mapping for missing pod.")
 		}
 
+		// Delete the current pod key from potentially unmounted pvs
+		delete(unmountedPVs, podKey)
+
 		// For network costs, we'll use existing map since it should still contain the
 		// correct data.
 		var podNetworkCosts []*util.Vector
@@ -2264,6 +2339,15 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	}
 
 	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): build CostData map", durHrs))
+
+	unmounted := findUnmountedPVCostData(unmountedPVs, namespaceLabelsMapping)
+	for k, costs := range unmounted {
+		klog.V(3).Infof("Unmounted PVs in Namespace/ClusterID: %s/%s", costs.Namespace, costs.ClusterID)
+
+		if costDataPassesFilters(costs, filterNamespace, filterCluster) {
+			containerNameCost[k] = costs
+		}
+	}
 
 	w := end.Sub(start)
 	w += window
