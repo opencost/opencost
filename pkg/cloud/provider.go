@@ -64,7 +64,11 @@ type Node struct {
 
 // IsSpot determines whether or not a Node uses spot by usage type
 func (n *Node) IsSpot() bool {
-	return strings.Contains(n.UsageType, "spot") || strings.Contains(n.UsageType, "emptible")
+	if n != nil {
+		return strings.Contains(n.UsageType, "spot") || strings.Contains(n.UsageType, "emptible")
+	} else {
+		return false
+	}
 }
 
 // Network is the interface by which the provider and cost model communicate network egress prices.
