@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/kubecost/cost-model/clustercache"
+	"github.com/kubecost/cost-model/pkg/clustercache"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2017-09-01/skus"
 	"github.com/Azure/azure-sdk-for-go/services/containerservice/mgmt/2018-03-31/containerservice"
@@ -24,6 +24,11 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
+)
+
+const (
+	AzurePremiumStorageClass  = "premium"
+	AzureStandardStorageClass = "standard"
 )
 
 var (
@@ -161,8 +166,14 @@ func checkRegionID(regionID string, regions map[string]string) bool {
 	return false
 }
 
+// AzurePricing either contains a Node or PV
+type AzurePricing struct {
+	Node *Node
+	PV   *PV
+}
+
 type Azure struct {
-	allPrices               map[string]*Node
+	Pricing                 map[string]*AzurePricing
 	DownloadPricingDataLock sync.RWMutex
 	Clientset               clustercache.ClusterCache
 	Config                  *ProviderConfig
@@ -307,6 +318,7 @@ func (az *Azure) DownloadPricingData() error {
 	if err != nil {
 		return err
 	}
+
 	var authorizer autorest.Authorizer
 
 	if config.AzureClientID != "" && config.AzureClientSecret != "" && config.AzureTenantID != "" {
@@ -352,7 +364,7 @@ func (az *Azure) DownloadPricingData() error {
 	if err != nil {
 		return err
 	}
-	allPrices := make(map[string]*Node)
+	allPrices := make(map[string]*AzurePricing)
 	regions, err := getRegions("compute", sClient, providersClient, config.AzureSubscriptionID)
 	if err != nil {
 		return err
@@ -365,61 +377,101 @@ func (az *Azure) DownloadPricingData() error {
 	baseCPUPrice := c.CPU
 
 	for _, v := range *result.Meters {
-		if !strings.Contains(*v.MeterSubCategory, "Windows") && strings.Contains(*v.MeterCategory, "Virtual Machines") {
+		meterName := *v.MeterName
+		meterRegion := *v.MeterRegion
+		meterCategory := *v.MeterCategory
+		meterSubCategory := *v.MeterSubCategory
 
-			region, err := toRegionID(*v.MeterRegion, regions)
-			if err != nil {
-				continue
+		region, err := toRegionID(meterRegion, regions)
+		if err != nil {
+			continue
+		}
+
+		if !strings.Contains(meterSubCategory, "Windows") {
+
+			if strings.Contains(meterCategory, "Storage") {
+				if strings.Contains(meterSubCategory, "HDD") || strings.Contains(meterSubCategory, "SSD") {
+					var storageClass string = ""
+					if strings.Contains(meterName, "S4 ") {
+						storageClass = AzureStandardStorageClass
+					} else if strings.Contains(meterName, "P4 ") {
+						storageClass = AzurePremiumStorageClass
+					}
+
+					if storageClass != "" {
+						var priceInUsd float64
+
+						if len(v.MeterRates) < 1 {
+							klog.V(1).Infof("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *v.MeterSubCategory, "region": region})
+							continue
+						}
+						for _, rate := range v.MeterRates {
+							priceInUsd += *rate
+						}
+						priceStr := fmt.Sprintf("%f", priceInUsd)
+
+						key := region + "," + storageClass
+						klog.V(4).Infof("Adding PV.Key: %s, Cost: %s", key, priceStr)
+						allPrices[key] = &AzurePricing{
+							PV: &PV{
+								Cost:   priceStr,
+								Region: region,
+							},
+						}
+					}
+				}
 			}
 
-			meterName := *v.MeterName
-			sc := *v.MeterSubCategory
+			if strings.Contains(meterCategory, "Virtual Machines") {
 
-			// not available now
-			if strings.Contains(sc, "Promo") {
-				continue
-			}
+				// not available now
+				if strings.Contains(meterSubCategory, "Promo") {
+					continue
+				}
 
-			usageType := ""
-			if !strings.Contains(meterName, "Low Priority") {
-				usageType = "ondemand"
-			} else {
-				usageType = "preemptible"
-			}
+				usageType := ""
+				if !strings.Contains(meterName, "Low Priority") {
+					usageType = "ondemand"
+				} else {
+					usageType = "preemptible"
+				}
 
-			var instanceTypes []string
-			name := strings.TrimSuffix(meterName, " Low Priority")
-			instanceType := strings.Split(name, "/")
-			for _, it := range instanceType {
-				instanceTypes = append(instanceTypes, strings.Replace(it, " ", "_", 1))
-			}
+				var instanceTypes []string
+				name := strings.TrimSuffix(meterName, " Low Priority")
+				instanceType := strings.Split(name, "/")
+				for _, it := range instanceType {
+					instanceTypes = append(instanceTypes, strings.Replace(it, " ", "_", 1))
+				}
 
-			instanceTypes = transformMachineType(sc, instanceTypes)
-			if strings.Contains(name, "Expired") {
-				instanceTypes = []string{}
-			}
+				instanceTypes = transformMachineType(meterSubCategory, instanceTypes)
+				if strings.Contains(name, "Expired") {
+					instanceTypes = []string{}
+				}
 
-			var priceInUsd float64
+				var priceInUsd float64
 
-			if len(v.MeterRates) < 1 {
-				klog.V(1).Infof("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *v.MeterSubCategory, "region": region})
-				continue
-			}
-			for _, rate := range v.MeterRates {
-				priceInUsd += *rate
-			}
-			priceStr := fmt.Sprintf("%f", priceInUsd)
-			for _, instanceType := range instanceTypes {
+				if len(v.MeterRates) < 1 {
+					klog.V(1).Infof("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *v.MeterSubCategory, "region": region})
+					continue
+				}
+				for _, rate := range v.MeterRates {
+					priceInUsd += *rate
+				}
+				priceStr := fmt.Sprintf("%f", priceInUsd)
+				for _, instanceType := range instanceTypes {
 
-				key := fmt.Sprintf("%s,%s,%s", region, instanceType, usageType)
-				allPrices[key] = &Node{
-					Cost:         priceStr,
-					BaseCPUPrice: baseCPUPrice,
+					key := fmt.Sprintf("%s,%s,%s", region, instanceType, usageType)
+					allPrices[key] = &AzurePricing{
+						Node: &Node{
+							Cost:         priceStr,
+							BaseCPUPrice: baseCPUPrice,
+						},
+					}
 				}
 			}
 		}
 	}
-	az.allPrices = allPrices
+	az.Pricing = allPrices
 	return nil
 }
 
@@ -427,19 +479,19 @@ func (az *Azure) DownloadPricingData() error {
 func (az *Azure) AllNodePricing() (interface{}, error) {
 	az.DownloadPricingDataLock.RLock()
 	defer az.DownloadPricingDataLock.RUnlock()
-	return az.allPrices, nil
+	return az.Pricing, nil
 }
 
 // NodePricing returns Azure pricing data for a single node
 func (az *Azure) NodePricing(key Key) (*Node, error) {
 	az.DownloadPricingDataLock.RLock()
 	defer az.DownloadPricingDataLock.RUnlock()
-	if n, ok := az.allPrices[key.Features()]; ok {
+	if n, ok := az.Pricing[key.Features()]; ok {
 		klog.V(4).Infof("Returning pricing for node %s: %+v from key %s", key, n, key.Features())
 		if key.GPUType() != "" {
-			n.GPU = "1" // TODO: support multiple GPUs
+			n.Node.GPU = "1" // TODO: support multiple GPUs
 		}
-		return n, nil
+		return n.Node, nil
 	}
 	klog.V(1).Infof("[Warning] no pricing data found for %s: %s", key.Features(), key)
 	c, err := az.GetConfig()
@@ -491,13 +543,15 @@ type azurePvKey struct {
 	Labels                 map[string]string
 	StorageClass           string
 	StorageClassParameters map[string]string
+	DefaultRegion          string
 }
 
-func (az *Azure) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string) PVKey {
+func (az *Azure) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) PVKey {
 	return &azurePvKey{
 		Labels:                 pv.Labels,
 		StorageClass:           pv.Spec.StorageClassName,
 		StorageClassParameters: parameters,
+		DefaultRegion:          defaultRegion,
 	}
 }
 
@@ -506,13 +560,17 @@ func (key *azurePvKey) GetStorageClass() string {
 }
 
 func (key *azurePvKey) Features() string {
-	storageClass := key.StorageClassParameters["type"]
-	if storageClass == "pd-ssd" {
-		storageClass = "ssd"
-	} else if storageClass == "pd-standard" {
-		storageClass = "pdstandard"
+	storageClass := key.StorageClassParameters["storageaccounttype"]
+	if strings.EqualFold(storageClass, "Premium_LRS") {
+		storageClass = AzurePremiumStorageClass
+	} else if strings.EqualFold(storageClass, "Standard_LRS") {
+		storageClass = AzureStandardStorageClass
 	}
-	return key.Labels[v1.LabelZoneRegion] + "," + storageClass
+	if region, ok := key.Labels[v1.LabelZoneRegion]; ok {
+		return region + "," + storageClass
+	}
+
+	return key.DefaultRegion + "," + storageClass
 }
 
 func (*Azure) GetDisks() ([]byte, error) {
@@ -608,7 +666,7 @@ func (az *Azure) GetConfig() (*CustomPricing, error) {
 	return c, nil
 }
 
-func (az *Azure) ExternalAllocations(string, string, string, string, string) ([]*OutOfClusterAllocation, error) {
+func (az *Azure) ExternalAllocations(string, string, []string, string, string) ([]*OutOfClusterAllocation, error) {
 	return nil, nil
 }
 
@@ -616,8 +674,16 @@ func (az *Azure) ApplyReservedInstancePricing(nodes map[string]*Node) {
 
 }
 
-func (az *Azure) PVPricing(PVKey) (*PV, error) {
-	return nil, nil
+func (az *Azure) PVPricing(pvk PVKey) (*PV, error) {
+	az.DownloadPricingDataLock.RLock()
+	defer az.DownloadPricingDataLock.RUnlock()
+
+	pricing, ok := az.Pricing[pvk.Features()]
+	if !ok {
+		klog.V(4).Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
+		return &PV{}, nil
+	}
+	return pricing.PV, nil
 }
 
 func (az *Azure) GetLocalStorageQuery(window, offset string, rate bool) string {

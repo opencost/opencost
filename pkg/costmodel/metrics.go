@@ -23,13 +23,13 @@ func kubeLabelsToPrometheusLabels(labels map[string]string) ([]string, []string)
 
 	labelValues := make([]string, 0, len(labels))
 	for i, k := range labelKeys {
-		labelKeys[i] = "label_" + sanitizeLabelName(k)
+		labelKeys[i] = "label_" + SanitizeLabelName(k)
 		labelValues = append(labelValues, labels[k])
 	}
 	return labelKeys, labelValues
 }
 
-func sanitizeLabelName(s string) string {
+func SanitizeLabelName(s string) string {
 	return invalidLabelCharRE.ReplaceAllString(s, "_")
 }
 

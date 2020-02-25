@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/kubecost/cost-model/clustercache"
+	"github.com/kubecost/cost-model/pkg/clustercache"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -191,7 +191,7 @@ func (cp *CustomProvider) GetKey(labels map[string]string) Key {
 // ExternalAllocations represents tagged assets outside the scope of kubernetes.
 // "start" and "end" are dates of the format YYYY-MM-DD
 // "aggregator" is the tag used to determine how to allocate those assets, ie namespace, pod, etc.
-func (*CustomProvider) ExternalAllocations(start string, end string, aggregator string, filterType string, filterValue string) ([]*OutOfClusterAllocation, error) {
+func (*CustomProvider) ExternalAllocations(start string, end string, aggregator []string, filterType string, filterValue string) ([]*OutOfClusterAllocation, error) {
 	return nil, nil // TODO: transform the QuerySQL lines into the new OutOfClusterAllocation Struct
 }
 
@@ -234,10 +234,12 @@ func (cp *CustomProvider) NetworkPricing() (*Network, error) {
 	}, nil
 }
 
-func (*CustomProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string) PVKey {
+func (*CustomProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) PVKey {
 	return &awsPVKey{
-		Labels:           pv.Labels,
-		StorageClassName: pv.Spec.StorageClassName,
+		Labels:                 pv.Labels,
+		StorageClassName:       pv.Spec.StorageClassName,
+		StorageClassParameters: parameters,
+		DefaultRegion:          defaultRegion,
 	}
 }
 

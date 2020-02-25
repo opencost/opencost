@@ -17,14 +17,17 @@ import (
 	"k8s.io/klog"
 
 	"github.com/julienschmidt/httprouter"
-	costAnalyzerCloud "github.com/kubecost/cost-model/cloud"
-	"github.com/kubecost/cost-model/clustercache"
-	"github.com/patrickmn/go-cache"
+	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/clustercache"
+	cm "github.com/kubecost/cost-model/pkg/clustermanager"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
-	"github.com/prometheus/client_golang/prometheus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	bolt "github.com/etcd-io/bbolt"
+	"github.com/patrickmn/go-cache"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -48,6 +51,7 @@ type Accesses struct {
 	PrometheusClient              prometheusClient.Client
 	ThanosClient                  prometheusClient.Client
 	KubeClientSet                 kubernetes.Interface
+	ClusterManager                *cm.ClusterManager
 	Cloud                         costAnalyzerCloud.Provider
 	CPUPriceRecorder              *prometheus.GaugeVec
 	RAMPriceRecorder              *prometheus.GaugeVec
@@ -422,6 +426,26 @@ func (a *Accesses) CostDataModelRangeLarge(w http.ResponseWriter, r *http.Reques
 	w.Write(WrapData(data, err))
 }
 
+func parseAggregations(customAggregation, aggregator, filterType string) (string, []string, string) {
+	var key string
+	var filter string
+	var val []string
+	if customAggregation != "" {
+		key = customAggregation
+		filter = filterType
+		val = strings.Split(customAggregation, ",")
+	} else {
+		aggregations := strings.Split(aggregator, ",")
+		for i, agg := range aggregations {
+			aggregations[i] = "kubernetes_" + agg
+		}
+		key = strings.Join(aggregations, ",")
+		filter = "kubernetes_" + filterType
+		val = aggregations
+	}
+	return key, val, filter
+}
+
 func (a *Accesses) OutofClusterCosts(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -434,11 +458,8 @@ func (a *Accesses) OutofClusterCosts(w http.ResponseWriter, r *http.Request, ps 
 	filterValue := r.URL.Query().Get("filterValue")
 	var data []*costAnalyzerCloud.OutOfClusterAllocation
 	var err error
-	if customAggregation != "" {
-		data, err = a.Cloud.ExternalAllocations(start, end, customAggregation, filterType, filterValue)
-	} else {
-		data, err = a.Cloud.ExternalAllocations(start, end, "kubernetes_"+aggregator, "kubernetes_"+filterType, filterValue)
-	}
+	_, aggregations, filter := parseAggregations(customAggregation, aggregator, filterType)
+	data, err = a.Cloud.ExternalAllocations(start, end, aggregations, filter, filterValue)
 	w.Write(WrapData(data, err))
 }
 
@@ -464,11 +485,7 @@ func (a *Accesses) OutOfClusterCostsWithCache(w http.ResponseWriter, r *http.Req
 	filterType := r.URL.Query().Get("filterType")
 	filterValue := r.URL.Query().Get("filterValue")
 
-	aggregation := "kubernetes_" + kubernetesAggregation
-	filterType = "kubernetes_" + filterType
-	if customAggregation != "" {
-		aggregation = customAggregation
-	}
+	aggregationkey, aggregation, filter := parseAggregations(customAggregation, kubernetesAggregation, filterType)
 
 	// clear cache prior to checking the cache so that a clearCache=true
 	// request always returns a freshly computed value
@@ -477,7 +494,7 @@ func (a *Accesses) OutOfClusterCostsWithCache(w http.ResponseWriter, r *http.Req
 	}
 
 	// attempt to retrieve cost data from cache
-	key := fmt.Sprintf(`%s:%s:%s:%s:%s`, start, end, aggregation, filterType, filterValue)
+	key := fmt.Sprintf(`%s:%s:%s:%s:%s`, start, end, aggregationkey, filter, filterValue)
 	if value, found := a.OutOfClusterCache.Get(key); found && !disableCache {
 		if data, ok := value.([]*costAnalyzerCloud.OutOfClusterAllocation); ok {
 			w.Write(WrapDataWithMessage(data, nil, fmt.Sprintf("out of cluster cache hit: %s", key)))
@@ -486,7 +503,7 @@ func (a *Accesses) OutOfClusterCostsWithCache(w http.ResponseWriter, r *http.Req
 		klog.Errorf("caching error: failed to type cast data: %s", key)
 	}
 
-	data, err := a.Cloud.ExternalAllocations(start, end, aggregation, filterType, filterValue)
+	data, err := a.Cloud.ExternalAllocations(start, end, aggregation, filter, filterValue)
 	if err == nil {
 		a.OutOfClusterCache.Set(key, data, cache.DefaultExpiration)
 	}
@@ -622,6 +639,12 @@ func (a *Accesses) recordPrices() {
 			return strings.Split(key, ",")
 		}
 
+		var defaultRegion string = ""
+		nodeList := a.Model.Cache.GetAllNodes()
+		if len(nodeList) > 0 {
+			defaultRegion = nodeList[0].Labels[v1.LabelZoneRegion]
+		}
+
 		for {
 			klog.V(4).Info("Recording prices...")
 			podlist := a.Model.Cache.GetAllPods()
@@ -685,13 +708,14 @@ func (a *Accesses) recordPrices() {
 						gpuCost = 0
 					}
 				}
+				nodeType := node.InstanceType
 
 				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
-				a.CPUPriceRecorder.WithLabelValues(nodeName, nodeName).Set(cpuCost)
-				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeName).Set(ramCost)
-				a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName).Set(gpuCost)
-				a.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName).Set(totalCost)
+				a.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType).Set(cpuCost)
+				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType).Set(ramCost)
+				a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType).Set(gpuCost)
+				a.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType).Set(totalCost)
 				labelKey := getKeyFromLabelStrings(nodeName, nodeName)
 				nodeSeen[labelKey] = true
 			}
@@ -747,12 +771,18 @@ func (a *Accesses) recordPrices() {
 					if !ok {
 						klog.V(4).Infof("Unable to find parameters for storage class \"%s\". Does pv \"%s\" have a storageClassName?", pv.Spec.StorageClassName, pv.Name)
 					}
+					var region string
+					if r, ok := pv.Labels[v1.LabelZoneRegion]; ok {
+						region = r
+					} else {
+						region = defaultRegion
+					}
 					cacPv := &costAnalyzerCloud.PV{
 						Class:      pv.Spec.StorageClassName,
-						Region:     pv.Labels[v1.LabelZoneRegion],
+						Region:     region,
 						Parameters: parameters,
 					}
-					GetPVCost(cacPv, pv, a.Cloud)
+					GetPVCost(cacPv, pv, a.Cloud, region)
 					c, _ := strconv.ParseFloat(cacPv.Cost, 64)
 					a.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name).Set(c)
 					labelKey := getKeyFromLabelStrings(pv.Name, pv.Name)
@@ -807,7 +837,33 @@ func (a *Accesses) recordPrices() {
 	}()
 }
 
-func Initialize() {
+// Creates a new ClusterManager instance using a boltdb storage. If that fails,
+// then we fall back to a memory-only storage.
+func newClusterManager() *cm.ClusterManager {
+	clustersConfigFile := "/var/configs/clusters/default-clusters.yaml"
+
+	path := os.Getenv("CONFIG_PATH")
+	db, err := bolt.Open(path+"costmodel.db", 0600, nil)
+	if err != nil {
+		klog.V(1).Infof("[Error] Failed to create costmodel.db: %s", err.Error())
+		return cm.NewConfiguredClusterManager(cm.NewMapDBClusterStorage(), clustersConfigFile)
+	}
+
+	store, err := cm.NewBoltDBClusterStorage("clusters", db)
+	if err != nil {
+		klog.V(1).Infof("[Error] Failed to Create Cluster Storage: %s", err.Error())
+		return cm.NewConfiguredClusterManager(cm.NewMapDBClusterStorage(), clustersConfigFile)
+	}
+
+	return cm.NewConfiguredClusterManager(store, clustersConfigFile)
+}
+
+type ConfigWatchers struct {
+	ConfigmapName string
+	WatchFunc     func(string, map[string]string) error
+}
+
+func Initialize(additionalConfigWatchers ...ConfigWatchers) {	
 	klog.InitFlags(nil)
 	flag.Set("v", "3")
 	flag.Parse()
@@ -871,7 +927,15 @@ func Initialize() {
 		if conf.GetName() == "pricing-configs" {
 			_, err := cloudProvider.UpdateConfigFromConfigMap(conf.Data)
 			if err != nil {
-				klog.Infof("ERROR UPDATING CONFIG: %s", err.Error())
+				klog.Infof("ERROR UPDATING %s CONFIG: %s", "pricing-configs", err.Error())
+			}
+		}
+		for _, cw := range additionalConfigWatchers {
+			if conf.GetName() == cw.ConfigmapName {
+				err := cw.WatchFunc(conf.GetName(), conf.Data)
+				if err != nil {
+					klog.Infof("ERROR UPDATING %s CONFIG: %s", cw.ConfigmapName, err.Error())
+				}
 			}
 		}
 	}
@@ -879,32 +943,47 @@ func Initialize() {
 	// We need an initial invocation because the init of the cache has happened before we had access to the provider.
 	configs, err := kubeClientset.CoreV1().ConfigMaps(kubecostNamespace).Get("pricing-configs", metav1.GetOptions{})
 	if err != nil {
-		klog.Infof("No configs found at installtime, using existing configs: %s", err.Error())
+		klog.Infof("No %s configmap found at installtime, using existing configs: %s", "pricing-configs", err.Error())
 	} else {
 		watchConfigFunc(configs)
 	}
 
+	for _, cw := range additionalConfigWatchers {
+		configs, err := kubeClientset.CoreV1().ConfigMaps(kubecostNamespace).Get(cw.ConfigmapName, metav1.GetOptions{})
+		if err != nil {
+			klog.Infof("No %s configmap found at installtime, using existing configs: %s", cw.ConfigmapName, err.Error())
+		} else {
+			watchConfigFunc(configs)
+		}
+	}
+
 	k8sCache.SetConfigMapUpdateFunc(watchConfigFunc)
+
+	// TODO: General Architecture Note: Several passes have been made to modularize a lot of
+	// TODO: our code, but the router still continues to be the obvious entry point for new \
+	// TODO: features. We should look to spliting out the actual "router" functionality and
+	// TODO: implement a builder -> controller for stitching new features and other dependencies.
+	clusterManager := newClusterManager()
 
 	cpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_cpu_hourly_cost",
 		Help: "node_cpu_hourly_cost hourly cost for each cpu on this node",
-	}, []string{"instance", "node"})
+	}, []string{"instance", "node", "instance_type"})
 
 	ramGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_ram_hourly_cost",
 		Help: "node_ram_hourly_cost hourly cost for each gb of ram on this node",
-	}, []string{"instance", "node"})
+	}, []string{"instance", "node", "instance_type"})
 
 	gpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_gpu_hourly_cost",
 		Help: "node_gpu_hourly_cost hourly cost for each gpu on this node",
-	}, []string{"instance", "node"})
+	}, []string{"instance", "node", "instance_type"})
 
 	totalGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_total_hourly_cost",
 		Help: "node_total_hourly_cost Total node cost per hour",
-	}, []string{"instance", "node"})
+	}, []string{"instance", "node", "instance_type"})
 
 	pvGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "pv_hourly_cost",
@@ -975,6 +1054,7 @@ func Initialize() {
 	A = Accesses{
 		PrometheusClient:              promCli,
 		KubeClientSet:                 kubeClientset,
+		ClusterManager:                clusterManager,
 		Cloud:                         cloudProvider,
 		CPUPriceRecorder:              cpuGv,
 		RAMPriceRecorder:              ramGv,
@@ -1047,6 +1127,8 @@ func Initialize() {
 
 	A.recordPrices()
 
+	managerEndpoints := cm.NewClusterManagerEndpoints(A.ClusterManager)
+
 	Router.GET("/costDataModel", A.CostDataModel)
 	Router.GET("/costDataModelRange", A.CostDataModelRange)
 	Router.GET("/costDataModelRangeLarge", A.CostDataModelRangeLarge)
@@ -1059,4 +1141,7 @@ func Initialize() {
 	Router.GET("/managementPlatform", A.ManagementPlatform)
 	Router.GET("/clusterInfo", A.ClusterInfo)
 	Router.GET("/containerUptimes", A.ContainerUptimes)
+	Router.GET("/clusters", managerEndpoints.GetAllClusters)
+	Router.PUT("/clusters", managerEndpoints.PutCluster)
+	Router.DELETE("/clusters/:id", managerEndpoints.DeleteCluster)
 }

@@ -1,4 +1,4 @@
-package costmodel
+package util
 
 import (
 	"sync"

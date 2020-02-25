@@ -14,8 +14,8 @@ import (
 
 	"gotest.tools/assert"
 
-	"github.com/kubecost/cost-model/cloud"
-	costModel "github.com/kubecost/cost-model/costmodel"
+	"github.com/kubecost/cost-model/pkg/cloud"
+	costModel "github.com/kubecost/cost-model/pkg/costmodel"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

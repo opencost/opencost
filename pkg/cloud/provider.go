@@ -12,7 +12,7 @@ import (
 	"k8s.io/klog"
 
 	"cloud.google.com/go/compute/metadata"
-	"github.com/kubecost/cost-model/clustercache"
+	"github.com/kubecost/cost-model/pkg/clustercache"
 
 	v1 "k8s.io/api/core/v1"
 )
@@ -58,6 +58,7 @@ type Node struct {
 	GPU              string                `json:"gpu"` // GPU represents the number of GPU on the instance
 	GPUName          string                `json:"gpuName"`
 	GPUCost          string                `json:"gpuCost"`
+	InstanceType     string                `json:"instanceType,omitempty"`
 	Reserved         *ReservedInstanceData `json:"reserved,omitempty"`
 }
 
@@ -129,6 +130,7 @@ type CustomPricing struct {
 	SpotDataBucket        string            `json:"awsSpotDataBucket,omitempty"`
 	SpotDataPrefix        string            `json:"awsSpotDataPrefix,omitempty"`
 	ProjectID             string            `json:"projectID,omitempty"`
+	AthenaProjectID       string            `json:"athenaProjectID,omitempty"`
 	AthenaBucketName      string            `json:"athenaBucketName"`
 	AthenaRegion          string            `json:"athenaRegion"`
 	AthenaDatabase        string            `json:"athenaDatabase"`
@@ -163,13 +165,13 @@ type Provider interface {
 	AllNodePricing() (interface{}, error)
 	DownloadPricingData() error
 	GetKey(map[string]string) Key
-	GetPVKey(*v1.PersistentVolume, map[string]string) PVKey
+	GetPVKey(*v1.PersistentVolume, map[string]string, string) PVKey
 	UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error)
 	UpdateConfigFromConfigMap(map[string]string) (*CustomPricing, error)
 	GetConfig() (*CustomPricing, error)
 	GetManagementPlatform() (string, error)
 	GetLocalStorageQuery(string, string, bool) string
-	ExternalAllocations(string, string, string, string, string) ([]*OutOfClusterAllocation, error)
+	ExternalAllocations(string, string, []string, string, string) ([]*OutOfClusterAllocation, error)
 	ApplyReservedInstancePricing(map[string]*Node)
 }
 
@@ -201,6 +203,24 @@ func CustomPricesEnabled(p Provider) bool {
 	}
 
 	return config.CustomPricesEnabled == "true"
+}
+
+func NewCrossClusterProvider(ctype string, overrideConfigPath string, cache clustercache.ClusterCache) (Provider, error) {
+	if ctype == "aws" {
+		return &AWS{
+			Clientset: cache,
+			Config:    NewProviderConfig(overrideConfigPath),
+		}, nil
+	} else if ctype == "gcp" {
+		return &GCP{
+			Clientset: cache,
+			Config:    NewProviderConfig(overrideConfigPath),
+		}, nil
+	}
+	return &CustomProvider{
+		Clientset: cache,
+		Config:    NewProviderConfig(overrideConfigPath),
+	}, nil
 }
 
 // NewProvider looks at the nodespec or provider metadata server to decide which provider to instantiate.
