@@ -1069,7 +1069,7 @@ func generateAWSGroupBy(lastIdx int) string {
 // ExternalAllocations represents tagged assets outside the scope of kubernetes.
 // "start" and "end" are dates of the format YYYY-MM-DD
 // "aggregator" is the tag used to determine how to allocate those assets, ie namespace, pod, etc.
-func (a *AWS) ExternalAllocations(start string, end string, aggregators []string, filterType string, filterValue string) ([]*OutOfClusterAllocation, error) {
+func (a *AWS) ExternalAllocations(start string, end string, aggregators []string, filterType string, filterValue string, crossCluster bool) ([]*OutOfClusterAllocation, error) {
 	customPricing, err := a.GetConfig()
 	if err != nil {
 		return nil, err
@@ -1205,12 +1205,12 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 		}
 	}
 
-	if customPricing.BillingDataDataset != "" { // There is GCP data, meaning someone has tried to configure a GCP out-of-cluster allocation.
-		gcp, err := NewCrossClusterProvider("gcp", "gcp.json", a.Clientset)
+	if customPricing.BillingDataDataset != "" && !crossCluster { // There is GCP data, meaning someone has tried to configure a GCP out-of-cluster allocation.
+		gcp, err := NewCrossClusterProvider("gcp", "aws.json", a.Clientset)
 		if err != nil {
 			klog.Infof("Could not instantiate cross-cluster provider %s", err.Error())
 		}
-		gcpOOC, err := gcp.ExternalAllocations(start, end, aggregators, filterType, filterValue)
+		gcpOOC, err := gcp.ExternalAllocations(start, end, aggregators, filterType, filterValue, true)
 		if err != nil {
 			klog.Infof("Could not fetch cross-cluster costs %s", err.Error())
 		}

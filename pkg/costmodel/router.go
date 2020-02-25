@@ -459,7 +459,7 @@ func (a *Accesses) OutofClusterCosts(w http.ResponseWriter, r *http.Request, ps 
 	var data []*costAnalyzerCloud.OutOfClusterAllocation
 	var err error
 	_, aggregations, filter := parseAggregations(customAggregation, aggregator, filterType)
-	data, err = a.Cloud.ExternalAllocations(start, end, aggregations, filter, filterValue)
+	data, err = a.Cloud.ExternalAllocations(start, end, aggregations, filter, filterValue, false)
 	w.Write(WrapData(data, err))
 }
 
@@ -503,7 +503,7 @@ func (a *Accesses) OutOfClusterCostsWithCache(w http.ResponseWriter, r *http.Req
 		klog.Errorf("caching error: failed to type cast data: %s", key)
 	}
 
-	data, err := a.Cloud.ExternalAllocations(start, end, aggregation, filter, filterValue)
+	data, err := a.Cloud.ExternalAllocations(start, end, aggregation, filter, filterValue, false)
 	if err == nil {
 		a.OutOfClusterCache.Set(key, data, cache.DefaultExpiration)
 	}
@@ -863,7 +863,7 @@ type ConfigWatchers struct {
 	WatchFunc     func(string, map[string]string) error
 }
 
-func Initialize(additionalConfigWatchers ...ConfigWatchers) {	
+func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	klog.InitFlags(nil)
 	flag.Set("v", "3")
 	flag.Parse()
