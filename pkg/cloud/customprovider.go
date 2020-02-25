@@ -234,10 +234,12 @@ func (cp *CustomProvider) NetworkPricing() (*Network, error) {
 	}, nil
 }
 
-func (*CustomProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string) PVKey {
+func (*CustomProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) PVKey {
 	return &awsPVKey{
-		Labels:           pv.Labels,
-		StorageClassName: pv.Spec.StorageClassName,
+		Labels:                 pv.Labels,
+		StorageClassName:       pv.Spec.StorageClassName,
+		StorageClassParameters: parameters,
+		DefaultRegion:          defaultRegion,
 	}
 }
 
