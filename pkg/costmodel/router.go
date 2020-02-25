@@ -639,6 +639,12 @@ func (a *Accesses) recordPrices() {
 			return strings.Split(key, ",")
 		}
 
+		var defaultRegion string = ""
+		nodeList := a.Model.Cache.GetAllNodes()
+		if len(nodeList) > 0 {
+			defaultRegion = nodeList[0].Labels[v1.LabelZoneRegion]
+		}
+
 		for {
 			klog.V(4).Info("Recording prices...")
 			podlist := a.Model.Cache.GetAllPods()
@@ -765,12 +771,18 @@ func (a *Accesses) recordPrices() {
 					if !ok {
 						klog.V(4).Infof("Unable to find parameters for storage class \"%s\". Does pv \"%s\" have a storageClassName?", pv.Spec.StorageClassName, pv.Name)
 					}
+					var region string
+					if r, ok := pv.Labels[v1.LabelZoneRegion]; ok {
+						region = r
+					} else {
+						region = defaultRegion
+					}
 					cacPv := &costAnalyzerCloud.PV{
 						Class:      pv.Spec.StorageClassName,
-						Region:     pv.Labels[v1.LabelZoneRegion],
+						Region:     region,
 						Parameters: parameters,
 					}
-					GetPVCost(cacPv, pv, a.Cloud)
+					GetPVCost(cacPv, pv, a.Cloud, region)
 					c, _ := strconv.ParseFloat(cacPv.Cost, 64)
 					a.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name).Set(c)
 					labelKey := getKeyFromLabelStrings(pv.Name, pv.Name)

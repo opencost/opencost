@@ -399,14 +399,16 @@ type awsPVKey struct {
 	StorageClassParameters map[string]string
 	StorageClassName       string
 	Name                   string
+	DefaultRegion          string
 }
 
-func (aws *AWS) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string) PVKey {
+func (aws *AWS) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) PVKey {
 	return &awsPVKey{
 		Labels:                 pv.Labels,
 		StorageClassName:       pv.Spec.StorageClassName,
 		StorageClassParameters: parameters,
 		Name:                   pv.Name,
+		DefaultRegion:          defaultRegion,
 	}
 }
 
@@ -505,7 +507,7 @@ func (aws *AWS) DownloadPricingData() error {
 			klog.V(2).Infof("Unable to find params for storageClassName %s, falling back to default pricing", pv.Spec.StorageClassName)
 			continue
 		}
-		key := aws.GetPVKey(pv, params)
+		key := aws.GetPVKey(pv, params, "")
 		pvkeys[key.Features()] = key
 	}
 

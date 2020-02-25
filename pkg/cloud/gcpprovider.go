@@ -879,7 +879,7 @@ func (gcp *GCP) DownloadPricingData() error {
 			klog.Infof("Unable to find params for storageClassName %s", pv.Name)
 			continue
 		}
-		key := gcp.GetPVKey(pv, params)
+		key := gcp.GetPVKey(pv, params, "")
 		pvkeys[key.Features()] = key
 	}
 
@@ -1167,17 +1167,19 @@ type pvKey struct {
 	Labels                 map[string]string
 	StorageClass           string
 	StorageClassParameters map[string]string
+	DefaultRegion          string
 }
 
 func (key *pvKey) GetStorageClass() string {
 	return key.StorageClass
 }
 
-func (gcp *GCP) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string) PVKey {
+func (gcp *GCP) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) PVKey {
 	return &pvKey{
 		Labels:                 pv.Labels,
 		StorageClass:           pv.Spec.StorageClassName,
 		StorageClassParameters: parameters,
+		DefaultRegion:          defaultRegion,
 	}
 }
 

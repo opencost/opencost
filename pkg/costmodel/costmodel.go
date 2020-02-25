@@ -969,6 +969,13 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 	if err != nil {
 		return err
 	}
+	// Pull a region from the first node
+	var defaultRegion string
+	nodeList := cache.GetAllNodes()
+	if len(nodeList) > 0 {
+		defaultRegion = nodeList[0].Labels[v1.LabelZoneRegion]
+	}
+
 	storageClasses := cache.GetAllStorageClasses()
 	storageClassMap := make(map[string]map[string]string)
 	for _, storageClass := range storageClasses {
@@ -987,12 +994,19 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 		if !ok {
 			klog.V(4).Infof("Unable to find parameters for storage class \"%s\". Does pv \"%s\" have a storageClassName?", pv.Spec.StorageClassName, pv.Name)
 		}
+		var region string
+		if r, ok := pv.Labels[v1.LabelZoneRegion]; ok {
+			region = r
+		} else {
+			region = defaultRegion
+		}
+
 		cacPv := &costAnalyzerCloud.PV{
 			Class:      pv.Spec.StorageClassName,
-			Region:     pv.Labels[v1.LabelZoneRegion],
+			Region:     region,
 			Parameters: parameters,
 		}
-		err := GetPVCost(cacPv, pv, cloud)
+		err := GetPVCost(cacPv, pv, cloud, region)
 		if err != nil {
 			return err
 		}
@@ -1012,12 +1026,12 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 	return nil
 }
 
-func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cp costAnalyzerCloud.Provider) error {
+func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cp costAnalyzerCloud.Provider, defaultRegion string) error {
 	cfg, err := cp.GetConfig()
 	if err != nil {
 		return err
 	}
-	key := cp.GetPVKey(kpv, pv.Parameters)
+	key := cp.GetPVKey(kpv, pv.Parameters, defaultRegion)
 	pvWithCost, err := cp.PVPricing(key)
 	if err != nil {
 		pv.Cost = cfg.Storage
