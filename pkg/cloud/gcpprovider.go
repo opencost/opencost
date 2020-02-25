@@ -264,7 +264,7 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregators []stri
 		return nil, err
 	}
 	var s []*OutOfClusterAllocation
-	if c.ServiceKeyName != "" && c.ServiceKeySecret != "" {
+	if c.ServiceKeyName != "" && c.ServiceKeySecret != "" && !crossCluster {
 		aws, err := NewCrossClusterProvider("aws", "gcp.json", gcp.Clientset)
 		if err != nil {
 			klog.Infof("Could not instantiate cross-cluster provider %s", err.Error())
