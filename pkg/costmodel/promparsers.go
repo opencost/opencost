@@ -247,7 +247,8 @@ func GetPVAllocationMetrics(queryResult interface{}, defaultClusterID string) (m
 
 		pvName, err := val.GetString("persistentvolume")
 		if err != nil {
-			return toReturn, err
+			klog.Infof("persistentvolume field does not exist for pv %s", pvcName) // This is possible for an unfulfilled claim
+			continue
 		}
 
 		key := fmt.Sprintf("%s,%s,%s", ns, pod, clusterID)
