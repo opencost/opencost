@@ -175,7 +175,7 @@ type Provider interface {
 	GetConfig() (*CustomPricing, error)
 	GetManagementPlatform() (string, error)
 	GetLocalStorageQuery(string, string, bool) string
-	ExternalAllocations(string, string, []string, string, string) ([]*OutOfClusterAllocation, error)
+	ExternalAllocations(string, string, []string, string, string, bool) ([]*OutOfClusterAllocation, error)
 	ApplyReservedInstancePricing(map[string]*Node)
 }
 
