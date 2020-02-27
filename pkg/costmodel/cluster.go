@@ -133,7 +133,7 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	}
 	mins := end.Sub(*start).Minutes()
 
-	const fmtQueryDataCount = `max(sum(count_over_time(kube_node_status_capacity_cpu_cores[%s:1m]%s)) by (node, cluster_id))`
+	const fmtQueryDataCount = `count_over_time(sum(kube_node_status_capacity_cpu_cores)[%s:1m]%s)`
 
 	const fmtQueryTotalGPU = `sum(
 		sum_over_time(node_gpu_hourly_cost[%s:1m]%s) / 60
