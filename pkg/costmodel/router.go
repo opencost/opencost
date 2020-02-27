@@ -709,13 +709,15 @@ func (a *Accesses) recordPrices() {
 					}
 				}
 				nodeType := node.InstanceType
+				nodeRegion := node.Region
+				nodeUsageType := node.UsageType
 
 				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
-				a.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType).Set(cpuCost)
-				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType).Set(ramCost)
-				a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType).Set(gpuCost)
-				a.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType).Set(totalCost)
+				a.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, nodeUsageType).Set(cpuCost)
+				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, nodeUsageType).Set(ramCost)
+				a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, nodeUsageType).Set(gpuCost)
+				a.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, nodeUsageType).Set(totalCost)
 				labelKey := getKeyFromLabelStrings(nodeName, nodeName)
 				nodeSeen[labelKey] = true
 			}
@@ -968,22 +970,22 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	cpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_cpu_hourly_cost",
 		Help: "node_cpu_hourly_cost hourly cost for each cpu on this node",
-	}, []string{"instance", "node", "instance_type"})
+	}, []string{"instance", "node", "instance_type", "region", "usage_type"})
 
 	ramGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_ram_hourly_cost",
 		Help: "node_ram_hourly_cost hourly cost for each gb of ram on this node",
-	}, []string{"instance", "node", "instance_type"})
+	}, []string{"instance", "node", "instance_type", "region", "usage_type"})
 
 	gpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_gpu_hourly_cost",
 		Help: "node_gpu_hourly_cost hourly cost for each gpu on this node",
-	}, []string{"instance", "node", "instance_type"})
+	}, []string{"instance", "node", "instance_type", "region", "usage_type"})
 
 	totalGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_total_hourly_cost",
 		Help: "node_total_hourly_cost Total node cost per hour",
-	}, []string{"instance", "node", "instance_type"})
+	}, []string{"instance", "node", "instance_type", "region", "usage_type"})
 
 	pvGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "pv_hourly_cost",
