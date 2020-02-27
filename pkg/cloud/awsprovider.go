@@ -928,33 +928,18 @@ func (*AWS) AddServiceKey(formValues url.Values) error {
 	return ioutil.WriteFile("/var/configs/key.json", result, 0644)
 }
 
-func configureAWSAuth(keyFile string) error {
-	jsonFile, err := os.Open(keyFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			klog.V(2).Infof("Using Default Credentials")
-			return nil
+func (aws *AWS) configureAWSAuth() error {
+	accessKeyID := aws.ServiceKeyName
+	accessKeySecret := aws.ServiceKeySecret
+	if accessKeyID != "" && accessKeySecret != "" { // credentials may exist on the actual AWS node-- if so, use those. If not, override with the service key
+		err := os.Setenv(awsAccessKeyIDEnvVar, accessKeyID)
+		if err != nil {
+			return err
 		}
-
-		return err
-	}
-	defer jsonFile.Close()
-
-	byteValue, _ := ioutil.ReadAll(jsonFile)
-	var result map[string]string
-	err = json.Unmarshal([]byte(byteValue), &result)
-	if err != nil {
-		return err
-	}
-
-	err = os.Setenv(awsAccessKeyIDEnvVar, result["awsServiceKeyName"])
-	if err != nil {
-		return err
-	}
-
-	err = os.Setenv(awsAccessKeySecretEnvVar, result["awsServiceKeySecret"])
-	if err != nil {
-		return err
+		err = os.Setenv(awsAccessKeySecretEnvVar, accessKeySecret)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -979,8 +964,8 @@ func getClusterConfig(ccFile string) (map[string]string, error) {
 }
 
 // GetDisks returns the AWS disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
-func (*AWS) GetDisks() ([]byte, error) {
-	err := configureAWSAuth("/var/configs/key.json")
+func (a *AWS) GetDisks() ([]byte, error) {
+	err := a.configureAWSAuth()
 	if err != nil {
 		return nil, err
 	}
@@ -1701,9 +1686,9 @@ func getRegionReservedInstances(region string) ([]*AWSReservedInstance, error) {
 }
 
 func (a *AWS) getReservedInstances() ([]*AWSReservedInstance, error) {
-	err := configureAWSAuth("/var/configs/aws.json")
+	err := a.configureAWSAuth()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error Configuring aws auth: %s", err.Error())
 	}
 
 	var reservedInstances []*AWSReservedInstance

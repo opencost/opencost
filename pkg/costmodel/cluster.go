@@ -133,7 +133,7 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	}
 	mins := end.Sub(*start).Minutes()
 
-	const fmtQueryDataCount = `count_over_time(sum(kube_node_status_capacity_cpu_cores)[%s:1m]%s)`
+	const fmtQueryDataCount = `count_over_time(sum(kube_node_status_capacity_cpu_cores) by (cluster_id)[%s:1m]%s)`
 
 	const fmtQueryTotalGPU = `sum(
 		sum_over_time(node_gpu_hourly_cost[%s:1m]%s) / 60
@@ -267,11 +267,21 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	resultsUsedLocalStorage := <-chUsedLocalStorage
 	close(chUsedLocalStorage)
 
-	dataMins := mins
-	if len(resultsDataCount) > 0 && len(resultsDataCount[0].Values) > 0 {
-		dataMins = resultsDataCount[0].Values[0].Value
-	} else {
-		klog.V(3).Infof("[Warning] cluster cost data count returned no results")
+	defaultClusterID := os.Getenv(clusterIDKey)
+
+	dataMinsByCluster := map[string]float64{}
+	for _, result := range resultsDataCount {
+		clusterID, _ := result.GetString("cluster_id")
+		if clusterID == "" {
+			clusterID = defaultClusterID
+		}
+		dataMins := mins
+		if len(result.Values) > 0 {
+			dataMins = result.Values[0].Value
+		} else {
+			klog.V(3).Infof("[Warning] cluster cost data count returned no results for cluster %s", clusterID)
+		}
+		dataMinsByCluster[clusterID] = dataMins
 	}
 
 	// Determine combined discount
@@ -290,7 +300,6 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 
 	// Intermediate structure storing mapping of [clusterID][type ∈ {cpu, ram, storage, total}]=cost
 	costData := make(map[string]map[string]float64)
-	defaultClusterID := os.Getenv(clusterIDKey)
 
 	// Helper function to iterate over Prom query results, parsing the raw values into
 	// the intermediate costData structure.
@@ -387,6 +396,11 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	// Convert intermediate structure to Costs instances
 	costsByCluster := map[string]*ClusterCosts{}
 	for id, cd := range costData {
+		dataMins, ok := dataMinsByCluster[id]
+		if !ok {
+			dataMins = mins
+			klog.V(3).Infof("[Warning] cluster cost data count not found for cluster %s", id)
+		}
 		costs, err := NewClusterCostsFromCumulative(cd["cpu"], cd["gpu"], cd["ram"], cd["storage"], window, offset, dataMins/util.MinsPerHour)
 		if err != nil {
 			klog.V(3).Infof("[Warning] Failed to parse cluster costs on %s (%s) from cumulative data: %+v", window, offset, cd)
