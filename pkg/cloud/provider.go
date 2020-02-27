@@ -59,6 +59,7 @@ type Node struct {
 	GPUName          string                `json:"gpuName"`
 	GPUCost          string                `json:"gpuCost"`
 	InstanceType     string                `json:"instanceType,omitempty"`
+	Region           string                `json:"region,omitempty"`
 	Reserved         *ReservedInstanceData `json:"reserved,omitempty"`
 }
 
