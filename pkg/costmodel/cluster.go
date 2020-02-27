@@ -154,16 +154,21 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 		avg(avg_over_time(pv_hourly_cost[%s:1m]%s)) by (persistentvolume, cluster_id) / 60
 	) by (cluster_id) %s`
 
+	const fmtQueryCPUModePct = `sum(rate(node_cpu_seconds_total[%s]%s)) by (cluster_id, mode) / ignoring(mode)
+	group_left sum(rate(node_cpu_seconds_total[%s]%s)) by (cluster_id)`
+
 	// TODO niko/clustercost account for cluster_id in the queries below
 
-	const fmtQueryCPUModePct = `sum(rate(node_cpu_seconds_total[%s])) by (mode) / scalar(sum(rate(node_cpu_seconds_total[%s])))`
-
+	// TODO niko/clustercost change to cumulative System and divide by cumulative Total
 	const fmtQueryRAMSystemPct = `sum(avg_over_time(container_memory_usage_bytes{container_name!="",namespace="kube-system"}[%s]))
 	/ sum(avg(kube_node_status_capacity_memory_bytes) by (node))`
 
-	// TODO niko/clustercost how does this represent "other"?
-	const fmtQueryRAMOtherPct = `avg_over_time(kubecost_cluster_memory_working_set_bytes[%s])
+	// TODO niko/clustercost change to cumulative User and divide by cumulative Total
+	// TODO niko/clustercost should we subtract System from this? i.e. does working set include system?
+	const fmtQueryRAMUserPct = `avg_over_time(kubecost_cluster_memory_working_set_bytes[%s])
 	/ sum(kube_node_status_capacity_memory_bytes)`
+
+	// TODO niko/clustercost PV breakdown queries
 
 	queryTotalLocalStorage := provider.GetLocalStorageQuery(window, offset, false)
 	if queryTotalLocalStorage != "" {
@@ -180,9 +185,10 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	queryTotalCPU := fmt.Sprintf(fmtQueryTotalCPU, window, fmtOffset, window, fmtOffset)
 	queryTotalRAM := fmt.Sprintf(fmtQueryTotalRAM, window, fmtOffset, window, fmtOffset)
 	queryTotalStorage := fmt.Sprintf(fmtQueryTotalStorage, window, fmtOffset, window, fmtOffset, queryTotalLocalStorage)
-	queryCPUModePct := fmt.Sprintf(fmtQueryCPUModePct, window, window)
+	queryCPUModePct := fmt.Sprintf(fmtQueryCPUModePct, window, offset, window, offset)
+
 	queryRAMSystemPct := fmt.Sprintf(fmtQueryRAMSystemPct, window)
-	queryRAMOtherPct := fmt.Sprintf(fmtQueryRAMOtherPct, window)
+	queryRAMUserPct := fmt.Sprintf(fmtQueryRAMUserPct, window)
 
 	numQueries := 8
 
@@ -193,7 +199,7 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	klog.V(4).Infof("[Debug] queryTotalStorage: %s", queryTotalStorage)
 	klog.V(4).Infof("[Debug] queryCPUModePct: %s", queryCPUModePct)
 	klog.V(4).Infof("[Debug] queryRAMSystemPct: %s", queryRAMSystemPct)
-	klog.V(4).Infof("[Debug] queryRAMOtherPct: %s", queryRAMOtherPct)
+	klog.V(4).Infof("[Debug] queryRAMUserPct: %s", queryRAMUserPct)
 
 	// Submit queries to Prometheus asynchronously
 	var ec util.ErrorCollector
@@ -222,8 +228,8 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	chRAMSystemPct := make(chan []*PromQueryResult, 1)
 	go AsyncPromQuery(queryRAMSystemPct, chRAMSystemPct, ctx)
 
-	chRAMOtherPct := make(chan []*PromQueryResult, 1)
-	go AsyncPromQuery(queryRAMOtherPct, chRAMOtherPct, ctx)
+	chRAMUserPct := make(chan []*PromQueryResult, 1)
+	go AsyncPromQuery(queryRAMUserPct, chRAMUserPct, ctx)
 
 	// After queries complete, retrieve results
 	wg.Wait()
@@ -250,8 +256,8 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	close(chRAMSystemPct)
 
 	// TODO niko/clustercosts
-	// resultsRAMOtherPct := <-chRAMOtherPct
-	// close(chRAMOtherPct)
+	// resultsRAMUserPct := <-chRAMUserPct
+	// close(chRAMUserPct)
 
 	dataMins := mins
 	if len(resultsDataCount) > 0 && len(resultsDataCount[0].Values) > 0 {
