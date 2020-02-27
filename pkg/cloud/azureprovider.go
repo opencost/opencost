@@ -409,7 +409,7 @@ func (az *Azure) DownloadPricingData() error {
 							priceInUsd += *rate
 						}
 						// rate is in GB per month, resolve to GB per hour
-						pricePerHour := priceInUsd / 720.0
+						pricePerHour := priceInUsd / 730.0
 						priceStr := fmt.Sprintf("%f", pricePerHour)
 
 						key := region + "," + storageClass
