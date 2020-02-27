@@ -36,23 +36,23 @@ const (
 
 // TODO move this to a package-accessible helper
 type PromQueryContext struct {
-	client prometheus.Client
-	ec     *util.ErrorCollector
-	wg     *sync.WaitGroup
+	Client         prometheus.Client
+	ErrorCollector *util.ErrorCollector
+	WaitGroup      *sync.WaitGroup
 }
 
 // TODO move this to a package-accessible helper function once dependencies are able to
 // be extricated from costmodel package (PromQueryResult -> util.Vector). Otherwise, circular deps.
 func AsyncPromQuery(query string, resultCh chan []*PromQueryResult, ctx PromQueryContext) {
-	if ctx.wg != nil {
-		defer ctx.wg.Done()
+	if ctx.WaitGroup != nil {
+		defer ctx.WaitGroup.Done()
 	}
 
-	raw, promErr := Query(ctx.client, query)
-	ctx.ec.Report(promErr)
+	raw, promErr := Query(ctx.Client, query)
+	ctx.ErrorCollector.Report(promErr)
 
 	results, parseErr := NewQueryResults(raw)
-	ctx.ec.Report(parseErr)
+	ctx.ErrorCollector.Report(parseErr)
 
 	resultCh <- results
 }
@@ -60,18 +60,29 @@ func AsyncPromQuery(query string, resultCh chan []*PromQueryResult, ctx PromQuer
 // Costs represents cumulative and monthly cluster costs over a given duration. Costs
 // are broken down by cores, memory, and storage.
 type ClusterCosts struct {
-	Start             *time.Time `json:"startTime"`
-	End               *time.Time `json:"endTime"`
-	CPUCumulative     float64    `json:"cpuCumulativeCost"`
-	CPUMonthly        float64    `json:"cpuMonthlyCost"`
-	GPUCumulative     float64    `json:"gpuCumulativeCost"`
-	GPUMonthly        float64    `json:"gpuMonthlyCost"`
-	RAMCumulative     float64    `json:"ramCumulativeCost"`
-	RAMMonthly        float64    `json:"ramMonthlyCost"`
-	StorageCumulative float64    `json:"storageCumulativeCost"`
-	StorageMonthly    float64    `json:"storageMonthlyCost"`
-	TotalCumulative   float64    `json:"totalCumulativeCost"`
-	TotalMonthly      float64    `json:"totalMonthlyCost"`
+	Start                   *time.Time `json:"startTime"`
+	End                     *time.Time `json:"endTime"`
+	CPUCumulative           float64    `json:"cpuCumulativeCost"`
+	CPUMonthly              float64    `json:"cpuMonthlyCost"`
+	CPUMonthlyBreakdown     float64    `json:"cpuMonthlyBreakdown"`
+	GPUCumulative           float64    `json:"gpuCumulativeCost"`
+	GPUMonthly              float64    `json:"gpuMonthlyCost"`
+	RAMCumulative           float64    `json:"ramCumulativeCost"`
+	RAMMonthly              float64    `json:"ramMonthlyCost"`
+	RAMMonthlyBreakdown     float64    `json:"ramMonthlyBreakdown"`
+	StorageCumulative       float64    `json:"storageCumulativeCost"`
+	StorageMonthly          float64    `json:"storageMonthlyCost"`
+	StorageMonthlyBreakdown float64    `json:"storageMonthlyBreakdown"`
+	TotalCumulative         float64    `json:"totalCumulativeCost"`
+	TotalMonthly            float64    `json:"totalMonthlyCost"`
+}
+
+// ClusterCostsBreakdown provides percentage-based breakdown of a resource by
+// categories: user for user-space (i.e. non-system) usage, system, and idle.
+type ClusterCostsBreakdown struct {
+	Idle   float64 `json:"idle"`
+	System float64 `json:"system"`
+	User   float64 `json:"user"`
 }
 
 // NewClusterCostsFromCumulative takes cumulative cost data over a given time range, computes
@@ -81,6 +92,8 @@ func NewClusterCostsFromCumulative(cpu, gpu, ram, storage float64, window, offse
 	if err != nil {
 		return nil, err
 	}
+
+	klog.Infof("[Debug] ComputeClusterCosts: dataHours=%f; range dataHours=%f", dataHours, end.Sub(*start).Hours())
 
 	// If the number of hours is not given (i.e. is zero) compute one from the window and offset
 	if dataHours == 0 {
@@ -110,42 +123,6 @@ func NewClusterCostsFromCumulative(cpu, gpu, ram, storage float64, window, offse
 	return cc, nil
 }
 
-// NewClusterCostsFromMonthly takes monthly-rate cost data over a given time range, computes
-// the associated cumulative cost data, and returns the Costs.
-func NewClusterCostsFromMonthly(cpuMonthly, gpuMonthly, ramMonthly, storageMonthly float64, window, offset string, dataHours float64) (*ClusterCosts, error) {
-	start, end, err := util.ParseTimeRange(window, offset)
-	if err != nil {
-		return nil, err
-	}
-
-	// If the number of hours is not given (i.e. is zero) compute one from the window and offset
-	if dataHours == 0 {
-		dataHours = end.Sub(*start).Hours()
-	}
-
-	// Do not allow zero-length windows to prevent divide-by-zero issues
-	if dataHours == 0 {
-		return nil, fmt.Errorf("illegal time range: window %s, offset %s", window, offset)
-	}
-
-	cc := &ClusterCosts{
-		Start:             start,
-		End:               end,
-		CPUMonthly:        cpuMonthly,
-		GPUMonthly:        gpuMonthly,
-		RAMMonthly:        ramMonthly,
-		StorageMonthly:    storageMonthly,
-		TotalMonthly:      cpuMonthly + gpuMonthly + ramMonthly + storageMonthly,
-		CPUCumulative:     cpuMonthly / util.HoursPerMonth * dataHours,
-		GPUCumulative:     gpuMonthly / util.HoursPerMonth * dataHours,
-		RAMCumulative:     ramMonthly / util.HoursPerMonth * dataHours,
-		StorageCumulative: storageMonthly / util.HoursPerMonth * dataHours,
-	}
-	cc.TotalCumulative = cc.CPUCumulative + cc.GPUCumulative + cc.RAMCumulative + cc.StorageCumulative
-
-	return cc, nil
-}
-
 // ComputeClusterCosts gives the cumulative and monthly-rate cluster costs over a window of time for all clusters.
 func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, window, offset string) (map[string]*ClusterCosts, error) {
 	// Compute number of minutes in the full interval, for use interpolating missed scrapes or scaling missing data
@@ -155,7 +132,7 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	}
 	mins := end.Sub(*start).Minutes()
 
-	const fmtQueryDataCount = `max(count_over_time(kube_node_status_capacity_cpu_cores[%s:1m]%s))`
+	const fmtQueryDataCount = `max(sum(count_over_time(kube_node_status_capacity_cpu_cores[%s:1m]%s)) by (node, cluster_id))`
 
 	const fmtQueryTotalGPU = `sum(
 		sum_over_time(node_gpu_hourly_cost[%s:1m]%s) / 60
@@ -176,6 +153,11 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 		avg(avg_over_time(pv_hourly_cost[%s:1m]%s)) by (persistentvolume, cluster_id) / 60
 	) by (cluster_id) %s`
 
+	const fmtQueryCPUModePct = `sum(rate(node_cpu_seconds_total[%s])) by (mode) / scalar(sum(rate(node_cpu_seconds_total[%s])))`
+
+	const fmtQueryRAMSystemPct = `sum(avg_over_time(container_memory_usage_bytes{container_name!="",namespace="kube-system"}[%s]))
+	/ sum(avg(kube_node_status_capacity_memory_bytes) by (node))`
+
 	queryTotalLocalStorage := provider.GetLocalStorageQuery(window, offset, false)
 	if queryTotalLocalStorage != "" {
 		queryTotalLocalStorage = fmt.Sprintf(" + %s", queryTotalLocalStorage)
@@ -191,19 +173,24 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	queryTotalCPU := fmt.Sprintf(fmtQueryTotalCPU, window, fmtOffset, window, fmtOffset)
 	queryTotalRAM := fmt.Sprintf(fmtQueryTotalRAM, window, fmtOffset, window, fmtOffset)
 	queryTotalStorage := fmt.Sprintf(fmtQueryTotalStorage, window, fmtOffset, window, fmtOffset, queryTotalLocalStorage)
-	numQueries := 5
+	queryCPUModePct := fmt.Sprintf(fmtQueryCPUModePct, window, window)
+	queryRAMSystemPct := fmt.Sprintf(fmtQueryRAMSystemPct, window)
+
+	numQueries := 7
 
 	klog.V(4).Infof("[Debug] queryDataCount: %s", queryDataCount)
 	klog.V(4).Infof("[Debug] queryTotalGPU: %s", queryTotalGPU)
 	klog.V(4).Infof("[Debug] queryTotalCPU: %s", queryTotalCPU)
 	klog.V(4).Infof("[Debug] queryTotalRAM: %s", queryTotalRAM)
 	klog.V(4).Infof("[Debug] queryTotalStorage: %s", queryTotalStorage)
+	klog.V(4).Infof("[Debug] queryCPUModePct: %s", queryCPUModePct)
+	klog.V(4).Infof("[Debug] queryRAMSystemPct: %s", queryRAMSystemPct)
 
 	// Submit queries to Prometheus asynchronously
 	var ec util.ErrorCollector
 	var wg sync.WaitGroup
 	ctx := PromQueryContext{client, &ec, &wg}
-	ctx.wg.Add(numQueries)
+	ctx.WaitGroup.Add(numQueries)
 
 	chDataCount := make(chan []*PromQueryResult, 1)
 	go AsyncPromQuery(queryDataCount, chDataCount, ctx)
@@ -219,6 +206,12 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 
 	chTotalStorage := make(chan []*PromQueryResult, 1)
 	go AsyncPromQuery(queryTotalStorage, chTotalStorage, ctx)
+
+	chCPUModePct := make(chan []*PromQueryResult, 1)
+	go AsyncPromQuery(queryCPUModePct, chCPUModePct, ctx)
+
+	chRAMSystemPct := make(chan []*PromQueryResult, 1)
+	go AsyncPromQuery(queryRAMSystemPct, chRAMSystemPct, ctx)
 
 	// After queries complete, retrieve results
 	wg.Wait()
@@ -245,13 +238,27 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 		klog.V(3).Infof("[Warning] cluster cost data count returned no results")
 	}
 
+	// Determine combined discount
+	discount, customDiscount := 0.0, 0.0
+	c, err := A.Cloud.GetConfig()
+	if err == nil {
+		discount, err = ParsePercentString(c.Discount)
+		if err != nil {
+			discount = 0.0
+		}
+		customDiscount, err = ParsePercentString(c.NegotiatedDiscount)
+		if err != nil {
+			customDiscount = 0.0
+		}
+	}
+
 	// Intermediate structure storing mapping of [clusterID][type ∈ {cpu, ram, storage, total}]=cost
 	costData := make(map[string]map[string]float64)
 	defaultClusterID := os.Getenv(clusterIDKey)
 
 	// Helper function to iterate over Prom query results, parsing the raw values into
 	// the intermediate costData structure.
-	setCostsFromResults := func(costData map[string]map[string]float64, results []*PromQueryResult, name string) {
+	setCostsFromResults := func(costData map[string]map[string]float64, results []*PromQueryResult, name string, discount float64, customDiscount float64) {
 		for _, result := range results {
 			clusterID, _ := result.GetString("cluster_id")
 			if clusterID == "" {
@@ -261,15 +268,15 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 				costData[clusterID] = map[string]float64{}
 			}
 			if len(result.Values) > 0 {
-				costData[clusterID][name] += result.Values[0].Value
-				costData[clusterID]["total"] += result.Values[0].Value
+				costData[clusterID][name] += result.Values[0].Value * (1.0 - discount) * (1.0 - customDiscount)
+				costData[clusterID]["total"] += result.Values[0].Value * (1.0 - discount) * (1.0 - customDiscount)
 			}
 		}
 	}
-	setCostsFromResults(costData, resultsTotalGPU, "gpu")
-	setCostsFromResults(costData, resultsTotalCPU, "cpu")
-	setCostsFromResults(costData, resultsTotalRAM, "ram")
-	setCostsFromResults(costData, resultsTotalStorage, "storage")
+	setCostsFromResults(costData, resultsTotalGPU, "gpu", 0.0, customDiscount)
+	setCostsFromResults(costData, resultsTotalCPU, "cpu", discount, customDiscount)
+	setCostsFromResults(costData, resultsTotalRAM, "ram", discount, customDiscount)
+	setCostsFromResults(costData, resultsTotalStorage, "storage", 0.0, customDiscount)
 
 	// Convert intermediate structure to Costs instances
 	costsByCluster := map[string]*ClusterCosts{}
