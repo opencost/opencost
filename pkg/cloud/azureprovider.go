@@ -408,7 +408,9 @@ func (az *Azure) DownloadPricingData() error {
 						for _, rate := range v.MeterRates {
 							priceInUsd += *rate
 						}
-						priceStr := fmt.Sprintf("%f", priceInUsd)
+						// rate is in GB per month, resolve to GB per hour
+						pricePerHour := priceInUsd / 720.0
+						priceStr := fmt.Sprintf("%f", pricePerHour)
 
 						key := region + "," + storageClass
 						klog.V(4).Infof("Adding PV.Key: %s, Cost: %s", key, priceStr)
