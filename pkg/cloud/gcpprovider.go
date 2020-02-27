@@ -124,7 +124,7 @@ func (gcp *GCP) GetLocalStorageQuery(window, offset string, rate bool, used bool
 
 	baseMetric := "container_fs_limit_bytes"
 	if used {
-		baseMetric = "container_fs_used_bytes"
+		baseMetric = "container_fs_usage_bytes"
 	}
 
 	fmtOffset := ""
