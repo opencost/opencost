@@ -157,20 +157,22 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	const fmtQueryCPUModePct = `sum(rate(node_cpu_seconds_total[%s]%s)) by (cluster_id, mode) / ignoring(mode)
 	group_left sum(rate(node_cpu_seconds_total[%s]%s)) by (cluster_id)`
 
-	// TODO niko/clustercost account for cluster_id in the queries below
+	const fmtQueryRAMSystemPct = `sum(sum_over_time(container_memory_usage_bytes{container_name!="",namespace="kube-system"}[%s:1m]%s)) by (cluster_id)
+	/ sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:1m]%s)) by (cluster_id)`
 
-	// TODO niko/clustercost change to cumulative System and divide by cumulative Total
-	const fmtQueryRAMSystemPct = `sum(avg_over_time(container_memory_usage_bytes{container_name!="",namespace="kube-system"}[%s]))
-	/ sum(avg(kube_node_status_capacity_memory_bytes) by (node))`
-
-	// TODO niko/clustercost change to cumulative User and divide by cumulative Total
 	// TODO niko/clustercost should we subtract System from this? i.e. does working set include system?
-	const fmtQueryRAMUserPct = `avg_over_time(kubecost_cluster_memory_working_set_bytes[%s])
-	/ sum(kube_node_status_capacity_memory_bytes)`
+	const fmtQueryRAMUserPct = `sum(sum_over_time(kubecost_cluster_memory_working_set_bytes[%s:1m]%s)) by (cluster_id)
+	/ sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:1m]%s)) by (cluster_id)`
 
 	// TODO niko/clustercost PV breakdown queries
 
-	queryTotalLocalStorage := provider.GetLocalStorageQuery(window, offset, false)
+	// TODO niko/clustercost metric "kubelet_volume_stats_used_bytes" was deprecated in 1.12, then seems to have come back in 1.17
+	// const fmtQueryPVStorageUsePct = `(sum(kube_persistentvolumeclaim_info) by (persistentvolumeclaim, storageclass,namespace) + on (persistentvolumeclaim,namespace)
+	// group_right(storageclass) sum(kubelet_volume_stats_used_bytes) by (persistentvolumeclaim,namespace))`
+
+	queryUsedLocalStorage := provider.GetLocalStorageQuery(window, offset, false, true)
+
+	queryTotalLocalStorage := provider.GetLocalStorageQuery(window, offset, false, false)
 	if queryTotalLocalStorage != "" {
 		queryTotalLocalStorage = fmt.Sprintf(" + %s", queryTotalLocalStorage)
 	}
@@ -186,20 +188,21 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	queryTotalRAM := fmt.Sprintf(fmtQueryTotalRAM, window, fmtOffset, window, fmtOffset)
 	queryTotalStorage := fmt.Sprintf(fmtQueryTotalStorage, window, fmtOffset, window, fmtOffset, queryTotalLocalStorage)
 	queryCPUModePct := fmt.Sprintf(fmtQueryCPUModePct, window, offset, window, offset)
+	queryRAMSystemPct := fmt.Sprintf(fmtQueryRAMSystemPct, window, offset, window, offset)
+	queryRAMUserPct := fmt.Sprintf(fmtQueryRAMUserPct, window, offset, window, offset)
 
-	queryRAMSystemPct := fmt.Sprintf(fmtQueryRAMSystemPct, window)
-	queryRAMUserPct := fmt.Sprintf(fmtQueryRAMUserPct, window)
+	numQueries := 9
 
-	numQueries := 8
-
-	klog.V(4).Infof("[Debug] queryDataCount: %s", queryDataCount)
-	klog.V(4).Infof("[Debug] queryTotalGPU: %s", queryTotalGPU)
-	klog.V(4).Infof("[Debug] queryTotalCPU: %s", queryTotalCPU)
-	klog.V(4).Infof("[Debug] queryTotalRAM: %s", queryTotalRAM)
-	klog.V(4).Infof("[Debug] queryTotalStorage: %s", queryTotalStorage)
-	klog.V(4).Infof("[Debug] queryCPUModePct: %s", queryCPUModePct)
-	klog.V(4).Infof("[Debug] queryRAMSystemPct: %s", queryRAMSystemPct)
-	klog.V(4).Infof("[Debug] queryRAMUserPct: %s", queryRAMUserPct)
+	// TODO niko/clustercost V(4)
+	klog.Infof("[Debug] queryDataCount: %s", queryDataCount)
+	klog.Infof("[Debug] queryTotalGPU: %s", queryTotalGPU)
+	klog.Infof("[Debug] queryTotalCPU: %s", queryTotalCPU)
+	klog.Infof("[Debug] queryTotalRAM: %s", queryTotalRAM)
+	klog.Infof("[Debug] queryTotalStorage: %s", queryTotalStorage)
+	klog.Infof("[Debug] queryCPUModePct: %s", queryCPUModePct)
+	klog.Infof("[Debug] queryRAMSystemPct: %s", queryRAMSystemPct)
+	klog.Infof("[Debug] queryRAMUserPct: %s", queryRAMUserPct)
+	klog.Infof("[Debug] queryUsedLocalStorage: %s", queryUsedLocalStorage)
 
 	// Submit queries to Prometheus asynchronously
 	var ec util.ErrorCollector
@@ -231,6 +234,9 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	chRAMUserPct := make(chan []*PromQueryResult, 1)
 	go AsyncPromQuery(queryRAMUserPct, chRAMUserPct, ctx)
 
+	chUsedLocalStorage := make(chan []*PromQueryResult, 1)
+	go AsyncPromQuery(queryUsedLocalStorage, chUsedLocalStorage, ctx)
+
 	// After queries complete, retrieve results
 	wg.Wait()
 
@@ -255,9 +261,11 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	resultsRAMSystemPct := <-chRAMSystemPct
 	close(chRAMSystemPct)
 
-	// TODO niko/clustercosts
-	// resultsRAMUserPct := <-chRAMUserPct
-	// close(chRAMUserPct)
+	resultsRAMUserPct := <-chRAMUserPct
+	close(chRAMUserPct)
+
+	resultsUsedLocalStorage := <-chUsedLocalStorage
+	close(chUsedLocalStorage)
 
 	dataMins := mins
 	if len(resultsDataCount) > 0 && len(resultsDataCount[0].Values) > 0 {
@@ -308,7 +316,6 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 
 	cpuBreakdownMap := map[string]*ClusterCostsBreakdown{}
 	for _, result := range resultsCPUModePct {
-		// TODO niko/clustercost account for multi-cluster here
 		clusterID, _ := result.GetString("cluster_id")
 		if clusterID == "" {
 			clusterID = defaultClusterID
@@ -334,13 +341,10 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 		default:
 			cpuBD.Other += result.Values[0].Value
 		}
-
-		klog.Infof("[Debug] cpuBD: %+v", cpuBD)
 	}
 
 	ramBreakdownMap := map[string]*ClusterCostsBreakdown{}
 	for _, result := range resultsRAMSystemPct {
-		// TODO niko/clustercost account for multi-cluster here
 		clusterID, _ := result.GetString("cluster_id")
 		if clusterID == "" {
 			clusterID = defaultClusterID
@@ -352,7 +356,32 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 
 		ramBD.System += result.Values[0].Value
 
-		klog.Infof("[Debug] ramBD: %+v", ramBD)
+		klog.Infof("[Debug] ramBD: %+v (system=%f)", ramBD, ramBD.System)
+	}
+	for _, result := range resultsRAMUserPct {
+		clusterID, _ := result.GetString("cluster_id")
+		if clusterID == "" {
+			clusterID = defaultClusterID
+		}
+		if _, ok := ramBreakdownMap[clusterID]; !ok {
+			ramBreakdownMap[clusterID] = &ClusterCostsBreakdown{}
+		}
+		ramBD := ramBreakdownMap[clusterID]
+
+		ramBD.User += result.Values[0].Value
+
+		klog.Infof("[Debug] ramBD: %+v (user=%f)", ramBD, ramBD.User)
+	}
+
+	pvUsedCostMap := map[string]float64{}
+	for _, result := range resultsUsedLocalStorage {
+		clusterID, _ := result.GetString("cluster_id")
+		if clusterID == "" {
+			clusterID = defaultClusterID
+		}
+		pvUsedCostMap[clusterID] += result.Values[0].Value
+
+		klog.Infof("[Debug] pvUsedCost[%s]=%f", clusterID, pvUsedCostMap[clusterID])
 	}
 
 	// Convert intermediate structure to Costs instances
@@ -364,17 +393,16 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 			return nil, err
 		}
 
-		klog.Infof("[Debug] clusterID: %s", id)
-
 		if cpuBD, ok := cpuBreakdownMap[id]; ok {
-			klog.Infof("[Debug] OK cpuBD: %+v", cpuBD)
-
 			costs.CPUBreakdown = cpuBD
 		}
 		if ramBD, ok := ramBreakdownMap[id]; ok {
-			klog.Infof("[Debug] OK ramBD: %+v", ramBD)
-
 			costs.RAMBreakdown = ramBD
+		}
+		costs.StorageBreakdown = &ClusterCostsBreakdown{}
+		if pvUC, ok := pvUsedCostMap[id]; ok {
+			costs.StorageBreakdown.Idle = costs.StorageCumulative - pvUC
+			costs.StorageBreakdown.User = pvUC
 		}
 
 		costsByCluster[id] = costs
@@ -454,7 +482,7 @@ func resultToTotal(qr interface{}) (map[string][][]string, error) {
 
 // ClusterCostsForAllClusters gives the cluster costs averaged over a window of time for all clusters.
 func ClusterCostsForAllClusters(cli prometheus.Client, provider cloud.Provider, window, offset string) (map[string]*Totals, error) {
-	localStorageQuery := provider.GetLocalStorageQuery(window, offset, true)
+	localStorageQuery := provider.GetLocalStorageQuery(window, offset, true, false)
 	if localStorageQuery != "" {
 		localStorageQuery = fmt.Sprintf("+ %s", localStorageQuery)
 	}
@@ -533,7 +561,7 @@ func AverageClusterTotals(cli prometheus.Client, provider cloud.Provider, window
 		fmtOffset = fmt.Sprintf("offset %s", offset)
 	}
 
-	localStorageQuery := provider.GetLocalStorageQuery(windowString, offset, true)
+	localStorageQuery := provider.GetLocalStorageQuery(windowString, offset, true, false)
 	if localStorageQuery != "" {
 		localStorageQuery = fmt.Sprintf("+ %s", localStorageQuery)
 	}
@@ -594,7 +622,7 @@ func AverageClusterTotals(cli prometheus.Client, provider cloud.Provider, window
 
 // ClusterCostsOverTime gives the full cluster costs over time
 func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startString, endString, windowString, offset string) (*Totals, error) {
-	localStorageQuery := provider.GetLocalStorageQuery(windowString, offset, true)
+	localStorageQuery := provider.GetLocalStorageQuery(windowString, offset, true, false)
 	if localStorageQuery != "" {
 		localStorageQuery = fmt.Sprintf("+ %s", localStorageQuery)
 	}
