@@ -45,6 +45,7 @@ type AWS struct {
 	Pricing                 map[string]*AWSProductTerms
 	SpotPricingByInstanceID map[string]*spotInfo
 	RIPricingByInstanceID   map[string]*RIData
+	RIDataRunning           bool
 	ValidPricingKeys        map[string]bool
 	Clientset               clustercache.ClusterCache
 	BaseCPUPrice            string
@@ -510,14 +511,10 @@ func (aws *AWS) DownloadPricingData() error {
 		key := aws.GetPVKey(pv, params, "")
 		pvkeys[key.Features()] = key
 	}
-
-	err = aws.GetReservationDataFromAthena()
-	if err != nil {
-		klog.V(1).Infof("Failed to lookup reserved instance data: %s", err.Error())
-	} else {
-		klog.V(1).Infof("Found %d reserved instances", len(aws.RIPricingByInstanceID))
-		for k, r := range aws.RIPricingByInstanceID {
-			klog.V(1).Infof("%s : %s", k, r)
+	if !aws.RIDataRunning {
+		err = aws.GetReservationDataFromAthena()
+		if err != nil {
+			klog.V(1).Infof("Failed to lookup reserved instance data: %s", err.Error())
 		}
 	}
 
@@ -1142,50 +1139,67 @@ type RIData struct {
 }
 
 func (a *AWS) GetReservationDataFromAthena() error {
-	a.RIPricingByInstanceID = make(map[string]*RIData)
-	tNow := time.Now()
-	tOneDayAgo := tNow.Add(time.Duration(-25) * time.Hour) // Also get files from one day ago to avoid boundary conditions
-	start := tOneDayAgo.Format("2006-01-02")
-	end := tNow.Format("2006-01-02")
-	q := `SELECT   
-		line_item_usage_start_date,
-		reservation_reservation_a_r_n,
-		line_item_resource_id,
-		reservation_effective_cost
-	FROM athena_test as cost_data
-	WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s'
-	AND reservation_reservation_a_r_n <> '' ORDER BY 
-	line_item_usage_start_date DESC`
-	query := fmt.Sprintf(q, start, end)
-	op, err := a.QueryAthenaBillingData(query)
+	cfg, err := a.GetConfig()
 	if err != nil {
-		return fmt.Errorf("Error fetching Reserved Instance Data: %s", err)
+		return err
 	}
-	if len(op.ResultSet.Rows) > 1 {
-		mostRecentDate := ""
-		for _, r := range op.ResultSet.Rows[1:(len(op.ResultSet.Rows) - 1)] {
-			d := *r.Data[0].VarCharValue
-			if mostRecentDate == "" {
-				mostRecentDate = d
-			} else if mostRecentDate != d { // Get all most recent assignments
-				break
-			}
-			cost, err := strconv.ParseFloat(*r.Data[3].VarCharValue, 64)
-			if err != nil {
-				klog.Infof("Error converting `%s` from float ", *r.Data[3].VarCharValue)
-			}
-			r := &RIData{
-				ResourceID:     *r.Data[2].VarCharValue,
-				EffectiveCost:  cost,
-				ReservationARN: *r.Data[1].VarCharValue,
-				MostRecentDate: d,
-			}
-			a.RIPricingByInstanceID[r.ResourceID] = r
-		}
-	} else {
-		klog.Infof("No reserved instance data found")
+	if cfg.AthenaBucketName == "" {
 		return nil
 	}
+	go func() {
+		for {
+			a.RIDataRunning = true
+			a.RIPricingByInstanceID = make(map[string]*RIData)
+			tNow := time.Now()
+			tOneDayAgo := tNow.Add(time.Duration(-25) * time.Hour) // Also get files from one day ago to avoid boundary conditions
+			start := tOneDayAgo.Format("2006-01-02")
+			end := tNow.Format("2006-01-02")
+			q := `SELECT   
+				line_item_usage_start_date,
+				reservation_reservation_a_r_n,
+				line_item_resource_id,
+				reservation_effective_cost
+			FROM athena_test as cost_data
+			WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s'
+			AND reservation_reservation_a_r_n <> '' ORDER BY 
+			line_item_usage_start_date DESC`
+			query := fmt.Sprintf(q, start, end)
+			op, err := a.QueryAthenaBillingData(query)
+			if err != nil {
+				klog.Infof("Error fetching Reserved Instance Data: %s", err)
+			}
+			klog.Infof("Fetching RI data...")
+			if len(op.ResultSet.Rows) > 1 {
+				mostRecentDate := ""
+				for _, r := range op.ResultSet.Rows[1:(len(op.ResultSet.Rows) - 1)] {
+					d := *r.Data[0].VarCharValue
+					if mostRecentDate == "" {
+						mostRecentDate = d
+					} else if mostRecentDate != d { // Get all most recent assignments
+						break
+					}
+					cost, err := strconv.ParseFloat(*r.Data[3].VarCharValue, 64)
+					if err != nil {
+						klog.Infof("Error converting `%s` from float ", *r.Data[3].VarCharValue)
+					}
+					r := &RIData{
+						ResourceID:     *r.Data[2].VarCharValue,
+						EffectiveCost:  cost,
+						ReservationARN: *r.Data[1].VarCharValue,
+						MostRecentDate: d,
+					}
+					a.RIPricingByInstanceID[r.ResourceID] = r
+				}
+				klog.V(1).Infof("Found %d reserved instances", len(a.RIPricingByInstanceID))
+				for k, r := range a.RIPricingByInstanceID {
+					klog.V(1).Infof("Reserved Instance Data found for node %s : %f", k, r.EffectiveCost)
+				}
+			} else {
+				klog.Infof("No reserved instance data found")
+			}
+			time.Sleep(time.Hour)
+		}
+	}()
 	return nil
 }
 
