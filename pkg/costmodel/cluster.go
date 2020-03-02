@@ -32,6 +32,8 @@ const (
 		avg(avg_over_time(pv_hourly_cost[1h])) by (persistentvolume, cluster_id) * 730 
 		* avg(avg_over_time(kube_persistentvolume_capacity_bytes[1h])) by (persistentvolume, cluster_id) / 1024 / 1024 / 1024
 	  ) by (cluster_id) %s`
+
+	queryNodes = `sum(avg(node_total_hourly_cost) by (node, cluster_id)) * 730 %s`
 )
 
 // TODO move this to a package-accessible helper
@@ -313,7 +315,7 @@ func resultToTotals(qr interface{}) ([][]string, error) {
 	}
 
 	if len(results) == 0 {
-		return nil, fmt.Errorf("Not enough data available in the selected time range")
+		return [][]string{}, fmt.Errorf("Not enough data available in the selected time range")
 	}
 
 	result := results[0]
@@ -547,6 +549,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 	if err != nil {
 		return nil, err
 	}
+
 	resultClusterRAM, err := QueryRange(cli, qRAM, start, end, window)
 	if err != nil {
 		return nil, err
@@ -564,23 +567,39 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 
 	coreTotal, err := resultToTotals(resultClusterCores)
 	if err != nil {
+		klog.Infof("[Warning] ClusterCostsOverTime: no cpu data: %s", err)
 		return nil, err
 	}
 
 	ramTotal, err := resultToTotals(resultClusterRAM)
 	if err != nil {
+		klog.Infof("[Warning] ClusterCostsOverTime: no ram data: %s", err)
 		return nil, err
 	}
 
-	storageTotal, err := resultToTotals(resultStorage)
-	if err != nil {
-		klog.V(3).Infof("[Warning] no storage data: %s", err)
-
+	storageTotal, sErr := resultToTotals(resultStorage)
+	if sErr != nil {
+		klog.Infof("[Warning] ClusterCostsOverTime: no storage data: %s", err)
 	}
 
 	clusterTotal, err := resultToTotals(resultTotal)
 	if err != nil {
-		return nil, err
+		// If clusterTotal query failed, it's likely because there are no PVs, which
+		// causes the qTotal query to return no data. Instead, query only node costs.
+		// If that fails, return an error because something is actually wrong.
+		qNodes := fmt.Sprintf(queryNodes, localStorageQuery)
+		klog.Infof("[Debug] ClusterCostsOverTime: nodes query: %s", qNodes)
+
+		resultNodes, err := QueryRange(cli, qNodes, start, end, window)
+		if err != nil {
+			return nil, err
+		}
+
+		clusterTotal, err = resultToTotals(resultNodes)
+		if err != nil {
+			klog.Infof("[Warning] ClusterCostsOverTime: no node data: %s", err)
+			return nil, err
+		}
 	}
 
 	return &Totals{
