@@ -521,7 +521,7 @@ func (aws *AWS) DownloadPricingData() error {
 				for {
 					aws.RIDataRunning = true
 					klog.Infof("Reserved Instance watcher running... next update in 1h")
-					time.Sleep(5 * time.Minute)
+					time.Sleep(time.Hour)
 					err := aws.GetReservationDataFromAthena()
 					if err != nil {
 						klog.Infof("Error updating RI data: %s", err.Error())
