@@ -32,6 +32,8 @@ const (
 		avg(avg_over_time(pv_hourly_cost[1h])) by (persistentvolume, cluster_id) * 730 
 		* avg(avg_over_time(kube_persistentvolume_capacity_bytes[1h])) by (persistentvolume, cluster_id) / 1024 / 1024 / 1024
 	  ) by (cluster_id) %s`
+
+	queryNodes = `sum(avg(node_total_hourly_cost) by (node, cluster_id)) * 730 %s`
 )
 
 // TODO move this to a package-accessible helper
@@ -434,7 +436,7 @@ func resultToTotals(qr interface{}) ([][]string, error) {
 	}
 
 	if len(results) == 0 {
-		return nil, fmt.Errorf("Not enough data available in the selected time range")
+		return [][]string{}, fmt.Errorf("Not enough data available in the selected time range")
 	}
 
 	result := results[0]
@@ -449,184 +451,6 @@ func resultToTotals(qr interface{}) ([][]string, error) {
 		totals = append(totals, toAppend)
 	}
 	return totals, nil
-}
-
-func resultToTotal(qr interface{}) (map[string][][]string, error) {
-	defaultClusterID := os.Getenv(clusterIDKey)
-
-	results, err := NewQueryResults(qr)
-	if err != nil {
-		return nil, err
-	}
-
-	toReturn := make(map[string][][]string)
-	for _, result := range results {
-		clusterID, _ := result.GetString("cluster_id")
-		if clusterID == "" {
-			clusterID = defaultClusterID
-		}
-
-		// Expect a single value only
-		if len(result.Values) == 0 {
-			klog.V(1).Infof("[Warning] Metric values did not contain any valid data.")
-			continue
-		}
-
-		value := result.Values[0]
-		d0 := fmt.Sprintf("%f", value.Timestamp)
-		d1 := fmt.Sprintf("%f", value.Value)
-		toAppend := []string{
-			d0,
-			d1,
-		}
-		if t, ok := toReturn[clusterID]; ok {
-			t = append(t, toAppend)
-		} else {
-			toReturn[clusterID] = [][]string{toAppend}
-		}
-	}
-
-	return toReturn, nil
-}
-
-// ClusterCostsForAllClusters gives the cluster costs averaged over a window of time for all clusters.
-func ClusterCostsForAllClusters(cli prometheus.Client, provider cloud.Provider, window, offset string) (map[string]*Totals, error) {
-	localStorageQuery := provider.GetLocalStorageQuery(window, offset, true, false)
-	if localStorageQuery != "" {
-		localStorageQuery = fmt.Sprintf("+ %s", localStorageQuery)
-	}
-
-	fmtOffset := ""
-	if offset != "" {
-		fmtOffset = fmt.Sprintf("offset %s", offset)
-	}
-
-	qCores := fmt.Sprintf(queryClusterCores, window, fmtOffset, window, fmtOffset, window, fmtOffset)
-	qRAM := fmt.Sprintf(queryClusterRAM, window, fmtOffset, window, fmtOffset)
-	qStorage := fmt.Sprintf(queryStorage, window, fmtOffset, window, fmtOffset, localStorageQuery)
-
-	klog.V(4).Infof("Running query %s", qCores)
-	resultClusterCores, err := Query(cli, qCores)
-	if err != nil {
-		return nil, fmt.Errorf("Error for query %s: %s", qCores, err.Error())
-	}
-
-	klog.V(4).Infof("Running query %s", qRAM)
-	resultClusterRAM, err := Query(cli, qRAM)
-	if err != nil {
-		return nil, fmt.Errorf("Error for query %s: %s", qRAM, err.Error())
-	}
-
-	klog.V(4).Infof("Running query %s", qRAM)
-	resultStorage, err := Query(cli, qStorage)
-	if err != nil {
-		return nil, fmt.Errorf("Error for query %s: %s", qStorage, err.Error())
-	}
-
-	toReturn := make(map[string]*Totals)
-
-	coreTotal, err := resultToTotal(resultClusterCores)
-	if err != nil {
-		return nil, fmt.Errorf("Error for query %s: %s", qCores, err.Error())
-	}
-	for clusterID, total := range coreTotal {
-		if _, ok := toReturn[clusterID]; !ok {
-			toReturn[clusterID] = &Totals{}
-		}
-		toReturn[clusterID].CPUCost = total
-	}
-
-	ramTotal, err := resultToTotal(resultClusterRAM)
-	if err != nil {
-		return nil, fmt.Errorf("Error for query %s: %s", qRAM, err.Error())
-	}
-	for clusterID, total := range ramTotal {
-		if _, ok := toReturn[clusterID]; !ok {
-			toReturn[clusterID] = &Totals{}
-		}
-		toReturn[clusterID].MemCost = total
-	}
-
-	storageTotal, err := resultToTotal(resultStorage)
-	if err != nil {
-		return nil, fmt.Errorf("Error for query %s: %s", qStorage, err.Error())
-	}
-	for clusterID, total := range storageTotal {
-		if _, ok := toReturn[clusterID]; !ok {
-			toReturn[clusterID] = &Totals{}
-		}
-		toReturn[clusterID].StorageCost = total
-	}
-
-	return toReturn, nil
-}
-
-// AverageClusterTotals gives the current full cluster costs averaged over a window of time.
-// Used to be ClutserCosts, but has been deprecated for that use.
-func AverageClusterTotals(cli prometheus.Client, provider cloud.Provider, windowString, offset string) (*Totals, error) {
-	// turn offsets of the format "[0-9+]h" into the format "offset [0-9+]h" for use in query templatess
-	fmtOffset := ""
-	if offset != "" {
-		fmtOffset = fmt.Sprintf("offset %s", offset)
-	}
-
-	localStorageQuery := provider.GetLocalStorageQuery(windowString, offset, true, false)
-	if localStorageQuery != "" {
-		localStorageQuery = fmt.Sprintf("+ %s", localStorageQuery)
-	}
-
-	qCores := fmt.Sprintf(queryClusterCores, windowString, fmtOffset, windowString, fmtOffset, windowString, fmtOffset)
-	qRAM := fmt.Sprintf(queryClusterRAM, windowString, fmtOffset, windowString, fmtOffset)
-	qStorage := fmt.Sprintf(queryStorage, windowString, fmtOffset, windowString, fmtOffset, localStorageQuery)
-	qTotal := fmt.Sprintf(queryTotal, localStorageQuery)
-
-	resultClusterCores, err := Query(cli, qCores)
-	if err != nil {
-		return nil, err
-	}
-	resultClusterRAM, err := Query(cli, qRAM)
-	if err != nil {
-		return nil, err
-	}
-
-	resultStorage, err := Query(cli, qStorage)
-	if err != nil {
-		return nil, err
-	}
-
-	resultTotal, err := Query(cli, qTotal)
-	if err != nil {
-		return nil, err
-	}
-
-	coreTotal, err := resultToTotal(resultClusterCores)
-	if err != nil {
-		return nil, err
-	}
-
-	ramTotal, err := resultToTotal(resultClusterRAM)
-	if err != nil {
-		return nil, err
-	}
-
-	storageTotal, err := resultToTotal(resultStorage)
-	if err != nil {
-		return nil, err
-	}
-
-	clusterTotal, err := resultToTotal(resultTotal)
-	if err != nil {
-		return nil, err
-	}
-
-	defaultClusterID := os.Getenv(clusterIDKey)
-
-	return &Totals{
-		TotalCost:   clusterTotal[defaultClusterID],
-		CPUCost:     coreTotal[defaultClusterID],
-		MemCost:     ramTotal[defaultClusterID],
-		StorageCost: storageTotal[defaultClusterID],
-	}, nil
 }
 
 // ClusterCostsOverTime gives the full cluster costs over time
@@ -668,6 +492,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 	if err != nil {
 		return nil, err
 	}
+
 	resultClusterRAM, err := QueryRange(cli, qRAM, start, end, window)
 	if err != nil {
 		return nil, err
@@ -685,22 +510,38 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 
 	coreTotal, err := resultToTotals(resultClusterCores)
 	if err != nil {
+		klog.Infof("[Warning] ClusterCostsOverTime: no cpu data: %s", err)
 		return nil, err
 	}
 
 	ramTotal, err := resultToTotals(resultClusterRAM)
 	if err != nil {
+		klog.Infof("[Warning] ClusterCostsOverTime: no ram data: %s", err)
 		return nil, err
 	}
 
 	storageTotal, err := resultToTotals(resultStorage)
 	if err != nil {
-		return nil, err
+		klog.Infof("[Warning] ClusterCostsOverTime: no storage data: %s", err)
 	}
 
 	clusterTotal, err := resultToTotals(resultTotal)
 	if err != nil {
-		return nil, err
+		// If clusterTotal query failed, it's likely because there are no PVs, which
+		// causes the qTotal query to return no data. Instead, query only node costs.
+		// If that fails, return an error because something is actually wrong.
+		qNodes := fmt.Sprintf(queryNodes, localStorageQuery)
+
+		resultNodes, err := QueryRange(cli, qNodes, start, end, window)
+		if err != nil {
+			return nil, err
+		}
+
+		clusterTotal, err = resultToTotals(resultNodes)
+		if err != nil {
+			klog.Infof("[Warning] ClusterCostsOverTime: no node data: %s", err)
+			return nil, err
+		}
 	}
 
 	return &Totals{
@@ -709,5 +550,4 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 		MemCost:     ramTotal,
 		StorageCost: storageTotal,
 	}, nil
-
 }
