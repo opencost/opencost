@@ -94,8 +94,6 @@ func NewClusterCostsFromCumulative(cpu, gpu, ram, storage float64, window, offse
 		return nil, err
 	}
 
-	klog.Infof("[Debug] ComputeClusterCosts: dataHours=%f; range dataHours=%f", dataHours, end.Sub(*start).Hours())
-
 	// If the number of hours is not given (i.e. is zero) compute one from the window and offset
 	if dataHours == 0 {
 		dataHours = end.Sub(*start).Hours()
@@ -160,7 +158,6 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	const fmtQueryRAMSystemPct = `sum(sum_over_time(container_memory_usage_bytes{container_name!="",namespace="kube-system"}[%s:1m]%s)) by (cluster_id)
 	/ sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:1m]%s)) by (cluster_id)`
 
-	// TODO niko/clustercost should we subtract System from this? i.e. does working set include system?
 	const fmtQueryRAMUserPct = `sum(sum_over_time(kubecost_cluster_memory_working_set_bytes[%s:1m]%s)) by (cluster_id)
 	/ sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:1m]%s)) by (cluster_id)`
 
