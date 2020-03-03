@@ -520,8 +520,8 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 		return nil, err
 	}
 
-	storageTotal, sErr := resultToTotals(resultStorage)
-	if sErr != nil {
+	storageTotal, err := resultToTotals(resultStorage)
+	if err != nil {
 		klog.Infof("[Warning] ClusterCostsOverTime: no storage data: %s", err)
 	}
 
