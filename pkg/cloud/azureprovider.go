@@ -408,8 +408,8 @@ func (az *Azure) DownloadPricingData() error {
 						for _, rate := range v.MeterRates {
 							priceInUsd += *rate
 						}
-						// rate is in GB per month, resolve to GB per hour
-						pricePerHour := priceInUsd / 730.0
+						// rate is in disk per month, resolve price per hour, then GB per hour
+						pricePerHour := priceInUsd / 730.0 / 32.0
 						priceStr := fmt.Sprintf("%f", pricePerHour)
 
 						key := region + "," + storageClass
@@ -688,6 +688,6 @@ func (az *Azure) PVPricing(pvk PVKey) (*PV, error) {
 	return pricing.PV, nil
 }
 
-func (az *Azure) GetLocalStorageQuery(window, offset string, rate bool) string {
+func (az *Azure) GetLocalStorageQuery(window, offset string, rate bool, used bool) string {
 	return ""
 }
