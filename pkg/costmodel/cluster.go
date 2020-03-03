@@ -312,9 +312,11 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 			}
 		}
 	}
-	setCostsFromResults(costData, resultsTotalGPU, "gpu", 0.0, customDiscount)
+	// Apply both sustained use and custom discounts to RAM and CPU
 	setCostsFromResults(costData, resultsTotalCPU, "cpu", discount, customDiscount)
 	setCostsFromResults(costData, resultsTotalRAM, "ram", discount, customDiscount)
+	// Apply only custom discount to GPU and storage
+	setCostsFromResults(costData, resultsTotalGPU, "gpu", 0.0, customDiscount)
 	setCostsFromResults(costData, resultsTotalStorage, "storage", 0.0, customDiscount)
 
 	cpuBreakdownMap := map[string]*ClusterCostsBreakdown{}
