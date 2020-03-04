@@ -1130,7 +1130,7 @@ func (a *AWS) QueryAthenaBillingData(query string) (*athena.GetQueryResultsOutpu
 		if err != nil {
 			return nil, err
 		}
-		if *qrop.QueryExecution.Status.State != "RUNNING" {
+		if *qrop.QueryExecution.Status.State != "RUNNING" && *qrop.QueryExecution.Status.State != "QUEUED" {
 			break
 		}
 		time.Sleep(duration)
@@ -1313,7 +1313,7 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 		if err != nil {
 			return nil, err
 		}
-		if *qrop.QueryExecution.Status.State != "RUNNING" {
+		if *qrop.QueryExecution.Status.State != "RUNNING" && *qrop.QueryExecution.Status.State != "QUEUED" {
 			break
 		}
 		time.Sleep(duration)
@@ -1439,7 +1439,7 @@ func (a *AWS) QuerySQL(query string) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		if *qrop.QueryExecution.Status.State != "RUNNING" {
+		if *qrop.QueryExecution.Status.State != "RUNNING" && *qrop.QueryExecution.Status.State != "QUEUED" {
 			break
 		}
 		time.Sleep(duration)
