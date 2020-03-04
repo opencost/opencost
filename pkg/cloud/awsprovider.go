@@ -9,7 +9,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -20,6 +19,7 @@ import (
 	"k8s.io/klog"
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/util"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -65,6 +65,11 @@ type AWS struct {
 	DownloadPricingDataLock sync.RWMutex
 	Config                  *ProviderConfig
 	*CustomProvider
+}
+
+type AWSAccessKey struct {
+	AccessKeyID     string `json:"aws_access_key_id"`
+	SecretAccessKey string `json:"aws_secret_access_key"`
 }
 
 // AWSPricing maps a k8s node to an AWS Pricing "product"
@@ -209,6 +214,9 @@ var regionToBillingRegionCode = map[string]string{
 	"us-gov-west-1":  "UGW1",
 }
 
+var loadedAWSSecret bool = false
+var awsSecret *AWSAccessKey = nil
+
 func (aws *AWS) GetLocalStorageQuery(window, offset string, rate bool, used bool) string {
 	return ""
 }
@@ -269,6 +277,7 @@ func (aws *AWS) GetConfig() (*CustomPricing, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return c, nil
 }
 func (aws *AWS) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
@@ -474,8 +483,10 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.SpotDataPrefix = c.SpotDataPrefix
 	aws.ProjectID = c.ProjectID
 	aws.SpotDataRegion = c.SpotDataRegion
-	aws.ServiceKeyName = c.ServiceKeyName
-	aws.ServiceKeySecret = c.ServiceKeySecret
+
+	skn, sks := aws.getAWSAuth(false, c)
+	aws.ServiceKeyName = skn
+	aws.ServiceKeySecret = sks
 
 	if len(aws.SpotDataBucket) != 0 && len(aws.ProjectID) == 0 {
 		klog.V(1).Infof("using SpotDataBucket \"%s\" without ProjectID will not end well", aws.SpotDataBucket)
@@ -939,18 +950,50 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 	return makeStructure(defaultClusterName)
 }
 
-// AddServiceKey adds an AWS service key, useful for pulling down out-of-cluster costs. Optional-- the container this runs in can be directly authorized.
-func (*AWS) AddServiceKey(formValues url.Values) error {
-	keyID := formValues.Get("access_key_ID")
-	key := formValues.Get("secret_access_key")
-	m := make(map[string]string)
-	m["access_key_ID"] = keyID
-	m["secret_access_key"] = key
-	result, err := json.Marshal(m)
-	if err != nil {
-		return err
+// Gets the aws key id and secret
+func (aws *AWS) getAWSAuth(forceReload bool, cp *CustomPricing) (string, string) {
+	// 1. Check config values first (set from frontend UI)
+	if cp.ServiceKeyName != "" && cp.ServiceKeySecret != "" {
+		return cp.ServiceKeyName, cp.ServiceKeySecret
 	}
-	return ioutil.WriteFile("/var/configs/key.json", result, 0644)
+
+	// 2. Check for secret
+	s, _ := aws.loadAWSAuthSecret(forceReload)
+	if s != nil && s.AccessKeyID != "" && s.SecretAccessKey != "" {
+		return s.AccessKeyID, s.SecretAccessKey
+	}
+
+	// 3. Fall back to env vars
+	return os.Getenv(awsAccessKeyIDEnvVar), os.Getenv(awsAccessKeySecretEnvVar)
+}
+
+// Load once and cache the result (even on failure). This is an install time secret, so
+// we don't expect the secret to change. If it does, however, we can force reload using
+// the input parameter.
+func (aws *AWS) loadAWSAuthSecret(force bool) (*AWSAccessKey, error) {
+	if !force && loadedAWSSecret {
+		return awsSecret, nil
+	}
+	loadedAWSSecret = true
+
+	exists, err := util.FileExists(authSecretPath)
+	if !exists || err != nil {
+		return nil, fmt.Errorf("Failed to locate service account file: %s", authSecretPath)
+	}
+
+	result, err := ioutil.ReadFile(authSecretPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var ak AWSAccessKey
+	err = json.Unmarshal(result, &ak)
+	if err != nil {
+		return nil, err
+	}
+
+	awsSecret = &ak
+	return awsSecret, nil
 }
 
 func (aws *AWS) configureAWSAuth() error {

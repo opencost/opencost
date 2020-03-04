@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"math"
 	"net/http"
-	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -21,6 +20,7 @@ import (
 	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/compute/metadata"
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/util"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
@@ -181,6 +181,38 @@ func (gcp *GCP) GetManagementPlatform() (string, error) {
 	return "", nil
 }
 
+// Attempts to load a GCP auth secret and copy the contents to the key file.
+func (*GCP) loadGCPAuthSecret() {
+	path := os.Getenv("CONFIG_PATH")
+	if path == "" {
+		path = "/models/"
+	}
+
+	keyPath := path + "key.json"
+	keyExists, _ := util.FileExists(keyPath)
+	if keyExists {
+		klog.V(1).Infof("GCP Auth Key already exists, no need to load from secret")
+		return
+	}
+
+	exists, err := util.FileExists(authSecretPath)
+	if !exists || err != nil {
+		klog.V(4).Infof("[Warning] Failed to load auth secret, or was not mounted: %s", err.Error())
+		return
+	}
+
+	result, err := ioutil.ReadFile(authSecretPath)
+	if err != nil {
+		klog.V(4).Infof("[Warning] Failed to load auth secret, or was not mounted: %s", err.Error())
+		return
+	}
+
+	err = ioutil.WriteFile(keyPath, result, 0644)
+	if err != nil {
+		klog.V(4).Infof("[Warning] Failed to copy auth secret to %s: %s", keyPath, err.Error())
+	}
+}
+
 func (gcp *GCP) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
 	return gcp.Config.UpdateFromMap(a)
 }
@@ -197,20 +229,22 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 			c.ProjectID = a.ProjectID
 			c.BillingDataDataset = a.BillingDataDataset
 
-			j, err := json.Marshal(a.Key)
-			if err != nil {
-				return err
-			}
+			if len(a.Key) > 0 {
+				j, err := json.Marshal(a.Key)
+				if err != nil {
+					return err
+				}
 
-			path := os.Getenv("CONFIG_PATH")
-			if path == "" {
-				path = "/models/"
-			}
+				path := os.Getenv("CONFIG_PATH")
+				if path == "" {
+					path = "/models/"
+				}
 
-			keyPath := path + "key.json"
-			err = ioutil.WriteFile(keyPath, j, 0644)
-			if err != nil {
-				return err
+				keyPath := path + "key.json"
+				err = ioutil.WriteFile(keyPath, j, 0644)
+				if err != nil {
+					return err
+				}
 			}
 		} else if updateType == AthenaInfoUpdateType {
 			a := AwsAthenaInfo{}
@@ -442,13 +476,6 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	m["id"] = os.Getenv(clusterIDKey)
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	return m, nil
-}
-
-// AddServiceKey adds the service key as required for GetDisks
-func (*GCP) AddServiceKey(formValues url.Values) error {
-	key := formValues.Get("key")
-	k := []byte(key)
-	return ioutil.WriteFile("/var/configs/key.json", k, 0644)
 }
 
 // GetDisks returns the GCP disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
@@ -858,6 +885,8 @@ func (gcp *GCP) DownloadPricingData() error {
 		klog.V(2).Infof("Error downloading default pricing data: %s", err.Error())
 		return err
 	}
+	gcp.loadGCPAuthSecret()
+
 	gcp.BaseCPUPrice = c.CPU
 	gcp.ProjectID = c.ProjectID
 	gcp.BillingDataDataset = c.BillingDataDataset

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/url"
+	"io/ioutil"
 	"os"
 	"regexp"
 	"strconv"
@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/util"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2017-09-01/skus"
 	"github.com/Azure/azure-sdk-for-go/services/containerservice/mgmt/2018-03-31/containerservice"
@@ -58,6 +59,9 @@ var (
 	mtStandardM, _ = regexp.Compile(`^Standard_M\d+[m|t|l]*s[_v\d]*[_Promo]*$`)
 	mtStandardN, _ = regexp.Compile(`^Standard_N[C|D|V]\d+r?[_v\d]*[_Promo]*$`)
 )
+
+var loadedAzureSecret bool = false
+var azureSecret *AzureServiceKey = nil
 
 type regionParts []string
 
@@ -197,11 +201,88 @@ func (k *azureKey) GPUType() string {
 		return t
 	}
 	return ""
-
 }
 
 func (k *azureKey) ID() string {
 	return ""
+}
+
+// Represents an azure app key
+type AzureAppKey struct {
+	AppID       string `json:"appId"`
+	DisplayName string `json:"displayName"`
+	Name        string `json:"name"`
+	Password    string `json:"password"`
+	Tenant      string `json:"tenant"`
+}
+
+// Azure service key for a specific subscription
+type AzureServiceKey struct {
+	SubscriptionID string       `json:"subscriptionId"`
+	ServiceKey     *AzureAppKey `json:"serviceKey"`
+}
+
+// Validity check on service key
+func (ask *AzureServiceKey) IsValid() bool {
+	return ask.SubscriptionID != "" &&
+		ask.ServiceKey != nil &&
+		ask.ServiceKey.AppID != "" &&
+		ask.ServiceKey.Password != "" &&
+		ask.ServiceKey.Tenant != ""
+}
+
+// Loads the azure authentication via configuration or a secret set at install time.
+func (az *Azure) getAzureAuth(forceReload bool, cp *CustomPricing) (subscriptionID, clientID, clientSecret, tenantID string) {
+	// 1. Check config values first (set from frontend UI)
+	if cp.AzureSubscriptionID != "" && cp.AzureClientID != "" && cp.AzureClientSecret != "" && cp.AzureTenantID != "" {
+		subscriptionID = cp.AzureSubscriptionID
+		clientID = cp.AzureClientID
+		clientSecret = cp.AzureClientSecret
+		tenantID = cp.AzureTenantID
+		return
+	}
+
+	// 2. Check for secret
+	s, _ := az.loadAzureAuthSecret(forceReload)
+	if s != nil && s.IsValid() {
+		subscriptionID = s.SubscriptionID
+		clientID = s.ServiceKey.AppID
+		clientSecret = s.ServiceKey.Password
+		tenantID = s.ServiceKey.Tenant
+		return
+	}
+
+	// 3. Empty values
+	return "", "", "", ""
+}
+
+// Load once and cache the result (even on failure). This is an install time secret, so
+// we don't expect the secret to change. If it does, however, we can force reload using
+// the input parameter.
+func (az *Azure) loadAzureAuthSecret(force bool) (*AzureServiceKey, error) {
+	if !force && loadedAzureSecret {
+		return azureSecret, nil
+	}
+	loadedAzureSecret = true
+
+	exists, err := util.FileExists(authSecretPath)
+	if !exists || err != nil {
+		return nil, fmt.Errorf("Failed to locate service account file: %s", authSecretPath)
+	}
+
+	result, err := ioutil.ReadFile(authSecretPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var ask AzureServiceKey
+	err = json.Unmarshal(result, &ask)
+	if err != nil {
+		return nil, err
+	}
+
+	azureSecret = &ask
+	return azureSecret, nil
 }
 
 func (az *Azure) GetKey(labels map[string]string) Key {
@@ -318,6 +399,13 @@ func (az *Azure) DownloadPricingData() error {
 	if err != nil {
 		return err
 	}
+
+	// Load the service provider keys
+	subscriptionID, clientID, clientSecret, tenantID := az.getAzureAuth(false, config)
+	config.AzureSubscriptionID = subscriptionID
+	config.AzureClientID = clientID
+	config.AzureClientSecret = clientSecret
+	config.AzureTenantID = tenantID
 
 	var authorizer autorest.Authorizer
 
@@ -600,10 +688,6 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 	m["id"] = os.Getenv(clusterIDKey)
 	return m, nil
 
-}
-
-func (az *Azure) AddServiceKey(url url.Values) error {
-	return nil
 }
 
 func (az *Azure) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
