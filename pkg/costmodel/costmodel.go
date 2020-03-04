@@ -793,7 +793,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	// to pass along the cost data
 	unmounted := findUnmountedPVCostData(unmountedPVs, namespaceLabelsMapping)
 	for k, costs := range unmounted {
-		klog.V(3).Infof("Unmounted PVs in Namespace/ClusterID: %s/%s", costs.Namespace, costs.ClusterID)
+		klog.V(4).Infof("Unmounted PVs in Namespace/ClusterID: %s/%s", costs.Namespace, costs.ClusterID)
 
 		if filterNamespace == "" {
 			containerNameCost[k] = costs
