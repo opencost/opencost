@@ -37,7 +37,7 @@ type customProviderKey struct {
 	Labels         map[string]string
 }
 
-func (*CustomProvider) GetLocalStorageQuery(window, offset string, rate bool) string {
+func (*CustomProvider) GetLocalStorageQuery(window, offset string, rate bool, used bool) string {
 	return ""
 }
 
