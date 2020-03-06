@@ -1238,6 +1238,8 @@ func (gcp *gcpKey) Features() string {
 	instanceType := strings.ToLower(strings.Join(strings.Split(gcp.Labels[v1.LabelInstanceType], "-")[:2], ""))
 	if instanceType == "n1highmem" || instanceType == "n1highcpu" {
 		instanceType = "n1standard" // These are priced the same. TODO: support n1ultrahighmem
+	} else if instanceType == "n2highmem" || instanceType == "n2highcpu" {
+		instanceType = "n2standard"
 	} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
 		instanceType = "e2standard"
 	} else if strings.HasPrefix(instanceType, "custom") {
