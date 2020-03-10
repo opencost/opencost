@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"strings"
 
@@ -21,6 +20,7 @@ const clusterIDKey = "CLUSTER_ID"
 const remoteEnabled = "REMOTE_WRITE_ENABLED"
 const remotePW = "REMOTE_WRITE_PASSWORD"
 const sqlAddress = "SQL_ADDRESS"
+const authSecretPath = "/var/secrets/service-key.json"
 
 var createTableStatements = []string{
 	`CREATE TABLE IF NOT EXISTS names (
@@ -162,7 +162,6 @@ type CustomPricing struct {
 // Provider represents a k8s provider.
 type Provider interface {
 	ClusterInfo() (map[string]string, error)
-	AddServiceKey(url.Values) error
 	GetDisks() ([]byte, error)
 	NodePricing(Key) (*Node, error)
 	PVPricing(PVKey) (*PV, error)
