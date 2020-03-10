@@ -304,6 +304,7 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregators []stri
 	if err != nil {
 		return nil, err
 	}
+
 	var s []*OutOfClusterAllocation
 	if c.ServiceKeyName != "" && c.ServiceKeySecret != "" && !crossCluster {
 		aws, err := NewCrossClusterProvider("aws", "gcp.json", gcp.Clientset)
@@ -347,30 +348,42 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregators []stri
 		s = append(s, gcpOOC...)
 		qerr = err
 		*/
-		queryString := fmt.Sprintf(`(SELECT
-			service.description as service,
-			TO_JSON_STRING(labels) as keys,
-			SUM(cost) as cost
-		  	FROM  %s
-		 	WHERE
-				EXISTS(SELECT * FROM UNNEST(labels) AS l2 WHERE l2.key IN (%s))
-				AND usage_start_time >= "%s" AND usage_start_time < "%s"
-			GROUP BY  service,keys)`, c.BillingDataDataset, aggregator, start, end)
+		queryString := fmt.Sprintf(`(
+			SELECT
+				service.description as service,
+				TO_JSON_STRING(labels) as keys,
+				SUM(cost) as cost
+			FROM  %s
+			WHERE EXISTS (SELECT * FROM UNNEST(labels) AS l2 WHERE l2.key IN (%s))
+			AND usage_start_time >= "%s" AND usage_start_time < "%s"
+			GROUP BY service, keys
+		)`, c.BillingDataDataset, aggregator, start, end)
 		klog.V(3).Infof("Querying \"%s\" with : %s", c.ProjectID, queryString)
 		gcpOOC, err := gcp.multiLabelQuery(queryString, aggregators)
 		s = append(s, gcpOOC...)
 		qerr = err
 	} else {
-		queryString := fmt.Sprintf(`(SELECT
-			service.description as service,
-			TO_JSON_STRING(labels) as keys,
-			SUM(cost) as cost
+		if filterType == "kubernetes_labels" {
+			fvs := strings.Split(filterValue, "=")
+			if len(fvs) == 2 {
+				filterType = fvs[0]
+				filterValue = fvs[1]
+			} else {
+				klog.V(2).Infof("[Warning] illegal kubernetes_labels filterValue: %s", filterValue)
+			}
+		}
+
+		queryString := fmt.Sprintf(`(
+			SELECT
+				service.description as service,
+				TO_JSON_STRING(labels) as keys,
+				SUM(cost) as cost
 		  	FROM  %s
-		 	WHERE
-				EXISTS (SELECT * FROM UNNEST(labels) AS l WHERE l.key = "%s" AND l.value = "%s")
-				AND EXISTS(SELECT * FROM UNNEST(labels) AS l2 WHERE l2.key IN (%s))
-				AND usage_start_time >= "%s" AND usage_start_time < "%s"
-			GROUP BY  service,keys)`, c.BillingDataDataset, filterType, filterValue, aggregator, start, end)
+		 	WHERE EXISTS (SELECT * FROM UNNEST(labels) AS l2 WHERE l2.key IN (%s))
+			AND EXISTS (SELECT * FROM UNNEST(labels) AS l WHERE l.key = "%s" AND l.value = "%s")
+			AND usage_start_time >= "%s" AND usage_start_time < "%s"
+			GROUP BY service, keys
+		)`, c.BillingDataDataset, aggregator, filterType, filterValue, start, end)
 		klog.V(3).Infof("Querying \"%s\" with : %s", c.ProjectID, queryString)
 		gcpOOC, err := gcp.multiLabelQuery(queryString, aggregators)
 		s = append(s, gcpOOC...)
