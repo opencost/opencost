@@ -197,7 +197,12 @@ func (*GCP) loadGCPAuthSecret() {
 
 	exists, err := util.FileExists(authSecretPath)
 	if !exists || err != nil {
-		klog.V(4).Infof("[Warning] Failed to load auth secret, or was not mounted: %s", err.Error())
+		errMessage := "Secret does not exist"
+		if err != nil {
+			errMessage = err.Error()
+		}
+
+		klog.V(4).Infof("[Warning] Failed to load auth secret, or was not mounted: %s", errMessage)
 		return
 	}
 
