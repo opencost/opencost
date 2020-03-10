@@ -25,7 +25,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	bolt "github.com/etcd-io/bbolt"
 	"github.com/patrickmn/go-cache"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -843,20 +842,28 @@ func (a *Accesses) recordPrices() {
 func newClusterManager() *cm.ClusterManager {
 	clustersConfigFile := "/var/configs/clusters/default-clusters.yaml"
 
-	path := os.Getenv("CONFIG_PATH")
-	db, err := bolt.Open(path+"costmodel.db", 0600, nil)
-	if err != nil {
-		klog.V(1).Infof("[Error] Failed to create costmodel.db: %s", err.Error())
-		return cm.NewConfiguredClusterManager(cm.NewMapDBClusterStorage(), clustersConfigFile)
-	}
+	// Return a memory-backed cluster manager populated by configmap
+	return cm.NewConfiguredClusterManager(cm.NewMapDBClusterStorage(), clustersConfigFile)
 
-	store, err := cm.NewBoltDBClusterStorage("clusters", db)
-	if err != nil {
-		klog.V(1).Infof("[Error] Failed to Create Cluster Storage: %s", err.Error())
-		return cm.NewConfiguredClusterManager(cm.NewMapDBClusterStorage(), clustersConfigFile)
-	}
+	// NOTE: The following should be used with a persistent disk store. Since the
+	// NOTE: configmap approach is currently the "persistent" source (entries are read-only
+	// NOTE: on the backend), we don't currently need to store on disk.
+	/*
+		path := os.Getenv("CONFIG_PATH")
+		db, err := bolt.Open(path+"costmodel.db", 0600, nil)
+		if err != nil {
+			klog.V(1).Infof("[Error] Failed to create costmodel.db: %s", err.Error())
+			return cm.NewConfiguredClusterManager(cm.NewMapDBClusterStorage(), clustersConfigFile)
+		}
 
-	return cm.NewConfiguredClusterManager(store, clustersConfigFile)
+		store, err := cm.NewBoltDBClusterStorage("clusters", db)
+		if err != nil {
+			klog.V(1).Infof("[Error] Failed to Create Cluster Storage: %s", err.Error())
+			return cm.NewConfiguredClusterManager(cm.NewMapDBClusterStorage(), clustersConfigFile)
+		}
+
+		return cm.NewConfiguredClusterManager(store, clustersConfigFile)
+	*/
 }
 
 type ConfigWatchers struct {
