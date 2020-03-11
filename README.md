@@ -42,7 +42,7 @@ Kubernetes.
 
 ## Frequently Asked Questions
 
-***How do you measure the cost of CPU/RAM/GPU/storage for a container, pod, deployment, etc.***
+#### How do you measure the cost of CPU/RAM/GPU/storage for a container, pod, deployment, etc.
 
 The Kubecost model collects pricing data from major cloud providers, e.g. GCP, Azure and AWS, to provide the real-time cost of running workloads. Based on data from these APIs, each container/pod inherits a cost per CPU-hour, GPU-hour, Storage Gb-hour and cost per RAM Gb-hour based on the node where it was running or the class of storage provisioned. This means containers of the same size, as measured by the max of requests or usage, could be charged different resource rates if they are scheduled in seperate regions, on nodes with different usage types (on-demand vs preemptible), etc. 
 
@@ -50,7 +50,7 @@ For on-prem clusters, these resource prices can be configured directly with cust
 
 Measuring the CPU/RAM/GPU cost of a deployment, service, namespace, etc is the aggregation of its individual container costs.
 
-***How do you determine RAM/CPU costs for a node when this data isn’t provided by a cloud provider?***
+#### How do you determine RAM/CPU costs for a node when this data isn’t provided by a cloud provider?
 
 When explicit RAM or CPU prices are not provided by your cloud provider, the Kubecost model falls back to the ratio of base CPU and RAM price inputs supplied. The default values for these parameters are based on the marginal resource rates of the cloud provider, but they can be customized within Kubecost.
 
@@ -60,15 +60,15 @@ As an example, let's imagine a node with 1 CPU and 1 Gb of RAM that costs $20/mo
 
     NodeHourlyCost = NORMALIZED_CPU_PRICE * # of CPUS + NORMALIZED_RAM_PRICE * # of RAM Gb
 
-***How do you allocate a specific amount of RAM/CPU to an individual pod or container?***
+#### How do you allocate a specific amount of RAM/CPU to an individual pod or container?
 
 Resources are allocated based on the time-weighted maximum of resource Requests and Usage over the measured period. For example, a pod with no usage and 1 CPU requested for 12 hours out of a 24 hour window would be allocated 12 CPU hours. For pods with BestEffort quality of service (i.e. no requests) allocation is done solely on resource usage. 
 
-***How do I set my AWS Spot bids for accurate allocation?***
+#### How do I set my AWS Spot bids for accurate allocation?
 
 Modify [spotCPU](https://github.com/kubecost/cost-model/blob/master/cloud/default.json#L5) and  [spotRAM](https://github.com/kubecost/cost-model/blob/master/cloud/default.json#L7) in default.json to the price of your bid. Allocation will use these bid prices, but it does not take into account what you are actually charged by AWS. Alternatively, you can provide an AWS key to allow access to the Spot data feed. This will provide accurate Spot prices. 
 
-***Do I need a GCP billing API key?***
+#### Do I need a GCP billing API key?
 
 We supply a global key with a low limit for evaluation, but you will want to supply your own before moving to production.  
   
