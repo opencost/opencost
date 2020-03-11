@@ -3,7 +3,6 @@ package cloud
 import (
 	"encoding/json"
 	"io"
-	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -107,10 +106,6 @@ func (cp *CustomProvider) ClusterInfo() (map[string]string, error) {
 	}
 	m["provider"] = "custom"
 	return m, nil
-}
-
-func (*CustomProvider) AddServiceKey(url.Values) error {
-	return nil
 }
 
 func (*CustomProvider) GetDisks() ([]byte, error) {

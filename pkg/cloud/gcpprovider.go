@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"math"
 	"net/http"
-	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -21,6 +20,7 @@ import (
 	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/compute/metadata"
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/util"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
@@ -181,6 +181,43 @@ func (gcp *GCP) GetManagementPlatform() (string, error) {
 	return "", nil
 }
 
+// Attempts to load a GCP auth secret and copy the contents to the key file.
+func (*GCP) loadGCPAuthSecret() {
+	path := os.Getenv("CONFIG_PATH")
+	if path == "" {
+		path = "/models/"
+	}
+
+	keyPath := path + "key.json"
+	keyExists, _ := util.FileExists(keyPath)
+	if keyExists {
+		klog.V(1).Infof("GCP Auth Key already exists, no need to load from secret")
+		return
+	}
+
+	exists, err := util.FileExists(authSecretPath)
+	if !exists || err != nil {
+		errMessage := "Secret does not exist"
+		if err != nil {
+			errMessage = err.Error()
+		}
+
+		klog.V(4).Infof("[Warning] Failed to load auth secret, or was not mounted: %s", errMessage)
+		return
+	}
+
+	result, err := ioutil.ReadFile(authSecretPath)
+	if err != nil {
+		klog.V(4).Infof("[Warning] Failed to load auth secret, or was not mounted: %s", err.Error())
+		return
+	}
+
+	err = ioutil.WriteFile(keyPath, result, 0644)
+	if err != nil {
+		klog.V(4).Infof("[Warning] Failed to copy auth secret to %s: %s", keyPath, err.Error())
+	}
+}
+
 func (gcp *GCP) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
 	return gcp.Config.UpdateFromMap(a)
 }
@@ -197,20 +234,22 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 			c.ProjectID = a.ProjectID
 			c.BillingDataDataset = a.BillingDataDataset
 
-			j, err := json.Marshal(a.Key)
-			if err != nil {
-				return err
-			}
+			if len(a.Key) > 0 {
+				j, err := json.Marshal(a.Key)
+				if err != nil {
+					return err
+				}
 
-			path := os.Getenv("CONFIG_PATH")
-			if path == "" {
-				path = "/models/"
-			}
+				path := os.Getenv("CONFIG_PATH")
+				if path == "" {
+					path = "/models/"
+				}
 
-			keyPath := path + "key.json"
-			err = ioutil.WriteFile(keyPath, j, 0644)
-			if err != nil {
-				return err
+				keyPath := path + "key.json"
+				err = ioutil.WriteFile(keyPath, j, 0644)
+				if err != nil {
+					return err
+				}
 			}
 		} else if updateType == AthenaInfoUpdateType {
 			a := AwsAthenaInfo{}
@@ -270,6 +309,7 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregators []stri
 	if err != nil {
 		return nil, err
 	}
+
 	var s []*OutOfClusterAllocation
 	if c.ServiceKeyName != "" && c.ServiceKeySecret != "" && !crossCluster {
 		aws, err := NewCrossClusterProvider("aws", "gcp.json", gcp.Clientset)
@@ -313,30 +353,42 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregators []stri
 		s = append(s, gcpOOC...)
 		qerr = err
 		*/
-		queryString := fmt.Sprintf(`(SELECT
-			service.description as service,
-			TO_JSON_STRING(labels) as keys,
-			SUM(cost) as cost
-		  	FROM  %s
-		 	WHERE
-				EXISTS(SELECT * FROM UNNEST(labels) AS l2 WHERE l2.key IN (%s))
-				AND usage_start_time >= "%s" AND usage_start_time < "%s"
-			GROUP BY  service,keys)`, c.BillingDataDataset, aggregator, start, end)
+		queryString := fmt.Sprintf(`(
+			SELECT
+				service.description as service,
+				TO_JSON_STRING(labels) as keys,
+				SUM(cost) as cost
+			FROM  %s
+			WHERE EXISTS (SELECT * FROM UNNEST(labels) AS l2 WHERE l2.key IN (%s))
+			AND usage_start_time >= "%s" AND usage_start_time < "%s"
+			GROUP BY service, keys
+		)`, c.BillingDataDataset, aggregator, start, end)
 		klog.V(3).Infof("Querying \"%s\" with : %s", c.ProjectID, queryString)
 		gcpOOC, err := gcp.multiLabelQuery(queryString, aggregators)
 		s = append(s, gcpOOC...)
 		qerr = err
 	} else {
-		queryString := fmt.Sprintf(`(SELECT
-			service.description as service,
-			TO_JSON_STRING(labels) as keys,
-			SUM(cost) as cost
+		if filterType == "kubernetes_labels" {
+			fvs := strings.Split(filterValue, "=")
+			if len(fvs) == 2 {
+				filterType = fvs[0]
+				filterValue = fvs[1]
+			} else {
+				klog.V(2).Infof("[Warning] illegal kubernetes_labels filterValue: %s", filterValue)
+			}
+		}
+
+		queryString := fmt.Sprintf(`(
+			SELECT
+				service.description as service,
+				TO_JSON_STRING(labels) as keys,
+				SUM(cost) as cost
 		  	FROM  %s
-		 	WHERE
-				EXISTS (SELECT * FROM UNNEST(labels) AS l WHERE l.key = "%s" AND l.value = "%s")
-				AND EXISTS(SELECT * FROM UNNEST(labels) AS l2 WHERE l2.key IN (%s))
-				AND usage_start_time >= "%s" AND usage_start_time < "%s"
-			GROUP BY  service,keys)`, c.BillingDataDataset, filterType, filterValue, aggregator, start, end)
+		 	WHERE EXISTS (SELECT * FROM UNNEST(labels) AS l2 WHERE l2.key IN (%s))
+			AND EXISTS (SELECT * FROM UNNEST(labels) AS l WHERE l.key = "%s" AND l.value = "%s")
+			AND usage_start_time >= "%s" AND usage_start_time < "%s"
+			GROUP BY service, keys
+		)`, c.BillingDataDataset, aggregator, filterType, filterValue, start, end)
 		klog.V(3).Infof("Querying \"%s\" with : %s", c.ProjectID, queryString)
 		gcpOOC, err := gcp.multiLabelQuery(queryString, aggregators)
 		s = append(s, gcpOOC...)
@@ -442,13 +494,6 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	m["id"] = os.Getenv(clusterIDKey)
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	return m, nil
-}
-
-// AddServiceKey adds the service key as required for GetDisks
-func (*GCP) AddServiceKey(formValues url.Values) error {
-	key := formValues.Get("key")
-	k := []byte(key)
-	return ioutil.WriteFile("/var/configs/key.json", k, 0644)
 }
 
 // GetDisks returns the GCP disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
@@ -858,6 +903,8 @@ func (gcp *GCP) DownloadPricingData() error {
 		klog.V(2).Infof("Error downloading default pricing data: %s", err.Error())
 		return err
 	}
+	gcp.loadGCPAuthSecret()
+
 	gcp.BaseCPUPrice = c.CPU
 	gcp.ProjectID = c.ProjectID
 	gcp.BillingDataDataset = c.BillingDataDataset
@@ -1238,6 +1285,8 @@ func (gcp *gcpKey) Features() string {
 	instanceType := strings.ToLower(strings.Join(strings.Split(gcp.Labels[v1.LabelInstanceType], "-")[:2], ""))
 	if instanceType == "n1highmem" || instanceType == "n1highcpu" {
 		instanceType = "n1standard" // These are priced the same. TODO: support n1ultrahighmem
+	} else if instanceType == "n2highmem" || instanceType == "n2highcpu" {
+		instanceType = "n2standard"
 	} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
 		instanceType = "e2standard"
 	} else if strings.HasPrefix(instanceType, "custom") {

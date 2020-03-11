@@ -215,8 +215,17 @@ const (
 				scalar(avg(avg_over_time(prometheus_target_interval_length_seconds[%s])))*%f)
 		) by (namespace,container,pod,node,cluster_id)
 	, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
-	queryPVCAllocation        = `avg_over_time(pod_pvc_allocation[%s])`
-	queryPVHourlyCost         = `avg_over_time(pv_hourly_cost[%s])`
+	// queryPVCAllocationFmt yields the total byte-hour CPU allocation over the given window.
+	//  sum(all VCPU measurements within given window) = [byte*min] by metric
+	//  (") / 60 = [byte*hour] by metric, assuming no missed scrapes
+	//  (") * (normalization factor) = [byte*hour] by metric, normalized for missed scrapes
+	//  sum(") by unique pvc = [VCPU*hour] by (cluster, namespace, pod, pv, pvc)
+	// Note: normalization factor is 1.0 if no scrapes are missed and has an upper bound determined by minExpectedScrapeRate
+	// so that coarse resolutions don't push normalization factors too high; e.g. 24h resolution with 1h of data would make
+	// for a normalization factor of 24. With a minimumExpectedScrapeRate of 0.95, that caps the norm factor at
+	queryPVCAllocationFmt = `sum(sum_over_time(pod_pvc_allocation[%s:1m])) by (cluster_id, namespace, pod, persistentvolume, persistentvolumeclaim) / 60
+		* 60 / clamp_min(count_over_time(sum(pod_pvc_allocation) by (cluster_id, namespace, pod, persistentvolume, persistentvolumeclaim)[%s:1m])/%f, 60 * %f)`
+	queryPVHourlyCostFmt      = `avg_over_time(pv_hourly_cost[%s])`
 	queryNSLabels             = `avg_over_time(kube_namespace_labels[%s])`
 	queryPodLabels            = `avg_over_time(kube_pod_labels[%s])`
 	queryDeploymentLabels     = `avg_over_time(deployment_match_labels[%s])`
@@ -1694,6 +1703,8 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, windowString, "")
 	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, windowString, "", windowString, "", resolutionHours, windowString, "")
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
+	queryPVCAllocation := fmt.Sprintf(queryPVCAllocationFmt, windowString, windowString, resolutionHours, minimumExpectedScrapeRate)
+	queryPVHourlyCost := fmt.Sprintf(queryPVHourlyCostFmt, windowString)
 	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, windowString, "")
 	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, windowString, "")
 	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, windowString, "")
@@ -1853,7 +1864,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		defer measureTimeAsync(time.Now(), profileThreshold, "PVPodAllocation", queryProfileCh)
 
 		var promErr error
-		pvPodAllocationResults, promErr = QueryRange(cli, fmt.Sprintf(queryPVCAllocation, windowString), start, end, window)
+		pvPodAllocationResults, promErr = QueryRange(cli, queryPVCAllocation, start, end, window)
 
 		ec.Report(promErr)
 	}()
@@ -1863,7 +1874,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		defer measureTimeAsync(time.Now(), profileThreshold, "PVCost", queryProfileCh)
 
 		var promErr error
-		pvCostResults, promErr = QueryRange(cli, fmt.Sprintf(queryPVHourlyCost, windowString), start, end, window)
+		pvCostResults, promErr = QueryRange(cli, queryPVHourlyCost, start, end, window)
 
 		ec.Report(promErr)
 	}()
