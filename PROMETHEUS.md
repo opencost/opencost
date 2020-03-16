@@ -30,14 +30,14 @@ topk( 5,
 )
 ```
 
-__Memory cost for the *default* namespace__
+__Hourly memory cost for the *default* namespace__
 
 ```
 sum(
-  container_memory_allocation_bytes{namespace="default"} 
+  avg(container_memory_allocation_bytes{namespace="default"}) by (instance) / 1024 / 1024 / 1024
   * 
-  on(instance) group_left() node_ram_hourly_cost  / 1024 / 1024 / 1024
-) by (namespace)
+  on(instance) group_left() avg(node_ram_hourly_cost) by (instance)
+)
 ```
 
 __Monthly cost of currently provisioned nodes__
