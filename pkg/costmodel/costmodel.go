@@ -116,10 +116,6 @@ func (cd *CostData) GetController() (name string, kind string, hasController boo
 		name = cd.Jobs[0]
 		kind = "job"
 		hasController = true
-	} else if len(cd.Services) > 0 {
-		name = cd.Services[0]
-		kind = "service"
-		hasController = true
 	}
 
 	return name, kind, hasController
