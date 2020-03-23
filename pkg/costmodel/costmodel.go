@@ -97,6 +97,30 @@ func (cd *CostData) String() string {
 		len(cd.RAMReq), len(cd.RAMUsed), len(cd.RAMAllocation))
 }
 
+func (cd *CostData) GetController() (name string, kind string, hasController bool) {
+	hasController = false
+
+	if len(cd.Deployments) > 0 {
+		name = cd.Deployments[0]
+		kind = "deployment"
+		hasController = true
+	} else if len(cd.Statefulsets) > 0 {
+		name = cd.Statefulsets[0]
+		kind = "statefulset"
+		hasController = true
+	} else if len(cd.Daemonsets) > 0 {
+		name = cd.Daemonsets[0]
+		kind = "daemonset"
+		hasController = true
+	} else if len(cd.Jobs) > 0 {
+		name = cd.Jobs[0]
+		kind = "job"
+		hasController = true
+	}
+
+	return name, kind, hasController
+}
+
 // Error collection helper
 type ErrorCollector struct {
 	m      sync.Mutex
