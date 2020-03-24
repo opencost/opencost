@@ -7,7 +7,6 @@ import (
 	"k8s.io/klog"
 
 	appsv1 "k8s.io/api/apps/v1"
-	// batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	stv1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -51,9 +50,6 @@ type ClusterCache interface {
 	// GetAllReplicaSets returns all the cached ReplicaSets
 	GetAllReplicaSets() []*appsv1.ReplicaSet
 
-	// GetAllJobs returns all the cached Jobs
-	// GetAllJobs() []*batchv1.Job
-
 	// GetAllPersistentVolumes returns all the cached persistent volumes
 	GetAllPersistentVolumes() []*v1.PersistentVolume
 
@@ -77,10 +73,9 @@ type KubernetesClusterCache struct {
 	deploymentsWatch       WatchController
 	statefulsetWatch       WatchController
 	replicasetWatch        WatchController
-	// jobWatch               WatchController
-	pvWatch           WatchController
-	storageClassWatch WatchController
-	stop              chan struct{}
+	pvWatch                WatchController
+	storageClassWatch      WatchController
+	stop                   chan struct{}
 }
 
 func initializeCache(wc WatchController, wg *sync.WaitGroup, cancel chan struct{}) {
@@ -107,14 +102,12 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 		deploymentsWatch:       NewCachingWatcher(appsRestClient, "deployments", &appsv1.Deployment{}, "", fields.Everything()),
 		statefulsetWatch:       NewCachingWatcher(appsRestClient, "statefulsets", &appsv1.StatefulSet{}, "", fields.Everything()),
 		replicasetWatch:        NewCachingWatcher(appsRestClient, "replicasets", &appsv1.ReplicaSet{}, "", fields.Everything()),
-		// jobWatch:               NewCachingWatcher(appsRestClient, "jobs", &batchv1.Job{}, "", fields.Everything()),
-		pvWatch:           NewCachingWatcher(coreRestClient, "persistentvolumes", &v1.PersistentVolume{}, "", fields.Everything()),
-		storageClassWatch: NewCachingWatcher(storageRestClient, "storageclasses", &stv1.StorageClass{}, "", fields.Everything()),
+		pvWatch:                NewCachingWatcher(coreRestClient, "persistentvolumes", &v1.PersistentVolume{}, "", fields.Everything()),
+		storageClassWatch:      NewCachingWatcher(storageRestClient, "storageclasses", &stv1.StorageClass{}, "", fields.Everything()),
 	}
 
 	// Wait for each caching watcher to initialize
 	var wg sync.WaitGroup
-	// wg.Add(12)
 	wg.Add(11)
 
 	cancel := make(chan struct{})
@@ -128,7 +121,6 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 	go initializeCache(kcc.deploymentsWatch, &wg, cancel)
 	go initializeCache(kcc.statefulsetWatch, &wg, cancel)
 	go initializeCache(kcc.replicasetWatch, &wg, cancel)
-	// go initializeCache(kcc.jobWatch, &wg, cancel)
 	go initializeCache(kcc.pvWatch, &wg, cancel)
 	go initializeCache(kcc.storageClassWatch, &wg, cancel)
 
@@ -152,7 +144,6 @@ func (kcc *KubernetesClusterCache) Run() {
 	go kcc.deploymentsWatch.Run(1, stopCh)
 	go kcc.statefulsetWatch.Run(1, stopCh)
 	go kcc.replicasetWatch.Run(1, stopCh)
-	// go kcc.jobWatch.Run(1, stopCh)
 	go kcc.pvWatch.Run(1, stopCh)
 	go kcc.storageClassWatch.Run(1, stopCh)
 
@@ -243,15 +234,6 @@ func (kcc *KubernetesClusterCache) GetAllReplicaSets() []*appsv1.ReplicaSet {
 	}
 	return replicasets
 }
-
-// func (kcc *KubernetesClusterCache) GetAllJobs() []*batchv1.Job {
-// 	var jobs []*batchv1.Job
-// 	items := kcc.jobWatch.GetAll()
-// 	for _, job := range items {
-// 		jobs = append(jobs, job.(*batchv1.Job))
-// 	}
-// 	return jobs
-// }
 
 func (kcc *KubernetesClusterCache) GetAllPersistentVolumes() []*v1.PersistentVolume {
 	var pvs []*v1.PersistentVolume
