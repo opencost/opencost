@@ -1,4 +1,6 @@
 ## Kubecost
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fkubecost%2Fcost-model.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fkubecost%2Fcost-model?ref=badge_shield)
+
 
 Kubecost models give teams visibility into current and historical Kubernetes spend and resource allocation. These models  provide cost transparency in Kubernetes environments that support multiple applications, teams, departments, etc.
 
@@ -40,6 +42,9 @@ Golang application.
 Prometheus. 
 Kubernetes. 
 
+
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fkubecost%2Fcost-model.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fkubecost%2Fcost-model?ref=badge_large)
+
 ## Frequently Asked Questions
 
 #### How do you measure the cost of CPU/RAM/GPU/storage for a container, pod, deployment, etc.
@@ -72,4 +77,4 @@ Modify [spotCPU](https://github.com/kubecost/cost-model/blob/master/cloud/defaul
 
 We supply a global key with a low limit for evaluation, but you will want to supply your own before moving to production.  
   
-Please reach out with any additional questions on  [Slack](https://join.slack.com/t/kubecost/shared_invite/enQtNTA2MjQ1NDUyODE5LWFjYzIzNWE4MDkzMmUyZGU4NjkwMzMyMjIyM2E0NGNmYjExZjBiNjk1YzY5ZDI0ZTNhZDg4NjlkMGRkYzFlZTU) or via email at [team@kubecost.com](team@kubecost.com). 
+Please reach out with any additional questions on  [Slack](https://join.slack.com/t/kubecost/shared_invite/enQtNTA2MjQ1NDUyODE5LWFjYzIzNWE4MDkzMmUyZGU4NjkwMzMyMjIyM2E0NGNmYjExZjBiNjk1YzY5ZDI0ZTNhZDg4NjlkMGRkYzFlZTU) or via email at [team@kubecost.com](team@kubecost.com).
