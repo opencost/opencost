@@ -371,7 +371,8 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregators []stri
 		if filterType == "kubernetes_labels" {
 			fvs := strings.Split(filterValue, "=")
 			if len(fvs) == 2 {
-				filterType = fvs[0]
+				// if we are given "app=myapp" then look for label "kubernetes_label_app=myapp"
+				filterType = fmt.Sprintf("kubernetes_label_%s", fvs[0])
 				filterValue = fvs[1]
 			} else {
 				klog.V(2).Infof("[Warning] illegal kubernetes_labels filterValue: %s", filterValue)
