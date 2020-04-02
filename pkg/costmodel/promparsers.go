@@ -314,9 +314,15 @@ func GetNamespaceLabelsMetrics(queryResult interface{}, defaultClusterID string)
 		}
 
 		nsKey := ns + "," + clusterID
-		toReturn[nsKey] = val.GetLabels()
+		if nsLabels, ok := toReturn[nsKey]; ok {
+			for k, v := range val.GetLabels() {
+				nsLabels[k] = v // override with more recently assigned if we changed labels within the window.
+			}
+		} else {
+			toReturn[nsKey] = val.GetLabels()
+		}
 	}
-
+	klog.Infof("NAMESPACE LABELS %v", toReturn)
 	return toReturn, nil
 }
 
