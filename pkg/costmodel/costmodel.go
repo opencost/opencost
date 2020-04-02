@@ -880,6 +880,7 @@ func findUnmountedPVCostData(unmountedPVs map[string][]*PersistentVolumeClaimDat
 				NodeName:        "",
 				Namespace:       ns,
 				NamespaceLabels: namespacelabels,
+				Labels:          namespacelabels,
 				ClusterID:       clusterID,
 				PVCData:         pv,
 			}
