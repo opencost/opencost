@@ -322,7 +322,6 @@ func GetNamespaceLabelsMetrics(queryResult interface{}, defaultClusterID string)
 			toReturn[nsKey] = val.GetLabels()
 		}
 	}
-	klog.Infof("NAMESPACE LABELS %v", toReturn)
 	return toReturn, nil
 }
 
