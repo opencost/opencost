@@ -1216,11 +1216,11 @@ func (a *AWS) GetReservationDataFromAthena() error {
 		reservation_reservation_a_r_n,
 		line_item_resource_id,
 		reservation_effective_cost
-	FROM athena_test as cost_data
+	FROM %s as cost_data
 	WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s'
 	AND reservation_reservation_a_r_n <> '' ORDER BY 
 	line_item_usage_start_date DESC`
-	query := fmt.Sprintf(q, start, end)
+	query := fmt.Sprintf(q, cfg.AthenaBucketName, start, end)
 	op, err := a.QueryAthenaBillingData(query)
 	if err != nil {
 		return fmt.Errorf("Error fetching Reserved Instance Data: %s", err)
