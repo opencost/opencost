@@ -14,8 +14,9 @@ import (
 
 // Cluster definition from a configuration yaml
 type ClusterConfigEntry struct {
-	Name    string `yaml:"name"`
-	Address string `yaml:"address"`
+	Name    string                 `yaml:"name"`
+	Address string                 `yaml:"address"`
+	Details map[string]interface{} `yaml:"details,omitempty"`
 }
 
 // ClusterDefinition
@@ -88,6 +89,7 @@ func NewConfiguredClusterManager(storage ClusterStorage, config string) *Cluster
 			ID:      entry.Name,
 			Name:    entry.Name,
 			Address: entry.Address,
+			Details: entry.Details,
 		})
 	}
 
