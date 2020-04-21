@@ -1,8 +1,11 @@
 package clustermanager
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -12,10 +15,31 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+// The details key used to provide auth information
+const DetailsAuthKey = "auth"
+
+// Authentication Information
+type ClusterConfigEntryAuth struct {
+	// The type of authentication provider to use
+	Type string `yaml:"type"`
+
+	// Data expressed as a secret
+	SecretName string `yaml:"secretName,omitempty"`
+
+	// Any data specifically needed by the auth provider
+	Data string `yaml:"data,omitempty"`
+
+	// User and Password as a possible input
+	User string `yaml:"user,omitempty"`
+	Pass string `yaml:"pass,omitempty"`
+}
+
 // Cluster definition from a configuration yaml
 type ClusterConfigEntry struct {
-	Name    string `yaml:"name"`
-	Address string `yaml:"address"`
+	Name    string                  `yaml:"name"`
+	Address string                  `yaml:"address"`
+	Auth    *ClusterConfigEntryAuth `yaml:"auth,omitempty"`
+	Details map[string]interface{}  `yaml:"details,omitempty"`
 }
 
 // ClusterDefinition
@@ -77,17 +101,32 @@ func NewConfiguredClusterManager(storage ClusterStorage, config string) *Cluster
 		return clusterManager
 	}
 
-	var entries []ClusterConfigEntry
+	var entries []*ClusterConfigEntry
 	err = yaml.Unmarshal(data, &entries)
 	if err != nil {
 		return clusterManager
 	}
 
 	for _, entry := range entries {
+		details := entry.Details
+		if details == nil {
+			details = make(map[string]interface{})
+		}
+
+		if entry.Auth != nil {
+			authData, err := getAuth(entry.Auth)
+			if err != nil {
+				klog.V(1).Infof("[Error]: %s", err)
+			} else {
+				details[DetailsAuthKey] = authData
+			}
+		}
+
 		clusterManager.Add(ClusterDefinition{
 			ID:      entry.Name,
 			Name:    entry.Name,
 			Address: entry.Address,
+			Details: details,
 		})
 	}
 
@@ -161,4 +200,48 @@ func (cm *ClusterManager) GetAll() []*ClusterDefinition {
 
 func (cm *ClusterManager) Close() error {
 	return cm.storage.Close()
+}
+
+func toBasicAuth(user, pass string) string {
+	return base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", user, pass)))
+}
+
+func fileFromSecret(secretName string) string {
+	return fmt.Sprintf("/var/secrets/%s/auth", secretName)
+}
+
+func fromSecret(secretName string) (string, error) {
+	file := fileFromSecret(secretName)
+	exists, err := util.FileExists(file)
+	if !exists || err != nil {
+		return "", fmt.Errorf("Failed to locate secret: %s", file)
+	}
+
+	data, err := ioutil.ReadFile(file)
+	if err != nil {
+		return "", fmt.Errorf("Failed to load secret: %s", file)
+	}
+
+	return string(data), nil
+}
+
+func getAuth(auth *ClusterConfigEntryAuth) (string, error) {
+	// We only support basic auth currently
+	if !strings.EqualFold(auth.Type, "basic") {
+		return "", fmt.Errorf("Authentication Type: '%s' is not supported", auth.Type)
+	}
+
+	if auth.SecretName != "" {
+		return fromSecret(auth.SecretName)
+	}
+
+	if auth.Data != "" {
+		return auth.Data, nil
+	}
+
+	if auth.User != "" && auth.Pass != "" {
+		return toBasicAuth(auth.User, auth.Pass), nil
+	}
+
+	return "", fmt.Errorf("No valid basic auth parameters provided.")
 }
