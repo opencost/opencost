@@ -57,7 +57,9 @@ func (pqr *PromQueryResult) GetLabels() map[string]string {
 // PromQueryResult objects
 func NewQueryResults(queryResult interface{}) ([]*PromQueryResult, error) {
 	var result []*PromQueryResult
-
+	if queryResult == nil {
+		return nil, fmt.Errorf("[Error] nil result from prometheus, has it gone down?")
+	}
 	data, ok := queryResult.(map[string]interface{})["data"]
 	if !ok {
 		e, err := wrapPrometheusError(queryResult)
