@@ -897,18 +897,19 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	}
 	promCli, _ := prometheusClient.NewClient(pc)
 
-	api := prometheusAPI.NewAPI(promCli)
-	_, err := api.Config(context.Background())
-	if err != nil {
-		klog.Fatalf("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prometheusTroubleshootingEp)
+	m, err := ValidatePrometheus(promCli, false)
+	if err != nil || m.Running == false {
+		klog.Errorf("Failed to query prometheus at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prometheusTroubleshootingEp)
+		api := prometheusAPI.NewAPI(promCli)
+		_, err = api.Config(context.Background())
+		if err != nil {
+			klog.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prometheusTroubleshootingEp)
+		} else {
+			klog.V(1).Info("Retrieved a prometheus config file from: " + address)
+		}
+	} else {
+		klog.V(1).Info("Success: retrieved the 'up' query against prometheus at: " + address)
 	}
-	klog.V(1).Info("Success: retrieved a prometheus config file from: " + address)
-
-	_, err = ValidatePrometheus(promCli, false)
-	if err != nil {
-		klog.Fatalf("Failed to query prometheus at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prometheusTroubleshootingEp)
-	}
-	klog.V(1).Info("Success: retrieved the 'up' query against prometheus at: " + address)
 
 	// Kubernetes API setup
 	kc, err := rest.InClusterConfig()
