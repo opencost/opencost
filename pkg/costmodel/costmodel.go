@@ -351,27 +351,6 @@ func getUptimeData(qr interface{}) ([]*util.Vector, bool, error) {
 	return jobData, kubecostMetrics, nil
 }
 
-func ComputeUptimes(cli prometheusClient.Client) (map[string]float64, error) {
-	res, err := Query(cli, `container_start_time_seconds{container_name != "POD",container_name != ""}`)
-	if err != nil {
-		return nil, err
-	}
-	vectors, err := GetContainerMetricVector(res, false, 0, os.Getenv(clusterIDKey))
-	if err != nil {
-		return nil, err
-	}
-	results := make(map[string]float64)
-	for key, vector := range vectors {
-		if err != nil {
-			return nil, err
-		}
-		val := vector[0].Value
-		uptime := time.Now().Sub(time.Unix(int64(val), 0)).Seconds()
-		results[key] = uptime
-	}
-	return results, nil
-}
-
 func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, window, offset, window, offset)
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, window, offset, window, offset)
