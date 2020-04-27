@@ -61,7 +61,6 @@ type Accesses struct {
 	CPUAllocationRecorder         *prometheus.GaugeVec
 	GPUAllocationRecorder         *prometheus.GaugeVec
 	PVAllocationRecorder          *prometheus.GaugeVec
-	ContainerUptimeRecorder       *prometheus.GaugeVec
 	NetworkZoneEgressRecorder     prometheus.Gauge
 	NetworkRegionEgressRecorder   prometheus.Gauge
 	NetworkInternetEgressRecorder prometheus.Gauge
@@ -781,11 +780,6 @@ func (a *Accesses) recordPrices() {
 					labelKey := getKeyFromLabelStrings(pv.Name, pv.Name)
 					pvSeen[labelKey] = true
 				}
-				containerUptime, _ := ComputeUptimes(a.PrometheusClient)
-				for key, uptime := range containerUptime {
-					container, _ := NewContainerMetricFromKey(key)
-					a.ContainerUptimeRecorder.WithLabelValues(container.Namespace, container.PodName, container.ContainerName).Set(uptime)
-				}
 			}
 			for labelString, seen := range nodeSeen {
 				if !seen {
@@ -804,7 +798,6 @@ func (a *Accesses) recordPrices() {
 					a.RAMAllocationRecorder.DeleteLabelValues(labels...)
 					a.CPUAllocationRecorder.DeleteLabelValues(labels...)
 					a.GPUAllocationRecorder.DeleteLabelValues(labels...)
-					a.ContainerUptimeRecorder.DeleteLabelValues(labels...)
 					delete(containerSeen, labelString)
 				}
 				containerSeen[labelString] = false
@@ -1010,11 +1003,6 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		Help: "pod_pvc_allocation Bytes used by a PVC attached to a pod",
 	}, []string{"namespace", "pod", "persistentvolumeclaim", "persistentvolume"})
 
-	ContainerUptimeRecorder := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "container_uptime_seconds",
-		Help: "container_uptime_seconds Seconds a container has been running",
-	}, []string{"namespace", "pod", "container"})
-
 	NetworkZoneEgressRecorder := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "kubecost_network_zone_egress_cost",
 		Help: "kubecost_network_zone_egress_cost Total cost per GB egress across zones",
@@ -1035,7 +1023,6 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	prometheus.MustRegister(pvGv)
 	prometheus.MustRegister(RAMAllocation)
 	prometheus.MustRegister(CPUAllocation)
-	prometheus.MustRegister(ContainerUptimeRecorder)
 	prometheus.MustRegister(PVAllocation)
 	prometheus.MustRegister(GPUAllocation)
 	prometheus.MustRegister(NetworkZoneEgressRecorder, NetworkRegionEgressRecorder, NetworkInternetEgressRecorder)
@@ -1065,7 +1052,6 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		CPUAllocationRecorder:         CPUAllocation,
 		GPUAllocationRecorder:         GPUAllocation,
 		PVAllocationRecorder:          PVAllocation,
-		ContainerUptimeRecorder:       ContainerUptimeRecorder,
 		NetworkZoneEgressRecorder:     NetworkZoneEgressRecorder,
 		NetworkRegionEgressRecorder:   NetworkRegionEgressRecorder,
 		NetworkInternetEgressRecorder: NetworkInternetEgressRecorder,
