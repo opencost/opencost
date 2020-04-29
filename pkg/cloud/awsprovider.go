@@ -1220,7 +1220,7 @@ func (a *AWS) GetReservationDataFromAthena() error {
 	WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s'
 	AND reservation_reservation_a_r_n <> '' ORDER BY 
 	line_item_usage_start_date DESC`
-	query := fmt.Sprintf(q, cfg.AthenaBucketName, start, end)
+	query := fmt.Sprintf(q, cfg.AthenaTable, start, end)
 	op, err := a.QueryAthenaBillingData(query)
 	if err != nil {
 		return fmt.Errorf("Error fetching Reserved Instance Data: %s", err)
