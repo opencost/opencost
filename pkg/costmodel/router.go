@@ -33,6 +33,9 @@ import (
 )
 
 const (
+	logCollectionEnvVar            = "LOG_COLLECTION_ENABLED"
+	productAnalyticsEnvVar         = "PRODUCT_ANALYTICS_ENABLED"
+	errorReportingEnvVar           = "ERROR_REPORTING_ENABLED"
 	prometheusServerEndpointEnvVar = "PROMETHEUS_SERVER_ENDPOINT"
 	prometheusTroubleshootingEp    = "http://docs.kubecost.com/custom-prom#troubleshoot"
 	RFC3339Milli                   = "2006-01-02T15:04:05.000Z"
@@ -40,7 +43,10 @@ const (
 
 var (
 	// gitCommit is set by the build system
-	gitCommit string
+	gitCommit               string
+	logCollectionEnabled    bool = strings.EqualFold(os.Getenv(logCollectionEnvVar), "true")
+	productAnalyticsEnabled bool = strings.EqualFold(os.Getenv(productAnalyticsEnvVar), "true")
+	errorReportingEnabled   bool = strings.EqualFold(os.Getenv(errorReportingEnvVar), "true")
 )
 
 var Router = httprouter.New()
@@ -151,6 +157,13 @@ func normalizeTimeParam(param string) (string, error) {
 	}
 
 	return param, nil
+}
+
+// writeReportingFlags writes the reporting flags to the cluster info map
+func writeReportingFlags(clusterInfo map[string]string) {
+	clusterInfo["logCollection"] = fmt.Sprintf("%t", logCollectionEnabled)
+	clusterInfo["productAnalytics"] = fmt.Sprintf("%t", productAnalyticsEnabled)
+	clusterInfo["errorReporting"] = fmt.Sprintf("%t", errorReportingEnabled)
 }
 
 // parsePercentString takes a string of expected format "N%" and returns a floating point 0.0N.
@@ -606,8 +619,11 @@ func (p *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httpro
 	} else {
 		klog.Infof("Could not get k8s version info: %s", err.Error())
 	}
-	w.Write(WrapData(data, err))
 
+	// Include Product Reporting Flags with Cluster Info
+	writeReportingFlags(data)
+
+	w.Write(WrapData(data, err))
 }
 
 func (p *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
