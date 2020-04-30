@@ -1274,6 +1274,8 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 		formattedAggregators = append(formattedAggregators, aggregator_column_name)
 	}
 	aggregatorNames := strings.Join(formattedAggregators, ",")
+	aggregatorOr := strings.Join(formattedAggregators, " <> '' OR ")
+	aggregatorOr = aggregatorOr + " <> ''"
 
 	filter_column_name := "resource_tags_user_" + filterType
 	filter_column_name = ConvertToGlueColumnFormat(filter_column_name)
@@ -1290,8 +1292,8 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 			%s,
 			SUM(line_item_blended_cost) as blended_cost
 		FROM %s as cost_data
-		WHERE (%s='%s') AND line_item_usage_start_date BETWEEN date '%s' AND date '%s AND %s <> '' 
-		GROUP BY %s`, aggregatorNames, filter_column_name, customPricing.AthenaTable, filter_column_name, filterValue, start, end, formattedAggregators[0], groupby)
+		WHERE (%s='%s') AND line_item_usage_start_date BETWEEN date '%s' AND date '%s' AND (%s) 
+		GROUP BY %s`, aggregatorNames, filter_column_name, customPricing.AthenaTable, filter_column_name, filterValue, start, end, aggregatorOr, groupby)
 	} else {
 		lastIdx = len(formattedAggregators) + 2
 		groupby := generateAWSGroupBy(lastIdx)
@@ -1301,8 +1303,8 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 			line_item_product_code,
 			SUM(line_item_blended_cost) as blended_cost
 		FROM %s as cost_data
-		WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s'
-		GROUP BY %s`, aggregatorNames, customPricing.AthenaTable, start, end, groupby)
+		WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s' AND (%s)
+		GROUP BY %s`, aggregatorNames, customPricing.AthenaTable, start, end, aggregatorOr, groupby)
 	}
 
 	klog.V(3).Infof("Running Query: %s", query)
