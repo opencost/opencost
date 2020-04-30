@@ -162,6 +162,7 @@ type CustomPricing struct {
 // Provider represents a k8s provider.
 type Provider interface {
 	ClusterInfo() (map[string]string, error)
+	GetAddresses() ([]byte, error)
 	GetDisks() ([]byte, error)
 	NodePricing(Key) (*Node, error)
 	PVPricing(PVKey) (*PV, error)

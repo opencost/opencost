@@ -663,6 +663,10 @@ func (key *azurePvKey) Features() string {
 	return key.DefaultRegion + "," + storageClass
 }
 
+func (*Azure) GetAddresses() ([]byte, error) {
+	return nil, nil
+}
+
 func (*Azure) GetDisks() ([]byte, error) {
 	return nil, nil
 }

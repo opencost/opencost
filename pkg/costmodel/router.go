@@ -616,6 +616,45 @@ func (p *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request,
 	w.Write(WrapData(ValidatePrometheus(p.PrometheusClient, false)))
 }
 
+func (p *Accesses) HandleProjectAddresses(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	body, err := p.Cloud.GetAddresses()
+	if err != nil {
+		if strings.Contains(err.Error(), "not implemented") {
+			w.WriteHeader(http.StatusNotFound)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	w.Write(body)
+}
+
+func (p *Accesses) HandleProjectDisks(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	body, err := p.Cloud.GetDisks()
+	if err != nil {
+		if strings.Contains(err.Error(), "not implemented") {
+			w.WriteHeader(http.StatusNotFound)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(body)
+}
+
 func (a *Accesses) recordPrices() {
 	go func() {
 		containerSeen := make(map[string]bool)
@@ -1126,6 +1165,8 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	Router.GET("/clusterCosts", A.ClusterCosts)
 	Router.GET("/validatePrometheus", A.GetPrometheusMetadata)
 	Router.GET("/managementPlatform", A.ManagementPlatform)
+	Router.GET("/projectAddresses", A.HandleProjectAddresses)
+	Router.GET("/projectDisks", A.HandleProjectDisks)
 	Router.GET("/clusterInfo", A.ClusterInfo)
 	Router.GET("/clusters", managerEndpoints.GetAllClusters)
 	Router.PUT("/clusters", managerEndpoints.PutCluster)

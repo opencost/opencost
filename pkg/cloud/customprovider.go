@@ -108,6 +108,10 @@ func (cp *CustomProvider) ClusterInfo() (map[string]string, error) {
 	return m, nil
 }
 
+func (*CustomProvider) GetAddresses() ([]byte, error) {
+	return nil, nil
+}
+
 func (*CustomProvider) GetDisks() ([]byte, error) {
 	return nil, nil
 }
