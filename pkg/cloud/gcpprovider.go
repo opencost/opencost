@@ -497,6 +497,34 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	return m, nil
 }
 
+func (*GCP) GetAddresses() ([]byte, error) {
+	// metadata API setup
+	metadataClient := metadata.NewClient(&http.Client{Transport: userAgentTransport{
+		userAgent: "kubecost",
+		base:      http.DefaultTransport,
+	}})
+	projID, err := metadataClient.ProjectID()
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := google.DefaultClient(oauth2.NoContext,
+		"https://www.googleapis.com/auth/compute.readonly")
+	if err != nil {
+		return nil, err
+	}
+	svc, err := compute.New(client)
+	if err != nil {
+		return nil, err
+	}
+	res, err := svc.Addresses.AggregatedList(projID).Do()
+
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(res)
+}
+
 // GetDisks returns the GCP disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
 func (*GCP) GetDisks() ([]byte, error) {
 	// metadata API setup
