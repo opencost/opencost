@@ -1126,8 +1126,6 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	Router.GET("/clusterCosts", A.ClusterCosts)
 	Router.GET("/validatePrometheus", A.GetPrometheusMetadata)
 	Router.GET("/managementPlatform", A.ManagementPlatform)
-	Router.GET("/projectAddresses", A.HandleProjectAddresses)
-	Router.GET("/projectDisks", A.HandleProjectDisks)
 	Router.GET("/clusterInfo", A.ClusterInfo)
 	Router.GET("/clusters", managerEndpoints.GetAllClusters)
 	Router.PUT("/clusters", managerEndpoints.PutCluster)
