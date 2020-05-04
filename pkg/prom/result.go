@@ -13,9 +13,9 @@ import (
 // QueryResultsChan is a channel of query results
 type QueryResultsChan chan []*QueryResult
 
-// Read returns query results, blocking until they are made available, and
+// Await returns query results, blocking until they are made available, and
 // deferring the closure of the underlying channel
-func (qrc QueryResultsChan) Read() []*QueryResult {
+func (qrc QueryResultsChan) Await() []*QueryResult {
 	defer close(qrc)
 	return <-qrc
 }
