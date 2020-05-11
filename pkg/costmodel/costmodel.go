@@ -14,6 +14,7 @@ import (
 
 	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	v1 "k8s.io/api/core/v1"
@@ -512,7 +513,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 
 	if ec.IsError() {
 		for _, promErr := range ec.Errors() {
-			klog.V(1).Infof("[Warning] Query Error: %s", promErr.Error())
+			log.Errorf("Querying Prometheus: %s", promErr.Error())
 		}
 		// TODO: Categorize fatal prometheus query failures
 		// return nil, fmt.Errorf("Error querying prometheus: %s", promErr.Error())
@@ -2428,7 +2429,6 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		}
 	}
 
-	// TODO niko/errors is this doing anything?? working via side-effect to populate missing node data?
 	w := end.Sub(start)
 	w += window
 	if w.Minutes() > 0 {
@@ -2439,7 +2439,6 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		}
 	}
 
-	// TODO niko/errors why are we returning both cost data and an error?
 	return containerNameCost, nil
 }
 
