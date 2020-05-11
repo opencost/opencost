@@ -513,7 +513,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 
 	if ec.IsError() {
 		for _, promErr := range ec.Errors() {
-			log.Errorf("Querying Prometheus: %s", promErr.Error())
+			log.Errorf("ComputeCostData: Prometheus error: %s", promErr.Error())
 		}
 		// TODO: Categorize fatal prometheus query failures
 		// return nil, fmt.Errorf("Error querying prometheus: %s", promErr.Error())
@@ -2057,7 +2057,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	if ec.IsError() {
 		for _, promErr := range ec.Errors() {
-			klog.V(1).Infof("[Warning] Query Error: %s", promErr.Error())
+			log.Errorf("CostDataRange: Prometheus error: %s", promErr.Error())
 		}
 		// TODO: Categorize fatal prometheus query failures
 		// return nil, fmt.Errorf("Error querying prometheus: %s", promErr.Error())
