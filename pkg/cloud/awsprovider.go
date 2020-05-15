@@ -324,7 +324,9 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 			}
 
 			c.ServiceKeyName = a.ServiceKeyName
-			c.ServiceKeySecret = a.ServiceKeySecret
+			if a.ServiceKeySecret != "" {
+				c.ServiceKeySecret = a.ServiceKeySecret
+			}
 			c.SpotDataPrefix = a.Prefix
 			c.SpotDataBucket = a.BucketName
 			c.ProjectID = a.AccountID
@@ -343,7 +345,9 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 			c.AthenaDatabase = a.AthenaDatabase
 			c.AthenaTable = a.AthenaTable
 			c.ServiceKeyName = a.ServiceKeyName
-			c.ServiceKeySecret = a.ServiceKeySecret
+			if a.ServiceKeySecret != "" {
+				c.ServiceKeySecret = a.ServiceKeySecret
+			}
 			c.AthenaProjectID = a.AccountID
 		} else {
 			a := make(map[string]interface{})
