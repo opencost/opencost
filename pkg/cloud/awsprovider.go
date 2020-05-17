@@ -1594,8 +1594,7 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 			return nil, err
 		}
 		if len(op.ResultSet.Rows) > 1 {
-			for _, r := range op.ResultSet.Rows[1:(len(op.ResultSet.Rows) - 1)] {
-
+			for _, r := range op.ResultSet.Rows[1:(len(op.ResultSet.Rows))] {
 				cost, err := strconv.ParseFloat(*r.Data[lastIdx].VarCharValue, 64)
 				if err != nil {
 					return nil, err
@@ -1631,8 +1630,7 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 		}
 		oocAllocs = append(oocAllocs, gcpOOC...)
 	}
-
-	return oocAllocs, nil // TODO: transform the QuerySQL lines into the new OutOfClusterAllocation Struct
+	return oocAllocs, nil
 }
 
 // QuerySQL can query a properly configured Athena database.
