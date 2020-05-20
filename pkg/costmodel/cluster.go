@@ -126,7 +126,7 @@ func NewClusterCostsFromCumulative(cpu, gpu, ram, storage float64, window, offse
 }
 
 // ComputeClusterCosts gives the cumulative and monthly-rate cluster costs over a window of time for all clusters.
-func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, window, offset string) (map[string]*ClusterCosts, error) {
+func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, window, offset string, withBreakdown bool) (map[string]*ClusterCosts, error) {
 	// Compute number of minutes in the full interval, for use interpolating missed scrapes or scaling missing data
 	start, end, err := util.ParseTimeRange(window, offset)
 	if err != nil {
@@ -185,9 +185,6 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	queryTotalCPU := fmt.Sprintf(fmtQueryTotalCPU, window, fmtOffset, window, fmtOffset)
 	queryTotalRAM := fmt.Sprintf(fmtQueryTotalRAM, window, fmtOffset, window, fmtOffset)
 	queryTotalStorage := fmt.Sprintf(fmtQueryTotalStorage, window, fmtOffset, window, fmtOffset)
-	queryCPUModePct := fmt.Sprintf(fmtQueryCPUModePct, window, fmtOffset, window, fmtOffset)
-	queryRAMSystemPct := fmt.Sprintf(fmtQueryRAMSystemPct, window, fmtOffset, window, fmtOffset)
-	queryRAMUserPct := fmt.Sprintf(fmtQueryRAMUserPct, window, fmtOffset, window, fmtOffset)
 
 	ctx := prom.NewContext(client)
 
@@ -198,11 +195,22 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 		queryTotalRAM,
 		queryTotalStorage,
 		queryTotalLocalStorage,
-		queryCPUModePct,
-		queryRAMSystemPct,
-		queryRAMUserPct,
-		queryUsedLocalStorage,
 	)
+
+	if withBreakdown {
+		queryCPUModePct := fmt.Sprintf(fmtQueryCPUModePct, window, fmtOffset, window, fmtOffset)
+		queryRAMSystemPct := fmt.Sprintf(fmtQueryRAMSystemPct, window, fmtOffset, window, fmtOffset)
+		queryRAMUserPct := fmt.Sprintf(fmtQueryRAMUserPct, window, fmtOffset, window, fmtOffset)
+
+		bdResChs := ctx.QueryAll(
+			queryCPUModePct,
+			queryRAMSystemPct,
+			queryRAMUserPct,
+			queryUsedLocalStorage,
+		)
+
+		resChs = append(resChs, bdResChs...)
+	}
 
 	defaultClusterID := os.Getenv(clusterIDKey)
 
@@ -264,72 +272,74 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	setCostsFromResults(costData, resChs[5].Await(), "localstorage", 0.0, customDiscount)
 
 	cpuBreakdownMap := map[string]*ClusterCostsBreakdown{}
-	for _, result := range resChs[6].Await() {
-		clusterID, _ := result.GetString("cluster_id")
-		if clusterID == "" {
-			clusterID = defaultClusterID
-		}
-		if _, ok := cpuBreakdownMap[clusterID]; !ok {
-			cpuBreakdownMap[clusterID] = &ClusterCostsBreakdown{}
-		}
-		cpuBD := cpuBreakdownMap[clusterID]
-
-		mode, err := result.GetString("mode")
-		if err != nil {
-			klog.V(3).Infof("[Warning] ComputeClusterCosts: unable to read CPU mode: %s", err)
-			mode = "other"
-		}
-
-		switch mode {
-		case "idle":
-			cpuBD.Idle += result.Values[0].Value
-		case "system":
-			cpuBD.System += result.Values[0].Value
-		case "user":
-			cpuBD.User += result.Values[0].Value
-		default:
-			cpuBD.Other += result.Values[0].Value
-		}
-	}
-
 	ramBreakdownMap := map[string]*ClusterCostsBreakdown{}
-	for _, result := range resChs[7].Await() {
-		clusterID, _ := result.GetString("cluster_id")
-		if clusterID == "" {
-			clusterID = defaultClusterID
-		}
-		if _, ok := ramBreakdownMap[clusterID]; !ok {
-			ramBreakdownMap[clusterID] = &ClusterCostsBreakdown{}
-		}
-		ramBD := ramBreakdownMap[clusterID]
-		ramBD.System += result.Values[0].Value
-	}
-	for _, result := range resChs[8].Await() {
-		clusterID, _ := result.GetString("cluster_id")
-		if clusterID == "" {
-			clusterID = defaultClusterID
-		}
-		if _, ok := ramBreakdownMap[clusterID]; !ok {
-			ramBreakdownMap[clusterID] = &ClusterCostsBreakdown{}
-		}
-		ramBD := ramBreakdownMap[clusterID]
-		ramBD.User += result.Values[0].Value
-	}
-	for _, ramBD := range ramBreakdownMap {
-		remaining := 1.0
-		remaining -= ramBD.Other
-		remaining -= ramBD.System
-		remaining -= ramBD.User
-		ramBD.Idle = remaining
-	}
-
 	pvUsedCostMap := map[string]float64{}
-	for _, result := range resChs[9].Await() {
-		clusterID, _ := result.GetString("cluster_id")
-		if clusterID == "" {
-			clusterID = defaultClusterID
+	if withBreakdown {
+		for _, result := range resChs[6].Await() {
+			clusterID, _ := result.GetString("cluster_id")
+			if clusterID == "" {
+				clusterID = defaultClusterID
+			}
+			if _, ok := cpuBreakdownMap[clusterID]; !ok {
+				cpuBreakdownMap[clusterID] = &ClusterCostsBreakdown{}
+			}
+			cpuBD := cpuBreakdownMap[clusterID]
+
+			mode, err := result.GetString("mode")
+			if err != nil {
+				klog.V(3).Infof("[Warning] ComputeClusterCosts: unable to read CPU mode: %s", err)
+				mode = "other"
+			}
+
+			switch mode {
+			case "idle":
+				cpuBD.Idle += result.Values[0].Value
+			case "system":
+				cpuBD.System += result.Values[0].Value
+			case "user":
+				cpuBD.User += result.Values[0].Value
+			default:
+				cpuBD.Other += result.Values[0].Value
+			}
 		}
-		pvUsedCostMap[clusterID] += result.Values[0].Value
+
+		for _, result := range resChs[7].Await() {
+			clusterID, _ := result.GetString("cluster_id")
+			if clusterID == "" {
+				clusterID = defaultClusterID
+			}
+			if _, ok := ramBreakdownMap[clusterID]; !ok {
+				ramBreakdownMap[clusterID] = &ClusterCostsBreakdown{}
+			}
+			ramBD := ramBreakdownMap[clusterID]
+			ramBD.System += result.Values[0].Value
+		}
+		for _, result := range resChs[8].Await() {
+			clusterID, _ := result.GetString("cluster_id")
+			if clusterID == "" {
+				clusterID = defaultClusterID
+			}
+			if _, ok := ramBreakdownMap[clusterID]; !ok {
+				ramBreakdownMap[clusterID] = &ClusterCostsBreakdown{}
+			}
+			ramBD := ramBreakdownMap[clusterID]
+			ramBD.User += result.Values[0].Value
+		}
+		for _, ramBD := range ramBreakdownMap {
+			remaining := 1.0
+			remaining -= ramBD.Other
+			remaining -= ramBD.System
+			remaining -= ramBD.User
+			ramBD.Idle = remaining
+		}
+
+		for _, result := range resChs[9].Await() {
+			clusterID, _ := result.GetString("cluster_id")
+			if clusterID == "" {
+				clusterID = defaultClusterID
+			}
+			pvUsedCostMap[clusterID] += result.Values[0].Value
+		}
 	}
 
 	// Convert intermediate structure to Costs instances
