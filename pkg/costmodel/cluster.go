@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
 	prometheus "github.com/prometheus/client_golang/api"
@@ -134,35 +135,61 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	}
 	mins := end.Sub(*start).Minutes()
 
-	const fmtQueryDataCount = `count_over_time(sum(kube_node_status_capacity_cpu_cores) by (cluster_id)[%s:1m]%s)`
+	// minsPerResolution determines accuracy and resource use for the following
+	// queries. Smaller values (higher resolution) result in better accuracy,
+	// but more expensive queries, and vice-a-versa.
+	minsPerResolution := 2
 
-	const fmtQueryTotalGPU = `sum(
-		sum_over_time(node_gpu_hourly_cost[%s:1m]%s) / 60
-	) by (cluster_id)`
+	// hourlyToCumulative is a scaling factor that, when multiplied by an hourly
+	// value, converts it to a cumulative value; i.e.
+	// [$/hr] * [min/res]*[hr/min] = [$/res]
+	hourlyToCumulative := float64(minsPerResolution) * (1.0 / 60.0)
 
-	const fmtQueryTotalCPU = `sum(
-		sum_over_time(avg(kube_node_status_capacity_cpu_cores) by (node, cluster_id)[%s:1m]%s) *
-		avg(avg_over_time(node_cpu_hourly_cost[%s:1m]%s)) by (node, cluster_id) / 60
-	) by (cluster_id)`
+	const fmtQueryDataCount = `
+		count_over_time(sum(kube_node_status_capacity_cpu_cores) by (cluster_id)[%s:1m]%s)
+	`
 
-	const fmtQueryTotalRAM = `sum(
-		sum_over_time(avg(kube_node_status_capacity_memory_bytes) by (node, cluster_id)[%s:1m]%s) / 1024 / 1024 / 1024 *
-		avg(avg_over_time(node_ram_hourly_cost[%s:1m]%s)) by (node, cluster_id) / 60
-	) by (cluster_id)`
+	const fmtQueryTotalGPU = `
+		sum(
+			sum_over_time(node_gpu_hourly_cost[%s:%dm]%s) * %f
+		) by (cluster_id)
+	`
 
-	const fmtQueryTotalStorage = `sum(
-		sum_over_time(avg(kube_persistentvolume_capacity_bytes) by (persistentvolume, cluster_id)[%s:1m]%s) / 1024 / 1024 / 1024 *
-		avg(avg_over_time(pv_hourly_cost[%s:1m]%s)) by (persistentvolume, cluster_id) / 60
-	) by (cluster_id)`
+	const fmtQueryTotalCPU = `
+		sum(
+			sum_over_time(avg(kube_node_status_capacity_cpu_cores) by (node, cluster_id)[%s:%dm]%s) *
+			avg(avg_over_time(node_cpu_hourly_cost[%s:%dm]%s)) by (node, cluster_id) * %f
+		) by (cluster_id)
+	`
 
-	const fmtQueryCPUModePct = `sum(rate(node_cpu_seconds_total[%s]%s)) by (cluster_id, mode) / ignoring(mode)
-	group_left sum(rate(node_cpu_seconds_total[%s]%s)) by (cluster_id)`
+	const fmtQueryTotalRAM = `
+		sum(
+			sum_over_time(avg(kube_node_status_capacity_memory_bytes) by (node, cluster_id)[%s:%dm]%s) / 1024 / 1024 / 1024 *
+			avg(avg_over_time(node_ram_hourly_cost[%s:%dm]%s)) by (node, cluster_id) * %f
+		) by (cluster_id)
+	`
 
-	const fmtQueryRAMSystemPct = `sum(sum_over_time(container_memory_usage_bytes{container_name!="",namespace="kube-system"}[%s:1m]%s)) by (cluster_id)
-	/ sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:1m]%s)) by (cluster_id)`
+	const fmtQueryTotalStorage = `
+		sum(
+			sum_over_time(avg(kube_persistentvolume_capacity_bytes) by (persistentvolume, cluster_id)[%s:%dm]%s) / 1024 / 1024 / 1024 *
+			avg(avg_over_time(pv_hourly_cost[%s:%dm]%s)) by (persistentvolume, cluster_id) * %f
+		) by (cluster_id)
+	`
 
-	const fmtQueryRAMUserPct = `sum(sum_over_time(kubecost_cluster_memory_working_set_bytes[%s:1m]%s)) by (cluster_id)
-	/ sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:1m]%s)) by (cluster_id)`
+	const fmtQueryCPUModePct = `
+		sum(rate(node_cpu_seconds_total[%s]%s)) by (cluster_id, mode) / ignoring(mode)
+		group_left sum(rate(node_cpu_seconds_total[%s]%s)) by (cluster_id)
+	`
+
+	const fmtQueryRAMSystemPct = `
+		sum(sum_over_time(container_memory_usage_bytes{container_name!="",namespace="kube-system"}[%s:%dm]%s)) by (cluster_id)
+		/ sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:%dm]%s)) by (cluster_id)
+	`
+
+	const fmtQueryRAMUserPct = `
+		sum(sum_over_time(kubecost_cluster_memory_working_set_bytes[%s:%dm]%s)) by (cluster_id)
+		/ sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:%dm]%s)) by (cluster_id)
+	`
 
 	// TODO niko/clustercost metric "kubelet_volume_stats_used_bytes" was deprecated in 1.12, then seems to have come back in 1.17
 	// const fmtQueryPVStorageUsePct = `(sum(kube_persistentvolumeclaim_info) by (persistentvolumeclaim, storageclass,namespace) + on (persistentvolumeclaim,namespace)
@@ -181,10 +208,16 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	}
 
 	queryDataCount := fmt.Sprintf(fmtQueryDataCount, window, fmtOffset)
-	queryTotalGPU := fmt.Sprintf(fmtQueryTotalGPU, window, fmtOffset)
-	queryTotalCPU := fmt.Sprintf(fmtQueryTotalCPU, window, fmtOffset, window, fmtOffset)
-	queryTotalRAM := fmt.Sprintf(fmtQueryTotalRAM, window, fmtOffset, window, fmtOffset)
-	queryTotalStorage := fmt.Sprintf(fmtQueryTotalStorage, window, fmtOffset, window, fmtOffset)
+	queryTotalGPU := fmt.Sprintf(fmtQueryTotalGPU, window, minsPerResolution, fmtOffset, hourlyToCumulative)
+	queryTotalCPU := fmt.Sprintf(fmtQueryTotalCPU, window, minsPerResolution, fmtOffset, window, minsPerResolution, fmtOffset, hourlyToCumulative)
+	queryTotalRAM := fmt.Sprintf(fmtQueryTotalRAM, window, minsPerResolution, fmtOffset, window, minsPerResolution, fmtOffset, hourlyToCumulative)
+	queryTotalStorage := fmt.Sprintf(fmtQueryTotalStorage, window, minsPerResolution, fmtOffset, window, minsPerResolution, fmtOffset, hourlyToCumulative)
+
+	log.Infof("ComputeClusterCosts: queryDataCount: %s", queryDataCount)
+	log.Infof("ComputeClusterCosts: queryTotalGPU: %s", queryTotalGPU)
+	log.Infof("ComputeClusterCosts: queryTotalCPU: %s", queryTotalCPU)
+	log.Infof("ComputeClusterCosts: queryTotalRAM: %s", queryTotalRAM)
+	log.Infof("ComputeClusterCosts: queryTotalStorage: %s", queryTotalStorage)
 
 	ctx := prom.NewContext(client)
 
@@ -199,8 +232,12 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 
 	if withBreakdown {
 		queryCPUModePct := fmt.Sprintf(fmtQueryCPUModePct, window, fmtOffset, window, fmtOffset)
-		queryRAMSystemPct := fmt.Sprintf(fmtQueryRAMSystemPct, window, fmtOffset, window, fmtOffset)
-		queryRAMUserPct := fmt.Sprintf(fmtQueryRAMUserPct, window, fmtOffset, window, fmtOffset)
+		queryRAMSystemPct := fmt.Sprintf(fmtQueryRAMSystemPct, window, minsPerResolution, fmtOffset, window, minsPerResolution, fmtOffset)
+		queryRAMUserPct := fmt.Sprintf(fmtQueryRAMUserPct, window, minsPerResolution, fmtOffset, window, minsPerResolution, fmtOffset)
+
+		log.Infof("ComputeClusterCosts: queryCPUModePct: %s", queryCPUModePct)
+		log.Infof("ComputeClusterCosts: queryRAMSystemPct: %s", queryRAMSystemPct)
+		log.Infof("ComputeClusterCosts: queryRAMUserPct: %s", queryRAMUserPct)
 
 		bdResChs := ctx.QueryAll(
 			queryCPUModePct,
