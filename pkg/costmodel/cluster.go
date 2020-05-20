@@ -138,7 +138,7 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	// minsPerResolution determines accuracy and resource use for the following
 	// queries. Smaller values (higher resolution) result in better accuracy,
 	// but more expensive queries, and vice-a-versa.
-	minsPerResolution := 2
+	minsPerResolution := 5
 
 	// hourlyToCumulative is a scaling factor that, when multiplied by an hourly
 	// value, converts it to a cumulative value; i.e.
