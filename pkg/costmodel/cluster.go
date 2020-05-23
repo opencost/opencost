@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/util"
 	prometheus "github.com/prometheus/client_golang/api"
 	"k8s.io/klog"
@@ -39,7 +40,7 @@ const (
 // TODO move this to a package-accessible helper
 type PromQueryContext struct {
 	Client         prometheus.Client
-	ErrorCollector *util.ErrorCollector
+	ErrorCollector *errors.ErrorCollector
 	WaitGroup      *sync.WaitGroup
 }
 
@@ -49,6 +50,8 @@ func AsyncPromQuery(query string, resultCh chan []*PromQueryResult, ctx PromQuer
 	if ctx.WaitGroup != nil {
 		defer ctx.WaitGroup.Done()
 	}
+
+	defer errors.HandlePanic()
 
 	raw, promErr := Query(ctx.Client, query)
 	ctx.ErrorCollector.Report(promErr)
@@ -201,7 +204,7 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	klog.V(4).Infof("[Debug] queryUsedLocalStorage: %s", queryUsedLocalStorage)
 
 	// Submit queries to Prometheus asynchronously
-	var ec util.ErrorCollector
+	var ec errors.ErrorCollector
 	var wg sync.WaitGroup
 	ctx := PromQueryContext{client, &ec, &wg}
 	ctx.WaitGroup.Add(numQueries)
