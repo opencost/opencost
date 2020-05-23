@@ -211,90 +211,6 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	}
 
 	queryDataCount := fmt.Sprintf(fmtQueryDataCount, window, fmtOffset)
-<<<<<<< HEAD
-	queryTotalGPU := fmt.Sprintf(fmtQueryTotalGPU, window, fmtOffset)
-	queryTotalCPU := fmt.Sprintf(fmtQueryTotalCPU, window, fmtOffset, window, fmtOffset)
-	queryTotalRAM := fmt.Sprintf(fmtQueryTotalRAM, window, fmtOffset, window, fmtOffset)
-	queryTotalStorage := fmt.Sprintf(fmtQueryTotalStorage, window, fmtOffset, window, fmtOffset, queryTotalLocalStorage)
-	queryCPUModePct := fmt.Sprintf(fmtQueryCPUModePct, window, fmtOffset, window, fmtOffset)
-	queryRAMSystemPct := fmt.Sprintf(fmtQueryRAMSystemPct, window, fmtOffset, window, fmtOffset)
-	queryRAMUserPct := fmt.Sprintf(fmtQueryRAMUserPct, window, fmtOffset, window, fmtOffset)
-
-	numQueries := 9
-
-	klog.V(4).Infof("[Debug] queryDataCount: %s", queryDataCount)
-	klog.V(4).Infof("[Debug] queryTotalGPU: %s", queryTotalGPU)
-	klog.V(4).Infof("[Debug] queryTotalCPU: %s", queryTotalCPU)
-	klog.V(4).Infof("[Debug] queryTotalRAM: %s", queryTotalRAM)
-	klog.V(4).Infof("[Debug] queryTotalStorage: %s", queryTotalStorage)
-	klog.V(4).Infof("[Debug] queryCPUModePct: %s", queryCPUModePct)
-	klog.V(4).Infof("[Debug] queryRAMSystemPct: %s", queryRAMSystemPct)
-	klog.V(4).Infof("[Debug] queryRAMUserPct: %s", queryRAMUserPct)
-	klog.V(4).Infof("[Debug] queryUsedLocalStorage: %s", queryUsedLocalStorage)
-
-	// Submit queries to Prometheus asynchronously
-	var ec errors.ErrorCollector
-	var wg sync.WaitGroup
-	ctx := PromQueryContext{client, &ec, &wg}
-	ctx.WaitGroup.Add(numQueries)
-
-	chDataCount := make(chan []*PromQueryResult, 1)
-	go AsyncPromQuery(queryDataCount, chDataCount, ctx)
-
-	chTotalGPU := make(chan []*PromQueryResult, 1)
-	go AsyncPromQuery(queryTotalGPU, chTotalGPU, ctx)
-
-	chTotalCPU := make(chan []*PromQueryResult, 1)
-	go AsyncPromQuery(queryTotalCPU, chTotalCPU, ctx)
-
-	chTotalRAM := make(chan []*PromQueryResult, 1)
-	go AsyncPromQuery(queryTotalRAM, chTotalRAM, ctx)
-
-	chTotalStorage := make(chan []*PromQueryResult, 1)
-	go AsyncPromQuery(queryTotalStorage, chTotalStorage, ctx)
-
-	chCPUModePct := make(chan []*PromQueryResult, 1)
-	go AsyncPromQuery(queryCPUModePct, chCPUModePct, ctx)
-
-	chRAMSystemPct := make(chan []*PromQueryResult, 1)
-	go AsyncPromQuery(queryRAMSystemPct, chRAMSystemPct, ctx)
-
-	chRAMUserPct := make(chan []*PromQueryResult, 1)
-	go AsyncPromQuery(queryRAMUserPct, chRAMUserPct, ctx)
-
-	chUsedLocalStorage := make(chan []*PromQueryResult, 1)
-	go AsyncPromQuery(queryUsedLocalStorage, chUsedLocalStorage, ctx)
-
-	// After queries complete, retrieve results
-	wg.Wait()
-
-	resultsDataCount := <-chDataCount
-	close(chDataCount)
-
-	resultsTotalGPU := <-chTotalGPU
-	close(chTotalGPU)
-
-	resultsTotalCPU := <-chTotalCPU
-	close(chTotalCPU)
-
-	resultsTotalRAM := <-chTotalRAM
-	close(chTotalRAM)
-
-	resultsTotalStorage := <-chTotalStorage
-	close(chTotalStorage)
-
-	resultsCPUModePct := <-chCPUModePct
-	close(chCPUModePct)
-
-	resultsRAMSystemPct := <-chRAMSystemPct
-	close(chRAMSystemPct)
-
-	resultsRAMUserPct := <-chRAMUserPct
-	close(chRAMUserPct)
-
-	resultsUsedLocalStorage := <-chUsedLocalStorage
-	close(chUsedLocalStorage)
-=======
 	queryTotalGPU := fmt.Sprintf(fmtQueryTotalGPU, window, minsPerResolution, fmtOffset, hourlyToCumulative)
 	queryTotalCPU := fmt.Sprintf(fmtQueryTotalCPU, window, minsPerResolution, fmtOffset, window, minsPerResolution, fmtOffset, hourlyToCumulative)
 	queryTotalRAM := fmt.Sprintf(fmtQueryTotalRAM, window, minsPerResolution, fmtOffset, window, minsPerResolution, fmtOffset, hourlyToCumulative)
@@ -335,7 +251,6 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 
 		resChs = append(resChs, bdResChs...)
 	}
->>>>>>> develop
 
 	defaultClusterID := os.Getenv(clusterIDKey)
 
