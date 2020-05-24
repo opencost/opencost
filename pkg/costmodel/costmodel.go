@@ -2685,10 +2685,15 @@ type ContainerMetric struct {
 	ContainerName string
 	NodeName      string
 	ClusterID     string
+	key           string
 }
 
 func (c *ContainerMetric) Key() string {
-	return c.Namespace + "," + c.PodName + "," + c.ContainerName + "," + c.NodeName + "," + c.ClusterID
+	return c.key
+}
+
+func containerMetricKey(ns, podName, containerName, nodeName, clusterID string) string {
+	return ns + "," + podName + "," + containerName + "," + nodeName + "," + clusterID
 }
 
 func NewContainerMetricFromKey(key string) (*ContainerMetric, error) {
@@ -2700,6 +2705,7 @@ func NewContainerMetricFromKey(key string) (*ContainerMetric, error) {
 			ContainerName: s[2],
 			NodeName:      s[3],
 			ClusterID:     s[4],
+			key:           key,
 		}, nil
 	}
 	return nil, fmt.Errorf("Not a valid key")
@@ -2712,6 +2718,7 @@ func newContainerMetricFromValues(ns string, podName string, containerName strin
 		ContainerName: containerName,
 		NodeName:      nodeName,
 		ClusterID:     clusterId,
+		key:           containerMetricKey(ns, podName, containerName, nodeName, clusterId),
 	}
 }
 
@@ -2728,6 +2735,7 @@ func newContainerMetricsFromPod(pod v1.Pod, clusterID string) ([]*ContainerMetri
 			ContainerName: containerName,
 			NodeName:      node,
 			ClusterID:     clusterID,
+			key:           containerMetricKey(ns, podName, containerName, node, clusterID),
 		})
 	}
 	return cs, nil
@@ -2782,6 +2790,7 @@ func newContainerMetricFromPrometheus(metrics map[string]interface{}, defaultClu
 		Namespace:     namespace,
 		NodeName:      nodeName,
 		ClusterID:     clusterID,
+		key:           containerMetricKey(namespace, podName, containerName, nodeName, clusterID),
 	}, nil
 }
 
