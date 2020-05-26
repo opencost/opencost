@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/cloud"
-	"github.com/kubecost/cost-model/pkg/errors"
+  "github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
@@ -149,7 +149,7 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	hourlyToCumulative := float64(minsPerResolution) * (1.0 / 60.0)
 
 	const fmtQueryDataCount = `
-		count_over_time(sum(kube_node_status_capacity_cpu_cores) by (cluster_id)[%s:1m]%s)
+		count_over_time(sum(kube_node_status_capacity_cpu_cores) by (cluster_id)[%s:%dm]%s) * %d
 	`
 
 	const fmtQueryTotalGPU = `
@@ -210,17 +210,11 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 		fmtOffset = fmt.Sprintf("offset %s", offset)
 	}
 
-	queryDataCount := fmt.Sprintf(fmtQueryDataCount, window, fmtOffset)
+	queryDataCount := fmt.Sprintf(fmtQueryDataCount, window, minsPerResolution, fmtOffset, minsPerResolution)
 	queryTotalGPU := fmt.Sprintf(fmtQueryTotalGPU, window, minsPerResolution, fmtOffset, hourlyToCumulative)
 	queryTotalCPU := fmt.Sprintf(fmtQueryTotalCPU, window, minsPerResolution, fmtOffset, window, minsPerResolution, fmtOffset, hourlyToCumulative)
 	queryTotalRAM := fmt.Sprintf(fmtQueryTotalRAM, window, minsPerResolution, fmtOffset, window, minsPerResolution, fmtOffset, hourlyToCumulative)
 	queryTotalStorage := fmt.Sprintf(fmtQueryTotalStorage, window, minsPerResolution, fmtOffset, window, minsPerResolution, fmtOffset, hourlyToCumulative)
-
-	log.Infof("ComputeClusterCosts: queryDataCount: %s", queryDataCount)
-	log.Infof("ComputeClusterCosts: queryTotalGPU: %s", queryTotalGPU)
-	log.Infof("ComputeClusterCosts: queryTotalCPU: %s", queryTotalCPU)
-	log.Infof("ComputeClusterCosts: queryTotalRAM: %s", queryTotalRAM)
-	log.Infof("ComputeClusterCosts: queryTotalStorage: %s", queryTotalStorage)
 
 	ctx := prom.NewContext(client)
 
@@ -237,10 +231,6 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 		queryCPUModePct := fmt.Sprintf(fmtQueryCPUModePct, window, fmtOffset, window, fmtOffset)
 		queryRAMSystemPct := fmt.Sprintf(fmtQueryRAMSystemPct, window, minsPerResolution, fmtOffset, window, minsPerResolution, fmtOffset)
 		queryRAMUserPct := fmt.Sprintf(fmtQueryRAMUserPct, window, minsPerResolution, fmtOffset, window, minsPerResolution, fmtOffset)
-
-		log.Infof("ComputeClusterCosts: queryCPUModePct: %s", queryCPUModePct)
-		log.Infof("ComputeClusterCosts: queryRAMSystemPct: %s", queryRAMSystemPct)
-		log.Infof("ComputeClusterCosts: queryRAMUserPct: %s", queryRAMUserPct)
 
 		bdResChs := ctx.QueryAll(
 			queryCPUModePct,
