@@ -891,14 +891,17 @@ func handlePanic(p errors.Panic) bool {
 
 		if err, ok := err.(string); ok {
 			msg := fmt.Sprintf("Panic: %s\nStackTrace: %s\n", err, p.Stack)
-			sentry.CurrentHub().CaptureMessage(msg)
+			sentry.CurrentHub().CaptureEvent(&sentry.Event{
+				Level:   sentry.LevelError,
+				Message: msg,
+			})
 			sentry.Flush(5 * time.Second)
 		}
 	}
 
-	// Return false to not recover
-	// We'll allow kubernetes to handle crash/failures
-	return false
+	// Return true to recover iff the type is http, otherwise allow kubernetes
+	// to recover.
+	return p.Type == errors.PanicTypeHTTP
 }
 
 func Initialize(additionalConfigWatchers ...ConfigWatchers) {
