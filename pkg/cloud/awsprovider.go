@@ -1165,7 +1165,7 @@ func (a *AWS) GetAddresses() ([]byte, error) {
 
 	errors := []error{}
 	for err := range errorCh {
-		log.Printf("error getting addresses: %s", err)
+		log.Printf("[Warning]: unable to get addresses: %s", err)
 		errors = append(errors, err)
 	}
 
@@ -1268,7 +1268,7 @@ func (a *AWS) GetDisks() ([]byte, error) {
 
 	errors := []error{}
 	for err := range errorCh {
-		log.Printf("error getting disks: %s", err)
+		log.Printf("[Warning]: unable to get disks: %s", err)
 		errors = append(errors, err)
 	}
 
