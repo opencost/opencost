@@ -20,6 +20,7 @@ import (
 	"k8s.io/klog"
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/util"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -563,6 +564,8 @@ func (aws *AWS) DownloadPricingData() error {
 			klog.V(1).Infof("Failed to lookup reserved instance data: %s", err.Error())
 		} else { // If we make one successful run, check on new reservation data every hour
 			go func() {
+				defer errors.HandlePanic()
+
 				for {
 					aws.RIDataRunning = true
 					klog.Infof("Reserved Instance watcher running... next update in 1h")
@@ -1132,6 +1135,7 @@ func (a *AWS) GetAddresses() ([]byte, error) {
 		// respective channels
 		go func(region string) {
 			defer wg.Done()
+			defer errors.HandlePanic()
 
 			// Query for first page of volume results
 			resp, err := a.getAddressesForRegion(region)
@@ -1153,6 +1157,8 @@ func (a *AWS) GetAddresses() ([]byte, error) {
 
 	// Close the result channels after everything has been sent
 	go func() {
+		defer errors.HandlePanic()
+
 		wg.Wait()
 		close(errorCh)
 		close(addressCh)
@@ -1216,6 +1222,7 @@ func (a *AWS) GetDisks() ([]byte, error) {
 		// respective channels
 		go func(region string) {
 			defer wg.Done()
+			defer errors.HandlePanic()
 
 			// Query for first page of volume results
 			resp, err := a.getDisksForRegion(region, 1000, nil)
@@ -1256,6 +1263,8 @@ func (a *AWS) GetDisks() ([]byte, error) {
 
 	// Close the result channels after everything has been sent
 	go func() {
+		defer errors.HandlePanic()
+
 		wg.Wait()
 		close(errorCh)
 		close(volumeCh)

@@ -17,9 +17,13 @@ import (
 	"k8s.io/klog"
 
 	"github.com/julienschmidt/httprouter"
+
+	sentry "github.com/getsentry/sentry-go"
+
 	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	cm "github.com/kubecost/cost-model/pkg/clustermanager"
+	"github.com/kubecost/cost-model/pkg/errors"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
 	v1 "k8s.io/api/core/v1"
@@ -634,6 +638,8 @@ func (p *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request,
 
 func (a *Accesses) recordPrices() {
 	go func() {
+		defer errors.HandlePanic()
+
 		containerSeen := make(map[string]bool)
 		nodeSeen := make(map[string]bool)
 		pvSeen := make(map[string]bool)
@@ -873,11 +879,49 @@ type ConfigWatchers struct {
 	WatchFunc     func(string, map[string]string) error
 }
 
+// handle any panics reported by the errors package
+func handlePanic(p errors.Panic) bool {
+	err := p.Error
+
+	if err != nil {
+		if err, ok := err.(error); ok {
+			sentry.CurrentHub().CaptureException(err)
+			sentry.Flush(5 * time.Second)
+		}
+
+		if err, ok := err.(string); ok {
+			msg := fmt.Sprintf("Panic: %s\nStackTrace: %s\n", err, p.Stack)
+			sentry.CurrentHub().CaptureEvent(&sentry.Event{
+				Level:   sentry.LevelError,
+				Message: msg,
+			})
+			sentry.Flush(5 * time.Second)
+		}
+	}
+
+	// Return true to recover iff the type is http, otherwise allow kubernetes
+	// to recover.
+	return p.Type == errors.PanicTypeHTTP
+}
+
 func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	klog.InitFlags(nil)
 	flag.Set("v", "3")
 	flag.Parse()
 	klog.V(1).Infof("Starting cost-model (git commit \"%s\")", gitCommit)
+
+	var err error
+	if errorReportingEnabled {
+		err = sentry.Init(sentry.ClientOptions{Release: gitCommit})
+		if err != nil {
+			klog.Infof("Failed to initialize sentry for error reporting")
+		} else {
+			err = errors.SetPanicHandler(handlePanic)
+			if err != nil {
+				klog.Infof("Failed to set panic handler: %s", err)
+			}
+		}
+	}
 
 	address := os.Getenv(prometheusServerEndpointEnvVar)
 	if address == "" {
@@ -900,7 +944,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	promCli, _ := prometheusClient.NewClient(pc)
 
 	api := prometheusAPI.NewAPI(promCli)
-	_, err := api.Config(context.Background())
+	_, err = api.Config(context.Background())
 	if err != nil {
 		klog.Fatalf("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prometheusTroubleshootingEp)
 	}

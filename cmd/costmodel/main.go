@@ -5,6 +5,7 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/kubecost/cost-model/pkg/costmodel"
+	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"k8s.io/klog"
 )
@@ -22,5 +23,5 @@ func main() {
 	costmodel.Router.GET("/healthz", Healthz)
 	rootMux.Handle("/", costmodel.Router)
 	rootMux.Handle("/metrics", promhttp.Handler())
-	klog.Fatal(http.ListenAndServe(":9003", rootMux))
+	klog.Fatal(http.ListenAndServe(":9003", errors.PanicHandlerMiddleware(rootMux)))
 }
