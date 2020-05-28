@@ -43,7 +43,8 @@ var (
 	dispatcher = make(chan Panic)
 )
 
-// SetPanicHandler sets the handler that is executed when
+// SetPanicHandler sets the handler that is executed when any panic is captured by
+// HandlePanic(). Without setting a handler, the panic reporting is disabled.
 func SetPanicHandler(handler PanicHandler) error {
 	if enabled {
 		return fmt.Errorf("Panic Handler has already been set")
