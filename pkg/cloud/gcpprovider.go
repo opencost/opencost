@@ -943,7 +943,7 @@ func (gcp *GCP) DownloadPricingData() error {
 
 	for _, n := range nodeList {
 		labels := n.GetObjectMeta().GetLabels()
-		key := gcp.GetKey(labels)
+		key := gcp.GetKey(labels, n)
 		inputkeys[key.Features()] = key
 	}
 
@@ -1285,7 +1285,7 @@ type gcpKey struct {
 	Labels map[string]string
 }
 
-func (gcp *GCP) GetKey(labels map[string]string) Key {
+func (gcp *GCP) GetKey(labels map[string]string, n *v1.Node) Key {
 	return &gcpKey{
 		Labels: labels,
 	}

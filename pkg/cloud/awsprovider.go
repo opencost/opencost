@@ -482,7 +482,7 @@ func (key *awsPVKey) Features() string {
 }
 
 // GetKey maps node labels to information needed to retrieve pricing data
-func (aws *AWS) GetKey(labels map[string]string) Key {
+func (aws *AWS) GetKey(labels map[string]string, n *v1.Node) Key {
 	return &awsKey{
 		SpotLabelName:  aws.SpotLabelName,
 		SpotLabelValue: aws.SpotLabelValue,
@@ -531,7 +531,7 @@ func (aws *AWS) DownloadPricingData() error {
 	inputkeys := make(map[string]bool)
 	for _, n := range nodeList {
 		labels := n.GetObjectMeta().GetLabels()
-		key := aws.GetKey(labels)
+		key := aws.GetKey(labels, n)
 		inputkeys[key.Features()] = true
 	}
 
