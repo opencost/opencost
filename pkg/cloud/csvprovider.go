@@ -2,6 +2,7 @@ package cloud
 
 import (
 	"encoding/csv"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -41,6 +42,7 @@ func GetCsv(location string) (io.Reader, error) {
 }
 
 func (c *CSVProvider) DownloadPricingData() error {
+	fmt.Printf("DOWNLOADING PRICING DATA \n")
 	c.DownloadPricingDataLock.Lock()
 	defer c.DownloadPricingDataLock.Unlock()
 	pricing := make(map[string]*price)
@@ -52,7 +54,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 	fieldsPerRecord := len(header)
 	csvr, err := GetCsv(c.CSVLocation)
 	csvReader := csv.NewReader(csvr)
-	csvReader.Comma = '\t'
+	csvReader.Comma = ','
 	csvReader.FieldsPerRecord = fieldsPerRecord
 
 	dec, err := csvutil.NewDecoder(csvReader, header...)
@@ -81,7 +83,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 			klog.V(2).Infof("Error during spot info decode: %+v", err)
 			continue
 		}
-
+		fmt.Printf("HERE FOUND PRICE")
 		klog.V(4).Infof("Found price info %+v", p)
 		if p.AssetClass == "pv" {
 			pvpricing[p.InstanceID] = &p
