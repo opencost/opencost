@@ -124,10 +124,8 @@ func (c *CSVProvider) NodePricing(key Key) (*Node, error) {
 		return &Node{
 			Cost: p.MarketPriceHourly,
 		}, nil
-	} else {
-		klog.Infof("Unable to find Node matching %s", key.ID())
-		return &Node{}, nil
 	}
+	return nil, fmt.Errorf("Unable to find Node matching %s", key.ID())
 }
 
 func NodeValueFromMapField(m string, n *v1.Node) string {

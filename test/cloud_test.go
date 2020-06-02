@@ -68,4 +68,29 @@ func TestNodePriceFromCSV(t * testing.T) {
 		t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
 	}
 
+	unknownN := &v1.Node{}
+	unknownN.Spec.ProviderID = providerIDWant
+	unknownN.Name = "unknownname"
+	unknownN.Labels = make(map[string]string)
+	unknownN.Labels["foo"] = labelFooWant
+	k2 := c.GetKey(n.Labels, unknownN)
+	resN2, _ := c.NodePricing(k2)
+	if resN2 != nil {
+		t.Errorf("CSV provider should return nil on missing node")
+	}
+	
+	c2 := &cloud.CSVProvider{
+		CSVLocation: "../configs/fake.csv",
+		CustomProvider: &cloud.CustomProvider{
+			Config:    cloud.NewProviderConfig("../configs/default.json"),
+		},
+	}
+	k3 := c.GetKey(n.Labels, n)
+	resN3, _ := c2.NodePricing(k3)
+	if resN3 != nil {
+		t.Errorf("CSV provider should return nil on missing csv")
+	}
+
+
+
 }
