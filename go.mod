@@ -10,6 +10,7 @@ require (
 	github.com/aws/aws-sdk-go v1.28.9
 	github.com/dimchansky/utfbom v1.1.0 // indirect
 	github.com/etcd-io/bbolt v1.3.3
+	github.com/getsentry/sentry-go v0.6.1
 	github.com/google/martian v2.1.0+incompatible // indirect
 	github.com/google/uuid v1.1.1
 	github.com/googleapis/gax-go v2.0.2+incompatible // indirect
@@ -31,7 +32,6 @@ require (
 	k8s.io/client-go v0.0.0-20190620085101-78d2af792bab
 	k8s.io/klog v0.4.0
 	sigs.k8s.io/yaml v1.1.0
-	github.com/getsentry/sentry-go v0.6.1
 )
 
 go 1.13

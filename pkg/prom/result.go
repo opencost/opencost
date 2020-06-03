@@ -32,7 +32,7 @@ type QueryResult struct {
 func NewQueryResults(queryResult interface{}) ([]*QueryResult, error) {
 	var result []*QueryResult
 	if queryResult == nil {
-		return nil, fmt.Errorf("[Error] nil result from prometheus, has it gone down?")
+		return nil, NewCommError("nil queryResult")
 	}
 	data, ok := queryResult.(map[string]interface{})["data"]
 	if !ok {
