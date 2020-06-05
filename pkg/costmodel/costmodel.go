@@ -16,6 +16,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	v1 "k8s.io/api/core/v1"
@@ -2067,8 +2068,11 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	normalizationValue, err := getNormalizations(normalizationResults)
 	if err != nil {
-		return nil, fmt.Errorf("error computing normalization %s for start=%s, end=%s, window=%s, res=%f: %s", normalization,
-			start, end, window, resolutionHours*60*60, err.Error())
+		msg := fmt.Sprintf("error computing normalization %s for start=%s, end=%s, window=%s, res=%f", normalization, start, end, window, resolutionHours*60*60)
+		if pce, ok := err.(prom.CommError); ok {
+			return nil, pce.Wrap(msg)
+		}
+		return nil, fmt.Errorf("%s: %s", msg, err)
 	}
 
 	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): compute normalizations", durHrs))
@@ -2179,6 +2183,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	RAMReqMap, err := GetNormalizedContainerMetricVectors(resultRAMRequests, normalizationValue, clusterID)
 	if err != nil {
+		if pce, ok := err.(prom.CommError); ok {
+			return nil, pce.Wrap("GetNormalizedContainerMetricVectors(RAMRequests)")
+		}
 		return nil, fmt.Errorf("GetNormalizedContainerMetricVectors(RAMRequests): %s", err)
 	}
 	for key := range RAMReqMap {
@@ -2187,6 +2194,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	RAMUsedMap, err := GetNormalizedContainerMetricVectors(resultRAMUsage, normalizationValue, clusterID)
 	if err != nil {
+		if pce, ok := err.(prom.CommError); ok {
+			return nil, pce.Wrap("GetNormalizedContainerMetricVectors(RAMUsage)")
+		}
 		return nil, fmt.Errorf("GetNormalizedContainerMetricVectors(RAMUsage): %s", err)
 	}
 	for key := range RAMUsedMap {
@@ -2195,6 +2205,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	CPUReqMap, err := GetNormalizedContainerMetricVectors(resultCPURequests, normalizationValue, clusterID)
 	if err != nil {
+		if pce, ok := err.(prom.CommError); ok {
+			return nil, pce.Wrap("GetNormalizedContainerMetricVectors(CPURequests)")
+		}
 		return nil, fmt.Errorf("GetNormalizedContainerMetricVectors(CPURequests): %s", err)
 	}
 	for key := range CPUReqMap {
@@ -2205,6 +2218,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	// rate(container_cpu_usage_seconds_total) which properly accounts for normalized rates
 	CPUUsedMap, err := GetContainerMetricVectors(resultCPUUsage, clusterID)
 	if err != nil {
+		if pce, ok := err.(prom.CommError); ok {
+			return nil, pce.Wrap("GetContainerMetricVectors(CPUUsage)")
+		}
 		return nil, fmt.Errorf("GetContainerMetricVectors(CPUUsage): %s", err)
 	}
 	for key := range CPUUsedMap {
@@ -2213,6 +2229,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	RAMAllocMap, err := GetContainerMetricVectors(resultRAMAllocations, clusterID)
 	if err != nil {
+		if pce, ok := err.(prom.CommError); ok {
+			return nil, pce.Wrap("GetContainerMetricVectors(RAMAllocations)")
+		}
 		return nil, fmt.Errorf("GetContainerMetricVectors(RAMAllocations): %s", err)
 	}
 	for key := range RAMAllocMap {
@@ -2221,6 +2240,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	CPUAllocMap, err := GetContainerMetricVectors(resultCPUAllocations, clusterID)
 	if err != nil {
+		if pce, ok := err.(prom.CommError); ok {
+			return nil, pce.Wrap("GetContainerMetricVectors(CPUAllocations)")
+		}
 		return nil, fmt.Errorf("GetContainerMetricVectors(CPUAllocations): %s", err)
 	}
 	for key := range CPUAllocMap {
@@ -2229,6 +2251,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	GPUReqMap, err := GetNormalizedContainerMetricVectors(resultGPURequests, normalizationValue, clusterID)
 	if err != nil {
+		if pce, ok := err.(prom.CommError); ok {
+			return nil, pce.Wrap("GetContainerMetricVectors(GPURequests)")
+		}
 		return nil, fmt.Errorf("GetContainerMetricVectors(GPURequests): %s", err)
 	}
 	for key := range GPUReqMap {
