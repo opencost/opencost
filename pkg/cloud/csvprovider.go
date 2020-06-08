@@ -42,7 +42,6 @@ func GetCsv(location string) (io.Reader, error) {
 }
 
 func (c *CSVProvider) DownloadPricingData() error {
-	fmt.Printf("DOWNLOADING PRICING DATA \n")
 	c.DownloadPricingDataLock.Lock()
 	defer c.DownloadPricingDataLock.Unlock()
 	pricing := make(map[string]*price)
@@ -83,7 +82,6 @@ func (c *CSVProvider) DownloadPricingData() error {
 			klog.V(2).Infof("Error during spot info decode: %+v", err)
 			continue
 		}
-		fmt.Printf("HERE FOUND PRICE")
 		klog.V(4).Infof("Found price info %+v", p)
 		if p.AssetClass == "pv" {
 			pvpricing[p.InstanceID] = &p
@@ -97,8 +95,12 @@ func (c *CSVProvider) DownloadPricingData() error {
 			c.NodeMapField = p.InstanceIDField
 		}
 	}
-	c.Pricing = pricing
-	c.PricingPV = pvpricing
+	if len(pricing) > 0 {
+		c.Pricing = pricing
+		c.PricingPV = pvpricing
+	} else {
+		klog.Infof("[WARNING] No data received from csv")
+	}
 	return nil
 }
 
