@@ -773,27 +773,28 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 	key := k.Features()
 	aws.RIDataLock.RLock()
 	defer aws.RIDataLock.RUnlock()
-	if aws.isPreemptible(key) {
-		if spotInfo, ok := aws.SpotPricingByInstanceID[k.ID()]; ok { // try and match directly to an ID for pricing. We'll still need the features
-			var spotcost string
-			arr := strings.Split(spotInfo.Charge, " ")
-			if len(arr) == 2 {
-				spotcost = arr[0]
-			} else {
-				klog.V(2).Infof("Spot data for node %s is missing", k.ID())
-			}
-			return &Node{
-				Cost:         spotcost,
-				VCPU:         terms.VCpu,
-				RAM:          terms.Memory,
-				GPU:          terms.GPU,
-				Storage:      terms.Storage,
-				BaseCPUPrice: aws.BaseCPUPrice,
-				BaseRAMPrice: aws.BaseRAMPrice,
-				BaseGPUPrice: aws.BaseGPUPrice,
-				UsageType:    usageType,
-			}, nil
+	if spotInfo, ok := aws.SpotPricingByInstanceID[k.ID()]; ok {
+		var spotcost string
+		klog.V(3).Infof("Looking up spot data from feed for node %s", k.ID())
+		arr := strings.Split(spotInfo.Charge, " ")
+		if len(arr) == 2 {
+			spotcost = arr[0]
+		} else {
+			klog.V(2).Infof("Spot data for node %s is missing", k.ID())
 		}
+		return &Node{
+			Cost:         spotcost,
+			VCPU:         terms.VCpu,
+			RAM:          terms.Memory,
+			GPU:          terms.GPU,
+			Storage:      terms.Storage,
+			BaseCPUPrice: aws.BaseCPUPrice,
+			BaseRAMPrice: aws.BaseRAMPrice,
+			BaseGPUPrice: aws.BaseGPUPrice,
+			UsageType:    usageType,
+		}, nil
+	} else if aws.isPreemptible(key) { // Preemptible but we don't have any data in the pricing report.
+		klog.Infof("Node %s marked preemitible but we have no data in spot feed", k.ID())
 		return &Node{
 			VCPU:         terms.VCpu,
 			VCPUCost:     aws.BaseSpotCPUPrice,
