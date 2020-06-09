@@ -177,7 +177,7 @@ func (cp *CustomProvider) DownloadPricingData() error {
 	return nil
 }
 
-func (cp *CustomProvider) GetKey(labels map[string]string) Key {
+func (cp *CustomProvider) GetKey(labels map[string]string, n *v1.Node) Key {
 	return &customProviderKey{
 		SpotLabel:      cp.SpotLabel,
 		SpotLabelValue: cp.SpotLabelValue,

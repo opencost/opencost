@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
 	prometheus "github.com/prometheus/client_golang/api"
@@ -40,7 +41,7 @@ const (
 // TODO move this to a package-accessible helper
 type PromQueryContext struct {
 	Client         prometheus.Client
-	ErrorCollector *util.ErrorCollector
+	ErrorCollector *errors.ErrorCollector
 	WaitGroup      *sync.WaitGroup
 }
 
@@ -50,6 +51,8 @@ func AsyncPromQuery(query string, resultCh chan []*PromQueryResult, ctx PromQuer
 	if ctx.WaitGroup != nil {
 		defer ctx.WaitGroup.Done()
 	}
+
+	defer errors.HandlePanic()
 
 	raw, promErr := Query(ctx.Client, query)
 	ctx.ErrorCollector.Report(promErr)

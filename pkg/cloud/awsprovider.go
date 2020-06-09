@@ -20,6 +20,7 @@ import (
 	"k8s.io/klog"
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/util"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -481,7 +482,7 @@ func (key *awsPVKey) Features() string {
 }
 
 // GetKey maps node labels to information needed to retrieve pricing data
-func (aws *AWS) GetKey(labels map[string]string) Key {
+func (aws *AWS) GetKey(labels map[string]string, n *v1.Node) Key {
 	return &awsKey{
 		SpotLabelName:  aws.SpotLabelName,
 		SpotLabelValue: aws.SpotLabelValue,
@@ -530,7 +531,7 @@ func (aws *AWS) DownloadPricingData() error {
 	inputkeys := make(map[string]bool)
 	for _, n := range nodeList {
 		labels := n.GetObjectMeta().GetLabels()
-		key := aws.GetKey(labels)
+		key := aws.GetKey(labels, n)
 		inputkeys[key.Features()] = true
 	}
 
@@ -563,6 +564,8 @@ func (aws *AWS) DownloadPricingData() error {
 			klog.V(1).Infof("Failed to lookup reserved instance data: %s", err.Error())
 		} else { // If we make one successful run, check on new reservation data every hour
 			go func() {
+				defer errors.HandlePanic()
+
 				for {
 					aws.RIDataRunning = true
 					klog.Infof("Reserved Instance watcher running... next update in 1h")
@@ -770,27 +773,28 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 	key := k.Features()
 	aws.RIDataLock.RLock()
 	defer aws.RIDataLock.RUnlock()
-	if aws.isPreemptible(key) {
-		if spotInfo, ok := aws.SpotPricingByInstanceID[k.ID()]; ok { // try and match directly to an ID for pricing. We'll still need the features
-			var spotcost string
-			arr := strings.Split(spotInfo.Charge, " ")
-			if len(arr) == 2 {
-				spotcost = arr[0]
-			} else {
-				klog.V(2).Infof("Spot data for node %s is missing", k.ID())
-			}
-			return &Node{
-				Cost:         spotcost,
-				VCPU:         terms.VCpu,
-				RAM:          terms.Memory,
-				GPU:          terms.GPU,
-				Storage:      terms.Storage,
-				BaseCPUPrice: aws.BaseCPUPrice,
-				BaseRAMPrice: aws.BaseRAMPrice,
-				BaseGPUPrice: aws.BaseGPUPrice,
-				UsageType:    usageType,
-			}, nil
+	if spotInfo, ok := aws.SpotPricingByInstanceID[k.ID()]; ok {
+		var spotcost string
+		klog.V(3).Infof("Looking up spot data from feed for node %s", k.ID())
+		arr := strings.Split(spotInfo.Charge, " ")
+		if len(arr) == 2 {
+			spotcost = arr[0]
+		} else {
+			klog.V(2).Infof("Spot data for node %s is missing", k.ID())
 		}
+		return &Node{
+			Cost:         spotcost,
+			VCPU:         terms.VCpu,
+			RAM:          terms.Memory,
+			GPU:          terms.GPU,
+			Storage:      terms.Storage,
+			BaseCPUPrice: aws.BaseCPUPrice,
+			BaseRAMPrice: aws.BaseRAMPrice,
+			BaseGPUPrice: aws.BaseGPUPrice,
+			UsageType:    usageType,
+		}, nil
+	} else if aws.isPreemptible(key) { // Preemptible but we don't have any data in the pricing report.
+		klog.Infof("Node %s marked preemitible but we have no data in spot feed", k.ID())
 		return &Node{
 			VCPU:         terms.VCpu,
 			VCPUCost:     aws.BaseSpotCPUPrice,
@@ -1132,6 +1136,7 @@ func (a *AWS) GetAddresses() ([]byte, error) {
 		// respective channels
 		go func(region string) {
 			defer wg.Done()
+			defer errors.HandlePanic()
 
 			// Query for first page of volume results
 			resp, err := a.getAddressesForRegion(region)
@@ -1153,6 +1158,8 @@ func (a *AWS) GetAddresses() ([]byte, error) {
 
 	// Close the result channels after everything has been sent
 	go func() {
+		defer errors.HandlePanic()
+
 		wg.Wait()
 		close(errorCh)
 		close(addressCh)
@@ -1165,7 +1172,7 @@ func (a *AWS) GetAddresses() ([]byte, error) {
 
 	errors := []error{}
 	for err := range errorCh {
-		log.Printf("error getting addresses: %s", err)
+		log.Printf("[Warning]: unable to get addresses: %s", err)
 		errors = append(errors, err)
 	}
 
@@ -1216,6 +1223,7 @@ func (a *AWS) GetDisks() ([]byte, error) {
 		// respective channels
 		go func(region string) {
 			defer wg.Done()
+			defer errors.HandlePanic()
 
 			// Query for first page of volume results
 			resp, err := a.getDisksForRegion(region, 1000, nil)
@@ -1256,6 +1264,8 @@ func (a *AWS) GetDisks() ([]byte, error) {
 
 	// Close the result channels after everything has been sent
 	go func() {
+		defer errors.HandlePanic()
+
 		wg.Wait()
 		close(errorCh)
 		close(volumeCh)
@@ -1268,7 +1278,7 @@ func (a *AWS) GetDisks() ([]byte, error) {
 
 	errors := []error{}
 	for err := range errorCh {
-		log.Printf("error getting disks: %s", err)
+		log.Printf("[Warning]: unable to get disks: %s", err)
 		errors = append(errors, err)
 	}
 

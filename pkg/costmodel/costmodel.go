@@ -14,7 +14,9 @@ import (
 
 	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	v1 "k8s.io/api/core/v1"
@@ -120,42 +122,6 @@ func (cd *CostData) GetController() (name string, kind string, hasController boo
 	}
 
 	return name, kind, hasController
-}
-
-// Error collection helper
-type ErrorCollector struct {
-	m      sync.Mutex
-	errors []error
-}
-
-// Reports an error to the collector. Ignores if the error is nil.
-func (ec *ErrorCollector) Report(e error) {
-	if e == nil {
-		return
-	}
-
-	ec.m.Lock()
-	defer ec.m.Unlock()
-
-	ec.errors = append(ec.errors, e)
-}
-
-// Whether or not the collector caught errors
-func (ec *ErrorCollector) IsError() bool {
-	ec.m.Lock()
-	defer ec.m.Unlock()
-
-	return len(ec.errors) > 0
-}
-
-// Errors caught by the collector
-func (ec *ErrorCollector) Errors() []error {
-	ec.m.Lock()
-	defer ec.m.Unlock()
-
-	errs := make([]error, len(ec.errors))
-	copy(errs, ec.errors)
-	return errs
 }
 
 const (
@@ -370,10 +336,11 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	var wg sync.WaitGroup
 	wg.Add(11)
 
-	var ec ErrorCollector
+	var ec errors.ErrorCollector
 	var resultRAMRequests interface{}
 	go func() {
 		defer wg.Done()
+		defer errors.HandlePanic()
 
 		var promErr error
 		resultRAMRequests, promErr = Query(cli, queryRAMRequests)
@@ -386,6 +353,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	var resultRAMUsage interface{}
 	go func() {
 		defer wg.Done()
+		defer errors.HandlePanic()
 
 		var promErr error
 		resultRAMUsage, promErr = Query(cli, queryRAMUsage)
@@ -397,6 +365,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	var resultCPURequests interface{}
 	go func() {
 		defer wg.Done()
+		defer errors.HandlePanic()
 
 		var promErr error
 		resultCPURequests, promErr = Query(cli, queryCPURequests)
@@ -408,6 +377,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	var resultCPUUsage interface{}
 	go func() {
 		defer wg.Done()
+		defer errors.HandlePanic()
 
 		var promErr error
 		resultCPUUsage, promErr = Query(cli, queryCPUUsage)
@@ -419,6 +389,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	var resultGPURequests interface{}
 	go func() {
 		defer wg.Done()
+		defer errors.HandlePanic()
 
 		var promErr error
 		resultGPURequests, promErr = Query(cli, queryGPURequests)
@@ -430,6 +401,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	var resultPVRequests interface{}
 	go func() {
 		defer wg.Done()
+		defer errors.HandlePanic()
 
 		var promErr error
 		resultPVRequests, promErr = Query(cli, queryPVRequests)
@@ -441,6 +413,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	var resultNetZoneRequests interface{}
 	go func() {
 		defer wg.Done()
+		defer errors.HandlePanic()
 
 		var promErr error
 		resultNetZoneRequests, promErr = Query(cli, queryNetZoneRequests)
@@ -452,6 +425,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	var resultNetRegionRequests interface{}
 	go func() {
 		defer wg.Done()
+		defer errors.HandlePanic()
 
 		var promErr error
 		resultNetRegionRequests, promErr = Query(cli, queryNetRegionRequests)
@@ -463,6 +437,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	var resultNetInternetRequests interface{}
 	go func() {
 		defer wg.Done()
+		defer errors.HandlePanic()
 
 		var promErr error
 		resultNetInternetRequests, promErr = Query(cli, queryNetInternetRequests)
@@ -474,6 +449,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	var normalizationResult interface{}
 	go func() {
 		defer wg.Done()
+		defer errors.HandlePanic()
 
 		var promErr error
 		normalizationResult, promErr = Query(cli, normalization)
@@ -490,6 +466,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	var k8sErr error
 	go func() {
 		defer wg.Done()
+		defer errors.HandlePanic()
 
 		podDeploymentsMapping, k8sErr = getPodDeployments(cm.Cache, podlist, clusterID)
 		if k8sErr != nil {
@@ -1161,7 +1138,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 		nodeLabels := n.GetObjectMeta().GetLabels()
 		nodeLabels["providerID"] = n.Spec.ProviderID
 
-		cnode, err := cp.NodePricing(cp.GetKey(nodeLabels))
+		cnode, err := cp.NodePricing(cp.GetKey(nodeLabels, n))
 		if err != nil {
 			klog.V(1).Infof("[Warning] Error getting node pricing. Error: " + err.Error())
 			if cnode != nil {
@@ -1233,7 +1210,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 		if newCnode.GPU != "" && newCnode.GPUCost == "" {
 			// We couldn't find a gpu cost, so fix cpu and ram, then accordingly
-			klog.V(4).Infof("GPU without cost found for %s, calculating...", cp.GetKey(nodeLabels).Features())
+			klog.V(4).Infof("GPU without cost found for %s, calculating...", cp.GetKey(nodeLabels, n).Features())
 
 			defaultCPU, err := strconv.ParseFloat(cfg.CPU, 64)
 			if err != nil {
@@ -1323,7 +1300,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 			newCnode.GPUCost = fmt.Sprintf("%f", gpuPrice)
 		} else if newCnode.RAMCost == "" {
 			// We couldn't find a ramcost, so fix cpu and allocate ram accordingly
-			klog.V(4).Infof("No RAM cost found for %s, calculating...", cp.GetKey(nodeLabels).Features())
+			klog.V(4).Infof("No RAM cost found for %s, calculating...", cp.GetKey(nodeLabels, n).Features())
 
 			defaultCPU, err := strconv.ParseFloat(cfg.CPU, 64)
 			if err != nil {
@@ -1772,11 +1749,12 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	queryProfileStart := time.Now()
 	queryProfileCh := make(chan string, numQueries)
 
-	var ec ErrorCollector
+	var ec errors.ErrorCollector
 	var resultRAMRequests interface{}
 	go func() {
 		defer wg.Done()
 		defer measureTimeAsync(time.Now(), profileThreshold, "RAMRequests", queryProfileCh)
+		defer errors.HandlePanic()
 
 		var promErr error
 		resultRAMRequests, promErr = QueryRange(cli, queryRAMRequests, start, end, window)
@@ -1789,6 +1767,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	go func() {
 		defer wg.Done()
 		defer measureTimeAsync(time.Now(), profileThreshold, "RAMUsage", queryProfileCh)
+		defer errors.HandlePanic()
 
 		var promErr error
 		resultRAMUsage, promErr = QueryRange(cli, queryRAMUsage, start, end, window)
@@ -1801,6 +1780,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	go func() {
 		defer wg.Done()
 		defer measureTimeAsync(time.Now(), profileThreshold, "CPURequests", queryProfileCh)
+		defer errors.HandlePanic()
 
 		var promErr error
 		resultCPURequests, promErr = QueryRange(cli, queryCPURequests, start, end, window)
@@ -1813,6 +1793,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	go func() {
 		defer wg.Done()
 		defer measureTimeAsync(time.Now(), profileThreshold, "CPUUsage", queryProfileCh)
+		defer errors.HandlePanic()
 
 		var promErr error
 		resultCPUUsage, promErr = QueryRange(cli, queryCPUUsage, start, end, window)
@@ -1825,6 +1806,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	go func() {
 		defer wg.Done()
 		defer measureTimeAsync(time.Now(), profileThreshold, "RAMAllocations", queryProfileCh)
+		defer errors.HandlePanic()
 
 		var promErr error
 		resultRAMAllocations, promErr = QueryRange(cli, queryRAMAlloc, start, end, window)
@@ -1837,6 +1819,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	go func() {
 		defer wg.Done()
 		defer measureTimeAsync(time.Now(), profileThreshold, "CPUAllocations", queryProfileCh)
+		defer errors.HandlePanic()
 
 		var promErr error
 		resultCPUAllocations, promErr = QueryRange(cli, queryCPUAlloc, start, end, window)
@@ -1849,6 +1832,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	go func() {
 		defer wg.Done()
 		defer measureTimeAsync(time.Now(), profileThreshold, "GPURequests", queryProfileCh)
+		defer errors.HandlePanic()
 
 		var promErr error
 		resultGPURequests, promErr = QueryRange(cli, queryGPURequests, start, end, window)
@@ -1861,6 +1845,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	go func() {
 		defer wg.Done()
 		defer measureTimeAsync(time.Now(), profileThreshold, "PVRequests", queryProfileCh)
+		defer errors.HandlePanic()
 
 		var promErr error
 		resultPVRequests, promErr = QueryRange(cli, queryPVRequests, start, end, window)
@@ -1873,6 +1858,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	go func() {
 		defer wg.Done()
 		defer measureTimeAsync(time.Now(), profileThreshold, "NetZoneRequests", queryProfileCh)
+		defer errors.HandlePanic()
 
 		var promErr error
 		resultNetZoneRequests, promErr = QueryRange(cli, queryNetZoneRequests, start, end, window)
@@ -1885,6 +1871,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	go func() {
 		defer wg.Done()
 		defer measureTimeAsync(time.Now(), profileThreshold, "NetRegionRequests", queryProfileCh)
+		defer errors.HandlePanic()
 
 		var promErr error
 		resultNetRegionRequests, promErr = QueryRange(cli, queryNetRegionRequests, start, end, window)
@@ -1897,6 +1884,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	go func() {
 		defer wg.Done()
 		defer measureTimeAsync(time.Now(), profileThreshold, "NetInternetRequests", queryProfileCh)
+		defer errors.HandlePanic()
 
 		var promErr error
 		resultNetInternetRequests, promErr = QueryRange(cli, queryNetInternetRequests, start, end, window)
@@ -1909,6 +1897,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	go func() {
 		defer wg.Done()
 		defer measureTimeAsync(time.Now(), profileThreshold, "PVPodAllocation", queryProfileCh)
+		defer errors.HandlePanic()
 
 		var promErr error
 		pvPodAllocationResults, promErr = QueryRange(cli, queryPVCAllocation, start, end, window)
@@ -1921,6 +1910,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	go func() {
 		defer wg.Done()
 		defer measureTimeAsync(time.Now(), profileThreshold, "PVCost", queryProfileCh)
+		defer errors.HandlePanic()
 
 		var promErr error
 		pvCostResults, promErr = QueryRange(cli, queryPVHourlyCost, start, end, window)
@@ -1933,6 +1923,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	go func() {
 		defer wg.Done()
 		defer measureTimeAsync(time.Now(), profileThreshold, "NSLabels", queryProfileCh)
+		defer errors.HandlePanic()
 
 		var promErr error
 		nsLabelsResults, promErr = QueryRange(cli, fmt.Sprintf(queryNSLabels, windowString), start, end, window)
@@ -1945,6 +1936,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	go func() {
 		defer wg.Done()
 		defer measureTimeAsync(time.Now(), profileThreshold, "PodLabels", queryProfileCh)
+		defer errors.HandlePanic()
 
 		var promErr error
 		podLabelsResults, promErr = QueryRange(cli, fmt.Sprintf(queryPodLabels, windowString), start, end, window)
@@ -1957,6 +1949,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	go func() {
 		defer wg.Done()
 		defer measureTimeAsync(time.Now(), profileThreshold, "ServiceLabels", queryProfileCh)
+		defer errors.HandlePanic()
 
 		var promErr error
 		serviceLabelsResults, promErr = QueryRange(cli, fmt.Sprintf(queryServiceLabels, windowString), start, end, window)
@@ -1969,6 +1962,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	go func() {
 		defer wg.Done()
 		defer measureTimeAsync(time.Now(), profileThreshold, "DeploymentLabels", queryProfileCh)
+		defer errors.HandlePanic()
 
 		var promErr error
 		deploymentLabelsResults, promErr = QueryRange(cli, fmt.Sprintf(queryDeploymentLabels, windowString), start, end, window)
@@ -1981,6 +1975,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	go func() {
 		defer wg.Done()
 		defer measureTimeAsync(time.Now(), profileThreshold, "Daemonsets", queryProfileCh)
+		defer errors.HandlePanic()
 
 		var promErr error
 		daemonsetResults, promErr = QueryRange(cli, fmt.Sprintf(queryPodDaemonsets), start, end, window)
@@ -1993,6 +1988,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	go func() {
 		defer wg.Done()
 		defer measureTimeAsync(time.Now(), profileThreshold, "StatefulSetLabels", queryProfileCh)
+		defer errors.HandlePanic()
 
 		var promErr error
 		statefulsetLabelsResults, promErr = QueryRange(cli, fmt.Sprintf(queryStatefulsetLabels, windowString), start, end, window)
@@ -2005,6 +2001,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	go func() {
 		defer wg.Done()
 		defer measureTimeAsync(time.Now(), profileThreshold, "Normalization", queryProfileCh)
+		defer errors.HandlePanic()
 
 		var promErr error
 		normalizationResults, promErr = QueryRange(cli, normalization, start, end, window)
@@ -2022,6 +2019,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	var k8sErr error
 	go func() {
 		defer wg.Done()
+		defer errors.HandlePanic()
 
 		podDeploymentsMapping, k8sErr = getPodDeployments(cm.Cache, podlist, clusterID)
 		if k8sErr != nil {
@@ -2070,8 +2068,11 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	normalizationValue, err := getNormalizations(normalizationResults)
 	if err != nil {
-		return nil, fmt.Errorf("error computing normalization %s for start=%s, end=%s, window=%s, res=%f: %s", normalization,
-			start, end, window, resolutionHours*60*60, err.Error())
+		msg := fmt.Sprintf("error computing normalization %s for start=%s, end=%s, window=%s, res=%f", normalization, start, end, window, resolutionHours*60*60)
+		if pce, ok := err.(prom.CommError); ok {
+			return nil, pce.Wrap(msg)
+		}
+		return nil, fmt.Errorf("%s: %s", msg, err)
 	}
 
 	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): compute normalizations", durHrs))
@@ -2182,6 +2183,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	RAMReqMap, err := GetNormalizedContainerMetricVectors(resultRAMRequests, normalizationValue, clusterID)
 	if err != nil {
+		if pce, ok := err.(prom.CommError); ok {
+			return nil, pce.Wrap("GetNormalizedContainerMetricVectors(RAMRequests)")
+		}
 		return nil, fmt.Errorf("GetNormalizedContainerMetricVectors(RAMRequests): %s", err)
 	}
 	for key := range RAMReqMap {
@@ -2190,6 +2194,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	RAMUsedMap, err := GetNormalizedContainerMetricVectors(resultRAMUsage, normalizationValue, clusterID)
 	if err != nil {
+		if pce, ok := err.(prom.CommError); ok {
+			return nil, pce.Wrap("GetNormalizedContainerMetricVectors(RAMUsage)")
+		}
 		return nil, fmt.Errorf("GetNormalizedContainerMetricVectors(RAMUsage): %s", err)
 	}
 	for key := range RAMUsedMap {
@@ -2198,6 +2205,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	CPUReqMap, err := GetNormalizedContainerMetricVectors(resultCPURequests, normalizationValue, clusterID)
 	if err != nil {
+		if pce, ok := err.(prom.CommError); ok {
+			return nil, pce.Wrap("GetNormalizedContainerMetricVectors(CPURequests)")
+		}
 		return nil, fmt.Errorf("GetNormalizedContainerMetricVectors(CPURequests): %s", err)
 	}
 	for key := range CPUReqMap {
@@ -2208,6 +2218,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	// rate(container_cpu_usage_seconds_total) which properly accounts for normalized rates
 	CPUUsedMap, err := GetContainerMetricVectors(resultCPUUsage, clusterID)
 	if err != nil {
+		if pce, ok := err.(prom.CommError); ok {
+			return nil, pce.Wrap("GetContainerMetricVectors(CPUUsage)")
+		}
 		return nil, fmt.Errorf("GetContainerMetricVectors(CPUUsage): %s", err)
 	}
 	for key := range CPUUsedMap {
@@ -2216,6 +2229,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	RAMAllocMap, err := GetContainerMetricVectors(resultRAMAllocations, clusterID)
 	if err != nil {
+		if pce, ok := err.(prom.CommError); ok {
+			return nil, pce.Wrap("GetContainerMetricVectors(RAMAllocations)")
+		}
 		return nil, fmt.Errorf("GetContainerMetricVectors(RAMAllocations): %s", err)
 	}
 	for key := range RAMAllocMap {
@@ -2224,6 +2240,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	CPUAllocMap, err := GetContainerMetricVectors(resultCPUAllocations, clusterID)
 	if err != nil {
+		if pce, ok := err.(prom.CommError); ok {
+			return nil, pce.Wrap("GetContainerMetricVectors(CPUAllocations)")
+		}
 		return nil, fmt.Errorf("GetContainerMetricVectors(CPUAllocations): %s", err)
 	}
 	for key := range CPUAllocMap {
@@ -2232,6 +2251,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	GPUReqMap, err := GetNormalizedContainerMetricVectors(resultGPURequests, normalizationValue, clusterID)
 	if err != nil {
+		if pce, ok := err.(prom.CommError); ok {
+			return nil, pce.Wrap("GetContainerMetricVectors(GPURequests)")
+		}
 		return nil, fmt.Errorf("GetContainerMetricVectors(GPURequests): %s", err)
 	}
 	for key := range GPUReqMap {
