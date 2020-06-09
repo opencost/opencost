@@ -33,10 +33,6 @@ type price struct {
 	Version           string `csv:"Version"`
 }
 
-func parseMapField(mf string) {
-
-}
-
 func GetCsv(location string) (io.Reader, error) {
 	return os.Open(location)
 }
