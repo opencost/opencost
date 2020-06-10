@@ -17,9 +17,13 @@ import (
 	"k8s.io/klog"
 
 	"github.com/julienschmidt/httprouter"
+
+	sentry "github.com/getsentry/sentry-go"
+
 	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	cm "github.com/kubecost/cost-model/pkg/clustermanager"
+	"github.com/kubecost/cost-model/pkg/errors"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
 	v1 "k8s.io/api/core/v1"
@@ -33,6 +37,9 @@ import (
 )
 
 const (
+	logCollectionEnvVar            = "LOG_COLLECTION_ENABLED"
+	productAnalyticsEnvVar         = "PRODUCT_ANALYTICS_ENABLED"
+	errorReportingEnvVar           = "ERROR_REPORTING_ENABLED"
 	prometheusServerEndpointEnvVar = "PROMETHEUS_SERVER_ENDPOINT"
 	prometheusTroubleshootingEp    = "http://docs.kubecost.com/custom-prom#troubleshoot"
 	RFC3339Milli                   = "2006-01-02T15:04:05.000Z"
@@ -40,7 +47,10 @@ const (
 
 var (
 	// gitCommit is set by the build system
-	gitCommit string
+	gitCommit               string
+	logCollectionEnabled    bool = strings.EqualFold(os.Getenv(logCollectionEnvVar), "true")
+	productAnalyticsEnabled bool = strings.EqualFold(os.Getenv(productAnalyticsEnvVar), "true")
+	errorReportingEnabled   bool = strings.EqualFold(os.Getenv(errorReportingEnvVar), "true")
 )
 
 var Router = httprouter.New()
@@ -61,7 +71,6 @@ type Accesses struct {
 	CPUAllocationRecorder         *prometheus.GaugeVec
 	GPUAllocationRecorder         *prometheus.GaugeVec
 	PVAllocationRecorder          *prometheus.GaugeVec
-	ContainerUptimeRecorder       *prometheus.GaugeVec
 	NetworkZoneEgressRecorder     prometheus.Gauge
 	NetworkRegionEgressRecorder   prometheus.Gauge
 	NetworkInternetEgressRecorder prometheus.Gauge
@@ -152,6 +161,13 @@ func normalizeTimeParam(param string) (string, error) {
 	}
 
 	return param, nil
+}
+
+// writeReportingFlags writes the reporting flags to the cluster info map
+func writeReportingFlags(clusterInfo map[string]string) {
+	clusterInfo["logCollection"] = fmt.Sprintf("%t", logCollectionEnabled)
+	clusterInfo["productAnalytics"] = fmt.Sprintf("%t", productAnalyticsEnabled)
+	clusterInfo["errorReporting"] = fmt.Sprintf("%t", errorReportingEnabled)
 }
 
 // parsePercentString takes a string of expected format "N%" and returns a floating point 0.0N.
@@ -320,7 +336,7 @@ func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httpr
 	window := r.URL.Query().Get("window")
 	offset := r.URL.Query().Get("offset")
 
-	data, err := ComputeClusterCosts(a.PrometheusClient, a.Cloud, window, offset)
+	data, err := ComputeClusterCosts(a.PrometheusClient, a.Cloud, window, offset, true)
 	w.Write(WrapData(data, err))
 }
 
@@ -607,8 +623,11 @@ func (p *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httpro
 	} else {
 		klog.Infof("Could not get k8s version info: %s", err.Error())
 	}
-	w.Write(WrapData(data, err))
 
+	// Include Product Reporting Flags with Cluster Info
+	writeReportingFlags(data)
+
+	w.Write(WrapData(data, err))
 }
 
 func (p *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
@@ -617,15 +636,10 @@ func (p *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request,
 	w.Write(WrapData(ValidatePrometheus(p.PrometheusClient, false)))
 }
 
-func (p *Accesses) ContainerUptimes(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	res, err := ComputeUptimes(p.PrometheusClient)
-	w.Write(WrapData(res, err))
-}
-
 func (a *Accesses) recordPrices() {
 	go func() {
+		defer errors.HandlePanic()
+
 		containerSeen := make(map[string]bool)
 		nodeSeen := make(map[string]bool)
 		pvSeen := make(map[string]bool)
@@ -788,11 +802,6 @@ func (a *Accesses) recordPrices() {
 					labelKey := getKeyFromLabelStrings(pv.Name, pv.Name)
 					pvSeen[labelKey] = true
 				}
-				containerUptime, _ := ComputeUptimes(a.PrometheusClient)
-				for key, uptime := range containerUptime {
-					container, _ := NewContainerMetricFromKey(key)
-					a.ContainerUptimeRecorder.WithLabelValues(container.Namespace, container.PodName, container.ContainerName).Set(uptime)
-				}
 			}
 			for labelString, seen := range nodeSeen {
 				if !seen {
@@ -811,7 +820,6 @@ func (a *Accesses) recordPrices() {
 					a.RAMAllocationRecorder.DeleteLabelValues(labels...)
 					a.CPUAllocationRecorder.DeleteLabelValues(labels...)
 					a.GPUAllocationRecorder.DeleteLabelValues(labels...)
-					a.ContainerUptimeRecorder.DeleteLabelValues(labels...)
 					delete(containerSeen, labelString)
 				}
 				containerSeen[labelString] = false
@@ -871,11 +879,49 @@ type ConfigWatchers struct {
 	WatchFunc     func(string, map[string]string) error
 }
 
+// handle any panics reported by the errors package
+func handlePanic(p errors.Panic) bool {
+	err := p.Error
+
+	if err != nil {
+		if err, ok := err.(error); ok {
+			sentry.CurrentHub().CaptureException(err)
+			sentry.Flush(5 * time.Second)
+		}
+
+		if err, ok := err.(string); ok {
+			msg := fmt.Sprintf("Panic: %s\nStackTrace: %s\n", err, p.Stack)
+			sentry.CurrentHub().CaptureEvent(&sentry.Event{
+				Level:   sentry.LevelError,
+				Message: msg,
+			})
+			sentry.Flush(5 * time.Second)
+		}
+	}
+
+	// Return true to recover iff the type is http, otherwise allow kubernetes
+	// to recover.
+	return p.Type == errors.PanicTypeHTTP
+}
+
 func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	klog.InitFlags(nil)
 	flag.Set("v", "3")
 	flag.Parse()
 	klog.V(1).Infof("Starting cost-model (git commit \"%s\")", gitCommit)
+
+	var err error
+	if errorReportingEnabled {
+		err = sentry.Init(sentry.ClientOptions{Release: gitCommit})
+		if err != nil {
+			klog.Infof("Failed to initialize sentry for error reporting")
+		} else {
+			err = errors.SetPanicHandler(handlePanic)
+			if err != nil {
+				klog.Infof("Failed to set panic handler: %s", err)
+			}
+		}
+	}
 
 	address := os.Getenv(prometheusServerEndpointEnvVar)
 	if address == "" {
@@ -899,11 +945,15 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 
 	m, err := ValidatePrometheus(promCli, false)
 	if err != nil || m.Running == false {
-		klog.Errorf("Failed to query prometheus at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prometheusTroubleshootingEp)
+		if err != nil {
+			klog.Errorf("Failed to query prometheus at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prometheusTroubleshootingEp)
+		} else if m.Running == false {
+			klog.Errorf("Prometheus at %s is not running. Troubleshooting help available at: %s", address, prometheusTroubleshootingEp)
+		}
 		api := prometheusAPI.NewAPI(promCli)
 		_, err = api.Config(context.Background())
 		if err != nil {
-			klog.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prometheusTroubleshootingEp)
+			klog.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/thanos here.", address, err.Error(), prometheusTroubleshootingEp)
 		} else {
 			klog.V(1).Info("Retrieved a prometheus config file from: " + address)
 		}
@@ -1018,11 +1068,6 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		Help: "pod_pvc_allocation Bytes used by a PVC attached to a pod",
 	}, []string{"namespace", "pod", "persistentvolumeclaim", "persistentvolume"})
 
-	ContainerUptimeRecorder := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "container_uptime_seconds",
-		Help: "container_uptime_seconds Seconds a container has been running",
-	}, []string{"namespace", "pod", "container"})
-
 	NetworkZoneEgressRecorder := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "kubecost_network_zone_egress_cost",
 		Help: "kubecost_network_zone_egress_cost Total cost per GB egress across zones",
@@ -1043,7 +1088,6 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	prometheus.MustRegister(pvGv)
 	prometheus.MustRegister(RAMAllocation)
 	prometheus.MustRegister(CPUAllocation)
-	prometheus.MustRegister(ContainerUptimeRecorder)
 	prometheus.MustRegister(PVAllocation)
 	prometheus.MustRegister(GPUAllocation)
 	prometheus.MustRegister(NetworkZoneEgressRecorder, NetworkRegionEgressRecorder, NetworkInternetEgressRecorder)
@@ -1073,7 +1117,6 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		CPUAllocationRecorder:         CPUAllocation,
 		GPUAllocationRecorder:         GPUAllocation,
 		PVAllocationRecorder:          PVAllocation,
-		ContainerUptimeRecorder:       ContainerUptimeRecorder,
 		NetworkZoneEgressRecorder:     NetworkZoneEgressRecorder,
 		NetworkRegionEgressRecorder:   NetworkRegionEgressRecorder,
 		NetworkInternetEgressRecorder: NetworkInternetEgressRecorder,
@@ -1149,7 +1192,6 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	Router.GET("/validatePrometheus", A.GetPrometheusMetadata)
 	Router.GET("/managementPlatform", A.ManagementPlatform)
 	Router.GET("/clusterInfo", A.ClusterInfo)
-	Router.GET("/containerUptimes", A.ContainerUptimes)
 	Router.GET("/clusters", managerEndpoints.GetAllClusters)
 	Router.PUT("/clusters", managerEndpoints.PutCluster)
 	Router.DELETE("/clusters/:id", managerEndpoints.DeleteCluster)

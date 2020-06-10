@@ -285,7 +285,7 @@ func (az *Azure) loadAzureAuthSecret(force bool) (*AzureServiceKey, error) {
 	return azureSecret, nil
 }
 
-func (az *Azure) GetKey(labels map[string]string) Key {
+func (az *Azure) GetKey(labels map[string]string, n *v1.Node) Key {
 	cfg, err := az.GetConfig()
 	if err != nil {
 		klog.Infof("Error loading azure custom pricing information")
@@ -661,6 +661,10 @@ func (key *azurePvKey) Features() string {
 	}
 
 	return key.DefaultRegion + "," + storageClass
+}
+
+func (*Azure) GetAddresses() ([]byte, error) {
+	return nil, nil
 }
 
 func (*Azure) GetDisks() ([]byte, error) {

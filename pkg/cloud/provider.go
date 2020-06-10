@@ -162,13 +162,14 @@ type CustomPricing struct {
 // Provider represents a k8s provider.
 type Provider interface {
 	ClusterInfo() (map[string]string, error)
+	GetAddresses() ([]byte, error)
 	GetDisks() ([]byte, error)
 	NodePricing(Key) (*Node, error)
 	PVPricing(PVKey) (*PV, error)
 	NetworkPricing() (*Network, error)
 	AllNodePricing() (interface{}, error)
 	DownloadPricingData() error
-	GetKey(map[string]string) Key
+	GetKey(map[string]string, *v1.Node) Key
 	GetPVKey(*v1.PersistentVolume, map[string]string, string) PVKey
 	UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error)
 	UpdateConfigFromConfigMap(map[string]string) (*CustomPricing, error)
@@ -229,6 +230,16 @@ func NewCrossClusterProvider(ctype string, overrideConfigPath string, cache clus
 
 // NewProvider looks at the nodespec or provider metadata server to decide which provider to instantiate.
 func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, error) {
+	if os.Getenv("USE_CSV_PROVIDER") == "true" {
+		klog.Infof("Using CSV Provider with CSV at %s", os.Getenv("CSV_PATH"))
+		return &CSVProvider{
+			CSVLocation: os.Getenv("CSV_PATH"),
+			CustomProvider: &CustomProvider{
+				Clientset: cache,
+				Config:    NewProviderConfig("default.json"),
+			},
+		}, nil
+	}
 	if metadata.OnGCE() {
 		klog.V(3).Info("metadata reports we are in GCE")
 		if apiKey == "" {

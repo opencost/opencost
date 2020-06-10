@@ -52,6 +52,7 @@ type GCP struct {
 	DownloadPricingDataLock sync.RWMutex
 	ReservedInstances       []*GCPReservedInstance
 	Config                  *ProviderConfig
+	serviceKeyProvided      bool
 	*CustomProvider
 }
 
@@ -250,6 +251,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 				if err != nil {
 					return err
 				}
+				gcp.serviceKeyProvided = true
 			}
 		} else if updateType == AthenaInfoUpdateType {
 			a := AwsAthenaInfo{}
@@ -390,12 +392,12 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregators []stri
 			AND usage_start_time >= "%s" AND usage_start_time < "%s"
 			GROUP BY service, keys
 		)`, c.BillingDataDataset, aggregator, filterType, filterValue, start, end)
-		klog.V(3).Infof("Querying \"%s\" with : %s", c.ProjectID, queryString)
+		klog.V(4).Infof("Querying \"%s\" with : %s", c.ProjectID, queryString)
 		gcpOOC, err := gcp.multiLabelQuery(queryString, aggregators)
 		s = append(s, gcpOOC...)
 		qerr = err
 	}
-	if qerr != nil {
+	if qerr != nil && gcp.serviceKeyProvided {
 		klog.Infof("Error querying gcp: %s", qerr)
 	}
 	return s, qerr
@@ -495,6 +497,34 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	m["id"] = os.Getenv(clusterIDKey)
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	return m, nil
+}
+
+func (*GCP) GetAddresses() ([]byte, error) {
+	// metadata API setup
+	metadataClient := metadata.NewClient(&http.Client{Transport: userAgentTransport{
+		userAgent: "kubecost",
+		base:      http.DefaultTransport,
+	}})
+	projID, err := metadataClient.ProjectID()
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := google.DefaultClient(oauth2.NoContext,
+		"https://www.googleapis.com/auth/compute.readonly")
+	if err != nil {
+		return nil, err
+	}
+	svc, err := compute.New(client)
+	if err != nil {
+		return nil, err
+	}
+	res, err := svc.Addresses.AggregatedList(projID).Do()
+
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(res)
 }
 
 // GetDisks returns the GCP disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
@@ -915,7 +945,7 @@ func (gcp *GCP) DownloadPricingData() error {
 
 	for _, n := range nodeList {
 		labels := n.GetObjectMeta().GetLabels()
-		key := gcp.GetKey(labels)
+		key := gcp.GetKey(labels, n)
 		inputkeys[key.Features()] = key
 	}
 
@@ -1257,7 +1287,7 @@ type gcpKey struct {
 	Labels map[string]string
 }
 
-func (gcp *GCP) GetKey(labels map[string]string) Key {
+func (gcp *GCP) GetKey(labels map[string]string, n *v1.Node) Key {
 	return &gcpKey{
 		Labels: labels,
 	}

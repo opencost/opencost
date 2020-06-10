@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
 	"k8s.io/klog"
 )
@@ -57,7 +58,9 @@ func (pqr *PromQueryResult) GetLabels() map[string]string {
 // PromQueryResult objects
 func NewQueryResults(queryResult interface{}) ([]*PromQueryResult, error) {
 	var result []*PromQueryResult
-
+	if queryResult == nil {
+		return nil, prom.NewCommError("nil queryResult")
+	}
 	data, ok := queryResult.(map[string]interface{})["data"]
 	if !ok {
 		e, err := wrapPrometheusError(queryResult)

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"regexp"
@@ -19,10 +20,12 @@ import (
 	"k8s.io/klog"
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/util"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/athena"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -39,6 +42,34 @@ const awsReservedInstancePricePerHour = 0.0287
 const supportedSpotFeedVersion = "1"
 const SpotInfoUpdateType = "spotinfo"
 const AthenaInfoUpdateType = "athenainfo"
+
+const defaultConfigPath = "/var/configs/"
+
+var awsRegions = []string{
+	"us-east-2",
+	"us-east-1",
+	"us-west-1",
+	"us-west-2",
+	"ap-east-1",
+	"ap-south-1",
+	"ap-northeast-3",
+	"ap-northeast-2",
+	"ap-southeast-1",
+	"ap-southeast-2",
+	"ap-northeast-1",
+	"ca-central-1",
+	"cn-north-1",
+	"cn-northwest-1",
+	"eu-central-1",
+	"eu-west-1",
+	"eu-west-2",
+	"eu-west-3",
+	"eu-north-1",
+	"me-south-1",
+	"sa-east-1",
+	"us-gov-east-1",
+	"us-gov-west-1",
+}
 
 // AWS represents an Amazon Provider
 type AWS struct {
@@ -294,7 +325,9 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 			}
 
 			c.ServiceKeyName = a.ServiceKeyName
-			c.ServiceKeySecret = a.ServiceKeySecret
+			if a.ServiceKeySecret != "" {
+				c.ServiceKeySecret = a.ServiceKeySecret
+			}
 			c.SpotDataPrefix = a.Prefix
 			c.SpotDataBucket = a.BucketName
 			c.ProjectID = a.AccountID
@@ -313,7 +346,9 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 			c.AthenaDatabase = a.AthenaDatabase
 			c.AthenaTable = a.AthenaTable
 			c.ServiceKeyName = a.ServiceKeyName
-			c.ServiceKeySecret = a.ServiceKeySecret
+			if a.ServiceKeySecret != "" {
+				c.ServiceKeySecret = a.ServiceKeySecret
+			}
 			c.AthenaProjectID = a.AccountID
 		} else {
 			a := make(map[string]interface{})
@@ -447,7 +482,7 @@ func (key *awsPVKey) Features() string {
 }
 
 // GetKey maps node labels to information needed to retrieve pricing data
-func (aws *AWS) GetKey(labels map[string]string) Key {
+func (aws *AWS) GetKey(labels map[string]string, n *v1.Node) Key {
 	return &awsKey{
 		SpotLabelName:  aws.SpotLabelName,
 		SpotLabelValue: aws.SpotLabelValue,
@@ -496,7 +531,7 @@ func (aws *AWS) DownloadPricingData() error {
 	inputkeys := make(map[string]bool)
 	for _, n := range nodeList {
 		labels := n.GetObjectMeta().GetLabels()
-		key := aws.GetKey(labels)
+		key := aws.GetKey(labels, n)
 		inputkeys[key.Features()] = true
 	}
 
@@ -529,6 +564,8 @@ func (aws *AWS) DownloadPricingData() error {
 			klog.V(1).Infof("Failed to lookup reserved instance data: %s", err.Error())
 		} else { // If we make one successful run, check on new reservation data every hour
 			go func() {
+				defer errors.HandlePanic()
+
 				for {
 					aws.RIDataRunning = true
 					klog.Infof("Reserved Instance watcher running... next update in 1h")
@@ -736,27 +773,28 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 	key := k.Features()
 	aws.RIDataLock.RLock()
 	defer aws.RIDataLock.RUnlock()
-	if aws.isPreemptible(key) {
-		if spotInfo, ok := aws.SpotPricingByInstanceID[k.ID()]; ok { // try and match directly to an ID for pricing. We'll still need the features
-			var spotcost string
-			arr := strings.Split(spotInfo.Charge, " ")
-			if len(arr) == 2 {
-				spotcost = arr[0]
-			} else {
-				klog.V(2).Infof("Spot data for node %s is missing", k.ID())
-			}
-			return &Node{
-				Cost:         spotcost,
-				VCPU:         terms.VCpu,
-				RAM:          terms.Memory,
-				GPU:          terms.GPU,
-				Storage:      terms.Storage,
-				BaseCPUPrice: aws.BaseCPUPrice,
-				BaseRAMPrice: aws.BaseRAMPrice,
-				BaseGPUPrice: aws.BaseGPUPrice,
-				UsageType:    usageType,
-			}, nil
+	if spotInfo, ok := aws.SpotPricingByInstanceID[k.ID()]; ok {
+		var spotcost string
+		klog.V(3).Infof("Looking up spot data from feed for node %s", k.ID())
+		arr := strings.Split(spotInfo.Charge, " ")
+		if len(arr) == 2 {
+			spotcost = arr[0]
+		} else {
+			klog.V(2).Infof("Spot data for node %s is missing", k.ID())
 		}
+		return &Node{
+			Cost:         spotcost,
+			VCPU:         terms.VCpu,
+			RAM:          terms.Memory,
+			GPU:          terms.GPU,
+			Storage:      terms.Storage,
+			BaseCPUPrice: aws.BaseCPUPrice,
+			BaseRAMPrice: aws.BaseRAMPrice,
+			BaseGPUPrice: aws.BaseGPUPrice,
+			UsageType:    usageType,
+		}, nil
+	} else if aws.isPreemptible(key) { // Preemptible but we don't have any data in the pricing report.
+		klog.Infof("Node %s marked preemitible but we have no data in spot feed", k.ID())
 		return &Node{
 			VCPU:         terms.VCpu,
 			VCPUCost:     aws.BaseSpotCPUPrice,
@@ -1031,38 +1069,230 @@ func getClusterConfig(ccFile string) (map[string]string, error) {
 	return clusterConf, nil
 }
 
+// SetKeyEnv ensures that the two environment variables necessary to configure
+// a new AWS Session are set.
+func (a *AWS) SetKeyEnv() error {
+	// TODO add this to the helm chart, mirroring the cost-model
+	// configPath := os.Getenv("CONFIG_PATH")
+	configPath := defaultConfigPath
+	path := configPath + "aws.json"
+
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			log.Printf("error: file %s does not exist", path)
+		} else {
+			log.Printf("error: %s", err)
+		}
+		return err
+	}
+
+	jsonFile, err := os.Open(path)
+	defer jsonFile.Close()
+
+	configMap := map[string]string{}
+	configBytes, err := ioutil.ReadAll(jsonFile)
+	if err != nil {
+		return err
+	}
+	json.Unmarshal([]byte(configBytes), &configMap)
+
+	keyName := configMap["awsServiceKeyName"]
+	keySecret := configMap["awsServiceKeySecret"]
+
+	// These are required before calling NewEnvCredentials below
+	os.Setenv("AWS_ACCESS_KEY_ID", keyName)
+	os.Setenv("AWS_SECRET_ACCESS_KEY", keySecret)
+
+	return nil
+}
+
+func (a *AWS) getAddressesForRegion(region string) (*ec2.DescribeAddressesOutput, error) {
+	sess, err := session.NewSession(&aws.Config{
+		Region:      aws.String(region),
+		Credentials: credentials.NewEnvCredentials(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	ec2Svc := ec2.New(sess)
+	return ec2Svc.DescribeAddresses(&ec2.DescribeAddressesInput{})
+}
+
+func (a *AWS) GetAddresses() ([]byte, error) {
+	if err := a.SetKeyEnv(); err != nil {
+		return nil, err
+	}
+
+	addressCh := make(chan *ec2.DescribeAddressesOutput, len(awsRegions))
+	errorCh := make(chan error, len(awsRegions))
+
+	var wg sync.WaitGroup
+	wg.Add(len(awsRegions))
+
+	// Get volumes from each AWS region
+	for _, r := range awsRegions {
+		// Fetch IP address response and send results and errors to their
+		// respective channels
+		go func(region string) {
+			defer wg.Done()
+			defer errors.HandlePanic()
+
+			// Query for first page of volume results
+			resp, err := a.getAddressesForRegion(region)
+			if err != nil {
+				if aerr, ok := err.(awserr.Error); ok {
+					switch aerr.Code() {
+					default:
+						errorCh <- aerr
+					}
+					return
+				} else {
+					errorCh <- err
+					return
+				}
+			}
+			addressCh <- resp
+		}(r)
+	}
+
+	// Close the result channels after everything has been sent
+	go func() {
+		defer errors.HandlePanic()
+
+		wg.Wait()
+		close(errorCh)
+		close(addressCh)
+	}()
+
+	addresses := []*ec2.Address{}
+	for adds := range addressCh {
+		addresses = append(addresses, adds.Addresses...)
+	}
+
+	errors := []error{}
+	for err := range errorCh {
+		log.Printf("[Warning]: unable to get addresses: %s", err)
+		errors = append(errors, err)
+	}
+
+	// Return error if no addresses are returned
+	if len(errors) > 0 && len(addresses) == 0 {
+		return nil, fmt.Errorf("%d error(s) retrieving addresses: %v", len(errors), errors)
+	}
+
+	// Format the response this way to match the JSON-encoded formatting of a single response
+	// from DescribeAddresss, so that consumers can always expect AWS disk responses to have
+	// a "Addresss" key at the top level.
+	return json.Marshal(map[string][]*ec2.Address{
+		"Addresses": addresses,
+	})
+}
+
+func (a *AWS) getDisksForRegion(region string, maxResults int64, nextToken *string) (*ec2.DescribeVolumesOutput, error) {
+	sess, err := session.NewSession(&aws.Config{
+		Region:      aws.String(region),
+		Credentials: credentials.NewEnvCredentials(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	ec2Svc := ec2.New(sess)
+	return ec2Svc.DescribeVolumes(&ec2.DescribeVolumesInput{
+		MaxResults: &maxResults,
+		NextToken:  nextToken,
+	})
+}
+
 // GetDisks returns the AWS disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
 func (a *AWS) GetDisks() ([]byte, error) {
-	err := a.configureAWSAuth()
-	if err != nil {
+	if err := a.SetKeyEnv(); err != nil {
 		return nil, err
 	}
 
-	clusterConfig, err := getClusterConfig("/var/configs/cluster.json")
-	if err != nil {
-		return nil, err
-	}
+	volumeCh := make(chan *ec2.DescribeVolumesOutput, len(awsRegions))
+	errorCh := make(chan error, len(awsRegions))
 
-	region := aws.String(clusterConfig["region"])
-	c := &aws.Config{
-		Region: region,
-	}
-	s := session.Must(session.NewSession(c))
+	var wg sync.WaitGroup
+	wg.Add(len(awsRegions))
 
-	ec2Svc := ec2.New(s)
-	input := &ec2.DescribeVolumesInput{}
-	volumeResult, err := ec2Svc.DescribeVolumes(input)
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			default:
-				return nil, aerr
+	// Get volumes from each AWS region
+	for _, r := range awsRegions {
+		// Fetch volume response and send results and errors to their
+		// respective channels
+		go func(region string) {
+			defer wg.Done()
+			defer errors.HandlePanic()
+
+			// Query for first page of volume results
+			resp, err := a.getDisksForRegion(region, 1000, nil)
+			if err != nil {
+				if aerr, ok := err.(awserr.Error); ok {
+					switch aerr.Code() {
+					default:
+						errorCh <- aerr
+					}
+					return
+				} else {
+					errorCh <- err
+					return
+				}
 			}
-		} else {
-			return nil, err
-		}
+			volumeCh <- resp
+
+			// A NextToken indicates more pages of results. Keep querying
+			// until all pages are retrieved.
+			for resp.NextToken != nil {
+				resp, err = a.getDisksForRegion(region, 100, resp.NextToken)
+				if err != nil {
+					if aerr, ok := err.(awserr.Error); ok {
+						switch aerr.Code() {
+						default:
+							errorCh <- aerr
+						}
+						return
+					} else {
+						errorCh <- err
+						return
+					}
+				}
+				volumeCh <- resp
+			}
+		}(r)
 	}
-	return json.Marshal(volumeResult)
+
+	// Close the result channels after everything has been sent
+	go func() {
+		defer errors.HandlePanic()
+
+		wg.Wait()
+		close(errorCh)
+		close(volumeCh)
+	}()
+
+	volumes := []*ec2.Volume{}
+	for vols := range volumeCh {
+		volumes = append(volumes, vols.Volumes...)
+	}
+
+	errors := []error{}
+	for err := range errorCh {
+		log.Printf("[Warning]: unable to get disks: %s", err)
+		errors = append(errors, err)
+	}
+
+	// Return error if no volumes are returned
+	if len(errors) > 0 && len(volumes) == 0 {
+		return nil, fmt.Errorf("%d error(s) retrieving volumes: %v", len(errors), errors)
+	}
+
+	// Format the response this way to match the JSON-encoded formatting of a single response
+	// from DescribeVolumes, so that consumers can always expect AWS disk responses to have
+	// a "Volumes" key at the top level.
+	return json.Marshal(map[string][]*ec2.Volume{
+		"Volumes": volumes,
+	})
 }
 
 // ConvertToGlueColumnFormat takes a string and runs through various regex
@@ -1220,7 +1450,7 @@ func (a *AWS) GetReservationDataFromAthena() error {
 	WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s'
 	AND reservation_reservation_a_r_n <> '' ORDER BY 
 	line_item_usage_start_date DESC`
-	query := fmt.Sprintf(q, cfg.AthenaBucketName, start, end)
+	query := fmt.Sprintf(q, cfg.AthenaTable, start, end)
 	op, err := a.QueryAthenaBillingData(query)
 	if err != nil {
 		return fmt.Errorf("Error fetching Reserved Instance Data: %s", err)
@@ -1274,6 +1504,8 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 		formattedAggregators = append(formattedAggregators, aggregator_column_name)
 	}
 	aggregatorNames := strings.Join(formattedAggregators, ",")
+	aggregatorOr := strings.Join(formattedAggregators, " <> '' OR ")
+	aggregatorOr = aggregatorOr + " <> ''"
 
 	filter_column_name := "resource_tags_user_" + filterType
 	filter_column_name = ConvertToGlueColumnFormat(filter_column_name)
@@ -1290,8 +1522,8 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 			%s,
 			SUM(line_item_blended_cost) as blended_cost
 		FROM %s as cost_data
-		WHERE (%s='%s') AND line_item_usage_start_date BETWEEN date '%s' AND date '%s'
-		GROUP BY %s`, aggregatorNames, filter_column_name, customPricing.AthenaTable, filter_column_name, filterValue, start, end, groupby)
+		WHERE (%s='%s') AND line_item_usage_start_date BETWEEN date '%s' AND date '%s' AND (%s) 
+		GROUP BY %s`, aggregatorNames, filter_column_name, customPricing.AthenaTable, filter_column_name, filterValue, start, end, aggregatorOr, groupby)
 	} else {
 		lastIdx = len(formattedAggregators) + 2
 		groupby := generateAWSGroupBy(lastIdx)
@@ -1301,8 +1533,8 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 			line_item_product_code,
 			SUM(line_item_blended_cost) as blended_cost
 		FROM %s as cost_data
-		WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s'
-		GROUP BY %s`, aggregatorNames, customPricing.AthenaTable, start, end, groupby)
+		WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s' AND (%s)
+		GROUP BY %s`, aggregatorNames, customPricing.AthenaTable, start, end, aggregatorOr, groupby)
 	}
 
 	klog.V(3).Infof("Running Query: %s", query)
@@ -1372,8 +1604,7 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 			return nil, err
 		}
 		if len(op.ResultSet.Rows) > 1 {
-			for _, r := range op.ResultSet.Rows[1:(len(op.ResultSet.Rows) - 1)] {
-
+			for _, r := range op.ResultSet.Rows[1:(len(op.ResultSet.Rows))] {
 				cost, err := strconv.ParseFloat(*r.Data[lastIdx].VarCharValue, 64)
 				if err != nil {
 					return nil, err
@@ -1409,8 +1640,7 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 		}
 		oocAllocs = append(oocAllocs, gcpOOC...)
 	}
-
-	return oocAllocs, nil // TODO: transform the QuerySQL lines into the new OutOfClusterAllocation Struct
+	return oocAllocs, nil
 }
 
 // QuerySQL can query a properly configured Athena database.
