@@ -1489,9 +1489,9 @@ func getPodDeploymentsWithMetrics(deploymentLabels map[string]map[string]string,
 			continue
 		}
 
-		namespace := kt.Namespace
-		name := kt.Key
-		clusterID := kt.ClusterID
+		namespace := kt.Namespace()
+		name := kt.Key()
+		clusterID := kt.ClusterID()
 
 		key := namespace + "," + clusterID
 		if _, ok := podDeploymentsMapping[key]; !ok {
@@ -1503,9 +1503,9 @@ func getPodDeploymentsWithMetrics(deploymentLabels map[string]map[string]string,
 			if err != nil {
 				continue
 			}
-			podNamespace := pkey.Namespace
-			podName := pkey.Key
-			podClusterID := pkey.ClusterID
+			podNamespace := pkey.Namespace()
+			podName := pkey.Key()
+			podClusterID := pkey.ClusterID()
 
 			labelSet := labels.Set(pLabels)
 			if s.Matches(labelSet) && podNamespace == namespace && podClusterID == clusterID {
@@ -1534,9 +1534,9 @@ func getPodServicesWithMetrics(serviceLabels map[string]map[string]string, podLa
 			continue
 		}
 
-		namespace := kt.Namespace
-		name := kt.Key
-		clusterID := kt.ClusterID
+		namespace := kt.Namespace()
+		name := kt.Key()
+		clusterID := kt.ClusterID()
 
 		key := namespace + "," + clusterID
 		if _, ok := podServicesMapping[key]; !ok {
@@ -1552,9 +1552,9 @@ func getPodServicesWithMetrics(serviceLabels map[string]map[string]string, podLa
 			if err != nil {
 				continue
 			}
-			podNamespace := pkey.Namespace
-			podName := pkey.Key
-			podClusterID := pkey.ClusterID
+			podNamespace := pkey.Namespace()
+			podName := pkey.Key()
+			podClusterID := pkey.ClusterID()
 
 			labelSet := labels.Set(pLabels)
 			if s.Matches(labelSet) && podNamespace == namespace && podClusterID == clusterID {
@@ -2817,20 +2817,44 @@ func newContainerMetricFromPrometheus(metrics map[string]interface{}, defaultClu
 }
 
 type KeyTuple struct {
-	Namespace string
-	Key       string
-	ClusterID string
+	key    string
+	kIndex int
+	cIndex int
+}
+
+func (kt *KeyTuple) Namespace() string {
+	return kt.key[0 : kt.kIndex-1]
+}
+
+func (kt *KeyTuple) Key() string {
+	return kt.key[kt.kIndex : kt.cIndex-1]
+}
+
+func (kt *KeyTuple) ClusterID() string {
+	return kt.key[kt.cIndex:]
 }
 
 func NewKeyTuple(key string) (*KeyTuple, error) {
-	r := strings.Split(key, ",")
-	if len(r) != 3 {
+	kIndex := strings.IndexRune(key, ',')
+	if kIndex < 0 {
 		return nil, fmt.Errorf("NewKeyTuple() Provided key not containing exactly 3 components.")
 	}
+	kIndex += 1
+
+	subIndex := strings.IndexRune(key[kIndex:], ',')
+	if subIndex < 0 {
+		return nil, fmt.Errorf("NewKeyTuple() Provided key not containing exactly 3 components.")
+	}
+	cIndex := kIndex + subIndex + 1
+
+	if strings.ContainsRune(key[cIndex:], ',') {
+		return nil, fmt.Errorf("NewKeyTuple() Provided key not containing exactly 3 components.")
+	}
+
 	return &KeyTuple{
-		Namespace: r[0],
-		Key:       r[1],
-		ClusterID: r[2],
+		key:    key,
+		kIndex: kIndex,
+		cIndex: cIndex,
 	}, nil
 }
 
