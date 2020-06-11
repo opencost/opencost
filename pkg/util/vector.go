@@ -68,7 +68,7 @@ func ApplyVectorOp(xvs []*Vector, yvs []*Vector, op VectorJoinOp) []*Vector {
 		// round all non-zero timestamps to the nearest 10 second mark
 		xv.Timestamp = roundTimestamp(xv.Timestamp, 10.0)
 
-		xMap[xv.Timestamp] = xv.Value
+		xMap[uint64(xv.Timestamp)] = xv.Value
 		timestamps = append(timestamps, &Vector{
 			Timestamp: xv.Timestamp,
 		})
@@ -85,8 +85,8 @@ func ApplyVectorOp(xvs []*Vector, yvs []*Vector, op VectorJoinOp) []*Vector {
 		// round all non-zero timestamps to the nearest 10 second mark
 		yv.Timestamp = roundTimestamp(yv.Timestamp, 10.0)
 
-		yMap[yv.Timestamp] = yv.Value
-		if _, ok := xMap[yv.Timestamp]; !ok {
+		yMap[uint64(yv.Timestamp)] = yv.Value
+		if _, ok := xMap[uint64(yv.Timestamp)]; !ok {
 			// no need to double add, since we'll range over sorted timestamps and check.
 			timestamps = append(timestamps, &Vector{
 				Timestamp: yv.Timestamp,
@@ -98,8 +98,8 @@ func ApplyVectorOp(xvs []*Vector, yvs []*Vector, op VectorJoinOp) []*Vector {
 	// reuse the existing slice to reduce allocations
 	result := timestamps[:0]
 	for _, sv := range timestamps {
-		x, okX := xMap[sv.Timestamp]
-		y, okY := yMap[sv.Timestamp]
+		x, okX := xMap[uint64(sv.Timestamp)]
+		y, okY := yMap[uint64(sv.Timestamp)]
 
 		if op(sv, VectorValue(x, okX), VectorValue(y, okY)) {
 			result = append(result, sv)
