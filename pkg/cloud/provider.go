@@ -230,13 +230,31 @@ func NewCrossClusterProvider(ctype string, overrideConfigPath string, cache clus
 
 // NewProvider looks at the nodespec or provider metadata server to decide which provider to instantiate.
 func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, error) {
+	nodes := cache.GetAllNodes()
+	if len(nodes) == 0 {
+		return nil, fmt.Errorf("Could not locate any nodes for cluster.")
+	}
+
+	provider := strings.ToLower(nodes[0].Spec.ProviderID)
+
 	if os.Getenv("USE_CSV_PROVIDER") == "true" {
 		klog.Infof("Using CSV Provider with CSV at %s", os.Getenv("CSV_PATH"))
+		configFileName := ""
+		if metadata.OnGCE() {
+			configFileName = "gcp.json"
+		} else if strings.HasPrefix(provider, "aws") {
+			configFileName = "aws.json"
+		} else if strings.HasPrefix(provider, "azure") {
+			configFileName = "azure.json"
+
+		} else {
+			configFileName = "default.json"
+		}
 		return &CSVProvider{
 			CSVLocation: os.Getenv("CSV_PATH"),
 			CustomProvider: &CustomProvider{
 				Clientset: cache,
-				Config:    NewProviderConfig("default.json"),
+				Config:    NewProviderConfig(configFileName),
 			},
 		}, nil
 	}
@@ -252,12 +270,6 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, erro
 		}, nil
 	}
 
-	nodes := cache.GetAllNodes()
-	if len(nodes) == 0 {
-		return nil, fmt.Errorf("Could not locate any nodes for cluster.")
-	}
-
-	provider := strings.ToLower(nodes[0].Spec.ProviderID)
 	if strings.HasPrefix(provider, "aws") {
 		klog.V(2).Info("Found ProviderID starting with \"aws\", using AWS Provider")
 		return &AWS{
