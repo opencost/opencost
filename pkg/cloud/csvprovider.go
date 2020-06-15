@@ -7,12 +7,18 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
 
 	"github.com/jszwec/csvutil"
 )
+
+const refreshMinutes = 60
 
 type CSVProvider struct {
 	*CustomProvider
@@ -47,13 +53,42 @@ func (c *CSVProvider) DownloadPricingData() error {
 		return err
 	}
 	fieldsPerRecord := len(header)
-	csvr, err := GetCsv(c.CSVLocation)
+	var csvr io.Reader
+	var csverr error
+	if strings.HasPrefix(c.CSVLocation, "s3://") {
+		region := os.Getenv("CSV_REGION")
+		conf := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
+		s3Client := s3.New(session.New(conf))
+		bucketAndKey := strings.Split(strings.TrimPrefix(c.CSVLocation, "s3://"), "/")
+		if len(bucketAndKey) == 2 {
+			out, err := s3Client.GetObject(&s3.GetObjectInput{
+				Bucket: aws.String(bucketAndKey[0]),
+				Key:    aws.String(bucketAndKey[1]),
+			})
+			csverr = err
+			csvr = out.Body
+		} else {
+			c.Pricing = pricing
+			c.PricingPV = pvpricing
+			return fmt.Errorf("Invalid s3 URI: %s", c.CSVLocation)
+		}
+	} else {
+		csvr, csverr = GetCsv(c.CSVLocation)
+	}
+	if csverr != nil {
+		klog.Infof("Error reading csv at %s: %s", c.CSVLocation, csverr)
+		c.Pricing = pricing
+		c.PricingPV = pvpricing
+		return nil
+	}
 	csvReader := csv.NewReader(csvr)
 	csvReader.Comma = ','
 	csvReader.FieldsPerRecord = fieldsPerRecord
 
 	dec, err := csvutil.NewDecoder(csvReader, header...)
 	if err != nil {
+		c.Pricing = pricing
+		c.PricingPV = pvpricing
 		return err
 	}
 	for {
@@ -97,6 +132,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 	} else {
 		klog.Infof("[WARNING] No data received from csv")
 	}
+	time.AfterFunc(refreshMinutes*time.Minute, func() { c.DownloadPricingData() })
 	return nil
 }
 
@@ -161,11 +197,11 @@ func PVValueFromMapField(m string, n *v1.PersistentVolume) string {
 			akey := strings.Join(mf[2:len(mf)], "")
 			return n.Annotations[akey]
 		} else {
-			klog.Infof("[ERROR] Unsupported InstanceIDField %s in CSV For PV", m)
+			klog.V(4).Infof("[ERROR] Unsupported InstanceIDField %s in CSV For PV", m)
 			return ""
 		}
 	} else {
-		klog.Infof("[ERROR] Unsupported InstanceIDField %s in CSV For PV", m)
+		klog.V(4).Infof("[ERROR] Unsupported InstanceIDField %s in CSV For PV", m)
 		return ""
 	}
 }
