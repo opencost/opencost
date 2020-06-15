@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -16,6 +17,8 @@ import (
 
 	"github.com/jszwec/csvutil"
 )
+
+const refreshMinutes = 60
 
 type CSVProvider struct {
 	*CustomProvider
@@ -129,6 +132,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 	} else {
 		klog.Infof("[WARNING] No data received from csv")
 	}
+	time.AfterFunc(refreshMinutes*time.Minute, func() { c.DownloadPricingData() })
 	return nil
 }
 
