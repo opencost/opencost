@@ -2,6 +2,7 @@ package cloud
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	"k8s.io/klog"
 
+	"cloud.google.com/go/compute/metadata"
 	"github.com/kubecost/cost-model/pkg/clustercache"
 
 	v1 "k8s.io/api/core/v1"
@@ -233,12 +235,60 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, erro
 		return nil, fmt.Errorf("Could not locate any nodes for cluster.")
 	}
 
-	klog.V(2).Info("Unsupported provider, falling back to default")
-	return &CustomProvider{
-		Clientset: cache,
-		Config:    NewProviderConfig("default.json"),
-	}, nil
+	provider := strings.ToLower(nodes[0].Spec.ProviderID)
 
+	if os.Getenv("USE_CSV_PROVIDER") == "true" {
+		klog.Infof("Using CSV Provider with CSV at %s", os.Getenv("CSV_PATH"))
+		configFileName := ""
+		if metadata.OnGCE() {
+			configFileName = "gcp.json"
+		} else if strings.HasPrefix(provider, "aws") {
+			configFileName = "aws.json"
+		} else if strings.HasPrefix(provider, "azure") {
+			configFileName = "azure.json"
+
+		} else {
+			configFileName = "default.json"
+		}
+		return &CSVProvider{
+			CSVLocation: os.Getenv("CSV_PATH"),
+			CustomProvider: &CustomProvider{
+				Clientset: cache,
+				Config:    NewProviderConfig(configFileName),
+			},
+		}, nil
+	}
+	if metadata.OnGCE() {
+		klog.V(3).Info("metadata reports we are in GCE")
+		if apiKey == "" {
+			return nil, errors.New("Supply a GCP Key to start getting data")
+		}
+		return &GCP{
+			Clientset: cache,
+			APIKey:    apiKey,
+			Config:    NewProviderConfig("gcp.json"),
+		}, nil
+	}
+
+	if strings.HasPrefix(provider, "aws") {
+		klog.V(2).Info("Found ProviderID starting with \"aws\", using AWS Provider")
+		return &AWS{
+			Clientset: cache,
+			Config:    NewProviderConfig("aws.json"),
+		}, nil
+	} else if strings.HasPrefix(provider, "azure") {
+		klog.V(2).Info("Found ProviderID starting with \"azure\", using Azure Provider")
+		return &Azure{
+			Clientset: cache,
+			Config:    NewProviderConfig("azure.json"),
+		}, nil
+	} else {
+		klog.V(2).Info("Unsupported provider, falling back to default")
+		return &CustomProvider{
+			Clientset: cache,
+			Config:    NewProviderConfig("default.json"),
+		}, nil
+	}
 }
 
 func UpdateClusterMeta(cluster_id, cluster_name string) error {

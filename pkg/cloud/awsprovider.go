@@ -1813,7 +1813,7 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 		return nil, err
 	}
 	lsoLen := len(lso.Contents)
-	klog.V(2).Infof("Found %d spot data files from yesterday", lsoLen)
+	klog.V(2).Infof("Found %d spot data files from yesterday in \"s3://%s/%s\"", lsoLen, *ls.Bucket, *ls.Prefix)
 	if lsoLen == 0 {
 		klog.V(5).Infof("ListObjects \"s3://%s/%s\" produced no keys", *ls.Bucket, *ls.Prefix)
 	}
@@ -1822,7 +1822,7 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 		return nil, err
 	}
 	lso2Len := len(lso2.Contents)
-	klog.V(2).Infof("Found %d spot data files from today", lso2Len)
+	klog.V(2).Infof("Found %d spot data files from today in \"s3://%s/%s\"", lso2Len, *ls.Bucket, *ls.Prefix)
 	if lso2Len == 0 {
 		klog.V(5).Infof("ListObjects \"s3://%s/%s\" produced no keys", *ls2.Bucket, *ls2.Prefix)
 	}
