@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -165,6 +166,12 @@ func (c *CSVProvider) NodePricing(key Key) (*Node, error) {
 func NodeValueFromMapField(m string, n *v1.Node) string {
 	mf := strings.Split(m, ".")
 	if len(mf) == 2 && mf[0] == "spec" && mf[1] == "providerID" {
+		provIdRx := regexp.MustCompile("aws:///([^/]+)/([^/]+)") // It's of the form aws:///us-east-2a/i-0fea4fd46592d050b and we want i-0fea4fd46592d050b, if it exists
+		for matchNum, group := range provIdRx.FindStringSubmatch(n.Spec.ProviderID) {
+			if matchNum == 2 {
+				return group
+			}
+		}
 		return n.Spec.ProviderID
 	} else if len(mf) > 1 && mf[0] == "metadata" {
 		if mf[1] == "name" {
