@@ -11,6 +11,16 @@ const(
 	nameMap = "metadata.name"
 	labelMapFoo = "metadata.labels.foo"
 )
+func TestTransformedValueFromMapField(t *testing.T) {
+	providerIDWant := "i-05445591e0d182d42"
+	n := &v1.Node{}
+	n.Spec.ProviderID = "aws:///us-east-1a/i-05445591e0d182d42"
+	got := cloud.NodeValueFromMapField(providerIDMap, n)
+	if got != providerIDWant {
+		t.Errorf("Assert on '%s' want '%s' got '%s'", providerIDMap, providerIDWant, got)
+	}
+}
+
 func TestNodeValueFromMapField(t *testing.T) {
 	providerIDWant := "providerid"
 	nameWant := "gke-standard-cluster-1-pool-1-91dc432d-cg69"

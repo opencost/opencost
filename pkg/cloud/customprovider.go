@@ -3,6 +3,7 @@ package cloud
 import (
 	"encoding/json"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -105,6 +106,7 @@ func (cp *CustomProvider) ClusterInfo() (map[string]string, error) {
 		m["name"] = conf.ClusterName
 	}
 	m["provider"] = "custom"
+	m["id"] = os.Getenv(clusterIDKey)
 	return m, nil
 }
 
