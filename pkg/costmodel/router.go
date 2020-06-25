@@ -726,11 +726,11 @@ func (a *Accesses) recordPrices() {
 
 				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
-				a.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion).Set(cpuCost)
-				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion).Set(ramCost)
-				a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion).Set(gpuCost)
-				a.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion).Set(totalCost)
-				labelKey := getKeyFromLabelStrings(nodeName, nodeName)
+				a.CPUPriceRecorder.WithLabelValues(nodeName, nodeType, nodeRegion).Set(cpuCost)
+				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeType, nodeRegion).Set(ramCost)
+				a.GPUPriceRecorder.WithLabelValues(nodeName, nodeType, nodeRegion).Set(gpuCost)
+				a.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeType, nodeRegion).Set(totalCost)
+				labelKey := getKeyFromLabelStrings(nodeName)
 				nodeSeen[labelKey] = true
 			}
 
@@ -752,16 +752,16 @@ func (a *Accesses) recordPrices() {
 				}
 
 				if len(costs.RAMAllocation) > 0 {
-					a.RAMAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.RAMAllocation[0].Value)
+					a.RAMAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName).Set(costs.RAMAllocation[0].Value)
 				}
 				if len(costs.CPUAllocation) > 0 {
-					a.CPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.CPUAllocation[0].Value)
+					a.CPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName).Set(costs.CPUAllocation[0].Value)
 				}
 				if len(costs.GPUReq) > 0 {
 					// allocation here is set to the request because shared GPU usage not yet supported.
-					a.GPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.GPUReq[0].Value)
+					a.GPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName).Set(costs.GPUReq[0].Value)
 				}
-				labelKey := getKeyFromLabelStrings(namespace, podName, containerName, nodeName, nodeName)
+				labelKey := getKeyFromLabelStrings(namespace, podName, containerName, nodeName)
 				if podStatus[podName] == v1.PodRunning { // Only report data for current pods
 					containerSeen[labelKey] = true
 				} else {
@@ -1027,22 +1027,22 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	cpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_cpu_hourly_cost",
 		Help: "node_cpu_hourly_cost hourly cost for each cpu on this node",
-	}, []string{"instance", "node", "instance_type", "region"})
+	}, []string{"node", "instance_type", "region"})
 
 	ramGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_ram_hourly_cost",
 		Help: "node_ram_hourly_cost hourly cost for each gb of ram on this node",
-	}, []string{"instance", "node", "instance_type", "region"})
+	}, []string{"node", "instance_type", "region"})
 
 	gpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_gpu_hourly_cost",
 		Help: "node_gpu_hourly_cost hourly cost for each gpu on this node",
-	}, []string{"instance", "node", "instance_type", "region"})
+	}, []string{"node", "instance_type", "region"})
 
 	totalGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_total_hourly_cost",
 		Help: "node_total_hourly_cost Total node cost per hour",
-	}, []string{"instance", "node", "instance_type", "region"})
+	}, []string{"node", "instance_type", "region"})
 
 	pvGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "pv_hourly_cost",
@@ -1052,17 +1052,17 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	RAMAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "container_memory_allocation_bytes",
 		Help: "container_memory_allocation_bytes Bytes of RAM used",
-	}, []string{"namespace", "pod", "container", "instance", "node"})
+	}, []string{"namespace", "pod", "container", "node"})
 
 	CPUAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "container_cpu_allocation",
 		Help: "container_cpu_allocation Percent of a single CPU used in a minute",
-	}, []string{"namespace", "pod", "container", "instance", "node"})
+	}, []string{"namespace", "pod", "container", "node"})
 
 	GPUAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "container_gpu_allocation",
 		Help: "container_gpu_allocation GPU used",
-	}, []string{"namespace", "pod", "container", "instance", "node"})
+	}, []string{"namespace", "pod", "container", "node"})
 	PVAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "pod_pvc_allocation",
 		Help: "pod_pvc_allocation Bytes used by a PVC attached to a pod",

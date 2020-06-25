@@ -14,7 +14,7 @@ After deploying the Kubecost model (see [README](README.md) for more info on ins
   static_configs:
   - targets:
     - < address of cost-model service> # example: <service-name>.<namespace>:<port>
-``` 
+```
 
 ## Example queries
 
@@ -23,10 +23,10 @@ Below are a set of sample queries that can be run after Prometheus begins ingest
 __Monthly cost of top 5 containers__
 
 ```
-topk( 5, 
-  container_memory_allocation_bytes* on(instance) group_left() node_ram_hourly_cost  / 1024 / 1024 / 1024 * 730
-  + 
-  container_cpu_allocation * on(instance) group_left() node_cpu_hourly_cost * 730
+topk( 5,
+  container_memory_allocation_bytes* on(node) group_left() node_ram_hourly_cost  / 1024 / 1024 / 1024 * 730
+  +
+  container_cpu_allocation * on(node) group_left() node_cpu_hourly_cost * 730
 )
 ```
 
@@ -34,9 +34,9 @@ __Hourly memory cost for the *default* namespace__
 
 ```
 sum(
-  avg(container_memory_allocation_bytes{namespace="default"}) by (instance) / 1024 / 1024 / 1024
-  * 
-  on(instance) group_left() avg(node_ram_hourly_cost) by (instance)
+  avg(container_memory_allocation_bytes{namespace="default"}) by (node) / 1024 / 1024 / 1024
+  *
+  on(node) group_left() avg(node_ram_hourly_cost) by (node)
 )
 ```
 
