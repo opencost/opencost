@@ -140,6 +140,7 @@ type CustomPricing struct {
 	AthenaRegion          string            `json:"athenaRegion"`
 	AthenaDatabase        string            `json:"athenaDatabase"`
 	AthenaTable           string            `json:"athenaTable"`
+	MasterPayerARN        string            `json:"masterPayerARN"`
 	BillingDataDataset    string            `json:"billingDataDataset,omitempty"`
 	CustomPricesEnabled   string            `json:"customPricesEnabled"`
 	DefaultIdle           string            `json:"defaultIdle"`
