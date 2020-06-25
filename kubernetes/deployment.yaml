@@ -1,4 +1,4 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cost-model
@@ -6,6 +6,9 @@ metadata:
     app: cost-model
 spec:
   replicas: 1
+  selector:
+    matchLabels:
+      app: cost-model
   strategy:
     rollingUpdate:
       maxSurge: 1
