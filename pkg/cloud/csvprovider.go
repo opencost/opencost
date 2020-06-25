@@ -172,6 +172,10 @@ func NodeValueFromMapField(m string, n *v1.Node) string {
 				return group
 			}
 		}
+		if strings.HasPrefix(n.Spec.ProviderID, "azure://") {
+			vmOrScaleSet := strings.TrimPrefix(n.Spec.ProviderID, "azure://")
+			return vmOrScaleSet
+		}
 		return n.Spec.ProviderID
 	} else if len(mf) > 1 && mf[0] == "metadata" {
 		if mf[1] == "name" {
