@@ -19,7 +19,24 @@ func TestTransformedValueFromMapField(t *testing.T) {
 	if got != providerIDWant {
 		t.Errorf("Assert on '%s' want '%s' got '%s'", providerIDMap, providerIDWant, got)
 	}
+
+	providerIDWant2 := "/subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/resourceGroups/MC_test_test_eastus/providers/Microsoft.Compute/virtualMachines/aks-agentpool-20139558-0"
+	n2 := &v1.Node{}
+	n2.Spec.ProviderID = "azure:///subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/resourceGroups/MC_test_test_eastus/providers/Microsoft.Compute/virtualMachines/aks-agentpool-20139558-0"
+	got2 := cloud.NodeValueFromMapField(providerIDMap, n2)
+	if got2 != providerIDWant2 {
+		t.Errorf("Assert on '%s' want '%s' got '%s'", providerIDMap, providerIDWant2, got2)
+	}
+
+	providerIDWant3 := "/subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/resourceGroups/mc_testspot_testspot_eastus/providers/Microsoft.Compute/virtualMachineScaleSets/aks-nodepool1-19213364-vmss/virtualMachines/0"
+	n3 := &v1.Node{}
+	n3.Spec.ProviderID = "azure:///subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/resourceGroups/mc_testspot_testspot_eastus/providers/Microsoft.Compute/virtualMachineScaleSets/aks-nodepool1-19213364-vmss/virtualMachines/0"
+	got3 := cloud.NodeValueFromMapField(providerIDMap, n3)
+	if got3 != providerIDWant3 {
+		t.Errorf("Assert on '%s' want '%s' got '%s'", providerIDMap, providerIDWant3, got3)
+	}
 }
+
 
 func TestNodeValueFromMapField(t *testing.T) {
 	providerIDWant := "providerid"
@@ -71,11 +88,14 @@ func TestNodePriceFromCSV(t * testing.T) {
 	}
 	c.DownloadPricingData()
 	k := c.GetKey(n.Labels, n)
-	resN, _ := c.NodePricing(k)
-	gotPrice := resN.Cost
-
-	if gotPrice != wantPrice {
-		t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+	resN, err := c.NodePricing(k)
+	if err != nil {
+		t.Errorf("Error in NodePricing: %s", err.Error())
+	} else {
+		gotPrice := resN.Cost
+		if gotPrice != wantPrice {
+			t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+		}
 	}
 
 	unknownN := &v1.Node{}
@@ -100,7 +120,4 @@ func TestNodePriceFromCSV(t * testing.T) {
 	if resN3 != nil {
 		t.Errorf("CSV provider should return nil on missing csv")
 	}
-
-
-
 }
