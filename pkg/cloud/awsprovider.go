@@ -44,6 +44,9 @@ const supportedSpotFeedVersion = "1"
 const SpotInfoUpdateType = "spotinfo"
 const AthenaInfoUpdateType = "athenainfo"
 
+// How often spot data is refreshed
+const SpotRefreshDuration = 15 * time.Minute
+
 const defaultConfigPath = "/var/configs/"
 
 var awsRegions = []string{
@@ -748,8 +751,8 @@ func (aws *AWS) DownloadPricingData() error {
 			defer errors.HandlePanic()
 
 			for {
-				klog.Infof("Spot Pricing Refresh scheduled in 1 hr.")
-				time.Sleep(time.Hour)
+				klog.Infof("Spot Pricing Refresh scheduled in %.2f minutes.", SpotRefreshDuration.Minutes())
+				time.Sleep(SpotRefreshDuration)
 
 				// Reoccurring refresh checks update times
 				aws.refreshSpotPricing(false)
@@ -765,7 +768,7 @@ func (aws *AWS) refreshSpotPricing(force bool) {
 	defer aws.SpotPricingLock.Unlock()
 
 	now := time.Now().UTC()
-	updateTime := now.Add(-time.Hour)
+	updateTime := now.Add(-SpotRefreshDuration)
 
 	// Return if there was an update time set and an hour hasn't elapsed
 	if !force && aws.SpotPricingUpdatedAt != nil && aws.SpotPricingUpdatedAt.After(updateTime) {
@@ -1896,6 +1899,7 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 		klog.V(5).Infof("ListObjects \"s3://%s/%s\" produced no keys", *ls2.Bucket, *ls2.Prefix)
 	}
 
+	// TODO: Worth it to use LastModifiedDate to determine if we should reparse the spot data?
 	var keys []*string
 	for _, obj := range lso.Contents {
 		keys = append(keys, obj.Key)
@@ -1980,7 +1984,7 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 				continue
 			}
 
-			klog.V(4).Infof("Found spot info %+v", spot)
+			klog.V(1).Infof("Found spot info for: %s", spot.InstanceID)
 			spots[spot.InstanceID] = &spot
 		}
 		gr.Close()
