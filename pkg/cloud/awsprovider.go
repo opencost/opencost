@@ -26,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/athena"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -42,6 +43,9 @@ const awsReservedInstancePricePerHour = 0.0287
 const supportedSpotFeedVersion = "1"
 const SpotInfoUpdateType = "spotinfo"
 const AthenaInfoUpdateType = "athenainfo"
+
+// How often spot data is refreshed
+const SpotRefreshDuration = 15 * time.Minute
 
 const defaultConfigPath = "/var/configs/"
 
@@ -282,6 +286,7 @@ type AwsAthenaInfo struct {
 	ServiceKeyName   string `json:"serviceKeyName"`
 	ServiceKeySecret string `json:"serviceKeySecret"`
 	AccountID        string `json:"projectID"`
+	MasterPayerARN   string `json:"masterPayerARN"`
 }
 
 func (aws *AWS) GetManagementPlatform() (string, error) {
@@ -351,6 +356,9 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 			c.ServiceKeyName = a.ServiceKeyName
 			if a.ServiceKeySecret != "" {
 				c.ServiceKeySecret = a.ServiceKeySecret
+			}
+			if a.MasterPayerARN != "" {
+				c.MasterPayerARN = a.MasterPayerARN
 			}
 			c.AthenaProjectID = a.AccountID
 		} else {
@@ -743,8 +751,8 @@ func (aws *AWS) DownloadPricingData() error {
 			defer errors.HandlePanic()
 
 			for {
-				klog.Infof("Spot Pricing Refresh scheduled in 1 hr.")
-				time.Sleep(time.Hour)
+				klog.Infof("Spot Pricing Refresh scheduled in %.2f minutes.", SpotRefreshDuration.Minutes())
+				time.Sleep(SpotRefreshDuration)
 
 				// Reoccurring refresh checks update times
 				aws.refreshSpotPricing(false)
@@ -760,7 +768,7 @@ func (aws *AWS) refreshSpotPricing(force bool) {
 	defer aws.SpotPricingLock.Unlock()
 
 	now := time.Now().UTC()
-	updateTime := now.Add(-time.Hour)
+	updateTime := now.Add(-SpotRefreshDuration)
 
 	// Return if there was an update time set and an hour hasn't elapsed
 	if !force && aws.SpotPricingUpdatedAt != nil && aws.SpotPricingUpdatedAt.After(updateTime) {
@@ -1429,6 +1437,13 @@ func (a *AWS) QueryAthenaBillingData(query string) (*athena.GetQueryResultsOutpu
 	}
 	s := session.Must(session.NewSession(c))
 	svc := athena.New(s)
+	if customPricing.MasterPayerARN != "" {
+		creds := stscreds.NewCredentials(s, customPricing.MasterPayerARN)
+		svc = athena.New(s, &aws.Config{
+			Region:      region,
+			Credentials: creds,
+		})
+	}
 
 	var e athena.StartQueryExecutionInput
 
@@ -1884,6 +1899,7 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 		klog.V(5).Infof("ListObjects \"s3://%s/%s\" produced no keys", *ls2.Bucket, *ls2.Prefix)
 	}
 
+	// TODO: Worth it to use LastModifiedDate to determine if we should reparse the spot data?
 	var keys []*string
 	for _, obj := range lso.Contents {
 		keys = append(keys, obj.Key)
@@ -1968,7 +1984,7 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 				continue
 			}
 
-			klog.V(4).Infof("Found spot info %+v", spot)
+			klog.V(1).Infof("Found spot info for: %s", spot.InstanceID)
 			spots[spot.InstanceID] = &spot
 		}
 		gr.Close()
