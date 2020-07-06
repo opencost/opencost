@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/kubecost/cost-model/pkg/errors"
-	"github.com/kubecost/cost-model/pkg/util"
 	prometheus "github.com/prometheus/client_golang/api"
 	"k8s.io/klog"
 )
@@ -22,20 +21,15 @@ const (
 type Context struct {
 	Client         prometheus.Client
 	ErrorCollector *errors.ErrorCollector
-	semaphore      *util.Semaphore
 }
 
 // NewContext creates a new Promethues querying context from the given client
 func NewContext(client prometheus.Client) *Context {
 	var ec errors.ErrorCollector
 
-	// By deafult, allow 20 concurrent queries, which is the Prometheus default
-	sem := util.NewSemaphore(20)
-
 	return &Context{
 		Client:         client,
 		ErrorCollector: &ec,
-		semaphore:      sem,
 	}
 }
 
@@ -82,9 +76,6 @@ func (ctx *Context) Query(query string) QueryResultsChan {
 }
 
 func (ctx *Context) query(query string) (interface{}, error) {
-	ctx.semaphore.Acquire()
-	defer ctx.semaphore.Return()
-
 	u := ctx.Client.URL(epQuery, nil)
 	q := u.Query()
 	q.Set("query", query)
