@@ -24,6 +24,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	cm "github.com/kubecost/cost-model/pkg/clustermanager"
 	"github.com/kubecost/cost-model/pkg/errors"
+	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -174,7 +175,7 @@ func maxQueryConcurrency() int {
 
 	result, err := strconv.Atoi(v)
 	if err != nil {
-		klog.Infof("[Warning] Failed to parse MAX_QUERY_CONCURRENCY. Defaulting to 5 - %s", err)
+		log.Warningf("Failed to parse MAX_QUERY_CONCURRENCY. Defaulting to 5 - %s", err)
 		return 5
 	}
 
