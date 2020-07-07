@@ -28,11 +28,13 @@ type CSVProvider struct {
 	NodeMapField            string
 	PricingPV               map[string]*price
 	PVMapField              string
+	UsesRegion              bool
 	DownloadPricingDataLock sync.RWMutex
 }
 type price struct {
 	EndTimestamp      string `csv:"EndTimestamp"`
 	InstanceID        string `csv:"InstanceID"`
+	Region            string `csv:"Region"`
 	AssetClass        string `csv:"AssetClass"`
 	InstanceIDField   string `csv:"InstanceIDField"`
 	InstanceType      string `csv:"InstanceType"`
@@ -115,15 +117,20 @@ func (c *CSVProvider) DownloadPricingData() error {
 			continue
 		}
 		klog.V(4).Infof("Found price info %+v", p)
+		key := p.InstanceID
+		if p.Region != "" {
+			key = fmt.Sprintf("%s,%s", p.Region, p.InstanceID)
+			c.UsesRegion = true
+		}
 		if p.AssetClass == "pv" {
-			pvpricing[p.InstanceID] = &p
+			pvpricing[key] = &p
 			c.PVMapField = p.InstanceIDField
 		} else if p.AssetClass == "node" {
-			pricing[p.InstanceID] = &p
+			pricing[key] = &p
 			c.NodeMapField = p.InstanceIDField
 		} else {
 			klog.Infof("Unrecognized asset class %s, defaulting to node", p.AssetClass)
-			pricing[p.InstanceID] = &p
+			pricing[key] = &p
 			c.NodeMapField = p.InstanceIDField
 		}
 	}
@@ -160,32 +167,44 @@ func (c *CSVProvider) NodePricing(key Key) (*Node, error) {
 			Cost: p.MarketPriceHourly,
 		}, nil
 	}
+	s := strings.Split(key.ID(), ",") // Try without a region to be sure
+	if len(s) == 2 {
+		if p, ok := c.Pricing[s[1]]; ok {
+			return &Node{
+				Cost: p.MarketPriceHourly,
+			}, nil
+		}
+	}
 	return nil, fmt.Errorf("Unable to find Node matching %s", key.ID())
 }
 
-func NodeValueFromMapField(m string, n *v1.Node) string {
+func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
 	mf := strings.Split(m, ".")
+	toReturn := ""
+	if useRegion {
+		toReturn = n.Labels[v1.LabelZoneRegion] + ","
+	}
 	if len(mf) == 2 && mf[0] == "spec" && mf[1] == "providerID" {
 		provIdRx := regexp.MustCompile("aws:///([^/]+)/([^/]+)") // It's of the form aws:///us-east-2a/i-0fea4fd46592d050b and we want i-0fea4fd46592d050b, if it exists
 		for matchNum, group := range provIdRx.FindStringSubmatch(n.Spec.ProviderID) {
 			if matchNum == 2 {
-				return group
+				return toReturn + group
 			}
 		}
 		if strings.HasPrefix(n.Spec.ProviderID, "azure://") {
 			vmOrScaleSet := strings.TrimPrefix(n.Spec.ProviderID, "azure://")
-			return vmOrScaleSet
+			return toReturn + vmOrScaleSet
 		}
-		return n.Spec.ProviderID
+		return toReturn + n.Spec.ProviderID
 	} else if len(mf) > 1 && mf[0] == "metadata" {
 		if mf[1] == "name" {
-			return n.Name
+			return toReturn + n.Name
 		} else if mf[1] == "labels" {
 			lkey := strings.Join(mf[2:len(mf)], "")
-			return n.Labels[lkey]
+			return toReturn + n.Labels[lkey]
 		} else if mf[1] == "annotations" {
 			akey := strings.Join(mf[2:len(mf)], "")
-			return n.Annotations[akey]
+			return toReturn + n.Annotations[akey]
 		} else {
 			klog.Infof("[ERROR] Unsupported InstanceIDField %s in CSV For Node", m)
 			return ""
@@ -218,7 +237,7 @@ func PVValueFromMapField(m string, n *v1.PersistentVolume) string {
 }
 
 func (c *CSVProvider) GetKey(l map[string]string, n *v1.Node) Key {
-	id := NodeValueFromMapField(c.NodeMapField, n)
+	id := NodeValueFromMapField(c.NodeMapField, n, c.UsesRegion)
 	return &csvKey{
 		ProviderID: id,
 		Labels:     l,
