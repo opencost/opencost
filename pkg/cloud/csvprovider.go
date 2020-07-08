@@ -118,8 +118,8 @@ func (c *CSVProvider) DownloadPricingData() error {
 		}
 		klog.V(4).Infof("Found price info %+v", p)
 		key := p.InstanceID
-		if p.Region != "" {
-			key = fmt.Sprintf("%s,%s", p.Region, p.InstanceID)
+		if p.Region != "" { // strip the casing from region and add to key.
+			key = fmt.Sprintf("%s,%s", strings.ToLower(p.Region), p.InstanceID)
 			c.UsesRegion = true
 		}
 		if p.AssetClass == "pv" {
