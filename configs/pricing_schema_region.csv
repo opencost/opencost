@@ -1,0 +1,4 @@
+EndTimestamp,InstanceID,Region,AssetClass,InstanceIDField,InstanceType,MarketPriceHourly,Version
+2019-04-17 23:34:22 UTC,gke-standard-cluster-1-pool-1-91dc432d-cg69,regionone,node,spec.providerID,,0.1337,
+2019-04-17 23:34:22 UTC,gke-standard-cluster-1-pool-1-91dc432d-cg69,regiontwo,node,spec.providerID,,0.1338,
+2019-04-17 23:34:22 UTC,gke-standard-cluster-1-pool-1-91dc432d-cg69,,node,spec.providerID,,0.1339,
