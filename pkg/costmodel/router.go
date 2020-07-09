@@ -898,23 +898,27 @@ type ConfigWatchers struct {
 	WatchFunc     func(string, map[string]string) error
 }
 
+// captures the panic event in sentry
+func capturePanicEvent(err string, stack string) {
+	msg := fmt.Sprintf("Panic: %s\nStackTrace: %s\n", err, stack)
+	sentry.CurrentHub().CaptureEvent(&sentry.Event{
+		Level:   sentry.LevelError,
+		Message: msg,
+	})
+	sentry.Flush(5 * time.Second)
+}
+
 // handle any panics reported by the errors package
 func handlePanic(p errors.Panic) bool {
 	err := p.Error
 
 	if err != nil {
 		if err, ok := err.(error); ok {
-			sentry.CurrentHub().CaptureException(err)
-			sentry.Flush(5 * time.Second)
+			capturePanicEvent(err.Error(), p.Stack)
 		}
 
 		if err, ok := err.(string); ok {
-			msg := fmt.Sprintf("Panic: %s\nStackTrace: %s\n", err, p.Stack)
-			sentry.CurrentHub().CaptureEvent(&sentry.Event{
-				Level:   sentry.LevelError,
-				Message: msg,
-			})
-			sentry.Flush(5 * time.Second)
+			capturePanicEvent(err, p.Stack)
 		}
 	}
 
