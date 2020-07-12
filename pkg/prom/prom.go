@@ -34,7 +34,7 @@ type RateLimitedPrometheusClient struct {
 
 // Passthrough to the prometheus client API
 func (rlpc *RateLimitedPrometheusClient) URL(ep string, args map[string]string) *url.URL {
-	return rlpc.URL(ep, args)
+	return rlpc.client.URL(ep, args)
 }
 
 // Rate limit and passthrough to prometheus client API
