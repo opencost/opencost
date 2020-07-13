@@ -24,6 +24,8 @@ import (
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	cm "github.com/kubecost/cost-model/pkg/clustermanager"
 	"github.com/kubecost/cost-model/pkg/errors"
+	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/cost-model/pkg/prom"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
 	v1 "k8s.io/api/core/v1"
@@ -40,6 +42,7 @@ const (
 	logCollectionEnvVar            = "LOG_COLLECTION_ENABLED"
 	productAnalyticsEnvVar         = "PRODUCT_ANALYTICS_ENABLED"
 	errorReportingEnvVar           = "ERROR_REPORTING_ENABLED"
+	maxQueryConcurrencyEnvVar      = "MAX_QUERY_CONCURRENCY"
 	prometheusServerEndpointEnvVar = "PROMETHEUS_SERVER_ENDPOINT"
 	prometheusTroubleshootingEp    = "http://docs.kubecost.com/custom-prom#troubleshoot"
 	RFC3339Milli                   = "2006-01-02T15:04:05.000Z"
@@ -161,6 +164,22 @@ func normalizeTimeParam(param string) (string, error) {
 	}
 
 	return param, nil
+}
+
+// Parses the max query concurrency environment variable
+func maxQueryConcurrency() int {
+	v := os.Getenv(maxQueryConcurrencyEnvVar)
+	if v == "" {
+		return 5
+	}
+
+	result, err := strconv.Atoi(v)
+	if err != nil {
+		log.Warningf("Failed to parse MAX_QUERY_CONCURRENCY. Defaulting to 5 - %s", err)
+		return 5
+	}
+
+	return result
 }
 
 // writeReportingFlags writes the reporting flags to the cluster info map
@@ -879,23 +898,27 @@ type ConfigWatchers struct {
 	WatchFunc     func(string, map[string]string) error
 }
 
+// captures the panic event in sentry
+func capturePanicEvent(err string, stack string) {
+	msg := fmt.Sprintf("Panic: %s\nStackTrace: %s\n", err, stack)
+	sentry.CurrentHub().CaptureEvent(&sentry.Event{
+		Level:   sentry.LevelError,
+		Message: msg,
+	})
+	sentry.Flush(5 * time.Second)
+}
+
 // handle any panics reported by the errors package
 func handlePanic(p errors.Panic) bool {
 	err := p.Error
 
 	if err != nil {
 		if err, ok := err.(error); ok {
-			sentry.CurrentHub().CaptureException(err)
-			sentry.Flush(5 * time.Second)
+			capturePanicEvent(err.Error(), p.Stack)
 		}
 
 		if err, ok := err.(string); ok {
-			msg := fmt.Sprintf("Panic: %s\nStackTrace: %s\n", err, p.Stack)
-			sentry.CurrentHub().CaptureEvent(&sentry.Event{
-				Level:   sentry.LevelError,
-				Message: msg,
-			})
-			sentry.Flush(5 * time.Second)
+			capturePanicEvent(err, p.Stack)
 		}
 	}
 
@@ -928,6 +951,8 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		klog.Fatalf("No address for prometheus set in $%s. Aborting.", prometheusServerEndpointEnvVar)
 	}
 
+	queryConcurrency := maxQueryConcurrency()
+
 	var LongTimeoutRoundTripper http.RoundTripper = &http.Transport{ // may be necessary for long prometheus queries. TODO: make this configurable
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
@@ -941,7 +966,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		Address:      address,
 		RoundTripper: LongTimeoutRoundTripper,
 	}
-	promCli, _ := prometheusClient.NewClient(pc)
+	promCli, _ := prom.NewRateLimitedClient(pc, queryConcurrency)
 
 	m, err := ValidatePrometheus(promCli, false)
 	if err != nil || m.Running == false {
@@ -1155,7 +1180,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 				Address:      thanosUrl,
 				RoundTripper: thanosRT,
 			}
-			thanosCli, _ := prometheusClient.NewClient(thanosConfig)
+			thanosCli, _ := prom.NewRateLimitedClient(thanosConfig, queryConcurrency)
 
 			_, err = ValidatePrometheus(thanosCli, true)
 			if err != nil {

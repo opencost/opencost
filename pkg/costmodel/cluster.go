@@ -81,6 +81,7 @@ type ClusterCosts struct {
 	StorageBreakdown  *ClusterCostsBreakdown `json:"storageBreakdown"`
 	TotalCumulative   float64                `json:"totalCumulativeCost"`
 	TotalMonthly      float64                `json:"totalMonthlyCost"`
+	DataMinutes       float64
 }
 
 // ClusterCostsBreakdown provides percentage-based breakdown of a resource by
@@ -396,7 +397,7 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 			costs.StorageBreakdown.Idle = (costs.StorageCumulative - pvUC) / costs.StorageCumulative
 			costs.StorageBreakdown.User = pvUC / costs.StorageCumulative
 		}
-
+		costs.DataMinutes = dataMins
 		costsByCluster[id] = costs
 	}
 
