@@ -42,6 +42,7 @@ const (
 	logCollectionEnvVar            = "LOG_COLLECTION_ENABLED"
 	productAnalyticsEnvVar         = "PRODUCT_ANALYTICS_ENABLED"
 	errorReportingEnvVar           = "ERROR_REPORTING_ENABLED"
+	valuesReportingEnvVar          = "VALUES_REPORTING_ENABLED"
 	maxQueryConcurrencyEnvVar      = "MAX_QUERY_CONCURRENCY"
 	prometheusServerEndpointEnvVar = "PROMETHEUS_SERVER_ENDPOINT"
 	prometheusTroubleshootingEp    = "http://docs.kubecost.com/custom-prom#troubleshoot"
@@ -54,6 +55,7 @@ var (
 	logCollectionEnabled    bool = strings.EqualFold(os.Getenv(logCollectionEnvVar), "true")
 	productAnalyticsEnabled bool = strings.EqualFold(os.Getenv(productAnalyticsEnvVar), "true")
 	errorReportingEnabled   bool = strings.EqualFold(os.Getenv(errorReportingEnvVar), "true")
+	valuesReportingEnabled  bool = strings.EqualFold(os.Getenv(valuesReportingEnvVar), "true")
 )
 
 var Router = httprouter.New()
@@ -187,6 +189,7 @@ func writeReportingFlags(clusterInfo map[string]string) {
 	clusterInfo["logCollection"] = fmt.Sprintf("%t", logCollectionEnabled)
 	clusterInfo["productAnalytics"] = fmt.Sprintf("%t", productAnalyticsEnabled)
 	clusterInfo["errorReporting"] = fmt.Sprintf("%t", errorReportingEnabled)
+	clusterInfo["valuesReporting"] = fmt.Sprintf("%t", valuesReportingEnabled)
 }
 
 // parsePercentString takes a string of expected format "N%" and returns a floating point 0.0N.
