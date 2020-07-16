@@ -577,7 +577,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		if pod.Status.Phase != v1.PodRunning {
 			continue
 		}
-		cs, err := newContainerMetricsFromPod(*pod, clusterID)
+		cs, err := NewContainerMetricsFromPod(pod, clusterID)
 		if err != nil {
 			return nil, err
 		}
@@ -661,7 +661,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 				containerName := container.Name
 
 				// recreate the key and look up data for this container
-				newKey := newContainerMetricFromValues(ns, podName, containerName, pod.Spec.NodeName, clusterID).Key()
+				newKey := NewContainerMetricFromValues(ns, podName, containerName, pod.Spec.NodeName, clusterID).Key()
 
 				RAMReqV, ok := RAMReqMap[newKey]
 				if !ok {
@@ -847,7 +847,7 @@ func findUnmountedPVCostData(unmountedPVs map[string][]*PersistentVolumeClaimDat
 		// Should be a unique "Unmounted" cost data type
 		name := "unmounted-pvs"
 
-		metric := newContainerMetricFromValues(ns, name, name, "", clusterID)
+		metric := NewContainerMetricFromValues(ns, name, name, "", clusterID)
 		key := metric.Key()
 
 		if costData, ok := costs[key]; !ok {
@@ -2588,12 +2588,14 @@ type PersistentVolumeClaimData struct {
 
 func getCost(qr interface{}) (map[string][]*util.Vector, error) {
 	toReturn := make(map[string][]*util.Vector)
-	result, err := NewQueryResults(qr)
+
+	// TODO: Pass actual query instead of getCost
+	result, err := prom.NewQueryResults("getCost", qr)
 	if err != nil {
 		return toReturn, err
 	}
 
-	for _, val := range result {
+	for _, val := range result.Results {
 		instance, err := val.GetString("instance")
 		if err != nil {
 			return toReturn, err
@@ -2668,10 +2670,13 @@ func Query(cli prometheusClient.Client, query string) (interface{}, error) {
 
 //todo: don't cast, implement unmarshaler interface
 func getNormalization(qr interface{}) (float64, error) {
-	queryResults, err := NewQueryResults(qr)
+	// TODO: Pass actual query instead of getNormalization
+	qResults, err := prom.NewQueryResults("getNormalization", qr)
 	if err != nil {
 		return 0, err
 	}
+
+	queryResults := qResults.Results
 
 	if len(queryResults) > 0 {
 		values := queryResults[0].Values
@@ -2686,10 +2691,13 @@ func getNormalization(qr interface{}) (float64, error) {
 
 //todo: don't cast, implement unmarshaler interface
 func getNormalizations(qr interface{}) ([]*util.Vector, error) {
-	queryResults, err := NewQueryResults(qr)
+	// TODO: Pass actual query instead of getNormalizations
+	qResults, err := prom.NewQueryResults("getNormalizations", qr)
 	if err != nil {
 		return nil, err
 	}
+
+	queryResults := qResults.Results
 
 	if len(queryResults) > 0 {
 		vectors := []*util.Vector{}
@@ -2701,172 +2709,16 @@ func getNormalizations(qr interface{}) ([]*util.Vector, error) {
 	return nil, fmt.Errorf("normalization data is empty: time window may be invalid or kube-state-metrics or node-exporter may not be running")
 }
 
-type ContainerMetric struct {
-	Namespace     string
-	PodName       string
-	ContainerName string
-	NodeName      string
-	ClusterID     string
-	key           string
-}
-
-func (c *ContainerMetric) Key() string {
-	return c.key
-}
-
-func containerMetricKey(ns, podName, containerName, nodeName, clusterID string) string {
-	return ns + "," + podName + "," + containerName + "," + nodeName + "," + clusterID
-}
-
-func NewContainerMetricFromKey(key string) (*ContainerMetric, error) {
-	s := strings.Split(key, ",")
-	if len(s) == 5 {
-		return &ContainerMetric{
-			Namespace:     s[0],
-			PodName:       s[1],
-			ContainerName: s[2],
-			NodeName:      s[3],
-			ClusterID:     s[4],
-			key:           key,
-		}, nil
-	}
-	return nil, fmt.Errorf("Not a valid key")
-}
-
-func newContainerMetricFromValues(ns string, podName string, containerName string, nodeName string, clusterId string) *ContainerMetric {
-	return &ContainerMetric{
-		Namespace:     ns,
-		PodName:       podName,
-		ContainerName: containerName,
-		NodeName:      nodeName,
-		ClusterID:     clusterId,
-		key:           containerMetricKey(ns, podName, containerName, nodeName, clusterId),
-	}
-}
-
-func newContainerMetricsFromPod(pod v1.Pod, clusterID string) ([]*ContainerMetric, error) {
-	podName := pod.GetObjectMeta().GetName()
-	ns := pod.GetObjectMeta().GetNamespace()
-	node := pod.Spec.NodeName
-	var cs []*ContainerMetric
-	for _, container := range pod.Spec.Containers {
-		containerName := container.Name
-		cs = append(cs, &ContainerMetric{
-			Namespace:     ns,
-			PodName:       podName,
-			ContainerName: containerName,
-			NodeName:      node,
-			ClusterID:     clusterID,
-			key:           containerMetricKey(ns, podName, containerName, node, clusterID),
-		})
-	}
-	return cs, nil
-}
-
-func newContainerMetricFromPrometheus(metrics map[string]interface{}, defaultClusterID string) (*ContainerMetric, error) {
-	cName, ok := metrics["container_name"]
-	if !ok {
-		return nil, fmt.Errorf("Prometheus vector does not have container name")
-	}
-	containerName, ok := cName.(string)
-	if !ok {
-		return nil, fmt.Errorf("Prometheus vector does not have string container name")
-	}
-	pName, ok := metrics["pod_name"]
-	if !ok {
-		return nil, fmt.Errorf("Prometheus vector does not have pod name")
-	}
-	podName, ok := pName.(string)
-	if !ok {
-		return nil, fmt.Errorf("Prometheus vector does not have string pod name")
-	}
-	ns, ok := metrics["namespace"]
-	if !ok {
-		return nil, fmt.Errorf("Prometheus vector does not have namespace")
-	}
-	namespace, ok := ns.(string)
-	if !ok {
-		return nil, fmt.Errorf("Prometheus vector does not have string namespace")
-	}
-	node, ok := metrics["node"]
-	if !ok {
-		klog.V(4).Info("Prometheus vector does not have node name")
-		node = ""
-	}
-	nodeName, ok := node.(string)
-	if !ok {
-		return nil, fmt.Errorf("Prometheus vector does not have string node")
-	}
-	cid, ok := metrics["cluster_id"]
-	if !ok {
-		klog.V(4).Info("Prometheus vector does not have cluster id")
-		cid = defaultClusterID
-	}
-	clusterID, ok := cid.(string)
-	if !ok {
-		return nil, fmt.Errorf("Prometheus vector does not have string cluster_id")
-	}
-	return &ContainerMetric{
-		ContainerName: containerName,
-		PodName:       podName,
-		Namespace:     namespace,
-		NodeName:      nodeName,
-		ClusterID:     clusterID,
-		key:           containerMetricKey(namespace, podName, containerName, nodeName, clusterID),
-	}, nil
-}
-
-type KeyTuple struct {
-	key    string
-	kIndex int
-	cIndex int
-}
-
-func (kt *KeyTuple) Namespace() string {
-	return kt.key[0 : kt.kIndex-1]
-}
-
-func (kt *KeyTuple) Key() string {
-	return kt.key[kt.kIndex : kt.cIndex-1]
-}
-
-func (kt *KeyTuple) ClusterID() string {
-	return kt.key[kt.cIndex:]
-}
-
-func NewKeyTuple(key string) (*KeyTuple, error) {
-	kIndex := strings.IndexRune(key, ',')
-	if kIndex < 0 {
-		return nil, fmt.Errorf("NewKeyTuple() Provided key not containing exactly 3 components.")
-	}
-	kIndex += 1
-
-	subIndex := strings.IndexRune(key[kIndex:], ',')
-	if subIndex < 0 {
-		return nil, fmt.Errorf("NewKeyTuple() Provided key not containing exactly 3 components.")
-	}
-	cIndex := kIndex + subIndex + 1
-
-	if strings.ContainsRune(key[cIndex:], ',') {
-		return nil, fmt.Errorf("NewKeyTuple() Provided key not containing exactly 3 components.")
-	}
-
-	return &KeyTuple{
-		key:    key,
-		kIndex: kIndex,
-		cIndex: cIndex,
-	}, nil
-}
-
 func GetContainerMetricVector(qr interface{}, normalize bool, normalizationValue float64, defaultClusterID string) (map[string][]*util.Vector, error) {
-	result, err := NewQueryResults(qr)
+	// TODO: Pass actual query instead of ContainerMetricVector
+	result, err := prom.NewQueryResults("ContainerMetricVector", qr)
 	if err != nil {
 		return nil, err
 	}
 
 	containerData := make(map[string][]*util.Vector)
-	for _, val := range result {
-		containerMetric, err := newContainerMetricFromPrometheus(val.Metric, defaultClusterID)
+	for _, val := range result.Results {
+		containerMetric, err := NewContainerMetricFromPrometheus(val.Metric, defaultClusterID)
 		if err != nil {
 			return nil, err
 		}
@@ -2882,14 +2734,15 @@ func GetContainerMetricVector(qr interface{}, normalize bool, normalizationValue
 }
 
 func GetContainerMetricVectors(qr interface{}, defaultClusterID string) (map[string][]*util.Vector, error) {
-	result, err := NewQueryResults(qr)
+	// TODO: Pass actual query instead of ContainerMetricVectors
+	result, err := prom.NewQueryResults("ContainerMetricVectors", qr)
 	if err != nil {
 		return nil, err
 	}
 
 	containerData := make(map[string][]*util.Vector)
-	for _, val := range result {
-		containerMetric, err := newContainerMetricFromPrometheus(val.Metric, defaultClusterID)
+	for _, val := range result.Results {
+		containerMetric, err := NewContainerMetricFromPrometheus(val.Metric, defaultClusterID)
 		if err != nil {
 			return nil, err
 		}
@@ -2899,14 +2752,15 @@ func GetContainerMetricVectors(qr interface{}, defaultClusterID string) (map[str
 }
 
 func GetNormalizedContainerMetricVectors(qr interface{}, normalizationValues []*util.Vector, defaultClusterID string) (map[string][]*util.Vector, error) {
-	result, err := NewQueryResults(qr)
+	// TODO: Pass actual query instead of NormalizedContainerMetricVectors
+	result, err := prom.NewQueryResults("NormalizedContainerMetricVectors", qr)
 	if err != nil {
 		return nil, err
 	}
 
 	containerData := make(map[string][]*util.Vector)
-	for _, val := range result {
-		containerMetric, err := newContainerMetricFromPrometheus(val.Metric, defaultClusterID)
+	for _, val := range result.Results {
+		containerMetric, err := NewContainerMetricFromPrometheus(val.Metric, defaultClusterID)
 		if err != nil {
 			return nil, err
 		}

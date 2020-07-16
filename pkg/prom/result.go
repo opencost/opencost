@@ -1,23 +1,25 @@
 package prom
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
 	"strings"
 
+	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
-	"k8s.io/klog"
 )
 
 // QueryResultsChan is a channel of query results
-type QueryResultsChan chan []*QueryResult
+type QueryResultsChan chan *QueryResults
 
 // Await returns query results, blocking until they are made available, and
 // deferring the closure of the underlying channel
 func (qrc QueryResultsChan) Await() []*QueryResult {
 	defer close(qrc)
-	return <-qrc
+	results := <-qrc
+	return results.Results
 }
 
 // QueryResult contains a single result from a prometheus query. It's common
@@ -27,13 +29,38 @@ type QueryResult struct {
 	Values []*util.Vector
 }
 
+// QueryResults contains all of the query results and the source query string.
+type QueryResults struct {
+	Query   string
+	Results []*QueryResult
+}
+
+var (
+	// Static Warnings for data point parsing
+	InfWarning warning = newWarning("Found Inf value parsing vector data point for metric")
+	NaNWarning warning = newWarning("Found NaN value parsing vector data point for metric")
+
+	// Static Errors for query result parsing
+	QueryResultNilErr          error = NewCommError("nil queryResult")
+	PromUnexpectedResponseErr  error = errors.New("Unexpected response from Prometheus")
+	DataFieldFormatErr         error = errors.New("Data field improperly formatted in prometheus repsonse")
+	ResultFieldDoesNotExistErr error = errors.New("Result field not does not exist in prometheus response")
+	ResultFieldFormatErr       error = errors.New("Result field improperly formatted in prometheus response")
+	ResultFormatErr            error = errors.New("Result is improperly formatted")
+	MetricFieldDoesNotExistErr error = errors.New("Metric field does not exist in data result vector")
+	MetricFieldFormatErr       error = errors.New("Metric field is improperly formatted")
+	ValueFieldDoesNotExistErr  error = errors.New("Value field does not exist in data result vector")
+	ValueFieldFormatErr        error = errors.New("Values field is improperly formatted")
+	DataPointFormatErr         error = errors.New("Improperly formatted datapoint from Prometheus")
+)
+
 // NewQueryResults accepts the raw prometheus query result and returns an array of
 // QueryResult objects
-func NewQueryResults(queryResult interface{}) ([]*QueryResult, error) {
-	var result []*QueryResult
+func NewQueryResults(query string, queryResult interface{}) (*QueryResults, error) {
 	if queryResult == nil {
-		return nil, NewCommError("nil queryResult")
+		return nil, QueryResultNilErr
 	}
+
 	data, ok := queryResult.(map[string]interface{})["data"]
 	if !ok {
 		e, err := wrapPrometheusError(queryResult)
@@ -46,35 +73,39 @@ func NewQueryResults(queryResult interface{}) ([]*QueryResult, error) {
 	// Deep Check for proper formatting
 	d, ok := data.(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("Data field improperly formatted in prometheus repsonse")
+		return nil, DataFieldFormatErr
 	}
 	resultData, ok := d["result"]
 	if !ok {
-		return nil, fmt.Errorf("Result field not present in prometheus response")
+		return nil, ResultFieldDoesNotExistErr
 	}
 	resultsData, ok := resultData.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("Result field improperly formatted in prometheus response")
+		return nil, ResultFieldFormatErr
 	}
 
-	// Scan Results
+	// Result vectors from the query
+	var results []*QueryResult
+
+	// Parse raw results and into QueryResults
 	for _, val := range resultsData {
 		resultInterface, ok := val.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("Result is improperly formatted")
+			return nil, ResultFormatErr
 		}
 
 		metricInterface, ok := resultInterface["metric"]
 		if !ok {
-			return nil, fmt.Errorf("Metric field does not exist in data result vector")
+			return nil, MetricFieldDoesNotExistErr
 		}
 		metricMap, ok := metricInterface.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("Metric field is improperly formatted")
+			return nil, MetricFieldFormatErr
 		}
 
-		// Wrap execution of this lazily in case the data is not used
-		labels := func() string { return labelsForMetric(metricMap) }
+		// Define label string for values to ensure that we only run labelsForMetric once
+		// if we receive multiple warnings.
+		var labelString string = ""
 
 		// Determine if the result is a ranged data set or single value
 		_, isRange := resultInterface["values"]
@@ -83,13 +114,18 @@ func NewQueryResults(queryResult interface{}) ([]*QueryResult, error) {
 		if !isRange {
 			dataPoint, ok := resultInterface["value"]
 			if !ok {
-				return nil, fmt.Errorf("Value field does not exist in data result vector")
+				return nil, ValueFieldDoesNotExistErr
 			}
 
-			v, err := parseDataPoint(dataPoint, labels)
+			// Append new data point, log warnings
+			v, warn, err := parseDataPoint(dataPoint)
 			if err != nil {
 				return nil, err
 			}
+			if warn != nil {
+				log.Warningf("%s\nQuery: %s\nLabels: %s", warn.Message(), query, labelsForMetric(metricMap))
+			}
+
 			vectors = append(vectors, v)
 		} else {
 			values, ok := resultInterface["values"].([]interface{})
@@ -97,35 +133,45 @@ func NewQueryResults(queryResult interface{}) ([]*QueryResult, error) {
 				return nil, fmt.Errorf("Values field is improperly formatted")
 			}
 
+			// Append new data points, log warnings
 			for _, value := range values {
-				v, err := parseDataPoint(value, labels)
+				v, warn, err := parseDataPoint(value)
 				if err != nil {
 					return nil, err
+				}
+				if warn != nil {
+					if labelString == "" {
+						labelString = labelsForMetric(metricMap)
+					}
+					log.Warningf("%s\nQuery: %s\nLabels: %s", warn.Message(), query, labelString)
 				}
 
 				vectors = append(vectors, v)
 			}
 		}
 
-		result = append(result, &QueryResult{
+		results = append(results, &QueryResult{
 			Metric: metricMap,
 			Values: vectors,
 		})
 	}
 
-	return result, nil
+	return &QueryResults{
+		Query:   query,
+		Results: results,
+	}, nil
 }
 
 // GetString returns the requested field, or an error if it does not exist
 func (qr *QueryResult) GetString(field string) (string, error) {
 	f, ok := qr.Metric[field]
 	if !ok {
-		return "", fmt.Errorf("%s field does not exist in data result vector", field)
+		return "", fmt.Errorf("'%s' field does not exist in data result vector", field)
 	}
 
 	strField, ok := f.(string)
 	if !ok {
-		return "", fmt.Errorf("%s field is improperly formatted", field)
+		return "", fmt.Errorf("'%s' field is improperly formatted", field)
 	}
 
 	return strField, nil
@@ -144,7 +190,7 @@ func (qr *QueryResult) GetLabels() map[string]string {
 		label := k[6:]
 		value, ok := v.(string)
 		if !ok {
-			klog.V(3).Infof("Failed to parse label value for label: %s", label)
+			log.Warningf("Failed to parse label value for label: '%s'", label)
 			continue
 		}
 
@@ -154,31 +200,35 @@ func (qr *QueryResult) GetLabels() map[string]string {
 	return result
 }
 
-func parseDataPoint(dataPoint interface{}, labels func() string) (*util.Vector, error) {
+// parseDataPoint parses a data point from raw prometheus query results and returns
+// a new Vector instance containing the parsed data along with any warnings or errors.
+func parseDataPoint(dataPoint interface{}) (*util.Vector, warning, error) {
+	var w warning = nil
+
 	value, ok := dataPoint.([]interface{})
 	if !ok || len(value) != 2 {
-		return nil, fmt.Errorf("Improperly formatted datapoint from Prometheus")
+		return nil, w, DataPointFormatErr
 	}
 
 	strVal := value[1].(string)
 	v, err := strconv.ParseFloat(strVal, 64)
 	if err != nil {
-		return nil, err
+		return nil, w, err
 	}
 
 	// Test for +Inf and -Inf (sign: 0), Test for NaN
 	if math.IsInf(v, 0) {
-		klog.V(1).Infof("[Warning] Found Inf value parsing vector data point for metric: %s", labels())
+		w = InfWarning
 		v = 0.0
 	} else if math.IsNaN(v) {
-		klog.V(1).Infof("[Warning] Found NaN value parsing vector data point for metric: %s", labels())
+		w = NaNWarning
 		v = 0.0
 	}
 
 	return &util.Vector{
 		Timestamp: math.Round(value[0].(float64)/10) * 10,
 		Value:     v,
-	}, nil
+	}, w, nil
 }
 
 func labelsForMetric(metricMap map[string]interface{}) string {
@@ -193,7 +243,7 @@ func labelsForMetric(metricMap map[string]interface{}) string {
 func wrapPrometheusError(qr interface{}) (string, error) {
 	e, ok := qr.(map[string]interface{})["error"]
 	if !ok {
-		return "", fmt.Errorf("Unexpected response from Prometheus")
+		return "", PromUnexpectedResponseErr
 	}
 	eStr, ok := e.(string)
 	return eStr, nil

@@ -140,7 +140,7 @@ func CostDataRangeFromSQL(field string, value string, window string, start strin
 			return nil, err
 		}
 
-		k := newContainerMetricFromValues(namespace, pod, container, instance, clusterid)
+		k := NewContainerMetricFromValues(namespace, pod, container, instance, clusterid)
 		key := k.Key()
 		allocationVector := &util.Vector{
 			Timestamp: float64(t.Unix()),
@@ -211,7 +211,7 @@ func CostDataRangeFromSQL(field string, value string, window string, start strin
 			return nil, err
 		}
 
-		k := newContainerMetricFromValues(namespace, pod, container, instance, clusterid)
+		k := NewContainerMetricFromValues(namespace, pod, container, instance, clusterid)
 		key := k.Key()
 		allocationVector := &util.Vector{
 			Timestamp: float64(t.Unix()),
