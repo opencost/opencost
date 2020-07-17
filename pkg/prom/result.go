@@ -11,30 +11,6 @@ import (
 	"github.com/kubecost/cost-model/pkg/util"
 )
 
-// QueryResultsChan is a channel of query results
-type QueryResultsChan chan *QueryResults
-
-// Await returns query results, blocking until they are made available, and
-// deferring the closure of the underlying channel
-func (qrc QueryResultsChan) Await() []*QueryResult {
-	defer close(qrc)
-	results := <-qrc
-	return results.Results
-}
-
-// QueryResult contains a single result from a prometheus query. It's common
-// to refer to query results as a slice of QueryResult
-type QueryResult struct {
-	Metric map[string]interface{}
-	Values []*util.Vector
-}
-
-// QueryResults contains all of the query results and the source query string.
-type QueryResults struct {
-	Query   string
-	Results []*QueryResult
-}
-
 var (
 	// Static Warnings for data point parsing
 	InfWarning warning = newWarning("Found Inf value parsing vector data point for metric")
@@ -50,9 +26,33 @@ var (
 	MetricFieldDoesNotExistErr error = errors.New("Metric field does not exist in data result vector")
 	MetricFieldFormatErr       error = errors.New("Metric field is improperly formatted")
 	ValueFieldDoesNotExistErr  error = errors.New("Value field does not exist in data result vector")
-	ValueFieldFormatErr        error = errors.New("Values field is improperly formatted")
+	ValuesFieldFormatErr       error = errors.New("Values field is improperly formatted")
 	DataPointFormatErr         error = errors.New("Improperly formatted datapoint from Prometheus")
+	NoDataErr                  error = errors.New("No data")
 )
+
+// QueryResultsChan is a channel of query results
+type QueryResultsChan chan *QueryResults
+
+// Await returns query results, blocking until they are made available, and
+// deferring the closure of the underlying channel
+func (qrc QueryResultsChan) Await() *QueryResults {
+	defer close(qrc)
+	return <-qrc
+}
+
+// QueryResult contains a single result from a prometheus query. It's common
+// to refer to query results as a slice of QueryResult
+type QueryResult struct {
+	Metric map[string]interface{}
+	Values []*util.Vector
+}
+
+// QueryResults contains all of the query results and the source query string.
+type QueryResults struct {
+	Query   string
+	Results []*QueryResult
+}
 
 // NewQueryResults accepts the raw prometheus query result and returns an array of
 // QueryResult objects
@@ -130,7 +130,7 @@ func NewQueryResults(query string, queryResult interface{}) (*QueryResults, erro
 		} else {
 			values, ok := resultInterface["values"].([]interface{})
 			if !ok {
-				return nil, fmt.Errorf("Values field is improperly formatted")
+				return nil, ValuesFieldFormatErr
 			}
 
 			// Append new data points, log warnings
@@ -160,6 +160,18 @@ func NewQueryResults(query string, queryResult interface{}) (*QueryResults, erro
 		Query:   query,
 		Results: results,
 	}, nil
+}
+
+func (qrs *QueryResults) GetFirstValue() (float64, error) {
+	if len(qrs.Results) == 0 {
+		return 0.0, NoDataErr
+	}
+
+	if len(qrs.Results[0].Values) == 0 {
+		return 0, ResultFormatErr
+	}
+
+	return qrs.Results[0].Values[0].Value, nil
 }
 
 // GetString returns the requested field, or an error if it does not exist

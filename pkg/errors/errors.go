@@ -1,6 +1,13 @@
 package errors
 
-import "sync"
+import (
+	"errors"
+	"sync"
+)
+
+func New(text string) error {
+	return errors.New(text)
+}
 
 // Error collection helper
 type ErrorCollector struct {
