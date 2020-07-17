@@ -9,9 +9,11 @@ import (
 
 var seen = make(map[string]int)
 
-const logTypeLimit = 5
-
 func Errorf(format string, a ...interface{}) {
+	klog.Errorf(fmt.Sprintf("[Error] %s", format), a...)
+}
+
+func DedupedErrorf(format string, logTypeLimit int, a ...interface{}) {
 	timesLogged, ok := seen[format]
 	if !ok {
 		seen[format] = 1
@@ -26,6 +28,19 @@ func Errorf(format string, a ...interface{}) {
 
 func Warningf(format string, a ...interface{}) {
 	klog.V(2).Infof(fmt.Sprintf("[Warning] %s", format), a...)
+}
+
+func DedupedWarningf(format string, logTypeLimit int, a ...interface{}) {
+	timesLogged, ok := seen[format]
+	if !ok {
+		seen[format] = 1
+	} else if timesLogged > logTypeLimit {
+		f := fmt.Sprintf("[Error] %s", format)
+		klog.Errorf("%s seen more than %d times, suppressing future logs", f, logTypeLimit)
+	} else {
+		seen[format] += 1
+		klog.V(2).Infof(fmt.Sprintf("[Warning] %s", format), a...)
+	}
 }
 
 func Infof(format string, a ...interface{}) {
