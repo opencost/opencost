@@ -139,7 +139,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 		c.Pricing = pricing
 		c.PricingPV = pvpricing
 	} else {
-		log.DedupedWarningf("No data received from csv at %s", 5, c.CSVLocation)
+		log.DedupedWarningf(5, "No data received from csv at %s", c.CSVLocation)
 	}
 	time.AfterFunc(refreshMinutes*time.Minute, func() { c.DownloadPricingData() })
 	return nil
