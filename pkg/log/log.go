@@ -13,7 +13,7 @@ func Errorf(format string, a ...interface{}) {
 	klog.Errorf(fmt.Sprintf("[Error] %s", format), a...)
 }
 
-func DedupedErrorf(format string, logTypeLimit int, a ...interface{}) {
+func DedupedErrorf(logTypeLimit int, format string, a ...interface{}) {
 	timesLogged, ok := seen[format]
 	if !ok {
 		seen[format] = 1
@@ -33,7 +33,7 @@ func Warningf(format string, a ...interface{}) {
 	klog.V(2).Infof(fmt.Sprintf("[Warning] %s", format), a...)
 }
 
-func DedupedWarningf(format string, logTypeLimit int, a ...interface{}) {
+func DedupedWarningf(logTypeLimit int, format string, a ...interface{}) {
 	timesLogged, ok := seen[format]
 	if !ok {
 		seen[format] = 1
@@ -53,7 +53,7 @@ func Infof(format string, a ...interface{}) {
 	klog.V(3).Infof(fmt.Sprintf("[Info] %s", format), a...)
 }
 
-func DedupedInfof(format string, logTypeLimit int, a ...interface{}) {
+func DedupedInfof(logTypeLimit int, format string, a ...interface{}) {
 	timesLogged, ok := seen[format]
 	if !ok {
 		seen[format] = 1
