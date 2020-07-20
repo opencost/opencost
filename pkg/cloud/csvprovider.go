@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/env"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -59,7 +61,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 	var csvr io.Reader
 	var csverr error
 	if strings.HasPrefix(c.CSVLocation, "s3://") {
-		region := os.Getenv("CSV_REGION")
+		region := env.GetCSVRegion()
 		conf := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
 		s3Client := s3.New(session.New(conf))
 		bucketAndKey := strings.Split(strings.TrimPrefix(c.CSVLocation, "s3://"), "/")

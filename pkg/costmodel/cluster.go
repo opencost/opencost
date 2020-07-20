@@ -2,14 +2,15 @@ package costmodel
 
 import (
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
+
 	prometheus "github.com/prometheus/client_golang/api"
 	"k8s.io/klog"
 )
@@ -242,7 +243,7 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 		resChs = append(resChs, bdResChs...)
 	}
 
-	defaultClusterID := os.Getenv(clusterIDKey)
+	defaultClusterID := env.GetClusterID()
 
 	dataMinsByCluster := map[string]float64{}
 	for _, result := range resChs[0].Await() {
