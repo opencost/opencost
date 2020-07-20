@@ -384,20 +384,12 @@ type Totals struct {
 	StorageCost [][]string `json:"storageCost"`
 }
 
-func resultToTotals(qr interface{}) ([][]string, error) {
-	// TODO: Provide an actual query instead of resultToTotals
-	qResults, err := prom.NewQueryResults("resultToTotals", qr)
-	if err != nil {
-		return nil, err
-	}
-
-	results := qResults.Results
-
-	if len(results) == 0 {
+func resultToTotals(qrs *prom.QueryResults) ([][]string, error) {
+	if len(qrs.Results) == 0 {
 		return [][]string{}, fmt.Errorf("Not enough data available in the selected time range")
 	}
 
-	result := results[0]
+	result := qrs.Results[0]
 	totals := [][]string{}
 	for _, value := range result.Values {
 		d0 := fmt.Sprintf("%f", value.Timestamp)

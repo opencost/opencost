@@ -27,7 +27,7 @@ type NetworkUsageVector struct {
 
 // GetNetworkUsageData performs a join of the the results of zone, region, and internet usage queries to return a single
 // map containing network costs for each namespace+pod
-func GetNetworkUsageData(zr interface{}, rr interface{}, ir interface{}, defaultClusterID string) (map[string]*NetworkUsageData, error) {
+func GetNetworkUsageData(zr *prom.QueryResults, rr *prom.QueryResults, ir *prom.QueryResults, defaultClusterID string) (map[string]*NetworkUsageData, error) {
 	zoneNetworkMap, err := getNetworkUsage(zr, defaultClusterID)
 	if err != nil {
 		return nil, err
@@ -137,16 +137,10 @@ func GetNetworkCost(usage *NetworkUsageData, cloud costAnalyzerCloud.Provider) (
 	return results, nil
 }
 
-func getNetworkUsage(qr interface{}, defaultClusterID string) (map[string]*NetworkUsageVector, error) {
+func getNetworkUsage(qrs *prom.QueryResults, defaultClusterID string) (map[string]*NetworkUsageVector, error) {
 	ncdmap := make(map[string]*NetworkUsageVector)
 
-	// TODO: Pass actual query instead of NetworkUsage
-	result, err := prom.NewQueryResults("NetworkUsage", qr)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, val := range result.Results {
+	for _, val := range qrs.Results {
 		podName, err := val.GetString("pod_name")
 		if err != nil {
 			return nil, err

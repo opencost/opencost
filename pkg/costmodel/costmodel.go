@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/clustercache"
-	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
@@ -741,26 +740,6 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 	}
 
 	return nil
-}
-
-func parsePodLabels(qrs *prom.QueryResults) (map[string]map[string]string, error) {
-	podLabels := map[string]map[string]string{}
-
-	for _, result := range qrs.Results {
-		pod, err := result.GetString("pod")
-		if err != nil {
-			return podLabels, errors.New("missing pod field")
-		}
-
-		if _, ok := podLabels[pod]; ok {
-			podLabels[pod] = result.GetLabels()
-		} else {
-			podLabels[pod] = map[string]string{}
-			podLabels[pod] = result.GetLabels()
-		}
-	}
-
-	return podLabels, nil
 }
 
 func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*costAnalyzerCloud.Node, window string) error {
@@ -2156,79 +2135,6 @@ type PersistentVolumeClaimData struct {
 	VolumeName string                `json:"volumeName"`
 	Volume     *costAnalyzerCloud.PV `json:"persistentVolume"`
 	Values     []*util.Vector        `json:"values"`
-}
-
-func getCost(qrs *prom.QueryResults) (map[string][]*util.Vector, error) {
-	costs := map[string][]*util.Vector{}
-
-	for _, result := range qrs.Results {
-		instance, err := result.GetString("instance")
-		if err != nil {
-			return costs, err
-		}
-
-		costs[instance] = result.Values
-	}
-
-	return costs, nil
-}
-
-// TODO niko/prom retain message:
-// normalization data is empty: time window may be invalid or kube-state-metrics or node-exporter may not be running
-func getNormalization(qrs *prom.QueryResults) (float64, error) {
-	return qrs.GetFirstValue()
-}
-
-// TODO niko/prom retain message:
-// normalization data is empty: time window may be invalid or kube-state-metrics or node-exporter may not be running
-func getNormalizations(qrs *prom.QueryResults) ([]*util.Vector, error) {
-	if len(qrs.Results) == 0 {
-		return nil, prom.NoDataErr
-	}
-
-	return qrs.Results[0].Values, nil
-}
-
-func GetContainerMetricVector(qrs *prom.QueryResults, normalize bool, normalizationValue float64, defaultClusterID string) (map[string][]*util.Vector, error) {
-	containerData := make(map[string][]*util.Vector)
-	for _, val := range qrs.Results {
-		containerMetric, err := NewContainerMetricFromPrometheus(val.Metric, defaultClusterID)
-		if err != nil {
-			return nil, err
-		}
-
-		if normalize && normalizationValue != 0 {
-			for _, v := range val.Values {
-				v.Value = v.Value / normalizationValue
-			}
-		}
-		containerData[containerMetric.Key()] = val.Values
-	}
-	return containerData, nil
-}
-
-func GetContainerMetricVectors(qrs *prom.QueryResults, defaultClusterID string) (map[string][]*util.Vector, error) {
-	containerData := make(map[string][]*util.Vector)
-	for _, val := range qrs.Results {
-		containerMetric, err := NewContainerMetricFromPrometheus(val.Metric, defaultClusterID)
-		if err != nil {
-			return nil, err
-		}
-		containerData[containerMetric.Key()] = val.Values
-	}
-	return containerData, nil
-}
-
-func GetNormalizedContainerMetricVectors(qrs *prom.QueryResults, normalizationValues []*util.Vector, defaultClusterID string) (map[string][]*util.Vector, error) {
-	containerData := make(map[string][]*util.Vector)
-	for _, val := range qrs.Results {
-		containerMetric, err := NewContainerMetricFromPrometheus(val.Metric, defaultClusterID)
-		if err != nil {
-			return nil, err
-		}
-		containerData[containerMetric.Key()] = util.NormalizeVectorByVector(val.Values, normalizationValues)
-	}
-	return containerData, nil
 }
 
 func measureTime(start time.Time, threshold time.Duration, name string) {
