@@ -622,7 +622,9 @@ func (p *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httpro
 	writeReportingFlags(data)
 
 	// Include Thanos Offset Duration if Applicable
-	data["thanosOffset"] = thanos.Offset()
+	if thanos.IsEnabled() {
+		data["thanosOffset"] = thanos.Offset()
+	}
 
 	w.Write(WrapData(data, err))
 }
