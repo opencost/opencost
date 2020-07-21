@@ -7,16 +7,66 @@ import (
 	"k8s.io/klog"
 )
 
+var seen = make(map[string]int)
+
 func Errorf(format string, a ...interface{}) {
 	klog.Errorf(fmt.Sprintf("[Error] %s", format), a...)
+}
+
+func DedupedErrorf(logTypeLimit int, format string, a ...interface{}) {
+	timesLogged, ok := seen[format]
+	if !ok {
+		seen[format] = 1
+	} else if timesLogged == logTypeLimit {
+		seen[format]++
+		f := fmt.Sprintf("[Error] %s", format)
+		klog.Errorf("%s seen %d times, suppressing future logs", f, logTypeLimit)
+	} else if timesLogged > logTypeLimit {
+		seen[format]++
+	} else {
+		seen[format]++
+		klog.Errorf(fmt.Sprintf("[Error] %s", format), a...)
+	}
 }
 
 func Warningf(format string, a ...interface{}) {
 	klog.V(2).Infof(fmt.Sprintf("[Warning] %s", format), a...)
 }
 
+func DedupedWarningf(logTypeLimit int, format string, a ...interface{}) {
+	timesLogged, ok := seen[format]
+	if !ok {
+		seen[format] = 1
+	} else if timesLogged == logTypeLimit {
+		seen[format]++
+		f := fmt.Sprintf("[Warning] %s", format)
+		klog.Errorf("%s seen %d times, suppressing future logs", f, logTypeLimit)
+	} else if timesLogged > logTypeLimit {
+		seen[format]++
+	} else {
+		seen[format]++
+		klog.V(2).Infof(fmt.Sprintf("[Warning] %s", format), a...)
+	}
+}
+
 func Infof(format string, a ...interface{}) {
 	klog.V(3).Infof(fmt.Sprintf("[Info] %s", format), a...)
+}
+
+func DedupedInfof(logTypeLimit int, format string, a ...interface{}) {
+	timesLogged, ok := seen[format]
+	if !ok {
+		seen[format] = 1
+	} else if timesLogged == logTypeLimit {
+		seen[format]++
+		f := fmt.Sprintf("[Info] %s", format)
+		klog.Errorf("%s seen %d times, suppressing future logs", f, logTypeLimit)
+	} else if timesLogged > logTypeLimit {
+		seen[format]++
+	} else {
+		seen[format]++
+		klog.V(3).Infof(fmt.Sprintf("[Info] %s", format), a...)
+	}
 }
 
 func Profilef(format string, a ...interface{}) {
