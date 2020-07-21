@@ -53,6 +53,7 @@ type GCP struct {
 	ReservedInstances       []*GCPReservedInstance
 	Config                  *ProviderConfig
 	serviceKeyProvided      bool
+	ValidPricingKeys        map[string]bool
 	*CustomProvider
 }
 
@@ -715,6 +716,10 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 				}
 
 				candidateKeys := []string{}
+				if gcp.ValidPricingKeys == nil {
+					gcp.ValidPricingKeys = make(map[string]bool)
+				}
+
 				for _, region := range product.ServiceRegions {
 					if instanceType == "e2" { // this needs to be done to handle a partial cpu mapping
 						candidateKeys = append(candidateKeys, region+","+"e2micro"+","+usageType)
@@ -731,6 +736,8 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 					instanceType = strings.Split(candidateKey, ",")[1] // we may have overriden this while generating candidate keys
 					region := strings.Split(candidateKey, ",")[0]
 					candidateKeyGPU := candidateKey + ",gpu"
+					gcp.ValidPricingKeys[candidateKey] = true
+					gcp.ValidPricingKeys[candidateKeyGPU] = true
 					if gpuType != "" {
 						lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
 						var nanos float64
@@ -1349,12 +1356,27 @@ func (gcp *GCP) AllNodePricing() (interface{}, error) {
 // NodePricing returns GCP pricing data for a single node
 func (gcp *GCP) NodePricing(key Key) (*Node, error) {
 	gcp.DownloadPricingDataLock.RLock()
-	defer gcp.DownloadPricingDataLock.RUnlock()
 	if n, ok := gcp.Pricing[key.Features()]; ok {
 		klog.V(4).Infof("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
 		n.Node.BaseCPUPrice = gcp.BaseCPUPrice
+		gcp.DownloadPricingDataLock.RUnlock()
 		return n.Node, nil
+	} else if _, ok := gcp.ValidPricingKeys[key.Features()]; ok {
+		gcp.DownloadPricingDataLock.RUnlock()
+		err := gcp.DownloadPricingData()
+		if err != nil {
+			return nil, fmt.Errorf("Download pricing data failed: %s", err.Error())
+		}
+		if n, ok := gcp.Pricing[key.Features()]; ok {
+			klog.V(4).Infof("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
+			n.Node.BaseCPUPrice = gcp.BaseCPUPrice
+			return n.Node, nil
+		}
+		klog.V(1).Infof("[Warning] no pricing data found for %s: %s", key.Features(), key)
+		gcp.DownloadPricingDataLock.RUnlock()
+		return nil, fmt.Errorf("Warning: no pricing data found for %s", key)
 	}
-	klog.V(1).Infof("[Warning] no pricing data found for %s: %s", key.Features(), key)
+	klog.V(1).Infof("[Warning] no pricing data found for invalid key %s: %s", key.Features(), key)
+	gcp.DownloadPricingDataLock.RUnlock()
 	return nil, fmt.Errorf("Warning: no pricing data found for %s", key)
 }
