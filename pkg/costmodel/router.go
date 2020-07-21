@@ -154,6 +154,9 @@ func filterFields(fields string, data map[string]*CostData) map[string]CostData 
 }
 
 func normalizeTimeParam(param string) (string, error) {
+	if param == "" {
+		return "", fmt.Errorf("invalid time param")
+	}
 	// convert days to hours
 	if param[len(param)-1:] == "d" {
 		count := param[:len(param)-1]
