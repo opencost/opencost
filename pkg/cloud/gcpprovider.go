@@ -1353,30 +1353,37 @@ func (gcp *GCP) AllNodePricing() (interface{}, error) {
 	return gcp.Pricing, nil
 }
 
+func (gcp *GCP) getPricing(key Key) (*GCPPricing, bool) {
+	gcp.DownloadPricingDataLock.RLock()
+	defer gcp.DownloadPricingDataLock.RUnlock()
+	n, ok := gcp.Pricing[key.Features()]
+	return n, ok
+}
+func (gcp *GCP) isValidPricingKey(key Key) bool {
+	gcp.DownloadPricingDataLock.RLock()
+	defer gcp.DownloadPricingDataLock.RUnlock()
+	_, ok := gcp.ValidPricingKeys[key.Features()]
+	return ok
+}
+
 // NodePricing returns GCP pricing data for a single node
 func (gcp *GCP) NodePricing(key Key) (*Node, error) {
-	gcp.DownloadPricingDataLock.RLock()
-	if n, ok := gcp.Pricing[key.Features()]; ok {
+	if n, ok := gcp.getPricing(key); ok {
 		klog.V(4).Infof("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
 		n.Node.BaseCPUPrice = gcp.BaseCPUPrice
-		gcp.DownloadPricingDataLock.RUnlock()
 		return n.Node, nil
-	} else if _, ok := gcp.ValidPricingKeys[key.Features()]; ok {
-		gcp.DownloadPricingDataLock.RUnlock()
+	} else if ok := gcp.isValidPricingKey(key); ok {
 		err := gcp.DownloadPricingData()
 		if err != nil {
 			return nil, fmt.Errorf("Download pricing data failed: %s", err.Error())
 		}
-		if n, ok := gcp.Pricing[key.Features()]; ok {
+		if n, ok := gcp.getPricing(key); ok {
 			klog.V(4).Infof("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
 			n.Node.BaseCPUPrice = gcp.BaseCPUPrice
 			return n.Node, nil
 		}
 		klog.V(1).Infof("[Warning] no pricing data found for %s: %s", key.Features(), key)
-		gcp.DownloadPricingDataLock.RUnlock()
 		return nil, fmt.Errorf("Warning: no pricing data found for %s", key)
 	}
-	klog.V(1).Infof("[Warning] no pricing data found for invalid key %s: %s", key.Features(), key)
-	gcp.DownloadPricingDataLock.RUnlock()
 	return nil, fmt.Errorf("Warning: no pricing data found for %s", key)
 }
