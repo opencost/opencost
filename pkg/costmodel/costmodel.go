@@ -47,12 +47,6 @@ const (
 	epCleanTombstones = apiPrefix + "/admin/tsdb/clean_tombstones"
 	epConfig          = apiPrefix + "/status/config"
 	epFlags           = apiPrefix + "/status/flags"
-
-	clusterIDKey   = "CLUSTER_ID"
-	remoteEnabled  = "REMOTE_WRITE_ENABLED"
-	thanosEnabled  = "THANOS_ENABLED"
-	thanosQueryUrl = "THANOS_QUERY_URL"
-	thanosOffset   = "THANOS_QUERY_OFFSET"
 )
 
 type CostModel struct {
