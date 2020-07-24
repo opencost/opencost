@@ -1179,7 +1179,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 			}
 
 		} else {
-			klog.Infof("Error resolving environment variable: $%s", thanosQueryUrl)
+			klog.Infof("Error resolving environment variable: $%s", env.ThanosQueryUrlEnvVar)
 		}
 	}
 
