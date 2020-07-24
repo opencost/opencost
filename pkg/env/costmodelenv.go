@@ -25,6 +25,7 @@ const (
 	LogCollectionEnabledEnvVar    = "LOG_COLLECTION_ENABLED"
 	ProductAnalyticsEnabledEnvVar = "PRODUCT_ANALYTICS_ENABLED"
 	ErrorReportingEnabledEnvVar   = "ERROR_REPORTING_ENABLED"
+	ValuesReportingEnabledEnvVar  = "VALUES_REPORTING_ENABLED"
 )
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
@@ -149,6 +150,11 @@ func IsProductAnalyticsEnabled() bool {
 // IsErrorReportingEnabled returns the environment variable value for ErrorReportingEnabledEnvVar
 func IsErrorReportingEnabled() bool {
 	return GetBool(ErrorReportingEnabledEnvVar, true)
+}
+
+// IsValuesReportingEnabled returns the environment variable value for ValuesReportingEnabledEnvVar
+func IsValuesReportingEnabled() bool {
+	return GetBool(ValuesReportingEnabledEnvVar, true)
 }
 
 // GetMaxQueryConcurrency returns the environment variable value for MaxQueryConcurrencyEnvVar

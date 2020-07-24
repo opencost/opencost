@@ -49,6 +49,7 @@ var (
 	logCollectionEnabled    bool = env.IsLogCollectionEnabled()
 	productAnalyticsEnabled bool = env.IsProductAnalyticsEnabled()
 	errorReportingEnabled   bool = env.IsErrorReportingEnabled()
+	valuesReportingEnabled  bool = env.IsValuesReportingEnabled()
 )
 
 var Router = httprouter.New()
@@ -147,6 +148,9 @@ func filterFields(fields string, data map[string]*CostData) map[string]CostData 
 }
 
 func normalizeTimeParam(param string) (string, error) {
+	if param == "" {
+		return "", fmt.Errorf("invalid time param")
+	}
 	// convert days to hours
 	if param[len(param)-1:] == "d" {
 		count := param[:len(param)-1]
@@ -166,6 +170,7 @@ func writeReportingFlags(clusterInfo map[string]string) {
 	clusterInfo["logCollection"] = fmt.Sprintf("%t", logCollectionEnabled)
 	clusterInfo["productAnalytics"] = fmt.Sprintf("%t", productAnalyticsEnabled)
 	clusterInfo["errorReporting"] = fmt.Sprintf("%t", errorReportingEnabled)
+	clusterInfo["valuesReporting"] = fmt.Sprintf("%t", valuesReportingEnabled)
 }
 
 // parsePercentString takes a string of expected format "N%" and returns a floating point 0.0N.
