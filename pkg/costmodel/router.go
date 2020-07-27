@@ -937,6 +937,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	}
 
 	queryConcurrency := env.GetMaxQueryConcurrency()
+	klog.Infof("Prometheus/Thanos Client Max Concurrency set to %d", queryConcurrency)
 
 	var LongTimeoutRoundTripper http.RoundTripper = &http.Transport{ // may be necessary for long prometheus queries. TODO: make this configurable
 		Proxy: http.ProxyFromEnvironment,
