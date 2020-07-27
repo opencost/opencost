@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// HeaderString write the request/response http.Header to a string.
+// HeaderString writes the request/response http.Header to a string.
 func HeaderString(h http.Header) string {
 	var sb strings.Builder
 	var first bool = true
