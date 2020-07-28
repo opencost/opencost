@@ -67,7 +67,7 @@ func (ctx *Context) Query(query string) QueryResultsChan {
 		raw, promErr := ctx.query(query)
 		ctx.ErrorCollector.Report(promErr)
 
-		results, parseErr := NewQueryResults(raw)
+		results, parseErr := NewQueryResults(query, raw)
 		ctx.ErrorCollector.Report(parseErr)
 
 		resCh <- results
