@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"math"
 	"net/http"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,8 +18,11 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/compute/metadata"
+
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/util"
+
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
@@ -53,6 +55,7 @@ type GCP struct {
 	ReservedInstances       []*GCPReservedInstance
 	Config                  *ProviderConfig
 	serviceKeyProvided      bool
+	ValidPricingKeys        map[string]bool
 	*CustomProvider
 }
 
@@ -184,10 +187,7 @@ func (gcp *GCP) GetManagementPlatform() (string, error) {
 
 // Attempts to load a GCP auth secret and copy the contents to the key file.
 func (*GCP) loadGCPAuthSecret() {
-	path := os.Getenv("CONFIG_PATH")
-	if path == "" {
-		path = "/models/"
-	}
+	path := env.GetConfigPathWithDefault("/models/")
 
 	keyPath := path + "key.json"
 	keyExists, _ := util.FileExists(keyPath)
@@ -241,10 +241,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 					return err
 				}
 
-				path := os.Getenv("CONFIG_PATH")
-				if path == "" {
-					path = "/models/"
-				}
+				path := env.GetConfigPathWithDefault("/models/")
 
 				keyPath := path + "key.json"
 				err = ioutil.WriteFile(keyPath, j, 0644)
@@ -291,9 +288,8 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 			}
 		}
 
-		remoteEnabled := os.Getenv(remoteEnabled)
-		if remoteEnabled == "true" {
-			err := UpdateClusterMeta(os.Getenv(clusterIDKey), c.ClusterName)
+		if env.IsRemoteEnabled() {
+			err := UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return err
 			}
@@ -468,11 +464,8 @@ func (gcp *GCP) QuerySQL(query string) ([]*OutOfClusterAllocation, error) {
 
 // ClusterName returns the name of a GKE cluster, as provided by metadata.
 func (gcp *GCP) ClusterInfo() (map[string]string, error) {
-	remote := os.Getenv(remoteEnabled)
-	remoteEnabled := false
-	if os.Getenv(remote) == "true" {
-		remoteEnabled = true
-	}
+	remoteEnabled := env.IsRemoteEnabled()
+
 	metadataClient := metadata.NewClient(&http.Client{Transport: userAgentTransport{
 		userAgent: "kubecost",
 		base:      http.DefaultTransport,
@@ -494,7 +487,7 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	m := make(map[string]string)
 	m["name"] = attribute
 	m["provider"] = "GCP"
-	m["id"] = os.Getenv(clusterIDKey)
+	m["id"] = env.GetClusterID()
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	return m, nil
 }
@@ -715,6 +708,10 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 				}
 
 				candidateKeys := []string{}
+				if gcp.ValidPricingKeys == nil {
+					gcp.ValidPricingKeys = make(map[string]bool)
+				}
+
 				for _, region := range product.ServiceRegions {
 					if instanceType == "e2" { // this needs to be done to handle a partial cpu mapping
 						candidateKeys = append(candidateKeys, region+","+"e2micro"+","+usageType)
@@ -731,6 +728,8 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 					instanceType = strings.Split(candidateKey, ",")[1] // we may have overriden this while generating candidate keys
 					region := strings.Split(candidateKey, ",")[0]
 					candidateKeyGPU := candidateKey + ",gpu"
+					gcp.ValidPricingKeys[candidateKey] = true
+					gcp.ValidPricingKeys[candidateKeyGPU] = true
 					if gpuType != "" {
 						lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
 						var nanos float64
@@ -1346,15 +1345,37 @@ func (gcp *GCP) AllNodePricing() (interface{}, error) {
 	return gcp.Pricing, nil
 }
 
-// NodePricing returns GCP pricing data for a single node
-func (gcp *GCP) NodePricing(key Key) (*Node, error) {
+func (gcp *GCP) getPricing(key Key) (*GCPPricing, bool) {
 	gcp.DownloadPricingDataLock.RLock()
 	defer gcp.DownloadPricingDataLock.RUnlock()
-	if n, ok := gcp.Pricing[key.Features()]; ok {
+	n, ok := gcp.Pricing[key.Features()]
+	return n, ok
+}
+func (gcp *GCP) isValidPricingKey(key Key) bool {
+	gcp.DownloadPricingDataLock.RLock()
+	defer gcp.DownloadPricingDataLock.RUnlock()
+	_, ok := gcp.ValidPricingKeys[key.Features()]
+	return ok
+}
+
+// NodePricing returns GCP pricing data for a single node
+func (gcp *GCP) NodePricing(key Key) (*Node, error) {
+	if n, ok := gcp.getPricing(key); ok {
 		klog.V(4).Infof("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
 		n.Node.BaseCPUPrice = gcp.BaseCPUPrice
 		return n.Node, nil
+	} else if ok := gcp.isValidPricingKey(key); ok {
+		err := gcp.DownloadPricingData()
+		if err != nil {
+			return nil, fmt.Errorf("Download pricing data failed: %s", err.Error())
+		}
+		if n, ok := gcp.getPricing(key); ok {
+			klog.V(4).Infof("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
+			n.Node.BaseCPUPrice = gcp.BaseCPUPrice
+			return n.Node, nil
+		}
+		klog.V(1).Infof("[Warning] no pricing data found for %s: %s", key.Features(), key)
+		return nil, fmt.Errorf("Warning: no pricing data found for %s", key)
 	}
-	klog.V(1).Infof("[Warning] no pricing data found for %s: %s", key.Features(), key)
 	return nil, fmt.Errorf("Warning: no pricing data found for %s", key)
 }

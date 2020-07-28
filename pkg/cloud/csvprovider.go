@@ -10,9 +10,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/env"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/kubecost/cost-model/pkg/log"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
 
@@ -59,7 +62,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 	var csvr io.Reader
 	var csverr error
 	if strings.HasPrefix(c.CSVLocation, "s3://") {
-		region := os.Getenv("CSV_REGION")
+		region := env.GetCSVRegion()
 		conf := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
 		s3Client := s3.New(session.New(conf))
 		bucketAndKey := strings.Split(strings.TrimPrefix(c.CSVLocation, "s3://"), "/")
@@ -138,7 +141,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 		c.Pricing = pricing
 		c.PricingPV = pvpricing
 	} else {
-		klog.Infof("[WARNING] No data received from csv")
+		log.DedupedWarningf(5, "No data received from csv at %s", c.CSVLocation)
 	}
 	time.AfterFunc(refreshMinutes*time.Minute, func() { c.DownloadPricingData() })
 	return nil

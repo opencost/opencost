@@ -4,18 +4,16 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"os"
 	"time"
 
 	"k8s.io/klog"
 
 	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/util"
+
 	_ "github.com/lib/pq"
 )
-
-const remotePW = "REMOTE_WRITE_PASSWORD"
-const sqlAddress = "SQL_ADDRESS"
 
 func getPVCosts(db *sql.DB) (map[string]*costAnalyzerCloud.PV, error) {
 	pvs := make(map[string]*costAnalyzerCloud.PV)
@@ -94,8 +92,8 @@ func getNodeCosts(db *sql.DB) (map[string]*costAnalyzerCloud.Node, error) {
 }
 
 func CostDataRangeFromSQL(field string, value string, window string, start string, end string) (map[string]*CostData, error) {
-	pw := os.Getenv(remotePW)
-	address := os.Getenv(sqlAddress)
+	pw := env.GetRemotePW()
+	address := env.GetSQLAddress()
 	connStr := fmt.Sprintf("postgres://postgres:%s@%s:5432?sslmode=disable", pw, address)
 	db, err := sql.Open("postgres", connStr)
 	defer db.Close()

@@ -1,9 +1,9 @@
 package clustercache
 
 import (
-	"os"
 	"sync"
 
+	"github.com/kubecost/cost-model/pkg/env"
 	"k8s.io/klog"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -88,7 +88,7 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 	appsRestClient := client.AppsV1().RESTClient()
 	storageRestClient := client.StorageV1().RESTClient()
 
-	kubecostNamespace := os.Getenv("KUBECOST_NAMESPACE")
+	kubecostNamespace := env.GetKubecostNamespace()
 	klog.Infof("NAMESPACE: %s", kubecostNamespace)
 
 	kcc := &KubernetesClusterCache{
