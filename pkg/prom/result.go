@@ -19,6 +19,12 @@ type QueryResultsChan chan *QueryResults
 func (qrc QueryResultsChan) Await() []*QueryResult {
 	defer close(qrc)
 	results := <-qrc
+
+	// Possible that the returned results are nil
+	if results == nil {
+		return nil
+	}
+
 	return results.Results
 }
 
