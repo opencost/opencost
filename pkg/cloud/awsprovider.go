@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"regexp"
@@ -22,6 +21,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/errors"
+	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -1138,9 +1138,9 @@ func (a *AWS) SetKeyEnv() error {
 
 	if _, err := os.Stat(path); err != nil {
 		if os.IsNotExist(err) {
-			log.Printf("error: file %s does not exist", path)
+			log.DedupedErrorf(5, "file %s does not exist", path)
 		} else {
-			log.Printf("error: %s", err)
+			log.DedupedErrorf(5, "other file open error: %s", err)
 		}
 		return err
 	}
@@ -1231,7 +1231,7 @@ func (a *AWS) GetAddresses() ([]byte, error) {
 
 	errors := []error{}
 	for err := range errorCh {
-		log.Printf("[Warning]: unable to get addresses: %s", err)
+		log.DedupedWarningf(5, "unable to get addresses: %s", err)
 		errors = append(errors, err)
 	}
 
@@ -1337,7 +1337,7 @@ func (a *AWS) GetDisks() ([]byte, error) {
 
 	errors := []error{}
 	for err := range errorCh {
-		log.Printf("[Warning]: unable to get disks: %s", err)
+		log.DedupedWarningf(5, "unable to get disks: %s", err)
 		errors = append(errors, err)
 	}
 
@@ -1978,7 +1978,7 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 				continue
 			}
 
-			klog.V(1).Infof("Found spot info for: %s", spot.InstanceID)
+			log.DedupedInfof(5, "Found spot info for: %s", spot.InstanceID)
 			spots[spot.InstanceID] = &spot
 		}
 		gr.Close()
