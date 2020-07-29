@@ -1144,9 +1144,9 @@ func (a *AWS) SetKeyEnv() error {
 
 	if _, err := os.Stat(path); err != nil {
 		if os.IsNotExist(err) {
-			log.Printf("error: file %s does not exist", path)
+			log.DedupedErrorf(5, "file %s does not exist", path)
 		} else {
-			log.Printf("error: %s", err)
+			log.DedupedErrorf(5, "other file open error: %s", err)
 		}
 		return err
 	}
@@ -1237,7 +1237,7 @@ func (a *AWS) GetAddresses() ([]byte, error) {
 
 	errors := []error{}
 	for err := range errorCh {
-		log.Printf("[Warning]: unable to get addresses: %s", err)
+		log.DedupedWarningf(5, "unable to get addresses: %s", err)
 		errors = append(errors, err)
 	}
 
