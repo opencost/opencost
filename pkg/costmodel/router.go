@@ -51,11 +51,13 @@ const (
 
 var (
 	// gitCommit is set by the build system
-	gitCommit               string
-	logCollectionEnabled    bool = strings.EqualFold(os.Getenv(logCollectionEnvVar), "true")
-	productAnalyticsEnabled bool = strings.EqualFold(os.Getenv(productAnalyticsEnvVar), "true")
-	errorReportingEnabled   bool = strings.EqualFold(os.Getenv(errorReportingEnvVar), "true")
-	valuesReportingEnabled  bool = strings.EqualFold(os.Getenv(valuesReportingEnvVar), "true")
+	gitCommit                       string
+	logCollectionEnabled            bool   = strings.EqualFold(os.Getenv(logCollectionEnvVar), "true")
+	productAnalyticsEnabled         bool   = strings.EqualFold(os.Getenv(productAnalyticsEnvVar), "true")
+	errorReportingEnabled           bool   = strings.EqualFold(os.Getenv(errorReportingEnvVar), "true")
+	valuesReportingEnabled          bool   = strings.EqualFold(os.Getenv(valuesReportingEnvVar), "true")
+	multiclusterDBBasicAuthUsername string = os.Getenv("MC_BASIC_AUTH_USERNAME")
+	multiclusterDBBasicAuthPW       string = os.Getenv("MC_BASIC_AUTH_PW")
 )
 
 var Router = httprouter.New()
@@ -972,7 +974,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		Address:      address,
 		RoundTripper: LongTimeoutRoundTripper,
 	}
-	promCli, _ := prom.NewRateLimitedClient(pc, queryConcurrency)
+	promCli, _ := prom.NewRateLimitedClient(pc, queryConcurrency, "", "")
 
 	m, err := ValidatePrometheus(promCli, false)
 	if err != nil || m.Running == false {
@@ -1186,7 +1188,8 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 				Address:      thanosUrl,
 				RoundTripper: thanosRT,
 			}
-			thanosCli, _ := prom.NewRateLimitedClient(thanosConfig, queryConcurrency)
+
+			thanosCli, _ := prom.NewRateLimitedClient(thanosConfig, queryConcurrency, multiclusterDBBasicAuthUsername, multiclusterDBBasicAuthPW)
 
 			_, err = ValidatePrometheus(thanosCli, true)
 			if err != nil {
