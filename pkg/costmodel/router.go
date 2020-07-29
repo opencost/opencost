@@ -8,7 +8,6 @@ import (
 	"math"
 	"net"
 	"net/http"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -23,9 +22,10 @@ import (
 	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	cm "github.com/kubecost/cost-model/pkg/clustermanager"
+	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/errors"
-	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
+	"github.com/kubecost/cost-model/pkg/thanos"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
 	v1 "k8s.io/api/core/v1"
@@ -39,25 +39,19 @@ import (
 )
 
 const (
-	logCollectionEnvVar            = "LOG_COLLECTION_ENABLED"
-	productAnalyticsEnvVar         = "PRODUCT_ANALYTICS_ENABLED"
-	errorReportingEnvVar           = "ERROR_REPORTING_ENABLED"
-	valuesReportingEnvVar          = "VALUES_REPORTING_ENABLED"
-	maxQueryConcurrencyEnvVar      = "MAX_QUERY_CONCURRENCY"
-	prometheusServerEndpointEnvVar = "PROMETHEUS_SERVER_ENDPOINT"
-	prometheusTroubleshootingEp    = "http://docs.kubecost.com/custom-prom#troubleshoot"
-	RFC3339Milli                   = "2006-01-02T15:04:05.000Z"
+	prometheusTroubleshootingEp = "http://docs.kubecost.com/custom-prom#troubleshoot"
+	RFC3339Milli                = "2006-01-02T15:04:05.000Z"
 )
 
 var (
 	// gitCommit is set by the build system
 	gitCommit                       string
-	logCollectionEnabled            bool   = strings.EqualFold(os.Getenv(logCollectionEnvVar), "true")
-	productAnalyticsEnabled         bool   = strings.EqualFold(os.Getenv(productAnalyticsEnvVar), "true")
-	errorReportingEnabled           bool   = strings.EqualFold(os.Getenv(errorReportingEnvVar), "true")
-	valuesReportingEnabled          bool   = strings.EqualFold(os.Getenv(valuesReportingEnvVar), "true")
-	multiclusterDBBasicAuthUsername string = os.Getenv("MC_BASIC_AUTH_USERNAME")
-	multiclusterDBBasicAuthPW       string = os.Getenv("MC_BASIC_AUTH_PW")
+	logCollectionEnabled            bool   = env.IsLogCollectionEnabled()
+	productAnalyticsEnabled         bool   = env.IsProductAnalyticsEnabled()
+	errorReportingEnabled           bool   = env.IsErrorReportingEnabled()
+	valuesReportingEnabled          bool   = env.IsValuesReportingEnabled()
+	multiclusterDBBasicAuthUsername string = env.GetMultiClusterBasicAuthUsername()
+	multiclusterDBBasicAuthPW       string = env.GetMultiClusterBasicAuthPassword()
 )
 
 var Router = httprouter.New()
@@ -171,22 +165,6 @@ func normalizeTimeParam(param string) (string, error) {
 	}
 
 	return param, nil
-}
-
-// Parses the max query concurrency environment variable
-func maxQueryConcurrency() int {
-	v := os.Getenv(maxQueryConcurrencyEnvVar)
-	if v == "" {
-		return 5
-	}
-
-	result, err := strconv.Atoi(v)
-	if err != nil {
-		log.Warningf("Failed to parse MAX_QUERY_CONCURRENCY. Defaulting to 5 - %s", err)
-		return 5
-	}
-
-	return result
 }
 
 // writeReportingFlags writes the reporting flags to the cluster info map
@@ -392,11 +370,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	cluster := r.URL.Query().Get("cluster")
 	remote := r.URL.Query().Get("remote")
 
-	remoteAvailable := os.Getenv(remoteEnabled)
-	remoteEnabled := false
-	if remoteAvailable == "true" && remote != "false" {
-		remoteEnabled = true
-	}
+	remoteEnabled := env.IsRemoteEnabled() && remote != "false"
 
 	// Use Thanos Client if it exists (enabled) and remote flag set
 	var pClient prometheusClient.Client
@@ -654,6 +628,11 @@ func (p *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httpro
 	// Include Product Reporting Flags with Cluster Info
 	writeReportingFlags(data)
 
+	// Include Thanos Offset Duration if Applicable
+	if thanos.IsEnabled() {
+		data["thanosOffset"] = thanos.Offset()
+	}
+
 	w.Write(WrapData(data, err))
 }
 
@@ -884,7 +863,7 @@ func newClusterManager() *cm.ClusterManager {
 	// NOTE: configmap approach is currently the "persistent" source (entries are read-only
 	// NOTE: on the backend), we don't currently need to store on disk.
 	/*
-		path := os.Getenv("CONFIG_PATH")
+		path := env.GetConfigPath()
 		db, err := bolt.Open(path+"costmodel.db", 0600, nil)
 		if err != nil {
 			klog.V(1).Infof("[Error] Failed to create costmodel.db: %s", err.Error())
@@ -954,12 +933,13 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		}
 	}
 
-	address := os.Getenv(prometheusServerEndpointEnvVar)
+	address := env.GetPrometheusServerEndpoint()
 	if address == "" {
-		klog.Fatalf("No address for prometheus set in $%s. Aborting.", prometheusServerEndpointEnvVar)
+		klog.Fatalf("No address for prometheus set in $%s. Aborting.", env.PrometheusServerEndpointEnvVar)
 	}
 
-	queryConcurrency := maxQueryConcurrency()
+	queryConcurrency := env.GetMaxQueryConcurrency()
+	klog.Infof("Prometheus/Thanos Client Max Concurrency set to %d", queryConcurrency)
 
 	var LongTimeoutRoundTripper http.RoundTripper = &http.Transport{ // may be necessary for long prometheus queries. TODO: make this configurable
 		Proxy: http.ProxyFromEnvironment,
@@ -1008,7 +988,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	k8sCache := clustercache.NewKubernetesClusterCache(kubeClientset)
 	k8sCache.Run()
 
-	cloudProviderKey := os.Getenv("CLOUD_PROVIDER_API_KEY")
+	cloudProviderKey := env.GetCloudProviderAPIKey()
 	cloudProvider, err := costAnalyzerCloud.NewProvider(k8sCache, cloudProviderKey)
 	if err != nil {
 		panic(err.Error())
@@ -1031,7 +1011,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 			}
 		}
 	}
-	kubecostNamespace := os.Getenv("KUBECOST_NAMESPACE")
+	kubecostNamespace := env.GetKubecostNamespace()
 	// We need an initial invocation because the init of the cache has happened before we had access to the provider.
 	configs, err := kubeClientset.CoreV1().ConfigMaps(kubecostNamespace).Get("pricing-configs", metav1.GetOptions{})
 	if err != nil {
@@ -1158,8 +1138,8 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		OutOfClusterCache:             outOfClusterCache,
 	}
 
-	remoteEnabled := os.Getenv(remoteEnabled)
-	if remoteEnabled == "true" {
+	remoteEnabled := env.IsRemoteEnabled()
+	if remoteEnabled {
 		info, err := cloudProvider.ClusterInfo()
 		klog.Infof("Saving cluster  with id:'%s', and name:'%s' to durable storage", info["id"], info["name"])
 		if err != nil {
@@ -1172,8 +1152,9 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	}
 
 	// Thanos Client
-	if os.Getenv(thanosEnabled) == "true" {
-		thanosUrl := os.Getenv(thanosQueryUrl)
+	if thanos.IsEnabled() {
+		thanosUrl := thanos.QueryURL()
+
 		if thanosUrl != "" {
 			var thanosRT http.RoundTripper = &http.Transport{
 				Proxy: http.ProxyFromEnvironment,
@@ -1202,7 +1183,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 			}
 
 		} else {
-			klog.Infof("Error resolving environment variable: $%s", thanosQueryUrl)
+			klog.Infof("Error resolving environment variable: $%s", env.ThanosQueryUrlEnvVar)
 		}
 	}
 
