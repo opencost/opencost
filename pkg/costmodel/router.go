@@ -50,6 +50,7 @@ var (
 	productAnalyticsEnabled         bool   = env.IsProductAnalyticsEnabled()
 	errorReportingEnabled           bool   = env.IsErrorReportingEnabled()
 	valuesReportingEnabled          bool   = env.IsValuesReportingEnabled()
+	clusterProfile                  string = env.GetClusterProfile()
 	multiclusterDBBasicAuthUsername string = env.GetMultiClusterBasicAuthUsername()
 	multiclusterDBBasicAuthPW       string = env.GetMultiClusterBasicAuthPassword()
 )
@@ -624,6 +625,13 @@ func (p *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httpro
 	} else {
 		klog.Infof("Could not get k8s version info: %s", err.Error())
 	}
+
+	// Ensure we create the info object if it doesn't exist
+	if data == nil {
+		data = make(map[string]string)
+	}
+
+	data["clusterProfile"] = clusterProfile
 
 	// Include Product Reporting Flags with Cluster Info
 	writeReportingFlags(data)

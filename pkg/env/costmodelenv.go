@@ -7,6 +7,7 @@ const (
 
 	KubecostNamespaceEnvVar        = "KUBECOST_NAMESPACE"
 	ClusterIDEnvVar                = "CLUSTER_ID"
+	ClusterProfileEnvVar           = "CLUSTER_PROFILE"
 	PrometheusServerEndpointEnvVar = "PROMETHEUS_SERVER_ENDPOINT"
 	MaxQueryConcurrencyEnvVar      = "MAX_QUERY_CONCURRENCY"
 	RemoteEnabledEnvVar            = "REMOTE_WRITE_ENABLED"
@@ -53,6 +54,12 @@ func GetAWSClusterID() string {
 // represents the namespace the cost model exists in.
 func GetKubecostNamespace() string {
 	return Get(KubecostNamespaceEnvVar, "kubecost")
+}
+
+// GetClusterProfile returns the environment variable value for ClusterProfileEnvVar which
+// represents the cluster profile configured for
+func GetClusterProfile() string {
+	return Get(ClusterProfileEnvVar, "development")
 }
 
 // GetClusterID returns the environment variable value for ClusterIDEnvVar which represents the
