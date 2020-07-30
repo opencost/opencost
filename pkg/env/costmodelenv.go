@@ -27,6 +27,9 @@ const (
 	ProductAnalyticsEnabledEnvVar = "PRODUCT_ANALYTICS_ENABLED"
 	ErrorReportingEnabledEnvVar   = "ERROR_REPORTING_ENABLED"
 	ValuesReportingEnabledEnvVar  = "VALUES_REPORTING_ENABLED"
+
+	MultiClusterBasicAuthUsername = "MC_BASIC_AUTH_USERNAME"
+	MultiClusterBasicAuthPassword = "MC_BASIC_AUTH_PW"
 )
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
@@ -167,4 +170,14 @@ func IsValuesReportingEnabled() bool {
 // GetMaxQueryConcurrency returns the environment variable value for MaxQueryConcurrencyEnvVar
 func GetMaxQueryConcurrency() int {
 	return GetInt(MaxQueryConcurrencyEnvVar, 5)
+}
+
+// GetMultiClusterBasicAuthUsername returns the environemnt variable value for MultiClusterBasicAuthUsername
+func GetMultiClusterBasicAuthUsername() string {
+	return Get(MultiClusterBasicAuthUsername, "")
+}
+
+// GetMultiClusterBasicAuthPassword returns the environemnt variable value for MultiClusterBasicAuthPassword
+func GetMultiClusterBasicAuthPassword() string {
+	return Get(MultiClusterBasicAuthPassword, "")
 }
