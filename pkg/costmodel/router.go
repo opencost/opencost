@@ -46,10 +46,11 @@ const (
 var (
 	// gitCommit is set by the build system
 	gitCommit               string
-	logCollectionEnabled    bool = env.IsLogCollectionEnabled()
-	productAnalyticsEnabled bool = env.IsProductAnalyticsEnabled()
-	errorReportingEnabled   bool = env.IsErrorReportingEnabled()
-	valuesReportingEnabled  bool = env.IsValuesReportingEnabled()
+	logCollectionEnabled    bool   = env.IsLogCollectionEnabled()
+	productAnalyticsEnabled bool   = env.IsProductAnalyticsEnabled()
+	errorReportingEnabled   bool   = env.IsErrorReportingEnabled()
+	valuesReportingEnabled  bool   = env.IsValuesReportingEnabled()
+	clusterProfile          string = env.GetClusterProfile()
 )
 
 var Router = httprouter.New()
@@ -622,6 +623,13 @@ func (p *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httpro
 	} else {
 		klog.Infof("Could not get k8s version info: %s", err.Error())
 	}
+
+	// Ensure we create the info object if it doesn't exist
+	if data == nil {
+		data = make(map[string]string)
+	}
+
+	data["clusterProfile"] = clusterProfile
 
 	// Include Product Reporting Flags with Cluster Info
 	writeReportingFlags(data)
