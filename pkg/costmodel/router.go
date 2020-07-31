@@ -736,7 +736,7 @@ func (a *Accesses) recordPrices() {
 				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion).Set(ramCost)
 				a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion).Set(gpuCost)
 				a.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion).Set(totalCost)
-				labelKey := getKeyFromLabelStrings(nodeName, nodeName)
+				labelKey := getKeyFromLabelStrings(nodeName, nodeName, nodeType, nodeRegion)
 				nodeSeen[labelKey] = true
 			}
 
@@ -811,11 +811,32 @@ func (a *Accesses) recordPrices() {
 			}
 			for labelString, seen := range nodeSeen {
 				if !seen {
+					klog.Infof("Removing %s from nodes", labelString)
 					labels := getLabelStringsFromKey(labelString)
-					a.NodeTotalPriceRecorder.DeleteLabelValues(labels...)
-					a.CPUPriceRecorder.DeleteLabelValues(labels...)
-					a.GPUPriceRecorder.DeleteLabelValues(labels...)
-					a.RAMPriceRecorder.DeleteLabelValues(labels...)
+					ok := a.NodeTotalPriceRecorder.DeleteLabelValues(labels...)
+					if ok {
+						klog.Infof("removed %s from totalprice", labelString)
+					} else {
+						klog.Infof("FAILURE TO REMOVE %s from totalprice", labelString)
+					}
+					ok = a.CPUPriceRecorder.DeleteLabelValues(labels...)
+					if ok {
+						klog.Infof("removed %s from cpuprice", labelString)
+					} else {
+						klog.Infof("FAILURE TO REMOVE %s from cpuprice", labelString)
+					}
+					ok = a.GPUPriceRecorder.DeleteLabelValues(labels...)
+					if ok {
+						klog.Infof("removed %s from gpuprice", labelString)
+					} else {
+						klog.Infof("FAILURE TO REMOVE %s from gpuprice", labelString)
+					}
+					ok = a.RAMPriceRecorder.DeleteLabelValues(labels...)
+					if ok {
+						klog.Infof("removed %s from ramprice", labelString)
+					} else {
+						klog.Infof("FAILURE TO REMOVE %s from ramprice", labelString)
+					}
 					delete(nodeSeen, labelString)
 				}
 				nodeSeen[labelString] = false
