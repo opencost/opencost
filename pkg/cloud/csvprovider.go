@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/env"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -60,7 +62,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 	var csvr io.Reader
 	var csverr error
 	if strings.HasPrefix(c.CSVLocation, "s3://") {
-		region := os.Getenv("CSV_REGION")
+		region := env.GetCSVRegion()
 		conf := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
 		s3Client := s3.New(session.New(conf))
 		bucketAndKey := strings.Split(strings.TrimPrefix(c.CSVLocation, "s3://"), "/")
@@ -118,9 +120,9 @@ func (c *CSVProvider) DownloadPricingData() error {
 			continue
 		}
 		klog.V(4).Infof("Found price info %+v", p)
-		key := p.InstanceID
+		key := strings.ToLower(p.InstanceID)
 		if p.Region != "" { // strip the casing from region and add to key.
-			key = fmt.Sprintf("%s,%s", strings.ToLower(p.Region), p.InstanceID)
+			key = fmt.Sprintf("%s,%s", strings.ToLower(p.Region), strings.ToLower(p.InstanceID))
 			c.UsesRegion = true
 		}
 		if p.AssetClass == "pv" {
@@ -193,7 +195,7 @@ func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
 			}
 		}
 		if strings.HasPrefix(n.Spec.ProviderID, "azure://") {
-			vmOrScaleSet := strings.TrimPrefix(n.Spec.ProviderID, "azure://")
+			vmOrScaleSet := strings.ToLower(strings.TrimPrefix(n.Spec.ProviderID, "azure://"))
 			return toReturn + vmOrScaleSet
 		}
 		return toReturn + n.Spec.ProviderID

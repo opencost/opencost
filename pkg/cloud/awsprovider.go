@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"regexp"
@@ -20,7 +19,9 @@ import (
 	"k8s.io/klog"
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/errors"
+	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -37,8 +38,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-const awsAccessKeyIDEnvVar = "AWS_ACCESS_KEY_ID"
-const awsAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 const awsReservedInstancePricePerHour = 0.0287
 const supportedSpotFeedVersion = "1"
 const SpotInfoUpdateType = "spotinfo"
@@ -386,9 +385,8 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 			}
 		}
 
-		remoteEnabled := os.Getenv(remoteEnabled)
-		if remoteEnabled == "true" {
-			err := UpdateClusterMeta(os.Getenv(clusterIDKey), c.ClusterName)
+		if env.IsRemoteEnabled() {
+			err := UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return err
 			}
@@ -966,17 +964,13 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 		return nil, err
 	}
 
-	remote := os.Getenv(remoteEnabled)
-	remoteEnabled := false
-	if os.Getenv(remote) == "true" {
-		remoteEnabled = true
-	}
+	remoteEnabled := env.IsRemoteEnabled()
 
 	if c.ClusterName != "" {
 		m := make(map[string]string)
 		m["name"] = c.ClusterName
 		m["provider"] = "AWS"
-		m["id"] = os.Getenv(clusterIDKey)
+		m["id"] = env.GetClusterID()
 		m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 		return m, nil
 	}
@@ -985,12 +979,12 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 		m := make(map[string]string)
 		m["name"] = clusterName
 		m["provider"] = "AWS"
-		m["id"] = os.Getenv(clusterIDKey)
+		m["id"] = env.GetClusterID()
 		m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 		return m, nil
 	}
 
-	maybeClusterId := os.Getenv(ClusterIdEnvVar)
+	maybeClusterId := env.GetAWSClusterID()
 	if len(maybeClusterId) != 0 {
 		return makeStructure(maybeClusterId)
 	}
@@ -1049,7 +1043,7 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 			}
 		}
 	}*/
-	klog.V(2).Infof("Unable to sniff out cluster ID, perhaps set $%s to force one", ClusterIdEnvVar)
+	klog.V(2).Infof("Unable to sniff out cluster ID, perhaps set $%s to force one", env.AWSClusterIDEnvVar)
 	return makeStructure(defaultClusterName)
 }
 
@@ -1067,7 +1061,7 @@ func (aws *AWS) getAWSAuth(forceReload bool, cp *CustomPricing) (string, string)
 	}
 
 	// 3. Fall back to env vars
-	return os.Getenv(awsAccessKeyIDEnvVar), os.Getenv(awsAccessKeySecretEnvVar)
+	return env.GetAWSAccessKeyID(), env.GetAWSAccessKeySecret()
 }
 
 // Load once and cache the result (even on failure). This is an install time secret, so
@@ -1103,11 +1097,11 @@ func (aws *AWS) configureAWSAuth() error {
 	accessKeyID := aws.ServiceKeyName
 	accessKeySecret := aws.ServiceKeySecret
 	if accessKeyID != "" && accessKeySecret != "" { // credentials may exist on the actual AWS node-- if so, use those. If not, override with the service key
-		err := os.Setenv(awsAccessKeyIDEnvVar, accessKeyID)
+		err := env.Set(env.AWSAccessKeyIDEnvVar, accessKeyID)
 		if err != nil {
 			return err
 		}
-		err = os.Setenv(awsAccessKeySecretEnvVar, accessKeySecret)
+		err = env.Set(env.AWSAccessKeySecretEnvVar, accessKeySecret)
 		if err != nil {
 			return err
 		}
@@ -1138,15 +1132,15 @@ func getClusterConfig(ccFile string) (map[string]string, error) {
 // a new AWS Session are set.
 func (a *AWS) SetKeyEnv() error {
 	// TODO add this to the helm chart, mirroring the cost-model
-	// configPath := os.Getenv("CONFIG_PATH")
+	// configPath := env.GetConfigPath()
 	configPath := defaultConfigPath
 	path := configPath + "aws.json"
 
 	if _, err := os.Stat(path); err != nil {
 		if os.IsNotExist(err) {
-			log.Printf("error: file %s does not exist", path)
+			log.DedupedErrorf(5, "file %s does not exist", path)
 		} else {
-			log.Printf("error: %s", err)
+			log.DedupedErrorf(5, "other file open error: %s", err)
 		}
 		return err
 	}
@@ -1165,8 +1159,8 @@ func (a *AWS) SetKeyEnv() error {
 	keySecret := configMap["awsServiceKeySecret"]
 
 	// These are required before calling NewEnvCredentials below
-	os.Setenv("AWS_ACCESS_KEY_ID", keyName)
-	os.Setenv("AWS_SECRET_ACCESS_KEY", keySecret)
+	env.Set(env.AWSAccessKeyIDEnvVar, keyName)
+	env.Set(env.AWSAccessKeySecretEnvVar, keySecret)
 
 	return nil
 }
@@ -1237,7 +1231,7 @@ func (a *AWS) GetAddresses() ([]byte, error) {
 
 	errors := []error{}
 	for err := range errorCh {
-		log.Printf("[Warning]: unable to get addresses: %s", err)
+		log.DedupedWarningf(5, "unable to get addresses: %s", err)
 		errors = append(errors, err)
 	}
 
@@ -1343,7 +1337,7 @@ func (a *AWS) GetDisks() ([]byte, error) {
 
 	errors := []error{}
 	for err := range errorCh {
-		log.Printf("[Warning]: unable to get disks: %s", err)
+		log.DedupedWarningf(5, "unable to get disks: %s", err)
 		errors = append(errors, err)
 	}
 
@@ -1420,11 +1414,11 @@ func (a *AWS) QueryAthenaBillingData(query string) (*athena.GetQueryResultsOutpu
 		return nil, err
 	}
 	if customPricing.ServiceKeyName != "" {
-		err = os.Setenv(awsAccessKeyIDEnvVar, customPricing.ServiceKeyName)
+		err = env.Set(env.AWSAccessKeyIDEnvVar, customPricing.ServiceKeyName)
 		if err != nil {
 			return nil, err
 		}
-		err = os.Setenv(awsAccessKeySecretEnvVar, customPricing.ServiceKeySecret)
+		err = env.Set(env.AWSAccessKeySecretEnvVar, customPricing.ServiceKeySecret)
 		if err != nil {
 			return nil, err
 		}
@@ -1612,11 +1606,11 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 	klog.V(3).Infof("Running Query: %s", query)
 
 	if customPricing.ServiceKeyName != "" {
-		err = os.Setenv(awsAccessKeyIDEnvVar, customPricing.ServiceKeyName)
+		err = env.Set(env.AWSAccessKeyIDEnvVar, customPricing.ServiceKeyName)
 		if err != nil {
 			return nil, err
 		}
-		err = os.Setenv(awsAccessKeySecretEnvVar, customPricing.ServiceKeySecret)
+		err = env.Set(env.AWSAccessKeySecretEnvVar, customPricing.ServiceKeySecret)
 		if err != nil {
 			return nil, err
 		}
@@ -1724,11 +1718,11 @@ func (a *AWS) QuerySQL(query string) ([]byte, error) {
 		return nil, err
 	}
 	if customPricing.ServiceKeyName != "" {
-		err = os.Setenv(awsAccessKeyIDEnvVar, customPricing.ServiceKeyName)
+		err = env.Set(env.AWSAccessKeyIDEnvVar, customPricing.ServiceKeyName)
 		if err != nil {
 			return nil, err
 		}
-		err = os.Setenv(awsAccessKeySecretEnvVar, customPricing.ServiceKeySecret)
+		err = env.Set(env.AWSAccessKeySecretEnvVar, customPricing.ServiceKeySecret)
 		if err != nil {
 			return nil, err
 		}
@@ -1850,11 +1844,11 @@ func (f fnames) Less(i, j int) bool {
 func parseSpotData(bucket string, prefix string, projectID string, region string, accessKeyID string, accessKeySecret string) (map[string]*spotInfo, error) {
 	// credentials may exist on the actual AWS node-- if so, use those. If not, override with the service key
 	if accessKeyID != "" && accessKeySecret != "" {
-		err := os.Setenv(awsAccessKeyIDEnvVar, accessKeyID)
+		err := env.Set(env.AWSAccessKeyIDEnvVar, accessKeyID)
 		if err != nil {
 			return nil, err
 		}
-		err = os.Setenv(awsAccessKeySecretEnvVar, accessKeySecret)
+		err = env.Set(env.AWSAccessKeySecretEnvVar, accessKeySecret)
 		if err != nil {
 			return nil, err
 		}
@@ -1984,7 +1978,7 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 				continue
 			}
 
-			klog.V(1).Infof("Found spot info for: %s", spot.InstanceID)
+			log.DedupedInfof(5, "Found spot info for: %s", spot.InstanceID)
 			spots[spot.InstanceID] = &spot
 		}
 		gr.Close()

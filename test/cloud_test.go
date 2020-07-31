@@ -1,20 +1,22 @@
 package test
 
 import (
+	"strings"
 	"testing"
+
 	"github.com/kubecost/cost-model/pkg/cloud"
 	v1 "k8s.io/api/core/v1"
 )
 
-const(
+const (
 	providerIDMap = "spec.providerID"
-	nameMap = "metadata.name"
-	labelMapFoo = "metadata.labels.foo"
+	nameMap       = "metadata.name"
+	labelMapFoo   = "metadata.labels.foo"
 )
 
-func TestRegionValueFromMapField(t * testing.T) {
+func TestRegionValueFromMapField(t *testing.T) {
 	wantRegion := "useast"
-	wantpid := "/subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/resourceGroups/MC_test_test_eastus/providers/Microsoft.Compute/virtualMachines/aks-agentpool-20139558-0"
+	wantpid := strings.ToLower("/subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/resourceGroups/MC_test_test_eastus/providers/Microsoft.Compute/virtualMachines/aks-agentpool-20139558-0")
 	providerIDWant := wantRegion + "," + wantpid
 
 	n := &v1.Node{}
@@ -26,7 +28,6 @@ func TestRegionValueFromMapField(t * testing.T) {
 		t.Errorf("Assert on '%s' want '%s' got '%s'", providerIDMap, providerIDWant, got)
 	}
 
-
 }
 func TestTransformedValueFromMapField(t *testing.T) {
 	providerIDWant := "i-05445591e0d182d42"
@@ -37,7 +38,7 @@ func TestTransformedValueFromMapField(t *testing.T) {
 		t.Errorf("Assert on '%s' want '%s' got '%s'", providerIDMap, providerIDWant, got)
 	}
 
-	providerIDWant2 := "/subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/resourceGroups/MC_test_test_eastus/providers/Microsoft.Compute/virtualMachines/aks-agentpool-20139558-0"
+	providerIDWant2 := strings.ToLower("/subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/resourceGroups/MC_test_test_eastus/providers/Microsoft.Compute/virtualMachines/aks-agentpool-20139558-0")
 	n2 := &v1.Node{}
 	n2.Spec.ProviderID = "azure:///subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/resourceGroups/MC_test_test_eastus/providers/Microsoft.Compute/virtualMachines/aks-agentpool-20139558-0"
 	got2 := cloud.NodeValueFromMapField(providerIDMap, n2, false)
@@ -45,7 +46,7 @@ func TestTransformedValueFromMapField(t *testing.T) {
 		t.Errorf("Assert on '%s' want '%s' got '%s'", providerIDMap, providerIDWant2, got2)
 	}
 
-	providerIDWant3 := "/subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/resourceGroups/mc_testspot_testspot_eastus/providers/Microsoft.Compute/virtualMachineScaleSets/aks-nodepool1-19213364-vmss/virtualMachines/0"
+	providerIDWant3 := strings.ToLower("/subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/resourceGroups/mc_testspot_testspot_eastus/providers/Microsoft.Compute/virtualMachineScaleSets/aks-nodepool1-19213364-vmss/virtualMachines/0")
 	n3 := &v1.Node{}
 	n3.Spec.ProviderID = "azure:///subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/resourceGroups/mc_testspot_testspot_eastus/providers/Microsoft.Compute/virtualMachineScaleSets/aks-nodepool1-19213364-vmss/virtualMachines/0"
 	got3 := cloud.NodeValueFromMapField(providerIDMap, n3, false)
@@ -54,13 +55,11 @@ func TestTransformedValueFromMapField(t *testing.T) {
 	}
 }
 
-
 func TestNodeValueFromMapField(t *testing.T) {
 	providerIDWant := "providerid"
 	nameWant := "gke-standard-cluster-1-pool-1-91dc432d-cg69"
 	labelFooWant := "labelfoo"
 
-	
 	n := &v1.Node{}
 	n.Spec.ProviderID = providerIDWant
 	n.Name = nameWant
@@ -71,7 +70,7 @@ func TestNodeValueFromMapField(t *testing.T) {
 	if got != providerIDWant {
 		t.Errorf("Assert on '%s' want '%s' got '%s'", providerIDMap, providerIDWant, got)
 	}
-	
+
 	got = cloud.NodeValueFromMapField(nameMap, n, false)
 	if got != nameWant {
 		t.Errorf("Assert on '%s' want '%s' got '%s'", nameMap, nameWant, got)
@@ -84,7 +83,7 @@ func TestNodeValueFromMapField(t *testing.T) {
 
 }
 
-func TestNodePriceFromCSV(t * testing.T) {
+func TestNodePriceFromCSV(t *testing.T) {
 	providerIDWant := "providerid"
 	nameWant := "gke-standard-cluster-1-pool-1-91dc432d-cg69"
 	labelFooWant := "labelfoo"
@@ -100,7 +99,7 @@ func TestNodePriceFromCSV(t * testing.T) {
 	c := &cloud.CSVProvider{
 		CSVLocation: "../configs/pricing_schema.csv",
 		CustomProvider: &cloud.CustomProvider{
-			Config:    cloud.NewProviderConfig("../configs/default.json"),
+			Config: cloud.NewProviderConfig("../configs/default.json"),
 		},
 	}
 	c.DownloadPricingData()
@@ -125,11 +124,11 @@ func TestNodePriceFromCSV(t * testing.T) {
 	if resN2 != nil {
 		t.Errorf("CSV provider should return nil on missing node")
 	}
-	
+
 	c2 := &cloud.CSVProvider{
 		CSVLocation: "../configs/fake.csv",
 		CustomProvider: &cloud.CustomProvider{
-			Config:    cloud.NewProviderConfig("../configs/default.json"),
+			Config: cloud.NewProviderConfig("../configs/default.json"),
 		},
 	}
 	k3 := c.GetKey(n.Labels, n)
@@ -139,7 +138,7 @@ func TestNodePriceFromCSV(t * testing.T) {
 	}
 }
 
-func TestNodePriceFromCSVWithRegion(t * testing.T) {
+func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	providerIDWant := "gke-standard-cluster-1-pool-1-91dc432d-cg69"
 	nameWant := "foo"
 	labelFooWant := "labelfoo"
@@ -171,7 +170,7 @@ func TestNodePriceFromCSVWithRegion(t * testing.T) {
 	c := &cloud.CSVProvider{
 		CSVLocation: "../configs/pricing_schema_region.csv",
 		CustomProvider: &cloud.CustomProvider{
-			Config:    cloud.NewProviderConfig("../configs/default.json"),
+			Config: cloud.NewProviderConfig("../configs/default.json"),
 		},
 	}
 	c.DownloadPricingData()
@@ -206,7 +205,6 @@ func TestNodePriceFromCSVWithRegion(t * testing.T) {
 		}
 	}
 
-
 	unknownN := &v1.Node{}
 	unknownN.Spec.ProviderID = "fake providerID"
 	unknownN.Name = "unknownname"
@@ -217,11 +215,11 @@ func TestNodePriceFromCSVWithRegion(t * testing.T) {
 	if resN4 != nil {
 		t.Errorf("CSV provider should return nil on missing node, instead returned %+v", resN4)
 	}
-	
+
 	c2 := &cloud.CSVProvider{
 		CSVLocation: "../configs/fake.csv",
 		CustomProvider: &cloud.CustomProvider{
-			Config:    cloud.NewProviderConfig("../configs/default.json"),
+			Config: cloud.NewProviderConfig("../configs/default.json"),
 		},
 	}
 	k5 := c.GetKey(n.Labels, n)
@@ -229,4 +227,32 @@ func TestNodePriceFromCSVWithRegion(t * testing.T) {
 	if resN5 != nil {
 		t.Errorf("CSV provider should return nil on missing csv")
 	}
+}
+
+func TestNodePriceFromCSVWithCase(t *testing.T) {
+	n := &v1.Node{}
+	n.Spec.ProviderID = "azure:///subscriptions/123a7sd-asd-1234-578a9-123abcdef/resourceGroups/case_12_STaGe_TeSt7/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-agent-worker0-12stagetest7-ezggnore/virtualMachines/7"
+	n.Labels = make(map[string]string)
+	n.Labels[v1.LabelZoneRegion] = "eastus2"
+	wantPrice := "0.13370357"
+
+	c := &cloud.CSVProvider{
+		CSVLocation: "../configs/pricing_schema_case.csv",
+		CustomProvider: &cloud.CustomProvider{
+			Config: cloud.NewProviderConfig("../configs/default.json"),
+		},
+	}
+
+	c.DownloadPricingData()
+	k := c.GetKey(n.Labels, n)
+	resN, err := c.NodePricing(k)
+	if err != nil {
+		t.Errorf("Error in NodePricing: %s", err.Error())
+	} else {
+		gotPrice := resN.Cost
+		if gotPrice != wantPrice {
+			t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+		}
+	}
+
 }

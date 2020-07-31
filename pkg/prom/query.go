@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/kubecost/cost-model/pkg/errors"
+	"github.com/kubecost/cost-model/pkg/util"
 	prometheus "github.com/prometheus/client_golang/api"
 	"k8s.io/klog"
 )
@@ -66,7 +67,7 @@ func (ctx *Context) Query(query string) QueryResultsChan {
 		raw, promErr := ctx.query(query)
 		ctx.ErrorCollector.Report(promErr)
 
-		results, parseErr := NewQueryResults(raw)
+		results, parseErr := NewQueryResults(query, raw)
 		ctx.ErrorCollector.Report(parseErr)
 
 		resCh <- results
@@ -92,15 +93,23 @@ func (ctx *Context) query(query string) (interface{}, error) {
 	}
 	if err != nil {
 		if resp == nil {
-			return nil, fmt.Errorf("Error %s fetching query %s", err.Error(), query)
+			return nil, fmt.Errorf("Error: %s, Body: %s Query: %s", err.Error(), body, query)
 		}
 
-		return nil, fmt.Errorf("%d Error %s fetching query %s", resp.StatusCode, err.Error(), query)
+		return nil, fmt.Errorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", resp.StatusCode, http.StatusText(resp.StatusCode), util.HeaderString(resp.Header), body, err.Error(), query)
 	}
+
+	// Unsuccessful Status Code, log body and status
+	statusCode := resp.StatusCode
+	statusText := http.StatusText(statusCode)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("%d (%s) Headers: %s, Body: %s Query: %s", statusCode, statusText, util.HeaderString(resp.Header), body, query)
+	}
+
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		return nil, fmt.Errorf("Error %s fetching query %s", err.Error(), query)
+		return nil, fmt.Errorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", statusCode, statusText, util.HeaderString(resp.Header), err.Error(), body, query)
 	}
 	return toReturn, nil
 }
