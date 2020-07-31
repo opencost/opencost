@@ -101,6 +101,7 @@ type AWS struct {
 	ProjectID               string
 	DownloadPricingDataLock sync.RWMutex
 	Config                  *ProviderConfig
+	ServiceAccountChecks    []*ServiceAccountCheck
 	*CustomProvider
 }
 
@@ -512,6 +513,9 @@ func (aws *AWS) isPreemptible(key string) bool {
 func (aws *AWS) DownloadPricingData() error {
 	aws.DownloadPricingDataLock.Lock()
 	defer aws.DownloadPricingDataLock.Unlock()
+	if aws.ServiceAccountChecks == nil {
+		aws.ServiceAccountChecks = []*ServiceAccountCheck{}
+	}
 	c, err := aws.Config.GetCustomPricingData()
 	if err != nil {
 		klog.V(1).Infof("Error downloading default pricing data: %s", err.Error())
@@ -1876,6 +1880,7 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 	}
 	lso, err := s3Svc.ListObjects(ls)
 	if err != nil {
+
 		return nil, err
 	}
 	lsoLen := len(lso.Contents)
@@ -2220,4 +2225,10 @@ func (a *AWS) getReservedInstances() ([]*AWSReservedInstance, error) {
 	}
 
 	return reservedInstances, nil
+}
+
+func (a *AWS) ServiceAccountStatus() *ServiceAccountStatus {
+	return &ServiceAccountStatus{
+		Checks: []*ServiceAccountCheck{},
+	}
 }

@@ -157,6 +157,15 @@ type CustomPricing struct {
 	ReadOnly              string            `json:"readOnly"`
 }
 
+type ServiceAccountStatus struct {
+	Checks []*ServiceAccountCheck `json:"checks"`
+}
+
+type ServiceAccountCheck struct {
+	Message string `json:"message"`
+	Status  bool   `json:"status"`
+}
+
 // Provider represents a k8s provider.
 type Provider interface {
 	ClusterInfo() (map[string]string, error)
@@ -176,6 +185,7 @@ type Provider interface {
 	GetLocalStorageQuery(string, string, bool, bool) string
 	ExternalAllocations(string, string, []string, string, string, bool) ([]*OutOfClusterAllocation, error)
 	ApplyReservedInstancePricing(map[string]*Node)
+	ServiceAccountStatus() *ServiceAccountStatus
 }
 
 // ClusterName returns the name defined in cluster info, defaulting to the

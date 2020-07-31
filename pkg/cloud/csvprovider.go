@@ -120,9 +120,9 @@ func (c *CSVProvider) DownloadPricingData() error {
 			continue
 		}
 		klog.V(4).Infof("Found price info %+v", p)
-		key := p.InstanceID
+		key := strings.ToLower(p.InstanceID)
 		if p.Region != "" { // strip the casing from region and add to key.
-			key = fmt.Sprintf("%s,%s", strings.ToLower(p.Region), p.InstanceID)
+			key = fmt.Sprintf("%s,%s", strings.ToLower(p.Region), strings.ToLower(p.InstanceID))
 			c.UsesRegion = true
 		}
 		if p.AssetClass == "pv" {
@@ -195,7 +195,7 @@ func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
 			}
 		}
 		if strings.HasPrefix(n.Spec.ProviderID, "azure://") {
-			vmOrScaleSet := strings.TrimPrefix(n.Spec.ProviderID, "azure://")
+			vmOrScaleSet := strings.ToLower(strings.TrimPrefix(n.Spec.ProviderID, "azure://"))
 			return toReturn + vmOrScaleSet
 		}
 		return toReturn + n.Spec.ProviderID
@@ -287,4 +287,10 @@ func (c *CSVProvider) PVPricing(pvk PVKey) (*PV, error) {
 	return &PV{
 		Cost: pricing.MarketPriceHourly,
 	}, nil
+}
+
+func (c *CSVProvider) ServiceAccountStatus() *ServiceAccountStatus {
+	return &ServiceAccountStatus{
+		Checks: []*ServiceAccountCheck{},
+	}
 }

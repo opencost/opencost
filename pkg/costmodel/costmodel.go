@@ -1136,7 +1136,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 		cnode, err := cp.NodePricing(cp.GetKey(nodeLabels, n))
 		if err != nil {
-			log.DedupedWarningf(10, "Error getting node pricing. Error: %s", err.Error())
+			klog.Infof("Error getting node pricing. Error: %s", err.Error())
 			if cnode != nil {
 				nodes[name] = cnode
 				continue
