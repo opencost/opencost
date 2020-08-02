@@ -231,17 +231,10 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 
 func TestNodePriceFromCSVWithCase(t *testing.T) {
 	n := &v1.Node{}
-<<<<<<< HEAD
-	n.Spec.ProviderID = "azure:///subscriptions/75d6a706-70ad-4689-9ca4-4659a44f0ba8/resourceGroups/ethos_11_stage_va7/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-agent-worker0-11stageva7-ezpwh/virtualMachines/7"
-	n.Labels = make(map[string]string)
-	n.Labels[v1.LabelZoneRegion] = "eastus2"
-	wantPrice := "0.443952693121295"
-=======
 	n.Spec.ProviderID = "azure:///subscriptions/123a7sd-asd-1234-578a9-123abcdef/resourceGroups/case_12_STaGe_TeSt7/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-agent-worker0-12stagetest7-ezggnore/virtualMachines/7"
 	n.Labels = make(map[string]string)
 	n.Labels[v1.LabelZoneRegion] = "eastus2"
 	wantPrice := "0.13370357"
->>>>>>> 2ceed3650993693345cd3222ceab14547daebb4b
 
 	c := &cloud.CSVProvider{
 		CSVLocation: "../configs/pricing_schema_case.csv",

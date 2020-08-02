@@ -102,6 +102,8 @@ type AWS struct {
 	DownloadPricingDataLock sync.RWMutex
 	Config                  *ProviderConfig
 	ServiceAccountChecks    []*ServiceAccountCheck
+	canListSpotObjects      bool
+	canGetSpotObjects       bool
 	*CustomProvider
 }
 
@@ -2228,7 +2230,30 @@ func (a *AWS) getReservedInstances() ([]*AWSReservedInstance, error) {
 }
 
 func (a *AWS) ServiceAccountStatus() *ServiceAccountStatus {
+	checks := []*ServiceAccountCheck{}
+	if a.canGetSpotObjects {
+		checks = append(checks, &ServiceAccountCheck{
+			Message: "Can Get Objects in Spot Bucket",
+			Status:  true,
+		})
+	} else {
+		checks = append(checks, &ServiceAccountCheck{
+			Message: "Can Get Objects in Spot Bucket",
+			Status:  false,
+		})
+	}
+	if a.canListSpotObjects {
+		checks = append(checks, &ServiceAccountCheck{
+			Message: "Can List Objects in Spot Bucket",
+			Status:  true,
+		})
+	} else {
+		checks = append(checks, &ServiceAccountCheck{
+			Message: "Can List Objects in Spot Bucket",
+			Status:  false,
+		})
+	}
 	return &ServiceAccountStatus{
-		Checks: []*ServiceAccountCheck{},
+		Checks: checks,
 	}
 }
