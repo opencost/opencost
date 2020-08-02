@@ -1154,6 +1154,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 		if newCnode.Region == "" {
 			newCnode.Region = n.Labels[v1.LabelZoneRegion]
 		}
+		newCnode.ProviderID = n.Spec.ProviderID
 
 		var cpu float64
 		if newCnode.VCPU == "" {

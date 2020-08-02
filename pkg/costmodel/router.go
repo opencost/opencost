@@ -50,6 +50,7 @@ var (
 	productAnalyticsEnabled         bool   = env.IsProductAnalyticsEnabled()
 	errorReportingEnabled           bool   = env.IsErrorReportingEnabled()
 	valuesReportingEnabled          bool   = env.IsValuesReportingEnabled()
+	clusterProfile                  string = env.GetClusterProfile()
 	multiclusterDBBasicAuthUsername string = env.GetMultiClusterBasicAuthUsername()
 	multiclusterDBBasicAuthPW       string = env.GetMultiClusterBasicAuthPassword()
 )
@@ -625,6 +626,13 @@ func (p *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httpro
 		klog.Infof("Could not get k8s version info: %s", err.Error())
 	}
 
+	// Ensure we create the info object if it doesn't exist
+	if data == nil {
+		data = make(map[string]string)
+	}
+
+	data["clusterProfile"] = clusterProfile
+
 	// Include Product Reporting Flags with Cluster Info
 	writeReportingFlags(data)
 
@@ -732,11 +740,11 @@ func (a *Accesses) recordPrices() {
 
 				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
-				a.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion).Set(cpuCost)
-				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion).Set(ramCost)
-				a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion).Set(gpuCost)
-				a.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion).Set(totalCost)
-				labelKey := getKeyFromLabelStrings(nodeName, nodeName)
+				a.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(cpuCost)
+				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(ramCost)
+				a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(gpuCost)
+				a.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(totalCost)
+				labelKey := getKeyFromLabelStrings(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID)
 				nodeSeen[labelKey] = true
 			}
 
@@ -811,11 +819,32 @@ func (a *Accesses) recordPrices() {
 			}
 			for labelString, seen := range nodeSeen {
 				if !seen {
+					klog.Infof("Removing %s from nodes", labelString)
 					labels := getLabelStringsFromKey(labelString)
-					a.NodeTotalPriceRecorder.DeleteLabelValues(labels...)
-					a.CPUPriceRecorder.DeleteLabelValues(labels...)
-					a.GPUPriceRecorder.DeleteLabelValues(labels...)
-					a.RAMPriceRecorder.DeleteLabelValues(labels...)
+					ok := a.NodeTotalPriceRecorder.DeleteLabelValues(labels...)
+					if ok {
+						klog.Infof("removed %s from totalprice", labelString)
+					} else {
+						klog.Infof("FAILURE TO REMOVE %s from totalprice", labelString)
+					}
+					ok = a.CPUPriceRecorder.DeleteLabelValues(labels...)
+					if ok {
+						klog.Infof("removed %s from cpuprice", labelString)
+					} else {
+						klog.Infof("FAILURE TO REMOVE %s from cpuprice", labelString)
+					}
+					ok = a.GPUPriceRecorder.DeleteLabelValues(labels...)
+					if ok {
+						klog.Infof("removed %s from gpuprice", labelString)
+					} else {
+						klog.Infof("FAILURE TO REMOVE %s from gpuprice", labelString)
+					}
+					ok = a.RAMPriceRecorder.DeleteLabelValues(labels...)
+					if ok {
+						klog.Infof("removed %s from ramprice", labelString)
+					} else {
+						klog.Infof("FAILURE TO REMOVE %s from ramprice", labelString)
+					}
 					delete(nodeSeen, labelString)
 				}
 				nodeSeen[labelString] = false
@@ -1040,22 +1069,22 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	cpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_cpu_hourly_cost",
 		Help: "node_cpu_hourly_cost hourly cost for each cpu on this node",
-	}, []string{"instance", "node", "instance_type", "region"})
+	}, []string{"instance", "node", "instance_type", "region", "provider_id"})
 
 	ramGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_ram_hourly_cost",
 		Help: "node_ram_hourly_cost hourly cost for each gb of ram on this node",
-	}, []string{"instance", "node", "instance_type", "region"})
+	}, []string{"instance", "node", "instance_type", "region", "provider_id"})
 
 	gpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_gpu_hourly_cost",
 		Help: "node_gpu_hourly_cost hourly cost for each gpu on this node",
-	}, []string{"instance", "node", "instance_type", "region"})
+	}, []string{"instance", "node", "instance_type", "region", "provider_id"})
 
 	totalGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_total_hourly_cost",
 		Help: "node_total_hourly_cost Total node cost per hour",
-	}, []string{"instance", "node", "instance_type", "region"})
+	}, []string{"instance", "node", "instance_type", "region", "provider_id"})
 
 	pvGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "pv_hourly_cost",
