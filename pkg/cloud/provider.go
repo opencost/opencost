@@ -163,8 +163,9 @@ type ServiceAccountStatus struct {
 }
 
 type ServiceAccountCheck struct {
-	Message string `json:"message"`
-	Status  bool   `json:"status"`
+	Message        string `json:"message"`
+	Status         bool   `json:"status"`
+	AdditionalInfo string `json:additionalInfo`
 }
 
 // Provider represents a k8s provider.
