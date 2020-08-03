@@ -514,7 +514,7 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.DownloadPricingDataLock.Lock()
 	defer aws.DownloadPricingDataLock.Unlock()
 	if aws.ServiceAccountChecks == nil {
-		aws.ServiceAccountChecks = []*ServiceAccountCheck{}
+		aws.ServiceAccountChecks = make(map[string]*ServiceAccountCheck)
 	}
 	c, err := aws.Config.GetCustomPricingData()
 	if err != nil {
@@ -1891,8 +1891,8 @@ func (a *AWS) parseSpotData(bucket string, prefix string, projectID string, regi
 		}
 		return nil, err
 	} else {
-		a.ServiceAccountChecks["objectList"] = &ServiceAccountCheck{
-			Message: "Object Get Permissions Available",
+		a.ServiceAccountChecks["bucketList"] = &ServiceAccountCheck{
+			Message: "Bucket List Permissions Available",
 			Status:  true,
 		}
 	}
