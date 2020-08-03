@@ -395,7 +395,6 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 				return err
 			}
 		}
-
 		return nil
 	})
 }
@@ -1097,18 +1096,41 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 
 // Gets the aws key id and secret
 func (aws *AWS) getAWSAuth(forceReload bool, cp *CustomPricing) (string, string) {
+	if aws.ServiceAccountChecks == nil { // safety in case checks don't exist
+		aws.ServiceAccountChecks = make(map[string]*ServiceAccountCheck)
+	}
+
 	// 1. Check config values first (set from frontend UI)
 	if cp.ServiceKeyName != "" && cp.ServiceKeySecret != "" {
+		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
+			Message: "ServiceKey exists",
+			Status:  true,
+		}
 		return cp.ServiceKeyName, cp.ServiceKeySecret
 	}
 
 	// 2. Check for secret
 	s, _ := aws.loadAWSAuthSecret(forceReload)
 	if s != nil && s.AccessKeyID != "" && s.SecretAccessKey != "" {
+		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
+			Message: "ServiceKey exists",
+			Status:  true,
+		}
 		return s.AccessKeyID, s.SecretAccessKey
 	}
 
 	// 3. Fall back to env vars
+	if env.GetAWSAccessKeyID() == "" || env.GetAWSAccessKeyID() == "" {
+		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
+			Message: "ServiceKey exists",
+			Status:  false,
+		}
+	} else {
+		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
+			Message: "ServiceKey exists",
+			Status:  true,
+		}
+	}
 	return env.GetAWSAccessKeyID(), env.GetAWSAccessKeySecret()
 }
 
@@ -1152,20 +1174,6 @@ func (aws *AWS) configureAWSAuth() error {
 		err = env.Set(env.AWSAccessKeySecretEnvVar, accessKeySecret)
 		if err != nil {
 			return err
-		}
-	}
-	if aws.ServiceAccountChecks == nil {
-		aws.ServiceAccountChecks = make(map[string]*ServiceAccountCheck)
-	}
-	if env.Get(env.AWSAccessKeyIDEnvVar, "") == "" || env.Get(env.AWSAccessKeySecretEnvVar, "") == "" {
-		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
-			Message: "ServiceKey exists",
-			Status:  false,
-		}
-	} else {
-		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
-			Message: "ServiceKey exists",
-			Status:  true,
 		}
 	}
 	return nil
