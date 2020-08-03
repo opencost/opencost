@@ -1,0 +1,2 @@
+EndTimestamp,InstanceID,Region,AssetClass,InstanceIDField,InstanceType,MarketPriceHourly,Version
+2020-07-20,/subscriptions/123a7sd-asd-1234-578a9-123abcdef/resourceGroups/CASE_12_STAGE_TEST7/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-agent-worker0-12stagetest7-ezggnore/virtualMachines/7,eastus2,node,spec.providerID,Standard_F32s_v2,0.13370357,
