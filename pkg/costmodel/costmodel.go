@@ -218,6 +218,7 @@ const (
 	queryDeploymentLabels     = `avg_over_time(deployment_match_labels[%s])`
 	queryStatefulsetLabels    = `avg_over_time(statefulSet_match_labels[%s])`
 	queryPodDaemonsets        = `sum(kube_pod_owner{owner_kind="DaemonSet"}) by (namespace,pod,owner_name,cluster_id)`
+	queryPodJobs              = `sum(kube_pod_owner{owner_kind="Job"}) by (namespace,pod,owner_name,cluster_id)`
 	queryServiceLabels        = `avg_over_time(service_selector_labels[%s])`
 	queryZoneNetworkUsage     = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
@@ -1738,7 +1739,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		return CostDataRangeFromSQL("", "", windowString, remoteStartStr, remoteEndStr)
 	}
 
-	numQueries := 21
+	numQueries := 22
 
 	var wg sync.WaitGroup
 	wg.Add(numQueries)
@@ -1981,6 +1982,19 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 			ec.Report(fmt.Errorf("Daemonsets: %s", promErr))
 		}
 	}()
+	var jobResults interface{}
+	go func() {
+		defer wg.Done()
+		defer measureTimeAsync(time.Now(), profileThreshold, "Jobs", queryProfileCh)
+		defer errors.HandlePanic()
+
+		var promErr error
+		jobResults, promErr = QueryRange(cli, fmt.Sprintf(queryPodJobs), start, end, window)
+
+		if promErr != nil {
+			ec.Report(fmt.Errorf("Jobs: %s", promErr))
+		}
+	}()
 	var statefulsetLabelsResults interface{}
 	go func() {
 		defer wg.Done()
@@ -2032,6 +2046,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		if k8sErr != nil {
 			return
 		}
+
 		namespaceLabelsMapping, k8sErr = getNamespaceLabels(cm.Cache, clusterID)
 		if k8sErr != nil {
 			return
@@ -2156,6 +2171,11 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	podDaemonsets, err := GetPodDaemonsetsWithMetrics(daemonsetResults, clusterID)
 	if err != nil {
 		klog.V(1).Infof("Unable to get Pod Daemonsets for Metrics: %s", err.Error())
+	}
+
+	podJobs, err := GetPodJobsWithMetrics(jobResults, clusterID)
+	if err != nil {
+		klog.V(1).Infof("Unable to get Pod Jobs for Metrics: %s", err.Error())
 	}
 
 	podServicesMetricsMapping, err := getPodServicesWithMetrics(serviceLabels, podLabels)
@@ -2407,6 +2427,11 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 			pds = []string{ds}
 		}
 
+		jobs := []string{}
+		if job, ok := podJobs[podKey]; ok {
+			jobs = []string{job}
+		}
+
 		costs := &CostData{
 			Name:            c.ContainerName,
 			PodName:         c.PodName,
@@ -2417,6 +2442,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 			Deployments:     podDeployments,
 			Daemonsets:      pds,
 			Statefulsets:    podStatefulSets,
+			Jobs:            jobs,
 			RAMReq:          RAMReqV,
 			RAMUsed:         RAMUsedV,
 			CPUReq:          CPUReqV,
