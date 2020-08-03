@@ -283,6 +283,42 @@ func GetPodDaemonsetsWithMetrics(queryResult interface{}, defaultClusterID strin
 	return toReturn, nil
 }
 
+func GetPodJobsWithMetrics(queryResult interface{}, defaultClusterID string) (map[string]string, error) {
+	toReturn := make(map[string]string)
+
+	// TODO: Pass actual query instead of PodJobsWithMetrics
+	result, err := prom.NewQueryResults("PodJobsWithMetrics", queryResult)
+	if err != nil {
+		return toReturn, err
+	}
+	for _, val := range result.Results {
+		ds, err := val.GetString("owner_name")
+		if err != nil {
+			return toReturn, err
+		}
+
+		ns, err := val.GetString("namespace")
+		if err != nil {
+			return toReturn, err
+		}
+
+		clusterID, err := val.GetString("cluster_id")
+		if clusterID == "" {
+			clusterID = defaultClusterID
+		}
+
+		pod, err := val.GetString("pod")
+		if err != nil {
+			return toReturn, err
+		}
+
+		nsKey := ns + "," + pod + "," + clusterID
+		toReturn[nsKey] = ds
+	}
+
+	return toReturn, nil
+}
+
 func GetDeploymentMatchLabelsMetrics(queryResult interface{}, defaultClusterID string) (map[string]map[string]string, error) {
 	toReturn := make(map[string]map[string]string)
 
