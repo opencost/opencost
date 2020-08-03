@@ -1110,6 +1110,20 @@ func (aws *AWS) configureAWSAuth() error {
 			return err
 		}
 	}
+	if aws.ServiceAccountChecks == nil {
+		aws.ServiceAccountChecks = make(map[string]*ServiceAccountCheck)
+	}
+	if env.Get(env.AWSAccessKeyIDEnvVar, "") == "" || env.Get(env.AWSAccessKeySecretEnvVar, "") == "" {
+		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
+			Message: "ServiceKey exists",
+			Status:  false,
+		}
+	} else {
+		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
+			Message: "ServiceKey exists",
+			Status:  true,
+		}
+	}
 	return nil
 }
 
