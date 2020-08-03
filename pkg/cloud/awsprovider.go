@@ -1957,7 +1957,6 @@ func (f fnames) Less(i, j int) bool {
 
 func parseSpotData(bucket string, prefix string, projectID string, region string, accessKeyID string, accessKeySecret string) (map[string]*spotInfo, error) {
 	// credentials may exist on the actual AWS node-- if so, use those. If not, override with the service key
-	klog.Infof("AWS KEY USED FOR SPOT: '%s'", accessKeyID)
 	if accessKeyID != "" && accessKeySecret != "" {
 		err := env.Set(env.AWSAccessKeyIDEnvVar, accessKeyID)
 		if err != nil {
