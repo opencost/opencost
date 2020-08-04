@@ -1,6 +1,7 @@
 package costmodel
 
 import (
+	"errors"
 	"fmt"
 
 	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
@@ -385,4 +386,24 @@ func GetServiceSelectorLabelsMetrics(queryResult interface{}, defaultClusterID s
 	}
 
 	return toReturn, nil
+}
+
+func parsePodLabels(qrs []*prom.QueryResult) (map[string]map[string]string, error) {
+	podLabels := map[string]map[string]string{}
+
+	for _, result := range qrs {
+		pod, err := result.GetString("pod")
+		if err != nil {
+			return podLabels, errors.New("missing pod field")
+		}
+
+		if _, ok := podLabels[pod]; ok {
+			podLabels[pod] = result.GetLabels()
+		} else {
+			podLabels[pod] = map[string]string{}
+			podLabels[pod] = result.GetLabels()
+		}
+	}
+
+	return podLabels, nil
 }

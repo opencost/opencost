@@ -232,31 +232,45 @@ func ValidatePrometheus(cli prometheusClient.Client, isThanos bool) (*Prometheus
 	if isThanos {
 		q += thanos.QueryOffset()
 	}
-	data, err := Query(cli, q)
+
+	ctx := prom.NewContext(cli)
+
+	resUp, err := ctx.QuerySync(q)
 	if err != nil {
 		return &PrometheusMetadata{
 			Running:            false,
 			KubecostDataExists: false,
 		}, err
 	}
-	v, kcmetrics, err := getUptimeData(data)
-	if err != nil {
+
+	if len(resUp) == 0 {
 		return &PrometheusMetadata{
 			Running:            false,
 			KubecostDataExists: false,
-		}, err
+		}, fmt.Errorf("no running jobs on Prometheus at %s", ctx.QueryURL().Path)
 	}
-	if len(v) > 0 {
-		return &PrometheusMetadata{
-			Running:            true,
-			KubecostDataExists: kcmetrics,
-		}, nil
-	} else {
-		return &PrometheusMetadata{
-			Running:            false,
-			KubecostDataExists: false,
-		}, fmt.Errorf("No running jobs found on Prometheus at %s", cli.URL(epQuery, nil).Path)
+
+	for _, result := range resUp {
+		job, err := result.GetString("job")
+		if err != nil {
+			return &PrometheusMetadata{
+				Running:            false,
+				KubecostDataExists: false,
+			}, fmt.Errorf("up query does not have job names")
+		}
+
+		if job == "kubecost" {
+			return &PrometheusMetadata{
+				Running:            true,
+				KubecostDataExists: true,
+			}, err
+		}
 	}
+
+	return &PrometheusMetadata{
+		Running:            true,
+		KubecostDataExists: false,
+	}, nil
 }
 
 func getUptimeData(qr interface{}) ([]*util.Vector, bool, error) {
@@ -753,22 +767,22 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 	if len(missingContainers) > 0 {
 		queryHistoricalPodLabels := fmt.Sprintf(`kube_pod_labels{}[%s]`, window)
 
-		podLabelsResult, err := Query(cli, queryHistoricalPodLabels)
+		podLabelsResult, err := prom.NewContext(cli).QuerySync(queryHistoricalPodLabels)
 		if err != nil {
-			klog.V(1).Infof("Error parsing historical labels: %s", err.Error())
+			log.Errorf("failed to parse historical pod labels: %s", err.Error())
 		}
 		podLabels := make(map[string]map[string]string)
 		if podLabelsResult != nil {
-			podLabels, err = labelsFromPrometheusQuery(podLabelsResult)
+			podLabels, err = parsePodLabels(podLabelsResult)
 			if err != nil {
-				klog.V(1).Infof("Error parsing historical labels: %s", err.Error())
+				log.Errorf("failed to parse historical pod labels: %s", err.Error())
 			}
 		}
 		for key, costData := range missingContainers {
 			cm, _ := NewContainerMetricFromKey(key)
 			labels, ok := podLabels[cm.PodName]
 			if !ok {
-				klog.V(1).Infof("Unable to find historical data for pod '%s'", cm.PodName)
+				log.Errorf("unable to find historical data for pod '%s'", cm.PodName)
 				labels = make(map[string]string)
 			}
 			for k, v := range costData.NamespaceLabels {
@@ -779,54 +793,6 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 	}
 
 	return nil
-}
-
-func labelsFromPrometheusQuery(qr interface{}) (map[string]map[string]string, error) {
-	toReturn := make(map[string]map[string]string)
-	data, ok := qr.(map[string]interface{})["data"]
-	if !ok {
-		e, err := wrapPrometheusError(qr)
-		if err != nil {
-			return toReturn, err
-		}
-		return toReturn, fmt.Errorf(e)
-	}
-	for _, val := range data.(map[string]interface{})["result"].([]interface{}) {
-		metricInterface, ok := val.(map[string]interface{})["metric"]
-		if !ok {
-			return toReturn, fmt.Errorf("Metric field does not exist in data result vector")
-		}
-		metricMap, ok := metricInterface.(map[string]interface{})
-		if !ok {
-			return toReturn, fmt.Errorf("Metric field is improperly formatted")
-		}
-		pod, ok := metricMap["pod"]
-		if !ok {
-			return toReturn, fmt.Errorf("pod field does not exist in data result vector")
-		}
-		podName, ok := pod.(string)
-		if !ok {
-			return toReturn, fmt.Errorf("pod field is improperly formatted")
-		}
-
-		for labelName, labelValue := range metricMap {
-			parsedLabelName := labelName
-			parsedLv, ok := labelValue.(string)
-			if !ok {
-				return toReturn, fmt.Errorf("label value is improperly formatted")
-			}
-			if strings.HasPrefix(parsedLabelName, "label_") {
-				l := strings.Replace(parsedLabelName, "label_", "", 1)
-				if podLabels, ok := toReturn[podName]; ok {
-					podLabels[l] = parsedLv
-				} else {
-					toReturn[podName] = make(map[string]string)
-					toReturn[podName][l] = parsedLv
-				}
-			}
-		}
-	}
-	return toReturn, nil
 }
 
 func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*costAnalyzerCloud.Node, window string) error {
@@ -844,28 +810,27 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 		queryHistoricalRAMCost := fmt.Sprintf(`avg_over_time(node_ram_hourly_cost{instance=~"%s"}[%s])`, l, window)
 		queryHistoricalGPUCost := fmt.Sprintf(`avg_over_time(node_gpu_hourly_cost{instance=~"%s"}[%s])`, l, window)
 
-		cpuCostResult, err := Query(cli, queryHistoricalCPUCost)
-		if err != nil {
-			return fmt.Errorf("Error fetching cpu cost data: " + err.Error())
-		}
-		ramCostResult, err := Query(cli, queryHistoricalRAMCost)
-		if err != nil {
-			return fmt.Errorf("Error fetching ram cost data: " + err.Error())
-		}
-		gpuCostResult, err := Query(cli, queryHistoricalGPUCost)
-		if err != nil {
-			return fmt.Errorf("Error fetching gpu cost data: " + err.Error())
+		ctx := prom.NewContext(cli)
+		cpuCostResCh := ctx.Query(queryHistoricalCPUCost)
+		ramCostResCh := ctx.Query(queryHistoricalRAMCost)
+		gpuCostResCh := ctx.Query(queryHistoricalGPUCost)
+
+		cpuCostRes, _ := cpuCostResCh.Await()
+		ramCostRes, _ := ramCostResCh.Await()
+		gpuCostRes, _ := gpuCostResCh.Await()
+		if ctx.HasErrors() {
+			return ctx.Errors()[0]
 		}
 
-		cpuCosts, err := getCost(cpuCostResult)
+		cpuCosts, err := getCost(cpuCostRes)
 		if err != nil {
 			return err
 		}
-		ramCosts, err := getCost(ramCostResult)
+		ramCosts, err := getCost(ramCostRes)
 		if err != nil {
 			return err
 		}
-		gpuCosts, err := getCost(gpuCostResult)
+		gpuCosts, err := getCost(gpuCostRes)
 		if err != nil {
 			return err
 		}

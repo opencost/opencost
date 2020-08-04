@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -15,8 +16,9 @@ import (
 )
 
 const (
-	apiPrefix = "/api/v1"
-	epQuery   = apiPrefix + "/query"
+	apiPrefix    = "/api/v1"
+	epQuery      = apiPrefix + "/query"
+	epQueryRange = apiPrefix + "/query_range"
 )
 
 // Context wraps a Prometheus client and provides methods for querying and
@@ -81,7 +83,7 @@ func (ctx *Context) QueryAll(queries ...string) []QueryResultsChan {
 	return resChs
 }
 
-func (ctx *Context) QuerySync(query string) (*QueryResults, error) {
+func (ctx *Context) QuerySync(query string) ([]*QueryResult, error) {
 	raw, err := ctx.query(query)
 	if err != nil {
 		return nil, err
@@ -92,7 +94,12 @@ func (ctx *Context) QuerySync(query string) (*QueryResults, error) {
 		return nil, err
 	}
 
-	return results, nil
+	return results.Results, nil
+}
+
+// QueryURL returns the URL used to query Prometheus
+func (ctx *Context) QueryURL() *url.URL {
+	return ctx.Client.URL(epQuery, nil)
 }
 
 func (ctx *Context) query(query string) (interface{}, error) {
@@ -159,8 +166,13 @@ func (ctx *Context) QueryRangeSync(query string, start, end time.Time, step time
 	return results, nil
 }
 
+// QueryRangeURL returns the URL used to query_range Prometheus
+func (ctx *Context) QueryRangeURL() *url.URL {
+	return ctx.Client.URL(epQueryRange, nil)
+}
+
 func (ctx *Context) queryRange(query string, start, end time.Time, step time.Duration) (interface{}, error) {
-	u := ctx.Client.URL(epQuery, nil)
+	u := ctx.Client.URL(epQueryRange, nil)
 	q := u.Query()
 	q.Set("query", query)
 	q.Set("start", start.Format(time.RFC3339Nano))
