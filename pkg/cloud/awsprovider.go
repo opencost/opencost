@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"regexp"
@@ -20,7 +19,9 @@ import (
 	"k8s.io/klog"
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/errors"
+	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -37,8 +38,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-const awsAccessKeyIDEnvVar = "AWS_ACCESS_KEY_ID"
-const awsAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 const awsReservedInstancePricePerHour = 0.0287
 const supportedSpotFeedVersion = "1"
 const SpotInfoUpdateType = "spotinfo"
@@ -77,31 +76,35 @@ var awsRegions = []string{
 
 // AWS represents an Amazon Provider
 type AWS struct {
-	Pricing                 map[string]*AWSProductTerms
-	SpotPricingByInstanceID map[string]*spotInfo
-	SpotPricingUpdatedAt    *time.Time
-	SpotRefreshRunning      bool
-	SpotPricingLock         sync.RWMutex
-	RIPricingByInstanceID   map[string]*RIData
-	RIDataRunning           bool
-	RIDataLock              sync.RWMutex
-	ValidPricingKeys        map[string]bool
-	Clientset               clustercache.ClusterCache
-	BaseCPUPrice            string
-	BaseRAMPrice            string
-	BaseGPUPrice            string
-	BaseSpotCPUPrice        string
-	BaseSpotRAMPrice        string
-	SpotLabelName           string
-	SpotLabelValue          string
-	ServiceKeyName          string
-	ServiceKeySecret        string
-	SpotDataRegion          string
-	SpotDataBucket          string
-	SpotDataPrefix          string
-	ProjectID               string
-	DownloadPricingDataLock sync.RWMutex
-	Config                  *ProviderConfig
+	Pricing                     map[string]*AWSProductTerms
+	SpotPricingByInstanceID     map[string]*spotInfo
+	SpotPricingUpdatedAt        *time.Time
+	SpotRefreshRunning          bool
+	SpotPricingLock             sync.RWMutex
+	RIPricingByInstanceID       map[string]*RIData
+	RIDataRunning               bool
+	RIDataLock                  sync.RWMutex
+	SavingsPlanDataByInstanceID map[string]*SavingsPlanData
+	SavingsPlanDataRunning      bool
+	SavingsPlanDataLock         sync.RWMutex
+	ValidPricingKeys            map[string]bool
+	Clientset                   clustercache.ClusterCache
+	BaseCPUPrice                string
+	BaseRAMPrice                string
+	BaseGPUPrice                string
+	BaseSpotCPUPrice            string
+	BaseSpotRAMPrice            string
+	SpotLabelName               string
+	SpotLabelValue              string
+	ServiceKeyName              string
+	ServiceKeySecret            string
+	SpotDataRegion              string
+	SpotDataBucket              string
+	SpotDataPrefix              string
+	ProjectID                   string
+	DownloadPricingDataLock     sync.RWMutex
+	Config                      *ProviderConfig
+	ServiceAccountChecks        map[string]*ServiceAccountCheck
 	*CustomProvider
 }
 
@@ -386,14 +389,12 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 			}
 		}
 
-		remoteEnabled := os.Getenv(remoteEnabled)
-		if remoteEnabled == "true" {
-			err := UpdateClusterMeta(os.Getenv(clusterIDKey), c.ClusterName)
+		if env.IsRemoteEnabled() {
+			err := UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return err
 			}
 		}
-
 		return nil
 	})
 }
@@ -514,6 +515,9 @@ func (aws *AWS) isPreemptible(key string) bool {
 func (aws *AWS) DownloadPricingData() error {
 	aws.DownloadPricingDataLock.Lock()
 	defer aws.DownloadPricingDataLock.Unlock()
+	if aws.ServiceAccountChecks == nil {
+		aws.ServiceAccountChecks = make(map[string]*ServiceAccountCheck)
+	}
 	c, err := aws.Config.GetCustomPricingData()
 	if err != nil {
 		klog.V(1).Infof("Error downloading default pricing data: %s", err.Error())
@@ -587,6 +591,25 @@ func (aws *AWS) DownloadPricingData() error {
 					err := aws.GetReservationDataFromAthena()
 					if err != nil {
 						klog.Infof("Error updating RI data: %s", err.Error())
+					}
+				}
+			}()
+		}
+	}
+	if !aws.SavingsPlanDataRunning && c.AthenaBucketName != "" {
+		err = aws.GetSavingsPlanDataFromAthena()
+		if err != nil {
+			klog.V(1).Infof("Failed to lookup savings plan data: %s", err.Error())
+		} else {
+			go func() {
+				defer errors.HandlePanic()
+				aws.SavingsPlanDataRunning = true
+				for {
+					klog.Infof("Savings Plan watcher running... next update in 1h")
+					time.Sleep(time.Hour)
+					err := aws.GetSavingsPlanDataFromAthena()
+					if err != nil {
+						klog.Infof("Error updating Savings Plan data: %s", err.Error())
 					}
 				}
 			}()
@@ -775,7 +798,7 @@ func (aws *AWS) refreshSpotPricing(force bool) {
 		return
 	}
 
-	sp, err := parseSpotData(aws.SpotDataBucket, aws.SpotDataPrefix, aws.ProjectID, aws.SpotDataRegion, aws.ServiceKeyName, aws.ServiceKeySecret)
+	sp, err := aws.parseSpotData(aws.SpotDataBucket, aws.SpotDataPrefix, aws.ProjectID, aws.SpotDataRegion, aws.ServiceKeyName, aws.ServiceKeySecret)
 	if err != nil {
 		klog.V(1).Infof("Skipping AWS spot data download: %s", err.Error())
 		return
@@ -835,6 +858,14 @@ func (aws *AWS) reservedInstancePricing(instanceID string) (*RIData, bool) {
 	return data, ok
 }
 
+func (aws *AWS) savingsPlanPricing(instanceID string) (*SavingsPlanData, bool) {
+	aws.SavingsPlanDataLock.RLock()
+	defer aws.SavingsPlanDataLock.RUnlock()
+
+	data, ok := aws.SavingsPlanDataByInstanceID[instanceID]
+	return data, ok
+}
+
 func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*Node, error) {
 	key := k.Features()
 
@@ -872,6 +903,20 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 			BaseGPUPrice: aws.BaseGPUPrice,
 			UsageType:    usageType,
 		}, nil
+	} else if sp, ok := aws.savingsPlanPricing(k.ID()); ok {
+		strCost := fmt.Sprintf("%f", sp.EffectiveCost)
+		return &Node{
+			Cost:         strCost,
+			VCPU:         terms.VCpu,
+			RAM:          terms.Memory,
+			GPU:          terms.GPU,
+			Storage:      terms.Storage,
+			BaseCPUPrice: aws.BaseCPUPrice,
+			BaseRAMPrice: aws.BaseRAMPrice,
+			BaseGPUPrice: aws.BaseGPUPrice,
+			UsageType:    usageType,
+		}, nil
+
 	} else if ri, ok := aws.reservedInstancePricing(k.ID()); ok {
 		strCost := fmt.Sprintf("%f", ri.EffectiveCost)
 		return &Node{
@@ -966,17 +1011,13 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 		return nil, err
 	}
 
-	remote := os.Getenv(remoteEnabled)
-	remoteEnabled := false
-	if os.Getenv(remote) == "true" {
-		remoteEnabled = true
-	}
+	remoteEnabled := env.IsRemoteEnabled()
 
 	if c.ClusterName != "" {
 		m := make(map[string]string)
 		m["name"] = c.ClusterName
 		m["provider"] = "AWS"
-		m["id"] = os.Getenv(clusterIDKey)
+		m["id"] = env.GetClusterID()
 		m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 		return m, nil
 	}
@@ -985,12 +1026,12 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 		m := make(map[string]string)
 		m["name"] = clusterName
 		m["provider"] = "AWS"
-		m["id"] = os.Getenv(clusterIDKey)
+		m["id"] = env.GetClusterID()
 		m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 		return m, nil
 	}
 
-	maybeClusterId := os.Getenv(ClusterIdEnvVar)
+	maybeClusterId := env.GetAWSClusterID()
 	if len(maybeClusterId) != 0 {
 		return makeStructure(maybeClusterId)
 	}
@@ -1049,25 +1090,48 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 			}
 		}
 	}*/
-	klog.V(2).Infof("Unable to sniff out cluster ID, perhaps set $%s to force one", ClusterIdEnvVar)
+	klog.V(2).Infof("Unable to sniff out cluster ID, perhaps set $%s to force one", env.AWSClusterIDEnvVar)
 	return makeStructure(defaultClusterName)
 }
 
 // Gets the aws key id and secret
 func (aws *AWS) getAWSAuth(forceReload bool, cp *CustomPricing) (string, string) {
+	if aws.ServiceAccountChecks == nil { // safety in case checks don't exist
+		aws.ServiceAccountChecks = make(map[string]*ServiceAccountCheck)
+	}
+
 	// 1. Check config values first (set from frontend UI)
 	if cp.ServiceKeyName != "" && cp.ServiceKeySecret != "" {
+		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
+			Message: "AWS ServiceKey exists",
+			Status:  true,
+		}
 		return cp.ServiceKeyName, cp.ServiceKeySecret
 	}
 
 	// 2. Check for secret
 	s, _ := aws.loadAWSAuthSecret(forceReload)
 	if s != nil && s.AccessKeyID != "" && s.SecretAccessKey != "" {
+		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
+			Message: "AWS ServiceKey exists",
+			Status:  true,
+		}
 		return s.AccessKeyID, s.SecretAccessKey
 	}
 
 	// 3. Fall back to env vars
-	return os.Getenv(awsAccessKeyIDEnvVar), os.Getenv(awsAccessKeySecretEnvVar)
+	if env.GetAWSAccessKeyID() == "" || env.GetAWSAccessKeyID() == "" {
+		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
+			Message: "AWS ServiceKey exists",
+			Status:  false,
+		}
+	} else {
+		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
+			Message: "AWS ServiceKey exists",
+			Status:  true,
+		}
+	}
+	return env.GetAWSAccessKeyID(), env.GetAWSAccessKeySecret()
 }
 
 // Load once and cache the result (even on failure). This is an install time secret, so
@@ -1103,11 +1167,11 @@ func (aws *AWS) configureAWSAuth() error {
 	accessKeyID := aws.ServiceKeyName
 	accessKeySecret := aws.ServiceKeySecret
 	if accessKeyID != "" && accessKeySecret != "" { // credentials may exist on the actual AWS node-- if so, use those. If not, override with the service key
-		err := os.Setenv(awsAccessKeyIDEnvVar, accessKeyID)
+		err := env.Set(env.AWSAccessKeyIDEnvVar, accessKeyID)
 		if err != nil {
 			return err
 		}
-		err = os.Setenv(awsAccessKeySecretEnvVar, accessKeySecret)
+		err = env.Set(env.AWSAccessKeySecretEnvVar, accessKeySecret)
 		if err != nil {
 			return err
 		}
@@ -1138,15 +1202,15 @@ func getClusterConfig(ccFile string) (map[string]string, error) {
 // a new AWS Session are set.
 func (a *AWS) SetKeyEnv() error {
 	// TODO add this to the helm chart, mirroring the cost-model
-	// configPath := os.Getenv("CONFIG_PATH")
+	// configPath := env.GetConfigPath()
 	configPath := defaultConfigPath
 	path := configPath + "aws.json"
 
 	if _, err := os.Stat(path); err != nil {
 		if os.IsNotExist(err) {
-			log.Printf("error: file %s does not exist", path)
+			log.DedupedErrorf(5, "file %s does not exist", path)
 		} else {
-			log.Printf("error: %s", err)
+			log.DedupedErrorf(5, "other file open error: %s", err)
 		}
 		return err
 	}
@@ -1165,8 +1229,8 @@ func (a *AWS) SetKeyEnv() error {
 	keySecret := configMap["awsServiceKeySecret"]
 
 	// These are required before calling NewEnvCredentials below
-	os.Setenv("AWS_ACCESS_KEY_ID", keyName)
-	os.Setenv("AWS_SECRET_ACCESS_KEY", keySecret)
+	env.Set(env.AWSAccessKeyIDEnvVar, keyName)
+	env.Set(env.AWSAccessKeySecretEnvVar, keySecret)
 
 	return nil
 }
@@ -1237,7 +1301,7 @@ func (a *AWS) GetAddresses() ([]byte, error) {
 
 	errors := []error{}
 	for err := range errorCh {
-		log.Printf("[Warning]: unable to get addresses: %s", err)
+		log.DedupedWarningf(5, "unable to get addresses: %s", err)
 		errors = append(errors, err)
 	}
 
@@ -1343,7 +1407,7 @@ func (a *AWS) GetDisks() ([]byte, error) {
 
 	errors := []error{}
 	for err := range errorCh {
-		log.Printf("[Warning]: unable to get disks: %s", err)
+		log.DedupedWarningf(5, "unable to get disks: %s", err)
 		errors = append(errors, err)
 	}
 
@@ -1420,11 +1484,11 @@ func (a *AWS) QueryAthenaBillingData(query string) (*athena.GetQueryResultsOutpu
 		return nil, err
 	}
 	if customPricing.ServiceKeyName != "" {
-		err = os.Setenv(awsAccessKeyIDEnvVar, customPricing.ServiceKeyName)
+		err = env.Set(env.AWSAccessKeyIDEnvVar, customPricing.ServiceKeyName)
 		if err != nil {
 			return nil, err
 		}
-		err = os.Setenv(awsAccessKeySecretEnvVar, customPricing.ServiceKeySecret)
+		err = env.Set(env.AWSAccessKeySecretEnvVar, customPricing.ServiceKeySecret)
 		if err != nil {
 			return nil, err
 		}
@@ -1489,6 +1553,76 @@ func (a *AWS) QueryAthenaBillingData(query string) (*athena.GetQueryResultsOutpu
 	} else {
 		return nil, fmt.Errorf("No results available for %s", query)
 	}
+}
+
+type SavingsPlanData struct {
+	ResourceID     string
+	EffectiveCost  float64
+	SavingsPlanARN string
+	MostRecentDate string
+}
+
+func (a *AWS) GetSavingsPlanDataFromAthena() error {
+	cfg, err := a.GetConfig()
+	if err != nil {
+		return err
+	}
+	if cfg.AthenaBucketName == "" {
+		return fmt.Errorf("No Athena Bucket configured")
+	}
+	if a.SavingsPlanDataByInstanceID == nil {
+		a.SavingsPlanDataByInstanceID = make(map[string]*SavingsPlanData)
+	}
+	tNow := time.Now()
+	tOneDayAgo := tNow.Add(time.Duration(-25) * time.Hour) // Also get files from one day ago to avoid boundary conditions
+	start := tOneDayAgo.Format("2006-01-02")
+	end := tNow.Format("2006-01-02")
+	q := `SELECT   
+		line_item_usage_start_date,
+		savings_plan_savings_plan_a_r_n,
+		line_item_resource_id,
+		savings_plan_savings_plan_effective_cost
+	FROM %s as cost_data
+	WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s'
+	AND line_item_line_item_type = 'SavingsPlanCoveredUsage' ORDER BY 
+	line_item_usage_start_date DESC`
+	query := fmt.Sprintf(q, cfg.AthenaTable, start, end)
+	op, err := a.QueryAthenaBillingData(query)
+	if err != nil {
+		return fmt.Errorf("Error fetching Savings Plan Data: %s", err)
+	}
+	klog.Infof("Fetching SavingsPlan data...")
+	if len(op.ResultSet.Rows) > 1 {
+		a.SavingsPlanDataLock.Lock()
+		mostRecentDate := ""
+		for _, r := range op.ResultSet.Rows[1:(len(op.ResultSet.Rows) - 1)] {
+			d := *r.Data[0].VarCharValue
+			if mostRecentDate == "" {
+				mostRecentDate = d
+			} else if mostRecentDate != d { // Get all most recent assignments
+				break
+			}
+			cost, err := strconv.ParseFloat(*r.Data[3].VarCharValue, 64)
+			if err != nil {
+				klog.Infof("Error converting `%s` from float ", *r.Data[3].VarCharValue)
+			}
+			r := &SavingsPlanData{
+				ResourceID:     *r.Data[2].VarCharValue,
+				EffectiveCost:  cost,
+				SavingsPlanARN: *r.Data[1].VarCharValue,
+				MostRecentDate: d,
+			}
+			a.SavingsPlanDataByInstanceID[r.ResourceID] = r
+		}
+		klog.V(1).Infof("Found %d savings plan applied instances", len(a.SavingsPlanDataByInstanceID))
+		for k, r := range a.SavingsPlanDataByInstanceID {
+			klog.V(1).Infof("Reserved Instance Data found for node %s : %f at time %s", k, r.EffectiveCost, r.MostRecentDate)
+		}
+		a.SavingsPlanDataLock.Unlock()
+	} else {
+		klog.Infof("No savings plan applied instance data found")
+	}
+	return nil
 }
 
 type RIData struct {
@@ -1612,11 +1746,11 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 	klog.V(3).Infof("Running Query: %s", query)
 
 	if customPricing.ServiceKeyName != "" {
-		err = os.Setenv(awsAccessKeyIDEnvVar, customPricing.ServiceKeyName)
+		err = env.Set(env.AWSAccessKeyIDEnvVar, customPricing.ServiceKeyName)
 		if err != nil {
 			return nil, err
 		}
-		err = os.Setenv(awsAccessKeySecretEnvVar, customPricing.ServiceKeySecret)
+		err = env.Set(env.AWSAccessKeySecretEnvVar, customPricing.ServiceKeySecret)
 		if err != nil {
 			return nil, err
 		}
@@ -1724,11 +1858,11 @@ func (a *AWS) QuerySQL(query string) ([]byte, error) {
 		return nil, err
 	}
 	if customPricing.ServiceKeyName != "" {
-		err = os.Setenv(awsAccessKeyIDEnvVar, customPricing.ServiceKeyName)
+		err = env.Set(env.AWSAccessKeyIDEnvVar, customPricing.ServiceKeyName)
 		if err != nil {
 			return nil, err
 		}
-		err = os.Setenv(awsAccessKeySecretEnvVar, customPricing.ServiceKeySecret)
+		err = env.Set(env.AWSAccessKeySecretEnvVar, customPricing.ServiceKeySecret)
 		if err != nil {
 			return nil, err
 		}
@@ -1847,14 +1981,18 @@ func (f fnames) Less(i, j int) bool {
 	return t1.Before(t2)
 }
 
-func parseSpotData(bucket string, prefix string, projectID string, region string, accessKeyID string, accessKeySecret string) (map[string]*spotInfo, error) {
+func (a *AWS) parseSpotData(bucket string, prefix string, projectID string, region string, accessKeyID string, accessKeySecret string) (map[string]*spotInfo, error) {
+	if a.ServiceAccountChecks == nil { // Set up checks to store error/success states
+		a.ServiceAccountChecks = make(map[string]*ServiceAccountCheck)
+	}
+
 	// credentials may exist on the actual AWS node-- if so, use those. If not, override with the service key
 	if accessKeyID != "" && accessKeySecret != "" {
-		err := os.Setenv(awsAccessKeyIDEnvVar, accessKeyID)
+		err := env.Set(env.AWSAccessKeyIDEnvVar, accessKeyID)
 		if err != nil {
 			return nil, err
 		}
-		err = os.Setenv(awsAccessKeySecretEnvVar, accessKeySecret)
+		err = env.Set(env.AWSAccessKeySecretEnvVar, accessKeySecret)
 		if err != nil {
 			return nil, err
 		}
@@ -1882,7 +2020,17 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 	}
 	lso, err := s3Svc.ListObjects(ls)
 	if err != nil {
+		a.ServiceAccountChecks["bucketList"] = &ServiceAccountCheck{
+			Message:        "Bucket List Permissions Available",
+			Status:         false,
+			AdditionalInfo: err.Error(),
+		}
 		return nil, err
+	} else {
+		a.ServiceAccountChecks["bucketList"] = &ServiceAccountCheck{
+			Message: "Bucket List Permissions Available",
+			Status:  true,
+		}
 	}
 	lsoLen := len(lso.Contents)
 	klog.V(2).Infof("Found %d spot data files from yesterday", lsoLen)
@@ -1925,7 +2073,17 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 		buf := aws.NewWriteAtBuffer([]byte{})
 		_, err := downloader.Download(buf, getObj)
 		if err != nil {
+			a.ServiceAccountChecks["objectList"] = &ServiceAccountCheck{
+				Message:        "Object Get Permissions Available",
+				Status:         false,
+				AdditionalInfo: err.Error(),
+			}
 			return nil, err
+		} else {
+			a.ServiceAccountChecks["objectList"] = &ServiceAccountCheck{
+				Message: "Object Get Permissions Available",
+				Status:  true,
+			}
 		}
 
 		r := bytes.NewReader(buf.Bytes())
@@ -1984,7 +2142,7 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 				continue
 			}
 
-			klog.V(1).Infof("Found spot info for: %s", spot.InstanceID)
+			log.DedupedInfof(5, "Found spot info for: %s", spot.InstanceID)
 			spots[spot.InstanceID] = &spot
 		}
 		gr.Close()
@@ -2226,4 +2384,14 @@ func (a *AWS) getReservedInstances() ([]*AWSReservedInstance, error) {
 	}
 
 	return reservedInstances, nil
+}
+
+func (a *AWS) ServiceAccountStatus() *ServiceAccountStatus {
+	checks := []*ServiceAccountCheck{}
+	for _, v := range a.ServiceAccountChecks {
+		checks = append(checks, v)
+	}
+	return &ServiceAccountStatus{
+		Checks: checks,
+	}
 }

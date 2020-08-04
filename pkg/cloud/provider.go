@@ -5,21 +5,18 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"k8s.io/klog"
 
 	"cloud.google.com/go/compute/metadata"
+
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/env"
 
 	v1 "k8s.io/api/core/v1"
 )
 
-const clusterIDKey = "CLUSTER_ID"
-const remoteEnabled = "REMOTE_WRITE_ENABLED"
-const remotePW = "REMOTE_WRITE_PASSWORD"
-const sqlAddress = "SQL_ADDRESS"
 const authSecretPath = "/var/secrets/service-key.json"
 
 var createTableStatements = []string{
@@ -61,6 +58,7 @@ type Node struct {
 	InstanceType     string                `json:"instanceType,omitempty"`
 	Region           string                `json:"region,omitempty"`
 	Reserved         *ReservedInstanceData `json:"reserved,omitempty"`
+	ProviderID       string                `json:"providerID,omitempty"`
 }
 
 // IsSpot determines whether or not a Node uses spot by usage type
@@ -160,6 +158,16 @@ type CustomPricing struct {
 	ReadOnly              string            `json:"readOnly"`
 }
 
+type ServiceAccountStatus struct {
+	Checks []*ServiceAccountCheck `json:"checks"`
+}
+
+type ServiceAccountCheck struct {
+	Message        string `json:"message"`
+	Status         bool   `json:"status"`
+	AdditionalInfo string `json:additionalInfo`
+}
+
 // Provider represents a k8s provider.
 type Provider interface {
 	ClusterInfo() (map[string]string, error)
@@ -179,6 +187,7 @@ type Provider interface {
 	GetLocalStorageQuery(string, string, bool, bool) string
 	ExternalAllocations(string, string, []string, string, string, bool) ([]*OutOfClusterAllocation, error)
 	ApplyReservedInstancePricing(map[string]*Node)
+	ServiceAccountStatus() *ServiceAccountStatus
 }
 
 // ClusterName returns the name defined in cluster info, defaulting to the
@@ -186,12 +195,12 @@ type Provider interface {
 func ClusterName(p Provider) string {
 	info, err := p.ClusterInfo()
 	if err != nil {
-		return os.Getenv(clusterIDKey)
+		return env.GetClusterID()
 	}
 
 	name, ok := info["name"]
 	if !ok {
-		return os.Getenv(clusterIDKey)
+		return env.GetClusterID()
 	}
 
 	return name
@@ -238,8 +247,8 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, erro
 
 	provider := strings.ToLower(nodes[0].Spec.ProviderID)
 
-	if os.Getenv("USE_CSV_PROVIDER") == "true" {
-		klog.Infof("Using CSV Provider with CSV at %s", os.Getenv("CSV_PATH"))
+	if env.IsUseCSVProvider() {
+		klog.Infof("Using CSV Provider with CSV at %s", env.GetCSVPath())
 		configFileName := ""
 		if metadata.OnGCE() {
 			configFileName = "gcp.json"
@@ -252,7 +261,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, erro
 			configFileName = "default.json"
 		}
 		return &CSVProvider{
-			CSVLocation: os.Getenv("CSV_PATH"),
+			CSVLocation: env.GetCSVPath(),
 			CustomProvider: &CustomProvider{
 				Clientset: cache,
 				Config:    NewProviderConfig(configFileName),
@@ -293,8 +302,8 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, erro
 }
 
 func UpdateClusterMeta(cluster_id, cluster_name string) error {
-	pw := os.Getenv(remotePW)
-	address := os.Getenv(sqlAddress)
+	pw := env.GetRemotePW()
+	address := env.GetSQLAddress()
 	connStr := fmt.Sprintf("postgres://postgres:%s@%s:5432?sslmode=disable", pw, address)
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -310,8 +319,8 @@ func UpdateClusterMeta(cluster_id, cluster_name string) error {
 }
 
 func CreateClusterMeta(cluster_id, cluster_name string) error {
-	pw := os.Getenv(remotePW)
-	address := os.Getenv(sqlAddress)
+	pw := env.GetRemotePW()
+	address := env.GetSQLAddress()
 	connStr := fmt.Sprintf("postgres://postgres:%s@%s:5432?sslmode=disable", pw, address)
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -333,8 +342,8 @@ func CreateClusterMeta(cluster_id, cluster_name string) error {
 }
 
 func GetClusterMeta(cluster_id string) (string, string, error) {
-	pw := os.Getenv(remotePW)
-	address := os.Getenv(sqlAddress)
+	pw := env.GetRemotePW()
+	address := env.GetSQLAddress()
 	connStr := fmt.Sprintf("postgres://postgres:%s@%s:5432?sslmode=disable", pw, address)
 	db, err := sql.Open("postgres", connStr)
 	defer db.Close()

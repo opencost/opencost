@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 
+	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/util"
 
 	"k8s.io/klog"
@@ -210,9 +210,6 @@ func fileExists(filename string) (bool, error) {
 
 // Returns the configuration directory concatenated with a specific config file name
 func configPathFor(filename string) string {
-	path := os.Getenv("CONFIG_PATH")
-	if path == "" {
-		path = "/models/"
-	}
+	path := env.GetConfigPathWithDefault("/models/")
 	return path + filename
 }

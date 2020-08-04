@@ -3,12 +3,13 @@ package cloud
 import (
 	"encoding/json"
 	"io"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/env"
+
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -106,7 +107,7 @@ func (cp *CustomProvider) ClusterInfo() (map[string]string, error) {
 		m["name"] = conf.ClusterName
 	}
 	m["provider"] = "custom"
-	m["id"] = os.Getenv(clusterIDKey)
+	m["id"] = env.GetClusterID()
 	return m, nil
 }
 
@@ -260,4 +261,10 @@ func (cpk *customProviderKey) Features() string {
 		return "default,spot"
 	}
 	return "default" // TODO: multiple custom pricing support.
+}
+
+func (cp *CustomProvider) ServiceAccountStatus() *ServiceAccountStatus {
+	return &ServiceAccountStatus{
+		Checks: []*ServiceAccountCheck{},
+	}
 }

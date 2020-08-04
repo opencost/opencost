@@ -2,14 +2,13 @@ package costmodel
 
 import (
 	"fmt"
-	"os"
-	"sync"
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/cloud"
-	"github.com/kubecost/cost-model/pkg/errors"
+	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
+
 	prometheus "github.com/prometheus/client_golang/api"
 	"k8s.io/klog"
 )
@@ -37,31 +36,6 @@ const (
 
 	queryNodes = `sum(avg(node_total_hourly_cost) by (node, cluster_id)) * 730 %s`
 )
-
-// TODO move this to a package-accessible helper
-type PromQueryContext struct {
-	Client         prometheus.Client
-	ErrorCollector *errors.ErrorCollector
-	WaitGroup      *sync.WaitGroup
-}
-
-// TODO move this to a package-accessible helper function once dependencies are able to
-// be extricated from costmodel package (PromQueryResult -> util.Vector). Otherwise, circular deps.
-func AsyncPromQuery(query string, resultCh chan []*PromQueryResult, ctx PromQueryContext) {
-	if ctx.WaitGroup != nil {
-		defer ctx.WaitGroup.Done()
-	}
-
-	defer errors.HandlePanic()
-
-	raw, promErr := Query(ctx.Client, query)
-	ctx.ErrorCollector.Report(promErr)
-
-	results, parseErr := NewQueryResults(raw)
-	ctx.ErrorCollector.Report(parseErr)
-
-	resultCh <- results
-}
 
 // Costs represents cumulative and monthly cluster costs over a given duration. Costs
 // are broken down by cores, memory, and storage.
@@ -242,7 +216,7 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 		resChs = append(resChs, bdResChs...)
 	}
 
-	defaultClusterID := os.Getenv(clusterIDKey)
+	defaultClusterID := env.GetClusterID()
 
 	dataMinsByCluster := map[string]float64{}
 	for _, result := range resChs[0].Await() {
@@ -412,10 +386,13 @@ type Totals struct {
 }
 
 func resultToTotals(qr interface{}) ([][]string, error) {
-	results, err := NewQueryResults(qr)
+	// TODO: Provide an actual query instead of resultToTotals
+	qResults, err := prom.NewQueryResults("resultToTotals", qr)
 	if err != nil {
 		return nil, err
 	}
+
+	results := qResults.Results
 
 	if len(results) == 0 {
 		return [][]string{}, fmt.Errorf("Not enough data available in the selected time range")

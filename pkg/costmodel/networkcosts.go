@@ -2,8 +2,9 @@ package costmodel
 
 import (
 	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
-	"k8s.io/klog"
 )
 
 // NetworkUsageVNetworkUsageDataector contains the network usage values for egress network traffic
@@ -138,12 +139,14 @@ func GetNetworkCost(usage *NetworkUsageData, cloud costAnalyzerCloud.Provider) (
 
 func getNetworkUsage(qr interface{}, defaultClusterID string) (map[string]*NetworkUsageVector, error) {
 	ncdmap := make(map[string]*NetworkUsageVector)
-	result, err := NewQueryResults(qr)
+
+	// TODO: Pass actual query instead of NetworkUsage
+	result, err := prom.NewQueryResults("NetworkUsage", qr)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, val := range result {
+	for _, val := range result.Results {
 		podName, err := val.GetString("pod_name")
 		if err != nil {
 			return nil, err
@@ -156,7 +159,7 @@ func getNetworkUsage(qr interface{}, defaultClusterID string) (map[string]*Netwo
 
 		clusterID, err := val.GetString("cluster_id")
 		if clusterID == "" {
-			klog.V(4).Info("Prometheus vector does not have cluster id")
+			log.Debugf("Prometheus vector does not have cluster id")
 			clusterID = defaultClusterID
 		}
 
