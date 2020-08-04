@@ -1103,7 +1103,7 @@ func (aws *AWS) getAWSAuth(forceReload bool, cp *CustomPricing) (string, string)
 	// 1. Check config values first (set from frontend UI)
 	if cp.ServiceKeyName != "" && cp.ServiceKeySecret != "" {
 		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
-			Message: "ServiceKey exists",
+			Message: "AWS ServiceKey exists",
 			Status:  true,
 		}
 		return cp.ServiceKeyName, cp.ServiceKeySecret
@@ -1113,7 +1113,7 @@ func (aws *AWS) getAWSAuth(forceReload bool, cp *CustomPricing) (string, string)
 	s, _ := aws.loadAWSAuthSecret(forceReload)
 	if s != nil && s.AccessKeyID != "" && s.SecretAccessKey != "" {
 		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
-			Message: "ServiceKey exists",
+			Message: "AWS ServiceKey exists",
 			Status:  true,
 		}
 		return s.AccessKeyID, s.SecretAccessKey
@@ -1122,12 +1122,12 @@ func (aws *AWS) getAWSAuth(forceReload bool, cp *CustomPricing) (string, string)
 	// 3. Fall back to env vars
 	if env.GetAWSAccessKeyID() == "" || env.GetAWSAccessKeyID() == "" {
 		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
-			Message: "ServiceKey exists",
+			Message: "AWS ServiceKey exists",
 			Status:  false,
 		}
 	} else {
 		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
-			Message: "ServiceKey exists",
+			Message: "AWS ServiceKey exists",
 			Status:  true,
 		}
 	}
