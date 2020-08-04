@@ -2151,69 +2151,6 @@ type PersistentVolumeClaimData struct {
 	Values     []*util.Vector        `json:"values"`
 }
 
-func getCost(qr interface{}) (map[string][]*util.Vector, error) {
-	toReturn := make(map[string][]*util.Vector)
-
-	// TODO: Pass actual query instead of getCost
-	result, err := prom.NewQueryResults("getCost", qr)
-	if err != nil {
-		return toReturn, err
-	}
-
-	for _, val := range result.Results {
-		instance, err := val.GetString("instance")
-		if err != nil {
-			return toReturn, err
-		}
-
-		toReturn[instance] = val.Values
-	}
-
-	return toReturn, nil
-}
-
-func GetContainerMetricVector(qrs []*prom.QueryResult, normalize bool, normalizationValue float64, defaultClusterID string) (map[string][]*util.Vector, error) {
-	containerData := make(map[string][]*util.Vector)
-	for _, val := range qrs {
-		containerMetric, err := NewContainerMetricFromPrometheus(val.Metric, defaultClusterID)
-		if err != nil {
-			return nil, err
-		}
-
-		if normalize && normalizationValue != 0 {
-			for _, v := range val.Values {
-				v.Value = v.Value / normalizationValue
-			}
-		}
-		containerData[containerMetric.Key()] = val.Values
-	}
-	return containerData, nil
-}
-
-func GetContainerMetricVectors(qrs []*prom.QueryResult, defaultClusterID string) (map[string][]*util.Vector, error) {
-	containerData := make(map[string][]*util.Vector)
-	for _, val := range qrs {
-		containerMetric, err := NewContainerMetricFromPrometheus(val.Metric, defaultClusterID)
-		if err != nil {
-			return nil, err
-		}
-		containerData[containerMetric.Key()] = val.Values
-	}
-	return containerData, nil
-}
-
-func GetNormalizedContainerMetricVectors(qrs []*prom.QueryResult, normalizationValues []*util.Vector, defaultClusterID string) (map[string][]*util.Vector, error) {
-	containerData := make(map[string][]*util.Vector)
-	for _, val := range qrs {
-		containerMetric, err := NewContainerMetricFromPrometheus(val.Metric, defaultClusterID)
-		if err != nil {
-			return nil, err
-		}
-		containerData[containerMetric.Key()] = util.NormalizeVectorByVector(val.Values, normalizationValues)
-	}
-	return containerData, nil
-}
-
 func measureTime(start time.Time, threshold time.Duration, name string) {
 	elapsed := time.Since(start)
 	if elapsed > threshold {

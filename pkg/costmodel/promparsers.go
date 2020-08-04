@@ -331,6 +331,63 @@ func GetServiceSelectorLabelsMetrics(qrs []*prom.QueryResult, defaultClusterID s
 	return toReturn, nil
 }
 
+func GetContainerMetricVector(qrs []*prom.QueryResult, normalize bool, normalizationValue float64, defaultClusterID string) (map[string][]*util.Vector, error) {
+	containerData := make(map[string][]*util.Vector)
+	for _, val := range qrs {
+		containerMetric, err := NewContainerMetricFromPrometheus(val.Metric, defaultClusterID)
+		if err != nil {
+			return nil, err
+		}
+
+		if normalize && normalizationValue != 0 {
+			for _, v := range val.Values {
+				v.Value = v.Value / normalizationValue
+			}
+		}
+		containerData[containerMetric.Key()] = val.Values
+	}
+	return containerData, nil
+}
+
+func GetContainerMetricVectors(qrs []*prom.QueryResult, defaultClusterID string) (map[string][]*util.Vector, error) {
+	containerData := make(map[string][]*util.Vector)
+	for _, val := range qrs {
+		containerMetric, err := NewContainerMetricFromPrometheus(val.Metric, defaultClusterID)
+		if err != nil {
+			return nil, err
+		}
+		containerData[containerMetric.Key()] = val.Values
+	}
+	return containerData, nil
+}
+
+func GetNormalizedContainerMetricVectors(qrs []*prom.QueryResult, normalizationValues []*util.Vector, defaultClusterID string) (map[string][]*util.Vector, error) {
+	containerData := make(map[string][]*util.Vector)
+	for _, val := range qrs {
+		containerMetric, err := NewContainerMetricFromPrometheus(val.Metric, defaultClusterID)
+		if err != nil {
+			return nil, err
+		}
+		containerData[containerMetric.Key()] = util.NormalizeVectorByVector(val.Values, normalizationValues)
+	}
+	return containerData, nil
+}
+
+func getCost(qrs []*prom.QueryResult) (map[string][]*util.Vector, error) {
+	toReturn := make(map[string][]*util.Vector)
+
+	for _, val := range qrs {
+		instance, err := val.GetString("instance")
+		if err != nil {
+			return toReturn, err
+		}
+
+		toReturn[instance] = val.Values
+	}
+
+	return toReturn, nil
+}
+
 // TODO niko/prom retain message:
 // normalization data is empty: time window may be invalid or kube-state-metrics or node-exporter may not be running
 func getNormalization(qrs []*prom.QueryResult) (float64, error) {
