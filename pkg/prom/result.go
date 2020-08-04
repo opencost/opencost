@@ -11,36 +11,6 @@ import (
 	"github.com/kubecost/cost-model/pkg/util"
 )
 
-// QueryResultsChan is a channel of query results
-type QueryResultsChan chan *QueryResults
-
-// Await returns query results, blocking until they are made available, and
-// deferring the closure of the underlying channel
-func (qrc QueryResultsChan) Await() []*QueryResult {
-	defer close(qrc)
-	results := <-qrc
-
-	// Possible that the returned results are nil
-	if results == nil {
-		return nil
-	}
-
-	return results.Results
-}
-
-// QueryResult contains a single result from a prometheus query. It's common
-// to refer to query results as a slice of QueryResult
-type QueryResult struct {
-	Metric map[string]interface{}
-	Values []*util.Vector
-}
-
-// QueryResults contains all of the query results and the source query string.
-type QueryResults struct {
-	Query   string
-	Results []*QueryResult
-}
-
 var (
 	// Static Warnings for data point parsing
 	InfWarning warning = newWarning("Found Inf value parsing vector data point for metric")
@@ -59,6 +29,36 @@ var (
 	ValueFieldFormatErr        error = errors.New("Values field is improperly formatted")
 	DataPointFormatErr         error = errors.New("Improperly formatted datapoint from Prometheus")
 )
+
+// QueryResultsChan is a channel of query results
+type QueryResultsChan chan *QueryResults
+
+// Await returns query results, blocking until they are made available, and
+// deferring the closure of the underlying channel
+func (qrc QueryResultsChan) Await() ([]*QueryResult, error) {
+	defer close(qrc)
+
+	results := <-qrc
+	if results.Error != nil {
+		return nil, results.Error
+	}
+
+	return results.Results, nil
+}
+
+// QueryResults contains all of the query results and the source query string.
+type QueryResults struct {
+	Query   string
+	Error   error
+	Results []*QueryResult
+}
+
+// QueryResult contains a single result from a prometheus query. It's common
+// to refer to query results as a slice of QueryResult
+type QueryResult struct {
+	Metric map[string]interface{}
+	Values []*util.Vector
+}
 
 // NewQueryResults accepts the raw prometheus query result and returns an array of
 // QueryResult objects

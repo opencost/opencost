@@ -8,7 +8,9 @@ import (
 	"github.com/kubecost/cost-model/pkg/prom"
 )
 
-func GetPVInfo(qr interface{}, defaultClusterID string) (map[string]*PersistentVolumeClaimData, error) {
+// TODO niko/prom move parsing functions from costmodel.go
+
+func GetPVInfo(qrs []*prom.QueryResult, defaultClusterID string) (map[string]*PersistentVolumeClaimData, error) {
 	toReturn := make(map[string]*PersistentVolumeClaimData)
 
 	// TODO: Pass actual query instead of PVInfo
