@@ -17,17 +17,18 @@ var (
 	NaNWarning warning = newWarning("Found NaN value parsing vector data point for metric")
 
 	// Static Errors for query result parsing
-	QueryResultNilErr          error = NewCommError("nil queryResult")
-	PromUnexpectedResponseErr  error = errors.New("Unexpected response from Prometheus")
 	DataFieldFormatErr         error = errors.New("Data field improperly formatted in prometheus repsonse")
+	DataPointFormatErr         error = errors.New("Improperly formatted datapoint from Prometheus")
+	MetricFieldDoesNotExistErr error = errors.New("Metric field does not exist in data result vector")
+	MetricFieldFormatErr       error = errors.New("Metric field is improperly formatted")
+	NoDataErr                  error = errors.New("No data")
+	PromUnexpectedResponseErr  error = errors.New("Unexpected response from Prometheus")
+	QueryResultNilErr          error = NewCommError("nil queryResult")
 	ResultFieldDoesNotExistErr error = errors.New("Result field not does not exist in prometheus response")
 	ResultFieldFormatErr       error = errors.New("Result field improperly formatted in prometheus response")
 	ResultFormatErr            error = errors.New("Result is improperly formatted")
-	MetricFieldDoesNotExistErr error = errors.New("Metric field does not exist in data result vector")
-	MetricFieldFormatErr       error = errors.New("Metric field is improperly formatted")
 	ValueFieldDoesNotExistErr  error = errors.New("Value field does not exist in data result vector")
 	ValueFieldFormatErr        error = errors.New("Values field is improperly formatted")
-	DataPointFormatErr         error = errors.New("Improperly formatted datapoint from Prometheus")
 )
 
 // QueryResultsChan is a channel of query results

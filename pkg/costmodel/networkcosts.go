@@ -140,13 +140,7 @@ func GetNetworkCost(usage *NetworkUsageData, cloud costAnalyzerCloud.Provider) (
 func getNetworkUsage(qrs []*prom.QueryResult, defaultClusterID string) (map[string]*NetworkUsageVector, error) {
 	ncdmap := make(map[string]*NetworkUsageVector)
 
-	// TODO: Pass actual query instead of NetworkUsage
-	result, err := prom.NewQueryResults("NetworkUsage", qr)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, val := range result.Results {
+	for _, val := range qrs {
 		podName, err := val.GetString("pod_name")
 		if err != nil {
 			return nil, err

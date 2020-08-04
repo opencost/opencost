@@ -216,10 +216,20 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 		resChs = append(resChs, bdResChs...)
 	}
 
+	resDataCount, _ := resChs[0].Await()
+	resTotalGPU, _ := resChs[1].Await()
+	resTotalCPU, _ := resChs[2].Await()
+	resTotalRAM, _ := resChs[3].Await()
+	resTotalStorage, _ := resChs[4].Await()
+	resTotalLocalStorage, _ := resChs[5].Await()
+	if ctx.HasErrors() {
+		return nil, ctx.Errors()[0]
+	}
+
 	defaultClusterID := env.GetClusterID()
 
 	dataMinsByCluster := map[string]float64{}
-	for _, result := range resChs[0].Await() {
+	for _, result := range resDataCount {
 		clusterID, _ := result.GetString("cluster_id")
 		if clusterID == "" {
 			clusterID = defaultClusterID
@@ -268,18 +278,26 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 		}
 	}
 	// Apply both sustained use and custom discounts to RAM and CPU
-	setCostsFromResults(costData, resChs[2].Await(), "cpu", discount, customDiscount)
-	setCostsFromResults(costData, resChs[3].Await(), "ram", discount, customDiscount)
+	setCostsFromResults(costData, resTotalCPU, "cpu", discount, customDiscount)
+	setCostsFromResults(costData, resTotalRAM, "ram", discount, customDiscount)
 	// Apply only custom discount to GPU and storage
-	setCostsFromResults(costData, resChs[1].Await(), "gpu", 0.0, customDiscount)
-	setCostsFromResults(costData, resChs[4].Await(), "storage", 0.0, customDiscount)
-	setCostsFromResults(costData, resChs[5].Await(), "localstorage", 0.0, customDiscount)
+	setCostsFromResults(costData, resTotalGPU, "gpu", 0.0, customDiscount)
+	setCostsFromResults(costData, resTotalStorage, "storage", 0.0, customDiscount)
+	setCostsFromResults(costData, resTotalLocalStorage, "localstorage", 0.0, customDiscount)
 
 	cpuBreakdownMap := map[string]*ClusterCostsBreakdown{}
 	ramBreakdownMap := map[string]*ClusterCostsBreakdown{}
 	pvUsedCostMap := map[string]float64{}
 	if withBreakdown {
-		for _, result := range resChs[6].Await() {
+		resCPUModePct, _ := resChs[6].Await()
+		resRAMSystemPct, _ := resChs[7].Await()
+		resRAMUserPct, _ := resChs[8].Await()
+		resUsedLocalStorage, _ := resChs[9].Await()
+		if ctx.HasErrors() {
+			return nil, ctx.Errors()[0]
+		}
+
+		for _, result := range resCPUModePct {
 			clusterID, _ := result.GetString("cluster_id")
 			if clusterID == "" {
 				clusterID = defaultClusterID
@@ -307,7 +325,7 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 			}
 		}
 
-		for _, result := range resChs[7].Await() {
+		for _, result := range resRAMSystemPct {
 			clusterID, _ := result.GetString("cluster_id")
 			if clusterID == "" {
 				clusterID = defaultClusterID
@@ -318,7 +336,7 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 			ramBD := ramBreakdownMap[clusterID]
 			ramBD.System += result.Values[0].Value
 		}
-		for _, result := range resChs[8].Await() {
+		for _, result := range resRAMUserPct {
 			clusterID, _ := result.GetString("cluster_id")
 			if clusterID == "" {
 				clusterID = defaultClusterID
@@ -337,7 +355,7 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 			ramBD.Idle = remaining
 		}
 
-		for _, result := range resChs[9].Await() {
+		for _, result := range resUsedLocalStorage {
 			clusterID, _ := result.GetString("cluster_id")
 			if clusterID == "" {
 				clusterID = defaultClusterID
