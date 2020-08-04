@@ -104,6 +104,7 @@ type AWS struct {
 	ProjectID                   string
 	DownloadPricingDataLock     sync.RWMutex
 	Config                      *ProviderConfig
+	ServiceAccountChecks        map[string]*ServiceAccountCheck
 	*CustomProvider
 }
 
@@ -394,7 +395,6 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 				return err
 			}
 		}
-
 		return nil
 	})
 }
@@ -515,6 +515,9 @@ func (aws *AWS) isPreemptible(key string) bool {
 func (aws *AWS) DownloadPricingData() error {
 	aws.DownloadPricingDataLock.Lock()
 	defer aws.DownloadPricingDataLock.Unlock()
+	if aws.ServiceAccountChecks == nil {
+		aws.ServiceAccountChecks = make(map[string]*ServiceAccountCheck)
+	}
 	c, err := aws.Config.GetCustomPricingData()
 	if err != nil {
 		klog.V(1).Infof("Error downloading default pricing data: %s", err.Error())
@@ -795,7 +798,7 @@ func (aws *AWS) refreshSpotPricing(force bool) {
 		return
 	}
 
-	sp, err := parseSpotData(aws.SpotDataBucket, aws.SpotDataPrefix, aws.ProjectID, aws.SpotDataRegion, aws.ServiceKeyName, aws.ServiceKeySecret)
+	sp, err := aws.parseSpotData(aws.SpotDataBucket, aws.SpotDataPrefix, aws.ProjectID, aws.SpotDataRegion, aws.ServiceKeyName, aws.ServiceKeySecret)
 	if err != nil {
 		klog.V(1).Infof("Skipping AWS spot data download: %s", err.Error())
 		return
@@ -1093,18 +1096,41 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 
 // Gets the aws key id and secret
 func (aws *AWS) getAWSAuth(forceReload bool, cp *CustomPricing) (string, string) {
+	if aws.ServiceAccountChecks == nil { // safety in case checks don't exist
+		aws.ServiceAccountChecks = make(map[string]*ServiceAccountCheck)
+	}
+
 	// 1. Check config values first (set from frontend UI)
 	if cp.ServiceKeyName != "" && cp.ServiceKeySecret != "" {
+		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
+			Message: "ServiceKey exists",
+			Status:  true,
+		}
 		return cp.ServiceKeyName, cp.ServiceKeySecret
 	}
 
 	// 2. Check for secret
 	s, _ := aws.loadAWSAuthSecret(forceReload)
 	if s != nil && s.AccessKeyID != "" && s.SecretAccessKey != "" {
+		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
+			Message: "ServiceKey exists",
+			Status:  true,
+		}
 		return s.AccessKeyID, s.SecretAccessKey
 	}
 
 	// 3. Fall back to env vars
+	if env.GetAWSAccessKeyID() == "" || env.GetAWSAccessKeyID() == "" {
+		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
+			Message: "ServiceKey exists",
+			Status:  false,
+		}
+	} else {
+		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
+			Message: "ServiceKey exists",
+			Status:  true,
+		}
+	}
 	return env.GetAWSAccessKeyID(), env.GetAWSAccessKeySecret()
 }
 
@@ -1955,7 +1981,11 @@ func (f fnames) Less(i, j int) bool {
 	return t1.Before(t2)
 }
 
-func parseSpotData(bucket string, prefix string, projectID string, region string, accessKeyID string, accessKeySecret string) (map[string]*spotInfo, error) {
+func (a *AWS) parseSpotData(bucket string, prefix string, projectID string, region string, accessKeyID string, accessKeySecret string) (map[string]*spotInfo, error) {
+	if a.ServiceAccountChecks == nil { // Set up checks to store error/success states
+		a.ServiceAccountChecks = make(map[string]*ServiceAccountCheck)
+	}
+
 	// credentials may exist on the actual AWS node-- if so, use those. If not, override with the service key
 	if accessKeyID != "" && accessKeySecret != "" {
 		err := env.Set(env.AWSAccessKeyIDEnvVar, accessKeyID)
@@ -1990,7 +2020,17 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 	}
 	lso, err := s3Svc.ListObjects(ls)
 	if err != nil {
+		a.ServiceAccountChecks["bucketList"] = &ServiceAccountCheck{
+			Message:        "Bucket List Permissions Available",
+			Status:         false,
+			AdditionalInfo: err.Error(),
+		}
 		return nil, err
+	} else {
+		a.ServiceAccountChecks["bucketList"] = &ServiceAccountCheck{
+			Message: "Bucket List Permissions Available",
+			Status:  true,
+		}
 	}
 	lsoLen := len(lso.Contents)
 	klog.V(2).Infof("Found %d spot data files from yesterday", lsoLen)
@@ -2033,7 +2073,17 @@ func parseSpotData(bucket string, prefix string, projectID string, region string
 		buf := aws.NewWriteAtBuffer([]byte{})
 		_, err := downloader.Download(buf, getObj)
 		if err != nil {
+			a.ServiceAccountChecks["objectList"] = &ServiceAccountCheck{
+				Message:        "Object Get Permissions Available",
+				Status:         false,
+				AdditionalInfo: err.Error(),
+			}
 			return nil, err
+		} else {
+			a.ServiceAccountChecks["objectList"] = &ServiceAccountCheck{
+				Message: "Object Get Permissions Available",
+				Status:  true,
+			}
 		}
 
 		r := bytes.NewReader(buf.Bytes())
@@ -2334,4 +2384,14 @@ func (a *AWS) getReservedInstances() ([]*AWSReservedInstance, error) {
 	}
 
 	return reservedInstances, nil
+}
+
+func (a *AWS) ServiceAccountStatus() *ServiceAccountStatus {
+	checks := []*ServiceAccountCheck{}
+	for _, v := range a.ServiceAccountChecks {
+		checks = append(checks, v)
+	}
+	return &ServiceAccountStatus{
+		Checks: checks,
+	}
 }

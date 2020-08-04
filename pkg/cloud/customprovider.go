@@ -262,3 +262,9 @@ func (cpk *customProviderKey) Features() string {
 	}
 	return "default" // TODO: multiple custom pricing support.
 }
+
+func (cp *CustomProvider) ServiceAccountStatus() *ServiceAccountStatus {
+	return &ServiceAccountStatus{
+		Checks: []*ServiceAccountCheck{},
+	}
+}

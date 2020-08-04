@@ -774,3 +774,9 @@ func (az *Azure) PVPricing(pvk PVKey) (*PV, error) {
 func (az *Azure) GetLocalStorageQuery(window, offset string, rate bool, used bool) string {
 	return ""
 }
+
+func (az *Azure) ServiceAccountStatus() *ServiceAccountStatus {
+	return &ServiceAccountStatus{
+		Checks: []*ServiceAccountCheck{},
+	}
+}

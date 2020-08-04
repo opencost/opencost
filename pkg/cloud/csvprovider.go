@@ -288,3 +288,9 @@ func (c *CSVProvider) PVPricing(pvk PVKey) (*PV, error) {
 		Cost: pricing.MarketPriceHourly,
 	}, nil
 }
+
+func (c *CSVProvider) ServiceAccountStatus() *ServiceAccountStatus {
+	return &ServiceAccountStatus{
+		Checks: []*ServiceAccountCheck{},
+	}
+}

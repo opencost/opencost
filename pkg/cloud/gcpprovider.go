@@ -1379,3 +1379,9 @@ func (gcp *GCP) NodePricing(key Key) (*Node, error) {
 	}
 	return nil, fmt.Errorf("Warning: no pricing data found for %s", key)
 }
+
+func (gcp *GCP) ServiceAccountStatus() *ServiceAccountStatus {
+	return &ServiceAccountStatus{
+		Checks: []*ServiceAccountCheck{},
+	}
+}
