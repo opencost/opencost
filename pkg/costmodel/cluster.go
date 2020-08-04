@@ -403,20 +403,12 @@ type Totals struct {
 	StorageCost [][]string `json:"storageCost"`
 }
 
-func resultToTotals(qr interface{}) ([][]string, error) {
-	// TODO: Provide an actual query instead of resultToTotals
-	qResults, err := prom.NewQueryResults("resultToTotals", qr)
-	if err != nil {
-		return nil, err
-	}
-
-	results := qResults.Results
-
-	if len(results) == 0 {
+func resultToTotals(qrs []*prom.QueryResult) ([][]string, error) {
+	if len(qrs) == 0 {
 		return [][]string{}, fmt.Errorf("Not enough data available in the selected time range")
 	}
 
-	result := results[0]
+	result := qrs[0]
 	totals := [][]string{}
 	for _, value := range result.Values {
 		d0 := fmt.Sprintf("%f", value.Timestamp)
@@ -465,22 +457,28 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 	qStorage := fmt.Sprintf(queryStorage, windowString, offset, windowString, offset, localStorageQuery)
 	qTotal := fmt.Sprintf(queryTotal, localStorageQuery)
 
-	resultClusterCores, err := QueryRange(cli, qCores, start, end, window)
+	ctx := prom.NewContext(cli)
+	resChClusterCores := ctx.QueryRange(qCores, start, end, window)
+	resChClusterRAM := ctx.QueryRange(qRAM, start, end, window)
+	resChStorage := ctx.QueryRange(qStorage, start, end, window)
+	resChTotal := ctx.QueryRange(qTotal, start, end, window)
+
+	resultClusterCores, err := resChClusterCores.Await()
 	if err != nil {
 		return nil, err
 	}
 
-	resultClusterRAM, err := QueryRange(cli, qRAM, start, end, window)
+	resultClusterRAM, err := resChClusterRAM.Await()
 	if err != nil {
 		return nil, err
 	}
 
-	resultStorage, err := QueryRange(cli, qStorage, start, end, window)
+	resultStorage, err := resChStorage.Await()
 	if err != nil {
 		return nil, err
 	}
 
-	resultTotal, err := QueryRange(cli, qTotal, start, end, window)
+	resultTotal, err := resChTotal.Await()
 	if err != nil {
 		return nil, err
 	}
@@ -509,7 +507,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 		// If that fails, return an error because something is actually wrong.
 		qNodes := fmt.Sprintf(queryNodes, localStorageQuery)
 
-		resultNodes, err := QueryRange(cli, qNodes, start, end, window)
+		resultNodes, err := ctx.QueryRangeSync(qNodes, start, end, window)
 		if err != nil {
 			return nil, err
 		}

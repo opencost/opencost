@@ -152,7 +152,7 @@ func (ctx *Context) QueryRange(query string, start, end time.Time, step time.Dur
 	return resCh
 }
 
-func (ctx *Context) QueryRangeSync(query string, start, end time.Time, step time.Duration) (*QueryResults, error) {
+func (ctx *Context) QueryRangeSync(query string, start, end time.Time, step time.Duration) ([]*QueryResult, error) {
 	raw, err := ctx.queryRange(query, start, end, step)
 	if err != nil {
 		return nil, err
@@ -163,7 +163,7 @@ func (ctx *Context) QueryRangeSync(query string, start, end time.Time, step time
 		return nil, err
 	}
 
-	return results, nil
+	return results.Results, nil
 }
 
 // QueryRangeURL returns the URL used to query_range Prometheus
