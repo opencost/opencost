@@ -275,6 +275,10 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	setCostsFromResults(costData, resChs[4].Await(), "storage", 0.0, customDiscount)
 	setCostsFromResults(costData, resChs[5].Await(), "localstorage", 0.0, customDiscount)
 
+	if ctx.ErrorCollector.IsError() {
+		return nil, ctx.Errors()[0]
+	}
+
 	cpuBreakdownMap := map[string]*ClusterCostsBreakdown{}
 	ramBreakdownMap := map[string]*ClusterCostsBreakdown{}
 	pvUsedCostMap := map[string]float64{}
