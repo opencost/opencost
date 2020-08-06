@@ -28,8 +28,11 @@ import (
 )
 
 const (
-	AzurePremiumStorageClass  = "premium"
-	AzureStandardStorageClass = "standard"
+	AzureFilePremiumStorageClass     = "premium_smb"
+	AzureFileStandardStorageClass    = "standard_smb"
+	AzureDiskPremiumSSDStorageClass  = "premium_ssd"
+	AzureDiskStandardSSDStorageClass = "standard_ssd"
+	AzureDiskStandardStorageClass    = "standard_hdd"
 )
 
 var (
@@ -478,12 +481,16 @@ func (az *Azure) DownloadPricingData() error {
 		if !strings.Contains(meterSubCategory, "Windows") {
 
 			if strings.Contains(meterCategory, "Storage") {
-				if strings.Contains(meterSubCategory, "HDD") || strings.Contains(meterSubCategory, "SSD") {
+				if strings.Contains(meterSubCategory, "HDD") || strings.Contains(meterSubCategory, "SSD") || strings.Contains(meterSubCategory, "Premium Files") {
 					var storageClass string = ""
-					if strings.Contains(meterName, "S4 ") {
-						storageClass = AzureStandardStorageClass
-					} else if strings.Contains(meterName, "P4 ") {
-						storageClass = AzurePremiumStorageClass
+					if strings.Contains(meterName, "P4 ") {
+						storageClass = AzureDiskPremiumSSDStorageClass
+					} else if strings.Contains(meterName, "E4 ") {
+						storageClass = AzureDiskStandardSSDStorageClass
+					} else if strings.Contains(meterName, "S4 ") {
+						storageClass = AzureDiskStandardStorageClass
+					} else if strings.Contains(meterName, "LRS Provisioned") {
+						storageClass = AzureFilePremiumStorageClass
 					}
 
 					if storageClass != "" {
@@ -514,11 +521,6 @@ func (az *Azure) DownloadPricingData() error {
 
 			if strings.Contains(meterCategory, "Virtual Machines") {
 
-				// not available now
-				if strings.Contains(meterSubCategory, "Promo") {
-					continue
-				}
-
 				usageType := ""
 				if !strings.Contains(meterName, "Low Priority") {
 					usageType = "ondemand"
@@ -530,6 +532,9 @@ func (az *Azure) DownloadPricingData() error {
 				name := strings.TrimSuffix(meterName, " Low Priority")
 				instanceType := strings.Split(name, "/")
 				for _, it := range instanceType {
+					if strings.Contains(meterSubCategory, "Promo") {
+						it = it + " Promo"
+					}
 					instanceTypes = append(instanceTypes, strings.Replace(it, " ", "_", 1))
 				}
 
@@ -561,6 +566,22 @@ func (az *Azure) DownloadPricingData() error {
 			}
 		}
 	}
+
+	// There is no easy way of supporting Standard Azure-File, because it's billed per used GB
+	// this will set the price to "0" as a workaround to not spam with `Persistent Volume pricing not found for` error
+	// check https://github.com/kubecost/cost-model/issues/159 for more information (same problem on AWS)
+	zeroPrice := "0.0"
+	for region := range regions {
+		key := region + "," + AzureFileStandardStorageClass
+		klog.V(4).Infof("Adding PV.Key: %s, Cost: %s", key, zeroPrice)
+		allPrices[key] = &AzurePricing{
+			PV: &PV{
+				Cost:   zeroPrice,
+				Region: region,
+			},
+		}
+	}
+
 	az.Pricing = allPrices
 	return nil
 }
@@ -651,10 +672,21 @@ func (key *azurePvKey) GetStorageClass() string {
 
 func (key *azurePvKey) Features() string {
 	storageClass := key.StorageClassParameters["storageaccounttype"]
-	if strings.EqualFold(storageClass, "Premium_LRS") {
-		storageClass = AzurePremiumStorageClass
-	} else if strings.EqualFold(storageClass, "Standard_LRS") {
-		storageClass = AzureStandardStorageClass
+	storageSKU := key.StorageClassParameters["skuName"]
+	if storageClass != "" {
+		if strings.EqualFold(storageClass, "Premium_LRS") {
+			storageClass = AzureDiskPremiumSSDStorageClass
+		} else if strings.EqualFold(storageClass, "StandardSSD_LRS") {
+			storageClass = AzureDiskStandardSSDStorageClass
+		} else if strings.EqualFold(storageClass, "Standard_LRS") {
+			storageClass = AzureDiskStandardStorageClass
+		}
+	} else {
+		if strings.EqualFold(storageSKU, "Premium_LRS") {
+			storageClass = AzureFilePremiumStorageClass
+		} else if strings.EqualFold(storageSKU, "Standard_LRS") {
+			storageClass = AzureFileStandardStorageClass
+		}
 	}
 	if region, ok := key.Labels[v1.LabelZoneRegion]; ok {
 		return region + "," + storageClass
