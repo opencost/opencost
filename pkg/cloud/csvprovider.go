@@ -294,3 +294,7 @@ func (c *CSVProvider) ServiceAccountStatus() *ServiceAccountStatus {
 		Checks: []*ServiceAccountCheck{},
 	}
 }
+
+func (*CSVProvider) ClusterManagementPricing() (string, float64, error) {
+	return "", 0.0, nil
+}

@@ -56,6 +56,8 @@ type GCP struct {
 	Config                  *ProviderConfig
 	serviceKeyProvided      bool
 	ValidPricingKeys        map[string]bool
+	clusterManagementPrice  float64
+	clusterProvisioner      string
 	*CustomProvider
 }
 
@@ -490,6 +492,10 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	m["id"] = env.GetClusterID()
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	return m, nil
+}
+
+func (gcp *GCP) ClusterManagementPricing() (string, float64, error) {
+	return gcp.clusterProvisioner, gcp.clusterManagementPrice, nil
 }
 
 func (*GCP) GetAddresses() ([]byte, error) {
@@ -944,6 +950,11 @@ func (gcp *GCP) DownloadPricingData() error {
 
 	for _, n := range nodeList {
 		labels := n.GetObjectMeta().GetLabels()
+		if _, ok := labels["cloud.google.com/gke-nodepool"]; ok { // The node is part of a GKE nodepool, so you're paying a cluster management cost
+			gcp.clusterManagementPrice = 0.10
+			gcp.clusterProvisioner = "GKE"
+		}
+
 		key := gcp.GetKey(labels, n)
 		inputkeys[key.Features()] = key
 	}

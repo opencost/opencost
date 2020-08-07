@@ -105,6 +105,8 @@ type AWS struct {
 	DownloadPricingDataLock     sync.RWMutex
 	Config                      *ProviderConfig
 	ServiceAccountChecks        map[string]*ServiceAccountCheck
+	clusterManagementPrice      float64
+	clusterProvisioner          string
 	*CustomProvider
 }
 
@@ -511,6 +513,10 @@ func (aws *AWS) isPreemptible(key string) bool {
 	return false
 }
 
+func (aws *AWS) ClusterManagementPricing() (string, float64, error) {
+	return aws.clusterProvisioner, aws.clusterManagementPrice, nil
+}
+
 // DownloadPricingData fetches data from the AWS Pricing API
 func (aws *AWS) DownloadPricingData() error {
 	aws.DownloadPricingDataLock.Lock()
@@ -545,6 +551,13 @@ func (aws *AWS) DownloadPricingData() error {
 
 	inputkeys := make(map[string]bool)
 	for _, n := range nodeList {
+		if _, ok := n.Labels["eks.amazonaws.com/nodegroup"]; ok {
+			aws.clusterManagementPrice = 0.10
+			aws.clusterProvisioner = "EKS"
+		} else if _, ok := n.Labels["kops.k8s.io/instancegroup"]; ok {
+			aws.clusterProvisioner = "KOPS"
+		}
+
 		labels := n.GetObjectMeta().GetLabels()
 		key := aws.GetKey(labels, n)
 		inputkeys[key.Features()] = true

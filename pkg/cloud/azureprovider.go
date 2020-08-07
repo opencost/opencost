@@ -780,3 +780,6 @@ func (az *Azure) ServiceAccountStatus() *ServiceAccountStatus {
 		Checks: []*ServiceAccountCheck{},
 	}
 }
+func (*Azure) ClusterManagementPricing() (string, float64, error) {
+	return "", 0.0, nil
+}
