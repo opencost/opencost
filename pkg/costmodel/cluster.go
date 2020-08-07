@@ -105,14 +105,15 @@ func NewClusterCostsFromCumulative(cpu, gpu, ram, storage float64, window, offse
 }
 
 type Disk struct {
-	Cluster string
-	Name    string
-	Cost    float64
-	Bytes   float64
-	Local   bool
+	Cluster    string
+	Name       string
+	ProviderID string
+	Cost       float64
+	Bytes      float64
+	Local      bool
 }
 
-func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, offset time.Duration) (map[string]*Disk, error) {
+func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, offset time.Duration) (map[string]*Disk, []error) {
 	durationStr := fmt.Sprintf("%dm", int64(duration.Minutes()))
 	offsetStr := fmt.Sprintf(" offset %dm", int64(offset.Minutes()))
 	if offset < time.Minute {
@@ -148,7 +149,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 	resLocalStorageCost := resChLocalStorageCost.Await()
 	resLocalStorageBytes := resChLocalStorageBytes.Await()
 	if ctx.ErrorCollector.IsError() {
-		return nil, ctx.Errors()[0]
+		return nil, ctx.Errors()
 	}
 
 	diskMap := map[string]*Disk{}
@@ -261,16 +262,18 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 type Node struct {
 	Cluster     string
 	Name        string
+	ProviderID  string
 	NodeType    string
 	CPUCost     float64
 	CPUCores    float64
 	GPUCost     float64
 	RAMCost     float64
 	RAMBytes    float64
+	Discount    float64
 	Preemptible bool
 }
 
-func ClusterNodes(client prometheus.Client, duration, offset time.Duration) (map[string]*Node, error) {
+func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset time.Duration) (map[string]*Node, []error) {
 	durationStr := fmt.Sprintf("%dm", int64(duration.Minutes()))
 	offsetStr := fmt.Sprintf(" offset %dm", int64(offset.Minutes()))
 	if offset < time.Minute {
@@ -287,29 +290,29 @@ func ClusterNodes(client prometheus.Client, duration, offset time.Duration) (map
 	// [$/hr] * [min/res]*[hr/min] = [$/res]
 	hourlyToCumulative := float64(minsPerResolution) * (1.0 / 60.0)
 
-	// TODO niko/assets determine preemptible or not
-	// label_cloud_google_com_gke_preemptible
-
 	ctx := prom.NewContext(client)
 	queryNodeCPUCost := fmt.Sprintf(`sum_over_time((avg(kube_node_status_capacity_cpu_cores) by (cluster_id, node) * on(node, cluster_id) group_right avg(node_cpu_hourly_cost) by (cluster_id, node, instance_type))[%s:%dm]%s) * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
 	queryNodeCPUCores := fmt.Sprintf(`avg_over_time(avg(kube_node_status_capacity_cpu_cores) by (cluster_id, node)[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 	queryNodeRAMCost := fmt.Sprintf(`sum_over_time((avg(kube_node_status_capacity_memory_bytes) by (cluster_id, node) * on(cluster_id, node) group_right avg(node_ram_hourly_cost) by (cluster_id, node, instance_type))[%s:%dm]%s) / 1024 / 1024 / 1024 * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
 	queryNodeRAMBytes := fmt.Sprintf(`avg_over_time(avg(kube_node_status_capacity_memory_bytes) by (cluster_id, node)[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 	queryNodeGPUCost := fmt.Sprintf(`sum_over_time((avg(node_gpu_hourly_cost) by (cluster_id, node))[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
+	queryNodeLabels := fmt.Sprintf(`count_over_time(kube_node_labels[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 
 	resChNodeCPUCost := ctx.Query(queryNodeCPUCost)
 	resChNodeCPUCores := ctx.Query(queryNodeCPUCores)
 	resChNodeRAMCost := ctx.Query(queryNodeRAMCost)
 	resChNodeRAMBytes := ctx.Query(queryNodeRAMBytes)
 	resChNodeGPUCost := ctx.Query(queryNodeGPUCost)
+	resChNodeLabels := ctx.Query(queryNodeLabels)
 
 	resNodeCPUCost := resChNodeCPUCost.Await()
 	resNodeCPUCores := resChNodeCPUCores.Await()
 	resNodeGPUCost := resChNodeGPUCost.Await()
 	resNodeRAMCost := resChNodeRAMCost.Await()
 	resNodeRAMBytes := resChNodeRAMBytes.Await()
+	resNodeLabels := resChNodeLabels.Await()
 	if ctx.ErrorCollector.IsError() {
-		return nil, ctx.Errors()[0]
+		return nil, ctx.Errors()
 	}
 
 	nodeMap := map[string]*Node{}
@@ -446,6 +449,47 @@ func ClusterNodes(client prometheus.Client, duration, offset time.Duration) (map
 			}
 		}
 		nodeMap[key].GPUCost = gpuCost
+	}
+
+	// node_labels label_cloud_google_com_gke_preemptible
+	for _, result := range resNodeLabels {
+		nodeName, err := result.GetString("node")
+		if err != nil {
+			continue
+		}
+
+		// GCP preemptible label
+		pre, _ := result.GetString("label_cloud_google_com_gke_preemptible")
+		if node, ok := nodeMap[nodeName]; pre == "true" && ok {
+			node.Preemptible = true
+		}
+
+		// TODO AWS preemptible
+		// TODO Azure preemptible
+	}
+
+	c, err := cp.GetConfig()
+	if err != nil {
+		return nil, []error{err}
+	}
+	discount, err := ParsePercentString(c.Discount)
+	if err != nil {
+		return nil, []error{err}
+	}
+	negotiatedDiscount, err := ParsePercentString(c.NegotiatedDiscount)
+	if err != nil {
+		return nil, []error{err}
+	}
+
+	for _, node := range nodeMap {
+		if !node.Preemptible {
+			// TODO determine discount(s) based on:
+			// - custom settings
+			// - node RI data
+			// - provider-specific rules, e.g.
+			//   cp.GetDiscount(instanceType string) float64
+			node.Discount = (1.0 - (1.0-discount)*(1.0-negotiatedDiscount))
+		}
 	}
 
 	return nodeMap, nil
