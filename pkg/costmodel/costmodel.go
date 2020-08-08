@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -48,6 +49,9 @@ const (
 	epConfig          = apiPrefix + "/status/config"
 	epFlags           = apiPrefix + "/status/flags"
 )
+
+// isCron matches a CronJob name and captures the non-timestamp name
+var isCron = regexp.MustCompile(`^(.+)-\d{10}$`)
 
 type CostModel struct {
 	Cache        clustercache.ClusterCache
@@ -115,6 +119,11 @@ func (cd *CostData) GetController() (name string, kind string, hasController boo
 		name = cd.Jobs[0]
 		kind = "job"
 		hasController = true
+
+		match := isCron.FindStringSubmatch(name)
+		if match != nil {
+			name = match[1]
+		}
 	}
 
 	return name, kind, hasController
