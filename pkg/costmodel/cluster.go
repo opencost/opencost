@@ -590,8 +590,16 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 		queryTotalCPU,
 		queryTotalRAM,
 		queryTotalStorage,
-		queryTotalLocalStorage,
 	)
+
+	// Only submit the local storage query if it is valid. Otherwise Prometheus
+	// will return errors. Always append something to resChs, regardless, to
+	// maintain indexing.
+	if queryTotalLocalStorage != "" {
+		resChs = append(resChs, ctx.Query(queryTotalLocalStorage))
+	} else {
+		resChs = append(resChs, nil)
+	}
 
 	if withBreakdown {
 		queryCPUModePct := fmt.Sprintf(fmtQueryCPUModePct, window, fmtOffset, window, fmtOffset)
@@ -602,8 +610,16 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 			queryCPUModePct,
 			queryRAMSystemPct,
 			queryRAMUserPct,
-			queryUsedLocalStorage,
 		)
+
+		// Only submit the local storage query if it is valid. Otherwise Prometheus
+		// will return errors. Always append something to resChs, regardless, to
+		// maintain indexing.
+		if queryUsedLocalStorage != "" {
+			bdResChs = append(bdResChs, ctx.Query(queryUsedLocalStorage))
+		} else {
+			bdResChs = append(bdResChs, nil)
+		}
 
 		resChs = append(resChs, bdResChs...)
 	}
@@ -665,10 +681,8 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	// Apply only custom discount to GPU and storage
 	setCostsFromResults(costData, resChs[1].Await(), "gpu", 0.0, customDiscount)
 	setCostsFromResults(costData, resChs[4].Await(), "storage", 0.0, customDiscount)
-	setCostsFromResults(costData, resChs[5].Await(), "localstorage", 0.0, customDiscount)
-
-	if ctx.ErrorCollector.IsError() {
-		return nil, ctx.Errors()[0]
+	if queryTotalLocalStorage != "" {
+		setCostsFromResults(costData, resChs[5].Await(), "localstorage", 0.0, customDiscount)
 	}
 
 	cpuBreakdownMap := map[string]*ClusterCostsBreakdown{}
@@ -733,13 +747,22 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 			ramBD.Idle = remaining
 		}
 
-		for _, result := range resChs[9].Await() {
-			clusterID, _ := result.GetString("cluster_id")
-			if clusterID == "" {
-				clusterID = defaultClusterID
+		if queryUsedLocalStorage != "" {
+			for _, result := range resChs[9].Await() {
+				clusterID, _ := result.GetString("cluster_id")
+				if clusterID == "" {
+					clusterID = defaultClusterID
+				}
+				pvUsedCostMap[clusterID] += result.Values[0].Value
 			}
-			pvUsedCostMap[clusterID] += result.Values[0].Value
 		}
+	}
+
+	if ctx.ErrorCollector.IsError() {
+		for _, err := range ctx.Errors() {
+			log.Errorf("ComputeClusterCosts: %s", err)
+		}
+		return nil, ctx.Errors()[0]
 	}
 
 	// Convert intermediate structure to Costs instances
