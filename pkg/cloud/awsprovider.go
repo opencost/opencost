@@ -1032,6 +1032,7 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 		m["provider"] = "AWS"
 		m["id"] = env.GetClusterID()
 		m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
+		m["provisioner"] = awsProvider.clusterProvisioner
 		return m, nil
 	}
 	makeStructure := func(clusterName string) (map[string]string, error) {
