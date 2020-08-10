@@ -298,3 +298,7 @@ func (c *CSVProvider) ServiceAccountStatus() *ServiceAccountStatus {
 func (*CSVProvider) ClusterManagementPricing() (string, float64, error) {
 	return "", 0.0, nil
 }
+
+func (c *CSVProvider) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
+	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
+}

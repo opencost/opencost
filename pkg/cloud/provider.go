@@ -189,6 +189,7 @@ type Provider interface {
 	ApplyReservedInstancePricing(map[string]*Node)
 	ServiceAccountStatus() *ServiceAccountStatus
 	ClusterManagementPricing() (string, float64, error)
+	CombinedDiscountForNode(string, bool, float64, float64) float64
 }
 
 // ClusterName returns the name defined in cluster info, defaulting to the
