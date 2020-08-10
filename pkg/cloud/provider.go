@@ -188,6 +188,7 @@ type Provider interface {
 	ExternalAllocations(string, string, []string, string, string, bool) ([]*OutOfClusterAllocation, error)
 	ApplyReservedInstancePricing(map[string]*Node)
 	ServiceAccountStatus() *ServiceAccountStatus
+	CombinedDiscountForNode(string, bool, float64, float64) float64
 }
 
 // ClusterName returns the name defined in cluster info, defaulting to the
