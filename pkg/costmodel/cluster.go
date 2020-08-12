@@ -343,7 +343,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 				ProviderID: providerID,
 			}
 		}
-		nodeMap[key].CPUCost = cpuCost
+		nodeMap[key].CPUCost += cpuCost
 		nodeMap[key].NodeType = nodeType
 	}
 
@@ -397,7 +397,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 				ProviderID: providerID,
 			}
 		}
-		nodeMap[key].RAMCost = ramCost
+		nodeMap[key].RAMCost += ramCost
 		nodeMap[key].NodeType = nodeType
 	}
 
@@ -451,7 +451,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 				ProviderID: providerID,
 			}
 		}
-		nodeMap[key].GPUCost = gpuCost
+		nodeMap[key].GPUCost += gpuCost
 	}
 
 	// Determine preemptibility with node labels
