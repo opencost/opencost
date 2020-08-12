@@ -176,7 +176,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 				Name:    name,
 			}
 		}
-		diskMap[key].Cost = cost
+		diskMap[key].Cost += cost
 	}
 
 	for _, result := range resPVSize {
@@ -227,7 +227,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 				Local:   true,
 			}
 		}
-		diskMap[key].Cost = cost
+		diskMap[key].Cost += cost
 	}
 
 	for _, result := range resLocalStorageBytes {
