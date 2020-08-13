@@ -36,6 +36,7 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 const (
@@ -764,7 +765,13 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	}
 
 	// Kubernetes API setup
-	kc, err := rest.InClusterConfig()
+	var kc *rest.Config
+	if kubeconfig := env.GetKubeConfigPath(); kubeconfig != "" {
+		kc, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+	} else {
+		kc, err = rest.InClusterConfig()
+	}
+
 	if err != nil {
 		panic(err.Error())
 	}

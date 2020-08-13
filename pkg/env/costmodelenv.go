@@ -37,6 +37,8 @@ const (
 	MultiClusterBearerToken       = "MC_BEARER_TOKEN"
 
 	InsecureSkipVerify = "INSECURE_SKIP_VERIFY"
+
+	KubeConfigPathEnvVar = "KUBECONFIG_PATH"
 )
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
@@ -208,4 +210,9 @@ func GetMultiClusterBasicAuthPassword() string {
 
 func GetMultiClusterBearerToken() string {
 	return Get(MultiClusterBearerToken, "")
+}
+
+// GetKubeConfigPath returns the environment variable value for KubeConfigPathEnvVar
+func GetKubeConfigPath() string {
+	return Get(KubeConfigPathEnvVar, "")
 }
