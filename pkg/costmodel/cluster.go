@@ -629,7 +629,6 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	resTotalCPU, _ := resChs[2].Await()
 	resTotalRAM, _ := resChs[3].Await()
 	resTotalStorage, _ := resChs[4].Await()
-	resTotalLocalStorage, _ := resChs[5].Await()
 	if ctx.HasErrors() {
 		return nil, ctx.Errors()[0]
 	}
@@ -692,6 +691,10 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	setCostsFromResults(costData, resTotalGPU, "gpu", 0.0, customDiscount)
 	setCostsFromResults(costData, resTotalStorage, "storage", 0.0, customDiscount)
 	if queryTotalLocalStorage != "" {
+		resTotalLocalStorage, err := resChs[5].Await()
+		if err != nil {
+			return nil, err
+		}
 		setCostsFromResults(costData, resTotalLocalStorage, "localstorage", 0.0, customDiscount)
 	}
 
@@ -702,7 +705,6 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 		resCPUModePct, _ := resChs[6].Await()
 		resRAMSystemPct, _ := resChs[7].Await()
 		resRAMUserPct, _ := resChs[8].Await()
-		resUsedLocalStorage, _ := resChs[9].Await()
 		if ctx.HasErrors() {
 			return nil, ctx.Errors()[0]
 		}
@@ -766,6 +768,10 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 		}
 
 		if queryUsedLocalStorage != "" {
+			resUsedLocalStorage, err := resChs[9].Await()
+			if err != nil {
+				return nil, err
+			}
 			for _, result := range resUsedLocalStorage {
 				clusterID, _ := result.GetString("cluster_id")
 				if clusterID == "" {
