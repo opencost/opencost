@@ -1,23 +1,21 @@
 package costmodel
 
 import (
+	"errors"
 	"fmt"
 
 	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
+	"github.com/kubecost/cost-model/pkg/util"
 )
 
-func GetPVInfo(qr interface{}, defaultClusterID string) (map[string]*PersistentVolumeClaimData, error) {
+// TODO niko/prom move parsing functions from costmodel.go
+
+func GetPVInfo(qrs []*prom.QueryResult, defaultClusterID string) (map[string]*PersistentVolumeClaimData, error) {
 	toReturn := make(map[string]*PersistentVolumeClaimData)
 
-	// TODO: Pass actual query instead of PVInfo
-	result, err := prom.NewQueryResults("PVInfo", qr)
-	if err != nil {
-		return toReturn, err
-	}
-
-	for _, val := range result.Results {
+	for _, val := range qrs {
 		clusterID, err := val.GetString("cluster_id")
 		if clusterID == "" {
 			clusterID = defaultClusterID
@@ -60,16 +58,10 @@ func GetPVInfo(qr interface{}, defaultClusterID string) (map[string]*PersistentV
 	return toReturn, nil
 }
 
-func GetPVAllocationMetrics(queryResult interface{}, defaultClusterID string) (map[string][]*PersistentVolumeClaimData, error) {
+func GetPVAllocationMetrics(qrs []*prom.QueryResult, defaultClusterID string) (map[string][]*PersistentVolumeClaimData, error) {
 	toReturn := make(map[string][]*PersistentVolumeClaimData)
 
-	// TODO: Pass actual query instead of PVAllocationMetrics
-	result, err := prom.NewQueryResults("PVAllocationMetrics", queryResult)
-	if err != nil {
-		return toReturn, err
-	}
-
-	for _, val := range result.Results {
+	for _, val := range qrs {
 		clusterID, err := val.GetString("cluster_id")
 		if clusterID == "" {
 			clusterID = defaultClusterID
@@ -112,16 +104,10 @@ func GetPVAllocationMetrics(queryResult interface{}, defaultClusterID string) (m
 	return toReturn, nil
 }
 
-func GetPVCostMetrics(queryResult interface{}, defaultClusterID string) (map[string]*costAnalyzerCloud.PV, error) {
+func GetPVCostMetrics(qrs []*prom.QueryResult, defaultClusterID string) (map[string]*costAnalyzerCloud.PV, error) {
 	toReturn := make(map[string]*costAnalyzerCloud.PV)
 
-	// TODO: Pass actual query instead of PVCostMetrics
-	result, err := prom.NewQueryResults("PVCostMetrics", queryResult)
-	if err != nil {
-		return toReturn, err
-	}
-
-	for _, val := range result.Results {
+	for _, val := range qrs {
 		clusterID, err := val.GetString("cluster_id")
 		if clusterID == "" {
 			clusterID = defaultClusterID
@@ -141,16 +127,10 @@ func GetPVCostMetrics(queryResult interface{}, defaultClusterID string) (map[str
 	return toReturn, nil
 }
 
-func GetNamespaceLabelsMetrics(queryResult interface{}, defaultClusterID string) (map[string]map[string]string, error) {
+func GetNamespaceLabelsMetrics(qrs []*prom.QueryResult, defaultClusterID string) (map[string]map[string]string, error) {
 	toReturn := make(map[string]map[string]string)
 
-	// TODO: Pass actual query instead of NamespaceLabelsMetrics
-	result, err := prom.NewQueryResults("NamespaceLabelsMetrics", queryResult)
-	if err != nil {
-		return toReturn, err
-	}
-
-	for _, val := range result.Results {
+	for _, val := range qrs {
 		// We want Namespace and ClusterID for key generation purposes
 		ns, err := val.GetString("namespace")
 		if err != nil {
@@ -174,16 +154,10 @@ func GetNamespaceLabelsMetrics(queryResult interface{}, defaultClusterID string)
 	return toReturn, nil
 }
 
-func GetPodLabelsMetrics(queryResult interface{}, defaultClusterID string) (map[string]map[string]string, error) {
+func GetPodLabelsMetrics(qrs []*prom.QueryResult, defaultClusterID string) (map[string]map[string]string, error) {
 	toReturn := make(map[string]map[string]string)
 
-	// TODO: Pass actual query instead of PodLabelsMetrics
-	result, err := prom.NewQueryResults("PodLabelsMetrics", queryResult)
-	if err != nil {
-		return toReturn, err
-	}
-
-	for _, val := range result.Results {
+	for _, val := range qrs {
 		// We want Pod, Namespace and ClusterID for key generation purposes
 		pod, err := val.GetString("pod")
 		if err != nil {
@@ -214,16 +188,10 @@ func GetPodLabelsMetrics(queryResult interface{}, defaultClusterID string) (map[
 	return toReturn, nil
 }
 
-func GetStatefulsetMatchLabelsMetrics(queryResult interface{}, defaultClusterID string) (map[string]map[string]string, error) {
+func GetStatefulsetMatchLabelsMetrics(qrs []*prom.QueryResult, defaultClusterID string) (map[string]map[string]string, error) {
 	toReturn := make(map[string]map[string]string)
 
-	// TODO: Pass actual query instead of StatefulsetMatchLabelsMetrics
-	result, err := prom.NewQueryResults("StatefulsetMatchLabelsMetrics", queryResult)
-	if err != nil {
-		return toReturn, err
-	}
-
-	for _, val := range result.Results {
+	for _, val := range qrs {
 		// We want Statefulset, Namespace and ClusterID for key generation purposes
 		ss, err := val.GetString("statefulSet")
 		if err != nil {
@@ -247,15 +215,10 @@ func GetStatefulsetMatchLabelsMetrics(queryResult interface{}, defaultClusterID 
 	return toReturn, nil
 }
 
-func GetPodDaemonsetsWithMetrics(queryResult interface{}, defaultClusterID string) (map[string]string, error) {
+func GetPodDaemonsetsWithMetrics(qrs []*prom.QueryResult, defaultClusterID string) (map[string]string, error) {
 	toReturn := make(map[string]string)
 
-	// TODO: Pass actual query instead of PodDaemonsetsWithMetrics
-	result, err := prom.NewQueryResults("PodDaemonsetsWithMetrics", queryResult)
-	if err != nil {
-		return toReturn, err
-	}
-	for _, val := range result.Results {
+	for _, val := range qrs {
 		ds, err := val.GetString("owner_name")
 		if err != nil {
 			return toReturn, err
@@ -283,15 +246,10 @@ func GetPodDaemonsetsWithMetrics(queryResult interface{}, defaultClusterID strin
 	return toReturn, nil
 }
 
-func GetPodJobsWithMetrics(queryResult interface{}, defaultClusterID string) (map[string]string, error) {
+func GetPodJobsWithMetrics(qrs []*prom.QueryResult, defaultClusterID string) (map[string]string, error) {
 	toReturn := make(map[string]string)
 
-	// TODO: Pass actual query instead of PodJobsWithMetrics
-	result, err := prom.NewQueryResults("PodJobsWithMetrics", queryResult)
-	if err != nil {
-		return toReturn, err
-	}
-	for _, val := range result.Results {
+	for _, val := range qrs {
 		ds, err := val.GetString("owner_name")
 		if err != nil {
 			return toReturn, err
@@ -319,16 +277,10 @@ func GetPodJobsWithMetrics(queryResult interface{}, defaultClusterID string) (ma
 	return toReturn, nil
 }
 
-func GetDeploymentMatchLabelsMetrics(queryResult interface{}, defaultClusterID string) (map[string]map[string]string, error) {
+func GetDeploymentMatchLabelsMetrics(qrs []*prom.QueryResult, defaultClusterID string) (map[string]map[string]string, error) {
 	toReturn := make(map[string]map[string]string)
 
-	// TODO: Pass actual query instead of DeploymentMatchLabelsMetrics
-	result, err := prom.NewQueryResults("DeploymentMatchLabelsMetrics", queryResult)
-	if err != nil {
-		return toReturn, err
-	}
-
-	for _, val := range result.Results {
+	for _, val := range qrs {
 		// We want Deployment, Namespace and ClusterID for key generation purposes
 		deployment, err := val.GetString("deployment")
 		if err != nil {
@@ -352,16 +304,10 @@ func GetDeploymentMatchLabelsMetrics(queryResult interface{}, defaultClusterID s
 	return toReturn, nil
 }
 
-func GetServiceSelectorLabelsMetrics(queryResult interface{}, defaultClusterID string) (map[string]map[string]string, error) {
+func GetServiceSelectorLabelsMetrics(qrs []*prom.QueryResult, defaultClusterID string) (map[string]map[string]string, error) {
 	toReturn := make(map[string]map[string]string)
 
-	// TODO: Pass actual query instead of ServiceSelectorLabelsMetrics
-	result, err := prom.NewQueryResults("ServiceSelectorLabelsMetrics", queryResult)
-	if err != nil {
-		return toReturn, err
-	}
-
-	for _, val := range result.Results {
+	for _, val := range qrs {
 		// We want Service, Namespace and ClusterID for key generation purposes
 		service, err := val.GetString("service")
 		if err != nil {
@@ -383,4 +329,103 @@ func GetServiceSelectorLabelsMetrics(queryResult interface{}, defaultClusterID s
 	}
 
 	return toReturn, nil
+}
+
+func GetContainerMetricVector(qrs []*prom.QueryResult, normalize bool, normalizationValue float64, defaultClusterID string) (map[string][]*util.Vector, error) {
+	containerData := make(map[string][]*util.Vector)
+	for _, val := range qrs {
+		containerMetric, err := NewContainerMetricFromPrometheus(val.Metric, defaultClusterID)
+		if err != nil {
+			return nil, err
+		}
+
+		if normalize && normalizationValue != 0 {
+			for _, v := range val.Values {
+				v.Value = v.Value / normalizationValue
+			}
+		}
+		containerData[containerMetric.Key()] = val.Values
+	}
+	return containerData, nil
+}
+
+func GetContainerMetricVectors(qrs []*prom.QueryResult, defaultClusterID string) (map[string][]*util.Vector, error) {
+	containerData := make(map[string][]*util.Vector)
+	for _, val := range qrs {
+		containerMetric, err := NewContainerMetricFromPrometheus(val.Metric, defaultClusterID)
+		if err != nil {
+			return nil, err
+		}
+		containerData[containerMetric.Key()] = val.Values
+	}
+	return containerData, nil
+}
+
+func GetNormalizedContainerMetricVectors(qrs []*prom.QueryResult, normalizationValues []*util.Vector, defaultClusterID string) (map[string][]*util.Vector, error) {
+	containerData := make(map[string][]*util.Vector)
+	for _, val := range qrs {
+		containerMetric, err := NewContainerMetricFromPrometheus(val.Metric, defaultClusterID)
+		if err != nil {
+			return nil, err
+		}
+		containerData[containerMetric.Key()] = util.NormalizeVectorByVector(val.Values, normalizationValues)
+	}
+	return containerData, nil
+}
+
+func getCost(qrs []*prom.QueryResult) (map[string][]*util.Vector, error) {
+	toReturn := make(map[string][]*util.Vector)
+
+	for _, val := range qrs {
+		instance, err := val.GetString("instance")
+		if err != nil {
+			return toReturn, err
+		}
+
+		toReturn[instance] = val.Values
+	}
+
+	return toReturn, nil
+}
+
+// TODO niko/prom retain message:
+// normalization data is empty: time window may be invalid or kube-state-metrics or node-exporter may not be running
+func getNormalization(qrs []*prom.QueryResult) (float64, error) {
+	if len(qrs) == 0 {
+		return 0.0, prom.NoDataErr
+	}
+	if len(qrs[0].Values) == 0 {
+		return 0.0, prom.NoDataErr
+	}
+	return qrs[0].Values[0].Value, nil
+}
+
+// TODO niko/prom retain message:
+// normalization data is empty: time window may be invalid or kube-state-metrics or node-exporter may not be running
+func getNormalizations(qrs []*prom.QueryResult) ([]*util.Vector, error) {
+	if len(qrs) == 0 {
+		return nil, prom.NoDataErr
+	}
+
+	return qrs[0].Values, nil
+}
+
+func parsePodLabels(qrs []*prom.QueryResult) (map[string]map[string]string, error) {
+	podLabels := map[string]map[string]string{}
+
+	for _, result := range qrs {
+		pod, err := result.GetString("pod")
+		if err != nil {
+			return podLabels, errors.New("missing pod field")
+		}
+
+		if _, ok := podLabels[pod]; ok {
+			podLabels[pod] = result.GetLabels()
+		} else {
+			podLabels[pod] = map[string]string{}
+			podLabels[pod] = result.GetLabels()
+		}
+	}
+
+	return podLabels, nil
 }
