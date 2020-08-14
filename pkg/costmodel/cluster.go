@@ -176,7 +176,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 				Name:    name,
 			}
 		}
-		diskMap[key].Cost = cost
+		diskMap[key].Cost += cost
 	}
 
 	for _, result := range resPVSize {
@@ -227,7 +227,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 				Local:   true,
 			}
 		}
-		diskMap[key].Cost = cost
+		diskMap[key].Cost += cost
 	}
 
 	for _, result := range resLocalStorageBytes {
@@ -291,11 +291,11 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	hourlyToCumulative := float64(minsPerResolution) * (1.0 / 60.0)
 
 	ctx := prom.NewContext(client)
-	queryNodeCPUCost := fmt.Sprintf(`sum_over_time((avg(kube_node_status_capacity_cpu_cores) by (cluster_id, node) * on(node, cluster_id) group_right avg(node_cpu_hourly_cost) by (cluster_id, node, instance_type))[%s:%dm]%s) * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
+	queryNodeCPUCost := fmt.Sprintf(`sum_over_time((avg(kube_node_status_capacity_cpu_cores) by (cluster_id, node) * on(node, cluster_id) group_right avg(node_cpu_hourly_cost) by (cluster_id, node, instance_type, provider_id))[%s:%dm]%s) * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
 	queryNodeCPUCores := fmt.Sprintf(`avg_over_time(avg(kube_node_status_capacity_cpu_cores) by (cluster_id, node)[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
-	queryNodeRAMCost := fmt.Sprintf(`sum_over_time((avg(kube_node_status_capacity_memory_bytes) by (cluster_id, node) * on(cluster_id, node) group_right avg(node_ram_hourly_cost) by (cluster_id, node, instance_type))[%s:%dm]%s) / 1024 / 1024 / 1024 * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
+	queryNodeRAMCost := fmt.Sprintf(`sum_over_time((avg(kube_node_status_capacity_memory_bytes) by (cluster_id, node) * on(cluster_id, node) group_right avg(node_ram_hourly_cost) by (cluster_id, node, instance_type, provider_id))[%s:%dm]%s) / 1024 / 1024 / 1024 * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
 	queryNodeRAMBytes := fmt.Sprintf(`avg_over_time(avg(kube_node_status_capacity_memory_bytes) by (cluster_id, node)[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
-	queryNodeGPUCost := fmt.Sprintf(`sum_over_time((avg(node_gpu_hourly_cost) by (cluster_id, node))[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
+	queryNodeGPUCost := fmt.Sprintf(`sum_over_time((avg(node_gpu_hourly_cost) by (cluster_id, node, provider_id))[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 	queryNodeLabels := fmt.Sprintf(`count_over_time(kube_node_labels[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 
 	resChNodeCPUCost := ctx.Query(queryNodeCPUCost)
@@ -329,22 +329,21 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 			continue
 		}
 
-		nodeType, err := result.GetString("instance_type")
-		if err != nil {
-			log.Warningf("ClusterNodes: CPU cost data missing node type")
-		}
+		nodeType, _ := result.GetString("instance_type")
+		providerID, _ := result.GetString("provider_id")
 
 		cpuCost := result.Values[0].Value
 
 		key := fmt.Sprintf("%s/%s", cluster, name)
 		if _, ok := nodeMap[key]; !ok {
 			nodeMap[key] = &Node{
-				Cluster:  cluster,
-				Name:     name,
-				NodeType: nodeType,
+				Cluster:    cluster,
+				Name:       name,
+				NodeType:   nodeType,
+				ProviderID: providerID,
 			}
 		}
-		nodeMap[key].CPUCost = cpuCost
+		nodeMap[key].CPUCost += cpuCost
 		nodeMap[key].NodeType = nodeType
 	}
 
@@ -384,22 +383,21 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 			continue
 		}
 
-		nodeType, err := result.GetString("instance_type")
-		if err != nil {
-			log.Warningf("ClusterNodes: RAM cost data missing node type")
-		}
+		nodeType, _ := result.GetString("instance_type")
+		providerID, _ := result.GetString("provider_id")
 
 		ramCost := result.Values[0].Value
 
 		key := fmt.Sprintf("%s/%s", cluster, name)
 		if _, ok := nodeMap[key]; !ok {
 			nodeMap[key] = &Node{
-				Cluster:  cluster,
-				Name:     name,
-				NodeType: nodeType,
+				Cluster:    cluster,
+				Name:       name,
+				NodeType:   nodeType,
+				ProviderID: providerID,
 			}
 		}
-		nodeMap[key].RAMCost = ramCost
+		nodeMap[key].RAMCost += ramCost
 		nodeMap[key].NodeType = nodeType
 	}
 
@@ -439,19 +437,24 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 			continue
 		}
 
+		nodeType, _ := result.GetString("instance_type")
+		providerID, _ := result.GetString("provider_id")
+
 		gpuCost := result.Values[0].Value
 
 		key := fmt.Sprintf("%s/%s", cluster, name)
 		if _, ok := nodeMap[key]; !ok {
 			nodeMap[key] = &Node{
-				Cluster: cluster,
-				Name:    name,
+				Cluster:    cluster,
+				Name:       name,
+				NodeType:   nodeType,
+				ProviderID: providerID,
 			}
 		}
-		nodeMap[key].GPUCost = gpuCost
+		nodeMap[key].GPUCost += gpuCost
 	}
 
-	// node_labels label_cloud_google_com_gke_preemptible
+	// Determine preemptibility with node labels
 	for _, result := range resNodeLabels {
 		nodeName, err := result.GetString("node")
 		if err != nil {
@@ -465,6 +468,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		}
 
 		// TODO AWS preemptible
+
 		// TODO Azure preemptible
 	}
 
@@ -472,24 +476,20 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	if err != nil {
 		return nil, []error{err}
 	}
+
 	discount, err := ParsePercentString(c.Discount)
 	if err != nil {
 		return nil, []error{err}
 	}
+
 	negotiatedDiscount, err := ParsePercentString(c.NegotiatedDiscount)
 	if err != nil {
 		return nil, []error{err}
 	}
 
 	for _, node := range nodeMap {
-		if !node.Preemptible {
-			// TODO determine discount(s) based on:
-			// - custom settings
-			// - node RI data
-			// - provider-specific rules, e.g.
-			//   cp.GetDiscount(instanceType string) float64
-			node.Discount = (1.0 - (1.0-discount)*(1.0-negotiatedDiscount))
-		}
+		// TODO take RI into account
+		node.Discount = cp.CombinedDiscountForNode(node.NodeType, node.Preemptible, discount, negotiatedDiscount)
 	}
 
 	return nodeMap, nil
