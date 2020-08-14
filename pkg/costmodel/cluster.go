@@ -144,10 +144,10 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 	resChLocalStorageCost := ctx.Query(queryLocalStorageCost)
 	resChLocalStorageBytes := ctx.Query(queryLocalStorageBytes)
 
-	resPVCost := resChPVCost.Await()
-	resPVSize := resChPVSize.Await()
-	resLocalStorageCost := resChLocalStorageCost.Await()
-	resLocalStorageBytes := resChLocalStorageBytes.Await()
+	resPVCost, _ := resChPVCost.Await()
+	resPVSize, _ := resChPVSize.Await()
+	resLocalStorageCost, _ := resChLocalStorageCost.Await()
+	resLocalStorageBytes, _ := resChLocalStorageBytes.Await()
 	if ctx.ErrorCollector.IsError() {
 		return nil, ctx.Errors()
 	}
@@ -305,12 +305,12 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	resChNodeGPUCost := ctx.Query(queryNodeGPUCost)
 	resChNodeLabels := ctx.Query(queryNodeLabels)
 
-	resNodeCPUCost := resChNodeCPUCost.Await()
-	resNodeCPUCores := resChNodeCPUCores.Await()
-	resNodeGPUCost := resChNodeGPUCost.Await()
-	resNodeRAMCost := resChNodeRAMCost.Await()
-	resNodeRAMBytes := resChNodeRAMBytes.Await()
-	resNodeLabels := resChNodeLabels.Await()
+	resNodeCPUCost, _ := resChNodeCPUCost.Await()
+	resNodeCPUCores, _ := resChNodeCPUCores.Await()
+	resNodeGPUCost, _ := resChNodeGPUCost.Await()
+	resNodeRAMCost, _ := resChNodeRAMCost.Await()
+	resNodeRAMBytes, _ := resChNodeRAMBytes.Await()
+	resNodeLabels, _ := resChNodeLabels.Await()
 	if ctx.ErrorCollector.IsError() {
 		return nil, ctx.Errors()
 	}
@@ -624,10 +624,19 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 		resChs = append(resChs, bdResChs...)
 	}
 
+	resDataCount, _ := resChs[0].Await()
+	resTotalGPU, _ := resChs[1].Await()
+	resTotalCPU, _ := resChs[2].Await()
+	resTotalRAM, _ := resChs[3].Await()
+	resTotalStorage, _ := resChs[4].Await()
+	if ctx.HasErrors() {
+		return nil, ctx.Errors()[0]
+	}
+
 	defaultClusterID := env.GetClusterID()
 
 	dataMinsByCluster := map[string]float64{}
-	for _, result := range resChs[0].Await() {
+	for _, result := range resDataCount {
 		clusterID, _ := result.GetString("cluster_id")
 		if clusterID == "" {
 			clusterID = defaultClusterID
@@ -676,20 +685,31 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 		}
 	}
 	// Apply both sustained use and custom discounts to RAM and CPU
-	setCostsFromResults(costData, resChs[2].Await(), "cpu", discount, customDiscount)
-	setCostsFromResults(costData, resChs[3].Await(), "ram", discount, customDiscount)
+	setCostsFromResults(costData, resTotalCPU, "cpu", discount, customDiscount)
+	setCostsFromResults(costData, resTotalRAM, "ram", discount, customDiscount)
 	// Apply only custom discount to GPU and storage
-	setCostsFromResults(costData, resChs[1].Await(), "gpu", 0.0, customDiscount)
-	setCostsFromResults(costData, resChs[4].Await(), "storage", 0.0, customDiscount)
+	setCostsFromResults(costData, resTotalGPU, "gpu", 0.0, customDiscount)
+	setCostsFromResults(costData, resTotalStorage, "storage", 0.0, customDiscount)
 	if queryTotalLocalStorage != "" {
-		setCostsFromResults(costData, resChs[5].Await(), "localstorage", 0.0, customDiscount)
+		resTotalLocalStorage, err := resChs[5].Await()
+		if err != nil {
+			return nil, err
+		}
+		setCostsFromResults(costData, resTotalLocalStorage, "localstorage", 0.0, customDiscount)
 	}
 
 	cpuBreakdownMap := map[string]*ClusterCostsBreakdown{}
 	ramBreakdownMap := map[string]*ClusterCostsBreakdown{}
 	pvUsedCostMap := map[string]float64{}
 	if withBreakdown {
-		for _, result := range resChs[6].Await() {
+		resCPUModePct, _ := resChs[6].Await()
+		resRAMSystemPct, _ := resChs[7].Await()
+		resRAMUserPct, _ := resChs[8].Await()
+		if ctx.HasErrors() {
+			return nil, ctx.Errors()[0]
+		}
+
+		for _, result := range resCPUModePct {
 			clusterID, _ := result.GetString("cluster_id")
 			if clusterID == "" {
 				clusterID = defaultClusterID
@@ -717,7 +737,7 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 			}
 		}
 
-		for _, result := range resChs[7].Await() {
+		for _, result := range resRAMSystemPct {
 			clusterID, _ := result.GetString("cluster_id")
 			if clusterID == "" {
 				clusterID = defaultClusterID
@@ -728,7 +748,7 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 			ramBD := ramBreakdownMap[clusterID]
 			ramBD.System += result.Values[0].Value
 		}
-		for _, result := range resChs[8].Await() {
+		for _, result := range resRAMUserPct {
 			clusterID, _ := result.GetString("cluster_id")
 			if clusterID == "" {
 				clusterID = defaultClusterID
@@ -748,7 +768,11 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 		}
 
 		if queryUsedLocalStorage != "" {
-			for _, result := range resChs[9].Await() {
+			resUsedLocalStorage, err := resChs[9].Await()
+			if err != nil {
+				return nil, err
+			}
+			for _, result := range resUsedLocalStorage {
 				clusterID, _ := result.GetString("cluster_id")
 				if clusterID == "" {
 					clusterID = defaultClusterID
@@ -804,20 +828,12 @@ type Totals struct {
 	StorageCost [][]string `json:"storageCost"`
 }
 
-func resultToTotals(qr interface{}) ([][]string, error) {
-	// TODO: Provide an actual query instead of resultToTotals
-	qResults, err := prom.NewQueryResults("resultToTotals", qr)
-	if err != nil {
-		return nil, err
-	}
-
-	results := qResults.Results
-
-	if len(results) == 0 {
+func resultToTotals(qrs []*prom.QueryResult) ([][]string, error) {
+	if len(qrs) == 0 {
 		return [][]string{}, fmt.Errorf("Not enough data available in the selected time range")
 	}
 
-	result := results[0]
+	result := qrs[0]
 	totals := [][]string{}
 	for _, value := range result.Values {
 		d0 := fmt.Sprintf("%f", value.Timestamp)
@@ -866,22 +882,28 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 	qStorage := fmt.Sprintf(queryStorage, windowString, offset, windowString, offset, localStorageQuery)
 	qTotal := fmt.Sprintf(queryTotal, localStorageQuery)
 
-	resultClusterCores, err := QueryRange(cli, qCores, start, end, window)
+	ctx := prom.NewContext(cli)
+	resChClusterCores := ctx.QueryRange(qCores, start, end, window)
+	resChClusterRAM := ctx.QueryRange(qRAM, start, end, window)
+	resChStorage := ctx.QueryRange(qStorage, start, end, window)
+	resChTotal := ctx.QueryRange(qTotal, start, end, window)
+
+	resultClusterCores, err := resChClusterCores.Await()
 	if err != nil {
 		return nil, err
 	}
 
-	resultClusterRAM, err := QueryRange(cli, qRAM, start, end, window)
+	resultClusterRAM, err := resChClusterRAM.Await()
 	if err != nil {
 		return nil, err
 	}
 
-	resultStorage, err := QueryRange(cli, qStorage, start, end, window)
+	resultStorage, err := resChStorage.Await()
 	if err != nil {
 		return nil, err
 	}
 
-	resultTotal, err := QueryRange(cli, qTotal, start, end, window)
+	resultTotal, err := resChTotal.Await()
 	if err != nil {
 		return nil, err
 	}
@@ -910,7 +932,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 		// If that fails, return an error because something is actually wrong.
 		qNodes := fmt.Sprintf(queryNodes, localStorageQuery)
 
-		resultNodes, err := QueryRange(cli, qNodes, start, end, window)
+		resultNodes, err := ctx.QueryRangeSync(qNodes, start, end, window)
 		if err != nil {
 			return nil, err
 		}

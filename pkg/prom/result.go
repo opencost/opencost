@@ -11,21 +11,47 @@ import (
 	"github.com/kubecost/cost-model/pkg/util"
 )
 
+var (
+	// Static Warnings for data point parsing
+	InfWarning warning = newWarning("Found Inf value parsing vector data point for metric")
+	NaNWarning warning = newWarning("Found NaN value parsing vector data point for metric")
+
+	// Static Errors for query result parsing
+	DataFieldFormatErr         error = errors.New("Data field improperly formatted in prometheus repsonse")
+	DataPointFormatErr         error = errors.New("Improperly formatted datapoint from Prometheus")
+	MetricFieldDoesNotExistErr error = errors.New("Metric field does not exist in data result vector")
+	MetricFieldFormatErr       error = errors.New("Metric field is improperly formatted")
+	NoDataErr                  error = errors.New("No data")
+	PromUnexpectedResponseErr  error = errors.New("Unexpected response from Prometheus")
+	QueryResultNilErr          error = NewCommError("nil queryResult")
+	ResultFieldDoesNotExistErr error = errors.New("Result field not does not exist in prometheus response")
+	ResultFieldFormatErr       error = errors.New("Result field improperly formatted in prometheus response")
+	ResultFormatErr            error = errors.New("Result is improperly formatted")
+	ValueFieldDoesNotExistErr  error = errors.New("Value field does not exist in data result vector")
+	ValueFieldFormatErr        error = errors.New("Values field is improperly formatted")
+)
+
 // QueryResultsChan is a channel of query results
 type QueryResultsChan chan *QueryResults
 
 // Await returns query results, blocking until they are made available, and
 // deferring the closure of the underlying channel
-func (qrc QueryResultsChan) Await() []*QueryResult {
+func (qrc QueryResultsChan) Await() ([]*QueryResult, error) {
 	defer close(qrc)
-	results := <-qrc
 
-	// Possible that the returned results are nil
-	if results == nil {
-		return nil
+	results := <-qrc
+	if results.Error != nil {
+		return nil, results.Error
 	}
 
-	return results.Results
+	return results.Results, nil
+}
+
+// QueryResults contains all of the query results and the source query string.
+type QueryResults struct {
+	Query   string
+	Error   error
+	Results []*QueryResult
 }
 
 // QueryResult contains a single result from a prometheus query. It's common
@@ -34,31 +60,6 @@ type QueryResult struct {
 	Metric map[string]interface{}
 	Values []*util.Vector
 }
-
-// QueryResults contains all of the query results and the source query string.
-type QueryResults struct {
-	Query   string
-	Results []*QueryResult
-}
-
-var (
-	// Static Warnings for data point parsing
-	InfWarning warning = newWarning("Found Inf value parsing vector data point for metric")
-	NaNWarning warning = newWarning("Found NaN value parsing vector data point for metric")
-
-	// Static Errors for query result parsing
-	QueryResultNilErr          error = NewCommError("nil queryResult")
-	PromUnexpectedResponseErr  error = errors.New("Unexpected response from Prometheus")
-	DataFieldFormatErr         error = errors.New("Data field improperly formatted in prometheus repsonse")
-	ResultFieldDoesNotExistErr error = errors.New("Result field not does not exist in prometheus response")
-	ResultFieldFormatErr       error = errors.New("Result field improperly formatted in prometheus response")
-	ResultFormatErr            error = errors.New("Result is improperly formatted")
-	MetricFieldDoesNotExistErr error = errors.New("Metric field does not exist in data result vector")
-	MetricFieldFormatErr       error = errors.New("Metric field is improperly formatted")
-	ValueFieldDoesNotExistErr  error = errors.New("Value field does not exist in data result vector")
-	ValueFieldFormatErr        error = errors.New("Values field is improperly formatted")
-	DataPointFormatErr         error = errors.New("Improperly formatted datapoint from Prometheus")
-)
 
 // NewQueryResults accepts the raw prometheus query result and returns an array of
 // QueryResult objects
