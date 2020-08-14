@@ -990,16 +990,9 @@ func (aws *AWS) NodePricing(k Key) (*Node, error) {
 			}, fmt.Errorf("Unable to find any Pricing data for \"%s\"", key)
 		}
 		return aws.createNode(terms, usageType, k)
-	} else { // Fall back to base pricing if we can't find the key.
-		klog.V(1).Infof("Invalid Pricing Key \"%s\"", key)
-		return &Node{
-			Cost:             aws.BaseCPUPrice,
-			BaseCPUPrice:     aws.BaseCPUPrice,
-			BaseRAMPrice:     aws.BaseRAMPrice,
-			BaseGPUPrice:     aws.BaseGPUPrice,
-			UsageType:        usageType,
-			UsesBaseCPUPrice: true,
-		}, nil
+	} else { // Fall back to base pricing if we can't find the key. Base pricing is handled at the costmodel level.
+		return nil, fmt.Errorf("Invalid Pricing Key \"%s\"", key)
+
 	}
 }
 
