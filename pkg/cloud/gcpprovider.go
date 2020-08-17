@@ -21,6 +21,7 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
 
 	"golang.org/x/oauth2"
@@ -1400,4 +1401,17 @@ func sustainedUseDiscount(class string, defaultDiscount float64) float64 {
 		discount = 0.2
 	}
 	return discount
+}
+
+func (gcp *GCP) ParseID(id string) string {
+	// gce://guestbook-227502/us-central1-a/gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
+	//  => gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
+	rx := regexp.MustCompile("gce://[^/]+/[^/]+/([^/]+)")
+	match := rx.FindStringSubmatch(id)
+	if len(match) < 2 {
+		log.Infof("gcpprovider.ParseID: failed to parse %s", id)
+		return id
+	}
+
+	return match[1]
 }

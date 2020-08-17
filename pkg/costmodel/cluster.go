@@ -340,7 +340,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 				Cluster:    cluster,
 				Name:       name,
 				NodeType:   nodeType,
-				ProviderID: providerID,
+				ProviderID: cp.ParseID(providerID),
 			}
 		}
 		nodeMap[key].CPUCost += cpuCost
@@ -394,7 +394,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 				Cluster:    cluster,
 				Name:       name,
 				NodeType:   nodeType,
-				ProviderID: providerID,
+				ProviderID: cp.ParseID(providerID),
 			}
 		}
 		nodeMap[key].RAMCost += ramCost
@@ -448,7 +448,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 				Cluster:    cluster,
 				Name:       name,
 				NodeType:   nodeType,
-				ProviderID: providerID,
+				ProviderID: cp.ParseID(providerID),
 			}
 		}
 		nodeMap[key].GPUCost += gpuCost
