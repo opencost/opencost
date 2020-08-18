@@ -178,10 +178,8 @@ func NewQueryResults(query string, queryResult interface{}) *QueryResults {
 		})
 	}
 
-	return &QueryResults{
-		Query:   query,
-		Results: results,
-	}
+	qrs.Results = results
+	return qrs
 }
 
 // GetString returns the requested field, or an error if it does not exist
