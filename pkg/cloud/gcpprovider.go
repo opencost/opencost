@@ -1406,7 +1406,7 @@ func sustainedUseDiscount(class string, defaultDiscount float64) float64 {
 func (gcp *GCP) ParseID(id string) string {
 	// gce://guestbook-227502/us-central1-a/gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
 	//  => gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
-	rx := regexp.MustCompile("gce://[^/]+/[^/]+/([^/]+)")
+	rx := regexp.MustCompile("gce://[^/]*/[^/]*/([^/]+)")
 	match := rx.FindStringSubmatch(id)
 	if len(match) < 2 {
 		log.Infof("gcpprovider.ParseID: failed to parse %s", id)

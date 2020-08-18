@@ -2402,7 +2402,7 @@ func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool,
 
 func (aws *AWS) ParseID(id string) string {
 	// It's of the form aws:///us-east-2a/i-0fea4fd46592d050b and we want i-0fea4fd46592d050b, if it exists
-	rx := regexp.MustCompile("aws:///[^/]+/([^/]+)")
+	rx := regexp.MustCompile("aws://[^/]*/[^/]*/([^/]+)")
 	match := rx.FindStringSubmatch(id)
 	if len(match) < 2 {
 		log.Infof("awsprovider.ParseID: failed to parse %s", id)
