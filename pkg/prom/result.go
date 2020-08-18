@@ -63,32 +63,40 @@ type QueryResult struct {
 
 // NewQueryResults accepts the raw prometheus query result and returns an array of
 // QueryResult objects
-func NewQueryResults(query string, queryResult interface{}) (*QueryResults, error) {
+func NewQueryResults(query string, queryResult interface{}) *QueryResults {
+	qrs := &QueryResults{Query: query}
+
 	if queryResult == nil {
-		return nil, QueryResultNilErr
+		qrs.Error = QueryResultNilErr
+		return qrs
 	}
 
 	data, ok := queryResult.(map[string]interface{})["data"]
 	if !ok {
 		e, err := wrapPrometheusError(queryResult)
 		if err != nil {
-			return nil, err
+			qrs.Error = err
+			return qrs
 		}
-		return nil, fmt.Errorf(e)
+		qrs.Error = fmt.Errorf(e)
+		return qrs
 	}
 
 	// Deep Check for proper formatting
 	d, ok := data.(map[string]interface{})
 	if !ok {
-		return nil, DataFieldFormatErr
+		qrs.Error = DataFieldFormatErr
+		return qrs
 	}
 	resultData, ok := d["result"]
 	if !ok {
-		return nil, ResultFieldDoesNotExistErr
+		qrs.Error = ResultFieldDoesNotExistErr
+		return qrs
 	}
 	resultsData, ok := resultData.([]interface{})
 	if !ok {
-		return nil, ResultFieldFormatErr
+		qrs.Error = ResultFieldFormatErr
+		return qrs
 	}
 
 	// Result vectors from the query
@@ -98,16 +106,19 @@ func NewQueryResults(query string, queryResult interface{}) (*QueryResults, erro
 	for _, val := range resultsData {
 		resultInterface, ok := val.(map[string]interface{})
 		if !ok {
-			return nil, ResultFormatErr
+			qrs.Error = ResultFormatErr
+			return qrs
 		}
 
 		metricInterface, ok := resultInterface["metric"]
 		if !ok {
-			return nil, MetricFieldDoesNotExistErr
+			qrs.Error = MetricFieldDoesNotExistErr
+			return qrs
 		}
 		metricMap, ok := metricInterface.(map[string]interface{})
 		if !ok {
-			return nil, MetricFieldFormatErr
+			qrs.Error = MetricFieldFormatErr
+			return qrs
 		}
 
 		// Define label string for values to ensure that we only run labelsForMetric once
@@ -121,13 +132,15 @@ func NewQueryResults(query string, queryResult interface{}) (*QueryResults, erro
 		if !isRange {
 			dataPoint, ok := resultInterface["value"]
 			if !ok {
-				return nil, ValueFieldDoesNotExistErr
+				qrs.Error = ValueFieldDoesNotExistErr
+				return qrs
 			}
 
 			// Append new data point, log warnings
 			v, warn, err := parseDataPoint(dataPoint)
 			if err != nil {
-				return nil, err
+				qrs.Error = err
+				return qrs
 			}
 			if warn != nil {
 				log.Warningf("%s\nQuery: %s\nLabels: %s", warn.Message(), query, labelsForMetric(metricMap))
@@ -137,14 +150,16 @@ func NewQueryResults(query string, queryResult interface{}) (*QueryResults, erro
 		} else {
 			values, ok := resultInterface["values"].([]interface{})
 			if !ok {
-				return nil, fmt.Errorf("Values field is improperly formatted")
+				qrs.Error = fmt.Errorf("Values field is improperly formatted")
+				return qrs
 			}
 
 			// Append new data points, log warnings
 			for _, value := range values {
 				v, warn, err := parseDataPoint(value)
 				if err != nil {
-					return nil, err
+					qrs.Error = err
+					return qrs
 				}
 				if warn != nil {
 					if labelString == "" {
@@ -166,7 +181,7 @@ func NewQueryResults(query string, queryResult interface{}) (*QueryResults, erro
 	return &QueryResults{
 		Query:   query,
 		Results: results,
-	}, nil
+	}
 }
 
 // GetString returns the requested field, or an error if it does not exist
