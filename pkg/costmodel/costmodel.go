@@ -1522,22 +1522,33 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	ctx := prom.NewContext(cli)
 
+	// Query for the average number of minutes per hour that Kubecost was up
+	// in the given range by averaging the number of up minutes-per-hour for
+	// each window in the range. Use that number in the RAM and CPU allocation
+	// queries as the adjutsment factor, scaling only if Kubecost was down
+	// for fewer than 3 minutes (as a heuristic for a reasonable amount of
+	// time to interpolate). Otherwise, use 60 minutes per hour and assume
+	// that this period of time is during Kubecost start-up or a long-term
+	// downtime for which we don't want to interpolate.
 	queryKubecostUp := fmt.Sprintf(kubecostUpMinsStr, windowString, window.Hours())
-	log.Infof("costDataRange: queryKubecostUp: %s", queryKubecostUp)
 	resKubecostUp, err := ctx.QueryRangeSync(queryKubecostUp, start, end, window)
 	if err != nil {
 		log.Errorf("costDataRange: error querying Kubecost up: %s", err)
 		return nil, err
 	}
-	for _, r := range resKubecostUp {
-		vals := []string{}
-		for _, val := range r.Values {
-			vals = append(vals, fmt.Sprintf("%.3f", val.Value))
+
+	kubecostMinsPerHour := 0.0
+	num := 0
+	if len(resKubecostUp) > 0 {
+		for _, val := range resKubecostUp[0].Values {
+			kubecostMinsPerHour += val.Value
+			num++
 		}
-		log.Infof("costDataRange: kubecost up: [ %s ]", strings.Join(vals, ", "))
+		kubecostMinsPerHour /= float64(num)
 	}
-	// TODO make kubecostMinsPerHour real
-	kubecostMinsPerHour := 60.0
+	if kubecostMinsPerHour <= 57.0 {
+		kubecostMinsPerHour = 60.0
+	}
 
 	// TODO niko/queryfix rewrite PVCAllocation query too, and remove this
 	// Use a heuristic to tell the difference between missed scrapes and an incomplete window
@@ -1545,11 +1556,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	minimumExpectedScrapeRate := 0.95
 
 	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, windowString, kubecostMinsPerHour)
-	log.Infof("costDataRange: queryRAMAlloc: %s", queryRAMAlloc)
-
 	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, windowString, kubecostMinsPerHour)
-	log.Infof("costDataRange: queryCPUAlloc: %s", queryCPUAlloc)
-
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, windowString, "", windowString, "")
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, windowString, "", windowString, "")
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, windowString, "", windowString, "")
