@@ -178,33 +178,27 @@ const (
 	sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) by (persistentvolumeclaim, namespace, cluster_id, kubernetes_name)) by (persistentvolumeclaim, storageclass, namespace, volumename, cluster_id)`
 	// queryRAMAllocationByteHours yields the total byte-hour RAM allocation over the given
 	// window, aggregated by container.
-	//  [line 3]     sum(all byte measurements) = [byte*scrape] by metric
-	//  [lines 4-6]  (") / (approximate scrape count per hour) = [byte*hour] by metric
-	//  [lines 2,7]     sum(") by unique container key = [byte*hour] by container
-	//  [lines 1,8]  relabeling
-	queryRAMAllocationByteHours = `label_replace(label_replace(
-		sum(
-			sum_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s])
-			/ clamp_min(
-				count_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s])/%f,
-				scalar(avg(avg_over_time(prometheus_target_interval_length_seconds[%s])))*%f)
-		) by (namespace,container,pod,node,cluster_id)
-	, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
+	//  [line 3]     sum_over_time(each byte*min in window) / (min/hr kubecost up) = [byte*hour] by metric, adjusted for kubecost downtime
+	//  [lines 2,4]  sum(") by unique container key = [byte*hour] by container
+	//  [lines 1,5]  relabeling
+	queryRAMAllocationByteHours = `
+		label_replace(label_replace(
+			sum(
+				sum_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s:1m]) / %f 
+			) by (namespace,container,pod,node,cluster_id)
+		, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
 	// queryCPUAllocationVCPUHours yields the total VCPU-hour CPU allocation over the given
 	// window, aggregated by container.
-	//  [line 3]     sum(all VCPU measurements within given window) = [VCPU*scrape] by metric
-	//  [lines 4-6]  (") / (approximate scrape count per hour) = [VCPU*hour] by metric
-	//  [lines 2,7]     sum(") by unique container key = [VCPU*hour] by container
-	//  [lines 1,8]  relabeling
-	queryCPUAllocationVCPUHours = `label_replace(label_replace(
-		sum(
-			sum_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s])
-			/ clamp_min(
-				count_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s])/%f,
-				scalar(avg(avg_over_time(prometheus_target_interval_length_seconds[%s])))*%f)
-		) by (namespace,container,pod,node,cluster_id)
-	, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
-	// queryPVCAllocationFmt yields the total byte-hour CPU allocation over the given window.
+	//  [line 3]     sum_over_time(each VCPU*mins in window) / (min/hr kubecost up) = [VCPU*hour] by metric, adjusted for kubecost downtime
+	//  [lines 2,4]  sum(") by unique container key = [VCPU*hour] by container
+	//  [lines 1,5]  relabeling
+	queryCPUAllocationVCPUHours = `
+		label_replace(label_replace(
+			sum(
+				sum_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s:1m]) / %f
+			) by (namespace,container,pod,node,cluster_id)
+		, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
+	// queryPVCAllocationFmt yields the total byte-hour PVC allocation over the given window.
 	//  sum(all VCPU measurements within given window) = [byte*min] by metric
 	//  (") / 60 = [byte*hour] by metric, assuming no missed scrapes
 	//  (") * (normalization factor) = [byte*hour] by metric, normalized for missed scrapes
@@ -226,6 +220,7 @@ const (
 	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	queryInternetNetworkUsage = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	normalizationStr          = `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[%s] %s))`
+	kubecostUpMinsStr         = `max(count_over_time(node_cpu_hourly_cost[%s:1m])) / %f`
 )
 
 type PrometheusMetadata struct {
@@ -1492,15 +1487,69 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	return data, err
 }
 
-func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider,
-	startString, endString, windowString string, resolutionHours float64, filterNamespace string, filterCluster string, remoteEnabled bool) (map[string]*CostData, error) {
+func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider, startString, endString, windowString string, resolutionHours float64, filterNamespace string, filterCluster string, remoteEnabled bool) (map[string]*CostData, error) {
+	layout := "2006-01-02T15:04:05.000Z"
 
+	start, err := time.Parse(layout, startString)
+	if err != nil {
+		klog.V(1).Infof("Error parsing time " + startString + ". Error: " + err.Error())
+		return nil, err
+	}
+
+	end, err := time.Parse(layout, endString)
+	if err != nil {
+		klog.V(1).Infof("Error parsing time " + endString + ". Error: " + err.Error())
+		return nil, err
+	}
+
+	window, err := time.ParseDuration(windowString)
+	if err != nil {
+		klog.V(1).Infof("Error parsing time " + windowString + ". Error: " + err.Error())
+		return nil, err
+	}
+
+	clusterID := env.GetClusterID()
+
+	durHrs := end.Sub(start).Hours() + 1
+
+	if remoteEnabled == true {
+		remoteLayout := "2006-01-02T15:04:05Z"
+		remoteStartStr := start.Format(remoteLayout)
+		remoteEndStr := end.Format(remoteLayout)
+		klog.V(1).Infof("Using remote database for query from %s to %s with window %s", startString, endString, windowString)
+		return CostDataRangeFromSQL("", "", windowString, remoteStartStr, remoteEndStr)
+	}
+
+	ctx := prom.NewContext(cli)
+
+	queryKubecostUp := fmt.Sprintf(kubecostUpMinsStr, windowString, window.Hours())
+	log.Infof("costDataRange: queryKubecostUp: %s", queryKubecostUp)
+	resKubecostUp, err := ctx.QueryRangeSync(queryKubecostUp, start, end, window)
+	if err != nil {
+		log.Errorf("costDataRange: error querying Kubecost up: %s", err)
+		return nil, err
+	}
+	for _, r := range resKubecostUp {
+		vals := []string{}
+		for _, val := range r.Values {
+			vals = append(vals, fmt.Sprintf("%.3f", val.Value))
+		}
+		log.Infof("costDataRange: kubecost up: [ %s ]", strings.Join(vals, ", "))
+	}
+	// TODO make kubecostMinsPerHour real
+	kubecostMinsPerHour := 60.0
+
+	// TODO niko/queryfix rewrite PVCAllocation query too, and remove this
 	// Use a heuristic to tell the difference between missed scrapes and an incomplete window
 	// of data due to fresh install, etc.
 	minimumExpectedScrapeRate := 0.95
 
-	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, windowString, windowString, resolutionHours, windowString, minimumExpectedScrapeRate)
-	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, windowString, windowString, resolutionHours, windowString, minimumExpectedScrapeRate)
+	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, windowString, kubecostMinsPerHour)
+	log.Infof("costDataRange: queryRAMAlloc: %s", queryRAMAlloc)
+
+	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, windowString, kubecostMinsPerHour)
+	log.Infof("costDataRange: queryCPUAlloc: %s", queryCPUAlloc)
+
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, windowString, "", windowString, "")
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, windowString, "", windowString, "")
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, windowString, "", windowString, "")
@@ -1514,39 +1563,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, windowString, "")
 	queryNormalization := fmt.Sprintf(normalizationStr, windowString, "")
 
-	layout := "2006-01-02T15:04:05.000Z"
-
-	start, err := time.Parse(layout, startString)
-	if err != nil {
-		klog.V(1).Infof("Error parsing time " + startString + ". Error: " + err.Error())
-		return nil, err
-	}
-	end, err := time.Parse(layout, endString)
-	if err != nil {
-		klog.V(1).Infof("Error parsing time " + endString + ". Error: " + err.Error())
-		return nil, err
-	}
-	window, err := time.ParseDuration(windowString)
-	if err != nil {
-		klog.V(1).Infof("Error parsing time " + windowString + ". Error: " + err.Error())
-		return nil, err
-	}
-	clusterID := env.GetClusterID()
-
-	durHrs := end.Sub(start).Hours() + 1
-
-	if remoteEnabled == true {
-		remoteLayout := "2006-01-02T15:04:05Z"
-		remoteStartStr := start.Format(remoteLayout)
-		remoteEndStr := end.Format(remoteLayout)
-		klog.V(1).Infof("Using remote database for query from %s to %s with window %s", startString, endString, windowString)
-		return CostDataRangeFromSQL("", "", windowString, remoteStartStr, remoteEndStr)
-	}
-
 	queryProfileStart := time.Now()
 
 	// Submit all queries for concurrent evaluation
-	ctx := prom.NewContext(cli)
 	resChRAMRequests := ctx.QueryRange(queryRAMRequests, start, end, window)
 	resChRAMUsage := ctx.QueryRange(queryRAMUsage, start, end, window)
 	resChRAMAlloc := ctx.QueryRange(queryRAMAlloc, start, end, window)
