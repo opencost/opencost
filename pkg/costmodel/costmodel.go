@@ -220,7 +220,7 @@ const (
 	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	queryInternetNetworkUsage = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	normalizationStr          = `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[%s] %s))`
-	kubecostUpMinsStr         = `max(count_over_time(node_cpu_hourly_cost[%s:1m])) / %f`
+	kubecostUpMinsPerHourStr  = `max(count_over_time(node_cpu_hourly_cost[%s:1m])) / %f`
 )
 
 type PrometheusMetadata struct {
@@ -1530,8 +1530,8 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	// time to interpolate). Otherwise, use 60 minutes per hour and assume
 	// that this period of time is during Kubecost start-up or a long-term
 	// downtime for which we don't want to interpolate.
-	queryKubecostUp := fmt.Sprintf(kubecostUpMinsStr, windowString, window.Hours())
-	resKubecostUp, err := ctx.QueryRangeSync(queryKubecostUp, start, end, window)
+	queryKubecostUpMinsPerHour := fmt.Sprintf(kubecostUpMinsPerHourStr, windowString, window.Hours())
+	resKubecostUp, err := ctx.QueryRangeSync(queryKubecostUpMinsPerHour, start, end, window)
 	if err != nil {
 		log.Errorf("costDataRange: error querying Kubecost up: %s", err)
 		return nil, err
