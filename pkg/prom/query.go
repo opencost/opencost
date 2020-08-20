@@ -60,8 +60,10 @@ func (ctx *Context) Query(query string) QueryResultsChan {
 		raw, promErr := ctx.query(query)
 		ctx.ErrorCollector.Report(promErr)
 
-		results, parseErr := NewQueryResults(query, raw)
-		ctx.ErrorCollector.Report(parseErr)
+		results := NewQueryResults(query, raw)
+		if results.Error != nil {
+			ctx.ErrorCollector.Report(results.Error)
+		}
 
 		resCh <- results
 	}(ctx, resCh)
@@ -89,9 +91,9 @@ func (ctx *Context) QuerySync(query string) ([]*QueryResult, error) {
 		return nil, err
 	}
 
-	results, err := NewQueryResults(query, raw)
-	if err != nil {
-		return nil, err
+	results := NewQueryResults(query, raw)
+	if results.Error != nil {
+		return nil, results.Error
 	}
 
 	return results.Results, nil
@@ -143,8 +145,10 @@ func (ctx *Context) QueryRange(query string, start, end time.Time, step time.Dur
 		raw, promErr := ctx.queryRange(query, start, end, step)
 		ctx.ErrorCollector.Report(promErr)
 
-		results, parseErr := NewQueryResults(query, raw)
-		ctx.ErrorCollector.Report(parseErr)
+		results := NewQueryResults(query, raw)
+		if results.Error != nil {
+			ctx.ErrorCollector.Report(results.Error)
+		}
 
 		resCh <- results
 	}(ctx, resCh)
@@ -158,9 +162,9 @@ func (ctx *Context) QueryRangeSync(query string, start, end time.Time, step time
 		return nil, err
 	}
 
-	results, err := NewQueryResults(query, raw)
-	if err != nil {
-		return nil, err
+	results := NewQueryResults(query, raw)
+	if results.Error != nil {
+		return nil, results.Error
 	}
 
 	return results.Results, nil
