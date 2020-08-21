@@ -950,16 +950,9 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 	if len(missingNodes) > 0 {
 		defer measureTime(time.Now(), profileThreshold, "Finding Deleted Node Info")
 
-		q := make([]string, 0, len(missingNodes))
-		for nodename := range missingNodes {
-			klog.V(4).Infof("Finding data for deleted node %v", nodename)
-			q = append(q, nodename)
-		}
-		l := strings.Join(q, "|")
-
-		queryHistoricalCPUCost := fmt.Sprintf(`avg_over_time(node_cpu_hourly_cost{instance=~"%s"}[%s])`, l, window)
-		queryHistoricalRAMCost := fmt.Sprintf(`avg_over_time(node_ram_hourly_cost{instance=~"%s"}[%s])`, l, window)
-		queryHistoricalGPUCost := fmt.Sprintf(`avg_over_time(node_gpu_hourly_cost{instance=~"%s"}[%s])`, l, window)
+		queryHistoricalCPUCost := fmt.Sprintf(`avg_over_time(node_cpu_hourly_cost[%s])`, window)
+		queryHistoricalRAMCost := fmt.Sprintf(`avg_over_time(node_ram_hourly_cost[%s])`, window)
+		queryHistoricalGPUCost := fmt.Sprintf(`avg_over_time(node_gpu_hourly_cost[%s])`, window)
 
 		cpuCostResult, err := Query(cli, queryHistoricalCPUCost)
 		if err != nil {
