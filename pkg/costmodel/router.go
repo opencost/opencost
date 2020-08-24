@@ -72,6 +72,7 @@ type Accesses struct {
 	CPUAllocationRecorder         *prometheus.GaugeVec
 	GPUAllocationRecorder         *prometheus.GaugeVec
 	PVAllocationRecorder          *prometheus.GaugeVec
+	ClusterManagementCostRecorder *prometheus.GaugeVec
 	NetworkZoneEgressRecorder     prometheus.Gauge
 	NetworkRegionEgressRecorder   prometheus.Gauge
 	NetworkInternetEgressRecorder prometheus.Gauge
@@ -898,6 +899,10 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		Name: "kubecost_network_internet_egress_cost",
 		Help: "kubecost_network_internet_egress_cost Total cost per GB of internet egress.",
 	})
+	ClusterManagementCostRecorder := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "kubecost_cluster_management_cost",
+		Help: "kubecost_cluster_management_cost Hourly cost paid as a cluster management fee.",
+	}, []string{"provisioner_name"})
 
 	prometheus.MustRegister(cpuGv)
 	prometheus.MustRegister(ramGv)
@@ -909,6 +914,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	prometheus.MustRegister(PVAllocation)
 	prometheus.MustRegister(GPUAllocation)
 	prometheus.MustRegister(NetworkZoneEgressRecorder, NetworkRegionEgressRecorder, NetworkInternetEgressRecorder)
+	prometheus.MustRegister(ClusterManagementCostRecorder)
 	prometheus.MustRegister(ServiceCollector{
 		KubeClientSet: kubeClientset,
 	})
@@ -939,6 +945,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		NetworkRegionEgressRecorder:   NetworkRegionEgressRecorder,
 		NetworkInternetEgressRecorder: NetworkInternetEgressRecorder,
 		PersistentVolumePriceRecorder: pvGv,
+		ClusterManagementCostRecorder: ClusterManagementCostRecorder,
 		Model:                         NewCostModel(k8sCache),
 		OutOfClusterCache:             outOfClusterCache,
 	}

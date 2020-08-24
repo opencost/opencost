@@ -358,6 +358,12 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 
 			cfg, _ := a.Cloud.GetConfig()
 
+			provisioner, clusterManagementCost, err := a.Cloud.ClusterManagementPricing()
+			if err != nil {
+				klog.V(1).Infof("Error getting cluster management cost %s", err.Error())
+			}
+			a.ClusterManagementCostRecorder.WithLabelValues(provisioner).Set(clusterManagementCost)
+
 			// Record network pricing at global scope
 			networkCosts, err := a.Cloud.NetworkPricing()
 			if err != nil {
