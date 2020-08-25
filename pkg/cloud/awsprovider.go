@@ -105,6 +105,8 @@ type AWS struct {
 	DownloadPricingDataLock     sync.RWMutex
 	Config                      *ProviderConfig
 	ServiceAccountChecks        map[string]*ServiceAccountCheck
+	clusterManagementPrice      float64
+	clusterProvisioner          string
 	*CustomProvider
 }
 
@@ -511,6 +513,10 @@ func (aws *AWS) isPreemptible(key string) bool {
 	return false
 }
 
+func (aws *AWS) ClusterManagementPricing() (string, float64, error) {
+	return aws.clusterProvisioner, aws.clusterManagementPrice, nil
+}
+
 // DownloadPricingData fetches data from the AWS Pricing API
 func (aws *AWS) DownloadPricingData() error {
 	aws.DownloadPricingDataLock.Lock()
@@ -545,6 +551,13 @@ func (aws *AWS) DownloadPricingData() error {
 
 	inputkeys := make(map[string]bool)
 	for _, n := range nodeList {
+		if _, ok := n.Labels["eks.amazonaws.com/nodegroup"]; ok {
+			aws.clusterManagementPrice = 0.10
+			aws.clusterProvisioner = "EKS"
+		} else if _, ok := n.Labels["kops.k8s.io/instancegroup"]; ok {
+			aws.clusterProvisioner = "KOPS"
+		}
+
 		labels := n.GetObjectMeta().GetLabels()
 		key := aws.GetKey(labels, n)
 		inputkeys[key.Features()] = true
@@ -990,16 +1003,9 @@ func (aws *AWS) NodePricing(k Key) (*Node, error) {
 			}, fmt.Errorf("Unable to find any Pricing data for \"%s\"", key)
 		}
 		return aws.createNode(terms, usageType, k)
-	} else { // Fall back to base pricing if we can't find the key.
-		klog.V(1).Infof("Invalid Pricing Key \"%s\"", key)
-		return &Node{
-			Cost:             aws.BaseCPUPrice,
-			BaseCPUPrice:     aws.BaseCPUPrice,
-			BaseRAMPrice:     aws.BaseRAMPrice,
-			BaseGPUPrice:     aws.BaseGPUPrice,
-			UsageType:        usageType,
-			UsesBaseCPUPrice: true,
-		}, nil
+	} else { // Fall back to base pricing if we can't find the key. Base pricing is handled at the costmodel level.
+		return nil, fmt.Errorf("Invalid Pricing Key \"%s\"", key)
+
 	}
 }
 
@@ -1019,6 +1025,7 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 		m["provider"] = "AWS"
 		m["id"] = env.GetClusterID()
 		m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
+		m["provisioner"] = awsProvider.clusterProvisioner
 		return m, nil
 	}
 	makeStructure := func(clusterName string) (map[string]string, error) {
@@ -2394,4 +2401,20 @@ func (a *AWS) ServiceAccountStatus() *ServiceAccountStatus {
 	return &ServiceAccountStatus{
 		Checks: checks,
 	}
+}
+
+func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
+	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
+}
+
+func (aws *AWS) ParseID(id string) string {
+	// It's of the form aws:///us-east-2a/i-0fea4fd46592d050b and we want i-0fea4fd46592d050b, if it exists
+	rx := regexp.MustCompile("aws://[^/]*/[^/]*/([^/]+)")
+	match := rx.FindStringSubmatch(id)
+	if len(match) < 2 {
+		log.Infof("awsprovider.ParseID: failed to parse %s", id)
+		return id
+	}
+
+	return match[1]
 }

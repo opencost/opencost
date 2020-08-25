@@ -38,6 +38,10 @@ type customProviderKey struct {
 	Labels         map[string]string
 }
 
+func (*CustomProvider) ClusterManagementPricing() (string, float64, error) {
+	return "", 0.0, nil
+}
+
 func (*CustomProvider) GetLocalStorageQuery(window, offset string, rate bool, used bool) string {
 	return ""
 }
@@ -267,4 +271,12 @@ func (cp *CustomProvider) ServiceAccountStatus() *ServiceAccountStatus {
 	return &ServiceAccountStatus{
 		Checks: []*ServiceAccountCheck{},
 	}
+}
+
+func (cp *CustomProvider) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
+	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
+}
+
+func (cp *CustomProvider) ParseID(id string) string {
+	return id
 }

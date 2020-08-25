@@ -21,6 +21,7 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
 
 	"golang.org/x/oauth2"
@@ -56,6 +57,8 @@ type GCP struct {
 	Config                  *ProviderConfig
 	serviceKeyProvided      bool
 	ValidPricingKeys        map[string]bool
+	clusterManagementPrice  float64
+	clusterProvisioner      string
 	*CustomProvider
 }
 
@@ -487,9 +490,14 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	m := make(map[string]string)
 	m["name"] = attribute
 	m["provider"] = "GCP"
+	m["provisioner"] = gcp.clusterProvisioner
 	m["id"] = env.GetClusterID()
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	return m, nil
+}
+
+func (gcp *GCP) ClusterManagementPricing() (string, float64, error) {
+	return gcp.clusterProvisioner, gcp.clusterManagementPrice, nil
 }
 
 func (*GCP) GetAddresses() ([]byte, error) {
@@ -944,6 +952,11 @@ func (gcp *GCP) DownloadPricingData() error {
 
 	for _, n := range nodeList {
 		labels := n.GetObjectMeta().GetLabels()
+		if _, ok := labels["cloud.google.com/gke-nodepool"]; ok { // The node is part of a GKE nodepool, so you're paying a cluster management cost
+			gcp.clusterManagementPrice = 0.10
+			gcp.clusterProvisioner = "GKE"
+		}
+
 		key := gcp.GetKey(labels, n)
 		inputkeys[key.Features()] = key
 	}
@@ -1384,4 +1397,36 @@ func (gcp *GCP) ServiceAccountStatus() *ServiceAccountStatus {
 	return &ServiceAccountStatus{
 		Checks: []*ServiceAccountCheck{},
 	}
+}
+
+func (gcp *GCP) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
+	class := strings.Split(instanceType, "-")[0]
+	return 1.0 - ((1.0 - sustainedUseDiscount(class, defaultDiscount, isPreemptible)) * (1.0 - negotiatedDiscount))
+}
+
+func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible bool) float64 {
+	if isPreemptible {
+		return 0.0
+	}
+	discount := defaultDiscount
+	switch class {
+	case "e2", "f1", "g1":
+		discount = 0.0
+	case "n2":
+		discount = 0.2
+	}
+	return discount
+}
+
+func (gcp *GCP) ParseID(id string) string {
+	// gce://guestbook-227502/us-central1-a/gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
+	//  => gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
+	rx := regexp.MustCompile("gce://[^/]*/[^/]*/([^/]+)")
+	match := rx.FindStringSubmatch(id)
+	if len(match) < 2 {
+		log.Infof("gcpprovider.ParseID: failed to parse %s", id)
+		return id
+	}
+
+	return match[1]
 }
