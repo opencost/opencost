@@ -1401,10 +1401,13 @@ func (gcp *GCP) ServiceAccountStatus() *ServiceAccountStatus {
 
 func (gcp *GCP) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
 	class := strings.Split(instanceType, "-")[0]
-	return 1.0 - ((1.0 - sustainedUseDiscount(class, defaultDiscount)) * (1.0 - negotiatedDiscount))
+	return 1.0 - ((1.0 - sustainedUseDiscount(class, defaultDiscount, isPreemptible)) * (1.0 - negotiatedDiscount))
 }
 
-func sustainedUseDiscount(class string, defaultDiscount float64) float64 {
+func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible bool) float64 {
+	if isPreemptible {
+		return 0.0
+	}
 	discount := defaultDiscount
 	switch class {
 	case "e2", "f1", "g1":

@@ -463,7 +463,12 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 
 		// GCP preemptible label
 		pre, _ := result.GetString("label_cloud_google_com_gke_preemptible")
-		if node, ok := nodeMap[nodeName]; pre == "true" && ok {
+		cluster, err := result.GetString("cluster_id")
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+		key := fmt.Sprintf("%s/%s", cluster, nodeName)
+		if node, ok := nodeMap[key]; pre == "true" && ok {
 			node.Preemptible = true
 		}
 
