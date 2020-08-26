@@ -296,7 +296,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	queryNodeRAMCost := fmt.Sprintf(`sum_over_time((avg(kube_node_status_capacity_memory_bytes) by (cluster_id, node) * on(cluster_id, node) group_right avg(node_ram_hourly_cost) by (cluster_id, node, instance_type, provider_id))[%s:%dm]%s) / 1024 / 1024 / 1024 * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
 	queryNodeRAMBytes := fmt.Sprintf(`avg_over_time(avg(kube_node_status_capacity_memory_bytes) by (cluster_id, node)[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 	queryNodeGPUCost := fmt.Sprintf(`sum_over_time((avg(node_gpu_hourly_cost) by (cluster_id, node, provider_id))[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
-	queryNodeLabels := fmt.Sprintf(`count_over_time(kube_node_labels[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
+	queryNodeLabels := fmt.Sprintf(`avg_over_time(kubecost_node_is_spot[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 
 	resChNodeCPUCost := ctx.Query(queryNodeCPUCost)
 	resChNodeCPUCores := ctx.Query(queryNodeCPUCores)
@@ -469,7 +469,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 			cluster = env.GetClusterID()
 		}
 		key := fmt.Sprintf("%s/%s", cluster, nodeName)
-		if node, ok := nodeMap[key]; pre == 1.0 && ok {
+		if node, ok := nodeMap[key]; pre > 0.0 && ok {
 			node.Preemptible = true
 		}
 
