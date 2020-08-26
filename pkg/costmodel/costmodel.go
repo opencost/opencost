@@ -448,7 +448,9 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 			}
 
 			for k, v := range nsLabels {
-				podLabels[k] = v
+				if _, ok := podLabels[k]; !ok {
+					podLabels[k] = v
+				}
 			}
 
 			nodeName := pod.Spec.NodeName
@@ -1926,7 +1928,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		}
 
 		for k, v := range namespaceLabels {
-			pLabels[k] = v
+			if _, ok := pLabels[k]; !ok {
+				pLabels[k] = v
+			}
 		}
 
 		var podDeployments []string
