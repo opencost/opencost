@@ -260,17 +260,19 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 }
 
 type Node struct {
-	Cluster     string
-	Name        string
-	ProviderID  string
-	NodeType    string
-	CPUCost     float64
-	CPUCores    float64
-	GPUCost     float64
-	RAMCost     float64
-	RAMBytes    float64
-	Discount    float64
-	Preemptible bool
+	Cluster      string
+	Name         string
+	ProviderID   string
+	NodeType     string
+	CPUCost      float64
+	CPUCores     float64
+	GPUCost      float64
+	RAMCost      float64
+	RAMBytes     float64
+	Discount     float64
+	Preemptible  bool
+	CPUBreakdown *ClusterCostsBreakdown
+	RAMBreakdown *ClusterCostsBreakdown
 }
 
 func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset time.Duration) (map[string]*Node, []error) {
@@ -297,6 +299,9 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	queryNodeRAMBytes := fmt.Sprintf(`avg_over_time(avg(kube_node_status_capacity_memory_bytes) by (cluster_id, node)[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 	queryNodeGPUCost := fmt.Sprintf(`sum_over_time((avg(node_gpu_hourly_cost) by (cluster_id, node, provider_id))[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 	queryNodeLabels := fmt.Sprintf(`count_over_time(kube_node_labels[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
+	queryNodeCPUModePct := fmt.Sprintf(`sum(rate(node_cpu_seconds_total[%s:%dm]%s)) by (kubernetes_node, cluster_id, mode) / ignoring(mode) group_left sum(rate(node_cpu_seconds_total[%s:%dm]%s)) by (kubernetes_node, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
+	queryNodeRAMSystemPct := fmt.Sprintf(`sum(sum_over_time(container_memory_usage_bytes{container_name!="",namespace="kube-system"}[%s:%dm]%s)) by (instance, cluster_id) / sum(sum_over_time(label_replace(kube_node_status_capacity_memory_bytes, "instance", "$1", "kubernetes_node", "(.*)")[%s:%dm]%s)) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
+	queryNodeRAMUserPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!=""}[%s:%dm]%s)) by (instance, cluster_id) / sum(sum_over_time(label_replace(kube_node_status_capacity_memory_bytes, "instance", "$1", "kubernetes_node", "(.*)")[%s:%dm]%s)) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
 
 	resChNodeCPUCost := ctx.Query(queryNodeCPUCost)
 	resChNodeCPUCores := ctx.Query(queryNodeCPUCores)
@@ -304,6 +309,9 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	resChNodeRAMBytes := ctx.Query(queryNodeRAMBytes)
 	resChNodeGPUCost := ctx.Query(queryNodeGPUCost)
 	resChNodeLabels := ctx.Query(queryNodeLabels)
+	resChNodeCPUModePct := ctx.Query(queryNodeCPUModePct)
+	resChNodeRAMSystemPct := ctx.Query(queryNodeRAMSystemPct)
+	resChNodeRAMUserPct := ctx.Query(queryNodeRAMUserPct)
 
 	resNodeCPUCost, _ := resChNodeCPUCost.Await()
 	resNodeCPUCores, _ := resChNodeCPUCores.Await()
@@ -311,6 +319,9 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	resNodeRAMCost, _ := resChNodeRAMCost.Await()
 	resNodeRAMBytes, _ := resChNodeRAMBytes.Await()
 	resNodeLabels, _ := resChNodeLabels.Await()
+	resNodeCPUModePct, _ := resChNodeCPUModePct.Await()
+	resNodeRAMSystemPct, _ := resChNodeRAMSystemPct.Await()
+	resNodeRAMUserPct, _ := resChNodeRAMUserPct.Await()
 	if ctx.ErrorCollector.IsError() {
 		return nil, ctx.Errors()
 	}
@@ -337,10 +348,12 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		key := fmt.Sprintf("%s/%s", cluster, name)
 		if _, ok := nodeMap[key]; !ok {
 			nodeMap[key] = &Node{
-				Cluster:    cluster,
-				Name:       name,
-				NodeType:   nodeType,
-				ProviderID: cp.ParseID(providerID),
+				Cluster:      cluster,
+				Name:         name,
+				NodeType:     nodeType,
+				ProviderID:   cp.ParseID(providerID),
+				CPUBreakdown: &ClusterCostsBreakdown{},
+				RAMBreakdown: &ClusterCostsBreakdown{},
 			}
 		}
 		nodeMap[key].CPUCost += cpuCost
@@ -364,8 +377,10 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		key := fmt.Sprintf("%s/%s", cluster, name)
 		if _, ok := nodeMap[key]; !ok {
 			nodeMap[key] = &Node{
-				Cluster: cluster,
-				Name:    name,
+				Cluster:      cluster,
+				Name:         name,
+				CPUBreakdown: &ClusterCostsBreakdown{},
+				RAMBreakdown: &ClusterCostsBreakdown{},
 			}
 		}
 		nodeMap[key].CPUCores = cpuCores
@@ -391,10 +406,12 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		key := fmt.Sprintf("%s/%s", cluster, name)
 		if _, ok := nodeMap[key]; !ok {
 			nodeMap[key] = &Node{
-				Cluster:    cluster,
-				Name:       name,
-				NodeType:   nodeType,
-				ProviderID: cp.ParseID(providerID),
+				Cluster:      cluster,
+				Name:         name,
+				NodeType:     nodeType,
+				ProviderID:   cp.ParseID(providerID),
+				CPUBreakdown: &ClusterCostsBreakdown{},
+				RAMBreakdown: &ClusterCostsBreakdown{},
 			}
 		}
 		nodeMap[key].RAMCost += ramCost
@@ -418,8 +435,10 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		key := fmt.Sprintf("%s/%s", cluster, name)
 		if _, ok := nodeMap[key]; !ok {
 			nodeMap[key] = &Node{
-				Cluster: cluster,
-				Name:    name,
+				Cluster:      cluster,
+				Name:         name,
+				CPUBreakdown: &ClusterCostsBreakdown{},
+				RAMBreakdown: &ClusterCostsBreakdown{},
 			}
 		}
 		nodeMap[key].RAMBytes = ramBytes
@@ -445,13 +464,99 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		key := fmt.Sprintf("%s/%s", cluster, name)
 		if _, ok := nodeMap[key]; !ok {
 			nodeMap[key] = &Node{
-				Cluster:    cluster,
-				Name:       name,
-				NodeType:   nodeType,
-				ProviderID: cp.ParseID(providerID),
+				Cluster:      cluster,
+				Name:         name,
+				NodeType:     nodeType,
+				ProviderID:   cp.ParseID(providerID),
+				CPUBreakdown: &ClusterCostsBreakdown{},
+				RAMBreakdown: &ClusterCostsBreakdown{},
 			}
 		}
 		nodeMap[key].GPUCost += gpuCost
+	}
+
+	for _, result := range resNodeCPUModePct {
+		cluster, err := result.GetString("cluster_id")
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("kubernetes_node")
+		if err != nil {
+			log.Warningf("ClusterNodes: CPU mode data missing node")
+			continue
+		}
+
+		mode, err := result.GetString("mode")
+		if err != nil {
+			log.Warningf("ClusterNodes: unable to read CPU mode: %s", err)
+			mode = "other"
+		}
+
+		pct := result.Values[0].Value
+
+		key := fmt.Sprintf("%s/%s", cluster, name)
+		if _, ok := nodeMap[key]; !ok {
+			log.Warningf("ClusterNodes: CPU mode data for unidentified node")
+			continue
+		}
+
+		switch mode {
+		case "idle":
+			nodeMap[key].CPUBreakdown.Idle += pct
+		case "system":
+			nodeMap[key].CPUBreakdown.System += pct
+		case "user":
+			nodeMap[key].CPUBreakdown.User += pct
+		default:
+			nodeMap[key].CPUBreakdown.Other += pct
+		}
+	}
+
+	for _, result := range resNodeRAMSystemPct {
+		cluster, err := result.GetString("cluster_id")
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("instance")
+		if err != nil {
+			log.Warningf("ClusterNodes: RAM system percent missing node")
+			continue
+		}
+
+		pct := result.Values[0].Value
+
+		key := fmt.Sprintf("%s/%s", cluster, name)
+		if _, ok := nodeMap[key]; !ok {
+			log.Warningf("ClusterNodes: RAM system percent for unidentified node")
+			continue
+		}
+
+		nodeMap[key].RAMBreakdown.System += pct
+	}
+
+	for _, result := range resNodeRAMUserPct {
+		cluster, err := result.GetString("cluster_id")
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("instance")
+		if err != nil {
+			log.Warningf("ClusterNodes: RAM system percent missing node")
+			continue
+		}
+
+		pct := result.Values[0].Value
+
+		key := fmt.Sprintf("%s/%s", cluster, name)
+		if _, ok := nodeMap[key]; !ok {
+			log.Warningf("ClusterNodes: RAM system percent for unidentified node")
+			continue
+		}
+
+		nodeMap[key].RAMBreakdown.User += pct
 	}
 
 	// Determine preemptibility with node labels
@@ -490,6 +595,9 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	for _, node := range nodeMap {
 		// TODO take RI into account
 		node.Discount = cp.CombinedDiscountForNode(node.NodeType, node.Preemptible, discount, negotiatedDiscount)
+
+		// Apply all remaining RAM to Idle
+		node.RAMBreakdown.Idle = 1.0 - (node.RAMBreakdown.System + node.RAMBreakdown.Other + node.RAMBreakdown.User)
 	}
 
 	return nodeMap, nil
