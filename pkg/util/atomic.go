@@ -11,12 +11,12 @@ func NewAtomicInt32(value int32) *AtomicInt32 {
 	return ai
 }
 
-// Loads the bool value atomically
+// Loads the int32 value atomically
 func (ai *AtomicInt32) Get() int32 {
 	return atomic.LoadInt32((*int32)(ai))
 }
 
-// Sets the bool value atomically
+// Sets the int32 value atomically
 func (ai *AtomicInt32) Set(value int32) {
 	atomic.StoreInt32((*int32)(ai), value)
 }
