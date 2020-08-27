@@ -2398,7 +2398,9 @@ func (aws *AWS) ParseID(id string) string {
 	rx := regexp.MustCompile("aws://[^/]*/[^/]*/([^/]+)")
 	match := rx.FindStringSubmatch(id)
 	if len(match) < 2 {
-		log.Infof("awsprovider.ParseID: failed to parse %s", id)
+		if id != "" {
+			log.Infof("awsprovider.ParseID: failed to parse %s", id)
+		}
 		return id
 	}
 
