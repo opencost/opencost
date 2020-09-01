@@ -111,6 +111,8 @@ type Disk struct {
 	Cost       float64
 	Bytes      float64
 	Local      bool
+	Start      time.Time
+	Minutes    float64
 }
 
 func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, offset time.Duration) (map[string]*Disk, []error) {
@@ -138,6 +140,9 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 	queryPVSize := fmt.Sprintf(`avg_over_time(kube_persistentvolume_capacity_bytes[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 	queryLocalStorageCost := fmt.Sprintf(`sum_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance, cluster_id)[%s:%dm]%s) / 1024 / 1024 / 1024 * %f * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative, costPerGBHr)
 	queryLocalStorageBytes := fmt.Sprintf(`avg_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance, cluster_id)[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
+
+	// TODO niko/assets how to do "active minutes" here?
+	// queryActiveMins := fmt.Sprintf(`count(node_total_hourly_cost) by (cluster_id, node)[%s:%dm]%s`, durationStr, minsPerResolution, offsetStr)
 
 	resChPVCost := ctx.Query(queryPVCost)
 	resChPVSize := ctx.Query(queryPVSize)
@@ -273,6 +278,8 @@ type Node struct {
 	Preemptible  bool
 	CPUBreakdown *ClusterCostsBreakdown
 	RAMBreakdown *ClusterCostsBreakdown
+	Start        time.Time
+	Minutes      float64
 }
 
 func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset time.Duration) (map[string]*Node, []error) {
@@ -302,6 +309,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	queryNodeCPUModePct := fmt.Sprintf(`sum(rate(node_cpu_seconds_total[%s:%dm]%s)) by (kubernetes_node, cluster_id, mode) / ignoring(mode) group_left sum(rate(node_cpu_seconds_total[%s:%dm]%s)) by (kubernetes_node, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
 	queryNodeRAMSystemPct := fmt.Sprintf(`sum(sum_over_time(container_memory_usage_bytes{container_name!="",namespace="kube-system"}[%s:%dm]%s)) by (instance, cluster_id) / sum(sum_over_time(label_replace(kube_node_status_capacity_memory_bytes, "instance", "$1", "kubernetes_node", "(.*)")[%s:%dm]%s)) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
 	queryNodeRAMUserPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!=""}[%s:%dm]%s)) by (instance, cluster_id) / sum(sum_over_time(label_replace(kube_node_status_capacity_memory_bytes, "instance", "$1", "kubernetes_node", "(.*)")[%s:%dm]%s)) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
+	queryActiveMins := fmt.Sprintf(`count(node_total_hourly_cost) by (cluster_id, node)[%s:%dm]%s`, durationStr, minsPerResolution, offsetStr)
 
 	resChNodeCPUCost := ctx.Query(queryNodeCPUCost)
 	resChNodeCPUCores := ctx.Query(queryNodeCPUCores)
@@ -312,6 +320,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	resChNodeCPUModePct := ctx.Query(queryNodeCPUModePct)
 	resChNodeRAMSystemPct := ctx.Query(queryNodeRAMSystemPct)
 	resChNodeRAMUserPct := ctx.Query(queryNodeRAMUserPct)
+	resChActiveMins := ctx.Query(queryActiveMins)
 
 	resNodeCPUCost, _ := resChNodeCPUCost.Await()
 	resNodeCPUCores, _ := resChNodeCPUCores.Await()
@@ -322,6 +331,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	resNodeCPUModePct, _ := resChNodeCPUModePct.Await()
 	resNodeRAMSystemPct, _ := resChNodeRAMSystemPct.Await()
 	resNodeRAMUserPct, _ := resChNodeRAMUserPct.Await()
+	resActiveMins, _ := resChActiveMins.Await()
 	if ctx.ErrorCollector.IsError() {
 		return nil, ctx.Errors()
 	}
@@ -557,6 +567,39 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		}
 
 		nodeMap[key].RAMBreakdown.User += pct
+	}
+
+	for _, result := range resActiveMins {
+		cluster, err := result.GetString("cluster_id")
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("node")
+		if err != nil {
+			log.Warningf("ClusterNodes: active mins missing node")
+			continue
+		}
+
+		key := fmt.Sprintf("%s/%s", cluster, name)
+		if _, ok := nodeMap[key]; !ok {
+			log.Warningf("ClusterNodes: active mins for unidentified node")
+			continue
+		}
+
+		if len(result.Values) == 0 {
+			continue
+		}
+
+		s := time.Unix(int64(result.Values[0].Timestamp), 0)
+		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
+		mins := e.Sub(s).Minutes()
+
+		// TODO niko/assets if mins >= threshold, interpolate for missing data?
+
+		log.Infof("ClusterNodes: %s: %f", key, mins)
+		nodeMap[key].Start = s
+		nodeMap[key].Minutes = mins
 	}
 
 	// Determine preemptibility with node labels
