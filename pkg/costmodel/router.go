@@ -68,6 +68,7 @@ type Accesses struct {
 	PersistentVolumePriceRecorder *prometheus.GaugeVec
 	GPUPriceRecorder              *prometheus.GaugeVec
 	NodeTotalPriceRecorder        *prometheus.GaugeVec
+	NodeSpotRecorder              *prometheus.GaugeVec
 	RAMAllocationRecorder         *prometheus.GaugeVec
 	CPUAllocationRecorder         *prometheus.GaugeVec
 	GPUAllocationRecorder         *prometheus.GaugeVec
@@ -864,6 +865,11 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		Help: "node_total_hourly_cost Total node cost per hour",
 	}, []string{"instance", "node", "instance_type", "region", "provider_id"})
 
+	spotGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "kubecost_node_is_spot",
+		Help: "kubecost_node_is_spot Cloud provider info about node preemptibility",
+	}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+
 	pvGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "pv_hourly_cost",
 		Help: "pv_hourly_cost Cost per GB per hour on a persistent disk",
@@ -910,6 +916,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	prometheus.MustRegister(gpuGv)
 	prometheus.MustRegister(totalGv)
 	prometheus.MustRegister(pvGv)
+	prometheus.MustRegister(spotGv)
 	prometheus.MustRegister(RAMAllocation)
 	prometheus.MustRegister(CPUAllocation)
 	prometheus.MustRegister(PVAllocation)
@@ -938,6 +945,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		RAMPriceRecorder:              ramGv,
 		GPUPriceRecorder:              gpuGv,
 		NodeTotalPriceRecorder:        totalGv,
+		NodeSpotRecorder:              spotGv,
 		RAMAllocationRecorder:         RAMAllocation,
 		CPUAllocationRecorder:         CPUAllocation,
 		GPUAllocationRecorder:         GPUAllocation,
