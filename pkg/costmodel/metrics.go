@@ -426,6 +426,11 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(ramCost)
 				a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(gpuCost)
 				a.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(totalCost)
+				if node.IsSpot() {
+					a.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(1.0)
+				} else {
+					a.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(0.0)
+				}
 				labelKey := getKeyFromLabelStrings(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID)
 				nodeSeen[labelKey] = true
 			}
@@ -508,6 +513,12 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 						klog.Infof("removed %s from totalprice", labelString)
 					} else {
 						klog.Infof("FAILURE TO REMOVE %s from totalprice", labelString)
+					}
+					ok = a.NodeSpotRecorder.DeleteLabelValues(labels...)
+					if ok {
+						klog.Infof("removed %s from spot records", labelString)
+					} else {
+						klog.Infof("FAILURE TO REMOVE %s from spot records", labelString)
 					}
 					ok = a.CPUPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
