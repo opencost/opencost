@@ -222,7 +222,7 @@ func fromSecret(secretName string) (string, error) {
 		return "", fmt.Errorf("Failed to load secret: %s", file)
 	}
 
-	return string(data), nil
+	return base64.StdEncoding.EncodeToString(data), nil
 }
 
 func getAuth(auth *ClusterConfigEntryAuth) (string, error) {
