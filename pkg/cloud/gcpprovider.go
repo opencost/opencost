@@ -166,6 +166,9 @@ func (gcp *GCP) GetConfig() (*CustomPricing, error) {
 	if c.NegotiatedDiscount == "" {
 		c.NegotiatedDiscount = "0%"
 	}
+	if c.CurrencyCode == "" {
+		c.CurrencyCode = "USD"
+	}
 	return c, nil
 }
 
