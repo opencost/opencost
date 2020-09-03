@@ -11,9 +11,12 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/microcosm-cc/bluemonday"
 
 	"k8s.io/klog"
 )
+
+var sanitizePolicy = bluemonday.UGCPolicy()
 
 // ProviderConfig is a utility class that provides a thread-safe configuration
 // storage/cache for all Provider implementations
@@ -122,7 +125,7 @@ func (pc *ProviderConfig) Update(updateFunc func(*CustomPricing) error) (*Custom
 	if err != nil {
 		return c, err
 	}
-
+	cj = sanitizePolicy.SanitizeBytes(cj)
 	err = ioutil.WriteFile(pc.configPath, cj, 0644)
 
 	if err != nil {
