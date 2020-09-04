@@ -113,6 +113,7 @@ type Disk struct {
 	Local      bool
 	Start      time.Time
 	Minutes    float64
+	Breakdown  *ClusterCostsBreakdown
 }
 
 func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, offset time.Duration) (map[string]*Disk, []error) {
@@ -141,6 +142,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 	queryActiveMins := fmt.Sprintf(`count(pv_hourly_cost) by (cluster_id, persistentvolume)[%s:%dm]%s`, durationStr, minsPerResolution, offsetStr)
 
 	queryLocalStorageCost := fmt.Sprintf(`sum_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance, cluster_id)[%s:%dm]%s) / 1024 / 1024 / 1024 * %f * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative, costPerGBHr)
+	queryLocalStorageUsedCost := fmt.Sprintf(`sum_over_time(sum(container_fs_usage_bytes{device!="tmpfs", id="/"}) by (instance, cluster_id)[%s:%dm]%s) / 1024 / 1024 / 1024 * %f * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative, costPerGBHr)
 	queryLocalStorageBytes := fmt.Sprintf(`avg_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance, cluster_id)[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 	queryLocalActiveMins := fmt.Sprintf(`count(node_total_hourly_cost) by (cluster_id, node)[%s:%dm]%s`, durationStr, minsPerResolution, offsetStr)
 
@@ -148,6 +150,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 	resChPVSize := ctx.Query(queryPVSize)
 	resChActiveMins := ctx.Query(queryActiveMins)
 	resChLocalStorageCost := ctx.Query(queryLocalStorageCost)
+	resChLocalStorageUsedCost := ctx.Query(queryLocalStorageUsedCost)
 	resChLocalStorageBytes := ctx.Query(queryLocalStorageBytes)
 	resChLocalActiveMins := ctx.Query(queryLocalActiveMins)
 
@@ -155,6 +158,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 	resPVSize, _ := resChPVSize.Await()
 	resActiveMins, _ := resChActiveMins.Await()
 	resLocalStorageCost, _ := resChLocalStorageCost.Await()
+	resLocalStorageUsedCost, _ := resChLocalStorageUsedCost.Await()
 	resLocalStorageBytes, _ := resChLocalStorageBytes.Await()
 	resLocalActiveMins, _ := resChLocalActiveMins.Await()
 	if ctx.ErrorCollector.IsError() {
@@ -181,8 +185,9 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 		key := fmt.Sprintf("%s/%s", cluster, name)
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
-				Cluster: cluster,
-				Name:    name,
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
 			}
 		}
 		diskMap[key].Cost += cost
@@ -206,8 +211,9 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 		key := fmt.Sprintf("%s/%s", cluster, name)
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
-				Cluster: cluster,
-				Name:    name,
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
 			}
 		}
 		diskMap[key].Bytes = bytes
@@ -225,18 +231,42 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 			continue
 		}
 
-		// TODO niko/assets storage class?
+		cost := result.Values[0].Value
+		key := fmt.Sprintf("%s/%s", cluster, name)
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+				Local:     true,
+			}
+		}
+		diskMap[key].Cost += cost
+	}
+
+	for _, result := range resLocalStorageUsedCost {
+		cluster, err := result.GetString("cluster_id")
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("instance")
+		if err != nil {
+			log.Warningf("ClusterDisks: local storage usage data missing instance")
+			continue
+		}
 
 		cost := result.Values[0].Value
 		key := fmt.Sprintf("%s/%s", cluster, name)
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
-				Cluster: cluster,
-				Name:    name,
-				Local:   true,
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+				Local:     true,
 			}
 		}
-		diskMap[key].Cost += cost
+		diskMap[key].Breakdown.System = cost / diskMap[key].Cost
 	}
 
 	for _, result := range resLocalStorageBytes {
@@ -250,8 +280,6 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 			log.Warningf("ClusterDisks: local storage data missing instance")
 			continue
 		}
-
-		// TODO niko/assets storage class
 
 		bytes := result.Values[0].Value
 		key := fmt.Sprintf("%s/%s", cluster, name)
@@ -327,6 +355,11 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 
 		diskMap[key].Start = s
 		diskMap[key].Minutes = mins
+	}
+
+	for _, disk := range diskMap {
+		// Apply all remaining RAM to Idle
+		disk.Breakdown.Idle = 1.0 - (disk.Breakdown.System + disk.Breakdown.Other + disk.Breakdown.User)
 	}
 
 	return diskMap, nil
