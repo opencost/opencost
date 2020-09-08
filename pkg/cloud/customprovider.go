@@ -38,6 +38,10 @@ type customProviderKey struct {
 	Labels         map[string]string
 }
 
+func (*CustomProvider) ClusterManagementPricing() (string, float64, error) {
+	return "", 0.0, nil
+}
+
 func (*CustomProvider) GetLocalStorageQuery(window, offset string, rate bool, used bool) string {
 	return ""
 }

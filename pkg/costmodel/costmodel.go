@@ -475,6 +475,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 					name := vol.PersistentVolumeClaim.ClaimName
 					key := ns + "," + name + "," + clusterID
 					if pvClaim, ok := pvClaimMapping[key]; ok {
+						pvClaim.TimesClaimed++
 						podPVs = append(podPVs, pvClaim)
 
 						// Remove entry from potential unmounted pvs
@@ -750,16 +751,9 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 	if len(missingNodes) > 0 {
 		defer measureTime(time.Now(), profileThreshold, "Finding Deleted Node Info")
 
-		q := make([]string, 0, len(missingNodes))
-		for nodename := range missingNodes {
-			klog.V(4).Infof("Finding data for deleted node %v", nodename)
-			q = append(q, nodename)
-		}
-		l := strings.Join(q, "|")
-
-		queryHistoricalCPUCost := fmt.Sprintf(`avg_over_time(node_cpu_hourly_cost{instance=~"%s"}[%s])`, l, window)
-		queryHistoricalRAMCost := fmt.Sprintf(`avg_over_time(node_ram_hourly_cost{instance=~"%s"}[%s])`, l, window)
-		queryHistoricalGPUCost := fmt.Sprintf(`avg_over_time(node_gpu_hourly_cost{instance=~"%s"}[%s])`, l, window)
+		queryHistoricalCPUCost := fmt.Sprintf(`avg_over_time(node_cpu_hourly_cost[%s])`, window)
+		queryHistoricalRAMCost := fmt.Sprintf(`avg_over_time(node_ram_hourly_cost[%s])`, window)
+		queryHistoricalGPUCost := fmt.Sprintf(`avg_over_time(node_gpu_hourly_cost[%s])`, window)
 
 		ctx := prom.NewContext(cli)
 		cpuCostResCh := ctx.Query(queryHistoricalCPUCost)
@@ -2177,13 +2171,14 @@ func getStatefulSetsOfPod(pod v1.Pod) []string {
 }
 
 type PersistentVolumeClaimData struct {
-	Class      string                `json:"class"`
-	Claim      string                `json:"claim"`
-	Namespace  string                `json:"namespace"`
-	ClusterID  string                `json:"clusterId"`
-	VolumeName string                `json:"volumeName"`
-	Volume     *costAnalyzerCloud.PV `json:"persistentVolume"`
-	Values     []*util.Vector        `json:"values"`
+	Class        string                `json:"class"`
+	Claim        string                `json:"claim"`
+	Namespace    string                `json:"namespace"`
+	ClusterID    string                `json:"clusterId"`
+	TimesClaimed int                   `json:"timesClaimed"`
+	VolumeName   string                `json:"volumeName"`
+	Volume       *costAnalyzerCloud.PV `json:"persistentVolume"`
+	Values       []*util.Vector        `json:"values"`
 }
 
 func measureTime(start time.Time, threshold time.Duration, name string) {

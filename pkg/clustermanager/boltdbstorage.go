@@ -1,7 +1,7 @@
 package clustermanager
 
 import (
-	bolt "github.com/etcd-io/bbolt"
+	bolt "go.etcd.io/bbolt"
 	_ "k8s.io/klog"
 )
 

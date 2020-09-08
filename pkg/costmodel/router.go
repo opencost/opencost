@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"math"
 	"net"
 	"net/http"
 	"reflect"
@@ -46,11 +45,6 @@ const (
 var (
 	// gitCommit is set by the build system
 	gitCommit                       string
-	logCollectionEnabled            bool   = env.IsLogCollectionEnabled()
-	productAnalyticsEnabled         bool   = env.IsProductAnalyticsEnabled()
-	errorReportingEnabled           bool   = env.IsErrorReportingEnabled()
-	valuesReportingEnabled          bool   = env.IsValuesReportingEnabled()
-	clusterProfile                  string = env.GetClusterProfile()
 	multiclusterDBBasicAuthUsername string = env.GetMultiClusterBasicAuthUsername()
 	multiclusterDBBasicAuthPW       string = env.GetMultiClusterBasicAuthPassword()
 )
@@ -69,10 +63,12 @@ type Accesses struct {
 	PersistentVolumePriceRecorder *prometheus.GaugeVec
 	GPUPriceRecorder              *prometheus.GaugeVec
 	NodeTotalPriceRecorder        *prometheus.GaugeVec
+	NodeSpotRecorder              *prometheus.GaugeVec
 	RAMAllocationRecorder         *prometheus.GaugeVec
 	CPUAllocationRecorder         *prometheus.GaugeVec
 	GPUAllocationRecorder         *prometheus.GaugeVec
 	PVAllocationRecorder          *prometheus.GaugeVec
+	ClusterManagementCostRecorder *prometheus.GaugeVec
 	NetworkZoneEgressRecorder     prometheus.Gauge
 	NetworkRegionEgressRecorder   prometheus.Gauge
 	NetworkInternetEgressRecorder prometheus.Gauge
@@ -166,14 +162,6 @@ func normalizeTimeParam(param string) (string, error) {
 	}
 
 	return param, nil
-}
-
-// writeReportingFlags writes the reporting flags to the cluster info map
-func writeReportingFlags(clusterInfo map[string]string) {
-	clusterInfo["logCollection"] = fmt.Sprintf("%t", logCollectionEnabled)
-	clusterInfo["productAnalytics"] = fmt.Sprintf("%t", productAnalyticsEnabled)
-	clusterInfo["errorReporting"] = fmt.Sprintf("%t", errorReportingEnabled)
-	clusterInfo["valuesReporting"] = fmt.Sprintf("%t", valuesReportingEnabled)
 }
 
 // parsePercentString takes a string of expected format "N%" and returns a floating point 0.0N.
@@ -342,7 +330,22 @@ func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httpr
 	window := r.URL.Query().Get("window")
 	offset := r.URL.Query().Get("offset")
 
-	data, err := ComputeClusterCosts(a.PrometheusClient, a.Cloud, window, offset, true)
+	useThanos, _ := strconv.ParseBool(r.URL.Query().Get("multi"))
+
+	if useThanos && !thanos.IsEnabled() {
+		w.Write(WrapData(nil, fmt.Errorf("Multi=true while Thanos is not enabled.")))
+		return
+	}
+
+	var client prometheusClient.Client
+	if useThanos {
+		client = a.ThanosClient
+		offset = thanos.Offset()
+	} else {
+		client = a.PrometheusClient
+	}
+
+	data, err := ComputeClusterCosts(client, a.Cloud, window, offset, true)
 	w.Write(WrapData(data, err))
 }
 
@@ -612,36 +615,9 @@ func (p *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httpro
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	data, err := p.Cloud.ClusterInfo()
+	data := GetClusterInfo(p.KubeClientSet, p.Cloud)
 
-	kc, ok := p.KubeClientSet.(*kubernetes.Clientset)
-	if ok && data != nil {
-		v, err := kc.ServerVersion()
-		if err != nil {
-			klog.Infof("Could not get k8s version info: %s", err.Error())
-		} else if v != nil {
-			data["version"] = v.Major + "." + v.Minor
-		}
-	} else {
-		klog.Infof("Could not get k8s version info: %s", err.Error())
-	}
-
-	// Ensure we create the info object if it doesn't exist
-	if data == nil {
-		data = make(map[string]string)
-	}
-
-	data["clusterProfile"] = clusterProfile
-
-	// Include Product Reporting Flags with Cluster Info
-	writeReportingFlags(data)
-
-	// Include Thanos Offset Duration if Applicable
-	if thanos.IsEnabled() {
-		data["thanosOffset"] = thanos.Offset()
-	}
-
-	w.Write(WrapData(data, err))
+	w.Write(WrapData(data, nil))
 }
 
 func (p *Accesses) GetServiceAccountStatus(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
@@ -655,236 +631,6 @@ func (p *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request,
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Write(WrapData(ValidatePrometheus(p.PrometheusClient, false)))
-}
-
-func (a *Accesses) recordPrices() {
-	go func() {
-		defer errors.HandlePanic()
-
-		containerSeen := make(map[string]bool)
-		nodeSeen := make(map[string]bool)
-		pvSeen := make(map[string]bool)
-		pvcSeen := make(map[string]bool)
-
-		getKeyFromLabelStrings := func(labels ...string) string {
-			return strings.Join(labels, ",")
-		}
-		getLabelStringsFromKey := func(key string) []string {
-			return strings.Split(key, ",")
-		}
-
-		var defaultRegion string = ""
-		nodeList := a.Model.Cache.GetAllNodes()
-		if len(nodeList) > 0 {
-			defaultRegion = nodeList[0].Labels[v1.LabelZoneRegion]
-		}
-
-		for {
-			klog.V(4).Info("Recording prices...")
-			podlist := a.Model.Cache.GetAllPods()
-			podStatus := make(map[string]v1.PodPhase)
-			for _, pod := range podlist {
-				podStatus[pod.Name] = pod.Status.Phase
-			}
-
-			cfg, _ := a.Cloud.GetConfig()
-
-			// Record network pricing at global scope
-			networkCosts, err := a.Cloud.NetworkPricing()
-			if err != nil {
-				klog.V(4).Infof("Failed to retrieve network costs: %s", err.Error())
-			} else {
-				a.NetworkZoneEgressRecorder.Set(networkCosts.ZoneNetworkEgressCost)
-				a.NetworkRegionEgressRecorder.Set(networkCosts.RegionNetworkEgressCost)
-				a.NetworkInternetEgressRecorder.Set(networkCosts.InternetNetworkEgressCost)
-			}
-
-			data, err := a.Model.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "2m", "", "")
-			if err != nil {
-				klog.V(1).Info("Error in price recording: " + err.Error())
-				// zero the for loop so the time.Sleep will still work
-				data = map[string]*CostData{}
-			}
-
-			nodes, err := a.Model.GetNodeCost(a.Cloud)
-			for nodeName, node := range nodes {
-				// Emit costs, guarding against NaN inputs for custom pricing.
-				cpuCost, _ := strconv.ParseFloat(node.VCPUCost, 64)
-				if math.IsNaN(cpuCost) || math.IsInf(cpuCost, 0) {
-					cpuCost, _ = strconv.ParseFloat(cfg.CPU, 64)
-					if math.IsNaN(cpuCost) || math.IsInf(cpuCost, 0) {
-						cpuCost = 0
-					}
-				}
-				cpu, _ := strconv.ParseFloat(node.VCPU, 64)
-				if math.IsNaN(cpu) || math.IsInf(cpu, 0) {
-					cpu = 1 // Assume 1 CPU
-				}
-				ramCost, _ := strconv.ParseFloat(node.RAMCost, 64)
-				if math.IsNaN(ramCost) || math.IsInf(ramCost, 0) {
-					ramCost, _ = strconv.ParseFloat(cfg.RAM, 64)
-					if math.IsNaN(ramCost) || math.IsInf(ramCost, 0) {
-						ramCost = 0
-					}
-				}
-				ram, _ := strconv.ParseFloat(node.RAMBytes, 64)
-				if math.IsNaN(ram) || math.IsInf(ram, 0) {
-					ram = 0
-				}
-				gpu, _ := strconv.ParseFloat(node.GPU, 64)
-				if math.IsNaN(gpu) || math.IsInf(gpu, 0) {
-					gpu = 0
-				}
-				gpuCost, _ := strconv.ParseFloat(node.GPUCost, 64)
-				if math.IsNaN(gpuCost) || math.IsInf(gpuCost, 0) {
-					gpuCost, _ = strconv.ParseFloat(cfg.GPU, 64)
-					if math.IsNaN(gpuCost) || math.IsInf(gpuCost, 0) {
-						gpuCost = 0
-					}
-				}
-				nodeType := node.InstanceType
-				nodeRegion := node.Region
-
-				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
-
-				a.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(cpuCost)
-				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(ramCost)
-				a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(gpuCost)
-				a.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(totalCost)
-				labelKey := getKeyFromLabelStrings(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID)
-				nodeSeen[labelKey] = true
-			}
-
-			for _, costs := range data {
-				nodeName := costs.NodeName
-
-				namespace := costs.Namespace
-				podName := costs.PodName
-				containerName := costs.Name
-
-				if costs.PVCData != nil {
-					for _, pvc := range costs.PVCData {
-						if pvc.Volume != nil {
-							a.PVAllocationRecorder.WithLabelValues(namespace, podName, pvc.Claim, pvc.VolumeName).Set(pvc.Values[0].Value)
-							labelKey := getKeyFromLabelStrings(namespace, podName, pvc.Claim, pvc.VolumeName)
-							pvcSeen[labelKey] = true
-						}
-					}
-				}
-
-				if len(costs.RAMAllocation) > 0 {
-					a.RAMAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.RAMAllocation[0].Value)
-				}
-				if len(costs.CPUAllocation) > 0 {
-					a.CPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.CPUAllocation[0].Value)
-				}
-				if len(costs.GPUReq) > 0 {
-					// allocation here is set to the request because shared GPU usage not yet supported.
-					a.GPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.GPUReq[0].Value)
-				}
-				labelKey := getKeyFromLabelStrings(namespace, podName, containerName, nodeName, nodeName)
-				if podStatus[podName] == v1.PodRunning { // Only report data for current pods
-					containerSeen[labelKey] = true
-				} else {
-					containerSeen[labelKey] = false
-				}
-
-				storageClasses := a.Model.Cache.GetAllStorageClasses()
-				storageClassMap := make(map[string]map[string]string)
-				for _, storageClass := range storageClasses {
-					params := storageClass.Parameters
-					storageClassMap[storageClass.ObjectMeta.Name] = params
-					if storageClass.GetAnnotations()["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.GetAnnotations()["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
-						storageClassMap["default"] = params
-						storageClassMap[""] = params
-					}
-				}
-
-				pvs := a.Model.Cache.GetAllPersistentVolumes()
-				for _, pv := range pvs {
-					parameters, ok := storageClassMap[pv.Spec.StorageClassName]
-					if !ok {
-						klog.V(4).Infof("Unable to find parameters for storage class \"%s\". Does pv \"%s\" have a storageClassName?", pv.Spec.StorageClassName, pv.Name)
-					}
-					var region string
-					if r, ok := pv.Labels[v1.LabelZoneRegion]; ok {
-						region = r
-					} else {
-						region = defaultRegion
-					}
-					cacPv := &costAnalyzerCloud.PV{
-						Class:      pv.Spec.StorageClassName,
-						Region:     region,
-						Parameters: parameters,
-					}
-					GetPVCost(cacPv, pv, a.Cloud, region)
-					c, _ := strconv.ParseFloat(cacPv.Cost, 64)
-					a.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name).Set(c)
-					labelKey := getKeyFromLabelStrings(pv.Name, pv.Name)
-					pvSeen[labelKey] = true
-				}
-			}
-			for labelString, seen := range nodeSeen {
-				if !seen {
-					klog.Infof("Removing %s from nodes", labelString)
-					labels := getLabelStringsFromKey(labelString)
-					ok := a.NodeTotalPriceRecorder.DeleteLabelValues(labels...)
-					if ok {
-						klog.Infof("removed %s from totalprice", labelString)
-					} else {
-						klog.Infof("FAILURE TO REMOVE %s from totalprice", labelString)
-					}
-					ok = a.CPUPriceRecorder.DeleteLabelValues(labels...)
-					if ok {
-						klog.Infof("removed %s from cpuprice", labelString)
-					} else {
-						klog.Infof("FAILURE TO REMOVE %s from cpuprice", labelString)
-					}
-					ok = a.GPUPriceRecorder.DeleteLabelValues(labels...)
-					if ok {
-						klog.Infof("removed %s from gpuprice", labelString)
-					} else {
-						klog.Infof("FAILURE TO REMOVE %s from gpuprice", labelString)
-					}
-					ok = a.RAMPriceRecorder.DeleteLabelValues(labels...)
-					if ok {
-						klog.Infof("removed %s from ramprice", labelString)
-					} else {
-						klog.Infof("FAILURE TO REMOVE %s from ramprice", labelString)
-					}
-					delete(nodeSeen, labelString)
-				}
-				nodeSeen[labelString] = false
-			}
-			for labelString, seen := range containerSeen {
-				if !seen {
-					labels := getLabelStringsFromKey(labelString)
-					a.RAMAllocationRecorder.DeleteLabelValues(labels...)
-					a.CPUAllocationRecorder.DeleteLabelValues(labels...)
-					a.GPUAllocationRecorder.DeleteLabelValues(labels...)
-					delete(containerSeen, labelString)
-				}
-				containerSeen[labelString] = false
-			}
-			for labelString, seen := range pvSeen {
-				if !seen {
-					labels := getLabelStringsFromKey(labelString)
-					a.PersistentVolumePriceRecorder.DeleteLabelValues(labels...)
-					delete(pvSeen, labelString)
-				}
-				pvSeen[labelString] = false
-			}
-			for labelString, seen := range pvcSeen {
-				if !seen {
-					labels := getLabelStringsFromKey(labelString)
-					a.PVAllocationRecorder.DeleteLabelValues(labels...)
-					delete(pvcSeen, labelString)
-				}
-				pvcSeen[labelString] = false
-			}
-			time.Sleep(time.Minute)
-		}
-	}()
 }
 
 // Creates a new ClusterManager instance using a boltdb storage. If that fails,
@@ -1093,6 +839,11 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		Help: "node_total_hourly_cost Total node cost per hour",
 	}, []string{"instance", "node", "instance_type", "region", "provider_id"})
 
+	spotGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "kubecost_node_is_spot",
+		Help: "kubecost_node_is_spot Cloud provider info about node preemptibility",
+	}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+
 	pvGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "pv_hourly_cost",
 		Help: "pv_hourly_cost Cost per GB per hour on a persistent disk",
@@ -1129,17 +880,23 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		Name: "kubecost_network_internet_egress_cost",
 		Help: "kubecost_network_internet_egress_cost Total cost per GB of internet egress.",
 	})
+	ClusterManagementCostRecorder := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "kubecost_cluster_management_cost",
+		Help: "kubecost_cluster_management_cost Hourly cost paid as a cluster management fee.",
+	}, []string{"provisioner_name"})
 
 	prometheus.MustRegister(cpuGv)
 	prometheus.MustRegister(ramGv)
 	prometheus.MustRegister(gpuGv)
 	prometheus.MustRegister(totalGv)
 	prometheus.MustRegister(pvGv)
+	prometheus.MustRegister(spotGv)
 	prometheus.MustRegister(RAMAllocation)
 	prometheus.MustRegister(CPUAllocation)
 	prometheus.MustRegister(PVAllocation)
 	prometheus.MustRegister(GPUAllocation)
 	prometheus.MustRegister(NetworkZoneEgressRecorder, NetworkRegionEgressRecorder, NetworkInternetEgressRecorder)
+	prometheus.MustRegister(ClusterManagementCostRecorder)
 	prometheus.MustRegister(ServiceCollector{
 		KubeClientSet: kubeClientset,
 	})
@@ -1148,6 +905,10 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	})
 	prometheus.MustRegister(StatefulsetCollector{
 		KubeClientSet: kubeClientset,
+	})
+	prometheus.MustRegister(ClusterInfoCollector{
+		KubeClientSet: kubeClientset,
+		Cloud:         cloudProvider,
 	})
 
 	// cache responses from model for a default of 5 minutes; clear expired responses every 10 minutes
@@ -1162,6 +923,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		RAMPriceRecorder:              ramGv,
 		GPUPriceRecorder:              gpuGv,
 		NodeTotalPriceRecorder:        totalGv,
+		NodeSpotRecorder:              spotGv,
 		RAMAllocationRecorder:         RAMAllocation,
 		CPUAllocationRecorder:         CPUAllocation,
 		GPUAllocationRecorder:         GPUAllocation,
@@ -1170,6 +932,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		NetworkRegionEgressRecorder:   NetworkRegionEgressRecorder,
 		NetworkInternetEgressRecorder: NetworkInternetEgressRecorder,
 		PersistentVolumePriceRecorder: pvGv,
+		ClusterManagementCostRecorder: ClusterManagementCostRecorder,
 		Model:                         NewCostModel(k8sCache),
 		OutOfClusterCache:             outOfClusterCache,
 	}
@@ -1228,7 +991,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		klog.V(1).Info("Failed to download pricing data: " + err.Error())
 	}
 
-	A.recordPrices()
+	StartCostModelMetricRecording(&A)
 
 	managerEndpoints := cm.NewClusterManagerEndpoints(A.ClusterManager)
 

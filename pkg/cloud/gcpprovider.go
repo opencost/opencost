@@ -57,6 +57,8 @@ type GCP struct {
 	Config                  *ProviderConfig
 	serviceKeyProvided      bool
 	ValidPricingKeys        map[string]bool
+	clusterManagementPrice  float64
+	clusterProvisioner      string
 	*CustomProvider
 }
 
@@ -163,6 +165,9 @@ func (gcp *GCP) GetConfig() (*CustomPricing, error) {
 	}
 	if c.NegotiatedDiscount == "" {
 		c.NegotiatedDiscount = "0%"
+	}
+	if c.CurrencyCode == "" {
+		c.CurrencyCode = "USD"
 	}
 	return c, nil
 }
@@ -488,9 +493,14 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	m := make(map[string]string)
 	m["name"] = attribute
 	m["provider"] = "GCP"
+	m["provisioner"] = gcp.clusterProvisioner
 	m["id"] = env.GetClusterID()
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	return m, nil
+}
+
+func (gcp *GCP) ClusterManagementPricing() (string, float64, error) {
+	return gcp.clusterProvisioner, gcp.clusterManagementPrice, nil
 }
 
 func (*GCP) GetAddresses() ([]byte, error) {
@@ -568,7 +578,7 @@ type GCPPricing struct {
 type PricingInfo struct {
 	Summary                string             `json:"summary"`
 	PricingExpression      *PricingExpression `json:"pricingExpression"`
-	CurrencyConversionRate int                `json:"currencyConversionRate"`
+	CurrencyConversionRate float64            `json:"currencyConversionRate"`
 	EffectiveTime          string             `json:""`
 }
 
@@ -867,7 +877,11 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 
 func (gcp *GCP) parsePages(inputKeys map[string]Key, pvKeys map[string]PVKey) (map[string]*GCPPricing, error) {
 	var pages []map[string]*GCPPricing
-	url := "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus?key=" + gcp.APIKey
+	c, err := gcp.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	url := "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus?key=" + gcp.APIKey + "&currencyCode=" + c.CurrencyCode
 	klog.V(2).Infof("Fetch GCP Billing Data from URL: %s", url)
 	var parsePagesHelper func(string) error
 	parsePagesHelper = func(pageToken string) error {
@@ -887,7 +901,7 @@ func (gcp *GCP) parsePages(inputKeys map[string]Key, pvKeys map[string]PVKey) (m
 		pages = append(pages, page)
 		return parsePagesHelper(token)
 	}
-	err := parsePagesHelper("")
+	err = parsePagesHelper("")
 	if err != nil {
 		return nil, err
 	}
@@ -945,6 +959,11 @@ func (gcp *GCP) DownloadPricingData() error {
 
 	for _, n := range nodeList {
 		labels := n.GetObjectMeta().GetLabels()
+		if _, ok := labels["cloud.google.com/gke-nodepool"]; ok { // The node is part of a GKE nodepool, so you're paying a cluster management cost
+			gcp.clusterManagementPrice = 0.10
+			gcp.clusterProvisioner = "GKE"
+		}
+
 		key := gcp.GetKey(labels, n)
 		inputkeys[key.Features()] = key
 	}
@@ -1389,10 +1408,13 @@ func (gcp *GCP) ServiceAccountStatus() *ServiceAccountStatus {
 
 func (gcp *GCP) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
 	class := strings.Split(instanceType, "-")[0]
-	return 1.0 - ((1.0 - sustainedUseDiscount(class, defaultDiscount)) * (1.0 - negotiatedDiscount))
+	return 1.0 - ((1.0 - sustainedUseDiscount(class, defaultDiscount, isPreemptible)) * (1.0 - negotiatedDiscount))
 }
 
-func sustainedUseDiscount(class string, defaultDiscount float64) float64 {
+func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible bool) float64 {
+	if isPreemptible {
+		return 0.0
+	}
 	discount := defaultDiscount
 	switch class {
 	case "e2", "f1", "g1":

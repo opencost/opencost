@@ -406,7 +406,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	queryNodeRAMCost := fmt.Sprintf(`sum_over_time((avg(kube_node_status_capacity_memory_bytes) by (cluster_id, node) * on(cluster_id, node) group_right avg(node_ram_hourly_cost) by (cluster_id, node, instance_type, provider_id))[%s:%dm]%s) / 1024 / 1024 / 1024 * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
 	queryNodeRAMBytes := fmt.Sprintf(`avg_over_time(avg(kube_node_status_capacity_memory_bytes) by (cluster_id, node)[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 	queryNodeGPUCost := fmt.Sprintf(`sum_over_time((avg(node_gpu_hourly_cost) by (cluster_id, node, provider_id))[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
-	queryNodeLabels := fmt.Sprintf(`count_over_time(kube_node_labels[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
+	queryNodeLabels := fmt.Sprintf(`avg_over_time(kubecost_node_is_spot[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 	queryNodeCPUModePct := fmt.Sprintf(`sum(rate(node_cpu_seconds_total[%s:%dm]%s)) by (kubernetes_node, cluster_id, mode) / ignoring(mode) group_left sum(rate(node_cpu_seconds_total[%s:%dm]%s)) by (kubernetes_node, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
 	queryNodeRAMSystemPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace="kube-system"}[%s:%dm]%s)) by (instance, cluster_id) / sum(sum_over_time(label_replace(kube_node_status_capacity_memory_bytes, "instance", "$1", "node", "(.*)")[%s:%dm]%s)) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
 	queryNodeRAMUserPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace!="kube-system"}[%s:%dm]%s)) by (instance, cluster_id) / sum(sum_over_time(label_replace(kube_node_status_capacity_memory_bytes, "instance", "$1", "node", "(.*)")[%s:%dm]%s)) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
@@ -470,6 +470,10 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		nodeMap[key].CPUCost += cpuCost
 		nodeMap[key].NodeType = nodeType
 	}
+	partialCPUMap := make(map[string]float64)
+	partialCPUMap["e2-micro"] = 0.25
+	partialCPUMap["e2-small"] = 0.5
+	partialCPUMap["e2-medium"] = 1.0
 
 	for _, result := range resNodeCPUCores {
 		cluster, err := result.GetString("cluster_id")
@@ -494,7 +498,17 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 				RAMBreakdown: &ClusterCostsBreakdown{},
 			}
 		}
-		nodeMap[key].CPUCores = cpuCores
+		node := nodeMap[key]
+		if v, ok := partialCPUMap[node.NodeType]; ok {
+			node.CPUCores = v
+			if cpuCores > 0 {
+				adjustmentFactor := v / cpuCores
+				node.CPUCost = node.CPUCost * adjustmentFactor
+			}
+		} else {
+			nodeMap[key].CPUCores = cpuCores
+		}
+
 	}
 
 	for _, result := range resNodeRAMCost {
@@ -710,8 +724,14 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		}
 
 		// GCP preemptible label
-		pre, _ := result.GetString("label_cloud_google_com_gke_preemptible")
-		if node, ok := nodeMap[nodeName]; pre == "true" && ok {
+		pre := result.Values[0].Value
+
+		cluster, err := result.GetString("cluster_id")
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+		key := fmt.Sprintf("%s/%s", cluster, nodeName)
+		if node, ok := nodeMap[key]; pre > 0.0 && ok {
 			node.Preemptible = true
 		}
 
