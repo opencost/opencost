@@ -45,11 +45,6 @@ const (
 var (
 	// gitCommit is set by the build system
 	gitCommit                       string
-	logCollectionEnabled            bool   = env.IsLogCollectionEnabled()
-	productAnalyticsEnabled         bool   = env.IsProductAnalyticsEnabled()
-	errorReportingEnabled           bool   = env.IsErrorReportingEnabled()
-	valuesReportingEnabled          bool   = env.IsValuesReportingEnabled()
-	clusterProfile                  string = env.GetClusterProfile()
 	multiclusterDBBasicAuthUsername string = env.GetMultiClusterBasicAuthUsername()
 	multiclusterDBBasicAuthPW       string = env.GetMultiClusterBasicAuthPassword()
 )
@@ -167,14 +162,6 @@ func normalizeTimeParam(param string) (string, error) {
 	}
 
 	return param, nil
-}
-
-// writeReportingFlags writes the reporting flags to the cluster info map
-func writeReportingFlags(clusterInfo map[string]string) {
-	clusterInfo["logCollection"] = fmt.Sprintf("%t", logCollectionEnabled)
-	clusterInfo["productAnalytics"] = fmt.Sprintf("%t", productAnalyticsEnabled)
-	clusterInfo["errorReporting"] = fmt.Sprintf("%t", errorReportingEnabled)
-	clusterInfo["valuesReporting"] = fmt.Sprintf("%t", valuesReportingEnabled)
 }
 
 // parsePercentString takes a string of expected format "N%" and returns a floating point 0.0N.
@@ -613,37 +600,9 @@ func (p *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httpro
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	data, err := p.Cloud.ClusterInfo()
+	data := GetClusterInfo(p.KubeClientSet, p.Cloud)
 
-	kc, ok := p.KubeClientSet.(*kubernetes.Clientset)
-	if ok && data != nil {
-		v, err := kc.ServerVersion()
-		if err != nil {
-			klog.Infof("Could not get k8s version info: %s", err.Error())
-		} else if v != nil {
-			data["version"] = v.Major + "." + v.Minor
-		}
-	} else {
-		klog.Infof("Could not get k8s version info: %s", err.Error())
-	}
-
-	// Ensure we create the info object if it doesn't exist
-	if data == nil {
-		data = make(map[string]string)
-	}
-
-	data["clusterProfile"] = clusterProfile
-
-	// Include Product Reporting Flags with Cluster Info
-	writeReportingFlags(data)
-
-	// Include Thanos Offset Duration if Applicable
-	data["thanosEnabled"] = fmt.Sprintf("%t", thanos.IsEnabled())
-	if thanos.IsEnabled() {
-		data["thanosOffset"] = thanos.Offset()
-	}
-
-	w.Write(WrapData(data, err))
+	w.Write(WrapData(data, nil))
 }
 
 func (p *Accesses) GetServiceAccountStatus(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
@@ -931,6 +890,10 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	})
 	prometheus.MustRegister(StatefulsetCollector{
 		KubeClientSet: kubeClientset,
+	})
+	prometheus.MustRegister(ClusterInfoCollector{
+		KubeClientSet: kubeClientset,
+		Cloud:         cloudProvider,
 	})
 
 	// cache responses from model for a default of 5 minutes; clear expired responses every 10 minutes
