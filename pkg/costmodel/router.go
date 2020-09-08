@@ -330,7 +330,22 @@ func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httpr
 	window := r.URL.Query().Get("window")
 	offset := r.URL.Query().Get("offset")
 
-	data, err := ComputeClusterCosts(a.PrometheusClient, a.Cloud, window, offset, true)
+	useThanos, _ := strconv.ParseBool(r.URL.Query().Get("multi"))
+
+	if useThanos && !thanos.IsEnabled() {
+		w.Write(WrapData(nil, fmt.Errorf("Multi=true while Thanos is not enabled.")))
+		return
+	}
+
+	var client prometheusClient.Client
+	if useThanos {
+		client = a.ThanosClient
+		offset = thanos.Offset()
+	} else {
+		client = a.PrometheusClient
+	}
+
+	data, err := ComputeClusterCosts(client, a.Cloud, window, offset, true)
 	w.Write(WrapData(data, err))
 }
 
