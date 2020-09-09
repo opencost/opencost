@@ -1431,7 +1431,9 @@ func (gcp *GCP) ParseID(id string) string {
 	rx := regexp.MustCompile("gce://[^/]*/[^/]*/([^/]+)")
 	match := rx.FindStringSubmatch(id)
 	if len(match) < 2 {
-		log.Infof("gcpprovider.ParseID: failed to parse %s", id)
+		if id != "" {
+			log.Infof("gcpprovider.ParseID: failed to parse %s", id)
+		}
 		return id
 	}
 
