@@ -2,6 +2,7 @@ package costmodel
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -723,6 +724,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	queryConcurrency := env.GetMaxQueryConcurrency()
 	klog.Infof("Prometheus/Thanos Client Max Concurrency set to %d", queryConcurrency)
 
+	tlsConfig := &tls.Config{InsecureSkipVerify: env.GetInsecureSkipVerify()}
 	var LongTimeoutRoundTripper http.RoundTripper = &http.Transport{ // may be necessary for long prometheus queries. TODO: make this configurable
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
@@ -730,6 +732,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 			KeepAlive: 120 * time.Second,
 		}).DialContext,
 		TLSHandshakeTimeout: 10 * time.Second,
+		TLSClientConfig:     tlsConfig,
 	}
 
 	pc := prometheusClient.Config{
@@ -962,6 +965,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 					KeepAlive: 120 * time.Second,
 				}).DialContext,
 				TLSHandshakeTimeout: 10 * time.Second,
+				TLSClientConfig:     tlsConfig,
 			}
 
 			thanosConfig := prometheusClient.Config{
