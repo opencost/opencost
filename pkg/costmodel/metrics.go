@@ -12,6 +12,7 @@ import (
 	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	v1 "k8s.io/api/core/v1"
@@ -284,6 +285,81 @@ func (s ServiceMetric) Write(m *dto.Metric) error {
 }
 
 //--------------------------------------------------------------------------
+//  ClusterInfoCollector
+//--------------------------------------------------------------------------
+
+// ClusterInfoCollector is a prometheus collector that generates ClusterInfoMetrics
+type ClusterInfoCollector struct {
+	Cloud         costAnalyzerCloud.Provider
+	KubeClientSet kubernetes.Interface
+}
+
+// Describe sends the super-set of all possible descriptors of metrics
+// collected by this Collector.
+func (cic ClusterInfoCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- prometheus.NewDesc("kubecost_cluster_info", "Kubecost Cluster Info", []string{}, nil)
+}
+
+// Collect is called by the Prometheus registry when collecting metrics.
+func (cic ClusterInfoCollector) Collect(ch chan<- prometheus.Metric) {
+	clusterInfo := GetClusterInfo(cic.KubeClientSet, cic.Cloud)
+	labels := prom.MapToLabels(clusterInfo)
+
+	m := newClusterInfoMetric("kubecost_cluster_info", labels)
+	ch <- m
+}
+
+//--------------------------------------------------------------------------
+//  ClusterInfoMetric
+//--------------------------------------------------------------------------
+
+// ClusterInfoMetric is a prometheus.Metric used to encode the local cluster info
+type ClusterInfoMetric struct {
+	fqName string
+	help   string
+	labels map[string]string
+}
+
+// Creates a new ClusterInfoMetric, implementation of prometheus.Metric
+func newClusterInfoMetric(fqName string, labels map[string]string) ClusterInfoMetric {
+	return ClusterInfoMetric{
+		fqName: fqName,
+		labels: labels,
+		help:   "kubecost_cluster_info ClusterInfo",
+	}
+}
+
+// Desc returns the descriptor for the Metric. This method idempotently
+// returns the same descriptor throughout the lifetime of the Metric.
+func (cim ClusterInfoMetric) Desc() *prometheus.Desc {
+	l := prometheus.Labels{}
+	return prometheus.NewDesc(cim.fqName, cim.help, prom.LabelNamesFrom(cim.labels), l)
+}
+
+// Write encodes the Metric into a "Metric" Protocol Buffer data
+// transmission object.
+func (cim ClusterInfoMetric) Write(m *dto.Metric) error {
+	h := float64(1)
+	m.Gauge = &dto.Gauge{
+		Value: &h,
+	}
+	var labels []*dto.LabelPair
+	for k, v := range cim.labels {
+		labels = append(labels, &dto.LabelPair{
+			Name:  toStringPtr(k),
+			Value: toStringPtr(v),
+		})
+	}
+	m.Label = labels
+	return nil
+}
+
+// toStringPtr is used to create a new string pointer from iteration vars
+func toStringPtr(s string) *string {
+	return &s
+}
+
+//--------------------------------------------------------------------------
 //  Package Functions
 //--------------------------------------------------------------------------
 
@@ -426,6 +502,11 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(ramCost)
 				a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(gpuCost)
 				a.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(totalCost)
+				if node.IsSpot() {
+					a.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(1.0)
+				} else {
+					a.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(0.0)
+				}
 				labelKey := getKeyFromLabelStrings(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID)
 				nodeSeen[labelKey] = true
 			}
@@ -440,7 +521,11 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 				if costs.PVCData != nil {
 					for _, pvc := range costs.PVCData {
 						if pvc.Volume != nil {
-							a.PVAllocationRecorder.WithLabelValues(namespace, podName, pvc.Claim, pvc.VolumeName).Set(pvc.Values[0].Value)
+							timesClaimed := pvc.TimesClaimed
+							if timesClaimed == 0 {
+								timesClaimed = 1 // unallocated PVs are unclaimed but have a full allocation
+							}
+							a.PVAllocationRecorder.WithLabelValues(namespace, podName, pvc.Claim, pvc.VolumeName).Set(pvc.Values[0].Value / float64(pvc.TimesClaimed))
 							labelKey := getKeyFromLabelStrings(namespace, podName, pvc.Claim, pvc.VolumeName)
 							pvcSeen[labelKey] = true
 						}
@@ -508,6 +593,12 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 						klog.Infof("removed %s from totalprice", labelString)
 					} else {
 						klog.Infof("FAILURE TO REMOVE %s from totalprice", labelString)
+					}
+					ok = a.NodeSpotRecorder.DeleteLabelValues(labels...)
+					if ok {
+						klog.Infof("removed %s from spot records", labelString)
+					} else {
+						klog.Infof("FAILURE TO REMOVE %s from spot records", labelString)
 					}
 					ok = a.CPUPriceRecorder.DeleteLabelValues(labels...)
 					if ok {

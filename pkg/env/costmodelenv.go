@@ -30,6 +30,8 @@ const (
 
 	MultiClusterBasicAuthUsername = "MC_BASIC_AUTH_USERNAME"
 	MultiClusterBasicAuthPassword = "MC_BASIC_AUTH_PW"
+
+	InsecureSkipVerify = "INSECURE_SKIP_VERIFY"
 )
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
@@ -72,6 +74,10 @@ func GetClusterID() string {
 // represents the prometheus server endpoint used to execute prometheus queries.
 func GetPrometheusServerEndpoint() string {
 	return Get(PrometheusServerEndpointEnvVar, "")
+}
+
+func GetInsecureSkipVerify() bool {
+	return GetBool(InsecureSkipVerify, false)
 }
 
 // IsRemoteEnabled returns the environment variable value for RemoteEnabledEnvVar which represents whether

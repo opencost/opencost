@@ -1770,6 +1770,13 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 	}
 	s := session.Must(session.NewSession(c))
 	svc := athena.New(s)
+	if customPricing.MasterPayerARN != "" {
+		creds := stscreds.NewCredentials(s, customPricing.MasterPayerARN)
+		svc = athena.New(s, &aws.Config{
+			Region:      region,
+			Credentials: creds,
+		})
+	}
 
 	var e athena.StartQueryExecutionInput
 
@@ -2412,7 +2419,9 @@ func (aws *AWS) ParseID(id string) string {
 	rx := regexp.MustCompile("aws://[^/]*/[^/]*/([^/]+)")
 	match := rx.FindStringSubmatch(id)
 	if len(match) < 2 {
-		log.Infof("awsprovider.ParseID: failed to parse %s", id)
+		if id != "" {
+			log.Infof("awsprovider.ParseID: failed to parse %s", id)
+		}
 		return id
 	}
 

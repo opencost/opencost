@@ -166,6 +166,9 @@ func (gcp *GCP) GetConfig() (*CustomPricing, error) {
 	if c.NegotiatedDiscount == "" {
 		c.NegotiatedDiscount = "0%"
 	}
+	if c.CurrencyCode == "" {
+		c.CurrencyCode = "USD"
+	}
 	return c, nil
 }
 
@@ -575,7 +578,7 @@ type GCPPricing struct {
 type PricingInfo struct {
 	Summary                string             `json:"summary"`
 	PricingExpression      *PricingExpression `json:"pricingExpression"`
-	CurrencyConversionRate int                `json:"currencyConversionRate"`
+	CurrencyConversionRate float64            `json:"currencyConversionRate"`
 	EffectiveTime          string             `json:""`
 }
 
@@ -874,7 +877,11 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 
 func (gcp *GCP) parsePages(inputKeys map[string]Key, pvKeys map[string]PVKey) (map[string]*GCPPricing, error) {
 	var pages []map[string]*GCPPricing
-	url := "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus?key=" + gcp.APIKey
+	c, err := gcp.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	url := "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus?key=" + gcp.APIKey + "&currencyCode=" + c.CurrencyCode
 	klog.V(2).Infof("Fetch GCP Billing Data from URL: %s", url)
 	var parsePagesHelper func(string) error
 	parsePagesHelper = func(pageToken string) error {
@@ -894,7 +901,7 @@ func (gcp *GCP) parsePages(inputKeys map[string]Key, pvKeys map[string]PVKey) (m
 		pages = append(pages, page)
 		return parsePagesHelper(token)
 	}
-	err := parsePagesHelper("")
+	err = parsePagesHelper("")
 	if err != nil {
 		return nil, err
 	}
@@ -1424,7 +1431,9 @@ func (gcp *GCP) ParseID(id string) string {
 	rx := regexp.MustCompile("gce://[^/]*/[^/]*/([^/]+)")
 	match := rx.FindStringSubmatch(id)
 	if len(match) < 2 {
-		log.Infof("gcpprovider.ParseID: failed to parse %s", id)
+		if id != "" {
+			log.Infof("gcpprovider.ParseID: failed to parse %s", id)
+		}
 		return id
 	}
 

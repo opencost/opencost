@@ -2,6 +2,7 @@ package costmodel
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -45,11 +46,6 @@ const (
 var (
 	// gitCommit is set by the build system
 	gitCommit                       string
-	logCollectionEnabled            bool   = env.IsLogCollectionEnabled()
-	productAnalyticsEnabled         bool   = env.IsProductAnalyticsEnabled()
-	errorReportingEnabled           bool   = env.IsErrorReportingEnabled()
-	valuesReportingEnabled          bool   = env.IsValuesReportingEnabled()
-	clusterProfile                  string = env.GetClusterProfile()
 	multiclusterDBBasicAuthUsername string = env.GetMultiClusterBasicAuthUsername()
 	multiclusterDBBasicAuthPW       string = env.GetMultiClusterBasicAuthPassword()
 )
@@ -68,6 +64,7 @@ type Accesses struct {
 	PersistentVolumePriceRecorder *prometheus.GaugeVec
 	GPUPriceRecorder              *prometheus.GaugeVec
 	NodeTotalPriceRecorder        *prometheus.GaugeVec
+	NodeSpotRecorder              *prometheus.GaugeVec
 	RAMAllocationRecorder         *prometheus.GaugeVec
 	CPUAllocationRecorder         *prometheus.GaugeVec
 	GPUAllocationRecorder         *prometheus.GaugeVec
@@ -166,14 +163,6 @@ func normalizeTimeParam(param string) (string, error) {
 	}
 
 	return param, nil
-}
-
-// writeReportingFlags writes the reporting flags to the cluster info map
-func writeReportingFlags(clusterInfo map[string]string) {
-	clusterInfo["logCollection"] = fmt.Sprintf("%t", logCollectionEnabled)
-	clusterInfo["productAnalytics"] = fmt.Sprintf("%t", productAnalyticsEnabled)
-	clusterInfo["errorReporting"] = fmt.Sprintf("%t", errorReportingEnabled)
-	clusterInfo["valuesReporting"] = fmt.Sprintf("%t", valuesReportingEnabled)
 }
 
 // parsePercentString takes a string of expected format "N%" and returns a floating point 0.0N.
@@ -342,7 +331,22 @@ func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httpr
 	window := r.URL.Query().Get("window")
 	offset := r.URL.Query().Get("offset")
 
-	data, err := ComputeClusterCosts(a.PrometheusClient, a.Cloud, window, offset, true)
+	useThanos, _ := strconv.ParseBool(r.URL.Query().Get("multi"))
+
+	if useThanos && !thanos.IsEnabled() {
+		w.Write(WrapData(nil, fmt.Errorf("Multi=true while Thanos is not enabled.")))
+		return
+	}
+
+	var client prometheusClient.Client
+	if useThanos {
+		client = a.ThanosClient
+		offset = thanos.Offset()
+	} else {
+		client = a.PrometheusClient
+	}
+
+	data, err := ComputeClusterCosts(client, a.Cloud, window, offset, true)
 	w.Write(WrapData(data, err))
 }
 
@@ -612,36 +616,9 @@ func (p *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httpro
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	data, err := p.Cloud.ClusterInfo()
+	data := GetClusterInfo(p.KubeClientSet, p.Cloud)
 
-	kc, ok := p.KubeClientSet.(*kubernetes.Clientset)
-	if ok && data != nil {
-		v, err := kc.ServerVersion()
-		if err != nil {
-			klog.Infof("Could not get k8s version info: %s", err.Error())
-		} else if v != nil {
-			data["version"] = v.Major + "." + v.Minor
-		}
-	} else {
-		klog.Infof("Could not get k8s version info: %s", err.Error())
-	}
-
-	// Ensure we create the info object if it doesn't exist
-	if data == nil {
-		data = make(map[string]string)
-	}
-
-	data["clusterProfile"] = clusterProfile
-
-	// Include Product Reporting Flags with Cluster Info
-	writeReportingFlags(data)
-
-	// Include Thanos Offset Duration if Applicable
-	if thanos.IsEnabled() {
-		data["thanosOffset"] = thanos.Offset()
-	}
-
-	w.Write(WrapData(data, err))
+	w.Write(WrapData(data, nil))
 }
 
 func (p *Accesses) GetServiceAccountStatus(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
@@ -747,6 +724,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	queryConcurrency := env.GetMaxQueryConcurrency()
 	klog.Infof("Prometheus/Thanos Client Max Concurrency set to %d", queryConcurrency)
 
+	tlsConfig := &tls.Config{InsecureSkipVerify: env.GetInsecureSkipVerify()}
 	var LongTimeoutRoundTripper http.RoundTripper = &http.Transport{ // may be necessary for long prometheus queries. TODO: make this configurable
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
@@ -754,6 +732,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 			KeepAlive: 120 * time.Second,
 		}).DialContext,
 		TLSHandshakeTimeout: 10 * time.Second,
+		TLSClientConfig:     tlsConfig,
 	}
 
 	pc := prometheusClient.Config{
@@ -863,6 +842,11 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		Help: "node_total_hourly_cost Total node cost per hour",
 	}, []string{"instance", "node", "instance_type", "region", "provider_id"})
 
+	spotGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "kubecost_node_is_spot",
+		Help: "kubecost_node_is_spot Cloud provider info about node preemptibility",
+	}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+
 	pvGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "pv_hourly_cost",
 		Help: "pv_hourly_cost Cost per GB per hour on a persistent disk",
@@ -909,6 +893,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	prometheus.MustRegister(gpuGv)
 	prometheus.MustRegister(totalGv)
 	prometheus.MustRegister(pvGv)
+	prometheus.MustRegister(spotGv)
 	prometheus.MustRegister(RAMAllocation)
 	prometheus.MustRegister(CPUAllocation)
 	prometheus.MustRegister(PVAllocation)
@@ -924,6 +909,10 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	prometheus.MustRegister(StatefulsetCollector{
 		KubeClientSet: kubeClientset,
 	})
+	prometheus.MustRegister(ClusterInfoCollector{
+		KubeClientSet: kubeClientset,
+		Cloud:         cloudProvider,
+	})
 
 	// cache responses from model for a default of 5 minutes; clear expired responses every 10 minutes
 	outOfClusterCache := cache.New(time.Minute*5, time.Minute*10)
@@ -937,6 +926,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		RAMPriceRecorder:              ramGv,
 		GPUPriceRecorder:              gpuGv,
 		NodeTotalPriceRecorder:        totalGv,
+		NodeSpotRecorder:              spotGv,
 		RAMAllocationRecorder:         RAMAllocation,
 		CPUAllocationRecorder:         CPUAllocation,
 		GPUAllocationRecorder:         GPUAllocation,
@@ -975,6 +965,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 					KeepAlive: 120 * time.Second,
 				}).DialContext,
 				TLSHandshakeTimeout: 10 * time.Second,
+				TLSClientConfig:     tlsConfig,
 			}
 
 			thanosConfig := prometheusClient.Config{

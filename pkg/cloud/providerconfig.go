@@ -11,9 +11,12 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/microcosm-cc/bluemonday"
 
 	"k8s.io/klog"
 )
+
+var sanitizePolicy = bluemonday.UGCPolicy()
 
 // ProviderConfig is a utility class that provides a thread-safe configuration
 // storage/cache for all Provider implementations
@@ -122,7 +125,6 @@ func (pc *ProviderConfig) Update(updateFunc func(*CustomPricing) error) (*Custom
 	if err != nil {
 		return c, err
 	}
-
 	err = ioutil.WriteFile(pc.configPath, cj, 0644)
 
 	if err != nil {
@@ -188,6 +190,7 @@ func SetCustomPricingField(obj *CustomPricing, name string, value string) error 
 	}
 
 	structFieldType := structFieldValue.Type()
+	value = sanitizePolicy.Sanitize(value)
 	val := reflect.ValueOf(value)
 	if structFieldType != val.Type() {
 		return fmt.Errorf("Provided value type didn't match custom pricing field type")
