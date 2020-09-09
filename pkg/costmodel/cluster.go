@@ -346,6 +346,10 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		nodeMap[key].CPUCost += cpuCost
 		nodeMap[key].NodeType = nodeType
 	}
+	partialCPUMap := make(map[string]float64)
+	partialCPUMap["e2-micro"] = 0.25
+	partialCPUMap["e2-small"] = 0.5
+	partialCPUMap["e2-medium"] = 1.0
 
 	for _, result := range resNodeCPUCores {
 		cluster, err := result.GetString("cluster_id")
@@ -368,7 +372,17 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 				Name:    name,
 			}
 		}
-		nodeMap[key].CPUCores = cpuCores
+		node := nodeMap[key]
+		if v, ok := partialCPUMap[node.NodeType]; ok {
+			node.CPUCores = v
+			if cpuCores > 0 {
+				adjustmentFactor := v / cpuCores
+				node.CPUCost = node.CPUCost * adjustmentFactor
+			}
+		} else {
+			nodeMap[key].CPUCores = cpuCores
+		}
+
 	}
 
 	for _, result := range resNodeRAMCost {

@@ -477,6 +477,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 					name := vol.PersistentVolumeClaim.ClaimName
 					key := ns + "," + name + "," + clusterID
 					if pvClaim, ok := pvClaimMapping[key]; ok {
+						pvClaim.TimesClaimed++
 						podPVs = append(podPVs, pvClaim)
 
 						// Remove entry from potential unmounted pvs
@@ -2174,13 +2175,14 @@ func getStatefulSetsOfPod(pod v1.Pod) []string {
 }
 
 type PersistentVolumeClaimData struct {
-	Class      string                `json:"class"`
-	Claim      string                `json:"claim"`
-	Namespace  string                `json:"namespace"`
-	ClusterID  string                `json:"clusterId"`
-	VolumeName string                `json:"volumeName"`
-	Volume     *costAnalyzerCloud.PV `json:"persistentVolume"`
-	Values     []*util.Vector        `json:"values"`
+	Class        string                `json:"class"`
+	Claim        string                `json:"claim"`
+	Namespace    string                `json:"namespace"`
+	ClusterID    string                `json:"clusterId"`
+	TimesClaimed int                   `json:"timesClaimed"`
+	VolumeName   string                `json:"volumeName"`
+	Volume       *costAnalyzerCloud.PV `json:"persistentVolume"`
+	Values       []*util.Vector        `json:"values"`
 }
 
 func measureTime(start time.Time, threshold time.Duration, name string) {
