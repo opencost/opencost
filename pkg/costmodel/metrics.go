@@ -525,7 +525,7 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 							if timesClaimed == 0 {
 								timesClaimed = 1 // unallocated PVs are unclaimed but have a full allocation
 							}
-							a.PVAllocationRecorder.WithLabelValues(namespace, podName, pvc.Claim, pvc.VolumeName).Set(pvc.Values[0].Value / float64(pvc.TimesClaimed))
+							a.PVAllocationRecorder.WithLabelValues(namespace, podName, pvc.Claim, pvc.VolumeName).Set(pvc.Values[0].Value / float64(timesClaimed))
 							labelKey := getKeyFromLabelStrings(namespace, podName, pvc.Claim, pvc.VolumeName)
 							pvcSeen[labelKey] = true
 						}
