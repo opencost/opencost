@@ -28,8 +28,13 @@ const (
 	ErrorReportingEnabledEnvVar   = "ERROR_REPORTING_ENABLED"
 	ValuesReportingEnabledEnvVar  = "VALUES_REPORTING_ENABLED"
 
+	DBBasicAuthUsername = "DB_BASIC_AUTH_USERNAME"
+	DBBasicAuthPassword = "DB_BASIC_AUTH_PW"
+	DBBearerToken       = "DB_BEARER_TOKEN"
+
 	MultiClusterBasicAuthUsername = "MC_BASIC_AUTH_USERNAME"
 	MultiClusterBasicAuthPassword = "MC_BASIC_AUTH_PW"
+	MultiClusterBearerToken       = "MC_BEARER_TOKEN"
 
 	InsecureSkipVerify = "INSECURE_SKIP_VERIFY"
 )
@@ -178,6 +183,19 @@ func GetMaxQueryConcurrency() int {
 	return GetInt(MaxQueryConcurrencyEnvVar, 5)
 }
 
+func GetDBBasicAuthUsername() string {
+	return Get(DBBasicAuthUsername, "")
+}
+
+func GetDBBasicAuthUserPassword() string {
+	return Get(DBBasicAuthPassword, "")
+
+}
+
+func GetDBBearerToken() string {
+	return Get(DBBearerToken, "")
+}
+
 // GetMultiClusterBasicAuthUsername returns the environemnt variable value for MultiClusterBasicAuthUsername
 func GetMultiClusterBasicAuthUsername() string {
 	return Get(MultiClusterBasicAuthUsername, "")
@@ -186,4 +204,8 @@ func GetMultiClusterBasicAuthUsername() string {
 // GetMultiClusterBasicAuthPassword returns the environemnt variable value for MultiClusterBasicAuthPassword
 func GetMultiClusterBasicAuthPassword() string {
 	return Get(MultiClusterBasicAuthPassword, "")
+}
+
+func GetMultiClusterBearerToken() string {
+	return Get(MultiClusterBearerToken, "")
 }

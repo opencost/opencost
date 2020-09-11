@@ -13,12 +13,13 @@ import (
 // Creates a new prometheus client which limits the total number of concurrent outbound requests
 // allowed at a given moment.
 type RateLimitedPrometheusClient struct {
-	client   prometheus.Client
-	limiter  *util.Semaphore
-	requests *util.AtomicInt32
-	outbound *util.AtomicInt32
-	username string
-	password string
+	client      prometheus.Client
+	limiter     *util.Semaphore
+	requests    *util.AtomicInt32
+	outbound    *util.AtomicInt32
+	username    string
+	password    string
+	bearerToken string
 }
 
 // requestCounter is used to determine if the prometheus client keeps track of
@@ -30,7 +31,7 @@ type requestCounter interface {
 
 // NewRateLimitedClient creates a prometheus client which limits the number of concurrent outbound
 // prometheus requests.
-func NewRateLimitedClient(config prometheus.Config, maxConcurrency int, username, password string) (prometheus.Client, error) {
+func NewRateLimitedClient(config prometheus.Config, maxConcurrency int, username, password, bearerToken string) (prometheus.Client, error) {
 	c, err := prometheus.NewClient(config)
 	if err != nil {
 		return nil, err
@@ -41,12 +42,13 @@ func NewRateLimitedClient(config prometheus.Config, maxConcurrency int, username
 	outbound := util.NewAtomicInt32(0)
 
 	return &RateLimitedPrometheusClient{
-		client:   c,
-		limiter:  limiter,
-		requests: requests,
-		outbound: outbound,
-		username: username,
-		password: password,
+		client:      c,
+		limiter:     limiter,
+		requests:    requests,
+		outbound:    outbound,
+		username:    username,
+		password:    password,
+		bearerToken: bearerToken,
 	}, nil
 }
 
@@ -83,6 +85,10 @@ func (rlpc *RateLimitedPrometheusClient) URL(ep string, args map[string]string) 
 func (rlpc *RateLimitedPrometheusClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, prometheus.Warnings, error) {
 	if rlpc.username != "" {
 		req.SetBasicAuth(rlpc.username, rlpc.password)
+	}
+	if rlpc.bearerToken != "" {
+		token := "Bearer " + rlpc.bearerToken
+		req.Header.Add("Authorization", token)
 	}
 	// Increment the total request counter first
 	rlpc.requests.Increment()
