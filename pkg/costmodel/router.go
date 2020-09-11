@@ -46,6 +46,8 @@ const (
 var (
 	// gitCommit is set by the build system
 	gitCommit                       string
+	dbBasicAuthUsername             string = env.GetDBBasicAuthUsername()
+	dbBasicAuthPW                   string = env.GetDBBasicAuthUserPassword()
 	multiclusterDBBasicAuthUsername string = env.GetMultiClusterBasicAuthUsername()
 	multiclusterDBBasicAuthPW       string = env.GetMultiClusterBasicAuthPassword()
 )
@@ -739,7 +741,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		Address:      address,
 		RoundTripper: LongTimeoutRoundTripper,
 	}
-	promCli, _ := prom.NewRateLimitedClient(pc, queryConcurrency, "", "")
+	promCli, _ := prom.NewRateLimitedClient(pc, queryConcurrency, dbBasicAuthUsername, dbBasicAuthPW)
 
 	m, err := ValidatePrometheus(promCli, false)
 	if err != nil || m.Running == false {

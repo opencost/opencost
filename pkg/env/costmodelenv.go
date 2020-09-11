@@ -28,6 +28,8 @@ const (
 	ErrorReportingEnabledEnvVar   = "ERROR_REPORTING_ENABLED"
 	ValuesReportingEnabledEnvVar  = "VALUES_REPORTING_ENABLED"
 
+	DBBasicAuthUsername           = "DB_BASIC_AUTH_USERNAME"
+	DBBasicAuthPassword           = "DB_BASIC_AUTH_PW"
 	MultiClusterBasicAuthUsername = "MC_BASIC_AUTH_USERNAME"
 	MultiClusterBasicAuthPassword = "MC_BASIC_AUTH_PW"
 
@@ -176,6 +178,15 @@ func IsValuesReportingEnabled() bool {
 // GetMaxQueryConcurrency returns the environment variable value for MaxQueryConcurrencyEnvVar
 func GetMaxQueryConcurrency() int {
 	return GetInt(MaxQueryConcurrencyEnvVar, 5)
+}
+
+func GetDBBasicAuthUsername() string {
+	return Get(DBBasicAuthUsername, "")
+}
+
+func GetDBBasicAuthUserPassword() string {
+	return Get(DBBasicAuthPassword, "")
+
 }
 
 // GetMultiClusterBasicAuthUsername returns the environemnt variable value for MultiClusterBasicAuthUsername
