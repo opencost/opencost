@@ -206,6 +206,6 @@ func GetMultiClusterBasicAuthPassword() string {
 	return Get(MultiClusterBasicAuthPassword, "")
 }
 
-func GetMultiClusterToken() string {
+func GetMultiClusterBearerToken() string {
 	return Get(MultiClusterBearerToken, "")
 }

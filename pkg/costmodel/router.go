@@ -48,8 +48,10 @@ var (
 	gitCommit                       string
 	dbBasicAuthUsername             string = env.GetDBBasicAuthUsername()
 	dbBasicAuthPW                   string = env.GetDBBasicAuthUserPassword()
+	dbBearerToken                   string = env.GetDBBearerToken()
 	multiclusterDBBasicAuthUsername string = env.GetMultiClusterBasicAuthUsername()
 	multiclusterDBBasicAuthPW       string = env.GetMultiClusterBasicAuthPassword()
+	multiClusterBearerToken         string = env.GetMultiClusterBearerToken()
 )
 
 var Router = httprouter.New()
@@ -741,7 +743,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		Address:      address,
 		RoundTripper: LongTimeoutRoundTripper,
 	}
-	promCli, _ := prom.NewRateLimitedClient(pc, queryConcurrency, dbBasicAuthUsername, dbBasicAuthPW)
+	promCli, _ := prom.NewRateLimitedClient(pc, queryConcurrency, dbBasicAuthUsername, dbBasicAuthPW, dbBearerToken)
 
 	m, err := ValidatePrometheus(promCli, false)
 	if err != nil || m.Running == false {
@@ -975,7 +977,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 				RoundTripper: thanosRT,
 			}
 
-			thanosCli, _ := prom.NewRateLimitedClient(thanosConfig, queryConcurrency, multiclusterDBBasicAuthUsername, multiclusterDBBasicAuthPW)
+			thanosCli, _ := prom.NewRateLimitedClient(thanosConfig, queryConcurrency, multiclusterDBBasicAuthUsername, multiclusterDBBasicAuthPW, multiClusterBearerToken)
 
 			_, err = ValidatePrometheus(thanosCli, true)
 			if err != nil {
