@@ -22,7 +22,7 @@ spec:
       restartPolicy: Always
       serviceAccountName: cost-model
       containers:
-        - image: ajaytripathy/kubecost-cost-model:latest
+        - image: quay.io/kubecost1/kubecost-cost-model:latest
           name: cost-model
           resources:
             requests:
@@ -32,5 +32,5 @@ spec:
             - name: PROMETHEUS_SERVER_ENDPOINT
               value: "{{prometheusEndpoint}}"  #The endpoint should have the form http://<service-name>.<namespace-name>.svc
             - name: CLOUD_PROVIDER_API_KEY
-              value: "AIzaSyD29bGxmHAVEOBYtgd8sYM2gM2ekfxQX4U" # The GCP Pricing API requires a key.
+              value: "AIzaSyD29bGxmHAVEOBYtgd8sYM2gM2ekfxQX4U" # The GCP Pricing API requires a key. This is supplied just for evaluation.
           imagePullPolicy: Always
