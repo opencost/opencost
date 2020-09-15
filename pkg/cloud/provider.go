@@ -70,6 +70,18 @@ func (n *Node) IsSpot() bool {
 	}
 }
 
+// LoadBalancer is the interface by which the provider and cost model communicate LoadBalancer prices.
+// The provider will best-effort try to fill out this struct.
+type LoadBalancer struct {
+	IngressIPAddresses           []string `json:"IngressIPAddresses"`
+	Cost                         float64  `json:"hourlyCost"` // TODO: find out if cloud providers return these values as strings or floats
+	FirstFiveForwardingRulesCost float64  `json:"firstFiveForwardingRulesCost"`
+	AdditionalForwardingRuleCost float64  `json:"additionalForwardingRuleCost"`
+	IngressDataCostPerGB         float64  `json:"ingressDataCostPerGB"`
+	// TODO: work in progress. Currently designed for GCP, unsure if other cloud providers price differently (e.g., if Azure prices a flat rate per rule)
+	// TODO: potentially need to make an additional struct to marshal GCP ALB data
+}
+
 // Network is the interface by which the provider and cost model communicate network egress prices.
 // The provider will best-effort try to fill out this struct.
 type Network struct {
