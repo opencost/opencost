@@ -913,6 +913,7 @@ func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cp costAnalyz
 		return nil // set default cost
 	}
 	pv.Cost = pvWithCost.Cost
+	pv.ProviderID = key.ID()
 	return nil
 }
 

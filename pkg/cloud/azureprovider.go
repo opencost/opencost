@@ -666,6 +666,10 @@ func (az *Azure) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string,
 	}
 }
 
+func (key *azurePvKey) ID() string {
+	return ""
+}
+
 func (key *azurePvKey) GetStorageClass() string {
 	return key.StorageClass
 }
@@ -821,5 +825,9 @@ func (az *Azure) CombinedDiscountForNode(instanceType string, isPreemptible bool
 }
 
 func (az *Azure) ParseID(id string) string {
+	return id
+}
+
+func (az *Azure) ParsePVID(id string) string {
 	return id
 }

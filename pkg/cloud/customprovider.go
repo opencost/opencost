@@ -280,3 +280,7 @@ func (cp *CustomProvider) CombinedDiscountForNode(instanceType string, isPreempt
 func (cp *CustomProvider) ParseID(id string) string {
 	return id
 }
+
+func (cp *CustomProvider) ParsePVID(id string) string {
+	return id
+}

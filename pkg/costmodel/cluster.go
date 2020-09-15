@@ -137,7 +137,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 	costPerGBHr := 0.04 / 730.0
 
 	ctx := prom.NewContext(client)
-	queryPVCost := fmt.Sprintf(`sum_over_time((avg(kube_persistentvolume_capacity_bytes) by (cluster_id, persistentvolume) * avg(pv_hourly_cost) by (cluster_id, persistentvolume))[%s:%dm]%s)/1024/1024/1024 * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
+	queryPVCost := fmt.Sprintf(`sum_over_time((avg(kube_persistentvolume_capacity_bytes) by (cluster_id, persistentvolume)  * on(cluster_id, persistentvolume) group_right avg(pv_hourly_cost)  by (cluster_id, persistentvolume,provider_id))[%s:%dm]%s)/1024/1024/1024 * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
 	queryPVSize := fmt.Sprintf(`avg_over_time(kube_persistentvolume_capacity_bytes[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 	queryActiveMins := fmt.Sprintf(`count(pv_hourly_cost) by (cluster_id, persistentvolume)[%s:%dm]%s`, durationStr, minsPerResolution, offsetStr)
 
@@ -191,6 +191,10 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 			}
 		}
 		diskMap[key].Cost += cost
+		providerID, _ := result.GetString("provider_id") // just put the providerID set up here, it's the simplest query.
+		if providerID != "" {
+			diskMap[key].ProviderID = provider.ParsePVID(providerID)
+		}
 	}
 
 	for _, result := range resPVSize {
