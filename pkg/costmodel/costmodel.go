@@ -355,6 +355,13 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		return nil, err
 	}
 
+	// TODO: is this necessary?
+	// loadBalancers, err := cm.GetLBCost(cp)
+	// if err != nil {
+	// 	log.Warningf("GetLBCost: no load balancer cost model available: " + err.Error())
+	// 	return nil, err
+	// }
+
 	// Unmounted PVs represent the PVs that are not mounted or tied to a volume on a container
 	unmountedPVs := make(map[string][]*PersistentVolumeClaimData)
 	pvClaimMapping, err := GetPVInfo(resPVRequests, clusterID)
@@ -1184,7 +1191,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 }
 
 // TODO: drop some logs
-func (cm *CostModel) getLBCost(cp costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.LoadBalancer, error) {
+func (cm *CostModel) GetLBCost(cp costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.LoadBalancer, error) {
 	// for fetching prices from cloud provider
 	// cfg, err := cp.GetConfig()
 	// if err != nil {
@@ -1199,8 +1206,10 @@ func (cm *CostModel) getLBCost(cp costAnalyzerCloud.Provider) (map[string]*costA
 	// 3. need to check if key exists in servicesList and then populate loadBalancers with it
 
 	for _, service := range servicesList {
-		// namespace := service.GetObjectMeta().GetNamespace() // do I need this?
+		namespace := service.GetObjectMeta().GetNamespace()
 		name := service.GetObjectMeta().GetName()
+		// TODO: add clusterID to key? possible if called in ComputeCostData(), but what about metrics.go?
+		key := namespace + "," + name
 
 		// Does this identify ELB vs. ILB? Need to test the /api/allServices call with an ALB. Current work is on ELBs.
 		if service.Spec.Type == "LoadBalancer" {
@@ -1216,7 +1225,8 @@ func (cm *CostModel) getLBCost(cp costAnalyzerCloud.Provider) (map[string]*costA
 					newLoadBalancer.IngressIPAddresses = append(newLoadBalancer.IngressIPAddresses, loadBalancerIngress.IP)
 				}
 			}
-			loadBalancerMap[name] = &newLoadBalancer
+			newLoadBalancer.Cost = 88.88
+			loadBalancerMap[key] = &newLoadBalancer
 		}
 	}
 	return loadBalancerMap, nil

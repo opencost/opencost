@@ -902,7 +902,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	LBCostRecorder := prometheus.NewGaugeVec(prometheus.GaugeOpts{ // don't know if necessary to differentiate ELB vs. ALB cost
 		Name: "load_balancer_cost",
 		Help: "load_balancer_cost Hourly cost of load balancer",
-	}, []string{"ip_address", "namespace", "service_name"}) // will likely need some adjustments
+	}, []string{"namespace", "service_name"}) // will likely need some adjustments. could have multiple IPs per LB, so ignore for now
 
 	prometheus.MustRegister(cpuGv)
 	prometheus.MustRegister(ramGv)

@@ -408,6 +408,7 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 
 		containerSeen := make(map[string]bool)
 		nodeSeen := make(map[string]bool)
+		loadBalancerSeen := make(map[string]bool)
 		pvSeen := make(map[string]bool)
 		pvcSeen := make(map[string]bool)
 
@@ -509,6 +510,18 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 				}
 				labelKey := getKeyFromLabelStrings(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID)
 				nodeSeen[labelKey] = true
+			}
+
+			loadBalancers, err := a.Model.GetLBCost(a.Cloud)
+			for lbKey, lb := range loadBalancers {
+				// TODO: parse (if necessary) and calculate cost associated with loadBalancer based on dynamic cloud prices fetched into each lb struct on GetLBCost() call
+				keyParts := getLabelStringsFromKey(lbKey)
+				namespace := keyParts[0]
+				serviceName := keyParts[1]
+				a.LBCostRecorder.WithLabelValues(namespace, serviceName).Set(lb.Cost)
+
+				labelKey := getKeyFromLabelStrings(namespace, serviceName)
+				loadBalancerSeen[labelKey] = true
 			}
 
 			for _, costs := range data {
@@ -621,6 +634,14 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 					delete(nodeSeen, labelString)
 				} else {
 					nodeSeen[labelString] = false
+				}
+			}
+			for labelString, seen := range loadBalancerSeen {
+				if !seen {
+					labels := getLabelStringsFromKey(labelString)
+					a.LBCostRecorder.DeleteLabelValues(labels...)
+				} else {
+					loadBalancerSeen[labelString] = false
 				}
 			}
 			for labelString, seen := range containerSeen {
