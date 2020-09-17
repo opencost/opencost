@@ -112,6 +112,7 @@ type Disk struct {
 	Bytes      float64
 	Local      bool
 	Start      time.Time
+	End        time.Time
 	Minutes    float64
 	Breakdown  *ClusterCostsBreakdown
 }
@@ -126,7 +127,8 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 	// minsPerResolution determines accuracy and resource use for the following
 	// queries. Smaller values (higher resolution) result in better accuracy,
 	// but more expensive queries, and vice-a-versa.
-	minsPerResolution := 5
+	minsPerResolution := 1
+	resolution := time.Duration(minsPerResolution) * time.Minute
 
 	// hourlyToCumulative is a scaling factor that, when multiplied by an hourly
 	// value, converts it to a cumulative value; i.e.
@@ -316,11 +318,12 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 		}
 
 		s := time.Unix(int64(result.Values[0].Timestamp), 0)
-		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
+		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).Add(resolution)
 		mins := e.Sub(s).Minutes()
 
 		// TODO niko/assets if mins >= threshold, interpolate for missing data?
 
+		diskMap[key].End = e
 		diskMap[key].Start = s
 		diskMap[key].Minutes = mins
 	}
@@ -348,11 +351,12 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 		}
 
 		s := time.Unix(int64(result.Values[0].Timestamp), 0)
-		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
+		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).Add(resolution)
 		mins := e.Sub(s).Minutes()
 
 		// TODO niko/assets if mins >= threshold, interpolate for missing data?
 
+		diskMap[key].End = e
 		diskMap[key].Start = s
 		diskMap[key].Minutes = mins
 	}
@@ -380,7 +384,14 @@ type Node struct {
 	CPUBreakdown *ClusterCostsBreakdown
 	RAMBreakdown *ClusterCostsBreakdown
 	Start        time.Time
+	End          time.Time
 	Minutes      float64
+}
+
+var partialCPUMap = map[string]float64{
+	"e2-micro":  0.25,
+	"e2-small":  0.5,
+	"e2-medium": 1.0,
 }
 
 func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset time.Duration) (map[string]*Node, []error) {
@@ -393,7 +404,8 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	// minsPerResolution determines accuracy and resource use for the following
 	// queries. Smaller values (higher resolution) result in better accuracy,
 	// but more expensive queries, and vice-a-versa.
-	minsPerResolution := 5
+	minsPerResolution := 1
+	resolution := time.Duration(minsPerResolution) * time.Minute
 
 	// hourlyToCumulative is a scaling factor that, when multiplied by an hourly
 	// value, converts it to a cumulative value; i.e.
@@ -410,7 +422,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	queryNodeCPUModePct := fmt.Sprintf(`sum(rate(node_cpu_seconds_total[%s:%dm]%s)) by (kubernetes_node, cluster_id, mode) / ignoring(mode) group_left sum(rate(node_cpu_seconds_total[%s:%dm]%s)) by (kubernetes_node, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
 	queryNodeRAMSystemPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace="kube-system"}[%s:%dm]%s)) by (instance, cluster_id) / sum(sum_over_time(label_replace(kube_node_status_capacity_memory_bytes, "instance", "$1", "node", "(.*)")[%s:%dm]%s)) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
 	queryNodeRAMUserPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace!="kube-system"}[%s:%dm]%s)) by (instance, cluster_id) / sum(sum_over_time(label_replace(kube_node_status_capacity_memory_bytes, "instance", "$1", "node", "(.*)")[%s:%dm]%s)) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
-	queryActiveMins := fmt.Sprintf(`count(node_total_hourly_cost) by (cluster_id, node)[%s:%dm]%s`, durationStr, minsPerResolution, offsetStr)
+	queryActiveMins := fmt.Sprintf(`node_total_hourly_cost[%s:%dm]%s`, durationStr, minsPerResolution, offsetStr)
 
 	resChNodeCPUCost := ctx.Query(queryNodeCPUCost)
 	resChNodeCPUCores := ctx.Query(queryNodeCPUCores)
@@ -469,11 +481,10 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		}
 		nodeMap[key].CPUCost += cpuCost
 		nodeMap[key].NodeType = nodeType
+		if nodeMap[key].ProviderID == "" {
+			nodeMap[key].ProviderID = cp.ParseID(providerID)
+		}
 	}
-	partialCPUMap := make(map[string]float64)
-	partialCPUMap["e2-micro"] = 0.25
-	partialCPUMap["e2-small"] = 0.5
-	partialCPUMap["e2-medium"] = 1.0
 
 	for _, result := range resNodeCPUCores {
 		cluster, err := result.GetString("cluster_id")
@@ -508,7 +519,6 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		} else {
 			nodeMap[key].CPUCores = cpuCores
 		}
-
 	}
 
 	for _, result := range resNodeRAMCost {
@@ -541,6 +551,9 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		}
 		nodeMap[key].RAMCost += ramCost
 		nodeMap[key].NodeType = nodeType
+		if nodeMap[key].ProviderID == "" {
+			nodeMap[key].ProviderID = cp.ParseID(providerID)
+		}
 	}
 
 	for _, result := range resNodeRAMBytes {
@@ -598,6 +611,9 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 			}
 		}
 		nodeMap[key].GPUCost += gpuCost
+		if nodeMap[key].ProviderID == "" {
+			nodeMap[key].ProviderID = cp.ParseID(providerID)
+		}
 	}
 
 	for _, result := range resNodeCPUModePct {
@@ -707,11 +723,12 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		}
 
 		s := time.Unix(int64(result.Values[0].Timestamp), 0)
-		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
+		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).Add(resolution)
 		mins := e.Sub(s).Minutes()
 
 		// TODO niko/assets if mins >= threshold, interpolate for missing data?
 
+		nodeMap[key].End = e
 		nodeMap[key].Start = s
 		nodeMap[key].Minutes = mins
 	}
