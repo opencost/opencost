@@ -355,13 +355,6 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		return nil, err
 	}
 
-	// TODO: is this necessary?
-	// loadBalancers, err := cm.GetLBCost(cp)
-	// if err != nil {
-	// 	log.Warningf("GetLBCost: no load balancer cost model available: " + err.Error())
-	// 	return nil, err
-	// }
-
 	// Unmounted PVs represent the PVs that are not mounted or tied to a volume on a container
 	unmountedPVs := make(map[string][]*PersistentVolumeClaimData)
 	pvClaimMapping, err := GetPVInfo(resPVRequests, clusterID)
@@ -1201,31 +1194,19 @@ func (cm *CostModel) GetLBCost(cp costAnalyzerCloud.Provider) (map[string]*costA
 	servicesList := cm.Cache.GetAllServices()
 	loadBalancerMap := make(map[string]*costAnalyzerCloud.LoadBalancer)
 
-	// 1. need to check whether the service is a loadbalancer /
-	// 2. need to generate a unique key for this loadbalancer --> use name, which is unique across a namespace
-	// 3. need to check if key exists in servicesList and then populate loadBalancers with it
-
 	for _, service := range servicesList {
 		namespace := service.GetObjectMeta().GetNamespace()
 		name := service.GetObjectMeta().GetName()
-		// TODO: add clusterID to key? possible if called in ComputeCostData(), but what about metrics.go?
-		key := namespace + "," + name
+		key := namespace + "," + name // + "," + clusterID?
 
-		// Does this identify ELB vs. ILB? Need to test the /api/allServices call with an ALB. Current work is on ELBs.
 		if service.Spec.Type == "LoadBalancer" {
-			// TODO: dynamically fetch based on cloud provider and region. Currently using hard-coded GCP us-central1 values.
-			loadBalancer := &costAnalyzerCloud.LoadBalancer{
-				FirstFiveForwardingRulesCost: 0.025,
-				AdditionalForwardingRuleCost: 0.010,
-				IngressDataCostPerGB:         0.008,
-			}
+			loadBalancer := cp.LoadBalancerPricing()
 			newLoadBalancer := *loadBalancer
 			if len(service.Status.LoadBalancer.Ingress) > 0 { // should actually check if LoadBalancer.Ingress exists
 				for _, loadBalancerIngress := range service.Status.LoadBalancer.Ingress {
 					newLoadBalancer.IngressIPAddresses = append(newLoadBalancer.IngressIPAddresses, loadBalancerIngress.IP)
 				}
 			}
-			newLoadBalancer.Cost = 88.88
 			loadBalancerMap[key] = &newLoadBalancer
 		}
 	}
