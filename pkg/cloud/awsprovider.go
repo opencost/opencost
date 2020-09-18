@@ -848,6 +848,37 @@ func (aws *AWS) NetworkPricing() (*Network, error) {
 	}, nil
 }
 
+func (aws *AWS) LoadBalancerPricing() (*LoadBalancer, error) {
+	cpricing, err := aws.Config.GetCustomPricingData()
+	if err != nil {
+		return nil, err
+	}
+	fffrc, err := strconv.ParseFloat(cpricing.FirstFiveForwardingRulesCost, 64)
+	if err != nil {
+		return nil, err
+	}
+	afrc, err := strconv.ParseFloat(cpricing.AdditionalForwardingRuleCost, 64)
+	if err != nil {
+		return nil, err
+	}
+	lbidc, err := strconv.ParseFloat(cpricing.LBIngressDataCost, 64)
+	if err != nil {
+		return nil, err
+	}
+	var totalCost float64
+	numForwardingRules := 1.0 // hard-code at 1 for now
+	dataIngressGB := 0.0      // hard-code at 0 for now
+
+	if numForwardingRules < 5 {
+		totalCost = fffrc*numForwardingRules + lbidc*dataIngressGB
+	} else {
+		totalCost = fffrc*5 + afrc*(numForwardingRules-5) + lbidc*dataIngressGB
+	}
+	return &LoadBalancer{
+		Cost: totalCost,
+	}, nil
+}
+
 // AllNodePricing returns all the billing data fetched.
 func (aws *AWS) AllNodePricing() (interface{}, error) {
 	aws.DownloadPricingDataLock.RLock()
