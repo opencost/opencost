@@ -1200,7 +1200,10 @@ func (cm *CostModel) GetLBCost(cp costAnalyzerCloud.Provider) (map[string]*costA
 		key := namespace + "," + name // + "," + clusterID?
 
 		if service.Spec.Type == "LoadBalancer" {
-			loadBalancer := cp.LoadBalancerPricing()
+			loadBalancer, err := cp.LoadBalancerPricing()
+			if err != nil {
+				return nil, err
+			}
 			newLoadBalancer := *loadBalancer
 			if len(service.Status.LoadBalancer.Ingress) > 0 { // should actually check if LoadBalancer.Ingress exists
 				for _, loadBalancerIngress := range service.Status.LoadBalancer.Ingress {
