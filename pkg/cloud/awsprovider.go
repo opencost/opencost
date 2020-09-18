@@ -1623,7 +1623,7 @@ func (a *AWS) GetSavingsPlanDataFromAthena() error {
 		}
 		klog.V(1).Infof("Found %d savings plan applied instances", len(a.SavingsPlanDataByInstanceID))
 		for k, r := range a.SavingsPlanDataByInstanceID {
-			log.DedupedInfof(5, "Reserved Instance Data found for node %s : %f at time %s", k, r.EffectiveCost, r.MostRecentDate)
+			log.DedupedInfof(5, "Savings Plan Instance Data found for node %s : %f at time %s", k, r.EffectiveCost, r.MostRecentDate)
 		}
 		a.SavingsPlanDataLock.Unlock()
 	} else {
@@ -1693,7 +1693,7 @@ func (a *AWS) GetReservationDataFromAthena() error {
 		}
 		klog.V(1).Infof("Found %d reserved instances", len(a.RIPricingByInstanceID))
 		for k, r := range a.RIPricingByInstanceID {
-			klog.V(1).Infof("Reserved Instance Data found for node %s : %f at time %s", k, r.EffectiveCost, r.MostRecentDate)
+			log.DedupedInfof(5, "Reserved Instance Data found for node %s : %f at time %s", k, r.EffectiveCost, r.MostRecentDate)
 		}
 		a.RIDataLock.Unlock()
 	} else {
