@@ -884,7 +884,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 
 	if spotInfo, ok := aws.spotPricing(k.ID()); ok {
 		var spotcost string
-		klog.V(3).Infof("Looking up spot data from feed for node %s", k.ID())
+		log.DedupedInfof(5, "Looking up spot data from feed for node %s", k.ID())
 		arr := strings.Split(spotInfo.Charge, " ")
 		if len(arr) == 2 {
 			spotcost = arr[0]
@@ -1623,7 +1623,7 @@ func (a *AWS) GetSavingsPlanDataFromAthena() error {
 		}
 		klog.V(1).Infof("Found %d savings plan applied instances", len(a.SavingsPlanDataByInstanceID))
 		for k, r := range a.SavingsPlanDataByInstanceID {
-			klog.V(1).Infof("Reserved Instance Data found for node %s : %f at time %s", k, r.EffectiveCost, r.MostRecentDate)
+			log.DedupedInfof(5, "Reserved Instance Data found for node %s : %f at time %s", k, r.EffectiveCost, r.MostRecentDate)
 		}
 		a.SavingsPlanDataLock.Unlock()
 	} else {
