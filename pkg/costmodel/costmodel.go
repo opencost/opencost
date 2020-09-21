@@ -1205,7 +1205,7 @@ func (cm *CostModel) GetLBCost(cp costAnalyzerCloud.Provider) (map[string]*costA
 				return nil, err
 			}
 			newLoadBalancer := *loadBalancer
-			if len(service.Status.LoadBalancer.Ingress) > 0 { // should actually check if LoadBalancer.Ingress exists
+			if len(service.Status.LoadBalancer.Ingress) > 0 { // assumes passing service.Spec.Type check means service.Status.LoadBalancer.Ingress field exists
 				for _, loadBalancerIngress := range service.Status.LoadBalancer.Ingress {
 					newLoadBalancer.IngressIPAddresses = append(newLoadBalancer.IngressIPAddresses, loadBalancerIngress.IP)
 				}
