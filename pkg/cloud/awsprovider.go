@@ -903,7 +903,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 			UsageType:    usageType,
 		}, nil
 	} else if aws.isPreemptible(key) { // Preemptible but we don't have any data in the pricing report.
-		klog.Infof("Node %s marked preemitible but we have no data in spot feed", k.ID())
+		log.DedupedWarningf(5, "Node %s marked preemitible but we have no data in spot feed", k.ID())
 		return &Node{
 			VCPU:         terms.VCpu,
 			VCPUCost:     aws.BaseSpotCPUPrice,
