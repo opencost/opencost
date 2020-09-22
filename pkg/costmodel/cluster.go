@@ -624,7 +624,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 
 		name, err := result.GetString("kubernetes_node")
 		if err != nil {
-			log.Warningf("ClusterNodes: CPU mode data missing node")
+			log.DedupedWarningf(5, "ClusterNodes: CPU mode data missing node")
 			continue
 		}
 

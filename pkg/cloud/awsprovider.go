@@ -884,7 +884,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 
 	if spotInfo, ok := aws.spotPricing(k.ID()); ok {
 		var spotcost string
-		klog.V(3).Infof("Looking up spot data from feed for node %s", k.ID())
+		log.DedupedInfof(5, "Looking up spot data from feed for node %s", k.ID())
 		arr := strings.Split(spotInfo.Charge, " ")
 		if len(arr) == 2 {
 			spotcost = arr[0]
@@ -903,7 +903,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 			UsageType:    usageType,
 		}, nil
 	} else if aws.isPreemptible(key) { // Preemptible but we don't have any data in the pricing report.
-		klog.Infof("Node %s marked preemitible but we have no data in spot feed", k.ID())
+		log.DedupedWarningf(5, "Node %s marked preemitible but we have no data in spot feed", k.ID())
 		return &Node{
 			VCPU:         terms.VCpu,
 			VCPUCost:     aws.BaseSpotCPUPrice,
@@ -1623,7 +1623,7 @@ func (a *AWS) GetSavingsPlanDataFromAthena() error {
 		}
 		klog.V(1).Infof("Found %d savings plan applied instances", len(a.SavingsPlanDataByInstanceID))
 		for k, r := range a.SavingsPlanDataByInstanceID {
-			klog.V(1).Infof("Reserved Instance Data found for node %s : %f at time %s", k, r.EffectiveCost, r.MostRecentDate)
+			log.DedupedInfof(5, "Savings Plan Instance Data found for node %s : %f at time %s", k, r.EffectiveCost, r.MostRecentDate)
 		}
 		a.SavingsPlanDataLock.Unlock()
 	} else {
@@ -1693,7 +1693,7 @@ func (a *AWS) GetReservationDataFromAthena() error {
 		}
 		klog.V(1).Infof("Found %d reserved instances", len(a.RIPricingByInstanceID))
 		for k, r := range a.RIPricingByInstanceID {
-			klog.V(1).Infof("Reserved Instance Data found for node %s : %f at time %s", k, r.EffectiveCost, r.MostRecentDate)
+			log.DedupedInfof(5, "Reserved Instance Data found for node %s : %f at time %s", k, r.EffectiveCost, r.MostRecentDate)
 		}
 		a.RIDataLock.Unlock()
 	} else {
