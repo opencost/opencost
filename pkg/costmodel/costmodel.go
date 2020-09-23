@@ -1200,9 +1200,12 @@ func (cm *CostModel) GetLBCost(cp costAnalyzerCloud.Provider) (map[string]*costA
 		key := namespace + "," + name // + "," + clusterID?
 
 		if service.Spec.Type == "LoadBalancer" {
-			loadBalancer, err := cp.LoadBalancerPricing()
-			if err != nil {
-				return nil, err
+			// loadBalancer, err := cp.LoadBalancerPricing()
+			// if err != nil {
+			// 	return nil, err
+			// }
+			loadBalancer := &costAnalyzerCloud.LoadBalancer{ // hard-coded to test asset pipeline reads, delete and uncomment above four lines
+				Cost: 0.025,
 			}
 			newLoadBalancer := *loadBalancer
 			for _, loadBalancerIngress := range service.Status.LoadBalancer.Ingress {
