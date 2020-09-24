@@ -10,6 +10,7 @@ const (
 	ClusterProfileEnvVar           = "CLUSTER_PROFILE"
 	PrometheusServerEndpointEnvVar = "PROMETHEUS_SERVER_ENDPOINT"
 	MaxQueryConcurrencyEnvVar      = "MAX_QUERY_CONCURRENCY"
+	QueryLoggingFileEnvVar         = "QUERY_LOGGING_FILE"
 	RemoteEnabledEnvVar            = "REMOTE_WRITE_ENABLED"
 	RemotePWEnvVar                 = "REMOTE_WRITE_PASSWORD"
 	SQLAddressEnvVar               = "SQL_ADDRESS"
@@ -183,6 +184,11 @@ func IsValuesReportingEnabled() bool {
 // GetMaxQueryConcurrency returns the environment variable value for MaxQueryConcurrencyEnvVar
 func GetMaxQueryConcurrency() int {
 	return GetInt(MaxQueryConcurrencyEnvVar, 5)
+}
+
+// GetQueryLoggingFile returns a file location if query logging is enabled. Otherwise, empty string
+func GetQueryLoggingFile() string {
+	return Get(QueryLoggingFileEnvVar, "")
 }
 
 func GetDBBasicAuthUsername() string {
