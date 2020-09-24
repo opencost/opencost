@@ -783,6 +783,110 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	return nodeMap, nil
 }
 
+type LoadBalancer struct {
+	Cluster    string
+	Name       string
+	ProviderID string
+	Cost       float64
+	Start      time.Time
+	Minutes    float64
+}
+
+func ClusterLoadBalancers(cp cloud.Provider, client prometheus.Client, duration, offset time.Duration) (map[string]*LoadBalancer, []error) {
+	durationStr := fmt.Sprintf("%dm", int64(duration.Minutes()))
+	offsetStr := fmt.Sprintf(" offset %dm", int64(offset.Minutes()))
+	if offset < time.Minute {
+		offsetStr = ""
+	}
+
+	// minsPerResolution determines accuracy and resource use for the following
+	// queries. Smaller values (higher resolution) result in better accuracy,
+	// but more expensive queries, and vice-a-versa.
+	minsPerResolution := 5
+
+	// hourlyToCumulative is a scaling factor that, when multiplied by an hourly
+	// value, converts it to a cumulative value; i.e.
+	// [$/hr] * [min/res]*[hr/min] = [$/res]
+	hourlyToCumulative := float64(minsPerResolution) * (1.0 / 60.0)
+
+	ctx := prom.NewContext(client)
+	queryLBCost := fmt.Sprintf(`sum_over_time((avg(kubecost_load_balancer_cost) by (namespace, service_name))[%s:%dm]%s) * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
+	queryActiveMins := fmt.Sprintf(`count(kubecost_load_balancer_cost) by (namespace, service_name)[%s:%dm]%s`, durationStr, minsPerResolution, offsetStr)
+
+	resChLBCost := ctx.Query(queryLBCost)
+	resChActiveMins := ctx.Query(queryActiveMins)
+
+	resLBCost, _ := resChLBCost.Await()
+	resActiveMins, _ := resChActiveMins.Await()
+
+	if ctx.ErrorCollector.IsError() {
+		return nil, ctx.Errors()
+	}
+
+	loadBalancerMap := map[string]*LoadBalancer{}
+
+	for _, result := range resLBCost {
+		cluster, err := result.GetString("cluster_id")
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+		namespace, err := result.GetString("namespace")
+		if err != nil {
+			log.Warningf("ClusterLoadBalancers: LB cost data missing namespace")
+			continue
+		}
+		serviceName, err := result.GetString("service_name")
+		if err != nil {
+			log.Warningf("ClusterLoadBalancers: LB cost data missing service_name")
+			continue
+		}
+		providerID := ""
+		lbCost := result.Values[0].Value
+
+		key := fmt.Sprintf("%s/%s/%s", cluster, namespace, serviceName)
+		if _, ok := loadBalancerMap[key]; !ok {
+			loadBalancerMap[key] = &LoadBalancer{
+				Cluster:    cluster,
+				Name:       namespace + "/" + serviceName,
+				ProviderID: providerID, // cp.ParseID(providerID) if providerID does get recorded later
+			}
+		}
+		loadBalancerMap[key].Cost += lbCost
+	}
+
+	for _, result := range resActiveMins {
+		cluster, err := result.GetString("cluster_id")
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+		namespace, err := result.GetString("namespace")
+		if err != nil {
+			log.Warningf("ClusterLoadBalancers: LB cost data missing namespace")
+			continue
+		}
+		serviceName, err := result.GetString("service_name")
+		if err != nil {
+			log.Warningf("ClusterLoadBalancers: LB cost data missing service_name")
+			continue
+		}
+		key := fmt.Sprintf("%s/%s/%s", cluster, namespace, serviceName)
+
+		if len(result.Values) == 0 {
+			continue
+		}
+
+		s := time.Unix(int64(result.Values[0].Timestamp), 0)
+		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
+		mins := e.Sub(s).Minutes()
+
+		// TODO niko/assets if mins >= threshold, interpolate for missing data?
+
+		loadBalancerMap[key].Start = s
+		loadBalancerMap[key].Minutes = mins
+	}
+	return loadBalancerMap, nil
+}
+
 // ComputeClusterCosts gives the cumulative and monthly-rate cluster costs over a window of time for all clusters.
 func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, window, offset string, withBreakdown bool) (map[string]*ClusterCosts, error) {
 	// Compute number of minutes in the full interval, for use interpolating missed scrapes or scaling missing data
