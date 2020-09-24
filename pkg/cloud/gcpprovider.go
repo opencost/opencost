@@ -1049,26 +1049,14 @@ func (gcp *GCP) NetworkPricing() (*Network, error) {
 }
 
 func (gcp *GCP) LoadBalancerPricing() (*LoadBalancer, error) {
-	cpricing, err := gcp.Config.GetCustomPricingData()
-	if err != nil {
-		return nil, err
-	}
-	fffrc, err := strconv.ParseFloat(cpricing.FirstFiveForwardingRulesCost, 64)
-	if err != nil {
-		return nil, err
-	}
-	afrc, err := strconv.ParseFloat(cpricing.AdditionalForwardingRuleCost, 64)
-	if err != nil {
-		return nil, err
-	}
-	lbidc, err := strconv.ParseFloat(cpricing.LBIngressDataCost, 64)
-	if err != nil {
-		return nil, err
-	}
-	var totalCost float64
-	numForwardingRules := 1.0 // hard-code at 1 for now
-	dataIngressGB := 0.0      // hard-code at 0 for now
+	fffrc := 0.025
+	afrc := 0.010
+	lbidc := 0.008
 
+	numForwardingRules := 1.0
+	dataIngressGB := 0.0
+
+	var totalCost float64
 	if numForwardingRules < 5 {
 		totalCost = fffrc*numForwardingRules + lbidc*dataIngressGB
 	} else {
