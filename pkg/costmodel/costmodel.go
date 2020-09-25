@@ -1895,6 +1895,8 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	profileStart = time.Now()
 
+	nodes, _ := cm.GetNodeCost(cp)
+
 	missingNodes := make(map[string]*costAnalyzerCloud.Node)
 	missingContainers := make(map[string]*CostData)
 	for key := range containers {
@@ -1939,10 +1941,10 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		}
 
 		var node *costAnalyzerCloud.Node
-		if n, ok := missingNodes[c.NodeName]; ok {
-			node = n
-		} else {
-			node = &costAnalyzerCloud.Node{}
+		if node, ok = missingNodes[c.NodeName]; !ok {
+			if node, ok = nodes[c.NodeName]; !ok {
+				node = &costAnalyzerCloud.Node{}
+			}
 			missingNodes[c.NodeName] = node
 		}
 
