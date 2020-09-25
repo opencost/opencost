@@ -600,35 +600,35 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 			}
 			for labelString, seen := range nodeSeen {
 				if !seen {
-					klog.Infof("Removing %s from nodes", labelString)
+					klog.V(4).Infof("Removing %s from nodes", labelString)
 					labels := getLabelStringsFromKey(labelString)
 					ok := a.NodeTotalPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
-						klog.Infof("removed %s from totalprice", labelString)
+						klog.V(4).Infof("removed %s from totalprice", labelString)
 					} else {
 						klog.Infof("FAILURE TO REMOVE %s from totalprice", labelString)
 					}
 					ok = a.NodeSpotRecorder.DeleteLabelValues(labels...)
 					if ok {
-						klog.Infof("removed %s from spot records", labelString)
+						klog.V(4).Infof("removed %s from spot records", labelString)
 					} else {
 						klog.Infof("FAILURE TO REMOVE %s from spot records", labelString)
 					}
 					ok = a.CPUPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
-						klog.Infof("removed %s from cpuprice", labelString)
+						klog.V(4).Infof("removed %s from cpuprice", labelString)
 					} else {
 						klog.Infof("FAILURE TO REMOVE %s from cpuprice", labelString)
 					}
 					ok = a.GPUPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
-						klog.Infof("removed %s from gpuprice", labelString)
+						klog.V(4).Infof("removed %s from gpuprice", labelString)
 					} else {
 						klog.Infof("FAILURE TO REMOVE %s from gpuprice", labelString)
 					}
 					ok = a.RAMPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
-						klog.Infof("removed %s from ramprice", labelString)
+						klog.V(4).Infof("removed %s from ramprice", labelString)
 					} else {
 						klog.Infof("FAILURE TO REMOVE %s from ramprice", labelString)
 					}
