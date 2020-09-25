@@ -143,7 +143,7 @@ func NewQueryResults(query string, queryResult interface{}) *QueryResults {
 				return qrs
 			}
 			if warn != nil {
-				log.Warningf("%s\nQuery: %s\nLabels: %s", warn.Message(), query, labelsForMetric(metricMap))
+				log.DedupedWarningf(5, "%s\nQuery: %s\nLabels: %s", warn.Message(), query, labelsForMetric(metricMap))
 			}
 
 			vectors = append(vectors, v)
@@ -165,7 +165,7 @@ func NewQueryResults(query string, queryResult interface{}) *QueryResults {
 					if labelString == "" {
 						labelString = labelsForMetric(metricMap)
 					}
-					log.Warningf("%s\nQuery: %s\nLabels: %s", warn.Message(), query, labelString)
+					log.DedupedWarningf(5, "%s\nQuery: %s\nLabels: %s", warn.Message(), query, labelString)
 				}
 
 				vectors = append(vectors, v)
