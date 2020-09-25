@@ -287,9 +287,10 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 		key := fmt.Sprintf("%s/%s", cluster, name)
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
-				Cluster: cluster,
-				Name:    name,
-				Local:   true,
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+				Local:     true,
 			}
 		}
 		diskMap[key].Bytes = bytes
