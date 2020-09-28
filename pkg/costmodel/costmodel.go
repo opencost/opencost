@@ -1724,7 +1724,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 				key := fmt.Sprintf("%s,%s,%s", pvcData.Namespace, pvcData.Claim, pvcData.ClusterID)
 				if pvClaim, ok := pvClaimMapping[key]; ok {
 					pvcData.Class = pvClaim.Class
-					pvcData.Volume.CostPerIO = pvClaim.Volume.Class
+					pvcData.Volume.CostPerIO = pvClaim.Volume.CostPerIO
 					pvcData.Volume.Class = pvClaim.Volume.Class
 					pvcData.Volume.Size = pvClaim.Volume.Size
 					pvcData.Volume.Region = pvClaim.Volume.Region
