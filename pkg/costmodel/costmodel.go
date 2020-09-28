@@ -1720,6 +1720,17 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	if pvAllocationMapping != nil {
 		addMetricPVData(pvAllocationMapping, pvCostMapping, cp)
 		for k, v := range pvAllocationMapping {
+			for _,pvcData := range v {
+				key := fmt.Sprintf("%s,%s,%s", pvcData.Namespace, pvcData.Claim, pvcData.ClusterID)
+				if pvClaim, ok := pvClaimMapping[key]; ok {
+					pvcData.Class = pvClaim.Class
+					pvcData.Volume.CostPerIO = pvClaim.Volume.Class
+					pvcData.Volume.Class = pvClaim.Volume.Class
+					pvcData.Volume.Size = pvClaim.Volume.Size
+					pvcData.Volume.Region = pvClaim.Volume.Region
+					pvcData.Volume.Parameters = pvClaim.Volume.Parameters
+				}
+			}
 			unmountedPVs[k] = v
 		}
 	}
