@@ -194,6 +194,7 @@ func (rlpc *RateLimitedPrometheusClient) Do(ctx context.Context, req *http.Reque
 	rlpc.queue.Enqueue(&workRequest{
 		ctx:      ctx,
 		req:      req,
+		start:    time.Now(),
 		respChan: respChan,
 		closer:   false,
 	})
