@@ -2435,7 +2435,7 @@ func (aws *AWS) ParseID(id string) string {
 }
 
 func (aws *AWS) ParsePVID(id string) string {
-	rx := regexp.MustCompile("aws:/[^/]*/[^/]*/([^/]+)")
+	rx := regexp.MustCompile("aws:/[^/]*/[^/]*/([^/]+)") // Capture "vol-0fc54c5e83b8d2b76" from "aws://us-east-2a/vol-0fc54c5e83b8d2b76"
 	match := rx.FindStringSubmatch(id)
 	if len(match) < 2 {
 		if id != "" {
