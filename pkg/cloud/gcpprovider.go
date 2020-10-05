@@ -1297,6 +1297,10 @@ type pvKey struct {
 	DefaultRegion          string
 }
 
+func (key *pvKey) ID() string {
+	return ""
+}
+
 func (key *pvKey) GetStorageClass() string {
 	return key.StorageClass
 }
@@ -1457,4 +1461,8 @@ func (gcp *GCP) ParseID(id string) string {
 	}
 
 	return match[1]
+}
+
+func (gcp *GCP) ParsePVID(id string) string {
+	return id
 }

@@ -256,6 +256,10 @@ type csvPVKey struct {
 	DefaultRegion          string
 }
 
+func (key *csvPVKey) ID() string {
+	return ""
+}
+
 func (key *csvPVKey) GetStorageClass() string {
 	return key.StorageClassName
 }
@@ -304,5 +308,9 @@ func (c *CSVProvider) CombinedDiscountForNode(instanceType string, isPreemptible
 }
 
 func (c *CSVProvider) ParseID(id string) string {
+	return id
+}
+
+func (c *CSVProvider) ParsePVID(id string) string {
 	return id
 }

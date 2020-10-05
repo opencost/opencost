@@ -862,7 +862,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	pvGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "pv_hourly_cost",
 		Help: "pv_hourly_cost Cost per GB per hour on a persistent disk",
-	}, []string{"volumename", "persistentvolume"})
+	}, []string{"volumename", "persistentvolume", "provider_id"})
 
 	RAMAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "container_memory_allocation_bytes",
