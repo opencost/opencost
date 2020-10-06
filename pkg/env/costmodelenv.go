@@ -10,6 +10,7 @@ const (
 	ClusterProfileEnvVar           = "CLUSTER_PROFILE"
 	PrometheusServerEndpointEnvVar = "PROMETHEUS_SERVER_ENDPOINT"
 	MaxQueryConcurrencyEnvVar      = "MAX_QUERY_CONCURRENCY"
+	QueryLoggingFileEnvVar         = "QUERY_LOGGING_FILE"
 	RemoteEnabledEnvVar            = "REMOTE_WRITE_ENABLED"
 	RemotePWEnvVar                 = "REMOTE_WRITE_PASSWORD"
 	SQLAddressEnvVar               = "SQL_ADDRESS"
@@ -37,6 +38,8 @@ const (
 	MultiClusterBearerToken       = "MC_BEARER_TOKEN"
 
 	InsecureSkipVerify = "INSECURE_SKIP_VERIFY"
+
+	KubeConfigPathEnvVar = "KUBECONFIG_PATH"
 )
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
@@ -183,6 +186,11 @@ func GetMaxQueryConcurrency() int {
 	return GetInt(MaxQueryConcurrencyEnvVar, 5)
 }
 
+// GetQueryLoggingFile returns a file location if query logging is enabled. Otherwise, empty string
+func GetQueryLoggingFile() string {
+	return Get(QueryLoggingFileEnvVar, "")
+}
+
 func GetDBBasicAuthUsername() string {
 	return Get(DBBasicAuthUsername, "")
 }
@@ -208,4 +216,9 @@ func GetMultiClusterBasicAuthPassword() string {
 
 func GetMultiClusterBearerToken() string {
 	return Get(MultiClusterBearerToken, "")
+}
+
+// GetKubeConfigPath returns the environment variable value for KubeConfigPathEnvVar
+func GetKubeConfigPath() string {
+	return Get(KubeConfigPathEnvVar, "")
 }

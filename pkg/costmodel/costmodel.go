@@ -913,6 +913,7 @@ func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cp costAnalyz
 		return nil // set default cost
 	}
 	pv.Cost = pvWithCost.Cost
+	pv.ProviderID = key.ID()
 	return nil
 }
 
@@ -1181,6 +1182,37 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 	cp.ApplyReservedInstancePricing(nodes)
 
 	return nodes, nil
+}
+
+// TODO: drop some logs
+func (cm *CostModel) GetLBCost(cp costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.LoadBalancer, error) {
+	// for fetching prices from cloud provider
+	// cfg, err := cp.GetConfig()
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	servicesList := cm.Cache.GetAllServices()
+	loadBalancerMap := make(map[string]*costAnalyzerCloud.LoadBalancer)
+
+	for _, service := range servicesList {
+		namespace := service.GetObjectMeta().GetNamespace()
+		name := service.GetObjectMeta().GetName()
+		key := namespace + "," + name // + "," + clusterID?
+
+		if service.Spec.Type == "LoadBalancer" {
+			loadBalancer, err := cp.LoadBalancerPricing()
+			if err != nil {
+				return nil, err
+			}
+			newLoadBalancer := *loadBalancer
+			for _, loadBalancerIngress := range service.Status.LoadBalancer.Ingress {
+				newLoadBalancer.IngressIPAddresses = append(newLoadBalancer.IngressIPAddresses, loadBalancerIngress.IP)
+			}
+			loadBalancerMap[key] = &newLoadBalancer
+		}
+	}
+	return loadBalancerMap, nil
 }
 
 func getPodServices(cache clustercache.ClusterCache, podList []*v1.Pod, clusterID string) (map[string]map[string][]string, error) {

@@ -70,6 +70,18 @@ func (n *Node) IsSpot() bool {
 	}
 }
 
+// LoadBalancer is the interface by which the provider and cost model communicate LoadBalancer prices.
+// The provider will best-effort try to fill out this struct.
+type LoadBalancer struct {
+	IngressIPAddresses []string `json:"IngressIPAddresses"`
+	Cost               float64  `json:"hourlyCost"`
+}
+
+// TODO: used for dynamic cloud provider price fetching.
+// determine what identifies a load balancer in the json returned from the cloud provider pricing API call
+// type LBKey interface {
+// }
+
 // Network is the interface by which the provider and cost model communicate network egress prices.
 // The provider will best-effort try to fill out this struct.
 type Network struct {
@@ -86,6 +98,7 @@ type PV struct {
 	Class      string            `json:"storageClass"`
 	Size       string            `json:"size"`
 	Region     string            `json:"region"`
+	ProviderID string            `json:"providerID,omitempty"`
 	Parameters map[string]string `json:"parameters"`
 }
 
@@ -99,6 +112,7 @@ type Key interface {
 type PVKey interface {
 	Features() string
 	GetStorageClass() string
+	ID() string
 }
 
 // OutOfClusterAllocation represents a cloud provider cost not associated with kubernetes
@@ -111,51 +125,54 @@ type OutOfClusterAllocation struct {
 }
 
 type CustomPricing struct {
-	Provider              string            `json:"provider"`
-	Description           string            `json:"description"`
-	CPU                   string            `json:"CPU"`
-	SpotCPU               string            `json:"spotCPU"`
-	RAM                   string            `json:"RAM"`
-	SpotRAM               string            `json:"spotRAM"`
-	GPU                   string            `json:"GPU"`
-	SpotGPU               string            `json:"spotGPU"`
-	Storage               string            `json:"storage"`
-	ZoneNetworkEgress     string            `json:"zoneNetworkEgress"`
-	RegionNetworkEgress   string            `json:"regionNetworkEgress"`
-	InternetNetworkEgress string            `json:"internetNetworkEgress"`
-	SpotLabel             string            `json:"spotLabel,omitempty"`
-	SpotLabelValue        string            `json:"spotLabelValue,omitempty"`
-	GpuLabel              string            `json:"gpuLabel,omitempty"`
-	GpuLabelValue         string            `json:"gpuLabelValue,omitempty"`
-	ServiceKeyName        string            `json:"awsServiceKeyName,omitempty"`
-	ServiceKeySecret      string            `json:"awsServiceKeySecret,omitempty"`
-	SpotDataRegion        string            `json:"awsSpotDataRegion,omitempty"`
-	SpotDataBucket        string            `json:"awsSpotDataBucket,omitempty"`
-	SpotDataPrefix        string            `json:"awsSpotDataPrefix,omitempty"`
-	ProjectID             string            `json:"projectID,omitempty"`
-	AthenaProjectID       string            `json:"athenaProjectID,omitempty"`
-	AthenaBucketName      string            `json:"athenaBucketName"`
-	AthenaRegion          string            `json:"athenaRegion"`
-	AthenaDatabase        string            `json:"athenaDatabase"`
-	AthenaTable           string            `json:"athenaTable"`
-	MasterPayerARN        string            `json:"masterPayerARN"`
-	BillingDataDataset    string            `json:"billingDataDataset,omitempty"`
-	CustomPricesEnabled   string            `json:"customPricesEnabled"`
-	DefaultIdle           string            `json:"defaultIdle"`
-	AzureSubscriptionID   string            `json:"azureSubscriptionID"`
-	AzureClientID         string            `json:"azureClientID"`
-	AzureClientSecret     string            `json:"azureClientSecret"`
-	AzureTenantID         string            `json:"azureTenantID"`
-	AzureBillingRegion    string            `json:"azureBillingRegion"`
-	CurrencyCode          string            `json:"currencyCode"`
-	Discount              string            `json:"discount"`
-	NegotiatedDiscount    string            `json:"negotiatedDiscount"`
-	SharedCosts           map[string]string `json:"sharedCost"`
-	ClusterName           string            `json:"clusterName"`
-	SharedNamespaces      string            `json:"sharedNamespaces"`
-	SharedLabelNames      string            `json:"sharedLabelNames"`
-	SharedLabelValues     string            `json:"sharedLabelValues"`
-	ReadOnly              string            `json:"readOnly"`
+	Provider                     string            `json:"provider"`
+	Description                  string            `json:"description"`
+	CPU                          string            `json:"CPU"`
+	SpotCPU                      string            `json:"spotCPU"`
+	RAM                          string            `json:"RAM"`
+	SpotRAM                      string            `json:"spotRAM"`
+	GPU                          string            `json:"GPU"`
+	SpotGPU                      string            `json:"spotGPU"`
+	Storage                      string            `json:"storage"`
+	ZoneNetworkEgress            string            `json:"zoneNetworkEgress"`
+	RegionNetworkEgress          string            `json:"regionNetworkEgress"`
+	InternetNetworkEgress        string            `json:"internetNetworkEgress"`
+	FirstFiveForwardingRulesCost string            `json:"firstFiveForwardingRulesCost"`
+	AdditionalForwardingRuleCost string            `json:"additionalForwardingRuleCost"`
+	LBIngressDataCost            string            `json:"LBIngressDataCost"`
+	SpotLabel                    string            `json:"spotLabel,omitempty"`
+	SpotLabelValue               string            `json:"spotLabelValue,omitempty"`
+	GpuLabel                     string            `json:"gpuLabel,omitempty"`
+	GpuLabelValue                string            `json:"gpuLabelValue,omitempty"`
+	ServiceKeyName               string            `json:"awsServiceKeyName,omitempty"`
+	ServiceKeySecret             string            `json:"awsServiceKeySecret,omitempty"`
+	SpotDataRegion               string            `json:"awsSpotDataRegion,omitempty"`
+	SpotDataBucket               string            `json:"awsSpotDataBucket,omitempty"`
+	SpotDataPrefix               string            `json:"awsSpotDataPrefix,omitempty"`
+	ProjectID                    string            `json:"projectID,omitempty"`
+	AthenaProjectID              string            `json:"athenaProjectID,omitempty"`
+	AthenaBucketName             string            `json:"athenaBucketName"`
+	AthenaRegion                 string            `json:"athenaRegion"`
+	AthenaDatabase               string            `json:"athenaDatabase"`
+	AthenaTable                  string            `json:"athenaTable"`
+	MasterPayerARN               string            `json:"masterPayerARN"`
+	BillingDataDataset           string            `json:"billingDataDataset,omitempty"`
+	CustomPricesEnabled          string            `json:"customPricesEnabled"`
+	DefaultIdle                  string            `json:"defaultIdle"`
+	AzureSubscriptionID          string            `json:"azureSubscriptionID"`
+	AzureClientID                string            `json:"azureClientID"`
+	AzureClientSecret            string            `json:"azureClientSecret"`
+	AzureTenantID                string            `json:"azureTenantID"`
+	AzureBillingRegion           string            `json:"azureBillingRegion"`
+	CurrencyCode                 string            `json:"currencyCode"`
+	Discount                     string            `json:"discount"`
+	NegotiatedDiscount           string            `json:"negotiatedDiscount"`
+	SharedCosts                  map[string]string `json:"sharedCost"`
+	ClusterName                  string            `json:"clusterName"`
+	SharedNamespaces             string            `json:"sharedNamespaces"`
+	SharedLabelNames             string            `json:"sharedLabelNames"`
+	SharedLabelValues            string            `json:"sharedLabelValues"`
+	ReadOnly                     string            `json:"readOnly"`
 }
 
 type ServiceAccountStatus struct {
@@ -175,7 +192,8 @@ type Provider interface {
 	GetDisks() ([]byte, error)
 	NodePricing(Key) (*Node, error)
 	PVPricing(PVKey) (*PV, error)
-	NetworkPricing() (*Network, error)
+	NetworkPricing() (*Network, error)           // TODO: add key interface arg for dynamic price fetching
+	LoadBalancerPricing() (*LoadBalancer, error) // TODO: add key interface arg for dynamic price fetching
 	AllNodePricing() (interface{}, error)
 	DownloadPricingData() error
 	GetKey(map[string]string, *v1.Node) Key
@@ -191,6 +209,7 @@ type Provider interface {
 	ClusterManagementPricing() (string, float64, error)
 	CombinedDiscountForNode(string, bool, float64, float64) float64
 	ParseID(string) string
+	ParsePVID(string) string
 }
 
 // ClusterName returns the name defined in cluster info, defaulting to the

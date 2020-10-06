@@ -650,6 +650,25 @@ func (az *Azure) NetworkPricing() (*Network, error) {
 	}, nil
 }
 
+func (azr *Azure) LoadBalancerPricing() (*LoadBalancer, error) {
+	fffrc := 0.025
+	afrc := 0.010
+	lbidc := 0.008
+
+	numForwardingRules := 1.0
+	dataIngressGB := 0.0
+
+	var totalCost float64
+	if numForwardingRules < 5 {
+		totalCost = fffrc*numForwardingRules + lbidc*dataIngressGB
+	} else {
+		totalCost = fffrc*5 + afrc*(numForwardingRules-5) + lbidc*dataIngressGB
+	}
+	return &LoadBalancer{
+		Cost: totalCost,
+	}, nil
+}
+
 type azurePvKey struct {
 	Labels                 map[string]string
 	StorageClass           string
@@ -664,6 +683,10 @@ func (az *Azure) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string,
 		StorageClassParameters: parameters,
 		DefaultRegion:          defaultRegion,
 	}
+}
+
+func (key *azurePvKey) ID() string {
+	return ""
 }
 
 func (key *azurePvKey) GetStorageClass() string {
@@ -821,5 +844,9 @@ func (az *Azure) CombinedDiscountForNode(instanceType string, isPreemptible bool
 }
 
 func (az *Azure) ParseID(id string) string {
+	return id
+}
+
+func (az *Azure) ParsePVID(id string) string {
 	return id
 }

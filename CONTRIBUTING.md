@@ -22,6 +22,15 @@ To test, build the cost-model docker container and then push it to a Kubernetes 
 
 To confirm that the server is running, you can hit [http://localhost:9003/costDataModel?timeWindow=1d](http://localhost:9003/costDataModel?timeWindow=1d)
 
+## Running locally ##
+
+In order to run cost-model locally, or outside of the runtime of a Kubernetes cluster, you can set the environment variable `KUBECONFIG_PATH`.
+
+Example:
+```bash
+export KUBECONFIG_PATH=~/.kube/config
+```
+
 ## Running the integration tests ##
 To run these tests:
 * Make sure you have a kubeconfig that can point to your cluster, and have permissions to create/modify a namespace called "test"

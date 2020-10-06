@@ -36,6 +36,7 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 const (
@@ -74,6 +75,7 @@ type Accesses struct {
 	GPUAllocationRecorder         *prometheus.GaugeVec
 	PVAllocationRecorder          *prometheus.GaugeVec
 	ClusterManagementCostRecorder *prometheus.GaugeVec
+	LBCostRecorder                *prometheus.GaugeVec
 	NetworkZoneEgressRecorder     prometheus.Gauge
 	NetworkRegionEgressRecorder   prometheus.Gauge
 	NetworkInternetEgressRecorder prometheus.Gauge
@@ -743,7 +745,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		Address:      address,
 		RoundTripper: LongTimeoutRoundTripper,
 	}
-	promCli, _ := prom.NewRateLimitedClient(pc, queryConcurrency, dbBasicAuthUsername, dbBasicAuthPW, dbBearerToken)
+	promCli, _ := prom.NewRateLimitedClient(pc, queryConcurrency, dbBasicAuthUsername, dbBasicAuthPW, dbBearerToken, env.GetQueryLoggingFile())
 
 	m, err := ValidatePrometheus(promCli, false)
 	if err != nil || m.Running == false {
@@ -764,7 +766,13 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	}
 
 	// Kubernetes API setup
-	kc, err := rest.InClusterConfig()
+	var kc *rest.Config
+	if kubeconfig := env.GetKubeConfigPath(); kubeconfig != "" {
+		kc, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+	} else {
+		kc, err = rest.InClusterConfig()
+	}
+
 	if err != nil {
 		panic(err.Error())
 	}
@@ -822,7 +830,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 
 	// TODO: General Architecture Note: Several passes have been made to modularize a lot of
 	// TODO: our code, but the router still continues to be the obvious entry point for new \
-	// TODO: features. We should look to spliting out the actual "router" functionality and
+	// TODO: features. We should look to split out the actual "router" functionality and
 	// TODO: implement a builder -> controller for stitching new features and other dependencies.
 	clusterManager := newClusterManager()
 
@@ -854,7 +862,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	pvGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "pv_hourly_cost",
 		Help: "pv_hourly_cost Cost per GB per hour on a persistent disk",
-	}, []string{"volumename", "persistentvolume"})
+	}, []string{"volumename", "persistentvolume", "provider_id"})
 
 	RAMAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "container_memory_allocation_bytes",
@@ -891,6 +899,10 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		Name: "kubecost_cluster_management_cost",
 		Help: "kubecost_cluster_management_cost Hourly cost paid as a cluster management fee.",
 	}, []string{"provisioner_name"})
+	LBCostRecorder := prometheus.NewGaugeVec(prometheus.GaugeOpts{ // no differentiation between ELB and ALB right now
+		Name: "kubecost_load_balancer_cost",
+		Help: "kubecost_load_balancer_cost Hourly cost of load balancer",
+	}, []string{"ingress_ip", "namespace", "service_name"}) // assumes one ingress IP per load balancer
 
 	prometheus.MustRegister(cpuGv)
 	prometheus.MustRegister(ramGv)
@@ -904,6 +916,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	prometheus.MustRegister(GPUAllocation)
 	prometheus.MustRegister(NetworkZoneEgressRecorder, NetworkRegionEgressRecorder, NetworkInternetEgressRecorder)
 	prometheus.MustRegister(ClusterManagementCostRecorder)
+	prometheus.MustRegister(LBCostRecorder)
 	prometheus.MustRegister(ServiceCollector{
 		KubeClientSet: kubeClientset,
 	})
@@ -940,6 +953,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		NetworkInternetEgressRecorder: NetworkInternetEgressRecorder,
 		PersistentVolumePriceRecorder: pvGv,
 		ClusterManagementCostRecorder: ClusterManagementCostRecorder,
+		LBCostRecorder:                LBCostRecorder,
 		Model:                         NewCostModel(k8sCache),
 		OutOfClusterCache:             outOfClusterCache,
 	}
@@ -977,7 +991,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 				RoundTripper: thanosRT,
 			}
 
-			thanosCli, _ := prom.NewRateLimitedClient(thanosConfig, queryConcurrency, multiclusterDBBasicAuthUsername, multiclusterDBBasicAuthPW, multiClusterBearerToken)
+			thanosCli, _ := prom.NewRateLimitedClient(thanosConfig, queryConcurrency, multiclusterDBBasicAuthUsername, multiclusterDBBasicAuthPW, multiClusterBearerToken, env.GetQueryLoggingFile())
 
 			_, err = ValidatePrometheus(thanosCli, true)
 			if err != nil {

@@ -408,6 +408,7 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 
 		containerSeen := make(map[string]bool)
 		nodeSeen := make(map[string]bool)
+		loadBalancerSeen := make(map[string]bool)
 		pvSeen := make(map[string]bool)
 		pvcSeen := make(map[string]bool)
 
@@ -511,6 +512,19 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 				nodeSeen[labelKey] = true
 			}
 
+			loadBalancers, err := a.Model.GetLBCost(a.Cloud)
+			for lbKey, lb := range loadBalancers {
+				// TODO: parse (if necessary) and calculate cost associated with loadBalancer based on dynamic cloud prices fetched into each lb struct on GetLBCost() call
+				keyParts := getLabelStringsFromKey(lbKey)
+				namespace := keyParts[0]
+				serviceName := keyParts[1]
+				ingressIP := lb.IngressIPAddresses[0] // assumes one ingress IP per load balancer
+				a.LBCostRecorder.WithLabelValues(ingressIP, namespace, serviceName).Set(lb.Cost)
+
+				labelKey := getKeyFromLabelStrings(namespace, serviceName)
+				loadBalancerSeen[labelKey] = true
+			}
+
 			for _, costs := range data {
 				nodeName := costs.NodeName
 
@@ -579,48 +593,56 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 					}
 					GetPVCost(cacPv, pv, a.Cloud, region)
 					c, _ := strconv.ParseFloat(cacPv.Cost, 64)
-					a.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name).Set(c)
+					a.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name, cacPv.ProviderID).Set(c)
 					labelKey := getKeyFromLabelStrings(pv.Name, pv.Name)
 					pvSeen[labelKey] = true
 				}
 			}
 			for labelString, seen := range nodeSeen {
 				if !seen {
-					klog.Infof("Removing %s from nodes", labelString)
+					klog.V(4).Infof("Removing %s from nodes", labelString)
 					labels := getLabelStringsFromKey(labelString)
 					ok := a.NodeTotalPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
-						klog.Infof("removed %s from totalprice", labelString)
+						klog.V(4).Infof("removed %s from totalprice", labelString)
 					} else {
 						klog.Infof("FAILURE TO REMOVE %s from totalprice", labelString)
 					}
 					ok = a.NodeSpotRecorder.DeleteLabelValues(labels...)
 					if ok {
-						klog.Infof("removed %s from spot records", labelString)
+						klog.V(4).Infof("removed %s from spot records", labelString)
 					} else {
 						klog.Infof("FAILURE TO REMOVE %s from spot records", labelString)
 					}
 					ok = a.CPUPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
-						klog.Infof("removed %s from cpuprice", labelString)
+						klog.V(4).Infof("removed %s from cpuprice", labelString)
 					} else {
 						klog.Infof("FAILURE TO REMOVE %s from cpuprice", labelString)
 					}
 					ok = a.GPUPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
-						klog.Infof("removed %s from gpuprice", labelString)
+						klog.V(4).Infof("removed %s from gpuprice", labelString)
 					} else {
 						klog.Infof("FAILURE TO REMOVE %s from gpuprice", labelString)
 					}
 					ok = a.RAMPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
-						klog.Infof("removed %s from ramprice", labelString)
+						klog.V(4).Infof("removed %s from ramprice", labelString)
 					} else {
 						klog.Infof("FAILURE TO REMOVE %s from ramprice", labelString)
 					}
 					delete(nodeSeen, labelString)
 				} else {
 					nodeSeen[labelString] = false
+				}
+			}
+			for labelString, seen := range loadBalancerSeen {
+				if !seen {
+					labels := getLabelStringsFromKey(labelString)
+					a.LBCostRecorder.DeleteLabelValues(labels...)
+				} else {
+					loadBalancerSeen[labelString] = false
 				}
 			}
 			for labelString, seen := range containerSeen {

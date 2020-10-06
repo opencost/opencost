@@ -1048,6 +1048,25 @@ func (gcp *GCP) NetworkPricing() (*Network, error) {
 	}, nil
 }
 
+func (gcp *GCP) LoadBalancerPricing() (*LoadBalancer, error) {
+	fffrc := 0.025
+	afrc := 0.010
+	lbidc := 0.008
+
+	numForwardingRules := 1.0
+	dataIngressGB := 0.0
+
+	var totalCost float64
+	if numForwardingRules < 5 {
+		totalCost = fffrc*numForwardingRules + lbidc*dataIngressGB
+	} else {
+		totalCost = fffrc*5 + afrc*(numForwardingRules-5) + lbidc*dataIngressGB
+	}
+	return &LoadBalancer{
+		Cost: totalCost,
+	}, nil
+}
+
 const (
 	GCPReservedInstanceResourceTypeRAM string = "MEMORY"
 	GCPReservedInstanceResourceTypeCPU string = "VCPU"
@@ -1278,6 +1297,10 @@ type pvKey struct {
 	DefaultRegion          string
 }
 
+func (key *pvKey) ID() string {
+	return ""
+}
+
 func (key *pvKey) GetStorageClass() string {
 	return key.StorageClass
 }
@@ -1438,4 +1461,8 @@ func (gcp *GCP) ParseID(id string) string {
 	}
 
 	return match[1]
+}
+
+func (gcp *GCP) ParsePVID(id string) string {
+	return id
 }

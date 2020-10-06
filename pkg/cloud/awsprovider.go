@@ -460,6 +460,7 @@ type awsPVKey struct {
 	StorageClassName       string
 	Name                   string
 	DefaultRegion          string
+	ProviderID             string
 }
 
 func (aws *AWS) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) PVKey {
@@ -469,7 +470,12 @@ func (aws *AWS) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, 
 		StorageClassParameters: parameters,
 		Name:                   pv.Name,
 		DefaultRegion:          defaultRegion,
+		ProviderID:             pv.Spec.AWSElasticBlockStore.VolumeID,
 	}
+}
+
+func (key *awsPVKey) ID() string {
+	return key.ProviderID
 }
 
 func (key *awsPVKey) GetStorageClass() string {
@@ -845,6 +851,25 @@ func (aws *AWS) NetworkPricing() (*Network, error) {
 		ZoneNetworkEgressCost:     znec,
 		RegionNetworkEgressCost:   rnec,
 		InternetNetworkEgressCost: inec,
+	}, nil
+}
+
+func (aws *AWS) LoadBalancerPricing() (*LoadBalancer, error) {
+	fffrc := 0.025
+	afrc := 0.010
+	lbidc := 0.008
+
+	numForwardingRules := 1.0
+	dataIngressGB := 0.0
+
+	var totalCost float64
+	if numForwardingRules < 5 {
+		totalCost = fffrc*numForwardingRules + lbidc*dataIngressGB
+	} else {
+		totalCost = fffrc*5 + afrc*(numForwardingRules-5) + lbidc*dataIngressGB
+	}
+	return &LoadBalancer{
+		Cost: totalCost,
 	}, nil
 }
 
@@ -2417,6 +2442,19 @@ func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool,
 func (aws *AWS) ParseID(id string) string {
 	// It's of the form aws:///us-east-2a/i-0fea4fd46592d050b and we want i-0fea4fd46592d050b, if it exists
 	rx := regexp.MustCompile("aws://[^/]*/[^/]*/([^/]+)")
+	match := rx.FindStringSubmatch(id)
+	if len(match) < 2 {
+		if id != "" {
+			log.Infof("awsprovider.ParseID: failed to parse %s", id)
+		}
+		return id
+	}
+
+	return match[1]
+}
+
+func (aws *AWS) ParsePVID(id string) string {
+	rx := regexp.MustCompile("aws:/[^/]*/[^/]*/([^/]+)") // Capture "vol-0fc54c5e83b8d2b76" from "aws://us-east-2a/vol-0fc54c5e83b8d2b76"
 	match := rx.FindStringSubmatch(id)
 	if len(match) < 2 {
 		if id != "" {
