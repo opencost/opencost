@@ -464,13 +464,17 @@ type awsPVKey struct {
 }
 
 func (aws *AWS) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) PVKey {
+	providerID := ""
+	if pv.Spec.AWSElasticBlockStore != nil {
+		providerID = pv.Spec.AWSElasticBlockStore.VolumeID
+	}
 	return &awsPVKey{
 		Labels:                 pv.Labels,
 		StorageClassName:       pv.Spec.StorageClassName,
 		StorageClassParameters: parameters,
 		Name:                   pv.Name,
 		DefaultRegion:          defaultRegion,
-		ProviderID:             pv.Spec.AWSElasticBlockStore.VolumeID,
+		ProviderID:             providerID,
 	}
 }
 
