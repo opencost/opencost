@@ -521,8 +521,6 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 				ingressIP := ""
 				if len(lb.IngressIPAddresses) > 0 {
 					ingressIP = lb.IngressIPAddresses[0] // assumes one ingress IP per load balancer
-				} else {
-					ingressIP = "N/A"
 				}
 				a.LBCostRecorder.WithLabelValues(ingressIP, namespace, serviceName).Set(lb.Cost)
 
