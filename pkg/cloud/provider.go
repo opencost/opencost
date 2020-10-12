@@ -99,6 +99,7 @@ type PV struct {
 	Size       string            `json:"size"`
 	Region     string            `json:"region"`
 	Parameters map[string]string `json:"parameters"`
+	VolumeId   string            `json:"volumeId"`
 }
 
 // Key represents a way for nodes to match between the k8s API and a pricing API
@@ -207,6 +208,7 @@ type Provider interface {
 	ClusterManagementPricing() (string, float64, error)
 	CombinedDiscountForNode(string, bool, float64, float64) float64
 	ParseID(string) string
+	GetPVVolumeId(*v1.PersistentVolume) string
 }
 
 // ClusterName returns the name defined in cluster info, defaulting to the

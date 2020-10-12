@@ -685,6 +685,10 @@ func (az *Azure) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string,
 	}
 }
 
+func (az *Azure) GetPVVolumeId(pv *v1.PersistentVolume) string {
+	return ""
+}
+
 func (key *azurePvKey) GetStorageClass() string {
 	return key.StorageClass
 }

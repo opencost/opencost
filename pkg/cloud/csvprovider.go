@@ -276,6 +276,10 @@ func (c *CSVProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]st
 	}
 }
 
+func (c *CSVProvider) GetPVVolumeId(pv *v1.PersistentVolume) string {
+	return ""
+}
+
 func (c *CSVProvider) PVPricing(pvk PVKey) (*PV, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()

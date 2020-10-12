@@ -1310,6 +1310,10 @@ func (gcp *GCP) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, 
 	}
 }
 
+func (gcp *GCP) GetPVVolumeId(pv *v1.PersistentVolume) string {
+	return ""
+}
+
 func (key *pvKey) Features() string {
 	// TODO: regional cluster pricing.
 	storageClass := key.StorageClassParameters["type"]

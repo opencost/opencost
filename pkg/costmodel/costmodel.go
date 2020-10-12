@@ -875,6 +875,7 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 			Class:      pv.Spec.StorageClassName,
 			Region:     region,
 			Parameters: parameters,
+			VolumeId: cloud.GetPVVolumeId(pv),
 		}
 		err := GetPVCost(cacPv, pv, cloud, region)
 		if err != nil {
@@ -1729,6 +1730,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 					pvcData.Volume.Size = pvClaim.Volume.Size
 					pvcData.Volume.Region = pvClaim.Volume.Region
 					pvcData.Volume.Parameters = pvClaim.Volume.Parameters
+					pvcData.Volume.VolumeId = pvClaim.Volume.VolumeId
 				}
 			}
 			unmountedPVs[k] = v

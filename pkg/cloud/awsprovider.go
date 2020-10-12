@@ -472,6 +472,10 @@ func (aws *AWS) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, 
 	}
 }
 
+func (aws *AWS) GetPVVolumeId(pv *v1.PersistentVolume) string {
+	return pv.Spec.AWSElasticBlockStore.VolumeID
+}
+
 func (key *awsPVKey) GetStorageClass() string {
 	return key.StorageClassName
 }
