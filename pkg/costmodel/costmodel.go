@@ -86,6 +86,7 @@ type CostData struct {
 	Labels          map[string]string            `json:"labels,omitempty"`
 	NamespaceLabels map[string]string            `json:"namespaceLabels,omitempty"`
 	ClusterID       string                       `json:"clusterId"`
+	ClusterName     string                       `json:"clusterName"`
 }
 
 func (cd *CostData) String() string {
@@ -514,7 +515,8 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 					NetworkData:     netReq,
 					Labels:          podLabels,
 					NamespaceLabels: nsLabels,
-					ClusterID:       cm.ClusterMap.NameIDFor(clusterID),
+					ClusterID:       clusterID,
+					ClusterName:     cm.ClusterMap.NameFor(clusterID),
 				}
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed, "CPU")
 				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed, "RAM")
@@ -584,7 +586,8 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 				CPUUsed:         CPUUsedV,
 				GPUReq:          GPUReqV,
 				NamespaceLabels: namespacelabels,
-				ClusterID:       cm.ClusterMap.NameIDFor(c.ClusterID),
+				ClusterID:       c.ClusterID,
+				ClusterName:     cm.ClusterMap.NameFor(c.ClusterID),
 			}
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed, "CPU")
 			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed, "RAM")
@@ -656,7 +659,8 @@ func findUnmountedPVCostData(clusterMap clusters.ClusterMap, unmountedPVs map[st
 				Namespace:       ns,
 				NamespaceLabels: namespacelabels,
 				Labels:          namespacelabels,
-				ClusterID:       clusterMap.NameIDFor(clusterID),
+				ClusterID:       clusterID,
+				ClusterName:     clusterMap.NameFor(clusterID),
 				PVCData:         pv,
 			}
 		} else {
@@ -1398,12 +1402,7 @@ func setToSlice(m map[string]bool) []string {
 
 func costDataPassesFilters(cm clusters.ClusterMap, costs *CostData, namespace string, cluster string) bool {
 	passesNamespace := namespace == "" || costs.Namespace == namespace
-
-	passesCluster := true
-	if cluster != "" {
-		id, name := cm.SplitNameID(costs.ClusterID)
-		passesCluster = id == cluster || name == cluster
-	}
+	passesCluster := cluster == "" || costs.ClusterID == cluster || costs.ClusterName == cluster
 
 	return passesNamespace && passesCluster
 }
@@ -2016,7 +2015,8 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 			NamespaceLabels: namespaceLabels,
 			PVCData:         podPVs,
 			NetworkData:     podNetCosts,
-			ClusterID:       cm.ClusterMap.NameIDFor(c.ClusterID),
+			ClusterID:       c.ClusterID,
+			ClusterName:     cm.ClusterMap.NameFor(c.ClusterID),
 		}
 
 		if costDataPassesFilters(cm.ClusterMap, costs, filterNamespace, filterCluster) {

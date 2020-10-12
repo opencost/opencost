@@ -32,6 +32,9 @@ type ClusterMap interface {
 	// doesn't exist
 	InfoFor(clusterID string) *ClusterInfo
 
+	// NameFor returns the name of the cluster provided the clusterID.
+	NameFor(clusterID string) string
+
 	// NameIDFor returns an identifier in the format "<clusterName>/<clusterID>" if the cluster has an
 	// assigned name. Otherwise, just the clusterID is returned.
 	NameIDFor(clusterID string) string
@@ -193,6 +196,18 @@ func (pcm *PrometheusClusterMap) InfoFor(clusterID string) *ClusterInfo {
 	}
 
 	return nil
+}
+
+// NameFor returns the name of the cluster provided the clusterID.
+func (pcm *PrometheusClusterMap) NameFor(clusterID string) string {
+	pcm.lock.RLock()
+	defer pcm.lock.RUnlock()
+
+	if info, ok := pcm.clusters[clusterID]; ok {
+		return info.Name
+	}
+
+	return ""
 }
 
 // NameIDFor returns an identifier in the format "<clusterName>/<clusterID>" if the cluster has an

@@ -22,7 +22,7 @@ type PrometheusMetadata struct {
 
 // Validate tells the model what data prometheus has on it.
 func Validate(cli prometheus.Client) (*PrometheusMetadata, error) {
-	if IsClientID(cli, ThanosClientID) {
+	if IsThanos(cli) {
 		return validate(cli, thanosValidateQuery)
 	}
 
