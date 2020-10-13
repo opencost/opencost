@@ -29,7 +29,7 @@ func Validate(cli prometheus.Client) (*PrometheusMetadata, error) {
 	return validate(cli, prometheusValidateQuery)
 }
 
-// validate runs prometheus
+// validate executes the prometheus query against the provided client.
 func validate(cli prometheus.Client, q string) (*PrometheusMetadata, error) {
 	ctx := NewContext(cli)
 
