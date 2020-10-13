@@ -518,7 +518,10 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 				keyParts := getLabelStringsFromKey(lbKey)
 				namespace := keyParts[0]
 				serviceName := keyParts[1]
-				ingressIP := lb.IngressIPAddresses[0] // assumes one ingress IP per load balancer
+				ingressIP := ""
+				if len(lb.IngressIPAddresses) > 0 {
+					ingressIP = lb.IngressIPAddresses[0] // assumes one ingress IP per load balancer
+				}
 				a.LBCostRecorder.WithLabelValues(ingressIP, namespace, serviceName).Set(lb.Cost)
 
 				labelKey := getKeyFromLabelStrings(namespace, serviceName)
