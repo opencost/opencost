@@ -621,6 +621,20 @@ func (p *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httpro
 	w.Write(WrapData(data, nil))
 }
 
+func (p *Accesses) GetClusterInfoMap(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	data := make(map[string]*clusters.ClusterInfo)
+
+	cm := p.ClusterMap
+	for _, id := range cm.GetClusterIDs() {
+		data[id] = cm.InfoFor(id)
+	}
+
+	w.Write(WrapData(data, nil))
+}
+
 func (p *Accesses) GetServiceAccountStatus(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -1008,8 +1022,11 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	Router.GET("/validatePrometheus", A.GetPrometheusMetadata)
 	Router.GET("/managementPlatform", A.ManagementPlatform)
 	Router.GET("/clusterInfo", A.ClusterInfo)
-	Router.GET("/clusters", managerEndpoints.GetAllClusters)
+	Router.GET("/clusterInfoMap", A.GetClusterInfoMap)
 	Router.GET("/serviceAccountStatus", A.GetServiceAccountStatus)
+
+	// cluster manager endpoints
+	Router.GET("/clusters", managerEndpoints.GetAllClusters)
 	Router.PUT("/clusters", managerEndpoints.PutCluster)
 	Router.DELETE("/clusters/:id", managerEndpoints.DeleteCluster)
 }

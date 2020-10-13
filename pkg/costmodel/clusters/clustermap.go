@@ -20,14 +20,17 @@ const (
 )
 
 type ClusterInfo struct {
-	ID          string
-	Name        string
-	Profile     string
-	Provider    string
-	Provisioner string
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Profile     string `json:"profile"`
+	Provider    string `json:"provider"`
+	Provisioner string `json:"provisioner"`
 }
 
 type ClusterMap interface {
+	// GetClusterIDs returns a slice containing all of the cluster identifiers.
+	GetClusterIDs() []string
+
 	// InfoFor returns the ClusterInfo entry for the provided clusterID or nil if it
 	// doesn't exist
 	InfoFor(clusterID string) *ClusterInfo
@@ -183,6 +186,19 @@ func (pcm *PrometheusClusterMap) refreshClusters() {
 	pcm.lock.Lock()
 	pcm.clusters = updated
 	pcm.lock.Unlock()
+}
+
+// GetClusterIDs returns a slice containing all of the cluster identifiers.
+func (pcm *PrometheusClusterMap) GetClusterIDs() []string {
+	pcm.lock.RLock()
+	defer pcm.lock.RUnlock()
+
+	var clusterIDs []string
+	for id := range pcm.clusters {
+		clusterIDs = append(clusterIDs, id)
+	}
+
+	return clusterIDs
 }
 
 // InfoFor returns the ClusterInfo entry for the provided clusterID or nil if it
