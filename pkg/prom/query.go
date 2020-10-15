@@ -13,7 +13,6 @@ import (
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
 	prometheus "github.com/prometheus/client_golang/api"
-	"k8s.io/klog"
 )
 
 const (
@@ -152,20 +151,20 @@ func (ctx *Context) query(query string) (interface{}, error) {
 
 	resp, body, warnings, err := ctx.Client.Do(context.Background(), req)
 	for _, w := range warnings {
-		klog.V(3).Infof("Warning '%s' fetching query '%s'", w, query)
+		log.Warningf("fetching query '%s': %s", query, w)
 	}
 	if err != nil {
 		if resp == nil {
-			return nil, fmt.Errorf("Error %s fetching query %s", err.Error(), query)
+			return nil, fmt.Errorf("query error: '%s' fetching query '%s'", err.Error(), query)
 		}
 
-		return nil, fmt.Errorf("%d Error %s fetching query %s", resp.StatusCode, err.Error(), query)
+		return nil, fmt.Errorf("query error %d: '%s' fetching query '%s'", resp.StatusCode, err.Error(), query)
 	}
 
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		return nil, fmt.Errorf("Error %s fetching query %s", err.Error(), query)
+		return nil, fmt.Errorf("query error: '%s' fetching query '%s'", err.Error(), query)
 	}
 
 	return toReturn, nil
@@ -243,7 +242,7 @@ func (ctx *Context) queryRange(query string, start, end time.Time, step time.Dur
 
 	resp, body, warnings, err := ctx.Client.Do(context.Background(), req)
 	for _, w := range warnings {
-		klog.V(3).Infof("Warning '%s' fetching query '%s'", w, query)
+		log.Warningf("fetching query '%s': %s", query, w)
 	}
 	if err != nil {
 		if resp == nil {
