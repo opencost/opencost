@@ -424,7 +424,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	queryNodeRAMBytes := fmt.Sprintf(`avg_over_time(avg(kube_node_status_capacity_memory_bytes) by (cluster_id, node)[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 	queryNodeGPUCost := fmt.Sprintf(`sum_over_time((avg(node_gpu_hourly_cost * %d.0 / 60.0) by (cluster_id, node, provider_id))[%s:%dm]%s)`, minsPerResolution, durationStr, minsPerResolution, offsetStr)
 	queryNodeLabels := fmt.Sprintf(`avg_over_time(kubecost_node_is_spot[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
-	queryNodeCPUModePct := fmt.Sprintf(`sum(rate(node_cpu_seconds_total[%s:%dm]%s)) by (kubernetes_node, cluster_id, mode) / ignoring(mode) group_left sum(rate(node_cpu_seconds_total[%s:%dm]%s)) by (kubernetes_node, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
+	queryNodeCPUModeTotal := fmt.Sprintf(`sum(rate(node_cpu_seconds_total[%s:%dm]%s)) by (kubernetes_node, cluster_id, mode)`, durationStr, minsPerResolution, offsetStr)
 	queryNodeRAMSystemPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace="kube-system"}[%s:%dm]%s)) by (instance, cluster_id) / sum(sum_over_time(label_replace(kube_node_status_capacity_memory_bytes, "instance", "$1", "node", "(.*)")[%s:%dm]%s)) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
 	queryNodeRAMUserPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace!="kube-system"}[%s:%dm]%s)) by (instance, cluster_id) / sum(sum_over_time(label_replace(kube_node_status_capacity_memory_bytes, "instance", "$1", "node", "(.*)")[%s:%dm]%s)) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
 	queryActiveMins := fmt.Sprintf(`node_total_hourly_cost[%s:%dm]%s`, durationStr, minsPerResolution, offsetStr)
@@ -435,7 +435,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	resChNodeRAMBytes := ctx.Query(queryNodeRAMBytes)
 	resChNodeGPUCost := ctx.Query(queryNodeGPUCost)
 	resChNodeLabels := ctx.Query(queryNodeLabels)
-	resChNodeCPUModePct := ctx.Query(queryNodeCPUModePct)
+	resChNodeCPUModeTotal := ctx.Query(queryNodeCPUModeTotal)
 	resChNodeRAMSystemPct := ctx.Query(queryNodeRAMSystemPct)
 	resChNodeRAMUserPct := ctx.Query(queryNodeRAMUserPct)
 	resChActiveMins := ctx.Query(queryActiveMins)
@@ -446,7 +446,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	resNodeRAMCost, _ := resChNodeRAMCost.Await()
 	resNodeRAMBytes, _ := resChNodeRAMBytes.Await()
 	resNodeLabels, _ := resChNodeLabels.Await()
-	resNodeCPUModePct, _ := resChNodeCPUModePct.Await()
+	resNodeCPUModeTotal, _ := resChNodeCPUModeTotal.Await()
 	resNodeRAMSystemPct, _ := resChNodeRAMSystemPct.Await()
 	resNodeRAMUserPct, _ := resChNodeRAMUserPct.Await()
 	resActiveMins, _ := resChActiveMins.Await()
@@ -621,13 +621,20 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		}
 	}
 
-	for _, result := range resNodeCPUModePct {
+	// Mapping of cluster/node=cpu for computing resource efficiency
+	clusterNodeCPUTotal := map[string]float64{}
+	// Mapping of cluster/node:mode=cpu for computing resource efficiency
+	clusterNodeModeCPUTotal := map[string]map[string]float64{}
+
+	// Build intermediate structures for CPU usage by (cluster, node) and by
+	// (cluster, node, mode) for computing resouce efficiency
+	for _, result := range resNodeCPUModeTotal {
 		cluster, err := result.GetString("cluster_id")
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("kubernetes_node")
+		node, err := result.GetString("kubernetes_node")
 		if err != nil {
 			log.DedupedWarningf(5, "ClusterNodes: CPU mode data missing node")
 			continue
@@ -639,23 +646,45 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 			mode = "other"
 		}
 
-		pct := result.Values[0].Value
+		key := fmt.Sprintf("%s/%s", cluster, node)
 
-		key := fmt.Sprintf("%s/%s", cluster, name)
-		if _, ok := nodeMap[key]; !ok {
-			log.Warningf("ClusterNodes: CPU mode data for unidentified node")
-			continue
+		total := result.Values[0].Value
+
+		// Increment total
+		clusterNodeCPUTotal[key] += total
+
+		// Increment mode
+		if _, ok := clusterNodeModeCPUTotal[key]; !ok {
+			clusterNodeModeCPUTotal[key] = map[string]float64{}
 		}
+		clusterNodeModeCPUTotal[key][mode] += total
+	}
 
-		switch mode {
-		case "idle":
-			nodeMap[key].CPUBreakdown.Idle += pct
-		case "system":
-			nodeMap[key].CPUBreakdown.System += pct
-		case "user":
-			nodeMap[key].CPUBreakdown.User += pct
-		default:
-			nodeMap[key].CPUBreakdown.Other += pct
+	// Compute resource efficiency from intermediate structures
+	for key, total := range clusterNodeCPUTotal {
+		if modeTotals, ok := clusterNodeModeCPUTotal[key]; ok {
+			for mode, subtotal := range modeTotals {
+				// Compute percentage for the current cluster, node, mode
+				pct := subtotal / total
+
+				if _, ok := nodeMap[key]; !ok {
+					log.Warningf("ClusterNodes: CPU mode data for unidentified node")
+					continue
+				}
+
+				switch mode {
+				case "idle":
+					nodeMap[key].CPUBreakdown.Idle += pct
+				case "system":
+					nodeMap[key].CPUBreakdown.System += pct
+				case "user":
+					nodeMap[key].CPUBreakdown.User += pct
+				default:
+					nodeMap[key].CPUBreakdown.Other += pct
+				}
+
+				log.Infof("ClusterNodes: %s:%s=%.3f", key, mode, pct)
+			}
 		}
 	}
 
@@ -781,7 +810,8 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		// TODO take RI into account
 		node.Discount = cp.CombinedDiscountForNode(node.NodeType, node.Preemptible, discount, negotiatedDiscount)
 
-		// Apply all remaining RAM to Idle
+		// Apply all remaining resources to Idle
+		node.CPUBreakdown.Idle = 1.0 - (node.CPUBreakdown.System + node.CPUBreakdown.Other + node.CPUBreakdown.User)
 		node.RAMBreakdown.Idle = 1.0 - (node.RAMBreakdown.System + node.RAMBreakdown.Other + node.RAMBreakdown.User)
 	}
 
