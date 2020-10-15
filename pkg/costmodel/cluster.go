@@ -845,8 +845,8 @@ func ClusterLoadBalancers(cp cloud.Provider, client prometheus.Client, duration,
 	hourlyToCumulative := float64(minsPerResolution) * (1.0 / 60.0)
 
 	ctx := prom.NewContext(client)
-	queryLBCost := fmt.Sprintf(`sum_over_time((avg(kubecost_load_balancer_cost) by (namespace, service_name))[%s:%dm]%s) * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
-	queryActiveMins := fmt.Sprintf(`count(kubecost_load_balancer_cost) by (namespace, service_name)[%s:%dm]%s`, durationStr, minsPerResolution, offsetStr)
+	queryLBCost := fmt.Sprintf(`sum_over_time((avg(kubecost_load_balancer_cost) by (namespace, service_name, cluster_id))[%s:%dm]%s) * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
+	queryActiveMins := fmt.Sprintf(`count(kubecost_load_balancer_cost) by (namespace, service_name, cluster_id)[%s:%dm]%s`, durationStr, minsPerResolution, offsetStr)
 
 	resChLBCost := ctx.Query(queryLBCost)
 	resChActiveMins := ctx.Query(queryActiveMins)
