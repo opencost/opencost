@@ -625,12 +625,7 @@ func (p *Accesses) GetClusterInfoMap(w http.ResponseWriter, r *http.Request, ps 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	data := make(map[string]*clusters.ClusterInfo)
-
-	cm := p.ClusterMap
-	for _, id := range cm.GetClusterIDs() {
-		data[id] = cm.InfoFor(id)
-	}
+	data := p.ClusterMap.AsMap()
 
 	w.Write(WrapData(data, nil))
 }

@@ -27,9 +27,27 @@ type ClusterInfo struct {
 	Provisioner string `json:"provisioner"`
 }
 
+// Clone creates a copy of ClusterInfo and returns it
+func (ci *ClusterInfo) Clone() *ClusterInfo {
+	if ci == nil {
+		return nil
+	}
+
+	return &ClusterInfo{
+		ID:          ci.ID,
+		Name:        ci.Name,
+		Profile:     ci.Profile,
+		Provider:    ci.Provider,
+		Provisioner: ci.Provisioner,
+	}
+}
+
 type ClusterMap interface {
 	// GetClusterIDs returns a slice containing all of the cluster identifiers.
 	GetClusterIDs() []string
+
+	// AsMap returns the cluster map as a standard go map
+	AsMap() map[string]*ClusterInfo
 
 	// InfoFor returns the ClusterInfo entry for the provided clusterID or nil if it
 	// doesn't exist
@@ -201,6 +219,19 @@ func (pcm *PrometheusClusterMap) GetClusterIDs() []string {
 	return clusterIDs
 }
 
+// AsMap returns the cluster map as a standard go map
+func (pcm *PrometheusClusterMap) AsMap() map[string]*ClusterInfo {
+	pcm.lock.RLock()
+	defer pcm.lock.RUnlock()
+
+	m := make(map[string]*ClusterInfo)
+	for k, v := range pcm.clusters {
+		m[k] = v.Clone()
+	}
+
+	return m
+}
+
 // InfoFor returns the ClusterInfo entry for the provided clusterID or nil if it
 // doesn't exist
 func (pcm *PrometheusClusterMap) InfoFor(clusterID string) *ClusterInfo {
@@ -208,7 +239,7 @@ func (pcm *PrometheusClusterMap) InfoFor(clusterID string) *ClusterInfo {
 	defer pcm.lock.RUnlock()
 
 	if info, ok := pcm.clusters[clusterID]; ok {
-		return info
+		return info.Clone()
 	}
 
 	return nil
