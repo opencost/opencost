@@ -116,6 +116,110 @@ func ApplyVectorOp(xvs []*Vector, yvs []*Vector, op VectorJoinOp) []*Vector {
 	return result
 }
 
+// ApplyMultiVectorOp accepts M vectors, synchronizes timestamps (N), and executes an operation
+// on each vector's values for the collection timestamps. Providing M=5 Vectors, assuming N=8 unique
+// timestamps across all Vectors, ApplyMultiVectorOp will construct a MxN (5x8) matrix, and call the
+// provided MultiVectorJoinOp for each column (timestamp) passing the values at that timestamp for each
+// of the 5 Vectors.
+//
+//                ++-------------------------------------------------------++
+//                ||                    TimeStamps                         ||
+//     ++---------++-----++-----++-----++-----++-----++-----++-----++------++
+//     || Vectors || 599 || 659 || 719 || 779 || 839 || 899 || 959 || 1019 ||
+//     ++---------++-----++-----++-----++-----++-----++-----++-----++------++
+//     ||    A    || 2.1 || nil || nil || 3.2 || nil || 1.4 || nil || nil  ||
+//     ||    B    || nil || 1.1 || 5.6 || 2.1 || nil || nil || 1.1 || 3.2  ||
+//     ||    C    || nil || 3.5 || nil || nil || nil || 8.3 || 5.2 || nil  ||
+//     ||    D    || 6.6 || nil || nil || 1.0 || 9.7 || nil || nil || nil  ||
+//     ||    E    || nil || 8.2 || 7.2 || 4.4 || 5.0 || 3.9 || nil || nil  ||
+//     ++---------++-----++-----++-----++-----++-----++-----++-----++------++
+//
+// For each timestamp (starting with the earliest), the MultiVectorJoinOp will get called passing in a
+// result *Vector with the timestamp set, and the in-order slice for that column (representing values at
+// that timestamp for Vectors A-E). For example, the first call to MultiVectorJoinOp will contain the following:
+//
+//     op(&Vector{ timestamp: 599 }, []*float64{ 2.1, nil, nil, 6.6, nil })
+//
+// The MultiVectorJoinOp's job will be to set the *Vector's Value field to the result of an operation on those values.
+//
+// It's important to note that it is completely up to the developer of the MultiVectorJoinOp to intelligently
+// implement the operation aware of the semantics of this function. Associative operations are safe (+, *) where
+// the ordering doesn't matter. Associativity is not a hard limitation, but one must use caution where ordering
+// matters. For instance, you could have a normalization operation which adds values at indices 0 through len(values)-2,
+// then divide the result by the value at index len(values)-1. However, this operation would require passing the Vectors
+// into ApplyMultiVectorOp() in the order required for achieve the expected result. These "special" rules with ordering
+// should be formalized using a utility/helper method that enforces the rules. ie:
+//
+//     func NormalizeMulti(normalizeBy []*Vector, joinVecs ...[]*Vector) []*Vector {
+//         // Sums all the values except for the last, divides by last index
+//         normalizeOp := func(result *util.Vector, values []*float64) bool {
+//             var result *float64
+//             for i, v := range values {
+//                 if i == len(values)-1 {
+//                     if result != nil && v != nil {
+//                         sum := *result
+//                         normalizeBy := *v
+//                         if sum == 0 || normalizeBy == 0 {
+//                             result.Value = 0
+//                         } else {
+//                             result.Value = sum / normalizeBy
+//                         }
+//                     }
+//                     continue
+//                 }
+//                 if v != nil {
+//                     if result != nil {
+//                         *result += *v
+//                     } else {
+//                         xv := *v
+//                         result = &xv
+//                     }
+//                 }
+//             }
+//             return true
+//         }
+//
+//         // create a single input based on the concrete op
+//         joinVecs = append(joinVecs, normalizeBy)
+//         return ApplyMultiVectorOp(normalizeOp, joinVecs)
+//     }
+//
+// The above function could also be implemented by an associative addVectors() MultiVectorOp
+// followed by a binary NormalizeVectorByVector()
+func ApplyMultiVectorOp(op MultiVectorJoinOp, vecs ...[]*Vector) []*Vector {
+	total := len(vecs)
+
+	m := make(map[uint64][]*float64)
+	for index, vs := range vecs {
+		for _, v := range vs {
+			val := v.Value
+			ts := roundTimestamp(v.Timestamp, 10.0)
+			uts := uint64(ts)
+
+			if _, ok := m[uts]; !ok {
+				m[uts] = make([]*float64, total)
+			}
+
+			m[uts][index] = &val
+		}
+	}
+
+	results := []*Vector{}
+	for k, v := range m {
+		rv := &Vector{
+			Timestamp: float64(k),
+		}
+
+		if op(rv, v) {
+			results = append(results, rv)
+		}
+	}
+
+	sort.Sort(VectorSlice(results))
+
+	return results
+}
+
 // VectorJoinOp is an operation func that accepts a result vector pointer
 // for a specific timestamp and two float64 pointers representing the
 // input vectors for that timestamp. x or y inputs can be nil, but not
@@ -124,6 +228,12 @@ func ApplyVectorOp(xvs []*Vector, yvs []*Vector, op VectorJoinOp) []*Vector {
 // which will omit the vector for the specific timestamp. Otherwise,
 // return true denoting a successful op.
 type VectorJoinOp func(result *Vector, x *float64, y *float64) bool
+
+// MultiVectorJoinOp is similar to VectorJoinOp, however instead of accepting
+// exactly 2 values (x and y respectively), you get an ordered slice of potential
+// float64 values. Nil is a potential value for some indices of the slice, but
+// _at least one_ index will contain a non-nil value.
+type MultiVectorJoinOp func(result *Vector, values []*float64) bool
 
 // returns a nil ptr or valid float ptr based on the ok bool
 func VectorValue(v float64, ok bool) *float64 {
