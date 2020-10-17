@@ -248,7 +248,10 @@ func VectorValue(v float64, ok bool) *float64 {
 // which has had its timestamps rounded and its values divided by the values
 // of the Vectors of yvs, such that yvs is the "unit" Vector slice.
 func NormalizeVectorByVector(xvs []*Vector, yvs []*Vector) []*Vector {
-	normalizeOp := func(result *Vector, x *float64, y *float64) bool {
+	normalizeMultiOp := func(result *Vector, values []*float64) bool {
+		x := values[0]
+		y := values[1]
+
 		if x != nil && y != nil && *y != 0 {
 			result.Value = *x / *y
 		} else if x != nil {
@@ -260,5 +263,6 @@ func NormalizeVectorByVector(xvs []*Vector, yvs []*Vector) []*Vector {
 		return true
 	}
 
-	return ApplyVectorOp(xvs, yvs, normalizeOp)
+	//return ApplyVectorOp(xvs, yvs, normalizeOp)
+	return ApplyMultiVectorOp(normalizeMultiOp, xvs, yvs)
 }
