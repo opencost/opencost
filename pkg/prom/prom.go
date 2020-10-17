@@ -2,29 +2,62 @@ package prom
 
 import (
 	"context"
+	"crypto/tls"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"time"
 
-	golog "log"
-
+	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
+
+	golog "log"
+
 	prometheus "github.com/prometheus/client_golang/api"
 )
 
-// Creates a new prometheus client which limits the total number of concurrent outbound requests
-// allowed at a given moment.
+//--------------------------------------------------------------------------
+//  ClientAuth
+//--------------------------------------------------------------------------
+
+// ClientAuth is used to authenticate outgoing client requests.
+type ClientAuth struct {
+	Username    string
+	Password    string
+	BearerToken string
+}
+
+// Apply Applies the authentication data to the request headers
+func (auth *ClientAuth) Apply(req *http.Request) {
+	if auth == nil {
+		return
+	}
+
+	if auth.Username != "" {
+		req.SetBasicAuth(auth.Username, auth.Password)
+	}
+
+	if auth.BearerToken != "" {
+		token := "Bearer " + auth.BearerToken
+		req.Header.Add("Authorization", token)
+	}
+}
+
+//--------------------------------------------------------------------------
+//  RateLimitedPrometheusClient
+//--------------------------------------------------------------------------
+
+// RateLimitedPrometheusClient is a prometheus client which limits the total number of
+// concurrent outbound requests allowed at a given moment.
 type RateLimitedPrometheusClient struct {
-	client      prometheus.Client
-	limiter     *util.Semaphore
-	queue       util.BlockingQueue
-	outbound    *util.AtomicInt32
-	username    string
-	password    string
-	bearerToken string
-	fileLogger  *golog.Logger
+	id         string
+	client     prometheus.Client
+	auth       *ClientAuth
+	queue      util.BlockingQueue
+	outbound   *util.AtomicInt32
+	fileLogger *golog.Logger
 }
 
 // requestCounter is used to determine if the prometheus client keeps track of
@@ -36,7 +69,7 @@ type requestCounter interface {
 
 // NewRateLimitedClient creates a prometheus client which limits the number of concurrent outbound
 // prometheus requests.
-func NewRateLimitedClient(config prometheus.Config, maxConcurrency int, username, password, bearerToken string, queryLogFile string) (prometheus.Client, error) {
+func NewRateLimitedClient(id string, config prometheus.Config, maxConcurrency int, auth *ClientAuth, queryLogFile string) (prometheus.Client, error) {
 	c, err := prometheus.NewClient(config)
 	if err != nil {
 		return nil, err
@@ -61,13 +94,12 @@ func NewRateLimitedClient(config prometheus.Config, maxConcurrency int, username
 	}
 
 	rlpc := &RateLimitedPrometheusClient{
-		client:      c,
-		queue:       queue,
-		outbound:    outbound,
-		username:    username,
-		password:    password,
-		bearerToken: bearerToken,
-		fileLogger:  logger,
+		id:         id,
+		client:     c,
+		queue:      queue,
+		outbound:   outbound,
+		auth:       auth,
+		fileLogger: logger,
 	}
 
 	// Start concurrent request processing
@@ -78,27 +110,9 @@ func NewRateLimitedClient(config prometheus.Config, maxConcurrency int, username
 	return rlpc, nil
 }
 
-// LogPrometheusClientState logs the current state, with respect to outbound requests, if that
-// information is available.
-func LogPrometheusClientState(client prometheus.Client) {
-	if rc, ok := client.(requestCounter); ok {
-		total := rc.TotalRequests()
-		outbound := rc.TotalOutboundRequests()
-		queued := total - outbound
-
-		log.Infof("Outbound Requests: %d, Queued Requests: %d, Total Requests: %d", outbound, queued, total)
-	}
-}
-
-// LogQueryRequest logs the query that was send to prom/thanos with the time in queue and total time after being sent
-func LogQueryRequest(l *golog.Logger, req *http.Request, queueTime time.Duration, sendTime time.Duration) {
-	if l == nil {
-		return
-	}
-	qp := util.NewQueryParams(req.URL.Query())
-	query := qp.Get("query", "<Unknown>")
-
-	l.Printf("[Queue: %fs, Outbound: %fs][Query: %s]\n", queueTime.Seconds(), sendTime.Seconds(), query)
+// ID is used to identify the type of client
+func (rlpc *RateLimitedPrometheusClient) ID() string {
+	return rlpc.id
 }
 
 // TotalRequests returns the total number of requests that are either waiting to be sent and/or
@@ -180,13 +194,7 @@ func (rlpc *RateLimitedPrometheusClient) worker() {
 
 // Rate limit and passthrough to prometheus client API
 func (rlpc *RateLimitedPrometheusClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, prometheus.Warnings, error) {
-	if rlpc.username != "" {
-		req.SetBasicAuth(rlpc.username, rlpc.password)
-	}
-	if rlpc.bearerToken != "" {
-		token := "Bearer " + rlpc.bearerToken
-		req.Header.Add("Authorization", token)
-	}
+	rlpc.auth.Apply(req)
 
 	respChan := make(chan *workResponse)
 	defer close(respChan)
@@ -201,4 +209,57 @@ func (rlpc *RateLimitedPrometheusClient) Do(ctx context.Context, req *http.Reque
 
 	workRes := <-respChan
 	return workRes.res, workRes.body, workRes.warnings, workRes.err
+}
+
+//--------------------------------------------------------------------------
+//  Client Helpers
+//--------------------------------------------------------------------------
+
+func NewPrometheusClient(address string, timeout, keepAlive time.Duration, queryConcurrency int, queryLogFile string) (prometheus.Client, error) {
+	tlsConfig := &tls.Config{InsecureSkipVerify: env.GetInsecureSkipVerify()}
+
+	// may be necessary for long prometheus queries. TODO: make this configurable
+	pc := prometheus.Config{
+		Address: address,
+		RoundTripper: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   timeout,
+				KeepAlive: keepAlive,
+			}).DialContext,
+			TLSHandshakeTimeout: 10 * time.Second,
+			TLSClientConfig:     tlsConfig,
+		},
+	}
+
+	auth := &ClientAuth{
+		Username:    env.GetDBBasicAuthUsername(),
+		Password:    env.GetDBBasicAuthUserPassword(),
+		BearerToken: env.GetDBBearerToken(),
+	}
+
+	return NewRateLimitedClient(PrometheusClientID, pc, queryConcurrency, auth, queryLogFile)
+}
+
+// LogPrometheusClientState logs the current state, with respect to outbound requests, if that
+// information is available.
+func LogPrometheusClientState(client prometheus.Client) {
+	if rc, ok := client.(requestCounter); ok {
+		total := rc.TotalRequests()
+		outbound := rc.TotalOutboundRequests()
+		queued := total - outbound
+
+		log.Infof("Outbound Requests: %d, Queued Requests: %d, Total Requests: %d", outbound, queued, total)
+	}
+}
+
+// LogQueryRequest logs the query that was send to prom/thanos with the time in queue and total time after being sent
+func LogQueryRequest(l *golog.Logger, req *http.Request, queueTime time.Duration, sendTime time.Duration) {
+	if l == nil {
+		return
+	}
+	qp := util.NewQueryParams(req.URL.Query())
+	query := qp.Get("query", "<Unknown>")
+
+	l.Printf("[Queue: %fs, Outbound: %fs][Query: %s]\n", queueTime.Seconds(), sendTime.Seconds(), query)
 }
