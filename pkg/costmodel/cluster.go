@@ -682,8 +682,6 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 				default:
 					nodeMap[key].CPUBreakdown.Other += pct
 				}
-
-				log.Infof("ClusterNodes: %s:%s=%.3f", key, mode, pct)
 			}
 		}
 	}

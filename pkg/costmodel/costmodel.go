@@ -690,7 +690,6 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 			cm, _ := NewContainerMetricFromKey(key)
 			labels, ok := podLabels[cm.PodName]
 			if !ok {
-				log.Errorf("unable to find historical data for pod '%s'", cm.PodName)
 				labels = make(map[string]string)
 			}
 			for k, v := range costData.NamespaceLabels {
