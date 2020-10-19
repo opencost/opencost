@@ -1,4 +1,4 @@
-package util
+package memory
 
 import (
 	"sync"
@@ -9,6 +9,13 @@ import (
 type VectorMapPool interface {
 	Get() map[uint64]float64
 	Put(map[uint64]float64)
+}
+
+// A pool of vector maps for mapping float64 timestamps
+// to a slice of float64 values
+type MultiVectorMapPool interface {
+	Get() map[uint64][]*float64
+	Put(map[uint64][]*float64)
 }
 
 // ------------
@@ -96,6 +103,45 @@ func (mp *FlexibleMapPool) Put(m map[uint64]float64) {
 func NewFlexibleMapPool(size int) VectorMapPool {
 	return &FlexibleMapPool{
 		maps: make(chan map[uint64]float64, size),
+	}
+}
+
+// A buffered channel implementation of a vector multi map pool which
+// controls the total number of maps allowed in/out of the pool
+// at any given moment.
+type FlexibleMultiMapPool struct {
+	maps chan map[uint64][]*float64
+}
+
+// Returns a map from the pool. Does not block on over-request.
+func (mp *FlexibleMultiMapPool) Get() map[uint64][]*float64 {
+	select {
+	case m := <-mp.maps:
+		return m
+	default:
+		return make(map[uint64][]*float64)
+	}
+}
+
+// Adds a map back to the pool if there is room. Does not block on overflow.
+func (mp *FlexibleMultiMapPool) Put(m map[uint64][]*float64) {
+	for k := range m {
+		delete(m, k)
+	}
+
+	// Either return the map to the buffered channel, or do nothing
+	select {
+	case mp.maps <- m:
+		return
+	default:
+		return
+	}
+}
+
+// Creates a new fixed multi map pool which maintains a fixed pool size
+func NewFlexibleMultiMapPool(size int) MultiVectorMapPool {
+	return &FlexibleMultiMapPool{
+		maps: make(chan map[uint64][]*float64, size),
 	}
 }
 
