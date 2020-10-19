@@ -3,6 +3,8 @@ package util
 import (
 	"math"
 	"sort"
+
+	"github.com/kubecost/cost-model/pkg/util/memory"
 )
 
 type Vector struct {
@@ -12,13 +14,18 @@ type Vector struct {
 
 const MapPoolSize = 4
 
+// VectorSlice is an alias used to sort vectors
 type VectorSlice []*Vector
 
 func (p VectorSlice) Len() int           { return len(p) }
 func (p VectorSlice) Less(i, j int) bool { return p[i].Timestamp < p[j].Timestamp }
 func (p VectorSlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
-var mapPool VectorMapPool = NewFlexibleMapPool(MapPoolSize)
+var (
+	mapPool      memory.VectorMapPool      = memory.NewFlexibleMapPool(MapPoolSize)
+	multiMapPool memory.MultiVectorMapPool = memory.NewFlexibleMultiMapPool(MapPoolSize)
+	floatPool    *memory.FloatPool         = memory.NewFloatPool(100)
+)
 
 // roundTimestamp rounds the given timestamp to the given precision; e.g. a
 // timestamp given in seconds, rounded to precision 10, will be rounded
@@ -189,6 +196,8 @@ func ApplyVectorOp(xvs []*Vector, yvs []*Vector, op VectorJoinOp) []*Vector {
 func ApplyMultiVectorOp(op MultiVectorJoinOp, vecs ...[]*Vector) []*Vector {
 	total := len(vecs)
 
+	//m := multiMapPool.Get()
+	//defer multiMapPool.Put(m)
 	m := make(map[uint64][]*float64)
 	for index, vs := range vecs {
 		for _, v := range vs {
@@ -197,14 +206,15 @@ func ApplyMultiVectorOp(op MultiVectorJoinOp, vecs ...[]*Vector) []*Vector {
 			uts := uint64(ts)
 
 			if _, ok := m[uts]; !ok {
-				m[uts] = make([]*float64, total)
+				//m[uts] = make([]*float64, total)
+				m[uts] = floatPool.Make(total)
 			}
 
 			m[uts][index] = &val
 		}
 	}
 
-	results := []*Vector{}
+	var results []*Vector
 	for k, v := range m {
 		rv := &Vector{
 			Timestamp: float64(k),
@@ -213,6 +223,7 @@ func ApplyMultiVectorOp(op MultiVectorJoinOp, vecs ...[]*Vector) []*Vector {
 		if op(rv, v) {
 			results = append(results, rv)
 		}
+		floatPool.Return(v)
 	}
 
 	sort.Sort(VectorSlice(results))
