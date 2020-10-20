@@ -18,17 +18,14 @@ func Errorf(format string, a ...interface{}) {
 }
 
 func DedupedErrorf(logTypeLimit int, format string, a ...interface{}) {
-	// Run within a goroutine so that the original call does not block
-	go func(logTypeLimit int, format string, a ...interface{}) {
-		timesLogged := ctr.increment(format)
+	timesLogged := ctr.increment(format)
 
-		if timesLogged < logTypeLimit {
-			Errorf(format, a...)
-		} else if timesLogged == logTypeLimit {
-			Errorf(format, a...)
-			Infof("%s logged %d times: suppressing future logs", format, logTypeLimit)
-		}
-	}(logTypeLimit, format, a...)
+	if timesLogged < logTypeLimit {
+		Errorf(format, a...)
+	} else if timesLogged == logTypeLimit {
+		Errorf(format, a...)
+		Infof("%s logged %d times: suppressing future logs", format, logTypeLimit)
+	}
 }
 
 func Warningf(format string, a ...interface{}) {
@@ -36,17 +33,14 @@ func Warningf(format string, a ...interface{}) {
 }
 
 func DedupedWarningf(logTypeLimit int, format string, a ...interface{}) {
-	// Run within a goroutine so that the original call does not block
-	go func(logTypeLimit int, format string, a ...interface{}) {
-		timesLogged := ctr.increment(format)
+	timesLogged := ctr.increment(format)
 
-		if timesLogged < logTypeLimit {
-			Warningf(format, a...)
-		} else if timesLogged == logTypeLimit {
-			Warningf(format, a...)
-			Infof("%s logged %d times: suppressing future logs", format, logTypeLimit)
-		}
-	}(logTypeLimit, format, a...)
+	if timesLogged < logTypeLimit {
+		Warningf(format, a...)
+	} else if timesLogged == logTypeLimit {
+		Warningf(format, a...)
+		Infof("%s logged %d times: suppressing future logs", format, logTypeLimit)
+	}
 }
 
 func Infof(format string, a ...interface{}) {
@@ -54,17 +48,14 @@ func Infof(format string, a ...interface{}) {
 }
 
 func DedupedInfof(logTypeLimit int, format string, a ...interface{}) {
-	// Run within a goroutine so that the original call does not block
-	go func(logTypeLimit int, format string, a ...interface{}) {
-		timesLogged := ctr.increment(format)
+	timesLogged := ctr.increment(format)
 
-		if timesLogged < logTypeLimit {
-			Infof(format, a...)
-		} else if timesLogged == logTypeLimit {
-			Infof(format, a...)
-			Infof("%s logged %d times: suppressing future logs", format, logTypeLimit)
-		}
-	}(logTypeLimit, format, a...)
+	if timesLogged < logTypeLimit {
+		Infof(format, a...)
+	} else if timesLogged == logTypeLimit {
+		Infof(format, a...)
+		Infof("%s logged %d times: suppressing future logs", format, logTypeLimit)
+	}
 }
 
 func Profilef(format string, a ...interface{}) {
