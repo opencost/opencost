@@ -63,6 +63,9 @@ func (q *blockingSliceQueue) Dequeue() interface{} {
 	}
 
 	e := q.q[0]
+
+	// nil 0 index to prevent leak
+	q.q[0] = nil
 	q.q = q.q[1:]
 	return e
 }

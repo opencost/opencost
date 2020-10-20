@@ -1,11 +1,17 @@
 package thanos
 
 import (
+	"crypto/tls"
 	"fmt"
+	"net"
+	"net/http"
 	"sync"
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/prom"
+
+	prometheus "github.com/prometheus/client_golang/api"
 )
 
 var (
@@ -52,4 +58,29 @@ func OffsetDuration() time.Duration {
 // QueryOffset returns a string in the format: " offset %s" substituting in the Offset() string.
 func QueryOffset() string {
 	return queryOffset
+}
+
+func NewThanosClient(address string, timeout, keepAlive time.Duration, queryConcurrency int, queryLogFile string) (prometheus.Client, error) {
+	tlsConfig := &tls.Config{InsecureSkipVerify: env.GetInsecureSkipVerify()}
+
+	tc := prometheus.Config{
+		Address: address,
+		RoundTripper: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   timeout,
+				KeepAlive: keepAlive,
+			}).DialContext,
+			TLSHandshakeTimeout: 10 * time.Second,
+			TLSClientConfig:     tlsConfig,
+		},
+	}
+
+	auth := &prom.ClientAuth{
+		Username:    env.GetMultiClusterBasicAuthUsername(),
+		Password:    env.GetMultiClusterBasicAuthPassword(),
+		BearerToken: env.GetMultiClusterBearerToken(),
+	}
+
+	return prom.NewRateLimitedClient(prom.ThanosClientID, tc, queryConcurrency, auth, queryLogFile)
 }
