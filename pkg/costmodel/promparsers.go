@@ -392,10 +392,10 @@ func getCost(qrs []*prom.QueryResult) (map[string][]*util.Vector, error) {
 // normalization data is empty: time window may be invalid or kube-state-metrics or node-exporter may not be running
 func getNormalization(qrs []*prom.QueryResult) (float64, error) {
 	if len(qrs) == 0 {
-		return 0.0, prom.NoDataErr
+		return 0.0, prom.NoDataErr("getNormalization")
 	}
 	if len(qrs[0].Values) == 0 {
-		return 0.0, prom.NoDataErr
+		return 0.0, prom.NoDataErr("getNormalization")
 	}
 	return qrs[0].Values[0].Value, nil
 }
@@ -404,7 +404,7 @@ func getNormalization(qrs []*prom.QueryResult) (float64, error) {
 // normalization data is empty: time window may be invalid or kube-state-metrics or node-exporter may not be running
 func getNormalizations(qrs []*prom.QueryResult) ([]*util.Vector, error) {
 	if len(qrs) == 0 {
-		return nil, prom.NoDataErr
+		return nil, prom.NoDataErr("getNormalizations")
 	}
 
 	return qrs[0].Values, nil
