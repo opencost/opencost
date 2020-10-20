@@ -12,8 +12,8 @@ func newCounter() *counter {
 }
 
 func (ctr *counter) count(key string) int {
-	ctr.mu.Lock()
-	defer ctr.mu.Unlock()
+	ctr.mu.RLock()
+	defer ctr.mu.RUnlock()
 	return ctr.seen[key]
 }
 
