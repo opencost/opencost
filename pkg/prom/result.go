@@ -33,7 +33,7 @@ func MetricFieldFormatErr(query string) error {
 }
 
 func NoDataErr(query string) error {
-	return fmt.Errorf("No data fetching query '%s'", query)
+	return NewNoDataError(query)
 }
 
 func PromUnexpectedResponseErr(query string) error {
@@ -41,7 +41,7 @@ func PromUnexpectedResponseErr(query string) error {
 }
 
 func QueryResultNilErr(query string) error {
-	return NewCommError(fmt.Sprintf("nil queryResult fetching query '%s'", query))
+	return NewCommError(query)
 }
 
 func ResultFieldDoesNotExistErr(query string) error {
