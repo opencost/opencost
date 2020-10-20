@@ -7,26 +7,25 @@ import (
 	"k8s.io/klog"
 )
 
-var seen = make(map[string]int)
+// concurrency-safe counter
+var ctr = newCounter()
 
 func Errorf(format string, a ...interface{}) {
 	klog.Errorf(fmt.Sprintf("[Error] %s", format), a...)
 }
 
 func DedupedErrorf(logTypeLimit int, format string, a ...interface{}) {
-	timesLogged, ok := seen[format]
-	if !ok {
-		seen[format] = 1
+	timesLogged := ctr.increment(format)
+
+	if timesLogged < logTypeLimit {
+		Errorf(format, a...)
 	} else if timesLogged == logTypeLimit {
-		seen[format]++
-		f := fmt.Sprintf("[Error] %s", format)
-		klog.Errorf("%s seen %d times, suppressing future logs", f, logTypeLimit)
-	} else if timesLogged > logTypeLimit {
-		seen[format]++
-	} else {
-		seen[format]++
-		klog.Errorf(fmt.Sprintf("[Error] %s", format), a...)
+		Errorf(format, a...)
+		Infof("%s logged %d times: suppressing future logs", format, logTypeLimit)
 	}
+
+	// TODO if timeLogged > logTypeLimit, log once every... 100 (?) times so we
+	// don't lose track entirely?
 }
 
 func Warningf(format string, a ...interface{}) {
@@ -34,19 +33,17 @@ func Warningf(format string, a ...interface{}) {
 }
 
 func DedupedWarningf(logTypeLimit int, format string, a ...interface{}) {
-	timesLogged, ok := seen[format]
-	if !ok {
-		seen[format] = 1
+	timesLogged := ctr.increment(format)
+
+	if timesLogged < logTypeLimit {
+		Warningf(format, a...)
 	} else if timesLogged == logTypeLimit {
-		seen[format]++
-		f := fmt.Sprintf("[Warning] %s", format)
-		klog.Errorf("%s seen %d times, suppressing future logs", f, logTypeLimit)
-	} else if timesLogged > logTypeLimit {
-		seen[format]++
-	} else {
-		seen[format]++
-		klog.V(2).Infof(fmt.Sprintf("[Warning] %s", format), a...)
+		Warningf(format, a...)
+		Infof("%s logged %d times: suppressing future logs", format, logTypeLimit)
 	}
+
+	// TODO if timeLogged > logTypeLimit, log once every... 100 (?) times so we
+	// don't lose track entirely?
 }
 
 func Infof(format string, a ...interface{}) {
@@ -54,19 +51,17 @@ func Infof(format string, a ...interface{}) {
 }
 
 func DedupedInfof(logTypeLimit int, format string, a ...interface{}) {
-	timesLogged, ok := seen[format]
-	if !ok {
-		seen[format] = 1
+	timesLogged := ctr.increment(format)
+
+	if timesLogged < logTypeLimit {
+		Infof(format, a...)
 	} else if timesLogged == logTypeLimit {
-		seen[format]++
-		f := fmt.Sprintf("[Info] %s", format)
-		klog.Errorf("%s seen %d times, suppressing future logs", f, logTypeLimit)
-	} else if timesLogged > logTypeLimit {
-		seen[format]++
-	} else {
-		seen[format]++
-		klog.V(3).Infof(fmt.Sprintf("[Info] %s", format), a...)
+		Infof(format, a...)
+		Infof("%s logged %d times: suppressing future logs", format, logTypeLimit)
 	}
+
+	// TODO if timeLogged > logTypeLimit, log once every... 100 (?) times so we
+	// don't lose track entirely?
 }
 
 func Profilef(format string, a ...interface{}) {
