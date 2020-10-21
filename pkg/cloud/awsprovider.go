@@ -1584,10 +1584,8 @@ func (a *AWS) QueryAthenaPaginated(query string) (*athena.GetQueryResultsInput, 
 
 		var ip athena.GetQueryResultsInput
 		ip.SetQueryExecutionId(*res.QueryExecutionId)
-		klog.Infof("RETURNED SQID")
 		return &ip, svc, nil
 	} else {
-		klog.Infof("FAILED TO QUERY ATHENA AAAA %s", *qrop.QueryExecution.Status.State)
 		return nil, svc, fmt.Errorf("No results available for %s", query)
 	}
 }
