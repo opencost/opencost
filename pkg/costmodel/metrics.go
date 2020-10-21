@@ -516,9 +516,11 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 			for lbKey, lb := range loadBalancers {
 				// TODO: parse (if necessary) and calculate cost associated with loadBalancer based on dynamic cloud prices fetched into each lb struct on GetLBCost() call
 				keyParts := getLabelStringsFromKey(lbKey)
+				var namespace string
+				var serviceName string
 				if len(keyParts) >= 2 {
-					namespace := keyParts[0]
-					serviceName := keyParts[1]
+					namespace = keyParts[0]
+					serviceName = keyParts[1]
 				} else {
 					continue
 				}
@@ -527,6 +529,7 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 					ingressIP = lb.IngressIPAddresses[0] // assumes one ingress IP per load balancer
 				}
 				a.LBCostRecorder.WithLabelValues(ingressIP, namespace, serviceName).Set(lb.Cost)
+
 				labelKey := getKeyFromLabelStrings(namespace, serviceName)
 				loadBalancerSeen[labelKey] = true
 			}
