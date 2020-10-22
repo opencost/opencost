@@ -7,25 +7,24 @@ import (
 	"k8s.io/klog"
 )
 
-var seen = make(map[string]int)
+// TODO for deduped functions, if timeLogged > logTypeLimit, should we log once
+// every... 100 (?) times so we don't lose track entirely?
+
+// concurrency-safe counter
+var ctr = newCounter()
 
 func Errorf(format string, a ...interface{}) {
 	klog.Errorf(fmt.Sprintf("[Error] %s", format), a...)
 }
 
 func DedupedErrorf(logTypeLimit int, format string, a ...interface{}) {
-	timesLogged, ok := seen[format]
-	if !ok {
-		seen[format] = 1
+	timesLogged := ctr.increment(format)
+
+	if timesLogged < logTypeLimit {
+		Errorf(format, a...)
 	} else if timesLogged == logTypeLimit {
-		seen[format]++
-		f := fmt.Sprintf("[Error] %s", format)
-		klog.Errorf("%s seen %d times, suppressing future logs", f, logTypeLimit)
-	} else if timesLogged > logTypeLimit {
-		seen[format]++
-	} else {
-		seen[format]++
-		klog.Errorf(fmt.Sprintf("[Error] %s", format), a...)
+		Errorf(format, a...)
+		Infof("%s logged %d times: suppressing future logs", format, logTypeLimit)
 	}
 }
 
@@ -34,18 +33,13 @@ func Warningf(format string, a ...interface{}) {
 }
 
 func DedupedWarningf(logTypeLimit int, format string, a ...interface{}) {
-	timesLogged, ok := seen[format]
-	if !ok {
-		seen[format] = 1
+	timesLogged := ctr.increment(format)
+
+	if timesLogged < logTypeLimit {
+		Warningf(format, a...)
 	} else if timesLogged == logTypeLimit {
-		seen[format]++
-		f := fmt.Sprintf("[Warning] %s", format)
-		klog.Errorf("%s seen %d times, suppressing future logs", f, logTypeLimit)
-	} else if timesLogged > logTypeLimit {
-		seen[format]++
-	} else {
-		seen[format]++
-		klog.V(2).Infof(fmt.Sprintf("[Warning] %s", format), a...)
+		Warningf(format, a...)
+		Infof("%s logged %d times: suppressing future logs", format, logTypeLimit)
 	}
 }
 
@@ -54,18 +48,13 @@ func Infof(format string, a ...interface{}) {
 }
 
 func DedupedInfof(logTypeLimit int, format string, a ...interface{}) {
-	timesLogged, ok := seen[format]
-	if !ok {
-		seen[format] = 1
+	timesLogged := ctr.increment(format)
+
+	if timesLogged < logTypeLimit {
+		Infof(format, a...)
 	} else if timesLogged == logTypeLimit {
-		seen[format]++
-		f := fmt.Sprintf("[Info] %s", format)
-		klog.Errorf("%s seen %d times, suppressing future logs", f, logTypeLimit)
-	} else if timesLogged > logTypeLimit {
-		seen[format]++
-	} else {
-		seen[format]++
-		klog.V(3).Infof(fmt.Sprintf("[Info] %s", format), a...)
+		Infof(format, a...)
+		Infof("%s logged %d times: suppressing future logs", format, logTypeLimit)
 	}
 }
 
@@ -86,65 +75,5 @@ func ProfileWithThreshold(start time.Time, threshold time.Duration, name string)
 	elapsed := time.Since(start)
 	if elapsed > threshold {
 		Profilef("%s: %s", elapsed, name)
-	}
-}
-
-type Profiler struct {
-	profiles map[string]time.Duration
-	starts   map[string]time.Time
-}
-
-func NewProfiler() *Profiler {
-	return &Profiler{
-		profiles: map[string]time.Duration{},
-		starts:   map[string]time.Time{},
-	}
-}
-
-func (p *Profiler) Start(name string) {
-	if p == nil {
-		return
-	}
-	p.starts[name] = time.Now()
-}
-
-func (p *Profiler) Stop(name string) time.Duration {
-	if p == nil {
-		return 0
-	}
-	if start, ok := p.starts[name]; ok {
-		elapsed := time.Since(start)
-		p.profiles[name] += elapsed
-		return elapsed
-	}
-	return 0
-}
-
-func (p *Profiler) Log(name string) {
-	if p == nil {
-		return
-	}
-	Profilef("%s: %s", p.profiles[name], name)
-}
-
-func (p *Profiler) LogAll() {
-	if p == nil {
-		return
-	}
-
-	// Print profiles, largest to smallest. (Inefficienct, but shouldn't matter.)
-	print := map[string]time.Duration{}
-	for name, value := range p.profiles {
-		print[name] = value
-	}
-	for len(print) > 0 {
-		largest := ""
-		for name := range print {
-			if print[name] > print[largest] {
-				largest = name
-			}
-		}
-		Profilef("%s: %s", print[largest], largest)
-		delete(print, largest)
 	}
 }
