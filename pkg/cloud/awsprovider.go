@@ -42,6 +42,7 @@ const awsReservedInstancePricePerHour = 0.0287
 const supportedSpotFeedVersion = "1"
 const SpotInfoUpdateType = "spotinfo"
 const AthenaInfoUpdateType = "athenainfo"
+const PreemptibleType = "preemptible"
 
 // How often spot data is refreshed
 const SpotRefreshDuration = 15 * time.Minute
@@ -434,7 +435,7 @@ func (k *awsKey) Features() string {
 	region := k.Labels[v1.LabelZoneRegion]
 
 	key := region + "," + instanceType + "," + operatingSystem
-	usageType := "preemptible"
+	usageType := PreemptibleType
 	spotKey := key + "," + usageType
 	if l, ok := k.Labels["lifecycle"]; ok && l == "EC2Spot" {
 		return spotKey
@@ -517,7 +518,7 @@ func (aws *AWS) GetKey(labels map[string]string, n *v1.Node) Key {
 
 func (aws *AWS) isPreemptible(key string) bool {
 	s := strings.Split(key, ",")
-	if len(s) == 4 && s[3] == "preemptible" {
+	if len(s) == 4 && s[3] == PreemptibleType {
 		return true
 	}
 	return false
@@ -929,10 +930,10 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 			BaseCPUPrice: aws.BaseCPUPrice,
 			BaseRAMPrice: aws.BaseRAMPrice,
 			BaseGPUPrice: aws.BaseGPUPrice,
-			UsageType:    usageType,
+			UsageType:    PreemptibleType,
 		}, nil
 	} else if aws.isPreemptible(key) { // Preemptible but we don't have any data in the pricing report.
-		log.DedupedWarningf(5, "Node %s marked preemitible but we have no data in spot feed", k.ID())
+		log.DedupedWarningf(5, "Node %s marked preemptible but we have no data in spot feed", k.ID())
 		return &Node{
 			VCPU:         terms.VCpu,
 			VCPUCost:     aws.BaseSpotCPUPrice,
@@ -943,7 +944,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 			BaseCPUPrice: aws.BaseCPUPrice,
 			BaseRAMPrice: aws.BaseRAMPrice,
 			BaseGPUPrice: aws.BaseGPUPrice,
-			UsageType:    usageType,
+			UsageType:    PreemptibleType,
 		}, nil
 	} else if sp, ok := aws.savingsPlanPricing(k.ID()); ok {
 		strCost := fmt.Sprintf("%f", sp.EffectiveCost)
@@ -1000,7 +1001,7 @@ func (aws *AWS) NodePricing(k Key) (*Node, error) {
 	key := k.Features()
 	usageType := "ondemand"
 	if aws.isPreemptible(key) {
-		usageType = "preemptible"
+		usageType = PreemptibleType
 	}
 
 	terms, ok := aws.Pricing[key]
