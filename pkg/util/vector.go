@@ -196,9 +196,9 @@ func ApplyVectorOp(xvs []*Vector, yvs []*Vector, op VectorJoinOp) []*Vector {
 func ApplyMultiVectorOp(op MultiVectorJoinOp, vecs ...[]*Vector) []*Vector {
 	total := len(vecs)
 
-	//m := multiMapPool.Get()
+	m := multiMapPool.Get()
 	//defer multiMapPool.Put(m)
-	m := make(map[uint64][]*float64)
+	//m := make(map[uint64][]*float64)
 	for index, vs := range vecs {
 		for _, v := range vs {
 			val := v.Value
@@ -225,6 +225,7 @@ func ApplyMultiVectorOp(op MultiVectorJoinOp, vecs ...[]*Vector) []*Vector {
 		}
 		floatPool.Return(v)
 	}
+	multiMapPool.Put(m)
 
 	sort.Sort(VectorSlice(results))
 

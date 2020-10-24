@@ -10,6 +10,56 @@ import (
 	"github.com/kubecost/cost-model/pkg/util"
 )
 
+type VectorGenerator interface {
+	New() []*util.Vector
+}
+
+type RandomVectorGenerator struct {
+	ts []float64
+}
+
+func (rvg *RandomVectorGenerator) New() []*util.Vector {
+	vs := []*util.Vector{}
+
+	for _, ts := range rvg.ts {
+		if rand.Intn(2) == 1 {
+			vs = append(vs, newVec(ts, rand.Float64()*100.0))
+		}
+	}
+
+	return vs
+}
+
+type StaticVectorGenerator struct {
+	ts      []float64
+	current float64
+}
+
+func (svg *StaticVectorGenerator) New() []*util.Vector {
+	vs := []*util.Vector{}
+
+	for _, ts := range svg.ts {
+		vs = append(vs, newVec(ts, svg.current))
+	}
+
+	svg.current += 1.0
+
+	return vs
+}
+
+func NewRandomGenerator(ts []float64) VectorGenerator {
+	return &RandomVectorGenerator{
+		ts: ts,
+	}
+}
+
+func NewStaticGenerator(ts []float64) VectorGenerator {
+	return &StaticVectorGenerator{
+		ts:      ts,
+		current: 1.0,
+	}
+}
+
 func newVec(ts float64, v float64) *util.Vector {
 	return &util.Vector{
 		Timestamp: ts,
@@ -37,11 +87,19 @@ func sumOperation(result *util.Vector, values []*float64) bool {
 	return true
 }
 
-func addVectors(vectors ...[]*util.Vector) []*util.Vector {
-	return util.ApplyMultiVectorOp(sumOperation, vectors...)
+func binarySumOperation(result *util.Vector, x *float64, y *float64) bool {
+	if x != nil && y != nil {
+		result.Value = *x + *y
+	} else if y != nil {
+		result.Value = *y
+	} else if x != nil {
+		result.Value = *x
+	}
+
+	return true
 }
 
-func generateTimeStamps(start float64, total int) []float64 {
+func generateTimestamps(start float64, total int) []float64 {
 	timestamps := []float64{}
 	current := start
 	for i := 0; i < total; i++ {
@@ -55,35 +113,14 @@ func roundTimestamp(ts float64, precision float64) float64 {
 	return math.Round(ts/precision) * precision
 }
 
-func createRandomVectors(timestamps []float64) []*util.Vector {
-	vs := []*util.Vector{}
-
-	for _, ts := range timestamps {
-		if rand.Intn(2) == 1 {
-			vs = append(vs, newVec(ts, rand.Float64()*100.0))
-		}
-	}
-
-	return vs
-}
-
-func createStaticVectors(timestamps []float64, value float64) []*util.Vector {
-	vs := []*util.Vector{}
-
-	for _, ts := range timestamps {
-		vs = append(vs, newVec(ts, value))
-	}
-
-	return vs
-}
-
 func runRandom() [][]*util.Vector {
-	ts := generateTimeStamps(5000.0, 30)
-	v1 := createRandomVectors(ts)
-	v2 := createRandomVectors(ts)
-	v3 := createRandomVectors(ts)
-	v4 := createRandomVectors(ts)
-	v5 := createRandomVectors(ts)
+	gen := NewRandomGenerator(generateTimestamps(5000.0, 30))
+
+	v1 := gen.New()
+	v2 := gen.New()
+	v3 := gen.New()
+	v4 := gen.New()
+	v5 := gen.New()
 
 	var wg sync.WaitGroup
 	wg.Add(10)
@@ -93,7 +130,7 @@ func runRandom() [][]*util.Vector {
 
 	for i := 0; i < 10; i++ {
 		go func() {
-			result := addVectors(v1, v2, v3, v4, v5)
+			result := addMulti(v1, v2, v3, v4, v5)
 			l.Lock()
 			results = append(results, result)
 			l.Unlock()
@@ -107,13 +144,13 @@ func runRandom() [][]*util.Vector {
 }
 
 func runStatic() [][]*util.Vector {
-	ts := generateTimeStamps(5000.0, 10)
+	gen := NewStaticGenerator(generateTimestamps(5000.0, 10))
 
-	v1 := createStaticVectors(ts, 1.0)
-	v2 := createStaticVectors(ts, 2.0)
-	v3 := createStaticVectors(ts, 3.0)
-	v4 := createStaticVectors(ts, 4.0)
-	v5 := createStaticVectors(ts, 5.0)
+	v1 := gen.New()
+	v2 := gen.New()
+	v3 := gen.New()
+	v4 := gen.New()
+	v5 := gen.New()
 
 	var wg sync.WaitGroup
 	wg.Add(10)
@@ -123,7 +160,7 @@ func runStatic() [][]*util.Vector {
 
 	for i := 0; i < 10; i++ {
 		go func() {
-			result := addVectors(v1, v2, v3, v4, v5)
+			result := addMulti(v1, v2, v3, v4, v5)
 			l.Lock()
 			results = append(results, result)
 			l.Unlock()
@@ -134,6 +171,18 @@ func runStatic() [][]*util.Vector {
 	wg.Wait()
 
 	return results
+}
+
+func addMulti(vs ...[]*util.Vector) []*util.Vector {
+	return util.ApplyMultiVectorOp(sumOperation, vs...)
+}
+
+func addBinary(vs ...[]*util.Vector) []*util.Vector {
+	result := vs[0]
+	for i := 1; i < len(vs); i++ {
+		result = util.ApplyVectorOp(result, vs[i], binarySumOperation)
+	}
+	return result
 }
 
 func TestApplyMultiVectorOp(t *testing.T) {
@@ -160,6 +209,84 @@ func TestApplyMultiVectorOpDeterministic(t *testing.T) {
 			}
 		}
 	}
+}
+
+var benchResults []*util.Vector
+var benchMultiResults []*util.Vector
+
+func BenchmarkApplyMultiVectorOp(b *testing.B) {
+	var results []*util.Vector
+
+	gen := NewStaticGenerator(generateTimestamps(5000.0, 30))
+
+	v1 := gen.New()
+	v2 := gen.New()
+	v3 := gen.New()
+	v4 := gen.New()
+	v5 := gen.New()
+
+	for i := 0; i < b.N; i++ {
+		results = addMulti(v1, v2, v3, v4, v5)
+	}
+
+	benchMultiResults = results
+}
+
+func BenchmarkParallelApplyMultiVectorOp(b *testing.B) {
+	var results []*util.Vector
+
+	gen := NewStaticGenerator(generateTimestamps(5000.0, 30))
+
+	v1 := gen.New()
+	v2 := gen.New()
+	v3 := gen.New()
+	v4 := gen.New()
+	v5 := gen.New()
+
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			results = addMulti(v1, v2, v3, v4, v5)
+		}
+	})
+
+	benchMultiResults = results
+}
+func BenchmarkApplyVectorOp(b *testing.B) {
+	var results []*util.Vector
+
+	gen := NewStaticGenerator(generateTimestamps(5000.0, 30))
+
+	v1 := gen.New()
+	v2 := gen.New()
+	v3 := gen.New()
+	v4 := gen.New()
+	v5 := gen.New()
+
+	for i := 0; i < b.N; i++ {
+		results = addBinary(v1, v2, v3, v4, v5)
+	}
+
+	benchResults = results
+}
+
+func BenchmarkParallelApplyVectorOp(b *testing.B) {
+	var results []*util.Vector
+
+	gen := NewStaticGenerator(generateTimestamps(5000.0, 30))
+
+	v1 := gen.New()
+	v2 := gen.New()
+	v3 := gen.New()
+	v4 := gen.New()
+	v5 := gen.New()
+
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			results = addBinary(v1, v2, v3, v4, v5)
+		}
+	})
+
+	benchResults = results
 }
 
 func TestBoth(t *testing.T) {

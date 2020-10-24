@@ -37,7 +37,7 @@ func (fp *FloatPool) Make(length int) []*float64 {
 	defer fp.lock.Unlock()
 
 	// find the next allocation location, resize buffer if necessary
-	next := fp.allocations.Next(fp.pos, len(fp.buf), length)
+	next, ele := fp.allocations.Next(fp.pos, len(fp.buf), length)
 
 	// if the next allocation location + length is larger than the buffer,
 	// grow the buffer
@@ -51,7 +51,7 @@ func (fp *FloatPool) Make(length int) []*float64 {
 	sl := fp.buf[next : next+length]
 
 	// insert allocation record, advance search position
-	fp.allocations.Add(next, length, fp.addressFor(sl))
+	fp.allocations.Add(ele, next, length, fp.addressFor(sl))
 	fp.pos = next + length + 1
 
 	return sl

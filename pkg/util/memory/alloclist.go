@@ -1,7 +1,7 @@
 package memory
 
 import (
-	"sort"
+	"container/list"
 )
 
 // Allocation represents a subset of a buffer
@@ -17,7 +17,7 @@ type AllocationList interface {
 	// Add inserts an allocation into the list according to it's offset.
 	// Note: This function does not validate the insertion. Next() should be
 	// called to find the offset, followed my a call to Add().
-	Add(offset, size int, address uintptr)
+	Add(before *list.Element, offset, size int, address uintptr)
 
 	// AllocationByAddress finds an Allocation matching the provided address and returns
 	// it if it exists. Otherwise, nil is returned.
@@ -26,84 +26,92 @@ type AllocationList interface {
 	// ClosestTo returns the first allocation with an offset greater or equal
 	// to the provided offset. It returns nil if such an Allocation does not
 	// exist.
-	ClosestTo(offset int) *Allocation
+	ClosestTo(offset int) (*list.Element, *Allocation)
 
 	// Next walks the allocations assuming an offset of start with a limitation of end. It
 	// returns the next available offset and whether or not the next offset + size exceeds
 	// the end boundary.
-	Next(start, end, size int) int
+	Next(start, end, size int) (next int, element *list.Element)
 }
 
 // sliceAllocationList is an implementation of AllocationList using a slice
 // of *Allocation
-type sliceAllocationList []*Allocation
+type sliceAllocationList struct {
+	l *list.List
+}
 
 // NewAllocationList creates a new AllocationList implementation
 func NewAllocationList() AllocationList {
-	return &sliceAllocationList{}
+	return &sliceAllocationList{
+		l: list.New(),
+	}
 }
 
 // ClosestTo returns the first allocation with an offset greater or equal
 // to the provided offset. It returns nil if such an Allocation does not
 // exist.
-func (sal *sliceAllocationList) ClosestTo(offset int) *Allocation {
-	for _, a := range *sal {
+func (sal *sliceAllocationList) ClosestTo(offset int) (*list.Element, *Allocation) {
+	for e := sal.l.Front(); e != nil; e = e.Next() {
+		a := e.Value.(*Allocation)
 		if a.Offset >= offset {
-			return a
+			return e, a
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 // Add inserts an allocation into the list according to it's offset.
 // Note: This function does not validate the insertion. Next() should be
 // called to find the offset, followed my a call to Add().
-func (sal *sliceAllocationList) Add(offset, size int, address uintptr) {
+func (sal *sliceAllocationList) Add(before *list.Element, offset, size int, address uintptr) {
 	alloc := &Allocation{
 		Offset: offset,
 		Size:   size,
 		Addr:   address,
 	}
 
-	// TODO: [bolt] Append and sort is actually pretty fast for this specific application,
-	// TODO: [bolt] but we could likely do better with insertion and a linked list.
-	*sal = append(*sal, alloc)
-	sort.Slice(*sal, sal.less)
+	if before == nil {
+		sal.l.PushBack(alloc)
+	} else {
+		sal.l.InsertBefore(alloc, before)
+	}
 }
 
 // AllocationByAddress finds an Allocation matching the provided address and returns
 // it if it exists. Otherwise, nil is returned.
 func (sal *sliceAllocationList) Remove(address uintptr) *Allocation {
 	var allocation *Allocation = nil
-	var index int = -1
+	var element *list.Element
 
-	for i, alloc := range *sal {
-		if alloc.Addr == address {
-			allocation = alloc
-			index = i
+	for e := sal.l.Front(); e != nil; e = e.Next() {
+		a := e.Value.(*Allocation)
+		if a.Addr == address {
+			allocation = a
+			element = e
 			break
 		}
 	}
 
 	// Not found, return nil allocation
-	if index < 0 {
+	if element == nil {
 		return allocation
 	}
 
 	// remove allocation
-	*sal = append((*sal)[:index], (*sal)[index+1:]...)
+	sal.l.Remove(element)
 	return allocation
 }
 
 // Next walks the allocations assuming an offset of start with a limitation of end. It
 // returns the next available offset and whether or not the next offset + size exceeds
 // the end boundary.
-func (sal *sliceAllocationList) Next(start, end, size int) (next int) {
+func (sal *sliceAllocationList) Next(start, end, size int) (next int, element *list.Element) {
+	var a *Allocation
 	next = start
 
 	// advance next until next+size doesn't collide with an allocation
 	for next < end {
-		a := sal.ClosestTo(next)
+		element, a = sal.ClosestTo(next)
 		if a == nil {
 			return
 		}
@@ -115,9 +123,4 @@ func (sal *sliceAllocationList) Next(start, end, size int) (next int) {
 	}
 
 	return
-}
-
-// less allows sorting on offset
-func (sal *sliceAllocationList) less(i, j int) bool {
-	return (*sal)[i].Offset < (*sal)[j].Offset
 }
