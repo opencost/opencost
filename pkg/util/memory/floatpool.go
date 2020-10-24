@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"container/list"
 	"fmt"
 	"sync"
 	"unsafe"
@@ -13,6 +14,7 @@ type FloatPool struct {
 	buf         []*float64
 	allocations AllocationList
 	pos         int
+	start       *list.Element
 	lock        *sync.Mutex
 }
 
@@ -22,6 +24,7 @@ func NewFloatPool(size int) *FloatPool {
 	return &FloatPool{
 		buf:         make([]*float64, size),
 		pos:         0,
+		start:       nil,
 		allocations: NewAllocationList(),
 		lock:        new(sync.Mutex),
 	}
@@ -37,7 +40,7 @@ func (fp *FloatPool) Make(length int) []*float64 {
 	defer fp.lock.Unlock()
 
 	// find the next allocation location, resize buffer if necessary
-	next, ele := fp.allocations.Next(fp.pos, len(fp.buf), length)
+	next, ele := fp.allocations.Next(fp.start, fp.pos, len(fp.buf), length)
 
 	// if the next allocation location + length is larger than the buffer,
 	// grow the buffer
@@ -51,8 +54,14 @@ func (fp *FloatPool) Make(length int) []*float64 {
 	sl := fp.buf[next : next+length]
 
 	// insert allocation record, advance search position
-	fp.allocations.Add(ele, next, length, fp.addressFor(sl))
+	ele = fp.allocations.InsertBefore(&Allocation{
+		Offset: next,
+		Size:   length,
+		Addr:   fp.addressFor(sl),
+	}, ele)
+
 	fp.pos = next + length + 1
+	fp.start = ele
 
 	return sl
 }
@@ -65,7 +74,7 @@ func (fp *FloatPool) Return(v []*float64) {
 	fp.lock.Lock()
 	defer fp.lock.Unlock()
 
-	removed := fp.allocations.Remove(fp.addressFor(v))
+	removed, next := fp.allocations.Remove(fp.addressFor(v))
 	if removed == nil {
 		fmt.Printf("Error: Failed to locate allocated slice\n")
 		return
@@ -74,6 +83,7 @@ func (fp *FloatPool) Return(v []*float64) {
 	// set the search start at the lowest returned
 	if removed.Offset < fp.pos {
 		fp.pos = removed.Offset
+		fp.start = next
 	}
 
 	// nil out returned slice
