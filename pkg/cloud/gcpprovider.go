@@ -1429,6 +1429,10 @@ func (gcp *GCP) ServiceAccountStatus() *ServiceAccountStatus {
 	}
 }
 
+func (gcp *GCP) PricingSourceStatus() map[string]*PricingSource {
+	return make(map[string]*PricingSource)
+}
+
 func (gcp *GCP) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
 	class := strings.Split(instanceType, "-")[0]
 	return 1.0 - ((1.0 - sustainedUseDiscount(class, defaultDiscount, isPreemptible)) * (1.0 - negotiatedDiscount))

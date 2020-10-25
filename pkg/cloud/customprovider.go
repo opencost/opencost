@@ -304,6 +304,10 @@ func (cp *CustomProvider) ServiceAccountStatus() *ServiceAccountStatus {
 	}
 }
 
+func (cp *CustomProvider) PricingSourceStatus() map[string]*PricingSource {
+	return make(map[string]*PricingSource)
+}
+
 func (cp *CustomProvider) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
 }

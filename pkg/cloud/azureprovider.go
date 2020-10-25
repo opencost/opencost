@@ -835,6 +835,11 @@ func (az *Azure) ServiceAccountStatus() *ServiceAccountStatus {
 		Checks: []*ServiceAccountCheck{},
 	}
 }
+
+func (az *Azure) PricingSourceStatus() map[string]*PricingSource {
+	return make(map[string]*PricingSource)
+}
+
 func (*Azure) ClusterManagementPricing() (string, float64, error) {
 	return "", 0.0, nil
 }

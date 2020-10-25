@@ -44,6 +44,43 @@ const SpotInfoUpdateType = "spotinfo"
 const AthenaInfoUpdateType = "athenainfo"
 const PreemptibleType = "preemptible"
 
+const APIPricingSource = "Public API"
+const SpotPricingSource = "Spot Data Feed"
+const ReservedInstancePricingSource = "Reserved Instance"
+
+func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
+
+	sources := make(map[string]*PricingSource)
+
+	sps := &PricingSource{
+		Name: SpotPricingSource,
+	}
+	sps.Error = aws.SpotPricingStatus
+	if sps.Error != "" {
+		sps.Available = false
+	} else if len(aws.SpotPricingByInstanceID) > 0 {
+		sps.Available = true
+	} else {
+		sps.Error = "No spot instances detected"
+	}
+	sources[SpotPricingSource] = sps
+
+	rps := &PricingSource{
+		Name: ReservedInstancePricingSource,
+	}
+	rps.Error = aws.RIPricingStatus
+	if rps.Error != "" {
+		rps.Available = false
+	} else if len(aws.RIPricingByInstanceID) > 0 {
+		rps.Available = true
+	} else {
+		sps.Error = "No reserved instances detected"
+	}
+	sources[ReservedInstancePricingSource] = rps
+	return sources
+
+}
+
 // How often spot data is refreshed
 const SpotRefreshDuration = 15 * time.Minute
 
@@ -82,7 +119,9 @@ type AWS struct {
 	SpotPricingUpdatedAt        *time.Time
 	SpotRefreshRunning          bool
 	SpotPricingLock             sync.RWMutex
+	SpotPricingStatus           string
 	RIPricingByInstanceID       map[string]*RIData
+	RIPricingStatus             string
 	RIDataRunning               bool
 	RIDataLock                  sync.RWMutex
 	SavingsPlanDataByInstanceID map[string]*SavingsPlanData
@@ -825,8 +864,10 @@ func (aws *AWS) refreshSpotPricing(force bool) {
 	sp, err := aws.parseSpotData(aws.SpotDataBucket, aws.SpotDataPrefix, aws.ProjectID, aws.SpotDataRegion, aws.ServiceKeyName, aws.ServiceKeySecret)
 	if err != nil {
 		klog.V(1).Infof("Skipping AWS spot data download: %s", err.Error())
+		aws.SpotPricingStatus = err.Error()
 		return
 	}
+	aws.SpotPricingStatus = ""
 
 	// update time last updated
 	aws.SpotPricingUpdatedAt = &now
@@ -1772,8 +1813,10 @@ func (a *AWS) GetReservationDataFromAthena() error {
 	query := fmt.Sprintf(q, cfg.AthenaTable, start, end)
 	op, err := a.QueryAthenaBillingData(query)
 	if err != nil {
+		a.RIPricingStatus = err.Error()
 		return fmt.Errorf("Error fetching Reserved Instance Data: %s", err)
 	}
+	a.RIPricingStatus = ""
 	klog.Infof("Fetching RI data...")
 	if len(op.ResultSet.Rows) > 1 {
 		a.RIDataLock.Lock()
