@@ -44,8 +44,13 @@ func (fp *FloatPool) Make(length int) []*float64 {
 
 	// if the next allocation location + length is larger than the buffer,
 	// grow the buffer
-	if next+length >= len(fp.buf) {
-		newBuf := make([]*float64, len(fp.buf)*2)
+	buffLength := len(fp.buf)
+	if next+length >= buffLength {
+		for next+length >= buffLength {
+			buffLength = buffLength * 2
+		}
+
+		newBuf := make([]*float64, buffLength)
 		copy(newBuf, fp.buf)
 		fp.buf = newBuf
 	}

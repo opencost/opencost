@@ -211,78 +211,46 @@ func TestApplyMultiVectorOpDeterministic(t *testing.T) {
 	}
 }
 
+const (
+	BenchVectors    = 5
+	BenchDataPoints = 400
+)
+
 var benchResults []*util.Vector
 var benchMultiResults []*util.Vector
 
 func BenchmarkApplyMultiVectorOp(b *testing.B) {
 	var results []*util.Vector
 
-	gen := NewStaticGenerator(generateTimestamps(5000.0, 30))
+	gen := NewStaticGenerator(generateTimestamps(5000.0, BenchDataPoints))
 
-	v1 := gen.New()
-	v2 := gen.New()
-	v3 := gen.New()
-	v4 := gen.New()
-	v5 := gen.New()
-
-	for i := 0; i < b.N; i++ {
-		results = addMulti(v1, v2, v3, v4, v5)
+	var vecs [][]*util.Vector
+	for i := 0; i < BenchVectors; i++ {
+		vecs = append(vecs, gen.New())
 	}
-
-	benchMultiResults = results
-}
-
-func BenchmarkParallelApplyMultiVectorOp(b *testing.B) {
-	var results []*util.Vector
-
-	gen := NewStaticGenerator(generateTimestamps(5000.0, 30))
-
-	v1 := gen.New()
-	v2 := gen.New()
-	v3 := gen.New()
-	v4 := gen.New()
-	v5 := gen.New()
 
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			results = addMulti(v1, v2, v3, v4, v5)
+			results = addMulti(vecs...)
 		}
 	})
 
 	benchMultiResults = results
 }
+
 func BenchmarkApplyVectorOp(b *testing.B) {
 	var results []*util.Vector
 
-	gen := NewStaticGenerator(generateTimestamps(5000.0, 30))
+	gen := NewStaticGenerator(generateTimestamps(5000.0, BenchDataPoints))
 
-	v1 := gen.New()
-	v2 := gen.New()
-	v3 := gen.New()
-	v4 := gen.New()
-	v5 := gen.New()
-
-	for i := 0; i < b.N; i++ {
-		results = addBinary(v1, v2, v3, v4, v5)
+	var vecs [][]*util.Vector
+	for i := 0; i < BenchVectors; i++ {
+		vecs = append(vecs, gen.New())
 	}
-
-	benchResults = results
-}
-
-func BenchmarkParallelApplyVectorOp(b *testing.B) {
-	var results []*util.Vector
-
-	gen := NewStaticGenerator(generateTimestamps(5000.0, 30))
-
-	v1 := gen.New()
-	v2 := gen.New()
-	v3 := gen.New()
-	v4 := gen.New()
-	v5 := gen.New()
 
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			results = addBinary(v1, v2, v3, v4, v5)
+			results = addBinary(vecs...)
 		}
 	})
 
