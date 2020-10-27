@@ -213,13 +213,36 @@ func TestApplyMultiVectorOpDeterministic(t *testing.T) {
 
 const (
 	BenchVectors    = 5
-	BenchDataPoints = 400
+	BenchDataPoints = 1000
 )
 
 var benchResults []*util.Vector
 var benchMultiResults []*util.Vector
 
 func BenchmarkApplyMultiVectorOp(b *testing.B) {
+	util.UseMultiVectorDynamicAllocs(false)
+
+	var results []*util.Vector
+
+	gen := NewStaticGenerator(generateTimestamps(5000.0, BenchDataPoints))
+
+	var vecs [][]*util.Vector
+	for i := 0; i < BenchVectors; i++ {
+		vecs = append(vecs, gen.New())
+	}
+
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			results = addMulti(vecs...)
+		}
+	})
+
+	benchMultiResults = results
+}
+
+func BenchmarkApplyMultiVectorOpDynamic(b *testing.B) {
+	util.UseMultiVectorDynamicAllocs(true)
+
 	var results []*util.Vector
 
 	gen := NewStaticGenerator(generateTimestamps(5000.0, BenchDataPoints))

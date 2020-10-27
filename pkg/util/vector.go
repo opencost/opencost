@@ -22,10 +22,15 @@ func (p VectorSlice) Less(i, j int) bool { return p[i].Timestamp < p[j].Timestam
 func (p VectorSlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 var (
-	mapPool      memory.VectorMapPool      = memory.NewFlexibleMapPool(MapPoolSize)
-	multiMapPool memory.MultiVectorMapPool = memory.NewFlexibleMultiMapPool(MapPoolSize)
-	floatPool    *memory.FloatPool         = memory.NewFloatPool(100)
+	mapPool          memory.VectorMapPool      = memory.NewFlexibleMapPool(MapPoolSize)
+	multiMapPool     memory.MultiVectorMapPool = memory.NewFlexibleMultiMapPool(MapPoolSize)
+	floatPool        *memory.FloatPool         = memory.NewFloatPool(100)
+	useDynamicAllocs bool                      = false
 )
+
+func UseMultiVectorDynamicAllocs(use bool) {
+	useDynamicAllocs = use
+}
 
 // roundTimestamp rounds the given timestamp to the given precision; e.g. a
 // timestamp given in seconds, rounded to precision 10, will be rounded
@@ -206,8 +211,11 @@ func ApplyMultiVectorOp(op MultiVectorJoinOp, vecs ...[]*Vector) []*Vector {
 			uts := uint64(ts)
 
 			if _, ok := m[uts]; !ok {
-				//m[uts] = make([]*float64, total)
-				m[uts] = floatPool.Make(total)
+				if useDynamicAllocs {
+					m[uts] = make([]*float64, total)
+				} else {
+					m[uts] = floatPool.Make(total)
+				}
 			}
 
 			m[uts][index] = &val
@@ -223,7 +231,10 @@ func ApplyMultiVectorOp(op MultiVectorJoinOp, vecs ...[]*Vector) []*Vector {
 		if op(rv, v) {
 			results = append(results, rv)
 		}
-		floatPool.Return(v)
+		if !useDynamicAllocs {
+			delete(m, k)
+			floatPool.Return(v)
+		}
 	}
 	multiMapPool.Put(m)
 
