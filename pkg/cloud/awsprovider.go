@@ -46,7 +46,7 @@ const PreemptibleType = "preemptible"
 
 const APIPricingSource = "Public API"
 const SpotPricingSource = "Spot Data Feed"
-const ReservedInstancePricingSource = "Reserved Instance"
+const ReservedInstancePricingSource = "Savings Plan, Reservied Instance, and Out-Of-Cluster"
 
 func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 
@@ -74,7 +74,7 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 	} else if len(aws.RIPricingByInstanceID) > 0 {
 		rps.Available = true
 	} else {
-		sps.Error = "No reserved instances detected"
+		rps.Error = "No reserved instances detected"
 	}
 	sources[ReservedInstancePricingSource] = rps
 	return sources
@@ -1525,16 +1525,7 @@ func (a *AWS) QueryAthenaPaginated(query string) (*athena.GetQueryResultsInput, 
 	if err != nil {
 		return nil, nil, err
 	}
-	if customPricing.ServiceKeyName != "" {
-		err = env.Set(env.AWSAccessKeyIDEnvVar, customPricing.ServiceKeyName)
-		if err != nil {
-			return nil, nil, err
-		}
-		err = env.Set(env.AWSAccessKeySecretEnvVar, customPricing.ServiceKeySecret)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
+	a.ConfigureAuthWith(customPricing)
 	region := aws.String(customPricing.AthenaRegion)
 	resultsBucket := customPricing.AthenaBucketName
 	database := customPricing.AthenaDatabase
