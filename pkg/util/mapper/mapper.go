@@ -2,6 +2,7 @@ package mapper
 
 import (
 	"strconv"
+	"strings"
 )
 
 //--------------------------------------------------------------------------
@@ -83,6 +84,11 @@ type PrimitiveMapReader interface {
 	// GetBool parses a bool from the map key parameter. If the value
 	// is empty or fails to parse, the defaultValue parameter is returned.
 	GetBool(key string, defaultValue bool) bool
+
+	// GetList returns a string list which contains the value set by key split using the
+	// provided delimiter with each entry trimmed of space. If the value doesn't exist,
+	// nil is returned
+	GetList(key string, delimiter string) []string
 }
 
 // PrimitiveMapWriter is an implementation contract for an object capable
@@ -123,6 +129,10 @@ type PrimitiveMapWriter interface {
 
 	// SetBool sets the map to a string formatted bool value.
 	SetBool(key string, value bool) error
+
+	// SetList sets the map's value at key to a string consistent of each value in the list separated
+	// by the provided delimiter.
+	SetList(key string, values []string, delimiter string) error
 }
 
 // PrimitiveMap is capable of reading and writing primitive values
@@ -373,6 +383,27 @@ func (rom *readOnlyMapper) GetBool(key string, defaultValue bool) bool {
 	return b
 }
 
+// GetList returns a string list which contains the value set by key split using the
+// provided delimiter with each entry trimmed of space. If the value doesn't exist,
+// nil is returned
+func (rom *readOnlyMapper) GetList(key string, delimiter string) []string {
+	value := rom.Get(key, "")
+	if value == "" {
+		return nil
+	}
+
+	split := strings.Split(value, delimiter)
+
+	// reuse slice created for split
+	result := split[:0]
+	for _, v := range split {
+		if trimmed := strings.TrimSpace(v); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
 // Set sets the map for the key provided using the value provided.
 func (wom *writeOnlyMapper) Set(key string, value string) error {
 	return wom.setter.Set(key, value)
@@ -431,4 +462,10 @@ func (wom *writeOnlyMapper) SetUInt64(key string, value uint64) error {
 // SetBool sets the map to a string formatted bool value.
 func (wom *writeOnlyMapper) SetBool(key string, value bool) error {
 	return wom.setter.Set(key, strconv.FormatBool(value))
+}
+
+// SetList sets the map's value at key to a string consistent of each value in the list separated
+// by the provided delimiter.
+func (wom *writeOnlyMapper) SetList(key string, values []string, delimiter string) error {
+	return wom.setter.Set(key, strings.Join(values, delimiter))
 }
