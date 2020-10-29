@@ -688,6 +688,7 @@ type ConfigWatchers struct {
 // captures the panic event in sentry
 func capturePanicEvent(err string, stack string) {
 	msg := fmt.Sprintf("Panic: %s\nStackTrace: %s\n", err, stack)
+	klog.V(1).Infoln(msg)
 	sentry.CurrentHub().CaptureEvent(&sentry.Event{
 		Level:   sentry.LevelError,
 		Message: msg,
@@ -718,11 +719,11 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	klog.InitFlags(nil)
 	flag.Set("v", "3")
 	flag.Parse()
-	klog.V(1).Infof("Starting cost-model (git commit \"%s\")", gitCommit)
+	klog.V(1).Infof("Starting cost-model (git commit \"%s\")", env.GetAppVersion())
 
 	var err error
 	if errorReportingEnabled {
-		err = sentry.Init(sentry.ClientOptions{Release: gitCommit})
+		err = sentry.Init(sentry.ClientOptions{Release: env.GetAppVersion()})
 		if err != nil {
 			klog.Infof("Failed to initialize sentry for error reporting")
 		} else {
