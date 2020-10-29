@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -82,5 +84,13 @@ func NewThanosClient(address string, timeout, keepAlive time.Duration, queryConc
 		BearerToken: env.GetMultiClusterBearerToken(),
 	}
 
-	return prom.NewRateLimitedClient(prom.ThanosClientID, tc, queryConcurrency, auth, queryLogFile)
+	// max source resolution decorator
+	maxSourceDecorator := func(path string, queryParams url.Values) url.Values {
+		if strings.Contains(path, "query_range") {
+			queryParams.Set("max_source_resolution", "5m")
+		}
+		return queryParams
+	}
+
+	return prom.NewRateLimitedClient(prom.ThanosClientID, tc, queryConcurrency, auth, maxSourceDecorator, queryLogFile)
 }
