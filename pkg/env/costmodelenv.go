@@ -1,6 +1,8 @@
 package env
 
 const (
+	AppVersionEnvVar = "APP_VERSION"
+
 	AWSAccessKeyIDEnvVar     = "AWS_ACCESS_KEY_ID"
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
@@ -41,6 +43,12 @@ const (
 
 	KubeConfigPathEnvVar = "KUBECONFIG_PATH"
 )
+
+// GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
+// the AWS access key for authentication
+func GetAppVersion() string {
+	return Get(AppVersionEnvVar, "Pre-1.68.0")
+}
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
 // the AWS access key for authentication
