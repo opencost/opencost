@@ -86,7 +86,7 @@ func NewThanosClient(address string, timeout, keepAlive time.Duration, queryConc
 
 	// max source resolution decorator
 	maxSourceDecorator := func(path string, queryParams url.Values) url.Values {
-		if strings.Contains(path, "query_range") {
+		if strings.Contains(path, "query") {
 			queryParams.Set("max_source_resolution", "5m")
 		}
 		return queryParams
