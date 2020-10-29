@@ -19,6 +19,14 @@ import (
 )
 
 //--------------------------------------------------------------------------
+//  QueryParamsDecorator
+//--------------------------------------------------------------------------
+
+// QueryParamsDecorator is used to decorate and return query parameters for
+// outgoing requests
+type QueryParamsDecorator = func(path string, values url.Values) url.Values
+
+//--------------------------------------------------------------------------
 //  ClientAuth
 //--------------------------------------------------------------------------
 
@@ -56,6 +64,7 @@ type RateLimitedPrometheusClient struct {
 	client     prometheus.Client
 	auth       *ClientAuth
 	queue      util.BlockingQueue
+	decorator  QueryParamsDecorator
 	outbound   *util.AtomicInt32
 	fileLogger *golog.Logger
 }
@@ -69,7 +78,7 @@ type requestCounter interface {
 
 // NewRateLimitedClient creates a prometheus client which limits the number of concurrent outbound
 // prometheus requests.
-func NewRateLimitedClient(id string, config prometheus.Config, maxConcurrency int, auth *ClientAuth, queryLogFile string) (prometheus.Client, error) {
+func NewRateLimitedClient(id string, config prometheus.Config, maxConcurrency int, auth *ClientAuth, decorator QueryParamsDecorator, queryLogFile string) (prometheus.Client, error) {
 	c, err := prometheus.NewClient(config)
 	if err != nil {
 		return nil, err
@@ -97,6 +106,7 @@ func NewRateLimitedClient(id string, config prometheus.Config, maxConcurrency in
 		id:         id,
 		client:     c,
 		queue:      queue,
+		decorator:  decorator,
 		outbound:   outbound,
 		auth:       auth,
 		fileLogger: logger,
@@ -166,6 +176,11 @@ func (rlpc *RateLimitedPrometheusClient) worker() {
 
 			ctx := we.ctx
 			req := we.req
+
+			// decorate the raw query parameters
+			if rlpc.decorator != nil {
+				req.URL.RawQuery = rlpc.decorator(req.URL.Path, req.URL.Query()).Encode()
+			}
 
 			// measure time in queue
 			timeInQueue := time.Since(we.start)
@@ -238,7 +253,7 @@ func NewPrometheusClient(address string, timeout, keepAlive time.Duration, query
 		BearerToken: env.GetDBBearerToken(),
 	}
 
-	return NewRateLimitedClient(PrometheusClientID, pc, queryConcurrency, auth, queryLogFile)
+	return NewRateLimitedClient(PrometheusClientID, pc, queryConcurrency, auth, nil, queryLogFile)
 }
 
 // LogPrometheusClientState logs the current state, with respect to outbound requests, if that
