@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,11 +16,16 @@ import (
 	prometheus "github.com/prometheus/client_golang/api"
 )
 
+// MaxSourceResulution is the query parameter key used to designate the resolution
+// to use when executing a query.
+const MaxSourceResulution = "max_source_resolution"
+
 var (
 	lock           = new(sync.Mutex)
 	enabled        = env.IsThanosEnabled()
 	queryUrl       = env.GetThanosQueryUrl()
 	offset         = env.GetThanosOffset()
+	maxSourceRes   = env.GetThanosMaxSourceResolution()
 	offsetDuration *time.Duration
 	queryOffset    = fmt.Sprintf(" offset %s", offset)
 )
@@ -82,5 +89,13 @@ func NewThanosClient(address string, timeout, keepAlive time.Duration, queryConc
 		BearerToken: env.GetMultiClusterBearerToken(),
 	}
 
-	return prom.NewRateLimitedClient(prom.ThanosClientID, tc, queryConcurrency, auth, queryLogFile)
+	// max source resolution decorator
+	maxSourceDecorator := func(path string, queryParams url.Values) url.Values {
+		if strings.Contains(path, "query") {
+			queryParams.Set(MaxSourceResulution, maxSourceRes)
+		}
+		return queryParams
+	}
+
+	return prom.NewRateLimitedClient(prom.ThanosClientID, tc, queryConcurrency, auth, maxSourceDecorator, queryLogFile)
 }
