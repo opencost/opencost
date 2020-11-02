@@ -1,6 +1,8 @@
 package env
 
 const (
+	AppVersionEnvVar = "APP_VERSION"
+
 	AWSAccessKeyIDEnvVar     = "AWS_ACCESS_KEY_ID"
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
@@ -20,9 +22,10 @@ const (
 	ConfigPathEnvVar               = "CONFIG_PATH"
 	CloudProviderAPIKeyEnvVar      = "CLOUD_PROVIDER_API_KEY"
 
-	ThanosEnabledEnvVar  = "THANOS_ENABLED"
-	ThanosQueryUrlEnvVar = "THANOS_QUERY_URL"
-	ThanosOffsetEnvVar   = "THANOS_QUERY_OFFSET"
+	ThanosEnabledEnvVar      = "THANOS_ENABLED"
+	ThanosQueryUrlEnvVar     = "THANOS_QUERY_URL"
+	ThanosOffsetEnvVar       = "THANOS_QUERY_OFFSET"
+	ThanosMaxSourceResEnvVar = "THANOS_MAX_SOURCE_RESOLUTION"
 
 	LogCollectionEnabledEnvVar    = "LOG_COLLECTION_ENABLED"
 	ProductAnalyticsEnabledEnvVar = "PRODUCT_ANALYTICS_ENABLED"
@@ -41,6 +44,12 @@ const (
 
 	KubeConfigPathEnvVar = "KUBECONFIG_PATH"
 )
+
+// GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
+// the AWS access key for authentication
+func GetAppVersion() string {
+	return Get(AppVersionEnvVar, "Pre-1.68.0")
+}
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
 // the AWS access key for authentication
@@ -158,6 +167,25 @@ func GetThanosQueryUrl() string {
 // amount of time to offset all queries made to thanos.
 func GetThanosOffset() string {
 	return Get(ThanosOffsetEnvVar, "3h")
+}
+
+// GetThanosMaxSourceResolution returns the environment variable value for ThanosMaxSourceResEnvVar which represents
+// the max source resolution to use when querying thanos.
+func GetThanosMaxSourceResolution() string {
+	res := Get(ThanosMaxSourceResEnvVar, "raw")
+
+	switch res {
+	case "raw":
+		return "0s"
+	case "0s":
+		fallthrough
+	case "5m":
+		fallthrough
+	case "1h":
+		return res
+	default:
+		return "0s"
+	}
 }
 
 // IsLogCollectionEnabled returns the environment variable value for LogCollectionEnabledEnvVar which represents
