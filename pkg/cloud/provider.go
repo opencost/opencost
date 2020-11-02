@@ -185,6 +185,16 @@ type ServiceAccountCheck struct {
 	AdditionalInfo string `json:additionalInfo`
 }
 
+type PricingSources struct {
+	PricingSources map[string]*PricingSource
+}
+
+type PricingSource struct {
+	Name      string `json:"name"`
+	Available bool   `json:"available"`
+	Error     string `json:"error"`
+}
+
 // Provider represents a k8s provider.
 type Provider interface {
 	ClusterInfo() (map[string]string, error)
@@ -206,6 +216,7 @@ type Provider interface {
 	ExternalAllocations(string, string, []string, string, string, bool) ([]*OutOfClusterAllocation, error)
 	ApplyReservedInstancePricing(map[string]*Node)
 	ServiceAccountStatus() *ServiceAccountStatus
+	PricingSourceStatus() map[string]*PricingSource
 	ClusterManagementPricing() (string, float64, error)
 	CombinedDiscountForNode(string, bool, float64, float64) float64
 	ParseID(string) string
