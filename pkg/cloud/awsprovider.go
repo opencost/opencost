@@ -565,6 +565,47 @@ func (aws *AWS) ClusterManagementPricing() (string, float64, error) {
 	return aws.clusterProvisioner, aws.clusterManagementPrice, nil
 }
 
+// Use the pricing data from the current region. Fall back to
+func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, error) {
+
+	pricingURL := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/"
+
+	region := ""
+	multiregion := false
+	for _, n := range nodeList {
+		labels := n.GetLabels()
+		currentNodeRegion := ""
+		if r, ok := labels[v1.LabelZoneRegion]; ok {
+			currentNodeRegion = r
+		} else if r2, ok := labels["topology.kubernetes.io/region"]; ok { // Label as of 1.17
+			currentNodeRegion = r2
+		} else {
+			multiregion = true // We weren't able to detect the node's region, so pull all data.
+			break
+		}
+		if region == "" { // We haven't set a region yet
+			region = currentNodeRegion
+		} else if region != "" && currentNodeRegion != region { // If two nodes have different regions here, we'll need to fetch all pricing data.
+			multiregion = true
+			break
+		}
+	}
+
+	if region != "" && !multiregion {
+		pricingURL += region + "/"
+	}
+
+	pricingURL += "index.json"
+
+	klog.V(2).Infof("starting download of \"%s\", which is quite large ...", pricingURL)
+	resp, err := http.Get(pricingURL)
+	if err != nil {
+		klog.V(2).Infof("Bogus fetch of \"%s\": %v", pricingURL, err)
+		return nil, pricingURL, err
+	}
+	return resp, pricingURL, err
+}
+
 // DownloadPricingData fetches data from the AWS Pricing API
 func (aws *AWS) DownloadPricingData() error {
 	aws.DownloadPricingDataLock.Lock()
@@ -679,14 +720,10 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.ValidPricingKeys = make(map[string]bool)
 	skusToKeys := make(map[string]string)
 
-	pricingURL := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/index.json"
-	klog.V(2).Infof("starting download of \"%s\", which is quite large ...", pricingURL)
-	resp, err := http.Get(pricingURL)
+	resp, pricingURL, err := aws.getRegionPricing(nodeList)
 	if err != nil {
-		klog.V(2).Infof("Bogus fetch of \"%s\": %v", pricingURL, err)
 		return err
 	}
-
 	dec := json.NewDecoder(resp.Body)
 	for {
 		t, err := dec.Token()
