@@ -463,13 +463,9 @@ func (k *awsKey) ID() string {
 
 func (k *awsKey) Features() string {
 
-	instanceType := k.Labels[v1.LabelInstanceType]
-	var operatingSystem string
-	operatingSystem, ok := k.Labels[v1.LabelOSStable]
-	if !ok {
-		operatingSystem = k.Labels["beta.kubernetes.io/os"]
-	}
-	region := k.Labels[v1.LabelZoneRegion]
+	instanceType, _ := util.GetInstanceType(k.Labels)
+	operatingSystem, _ := util.GetOperatingSystem(k.Labels)
+	region, _ := util.GetRegion(k.Labels)
 
 	key := region + "," + instanceType + "," + operatingSystem
 	usageType := PreemptibleType
@@ -532,7 +528,7 @@ func (key *awsPVKey) Features() string {
 	// Storage class names are generally EBS volume types (gp2)
 	// Keys in Pricing are based on UsageTypes (EBS:VolumeType.gp2)
 	// Converts between the 2
-	region := key.Labels[v1.LabelZoneRegion]
+	region, _ := util.GetRegion(key.Labels)
 	//if region == "" {
 	//	region = "us-east-1"
 	//}
@@ -565,7 +561,7 @@ func (aws *AWS) ClusterManagementPricing() (string, float64, error) {
 	return aws.clusterProvisioner, aws.clusterManagementPrice, nil
 }
 
-// Use the pricing data from the current region. Fall back to
+// Use the pricing data from the current region. Fall back to using all region data if needed.
 func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, error) {
 
 	pricingURL := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/"
@@ -575,10 +571,8 @@ func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, e
 	for _, n := range nodeList {
 		labels := n.GetLabels()
 		currentNodeRegion := ""
-		if r, ok := labels[v1.LabelZoneRegion]; ok {
+		if r, ok := util.GetRegion(labels); ok {
 			currentNodeRegion = r
-		} else if r2, ok := labels["topology.kubernetes.io/region"]; ok { // Label as of 1.17
-			currentNodeRegion = r2
 		} else {
 			multiregion = true // We weren't able to detect the node's region, so pull all data.
 			break
