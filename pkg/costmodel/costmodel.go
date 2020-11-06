@@ -796,7 +796,7 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 	var defaultRegion string
 	nodeList := cache.GetAllNodes()
 	if len(nodeList) > 0 {
-		defaultRegion = nodeList[0].Labels[v1.LabelZoneRegion]
+		defaultRegion, _ = util.GetRegion(nodeList[0].Labels)
 	}
 
 	storageClasses := cache.GetAllStorageClasses()
@@ -818,7 +818,7 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 			klog.V(4).Infof("Unable to find parameters for storage class \"%s\". Does pv \"%s\" have a storageClassName?", pv.Spec.StorageClassName, pv.Name)
 		}
 		var region string
-		if r, ok := pv.Labels[v1.LabelZoneRegion]; ok {
+		if r, ok := util.GetRegion(pv.Labels); ok {
 			region = r
 		} else {
 			region = defaultRegion
@@ -899,10 +899,12 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 		}
 		newCnode := *cnode
 		if newCnode.InstanceType == "" {
-			newCnode.InstanceType = n.Labels[v1.LabelInstanceType]
+			it, _ := util.GetInstanceType(n.Labels)
+			newCnode.InstanceType = it
 		}
 		if newCnode.Region == "" {
-			newCnode.Region = n.Labels[v1.LabelZoneRegion]
+			region, _ := util.GetRegion(n.Labels)
+			newCnode.Region = region
 		}
 		newCnode.ProviderID = n.Spec.ProviderID
 

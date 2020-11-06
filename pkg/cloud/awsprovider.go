@@ -463,13 +463,9 @@ func (k *awsKey) ID() string {
 
 func (k *awsKey) Features() string {
 
-	instanceType := k.Labels[v1.LabelInstanceType]
-	var operatingSystem string
-	operatingSystem, ok := k.Labels[v1.LabelOSStable]
-	if !ok {
-		operatingSystem = k.Labels["beta.kubernetes.io/os"]
-	}
-	region := k.Labels[v1.LabelZoneRegion]
+	instanceType, _ := util.GetInstanceType(k.Labels)
+	operatingSystem, _ := util.GetOperatingSystem(k.Labels)
+	region, _ := util.GetRegion(k.Labels)
 
 	key := region + "," + instanceType + "," + operatingSystem
 	usageType := PreemptibleType
@@ -532,7 +528,7 @@ func (key *awsPVKey) Features() string {
 	// Storage class names are generally EBS volume types (gp2)
 	// Keys in Pricing are based on UsageTypes (EBS:VolumeType.gp2)
 	// Converts between the 2
-	region := key.Labels[v1.LabelZoneRegion]
+	region, _ := util.GetRegion(key.Labels)
 	//if region == "" {
 	//	region = "us-east-1"
 	//}
@@ -563,6 +559,45 @@ func (aws *AWS) isPreemptible(key string) bool {
 
 func (aws *AWS) ClusterManagementPricing() (string, float64, error) {
 	return aws.clusterProvisioner, aws.clusterManagementPrice, nil
+}
+
+// Use the pricing data from the current region. Fall back to using all region data if needed.
+func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, error) {
+
+	pricingURL := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/"
+
+	region := ""
+	multiregion := false
+	for _, n := range nodeList {
+		labels := n.GetLabels()
+		currentNodeRegion := ""
+		if r, ok := util.GetRegion(labels); ok {
+			currentNodeRegion = r
+		} else {
+			multiregion = true // We weren't able to detect the node's region, so pull all data.
+			break
+		}
+		if region == "" { // We haven't set a region yet
+			region = currentNodeRegion
+		} else if region != "" && currentNodeRegion != region { // If two nodes have different regions here, we'll need to fetch all pricing data.
+			multiregion = true
+			break
+		}
+	}
+
+	if region != "" && !multiregion {
+		pricingURL += region + "/"
+	}
+
+	pricingURL += "index.json"
+
+	klog.V(2).Infof("starting download of \"%s\", which is quite large ...", pricingURL)
+	resp, err := http.Get(pricingURL)
+	if err != nil {
+		klog.V(2).Infof("Bogus fetch of \"%s\": %v", pricingURL, err)
+		return nil, pricingURL, err
+	}
+	return resp, pricingURL, err
 }
 
 // DownloadPricingData fetches data from the AWS Pricing API
@@ -679,14 +714,10 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.ValidPricingKeys = make(map[string]bool)
 	skusToKeys := make(map[string]string)
 
-	pricingURL := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/index.json"
-	klog.V(2).Infof("starting download of \"%s\", which is quite large ...", pricingURL)
-	resp, err := http.Get(pricingURL)
+	resp, pricingURL, err := aws.getRegionPricing(nodeList)
 	if err != nil {
-		klog.V(2).Infof("Bogus fetch of \"%s\": %v", pricingURL, err)
 		return err
 	}
-
 	dec := json.NewDecoder(resp.Body)
 	for {
 		t, err := dec.Token()
