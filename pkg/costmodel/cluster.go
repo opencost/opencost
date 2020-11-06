@@ -417,7 +417,9 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	// [$/hr] * [min/res]*[hr/min] = [$/res]
 	hourlyToCumulative := float64(minsPerResolution) * (1.0 / 60.0)
 
-	ctx := prom.NewContext(client)
+	requiredCtx := prom.NewContext(client)
+	optionalCtx := prom.NewContext(client)
+
 	queryNodeCPUCost := fmt.Sprintf(`sum_over_time((avg(kube_node_status_capacity_cpu_cores) by (cluster_id, node) * on(node, cluster_id) group_right avg(node_cpu_hourly_cost) by (cluster_id, node, instance_type, provider_id))[%s:%dm]%s) * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
 	queryNodeCPUCores := fmt.Sprintf(`avg_over_time(avg(kube_node_status_capacity_cpu_cores) by (cluster_id, node)[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 	queryNodeRAMCost := fmt.Sprintf(`sum_over_time((avg(kube_node_status_capacity_memory_bytes) by (cluster_id, node) * on(cluster_id, node) group_right avg(node_ram_hourly_cost) by (cluster_id, node, instance_type, provider_id))[%s:%dm]%s) / 1024 / 1024 / 1024 * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
@@ -429,16 +431,19 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	queryNodeRAMUserPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace!="kube-system"}[%s:%dm]%s)) by (instance, cluster_id) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:%dm]%s)) by (node, cluster_id), "instance", "$1", "node", "(.*)")) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
 	queryActiveMins := fmt.Sprintf(`node_total_hourly_cost[%s:%dm]%s`, durationStr, minsPerResolution, offsetStr)
 
-	resChNodeCPUCost := ctx.Query(queryNodeCPUCost)
-	resChNodeCPUCores := ctx.Query(queryNodeCPUCores)
-	resChNodeRAMCost := ctx.Query(queryNodeRAMCost)
-	resChNodeRAMBytes := ctx.Query(queryNodeRAMBytes)
-	resChNodeGPUCost := ctx.Query(queryNodeGPUCost)
-	resChNodeLabels := ctx.Query(queryNodeLabels)
-	resChNodeCPUModeTotal := ctx.Query(queryNodeCPUModeTotal)
-	resChNodeRAMSystemPct := ctx.Query(queryNodeRAMSystemPct)
-	resChNodeRAMUserPct := ctx.Query(queryNodeRAMUserPct)
-	resChActiveMins := ctx.Query(queryActiveMins)
+	// Return errors if these fail
+	resChNodeCPUCost := requiredCtx.Query(queryNodeCPUCost)
+	resChNodeCPUCores := requiredCtx.Query(queryNodeCPUCores)
+	resChNodeRAMCost := requiredCtx.Query(queryNodeRAMCost)
+	resChNodeRAMBytes := requiredCtx.Query(queryNodeRAMBytes)
+	resChNodeGPUCost := requiredCtx.Query(queryNodeGPUCost)
+	resChNodeLabels := requiredCtx.Query(queryNodeLabels)
+	resChActiveMins := requiredCtx.Query(queryActiveMins)
+
+	// Do not return errors if these fail, but log warnings
+	resChNodeCPUModeTotal := optionalCtx.Query(queryNodeCPUModeTotal)
+	resChNodeRAMSystemPct := optionalCtx.Query(queryNodeRAMSystemPct)
+	resChNodeRAMUserPct := optionalCtx.Query(queryNodeRAMUserPct)
 
 	resNodeCPUCost, _ := resChNodeCPUCost.Await()
 	resNodeCPUCores, _ := resChNodeCPUCores.Await()
@@ -450,8 +455,17 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	resNodeRAMSystemPct, _ := resChNodeRAMSystemPct.Await()
 	resNodeRAMUserPct, _ := resChNodeRAMUserPct.Await()
 	resActiveMins, _ := resChActiveMins.Await()
-	if ctx.ErrorCollector.IsError() {
-		return nil, ctx.Errors()
+
+	if optionalCtx.ErrorCollector.IsError() {
+		for _, err := range optionalCtx.Errors() {
+			log.Warningf("ClusterNodes: %s", err)
+		}
+	}
+	if requiredCtx.ErrorCollector.IsError() {
+		for _, err := range requiredCtx.Errors() {
+			log.Errorf("ClusterNodes: %s", err)
+		}
+		return nil, requiredCtx.Errors()
 	}
 
 	nodeMap := map[string]*Node{}
