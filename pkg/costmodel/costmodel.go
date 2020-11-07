@@ -181,8 +181,9 @@ const (
 	sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) by (persistentvolumeclaim, namespace, cluster_id, kubernetes_name)) by (persistentvolumeclaim, storageclass, namespace, volumename, cluster_id)`
 	// queryRAMAllocationByteHours yields the total byte-hour RAM allocation over the given
 	// window, aggregated by container.
-	//  [line 3]     sum_over_time(each byte*min in window) / (min/hr kubecost up) = [byte*hour] by metric, adjusted for kubecost downtime
-	//  [lines 2,4]  sum(") by unique container key = [byte*hour] by container
+	//  [line 3]  sum_over_time(each byte) = [byte*scrape] by metric
+	//  [line 4] (scalar(avg(prometheus_target_interval_length_seconds)) = [seconds/scrape] / 60 / 60 =  [hours/scrape] by container
+	//  [lines 2,4]  sum(") by unique container key and multiply [byte*scrape] * [hours/scrape] for byte*hours
 	//  [lines 1,5]  relabeling
 	queryRAMAllocationByteHours = `
 		label_replace(label_replace(
@@ -192,8 +193,9 @@ const (
 		, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
 	// queryCPUAllocationVCPUHours yields the total VCPU-hour CPU allocation over the given
 	// window, aggregated by container.
-	//  [line 3]     sum_over_time(each VCPU*mins in window) / (min/hr kubecost up) = [VCPU*hour] by metric, adjusted for kubecost downtime
-	//  [lines 2,4]  sum(") by unique container key = [VCPU*hour] by container
+	//  [line 3] sum_over_time(each VCPU*mins in window) = [VCPU*scrape] by metric
+	//  [line 4] (scalar(avg(prometheus_target_interval_length_seconds)) = [seconds/scrape] / 60 / 60 =  [hours/scrape] by container
+	//  [lines 2,4]  sum(") by unique container key and multiply [VCPU*scrape] * [hours/scrape] for VCPU*hours
 	//  [lines 1,5]  relabeling
 	queryCPUAllocationVCPUHours = `
 		label_replace(label_replace(
@@ -202,13 +204,7 @@ const (
 			) by (namespace,container,pod,node,cluster_id) * (scalar(avg(prometheus_target_interval_length_seconds)) / 60 / 60)
 		, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
 	// queryPVCAllocationFmt yields the total byte-hour PVC allocation over the given window.
-	//  sum(all VCPU measurements within given window) = [byte*min] by metric
-	//  (") / 60 = [byte*hour] by metric, assuming no missed scrapes
-	//  (") * (normalization factor) = [byte*hour] by metric, normalized for missed scrapes
-	//  sum(") by unique pvc = [VCPU*hour] by (cluster, namespace, pod, pv, pvc)
-	// Note: normalization factor is 1.0 if no scrapes are missed and has an upper bound determined by minExpectedScrapeRate
-	// so that coarse resolutions don't push normalization factors too high; e.g. 24h resolution with 1h of data would make
-	// for a normalization factor of 24. With a minimumExpectedScrapeRate of 0.95, that caps the norm factor at
+	// sum_over_time(each byte) = [byte*scrape] by metric *(scalar(avg(prometheus_target_interval_length_seconds)) = [seconds/scrape] / 60 / 60 =  [hours/scrape] by pod
 	queryPVCAllocationFmt     = `sum(sum_over_time(pod_pvc_allocation[%s])) by (cluster_id, namespace, pod, persistentvolume, persistentvolumeclaim) * scalar(avg(prometheus_target_interval_length_seconds)/60/60)`
 	queryPVHourlyCostFmt      = `avg_over_time(pv_hourly_cost[%s])`
 	queryNSLabels             = `avg_over_time(kube_namespace_labels[%s])`
@@ -222,7 +218,6 @@ const (
 	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	queryInternetNetworkUsage = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	normalizationStr          = `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[%s] %s))`
-	kubecostUpMinsPerHourStr  = `max(count_over_time(node_cpu_hourly_cost[%s:1m])) / %f`
 )
 
 func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
@@ -1501,34 +1496,6 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	}
 
 	ctx := prom.NewContext(cli)
-
-	// Query for the average number of minutes per hour that Kubecost was up
-	// in the given range by averaging the number of up minutes-per-hour for
-	// each window in the range. Use that number in the RAM and CPU allocation
-	// queries as the adjutsment factor, scaling only if Kubecost was down
-	// for fewer than 3 minutes (as a heuristic for a reasonable amount of
-	// time to interpolate). Otherwise, use 60 minutes per hour and assume
-	// that this period of time is during Kubecost start-up or a long-term
-	// downtime for which we don't want to interpolate.
-	queryKubecostUpMinsPerHour := fmt.Sprintf(kubecostUpMinsPerHourStr, windowString, window.Hours())
-	resKubecostUp, err := ctx.QueryRangeSync(queryKubecostUpMinsPerHour, start, end, window)
-	if err != nil {
-		log.Errorf("costDataRange: error querying Kubecost up: %s", err)
-		return nil, err
-	}
-
-	kubecostMinsPerHour := 0.0
-	num := 0
-	if len(resKubecostUp) > 0 {
-		for _, val := range resKubecostUp[0].Values {
-			kubecostMinsPerHour += val.Value
-			num++
-		}
-		kubecostMinsPerHour /= float64(num)
-	}
-	if kubecostMinsPerHour <= 57.0 {
-		kubecostMinsPerHour = 60.0
-	}
 
 	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, windowString)
 	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, windowString)
