@@ -1,0 +1,5 @@
+bases:
+  - ../../base
+patchesStrategicMerge:
+  - cluster-role-binding.yaml
+  - deployment.yaml

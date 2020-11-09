@@ -12,11 +12,12 @@ you can start by asking a question on [Slack](https://join.slack.com/t/kubecost/
 Follow these steps to build from source and deploy:
 
 1. `docker build --rm -f "Dockerfile" -t <repo>/kubecost-cost-model:<tag> .`
-2. Edit the [pulled image](https://github.com/kubecost/cost-model/blob/master/kubernetes/deployment.yaml#L22) in the deployment.yaml to <repo>/kubecost-cost-model:<tag>
-3. Set [this environment variable](https://github.com/kubecost/cost-model/blob/master/kubernetes/deployment.yaml#L30) to the address of your prometheus server
-4. `kubectl create namespace cost-model`
-5. `kubectl apply -f kubernetes/ --namespace cost-model`
-6. `kubectl port-forward --namespace cost-model service/cost-model 9003`
+1. Edit the [pulled image](https://github.com/kubecost/cost-model/blob/master/kubernetes/overlays/development/deployment.yaml#L22) in the deployment.yaml to <repo>/kubecost-cost-model:<tag>
+1. Set [this environment variable](https://github.com/kubecost/cost-model/blob/master/kubernetes/overlays/development/deployment.yaml#L30) to the address of your prometheus server
+1. Edit the [namespace](https://github.com/kubecost/cost-model/blob/master/kubernetes/overlays/development/cluster-role-binding.yaml#L8) in the cluster-role-binding.yaml to `<your-namespace>`.
+1. `kubectl create namespace <your-namespace>`
+1. `kubectl apply -k kubernetes/overlays/development --namespace <your-namespace>`
+1. `kubectl port-forward --namespace <your-namespace> service/cost-model 9003`
 
 To test, build the cost-model docker container and then push it to a Kubernetes cluster with a running Prometheus.
 

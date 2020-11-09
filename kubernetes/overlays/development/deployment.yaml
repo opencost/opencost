@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cost-model
+  labels:
+    app: cost-model
+spec:
+  template:
+    spec:
+      containers:
+        - image: <repo>/kubecost-cost-model:<tag>
+          name: cost-model
+          env:
+            - name: PROMETHEUS_SERVER_ENDPOINT
+              value: "{{prometheusEndpoint}}"  #The endpoint should have the form http://<service-name>.<namespace-name>.svc
