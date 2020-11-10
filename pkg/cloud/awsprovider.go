@@ -1881,8 +1881,8 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 	page := 0
 	processResults := func(op *athena.GetQueryResultsOutput, lastpage bool) bool {
 		iter := op.ResultSet.Rows
-		if page == 0 && len(iter) > 1 {
-			iter = op.ResultSet.Rows[1:(len(op.ResultSet.Rows) - 1)]
+		if page == 0 && len(iter) > 0 {
+			iter = op.ResultSet.Rows[1:len(op.ResultSet.Rows)]
 		}
 		page++
 		for _, r := range iter {
