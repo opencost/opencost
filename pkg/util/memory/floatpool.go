@@ -7,10 +7,58 @@ import (
 	"unsafe"
 )
 
-// FloatPool is a float64 buffer capable of leasing out slices for temporary use.
-// This can reduce total heap allocations for critcial code paths. This type is
-// thread safe.
-type FloatPool struct {
+// AllocatorType is a way to specify or identify the type of allocator to use.
+type AllocatorType uint8
+
+const (
+	HeapAllocatorType AllocatorType = iota
+	PoolAllocatorType
+)
+
+//--------------------------------------------------------------------------
+//  FloatSliceAllocator
+//--------------------------------------------------------------------------
+
+// FloatAllocator defines an implementation prototype for an object capable of
+// allocating and deleting *float64 slices.
+type FloatSliceAllocator interface {
+	// Make allocates a []*float64 using the provided length.
+	Make(length int) []*float64
+
+	// Deletes, or recycles the []*float64 parameter.
+	Delete(buffer []*float64)
+}
+
+//--------------------------------------------------------------------------
+//  FloatHeapAllocator
+//--------------------------------------------------------------------------
+
+// FloatHeapAllocator is a passthrough to Go's heap allocation.
+type FloatHeapAllocator struct{}
+
+// NewFloatHeapAllocator Creates a new float slice allocator which uses the go runtime heap allocation via make().
+func NewFloatHeapAllocator() FloatSliceAllocator {
+	return &FloatHeapAllocator{}
+}
+
+// Make allocates a []*float64 using the provided length.
+func (fha *FloatHeapAllocator) Make(length int) []*float64 {
+	return make([]*float64, length)
+}
+
+// Deletes, or recycles the []*float64 parameter.
+func (fha *FloatHeapAllocator) Delete(buffer []*float64) {
+	// No-op
+}
+
+//--------------------------------------------------------------------------
+//  FloatPoolAllocator
+//--------------------------------------------------------------------------
+
+// FloatPoolAllocator is a float64 buffer capable of leasing out slices for temporary use.
+// This can reduce total heap allocations for critcial code paths. This type is also thread
+// safe.
+type FloatPoolAllocator struct {
 	buf         []*float64
 	allocations AllocationList
 	pos         int
@@ -18,11 +66,11 @@ type FloatPool struct {
 	lock        *sync.Mutex
 }
 
-// Create a new float pool with a default size buffer. The buffer will double size
+// NewFloatPoolAllocator Creates a new float pool allocator with an initial size buffer. The buffer will double size
 // each time it's required to grow.
-func NewFloatPool(size int) *FloatPool {
-	return &FloatPool{
-		buf:         make([]*float64, size),
+func NewFloatPoolAllocator(initialSize int) FloatSliceAllocator {
+	return &FloatPoolAllocator{
+		buf:         make([]*float64, initialSize),
 		pos:         0,
 		start:       nil,
 		allocations: NewAllocationList(),
@@ -35,7 +83,7 @@ func NewFloatPool(size int) *FloatPool {
 // the pool once it is no longer used. Ensure any data that must persist
 // is copied before returned. Failure to return a slice can result in
 // leaks and unnecessary pooled allocations.
-func (fp *FloatPool) Make(length int) []*float64 {
+func (fp *FloatPoolAllocator) Make(length int) []*float64 {
 	fp.lock.Lock()
 	defer fp.lock.Unlock()
 
@@ -71,11 +119,11 @@ func (fp *FloatPool) Make(length int) []*float64 {
 	return sl
 }
 
-// Return accepts a slice allocation that was created by calling Make on
+// Delete accepts a slice allocation that was created by calling Make on
 // this pool instance. Ensure any data that must persist from the returned
 // slice is copied. Failure to return a slice can result in leaks and
 // unnecessary additional pooled allocations.
-func (fp *FloatPool) Return(v []*float64) {
+func (fp *FloatPoolAllocator) Delete(v []*float64) {
 	fp.lock.Lock()
 	defer fp.lock.Unlock()
 
@@ -96,13 +144,13 @@ func (fp *FloatPool) Return(v []*float64) {
 }
 
 // nils out indices of the slice parameter
-func (fp *FloatPool) clear(v []*float64) {
+func (fp *FloatPoolAllocator) clear(v []*float64) {
 	for i := range v {
 		v[i] = nil
 	}
 }
 
 // addressFor finds the address for the slice
-func (fp *FloatPool) addressFor(v []*float64) uintptr {
+func (fp *FloatPoolAllocator) addressFor(v []*float64) uintptr {
 	return uintptr(unsafe.Pointer(&v[0]))
 }

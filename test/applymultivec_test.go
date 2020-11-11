@@ -8,6 +8,7 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/memory"
 )
 
 type VectorGenerator interface {
@@ -186,6 +187,8 @@ func addBinary(vs ...[]*util.Vector) []*util.Vector {
 }
 
 func TestApplyMultiVectorOp(t *testing.T) {
+	util.SetMultiVectorAllocator(memory.PoolAllocatorType)
+
 	results := runRandom()
 
 	for i := 1; i < len(results); i++ {
@@ -200,6 +203,8 @@ func TestApplyMultiVectorOp(t *testing.T) {
 }
 
 func TestApplyMultiVectorOpDeterministic(t *testing.T) {
+	util.SetMultiVectorAllocator(memory.PoolAllocatorType)
+
 	results := runStatic()
 
 	for i := 0; i < len(results); i++ {
@@ -220,7 +225,7 @@ var benchResults []*util.Vector
 var benchMultiResults []*util.Vector
 
 func BenchmarkApplyMultiVectorOp(b *testing.B) {
-	util.UseMultiVectorDynamicAllocs(false)
+	util.SetMultiVectorAllocator(memory.PoolAllocatorType)
 
 	var results []*util.Vector
 
@@ -241,7 +246,7 @@ func BenchmarkApplyMultiVectorOp(b *testing.B) {
 }
 
 func BenchmarkApplyMultiVectorOpDynamic(b *testing.B) {
-	util.UseMultiVectorDynamicAllocs(true)
+	util.SetMultiVectorAllocator(memory.HeapAllocatorType)
 
 	var results []*util.Vector
 
@@ -310,7 +315,7 @@ func TestBoth(t *testing.T) {
 
 	for i := 0; i < len(r2); i++ {
 		for _, v := range r2[i] {
-			if v.Value != 5.0 {
+			if v.Value != 15.0 {
 				t.Errorf("Incorrect sum: %f\n", v.Value)
 			}
 		}

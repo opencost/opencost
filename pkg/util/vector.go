@@ -3,16 +3,32 @@ package util
 import (
 	"math"
 	"sort"
+	"sync"
 
 	"github.com/kubecost/cost-model/pkg/util/memory"
 )
 
+const (
+	MapPoolSize              = 4
+	InitialPoolAllocatorSize = 1024
+)
+
+var (
+	mapPool       memory.VectorMapPool       = memory.NewFlexibleMapPool(MapPoolSize)
+	multiMapPool  memory.MultiVectorMapPool  = memory.NewFlexibleMultiMapPool(MapPoolSize)
+	allocatorLock *sync.Mutex                = new(sync.Mutex)
+	allocator     memory.FloatSliceAllocator = nil
+)
+
+//--------------------------------------------------------------------------
+//  Vector
+//--------------------------------------------------------------------------
+
+// Vector is the representation of a timestamped data point
 type Vector struct {
 	Timestamp float64 `json:"timestamp"`
 	Value     float64 `json:"value"`
 }
-
-const MapPoolSize = 4
 
 // VectorSlice is an alias used to sort vectors
 type VectorSlice []*Vector
@@ -21,35 +37,20 @@ func (p VectorSlice) Len() int           { return len(p) }
 func (p VectorSlice) Less(i, j int) bool { return p[i].Timestamp < p[j].Timestamp }
 func (p VectorSlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
-var (
-	mapPool          memory.VectorMapPool      = memory.NewFlexibleMapPool(MapPoolSize)
-	multiMapPool     memory.MultiVectorMapPool = memory.NewFlexibleMultiMapPool(MapPoolSize)
-	floatPool        *memory.FloatPool         = memory.NewFloatPool(100)
-	useDynamicAllocs bool                      = false
-)
+// VectorJoinOp is an operation func that accepts a result vector pointer
+// for a specific timestamp and two float64 pointers representing the
+// input vectors for that timestamp. x or y inputs can be nil, but not
+// both. The op should use x and y values to set the Value on the result
+// ptr. If a result could not be generated, the op should return false,
+// which will omit the vector for the specific timestamp. Otherwise,
+// return true denoting a successful op.
+type VectorJoinOp func(result *Vector, x *float64, y *float64) bool
 
-func UseMultiVectorDynamicAllocs(use bool) {
-	useDynamicAllocs = use
-}
-
-// roundTimestamp rounds the given timestamp to the given precision; e.g. a
-// timestamp given in seconds, rounded to precision 10, will be rounded
-// to the nearest value dividible by 10 (24 goes to 20, but 25 goes to 30).
-func roundTimestamp(ts float64, precision float64) float64 {
-	return math.Round(ts/precision) * precision
-}
-
-// Makes a reasonable guess at capacity for vector join
-func capacityFor(xvs []*Vector, yvs []*Vector) int {
-	x := len(xvs)
-	y := len(yvs)
-
-	if x >= y {
-		return x + (y / 4)
-	}
-
-	return y + (x / 4)
-}
+// MultiVectorJoinOp is similar to VectorJoinOp, however instead of accepting
+// exactly 2 values (x and y respectively), you get an ordered slice of potential
+// float64 values. Nil is a potential value for some indices of the slice, but
+// _at least one_ index will contain a non-nil value.
+type MultiVectorJoinOp func(result *Vector, values []*float64) bool
 
 // ApplyVectorOp accepts two vectors, synchronizes timestamps, and executes an operation
 // on each vector. See VectorJoinOp for details.
@@ -200,10 +201,9 @@ func ApplyVectorOp(xvs []*Vector, yvs []*Vector, op VectorJoinOp) []*Vector {
 // followed by a binary NormalizeVectorByVector()
 func ApplyMultiVectorOp(op MultiVectorJoinOp, vecs ...[]*Vector) []*Vector {
 	total := len(vecs)
+	alloc := GetMultiVectorAllocator()
 
 	m := multiMapPool.Get()
-	//defer multiMapPool.Put(m)
-	//m := make(map[uint64][]*float64)
 	for index, vs := range vecs {
 		for _, v := range vs {
 			val := v.Value
@@ -211,11 +211,7 @@ func ApplyMultiVectorOp(op MultiVectorJoinOp, vecs ...[]*Vector) []*Vector {
 			uts := uint64(ts)
 
 			if _, ok := m[uts]; !ok {
-				if useDynamicAllocs {
-					m[uts] = make([]*float64, total)
-				} else {
-					m[uts] = floatPool.Make(total)
-				}
+				m[uts] = alloc.Make(total)
 			}
 
 			m[uts][index] = &val
@@ -231,10 +227,9 @@ func ApplyMultiVectorOp(op MultiVectorJoinOp, vecs ...[]*Vector) []*Vector {
 		if op(rv, v) {
 			results = append(results, rv)
 		}
-		if !useDynamicAllocs {
-			delete(m, k)
-			floatPool.Return(v)
-		}
+
+		delete(m, k)
+		alloc.Delete(v)
 	}
 	multiMapPool.Put(m)
 
@@ -243,20 +238,34 @@ func ApplyMultiVectorOp(op MultiVectorJoinOp, vecs ...[]*Vector) []*Vector {
 	return results
 }
 
-// VectorJoinOp is an operation func that accepts a result vector pointer
-// for a specific timestamp and two float64 pointers representing the
-// input vectors for that timestamp. x or y inputs can be nil, but not
-// both. The op should use x and y values to set the Value on the result
-// ptr. If a result could not be generated, the op should return false,
-// which will omit the vector for the specific timestamp. Otherwise,
-// return true denoting a successful op.
-type VectorJoinOp func(result *Vector, x *float64, y *float64) bool
+// GetMultiVectorAllocator returns the float slice allocator used in the multi-vector operations.
+func GetMultiVectorAllocator() memory.FloatSliceAllocator {
+	allocatorLock.Lock()
+	defer allocatorLock.Unlock()
 
-// MultiVectorJoinOp is similar to VectorJoinOp, however instead of accepting
-// exactly 2 values (x and y respectively), you get an ordered slice of potential
-// float64 values. Nil is a potential value for some indices of the slice, but
-// _at least one_ index will contain a non-nil value.
-type MultiVectorJoinOp func(result *Vector, values []*float64) bool
+	// default to pooled allocator if uninitialized
+	if allocator == nil {
+		allocator = memory.NewFloatPoolAllocator(InitialPoolAllocatorSize)
+	}
+
+	return allocator
+}
+
+// SetMultiVectorAllocator allows setting the allocator to a go runtime dynamic heap allocator
+// instead of the default pooled allocator
+func SetMultiVectorAllocator(allocatorType memory.AllocatorType) {
+	allocatorLock.Lock()
+	defer allocatorLock.Unlock()
+
+	switch allocatorType {
+	case memory.HeapAllocatorType:
+		allocator = memory.NewFloatHeapAllocator()
+	case memory.PoolAllocatorType:
+		fallthrough
+	default:
+		allocator = memory.NewFloatPoolAllocator(InitialPoolAllocatorSize)
+	}
+}
 
 // returns a nil ptr or valid float ptr based on the ok bool
 func VectorValue(v float64, ok bool) *float64 {
@@ -271,10 +280,7 @@ func VectorValue(v float64, ok bool) *float64 {
 // which has had its timestamps rounded and its values divided by the values
 // of the Vectors of yvs, such that yvs is the "unit" Vector slice.
 func NormalizeVectorByVector(xvs []*Vector, yvs []*Vector) []*Vector {
-	normalizeMultiOp := func(result *Vector, values []*float64) bool {
-		x := values[0]
-		y := values[1]
-
+	normalizeOp := func(result *Vector, x *float64, y *float64) bool {
 		if x != nil && y != nil && *y != 0 {
 			result.Value = *x / *y
 		} else if x != nil {
@@ -286,6 +292,24 @@ func NormalizeVectorByVector(xvs []*Vector, yvs []*Vector) []*Vector {
 		return true
 	}
 
-	//return ApplyVectorOp(xvs, yvs, normalizeOp)
-	return ApplyMultiVectorOp(normalizeMultiOp, xvs, yvs)
+	return ApplyVectorOp(xvs, yvs, normalizeOp)
+}
+
+// roundTimestamp rounds the given timestamp to the given precision; e.g. a
+// timestamp given in seconds, rounded to precision 10, will be rounded
+// to the nearest value dividible by 10 (24 goes to 20, but 25 goes to 30).
+func roundTimestamp(ts float64, precision float64) float64 {
+	return math.Round(ts/precision) * precision
+}
+
+// Makes a reasonable guess at capacity for vector join
+func capacityFor(xvs []*Vector, yvs []*Vector) int {
+	x := len(xvs)
+	y := len(yvs)
+
+	if x >= y {
+		return x + (y / 4)
+	}
+
+	return y + (x / 4)
 }
