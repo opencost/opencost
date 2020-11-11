@@ -637,6 +637,13 @@ func (p *Accesses) GetServiceAccountStatus(w http.ResponseWriter, _ *http.Reques
 	w.Write(WrapData(A.Cloud.ServiceAccountStatus(), nil))
 }
 
+func (p *Accesses) GetPricingSourceStatus(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	w.Write(WrapData(A.Cloud.PricingSourceStatus(), nil))
+}
+
 func (p *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -681,6 +688,7 @@ type ConfigWatchers struct {
 // captures the panic event in sentry
 func capturePanicEvent(err string, stack string) {
 	msg := fmt.Sprintf("Panic: %s\nStackTrace: %s\n", err, stack)
+	klog.V(1).Infoln(msg)
 	sentry.CurrentHub().CaptureEvent(&sentry.Event{
 		Level:   sentry.LevelError,
 		Message: msg,
@@ -711,11 +719,11 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	klog.InitFlags(nil)
 	flag.Set("v", "3")
 	flag.Parse()
-	klog.V(1).Infof("Starting cost-model (git commit \"%s\")", gitCommit)
+	klog.V(1).Infof("Starting cost-model (git commit \"%s\")", env.GetAppVersion())
 
 	var err error
 	if errorReportingEnabled {
-		err = sentry.Init(sentry.ClientOptions{Release: gitCommit})
+		err = sentry.Init(sentry.ClientOptions{Release: env.GetAppVersion()})
 		if err != nil {
 			klog.Infof("Failed to initialize sentry for error reporting")
 		} else {
@@ -1019,6 +1027,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	Router.GET("/clusterInfo", A.ClusterInfo)
 	Router.GET("/clusterInfoMap", A.GetClusterInfoMap)
 	Router.GET("/serviceAccountStatus", A.GetServiceAccountStatus)
+	Router.GET("/pricingSourceStatus", A.GetPricingSourceStatus)
 
 	// cluster manager endpoints
 	Router.GET("/clusters", managerEndpoints.GetAllClusters)
