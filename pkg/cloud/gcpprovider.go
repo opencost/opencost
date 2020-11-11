@@ -1168,7 +1168,7 @@ func (gcp *GCP) ApplyReservedInstancePricing(nodes map[string]*Node) {
 			continue
 		}
 
-		nodeRegion, ok := kNode.Labels[v1.LabelZoneRegion]
+		nodeRegion, ok := util.GetRegion(kNode.Labels)
 		if !ok {
 			klog.V(4).Infof("[Reserved] Could not find node region")
 			continue
@@ -1322,7 +1322,8 @@ func (key *pvKey) Features() string {
 	} else if storageClass == "pd-standard" {
 		storageClass = "pdstandard"
 	}
-	return key.Labels[v1.LabelZoneRegion] + "," + storageClass
+	region, _ := util.GetRegion(key.Labels)
+	return region + "," + storageClass
 }
 
 type gcpKey struct {
@@ -1355,7 +1356,8 @@ func (gcp *gcpKey) GPUType() string {
 
 // GetKey maps node labels to information needed to retrieve pricing data
 func (gcp *gcpKey) Features() string {
-	instanceType := strings.ToLower(strings.Join(strings.Split(gcp.Labels[v1.LabelInstanceType], "-")[:2], ""))
+	it, _ := util.GetInstanceType(gcp.Labels)
+	instanceType := strings.ToLower(strings.Join(strings.Split(it, "-")[:2], ""))
 	if instanceType == "n1highmem" || instanceType == "n1highcpu" {
 		instanceType = "n1standard" // These are priced the same. TODO: support n1ultrahighmem
 	} else if instanceType == "n2highmem" || instanceType == "n2highcpu" {
@@ -1365,7 +1367,8 @@ func (gcp *gcpKey) Features() string {
 	} else if strings.HasPrefix(instanceType, "custom") {
 		instanceType = "custom" // The suffix of custom does not matter
 	}
-	region := strings.ToLower(gcp.Labels[v1.LabelZoneRegion])
+	r, _ := util.GetRegion(gcp.Labels)
+	region := strings.ToLower(r)
 	var usageType string
 
 	if t, ok := gcp.Labels["cloud.google.com/gke-preemptible"]; ok && t == "true" {
@@ -1427,6 +1430,10 @@ func (gcp *GCP) ServiceAccountStatus() *ServiceAccountStatus {
 	return &ServiceAccountStatus{
 		Checks: []*ServiceAccountCheck{},
 	}
+}
+
+func (gcp *GCP) PricingSourceStatus() map[string]*PricingSource {
+	return make(map[string]*PricingSource)
 }
 
 func (gcp *GCP) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {

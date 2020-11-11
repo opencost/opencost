@@ -637,6 +637,13 @@ func (p *Accesses) GetServiceAccountStatus(w http.ResponseWriter, _ *http.Reques
 	w.Write(WrapData(A.Cloud.ServiceAccountStatus(), nil))
 }
 
+func (p *Accesses) GetPricingSourceStatus(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	w.Write(WrapData(A.Cloud.PricingSourceStatus(), nil))
+}
+
 func (p *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -1020,6 +1027,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	Router.GET("/clusterInfo", A.ClusterInfo)
 	Router.GET("/clusterInfoMap", A.GetClusterInfoMap)
 	Router.GET("/serviceAccountStatus", A.GetServiceAccountStatus)
+	Router.GET("/pricingSourceStatus", A.GetPricingSourceStatus)
 
 	// cluster manager endpoints
 	Router.GET("/clusters", managerEndpoints.GetAllClusters)
