@@ -679,7 +679,10 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		if modeTotals, ok := clusterNodeModeCPUTotal[key]; ok {
 			for mode, subtotal := range modeTotals {
 				// Compute percentage for the current cluster, node, mode
-				pct := subtotal / total
+				pct := 0.0
+				if total > 0 {
+					pct = subtotal / total
+				}
 
 				if _, ok := nodeMap[key]; !ok {
 					log.Warningf("ClusterNodes: CPU mode data for unidentified node")
