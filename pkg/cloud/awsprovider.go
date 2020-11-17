@@ -38,7 +38,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-const awsReservedInstancePricePerHour = 0.0287
 const supportedSpotFeedVersion = "1"
 const SpotInfoUpdateType = "spotinfo"
 const AthenaInfoUpdateType = "athenainfo"
@@ -71,10 +70,8 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 	rps.Error = aws.RIPricingStatus
 	if rps.Error != "" {
 		rps.Available = false
-	} else if len(aws.RIPricingByInstanceID) > 0 {
-		rps.Available = true
 	} else {
-		rps.Error = "No reserved instances detected"
+		rps.Available = true
 	}
 	sources[ReservedInstancePricingSource] = rps
 	return sources
