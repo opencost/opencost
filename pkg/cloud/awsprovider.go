@@ -134,6 +134,7 @@ type AWS struct {
 	BaseGPUPrice                string
 	BaseSpotCPUPrice            string
 	BaseSpotRAMPrice            string
+	BaseSpotGPUPrice            string
 	SpotLabelName               string
 	SpotLabelValue              string
 	SpotDataRegion              string
@@ -616,6 +617,7 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.BaseGPUPrice = c.GPU
 	aws.BaseSpotCPUPrice = c.SpotCPU
 	aws.BaseSpotRAMPrice = c.SpotRAM
+	aws.BaseSpotGPUPrice = c.SpotGPU
 	aws.SpotLabelName = c.SpotLabel
 	aws.SpotLabelValue = c.SpotLabelValue
 	aws.SpotDataBucket = c.SpotDataBucket
@@ -1007,6 +1009,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 			VCPUCost:     aws.BaseSpotCPUPrice,
 			RAM:          terms.Memory,
 			GPU:          terms.GPU,
+			CPUCost:      aws.BaseSpotGPUPrice,
 			RAMCost:      aws.BaseSpotRAMPrice,
 			Storage:      terms.Storage,
 			BaseCPUPrice: aws.BaseCPUPrice,
