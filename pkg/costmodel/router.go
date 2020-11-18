@@ -773,6 +773,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 			}
 		}
 	}
+	klog.Infof("Using scrape interval of %f", scrapeInterval.Seconds())
 
 	m, err := prom.Validate(promCli)
 	if err != nil || m.Running == false {
