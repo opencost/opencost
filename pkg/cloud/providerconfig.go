@@ -89,7 +89,9 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*CustomPricing, err
 	}
 
 	pc.customPricing = &customPricing
-
+	if pc.customPricing.SpotGPU == "" {
+		pc.customPricing.SpotGPU = DefaultPricing().SpotGPU // Migration for users without this value set by default.
+	}
 	return pc.customPricing, nil
 }
 
@@ -169,6 +171,7 @@ func DefaultPricing() *CustomPricing {
 		RAM:                   "0.004237",
 		SpotRAM:               "0.000892",
 		GPU:                   "0.95",
+		SpotGPU:               "0.308",
 		Storage:               "0.00005479452",
 		ZoneNetworkEgress:     "0.01",
 		RegionNetworkEgress:   "0.01",
