@@ -47,19 +47,21 @@ const (
 var isCron = regexp.MustCompile(`^(.+)-\d{10}$`)
 
 type CostModel struct {
-	Cache        clustercache.ClusterCache
-	ClusterMap   clusters.ClusterMap
-	RequestGroup *singleflight.Group
+	Cache          clustercache.ClusterCache
+	ClusterMap     clusters.ClusterMap
+	ScrapeInterval time.Duration
+	RequestGroup   *singleflight.Group
 }
 
-func NewCostModel(cache clustercache.ClusterCache, clusterMap clusters.ClusterMap) *CostModel {
+func NewCostModel(cache clustercache.ClusterCache, clusterMap clusters.ClusterMap, scrapeInterval time.Duration) *CostModel {
 	// request grouping to prevent over-requesting the same data prior to caching
 	requestGroup := new(singleflight.Group)
 
 	return &CostModel{
-		Cache:        cache,
-		ClusterMap:   clusterMap,
-		RequestGroup: requestGroup,
+		Cache:          cache,
+		ClusterMap:     clusterMap,
+		RequestGroup:   requestGroup,
+		ScrapeInterval: scrapeInterval,
 	}
 }
 
@@ -189,7 +191,7 @@ const (
 		label_replace(label_replace(
 			sum(
 				sum_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s])
-			) by (namespace,container,pod,node,cluster_id) * (scalar(avg(prometheus_target_interval_length_seconds)) / 60 / 60)
+			) by (namespace,container,pod,node,cluster_id) * %f / 60 / 60
 		, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
 	// queryCPUAllocationVCPUHours yields the total VCPU-hour CPU allocation over the given
 	// window, aggregated by container.
@@ -201,11 +203,11 @@ const (
 		label_replace(label_replace(
 			sum(
 				sum_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s])
-			) by (namespace,container,pod,node,cluster_id) * (scalar(avg(prometheus_target_interval_length_seconds)) / 60 / 60)
+			) by (namespace,container,pod,node,cluster_id) * %f / 60 / 60
 		, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
 	// queryPVCAllocationFmt yields the total byte-hour PVC allocation over the given window.
 	// sum_over_time(each byte) = [byte*scrape] by metric *(scalar(avg(prometheus_target_interval_length_seconds)) = [seconds/scrape] / 60 / 60 =  [hours/scrape] by pod
-	queryPVCAllocationFmt     = `sum(sum_over_time(pod_pvc_allocation[%s])) by (cluster_id, namespace, pod, persistentvolume, persistentvolumeclaim) * scalar(avg(prometheus_target_interval_length_seconds)/60/60)`
+	queryPVCAllocationFmt     = `sum(sum_over_time(pod_pvc_allocation[%s])) by (cluster_id, namespace, pod, persistentvolume, persistentvolumeclaim) * %f/60/60`
 	queryPVHourlyCostFmt      = `avg_over_time(pv_hourly_cost[%s])`
 	queryNSLabels             = `avg_over_time(kube_namespace_labels[%s])`
 	queryPodLabels            = `avg_over_time(kube_pod_labels[%s])`
@@ -1497,17 +1499,19 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		return CostDataRangeFromSQL("", "", windowString, remoteStartStr, remoteEndStr)
 	}
 
+	scrapeIntervalSeconds := cm.ScrapeInterval.Seconds()
+
 	ctx := prom.NewContext(cli)
 
-	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, windowString)
-	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, windowString)
+	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, windowString, scrapeIntervalSeconds)
+	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, windowString, scrapeIntervalSeconds)
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, windowString, "", windowString, "")
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, windowString, "", windowString, "")
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, windowString, "", windowString, "")
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, windowString, "")
 	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, windowString, "", windowString, "", resolutionHours, windowString, "")
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
-	queryPVCAllocation := fmt.Sprintf(queryPVCAllocationFmt, windowString)
+	queryPVCAllocation := fmt.Sprintf(queryPVCAllocationFmt, windowString, scrapeIntervalSeconds)
 	queryPVHourlyCost := fmt.Sprintf(queryPVHourlyCostFmt, windowString)
 	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, windowString, "")
 	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, windowString, "")

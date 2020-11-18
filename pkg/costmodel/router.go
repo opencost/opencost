@@ -744,8 +744,36 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 
 	timeout := 120 * time.Second
 	keepAlive := 120 * time.Second
+	scrapeInterval, _ := time.ParseDuration("1m")
 
 	promCli, _ := prom.NewPrometheusClient(address, timeout, keepAlive, queryConcurrency, "")
+
+	api := prometheusAPI.NewAPI(promCli)
+	pcfg, err := api.Config(context.Background())
+	if err != nil {
+		klog.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/thanos here.", address, err.Error(), prometheusTroubleshootingEp)
+	} else {
+		klog.V(1).Info("Retrieved a prometheus config file from: " + address)
+		sc, err := GetPrometheusConfig(pcfg.YAML)
+		if err != nil {
+			klog.Infof("Fix YAML error %s", err)
+		}
+		for _, scrapeconfig := range sc.ScrapeConfigs {
+			if scrapeconfig.JobName == GetKubecostJobName() {
+				if scrapeconfig.ScrapeInterval != "" {
+					si := scrapeconfig.ScrapeInterval
+					sid, err := time.ParseDuration(si)
+					if err != nil {
+						klog.Infof("error parseing scrapeConfig for %s", scrapeconfig.JobName)
+					} else {
+						klog.Infof("Found Kubecost job scrape interval of: %s", si)
+						scrapeInterval = sid
+					}
+				}
+			}
+		}
+	}
+
 	m, err := prom.Validate(promCli)
 	if err != nil || m.Running == false {
 		if err != nil {
@@ -1001,7 +1029,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		PersistentVolumePriceRecorder: pvGv,
 		ClusterManagementCostRecorder: ClusterManagementCostRecorder,
 		LBCostRecorder:                LBCostRecorder,
-		Model:                         NewCostModel(k8sCache, clusterMap),
+		Model:                         NewCostModel(k8sCache, clusterMap, scrapeInterval),
 		OutOfClusterCache:             outOfClusterCache,
 	}
 
