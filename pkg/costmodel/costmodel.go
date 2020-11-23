@@ -739,7 +739,7 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 			if _, ok := missingNodes[node]; ok {
 				missingNodes[node].VCPUCost = fmt.Sprintf("%f", costv[0].Value)
 			} else {
-				log.DedupedWarningf(5, "Node `%s` in prometheus but not k8s api")
+				log.DedupedWarningf(5, "Node `%s` in prometheus but not k8s api", node)
 			}
 		}
 		for node, costv := range ramCosts {
