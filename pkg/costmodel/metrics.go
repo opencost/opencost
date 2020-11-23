@@ -1,6 +1,7 @@
 package costmodel
 
 import (
+	"context"
 	"math"
 	"regexp"
 	"sort"
@@ -43,7 +44,7 @@ func (sc StatefulsetCollector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (sc StatefulsetCollector) Collect(ch chan<- prometheus.Metric) {
-	ds, _ := sc.KubeClientSet.AppsV1().StatefulSets("").List(metav1.ListOptions{})
+	ds, _ := sc.KubeClientSet.AppsV1().StatefulSets("").List(context.Background(), metav1.ListOptions{})
 	for _, statefulset := range ds.Items {
 		labels, values := kubeLabelsToPrometheusLabels(statefulset.Spec.Selector.MatchLabels)
 		m := newStatefulsetMetric(statefulset.GetName(), statefulset.GetNamespace(), "statefulSet_match_labels", labels, values)
@@ -129,7 +130,7 @@ func (sc DeploymentCollector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (sc DeploymentCollector) Collect(ch chan<- prometheus.Metric) {
-	ds, _ := sc.KubeClientSet.AppsV1().Deployments("").List(metav1.ListOptions{})
+	ds, _ := sc.KubeClientSet.AppsV1().Deployments("").List(context.Background(), metav1.ListOptions{})
 	for _, deployment := range ds.Items {
 		labels, values := kubeLabelsToPrometheusLabels(deployment.Spec.Selector.MatchLabels)
 		m := newDeploymentMetric(deployment.GetName(), deployment.GetNamespace(), "deployment_match_labels", labels, values)
@@ -215,7 +216,7 @@ func (sc ServiceCollector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (sc ServiceCollector) Collect(ch chan<- prometheus.Metric) {
-	svcs, _ := sc.KubeClientSet.CoreV1().Services("").List(metav1.ListOptions{})
+	svcs, _ := sc.KubeClientSet.CoreV1().Services("").List(context.Background(), metav1.ListOptions{})
 	for _, svc := range svcs.Items {
 		labels, values := kubeLabelsToPrometheusLabels(svc.Spec.Selector)
 		m := newServiceMetric(svc.GetName(), svc.GetNamespace(), "service_selector_labels", labels, values)
