@@ -706,7 +706,6 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 		queryHistoricalRAMCost := fmt.Sprintf(`avg(avg_over_time(node_ram_hourly_cost[%s] offset %s)) by (node, instance, cluster_id)`, window, offset)
 		queryHistoricalGPUCost := fmt.Sprintf(`avg(avg_over_time(node_gpu_hourly_cost[%s] offset %s)) by (node, instance, cluster_id)`, window, offset)
 
-		klog.Infof("RUNNIGN QUERY: %s", queryHistoricalCPUCost)
 		ctx := prom.NewContext(cli)
 		cpuCostResCh := ctx.Query(queryHistoricalCPUCost)
 		ramCostResCh := ctx.Query(queryHistoricalRAMCost)
