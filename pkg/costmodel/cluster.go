@@ -429,7 +429,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	queryNodeCPUModeTotal := fmt.Sprintf(`sum(rate(node_cpu_seconds_total[%s:%dm]%s)) by (kubernetes_node, cluster_id, mode)`, durationStr, minsPerResolution, offsetStr)
 	queryNodeRAMSystemPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace="kube-system"}[%s:%dm]%s)) by (instance, cluster_id) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:%dm]%s)) by (node, cluster_id), "instance", "$1", "node", "(.*)")) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
 	queryNodeRAMUserPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace!="kube-system"}[%s:%dm]%s)) by (instance, cluster_id) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:%dm]%s)) by (node, cluster_id), "instance", "$1", "node", "(.*)")) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
-	queryActiveMins := fmt.Sprintf(`node_total_hourly_cost[%s:%dm]%s`, durationStr, minsPerResolution, offsetStr)
+	queryActiveMins := fmt.Sprintf(`avg(node_total_hourly_cost) by (node,cluster_id)[%s:%dm]%s`, durationStr, minsPerResolution, offsetStr)
 
 	// Return errors if these fail
 	resChNodeCPUCost := requiredCtx.Query(queryNodeCPUCost)
@@ -679,7 +679,10 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		if modeTotals, ok := clusterNodeModeCPUTotal[key]; ok {
 			for mode, subtotal := range modeTotals {
 				// Compute percentage for the current cluster, node, mode
-				pct := subtotal / total
+				pct := 0.0
+				if total > 0 {
+					pct = subtotal / total
+				}
 
 				if _, ok := nodeMap[key]; !ok {
 					log.Warningf("ClusterNodes: CPU mode data for unidentified node")

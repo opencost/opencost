@@ -687,7 +687,11 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 				}
 
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "N2") {
-					instanceType = "n2standard"
+					if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "N2D AMD") {
+						instanceType = "n2dstandard"
+					} else {
+						instanceType = "n2standard"
+					}
 				}
 
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "COMPUTE OPTIMIZED") {
@@ -1449,7 +1453,7 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 	switch class {
 	case "e2", "f1", "g1":
 		discount = 0.0
-	case "n2":
+	case "n2", "n2d":
 		discount = 0.2
 	}
 	return discount
