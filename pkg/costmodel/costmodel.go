@@ -702,9 +702,14 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 	if len(missingNodes) > 0 {
 		defer measureTime(time.Now(), profileThreshold, "Finding Deleted Node Info")
 
-		queryHistoricalCPUCost := fmt.Sprintf(`avg(avg_over_time(node_cpu_hourly_cost[%s] offset %s)) by (node, instance, cluster_id)`, window, offset)
-		queryHistoricalRAMCost := fmt.Sprintf(`avg(avg_over_time(node_ram_hourly_cost[%s] offset %s)) by (node, instance, cluster_id)`, window, offset)
-		queryHistoricalGPUCost := fmt.Sprintf(`avg(avg_over_time(node_gpu_hourly_cost[%s] offset %s)) by (node, instance, cluster_id)`, window, offset)
+		offsetStr := ""
+		if offset != "" {
+			offsetStr = fmt.Sprintf("offset %s", offset)
+		}
+
+		queryHistoricalCPUCost := fmt.Sprintf(`avg(avg_over_time(node_cpu_hourly_cost[%s] %s)) by (node, instance, cluster_id)`, window, offsetStr)
+		queryHistoricalRAMCost := fmt.Sprintf(`avg(avg_over_time(node_ram_hourly_cost[%s] %s)) by (node, instance, cluster_id)`, window, offsetStr)
+		queryHistoricalGPUCost := fmt.Sprintf(`avg(avg_over_time(node_gpu_hourly_cost[%s] %s)) by (node, instance, cluster_id)`, window, offsetStr)
 
 		ctx := prom.NewContext(cli)
 		cpuCostResCh := ctx.Query(queryHistoricalCPUCost)
