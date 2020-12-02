@@ -1495,8 +1495,6 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		return nil, err
 	}
 
-	klog.Infof("START TIME %s", start)
-
 	clusterID := env.GetClusterID()
 
 	durHrs := end.Sub(start).Hours() + 1
