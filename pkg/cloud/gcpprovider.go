@@ -687,7 +687,11 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 				}
 
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "N2") {
-					instanceType = "n2standard"
+					if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "N2D AMD") {
+						instanceType = "n2dstandard"
+					} else {
+						instanceType = "n2standard"
+					}
 				}
 
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "COMPUTE OPTIMIZED") {
@@ -1168,7 +1172,7 @@ func (gcp *GCP) ApplyReservedInstancePricing(nodes map[string]*Node) {
 			continue
 		}
 
-		nodeRegion, ok := kNode.Labels[v1.LabelZoneRegion]
+		nodeRegion, ok := util.GetRegion(kNode.Labels)
 		if !ok {
 			klog.V(4).Infof("[Reserved] Could not find node region")
 			continue
@@ -1297,6 +1301,10 @@ type pvKey struct {
 	DefaultRegion          string
 }
 
+func (key *pvKey) ID() string {
+	return ""
+}
+
 func (key *pvKey) GetStorageClass() string {
 	return key.StorageClass
 }
@@ -1318,7 +1326,8 @@ func (key *pvKey) Features() string {
 	} else if storageClass == "pd-standard" {
 		storageClass = "pdstandard"
 	}
-	return key.Labels[v1.LabelZoneRegion] + "," + storageClass
+	region, _ := util.GetRegion(key.Labels)
+	return region + "," + storageClass
 }
 
 type gcpKey struct {
@@ -1351,7 +1360,8 @@ func (gcp *gcpKey) GPUType() string {
 
 // GetKey maps node labels to information needed to retrieve pricing data
 func (gcp *gcpKey) Features() string {
-	instanceType := strings.ToLower(strings.Join(strings.Split(gcp.Labels[v1.LabelInstanceType], "-")[:2], ""))
+	it, _ := util.GetInstanceType(gcp.Labels)
+	instanceType := strings.ToLower(strings.Join(strings.Split(it, "-")[:2], ""))
 	if instanceType == "n1highmem" || instanceType == "n1highcpu" {
 		instanceType = "n1standard" // These are priced the same. TODO: support n1ultrahighmem
 	} else if instanceType == "n2highmem" || instanceType == "n2highcpu" {
@@ -1361,7 +1371,8 @@ func (gcp *gcpKey) Features() string {
 	} else if strings.HasPrefix(instanceType, "custom") {
 		instanceType = "custom" // The suffix of custom does not matter
 	}
-	region := strings.ToLower(gcp.Labels[v1.LabelZoneRegion])
+	r, _ := util.GetRegion(gcp.Labels)
+	region := strings.ToLower(r)
 	var usageType string
 
 	if t, ok := gcp.Labels["cloud.google.com/gke-preemptible"]; ok && t == "true" {
@@ -1425,6 +1436,10 @@ func (gcp *GCP) ServiceAccountStatus() *ServiceAccountStatus {
 	}
 }
 
+func (gcp *GCP) PricingSourceStatus() map[string]*PricingSource {
+	return make(map[string]*PricingSource)
+}
+
 func (gcp *GCP) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
 	class := strings.Split(instanceType, "-")[0]
 	return 1.0 - ((1.0 - sustainedUseDiscount(class, defaultDiscount, isPreemptible)) * (1.0 - negotiatedDiscount))
@@ -1438,7 +1453,7 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 	switch class {
 	case "e2", "f1", "g1":
 		discount = 0.0
-	case "n2":
+	case "n2", "n2d":
 		discount = 0.2
 	}
 	return discount
@@ -1457,4 +1472,8 @@ func (gcp *GCP) ParseID(id string) string {
 	}
 
 	return match[1]
+}
+
+func (gcp *GCP) ParsePVID(id string) string {
+	return id
 }

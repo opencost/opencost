@@ -27,6 +27,7 @@ require (
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	google.golang.org/api v0.4.0
+	gopkg.in/yaml.v2 v2.2.4
 	k8s.io/api v0.0.0-20190913080256-21721929cffa
 	k8s.io/apimachinery v0.0.0-20190913075812-e119e5e154b6
 	k8s.io/client-go v0.0.0-20190620085101-78d2af792bab

@@ -139,7 +139,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 	costPerGBHr := 0.04 / 730.0
 
 	ctx := prom.NewContext(client)
-	queryPVCost := fmt.Sprintf(`sum_over_time((avg(kube_persistentvolume_capacity_bytes) by (cluster_id, persistentvolume) * avg(pv_hourly_cost) by (cluster_id, persistentvolume))[%s:%dm]%s)/1024/1024/1024 * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
+	queryPVCost := fmt.Sprintf(`sum_over_time((avg(kube_persistentvolume_capacity_bytes) by (cluster_id, persistentvolume)  * on(cluster_id, persistentvolume) group_right avg(pv_hourly_cost) by (cluster_id, persistentvolume,provider_id))[%s:%dm]%s)/1024/1024/1024 * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
 	queryPVSize := fmt.Sprintf(`avg_over_time(kube_persistentvolume_capacity_bytes[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 	queryActiveMins := fmt.Sprintf(`count(pv_hourly_cost) by (cluster_id, persistentvolume)[%s:%dm]%s`, durationStr, minsPerResolution, offsetStr)
 
@@ -193,6 +193,10 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 			}
 		}
 		diskMap[key].Cost += cost
+		providerID, _ := result.GetString("provider_id") // just put the providerID set up here, it's the simplest query.
+		if providerID != "" {
+			diskMap[key].ProviderID = provider.ParsePVID(providerID)
+		}
 	}
 
 	for _, result := range resPVSize {
@@ -287,9 +291,10 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 		key := fmt.Sprintf("%s/%s", cluster, name)
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
-				Cluster: cluster,
-				Name:    name,
-				Local:   true,
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+				Local:     true,
 			}
 		}
 		diskMap[key].Bytes = bytes
@@ -412,28 +417,33 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	// [$/hr] * [min/res]*[hr/min] = [$/res]
 	hourlyToCumulative := float64(minsPerResolution) * (1.0 / 60.0)
 
-	ctx := prom.NewContext(client)
+	requiredCtx := prom.NewContext(client)
+	optionalCtx := prom.NewContext(client)
+
 	queryNodeCPUCost := fmt.Sprintf(`sum_over_time((avg(kube_node_status_capacity_cpu_cores) by (cluster_id, node) * on(node, cluster_id) group_right avg(node_cpu_hourly_cost) by (cluster_id, node, instance_type, provider_id))[%s:%dm]%s) * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
 	queryNodeCPUCores := fmt.Sprintf(`avg_over_time(avg(kube_node_status_capacity_cpu_cores) by (cluster_id, node)[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 	queryNodeRAMCost := fmt.Sprintf(`sum_over_time((avg(kube_node_status_capacity_memory_bytes) by (cluster_id, node) * on(cluster_id, node) group_right avg(node_ram_hourly_cost) by (cluster_id, node, instance_type, provider_id))[%s:%dm]%s) / 1024 / 1024 / 1024 * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
 	queryNodeRAMBytes := fmt.Sprintf(`avg_over_time(avg(kube_node_status_capacity_memory_bytes) by (cluster_id, node)[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
-	queryNodeGPUCost := fmt.Sprintf(`sum_over_time((avg(node_gpu_hourly_cost) by (cluster_id, node, provider_id))[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
+	queryNodeGPUCost := fmt.Sprintf(`sum_over_time((avg(node_gpu_hourly_cost * %d.0 / 60.0) by (cluster_id, node, provider_id))[%s:%dm]%s)`, minsPerResolution, durationStr, minsPerResolution, offsetStr)
 	queryNodeLabels := fmt.Sprintf(`avg_over_time(kubecost_node_is_spot[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
-	queryNodeCPUModePct := fmt.Sprintf(`sum(rate(node_cpu_seconds_total[%s:%dm]%s)) by (kubernetes_node, cluster_id, mode) / ignoring(mode) group_left sum(rate(node_cpu_seconds_total[%s:%dm]%s)) by (kubernetes_node, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
-	queryNodeRAMSystemPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace="kube-system"}[%s:%dm]%s)) by (instance, cluster_id) / sum(sum_over_time(label_replace(kube_node_status_capacity_memory_bytes, "instance", "$1", "node", "(.*)")[%s:%dm]%s)) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
-	queryNodeRAMUserPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace!="kube-system"}[%s:%dm]%s)) by (instance, cluster_id) / sum(sum_over_time(label_replace(kube_node_status_capacity_memory_bytes, "instance", "$1", "node", "(.*)")[%s:%dm]%s)) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
-	queryActiveMins := fmt.Sprintf(`node_total_hourly_cost[%s:%dm]%s`, durationStr, minsPerResolution, offsetStr)
+	queryNodeCPUModeTotal := fmt.Sprintf(`sum(rate(node_cpu_seconds_total[%s:%dm]%s)) by (kubernetes_node, cluster_id, mode)`, durationStr, minsPerResolution, offsetStr)
+	queryNodeRAMSystemPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace="kube-system"}[%s:%dm]%s)) by (instance, cluster_id) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:%dm]%s)) by (node, cluster_id), "instance", "$1", "node", "(.*)")) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
+	queryNodeRAMUserPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace!="kube-system"}[%s:%dm]%s)) by (instance, cluster_id) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:%dm]%s)) by (node, cluster_id), "instance", "$1", "node", "(.*)")) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
+	queryActiveMins := fmt.Sprintf(`avg(node_total_hourly_cost) by (node,cluster_id)[%s:%dm]%s`, durationStr, minsPerResolution, offsetStr)
 
-	resChNodeCPUCost := ctx.Query(queryNodeCPUCost)
-	resChNodeCPUCores := ctx.Query(queryNodeCPUCores)
-	resChNodeRAMCost := ctx.Query(queryNodeRAMCost)
-	resChNodeRAMBytes := ctx.Query(queryNodeRAMBytes)
-	resChNodeGPUCost := ctx.Query(queryNodeGPUCost)
-	resChNodeLabels := ctx.Query(queryNodeLabels)
-	resChNodeCPUModePct := ctx.Query(queryNodeCPUModePct)
-	resChNodeRAMSystemPct := ctx.Query(queryNodeRAMSystemPct)
-	resChNodeRAMUserPct := ctx.Query(queryNodeRAMUserPct)
-	resChActiveMins := ctx.Query(queryActiveMins)
+	// Return errors if these fail
+	resChNodeCPUCost := requiredCtx.Query(queryNodeCPUCost)
+	resChNodeCPUCores := requiredCtx.Query(queryNodeCPUCores)
+	resChNodeRAMCost := requiredCtx.Query(queryNodeRAMCost)
+	resChNodeRAMBytes := requiredCtx.Query(queryNodeRAMBytes)
+	resChNodeGPUCost := requiredCtx.Query(queryNodeGPUCost)
+	resChNodeLabels := requiredCtx.Query(queryNodeLabels)
+	resChActiveMins := requiredCtx.Query(queryActiveMins)
+
+	// Do not return errors if these fail, but log warnings
+	resChNodeCPUModeTotal := optionalCtx.Query(queryNodeCPUModeTotal)
+	resChNodeRAMSystemPct := optionalCtx.Query(queryNodeRAMSystemPct)
+	resChNodeRAMUserPct := optionalCtx.Query(queryNodeRAMUserPct)
 
 	resNodeCPUCost, _ := resChNodeCPUCost.Await()
 	resNodeCPUCores, _ := resChNodeCPUCores.Await()
@@ -441,12 +451,21 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	resNodeRAMCost, _ := resChNodeRAMCost.Await()
 	resNodeRAMBytes, _ := resChNodeRAMBytes.Await()
 	resNodeLabels, _ := resChNodeLabels.Await()
-	resNodeCPUModePct, _ := resChNodeCPUModePct.Await()
+	resNodeCPUModeTotal, _ := resChNodeCPUModeTotal.Await()
 	resNodeRAMSystemPct, _ := resChNodeRAMSystemPct.Await()
 	resNodeRAMUserPct, _ := resChNodeRAMUserPct.Await()
 	resActiveMins, _ := resChActiveMins.Await()
-	if ctx.ErrorCollector.IsError() {
-		return nil, ctx.Errors()
+
+	if optionalCtx.ErrorCollector.IsError() {
+		for _, err := range optionalCtx.Errors() {
+			log.Warningf("ClusterNodes: %s", err)
+		}
+	}
+	if requiredCtx.ErrorCollector.IsError() {
+		for _, err := range requiredCtx.Errors() {
+			log.Errorf("ClusterNodes: %s", err)
+		}
+		return nil, requiredCtx.Errors()
 	}
 
 	nodeMap := map[string]*Node{}
@@ -616,13 +635,20 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		}
 	}
 
-	for _, result := range resNodeCPUModePct {
+	// Mapping of cluster/node=cpu for computing resource efficiency
+	clusterNodeCPUTotal := map[string]float64{}
+	// Mapping of cluster/node:mode=cpu for computing resource efficiency
+	clusterNodeModeCPUTotal := map[string]map[string]float64{}
+
+	// Build intermediate structures for CPU usage by (cluster, node) and by
+	// (cluster, node, mode) for computing resouce efficiency
+	for _, result := range resNodeCPUModeTotal {
 		cluster, err := result.GetString("cluster_id")
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("kubernetes_node")
+		node, err := result.GetString("kubernetes_node")
 		if err != nil {
 			log.DedupedWarningf(5, "ClusterNodes: CPU mode data missing node")
 			continue
@@ -634,23 +660,46 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 			mode = "other"
 		}
 
-		pct := result.Values[0].Value
+		key := fmt.Sprintf("%s/%s", cluster, node)
 
-		key := fmt.Sprintf("%s/%s", cluster, name)
-		if _, ok := nodeMap[key]; !ok {
-			log.Warningf("ClusterNodes: CPU mode data for unidentified node")
-			continue
+		total := result.Values[0].Value
+
+		// Increment total
+		clusterNodeCPUTotal[key] += total
+
+		// Increment mode
+		if _, ok := clusterNodeModeCPUTotal[key]; !ok {
+			clusterNodeModeCPUTotal[key] = map[string]float64{}
 		}
+		clusterNodeModeCPUTotal[key][mode] += total
+	}
 
-		switch mode {
-		case "idle":
-			nodeMap[key].CPUBreakdown.Idle += pct
-		case "system":
-			nodeMap[key].CPUBreakdown.System += pct
-		case "user":
-			nodeMap[key].CPUBreakdown.User += pct
-		default:
-			nodeMap[key].CPUBreakdown.Other += pct
+	// Compute resource efficiency from intermediate structures
+	for key, total := range clusterNodeCPUTotal {
+		if modeTotals, ok := clusterNodeModeCPUTotal[key]; ok {
+			for mode, subtotal := range modeTotals {
+				// Compute percentage for the current cluster, node, mode
+				pct := 0.0
+				if total > 0 {
+					pct = subtotal / total
+				}
+
+				if _, ok := nodeMap[key]; !ok {
+					log.Warningf("ClusterNodes: CPU mode data for unidentified node")
+					continue
+				}
+
+				switch mode {
+				case "idle":
+					nodeMap[key].CPUBreakdown.Idle += pct
+				case "system":
+					nodeMap[key].CPUBreakdown.System += pct
+				case "user":
+					nodeMap[key].CPUBreakdown.User += pct
+				default:
+					nodeMap[key].CPUBreakdown.Other += pct
+				}
+			}
 		}
 	}
 
@@ -776,7 +825,8 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		// TODO take RI into account
 		node.Discount = cp.CombinedDiscountForNode(node.NodeType, node.Preemptible, discount, negotiatedDiscount)
 
-		// Apply all remaining RAM to Idle
+		// Apply all remaining resources to Idle
+		node.CPUBreakdown.Idle = 1.0 - (node.CPUBreakdown.System + node.CPUBreakdown.Other + node.CPUBreakdown.User)
 		node.RAMBreakdown.Idle = 1.0 - (node.RAMBreakdown.System + node.RAMBreakdown.Other + node.RAMBreakdown.User)
 	}
 
@@ -810,8 +860,8 @@ func ClusterLoadBalancers(cp cloud.Provider, client prometheus.Client, duration,
 	hourlyToCumulative := float64(minsPerResolution) * (1.0 / 60.0)
 
 	ctx := prom.NewContext(client)
-	queryLBCost := fmt.Sprintf(`sum_over_time((avg(kubecost_load_balancer_cost) by (namespace, service_name))[%s:%dm]%s) * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
-	queryActiveMins := fmt.Sprintf(`count(kubecost_load_balancer_cost) by (namespace, service_name)[%s:%dm]%s`, durationStr, minsPerResolution, offsetStr)
+	queryLBCost := fmt.Sprintf(`sum_over_time((avg(kubecost_load_balancer_cost) by (namespace, service_name, cluster_id))[%s:%dm]%s) * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
+	queryActiveMins := fmt.Sprintf(`count(kubecost_load_balancer_cost) by (namespace, service_name, cluster_id)[%s:%dm]%s`, durationStr, minsPerResolution, offsetStr)
 
 	resChLBCost := ctx.Query(queryLBCost)
 	resChActiveMins := ctx.Query(queryActiveMins)

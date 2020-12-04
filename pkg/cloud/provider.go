@@ -98,6 +98,7 @@ type PV struct {
 	Class      string            `json:"storageClass"`
 	Size       string            `json:"size"`
 	Region     string            `json:"region"`
+	ProviderID string            `json:"providerID,omitempty"`
 	Parameters map[string]string `json:"parameters"`
 }
 
@@ -111,6 +112,7 @@ type Key interface {
 type PVKey interface {
 	Features() string
 	GetStorageClass() string
+	ID() string
 }
 
 // OutOfClusterAllocation represents a cloud provider cost not associated with kubernetes
@@ -183,6 +185,16 @@ type ServiceAccountCheck struct {
 	AdditionalInfo string `json:additionalInfo`
 }
 
+type PricingSources struct {
+	PricingSources map[string]*PricingSource
+}
+
+type PricingSource struct {
+	Name      string `json:"name"`
+	Available bool   `json:"available"`
+	Error     string `json:"error"`
+}
+
 // Provider represents a k8s provider.
 type Provider interface {
 	ClusterInfo() (map[string]string, error)
@@ -204,9 +216,11 @@ type Provider interface {
 	ExternalAllocations(string, string, []string, string, string, bool) ([]*OutOfClusterAllocation, error)
 	ApplyReservedInstancePricing(map[string]*Node)
 	ServiceAccountStatus() *ServiceAccountStatus
+	PricingSourceStatus() map[string]*PricingSource
 	ClusterManagementPricing() (string, float64, error)
 	CombinedDiscountForNode(string, bool, float64, float64) float64
 	ParseID(string) string
+	ParsePVID(string) string
 }
 
 // ClusterName returns the name defined in cluster info, defaulting to the

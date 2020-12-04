@@ -8,7 +8,29 @@ import (
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
+	"gopkg.in/yaml.v2"
 )
+
+const DEFAULT_KUBECOST_JOB_NAME = "kubecost"
+
+type ScrapeConfig struct {
+	JobName        string `yaml:"job_name,omitempty"`
+	ScrapeInterval string `yaml:"scrape_interval,omitempty"`
+}
+
+type PromCfg struct {
+	ScrapeConfigs []ScrapeConfig `yaml:"scrape_configs,omitempty"`
+}
+
+func GetPrometheusConfig(pcfg string) (PromCfg, error) {
+	var promCfg PromCfg
+	err := yaml.Unmarshal([]byte(pcfg), &promCfg)
+	return promCfg, err
+}
+
+func GetKubecostJobName() string {
+	return DEFAULT_KUBECOST_JOB_NAME // TODO: look this up from a prometheus variable?
+}
 
 // TODO niko/prom move parsing functions from costmodel.go
 
@@ -377,7 +399,7 @@ func getCost(qrs []*prom.QueryResult) (map[string][]*util.Vector, error) {
 	toReturn := make(map[string][]*util.Vector)
 
 	for _, val := range qrs {
-		instance, err := val.GetString("instance")
+		instance, err := val.GetString("node")
 		if err != nil {
 			return toReturn, err
 		}
@@ -392,10 +414,10 @@ func getCost(qrs []*prom.QueryResult) (map[string][]*util.Vector, error) {
 // normalization data is empty: time window may be invalid or kube-state-metrics or node-exporter may not be running
 func getNormalization(qrs []*prom.QueryResult) (float64, error) {
 	if len(qrs) == 0 {
-		return 0.0, prom.NoDataErr
+		return 0.0, prom.NoDataErr("getNormalization")
 	}
 	if len(qrs[0].Values) == 0 {
-		return 0.0, prom.NoDataErr
+		return 0.0, prom.NoDataErr("getNormalization")
 	}
 	return qrs[0].Values[0].Value, nil
 }
@@ -404,7 +426,7 @@ func getNormalization(qrs []*prom.QueryResult) (float64, error) {
 // normalization data is empty: time window may be invalid or kube-state-metrics or node-exporter may not be running
 func getNormalizations(qrs []*prom.QueryResult) ([]*util.Vector, error) {
 	if len(qrs) == 0 {
-		return nil, prom.NoDataErr
+		return nil, prom.NoDataErr("getNormalizations")
 	}
 
 	return qrs[0].Values, nil

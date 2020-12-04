@@ -193,8 +193,9 @@ type azureKey struct {
 }
 
 func (k *azureKey) Features() string {
-	region := strings.ToLower(k.Labels[v1.LabelZoneRegion])
-	instance := k.Labels[v1.LabelInstanceType]
+	r, _ := util.GetRegion(k.Labels)
+	region := strings.ToLower(r)
+	instance, _ := util.GetInstanceType(k.Labels)
 	usageType := "ondemand"
 	return fmt.Sprintf("%s,%s,%s", region, instance, usageType)
 }
@@ -685,6 +686,10 @@ func (az *Azure) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string,
 	}
 }
 
+func (key *azurePvKey) ID() string {
+	return ""
+}
+
 func (key *azurePvKey) GetStorageClass() string {
 	return key.StorageClass
 }
@@ -707,7 +712,7 @@ func (key *azurePvKey) Features() string {
 			storageClass = AzureFileStandardStorageClass
 		}
 	}
-	if region, ok := key.Labels[v1.LabelZoneRegion]; ok {
+	if region, ok := util.GetRegion(key.Labels); ok {
 		return region + "," + storageClass
 	}
 
@@ -831,6 +836,11 @@ func (az *Azure) ServiceAccountStatus() *ServiceAccountStatus {
 		Checks: []*ServiceAccountCheck{},
 	}
 }
+
+func (az *Azure) PricingSourceStatus() map[string]*PricingSource {
+	return make(map[string]*PricingSource)
+}
+
 func (*Azure) ClusterManagementPricing() (string, float64, error) {
 	return "", 0.0, nil
 }
@@ -840,5 +850,9 @@ func (az *Azure) CombinedDiscountForNode(instanceType string, isPreemptible bool
 }
 
 func (az *Azure) ParseID(id string) string {
+	return id
+}
+
+func (az *Azure) ParsePVID(id string) string {
 	return id
 }

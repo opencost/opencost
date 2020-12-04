@@ -10,10 +10,10 @@ import (
 
 	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
-	"github.com/kubecost/cost-model/pkg/thanos"
 	"github.com/kubecost/cost-model/pkg/util"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	v1 "k8s.io/api/core/v1"
@@ -47,17 +47,21 @@ const (
 var isCron = regexp.MustCompile(`^(.+)-\d{10}$`)
 
 type CostModel struct {
-	Cache        clustercache.ClusterCache
-	RequestGroup *singleflight.Group
+	Cache          clustercache.ClusterCache
+	ClusterMap     clusters.ClusterMap
+	ScrapeInterval time.Duration
+	RequestGroup   *singleflight.Group
 }
 
-func NewCostModel(cache clustercache.ClusterCache) *CostModel {
+func NewCostModel(cache clustercache.ClusterCache, clusterMap clusters.ClusterMap, scrapeInterval time.Duration) *CostModel {
 	// request grouping to prevent over-requesting the same data prior to caching
 	requestGroup := new(singleflight.Group)
 
 	return &CostModel{
-		Cache:        cache,
-		RequestGroup: requestGroup,
+		Cache:          cache,
+		ClusterMap:     clusterMap,
+		RequestGroup:   requestGroup,
+		ScrapeInterval: scrapeInterval,
 	}
 }
 
@@ -84,6 +88,7 @@ type CostData struct {
 	Labels          map[string]string            `json:"labels,omitempty"`
 	NamespaceLabels map[string]string            `json:"namespaceLabels,omitempty"`
 	ClusterID       string                       `json:"clusterId"`
+	ClusterName     string                       `json:"clusterName"`
 }
 
 func (cd *CostData) String() string {
@@ -178,36 +183,31 @@ const (
 	sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) by (persistentvolumeclaim, namespace, cluster_id, kubernetes_name)) by (persistentvolumeclaim, storageclass, namespace, volumename, cluster_id)`
 	// queryRAMAllocationByteHours yields the total byte-hour RAM allocation over the given
 	// window, aggregated by container.
-	//  [line 3]     sum_over_time(each byte*min in window) / (min/hr kubecost up) = [byte*hour] by metric, adjusted for kubecost downtime
-	//  [lines 2,4]  sum(") by unique container key = [byte*hour] by container
+	//  [line 3]  sum_over_time(each byte) = [byte*scrape] by metric
+	//  [line 4] (scalar(avg(prometheus_target_interval_length_seconds)) = [seconds/scrape] / 60 / 60 =  [hours/scrape] by container
+	//  [lines 2,4]  sum(") by unique container key and multiply [byte*scrape] * [hours/scrape] for byte*hours
 	//  [lines 1,5]  relabeling
 	queryRAMAllocationByteHours = `
 		label_replace(label_replace(
 			sum(
-				sum_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s:1m]) / %f 
-			) by (namespace,container,pod,node,cluster_id)
+				sum_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s])
+			) by (namespace,container,pod,node,cluster_id) * %f / 60 / 60
 		, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
 	// queryCPUAllocationVCPUHours yields the total VCPU-hour CPU allocation over the given
 	// window, aggregated by container.
-	//  [line 3]     sum_over_time(each VCPU*mins in window) / (min/hr kubecost up) = [VCPU*hour] by metric, adjusted for kubecost downtime
-	//  [lines 2,4]  sum(") by unique container key = [VCPU*hour] by container
+	//  [line 3] sum_over_time(each VCPU*mins in window) = [VCPU*scrape] by metric
+	//  [line 4] (scalar(avg(prometheus_target_interval_length_seconds)) = [seconds/scrape] / 60 / 60 =  [hours/scrape] by container
+	//  [lines 2,4]  sum(") by unique container key and multiply [VCPU*scrape] * [hours/scrape] for VCPU*hours
 	//  [lines 1,5]  relabeling
 	queryCPUAllocationVCPUHours = `
 		label_replace(label_replace(
 			sum(
-				sum_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s:1m]) / %f
-			) by (namespace,container,pod,node,cluster_id)
+				sum_over_time(container_cpu_allocation{container!="",container!="POD", node!=""}[%s])
+			) by (namespace,container,pod,node,cluster_id) * %f / 60 / 60
 		, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
 	// queryPVCAllocationFmt yields the total byte-hour PVC allocation over the given window.
-	//  sum(all VCPU measurements within given window) = [byte*min] by metric
-	//  (") / 60 = [byte*hour] by metric, assuming no missed scrapes
-	//  (") * (normalization factor) = [byte*hour] by metric, normalized for missed scrapes
-	//  sum(") by unique pvc = [VCPU*hour] by (cluster, namespace, pod, pv, pvc)
-	// Note: normalization factor is 1.0 if no scrapes are missed and has an upper bound determined by minExpectedScrapeRate
-	// so that coarse resolutions don't push normalization factors too high; e.g. 24h resolution with 1h of data would make
-	// for a normalization factor of 24. With a minimumExpectedScrapeRate of 0.95, that caps the norm factor at
-	queryPVCAllocationFmt = `sum(sum_over_time(pod_pvc_allocation[%s:1m])) by (cluster_id, namespace, pod, persistentvolume, persistentvolumeclaim) / 60
-		* 60 / clamp_min(count_over_time(sum(pod_pvc_allocation) by (cluster_id, namespace, pod, persistentvolume, persistentvolumeclaim)[%s:1m])/%f, 60 * %f)`
+	// sum_over_time(each byte) = [byte*scrape] by metric *(scalar(avg(prometheus_target_interval_length_seconds)) = [seconds/scrape] / 60 / 60 =  [hours/scrape] by pod
+	queryPVCAllocationFmt     = `sum(sum_over_time(pod_pvc_allocation[%s])) by (cluster_id, namespace, pod, persistentvolume, persistentvolumeclaim) * %f/60/60`
 	queryPVHourlyCostFmt      = `avg_over_time(pv_hourly_cost[%s])`
 	queryNSLabels             = `avg_over_time(kube_namespace_labels[%s])`
 	queryPodLabels            = `avg_over_time(kube_pod_labels[%s])`
@@ -220,60 +220,7 @@ const (
 	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	queryInternetNetworkUsage = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	normalizationStr          = `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[%s] %s))`
-	kubecostUpMinsPerHourStr  = `max(count_over_time(node_cpu_hourly_cost[%s:1m])) / %f`
 )
-
-type PrometheusMetadata struct {
-	Running            bool `json:"running"`
-	KubecostDataExists bool `json:"kubecostDataExists"`
-}
-
-// ValidatePrometheus tells the model what data prometheus has on it.
-func ValidatePrometheus(cli prometheusClient.Client, isThanos bool) (*PrometheusMetadata, error) {
-	q := "up"
-	if isThanos {
-		q += thanos.QueryOffset()
-	}
-
-	ctx := prom.NewContext(cli)
-
-	resUp, err := ctx.QuerySync(q)
-	if err != nil {
-		return &PrometheusMetadata{
-			Running:            false,
-			KubecostDataExists: false,
-		}, err
-	}
-
-	if len(resUp) == 0 {
-		return &PrometheusMetadata{
-			Running:            false,
-			KubecostDataExists: false,
-		}, fmt.Errorf("no running jobs on Prometheus at %s", ctx.QueryURL().Path)
-	}
-
-	for _, result := range resUp {
-		job, err := result.GetString("job")
-		if err != nil {
-			return &PrometheusMetadata{
-				Running:            false,
-				KubecostDataExists: false,
-			}, fmt.Errorf("up query does not have job names")
-		}
-
-		if job == "kubecost" {
-			return &PrometheusMetadata{
-				Running:            true,
-				KubecostDataExists: true,
-			}, err
-		}
-	}
-
-	return &PrometheusMetadata{
-		Running:            true,
-		KubecostDataExists: false,
-	}, nil
-}
 
 func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, window, offset, window, offset)
@@ -514,27 +461,27 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 				RAMReqV, ok := RAMReqMap[newKey]
 				if !ok {
 					klog.V(4).Info("no RAM requests for " + newKey)
-					RAMReqV = []*util.Vector{&util.Vector{}}
+					RAMReqV = []*util.Vector{{}}
 				}
 				RAMUsedV, ok := RAMUsedMap[newKey]
 				if !ok {
 					klog.V(4).Info("no RAM usage for " + newKey)
-					RAMUsedV = []*util.Vector{&util.Vector{}}
+					RAMUsedV = []*util.Vector{{}}
 				}
 				CPUReqV, ok := CPUReqMap[newKey]
 				if !ok {
 					klog.V(4).Info("no CPU requests for " + newKey)
-					CPUReqV = []*util.Vector{&util.Vector{}}
+					CPUReqV = []*util.Vector{{}}
 				}
 				GPUReqV, ok := GPUReqMap[newKey]
 				if !ok {
 					klog.V(4).Info("no GPU requests for " + newKey)
-					GPUReqV = []*util.Vector{&util.Vector{}}
+					GPUReqV = []*util.Vector{{}}
 				}
 				CPUUsedV, ok := CPUUsedMap[newKey]
 				if !ok {
 					klog.V(4).Info("no CPU usage for " + newKey)
-					CPUUsedV = []*util.Vector{&util.Vector{}}
+					CPUUsedV = []*util.Vector{{}}
 				}
 
 				var pvReq []*PersistentVolumeClaimData
@@ -565,6 +512,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 					Labels:          podLabels,
 					NamespaceLabels: nsLabels,
 					ClusterID:       clusterID,
+					ClusterName:     cm.ClusterMap.NameFor(clusterID),
 				}
 				costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed, "CPU")
 				costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed, "RAM")
@@ -584,27 +532,27 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 			RAMReqV, ok := RAMReqMap[key]
 			if !ok {
 				klog.V(4).Info("no RAM requests for " + key)
-				RAMReqV = []*util.Vector{&util.Vector{}}
+				RAMReqV = []*util.Vector{{}}
 			}
 			RAMUsedV, ok := RAMUsedMap[key]
 			if !ok {
 				klog.V(4).Info("no RAM usage for " + key)
-				RAMUsedV = []*util.Vector{&util.Vector{}}
+				RAMUsedV = []*util.Vector{{}}
 			}
 			CPUReqV, ok := CPUReqMap[key]
 			if !ok {
 				klog.V(4).Info("no CPU requests for " + key)
-				CPUReqV = []*util.Vector{&util.Vector{}}
+				CPUReqV = []*util.Vector{{}}
 			}
 			GPUReqV, ok := GPUReqMap[key]
 			if !ok {
 				klog.V(4).Info("no GPU requests for " + key)
-				GPUReqV = []*util.Vector{&util.Vector{}}
+				GPUReqV = []*util.Vector{{}}
 			}
 			CPUUsedV, ok := CPUUsedMap[key]
 			if !ok {
 				klog.V(4).Info("no CPU usage for " + key)
-				CPUUsedV = []*util.Vector{&util.Vector{}}
+				CPUUsedV = []*util.Vector{{}}
 			}
 
 			node, ok := nodes[c.NodeName]
@@ -635,6 +583,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 				GPUReq:          GPUReqV,
 				NamespaceLabels: namespacelabels,
 				ClusterID:       c.ClusterID,
+				ClusterName:     cm.ClusterMap.NameFor(c.ClusterID),
 			}
 			costs.CPUAllocation = getContainerAllocation(costs.CPUReq, costs.CPUUsed, "CPU")
 			costs.RAMAllocation = getContainerAllocation(costs.RAMReq, costs.RAMUsed, "RAM")
@@ -649,7 +598,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	}
 	// Use unmounted pvs to create a mapping of "Unmounted-<Namespace>" containers
 	// to pass along the cost data
-	unmounted := findUnmountedPVCostData(unmountedPVs, namespaceLabelsMapping)
+	unmounted := findUnmountedPVCostData(cm.ClusterMap, unmountedPVs, namespaceLabelsMapping)
 	for k, costs := range unmounted {
 		klog.V(4).Infof("Unmounted PVs in Namespace/ClusterID: %s/%s", costs.Namespace, costs.ClusterID)
 
@@ -660,7 +609,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 		}
 	}
 
-	err = findDeletedNodeInfo(cli, missingNodes, window)
+	err = findDeletedNodeInfo(cli, missingNodes, window, "")
 	if err != nil {
 		klog.V(1).Infof("Error fetching historical node data: %s", err.Error())
 	}
@@ -672,7 +621,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	return containerNameCost, err
 }
 
-func findUnmountedPVCostData(unmountedPVs map[string][]*PersistentVolumeClaimData, namespaceLabelsMapping map[string]map[string]string) map[string]*CostData {
+func findUnmountedPVCostData(clusterMap clusters.ClusterMap, unmountedPVs map[string][]*PersistentVolumeClaimData, namespaceLabelsMapping map[string]map[string]string) map[string]*CostData {
 	costs := make(map[string]*CostData)
 	if len(unmountedPVs) == 0 {
 		return costs
@@ -707,6 +656,7 @@ func findUnmountedPVCostData(unmountedPVs map[string][]*PersistentVolumeClaimDat
 				NamespaceLabels: namespacelabels,
 				Labels:          namespacelabels,
 				ClusterID:       clusterID,
+				ClusterName:     clusterMap.NameFor(clusterID),
 				PVCData:         pv,
 			}
 		} else {
@@ -736,7 +686,6 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 			cm, _ := NewContainerMetricFromKey(key)
 			labels, ok := podLabels[cm.PodName]
 			if !ok {
-				log.Errorf("unable to find historical data for pod '%s'", cm.PodName)
 				labels = make(map[string]string)
 			}
 			for k, v := range costData.NamespaceLabels {
@@ -749,13 +698,18 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 	return nil
 }
 
-func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*costAnalyzerCloud.Node, window string) error {
+func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*costAnalyzerCloud.Node, window, offset string) error {
 	if len(missingNodes) > 0 {
 		defer measureTime(time.Now(), profileThreshold, "Finding Deleted Node Info")
 
-		queryHistoricalCPUCost := fmt.Sprintf(`avg_over_time(node_cpu_hourly_cost[%s])`, window)
-		queryHistoricalRAMCost := fmt.Sprintf(`avg_over_time(node_ram_hourly_cost[%s])`, window)
-		queryHistoricalGPUCost := fmt.Sprintf(`avg_over_time(node_gpu_hourly_cost[%s])`, window)
+		offsetStr := ""
+		if offset != "" {
+			offsetStr = fmt.Sprintf("offset %s", offset)
+		}
+
+		queryHistoricalCPUCost := fmt.Sprintf(`avg(avg_over_time(node_cpu_hourly_cost[%s] %s)) by (node, instance, cluster_id)`, window, offsetStr)
+		queryHistoricalRAMCost := fmt.Sprintf(`avg(avg_over_time(node_ram_hourly_cost[%s] %s)) by (node, instance, cluster_id)`, window, offsetStr)
+		queryHistoricalGPUCost := fmt.Sprintf(`avg(avg_over_time(node_gpu_hourly_cost[%s] %s)) by (node, instance, cluster_id)`, window, offsetStr)
 
 		ctx := prom.NewContext(cli)
 		cpuCostResCh := ctx.Query(queryHistoricalCPUCost)
@@ -789,6 +743,8 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 		for node, costv := range cpuCosts {
 			if _, ok := missingNodes[node]; ok {
 				missingNodes[node].VCPUCost = fmt.Sprintf("%f", costv[0].Value)
+			} else {
+				log.DedupedWarningf(5, "Node `%s` in prometheus but not k8s api", node)
 			}
 		}
 		for node, costv := range ramCosts {
@@ -843,7 +799,7 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 	var defaultRegion string
 	nodeList := cache.GetAllNodes()
 	if len(nodeList) > 0 {
-		defaultRegion = nodeList[0].Labels[v1.LabelZoneRegion]
+		defaultRegion, _ = util.GetRegion(nodeList[0].Labels)
 	}
 
 	storageClasses := cache.GetAllStorageClasses()
@@ -865,7 +821,7 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 			klog.V(4).Infof("Unable to find parameters for storage class \"%s\". Does pv \"%s\" have a storageClassName?", pv.Spec.StorageClassName, pv.Name)
 		}
 		var region string
-		if r, ok := pv.Labels[v1.LabelZoneRegion]; ok {
+		if r, ok := util.GetRegion(pv.Labels); ok {
 			region = r
 		} else {
 			region = defaultRegion
@@ -913,6 +869,7 @@ func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cp costAnalyz
 		return nil // set default cost
 	}
 	pv.Cost = pvWithCost.Cost
+	pv.ProviderID = key.ID()
 	return nil
 }
 
@@ -945,10 +902,12 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 		}
 		newCnode := *cnode
 		if newCnode.InstanceType == "" {
-			newCnode.InstanceType = n.Labels[v1.LabelInstanceType]
+			it, _ := util.GetInstanceType(n.Labels)
+			newCnode.InstanceType = it
 		}
 		if newCnode.Region == "" {
-			newCnode.Region = n.Labels[v1.LabelZoneRegion]
+			region, _ := util.GetRegion(n.Labels)
+			newCnode.Region = region
 		}
 		newCnode.ProviderID = n.Spec.ProviderID
 
@@ -1439,15 +1398,15 @@ func sliceToSet(s []string) map[string]bool {
 
 func setToSlice(m map[string]bool) []string {
 	var result []string
-	for k, _ := range m {
+	for k := range m {
 		result = append(result, k)
 	}
 	return result
 }
 
-func costDataPassesFilters(costs *CostData, namespace string, cluster string) bool {
+func costDataPassesFilters(cm clusters.ClusterMap, costs *CostData, namespace string, cluster string) bool {
 	passesNamespace := namespace == "" || costs.Namespace == namespace
-	passesCluster := cluster == "" || costs.ClusterID == cluster
+	passesCluster := cluster == "" || costs.ClusterID == cluster || costs.ClusterName == cluster
 
 	return passesNamespace && passesCluster
 }
@@ -1491,9 +1450,10 @@ func requestKeyFor(startString string, endString string, windowString string, fi
 	return fmt.Sprintf("%s,%s,%s,%s,%s,%t", startKey, endKey, windowString, filterNamespace, filterCluster, remoteEnabled)
 }
 
-// Executes a range query for cost data
+// ComputeCostDataRange executes a range query for cost data.
+// Note that "offset" represents the time between the function call and "endString", and is also passed for convenience
 func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider,
-	startString, endString, windowString string, resolutionHours float64, filterNamespace string, filterCluster string, remoteEnabled bool) (map[string]*CostData, error) {
+	startString, endString, windowString string, resolutionHours float64, filterNamespace string, filterCluster string, remoteEnabled bool, offset string) (map[string]*CostData, error) {
 	// Create a request key for request grouping. This key will be used to represent the cost-model result
 	// for the specific inputs to prevent multiple queries for identical data.
 	key := requestKeyFor(startString, endString, windowString, filterNamespace, filterCluster, remoteEnabled)
@@ -1503,7 +1463,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	// If there is already a request out that uses the same data, wait for it to return to share the results.
 	// Otherwise, start executing.
 	result, err, _ := cm.RequestGroup.Do(key, func() (interface{}, error) {
-		return cm.costDataRange(cli, clientset, cp, startString, endString, windowString, resolutionHours, filterNamespace, filterCluster, remoteEnabled)
+		return cm.costDataRange(cli, clientset, cp, startString, endString, windowString, resolutionHours, filterNamespace, filterCluster, remoteEnabled, offset)
 	})
 
 	data, ok := result.(map[string]*CostData)
@@ -1514,7 +1474,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	return data, err
 }
 
-func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider, startString, endString, windowString string, resolutionHours float64, filterNamespace string, filterCluster string, remoteEnabled bool) (map[string]*CostData, error) {
+func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider, startString, endString, windowString string, resolutionHours float64, filterNamespace string, filterCluster string, remoteEnabled bool, offset string) (map[string]*CostData, error) {
 	layout := "2006-01-02T15:04:05.000Z"
 
 	start, err := time.Parse(layout, startString)
@@ -1547,50 +1507,19 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		return CostDataRangeFromSQL("", "", windowString, remoteStartStr, remoteEndStr)
 	}
 
+	scrapeIntervalSeconds := cm.ScrapeInterval.Seconds()
+
 	ctx := prom.NewContext(cli)
 
-	// Query for the average number of minutes per hour that Kubecost was up
-	// in the given range by averaging the number of up minutes-per-hour for
-	// each window in the range. Use that number in the RAM and CPU allocation
-	// queries as the adjutsment factor, scaling only if Kubecost was down
-	// for fewer than 3 minutes (as a heuristic for a reasonable amount of
-	// time to interpolate). Otherwise, use 60 minutes per hour and assume
-	// that this period of time is during Kubecost start-up or a long-term
-	// downtime for which we don't want to interpolate.
-	queryKubecostUpMinsPerHour := fmt.Sprintf(kubecostUpMinsPerHourStr, windowString, window.Hours())
-	resKubecostUp, err := ctx.QueryRangeSync(queryKubecostUpMinsPerHour, start, end, window)
-	if err != nil {
-		log.Errorf("costDataRange: error querying Kubecost up: %s", err)
-		return nil, err
-	}
-
-	kubecostMinsPerHour := 0.0
-	num := 0
-	if len(resKubecostUp) > 0 {
-		for _, val := range resKubecostUp[0].Values {
-			kubecostMinsPerHour += val.Value
-			num++
-		}
-		kubecostMinsPerHour /= float64(num)
-	}
-	if kubecostMinsPerHour <= 57.0 {
-		kubecostMinsPerHour = 60.0
-	}
-
-	// TODO niko/queryfix rewrite PVCAllocation query too, and remove this
-	// Use a heuristic to tell the difference between missed scrapes and an incomplete window
-	// of data due to fresh install, etc.
-	minimumExpectedScrapeRate := 0.95
-
-	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, windowString, kubecostMinsPerHour)
-	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, windowString, kubecostMinsPerHour)
+	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, windowString, scrapeIntervalSeconds)
+	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, windowString, scrapeIntervalSeconds)
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, windowString, "", windowString, "")
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, windowString, "", windowString, "")
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, windowString, "", windowString, "")
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, windowString, "")
 	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, windowString, "", windowString, "", resolutionHours, windowString, "")
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
-	queryPVCAllocation := fmt.Sprintf(queryPVCAllocationFmt, windowString, windowString, resolutionHours, minimumExpectedScrapeRate)
+	queryPVCAllocation := fmt.Sprintf(queryPVCAllocationFmt, windowString, scrapeIntervalSeconds)
 	queryPVHourlyCost := fmt.Sprintf(queryPVHourlyCostFmt, windowString)
 	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, windowString, "")
 	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, windowString, "")
@@ -1685,10 +1614,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	normalizationValue, err := getNormalizations(resNormalization)
 	if err != nil {
 		msg := fmt.Sprintf("error computing normalization for start=%s, end=%s, window=%s, res=%f", start, end, window, resolutionHours*60*60)
-		if pce, ok := err.(prom.CommError); ok {
-			return nil, pce.Wrap(msg)
-		}
-		return nil, fmt.Errorf("%s: %s", msg, err)
+		return nil, prom.WrapError(err, msg)
 	}
 
 	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): compute normalizations", durHrs))
@@ -1804,10 +1730,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	RAMReqMap, err := GetNormalizedContainerMetricVectors(resRAMRequests, normalizationValue, clusterID)
 	if err != nil {
-		if pce, ok := err.(prom.CommError); ok {
-			return nil, pce.Wrap("GetNormalizedContainerMetricVectors(RAMRequests)")
-		}
-		return nil, fmt.Errorf("GetNormalizedContainerMetricVectors(RAMRequests): %s", err)
+		return nil, prom.WrapError(err, "GetNormalizedContainerMetricVectors(RAMRequests)")
 	}
 	for key := range RAMReqMap {
 		containers[key] = true
@@ -1815,10 +1738,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	RAMUsedMap, err := GetNormalizedContainerMetricVectors(resRAMUsage, normalizationValue, clusterID)
 	if err != nil {
-		if pce, ok := err.(prom.CommError); ok {
-			return nil, pce.Wrap("GetNormalizedContainerMetricVectors(RAMUsage)")
-		}
-		return nil, fmt.Errorf("GetNormalizedContainerMetricVectors(RAMUsage): %s", err)
+		return nil, prom.WrapError(err, "GetNormalizedContainerMetricVectors(RAMUsage)")
 	}
 	for key := range RAMUsedMap {
 		containers[key] = true
@@ -1826,10 +1746,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	CPUReqMap, err := GetNormalizedContainerMetricVectors(resCPURequests, normalizationValue, clusterID)
 	if err != nil {
-		if pce, ok := err.(prom.CommError); ok {
-			return nil, pce.Wrap("GetNormalizedContainerMetricVectors(CPURequests)")
-		}
-		return nil, fmt.Errorf("GetNormalizedContainerMetricVectors(CPURequests): %s", err)
+		return nil, prom.WrapError(err, "GetNormalizedContainerMetricVectors(CPURequests)")
 	}
 	for key := range CPUReqMap {
 		containers[key] = true
@@ -1839,10 +1756,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	// rate(container_cpu_usage_seconds_total) which properly accounts for normalized rates
 	CPUUsedMap, err := GetContainerMetricVectors(resCPUUsage, clusterID)
 	if err != nil {
-		if pce, ok := err.(prom.CommError); ok {
-			return nil, pce.Wrap("GetContainerMetricVectors(CPUUsage)")
-		}
-		return nil, fmt.Errorf("GetContainerMetricVectors(CPUUsage): %s", err)
+		return nil, prom.WrapError(err, "GetContainerMetricVectors(CPUUsage)")
 	}
 	for key := range CPUUsedMap {
 		containers[key] = true
@@ -1850,10 +1764,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	RAMAllocMap, err := GetContainerMetricVectors(resRAMAlloc, clusterID)
 	if err != nil {
-		if pce, ok := err.(prom.CommError); ok {
-			return nil, pce.Wrap("GetContainerMetricVectors(RAMAllocations)")
-		}
-		return nil, fmt.Errorf("GetContainerMetricVectors(RAMAllocations): %s", err)
+		return nil, prom.WrapError(err, "GetContainerMetricVectors(RAMAllocations)")
 	}
 	for key := range RAMAllocMap {
 		containers[key] = true
@@ -1861,10 +1772,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	CPUAllocMap, err := GetContainerMetricVectors(resCPUAlloc, clusterID)
 	if err != nil {
-		if pce, ok := err.(prom.CommError); ok {
-			return nil, pce.Wrap("GetContainerMetricVectors(CPUAllocations)")
-		}
-		return nil, fmt.Errorf("GetContainerMetricVectors(CPUAllocations): %s", err)
+		return nil, prom.WrapError(err, "GetContainerMetricVectors(CPUAllocations)")
 	}
 	for key := range CPUAllocMap {
 		containers[key] = true
@@ -1872,10 +1780,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	GPUReqMap, err := GetNormalizedContainerMetricVectors(resGPURequests, normalizationValue, clusterID)
 	if err != nil {
-		if pce, ok := err.(prom.CommError); ok {
-			return nil, pce.Wrap("GetContainerMetricVectors(GPURequests)")
-		}
-		return nil, fmt.Errorf("GetContainerMetricVectors(GPURequests): %s", err)
+		return nil, prom.WrapError(err, "GetContainerMetricVectors(GPURequests)")
 	}
 	for key := range GPUReqMap {
 		containers[key] = true
@@ -1951,7 +1856,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 		namespaceLabels, ok := namespaceLabelsMapping[nsKey]
 		if !ok {
-			klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
+			klog.V(4).Infof("Missing data for namespace %s", c.Namespace)
 		}
 
 		pLabels := podLabels[podKey]
@@ -2061,9 +1966,10 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 			PVCData:         podPVs,
 			NetworkData:     podNetCosts,
 			ClusterID:       c.ClusterID,
+			ClusterName:     cm.ClusterMap.NameFor(c.ClusterID),
 		}
 
-		if costDataPassesFilters(costs, filterNamespace, filterCluster) {
+		if costDataPassesFilters(cm.ClusterMap, costs, filterNamespace, filterCluster) {
 			containerNameCost[key] = costs
 			missingContainers[key] = costs
 		}
@@ -2071,11 +1977,11 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 
 	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): build CostData map", durHrs))
 
-	unmounted := findUnmountedPVCostData(unmountedPVs, namespaceLabelsMapping)
+	unmounted := findUnmountedPVCostData(cm.ClusterMap, unmountedPVs, namespaceLabelsMapping)
 	for k, costs := range unmounted {
 		klog.V(4).Infof("Unmounted PVs in Namespace/ClusterID: %s/%s", costs.Namespace, costs.ClusterID)
 
-		if costDataPassesFilters(costs, filterNamespace, filterCluster) {
+		if costDataPassesFilters(cm.ClusterMap, costs, filterNamespace, filterCluster) {
 			containerNameCost[k] = costs
 		}
 	}
@@ -2084,7 +1990,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	w += window
 	if w.Minutes() > 0 {
 		wStr := fmt.Sprintf("%dm", int(w.Minutes()))
-		err = findDeletedNodeInfo(cli, missingNodes, wStr)
+		err = findDeletedNodeInfo(cli, missingNodes, wStr, offset)
 		if err != nil {
 			klog.V(1).Infof("Error fetching historical node data: %s", err.Error())
 		}
