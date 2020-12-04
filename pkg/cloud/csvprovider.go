@@ -314,3 +314,7 @@ func (c *CSVProvider) ParseID(id string) string {
 func (c *CSVProvider) ParsePVID(id string) string {
 	return id
 }
+
+func (c *CSVProvider) ParsePVQuery(pvQuery string) string {
+	return fmt.Sprintf(pvQuery, "", "")
+}

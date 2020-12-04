@@ -207,7 +207,7 @@ const (
 		, "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")`
 	// queryPVCAllocationFmt yields the total byte-hour PVC allocation over the given window.
 	// sum_over_time(each byte) = [byte*scrape] by metric *(scalar(avg(prometheus_target_interval_length_seconds)) = [seconds/scrape] / 60 / 60 =  [hours/scrape] by pod
-	queryPVCAllocationFmt     = `sum(sum_over_time(pod_pvc_allocation[%s])) by (cluster_id, namespace, pod, persistentvolume, persistentvolumeclaim) * %f/60/60`
+	queryPVCAllocationFmt     = `label_replace(sum(sum_over_time(pod_pvc_allocation[%s])) by (cluster_id, namespace, pod, persistentvolume, persistentvolumeclaim) * %f/60/60 * on (persistentvolume) group_left(storageclass%s) kube_persistentvolume_info, "providerId", "$1", "%s", "(.+)")`
 	queryPVHourlyCostFmt      = `avg_over_time(pv_hourly_cost[%s])`
 	queryNSLabels             = `avg_over_time(kube_namespace_labels[%s])`
 	queryPodLabels            = `avg_over_time(kube_pod_labels[%s])`
@@ -220,6 +220,8 @@ const (
 	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	queryInternetNetworkUsage = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s] %s)) by (namespace,pod_name,cluster_id) / 1024 / 1024 / 1024`
 	normalizationStr          = `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[%s] %s))`
+	queryNodeMetadataFmt      = `rate(kube_node_info[%s])`
+
 )
 
 func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
@@ -1519,12 +1521,13 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, windowString, "")
 	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, windowString, "", windowString, "", resolutionHours, windowString, "")
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
-	queryPVCAllocation := fmt.Sprintf(queryPVCAllocationFmt, windowString, scrapeIntervalSeconds)
+	queryPVCAllocation := cp.ParsePVQuery(fmt.Sprintf(queryPVCAllocationFmt, windowString, scrapeIntervalSeconds, "%s", "%s"))
 	queryPVHourlyCost := fmt.Sprintf(queryPVHourlyCostFmt, windowString)
 	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, windowString, "")
 	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, windowString, "")
 	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, windowString, "")
 	queryNormalization := fmt.Sprintf(normalizationStr, windowString, "")
+	queryNodeMetadata := fmt.Sprintf(queryNodeMetadataFmt, windowString)
 
 	queryProfileStart := time.Now()
 
@@ -1550,6 +1553,8 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	resChJobs := ctx.QueryRange(queryPodJobs, start, end, window)
 	resChDaemonsets := ctx.QueryRange(queryPodDaemonsets, start, end, window)
 	resChNormalization := ctx.QueryRange(queryNormalization, start, end, window)
+	resChNodeMetadata := ctx.QueryRange(queryNodeMetadata, start, end, window)
+
 
 	// Pull k8s pod, controller, service, and namespace details
 	podlist := cm.Cache.GetAllPods()
@@ -1596,6 +1601,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	resDaemonsets, _ := resChDaemonsets.Await()
 	resJobs, _ := resChJobs.Await()
 	resNormalization, _ := resChNormalization.Await()
+	resNodeMetadata, _ := resChNodeMetadata.Await()
 
 	measureTime(queryProfileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): Prom/k8s Queries", durHrs))
 	defer measureTime(time.Now(), profileThreshold, fmt.Sprintf("costDataRange(%fh): Processing Query Data", durHrs))
@@ -1653,6 +1659,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): process PV data", durHrs))
 
 	profileStart = time.Now()
+	nodeProviderIdMap := getNodeProviderIdMap(resNodeMetadata)
 
 	nsLabels, err := GetNamespaceLabelsMetrics(resNSLabels, clusterID)
 	if err != nil {
@@ -1851,6 +1858,10 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 			missingNodes[c.NodeName] = node
 		}
 
+		if providerId, ok := nodeProviderIdMap[c.NodeName]; ok {
+			node.ProviderID = providerId
+		}
+
 		nsKey := c.Namespace + "," + c.ClusterID
 		podKey := c.Namespace + "," + c.PodName + "," + c.ClusterID
 
@@ -2045,13 +2056,11 @@ func addMetricPVData(pvAllocationMap map[string][]*PersistentVolumeClaimData, pv
 
 			pvCost, ok := pvCostMap[costKey]
 			if !ok {
-				pvcData.Volume = &costAnalyzerCloud.PV{
-					Cost: cfg.Storage,
-				}
+				pvcData.Volume.Cost = cfg.Storage
 				continue
 			}
 
-			pvcData.Volume = pvCost
+			pvcData.Volume.Cost = pvCost.Cost
 		}
 	}
 }
@@ -2110,6 +2119,28 @@ func getStatefulSetsOfPod(pod v1.Pod) []string {
 	}
 	return []string{}
 }
+
+func getNodeProviderIdMap(result []*prom.QueryResult) map[string]string {
+	providerMap := map[string]string{}
+	for _, r := range result {
+		node, err := r.GetString("node")
+		if err != nil {
+			log.Debugf("Node field does not exist in data result vector")
+			continue
+		}
+		providerId, err := r.GetString("provider_id")
+		if err != nil {
+			log.Debugf("provider_id field does not exist for node %s in data result vector", node)
+			continue
+		}
+		if _, ok := providerMap[node]; !ok {
+			providerMap[node] = providerId
+		}
+	}
+
+	return providerMap
+}
+
 
 type PersistentVolumeClaimData struct {
 	Class        string                `json:"class"`

@@ -109,15 +109,30 @@ func GetPVAllocationMetrics(qrs []*prom.QueryResult, defaultClusterID string) (m
 			log.Warningf("persistentvolume field does not exist for pv %s", pvcName) // This is possible for an unfulfilled claim
 			continue
 		}
+		storageClass, err := val.GetString("storageclass")
+		if err != nil {
+			log.Warningf("storageclass field does not exist for pv %s", pvcName)
+			storageClass = ""
+		}
+		providerId, err := val.GetString("providerId")
+		if err != nil {
+			log.Warningf("provider field does not exist for pv %s", pvcName)
+			providerId = ""
+		}
+
 
 		key := fmt.Sprintf("%s,%s,%s", ns, pod, clusterID)
 		pvcData := &PersistentVolumeClaimData{
-			Class:      "",
+			Class:      storageClass,
 			Claim:      pvcName,
 			Namespace:  ns,
 			ClusterID:  clusterID,
 			VolumeName: pvName,
 			Values:     val.Values,
+			Volume: &costAnalyzerCloud.PV{
+				Class: storageClass,
+				ProviderID: providerId,
+			},
 		}
 
 		toReturn[key] = append(toReturn[key], pvcData)

@@ -1477,3 +1477,7 @@ func (gcp *GCP) ParseID(id string) string {
 func (gcp *GCP) ParsePVID(id string) string {
 	return id
 }
+
+func (gcp *GCP) ParsePVQuery(pvQuery string) string {
+	return fmt.Sprintf(pvQuery, "", "")
+}

@@ -2276,3 +2276,7 @@ func (aws *AWS) ParsePVID(id string) string {
 
 	return match[1]
 }
+
+func (aws *AWS) ParsePVQuery(pvQuery string) string {
+	return fmt.Sprintf(pvQuery, ",ebs_volume_id", "ebs_volume_id")
+}

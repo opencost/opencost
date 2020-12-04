@@ -856,3 +856,7 @@ func (az *Azure) ParseID(id string) string {
 func (az *Azure) ParsePVID(id string) string {
 	return id
 }
+
+func (az *Azure) ParsePVQuery(pvQuery string) string {
+	return fmt.Sprintf(pvQuery, "", "")
+}

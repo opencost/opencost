@@ -2,6 +2,7 @@ package cloud
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -318,4 +319,8 @@ func (cp *CustomProvider) ParseID(id string) string {
 
 func (cp *CustomProvider) ParsePVID(id string) string {
 	return id
+}
+
+func (cp *CustomProvider) ParsePVQuery(pvQuery string) string {
+	return fmt.Sprintf(pvQuery, "", "")
 }

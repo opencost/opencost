@@ -221,6 +221,7 @@ type Provider interface {
 	CombinedDiscountForNode(string, bool, float64, float64) float64
 	ParseID(string) string
 	ParsePVID(string) string
+	ParsePVQuery(string) string
 }
 
 // ClusterName returns the name defined in cluster info, defaulting to the
