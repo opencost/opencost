@@ -126,16 +126,12 @@ func (pcm *PrometheusClusterMap) loadClusters() (map[string]*ClusterInfo, error)
 	}
 
 	var qr []*prom.QueryResult
-	var warnings prometheus.Warnings
 	var err error
 
 	// Retry on failure
 	delay := LoadRetryDelay
 	for r := LoadRetries; r > 0; r-- {
-		qr, warnings, err = tryQuery()
-		for _, warning := range warnings {
-			log.Warningf("ClusterInfoMap: %s", warning)
-		}
+		qr, _, err = tryQuery()
 
 		// non-error breaks out of loop
 		if err == nil {
