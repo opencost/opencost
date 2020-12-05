@@ -117,7 +117,7 @@ type Disk struct {
 	Breakdown  *ClusterCostsBreakdown
 }
 
-func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, offset time.Duration) (map[string]*Disk, []error) {
+func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, offset time.Duration) (map[string]*Disk, error) {
 	durationStr := fmt.Sprintf("%dm", int64(duration.Minutes()))
 	offsetStr := fmt.Sprintf(" offset %dm", int64(offset.Minutes()))
 	if offset < time.Minute {
@@ -163,8 +163,8 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 	resLocalStorageUsedCost, _ := resChLocalStorageUsedCost.Await()
 	resLocalStorageBytes, _ := resChLocalStorageBytes.Await()
 	resLocalActiveMins, _ := resChLocalActiveMins.Await()
-	if ctx.ErrorCollector.IsError() {
-		return nil, ctx.Errors()
+	if ctx.HasErrors() {
+		return nil, ctx.ErrorCollection()
 	}
 
 	diskMap := map[string]*Disk{}
@@ -399,7 +399,7 @@ var partialCPUMap = map[string]float64{
 	"e2-medium": 1.0,
 }
 
-func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset time.Duration) (map[string]*Node, []error) {
+func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset time.Duration) (map[string]*Node, error) {
 	durationStr := fmt.Sprintf("%dm", int64(duration.Minutes()))
 	offsetStr := fmt.Sprintf(" offset %dm", int64(offset.Minutes()))
 	if offset < time.Minute {
@@ -456,16 +456,17 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	resNodeRAMUserPct, _ := resChNodeRAMUserPct.Await()
 	resActiveMins, _ := resChActiveMins.Await()
 
-	if optionalCtx.ErrorCollector.IsError() {
+	if optionalCtx.HasErrors() {
 		for _, err := range optionalCtx.Errors() {
 			log.Warningf("ClusterNodes: %s", err)
 		}
 	}
-	if requiredCtx.ErrorCollector.IsError() {
+	if requiredCtx.HasErrors() {
 		for _, err := range requiredCtx.Errors() {
 			log.Errorf("ClusterNodes: %s", err)
 		}
-		return nil, requiredCtx.Errors()
+
+		return nil, requiredCtx.ErrorCollection()
 	}
 
 	nodeMap := map[string]*Node{}
@@ -808,17 +809,17 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 
 	c, err := cp.GetConfig()
 	if err != nil {
-		return nil, []error{err}
+		return nil, err
 	}
 
 	discount, err := ParsePercentString(c.Discount)
 	if err != nil {
-		return nil, []error{err}
+		return nil, err
 	}
 
 	negotiatedDiscount, err := ParsePercentString(c.NegotiatedDiscount)
 	if err != nil {
-		return nil, []error{err}
+		return nil, err
 	}
 
 	for _, node := range nodeMap {
@@ -842,7 +843,7 @@ type LoadBalancer struct {
 	Minutes    float64
 }
 
-func ClusterLoadBalancers(cp cloud.Provider, client prometheus.Client, duration, offset time.Duration) (map[string]*LoadBalancer, []error) {
+func ClusterLoadBalancers(cp cloud.Provider, client prometheus.Client, duration, offset time.Duration) (map[string]*LoadBalancer, error) {
 	durationStr := fmt.Sprintf("%dm", int64(duration.Minutes()))
 	offsetStr := fmt.Sprintf(" offset %dm", int64(offset.Minutes()))
 	if offset < time.Minute {
@@ -869,8 +870,8 @@ func ClusterLoadBalancers(cp cloud.Provider, client prometheus.Client, duration,
 	resLBCost, _ := resChLBCost.Await()
 	resActiveMins, _ := resChActiveMins.Await()
 
-	if ctx.ErrorCollector.IsError() {
-		return nil, ctx.Errors()
+	if ctx.HasErrors() {
+		return nil, ctx.ErrorCollection()
 	}
 
 	loadBalancerMap := map[string]*LoadBalancer{}
@@ -1072,7 +1073,7 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 	resTotalRAM, _ := resChs[3].Await()
 	resTotalStorage, _ := resChs[4].Await()
 	if ctx.HasErrors() {
-		return nil, ctx.Errors()[0]
+		return nil, ctx.ErrorCollection()
 	}
 
 	defaultClusterID := env.GetClusterID()
@@ -1148,7 +1149,7 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 		resRAMSystemPct, _ := resChs[7].Await()
 		resRAMUserPct, _ := resChs[8].Await()
 		if ctx.HasErrors() {
-			return nil, ctx.Errors()[0]
+			return nil, ctx.ErrorCollection()
 		}
 
 		for _, result := range resCPUModePct {
@@ -1224,11 +1225,11 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 		}
 	}
 
-	if ctx.ErrorCollector.IsError() {
+	if ctx.HasErrors() {
 		for _, err := range ctx.Errors() {
 			log.Errorf("ComputeClusterCosts: %s", err)
 		}
-		return nil, ctx.Errors()[0]
+		return nil, ctx.ErrorCollection()
 	}
 
 	// Convert intermediate structure to Costs instances
@@ -1374,7 +1375,10 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 		// If that fails, return an error because something is actually wrong.
 		qNodes := fmt.Sprintf(queryNodes, localStorageQuery)
 
-		resultNodes, err := ctx.QueryRangeSync(qNodes, start, end, window)
+		resultNodes, warnings, err := ctx.QueryRangeSync(qNodes, start, end, window)
+		for _, warning := range warnings {
+			log.Warningf(warning)
+		}
 		if err != nil {
 			return nil, err
 		}

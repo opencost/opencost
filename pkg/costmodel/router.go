@@ -948,13 +948,13 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	prometheus.MustRegister(ClusterManagementCostRecorder)
 	prometheus.MustRegister(LBCostRecorder)
 	prometheus.MustRegister(ServiceCollector{
-		KubeClientSet: kubeClientset,
+		KubeClusterCache: k8sCache,
 	})
 	prometheus.MustRegister(DeploymentCollector{
-		KubeClientSet: kubeClientset,
+		KubeClusterCache: k8sCache,
 	})
 	prometheus.MustRegister(StatefulsetCollector{
-		KubeClientSet: kubeClientset,
+		KubeClusterCache: k8sCache,
 	})
 	prometheus.MustRegister(ClusterInfoCollector{
 		KubeClientSet: kubeClientset,

@@ -280,13 +280,22 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	resNetInternetRequests, _ := resChNetInternetRequests.Await()
 	resNormalization, _ := resChNormalization.Await()
 
+	// NOTE: The way we currently handle errors and warnings only early returns if there is an error. Warnings
+	// NOTE: will not propagate unless coupled with errors.
 	if ctx.HasErrors() {
+		// To keep the context of where the errors are occurring, we log the errors here and pass them the error
+		// back to the caller. The caller should handle the specific case where error is an ErrorCollection
 		for _, promErr := range ctx.Errors() {
-			log.Errorf("ComputeCostData: Prometheus error: %s", promErr.Error())
+			if promErr.Error != nil {
+				log.Errorf("ComputeCostData: Request Error: %s", promErr.Error)
+			}
+			if promErr.ParseError != nil {
+				log.Errorf("ComputeCostData: Parsing Error: %s", promErr.ParseError)
+			}
 		}
 
-		// TODO: Categorize fatal prometheus query failures
-		// return nil, fmt.Errorf("Error querying prometheus: %s", promErr.Error())
+		// ErrorCollection is an collection of errors wrapped in a single error implementation
+		return nil, ctx.ErrorCollection()
 	}
 
 	defer measureTime(time.Now(), profileThreshold, "ComputeCostData: Processing Query Data")
@@ -671,10 +680,14 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 	if len(missingContainers) > 0 {
 		queryHistoricalPodLabels := fmt.Sprintf(`kube_pod_labels{}[%s]`, window)
 
-		podLabelsResult, err := prom.NewContext(cli).QuerySync(queryHistoricalPodLabels)
+		podLabelsResult, warnings, err := prom.NewContext(cli).QuerySync(queryHistoricalPodLabels)
+		for _, w := range warnings {
+			log.Warningf("prometheus warning: %s", w)
+		}
 		if err != nil {
 			log.Errorf("failed to parse historical pod labels: %s", err.Error())
 		}
+
 		podLabels := make(map[string]map[string]string)
 		if podLabelsResult != nil {
 			podLabels, err = parsePodLabels(podLabelsResult)
@@ -715,7 +728,7 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 		ramCostRes, _ := ramCostResCh.Await()
 		gpuCostRes, _ := gpuCostResCh.Await()
 		if ctx.HasErrors() {
-			return ctx.Errors()[0]
+			return ctx.ErrorCollection()
 		}
 
 		cpuCosts, err := getCost(cpuCostRes)
@@ -1595,13 +1608,22 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	measureTime(queryProfileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): Prom/k8s Queries", durHrs))
 	defer measureTime(time.Now(), profileThreshold, fmt.Sprintf("costDataRange(%fh): Processing Query Data", durHrs))
 
+	// NOTE: The way we currently handle errors and warnings only early returns if there is an error. Warnings
+	// NOTE: will not propagate unless coupled with errors.
 	if ctx.HasErrors() {
+		// To keep the context of where the errors are occurring, we log the errors here and pass them the error
+		// back to the caller. The caller should handle the specific case where error is an ErrorCollection
 		for _, promErr := range ctx.Errors() {
-			log.Errorf("CostDataRange: Prometheus error: %s", promErr.Error())
+			if promErr.Error != nil {
+				log.Errorf("CostDataRange: Request Error: %s", promErr.Error)
+			}
+			if promErr.ParseError != nil {
+				log.Errorf("CostDataRange: Parsing Error: %s", promErr.ParseError)
+			}
 		}
 
-		// TODO: Categorize fatal prometheus query failures
-		// return nil, fmt.Errorf("Error querying prometheus: %s", promErr.Error())
+		// ErrorCollection is an collection of errors wrapped in a single error implementation
+		return nil, ctx.ErrorCollection()
 	}
 
 	profileStart := time.Now()

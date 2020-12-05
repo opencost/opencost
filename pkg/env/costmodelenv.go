@@ -22,6 +22,9 @@ const (
 	ConfigPathEnvVar               = "CONFIG_PATH"
 	CloudProviderAPIKeyEnvVar      = "CLOUD_PROVIDER_API_KEY"
 
+	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
+	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
+
 	ThanosEnabledEnvVar      = "THANOS_ENABLED"
 	ThanosQueryUrlEnvVar     = "THANOS_QUERY_URL"
 	ThanosOffsetEnvVar       = "THANOS_QUERY_OFFSET"
@@ -49,6 +52,18 @@ const (
 // the AWS access key for authentication
 func GetAppVersion() string {
 	return Get(AppVersionEnvVar, "Pre-1.68.0")
+}
+
+// IsEmitNamespaceAnnotationsMetric returns true if cost-model is configured to emit the kube_namespace_annotations metric
+// containing the namespace annotations
+func IsEmitNamespaceAnnotationsMetric() bool {
+	return GetBool(EmitNamespaceAnnotationsMetricEnvVar, false)
+}
+
+// IsEmitPodAnnotationsMetric returns true if cost-model is configured to emit the kube_pod_annotations metric containing
+// pod annotations.
+func IsEmitPodAnnotationsMetric() bool {
+	return GetBool(EmitPodAnnotationsMetricEnvVar, false)
 }
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
