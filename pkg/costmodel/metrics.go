@@ -433,16 +433,16 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 				podStatus[pod.Name] = pod.Status.Phase
 			}
 
-			cfg, _ := a.Cloud.GetConfig()
+			cfg, _ := a.CloudProvider.GetConfig()
 
-			provisioner, clusterManagementCost, err := a.Cloud.ClusterManagementPricing()
+			provisioner, clusterManagementCost, err := a.CloudProvider.ClusterManagementPricing()
 			if err != nil {
 				klog.V(1).Infof("Error getting cluster management cost %s", err.Error())
 			}
 			a.ClusterManagementCostRecorder.WithLabelValues(provisioner).Set(clusterManagementCost)
 
 			// Record network pricing at global scope
-			networkCosts, err := a.Cloud.NetworkPricing()
+			networkCosts, err := a.CloudProvider.NetworkPricing()
 			if err != nil {
 				klog.V(4).Infof("Failed to retrieve network costs: %s", err.Error())
 			} else {
@@ -451,14 +451,14 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 				a.NetworkInternetEgressRecorder.Set(networkCosts.InternetNetworkEgressCost)
 			}
 
-			data, err := a.Model.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "2m", "", "")
+			data, err := a.Model.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.CloudProvider, "2m", "", "")
 			if err != nil {
 				klog.V(1).Info("Error in price recording: " + err.Error())
 				// zero the for loop so the time.Sleep will still work
 				data = map[string]*CostData{}
 			}
 
-			nodes, err := a.Model.GetNodeCost(a.Cloud)
+			nodes, err := a.Model.GetNodeCost(a.CloudProvider)
 			for nodeName, node := range nodes {
 				// Emit costs, guarding against NaN inputs for custom pricing.
 				cpuCost, _ := strconv.ParseFloat(node.VCPUCost, 64)
@@ -512,7 +512,7 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 				nodeSeen[labelKey] = true
 			}
 
-			loadBalancers, err := a.Model.GetLBCost(a.Cloud)
+			loadBalancers, err := a.Model.GetLBCost(a.CloudProvider)
 			for lbKey, lb := range loadBalancers {
 				// TODO: parse (if necessary) and calculate cost associated with loadBalancer based on dynamic cloud prices fetched into each lb struct on GetLBCost() call
 				keyParts := getLabelStringsFromKey(lbKey)
@@ -594,7 +594,7 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 						Region:     region,
 						Parameters: parameters,
 					}
-					GetPVCost(cacPv, pv, a.Cloud, region)
+					GetPVCost(cacPv, pv, a.CloudProvider, region)
 					c, _ := strconv.ParseFloat(cacPv.Cost, 64)
 					a.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name, cacPv.ProviderID).Set(c)
 					labelKey := getKeyFromLabelStrings(pv.Name, pv.Name)

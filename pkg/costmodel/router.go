@@ -17,12 +17,13 @@ import (
 
 	sentry "github.com/getsentry/sentry-go"
 
-	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	cm "github.com/kubecost/cost-model/pkg/clustermanager"
 	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/errors"
+	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/thanos"
 	prometheusClient "github.com/prometheus/client_golang/api"
@@ -41,6 +42,10 @@ import (
 const (
 	prometheusTroubleshootingEp = "http://docs.kubecost.com/custom-prom#troubleshoot"
 	RFC3339Milli                = "2006-01-02T15:04:05.000Z"
+	maxCacheMinutes1d           = 11
+	maxCacheMinutes2d           = 17
+	maxCacheMinutes7d           = 37
+	maxCacheMinutes30d          = 137
 )
 
 var (
@@ -48,16 +53,16 @@ var (
 	gitCommit string
 )
 
-var Router = httprouter.New()
-var A Accesses
-
+// Accesses defines a singleton application instance, providing access to
+// Prometheus, Kubernetes, the cloud provider, and caches.
 type Accesses struct {
+	Router                        *httprouter.Router
 	PrometheusClient              prometheusClient.Client
 	ThanosClient                  prometheusClient.Client
 	KubeClientSet                 kubernetes.Interface
 	ClusterManager                *cm.ClusterManager
 	ClusterMap                    clusters.ClusterMap
-	Cloud                         costAnalyzerCloud.Provider
+	CloudProvider                 cloud.Provider
 	CPUPriceRecorder              *prometheus.GaugeVec
 	RAMPriceRecorder              *prometheus.GaugeVec
 	PersistentVolumePriceRecorder *prometheus.GaugeVec
@@ -77,6 +82,64 @@ type Accesses struct {
 	DeploymentSelectorRecorder    *prometheus.GaugeVec
 	Model                         *CostModel
 	OutOfClusterCache             *cache.Cache
+	AggregateCache                *cache.Cache
+	CostDataCache                 *cache.Cache
+	ClusterCostsCache             *cache.Cache
+	CacheExpiration               map[string]time.Duration
+}
+
+// GetPrometheusClient decides whether the default Prometheus client or the Thanos client
+// should be used.
+func (a *Accesses) GetPrometheusClient(remote bool) prometheusClient.Client {
+	// Use Thanos Client if it exists (enabled) and remote flag set
+	var pc prometheusClient.Client
+
+	if remote && a.ThanosClient != nil {
+		pc = a.ThanosClient
+	} else {
+		pc = a.PrometheusClient
+	}
+
+	return pc
+}
+
+// GetCacheExpiration looks up and returns custom cache expiration for the given duration.
+// If one does not exists, it returns the default cache expiration, which is defined by
+// the particular cache.
+func (a *Accesses) GetCacheExpiration(dur string) time.Duration {
+	if expiration, ok := a.CacheExpiration[dur]; ok {
+		return expiration
+	}
+	return cache.DefaultExpiration
+}
+
+// GetCacheRefresh determines how long to wait before refreshing the cache for the given duration,
+// which is done 1 minute before we expect the cache to expire, or 1 minute if expiration is
+// not found or is less than 2 minutes.
+func (a *Accesses) GetCacheRefresh(dur string) time.Duration {
+	expiry := a.GetCacheExpiration(dur).Minutes()
+	if expiry <= 2.0 {
+		return time.Minute
+	}
+	mins := time.Duration(expiry/2.0) * time.Minute
+	return mins
+}
+
+func (a *Accesses) ClusterCostsFromCacheHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+
+	durationHrs := "24h"
+	offset := "1m"
+	pClient := a.GetPrometheusClient(true)
+
+	key := fmt.Sprintf("%s:%s", durationHrs, offset)
+	if data, valid := a.ClusterCostsCache.Get(key); valid {
+		clusterCosts := data.(map[string]*ClusterCosts)
+		w.Write(WrapDataWithMessage(clusterCosts, nil, "clusterCosts cache hit"))
+	} else {
+		data, err := a.ComputeClusterCosts(pClient, a.CloudProvider, durationHrs, offset, true)
+		w.Write(WrapDataWithMessage(data, err, fmt.Sprintf("clusterCosts cache miss: %s", key)))
+	}
 }
 
 type DataEnvelope struct {
@@ -295,7 +358,7 @@ func (a *Accesses) RefreshPricingData(w http.ResponseWriter, r *http.Request, ps
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	err := a.Cloud.DownloadPricingData()
+	err := a.CloudProvider.DownloadPricingData()
 
 	w.Write(WrapData(nil, err))
 }
@@ -313,7 +376,7 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 		offset = "offset " + offset
 	}
 
-	data, err := a.Model.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, window, offset, namespace)
+	data, err := a.Model.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.CloudProvider, window, offset, namespace)
 
 	if fields != "" {
 		filteredData := filterFields(fields, data)
@@ -346,7 +409,7 @@ func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httpr
 		client = a.PrometheusClient
 	}
 
-	data, err := ComputeClusterCosts(client, a.Cloud, window, offset, true)
+	data, err := a.ComputeClusterCosts(client, a.CloudProvider, window, offset, true)
 	w.Write(WrapData(data, err))
 }
 
@@ -359,7 +422,7 @@ func (a *Accesses) ClusterCostsOverTime(w http.ResponseWriter, r *http.Request, 
 	window := r.URL.Query().Get("window")
 	offset := r.URL.Query().Get("offset")
 
-	data, err := ClusterCostsOverTime(a.PrometheusClient, a.Cloud, start, end, window, offset)
+	data, err := ClusterCostsOverTime(a.PrometheusClient, a.CloudProvider, start, end, window, offset)
 	w.Write(WrapData(data, err))
 }
 
@@ -386,7 +449,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	resolutionHours := 1.0
-	data, err := a.Model.ComputeCostDataRange(pClient, a.KubeClientSet, a.Cloud, start, end, window, resolutionHours, namespace, cluster, remoteEnabled, "")
+	data, err := a.Model.ComputeCostDataRange(pClient, a.KubeClientSet, a.CloudProvider, start, end, window, resolutionHours, namespace, cluster, remoteEnabled, "")
 	if err != nil {
 		w.Write(WrapData(nil, err))
 	}
@@ -396,55 +459,6 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	} else {
 		w.Write(WrapData(data, err))
 	}
-}
-
-// CostDataModelRangeLarge is experimental multi-cluster and long-term data storage in SQL support.
-func (a *Accesses) CostDataModelRangeLarge(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	startString := r.URL.Query().Get("start")
-	endString := r.URL.Query().Get("end")
-	windowString := r.URL.Query().Get("window")
-
-	var start time.Time
-	var end time.Time
-	var err error
-
-	if windowString == "" {
-		windowString = "1h"
-	}
-	if startString != "" {
-		start, err = time.Parse(RFC3339Milli, startString)
-		if err != nil {
-			klog.V(1).Infof("Error parsing time " + startString + ". Error: " + err.Error())
-			w.Write(WrapData(nil, err))
-		}
-	} else {
-		window, err := time.ParseDuration(windowString)
-		if err != nil {
-			w.Write(WrapData(nil, fmt.Errorf("Invalid duration '%s'", windowString)))
-
-		}
-		start = time.Now().Add(-2 * window)
-	}
-	if endString != "" {
-		end, err = time.Parse(RFC3339Milli, endString)
-		if err != nil {
-			klog.V(1).Infof("Error parsing time " + endString + ". Error: " + err.Error())
-			w.Write(WrapData(nil, err))
-		}
-	} else {
-		end = time.Now()
-	}
-
-	remoteLayout := "2006-01-02T15:04:05Z"
-	remoteStartStr := start.Format(remoteLayout)
-	remoteEndStr := end.Format(remoteLayout)
-	klog.V(1).Infof("Using remote database for query from %s to %s with window %s", startString, endString, windowString)
-
-	data, err := CostDataRangeFromSQL("", "", windowString, remoteStartStr, remoteEndStr)
-	w.Write(WrapData(data, err))
 }
 
 func parseAggregations(customAggregation, aggregator, filterType string) (string, []string, string) {
@@ -467,106 +481,41 @@ func parseAggregations(customAggregation, aggregator, filterType string) (string
 	return key, val, filter
 }
 
-func (a *Accesses) OutofClusterCosts(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *Accesses) GetAllNodePricing(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	start := r.URL.Query().Get("start")
-	end := r.URL.Query().Get("end")
-	aggregator := r.URL.Query().Get("aggregator")
-	customAggregation := r.URL.Query().Get("customAggregation")
-	filterType := r.URL.Query().Get("filterType")
-	filterValue := r.URL.Query().Get("filterValue")
-	var data []*costAnalyzerCloud.OutOfClusterAllocation
-	var err error
-	_, aggregations, filter := parseAggregations(customAggregation, aggregator, filterType)
-	data, err = a.Cloud.ExternalAllocations(start, end, aggregations, filter, filterValue, false)
+	data, err := a.CloudProvider.AllNodePricing()
 	w.Write(WrapData(data, err))
 }
 
-func (a *Accesses) OutOfClusterCostsWithCache(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *Accesses) GetConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	// start date for which to query costs, inclusive; format YYYY-MM-DD
-	start := r.URL.Query().Get("start")
-	// end date for which to query costs, inclusive; format YYYY-MM-DD
-	end := r.URL.Query().Get("end")
-	// aggregator sets the field by which to aggregate; default, prepended by "kubernetes_"
-	kubernetesAggregation := r.URL.Query().Get("aggregator")
-	// customAggregation allows full customization of aggregator w/o prepending
-	customAggregation := r.URL.Query().Get("customAggregation")
-	// disableCache, if set to "true", tells this function to recompute and
-	// cache the requested data
-	disableCache := r.URL.Query().Get("disableCache") == "true"
-	// clearCache, if set to "true", tells this function to flush the cache,
-	// then recompute and cache the requested data
-	clearCache := r.URL.Query().Get("clearCache") == "true"
-
-	filterType := r.URL.Query().Get("filterType")
-	filterValue := r.URL.Query().Get("filterValue")
-
-	aggregationkey, aggregation, filter := parseAggregations(customAggregation, kubernetesAggregation, filterType)
-
-	// clear cache prior to checking the cache so that a clearCache=true
-	// request always returns a freshly computed value
-	if clearCache {
-		a.OutOfClusterCache.Flush()
-	}
-
-	// attempt to retrieve cost data from cache
-	key := fmt.Sprintf(`%s:%s:%s:%s:%s`, start, end, aggregationkey, filter, filterValue)
-	if value, found := a.OutOfClusterCache.Get(key); found && !disableCache {
-		if data, ok := value.([]*costAnalyzerCloud.OutOfClusterAllocation); ok {
-			w.Write(WrapDataWithMessage(data, nil, fmt.Sprintf("out of cluster cache hit: %s", key)))
-			return
-		}
-		klog.Errorf("caching error: failed to type cast data: %s", key)
-	}
-
-	data, err := a.Cloud.ExternalAllocations(start, end, aggregation, filter, filterValue, false)
-	if err == nil {
-		a.OutOfClusterCache.Set(key, data, cache.DefaultExpiration)
-	}
-
-	w.Write(WrapDataWithMessage(data, err, fmt.Sprintf("out of cluser cache miss: %s", key)))
-}
-
-func (p *Accesses) GetAllNodePricing(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	data, err := p.Cloud.AllNodePricing()
+	data, err := a.CloudProvider.GetConfig()
 	w.Write(WrapData(data, err))
 }
 
-func (p *Accesses) GetConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *Accesses) UpdateSpotInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := p.Cloud.GetConfig()
-	w.Write(WrapData(data, err))
-}
-
-func (p *Accesses) UpdateSpotInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := p.Cloud.UpdateConfig(r.Body, costAnalyzerCloud.SpotInfoUpdateType)
+	data, err := a.CloudProvider.UpdateConfig(r.Body, cloud.SpotInfoUpdateType)
 	if err != nil {
 		w.Write(WrapData(data, err))
 		return
 	}
 	w.Write(WrapData(data, err))
-	err = p.Cloud.DownloadPricingData()
+	err = a.CloudProvider.DownloadPricingData()
 	if err != nil {
 		klog.V(1).Infof("Error redownloading data on config update: %s", err.Error())
 	}
 	return
 }
 
-func (p *Accesses) UpdateAthenaInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *Accesses) UpdateAthenaInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := p.Cloud.UpdateConfig(r.Body, costAnalyzerCloud.AthenaInfoUpdateType)
+	data, err := a.CloudProvider.UpdateConfig(r.Body, cloud.AthenaInfoUpdateType)
 	if err != nil {
 		w.Write(WrapData(data, err))
 		return
@@ -575,10 +524,10 @@ func (p *Accesses) UpdateAthenaInfoConfigs(w http.ResponseWriter, r *http.Reques
 	return
 }
 
-func (p *Accesses) UpdateBigQueryInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *Accesses) UpdateBigQueryInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := p.Cloud.UpdateConfig(r.Body, costAnalyzerCloud.BigqueryUpdateType)
+	data, err := a.CloudProvider.UpdateConfig(r.Body, cloud.BigqueryUpdateType)
 	if err != nil {
 		w.Write(WrapData(data, err))
 		return
@@ -587,10 +536,10 @@ func (p *Accesses) UpdateBigQueryInfoConfigs(w http.ResponseWriter, r *http.Requ
 	return
 }
 
-func (p *Accesses) UpdateConfigByKey(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *Accesses) UpdateConfigByKey(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := p.Cloud.UpdateConfig(r.Body, "")
+	data, err := a.CloudProvider.UpdateConfig(r.Body, "")
 	if err != nil {
 		w.Write(WrapData(data, err))
 		return
@@ -599,11 +548,11 @@ func (p *Accesses) UpdateConfigByKey(w http.ResponseWriter, r *http.Request, ps 
 	return
 }
 
-func (p *Accesses) ManagementPlatform(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *Accesses) ManagementPlatform(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	data, err := p.Cloud.GetManagementPlatform()
+	data, err := a.CloudProvider.GetManagementPlatform()
 	if err != nil {
 		w.Write(WrapData(data, err))
 		return
@@ -612,44 +561,205 @@ func (p *Accesses) ManagementPlatform(w http.ResponseWriter, r *http.Request, ps
 	return
 }
 
-func (p *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	data := GetClusterInfo(p.KubeClientSet, p.Cloud)
+	data := GetClusterInfo(a.KubeClientSet, a.CloudProvider)
 
 	w.Write(WrapData(data, nil))
 }
 
-func (p *Accesses) GetClusterInfoMap(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *Accesses) GetClusterInfoMap(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	data := p.ClusterMap.AsMap()
+	data := a.ClusterMap.AsMap()
 
 	w.Write(WrapData(data, nil))
 }
 
-func (p *Accesses) GetServiceAccountStatus(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+func (a *Accesses) GetServiceAccountStatus(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	w.Write(WrapData(A.Cloud.ServiceAccountStatus(), nil))
+	w.Write(WrapData(a.CloudProvider.ServiceAccountStatus(), nil))
 }
 
-func (p *Accesses) GetPricingSourceStatus(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+func (a *Accesses) GetPricingSourceStatus(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	w.Write(WrapData(A.Cloud.PricingSourceStatus(), nil))
+	w.Write(WrapData(a.CloudProvider.PricingSourceStatus(), nil))
 }
 
-func (p *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+func (a *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	w.Write(WrapData(prom.Validate(p.PrometheusClient)))
+	w.Write(WrapData(prom.Validate(a.PrometheusClient)))
 }
+
+// func warmAggregateCostModelCache() {
+// 	// Only allow one concurrent cache-warming operation
+// 	sem := util.NewSemaphore(1)
+
+// 	// Set default values, pulling them from application settings where applicable, and warm the cache
+// 	// for the given duration. Cache is intentionally set to expire (i.e. noExpireCache=false) so that
+// 	// if the default parameters change, the old cached defaults with eventually expire. Thus, the
+// 	// timing of the cache expiry/refresh is the only mechanism ensuring 100% cache warmth.
+// 	warmFunc := func(duration, durationHrs, offset string, cacheEfficiencyData bool) (error, error) {
+// 		field := "namespace"
+// 		subfields := []string{}
+// 		rate := ""
+// 		filters := map[string]string{}
+// 		includeTimeSeries := false
+// 		includeEfficiency := true
+// 		disableCache := true
+// 		clearCache := false
+// 		noCache := false
+// 		noExpireCache := false
+// 		remote := true
+// 		shareSplit := "weighted"
+// 		remoteAvailable := env.IsRemoteEnabled()
+// 		remoteEnabled := remote && remoteAvailable
+// 		promClient := a.OpenSource.GetPrometheusClient(remote)
+// 		allocateIdle := provider.AllocateIdleByDefault(a.CloudProvider)
+
+// 		sharedNamespaces := provider.SharedNamespaces(a.CloudProvider)
+// 		sharedLabelNames, sharedLabelValues := provider.SharedLabels(a.CloudProvider)
+
+// 		var sri *costmodel.SharedResourceInfo
+// 		if len(sharedNamespaces) > 0 || len(sharedLabelNames) > 0 {
+// 			sri = costmodel.NewSharedResourceInfo(true, sharedNamespaces, sharedLabelNames, sharedLabelValues)
+// 		}
+
+// 		aggKey := costmodel.GenerateAggKey(aggKeyParams{
+// 			duration:   duration,
+// 			offset:     offset,
+// 			filters:    filters,
+// 			field:      field,
+// 			subfields:  subfields,
+// 			rate:       rate,
+// 			sri:        sri,
+// 			shareType:  shareSplit,
+// 			idle:       allocateIdle,
+// 			timeSeries: includeTimeSeries,
+// 			efficiency: includeEfficiency,
+// 		})
+// 		klog.V(3).Infof("[Info] aggregation: cache warming defaults: %s", aggKey)
+// 		key := fmt.Sprintf("%s:%s", durationHrs, offset)
+
+// 		_, _, aggErr := costmodel.ComputeAggregateCostModel(promClient, duration, offset, field, subfields, rate, filters,
+// 			sri, shareSplit, allocateIdle, includeTimeSeries, includeEfficiency, disableCache,
+// 			clearCache, noCache, noExpireCache, remoteEnabled, false)
+// 		if aggErr != nil {
+// 			klog.Infof("Error building cache %s: %s", key, aggErr)
+// 		}
+// 		if costmodel.A.ThanosClient != nil {
+// 			offset = thanos.Offset()
+// 			klog.Infof("Setting offset to %s", offset)
+// 		}
+// 		totals, err := costmodel.ComputeClusterCosts(promClient, A.OpenSource.CloudProvider, durationHrs, offset, cacheEfficiencyData)
+// 		if err != nil {
+// 			klog.Infof("Error building cluster costs cache %s", key)
+// 		}
+// 		maxMinutesWithData := 0.0
+// 		for _, cluster := range totals {
+// 			if cluster.DataMinutes > maxMinutesWithData {
+// 				maxMinutesWithData = cluster.DataMinutes
+// 			}
+// 		}
+// 		if len(totals) > 0 && maxMinutesWithData > clusterCostsCacheTime {
+
+// 			A.ClusterCostsCache.Set(key, totals, A.GetCacheExpiration(duration))
+// 			klog.V(3).Infof("[Info] caching %s cluster costs for %s", duration, A.GetCacheExpiration(duration))
+// 		} else {
+// 			klog.V(2).Infof("[Warning] not caching %s cluster costs: no data or less than %f minutes data ", duration, clusterCostsCacheTime)
+// 		}
+// 		return aggErr, err
+// 	}
+
+// 	// 1 day
+// 	go func(sem *util.Semaphore) {
+// 		defer errors.HandlePanic()
+
+// 		for {
+// 			duration := "1d"
+// 			offset := "1m"
+// 			durHrs := "24h"
+
+// 			sem.Acquire()
+// 			warmFunc(duration, durHrs, offset, true)
+// 			sem.Return()
+
+// 			klog.V(3).Infof("aggregation: warm cache: %s", duration)
+// 			time.Sleep(A.GetCacheRefresh(duration))
+// 		}
+// 	}(sem)
+
+// 	// 2 day
+// 	go func(sem *util.Semaphore) {
+// 		defer errors.HandlePanic()
+
+// 		for {
+// 			duration := "2d"
+// 			offset := "1m"
+// 			durHrs := "48h"
+
+// 			sem.Acquire()
+// 			warmFunc(duration, durHrs, offset, false)
+// 			sem.Return()
+
+// 			klog.V(3).Infof("aggregation: warm cache: %s", duration)
+// 			time.Sleep(A.GetCacheRefresh(duration))
+// 		}
+// 	}(sem)
+
+// 	if !env.IsETLEnabled() {
+// 		// 7 day
+// 		go func(sem *util.Semaphore) {
+// 			defer errors.HandlePanic()
+
+// 			for {
+// 				duration := "7d"
+// 				offset := "1m"
+// 				durHrs := "168h"
+
+// 				sem.Acquire()
+// 				aggErr, err := warmFunc(duration, durHrs, offset, false)
+// 				sem.Return()
+
+// 				klog.V(3).Infof("aggregation: warm cache: %s", duration)
+// 				if aggErr == nil && err == nil {
+// 					time.Sleep(A.GetCacheRefresh(duration))
+// 				} else {
+// 					time.Sleep(5 * time.Minute)
+// 				}
+// 			}
+// 		}(sem)
+
+// 		// 30 day
+// 		go func(sem *util.Semaphore) {
+// 			defer errors.HandlePanic()
+
+// 			for {
+// 				duration := "30d"
+// 				offset := "1m"
+// 				durHrs := "720h"
+
+// 				sem.Acquire()
+// 				aggErr, err := warmFunc(duration, durHrs, offset, false)
+// 				sem.Return()
+// 				if aggErr == nil && err == nil {
+// 					time.Sleep(A.GetCacheRefresh(duration))
+// 				} else {
+// 					time.Sleep(5 * time.Minute)
+// 				}
+// 			}
+// 		}(sem)
+// 	}
+// }
 
 // Creates a new ClusterManager instance using a boltdb storage. If that fails,
 // then we fall back to a memory-only storage.
@@ -715,7 +825,7 @@ func handlePanic(p errors.Panic) bool {
 	return p.Type == errors.PanicTypeHTTP
 }
 
-func Initialize(additionalConfigWatchers ...ConfigWatchers) {
+func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	klog.InitFlags(nil)
 	flag.Set("v", "3")
 	flag.Parse()
@@ -815,7 +925,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 	k8sCache.Run()
 
 	cloudProviderKey := env.GetCloudProviderAPIKey()
-	cloudProvider, err := costAnalyzerCloud.NewProvider(k8sCache, cloudProviderKey)
+	cloudProvider, err := cloud.NewProvider(k8sCache, cloudProviderKey)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -961,9 +1071,6 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		Cloud:         cloudProvider,
 	})
 
-	// cache responses from model for a default of 5 minutes; clear expired responses every 10 minutes
-	outOfClusterCache := cache.New(time.Minute*5, time.Minute*10)
-
 	remoteEnabled := env.IsRemoteEnabled()
 	if remoteEnabled {
 		info, err := cloudProvider.ClusterInfo()
@@ -971,7 +1078,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		if err != nil {
 			klog.Infof("Error saving cluster id %s", err.Error())
 		}
-		_, _, err = costAnalyzerCloud.GetOrCreateClusterMeta(info["id"], info["name"])
+		_, _, err = cloud.GetOrCreateClusterMeta(info["id"], info["name"])
 		if err != nil {
 			klog.Infof("Unable to set cluster id '%s' for cluster '%s', %s", info["id"], info["name"], err.Error())
 		}
@@ -1008,13 +1115,38 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		clusterMap = clusters.NewClusterMap(promCli, 5*time.Minute)
 	}
 
-	A = Accesses{
+	// cache responses from model and aggregation for a default of 10 minutes;
+	// clear expired responses every 20 minutes
+	aggregateCache := cache.New(time.Minute*10, time.Minute*20)
+	costDataCache := cache.New(time.Minute*10, time.Minute*20)
+	clusterCostsCache := cache.New(cache.NoExpiration, cache.NoExpiration)
+
+	// query durations that should be cached longer should be registered here
+	// use relatively prime numbers to minimize likelihood of synchronized
+	// attempts at cache warming
+	cacheExpiration := map[string]time.Duration{
+		"1d":  maxCacheMinutes1d * time.Minute,
+		"2d":  maxCacheMinutes2d * time.Minute,
+		"7d":  maxCacheMinutes7d * time.Minute,
+		"30d": maxCacheMinutes30d * time.Minute,
+	}
+
+	// warm the cache unless explicitly set to false
+	if env.IsCacheWarmingEnabled() {
+		log.Infof("Init: AggregateCostModel cache warming enabled")
+		warmAggregateCostModelCache()
+	} else {
+		log.Infof("Init: AggregateCostModel cache warming disabled")
+	}
+
+	a := Accesses{
+		Router:                        httprouter.New(),
 		PrometheusClient:              promCli,
 		ThanosClient:                  thanosClient,
 		KubeClientSet:                 kubeClientset,
 		ClusterManager:                clusterManager,
 		ClusterMap:                    clusterMap,
-		Cloud:                         cloudProvider,
+		CloudProvider:                 cloudProvider,
 		CPUPriceRecorder:              cpuGv,
 		RAMPriceRecorder:              ramGv,
 		GPUPriceRecorder:              gpuGv,
@@ -1031,35 +1163,40 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) {
 		ClusterManagementCostRecorder: ClusterManagementCostRecorder,
 		LBCostRecorder:                LBCostRecorder,
 		Model:                         NewCostModel(k8sCache, clusterMap, scrapeInterval),
-		OutOfClusterCache:             outOfClusterCache,
+		AggregateCache:                aggregateCache,
+		CostDataCache:                 costDataCache,
+		ClusterCostsCache:             clusterCostsCache,
+		CacheExpiration:               cacheExpiration,
 	}
 
-	err = A.Cloud.DownloadPricingData()
+	err = a.CloudProvider.DownloadPricingData()
 	if err != nil {
 		klog.V(1).Info("Failed to download pricing data: " + err.Error())
 	}
 
-	StartCostModelMetricRecording(&A)
+	StartCostModelMetricRecording(&a)
 
-	managerEndpoints := cm.NewClusterManagerEndpoints(A.ClusterManager)
+	managerEndpoints := cm.NewClusterManagerEndpoints(a.ClusterManager)
 
-	Router.GET("/costDataModel", A.CostDataModel)
-	Router.GET("/costDataModelRange", A.CostDataModelRange)
-	Router.GET("/costDataModelRangeLarge", A.CostDataModelRangeLarge)
-	Router.GET("/outOfClusterCosts", A.OutOfClusterCostsWithCache)
-	Router.GET("/allNodePricing", A.GetAllNodePricing)
-	Router.POST("/refreshPricing", A.RefreshPricingData)
-	Router.GET("/clusterCostsOverTime", A.ClusterCostsOverTime)
-	Router.GET("/clusterCosts", A.ClusterCosts)
-	Router.GET("/validatePrometheus", A.GetPrometheusMetadata)
-	Router.GET("/managementPlatform", A.ManagementPlatform)
-	Router.GET("/clusterInfo", A.ClusterInfo)
-	Router.GET("/clusterInfoMap", A.GetClusterInfoMap)
-	Router.GET("/serviceAccountStatus", A.GetServiceAccountStatus)
-	Router.GET("/pricingSourceStatus", A.GetPricingSourceStatus)
+	a.Router.GET("/costDataModel", a.CostDataModel)
+	a.Router.GET("/costDataModelRange", a.CostDataModelRange)
+	a.Router.GET("/aggregatedCostModel", a.AggregateCostModelHandler)
+	a.Router.GET("/allNodePricing", a.GetAllNodePricing)
+	a.Router.POST("/refreshPricing", a.RefreshPricingData)
+	a.Router.GET("/clusterCostsOverTime", a.ClusterCostsOverTime)
+	a.Router.GET("/clusterCosts", a.ClusterCosts)
+	a.Router.GET("/clusterCostsFromCache", a.ClusterCostsFromCacheHandler)
+	a.Router.GET("/validatePrometheus", a.GetPrometheusMetadata)
+	a.Router.GET("/managementPlatform", a.ManagementPlatform)
+	a.Router.GET("/clusterInfo", a.ClusterInfo)
+	a.Router.GET("/clusterInfoMap", a.GetClusterInfoMap)
+	a.Router.GET("/serviceAccountStatus", a.GetServiceAccountStatus)
+	a.Router.GET("/pricingSourceStatus", a.GetPricingSourceStatus)
 
 	// cluster manager endpoints
-	Router.GET("/clusters", managerEndpoints.GetAllClusters)
-	Router.PUT("/clusters", managerEndpoints.PutCluster)
-	Router.DELETE("/clusters/:id", managerEndpoints.DeleteCluster)
+	a.Router.GET("/clusters", managerEndpoints.GetAllClusters)
+	a.Router.PUT("/clusters", managerEndpoints.PutCluster)
+	a.Router.DELETE("/clusters/:id", managerEndpoints.DeleteCluster)
+
+	return &a
 }

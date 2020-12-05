@@ -25,13 +25,13 @@ const (
 	  ) by (cluster_id)`
 
 	queryStorage = `sum(
-		avg(avg_over_time(pv_hourly_cost[%s] %s)) by (persistentvolume, cluster_id) * 730 
+		avg(avg_over_time(pv_hourly_cost[%s] %s)) by (persistentvolume, cluster_id) * 730
 		* avg(avg_over_time(kube_persistentvolume_capacity_bytes[%s] %s)) by (persistentvolume, cluster_id) / 1024 / 1024 / 1024
 	  ) by (cluster_id) %s`
 
 	queryTotal = `sum(avg(node_total_hourly_cost) by (node, cluster_id)) * 730 +
 	  sum(
-		avg(avg_over_time(pv_hourly_cost[1h])) by (persistentvolume, cluster_id) * 730 
+		avg(avg_over_time(pv_hourly_cost[1h])) by (persistentvolume, cluster_id) * 730
 		* avg(avg_over_time(kube_persistentvolume_capacity_bytes[1h])) by (persistentvolume, cluster_id) / 1024 / 1024 / 1024
 	  ) by (cluster_id) %s`
 
@@ -938,7 +938,7 @@ func ClusterLoadBalancers(cp cloud.Provider, client prometheus.Client, duration,
 }
 
 // ComputeClusterCosts gives the cumulative and monthly-rate cluster costs over a window of time for all clusters.
-func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, window, offset string, withBreakdown bool) (map[string]*ClusterCosts, error) {
+func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, window, offset string, withBreakdown bool) (map[string]*ClusterCosts, error) {
 	// Compute number of minutes in the full interval, for use interpolating missed scrapes or scaling missing data
 	start, end, err := util.ParseTimeRange(window, offset)
 	if err != nil {
@@ -1094,7 +1094,7 @@ func ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, wind
 
 	// Determine combined discount
 	discount, customDiscount := 0.0, 0.0
-	c, err := A.Cloud.GetConfig()
+	c, err := a.CloudProvider.GetConfig()
 	if err == nil {
 		discount, err = ParsePercentString(c.Discount)
 		if err != nil {
