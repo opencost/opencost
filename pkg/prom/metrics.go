@@ -4,8 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"regexp"
+	"sort"
 	"strings"
 )
+
+var invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
 
 // AnyToLabels will create prometheus labels based on the fields of the interface
 // passed. Note that this method is quite expensive and should only be used when absolutely
@@ -66,4 +70,41 @@ func LabelNamesFrom(labels map[string]string) []string {
 		keys = append(keys, key)
 	}
 	return keys
+}
+
+// Converts kubernetes labels into prometheus labels.
+func KubeLabelsToLabels(labels map[string]string) ([]string, []string) {
+	labelKeys := make([]string, 0, len(labels))
+	for k := range labels {
+		labelKeys = append(labelKeys, k)
+	}
+	sort.Strings(labelKeys)
+
+	labelValues := make([]string, 0, len(labels))
+	for i, k := range labelKeys {
+		labelKeys[i] = "label_" + SanitizeLabelName(k)
+		labelValues = append(labelValues, labels[k])
+	}
+	return labelKeys, labelValues
+}
+
+// Converts kubernetes annotations into prometheus labels.
+func KubeAnnotationsToLabels(labels map[string]string) ([]string, []string) {
+	labelKeys := make([]string, 0, len(labels))
+	for k := range labels {
+		labelKeys = append(labelKeys, k)
+	}
+	sort.Strings(labelKeys)
+
+	labelValues := make([]string, 0, len(labels))
+	for i, k := range labelKeys {
+		labelKeys[i] = "annotation_" + SanitizeLabelName(k)
+		labelValues = append(labelValues, labels[k])
+	}
+	return labelKeys, labelValues
+}
+
+// Replaces all illegal prometheus label characters with _
+func SanitizeLabelName(s string) string {
+	return invalidLabelCharRE.ReplaceAllString(s, "_")
 }
