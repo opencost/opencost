@@ -386,16 +386,12 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	resolutionHours := 1.0
-<<<<<<< HEAD
 	offMins := int(time.Now().Sub(end).Minutes())
 	offStr := ""
 	if offMins > 1 {
 		offStr = fmt.Sprintf("%dm", int(offMins))
 	}
 	data, err := a.Model.ComputeCostDataRange(pClient, a.KubeClientSet, a.Cloud, start, end, window, resolutionHours, namespace, cluster, remoteEnabled, offMins)
-=======
-	data, err := a.Model.ComputeCostDataRange(pClient, a.KubeClientSet, a.Cloud, start, end, window, resolutionHours, namespace, cluster, remoteEnabled, "")
->>>>>>> 5ef531b1f2fa90a0c5d8dc5f654e3873f053a3bb
 	if err != nil {
 		w.Write(WrapData(nil, err))
 	}
