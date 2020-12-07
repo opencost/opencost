@@ -10,13 +10,14 @@ import (
 	"time"
 
 	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
+
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
 	"k8s.io/klog"
@@ -32,7 +33,7 @@ var (
 
 // StatefulsetCollector is a prometheus collector that generates StatefulsetMetrics
 type StatefulsetCollector struct {
-	KubeClientSet kubernetes.Interface
+	KubeClusterCache clustercache.ClusterCache
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
@@ -43,8 +44,8 @@ func (sc StatefulsetCollector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (sc StatefulsetCollector) Collect(ch chan<- prometheus.Metric) {
-	ds, _ := sc.KubeClientSet.AppsV1().StatefulSets("").List(metav1.ListOptions{})
-	for _, statefulset := range ds.Items {
+	ds := sc.KubeClusterCache.GetAllStatefulSets()
+	for _, statefulset := range ds {
 		labels, values := kubeLabelsToPrometheusLabels(statefulset.Spec.Selector.MatchLabels)
 		m := newStatefulsetMetric(statefulset.GetName(), statefulset.GetNamespace(), "statefulSet_match_labels", labels, values)
 		ch <- m
@@ -118,7 +119,7 @@ func (s StatefulsetMetric) Write(m *dto.Metric) error {
 
 // DeploymentCollector is a prometheus collector that generates DeploymentMetrics
 type DeploymentCollector struct {
-	KubeClientSet kubernetes.Interface
+	KubeClusterCache clustercache.ClusterCache
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
@@ -129,8 +130,8 @@ func (sc DeploymentCollector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (sc DeploymentCollector) Collect(ch chan<- prometheus.Metric) {
-	ds, _ := sc.KubeClientSet.AppsV1().Deployments("").List(metav1.ListOptions{})
-	for _, deployment := range ds.Items {
+	ds := sc.KubeClusterCache.GetAllDeployments()
+	for _, deployment := range ds {
 		labels, values := kubeLabelsToPrometheusLabels(deployment.Spec.Selector.MatchLabels)
 		m := newDeploymentMetric(deployment.GetName(), deployment.GetNamespace(), "deployment_match_labels", labels, values)
 		ch <- m
@@ -204,7 +205,7 @@ func (s DeploymentMetric) Write(m *dto.Metric) error {
 
 // ServiceCollector is a prometheus collector that generates ServiceMetrics
 type ServiceCollector struct {
-	KubeClientSet kubernetes.Interface
+	KubeClusterCache clustercache.ClusterCache
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
@@ -215,8 +216,8 @@ func (sc ServiceCollector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (sc ServiceCollector) Collect(ch chan<- prometheus.Metric) {
-	svcs, _ := sc.KubeClientSet.CoreV1().Services("").List(metav1.ListOptions{})
-	for _, svc := range svcs.Items {
+	svcs := sc.KubeClusterCache.GetAllServices()
+	for _, svc := range svcs {
 		labels, values := kubeLabelsToPrometheusLabels(svc.Spec.Selector)
 		m := newServiceMetric(svc.GetName(), svc.GetNamespace(), "service_selector_labels", labels, values)
 		ch <- m
@@ -279,6 +280,172 @@ func (s ServiceMetric) Write(m *dto.Metric) error {
 	labels = append(labels, &dto.LabelPair{
 		Name:  &r,
 		Value: &s.serviceName,
+	})
+	m.Label = labels
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  NamespaceAnnotationCollector
+//--------------------------------------------------------------------------
+
+// NamespaceAnnotationCollector is a prometheus collector that generates NamespaceAnnotationMetrics
+type NamespaceAnnotationCollector struct {
+	KubeClusterCache clustercache.ClusterCache
+}
+
+// Describe sends the super-set of all possible descriptors of metrics
+// collected by this Collector.
+func (nsac NamespaceAnnotationCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- prometheus.NewDesc("kube_namespace_annotations", "namespace annotations", []string{}, nil)
+}
+
+// Collect is called by the Prometheus registry when collecting metrics.
+func (nsac NamespaceAnnotationCollector) Collect(ch chan<- prometheus.Metric) {
+	namespaces := nsac.KubeClusterCache.GetAllNamespaces()
+	for _, namespace := range namespaces {
+		labels, values := kubeAnnotationstoPrometheusLabels(namespace.Annotations)
+		m := newNamespaceAnnotationsMetric(namespace.GetName(), "kube_namespace_annotations", labels, values)
+		ch <- m
+	}
+}
+
+//--------------------------------------------------------------------------
+//  NamespaceAnnotationsMetric
+//--------------------------------------------------------------------------
+
+// NamespaceAnnotationsMetric is a prometheus.Metric used to encode namespace annotations
+type NamespaceAnnotationsMetric struct {
+	fqName      string
+	help        string
+	labelNames  []string
+	labelValues []string
+	namespace   string
+}
+
+// Creates a new NamespaceAnnotationsMetric, implementation of prometheus.Metric
+func newNamespaceAnnotationsMetric(namespace, fqname string, labelNames []string, labelValues []string) NamespaceAnnotationsMetric {
+	return NamespaceAnnotationsMetric{
+		namespace:   namespace,
+		fqName:      fqname,
+		labelNames:  labelNames,
+		labelValues: labelValues,
+		help:        "kube_namespace_annotations Namespace Annotations",
+	}
+}
+
+// Desc returns the descriptor for the Metric. This method idempotently
+// returns the same descriptor throughout the lifetime of the Metric.
+func (nam NamespaceAnnotationsMetric) Desc() *prometheus.Desc {
+	l := prometheus.Labels{"namespace": nam.namespace}
+	return prometheus.NewDesc(nam.fqName, nam.help, nam.labelNames, l)
+}
+
+// Write encodes the Metric into a "Metric" Protocol Buffer data
+// transmission object.
+func (nam NamespaceAnnotationsMetric) Write(m *dto.Metric) error {
+	h := float64(1)
+	m.Gauge = &dto.Gauge{
+		Value: &h,
+	}
+
+	var labels []*dto.LabelPair
+	for i := range nam.labelNames {
+		labels = append(labels, &dto.LabelPair{
+			Name:  &nam.labelNames[i],
+			Value: &nam.labelValues[i],
+		})
+	}
+	n := "namespace"
+	labels = append(labels, &dto.LabelPair{
+		Name:  &n,
+		Value: &nam.namespace,
+	})
+	m.Label = labels
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  PodAnnotationCollector
+//--------------------------------------------------------------------------
+
+// PodAnnotationCollector is a prometheus collector that generates PodAnnotationMetrics
+type PodAnnotationCollector struct {
+	KubeClusterCache clustercache.ClusterCache
+}
+
+// Describe sends the super-set of all possible descriptors of metrics
+// collected by this Collector.
+func (pac PodAnnotationCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- prometheus.NewDesc("kube_pod_annotations", "pod annotations", []string{}, nil)
+}
+
+// Collect is called by the Prometheus registry when collecting metrics.
+func (pac PodAnnotationCollector) Collect(ch chan<- prometheus.Metric) {
+	pods := pac.KubeClusterCache.GetAllPods()
+	for _, pod := range pods {
+		labels, values := kubeAnnotationstoPrometheusLabels(pod.Annotations)
+		m := newPodAnnotationMetric(pod.GetNamespace(), pod.GetName(), "kube_pod_annotations", labels, values)
+		ch <- m
+	}
+}
+
+//--------------------------------------------------------------------------
+//  PodAnnotationsMetric
+//--------------------------------------------------------------------------
+
+// PodAnnotationsMetric is a prometheus.Metric used to encode namespace annotations
+type PodAnnotationsMetric struct {
+	name        string
+	fqName      string
+	help        string
+	labelNames  []string
+	labelValues []string
+	namespace   string
+}
+
+// Creates a new PodAnnotationsMetric, implementation of prometheus.Metric
+func newPodAnnotationMetric(namespace, name, fqname string, labelNames []string, labelValues []string) PodAnnotationsMetric {
+	return PodAnnotationsMetric{
+		namespace:   namespace,
+		fqName:      fqname,
+		labelNames:  labelNames,
+		labelValues: labelValues,
+		help:        "kube_pod_annotations Pod Annotations",
+	}
+}
+
+// Desc returns the descriptor for the Metric. This method idempotently
+// returns the same descriptor throughout the lifetime of the Metric.
+func (pam PodAnnotationsMetric) Desc() *prometheus.Desc {
+	l := prometheus.Labels{"namespace": pam.namespace, "pod": pam.name}
+	return prometheus.NewDesc(pam.fqName, pam.help, pam.labelNames, l)
+}
+
+// Write encodes the Metric into a "Metric" Protocol Buffer data
+// transmission object.
+func (pam PodAnnotationsMetric) Write(m *dto.Metric) error {
+	h := float64(1)
+	m.Gauge = &dto.Gauge{
+		Value: &h,
+	}
+
+	var labels []*dto.LabelPair
+	for i := range pam.labelNames {
+		labels = append(labels, &dto.LabelPair{
+			Name:  &pam.labelNames[i],
+			Value: &pam.labelValues[i],
+		})
+	}
+	n := "namespace"
+	labels = append(labels, &dto.LabelPair{
+		Name:  &n,
+		Value: &pam.namespace,
+	})
+	r := "pod"
+	labels = append(labels, &dto.LabelPair{
+		Name:  &r,
+		Value: &pam.name,
 	})
 	m.Label = labels
 	return nil
@@ -453,7 +620,16 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 
 			data, err := a.Model.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.CloudProvider, "2m", "", "")
 			if err != nil {
-				klog.V(1).Info("Error in price recording: " + err.Error())
+				// For an error collection, we'll just log the length of the errors (ComputeCostData already logs the
+				// actual errors)
+				if prom.IsErrorCollection(err) {
+					if ec, ok := err.(prom.QueryErrorCollection); ok {
+						klog.V(1).Info("Error in price recording: %d errors occurred", len(ec.Errors()))
+					}
+				} else {
+					klog.V(1).Info("Error in price recording: " + err.Error())
+				}
+
 				// zero the for loop so the time.Sleep will still work
 				data = map[string]*CostData{}
 			}
@@ -716,6 +892,22 @@ func kubeLabelsToPrometheusLabels(labels map[string]string) ([]string, []string)
 	labelValues := make([]string, 0, len(labels))
 	for i, k := range labelKeys {
 		labelKeys[i] = "label_" + SanitizeLabelName(k)
+		labelValues = append(labelValues, labels[k])
+	}
+	return labelKeys, labelValues
+}
+
+// Converts kubernetes annotations into prometheus labels.
+func kubeAnnotationstoPrometheusLabels(labels map[string]string) ([]string, []string) {
+	labelKeys := make([]string, 0, len(labels))
+	for k := range labels {
+		labelKeys = append(labelKeys, k)
+	}
+	sort.Strings(labelKeys)
+
+	labelValues := make([]string, 0, len(labels))
+	for i, k := range labelKeys {
+		labelKeys[i] = "annotation_" + SanitizeLabelName(k)
 		labelValues = append(labelValues, labels[k])
 	}
 	return labelKeys, labelValues
