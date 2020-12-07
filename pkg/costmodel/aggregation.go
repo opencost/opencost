@@ -12,6 +12,7 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/kubecost"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
@@ -1613,7 +1614,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	// determine duration and offset from query parameters
 	window, err := kubecost.ParseWindowWithOffset(windowStr, env.GetParsedUTCOffset())
 	if err != nil || window.Start() == nil {
-		WriteError(w, BadRequest(fmt.Sprintf("invalid window: %s", err)))
+		http.Error(w, fmt.Sprintf("invalid window: %s", err), http.StatusBadRequest)
 		return
 	}
 	duration, offset := window.ToDurationOffset()
@@ -1712,19 +1713,19 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 
 	// aggregation field is required
 	if field == "" {
-		WriteError(w, BadRequest("Missing aggregation field parameter"))
+		http.Error(w, "Missing aggregation field parameter", http.StatusBadRequest)
 		return
 	}
 
 	// aggregation subfield is required when aggregation field is "label"
 	if field == "label" && len(subfields) == 0 {
-		WriteError(w, BadRequest("Missing aggregation subfield parameter for aggregation by label"))
+		http.Error(w, "Missing aggregation subfield parameter for aggregation by label", http.StatusBadRequest)
 		return
 	}
 
 	// enforce one of four available rate options
 	if rate != "" && rate != "hourly" && rate != "daily" && rate != "monthly" {
-		WriteError(w, BadRequest("If set, rate parameter must be one of: 'hourly', 'daily', 'monthly'"))
+		http.Error(w, "If set, rate parameter must be one of: 'hourly', 'daily', 'monthly'", http.StatusBadRequest)
 		return
 	}
 
@@ -1750,7 +1751,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 		sln = strings.Split(sharedLabelNames, ",")
 		slv = strings.Split(sharedLabelValues, ",")
 		if len(sln) != len(slv) || slv[0] == "" {
-			WriteError(w, BadRequest("Supply exacly one shared label value per shared label name"))
+			http.Error(w, "Supply exacly one shared label value per shared label name", http.StatusBadRequest)
 			return
 		}
 	}
@@ -1772,14 +1773,16 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	var data map[string]*Aggregation
 	var message string
 
-	etlEnabled := env.IsETLEnabled()
-	useETLAdapter := r.URL.Query().Get("etl") == "true"
-	if etlEnabled && useETLAdapter {
-		data, message, err = a.AdaptETLAggregateCostModel(window, field, subfields, rate, filters, sr, shared, allocateIdle, includeTimeSeries)
-	} else {
-		data, message, err = a.ComputeAggregateCostModel(promClient, duration, offset, field, subfields, rate, filters,
-			sr, shared, allocateIdle, includeTimeSeries, includeEfficiency, disableCache, clearCache, noCache, noExpireCache, remoteEnabled, false)
-	}
+	// etlEnabled := env.IsETLEnabled()
+	// useETLAdapter := r.URL.Query().Get("etl") == "true"
+	// if etlEnabled && useETLAdapter {
+	// 	data, message, err = a.AdaptETLAggregateCostModel(window, field, subfields, rate, filters, sr, shared, allocateIdle, includeTimeSeries)
+	// } else {
+	// 	data, message, err = a.ComputeAggregateCostModel(promClient, duration, offset, field, subfields, rate, filters,
+	// 		sr, shared, allocateIdle, includeTimeSeries, includeEfficiency, disableCache, clearCache, noCache, noExpireCache, remoteEnabled, false)
+	// }
+	data, message, err = a.ComputeAggregateCostModel(promClient, duration, offset, field, subfields, rate, filters,
+		sr, shared, allocateIdle, includeTimeSeries, includeEfficiency, disableCache, clearCache, noCache, noExpireCache, remoteEnabled, false)
 
 	// Find any warnings in http request context
 	warning, _ := product.GetWarning(r)
@@ -1787,9 +1790,9 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		if emptyErr, ok := err.(*EmptyDataError); ok {
 			if warning == "" {
-				WriteDataWithMessage(w, map[string]interface{}{}, emptyErr.Error())
+				w.Write(WrapData(map[string]interface{}{}, emptyErr))
 			} else {
-				WriteDataWithMessageAndWarning(w, map[string]interface{}{}, emptyErr.Error(), warning)
+				w.Write(WrapDataWithWarning(map[string]interface{}{}, emptyErr, warning))
 			}
 			return
 		}
@@ -1808,21 +1811,21 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 					}
 				}
 
-				WriteError(w, InternalServerError(msg))
+				http.Error(w, msg, http.StatusInternalServerError)
 			} else {
 				// Boundary error outside of 90 day period; may not be available
-				WriteError(w, InternalServerError(boundaryErr.Error()))
+				http.Error(w, boundaryErr.Error(), http.StatusInternalServerError)
 			}
 			return
 		}
 		errStr := fmt.Sprintf("error computing aggregate cost model: %s", err)
-		WriteError(w, InternalServerError(errStr))
+		http.Error(w, errStr, http.StatusInternalServerError)
 		return
 	}
 
 	if warning == "" {
-		WriteDataWithMessage(w, data, message)
+		w.Write(WrapDataWithMessage(data, nil, message))
 	} else {
-		WriteDataWithMessageAndWarning(w, data, message, warning)
+		w.Write(WrapDataWithMessageAndWarning(data, nil, message, warning))
 	}
 }

@@ -1,5 +1,13 @@
 package env
 
+import (
+	"regexp"
+	"strconv"
+	"time"
+
+	"github.com/kubecost/cost-model/pkg/log"
+)
+
 const (
 	AppVersionEnvVar = "APP_VERSION"
 
@@ -43,6 +51,8 @@ const (
 	InsecureSkipVerify = "INSECURE_SKIP_VERIFY"
 
 	KubeConfigPathEnvVar = "KUBECONFIG_PATH"
+
+	UTCOffsetEnvVar = "UTC_OFFSET"
 )
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
@@ -249,4 +259,38 @@ func GetMultiClusterBearerToken() string {
 // GetKubeConfigPath returns the environment variable value for KubeConfigPathEnvVar
 func GetKubeConfigPath() string {
 	return Get(KubeConfigPathEnvVar, "")
+}
+
+// GetUTCOffset returns the environemnt variable value for UTCOffset
+func GetUTCOffset() string {
+	return Get(UTCOffsetEnvVar, "")
+}
+
+// GetParsedUTCOffset returns the duration of the configured UTC offset
+func GetParsedUTCOffset() time.Duration {
+	offset := time.Duration(0)
+
+	if offsetStr := GetUTCOffset(); offsetStr != "" {
+		regex := regexp.MustCompile(`^(\+|-)(\d\d):(\d\d)$`)
+		match := regex.FindStringSubmatch(offsetStr)
+		if match == nil {
+			log.Warningf("Illegal UTC offset: %s", offsetStr)
+			return offset
+		}
+
+		sig := 1
+		if match[1] == "-" {
+			sig = -1
+		}
+
+		hrs64, _ := strconv.ParseInt(match[2], 10, 64)
+		hrs := sig * int(hrs64)
+
+		mins64, _ := strconv.ParseInt(match[3], 10, 64)
+		mins := sig * int(mins64)
+
+		offset = time.Duration(hrs)*time.Hour + time.Duration(mins)
+	}
+
+	return offset
 }
