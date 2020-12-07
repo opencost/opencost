@@ -38,7 +38,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-const awsReservedInstancePricePerHour = 0.0287
 const supportedSpotFeedVersion = "1"
 const SpotInfoUpdateType = "spotinfo"
 const AthenaInfoUpdateType = "athenainfo"
@@ -71,10 +70,8 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 	rps.Error = aws.RIPricingStatus
 	if rps.Error != "" {
 		rps.Available = false
-	} else if len(aws.RIPricingByInstanceID) > 0 {
-		rps.Available = true
 	} else {
-		rps.Error = "No reserved instances detected"
+		rps.Available = true
 	}
 	sources[ReservedInstancePricingSource] = rps
 	return sources
@@ -134,6 +131,7 @@ type AWS struct {
 	BaseGPUPrice                string
 	BaseSpotCPUPrice            string
 	BaseSpotRAMPrice            string
+	BaseSpotGPUPrice            string
 	SpotLabelName               string
 	SpotLabelValue              string
 	SpotDataRegion              string
@@ -616,6 +614,7 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.BaseGPUPrice = c.GPU
 	aws.BaseSpotCPUPrice = c.SpotCPU
 	aws.BaseSpotRAMPrice = c.SpotRAM
+	aws.BaseSpotGPUPrice = c.SpotGPU
 	aws.SpotLabelName = c.SpotLabel
 	aws.SpotLabelValue = c.SpotLabelValue
 	aws.SpotDataBucket = c.SpotDataBucket
@@ -1007,6 +1006,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 			VCPUCost:     aws.BaseSpotCPUPrice,
 			RAM:          terms.Memory,
 			GPU:          terms.GPU,
+			GPUCost:      aws.BaseSpotGPUPrice,
 			RAMCost:      aws.BaseSpotRAMPrice,
 			Storage:      terms.Storage,
 			BaseCPUPrice: aws.BaseCPUPrice,
@@ -1710,25 +1710,29 @@ func (a *AWS) GetSavingsPlanDataFromAthena() error {
 	tOneDayAgo := tNow.Add(time.Duration(-25) * time.Hour) // Also get files from one day ago to avoid boundary conditions
 	start := tOneDayAgo.Format("2006-01-02")
 	end := tNow.Format("2006-01-02")
+	// Use Savings Plan Effective Rate as an estimation for cost, assuming the 1h most recent period got a fully loaded savings plan.
+	//
 	q := `SELECT   
 		line_item_usage_start_date,
 		savings_plan_savings_plan_a_r_n,
 		line_item_resource_id,
-		savings_plan_savings_plan_effective_cost
+		savings_plan_savings_plan_rate 
 	FROM %s as cost_data
 	WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s'
 	AND line_item_line_item_type = 'SavingsPlanCoveredUsage' ORDER BY 
 	line_item_usage_start_date DESC`
-	query := fmt.Sprintf(q, cfg.AthenaTable, start, end)
-	op, err := a.QueryAthenaBillingData(query)
-	if err != nil {
-		return fmt.Errorf("Error fetching Savings Plan Data: %s", err)
-	}
-	klog.Infof("Fetching SavingsPlan data...")
-	if len(op.ResultSet.Rows) > 1 {
+
+	page := 0
+	processResults := func(op *athena.GetQueryResultsOutput, lastpage bool) bool {
 		a.SavingsPlanDataLock.Lock()
+		a.SavingsPlanDataByInstanceID = make(map[string]*SavingsPlanData) // Clean out the old data and only report a savingsplan price if its in the most recent run.
 		mostRecentDate := ""
-		for _, r := range op.ResultSet.Rows[1:(len(op.ResultSet.Rows) - 1)] {
+		iter := op.ResultSet.Rows
+		if page == 0 && len(iter) > 0 {
+			iter = op.ResultSet.Rows[1:len(op.ResultSet.Rows)]
+		}
+		page++
+		for _, r := range iter {
 			d := *r.Data[0].VarCharValue
 			if mostRecentDate == "" {
 				mostRecentDate = d
@@ -1752,8 +1756,20 @@ func (a *AWS) GetSavingsPlanDataFromAthena() error {
 			log.DedupedInfof(5, "Savings Plan Instance Data found for node %s : %f at time %s", k, r.EffectiveCost, r.MostRecentDate)
 		}
 		a.SavingsPlanDataLock.Unlock()
-	} else {
-		klog.Infof("No savings plan applied instance data found")
+		return true
+	}
+
+	query := fmt.Sprintf(q, cfg.AthenaTable, start, end)
+
+	klog.V(3).Infof("Running Query: %s", query)
+
+	ip, svc, err := a.QueryAthenaPaginated(query)
+	if err != nil {
+		return fmt.Errorf("Error fetching Savings Plan Data: %s", err)
+	}
+	athenaErr := svc.GetQueryResultsPages(ip, processResults)
+	if athenaErr != nil {
+		return athenaErr
 	}
 	return nil
 }
