@@ -23,7 +23,6 @@ import (
 	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/errors"
-	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/thanos"
 	prometheusClient "github.com/prometheus/client_golang/api"
@@ -142,11 +141,12 @@ func (a *Accesses) ClusterCostsFromCacheHandler(w http.ResponseWriter, r *http.R
 	}
 }
 
-type DataEnvelope struct {
+type Response struct {
 	Code    int         `json:"code"`
 	Status  string      `json:"status"`
 	Data    interface{} `json:"data"`
 	Message string      `json:"message,omitempty"`
+	Warning string      `json:"warning,omitempty"`
 }
 
 // FilterFunc is a filter that returns true iff the given CostData should be filtered out, and the environment that was used as the filter criteria, if it was an aggregate
@@ -306,48 +306,95 @@ func ParseTimeRange(duration, offset string) (*time.Time, *time.Time, error) {
 	return &startTime, &endTime, nil
 }
 
-func WrapDataWithMessage(data interface{}, err error, message string) []byte {
-	var resp []byte
-
-	if err != nil {
-		klog.V(1).Infof("Error returned to client: %s", err.Error())
-		resp, _ = json.Marshal(&DataEnvelope{
-			Code:    http.StatusInternalServerError,
-			Status:  "error",
-			Message: err.Error(),
-			Data:    data,
-		})
-	} else {
-		resp, _ = json.Marshal(&DataEnvelope{
-			Code:    http.StatusOK,
-			Status:  "success",
-			Data:    data,
-			Message: message,
-		})
-
-	}
-
-	return resp
-}
-
 func WrapData(data interface{}, err error) []byte {
 	var resp []byte
 
 	if err != nil {
 		klog.V(1).Infof("Error returned to client: %s", err.Error())
-		resp, _ = json.Marshal(&DataEnvelope{
+		resp, _ = json.Marshal(&Response{
 			Code:    http.StatusInternalServerError,
 			Status:  "error",
 			Message: err.Error(),
 			Data:    data,
 		})
 	} else {
-		resp, _ = json.Marshal(&DataEnvelope{
+		resp, _ = json.Marshal(&Response{
 			Code:   http.StatusOK,
 			Status: "success",
 			Data:   data,
 		})
+	}
 
+	return resp
+}
+
+func WrapDataWithMessage(data interface{}, err error, message string) []byte {
+	var resp []byte
+
+	if err != nil {
+		klog.V(1).Infof("Error returned to client: %s", err.Error())
+		resp, _ = json.Marshal(&Response{
+			Code:    http.StatusInternalServerError,
+			Status:  "error",
+			Message: err.Error(),
+			Data:    data,
+		})
+	} else {
+		resp, _ = json.Marshal(&Response{
+			Code:    http.StatusOK,
+			Status:  "success",
+			Data:    data,
+			Message: message,
+		})
+	}
+
+	return resp
+}
+
+func WrapDataWithWarning(data interface{}, err error, warning string) []byte {
+	var resp []byte
+
+	if err != nil {
+		klog.V(1).Infof("Error returned to client: %s", err.Error())
+		resp, _ = json.Marshal(&Response{
+			Code:    http.StatusInternalServerError,
+			Status:  "error",
+			Message: err.Error(),
+			Warning: warning,
+			Data:    data,
+		})
+	} else {
+		resp, _ = json.Marshal(&Response{
+			Code:    http.StatusOK,
+			Status:  "success",
+			Data:    data,
+			Warning: warning,
+		})
+	}
+
+	return resp
+}
+
+func WrapDataWithMessageAndWarning(data interface{}, err error, message, warning string) []byte {
+	var resp []byte
+
+	if err != nil {
+		klog.V(1).Infof("Error returned to client: %s", err.Error())
+		resp, _ = json.Marshal(&Response{
+			Code:    http.StatusInternalServerError,
+			Status:  "error",
+			Message: err.Error(),
+			Warning: warning,
+			Data:    data,
+		})
+	} else {
+		resp, _ = json.Marshal(&Response{
+			Code:    http.StatusOK,
+			Status:  "success",
+			Data:    data,
+			Message: message,
+			Warning: warning,
+		})
 	}
 
 	return resp
@@ -1132,12 +1179,12 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	}
 
 	// warm the cache unless explicitly set to false
-	if env.IsCacheWarmingEnabled() {
-		log.Infof("Init: AggregateCostModel cache warming enabled")
-		warmAggregateCostModelCache()
-	} else {
-		log.Infof("Init: AggregateCostModel cache warming disabled")
-	}
+	// if env.IsCacheWarmingEnabled() {
+	// 	log.Infof("Init: AggregateCostModel cache warming enabled")
+	// 	warmAggregateCostModelCache()
+	// } else {
+	// 	log.Infof("Init: AggregateCostModel cache warming disabled")
+	// }
 
 	a := Accesses{
 		Router:                        httprouter.New(),
