@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"k8s.io/klog"
@@ -44,6 +45,8 @@ const (
 	maxCacheMinutes2d           = 17
 	maxCacheMinutes7d           = 37
 	maxCacheMinutes30d          = 137
+	CustomPricingSetting        = "CustomPricing"
+	DiscountSetting             = "Discount"
 )
 
 var (
@@ -68,7 +71,13 @@ type Accesses struct {
 	CostDataCache     *cache.Cache
 	ClusterCostsCache *cache.Cache
 	CacheExpiration   map[string]time.Duration
-	AggAPI            CostModelAggregator
+	AggAPI            Aggregator
+	// SettingsCache stores current state of app settings
+	SettingsCache *cache.Cache
+	// settingsSubscribers tracks channels through which changes to different
+	// settings will be published in a pub/sub model
+	settingsSubscribers map[string][]chan string
+	settingsMutex       sync.Mutex
 }
 
 // GetPrometheusClient decides whether the default Prometheus client or the Thanos client
@@ -1056,6 +1065,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	aggregateCache := cache.New(time.Minute*10, time.Minute*20)
 	costDataCache := cache.New(time.Minute*10, time.Minute*20)
 	clusterCostsCache := cache.New(cache.NoExpiration, cache.NoExpiration)
+	settingsCache := cache.New(cache.NoExpiration, cache.NoExpiration)
 
 	// query durations that should be cached longer should be registered here
 	// use relatively prime numbers to minimize likelihood of synchronized
@@ -1091,9 +1101,17 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 		AggregateCache:    aggregateCache,
 		CostDataCache:     costDataCache,
 		ClusterCostsCache: clusterCostsCache,
+		SettingsCache:     settingsCache,
 		CacheExpiration:   cacheExpiration,
 	}
+	// Use the Accesses instance, itself, as the CostModelAggregator. This is
+	// confusing and unconventional, but necessary so that we can swap it
+	// out for the ETL-adapted version elsewhere.
+	// TODO clean this up once ETL is open-sourced.
 	a.AggAPI = &a
+
+	// Initialize mechanism for subscribing to settings changes
+	a.InitializeSettingsPubSub()
 
 	err = a.CloudProvider.DownloadPricingData()
 	if err != nil {

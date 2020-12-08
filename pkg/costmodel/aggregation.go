@@ -1587,11 +1587,12 @@ func GenerateAggKey(ps aggKeyParams) string {
 		ps.sri, ps.shareType, ps.idle, ps.timeSeries, ps.efficiency)
 }
 
-type CostModelAggregator interface {
-	ComputeAggregateCostModel(promClient prometheusClient.Client, duration, offset, field string,
-		subfields []string, rate string, filters map[string]string, sri *SharedResourceInfo, shared string,
-		allocateIdle, includeTimeSeries, includeEfficiency, disableCache, clearCache, noCache, noExpireCache,
-		remoteEnabled, disableSharedOverhead, useETLAdapter bool) (map[string]*Aggregation, string, error)
+// Aggregator is capable of computing the aggregated cost model. This is
+// a brutal interface, which should be cleaned up, but it's necessary for
+// being able to swap in an ETL-backed implementation.
+// TODO clean up, simplify
+type Aggregator interface {
+	ComputeAggregateCostModel(promClient prometheusClient.Client, duration, offset, field string, subfields []string, rate string, filters map[string]string, sri *SharedResourceInfo, shared string, allocateIdle, includeTimeSeries, includeEfficiency, disableCache, clearCache, noCache, noExpireCache, remoteEnabled, disableSharedOverhead, useETLAdapter bool) (map[string]*Aggregation, string, error)
 }
 
 // AggregateCostModelHandler handles requests to the aggregated cost model API. See
@@ -1769,11 +1770,6 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 
 	// enable remote if it is available and not disabled
 	remoteEnabled := remote && env.IsRemoteEnabled()
-
-	// if custom pricing has changed, then clear the cache and recompute data
-	if a.CustomPricingHasChanged() {
-		clearCache = true
-	}
 
 	promClient := a.GetPrometheusClient(remote)
 
