@@ -2304,9 +2304,11 @@ func (sa *SharedAsset) String() string {
 // a window. An AssetSet is mutable, so treat it like a threadsafe map.
 type AssetSet struct {
 	sync.RWMutex
-	assets map[string]Asset
-	props  []AssetProperty
-	Window Window
+	assets   map[string]Asset
+	props    []AssetProperty
+	Window   Window
+	Warnings []string
+	Errors   []string
 }
 
 // NewAssetSet instantiates a new AssetSet and, optionally, inserts

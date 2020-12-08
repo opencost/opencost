@@ -367,6 +367,8 @@ type AllocationSet struct {
 	allocations map[string]*Allocation
 	idleKeys    map[string]bool
 	Window      Window
+	Warnings    []string
+	Errors      []string
 }
 
 // NewAllocationSet instantiates a new AllocationSet and, optionally, inserts
