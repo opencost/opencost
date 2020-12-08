@@ -31,7 +31,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/patrickmn/go-cache"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -55,37 +54,21 @@ var (
 // Accesses defines a singleton application instance, providing access to
 // Prometheus, Kubernetes, the cloud provider, and caches.
 type Accesses struct {
-	Router                        *httprouter.Router
-	PrometheusClient              prometheusClient.Client
-	ThanosClient                  prometheusClient.Client
-	KubeClientSet                 kubernetes.Interface
-	ClusterManager                *cm.ClusterManager
-	ClusterMap                    clusters.ClusterMap
-	CloudProvider                 cloud.Provider
-	CPUPriceRecorder              *prometheus.GaugeVec
-	RAMPriceRecorder              *prometheus.GaugeVec
-	PersistentVolumePriceRecorder *prometheus.GaugeVec
-	GPUPriceRecorder              *prometheus.GaugeVec
-	NodeTotalPriceRecorder        *prometheus.GaugeVec
-	NodeSpotRecorder              *prometheus.GaugeVec
-	RAMAllocationRecorder         *prometheus.GaugeVec
-	CPUAllocationRecorder         *prometheus.GaugeVec
-	GPUAllocationRecorder         *prometheus.GaugeVec
-	PVAllocationRecorder          *prometheus.GaugeVec
-	ClusterManagementCostRecorder *prometheus.GaugeVec
-	LBCostRecorder                *prometheus.GaugeVec
-	NetworkZoneEgressRecorder     prometheus.Gauge
-	NetworkRegionEgressRecorder   prometheus.Gauge
-	NetworkInternetEgressRecorder prometheus.Gauge
-	ServiceSelectorRecorder       *prometheus.GaugeVec
-	DeploymentSelectorRecorder    *prometheus.GaugeVec
-	Model                         *CostModel
-	OutOfClusterCache             *cache.Cache
-	AggregateCache                *cache.Cache
-	CostDataCache                 *cache.Cache
-	ClusterCostsCache             *cache.Cache
-	CacheExpiration               map[string]time.Duration
-	AggAPI                        CostModelAggregator
+	Router            *httprouter.Router
+	PrometheusClient  prometheusClient.Client
+	ThanosClient      prometheusClient.Client
+	KubeClientSet     kubernetes.Interface
+	ClusterManager    *cm.ClusterManager
+	ClusterMap        clusters.ClusterMap
+	CloudProvider     cloud.Provider
+	Model             *CostModel
+	MetricsEmitter    *CostModelMetricsEmitter
+	OutOfClusterCache *cache.Cache
+	AggregateCache    *cache.Cache
+	CostDataCache     *cache.Cache
+	ClusterCostsCache *cache.Cache
+	CacheExpiration   map[string]time.Duration
+	AggAPI            CostModelAggregator
 }
 
 // GetPrometheusClient decides whether the default Prometheus client or the Thanos client
@@ -424,7 +407,7 @@ func (a *Accesses) CostDataModel(w http.ResponseWriter, r *http.Request, ps http
 		offset = "offset " + offset
 	}
 
-	data, err := a.Model.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.CloudProvider, window, offset, namespace)
+	data, err := a.Model.ComputeCostData(a.PrometheusClient, a.CloudProvider, window, offset, namespace)
 
 	if fields != "" {
 		filteredData := filterFields(fields, data)
@@ -497,7 +480,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	resolutionHours := 1.0
-	data, err := a.Model.ComputeCostDataRange(pClient, a.KubeClientSet, a.CloudProvider, start, end, window, resolutionHours, namespace, cluster, remoteEnabled, "")
+	data, err := a.Model.ComputeCostDataRange(pClient, a.CloudProvider, start, end, window, resolutionHours, namespace, cluster, remoteEnabled, "")
 	if err != nil {
 		w.Write(WrapData(nil, err))
 	}
@@ -1022,102 +1005,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	// TODO: implement a builder -> controller for stitching new features and other dependencies.
 	clusterManager := newClusterManager()
 
-	cpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "node_cpu_hourly_cost",
-		Help: "node_cpu_hourly_cost hourly cost for each cpu on this node",
-	}, []string{"instance", "node", "instance_type", "region", "provider_id"})
-
-	ramGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "node_ram_hourly_cost",
-		Help: "node_ram_hourly_cost hourly cost for each gb of ram on this node",
-	}, []string{"instance", "node", "instance_type", "region", "provider_id"})
-
-	gpuGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "node_gpu_hourly_cost",
-		Help: "node_gpu_hourly_cost hourly cost for each gpu on this node",
-	}, []string{"instance", "node", "instance_type", "region", "provider_id"})
-
-	totalGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "node_total_hourly_cost",
-		Help: "node_total_hourly_cost Total node cost per hour",
-	}, []string{"instance", "node", "instance_type", "region", "provider_id"})
-
-	spotGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "kubecost_node_is_spot",
-		Help: "kubecost_node_is_spot Cloud provider info about node preemptibility",
-	}, []string{"instance", "node", "instance_type", "region", "provider_id"})
-
-	pvGv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "pv_hourly_cost",
-		Help: "pv_hourly_cost Cost per GB per hour on a persistent disk",
-	}, []string{"volumename", "persistentvolume", "provider_id"})
-
-	RAMAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "container_memory_allocation_bytes",
-		Help: "container_memory_allocation_bytes Bytes of RAM used",
-	}, []string{"namespace", "pod", "container", "instance", "node"})
-
-	CPUAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "container_cpu_allocation",
-		Help: "container_cpu_allocation Percent of a single CPU used in a minute",
-	}, []string{"namespace", "pod", "container", "instance", "node"})
-
-	GPUAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "container_gpu_allocation",
-		Help: "container_gpu_allocation GPU used",
-	}, []string{"namespace", "pod", "container", "instance", "node"})
-	PVAllocation := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "pod_pvc_allocation",
-		Help: "pod_pvc_allocation Bytes used by a PVC attached to a pod",
-	}, []string{"namespace", "pod", "persistentvolumeclaim", "persistentvolume"})
-
-	NetworkZoneEgressRecorder := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "kubecost_network_zone_egress_cost",
-		Help: "kubecost_network_zone_egress_cost Total cost per GB egress across zones",
-	})
-	NetworkRegionEgressRecorder := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "kubecost_network_region_egress_cost",
-		Help: "kubecost_network_region_egress_cost Total cost per GB egress across regions",
-	})
-	NetworkInternetEgressRecorder := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "kubecost_network_internet_egress_cost",
-		Help: "kubecost_network_internet_egress_cost Total cost per GB of internet egress.",
-	})
-	ClusterManagementCostRecorder := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "kubecost_cluster_management_cost",
-		Help: "kubecost_cluster_management_cost Hourly cost paid as a cluster management fee.",
-	}, []string{"provisioner_name"})
-	LBCostRecorder := prometheus.NewGaugeVec(prometheus.GaugeOpts{ // no differentiation between ELB and ALB right now
-		Name: "kubecost_load_balancer_cost",
-		Help: "kubecost_load_balancer_cost Hourly cost of load balancer",
-	}, []string{"ingress_ip", "namespace", "service_name"}) // assumes one ingress IP per load balancer
-
-	prometheus.MustRegister(cpuGv)
-	prometheus.MustRegister(ramGv)
-	prometheus.MustRegister(gpuGv)
-	prometheus.MustRegister(totalGv)
-	prometheus.MustRegister(pvGv)
-	prometheus.MustRegister(spotGv)
-	prometheus.MustRegister(RAMAllocation)
-	prometheus.MustRegister(CPUAllocation)
-	prometheus.MustRegister(PVAllocation)
-	prometheus.MustRegister(GPUAllocation)
-	prometheus.MustRegister(NetworkZoneEgressRecorder, NetworkRegionEgressRecorder, NetworkInternetEgressRecorder)
-	prometheus.MustRegister(ClusterManagementCostRecorder)
-	prometheus.MustRegister(LBCostRecorder)
-	prometheus.MustRegister(ServiceCollector{
-		KubeClusterCache: k8sCache,
-	})
-	prometheus.MustRegister(DeploymentCollector{
-		KubeClusterCache: k8sCache,
-	})
-	prometheus.MustRegister(StatefulsetCollector{
-		KubeClusterCache: k8sCache,
-	})
-	prometheus.MustRegister(ClusterInfoCollector{
-		KubeClientSet: kubeClientset,
-		Cloud:         cloudProvider,
-	})
+	// Initialize metrics here
 
 	remoteEnabled := env.IsRemoteEnabled()
 	if remoteEnabled {
@@ -1187,34 +1075,23 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	// 	log.Infof("Init: AggregateCostModel cache warming disabled")
 	// }
 
+	costModel := NewCostModel(k8sCache, clusterMap, scrapeInterval)
+	metricsEmitter := NewCostModelMetricsEmitter(promCli, k8sCache, cloudProvider, costModel)
+
 	a := Accesses{
-		Router:                        httprouter.New(),
-		PrometheusClient:              promCli,
-		ThanosClient:                  thanosClient,
-		KubeClientSet:                 kubeClientset,
-		ClusterManager:                clusterManager,
-		ClusterMap:                    clusterMap,
-		CloudProvider:                 cloudProvider,
-		CPUPriceRecorder:              cpuGv,
-		RAMPriceRecorder:              ramGv,
-		GPUPriceRecorder:              gpuGv,
-		NodeTotalPriceRecorder:        totalGv,
-		NodeSpotRecorder:              spotGv,
-		RAMAllocationRecorder:         RAMAllocation,
-		CPUAllocationRecorder:         CPUAllocation,
-		GPUAllocationRecorder:         GPUAllocation,
-		PVAllocationRecorder:          PVAllocation,
-		NetworkZoneEgressRecorder:     NetworkZoneEgressRecorder,
-		NetworkRegionEgressRecorder:   NetworkRegionEgressRecorder,
-		NetworkInternetEgressRecorder: NetworkInternetEgressRecorder,
-		PersistentVolumePriceRecorder: pvGv,
-		ClusterManagementCostRecorder: ClusterManagementCostRecorder,
-		LBCostRecorder:                LBCostRecorder,
-		Model:                         NewCostModel(k8sCache, clusterMap, scrapeInterval),
-		AggregateCache:                aggregateCache,
-		CostDataCache:                 costDataCache,
-		ClusterCostsCache:             clusterCostsCache,
-		CacheExpiration:               cacheExpiration,
+		Router:            httprouter.New(),
+		PrometheusClient:  promCli,
+		ThanosClient:      thanosClient,
+		KubeClientSet:     kubeClientset,
+		ClusterManager:    clusterManager,
+		ClusterMap:        clusterMap,
+		CloudProvider:     cloudProvider,
+		Model:             costModel,
+		MetricsEmitter:    metricsEmitter,
+		AggregateCache:    aggregateCache,
+		CostDataCache:     costDataCache,
+		ClusterCostsCache: clusterCostsCache,
+		CacheExpiration:   cacheExpiration,
 	}
 	a.AggAPI = &a
 
@@ -1223,7 +1100,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 		klog.V(1).Info("Failed to download pricing data: " + err.Error())
 	}
 
-	StartCostModelMetricRecording(&a)
+	a.MetricsEmitter.Start()
 
 	managerEndpoints := cm.NewClusterManagerEndpoints(a.ClusterManager)
 

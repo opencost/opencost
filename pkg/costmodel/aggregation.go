@@ -1296,7 +1296,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 		start := startTime.Format(RFC3339Milli)
 		end := endTime.Format(RFC3339Milli)
 
-		costData, err = a.Model.ComputeCostDataRange(promClient, a.KubeClientSet, a.CloudProvider, start, end, window, resolutionHours, "", "", remoteEnabled, offset)
+		costData, err = a.Model.ComputeCostDataRange(promClient, a.CloudProvider, start, end, window, resolutionHours, "", "", remoteEnabled, offset)
 		if err != nil {
 			if prom.IsErrorCollection(err) {
 				return nil, "", err

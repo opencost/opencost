@@ -19,7 +19,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
 
 	"github.com/google/uuid"
@@ -222,7 +221,7 @@ const (
 	normalizationStr          = `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[%s] %s))`
 )
 
-func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
+func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, window, offset, window, offset)
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, window, offset, window, offset)
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, window, offset, window, offset)
@@ -1462,7 +1461,7 @@ func requestKeyFor(startString string, endString string, windowString string, fi
 
 // ComputeCostDataRange executes a range query for cost data.
 // Note that "offset" represents the time between the function call and "endString", and is also passed for convenience
-func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider,
+func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, cp costAnalyzerCloud.Provider,
 	startString, endString, windowString string, resolutionHours float64, filterNamespace string, filterCluster string, remoteEnabled bool, offset string) (map[string]*CostData, error) {
 	// Create a request key for request grouping. This key will be used to represent the cost-model result
 	// for the specific inputs to prevent multiple queries for identical data.
@@ -1473,7 +1472,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	// If there is already a request out that uses the same data, wait for it to return to share the results.
 	// Otherwise, start executing.
 	result, err, _ := cm.RequestGroup.Do(key, func() (interface{}, error) {
-		return cm.costDataRange(cli, clientset, cp, startString, endString, windowString, resolutionHours, filterNamespace, filterCluster, remoteEnabled, offset)
+		return cm.costDataRange(cli, cp, startString, endString, windowString, resolutionHours, filterNamespace, filterCluster, remoteEnabled, offset)
 	})
 
 	data, ok := result.(map[string]*CostData)
@@ -1484,7 +1483,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	return data, err
 }
 
-func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider, startString, endString, windowString string, resolutionHours float64, filterNamespace string, filterCluster string, remoteEnabled bool, offset string) (map[string]*CostData, error) {
+func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, startString, endString, windowString string, resolutionHours float64, filterNamespace string, filterCluster string, remoteEnabled bool, offset string) (map[string]*CostData, error) {
 	layout := "2006-01-02T15:04:05.000Z"
 
 	start, err := time.Parse(layout, startString)
