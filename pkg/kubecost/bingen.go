@@ -21,4 +21,4 @@ package kubecost
 // @bingen:generate:AllocationSet
 // @bingen:generate:AllocationSetRange
 
-//go:generate bingen -package=kubecost -version=3 -buffer=github.com/kubecost/cost-model/pkg/util
+//go:generate bingen -package=kubecost -version=4 -buffer=github.com/kubecost/cost-model/pkg/util

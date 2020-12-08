@@ -161,7 +161,7 @@ func NewSharedResourceInfo(shareResources bool, sharedNamespaces []string, label
 	// the cardinality matches
 	if len(labelNames) == len(labelValues) {
 		for i := range labelNames {
-			cleanedLname := SanitizeLabelName(strings.Trim(labelNames[i], " "))
+			cleanedLname := prom.SanitizeLabelName(strings.Trim(labelNames[i], " "))
 			if values, ok := sr.LabelSelectors[cleanedLname]; ok {
 				values[strings.Trim(labelValues[i], " ")] = true
 			} else {
@@ -1138,7 +1138,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 			lTrim := strings.TrimSpace(l)
 			label := strings.Split(lTrim, "=")
 			if len(label) == 2 {
-				ln := SanitizeLabelName(strings.TrimSpace(label[0]))
+				ln := prom.SanitizeLabelName(strings.TrimSpace(label[0]))
 				lv := strings.TrimSpace(label[1])
 				labelValues[ln] = append(labelValues[ln], lv)
 			} else {
@@ -1298,6 +1298,9 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 
 		costData, err = a.Model.ComputeCostDataRange(promClient, a.KubeClientSet, a.CloudProvider, start, end, window, resolutionHours, "", "", remoteEnabled, offset)
 		if err != nil {
+			if prom.IsErrorCollection(err) {
+				return nil, "", err
+			}
 			if pce, ok := err.(prom.CommError); ok {
 				return nil, "", pce
 			}
@@ -1678,7 +1681,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	if len(subfieldStr) > 0 {
 		s := strings.Split(r.URL.Query().Get("aggregationSubfield"), ",")
 		for _, rawLabel := range s {
-			subfields = append(subfields, SanitizeLabelName(rawLabel))
+			subfields = append(subfields, prom.SanitizeLabelName(rawLabel))
 		}
 	}
 

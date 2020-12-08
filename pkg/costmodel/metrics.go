@@ -2,8 +2,6 @@ package costmodel
 
 import (
 	"math"
-	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,10 +19,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"k8s.io/klog"
-)
-
-var (
-	invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
 )
 
 //--------------------------------------------------------------------------
@@ -46,7 +40,7 @@ func (sc StatefulsetCollector) Describe(ch chan<- *prometheus.Desc) {
 func (sc StatefulsetCollector) Collect(ch chan<- prometheus.Metric) {
 	ds := sc.KubeClusterCache.GetAllStatefulSets()
 	for _, statefulset := range ds {
-		labels, values := kubeLabelsToPrometheusLabels(statefulset.Spec.Selector.MatchLabels)
+		labels, values := prom.KubeLabelsToLabels(statefulset.Spec.Selector.MatchLabels)
 		m := newStatefulsetMetric(statefulset.GetName(), statefulset.GetNamespace(), "statefulSet_match_labels", labels, values)
 		ch <- m
 	}
@@ -132,7 +126,7 @@ func (sc DeploymentCollector) Describe(ch chan<- *prometheus.Desc) {
 func (sc DeploymentCollector) Collect(ch chan<- prometheus.Metric) {
 	ds := sc.KubeClusterCache.GetAllDeployments()
 	for _, deployment := range ds {
-		labels, values := kubeLabelsToPrometheusLabels(deployment.Spec.Selector.MatchLabels)
+		labels, values := prom.KubeLabelsToLabels(deployment.Spec.Selector.MatchLabels)
 		m := newDeploymentMetric(deployment.GetName(), deployment.GetNamespace(), "deployment_match_labels", labels, values)
 		ch <- m
 	}
@@ -218,7 +212,7 @@ func (sc ServiceCollector) Describe(ch chan<- *prometheus.Desc) {
 func (sc ServiceCollector) Collect(ch chan<- prometheus.Metric) {
 	svcs := sc.KubeClusterCache.GetAllServices()
 	for _, svc := range svcs {
-		labels, values := kubeLabelsToPrometheusLabels(svc.Spec.Selector)
+		labels, values := prom.KubeLabelsToLabels(svc.Spec.Selector)
 		m := newServiceMetric(svc.GetName(), svc.GetNamespace(), "service_selector_labels", labels, values)
 		ch <- m
 	}
@@ -304,7 +298,7 @@ func (nsac NamespaceAnnotationCollector) Describe(ch chan<- *prometheus.Desc) {
 func (nsac NamespaceAnnotationCollector) Collect(ch chan<- prometheus.Metric) {
 	namespaces := nsac.KubeClusterCache.GetAllNamespaces()
 	for _, namespace := range namespaces {
-		labels, values := kubeAnnotationstoPrometheusLabels(namespace.Annotations)
+		labels, values := prom.KubeAnnotationsToLabels(namespace.Annotations)
 		m := newNamespaceAnnotationsMetric(namespace.GetName(), "kube_namespace_annotations", labels, values)
 		ch <- m
 	}
@@ -384,7 +378,7 @@ func (pac PodAnnotationCollector) Describe(ch chan<- *prometheus.Desc) {
 func (pac PodAnnotationCollector) Collect(ch chan<- prometheus.Metric) {
 	pods := pac.KubeClusterCache.GetAllPods()
 	for _, pod := range pods {
-		labels, values := kubeAnnotationstoPrometheusLabels(pod.Annotations)
+		labels, values := prom.KubeAnnotationsToLabels(pod.Annotations)
 		m := newPodAnnotationMetric(pod.GetNamespace(), pod.GetName(), "kube_pod_annotations", labels, values)
 		ch <- m
 	}
@@ -879,41 +873,4 @@ func StopCostModelMetricRecording() {
 		recordingStopping = true
 		close(recordingStop)
 	}
-}
-
-// Converts kubernetes labels into prometheus labels.
-func kubeLabelsToPrometheusLabels(labels map[string]string) ([]string, []string) {
-	labelKeys := make([]string, 0, len(labels))
-	for k := range labels {
-		labelKeys = append(labelKeys, k)
-	}
-	sort.Strings(labelKeys)
-
-	labelValues := make([]string, 0, len(labels))
-	for i, k := range labelKeys {
-		labelKeys[i] = "label_" + SanitizeLabelName(k)
-		labelValues = append(labelValues, labels[k])
-	}
-	return labelKeys, labelValues
-}
-
-// Converts kubernetes annotations into prometheus labels.
-func kubeAnnotationstoPrometheusLabels(labels map[string]string) ([]string, []string) {
-	labelKeys := make([]string, 0, len(labels))
-	for k := range labels {
-		labelKeys = append(labelKeys, k)
-	}
-	sort.Strings(labelKeys)
-
-	labelValues := make([]string, 0, len(labels))
-	for i, k := range labelKeys {
-		labelKeys[i] = "annotation_" + SanitizeLabelName(k)
-		labelValues = append(labelValues, labels[k])
-	}
-	return labelKeys, labelValues
-}
-
-// Replaces all illegal prometheus label characters with _
-func SanitizeLabelName(s string) string {
-	return invalidLabelCharRE.ReplaceAllString(s, "_")
 }

@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kubecost/cost-model/pkg/util"
+	util "github.com/kubecost/cost-model/pkg/util"
 )
 
 type Property string
@@ -18,6 +18,7 @@ const (
 	ControllerProp     Property = "controller"
 	ControllerKindProp Property = "controllerKind"
 	LabelProp          Property = "label"
+	AnnotationProp     Property = "annotation"
 	NamespaceProp      Property = "namespace"
 	PodProp            Property = "pod"
 	ServiceProp        Property = "service"
@@ -31,6 +32,7 @@ var availableProperties []Property = []Property{
 	ControllerProp,
 	ControllerKindProp,
 	LabelProp,
+	AnnotationProp,
 	NamespaceProp,
 	PodProp,
 	ServiceProp,
@@ -133,6 +135,18 @@ func (p *Properties) Equal(that *Properties) bool {
 		return false
 	}
 
+	pAnnotations, _ := p.GetAnnotations()
+	thatAnnotations, _ := that.GetAnnotations()
+	if len(pAnnotations) != len(thatAnnotations) {
+		for k, pv := range pAnnotations {
+			tv, ok := thatAnnotations[k]
+			if !ok || tv != pv {
+				return false
+			}
+		}
+		return false
+	}
+
 	pServices, _ := p.GetServices()
 	thatServices, _ := that.GetServices()
 	if len(pServices) != len(thatServices) {
@@ -195,7 +209,7 @@ func (p *Properties) Intersection(that Properties) Properties {
 		spec.SetPod(sPod)
 	}
 
-	// TODO niko/etl intersection of services and labels
+	// TODO niko/etl intersection of services and labels and annotations
 
 	return *spec
 }
@@ -456,6 +470,25 @@ func (p *Properties) SetLabels(labels map[string]string) {
 	(*p)[LabelProp] = labels
 }
 
+func (p *Properties) GetAnnotations() (map[string]string, error) {
+	if raw, ok := (*p)[AnnotationProp]; ok {
+		if annotations, ok := raw.(map[string]string); ok {
+			return annotations, nil
+		}
+		return map[string]string{}, fmt.Errorf("AnnotationProp is not a map[string]string")
+	}
+	return map[string]string{}, fmt.Errorf("AnnotationProp not set")
+}
+
+func (p *Properties) HasAnnotations() bool {
+	_, ok := (*p)[AnnotationProp]
+	return ok
+}
+
+func (p *Properties) SetAnnotations(annotations map[string]string) {
+	(*p)[AnnotationProp] = annotations
+}
+
 func (p *Properties) GetNamespace() (string, error) {
 	if raw, ok := (*p)[NamespaceProp]; ok {
 		if namespace, ok := raw.(string); ok {
@@ -515,7 +548,7 @@ func (p *Properties) SetServices(services []string) {
 
 func (p *Properties) MarshalBinary() (data []byte, err error) {
 	buff := util.NewBuffer()
-	buff.WriteUInt8(3) // version
+	buff.WriteUInt8(CodecVersion) // version
 
 	// ClusterProp
 	cluster, err := p.GetCluster()
@@ -593,6 +626,19 @@ func (p *Properties) MarshalBinary() (data []byte, err error) {
 		}
 	}
 
+	// AnnotationProp
+	annotations, err := p.GetAnnotations()
+	if err != nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1))       // write non-nil byte
+		buff.WriteInt(len(annotations)) // map length
+		for k, v := range annotations {
+			buff.WriteString(k) // write string
+			buff.WriteString(v) // write string
+		}
+	}
+
 	// ServiceProp
 	services, err := p.GetServices()
 	if err != nil {
@@ -611,8 +657,8 @@ func (p *Properties) MarshalBinary() (data []byte, err error) {
 func (p *Properties) UnmarshalBinary(data []byte) error {
 	buff := util.NewBufferFromBytes(data)
 	v := buff.ReadUInt8() // version
-	if v != 3 {
-		return fmt.Errorf("Invalid Version. Expected 3, got %d", v)
+	if v != CodecVersion {
+		return fmt.Errorf("Invalid Version. Expected %d, got %d", CodecVersion, v)
 	}
 
 	*p = Properties{}
@@ -669,6 +715,18 @@ func (p *Properties) UnmarshalBinary(data []byte) error {
 			labels[key] = val
 		}
 		p.SetLabels(labels)
+	}
+
+	// AnnotationProp
+	if buff.ReadUInt8() == 1 { // read nil byte
+		annotations := map[string]string{}
+		length := buff.ReadInt() // read map len
+		for idx := 0; idx < length; idx++ {
+			key := buff.ReadString()
+			val := buff.ReadString()
+			annotations[key] = val
+		}
+		p.SetAnnotations(annotations)
 	}
 
 	// ServiceProp

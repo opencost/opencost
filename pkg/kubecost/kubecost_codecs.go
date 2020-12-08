@@ -21,8 +21,13 @@ import (
 	util "github.com/kubecost/cost-model/pkg/util"
 )
 
-// GeneratorPackageName is the package the generator is targetting
-const GeneratorPackageName string = "kubecost"
+const (
+	// GeneratorPackageName is the package the generator is targetting
+	GeneratorPackageName string = "kubecost"
+
+	// CodecVersion is the version passed into the generator
+	CodecVersion uint8 = 4
+)
 
 //--------------------------------------------------------------------------
 //  Type Map
@@ -96,7 +101,7 @@ func resolveType(t string) (pkg string, name string, isPtr bool) {
 // into a byte array
 func (target *Allocation) MarshalBinary() (data []byte, err error) {
 	buff := util.NewBuffer()
-	buff.WriteUInt8(3) // version
+	buff.WriteUInt8(CodecVersion) // version
 
 	buff.WriteString(target.Name) // write string
 	// --- [begin][write][reference](Properties) ---
@@ -160,8 +165,8 @@ func (target *Allocation) UnmarshalBinary(data []byte) error {
 
 	// Codec Version Check
 	version := buff.ReadUInt8()
-	if version != 3 {
-		return fmt.Errorf("Invalid Version Unmarshaling Allocation. Expected 3, got %d", version)
+	if version != CodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling Allocation. Expected %d, got %d", CodecVersion, version)
 	}
 
 	a := buff.ReadString() // read string
@@ -267,7 +272,7 @@ func (target *Allocation) UnmarshalBinary(data []byte) error {
 // into a byte array
 func (target *AllocationSet) MarshalBinary() (data []byte, err error) {
 	buff := util.NewBuffer()
-	buff.WriteUInt8(3) // version
+	buff.WriteUInt8(CodecVersion) // version
 
 	if target.allocations == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
@@ -320,6 +325,32 @@ func (target *AllocationSet) MarshalBinary() (data []byte, err error) {
 	buff.WriteBytes(b)
 	// --- [end][write][struct](Window) ---
 
+	if target.Warnings == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][slice]([]string) ---
+		buff.WriteInt(len(target.Warnings)) // array length
+		for i := 0; i < len(target.Warnings); i++ {
+			buff.WriteString(target.Warnings[i]) // write string
+		}
+		// --- [end][write][slice]([]string) ---
+
+	}
+	if target.Errors == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][slice]([]string) ---
+		buff.WriteInt(len(target.Errors)) // array length
+		for j := 0; j < len(target.Errors); j++ {
+			buff.WriteString(target.Errors[j]) // write string
+		}
+		// --- [end][write][slice]([]string) ---
+
+	}
 	return buff.Bytes(), nil
 }
 
@@ -330,8 +361,8 @@ func (target *AllocationSet) UnmarshalBinary(data []byte) error {
 
 	// Codec Version Check
 	version := buff.ReadUInt8()
-	if version != 3 {
-		return fmt.Errorf("Invalid Version Unmarshaling AllocationSet. Expected 3, got %d", version)
+	if version != CodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling AllocationSet. Expected %d, got %d", CodecVersion, version)
 	}
 
 	if buff.ReadUInt8() == uint8(0) {
@@ -399,6 +430,40 @@ func (target *AllocationSet) UnmarshalBinary(data []byte) error {
 	target.Window = *n
 	// --- [end][read][struct](Window) ---
 
+	if buff.ReadUInt8() == uint8(0) {
+		target.Warnings = nil
+	} else {
+		// --- [begin][read][slice]([]string) ---
+		r := buff.ReadInt() // array len
+		q := make([]string, r)
+		for ii := 0; ii < r; ii++ {
+			var s string
+			t := buff.ReadString() // read string
+			s = t
+
+			q[ii] = s
+		}
+		target.Warnings = q
+		// --- [end][read][slice]([]string) ---
+
+	}
+	if buff.ReadUInt8() == uint8(0) {
+		target.Errors = nil
+	} else {
+		// --- [begin][read][slice]([]string) ---
+		w := buff.ReadInt() // array len
+		u := make([]string, w)
+		for jj := 0; jj < w; jj++ {
+			var x string
+			y := buff.ReadString() // read string
+			x = y
+
+			u[jj] = x
+		}
+		target.Errors = u
+		// --- [end][read][slice]([]string) ---
+
+	}
 	return nil
 }
 
@@ -410,7 +475,7 @@ func (target *AllocationSet) UnmarshalBinary(data []byte) error {
 // into a byte array
 func (target *AllocationSetRange) MarshalBinary() (data []byte, err error) {
 	buff := util.NewBuffer()
-	buff.WriteUInt8(3) // version
+	buff.WriteUInt8(CodecVersion) // version
 
 	if target.allocations == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
@@ -449,8 +514,8 @@ func (target *AllocationSetRange) UnmarshalBinary(data []byte) error {
 
 	// Codec Version Check
 	version := buff.ReadUInt8()
-	if version != 3 {
-		return fmt.Errorf("Invalid Version Unmarshaling AllocationSetRange. Expected 3, got %d", version)
+	if version != CodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling AllocationSetRange. Expected %d, got %d", CodecVersion, version)
 	}
 
 	if buff.ReadUInt8() == uint8(0) {
@@ -493,7 +558,7 @@ func (target *AllocationSetRange) UnmarshalBinary(data []byte) error {
 // into a byte array
 func (target *Any) MarshalBinary() (data []byte, err error) {
 	buff := util.NewBuffer()
-	buff.WriteUInt8(3) // version
+	buff.WriteUInt8(CodecVersion) // version
 
 	// --- [begin][write][alias](AssetLabels) ---
 	if map[string]string(target.labels) == nil {
@@ -566,8 +631,8 @@ func (target *Any) UnmarshalBinary(data []byte) error {
 
 	// Codec Version Check
 	version := buff.ReadUInt8()
-	if version != 3 {
-		return fmt.Errorf("Invalid Version Unmarshaling Any. Expected 3, got %d", version)
+	if version != CodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling Any. Expected %d, got %d", CodecVersion, version)
 	}
 
 	// --- [begin][read][alias](AssetLabels) ---
@@ -661,7 +726,7 @@ func (target *Any) UnmarshalBinary(data []byte) error {
 // into a byte array
 func (target *AssetProperties) MarshalBinary() (data []byte, err error) {
 	buff := util.NewBuffer()
-	buff.WriteUInt8(3) // version
+	buff.WriteUInt8(CodecVersion) // version
 
 	buff.WriteString(target.Category)   // write string
 	buff.WriteString(target.Provider)   // write string
@@ -681,8 +746,8 @@ func (target *AssetProperties) UnmarshalBinary(data []byte) error {
 
 	// Codec Version Check
 	version := buff.ReadUInt8()
-	if version != 3 {
-		return fmt.Errorf("Invalid Version Unmarshaling AssetProperties. Expected 3, got %d", version)
+	if version != CodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling AssetProperties. Expected %d, got %d", CodecVersion, version)
 	}
 
 	a := buff.ReadString() // read string
@@ -720,7 +785,7 @@ func (target *AssetProperties) UnmarshalBinary(data []byte) error {
 // into a byte array
 func (target *AssetSet) MarshalBinary() (data []byte, err error) {
 	buff := util.NewBuffer()
-	buff.WriteUInt8(3) // version
+	buff.WriteUInt8(CodecVersion) // version
 
 	if target.assets == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
@@ -781,6 +846,32 @@ func (target *AssetSet) MarshalBinary() (data []byte, err error) {
 	buff.WriteBytes(d)
 	// --- [end][write][struct](Window) ---
 
+	if target.Warnings == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][slice]([]string) ---
+		buff.WriteInt(len(target.Warnings)) // array length
+		for j := 0; j < len(target.Warnings); j++ {
+			buff.WriteString(target.Warnings[j]) // write string
+		}
+		// --- [end][write][slice]([]string) ---
+
+	}
+	if target.Errors == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][slice]([]string) ---
+		buff.WriteInt(len(target.Errors)) // array length
+		for ii := 0; ii < len(target.Errors); ii++ {
+			buff.WriteString(target.Errors[ii]) // write string
+		}
+		// --- [end][write][slice]([]string) ---
+
+	}
 	return buff.Bytes(), nil
 }
 
@@ -791,8 +882,8 @@ func (target *AssetSet) UnmarshalBinary(data []byte) error {
 
 	// Codec Version Check
 	version := buff.ReadUInt8()
-	if version != 3 {
-		return fmt.Errorf("Invalid Version Unmarshaling AssetSet. Expected 3, got %d", version)
+	if version != CodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling AssetSet. Expected %d, got %d", CodecVersion, version)
 	}
 
 	if buff.ReadUInt8() == uint8(0) {
@@ -868,6 +959,40 @@ func (target *AssetSet) UnmarshalBinary(data []byte) error {
 	target.Window = *q
 	// --- [end][read][struct](Window) ---
 
+	if buff.ReadUInt8() == uint8(0) {
+		target.Warnings = nil
+	} else {
+		// --- [begin][read][slice]([]string) ---
+		u := buff.ReadInt() // array len
+		t := make([]string, u)
+		for ii := 0; ii < u; ii++ {
+			var w string
+			x := buff.ReadString() // read string
+			w = x
+
+			t[ii] = w
+		}
+		target.Warnings = t
+		// --- [end][read][slice]([]string) ---
+
+	}
+	if buff.ReadUInt8() == uint8(0) {
+		target.Errors = nil
+	} else {
+		// --- [begin][read][slice]([]string) ---
+		z := buff.ReadInt() // array len
+		y := make([]string, z)
+		for jj := 0; jj < z; jj++ {
+			var aa string
+			bb := buff.ReadString() // read string
+			aa = bb
+
+			y[jj] = aa
+		}
+		target.Errors = y
+		// --- [end][read][slice]([]string) ---
+
+	}
 	return nil
 }
 
@@ -879,7 +1004,7 @@ func (target *AssetSet) UnmarshalBinary(data []byte) error {
 // into a byte array
 func (target *AssetSetRange) MarshalBinary() (data []byte, err error) {
 	buff := util.NewBuffer()
-	buff.WriteUInt8(3) // version
+	buff.WriteUInt8(CodecVersion) // version
 
 	if target.assets == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
@@ -918,8 +1043,8 @@ func (target *AssetSetRange) UnmarshalBinary(data []byte) error {
 
 	// Codec Version Check
 	version := buff.ReadUInt8()
-	if version != 3 {
-		return fmt.Errorf("Invalid Version Unmarshaling AssetSetRange. Expected 3, got %d", version)
+	if version != CodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling AssetSetRange. Expected %d, got %d", CodecVersion, version)
 	}
 
 	if buff.ReadUInt8() == uint8(0) {
@@ -962,7 +1087,7 @@ func (target *AssetSetRange) UnmarshalBinary(data []byte) error {
 // into a byte array
 func (target *Breakdown) MarshalBinary() (data []byte, err error) {
 	buff := util.NewBuffer()
-	buff.WriteUInt8(3) // version
+	buff.WriteUInt8(CodecVersion) // version
 
 	buff.WriteFloat64(target.Idle)   // write float64
 	buff.WriteFloat64(target.Other)  // write float64
@@ -978,8 +1103,8 @@ func (target *Breakdown) UnmarshalBinary(data []byte) error {
 
 	// Codec Version Check
 	version := buff.ReadUInt8()
-	if version != 3 {
-		return fmt.Errorf("Invalid Version Unmarshaling Breakdown. Expected 3, got %d", version)
+	if version != CodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling Breakdown. Expected %d, got %d", CodecVersion, version)
 	}
 
 	a := buff.ReadFloat64() // read float64
@@ -1005,7 +1130,7 @@ func (target *Breakdown) UnmarshalBinary(data []byte) error {
 // into a byte array
 func (target *Cloud) MarshalBinary() (data []byte, err error) {
 	buff := util.NewBuffer()
-	buff.WriteUInt8(3) // version
+	buff.WriteUInt8(CodecVersion) // version
 
 	// --- [begin][write][alias](AssetLabels) ---
 	if map[string]string(target.labels) == nil {
@@ -1078,8 +1203,8 @@ func (target *Cloud) UnmarshalBinary(data []byte) error {
 
 	// Codec Version Check
 	version := buff.ReadUInt8()
-	if version != 3 {
-		return fmt.Errorf("Invalid Version Unmarshaling Cloud. Expected 3, got %d", version)
+	if version != CodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling Cloud. Expected %d, got %d", CodecVersion, version)
 	}
 
 	// --- [begin][read][alias](AssetLabels) ---
@@ -1173,7 +1298,7 @@ func (target *Cloud) UnmarshalBinary(data []byte) error {
 // into a byte array
 func (target *ClusterManagement) MarshalBinary() (data []byte, err error) {
 	buff := util.NewBuffer()
-	buff.WriteUInt8(3) // version
+	buff.WriteUInt8(CodecVersion) // version
 
 	// --- [begin][write][alias](AssetLabels) ---
 	if map[string]string(target.labels) == nil {
@@ -1227,8 +1352,8 @@ func (target *ClusterManagement) UnmarshalBinary(data []byte) error {
 
 	// Codec Version Check
 	version := buff.ReadUInt8()
-	if version != 3 {
-		return fmt.Errorf("Invalid Version Unmarshaling ClusterManagement. Expected 3, got %d", version)
+	if version != CodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling ClusterManagement. Expected %d, got %d", CodecVersion, version)
 	}
 
 	// --- [begin][read][alias](AssetLabels) ---
@@ -1297,7 +1422,7 @@ func (target *ClusterManagement) UnmarshalBinary(data []byte) error {
 // into a byte array
 func (target *Disk) MarshalBinary() (data []byte, err error) {
 	buff := util.NewBuffer()
-	buff.WriteUInt8(3) // version
+	buff.WriteUInt8(CodecVersion) // version
 
 	// --- [begin][write][alias](AssetLabels) ---
 	if map[string]string(target.labels) == nil {
@@ -1387,8 +1512,8 @@ func (target *Disk) UnmarshalBinary(data []byte) error {
 
 	// Codec Version Check
 	version := buff.ReadUInt8()
-	if version != 3 {
-		return fmt.Errorf("Invalid Version Unmarshaling Disk. Expected 3, got %d", version)
+	if version != CodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling Disk. Expected %d, got %d", CodecVersion, version)
 	}
 
 	// --- [begin][read][alias](AssetLabels) ---
@@ -1503,7 +1628,7 @@ func (target *Disk) UnmarshalBinary(data []byte) error {
 // into a byte array
 func (target *LoadBalancer) MarshalBinary() (data []byte, err error) {
 	buff := util.NewBuffer()
-	buff.WriteUInt8(3) // version
+	buff.WriteUInt8(CodecVersion) // version
 
 	if target.properties == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
@@ -1576,8 +1701,8 @@ func (target *LoadBalancer) UnmarshalBinary(data []byte) error {
 
 	// Codec Version Check
 	version := buff.ReadUInt8()
-	if version != 3 {
-		return fmt.Errorf("Invalid Version Unmarshaling LoadBalancer. Expected 3, got %d", version)
+	if version != CodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling LoadBalancer. Expected %d, got %d", CodecVersion, version)
 	}
 
 	if buff.ReadUInt8() == uint8(0) {
@@ -1671,7 +1796,7 @@ func (target *LoadBalancer) UnmarshalBinary(data []byte) error {
 // into a byte array
 func (target *Network) MarshalBinary() (data []byte, err error) {
 	buff := util.NewBuffer()
-	buff.WriteUInt8(3) // version
+	buff.WriteUInt8(CodecVersion) // version
 
 	if target.properties == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
@@ -1744,8 +1869,8 @@ func (target *Network) UnmarshalBinary(data []byte) error {
 
 	// Codec Version Check
 	version := buff.ReadUInt8()
-	if version != 3 {
-		return fmt.Errorf("Invalid Version Unmarshaling Network. Expected 3, got %d", version)
+	if version != CodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling Network. Expected %d, got %d", CodecVersion, version)
 	}
 
 	if buff.ReadUInt8() == uint8(0) {
@@ -1839,7 +1964,7 @@ func (target *Network) UnmarshalBinary(data []byte) error {
 // into a byte array
 func (target *Node) MarshalBinary() (data []byte, err error) {
 	buff := util.NewBuffer()
-	buff.WriteUInt8(3) // version
+	buff.WriteUInt8(CodecVersion) // version
 
 	if target.properties == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
@@ -1949,8 +2074,8 @@ func (target *Node) UnmarshalBinary(data []byte) error {
 
 	// Codec Version Check
 	version := buff.ReadUInt8()
-	if version != 3 {
-		return fmt.Errorf("Invalid Version Unmarshaling Node. Expected 3, got %d", version)
+	if version != CodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling Node. Expected %d, got %d", CodecVersion, version)
 	}
 
 	if buff.ReadUInt8() == uint8(0) {
@@ -2095,7 +2220,7 @@ func (target *Node) UnmarshalBinary(data []byte) error {
 // into a byte array
 func (target *SharedAsset) MarshalBinary() (data []byte, err error) {
 	buff := util.NewBuffer()
-	buff.WriteUInt8(3) // version
+	buff.WriteUInt8(CodecVersion) // version
 
 	if target.properties == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
@@ -2149,8 +2274,8 @@ func (target *SharedAsset) UnmarshalBinary(data []byte) error {
 
 	// Codec Version Check
 	version := buff.ReadUInt8()
-	if version != 3 {
-		return fmt.Errorf("Invalid Version Unmarshaling SharedAsset. Expected 3, got %d", version)
+	if version != CodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling SharedAsset. Expected %d, got %d", CodecVersion, version)
 	}
 
 	if buff.ReadUInt8() == uint8(0) {
@@ -2219,7 +2344,7 @@ func (target *SharedAsset) UnmarshalBinary(data []byte) error {
 // into a byte array
 func (target *Window) MarshalBinary() (data []byte, err error) {
 	buff := util.NewBuffer()
-	buff.WriteUInt8(3) // version
+	buff.WriteUInt8(CodecVersion) // version
 
 	if target.start == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
@@ -2261,8 +2386,8 @@ func (target *Window) UnmarshalBinary(data []byte) error {
 
 	// Codec Version Check
 	version := buff.ReadUInt8()
-	if version != 3 {
-		return fmt.Errorf("Invalid Version Unmarshaling Window. Expected 3, got %d", version)
+	if version != CodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling Window. Expected %d, got %d", CodecVersion, version)
 	}
 
 	if buff.ReadUInt8() == uint8(0) {

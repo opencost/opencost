@@ -2096,7 +2096,7 @@ func getNamespaceLabels(cache clustercache.ClusterCache, clusterID string) (map[
 	for _, ns := range nss {
 		labels := make(map[string]string)
 		for k, v := range ns.Labels {
-			labels[SanitizeLabelName(k)] = v
+			labels[prom.SanitizeLabelName(k)] = v
 		}
 		nsToLabels[ns.Name+","+clusterID] = labels
 	}
