@@ -1784,7 +1784,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	data, message, err = a.AggAPI.ComputeAggregateCostModel(promClient, duration, offset, field, subfields, rate, filters, sr, shared, allocateIdle, includeTimeSeries, includeEfficiency, disableCache, clearCache, noCache, noExpireCache, remoteEnabled, false, useETLAdapter)
 
 	// Find any warnings in http request context
-	warning, _ := GetWarning(r)
+	warning, _ := util.GetWarning(r)
 
 	if err != nil {
 		if emptyErr, ok := err.(*EmptyDataError); ok {

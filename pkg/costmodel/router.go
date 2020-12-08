@@ -401,16 +401,6 @@ func WrapDataWithMessageAndWarning(data interface{}, err error, message, warning
 	return resp
 }
 
-const (
-	ContextWarning string = "Warning"
-)
-
-// GetWarning Extracts a warning message from the request context if it exists
-func GetWarning(r *http.Request) (warning string, ok bool) {
-	warning, ok = r.Context().Value(ContextWarning).(string)
-	return
-}
-
 // RefreshPricingData needs to be called when a new node joins the fleet, since we cache the relevant subsets of pricing data to avoid storing the whole thing.
 func (a *Accesses) RefreshPricingData(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
