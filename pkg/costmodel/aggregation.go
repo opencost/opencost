@@ -994,9 +994,7 @@ func compressVectorSeries(vs []*util.Vector, resolutionHours float64) []*util.Ve
 
 // ComputeAggregateCostModel computes cost data for the given window, then aggregates it by the given fields.
 // Data is cached on two levels: the aggregation is cached as well as the underlying cost data.
-func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client, duration, offset, field string, subfields []string, rate string, filters map[string]string,
-	sri *SharedResourceInfo, shared string, allocateIdle, includeTimeSeries, includeEfficiency, disableCache, clearCache, noCache, noExpireCache, remoteEnabled, disableSharedOverhead bool) (map[string]*Aggregation, string, error) {
-
+func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client, duration, offset, field string, subfields []string, rate string, filters map[string]string, sri *SharedResourceInfo, shared string, allocateIdle, includeTimeSeries, includeEfficiency, disableCache, clearCache, noCache, noExpireCache, remoteEnabled, disableSharedOverhead, useETLAdapter bool) (map[string]*Aggregation, string, error) {
 	profileBaseName := fmt.Sprintf("ComputeAggregateCostModel(duration=%s, offet=%s, field=%s)", duration, offset, field)
 	defer measureTime(time.Now(), profileThreshold, profileBaseName)
 
@@ -1251,8 +1249,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 		if !ok {
 			// disable cache and recompute if type cast fails
 			klog.Errorf("caching error: failed to cast aggregate data to struct: %s", aggKey)
-			return a.ComputeAggregateCostModel(promClient, duration, offset, field, subfields, rate, filters,
-				sri, shared, allocateIdle, includeTimeSeries, includeEfficiency, true, false, noExpireCache, noCache, remoteEnabled, disableSharedOverhead)
+			return a.ComputeAggregateCostModel(promClient, duration, offset, field, subfields, rate, filters, sri, shared, allocateIdle, includeTimeSeries, includeEfficiency, true, false, noExpireCache, noCache, remoteEnabled, disableSharedOverhead, useETLAdapter)
 		}
 		return result, fmt.Sprintf("aggregate cache hit: %s", aggKey), nil
 	}
@@ -1587,6 +1584,13 @@ func GenerateAggKey(ps aggKeyParams) string {
 		ps.sri, ps.shareType, ps.idle, ps.timeSeries, ps.efficiency)
 }
 
+type CostModelAggregator interface {
+	ComputeAggregateCostModel(promClient prometheusClient.Client, duration, offset, field string,
+		subfields []string, rate string, filters map[string]string, sri *SharedResourceInfo, shared string,
+		allocateIdle, includeTimeSeries, includeEfficiency, disableCache, clearCache, noCache, noExpireCache,
+		remoteEnabled, disableSharedOverhead, useETLAdapter bool) (map[string]*Aggregation, string, error)
+}
+
 // AggregateCostModelHandler handles requests to the aggregated cost model API. See
 // ComputeAggregateCostModel for details.
 func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -1770,22 +1774,14 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 
 	promClient := a.GetPrometheusClient(remote)
 
+	useETLAdapter := r.URL.Query().Get("etl") == "true"
+
 	var data map[string]*Aggregation
 	var message string
-
-	// etlEnabled := env.IsETLEnabled()
-	// useETLAdapter := r.URL.Query().Get("etl") == "true"
-	// if etlEnabled && useETLAdapter {
-	// 	data, message, err = a.AdaptETLAggregateCostModel(window, field, subfields, rate, filters, sr, shared, allocateIdle, includeTimeSeries)
-	// } else {
-	// 	data, message, err = a.ComputeAggregateCostModel(promClient, duration, offset, field, subfields, rate, filters,
-	// 		sr, shared, allocateIdle, includeTimeSeries, includeEfficiency, disableCache, clearCache, noCache, noExpireCache, remoteEnabled, false)
-	// }
-	data, message, err = a.ComputeAggregateCostModel(promClient, duration, offset, field, subfields, rate, filters,
-		sr, shared, allocateIdle, includeTimeSeries, includeEfficiency, disableCache, clearCache, noCache, noExpireCache, remoteEnabled, false)
+	data, message, err = a.AggAPI.ComputeAggregateCostModel(promClient, duration, offset, field, subfields, rate, filters, sr, shared, allocateIdle, includeTimeSeries, includeEfficiency, disableCache, clearCache, noCache, noExpireCache, remoteEnabled, false, useETLAdapter)
 
 	// Find any warnings in http request context
-	warning, _ := product.GetWarning(r)
+	warning, _ := GetWarning(r)
 
 	if err != nil {
 		if emptyErr, ok := err.(*EmptyDataError); ok {
