@@ -1246,6 +1246,8 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 	// report message about which of the two caches hit. by default report a miss
 	cacheMessage := fmt.Sprintf("L1 cache miss: %s L2 cache miss: %s", aggKey, key)
 
+	log.Infof("Open Source Accesses: AggregateCache=%v", a.AggregateCache)
+
 	// check the cache for aggregated response; if cache is hit and not disabled, return response
 	if value, found := a.AggregateCache.Get(aggKey); found && !disableCache && !noCache {
 		result, ok := value.(map[string]*Aggregation)

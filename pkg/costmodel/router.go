@@ -970,6 +970,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	aggregateCache := cache.New(time.Minute*10, time.Minute*20)
 	costDataCache := cache.New(time.Minute*10, time.Minute*20)
 	clusterCostsCache := cache.New(cache.NoExpiration, cache.NoExpiration)
+	outOfClusterCache := cache.New(time.Minute*5, time.Minute*10)
 	settingsCache := cache.New(cache.NoExpiration, cache.NoExpiration)
 
 	// query durations that should be cached longer should be registered here
@@ -985,7 +986,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	costModel := NewCostModel(k8sCache, clusterMap, scrapeInterval)
 	metricsEmitter := NewCostModelMetricsEmitter(promCli, k8sCache, cloudProvider, costModel)
 
-	a := Accesses{
+	a := &Accesses{
 		Router:            httprouter.New(),
 		PrometheusClient:  promCli,
 		ThanosClient:      thanosClient,
@@ -998,6 +999,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 		AggregateCache:    aggregateCache,
 		CostDataCache:     costDataCache,
 		ClusterCostsCache: clusterCostsCache,
+		OutOfClusterCache: outOfClusterCache,
 		SettingsCache:     settingsCache,
 		CacheExpiration:   cacheExpiration,
 	}
@@ -1005,7 +1007,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	// confusing and unconventional, but necessary so that we can swap it
 	// out for the ETL-adapted version elsewhere.
 	// TODO clean this up once ETL is open-sourced.
-	a.AggAPI = &a
+	a.AggAPI = a
 
 	// Initialize mechanism for subscribing to settings changes
 	a.InitializeSettingsPubSub()
@@ -1048,5 +1050,5 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	a.Router.PUT("/clusters", managerEndpoints.PutCluster)
 	a.Router.DELETE("/clusters/:id", managerEndpoints.DeleteCluster)
 
-	return &a
+	return a
 }
