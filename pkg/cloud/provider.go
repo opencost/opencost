@@ -253,6 +253,66 @@ func CustomPricesEnabled(p Provider) bool {
 	return config.CustomPricesEnabled == "true"
 }
 
+// AllocateIdleByDefault returns true if the application settings specify to allocate idle by default
+func AllocateIdleByDefault(p Provider) bool {
+	config, err := p.GetConfig()
+	if err != nil {
+		return false
+	}
+
+	return config.DefaultIdle == "true"
+}
+
+// SharedNamespace returns a list of names of shared namespaces, as defined in the application settings
+func SharedNamespaces(p Provider) []string {
+	namespaces := []string{}
+
+	config, err := p.GetConfig()
+	if err != nil {
+		return namespaces
+	}
+	if config.SharedNamespaces == "" {
+		return namespaces
+	}
+	// trim spaces so that "kube-system, kubecost" is equivalent to "kube-system,kubecost"
+	for _, ns := range strings.Split(config.SharedNamespaces, ",") {
+		namespaces = append(namespaces, strings.Trim(ns, " "))
+	}
+
+	return namespaces
+}
+
+// SharedLabel returns the configured set of shared labels as a parallel tuple of keys to values; e.g.
+// for app:kubecost,type:staging this returns (["app", "type"], ["kubecost", "staging"]) in order to
+// match the signature of the NewSharedResourceInfo
+func SharedLabels(p Provider) ([]string, []string) {
+	names := []string{}
+	values := []string{}
+
+	config, err := p.GetConfig()
+	if err != nil {
+		return names, values
+	}
+
+	if config.SharedLabelNames == "" || config.SharedLabelValues == "" {
+		return names, values
+	}
+
+	ks := strings.Split(config.SharedLabelNames, ",")
+	vs := strings.Split(config.SharedLabelValues, ",")
+	if len(ks) != len(vs) {
+		klog.V(2).Infof("[Warning] shared labels have mis-matched lengths: %d names, %d values", len(ks), len(vs))
+		return names, values
+	}
+
+	for i := range ks {
+		names = append(names, strings.Trim(ks[i], " "))
+		values = append(values, strings.Trim(vs[i], " "))
+	}
+
+	return names, values
+}
+
 func NewCrossClusterProvider(ctype string, overrideConfigPath string, cache clustercache.ClusterCache) (Provider, error) {
 	if ctype == "aws" {
 		return &AWS{

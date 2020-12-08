@@ -56,6 +56,9 @@ const (
 	KubeConfigPathEnvVar = "KUBECONFIG_PATH"
 
 	UTCOffsetEnvVar = "UTC_OFFSET"
+
+	CacheWarmingEnabledEnvVar = "CACHE_WARMING_ENABLED"
+	ETLEnabledEnvVar          = "ETL_ENABLED"
 )
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
@@ -308,4 +311,12 @@ func GetParsedUTCOffset() time.Duration {
 	}
 
 	return offset
+}
+
+func IsCacheWarmingEnabled() bool {
+	return GetBool(CacheWarmingEnabledEnvVar, true)
+}
+
+func IsETLEnabled() bool {
+	return GetBool(ETLEnabledEnvVar, true)
 }

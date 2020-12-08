@@ -24,6 +24,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/errors"
+	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/thanos"
 	prometheusClient "github.com/prometheus/client_golang/api"
@@ -640,167 +641,6 @@ func (a *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request,
 	w.Write(WrapData(prom.Validate(a.PrometheusClient)))
 }
 
-// func warmAggregateCostModelCache() {
-// 	// Only allow one concurrent cache-warming operation
-// 	sem := util.NewSemaphore(1)
-
-// 	// Set default values, pulling them from application settings where applicable, and warm the cache
-// 	// for the given duration. Cache is intentionally set to expire (i.e. noExpireCache=false) so that
-// 	// if the default parameters change, the old cached defaults with eventually expire. Thus, the
-// 	// timing of the cache expiry/refresh is the only mechanism ensuring 100% cache warmth.
-// 	warmFunc := func(duration, durationHrs, offset string, cacheEfficiencyData bool) (error, error) {
-// 		field := "namespace"
-// 		subfields := []string{}
-// 		rate := ""
-// 		filters := map[string]string{}
-// 		includeTimeSeries := false
-// 		includeEfficiency := true
-// 		disableCache := true
-// 		clearCache := false
-// 		noCache := false
-// 		noExpireCache := false
-// 		remote := true
-// 		shareSplit := "weighted"
-// 		remoteAvailable := env.IsRemoteEnabled()
-// 		remoteEnabled := remote && remoteAvailable
-// 		promClient := a.OpenSource.GetPrometheusClient(remote)
-// 		allocateIdle := provider.AllocateIdleByDefault(a.CloudProvider)
-
-// 		sharedNamespaces := provider.SharedNamespaces(a.CloudProvider)
-// 		sharedLabelNames, sharedLabelValues := provider.SharedLabels(a.CloudProvider)
-
-// 		var sri *costmodel.SharedResourceInfo
-// 		if len(sharedNamespaces) > 0 || len(sharedLabelNames) > 0 {
-// 			sri = costmodel.NewSharedResourceInfo(true, sharedNamespaces, sharedLabelNames, sharedLabelValues)
-// 		}
-
-// 		aggKey := costmodel.GenerateAggKey(aggKeyParams{
-// 			duration:   duration,
-// 			offset:     offset,
-// 			filters:    filters,
-// 			field:      field,
-// 			subfields:  subfields,
-// 			rate:       rate,
-// 			sri:        sri,
-// 			shareType:  shareSplit,
-// 			idle:       allocateIdle,
-// 			timeSeries: includeTimeSeries,
-// 			efficiency: includeEfficiency,
-// 		})
-// 		klog.V(3).Infof("[Info] aggregation: cache warming defaults: %s", aggKey)
-// 		key := fmt.Sprintf("%s:%s", durationHrs, offset)
-
-// 		_, _, aggErr := costmodel.ComputeAggregateCostModel(promClient, duration, offset, field, subfields, rate, filters,
-// 			sri, shareSplit, allocateIdle, includeTimeSeries, includeEfficiency, disableCache,
-// 			clearCache, noCache, noExpireCache, remoteEnabled, false)
-// 		if aggErr != nil {
-// 			klog.Infof("Error building cache %s: %s", key, aggErr)
-// 		}
-// 		if costmodel.A.ThanosClient != nil {
-// 			offset = thanos.Offset()
-// 			klog.Infof("Setting offset to %s", offset)
-// 		}
-// 		totals, err := costmodel.ComputeClusterCosts(promClient, A.OpenSource.CloudProvider, durationHrs, offset, cacheEfficiencyData)
-// 		if err != nil {
-// 			klog.Infof("Error building cluster costs cache %s", key)
-// 		}
-// 		maxMinutesWithData := 0.0
-// 		for _, cluster := range totals {
-// 			if cluster.DataMinutes > maxMinutesWithData {
-// 				maxMinutesWithData = cluster.DataMinutes
-// 			}
-// 		}
-// 		if len(totals) > 0 && maxMinutesWithData > clusterCostsCacheTime {
-
-// 			A.ClusterCostsCache.Set(key, totals, A.GetCacheExpiration(duration))
-// 			klog.V(3).Infof("[Info] caching %s cluster costs for %s", duration, A.GetCacheExpiration(duration))
-// 		} else {
-// 			klog.V(2).Infof("[Warning] not caching %s cluster costs: no data or less than %f minutes data ", duration, clusterCostsCacheTime)
-// 		}
-// 		return aggErr, err
-// 	}
-
-// 	// 1 day
-// 	go func(sem *util.Semaphore) {
-// 		defer errors.HandlePanic()
-
-// 		for {
-// 			duration := "1d"
-// 			offset := "1m"
-// 			durHrs := "24h"
-
-// 			sem.Acquire()
-// 			warmFunc(duration, durHrs, offset, true)
-// 			sem.Return()
-
-// 			klog.V(3).Infof("aggregation: warm cache: %s", duration)
-// 			time.Sleep(A.GetCacheRefresh(duration))
-// 		}
-// 	}(sem)
-
-// 	// 2 day
-// 	go func(sem *util.Semaphore) {
-// 		defer errors.HandlePanic()
-
-// 		for {
-// 			duration := "2d"
-// 			offset := "1m"
-// 			durHrs := "48h"
-
-// 			sem.Acquire()
-// 			warmFunc(duration, durHrs, offset, false)
-// 			sem.Return()
-
-// 			klog.V(3).Infof("aggregation: warm cache: %s", duration)
-// 			time.Sleep(A.GetCacheRefresh(duration))
-// 		}
-// 	}(sem)
-
-// 	if !env.IsETLEnabled() {
-// 		// 7 day
-// 		go func(sem *util.Semaphore) {
-// 			defer errors.HandlePanic()
-
-// 			for {
-// 				duration := "7d"
-// 				offset := "1m"
-// 				durHrs := "168h"
-
-// 				sem.Acquire()
-// 				aggErr, err := warmFunc(duration, durHrs, offset, false)
-// 				sem.Return()
-
-// 				klog.V(3).Infof("aggregation: warm cache: %s", duration)
-// 				if aggErr == nil && err == nil {
-// 					time.Sleep(A.GetCacheRefresh(duration))
-// 				} else {
-// 					time.Sleep(5 * time.Minute)
-// 				}
-// 			}
-// 		}(sem)
-
-// 		// 30 day
-// 		go func(sem *util.Semaphore) {
-// 			defer errors.HandlePanic()
-
-// 			for {
-// 				duration := "30d"
-// 				offset := "1m"
-// 				durHrs := "720h"
-
-// 				sem.Acquire()
-// 				aggErr, err := warmFunc(duration, durHrs, offset, false)
-// 				sem.Return()
-// 				if aggErr == nil && err == nil {
-// 					time.Sleep(A.GetCacheRefresh(duration))
-// 				} else {
-// 					time.Sleep(5 * time.Minute)
-// 				}
-// 			}
-// 		}(sem)
-// 	}
-// }
-
 // Creates a new ClusterManager instance using a boltdb storage. If that fails,
 // then we fall back to a memory-only storage.
 func newClusterManager() *cm.ClusterManager {
@@ -1077,14 +917,6 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 		"30d": maxCacheMinutes30d * time.Minute,
 	}
 
-	// warm the cache unless explicitly set to false
-	// if env.IsCacheWarmingEnabled() {
-	// 	log.Infof("Init: AggregateCostModel cache warming enabled")
-	// 	warmAggregateCostModelCache()
-	// } else {
-	// 	log.Infof("Init: AggregateCostModel cache warming disabled")
-	// }
-
 	costModel := NewCostModel(k8sCache, clusterMap, scrapeInterval)
 	metricsEmitter := NewCostModelMetricsEmitter(promCli, k8sCache, cloudProvider, costModel)
 
@@ -1112,6 +944,14 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 
 	// Initialize mechanism for subscribing to settings changes
 	a.InitializeSettingsPubSub()
+
+	// Warm the aggregate cache unless explicitly set to false
+	if env.IsCacheWarmingEnabled() {
+		log.Infof("Init: AggregateCostModel cache warming enabled")
+		a.warmAggregateCostModelCache()
+	} else {
+		log.Infof("Init: AggregateCostModel cache warming disabled")
+	}
 
 	err = a.CloudProvider.DownloadPricingData()
 	if err != nil {

@@ -13,6 +13,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/kubecost"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
@@ -32,6 +33,8 @@ const (
 	// chosen Aggregator; e.g. during aggregation by some label, there may be
 	// cost data that do not have the given label.
 	UnallocatedSubfield = "__unallocated__"
+
+	clusterCostsCacheMinutes = 5.0
 )
 
 // Aggregation describes aggregated cost data, containing cumulative cost and
@@ -1593,6 +1596,166 @@ func GenerateAggKey(ps aggKeyParams) string {
 // TODO clean up, simplify
 type Aggregator interface {
 	ComputeAggregateCostModel(promClient prometheusClient.Client, duration, offset, field string, subfields []string, rate string, filters map[string]string, sri *SharedResourceInfo, shared string, allocateIdle, includeTimeSeries, includeEfficiency, disableCache, clearCache, noCache, noExpireCache, remoteEnabled, disableSharedOverhead, useETLAdapter bool) (map[string]*Aggregation, string, error)
+}
+
+func (a *Accesses) warmAggregateCostModelCache() {
+	// Only allow one concurrent cache-warming operation
+	sem := util.NewSemaphore(1)
+
+	// Set default values, pulling them from application settings where applicable, and warm the cache
+	// for the given duration. Cache is intentionally set to expire (i.e. noExpireCache=false) so that
+	// if the default parameters change, the old cached defaults with eventually expire. Thus, the
+	// timing of the cache expiry/refresh is the only mechanism ensuring 100% cache warmth.
+	warmFunc := func(duration, durationHrs, offset string, cacheEfficiencyData bool) (error, error) {
+		field := "namespace"
+		subfields := []string{}
+		rate := ""
+		filters := map[string]string{}
+		includeTimeSeries := false
+		includeEfficiency := true
+		disableCache := true
+		clearCache := false
+		noCache := false
+		noExpireCache := false
+		remote := true
+		shareSplit := "weighted"
+		remoteAvailable := env.IsRemoteEnabled()
+		remoteEnabled := remote && remoteAvailable
+		promClient := a.GetPrometheusClient(remote)
+		allocateIdle := cloud.AllocateIdleByDefault(a.CloudProvider)
+
+		sharedNamespaces := cloud.SharedNamespaces(a.CloudProvider)
+		sharedLabelNames, sharedLabelValues := cloud.SharedLabels(a.CloudProvider)
+
+		var sri *SharedResourceInfo
+		if len(sharedNamespaces) > 0 || len(sharedLabelNames) > 0 {
+			sri = NewSharedResourceInfo(true, sharedNamespaces, sharedLabelNames, sharedLabelValues)
+		}
+
+		aggKey := GenerateAggKey(aggKeyParams{
+			duration:   duration,
+			offset:     offset,
+			filters:    filters,
+			field:      field,
+			subfields:  subfields,
+			rate:       rate,
+			sri:        sri,
+			shareType:  shareSplit,
+			idle:       allocateIdle,
+			timeSeries: includeTimeSeries,
+			efficiency: includeEfficiency,
+		})
+		log.Infof("aggregation: cache warming defaults: %s", aggKey)
+		key := fmt.Sprintf("%s:%s", durationHrs, offset)
+
+		_, _, aggErr := a.ComputeAggregateCostModel(promClient, duration, offset, field, subfields, rate, filters,
+			sri, shareSplit, allocateIdle, includeTimeSeries, includeEfficiency, disableCache,
+			clearCache, noCache, noExpireCache, remoteEnabled, false, false)
+		if aggErr != nil {
+			log.Infof("Error building cache %s: %s", key, aggErr)
+		}
+		if a.ThanosClient != nil {
+			offset = thanos.Offset()
+			log.Infof("Setting offset to %s", offset)
+		}
+		totals, err := a.ComputeClusterCosts(promClient, a.CloudProvider, durationHrs, offset, cacheEfficiencyData)
+		if err != nil {
+			log.Infof("Error building cluster costs cache %s", key)
+		}
+		maxMinutesWithData := 0.0
+		for _, cluster := range totals {
+			if cluster.DataMinutes > maxMinutesWithData {
+				maxMinutesWithData = cluster.DataMinutes
+			}
+		}
+		if len(totals) > 0 && maxMinutesWithData > clusterCostsCacheMinutes {
+			a.ClusterCostsCache.Set(key, totals, a.GetCacheExpiration(duration))
+			log.Infof("caching %s cluster costs for %s", duration, a.GetCacheExpiration(duration))
+		} else {
+			log.Warningf("not caching %s cluster costs: no data or less than %f minutes data ", duration, clusterCostsCacheMinutes)
+		}
+		return aggErr, err
+	}
+
+	// 1 day
+	go func(sem *util.Semaphore) {
+		defer errors.HandlePanic()
+
+		for {
+			duration := "1d"
+			offset := "1m"
+			durHrs := "24h"
+
+			sem.Acquire()
+			warmFunc(duration, durHrs, offset, true)
+			sem.Return()
+
+			log.Infof("aggregation: warm cache: %s", duration)
+			time.Sleep(a.GetCacheRefresh(duration))
+		}
+	}(sem)
+
+	// 2 day
+	go func(sem *util.Semaphore) {
+		defer errors.HandlePanic()
+
+		for {
+			duration := "2d"
+			offset := "1m"
+			durHrs := "48h"
+
+			sem.Acquire()
+			warmFunc(duration, durHrs, offset, false)
+			sem.Return()
+
+			log.Infof("aggregation: warm cache: %s", duration)
+			time.Sleep(a.GetCacheRefresh(duration))
+		}
+	}(sem)
+
+	if !env.IsETLEnabled() {
+		// 7 day
+		go func(sem *util.Semaphore) {
+			defer errors.HandlePanic()
+
+			for {
+				duration := "7d"
+				offset := "1m"
+				durHrs := "168h"
+
+				sem.Acquire()
+				aggErr, err := warmFunc(duration, durHrs, offset, false)
+				sem.Return()
+
+				log.Infof("aggregation: warm cache: %s", duration)
+				if aggErr == nil && err == nil {
+					time.Sleep(a.GetCacheRefresh(duration))
+				} else {
+					time.Sleep(5 * time.Minute)
+				}
+			}
+		}(sem)
+
+		// 30 day
+		go func(sem *util.Semaphore) {
+			defer errors.HandlePanic()
+
+			for {
+				duration := "30d"
+				offset := "1m"
+				durHrs := "720h"
+
+				sem.Acquire()
+				aggErr, err := warmFunc(duration, durHrs, offset, false)
+				sem.Return()
+				if aggErr == nil && err == nil {
+					time.Sleep(a.GetCacheRefresh(duration))
+				} else {
+					time.Sleep(5 * time.Minute)
+				}
+			}
+		}(sem)
+	}
 }
 
 // AggregateCostModelHandler handles requests to the aggregated cost model API. See
