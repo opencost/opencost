@@ -27,4 +27,6 @@ type FileStatus struct {
 	Size         string            `json:"size"`
 	LastModified time.Time         `json:"lastModified"`
 	Details      map[string]string `json:"details,omitempty"`
+	Errors       []string          `json:"errors,omitempty"`
+	Warnings     []string          `json:"warnings,omitempty"`
 }

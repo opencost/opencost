@@ -54,9 +54,21 @@ func (qw *QueryWarning) String() string {
 
 // QueryErrorCollection represents a collection of query errors and warnings made via context.
 type QueryErrorCollection interface {
-	//
+	// Warnings is a slice of the QueryWarning instances
 	Warnings() []*QueryWarning
+
+	// Errors is a slice of the QueryError instances
 	Errors() []*QueryError
+
+	// ToErrorAndWarningStrings returns the errors and warnings in the collection
+	// as two string slices.
+	ToErrorAndWarningStrings() (errors []string, warnings []string)
+}
+
+// ErrorsAndWarningStrings is a container struct for string representation storage/caching
+type ErrorsAndWarningStrings struct {
+	Errors   []string
+	Warnings []string
 }
 
 // QueryErrorCollector is used to collect prometheus query errors and warnings, and also meets the
@@ -149,6 +161,17 @@ func (ec *QueryErrorCollector) Error() string {
 	}
 
 	return sb.String()
+}
+
+// ToErrorAndWarningStrings returns the errors and warnings in the collection as two string slices.
+func (ec *QueryErrorCollector) ToErrorAndWarningStrings() (errors []string, warnings []string) {
+	for _, e := range ec.Errors() {
+		errors = append(errors, e.String())
+	}
+	for _, w := range ec.Warnings() {
+		warnings = append(warnings, w.String())
+	}
+	return
 }
 
 // As is a special method that implicitly works with the `errors.As()` go
