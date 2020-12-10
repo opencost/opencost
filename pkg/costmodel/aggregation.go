@@ -1547,6 +1547,10 @@ func GenerateAggKey(window kubecost.Window, field string, subfields []string, op
 		opts = DefaultAggregateQueryOpts()
 	}
 
+	// Covert to duration, offset so that cache hits occur, even when timestamps have
+	// shifted slightly.
+	duration, offset := window.ToDurationOffset()
+
 	// parse, trim, and sort podprefix filters
 	podPrefixFilters := []string{}
 	if ppfs, ok := opts.Filters["podprefix"]; ok && ppfs != "" {
@@ -1613,8 +1617,7 @@ func GenerateAggKey(window kubecost.Window, field string, subfields []string, op
 	sort.Strings(subfields)
 	fieldStr := fmt.Sprintf("%s:%s", field, strings.Join(subfields, ","))
 
-	// TODO convert window back to 1d
-	return fmt.Sprintf("%s:%s:%s:%s:%s:%s:%s:%t:%t:%t", window, filterStr, fieldStr, opts.Rate,
+	return fmt.Sprintf("%s:%s:%s:%s:%s:%s:%s:%t:%t:%t", duration, offset, filterStr, fieldStr, opts.Rate,
 		opts.SharedResources, opts.ShareSplit, opts.AllocateIdle, opts.IncludeTimeSeries,
 		opts.IncludeEfficiency)
 }

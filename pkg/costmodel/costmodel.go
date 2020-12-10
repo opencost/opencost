@@ -1492,12 +1492,18 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 	}
 	resolution = time.Duration(resMins) * time.Minute
 
-	// Convert to Prometheus-style duration string in terms of m or h
-	resStr := fmt.Sprintf("%sm", resMins)
-	if resMins%60 == 0 {
-		resStr = fmt.Sprintf("%sh", resMins/60)
+	// Warn if resolution does not evenly divide window
+	if int64(window.Minutes())%int64(resolution.Minutes()) != 0 {
+		log.Warningf("CostDataRange: window should be divisible by resolution or else samples may be missed: %s %% %s = %dm", window, resolution, int64(window.Minutes())%int64(resolution.Minutes()))
 	}
 
+	// Convert to Prometheus-style duration string in terms of m or h
+	resStr := fmt.Sprintf("%dm", resMins)
+	if resMins%60 == 0 {
+		resStr = fmt.Sprintf("%dh", resMins/60)
+	}
+
+	// TODO remove after testing
 	log.Infof("CostDataRange(%s, %s, %f)", window, resStr, resolution.Hours())
 
 	scrapeIntervalSeconds := cm.ScrapeInterval.Seconds()
