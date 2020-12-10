@@ -485,8 +485,6 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 		http.Error(w, fmt.Sprintf("invalid date range: %s", wStr), http.StatusBadRequest)
 	}
 
-	remoteEnabled := env.IsRemoteEnabled() && remote != "false"
-
 	// Use Thanos Client if it exists (enabled) and remote flag set
 	var pClient prometheusClient.Client
 	if remote != "false" && a.ThanosClient != nil {
@@ -496,7 +494,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	resolution := time.Hour
-	data, err := a.Model.ComputeCostDataRange(pClient, a.CloudProvider, window, resolution, namespace, cluster, remoteEnabled)
+	data, err := a.Model.ComputeCostDataRange(pClient, a.CloudProvider, window, resolution, namespace, cluster)
 	if err != nil {
 		w.Write(WrapData(nil, err))
 	}

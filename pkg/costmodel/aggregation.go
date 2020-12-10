@@ -1030,18 +1030,18 @@ func DefaultAggregateQueryOpts() *AggregateQueryOpts {
 // ComputeAggregateCostModel computes cost data for the given window, then aggregates it by the given fields.
 // Data is cached on two levels: the aggregation is cached as well as the underlying cost data.
 func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client, window kubecost.Window, field string, subfields []string, opts *AggregateQueryOpts) (map[string]*Aggregation, string, error) {
-	// Window must be closed, i.e. neither start nor end can be nil
+	// Window is the range of the query, i.e. (start, end)
+	// It must be closed, i.e. neither start nor end can be nil
 	if window.IsOpen() {
 		return nil, "", fmt.Errorf("illegal window: %s", window)
 	}
-
-	// Window is the range of the query, i.e. (start, end)
 
 	// Resolution is the duration of each datum in the cost model range query,
 	// which corresponds to both the step size given to Prometheus query_range
 	// and to the window passed to the range queries.
 	// i.e. by default, we support 1h resolution for queries of windows defined
 	// in terms of days or integer multiples of hours (e.g. 1d, 12h)
+	resolution := time.Hour
 
 	// Determine resolution by size of duration and divisibility of window.
 	// By default, resolution is 1hr. If the window is smaller than 1hr, then
@@ -1049,9 +1049,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 	// resolution goes down to 1m. If the window is greater than 1d, then
 	// resolution gets scaled up to improve performance by reducing the amount
 	// of data being computed.
-	resolution := time.Hour
 	durMins := int64(math.Trunc(window.Minutes()))
-
 	if durMins < 24*60 { // less than 1d
 		if durMins%60 != 0 { // not divisible by 1h
 			resolution = time.Minute
@@ -1337,7 +1335,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 			klog.V(3).Infof("Cache item: %s", k)
 		}
 
-		costData, err = a.Model.ComputeCostDataRange(promClient, a.CloudProvider, window, resolution, "", "", remoteEnabled)
+		costData, err = a.Model.ComputeCostDataRange(promClient, a.CloudProvider, window, resolution, "", "")
 		if err != nil {
 			if prom.IsErrorCollection(err) {
 				return nil, "", err
@@ -1399,18 +1397,22 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 
 	idleCoefficients := make(map[string]float64)
 	if allocateIdle {
+		duration, offset := window.ToDurationOffset()
+
 		idleDurationCalcHours := window.Hours()
 		if window.Hours() < 1 {
 			idleDurationCalcHours = 1
 		}
-		windowStr := fmt.Sprintf("%dh", int(idleDurationCalcHours))
+		duration = fmt.Sprintf("%dh", int(idleDurationCalcHours))
+
 		if a.ThanosClient != nil {
 			offset = thanos.Offset()
 			klog.Infof("Setting offset to %s", offset)
 		}
-		idleCoefficients, err = a.ComputeIdleCoefficient(costData, promClient, a.CloudProvider, discount, customDiscount, windowStr, offset)
+
+		idleCoefficients, err = a.ComputeIdleCoefficient(costData, promClient, a.CloudProvider, discount, customDiscount, duration, offset)
 		if err != nil {
-			klog.Errorf("error computing idle coefficient: windowString=%s, offset=%s, err=%s", windowStr, offset, err)
+			klog.Errorf("error computing idle coefficient: windowString=%s, offset=%s, err=%s", duration, offset, err)
 			return nil, "", err
 		}
 	}
