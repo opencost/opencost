@@ -50,6 +50,15 @@ func NewWindow(start, end *time.Time) Window {
 	}
 }
 
+// NewClosedWindow creates and returns a new Window instance from the given
+// times, which cannot be nil, so they are value types.
+func NewClosedWindow(start, end time.Time) Window {
+	return Window{
+		start: &start,
+		end:   &end,
+	}
+}
+
 // ParseWindowUTC attempts to parse the given string into a valid Window. It
 // accepts several formats, returning an error if the given string does not
 // match one of the following:
@@ -330,11 +339,12 @@ func (w Window) Contains(t time.Time) bool {
 }
 
 func (w Window) Duration() time.Duration {
-	if w.start != nil && w.end != nil {
-		return w.end.Sub(*w.start)
+	if w.IsOpen() {
+		// TODO test
+		return time.Duration(math.Inf(1.0))
 	}
 
-	return 0
+	return w.end.Sub(*w.start)
 }
 
 func (w Window) End() *time.Time {
@@ -384,6 +394,18 @@ func (w Window) Expand(that Window) Window {
 	return w.ExpandStart(*that.start).ExpandEnd(*that.end)
 }
 
+func (w Window) Hours() float64 {
+	if w.IsOpen() {
+		return math.Inf(1)
+	}
+
+	return w.end.Sub(*w.start).Hours()
+}
+
+func (w Window) IsOpen() bool {
+	return w.start == nil || w.end == nil
+}
+
 func (w Window) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
 	buffer.WriteString(fmt.Sprintf("\"start\":\"%s\",", w.start.Format("2006-01-02T15:04:05-0700")))
@@ -393,11 +415,16 @@ func (w Window) MarshalJSON() ([]byte, error) {
 }
 
 func (w Window) Minutes() float64 {
-	if w.start == nil || w.end == nil {
+	if w.IsOpen() {
 		return math.Inf(1)
 	}
 
 	return w.end.Sub(*w.start).Minutes()
+}
+
+func (w Window) Set(start, end *time.Time) {
+	w.start = start
+	w.end = end
 }
 
 // Shift adds the given duration to both the start and end times of the window

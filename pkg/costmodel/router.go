@@ -24,6 +24,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/errors"
+	"github.com/kubecost/cost-model/pkg/kubecost"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/thanos"
@@ -71,7 +72,7 @@ type Accesses struct {
 	AggregateCache    *cache.Cache
 	CostDataCache     *cache.Cache
 	ClusterCostsCache *cache.Cache
-	CacheExpiration   map[string]time.Duration
+	CacheExpiration   map[time.Duration]time.Duration
 	AggAPI            Aggregator
 	// SettingsCache stores current state of app settings
 	SettingsCache *cache.Cache
@@ -99,7 +100,7 @@ func (a *Accesses) GetPrometheusClient(remote bool) prometheusClient.Client {
 // GetCacheExpiration looks up and returns custom cache expiration for the given duration.
 // If one does not exists, it returns the default cache expiration, which is defined by
 // the particular cache.
-func (a *Accesses) GetCacheExpiration(dur string) time.Duration {
+func (a *Accesses) GetCacheExpiration(dur time.Duration) time.Duration {
 	if expiration, ok := a.CacheExpiration[dur]; ok {
 		return expiration
 	}
@@ -109,7 +110,7 @@ func (a *Accesses) GetCacheExpiration(dur string) time.Duration {
 // GetCacheRefresh determines how long to wait before refreshing the cache for the given duration,
 // which is done 1 minute before we expect the cache to expire, or 1 minute if expiration is
 // not found or is less than 2 minutes.
-func (a *Accesses) GetCacheRefresh(dur string) time.Duration {
+func (a *Accesses) GetCacheRefresh(dur time.Duration) time.Duration {
 	expiry := a.GetCacheExpiration(dur).Minutes()
 	if expiry <= 2.0 {
 		return time.Minute
@@ -473,11 +474,16 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 
 	start := r.URL.Query().Get("start")
 	end := r.URL.Query().Get("end")
-	window := r.URL.Query().Get("window")
 	fields := r.URL.Query().Get("filterFields")
 	namespace := r.URL.Query().Get("namespace")
 	cluster := r.URL.Query().Get("cluster")
 	remote := r.URL.Query().Get("remote")
+
+	wStr := fmt.Sprintf("%s,%s", start, end)
+	window, err := kubecost.ParseWindowUTC(wStr)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("invalid date range: %s", wStr), http.StatusBadRequest)
+	}
 
 	remoteEnabled := env.IsRemoteEnabled() && remote != "false"
 
@@ -489,8 +495,8 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 		pClient = a.PrometheusClient
 	}
 
-	resolutionHours := 1.0
-	data, err := a.Model.ComputeCostDataRange(pClient, a.CloudProvider, start, end, window, resolutionHours, namespace, cluster, remoteEnabled, "")
+	resolution := time.Hour
+	data, err := a.Model.ComputeCostDataRange(pClient, a.CloudProvider, window, resolution, namespace, cluster, remoteEnabled)
 	if err != nil {
 		w.Write(WrapData(nil, err))
 	}
@@ -976,11 +982,12 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	// query durations that should be cached longer should be registered here
 	// use relatively prime numbers to minimize likelihood of synchronized
 	// attempts at cache warming
-	cacheExpiration := map[string]time.Duration{
-		"1d":  maxCacheMinutes1d * time.Minute,
-		"2d":  maxCacheMinutes2d * time.Minute,
-		"7d":  maxCacheMinutes7d * time.Minute,
-		"30d": maxCacheMinutes30d * time.Minute,
+	day := 24 * time.Hour
+	cacheExpiration := map[time.Duration]time.Duration{
+		day:      maxCacheMinutes1d * time.Minute,
+		2 * day:  maxCacheMinutes2d * time.Minute,
+		7 * day:  maxCacheMinutes7d * time.Minute,
+		30 * day: maxCacheMinutes30d * time.Minute,
 	}
 
 	costModel := NewCostModel(k8sCache, clusterMap, scrapeInterval)
