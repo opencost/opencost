@@ -1008,7 +1008,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 			GPU:          terms.GPU,
 			RAMCost:      aws.BaseSpotRAMPrice,
 			Storage:      terms.Storage,
-			BaseCPUPrice: aws.BaseSpotCPUPrice,
+			BaseCPUPrice: aws.BaseCPUPrice,
 			BaseRAMPrice: aws.BaseRAMPrice,
 			BaseGPUPrice: aws.BaseGPUPrice,
 			UsageType:    PreemptibleType,
