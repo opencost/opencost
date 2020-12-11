@@ -402,6 +402,14 @@ func (w Window) Hours() float64 {
 	return w.end.Sub(*w.start).Hours()
 }
 
+func (w Window) IsEmpty() bool {
+	return !w.IsOpen() && w.end.Equal(*w.Start())
+}
+
+func (w Window) IsNegative() bool {
+	return !w.IsOpen() && w.end.Before(*w.Start())
+}
+
 func (w Window) IsOpen() bool {
 	return w.start == nil || w.end == nil
 }

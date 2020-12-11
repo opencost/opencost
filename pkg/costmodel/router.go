@@ -472,18 +472,39 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	start := r.URL.Query().Get("start")
-	end := r.URL.Query().Get("end")
+	startStr := r.URL.Query().Get("start")
+	endStr := r.URL.Query().Get("end")
+	windowStr := r.URL.Query().Get("window")
 	fields := r.URL.Query().Get("filterFields")
 	namespace := r.URL.Query().Get("namespace")
 	cluster := r.URL.Query().Get("cluster")
 	remote := r.URL.Query().Get("remote")
 
-	wStr := fmt.Sprintf("%s,%s", start, end)
-	window, err := kubecost.ParseWindowUTC(wStr)
+	layout := "2006-01-02T15:04:05.000Z"
+	start, err := time.Parse(layout, startStr)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("invalid date range: %s", wStr), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("invalid start date: %s", startStr), http.StatusBadRequest)
+		return
 	}
+	end, err := time.Parse(layout, endStr)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("invalid end date: %s", endStr), http.StatusBadRequest)
+		return
+	}
+
+	window := kubecost.NewWindow(&start, &end)
+	if window.IsOpen() || window.IsEmpty() || window.IsNegative() {
+		http.Error(w, fmt.Sprintf("invalid date range: %s", window), http.StatusBadRequest)
+		return
+	}
+
+	resolution := time.Hour
+	if resDur, err := time.ParseDuration(windowStr); err == nil {
+		resolution = resDur
+	}
+
+	// TODO remove after testing
+	log.Infof("CostDataModelRangeHandler: window=%s, resolution=%s", window, resolution)
 
 	// Use Thanos Client if it exists (enabled) and remote flag set
 	var pClient prometheusClient.Client
@@ -493,7 +514,6 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 		pClient = a.PrometheusClient
 	}
 
-	resolution := time.Hour
 	data, err := a.Model.ComputeCostDataRange(pClient, a.CloudProvider, window, resolution, namespace, cluster)
 	if err != nil {
 		w.Write(WrapData(nil, err))

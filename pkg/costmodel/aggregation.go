@@ -1051,7 +1051,9 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 	// of data being computed.
 	durMins := int64(math.Trunc(window.Minutes()))
 	if durMins < 24*60 { // less than 1d
-		if durMins%60 != 0 { // not divisible by 1h
+		// TODO should we have additional options for going by
+		// e.g. 30m? 10m? 5m?
+		if durMins%60 != 0 || durMins < 3*60 { // not divisible by 1h or less than 3h
 			resolution = time.Minute
 		}
 	} else { // greater than 1d
