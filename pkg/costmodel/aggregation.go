@@ -1231,7 +1231,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 				labelValues[ln] = append(labelValues[ln], lv)
 			} else {
 				// label is not of the form name=value, so log it and move on
-				klog.V(2).Infof("[Warning] aggregate cost model: skipping illegal label filter: %s", l)
+				log.Warningf("ComputeAggregateCostModel: skipping illegal label filter: %s", l)
 			}
 		}
 
@@ -1281,7 +1281,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 
 	thanosOffset := time.Now().Add(-thanos.OffsetDuration())
 	if a.ThanosClient != nil && window.End().After(thanosOffset) {
-		klog.V(4).Infof("Setting end time backwards to first present data")
+		log.Infof("ComputeAggregateCostModel: setting end time backwards to first present data")
 
 		// Apply offsets to both end and start times to maintain correct time range
 		deltaDuration := window.End().Sub(thanosOffset)
@@ -1290,17 +1290,18 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 		window.Set(&s, &e)
 	}
 
-	key := fmt.Sprintf(`%s:%fh:%t`, window, resolution.Hours(), remoteEnabled)
+	dur, off := window.ToDurationOffset()
+	key := fmt.Sprintf(`%s:%s:%fh:%t`, dur, off, resolution.Hours(), remoteEnabled)
 
 	// report message about which of the two caches hit. by default report a miss
-	cacheMessage := fmt.Sprintf("L1 cache miss: %s L2 cache miss: %s", aggKey, key)
+	cacheMessage := fmt.Sprintf("ComputeAggregateCostModel: L1 cache miss: %s L2 cache miss: %s", aggKey, key)
 
 	// check the cache for aggregated response; if cache is hit and not disabled, return response
 	if value, found := a.AggregateCache.Get(aggKey); found && !disableCache && !noCache {
 		result, ok := value.(map[string]*Aggregation)
 		if !ok {
 			// disable cache and recompute if type cast fails
-			klog.Errorf("caching error: failed to cast aggregate data to struct: %s", aggKey)
+			log.Errorf("ComputeAggregateCostModel: caching error: failed to cast aggregate data to struct: %s", aggKey)
 			return a.ComputeAggregateCostModel(promClient, window, field, subfields, opts)
 		}
 		return result, fmt.Sprintf("aggregate cache hit: %s", aggKey), nil
@@ -1322,18 +1323,12 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 	if found && !disableCache && !noCache {
 		ok := false
 		costData, ok = cacheData.(map[string]*CostData)
-		cacheMessage = fmt.Sprintf("L1 cache miss: %s, L2 cost data cache hit: %s", aggKey, key)
+		cacheMessage = fmt.Sprintf("ComputeAggregateCostModel: L1 cache miss: %s, L2 cost data cache hit: %s", aggKey, key)
 		if !ok {
-			klog.Errorf("caching error: failed to cast cost data to struct: %s", key)
+			log.Errorf("ComputeAggregateCostModel: caching error: failed to cast cost data to struct: %s", key)
 		}
 	} else {
-		klog.Infof("key %s missed cache. found %t, disableCache %t, noCache %t ", key, found, disableCache, noCache)
-
-		cv := a.CostDataCache.Items()
-		klog.V(3).Infof("Logging cache items...")
-		for k := range cv {
-			klog.V(3).Infof("Cache item: %s", k)
-		}
+		log.Infof("ComputeAggregateCostModel: missed cache: %s (found %t, disableCache %t, noCache %t)", key, found, disableCache, noCache)
 
 		costData, err = a.Model.ComputeCostDataRange(promClient, a.CloudProvider, window, resolution, "", "")
 		if err != nil {
@@ -1362,7 +1357,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 			return nil, "", &EmptyDataError{window: window}
 		}
 		if costDataLen >= minCostDataLength && !noCache {
-			klog.Infof("Setting L2 cache: %s", key)
+			log.Infof("ComputeAggregateCostModel: setting L2 cache: %s", key)
 			a.CostDataCache.Set(key, costData, cacheExpiry)
 		}
 	}
@@ -1386,7 +1381,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 			cost, err := strconv.ParseFloat(val, 64)
 			durationCoefficient := window.Hours() / util.HoursPerMonth
 			if err != nil {
-				return nil, "", fmt.Errorf("Unable to parse shared cost %s: %s", val, err.Error())
+				return nil, "", fmt.Errorf("unable to parse shared cost %s: %s", val, err)
 			}
 			sc[key] = &SharedCostInfo{
 				Name: key,
@@ -1407,17 +1402,14 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 
 		if a.ThanosClient != nil {
 			offset = thanos.Offset()
-			klog.Infof("Setting offset to %s", offset)
+			log.Infof("ComputeAggregateCostModel: setting offset to %s", offset)
 		}
 
 		idleCoefficients, err = a.ComputeIdleCoefficient(costData, promClient, a.CloudProvider, discount, customDiscount, duration, offset)
 		if err != nil {
-			klog.Errorf("error computing idle coefficient: windowString=%s, offset=%s, err=%s", duration, offset, err)
+			log.Errorf("ComputeAggregateCostModel: error computing idle coefficient: duration=%s, offset=%s, err=%s", duration, offset, err)
 			return nil, "", err
 		}
-	}
-	for cid, idleCoefficient := range idleCoefficients {
-		klog.Infof("Idle Coeff: %s: %f", cid, idleCoefficient)
 	}
 
 	totalContainerCost := 0.0
@@ -1459,10 +1451,10 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 	costDataLen := costDataTimeSeriesLength(costData)
 	if costDataLen >= minCostDataLength && window.Hours() > 1.0 && !noCache {
 		// Set the result map (rather than a pointer to it) because map is a reference type
-		klog.Infof("Caching key in aggregate cache: %s", key)
+		log.Infof("ComputeAggregateCostModel: setting aggregate cache: %s", aggKey)
 		a.AggregateCache.Set(aggKey, result, cacheExpiry)
 	} else {
-		klog.Infof("Not caching for key %s. Not enough data: %t, Duration less than 1h: %t, noCache: %t", key, costDataLen < minCostDataLength, window.Hours() < 1, noCache)
+		log.Infof("ComputeAggregateCostModel: not setting aggregate cache: %s (not enough data: %t; duration less than 1h: %t; noCache: %t)", key, costDataLen < minCostDataLength, window.Hours() < 1, noCache)
 	}
 
 	return result, cacheMessage, nil
