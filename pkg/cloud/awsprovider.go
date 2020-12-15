@@ -38,6 +38,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+const awsReservedInstancePricePerHour = 0.0287
 const supportedSpotFeedVersion = "1"
 const SpotInfoUpdateType = "spotinfo"
 const AthenaInfoUpdateType = "athenainfo"
@@ -70,8 +71,10 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 	rps.Error = aws.RIPricingStatus
 	if rps.Error != "" {
 		rps.Available = false
-	} else {
+	} else if len(aws.RIPricingByInstanceID) > 0 {
 		rps.Available = true
+	} else {
+		rps.Error = "No reserved instances detected"
 	}
 	sources[ReservedInstancePricingSource] = rps
 	return sources
@@ -131,7 +134,6 @@ type AWS struct {
 	BaseGPUPrice                string
 	BaseSpotCPUPrice            string
 	BaseSpotRAMPrice            string
-	BaseSpotGPUPrice            string
 	SpotLabelName               string
 	SpotLabelValue              string
 	SpotDataRegion              string
@@ -614,7 +616,6 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.BaseGPUPrice = c.GPU
 	aws.BaseSpotCPUPrice = c.SpotCPU
 	aws.BaseSpotRAMPrice = c.SpotRAM
-	aws.BaseSpotGPUPrice = c.SpotGPU
 	aws.SpotLabelName = c.SpotLabel
 	aws.SpotLabelValue = c.SpotLabelValue
 	aws.SpotDataBucket = c.SpotDataBucket
@@ -977,19 +978,40 @@ func (aws *AWS) savingsPlanPricing(instanceID string) (*SavingsPlanData, bool) {
 }
 
 func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*Node, error) {
-	//key := k.Features()
+	key := k.Features()
 
-	if true { // Preemptible but we don't have any data in the pricing report.
+	if spotInfo, ok := aws.spotPricing(k.ID()); ok {
+		var spotcost string
+		log.DedupedInfof(5, "Looking up spot data from feed for node %s", k.ID())
+		arr := strings.Split(spotInfo.Charge, " ")
+		if len(arr) == 2 {
+			spotcost = arr[0]
+		} else {
+			klog.V(2).Infof("Spot data for node %s is missing", k.ID())
+		}
+		return &Node{
+			Cost:         spotcost,
+			VCPU:         terms.VCpu,
+			RAM:          terms.Memory,
+			GPU:          terms.GPU,
+			Storage:      terms.Storage,
+			BaseCPUPrice: aws.BaseCPUPrice,
+			BaseRAMPrice: aws.BaseRAMPrice,
+			BaseGPUPrice: aws.BaseGPUPrice,
+			UsageType:    PreemptibleType,
+		}, nil
+	} else if aws.isPreemptible(key) { // Preemptible but we don't have any data in the pricing report.
 		log.DedupedWarningf(5, "Node %s marked preemptible but we have no data in spot feed", k.ID())
 		return &Node{
 			VCPU:         terms.VCpu,
 			VCPUCost:     aws.BaseSpotCPUPrice,
 			RAM:          terms.Memory,
 			GPU:          terms.GPU,
+			RAMCost:      aws.BaseSpotRAMPrice,
 			Storage:      terms.Storage,
-			BaseCPUPrice: aws.BaseSpotCPUPrice,
-			BaseRAMPrice: aws.BaseSpotRAMPrice,
-			BaseGPUPrice: aws.BaseSpotGPUPrice,
+			BaseCPUPrice: aws.BaseCPUPrice,
+			BaseRAMPrice: aws.BaseRAMPrice,
+			BaseGPUPrice: aws.BaseGPUPrice,
 			UsageType:    PreemptibleType,
 		}, nil
 	} else if sp, ok := aws.savingsPlanPricing(k.ID()); ok {
@@ -1875,8 +1897,8 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 	page := 0
 	processResults := func(op *athena.GetQueryResultsOutput, lastpage bool) bool {
 		iter := op.ResultSet.Rows
-		if page == 0 && len(iter) > 0 {
-			iter = op.ResultSet.Rows[1:len(op.ResultSet.Rows)]
+		if page == 0 && len(iter) > 1 {
+			iter = op.ResultSet.Rows[1:(len(op.ResultSet.Rows) - 1)]
 		}
 		page++
 		for _, r := range iter {
