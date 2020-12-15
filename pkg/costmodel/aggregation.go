@@ -1060,7 +1060,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 		if durMins >= 7*24*60 { // greater than (or equal to) 7 days
 			resolution = 24.0 * time.Hour
 		} else if durMins >= 2*24*60 { // greater than (or equal to) 2 days
-			resolution = 3.0 * time.Hour
+			resolution = 2.0 * time.Hour
 		}
 	}
 
@@ -1174,6 +1174,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 			return false, aggEnv
 		})
 	}
+
 	if filters["node"] != "" {
 		// nodes may be comma-separated, e.g. aws-node-1,aws-node-2
 		// multiple nodes are evaluated as an OR relationship
@@ -1349,11 +1350,6 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 		// compute length of the time series in the cost data and only compute
 		// aggregates and cache if the length is sufficiently high
 		costDataLen := costDataTimeSeriesLength(costData)
-
-		if window.Hours() < 1.0 {
-			// scale hourly cost data down to fractional hour
-			costData = ScaleHourlyCostData(costData, resolution.Hours())
-		}
 
 		if costDataLen == 0 {
 			return nil, "", &EmptyDataError{window: window}
