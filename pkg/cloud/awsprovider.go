@@ -38,6 +38,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+const awsReservedInstancePricePerHour = 0.0287
 const supportedSpotFeedVersion = "1"
 const SpotInfoUpdateType = "spotinfo"
 const AthenaInfoUpdateType = "athenainfo"
@@ -133,7 +134,6 @@ type AWS struct {
 	BaseGPUPrice                string
 	BaseSpotCPUPrice            string
 	BaseSpotRAMPrice            string
-	BaseSpotGPUPrice            string
 	SpotLabelName               string
 	SpotLabelValue              string
 	SpotDataRegion              string
@@ -616,7 +616,6 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.BaseGPUPrice = c.GPU
 	aws.BaseSpotCPUPrice = c.SpotCPU
 	aws.BaseSpotRAMPrice = c.SpotRAM
-	aws.BaseSpotGPUPrice = c.SpotGPU
 	aws.SpotLabelName = c.SpotLabel
 	aws.SpotLabelValue = c.SpotLabelValue
 	aws.SpotDataBucket = c.SpotDataBucket
