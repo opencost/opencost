@@ -100,6 +100,19 @@ func resolveType(t string) (pkg string, name string, isPtr bool) {
 // MarshalBinary serializes the internal properties of this Allocation instance
 // into a byte array
 func (target *Allocation) MarshalBinary() (data []byte, err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBuffer()
 	buff.WriteUInt8(CodecVersion) // version
 
@@ -160,7 +173,20 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Allocation type
-func (target *Allocation) UnmarshalBinary(data []byte) error {
+func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBufferFromBytes(data)
 
 	// Codec Version Check
@@ -271,6 +297,19 @@ func (target *Allocation) UnmarshalBinary(data []byte) error {
 // MarshalBinary serializes the internal properties of this AllocationSet instance
 // into a byte array
 func (target *AllocationSet) MarshalBinary() (data []byte, err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBuffer()
 	buff.WriteUInt8(CodecVersion) // version
 
@@ -356,7 +395,20 @@ func (target *AllocationSet) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the AllocationSet type
-func (target *AllocationSet) UnmarshalBinary(data []byte) error {
+func (target *AllocationSet) UnmarshalBinary(data []byte) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBufferFromBytes(data)
 
 	// Codec Version Check
@@ -474,6 +526,19 @@ func (target *AllocationSet) UnmarshalBinary(data []byte) error {
 // MarshalBinary serializes the internal properties of this AllocationSetRange instance
 // into a byte array
 func (target *AllocationSetRange) MarshalBinary() (data []byte, err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBuffer()
 	buff.WriteUInt8(CodecVersion) // version
 
@@ -509,7 +574,20 @@ func (target *AllocationSetRange) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the AllocationSetRange type
-func (target *AllocationSetRange) UnmarshalBinary(data []byte) error {
+func (target *AllocationSetRange) UnmarshalBinary(data []byte) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBufferFromBytes(data)
 
 	// Codec Version Check
@@ -557,6 +635,19 @@ func (target *AllocationSetRange) UnmarshalBinary(data []byte) error {
 // MarshalBinary serializes the internal properties of this Any instance
 // into a byte array
 func (target *Any) MarshalBinary() (data []byte, err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBuffer()
 	buff.WriteUInt8(CodecVersion) // version
 
@@ -626,7 +717,20 @@ func (target *Any) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Any type
-func (target *Any) UnmarshalBinary(data []byte) error {
+func (target *Any) UnmarshalBinary(data []byte) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBufferFromBytes(data)
 
 	// Codec Version Check
@@ -725,6 +829,19 @@ func (target *Any) UnmarshalBinary(data []byte) error {
 // MarshalBinary serializes the internal properties of this AssetProperties instance
 // into a byte array
 func (target *AssetProperties) MarshalBinary() (data []byte, err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBuffer()
 	buff.WriteUInt8(CodecVersion) // version
 
@@ -741,7 +858,20 @@ func (target *AssetProperties) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the AssetProperties type
-func (target *AssetProperties) UnmarshalBinary(data []byte) error {
+func (target *AssetProperties) UnmarshalBinary(data []byte) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBufferFromBytes(data)
 
 	// Codec Version Check
@@ -784,6 +914,19 @@ func (target *AssetProperties) UnmarshalBinary(data []byte) error {
 // MarshalBinary serializes the internal properties of this AssetSet instance
 // into a byte array
 func (target *AssetSet) MarshalBinary() (data []byte, err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBuffer()
 	buff.WriteUInt8(CodecVersion) // version
 
@@ -877,7 +1020,20 @@ func (target *AssetSet) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the AssetSet type
-func (target *AssetSet) UnmarshalBinary(data []byte) error {
+func (target *AssetSet) UnmarshalBinary(data []byte) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBufferFromBytes(data)
 
 	// Codec Version Check
@@ -1003,6 +1159,19 @@ func (target *AssetSet) UnmarshalBinary(data []byte) error {
 // MarshalBinary serializes the internal properties of this AssetSetRange instance
 // into a byte array
 func (target *AssetSetRange) MarshalBinary() (data []byte, err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBuffer()
 	buff.WriteUInt8(CodecVersion) // version
 
@@ -1038,7 +1207,20 @@ func (target *AssetSetRange) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the AssetSetRange type
-func (target *AssetSetRange) UnmarshalBinary(data []byte) error {
+func (target *AssetSetRange) UnmarshalBinary(data []byte) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBufferFromBytes(data)
 
 	// Codec Version Check
@@ -1086,6 +1268,19 @@ func (target *AssetSetRange) UnmarshalBinary(data []byte) error {
 // MarshalBinary serializes the internal properties of this Breakdown instance
 // into a byte array
 func (target *Breakdown) MarshalBinary() (data []byte, err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBuffer()
 	buff.WriteUInt8(CodecVersion) // version
 
@@ -1098,7 +1293,20 @@ func (target *Breakdown) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Breakdown type
-func (target *Breakdown) UnmarshalBinary(data []byte) error {
+func (target *Breakdown) UnmarshalBinary(data []byte) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBufferFromBytes(data)
 
 	// Codec Version Check
@@ -1129,6 +1337,19 @@ func (target *Breakdown) UnmarshalBinary(data []byte) error {
 // MarshalBinary serializes the internal properties of this Cloud instance
 // into a byte array
 func (target *Cloud) MarshalBinary() (data []byte, err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBuffer()
 	buff.WriteUInt8(CodecVersion) // version
 
@@ -1198,7 +1419,20 @@ func (target *Cloud) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Cloud type
-func (target *Cloud) UnmarshalBinary(data []byte) error {
+func (target *Cloud) UnmarshalBinary(data []byte) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBufferFromBytes(data)
 
 	// Codec Version Check
@@ -1297,6 +1531,19 @@ func (target *Cloud) UnmarshalBinary(data []byte) error {
 // MarshalBinary serializes the internal properties of this ClusterManagement instance
 // into a byte array
 func (target *ClusterManagement) MarshalBinary() (data []byte, err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBuffer()
 	buff.WriteUInt8(CodecVersion) // version
 
@@ -1347,7 +1594,20 @@ func (target *ClusterManagement) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the ClusterManagement type
-func (target *ClusterManagement) UnmarshalBinary(data []byte) error {
+func (target *ClusterManagement) UnmarshalBinary(data []byte) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBufferFromBytes(data)
 
 	// Codec Version Check
@@ -1421,6 +1681,19 @@ func (target *ClusterManagement) UnmarshalBinary(data []byte) error {
 // MarshalBinary serializes the internal properties of this Disk instance
 // into a byte array
 func (target *Disk) MarshalBinary() (data []byte, err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBuffer()
 	buff.WriteUInt8(CodecVersion) // version
 
@@ -1507,7 +1780,20 @@ func (target *Disk) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Disk type
-func (target *Disk) UnmarshalBinary(data []byte) error {
+func (target *Disk) UnmarshalBinary(data []byte) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBufferFromBytes(data)
 
 	// Codec Version Check
@@ -1627,6 +1913,19 @@ func (target *Disk) UnmarshalBinary(data []byte) error {
 // MarshalBinary serializes the internal properties of this LoadBalancer instance
 // into a byte array
 func (target *LoadBalancer) MarshalBinary() (data []byte, err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBuffer()
 	buff.WriteUInt8(CodecVersion) // version
 
@@ -1696,7 +1995,20 @@ func (target *LoadBalancer) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the LoadBalancer type
-func (target *LoadBalancer) UnmarshalBinary(data []byte) error {
+func (target *LoadBalancer) UnmarshalBinary(data []byte) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBufferFromBytes(data)
 
 	// Codec Version Check
@@ -1795,6 +2107,19 @@ func (target *LoadBalancer) UnmarshalBinary(data []byte) error {
 // MarshalBinary serializes the internal properties of this Network instance
 // into a byte array
 func (target *Network) MarshalBinary() (data []byte, err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBuffer()
 	buff.WriteUInt8(CodecVersion) // version
 
@@ -1864,7 +2189,20 @@ func (target *Network) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Network type
-func (target *Network) UnmarshalBinary(data []byte) error {
+func (target *Network) UnmarshalBinary(data []byte) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBufferFromBytes(data)
 
 	// Codec Version Check
@@ -1963,6 +2301,19 @@ func (target *Network) UnmarshalBinary(data []byte) error {
 // MarshalBinary serializes the internal properties of this Node instance
 // into a byte array
 func (target *Node) MarshalBinary() (data []byte, err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBuffer()
 	buff.WriteUInt8(CodecVersion) // version
 
@@ -2069,7 +2420,20 @@ func (target *Node) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Node type
-func (target *Node) UnmarshalBinary(data []byte) error {
+func (target *Node) UnmarshalBinary(data []byte) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBufferFromBytes(data)
 
 	// Codec Version Check
@@ -2219,6 +2583,19 @@ func (target *Node) UnmarshalBinary(data []byte) error {
 // MarshalBinary serializes the internal properties of this SharedAsset instance
 // into a byte array
 func (target *SharedAsset) MarshalBinary() (data []byte, err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBuffer()
 	buff.WriteUInt8(CodecVersion) // version
 
@@ -2269,7 +2646,20 @@ func (target *SharedAsset) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the SharedAsset type
-func (target *SharedAsset) UnmarshalBinary(data []byte) error {
+func (target *SharedAsset) UnmarshalBinary(data []byte) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBufferFromBytes(data)
 
 	// Codec Version Check
@@ -2343,6 +2733,19 @@ func (target *SharedAsset) UnmarshalBinary(data []byte) error {
 // MarshalBinary serializes the internal properties of this Window instance
 // into a byte array
 func (target *Window) MarshalBinary() (data []byte, err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBuffer()
 	buff.WriteUInt8(CodecVersion) // version
 
@@ -2381,7 +2784,20 @@ func (target *Window) MarshalBinary() (data []byte, err error) {
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Window type
-func (target *Window) UnmarshalBinary(data []byte) error {
+func (target *Window) UnmarshalBinary(data []byte) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
 	buff := util.NewBufferFromBytes(data)
 
 	// Codec Version Check
