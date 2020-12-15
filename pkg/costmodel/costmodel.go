@@ -12,6 +12,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
 	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/kubecost"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
@@ -19,10 +20,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
 
-	"github.com/google/uuid"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -132,8 +131,8 @@ const (
 		label_replace(
 			label_replace(
 				avg(
-					count_over_time(kube_pod_container_resource_requests_memory_bytes{container!="",container!="POD", node!=""}[%s] %s) 
-					*  
+					count_over_time(kube_pod_container_resource_requests_memory_bytes{container!="",container!="POD", node!=""}[%s] %s)
+					*
 					avg_over_time(kube_pod_container_resource_requests_memory_bytes{container!="",container!="POD", node!=""}[%s] %s)
 				) by (namespace,container,pod,node,cluster_id) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
@@ -141,25 +140,25 @@ const (
 	) by (namespace,container_name,pod_name,node,cluster_id)`
 	queryRAMUsageStr = `sort_desc(
 		avg(
-			label_replace(count_over_time(container_memory_working_set_bytes{container_name!="",container_name!="POD", instance!=""}[%s] %s), "node", "$1", "instance","(.+)") 
-			* 
-			label_replace(avg_over_time(container_memory_working_set_bytes{container_name!="",container_name!="POD", instance!=""}[%s] %s), "node", "$1", "instance","(.+)") 
+			label_replace(count_over_time(container_memory_working_set_bytes{container_name!="",container_name!="POD", instance!=""}[%s] %s), "node", "$1", "instance","(.+)")
+			*
+			label_replace(avg_over_time(container_memory_working_set_bytes{container_name!="",container_name!="POD", instance!=""}[%s] %s), "node", "$1", "instance","(.+)")
 		) by (namespace,container_name,pod_name,node,cluster_id)
 	)`
 	queryCPURequestsStr = `avg(
 		label_replace(
 			label_replace(
 				avg(
-					count_over_time(kube_pod_container_resource_requests_cpu_cores{container!="",container!="POD", node!=""}[%s] %s) 
-					*  
+					count_over_time(kube_pod_container_resource_requests_cpu_cores{container!="",container!="POD", node!=""}[%s] %s)
+					*
 					avg_over_time(kube_pod_container_resource_requests_cpu_cores{container!="",container!="POD", node!=""}[%s] %s)
 				) by (namespace,container,pod,node,cluster_id) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
-		) 
+		)
 	) by (namespace,container_name,pod_name,node,cluster_id)`
 	queryCPUUsageStr = `avg(
 		label_replace(
-		rate( 
+		rate(
 			container_cpu_usage_seconds_total{container_name!="",container_name!="POD",instance!=""}[%s] %s
 		) , "node", "$1", "instance", "(.+)"
 		)
@@ -168,18 +167,18 @@ const (
 		label_replace(
 			label_replace(
 				avg(
-					count_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s] %s) 
-					*  
+					count_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s] %s)
+					*
 					avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s] %s)
 					* %f
 				) by (namespace,container,pod,node,cluster_id) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
-		) 
-	) by (namespace,container_name,pod_name,node,cluster_id) 
+		)
+	) by (namespace,container_name,pod_name,node,cluster_id)
 	* on (pod_name, namespace, cluster_id) group_left(container) label_replace(avg(avg_over_time(kube_pod_status_phase{phase="Running"}[%s] %s)) by (pod,namespace,cluster_id), "pod_name","$1","pod","(.+)")`
-	queryPVRequestsStr = `avg(avg(kube_persistentvolumeclaim_info) by (persistentvolumeclaim, storageclass, namespace, volumename, cluster_id) 
-	* 
-	on (persistentvolumeclaim, namespace, cluster_id) group_right(storageclass, volumename) 
+	queryPVRequestsStr = `avg(avg(kube_persistentvolumeclaim_info) by (persistentvolumeclaim, storageclass, namespace, volumename, cluster_id)
+	*
+	on (persistentvolumeclaim, namespace, cluster_id) group_right(storageclass, volumename)
 	sum(kube_persistentvolumeclaim_resource_requests_storage_bytes) by (persistentvolumeclaim, namespace, cluster_id, kubernetes_name)) by (persistentvolumeclaim, storageclass, namespace, volumename, cluster_id)`
 	// queryRAMAllocationByteHours yields the total byte-hour RAM allocation over the given
 	// window, aggregated by container.
@@ -222,7 +221,7 @@ const (
 	normalizationStr          = `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[%s] %s))`
 )
 
-func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
+func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
 	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, window, offset, window, offset)
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, window, offset, window, offset)
 	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, window, offset, window, offset)
@@ -280,13 +279,22 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, clientset kube
 	resNetInternetRequests, _ := resChNetInternetRequests.Await()
 	resNormalization, _ := resChNormalization.Await()
 
+	// NOTE: The way we currently handle errors and warnings only early returns if there is an error. Warnings
+	// NOTE: will not propagate unless coupled with errors.
 	if ctx.HasErrors() {
+		// To keep the context of where the errors are occurring, we log the errors here and pass them the error
+		// back to the caller. The caller should handle the specific case where error is an ErrorCollection
 		for _, promErr := range ctx.Errors() {
-			log.Errorf("ComputeCostData: Prometheus error: %s", promErr.Error())
+			if promErr.Error != nil {
+				log.Errorf("ComputeCostData: Request Error: %s", promErr.Error)
+			}
+			if promErr.ParseError != nil {
+				log.Errorf("ComputeCostData: Parsing Error: %s", promErr.ParseError)
+			}
 		}
 
-		// TODO: Categorize fatal prometheus query failures
-		// return nil, fmt.Errorf("Error querying prometheus: %s", promErr.Error())
+		// ErrorCollection is an collection of errors wrapped in a single error implementation
+		return nil, ctx.ErrorCollection()
 	}
 
 	defer measureTime(time.Now(), profileThreshold, "ComputeCostData: Processing Query Data")
@@ -671,10 +679,11 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 	if len(missingContainers) > 0 {
 		queryHistoricalPodLabels := fmt.Sprintf(`kube_pod_labels{}[%s]`, window)
 
-		podLabelsResult, err := prom.NewContext(cli).QuerySync(queryHistoricalPodLabels)
+		podLabelsResult, _, err := prom.NewContext(cli).QuerySync(queryHistoricalPodLabels)
 		if err != nil {
 			log.Errorf("failed to parse historical pod labels: %s", err.Error())
 		}
+
 		podLabels := make(map[string]map[string]string)
 		if podLabelsResult != nil {
 			podLabels, err = parsePodLabels(podLabelsResult)
@@ -720,7 +729,7 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 		ramCostRes, _ := ramCostResCh.Await()
 		gpuCostRes, _ := gpuCostResCh.Await()
 		if ctx.HasErrors() {
-			return ctx.Errors()[0]
+			return ctx.ErrorCollection()
 		}
 
 		cpuCosts, err := getCost(cpuCostRes)
@@ -1418,52 +1427,43 @@ func floorMultiple(value int64, multiple int64) int64 {
 
 // Attempt to create a key for the request. Reduce the times to minutes in order to more easily group requests based on
 // real time ranges. If for any reason, the key generation fails, return a uuid to ensure uniqueness.
-func requestKeyFor(startString string, endString string, windowString string, filterNamespace string, filterCluster string, remoteEnabled bool) string {
-	fullLayout := "2006-01-02T15:04:05.000Z"
+func requestKeyFor(window kubecost.Window, resolution time.Duration, filterNamespace string, filterCluster string, remoteEnabled bool) string {
 	keyLayout := "2006-01-02T15:04Z"
-
-	sTime, err := time.Parse(fullLayout, startString)
-	if err != nil {
-		klog.V(1).Infof("[Warning] Start=%s failed to parse when generating request key: %s", startString, err.Error())
-		return uuid.New().String()
-	}
-	eTime, err := time.Parse(fullLayout, endString)
-	if err != nil {
-		klog.V(1).Infof("[Warning] End=%s failed to parse when generating request key: %s", endString, err.Error())
-		return uuid.New().String()
-	}
 
 	// We "snap" start time and duration to their closest 5 min multiple less than itself, by
 	// applying a snapped duration to a snapped start time.
-	durMins := int64(eTime.Sub(sTime).Minutes())
+	durMins := int64(window.Minutes())
 	durMins = floorMultiple(durMins, 5)
 
-	sMins := int64(sTime.Minute())
+	sMins := int64(window.Start().Minute())
 	sOffset := sMins - floorMultiple(sMins, 5)
 
-	sTime = sTime.Add(-time.Duration(sOffset) * time.Minute)
-	eTime = sTime.Add(time.Duration(durMins) * time.Minute)
+	sTime := window.Start().Add(-time.Duration(sOffset) * time.Minute)
+	eTime := window.Start().Add(time.Duration(durMins) * time.Minute)
 
 	startKey := sTime.Format(keyLayout)
 	endKey := eTime.Format(keyLayout)
 
-	return fmt.Sprintf("%s,%s,%s,%s,%s,%t", startKey, endKey, windowString, filterNamespace, filterCluster, remoteEnabled)
+	return fmt.Sprintf("%s,%s,%s,%s,%s,%t", startKey, endKey, resolution.String(), filterNamespace, filterCluster, remoteEnabled)
 }
+
+// func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, cp costAnalyzerCloud.Provider,
+// 	startString, endString, windowString string, resolutionHours float64, filterNamespace string,
+// 	filterCluster string, remoteEnabled bool, offset string) (map[string]*CostData, error)
 
 // ComputeCostDataRange executes a range query for cost data.
 // Note that "offset" represents the time between the function call and "endString", and is also passed for convenience
-func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider,
-	startString, endString, windowString string, resolutionHours float64, filterNamespace string, filterCluster string, remoteEnabled bool, offset string) (map[string]*CostData, error) {
+func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window kubecost.Window, resolution time.Duration, filterNamespace string, filterCluster string, remoteEnabled bool) (map[string]*CostData, error) {
 	// Create a request key for request grouping. This key will be used to represent the cost-model result
 	// for the specific inputs to prevent multiple queries for identical data.
-	key := requestKeyFor(startString, endString, windowString, filterNamespace, filterCluster, remoteEnabled)
+	key := requestKeyFor(window, resolution, filterNamespace, filterCluster, remoteEnabled)
 
 	klog.V(4).Infof("ComputeCostDataRange with Key: %s", key)
 
 	// If there is already a request out that uses the same data, wait for it to return to share the results.
 	// Otherwise, start executing.
 	result, err, _ := cm.RequestGroup.Do(key, func() (interface{}, error) {
-		return cm.costDataRange(cli, clientset, cp, startString, endString, windowString, resolutionHours, filterNamespace, filterCluster, remoteEnabled, offset)
+		return cm.costDataRange(cli, cp, window, resolution, filterNamespace, filterCluster, remoteEnabled)
 	})
 
 	data, ok := result.(map[string]*CostData)
@@ -1474,82 +1474,84 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, clientset
 	return data, err
 }
 
-func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubernetes.Interface, cp costAnalyzerCloud.Provider, startString, endString, windowString string, resolutionHours float64, filterNamespace string, filterCluster string, remoteEnabled bool, offset string) (map[string]*CostData, error) {
-	layout := "2006-01-02T15:04:05.000Z"
-
-	start, err := time.Parse(layout, startString)
-	if err != nil {
-		klog.V(1).Infof("Error parsing time " + startString + ". Error: " + err.Error())
-		return nil, err
-	}
-
-	end, err := time.Parse(layout, endString)
-	if err != nil {
-		klog.V(1).Infof("Error parsing time " + endString + ". Error: " + err.Error())
-		return nil, err
-	}
-
-	window, err := time.ParseDuration(windowString)
-	if err != nil {
-		klog.V(1).Infof("Error parsing time " + windowString + ". Error: " + err.Error())
-		return nil, err
-	}
-
+func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window kubecost.Window, resolution time.Duration, filterNamespace string, filterCluster string, remoteEnabled bool) (map[string]*CostData, error) {
 	clusterID := env.GetClusterID()
 
-	durHrs := end.Sub(start).Hours() + 1
+	// durHrs := end.Sub(start).Hours() + 1
 
-	if remoteEnabled == true {
+	if window.IsOpen() {
+		return nil, fmt.Errorf("illegal window: %s", window)
+	}
+	start := *window.Start()
+	end := *window.End()
+
+	// Snap resolution to the nearest minute
+	resMins := int64(math.Trunc(resolution.Minutes()))
+	if resMins == 0 {
+		return nil, fmt.Errorf("resolution must be greater than 0.0")
+	}
+	resolution = time.Duration(resMins) * time.Minute
+
+	// Warn if resolution does not evenly divide window
+	if int64(window.Minutes())%int64(resolution.Minutes()) != 0 {
+		log.Warningf("CostDataRange: window should be divisible by resolution or else samples may be missed: %s %% %s = %dm", window, resolution, int64(window.Minutes())%int64(resolution.Minutes()))
+	}
+
+	// Convert to Prometheus-style duration string in terms of m or h
+	resStr := fmt.Sprintf("%dm", resMins)
+	if resMins%60 == 0 {
+		resStr = fmt.Sprintf("%dh", resMins/60)
+	}
+
+	if remoteEnabled {
 		remoteLayout := "2006-01-02T15:04:05Z"
-		remoteStartStr := start.Format(remoteLayout)
-		remoteEndStr := end.Format(remoteLayout)
-		klog.V(1).Infof("Using remote database for query from %s to %s with window %s", startString, endString, windowString)
-		return CostDataRangeFromSQL("", "", windowString, remoteStartStr, remoteEndStr)
+		remoteStartStr := window.Start().Format(remoteLayout)
+		remoteEndStr := window.End().Format(remoteLayout)
+		klog.V(1).Infof("Using remote database for query from %s to %s with window %s", remoteStartStr, remoteEndStr, resolution)
+		return CostDataRangeFromSQL("", "", resolution.String(), remoteStartStr, remoteEndStr)
 	}
 
 	scrapeIntervalSeconds := cm.ScrapeInterval.Seconds()
 
 	ctx := prom.NewContext(cli)
 
-	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, windowString, scrapeIntervalSeconds)
-	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, windowString, scrapeIntervalSeconds)
-	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, windowString, "", windowString, "")
-	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, windowString, "", windowString, "")
-	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, windowString, "", windowString, "")
-	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, windowString, "")
-	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, windowString, "", windowString, "", resolutionHours, windowString, "")
+	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, resStr, scrapeIntervalSeconds)
+	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, resStr, scrapeIntervalSeconds)
+	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, resStr, "", resStr, "")
+	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, resStr, "", resStr, "")
+	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, resStr, "", resStr, "")
+	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, resStr, "")
+	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, resStr, "", resStr, "", resolution.Hours(), resStr, "")
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
-	queryPVCAllocation := fmt.Sprintf(queryPVCAllocationFmt, windowString, scrapeIntervalSeconds)
-	queryPVHourlyCost := fmt.Sprintf(queryPVHourlyCostFmt, windowString)
-	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, windowString, "")
-	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, windowString, "")
-	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, windowString, "")
-	queryNormalization := fmt.Sprintf(normalizationStr, windowString, "")
-
-	queryProfileStart := time.Now()
+	queryPVCAllocation := fmt.Sprintf(queryPVCAllocationFmt, resStr, scrapeIntervalSeconds)
+	queryPVHourlyCost := fmt.Sprintf(queryPVHourlyCostFmt, resStr)
+	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, resStr, "")
+	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, resStr, "")
+	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, resStr, "")
+	queryNormalization := fmt.Sprintf(normalizationStr, resStr, "")
 
 	// Submit all queries for concurrent evaluation
-	resChRAMRequests := ctx.QueryRange(queryRAMRequests, start, end, window)
-	resChRAMUsage := ctx.QueryRange(queryRAMUsage, start, end, window)
-	resChRAMAlloc := ctx.QueryRange(queryRAMAlloc, start, end, window)
-	resChCPURequests := ctx.QueryRange(queryCPURequests, start, end, window)
-	resChCPUUsage := ctx.QueryRange(queryCPUUsage, start, end, window)
-	resChCPUAlloc := ctx.QueryRange(queryCPUAlloc, start, end, window)
-	resChGPURequests := ctx.QueryRange(queryGPURequests, start, end, window)
-	resChPVRequests := ctx.QueryRange(queryPVRequests, start, end, window)
-	resChPVCAlloc := ctx.QueryRange(queryPVCAllocation, start, end, window)
-	resChPVHourlyCost := ctx.QueryRange(queryPVHourlyCost, start, end, window)
-	resChNetZoneRequests := ctx.QueryRange(queryNetZoneRequests, start, end, window)
-	resChNetRegionRequests := ctx.QueryRange(queryNetRegionRequests, start, end, window)
-	resChNetInternetRequests := ctx.QueryRange(queryNetInternetRequests, start, end, window)
-	resChNSLabels := ctx.QueryRange(fmt.Sprintf(queryNSLabels, windowString), start, end, window)
-	resChPodLabels := ctx.QueryRange(fmt.Sprintf(queryPodLabels, windowString), start, end, window)
-	resChServiceLabels := ctx.QueryRange(fmt.Sprintf(queryServiceLabels, windowString), start, end, window)
-	resChDeploymentLabels := ctx.QueryRange(fmt.Sprintf(queryDeploymentLabels, windowString), start, end, window)
-	resChStatefulsetLabels := ctx.QueryRange(fmt.Sprintf(queryStatefulsetLabels, windowString), start, end, window)
-	resChJobs := ctx.QueryRange(queryPodJobs, start, end, window)
-	resChDaemonsets := ctx.QueryRange(queryPodDaemonsets, start, end, window)
-	resChNormalization := ctx.QueryRange(queryNormalization, start, end, window)
+	resChRAMRequests := ctx.QueryRange(queryRAMRequests, start, end, resolution)
+	resChRAMUsage := ctx.QueryRange(queryRAMUsage, start, end, resolution)
+	resChRAMAlloc := ctx.QueryRange(queryRAMAlloc, start, end, resolution)
+	resChCPURequests := ctx.QueryRange(queryCPURequests, start, end, resolution)
+	resChCPUUsage := ctx.QueryRange(queryCPUUsage, start, end, resolution)
+	resChCPUAlloc := ctx.QueryRange(queryCPUAlloc, start, end, resolution)
+	resChGPURequests := ctx.QueryRange(queryGPURequests, start, end, resolution)
+	resChPVRequests := ctx.QueryRange(queryPVRequests, start, end, resolution)
+	resChPVCAlloc := ctx.QueryRange(queryPVCAllocation, start, end, resolution)
+	resChPVHourlyCost := ctx.QueryRange(queryPVHourlyCost, start, end, resolution)
+	resChNetZoneRequests := ctx.QueryRange(queryNetZoneRequests, start, end, resolution)
+	resChNetRegionRequests := ctx.QueryRange(queryNetRegionRequests, start, end, resolution)
+	resChNetInternetRequests := ctx.QueryRange(queryNetInternetRequests, start, end, resolution)
+	resChNSLabels := ctx.QueryRange(fmt.Sprintf(queryNSLabels, resStr), start, end, resolution)
+	resChPodLabels := ctx.QueryRange(fmt.Sprintf(queryPodLabels, resStr), start, end, resolution)
+	resChServiceLabels := ctx.QueryRange(fmt.Sprintf(queryServiceLabels, resStr), start, end, resolution)
+	resChDeploymentLabels := ctx.QueryRange(fmt.Sprintf(queryDeploymentLabels, resStr), start, end, resolution)
+	resChStatefulsetLabels := ctx.QueryRange(fmt.Sprintf(queryStatefulsetLabels, resStr), start, end, resolution)
+	resChJobs := ctx.QueryRange(queryPodJobs, start, end, resolution)
+	resChDaemonsets := ctx.QueryRange(queryPodDaemonsets, start, end, resolution)
+	resChNormalization := ctx.QueryRange(queryNormalization, start, end, resolution)
 
 	// Pull k8s pod, controller, service, and namespace details
 	podlist := cm.Cache.GetAllPods()
@@ -1597,29 +1599,29 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	resJobs, _ := resChJobs.Await()
 	resNormalization, _ := resChNormalization.Await()
 
-	measureTime(queryProfileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): Prom/k8s Queries", durHrs))
-	defer measureTime(time.Now(), profileThreshold, fmt.Sprintf("costDataRange(%fh): Processing Query Data", durHrs))
-
+	// NOTE: The way we currently handle errors and warnings only early returns if there is an error. Warnings
+	// NOTE: will not propagate unless coupled with errors.
 	if ctx.HasErrors() {
+		// To keep the context of where the errors are occurring, we log the errors here and pass them the error
+		// back to the caller. The caller should handle the specific case where error is an ErrorCollection
 		for _, promErr := range ctx.Errors() {
-			log.Errorf("CostDataRange: Prometheus error: %s", promErr.Error())
+			if promErr.Error != nil {
+				log.Errorf("CostDataRange: Request Error: %s", promErr.Error)
+			}
+			if promErr.ParseError != nil {
+				log.Errorf("CostDataRange: Parsing Error: %s", promErr.ParseError)
+			}
 		}
 
-		// TODO: Categorize fatal prometheus query failures
-		// return nil, fmt.Errorf("Error querying prometheus: %s", promErr.Error())
+		// ErrorCollection is an collection of errors wrapped in a single error implementation
+		return nil, ctx.ErrorCollection()
 	}
-
-	profileStart := time.Now()
 
 	normalizationValue, err := getNormalizations(resNormalization)
 	if err != nil {
-		msg := fmt.Sprintf("error computing normalization for start=%s, end=%s, window=%s, res=%f", start, end, window, resolutionHours*60*60)
+		msg := fmt.Sprintf("error computing normalization for start=%s, end=%s, res=%s", start, end, resolution)
 		return nil, prom.WrapError(err, msg)
 	}
-
-	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): compute normalizations", durHrs))
-
-	profileStart = time.Now()
 
 	pvClaimMapping, err := GetPVInfo(resPVRequests, clusterID)
 	if err != nil {
@@ -1650,10 +1652,6 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		}
 	}
 
-	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): process PV data", durHrs))
-
-	profileStart = time.Now()
-
 	nsLabels, err := GetNamespaceLabelsMetrics(resNSLabels, clusterID)
 	if err != nil {
 		klog.V(1).Infof("Unable to get Namespace Labels for Metrics: %s", err.Error())
@@ -1681,10 +1679,6 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 	if err != nil {
 		klog.V(1).Infof("Unable to get Deployment Match Labels for Metrics: %s", err.Error())
 	}
-
-	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): process labels", durHrs))
-
-	profileStart = time.Now()
 
 	podStatefulsetMetricsMapping, err := getPodDeploymentsWithMetrics(statefulsetLabels, podLabels)
 	if err != nil {
@@ -1719,10 +1713,6 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		klog.V(1).Infof("Unable to get Network Cost Data: %s", err.Error())
 		networkUsageMap = make(map[string]*NetworkUsageData)
 	}
-
-	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): process deployments, services, and network usage", durHrs))
-
-	profileStart = time.Now()
 
 	containerNameCost := make(map[string]*CostData)
 	containers := make(map[string]bool)
@@ -1786,19 +1776,11 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		containers[key] = true
 	}
 
-	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): GetContainerMetricVectors", durHrs))
-
-	profileStart = time.Now()
-
 	// Request metrics can show up after pod eviction and completion.
 	// This method synchronizes requests to allocations such that when
 	// allocation is 0, so are requests
 	applyAllocationToRequests(RAMAllocMap, RAMReqMap)
 	applyAllocationToRequests(CPUAllocMap, CPUReqMap)
-
-	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): applyAllocationToRequests", durHrs))
-
-	profileStart = time.Now()
 
 	missingNodes := make(map[string]*costAnalyzerCloud.Node)
 	missingContainers := make(map[string]*CostData)
@@ -1975,8 +1957,6 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		}
 	}
 
-	measureTime(profileStart, profileThreshold, fmt.Sprintf("costDataRange(%fh): build CostData map", durHrs))
-
 	unmounted := findUnmountedPVCostData(cm.ClusterMap, unmountedPVs, namespaceLabelsMapping)
 	for k, costs := range unmounted {
 		klog.V(4).Infof("Unmounted PVs in Namespace/ClusterID: %s/%s", costs.Namespace, costs.ClusterID)
@@ -1986,11 +1966,9 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, clientset kubern
 		}
 	}
 
-	w := end.Sub(start)
-	w += window
-	if w.Minutes() > 0 {
-		wStr := fmt.Sprintf("%dm", int(w.Minutes()))
-		err = findDeletedNodeInfo(cli, missingNodes, wStr, offset)
+	if window.Minutes() > 0 {
+		dur, off := window.ToDurationOffset()
+		err = findDeletedNodeInfo(cli, missingNodes, dur, off)
 		if err != nil {
 			klog.V(1).Infof("Error fetching historical node data: %s", err.Error())
 		}
@@ -2077,7 +2055,7 @@ func getNamespaceLabels(cache clustercache.ClusterCache, clusterID string) (map[
 	for _, ns := range nss {
 		labels := make(map[string]string)
 		for k, v := range ns.Labels {
-			labels[SanitizeLabelName(k)] = v
+			labels[prom.SanitizeLabelName(k)] = v
 		}
 		nsToLabels[ns.Name+","+clusterID] = labels
 	}

@@ -7,10 +7,17 @@ import (
 )
 
 const (
-	MinsPerHour   = 60.0
-	HoursPerDay   = 24.0
+	// MinsPerHour expresses the amount of minutes in an hour
+	MinsPerHour = 60.0
+
+	// HoursPerDay expresses the amount of hours in a day
+	HoursPerDay = 24.0
+
+	// HoursPerMonth expresses the amount of hours in a month
 	HoursPerMonth = 730.0
-	DaysPerMonth  = 30.42
+
+	// DaysPerMonth expresses the amount of days in a month
+	DaysPerMonth = 30.42
 )
 
 // ParseDuration converts a Prometheus-style duration string into a Duration
