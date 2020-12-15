@@ -25,27 +25,48 @@ const (
 // parsing query responses and errors.
 type Context struct {
 	Client         prometheus.Client
-	ErrorCollector *errors.ErrorCollector
+	errorCollector *QueryErrorCollector
 }
 
 // NewContext creates a new Promethues querying context from the given client
 func NewContext(client prometheus.Client) *Context {
-	var ec errors.ErrorCollector
+	var ec QueryErrorCollector
 
 	return &Context{
 		Client:         client,
-		ErrorCollector: &ec,
+		errorCollector: &ec,
 	}
 }
 
-// Errors returns the errors collected from the Context's ErrorCollector
-func (ctx *Context) Errors() []error {
-	return ctx.ErrorCollector.Errors()
+// Warnings returns the warnings collected from the Context's ErrorCollector
+func (ctx *Context) Warnings() []*QueryWarning {
+	return ctx.errorCollector.Warnings()
+}
+
+// HasWarnings returns true if the ErrorCollector has warnings.
+func (ctx *Context) HasWarnings() bool {
+	return ctx.errorCollector.IsWarning()
+}
+
+// Errors returns the errors collected from the Context's ErrorCollector.
+func (ctx *Context) Errors() []*QueryError {
+	return ctx.errorCollector.Errors()
 }
 
 // HasErrors returns true if the ErrorCollector has errors
 func (ctx *Context) HasErrors() bool {
-	return ctx.ErrorCollector.IsError()
+	return ctx.errorCollector.IsError()
+}
+
+// ErrorCollection returns the aggregation of errors if there exists errors. Otherwise,
+// nil is returned
+func (ctx *Context) ErrorCollection() error {
+	if ctx.errorCollector.IsError() {
+		// errorCollector implements the error interface
+		return ctx.errorCollector
+	}
+
+	return nil
 }
 
 // Query returns a QueryResultsChan, then runs the given query and sends the
@@ -98,18 +119,18 @@ func (ctx *Context) ProfileQueryAll(queries ...string) []QueryResultsChan {
 	return resChs
 }
 
-func (ctx *Context) QuerySync(query string) ([]*QueryResult, error) {
-	raw, err := ctx.query(query)
+func (ctx *Context) QuerySync(query string) ([]*QueryResult, prometheus.Warnings, error) {
+	raw, warnings, err := ctx.query(query)
 	if err != nil {
-		return nil, err
+		return nil, warnings, err
 	}
 
 	results := NewQueryResults(query, raw)
 	if results.Error != nil {
-		return nil, results.Error
+		return nil, warnings, results.Error
 	}
 
-	return results.Results, nil
+	return results.Results, warnings, nil
 }
 
 // QueryURL returns the URL used to query Prometheus
@@ -123,13 +144,11 @@ func runQuery(query string, ctx *Context, resCh QueryResultsChan, profileLabel s
 	defer errors.HandlePanic()
 	startQuery := time.Now()
 
-	raw, promErr := ctx.query(query)
-	ctx.ErrorCollector.Report(promErr)
-
+	raw, warnings, requestError := ctx.query(query)
 	results := NewQueryResults(query, raw)
-	if results.Error != nil {
-		ctx.ErrorCollector.Report(results.Error)
-	}
+
+	// report all warnings, request, and parse errors (nils will be ignored)
+	ctx.errorCollector.Report(query, warnings, requestError, results.Error)
 
 	if profileLabel != "" {
 		log.Profile(startQuery, profileLabel)
@@ -138,7 +157,7 @@ func runQuery(query string, ctx *Context, resCh QueryResultsChan, profileLabel s
 	resCh <- results
 }
 
-func (ctx *Context) query(query string) (interface{}, error) {
+func (ctx *Context) query(query string) (interface{}, prometheus.Warnings, error) {
 	u := ctx.Client.URL(epQuery, nil)
 	q := u.Query()
 	q.Set("query", query)
@@ -146,7 +165,7 @@ func (ctx *Context) query(query string) (interface{}, error) {
 
 	req, err := http.NewRequest(http.MethodPost, u.String(), nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	resp, body, warnings, err := ctx.Client.Do(context.Background(), req)
@@ -155,19 +174,19 @@ func (ctx *Context) query(query string) (interface{}, error) {
 	}
 	if err != nil {
 		if resp == nil {
-			return nil, fmt.Errorf("query error: '%s' fetching query '%s'", err.Error(), query)
+			return nil, warnings, fmt.Errorf("query error: '%s' fetching query '%s'", err.Error(), query)
 		}
 
-		return nil, fmt.Errorf("query error %d: '%s' fetching query '%s'", resp.StatusCode, err.Error(), query)
+		return nil, warnings, fmt.Errorf("query error %d: '%s' fetching query '%s'", resp.StatusCode, err.Error(), query)
 	}
 
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		return nil, fmt.Errorf("query error: '%s' fetching query '%s'", err.Error(), query)
+		return nil, warnings, fmt.Errorf("query error: '%s' fetching query '%s'", err.Error(), query)
 	}
 
-	return toReturn, nil
+	return toReturn, warnings, nil
 }
 
 func (ctx *Context) QueryRange(query string, start, end time.Time, step time.Duration) QueryResultsChan {
@@ -186,18 +205,18 @@ func (ctx *Context) ProfileQueryRange(query string, start, end time.Time, step t
 	return resCh
 }
 
-func (ctx *Context) QueryRangeSync(query string, start, end time.Time, step time.Duration) ([]*QueryResult, error) {
-	raw, err := ctx.queryRange(query, start, end, step)
+func (ctx *Context) QueryRangeSync(query string, start, end time.Time, step time.Duration) ([]*QueryResult, prometheus.Warnings, error) {
+	raw, warnings, err := ctx.queryRange(query, start, end, step)
 	if err != nil {
-		return nil, err
+		return nil, warnings, err
 	}
 
 	results := NewQueryResults(query, raw)
 	if results.Error != nil {
-		return nil, results.Error
+		return nil, warnings, results.Error
 	}
 
-	return results.Results, nil
+	return results.Results, warnings, nil
 }
 
 // QueryRangeURL returns the URL used to query_range Prometheus
@@ -211,13 +230,11 @@ func runQueryRange(query string, start, end time.Time, step time.Duration, ctx *
 	defer errors.HandlePanic()
 	startQuery := time.Now()
 
-	raw, promErr := ctx.queryRange(query, start, end, step)
-	ctx.ErrorCollector.Report(promErr)
-
+	raw, warnings, requestError := ctx.queryRange(query, start, end, step)
 	results := NewQueryResults(query, raw)
-	if results.Error != nil {
-		ctx.ErrorCollector.Report(results.Error)
-	}
+
+	// report all warnings, request, and parse errors (nils will be ignored)
+	ctx.errorCollector.Report(query, warnings, requestError, results.Error)
 
 	if profileLabel != "" {
 		log.Profile(startQuery, profileLabel)
@@ -226,7 +243,7 @@ func runQueryRange(query string, start, end time.Time, step time.Duration, ctx *
 	resCh <- results
 }
 
-func (ctx *Context) queryRange(query string, start, end time.Time, step time.Duration) (interface{}, error) {
+func (ctx *Context) queryRange(query string, start, end time.Time, step time.Duration) (interface{}, prometheus.Warnings, error) {
 	u := ctx.Client.URL(epQueryRange, nil)
 	q := u.Query()
 	q.Set("query", query)
@@ -237,7 +254,7 @@ func (ctx *Context) queryRange(query string, start, end time.Time, step time.Dur
 
 	req, err := http.NewRequest(http.MethodPost, u.String(), nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	resp, body, warnings, err := ctx.Client.Do(context.Background(), req)
@@ -246,24 +263,24 @@ func (ctx *Context) queryRange(query string, start, end time.Time, step time.Dur
 	}
 	if err != nil {
 		if resp == nil {
-			return nil, fmt.Errorf("Error: %s, Body: %s Query: %s", err.Error(), body, query)
+			return nil, warnings, fmt.Errorf("Error: %s, Body: %s Query: %s", err.Error(), body, query)
 		}
 
-		return nil, fmt.Errorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", resp.StatusCode, http.StatusText(resp.StatusCode), util.HeaderString(resp.Header), body, err.Error(), query)
+		return nil, warnings, fmt.Errorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", resp.StatusCode, http.StatusText(resp.StatusCode), util.HeaderString(resp.Header), body, err.Error(), query)
 	}
 
 	// Unsuccessful Status Code, log body and status
 	statusCode := resp.StatusCode
 	statusText := http.StatusText(statusCode)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("%d (%s) Headers: %s, Body: %s Query: %s", statusCode, statusText, util.HeaderString(resp.Header), body, query)
+		return nil, warnings, fmt.Errorf("%d (%s) Headers: %s, Body: %s Query: %s", statusCode, statusText, util.HeaderString(resp.Header), body, query)
 	}
 
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		return nil, fmt.Errorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", statusCode, statusText, util.HeaderString(resp.Header), err.Error(), body, query)
+		return nil, warnings, fmt.Errorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", statusCode, statusText, util.HeaderString(resp.Header), err.Error(), body, query)
 	}
 
-	return toReturn, nil
+	return toReturn, warnings, nil
 }

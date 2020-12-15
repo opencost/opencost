@@ -1,4 +1,4 @@
-package costmodel_test
+package test
 
 import (
 	"encoding/json"

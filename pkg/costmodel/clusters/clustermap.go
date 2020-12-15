@@ -120,7 +120,7 @@ func (pcm *PrometheusClusterMap) loadClusters() (map[string]*ClusterInfo, error)
 	}
 
 	// Execute Query
-	tryQuery := func() ([]*prom.QueryResult, error) {
+	tryQuery := func() ([]*prom.QueryResult, prometheus.Warnings, error) {
 		ctx := prom.NewContext(pcm.client)
 		return ctx.QuerySync(clusterInfoQuery(offset))
 	}
@@ -131,7 +131,7 @@ func (pcm *PrometheusClusterMap) loadClusters() (map[string]*ClusterInfo, error)
 	// Retry on failure
 	delay := LoadRetryDelay
 	for r := LoadRetries; r > 0; r-- {
-		qr, err = tryQuery()
+		qr, _, err = tryQuery()
 
 		// non-error breaks out of loop
 		if err == nil {

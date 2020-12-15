@@ -1,5 +1,13 @@
 package env
 
+import (
+	"regexp"
+	"strconv"
+	"time"
+
+	"github.com/kubecost/cost-model/pkg/log"
+)
+
 const (
 	AppVersionEnvVar = "APP_VERSION"
 
@@ -22,6 +30,9 @@ const (
 	ConfigPathEnvVar               = "CONFIG_PATH"
 	CloudProviderAPIKeyEnvVar      = "CLOUD_PROVIDER_API_KEY"
 
+	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
+	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
+
 	ThanosEnabledEnvVar      = "THANOS_ENABLED"
 	ThanosQueryUrlEnvVar     = "THANOS_QUERY_URL"
 	ThanosOffsetEnvVar       = "THANOS_QUERY_OFFSET"
@@ -43,12 +54,29 @@ const (
 	InsecureSkipVerify = "INSECURE_SKIP_VERIFY"
 
 	KubeConfigPathEnvVar = "KUBECONFIG_PATH"
+
+	UTCOffsetEnvVar = "UTC_OFFSET"
+
+	CacheWarmingEnabledEnvVar = "CACHE_WARMING_ENABLED"
+	ETLEnabledEnvVar          = "ETL_ENABLED"
 )
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
 // the AWS access key for authentication
 func GetAppVersion() string {
 	return Get(AppVersionEnvVar, "1.70.0")
+}
+
+// IsEmitNamespaceAnnotationsMetric returns true if cost-model is configured to emit the kube_namespace_annotations metric
+// containing the namespace annotations
+func IsEmitNamespaceAnnotationsMetric() bool {
+	return GetBool(EmitNamespaceAnnotationsMetricEnvVar, false)
+}
+
+// IsEmitPodAnnotationsMetric returns true if cost-model is configured to emit the kube_pod_annotations metric containing
+// pod annotations.
+func IsEmitPodAnnotationsMetric() bool {
+	return GetBool(EmitPodAnnotationsMetricEnvVar, false)
 }
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
@@ -249,4 +277,46 @@ func GetMultiClusterBearerToken() string {
 // GetKubeConfigPath returns the environment variable value for KubeConfigPathEnvVar
 func GetKubeConfigPath() string {
 	return Get(KubeConfigPathEnvVar, "")
+}
+
+// GetUTCOffset returns the environemnt variable value for UTCOffset
+func GetUTCOffset() string {
+	return Get(UTCOffsetEnvVar, "")
+}
+
+// GetParsedUTCOffset returns the duration of the configured UTC offset
+func GetParsedUTCOffset() time.Duration {
+	offset := time.Duration(0)
+
+	if offsetStr := GetUTCOffset(); offsetStr != "" {
+		regex := regexp.MustCompile(`^(\+|-)(\d\d):(\d\d)$`)
+		match := regex.FindStringSubmatch(offsetStr)
+		if match == nil {
+			log.Warningf("Illegal UTC offset: %s", offsetStr)
+			return offset
+		}
+
+		sig := 1
+		if match[1] == "-" {
+			sig = -1
+		}
+
+		hrs64, _ := strconv.ParseInt(match[2], 10, 64)
+		hrs := sig * int(hrs64)
+
+		mins64, _ := strconv.ParseInt(match[3], 10, 64)
+		mins := sig * int(mins64)
+
+		offset = time.Duration(hrs)*time.Hour + time.Duration(mins)
+	}
+
+	return offset
+}
+
+func IsCacheWarmingEnabled() bool {
+	return GetBool(CacheWarmingEnabledEnvVar, true)
+}
+
+func IsETLEnabled() bool {
+	return GetBool(ETLEnabledEnvVar, true)
 }
