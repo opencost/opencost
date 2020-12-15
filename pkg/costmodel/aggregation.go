@@ -1333,7 +1333,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 	} else {
 		log.Infof("ComputeAggregateCostModel: missed cache: %s (found %t, disableCache %t, noCache %t)", key, found, disableCache, noCache)
 
-		costData, err = a.Model.ComputeCostDataRange(promClient, a.CloudProvider, window, resolution, "", "")
+		costData, err = a.Model.ComputeCostDataRange(promClient, a.CloudProvider, window, resolution, "", "", remoteEnabled)
 		if err != nil {
 			if prom.IsErrorCollection(err) {
 				return nil, "", err

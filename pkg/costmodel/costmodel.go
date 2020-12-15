@@ -1427,7 +1427,7 @@ func floorMultiple(value int64, multiple int64) int64 {
 
 // Attempt to create a key for the request. Reduce the times to minutes in order to more easily group requests based on
 // real time ranges. If for any reason, the key generation fails, return a uuid to ensure uniqueness.
-func requestKeyFor(window kubecost.Window, resolution time.Duration, filterNamespace string, filterCluster string) string {
+func requestKeyFor(window kubecost.Window, resolution time.Duration, filterNamespace string, filterCluster string, remoteEnabled bool) string {
 	keyLayout := "2006-01-02T15:04Z"
 
 	// We "snap" start time and duration to their closest 5 min multiple less than itself, by
@@ -1444,7 +1444,7 @@ func requestKeyFor(window kubecost.Window, resolution time.Duration, filterNames
 	startKey := sTime.Format(keyLayout)
 	endKey := eTime.Format(keyLayout)
 
-	return fmt.Sprintf("%s,%s,%s,%s,%s,%t", startKey, endKey, resolution.String(), filterNamespace, filterCluster)
+	return fmt.Sprintf("%s,%s,%s,%s,%s,%t", startKey, endKey, resolution.String(), filterNamespace, filterCluster, remoteEnabled)
 }
 
 // func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, cp costAnalyzerCloud.Provider,
@@ -1453,17 +1453,17 @@ func requestKeyFor(window kubecost.Window, resolution time.Duration, filterNames
 
 // ComputeCostDataRange executes a range query for cost data.
 // Note that "offset" represents the time between the function call and "endString", and is also passed for convenience
-func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window kubecost.Window, resolution time.Duration, filterNamespace string, filterCluster string) (map[string]*CostData, error) {
+func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window kubecost.Window, resolution time.Duration, filterNamespace string, filterCluster string, remoteEnabled bool) (map[string]*CostData, error) {
 	// Create a request key for request grouping. This key will be used to represent the cost-model result
 	// for the specific inputs to prevent multiple queries for identical data.
-	key := requestKeyFor(window, resolution, filterNamespace, filterCluster)
+	key := requestKeyFor(window, resolution, filterNamespace, filterCluster, remoteEnabled)
 
 	klog.V(4).Infof("ComputeCostDataRange with Key: %s", key)
 
 	// If there is already a request out that uses the same data, wait for it to return to share the results.
 	// Otherwise, start executing.
 	result, err, _ := cm.RequestGroup.Do(key, func() (interface{}, error) {
-		return cm.costDataRange(cli, cp, window, resolution, filterNamespace, filterCluster)
+		return cm.costDataRange(cli, cp, window, resolution, filterNamespace, filterCluster, remoteEnabled)
 	})
 
 	data, ok := result.(map[string]*CostData)
@@ -1474,7 +1474,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, cp costAn
 	return data, err
 }
 
-func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window kubecost.Window, resolution time.Duration, filterNamespace string, filterCluster string) (map[string]*CostData, error) {
+func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window kubecost.Window, resolution time.Duration, filterNamespace string, filterCluster string, remoteEnabled bool) (map[string]*CostData, error) {
 	clusterID := env.GetClusterID()
 
 	// durHrs := end.Sub(start).Hours() + 1
@@ -1503,8 +1503,13 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 		resStr = fmt.Sprintf("%dh", resMins/60)
 	}
 
-	// TODO remove after testing
-	log.Infof("CostDataRange(%s, %s, %f)", window, resStr, resolution.Hours())
+	if remoteEnabled {
+		remoteLayout := "2006-01-02T15:04:05Z"
+		remoteStartStr := window.Start().Format(remoteLayout)
+		remoteEndStr := window.End().Format(remoteLayout)
+		klog.V(1).Infof("Using remote database for query from %s to %s with window %s", remoteStartStr, remoteEndStr, resolution)
+		return CostDataRangeFromSQL("", "", resolution.String(), remoteStartStr, remoteEndStr)
+	}
 
 	scrapeIntervalSeconds := cm.ScrapeInterval.Seconds()
 

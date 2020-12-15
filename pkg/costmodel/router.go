@@ -479,6 +479,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	namespace := r.URL.Query().Get("namespace")
 	cluster := r.URL.Query().Get("cluster")
 	remote := r.URL.Query().Get("remote")
+	remoteEnabled := env.IsRemoteEnabled() && remote != "false"
 
 	layout := "2006-01-02T15:04:05.000Z"
 	start, err := time.Parse(layout, startStr)
@@ -514,7 +515,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 		pClient = a.PrometheusClient
 	}
 
-	data, err := a.Model.ComputeCostDataRange(pClient, a.CloudProvider, window, resolution, namespace, cluster)
+	data, err := a.Model.ComputeCostDataRange(pClient, a.CloudProvider, window, resolution, namespace, cluster, remoteEnabled)
 	if err != nil {
 		w.Write(WrapData(nil, err))
 	}
