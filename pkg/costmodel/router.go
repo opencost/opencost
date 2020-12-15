@@ -504,9 +504,6 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 		resolution = resDur
 	}
 
-	// TODO remove after testing
-	log.Infof("CostDataModelRangeHandler: window=%s, resolution=%s", window, resolution)
-
 	// Use Thanos Client if it exists (enabled) and remote flag set
 	var pClient prometheusClient.Client
 	if remote != "false" && a.ThanosClient != nil {
