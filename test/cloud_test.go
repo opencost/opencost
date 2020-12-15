@@ -1,10 +1,16 @@
-package test
+package costmodel_test
 
 import (
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/costmodel"
+	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
+
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -226,6 +232,54 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	resN5, _ := c2.NodePricing(k5)
 	if resN5 != nil {
 		t.Errorf("CSV provider should return nil on missing csv")
+	}
+}
+
+type FakeCache struct {
+	nodes []*v1.Node
+	clustercache.ClusterCache
+}
+
+func (f FakeCache) GetAllNodes() []*v1.Node {
+	return f.nodes
+}
+
+func NewFakeNodeCache(nodes []*v1.Node) FakeCache {
+	return FakeCache{
+		nodes: nodes,
+	}
+}
+
+type FakeClusterMap struct {
+	clusters.ClusterMap
+}
+
+func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
+	os.Setenv("CONFIG_PATH", "../config")
+	c := &cloud.CSVProvider{
+		CSVLocation: "../configs/pricing_schema_case.csv",
+		CustomProvider: &cloud.CustomProvider{
+			Config: cloud.NewProviderConfig("invalid.json"),
+		},
+	}
+	c.DownloadPricingData()
+
+	n := &v1.Node{}
+	n.Spec.ProviderID = "fake"
+	n.Name = "nameWant"
+	n.Labels = make(map[string]string)
+	n.Labels["foo"] = "labelFooWant"
+	n.Labels[v1.LabelZoneRegion] = "regionone"
+
+	fc := NewFakeNodeCache([]*v1.Node{n})
+	fm := FakeClusterMap{}
+	d, _ := time.ParseDuration("1m")
+
+	model := costmodel.NewCostModel(fc, fm, d)
+
+	_, err := model.GetNodeCost(c)
+	if err != nil {
+		t.Errorf("Error in node pricing: %s", err)
 	}
 }
 

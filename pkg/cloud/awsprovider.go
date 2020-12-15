@@ -977,40 +977,19 @@ func (aws *AWS) savingsPlanPricing(instanceID string) (*SavingsPlanData, bool) {
 }
 
 func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*Node, error) {
-	key := k.Features()
+	//key := k.Features()
 
-	if spotInfo, ok := aws.spotPricing(k.ID()); ok {
-		var spotcost string
-		log.DedupedInfof(5, "Looking up spot data from feed for node %s", k.ID())
-		arr := strings.Split(spotInfo.Charge, " ")
-		if len(arr) == 2 {
-			spotcost = arr[0]
-		} else {
-			klog.V(2).Infof("Spot data for node %s is missing", k.ID())
-		}
-		return &Node{
-			Cost:         spotcost,
-			VCPU:         terms.VCpu,
-			RAM:          terms.Memory,
-			GPU:          terms.GPU,
-			Storage:      terms.Storage,
-			BaseCPUPrice: aws.BaseCPUPrice,
-			BaseRAMPrice: aws.BaseRAMPrice,
-			BaseGPUPrice: aws.BaseGPUPrice,
-			UsageType:    PreemptibleType,
-		}, nil
-	} else if aws.isPreemptible(key) { // Preemptible but we don't have any data in the pricing report.
+	if true { // Preemptible but we don't have any data in the pricing report.
 		log.DedupedWarningf(5, "Node %s marked preemptible but we have no data in spot feed", k.ID())
 		return &Node{
 			VCPU:         terms.VCpu,
 			VCPUCost:     aws.BaseSpotCPUPrice,
 			RAM:          terms.Memory,
 			GPU:          terms.GPU,
-			RAMCost:      aws.BaseSpotRAMPrice,
 			Storage:      terms.Storage,
-			BaseCPUPrice: aws.BaseCPUPrice,
-			BaseRAMPrice: aws.BaseRAMPrice,
-			BaseGPUPrice: aws.BaseGPUPrice,
+			BaseCPUPrice: aws.BaseSpotCPUPrice,
+			BaseRAMPrice: aws.BaseSpotRAMPrice,
+			BaseGPUPrice: aws.BaseSpotGPUPrice,
 			UsageType:    PreemptibleType,
 		}, nil
 	} else if sp, ok := aws.savingsPlanPricing(k.ID()); ok {
