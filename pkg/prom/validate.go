@@ -33,7 +33,7 @@ func Validate(cli prometheus.Client) (*PrometheusMetadata, error) {
 func validate(cli prometheus.Client, q string) (*PrometheusMetadata, error) {
 	ctx := NewContext(cli)
 
-	resUp, err := ctx.QuerySync(q)
+	resUp, _, err := ctx.QuerySync(q)
 	if err != nil {
 		return &PrometheusMetadata{
 			Running:            false,

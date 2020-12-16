@@ -1,6 +1,7 @@
 package util
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -34,6 +35,27 @@ func (qpm *queryParamsMap) Set(key, value string) error {
 // NewQueryParams creates a primitive map using the request query parameters
 func NewQueryParams(values url.Values) QueryParams {
 	return mapper.NewMapper(&queryParamsMap{values})
+}
+
+//--------------------------------------------------------------------------
+//  HTTP Context Utilities
+//--------------------------------------------------------------------------
+
+const (
+	ContextWarning string = "Warning"
+)
+
+// GetWarning Extracts a warning message from the request context if it exists
+func GetWarning(r *http.Request) (warning string, ok bool) {
+	warning, ok = r.Context().Value(ContextWarning).(string)
+	return
+}
+
+// SetWarning Sets the warning context on the provided request and returns a new instance of the request
+// with the new context.
+func SetWarning(r *http.Request, warning string) *http.Request {
+	ctx := context.WithValue(r.Context(), ContextWarning, warning)
+	return r.WithContext(ctx)
 }
 
 //--------------------------------------------------------------------------
