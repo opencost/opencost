@@ -5,9 +5,9 @@ jobs:
     steps:
       - checkout
       - run:
-          command: go test pkg/*
+          command: go test ./pkg/*
       - run:
-          command: go test test/*.go
+          command: go test ./test/*.go
       - run: | 
           TAG=0.1.$CIRCLE_BUILD_NUM
           docker login -u $DOCKER_USER -p $DOCKER_PASS
