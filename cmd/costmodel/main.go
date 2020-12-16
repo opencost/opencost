@@ -17,11 +17,11 @@ func Healthz(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 }
 
 func main() {
-	costmodel.Initialize()
+	a := costmodel.Initialize()
 
 	rootMux := http.NewServeMux()
-	costmodel.Router.GET("/healthz", Healthz)
-	rootMux.Handle("/", costmodel.Router)
+	a.Router.GET("/healthz", Healthz)
+	rootMux.Handle("/", a.Router)
 	rootMux.Handle("/metrics", promhttp.Handler())
 	klog.Fatal(http.ListenAndServe(":9003", errors.PanicHandlerMiddleware(rootMux)))
 }

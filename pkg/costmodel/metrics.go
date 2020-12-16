@@ -2,28 +2,24 @@ package costmodel
 
 import (
 	"math"
-	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
+
+	promclient "github.com/prometheus/client_golang/api"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
 	"k8s.io/klog"
-)
-
-var (
-	invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
 )
 
 //--------------------------------------------------------------------------
@@ -32,7 +28,7 @@ var (
 
 // StatefulsetCollector is a prometheus collector that generates StatefulsetMetrics
 type StatefulsetCollector struct {
-	KubeClientSet kubernetes.Interface
+	KubeClusterCache clustercache.ClusterCache
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
@@ -43,9 +39,9 @@ func (sc StatefulsetCollector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (sc StatefulsetCollector) Collect(ch chan<- prometheus.Metric) {
-	ds, _ := sc.KubeClientSet.AppsV1().StatefulSets("").List(metav1.ListOptions{})
-	for _, statefulset := range ds.Items {
-		labels, values := kubeLabelsToPrometheusLabels(statefulset.Spec.Selector.MatchLabels)
+	ds := sc.KubeClusterCache.GetAllStatefulSets()
+	for _, statefulset := range ds {
+		labels, values := prom.KubeLabelsToLabels(statefulset.Spec.Selector.MatchLabels)
 		m := newStatefulsetMetric(statefulset.GetName(), statefulset.GetNamespace(), "statefulSet_match_labels", labels, values)
 		ch <- m
 	}
@@ -118,7 +114,7 @@ func (s StatefulsetMetric) Write(m *dto.Metric) error {
 
 // DeploymentCollector is a prometheus collector that generates DeploymentMetrics
 type DeploymentCollector struct {
-	KubeClientSet kubernetes.Interface
+	KubeClusterCache clustercache.ClusterCache
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
@@ -129,9 +125,9 @@ func (sc DeploymentCollector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (sc DeploymentCollector) Collect(ch chan<- prometheus.Metric) {
-	ds, _ := sc.KubeClientSet.AppsV1().Deployments("").List(metav1.ListOptions{})
-	for _, deployment := range ds.Items {
-		labels, values := kubeLabelsToPrometheusLabels(deployment.Spec.Selector.MatchLabels)
+	ds := sc.KubeClusterCache.GetAllDeployments()
+	for _, deployment := range ds {
+		labels, values := prom.KubeLabelsToLabels(deployment.Spec.Selector.MatchLabels)
 		m := newDeploymentMetric(deployment.GetName(), deployment.GetNamespace(), "deployment_match_labels", labels, values)
 		ch <- m
 	}
@@ -204,7 +200,7 @@ func (s DeploymentMetric) Write(m *dto.Metric) error {
 
 // ServiceCollector is a prometheus collector that generates ServiceMetrics
 type ServiceCollector struct {
-	KubeClientSet kubernetes.Interface
+	KubeClusterCache clustercache.ClusterCache
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
@@ -215,9 +211,9 @@ func (sc ServiceCollector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (sc ServiceCollector) Collect(ch chan<- prometheus.Metric) {
-	svcs, _ := sc.KubeClientSet.CoreV1().Services("").List(metav1.ListOptions{})
-	for _, svc := range svcs.Items {
-		labels, values := kubeLabelsToPrometheusLabels(svc.Spec.Selector)
+	svcs := sc.KubeClusterCache.GetAllServices()
+	for _, svc := range svcs {
+		labels, values := prom.KubeLabelsToLabels(svc.Spec.Selector)
 		m := newServiceMetric(svc.GetName(), svc.GetNamespace(), "service_selector_labels", labels, values)
 		ch <- m
 	}
@@ -285,12 +281,178 @@ func (s ServiceMetric) Write(m *dto.Metric) error {
 }
 
 //--------------------------------------------------------------------------
+//  NamespaceAnnotationCollector
+//--------------------------------------------------------------------------
+
+// NamespaceAnnotationCollector is a prometheus collector that generates NamespaceAnnotationMetrics
+type NamespaceAnnotationCollector struct {
+	KubeClusterCache clustercache.ClusterCache
+}
+
+// Describe sends the super-set of all possible descriptors of metrics
+// collected by this Collector.
+func (nsac NamespaceAnnotationCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- prometheus.NewDesc("kube_namespace_annotations", "namespace annotations", []string{}, nil)
+}
+
+// Collect is called by the Prometheus registry when collecting metrics.
+func (nsac NamespaceAnnotationCollector) Collect(ch chan<- prometheus.Metric) {
+	namespaces := nsac.KubeClusterCache.GetAllNamespaces()
+	for _, namespace := range namespaces {
+		labels, values := prom.KubeAnnotationsToLabels(namespace.Annotations)
+		m := newNamespaceAnnotationsMetric(namespace.GetName(), "kube_namespace_annotations", labels, values)
+		ch <- m
+	}
+}
+
+//--------------------------------------------------------------------------
+//  NamespaceAnnotationsMetric
+//--------------------------------------------------------------------------
+
+// NamespaceAnnotationsMetric is a prometheus.Metric used to encode namespace annotations
+type NamespaceAnnotationsMetric struct {
+	fqName      string
+	help        string
+	labelNames  []string
+	labelValues []string
+	namespace   string
+}
+
+// Creates a new NamespaceAnnotationsMetric, implementation of prometheus.Metric
+func newNamespaceAnnotationsMetric(namespace, fqname string, labelNames []string, labelValues []string) NamespaceAnnotationsMetric {
+	return NamespaceAnnotationsMetric{
+		namespace:   namespace,
+		fqName:      fqname,
+		labelNames:  labelNames,
+		labelValues: labelValues,
+		help:        "kube_namespace_annotations Namespace Annotations",
+	}
+}
+
+// Desc returns the descriptor for the Metric. This method idempotently
+// returns the same descriptor throughout the lifetime of the Metric.
+func (nam NamespaceAnnotationsMetric) Desc() *prometheus.Desc {
+	l := prometheus.Labels{"namespace": nam.namespace}
+	return prometheus.NewDesc(nam.fqName, nam.help, nam.labelNames, l)
+}
+
+// Write encodes the Metric into a "Metric" Protocol Buffer data
+// transmission object.
+func (nam NamespaceAnnotationsMetric) Write(m *dto.Metric) error {
+	h := float64(1)
+	m.Gauge = &dto.Gauge{
+		Value: &h,
+	}
+
+	var labels []*dto.LabelPair
+	for i := range nam.labelNames {
+		labels = append(labels, &dto.LabelPair{
+			Name:  &nam.labelNames[i],
+			Value: &nam.labelValues[i],
+		})
+	}
+	n := "namespace"
+	labels = append(labels, &dto.LabelPair{
+		Name:  &n,
+		Value: &nam.namespace,
+	})
+	m.Label = labels
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  PodAnnotationCollector
+//--------------------------------------------------------------------------
+
+// PodAnnotationCollector is a prometheus collector that generates PodAnnotationMetrics
+type PodAnnotationCollector struct {
+	KubeClusterCache clustercache.ClusterCache
+}
+
+// Describe sends the super-set of all possible descriptors of metrics
+// collected by this Collector.
+func (pac PodAnnotationCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- prometheus.NewDesc("kube_pod_annotations", "pod annotations", []string{}, nil)
+}
+
+// Collect is called by the Prometheus registry when collecting metrics.
+func (pac PodAnnotationCollector) Collect(ch chan<- prometheus.Metric) {
+	pods := pac.KubeClusterCache.GetAllPods()
+	for _, pod := range pods {
+		labels, values := prom.KubeAnnotationsToLabels(pod.Annotations)
+		m := newPodAnnotationMetric(pod.GetNamespace(), pod.GetName(), "kube_pod_annotations", labels, values)
+		ch <- m
+	}
+}
+
+//--------------------------------------------------------------------------
+//  PodAnnotationsMetric
+//--------------------------------------------------------------------------
+
+// PodAnnotationsMetric is a prometheus.Metric used to encode namespace annotations
+type PodAnnotationsMetric struct {
+	name        string
+	fqName      string
+	help        string
+	labelNames  []string
+	labelValues []string
+	namespace   string
+}
+
+// Creates a new PodAnnotationsMetric, implementation of prometheus.Metric
+func newPodAnnotationMetric(namespace, name, fqname string, labelNames []string, labelValues []string) PodAnnotationsMetric {
+	return PodAnnotationsMetric{
+		namespace:   namespace,
+		fqName:      fqname,
+		labelNames:  labelNames,
+		labelValues: labelValues,
+		help:        "kube_pod_annotations Pod Annotations",
+	}
+}
+
+// Desc returns the descriptor for the Metric. This method idempotently
+// returns the same descriptor throughout the lifetime of the Metric.
+func (pam PodAnnotationsMetric) Desc() *prometheus.Desc {
+	l := prometheus.Labels{"namespace": pam.namespace, "pod": pam.name}
+	return prometheus.NewDesc(pam.fqName, pam.help, pam.labelNames, l)
+}
+
+// Write encodes the Metric into a "Metric" Protocol Buffer data
+// transmission object.
+func (pam PodAnnotationsMetric) Write(m *dto.Metric) error {
+	h := float64(1)
+	m.Gauge = &dto.Gauge{
+		Value: &h,
+	}
+
+	var labels []*dto.LabelPair
+	for i := range pam.labelNames {
+		labels = append(labels, &dto.LabelPair{
+			Name:  &pam.labelNames[i],
+			Value: &pam.labelValues[i],
+		})
+	}
+	n := "namespace"
+	labels = append(labels, &dto.LabelPair{
+		Name:  &n,
+		Value: &pam.namespace,
+	})
+	r := "pod"
+	labels = append(labels, &dto.LabelPair{
+		Name:  &r,
+		Value: &pam.name,
+	})
+	m.Label = labels
+	return nil
+}
+
+//--------------------------------------------------------------------------
 //  ClusterInfoCollector
 //--------------------------------------------------------------------------
 
 // ClusterInfoCollector is a prometheus collector that generates ClusterInfoMetrics
 type ClusterInfoCollector struct {
-	Cloud         costAnalyzerCloud.Provider
+	Cloud         cloud.Provider
 	KubeClientSet kubernetes.Interface
 }
 
@@ -360,45 +522,227 @@ func toStringPtr(s string) *string {
 }
 
 //--------------------------------------------------------------------------
-//  Package Functions
+//  Cost Model Metrics Initialization
 //--------------------------------------------------------------------------
 
+// Only allow the metrics to be instantiated and registered once
+var metricsInit sync.Once
+
 var (
-	recordingLock     sync.Mutex
+	cpuGv                      *prometheus.GaugeVec
+	ramGv                      *prometheus.GaugeVec
+	gpuGv                      *prometheus.GaugeVec
+	pvGv                       *prometheus.GaugeVec
+	spotGv                     *prometheus.GaugeVec
+	totalGv                    *prometheus.GaugeVec
+	ramAllocGv                 *prometheus.GaugeVec
+	cpuAllocGv                 *prometheus.GaugeVec
+	gpuAllocGv                 *prometheus.GaugeVec
+	pvAllocGv                  *prometheus.GaugeVec
+	networkZoneEgressCostG     prometheus.Gauge
+	networkRegionEgressCostG   prometheus.Gauge
+	networkInternetEgressCostG prometheus.Gauge
+	clusterManagementCostGv    *prometheus.GaugeVec
+	lbCostGv                   *prometheus.GaugeVec
+)
+
+// initCostModelMetrics uses a sync.Once to ensure that these metrics are only created once
+func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud.Provider) {
+	metricsInit.Do(func() {
+		cpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "node_cpu_hourly_cost",
+			Help: "node_cpu_hourly_cost hourly cost for each cpu on this node",
+		}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+
+		ramGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "node_ram_hourly_cost",
+			Help: "node_ram_hourly_cost hourly cost for each gb of ram on this node",
+		}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+
+		gpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "node_gpu_hourly_cost",
+			Help: "node_gpu_hourly_cost hourly cost for each gpu on this node",
+		}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+
+		pvGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "pv_hourly_cost",
+			Help: "pv_hourly_cost Cost per GB per hour on a persistent disk",
+		}, []string{"volumename", "persistentvolume", "provider_id"})
+
+		spotGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "kubecost_node_is_spot",
+			Help: "kubecost_node_is_spot Cloud provider info about node preemptibility",
+		}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+
+		totalGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "node_total_hourly_cost",
+			Help: "node_total_hourly_cost Total node cost per hour",
+		}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+
+		ramAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "container_memory_allocation_bytes",
+			Help: "container_memory_allocation_bytes Bytes of RAM used",
+		}, []string{"namespace", "pod", "container", "instance", "node"})
+
+		cpuAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "container_cpu_allocation",
+			Help: "container_cpu_allocation Percent of a single CPU used in a minute",
+		}, []string{"namespace", "pod", "container", "instance", "node"})
+
+		gpuAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "container_gpu_allocation",
+			Help: "container_gpu_allocation GPU used",
+		}, []string{"namespace", "pod", "container", "instance", "node"})
+
+		pvAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "pod_pvc_allocation",
+			Help: "pod_pvc_allocation Bytes used by a PVC attached to a pod",
+		}, []string{"namespace", "pod", "persistentvolumeclaim", "persistentvolume"})
+
+		networkZoneEgressCostG = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "kubecost_network_zone_egress_cost",
+			Help: "kubecost_network_zone_egress_cost Total cost per GB egress across zones",
+		})
+
+		networkRegionEgressCostG = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "kubecost_network_region_egress_cost",
+			Help: "kubecost_network_region_egress_cost Total cost per GB egress across regions",
+		})
+
+		networkInternetEgressCostG = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "kubecost_network_internet_egress_cost",
+			Help: "kubecost_network_internet_egress_cost Total cost per GB of internet egress.",
+		})
+
+		clusterManagementCostGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "kubecost_cluster_management_cost",
+			Help: "kubecost_cluster_management_cost Hourly cost paid as a cluster management fee.",
+		}, []string{"provisioner_name"})
+
+		lbCostGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{ // no differentiation between ELB and ALB right now
+			Name: "kubecost_load_balancer_cost",
+			Help: "kubecost_load_balancer_cost Hourly cost of load balancer",
+		}, []string{"ingress_ip", "namespace", "service_name"}) // assumes one ingress IP per load balancer
+
+		// Register cost-model metrics for emission
+		prometheus.MustRegister(cpuGv, ramGv, gpuGv, totalGv, pvGv, spotGv)
+		prometheus.MustRegister(ramAllocGv, cpuAllocGv, gpuAllocGv, pvAllocGv)
+		prometheus.MustRegister(networkZoneEgressCostG, networkRegionEgressCostG, networkInternetEgressCostG)
+		prometheus.MustRegister(clusterManagementCostGv, lbCostGv)
+
+		// General Metric Collectors
+		prometheus.MustRegister(ServiceCollector{
+			KubeClusterCache: clusterCache,
+		})
+		prometheus.MustRegister(DeploymentCollector{
+			KubeClusterCache: clusterCache,
+		})
+		prometheus.MustRegister(StatefulsetCollector{
+			KubeClusterCache: clusterCache,
+		})
+		prometheus.MustRegister(ClusterInfoCollector{
+			KubeClientSet: clusterCache.GetClient(),
+			Cloud:         provider,
+		})
+	})
+}
+
+//--------------------------------------------------------------------------
+//  CostModelMetricsEmitter
+//--------------------------------------------------------------------------
+
+// CostModelMetricsEmitter emits all cost-model specific metrics calculated by
+// the CostModel.ComputeCostData() method.
+type CostModelMetricsEmitter struct {
+	PrometheusClient promclient.Client
+	KubeClusterCache clustercache.ClusterCache
+	CloudProvider    cloud.Provider
+	Model            *CostModel
+
+	// Metrics
+	CPUPriceRecorder              *prometheus.GaugeVec
+	RAMPriceRecorder              *prometheus.GaugeVec
+	PersistentVolumePriceRecorder *prometheus.GaugeVec
+	GPUPriceRecorder              *prometheus.GaugeVec
+	PVAllocationRecorder          *prometheus.GaugeVec
+	NodeSpotRecorder              *prometheus.GaugeVec
+	NodeTotalPriceRecorder        *prometheus.GaugeVec
+	RAMAllocationRecorder         *prometheus.GaugeVec
+	CPUAllocationRecorder         *prometheus.GaugeVec
+	GPUAllocationRecorder         *prometheus.GaugeVec
+	ClusterManagementCostRecorder *prometheus.GaugeVec
+	LBCostRecorder                *prometheus.GaugeVec
+	NetworkZoneEgressRecorder     prometheus.Gauge
+	NetworkRegionEgressRecorder   prometheus.Gauge
+	NetworkInternetEgressRecorder prometheus.Gauge
+
+	// Flow Control
+	recordingLock     *sync.Mutex
 	recordingStopping bool
 	recordingStop     chan bool
-)
+}
+
+// NewCostModelMetricsEmitter creates a new cost-model metrics emitter. Use Start() to begin metric emission.
+func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clustercache.ClusterCache, provider cloud.Provider, model *CostModel) *CostModelMetricsEmitter {
+	// init will only actually execute once to register the custom gauges
+	initCostModelMetrics(clusterCache, provider)
+
+	return &CostModelMetricsEmitter{
+		PrometheusClient:              promClient,
+		KubeClusterCache:              clusterCache,
+		CloudProvider:                 provider,
+		Model:                         model,
+		CPUPriceRecorder:              cpuGv,
+		RAMPriceRecorder:              ramGv,
+		GPUPriceRecorder:              gpuGv,
+		PersistentVolumePriceRecorder: pvGv,
+		NodeSpotRecorder:              spotGv,
+		NodeTotalPriceRecorder:        totalGv,
+		RAMAllocationRecorder:         ramAllocGv,
+		CPUAllocationRecorder:         cpuAllocGv,
+		GPUAllocationRecorder:         gpuAllocGv,
+		PVAllocationRecorder:          pvAllocGv,
+		NetworkZoneEgressRecorder:     networkZoneEgressCostG,
+		NetworkRegionEgressRecorder:   networkRegionEgressCostG,
+		NetworkInternetEgressRecorder: networkInternetEgressCostG,
+		ClusterManagementCostRecorder: clusterManagementCostGv,
+		LBCostRecorder:                lbCostGv,
+		recordingLock:                 new(sync.Mutex),
+		recordingStopping:             false,
+		recordingStop:                 nil,
+	}
+}
 
 // Checks to see if there is a metric recording stop channel. If it exists, a new
 // channel is not created and false is returned. If it doesn't exist, a new channel
 // is created and true is returned.
-func checkOrCreateRecordingChan() bool {
-	recordingLock.Lock()
-	defer recordingLock.Unlock()
+func (cmme *CostModelMetricsEmitter) checkOrCreateRecordingChan() bool {
+	cmme.recordingLock.Lock()
+	defer cmme.recordingLock.Unlock()
 
-	if recordingStop != nil {
+	if cmme.recordingStop != nil {
 		return false
 	}
 
-	recordingStop = make(chan bool, 1)
+	cmme.recordingStop = make(chan bool, 1)
 	return true
 }
 
-// IsCostModelMetricRecordingRunning returns true if metric recording is still running.
-func IsCostModelMetricRecordingRunning() bool {
-	recordingLock.Lock()
-	defer recordingLock.Unlock()
+// IsRunning returns true if metric recording is running.
+func (cmme *CostModelMetricsEmitter) IsRunning() bool {
+	cmme.recordingLock.Lock()
+	defer cmme.recordingLock.Unlock()
 
-	return recordingStop != nil
+	return cmme.recordingStop != nil
 }
 
 // StartCostModelMetricRecording starts the go routine that emits metrics used to determine
 // cluster costs.
-func StartCostModelMetricRecording(a *Accesses) bool {
+func (cmme *CostModelMetricsEmitter) Start() bool {
 	// Check to see if we're already recording
 	// This function will create the stop recording channel and return true
 	// if it doesn't exist.
-	if !checkOrCreateRecordingChan() {
+	if !cmme.checkOrCreateRecordingChan() {
 		log.Errorf("Attempted to start cost model metric recording when it's already running.")
 		return false
 	}
@@ -420,45 +764,56 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 		}
 
 		var defaultRegion string = ""
-		nodeList := a.Model.Cache.GetAllNodes()
+		nodeList := cmme.KubeClusterCache.GetAllNodes()
 		if len(nodeList) > 0 {
 			defaultRegion = nodeList[0].Labels[v1.LabelZoneRegion]
 		}
 
 		for {
 			klog.V(4).Info("Recording prices...")
-			podlist := a.Model.Cache.GetAllPods()
+			podlist := cmme.KubeClusterCache.GetAllPods()
 			podStatus := make(map[string]v1.PodPhase)
 			for _, pod := range podlist {
 				podStatus[pod.Name] = pod.Status.Phase
 			}
 
-			cfg, _ := a.Cloud.GetConfig()
+			cfg, _ := cmme.CloudProvider.GetConfig()
 
-			provisioner, clusterManagementCost, err := a.Cloud.ClusterManagementPricing()
+			provisioner, clusterManagementCost, err := cmme.CloudProvider.ClusterManagementPricing()
 			if err != nil {
 				klog.V(1).Infof("Error getting cluster management cost %s", err.Error())
 			}
-			a.ClusterManagementCostRecorder.WithLabelValues(provisioner).Set(clusterManagementCost)
+			cmme.ClusterManagementCostRecorder.WithLabelValues(provisioner).Set(clusterManagementCost)
 
 			// Record network pricing at global scope
-			networkCosts, err := a.Cloud.NetworkPricing()
+			networkCosts, err := cmme.CloudProvider.NetworkPricing()
 			if err != nil {
 				klog.V(4).Infof("Failed to retrieve network costs: %s", err.Error())
 			} else {
-				a.NetworkZoneEgressRecorder.Set(networkCosts.ZoneNetworkEgressCost)
-				a.NetworkRegionEgressRecorder.Set(networkCosts.RegionNetworkEgressCost)
-				a.NetworkInternetEgressRecorder.Set(networkCosts.InternetNetworkEgressCost)
+				cmme.NetworkZoneEgressRecorder.Set(networkCosts.ZoneNetworkEgressCost)
+				cmme.NetworkRegionEgressRecorder.Set(networkCosts.RegionNetworkEgressCost)
+				cmme.NetworkInternetEgressRecorder.Set(networkCosts.InternetNetworkEgressCost)
 			}
 
-			data, err := a.Model.ComputeCostData(a.PrometheusClient, a.KubeClientSet, a.Cloud, "2m", "", "")
+			// TODO: Pass PrometheusClient and CloudProvider into CostModel on instantiation so this isn't so awkward
+			data, err := cmme.Model.ComputeCostData(cmme.PrometheusClient, cmme.CloudProvider, "2m", "", "")
 			if err != nil {
-				klog.V(1).Info("Error in price recording: " + err.Error())
+				// For an error collection, we'll just log the length of the errors (ComputeCostData already logs the
+				// actual errors)
+				if prom.IsErrorCollection(err) {
+					if ec, ok := err.(prom.QueryErrorCollection); ok {
+						klog.V(1).Info("Error in price recording: %d errors occurred", len(ec.Errors()))
+					}
+				} else {
+					klog.V(1).Info("Error in price recording: " + err.Error())
+				}
+
 				// zero the for loop so the time.Sleep will still work
 				data = map[string]*CostData{}
 			}
 
-			nodes, err := a.Model.GetNodeCost(a.Cloud)
+			// TODO: Pass CloudProvider into CostModel on instantiation so this isn't so awkward
+			nodes, err := cmme.Model.GetNodeCost(cmme.CloudProvider)
 			for nodeName, node := range nodes {
 				// Emit costs, guarding against NaN inputs for custom pricing.
 				cpuCost, _ := strconv.ParseFloat(node.VCPUCost, 64)
@@ -499,20 +854,21 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 
 				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
-				a.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(cpuCost)
-				a.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(ramCost)
-				a.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(gpuCost)
-				a.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(totalCost)
+				cmme.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(cpuCost)
+				cmme.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(ramCost)
+				cmme.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(gpuCost)
+				cmme.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(totalCost)
 				if node.IsSpot() {
-					a.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(1.0)
+					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(1.0)
 				} else {
-					a.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(0.0)
+					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(0.0)
 				}
 				labelKey := getKeyFromLabelStrings(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID)
 				nodeSeen[labelKey] = true
 			}
 
-			loadBalancers, err := a.Model.GetLBCost(a.Cloud)
+			// TODO: Pass CloudProvider into CostModel on instantiation so this isn't so awkward
+			loadBalancers, err := cmme.Model.GetLBCost(cmme.CloudProvider)
 			for lbKey, lb := range loadBalancers {
 				// TODO: parse (if necessary) and calculate cost associated with loadBalancer based on dynamic cloud prices fetched into each lb struct on GetLBCost() call
 				keyParts := getLabelStringsFromKey(lbKey)
@@ -522,7 +878,7 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 				if len(lb.IngressIPAddresses) > 0 {
 					ingressIP = lb.IngressIPAddresses[0] // assumes one ingress IP per load balancer
 				}
-				a.LBCostRecorder.WithLabelValues(ingressIP, namespace, serviceName).Set(lb.Cost)
+				cmme.LBCostRecorder.WithLabelValues(ingressIP, namespace, serviceName).Set(lb.Cost)
 
 				labelKey := getKeyFromLabelStrings(namespace, serviceName)
 				loadBalancerSeen[labelKey] = true
@@ -542,7 +898,7 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 							if timesClaimed == 0 {
 								timesClaimed = 1 // unallocated PVs are unclaimed but have a full allocation
 							}
-							a.PVAllocationRecorder.WithLabelValues(namespace, podName, pvc.Claim, pvc.VolumeName).Set(pvc.Values[0].Value / float64(timesClaimed))
+							cmme.PVAllocationRecorder.WithLabelValues(namespace, podName, pvc.Claim, pvc.VolumeName).Set(pvc.Values[0].Value / float64(timesClaimed))
 							labelKey := getKeyFromLabelStrings(namespace, podName, pvc.Claim, pvc.VolumeName)
 							pvcSeen[labelKey] = true
 						}
@@ -550,14 +906,14 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 				}
 
 				if len(costs.RAMAllocation) > 0 {
-					a.RAMAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.RAMAllocation[0].Value)
+					cmme.RAMAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.RAMAllocation[0].Value)
 				}
 				if len(costs.CPUAllocation) > 0 {
-					a.CPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.CPUAllocation[0].Value)
+					cmme.CPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.CPUAllocation[0].Value)
 				}
 				if len(costs.GPUReq) > 0 {
 					// allocation here is set to the request because shared GPU usage not yet supported.
-					a.GPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.GPUReq[0].Value)
+					cmme.GPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.GPUReq[0].Value)
 				}
 				labelKey := getKeyFromLabelStrings(namespace, podName, containerName, nodeName, nodeName)
 				if podStatus[podName] == v1.PodRunning { // Only report data for current pods
@@ -566,7 +922,7 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 					containerSeen[labelKey] = false
 				}
 
-				storageClasses := a.Model.Cache.GetAllStorageClasses()
+				storageClasses := cmme.KubeClusterCache.GetAllStorageClasses()
 				storageClassMap := make(map[string]map[string]string)
 				for _, storageClass := range storageClasses {
 					params := storageClass.Parameters
@@ -577,7 +933,7 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 					}
 				}
 
-				pvs := a.Model.Cache.GetAllPersistentVolumes()
+				pvs := cmme.KubeClusterCache.GetAllPersistentVolumes()
 				for _, pv := range pvs {
 					parameters, ok := storageClassMap[pv.Spec.StorageClassName]
 					if !ok {
@@ -589,14 +945,16 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 					} else {
 						region = defaultRegion
 					}
-					cacPv := &costAnalyzerCloud.PV{
+					cacPv := &cloud.PV{
 						Class:      pv.Spec.StorageClassName,
 						Region:     region,
 						Parameters: parameters,
 					}
-					GetPVCost(cacPv, pv, a.Cloud, region)
+
+					// TODO: GetPVCost should be a method in CostModel?
+					GetPVCost(cacPv, pv, cmme.CloudProvider, region)
 					c, _ := strconv.ParseFloat(cacPv.Cost, 64)
-					a.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name, cacPv.ProviderID).Set(c)
+					cmme.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name, cacPv.ProviderID).Set(c)
 					labelKey := getKeyFromLabelStrings(pv.Name, pv.Name)
 					pvSeen[labelKey] = true
 				}
@@ -605,31 +963,31 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 				if !seen {
 					klog.V(4).Infof("Removing %s from nodes", labelString)
 					labels := getLabelStringsFromKey(labelString)
-					ok := a.NodeTotalPriceRecorder.DeleteLabelValues(labels...)
+					ok := cmme.NodeTotalPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
 						klog.V(4).Infof("removed %s from totalprice", labelString)
 					} else {
 						klog.Infof("FAILURE TO REMOVE %s from totalprice", labelString)
 					}
-					ok = a.NodeSpotRecorder.DeleteLabelValues(labels...)
+					ok = cmme.NodeSpotRecorder.DeleteLabelValues(labels...)
 					if ok {
 						klog.V(4).Infof("removed %s from spot records", labelString)
 					} else {
 						klog.Infof("FAILURE TO REMOVE %s from spot records", labelString)
 					}
-					ok = a.CPUPriceRecorder.DeleteLabelValues(labels...)
+					ok = cmme.CPUPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
 						klog.V(4).Infof("removed %s from cpuprice", labelString)
 					} else {
 						klog.Infof("FAILURE TO REMOVE %s from cpuprice", labelString)
 					}
-					ok = a.GPUPriceRecorder.DeleteLabelValues(labels...)
+					ok = cmme.GPUPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
 						klog.V(4).Infof("removed %s from gpuprice", labelString)
 					} else {
 						klog.Infof("FAILURE TO REMOVE %s from gpuprice", labelString)
 					}
-					ok = a.RAMPriceRecorder.DeleteLabelValues(labels...)
+					ok = cmme.RAMPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
 						klog.V(4).Infof("removed %s from ramprice", labelString)
 					} else {
@@ -643,7 +1001,7 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 			for labelString, seen := range loadBalancerSeen {
 				if !seen {
 					labels := getLabelStringsFromKey(labelString)
-					a.LBCostRecorder.DeleteLabelValues(labels...)
+					cmme.LBCostRecorder.DeleteLabelValues(labels...)
 				} else {
 					loadBalancerSeen[labelString] = false
 				}
@@ -651,9 +1009,9 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 			for labelString, seen := range containerSeen {
 				if !seen {
 					labels := getLabelStringsFromKey(labelString)
-					a.RAMAllocationRecorder.DeleteLabelValues(labels...)
-					a.CPUAllocationRecorder.DeleteLabelValues(labels...)
-					a.GPUAllocationRecorder.DeleteLabelValues(labels...)
+					cmme.RAMAllocationRecorder.DeleteLabelValues(labels...)
+					cmme.CPUAllocationRecorder.DeleteLabelValues(labels...)
+					cmme.GPUAllocationRecorder.DeleteLabelValues(labels...)
 					delete(containerSeen, labelString)
 				} else {
 					containerSeen[labelString] = false
@@ -662,7 +1020,7 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 			for labelString, seen := range pvSeen {
 				if !seen {
 					labels := getLabelStringsFromKey(labelString)
-					a.PersistentVolumePriceRecorder.DeleteLabelValues(labels...)
+					cmme.PersistentVolumePriceRecorder.DeleteLabelValues(labels...)
 					delete(pvSeen, labelString)
 				} else {
 					pvSeen[labelString] = false
@@ -671,7 +1029,7 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 			for labelString, seen := range pvcSeen {
 				if !seen {
 					labels := getLabelStringsFromKey(labelString)
-					a.PVAllocationRecorder.DeleteLabelValues(labels...)
+					cmme.PVAllocationRecorder.DeleteLabelValues(labels...)
 					delete(pvcSeen, labelString)
 				} else {
 					pvcSeen[labelString] = false
@@ -680,11 +1038,11 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 
 			select {
 			case <-time.After(time.Minute):
-			case <-recordingStop:
-				recordingLock.Lock()
-				recordingStopping = false
-				recordingStop = nil
-				recordingLock.Unlock()
+			case <-cmme.recordingStop:
+				cmme.recordingLock.Lock()
+				cmme.recordingStopping = false
+				cmme.recordingStop = nil
+				cmme.recordingLock.Unlock()
 				return
 			}
 		}
@@ -693,35 +1051,14 @@ func StartCostModelMetricRecording(a *Accesses) bool {
 	return true
 }
 
-// StopCostModelMetricRecording halts the metrics emission loop after the current emission is completed
+// Stop halts the metrics emission loop after the current emission is completed
 // or if the emission is paused.
-func StopCostModelMetricRecording() {
-	recordingLock.Lock()
-	defer recordingLock.Unlock()
+func (cmme *CostModelMetricsEmitter) Stop() {
+	cmme.recordingLock.Lock()
+	defer cmme.recordingLock.Unlock()
 
-	if !recordingStopping && recordingStop != nil {
-		recordingStopping = true
-		close(recordingStop)
+	if !cmme.recordingStopping && cmme.recordingStop != nil {
+		cmme.recordingStopping = true
+		close(cmme.recordingStop)
 	}
-}
-
-// Converts kubernetes labels into prometheus labels.
-func kubeLabelsToPrometheusLabels(labels map[string]string) ([]string, []string) {
-	labelKeys := make([]string, 0, len(labels))
-	for k := range labels {
-		labelKeys = append(labelKeys, k)
-	}
-	sort.Strings(labelKeys)
-
-	labelValues := make([]string, 0, len(labels))
-	for i, k := range labelKeys {
-		labelKeys[i] = "label_" + SanitizeLabelName(k)
-		labelValues = append(labelValues, labels[k])
-	}
-	return labelKeys, labelValues
-}
-
-// Replaces all illegal prometheus label characters with _
-func SanitizeLabelName(s string) string {
-	return invalidLabelCharRE.ReplaceAllString(s, "_")
 }

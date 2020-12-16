@@ -70,10 +70,8 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 	rps.Error = aws.RIPricingStatus
 	if rps.Error != "" {
 		rps.Available = false
-	} else if len(aws.RIPricingByInstanceID) > 0 {
-		rps.Available = true
 	} else {
-		rps.Error = "No reserved instances detected"
+		rps.Available = true
 	}
 	sources[ReservedInstancePricingSource] = rps
 	return sources
