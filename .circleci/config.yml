@@ -5,6 +5,8 @@ jobs:
     steps:
       - checkout
       - run:
+          command: go mod download
+      - run:
           command: go test ./pkg/*
       - run:
           command: go test ./test/*.go
