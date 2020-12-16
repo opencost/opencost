@@ -802,10 +802,10 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				// actual errors)
 				if prom.IsErrorCollection(err) {
 					if ec, ok := err.(prom.QueryErrorCollection); ok {
-						klog.V(1).Info("Error in price recording: %d errors occurred", len(ec.Errors()))
+						log.Errorf("Error in price recording: %d errors occurred", len(ec.Errors()))
 					}
 				} else {
-					klog.V(1).Info("Error in price recording: " + err.Error())
+					log.Errorf("Error in price recording: " + err.Error())
 				}
 
 				// zero the for loop so the time.Sleep will still work
