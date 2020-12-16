@@ -1802,7 +1802,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	// determine duration and offset from query parameters
 	window, err := kubecost.ParseWindowWithOffset(windowStr, env.GetParsedUTCOffset())
 	if err != nil || window.Start() == nil {
-		http.Error(w, fmt.Sprintf("invalid window: %s", err), http.StatusBadRequest)
+		w.Write(WrapDataWithMessage(nil, fmt.Errorf("invalid window: %s", err), fmt.Sprintf("invalid window: %s", err)))
 		return
 	}
 
