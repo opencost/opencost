@@ -1898,19 +1898,19 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 
 	// aggregation field is required
 	if field == "" {
-		http.Error(w, "Missing aggregation field parameter", http.StatusBadRequest)
+		w.Write(WrapDataWithMessage(nil, fmt.Errorf("Missing aggregation field parameter"), "Missing aggregation field parameter"))
 		return
 	}
 
 	// aggregation subfield is required when aggregation field is "label"
 	if field == "label" && len(subfields) == 0 {
-		http.Error(w, "Missing aggregation subfield parameter for aggregation by label", http.StatusBadRequest)
+		w.Write(WrapDataWithMessage(nil, fmt.Errorf("Missing aggregation subfield parameter for aggregation by label"), "Missing aggregation subfield parameter for aggregation by label"))
 		return
 	}
 
 	// enforce one of four available rate options
 	if opts.Rate != "" && opts.Rate != "hourly" && opts.Rate != "daily" && opts.Rate != "monthly" {
-		http.Error(w, "If set, rate parameter must be one of: 'hourly', 'daily', 'monthly'", http.StatusBadRequest)
+		w.Write(WrapDataWithMessage(nil, fmt.Errorf("If set, rate parameter must be one of: 'hourly', 'daily', 'monthly'"), "If set, rate parameter must be one of: 'hourly', 'daily', 'monthly'"))
 		return
 	}
 
@@ -1936,7 +1936,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 		sln = strings.Split(sharedLabelNames, ",")
 		slv = strings.Split(sharedLabelValues, ",")
 		if len(sln) != len(slv) || slv[0] == "" {
-			http.Error(w, "Supply exacly one shared label value per shared label name", http.StatusBadRequest)
+			w.Write(WrapDataWithMessage(nil, fmt.Errorf("Supply exacly one shared label value per shared label name"), "Supply exacly one shared label value per shared label name"))
 			return
 		}
 	}
@@ -1980,15 +1980,15 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 					}
 				}
 
-				http.Error(w, msg, http.StatusInternalServerError)
+				w.Write(WrapDataWithMessage(nil, fmt.Errorf(msg), msg))
 			} else {
 				// Boundary error outside of 90 day period; may not be available
-				http.Error(w, boundaryErr.Error(), http.StatusInternalServerError)
+				w.Write(WrapDataWithMessage(nil, boundaryErr, boundaryErr.Error()))
 			}
 			return
 		}
 		errStr := fmt.Sprintf("error computing aggregate cost model: %s", err)
-		http.Error(w, errStr, http.StatusInternalServerError)
+		w.Write(WrapDataWithMessage(nil, fmt.Errorf(errStr), errStr))
 		return
 	}
 
