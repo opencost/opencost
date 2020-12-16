@@ -7,7 +7,6 @@ jobs:
       - run: | 
           go test
           go test ./pkg/*
-      - run: | 
           TAG=0.1.$CIRCLE_BUILD_NUM
           docker login -u $DOCKER_USER -p $DOCKER_PASS
           docker build -t ajaytripathy/kubecost-cost-model:$TAG .
