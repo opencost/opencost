@@ -484,18 +484,18 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	layout := "2006-01-02T15:04:05.000Z"
 	start, err := time.Parse(layout, startStr)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("invalid start date: %s", startStr), http.StatusBadRequest)
+		w.Write(WrapDataWithMessage(nil, fmt.Errorf("invalid start date: %s", startStr), fmt.Sprintf("invalid start date: %s", startStr)))
 		return
 	}
 	end, err := time.Parse(layout, endStr)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("invalid end date: %s", endStr), http.StatusBadRequest)
+		w.Write(WrapDataWithMessage(nil, fmt.Errorf("invalid end date: %s", endStr), fmt.Sprintf("invalid end date: %s", endStr)))
 		return
 	}
 
 	window := kubecost.NewWindow(&start, &end)
 	if window.IsOpen() || window.IsEmpty() || window.IsNegative() {
-		http.Error(w, fmt.Sprintf("invalid date range: %s", window), http.StatusBadRequest)
+		w.Write(WrapDataWithMessage(nil, fmt.Errorf("invalid date range: %s", window), fmt.Sprintf("invalid date range: %s", window)))
 		return
 	}
 

@@ -1,6 +1,7 @@
 package costmodel
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
@@ -1802,7 +1803,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	// determine duration and offset from query parameters
 	window, err := kubecost.ParseWindowWithOffset(windowStr, env.GetParsedUTCOffset())
 	if err != nil || window.Start() == nil {
-		http.Error(w, fmt.Sprintf("invalid window: %s", err), http.StatusBadRequest)
+		WriteError(w, BadRequest(fmt.Sprintf("invalid window: %s", err)))
 		return
 	}
 
@@ -1898,19 +1899,19 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 
 	// aggregation field is required
 	if field == "" {
-		http.Error(w, "Missing aggregation field parameter", http.StatusBadRequest)
+		WriteError(w, BadRequest("Missing aggregation field parameter"))
 		return
 	}
 
 	// aggregation subfield is required when aggregation field is "label"
 	if field == "label" && len(subfields) == 0 {
-		http.Error(w, "Missing aggregation subfield parameter for aggregation by label", http.StatusBadRequest)
+		WriteError(w, BadRequest("Missing aggregation field parameter"))
 		return
 	}
 
 	// enforce one of four available rate options
 	if opts.Rate != "" && opts.Rate != "hourly" && opts.Rate != "daily" && opts.Rate != "monthly" {
-		http.Error(w, "If set, rate parameter must be one of: 'hourly', 'daily', 'monthly'", http.StatusBadRequest)
+		WriteError(w, BadRequest("Missing aggregation field parameter"))
 		return
 	}
 
@@ -1936,7 +1937,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 		sln = strings.Split(sharedLabelNames, ",")
 		slv = strings.Split(sharedLabelValues, ",")
 		if len(sln) != len(slv) || slv[0] == "" {
-			http.Error(w, "Supply exacly one shared label value per shared label name", http.StatusBadRequest)
+			WriteError(w, BadRequest("Supply exacly one shared label value per shared label name"))
 			return
 		}
 	}
@@ -1980,15 +1981,15 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 					}
 				}
 
-				http.Error(w, msg, http.StatusInternalServerError)
+				WriteError(w, InternalServerError(msg))
 			} else {
 				// Boundary error outside of 90 day period; may not be available
-				http.Error(w, boundaryErr.Error(), http.StatusInternalServerError)
+				WriteError(w, InternalServerError(boundaryErr.Error()))
 			}
 			return
 		}
 		errStr := fmt.Sprintf("error computing aggregate cost model: %s", err)
-		http.Error(w, errStr, http.StatusInternalServerError)
+		WriteError(w, InternalServerError(errStr))
 		return
 	}
 
@@ -1996,5 +1997,52 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 		w.Write(WrapDataWithMessage(data, nil, message))
 	} else {
 		w.Write(WrapDataWithMessageAndWarning(data, nil, message, warning))
+	}
+}
+
+// The below was transferred from a different package in order to maintain
+// previous behavior. Ultimately, we should clean this up at some point.
+// TODO move to util and/or standardize everything
+
+type Error struct {
+	StatusCode int
+	Body       string
+}
+
+func WriteError(w http.ResponseWriter, err Error) {
+	status := err.StatusCode
+	if status == 0 {
+		status = http.StatusInternalServerError
+	}
+	w.WriteHeader(status)
+
+	resp, _ := json.Marshal(&Response{
+		Code:    status,
+		Message: fmt.Sprintf("Error: %s", err.Body),
+	})
+	w.Write(resp)
+}
+
+func BadRequest(message string) Error {
+	return Error{
+		StatusCode: http.StatusBadRequest,
+		Body:       message,
+	}
+}
+
+func InternalServerError(message string) Error {
+	if message == "" {
+		message = "Internal Server Error"
+	}
+	return Error{
+		StatusCode: http.StatusInternalServerError,
+		Body:       message,
+	}
+}
+
+func NotFound() Error {
+	return Error{
+		StatusCode: http.StatusNotFound,
+		Body:       "Not Found",
 	}
 }
