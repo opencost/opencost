@@ -1937,7 +1937,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 		sln = strings.Split(sharedLabelNames, ",")
 		slv = strings.Split(sharedLabelValues, ",")
 		if len(sln) != len(slv) || slv[0] == "" {
-			w.Write(WrapDataWithMessage(nil, fmt.Errorf("Supply exacly one shared label value per shared label name"), "Supply exacly one shared label value per shared label name"))
+			WriteError(w, BadRequest("Supply exacly one shared label value per shared label name"))
 			return
 		}
 	}
@@ -1981,15 +1981,15 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 					}
 				}
 
-				w.Write(WrapDataWithMessage(nil, fmt.Errorf(msg), msg))
+				WriteError(w, InternalServerError(msg))
 			} else {
 				// Boundary error outside of 90 day period; may not be available
-				w.Write(WrapDataWithMessage(nil, boundaryErr, boundaryErr.Error()))
+				WriteError(w, InternalServerError(boundaryErr.Error()))
 			}
 			return
 		}
 		errStr := fmt.Sprintf("error computing aggregate cost model: %s", err)
-		w.Write(WrapDataWithMessage(nil, fmt.Errorf(errStr), errStr))
+		WriteError(w, InternalServerError(errStr))
 		return
 	}
 
@@ -2027,5 +2027,22 @@ func BadRequest(message string) Error {
 	return Error{
 		StatusCode: http.StatusBadRequest,
 		Body:       message,
+	}
+}
+
+func InternalServerError(message string) Error {
+	if message == "" {
+		message = "Internal Server Error"
+	}
+	return Error{
+		StatusCode: http.StatusInternalServerError,
+		Body:       message,
+	}
+}
+
+func NotFound() Error {
+	return Error{
+		StatusCode: http.StatusNotFound,
+		Body:       "Not Found",
 	}
 }
