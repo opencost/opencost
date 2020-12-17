@@ -1,6 +1,7 @@
 package costmodel
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
@@ -1802,7 +1803,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	// determine duration and offset from query parameters
 	window, err := kubecost.ParseWindowWithOffset(windowStr, env.GetParsedUTCOffset())
 	if err != nil || window.Start() == nil {
-		w.Write(WrapDataWithMessage(nil, fmt.Errorf("invalid window: %s", err), fmt.Sprintf("invalid window: %s", err)))
+		WriteError(w, BadRequest(fmt.Sprintf("invalid window: %s", err)))
 		return
 	}
 
@@ -1898,19 +1899,19 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 
 	// aggregation field is required
 	if field == "" {
-		w.Write(WrapDataWithMessage(nil, fmt.Errorf("Missing aggregation field parameter"), "Missing aggregation field parameter"))
+		WriteError(w, BadRequest("Missing aggregation field parameter"))
 		return
 	}
 
 	// aggregation subfield is required when aggregation field is "label"
 	if field == "label" && len(subfields) == 0 {
-		w.Write(WrapDataWithMessage(nil, fmt.Errorf("Missing aggregation subfield parameter for aggregation by label"), "Missing aggregation subfield parameter for aggregation by label"))
+		WriteError(w, BadRequest("Missing aggregation field parameter"))
 		return
 	}
 
 	// enforce one of four available rate options
 	if opts.Rate != "" && opts.Rate != "hourly" && opts.Rate != "daily" && opts.Rate != "monthly" {
-		w.Write(WrapDataWithMessage(nil, fmt.Errorf("If set, rate parameter must be one of: 'hourly', 'daily', 'monthly'"), "If set, rate parameter must be one of: 'hourly', 'daily', 'monthly'"))
+		WriteError(w, BadRequest("Missing aggregation field parameter"))
 		return
 	}
 
@@ -1996,5 +1997,35 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 		w.Write(WrapDataWithMessage(data, nil, message))
 	} else {
 		w.Write(WrapDataWithMessageAndWarning(data, nil, message, warning))
+	}
+}
+
+// The below was transferred from a different package in order to maintain
+// previous behavior. Ultimately, we should clean this up at some point.
+// TODO move to util and/or standardize everything
+
+type Error struct {
+	StatusCode int
+	Body       string
+}
+
+func WriteError(w http.ResponseWriter, err Error) {
+	status := err.StatusCode
+	if status == 0 {
+		status = http.StatusInternalServerError
+	}
+	w.WriteHeader(status)
+
+	resp, _ := json.Marshal(&Response{
+		Code:    status,
+		Message: fmt.Sprintf("Error: %s", err.Body),
+	})
+	w.Write(resp)
+}
+
+func BadRequest(message string) Error {
+	return Error{
+		StatusCode: http.StatusBadRequest,
+		Body:       message,
 	}
 }
