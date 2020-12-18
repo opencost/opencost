@@ -5,6 +5,7 @@ import "time"
 // ETLStatus describes ETL metadata
 type ETLStatus struct {
 	Coverage    Window           `json:"coverage"`
+	LastRun     time.Time        `json:"lastRun"`
 	Progress    float64          `json:"progress"`
 	RefreshRate string           `json:"refreshRate"`
 	StartTime   time.Time        `json:"startTime"`
