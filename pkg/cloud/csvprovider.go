@@ -215,6 +215,7 @@ func (c *CSVProvider) NodePricing(key Key) (*Node, error) {
 	}
 	classKey := key.Features() // Use node attributes to try and do a class match
 	if cost, ok := c.NodeClassPricing[classKey]; ok {
+		klog.Infof("Unable to find provider ID `%s`, using features:`%s`", key.ID(), key.Features())
 		return &Node{
 			Cost: fmt.Sprintf("%f", cost),
 		}, nil
