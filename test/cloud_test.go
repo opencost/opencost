@@ -1,6 +1,8 @@
 package test
 
 import (
+	"fmt"
+	"math"
 	"os"
 	"strings"
 	"testing"
@@ -125,7 +127,8 @@ func TestNodePriceFromCSV(t *testing.T) {
 	unknownN.Name = "unknownname"
 	unknownN.Labels = make(map[string]string)
 	unknownN.Labels["foo"] = labelFooWant
-	k2 := c.GetKey(n.Labels, unknownN)
+	unknownN.Labels["topology.kubernetes.io/region"] = "fakeregion"
+	k2 := c.GetKey(unknownN.Labels, unknownN)
 	resN2, _ := c.NodePricing(k2)
 	if resN2 != nil {
 		t.Errorf("CSV provider should return nil on missing node")
@@ -215,6 +218,7 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	unknownN.Spec.ProviderID = "fake providerID"
 	unknownN.Name = "unknownname"
 	unknownN.Labels = make(map[string]string)
+	unknownN.Labels["topology.kubernetes.io/region"] = "fakeregion"
 	unknownN.Labels["foo"] = labelFooWant
 	k4 := c.GetKey(unknownN.Labels, unknownN)
 	resN4, _ := c.NodePricing(k4)
@@ -307,6 +311,51 @@ func TestNodePriceFromCSVWithCase(t *testing.T) {
 		if gotPrice != wantPrice {
 			t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
 		}
+	}
+
+}
+
+func TestNodePriceFromCSVByClass(t *testing.T) {
+	n := &v1.Node{}
+	n.Spec.ProviderID = "fakeproviderid"
+	n.Labels = make(map[string]string)
+	n.Labels[v1.LabelZoneRegion] = "eastus2"
+	n.Labels[v1.LabelInstanceType] = "Standard_F32s_v2"
+	wantpricefloat := 0.13370357
+	wantPrice := fmt.Sprintf("%f", (math.Round(wantpricefloat*1000000) / 1000000))
+
+	c := &cloud.CSVProvider{
+		CSVLocation: "../configs/pricing_schema_case.csv",
+		CustomProvider: &cloud.CustomProvider{
+			Config: cloud.NewProviderConfig("../configs/default.json"),
+		},
+	}
+
+	c.DownloadPricingData()
+
+	k := c.GetKey(n.Labels, n)
+	resN, err := c.NodePricing(k)
+	if err != nil {
+		t.Errorf("Error in NodePricing: %s", err.Error())
+	} else {
+		gotPrice := resN.Cost
+		if gotPrice != wantPrice {
+			t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+		}
+	}
+
+	n2 := &v1.Node{}
+	n2.Spec.ProviderID = "fakeproviderid"
+	n2.Labels = make(map[string]string)
+	n2.Labels[v1.LabelZoneRegion] = "fakeregion"
+	n2.Labels[v1.LabelInstanceType] = "Standard_F32s_v2"
+	k2 := c.GetKey(n2.Labels, n)
+
+	c.DownloadPricingData()
+	resN2, err := c.NodePricing(k2)
+
+	if resN2 != nil {
+		t.Errorf("CSV provider should return nil on missing node, instead returned %+v", resN2)
 	}
 
 }

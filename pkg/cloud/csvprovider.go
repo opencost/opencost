@@ -6,11 +6,13 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/util"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -28,6 +30,8 @@ type CSVProvider struct {
 	*CustomProvider
 	CSVLocation             string
 	Pricing                 map[string]*price
+	NodeClassPricing        map[string]float64
+	NodeClassCount          map[string]float64
 	NodeMapField            string
 	PricingPV               map[string]*price
 	PVMapField              string
@@ -53,6 +57,8 @@ func (c *CSVProvider) DownloadPricingData() error {
 	c.DownloadPricingDataLock.Lock()
 	defer c.DownloadPricingDataLock.Unlock()
 	pricing := make(map[string]*price)
+	nodeclasspricing := make(map[string]float64)
+	nodeclasscount := make(map[string]float64)
 	pvpricing := make(map[string]*price)
 	header, err := csvutil.Header(price{}, "csv")
 	if err != nil {
@@ -75,6 +81,8 @@ func (c *CSVProvider) DownloadPricingData() error {
 			csvr = out.Body
 		} else {
 			c.Pricing = pricing
+			c.NodeClassPricing = nodeclasspricing
+			c.NodeClassCount = nodeclasscount
 			c.PricingPV = pvpricing
 			return fmt.Errorf("Invalid s3 URI: %s", c.CSVLocation)
 		}
@@ -84,6 +92,8 @@ func (c *CSVProvider) DownloadPricingData() error {
 	if csverr != nil {
 		klog.Infof("Error reading csv at %s: %s", c.CSVLocation, csverr)
 		c.Pricing = pricing
+		c.NodeClassPricing = nodeclasspricing
+		c.NodeClassCount = nodeclasscount
 		c.PricingPV = pvpricing
 		return nil
 	}
@@ -94,6 +104,8 @@ func (c *CSVProvider) DownloadPricingData() error {
 	dec, err := csvutil.NewDecoder(csvReader, header...)
 	if err != nil {
 		c.Pricing = pricing
+		c.NodeClassPricing = nodeclasspricing
+		c.NodeClassCount = nodeclasscount
 		c.PricingPV = pvpricing
 		return err
 	}
@@ -130,6 +142,23 @@ func (c *CSVProvider) DownloadPricingData() error {
 			c.PVMapField = p.InstanceIDField
 		} else if p.AssetClass == "node" {
 			pricing[key] = &p
+			classKey := p.Region + "," + p.InstanceType + "," + p.AssetClass
+			cost, err := strconv.ParseFloat(p.MarketPriceHourly, 64)
+			if err != nil {
+
+			} else {
+				if _, ok := nodeclasspricing[classKey]; ok {
+					oldPrice := nodeclasspricing[classKey]
+					oldCount := nodeclasscount[classKey]
+					newPrice := ((oldPrice * oldCount) + cost) / (oldCount + 1.0)
+					nodeclasscount[classKey] = newPrice
+					nodeclasscount[classKey]++
+				} else {
+					nodeclasspricing[classKey] = cost
+					nodeclasscount[classKey] = 1
+				}
+			}
+
 			c.NodeMapField = p.InstanceIDField
 		} else {
 			klog.Infof("Unrecognized asset class %s, defaulting to node", p.AssetClass)
@@ -139,6 +168,8 @@ func (c *CSVProvider) DownloadPricingData() error {
 	}
 	if len(pricing) > 0 {
 		c.Pricing = pricing
+		c.NodeClassPricing = nodeclasspricing
+		c.NodeClassCount = nodeclasscount
 		c.PricingPV = pvpricing
 	} else {
 		log.DedupedWarningf(5, "No data received from csv at %s", c.CSVLocation)
@@ -153,7 +184,11 @@ type csvKey struct {
 }
 
 func (k *csvKey) Features() string {
-	return ""
+	instanceType, _ := util.GetInstanceType(k.Labels)
+	region, _ := util.GetRegion(k.Labels)
+	class := "node"
+
+	return region + "," + instanceType + "," + class
 }
 func (k *csvKey) GPUType() string {
 	return ""
@@ -178,7 +213,13 @@ func (c *CSVProvider) NodePricing(key Key) (*Node, error) {
 			}, nil
 		}
 	}
-	return nil, fmt.Errorf("Unable to find Node matching %s", key.ID())
+	classKey := key.Features() // Use node attributes to try and do a class match
+	if cost, ok := c.NodeClassPricing[classKey]; ok {
+		return &Node{
+			Cost: fmt.Sprintf("%f", cost),
+		}, nil
+	}
+	return nil, fmt.Errorf("Unable to find Node matching `%s`:`%s`", key.ID(), key.Features())
 }
 
 func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
