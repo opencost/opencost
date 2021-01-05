@@ -202,14 +202,16 @@ func (c *CSVProvider) NodePricing(key Key) (*Node, error) {
 	defer c.DownloadPricingDataLock.RUnlock()
 	if p, ok := c.Pricing[key.ID()]; ok {
 		return &Node{
-			Cost: p.MarketPriceHourly,
+			Cost:        p.MarketPriceHourly,
+			PricingType: csvExact,
 		}, nil
 	}
 	s := strings.Split(key.ID(), ",") // Try without a region to be sure
 	if len(s) == 2 {
 		if p, ok := c.Pricing[s[1]]; ok {
 			return &Node{
-				Cost: p.MarketPriceHourly,
+				Cost:        p.MarketPriceHourly,
+				PricingType: csvExact,
 			}, nil
 		}
 	}
@@ -217,7 +219,8 @@ func (c *CSVProvider) NodePricing(key Key) (*Node, error) {
 	if cost, ok := c.NodeClassPricing[classKey]; ok {
 		klog.Infof("Unable to find provider ID `%s`, using features:`%s`", key.ID(), key.Features())
 		return &Node{
-			Cost: fmt.Sprintf("%f", cost),
+			Cost:        fmt.Sprintf("%f", cost),
+			PricingType: csvClass,
 		}, nil
 	}
 	return nil, fmt.Errorf("Unable to find Node matching `%s`:`%s`", key.ID(), key.Features())
