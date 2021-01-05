@@ -9,6 +9,7 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
@@ -644,6 +645,18 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud
 			KubeClientSet: clusterCache.GetClient(),
 			Cloud:         provider,
 		})
+
+		if env.IsEmitNamespaceAnnotationsMetric() {
+			prometheus.MustRegister(NamespaceAnnotationCollector{
+				KubeClusterCache: clusterCache,
+			})
+		}
+
+		if env.IsEmitPodAnnotationsMetric() {
+			prometheus.MustRegister(PodAnnotationCollector{
+				KubeClusterCache: clusterCache,
+			})
+		}
 	})
 }
 
