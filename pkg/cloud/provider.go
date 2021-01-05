@@ -59,6 +59,7 @@ type Node struct {
 	Region           string                `json:"region,omitempty"`
 	Reserved         *ReservedInstanceData `json:"reserved,omitempty"`
 	ProviderID       string                `json:"providerID,omitempty"`
+	PricingType      PricingType           `json:"pricingType,omitempty"`
 }
 
 // IsSpot determines whether or not a Node uses spot by usage type
@@ -193,6 +194,23 @@ type PricingSource struct {
 	Name      string `json:"name"`
 	Available bool   `json:"available"`
 	Error     string `json:"error"`
+}
+
+type PricingType string
+
+const (
+	Api           PricingType = "api"
+	Spot          PricingType = "spot"
+	Reserved      PricingType = "reserved"
+	SavingsPlan   PricingType = "savingsPlan"
+	CsvExact      PricingType = "csvExact"
+	CsvClass      PricingType = "csvClass"
+	DefaultPrices PricingType = "defaultPrices"
+)
+
+type PricingMatchMetadata struct {
+	TotalNodes        int                 `json:"TotalNodes"`
+	PricingTypeCounts map[PricingType]int `json:"PricingType"`
 }
 
 // Provider represents a k8s provider.

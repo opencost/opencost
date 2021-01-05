@@ -46,10 +46,11 @@ const (
 var isCron = regexp.MustCompile(`^(.+)-\d{10}$`)
 
 type CostModel struct {
-	Cache          clustercache.ClusterCache
-	ClusterMap     clusters.ClusterMap
-	ScrapeInterval time.Duration
-	RequestGroup   *singleflight.Group
+	Cache           clustercache.ClusterCache
+	ClusterMap      clusters.ClusterMap
+	ScrapeInterval  time.Duration
+	RequestGroup    *singleflight.Group
+	pricingMetadata *costAnalyzerCloud.PricingMatchMetadata
 }
 
 func NewCostModel(cache clustercache.ClusterCache, clusterMap clusters.ClusterMap, scrapeInterval time.Duration) *CostModel {
@@ -882,6 +883,14 @@ func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cp costAnalyz
 	return nil
 }
 
+func (cm *CostModel) GetPricingSourceCounts() (*costAnalyzerCloud.PricingMatchMetadata, error) {
+	if cm.pricingMetadata != nil {
+		return cm.pricingMetadata, nil
+	} else {
+		return nil, fmt.Errorf("Node costs not yet calculated")
+	}
+}
+
 func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.Node, error) {
 	cfg, err := cp.GetConfig()
 	if err != nil {
@@ -891,10 +900,16 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 	nodeList := cm.Cache.GetAllNodes()
 	nodes := make(map[string]*costAnalyzerCloud.Node)
 
+	pmd := &costAnalyzerCloud.PricingMatchMetadata{
+		TotalNodes:        0,
+		PricingTypeCounts: make(map[costAnalyzerCloud.PricingType]int),
+	}
 	for _, n := range nodeList {
 		name := n.GetObjectMeta().GetName()
 		nodeLabels := n.GetObjectMeta().GetLabels()
 		nodeLabels["providerID"] = n.Spec.ProviderID
+
+		pmd.TotalNodes++
 
 		cnode, err := cp.NodePricing(cp.GetKey(nodeLabels, n))
 		if err != nil {
@@ -909,6 +924,13 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 				}
 			}
 		}
+
+		if _, ok := pmd.PricingTypeCounts[cnode.PricingType]; ok {
+			pmd.PricingTypeCounts[cnode.PricingType]++
+		} else {
+			pmd.PricingTypeCounts[cnode.PricingType] = 1
+		}
+
 		newCnode := *cnode
 		if newCnode.InstanceType == "" {
 			it, _ := util.GetInstanceType(n.Labels)
@@ -1145,7 +1167,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 		nodes[name] = &newCnode
 	}
-
+	cm.pricingMetadata = pmd
 	cp.ApplyReservedInstancePricing(nodes)
 
 	return nodes, nil

@@ -2468,6 +2468,7 @@ func (as *AssetSet) ReconciliationMatch(query Asset) (Asset, bool, error) {
 	var providerIDMatch Asset
 	for _, asset := range as.assets {
 		if key(asset, fullMatchProps) == fullMatchKey {
+			log.DedupedInfof(10, "Asset ETL: Reconciliation[rcnw]: ReconcileRange Match: %s", fullMatchKey)
 			return asset, true, nil
 		}
 		if key(asset, providerIDMatchProps) == providerIDMatchKey {
