@@ -199,13 +199,13 @@ type PricingSource struct {
 type PricingType string
 
 const (
-	api           PricingType = "api"
-	spot          PricingType = "spot"
-	reserved      PricingType = "reserved"
-	savingsPlan   PricingType = "savingsPlan"
-	csvExact      PricingType = "csvExact"
-	csvClass      PricingType = "csvClass"
-	defaultPrices PricingType = "defaultPrices"
+	Api           PricingType = "api"
+	Spot          PricingType = "spot"
+	Reserved      PricingType = "reserved"
+	SavingsPlan   PricingType = "savingsPlan"
+	CsvExact      PricingType = "csvExact"
+	CsvClass      PricingType = "csvClass"
+	DefaultPrices PricingType = "defaultPrices"
 )
 
 type PricingMatchMetadata struct {

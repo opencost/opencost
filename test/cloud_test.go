@@ -287,6 +287,76 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 	}
 }
 
+func TestSourceMatchesFromCSV(t *testing.T) {
+	os.Setenv("CONFIG_PATH", "../configs")
+	c := &cloud.CSVProvider{
+		CSVLocation: "../configs/pricing_schema_case.csv",
+		CustomProvider: &cloud.CustomProvider{
+			Config: cloud.NewProviderConfig("/default.json"),
+		},
+	}
+	c.DownloadPricingData()
+
+	n := &v1.Node{}
+	n.Spec.ProviderID = "fake"
+	n.Name = "nameWant"
+	n.Labels = make(map[string]string)
+	n.Labels["foo"] = "labelFooWant"
+	n.Labels[v1.LabelZoneRegion] = "regionone"
+
+	n2 := &v1.Node{}
+	n2.Spec.ProviderID = "azure:///subscriptions/123a7sd-asd-1234-578a9-123abcdef/resourceGroups/case_12_STaGe_TeSt7/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-agent-worker0-12stagetest7-ezggnore/virtualMachines/7"
+	n2.Labels = make(map[string]string)
+	n2.Labels[v1.LabelZoneRegion] = "eastus2"
+	n2.Labels["foo"] = "labelFooWant"
+
+	k := c.GetKey(n2.Labels, n2)
+	resN, err := c.NodePricing(k)
+	if err != nil {
+		t.Errorf("Error in NodePricing: %s", err.Error())
+	} else {
+		wantPrice := "0.13370357"
+		gotPrice := resN.Cost
+		if gotPrice != wantPrice {
+			t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+		}
+	}
+
+	n3 := &v1.Node{}
+	n3.Spec.ProviderID = "fake"
+	n3.Name = "nameWant"
+	n3.Labels = make(map[string]string)
+	n.Labels[v1.LabelZoneRegion] = "eastus2"
+	n.Labels[v1.LabelInstanceType] = "Standard_F32s_v2"
+
+	fc := NewFakeNodeCache([]*v1.Node{n, n2, n3})
+	fm := FakeClusterMap{}
+	d, _ := time.ParseDuration("1m")
+
+	model := costmodel.NewCostModel(fc, fm, d)
+
+	_, err = model.GetNodeCost(c)
+	if err != nil {
+		t.Errorf("Error in node pricing: %s", err)
+	}
+	p, err := model.GetPricingSourceCounts()
+	if err != nil {
+		t.Errorf("Error in pricing source counts: %s", err)
+	} else if p.TotalNodes != 3 {
+		t.Errorf("Wanted 3 nodes got %d", p.TotalNodes)
+	}
+	if p.PricingTypeCounts[""] != 1 {
+		t.Errorf("Wanted 1 default match got %d: %+v", p.PricingTypeCounts[""], p.PricingTypeCounts)
+	}
+	if p.PricingTypeCounts["csvExact"] != 1 {
+		t.Errorf("Wanted 1 exact match got %d: %+v", p.PricingTypeCounts["csvExact"], p.PricingTypeCounts)
+	}
+	if p.PricingTypeCounts["csvClass"] != 1 {
+		t.Errorf("Wanted 1 class match got %d: %+v", p.PricingTypeCounts["csvClass"], p.PricingTypeCounts)
+	}
+
+}
+
 func TestNodePriceFromCSVWithCase(t *testing.T) {
 	n := &v1.Node{}
 	n.Spec.ProviderID = "azure:///subscriptions/123a7sd-asd-1234-578a9-123abcdef/resourceGroups/case_12_STaGe_TeSt7/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-agent-worker0-12stagetest7-ezggnore/virtualMachines/7"
