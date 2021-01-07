@@ -404,6 +404,7 @@ type PodAnnotationsMetric struct {
 func newPodAnnotationMetric(namespace, name, fqname string, labelNames []string, labelValues []string) PodAnnotationsMetric {
 	return PodAnnotationsMetric{
 		namespace:   namespace,
+		name:        name,
 		fqName:      fqname,
 		labelNames:  labelNames,
 		labelValues: labelValues,
