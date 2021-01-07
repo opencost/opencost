@@ -14,11 +14,10 @@ package kubecost
 import (
 	"encoding"
 	"fmt"
+	util "github.com/kubecost/cost-model/pkg/util"
 	"reflect"
 	"strings"
 	"time"
-
-	util "github.com/kubecost/cost-model/pkg/util"
 )
 
 const (
@@ -26,7 +25,7 @@ const (
 	GeneratorPackageName string = "kubecost"
 
 	// CodecVersion is the version passed into the generator
-	CodecVersion uint8 = 4
+	CodecVersion uint8 = 5
 )
 
 //--------------------------------------------------------------------------
@@ -126,17 +125,17 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 	buff.WriteBytes(a)
 	// --- [end][write][reference](Properties) ---
 
-	// --- [begin][write][reference](time.Time) ---
-	b, errB := target.Start.MarshalBinary()
+	// --- [begin][write][struct](Window) ---
+	b, errB := target.Window.MarshalBinary()
 	if errB != nil {
 		return nil, errB
 	}
 	buff.WriteInt(len(b))
 	buff.WriteBytes(b)
-	// --- [end][write][reference](time.Time) ---
+	// --- [end][write][struct](Window) ---
 
 	// --- [begin][write][reference](time.Time) ---
-	c, errC := target.End.MarshalBinary()
+	c, errC := target.Start.MarshalBinary()
 	if errC != nil {
 		return nil, errC
 	}
@@ -144,9 +143,8 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 	buff.WriteBytes(c)
 	// --- [end][write][reference](time.Time) ---
 
-	buff.WriteFloat64(target.Minutes) // write float64
 	// --- [begin][write][reference](time.Time) ---
-	d, errD := target.ActiveStart.MarshalBinary()
+	d, errD := target.End.MarshalBinary()
 	if errD != nil {
 		return nil, errD
 	}
@@ -209,16 +207,16 @@ func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
 	target.Properties = *b
 	// --- [end][read][reference](Properties) ---
 
-	// --- [begin][read][reference](time.Time) ---
-	e := &time.Time{}
+	// --- [begin][read][struct](Window) ---
+	e := &Window{}
 	f := buff.ReadInt()    // byte array length
 	g := buff.ReadBytes(f) // byte array
 	errB := e.UnmarshalBinary(g)
 	if errB != nil {
 		return errB
 	}
-	target.Start = *e
-	// --- [end][read][reference](time.Time) ---
+	target.Window = *e
+	// --- [end][read][struct](Window) ---
 
 	// --- [begin][read][reference](time.Time) ---
 	h := &time.Time{}
@@ -228,64 +226,61 @@ func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
 	if errC != nil {
 		return errC
 	}
-	target.End = *h
+	target.Start = *h
 	// --- [end][read][reference](time.Time) ---
 
-	n := buff.ReadFloat64() // read float64
-	target.Minutes = n
-
 	// --- [begin][read][reference](time.Time) ---
-	o := &time.Time{}
-	p := buff.ReadInt()    // byte array length
-	q := buff.ReadBytes(p) // byte array
-	errD := o.UnmarshalBinary(q)
+	n := &time.Time{}
+	o := buff.ReadInt()    // byte array length
+	p := buff.ReadBytes(o) // byte array
+	errD := n.UnmarshalBinary(p)
 	if errD != nil {
 		return errD
 	}
-	target.ActiveStart = *o
+	target.End = *n
 	// --- [end][read][reference](time.Time) ---
 
+	q := buff.ReadFloat64() // read float64
+	target.CPUCoreHours = q
+
 	r := buff.ReadFloat64() // read float64
-	target.CPUCoreHours = r
+	target.CPUCost = r
 
 	s := buff.ReadFloat64() // read float64
-	target.CPUCost = s
+	target.CPUEfficiency = s
 
 	t := buff.ReadFloat64() // read float64
-	target.CPUEfficiency = t
+	target.GPUHours = t
 
 	u := buff.ReadFloat64() // read float64
-	target.GPUHours = u
+	target.GPUCost = u
 
 	w := buff.ReadFloat64() // read float64
-	target.GPUCost = w
+	target.NetworkCost = w
 
 	x := buff.ReadFloat64() // read float64
-	target.NetworkCost = x
+	target.PVByteHours = x
 
 	y := buff.ReadFloat64() // read float64
-	target.PVByteHours = y
+	target.PVCost = y
 
 	z := buff.ReadFloat64() // read float64
-	target.PVCost = z
+	target.RAMByteHours = z
 
 	aa := buff.ReadFloat64() // read float64
-	target.RAMByteHours = aa
+	target.RAMCost = aa
 
 	bb := buff.ReadFloat64() // read float64
-	target.RAMCost = bb
+	target.RAMEfficiency = bb
 
 	cc := buff.ReadFloat64() // read float64
-	target.RAMEfficiency = cc
+	target.SharedCost = cc
 
 	dd := buff.ReadFloat64() // read float64
-	target.SharedCost = dd
+	target.TotalCost = dd
 
 	ee := buff.ReadFloat64() // read float64
-	target.TotalCost = ee
-
-	ff := buff.ReadFloat64() // read float64
-	target.TotalEfficiency = ff
+	target.TotalEfficiency = ee
 
 	return nil
 }

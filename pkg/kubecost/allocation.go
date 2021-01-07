@@ -37,10 +37,9 @@ const ShareNone = "__none__"
 type Allocation struct {
 	Name            string     `json:"name"`
 	Properties      Properties `json:"properties,omitempty"`
+	Window          Window     `json:"window"`
 	Start           time.Time  `json:"start"`
 	End             time.Time  `json:"end"`
-	Minutes         float64    `json:"minutes"`
-	ActiveStart     time.Time  `json:"-"`
 	CPUCoreHours    float64    `json:"cpuCoreHours"`
 	CPUCost         float64    `json:"cpuCost"`
 	CPUEfficiency   float64    `json:"cpuEfficiency"`
@@ -70,13 +69,13 @@ func (a *Allocation) Add(that *Allocation) (*Allocation, error) {
 		return that.Clone(), nil
 	}
 
-	if !a.Start.Equal(that.Start) || !a.End.Equal(that.End) {
+	if !a.Window.Equal(that.Window) {
 		return nil, fmt.Errorf("error adding Allocations: mismatched windows")
 	}
 
 	agg := a.Clone()
 	// agg.Profiler = a.Profiler
-	agg.add(that, false, false)
+	agg.add(that, false)
 
 	return agg, nil
 }
@@ -90,10 +89,9 @@ func (a *Allocation) Clone() *Allocation {
 	return &Allocation{
 		Name:            a.Name,
 		Properties:      a.Properties.Clone(),
+		Window:          a.Window.Clone(),
 		Start:           a.Start,
 		End:             a.End,
-		Minutes:         a.Minutes,
-		ActiveStart:     a.ActiveStart,
 		CPUCoreHours:    a.CPUCoreHours,
 		CPUCost:         a.CPUCost,
 		CPUEfficiency:   a.CPUEfficiency,
@@ -119,16 +117,13 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if a.Name != that.Name {
 		return false
 	}
+	if !a.Window.Equal(that.Window) {
+		return false
+	}
 	if !a.Start.Equal(that.Start) {
 		return false
 	}
 	if !a.End.Equal(that.End) {
-		return false
-	}
-	if a.Minutes != that.Minutes {
-		return false
-	}
-	if !a.ActiveStart.Equal(that.ActiveStart) {
 		return false
 	}
 	if a.CPUCoreHours != that.CPUCoreHours {
@@ -240,6 +235,12 @@ func (a *Allocation) MatchesOne(ps ...Properties) bool {
 	return false
 }
 
+// Minutes returns the number of minutes the Allocation represents, as defined
+// by the difference between the end and start times.
+func (a *Allocation) Minutes() float64 {
+	return a.End.Sub(a.Start).Minutes()
+}
+
 // Share works like Add, but converts the entire cost of the given Allocation
 // to SharedCost, rather than adding to the individual resource costs.
 func (a *Allocation) Share(that *Allocation) (*Allocation, error) {
@@ -255,7 +256,7 @@ func (a *Allocation) Share(that *Allocation) (*Allocation, error) {
 	}
 
 	agg := a.Clone()
-	agg.add(that, true, false)
+	agg.add(that, true)
 
 	return agg, nil
 }
@@ -265,7 +266,7 @@ func (a *Allocation) String() string {
 	return fmt.Sprintf("%s%s=%.2f", a.Name, NewWindow(&a.Start, &a.End), a.TotalCost)
 }
 
-func (a *Allocation) add(that *Allocation, isShared, isAccumulating bool) {
+func (a *Allocation) add(that *Allocation, isShared bool) {
 	if a == nil {
 		a = that
 
@@ -298,22 +299,12 @@ func (a *Allocation) add(that *Allocation, isShared, isAccumulating bool) {
 		}
 	}
 
-	if that.ActiveStart.Before(a.ActiveStart) {
-		a.ActiveStart = that.ActiveStart
+	if that.Start.Before(a.Start) {
+		a.Start = that.Start
 	}
 
-	if isAccumulating {
-		if a.Start.After(that.Start) {
-			a.Start = that.Start
-		}
-
-		if a.End.Before(that.End) {
-			a.End = that.End
-		}
-
-		a.Minutes += that.Minutes
-	} else if that.Minutes > a.Minutes {
-		a.Minutes = that.Minutes
+	if that.End.After(a.End) {
+		a.End = that.End
 	}
 
 	// isShared determines whether the given allocation should be spread evenly
@@ -1122,7 +1113,7 @@ func (as *AllocationSet) insert(that *Allocation, accumulate bool) error {
 	if _, ok := as.allocations[that.Name]; !ok {
 		as.allocations[that.Name] = that
 	} else {
-		as.allocations[that.Name].add(that, false, accumulate)
+		as.allocations[that.Name].add(that, false)
 	}
 
 	// If the given Allocation is an idle one, record that
