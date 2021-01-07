@@ -197,25 +197,28 @@ func (a *Allocation) IsUnallocated() bool {
 	return strings.Contains(a.Name, UnallocatedSuffix)
 }
 
+// CPUCores converts the Allocation's CPUCoreHours into average CPUCores
 func (a *Allocation) CPUCores() float64 {
 	if a.Minutes() <= 0.0 {
 		return 0.0
 	}
-	return a.CPUCoreHours / (a.Minutes() * 60.0)
+	return a.CPUCoreHours / (a.Minutes() / 60.0)
 }
 
+// RAMBytes converts the Allocation's RAMByteHours into average RAMBytes
 func (a *Allocation) RAMBytes() float64 {
 	if a.Minutes() <= 0.0 {
 		return 0.0
 	}
-	return a.RAMByteHours / (a.Minutes() * 60.0)
+	return a.RAMByteHours / (a.Minutes() / 60.0)
 }
 
+// PVBytes converts the Allocation's PVByteHours into average PVBytes
 func (a *Allocation) PVBytes() float64 {
 	if a.Minutes() <= 0.0 {
 		return 0.0
 	}
-	return a.PVByteHours / (a.Minutes() * 60.0)
+	return a.PVByteHours / (a.Minutes() / 60.0)
 }
 
 // MarshalJSON implements json.Marshal interface
