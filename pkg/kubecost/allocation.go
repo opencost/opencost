@@ -1,6 +1,7 @@
 package kubecost
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -196,6 +197,57 @@ func (a *Allocation) IsUnallocated() bool {
 	return strings.Contains(a.Name, UnallocatedSuffix)
 }
 
+func (a *Allocation) CPUCores() float64 {
+	if a.Minutes() <= 0.0 {
+		return 0.0
+	}
+	return a.CPUCoreHours / (a.Minutes() * 60.0)
+}
+
+func (a *Allocation) RAMBytes() float64 {
+	if a.Minutes() <= 0.0 {
+		return 0.0
+	}
+	return a.RAMByteHours / (a.Minutes() * 60.0)
+}
+
+func (a *Allocation) PVBytes() float64 {
+	if a.Minutes() <= 0.0 {
+		return 0.0
+	}
+	return a.PVByteHours / (a.Minutes() * 60.0)
+}
+
+// MarshalJSON implements json.Marshal interface
+func (a *Allocation) MarshalJSON() ([]byte, error) {
+	buffer := bytes.NewBufferString("{")
+	jsonEncodeString(buffer, "name", a.Name, ",")
+	jsonEncode(buffer, "properties", a.Properties, ",")
+	jsonEncode(buffer, "window", a.Window, ",")
+	jsonEncodeString(buffer, "start", a.Start.Format(timeFmt), ",")
+	jsonEncodeString(buffer, "end", a.End.Format(timeFmt), ",")
+	jsonEncodeFloat64(buffer, "minutes", a.Minutes(), ",")
+	jsonEncodeFloat64(buffer, "cpuCores", a.CPUCores(), ",")
+	jsonEncodeFloat64(buffer, "cpuCoreHours", a.CPUCoreHours, ",")
+	jsonEncodeFloat64(buffer, "cpuCost", a.CPUCost, ",")
+	jsonEncodeFloat64(buffer, "cpuEfficiency", a.CPUEfficiency, ",")
+	jsonEncodeFloat64(buffer, "gpuHours", a.GPUHours, ",")
+	jsonEncodeFloat64(buffer, "gpuCost", a.GPUCost, ",")
+	jsonEncodeFloat64(buffer, "networkCost", a.NetworkCost, ",")
+	jsonEncodeFloat64(buffer, "pvBytes", a.PVBytes(), ",")
+	jsonEncodeFloat64(buffer, "pvByteHours", a.PVByteHours, ",")
+	jsonEncodeFloat64(buffer, "pvCost", a.PVCost, ",")
+	jsonEncodeFloat64(buffer, "ramBytes", a.RAMBytes(), ",")
+	jsonEncodeFloat64(buffer, "ramByteHours", a.RAMByteHours, ",")
+	jsonEncodeFloat64(buffer, "ramCost", a.RAMCost, ",")
+	jsonEncodeFloat64(buffer, "ramEfficiency", a.RAMEfficiency, ",")
+	jsonEncodeFloat64(buffer, "sharedCost", a.SharedCost, ",")
+	jsonEncodeFloat64(buffer, "totalCost", a.TotalCost, ",")
+	jsonEncodeFloat64(buffer, "totalEfficiency", a.TotalEfficiency, "")
+	buffer.WriteString("}")
+	return buffer.Bytes(), nil
+}
+
 // MatchesFilter returns true if the Allocation passes the given AllocationFilter
 func (a *Allocation) MatchesFilter(f AllocationMatchFunc) bool {
 	return f(a)
@@ -306,6 +358,8 @@ func (a *Allocation) add(that *Allocation, isShared bool) {
 	if that.End.After(a.End) {
 		a.End = that.End
 	}
+
+	a.Window = a.Window.Expand(that.Window)
 
 	// isShared determines whether the given allocation should be spread evenly
 	// across resources (e.g. sharing idle allocation) or lumped into a shared
@@ -1241,12 +1295,6 @@ func (as *AllocationSet) accumulate(that *AllocationSet) (*AllocationSet, error)
 		return as, nil
 	}
 
-	if that.Start().Before(as.End()) {
-		timefmt := "2006-01-02T15:04:05"
-		err := fmt.Sprintf("that [%s, %s); that [%s, %s)\n", as.Start().Format(timefmt), as.End().Format(timefmt), that.Start().Format(timefmt), that.End().Format(timefmt))
-		return nil, fmt.Errorf("error accumulating AllocationSets: overlapping windows: %s", err)
-	}
-
 	// Set start, end to min(start), max(end)
 	start := as.Start()
 	end := as.End()
@@ -1266,12 +1314,6 @@ func (as *AllocationSet) accumulate(that *AllocationSet) (*AllocationSet, error)
 	defer that.RUnlock()
 
 	for _, alloc := range as.allocations {
-		// Change Start and End to match the new window. However, do not
-		// change Minutes because that will be accounted for during the
-		// insert step, if in fact there are two allocations to add.
-		alloc.Start = start
-		alloc.End = end
-
 		err := acc.insert(alloc, true)
 		if err != nil {
 			return nil, err
@@ -1279,12 +1321,6 @@ func (as *AllocationSet) accumulate(that *AllocationSet) (*AllocationSet, error)
 	}
 
 	for _, alloc := range that.allocations {
-		// Change Start and End to match the new window. However, do not
-		// change Minutes because that will be accounted for during the
-		// insert step, if in fact there are two allocations to add.
-		alloc.Start = start
-		alloc.End = end
-
 		err := acc.insert(alloc, true)
 		if err != nil {
 			return nil, err
