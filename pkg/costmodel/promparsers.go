@@ -210,6 +210,66 @@ func GetPodLabelsMetrics(qrs []*prom.QueryResult, defaultClusterID string) (map[
 	return toReturn, nil
 }
 
+func GetNamespaceAnnotationsMetrics(qrs []*prom.QueryResult, defaultClusterID string) (map[string]map[string]string, error) {
+	toReturn := make(map[string]map[string]string)
+
+	for _, val := range qrs {
+		// We want Namespace and ClusterID for key generation purposes
+		ns, err := val.GetString("namespace")
+		if err != nil {
+			return toReturn, err
+		}
+
+		clusterID, err := val.GetString("cluster_id")
+		if clusterID == "" {
+			clusterID = defaultClusterID
+		}
+
+		nsKey := ns + "," + clusterID
+		if nsAnnotations, ok := toReturn[nsKey]; ok {
+			for k, v := range val.GetAnnotations() {
+				nsAnnotations[k] = v // override with more recently assigned if we changed labels within the window.
+			}
+		} else {
+			toReturn[nsKey] = val.GetAnnotations()
+		}
+	}
+	return toReturn, nil
+}
+
+func GetPodAnnotationsMetrics(qrs []*prom.QueryResult, defaultClusterID string) (map[string]map[string]string, error) {
+	toReturn := make(map[string]map[string]string)
+
+	for _, val := range qrs {
+		// We want Pod, Namespace and ClusterID for key generation purposes
+		pod, err := val.GetString("pod")
+		if err != nil {
+			return toReturn, err
+		}
+
+		ns, err := val.GetString("namespace")
+		if err != nil {
+			return toReturn, err
+		}
+
+		clusterID, err := val.GetString("cluster_id")
+		if clusterID == "" {
+			clusterID = defaultClusterID
+		}
+
+		nsKey := ns + "," + pod + "," + clusterID
+		if labels, ok := toReturn[nsKey]; ok {
+			for k, v := range val.GetLabels() {
+				labels[k] = v
+			}
+		} else {
+			toReturn[nsKey] = val.GetLabels()
+		}
+	}
+
+	return toReturn, nil
+}
+
 func GetStatefulsetMatchLabelsMetrics(qrs []*prom.QueryResult, defaultClusterID string) (map[string]map[string]string, error) {
 	toReturn := make(map[string]map[string]string)
 

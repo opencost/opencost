@@ -84,6 +84,7 @@ type CostData struct {
 	GPUReq          []*util.Vector               `json:"gpureq,omitempty"`
 	PVCData         []*PersistentVolumeClaimData `json:"pvcData,omitempty"`
 	NetworkData     []*util.Vector               `json:"network,omitempty"`
+	Annotations     map[string]string            `json:"Annotations,omitempty"`
 	Labels          map[string]string            `json:"labels,omitempty"`
 	NamespaceLabels map[string]string            `json:"namespaceLabels,omitempty"`
 	ClusterID       string                       `json:"clusterId"`
@@ -210,6 +211,8 @@ const (
 	queryPVHourlyCostFmt      = `avg_over_time(pv_hourly_cost[%s])`
 	queryNSLabels             = `avg_over_time(kube_namespace_labels[%s])`
 	queryPodLabels            = `avg_over_time(kube_pod_labels[%s])`
+	queryNSAnnotations        = `avg_over_time(kube_namespace_annotations[%s])`
+	queryPodAnnotations       = `avg_over_time(kube_pod_annotations[%s])`
 	queryDeploymentLabels     = `avg_over_time(deployment_match_labels[%s])`
 	queryStatefulsetLabels    = `avg_over_time(statefulSet_match_labels[%s])`
 	queryPodDaemonsets        = `sum(kube_pod_owner{owner_kind="DaemonSet"}) by (namespace,pod,owner_name,cluster_id)`
@@ -1546,6 +1549,8 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 	resChNetInternetRequests := ctx.QueryRange(queryNetInternetRequests, start, end, resolution)
 	resChNSLabels := ctx.QueryRange(fmt.Sprintf(queryNSLabels, resStr), start, end, resolution)
 	resChPodLabels := ctx.QueryRange(fmt.Sprintf(queryPodLabels, resStr), start, end, resolution)
+	resChNSAnnotations := ctx.QueryRange(fmt.Sprintf(queryNSAnnotations, resStr), start, end, resolution)
+	resChPodAnnotations := ctx.QueryRange(fmt.Sprintf(queryPodAnnotations, resStr), start, end, resolution)
 	resChServiceLabels := ctx.QueryRange(fmt.Sprintf(queryServiceLabels, resStr), start, end, resolution)
 	resChDeploymentLabels := ctx.QueryRange(fmt.Sprintf(queryDeploymentLabels, resStr), start, end, resolution)
 	resChStatefulsetLabels := ctx.QueryRange(fmt.Sprintf(queryStatefulsetLabels, resStr), start, end, resolution)
@@ -1576,6 +1581,11 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 		return nil, fmt.Errorf("error querying the kubernetes API: %s", err)
 	}
 
+	namespaceAnnotationsMapping, err := getNamespaceAnnotations(cm.Cache, clusterID)
+	if err != nil {
+		return nil, fmt.Errorf("error querying the kubernetes API: %s", err)
+	}
+
 	// Process query results. Handle errors afterwards using ctx.Errors.
 	resRAMRequests, _ := resChRAMRequests.Await()
 	resRAMUsage, _ := resChRAMUsage.Await()
@@ -1592,6 +1602,8 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 	resNetInternetRequests, _ := resChNetInternetRequests.Await()
 	resNSLabels, _ := resChNSLabels.Await()
 	resPodLabels, _ := resChPodLabels.Await()
+	resNSAnnotations, _ := resChNSAnnotations.Await()
+	resPodAnnotations, _ := resChPodAnnotations.Await()
 	resServiceLabels, _ := resChServiceLabels.Await()
 	resDeploymentLabels, _ := resChDeploymentLabels.Await()
 	resStatefulsetLabels, _ := resChStatefulsetLabels.Await()
@@ -1663,6 +1675,19 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 	podLabels, err := GetPodLabelsMetrics(resPodLabels, clusterID)
 	if err != nil {
 		klog.V(1).Infof("Unable to get Pod Labels for Metrics: %s", err.Error())
+	}
+
+	nsAnnotations, err := GetNamespaceAnnotationsMetrics(resNSAnnotations, clusterID)
+	if err != nil {
+		klog.V(1).Infof("Unable to get Namespace Annotations for Metrics: %s", err.Error())
+	}
+	if nsAnnotations != nil {
+		appendNamespaceLabels(namespaceAnnotationsMapping, nsAnnotations)
+	}
+
+	podAnnotations, err := GetPodAnnotationsMetrics(resPodAnnotations, clusterID)
+	if err != nil {
+		klog.V(1).Infof("Unable to get Pod Annotations for Metrics: %s", err.Error())
 	}
 
 	serviceLabels, err := GetServiceSelectorLabelsMetrics(resServiceLabels, clusterID)
@@ -1852,6 +1877,22 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 			}
 		}
 
+		namespaceAnnotations, ok := namespaceAnnotationsMapping[nsKey]
+		if !ok {
+			klog.V(4).Infof("Missing data for namespace %s", c.Namespace)
+		}
+
+		pAnnotations := podAnnotations[podKey]
+		if pAnnotations == nil {
+			pAnnotations = make(map[string]string)
+		}
+
+		for k, v := range namespaceAnnotations {
+			if _, ok := pAnnotations[k]; !ok {
+				pAnnotations[k] = v
+			}
+		}
+
 		var podDeployments []string
 		if _, ok := podDeploymentsMapping[nsKey]; ok {
 			if ds, ok := podDeploymentsMapping[nsKey][c.PodName]; ok {
@@ -1943,6 +1984,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 			RAMAllocation:   RAMAllocsV,
 			CPUAllocation:   CPUAllocsV,
 			GPUReq:          GPUReqV,
+			Annotations:     pAnnotations,
 			Labels:          pLabels,
 			NamespaceLabels: namespaceLabels,
 			PVCData:         podPVs,
@@ -2060,6 +2102,19 @@ func getNamespaceLabels(cache clustercache.ClusterCache, clusterID string) (map[
 		nsToLabels[ns.Name+","+clusterID] = labels
 	}
 	return nsToLabels, nil
+}
+
+func getNamespaceAnnotations(cache clustercache.ClusterCache, clusterID string) (map[string]map[string]string, error) {
+	nsToAnnotations := make(map[string]map[string]string)
+	nss := cache.GetAllNamespaces()
+	for _, ns := range nss {
+		annotations := make(map[string]string)
+		for k, v := range ns.Annotations {
+			annotations[prom.SanitizeLabelName(k)] = v
+		}
+		nsToAnnotations[ns.Name+","+clusterID] = annotations
+	}
+	return nsToAnnotations, nil
 }
 
 func getDaemonsetsOfPod(pod v1.Pod) []string {

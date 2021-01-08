@@ -253,6 +253,28 @@ func (qr *QueryResult) GetLabels() map[string]string {
 	return result
 }
 
+func (qr *QueryResult) GetAnnotations() map[string]string {
+	result := make(map[string]string)
+
+	// Find All keys with prefix annotation_, remove prefix, add to annotations
+	for k, v := range qr.Metric {
+		if !strings.HasPrefix(k, "annotation_") {
+			continue
+		}
+
+		annotations := k[11:]
+		value, ok := v.(string)
+		if !ok {
+			log.Warningf("Failed to parse label value for label: '%s'", annotations)
+			continue
+		}
+
+		result[annotations] = value
+	}
+
+	return result
+}
+
 // parseDataPoint parses a data point from raw prometheus query results and returns
 // a new Vector instance containing the parsed data along with any warnings or errors.
 func parseDataPoint(query string, dataPoint interface{}) (*util.Vector, warning, error) {
