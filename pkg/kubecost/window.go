@@ -467,9 +467,23 @@ func (w Window) String() string {
 	return fmt.Sprintf("[%s, %s)", w.start.Format("2006-01-02T15:04:05-0700"), w.end.Format("2006-01-02T15:04:05-0700"))
 }
 
-// ToDurationOffset returns formatted strings representing the duration and
+// DurationOffset returns durations representing the duration and offset of the
+// given window
+func (w Window) DurationOffset() (time.Duration, time.Duration, error) {
+	if w.IsOpen() || w.IsNegative() {
+		return 0, 0, fmt.Errorf("illegal window: %s", w)
+	}
+
+	duration := w.Duration()
+	offset := time.Now().Sub(*w.End())
+
+	return duration, offset, nil
+}
+
+// DurationOffsetStrings returns formatted strings representing the duration and
 // offset of the window in terms of minutes; e.g. ("30m", "1m")
-func (w Window) ToDurationOffset() (string, string) {
+// TODO check for nils in Window
+func (w Window) DurationOffsetStrings() (string, string) {
 	durMins := int(w.Duration().Minutes())
 
 	offStr := ""

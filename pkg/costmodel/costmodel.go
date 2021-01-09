@@ -1989,7 +1989,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 	}
 
 	if window.Minutes() > 0 {
-		dur, off := window.ToDurationOffset()
+		dur, off := window.DurationOffsetStrings()
 		err = findDeletedNodeInfo(cli, missingNodes, dur, off)
 		if err != nil {
 			klog.V(1).Infof("Error fetching historical node data: %s", err.Error())

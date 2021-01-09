@@ -566,12 +566,12 @@ func TestParseWindowWithOffsetString(t *testing.T) {
 // TODO niko/etl
 // func TestWindow_String(t *testing.T) {}
 
-func TestWindow_ToDurationOffset(t *testing.T) {
+func TestWindow_DurationOffsetStrings(t *testing.T) {
 	w, err := ParseWindowUTC("1d")
 	if err != nil {
 		t.Fatalf(`unexpected error parsing "1d": %s`, err)
 	}
-	dur, off := w.ToDurationOffset()
+	dur, off := w.DurationOffsetStrings()
 	if dur != "1d" {
 		t.Fatalf(`expect: window to be "1d"; actual: "%s"`, dur)
 	}
@@ -583,7 +583,7 @@ func TestWindow_ToDurationOffset(t *testing.T) {
 	if err != nil {
 		t.Fatalf(`unexpected error parsing "1d": %s`, err)
 	}
-	dur, off = w.ToDurationOffset()
+	dur, off = w.DurationOffsetStrings()
 	if dur != "3h" {
 		t.Fatalf(`expect: window to be "3h"; actual: "%s"`, dur)
 	}
@@ -595,7 +595,7 @@ func TestWindow_ToDurationOffset(t *testing.T) {
 	if err != nil {
 		t.Fatalf(`unexpected error parsing "1d": %s`, err)
 	}
-	dur, off = w.ToDurationOffset()
+	dur, off = w.DurationOffsetStrings()
 	if dur != "10m" {
 		t.Fatalf(`expect: window to be "10m"; actual: "%s"`, dur)
 	}
@@ -607,7 +607,7 @@ func TestWindow_ToDurationOffset(t *testing.T) {
 	if err != nil {
 		t.Fatalf(`unexpected error parsing "1589448338,1589534798": %s`, err)
 	}
-	dur, off = w.ToDurationOffset()
+	dur, off = w.DurationOffsetStrings()
 	if dur != "1441m" {
 		t.Fatalf(`expect: window to be "1441m"; actual: "%s"`, dur)
 	}
@@ -619,7 +619,7 @@ func TestWindow_ToDurationOffset(t *testing.T) {
 	if err != nil {
 		t.Fatalf(`unexpected error parsing "1589448338,1589534798": %s`, err)
 	}
-	dur, off = w.ToDurationOffset()
+	dur, off = w.DurationOffsetStrings()
 	if dur != "1d" {
 		t.Fatalf(`expect: window to be "1d"; actual: "%s"`, dur)
 	}
