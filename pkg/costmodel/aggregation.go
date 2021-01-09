@@ -1309,7 +1309,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 		window.Set(&s, &e)
 	}
 
-	dur, off := window.ToDurationOffset()
+	dur, off := window.DurationOffsetStrings()
 	key := fmt.Sprintf(`%s:%s:%fh:%t`, dur, off, resolution.Hours(), remoteEnabled)
 
 	// report message about which of the two caches hit. by default report a miss
@@ -1406,7 +1406,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 
 	idleCoefficients := make(map[string]float64)
 	if allocateIdle {
-		duration, offset := window.ToDurationOffset()
+		duration, offset := window.DurationOffsetStrings()
 
 		idleDurationCalcHours := window.Hours()
 		if window.Hours() < 1 {
@@ -1555,7 +1555,7 @@ func GenerateAggKey(window kubecost.Window, field string, subfields []string, op
 
 	// Covert to duration, offset so that cache hits occur, even when timestamps have
 	// shifted slightly.
-	duration, offset := window.ToDurationOffset()
+	duration, offset := window.DurationOffsetStrings()
 
 	// parse, trim, and sort podprefix filters
 	podPrefixFilters := []string{}
