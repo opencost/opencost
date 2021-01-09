@@ -270,6 +270,11 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 		return nil, err
 	}
 
+	namespaceAnnotationsMapping, err := getNamespaceAnnotations(cm.Cache, clusterID)
+	if err != nil {
+		return nil, err
+	}
+
 	// Process Prometheus query results. Handle errors using ctx.Errors.
 	resRAMRequests, _ := resChRAMRequests.Await()
 	resRAMUsage, _ := resChRAMUsage.Await()
@@ -411,6 +416,18 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				}
 			}
 
+			nsAnnotations := namespaceAnnotationsMapping[ns+","+clusterID]
+			podAnnotations := pod.GetObjectMeta().GetAnnotations()
+			if podAnnotations == nil {
+				podAnnotations = make(map[string]string)
+			}
+
+			for k, v := range nsAnnotations {
+				if _, ok := podAnnotations[k]; !ok {
+					podAnnotations[k] = v
+				}
+			}
+
 			nodeName := pod.Spec.NodeName
 			var nodeData *costAnalyzerCloud.Node
 			if _, ok := nodes[nodeName]; ok {
@@ -520,6 +537,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 					GPUReq:          GPUReqV,
 					PVCData:         pvReq,
 					NetworkData:     netReq,
+					Annotations:     podAnnotations,
 					Labels:          podLabels,
 					NamespaceLabels: nsLabels,
 					ClusterID:       clusterID,
@@ -581,6 +599,11 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
 			}
 
+			namespaceAnnotations, ok := namespaceAnnotationsMapping[c.Namespace+","+c.ClusterID]
+			if !ok {
+				klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
+			}
+
 			costs := &CostData{
 				Name:            c.ContainerName,
 				PodName:         c.PodName,
@@ -592,6 +615,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				CPUReq:          CPUReqV,
 				CPUUsed:         CPUUsedV,
 				GPUReq:          GPUReqV,
+				Annotations:     namespaceAnnotations,
 				NamespaceLabels: namespacelabels,
 				ClusterID:       c.ClusterID,
 				ClusterName:     cm.ClusterMap.NameFor(c.ClusterID),
@@ -609,7 +633,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 	}
 	// Use unmounted pvs to create a mapping of "Unmounted-<Namespace>" containers
 	// to pass along the cost data
-	unmounted := findUnmountedPVCostData(cm.ClusterMap, unmountedPVs, namespaceLabelsMapping)
+	unmounted := findUnmountedPVCostData(cm.ClusterMap, unmountedPVs, namespaceLabelsMapping, namespaceAnnotationsMapping)
 	for k, costs := range unmounted {
 		klog.V(4).Infof("Unmounted PVs in Namespace/ClusterID: %s/%s", costs.Namespace, costs.ClusterID)
 
@@ -632,7 +656,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 	return containerNameCost, err
 }
 
-func findUnmountedPVCostData(clusterMap clusters.ClusterMap, unmountedPVs map[string][]*PersistentVolumeClaimData, namespaceLabelsMapping map[string]map[string]string) map[string]*CostData {
+func findUnmountedPVCostData(clusterMap clusters.ClusterMap, unmountedPVs map[string][]*PersistentVolumeClaimData, namespaceLabelsMapping map[string]map[string]string, namespaceAnnotationsMapping map[string]map[string]string) map[string]*CostData {
 	costs := make(map[string]*CostData)
 	if len(unmountedPVs) == 0 {
 		return costs
@@ -652,6 +676,11 @@ func findUnmountedPVCostData(clusterMap clusters.ClusterMap, unmountedPVs map[st
 			klog.V(3).Infof("Missing data for namespace %s", ns)
 		}
 
+		namespaceAnnotations, ok := namespaceAnnotationsMapping[ns+","+clusterID]
+		if !ok {
+			klog.V(3).Infof("Missing data for namespace %s", ns)
+		}
+
 		// Should be a unique "Unmounted" cost data type
 		name := "unmounted-pvs"
 
@@ -663,6 +692,7 @@ func findUnmountedPVCostData(clusterMap clusters.ClusterMap, unmountedPVs map[st
 				Name:            name,
 				PodName:         name,
 				NodeName:        "",
+				Annotations:     namespaceAnnotations,
 				Namespace:       ns,
 				NamespaceLabels: namespacelabels,
 				Labels:          namespacelabels,
@@ -1999,7 +2029,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 		}
 	}
 
-	unmounted := findUnmountedPVCostData(cm.ClusterMap, unmountedPVs, namespaceLabelsMapping)
+	unmounted := findUnmountedPVCostData(cm.ClusterMap, unmountedPVs, namespaceLabelsMapping, namespaceAnnotationsMapping)
 	for k, costs := range unmounted {
 		klog.V(4).Infof("Unmounted PVs in Namespace/ClusterID: %s/%s", costs.Namespace, costs.ClusterID)
 

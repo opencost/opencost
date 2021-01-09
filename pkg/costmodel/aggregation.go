@@ -375,6 +375,21 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 				if !found {
 					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, UnallocatedSubfield, discount, customDiscount, idleCoefficient, false)
 				}
+			} else if field == "Annotations" {
+				found := false
+				if costDatum.Annotations != nil {
+					for _, sf := range subfields {
+						if subfieldName, ok := costDatum.Annotations[sf]; ok {
+							aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, subfieldName, discount, customDiscount, idleCoefficient, false)
+							found = true
+							break
+						}
+					}
+				}
+				if !found {
+					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, UnallocatedSubfield, discount, customDiscount, idleCoefficient, false)
+				}
+
 			} else if field == "pod" {
 				aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.PodName, discount, customDiscount, idleCoefficient, false)
 			} else if field == "container" {
