@@ -43,8 +43,10 @@ func (sc StatefulsetCollector) Collect(ch chan<- prometheus.Metric) {
 	ds := sc.KubeClusterCache.GetAllStatefulSets()
 	for _, statefulset := range ds {
 		labels, values := prom.KubeLabelsToLabels(statefulset.Spec.Selector.MatchLabels)
-		m := newStatefulsetMetric(statefulset.GetName(), statefulset.GetNamespace(), "statefulSet_match_labels", labels, values)
-		ch <- m
+		if len(labels) > 0 {
+			m := newStatefulsetMetric(statefulset.GetName(), statefulset.GetNamespace(), "statefulSet_match_labels", labels, values)
+			ch <- m
+		}
 	}
 }
 
@@ -129,8 +131,10 @@ func (sc DeploymentCollector) Collect(ch chan<- prometheus.Metric) {
 	ds := sc.KubeClusterCache.GetAllDeployments()
 	for _, deployment := range ds {
 		labels, values := prom.KubeLabelsToLabels(deployment.Spec.Selector.MatchLabels)
-		m := newDeploymentMetric(deployment.GetName(), deployment.GetNamespace(), "deployment_match_labels", labels, values)
-		ch <- m
+		if len(labels) > 0 {
+			m := newDeploymentMetric(deployment.GetName(), deployment.GetNamespace(), "deployment_match_labels", labels, values)
+			ch <- m
+		}
 	}
 }
 
@@ -215,8 +219,10 @@ func (sc ServiceCollector) Collect(ch chan<- prometheus.Metric) {
 	svcs := sc.KubeClusterCache.GetAllServices()
 	for _, svc := range svcs {
 		labels, values := prom.KubeLabelsToLabels(svc.Spec.Selector)
-		m := newServiceMetric(svc.GetName(), svc.GetNamespace(), "service_selector_labels", labels, values)
-		ch <- m
+		if len(labels) > 0 {
+			m := newServiceMetric(svc.GetName(), svc.GetNamespace(), "service_selector_labels", labels, values)
+			ch <- m
+		}
 	}
 }
 
@@ -301,8 +307,10 @@ func (nsac NamespaceAnnotationCollector) Collect(ch chan<- prometheus.Metric) {
 	namespaces := nsac.KubeClusterCache.GetAllNamespaces()
 	for _, namespace := range namespaces {
 		labels, values := prom.KubeAnnotationsToLabels(namespace.Annotations)
-		m := newNamespaceAnnotationsMetric(namespace.GetName(), "kube_namespace_annotations", labels, values)
-		ch <- m
+		if len(labels) > 0 {
+			m := newNamespaceAnnotationsMetric(namespace.GetName(), "kube_namespace_annotations", labels, values)
+			ch <- m
+		}
 	}
 }
 
@@ -381,8 +389,10 @@ func (pac PodAnnotationCollector) Collect(ch chan<- prometheus.Metric) {
 	pods := pac.KubeClusterCache.GetAllPods()
 	for _, pod := range pods {
 		labels, values := prom.KubeAnnotationsToLabels(pod.Annotations)
-		m := newPodAnnotationMetric(pod.GetNamespace(), pod.GetName(), "kube_pod_annotations", labels, values)
-		ch <- m
+		if len(labels) > 0 {
+			m := newPodAnnotationMetric(pod.GetNamespace(), pod.GetName(), "kube_pod_annotations", labels, values)
+			ch <- m
+		}
 	}
 }
 

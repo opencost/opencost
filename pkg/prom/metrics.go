@@ -72,36 +72,31 @@ func LabelNamesFrom(labels map[string]string) []string {
 	return keys
 }
 
+// Prepends a qualifier string to the keys provided in the m map and returns the new keys and values.
+func KubePrependQualifierToLabels(m map[string]string, qualifier string) ([]string, []string) {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	values := make([]string, 0, len(m))
+	for i, k := range keys {
+		keys[i] = qualifier + SanitizeLabelName(k)
+		values = append(values, m[k])
+	}
+
+	return keys, values
+}
+
 // Converts kubernetes labels into prometheus labels.
 func KubeLabelsToLabels(labels map[string]string) ([]string, []string) {
-	labelKeys := make([]string, 0, len(labels))
-	for k := range labels {
-		labelKeys = append(labelKeys, k)
-	}
-	sort.Strings(labelKeys)
-
-	labelValues := make([]string, 0, len(labels))
-	for i, k := range labelKeys {
-		labelKeys[i] = "label_" + SanitizeLabelName(k)
-		labelValues = append(labelValues, labels[k])
-	}
-	return labelKeys, labelValues
+	return KubePrependQualifierToLabels(labels, "label_")
 }
 
 // Converts kubernetes annotations into prometheus labels.
 func KubeAnnotationsToLabels(labels map[string]string) ([]string, []string) {
-	labelKeys := make([]string, 0, len(labels))
-	for k := range labels {
-		labelKeys = append(labelKeys, k)
-	}
-	sort.Strings(labelKeys)
-
-	labelValues := make([]string, 0, len(labels))
-	for i, k := range labelKeys {
-		labelKeys[i] = "annotation_" + SanitizeLabelName(k)
-		labelValues = append(labelValues, labels[k])
-	}
-	return labelKeys, labelValues
+	return KubePrependQualifierToLabels(labels, "annotation_")
 }
 
 // Replaces all illegal prometheus label characters with _
