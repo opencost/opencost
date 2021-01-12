@@ -375,6 +375,20 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 				if !found {
 					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, UnallocatedSubfield, discount, customDiscount, idleCoefficient, false)
 				}
+			} else if field == "annotation" {
+				found := false
+				if costDatum.Annotations != nil {
+					for _, sf := range subfields {
+						if subfieldName, ok := costDatum.Annotations[sf]; ok {
+							aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, subfieldName, discount, customDiscount, idleCoefficient, false)
+							found = true
+							break
+						}
+					}
+				}
+				if !found {
+					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, UnallocatedSubfield, discount, customDiscount, idleCoefficient, false)
+				}
 			} else if field == "pod" {
 				aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.PodName, discount, customDiscount, idleCoefficient, false)
 			} else if field == "container" {
@@ -1123,6 +1137,14 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 			if costDatum.Labels != nil {
 				for _, sf := range subfields {
 					if subfieldName, ok := costDatum.Labels[sf]; ok {
+						return fmt.Sprintf("%s=%s", sf, subfieldName)
+					}
+				}
+			}
+		} else if field == "annotation" {
+			if costDatum.Annotations != nil {
+				for _, sf := range subfields {
+					if subfieldName, ok := costDatum.Annotations[sf]; ok {
 						return fmt.Sprintf("%s=%s", sf, subfieldName)
 					}
 				}
@@ -1972,7 +1994,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	}
 
 	// aggregation subfield is required when aggregation field is "label"
-	if field == "label" && len(subfields) == 0 {
+	if (field == "label" || field == "annotation") && len(subfields) == 0 {
 		WriteError(w, BadRequest("Missing aggregation field parameter"))
 		return
 	}
