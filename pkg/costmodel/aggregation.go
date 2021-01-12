@@ -204,13 +204,22 @@ func (a *Accesses) ComputeIdleCoefficient(costData map[string]*CostData, cli pro
 
 	key := fmt.Sprintf("%s:%s", windowString, offset)
 	if data, valid := a.ClusterCostsCache.Get(key); valid {
+
 		clusterCosts = data.(map[string]*ClusterCosts)
+
+		log.Infof("AggAPI: ComputeIdleCoefficient: ClusterCostsCache is valid")
+
 	} else {
 		clusterCosts, err = a.ComputeClusterCosts(cli, cp, windowString, offset, false)
 		if err != nil {
 			return nil, err
 		}
+
+		log.Infof("AggAPI: ComputeIdleCoefficient: ClusterCostsCache is not valid: ComputeClusterCosts")
+
 	}
+
+	log.Infof("AggAPI: ComputeIdleCoefficient: clusterCosts: %+v", clusterCosts)
 
 	measureTime(profileStart, profileThreshold, profileName)
 
@@ -291,6 +300,8 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 	includeEfficiency := opts.IncludeEfficiency
 	rate := opts.Rate
 	sr := opts.SharedResourceInfo
+
+	log.Infof("AggAPI: AggregateCostData: idleCoefficients: %+v", idleCoefficients)
 
 	resolutionHours := 1.0
 	if opts.ResolutionHours > 0.0 {
