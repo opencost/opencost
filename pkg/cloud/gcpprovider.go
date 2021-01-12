@@ -733,6 +733,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 						candidateKeys = append(candidateKeys, region+","+"e2small"+","+usageType)
 						candidateKeys = append(candidateKeys, region+","+"e2medium"+","+usageType)
 						candidateKeys = append(candidateKeys, region+","+"e2standard"+","+usageType)
+						candidateKeys = append(candidateKeys, region+","+"e2custom"+","+usageType)
 					} else {
 						candidateKey := region + "," + instanceType + "," + usageType
 						candidateKeys = append(candidateKeys, candidateKey)
