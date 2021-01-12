@@ -375,21 +375,6 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 				if !found {
 					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, UnallocatedSubfield, discount, customDiscount, idleCoefficient, false)
 				}
-			} else if field == "Annotations" {
-				found := false
-				if costDatum.Annotations != nil {
-					for _, sf := range subfields {
-						if subfieldName, ok := costDatum.Annotations[sf]; ok {
-							aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, subfieldName, discount, customDiscount, idleCoefficient, false)
-							found = true
-							break
-						}
-					}
-				}
-				if !found {
-					aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, UnallocatedSubfield, discount, customDiscount, idleCoefficient, false)
-				}
-
 			} else if field == "pod" {
 				aggregateDatum(cp, aggregations, costDatum, field, subfields, rate, costDatum.Namespace+"/"+costDatum.PodName, discount, customDiscount, idleCoefficient, false)
 			} else if field == "container" {
@@ -1283,6 +1268,55 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 		}
 	}
 
+	if filters["annotations"] != "" {
+		// annotations are expected to be comma-separated and to take the form key=value
+		// e.g. app=cost-analyzer,app.kubernetes.io/instance=kubecost
+		// each different annotation will be applied as an AND
+		// multiple values for a single annotation will be evaluated as an OR
+		annotationValues := map[string][]string{}
+		as := strings.Split(filters["annotations"], ",")
+		for _, annot := range as {
+			aTrim := strings.TrimSpace(annot)
+			annotation := strings.Split(aTrim, "=")
+			if len(annotation) == 2 {
+				an := prom.SanitizeLabelName(strings.TrimSpace(annotation[0]))
+				av := strings.TrimSpace(annotation[1])
+				annotationValues[an] = append(annotationValues[an], av)
+			} else {
+				// annotation is not of the form name=value, so log it and move on
+				log.Warningf("ComputeAggregateCostModel: skipping illegal annotation filter: %s", annot)
+			}
+		}
+
+		// Generate FilterFunc for each set of annotation filters by invoking a function instead of accessing
+		// values by closure to prevent reference-type looping bug.
+		// (see https://github.com/golang/go/wiki/CommonMistakes#using-reference-to-loop-iterator-variable)
+		for annotation, values := range annotationValues {
+			ff := (func(l string, vs []string) FilterFunc {
+				return func(cd *CostData) (bool, string) {
+					ae := aggregateEnvironment(cd)
+					for _, v := range vs {
+						if v == "__unallocated__" { // Special case. __unallocated__ means return all pods without the attached label
+							if _, ok := cd.Annotations[annotation]; !ok {
+								return true, ae
+							}
+						}
+						if cd.Annotations[annotation] == v {
+							return true, ae
+						} else if strings.HasSuffix(v, "*") { // trigger wildcard prefix filtering
+							vTrim := strings.TrimSuffix(v, "*")
+							if strings.HasPrefix(cd.Annotations[annotation], vTrim) {
+								return true, ae
+							}
+						}
+					}
+					return false, ae
+				}
+			})(annotation, values)
+			filterFuncs = append(filterFuncs, ff)
+		}
+	}
+
 	// clear cache prior to checking the cache so that a clearCache=true
 	// request always returns a freshly computed value
 	if clearCache {
@@ -1618,7 +1652,28 @@ func GenerateAggKey(window kubecost.Window, field string, subfields []string, op
 	sort.Strings(lFilters)
 	lFilterStr := strings.Join(lFilters, ",")
 
-	filterStr := fmt.Sprintf("%s:%s:%s:%s:%s", nsFilterStr, nodeFilterStr, cFilterStr, lFilterStr, podPrefixFiltersStr)
+	// parse, trim, and sort annotation filters
+	aFilters := []string{}
+	if afs, ok := opts.Filters["annotations"]; ok && afs != "" {
+		for _, af := range strings.Split(afs, ",") {
+			// trim whitespace from the annotation name and the annotation value
+			// of each annotation name/value pair, then reconstruct
+			// e.g. "tier = frontend, app = kubecost" == "app=kubecost,tier=frontend"
+			afa := strings.Split(af, "=")
+			if len(afa) == 2 {
+				afn := strings.TrimSpace(afa[0])
+				afv := strings.TrimSpace(afa[1])
+				aFilters = append(aFilters, fmt.Sprintf("%s=%s", afn, afv))
+			} else {
+				// annotation is not of the form name=value, so log it and move on
+				klog.V(2).Infof("[Warning] GenerateAggKey: skipping illegal annotation filter: %s", af)
+			}
+		}
+	}
+	sort.Strings(aFilters)
+	aFilterStr := strings.Join(aFilters, ",")
+
+	filterStr := fmt.Sprintf("%s:%s:%s:%s:%s:%s", nsFilterStr, nodeFilterStr, cFilterStr, lFilterStr, aFilterStr, podPrefixFiltersStr)
 
 	sort.Strings(subfields)
 	fieldStr := fmt.Sprintf("%s:%s", field, strings.Join(subfields, ","))
@@ -1857,10 +1912,11 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	namespace := r.URL.Query().Get("namespace")
 	cluster := r.URL.Query().Get("cluster")
 	labels := r.URL.Query().Get("labels")
-	podprefix := r.URL.Query().Get("podprefix")
 	labelArray := strings.Split(labels, "=")
 	labelArray[0] = strings.ReplaceAll(labelArray[0], "-", "_")
 	labels = strings.Join(labelArray, "=")
+	annotations := r.URL.Query().Get("annotations")
+	podprefix := r.URL.Query().Get("podprefix")
 	field := r.URL.Query().Get("aggregation")
 	sharedNamespaces := r.URL.Query().Get("sharedNamespaces")
 	sharedLabelNames := r.URL.Query().Get("sharedLabelNames")
@@ -1935,10 +1991,11 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	// labels are expected to be comma-separated and to take the form key=value
 	// e.g. app=cost-analyzer,app.kubernetes.io/instance=kubecost
 	opts.Filters = map[string]string{
-		"namespace": namespace,
-		"cluster":   cluster,
-		"labels":    labels,
-		"podprefix": podprefix,
+		"namespace":   namespace,
+		"cluster":     cluster,
+		"labels":      labels,
+		"annotations": annotations,
+		"podprefix":   podprefix,
 	}
 
 	// parse shared resources
@@ -1952,7 +2009,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 		sln = strings.Split(sharedLabelNames, ",")
 		slv = strings.Split(sharedLabelValues, ",")
 		if len(sln) != len(slv) || slv[0] == "" {
-			WriteError(w, BadRequest("Supply exacly one shared label value per shared label name"))
+			WriteError(w, BadRequest("Supply exactly one shared label value per shared label name"))
 			return
 		}
 	}

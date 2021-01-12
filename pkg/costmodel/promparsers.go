@@ -259,11 +259,11 @@ func GetPodAnnotationsMetrics(qrs []*prom.QueryResult, defaultClusterID string) 
 
 		nsKey := ns + "," + pod + "," + clusterID
 		if labels, ok := toReturn[nsKey]; ok {
-			for k, v := range val.GetLabels() {
+			for k, v := range val.GetAnnotations() {
 				labels[k] = v
 			}
 		} else {
-			toReturn[nsKey] = val.GetLabels()
+			toReturn[nsKey] = val.GetAnnotations()
 		}
 	}
 
