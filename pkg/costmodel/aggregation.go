@@ -1248,15 +1248,15 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 					ae := aggregateEnvironment(cd)
 					for _, v := range vs {
 						if v == "__unallocated__" { // Special case. __unallocated__ means return all pods without the attached label
-							if _, ok := cd.Labels[label]; !ok {
+							if _, ok := cd.Labels[l]; !ok {
 								return true, ae
 							}
 						}
-						if cd.Labels[label] == v {
+						if cd.Labels[l] == v {
 							return true, ae
 						} else if strings.HasSuffix(v, "*") { // trigger wildcard prefix filtering
 							vTrim := strings.TrimSuffix(v, "*")
-							if strings.HasPrefix(cd.Labels[label], vTrim) {
+							if strings.HasPrefix(cd.Labels[l], vTrim) {
 								return true, ae
 							}
 						}
@@ -1297,15 +1297,15 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 					ae := aggregateEnvironment(cd)
 					for _, v := range vs {
 						if v == "__unallocated__" { // Special case. __unallocated__ means return all pods without the attached label
-							if _, ok := cd.Annotations[annotation]; !ok {
+							if _, ok := cd.Annotations[l]; !ok {
 								return true, ae
 							}
 						}
-						if cd.Annotations[annotation] == v {
+						if cd.Annotations[l] == v {
 							return true, ae
 						} else if strings.HasSuffix(v, "*") { // trigger wildcard prefix filtering
 							vTrim := strings.TrimSuffix(v, "*")
-							if strings.HasPrefix(cd.Annotations[annotation], vTrim) {
+							if strings.HasPrefix(cd.Annotations[l], vTrim) {
 								return true, ae
 							}
 						}
@@ -1912,9 +1912,6 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	namespace := r.URL.Query().Get("namespace")
 	cluster := r.URL.Query().Get("cluster")
 	labels := r.URL.Query().Get("labels")
-	labelArray := strings.Split(labels, "=")
-	labelArray[0] = strings.ReplaceAll(labelArray[0], "-", "_")
-	labels = strings.Join(labelArray, "=")
 	annotations := r.URL.Query().Get("annotations")
 	podprefix := r.URL.Query().Get("podprefix")
 	field := r.URL.Query().Get("aggregation")
