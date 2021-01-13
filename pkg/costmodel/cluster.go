@@ -391,6 +391,7 @@ type Node struct {
 	Start        time.Time
 	End          time.Time
 	Minutes      float64
+	Labels       map[string]string
 }
 
 var partialCPUMap = map[string]float64{
@@ -425,11 +426,12 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	queryNodeRAMCost := fmt.Sprintf(`sum_over_time((avg(kube_node_status_capacity_memory_bytes) by (cluster_id, node) * on(cluster_id, node) group_right avg(node_ram_hourly_cost) by (cluster_id, node, instance_type, provider_id))[%s:%dm]%s) / 1024 / 1024 / 1024 * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
 	queryNodeRAMBytes := fmt.Sprintf(`avg_over_time(avg(kube_node_status_capacity_memory_bytes) by (cluster_id, node)[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 	queryNodeGPUCost := fmt.Sprintf(`sum_over_time((avg(node_gpu_hourly_cost * %d.0 / 60.0) by (cluster_id, node, provider_id))[%s:%dm]%s)`, minsPerResolution, durationStr, minsPerResolution, offsetStr)
-	queryNodeLabels := fmt.Sprintf(`avg_over_time(kubecost_node_is_spot[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 	queryNodeCPUModeTotal := fmt.Sprintf(`sum(rate(node_cpu_seconds_total[%s:%dm]%s)) by (kubernetes_node, cluster_id, mode)`, durationStr, minsPerResolution, offsetStr)
 	queryNodeRAMSystemPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace="kube-system"}[%s:%dm]%s)) by (instance, cluster_id) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:%dm]%s)) by (node, cluster_id), "instance", "$1", "node", "(.*)")) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
 	queryNodeRAMUserPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace!="kube-system"}[%s:%dm]%s)) by (instance, cluster_id) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:%dm]%s)) by (node, cluster_id), "instance", "$1", "node", "(.*)")) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
 	queryActiveMins := fmt.Sprintf(`avg(node_total_hourly_cost) by (node,cluster_id)[%s:%dm]%s`, durationStr, minsPerResolution, offsetStr)
+	queryIsSpot := fmt.Sprintf(`avg_over_time(kubecost_node_is_spot[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
+	queryLabels := fmt.Sprintf(`count_over_time(kube_node_labels[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 
 	// Return errors if these fail
 	resChNodeCPUCost := requiredCtx.Query(queryNodeCPUCost)
@@ -437,24 +439,26 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	resChNodeRAMCost := requiredCtx.Query(queryNodeRAMCost)
 	resChNodeRAMBytes := requiredCtx.Query(queryNodeRAMBytes)
 	resChNodeGPUCost := requiredCtx.Query(queryNodeGPUCost)
-	resChNodeLabels := requiredCtx.Query(queryNodeLabels)
 	resChActiveMins := requiredCtx.Query(queryActiveMins)
+	resChIsSpot := requiredCtx.Query(queryIsSpot)
 
 	// Do not return errors if these fail, but log warnings
 	resChNodeCPUModeTotal := optionalCtx.Query(queryNodeCPUModeTotal)
 	resChNodeRAMSystemPct := optionalCtx.Query(queryNodeRAMSystemPct)
 	resChNodeRAMUserPct := optionalCtx.Query(queryNodeRAMUserPct)
+	resChLabels := optionalCtx.Query(queryLabels)
 
 	resNodeCPUCost, _ := resChNodeCPUCost.Await()
 	resNodeCPUCores, _ := resChNodeCPUCores.Await()
 	resNodeGPUCost, _ := resChNodeGPUCost.Await()
 	resNodeRAMCost, _ := resChNodeRAMCost.Await()
 	resNodeRAMBytes, _ := resChNodeRAMBytes.Await()
-	resNodeLabels, _ := resChNodeLabels.Await()
+	resIsSpot, _ := resChIsSpot.Await()
 	resNodeCPUModeTotal, _ := resChNodeCPUModeTotal.Await()
 	resNodeRAMSystemPct, _ := resChNodeRAMSystemPct.Await()
 	resNodeRAMUserPct, _ := resChNodeRAMUserPct.Await()
 	resActiveMins, _ := resChActiveMins.Await()
+	resLabels, _ := resChLabels.Await()
 
 	if optionalCtx.HasErrors() {
 		for _, err := range optionalCtx.Errors() {
@@ -784,7 +788,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	}
 
 	// Determine preemptibility with node labels
-	for _, result := range resNodeLabels {
+	for _, result := range resIsSpot {
 		nodeName, err := result.GetString("node")
 		if err != nil {
 			continue
@@ -805,6 +809,13 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		// TODO AWS preemptible
 
 		// TODO Azure preemptible
+	}
+
+	// Determine preemptibility with node labels
+	for _, result := range resLabels {
+		log.Infof("ClusterNodes: %v", result.Metric)
+
+		// TODO parse metric labels
 	}
 
 	c, err := cp.GetConfig()
