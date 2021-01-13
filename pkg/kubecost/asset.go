@@ -61,43 +61,49 @@ type Asset interface {
 // that all available props should be used. Passing empty props indicates that
 // no props should be used (e.g. to aggregate all assets). Passing one or more
 // props will key by only those props.
-func key(a Asset, props []AssetProperty) string {
+func key(a Asset, aggStrings []string) string {
 	keys := []string{}
 
-	if props == nil {
-		props = []AssetProperty{
-			AssetProviderProp,
-			AssetAccountProp,
-			AssetProjectProp,
-			AssetCategoryProp,
-			AssetClusterProp,
-			AssetTypeProp,
-			AssetServiceProp,
-			AssetProviderIDProp,
-			AssetNameProp,
+	if aggStrings == nil {
+		aggStrings = []string{
+			string(AssetProviderProp),
+			string(AssetAccountProp),
+			string(AssetProjectProp),
+			string(AssetCategoryProp),
+			string(AssetClusterProp),
+			string(AssetTypeProp),
+			string(AssetServiceProp),
+			string(AssetProviderIDProp),
+			string(AssetNameProp),
 		}
 	}
 
-	for _, prop := range props {
+	for _, s := range aggStrings {
 		switch true {
-		case prop == AssetProviderProp && a.Properties().Provider != "":
+		case s == string(AssetProviderProp) && a.Properties().Provider != "":
 			keys = append(keys, a.Properties().Provider)
-		case prop == AssetAccountProp && a.Properties().Account != "":
+		case s == string(AssetAccountProp) && a.Properties().Account != "":
 			keys = append(keys, a.Properties().Account)
-		case prop == AssetProjectProp && a.Properties().Project != "":
+		case s == string(AssetProjectProp) && a.Properties().Project != "":
 			keys = append(keys, a.Properties().Project)
-		case prop == AssetClusterProp && a.Properties().Cluster != "":
+		case s == string(AssetClusterProp) && a.Properties().Cluster != "":
 			keys = append(keys, a.Properties().Cluster)
-		case prop == AssetCategoryProp && a.Properties().Category != "":
+		case s == string(AssetCategoryProp) && a.Properties().Category != "":
 			keys = append(keys, a.Properties().Category)
-		case prop == AssetTypeProp && a.Type().String() != "":
+		case s == string(AssetTypeProp) && a.Type().String() != "":
 			keys = append(keys, a.Type().String())
-		case prop == AssetServiceProp && a.Properties().Service != "":
+		case s == string(AssetServiceProp) && a.Properties().Service != "":
 			keys = append(keys, a.Properties().Service)
-		case prop == AssetProviderIDProp && a.Properties().ProviderID != "":
+		case s == string(AssetProviderIDProp) && a.Properties().ProviderID != "":
 			keys = append(keys, a.Properties().ProviderID)
-		case prop == AssetNameProp && a.Properties().Name != "":
+		case s == string(AssetNameProp) && a.Properties().Name != "":
 			keys = append(keys, a.Properties().Name)
+		case strings.HasPrefix(s, "label:"):
+			if label := a.Labels()[s[6:]]; label != "" {
+				keys = append(keys, label)
+			} else {
+				keys = append(keys, "__unallocated__")
+			}
 		}
 	}
 
@@ -2304,11 +2310,12 @@ func (sa *SharedAsset) String() string {
 // a window. An AssetSet is mutable, so treat it like a threadsafe map.
 type AssetSet struct {
 	sync.RWMutex
-	assets   map[string]Asset
-	props    []AssetProperty
-	Window   Window
-	Warnings []string
-	Errors   []string
+	aggStrings []string
+	assets     map[string]Asset
+	props      []AssetProperty
+	Window     Window
+	Warnings   []string
+	Errors     []string
 }
 
 // NewAssetSet instantiates a new AssetSet and, optionally, inserts
@@ -2329,7 +2336,7 @@ func NewAssetSet(start, end time.Time, assets ...Asset) *AssetSet {
 // AggregateBy aggregates the Assets in the AssetSet by the given list of
 // AssetProperties, such that each asset is binned by a key determined by its
 // relevant property values.
-func (as *AssetSet) AggregateBy(props []AssetProperty, opts *AssetAggregationOptions) error {
+func (as *AssetSet) AggregateBy(aggStrings []string, opts *AssetAggregationOptions) error {
 	if opts == nil {
 		opts = &AssetAggregationOptions{}
 	}
@@ -2341,7 +2348,20 @@ func (as *AssetSet) AggregateBy(props []AssetProperty, opts *AssetAggregationOpt
 	as.Lock()
 	defer as.Unlock()
 
+	// Parse enumerated asset properties from given aggregation strings
+	props := []AssetProperty{}
+	if aggStrings == nil {
+		props = nil
+	} else {
+		for _, s := range aggStrings {
+			if prop, err := ParseAssetProperty(s); err == nil {
+				props = append(props, prop)
+			}
+		}
+	}
+
 	aggSet := NewAssetSet(as.Start(), as.End())
+	aggSet.aggStrings = aggStrings
 	aggSet.props = props
 
 	// Compute hours of the given AssetSet, and if it ends in the future,
@@ -2377,6 +2397,7 @@ func (as *AssetSet) AggregateBy(props []AssetProperty, opts *AssetAggregationOpt
 
 	// Assign the aggregated values back to the original set
 	as.assets = aggSet.assets
+	as.aggStrings = aggStrings
 	as.props = props
 
 	return nil
@@ -2434,18 +2455,18 @@ func (as *AssetSet) End() time.Time {
 // FindMatch attempts to find a match in the AssetSet for the given Asset on
 // the provided properties and labels. If a match is not found, FindMatch
 // returns nil and a Not Found error.
-func (as *AssetSet) FindMatch(query Asset, props []AssetProperty) (Asset, error) {
+func (as *AssetSet) FindMatch(query Asset, aggStrings []string) (Asset, error) {
 	as.RLock()
 	defer as.RUnlock()
 
-	matchKey := key(query, props)
+	matchKey := key(query, aggStrings)
 	for _, asset := range as.assets {
-		if key(asset, props) == matchKey {
+		if key(asset, aggStrings) == matchKey {
 			return asset, nil
 		}
 	}
 
-	return nil, fmt.Errorf("Asset not found to match %s on %v", query, props)
+	return nil, fmt.Errorf("Asset not found to match %s on %v", query, aggStrings)
 }
 
 // ReconciliationMatch attempts to find an exact match in the AssetSet on
@@ -2458,11 +2479,11 @@ func (as *AssetSet) ReconciliationMatch(query Asset) (Asset, bool, error) {
 	defer as.RUnlock()
 
 	// Full match means matching on (Category, ProviderID)
-	fullMatchProps := []AssetProperty{AssetCategoryProp, AssetProviderIDProp}
+	fullMatchProps := []string{string(AssetCategoryProp), string(AssetProviderIDProp)}
 	fullMatchKey := key(query, fullMatchProps)
 
 	// Partial match means matching only on (ProviderID)
-	providerIDMatchProps := []AssetProperty{AssetProviderIDProp}
+	providerIDMatchProps := []string{string(AssetProviderIDProp)}
 	providerIDMatchKey := key(query, providerIDMatchProps)
 
 	var providerIDMatch Asset
@@ -2512,7 +2533,7 @@ func (as *AssetSet) Insert(asset Asset) error {
 	defer as.Unlock()
 
 	// Determine key into which to Insert the Asset.
-	k := key(asset, as.props)
+	k := key(asset, as.aggStrings)
 
 	// Add the given Asset to the existing entry, if there is one;
 	// otherwise just set directly into assets
@@ -2577,9 +2598,19 @@ func (as *AssetSet) Set(asset Asset, props []AssetProperty) {
 	as.Lock()
 	defer as.Unlock()
 
+	// Compute raw-string version of props for use with key()
+	aggStrings := []string{}
+	if props == nil {
+		aggStrings = nil
+	} else {
+		for _, prop := range props {
+			aggStrings = append(aggStrings, string(prop))
+		}
+	}
+
 	// Expand the window to match the AssetSet, then set it
 	asset.ExpandWindow(as.Window)
-	as.assets[key(asset, props)] = asset
+	as.assets[key(asset, aggStrings)] = asset
 }
 
 func (as *AssetSet) Start() time.Time {
@@ -2622,6 +2653,11 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 		}
 	}
 
+	// Same as above, but for aggStrings
+	if len(as.aggStrings) == 0 {
+		as.aggStrings = that.aggStrings
+	}
+
 	// Set start, end to min(start), max(end)
 	start := as.Start()
 	end := as.End()
@@ -2637,6 +2673,7 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 	}
 
 	acc := NewAssetSet(start, end)
+	acc.aggStrings = as.aggStrings
 	acc.props = as.props
 
 	as.RLock()
@@ -2697,14 +2734,14 @@ type AssetAggregationOptions struct {
 	FilterFuncs       []AssetMatchFunc
 }
 
-func (asr *AssetSetRange) AggregateBy(props []AssetProperty, opts *AssetAggregationOptions) error {
+func (asr *AssetSetRange) AggregateBy(aggStrings []string, opts *AssetAggregationOptions) error {
 	aggRange := &AssetSetRange{assets: []*AssetSet{}}
 
 	asr.Lock()
 	defer asr.Unlock()
 
 	for _, as := range asr.assets {
-		err := as.AggregateBy(props, opts)
+		err := as.AggregateBy(aggStrings, opts)
 		if err != nil {
 			return err
 		}

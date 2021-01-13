@@ -636,7 +636,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 
 	// 1a []AssetProperty=[Cluster]
 	as = generateAssetSet(startYesterday)
-	err = as.AggregateBy([]AssetProperty{AssetClusterProp}, nil)
+	err = as.AggregateBy([]string{string(AssetClusterProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
 	}
@@ -648,7 +648,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 
 	// 1b []AssetProperty=[Type]
 	as = generateAssetSet(startYesterday)
-	err = as.AggregateBy([]AssetProperty{AssetTypeProp}, nil)
+	err = as.AggregateBy([]string{string(AssetTypeProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
 	}
@@ -660,7 +660,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 
 	// 1c []AssetProperty=[Nil]
 	as = generateAssetSet(startYesterday)
-	err = as.AggregateBy([]AssetProperty{}, nil)
+	err = as.AggregateBy([]string{}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
 	}
@@ -692,7 +692,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 
 	// 2a []AssetProperty=[Cluster,Type]
 	as = generateAssetSet(startYesterday)
-	err = as.AggregateBy([]AssetProperty{AssetClusterProp, AssetTypeProp}, nil)
+	err = as.AggregateBy([]string{string(AssetClusterProp), string(AssetTypeProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
 	}
@@ -710,7 +710,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 
 	// 3a Shared hourly cost > 0.0
 	as = generateAssetSet(startYesterday)
-	err = as.AggregateBy([]AssetProperty{AssetTypeProp}, &AssetAggregationOptions{
+	err = as.AggregateBy([]string{string(AssetTypeProp)}, &AssetAggregationOptions{
 		SharedHourlyCosts: map[string]float64{"shared1": 0.5},
 	})
 	if err != nil {
@@ -737,7 +737,7 @@ func TestAssetSet_FindMatch(t *testing.T) {
 	// Assert success of a simple match of Type and ProviderID
 	as = generateAssetSet(startYesterday)
 	query = NewNode("", "", "gcp-node3", s, e, w)
-	match, err = as.FindMatch(query, []AssetProperty{AssetTypeProp, AssetProviderIDProp})
+	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)})
 	if err != nil {
 		t.Fatalf("AssetSet.FindMatch: unexpected error: %s", err)
 	}
@@ -745,7 +745,7 @@ func TestAssetSet_FindMatch(t *testing.T) {
 	// Assert error of a simple non-match of Type and ProviderID
 	as = generateAssetSet(startYesterday)
 	query = NewNode("", "", "aws-node3", s, e, w)
-	match, err = as.FindMatch(query, []AssetProperty{AssetTypeProp, AssetProviderIDProp})
+	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)})
 	if err == nil {
 		t.Fatalf("AssetSet.FindMatch: expected error (no match); found %s", match)
 	}
@@ -753,7 +753,7 @@ func TestAssetSet_FindMatch(t *testing.T) {
 	// Assert error of matching ProviderID, but not Type
 	as = generateAssetSet(startYesterday)
 	query = NewCloud(ComputeCategory, "gcp-node3", s, e, w)
-	match, err = as.FindMatch(query, []AssetProperty{AssetTypeProp, AssetProviderIDProp})
+	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)})
 	if err == nil {
 		t.Fatalf("AssetSet.FindMatch: expected error (no match); found %s", match)
 	}
@@ -802,7 +802,7 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 		generateAssetSet(startD1),
 		generateAssetSet(startD2),
 	)
-	err = asr.AggregateBy([]AssetProperty{}, nil)
+	err = asr.AggregateBy([]string{}, nil)
 	as, err = asr.Accumulate()
 	if err != nil {
 		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
@@ -816,7 +816,7 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 		generateAssetSet(startD1),
 		generateAssetSet(startD2),
 	)
-	err = asr.AggregateBy([]AssetProperty{AssetTypeProp}, nil)
+	err = asr.AggregateBy([]string{string(AssetTypeProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
 	}
@@ -835,7 +835,7 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 		generateAssetSet(startD1),
 		generateAssetSet(startD2),
 	)
-	err = asr.AggregateBy([]AssetProperty{AssetClusterProp}, nil)
+	err = asr.AggregateBy([]string{string(AssetClusterProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
 	}
@@ -856,7 +856,7 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 		generateAssetSet(startD1),
 		generateAssetSet(startD2),
 	)
-	err = asr.AggregateBy([]AssetProperty{AssetTypeProp}, nil)
+	err = asr.AggregateBy([]string{string(AssetTypeProp)}, nil)
 	as, err = asr.Accumulate()
 	if err != nil {
 		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
