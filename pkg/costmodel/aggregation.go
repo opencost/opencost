@@ -1294,7 +1294,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 		window.Set(&s, &e)
 	}
 
-	dur, off := window.ToDurationOffset()
+	dur, off := window.DurationOffsetStrings()
 	key := fmt.Sprintf(`%s:%s:%fh:%t`, dur, off, resolution.Hours(), remoteEnabled)
 
 	// report message about which of the two caches hit. by default report a miss
@@ -1391,22 +1391,38 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 
 	idleCoefficients := make(map[string]float64)
 	if allocateIdle {
-		duration, offset := window.ToDurationOffset()
-
-		idleDurationCalcHours := window.Hours()
-		if window.Hours() < 1 {
-			idleDurationCalcHours = 1
-		}
-		duration = fmt.Sprintf("%dh", int(idleDurationCalcHours))
-
-		if a.ThanosClient != nil {
-			offset = thanos.Offset()
-			log.Infof("ComputeAggregateCostModel: setting offset to %s", offset)
-		}
-
-		idleCoefficients, err = a.ComputeIdleCoefficient(costData, promClient, a.CloudProvider, discount, customDiscount, duration, offset)
+		dur, off, err := window.DurationOffset()
 		if err != nil {
-			log.Errorf("ComputeAggregateCostModel: error computing idle coefficient: duration=%s, offset=%s, err=%s", duration, offset, err)
+			log.Errorf("ComputeAggregateCostModel: error computing idle coefficient: illegal window: %s (%s)", window, err)
+			return nil, "", err
+		}
+
+		if a.ThanosClient != nil && off < thanos.OffsetDuration() {
+			// Determine difference between the Thanos offset and the requested
+			// offset; e.g. off=1h, thanosOffsetDuration=3h => diff=2h
+			diff := thanos.OffsetDuration() - off
+
+			// Reduce duration by difference and increase offset by difference
+			// e.g. 24h offset 0h => 21h offset 3h
+			dur = dur - diff
+			off = thanos.OffsetDuration()
+
+			log.Infof("ComputeAggregateCostModel: setting duration, offset to %s, %s due to Thanos", dur, off)
+
+			// Idle computation cannot be fulfilled for some windows, specifically
+			// those with sum(duration, offset) < Thanos offset, because there is
+			// no data within that window.
+			if dur <= 0 {
+				return nil, "", fmt.Errorf("requested idle coefficients from Thanos for illegal duration, offset: %s, %s (original window %s)", dur, off, window)
+			}
+		}
+
+		// Convert to Prometheus-compatible strings
+		durStr, offStr := util.DurationOffsetStrings(dur, off)
+
+		idleCoefficients, err = a.ComputeIdleCoefficient(costData, promClient, a.CloudProvider, discount, customDiscount, durStr, offStr)
+		if err != nil {
+			log.Errorf("ComputeAggregateCostModel: error computing idle coefficient: duration=%s, offset=%s, err=%s", durStr, offStr, err)
 			return nil, "", err
 		}
 	}
@@ -1540,7 +1556,7 @@ func GenerateAggKey(window kubecost.Window, field string, subfields []string, op
 
 	// Covert to duration, offset so that cache hits occur, even when timestamps have
 	// shifted slightly.
-	duration, offset := window.ToDurationOffset()
+	duration, offset := window.DurationOffsetStrings()
 
 	// parse, trim, and sort podprefix filters
 	podPrefixFilters := []string{}
