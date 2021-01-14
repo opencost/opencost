@@ -501,6 +501,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 				ProviderID:   cp.ParseID(providerID),
 				CPUBreakdown: &ClusterCostsBreakdown{},
 				RAMBreakdown: &ClusterCostsBreakdown{},
+				Labels:       map[string]string{},
 			}
 		}
 		nodeMap[key].CPUCost += cpuCost
@@ -531,6 +532,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 				Name:         name,
 				CPUBreakdown: &ClusterCostsBreakdown{},
 				RAMBreakdown: &ClusterCostsBreakdown{},
+				Labels:       map[string]string{},
 			}
 		}
 		node := nodeMap[key]
@@ -571,6 +573,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 				ProviderID:   cp.ParseID(providerID),
 				CPUBreakdown: &ClusterCostsBreakdown{},
 				RAMBreakdown: &ClusterCostsBreakdown{},
+				Labels:       map[string]string{},
 			}
 		}
 		nodeMap[key].RAMCost += ramCost
@@ -601,6 +604,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 				Name:         name,
 				CPUBreakdown: &ClusterCostsBreakdown{},
 				RAMBreakdown: &ClusterCostsBreakdown{},
+				Labels:       map[string]string{},
 			}
 		}
 		nodeMap[key].RAMBytes = ramBytes
@@ -632,6 +636,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 				ProviderID:   cp.ParseID(providerID),
 				CPUBreakdown: &ClusterCostsBreakdown{},
 				RAMBreakdown: &ClusterCostsBreakdown{},
+				Labels:       map[string]string{},
 			}
 		}
 		nodeMap[key].GPUCost += gpuCost
@@ -811,11 +816,26 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		// TODO Azure preemptible
 	}
 
-	// Determine preemptibility with node labels
+	// Copy labels into node
 	for _, result := range resLabels {
-		log.Infof("ClusterNodes: %v", result.Metric)
-
-		// TODO parse metric labels
+		cluster, err := result.GetString("cluster_id")
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+		node, err := result.GetString("kubernetes_node")
+		if err != nil {
+			log.DedupedWarningf(5, "ClusterNodes: label data missing node")
+			continue
+		}
+		key := fmt.Sprintf("%s/%s", cluster, node)
+		if _, ok := nodeMap[key]; !ok {
+			continue
+		}
+		for name, value := range result.Metric {
+			if val, ok := value.(string); ok {
+				nodeMap[key].Labels[name] = val
+			}
+		}
 	}
 
 	c, err := cp.GetConfig()
