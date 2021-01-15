@@ -26,7 +26,7 @@ const (
 	GeneratorPackageName string = "kubecost"
 
 	// CodecVersion is the version passed into the generator
-	CodecVersion uint8 = 4
+	CodecVersion uint8 = 5
 )
 
 //--------------------------------------------------------------------------
@@ -930,6 +930,19 @@ func (target *AssetSet) MarshalBinary() (data []byte, err error) {
 	buff := util.NewBuffer()
 	buff.WriteUInt8(CodecVersion) // version
 
+	if target.aggregateBy == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][slice]([]string) ---
+		buff.WriteInt(len(target.aggregateBy)) // array length
+		for i := 0; i < len(target.aggregateBy); i++ {
+			buff.WriteString(target.aggregateBy[i]) // write string
+		}
+		// --- [end][write][slice]([]string) ---
+
+	}
 	if target.assets == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
@@ -962,22 +975,6 @@ func (target *AssetSet) MarshalBinary() (data []byte, err error) {
 			}
 		}
 		// --- [end][write][map](map[string]Asset) ---
-
-	}
-	if target.props == nil {
-		buff.WriteUInt8(uint8(0)) // write nil byte
-	} else {
-		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
-		// --- [begin][write][slice]([]AssetProperty) ---
-		buff.WriteInt(len(target.props)) // array length
-		for i := 0; i < len(target.props); i++ {
-			// --- [begin][write][alias](AssetProperty) ---
-			buff.WriteString(string(target.props[i])) // write string
-			// --- [end][write][alias](AssetProperty) ---
-
-		}
-		// --- [end][write][slice]([]AssetProperty) ---
 
 	}
 	// --- [begin][write][struct](Window) ---
@@ -1043,92 +1040,88 @@ func (target *AssetSet) UnmarshalBinary(data []byte) (err error) {
 	}
 
 	if buff.ReadUInt8() == uint8(0) {
+		target.aggregateBy = nil
+	} else {
+		// --- [begin][read][slice]([]string) ---
+		b := buff.ReadInt() // array len
+		a := make([]string, b)
+		for i := 0; i < b; i++ {
+			var c string
+			d := buff.ReadString() // read string
+			c = d
+
+			a[i] = c
+		}
+		target.aggregateBy = a
+		// --- [end][read][slice]([]string) ---
+
+	}
+	if buff.ReadUInt8() == uint8(0) {
 		target.assets = nil
 	} else {
 		// --- [begin][read][map](map[string]Asset) ---
-		a := make(map[string]Asset)
-		b := buff.ReadInt() // map len
-		for i := 0; i < b; i++ {
+		e := make(map[string]Asset)
+		f := buff.ReadInt() // map len
+		for j := 0; j < f; j++ {
 			var k string
-			c := buff.ReadString() // read string
-			k = c
+			g := buff.ReadString() // read string
+			k = g
 
 			var v Asset
 			if buff.ReadUInt8() == uint8(0) {
 				v = nil
 			} else {
 				// --- [begin][read][interface](Asset) ---
-				d := buff.ReadString()
-				_, e, _ := resolveType(d)
-				if _, ok := typeMap[e]; !ok {
-					return fmt.Errorf("Unknown Type: %s", e)
+				h := buff.ReadString()
+				_, l, _ := resolveType(h)
+				if _, ok := typeMap[l]; !ok {
+					return fmt.Errorf("Unknown Type: %s", l)
 				}
-				f, okA := reflect.New(typeMap[e]).Interface().(interface{ UnmarshalBinary([]byte) error })
+				m, okA := reflect.New(typeMap[l]).Interface().(interface{ UnmarshalBinary([]byte) error })
 				if !okA {
-					return fmt.Errorf("Type: %s does not implement UnmarshalBinary([]byte) error", e)
+					return fmt.Errorf("Type: %s does not implement UnmarshalBinary([]byte) error", l)
 				}
-				g := buff.ReadInt()    // byte array length
-				h := buff.ReadBytes(g) // byte array
-				errA := f.UnmarshalBinary(h)
+				n := buff.ReadInt()    // byte array length
+				o := buff.ReadBytes(n) // byte array
+				errA := m.UnmarshalBinary(o)
 				if errA != nil {
 					return errA
 				}
-				v = f.(Asset)
+				v = m.(Asset)
 				// --- [end][read][interface](Asset) ---
 
 			}
-			a[k] = v
+			e[k] = v
 		}
-		target.assets = a
+		target.assets = e
 		// --- [end][read][map](map[string]Asset) ---
 
 	}
-	if buff.ReadUInt8() == uint8(0) {
-		target.props = nil
-	} else {
-		// --- [begin][read][slice]([]AssetProperty) ---
-		m := buff.ReadInt() // array len
-		l := make([]AssetProperty, m)
-		for j := 0; j < m; j++ {
-			// --- [begin][read][alias](AssetProperty) ---
-			var o string
-			p := buff.ReadString() // read string
-			o = p
-
-			n := AssetProperty(o)
-			// --- [end][read][alias](AssetProperty) ---
-
-			l[j] = n
-		}
-		target.props = l
-		// --- [end][read][slice]([]AssetProperty) ---
-
-	}
 	// --- [begin][read][struct](Window) ---
-	q := &Window{}
-	r := buff.ReadInt()    // byte array length
-	s := buff.ReadBytes(r) // byte array
-	errB := q.UnmarshalBinary(s)
+	p := &Window{}
+	q := buff.ReadInt()    // byte array length
+	r := buff.ReadBytes(q) // byte array
+	errB := p.UnmarshalBinary(r)
 	if errB != nil {
 		return errB
 	}
-	target.Window = *q
+	target.Window = *p
 	// --- [end][read][struct](Window) ---
 
 	if buff.ReadUInt8() == uint8(0) {
 		target.Warnings = nil
 	} else {
 		// --- [begin][read][slice]([]string) ---
-		u := buff.ReadInt() // array len
-		t := make([]string, u)
-		for ii := 0; ii < u; ii++ {
-			var w string
-			x := buff.ReadString() // read string
-			w = x
+		t := buff.ReadInt() // array len
+		s := make([]string, t)
+		for ii := 0; ii < t; ii++ {
+			var u string
+			w := buff.ReadString() // read string
+			u = w
 
-			t[ii] = w
+			s[ii] = u
 		}
-		target.Warnings = t
+		target.Warnings = s
 		// --- [end][read][slice]([]string) ---
 
 	}
@@ -1136,16 +1129,16 @@ func (target *AssetSet) UnmarshalBinary(data []byte) (err error) {
 		target.Errors = nil
 	} else {
 		// --- [begin][read][slice]([]string) ---
-		z := buff.ReadInt() // array len
-		y := make([]string, z)
-		for jj := 0; jj < z; jj++ {
-			var aa string
-			bb := buff.ReadString() // read string
-			aa = bb
+		y := buff.ReadInt() // array len
+		x := make([]string, y)
+		for jj := 0; jj < y; jj++ {
+			var z string
+			aa := buff.ReadString() // read string
+			z = aa
 
-			y[jj] = aa
+			x[jj] = z
 		}
-		target.Errors = y
+		target.Errors = x
 		// --- [end][read][slice]([]string) ---
 
 	}

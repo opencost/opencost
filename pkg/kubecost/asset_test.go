@@ -675,17 +675,17 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
 	}
 	assertAssetSet(t, as, "1d", window, map[string]float64{
-		"Compute/cluster1/Node/Kubernetes/gcp-node1/node1":     7.00,
-		"Compute/cluster1/Node/Kubernetes/gcp-node2/node2":     5.50,
-		"Compute/cluster1/Node/Kubernetes/gcp-node3/node3":     6.50,
-		"Storage/cluster1/Disk/Kubernetes/gcp-disk1/disk1":     2.50,
-		"Storage/cluster1/Disk/Kubernetes/gcp-disk2/disk2":     1.50,
-		"GCP/Management/cluster1/ClusterManagement/Kubernetes": 3.00,
-		"Compute/cluster2/Node/Kubernetes/gcp-node4/node4":     11.00,
-		"Storage/cluster2/Disk/Kubernetes/gcp-disk3/disk3":     2.50,
-		"Storage/cluster2/Disk/Kubernetes/gcp-disk4/disk4":     1.50,
-		"GCP/Management/cluster2/ClusterManagement/Kubernetes": 0.00,
-		"Compute/cluster3/Node/Kubernetes/aws-node5/node5":     19.00,
+		"__unallocated__/__unallocated__/__unallocated__/Compute/cluster1/Node/Kubernetes/gcp-node1/node1":                     7.00,
+		"__unallocated__/__unallocated__/__unallocated__/Compute/cluster1/Node/Kubernetes/gcp-node2/node2":                     5.50,
+		"__unallocated__/__unallocated__/__unallocated__/Compute/cluster1/Node/Kubernetes/gcp-node3/node3":                     6.50,
+		"__unallocated__/__unallocated__/__unallocated__/Storage/cluster1/Disk/Kubernetes/gcp-disk1/disk1":                     2.50,
+		"__unallocated__/__unallocated__/__unallocated__/Storage/cluster1/Disk/Kubernetes/gcp-disk2/disk2":                     1.50,
+		"GCP/__unallocated__/__unallocated__/Management/cluster1/ClusterManagement/Kubernetes/__unallocated__/__unallocated__": 3.00,
+		"__unallocated__/__unallocated__/__unallocated__/Compute/cluster2/Node/Kubernetes/gcp-node4/node4":                     11.00,
+		"__unallocated__/__unallocated__/__unallocated__/Storage/cluster2/Disk/Kubernetes/gcp-disk3/disk3":                     2.50,
+		"__unallocated__/__unallocated__/__unallocated__/Storage/cluster2/Disk/Kubernetes/gcp-disk4/disk4":                     1.50,
+		"GCP/__unallocated__/__unallocated__/Management/cluster2/ClusterManagement/Kubernetes/__unallocated__/__unallocated__": 0.00,
+		"__unallocated__/__unallocated__/__unallocated__/Compute/cluster3/Node/Kubernetes/aws-node5/node5":                     19.00,
 	}, nil)
 
 	// 2  Multi-aggregation
@@ -784,17 +784,17 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
 	}
 	assertAssetSet(t, as, "1a", window, map[string]float64{
-		"Compute/cluster1/Node/Kubernetes/gcp-node1/node1":     21.00,
-		"Compute/cluster1/Node/Kubernetes/gcp-node2/node2":     16.50,
-		"Compute/cluster1/Node/Kubernetes/gcp-node3/node3":     19.50,
-		"Storage/cluster1/Disk/Kubernetes/gcp-disk1/disk1":     7.50,
-		"Storage/cluster1/Disk/Kubernetes/gcp-disk2/disk2":     4.50,
-		"GCP/Management/cluster1/ClusterManagement/Kubernetes": 9.00,
-		"Compute/cluster2/Node/Kubernetes/gcp-node4/node4":     33.00,
-		"Storage/cluster2/Disk/Kubernetes/gcp-disk3/disk3":     7.50,
-		"Storage/cluster2/Disk/Kubernetes/gcp-disk4/disk4":     4.50,
-		"GCP/Management/cluster2/ClusterManagement/Kubernetes": 0.00,
-		"Compute/cluster3/Node/Kubernetes/aws-node5/node5":     57.00,
+		"__unallocated__/__unallocated__/__unallocated__/Compute/cluster1/Node/Kubernetes/gcp-node1/node1":                     21.00,
+		"__unallocated__/__unallocated__/__unallocated__/Compute/cluster1/Node/Kubernetes/gcp-node2/node2":                     16.50,
+		"__unallocated__/__unallocated__/__unallocated__/Compute/cluster1/Node/Kubernetes/gcp-node3/node3":                     19.50,
+		"__unallocated__/__unallocated__/__unallocated__/Storage/cluster1/Disk/Kubernetes/gcp-disk1/disk1":                     7.50,
+		"__unallocated__/__unallocated__/__unallocated__/Storage/cluster1/Disk/Kubernetes/gcp-disk2/disk2":                     4.50,
+		"GCP/__unallocated__/__unallocated__/Management/cluster1/ClusterManagement/Kubernetes/__unallocated__/__unallocated__": 9.00,
+		"__unallocated__/__unallocated__/__unallocated__/Compute/cluster2/Node/Kubernetes/gcp-node4/node4":                     33.00,
+		"__unallocated__/__unallocated__/__unallocated__/Storage/cluster2/Disk/Kubernetes/gcp-disk3/disk3":                     7.50,
+		"__unallocated__/__unallocated__/__unallocated__/Storage/cluster2/Disk/Kubernetes/gcp-disk4/disk4":                     4.50,
+		"GCP/__unallocated__/__unallocated__/Management/cluster2/ClusterManagement/Kubernetes/__unallocated__/__unallocated__": 0.00,
+		"__unallocated__/__unallocated__/__unallocated__/Compute/cluster3/Node/Kubernetes/aws-node5/node5":                     57.00,
 	}, nil)
 
 	asr = NewAssetSetRange(
