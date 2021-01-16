@@ -240,7 +240,7 @@ func (qr *QueryResult) GetLabels() map[string]string {
 			continue
 		}
 
-		label := k[6:]
+		label := strings.TrimPrefix(k, "label_")
 		value, ok := v.(string)
 		if !ok {
 			log.Warningf("Failed to parse label value for label: '%s'", label)
@@ -253,6 +253,7 @@ func (qr *QueryResult) GetLabels() map[string]string {
 	return result
 }
 
+// GetAnnotations returns all annotations and their values from the query result
 func (qr *QueryResult) GetAnnotations() map[string]string {
 	result := make(map[string]string)
 
@@ -262,7 +263,7 @@ func (qr *QueryResult) GetAnnotations() map[string]string {
 			continue
 		}
 
-		annotations := k[11:]
+		annotations := strings.TrimPrefix(k, "annotation_")
 		value, ok := v.(string)
 		if !ok {
 			log.Warningf("Failed to parse label value for label: '%s'", annotations)
