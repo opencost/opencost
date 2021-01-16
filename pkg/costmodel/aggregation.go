@@ -47,6 +47,8 @@ type Aggregation struct {
 	Environment                string               `json:"environment"`
 	Cluster                    string               `json:"cluster,omitempty"`
 	Properties                 *kubecost.Properties `json:"-"`
+	Start                      time.Time            `json:"-"`
+	End                        time.Time            `json:"-"`
 	CPUAllocationHourlyAverage float64              `json:"cpuAllocationAverage"`
 	CPUAllocationVectors       []*util.Vector       `json:"-"`
 	CPUAllocationTotal         float64              `json:"-"`
@@ -79,105 +81,6 @@ type Aggregation struct {
 	SharedCost                 float64              `json:"sharedCost"`
 	TotalCost                  float64              `json:"totalCost"`
 	TotalCostVector            []*util.Vector       `json:"totalCostVector,omitempty"`
-}
-
-// Start returns the time the aggregation begins according to the cost and
-// allocation vectors.
-func (a *Aggregation) Start() (time.Time, error) {
-	var start time.Time
-
-	if len(a.CPUAllocationVectors) > 0 {
-		t := time.Unix(int64(a.CPUAllocationVectors[0].Timestamp), 0)
-		if start.IsZero() || t.Before(start) {
-			start = t
-		}
-	}
-
-	if len(a.GPUAllocationVectors) > 0 {
-		t := time.Unix(int64(a.GPUAllocationVectors[0].Timestamp), 0)
-		if start.IsZero() || t.Before(start) {
-			start = t
-		}
-	}
-
-	if len(a.RAMAllocationVectors) > 0 {
-		t := time.Unix(int64(a.RAMAllocationVectors[0].Timestamp), 0)
-		if start.IsZero() || t.Before(start) {
-			start = t
-		}
-	}
-
-	if len(a.PVAllocationVectors) > 0 {
-		t := time.Unix(int64(a.PVAllocationVectors[0].Timestamp), 0)
-		if start.IsZero() || t.Before(start) {
-			start = t
-		}
-	}
-
-	if len(a.TotalCostVector) > 0 {
-		t := time.Unix(int64(a.TotalCostVector[0].Timestamp), 0)
-		if start.IsZero() || t.Before(start) {
-			start = t
-		}
-	}
-
-	if start.IsZero() {
-		return start, fmt.Errorf("cannot determine start time of Aggregation without vectors")
-	}
-
-	return start, nil
-}
-
-// End returns the time the aggregation begins according to the cost and
-// allocation vectors.
-func (a *Aggregation) End() (time.Time, error) {
-	var end time.Time
-
-	if len(a.CPUAllocationVectors) > 0 {
-		i := len(a.CPUAllocationVectors) - 1
-		t := time.Unix(int64(a.CPUAllocationVectors[i].Timestamp), 0)
-		if end.IsZero() || t.After(end) {
-			end = t
-		}
-	}
-
-	if len(a.GPUAllocationVectors) > 0 {
-		i := len(a.GPUAllocationVectors) - 1
-		t := time.Unix(int64(a.GPUAllocationVectors[i].Timestamp), 0)
-		if end.IsZero() || t.After(end) {
-			end = t
-		}
-	}
-
-	if len(a.RAMAllocationVectors) > 0 {
-		i := len(a.RAMAllocationVectors) - 1
-		t := time.Unix(int64(a.RAMAllocationVectors[i].Timestamp), 0)
-		if end.IsZero() || t.After(end) {
-			end = t
-		}
-	}
-
-	if len(a.PVAllocationVectors) > 0 {
-		i := len(a.PVAllocationVectors) - 1
-		t := time.Unix(int64(a.PVAllocationVectors[i].Timestamp), 0)
-		if end.IsZero() || t.After(end) {
-			end = t
-		}
-	}
-
-	if len(a.TotalCostVector) > 0 {
-		i := len(a.TotalCostVector) - 1
-		t := time.Unix(int64(a.TotalCostVector[i].Timestamp), 0)
-		if end.IsZero() || t.After(end) {
-			end = t
-		}
-	}
-
-	if end.IsZero() {
-		return end, fmt.Errorf("cannot determine end time of Aggregation without vectors")
-	}
-
-	return end, nil
 }
 
 // TotalHours determines the amount of hours the Aggregation covers, as a
