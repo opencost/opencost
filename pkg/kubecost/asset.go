@@ -63,8 +63,7 @@ type Asset interface {
 // values will key by only those values.
 // Valid values of `aggregateBy` elements are strings which are an `AssetProperty`, and strings prefixed
 // with `"label:"`.
-func key(a Asset, aggregateBy []string) (string, []error) {
-	var errors []error
+func key(a Asset, aggregateBy []string) (string, error) {
 	keys := []string{}
 
 	if aggregateBy == nil {
@@ -82,44 +81,46 @@ func key(a Asset, aggregateBy []string) (string, []error) {
 	}
 
 	for _, s := range aggregateBy {
+		key := ""
 		switch true {
-		case s == string(AssetProviderProp) && a.Properties().Provider != "":
-			keys = append(keys, a.Properties().Provider)
-		case s == string(AssetAccountProp) && a.Properties().Account != "":
-			keys = append(keys, a.Properties().Account)
-		case s == string(AssetProjectProp) && a.Properties().Project != "":
-			keys = append(keys, a.Properties().Project)
-		case s == string(AssetClusterProp) && a.Properties().Cluster != "":
-			keys = append(keys, a.Properties().Cluster)
-		case s == string(AssetCategoryProp) && a.Properties().Category != "":
-			keys = append(keys, a.Properties().Category)
-		case s == string(AssetTypeProp) && a.Type().String() != "":
-			keys = append(keys, a.Type().String())
-		case s == string(AssetServiceProp) && a.Properties().Service != "":
-			keys = append(keys, a.Properties().Service)
-		case s == string(AssetProviderIDProp) && a.Properties().ProviderID != "":
-			keys = append(keys, a.Properties().ProviderID)
-		case s == string(AssetNameProp) && a.Properties().Name != "":
-			keys = append(keys, a.Properties().Name)
+		case s == string(AssetProviderProp):
+			key = a.Properties().Provider
+		case s == string(AssetAccountProp):
+			key = a.Properties().Account
+		case s == string(AssetProjectProp):
+			key = a.Properties().Project
+		case s == string(AssetClusterProp):
+			key = a.Properties().Cluster
+		case s == string(AssetCategoryProp):
+			key = a.Properties().Category
+		case s == string(AssetTypeProp):
+			key = a.Type().String()
+		case s == string(AssetServiceProp):
+			key = a.Properties().Service
+		case s == string(AssetProviderIDProp):
+			key = a.Properties().ProviderID
+		case s == string(AssetNameProp):
+			key = a.Properties().Name
 		case strings.HasPrefix(s, "label:"):
-			if label := a.Labels()[s[6:]]; label != "" {
-				keys = append(keys, label)
+			if labelKey := strings.TrimPrefix(s, "label:"); labelKey != "" {
+				key = a.Labels()[labelKey]
 			} else {
-				keys = append(keys, "__unallocated__")
+				// Don't allow aggregating on label ""
+				log.Errorf("Attempted to aggregate on empty label.")
+				return "", fmt.Errorf("Attempted to aggregate on invalid key: %s", s)
 			}
 		default:
-			_, err := ParseAssetProperty(s)
-			if err != nil {
-				if errors == nil {
-					errors = []error{}
-				}
-				errors = append(errors, fmt.Errorf("Invalid asset aggregation key: %s", s))
-			} else {
-				keys = append(keys, "__unallocated__")
-			}
+			log.Errorf("Attempted to aggregate on invalid key: %s", s)
+			return "", fmt.Errorf("Attempted to aggregate on invalid key: %s", s)
+		}
+
+		if key != "" {
+			keys = append(keys, key)
+		} else {
+			keys = append(keys, "__undefined__")
 		}
 	}
-	return strings.Join(keys, "/"), errors
+	return strings.Join(keys, "/"), nil
 }
 
 func toString(a Asset) string {
@@ -2462,9 +2463,9 @@ func (as *AssetSet) FindMatch(query Asset, aggregateBy []string) (Asset, error) 
 	as.RLock()
 	defer as.RUnlock()
 
-	matchKey, errors := key(query, aggregateBy)
-	if errors != nil {
-		return nil, fmt.Errorf("Bad key(s) given to FindMatch: %v", errors)
+	matchKey, err := key(query, aggregateBy)
+	if err != nil {
+		return nil, err
 	}
 	for _, asset := range as.assets {
 		if k, _ := key(asset, aggregateBy); k == matchKey {
@@ -2477,7 +2478,7 @@ func (as *AssetSet) FindMatch(query Asset, aggregateBy []string) (Asset, error) 
 
 // ReconciliationMatch attempts to find an exact match in the AssetSet on
 // (Category, ProviderID). If a match is found, it returns the Asset with the
-// intent to adjut it. If no match exists, it attempts to find one on only
+// intent to adjust it. If no match exists, it attempts to find one on only
 // (ProviderID). If that match is found, it returns the Asset with the intent
 // to insert the associated Cloud cost.
 func (as *AssetSet) ReconciliationMatch(query Asset) (Asset, bool, error) {
@@ -2486,17 +2487,23 @@ func (as *AssetSet) ReconciliationMatch(query Asset) (Asset, bool, error) {
 
 	// Full match means matching on (Category, ProviderID)
 	fullMatchProps := []string{string(AssetCategoryProp), string(AssetProviderIDProp)}
-	fullMatchKey, fullMatchErrors := key(query, fullMatchProps)
+	fullMatchKey, err := key(query, fullMatchProps)
 
 	// This should never happen because we are using enumerated properties,
 	// but the check is here in case that changes
-	if fullMatchErrors != nil {
-		return nil, false, fmt.Errorf("ReconciliationMatch: Invalid key(s) passed: %v", fullMatchErrors)
+	if err != nil {
+		return nil, false, err
 	}
 
 	// Partial match means matching only on (ProviderID)
 	providerIDMatchProps := []string{string(AssetProviderIDProp)}
-	providerIDMatchKey, _ := key(query, providerIDMatchProps)
+	providerIDMatchKey, err := key(query, providerIDMatchProps)
+
+	// This should never happen because we are using enumerated properties,
+	// but the check is here in case that changes
+	if err != nil {
+		return nil, false, err
+	}
 
 	var providerIDMatch Asset
 	for _, asset := range as.assets {
@@ -2545,9 +2552,9 @@ func (as *AssetSet) Insert(asset Asset) error {
 	defer as.Unlock()
 
 	// Determine key into which to Insert the Asset.
-	k, keyErrors := key(asset, as.aggregateBy)
-	if keyErrors != nil {
-		return fmt.Errorf("Attempted Insert on an `AssetSet` with invalid `aggregateBy` values: %v", keyErrors)
+	k, err := key(asset, as.aggregateBy)
+	if err != nil {
+		return err
 	}
 
 	// Add the given Asset to the existing entry, if there is one;
@@ -2615,9 +2622,9 @@ func (as *AssetSet) Set(asset Asset, aggregateBy []string) error {
 
 	// Expand the window to match the AssetSet, then set it
 	asset.ExpandWindow(as.Window)
-	k, keyErrors := key(asset, aggregateBy)
-	if keyErrors != nil {
-		return fmt.Errorf("Attempted to Set() Asset into AssetSet with invalid aggregateBy: %v", keyErrors)
+	k, err := key(asset, aggregateBy)
+	if err != nil {
+		return err
 	}
 	as.assets[k] = asset
 	return nil
