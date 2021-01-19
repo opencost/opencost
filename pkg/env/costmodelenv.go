@@ -57,6 +57,7 @@ const (
 
 	UTCOffsetEnvVar = "UTC_OFFSET"
 
+	OutOfClusterEnabledEnvVar = "OUT_OF_CLUSTER_ENABLED"
 	CacheWarmingEnabledEnvVar = "CACHE_WARMING_ENABLED"
 	ETLEnabledEnvVar          = "ETL_ENABLED"
 )
@@ -311,6 +312,11 @@ func GetParsedUTCOffset() time.Duration {
 	}
 
 	return offset
+}
+
+// IsOutOfClusterEnabled determines if OOC metrics (kubecost_cloud_credit_total and kubecost_cloud_expense_total) are emitted.
+func IsOutOfClusterEnabled() bool {
+	return GetBool(OutOfClusterEnabledEnvVar, false)
 }
 
 func IsCacheWarmingEnabled() bool {
