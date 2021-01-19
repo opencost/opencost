@@ -5,6 +5,8 @@ import (
 	"math"
 	"testing"
 	"time"
+
+	util "github.com/kubecost/cost-model/pkg/util"
 )
 
 const day = 24 * time.Hour
@@ -208,7 +210,7 @@ func generateAllocationSet(start time.Time) *AllocationSet {
 	// Idle allocations
 	a1i := NewUnitAllocation(fmt.Sprintf("cluster1/%s", IdleSuffix), start, day, &Properties{
 		ClusterProp: "cluster1",
-		NodeProp: "node1",
+		NodeProp:    "node1",
 	})
 	a1i.CPUCost = 5.0
 	a1i.RAMCost = 15.0
@@ -1139,6 +1141,169 @@ func TestAllocationSetRange_Accumulate(t *testing.T) {
 
 // TODO niko/etl
 // func TestAllocationSetRange_Append(t *testing.T) {}
+
+// TODO niko/etl
+// func TestAllocationSetRange_Each(t *testing.T) {}
+
+// TODO niko/etl
+// func TestAllocationSetRange_Get(t *testing.T) {}
+
+func TestAllocationSetRange_InsertRange(t *testing.T) {
+	// Set up
+	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
+	yesterday := time.Now().UTC().Truncate(day).Add(-day)
+	today := time.Now().UTC().Truncate(day)
+	tomorrow := time.Now().UTC().Truncate(day).Add(day)
+
+	unit := NewUnitAllocation("", today, day, nil)
+
+	ago2dAS := NewAllocationSet(ago2d, yesterday)
+	ago2dAS.Set(NewUnitAllocation("a", ago2d, day, nil))
+	ago2dAS.Set(NewUnitAllocation("b", ago2d, day, nil))
+	ago2dAS.Set(NewUnitAllocation("c", ago2d, day, nil))
+
+	yesterdayAS := NewAllocationSet(yesterday, today)
+	yesterdayAS.Set(NewUnitAllocation("a", yesterday, day, nil))
+	yesterdayAS.Set(NewUnitAllocation("b", yesterday, day, nil))
+	yesterdayAS.Set(NewUnitAllocation("c", yesterday, day, nil))
+
+	todayAS := NewAllocationSet(today, tomorrow)
+	todayAS.Set(NewUnitAllocation("a", today, day, nil))
+	todayAS.Set(NewUnitAllocation("b", today, day, nil))
+	todayAS.Set(NewUnitAllocation("c", today, day, nil))
+
+	var nilASR *AllocationSetRange
+	thisASR := NewAllocationSetRange(yesterdayAS.Clone(), todayAS.Clone())
+	thatASR := NewAllocationSetRange(yesterdayAS.Clone())
+	longASR := NewAllocationSetRange(ago2dAS.Clone(), yesterdayAS.Clone(), todayAS.Clone())
+	var err error
+
+	// Expect an error calling InsertRange on nil
+	err = nilASR.InsertRange(thatASR)
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+
+	// Expect nothing to happen calling InsertRange(nil) on non-nil ASR
+	err = thisASR.InsertRange(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	thisASR.Each(func(i int, as *AllocationSet) {
+		as.Each(func(k string, a *Allocation) {
+			if !util.IsApproximately(a.CPUCoreHours, unit.CPUCoreHours) {
+				t.Fatalf("allocation %s: expected %f; got %f", k, unit.CPUCoreHours, a.CPUCoreHours)
+			}
+			if !util.IsApproximately(a.CPUCost, unit.CPUCost) {
+				t.Fatalf("allocation %s: expected %f; got %f", k, unit.CPUCost, a.CPUCost)
+			}
+			if !util.IsApproximately(a.RAMByteHours, unit.RAMByteHours) {
+				t.Fatalf("allocation %s: expected %f; got %f", k, unit.RAMByteHours, a.RAMByteHours)
+			}
+			if !util.IsApproximately(a.RAMCost, unit.RAMCost) {
+				t.Fatalf("allocation %s: expected %f; got %f", k, unit.RAMCost, a.RAMCost)
+			}
+			if !util.IsApproximately(a.GPUHours, unit.GPUHours) {
+				t.Fatalf("allocation %s: expected %f; got %f", k, unit.GPUHours, a.GPUHours)
+			}
+			if !util.IsApproximately(a.GPUCost, unit.GPUCost) {
+				t.Fatalf("allocation %s: expected %f; got %f", k, unit.GPUCost, a.GPUCost)
+			}
+			if !util.IsApproximately(a.PVByteHours, unit.PVByteHours) {
+				t.Fatalf("allocation %s: expected %f; got %f", k, unit.PVByteHours, a.PVByteHours)
+			}
+			if !util.IsApproximately(a.PVCost, unit.PVCost) {
+				t.Fatalf("allocation %s: expected %f; got %f", k, unit.PVCost, a.PVCost)
+			}
+			if !util.IsApproximately(a.NetworkCost, unit.NetworkCost) {
+				t.Fatalf("allocation %s: expected %f; got %f", k, unit.NetworkCost, a.NetworkCost)
+			}
+			if !util.IsApproximately(a.TotalCost, unit.TotalCost) {
+				t.Fatalf("allocation %s: expected %f; got %f", k, unit.TotalCost, a.TotalCost)
+			}
+		})
+	})
+
+	// Expect an error calling InsertRange with a range exceeding the receiver
+	err = thisASR.InsertRange(longASR)
+	if err == nil {
+		t.Fatalf("expected error calling InsertRange with a range exceeding the receiver")
+	}
+
+	// Expect each Allocation in "today" to stay the same, but "yesterday" to
+	// precisely double when inserting a range that only has a duplicate of
+	// "yesterday", but no entry for "today"
+	err = thisASR.InsertRange(thatASR)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	yAS, err := thisASR.Get(0)
+	yAS.Each(func(k string, a *Allocation) {
+		if !util.IsApproximately(a.CPUCoreHours, 2*unit.CPUCoreHours) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.CPUCoreHours, a.CPUCoreHours)
+		}
+		if !util.IsApproximately(a.CPUCost, 2*unit.CPUCost) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.CPUCost, a.CPUCost)
+		}
+		if !util.IsApproximately(a.RAMByteHours, 2*unit.RAMByteHours) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.RAMByteHours, a.RAMByteHours)
+		}
+		if !util.IsApproximately(a.RAMCost, 2*unit.RAMCost) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.RAMCost, a.RAMCost)
+		}
+		if !util.IsApproximately(a.GPUHours, 2*unit.GPUHours) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.GPUHours, a.GPUHours)
+		}
+		if !util.IsApproximately(a.GPUCost, 2*unit.GPUCost) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.GPUCost, a.GPUCost)
+		}
+		if !util.IsApproximately(a.PVByteHours, 2*unit.PVByteHours) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.PVByteHours, a.PVByteHours)
+		}
+		if !util.IsApproximately(a.PVCost, 2*unit.PVCost) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.PVCost, a.PVCost)
+		}
+		if !util.IsApproximately(a.NetworkCost, 2*unit.NetworkCost) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.NetworkCost, a.NetworkCost)
+		}
+		if !util.IsApproximately(a.TotalCost, 2*unit.TotalCost) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.TotalCost, a.TotalCost)
+		}
+	})
+	tAS, err := thisASR.Get(1)
+	tAS.Each(func(k string, a *Allocation) {
+		if !util.IsApproximately(a.CPUCoreHours, unit.CPUCoreHours) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.CPUCoreHours, a.CPUCoreHours)
+		}
+		if !util.IsApproximately(a.CPUCost, unit.CPUCost) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.CPUCost, a.CPUCost)
+		}
+		if !util.IsApproximately(a.RAMByteHours, unit.RAMByteHours) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.RAMByteHours, a.RAMByteHours)
+		}
+		if !util.IsApproximately(a.RAMCost, unit.RAMCost) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.RAMCost, a.RAMCost)
+		}
+		if !util.IsApproximately(a.GPUHours, unit.GPUHours) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.GPUHours, a.GPUHours)
+		}
+		if !util.IsApproximately(a.GPUCost, unit.GPUCost) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.GPUCost, a.GPUCost)
+		}
+		if !util.IsApproximately(a.PVByteHours, unit.PVByteHours) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.PVByteHours, a.PVByteHours)
+		}
+		if !util.IsApproximately(a.PVCost, unit.PVCost) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.PVCost, a.PVCost)
+		}
+		if !util.IsApproximately(a.NetworkCost, unit.NetworkCost) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.NetworkCost, a.NetworkCost)
+		}
+		if !util.IsApproximately(a.TotalCost, unit.TotalCost) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.TotalCost, a.TotalCost)
+		}
+	})
+}
 
 // TODO niko/etl
 // func TestAllocationSetRange_Length(t *testing.T) {}

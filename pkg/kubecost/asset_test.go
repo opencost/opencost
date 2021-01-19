@@ -6,6 +6,8 @@ import (
 	"math"
 	"testing"
 	"time"
+
+	util "github.com/kubecost/cost-model/pkg/util"
 )
 
 var start1 = time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)
@@ -19,12 +21,7 @@ var windows = []Window{
 	NewWindow(&start3, &start4),
 }
 
-const delta = 0.00001
 const gb = 1024 * 1024 * 1024
-
-func approx(a, b, delta float64) bool {
-	return math.Abs(a-b) < delta
-}
 
 func TestAny_Add(t *testing.T) {
 	any1 := NewAsset(*windows[0].start, *windows[0].end, windows[0])
@@ -186,7 +183,7 @@ func TestDisk_Add(t *testing.T) {
 	if diskT.Bytes() != 160.0*gb {
 		t.Fatalf("Disk.Add: expected %f; got %f", 160.0*gb, diskT.Bytes())
 	}
-	if !approx(diskT.Local, 0.333333, delta) {
+	if !util.IsApproximately(diskT.Local, 0.333333) {
 		t.Fatalf("Disk.Add: expected %f; got %f", 0.333333, diskT.Local)
 	}
 
@@ -381,7 +378,7 @@ func TestNode_Add(t *testing.T) {
 	nodeT := node1.Add(node2).(*Node)
 
 	// Check that the sums and properties are correct
-	if !approx(nodeT.TotalCost(), 15.0, delta) {
+	if !util.IsApproximately(nodeT.TotalCost(), 15.0) {
 		t.Fatalf("Node.Add: expected %f; got %f", 15.0, nodeT.TotalCost())
 	}
 	if nodeT.Adjustment() != 2.6 {
@@ -407,13 +404,13 @@ func TestNode_Add(t *testing.T) {
 	}
 
 	// Check that the original assets are unchanged
-	if !approx(node1.TotalCost(), 10.0, delta) {
+	if !util.IsApproximately(node1.TotalCost(), 10.0) {
 		t.Fatalf("Node.Add: expected %f; got %f", 10.0, node1.TotalCost())
 	}
 	if node1.Adjustment() != 1.6 {
 		t.Fatalf("Node.Add: expected %f; got %f", 1.0, node1.Adjustment())
 	}
-	if !approx(node2.TotalCost(), 5.0, delta) {
+	if !util.IsApproximately(node2.TotalCost(), 5.0) {
 		t.Fatalf("Node.Add: expected %f; got %f", 5.0, node2.TotalCost())
 	}
 	if node2.Adjustment() != 1.0 {
@@ -471,7 +468,7 @@ func TestNode_Add(t *testing.T) {
 	nodeAT := nodeA1.Add(nodeA2).(*Node)
 
 	// Check that the sums and properties are correct
-	if !approx(nodeAT.TotalCost(), 15.0, delta) {
+	if !util.IsApproximately(nodeAT.TotalCost(), 15.0) {
 		t.Fatalf("Node.Add: expected %f; got %f", 15.0, nodeAT.TotalCost())
 	}
 	if nodeAT.Adjustment() != 2.6 {
@@ -497,13 +494,13 @@ func TestNode_Add(t *testing.T) {
 	}
 
 	// Check that the original assets are unchanged
-	if !approx(nodeA1.TotalCost(), 10.0, delta) {
+	if !util.IsApproximately(nodeA1.TotalCost(), 10.0) {
 		t.Fatalf("Node.Add: expected %f; got %f", 10.0, nodeA1.TotalCost())
 	}
 	if nodeA1.Adjustment() != 1.6 {
 		t.Fatalf("Node.Add: expected %f; got %f", 1.0, nodeA1.Adjustment())
 	}
-	if !approx(nodeA2.TotalCost(), 5.0, delta) {
+	if !util.IsApproximately(nodeA2.TotalCost(), 5.0) {
 		t.Fatalf("Node.Add: expected %f; got %f", 5.0, nodeA2.TotalCost())
 	}
 	if nodeA2.Adjustment() != 1.0 {
