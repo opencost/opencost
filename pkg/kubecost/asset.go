@@ -114,7 +114,7 @@ type AssetLabels map[string]string
 
 // Clone returns a cloned map of labels
 func (al AssetLabels) Clone() AssetLabels {
-	clone := AssetLabels{}
+	clone := make(AssetLabels, len(al))
 
 	for label, value := range al {
 		clone[label] = value
@@ -2392,17 +2392,15 @@ func (as *AssetSet) Clone() *AssetSet {
 	as.RLock()
 	defer as.RUnlock()
 
-	assets := map[string]Asset{}
+	assets := make(map[string]Asset, len(as.assets))
 	for k, v := range as.assets {
 		assets[k] = v.Clone()
 	}
 
 	var props []AssetProperty
 	if as.props != nil {
-		props = []AssetProperty{}
-		for _, p := range as.props {
-			props = append(props, p)
-		}
+		props = make([]AssetProperty, len(as.props))
+		copy(props, as.props)
 	}
 
 	s := as.Start()

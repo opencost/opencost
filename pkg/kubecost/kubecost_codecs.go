@@ -421,8 +421,8 @@ func (target *AllocationSet) UnmarshalBinary(data []byte) (err error) {
 		target.allocations = nil
 	} else {
 		// --- [begin][read][map](map[string]*Allocation) ---
-		a := make(map[string]*Allocation)
 		b := buff.ReadInt() // map len
+		a := make(map[string]*Allocation, b)
 		for i := 0; i < b; i++ {
 			var k string
 			c := buff.ReadString() // read string
@@ -454,8 +454,8 @@ func (target *AllocationSet) UnmarshalBinary(data []byte) (err error) {
 		target.idleKeys = nil
 	} else {
 		// --- [begin][read][map](map[string]bool) ---
-		g := make(map[string]bool)
 		h := buff.ReadInt() // map len
+		g := make(map[string]bool, h)
 		for j := 0; j < h; j++ {
 			var kk string
 			l := buff.ReadString() // read string
@@ -745,8 +745,8 @@ func (target *Any) UnmarshalBinary(data []byte) (err error) {
 		a = nil
 	} else {
 		// --- [begin][read][map](map[string]string) ---
-		b := make(map[string]string)
 		c := buff.ReadInt() // map len
+		b := make(map[string]string, c)
 		for i := 0; i < c; i++ {
 			var k string
 			d := buff.ReadString() // read string
@@ -1046,8 +1046,8 @@ func (target *AssetSet) UnmarshalBinary(data []byte) (err error) {
 		target.assets = nil
 	} else {
 		// --- [begin][read][map](map[string]Asset) ---
-		a := make(map[string]Asset)
 		b := buff.ReadInt() // map len
+		a := make(map[string]Asset, b)
 		for i := 0; i < b; i++ {
 			var k string
 			c := buff.ReadString() // read string
@@ -1447,8 +1447,8 @@ func (target *Cloud) UnmarshalBinary(data []byte) (err error) {
 		a = nil
 	} else {
 		// --- [begin][read][map](map[string]string) ---
-		b := make(map[string]string)
 		c := buff.ReadInt() // map len
+		b := make(map[string]string, c)
 		for i := 0; i < c; i++ {
 			var k string
 			d := buff.ReadString() // read string
@@ -1622,8 +1622,8 @@ func (target *ClusterManagement) UnmarshalBinary(data []byte) (err error) {
 		a = nil
 	} else {
 		// --- [begin][read][map](map[string]string) ---
-		b := make(map[string]string)
 		c := buff.ReadInt() // map len
+		b := make(map[string]string, c)
 		for i := 0; i < c; i++ {
 			var k string
 			d := buff.ReadString() // read string
@@ -1808,8 +1808,8 @@ func (target *Disk) UnmarshalBinary(data []byte) (err error) {
 		a = nil
 	} else {
 		// --- [begin][read][map](map[string]string) ---
-		b := make(map[string]string)
 		c := buff.ReadInt() // map len
+		b := make(map[string]string, c)
 		for i := 0; i < c; i++ {
 			var k string
 			d := buff.ReadString() // read string
@@ -2038,8 +2038,8 @@ func (target *LoadBalancer) UnmarshalBinary(data []byte) (err error) {
 		d = nil
 	} else {
 		// --- [begin][read][map](map[string]string) ---
-		e := make(map[string]string)
 		f := buff.ReadInt() // map len
+		e := make(map[string]string, f)
 		for i := 0; i < f; i++ {
 			var k string
 			g := buff.ReadString() // read string
@@ -2232,8 +2232,8 @@ func (target *Network) UnmarshalBinary(data []byte) (err error) {
 		d = nil
 	} else {
 		// --- [begin][read][map](map[string]string) ---
-		e := make(map[string]string)
 		f := buff.ReadInt() // map len
+		e := make(map[string]string, f)
 		for i := 0; i < f; i++ {
 			var k string
 			g := buff.ReadString() // read string
@@ -2463,8 +2463,8 @@ func (target *Node) UnmarshalBinary(data []byte) (err error) {
 		d = nil
 	} else {
 		// --- [begin][read][map](map[string]string) ---
-		e := make(map[string]string)
 		f := buff.ReadInt() // map len
+		e := make(map[string]string, f)
 		for i := 0; i < f; i++ {
 			var k string
 			g := buff.ReadString() // read string
@@ -2689,8 +2689,8 @@ func (target *SharedAsset) UnmarshalBinary(data []byte) (err error) {
 		d = nil
 	} else {
 		// --- [begin][read][map](map[string]string) ---
-		e := make(map[string]string)
 		f := buff.ReadInt() // map len
+		e := make(map[string]string, f)
 		for i := 0; i < f; i++ {
 			var k string
 			g := buff.ReadString() // read string

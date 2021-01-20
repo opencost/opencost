@@ -7,8 +7,20 @@ import (
 )
 
 const (
+	// SecsPerMin expresses the amount of seconds in a minute
+	SecsPerMin = 60.0
+
+	// SecsPerHour expresses the amount of seconds in a minute
+	SecsPerHour = 3600.0
+
+	// SecsPerDay expressed the amount of seconds in a day
+	SecsPerDay = 86400.0
+
 	// MinsPerHour expresses the amount of minutes in an hour
 	MinsPerHour = 60.0
+
+	// MinsPerDay expresses the amount of minutes in a day
+	MinsPerDay = 1440.0
 
 	// HoursPerDay expresses the amount of hours in a day
 	HoursPerDay = 24.0
@@ -19,6 +31,48 @@ const (
 	// DaysPerMonth expresses the amount of days in a month
 	DaysPerMonth = 30.42
 )
+
+// DurationOffsetStrings converts a (duration, offset) pair to Prometheus-
+// compatible strings in terms of days, hours, minutes, or seconds.
+func DurationOffsetStrings(duration, offset time.Duration) (string, string) {
+	durSecs := int64(duration.Seconds())
+	offSecs := int64(offset.Seconds())
+
+	durStr := ""
+	if durSecs > 0 {
+		if durSecs%SecsPerDay == 0 {
+			// convert to days
+			durStr = fmt.Sprintf("%dd", durSecs/SecsPerDay)
+		} else if durSecs%SecsPerHour == 0 {
+			// convert to hours
+			durStr = fmt.Sprintf("%dh", durSecs/SecsPerHour)
+		} else if durSecs%SecsPerMin == 0 {
+			// convert to mins
+			durStr = fmt.Sprintf("%dm", durSecs/SecsPerMin)
+		} else if durSecs > 0 {
+			// default to mins, as long as duration is positive
+			durStr = fmt.Sprintf("%ds", durSecs)
+		}
+	}
+
+	offStr := ""
+	if offSecs > 0 {
+		if offSecs%SecsPerDay == 0 {
+			// convert to days
+			offStr = fmt.Sprintf("%dd", offSecs/SecsPerDay)
+		} else if offSecs%SecsPerHour == 0 {
+			// convert to hours
+			offStr = fmt.Sprintf("%dh", offSecs/SecsPerHour)
+		} else if offSecs%SecsPerMin == 0 {
+			// convert to mins
+			offStr = fmt.Sprintf("%dm", offSecs/SecsPerMin)
+		} else if offSecs > 0 {
+			// default to mins, as long as offation is positive
+			offStr = fmt.Sprintf("%ds", offSecs)
+		}
+	}
+	return durStr, offStr
+}
 
 // ParseDuration converts a Prometheus-style duration string into a Duration
 func ParseDuration(duration string) (*time.Duration, error) {
