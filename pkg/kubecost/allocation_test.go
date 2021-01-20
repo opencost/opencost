@@ -208,7 +208,7 @@ func generateAllocationSet(start time.Time) *AllocationSet {
 	// Idle allocations
 	a1i := NewUnitAllocation(fmt.Sprintf("cluster1/%s", IdleSuffix), start, day, &Properties{
 		ClusterProp: "cluster1",
-		NodeProp: "node1",
+		NodeProp:    "node1",
 	})
 	a1i.CPUCost = 5.0
 	a1i.RAMCost = 15.0
@@ -347,6 +347,11 @@ func generateAllocationSet(start time.Time) *AllocationSet {
 	a22mno4.Properties.SetLabels(map[string]string{"app": "app2"})
 	a22mno5.Properties.SetLabels(map[string]string{"app": "app2"})
 
+	//Annotations
+	a23stu7.Properties.SetAnnotations(map[string]string{"team": "team1"})
+	a23vwx8.Properties.SetAnnotations(map[string]string{"team": "team2"})
+	a23vwx9.Properties.SetAnnotations(map[string]string{"team": "team1"})
+
 	// Services
 
 	a12jkl6.Properties.SetServices([]string{"service1"})
@@ -445,10 +450,10 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	//         container6: {service1}              5.00   1.00   1.00   1.00   1.00   1.00
 	//     namespace3:
 	//       pod-stu: (deployment3)
-	//         container7:                         5.00   1.00   1.00   1.00   1.00   1.00
+	//         container7: an[team=team1]          5.00   1.00   1.00   1.00   1.00   1.00
 	//       pod-vwx: (statefulset1)
-	//         container8:                         5.00   1.00   1.00   1.00   1.00   1.00
-	//         container9:                         5.00   1.00   1.00   1.00   1.00   1.00
+	//         container8: an[team=team2]          5.00   1.00   1.00   1.00   1.00   1.00
+	//         container9: an[team=team1]          5.00   1.00   1.00   1.00   1.00   1.00
 	// +----------------------------------------+------+------+------+------+------+------+
 	//   cluster2 subtotal                        40.00  11.00  11.00   6.00   6.00   6.00
 	// +----------------------------------------+------+------+------+------+------+------+
@@ -669,6 +674,18 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	})
 	assertAllocationWindow(t, as, "1i", startYesterday, endYesterday, 1440.0)
 
+	// 1j AggregationProperties=(Annotation:team)
+	as = generateAllocationSet(start)
+	err = as.AggregateBy(Properties{AnnotationProp: map[string]string{"team": ""}}, nil)
+	assertAllocationSetTotals(t, as, "1j", err, 2+numIdle+numUnallocated, activeTotalCost+idleTotalCost)
+	assertAllocationTotals(t, as, "1j", map[string]float64{
+		"team=team1":      10.00,
+		"team=team2":      5.00,
+		IdleSuffix:        30.00,
+		UnallocatedSuffix: 55.00,
+	})
+	assertAllocationWindow(t, as, "1i", startYesterday, endYesterday, 1440.0)
+
 	// 2  Multi-aggregation
 
 	// 2a AggregationProperties=(Cluster, Namespace)
@@ -699,6 +716,24 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		"cluster1/" + UnallocatedSuffix:          15.00,
 		"cluster2/app=app2/" + UnallocatedSuffix: 10.00,
 		"cluster2/" + UnallocatedSuffix:          20.00,
+	})
+
+	// 2f AggregationProperties=(annotation:team, pod)
+	as = generateAllocationSet(start)
+	err = as.AggregateBy(Properties{AnnotationProp: map[string]string{"team": ""}, PodProp: ""}, nil)
+	assertAllocationSetTotals(t, as, "2e", err, 11, activeTotalCost+idleTotalCost)
+	assertAllocationTotals(t, as, "2e", map[string]float64{
+		"pod-jkl/" + UnallocatedSuffix: 5.00,
+		"pod-stu/team=team1":           5.00,
+		"pod-abc/" + UnallocatedSuffix: 5.00,
+		"pod-pqr/" + UnallocatedSuffix: 5.00,
+		"pod-def/" + UnallocatedSuffix: 5.00,
+		"pod-vwx/team=team1":           5.00,
+		"pod-vwx/team=team2":           5.00,
+		"pod1/" + UnallocatedSuffix:    15.00,
+		"pod-mno/" + UnallocatedSuffix: 10.00,
+		"pod-ghi/" + UnallocatedSuffix: 10.00,
+		IdleSuffix:                     30.00,
 	})
 
 	// // TODO niko/etl
