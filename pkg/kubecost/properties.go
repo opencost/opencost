@@ -65,7 +65,7 @@ func (p *Properties) Clone() Properties {
 		return nil
 	}
 
-	clone := Properties{}
+	clone := make(Properties, len(*p))
 	for k, v := range *p {
 		clone[k] = v
 	}
@@ -707,8 +707,8 @@ func (p *Properties) UnmarshalBinary(data []byte) error {
 
 	// LabelProp
 	if buff.ReadUInt8() == 1 { // read nil byte
-		labels := map[string]string{}
 		length := buff.ReadInt() // read map len
+		labels := make(map[string]string, length)
 		for idx := 0; idx < length; idx++ {
 			key := buff.ReadString()
 			val := buff.ReadString()
@@ -719,8 +719,8 @@ func (p *Properties) UnmarshalBinary(data []byte) error {
 
 	// AnnotationProp
 	if buff.ReadUInt8() == 1 { // read nil byte
-		annotations := map[string]string{}
 		length := buff.ReadInt() // read map len
+		annotations := make(map[string]string, length)
 		for idx := 0; idx < length; idx++ {
 			key := buff.ReadString()
 			val := buff.ReadString()
@@ -731,11 +731,11 @@ func (p *Properties) UnmarshalBinary(data []byte) error {
 
 	// ServiceProp
 	if buff.ReadUInt8() == 1 { // read nil byte
-		services := []string{}
 		length := buff.ReadInt() // read map len
+		services := make([]string, length)
 		for idx := 0; idx < length; idx++ {
 			val := buff.ReadString()
-			services = append(services, val)
+			services[idx] = val
 		}
 		p.SetServices(services)
 	}

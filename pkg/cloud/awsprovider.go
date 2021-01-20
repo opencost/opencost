@@ -265,7 +265,7 @@ var locationToRegion = map[string]string{
 	"EU (Stockholm)":             "eu-north-1",
 	"South America (Sao Paulo)":  "sa-east-1",
 	"AWS GovCloud (US-East)":     "us-gov-east-1",
-	"AWS GovCloud (US)":          "us-gov-west-1",
+	"AWS GovCloud (US-West)":     "us-gov-west-1",
 }
 
 var regionToBillingRegionCode = map[string]string{

@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strconv"
 	"time"
+
+	"github.com/kubecost/cost-model/pkg/util"
 )
 
 const (
@@ -480,33 +482,16 @@ func (w Window) DurationOffset() (time.Duration, time.Duration, error) {
 	return duration, offset, nil
 }
 
-// DurationOffsetStrings returns formatted strings representing the duration and
-// offset of the window in terms of minutes; e.g. ("30m", "1m")
-// TODO check for nils in Window
+// DurationOffsetStrings returns formatted, Prometheus-compatible strings representing
+// the duration and offset of the window in terms of days, hours, minutes, or seconds;
+// e.g. ("7d", "1441m", "30m", "1s", "")
 func (w Window) DurationOffsetStrings() (string, string) {
-	durMins := int(w.Duration().Minutes())
-
-	offStr := ""
-	if w.End() != nil {
-		offMins := int(time.Now().Sub(*w.End()).Minutes())
-		if offMins > 1 {
-			offStr = fmt.Sprintf("%dm", int(offMins))
-		} else if offMins < -1 {
-			durMins += offMins
-		}
+	dur, off, err := w.DurationOffset()
+	if err != nil {
+		return "", ""
 	}
 
-	// default to formatting in terms of minutes
-	durStr := fmt.Sprintf("%dm", durMins)
-	if (durMins >= minutesPerDay) && (durMins%minutesPerDay == 0) {
-		// convert to days
-		durStr = fmt.Sprintf("%dd", durMins/minutesPerDay)
-	} else if (durMins >= minutesPerHour) && (durMins%minutesPerHour == 0) {
-		// convert to hours
-		durStr = fmt.Sprintf("%dh", durMins/minutesPerHour)
-	}
-
-	return durStr, offStr
+	return util.DurationOffsetStrings(dur, off)
 }
 
 type BoundaryError struct {

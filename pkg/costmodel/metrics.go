@@ -13,6 +13,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
+	"github.com/kubecost/cost-model/pkg/util"
 
 	promclient "github.com/prometheus/client_golang/api"
 	"github.com/prometheus/client_golang/prometheus"
@@ -790,7 +791,11 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 		var defaultRegion string = ""
 		nodeList := cmme.KubeClusterCache.GetAllNodes()
 		if len(nodeList) > 0 {
-			defaultRegion = nodeList[0].Labels[v1.LabelZoneRegion]
+			var ok bool
+			defaultRegion, ok = util.GetRegion(nodeList[0].Labels)
+			if !ok {
+				log.DedupedWarningf(5, "Failed to locate default region")
+			}
 		}
 
 		for {
