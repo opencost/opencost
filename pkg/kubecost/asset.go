@@ -15,6 +15,10 @@ import (
 
 const timeFmt = "2006-01-02T15:04:05-0700"
 
+// UndefinedKey is used in composing Asset group keys if the group does not have that property defined.
+// E.g. if aggregating on Cluster, Assets in the AssetSet where Asset has no cluster will be grouped under key "__undefined__"
+const UndefinedKey = "__undefined__"
+
 // Asset defines an entity within a cluster that has a defined cost over a
 // given period of time.
 type Asset interface {
@@ -106,18 +110,16 @@ func key(a Asset, aggregateBy []string) (string, error) {
 				key = a.Labels()[labelKey]
 			} else {
 				// Don't allow aggregating on label ""
-				log.Errorf("Attempted to aggregate on empty label.")
 				return "", fmt.Errorf("Attempted to aggregate on invalid key: %s", s)
 			}
 		default:
-			log.Errorf("Attempted to aggregate on invalid key: %s", s)
 			return "", fmt.Errorf("Attempted to aggregate on invalid key: %s", s)
 		}
 
 		if key != "" {
 			keys = append(keys, key)
 		} else {
-			keys = append(keys, "__undefined__")
+			keys = append(keys, UndefinedKey)
 		}
 	}
 	return strings.Join(keys, "/"), nil
@@ -2468,7 +2470,9 @@ func (as *AssetSet) FindMatch(query Asset, aggregateBy []string) (Asset, error) 
 		return nil, err
 	}
 	for _, asset := range as.assets {
-		if k, _ := key(asset, aggregateBy); k == matchKey {
+		if k, err := key(asset, aggregateBy); err != nil {
+			return nil, err
+		} else if k == matchKey {
 			return asset, nil
 		}
 	}
@@ -2507,11 +2511,15 @@ func (as *AssetSet) ReconciliationMatch(query Asset) (Asset, bool, error) {
 
 	var providerIDMatch Asset
 	for _, asset := range as.assets {
-		if k, _ := key(asset, fullMatchProps); k == fullMatchKey {
+		if k, err := key(asset, fullMatchProps); err != nil {
+			return nil, false, err
+		} else if k == fullMatchKey {
 			log.DedupedInfof(10, "Asset ETL: Reconciliation[rcnw]: ReconcileRange Match: %s", fullMatchKey)
 			return asset, true, nil
 		}
-		if k, _ := key(asset, providerIDMatchProps); k == providerIDMatchKey {
+		if k, err := key(asset, providerIDMatchProps); err != nil {
+			return nil, false, err
+		} else if k == providerIDMatchKey {
 			// Found a partial match. Save it until after all other options
 			// have been checked for full matches.
 			providerIDMatch = asset
