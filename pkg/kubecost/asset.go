@@ -184,71 +184,6 @@ const (
 	SharedAssetType
 )
 
-// AssetCredit represents credit applied to the cost of an Asset
-type AssetCredit struct {
-	Amount float64
-	Name   string
-	Type   string
-}
-
-// Clone returns a copy of AssetCredit
-func (ac AssetCredit) Clone() AssetCredit {
-	return AssetCredit{
-		Amount: ac.Amount,
-		Name:   ac.Name,
-		Type:   ac.Type,
-	}
-}
-
-// Equal returns true if the AssetCredits are equal. False otherwise.
-func (ac AssetCredit) Equal(that AssetCredit) bool {
-	return (ac.Amount == that.Amount &&
-		ac.Name == that.Name &&
-		ac.Type == that.Type)
-}
-
-// AssetCredits is a slice of `AssetCredit`
-type AssetCredits []AssetCredit
-
-// Clone returns a deep copy of the AssetCredits
-func (acs AssetCredits) Clone() AssetCredits {
-	cloneSlice := make(AssetCredits, len(acs))
-	for _, credit := range acs {
-		cloneSlice = append(cloneSlice, credit.Clone())
-	}
-	return cloneSlice
-}
-
-// Equal returns true if the given AssetCredits are equal. False otherwise.
-func (acs AssetCredits) Equal(that AssetCredits) bool {
-	if len(acs) != len(that) {
-		return false
-	}
-	for i := range acs {
-		if !acs[i].Equal(that[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-// Map executes function iteritee on each element of the slice, and returns a slice of the results
-func (acs AssetCredits) Map(iteritee func(int, AssetCredit) AssetCredit) AssetCredits {
-	mappedCredits := AssetCredits{}
-	for index, credit := range acs {
-		mappedCredit := iteritee(index, credit)
-		mappedCredits = append(mappedCredits, mappedCredit)
-	}
-	return mappedCredits
-}
-
-// Scale scales all credit values by some supplied factor
-func (acs AssetCredits) Scale(scaleFactor float64) {
-	for _, credit := range acs {
-		credit.Amount *= scaleFactor
-	}
-}
-
 // ParseAssetType attempts to parse the given string into an AssetType
 func ParseAssetType(text string) (AssetType, error) {
 	switch strings.TrimSpace(strings.ToLower(text)) {
@@ -489,7 +424,7 @@ type Cloud struct {
 	window     Window
 	adjustment float64
 	Cost       float64
-	Credits    AssetCredits
+	Credit     float64
 }
 
 // NewCloud returns a new Cloud Asset
@@ -543,18 +478,9 @@ func (ca *Cloud) SetAdjustment(adj float64) {
 	ca.adjustment = adj
 }
 
-// TotalCreditAmount returns the total amount of all credits applied to the asset
-func (ca *Cloud) TotalCreditAmount() float64 {
-	total := 0.0
-	for _, credit := range ca.Credits {
-		total += credit.Amount
-	}
-	return total
-}
-
 // TotalCost returns the Asset's total cost
 func (ca *Cloud) TotalCost() float64 {
-	return ca.Cost + ca.adjustment
+	return ca.Cost + ca.adjustment + ca.Credit
 }
 
 // Start returns the Asset's precise start time within the window
@@ -625,7 +551,7 @@ func (ca *Cloud) Add(a Asset) Asset {
 	any.SetProperties(props)
 	any.SetLabels(labels)
 	any.adjustment = ca.Adjustment() + a.Adjustment()
-	any.Cost = (ca.TotalCost() - ca.Adjustment()) + (a.TotalCost() - a.Adjustment())
+	any.Cost = (ca.TotalCost() - ca.Adjustment() - ca.Credit) + (a.TotalCost() - a.Adjustment() - ca.Credit)
 
 	return any
 }
@@ -656,7 +582,7 @@ func (ca *Cloud) add(that *Cloud) {
 	ca.SetLabels(labels)
 	ca.adjustment += that.adjustment
 	ca.Cost += that.Cost
-	ca.Credits = append(ca.Credits, that.Credits...)
+	ca.Credit += that.Credit
 }
 
 // Clone returns a cloned instance of the Asset
@@ -669,7 +595,7 @@ func (ca *Cloud) Clone() Asset {
 		window:     ca.window.Clone(),
 		adjustment: ca.adjustment,
 		Cost:       ca.Cost,
-		Credits:    ca.Credits.Clone(),
+		Credit:     ca.Credit,
 	}
 }
 
@@ -704,7 +630,7 @@ func (ca *Cloud) Equal(a Asset) bool {
 	if ca.Cost != that.Cost {
 		return false
 	}
-	if !ca.Credits.Equal(that.Credits) {
+	if ca.Credit != that.Credit {
 		return false
 	}
 
@@ -717,12 +643,12 @@ func (ca *Cloud) MarshalJSON() ([]byte, error) {
 	jsonEncodeString(buffer, "type", ca.Type().String(), ",")
 	jsonEncode(buffer, "properties", ca.Properties(), ",")
 	jsonEncode(buffer, "labels", ca.Labels(), ",")
-	jsonEncode(buffer, "credits", ca.Credits, ",")
 	jsonEncodeString(buffer, "window", ca.Window().String(), ",")
 	jsonEncodeString(buffer, "start", ca.Start().Format(timeFmt), ",")
 	jsonEncodeString(buffer, "end", ca.End().Format(timeFmt), ",")
 	jsonEncodeFloat64(buffer, "minutes", ca.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "adjustment", ca.Adjustment(), ",")
+	jsonEncodeFloat64(buffer, "credit", ca.Credit, ",")
 	jsonEncodeFloat64(buffer, "totalCost", ca.TotalCost(), "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
