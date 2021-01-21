@@ -177,10 +177,10 @@ const (
 		)
 	) by (namespace,container_name,pod_name,node,cluster_id)
 	* on (pod_name, namespace, cluster_id) group_left(container) label_replace(avg(avg_over_time(kube_pod_status_phase{phase="Running"}[%s] %s)) by (pod,namespace,cluster_id), "pod_name","$1","pod","(.+)")`
-	queryPVRequestsStr = `avg(avg(kube_persistentvolumeclaim_info{volumename != ""}) by (persistentvolumeclaim, storageclass, namespace, volumename, cluster_id)
+	queryPVRequestsStr = `avg(avg(kube_persistentvolumeclaim_info{volumename != ""}) by (persistentvolumeclaim, storageclass, namespace, volumename, cluster_id, kubernetes_node)
 	*
-	on (persistentvolumeclaim, namespace, cluster_id) group_right(storageclass, volumename)
-	sum(kube_persistentvolumeclaim_resource_requests_storage_bytes{volumename != ""}) by (persistentvolumeclaim, namespace, cluster_id, kubernetes_name)) by (persistentvolumeclaim, storageclass, namespace, volumename, cluster_id)`
+	on (persistentvolumeclaim, namespace, cluster_id, kubernetes_node) group_right(storageclass, volumename)
+	sum(kube_persistentvolumeclaim_resource_requests_storage_bytes{}) by (persistentvolumeclaim, namespace, cluster_id, kubernetes_node, kubernetes_name)) by (persistentvolumeclaim, storageclass, namespace, cluster_id, volumename, kubernetes_node)`
 	// queryRAMAllocationByteHours yields the total byte-hour RAM allocation over the given
 	// window, aggregated by container.
 	//  [line 3]  sum_over_time(each byte) = [byte*scrape] by metric
@@ -576,7 +576,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 			}
 			namespacelabels, ok := namespaceLabelsMapping[c.Namespace+","+c.ClusterID]
 			if !ok {
-				klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
+				klog.V(4).Infof("Missing data for namespace %s", c.Namespace)
 			}
 
 			costs := &CostData{
@@ -647,7 +647,7 @@ func findUnmountedPVCostData(clusterMap clusters.ClusterMap, unmountedPVs map[st
 
 		namespacelabels, ok := namespaceLabelsMapping[ns+","+clusterID]
 		if !ok {
-			klog.V(3).Infof("Missing data for namespace %s", ns)
+			klog.V(4).Infof("Missing data for namespace %s", ns)
 		}
 
 		// Should be a unique "Unmounted" cost data type
@@ -710,7 +710,7 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 
 func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*costAnalyzerCloud.Node, window, offset string) error {
 	if len(missingNodes) > 0 {
-		defer measureTime(time.Now(), profileThreshold, "Finding Deleted Node Info")
+		defer measureTime(time.Now(), profileThreshold, "Finding Deleted Node Info"+window)
 
 		offsetStr := ""
 		if offset != "" {
@@ -729,6 +729,7 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 		cpuCostRes, _ := cpuCostResCh.Await()
 		ramCostRes, _ := ramCostResCh.Await()
 		gpuCostRes, _ := gpuCostResCh.Await()
+
 		if ctx.HasErrors() {
 			return ctx.ErrorCollection()
 		}
@@ -1537,13 +1538,13 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 
 	ctx := prom.NewContext(cli)
 
-	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, resStr, scrapeIntervalSeconds)
-	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, resStr, scrapeIntervalSeconds)
-	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, resStr, "", resStr, "")
-	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, resStr, "", resStr, "")
-	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, resStr, "", resStr, "")
-	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, resStr, "")
-	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, resStr, "", resStr, "", resolution.Hours(), resStr, "")
+	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, "1440m", scrapeIntervalSeconds)
+	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, "1440m", scrapeIntervalSeconds)
+	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, "1440m", "", "1440m", "")
+	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, "1440m", "", "1440m", "")
+	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, "1440m", "", "1440m", "")
+	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, "1440m", "")
+	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, "1440m", "", "1440m", "", 24.0, "1440m", "")
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
 	queryPVCAllocation := fmt.Sprintf(queryPVCAllocationFmt, resStr, scrapeIntervalSeconds)
 	queryPVHourlyCost := fmt.Sprintf(queryPVHourlyCostFmt, resStr)
@@ -1553,13 +1554,13 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 	queryNormalization := fmt.Sprintf(normalizationStr, resStr, "")
 
 	// Submit all queries for concurrent evaluation
-	resChRAMRequests := ctx.QueryRange(queryRAMRequests, start, end, resolution)
-	resChRAMUsage := ctx.QueryRange(queryRAMUsage, start, end, resolution)
-	resChRAMAlloc := ctx.QueryRange(queryRAMAlloc, start, end, resolution)
-	resChCPURequests := ctx.QueryRange(queryCPURequests, start, end, resolution)
-	resChCPUUsage := ctx.QueryRange(queryCPUUsage, start, end, resolution)
-	resChCPUAlloc := ctx.QueryRange(queryCPUAlloc, start, end, resolution)
-	resChGPURequests := ctx.QueryRange(queryGPURequests, start, end, resolution)
+	resChRAMRequests := ctx.Query(queryRAMRequests)
+	resChRAMUsage := ctx.Query(queryRAMUsage)
+	resChRAMAlloc := ctx.Query(queryRAMAlloc)
+	resChCPURequests := ctx.Query(queryCPURequests)
+	resChCPUUsage := ctx.Query(queryCPUUsage)
+	resChCPUAlloc := ctx.Query(queryCPUAlloc)
+	resChGPURequests := ctx.Query(queryGPURequests)
 	resChPVRequests := ctx.QueryRange(queryPVRequests, start, end, resolution)
 	resChPVCAlloc := ctx.QueryRange(queryPVCAllocation, start, end, resolution)
 	resChPVHourlyCost := ctx.QueryRange(queryPVHourlyCost, start, end, resolution)
@@ -1639,7 +1640,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 		return nil, ctx.ErrorCollection()
 	}
 
-	normalizationValue, err := getNormalizations(resNormalization)
+	_, err = getNormalizations(resNormalization)
 	if err != nil {
 		msg := fmt.Sprintf("error computing normalization for start=%s, end=%s, res=%s", start, end, resolution)
 		return nil, prom.WrapError(err, msg)
@@ -1740,7 +1741,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 	containers := make(map[string]bool)
 	otherClusterPVRecorded := make(map[string]bool)
 
-	RAMReqMap, err := GetNormalizedContainerMetricVectors(resRAMRequests, normalizationValue, clusterID)
+	RAMReqMap, err := GetContainerMetricVector(resRAMRequests, false, 1, clusterID)
 	if err != nil {
 		return nil, prom.WrapError(err, "GetNormalizedContainerMetricVectors(RAMRequests)")
 	}
@@ -1748,7 +1749,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 		containers[key] = true
 	}
 
-	RAMUsedMap, err := GetNormalizedContainerMetricVectors(resRAMUsage, normalizationValue, clusterID)
+	RAMUsedMap, err := GetContainerMetricVector(resRAMUsage, false, 1, clusterID)
 	if err != nil {
 		return nil, prom.WrapError(err, "GetNormalizedContainerMetricVectors(RAMUsage)")
 	}
@@ -1756,7 +1757,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 		containers[key] = true
 	}
 
-	CPUReqMap, err := GetNormalizedContainerMetricVectors(resCPURequests, normalizationValue, clusterID)
+	CPUReqMap, err := GetContainerMetricVector(resCPURequests, false, 1, clusterID)
 	if err != nil {
 		return nil, prom.WrapError(err, "GetNormalizedContainerMetricVectors(CPURequests)")
 	}
@@ -1766,7 +1767,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 
 	// No need to normalize here, as this comes from a counter, namely:
 	// rate(container_cpu_usage_seconds_total) which properly accounts for normalized rates
-	CPUUsedMap, err := GetContainerMetricVectors(resCPUUsage, clusterID)
+	CPUUsedMap, err := GetContainerMetricVector(resCPUUsage, false, 1, clusterID)
 	if err != nil {
 		return nil, prom.WrapError(err, "GetContainerMetricVectors(CPUUsage)")
 	}
@@ -1774,7 +1775,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 		containers[key] = true
 	}
 
-	RAMAllocMap, err := GetContainerMetricVectors(resRAMAlloc, clusterID)
+	RAMAllocMap, err := GetContainerMetricVector(resRAMAlloc, false, 1, clusterID)
 	if err != nil {
 		return nil, prom.WrapError(err, "GetContainerMetricVectors(RAMAllocations)")
 	}
@@ -1782,7 +1783,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 		containers[key] = true
 	}
 
-	CPUAllocMap, err := GetContainerMetricVectors(resCPUAlloc, clusterID)
+	CPUAllocMap, err := GetContainerMetricVector(resCPUAlloc, false, 1, clusterID)
 	if err != nil {
 		return nil, prom.WrapError(err, "GetContainerMetricVectors(CPUAllocations)")
 	}
@@ -1790,7 +1791,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 		containers[key] = true
 	}
 
-	GPUReqMap, err := GetNormalizedContainerMetricVectors(resGPURequests, normalizationValue, clusterID)
+	GPUReqMap, err := GetContainerMetricVector(resGPURequests, false, 1, clusterID)
 	if err != nil {
 		return nil, prom.WrapError(err, "GetContainerMetricVectors(GPURequests)")
 	}
