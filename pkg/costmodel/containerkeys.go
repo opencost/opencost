@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/kubecost/cost-model/pkg/log"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 )
 
 var (
@@ -13,22 +13,22 @@ var (
 	NewKeyTupleErr = errors.New("NewKeyTuple() Provided key not containing exactly 3 components.")
 
 	// Static Errors for ContainerMetric creation
-	InvalidKeyErr      error = errors.New("Not a valid key")
-	NoContainerErr     error = errors.New("Prometheus vector does not have container name")
+	InvalidKeyErr error = errors.New("Not a valid key")
+	NoContainerErr error = errors.New("Prometheus vector does not have container name")
 	NoContainerNameErr error = errors.New("Prometheus vector does not have string container name")
-	NoPodErr           error = errors.New("Prometheus vector does not have pod name")
-	NoPodNameErr       error = errors.New("Prometheus vector does not have string pod name")
-	NoNamespaceErr     error = errors.New("Prometheus vector does not have namespace")
+	NoPodErr error = errors.New("Prometheus vector does not have pod name")
+	NoPodNameErr error = errors.New("Prometheus vector does not have string pod name")
+	NoNamespaceErr error = errors.New("Prometheus vector does not have namespace")
 	NoNamespaceNameErr error = errors.New("Prometheus vector does not have string namespace")
-	NoNodeNameErr      error = errors.New("Prometheus vector does not have string node")
-	NoClusterIDErr     error = errors.New("Prometheus vector does not have string cluster_id")
+	NoNodeNameErr error = errors.New("Prometheus vector does not have string node")
+	NoClusterIDErr error = errors.New("Prometheus vector does not have string cluster_id")
 )
 
 //--------------------------------------------------------------------------
 //  KeyTuple
 //--------------------------------------------------------------------------
 
-// KeyTuple contains is a utility which parses Namespace, Key, and ClusterID from a
+// KeyTuple contains is a utility which parses Namespace, Key, and ClusterID from a 
 // comma delimitted string.
 type KeyTuple struct {
 	key    string
@@ -103,8 +103,8 @@ func containerMetricKey(ns, podName, containerName, nodeName, clusterID string) 
 	return ns + "," + podName + "," + containerName + "," + nodeName + "," + clusterID
 }
 
-// NewContainerMetricFromKey creates a new ContainerMetric instance using a provided comma delimitted
-// string key.
+// NewContainerMetricFromKey creates a new ContainerMetric instance using a provided comma delimitted 
+// string key. 
 func NewContainerMetricFromKey(key string) (*ContainerMetric, error) {
 	s := strings.Split(key, ",")
 	if len(s) == 5 {
@@ -132,7 +132,7 @@ func NewContainerMetricFromValues(ns, podName, containerName, nodeName, clusterI
 	}
 }
 
-// NewContainerMetricsFromPod creates a slice of ContainerMetric instances for each container in the
+// NewContainerMetricsFromPod creates a slice of ContainerMetric instances for each container in the 
 // provided Pod.
 func NewContainerMetricsFromPod(pod *v1.Pod, clusterID string) ([]*ContainerMetric, error) {
 	podName := pod.GetObjectMeta().GetName()
