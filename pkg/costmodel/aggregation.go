@@ -599,6 +599,7 @@ func aggregateDatum(cp cloud.Provider, aggregations map[string]*Aggregation, cos
 				props.SetControllerKind(kind)
 			}
 			props.SetLabels(costDatum.Labels)
+			props.SetAnnotations(costDatum.Annotations)
 			props.SetNamespace(costDatum.Namespace)
 			props.SetPod(costDatum.PodName)
 			props.SetServices(costDatum.Services)

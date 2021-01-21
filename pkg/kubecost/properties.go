@@ -222,6 +222,7 @@ func (p *Properties) Length() int {
 	return len(*p)
 }
 
+// TODO: deprecate
 func (p *Properties) Matches(that Properties) bool {
 	// The only Properties that a nil Properties matches is an empty one
 	if p == nil {
