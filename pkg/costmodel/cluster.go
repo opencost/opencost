@@ -400,7 +400,18 @@ var partialCPUMap = map[string]float64{
 	"e2-medium": 1.0,
 }
 
-func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset time.Duration) (map[string]*Node, error) {
+type NodeIdentifier struct {
+	Cluster    string
+	Name       string
+	ProviderID string
+}
+
+type nodeIdentifierNoProviderID struct {
+	Cluster string
+	Name    string
+}
+
+func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset time.Duration) (map[NodeIdentifier]*Node, error) {
 	durationStr := fmt.Sprintf("%dm", int64(duration.Minutes()))
 	offsetStr := fmt.Sprintf(" offset %dm", int64(offset.Minutes()))
 	if offset < time.Minute {
@@ -473,348 +484,33 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		return nil, requiredCtx.ErrorCollection()
 	}
 
-	nodeMap := map[string]*Node{}
+	cpuCostMap, clusterAndNameToType1 := buildCPUCostMap(resNodeCPUCost, cp.ParseID)
+	ramCostMap, clusterAndNameToType2 := buildRAMCostMap(resNodeRAMCost, cp.ParseID)
+	gpuCostMap, clusterAndNameToType3 := buildGPUCostMap(resNodeGPUCost, cp.ParseID)
 
-	for _, result := range resNodeCPUCost {
-		cluster, err := result.GetString("cluster_id")
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
+	clusterAndNameToTypeIntermediate := mergeTypeMaps(clusterAndNameToType1, clusterAndNameToType2)
+	clusterAndNameToType := mergeTypeMaps(clusterAndNameToTypeIntermediate, clusterAndNameToType3)
 
-		name, err := result.GetString("node")
-		if err != nil {
-			log.Warningf("ClusterNodes: CPU cost data missing node")
-			continue
-		}
+	cpuCoresMap := buildCPUCoresMap(resNodeCPUCores, clusterAndNameToType)
 
-		nodeType, _ := result.GetString("instance_type")
-		providerID, _ := result.GetString("provider_id")
+	ramBytesMap := buildRAMBytesMap(resNodeRAMBytes)
 
-		cpuCost := result.Values[0].Value
+	ramUserPctMap := buildRAMUserPctMap(resNodeRAMUserPct)
+	ramSystemPctMap := buildRAMSystemPctMap(resNodeRAMSystemPct)
 
-		key := fmt.Sprintf("%s/%s", cluster, name)
-		if _, ok := nodeMap[key]; !ok {
-			nodeMap[key] = &Node{
-				Cluster:      cluster,
-				Name:         name,
-				NodeType:     nodeType,
-				ProviderID:   cp.ParseID(providerID),
-				CPUBreakdown: &ClusterCostsBreakdown{},
-				RAMBreakdown: &ClusterCostsBreakdown{},
-				Labels:       map[string]string{},
-			}
-		}
-		nodeMap[key].CPUCost += cpuCost
-		nodeMap[key].NodeType = nodeType
-		if nodeMap[key].ProviderID == "" {
-			nodeMap[key].ProviderID = cp.ParseID(providerID)
-		}
-	}
+	cpuBreakdownMap := buildCPUBreakdownMap(resNodeCPUModeTotal)
+	activeDataMap := buildActiveDataMap(resActiveMins, resolution, cp.ParseID)
+	preemptibleMap := buildPreemptibleMap(resNodeLabels, cp.ParseID)
 
-	for _, result := range resNodeCPUCores {
-		cluster, err := result.GetString("cluster_id")
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		name, err := result.GetString("node")
-		if err != nil {
-			log.Warningf("ClusterNodes: CPU cores data missing node")
-			continue
-		}
-
-		cpuCores := result.Values[0].Value
-
-		key := fmt.Sprintf("%s/%s", cluster, name)
-		if _, ok := nodeMap[key]; !ok {
-			nodeMap[key] = &Node{
-				Cluster:      cluster,
-				Name:         name,
-				CPUBreakdown: &ClusterCostsBreakdown{},
-				RAMBreakdown: &ClusterCostsBreakdown{},
-				Labels:       map[string]string{},
-			}
-		}
-		node := nodeMap[key]
-		if v, ok := partialCPUMap[node.NodeType]; ok {
-			node.CPUCores = v
-			if cpuCores > 0 {
-				adjustmentFactor := v / cpuCores
-				node.CPUCost = node.CPUCost * adjustmentFactor
-			}
-		} else {
-			nodeMap[key].CPUCores = cpuCores
-		}
-	}
-
-	for _, result := range resNodeRAMCost {
-		cluster, err := result.GetString("cluster_id")
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		name, err := result.GetString("node")
-		if err != nil {
-			log.Warningf("ClusterNodes: RAM cost data missing node")
-			continue
-		}
-
-		nodeType, _ := result.GetString("instance_type")
-		providerID, _ := result.GetString("provider_id")
-
-		ramCost := result.Values[0].Value
-
-		key := fmt.Sprintf("%s/%s", cluster, name)
-		if _, ok := nodeMap[key]; !ok {
-			nodeMap[key] = &Node{
-				Cluster:      cluster,
-				Name:         name,
-				NodeType:     nodeType,
-				ProviderID:   cp.ParseID(providerID),
-				CPUBreakdown: &ClusterCostsBreakdown{},
-				RAMBreakdown: &ClusterCostsBreakdown{},
-				Labels:       map[string]string{},
-			}
-		}
-		nodeMap[key].RAMCost += ramCost
-		nodeMap[key].NodeType = nodeType
-		if nodeMap[key].ProviderID == "" {
-			nodeMap[key].ProviderID = cp.ParseID(providerID)
-		}
-	}
-
-	for _, result := range resNodeRAMBytes {
-		cluster, err := result.GetString("cluster_id")
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		name, err := result.GetString("node")
-		if err != nil {
-			log.Warningf("ClusterNodes: RAM bytes data missing node")
-			continue
-		}
-
-		ramBytes := result.Values[0].Value
-
-		key := fmt.Sprintf("%s/%s", cluster, name)
-		if _, ok := nodeMap[key]; !ok {
-			nodeMap[key] = &Node{
-				Cluster:      cluster,
-				Name:         name,
-				CPUBreakdown: &ClusterCostsBreakdown{},
-				RAMBreakdown: &ClusterCostsBreakdown{},
-				Labels:       map[string]string{},
-			}
-		}
-		nodeMap[key].RAMBytes = ramBytes
-	}
-
-	for _, result := range resNodeGPUCost {
-		cluster, err := result.GetString("cluster_id")
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		name, err := result.GetString("node")
-		if err != nil {
-			log.Warningf("ClusterNodes: GPU cost data missing node")
-			continue
-		}
-
-		nodeType, _ := result.GetString("instance_type")
-		providerID, _ := result.GetString("provider_id")
-
-		gpuCost := result.Values[0].Value
-
-		key := fmt.Sprintf("%s/%s", cluster, name)
-		if _, ok := nodeMap[key]; !ok {
-			nodeMap[key] = &Node{
-				Cluster:      cluster,
-				Name:         name,
-				NodeType:     nodeType,
-				ProviderID:   cp.ParseID(providerID),
-				CPUBreakdown: &ClusterCostsBreakdown{},
-				RAMBreakdown: &ClusterCostsBreakdown{},
-				Labels:       map[string]string{},
-			}
-		}
-		nodeMap[key].GPUCost += gpuCost
-		if nodeMap[key].ProviderID == "" {
-			nodeMap[key].ProviderID = cp.ParseID(providerID)
-		}
-	}
-
-	// Mapping of cluster/node=cpu for computing resource efficiency
-	clusterNodeCPUTotal := map[string]float64{}
-	// Mapping of cluster/node:mode=cpu for computing resource efficiency
-	clusterNodeModeCPUTotal := map[string]map[string]float64{}
-
-	// Build intermediate structures for CPU usage by (cluster, node) and by
-	// (cluster, node, mode) for computing resouce efficiency
-	for _, result := range resNodeCPUModeTotal {
-		cluster, err := result.GetString("cluster_id")
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		node, err := result.GetString("kubernetes_node")
-		if err != nil {
-			log.DedupedWarningf(5, "ClusterNodes: CPU mode data missing node")
-			continue
-		}
-
-		mode, err := result.GetString("mode")
-		if err != nil {
-			log.Warningf("ClusterNodes: unable to read CPU mode: %s", err)
-			mode = "other"
-		}
-
-		key := fmt.Sprintf("%s/%s", cluster, node)
-
-		total := result.Values[0].Value
-
-		// Increment total
-		clusterNodeCPUTotal[key] += total
-
-		// Increment mode
-		if _, ok := clusterNodeModeCPUTotal[key]; !ok {
-			clusterNodeModeCPUTotal[key] = map[string]float64{}
-		}
-		clusterNodeModeCPUTotal[key][mode] += total
-	}
-
-	// Compute resource efficiency from intermediate structures
-	for key, total := range clusterNodeCPUTotal {
-		if modeTotals, ok := clusterNodeModeCPUTotal[key]; ok {
-			for mode, subtotal := range modeTotals {
-				// Compute percentage for the current cluster, node, mode
-				pct := 0.0
-				if total > 0 {
-					pct = subtotal / total
-				}
-
-				if _, ok := nodeMap[key]; !ok {
-					log.Warningf("ClusterNodes: CPU mode data for unidentified node")
-					continue
-				}
-
-				switch mode {
-				case "idle":
-					nodeMap[key].CPUBreakdown.Idle += pct
-				case "system":
-					nodeMap[key].CPUBreakdown.System += pct
-				case "user":
-					nodeMap[key].CPUBreakdown.User += pct
-				default:
-					nodeMap[key].CPUBreakdown.Other += pct
-				}
-			}
-		}
-	}
-
-	for _, result := range resNodeRAMSystemPct {
-		cluster, err := result.GetString("cluster_id")
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		name, err := result.GetString("instance")
-		if err != nil {
-			log.Warningf("ClusterNodes: RAM system percent missing node")
-			continue
-		}
-
-		pct := result.Values[0].Value
-
-		key := fmt.Sprintf("%s/%s", cluster, name)
-		if _, ok := nodeMap[key]; !ok {
-			log.Warningf("ClusterNodes: RAM system percent for unidentified node")
-			continue
-		}
-
-		nodeMap[key].RAMBreakdown.System += pct
-	}
-
-	for _, result := range resNodeRAMUserPct {
-		cluster, err := result.GetString("cluster_id")
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		name, err := result.GetString("instance")
-		if err != nil {
-			log.Warningf("ClusterNodes: RAM system percent missing node")
-			continue
-		}
-
-		pct := result.Values[0].Value
-
-		key := fmt.Sprintf("%s/%s", cluster, name)
-		if _, ok := nodeMap[key]; !ok {
-			log.Warningf("ClusterNodes: RAM system percent for unidentified node")
-			continue
-		}
-
-		nodeMap[key].RAMBreakdown.User += pct
-	}
-
-	for _, result := range resActiveMins {
-		cluster, err := result.GetString("cluster_id")
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		name, err := result.GetString("node")
-		if err != nil {
-			log.Warningf("ClusterNodes: active mins missing node")
-			continue
-		}
-
-		key := fmt.Sprintf("%s/%s", cluster, name)
-		if _, ok := nodeMap[key]; !ok {
-			log.Warningf("ClusterNodes: active mins for unidentified node")
-			continue
-		}
-
-		if len(result.Values) == 0 {
-			continue
-		}
-
-		s := time.Unix(int64(result.Values[0].Timestamp), 0)
-		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).Add(resolution)
-		mins := e.Sub(s).Minutes()
-
-		// TODO niko/assets if mins >= threshold, interpolate for missing data?
-
-		nodeMap[key].End = e
-		nodeMap[key].Start = s
-		nodeMap[key].Minutes = mins
-	}
-
-	// Determine preemptibility with node labels
-	for _, result := range resIsSpot {
-		nodeName, err := result.GetString("node")
-		if err != nil {
-			continue
-		}
-
-		// GCP preemptible label
-		pre := result.Values[0].Value
-
-		cluster, err := result.GetString("cluster_id")
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-		key := fmt.Sprintf("%s/%s", cluster, nodeName)
-		if node, ok := nodeMap[key]; pre > 0.0 && ok {
-			node.Preemptible = true
-		}
-
-		// TODO AWS preemptible
-
-		// TODO Azure preemptible
-	}
+	nodeMap := buildNodeMap(
+		cpuCostMap, ramCostMap, gpuCostMap,
+		cpuCoresMap, ramBytesMap, ramUserPctMap,
+		ramSystemPctMap,
+		cpuBreakdownMap,
+		activeDataMap,
+		preemptibleMap,
+		clusterAndNameToType,
+	)
 
 	// Copy labels into node
 	for _, result := range resLabels {
