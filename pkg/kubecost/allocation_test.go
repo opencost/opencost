@@ -943,6 +943,106 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 // TODO niko/etl
 //func TestAllocationSet_Clone(t *testing.T) {}
 
+func TestAllocationSet_ComputeIdleAllocations(t *testing.T) {
+	var as *AllocationSet
+	var err error
+	var idles map[string]*Allocation
+
+	end := time.Now().UTC().Truncate(day)
+	start := end.Add(-day)
+
+	// Generate AllocationSet and strip out any existing idle allocations
+	as = generateAllocationSet(start)
+	for key := range as.idleKeys {
+		as.Delete(key)
+	}
+
+	// Create an AssetSet representing cluster costs for two clusters (cluster1
+	// and cluster2). Include Nodes and Disks for both, even though only
+	// Nodes will be counted. Whereas in practice, Assets should be aggregated
+	// by type, here we will provide multiple Nodes for one of the clusters to
+	// make sure the function still holds.
+
+	// NOTE: we're re-using generateAllocationSet so this has to line up with
+	// the allocated node costs from that function. See table above.
+
+	// | Hierarchy                               | Cost |  CPU |  RAM |  GPU |
+	// +-----------------------------------------+------+------+------+------+
+	//   cluster1:
+	//     nodes                                  100.00  50.00  40.00  10.00
+	// +-----------------------------------------+------+------+------+------+
+	//   cluster1 subtotal                        100.00  50.00  40.00  10.00
+	// +-----------------------------------------+------+------+------+------+
+	//   cluster1 allocated                        48.00   6.00  16.00   6.00
+	// +-----------------------------------------+------+------+------+------+
+	//   cluster1 idle                             72.00  44.00  24.00   4.00
+	// +-----------------------------------------+------+------+------+------+
+	//   cluster2:
+	//     node1                                   35.00  20.00  15.00   0.00
+	//     node2                                   35.00  20.00  15.00   0.00
+	//     node3                                   30.00  10.00  10.00  10.00
+	//     (disks should not matter for idle)
+	// +-----------------------------------------+------+------+------+------+
+	//   cluster2 subtotal                        100.00  50.00  40.00  10.00
+	// +-----------------------------------------+------+------+------+------+
+	//   cluster2 allocated                        28.00   6.00   6.00   6.00
+	// +-----------------------------------------+------+------+------+------+
+	//   cluster2 idle                             82.00  44.00  34.00   4.00
+	// +-----------------------------------------+------+------+------+------+
+
+	cluster1Nodes := NewNode("", "cluster1", "", start, end, NewWindow(&start, &end))
+	cluster1Nodes.CPUCost = 50.0
+	cluster1Nodes.RAMCost = 40.0
+	cluster1Nodes.GPUCost = 10.0
+
+	cluster2Node1 := NewNode("node1", "cluster2", "node1", start, end, NewWindow(&start, &end))
+	cluster2Node1.CPUCost = 20.0
+	cluster2Node1.RAMCost = 15.0
+	cluster2Node1.GPUCost = 0.0
+
+	cluster2Node2 := NewNode("node2", "cluster2", "node2", start, end, NewWindow(&start, &end))
+	cluster2Node2.CPUCost = 20.0
+	cluster2Node2.RAMCost = 15.0
+	cluster2Node2.GPUCost = 0.0
+
+	cluster2Node3 := NewNode("node3", "cluster2", "node3", start, end, NewWindow(&start, &end))
+	cluster2Node3.CPUCost = 10.0
+	cluster2Node3.RAMCost = 10.0
+	cluster2Node3.GPUCost = 10.0
+
+	cluster2Disk1 := NewDisk("disk1", "cluster2", "disk1", start, end, NewWindow(&start, &end))
+	cluster2Disk1.Cost = 5.0
+
+	assetSet := NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1)
+
+	idles, err = as.ComputeIdleAllocations(assetSet)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if len(idles) != 2 {
+		t.Fatalf("idles: expected length %d; got length %d", 2, len(idles))
+	}
+
+	if idle, ok := idles["cluster1"]; !ok {
+		t.Fatalf("expected idle cost for %s", "cluster1")
+	} else {
+		if !util.IsApproximately(idle.TotalCost, 72.0) {
+			t.Fatalf("%s idle: expected total cost %f; got total cost %f", "cluster1", 72.0, idle.TotalCost)
+		}
+	}
+
+	if idle, ok := idles["cluster2"]; !ok {
+		t.Fatalf("expected idle cost for %s", "cluster2")
+	} else {
+		if !util.IsApproximately(idle.TotalCost, 82.0) {
+			t.Fatalf("%s idle: expected total cost %f; got total cost %f", "cluster2", 82.0, idle.TotalCost)
+		}
+	}
+
+	// TODO assert value of each resource cost precisely
+}
+
 // TODO niko/etl
 //func TestAllocationSet_Delete(t *testing.T) {}
 
