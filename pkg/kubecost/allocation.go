@@ -1218,15 +1218,20 @@ func (as *AllocationSet) Insert(that *Allocation) error {
 }
 
 func (as *AllocationSet) insert(that *Allocation, accumulate bool) error {
-	if as.IsEmpty() {
-		as.Lock()
-		as.allocations = map[string]*Allocation{}
-		as.idleKeys = map[string]bool{}
-		as.Unlock()
+	if as == nil {
+		return fmt.Errorf("cannot insert into nil AllocationSet")
 	}
 
 	as.Lock()
 	defer as.Unlock()
+
+	if as.allocations == nil {
+		as.allocations = map[string]*Allocation{}
+	}
+
+	if as.idleKeys == nil {
+		as.idleKeys = map[string]bool{}
+	}
 
 	// Add the given Allocation to the existing entry, if there is one;
 	// otherwise just set directly into allocations
