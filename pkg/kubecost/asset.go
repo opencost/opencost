@@ -2672,8 +2672,10 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 	// In the case of an AssetSetRange with empty entries, we may end up with
 	// an incoming `as` without an `aggregateBy`, even though we are tring to
 	// aggregate here. This handles that case by assigning the correct `aggregateBy`.
-	if len(as.aggregateBy) == 0 {
-		as.aggregateBy = that.aggregateBy
+	if !sameContents(as.aggregateBy, that.aggregateBy) {
+		if len(as.aggregateBy) == 0 {
+			as.aggregateBy = that.aggregateBy
+		}
 	}
 
 	// Set start, end to min(start), max(end)
@@ -2864,4 +2866,26 @@ func jsonEncode(buffer *bytes.Buffer, name string, obj interface{}, comma string
 		buffer.Write(bytes)
 	}
 	buffer.WriteString(comma)
+}
+
+// Returns true if string slices a and b contain all of the same strings, in any order.
+func sameContents(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !contains(b, a[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func contains(slice []string, item string) bool {
+	for _, element := range slice {
+		if element == item {
+			return true
+		}
+	}
+	return false
 }
