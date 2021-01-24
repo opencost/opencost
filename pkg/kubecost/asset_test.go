@@ -1080,6 +1080,9 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	if alloc.Name != "monitoring" {
 		t.Fatalf("expected external allocation with name '%s'; got '%s'", "monitoring", alloc.Name)
 	}
+	if ns, err := alloc.Properties.GetNamespace(); err != nil || ns != "monitoring" {
+		t.Fatalf("expected external allocation with Properties.Namespace '%s'; got '%s' (%s)", "monitoring", ns, err)
+	}
 	if alloc.ExternalCost != 10.00 {
 		t.Fatalf("expected external allocation with ExternalCost %f; got %f", 10.00, alloc.ExternalCost)
 	}
@@ -1095,6 +1098,12 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	if alloc.Name != "monitoring/env=prod" {
 		t.Fatalf("expected external allocation with name '%s'; got '%s'", "monitoring/env=prod", alloc.Name)
 	}
+	if ns, err := alloc.Properties.GetNamespace(); err != nil || ns != "monitoring" {
+		t.Fatalf("expected external allocation with Properties.Namespace '%s'; got '%s' (%s)", "monitoring", ns, err)
+	}
+	if ls, err := alloc.Properties.GetLabels(); err != nil || ls["env"] != "prod" {
+		t.Fatalf("expected external allocation with Properties.Labels[\"env\"] '%s'; got '%s' (%s)", "prod", ls["env"], err)
+	}
 	if alloc.ExternalCost != 10.00 {
 		t.Fatalf("expected external allocation with ExternalCost %f; got %f", 10.00, alloc.ExternalCost)
 	}
@@ -1109,6 +1118,9 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	}
 	if alloc.Name != "monitoring/__unallocated__" {
 		t.Fatalf("expected external allocation with name '%s'; got '%s'", "monitoring/__unallocated__", alloc.Name)
+	}
+	if ns, err := alloc.Properties.GetNamespace(); err != nil || ns != "monitoring" {
+		t.Fatalf("expected external allocation with Properties.Namespace '%s'; got '%s' (%s)", "monitoring", ns, err)
 	}
 	if alloc.ExternalCost != 10.00 {
 		t.Fatalf("expected external allocation with ExternalCost %f; got %f", 10.00, alloc.ExternalCost)

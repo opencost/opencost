@@ -99,9 +99,13 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, allocationProp
 	// names will collect the slash-separated names accrued by iterating over
 	// aggregateBy and checking the relevant labels.
 	names := []string{}
+
 	// match records whether or not a match was found in the Asset labels,
 	// such that is can genuinely be turned into an external Allocation.
 	match := false
+
+	// props records the relevant Properties to set on the resultant Allocation
+	props := Properties{}
 
 	for _, aggBy := range aggregateBy {
 		// labelName should be derived from the mapping of properties to
@@ -127,9 +131,38 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, allocationProp
 				// e.g. aggBy="label:env", value="prod" => "env=prod"
 				names = append(names, fmt.Sprintf("%s=%s", strings.TrimPrefix(aggBy, "label:"), value))
 				match = true
+
+				// Set the corresponding label in props
+				labels, err := props.GetLabels()
+				if err != nil {
+					labels = map[string]string{}
+				}
+				labels[labelName] = value
+				props.SetLabels(labels)
 			} else {
 				names = append(names, value)
 				match = true
+
+				// Set the corresponding property on props
+				switch aggBy {
+				case ClusterProp.String():
+					props.SetCluster(value)
+				case NodeProp.String():
+					props.SetNode(value)
+				case NamespaceProp.String():
+					props.SetNamespace(value)
+				case ControllerKindProp.String():
+					props.SetControllerKind(value)
+				case ControllerProp.String():
+					props.SetController(value)
+				case PodProp.String():
+					props.SetPod(value)
+				case ContainerProp.String():
+					props.SetContainer(value)
+				case ServiceProp.String():
+					// TODO niko/allocation-etl how to do this? multi-service?
+					props.SetServices([]string{value})
+				}
 			}
 		} else {
 			// No value label value was found on the Asset; consider it
@@ -148,6 +181,7 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, allocationProp
 	// TODO niko/allocation-etl resource totals?
 	return &Allocation{
 		Name:         strings.Join(names, "/"),
+		Properties:   props,
 		ExternalCost: asset.TotalCost(),
 		TotalCost:    asset.TotalCost(),
 	}, nil
