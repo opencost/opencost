@@ -234,10 +234,60 @@ func (p *Properties) String() string {
 	return fmt.Sprintf("{%s}", strings.Join(strs, "; "))
 }
 
-// TODO niko/allocation-etl
+// AggregationStrings converts a Properties object into a slice of strings
+// representing a request to aggregate by certain properties.
+// NOTE: today, the ordering of the properties *has to match the ordering
+// of the allocaiton function generateKey*
 func (p *Properties) AggregationStrings() []string {
+	if p == nil {
+		return []string{}
+	}
 
-	return []string{}
+	aggStrs := []string{}
+	if p.HasCluster() {
+		aggStrs = append(aggStrs, ClusterProp.String())
+	}
+	if p.HasNode() {
+		aggStrs = append(aggStrs, NodeProp.String())
+	}
+	if p.HasNamespace() {
+		aggStrs = append(aggStrs, NamespaceProp.String())
+	}
+	if p.HasControllerKind() {
+		aggStrs = append(aggStrs, ControllerKindProp.String())
+	}
+	if p.HasController() {
+		aggStrs = append(aggStrs, ControllerProp.String())
+	}
+	if p.HasPod() {
+		aggStrs = append(aggStrs, PodProp.String())
+	}
+	if p.HasContainer() {
+		aggStrs = append(aggStrs, ContainerProp.String())
+	}
+	if p.HasService() {
+		aggStrs = append(aggStrs, ServiceProp.String())
+	}
+	if p.HasLabel() {
+		// e.g. expect format map[string]string{
+		// 	 "env":""
+		// 	 "app":"",
+		// }
+		// for aggregating by "label:app,label:env"
+		labels, _ := p.GetLabels()
+		labelAggStrs := []string{}
+		for labelName := range labels {
+			labelAggStrs = append(labelAggStrs, fmt.Sprintf("label:%s", labelName))
+		}
+		if len(labelAggStrs) > 0 {
+			// Enforce alphabetical ordering, then append to aggStrs
+			sort.Strings(labelAggStrs)
+			for _, labelName := range labelAggStrs {
+				aggStrs = append(aggStrs, labelName)
+			}
+		}
+	}
+	return aggStrs
 }
 
 func (p *Properties) Get(prop Property) (string, error) {
