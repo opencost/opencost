@@ -53,6 +53,7 @@ type Allocation struct {
 	RAMCost         float64    `json:"ramCost"`
 	RAMEfficiency   float64    `json:"ramEfficiency"`
 	SharedCost      float64    `json:"sharedCost"`
+	ExternalCost    float64    `json:"externalCost"`
 	TotalCost       float64    `json:"totalCost"`
 	TotalEfficiency float64    `json:"totalEfficiency"`
 	// Profiler        *log.Profiler `json:"-"`
@@ -106,6 +107,7 @@ func (a *Allocation) Clone() *Allocation {
 		RAMCost:         a.RAMCost,
 		RAMEfficiency:   a.RAMEfficiency,
 		SharedCost:      a.SharedCost,
+		ExternalCost:    a.ExternalCost,
 		TotalCost:       a.TotalCost,
 		TotalEfficiency: a.TotalEfficiency,
 	}
@@ -169,6 +171,9 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if a.SharedCost != that.SharedCost {
 		return false
 	}
+	if a.ExternalCost != that.ExternalCost {
+		return false
+	}
 	if a.TotalCost != that.TotalCost {
 		return false
 	}
@@ -203,45 +208,6 @@ func (a *Allocation) IsUnallocated() bool {
 	return strings.Contains(a.Name, UnallocatedSuffix)
 }
 
-// MatchesFilter returns true if the Allocation passes the given AllocationFilter
-func (a *Allocation) MatchesFilter(f AllocationMatchFunc) bool {
-	return f(a)
-}
-
-// MatchesAll takes a variadic list of Properties, returning true iff the
-// Allocation matches each set of Properties.
-func (a *Allocation) MatchesAll(ps ...Properties) bool {
-	// nil Allocation don't match any Properties
-	if a == nil {
-		return false
-	}
-
-	for _, p := range ps {
-		if !a.Properties.Matches(p) {
-			return false
-		}
-	}
-
-	return true
-}
-
-// MatchesOne takes a variadic list of Properties, returning true iff the
-// Allocation matches at least one of the set of Properties.
-func (a *Allocation) MatchesOne(ps ...Properties) bool {
-	// nil Allocation don't match any Properties
-	if a == nil {
-		return false
-	}
-
-	for _, p := range ps {
-		if a.Properties.Matches(p) {
-			return true
-		}
-	}
-
-	return false
-}
-
 // Share works like Add, but converts the entire cost of the given Allocation
 // to SharedCost, rather than adding to the individual resource costs.
 func (a *Allocation) Share(that *Allocation) (*Allocation, error) {
@@ -268,16 +234,18 @@ func (a *Allocation) String() string {
 }
 
 func (a *Allocation) add(that *Allocation, isShared, isAccumulating bool) {
-	if a == nil {
-		a = that
+	// TODO niko/allocation-etl this can't possibly work as it reads
+	// ...right?? (See https://play.golang.org/p/UDZ-GsNJ1rI)
+	// if a == nil {
+	// 	a = that
 
-		// reset properties
-		thatCluster, _ := that.Properties.GetCluster()
-		thatNode, _ := that.Properties.GetNode()
-		a.Properties = Properties{ClusterProp: thatCluster, NodeProp: thatNode}
+	// 	// reset properties
+	// 	thatCluster, _ := that.Properties.GetCluster()
+	// 	thatNode, _ := that.Properties.GetNode()
+	// 	a.Properties = Properties{ClusterProp: thatCluster, NodeProp: thatNode}
 
-		return
-	}
+	// 	return
+	// }
 
 	aCluster, _ := a.Properties.GetCluster()
 	thatCluster, _ := that.Properties.GetCluster()
@@ -351,6 +319,7 @@ func (a *Allocation) add(that *Allocation, isShared, isAccumulating bool) {
 		}
 
 		a.SharedCost += that.SharedCost
+		a.ExternalCost += that.ExternalCost
 		a.CPUCost += that.CPUCost
 		a.GPUCost += that.GPUCost
 		a.NetworkCost += that.NetworkCost

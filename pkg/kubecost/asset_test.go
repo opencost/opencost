@@ -23,6 +23,150 @@ var windows = []Window{
 
 const gb = 1024 * 1024 * 1024
 
+// generateAssetSet generates the following topology:
+//
+// | Asset                        | Cost |  Adj |
+// +------------------------------+------+------+
+//   cluster1:
+//     node1:                        6.00   1.00
+//     node2:                        4.00   1.50
+//     node3:                        7.00  -0.50
+//     disk1:                        2.50   0.00
+//     disk2:                        1.50   0.00
+//     clusterManagement1:           3.00   0.00
+// +------------------------------+------+------+
+//   cluster1 subtotal              24.00   2.00
+// +------------------------------+------+------+
+//   cluster2:
+//     node4:                       12.00  -1.00
+//     disk3:                        2.50   0.00
+//     disk4:                        1.50   0.00
+//     clusterManagement2:           0.00   0.00
+// +------------------------------+------+------+
+//   cluster2 subtotal              16.00  -1.00
+// +------------------------------+------+------+
+//   cluster3:
+//     node5:                       17.00   2.00
+// +------------------------------+------+------+
+//   cluster3 subtotal              17.00   2.00
+// +------------------------------+------+------+
+//   total                          57.00   3.00
+// +------------------------------+------+------+
+func generateAssetSet(start time.Time) *AssetSet {
+	end := start.Add(day)
+	window := NewWindow(&start, &end)
+
+	hours := window.Duration().Hours()
+
+	node1 := NewNode("node1", "cluster1", "gcp-node1", *window.Clone().start, *window.Clone().end, window.Clone())
+	node1.CPUCost = 4.0
+	node1.RAMCost = 4.0
+	node1.GPUCost = 2.0
+	node1.Discount = 0.5
+	node1.CPUCoreHours = 2.0 * hours
+	node1.RAMByteHours = 4.0 * gb * hours
+	node1.SetAdjustment(1.0)
+
+	node2 := NewNode("node2", "cluster1", "gcp-node2", *window.Clone().start, *window.Clone().end, window.Clone())
+	node2.CPUCost = 4.0
+	node2.RAMCost = 4.0
+	node2.GPUCost = 0.0
+	node2.Discount = 0.5
+	node2.CPUCoreHours = 2.0 * hours
+	node2.RAMByteHours = 4.0 * gb * hours
+	node2.SetAdjustment(1.5)
+
+	node3 := NewNode("node3", "cluster1", "gcp-node3", *window.Clone().start, *window.Clone().end, window.Clone())
+	node3.CPUCost = 4.0
+	node3.RAMCost = 4.0
+	node3.GPUCost = 3.0
+	node3.Discount = 0.5
+	node3.CPUCoreHours = 2.0 * hours
+	node3.RAMByteHours = 4.0 * gb * hours
+	node3.SetAdjustment(-0.5)
+
+	node4 := NewNode("node4", "cluster2", "gcp-node4", *window.Clone().start, *window.Clone().end, window.Clone())
+	node4.CPUCost = 10.0
+	node4.RAMCost = 6.0
+	node4.GPUCost = 0.0
+	node4.Discount = 0.25
+	node4.CPUCoreHours = 4.0 * hours
+	node4.RAMByteHours = 12.0 * gb * hours
+	node4.SetAdjustment(-1.0)
+
+	node5 := NewNode("node5", "cluster3", "aws-node5", *window.Clone().start, *window.Clone().end, window.Clone())
+	node5.CPUCost = 10.0
+	node5.RAMCost = 7.0
+	node5.GPUCost = 0.0
+	node5.Discount = 0.0
+	node5.CPUCoreHours = 8.0 * hours
+	node5.RAMByteHours = 24.0 * gb * hours
+	node5.SetAdjustment(2.0)
+
+	disk1 := NewDisk("disk1", "cluster1", "gcp-disk1", *window.Clone().start, *window.Clone().end, window.Clone())
+	disk1.Cost = 2.5
+	disk1.ByteHours = 100 * gb * hours
+
+	disk2 := NewDisk("disk2", "cluster1", "gcp-disk2", *window.Clone().start, *window.Clone().end, window.Clone())
+	disk2.Cost = 1.5
+	disk2.ByteHours = 60 * gb * hours
+
+	disk3 := NewDisk("disk3", "cluster2", "gcp-disk3", *window.Clone().start, *window.Clone().end, window.Clone())
+	disk3.Cost = 2.5
+	disk3.ByteHours = 100 * gb * hours
+
+	disk4 := NewDisk("disk4", "cluster2", "gcp-disk4", *window.Clone().start, *window.Clone().end, window.Clone())
+	disk4.Cost = 1.5
+	disk4.ByteHours = 100 * gb * hours
+
+	cm1 := NewClusterManagement("gcp", "cluster1", window.Clone())
+	cm1.Cost = 3.0
+
+	cm2 := NewClusterManagement("gcp", "cluster2", window.Clone())
+	cm2.Cost = 0.0
+
+	return NewAssetSet(
+		start, end,
+		// cluster 1
+		node1, node2, node3, disk1, disk2, cm1,
+		// cluster 2
+		node4, disk3, disk4, cm2,
+		// cluster 3
+		node5,
+	)
+}
+
+func assertAssetSet(t *testing.T, as *AssetSet, msg string, window Window, exps map[string]float64, err error) {
+	if err != nil {
+		t.Fatalf("AssetSet.AggregateBy[%s]: unexpected error: %s", msg, err)
+	}
+	if as.Length() != len(exps) {
+		t.Fatalf("AssetSet.AggregateBy[%s]: expected set of length %d, actual %d", msg, len(exps), as.Length())
+	}
+	if !as.Window.Equal(window) {
+		t.Fatalf("AssetSet.AggregateBy[%s]: expected window %s, actual %s", msg, window, as.Window)
+	}
+	as.Each(func(key string, a Asset) {
+		if exp, ok := exps[key]; ok {
+			if math.Round(a.TotalCost()*100) != math.Round(exp*100) {
+				t.Fatalf("AssetSet.AggregateBy[%s]: key %s expected total cost %.2f, actual %.2f", msg, key, exp, a.TotalCost())
+			}
+			if !a.Window().Equal(window) {
+				t.Fatalf("AssetSet.AggregateBy[%s]: key %s expected window %s, actual %s", msg, key, window, as.Window)
+			}
+		} else {
+			t.Fatalf("AssetSet.AggregateBy[%s]: unexpected asset: %s", msg, key)
+		}
+	})
+}
+
+func printAssetSet(msg string, as *AssetSet) {
+	fmt.Printf("--- %s ---\n", msg)
+	as.Each(func(key string, a Asset) {
+		fmt.Printf(" > %s: %s\n", key, a)
+	})
+}
+
 func TestAny_Add(t *testing.T) {
 	any1 := NewAsset(*windows[0].start, *windows[0].end, windows[0])
 	any1.SetProperties(&AssetProperties{
@@ -865,146 +1009,117 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 	}, nil)
 }
 
-func assertAssetSet(t *testing.T, as *AssetSet, msg string, window Window, exps map[string]float64, err error) {
+func TestAssetToExternalAllocation(t *testing.T) {
+	var asset Asset
+	var alloc *Allocation
+	var err error
+
+	// default allocationPropertyLabels, which should be compatible with result
+	// of LabelConfig.AllocationPropertyLabels()
+	apls := map[string]string{"namespace": "kubernetes_namespace"}
+
+	alloc, err = AssetToExternalAllocation(asset, []string{"namespace"}, apls)
+	if err == nil {
+		t.Fatalf("expected error due to nil asset")
+	}
+
+	// Consider this Asset:
+	//   Cloud {
+	// 	   TotalCost: 10.00,
+	// 	   Labels{
+	//       "kubernetes_namespace":"monitoring",
+	// 	     "env":"prod"
+	// 	   }
+	//   }
+	cloud := NewCloud(ComputeCategory, "abc123", start1, start2, windows[0])
+	cloud.SetLabels(map[string]string{
+		"kubernetes_namespace": "monitoring",
+		"env":                  "prod",
+	})
+	cloud.Cost = 10.00
+	asset = cloud
+
+	// Providing nil params with a non-nil Asset should not panic, but it
+	// should return an error in both cases (no matching is possible).
+	alloc, err = AssetToExternalAllocation(asset, []string{"namespace"}, nil)
+	if err == nil {
+		t.Fatalf("expected error due to nil allocationPropertyLabels")
+	}
+	alloc, err = AssetToExternalAllocation(asset, nil, apls)
+	if err == nil {
+		t.Fatalf("expected error due to nil aggregateBy")
+	}
+
+	// Given the following parameters, we expect to return:
+	//
+	//   1) single-prop full match
+	//   aggregateBy = ["namespace"]
+	//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+	//   => Allocation{Name: "monitoring", ExternalCost: 10.00, TotalCost: 10.00}, nil
+	//
+	//   2) multi-prop full match
+	//   aggregateBy = ["namespace", "label:env"]
+	//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+	//   => Allocation{Name: "monitoring/env=prod", ExternalCost: 10.00, TotalCost: 10.00}, nil
+	//
+	//   3) multi-prop partial match
+	//   aggregateBy = ["namespace", "label:foo"]
+	//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+	//   => Allocation{Name: "monitoring/__unallocated__", ExternalCost: 10.00, TotalCost: 10.00}, nil
+	//
+	//   4) no match
+	//   aggregateBy = ["cluster"]
+	//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+	//   => nil, err
+
+	// 1) single-prop full match
+	alloc, err = AssetToExternalAllocation(asset, []string{"namespace"}, apls)
 	if err != nil {
-		t.Fatalf("AssetSet.AggregateBy[%s]: unexpected error: %s", msg, err)
+		t.Fatalf("unexpected error: %s", err)
 	}
-	if as.Length() != len(exps) {
-		t.Fatalf("AssetSet.AggregateBy[%s]: expected set of length %d, actual %d", msg, len(exps), as.Length())
+	if alloc.Name != "monitoring" {
+		t.Fatalf("expected external allocation with name '%s'; got '%s'", "monitoring", alloc.Name)
 	}
-	if !as.Window.Equal(window) {
-		t.Fatalf("AssetSet.AggregateBy[%s]: expected window %s, actual %s", msg, window, as.Window)
+	if alloc.ExternalCost != 10.00 {
+		t.Fatalf("expected external allocation with ExternalCost %f; got %f", 10.00, alloc.ExternalCost)
 	}
-	as.Each(func(key string, a Asset) {
-		if exp, ok := exps[key]; ok {
-			if math.Round(a.TotalCost()*100) != math.Round(exp*100) {
-				t.Fatalf("AssetSet.AggregateBy[%s]: key %s expected total cost %.2f, actual %.2f", msg, key, exp, a.TotalCost())
-			}
-			if !a.Window().Equal(window) {
-				t.Fatalf("AssetSet.AggregateBy[%s]: key %s expected window %s, actual %s", msg, key, window, as.Window)
-			}
-		} else {
-			t.Fatalf("AssetSet.AggregateBy[%s]: unexpected asset: %s", msg, key)
-		}
-	})
-}
+	if alloc.TotalCost != 10.00 {
+		t.Fatalf("expected external allocation with TotalCost %f; got %f", 10.00, alloc.TotalCost)
+	}
 
-// generateAssetSet generates the following topology:
-//
-// | Asset                        | Cost |  Adj |
-// +------------------------------+------+------+
-//   cluster1:
-//     node1:                        6.00   1.00
-//     node2:                        4.00   1.50
-//     node3:                        7.00  -0.50
-//     disk1:                        2.50   0.00
-//     disk2:                        1.50   0.00
-//     clusterManagement1:           3.00   0.00
-// +------------------------------+------+------+
-//   cluster1 subtotal              24.00   2.00
-// +------------------------------+------+------+
-//   cluster2:
-//     node4:                       12.00  -1.00
-//     disk3:                        2.50   0.00
-//     disk4:                        1.50   0.00
-//     clusterManagement2:           0.00   0.00
-// +------------------------------+------+------+
-//   cluster2 subtotal              16.00  -1.00
-// +------------------------------+------+------+
-//   cluster3:
-//     node5:                       17.00   2.00
-// +------------------------------+------+------+
-//   cluster3 subtotal              17.00   2.00
-// +------------------------------+------+------+
-//   total                          57.00   3.00
-// +------------------------------+------+------+
-func generateAssetSet(start time.Time) *AssetSet {
-	end := start.Add(day)
-	window := NewWindow(&start, &end)
+	// 2) multi-prop full match
+	alloc, err = AssetToExternalAllocation(asset, []string{"namespace", "label:env"}, apls)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if alloc.Name != "monitoring/env=prod" {
+		t.Fatalf("expected external allocation with name '%s'; got '%s'", "monitoring/env=prod", alloc.Name)
+	}
+	if alloc.ExternalCost != 10.00 {
+		t.Fatalf("expected external allocation with ExternalCost %f; got %f", 10.00, alloc.ExternalCost)
+	}
+	if alloc.TotalCost != 10.00 {
+		t.Fatalf("expected external allocation with TotalCost %f; got %f", 10.00, alloc.TotalCost)
+	}
 
-	hours := window.Duration().Hours()
+	// 3) multi-prop partial match
+	alloc, err = AssetToExternalAllocation(asset, []string{"namespace", "label:foo"}, apls)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if alloc.Name != "monitoring/__unallocated__" {
+		t.Fatalf("expected external allocation with name '%s'; got '%s'", "monitoring/__unallocated__", alloc.Name)
+	}
+	if alloc.ExternalCost != 10.00 {
+		t.Fatalf("expected external allocation with ExternalCost %f; got %f", 10.00, alloc.ExternalCost)
+	}
+	if alloc.TotalCost != 10.00 {
+		t.Fatalf("expected external allocation with TotalCost %f; got %f", 10.00, alloc.TotalCost)
+	}
 
-	node1 := NewNode("node1", "cluster1", "gcp-node1", *window.Clone().start, *window.Clone().end, window.Clone())
-	node1.CPUCost = 4.0
-	node1.RAMCost = 4.0
-	node1.GPUCost = 2.0
-	node1.Discount = 0.5
-	node1.CPUCoreHours = 2.0 * hours
-	node1.RAMByteHours = 4.0 * gb * hours
-	node1.SetAdjustment(1.0)
-
-	node2 := NewNode("node2", "cluster1", "gcp-node2", *window.Clone().start, *window.Clone().end, window.Clone())
-	node2.CPUCost = 4.0
-	node2.RAMCost = 4.0
-	node2.GPUCost = 0.0
-	node2.Discount = 0.5
-	node2.CPUCoreHours = 2.0 * hours
-	node2.RAMByteHours = 4.0 * gb * hours
-	node2.SetAdjustment(1.5)
-
-	node3 := NewNode("node3", "cluster1", "gcp-node3", *window.Clone().start, *window.Clone().end, window.Clone())
-	node3.CPUCost = 4.0
-	node3.RAMCost = 4.0
-	node3.GPUCost = 3.0
-	node3.Discount = 0.5
-	node3.CPUCoreHours = 2.0 * hours
-	node3.RAMByteHours = 4.0 * gb * hours
-	node3.SetAdjustment(-0.5)
-
-	node4 := NewNode("node4", "cluster2", "gcp-node4", *window.Clone().start, *window.Clone().end, window.Clone())
-	node4.CPUCost = 10.0
-	node4.RAMCost = 6.0
-	node4.GPUCost = 0.0
-	node4.Discount = 0.25
-	node4.CPUCoreHours = 4.0 * hours
-	node4.RAMByteHours = 12.0 * gb * hours
-	node4.SetAdjustment(-1.0)
-
-	node5 := NewNode("node5", "cluster3", "aws-node5", *window.Clone().start, *window.Clone().end, window.Clone())
-	node5.CPUCost = 10.0
-	node5.RAMCost = 7.0
-	node5.GPUCost = 0.0
-	node5.Discount = 0.0
-	node5.CPUCoreHours = 8.0 * hours
-	node5.RAMByteHours = 24.0 * gb * hours
-	node5.SetAdjustment(2.0)
-
-	disk1 := NewDisk("disk1", "cluster1", "gcp-disk1", *window.Clone().start, *window.Clone().end, window.Clone())
-	disk1.Cost = 2.5
-	disk1.ByteHours = 100 * gb * hours
-
-	disk2 := NewDisk("disk2", "cluster1", "gcp-disk2", *window.Clone().start, *window.Clone().end, window.Clone())
-	disk2.Cost = 1.5
-	disk2.ByteHours = 60 * gb * hours
-
-	disk3 := NewDisk("disk3", "cluster2", "gcp-disk3", *window.Clone().start, *window.Clone().end, window.Clone())
-	disk3.Cost = 2.5
-	disk3.ByteHours = 100 * gb * hours
-
-	disk4 := NewDisk("disk4", "cluster2", "gcp-disk4", *window.Clone().start, *window.Clone().end, window.Clone())
-	disk4.Cost = 1.5
-	disk4.ByteHours = 100 * gb * hours
-
-	cm1 := NewClusterManagement("gcp", "cluster1", window.Clone())
-	cm1.Cost = 3.0
-
-	cm2 := NewClusterManagement("gcp", "cluster2", window.Clone())
-	cm2.Cost = 0.0
-
-	return NewAssetSet(
-		start, end,
-		// cluster 1
-		node1, node2, node3, disk1, disk2, cm1,
-		// cluster 2
-		node4, disk3, disk4, cm2,
-		// cluster 3
-		node5,
-	)
-}
-
-func printAssetSet(msg string, as *AssetSet) {
-	fmt.Printf("--- %s ---\n", msg)
-	as.Each(func(key string, a Asset) {
-		fmt.Printf(" > %s: %s\n", key, a)
-	})
+	// 3) no match
+	alloc, err = AssetToExternalAllocation(asset, []string{"cluster"}, apls)
+	if err == nil {
+		t.Fatalf("expected 'no match' error")
+	}
 }
