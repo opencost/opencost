@@ -85,7 +85,7 @@ type CostData struct {
 	GPUReq          []*util.Vector               `json:"gpureq,omitempty"`
 	PVCData         []*PersistentVolumeClaimData `json:"pvcData,omitempty"`
 	NetworkData     []*util.Vector               `json:"network,omitempty"`
-	Annotations     map[string]string            `json:"Annotations,omitempty"`
+	Annotations     map[string]string            `json:"annotations,omitempty"`
 	Labels          map[string]string            `json:"labels,omitempty"`
 	NamespaceLabels map[string]string            `json:"namespaceLabels,omitempty"`
 	ClusterID       string                       `json:"clusterId"`
