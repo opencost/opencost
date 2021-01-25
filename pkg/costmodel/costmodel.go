@@ -1721,7 +1721,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 		klog.V(1).Infof("Unable to get Namespace Labels for Metrics: %s", err.Error())
 	}
 	if nsLabels != nil {
-		appendNamespaceLabels(namespaceLabelsMapping, nsLabels)
+		mergeStringMap(namespaceLabelsMapping, nsLabels)
 	}
 
 	podLabels, err := GetPodLabelsMetrics(resPodLabels, clusterID)
@@ -1734,7 +1734,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 		klog.V(1).Infof("Unable to get Namespace Annotations for Metrics: %s", err.Error())
 	}
 	if nsAnnotations != nil {
-		appendNamespaceLabels(namespaceAnnotationsMapping, nsAnnotations)
+		mergeStringMap(namespaceAnnotationsMapping, nsAnnotations)
 	}
 
 	podAnnotations, err := GetPodAnnotationsMetrics(resPodAnnotations, clusterID)
@@ -2128,11 +2128,11 @@ func addMetricPVData(pvAllocationMap map[string][]*PersistentVolumeClaimData, pv
 	}
 }
 
-// Append labels into nsLabels iff the ns key doesn't already exist
-func appendNamespaceLabels(nsLabels map[string]map[string]string, labels map[string]map[string]string) {
-	for k, v := range labels {
-		if _, ok := nsLabels[k]; !ok {
-			nsLabels[k] = v
+// Add values that don't already exist in origMap from mergeMap into origMap
+func mergeStringMap(origMap map[string]map[string]string, mergeMap map[string]map[string]string) {
+	for k, v := range mergeMap {
+		if _, ok := origMap[k]; !ok {
+			origMap[k] = v
 		}
 	}
 }
