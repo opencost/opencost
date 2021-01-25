@@ -697,8 +697,8 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	}
 	fmt.Println(as.assets)
 	assertAssetSet(t, as, "1e", window, map[string]float64{
-		"__undefined__": 53.00,
-		"test":          7.00,
+		"test=__undefined__": 53.00,
+		"test=test":          7.00,
 	}, nil)
 
 	// 2  Multi-aggregation

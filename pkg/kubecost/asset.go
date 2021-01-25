@@ -107,7 +107,11 @@ func key(a Asset, aggregateBy []string) (string, error) {
 			key = a.Properties().Name
 		case strings.HasPrefix(s, "label:"):
 			if labelKey := strings.TrimPrefix(s, "label:"); labelKey != "" {
-				key = a.Labels()[labelKey]
+				labelVal, ok := a.Labels()[labelKey]
+				if !ok {
+					labelVal = "__undefined__"
+				}
+				key = fmt.Sprintf("%s=%s", labelKey, labelVal)
 			} else {
 				// Don't allow aggregating on label ""
 				return "", fmt.Errorf("Attempted to aggregate on invalid key: %s", s)
