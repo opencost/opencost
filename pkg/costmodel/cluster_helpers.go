@@ -290,12 +290,6 @@ func buildCPUBreakdownMap(resNodeCPUModeTotal []*prom.QueryResult) map[nodeIdent
 					pct = subtotal / total
 				}
 
-				// TODO: revisit what this access is supposed to do
-				// if _, ok := clusterNodeModeCPUTotal[key]; !ok {
-				// 	log.Warningf("ClusterNodes: CPU mode data for unidentified node")
-				// 	continue
-				// }
-
 				if _, ok := cpuBreakdownMap[key]; !ok {
 					cpuBreakdownMap[key] = &ClusterCostsBreakdown{}
 				}
