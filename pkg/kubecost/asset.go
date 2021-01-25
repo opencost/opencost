@@ -450,6 +450,7 @@ type Cloud struct {
 	window     Window
 	adjustment float64
 	Cost       float64
+	Credit     float64 // Credit is a negative value representing dollars credited back to a given line-item
 }
 
 // NewCloud returns a new Cloud Asset
@@ -505,7 +506,7 @@ func (ca *Cloud) SetAdjustment(adj float64) {
 
 // TotalCost returns the Asset's total cost
 func (ca *Cloud) TotalCost() float64 {
-	return ca.Cost + ca.adjustment
+	return ca.Cost + ca.adjustment + ca.Credit
 }
 
 // Start returns the Asset's precise start time within the window
@@ -576,7 +577,7 @@ func (ca *Cloud) Add(a Asset) Asset {
 	any.SetProperties(props)
 	any.SetLabels(labels)
 	any.adjustment = ca.Adjustment() + a.Adjustment()
-	any.Cost = (ca.TotalCost() - ca.Adjustment()) + (a.TotalCost() - a.Adjustment())
+	any.Cost = (ca.TotalCost() - ca.Adjustment() - ca.Credit) + (a.TotalCost() - a.Adjustment() - ca.Credit)
 
 	return any
 }
@@ -607,6 +608,7 @@ func (ca *Cloud) add(that *Cloud) {
 	ca.SetLabels(labels)
 	ca.adjustment += that.adjustment
 	ca.Cost += that.Cost
+	ca.Credit += that.Credit
 }
 
 // Clone returns a cloned instance of the Asset
@@ -619,6 +621,7 @@ func (ca *Cloud) Clone() Asset {
 		window:     ca.window.Clone(),
 		adjustment: ca.adjustment,
 		Cost:       ca.Cost,
+		Credit:     ca.Credit,
 	}
 }
 
@@ -653,6 +656,9 @@ func (ca *Cloud) Equal(a Asset) bool {
 	if ca.Cost != that.Cost {
 		return false
 	}
+	if ca.Credit != that.Credit {
+		return false
+	}
 
 	return true
 }
@@ -668,6 +674,7 @@ func (ca *Cloud) MarshalJSON() ([]byte, error) {
 	jsonEncodeString(buffer, "end", ca.End().Format(timeFmt), ",")
 	jsonEncodeFloat64(buffer, "minutes", ca.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "adjustment", ca.Adjustment(), ",")
+	jsonEncodeFloat64(buffer, "credit", ca.Credit, ",")
 	jsonEncodeFloat64(buffer, "totalCost", ca.TotalCost(), "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
