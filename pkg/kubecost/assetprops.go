@@ -55,7 +55,7 @@ func ParseAssetProperty(text string) (AssetProperty, error) {
 		return AssetProjectProp, nil
 	case "provider":
 		return AssetProviderProp, nil
-	case "providerID":
+	case "providerid":
 		return AssetProviderIDProp, nil
 	case "service":
 		return AssetServiceProp, nil
