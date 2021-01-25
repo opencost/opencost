@@ -14,11 +14,10 @@ package kubecost
 import (
 	"encoding"
 	"fmt"
+	util "github.com/kubecost/cost-model/pkg/util"
 	"reflect"
 	"strings"
 	"time"
-
-	util "github.com/kubecost/cost-model/pkg/util"
 )
 
 const (
@@ -26,7 +25,7 @@ const (
 	GeneratorPackageName string = "kubecost"
 
 	// CodecVersion is the version passed into the generator
-	CodecVersion uint8 = 5
+	CodecVersion uint8 = 6
 )
 
 //--------------------------------------------------------------------------

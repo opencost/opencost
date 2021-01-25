@@ -950,44 +950,45 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				} else {
 					containerSeen[labelKey] = false
 				}
+			}
 
-				storageClasses := cmme.KubeClusterCache.GetAllStorageClasses()
-				storageClassMap := make(map[string]map[string]string)
-				for _, storageClass := range storageClasses {
-					params := storageClass.Parameters
-					storageClassMap[storageClass.ObjectMeta.Name] = params
-					if storageClass.GetAnnotations()["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.GetAnnotations()["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
-						storageClassMap["default"] = params
-						storageClassMap[""] = params
-					}
-				}
-
-				pvs := cmme.KubeClusterCache.GetAllPersistentVolumes()
-				for _, pv := range pvs {
-					parameters, ok := storageClassMap[pv.Spec.StorageClassName]
-					if !ok {
-						klog.V(4).Infof("Unable to find parameters for storage class \"%s\". Does pv \"%s\" have a storageClassName?", pv.Spec.StorageClassName, pv.Name)
-					}
-					var region string
-					if r, ok := pv.Labels[v1.LabelZoneRegion]; ok {
-						region = r
-					} else {
-						region = defaultRegion
-					}
-					cacPv := &cloud.PV{
-						Class:      pv.Spec.StorageClassName,
-						Region:     region,
-						Parameters: parameters,
-					}
-
-					// TODO: GetPVCost should be a method in CostModel?
-					GetPVCost(cacPv, pv, cmme.CloudProvider, region)
-					c, _ := strconv.ParseFloat(cacPv.Cost, 64)
-					cmme.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name, cacPv.ProviderID).Set(c)
-					labelKey := getKeyFromLabelStrings(pv.Name, pv.Name)
-					pvSeen[labelKey] = true
+			storageClasses := cmme.KubeClusterCache.GetAllStorageClasses()
+			storageClassMap := make(map[string]map[string]string)
+			for _, storageClass := range storageClasses {
+				params := storageClass.Parameters
+				storageClassMap[storageClass.ObjectMeta.Name] = params
+				if storageClass.GetAnnotations()["storageclass.kubernetes.io/is-default-class"] == "true" || storageClass.GetAnnotations()["storageclass.beta.kubernetes.io/is-default-class"] == "true" {
+					storageClassMap["default"] = params
+					storageClassMap[""] = params
 				}
 			}
+
+			pvs := cmme.KubeClusterCache.GetAllPersistentVolumes()
+			for _, pv := range pvs {
+				parameters, ok := storageClassMap[pv.Spec.StorageClassName]
+				if !ok {
+					klog.V(4).Infof("Unable to find parameters for storage class \"%s\". Does pv \"%s\" have a storageClassName?", pv.Spec.StorageClassName, pv.Name)
+				}
+				var region string
+				if r, ok := pv.Labels[v1.LabelZoneRegion]; ok {
+					region = r
+				} else {
+					region = defaultRegion
+				}
+				cacPv := &cloud.PV{
+					Class:      pv.Spec.StorageClassName,
+					Region:     region,
+					Parameters: parameters,
+				}
+
+				// TODO: GetPVCost should be a method in CostModel?
+				GetPVCost(cacPv, pv, cmme.CloudProvider, region)
+				c, _ := strconv.ParseFloat(cacPv.Cost, 64)
+				cmme.PersistentVolumePriceRecorder.WithLabelValues(pv.Name, pv.Name, cacPv.ProviderID).Set(c)
+				labelKey := getKeyFromLabelStrings(pv.Name, pv.Name)
+				pvSeen[labelKey] = true
+			}
+
 			for labelString, seen := range nodeSeen {
 				if !seen {
 					klog.V(4).Infof("Removing %s from nodes", labelString)

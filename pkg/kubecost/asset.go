@@ -135,7 +135,7 @@ type AssetLabels map[string]string
 
 // Clone returns a cloned map of labels
 func (al AssetLabels) Clone() AssetLabels {
-	clone := AssetLabels{}
+	clone := make(AssetLabels, len(al))
 
 	for label, value := range al {
 		clone[label] = value
