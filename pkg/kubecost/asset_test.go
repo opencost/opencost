@@ -66,6 +66,7 @@ func generateAssetSet(start time.Time) *AssetSet {
 	node1.CPUCoreHours = 2.0 * hours
 	node1.RAMByteHours = 4.0 * gb * hours
 	node1.SetAdjustment(1.0)
+	node1.SetLabels(map[string]string{"test": "test"})
 
 	node2 := NewNode("node2", "cluster1", "gcp-node2", *window.Clone().start, *window.Clone().end, window.Clone())
 	node2.CPUCost = 4.0
