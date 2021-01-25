@@ -618,6 +618,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	// 1b []AssetProperty=[Type]
 	// 1c []AssetProperty=[Nil]
 	// 1d []AssetProperty=nil
+	// 1e aggregateBy []string=["label:test"]
 
 	// 2  Multi-aggregation
 	// 2a []AssetProperty=[Cluster,Type]
@@ -686,6 +687,18 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 		"__undefined__/__undefined__/__undefined__/Storage/cluster2/Disk/Kubernetes/gcp-disk4/disk4":                   1.50,
 		"GCP/__undefined__/__undefined__/Management/cluster2/ClusterManagement/Kubernetes/__undefined__/__undefined__": 0.00,
 		"__undefined__/__undefined__/__undefined__/Compute/cluster3/Node/Kubernetes/aws-node5/node5":                   19.00,
+	}, nil)
+
+	// 1e aggregateBy []string=["label:test"]
+	as = generateAssetSet(startYesterday)
+	err = as.AggregateBy([]string{"label:test"}, nil)
+	if err != nil {
+		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
+	}
+	fmt.Println(as.assets)
+	assertAssetSet(t, as, "1e", window, map[string]float64{
+		"__undefined__": 53.00,
+		"test":          7.00,
 	}, nil)
 
 	// 2  Multi-aggregation
@@ -935,6 +948,7 @@ func generateAssetSet(start time.Time) *AssetSet {
 	node1.CPUCoreHours = 2.0 * hours
 	node1.RAMByteHours = 4.0 * gb * hours
 	node1.SetAdjustment(1.0)
+	node1.SetLabels(map[string]string{"test": "test"})
 
 	node2 := NewNode("node2", "cluster1", "gcp-node2", *window.Clone().start, *window.Clone().end, window.Clone())
 	node2.CPUCost = 4.0
