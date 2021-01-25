@@ -532,7 +532,7 @@ func checkForKeyAndInitIfMissing(
 // cluster1/node2/prov_node2: CPUCost($15), Preemptible(false), Cores(6)
 //
 // In the situation where provider_id doesn't exist for any metrics,
-// that is the same as all provider_id's being empty strings. If
+// that is the same as all provider_ids being empty strings. If
 // provider_id doesn't exist at all, then we (without having to do
 // extra work) easily fall back on identifying nodes only by cluster name
 // and node name because the provider_id part of the key will always
@@ -543,7 +543,7 @@ func checkForKeyAndInitIfMissing(
 // that data is never processed into the final node map. For example,
 // let's say the CPU cores map has the following entry:
 // cluster1/node8: 6
-// But node of the maps with provider_id (CPU cost, RAM cost, etc.)
+// But none of the maps with provider_id (CPU cost, RAM cost, etc.)
 // have an identifier for cluster1/node8 (regardless of provider_id).
 // In this situation, the final node map will not have a cluster1/node8
 // entry. This could be fixed by iterating over all of the less specific
