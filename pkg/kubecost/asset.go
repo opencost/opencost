@@ -107,8 +107,8 @@ func key(a Asset, aggregateBy []string) (string, error) {
 			key = a.Properties().Name
 		case strings.HasPrefix(s, "label:"):
 			if labelKey := strings.TrimPrefix(s, "label:"); labelKey != "" {
-				labelVal, ok := a.Labels()[labelKey]
-				if !ok {
+				labelVal := a.Labels()[labelKey]
+				if labelVal == "" {
 					key = "__undefined__"
 				} else {
 					key = fmt.Sprintf("%s=%s", labelKey, labelVal)
