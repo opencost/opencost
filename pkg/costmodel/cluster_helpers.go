@@ -499,6 +499,63 @@ func checkForKeyAndInitIfMissing(
 	}
 }
 
+// buildNodeMap creates the main set of node data for ClusterNodes from
+// the data maps built from Prometheus queries. Some of the Prometheus
+// data has access to the provider_id field and some does not. To get
+// around this problem, we use the data that includes provider_id
+// to build up the definitive set of nodes and then use the data
+// with less-specific identifiers (i.e. without provider_id) to fill
+// in the remaining fields.
+//
+// For example, let's say we have nodes identified like so:
+// cluster name/node name/provider_id. For the sake of the example,
+// we will also limit data to CPU cost, CPU cores, and preemptibility.
+//
+// We have CPU cost data that looks like this:
+// cluster1/node1/prov_node1_A: $10
+// cluster1/node1/prov_node1_B: $8
+// cluster1/node2/prov_node2: $15
+//
+// We have Preemptible data that looks like this:
+// cluster1/node1/prov_node1_A: true
+// cluster1/node1/prov_node1_B: false
+// cluster1/node2/prov_node2_B: false
+//
+// We have CPU cores data that looks like this:
+// cluster1/node1: 4
+// cluster1/node2: 6
+//
+// This function first combines the data that is fully identified,
+// creating the following:
+// cluster1/node1/prov_node1_A: CPUCost($10), Preemptible(true)
+// cluster1/node1/prov_node1_B: CPUCost($8), Preemptible(false)
+// cluster1/node2/prov_node2: CPUCost($15), Preemptible(false)
+//
+// It then uses the less-specific data to extend the specific data,
+// making the following:
+// cluster1/node1/prov_node1_A: CPUCost($10), Preemptible(true), Cores(4)
+// cluster1/node1/prov_node1_B: CPUCost($8), Preemptible(false), Cores(4)
+// cluster1/node2/prov_node2: CPUCost($15), Preemptible(false), Cores(6)
+//
+// In the situation where provider_id doesn't exist for any metrics,
+// that is the same as all provider_id's being empty strings. If
+// provider_id doesn't exist at all, then we (without having to do
+// extra work) easily fall back on identifying nodes only by cluster name
+// and node name because the provider_id part of the key will always
+// be the empty string.
+//
+// It is worth nothing that, in this approach, if a node is not present
+// in the more specific data but is present in the less-specific data,
+// that data is never processed into the final node map. For example,
+// let's say the CPU cores map has the following entry:
+// cluster1/node8: 6
+// But node of the maps with provider_id (CPU cost, RAM cost, etc.)
+// have an identifier for cluster1/node8 (regardless of provider_id).
+// In this situation, the final node map will not have a cluster1/node8
+// entry. This could be fixed by iterating over all of the less specific
+// identifiers and, inside that iteration, all of the identifiers in
+// the node map, but this would introduce a roughly quadratic time
+// complexity.
 func buildNodeMap(
 	cpuCostMap, ramCostMap, gpuCostMap map[NodeIdentifier]float64,
 	cpuCoresMap, ramBytesMap, ramUserPctMap,
@@ -510,6 +567,8 @@ func buildNodeMap(
 ) map[NodeIdentifier]*Node {
 
 	nodeMap := make(map[NodeIdentifier]*Node)
+
+	// Initialize the map with the most-specific data:
 
 	for id, cost := range cpuCostMap {
 		checkForKeyAndInitIfMissing(nodeMap, id, clusterAndNameToType)
