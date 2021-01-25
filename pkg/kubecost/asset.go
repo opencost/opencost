@@ -424,7 +424,7 @@ type Cloud struct {
 	window     Window
 	adjustment float64
 	Cost       float64
-	Credit     float64
+	Credit     float64 // Credit is a negative value representing dollars credited back to a given line-item
 }
 
 // NewCloud returns a new Cloud Asset
