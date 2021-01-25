@@ -405,6 +405,11 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 		return nil
 	}
 
+	fmt.Printf("AllocationSet.AggregateBy\n")
+	as.Each(func(key string, a *Allocation) {
+		fmt.Printf(" > %s: %.2f %s\n", key, a.TotalCost, &(a.Properties))
+	})
+
 	// aggSet will collect the aggregated allocations
 	aggSet := &AllocationSet{
 		// Profiler: as.Profiler,
@@ -513,7 +518,7 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 		idleCoefficients, err = computeIdleCoeffs(properties, options, as)
 		if err != nil {
 			log.Warningf("AllocationSet.AggregateBy: compute idle coeff: %s", err)
-			return err
+			return fmt.Errorf("error computing idle coefficients: %s", err)
 		}
 	}
 
@@ -1434,6 +1439,8 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 // properties and options.
 func (asr *AllocationSetRange) AggregateBy(properties Properties, options *AllocationAggregationOptions) error {
 	aggRange := &AllocationSetRange{allocations: []*AllocationSet{}}
+
+	fmt.Printf("AllocationSetRange.AggregateBy\n")
 
 	asr.Lock()
 	defer asr.Unlock()
