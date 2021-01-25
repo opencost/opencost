@@ -60,6 +60,137 @@ type Asset interface {
 	fmt.Stringer
 }
 
+// AssetToExternalAllocation converts the given asset to an Allocation, given
+// the properties to use to aggregate, and the mapping from Allocation property
+// to Asset label. For example, consider this asset:
+//
+//   Cloud {
+// 	   TotalCost: 10.00,
+// 	   Labels{
+//       "kubernetes_namespace":"monitoring",
+// 	     "env":"prod"
+// 	   }
+//   }
+//
+// Given the following parameters, we expect to return:
+//
+//   1) single-prop full match
+//   aggregateBy = ["namespace"]
+//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//   => Allocation{Name: "monitoring", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//
+//   2) multi-prop full match
+//   aggregateBy = ["namespace", "label:env"]
+//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//   => Allocation{Name: "monitoring/env=prod", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//
+//   3) multi-prop partial match
+//   aggregateBy = ["namespace", "label:foo"]
+//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//   => Allocation{Name: "monitoring/__unallocated__", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//
+//   4) no match
+//   aggregateBy = ["cluster"]
+//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//   => nil, err
+//
+// (See asset_test.go for assertions of these examples and more.)
+func AssetToExternalAllocation(asset Asset, aggregateBy []string, allocationPropertyLabels map[string]string) (*Allocation, error) {
+	if asset == nil {
+		return nil, fmt.Errorf("asset is nil")
+	}
+
+	// names will collect the slash-separated names accrued by iterating over
+	// aggregateBy and checking the relevant labels.
+	names := []string{}
+
+	// match records whether or not a match was found in the Asset labels,
+	// such that is can genuinely be turned into an external Allocation.
+	match := false
+
+	// props records the relevant Properties to set on the resultant Allocation
+	props := Properties{}
+
+	for _, aggBy := range aggregateBy {
+		// labelName should be derived from the mapping of properties to
+		// label names, unless the aggBy is explicitly a label, in which
+		// case we should pull the label name from the aggBy string.
+		labelName := allocationPropertyLabels[aggBy]
+		if strings.HasPrefix(aggBy, "label:") {
+			labelName = strings.TrimPrefix(aggBy, "label:")
+		}
+
+		if labelName == "" {
+			// No matching label has been defined in the cost-analyzer label config
+			// relating to the given aggregateBy property.
+			names = append(names, UnallocatedSuffix)
+			continue
+		}
+
+		if value := asset.Labels()[labelName]; value != "" {
+			// Valid label value was found for one of the aggregation properties,
+			// so add it to the name.
+			if strings.HasPrefix(aggBy, "label:") {
+				// Use naming convention labelName=labelValue for labels
+				// e.g. aggBy="label:env", value="prod" => "env=prod"
+				names = append(names, fmt.Sprintf("%s=%s", strings.TrimPrefix(aggBy, "label:"), value))
+				match = true
+
+				// Set the corresponding label in props
+				labels, err := props.GetLabels()
+				if err != nil {
+					labels = map[string]string{}
+				}
+				labels[labelName] = value
+				props.SetLabels(labels)
+			} else {
+				names = append(names, value)
+				match = true
+
+				// Set the corresponding property on props
+				switch aggBy {
+				case ClusterProp.String():
+					props.SetCluster(value)
+				case NodeProp.String():
+					props.SetNode(value)
+				case NamespaceProp.String():
+					props.SetNamespace(value)
+				case ControllerKindProp.String():
+					props.SetControllerKind(value)
+				case ControllerProp.String():
+					props.SetController(value)
+				case PodProp.String():
+					props.SetPod(value)
+				case ContainerProp.String():
+					props.SetContainer(value)
+				case ServiceProp.String():
+					// TODO niko/allocation-etl how to do this? multi-service?
+					props.SetServices([]string{value})
+				}
+			}
+		} else {
+			// No value label value was found on the Asset; consider it
+			// unallocated. Note that this case is only truly relevant if at
+			// least one other property matches (e.g. case 3 in the examples)
+			// because if there are no matches, then an error is returned.
+			names = append(names, UnallocatedSuffix)
+		}
+	}
+
+	if !match {
+		return nil, fmt.Errorf("asset does not qualify as an external allocation")
+	}
+
+	// TODO niko/allocation-etl efficiency?
+	// TODO niko/allocation-etl resource totals?
+	return &Allocation{
+		Name:         strings.Join(names, "/"),
+		Properties:   props,
+		ExternalCost: asset.TotalCost(),
+		TotalCost:    asset.TotalCost(),
+	}, nil
+}
+
 // key is used to determine uniqueness of an Asset, for instance during Insert
 // to determine if two Assets should be combined. Passing `nil` `aggregateBy` indicates
 // that all available `AssetProperty` keys should be used. Passing empty `aggregateBy` indicates that
