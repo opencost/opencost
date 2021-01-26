@@ -500,7 +500,8 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 
 	cpuBreakdownMap := buildCPUBreakdownMap(resNodeCPUModeTotal)
 	activeDataMap := buildActiveDataMap(resActiveMins, resolution, cp.ParseID)
-	preemptibleMap := buildPreemptibleMap(resNodeLabels, cp.ParseID)
+	preemptibleMap := buildPreemptibleMap(resIsSpot, cp.ParseID)
+	labelsMap := buildLabelsMap(resLabels)
 
 	nodeMap := buildNodeMap(
 		cpuCostMap, ramCostMap, gpuCostMap,
@@ -509,30 +510,9 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		cpuBreakdownMap,
 		activeDataMap,
 		preemptibleMap,
+		labelsMap,
 		clusterAndNameToType,
 	)
-
-	// Copy labels into node
-	for _, result := range resLabels {
-		cluster, err := result.GetString("cluster_id")
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-		node, err := result.GetString("kubernetes_node")
-		if err != nil {
-			log.DedupedWarningf(5, "ClusterNodes: label data missing node")
-			continue
-		}
-		key := fmt.Sprintf("%s/%s", cluster, node)
-		if _, ok := nodeMap[key]; !ok {
-			continue
-		}
-		for name, value := range result.Metric {
-			if val, ok := value.(string); ok {
-				nodeMap[key].Labels[name] = val
-			}
-		}
-	}
 
 	c, err := cp.GetConfig()
 	if err != nil {

@@ -139,6 +139,7 @@ func TestBuildNodeMap(t *testing.T) {
 		cpuBreakdownMap      map[nodeIdentifierNoProviderID]*ClusterCostsBreakdown
 		activeDataMap        map[NodeIdentifier]activeData
 		preemptibleMap       map[NodeIdentifier]bool
+		labelsMap            map[nodeIdentifierNoProviderID]map[string]string
 		clusterAndNameToType map[nodeIdentifierNoProviderID]string
 		expected             map[NodeIdentifier]*Node
 	}{
@@ -409,6 +410,22 @@ func TestBuildNodeMap(t *testing.T) {
 					ProviderID: "prov_node2_A",
 				}: false,
 			},
+			labelsMap: map[nodeIdentifierNoProviderID]map[string]string{
+				nodeIdentifierNoProviderID{
+					Cluster: "cluster1",
+					Name:    "node1",
+				}: map[string]string{
+					"labelname1_A": "labelvalue1_A",
+					"labelname1_B": "labelvalue1_B",
+				},
+				nodeIdentifierNoProviderID{
+					Cluster: "cluster1",
+					Name:    "node2",
+				}: map[string]string{
+					"labelname2_A": "labelvalue2_A",
+					"labelname2_B": "labelvalue2_B",
+				},
+			},
 			clusterAndNameToType: map[nodeIdentifierNoProviderID]string{
 				nodeIdentifierNoProviderID{
 					Cluster: "cluster1",
@@ -446,6 +463,10 @@ func TestBuildNodeMap(t *testing.T) {
 					End:         time.Date(2020, 6, 16, 9, 20, 39, 0, time.UTC),
 					Minutes:     5*60 + 35 + (11.0 / 60.0),
 					Preemptible: true,
+					Labels: map[string]string{
+						"labelname1_A": "labelvalue1_A",
+						"labelname1_B": "labelvalue1_B",
+					},
 				},
 				NodeIdentifier{
 					Cluster:    "cluster1",
@@ -473,6 +494,10 @@ func TestBuildNodeMap(t *testing.T) {
 					End:         time.Date(2020, 6, 16, 9, 21, 39, 0, time.UTC),
 					Minutes:     5*60 + 36 + (11.0 / 60.0),
 					Preemptible: false,
+					Labels: map[string]string{
+						"labelname1_A": "labelvalue1_A",
+						"labelname1_B": "labelvalue1_B",
+					},
 				},
 				NodeIdentifier{
 					Cluster:    "cluster1",
@@ -500,6 +525,10 @@ func TestBuildNodeMap(t *testing.T) {
 					End:         time.Date(2020, 6, 16, 9, 10, 39, 0, time.UTC),
 					Minutes:     5*60 + 25 + (11.0 / 60.0),
 					Preemptible: false,
+					Labels: map[string]string{
+						"labelname2_A": "labelvalue2_A",
+						"labelname2_B": "labelvalue2_B",
+					},
 				},
 			},
 		},
@@ -514,6 +543,7 @@ func TestBuildNodeMap(t *testing.T) {
 			testCase.cpuBreakdownMap,
 			testCase.activeDataMap,
 			testCase.preemptibleMap,
+			testCase.labelsMap,
 			testCase.clusterAndNameToType,
 		)
 

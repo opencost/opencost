@@ -421,13 +421,13 @@ func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Durat
 // Determine preemptibility with node labels
 // node id -> is preemptible?
 func buildPreemptibleMap(
-	resNodeLabels []*prom.QueryResult,
+	resIsSpot []*prom.QueryResult,
 	providerIDParser func(string) string,
 ) map[NodeIdentifier]bool {
 
 	m := make(map[NodeIdentifier]bool)
 
-	for _, result := range resNodeLabels {
+	for _, result := range resIsSpot {
 		nodeName, err := result.GetString("node")
 		if err != nil {
 			continue
@@ -460,6 +460,39 @@ func buildPreemptibleMap(
 		// TODO Azure preemptible
 	}
 
+	return m
+}
+
+func buildLabelsMap(
+	resLabels []*prom.QueryResult,
+) map[nodeIdentifierNoProviderID]map[string]string {
+
+	m := make(map[nodeIdentifierNoProviderID]map[string]string)
+
+	// Copy labels into node
+	for _, result := range resLabels {
+		cluster, err := result.GetString("cluster_id")
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+		node, err := result.GetString("kubernetes_node")
+		if err != nil {
+			log.DedupedWarningf(5, "ClusterNodes: label data missing node")
+			continue
+		}
+		key := nodeIdentifierNoProviderID{
+			Cluster: cluster,
+			Name:    node,
+		}
+
+		m[key] = make(map[string]string)
+
+		for name, value := range result.Metric {
+			if val, ok := value.(string); ok {
+				m[key][name] = val
+			}
+		}
+	}
 	return m
 }
 
@@ -557,6 +590,7 @@ func buildNodeMap(
 	cpuBreakdownMap map[nodeIdentifierNoProviderID]*ClusterCostsBreakdown,
 	activeDataMap map[NodeIdentifier]activeData,
 	preemptibleMap map[NodeIdentifier]bool,
+	labelsMap map[nodeIdentifierNoProviderID]map[string]string,
 	clusterAndNameToType map[nodeIdentifierNoProviderID]string,
 ) map[NodeIdentifier]*Node {
 
@@ -618,6 +652,10 @@ func buildNodeMap(
 
 		if cpuBreakdown, ok := cpuBreakdownMap[clusterAndNameID]; ok {
 			nodePtr.CPUBreakdown = cpuBreakdown
+		}
+
+		if labels, ok := labelsMap[clusterAndNameID]; ok {
+			nodePtr.Labels = labels
 		}
 	}
 
