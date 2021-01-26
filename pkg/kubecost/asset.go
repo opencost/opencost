@@ -164,7 +164,7 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, allocationProp
 				case ContainerProp.String():
 					props.SetContainer(value)
 				case ServiceProp.String():
-					// TODO niko/allocation-etl how to do this? multi-service?
+					// TODO: external allocation: how to do this? multi-service?
 					props.SetServices([]string{value})
 				}
 			}
@@ -183,8 +183,8 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, allocationProp
 
 	names = append(names, ExternalSuffix)
 
-	// TODO niko/allocation-etl efficiency?
-	// TODO niko/allocation-etl resource totals?
+	// TODO: external allocation: efficiency?
+	// TODO: external allocation: resource totals?
 	return &Allocation{
 		Name:         strings.Join(names, "/"),
 		Properties:   props,

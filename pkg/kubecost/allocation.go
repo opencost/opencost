@@ -245,16 +245,8 @@ func (a *Allocation) String() string {
 }
 
 func (a *Allocation) add(that *Allocation, isShared, isAccumulating bool) {
-	// TODO niko/allocation-etl this can't possibly work as it reads
-	// ...right?? (See https://play.golang.org/p/UDZ-GsNJ1rI)
 	if a == nil {
-		a = that
-
-		// reset properties
-		thatCluster, _ := that.Properties.GetCluster()
-		thatNode, _ := that.Properties.GetNode()
-		a.Properties = Properties{ClusterProp: thatCluster, NodeProp: thatNode}
-
+		log.Warningf("Allocation.AggregateBy: trying to add a nil receiver")
 		return
 	}
 
@@ -743,8 +735,6 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 	for _, alloc := range externalSet.allocations {
 		key, err := alloc.generateKey(properties)
 		if err != nil {
-			// TODO niko/allocation-etl remove log after testing
-			log.Infof("ExternalAllocations: AggregateBy: skipping %s: %s", alloc.Name, err)
 			continue
 		}
 
@@ -1125,7 +1115,7 @@ func (as *AllocationSet) ComputeIdleAllocations(assetSet *AssetSet) (map[string]
 		return nil, fmt.Errorf("cannot compute idle allocation for nil AllocationSet")
 	}
 
-	// TODO niko/allocation-etl remove after testing and benchmarking
+	// TODO: external allocation: remove after testing and benchmarking
 	profStart := time.Now()
 	defer log.Profile(profStart, fmt.Sprintf("ComputeIdleAllocations: %s", as.Window))
 
