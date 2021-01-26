@@ -618,6 +618,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	// 1b []AssetProperty=[Type]
 	// 1c []AssetProperty=[Nil]
 	// 1d []AssetProperty=nil
+	// 1e aggregateBy []string=["label:test"]
 
 	// 2  Multi-aggregation
 	// 2a []AssetProperty=[Cluster,Type]
@@ -636,7 +637,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 
 	// 1a []AssetProperty=[Cluster]
 	as = generateAssetSet(startYesterday)
-	err = as.AggregateBy([]AssetProperty{AssetClusterProp}, nil)
+	err = as.AggregateBy([]string{string(AssetClusterProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
 	}
@@ -648,7 +649,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 
 	// 1b []AssetProperty=[Type]
 	as = generateAssetSet(startYesterday)
-	err = as.AggregateBy([]AssetProperty{AssetTypeProp}, nil)
+	err = as.AggregateBy([]string{string(AssetTypeProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
 	}
@@ -660,7 +661,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 
 	// 1c []AssetProperty=[Nil]
 	as = generateAssetSet(startYesterday)
-	err = as.AggregateBy([]AssetProperty{}, nil)
+	err = as.AggregateBy([]string{}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
 	}
@@ -675,24 +676,36 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
 	}
 	assertAssetSet(t, as, "1d", window, map[string]float64{
-		"Compute/cluster1/Node/Kubernetes/gcp-node1/node1":     7.00,
-		"Compute/cluster1/Node/Kubernetes/gcp-node2/node2":     5.50,
-		"Compute/cluster1/Node/Kubernetes/gcp-node3/node3":     6.50,
-		"Storage/cluster1/Disk/Kubernetes/gcp-disk1/disk1":     2.50,
-		"Storage/cluster1/Disk/Kubernetes/gcp-disk2/disk2":     1.50,
-		"GCP/Management/cluster1/ClusterManagement/Kubernetes": 3.00,
-		"Compute/cluster2/Node/Kubernetes/gcp-node4/node4":     11.00,
-		"Storage/cluster2/Disk/Kubernetes/gcp-disk3/disk3":     2.50,
-		"Storage/cluster2/Disk/Kubernetes/gcp-disk4/disk4":     1.50,
-		"GCP/Management/cluster2/ClusterManagement/Kubernetes": 0.00,
-		"Compute/cluster3/Node/Kubernetes/aws-node5/node5":     19.00,
+		"__undefined__/__undefined__/__undefined__/Compute/cluster1/Node/Kubernetes/gcp-node1/node1":                   7.00,
+		"__undefined__/__undefined__/__undefined__/Compute/cluster1/Node/Kubernetes/gcp-node2/node2":                   5.50,
+		"__undefined__/__undefined__/__undefined__/Compute/cluster1/Node/Kubernetes/gcp-node3/node3":                   6.50,
+		"__undefined__/__undefined__/__undefined__/Storage/cluster1/Disk/Kubernetes/gcp-disk1/disk1":                   2.50,
+		"__undefined__/__undefined__/__undefined__/Storage/cluster1/Disk/Kubernetes/gcp-disk2/disk2":                   1.50,
+		"GCP/__undefined__/__undefined__/Management/cluster1/ClusterManagement/Kubernetes/__undefined__/__undefined__": 3.00,
+		"__undefined__/__undefined__/__undefined__/Compute/cluster2/Node/Kubernetes/gcp-node4/node4":                   11.00,
+		"__undefined__/__undefined__/__undefined__/Storage/cluster2/Disk/Kubernetes/gcp-disk3/disk3":                   2.50,
+		"__undefined__/__undefined__/__undefined__/Storage/cluster2/Disk/Kubernetes/gcp-disk4/disk4":                   1.50,
+		"GCP/__undefined__/__undefined__/Management/cluster2/ClusterManagement/Kubernetes/__undefined__/__undefined__": 0.00,
+		"__undefined__/__undefined__/__undefined__/Compute/cluster3/Node/Kubernetes/aws-node5/node5":                   19.00,
+	}, nil)
+
+	// 1e aggregateBy []string=["label:test"]
+	as = generateAssetSet(startYesterday)
+	err = as.AggregateBy([]string{"label:test"}, nil)
+	if err != nil {
+		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
+	}
+	fmt.Println(as.assets)
+	assertAssetSet(t, as, "1e", window, map[string]float64{
+		"__undefined__": 53.00,
+		"test=test":     7.00,
 	}, nil)
 
 	// 2  Multi-aggregation
 
 	// 2a []AssetProperty=[Cluster,Type]
 	as = generateAssetSet(startYesterday)
-	err = as.AggregateBy([]AssetProperty{AssetClusterProp, AssetTypeProp}, nil)
+	err = as.AggregateBy([]string{string(AssetClusterProp), string(AssetTypeProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
 	}
@@ -710,7 +723,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 
 	// 3a Shared hourly cost > 0.0
 	as = generateAssetSet(startYesterday)
-	err = as.AggregateBy([]AssetProperty{AssetTypeProp}, &AssetAggregationOptions{
+	err = as.AggregateBy([]string{string(AssetTypeProp)}, &AssetAggregationOptions{
 		SharedHourlyCosts: map[string]float64{"shared1": 0.5},
 	})
 	if err != nil {
@@ -737,7 +750,7 @@ func TestAssetSet_FindMatch(t *testing.T) {
 	// Assert success of a simple match of Type and ProviderID
 	as = generateAssetSet(startYesterday)
 	query = NewNode("", "", "gcp-node3", s, e, w)
-	match, err = as.FindMatch(query, []AssetProperty{AssetTypeProp, AssetProviderIDProp})
+	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)})
 	if err != nil {
 		t.Fatalf("AssetSet.FindMatch: unexpected error: %s", err)
 	}
@@ -745,7 +758,7 @@ func TestAssetSet_FindMatch(t *testing.T) {
 	// Assert error of a simple non-match of Type and ProviderID
 	as = generateAssetSet(startYesterday)
 	query = NewNode("", "", "aws-node3", s, e, w)
-	match, err = as.FindMatch(query, []AssetProperty{AssetTypeProp, AssetProviderIDProp})
+	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)})
 	if err == nil {
 		t.Fatalf("AssetSet.FindMatch: expected error (no match); found %s", match)
 	}
@@ -753,7 +766,7 @@ func TestAssetSet_FindMatch(t *testing.T) {
 	// Assert error of matching ProviderID, but not Type
 	as = generateAssetSet(startYesterday)
 	query = NewCloud(ComputeCategory, "gcp-node3", s, e, w)
-	match, err = as.FindMatch(query, []AssetProperty{AssetTypeProp, AssetProviderIDProp})
+	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)})
 	if err == nil {
 		t.Fatalf("AssetSet.FindMatch: expected error (no match); found %s", match)
 	}
@@ -784,17 +797,17 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
 	}
 	assertAssetSet(t, as, "1a", window, map[string]float64{
-		"Compute/cluster1/Node/Kubernetes/gcp-node1/node1":     21.00,
-		"Compute/cluster1/Node/Kubernetes/gcp-node2/node2":     16.50,
-		"Compute/cluster1/Node/Kubernetes/gcp-node3/node3":     19.50,
-		"Storage/cluster1/Disk/Kubernetes/gcp-disk1/disk1":     7.50,
-		"Storage/cluster1/Disk/Kubernetes/gcp-disk2/disk2":     4.50,
-		"GCP/Management/cluster1/ClusterManagement/Kubernetes": 9.00,
-		"Compute/cluster2/Node/Kubernetes/gcp-node4/node4":     33.00,
-		"Storage/cluster2/Disk/Kubernetes/gcp-disk3/disk3":     7.50,
-		"Storage/cluster2/Disk/Kubernetes/gcp-disk4/disk4":     4.50,
-		"GCP/Management/cluster2/ClusterManagement/Kubernetes": 0.00,
-		"Compute/cluster3/Node/Kubernetes/aws-node5/node5":     57.00,
+		"__undefined__/__undefined__/__undefined__/Compute/cluster1/Node/Kubernetes/gcp-node1/node1":                   21.00,
+		"__undefined__/__undefined__/__undefined__/Compute/cluster1/Node/Kubernetes/gcp-node2/node2":                   16.50,
+		"__undefined__/__undefined__/__undefined__/Compute/cluster1/Node/Kubernetes/gcp-node3/node3":                   19.50,
+		"__undefined__/__undefined__/__undefined__/Storage/cluster1/Disk/Kubernetes/gcp-disk1/disk1":                   7.50,
+		"__undefined__/__undefined__/__undefined__/Storage/cluster1/Disk/Kubernetes/gcp-disk2/disk2":                   4.50,
+		"GCP/__undefined__/__undefined__/Management/cluster1/ClusterManagement/Kubernetes/__undefined__/__undefined__": 9.00,
+		"__undefined__/__undefined__/__undefined__/Compute/cluster2/Node/Kubernetes/gcp-node4/node4":                   33.00,
+		"__undefined__/__undefined__/__undefined__/Storage/cluster2/Disk/Kubernetes/gcp-disk3/disk3":                   7.50,
+		"__undefined__/__undefined__/__undefined__/Storage/cluster2/Disk/Kubernetes/gcp-disk4/disk4":                   4.50,
+		"GCP/__undefined__/__undefined__/Management/cluster2/ClusterManagement/Kubernetes/__undefined__/__undefined__": 0.00,
+		"__undefined__/__undefined__/__undefined__/Compute/cluster3/Node/Kubernetes/aws-node5/node5":                   57.00,
 	}, nil)
 
 	asr = NewAssetSetRange(
@@ -802,7 +815,7 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 		generateAssetSet(startD1),
 		generateAssetSet(startD2),
 	)
-	err = asr.AggregateBy([]AssetProperty{}, nil)
+	err = asr.AggregateBy([]string{}, nil)
 	as, err = asr.Accumulate()
 	if err != nil {
 		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
@@ -816,7 +829,7 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 		generateAssetSet(startD1),
 		generateAssetSet(startD2),
 	)
-	err = asr.AggregateBy([]AssetProperty{AssetTypeProp}, nil)
+	err = asr.AggregateBy([]string{string(AssetTypeProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
 	}
@@ -835,7 +848,7 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 		generateAssetSet(startD1),
 		generateAssetSet(startD2),
 	)
-	err = asr.AggregateBy([]AssetProperty{AssetClusterProp}, nil)
+	err = asr.AggregateBy([]string{string(AssetClusterProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
 	}
@@ -856,7 +869,7 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 		generateAssetSet(startD1),
 		generateAssetSet(startD2),
 	)
-	err = asr.AggregateBy([]AssetProperty{AssetTypeProp}, nil)
+	err = asr.AggregateBy([]string{string(AssetTypeProp)}, nil)
 	as, err = asr.Accumulate()
 	if err != nil {
 		t.Fatalf("AssetSetRange.AggregateBy: unexpected error: %s", err)
@@ -935,6 +948,7 @@ func generateAssetSet(start time.Time) *AssetSet {
 	node1.CPUCoreHours = 2.0 * hours
 	node1.RAMByteHours = 4.0 * gb * hours
 	node1.SetAdjustment(1.0)
+	node1.SetLabels(map[string]string{"test": "test"})
 
 	node2 := NewNode("node2", "cluster1", "gcp-node2", *window.Clone().start, *window.Clone().end, window.Clone())
 	node2.CPUCost = 4.0

@@ -959,6 +959,42 @@ func (alloc *Allocation) generateKey(properties Properties) (string, error) {
 		}
 	}
 
+	if properties.HasAnnotations() {
+		annotations, err := alloc.Properties.GetAnnotations() // annotations that the individual allocation possesses
+		if err != nil {
+			// Indicate that allocation has no annotations
+			names = append(names, UnallocatedSuffix)
+		} else {
+			annotationNames := []string{}
+
+			aggAnnotations, err := properties.GetAnnotations() // potential annotations to aggregate on supplied by the API caller
+			if err != nil {
+				// We've already checked HasAnnotation, so this should never occur
+				return "", err
+			}
+			// calvin - support multi-annotation aggregation
+			for annotationName := range aggAnnotations {
+				if val, ok := annotations[annotationName]; ok {
+					annotationNames = append(annotationNames, fmt.Sprintf("%s=%s", annotationName, val))
+				} else if indexOf(UnallocatedSuffix, annotationNames) == -1 { // if UnallocatedSuffix not already in names
+					annotationNames = append(annotationNames, UnallocatedSuffix)
+				}
+			}
+			// resolve arbitrary ordering. e.g., app=app0/env=env0 is the same agg as env=env0/app=app0
+			if len(annotationNames) > 1 {
+				sort.Strings(annotationNames)
+			}
+			unallocatedSuffixIndex := indexOf(UnallocatedSuffix, annotationNames)
+			// suffix should be at index 0 if it exists b/c of underscores
+			if unallocatedSuffixIndex != -1 {
+				annotationNames = append(annotationNames[:unallocatedSuffixIndex], annotationNames[unallocatedSuffixIndex+1:]...)
+				annotationNames = append(annotationNames, UnallocatedSuffix) // append to end
+			}
+
+			names = append(names, annotationNames...)
+		}
+	}
+
 	if properties.HasLabel() {
 		labels, err := alloc.Properties.GetLabels() // labels that the individual allocation possesses
 		if err != nil {
