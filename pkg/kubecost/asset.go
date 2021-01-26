@@ -181,6 +181,8 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, allocationProp
 		return nil, fmt.Errorf("asset does not qualify as an external allocation")
 	}
 
+	names = append(names, ExternalSuffix)
+
 	// TODO niko/allocation-etl efficiency?
 	// TODO niko/allocation-etl resource totals?
 	return &Allocation{
