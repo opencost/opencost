@@ -1819,26 +1819,26 @@ func (a *Accesses) warmAggregateCostModelCache() {
 		}
 	}(sem)
 
-	// 2 day
-	go func(sem *util.Semaphore) {
-		defer errors.HandlePanic()
-
-		duration := "2d"
-		offset := "1m"
-		durHrs := "48h"
-		dur := 2 * 24 * time.Hour
-
-		for {
-			sem.Acquire()
-			warmFunc(duration, durHrs, offset, false)
-			sem.Return()
-
-			log.Infof("aggregation: warm cache: %s", duration)
-			time.Sleep(a.GetCacheRefresh(dur))
-		}
-	}(sem)
-
 	if !env.IsETLEnabled() {
+		// 2 day
+		go func(sem *util.Semaphore) {
+			defer errors.HandlePanic()
+
+			duration := "2d"
+			offset := "1m"
+			durHrs := "48h"
+			dur := 2 * 24 * time.Hour
+
+			for {
+				sem.Acquire()
+				warmFunc(duration, durHrs, offset, false)
+				sem.Return()
+
+				log.Infof("aggregation: warm cache: %s", duration)
+				time.Sleep(a.GetCacheRefresh(dur))
+			}
+		}(sem)
+
 		// 7 day
 		go func(sem *util.Semaphore) {
 			defer errors.HandlePanic()
