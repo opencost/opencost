@@ -247,16 +247,16 @@ func (a *Allocation) String() string {
 func (a *Allocation) add(that *Allocation, isShared, isAccumulating bool) {
 	// TODO niko/allocation-etl this can't possibly work as it reads
 	// ...right?? (See https://play.golang.org/p/UDZ-GsNJ1rI)
-	// if a == nil {
-	// 	a = that
+	if a == nil {
+		a = that
 
-	// 	// reset properties
-	// 	thatCluster, _ := that.Properties.GetCluster()
-	// 	thatNode, _ := that.Properties.GetNode()
-	// 	a.Properties = Properties{ClusterProp: thatCluster, NodeProp: thatNode}
+		// reset properties
+		thatCluster, _ := that.Properties.GetCluster()
+		thatNode, _ := that.Properties.GetNode()
+		a.Properties = Properties{ClusterProp: thatCluster, NodeProp: thatNode}
 
-	// 	return
-	// }
+		return
+	}
 
 	aCluster, _ := a.Properties.GetCluster()
 	thatCluster, _ := that.Properties.GetCluster()
@@ -423,11 +423,6 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 		return nil
 	}
 
-	fmt.Printf("AllocationSet.AggregateBy\n")
-	as.Each(func(key string, a *Allocation) {
-		fmt.Printf(" > %s: %.2f %s\n", key, a.TotalCost, &(a.Properties))
-	})
-
 	// aggSet will collect the aggregated allocations
 	aggSet := &AllocationSet{
 		Window: as.Window.Clone(),
@@ -484,8 +479,10 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 		// not necessarily contain complete sets of properties, so they are
 		// moved to a separate AllocationSet.
 		if alloc.IsExternal() {
+			delete(as.externalKeys, alloc.Name)
 			delete(as.allocations, alloc.Name)
 			externalSet.Insert(alloc)
+			continue
 		}
 
 		cluster, err := alloc.Properties.GetCluster()
@@ -505,6 +502,8 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 			} else {
 				aggSet.Insert(alloc)
 			}
+
+			continue
 		}
 
 		// Shared allocations must be identified and separated prior to
@@ -746,12 +745,10 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 		if err != nil {
 			// TODO niko/allocation-etl remove log after testing
 			log.Infof("ExternalAllocations: AggregateBy: skipping %s: %s", alloc.Name, err)
-			fmt.Printf(" - skipping %s: %s\n", alloc.Name, err)
 			continue
 		}
 
 		alloc.Name = key
-		fmt.Printf(" - inserting %s: %.5f (%.5f)\n", alloc.Name, alloc.ExternalCost, alloc.TotalCost)
 		aggSet.Insert(alloc)
 	}
 
@@ -1297,6 +1294,23 @@ func (as *AllocationSet) ExternalAllocations() map[string]*Allocation {
 	return externals
 }
 
+// ExternalCost returns the total aggregated external costs of the set
+func (as *AllocationSet) ExternalCost() float64 {
+	if as.IsEmpty() {
+		return 0.0
+	}
+
+	as.RLock()
+	defer as.RUnlock()
+
+	externalCost := 0.0
+	for _, alloc := range as.allocations {
+		externalCost += alloc.ExternalCost
+	}
+
+	return externalCost
+}
+
 // IdleAllocations returns a map of the idle allocations in the AllocationSet.
 // Returns clones of the actual Allocations, so mutability is not a problem.
 func (as *AllocationSet) IdleAllocations() map[string]*Allocation {
@@ -1588,8 +1602,6 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 // properties and options.
 func (asr *AllocationSetRange) AggregateBy(properties Properties, options *AllocationAggregationOptions) error {
 	aggRange := &AllocationSetRange{allocations: []*AllocationSet{}}
-
-	fmt.Printf("AllocationSetRange.AggregateBy\n")
 
 	asr.Lock()
 	defer asr.Unlock()
