@@ -8,6 +8,7 @@ require (
 	github.com/Azure/azure-sdk-for-go v24.1.0+incompatible
 	github.com/Azure/go-autorest v11.3.2+incompatible
 	github.com/aws/aws-sdk-go v1.28.9
+	github.com/davecgh/go-spew v1.1.1
 	github.com/dimchansky/utfbom v1.1.0 // indirect
 	github.com/getsentry/sentry-go v0.6.1
 	github.com/google/martian v2.1.0+incompatible
