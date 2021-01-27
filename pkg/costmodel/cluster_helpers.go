@@ -187,19 +187,7 @@ func buildCPUCoresMap(
 			Cluster: cluster,
 			Name:    name,
 		}
-		if nodeType, ok := clusterAndNameToType[key]; ok {
-			if v, ok := partialCPUMap[nodeType]; ok {
-				m[key] = v
-				if cpuCores > 0 {
-					adjustmentFactor := v / cpuCores
-					m[key] = m[key] * adjustmentFactor
-				}
-			} else {
-				m[key] = cpuCores
-			}
-		} else {
-			m[key] = cpuCores
-		}
+		m[key] = cpuCores
 	}
 
 	return m
@@ -636,6 +624,13 @@ func buildNodeMap(
 
 		if cores, ok := cpuCoresMap[clusterAndNameID]; ok {
 			nodePtr.CPUCores = cores
+			if v, ok := partialCPUMap[nodePtr.NodeType]; ok {
+				if cores > 0 {
+					nodePtr.CPUCores = v
+					adjustmentFactor := v / cores
+					nodePtr.CPUCost = nodePtr.CPUCost * adjustmentFactor
+				}
+			}
 		}
 
 		if ramBytes, ok := ramBytesMap[clusterAndNameID]; ok {

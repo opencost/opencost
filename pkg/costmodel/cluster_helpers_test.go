@@ -532,6 +532,120 @@ func TestBuildNodeMap(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "e2-micro cpu cost adjustment",
+			cpuCostMap: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "prov_node1",
+				}: 0.048,
+			},
+			cpuCoresMap: map[nodeIdentifierNoProviderID]float64{
+				nodeIdentifierNoProviderID{
+					Cluster: "cluster1",
+					Name:    "node1",
+				}: 6.0, // GKE lies about number of cores
+			},
+			clusterAndNameToType: map[nodeIdentifierNoProviderID]string{
+				nodeIdentifierNoProviderID{
+					Cluster: "cluster1",
+					Name:    "node1",
+				}: "e2-micro", // for this node type
+			},
+			expected: map[NodeIdentifier]*Node{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "prov_node1",
+				}: &Node{
+					Cluster:      "cluster1",
+					Name:         "node1",
+					ProviderID:   "prov_node1",
+					NodeType:     "e2-micro",
+					CPUCost:      0.048 * (partialCPUMap["e2-micro"] / 6.0), // adjustmentFactor is (v / GKE cores)
+					CPUCores:     partialCPUMap["e2-micro"],
+					CPUBreakdown: &ClusterCostsBreakdown{},
+					RAMBreakdown: &ClusterCostsBreakdown{},
+				},
+			},
+		},
+		{
+			name: "e2-small cpu cost adjustment",
+			cpuCostMap: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "prov_node1",
+				}: 0.048,
+			},
+			cpuCoresMap: map[nodeIdentifierNoProviderID]float64{
+				nodeIdentifierNoProviderID{
+					Cluster: "cluster1",
+					Name:    "node1",
+				}: 6.0, // GKE lies about number of cores
+			},
+			clusterAndNameToType: map[nodeIdentifierNoProviderID]string{
+				nodeIdentifierNoProviderID{
+					Cluster: "cluster1",
+					Name:    "node1",
+				}: "e2-small", // for this node type
+			},
+			expected: map[NodeIdentifier]*Node{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "prov_node1",
+				}: &Node{
+					Cluster:      "cluster1",
+					Name:         "node1",
+					ProviderID:   "prov_node1",
+					NodeType:     "e2-small",
+					CPUCost:      0.048 * (partialCPUMap["e2-small"] / 6.0), // adjustmentFactor is (v / GKE cores)
+					CPUCores:     partialCPUMap["e2-small"],
+					CPUBreakdown: &ClusterCostsBreakdown{},
+					RAMBreakdown: &ClusterCostsBreakdown{},
+				},
+			},
+		},
+		{
+			name: "e2-medium cpu cost adjustment",
+			cpuCostMap: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "prov_node1",
+				}: 0.048,
+			},
+			cpuCoresMap: map[nodeIdentifierNoProviderID]float64{
+				nodeIdentifierNoProviderID{
+					Cluster: "cluster1",
+					Name:    "node1",
+				}: 6.0, // GKE lies about number of cores
+			},
+			clusterAndNameToType: map[nodeIdentifierNoProviderID]string{
+				nodeIdentifierNoProviderID{
+					Cluster: "cluster1",
+					Name:    "node1",
+				}: "e2-medium", // for this node type
+			},
+			expected: map[NodeIdentifier]*Node{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "prov_node1",
+				}: &Node{
+					Cluster:      "cluster1",
+					Name:         "node1",
+					ProviderID:   "prov_node1",
+					NodeType:     "e2-medium",
+					CPUCost:      0.048 * (partialCPUMap["e2-medium"] / 6.0), // adjustmentFactor is (v / GKE cores)
+					CPUCores:     partialCPUMap["e2-medium"],
+					CPUBreakdown: &ClusterCostsBreakdown{},
+					RAMBreakdown: &ClusterCostsBreakdown{},
+				},
+			},
+		},
 	}
 
 	for _, testCase := range cases {
