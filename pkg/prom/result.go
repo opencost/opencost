@@ -240,7 +240,7 @@ func (qr *QueryResult) GetLabels() map[string]string {
 			continue
 		}
 
-		label := k[6:]
+		label := strings.TrimPrefix(k, "label_")
 		value, ok := v.(string)
 		if !ok {
 			log.Warningf("Failed to parse label value for label: '%s'", label)
@@ -248,6 +248,29 @@ func (qr *QueryResult) GetLabels() map[string]string {
 		}
 
 		result[label] = value
+	}
+
+	return result
+}
+
+// GetAnnotations returns all annotations and their values from the query result
+func (qr *QueryResult) GetAnnotations() map[string]string {
+	result := make(map[string]string)
+
+	// Find All keys with prefix annotation_, remove prefix, add to annotations
+	for k, v := range qr.Metric {
+		if !strings.HasPrefix(k, "annotation_") {
+			continue
+		}
+
+		annotations := strings.TrimPrefix(k, "annotation_")
+		value, ok := v.(string)
+		if !ok {
+			log.Warningf("Failed to parse label value for label: '%s'", annotations)
+			continue
+		}
+
+		result[annotations] = value
 	}
 
 	return result

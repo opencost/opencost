@@ -1,8 +1,6 @@
 package kubecost
 
-import (
-	"testing"
-)
+import "testing"
 
 // TODO niko/etl
 // func TestParseProperty(t *testing.T) {}
@@ -10,187 +8,63 @@ import (
 // TODO niko/etl
 // func TestProperty_String(t *testing.T) {}
 
+func TestProperties_AggregationString(t *testing.T) {
+	var props *Properties
+	var aggStrs []string
+
+	// nil Properties should produce and empty slice
+	aggStrs = props.AggregationStrings()
+	if aggStrs == nil || len(aggStrs) > 0 {
+		t.Fatalf("expected empty slice; got %v", aggStrs)
+	}
+
+	// empty Properties should product an empty slice
+	props = &Properties{}
+	aggStrs = props.AggregationStrings()
+	if aggStrs == nil || len(aggStrs) > 0 {
+		t.Fatalf("expected empty slice; got %v", aggStrs)
+	}
+
+	// Properties with single, simple property set
+	props = &Properties{}
+	props.SetNamespace("")
+	aggStrs = props.AggregationStrings()
+	if len(aggStrs) != 1 || aggStrs[0] != "namespace" {
+		t.Fatalf("expected [\"namespace\"]; got %v", aggStrs)
+	}
+
+	// Properties with mutiple properties, including labels
+	// Note: order matters!
+	props = &Properties{}
+	props.SetNamespace("")
+	props.SetLabels(map[string]string{
+		"env": "",
+		"app": "",
+	})
+	props.SetCluster("")
+	aggStrs = props.AggregationStrings()
+	if len(aggStrs) != 4 {
+		t.Fatalf("expected length %d; got lenfth %d", 4, len(aggStrs))
+	}
+	if aggStrs[0] != "cluster" {
+		t.Fatalf("expected aggStrs[0] == \"%s\"; got \"%s\"", "cluster", aggStrs[0])
+	}
+	if aggStrs[1] != "namespace" {
+		t.Fatalf("expected aggStrs[1] == \"%s\"; got \"%s\"", "namespace", aggStrs[1])
+	}
+	if aggStrs[2] != "label:app" {
+		t.Fatalf("expected aggStrs[2] == \"%s\"; got \"%s\"", "label:app", aggStrs[2])
+	}
+	if aggStrs[3] != "label:env" {
+		t.Fatalf("expected aggStrs[3] == \"%s\"; got \"%s\"", "label:env", aggStrs[3])
+	}
+}
+
 // TODO niko/etl
 // func TestProperties_Clone(t *testing.T) {}
 
 // TODO niko/etl
 // func TestProperties_Intersection(t *testing.T) {}
-
-func TestProperties_Matches(t *testing.T) {
-	// nil Properties should match empty Properties
-	var p *Properties
-	propsEmpty := Properties{}
-
-	if !p.Matches(propsEmpty) {
-		t.Fatalf("Properties.Matches: expect nil to match empty")
-	}
-
-	// Empty Properties should match empty Properties
-	p = &Properties{}
-	if !p.Matches(propsEmpty) {
-		t.Fatalf("Properties.Matches: expect nil to match empty")
-	}
-
-	p.SetCluster("cluster-one")
-	p.SetNamespace("kubecost")
-	p.SetController("kubecost-deployment")
-	p.SetControllerKind("deployment")
-	p.SetPod("kubecost-deployment-abc123")
-	p.SetContainer("kubecost-cost-model")
-	p.SetServices([]string{"kubecost-frontend"})
-	p.SetLabels(map[string]string{
-		"app":  "kubecost",
-		"tier": "frontend",
-	})
-
-	// Non-empty Properties should match empty Properties, but not vice-a-versa
-	if !p.Matches(propsEmpty) {
-		t.Fatalf("Properties.Matches: expect nil to match empty")
-	}
-	if propsEmpty.Matches(*p) {
-		t.Fatalf("Properties.Matches: expect empty to not match non-empty")
-	}
-
-	// Non-empty Properties should match itself
-	if !p.Matches(*p) {
-		t.Fatalf("Properties.Matches: expect non-empty to match itself")
-	}
-
-	// Match on all
-	if !p.Matches(Properties{
-		ClusterProp:        "cluster-one",
-		NamespaceProp:      "kubecost",
-		ControllerProp:     "kubecost-deployment",
-		ControllerKindProp: "deployment",
-		PodProp:            "kubecost-deployment-abc123",
-		ContainerProp:      "kubecost-cost-model",
-		ServiceProp:        []string{"kubecost-frontend"},
-		LabelProp: map[string]string{
-			"app":  "kubecost",
-			"tier": "frontend",
-		},
-	}) {
-		t.Fatalf("Properties.Matches: expect match on all")
-	}
-
-	// Match on cluster
-	if !p.Matches(Properties{
-		ClusterProp: "cluster-one",
-	}) {
-		t.Fatalf("Properties.Matches: expect match on cluster")
-	}
-
-	// No match on cluster
-	if p.Matches(Properties{
-		ClusterProp: "miss",
-	}) {
-		t.Fatalf("Properties.Matches: expect no match on cluster")
-	}
-
-	// Match on namespace
-	if !p.Matches(Properties{
-		NamespaceProp: "kubecost",
-	}) {
-		t.Fatalf("Properties.Matches: expect match on namespace")
-	}
-
-	// No match on namespace
-	if p.Matches(Properties{
-		NamespaceProp: "miss",
-	}) {
-		t.Fatalf("Properties.Matches: expect no match on namespace")
-	}
-
-	// Match on controller
-	if !p.Matches(Properties{
-		ControllerProp: "kubecost-deployment",
-	}) {
-		t.Fatalf("Properties.Matches: expect match on controller")
-	}
-
-	// No match on controller
-	if p.Matches(Properties{
-		ControllerProp: "miss",
-	}) {
-		t.Fatalf("Properties.Matches: expect no match on controller")
-	}
-
-	// Match on controller kind
-	if !p.Matches(Properties{
-		ControllerKindProp: "deployment",
-	}) {
-		t.Fatalf("Properties.Matches: expect match on controller kind")
-	}
-
-	// No match on controller kind
-	if p.Matches(Properties{
-		ControllerKindProp: "miss",
-	}) {
-		t.Fatalf("Properties.Matches: expect no match on controller kind")
-	}
-
-	// Match on pod
-	if !p.Matches(Properties{
-		PodProp: "kubecost-deployment-abc123",
-	}) {
-		t.Fatalf("Properties.Matches: expect match on pod")
-	}
-
-	// No match on pod
-	if p.Matches(Properties{
-		PodProp: "miss",
-	}) {
-		t.Fatalf("Properties.Matches: expect no match on pod")
-	}
-
-	// Match on container
-	if !p.Matches(Properties{
-		ContainerProp: "kubecost-cost-model",
-	}) {
-		t.Fatalf("Properties.Matches: expect match on container")
-	}
-
-	// No match on container
-	if p.Matches(Properties{
-		ContainerProp: "miss",
-	}) {
-		t.Fatalf("Properties.Matches: expect no match on container")
-	}
-
-	// Match on single service
-	if !p.Matches(Properties{
-		ServiceProp: []string{"kubecost-frontend"},
-	}) {
-		t.Fatalf("Properties.Matches: expect match on service")
-	}
-
-	// No match on one missing service
-	if p.Matches(Properties{
-		ServiceProp: []string{"missing-service", "kubecost-frontend"},
-	}) {
-		t.Fatalf("Properties.Matches: expect no match on 1 of 2 services")
-	}
-
-	// Match on single label
-	if !p.Matches(Properties{
-		LabelProp: map[string]string{
-			"app": "kubecost",
-		},
-	}) {
-		t.Fatalf("Properties.Matches: expect match on label")
-	}
-
-	// No match on one missing label
-	if !p.Matches(Properties{
-		LabelProp: map[string]string{
-			"app":   "kubecost",
-			"tier":  "frontend",
-			"label": "missing",
-		},
-	}) {
-		t.Fatalf("Properties.Matches: expect no match on 2 of 3 labels")
-	}
-}
 
 // TODO niko/etl
 // func TestProperties_GetCluster(t *testing.T) {}
