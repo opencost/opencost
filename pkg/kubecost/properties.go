@@ -65,7 +65,7 @@ func (p *Properties) Clone() Properties {
 		return nil
 	}
 
-	clone := Properties{}
+	clone := make(Properties, len(*p))
 	for k, v := range *p {
 		clone[k] = v
 	}
@@ -222,109 +222,6 @@ func (p *Properties) Length() int {
 	return len(*p)
 }
 
-func (p *Properties) Matches(that Properties) bool {
-	// The only Properties that a nil Properties matches is an empty one
-	if p == nil {
-		return that.Length() == 0
-	}
-
-	// Matching on cluster, namespace, controller, controller kind, pod,
-	// and container are simple string equality comparisons. By default,
-	// we assume a match. For each Property given to match, we say that the
-	// match fails if we don't have that Property, or if we have it but the
-	// strings are not equal.
-
-	if thatCluster, thatErr := that.GetCluster(); thatErr == nil {
-		if thisCluster, thisErr := p.GetCluster(); thisErr != nil || thisCluster != thatCluster {
-			return false
-		}
-	}
-
-	if thatNode, thatErr := that.GetNode(); thatErr == nil {
-		if thisNode, thisErr := p.GetNode(); thisErr != nil || thisNode != thatNode {
-			return false
-		}
-	}
-
-	if thatNamespace, thatErr := that.GetNamespace(); thatErr == nil {
-		if thisNamespace, thisErr := p.GetNamespace(); thisErr != nil || thisNamespace != thatNamespace {
-			return false
-		}
-	}
-
-	if thatController, thatErr := that.GetController(); thatErr == nil {
-		if thisController, thisErr := p.GetController(); thisErr != nil || thisController != thatController {
-			return false
-		}
-	}
-
-	if thatControllerKind, thatErr := that.GetControllerKind(); thatErr == nil {
-		if thisControllerKind, thisErr := p.GetControllerKind(); thisErr != nil || thisControllerKind != thatControllerKind {
-			return false
-		}
-	}
-
-	if thatPod, thatErr := that.GetPod(); thatErr == nil {
-		if thisPod, thisErr := p.GetPod(); thisErr != nil || thisPod != thatPod {
-			return false
-		}
-	}
-
-	if thatContainer, thatErr := that.GetContainer(); thatErr == nil {
-		if thisContainer, thisErr := p.GetContainer(); thisErr != nil || thisContainer != thatContainer {
-			return false
-		}
-	}
-
-	// Matching on Services only occurs if a non-zero length slice of strings
-	// is given. The comparison fails if there exists a string to match that is
-	// not present in our slice of services.
-	if thatServices, thatErr := that.GetServices(); thatErr == nil && len(thatServices) > 0 {
-		thisServices, thisErr := p.GetServices()
-		if thisErr != nil {
-			return false
-		}
-
-		for _, service := range thatServices {
-			match := false
-			for _, s := range thisServices {
-				if s == service {
-					match = true
-					break
-				}
-			}
-			if !match {
-				return false
-			}
-		}
-	}
-
-	// Matching on Labels only occurs if a non-zero length map of strings is
-	// given. The comparison fails if there exists a key/value pair to match
-	// that is not present in our set of labels.
-	if thatServices, thatErr := that.GetServices(); thatErr == nil && len(thatServices) > 0 {
-		thisServices, thisErr := p.GetServices()
-		if thisErr != nil {
-			return false
-		}
-
-		for _, service := range thatServices {
-			match := false
-			for _, s := range thisServices {
-				if s == service {
-					match = true
-					break
-				}
-			}
-			if !match {
-				return false
-			}
-		}
-	}
-
-	return true
-}
-
 func (p *Properties) String() string {
 	if p == nil {
 		return "<nil>"
@@ -335,6 +232,62 @@ func (p *Properties) String() string {
 		strs = append(strs, fmt.Sprintf("%s:%s", key, prop))
 	}
 	return fmt.Sprintf("{%s}", strings.Join(strs, "; "))
+}
+
+// AggregationStrings converts a Properties object into a slice of strings
+// representing a request to aggregate by certain properties.
+// NOTE: today, the ordering of the properties *has to match the ordering
+// of the allocaiton function generateKey*
+func (p *Properties) AggregationStrings() []string {
+	if p == nil {
+		return []string{}
+	}
+
+	aggStrs := []string{}
+	if p.HasCluster() {
+		aggStrs = append(aggStrs, ClusterProp.String())
+	}
+	if p.HasNode() {
+		aggStrs = append(aggStrs, NodeProp.String())
+	}
+	if p.HasNamespace() {
+		aggStrs = append(aggStrs, NamespaceProp.String())
+	}
+	if p.HasControllerKind() {
+		aggStrs = append(aggStrs, ControllerKindProp.String())
+	}
+	if p.HasController() {
+		aggStrs = append(aggStrs, ControllerProp.String())
+	}
+	if p.HasPod() {
+		aggStrs = append(aggStrs, PodProp.String())
+	}
+	if p.HasContainer() {
+		aggStrs = append(aggStrs, ContainerProp.String())
+	}
+	if p.HasService() {
+		aggStrs = append(aggStrs, ServiceProp.String())
+	}
+	if p.HasLabel() {
+		// e.g. expect format map[string]string{
+		// 	 "env":""
+		// 	 "app":"",
+		// }
+		// for aggregating by "label:app,label:env"
+		labels, _ := p.GetLabels()
+		labelAggStrs := []string{}
+		for labelName := range labels {
+			labelAggStrs = append(labelAggStrs, fmt.Sprintf("label:%s", labelName))
+		}
+		if len(labelAggStrs) > 0 {
+			// Enforce alphabetical ordering, then append to aggStrs
+			sort.Strings(labelAggStrs)
+			for _, labelName := range labelAggStrs {
+				aggStrs = append(aggStrs, labelName)
+			}
+		}
+	}
+	return aggStrs
 }
 
 func (p *Properties) Get(prop Property) (string, error) {
@@ -707,8 +660,8 @@ func (p *Properties) UnmarshalBinary(data []byte) error {
 
 	// LabelProp
 	if buff.ReadUInt8() == 1 { // read nil byte
-		labels := map[string]string{}
 		length := buff.ReadInt() // read map len
+		labels := make(map[string]string, length)
 		for idx := 0; idx < length; idx++ {
 			key := buff.ReadString()
 			val := buff.ReadString()
@@ -719,8 +672,8 @@ func (p *Properties) UnmarshalBinary(data []byte) error {
 
 	// AnnotationProp
 	if buff.ReadUInt8() == 1 { // read nil byte
-		annotations := map[string]string{}
 		length := buff.ReadInt() // read map len
+		annotations := make(map[string]string, length)
 		for idx := 0; idx < length; idx++ {
 			key := buff.ReadString()
 			val := buff.ReadString()
@@ -731,11 +684,11 @@ func (p *Properties) UnmarshalBinary(data []byte) error {
 
 	// ServiceProp
 	if buff.ReadUInt8() == 1 { // read nil byte
-		services := []string{}
 		length := buff.ReadInt() // read map len
+		services := make([]string, length)
 		for idx := 0; idx < length; idx++ {
 			val := buff.ReadString()
-			services = append(services, val)
+			services[idx] = val
 		}
 		p.SetServices(services)
 	}

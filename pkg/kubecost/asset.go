@@ -15,6 +15,10 @@ import (
 
 const timeFmt = "2006-01-02T15:04:05-0700"
 
+// UndefinedKey is used in composing Asset group keys if the group does not have that property defined.
+// E.g. if aggregating on Cluster, Assets in the AssetSet where Asset has no cluster will be grouped under key "__undefined__"
+const UndefinedKey = "__undefined__"
+
 // Asset defines an entity within a cluster that has a defined cost over a
 // given period of time.
 type Asset interface {
@@ -56,52 +60,207 @@ type Asset interface {
 	fmt.Stringer
 }
 
+// AssetToExternalAllocation converts the given asset to an Allocation, given
+// the properties to use to aggregate, and the mapping from Allocation property
+// to Asset label. For example, consider this asset:
+//
+//   Cloud {
+// 	   TotalCost: 10.00,
+// 	   Labels{
+//       "kubernetes_namespace":"monitoring",
+// 	     "env":"prod"
+// 	   }
+//   }
+//
+// Given the following parameters, we expect to return:
+//
+//   1) single-prop full match
+//   aggregateBy = ["namespace"]
+//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//   => Allocation{Name: "monitoring", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//
+//   2) multi-prop full match
+//   aggregateBy = ["namespace", "label:env"]
+//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//   => Allocation{Name: "monitoring/env=prod", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//
+//   3) multi-prop partial match
+//   aggregateBy = ["namespace", "label:foo"]
+//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//   => Allocation{Name: "monitoring/__unallocated__", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//
+//   4) no match
+//   aggregateBy = ["cluster"]
+//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//   => nil, err
+//
+// (See asset_test.go for assertions of these examples and more.)
+func AssetToExternalAllocation(asset Asset, aggregateBy []string, allocationPropertyLabels map[string]string) (*Allocation, error) {
+	if asset == nil {
+		return nil, fmt.Errorf("asset is nil")
+	}
+
+	// names will collect the slash-separated names accrued by iterating over
+	// aggregateBy and checking the relevant labels.
+	names := []string{}
+
+	// match records whether or not a match was found in the Asset labels,
+	// such that is can genuinely be turned into an external Allocation.
+	match := false
+
+	// props records the relevant Properties to set on the resultant Allocation
+	props := Properties{}
+
+	for _, aggBy := range aggregateBy {
+		// labelName should be derived from the mapping of properties to
+		// label names, unless the aggBy is explicitly a label, in which
+		// case we should pull the label name from the aggBy string.
+		labelName := allocationPropertyLabels[aggBy]
+		if strings.HasPrefix(aggBy, "label:") {
+			labelName = strings.TrimPrefix(aggBy, "label:")
+		}
+
+		if labelName == "" {
+			// No matching label has been defined in the cost-analyzer label config
+			// relating to the given aggregateBy property.
+			names = append(names, UnallocatedSuffix)
+			continue
+		}
+
+		if value := asset.Labels()[labelName]; value != "" {
+			// Valid label value was found for one of the aggregation properties,
+			// so add it to the name.
+			if strings.HasPrefix(aggBy, "label:") {
+				// Use naming convention labelName=labelValue for labels
+				// e.g. aggBy="label:env", value="prod" => "env=prod"
+				names = append(names, fmt.Sprintf("%s=%s", strings.TrimPrefix(aggBy, "label:"), value))
+				match = true
+
+				// Set the corresponding label in props
+				labels, err := props.GetLabels()
+				if err != nil {
+					labels = map[string]string{}
+				}
+				labels[labelName] = value
+				props.SetLabels(labels)
+			} else {
+				names = append(names, value)
+				match = true
+
+				// Set the corresponding property on props
+				switch aggBy {
+				case ClusterProp.String():
+					props.SetCluster(value)
+				case NodeProp.String():
+					props.SetNode(value)
+				case NamespaceProp.String():
+					props.SetNamespace(value)
+				case ControllerKindProp.String():
+					props.SetControllerKind(value)
+				case ControllerProp.String():
+					props.SetController(value)
+				case PodProp.String():
+					props.SetPod(value)
+				case ContainerProp.String():
+					props.SetContainer(value)
+				case ServiceProp.String():
+					// TODO: external allocation: how to do this? multi-service?
+					props.SetServices([]string{value})
+				}
+			}
+		} else {
+			// No value label value was found on the Asset; consider it
+			// unallocated. Note that this case is only truly relevant if at
+			// least one other property matches (e.g. case 3 in the examples)
+			// because if there are no matches, then an error is returned.
+			names = append(names, UnallocatedSuffix)
+		}
+	}
+
+	if !match {
+		return nil, fmt.Errorf("asset does not qualify as an external allocation")
+	}
+
+	names = append(names, ExternalSuffix)
+
+	// TODO: external allocation: efficiency?
+	// TODO: external allocation: resource totals?
+	return &Allocation{
+		Name:         strings.Join(names, "/"),
+		Properties:   props,
+		ExternalCost: asset.TotalCost(),
+		TotalCost:    asset.TotalCost(),
+	}, nil
+}
+
 // key is used to determine uniqueness of an Asset, for instance during Insert
-// to determine if two Assets should be combined. Passing nil props indicates
-// that all available props should be used. Passing empty props indicates that
-// no props should be used (e.g. to aggregate all assets). Passing one or more
-// props will key by only those props.
-func key(a Asset, props []AssetProperty) string {
+// to determine if two Assets should be combined. Passing `nil` `aggregateBy` indicates
+// that all available `AssetProperty` keys should be used. Passing empty `aggregateBy` indicates that
+// no key should be used (e.g. to aggregate all assets). Passing one or more `aggregateBy`
+// values will key by only those values.
+// Valid values of `aggregateBy` elements are strings which are an `AssetProperty`, and strings prefixed
+// with `"label:"`.
+func key(a Asset, aggregateBy []string) (string, error) {
 	keys := []string{}
 
-	if props == nil {
-		props = []AssetProperty{
-			AssetProviderProp,
-			AssetAccountProp,
-			AssetProjectProp,
-			AssetCategoryProp,
-			AssetClusterProp,
-			AssetTypeProp,
-			AssetServiceProp,
-			AssetProviderIDProp,
-			AssetNameProp,
+	if aggregateBy == nil {
+		aggregateBy = []string{
+			string(AssetProviderProp),
+			string(AssetAccountProp),
+			string(AssetProjectProp),
+			string(AssetCategoryProp),
+			string(AssetClusterProp),
+			string(AssetTypeProp),
+			string(AssetServiceProp),
+			string(AssetProviderIDProp),
+			string(AssetNameProp),
 		}
 	}
 
-	for _, prop := range props {
+	for _, s := range aggregateBy {
+		key := ""
 		switch true {
-		case prop == AssetProviderProp && a.Properties().Provider != "":
-			keys = append(keys, a.Properties().Provider)
-		case prop == AssetAccountProp && a.Properties().Account != "":
-			keys = append(keys, a.Properties().Account)
-		case prop == AssetProjectProp && a.Properties().Project != "":
-			keys = append(keys, a.Properties().Project)
-		case prop == AssetClusterProp && a.Properties().Cluster != "":
-			keys = append(keys, a.Properties().Cluster)
-		case prop == AssetCategoryProp && a.Properties().Category != "":
-			keys = append(keys, a.Properties().Category)
-		case prop == AssetTypeProp && a.Type().String() != "":
-			keys = append(keys, a.Type().String())
-		case prop == AssetServiceProp && a.Properties().Service != "":
-			keys = append(keys, a.Properties().Service)
-		case prop == AssetProviderIDProp && a.Properties().ProviderID != "":
-			keys = append(keys, a.Properties().ProviderID)
-		case prop == AssetNameProp && a.Properties().Name != "":
-			keys = append(keys, a.Properties().Name)
+		case s == string(AssetProviderProp):
+			key = a.Properties().Provider
+		case s == string(AssetAccountProp):
+			key = a.Properties().Account
+		case s == string(AssetProjectProp):
+			key = a.Properties().Project
+		case s == string(AssetClusterProp):
+			key = a.Properties().Cluster
+		case s == string(AssetCategoryProp):
+			key = a.Properties().Category
+		case s == string(AssetTypeProp):
+			key = a.Type().String()
+		case s == string(AssetServiceProp):
+			key = a.Properties().Service
+		case s == string(AssetProviderIDProp):
+			key = a.Properties().ProviderID
+		case s == string(AssetNameProp):
+			key = a.Properties().Name
+		case strings.HasPrefix(s, "label:"):
+			if labelKey := strings.TrimPrefix(s, "label:"); labelKey != "" {
+				labelVal := a.Labels()[labelKey]
+				if labelVal == "" {
+					key = "__undefined__"
+				} else {
+					key = fmt.Sprintf("%s=%s", labelKey, labelVal)
+				}
+			} else {
+				// Don't allow aggregating on label ""
+				return "", fmt.Errorf("Attempted to aggregate on invalid key: %s", s)
+			}
+		default:
+			return "", fmt.Errorf("Attempted to aggregate on invalid key: %s", s)
+		}
+
+		if key != "" {
+			keys = append(keys, key)
+		} else {
+			keys = append(keys, UndefinedKey)
 		}
 	}
-
-	return strings.Join(keys, "/")
+	return strings.Join(keys, "/"), nil
 }
 
 func toString(a Asset) string {
@@ -114,7 +273,7 @@ type AssetLabels map[string]string
 
 // Clone returns a cloned map of labels
 func (al AssetLabels) Clone() AssetLabels {
-	clone := AssetLabels{}
+	clone := make(AssetLabels, len(al))
 
 	for label, value := range al {
 		clone[label] = value
@@ -424,6 +583,7 @@ type Cloud struct {
 	window     Window
 	adjustment float64
 	Cost       float64
+	Credit     float64 // Credit is a negative value representing dollars credited back to a given line-item
 }
 
 // NewCloud returns a new Cloud Asset
@@ -479,7 +639,7 @@ func (ca *Cloud) SetAdjustment(adj float64) {
 
 // TotalCost returns the Asset's total cost
 func (ca *Cloud) TotalCost() float64 {
-	return ca.Cost + ca.adjustment
+	return ca.Cost + ca.adjustment + ca.Credit
 }
 
 // Start returns the Asset's precise start time within the window
@@ -550,7 +710,7 @@ func (ca *Cloud) Add(a Asset) Asset {
 	any.SetProperties(props)
 	any.SetLabels(labels)
 	any.adjustment = ca.Adjustment() + a.Adjustment()
-	any.Cost = (ca.TotalCost() - ca.Adjustment()) + (a.TotalCost() - a.Adjustment())
+	any.Cost = (ca.TotalCost() - ca.Adjustment() - ca.Credit) + (a.TotalCost() - a.Adjustment() - ca.Credit)
 
 	return any
 }
@@ -581,6 +741,7 @@ func (ca *Cloud) add(that *Cloud) {
 	ca.SetLabels(labels)
 	ca.adjustment += that.adjustment
 	ca.Cost += that.Cost
+	ca.Credit += that.Credit
 }
 
 // Clone returns a cloned instance of the Asset
@@ -593,6 +754,7 @@ func (ca *Cloud) Clone() Asset {
 		window:     ca.window.Clone(),
 		adjustment: ca.adjustment,
 		Cost:       ca.Cost,
+		Credit:     ca.Credit,
 	}
 }
 
@@ -627,6 +789,9 @@ func (ca *Cloud) Equal(a Asset) bool {
 	if ca.Cost != that.Cost {
 		return false
 	}
+	if ca.Credit != that.Credit {
+		return false
+	}
 
 	return true
 }
@@ -642,6 +807,7 @@ func (ca *Cloud) MarshalJSON() ([]byte, error) {
 	jsonEncodeString(buffer, "end", ca.End().Format(timeFmt), ",")
 	jsonEncodeFloat64(buffer, "minutes", ca.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "adjustment", ca.Adjustment(), ",")
+	jsonEncodeFloat64(buffer, "credit", ca.Credit, ",")
 	jsonEncodeFloat64(buffer, "totalCost", ca.TotalCost(), "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
@@ -2304,11 +2470,11 @@ func (sa *SharedAsset) String() string {
 // a window. An AssetSet is mutable, so treat it like a threadsafe map.
 type AssetSet struct {
 	sync.RWMutex
-	assets   map[string]Asset
-	props    []AssetProperty
-	Window   Window
-	Warnings []string
-	Errors   []string
+	aggregateBy []string
+	assets      map[string]Asset
+	Window      Window
+	Warnings    []string
+	Errors      []string
 }
 
 // NewAssetSet instantiates a new AssetSet and, optionally, inserts
@@ -2329,7 +2495,7 @@ func NewAssetSet(start, end time.Time, assets ...Asset) *AssetSet {
 // AggregateBy aggregates the Assets in the AssetSet by the given list of
 // AssetProperties, such that each asset is binned by a key determined by its
 // relevant property values.
-func (as *AssetSet) AggregateBy(props []AssetProperty, opts *AssetAggregationOptions) error {
+func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOptions) error {
 	if opts == nil {
 		opts = &AssetAggregationOptions{}
 	}
@@ -2342,7 +2508,7 @@ func (as *AssetSet) AggregateBy(props []AssetProperty, opts *AssetAggregationOpt
 	defer as.Unlock()
 
 	aggSet := NewAssetSet(as.Start(), as.End())
-	aggSet.props = props
+	aggSet.aggregateBy = aggregateBy
 
 	// Compute hours of the given AssetSet, and if it ends in the future,
 	// adjust the hours accordingly
@@ -2357,7 +2523,10 @@ func (as *AssetSet) AggregateBy(props []AssetProperty, opts *AssetAggregationOpt
 		sa := NewSharedAsset(name, as.Window.Clone())
 		sa.Cost = hourlyCost * hours
 
-		aggSet.Insert(sa)
+		err := aggSet.Insert(sa)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Delete the Assets that don't pass each filter
@@ -2369,15 +2538,18 @@ func (as *AssetSet) AggregateBy(props []AssetProperty, opts *AssetAggregationOpt
 		}
 	}
 
-	// Insert each asset into the new set, which will be keyed by the props
+	// Insert each asset into the new set, which will be keyed by the `aggregateBy`
 	// on aggSet, resulting in aggregation.
 	for _, asset := range as.assets {
-		aggSet.Insert(asset)
+		err := aggSet.Insert(asset)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Assign the aggregated values back to the original set
 	as.assets = aggSet.assets
-	as.props = props
+	as.aggregateBy = aggregateBy
 
 	return nil
 }
@@ -2392,26 +2564,26 @@ func (as *AssetSet) Clone() *AssetSet {
 	as.RLock()
 	defer as.RUnlock()
 
+	var aggregateBy []string
+	if as.aggregateBy != nil {
+		aggregateBy := []string{}
+		for _, s := range as.aggregateBy {
+			aggregateBy = append(aggregateBy, s)
+		}
+	}
+
 	assets := map[string]Asset{}
 	for k, v := range as.assets {
 		assets[k] = v.Clone()
-	}
-
-	var props []AssetProperty
-	if as.props != nil {
-		props = []AssetProperty{}
-		for _, p := range as.props {
-			props = append(props, p)
-		}
 	}
 
 	s := as.Start()
 	e := as.End()
 
 	return &AssetSet{
-		Window: NewWindow(&s, &e),
-		assets: assets,
-		props:  props,
+		Window:      NewWindow(&s, &e),
+		aggregateBy: aggregateBy,
+		assets:      assets,
 	}
 }
 
@@ -2434,23 +2606,28 @@ func (as *AssetSet) End() time.Time {
 // FindMatch attempts to find a match in the AssetSet for the given Asset on
 // the provided properties and labels. If a match is not found, FindMatch
 // returns nil and a Not Found error.
-func (as *AssetSet) FindMatch(query Asset, props []AssetProperty) (Asset, error) {
+func (as *AssetSet) FindMatch(query Asset, aggregateBy []string) (Asset, error) {
 	as.RLock()
 	defer as.RUnlock()
 
-	matchKey := key(query, props)
+	matchKey, err := key(query, aggregateBy)
+	if err != nil {
+		return nil, err
+	}
 	for _, asset := range as.assets {
-		if key(asset, props) == matchKey {
+		if k, err := key(asset, aggregateBy); err != nil {
+			return nil, err
+		} else if k == matchKey {
 			return asset, nil
 		}
 	}
 
-	return nil, fmt.Errorf("Asset not found to match %s on %v", query, props)
+	return nil, fmt.Errorf("Asset not found to match %s on %v", query, aggregateBy)
 }
 
 // ReconciliationMatch attempts to find an exact match in the AssetSet on
 // (Category, ProviderID). If a match is found, it returns the Asset with the
-// intent to adjuts it. If no match exists, it attempts to find one on only
+// intent to adjust it. If no match exists, it attempts to find one on only
 // (ProviderID). If that match is found, it returns the Asset with the intent
 // to insert the associated Cloud cost.
 func (as *AssetSet) ReconciliationMatch(query Asset) (Asset, bool, error) {
@@ -2458,20 +2635,36 @@ func (as *AssetSet) ReconciliationMatch(query Asset) (Asset, bool, error) {
 	defer as.RUnlock()
 
 	// Full match means matching on (Category, ProviderID)
-	fullMatchProps := []AssetProperty{AssetCategoryProp, AssetProviderIDProp}
-	fullMatchKey := key(query, fullMatchProps)
+	fullMatchProps := []string{string(AssetCategoryProp), string(AssetProviderIDProp)}
+	fullMatchKey, err := key(query, fullMatchProps)
+
+	// This should never happen because we are using enumerated properties,
+	// but the check is here in case that changes
+	if err != nil {
+		return nil, false, err
+	}
 
 	// Partial match means matching only on (ProviderID)
-	providerIDMatchProps := []AssetProperty{AssetProviderIDProp}
-	providerIDMatchKey := key(query, providerIDMatchProps)
+	providerIDMatchProps := []string{string(AssetProviderIDProp)}
+	providerIDMatchKey, err := key(query, providerIDMatchProps)
+
+	// This should never happen because we are using enumerated properties,
+	// but the check is here in case that changes
+	if err != nil {
+		return nil, false, err
+	}
 
 	var providerIDMatch Asset
 	for _, asset := range as.assets {
-		if key(asset, fullMatchProps) == fullMatchKey {
+		if k, err := key(asset, fullMatchProps); err != nil {
+			return nil, false, err
+		} else if k == fullMatchKey {
 			log.DedupedInfof(10, "Asset ETL: Reconciliation[rcnw]: ReconcileRange Match: %s", fullMatchKey)
 			return asset, true, nil
 		}
-		if key(asset, providerIDMatchProps) == providerIDMatchKey {
+		if k, err := key(asset, providerIDMatchProps); err != nil {
+			return nil, false, err
+		} else if k == providerIDMatchKey {
 			// Found a partial match. Save it until after all other options
 			// have been checked for full matches.
 			providerIDMatch = asset
@@ -2512,7 +2705,10 @@ func (as *AssetSet) Insert(asset Asset) error {
 	defer as.Unlock()
 
 	// Determine key into which to Insert the Asset.
-	k := key(asset, as.props)
+	k, err := key(asset, as.aggregateBy)
+	if err != nil {
+		return err
+	}
 
 	// Add the given Asset to the existing entry, if there is one;
 	// otherwise just set directly into assets
@@ -2567,7 +2763,7 @@ func (as *AssetSet) MarshalJSON() ([]byte, error) {
 	return json.Marshal(as.assets)
 }
 
-func (as *AssetSet) Set(asset Asset, props []AssetProperty) {
+func (as *AssetSet) Set(asset Asset, aggregateBy []string) error {
 	if as.IsEmpty() {
 		as.Lock()
 		as.assets = map[string]Asset{}
@@ -2579,7 +2775,12 @@ func (as *AssetSet) Set(asset Asset, props []AssetProperty) {
 
 	// Expand the window to match the AssetSet, then set it
 	asset.ExpandWindow(as.Window)
-	as.assets[key(asset, props)] = asset
+	k, err := key(asset, aggregateBy)
+	if err != nil {
+		return err
+	}
+	as.assets[k] = asset
+	return nil
 }
 
 func (as *AssetSet) Start() time.Time {
@@ -2614,11 +2815,11 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 	}
 
 	// In the case of an AssetSetRange with empty entries, we may end up with
-	// an incoming as without props, even though we are trying to aggregate
-	// by props. This handles that case, assigning the correct props.
-	if !propsEqual(as.props, that.props) {
-		if len(as.props) == 0 {
-			as.props = that.props
+	// an incoming `as` without an `aggregateBy`, even though we are tring to
+	// aggregate here. This handles that case by assigning the correct `aggregateBy`.
+	if !sameContents(as.aggregateBy, that.aggregateBy) {
+		if len(as.aggregateBy) == 0 {
+			as.aggregateBy = that.aggregateBy
 		}
 	}
 
@@ -2637,7 +2838,7 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 	}
 
 	acc := NewAssetSet(start, end)
-	acc.props = as.props
+	acc.aggregateBy = as.aggregateBy
 
 	as.RLock()
 	defer as.RUnlock()
@@ -2697,14 +2898,14 @@ type AssetAggregationOptions struct {
 	FilterFuncs       []AssetMatchFunc
 }
 
-func (asr *AssetSetRange) AggregateBy(props []AssetProperty, opts *AssetAggregationOptions) error {
+func (asr *AssetSetRange) AggregateBy(aggregateBy []string, opts *AssetAggregationOptions) error {
 	aggRange := &AssetSetRange{assets: []*AssetSet{}}
 
 	asr.Lock()
 	defer asr.Unlock()
 
 	for _, as := range asr.assets {
-		err := as.AggregateBy(props, opts)
+		err := as.AggregateBy(aggregateBy, opts)
 		if err != nil {
 			return err
 		}
@@ -2810,4 +3011,26 @@ func jsonEncode(buffer *bytes.Buffer, name string, obj interface{}, comma string
 		buffer.Write(bytes)
 	}
 	buffer.WriteString(comma)
+}
+
+// Returns true if string slices a and b contain all of the same strings, in any order.
+func sameContents(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !contains(b, a[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func contains(slice []string, item string) bool {
+	for _, element := range slice {
+		if element == item {
+			return true
+		}
+	}
+	return false
 }
