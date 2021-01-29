@@ -34,9 +34,9 @@ func NewUnitAllocation(name string, start time.Time, resolution time.Duration, p
 	alloc := &Allocation{
 		Name:            name,
 		Properties:      *properties,
+		Window:          NewWindow(&start, &end).Clone(),
 		Start:           start,
 		End:             end,
-		Minutes:         1440,
 		CPUCoreHours:    1,
 		CPUCost:         1,
 		CPUEfficiency:   1,
@@ -305,8 +305,8 @@ func assertAllocationWindow(t *testing.T, as *AllocationSet, msg string, expStar
 		if !a.End.Equal(expEnd) {
 			t.Fatalf("AllocationSet.AggregateBy[%s]: expected end %s, actual %s", msg, expEnd, a.End)
 		}
-		if a.Minutes != expMinutes {
-			t.Fatalf("AllocationSet.AggregateBy[%s]: expected minutes %f, actual %f", msg, expMinutes, a.Minutes)
+		if a.Minutes() != expMinutes {
+			t.Fatalf("AllocationSet.AggregateBy[%s]: expected minutes %f, actual %f", msg, expMinutes, a.Minutes())
 		}
 	})
 }
@@ -1163,8 +1163,8 @@ func TestAllocationSetRange_Accumulate(t *testing.T) {
 	if !alloc.End.Equal(tomorrow) {
 		t.Fatalf("accumulating AllocationSetRange: expected to end %s; actual %s", tomorrow, alloc.End)
 	}
-	if alloc.Minutes != 2880.0 {
-		t.Fatalf("accumulating AllocationSetRange: expected %f minutes; actual %f", 2880.0, alloc.Minutes)
+	if alloc.Minutes() != 2880.0 {
+		t.Fatalf("accumulating AllocationSetRange: expected %f minutes; actual %f", 2880.0, alloc.Minutes())
 	}
 }
 

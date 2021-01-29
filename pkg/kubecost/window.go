@@ -432,6 +432,86 @@ func (w Window) Minutes() float64 {
 	return w.end.Sub(*w.start).Minutes()
 }
 
+// Overlaps returns true iff the two given Windows share and amount of temporal
+// coverage.
+// TODO niko/cdmr return to this, with unit tests, and then implement in
+// AllocationSet.accumulate
+func (w Window) Overlaps(x Window) bool {
+	if (w.start == nil && w.end == nil) || (x.start == nil && x.end == nil) {
+		// one window is completely open, so overlap is guaranteed
+		// <---------->
+		//   ?------?
+		return true
+	}
+
+	// Neither window is completely open (nil, nil), but one or the other might
+	// still be future- or past-open.
+
+	if w.start == nil {
+		// w is past-open, future-closed
+		// <------]
+
+		if x.start != nil && !x.start.Before(*w.end) {
+			// x starts after w ends (or eq)
+			// <------]
+			//          [------?
+			return false
+		}
+
+		// <-----]
+		//    ?-----?
+		return true
+	}
+
+	if w.end == nil {
+		// w is future-open, past-closed
+		// [------>
+
+		if x.end != nil && !x.end.After(*w.end) {
+			// x ends before w begins (or eq)
+			//          [------>
+			// ?------]
+			return false
+		}
+
+		//    [------>
+		// ?------?
+		return true
+	}
+
+	// Now we know w is closed, but we don't know about x
+	//  [------]
+	//     ?------?
+	if x.start == nil {
+		// TODO niko/cdmr
+	}
+
+	if x.end == nil {
+		// TODO niko/cdmr
+	}
+
+	// Both are closed.
+
+	if !x.start.Before(*w.end) && !x.end.Before(*w.end) {
+		// x starts and ends after w ends
+		// [------]
+		//          [------]
+		return false
+	}
+
+	if !x.start.After(*w.start) && !x.end.After(*w.start) {
+		// x starts and ends before w starts
+		//          [------]
+		// [------]
+		return false
+	}
+
+	// w and x must overlap
+	//    [------]
+	// [------]
+	return true
+}
+
 func (w Window) Set(start, end *time.Time) {
 	w.start = start
 	w.end = end

@@ -1543,6 +1543,13 @@ func requestKeyFor(window kubecost.Window, resolution time.Duration, filterNames
 }
 
 func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.AllocationSet, error) {
+	// Create a window spanning the requested query
+	s, e := start, end
+	window := kubecost.NewWindow(&s, &e)
+
+	// Create an empty AllocationSet. For safety, in the case of an error, we
+	// should prefer to return this empty set with the error. (In the case of
+	// no error, of course we populate the set and return it.)
 	allocSet := kubecost.NewAllocationSet(start, end)
 
 	// Convert window (start, end) to (duration, offset) for querying Prometheus
@@ -1581,42 +1588,84 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	if offset < time.Minute {
 		offStr = ""
 	}
-	// TODO niko/cdmr dynamic resolution?
+
+	// TODO niko/cdmr dynamic resolution? add to ComputeAllocation() in allocation.Source?
 	resStr := "1m"
-	resPerHr := 60
+	// resPerHr := 60
 
-	// TODO niko/cdmr retries? That should probably go into the Store.
+	var ctx *prom.Context
+	if cm.ThanosClient != nil {
+		ctx = prom.NewContext(cm.ThanosClient)
+	} else {
+		ctx = prom.NewContext(cm.PrometheusClient)
+	}
 
-	// label_replace(label_replace(
+	// TODO niko/cdmr retries? (That should probably go into the Store.)
+
+	queryMinutes := fmt.Sprintf(`
+		avg(kube_pod_container_status_running{}) by (container, pod, namespace, kubernetes_node, cluster_id)[%s:%s]%s
+	`)
+	resChMinutes := ctx.Query(queryMinutes)
+
+	// TODO niko/cmdr check: will multiple Prometheus jobs multiply the totals?
+
+	// TOOD niko/cdmr Riemann-style or average*time style?
+	// [byte*res] * [hr/res] = [byte*hr]
+	// queryRAMAlloc := fmt.Sprintf(`
 	// 	sum(
-	// 		sum_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s])
-	// 	) by (namespace,container,pod,node,cluster_id) * %f / 60 / 60
-	// , "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")
+	// 		sum_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s:%s]%s)
+	// 	) by (container, pod, namespace, node, cluster_id) / %f
+	// `, durStr, resStr, offStr, resPerHr)
 
-	// TODO niko/cmdr will multiple jobs multiply the totals here?
+	queryRAMAlloc := fmt.Sprintf(`
+		avg(
+			avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s:%s]%s)
+		) by (container, pod, namespace, node, cluster_id)
+	`, durStr, resStr, offStr)
+	resChRAMAlloc := ctx.Query(queryRAMAlloc)
 
 	// queryRAMRequests := fmt.Sprintf()
 
 	// queryRAMUsage := fmt.Sprintf()
 
-	// [byte*res] * [hr/res] = [byte*hr]
-	queryRAMAlloc := fmt.Sprintf(`
-		sum(
-			sum_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s:%s]%s)
-		) by (container, pod, namespace, node, cluster_id) / %f
-	`, durStr, resStr, offStr, resPerHr)
+	// TOOD niko/cdmr Riemann-style or average*time style?
+	// [cpu*res] * [hr/res] = [cpu*hr]
+	// queryCPUAlloc := fmt.Sprintf(`
+	// 	sum(
+	// 		sum_over_time(container_cpu_allocation{container!="", container!="POD", node!=""}[%s:%s]%s)
+	// 	) by (container, pod, namespace, node, cluster_id) / %f
+	// `, durStr, resStr, offStr, resPerHr)
 
 	queryCPUAlloc := fmt.Sprintf(`
-		sum(
-			sum_over_time(container_cpu_allocation{container!="", container!="POD", node!=""}[%s:%s]%s)
-		) by (container, pod, namespace, node, cluster_id) / %f
-	`, durStr, resStr, offStr, resPerHr)
+		avg(
+			avg_over_time(container_cpu_allocation{container!="", container!="POD", node!=""}[%s:%s]%s)
+		) by (container, pod, namespace, node, cluster_id)
+	`, durStr, resStr, offStr)
+	resChCPUAlloc := ctx.Query(queryCPUAlloc)
 
 	// queryCPURequests := fmt.Sprintf()
 
 	// queryCPUUsage := fmt.Sprintf()
 
-	// queryGPURequests := fmt.Sprintf()
+	// avg(
+	// 	label_replace(
+	// 		label_replace(
+	// 			avg(
+	// 				count_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s] %s)
+	// 				*
+	// 				avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s] %s)
+	// 				* %f
+	// 			) by (namespace,container,pod,node,cluster_id) , "container_name","$1","container","(.+)"
+	// 		), "pod_name","$1","pod","(.+)"
+	// 	)
+	// ) by (namespace,container_name,pod_name,node,cluster_id)
+	// * on (pod_name, namespace, cluster_id) group_left(container) label_replace(avg(avg_over_time(kube_pod_status_phase{phase="Running"}[%s] %s)) by (pod,namespace,cluster_id), "pod_name","$1","pod","(.+)")
+
+	queryGPURequests := fmt.Sprintf(`
+		avg(
+			avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s:%s]%s)
+		) by (container, pod, namespace, node, cluster_id)
+	`)
 
 	// queryPVRequests := fmt.Sprintf()
 
@@ -1630,11 +1679,101 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 
 	// queryNetInternetRequests := fmt.Sprintf()
 
-	// queryNormalization := fmt.Sprintf()
+	resMinutes, _ := resChMinutes.Await()
 
-	// queryMinutes := fmt.Sprintf()
+	// Build out a map of allocations, starting with (start, end) so that we
+	// begin with minutes, from which we compute resource allocation and cost
+	// totals from measured rate data.
+	// TODO niko/cdmr can we start with a reasonable guess at map size?
+	allocMap := map[string]*kubecost.Allocation{}
 
-	// TODO niko/cdmr minutes?
+	// clusterStarts and clusterEnds record the earliest start and latest end
+	// times, respectively, on a cluster-basis. These are used for unmounted
+	// PVs and other "virtual" Allocations so that minutes are maximally
+	// accurate during start-up or spin-down of a cluster
+	clusterStart := map[string]time.Time{}
+	clusterEnd := map[string]time.Time{}
+
+	for _, res := range resMinutes {
+		if len(res.Values) == 0 {
+			log.Warningf("CostModel.ComputeAllocation: empty minutes result")
+			continue
+		}
+
+		container, err := res.GetString("container")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: minutes query result missing 'container'")
+			continue
+		}
+
+		pod, err := res.GetString("pod")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: minutes query result missing 'pod': %s", container)
+			continue
+		}
+
+		namespace, err := res.GetString("namespace")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: minutes query result missing 'namespace': %s/%s", container, pod)
+			continue
+		}
+
+		node, err := res.GetString("kubernetes_node")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: minutes query result missing 'kubernetes_node': %s/%s/%s", container, pod, namespace)
+			// TODO niko/cdmr can we do without node?
+			// continue
+		}
+
+		cluster, err := res.GetString("cluster_id")
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		// TODO niko/cdmr do we really need node here?
+		name := fmt.Sprintf("%s/%s/%s/%s/%s", cluster, node, namespace, pod, container)
+
+		// start is the timestamp of the first minute. We subtract 1m because
+		// this point will actually represent the end of the first minute. We
+		// don't subtract from end (timestamp of the last minute) because it's
+		// already the end of the last minute, which is what we want.
+		start := time.Unix(int64(res.Values[0].Timestamp), 0).Add(-1 * time.Minute)
+		end := time.Unix(int64(res.Values[len(res.Values)-1].Timestamp), 0)
+
+		// Set start if unset or this datum's start time is earlier than the
+		// current earliest time.
+		if _, ok := clusterStart[cluster]; !ok || start.Before(clusterStart[cluster]) {
+			clusterStart[cluster] = start
+		}
+
+		// Set end if unset or this datum's end time is later than the
+		// current latest time.
+		if _, ok := clusterEnd[cluster]; !ok || end.After(clusterEnd[cluster]) {
+			clusterEnd[cluster] = end
+		}
+
+		alloc := &kubecost.Allocation{
+			Name:   name,
+			Start:  start,
+			End:    end,
+			Window: window.Clone(),
+		}
+
+		props := kubecost.Properties{}
+		props.SetContainer(container)
+		props.SetPod(pod)
+		props.SetNamespace(namespace)
+		props.SetNode(node)
+		props.SetCluster(cluster)
+
+		// TODO niko/cdmr controller, labels, annotations, etc.
+
+		allocMap[name] = alloc
+	}
+
+	for _, alloc := range allocMap {
+		allocSet.Set(alloc)
+	}
 
 	return allocSet, nil
 }

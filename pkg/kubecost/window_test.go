@@ -211,7 +211,7 @@ func TestParseWindowUTC(t *testing.T) {
 		t.Fatalf(`expect: window "month" to end before now; actual: %s ends after %s`, month, time.Now().UTC())
 	}
 
-	// TODO niko/etl lastweek
+	// TODO lastweek
 
 	lastmonth, err := ParseWindowUTC("lastmonth")
 	monthMinHours := float64(24 * 28)
@@ -542,30 +542,6 @@ func TestParseWindowWithOffsetString(t *testing.T) {
 
 }
 
-// TODO niko/etl
-// func TestWindow_Contains(t *testing.T) {}
-
-// TODO niko/etl
-// func TestWindow_Duration(t *testing.T) {}
-
-// TODO niko/etl
-// func TestWindow_End(t *testing.T) {}
-
-// TODO niko/etl
-// func TestWindow_Equal(t *testing.T) {}
-
-// TODO niko/etl
-// func TestWindow_ExpandStart(t *testing.T) {}
-
-// TODO niko/etl
-// func TestWindow_ExpandEnd(t *testing.T) {}
-
-// TODO niko/etl
-// func TestWindow_Start(t *testing.T) {}
-
-// TODO niko/etl
-// func TestWindow_String(t *testing.T) {}
-
 func TestWindow_DurationOffsetStrings(t *testing.T) {
 	w, err := ParseWindowUTC("1d")
 	if err != nil {
@@ -624,3 +600,31 @@ func TestWindow_DurationOffsetStrings(t *testing.T) {
 		t.Fatalf(`expect: window to be "1d"; actual: "%s"`, dur)
 	}
 }
+
+func TestWindow_Overlaps(t *testing.T) {
+	// TODO niko/cdmr
+}
+
+// TODO
+// func TestWindow_Contains(t *testing.T) {}
+
+// TODO
+// func TestWindow_Duration(t *testing.T) {}
+
+// TODO
+// func TestWindow_End(t *testing.T) {}
+
+// TODO
+// func TestWindow_Equal(t *testing.T) {}
+
+// TODO
+// func TestWindow_ExpandStart(t *testing.T) {}
+
+// TODO
+// func TestWindow_ExpandEnd(t *testing.T) {}
+
+// TODO
+// func TestWindow_Start(t *testing.T) {}
+
+// TODO
+// func TestWindow_String(t *testing.T) {}
