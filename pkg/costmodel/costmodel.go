@@ -381,8 +381,8 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 			continue // because ordering is important for the allocation model (all PV's applied to the first), just dedupe if it's already been added.
 		}
 		// The _else_ case for this statement is the case in which the container has been
-		// deleted so we have usage information but not request information. We insert partial
-		// data in that case.
+		// deleted so we have usage information but not request information. In that case,
+		// we return partial data for CPU and RAM: only usage and not requests.
 		if pod, ok := currentContainers[key]; ok {
 			podName := pod.GetObjectMeta().GetName()
 			ns := pod.GetObjectMeta().GetNamespace()
@@ -553,6 +553,9 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 			// CPU and RAM requests are obtained from the Kubernetes API.
 			// If this case has been reached, the Kubernetes API will not
 			// have information about the pod because it no longer exists.
+			//
+			// The case where this matters is minimal, mainly in environments
+			// with very short-lived pods that over-request resources.
 			RAMReqV := []*util.Vector{{}}
 			CPUReqV := []*util.Vector{{}}
 
