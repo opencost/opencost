@@ -52,6 +52,8 @@ type Allocation struct {
 	CPUCoreHours    float64    `json:"cpuCoreHours"`
 	CPUCost         float64    `json:"cpuCost"`
 	CPUEfficiency   float64    `json:"cpuEfficiency"`
+	CPURequestAvg   float64    `json:"cpuRequestAverage"`
+	CPUUsageAvg     float64    `json:"cpuUsageAverage"`
 	GPUHours        float64    `json:"gpuHours"`
 	GPUCost         float64    `json:"gpuCost"`
 	NetworkCost     float64    `json:"networkCost"`
@@ -60,6 +62,8 @@ type Allocation struct {
 	RAMByteHours    float64    `json:"ramByteHours"`
 	RAMCost         float64    `json:"ramCost"`
 	RAMEfficiency   float64    `json:"ramEfficiency"`
+	RAMRequestAvg   float64    `json:"ramRequestAverage"`
+	RAMUsageAvg     float64    `json:"ramUsageAverage"`
 	SharedCost      float64    `json:"sharedCost"`
 	ExternalCost    float64    `json:"externalCost"`
 	TotalCost       float64    `json:"totalCost"`

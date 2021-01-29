@@ -15,7 +15,9 @@ import (
 	"github.com/kubecost/cost-model/pkg/kubecost"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
+	"github.com/kubecost/cost-model/pkg/thanos"
 	"github.com/kubecost/cost-model/pkg/util"
+	prometheus "github.com/prometheus/client_golang/api"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -48,21 +50,59 @@ var isCron = regexp.MustCompile(`^(.+)-\d{10}$`)
 type CostModel struct {
 	Cache           clustercache.ClusterCache
 	ClusterMap      clusters.ClusterMap
-	ScrapeInterval  time.Duration
 	RequestGroup    *singleflight.Group
+	ScrapeInterval  time.Duration
 	pricingMetadata *costAnalyzerCloud.PricingMatchMetadata
+	// TODO niko/cdmr both, or just one?
+	PrometheusClient prometheus.Client
+	ThanosClient     prometheus.Client
 }
 
-func NewCostModel(cache clustercache.ClusterCache, clusterMap clusters.ClusterMap, scrapeInterval time.Duration) *CostModel {
+func NewCostModel(client prometheus.Client, cache clustercache.ClusterCache, clusterMap clusters.ClusterMap, scrapeInterval time.Duration) *CostModel {
 	// request grouping to prevent over-requesting the same data prior to caching
 	requestGroup := new(singleflight.Group)
 
 	return &CostModel{
-		Cache:          cache,
-		ClusterMap:     clusterMap,
-		RequestGroup:   requestGroup,
-		ScrapeInterval: scrapeInterval,
+		Cache:            cache,
+		ClusterMap:       clusterMap,
+		PrometheusClient: client,
+		RequestGroup:     requestGroup,
+		ScrapeInterval:   scrapeInterval,
 	}
+}
+
+// TODO niko/cdmr
+type ContainerAllocation struct {
+	Properties      ContainerProperties          `json:"properties"`
+	RAMReq          []*util.Vector               `json:"ramreq,omitempty"`
+	RAMUsed         []*util.Vector               `json:"ramused,omitempty"`
+	RAMAllocation   []*util.Vector               `json:"ramallocated,omitempty"`
+	CPUReq          []*util.Vector               `json:"cpureq,omitempty"`
+	CPUUsed         []*util.Vector               `json:"cpuused,omitempty"`
+	CPUAllocation   []*util.Vector               `json:"cpuallocated,omitempty"`
+	GPUReq          []*util.Vector               `json:"gpureq,omitempty"`
+	PVCData         []*PersistentVolumeClaimData `json:"pvcData,omitempty"`
+	NetworkData     []*util.Vector               `json:"network,omitempty"`
+	Annotations     map[string]string            `json:"annotations,omitempty"`
+	Labels          map[string]string            `json:"labels,omitempty"`
+	NamespaceLabels map[string]string            `json:"namespaceLabels,omitempty"`
+	ClusterID       string                       `json:"clusterId"`
+	ClusterName     string                       `json:"clusterName"`
+}
+
+// TODO niko/cdmr
+type ContainerProperties struct {
+	Container      string            `json:"container"`
+	Pod            string            `json:"pod"`
+	Namespace      string            `json:"namespace"`
+	Node           string            `json:"node"`
+	ClusterID      string            `json:"clusterID"`
+	Cluster        string            `json:"cluster"`
+	Controller     string            `json:"controller"`
+	ControllerKind string            `json:"controllerKind"`
+	Services       []string          `json:"services"`
+	Labels         map[string]string `json:"labels"`
+	Annotations    map[string]string `json:"annotations"`
 }
 
 type CostData struct {
@@ -1502,9 +1542,102 @@ func requestKeyFor(window kubecost.Window, resolution time.Duration, filterNames
 	return fmt.Sprintf("%s,%s,%s,%s,%s,%t", startKey, endKey, resolution.String(), filterNamespace, filterCluster, remoteEnabled)
 }
 
-// func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, cp costAnalyzerCloud.Provider,
-// 	startString, endString, windowString string, resolutionHours float64, filterNamespace string,
-// 	filterCluster string, remoteEnabled bool, offset string) (map[string]*CostData, error)
+func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.AllocationSet, error) {
+	allocSet := kubecost.NewAllocationSet(start, end)
+
+	// Convert window (start, end) to (duration, offset) for querying Prometheus
+	timesToDurations := func(s, e time.Time) (dur, off time.Duration) {
+		now := time.Now()
+		off = now.Sub(e)
+		dur = e.Sub(s)
+		return dur, off
+	}
+	duration, offset := timesToDurations(start, end)
+
+	// If using Thanos, increase offset to 3 hours, reducing the duration by
+	// equal measure to maintain the same starting point.
+	thanosDur := thanos.OffsetDuration()
+	if offset < thanosDur && cm.ThanosClient != nil {
+		diff := thanosDur - offset
+		offset += diff
+		duration -= diff
+	}
+
+	// If duration < 0, return an empty set
+	if duration < 0 {
+		return allocSet, nil
+	}
+
+	// Negative offset means that the end time is in the future. Prometheus
+	// fails for non-positive offset values, so shrink the duration and
+	// remove the offset altogether.
+	if offset < 0 {
+		duration = duration + offset
+		offset = 0
+	}
+
+	durStr := fmt.Sprintf("%dm", int64(duration.Minutes()))
+	offStr := fmt.Sprintf("%dm", int64(offset.Minutes()))
+	if offset < time.Minute {
+		offStr = ""
+	}
+	// TODO niko/cdmr dynamic resolution?
+	resStr := "1m"
+	resPerHr := 60
+
+	// TODO niko/cdmr retries? That should probably go into the Store.
+
+	// label_replace(label_replace(
+	// 	sum(
+	// 		sum_over_time(container_memory_allocation_bytes{container!="",container!="POD", node!=""}[%s])
+	// 	) by (namespace,container,pod,node,cluster_id) * %f / 60 / 60
+	// , "container_name","$1","container","(.+)"), "pod_name","$1","pod","(.+)")
+
+	// TODO niko/cmdr will multiple jobs multiply the totals here?
+
+	// queryRAMRequests := fmt.Sprintf()
+
+	// queryRAMUsage := fmt.Sprintf()
+
+	// [byte*res] * [hr/res] = [byte*hr]
+	queryRAMAlloc := fmt.Sprintf(`
+		sum(
+			sum_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s:%s]%s)
+		) by (container, pod, namespace, node, cluster_id) / %f
+	`, durStr, resStr, offStr, resPerHr)
+
+	queryCPUAlloc := fmt.Sprintf(`
+		sum(
+			sum_over_time(container_cpu_allocation{container!="", container!="POD", node!=""}[%s:%s]%s)
+		) by (container, pod, namespace, node, cluster_id) / %f
+	`, durStr, resStr, offStr, resPerHr)
+
+	// queryCPURequests := fmt.Sprintf()
+
+	// queryCPUUsage := fmt.Sprintf()
+
+	// queryGPURequests := fmt.Sprintf()
+
+	// queryPVRequests := fmt.Sprintf()
+
+	// queryPVCAllocation := fmt.Sprintf()
+
+	// queryPVHourlyCost := fmt.Sprintf()
+
+	// queryNetZoneRequests := fmt.Sprintf()
+
+	// queryNetRegionRequests := fmt.Sprintf()
+
+	// queryNetInternetRequests := fmt.Sprintf()
+
+	// queryNormalization := fmt.Sprintf()
+
+	// queryMinutes := fmt.Sprintf()
+
+	// TODO niko/cdmr minutes?
+
+	return allocSet, nil
+}
 
 // ComputeCostDataRange executes a range query for cost data.
 // Note that "offset" represents the time between the function call and "endString", and is also passed for convenience
