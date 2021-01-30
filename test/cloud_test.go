@@ -279,7 +279,7 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 	fm := FakeClusterMap{}
 	d, _ := time.ParseDuration("1m")
 
-	model := costmodel.NewCostModel(fc, fm, d)
+	model := costmodel.NewCostModel(nil, fc, fm, d)
 
 	_, err := model.GetNodeCost(c)
 	if err != nil {
@@ -333,7 +333,7 @@ func TestSourceMatchesFromCSV(t *testing.T) {
 	fm := FakeClusterMap{}
 	d, _ := time.ParseDuration("1m")
 
-	model := costmodel.NewCostModel(fc, fm, d)
+	model := costmodel.NewCostModel(nil, fc, fm, d)
 
 	_, err = model.GetNodeCost(c)
 	if err != nil {
