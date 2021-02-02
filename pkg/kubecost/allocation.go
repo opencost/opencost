@@ -1,6 +1,7 @@
 package kubecost
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -217,6 +218,39 @@ func (a *Allocation) PVBytes() float64 {
 	return a.PVByteHours / (a.Minutes() / 60.0)
 }
 
+// MarshalJSON implements json.Marshal interface
+func (a *Allocation) MarshalJSON() ([]byte, error) {
+	buffer := bytes.NewBufferString("{")
+	jsonEncodeString(buffer, "name", a.Name, ",")
+	jsonEncode(buffer, "properties", a.Properties, ",")
+	jsonEncode(buffer, "window", a.Window, ",")
+	jsonEncodeString(buffer, "start", a.Start.Format(timeFmt), ",")
+	jsonEncodeString(buffer, "end", a.End.Format(timeFmt), ",")
+	jsonEncodeFloat64(buffer, "minutes", a.Minutes(), ",")
+	jsonEncodeFloat64(buffer, "cpuCores", a.CPUCores(), ",")
+	jsonEncodeFloat64(buffer, "cpuCoreHours", a.CPUCoreHours, ",")
+	jsonEncodeFloat64(buffer, "cpuCost", a.CPUCost, ",")
+	jsonEncodeFloat64(buffer, "cpuEfficiency", a.CPUEfficiency, ",")
+	jsonEncodeFloat64(buffer, "gpuHours", a.GPUHours, ",")
+	jsonEncodeFloat64(buffer, "gpuCost", a.GPUCost, ",")
+	jsonEncodeFloat64(buffer, "networkCost", a.NetworkCost, ",")
+	jsonEncodeFloat64(buffer, "pvBytes", a.PVBytes(), ",")
+	jsonEncodeFloat64(buffer, "pvByteHours", a.PVByteHours, ",")
+	jsonEncodeFloat64(buffer, "pvCost", a.PVCost, ",")
+	jsonEncodeFloat64(buffer, "ramBytes", a.RAMBytes(), ",")
+	jsonEncodeFloat64(buffer, "ramByteHours", a.RAMByteHours, ",")
+	jsonEncodeFloat64(buffer, "ramCost", a.RAMCost, ",")
+	jsonEncodeFloat64(buffer, "ramEfficiency", a.RAMEfficiency, ",")
+	jsonEncodeFloat64(buffer, "sharedCost", a.SharedCost, ",")
+	jsonEncodeFloat64(buffer, "totalCost", a.TotalCost, ",")
+	jsonEncodeFloat64(buffer, "totalEfficiency", a.TotalEfficiency, "")
+	buffer.WriteString("}")
+	return buffer.Bytes(), nil
+}
+
+// TODO niko/cdmr
+// func (a *Allocation)UnmarshalJSON()
+
 // Resolution returns the duration of time covered by the Allocation
 func (a *Allocation) Resolution() time.Duration {
 	return a.End.Sub(a.Start)
@@ -325,7 +359,7 @@ func (a *Allocation) add(that *Allocation) {
 		a.Start = that.Start
 	}
 
-	if that.End.Before(a.End) {
+	if that.End.After(a.End) {
 		a.End = that.End
 	}
 
@@ -1371,10 +1405,10 @@ func (as *AllocationSet) IdleAllocations() map[string]*Allocation {
 // but only if the Allocation is valid, i.e. matches the AllocationSet's window. If
 // there is no existing entry, one is created. Nil error response indicates success.
 func (as *AllocationSet) Insert(that *Allocation) error {
-	return as.insert(that, false)
+	return as.insert(that)
 }
 
-func (as *AllocationSet) insert(that *Allocation, accumulate bool) error {
+func (as *AllocationSet) insert(that *Allocation) error {
 	if as == nil {
 		return fmt.Errorf("cannot insert into nil AllocationSet")
 	}
@@ -1565,14 +1599,14 @@ func (as *AllocationSet) accumulate(that *AllocationSet) (*AllocationSet, error)
 	defer that.RUnlock()
 
 	for _, alloc := range as.allocations {
-		err := acc.insert(alloc, true)
+		err := acc.insert(alloc)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	for _, alloc := range that.allocations {
-		err := acc.insert(alloc, true)
+		err := acc.insert(alloc)
 		if err != nil {
 			return nil, err
 		}

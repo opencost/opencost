@@ -393,7 +393,21 @@ func (w Window) ExpandEnd(end time.Time) Window {
 }
 
 func (w Window) Expand(that Window) Window {
-	return w.ExpandStart(*that.start).ExpandEnd(*that.end)
+	result := w
+
+	if that.start == nil {
+		result.start = nil
+	} else {
+		result = w.ExpandStart(*that.start)
+	}
+
+	if that.end == nil {
+		result.end = nil
+	} else {
+		result = w.ExpandEnd(*that.end)
+	}
+
+	return result
 }
 
 func (w Window) Hours() float64 {

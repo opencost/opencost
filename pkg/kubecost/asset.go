@@ -187,6 +187,9 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, allocationProp
 	return &Allocation{
 		Name:         strings.Join(names, "/"),
 		Properties:   props,
+		Window:       asset.Window().Clone(),
+		Start:        asset.Start(),
+		End:          asset.End(),
 		ExternalCost: asset.TotalCost(),
 		TotalCost:    asset.TotalCost(),
 	}, nil
