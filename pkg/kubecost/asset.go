@@ -42,10 +42,10 @@ type Asset interface {
 	// Temporal values
 	Start() time.Time
 	End() time.Time
-	Minutes() float64
+	SetStartEnd(time.Time, time.Time)
 	Window() Window
 	ExpandWindow(Window)
-	SetStartEnd(time.Time, time.Time)
+	Minutes() float64
 
 	// Operations and comparisons
 	Add(Asset) Asset
@@ -2697,14 +2697,16 @@ func (as *AssetSet) Get(key string) (Asset, bool) {
 // configured properties to determine the key under which the Asset will
 // be inserted.
 func (as *AssetSet) Insert(asset Asset) error {
-	if as.IsEmpty() {
-		as.Lock()
-		as.assets = map[string]Asset{}
-		as.Unlock()
+	if as == nil {
+		return fmt.Errorf("cannot Insert into nil AssetSet")
 	}
 
 	as.Lock()
 	defer as.Unlock()
+
+	if as.assets == nil {
+		as.assets = map[string]Asset{}
+	}
 
 	// Determine key into which to Insert the Asset.
 	k, err := key(asset, as.aggregateBy)
@@ -2828,9 +2830,11 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 	// Set start, end to min(start), max(end)
 	start := as.Start()
 	end := as.End()
+
 	if that.Start().Before(start) {
 		start = that.Start()
 	}
+
 	if that.End().After(end) {
 		end = that.End()
 	}
