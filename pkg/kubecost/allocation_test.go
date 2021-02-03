@@ -906,7 +906,7 @@ func TestAllocationSet_ComputeIdleAllocations(t *testing.T) {
 	//   cluster1:
 	//     nodes                                  100.00  55.00  44.00  11.00      -10.00
 	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster1 subtotal                        100.00  50.00  40.00  10.00      -10.00
+	//   cluster1 subtotal (adjusted)             100.00  50.00  40.00  10.00        0.00
 	// +-----------------------------------------+------+------+------+------+------------+
 	//   cluster1 allocated                        48.00   6.00  16.00   6.00        0.00
 	// +-----------------------------------------+------+------+------+------+------------+
@@ -966,6 +966,102 @@ func TestAllocationSet_ComputeIdleAllocations(t *testing.T) {
 		if !util.IsApproximately(idle.TotalCost, 72.0) {
 			t.Fatalf("%s idle: expected total cost %f; got total cost %f", "cluster1", 72.0, idle.TotalCost)
 		}
+	}
+	if !util.IsApproximately(idles["cluster1"].CPUCost, 44.0) {
+		t.Fatalf("expected idle CPU cost for %s to be %.2f; got %.2f", "cluster1", 44.0, idles["cluster1"].CPUCost)
+	}
+	if !util.IsApproximately(idles["cluster1"].RAMCost, 24.0) {
+		t.Fatalf("expected idle RAM cost for %s to be %.2f; got %.2f", "cluster1", 24.0, idles["cluster1"].RAMCost)
+	}
+	if !util.IsApproximately(idles["cluster1"].GPUCost, 4.0) {
+		t.Fatalf("expected idle GPU cost for %s to be %.2f; got %.2f", "cluster1", 4.0, idles["cluster1"].GPUCost)
+	}
+
+	if idle, ok := idles["cluster2"]; !ok {
+		t.Fatalf("expected idle cost for %s", "cluster2")
+	} else {
+		if !util.IsApproximately(idle.TotalCost, 82.0) {
+			t.Fatalf("%s idle: expected total cost %f; got total cost %f", "cluster2", 82.0, idle.TotalCost)
+		}
+	}
+
+	// NOTE: we're re-using generateAllocationSet so this has to line up with
+	// the allocated node costs from that function. See table above.
+
+	// | Hierarchy                               | Cost |  CPU |  RAM |  GPU | Adjustment |
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster1:
+	//     nodes                                  100.00   5.00   4.00   1.00       90.00
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster1 subtotal (adjusted)             100.00  50.00  40.00  10.00        0.00
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster1 allocated                        48.00   6.00  16.00   6.00        0.00
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster1 idle                             72.00  44.00  24.00   4.00        0.00
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster2:
+	//     node1                                   35.00  20.00  15.00   0.00        0.00
+	//     node2                                   35.00  20.00  15.00   0.00        0.00
+	//     node3                                   30.00  10.00  10.00  10.00        0.00
+	//     (disks should not matter for idle)
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster2 subtotal                        100.00  50.00  40.00  10.00        0.00
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster2 allocated                        28.00   6.00   6.00   6.00        0.00
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster2 idle                             82.00  44.00  34.00   4.00        0.00
+	// +-----------------------------------------+------+------+------+------+------------+
+
+	cluster1Nodes = NewNode("", "cluster1", "", start, end, NewWindow(&start, &end))
+	cluster1Nodes.CPUCost = 5.0
+	cluster1Nodes.RAMCost = 4.0
+	cluster1Nodes.GPUCost = 1.0
+	cluster1Nodes.adjustment = 90.00
+
+	cluster2Node1 = NewNode("node1", "cluster2", "node1", start, end, NewWindow(&start, &end))
+	cluster2Node1.CPUCost = 20.0
+	cluster2Node1.RAMCost = 15.0
+	cluster2Node1.GPUCost = 0.0
+
+	cluster2Node2 = NewNode("node2", "cluster2", "node2", start, end, NewWindow(&start, &end))
+	cluster2Node2.CPUCost = 20.0
+	cluster2Node2.RAMCost = 15.0
+	cluster2Node2.GPUCost = 0.0
+
+	cluster2Node3 = NewNode("node3", "cluster2", "node3", start, end, NewWindow(&start, &end))
+	cluster2Node3.CPUCost = 10.0
+	cluster2Node3.RAMCost = 10.0
+	cluster2Node3.GPUCost = 10.0
+
+	cluster2Disk1 = NewDisk("disk1", "cluster2", "disk1", start, end, NewWindow(&start, &end))
+	cluster2Disk1.Cost = 5.0
+
+	assetSet = NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1)
+
+	idles, err = as.ComputeIdleAllocations(assetSet)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if len(idles) != 2 {
+		t.Fatalf("idles: expected length %d; got length %d", 2, len(idles))
+	}
+
+	if idle, ok := idles["cluster1"]; !ok {
+		t.Fatalf("expected idle cost for %s", "cluster1")
+	} else {
+		if !util.IsApproximately(idle.TotalCost, 72.0) {
+			t.Fatalf("%s idle: expected total cost %f; got total cost %f", "cluster1", 72.0, idle.TotalCost)
+		}
+	}
+	if !util.IsApproximately(idles["cluster1"].CPUCost, 44.0) {
+		t.Fatalf("expected idle CPU cost for %s to be %.2f; got %.2f", "cluster1", 44.0, idles["cluster1"].CPUCost)
+	}
+	if !util.IsApproximately(idles["cluster1"].RAMCost, 24.0) {
+		t.Fatalf("expected idle RAM cost for %s to be %.2f; got %.2f", "cluster1", 24.0, idles["cluster1"].RAMCost)
+	}
+	if !util.IsApproximately(idles["cluster1"].GPUCost, 4.0) {
+		t.Fatalf("expected idle GPU cost for %s to be %.2f; got %.2f", "cluster1", 4.0, idles["cluster1"].GPUCost)
 	}
 
 	if idle, ok := idles["cluster2"]; !ok {
