@@ -66,6 +66,9 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	resStr := "1m"
 	// resPerHr := 60
 
+	// TODO niko/cdmr remove after testing
+	startQuerying := time.Now()
+
 	ctx := prom.NewContext(cm.PrometheusClient)
 
 	// TODO niko/cdmr retries? (That should probably go into the Store.)
@@ -202,6 +205,15 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	resPVCBytesRequested, _ := resChPVCBytesRequested.Await()
 	resPVCostPerGiBHour, _ := resChPVCostPerGiBHour.Await()
 	resPVCInfo, _ := resChPVCInfo.Await()
+
+	// TODO niko/cdmr remove after testing
+	log.Infof("CostModel.ComputeAllocation: minutes: %s", queryMinutes)
+	log.Infof("CostModel.ComputeAllocation: CPU cores: %s", queryCPUCoresAllocated)
+	log.Infof("CostModel.ComputeAllocation: RAM bytes: %s", queryRAMBytesAllocated)
+	log.Infof("CostModel.ComputeAllocation: PVC alloc: %s", queryPVCAllocation)
+	log.Infof("CostModel.ComputeAllocation: PVC bytes: %s", queryPVCBytesRequested)
+	log.Infof("CostModel.ComputeAllocation: PV $/gbhr: %s", queryPVCostPerGiBHour)
+	log.Profile(startQuerying, "CostModel.ComputeAllocation: queries complete")
 
 	// Build out a map of allocations, starting with (start, end) so that we
 	// begin with minutes, from which we compute resource allocation and cost
@@ -464,6 +476,8 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 			log.Infof("CostModel.ComputeAllocation: Pod %s: PVC: %v", pod, pvc)
 		}
 	}
+
+	log.Infof("CostModel.ComputeAllocation: %d allocations", len(allocMap))
 
 	for _, alloc := range allocMap {
 		// TODO niko/cdmr compute costs from resources and prices?
