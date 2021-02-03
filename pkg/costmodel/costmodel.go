@@ -469,8 +469,11 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				// recreate the key and look up data for this container
 				newKey := NewContainerMetricFromValues(ns, podName, containerName, pod.Spec.NodeName, clusterID).Key()
 
-				// k8s.io/apimachinery/pkg/api/resource/amount.go for explanations of
-				// the types that memory/cpu requests are
+				// k8s.io/apimachinery/pkg/api/resource/amount.go and
+				// k8s.io/apimachinery/pkg/api/resource/quantity.go for
+				// details on the "amount" API. See
+				// https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-types
+				// for the units of memory and CPU.
 				ramRequestBytes := container.Resources.Requests.Memory().Value()
 				RAMReqV := []*util.Vector{
 					{
