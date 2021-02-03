@@ -837,7 +837,6 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
 	}
-	fmt.Println(as.assets)
 	assertAssetSet(t, as, "1e", window, map[string]float64{
 		"__undefined__": 53.00,
 		"test=test":     7.00,
