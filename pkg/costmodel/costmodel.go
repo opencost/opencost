@@ -477,7 +477,8 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				ramRequestBytes := container.Resources.Requests.Memory().Value()
 				RAMReqV := []*util.Vector{
 					{
-						Value: float64(ramRequestBytes),
+						Value:     float64(ramRequestBytes),
+						Timestamp: float64(time.Now().UTC().Unix()),
 					},
 				}
 
@@ -485,7 +486,8 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				cpuRequestMilliCores := container.Resources.Requests.Cpu().MilliValue()
 				CPUReqV := []*util.Vector{
 					{
-						Value: float64(cpuRequestMilliCores) / 1000,
+						Value:     float64(cpuRequestMilliCores) / 1000,
+						Timestamp: float64(time.Now().UTC().Unix()),
 					},
 				}
 
