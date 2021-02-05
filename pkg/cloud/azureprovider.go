@@ -272,7 +272,7 @@ func (az *Azure) getAzureAuth(forceReload bool, cp *CustomPricing) (subscription
 
 func (az *Azure) ConfigureAzureStorage() error {
 	accessKey, accountName, containerName := az.getAzureStorageConfig(false)
-	if accessKey != "" && accountName != "" || containerName != "" {
+	if accessKey != "" && accountName != "" && containerName != "" {
 		err := env.Set(env.AzureStorageAccessKeyEnvVar, accessKey)
 		if err != nil {
 			return err
