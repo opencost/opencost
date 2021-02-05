@@ -43,31 +43,32 @@ const ShareNone = "__none__"
 // Allocation is a unit of resource allocation and cost for a given window
 // of time and for a given kubernetes construct with its associated set of
 // properties.
+// TODO niko/cdmr compute efficiency on the fly?
 type Allocation struct {
-	Name            string     `json:"name"`
-	Properties      Properties `json:"properties,omitempty"`
-	Window          Window     `json:"window"`
-	Start           time.Time  `json:"start"`
-	End             time.Time  `json:"end"`
-	CPUCoreHours    float64    `json:"cpuCoreHours"`
-	CPUCost         float64    `json:"cpuCost"`
-	CPUEfficiency   float64    `json:"cpuEfficiency"`
-	CPURequestAvg   float64    `json:"cpuRequestAverage"`
-	CPUUsageAvg     float64    `json:"cpuUsageAverage"`
-	GPUHours        float64    `json:"gpuHours"`
-	GPUCost         float64    `json:"gpuCost"`
-	NetworkCost     float64    `json:"networkCost"`
-	PVByteHours     float64    `json:"pvByteHours"`
-	PVCost          float64    `json:"pvCost"`
-	RAMByteHours    float64    `json:"ramByteHours"`
-	RAMCost         float64    `json:"ramCost"`
-	RAMEfficiency   float64    `json:"ramEfficiency"`
-	RAMRequestAvg   float64    `json:"ramRequestAverage"`
-	RAMUsageAvg     float64    `json:"ramUsageAverage"`
-	SharedCost      float64    `json:"sharedCost"`
-	ExternalCost    float64    `json:"externalCost"`
-	TotalCost       float64    `json:"totalCost"`
-	TotalEfficiency float64    `json:"totalEfficiency"`
+	Name                   string     `json:"name"`
+	Properties             Properties `json:"properties,omitempty"`
+	Window                 Window     `json:"window"`
+	Start                  time.Time  `json:"start"`
+	End                    time.Time  `json:"end"`
+	CPUCoreHours           float64    `json:"cpuCoreHours"`
+	CPUCoreRequestAverage  float64    `json:"cpuCoreRequestAverage"`
+	CPUCoreUsageAverage    float64    `json:"cpuCoreUsageAverage"`
+	CPUCost                float64    `json:"cpuCost"`
+	CPUEfficiency          float64    `json:"cpuEfficiency"`
+	GPUHours               float64    `json:"gpuHours"`
+	GPUCost                float64    `json:"gpuCost"`
+	NetworkCost            float64    `json:"networkCost"`
+	PVByteHours            float64    `json:"pvByteHours"`
+	PVCost                 float64    `json:"pvCost"`
+	RAMByteHours           float64    `json:"ramByteHours"`
+	RAMBytesRequestAverage float64    `json:"ramBytesRequestAverage"`
+	RAMBytesUsageAverage   float64    `json:"ramBytesUsageAverage"`
+	RAMCost                float64    `json:"ramCost"`
+	RAMEfficiency          float64    `json:"ramEfficiency"`
+	SharedCost             float64    `json:"sharedCost"`
+	ExternalCost           float64    `json:"externalCost"`
+	TotalCost              float64    `json:"totalCost"`
+	TotalEfficiency        float64    `json:"totalEfficiency"`
 }
 
 // AllocationMatchFunc is a function that can be used to match Allocations by

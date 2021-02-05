@@ -1020,7 +1020,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	} else {
 		pc = promCli
 	}
-	costModel := NewCostModel(pc, k8sCache, clusterMap, scrapeInterval)
+	costModel := NewCostModel(pc, cloudProvider, k8sCache, clusterMap, scrapeInterval)
 	metricsEmitter := NewCostModelMetricsEmitter(promCli, k8sCache, cloudProvider, costModel)
 
 	a := &Accesses{

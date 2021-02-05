@@ -46,18 +46,18 @@ const (
 // isCron matches a CronJob name and captures the non-timestamp name
 var isCron = regexp.MustCompile(`^(.+)-\d{10}$`)
 
+// TODO niko/cdmr both Thanos and Prometheus, or just one?
 type CostModel struct {
-	Cache           clustercache.ClusterCache
-	ClusterMap      clusters.ClusterMap
-	RequestGroup    *singleflight.Group
-	ScrapeInterval  time.Duration
-	pricingMetadata *costAnalyzerCloud.PricingMatchMetadata
-	// TODO niko/cdmr both, or just one?
+	Cache            clustercache.ClusterCache
+	ClusterMap       clusters.ClusterMap
+	RequestGroup     *singleflight.Group
+	ScrapeInterval   time.Duration
 	PrometheusClient prometheus.Client
-	// ThanosClient     prometheus.Client
+	Provider         costAnalyzerCloud.Provider
+	pricingMetadata  *costAnalyzerCloud.PricingMatchMetadata
 }
 
-func NewCostModel(client prometheus.Client, cache clustercache.ClusterCache, clusterMap clusters.ClusterMap, scrapeInterval time.Duration) *CostModel {
+func NewCostModel(client prometheus.Client, provider costAnalyzerCloud.Provider, cache clustercache.ClusterCache, clusterMap clusters.ClusterMap, scrapeInterval time.Duration) *CostModel {
 	// request grouping to prevent over-requesting the same data prior to caching
 	requestGroup := new(singleflight.Group)
 
@@ -65,6 +65,7 @@ func NewCostModel(client prometheus.Client, cache clustercache.ClusterCache, clu
 		Cache:            cache,
 		ClusterMap:       clusterMap,
 		PrometheusClient: client,
+		Provider:         provider,
 		RequestGroup:     requestGroup,
 		ScrapeInterval:   scrapeInterval,
 	}
