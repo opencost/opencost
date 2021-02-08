@@ -65,6 +65,8 @@ var (
 
 var loadedAzureSecret bool = false
 var azureSecret *AzureServiceKey = nil
+var loadedAzureStorageConfigSecret bool = false
+var azureStorageConfig *AzureStorageConfig= nil
 
 type regionParts []string
 
@@ -211,6 +213,13 @@ func (k *azureKey) ID() string {
 	return ""
 }
 
+// Represents an azure storage config
+type AzureStorageConfig struct {
+	AccountName string `json:"azureStorageAccount"`
+	AccessKey string `json:"azureStorageAccessKey"`
+	ContainerName string `json:"azureStorageContainer"`
+}
+
 // Represents an azure app key
 type AzureAppKey struct {
 	AppID       string `json:"appId"`
@@ -225,6 +234,7 @@ type AzureServiceKey struct {
 	SubscriptionID string       `json:"subscriptionId"`
 	ServiceKey     *AzureAppKey `json:"serviceKey"`
 }
+
 
 // Validity check on service key
 func (ask *AzureServiceKey) IsValid() bool {
@@ -260,6 +270,39 @@ func (az *Azure) getAzureAuth(forceReload bool, cp *CustomPricing) (subscription
 	return "", "", "", ""
 }
 
+func (az *Azure) ConfigureAzureStorage() error {
+	accessKey, accountName, containerName := az.getAzureStorageConfig(false)
+	if accessKey != "" && accountName != "" && containerName != "" {
+		err := env.Set(env.AzureStorageAccessKeyEnvVar, accessKey)
+		if err != nil {
+			return err
+		}
+		err = env.Set(env.AzureStorageAccountNameEnvVar, accountName)
+		if err != nil {
+			return err
+		}
+		err = env.Set(env.AzureStorageContainerNameEnvVar, containerName)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (az *Azure) getAzureStorageConfig(forceReload bool) (accessKey, accountName, containerName string) {
+
+	// 1. Check for secret
+	s, _ := az.loadAzureStorageConfig(forceReload)
+	if s != nil && s.AccessKey != "" && s.AccountName != ""  && s.ContainerName != ""{
+		accessKey = s.AccessKey
+		accountName = s.AccountName
+		containerName = s.ContainerName
+		return
+	}
+
+	// 3. Fall back to env vars
+	return env.GetAzureStorageAccessKey(), env.GetAzureStorageAccountName(), env.GetAzureStorageContainerName()
+}
+
 // Load once and cache the result (even on failure). This is an install time secret, so
 // we don't expect the secret to change. If it does, however, we can force reload using
 // the input parameter.
@@ -287,6 +330,35 @@ func (az *Azure) loadAzureAuthSecret(force bool) (*AzureServiceKey, error) {
 
 	azureSecret = &ask
 	return azureSecret, nil
+}
+
+// Load once and cache the result (even on failure). This is an install time secret, so
+// we don't expect the secret to change. If it does, however, we can force reload using
+// the input parameter.
+func (az *Azure) loadAzureStorageConfig(force bool) (*AzureStorageConfig, error) {
+	if !force && loadedAzureStorageConfigSecret {
+		return azureStorageConfig, nil
+	}
+	loadedAzureSecret = true
+
+	exists, err := util.FileExists(storageConfigSecretPath)
+	if !exists || err != nil {
+		return nil, fmt.Errorf("Failed to locate azure storage config file: %s", storageConfigSecretPath)
+	}
+
+	result, err := ioutil.ReadFile(storageConfigSecretPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var ask AzureStorageConfig
+	err = json.Unmarshal(result, &ask)
+	if err != nil {
+		return nil, err
+	}
+
+	azureStorageConfig = &ask
+	return azureStorageConfig, nil
 }
 
 func (az *Azure) GetKey(labels map[string]string, n *v1.Node) Key {
