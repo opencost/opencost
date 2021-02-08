@@ -475,6 +475,12 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				// https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-types
 				// for the units of memory and CPU.
 				ramRequestBytes := container.Resources.Requests.Memory().Value()
+
+				// Because RAM (and CPU) information isn't coming from Prometheus, it won't
+				// have a timestamp associated with it. We need to provide a timestamp,
+				// otherwise the vector op that gets applied to take the max of usage
+				// and request won't work properly and will only take into account
+				// usage.
 				RAMReqV := []*util.Vector{
 					{
 						Value:     float64(ramRequestBytes),
