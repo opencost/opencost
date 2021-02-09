@@ -2,14 +2,17 @@ package cloud
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"github.com/kubecost/cost-model/pkg/kubecost"
 	"io"
 	"io/ioutil"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
@@ -62,6 +65,8 @@ var (
 	mtStandardM, _ = regexp.Compile(`^Standard_M\d+[m|t|l]*s[_v\d]*[_Promo]*$`)
 	mtStandardN, _ = regexp.Compile(`^Standard_N[C|D|V]\d+r?[_v\d]*[_Promo]*$`)
 )
+
+const AzureLayout = "2006-01-02"
 
 var loadedAzureSecret bool = false
 var azureSecret *AzureServiceKey = nil
@@ -879,8 +884,143 @@ func (az *Azure) GetConfig() (*CustomPricing, error) {
 	return c, nil
 }
 
-func (az *Azure) ExternalAllocations(string, string, []string, string, string, bool) ([]*OutOfClusterAllocation, error) {
-	return nil, nil
+// ExternalAllocations represents tagged assets outside the scope of kubernetes.
+// "start" and "end" are dates of the format YYYY-MM-DD
+// "aggregator" is the tag used to determine how to allocate those assets, ie namespace, pod, etc.
+func (az *Azure) ExternalAllocations(start string, end string, aggregators []string, filterType string, filterValue string, crossCluster bool) ([]*OutOfClusterAllocation, error) {
+	var csvRetriever CSVRetriever = AzureCSVRetriever{}
+	err := az.ConfigureAzureStorage() // load Azure Storage config
+	if err != nil {
+		return nil, err
+	}
+	return GetExternalAllocations(start, end, aggregators, filterType, filterValue, crossCluster, csvRetriever)
+}
+
+func GetExternalAllocations(start string, end string, aggregators []string, filterType string, filterValue string, crossCluster bool, csvRetriever CSVRetriever) ([]*OutOfClusterAllocation, error) {
+	dateFormat := "2006-1-2"
+	startTime, err := time.Parse(dateFormat, start)
+	if err != nil {
+		return nil, err
+	}
+	endTime, err := time.Parse(dateFormat, end)
+	if err != nil {
+		return nil, err
+	}
+	readers, err := csvRetriever.GetCSVReaders(startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+	oocAllocs := make(map[string]*OutOfClusterAllocation)
+	for _, reader := range readers {
+		err = ParseCSV(reader, startTime, endTime, oocAllocs, aggregators, filterType, filterValue, crossCluster)
+		if err != nil {
+			return nil, err
+		}
+	}
+	var oocAllocsArr []*OutOfClusterAllocation
+	for _, alloc := range oocAllocs {
+		oocAllocsArr = append(oocAllocsArr, alloc)
+	}
+	return oocAllocsArr, nil
+}
+
+func ParseCSV (reader *csv.Reader, start, end time.Time, oocAllocs map[string]*OutOfClusterAllocation, aggregators []string, filterType string, filterValue string, crossCluster bool) error {
+	headers, _ := reader.Read()
+
+	headerMap := map[string]int{}
+	for i, header := range headers {
+		headerMap[header] = i
+	}
+
+	for {
+		var record, err = reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		meterCategory := record[headerMap["MeterCategory"]]
+		category := selectCategory(meterCategory)
+		usageDateTime, err := time.Parse(AzureLayout, record[headerMap["UsageDateTime"]])
+		if err != nil {
+			klog.Errorf("failed to parse usage date: '%s'", record[headerMap["UsageDateTime"]])
+			continue
+		}
+		// Ignore VM's and Storage Items for now
+		if category == kubecost.ComputeCategory || category == kubecost.StorageCategory || !isValidUsageDateTime(start, end, usageDateTime) {
+			continue
+		}
+
+		itemCost, err := strconv.ParseFloat(record[headerMap["PreTaxCost"]], 64)
+		if err != nil {
+			klog.Infof("failed to parse cost: '%s'", record[headerMap["PreTaxCost"]])
+			continue
+		}
+
+		itemTags := make(map[string]string)
+		itemTagJson := record[headerMap["Tags"]]
+		if itemTagJson != "" {
+			err = json.Unmarshal([]byte(itemTagJson), &itemTags)
+			if err != nil {
+				klog.Infof("Could not parse item tags %v", err)
+			}
+		}
+
+		if filterType != "kubernetes_" {
+			if value, ok := itemTags[filterType];!ok || value != filterValue {
+				continue
+			}
+		}
+		environment := ""
+		for _, agg := range aggregators {
+			if tag, ok := itemTags[agg]; ok {
+				environment = tag // just set to the first nonempty match
+				break
+			}
+		}
+		key := environment + record[headerMap["ConsumedService"]]
+		if alloc, ok := oocAllocs[key]; ok {
+			alloc.Cost += itemCost
+		} else {
+			ooc := &OutOfClusterAllocation{
+				Aggregator:  strings.Join(aggregators, ","),
+				Environment: environment,
+				Service:     record[headerMap["ConsumedService"]],
+				Cost:        itemCost,
+			}
+			oocAllocs[key] = ooc
+		}
+
+
+	}
+	return nil
+}
+
+
+
+// UsageDateTime only contains date information and not time because of this filtering usageDate time is inclusive on start and exclusive on end
+func isValidUsageDateTime(start, end, usageDateTime time.Time) bool {
+	return (usageDateTime.After(start) || usageDateTime.Equal(start)) && usageDateTime.Before(end)
+}
+
+func getStartAndEndTimes(usageDateTime time.Time) (time.Time, time.Time) {
+	start := time.Date(usageDateTime.Year(), usageDateTime.Month(), usageDateTime.Day(), 0, 0, 0, 0, usageDateTime.Location())
+	end := time.Date(usageDateTime.Year(), usageDateTime.Month(), usageDateTime.Day(), 23, 59, 59, 999999999, usageDateTime.Location())
+	return start, end
+}
+
+func selectCategory(meterCategory string) string {
+	if meterCategory == "Virtual Machines" {
+		return kubecost.ComputeCategory
+	} else if meterCategory == "Storage" {
+		return kubecost.StorageCategory
+	} else if meterCategory == "Load Balancer" || meterCategory == "Bandwidth" {
+		return kubecost.NetworkCategory
+	} else {
+		return kubecost.OtherCategory
+	}
 }
 
 func (az *Azure) ApplyReservedInstancePricing(nodes map[string]*Node) {
