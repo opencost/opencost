@@ -365,7 +365,7 @@ func (az *Azure) loadAzureStorageConfig(force bool) (*AzureStorageConfig, error)
 	if !force && loadedAzureStorageConfigSecret {
 		return azureStorageConfig, nil
 	}
-	loadedAzureSecret = true
+	loadedAzureStorageConfigSecret = true
 
 	exists, err := util.FileExists(storageConfigSecretPath)
 	if !exists || err != nil {
