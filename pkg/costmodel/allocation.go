@@ -14,11 +14,40 @@ import (
 // TODO niko/cdmr move to pkg/kubecost
 // TODO niko/cdmr add PersistenVolumeClaims to type Allocation?
 type PVC struct {
-	Bytes     float64 `json:"bytes"`
-	Count     int     `json:"count"`
-	Name      string  `json:"name"`
-	Namespace string  `json:"namespace"`
-	Volume    *PV     `json:"persistentVolume"`
+	Bytes     float64   `json:"bytes"`
+	Count     int       `json:"count"`
+	Name      string    `json:"name"`
+	Cluster   string    `json:"cluster"`
+	Namespace string    `json:"namespace"`
+	Volume    *PV       `json:"persistentVolume"`
+	Start     time.Time `json:"start"`
+	End       time.Time `json:"end"`
+}
+
+func (pvc *PVC) Cost() float64 {
+	if pvc == nil || pvc.Volume == nil {
+		return 0.0
+	}
+
+	gib := pvc.Bytes / 1024 / 1024 / 1024
+	hrs := pvc.Minutes() / 60.0
+
+	return pvc.Volume.CostPerGiBHour * gib * hrs
+}
+
+func (pvc *PVC) Minutes() float64 {
+	if pvc == nil {
+		return 0.0
+	}
+
+	return pvc.End.Sub(pvc.Start).Minutes()
+}
+
+func (pvc *PVC) String() string {
+	if pvc == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("%s/%s/%s{Bytes:%.2f, Cost:%.6f, Start,End:%s}", pvc.Cluster, pvc.Namespace, pvc.Name, pvc.Bytes, pvc.Cost(), kubecost.NewWindow(&pvc.Start, &pvc.End))
 }
 
 // TODO niko/cdmr move to pkg/kubecost
@@ -28,6 +57,13 @@ type PV struct {
 	Cluster        string  `json:"cluster"`
 	Name           string  `json:"name"`
 	StorageClass   string  `json:"storageClass"`
+}
+
+func (pv *PV) String() string {
+	if pv == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("%s/%s{Bytes:%.2f, Cost/GiB*Hr:%.6f, StorageClass:%s}", pv.Cluster, pv.Name, pv.Bytes, pv.CostPerGiBHour, pv.StorageClass)
 }
 
 // ComputeAllocation uses the CostModel instance to compute an AllocationSet
@@ -134,17 +170,20 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	queryNodeIsSpot := fmt.Sprintf(`avg_over_time(kubecost_node_is_spot[%s]%s)`, durStr, offStr)
 	resChNodeIsSpot := ctx.Query(queryNodeIsSpot)
 
-	queryPVCAllocation := fmt.Sprintf(`avg(avg_over_time(pod_pvc_allocation[%s]%s)) by (persistentvolume, persistentvolumeclaim, pod, namespace, cluster_id)`, durStr, offStr)
-	resChPVCAllocation := ctx.Query(queryPVCAllocation)
+	queryPVCInfo := fmt.Sprintf(`avg(kube_persistentvolumeclaim_info{volumename != ""}) by (persistentvolumeclaim, storageclass, volumename, namespace, cluster_id)[%s:%s]%s`, durStr, resStr, offStr)
+	resChPVCInfo := ctx.Query(queryPVCInfo)
+
+	queryPVBytes := fmt.Sprintf(`avg(avg_over_time(kube_persistentvolume_capacity_bytes[%s]%s)) by (persistentvolume, cluster_id)`, durStr, offStr)
+	resChPVBytes := ctx.Query(queryPVBytes)
+
+	queryPodPVCAllocation := fmt.Sprintf(`avg(avg_over_time(pod_pvc_allocation[%s]%s)) by (persistentvolume, persistentvolumeclaim, pod, namespace, cluster_id)`, durStr, offStr)
+	resChPodPVCAllocation := ctx.Query(queryPodPVCAllocation)
 
 	queryPVCBytesRequested := fmt.Sprintf(`avg(avg_over_time(kube_persistentvolumeclaim_resource_requests_storage_bytes{}[%s]%s)) by (persistentvolumeclaim, namespace, cluster_id)`, durStr, offStr)
 	resChPVCBytesRequested := ctx.Query(queryPVCBytesRequested)
 
 	queryPVCostPerGiBHour := fmt.Sprintf(`avg(avg_over_time(pv_hourly_cost[%s]%s)) by (volumename, cluster_id)`, durStr, offStr)
 	resChPVCostPerGiBHour := ctx.Query(queryPVCostPerGiBHour)
-
-	queryPVCInfo := fmt.Sprintf(`avg(avg_over_time(kube_persistentvolumeclaim_info{volumename != ""}[%s]%s)) by (persistentvolumeclaim, storageclass, volumename, namespace, cluster_id)`, durStr, offStr)
-	resChPVCInfo := ctx.Query(queryPVCInfo)
 
 	// TODO niko/cdmr
 	// queryNetZoneRequests := fmt.Sprintf()
@@ -208,13 +247,15 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	resNodeCostPerGPUHr, _ := resChNodeCostPerGPUHr.Await()
 	resNodeIsSpot, _ := resChNodeIsSpot.Await()
 
-	resPVCAllocation, _ := resChPVCAllocation.Await()
-	resPVCBytesRequested, _ := resChPVCBytesRequested.Await()
+	resPVBytes, _ := resChPVBytes.Await()
 	resPVCostPerGiBHour, _ := resChPVCostPerGiBHour.Await()
+
 	resPVCInfo, _ := resChPVCInfo.Await()
+	resPVCBytesRequested, _ := resChPVCBytesRequested.Await()
+	resPodPVCAllocation, _ := resChPodPVCAllocation.Await()
 
 	// TODO niko/cdmr remove after testing
-	log.Infof("CostModel.ComputeAllocation: minutes:   %s", queryMinutes)
+	log.Infof("CostModel.ComputeAllocation: minutes  : %s", queryMinutes)
 
 	log.Infof("CostModel.ComputeAllocation: CPU cores: %s", queryCPUCoresAllocated)
 	log.Infof("CostModel.ComputeAllocation: CPU req  : %s", queryCPURequests)
@@ -226,10 +267,12 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	log.Infof("CostModel.ComputeAllocation: RAM use  : %s", queryRAMUsage)
 	log.Infof("CostModel.ComputeAllocation: $/GiB*Hr : %s", queryNodeCostPerRAMGiBHr)
 
-	log.Infof("CostModel.ComputeAllocation: PVC alloc: %s", queryPVCAllocation)
+	log.Infof("CostModel.ComputeAllocation: PV $/gbhr: %s", queryPVCostPerGiBHour)
+	log.Infof("CostModel.ComputeAllocation: PV bytes : %s", queryPVBytes)
+
+	log.Infof("CostModel.ComputeAllocation: PVC alloc: %s", queryPodPVCAllocation)
 	log.Infof("CostModel.ComputeAllocation: PVC bytes: %s", queryPVCBytesRequested)
 	log.Infof("CostModel.ComputeAllocation: PVC info : %s", queryPVCInfo)
-	log.Infof("CostModel.ComputeAllocation: PV $/gbhr: %s", queryPVCostPerGiBHour)
 
 	log.Profile(startQuerying, "CostModel.ComputeAllocation: queries complete")
 
@@ -271,148 +314,42 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 
 	// TODO niko/cdmr comment
 	pvMap := map[pvKey]*PV{}
-
-	for _, res := range resPVCostPerGiBHour {
-		cluster, err := res.GetString("cluster_id")
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		name, err := res.GetString("volumename")
-		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: PV cost without volumename")
-			continue
-		}
-
-		key := newPVKey(cluster, name)
-
-		pvMap[key] = &PV{
-			Cluster:        cluster,
-			Name:           name,
-			CostPerGiBHour: res.Values[0].Value,
-		}
-	}
+	buildPVMap(pvMap, resPVCostPerGiBHour)
+	applyPVBytes(pvMap, resPVBytes)
+	// TODO niko/cdmr apply PV bytes?
 
 	// TODO niko/cdmr comment
 	pvcMap := map[pvcKey]*PVC{}
-
-	for _, res := range resPVCBytesRequested {
-		key, err := resultPVCKey(res, "cluster_id", "namespace", "persistentvolumeclaim")
-		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: PV bytes requested query result missing field: %s", err)
-			continue
-		}
-
-		// TODO niko/cdmr double-check "persistentvolume" vs "volumename"
-		values, err := res.GetStrings("persistentvolumeclaim", "namespace")
-		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: PV bytes requested query result missing field: %s", err)
-			continue
-		}
-		name := values["persistentvolumeclaim"]
-		namespace := values["namespace"]
-
-		log.Infof("CostModel.ComputeAllocation: PVC: %s %fGiB", key, res.Values[0].Value/1024/1024/1024)
-
-		// TODO niko/cdmr
-		pvcMap[key] = &PVC{
-			Bytes:     res.Values[0].Value,
-			Name:      name,
-			Namespace: namespace,
-		}
-	}
+	buildPVCMap(window, pvcMap, pvMap, resPVCInfo)
+	applyPVCBytesRequested(pvcMap, resPVCBytesRequested)
 
 	// TODO niko/cdmr comment
 	podPVCMap := map[podKey][]*PVC{}
+	buildPodPVCMap(podPVCMap, pvMap, pvcMap, podAllocationCount, resPodPVCAllocation)
 
-	for _, res := range resPVCAllocation {
-		cluster, err := res.GetString("cluster_id")
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
+	// Identify unmounted PVs (PVs without PVCs) and add one Allocation per
+	// cluster representing each cluster's unmounted PVs (if necessary).
+	applyUnmountedPVs(window, allocationMap, pvMap, pvcMap)
 
-		values, err := res.GetStrings("persistentvolume", "persistentvolumeclaim", "pod", "namespace")
-		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: PVC allocation query result missing field: %s", err)
-			continue
-		}
-
-		namespace := values["namespace"]
-		pod := values["pod"]
-		name := values["persistentvolumeclaim"]
-		volume := values["persistentvolume"]
-
-		podKey := newPodKey(cluster, namespace, pod)
-		pvKey := newPVKey(cluster, volume)
-
-		if _, ok := pvMap[pvKey]; !ok {
-			log.Warningf("CostModel.ComputeAllocation: PV missing for PVC allocation query result: %s", pvKey)
-			continue
-		}
-
-		if _, ok := podPVCMap[podKey]; !ok {
-			podPVCMap[podKey] = []*PVC{}
-		}
-
-		podPVCMap[podKey] = append(podPVCMap[podKey], &PVC{
-			Bytes:  res.Values[0].Value,
-			Count:  podAllocationCount[podKey],
-			Name:   name,
-			Volume: pvMap[pvKey],
-		})
-	}
-
-	for _, res := range resPVCInfo {
-		cluster, err := res.GetString("cluster_id")
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		values, err := res.GetStrings("persistentvolumeclaim", "storageclass", "volumename", "namespace")
-		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: PVC info query result missing field: %s", err)
-			continue
-		}
-
-		// TODO niko/cdmr ?
-		// namespace := values["namespace"]
-		// name := values["persistentvolumeclaim"]
-		volume := values["volumename"]
-		storageClass := values["storageclass"]
-
-		pvKey := newPVKey(cluster, volume)
-
-		if _, ok := pvMap[pvKey]; !ok {
-			log.Warningf("CostModel.ComputeAllocation: PV missing for PVC info query result: %s", pvKey)
-			continue
-		}
-
-		pvMap[pvKey].StorageClass = storageClass
-	}
-
+	// TODO niko/cdmr remove logs
 	log.Infof("CostModel.ComputeAllocation: %d allocations", len(allocationMap))
 	log.Infof("CostModel.ComputeAllocation: %d nodes", len(nodeMap))
 	log.Infof("CostModel.ComputeAllocation: %d PVs", len(pvMap))
 	log.Infof("CostModel.ComputeAllocation: %d PVCs", len(pvcMap))
 	log.Infof("CostModel.ComputeAllocation: %d pods with PVCs", len(podPVCMap))
-
 	for _, node := range nodeMap {
 		log.Infof("CostModel.ComputeAllocation: Node: %s: %f/CPUHr; %f/RAMHr; %f/GPUHr; %f discount", node.Name, node.CostPerCPUHr, node.CostPerRAMGiBHr, node.CostPerGPUHr, node.Discount)
 	}
-
 	for _, pv := range pvMap {
-		log.Infof("CostModel.ComputeAllocation: PV: %v", pv)
+		log.Infof("CostModel.ComputeAllocation: PV: %s", pv)
 	}
-
 	for pod, pvcs := range podPVCMap {
 		for _, pvc := range pvcs {
-			log.Infof("CostModel.ComputeAllocation: Pod %s: PVC: %v", pod, pvc)
+			log.Infof("CostModel.ComputeAllocation: Pod %s: PVC: %s", pod, pvc)
 		}
 	}
 
 	for _, alloc := range allocationMap {
-		// TODO niko/cdmr compute costs from resources and prices?
-
 		cluster, _ := alloc.Properties.GetCluster()
 		node, _ := alloc.Properties.GetNode()
 		namespace, _ := alloc.Properties.GetNamespace()
@@ -422,7 +359,9 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 		nodeKey := newNodeKey(cluster, node)
 
 		if n, ok := nodeMap[nodeKey]; !ok {
-			log.Warningf("CostModel.ComputeAllocation: failed to find node %s for %s", nodeKey, alloc.Name)
+			if pod != "unmounted-pvs" {
+				log.Warningf("CostModel.ComputeAllocation: failed to find node %s for %s", nodeKey, alloc.Name)
+			}
 		} else {
 			alloc.CPUCost = alloc.CPUCoreHours * n.CostPerCPUHr
 			alloc.RAMCost = (alloc.RAMByteHours / 1024 / 1024 / 1024) * n.CostPerRAMGiBHr
@@ -431,17 +370,26 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 
 		if pvcs, ok := podPVCMap[podKey]; ok {
 			for _, pvc := range pvcs {
-				// TODO niko/cdmr this isn't quite right... use PVC info query for PVC minutes?
-				hrs := alloc.Minutes() / 60.0
+				// Determine the (start, end) of the relationship between the
+				// given PVC and the associated Allocation so that a precise
+				// number of hours can be used to compute cumulative cost.
+				s, e := alloc.Start, alloc.End
+				if pvc.Start.After(alloc.Start) {
+					s = pvc.Start
+				}
+				if pvc.End.Before(alloc.End) {
+					e = pvc.End
+				}
+				minutes := e.Sub(s).Minutes()
+				hrs := minutes / 60.0
 				gib := pvc.Bytes / 1024 / 1024 / 1024
 
 				alloc.PVByteHours += pvc.Bytes * hrs
-				alloc.PVCost += pvc.Volume.CostPerGiBHour * gib * hrs
+				alloc.PVCost += pvc.Volume.CostPerGiBHour * gib * hrs / float64(pvc.Count)
 			}
 		}
 
-		// log.Infof("CostModel.ComputeAllocation: %s: %v", alloc.Name, alloc)
-
+		alloc.TotalCost = 0.0
 		alloc.TotalCost += alloc.CPUCost
 		alloc.TotalCost += alloc.RAMCost
 		alloc.TotalCost += alloc.GPUCost
@@ -498,14 +446,11 @@ func buildAllocationMap(window kubecost.Window, allocationMap map[containerKey]*
 			}
 		}
 		if allocStart.IsZero() || allocEnd.IsZero() {
-			log.Warningf("CostModel.ComputeAllocation: allocation %s has no running time", containerKey)
+			// TODO niko/cdmr remove log?
+			// log.Warningf("CostModel.ComputeAllocation: allocation %s has no running time, skipping", containerKey)
+			continue
 		}
 		allocStart = allocStart.Add(-time.Minute)
-
-		// TODO niko/cdmr scan "minutes" results for 1s and 0s, and discard points
-		// that fall outside the given window (why does that happen??)
-
-		// TODO niko/cdmr "snap-to" start and end if within some epsilon of window start, end
 
 		// Set start if unset or this datum's start time is earlier than the
 		// current earliest time.
@@ -571,17 +516,25 @@ func applyCPUCoresRequested(allocationMap map[containerKey]*kubecost.Allocation,
 
 		_, ok := allocationMap[key]
 		if !ok {
-			log.Warningf("CostModel.ComputeAllocation: unidentified CPU request query result: %s", key)
+			// TODO niko/cdmr remove log?
+			// log.Warningf("CostModel.ComputeAllocation: unidentified CPU request query result: %s", key)
 			continue
 		}
 
 		allocationMap[key].CPUCoreRequestAverage = res.Values[0].Value
+
+		// CPU allocation is less than requests, so set CPUCoreHours to
+		// request level.
+		// TODO niko/cdmr why is this happening?
+		if allocationMap[key].CPUCores() < res.Values[0].Value {
+			allocationMap[key].CPUCoreHours = res.Values[0].Value * (allocationMap[key].Minutes() / 60.0)
+		}
 	}
 }
 
 func applyCPUCoresUsed(allocationMap map[containerKey]*kubecost.Allocation, resCPUCoresUsed []*prom.QueryResult) {
 	for _, res := range resCPUCoresUsed {
-		key, err := resultContainerKey(res, "cluster_id", "namespace", "pod", "container")
+		key, err := resultContainerKey(res, "cluster_id", "namespace", "pod_name", "container_name")
 		if err != nil {
 			log.Warningf("CostModel.ComputeAllocation: CPU usage query result missing field: %s", err)
 			continue
@@ -601,31 +554,39 @@ func applyRAMBytesRequested(allocationMap map[containerKey]*kubecost.Allocation,
 	for _, res := range resRAMBytesRequested {
 		key, err := resultContainerKey(res, "cluster_id", "namespace", "pod", "container")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: CPU request query result missing field: %s", err)
+			log.Warningf("CostModel.ComputeAllocation: RAM request query result missing field: %s", err)
 			continue
 		}
 
 		_, ok := allocationMap[key]
 		if !ok {
-			log.Warningf("CostModel.ComputeAllocation: unidentified CPU request query result: %s", key)
+			// TODO niko/cdmr remove log?
+			// log.Warningf("CostModel.ComputeAllocation: unidentified RAM request query result: %s", key)
 			continue
 		}
 
 		allocationMap[key].RAMBytesRequestAverage = res.Values[0].Value
+
+		// RAM allocation is less than requests, so set RAMByteHours to
+		// request level.
+		// TODO niko/cdmr why is this happening?
+		if allocationMap[key].RAMBytes() < res.Values[0].Value {
+			allocationMap[key].RAMByteHours = res.Values[0].Value * (allocationMap[key].Minutes() / 60.0)
+		}
 	}
 }
 
 func applyRAMBytesUsed(allocationMap map[containerKey]*kubecost.Allocation, resRAMBytesUsed []*prom.QueryResult) {
 	for _, res := range resRAMBytesUsed {
-		key, err := resultContainerKey(res, "cluster_id", "namespace", "pod", "container")
+		key, err := resultContainerKey(res, "cluster_id", "namespace", "pod_name", "container_name")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: CPU usage query result missing field: %s", err)
+			log.Warningf("CostModel.ComputeAllocation: RAM usage query result missing field: %s", err)
 			continue
 		}
 
 		_, ok := allocationMap[key]
 		if !ok {
-			log.Warningf("CostModel.ComputeAllocation: unidentified CPU usage query result: %s", key)
+			log.Warningf("CostModel.ComputeAllocation: unidentified RAM usage query result: %s", key)
 			continue
 		}
 
@@ -638,7 +599,7 @@ func applyRAMBytesAllocated(allocationMap map[containerKey]*kubecost.Allocation,
 		// TODO niko/cdmr do we need node here?
 		key, err := resultContainerKey(res, "cluster_id", "namespace", "pod", "container")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: CPU allocation query result missing field: %s", err)
+			log.Warningf("CostModel.ComputeAllocation: RAM allocation query result missing field: %s", err)
 			continue
 		}
 
@@ -659,13 +620,13 @@ func applyGPUsRequested(allocationMap map[containerKey]*kubecost.Allocation, res
 		// TODO niko/cdmr do we need node here?
 		key, err := resultContainerKey(res, "cluster_id", "namespace", "pod", "container")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: CPU allocation query result missing field: %s", err)
+			log.Warningf("CostModel.ComputeAllocation: GPU allocation query result missing field: %s", err)
 			continue
 		}
 
 		_, ok := allocationMap[key]
 		if !ok {
-			log.Warningf("CostModel.ComputeAllocation: unidentified RAM allocation query result: %s", key)
+			log.Warningf("CostModel.ComputeAllocation: unidentified GPU allocation query result: %s", key)
 			continue
 		}
 
@@ -818,6 +779,218 @@ func applyNodeDiscount(nodeMap map[nodeKey]*Node, cm *CostModel) {
 		node.Discount = cm.Provider.CombinedDiscountForNode(node.NodeType, node.Preemptible, discount, negotiatedDiscount)
 		node.CostPerCPUHr *= (1.0 - node.Discount)
 		node.CostPerRAMGiBHr *= (1.0 - node.Discount)
+	}
+}
+
+func buildPVMap(pvMap map[pvKey]*PV, resPVCostPerGiBHour []*prom.QueryResult) {
+	for _, res := range resPVCostPerGiBHour {
+		cluster, err := res.GetString("cluster_id")
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := res.GetString("volumename")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: PV cost without volumename")
+			continue
+		}
+
+		key := newPVKey(cluster, name)
+
+		pvMap[key] = &PV{
+			Cluster:        cluster,
+			Name:           name,
+			CostPerGiBHour: res.Values[0].Value,
+		}
+	}
+}
+
+func applyPVBytes(pvMap map[pvKey]*PV, resPVBytes []*prom.QueryResult) {
+	for _, res := range resPVBytes {
+		key, err := resultPVKey(res, "cluster_id", "persistentvolume")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: PV bytes query result missing field: %s", err)
+			continue
+		}
+
+		if _, ok := pvMap[key]; !ok {
+			log.Warningf("CostModel.ComputeAllocation: PV bytes result for missing PV: %s", err)
+			continue
+		}
+
+		pvMap[key].Bytes = res.Values[0].Value
+	}
+}
+
+func buildPVCMap(window kubecost.Window, pvcMap map[pvcKey]*PVC, pvMap map[pvKey]*PV, resPVCInfo []*prom.QueryResult) {
+	for _, res := range resPVCInfo {
+		cluster, err := res.GetString("cluster_id")
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		values, err := res.GetStrings("persistentvolumeclaim", "storageclass", "volumename", "namespace")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: PVC info query result missing field: %s", err)
+			continue
+		}
+
+		// TODO niko/cdmr ?
+		namespace := values["namespace"]
+		name := values["persistentvolumeclaim"]
+		volume := values["volumename"]
+		storageClass := values["storageclass"]
+
+		pvKey := newPVKey(cluster, volume)
+		pvcKey := newPVCKey(cluster, namespace, name)
+
+		// pvcStart and pvcEnd are the timestamps of the first and last minutes
+		// the PVC was running, respectively. We subtract 1m from pvcStart
+		// because this point will actually represent the end of the first
+		// minute. We don't subtract from pvcEnd because it already represents
+		// the end of the last minute.
+		var pvcStart, pvcEnd time.Time
+		for _, datum := range res.Values {
+			t := time.Unix(int64(datum.Timestamp), 0)
+			if pvcStart.IsZero() && datum.Value > 0 && window.Contains(t) {
+				pvcStart = t
+			}
+			if datum.Value > 0 && window.Contains(t) {
+				pvcEnd = t
+			}
+		}
+		if pvcStart.IsZero() || pvcEnd.IsZero() {
+			log.Warningf("CostModel.ComputeAllocation: PVC %s has no running time", pvcKey)
+		}
+		pvcStart = pvcStart.Add(-time.Minute)
+
+		if _, ok := pvMap[pvKey]; !ok {
+			log.Warningf("CostModel.ComputeAllocation: PV missing for PVC info query result: %s", pvKey)
+			continue
+		}
+
+		pvMap[pvKey].StorageClass = storageClass
+
+		if _, ok := pvcMap[pvcKey]; !ok {
+			pvcMap[pvcKey] = &PVC{}
+		}
+
+		pvcMap[pvcKey].Name = name
+		pvcMap[pvcKey].Namespace = namespace
+		pvcMap[pvcKey].Volume = pvMap[pvKey]
+		pvcMap[pvcKey].Start = pvcStart
+		pvcMap[pvcKey].End = pvcEnd
+	}
+}
+
+func applyPVCBytesRequested(pvcMap map[pvcKey]*PVC, resPVCBytesRequested []*prom.QueryResult) {
+	for _, res := range resPVCBytesRequested {
+		key, err := resultPVCKey(res, "cluster_id", "namespace", "persistentvolumeclaim")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: PVC bytes requested query result missing field: %s", err)
+			continue
+		}
+
+		if _, ok := pvcMap[key]; !ok {
+			log.Warningf("CostModel.ComputeAllocation: PVC bytes requested result for missing PVC: %s", err)
+			continue
+		}
+
+		pvcMap[key].Bytes = res.Values[0].Value
+	}
+}
+
+func buildPodPVCMap(podPVCMap map[podKey][]*PVC, pvMap map[pvKey]*PV, pvcMap map[pvcKey]*PVC, podAllocationCount map[podKey]int, resPodPVCAllocation []*prom.QueryResult) {
+	for _, res := range resPodPVCAllocation {
+		cluster, err := res.GetString("cluster_id")
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		values, err := res.GetStrings("persistentvolume", "persistentvolumeclaim", "pod", "namespace")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: PVC allocation query result missing field: %s", err)
+			continue
+		}
+
+		namespace := values["namespace"]
+		pod := values["pod"]
+		name := values["persistentvolumeclaim"]
+		volume := values["persistentvolume"]
+
+		podKey := newPodKey(cluster, namespace, pod)
+		pvKey := newPVKey(cluster, volume)
+		pvcKey := newPVCKey(cluster, namespace, name)
+
+		if _, ok := pvMap[pvKey]; !ok {
+			log.Warningf("CostModel.ComputeAllocation: PV missing for PVC allocation query result: %s", pvKey)
+			continue
+		}
+
+		if _, ok := podPVCMap[podKey]; !ok {
+			podPVCMap[podKey] = []*PVC{}
+		}
+
+		pvc, ok := pvcMap[pvcKey]
+		if !ok {
+			log.Warningf("CostModel.ComputeAllocation: PVC missing for PVC allocation query: %s", pvcKey)
+			continue
+		}
+
+		pvc.Count = podAllocationCount[podKey]
+
+		podPVCMap[podKey] = append(podPVCMap[podKey], pvc)
+	}
+}
+
+func applyUnmountedPVs(window kubecost.Window, allocationMap map[containerKey]*kubecost.Allocation, pvMap map[pvKey]*PV, pvcMap map[pvcKey]*PVC) {
+	unmountedPVBytes := map[string]float64{}
+	unmountedPVCost := map[string]float64{}
+
+	for _, pv := range pvMap {
+		mounted := false
+		for _, pvc := range pvcMap {
+			if pvc.Volume == nil {
+				continue
+			}
+			if pvc.Volume == pv {
+				mounted = true
+				break
+			}
+		}
+
+		log.Infof("CostModel.ComputeAllocation: PV %s is mounted? %t", pv.Name, mounted)
+
+		if !mounted {
+			gib := pv.Bytes / 1024 / 1024 / 1024
+			hrs := window.Minutes() / 60.0
+			cost := pv.CostPerGiBHour * gib * hrs
+			unmountedPVCost[pv.Cluster] += cost
+			unmountedPVBytes[pv.Cluster] += pv.Bytes
+		}
+	}
+
+	for cluster, amount := range unmountedPVCost {
+		container := "unmounted-pvs"
+		pod := "unmounted-pvs"
+		namespace := "" // TODO niko/cdmr what about this?
+
+		containerKey := newContainerKey(cluster, namespace, pod, container)
+		allocationMap[containerKey] = &kubecost.Allocation{
+			Name: fmt.Sprintf("%s/%s/%s/%s", cluster, namespace, pod, container),
+			Properties: kubecost.Properties{
+				kubecost.ClusterProp:   cluster,
+				kubecost.NamespaceProp: namespace,
+				kubecost.PodProp:       pod,
+				kubecost.ContainerProp: container,
+			},
+			Window:      window.Clone(),
+			Start:       *window.Start(),
+			End:         *window.End(),
+			PVByteHours: unmountedPVBytes[cluster] * window.Minutes() / 60.0,
+			PVCost:      amount,
+			TotalCost:   amount,
+		}
 	}
 }
 
