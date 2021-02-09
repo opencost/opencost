@@ -191,6 +191,7 @@ type Azure struct {
 	DownloadPricingDataLock sync.RWMutex
 	Clientset               clustercache.ClusterCache
 	Config                  *ProviderConfig
+	ServiceAccountChecks        map[string]*ServiceAccountCheck
 }
 
 type azureKey struct {
@@ -294,10 +295,18 @@ func (az *Azure) ConfigureAzureStorage() error {
 	return nil
 }
 func (az *Azure) getAzureStorageConfig(forceReload bool) (accessKey, accountName, containerName string) {
-
+	if az.ServiceAccountChecks == nil {
+		az.ServiceAccountChecks = make(map[string]*ServiceAccountCheck)
+	}
 	// 1. Check for secret
 	s, _ := az.loadAzureStorageConfig(forceReload)
 	if s != nil && s.AccessKey != "" && s.AccountName != ""  && s.ContainerName != ""{
+
+		az.ServiceAccountChecks["hasStorage"] = &ServiceAccountCheck{
+			Message: "Azure Storage Config exists",
+			Status:  true,
+		}
+
 		accessKey = s.AccessKey
 		accountName = s.AccountName
 		containerName = s.ContainerName
@@ -305,7 +314,19 @@ func (az *Azure) getAzureStorageConfig(forceReload bool) (accessKey, accountName
 	}
 
 	// 3. Fall back to env vars
-	return env.GetAzureStorageAccessKey(), env.GetAzureStorageAccountName(), env.GetAzureStorageContainerName()
+	accessKey, accountName, containerName = env.GetAzureStorageAccessKey(), env.GetAzureStorageAccountName(), env.GetAzureStorageContainerName()
+	if accessKey != "" && accountName != "" && containerName != "" {
+		az.ServiceAccountChecks["hasStorage"] = &ServiceAccountCheck{
+			Message: "Azure Storage Config exists",
+			Status:  true,
+		}
+	} else {
+		az.ServiceAccountChecks["hasStorage"] = &ServiceAccountCheck{
+			Message: "Azure Storage Config exists",
+			Status:  false,
+		}
+	}
+	return
 }
 
 // Load once and cache the result (even on failure). This is an install time secret, so
@@ -1044,8 +1065,12 @@ func (az *Azure) GetLocalStorageQuery(window, offset string, rate bool, used boo
 }
 
 func (az *Azure) ServiceAccountStatus() *ServiceAccountStatus {
+	checks := []*ServiceAccountCheck{}
+	for _, v := range az.ServiceAccountChecks {
+		checks = append(checks, v)
+	}
 	return &ServiceAccountStatus{
-		Checks: []*ServiceAccountCheck{},
+		Checks: checks,
 	}
 }
 
