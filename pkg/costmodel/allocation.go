@@ -185,17 +185,23 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	queryPVCostPerGiBHour := fmt.Sprintf(`avg(avg_over_time(pv_hourly_cost[%s]%s)) by (volumename, cluster_id)`, durStr, offStr)
 	resChPVCostPerGiBHour := ctx.Query(queryPVCostPerGiBHour)
 
-	// TODO niko/cdmr
-	// queryNetZoneRequests := fmt.Sprintf()
-	// resChNetZoneRequests := ctx.Query(queryNetZoneRequests)
+	queryNetZoneGiB := fmt.Sprintf(`sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s]%s)) by (pod_name, namespace, cluster_id) / 1024 / 1024 / 1024`, durStr, offStr)
+	resChNetZoneGiB := ctx.Query(queryNetZoneGiB)
 
-	// TODO niko/cdmr
-	// queryNetRegionRequests := fmt.Sprintf()
-	// resChNetRegionRequests := ctx.Query(queryNetRegionRequests)
+	queryNetZoneCostPerGiB := fmt.Sprintf(`avg(avg_over_time(kubecost_network_zone_egress_cost{}[%s]%s)) by (cluster_id)`, durStr, offStr)
+	resChNetZoneCostPerGiB := ctx.Query(queryNetZoneCostPerGiB)
 
-	// TODO niko/cdmr
-	// queryNetInternetRequests := fmt.Sprintf()
-	// resChNetInternetRequests := ctx.Query(queryNetInternetRequests)
+	queryNetRegionGiB := fmt.Sprintf(`sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s]%s)) by (pod_name, namespace, cluster_id) / 1024 / 1024 / 1024`, durStr, offStr)
+	resChNetRegionGiB := ctx.Query(queryNetRegionGiB)
+
+	queryNetRegionCostPerGiB := fmt.Sprintf(`avg(avg_over_time(kubecost_network_region_egress_cost{}[%s]%s)) by (cluster_id)`, durStr, offStr)
+	resChNetRegionCostPerGiB := ctx.Query(queryNetRegionCostPerGiB)
+
+	queryNetInternetGiB := fmt.Sprintf(`sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s]%s)) by (pod_name, namespace, cluster_id) / 1024 / 1024 / 1024`, durStr, offStr)
+	resChNetInternetGiB := ctx.Query(queryNetInternetGiB)
+
+	queryNetInternetCostPerGiB := fmt.Sprintf(`avg(avg_over_time(kubecost_network_internet_egress_cost{}[%s]%s)) by (cluster_id)`, durStr, offStr)
+	resChNetInternetCostPerGiB := ctx.Query(queryNetInternetCostPerGiB)
 
 	// TODO niko/cdmr
 	// queryNamespaceLabels := fmt.Sprintf()
@@ -254,7 +260,16 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	resPVCBytesRequested, _ := resChPVCBytesRequested.Await()
 	resPodPVCAllocation, _ := resChPodPVCAllocation.Await()
 
-	// TODO niko/cdmr remove after testing
+	resNetZoneGiB, _ := resChNetZoneGiB.Await()
+	resNetZoneCostPerGiB, _ := resChNetZoneCostPerGiB.Await()
+	resNetRegionGiB, _ := resChNetRegionGiB.Await()
+	resNetRegionCostPerGiB, _ := resChNetRegionCostPerGiB.Await()
+	resNetInternetGiB, _ := resChNetInternetGiB.Await()
+	resNetInternetCostPerGiB, _ := resChNetInternetCostPerGiB.Await()
+
+	// ----------------------------------------------------------------------//
+	// TODO niko/cdmr remove all logs after testing
+
 	log.Infof("CostModel.ComputeAllocation: minutes  : %s", queryMinutes)
 
 	log.Infof("CostModel.ComputeAllocation: CPU cores: %s", queryCPUCoresAllocated)
@@ -274,7 +289,16 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	log.Infof("CostModel.ComputeAllocation: PVC bytes: %s", queryPVCBytesRequested)
 	log.Infof("CostModel.ComputeAllocation: PVC info : %s", queryPVCInfo)
 
+	log.Infof("CostModel.ComputeAllocation: Net Z GiB: %s", queryNetZoneGiB)
+	log.Infof("CostModel.ComputeAllocation: Net Z $  : %s", queryNetZoneCostPerGiB)
+	log.Infof("CostModel.ComputeAllocation: Net R GiB: %s", queryNetRegionGiB)
+	log.Infof("CostModel.ComputeAllocation: Net R $  : %s", queryNetRegionCostPerGiB)
+	log.Infof("CostModel.ComputeAllocation: Net I GiB: %s", queryNetInternetGiB)
+	log.Infof("CostModel.ComputeAllocation: Net I $  : %s", queryNetInternetCostPerGiB)
+
 	log.Profile(startQuerying, "CostModel.ComputeAllocation: queries complete")
+
+	// ----------------------------------------------------------------------//
 
 	// Build out a map of Allocations, starting with (start, end) so that we
 	// begin with minutes, from which we compute resource allocation and cost
@@ -282,9 +306,9 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	// TODO niko/cdmr can we start with a reasonable guess at map size?
 	allocationMap := map[containerKey]*kubecost.Allocation{}
 
-	// Keep track of the number of allocations per pod, for the sake of
-	// splitting PVC allocation into per-Allocation from per-Pod.
-	podAllocationCount := map[podKey]int{}
+	// Keep track of the allocations per pod, for the sake of splitting PVC and
+	// Network allocation into per-Allocation from per-Pod.
+	podAllocation := map[podKey][]*kubecost.Allocation{}
 
 	// clusterStarts and clusterEnds record the earliest start and latest end
 	// times, respectively, on a cluster-basis. These are used for unmounted
@@ -293,7 +317,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	clusterStart := map[string]time.Time{}
 	clusterEnd := map[string]time.Time{}
 
-	buildAllocationMap(window, allocationMap, podAllocationCount, clusterStart, clusterEnd, resMinutes)
+	buildAllocationMap(window, allocationMap, podAllocation, clusterStart, clusterEnd, resMinutes)
 	applyCPUCoresAllocated(allocationMap, resCPUCoresAllocated)
 	applyCPUCoresRequested(allocationMap, resCPURequests)
 	applyCPUCoresUsed(allocationMap, resCPUUsage)
@@ -301,6 +325,11 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	applyRAMBytesRequested(allocationMap, resRAMRequests)
 	applyRAMBytesUsed(allocationMap, resRAMUsage)
 	applyGPUsRequested(allocationMap, resGPUsRequested)
+	applyNetworkAllocation(allocationMap, podAllocation, resNetZoneGiB, resNetZoneCostPerGiB)
+	applyNetworkAllocation(allocationMap, podAllocation, resNetRegionGiB, resNetRegionCostPerGiB)
+	applyNetworkAllocation(allocationMap, podAllocation, resNetInternetGiB, resNetInternetCostPerGiB)
+
+	// TODO niko/cdmr breakdown network costs?
 
 	// Build out a map of Nodes with resource costs, discounts, and node types
 	// for converting resource allocation data to cumulative costs.
@@ -325,7 +354,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 
 	// TODO niko/cdmr comment
 	podPVCMap := map[podKey][]*PVC{}
-	buildPodPVCMap(podPVCMap, pvMap, pvcMap, podAllocationCount, resPodPVCAllocation)
+	buildPodPVCMap(podPVCMap, pvMap, pvcMap, podAllocation, resPodPVCAllocation)
 
 	// Identify unmounted PVs (PVs without PVCs) and add one Allocation per
 	// cluster representing each cluster's unmounted PVs (if necessary).
@@ -404,7 +433,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	return allocSet, nil
 }
 
-func buildAllocationMap(window kubecost.Window, allocationMap map[containerKey]*kubecost.Allocation, podAllocationCount map[podKey]int, clusterStart, clusterEnd map[string]time.Time, resMinutes []*prom.QueryResult) {
+func buildAllocationMap(window kubecost.Window, allocationMap map[containerKey]*kubecost.Allocation, podAllocation map[podKey][]*kubecost.Allocation, clusterStart, clusterEnd map[string]time.Time, resMinutes []*prom.QueryResult) {
 	for _, res := range resMinutes {
 		if len(res.Values) == 0 {
 			log.Warningf("CostModel.ComputeAllocation: empty minutes result")
@@ -481,7 +510,10 @@ func buildAllocationMap(window kubecost.Window, allocationMap map[containerKey]*
 
 		allocationMap[containerKey] = alloc
 
-		podAllocationCount[podKey]++
+		if _, ok := podAllocation[podKey]; !ok {
+			podAllocation[podKey] = []*kubecost.Allocation{}
+		}
+		podAllocation[podKey] = append(podAllocation[podKey], alloc)
 	}
 }
 
@@ -632,6 +664,39 @@ func applyGPUsRequested(allocationMap map[containerKey]*kubecost.Allocation, res
 
 		// TODO niko/cdmr complete
 		log.Infof("CostModel.ComputeAllocation: GPU results: %s=%f", key, res.Values[0].Value)
+	}
+}
+
+func applyNetworkAllocation(allocationMap map[containerKey]*kubecost.Allocation, podAllocation map[podKey][]*kubecost.Allocation, resNetworkGiB []*prom.QueryResult, resNetworkCostPerGiB []*prom.QueryResult) {
+	costPerGiBByCluster := map[string]float64{}
+
+	for _, res := range resNetworkCostPerGiB {
+		cluster, err := res.GetString("cluster_id")
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		costPerGiBByCluster[cluster] = res.Values[0].Value
+	}
+
+	for _, res := range resNetworkGiB {
+		podKey, err := resultPodKey(res, "cluster_id", "namespace", "pod_name")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: Network allocation query result missing field: %s", err)
+			continue
+		}
+
+		allocs, ok := podAllocation[podKey]
+		if !ok {
+			log.Warningf("CostModel.ComputeAllocation: Network allocation query result for unidentified pod allocations: %s", podKey)
+			continue
+		}
+
+		for _, alloc := range allocs {
+			gib := res.Values[0].Value
+			costPerGiB := costPerGiBByCluster[podKey.Cluster]
+			alloc.NetworkCost = gib * costPerGiB
+		}
 	}
 }
 
@@ -900,7 +965,7 @@ func applyPVCBytesRequested(pvcMap map[pvcKey]*PVC, resPVCBytesRequested []*prom
 	}
 }
 
-func buildPodPVCMap(podPVCMap map[podKey][]*PVC, pvMap map[pvKey]*PV, pvcMap map[pvcKey]*PVC, podAllocationCount map[podKey]int, resPodPVCAllocation []*prom.QueryResult) {
+func buildPodPVCMap(podPVCMap map[podKey][]*PVC, pvMap map[pvKey]*PV, pvcMap map[pvcKey]*PVC, podAllocation map[podKey][]*kubecost.Allocation, resPodPVCAllocation []*prom.QueryResult) {
 	for _, res := range resPodPVCAllocation {
 		cluster, err := res.GetString("cluster_id")
 		if err != nil {
@@ -937,7 +1002,7 @@ func buildPodPVCMap(podPVCMap map[podKey][]*PVC, pvMap map[pvKey]*PV, pvcMap map
 			continue
 		}
 
-		pvc.Count = podAllocationCount[podKey]
+		pvc.Count = len(podAllocation[podKey])
 
 		podPVCMap[podKey] = append(podPVCMap[podKey], pvc)
 	}
