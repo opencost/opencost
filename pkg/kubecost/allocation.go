@@ -1108,16 +1108,14 @@ func (as *AllocationSet) Clone() *AllocationSet {
 // ComputeIdleAllocations computes the idle allocations for the AllocationSet,
 // given a set of Assets. Ideally, assetSet should contain only Nodes, but if
 // it contains other Assets, they will be ignored; only CPU, GPU and RAM are
-// considered for idle allocation. One idle allocation per-cluster will be
-// computed and returned, keyed by cluster_id.
+// considered for idle allocation. If the Nodes have adjustments, then apply
+// the adjustments proportionally to each of the resources so that total
+// allocation with idle reflects the adjusted node costs. One idle allocation
+// per-cluster will be computed and returned, keyed by cluster_id.
 func (as *AllocationSet) ComputeIdleAllocations(assetSet *AssetSet) (map[string]*Allocation, error) {
 	if as == nil {
 		return nil, fmt.Errorf("cannot compute idle allocation for nil AllocationSet")
 	}
-
-	// TODO: external allocation: remove after testing and benchmarking
-	profStart := time.Now()
-	defer log.Profile(profStart, fmt.Sprintf("ComputeIdleAllocations: %s", as.Window))
 
 	if assetSet == nil {
 		return nil, fmt.Errorf("cannot compute idle allocation with nil AssetSet")
@@ -1137,9 +1135,33 @@ func (as *AllocationSet) ComputeIdleAllocations(assetSet *AssetSet) (map[string]
 			if _, ok := assetClusterResourceCosts[node.Properties().Cluster]; !ok {
 				assetClusterResourceCosts[node.Properties().Cluster] = map[string]float64{}
 			}
-			assetClusterResourceCosts[node.Properties().Cluster]["cpu"] += node.CPUCost * (1.0 - node.Discount)
-			assetClusterResourceCosts[node.Properties().Cluster]["gpu"] += node.GPUCost * (1.0 - node.Discount)
-			assetClusterResourceCosts[node.Properties().Cluster]["ram"] += node.RAMCost * (1.0 - node.Discount)
+
+			// adjustmentRate is used to scale resource costs proportionally
+			// by the adjustment. This is necessary because we only get one
+			// adjustment per Node, not one per-resource-per-Node.
+			//
+			// e.g. total cost = $90, adjustment = -$10 => 0.9
+			// e.g. total cost = $150, adjustment = -$300 => 0.3333
+			// e.g. total cost = $150, adjustment = $50 => 1.5
+			adjustmentRate := 1.0
+			if node.TotalCost()-node.Adjustment() == 0 {
+				// If (totalCost - adjustment) is 0.0 then adjustment cancels
+				// the entire node cost and we should make everything 0
+				// without dividing by 0.
+				adjustmentRate = 0.0
+			} else if node.Adjustment() != 0.0 {
+				// adjustmentRate is the ratio of cost-with-adjustment (i.e. TotalCost)
+				// to cost-without-adjustment (i.e. TotalCost - Adjustment).
+				adjustmentRate = node.TotalCost() / (node.TotalCost() - node.Adjustment())
+			}
+
+			cpuCost := node.CPUCost * (1.0 - node.Discount) * adjustmentRate
+			gpuCost := node.GPUCost * (1.0 - node.Discount) * adjustmentRate
+			ramCost := node.RAMCost * (1.0 - node.Discount) * adjustmentRate
+
+			assetClusterResourceCosts[node.Properties().Cluster]["cpu"] += cpuCost
+			assetClusterResourceCosts[node.Properties().Cluster]["gpu"] += gpuCost
+			assetClusterResourceCosts[node.Properties().Cluster]["ram"] += ramCost
 		}
 	})
 

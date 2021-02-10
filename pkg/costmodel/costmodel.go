@@ -226,9 +226,7 @@ const (
 )
 
 func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
-	queryRAMRequests := fmt.Sprintf(queryRAMRequestsStr, window, offset, window, offset)
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, window, offset, window, offset)
-	queryCPURequests := fmt.Sprintf(queryCPURequestsStr, window, offset, window, offset)
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, window, offset)
 	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, window, offset, window, offset, 1.0, window, offset)
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr)
@@ -242,9 +240,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 
 	// Submit all Prometheus queries asynchronously
 	ctx := prom.NewContext(cli)
-	resChRAMRequests := ctx.Query(queryRAMRequests)
 	resChRAMUsage := ctx.Query(queryRAMUsage)
-	resChCPURequests := ctx.Query(queryCPURequests)
 	resChCPUUsage := ctx.Query(queryCPUUsage)
 	resChGPURequests := ctx.Query(queryGPURequests)
 	resChPVRequests := ctx.Query(queryPVRequests)
@@ -277,9 +273,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 	}
 
 	// Process Prometheus query results. Handle errors using ctx.Errors.
-	resRAMRequests, _ := resChRAMRequests.Await()
 	resRAMUsage, _ := resChRAMUsage.Await()
-	resCPURequests, _ := resChCPURequests.Await()
 	resCPUUsage, _ := resChCPUUsage.Await()
 	resGPURequests, _ := resChGPURequests.Await()
 	resPVRequests, _ := resChPVRequests.Await()
@@ -345,26 +339,11 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 	containerNameCost := make(map[string]*CostData)
 	containers := make(map[string]bool)
 
-	RAMReqMap, err := GetContainerMetricVector(resRAMRequests, true, normalizationValue, clusterID)
-	if err != nil {
-		return nil, err
-	}
-	for key := range RAMReqMap {
-		containers[key] = true
-	}
-
 	RAMUsedMap, err := GetContainerMetricVector(resRAMUsage, true, normalizationValue, clusterID)
 	if err != nil {
 		return nil, err
 	}
 	for key := range RAMUsedMap {
-		containers[key] = true
-	}
-	CPUReqMap, err := GetContainerMetricVector(resCPURequests, true, normalizationValue, clusterID)
-	if err != nil {
-		return nil, err
-	}
-	for key := range CPUReqMap {
 		containers[key] = true
 	}
 	GPUReqMap, err := GetContainerMetricVector(resGPURequests, true, normalizationValue, clusterID)
@@ -401,6 +380,9 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 		if _, ok := containerNameCost[key]; ok {
 			continue // because ordering is important for the allocation model (all PV's applied to the first), just dedupe if it's already been added.
 		}
+		// The _else_ case for this statement is the case in which the container has been
+		// deleted so we have usage information but not request information. In that case,
+		// we return partial data for CPU and RAM: only usage and not requests.
 		if pod, ok := currentContainers[key]; ok {
 			podName := pod.GetObjectMeta().GetName()
 			ns := pod.GetObjectMeta().GetNamespace()
@@ -487,21 +469,40 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				// recreate the key and look up data for this container
 				newKey := NewContainerMetricFromValues(ns, podName, containerName, pod.Spec.NodeName, clusterID).Key()
 
-				RAMReqV, ok := RAMReqMap[newKey]
-				if !ok {
-					klog.V(4).Info("no RAM requests for " + newKey)
-					RAMReqV = []*util.Vector{{}}
+				// k8s.io/apimachinery/pkg/api/resource/amount.go and
+				// k8s.io/apimachinery/pkg/api/resource/quantity.go for
+				// details on the "amount" API. See
+				// https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-types
+				// for the units of memory and CPU.
+				ramRequestBytes := container.Resources.Requests.Memory().Value()
+
+				// Because RAM (and CPU) information isn't coming from Prometheus, it won't
+				// have a timestamp associated with it. We need to provide a timestamp,
+				// otherwise the vector op that gets applied to take the max of usage
+				// and request won't work properly and will only take into account
+				// usage.
+				RAMReqV := []*util.Vector{
+					{
+						Value:     float64(ramRequestBytes),
+						Timestamp: float64(time.Now().UTC().Unix()),
+					},
 				}
+
+				// use millicores so we can convert to cores in a float64 format
+				cpuRequestMilliCores := container.Resources.Requests.Cpu().MilliValue()
+				CPUReqV := []*util.Vector{
+					{
+						Value:     float64(cpuRequestMilliCores) / 1000,
+						Timestamp: float64(time.Now().UTC().Unix()),
+					},
+				}
+
 				RAMUsedV, ok := RAMUsedMap[newKey]
 				if !ok {
 					klog.V(4).Info("no RAM usage for " + newKey)
 					RAMUsedV = []*util.Vector{{}}
 				}
-				CPUReqV, ok := CPUReqMap[newKey]
-				if !ok {
-					klog.V(4).Info("no CPU requests for " + newKey)
-					CPUReqV = []*util.Vector{{}}
-				}
+
 				GPUReqV, ok := GPUReqMap[newKey]
 				if !ok {
 					klog.V(4).Info("no GPU requests for " + newKey)
@@ -559,21 +560,22 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 			if err != nil {
 				return nil, err
 			}
-			RAMReqV, ok := RAMReqMap[key]
-			if !ok {
-				klog.V(4).Info("no RAM requests for " + key)
-				RAMReqV = []*util.Vector{{}}
-			}
+
+			// CPU and RAM requests are obtained from the Kubernetes API.
+			// If this case has been reached, the Kubernetes API will not
+			// have information about the pod because it no longer exists.
+			//
+			// The case where this matters is minimal, mainly in environments
+			// with very short-lived pods that over-request resources.
+			RAMReqV := []*util.Vector{{}}
+			CPUReqV := []*util.Vector{{}}
+
 			RAMUsedV, ok := RAMUsedMap[key]
 			if !ok {
 				klog.V(4).Info("no RAM usage for " + key)
 				RAMUsedV = []*util.Vector{{}}
 			}
-			CPUReqV, ok := CPUReqMap[key]
-			if !ok {
-				klog.V(4).Info("no CPU requests for " + key)
-				CPUReqV = []*util.Vector{{}}
-			}
+
 			GPUReqV, ok := GPUReqMap[key]
 			if !ok {
 				klog.V(4).Info("no GPU requests for " + key)
