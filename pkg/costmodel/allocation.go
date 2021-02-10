@@ -203,41 +203,32 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	queryNetInternetCostPerGiB := fmt.Sprintf(`avg(avg_over_time(kubecost_network_internet_egress_cost{}[%s]%s)) by (cluster_id)`, durStr, offStr)
 	resChNetInternetCostPerGiB := ctx.Query(queryNetInternetCostPerGiB)
 
-	// TODO niko/cdmr
-	// queryNamespaceLabels := fmt.Sprintf()
-	// resChNamespaceLabels := ctx.Query(queryNamespaceLabels)
+	queryNamespaceLabels := fmt.Sprintf(`avg_over_time(kube_namespace_labels[%s]%s)`, durStr, offStr)
+	resChNamespaceLabels := ctx.Query(queryNamespaceLabels)
 
-	// TODO niko/cdmr
-	// queryPodLabels := fmt.Sprintf()
-	// resChPodLabels := ctx.Query(queryPodLabels)
+	queryNamespaceAnnotations := fmt.Sprintf(`avg_over_time(kube_namespace_annotations[%s]%s)`, durStr, offStr)
+	resChNamespaceAnnotations := ctx.Query(queryNamespaceAnnotations)
 
-	// TODO niko/cdmr
-	// queryNamespaceAnnotations := fmt.Sprintf()
-	// resChNamespaceAnnotations := ctx.Query(queryNamespaceAnnotations)
+	queryPodLabels := fmt.Sprintf(`avg_over_time(kube_pod_labels[%s]%s)`, durStr, offStr)
+	resChPodLabels := ctx.Query(queryPodLabels)
 
-	// TODO niko/cdmr
-	// queryPodAnnotations := fmt.Sprintf()
-	// resChPodAnnotations := ctx.Query(queryPodAnnotations)
+	queryPodAnnotations := fmt.Sprintf(`avg_over_time(kube_pod_annotations[%s]%s)`, durStr, offStr)
+	resChPodAnnotations := ctx.Query(queryPodAnnotations)
 
-	// TODO niko/cdmr
-	// queryServiceLabels := fmt.Sprintf()
-	// resChServiceLabels := ctx.Query(queryServiceLabels)
+	queryServiceLabels := fmt.Sprintf(`avg_over_time(service_selector_labels[%s]%s)`, durStr, offStr)
+	resChServiceLabels := ctx.Query(queryServiceLabels)
 
-	// TODO niko/cdmr
-	// queryDeploymentLabels := fmt.Sprintf()
-	// resChDeploymentLabels := ctx.Query(queryDeploymentLabels)
+	queryDeploymentLabels := fmt.Sprintf(`avg_over_time(deployment_match_labels[%s]%s)`, durStr, offStr)
+	resChDeploymentLabels := ctx.Query(queryDeploymentLabels)
 
-	// TODO niko/cdmr
-	// queryStatefulSetLabels := fmt.Sprintf()
-	// resChStatefulSetLabels := ctx.Query(queryStatefulSetLabels)
+	queryStatefulSetLabels := fmt.Sprintf(`avg_over_time(statefulSet_match_labels[%s]%s)`, durStr, offStr)
+	resChStatefulSetLabels := ctx.Query(queryStatefulSetLabels)
 
-	// TODO niko/cdmr
-	// queryDaemonSetLabels := fmt.Sprintf()
-	// resChDaemonSetLabels := ctx.Query(queryDaemonSetLabels)
+	queryDaemonSetLabels := fmt.Sprintf(`sum(avg_over_time(kube_pod_owner{owner_kind="DaemonSet"}[%s]%s)) by (pod, owner_name, namespace, cluster_id)`, durStr, offStr)
+	resChDaemonSetLabels := ctx.Query(queryDaemonSetLabels)
 
-	// TODO niko/cdmr
-	// queryJobLabels := fmt.Sprintf()
-	// resChJobLabels := ctx.Query(queryJobLabels)
+	queryJobLabels := fmt.Sprintf(`sum(avg_over_time(kube_pod_owner{owner_kind="Job"}[%s]%s)) by (pod, owner_name, namespace ,cluster_id)`, durStr, offStr)
+	resChJobLabels := ctx.Query(queryJobLabels)
 
 	resMinutes, _ := resChMinutes.Await()
 	resCPUCoresAllocated, _ := resChCPUCoresAllocated.Await()
@@ -266,6 +257,16 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	resNetRegionCostPerGiB, _ := resChNetRegionCostPerGiB.Await()
 	resNetInternetGiB, _ := resChNetInternetGiB.Await()
 	resNetInternetCostPerGiB, _ := resChNetInternetCostPerGiB.Await()
+
+	resNamespaceLabels, _ := resChNamespaceLabels.Await()
+	resNamespaceAnnotations, _ := resChNamespaceAnnotations.Await()
+	resPodLabels, _ := resChPodLabels.Await()
+	resPodAnnotations, _ := resChPodAnnotations.Await()
+	resServiceLabels, _ := resChServiceLabels.Await()
+	resDeploymentLabels, _ := resChDeploymentLabels.Await()
+	resStatefulSetLabels, _ := resChStatefulSetLabels.Await()
+	resDaemonSetLabels, _ := resChDaemonSetLabels.Await()
+	resJobLabels, _ := resChJobLabels.Await()
 
 	// ----------------------------------------------------------------------//
 	// TODO niko/cdmr remove all logs after testing
@@ -296,7 +297,18 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	log.Infof("CostModel.ComputeAllocation: Net I GiB: %s", queryNetInternetGiB)
 	log.Infof("CostModel.ComputeAllocation: Net I $  : %s", queryNetInternetCostPerGiB)
 
+	log.Infof("CostModel.ComputeAllocation: NamespaceLabels: %s", queryNamespaceLabels)
+	log.Infof("CostModel.ComputeAllocation: NamespaceAnnotations: %s", queryNamespaceAnnotations)
+	log.Infof("CostModel.ComputeAllocation: PodLabels: %s", queryPodLabels)
+	log.Infof("CostModel.ComputeAllocation: PodAnnotations: %s", queryPodAnnotations)
+	log.Infof("CostModel.ComputeAllocation: ServiceLabels: %s", queryServiceLabels)
+	log.Infof("CostModel.ComputeAllocation: DeploymentLabels: %s", queryDeploymentLabels)
+	log.Infof("CostModel.ComputeAllocation: StatefulSetLabels: %s", queryStatefulSetLabels)
+	log.Infof("CostModel.ComputeAllocation: DaemonSetLabels: %s", queryDaemonSetLabels)
+	log.Infof("CostModel.ComputeAllocation: JobLabels: %s", queryJobLabels)
+
 	log.Profile(startQuerying, "CostModel.ComputeAllocation: queries complete")
+	defer log.Profile(time.Now(), "CostModel.ComputeAllocation: processing complete")
 
 	// ----------------------------------------------------------------------//
 
@@ -328,6 +340,20 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	applyNetworkAllocation(allocationMap, podAllocation, resNetZoneGiB, resNetZoneCostPerGiB)
 	applyNetworkAllocation(allocationMap, podAllocation, resNetRegionGiB, resNetRegionCostPerGiB)
 	applyNetworkAllocation(allocationMap, podAllocation, resNetInternetGiB, resNetInternetCostPerGiB)
+
+	applyLabels := func(name string, res []*prom.QueryResult) {
+		log.Infof("CostModel.ComputeAllocation: %s: %d results", name, len(res))
+	}
+
+	applyLabels("NamespaceLabels", resNamespaceLabels)
+	applyLabels("NamespaceAnnotations", resNamespaceAnnotations)
+	applyLabels("PodLabels", resPodLabels)
+	applyLabels("PodAnnotations", resPodAnnotations)
+	applyLabels("ServiceLabels", resServiceLabels)
+	applyLabels("DeploymentLabels", resDeploymentLabels)
+	applyLabels("StatefulSetLabels", resStatefulSetLabels)
+	applyLabels("DaemonSetLabels", resDaemonSetLabels)
+	applyLabels("JobLabels", resJobLabels)
 
 	// TODO niko/cdmr breakdown network costs?
 
