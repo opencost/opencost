@@ -250,6 +250,11 @@ func NewCommError(messages ...string) CommError {
 	return CommError{messages: messages}
 }
 
+// CommErrorf creates a new CommError using a string formatter
+func CommErrorf(format string, args ...interface{}) CommError {
+	return NewCommError(fmt.Sprintf(format, args...))
+}
+
 // IsCommError returns true if the given error is a CommError
 func IsCommError(err error) bool {
 	_, ok := err.(CommError)

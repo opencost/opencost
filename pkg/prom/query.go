@@ -174,16 +174,16 @@ func (ctx *Context) query(query string) (interface{}, prometheus.Warnings, error
 	}
 	if err != nil {
 		if resp == nil {
-			return nil, warnings, fmt.Errorf("query error: '%s' fetching query '%s'", err.Error(), query)
+			return nil, warnings, CommErrorf("query error: '%s' fetching query '%s'", err.Error(), query)
 		}
 
-		return nil, warnings, fmt.Errorf("query error %d: '%s' fetching query '%s'", resp.StatusCode, err.Error(), query)
+		return nil, warnings, CommErrorf("query error %d: '%s' fetching query '%s'", resp.StatusCode, err.Error(), query)
 	}
 
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		return nil, warnings, fmt.Errorf("query error: '%s' fetching query '%s'", err.Error(), query)
+		return nil, warnings, CommErrorf("query error: '%s' fetching query '%s'", err.Error(), query)
 	}
 
 	return toReturn, warnings, nil
@@ -263,23 +263,23 @@ func (ctx *Context) queryRange(query string, start, end time.Time, step time.Dur
 	}
 	if err != nil {
 		if resp == nil {
-			return nil, warnings, fmt.Errorf("Error: %s, Body: %s Query: %s", err.Error(), body, query)
+			return nil, warnings, CommErrorf("Error: %s, Body: %s Query: %s", err.Error(), body, query)
 		}
 
-		return nil, warnings, fmt.Errorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", resp.StatusCode, http.StatusText(resp.StatusCode), util.HeaderString(resp.Header), body, err.Error(), query)
+		return nil, warnings, CommErrorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", resp.StatusCode, http.StatusText(resp.StatusCode), util.HeaderString(resp.Header), body, err.Error(), query)
 	}
 
 	// Unsuccessful Status Code, log body and status
 	statusCode := resp.StatusCode
 	statusText := http.StatusText(statusCode)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, warnings, fmt.Errorf("%d (%s) Headers: %s, Body: %s Query: %s", statusCode, statusText, util.HeaderString(resp.Header), body, query)
+		return nil, warnings, CommErrorf("%d (%s) Headers: %s, Body: %s Query: %s", statusCode, statusText, util.HeaderString(resp.Header), body, query)
 	}
 
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		return nil, warnings, fmt.Errorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", statusCode, statusText, util.HeaderString(resp.Header), err.Error(), body, query)
+		return nil, warnings, CommErrorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", statusCode, statusText, util.HeaderString(resp.Header), err.Error(), body, query)
 	}
 
 	return toReturn, warnings, nil
