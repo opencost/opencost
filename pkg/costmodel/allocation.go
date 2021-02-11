@@ -9,6 +9,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/thanos"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 // TODO niko/cdmr move to pkg/kubecost
@@ -271,41 +272,41 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	// ----------------------------------------------------------------------//
 	// TODO niko/cdmr remove all logs after testing
 
-	log.Infof("CostModel.ComputeAllocation: minutes  : %s", queryMinutes)
+	// log.Infof("CostModel.ComputeAllocation: minutes  : %s", queryMinutes)
 
-	log.Infof("CostModel.ComputeAllocation: CPU cores: %s", queryCPUCoresAllocated)
-	log.Infof("CostModel.ComputeAllocation: CPU req  : %s", queryCPURequests)
-	log.Infof("CostModel.ComputeAllocation: CPU use  : %s", queryCPUUsage)
-	log.Infof("CostModel.ComputeAllocation: $/CPU*Hr : %s", queryNodeCostPerCPUHr)
+	// log.Infof("CostModel.ComputeAllocation: CPU cores: %s", queryCPUCoresAllocated)
+	// log.Infof("CostModel.ComputeAllocation: CPU req  : %s", queryCPURequests)
+	// log.Infof("CostModel.ComputeAllocation: CPU use  : %s", queryCPUUsage)
+	// log.Infof("CostModel.ComputeAllocation: $/CPU*Hr : %s", queryNodeCostPerCPUHr)
 
-	log.Infof("CostModel.ComputeAllocation: RAM bytes: %s", queryRAMBytesAllocated)
-	log.Infof("CostModel.ComputeAllocation: RAM req  : %s", queryRAMRequests)
-	log.Infof("CostModel.ComputeAllocation: RAM use  : %s", queryRAMUsage)
-	log.Infof("CostModel.ComputeAllocation: $/GiB*Hr : %s", queryNodeCostPerRAMGiBHr)
+	// log.Infof("CostModel.ComputeAllocation: RAM bytes: %s", queryRAMBytesAllocated)
+	// log.Infof("CostModel.ComputeAllocation: RAM req  : %s", queryRAMRequests)
+	// log.Infof("CostModel.ComputeAllocation: RAM use  : %s", queryRAMUsage)
+	// log.Infof("CostModel.ComputeAllocation: $/GiB*Hr : %s", queryNodeCostPerRAMGiBHr)
 
-	log.Infof("CostModel.ComputeAllocation: PV $/gbhr: %s", queryPVCostPerGiBHour)
-	log.Infof("CostModel.ComputeAllocation: PV bytes : %s", queryPVBytes)
+	// log.Infof("CostModel.ComputeAllocation: PV $/gbhr: %s", queryPVCostPerGiBHour)
+	// log.Infof("CostModel.ComputeAllocation: PV bytes : %s", queryPVBytes)
 
-	log.Infof("CostModel.ComputeAllocation: PVC alloc: %s", queryPodPVCAllocation)
-	log.Infof("CostModel.ComputeAllocation: PVC bytes: %s", queryPVCBytesRequested)
-	log.Infof("CostModel.ComputeAllocation: PVC info : %s", queryPVCInfo)
+	// log.Infof("CostModel.ComputeAllocation: PVC alloc: %s", queryPodPVCAllocation)
+	// log.Infof("CostModel.ComputeAllocation: PVC bytes: %s", queryPVCBytesRequested)
+	// log.Infof("CostModel.ComputeAllocation: PVC info : %s", queryPVCInfo)
 
-	log.Infof("CostModel.ComputeAllocation: Net Z GiB: %s", queryNetZoneGiB)
-	log.Infof("CostModel.ComputeAllocation: Net Z $  : %s", queryNetZoneCostPerGiB)
-	log.Infof("CostModel.ComputeAllocation: Net R GiB: %s", queryNetRegionGiB)
-	log.Infof("CostModel.ComputeAllocation: Net R $  : %s", queryNetRegionCostPerGiB)
-	log.Infof("CostModel.ComputeAllocation: Net I GiB: %s", queryNetInternetGiB)
-	log.Infof("CostModel.ComputeAllocation: Net I $  : %s", queryNetInternetCostPerGiB)
+	// log.Infof("CostModel.ComputeAllocation: Net Z GiB: %s", queryNetZoneGiB)
+	// log.Infof("CostModel.ComputeAllocation: Net Z $  : %s", queryNetZoneCostPerGiB)
+	// log.Infof("CostModel.ComputeAllocation: Net R GiB: %s", queryNetRegionGiB)
+	// log.Infof("CostModel.ComputeAllocation: Net R $  : %s", queryNetRegionCostPerGiB)
+	// log.Infof("CostModel.ComputeAllocation: Net I GiB: %s", queryNetInternetGiB)
+	// log.Infof("CostModel.ComputeAllocation: Net I $  : %s", queryNetInternetCostPerGiB)
 
-	log.Infof("CostModel.ComputeAllocation: NamespaceLabels: %s", queryNamespaceLabels)
-	log.Infof("CostModel.ComputeAllocation: NamespaceAnnotations: %s", queryNamespaceAnnotations)
-	log.Infof("CostModel.ComputeAllocation: PodLabels: %s", queryPodLabels)
-	log.Infof("CostModel.ComputeAllocation: PodAnnotations: %s", queryPodAnnotations)
-	log.Infof("CostModel.ComputeAllocation: ServiceLabels: %s", queryServiceLabels)
-	log.Infof("CostModel.ComputeAllocation: DeploymentLabels: %s", queryDeploymentLabels)
-	log.Infof("CostModel.ComputeAllocation: StatefulSetLabels: %s", queryStatefulSetLabels)
-	log.Infof("CostModel.ComputeAllocation: DaemonSetLabels: %s", queryDaemonSetLabels)
-	log.Infof("CostModel.ComputeAllocation: JobLabels: %s", queryJobLabels)
+	// log.Infof("CostModel.ComputeAllocation: NamespaceLabels: %s", queryNamespaceLabels)
+	// log.Infof("CostModel.ComputeAllocation: NamespaceAnnotations: %s", queryNamespaceAnnotations)
+	// log.Infof("CostModel.ComputeAllocation: PodLabels: %s", queryPodLabels)
+	// log.Infof("CostModel.ComputeAllocation: PodAnnotations: %s", queryPodAnnotations)
+	// log.Infof("CostModel.ComputeAllocation: ServiceLabels: %s", queryServiceLabels)
+	// log.Infof("CostModel.ComputeAllocation: DeploymentLabels: %s", queryDeploymentLabels)
+	// log.Infof("CostModel.ComputeAllocation: StatefulSetLabels: %s", queryStatefulSetLabels)
+	// log.Infof("CostModel.ComputeAllocation: DaemonSetLabels: %s", queryDaemonSetLabels)
+	// log.Infof("CostModel.ComputeAllocation: JobLabels: %s", queryJobLabels)
 
 	log.Profile(startQuerying, "CostModel.ComputeAllocation: queries complete")
 	defer log.Profile(time.Now(), "CostModel.ComputeAllocation: processing complete")
@@ -341,322 +342,26 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	applyNetworkAllocation(allocationMap, podAllocation, resNetRegionGiB, resNetRegionCostPerGiB)
 	applyNetworkAllocation(allocationMap, podAllocation, resNetInternetGiB, resNetInternetCostPerGiB)
 
-	// TODO niko/cdmr move
-	getNamespaceLabels := func(resNamespaceLabels []*prom.QueryResult) map[string]map[string]string {
-		namespaceLabels := map[string]map[string]string{}
+	// TODO niko/cdmr pruneDuplicateData? (see costmodel.go)
 
-		for _, res := range resNamespaceLabels {
-			namespace, err := res.GetString("namespace")
-			if err != nil {
-				// TODO niko/cdmr remove log
-				log.Warningf("CostModel.ComputeAllocation: getNamespaceLabels: %s", err)
-				continue
-			}
-
-			if _, ok := namespaceLabels[namespace]; !ok {
-				namespaceLabels[namespace] = map[string]string{}
-			}
-
-			for k, l := range res.GetLabels() {
-				namespaceLabels[namespace][k] = l
-			}
-		}
-
-		return namespaceLabels
-	}
-
-	// TODO niko/cdmr move
-	getPodLabels := func(resPodLabels []*prom.QueryResult) map[podKey]map[string]string {
-		podLabels := map[podKey]map[string]string{}
-
-		for _, res := range resPodLabels {
-			podKey, err := resultPodKey(res, "cluster_id", "namespace", "pod")
-			if err != nil {
-				// TODO niko/cdmr remove log
-				log.Warningf("CostModel.ComputeAllocation: getPodLabels: %s", err)
-				continue
-			}
-
-			if _, ok := podLabels[podKey]; !ok {
-				podLabels[podKey] = map[string]string{}
-			}
-
-			for k, l := range res.GetLabels() {
-				podLabels[podKey][k] = l
-			}
-		}
-
-		return podLabels
-	}
-
-	// TODO niko/cdmr move
-	getNamespaceAnnotations := func(resNamespaceAnnotations []*prom.QueryResult) map[string]map[string]string {
-		namespaceAnnotations := map[string]map[string]string{}
-
-		for _, res := range resNamespaceAnnotations {
-			namespace, err := res.GetString("namespace")
-			if err != nil {
-				// TODO niko/cdmr remove log
-				log.Warningf("CostModel.ComputeAllocation: getNamespaceAnnotations: %s", err)
-				continue
-			}
-
-			if _, ok := namespaceAnnotations[namespace]; !ok {
-				namespaceAnnotations[namespace] = map[string]string{}
-			}
-
-			for k, l := range res.GetAnnotations() {
-				namespaceAnnotations[namespace][k] = l
-			}
-		}
-
-		return namespaceAnnotations
-	}
-
-	// TODO niko/cdmr move
-	getPodAnnotations := func(resPodAnnotations []*prom.QueryResult) map[podKey]map[string]string {
-		podAnnotations := map[podKey]map[string]string{}
-
-		for _, res := range resPodAnnotations {
-			podKey, err := resultPodKey(res, "cluster_id", "namespace", "pod")
-			if err != nil {
-				// TODO niko/cdmr remove log
-				log.Warningf("CostModel.ComputeAllocation: getPodAnnotations: %s", err)
-				continue
-			}
-
-			if _, ok := podAnnotations[podKey]; !ok {
-				podAnnotations[podKey] = map[string]string{}
-			}
-
-			for k, l := range res.GetAnnotations() {
-				podAnnotations[podKey][k] = l
-			}
-		}
-
-		return podAnnotations
-	}
-
-	// TODO niko/cdmr move
-	applyLabels := func(allocationMap map[containerKey]*kubecost.Allocation, namespaceLabels map[string]map[string]string, podLabels map[podKey]map[string]string) {
-		for key, alloc := range allocationMap {
-			allocLabels, err := alloc.Properties.GetLabels()
-			if err != nil {
-				allocLabels = map[string]string{}
-			}
-
-			// Apply namespace labels first, then pod labels so that pod labels
-			// overwrite namespace labels.
-			if labels, ok := namespaceLabels[key.Namespace]; ok {
-				for k, v := range labels {
-					allocLabels[k] = v
-				}
-			}
-			podKey := newPodKey(key.Cluster, key.Namespace, key.Pod)
-			if labels, ok := podLabels[podKey]; ok {
-				for k, v := range labels {
-					allocLabels[k] = v
-				}
-			}
-
-			alloc.Properties.SetLabels(allocLabels)
-		}
-	}
-
-	// TODO niko/cdmr move
-	applyAnnotations := func(allocationMap map[containerKey]*kubecost.Allocation, namespaceAnnotations map[string]map[string]string, podAnnotations map[podKey]map[string]string) {
-		for key, alloc := range allocationMap {
-			allocAnnotations, err := alloc.Properties.GetAnnotations()
-			if err != nil {
-				allocAnnotations = map[string]string{}
-			}
-
-			// Apply namespace annotations first, then pod annotations so that
-			// pod labels overwrite namespace labels.
-			if labels, ok := namespaceAnnotations[key.Namespace]; ok {
-				for k, v := range labels {
-					allocAnnotations[k] = v
-				}
-			}
-			podKey := newPodKey(key.Cluster, key.Namespace, key.Pod)
-			if labels, ok := podAnnotations[podKey]; ok {
-				for k, v := range labels {
-					allocAnnotations[k] = v
-				}
-			}
-
-			alloc.Properties.SetAnnotations(allocAnnotations)
-		}
-	}
-
-	// TODO niko/cdmr move
-	getServiceLabels := func(resServiceLabels []*prom.QueryResult) map[serviceKey]map[string]string {
-		serviceLabels := map[serviceKey]map[string]string{}
-
-		for _, res := range resServiceLabels {
-			serviceKey, err := resultServiceKey(res, "cluster_id", "namespace", "service")
-			if err != nil {
-				// TODO niko/cdmr remove log
-				log.Warningf("CostModel.ComputeAllocation: getServiceLabels: %s", err)
-				continue
-			}
-
-			if _, ok := serviceLabels[serviceKey]; !ok {
-				serviceLabels[serviceKey] = map[string]string{}
-			}
-
-			for k, l := range res.GetLabels() {
-				serviceLabels[serviceKey][k] = l
-			}
-		}
-
-		return serviceLabels
-	}
-
-	// TODO niko/cdmr move
-	getDeploymentLabels := func(resDeploymentLabels []*prom.QueryResult) map[controllerKey]map[string]string {
-		deploymentLabels := map[controllerKey]map[string]string{}
-
-		for _, res := range resDeploymentLabels {
-			controllerKey, err := resultDeploymentKey(res, "cluster_id", "namespace", "deployment")
-			if err != nil {
-				// TODO niko/cdmr remove log
-				log.Warningf("CostModel.ComputeAllocation: getDeploymentLabels: %s", err)
-				continue
-			}
-
-			if _, ok := deploymentLabels[controllerKey]; !ok {
-				deploymentLabels[controllerKey] = map[string]string{}
-			}
-
-			for k, l := range res.GetLabels() {
-				deploymentLabels[controllerKey][k] = l
-			}
-		}
-
-		return deploymentLabels
-	}
-
-	// TODO niko/cdmr move
-	getStatefulSetLabels := func(resStatefulSetLabels []*prom.QueryResult) map[controllerKey]map[string]string {
-		statefulSetLabels := map[controllerKey]map[string]string{}
-
-		for _, res := range resStatefulSetLabels {
-			controllerKey, err := resultStatefulSetKey(res, "cluster_id", "namespace", "statefulSet")
-			if err != nil {
-				// TODO niko/cdmr remove log
-				log.Warningf("CostModel.ComputeAllocation: getStatefulSetLabels: %s", err)
-				continue
-			}
-
-			if _, ok := statefulSetLabels[controllerKey]; !ok {
-				statefulSetLabels[controllerKey] = map[string]string{}
-			}
-
-			for k, l := range res.GetLabels() {
-				statefulSetLabels[controllerKey][k] = l
-			}
-		}
-
-		return statefulSetLabels
-	}
-
-	// TODO niko/cdmr move
-	getPodControllerMap := func(podLabels map[podKey]map[string]string, controllerLabels map[controllerKey]map[string]string) map[podKey]controllerKey {
-		podControllerMap := map[podKey]controllerKey{}
-
-		// TODO niko/cdmr
-
-		return podControllerMap
-	}
-
-	// TODO niko/cdmr move
-	getPodDaemonSetMap := func(resDaemonSetLabels []*prom.QueryResult) map[podKey]controllerKey {
-		daemonSetLabels := map[podKey]controllerKey{}
-
-		for _, res := range resDaemonSetLabels {
-			controllerKey, err := resultDaemonSetKey(res, "cluster_id", "namespace", "owner_name")
-			if err != nil {
-				// TODO niko/cdmr remove log
-				log.Warningf("CostModel.ComputeAllocation: illegal DaemonSetLabel result: %s", err)
-				continue
-			}
-
-			pod, err := res.GetString("pod")
-			if err != nil {
-				log.Warningf("CostModel.ComputeAllocation: DaemonSetLabel result without pod: %s", controllerKey)
-			}
-
-			podKey := newPodKey(controllerKey.Cluster, controllerKey.Namespace, pod)
-
-			daemonSetLabels[podKey] = controllerKey
-		}
-
-		return daemonSetLabels
-	}
-
-	// TODO niko/cdmr move
-	getPodJobMap := func(resJobLabels []*prom.QueryResult) map[podKey]controllerKey {
-		jobLabels := map[podKey]controllerKey{}
-
-		for _, res := range resJobLabels {
-			controllerKey, err := resultJobKey(res, "cluster_id", "namespace", "owner_name")
-			if err != nil {
-				// TODO niko/cdmr remove log
-				log.Warningf("CostModel.ComputeAllocation: illegal JobLabel result: %s", err)
-				continue
-			}
-
-			pod, err := res.GetString("pod")
-			if err != nil {
-				log.Warningf("CostModel.ComputeAllocation: JobLabel result without pod: %s", controllerKey)
-			}
-
-			podKey := newPodKey(controllerKey.Cluster, controllerKey.Namespace, pod)
-
-			jobLabels[podKey] = controllerKey
-		}
-
-		return jobLabels
-	}
-
-	// TODO niko/cdmr move
-	applyServicesToPods := func(allocationMap map[containerKey]*kubecost.Allocation, podLabels map[podKey]map[string]string, serviceLabels map[serviceKey]map[string]string) {
-		// TODO niko/cdmr
-	}
-
-	// TODO niko/cdmr move
-	applyControllersToPods := func(allocationMap map[containerKey]*kubecost.Allocation, podControllerMap map[podKey]controllerKey) {
-		for key, alloc := range allocationMap {
-			podKey := newPodKey(key.Cluster, key.Namespace, key.Pod)
-			if controllerKey, ok := podControllerMap[podKey]; ok {
-				alloc.Properties.SetControllerKind(controllerKey.ControllerKind)
-				alloc.Properties.SetController(controllerKey.Controller)
-				// TODO niko/cdmr remove log
-				log.Infof("CostModel.ComputeAllocation: %s belongs to %s", key, controllerKey)
-			} else {
-				// TODO niko/cdmr remove log
-				log.Infof("CostModel.ComputeAllocation: %s has no controller", key)
-			}
-		}
-	}
-
-	namespaceLabels := getNamespaceLabels(resNamespaceLabels)
-	podLabels := getPodLabels(resPodLabels)
-	namespaceAnnotations := getNamespaceAnnotations(resNamespaceAnnotations)
-	podAnnotations := getPodAnnotations(resPodAnnotations)
+	namespaceLabels := resToNamespaceLabels(resNamespaceLabels)
+	podLabels := resToPodLabels(resPodLabels)
+	namespaceAnnotations := resToNamespaceAnnotations(resNamespaceAnnotations)
+	podAnnotations := resToPodAnnotations(resPodAnnotations)
 	applyLabels(allocationMap, namespaceLabels, podLabels)
 	applyAnnotations(allocationMap, namespaceAnnotations, podAnnotations)
 
 	serviceLabels := getServiceLabels(resServiceLabels)
 	applyServicesToPods(allocationMap, podLabels, serviceLabels)
 
-	deploymentLabels := getDeploymentLabels(resDeploymentLabels)
-	statefulSetLabels := getStatefulSetLabels(resStatefulSetLabels)
-	applyControllersToPods(allocationMap, getPodControllerMap(podLabels, deploymentLabels))
-	applyControllersToPods(allocationMap, getPodControllerMap(podLabels, statefulSetLabels))
-	applyControllersToPods(allocationMap, getPodDaemonSetMap(resDaemonSetLabels))
-	applyControllersToPods(allocationMap, getPodJobMap(resJobLabels))
+	podDeploymentMap := labelsToPodControllerMap(podLabels, resToDeploymentLabels(resDeploymentLabels))
+	podStatefulSetMap := labelsToPodControllerMap(podLabels, resToStatefulSetLabels(resStatefulSetLabels))
+	podDaemonSetMap := resToPodDaemonSetMap(resDaemonSetLabels)
+	podJobMap := resToPodJobMap(resJobLabels)
+	applyControllersToPods(allocationMap, podDeploymentMap)
+	applyControllersToPods(allocationMap, podStatefulSetMap)
+	applyControllersToPods(allocationMap, podDaemonSetMap)
+	applyControllersToPods(allocationMap, podJobMap)
 
 	// TODO niko/cdmr breakdown network costs?
 
@@ -688,24 +393,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	// Identify unmounted PVs (PVs without PVCs) and add one Allocation per
 	// cluster representing each cluster's unmounted PVs (if necessary).
 	applyUnmountedPVs(window, allocationMap, pvMap, pvcMap)
-
-	// TODO niko/cdmr remove logs
-	log.Infof("CostModel.ComputeAllocation: %d allocations", len(allocationMap))
-	log.Infof("CostModel.ComputeAllocation: %d nodes", len(nodeMap))
-	log.Infof("CostModel.ComputeAllocation: %d PVs", len(pvMap))
-	log.Infof("CostModel.ComputeAllocation: %d PVCs", len(pvcMap))
-	log.Infof("CostModel.ComputeAllocation: %d pods with PVCs", len(podPVCMap))
-	for _, node := range nodeMap {
-		log.Infof("CostModel.ComputeAllocation: Node: %s: %f/CPUHr; %f/RAMHr; %f/GPUHr; %f discount", node.Name, node.CostPerCPUHr, node.CostPerRAMGiBHr, node.CostPerGPUHr, node.Discount)
-	}
-	for _, pv := range pvMap {
-		log.Infof("CostModel.ComputeAllocation: PV: %s", pv)
-	}
-	for pod, pvcs := range podPVCMap {
-		for _, pvc := range pvcs {
-			log.Infof("CostModel.ComputeAllocation: Pod %s: PVC: %s", pod, pvc)
-		}
-	}
 
 	for _, alloc := range allocationMap {
 		cluster, _ := alloc.Properties.GetCluster()
@@ -1025,6 +712,329 @@ func applyNetworkAllocation(allocationMap map[containerKey]*kubecost.Allocation,
 			gib := res.Values[0].Value
 			costPerGiB := costPerGiBByCluster[podKey.Cluster]
 			alloc.NetworkCost = gib * costPerGiB
+		}
+	}
+}
+
+func resToNamespaceLabels(resNamespaceLabels []*prom.QueryResult) map[string]map[string]string {
+	namespaceLabels := map[string]map[string]string{}
+
+	for _, res := range resNamespaceLabels {
+		namespace, err := res.GetString("namespace")
+		if err != nil {
+			continue
+		}
+
+		if _, ok := namespaceLabels[namespace]; !ok {
+			namespaceLabels[namespace] = map[string]string{}
+		}
+
+		for k, l := range res.GetLabels() {
+			namespaceLabels[namespace][k] = l
+		}
+	}
+
+	return namespaceLabels
+}
+
+func resToPodLabels(resPodLabels []*prom.QueryResult) map[podKey]map[string]string {
+	podLabels := map[podKey]map[string]string{}
+
+	for _, res := range resPodLabels {
+		podKey, err := resultPodKey(res, "cluster_id", "namespace", "pod")
+		if err != nil {
+			continue
+		}
+
+		if _, ok := podLabels[podKey]; !ok {
+			podLabels[podKey] = map[string]string{}
+		}
+
+		for k, l := range res.GetLabels() {
+			podLabels[podKey][k] = l
+		}
+	}
+
+	return podLabels
+}
+
+func resToNamespaceAnnotations(resNamespaceAnnotations []*prom.QueryResult) map[string]map[string]string {
+	namespaceAnnotations := map[string]map[string]string{}
+
+	for _, res := range resNamespaceAnnotations {
+		namespace, err := res.GetString("namespace")
+		if err != nil {
+			continue
+		}
+
+		if _, ok := namespaceAnnotations[namespace]; !ok {
+			namespaceAnnotations[namespace] = map[string]string{}
+		}
+
+		for k, l := range res.GetAnnotations() {
+			namespaceAnnotations[namespace][k] = l
+		}
+	}
+
+	return namespaceAnnotations
+}
+
+func resToPodAnnotations(resPodAnnotations []*prom.QueryResult) map[podKey]map[string]string {
+	podAnnotations := map[podKey]map[string]string{}
+
+	for _, res := range resPodAnnotations {
+		podKey, err := resultPodKey(res, "cluster_id", "namespace", "pod")
+		if err != nil {
+			continue
+		}
+
+		if _, ok := podAnnotations[podKey]; !ok {
+			podAnnotations[podKey] = map[string]string{}
+		}
+
+		for k, l := range res.GetAnnotations() {
+			podAnnotations[podKey][k] = l
+		}
+	}
+
+	return podAnnotations
+}
+
+func applyLabels(allocationMap map[containerKey]*kubecost.Allocation, namespaceLabels map[string]map[string]string, podLabels map[podKey]map[string]string) {
+	for key, alloc := range allocationMap {
+		allocLabels, err := alloc.Properties.GetLabels()
+		if err != nil {
+			allocLabels = map[string]string{}
+		}
+
+		// Apply namespace labels first, then pod labels so that pod labels
+		// overwrite namespace labels.
+		if labels, ok := namespaceLabels[key.Namespace]; ok {
+			for k, v := range labels {
+				allocLabels[k] = v
+			}
+		}
+		podKey := newPodKey(key.Cluster, key.Namespace, key.Pod)
+		if labels, ok := podLabels[podKey]; ok {
+			for k, v := range labels {
+				allocLabels[k] = v
+			}
+		}
+
+		alloc.Properties.SetLabels(allocLabels)
+	}
+}
+
+func applyAnnotations(allocationMap map[containerKey]*kubecost.Allocation, namespaceAnnotations map[string]map[string]string, podAnnotations map[podKey]map[string]string) {
+	for key, alloc := range allocationMap {
+		allocAnnotations, err := alloc.Properties.GetAnnotations()
+		if err != nil {
+			allocAnnotations = map[string]string{}
+		}
+
+		// Apply namespace annotations first, then pod annotations so that
+		// pod labels overwrite namespace labels.
+		if labels, ok := namespaceAnnotations[key.Namespace]; ok {
+			for k, v := range labels {
+				allocAnnotations[k] = v
+			}
+		}
+		podKey := newPodKey(key.Cluster, key.Namespace, key.Pod)
+		if labels, ok := podAnnotations[podKey]; ok {
+			for k, v := range labels {
+				allocAnnotations[k] = v
+			}
+		}
+
+		alloc.Properties.SetAnnotations(allocAnnotations)
+	}
+}
+
+func getServiceLabels(resServiceLabels []*prom.QueryResult) map[serviceKey]map[string]string {
+	serviceLabels := map[serviceKey]map[string]string{}
+
+	for _, res := range resServiceLabels {
+		serviceKey, err := resultServiceKey(res, "cluster_id", "namespace", "service")
+		if err != nil {
+			continue
+		}
+
+		if _, ok := serviceLabels[serviceKey]; !ok {
+			serviceLabels[serviceKey] = map[string]string{}
+		}
+
+		for k, l := range res.GetLabels() {
+			serviceLabels[serviceKey][k] = l
+		}
+	}
+
+	return serviceLabels
+}
+
+func resToDeploymentLabels(resDeploymentLabels []*prom.QueryResult) map[controllerKey]map[string]string {
+	deploymentLabels := map[controllerKey]map[string]string{}
+
+	for _, res := range resDeploymentLabels {
+		controllerKey, err := resultDeploymentKey(res, "cluster_id", "namespace", "deployment")
+		if err != nil {
+			continue
+		}
+
+		if _, ok := deploymentLabels[controllerKey]; !ok {
+			deploymentLabels[controllerKey] = map[string]string{}
+		}
+
+		for k, l := range res.GetLabels() {
+			deploymentLabels[controllerKey][k] = l
+		}
+	}
+
+	return deploymentLabels
+}
+
+func resToStatefulSetLabels(resStatefulSetLabels []*prom.QueryResult) map[controllerKey]map[string]string {
+	statefulSetLabels := map[controllerKey]map[string]string{}
+
+	for _, res := range resStatefulSetLabels {
+		controllerKey, err := resultStatefulSetKey(res, "cluster_id", "namespace", "statefulSet")
+		if err != nil {
+			continue
+		}
+
+		if _, ok := statefulSetLabels[controllerKey]; !ok {
+			statefulSetLabels[controllerKey] = map[string]string{}
+		}
+
+		for k, l := range res.GetLabels() {
+			statefulSetLabels[controllerKey][k] = l
+		}
+	}
+
+	return statefulSetLabels
+}
+
+func labelsToPodControllerMap(podLabels map[podKey]map[string]string, controllerLabels map[controllerKey]map[string]string) map[podKey]controllerKey {
+	podControllerMap := map[podKey]controllerKey{}
+
+	// For each controller, turn the labels into a selector and attempt to
+	// match it with each set of pod labels. A match indicates that the pod
+	// belongs to the controller.
+	for cKey, cLabels := range controllerLabels {
+		selector := labels.Set(cLabels).AsSelectorPreValidated()
+
+		for pKey, pLabels := range podLabels {
+			// If the pod is in a different cluster or namespace, there is
+			// no need to compare the labels.
+			if cKey.Cluster != pKey.Cluster || cKey.Namespace != pKey.Namespace {
+				continue
+			}
+
+			podLabelSet := labels.Set(pLabels)
+			if selector.Matches(podLabelSet) {
+				// TODO niko/cdmr does this need to be one-to-many? In that case, we'd
+				// need a different Allocation schema
+				if _, ok := podControllerMap[pKey]; ok {
+					// TODO niko/cdmr remove log
+					log.Warningf("CostModel.ComputeAllocation: PodControllerMap match already exists: %s matches %s and %s", pKey, podControllerMap[pKey], cKey)
+				}
+				podControllerMap[pKey] = cKey
+			}
+		}
+	}
+
+	return podControllerMap
+}
+
+func resToPodDaemonSetMap(resDaemonSetLabels []*prom.QueryResult) map[podKey]controllerKey {
+	daemonSetLabels := map[podKey]controllerKey{}
+
+	for _, res := range resDaemonSetLabels {
+		controllerKey, err := resultDaemonSetKey(res, "cluster_id", "namespace", "owner_name")
+		if err != nil {
+			continue
+		}
+
+		pod, err := res.GetString("pod")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: DaemonSetLabel result without pod: %s", controllerKey)
+		}
+
+		podKey := newPodKey(controllerKey.Cluster, controllerKey.Namespace, pod)
+
+		daemonSetLabels[podKey] = controllerKey
+	}
+
+	return daemonSetLabels
+}
+
+func resToPodJobMap(resJobLabels []*prom.QueryResult) map[podKey]controllerKey {
+	jobLabels := map[podKey]controllerKey{}
+
+	for _, res := range resJobLabels {
+		controllerKey, err := resultJobKey(res, "cluster_id", "namespace", "owner_name")
+		if err != nil {
+			continue
+		}
+
+		pod, err := res.GetString("pod")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: JobLabel result without pod: %s", controllerKey)
+		}
+
+		podKey := newPodKey(controllerKey.Cluster, controllerKey.Namespace, pod)
+
+		jobLabels[podKey] = controllerKey
+	}
+
+	return jobLabels
+}
+
+func applyServicesToPods(allocationMap map[containerKey]*kubecost.Allocation, podLabels map[podKey]map[string]string, serviceLabels map[serviceKey]map[string]string) {
+	podServicesMap := map[podKey][]serviceKey{}
+
+	// For each service, turn the labels into a selector and attempt to
+	// match it with each set of pod labels. A match indicates that the pod
+	// belongs to the service.
+	for sKey, sLabels := range serviceLabels {
+		selector := labels.Set(sLabels).AsSelectorPreValidated()
+
+		for pKey, pLabels := range podLabels {
+			// If the pod is in a different cluster or namespace, there is
+			// no need to compare the labels.
+			if sKey.Cluster != pKey.Cluster || sKey.Namespace != pKey.Namespace {
+				continue
+			}
+
+			podLabelSet := labels.Set(pLabels)
+			if selector.Matches(podLabelSet) {
+				if _, ok := podServicesMap[pKey]; !ok {
+					podServicesMap[pKey] = []serviceKey{}
+				}
+				podServicesMap[pKey] = append(podServicesMap[pKey], sKey)
+			}
+		}
+	}
+
+	// For each allocation, attempt to find and apply the list of services
+	// associated with the allocation's pod.
+	for key, alloc := range allocationMap {
+		pKey := newPodKey(key.Cluster, key.Namespace, key.Pod)
+		if sKeys, ok := podServicesMap[pKey]; ok {
+			services := []string{}
+			for _, sKey := range sKeys {
+				services = append(services, sKey.Service)
+			}
+			alloc.Properties.SetServices(services)
+		}
+	}
+}
+
+func applyControllersToPods(allocationMap map[containerKey]*kubecost.Allocation, podControllerMap map[podKey]controllerKey) {
+	for key, alloc := range allocationMap {
+		podKey := newPodKey(key.Cluster, key.Namespace, key.Pod)
+		if controllerKey, ok := podControllerMap[podKey]; ok {
+			alloc.Properties.SetControllerKind(controllerKey.ControllerKind)
+			alloc.Properties.SetController(controllerKey.Controller)
 		}
 	}
 }
