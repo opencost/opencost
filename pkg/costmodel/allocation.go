@@ -443,6 +443,20 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 		alloc.TotalCost += alloc.SharedCost
 		alloc.TotalCost += alloc.ExternalCost
 
+		if alloc.RAMBytesRequestAverage > 0 {
+			alloc.RAMEfficiency = alloc.RAMBytesUsageAverage / alloc.RAMBytesRequestAverage
+		}
+
+		if alloc.CPUCoreRequestAverage > 0 {
+			alloc.CPUEfficiency = alloc.CPUCoreUsageAverage / alloc.CPUCoreRequestAverage
+		}
+
+		if alloc.CPUCost+alloc.RAMCost > 0 {
+			ramCostEff := alloc.RAMEfficiency * alloc.RAMCost
+			cpuCostEff := alloc.CPUEfficiency * alloc.CPUCost
+			alloc.TotalEfficiency = (ramCostEff + cpuCostEff) / (alloc.CPUCost + alloc.RAMCost)
+		}
+
 		allocSet.Set(alloc)
 	}
 
@@ -1296,7 +1310,7 @@ func applyPVCBytesRequested(pvcMap map[pvcKey]*PVC, resPVCBytesRequested []*prom
 		}
 
 		if _, ok := pvcMap[key]; !ok {
-			log.Warningf("CostModel.ComputeAllocation: PVC bytes requested result for missing PVC: %s", err)
+			log.Warningf("CostModel.ComputeAllocation: PVC bytes requested result for missing PVC: %s", key)
 			continue
 		}
 
@@ -1362,8 +1376,6 @@ func applyUnmountedPVs(window kubecost.Window, allocationMap map[containerKey]*k
 				break
 			}
 		}
-
-		log.Infof("CostModel.ComputeAllocation: PV %s is mounted? %t", pv.Name, mounted)
 
 		if !mounted {
 			gib := pv.Bytes / 1024 / 1024 / 1024
