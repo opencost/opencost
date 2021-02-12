@@ -1414,12 +1414,14 @@ func applyUnmountedPVs(window kubecost.Window, allocationMap map[containerKey]*k
 		container := "unmounted-pvs"
 		pod := "unmounted-pvs"
 		namespace := "" // TODO niko/cdmr what about this?
+		node := ""      // TODO niko/cdmr what about this?
 
 		containerKey := newContainerKey(cluster, namespace, pod, container)
 		allocationMap[containerKey] = &kubecost.Allocation{
 			Name: fmt.Sprintf("%s/%s/%s/%s", cluster, namespace, pod, container),
 			Properties: kubecost.Properties{
 				kubecost.ClusterProp:   cluster,
+				kubecost.NodeProp:      node,
 				kubecost.NamespaceProp: namespace,
 				kubecost.PodProp:       pod,
 				kubecost.ContainerProp: container,
