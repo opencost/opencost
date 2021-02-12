@@ -16,6 +16,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
+	prometheus "github.com/prometheus/client_golang/api"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,24 +46,63 @@ const (
 // isCron matches a CronJob name and captures the non-timestamp name
 var isCron = regexp.MustCompile(`^(.+)-\d{10}$`)
 
+// TODO niko/cdmr both Thanos and Prometheus, or just one?
 type CostModel struct {
-	Cache           clustercache.ClusterCache
-	ClusterMap      clusters.ClusterMap
-	ScrapeInterval  time.Duration
-	RequestGroup    *singleflight.Group
-	pricingMetadata *costAnalyzerCloud.PricingMatchMetadata
+	Cache            clustercache.ClusterCache
+	ClusterMap       clusters.ClusterMap
+	RequestGroup     *singleflight.Group
+	ScrapeInterval   time.Duration
+	PrometheusClient prometheus.Client
+	Provider         costAnalyzerCloud.Provider
+	pricingMetadata  *costAnalyzerCloud.PricingMatchMetadata
 }
 
-func NewCostModel(cache clustercache.ClusterCache, clusterMap clusters.ClusterMap, scrapeInterval time.Duration) *CostModel {
+func NewCostModel(client prometheus.Client, provider costAnalyzerCloud.Provider, cache clustercache.ClusterCache, clusterMap clusters.ClusterMap, scrapeInterval time.Duration) *CostModel {
 	// request grouping to prevent over-requesting the same data prior to caching
 	requestGroup := new(singleflight.Group)
 
 	return &CostModel{
-		Cache:          cache,
-		ClusterMap:     clusterMap,
-		RequestGroup:   requestGroup,
-		ScrapeInterval: scrapeInterval,
+		Cache:            cache,
+		ClusterMap:       clusterMap,
+		PrometheusClient: client,
+		Provider:         provider,
+		RequestGroup:     requestGroup,
+		ScrapeInterval:   scrapeInterval,
 	}
+}
+
+// TODO niko/cdmr
+type ContainerAllocation struct {
+	Properties      ContainerProperties          `json:"properties"`
+	RAMReq          []*util.Vector               `json:"ramreq,omitempty"`
+	RAMUsed         []*util.Vector               `json:"ramused,omitempty"`
+	RAMAllocation   []*util.Vector               `json:"ramallocated,omitempty"`
+	CPUReq          []*util.Vector               `json:"cpureq,omitempty"`
+	CPUUsed         []*util.Vector               `json:"cpuused,omitempty"`
+	CPUAllocation   []*util.Vector               `json:"cpuallocated,omitempty"`
+	GPUReq          []*util.Vector               `json:"gpureq,omitempty"`
+	PVCData         []*PersistentVolumeClaimData `json:"pvcData,omitempty"`
+	NetworkData     []*util.Vector               `json:"network,omitempty"`
+	Annotations     map[string]string            `json:"annotations,omitempty"`
+	Labels          map[string]string            `json:"labels,omitempty"`
+	NamespaceLabels map[string]string            `json:"namespaceLabels,omitempty"`
+	ClusterID       string                       `json:"clusterId"`
+	ClusterName     string                       `json:"clusterName"`
+}
+
+// TODO niko/cdmr
+type ContainerProperties struct {
+	Container      string            `json:"container"`
+	Pod            string            `json:"pod"`
+	Namespace      string            `json:"namespace"`
+	Node           string            `json:"node"`
+	ClusterID      string            `json:"clusterID"`
+	Cluster        string            `json:"cluster"`
+	Controller     string            `json:"controller"`
+	ControllerKind string            `json:"controllerKind"`
+	Services       []string          `json:"services"`
+	Labels         map[string]string `json:"labels"`
+	Annotations    map[string]string `json:"annotations"`
 }
 
 type CostData struct {
@@ -1503,10 +1543,6 @@ func requestKeyFor(window kubecost.Window, resolution time.Duration, filterNames
 
 	return fmt.Sprintf("%s,%s,%s,%s,%s,%t", startKey, endKey, resolution.String(), filterNamespace, filterCluster, remoteEnabled)
 }
-
-// func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, cp costAnalyzerCloud.Provider,
-// 	startString, endString, windowString string, resolutionHours float64, filterNamespace string,
-// 	filterCluster string, remoteEnabled bool, offset string) (map[string]*CostData, error)
 
 // ComputeCostDataRange executes a range query for cost data.
 // Note that "offset" represents the time between the function call and "endString", and is also passed for convenience

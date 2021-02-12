@@ -28,6 +28,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/thanos"
+	prometheus "github.com/prometheus/client_golang/api"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
 	v1 "k8s.io/api/core/v1"
@@ -1013,7 +1014,13 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 		30 * day: maxCacheMinutes30d * time.Minute,
 	}
 
-	costModel := NewCostModel(k8sCache, clusterMap, scrapeInterval)
+	var pc prometheus.Client
+	if thanosClient != nil {
+		pc = thanosClient
+	} else {
+		pc = promCli
+	}
+	costModel := NewCostModel(pc, cloudProvider, k8sCache, clusterMap, scrapeInterval)
 	metricsEmitter := NewCostModelMetricsEmitter(promCli, k8sCache, cloudProvider, costModel)
 
 	a := &Accesses{

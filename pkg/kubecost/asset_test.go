@@ -153,7 +153,7 @@ func assertAssetSet(t *testing.T, as *AssetSet, msg string, window Window, exps 
 				t.Fatalf("AssetSet.AggregateBy[%s]: key %s expected total cost %.2f, actual %.2f", msg, key, exp, a.TotalCost())
 			}
 			if !a.Window().Equal(window) {
-				t.Fatalf("AssetSet.AggregateBy[%s]: key %s expected window %s, actual %s", msg, key, window, as.Window)
+				t.Fatalf("AssetSet.AggregateBy[%s]: key %s expected window %s, actual %s", msg, key, window, a.Window())
 			}
 		} else {
 			t.Fatalf("AssetSet.AggregateBy[%s]: unexpected asset: %s", msg, key)
@@ -1010,6 +1010,7 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 		generateAssetSet(startD1),
 		generateAssetSet(startD2),
 	)
+
 	err = asr.AggregateBy([]string{string(AssetTypeProp)}, nil)
 	as, err = asr.Accumulate()
 	if err != nil {
