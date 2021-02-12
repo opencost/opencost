@@ -12,6 +12,11 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 )
 
+// TODO niko/cdmr NodeProp issue
+// http://kubecost.nikovacevic.io/model/allocation?window=yesterday => Error: NodeProp not set
+
+// TODO niko/cdmr split into required and optional queries?
+
 // TODO niko/cdmr move to pkg/kubecost
 // TODO niko/cdmr add PersistenVolumeClaims to type Allocation?
 type PVC struct {
@@ -134,7 +139,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	// TODO niko/cdmr should we try doing this without resolution? Could yield
 	// more accurate results, but might also be more challenging in some
 	// respects; e.g. "correcting" the start point by what amount?
-	queryMinutes := fmt.Sprintf(`avg(kube_pod_container_status_running{}) by (container, pod, namespace, kubernetes_node, cluster_id)[%s:%s]%s`, durStr, resStr, offStr)
+	queryMinutes := fmt.Sprintf(`avg(kube_pod_container_status_running{}) by (container, pod, namespace, cluster_id)[%s:%s]%s`, durStr, resStr, offStr)
 	resChMinutes := ctx.Query(queryMinutes)
 
 	queryRAMBytesAllocated := fmt.Sprintf(`avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`, durStr, offStr)
@@ -399,6 +404,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 		node, _ := alloc.Properties.GetNode()
 		namespace, _ := alloc.Properties.GetNamespace()
 		pod, _ := alloc.Properties.GetPod()
+		container, _ := alloc.Properties.GetContainer()
 
 		podKey := newPodKey(cluster, namespace, pod)
 		nodeKey := newNodeKey(cluster, node)
@@ -457,6 +463,9 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 			alloc.TotalEfficiency = (ramCostEff + cpuCostEff) / (alloc.CPUCost + alloc.RAMCost)
 		}
 
+		// Make sure that the name is correct (node may not be present at this
+		// point due to it missing from queryMinutes) then insert.
+		alloc.Name = fmt.Sprintf("%s/%s/%s/%s/%s", cluster, node, namespace, pod, container)
 		allocSet.Set(alloc)
 	}
 
@@ -475,13 +484,12 @@ func buildAllocationMap(window kubecost.Window, allocationMap map[containerKey]*
 			cluster = env.GetClusterID()
 		}
 
-		labels, err := res.GetStrings("kubernetes_node", "namespace", "pod", "container")
+		labels, err := res.GetStrings("namespace", "pod", "container")
 		if err != nil {
 			log.Warningf("CostModel.ComputeAllocation: minutes query result missing field: %s", err)
 			continue
 		}
 
-		node := labels["kubernetes_node"]
 		namespace := labels["namespace"]
 		pod := labels["pod"]
 		container := labels["container"]
@@ -505,8 +513,6 @@ func buildAllocationMap(window kubecost.Window, allocationMap map[containerKey]*
 			}
 		}
 		if allocStart.IsZero() || allocEnd.IsZero() {
-			// TODO niko/cdmr remove log?
-			// log.Warningf("CostModel.ComputeAllocation: allocation %s has no running time, skipping", containerKey)
 			continue
 		}
 		allocStart = allocStart.Add(-time.Minute)
@@ -535,7 +541,6 @@ func buildAllocationMap(window kubecost.Window, allocationMap map[containerKey]*
 		alloc.Properties.SetContainer(container)
 		alloc.Properties.SetPod(pod)
 		alloc.Properties.SetNamespace(namespace)
-		alloc.Properties.SetNode(node)
 		alloc.Properties.SetCluster(cluster)
 
 		allocationMap[containerKey] = alloc
@@ -549,7 +554,6 @@ func buildAllocationMap(window kubecost.Window, allocationMap map[containerKey]*
 
 func applyCPUCoresAllocated(allocationMap map[containerKey]*kubecost.Allocation, resCPUCoresAllocated []*prom.QueryResult) {
 	for _, res := range resCPUCoresAllocated {
-		// TODO niko/cdmr do we need node here?
 		key, err := resultContainerKey(res, "cluster_id", "namespace", "pod", "container")
 		if err != nil {
 			log.Warningf("CostModel.ComputeAllocation: CPU allocation query result missing field: %s", err)
@@ -565,6 +569,13 @@ func applyCPUCoresAllocated(allocationMap map[containerKey]*kubecost.Allocation,
 		cpuCores := res.Values[0].Value
 		hours := allocationMap[key].Minutes() / 60.0
 		allocationMap[key].CPUCoreHours = cpuCores * hours
+
+		node, err := res.GetString("node")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: CPU allocation query result missing 'node': %s", key)
+			continue
+		}
+		allocationMap[key].Properties.SetNode(node)
 	}
 }
 
@@ -578,8 +589,6 @@ func applyCPUCoresRequested(allocationMap map[containerKey]*kubecost.Allocation,
 
 		_, ok := allocationMap[key]
 		if !ok {
-			// TODO niko/cdmr remove log?
-			// log.Warningf("CostModel.ComputeAllocation: unidentified CPU request query result: %s", key)
 			continue
 		}
 
@@ -591,6 +600,13 @@ func applyCPUCoresRequested(allocationMap map[containerKey]*kubecost.Allocation,
 		if allocationMap[key].CPUCores() < res.Values[0].Value {
 			allocationMap[key].CPUCoreHours = res.Values[0].Value * (allocationMap[key].Minutes() / 60.0)
 		}
+
+		node, err := res.GetString("node")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: CPU request query result missing 'node': %s", key)
+			continue
+		}
+		allocationMap[key].Properties.SetNode(node)
 	}
 }
 
@@ -612,6 +628,33 @@ func applyCPUCoresUsed(allocationMap map[containerKey]*kubecost.Allocation, resC
 	}
 }
 
+func applyRAMBytesAllocated(allocationMap map[containerKey]*kubecost.Allocation, resRAMBytesAllocated []*prom.QueryResult) {
+	for _, res := range resRAMBytesAllocated {
+		key, err := resultContainerKey(res, "cluster_id", "namespace", "pod", "container")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: RAM allocation query result missing field: %s", err)
+			continue
+		}
+
+		_, ok := allocationMap[key]
+		if !ok {
+			log.Warningf("CostModel.ComputeAllocation: unidentified RAM allocation query result: %s", key)
+			continue
+		}
+
+		ramBytes := res.Values[0].Value
+		hours := allocationMap[key].Minutes() / 60.0
+		allocationMap[key].RAMByteHours = ramBytes * hours
+
+		node, err := res.GetString("node")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: RAM allocation query result missing 'node': %s", key)
+			continue
+		}
+		allocationMap[key].Properties.SetNode(node)
+	}
+}
+
 func applyRAMBytesRequested(allocationMap map[containerKey]*kubecost.Allocation, resRAMBytesRequested []*prom.QueryResult) {
 	for _, res := range resRAMBytesRequested {
 		key, err := resultContainerKey(res, "cluster_id", "namespace", "pod", "container")
@@ -622,8 +665,6 @@ func applyRAMBytesRequested(allocationMap map[containerKey]*kubecost.Allocation,
 
 		_, ok := allocationMap[key]
 		if !ok {
-			// TODO niko/cdmr remove log?
-			// log.Warningf("CostModel.ComputeAllocation: unidentified RAM request query result: %s", key)
 			continue
 		}
 
@@ -635,6 +676,13 @@ func applyRAMBytesRequested(allocationMap map[containerKey]*kubecost.Allocation,
 		if allocationMap[key].RAMBytes() < res.Values[0].Value {
 			allocationMap[key].RAMByteHours = res.Values[0].Value * (allocationMap[key].Minutes() / 60.0)
 		}
+
+		node, err := res.GetString("node")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: RAM request query result missing 'node': %s", key)
+			continue
+		}
+		allocationMap[key].Properties.SetNode(node)
 	}
 }
 
@@ -656,30 +704,8 @@ func applyRAMBytesUsed(allocationMap map[containerKey]*kubecost.Allocation, resR
 	}
 }
 
-func applyRAMBytesAllocated(allocationMap map[containerKey]*kubecost.Allocation, resRAMBytesAllocated []*prom.QueryResult) {
-	for _, res := range resRAMBytesAllocated {
-		// TODO niko/cdmr do we need node here?
-		key, err := resultContainerKey(res, "cluster_id", "namespace", "pod", "container")
-		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: RAM allocation query result missing field: %s", err)
-			continue
-		}
-
-		_, ok := allocationMap[key]
-		if !ok {
-			log.Warningf("CostModel.ComputeAllocation: unidentified RAM allocation query result: %s", key)
-			continue
-		}
-
-		ramBytes := res.Values[0].Value
-		hours := allocationMap[key].Minutes() / 60.0
-		allocationMap[key].RAMByteHours = ramBytes * hours
-	}
-}
-
 func applyGPUsRequested(allocationMap map[containerKey]*kubecost.Allocation, resGPUsRequested []*prom.QueryResult) {
 	for _, res := range resGPUsRequested {
-		// TODO niko/cdmr do we need node here?
 		key, err := resultContainerKey(res, "cluster_id", "namespace", "pod", "container")
 		if err != nil {
 			log.Warningf("CostModel.ComputeAllocation: GPU allocation query result missing field: %s", err)
@@ -948,7 +974,6 @@ func labelsToPodControllerMap(podLabels map[podKey]map[string]string, controller
 				// TODO niko/cdmr does this need to be one-to-many? In that case, we'd
 				// need a different Allocation schema
 				if _, ok := podControllerMap[pKey]; ok {
-					// TODO niko/cdmr remove log
 					log.Warningf("CostModel.ComputeAllocation: PodControllerMap match already exists: %s matches %s and %s", pKey, podControllerMap[pKey], cKey)
 				}
 				podControllerMap[pKey] = cKey
@@ -1253,7 +1278,6 @@ func buildPVCMap(window kubecost.Window, pvcMap map[pvcKey]*PVC, pvMap map[pvKey
 			continue
 		}
 
-		// TODO niko/cdmr ?
 		namespace := values["namespace"]
 		name := values["persistentvolumeclaim"]
 		volume := values["volumename"]
