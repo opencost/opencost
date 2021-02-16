@@ -67,6 +67,8 @@ var (
 )
 
 const AzureLayout = "2006-01-02"
+var HeaderStrings = []string{"MeterCategory", "UsageDateTime", "InstanceId", "AdditionalInfo", "Tags", "PreTaxCost", "SubscriptionGuid", "ConsumedService", "ResourceGroup", "ResourceType"}
+
 
 var loadedAzureSecret bool = false
 var azureSecret *AzureServiceKey = nil
@@ -919,10 +921,10 @@ func (az *Azure) ExternalAllocations(start string, end string, aggregators []str
 	if err != nil {
 		return nil, err
 	}
-	return GetExternalAllocations(start, end, aggregators, filterType, filterValue, crossCluster, csvRetriever)
+	return getExternalAllocations(start, end, aggregators, filterType, filterValue, crossCluster, csvRetriever)
 }
 
-func GetExternalAllocations(start string, end string, aggregators []string, filterType string, filterValue string, crossCluster bool, csvRetriever CSVRetriever) ([]*OutOfClusterAllocation, error) {
+func getExternalAllocations(start string, end string, aggregators []string, filterType string, filterValue string, crossCluster bool, csvRetriever CSVRetriever) ([]*OutOfClusterAllocation, error) {
 	dateFormat := "2006-1-2"
 	startTime, err := time.Parse(dateFormat, start)
 	if err != nil {
@@ -938,7 +940,7 @@ func GetExternalAllocations(start string, end string, aggregators []string, filt
 	}
 	oocAllocs := make(map[string]*OutOfClusterAllocation)
 	for _, reader := range readers {
-		err = ParseCSV(reader, startTime, endTime, oocAllocs, aggregators, filterType, filterValue, crossCluster)
+		err = parseCSV(reader, startTime, endTime, oocAllocs, aggregators, filterType, filterValue, crossCluster)
 		if err != nil {
 			return nil, err
 		}
@@ -950,13 +952,9 @@ func GetExternalAllocations(start string, end string, aggregators []string, filt
 	return oocAllocsArr, nil
 }
 
-func ParseCSV(reader *csv.Reader, start, end time.Time, oocAllocs map[string]*OutOfClusterAllocation, aggregators []string, filterType string, filterValue string, crossCluster bool) error {
+func parseCSV(reader *csv.Reader, start, end time.Time, oocAllocs map[string]*OutOfClusterAllocation, aggregators []string, filterType string, filterValue string, crossCluster bool) error {
 	headers, _ := reader.Read()
-
-	headerMap := map[string]int{}
-	for i, header := range headers {
-		headerMap[header] = i
-	}
+	headerMap := createHeaderMap(headers)
 
 	for {
 		var record, err = reader.Read()
@@ -1021,6 +1019,18 @@ func ParseCSV(reader *csv.Reader, start, end time.Time, oocAllocs map[string]*Ou
 
 	}
 	return nil
+}
+
+func createHeaderMap(headers []string) map[string]int {
+	headerMap := make(map[string]int)
+	for i, header := range headers {
+		for _, headerString := range HeaderStrings {
+			if strings.Contains(header, headerString) {
+				headerMap[headerString] = i
+			}
+		}
+	}
+	return headerMap
 }
 
 // UsageDateTime only contains date information and not time because of this filtering usageDate time is inclusive on start and exclusive on end
