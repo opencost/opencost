@@ -71,7 +71,7 @@ const AzureLayout = "2006-01-02"
 var loadedAzureSecret bool = false
 var azureSecret *AzureServiceKey = nil
 var loadedAzureStorageConfigSecret bool = false
-var azureStorageConfig *AzureStorageConfig= nil
+var azureStorageConfig *AzureStorageConfig = nil
 
 type regionParts []string
 
@@ -191,7 +191,7 @@ type Azure struct {
 	DownloadPricingDataLock sync.RWMutex
 	Clientset               clustercache.ClusterCache
 	Config                  *ProviderConfig
-	ServiceAccountChecks        map[string]*ServiceAccountCheck
+	ServiceAccountChecks    map[string]*ServiceAccountCheck
 }
 
 type azureKey struct {
@@ -221,8 +221,8 @@ func (k *azureKey) ID() string {
 
 // Represents an azure storage config
 type AzureStorageConfig struct {
-	AccountName string `json:"azureStorageAccount"`
-	AccessKey string `json:"azureStorageAccessKey"`
+	AccountName   string `json:"azureStorageAccount"`
+	AccessKey     string `json:"azureStorageAccessKey"`
 	ContainerName string `json:"azureStorageContainer"`
 }
 
@@ -240,7 +240,6 @@ type AzureServiceKey struct {
 	SubscriptionID string       `json:"subscriptionId"`
 	ServiceKey     *AzureAppKey `json:"serviceKey"`
 }
-
 
 // Validity check on service key
 func (ask *AzureServiceKey) IsValid() bool {
@@ -300,7 +299,7 @@ func (az *Azure) getAzureStorageConfig(forceReload bool) (accessKey, accountName
 	}
 	// 1. Check for secret
 	s, _ := az.loadAzureStorageConfig(forceReload)
-	if s != nil && s.AccessKey != "" && s.AccountName != ""  && s.ContainerName != ""{
+	if s != nil && s.AccessKey != "" && s.AccountName != "" && s.ContainerName != "" {
 
 		az.ServiceAccountChecks["hasStorage"] = &ServiceAccountCheck{
 			Message: "Azure Storage Config exists",
@@ -773,19 +772,25 @@ type azurePvKey struct {
 	StorageClass           string
 	StorageClassParameters map[string]string
 	DefaultRegion          string
+	ProviderId             string
 }
 
 func (az *Azure) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) PVKey {
+	providerID := ""
+	if pv.Spec.AzureDisk != nil {
+		providerID = pv.Spec.AzureDisk.DiskName
+	}
 	return &azurePvKey{
 		Labels:                 pv.Labels,
 		StorageClass:           pv.Spec.StorageClassName,
 		StorageClassParameters: parameters,
 		DefaultRegion:          defaultRegion,
+		ProviderId:             providerID,
 	}
 }
 
 func (key *azurePvKey) ID() string {
-	return ""
+	return key.ProviderId
 }
 
 func (key *azurePvKey) GetStorageClass() string {
@@ -945,7 +950,7 @@ func GetExternalAllocations(start string, end string, aggregators []string, filt
 	return oocAllocsArr, nil
 }
 
-func ParseCSV (reader *csv.Reader, start, end time.Time, oocAllocs map[string]*OutOfClusterAllocation, aggregators []string, filterType string, filterValue string, crossCluster bool) error {
+func ParseCSV(reader *csv.Reader, start, end time.Time, oocAllocs map[string]*OutOfClusterAllocation, aggregators []string, filterType string, filterValue string, crossCluster bool) error {
 	headers, _ := reader.Read()
 
 	headerMap := map[string]int{}
@@ -990,7 +995,7 @@ func ParseCSV (reader *csv.Reader, start, end time.Time, oocAllocs map[string]*O
 		}
 
 		if filterType != "kubernetes_" {
-			if value, ok := itemTags[filterType];!ok || value != filterValue {
+			if value, ok := itemTags[filterType]; !ok || value != filterValue {
 				continue
 			}
 		}
@@ -1014,12 +1019,9 @@ func ParseCSV (reader *csv.Reader, start, end time.Time, oocAllocs map[string]*O
 			oocAllocs[key] = ooc
 		}
 
-
 	}
 	return nil
 }
-
-
 
 // UsageDateTime only contains date information and not time because of this filtering usageDate time is inclusive on start and exclusive on end
 func isValidUsageDateTime(start, end, usageDateTime time.Time) bool {
