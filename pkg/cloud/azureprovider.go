@@ -984,7 +984,7 @@ func parseCSV(reader *csv.Reader, start, end time.Time, oocAllocs map[string]*Ou
 		}
 
 		itemTags := make(map[string]string)
-		itemTagJson := record[headerMap["Tags"]]
+		itemTagJson := makeValidJSON(record[headerMap["Tags"]])
 		if itemTagJson != "" {
 			err = json.Unmarshal([]byte(itemTagJson), &itemTags)
 			if err != nil {
@@ -1032,6 +1032,14 @@ func createHeaderMap(headers []string) map[string]int {
 	}
 	return headerMap
 }
+
+func makeValidJSON(jsonString string) string {
+	if jsonString == "" || (jsonString[0] == '{' && jsonString[len(jsonString)-1] == '}') {
+		return jsonString
+	}
+	return fmt.Sprintf("{%v}", jsonString)
+}
+
 
 // UsageDateTime only contains date information and not time because of this filtering usageDate time is inclusive on start and exclusive on end
 func isValidUsageDateTime(start, end, usageDateTime time.Time) bool {
