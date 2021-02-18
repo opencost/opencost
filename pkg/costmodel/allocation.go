@@ -12,13 +12,13 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 )
 
-// TODO niko/cdmr NodeProp issue
+// TODO niko/computeallocation NodeProp issue
 // http://kubecost.nikovacevic.io/model/allocation?window=yesterday => Error: NodeProp not set
 
-// TODO niko/cdmr split into required and optional queries?
+// TODO niko/computeallocation split into required and optional queries?
 
-// TODO niko/cdmr move to pkg/kubecost
-// TODO niko/cdmr add PersistenVolumeClaims to type Allocation?
+// TODO niko/computeallocation move to pkg/kubecost
+// TODO niko/computeallocation add PersistenVolumeClaims to type Allocation?
 type PVC struct {
 	Bytes     float64   `json:"bytes"`
 	Count     int       `json:"count"`
@@ -56,10 +56,10 @@ func (pvc *PVC) String() string {
 	return fmt.Sprintf("%s/%s/%s{Bytes:%.2f, Cost:%.6f, Start,End:%s}", pvc.Cluster, pvc.Namespace, pvc.Name, pvc.Bytes, pvc.Cost(), kubecost.NewWindow(&pvc.Start, &pvc.End))
 }
 
-// TODO niko/cdmr move to pkg/kubecost
+// TODO niko/computeallocation move to pkg/kubecost
 type PV struct {
 	Bytes          float64 `json:"bytes"`
-	CostPerGiBHour float64 `json:"costPerGiBHour"` // TODO niko/cdmr GiB or GB?
+	CostPerGiBHour float64 `json:"costPerGiBHour"` // TODO niko/computeallocation GiB or GB?
 	Cluster        string  `json:"cluster"`
 	Name           string  `json:"name"`
 	StorageClass   string  `json:"storageClass"`
@@ -71,6 +71,41 @@ func (pv *PV) String() string {
 	}
 	return fmt.Sprintf("%s/%s{Bytes:%.2f, Cost/GiB*Hr:%.6f, StorageClass:%s}", pv.Cluster, pv.Name, pv.Bytes, pv.CostPerGiBHour, pv.StorageClass)
 }
+
+const (
+	queryFmtMinutes               = `avg(kube_pod_container_status_running{}) by (container, pod, namespace, cluster_id)[%s:%s]%s`
+	queryFmtRAMBytesAllocated     = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
+	queryFmtRAMRequests           = `avg(avg_over_time(kube_pod_container_resource_requests_memory_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
+	queryFmtRAMUsage              = `avg(avg_over_time(container_memory_working_set_bytes{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`
+	queryFmtCPUCoresAllocated     = `avg(avg_over_time(container_cpu_allocation{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
+	queryFmtCPURequests           = `avg(avg_over_time(kube_pod_container_resource_requests_cpu_cores{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
+	queryFmtCPUUsage              = `avg(rate(container_cpu_usage_seconds_total{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`
+	queryFmtGPUsRequested         = `avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
+	queryFmtNodeCostPerCPUHr      = `avg(avg_over_time(node_cpu_hourly_cost[%s]%s)) by (node, cluster_id, instance_type)`
+	queryFmtNodeCostPerRAMGiBHr   = `avg(avg_over_time(node_ram_hourly_cost[%s]%s)) by (node, cluster_id, instance_type)`
+	queryFmtNodeCostPerGPUHr      = `avg(avg_over_time(node_gpu_hourly_cost[%s]%s)) by (node, cluster_id, instance_type)`
+	queryFmtNodeIsSpot            = `avg_over_time(kubecost_node_is_spot[%s]%s)`
+	queryFmtPVCInfo               = `avg(kube_persistentvolumeclaim_info{volumename != ""}) by (persistentvolumeclaim, storageclass, volumename, namespace, cluster_id)[%s:%s]%s`
+	queryFmtPVBytes               = `avg(avg_over_time(kube_persistentvolume_capacity_bytes[%s]%s)) by (persistentvolume, cluster_id)`
+	queryFmtPodPVCAllocation      = `avg(avg_over_time(pod_pvc_allocation[%s]%s)) by (persistentvolume, persistentvolumeclaim, pod, namespace, cluster_id)`
+	queryFmtPVCBytesRequested     = `avg(avg_over_time(kube_persistentvolumeclaim_resource_requests_storage_bytes{}[%s]%s)) by (persistentvolumeclaim, namespace, cluster_id)`
+	queryFmtPVCostPerGiBHour      = `avg(avg_over_time(pv_hourly_cost[%s]%s)) by (volumename, cluster_id)`
+	queryFmtNetZoneGiB            = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s]%s)) by (pod_name, namespace, cluster_id) / 1024 / 1024 / 1024`
+	queryFmtNetZoneCostPerGiB     = `avg(avg_over_time(kubecost_network_zone_egress_cost{}[%s]%s)) by (cluster_id)`
+	queryFmtNetRegionGiB          = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s]%s)) by (pod_name, namespace, cluster_id) / 1024 / 1024 / 1024`
+	queryFmtNetRegionCostPerGiB   = `avg(avg_over_time(kubecost_network_region_egress_cost{}[%s]%s)) by (cluster_id)`
+	queryFmtNetInternetGiB        = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s]%s)) by (pod_name, namespace, cluster_id) / 1024 / 1024 / 1024`
+	queryFmtNetInternetCostPerGiB = `avg(avg_over_time(kubecost_network_internet_egress_cost{}[%s]%s)) by (cluster_id)`
+	queryFmtNamespaceLabels       = `avg_over_time(kube_namespace_labels[%s]%s)`
+	queryFmtNamespaceAnnotations  = `avg_over_time(kube_namespace_annotations[%s]%s)`
+	queryFmtPodLabels             = `avg_over_time(kube_pod_labels[%s]%s)`
+	queryFmtPodAnnotations        = `avg_over_time(kube_pod_annotations[%s]%s)`
+	queryFmtServiceLabels         = `avg_over_time(service_selector_labels[%s]%s)`
+	queryFmtDeploymentLabels      = `avg_over_time(deployment_match_labels[%s]%s)`
+	queryFmtStatefulSetLabels     = `avg_over_time(statefulSet_match_labels[%s]%s)`
+	queryFmtDaemonSetLabels       = `sum(avg_over_time(kube_pod_owner{owner_kind="DaemonSet"}[%s]%s)) by (pod, owner_name, namespace, cluster_id)`
+	queryFmtJobLabels             = `sum(avg_over_time(kube_pod_owner{owner_kind="Job"}[%s]%s)) by (pod, owner_name, namespace ,cluster_id)`
+)
 
 // ComputeAllocation uses the CostModel instance to compute an AllocationSet
 // for the window defined by the given start and end times. The Allocations
@@ -97,7 +132,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	// If using Thanos, increase offset to 3 hours, reducing the duration by
 	// equal measure to maintain the same starting point.
 	thanosDur := thanos.OffsetDuration()
-	// TODO niko/cdmr confirm that this flag works interchangeably with ThanosClient != nil
+	// TODO niko/computeallocation confirm that this flag works interchangeably with ThanosClient != nil
 	if offset < thanosDur && env.IsThanosEnabled() {
 		diff := thanosDur - offset
 		offset += diff
@@ -123,117 +158,116 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 		offStr = ""
 	}
 
-	// TODO niko/cdmr dynamic resolution? add to ComputeAllocation() in allocation.Source?
+	// TODO niko/computeallocation dynamic resolution? add to ComputeAllocation() in allocation.Source?
 	resStr := "1m"
 	// resPerHr := 60
 
-	// TODO niko/cdmr remove after testing
+	// TODO niko/computeallocation remove after testing
 	startQuerying := time.Now()
 
 	ctx := prom.NewContext(cm.PrometheusClient)
 
-	// TODO niko/cdmr retries? (That should probably go into the Store.)
+	// TODO niko/computeallocation retries? (That should probably go into the Store.)
 
 	// TODO niko/cmdr check: will multiple Prometheus jobs multiply the totals?
 
-	// TODO niko/cdmr should we try doing this without resolution? Could yield
+	// TODO niko/computeallocation should we try doing this without resolution? Could yield
 	// more accurate results, but might also be more challenging in some
 	// respects; e.g. "correcting" the start point by what amount?
-	queryMinutes := fmt.Sprintf(`avg(kube_pod_container_status_running{}) by (container, pod, namespace, cluster_id)[%s:%s]%s`, durStr, resStr, offStr)
+	queryMinutes := fmt.Sprintf(queryFmtMinutes, durStr, resStr, offStr)
 	resChMinutes := ctx.Query(queryMinutes)
 
-	queryRAMBytesAllocated := fmt.Sprintf(`avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`, durStr, offStr)
+	queryRAMBytesAllocated := fmt.Sprintf(queryFmtRAMBytesAllocated, durStr, offStr)
 	resChRAMBytesAllocated := ctx.Query(queryRAMBytesAllocated)
 
-	queryRAMRequests := fmt.Sprintf(`avg(avg_over_time(kube_pod_container_resource_requests_memory_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`, durStr, offStr)
+	queryRAMRequests := fmt.Sprintf(queryFmtRAMRequests, durStr, offStr)
 	resChRAMRequests := ctx.Query(queryRAMRequests)
 
-	queryRAMUsage := fmt.Sprintf(`avg(avg_over_time(container_memory_working_set_bytes{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`, durStr, offStr)
+	queryRAMUsage := fmt.Sprintf(queryFmtRAMUsage, durStr, offStr)
 	resChRAMUsage := ctx.Query(queryRAMUsage)
 
-	queryCPUCoresAllocated := fmt.Sprintf(`avg(avg_over_time(container_cpu_allocation{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`, durStr, offStr)
+	queryCPUCoresAllocated := fmt.Sprintf(queryFmtCPUCoresAllocated, durStr, offStr)
 	resChCPUCoresAllocated := ctx.Query(queryCPUCoresAllocated)
 
-	queryCPURequests := fmt.Sprintf(`avg(avg_over_time(kube_pod_container_resource_requests_cpu_cores{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`, durStr, offStr)
+	queryCPURequests := fmt.Sprintf(queryFmtCPURequests, durStr, offStr)
 	resChCPURequests := ctx.Query(queryCPURequests)
 
-	queryCPUUsage := fmt.Sprintf(`avg(rate(container_cpu_usage_seconds_total{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`, durStr, offStr)
+	queryCPUUsage := fmt.Sprintf(queryFmtCPUUsage, durStr, offStr)
 	resChCPUUsage := ctx.Query(queryCPUUsage)
 
-	// TODO niko/cdmr find an env with GPUs to test this (generate one?)
-	queryGPUsRequested := fmt.Sprintf(`avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`, durStr, offStr)
+	queryGPUsRequested := fmt.Sprintf(queryFmtGPUsRequested, durStr, offStr)
 	resChGPUsRequested := ctx.Query(queryGPUsRequested)
 
-	queryNodeCostPerCPUHr := fmt.Sprintf(`avg(avg_over_time(node_cpu_hourly_cost[%s]%s)) by (node, cluster_id, instance_type)`, durStr, offStr)
+	queryNodeCostPerCPUHr := fmt.Sprintf(queryFmtNodeCostPerCPUHr, durStr, offStr)
 	resChNodeCostPerCPUHr := ctx.Query(queryNodeCostPerCPUHr)
 
-	queryNodeCostPerRAMGiBHr := fmt.Sprintf(`avg(avg_over_time(node_ram_hourly_cost[%s]%s)) by (node, cluster_id, instance_type)`, durStr, offStr)
+	queryNodeCostPerRAMGiBHr := fmt.Sprintf(queryFmtNodeCostPerRAMGiBHr, durStr, offStr)
 	resChNodeCostPerRAMGiBHr := ctx.Query(queryNodeCostPerRAMGiBHr)
 
-	queryNodeCostPerGPUHr := fmt.Sprintf(`avg(avg_over_time(node_gpu_hourly_cost[%s]%s)) by (node, cluster_id, instance_type)`, durStr, offStr)
+	queryNodeCostPerGPUHr := fmt.Sprintf(queryFmtNodeCostPerGPUHr, durStr, offStr)
 	resChNodeCostPerGPUHr := ctx.Query(queryNodeCostPerGPUHr)
 
-	queryNodeIsSpot := fmt.Sprintf(`avg_over_time(kubecost_node_is_spot[%s]%s)`, durStr, offStr)
+	queryNodeIsSpot := fmt.Sprintf(queryFmtNodeIsSpot, durStr, offStr)
 	resChNodeIsSpot := ctx.Query(queryNodeIsSpot)
 
-	queryPVCInfo := fmt.Sprintf(`avg(kube_persistentvolumeclaim_info{volumename != ""}) by (persistentvolumeclaim, storageclass, volumename, namespace, cluster_id)[%s:%s]%s`, durStr, resStr, offStr)
+	queryPVCInfo := fmt.Sprintf(queryFmtPVCInfo, durStr, resStr, offStr)
 	resChPVCInfo := ctx.Query(queryPVCInfo)
 
-	queryPVBytes := fmt.Sprintf(`avg(avg_over_time(kube_persistentvolume_capacity_bytes[%s]%s)) by (persistentvolume, cluster_id)`, durStr, offStr)
+	queryPVBytes := fmt.Sprintf(queryFmtPVBytes, durStr, offStr)
 	resChPVBytes := ctx.Query(queryPVBytes)
 
-	queryPodPVCAllocation := fmt.Sprintf(`avg(avg_over_time(pod_pvc_allocation[%s]%s)) by (persistentvolume, persistentvolumeclaim, pod, namespace, cluster_id)`, durStr, offStr)
+	queryPodPVCAllocation := fmt.Sprintf(queryFmtPodPVCAllocation, durStr, offStr)
 	resChPodPVCAllocation := ctx.Query(queryPodPVCAllocation)
 
-	queryPVCBytesRequested := fmt.Sprintf(`avg(avg_over_time(kube_persistentvolumeclaim_resource_requests_storage_bytes{}[%s]%s)) by (persistentvolumeclaim, namespace, cluster_id)`, durStr, offStr)
+	queryPVCBytesRequested := fmt.Sprintf(queryFmtPVCBytesRequested, durStr, offStr)
 	resChPVCBytesRequested := ctx.Query(queryPVCBytesRequested)
 
-	queryPVCostPerGiBHour := fmt.Sprintf(`avg(avg_over_time(pv_hourly_cost[%s]%s)) by (volumename, cluster_id)`, durStr, offStr)
+	queryPVCostPerGiBHour := fmt.Sprintf(queryFmtPVCostPerGiBHour, durStr, offStr)
 	resChPVCostPerGiBHour := ctx.Query(queryPVCostPerGiBHour)
 
-	queryNetZoneGiB := fmt.Sprintf(`sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s]%s)) by (pod_name, namespace, cluster_id) / 1024 / 1024 / 1024`, durStr, offStr)
+	queryNetZoneGiB := fmt.Sprintf(queryFmtNetZoneGiB, durStr, offStr)
 	resChNetZoneGiB := ctx.Query(queryNetZoneGiB)
 
-	queryNetZoneCostPerGiB := fmt.Sprintf(`avg(avg_over_time(kubecost_network_zone_egress_cost{}[%s]%s)) by (cluster_id)`, durStr, offStr)
+	queryNetZoneCostPerGiB := fmt.Sprintf(queryFmtNetZoneCostPerGiB, durStr, offStr)
 	resChNetZoneCostPerGiB := ctx.Query(queryNetZoneCostPerGiB)
 
-	queryNetRegionGiB := fmt.Sprintf(`sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s]%s)) by (pod_name, namespace, cluster_id) / 1024 / 1024 / 1024`, durStr, offStr)
+	queryNetRegionGiB := fmt.Sprintf(queryFmtNetRegionGiB, durStr, offStr)
 	resChNetRegionGiB := ctx.Query(queryNetRegionGiB)
 
-	queryNetRegionCostPerGiB := fmt.Sprintf(`avg(avg_over_time(kubecost_network_region_egress_cost{}[%s]%s)) by (cluster_id)`, durStr, offStr)
+	queryNetRegionCostPerGiB := fmt.Sprintf(queryFmtNetRegionCostPerGiB, durStr, offStr)
 	resChNetRegionCostPerGiB := ctx.Query(queryNetRegionCostPerGiB)
 
-	queryNetInternetGiB := fmt.Sprintf(`sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s]%s)) by (pod_name, namespace, cluster_id) / 1024 / 1024 / 1024`, durStr, offStr)
+	queryNetInternetGiB := fmt.Sprintf(queryFmtNetInternetGiB, durStr, offStr)
 	resChNetInternetGiB := ctx.Query(queryNetInternetGiB)
 
-	queryNetInternetCostPerGiB := fmt.Sprintf(`avg(avg_over_time(kubecost_network_internet_egress_cost{}[%s]%s)) by (cluster_id)`, durStr, offStr)
+	queryNetInternetCostPerGiB := fmt.Sprintf(queryFmtNetInternetCostPerGiB, durStr, offStr)
 	resChNetInternetCostPerGiB := ctx.Query(queryNetInternetCostPerGiB)
 
-	queryNamespaceLabels := fmt.Sprintf(`avg_over_time(kube_namespace_labels[%s]%s)`, durStr, offStr)
+	queryNamespaceLabels := fmt.Sprintf(queryFmtNamespaceLabels, durStr, offStr)
 	resChNamespaceLabels := ctx.Query(queryNamespaceLabels)
 
-	queryNamespaceAnnotations := fmt.Sprintf(`avg_over_time(kube_namespace_annotations[%s]%s)`, durStr, offStr)
+	queryNamespaceAnnotations := fmt.Sprintf(queryFmtNamespaceAnnotations, durStr, offStr)
 	resChNamespaceAnnotations := ctx.Query(queryNamespaceAnnotations)
 
-	queryPodLabels := fmt.Sprintf(`avg_over_time(kube_pod_labels[%s]%s)`, durStr, offStr)
+	queryPodLabels := fmt.Sprintf(queryFmtPodLabels, durStr, offStr)
 	resChPodLabels := ctx.Query(queryPodLabels)
 
-	queryPodAnnotations := fmt.Sprintf(`avg_over_time(kube_pod_annotations[%s]%s)`, durStr, offStr)
+	queryPodAnnotations := fmt.Sprintf(queryFmtPodAnnotations, durStr, offStr)
 	resChPodAnnotations := ctx.Query(queryPodAnnotations)
 
-	queryServiceLabels := fmt.Sprintf(`avg_over_time(service_selector_labels[%s]%s)`, durStr, offStr)
+	queryServiceLabels := fmt.Sprintf(queryFmtServiceLabels, durStr, offStr)
 	resChServiceLabels := ctx.Query(queryServiceLabels)
 
-	queryDeploymentLabels := fmt.Sprintf(`avg_over_time(deployment_match_labels[%s]%s)`, durStr, offStr)
+	queryDeploymentLabels := fmt.Sprintf(queryFmtDeploymentLabels, durStr, offStr)
 	resChDeploymentLabels := ctx.Query(queryDeploymentLabels)
 
-	queryStatefulSetLabels := fmt.Sprintf(`avg_over_time(statefulSet_match_labels[%s]%s)`, durStr, offStr)
+	queryStatefulSetLabels := fmt.Sprintf(queryFmtStatefulSetLabels, durStr, offStr)
 	resChStatefulSetLabels := ctx.Query(queryStatefulSetLabels)
 
-	queryDaemonSetLabels := fmt.Sprintf(`sum(avg_over_time(kube_pod_owner{owner_kind="DaemonSet"}[%s]%s)) by (pod, owner_name, namespace, cluster_id)`, durStr, offStr)
+	queryDaemonSetLabels := fmt.Sprintf(queryFmtDaemonSetLabels, durStr, offStr)
 	resChDaemonSetLabels := ctx.Query(queryDaemonSetLabels)
 
-	queryJobLabels := fmt.Sprintf(`sum(avg_over_time(kube_pod_owner{owner_kind="Job"}[%s]%s)) by (pod, owner_name, namespace ,cluster_id)`, durStr, offStr)
+	queryJobLabels := fmt.Sprintf(queryFmtJobLabels, durStr, offStr)
 	resChJobLabels := ctx.Query(queryJobLabels)
 
 	resMinutes, _ := resChMinutes.Await()
@@ -275,7 +309,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	resJobLabels, _ := resChJobLabels.Await()
 
 	// ----------------------------------------------------------------------//
-	// TODO niko/cdmr remove all logs after testing
+	// TODO niko/computeallocation remove all logs after testing
 
 	// log.Infof("CostModel.ComputeAllocation: minutes  : %s", queryMinutes)
 
@@ -321,7 +355,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	// Build out a map of Allocations, starting with (start, end) so that we
 	// begin with minutes, from which we compute resource allocation and cost
 	// totals from measured rate data.
-	// TODO niko/cdmr can we start with a reasonable guess at map size?
+	// TODO niko/computeallocation can we start with a reasonable guess at map size?
 	allocationMap := map[containerKey]*kubecost.Allocation{}
 
 	// Keep track of the allocations per pod, for the sake of splitting PVC and
@@ -347,7 +381,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	applyNetworkAllocation(allocationMap, podAllocation, resNetRegionGiB, resNetRegionCostPerGiB)
 	applyNetworkAllocation(allocationMap, podAllocation, resNetInternetGiB, resNetInternetCostPerGiB)
 
-	// TODO niko/cdmr pruneDuplicateData? (see costmodel.go)
+	// TODO niko/computeallocation pruneDuplicateData? (see costmodel.go)
 
 	namespaceLabels := resToNamespaceLabels(resNamespaceLabels)
 	podLabels := resToPodLabels(resPodLabels)
@@ -368,7 +402,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	applyControllersToPods(allocationMap, podDaemonSetMap)
 	applyControllersToPods(allocationMap, podJobMap)
 
-	// TODO niko/cdmr breakdown network costs?
+	// TODO niko/computeallocation breakdown network costs?
 
 	// Build out a map of Nodes with resource costs, discounts, and node types
 	// for converting resource allocation data to cumulative costs.
@@ -380,18 +414,18 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	applyNodeSpot(nodeMap, resNodeIsSpot)
 	applyNodeDiscount(nodeMap, cm)
 
-	// TODO niko/cdmr comment
+	// TODO niko/computeallocation comment
 	pvMap := map[pvKey]*PV{}
 	buildPVMap(pvMap, resPVCostPerGiBHour)
 	applyPVBytes(pvMap, resPVBytes)
-	// TODO niko/cdmr apply PV bytes?
+	// TODO niko/computeallocation apply PV bytes?
 
-	// TODO niko/cdmr comment
+	// TODO niko/computeallocation comment
 	pvcMap := map[pvcKey]*PVC{}
 	buildPVCMap(window, pvcMap, pvMap, resPVCInfo)
 	applyPVCBytesRequested(pvcMap, resPVCBytesRequested)
 
-	// TODO niko/cdmr comment
+	// TODO niko/computeallocation comment
 	podPVCMap := map[podKey][]*PVC{}
 	buildPodPVCMap(podPVCMap, pvMap, pvcMap, podAllocation, resPodPVCAllocation)
 
@@ -436,7 +470,14 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 				gib := pvc.Bytes / 1024 / 1024 / 1024
 
 				alloc.PVByteHours += pvc.Bytes * hrs
-				alloc.PVCost += pvc.Volume.CostPerGiBHour * gib * hrs / float64(pvc.Count)
+
+				count := float64(pvc.Count)
+				if pvc.Count < 1 {
+					// TODO niko/computeallocation why is this happening?
+					log.Warningf("CostModel.ComputeAllocation: PVC.Count=%d for %s", pvc.Count, alloc.Name)
+					count = 1
+				}
+				alloc.PVCost += pvc.Volume.CostPerGiBHour * gib * hrs / count
 			}
 		}
 
@@ -596,7 +637,7 @@ func applyCPUCoresRequested(allocationMap map[containerKey]*kubecost.Allocation,
 
 		// CPU allocation is less than requests, so set CPUCoreHours to
 		// request level.
-		// TODO niko/cdmr why is this happening?
+		// TODO niko/computeallocation why is this happening?
 		if allocationMap[key].CPUCores() < res.Values[0].Value {
 			allocationMap[key].CPUCoreHours = res.Values[0].Value * (allocationMap[key].Minutes() / 60.0)
 		}
@@ -672,7 +713,7 @@ func applyRAMBytesRequested(allocationMap map[containerKey]*kubecost.Allocation,
 
 		// RAM allocation is less than requests, so set RAMByteHours to
 		// request level.
-		// TODO niko/cdmr why is this happening?
+		// TODO niko/computeallocation why is this happening?
 		if allocationMap[key].RAMBytes() < res.Values[0].Value {
 			allocationMap[key].RAMByteHours = res.Values[0].Value * (allocationMap[key].Minutes() / 60.0)
 		}
@@ -718,8 +759,11 @@ func applyGPUsRequested(allocationMap map[containerKey]*kubecost.Allocation, res
 			continue
 		}
 
-		// TODO niko/cdmr complete
+		// TODO niko/computeallocation remove log
 		log.Infof("CostModel.ComputeAllocation: GPU results: %s=%f", key, res.Values[0].Value)
+
+		hrs := allocationMap[key].Minutes() / 60.0
+		allocationMap[key].GPUHours = res.Values[0].Value * hrs
 	}
 }
 
@@ -971,7 +1015,7 @@ func labelsToPodControllerMap(podLabels map[podKey]map[string]string, controller
 
 			podLabelSet := labels.Set(pLabels)
 			if selector.Matches(podLabelSet) {
-				// TODO niko/cdmr does this need to be one-to-many? In that case, we'd
+				// TODO niko/computeallocation does this need to be one-to-many? In that case, we'd
 				// need a different Allocation schema
 				if _, ok := podControllerMap[pKey]; ok {
 					log.Warningf("CostModel.ComputeAllocation: PodControllerMap match already exists: %s matches %s and %s", pKey, podControllerMap[pKey], cKey)
@@ -1218,7 +1262,7 @@ func applyNodeDiscount(nodeMap map[nodeKey]*Node, cm *CostModel) {
 	}
 
 	for _, node := range nodeMap {
-		// TODO niko/cdmr take RI into account?
+		// TODO niko/computeallocation take RI into account?
 		node.Discount = cm.Provider.CombinedDiscountForNode(node.NodeType, node.Preemptible, discount, negotiatedDiscount)
 		node.CostPerCPUHr *= (1.0 - node.Discount)
 		node.CostPerRAMGiBHr *= (1.0 - node.Discount)
@@ -1379,6 +1423,7 @@ func buildPodPVCMap(podPVCMap map[podKey][]*PVC, pvMap map[pvKey]*PV, pvcMap map
 			continue
 		}
 
+		// TODO niko/computeallocation is this working?
 		pvc.Count = len(podAllocation[podKey])
 
 		podPVCMap[podKey] = append(podPVCMap[podKey], pvc)
@@ -1413,8 +1458,8 @@ func applyUnmountedPVs(window kubecost.Window, allocationMap map[containerKey]*k
 	for cluster, amount := range unmountedPVCost {
 		container := "unmounted-pvs"
 		pod := "unmounted-pvs"
-		namespace := "" // TODO niko/cdmr what about this?
-		node := ""      // TODO niko/cdmr what about this?
+		namespace := "" // TODO niko/computeallocation what about this?
+		node := ""      // TODO niko/computeallocation what about this?
 
 		containerKey := newContainerKey(cluster, namespace, pod, container)
 		allocationMap[containerKey] = &kubecost.Allocation{

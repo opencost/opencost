@@ -46,7 +46,7 @@ const (
 // isCron matches a CronJob name and captures the non-timestamp name
 var isCron = regexp.MustCompile(`^(.+)-\d{10}$`)
 
-// TODO niko/cdmr both Thanos and Prometheus, or just one?
+// TODO niko/computeallocation both Thanos and Prometheus, or just one?
 type CostModel struct {
 	Cache            clustercache.ClusterCache
 	ClusterMap       clusters.ClusterMap
@@ -71,7 +71,7 @@ func NewCostModel(client prometheus.Client, provider costAnalyzerCloud.Provider,
 	}
 }
 
-// TODO niko/cdmr
+// TODO niko/computeallocation
 type ContainerAllocation struct {
 	Properties      ContainerProperties          `json:"properties"`
 	RAMReq          []*util.Vector               `json:"ramreq,omitempty"`
@@ -90,7 +90,7 @@ type ContainerAllocation struct {
 	ClusterName     string                       `json:"clusterName"`
 }
 
-// TODO niko/cdmr
+// TODO niko/computeallocation
 type ContainerProperties struct {
 	Container      string            `json:"container"`
 	Pod            string            `json:"pod"`

@@ -43,7 +43,7 @@ const ShareNone = "__none__"
 // Allocation is a unit of resource allocation and cost for a given window
 // of time and for a given kubernetes construct with its associated set of
 // properties.
-// TODO niko/cdmr compute efficiency on the fly?
+// TODO niko/computeallocation compute efficiency on the fly?
 type Allocation struct {
 	Name                   string     `json:"name"`
 	Properties             Properties `json:"properties,omitempty"`
@@ -253,7 +253,7 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-// TODO niko/cdmr
+// TODO niko/computeallocation
 // func (a *Allocation)UnmarshalJSON()
 
 // Resolution returns the duration of time covered by the Allocation
@@ -290,7 +290,7 @@ func (a *Allocation) Minutes() float64 {
 
 // Share works like Add, but converts the entire cost of the given Allocation
 // to SharedCost, rather than adding to the individual resource costs.
-// TODO niko/cdmr unit test changes!!!
+// TODO niko/computeallocation unit test changes!!!
 func (a *Allocation) Share(that *Allocation) (*Allocation, error) {
 	if that == nil {
 		return a.Clone(), nil
@@ -1602,7 +1602,7 @@ func (as *AllocationSet) accumulate(that *AllocationSet) (*AllocationSet, error)
 		return as, nil
 	}
 
-	// TODO niko/cdmr implement first
+	// TODO niko/computeallocation implement first
 	// if that.Window.Overlaps(as.Window) {
 	// 	return nil, fmt.Errorf("AllocationSet.accumulate: overlapping windows: %s", that.Window, as.Window)
 	// }

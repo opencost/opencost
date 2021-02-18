@@ -602,7 +602,7 @@ func TestWindow_DurationOffsetStrings(t *testing.T) {
 }
 
 func TestWindow_Overlaps(t *testing.T) {
-	// TODO niko/cdmr
+	// TODO niko/computeallocation
 }
 
 // TODO

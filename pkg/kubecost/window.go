@@ -446,7 +446,7 @@ func (w Window) Minutes() float64 {
 
 // Overlaps returns true iff the two given Windows share and amount of temporal
 // coverage.
-// TODO niko/cdmr return to this, with unit tests, and then implement in
+// TODO niko/computeallocation return to this, with unit tests, and then implement in
 // AllocationSet.accumulate
 func (w Window) Overlaps(x Window) bool {
 	if (w.start == nil && w.end == nil) || (x.start == nil && x.end == nil) {
@@ -495,11 +495,11 @@ func (w Window) Overlaps(x Window) bool {
 	//  [------]
 	//     ?------?
 	if x.start == nil {
-		// TODO niko/cdmr
+		// TODO niko/computeallocation
 	}
 
 	if x.end == nil {
-		// TODO niko/cdmr
+		// TODO niko/computeallocation
 	}
 
 	// Both are closed.

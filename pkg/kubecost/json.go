@@ -11,10 +11,8 @@ import (
 
 func jsonEncodeFloat64(buffer *bytes.Buffer, name string, val float64, comma string) {
 	var encoding string
-	if math.IsNaN(val) {
+	if math.IsNaN(val) || math.IsInf(val, 0) {
 		encoding = fmt.Sprintf("\"%s\":null%s", name, comma)
-	} else if math.IsInf(val, 0) {
-		encoding = fmt.Sprintf("\"%s\":\"inf\"%s", name, comma)
 	} else {
 		encoding = fmt.Sprintf("\"%s\":%f%s", name, val, comma)
 	}
