@@ -174,6 +174,7 @@ type AWSProductAttributes struct {
 	OperatingSystem string `json:"operatingSystem"`
 	PreInstalledSw  string `json:"preInstalledSw"`
 	InstanceFamily  string `json:"instanceFamily"`
+	CapacityStatus  string `json:"capacitystatus"`
 	GPU             string `json:"gpu"` // GPU represents the number of GPU on the instance
 }
 
@@ -743,7 +744,8 @@ func (aws *AWS) DownloadPricingData() error {
 				}
 
 				if product.Attributes.PreInstalledSw == "NA" &&
-					(strings.HasPrefix(product.Attributes.UsageType, "BoxUsage") || strings.Contains(product.Attributes.UsageType, "-BoxUsage")) {
+					(strings.HasPrefix(product.Attributes.UsageType, "BoxUsage") || strings.Contains(product.Attributes.UsageType, "-BoxUsage")) &&
+					product.Attributes.CapacityStatus == "Used" {
 					key := aws.KubeAttrConversion(product.Attributes.Location, product.Attributes.InstanceType, product.Attributes.OperatingSystem)
 					spotKey := key + ",preemptible"
 					if inputkeys[key] || inputkeys[spotKey] { // Just grab the sku even if spot, and change the price later.
