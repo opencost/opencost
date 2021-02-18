@@ -1,0 +1,180 @@
+# Based on the split YAML files, this is aggregated for convenience of deployment.
+
+---
+
+# The namespace cost-model will run in
+apiVersion: v1
+kind: Namespace
+metadata:
+    name: cost-model
+
+---
+
+# Service account for permissions
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cost-model
+
+---
+
+# Cluster role so cost model can gather data about the cluster
+# No write permissions are allowed
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cost-model 
+rules:
+  - apiGroups:
+      - ''
+    resources:
+      - configmaps
+      - deployments
+      - nodes
+      - pods
+      - services
+      - resourcequotas
+      - replicationcontrollers
+      - limitranges
+      - persistentvolumeclaims
+      - persistentvolumes
+      - namespaces
+      - endpoints
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - extensions
+    resources:
+      - daemonsets
+      - deployments
+      - replicasets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - statefulsets
+      - deployments
+      - daemonsets
+      - replicasets
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - batch
+    resources:
+      - cronjobs
+      - jobs
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - autoscaling
+    resources:
+      - horizontalpodautoscalers
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - policy
+    resources:
+      - poddisruptionbudgets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups: 
+      - storage.k8s.io
+    resources: 
+      - storageclasses
+    verbs:
+      - get
+      - list
+      - watch
+
+---
+
+# Bind the role to the service account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cost-model
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cost-model
+subjects:
+  - kind: ServiceAccount
+    name: cost-model
+    namespace: cost-model
+
+---
+
+# Create a deployment for a single cost model pod
+# 
+# See environment variables if you would like to add a Prometheus for
+# cost model to read from for full functionality.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cost-model
+  labels:
+    app: cost-model
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cost-model
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: cost-model
+    spec:
+      restartPolicy: Always
+      serviceAccountName: cost-model
+      containers:
+        - image: quay.io/kubecost1/kubecost-cost-model:latest
+          name: cost-model
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "55M"
+          env:
+            - name: PROMETHEUS_SERVER_ENDPOINT
+              value: "{{prometheusEndpoint}}"  #The endpoint should have the form http://<service-name>.<namespace-name>.svc
+            - name: CLOUD_PROVIDER_API_KEY
+              value: "AIzaSyD29bGxmHAVEOBYtgd8sYM2gM2ekfxQX4U" # The GCP Pricing API requires a key. This is supplied just for evaluation.
+          imagePullPolicy: Always
+
+---
+
+# Expose the cost model with a service
+# 
+# Without a Prometheus endpoint configured in the deployment,
+# only cost-model/metrics will have useful data as it is intended
+# to be used as just an exporter.
+kind: Service
+apiVersion: v1
+metadata:
+  name: cost-model
+spec:
+  selector:
+    app: cost-model
+  type: ClusterIP
+  ports:
+    - name: cost-model
+      port: 9003
+      targetPort: 9003
+
+---
