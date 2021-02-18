@@ -1042,17 +1042,17 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	// Initialize mechanism for subscribing to settings changes
 	a.InitializeSettingsPubSub()
 
+	err = a.CloudProvider.DownloadPricingData()
+	if err != nil {
+		klog.V(1).Info("Failed to download pricing data: " + err.Error())
+	}
+
 	// Warm the aggregate cache unless explicitly set to false
 	if env.IsCacheWarmingEnabled() {
 		log.Infof("Init: AggregateCostModel cache warming enabled")
 		a.warmAggregateCostModelCache()
 	} else {
 		log.Infof("Init: AggregateCostModel cache warming disabled")
-	}
-
-	err = a.CloudProvider.DownloadPricingData()
-	if err != nil {
-		klog.V(1).Info("Failed to download pricing data: " + err.Error())
 	}
 
 	a.MetricsEmitter.Start()
