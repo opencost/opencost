@@ -243,49 +243,8 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	resDaemonSetLabels, _ := resChDaemonSetLabels.Await()
 	resJobLabels, _ := resChJobLabels.Await()
 
-	// ----------------------------------------------------------------------//
-	// TODO niko/computeallocation remove all logs after testing
-
-	// log.Infof("CostModel.ComputeAllocation: minutes  : %s", queryMinutes)
-
-	// log.Infof("CostModel.ComputeAllocation: CPU cores: %s", queryCPUCoresAllocated)
-	// log.Infof("CostModel.ComputeAllocation: CPU req  : %s", queryCPURequests)
-	// log.Infof("CostModel.ComputeAllocation: CPU use  : %s", queryCPUUsage)
-	// log.Infof("CostModel.ComputeAllocation: $/CPU*Hr : %s", queryNodeCostPerCPUHr)
-
-	// log.Infof("CostModel.ComputeAllocation: RAM bytes: %s", queryRAMBytesAllocated)
-	// log.Infof("CostModel.ComputeAllocation: RAM req  : %s", queryRAMRequests)
-	// log.Infof("CostModel.ComputeAllocation: RAM use  : %s", queryRAMUsage)
-	// log.Infof("CostModel.ComputeAllocation: $/GiB*Hr : %s", queryNodeCostPerRAMGiBHr)
-
-	// log.Infof("CostModel.ComputeAllocation: PV $/gbhr: %s", queryPVCostPerGiBHour)
-	// log.Infof("CostModel.ComputeAllocation: PV bytes : %s", queryPVBytes)
-
-	// log.Infof("CostModel.ComputeAllocation: PVC alloc: %s", queryPodPVCAllocation)
-	// log.Infof("CostModel.ComputeAllocation: PVC bytes: %s", queryPVCBytesRequested)
-	// log.Infof("CostModel.ComputeAllocation: PVC info : %s", queryPVCInfo)
-
-	// log.Infof("CostModel.ComputeAllocation: Net Z GiB: %s", queryNetZoneGiB)
-	// log.Infof("CostModel.ComputeAllocation: Net Z $  : %s", queryNetZoneCostPerGiB)
-	// log.Infof("CostModel.ComputeAllocation: Net R GiB: %s", queryNetRegionGiB)
-	// log.Infof("CostModel.ComputeAllocation: Net R $  : %s", queryNetRegionCostPerGiB)
-	// log.Infof("CostModel.ComputeAllocation: Net I GiB: %s", queryNetInternetGiB)
-	// log.Infof("CostModel.ComputeAllocation: Net I $  : %s", queryNetInternetCostPerGiB)
-
-	// log.Infof("CostModel.ComputeAllocation: NamespaceLabels: %s", queryNamespaceLabels)
-	// log.Infof("CostModel.ComputeAllocation: NamespaceAnnotations: %s", queryNamespaceAnnotations)
-	// log.Infof("CostModel.ComputeAllocation: PodLabels: %s", queryPodLabels)
-	// log.Infof("CostModel.ComputeAllocation: PodAnnotations: %s", queryPodAnnotations)
-	// log.Infof("CostModel.ComputeAllocation: ServiceLabels: %s", queryServiceLabels)
-	// log.Infof("CostModel.ComputeAllocation: DeploymentLabels: %s", queryDeploymentLabels)
-	// log.Infof("CostModel.ComputeAllocation: StatefulSetLabels: %s", queryStatefulSetLabels)
-	// log.Infof("CostModel.ComputeAllocation: DaemonSetLabels: %s", queryDaemonSetLabels)
-	// log.Infof("CostModel.ComputeAllocation: JobLabels: %s", queryJobLabels)
-
 	log.Profile(startQuerying, "CostModel.ComputeAllocation: queries complete")
 	defer log.Profile(time.Now(), "CostModel.ComputeAllocation: processing complete")
-
-	// ----------------------------------------------------------------------//
 
 	// Build out a map of Allocations, starting with (start, end) so that we
 	// begin with minutes, from which we compute resource allocation and cost
@@ -336,7 +295,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	applyControllersToPods(allocationMap, podDaemonSetMap)
 	applyControllersToPods(allocationMap, podJobMap)
 
-	// TODO niko/computeallocation breakdown network costs?
+	// TODO breakdown network costs?
 
 	// Build out a map of Nodes with resource costs, discounts, and node types
 	// for converting resource allocation data to cumulative costs.
@@ -348,17 +307,25 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	applyNodeSpot(nodeMap, resNodeIsSpot)
 	applyNodeDiscount(nodeMap, cm)
 
-	// TODO niko/computeallocation comment
+	// Build out the map of all PVs with class, size and cost-per-hour.
+	// Note: this does not record time running, which we may want to
+	// include later for increased PV precision. (As long as the PV has
+	// a PVC, we get time running there, so this is only inaccurate
+	// for short-lived, unmounted PVs.)
 	pvMap := map[pvKey]*PV{}
 	buildPVMap(pvMap, resPVCostPerGiBHour)
 	applyPVBytes(pvMap, resPVBytes)
 
-	// TODO niko/computeallocation comment
+	// Build out the map of all PVCs with time running, bytes requested,
+	// and connect to the correct PV from pvMap. (If no PV exists, that
+	// is noted, but does not result in any allocation/cost.)
 	pvcMap := map[pvcKey]*PVC{}
 	buildPVCMap(window, pvcMap, pvMap, resPVCInfo)
 	applyPVCBytesRequested(pvcMap, resPVCBytesRequested)
 
-	// TODO niko/computeallocation comment
+	// Build out the relationships of pods to their PVCs. This step
+	// populates the PVC.Count field so that PVC allocation can be
+	// split appropriately among each pod's container allocation.
 	podPVCMap := map[podKey][]*PVC{}
 	buildPodPVCMap(podPVCMap, pvMap, pvcMap, podAllocation, resPodPVCAllocation)
 
@@ -406,7 +373,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 
 				count := float64(pvc.Count)
 				if pvc.Count < 1 {
-					// TODO niko/computeallocation why is this happening?
+					// TODO niko/computeallocation remove log (why would this happen?)
 					log.Warningf("CostModel.ComputeAllocation: PVC.Count=%d for %s", pvc.Count, alloc.Name)
 					count = 1
 				}
@@ -568,9 +535,8 @@ func applyCPUCoresRequested(allocationMap map[containerKey]*kubecost.Allocation,
 
 		allocationMap[key].CPUCoreRequestAverage = res.Values[0].Value
 
-		// CPU allocation is less than requests, so set CPUCoreHours to
+		// If CPU allocation is less than requests, set CPUCoreHours to
 		// request level.
-		// TODO niko/computeallocation why is this happening?
 		if allocationMap[key].CPUCores() < res.Values[0].Value {
 			allocationMap[key].CPUCoreHours = res.Values[0].Value * (allocationMap[key].Minutes() / 60.0)
 		}
@@ -644,9 +610,8 @@ func applyRAMBytesRequested(allocationMap map[containerKey]*kubecost.Allocation,
 
 		allocationMap[key].RAMBytesRequestAverage = res.Values[0].Value
 
-		// RAM allocation is less than requests, so set RAMByteHours to
+		// If RAM allocation is less than requests, set RAMByteHours to
 		// request level.
-		// TODO niko/computeallocation why is this happening?
 		if allocationMap[key].RAMBytes() < res.Values[0].Value {
 			allocationMap[key].RAMByteHours = res.Values[0].Value * (allocationMap[key].Minutes() / 60.0)
 		}
@@ -1458,8 +1423,8 @@ func applyUnmountedPVCs(window kubecost.Window, allocationMap map[containerKey]*
 }
 
 // PVC describes a PersistentVolumeClaim
-// TODO niko/computeallocation move to pkg/kubecost?
-// TODO niko/computeallocation add PersistentVolumeClaims field to type Allocation?
+// TODO move to pkg/kubecost?  [TODO:CLEANUP]
+// TODO add PersistentVolumeClaims field to type Allocation?  [TODO:CLEANUP]
 type PVC struct {
 	Bytes     float64   `json:"bytes"`
 	Count     int       `json:"count"`
@@ -1502,7 +1467,7 @@ func (pvc *PVC) String() string {
 }
 
 // PV describes a PersistentVolume
-// TODO niko/computeallocation move to pkg/kubecost?
+// TODO move to pkg/kubecost? [TODO:CLEANUP]
 type PV struct {
 	Bytes          float64 `json:"bytes"`
 	CostPerGiBHour float64 `json:"costPerGiBHour"` // TODO niko/computeallocation GiB or GB?

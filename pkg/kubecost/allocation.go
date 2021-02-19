@@ -1602,11 +1602,6 @@ func (as *AllocationSet) accumulate(that *AllocationSet) (*AllocationSet, error)
 		return as, nil
 	}
 
-	// TODO niko/computeallocation implement first
-	// if that.Window.Overlaps(as.Window) {
-	// 	return nil, fmt.Errorf("AllocationSet.accumulate: overlapping windows: %s", that.Window, as.Window)
-	// }
-
 	// Set start, end to min(start), max(end)
 	start := as.Start()
 	end := as.End()
