@@ -245,6 +245,14 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	resDaemonSetLabels, _ := resChDaemonSetLabels.Await()
 	resJobLabels, _ := resChJobLabels.Await()
 
+	// ---------------------------------------
+	// TODO niko/computeallocation remove logs
+	log.Infof("CostModel.ComputeAllocation: %s", queryMinutes)
+	log.Infof("CostModel.ComputeAllocation: %s", queryRAMBytesAllocated)
+	log.Infof("CostModel.ComputeAllocation: %s", queryCPUCoresAllocated)
+	log.Infof("CostModel.ComputeAllocation: %s", queryGPUsRequested)
+	// ---------------------------------------
+
 	log.Profile(startQuerying, "CostModel.ComputeAllocation: queries complete")
 	defer log.Profile(time.Now(), "CostModel.ComputeAllocation: processing complete")
 
@@ -369,17 +377,20 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 				}
 				minutes := e.Sub(s).Minutes()
 				hrs := minutes / 60.0
-				gib := pvc.Bytes / 1024 / 1024 / 1024
-
-				alloc.PVByteHours += pvc.Bytes * hrs
 
 				count := float64(pvc.Count)
 				if pvc.Count < 1 {
-					// TODO niko/computeallocation remove log (why would this happen?)
-					log.Warningf("CostModel.ComputeAllocation: PVC.Count=%d for %s", pvc.Count, alloc.Name)
 					count = 1
 				}
-				alloc.PVCost += pvc.Volume.CostPerGiBHour * gib * hrs / count
+
+				gib := pvc.Bytes / 1024 / 1024 / 1024
+				cost := pvc.Volume.CostPerGiBHour * gib * hrs
+
+				alloc.PVByteHours += pvc.Bytes * hrs / count
+				alloc.PVCost += cost / count
+
+				// TODO niko/computeallocation remove log
+				log.Warningf("CostModel.ComputeAllocation: PVC %s: count=%d, %f GiB, %f hrs, $%f ($%f after split)", pvc.Name, pvc.Count, gib, hrs, cost, cost/count)
 			}
 		}
 
