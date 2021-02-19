@@ -913,8 +913,6 @@ func labelsToPodControllerMap(podLabels map[podKey]map[string]string, controller
 
 			podLabelSet := labels.Set(pLabels)
 			if selector.Matches(podLabelSet) {
-				// TODO niko/computeallocation does this need to be one-to-many? In that case, we'd
-				// need a different Allocation schema
 				if _, ok := podControllerMap[pKey]; ok {
 					log.Warningf("CostModel.ComputeAllocation: PodControllerMap match already exists: %s matches %s and %s", pKey, podControllerMap[pKey], cKey)
 				}
