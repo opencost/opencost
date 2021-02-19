@@ -404,10 +404,14 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 
 		if alloc.RAMBytesRequestAverage > 0 {
 			alloc.RAMEfficiency = alloc.RAMBytesUsageAverage / alloc.RAMBytesRequestAverage
+		} else {
+			alloc.RAMEfficiency = 1.0
 		}
 
 		if alloc.CPUCoreRequestAverage > 0 {
 			alloc.CPUEfficiency = alloc.CPUCoreUsageAverage / alloc.CPUCoreRequestAverage
+		} else {
+			alloc.CPUEfficiency = 1.0
 		}
 
 		if alloc.CPUCost+alloc.RAMCost > 0 {

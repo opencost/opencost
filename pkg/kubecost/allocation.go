@@ -1284,7 +1284,7 @@ func (as *AllocationSet) ComputeIdleAllocations(assetSet *AssetSet) (map[string]
 		if s, ok := clusterStarts[cluster]; !ok || a.Start.Before(s) {
 			clusterStarts[cluster] = a.Start
 		}
-		if e, ok := clusterEnds[cluster]; !ok || a.End.Before(e) {
+		if e, ok := clusterEnds[cluster]; !ok || a.End.After(e) {
 			clusterEnds[cluster] = a.End
 		}
 
