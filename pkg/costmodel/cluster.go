@@ -536,7 +536,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	}
 
 	for _, node := range nodeMap {
-		// TODO take RI into account
+		// TODO take GKE Reserved Instances into account
 		node.Discount = cp.CombinedDiscountForNode(node.NodeType, node.Preemptible, discount, negotiatedDiscount)
 
 		// Apply all remaining resources to Idle

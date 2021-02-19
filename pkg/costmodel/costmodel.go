@@ -46,7 +46,6 @@ const (
 // isCron matches a CronJob name and captures the non-timestamp name
 var isCron = regexp.MustCompile(`^(.+)-\d{10}$`)
 
-// TODO niko/computeallocation both Thanos and Prometheus, or just one?
 type CostModel struct {
 	Cache            clustercache.ClusterCache
 	ClusterMap       clusters.ClusterMap
@@ -69,40 +68,6 @@ func NewCostModel(client prometheus.Client, provider costAnalyzerCloud.Provider,
 		RequestGroup:     requestGroup,
 		ScrapeInterval:   scrapeInterval,
 	}
-}
-
-// TODO niko/computeallocation
-type ContainerAllocation struct {
-	Properties      ContainerProperties          `json:"properties"`
-	RAMReq          []*util.Vector               `json:"ramreq,omitempty"`
-	RAMUsed         []*util.Vector               `json:"ramused,omitempty"`
-	RAMAllocation   []*util.Vector               `json:"ramallocated,omitempty"`
-	CPUReq          []*util.Vector               `json:"cpureq,omitempty"`
-	CPUUsed         []*util.Vector               `json:"cpuused,omitempty"`
-	CPUAllocation   []*util.Vector               `json:"cpuallocated,omitempty"`
-	GPUReq          []*util.Vector               `json:"gpureq,omitempty"`
-	PVCData         []*PersistentVolumeClaimData `json:"pvcData,omitempty"`
-	NetworkData     []*util.Vector               `json:"network,omitempty"`
-	Annotations     map[string]string            `json:"annotations,omitempty"`
-	Labels          map[string]string            `json:"labels,omitempty"`
-	NamespaceLabels map[string]string            `json:"namespaceLabels,omitempty"`
-	ClusterID       string                       `json:"clusterId"`
-	ClusterName     string                       `json:"clusterName"`
-}
-
-// TODO niko/computeallocation
-type ContainerProperties struct {
-	Container      string            `json:"container"`
-	Pod            string            `json:"pod"`
-	Namespace      string            `json:"namespace"`
-	Node           string            `json:"node"`
-	ClusterID      string            `json:"clusterID"`
-	Cluster        string            `json:"cluster"`
-	Controller     string            `json:"controller"`
-	ControllerKind string            `json:"controllerKind"`
-	Services       []string          `json:"services"`
-	Labels         map[string]string `json:"labels"`
-	Annotations    map[string]string `json:"annotations"`
 }
 
 type CostData struct {
@@ -1754,6 +1719,15 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 		}
 	}
 
+	// TODO niko/computeallocation remove logging
+	for k, vs := range unmountedPVs {
+		pvcData := []string{}
+		for _, v := range vs {
+			pvcData = append(pvcData, fmt.Sprintf("%s/%s/%s", v.ClusterID, v.Namespace, v.VolumeName))
+		}
+		log.Infof("CostModel.ComputeAllocation: unmountedPVs before: %s: [%s]", k, strings.Join(pvcData, ", "))
+	}
+
 	nsLabels, err := GetNamespaceLabelsMetrics(resNSLabels, clusterID)
 	if err != nil {
 		klog.V(1).Infof("Unable to get Namespace Labels for Metrics: %s", err.Error())
@@ -2087,6 +2061,15 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 			containerNameCost[key] = costs
 			missingContainers[key] = costs
 		}
+	}
+
+	// TODO niko/computeallocation remove logging
+	for k, vs := range unmountedPVs {
+		pvcData := []string{}
+		for _, v := range vs {
+			pvcData = append(pvcData, fmt.Sprintf("%s/%s/%s", v.ClusterID, v.Namespace, v.VolumeName))
+		}
+		log.Infof("CostModel.ComputeAllocation: unmountedPVs after: %s: [%s]", k, strings.Join(pvcData, ", "))
 	}
 
 	unmounted := findUnmountedPVCostData(cm.ClusterMap, unmountedPVs, namespaceLabelsMapping, namespaceAnnotationsMapping)

@@ -12,66 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 )
 
-// TODO niko/computeallocation NodeProp issue
-// http://kubecost.nikovacevic.io/model/allocation?window=yesterday => Error: NodeProp not set
-
-// TODO niko/computeallocation split into required and optional queries?
-
-// TODO niko/computeallocation move to pkg/kubecost
-// TODO niko/computeallocation add PersistenVolumeClaims to type Allocation?
-type PVC struct {
-	Bytes     float64   `json:"bytes"`
-	Count     int       `json:"count"`
-	Name      string    `json:"name"`
-	Cluster   string    `json:"cluster"`
-	Namespace string    `json:"namespace"`
-	Volume    *PV       `json:"persistentVolume"`
-	Start     time.Time `json:"start"`
-	End       time.Time `json:"end"`
-}
-
-func (pvc *PVC) Cost() float64 {
-	if pvc == nil || pvc.Volume == nil {
-		return 0.0
-	}
-
-	gib := pvc.Bytes / 1024 / 1024 / 1024
-	hrs := pvc.Minutes() / 60.0
-
-	return pvc.Volume.CostPerGiBHour * gib * hrs
-}
-
-func (pvc *PVC) Minutes() float64 {
-	if pvc == nil {
-		return 0.0
-	}
-
-	return pvc.End.Sub(pvc.Start).Minutes()
-}
-
-func (pvc *PVC) String() string {
-	if pvc == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%s/%s/%s{Bytes:%.2f, Cost:%.6f, Start,End:%s}", pvc.Cluster, pvc.Namespace, pvc.Name, pvc.Bytes, pvc.Cost(), kubecost.NewWindow(&pvc.Start, &pvc.End))
-}
-
-// TODO niko/computeallocation move to pkg/kubecost
-type PV struct {
-	Bytes          float64 `json:"bytes"`
-	CostPerGiBHour float64 `json:"costPerGiBHour"` // TODO niko/computeallocation GiB or GB?
-	Cluster        string  `json:"cluster"`
-	Name           string  `json:"name"`
-	StorageClass   string  `json:"storageClass"`
-}
-
-func (pv *PV) String() string {
-	if pv == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%s/%s{Bytes:%.2f, Cost/GiB*Hr:%.6f, StorageClass:%s}", pv.Cluster, pv.Name, pv.Bytes, pv.CostPerGiBHour, pv.StorageClass)
-}
-
 const (
 	queryFmtMinutes               = `avg(kube_pod_container_status_running{}) by (container, pod, namespace, cluster_id)[%s:%s]%s`
 	queryFmtRAMBytesAllocated     = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
@@ -132,7 +72,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	// If using Thanos, increase offset to 3 hours, reducing the duration by
 	// equal measure to maintain the same starting point.
 	thanosDur := thanos.OffsetDuration()
-	// TODO niko/computeallocation confirm that this flag works interchangeably with ThanosClient != nil
 	if offset < thanosDur && env.IsThanosEnabled() {
 		diff := thanosDur - offset
 		offset += diff
@@ -162,18 +101,14 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	resStr := "1m"
 	// resPerHr := 60
 
-	// TODO niko/computeallocation remove after testing
 	startQuerying := time.Now()
 
 	ctx := prom.NewContext(cm.PrometheusClient)
 
 	// TODO niko/computeallocation retries? (That should probably go into the Store.)
 
-	// TODO niko/cmdr check: will multiple Prometheus jobs multiply the totals?
+	// TODO niko/computeallocation split into required and optional queries?
 
-	// TODO niko/computeallocation should we try doing this without resolution? Could yield
-	// more accurate results, but might also be more challenging in some
-	// respects; e.g. "correcting" the start point by what amount?
 	queryMinutes := fmt.Sprintf(queryFmtMinutes, durStr, resStr, offStr)
 	resChMinutes := ctx.Query(queryMinutes)
 
@@ -355,7 +290,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	// Build out a map of Allocations, starting with (start, end) so that we
 	// begin with minutes, from which we compute resource allocation and cost
 	// totals from measured rate data.
-	// TODO niko/computeallocation can we start with a reasonable guess at map size?
 	allocationMap := map[containerKey]*kubecost.Allocation{}
 
 	// Keep track of the allocations per pod, for the sake of splitting PVC and
@@ -418,7 +352,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	pvMap := map[pvKey]*PV{}
 	buildPVMap(pvMap, resPVCostPerGiBHour)
 	applyPVBytes(pvMap, resPVBytes)
-	// TODO niko/computeallocation apply PV bytes?
 
 	// TODO niko/computeallocation comment
 	pvcMap := map[pvcKey]*PVC{}
@@ -1262,7 +1195,7 @@ func applyNodeDiscount(nodeMap map[nodeKey]*Node, cm *CostModel) {
 	}
 
 	for _, node := range nodeMap {
-		// TODO niko/computeallocation take RI into account?
+		// TODO niko/computeallocation GKE Reserved Instances into account
 		node.Discount = cm.Provider.CombinedDiscountForNode(node.NodeType, node.Preemptible, discount, negotiatedDiscount)
 		node.CostPerCPUHr *= (1.0 - node.Discount)
 		node.CostPerRAMGiBHr *= (1.0 - node.Discount)
@@ -1423,8 +1356,8 @@ func buildPodPVCMap(podPVCMap map[podKey][]*PVC, pvMap map[pvKey]*PV, pvcMap map
 			continue
 		}
 
-		// TODO niko/computeallocation is this working?
 		pvc.Count = len(podAllocation[podKey])
+		pvc.Mounted = true
 
 		podPVCMap[podKey] = append(podPVCMap[podKey], pvc)
 	}
@@ -1448,7 +1381,7 @@ func applyUnmountedPVs(window kubecost.Window, allocationMap map[containerKey]*k
 
 		if !mounted {
 			gib := pv.Bytes / 1024 / 1024 / 1024
-			hrs := window.Minutes() / 60.0
+			hrs := window.Minutes() / 60.0 // TODO niko/computeallocation PV hours, not window hours?
 			cost := pv.CostPerGiBHour * gib * hrs
 			unmountedPVCost[pv.Cluster] += cost
 			unmountedPVBytes[pv.Cluster] += pv.Bytes
@@ -1458,12 +1391,12 @@ func applyUnmountedPVs(window kubecost.Window, allocationMap map[containerKey]*k
 	for cluster, amount := range unmountedPVCost {
 		container := "unmounted-pvs"
 		pod := "unmounted-pvs"
-		namespace := "" // TODO niko/computeallocation what about this?
-		node := ""      // TODO niko/computeallocation what about this?
+		namespace := ""
+		node := ""
 
 		containerKey := newContainerKey(cluster, namespace, pod, container)
 		allocationMap[containerKey] = &kubecost.Allocation{
-			Name: fmt.Sprintf("%s/%s/%s/%s", cluster, namespace, pod, container),
+			Name: fmt.Sprintf("%s/%s/%s/%s/%s", cluster, node, namespace, pod, container),
 			Properties: kubecost.Properties{
 				kubecost.ClusterProp:   cluster,
 				kubecost.NodeProp:      node,
@@ -1481,308 +1414,107 @@ func applyUnmountedPVs(window kubecost.Window, allocationMap map[containerKey]*k
 	}
 }
 
-type containerKey struct {
-	Cluster   string
-	Namespace string
-	Pod       string
-	Container string
-}
+func applyUnmountedPVCs(window kubecost.Window, allocationMap map[containerKey]*kubecost.Allocation, pvcMap map[pvcKey]*PVC) {
+	unmountedPVCBytes := map[namespaceKey]float64{}
+	unmountedPVCCost := map[namespaceKey]float64{}
 
-func (k containerKey) String() string {
-	return fmt.Sprintf("%s/%s/%s/%s", k.Cluster, k.Namespace, k.Pod, k.Container)
-}
+	for _, pvc := range pvcMap {
+		if !pvc.Mounted && pvc.Volume != nil {
+			key := newNamespaceKey(pvc.Cluster, pvc.Namespace)
 
-func newContainerKey(cluster, namespace, pod, container string) containerKey {
-	return containerKey{
-		Cluster:   cluster,
-		Namespace: namespace,
-		Pod:       pod,
-		Container: container,
+			gib := pvc.Volume.Bytes / 1024 / 1024 / 1024
+			hrs := pvc.Minutes() / 60.0
+			cost := pvc.Volume.CostPerGiBHour * gib * hrs
+			unmountedPVCCost[key] += cost
+			unmountedPVCBytes[key] += pvc.Volume.Bytes
+		}
+	}
+
+	for key, amount := range unmountedPVCCost {
+		container := "unmounted-pvs"
+		pod := "unmounted-pvs"
+		namespace := key.Namespace
+		node := ""
+		cluster := key.Cluster
+
+		containerKey := newContainerKey(cluster, namespace, pod, container)
+		allocationMap[containerKey] = &kubecost.Allocation{
+			Name: fmt.Sprintf("%s/%s/%s/%s/%s", cluster, node, namespace, pod, container),
+			Properties: kubecost.Properties{
+				kubecost.ClusterProp:   cluster,
+				kubecost.NodeProp:      node,
+				kubecost.NamespaceProp: namespace,
+				kubecost.PodProp:       pod,
+				kubecost.ContainerProp: container,
+			},
+			Window:      window.Clone(),
+			Start:       *window.Start(),
+			End:         *window.End(),
+			PVByteHours: unmountedPVCBytes[key] * window.Minutes() / 60.0,
+			PVCost:      amount,
+			TotalCost:   amount,
+		}
 	}
 }
 
-func resultContainerKey(res *prom.QueryResult, clusterLabel, namespaceLabel, podLabel, containerLabel string) (containerKey, error) {
-	key := containerKey{}
+// PVC describes a PersistentVolumeClaim
+// TODO niko/computeallocation move to pkg/kubecost?
+// TODO niko/computeallocation add PersistentVolumeClaims field to type Allocation?
+type PVC struct {
+	Bytes     float64   `json:"bytes"`
+	Count     int       `json:"count"`
+	Name      string    `json:"name"`
+	Cluster   string    `json:"cluster"`
+	Namespace string    `json:"namespace"`
+	Volume    *PV       `json:"persistentVolume"`
+	Mounted   bool      `json:"mounted"`
+	Start     time.Time `json:"start"`
+	End       time.Time `json:"end"`
+}
 
-	cluster, err := res.GetString(clusterLabel)
-	if err != nil {
-		cluster = env.GetClusterID()
+// Cost computes the cumulative cost of the PVC
+func (pvc *PVC) Cost() float64 {
+	if pvc == nil || pvc.Volume == nil {
+		return 0.0
 	}
-	key.Cluster = cluster
 
-	namespace, err := res.GetString(namespaceLabel)
-	if err != nil {
-		return key, err
+	gib := pvc.Bytes / 1024 / 1024 / 1024
+	hrs := pvc.Minutes() / 60.0
+
+	return pvc.Volume.CostPerGiBHour * gib * hrs
+}
+
+// Minutes computes the number of minutes over which the PVC is defined
+func (pvc *PVC) Minutes() float64 {
+	if pvc == nil {
+		return 0.0
 	}
-	key.Namespace = namespace
 
-	pod, err := res.GetString(podLabel)
-	if err != nil {
-		return key, err
+	return pvc.End.Sub(pvc.Start).Minutes()
+}
+
+// String returns a string representation of the PVC
+func (pvc *PVC) String() string {
+	if pvc == nil {
+		return "<nil>"
 	}
-	key.Pod = pod
+	return fmt.Sprintf("%s/%s/%s{Bytes:%.2f, Cost:%.6f, Start,End:%s}", pvc.Cluster, pvc.Namespace, pvc.Name, pvc.Bytes, pvc.Cost(), kubecost.NewWindow(&pvc.Start, &pvc.End))
+}
 
-	container, err := res.GetString(containerLabel)
-	if err != nil {
-		return key, err
+// PV describes a PersistentVolume
+// TODO niko/computeallocation move to pkg/kubecost?
+type PV struct {
+	Bytes          float64 `json:"bytes"`
+	CostPerGiBHour float64 `json:"costPerGiBHour"` // TODO niko/computeallocation GiB or GB?
+	Cluster        string  `json:"cluster"`
+	Name           string  `json:"name"`
+	StorageClass   string  `json:"storageClass"`
+}
+
+// String returns a string representation of the PV
+func (pv *PV) String() string {
+	if pv == nil {
+		return "<nil>"
 	}
-	key.Container = container
-
-	return key, nil
-}
-
-type podKey struct {
-	Cluster   string
-	Namespace string
-	Pod       string
-}
-
-func (k podKey) String() string {
-	return fmt.Sprintf("%s/%s/%s", k.Cluster, k.Namespace, k.Pod)
-}
-
-func newPodKey(cluster, namespace, pod string) podKey {
-	return podKey{
-		Cluster:   cluster,
-		Namespace: namespace,
-		Pod:       pod,
-	}
-}
-
-func resultPodKey(res *prom.QueryResult, clusterLabel, namespaceLabel, podLabel string) (podKey, error) {
-	key := podKey{}
-
-	cluster, err := res.GetString(clusterLabel)
-	if err != nil {
-		cluster = env.GetClusterID()
-	}
-	key.Cluster = cluster
-
-	namespace, err := res.GetString(namespaceLabel)
-	if err != nil {
-		return key, err
-	}
-	key.Namespace = namespace
-
-	pod, err := res.GetString(podLabel)
-	if err != nil {
-		return key, err
-	}
-	key.Pod = pod
-
-	return key, nil
-}
-
-type controllerKey struct {
-	Cluster        string
-	Namespace      string
-	ControllerKind string
-	Controller     string
-}
-
-func (k controllerKey) String() string {
-	return fmt.Sprintf("%s/%s/%s/%s", k.Cluster, k.Namespace, k.ControllerKind, k.Controller)
-}
-
-func newControllerKey(cluster, namespace, controllerKind, controller string) controllerKey {
-	return controllerKey{
-		Cluster:        cluster,
-		Namespace:      namespace,
-		ControllerKind: controllerKind,
-		Controller:     controller,
-	}
-}
-
-func resultControllerKey(controllerKind string, res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
-	key := controllerKey{}
-
-	cluster, err := res.GetString(clusterLabel)
-	if err != nil {
-		cluster = env.GetClusterID()
-	}
-	key.Cluster = cluster
-
-	namespace, err := res.GetString(namespaceLabel)
-	if err != nil {
-		return key, err
-	}
-	key.Namespace = namespace
-
-	controller, err := res.GetString(controllerLabel)
-	if err != nil {
-		return key, err
-	}
-	key.Controller = controller
-
-	key.ControllerKind = controllerKind
-
-	return key, nil
-}
-
-func resultDeploymentKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
-	return resultControllerKey("deployment", res, clusterLabel, namespaceLabel, controllerLabel)
-}
-
-func resultStatefulSetKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
-	return resultControllerKey("statefulset", res, clusterLabel, namespaceLabel, controllerLabel)
-}
-
-func resultDaemonSetKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
-	return resultControllerKey("daemonset", res, clusterLabel, namespaceLabel, controllerLabel)
-}
-
-func resultJobKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
-	return resultControllerKey("job", res, clusterLabel, namespaceLabel, controllerLabel)
-}
-
-type serviceKey struct {
-	Cluster   string
-	Namespace string
-	Service   string
-}
-
-func (k serviceKey) String() string {
-	return fmt.Sprintf("%s/%s/%s", k.Cluster, k.Namespace, k.Service)
-}
-
-func newServiceKey(cluster, namespace, service string) serviceKey {
-	return serviceKey{
-		Cluster:   cluster,
-		Namespace: namespace,
-		Service:   service,
-	}
-}
-
-func resultServiceKey(res *prom.QueryResult, clusterLabel, namespaceLabel, serviceLabel string) (serviceKey, error) {
-	key := serviceKey{}
-
-	cluster, err := res.GetString(clusterLabel)
-	if err != nil {
-		cluster = env.GetClusterID()
-	}
-	key.Cluster = cluster
-
-	namespace, err := res.GetString(namespaceLabel)
-	if err != nil {
-		return key, err
-	}
-	key.Namespace = namespace
-
-	service, err := res.GetString(serviceLabel)
-	if err != nil {
-		return key, err
-	}
-	key.Service = service
-
-	return key, nil
-}
-
-type nodeKey struct {
-	Cluster string
-	Node    string
-}
-
-func (k nodeKey) String() string {
-	return fmt.Sprintf("%s/%s", k.Cluster, k.Node)
-}
-
-func newNodeKey(cluster, node string) nodeKey {
-	return nodeKey{
-		Cluster: cluster,
-		Node:    node,
-	}
-}
-
-func resultNodeKey(res *prom.QueryResult, clusterLabel, nodeLabel string) (nodeKey, error) {
-	key := nodeKey{}
-
-	cluster, err := res.GetString(clusterLabel)
-	if err != nil {
-		cluster = env.GetClusterID()
-	}
-	key.Cluster = cluster
-
-	node, err := res.GetString(nodeLabel)
-	if err != nil {
-		return key, err
-	}
-	key.Node = node
-
-	return key, nil
-}
-
-type pvcKey struct {
-	Cluster               string
-	Namespace             string
-	PersistentVolumeClaim string
-}
-
-func (k pvcKey) String() string {
-	return fmt.Sprintf("%s/%s/%s", k.Cluster, k.Namespace, k.PersistentVolumeClaim)
-}
-
-func newPVCKey(cluster, namespace, persistentVolumeClaim string) pvcKey {
-	return pvcKey{
-		Cluster:               cluster,
-		Namespace:             namespace,
-		PersistentVolumeClaim: persistentVolumeClaim,
-	}
-}
-
-func resultPVCKey(res *prom.QueryResult, clusterLabel, namespaceLabel, pvcLabel string) (pvcKey, error) {
-	key := pvcKey{}
-
-	cluster, err := res.GetString(clusterLabel)
-	if err != nil {
-		cluster = env.GetClusterID()
-	}
-	key.Cluster = cluster
-
-	namespace, err := res.GetString(namespaceLabel)
-	if err != nil {
-		return key, err
-	}
-	key.Namespace = namespace
-
-	pvc, err := res.GetString(pvcLabel)
-	if err != nil {
-		return key, err
-	}
-	key.PersistentVolumeClaim = pvc
-
-	return key, nil
-}
-
-type pvKey struct {
-	Cluster          string
-	PersistentVolume string
-}
-
-func (k pvKey) String() string {
-	return fmt.Sprintf("%s/%s", k.Cluster, k.PersistentVolume)
-}
-
-func newPVKey(cluster, persistentVolume string) pvKey {
-	return pvKey{
-		Cluster:          cluster,
-		PersistentVolume: persistentVolume,
-	}
-}
-
-func resultPVKey(res *prom.QueryResult, clusterLabel, persistentVolumeLabel string) (pvKey, error) {
-	key := pvKey{}
-
-	cluster, err := res.GetString(clusterLabel)
-	if err != nil {
-		cluster = env.GetClusterID()
-	}
-	key.Cluster = cluster
-
-	persistentVolume, err := res.GetString(persistentVolumeLabel)
-	if err != nil {
-		return key, err
-	}
-	key.PersistentVolume = persistentVolume
-
-	return key, nil
+	return fmt.Sprintf("%s/%s{Bytes:%.2f, Cost/GiB*Hr:%.6f, StorageClass:%s}", pv.Cluster, pv.Name, pv.Bytes, pv.CostPerGiBHour, pv.StorageClass)
 }
