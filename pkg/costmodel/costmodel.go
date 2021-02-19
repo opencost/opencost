@@ -1719,15 +1719,6 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 		}
 	}
 
-	// TODO niko/computeallocation remove logging
-	for k, vs := range unmountedPVs {
-		pvcData := []string{}
-		for _, v := range vs {
-			pvcData = append(pvcData, fmt.Sprintf("%s/%s/%s", v.ClusterID, v.Namespace, v.VolumeName))
-		}
-		log.Infof("CostModel.ComputeAllocation: unmountedPVs before: %s: [%s]", k, strings.Join(pvcData, ", "))
-	}
-
 	nsLabels, err := GetNamespaceLabelsMetrics(resNSLabels, clusterID)
 	if err != nil {
 		klog.V(1).Infof("Unable to get Namespace Labels for Metrics: %s", err.Error())
@@ -2061,15 +2052,6 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 			containerNameCost[key] = costs
 			missingContainers[key] = costs
 		}
-	}
-
-	// TODO niko/computeallocation remove logging
-	for k, vs := range unmountedPVs {
-		pvcData := []string{}
-		for _, v := range vs {
-			pvcData = append(pvcData, fmt.Sprintf("%s/%s/%s", v.ClusterID, v.Namespace, v.VolumeName))
-		}
-		log.Infof("CostModel.ComputeAllocation: unmountedPVs after: %s: [%s]", k, strings.Join(pvcData, ", "))
 	}
 
 	unmounted := findUnmountedPVCostData(cm.ClusterMap, unmountedPVs, namespaceLabelsMapping, namespaceAnnotationsMapping)
