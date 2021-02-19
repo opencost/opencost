@@ -402,23 +402,23 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 		alloc.TotalCost += alloc.SharedCost
 		alloc.TotalCost += alloc.ExternalCost
 
-		if alloc.RAMBytesRequestAverage > 0 {
-			alloc.RAMEfficiency = alloc.RAMBytesUsageAverage / alloc.RAMBytesRequestAverage
-		} else {
-			alloc.RAMEfficiency = 1.0
-		}
+		// if alloc.RAMBytesRequestAverage > 0 {
+		// 	alloc.RAMEfficiency = alloc.RAMBytesUsageAverage / alloc.RAMBytesRequestAverage
+		// } else {
+		// 	alloc.RAMEfficiency = 1.0
+		// }
 
-		if alloc.CPUCoreRequestAverage > 0 {
-			alloc.CPUEfficiency = alloc.CPUCoreUsageAverage / alloc.CPUCoreRequestAverage
-		} else {
-			alloc.CPUEfficiency = 1.0
-		}
+		// if alloc.CPUCoreRequestAverage > 0 {
+		// 	alloc.CPUEfficiency = alloc.CPUCoreUsageAverage / alloc.CPUCoreRequestAverage
+		// } else {
+		// 	alloc.CPUEfficiency = 1.0
+		// }
 
-		if alloc.CPUCost+alloc.RAMCost > 0 {
-			ramCostEff := alloc.RAMEfficiency * alloc.RAMCost
-			cpuCostEff := alloc.CPUEfficiency * alloc.CPUCost
-			alloc.TotalEfficiency = (ramCostEff + cpuCostEff) / (alloc.CPUCost + alloc.RAMCost)
-		}
+		// if alloc.CPUCost+alloc.RAMCost > 0 {
+		// 	ramCostEff := alloc.RAMEfficiency * alloc.RAMCost
+		// 	cpuCostEff := alloc.CPUEfficiency * alloc.CPUCost
+		// 	alloc.TotalEfficiency = (ramCostEff + cpuCostEff) / (alloc.CPUCost + alloc.RAMCost)
+		// }
 
 		// Make sure that the name is correct (node may not be present at this
 		// point due to it missing from queryMinutes) then insert.

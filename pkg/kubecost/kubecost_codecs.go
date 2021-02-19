@@ -156,7 +156,6 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 	buff.WriteFloat64(target.CPUCoreRequestAverage)  // write float64
 	buff.WriteFloat64(target.CPUCoreUsageAverage)    // write float64
 	buff.WriteFloat64(target.CPUCost)                // write float64
-	buff.WriteFloat64(target.CPUEfficiency)          // write float64
 	buff.WriteFloat64(target.GPUHours)               // write float64
 	buff.WriteFloat64(target.GPUCost)                // write float64
 	buff.WriteFloat64(target.NetworkCost)            // write float64
@@ -166,11 +165,9 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 	buff.WriteFloat64(target.RAMBytesRequestAverage) // write float64
 	buff.WriteFloat64(target.RAMBytesUsageAverage)   // write float64
 	buff.WriteFloat64(target.RAMCost)                // write float64
-	buff.WriteFloat64(target.RAMEfficiency)          // write float64
 	buff.WriteFloat64(target.SharedCost)             // write float64
 	buff.WriteFloat64(target.ExternalCost)           // write float64
 	buff.WriteFloat64(target.TotalCost)              // write float64
-	buff.WriteFloat64(target.TotalEfficiency)        // write float64
 	return buff.Bytes(), nil
 }
 
@@ -258,49 +255,40 @@ func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
 	target.CPUCost = t
 
 	u := buff.ReadFloat64() // read float64
-	target.CPUEfficiency = u
+	target.GPUHours = u
 
 	w := buff.ReadFloat64() // read float64
-	target.GPUHours = w
+	target.GPUCost = w
 
 	x := buff.ReadFloat64() // read float64
-	target.GPUCost = x
+	target.NetworkCost = x
 
 	y := buff.ReadFloat64() // read float64
-	target.NetworkCost = y
+	target.PVByteHours = y
 
 	z := buff.ReadFloat64() // read float64
-	target.PVByteHours = z
+	target.PVCost = z
 
 	aa := buff.ReadFloat64() // read float64
-	target.PVCost = aa
+	target.RAMByteHours = aa
 
 	bb := buff.ReadFloat64() // read float64
-	target.RAMByteHours = bb
+	target.RAMBytesRequestAverage = bb
 
 	cc := buff.ReadFloat64() // read float64
-	target.RAMBytesRequestAverage = cc
+	target.RAMBytesUsageAverage = cc
 
 	dd := buff.ReadFloat64() // read float64
-	target.RAMBytesUsageAverage = dd
+	target.RAMCost = dd
 
 	ee := buff.ReadFloat64() // read float64
-	target.RAMCost = ee
+	target.SharedCost = ee
 
 	ff := buff.ReadFloat64() // read float64
-	target.RAMEfficiency = ff
+	target.ExternalCost = ff
 
 	gg := buff.ReadFloat64() // read float64
-	target.SharedCost = gg
-
-	hh := buff.ReadFloat64() // read float64
-	target.ExternalCost = hh
-
-	ll := buff.ReadFloat64() // read float64
-	target.TotalCost = ll
-
-	mm := buff.ReadFloat64() // read float64
-	target.TotalEfficiency = mm
+	target.TotalCost = gg
 
 	return nil
 }

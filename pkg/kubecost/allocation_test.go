@@ -32,24 +32,25 @@ func NewUnitAllocation(name string, start time.Time, resolution time.Duration, p
 	end := start.Add(resolution)
 
 	alloc := &Allocation{
-		Name:            name,
-		Properties:      *properties,
-		Window:          NewWindow(&start, &end).Clone(),
-		Start:           start,
-		End:             end,
-		CPUCoreHours:    1,
-		CPUCost:         1,
-		CPUEfficiency:   1,
-		GPUHours:        1,
-		GPUCost:         1,
-		NetworkCost:     1,
-		PVByteHours:     1,
-		PVCost:          1,
-		RAMByteHours:    1,
-		RAMCost:         1,
-		RAMEfficiency:   1,
-		TotalCost:       5,
-		TotalEfficiency: 1,
+		Name:                   name,
+		Properties:             *properties,
+		Window:                 NewWindow(&start, &end).Clone(),
+		Start:                  start,
+		End:                    end,
+		CPUCoreHours:           1,
+		CPUCost:                1,
+		CPUCoreRequestAverage:  1,
+		CPUCoreUsageAverage:    1,
+		GPUHours:               1,
+		GPUCost:                1,
+		NetworkCost:            1,
+		PVByteHours:            1,
+		PVCost:                 1,
+		RAMByteHours:           1,
+		RAMCost:                1,
+		RAMBytesRequestAverage: 1,
+		RAMBytesUsageAverage:   1,
+		TotalCost:              5,
 	}
 
 	// If idle allocation, remove non-idle costs, but maintain total cost
@@ -1221,8 +1222,8 @@ func TestAllocationSetRange_Accumulate(t *testing.T) {
 	if alloc.CPUCost != 2.0 {
 		t.Fatalf("accumulating AllocationSetRange: expected 2.0; actual %f", alloc.CPUCost)
 	}
-	if alloc.CPUEfficiency != 1.0 {
-		t.Fatalf("accumulating AllocationSetRange: expected 1.0; actual %f", alloc.CPUEfficiency)
+	if alloc.CPUEfficiency() != 1.0 {
+		t.Fatalf("accumulating AllocationSetRange: expected 1.0; actual %f", alloc.CPUEfficiency())
 	}
 	if alloc.GPUHours != 2.0 {
 		t.Fatalf("accumulating AllocationSetRange: expected 2.0; actual %f", alloc.GPUHours)
@@ -1245,14 +1246,14 @@ func TestAllocationSetRange_Accumulate(t *testing.T) {
 	if alloc.RAMCost != 2.0 {
 		t.Fatalf("accumulating AllocationSetRange: expected 2.0; actual %f", alloc.RAMCost)
 	}
-	if alloc.RAMEfficiency != 1.0 {
-		t.Fatalf("accumulating AllocationSetRange: expected 1.0; actual %f", alloc.RAMEfficiency)
+	if alloc.RAMEfficiency() != 1.0 {
+		t.Fatalf("accumulating AllocationSetRange: expected 1.0; actual %f", alloc.RAMEfficiency())
 	}
 	if alloc.TotalCost != 10.0 {
 		t.Fatalf("accumulating AllocationSetRange: expected 10.0; actual %f", alloc.TotalCost)
 	}
-	if alloc.TotalEfficiency != 1.0 {
-		t.Fatalf("accumulating AllocationSetRange: expected 1.0; actual %f", alloc.TotalEfficiency)
+	if alloc.TotalEfficiency() != 1.0 {
+		t.Fatalf("accumulating AllocationSetRange: expected 1.0; actual %f", alloc.TotalEfficiency())
 	}
 	if !alloc.Start.Equal(yesterday) {
 		t.Fatalf("accumulating AllocationSetRange: expected to start %s; actual %s", yesterday, alloc.Start)

@@ -57,7 +57,6 @@ type Allocation struct {
 	CPUCoreRequestAverage  float64    `json:"cpuCoreRequestAverage"`
 	CPUCoreUsageAverage    float64    `json:"cpuCoreUsageAverage"`
 	CPUCost                float64    `json:"cpuCost"`
-	CPUEfficiency          float64    `json:"cpuEfficiency"`
 	GPUHours               float64    `json:"gpuHours"`
 	GPUCost                float64    `json:"gpuCost"`
 	NetworkCost            float64    `json:"networkCost"`
@@ -67,11 +66,9 @@ type Allocation struct {
 	RAMBytesRequestAverage float64    `json:"ramBytesRequestAverage"`
 	RAMBytesUsageAverage   float64    `json:"ramBytesUsageAverage"`
 	RAMCost                float64    `json:"ramCost"`
-	RAMEfficiency          float64    `json:"ramEfficiency"`
 	SharedCost             float64    `json:"sharedCost"`
 	ExternalCost           float64    `json:"externalCost"`
 	TotalCost              float64    `json:"totalCost"`
-	TotalEfficiency        float64    `json:"totalEfficiency"`
 }
 
 // AllocationMatchFunc is a function that can be used to match Allocations by
@@ -113,7 +110,6 @@ func (a *Allocation) Clone() *Allocation {
 		CPUCoreRequestAverage:  a.CPUCoreRequestAverage,
 		CPUCoreUsageAverage:    a.CPUCoreUsageAverage,
 		CPUCost:                a.CPUCost,
-		CPUEfficiency:          a.CPUEfficiency,
 		GPUHours:               a.GPUHours,
 		GPUCost:                a.GPUCost,
 		NetworkCost:            a.NetworkCost,
@@ -123,11 +119,9 @@ func (a *Allocation) Clone() *Allocation {
 		RAMBytesRequestAverage: a.RAMBytesRequestAverage,
 		RAMBytesUsageAverage:   a.RAMBytesUsageAverage,
 		RAMCost:                a.RAMCost,
-		RAMEfficiency:          a.RAMEfficiency,
 		SharedCost:             a.SharedCost,
 		ExternalCost:           a.ExternalCost,
 		TotalCost:              a.TotalCost,
-		TotalEfficiency:        a.TotalEfficiency,
 	}
 }
 
@@ -159,9 +153,6 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if a.CPUCost != that.CPUCost {
 		return false
 	}
-	if a.CPUEfficiency != that.CPUEfficiency {
-		return false
-	}
 	if a.GPUHours != that.GPUHours {
 		return false
 	}
@@ -183,9 +174,6 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if a.RAMCost != that.RAMCost {
 		return false
 	}
-	if a.RAMEfficiency != that.RAMEfficiency {
-		return false
-	}
 	if a.SharedCost != that.SharedCost {
 		return false
 	}
@@ -195,11 +183,34 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if a.TotalCost != that.TotalCost {
 		return false
 	}
-	if a.TotalEfficiency != that.TotalEfficiency {
-		return false
-	}
 
 	return true
+}
+
+func (a *Allocation) CPUEfficiency() float64 {
+	if a.CPUCoreRequestAverage > 0 {
+		return a.CPUCoreUsageAverage / a.CPUCoreRequestAverage
+	}
+
+	return 1.0
+}
+
+func (a *Allocation) RAMEfficiency() float64 {
+	if a.RAMBytesRequestAverage > 0 {
+		return a.RAMBytesUsageAverage / a.RAMBytesRequestAverage
+	}
+
+	return 1.0
+}
+
+func (a *Allocation) TotalEfficiency() float64 {
+	if a.CPUCost+a.RAMCost > 0 {
+		ramCostEff := a.RAMEfficiency() * a.RAMCost
+		cpuCostEff := a.CPUEfficiency() * a.CPUCost
+		return (ramCostEff + cpuCostEff) / (a.CPUCost + a.RAMCost)
+	}
+
+	return 0.0
 }
 
 // CPUCores converts the Allocation's CPUCoreHours into average CPUCores
@@ -240,7 +251,7 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "cpuCoreUsageAverage", a.CPUCoreUsageAverage, ",")
 	jsonEncodeFloat64(buffer, "cpuCoreHours", a.CPUCoreHours, ",")
 	jsonEncodeFloat64(buffer, "cpuCost", a.CPUCost, ",")
-	jsonEncodeFloat64(buffer, "cpuEfficiency", a.CPUEfficiency, ",")
+	jsonEncodeFloat64(buffer, "cpuEfficiency", a.CPUEfficiency(), ",")
 	jsonEncodeFloat64(buffer, "gpuHours", a.GPUHours, ",")
 	jsonEncodeFloat64(buffer, "gpuCost", a.GPUCost, ",")
 	jsonEncodeFloat64(buffer, "networkCost", a.NetworkCost, ",")
@@ -252,10 +263,10 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "ramByteUsageAverage", a.RAMBytesUsageAverage, ",")
 	jsonEncodeFloat64(buffer, "ramByteHours", a.RAMByteHours, ",")
 	jsonEncodeFloat64(buffer, "ramCost", a.RAMCost, ",")
-	jsonEncodeFloat64(buffer, "ramEfficiency", a.RAMEfficiency, ",")
+	jsonEncodeFloat64(buffer, "ramEfficiency", a.RAMEfficiency(), ",")
 	jsonEncodeFloat64(buffer, "sharedCost", a.SharedCost, ",")
 	jsonEncodeFloat64(buffer, "totalCost", a.TotalCost, ",")
-	jsonEncodeFloat64(buffer, "totalEfficiency", a.TotalEfficiency, "")
+	jsonEncodeFloat64(buffer, "totalEfficiency", a.TotalEfficiency(), "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
@@ -307,13 +318,10 @@ func (a *Allocation) Share(that *Allocation) (*Allocation, error) {
 	// non-shared costs, then add.
 	share := that.Clone()
 	share.SharedCost += share.TotalCost
-	share.TotalEfficiency = 1.0
 	share.CPUCost = 0
 	share.CPUCoreHours = 0
-	share.CPUEfficiency = 0
 	share.RAMCost = 0
 	share.RAMByteHours = 0
-	share.RAMEfficiency = 0
 	share.GPUCost = 0
 	share.GPUHours = 0
 	share.PVCost = 0
@@ -373,38 +381,6 @@ func (a *Allocation) add(that *Allocation) {
 
 	if that.End.After(a.End) {
 		a.End = that.End
-	}
-
-	// Note: efficiency numbers are computed the cost-weighted sum of each
-	// Allocation's efficiency.
-	// e.g. ($10 @ 25%) + ($10 @ 75%)  = (2.5+7.5)/20   =  50%
-	// e.g. ($90 @ 10%) + ($10 @ 100%) = (9.0+10.0)/100 =  19%
-	// e.g. ($100 @ 0%) + ($100 @ 0%)  = (0.0+0.0)/200  =   0%
-	// e.g. ($10 @ 150%) + ($10 @ 50%) = (15.0+5.0)/20  = 100%
-	// e.g. ($0 @ 100%) + ($0 @ 50%)                    =   0% (no div by 0)
-
-	// Compute CPU efficiency (see note above for methodology)
-	aggCPUCost := a.CPUCost + that.CPUCost
-	if aggCPUCost > 0 {
-		a.CPUEfficiency = (a.CPUEfficiency*a.CPUCost + that.CPUEfficiency*that.CPUCost) / aggCPUCost
-	} else {
-		a.CPUEfficiency = 0.0
-	}
-
-	// Compute RAM efficiency (see note above for methodology)
-	aggRAMCost := a.RAMCost + that.RAMCost
-	if aggRAMCost > 0 {
-		a.RAMEfficiency = (a.RAMEfficiency*a.RAMCost + that.RAMEfficiency*that.RAMCost) / aggRAMCost
-	} else {
-		a.RAMEfficiency = 0.0
-	}
-
-	// Compute total efficiency (see note above for methodology)
-	aggTotalCost := a.TotalCost + that.TotalCost
-	if aggTotalCost > 0 {
-		a.TotalEfficiency = (a.TotalEfficiency*a.TotalCost + that.TotalEfficiency*that.TotalCost) / aggTotalCost
-	} else {
-		aggTotalCost = 0.0
 	}
 
 	// Sum all cumulative resource fields
