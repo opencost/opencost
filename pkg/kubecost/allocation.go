@@ -101,26 +101,30 @@ func (a *Allocation) Clone() *Allocation {
 	}
 
 	return &Allocation{
-		Name:            a.Name,
-		Properties:      a.Properties.Clone(),
-		Window:          a.Window.Clone(),
-		Start:           a.Start,
-		End:             a.End,
-		CPUCoreHours:    a.CPUCoreHours,
-		CPUCost:         a.CPUCost,
-		CPUEfficiency:   a.CPUEfficiency,
-		GPUHours:        a.GPUHours,
-		GPUCost:         a.GPUCost,
-		NetworkCost:     a.NetworkCost,
-		PVByteHours:     a.PVByteHours,
-		PVCost:          a.PVCost,
-		RAMByteHours:    a.RAMByteHours,
-		RAMCost:         a.RAMCost,
-		RAMEfficiency:   a.RAMEfficiency,
-		SharedCost:      a.SharedCost,
-		ExternalCost:    a.ExternalCost,
-		TotalCost:       a.TotalCost,
-		TotalEfficiency: a.TotalEfficiency,
+		Name:                   a.Name,
+		Properties:             a.Properties.Clone(),
+		Window:                 a.Window.Clone(),
+		Start:                  a.Start,
+		End:                    a.End,
+		CPUCoreHours:           a.CPUCoreHours,
+		CPUCoreRequestAverage:  a.CPUCoreRequestAverage,
+		CPUCoreUsageAverage:    a.CPUCoreUsageAverage,
+		CPUCost:                a.CPUCost,
+		CPUEfficiency:          a.CPUEfficiency,
+		GPUHours:               a.GPUHours,
+		GPUCost:                a.GPUCost,
+		NetworkCost:            a.NetworkCost,
+		PVByteHours:            a.PVByteHours,
+		PVCost:                 a.PVCost,
+		RAMByteHours:           a.RAMByteHours,
+		RAMBytesRequestAverage: a.RAMBytesRequestAverage,
+		RAMBytesUsageAverage:   a.RAMBytesUsageAverage,
+		RAMCost:                a.RAMCost,
+		RAMEfficiency:          a.RAMEfficiency,
+		SharedCost:             a.SharedCost,
+		ExternalCost:           a.ExternalCost,
+		TotalCost:              a.TotalCost,
+		TotalEfficiency:        a.TotalEfficiency,
 	}
 }
 
@@ -402,8 +406,12 @@ func (a *Allocation) add(that *Allocation) {
 
 	// Sum all cumulative resource fields
 	a.CPUCoreHours += that.CPUCoreHours
+	a.CPUCoreRequestAverage += that.CPUCoreRequestAverage
+	a.CPUCoreUsageAverage += that.CPUCoreUsageAverage
 	a.GPUHours += that.GPUHours
 	a.RAMByteHours += that.RAMByteHours
+	a.RAMBytesRequestAverage += that.RAMBytesRequestAverage
+	a.RAMBytesUsageAverage += that.RAMBytesUsageAverage
 	a.PVByteHours += that.PVByteHours
 
 	// Sum all cumulative cost fields
