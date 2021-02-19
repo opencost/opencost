@@ -354,7 +354,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 		nodeKey := newNodeKey(cluster, node)
 
 		if n, ok := nodeMap[nodeKey]; !ok {
-			if pod != "unmounted-pvs" {
+			if pod != kubecost.UnmountedSuffix {
 				log.Warningf("CostModel.ComputeAllocation: failed to find node %s for %s", nodeKey, alloc.Name)
 			}
 		} else {
@@ -1369,9 +1369,9 @@ func applyUnmountedPVs(window kubecost.Window, allocationMap map[containerKey]*k
 	}
 
 	for cluster, amount := range unmountedPVCost {
-		container := "unmounted-pvs"
-		pod := "unmounted-pvs"
-		namespace := ""
+		container := kubecost.UnmountedSuffix
+		pod := kubecost.UnmountedSuffix
+		namespace := kubecost.UnmountedSuffix
 		node := ""
 
 		containerKey := newContainerKey(cluster, namespace, pod, container)
@@ -1411,8 +1411,8 @@ func applyUnmountedPVCs(window kubecost.Window, allocationMap map[containerKey]*
 	}
 
 	for key, amount := range unmountedPVCCost {
-		container := "unmounted-pvs"
-		pod := "unmounted-pvs"
+		container := kubecost.UnmountedSuffix
+		pod := kubecost.UnmountedSuffix
 		namespace := key.Namespace
 		node := ""
 		cluster := key.Cluster
