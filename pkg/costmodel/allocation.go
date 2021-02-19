@@ -386,11 +386,10 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 				gib := pvc.Bytes / 1024 / 1024 / 1024
 				cost := pvc.Volume.CostPerGiBHour * gib * hrs
 
+				// Apply the size and cost of the PV to the allocation, each
+				// weighted by count (i.e. the number of containers in the pod)
 				alloc.PVByteHours += pvc.Bytes * hrs / count
 				alloc.PVCost += cost / count
-
-				// TODO niko/computeallocation remove log
-				log.Warningf("CostModel.ComputeAllocation: PVC %s: count=%d, %f GiB, %f hrs, $%f ($%f after split)", pvc.Name, pvc.Count, gib, hrs, cost, cost/count)
 			}
 		}
 
@@ -516,6 +515,7 @@ func applyCPUCoresAllocated(allocationMap map[containerKey]*kubecost.Allocation,
 
 		_, ok := allocationMap[key]
 		if !ok {
+			// TODO niko/computeallocation dedupe log
 			log.Warningf("CostModel.ComputeAllocation: unidentified CPU allocation query result: %s", key)
 			continue
 		}
@@ -573,6 +573,7 @@ func applyCPUCoresUsed(allocationMap map[containerKey]*kubecost.Allocation, resC
 
 		_, ok := allocationMap[key]
 		if !ok {
+			// TODO niko/computeallocation dedupe log
 			log.Warningf("CostModel.ComputeAllocation: unidentified CPU usage query result: %s", key)
 			continue
 		}
@@ -591,6 +592,7 @@ func applyRAMBytesAllocated(allocationMap map[containerKey]*kubecost.Allocation,
 
 		_, ok := allocationMap[key]
 		if !ok {
+			// TODO niko/computeallocation dedupe log
 			log.Warningf("CostModel.ComputeAllocation: unidentified RAM allocation query result: %s", key)
 			continue
 		}
@@ -648,6 +650,7 @@ func applyRAMBytesUsed(allocationMap map[containerKey]*kubecost.Allocation, resR
 
 		_, ok := allocationMap[key]
 		if !ok {
+			// TODO niko/computeallocation dedupe log
 			log.Warningf("CostModel.ComputeAllocation: unidentified RAM usage query result: %s", key)
 			continue
 		}
@@ -666,6 +669,7 @@ func applyGPUsRequested(allocationMap map[containerKey]*kubecost.Allocation, res
 
 		_, ok := allocationMap[key]
 		if !ok {
+			// TODO niko/computeallocation dedupe log
 			log.Warningf("CostModel.ComputeAllocation: unidentified GPU allocation query result: %s", key)
 			continue
 		}
