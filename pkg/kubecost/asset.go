@@ -64,6 +64,35 @@ type Asset interface {
 // the properties to use to aggregate, and the mapping from Allocation property
 // to Asset label. For example, consider this asset:
 //
+// CURRENT: Asset ETL stores its data ALREADY MAPPED from label to k8s concept. This isn't ideal-- see the TOOD.
+//   Cloud {
+// 	   TotalCost: 10.00,
+// 	   Labels{
+//       "kubernetes_namespace":"monitoring",
+// 	     "env":"prod"
+// 	   }
+//   }
+//
+// Given the following parameters, we expect to return:
+//
+//   1) single-prop full match
+//   aggregateBy = ["namespace"]
+//   => Allocation{Name: "monitoring", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//
+//   2) multi-prop full match
+//   aggregateBy = ["namespace", "label:env"]
+//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//   => Allocation{Name: "monitoring/env=prod", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//
+//   3) multi-prop partial match
+//   aggregateBy = ["namespace", "label:foo"]
+//   => Allocation{Name: "monitoring/__unallocated__", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//
+//   4) no match
+//   aggregateBy = ["cluster"]
+//   => nil, err
+//
+// TODO:
 //   Cloud {
 // 	   TotalCost: 10.00,
 // 	   Labels{
@@ -95,7 +124,7 @@ type Asset interface {
 //   => nil, err
 //
 // (See asset_test.go for assertions of these examples and more.)
-func AssetToExternalAllocation(asset Asset, aggregateBy []string, allocationPropertyLabels map[string]string) (*Allocation, error) {
+func AssetToExternalAllocation(asset Asset, aggregateBy []string) (*Allocation, error) {
 	if asset == nil {
 		return nil, fmt.Errorf("asset is nil")
 	}
@@ -115,7 +144,7 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, allocationProp
 		// labelName should be derived from the mapping of properties to
 		// label names, unless the aggBy is explicitly a label, in which
 		// case we should pull the label name from the aggBy string.
-		labelName := allocationPropertyLabels[aggBy]
+		labelName := aggBy
 		if strings.HasPrefix(aggBy, "label:") {
 			labelName = strings.TrimPrefix(aggBy, "label:")
 		}
