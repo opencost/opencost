@@ -297,14 +297,16 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 		}
 
 		// ErrorCollection is an collection of errors wrapped in a single error implementation
-		return nil, ctx.ErrorCollection()
+		// We opt to not return an error for the sake of running as a pure exporter.
+		log.Warningf("ComputeCostData: continuing despite prometheus errors: %s", ctx.ErrorCollection().Error())
 	}
 
 	defer measureTime(time.Now(), profileThreshold, "ComputeCostData: Processing Query Data")
 
 	normalizationValue, err := getNormalization(resNormalization)
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing normalization values from %s: %s", queryNormalization, err.Error())
+		// We opt to not return an error for the sake of running as a pure exporter.
+		log.Warningf("ComputeCostData: continuing despite error parsing normalization values from %s: %s", queryNormalization, err.Error())
 	}
 
 	nodes, err := cm.GetNodeCost(cp)
