@@ -107,8 +107,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 
 	ctx := prom.NewContext(cm.PrometheusClient)
 
-	// TODO niko/computeallocation retries? (That should probably go into the Store.)
-
 	// TODO niko/computeallocation split into required and optional queries?
 
 	queryMinutes := fmt.Sprintf(queryFmtMinutes, durStr, resStr, offStr)
