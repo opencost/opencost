@@ -187,22 +187,38 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	return true
 }
 
+// CPUEfficiency is the ratio of usage to request. If there is no request and
+// no usage or cost, then efficiency is zero. If there is no request, but there
+// is usage or cost, then efficiency is 100%.
 func (a *Allocation) CPUEfficiency() float64 {
 	if a.CPUCoreRequestAverage > 0 {
 		return a.CPUCoreUsageAverage / a.CPUCoreRequestAverage
 	}
 
-	return 1.0
-}
-
-func (a *Allocation) RAMEfficiency() float64 {
-	if a.RAMBytesRequestAverage > 0 {
-		return a.RAMBytesUsageAverage / a.RAMBytesRequestAverage
+	if a.CPUCoreUsageAverage == 0.0 || a.CPUCost == 0.0 {
+		return 0.0
 	}
 
 	return 1.0
 }
 
+// RAMEfficiency is the ratio of usage to request. If there is no request and
+// no usage or cost, then efficiency is zero. If there is no request, but there
+// is usage or cost, then efficiency is 100%.
+func (a *Allocation) RAMEfficiency() float64 {
+	if a.RAMBytesRequestAverage > 0 {
+		return a.RAMBytesUsageAverage / a.RAMBytesRequestAverage
+	}
+
+	if a.RAMBytesUsageAverage == 0.0 || a.RAMCost == 0.0 {
+		return 0.0
+	}
+
+	return 1.0
+}
+
+// TotalEfficiency is the cost-weighted average of CPU and RAM efficiency. If
+// there is no cost at all, then efficiency is zero.
 func (a *Allocation) TotalEfficiency() float64 {
 	if a.CPUCost+a.RAMCost > 0 {
 		ramCostEff := a.RAMEfficiency() * a.RAMCost

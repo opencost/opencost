@@ -245,14 +245,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	resDaemonSetLabels, _ := resChDaemonSetLabels.Await()
 	resJobLabels, _ := resChJobLabels.Await()
 
-	// ---------------------------------------
-	// TODO niko/computeallocation remove logs
-	log.Infof("CostModel.ComputeAllocation: %s", queryMinutes)
-	log.Infof("CostModel.ComputeAllocation: %s", queryRAMBytesAllocated)
-	log.Infof("CostModel.ComputeAllocation: %s", queryCPUCoresAllocated)
-	log.Infof("CostModel.ComputeAllocation: %s", queryGPUsRequested)
-	// ---------------------------------------
-
 	log.Profile(startQuerying, "CostModel.ComputeAllocation: queries complete")
 	defer log.Profile(time.Now(), "CostModel.ComputeAllocation: processing complete")
 
@@ -402,24 +394,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 		alloc.TotalCost += alloc.SharedCost
 		alloc.TotalCost += alloc.ExternalCost
 
-		// if alloc.RAMBytesRequestAverage > 0 {
-		// 	alloc.RAMEfficiency = alloc.RAMBytesUsageAverage / alloc.RAMBytesRequestAverage
-		// } else {
-		// 	alloc.RAMEfficiency = 1.0
-		// }
-
-		// if alloc.CPUCoreRequestAverage > 0 {
-		// 	alloc.CPUEfficiency = alloc.CPUCoreUsageAverage / alloc.CPUCoreRequestAverage
-		// } else {
-		// 	alloc.CPUEfficiency = 1.0
-		// }
-
-		// if alloc.CPUCost+alloc.RAMCost > 0 {
-		// 	ramCostEff := alloc.RAMEfficiency * alloc.RAMCost
-		// 	cpuCostEff := alloc.CPUEfficiency * alloc.CPUCost
-		// 	alloc.TotalEfficiency = (ramCostEff + cpuCostEff) / (alloc.CPUCost + alloc.RAMCost)
-		// }
-
 		// Make sure that the name is correct (node may not be present at this
 		// point due to it missing from queryMinutes) then insert.
 		alloc.Name = fmt.Sprintf("%s/%s/%s/%s/%s", cluster, node, namespace, pod, container)
@@ -519,8 +493,7 @@ func applyCPUCoresAllocated(allocationMap map[containerKey]*kubecost.Allocation,
 
 		_, ok := allocationMap[key]
 		if !ok {
-			// TODO niko/computeallocation dedupe log
-			log.Warningf("CostModel.ComputeAllocation: unidentified CPU allocation query result: %s", key)
+			log.DedupedWarningf(5, "CostModel.ComputeAllocation: unidentified CPU allocation query result: %s", key)
 			continue
 		}
 
@@ -547,6 +520,7 @@ func applyCPUCoresRequested(allocationMap map[containerKey]*kubecost.Allocation,
 
 		_, ok := allocationMap[key]
 		if !ok {
+			log.DedupedWarningf(5, "CostModel.ComputeAllocation: unidentified CPU request query result: %s", key)
 			continue
 		}
 
@@ -577,8 +551,7 @@ func applyCPUCoresUsed(allocationMap map[containerKey]*kubecost.Allocation, resC
 
 		_, ok := allocationMap[key]
 		if !ok {
-			// TODO niko/computeallocation dedupe log
-			log.Warningf("CostModel.ComputeAllocation: unidentified CPU usage query result: %s", key)
+			log.DedupedWarningf(5, "CostModel.ComputeAllocation: unidentified CPU usage query result: %s", key)
 			continue
 		}
 
@@ -596,8 +569,7 @@ func applyRAMBytesAllocated(allocationMap map[containerKey]*kubecost.Allocation,
 
 		_, ok := allocationMap[key]
 		if !ok {
-			// TODO niko/computeallocation dedupe log
-			log.Warningf("CostModel.ComputeAllocation: unidentified RAM allocation query result: %s", key)
+			log.DedupedWarningf(5, "CostModel.ComputeAllocation: unidentified RAM allocation query result: %s", key)
 			continue
 		}
 
@@ -624,6 +596,7 @@ func applyRAMBytesRequested(allocationMap map[containerKey]*kubecost.Allocation,
 
 		_, ok := allocationMap[key]
 		if !ok {
+			log.DedupedWarningf(5, "CostModel.ComputeAllocation: unidentified RAM request query result: %s", key)
 			continue
 		}
 
@@ -654,8 +627,7 @@ func applyRAMBytesUsed(allocationMap map[containerKey]*kubecost.Allocation, resR
 
 		_, ok := allocationMap[key]
 		if !ok {
-			// TODO niko/computeallocation dedupe log
-			log.Warningf("CostModel.ComputeAllocation: unidentified RAM usage query result: %s", key)
+			log.DedupedWarningf(5, "CostModel.ComputeAllocation: unidentified RAM usage query result: %s", key)
 			continue
 		}
 
@@ -673,8 +645,7 @@ func applyGPUsRequested(allocationMap map[containerKey]*kubecost.Allocation, res
 
 		_, ok := allocationMap[key]
 		if !ok {
-			// TODO niko/computeallocation dedupe log
-			log.Warningf("CostModel.ComputeAllocation: unidentified GPU allocation query result: %s", key)
+			log.DedupedWarningf(5, "CostModel.ComputeAllocation: unidentified GPU allocation query result: %s", key)
 			continue
 		}
 
