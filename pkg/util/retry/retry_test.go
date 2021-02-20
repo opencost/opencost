@@ -8,6 +8,39 @@ import (
 	"time"
 )
 
+type Obj struct {
+	Name string
+}
+
+func TestPtrSliceRetry(t *testing.T) {
+	const Expected uint64 = 3
+
+	var count uint64 = 0
+
+	f := func() (interface{}, error) {
+		c := atomic.AddUint64(&count, 1)
+		fmt.Println("Try:", c)
+
+		if c == Expected {
+			return []*Obj{
+				{"A"},
+				{"B"},
+				{"C"},
+			}, nil
+		}
+
+		return nil, fmt.Errorf("Failed: %d", c)
+	}
+
+	result, err := Retry(context.Background(), f, 5, time.Second)
+	objs, ok := result.([]*Obj)
+	if err != nil || !ok {
+		t.Fatalf("Failed to correctly cast back to slice type")
+	}
+
+	t.Logf("Length: %d\n", len(objs))
+}
+
 func TestSuccessRetry(t *testing.T) {
 	const Expected uint64 = 3
 
