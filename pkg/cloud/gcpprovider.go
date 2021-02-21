@@ -309,6 +309,10 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 // "start" and "end" are dates of the format YYYY-MM-DD
 // "aggregator" is the tag used to determine how to allocate those assets, ie namespace, pod, etc.
 func (gcp *GCP) ExternalAllocations(start string, end string, aggregators []string, filterType string, filterValue string, crossCluster bool) ([]*OutOfClusterAllocation, error) {
+	if env.LegacyExternalCostsAPIDisabled() {
+		return nil, fmt.Errorf("Legacy External Allocations API disabled.")
+	}
+
 	c, err := gcp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
