@@ -387,26 +387,43 @@ func (a *Allocation) add(that *Allocation) {
 		}
 	}
 
-	// Expand Window, Start, and End to be the "max" of each between the two
-	// given Allocations.
+	// Expand the window to encompass both Allocations
 	a.Window = a.Window.Expand(that.Window)
 
+	// Sum non-cumulative fields by turning them into cumulative, adding them,
+	// and then converting them back into averages after minutes have been
+	// combined (just below).
+	cpuReqCoreMins := a.CPUCoreRequestAverage * a.Minutes()
+	cpuReqCoreMins += that.CPUCoreRequestAverage * that.Minutes()
+
+	cpuUseCoreMins := a.CPUCoreUsageAverage * a.Minutes()
+	cpuUseCoreMins += that.CPUCoreUsageAverage * that.Minutes()
+
+	ramReqByteMins := a.RAMBytesRequestAverage * a.Minutes()
+	ramReqByteMins += that.RAMBytesRequestAverage * that.Minutes()
+
+	ramUseByteMins := a.RAMBytesUsageAverage * a.Minutes()
+	ramUseByteMins += that.RAMBytesUsageAverage * that.Minutes()
+
+	// Expand Start and End to be the "max" of among the given Allocations
 	if that.Start.Before(a.Start) {
 		a.Start = that.Start
 	}
-
 	if that.End.After(a.End) {
 		a.End = that.End
 	}
 
+	// Convert cumulatuve request and usage back into rates
+	// TODO niko/computeallocation write a unit test that fails if this is done incorrectly
+	a.CPUCoreRequestAverage = cpuReqCoreMins / a.Minutes()
+	a.CPUCoreUsageAverage = cpuUseCoreMins / a.Minutes()
+	a.RAMBytesRequestAverage = ramReqByteMins / a.Minutes()
+	a.RAMBytesUsageAverage = ramUseByteMins / a.Minutes()
+
 	// Sum all cumulative resource fields
 	a.CPUCoreHours += that.CPUCoreHours
-	a.CPUCoreRequestAverage += that.CPUCoreRequestAverage
-	a.CPUCoreUsageAverage += that.CPUCoreUsageAverage
 	a.GPUHours += that.GPUHours
 	a.RAMByteHours += that.RAMByteHours
-	a.RAMBytesRequestAverage += that.RAMBytesRequestAverage
-	a.RAMBytesUsageAverage += that.RAMBytesUsageAverage
 	a.PVByteHours += that.PVByteHours
 
 	// Sum all cumulative cost fields
