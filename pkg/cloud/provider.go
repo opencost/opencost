@@ -18,7 +18,7 @@ import (
 )
 
 const authSecretPath = "/var/secrets/service-key.json"
-const storageConfigSecretPath = "/var/secrets/azure-storage-config.json"
+const storageConfigSecretPath = "/var/azure-storage-config/azure-storage-config.json"
 
 var createTableStatements = []string{
 	`CREATE TABLE IF NOT EXISTS names (
