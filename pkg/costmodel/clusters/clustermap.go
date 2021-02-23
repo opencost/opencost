@@ -1,8 +1,8 @@
 package clusters
 
 import (
+	"context"
 	"fmt"
-	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -10,6 +10,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/thanos"
+	"github.com/kubecost/cost-model/pkg/util/retry"
 
 	prometheus "github.com/prometheus/client_golang/api"
 )
@@ -120,33 +121,17 @@ func (pcm *PrometheusClusterMap) loadClusters() (map[string]*ClusterInfo, error)
 	}
 
 	// Execute Query
-	tryQuery := func() ([]*prom.QueryResult, prometheus.Warnings, error) {
+	tryQuery := func() (interface{}, error) {
 		ctx := prom.NewContext(pcm.client)
-		return ctx.QuerySync(clusterInfoQuery(offset))
+		r, _, e := ctx.QuerySync(clusterInfoQuery(offset))
+		return r, e
 	}
-
-	var qr []*prom.QueryResult
-	var err error
 
 	// Retry on failure
-	delay := LoadRetryDelay
-	for r := LoadRetries; r > 0; r-- {
-		qr, _, err = tryQuery()
+	result, err := retry.Retry(context.Background(), tryQuery, uint(LoadRetries), LoadRetryDelay)
 
-		// non-error breaks out of loop
-		if err == nil {
-			break
-		}
-
-		// wait the delay
-		time.Sleep(delay)
-
-		// add some random backoff
-		jitter := time.Duration(rand.Int63n(int64(delay)))
-		delay = delay + jitter/2
-	}
-
-	if err != nil {
+	qr, ok := result.([]*prom.QueryResult)
+	if !ok || err != nil {
 		return nil, err
 	}
 
