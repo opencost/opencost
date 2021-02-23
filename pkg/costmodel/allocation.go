@@ -9,8 +9,11 @@ import (
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/thanos"
+	"github.com/kubecost/cost-model/pkg/util"
 	"k8s.io/apimachinery/pkg/labels"
 )
+
+// TODO niko/allocation drop "container" from queryFmtMinutes?
 
 const (
 	queryFmtMinutes               = `avg(kube_pod_container_status_running{}) by (container, pod, namespace, cluster_id)[%s:%s]%s`
@@ -47,15 +50,16 @@ const (
 	queryFmtJobLabels             = `sum(avg_over_time(kube_pod_owner{owner_kind="Job"}[%s]%s)) by (pod, owner_name, namespace ,cluster_id)`
 )
 
-// TODO niko/computeallocation idle minutes = 1?
-
 // ComputeAllocation uses the CostModel instance to compute an AllocationSet
 // for the window defined by the given start and end times. The Allocations
 // returned are unaggregated (i.e. down to the container level).
-func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.AllocationSet, error) {
+func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Duration) (*kubecost.AllocationSet, error) {
 	// Create a window spanning the requested query
 	s, e := start, end
 	window := kubecost.NewWindow(&s, &e)
+
+	// Convert resolution duration to a query-ready string
+	resStr := util.DurationString(resolution)
 
 	// Create an empty AllocationSet. For safety, in the case of an error, we
 	// should prefer to return this empty set with the error. (In the case of
@@ -99,18 +103,46 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 		offStr = ""
 	}
 
-	// TODO niko/computeallocation dynamic resolution? add to ComputeAllocation() in allocation.Source?
-	resStr := "1m"
-	// resPerHr := 60
+	// Build out a map of Allocations, starting with (start, end) so that we
+	// begin with minutes, from which we compute resource allocation and cost
+	// totals from measured rate data.
+	allocationMap := map[containerKey]*kubecost.Allocation{}
 
-	startQuerying := time.Now()
+	// Keep track of the allocations per pod, for the sake of splitting PVC and
+	// Network allocation into per-Allocation from per-Pod.
+	podAllocation := map[podKey][]*kubecost.Allocation{}
+
+	// clusterStarts and clusterEnds record the earliest start and latest end
+	// times, respectively, on a cluster-basis. These are used for unmounted
+	// PVs and other "virtual" Allocations so that minutes are maximally
+	// accurate during start-up or spin-down of a cluster
+	clusterStart := map[string]time.Time{}
+	clusterEnd := map[string]time.Time{}
 
 	ctx := prom.NewContext(cm.PrometheusClient)
-
-	// TODO niko/computeallocation split into required and optional queries?
+	startQuerying := time.Now()
 
 	queryMinutes := fmt.Sprintf(queryFmtMinutes, durStr, resStr, offStr)
 	resChMinutes := ctx.Query(queryMinutes)
+
+	// ------------------------------------------------------------------------
+	// TODO niko/compute-allocation remove logs
+	log.Infof("CostModel.ComputeAllocation: %s", queryMinutes)
+	// ------------------------------------------------------------------------
+
+	// TODO niko/computeallocation make this a loop in the case that the window
+	// is greater than... 4h? 6h?
+
+	resMinutes, err := resChMinutes.Await()
+	if err != nil {
+		// TODO niko/computeallocation do what with the error?
+	}
+
+	buildAllocationMap(window, allocationMap, podAllocation, clusterStart, clusterEnd, resMinutes)
+
+	log.Profile(startQuerying, "CostModel.ComputeAllocation: allocation map built")
+
+	// TODO niko/computeallocation split into required and optional queries?
 
 	queryRAMBytesAllocated := fmt.Sprintf(queryFmtRAMBytesAllocated, durStr, offStr)
 	resChRAMBytesAllocated := ctx.Query(queryRAMBytesAllocated)
@@ -205,7 +237,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	queryJobLabels := fmt.Sprintf(queryFmtJobLabels, durStr, offStr)
 	resChJobLabels := ctx.Query(queryJobLabels)
 
-	resMinutes, _ := resChMinutes.Await()
 	resCPUCoresAllocated, _ := resChCPUCoresAllocated.Await()
 	resCPURequests, _ := resChCPURequests.Await()
 	resCPUUsage, _ := resChCPUUsage.Await()
@@ -244,25 +275,17 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time) (*kubecost.Allocati
 	resJobLabels, _ := resChJobLabels.Await()
 
 	log.Profile(startQuerying, "CostModel.ComputeAllocation: queries complete")
+
+	if ctx.HasErrors() {
+		for _, err := range ctx.Errors() {
+			log.Errorf("CostModel.ComputeAllocation: %s", err)
+		}
+
+		return allocSet, ctx.ErrorCollection()
+	}
+
 	defer log.Profile(time.Now(), "CostModel.ComputeAllocation: processing complete")
 
-	// Build out a map of Allocations, starting with (start, end) so that we
-	// begin with minutes, from which we compute resource allocation and cost
-	// totals from measured rate data.
-	allocationMap := map[containerKey]*kubecost.Allocation{}
-
-	// Keep track of the allocations per pod, for the sake of splitting PVC and
-	// Network allocation into per-Allocation from per-Pod.
-	podAllocation := map[podKey][]*kubecost.Allocation{}
-
-	// clusterStarts and clusterEnds record the earliest start and latest end
-	// times, respectively, on a cluster-basis. These are used for unmounted
-	// PVs and other "virtual" Allocations so that minutes are maximally
-	// accurate during start-up or spin-down of a cluster
-	clusterStart := map[string]time.Time{}
-	clusterEnd := map[string]time.Time{}
-
-	buildAllocationMap(window, allocationMap, podAllocation, clusterStart, clusterEnd, resMinutes)
 	applyCPUCoresAllocated(allocationMap, resCPUCoresAllocated)
 	applyCPUCoresRequested(allocationMap, resCPURequests)
 	applyCPUCoresUsed(allocationMap, resCPUUsage)
@@ -433,6 +456,9 @@ func buildAllocationMap(window kubecost.Window, allocationMap map[containerKey]*
 		// already represents the end of the last minute.
 		var allocStart, allocEnd time.Time
 		for _, datum := range res.Values {
+
+			// TODO niko/computeallocation if Value == 0.5, scale down by 50% in both directions!
+
 			t := time.Unix(int64(datum.Timestamp), 0)
 			if allocStart.IsZero() && datum.Value > 0 && window.Contains(t) {
 				allocStart = t

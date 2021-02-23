@@ -32,11 +32,10 @@ const (
 	DaysPerMonth = 30.42
 )
 
-// DurationOffsetStrings converts a (duration, offset) pair to Prometheus-
-// compatible strings in terms of days, hours, minutes, or seconds.
-func DurationOffsetStrings(duration, offset time.Duration) (string, string) {
+// DurationString converts a duration to a Prometheus-compatible string in
+// terms of days, hours, minutes, or seconds.
+func DurationString(duration time.Duration) string {
 	durSecs := int64(duration.Seconds())
-	offSecs := int64(offset.Seconds())
 
 	durStr := ""
 	if durSecs > 0 {
@@ -55,23 +54,13 @@ func DurationOffsetStrings(duration, offset time.Duration) (string, string) {
 		}
 	}
 
-	offStr := ""
-	if offSecs > 0 {
-		if offSecs%SecsPerDay == 0 {
-			// convert to days
-			offStr = fmt.Sprintf("%dd", offSecs/SecsPerDay)
-		} else if offSecs%SecsPerHour == 0 {
-			// convert to hours
-			offStr = fmt.Sprintf("%dh", offSecs/SecsPerHour)
-		} else if offSecs%SecsPerMin == 0 {
-			// convert to mins
-			offStr = fmt.Sprintf("%dm", offSecs/SecsPerMin)
-		} else if offSecs > 0 {
-			// default to mins, as long as offation is positive
-			offStr = fmt.Sprintf("%ds", offSecs)
-		}
-	}
-	return durStr, offStr
+	return durStr
+}
+
+// DurationOffsetStrings converts a (duration, offset) pair to Prometheus-
+// compatible strings in terms of days, hours, minutes, or seconds.
+func DurationOffsetStrings(duration, offset time.Duration) (string, string) {
+	return DurationString(duration), DurationString(offset)
 }
 
 // ParseDuration converts a Prometheus-style duration string into a Duration
