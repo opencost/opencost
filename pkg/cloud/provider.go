@@ -20,6 +20,7 @@ import (
 const authSecretPath = "/var/secrets/service-key.json"
 const storageConfigSecretPath = "/var/azure-storage-config/azure-storage-config.json"
 
+
 var createTableStatements = []string{
 	`CREATE TABLE IF NOT EXISTS names (
 		cluster_id VARCHAR(255) NOT NULL,
