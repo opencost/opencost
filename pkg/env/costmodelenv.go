@@ -15,8 +15,8 @@ const (
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
 
-	AzureStorageAccessKeyEnvVar = "AZURE_STORAGE_ACCESS_KEY"
-	AzureStorageAccountNameEnvVar = "AZURE_STORAGE_ACCOUNT"
+	AzureStorageAccessKeyEnvVar     = "AZURE_STORAGE_ACCESS_KEY"
+	AzureStorageAccountNameEnvVar   = "AZURE_STORAGE_ACCOUNT"
 	AzureStorageContainerNameEnvVar = "AZURE_STORAGE_CONTAINER"
 
 	KubecostNamespaceEnvVar        = "KUBECOST_NAMESPACE"
@@ -61,14 +61,15 @@ const (
 
 	UTCOffsetEnvVar = "UTC_OFFSET"
 
-	CacheWarmingEnabledEnvVar = "CACHE_WARMING_ENABLED"
-	ETLEnabledEnvVar          = "ETL_ENABLED"
+	CacheWarmingEnabledEnvVar    = "CACHE_WARMING_ENABLED"
+	ETLEnabledEnvVar             = "ETL_ENABLED"
+	LegacyExternalAPIDisabledVar = "LEGACY_EXTERNAL_API_DISABLED"
 )
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
 // the AWS access key for authentication
 func GetAppVersion() string {
-	return Get(AppVersionEnvVar, "1.74.0")
+	return Get(AppVersionEnvVar, "1.75.0")
 }
 
 // IsEmitNamespaceAnnotationsMetric returns true if cost-model is configured to emit the kube_namespace_annotations metric
@@ -335,4 +336,8 @@ func IsCacheWarmingEnabled() bool {
 
 func IsETLEnabled() bool {
 	return GetBool(ETLEnabledEnvVar, true)
+}
+
+func LegacyExternalCostsAPIDisabled() bool {
+	return GetBool(LegacyExternalAPIDisabledVar, false)
 }

@@ -1027,11 +1027,7 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	var alloc *Allocation
 	var err error
 
-	// default allocationPropertyLabels, which should be compatible with result
-	// of LabelConfig.AllocationPropertyLabels()
-	apls := map[string]string{"namespace": "kubernetes_namespace"}
-
-	alloc, err = AssetToExternalAllocation(asset, []string{"namespace"}, apls)
+	alloc, err = AssetToExternalAllocation(asset, []string{"namespace"})
 	if err == nil {
 		t.Fatalf("expected error due to nil asset")
 	}
@@ -1046,19 +1042,17 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	//   }
 	cloud := NewCloud(ComputeCategory, "abc123", start1, start2, windows[0])
 	cloud.SetLabels(map[string]string{
-		"kubernetes_namespace": "monitoring",
-		"env":                  "prod",
+		"namespace": "monitoring",
+		"env":       "prod",
 	})
 	cloud.Cost = 10.00
 	asset = cloud
 
-	// Providing nil params with a non-nil Asset should not panic, but it
-	// should return an error in both cases (no matching is possible).
-	alloc, err = AssetToExternalAllocation(asset, []string{"namespace"}, nil)
-	if err == nil {
-		t.Fatalf("expected error due to nil allocationPropertyLabels")
+	alloc, err = AssetToExternalAllocation(asset, []string{"namespace"})
+	if err != nil {
+		t.Fatalf("expected to not error")
 	}
-	alloc, err = AssetToExternalAllocation(asset, nil, apls)
+	alloc, err = AssetToExternalAllocation(asset, nil)
 	if err == nil {
 		t.Fatalf("expected error due to nil aggregateBy")
 	}
@@ -1086,7 +1080,7 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	//   => nil, err
 
 	// 1) single-prop full match
-	alloc, err = AssetToExternalAllocation(asset, []string{"namespace"}, apls)
+	alloc, err = AssetToExternalAllocation(asset, []string{"namespace"})
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1104,7 +1098,7 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	}
 
 	// 2) multi-prop full match
-	alloc, err = AssetToExternalAllocation(asset, []string{"namespace", "label:env"}, apls)
+	alloc, err = AssetToExternalAllocation(asset, []string{"namespace", "label:env"})
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1125,7 +1119,7 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	}
 
 	// 3) multi-prop partial match
-	alloc, err = AssetToExternalAllocation(asset, []string{"namespace", "label:foo"}, apls)
+	alloc, err = AssetToExternalAllocation(asset, []string{"namespace", "label:foo"})
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1143,7 +1137,7 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	}
 
 	// 3) no match
-	alloc, err = AssetToExternalAllocation(asset, []string{"cluster"}, apls)
+	alloc, err = AssetToExternalAllocation(asset, []string{"cluster"})
 	if err == nil {
 		t.Fatalf("expected 'no match' error")
 	}

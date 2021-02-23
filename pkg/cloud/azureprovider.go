@@ -67,11 +67,13 @@ var (
 )
 
 const AzureLayout = "2006-01-02"
+var HeaderStrings = []string{"MeterCategory", "UsageDateTime", "InstanceId", "AdditionalInfo", "Tags", "PreTaxCost", "SubscriptionGuid", "ConsumedService", "ResourceGroup", "ResourceType"}
+
 
 var loadedAzureSecret bool = false
 var azureSecret *AzureServiceKey = nil
 var loadedAzureStorageConfigSecret bool = false
-var azureStorageConfig *AzureStorageConfig= nil
+var azureStorageConfig *AzureStorageConfig = nil
 
 type regionParts []string
 
@@ -191,7 +193,7 @@ type Azure struct {
 	DownloadPricingDataLock sync.RWMutex
 	Clientset               clustercache.ClusterCache
 	Config                  *ProviderConfig
-	ServiceAccountChecks        map[string]*ServiceAccountCheck
+	ServiceAccountChecks    map[string]*ServiceAccountCheck
 }
 
 type azureKey struct {
@@ -221,8 +223,8 @@ func (k *azureKey) ID() string {
 
 // Represents an azure storage config
 type AzureStorageConfig struct {
-	AccountName string `json:"azureStorageAccount"`
-	AccessKey string `json:"azureStorageAccessKey"`
+	AccountName   string `json:"azureStorageAccount"`
+	AccessKey     string `json:"azureStorageAccessKey"`
 	ContainerName string `json:"azureStorageContainer"`
 }
 
@@ -300,7 +302,7 @@ func (az *Azure) getAzureStorageConfig(forceReload bool) (accessKey, accountName
 	}
 	// 1. Check for secret
 	s, _ := az.loadAzureStorageConfig(forceReload)
-	if s != nil && s.AccessKey != "" && s.AccountName != ""  && s.ContainerName != ""{
+	if s != nil && s.AccessKey != "" && s.AccountName != "" && s.ContainerName != "" {
 
 		az.ServiceAccountChecks["hasStorage"] = &ServiceAccountCheck{
 			Message: "Azure Storage Config exists",
@@ -773,19 +775,25 @@ type azurePvKey struct {
 	StorageClass           string
 	StorageClassParameters map[string]string
 	DefaultRegion          string
+	ProviderId             string
 }
 
 func (az *Azure) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) PVKey {
+	providerID := ""
+	if pv.Spec.AzureDisk != nil {
+		providerID = pv.Spec.AzureDisk.DiskName
+	}
 	return &azurePvKey{
 		Labels:                 pv.Labels,
 		StorageClass:           pv.Spec.StorageClassName,
 		StorageClassParameters: parameters,
 		DefaultRegion:          defaultRegion,
+		ProviderId:             providerID,
 	}
 }
 
 func (key *azurePvKey) ID() string {
-	return ""
+	return key.ProviderId
 }
 
 func (key *azurePvKey) GetStorageClass() string {
@@ -914,10 +922,10 @@ func (az *Azure) ExternalAllocations(start string, end string, aggregators []str
 	if err != nil {
 		return nil, err
 	}
-	return GetExternalAllocations(start, end, aggregators, filterType, filterValue, crossCluster, csvRetriever)
+	return getExternalAllocations(start, end, aggregators, filterType, filterValue, crossCluster, csvRetriever)
 }
 
-func GetExternalAllocations(start string, end string, aggregators []string, filterType string, filterValue string, crossCluster bool, csvRetriever CSVRetriever) ([]*OutOfClusterAllocation, error) {
+func getExternalAllocations(start string, end string, aggregators []string, filterType string, filterValue string, crossCluster bool, csvRetriever CSVRetriever) ([]*OutOfClusterAllocation, error) {
 	dateFormat := "2006-1-2"
 	startTime, err := time.Parse(dateFormat, start)
 	if err != nil {
@@ -933,7 +941,7 @@ func GetExternalAllocations(start string, end string, aggregators []string, filt
 	}
 	oocAllocs := make(map[string]*OutOfClusterAllocation)
 	for _, reader := range readers {
-		err = ParseCSV(reader, startTime, endTime, oocAllocs, aggregators, filterType, filterValue, crossCluster)
+		err = parseCSV(reader, startTime, endTime, oocAllocs, aggregators, filterType, filterValue, crossCluster)
 		if err != nil {
 			return nil, err
 		}
@@ -945,13 +953,9 @@ func GetExternalAllocations(start string, end string, aggregators []string, filt
 	return oocAllocsArr, nil
 }
 
-func ParseCSV (reader *csv.Reader, start, end time.Time, oocAllocs map[string]*OutOfClusterAllocation, aggregators []string, filterType string, filterValue string, crossCluster bool) error {
+func parseCSV(reader *csv.Reader, start, end time.Time, oocAllocs map[string]*OutOfClusterAllocation, aggregators []string, filterType string, filterValue string, crossCluster bool) error {
 	headers, _ := reader.Read()
-
-	headerMap := map[string]int{}
-	for i, header := range headers {
-		headerMap[header] = i
-	}
+	headerMap := createHeaderMap(headers)
 
 	for {
 		var record, err = reader.Read()
@@ -981,7 +985,7 @@ func ParseCSV (reader *csv.Reader, start, end time.Time, oocAllocs map[string]*O
 		}
 
 		itemTags := make(map[string]string)
-		itemTagJson := record[headerMap["Tags"]]
+		itemTagJson := makeValidJSON(record[headerMap["Tags"]])
 		if itemTagJson != "" {
 			err = json.Unmarshal([]byte(itemTagJson), &itemTags)
 			if err != nil {
@@ -990,7 +994,7 @@ func ParseCSV (reader *csv.Reader, start, end time.Time, oocAllocs map[string]*O
 		}
 
 		if filterType != "kubernetes_" {
-			if value, ok := itemTags[filterType];!ok || value != filterValue {
+			if value, ok := itemTags[filterType]; !ok || value != filterValue {
 				continue
 			}
 		}
@@ -1014,11 +1018,28 @@ func ParseCSV (reader *csv.Reader, start, end time.Time, oocAllocs map[string]*O
 			oocAllocs[key] = ooc
 		}
 
-
 	}
 	return nil
 }
 
+func createHeaderMap(headers []string) map[string]int {
+	headerMap := make(map[string]int)
+	for i, header := range headers {
+		for _, headerString := range HeaderStrings {
+			if strings.Contains(header, headerString) {
+				headerMap[headerString] = i
+			}
+		}
+	}
+	return headerMap
+}
+
+func makeValidJSON(jsonString string) string {
+	if jsonString == "" || (jsonString[0] == '{' && jsonString[len(jsonString)-1] == '}') {
+		return jsonString
+	}
+	return fmt.Sprintf("{%v}", jsonString)
+}
 
 
 // UsageDateTime only contains date information and not time because of this filtering usageDate time is inclusive on start and exclusive on end
