@@ -8,15 +8,12 @@ import (
 	"github.com/kubecost/cost-model/pkg/kubecost"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
-	"github.com/kubecost/cost-model/pkg/thanos"
 	"github.com/kubecost/cost-model/pkg/util"
 	"k8s.io/apimachinery/pkg/labels"
 )
 
-// TODO niko/allocation drop "container" from queryFmtMinutes?
-
 const (
-	queryFmtMinutes               = `avg(kube_pod_container_status_running{}) by (container, pod, namespace, cluster_id)[%s:%s]%s`
+	queryFmtPods                  = `avg(kube_pod_container_status_running{}) by (pod, namespace, cluster_id)[%s:%s]%s`
 	queryFmtRAMBytesAllocated     = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
 	queryFmtRAMRequests           = `avg(avg_over_time(kube_pod_container_resource_requests_memory_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
 	queryFmtRAMUsage              = `avg(avg_over_time(container_memory_working_set_bytes{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`
@@ -54,63 +51,25 @@ const (
 // for the window defined by the given start and end times. The Allocations
 // returned are unaggregated (i.e. down to the container level).
 func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Duration) (*kubecost.AllocationSet, error) {
-	// Create a window spanning the requested query
-	s, e := start, end
-	window := kubecost.NewWindow(&s, &e)
+	// 1. Build out Pod map from resolution-tuned, batched Pod start/end query
+	// 2. Run and apply the results of the remaining queries to
+	// 3. Build out AllocationSet from completed Pod map
 
-	// Convert resolution duration to a query-ready string
-	resStr := util.DurationString(resolution)
+	// Create a window spanning the requested query
+	window := kubecost.NewWindow(&start, &end)
 
 	// Create an empty AllocationSet. For safety, in the case of an error, we
 	// should prefer to return this empty set with the error. (In the case of
 	// no error, of course we populate the set and return it.)
 	allocSet := kubecost.NewAllocationSet(start, end)
 
-	// Convert window (start, end) to (duration, offset) for querying Prometheus
-	timesToDurations := func(s, e time.Time) (dur, off time.Duration) {
-		now := time.Now()
-		off = now.Sub(e)
-		dur = e.Sub(s)
-		return dur, off
-	}
-	duration, offset := timesToDurations(start, end)
+	// (1) Build out Pod map
 
-	// If using Thanos, increase offset to 3 hours, reducing the duration by
-	// equal measure to maintain the same starting point.
-	thanosDur := thanos.OffsetDuration()
-	if offset < thanosDur && env.IsThanosEnabled() {
-		diff := thanosDur - offset
-		offset += diff
-		duration -= diff
-	}
-
-	// If duration < 0, return an empty set
-	if duration < 0 {
-		return allocSet, nil
-	}
-
-	// Negative offset means that the end time is in the future. Prometheus
-	// fails for non-positive offset values, so shrink the duration and
-	// remove the offset altogether.
-	if offset < 0 {
-		duration = duration + offset
-		offset = 0
-	}
-
-	durStr := fmt.Sprintf("%dm", int64(duration.Minutes()))
-	offStr := fmt.Sprintf(" offset %dm", int64(offset.Minutes()))
-	if offset < time.Minute {
-		offStr = ""
-	}
-
-	// Build out a map of Allocations, starting with (start, end) so that we
+	// Build out a map of Allocations as a mapping from pod-to-container-to-
+	// underlying-Allocation instance, starting with (start, end) so that we
 	// begin with minutes, from which we compute resource allocation and cost
 	// totals from measured rate data.
-	allocationMap := map[containerKey]*kubecost.Allocation{}
-
-	// Keep track of the allocations per pod, for the sake of splitting PVC and
-	// Network allocation into per-Allocation from per-Pod.
-	podAllocation := map[podKey][]*kubecost.Allocation{}
+	podMap := map[podKey]*Pod{}
 
 	// clusterStarts and clusterEnds record the earliest start and latest end
 	// times, respectively, on a cluster-basis. These are used for unmounted
@@ -119,28 +78,26 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	clusterStart := map[string]time.Time{}
 	clusterEnd := map[string]time.Time{}
 
-	ctx := prom.NewContext(cm.PrometheusClient)
-	startQuerying := time.Now()
+	// TODO niko/computeallocation make this configurable?
+	batchSize := 6 * time.Hour
 
-	queryMinutes := fmt.Sprintf(queryFmtMinutes, durStr, resStr, offStr)
-	resChMinutes := ctx.Query(queryMinutes)
+	cm.buildPodMap(window, resolution, batchSize, podMap, clusterStart, clusterEnd)
 
-	// ------------------------------------------------------------------------
-	// TODO niko/compute-allocation remove logs
-	log.Infof("CostModel.ComputeAllocation: %s", queryMinutes)
-	// ------------------------------------------------------------------------
+	// (2) Run and apply remaining queries
 
-	// TODO niko/computeallocation make this a loop in the case that the window
-	// is greater than... 4h? 6h?
-
-	resMinutes, err := resChMinutes.Await()
+	// Convert window (start, end) to (duration, offset) for querying Prometheus,
+	// including handling Thanos offset
+	durStr, offStr, err := window.DurationOffsetForPrometheus()
 	if err != nil {
-		// TODO niko/computeallocation do what with the error?
+		// Negative duration, so return empty set
+		return allocSet, nil
 	}
 
-	buildAllocationMap(window, allocationMap, podAllocation, clusterStart, clusterEnd, resMinutes)
+	// Convert resolution duration to a query-ready string
+	resStr := util.DurationString(resolution)
 
-	log.Profile(startQuerying, "CostModel.ComputeAllocation: allocation map built")
+	ctx := prom.NewContext(cm.PrometheusClient)
+	startQuerying := time.Now()
 
 	// TODO niko/computeallocation split into required and optional queries?
 
@@ -286,16 +243,16 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 
 	defer log.Profile(time.Now(), "CostModel.ComputeAllocation: processing complete")
 
-	applyCPUCoresAllocated(allocationMap, resCPUCoresAllocated)
-	applyCPUCoresRequested(allocationMap, resCPURequests)
-	applyCPUCoresUsed(allocationMap, resCPUUsage)
-	applyRAMBytesAllocated(allocationMap, resRAMBytesAllocated)
-	applyRAMBytesRequested(allocationMap, resRAMRequests)
-	applyRAMBytesUsed(allocationMap, resRAMUsage)
-	applyGPUsRequested(allocationMap, resGPUsRequested)
-	applyNetworkAllocation(allocationMap, podAllocation, resNetZoneGiB, resNetZoneCostPerGiB)
-	applyNetworkAllocation(allocationMap, podAllocation, resNetRegionGiB, resNetRegionCostPerGiB)
-	applyNetworkAllocation(allocationMap, podAllocation, resNetInternetGiB, resNetInternetCostPerGiB)
+	applyCPUCoresAllocated(podMap, resCPUCoresAllocated)
+	applyCPUCoresRequested(podMap, resCPURequests)
+	applyCPUCoresUsed(podMap, resCPUUsage)
+	applyRAMBytesAllocated(podMap, resRAMBytesAllocated)
+	applyRAMBytesRequested(podMap, resRAMRequests)
+	applyRAMBytesUsed(podMap, resRAMUsage)
+	applyGPUsRequested(podMap, resGPUsRequested)
+	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZoneCostPerGiB)
+	applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionCostPerGiB)
+	applyNetworkAllocation(podMap, resNetInternetGiB, resNetInternetCostPerGiB)
 
 	// TODO niko/computeallocation pruneDuplicateData? (see costmodel.go)
 
@@ -303,20 +260,20 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	podLabels := resToPodLabels(resPodLabels)
 	namespaceAnnotations := resToNamespaceAnnotations(resNamespaceAnnotations)
 	podAnnotations := resToPodAnnotations(resPodAnnotations)
-	applyLabels(allocationMap, namespaceLabels, podLabels)
-	applyAnnotations(allocationMap, namespaceAnnotations, podAnnotations)
+	applyLabels(podMap, namespaceLabels, podLabels)
+	applyAnnotations(podMap, namespaceAnnotations, podAnnotations)
 
 	serviceLabels := getServiceLabels(resServiceLabels)
-	applyServicesToPods(allocationMap, podLabels, serviceLabels)
+	applyServicesToPods(podMap, podLabels, serviceLabels)
 
 	podDeploymentMap := labelsToPodControllerMap(podLabels, resToDeploymentLabels(resDeploymentLabels))
 	podStatefulSetMap := labelsToPodControllerMap(podLabels, resToStatefulSetLabels(resStatefulSetLabels))
 	podDaemonSetMap := resToPodDaemonSetMap(resDaemonSetLabels)
 	podJobMap := resToPodJobMap(resJobLabels)
-	applyControllersToPods(allocationMap, podDeploymentMap)
-	applyControllersToPods(allocationMap, podStatefulSetMap)
-	applyControllersToPods(allocationMap, podDaemonSetMap)
-	applyControllersToPods(allocationMap, podJobMap)
+	applyControllersToPods(podMap, podDeploymentMap)
+	applyControllersToPods(podMap, podStatefulSetMap)
+	applyControllersToPods(podMap, podDaemonSetMap)
+	applyControllersToPods(podMap, podJobMap)
 
 	// TODO breakdown network costs?
 
@@ -350,82 +307,165 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	// populates the PVC.Count field so that PVC allocation can be
 	// split appropriately among each pod's container allocation.
 	podPVCMap := map[podKey][]*PVC{}
-	buildPodPVCMap(podPVCMap, pvMap, pvcMap, podAllocation, resPodPVCAllocation)
+	buildPodPVCMap(podPVCMap, pvMap, pvcMap, podMap, resPodPVCAllocation)
 
 	// Identify unmounted PVs (PVs without PVCs) and add one Allocation per
 	// cluster representing each cluster's unmounted PVs (if necessary).
-	applyUnmountedPVs(window, allocationMap, pvMap, pvcMap)
+	applyUnmountedPVs(window, podMap, pvMap, pvcMap)
 
-	for _, alloc := range allocationMap {
-		cluster, _ := alloc.Properties.GetCluster()
-		node, _ := alloc.Properties.GetNode()
-		namespace, _ := alloc.Properties.GetNamespace()
-		pod, _ := alloc.Properties.GetPod()
-		container, _ := alloc.Properties.GetContainer()
+	// (3) Build out AllocationSet from Pod map
 
-		podKey := newPodKey(cluster, namespace, pod)
-		nodeKey := newNodeKey(cluster, node)
+	for _, pod := range podMap {
+		for _, alloc := range pod.Allocations {
+			cluster, _ := alloc.Properties.GetCluster()
+			node, _ := alloc.Properties.GetNode()
+			namespace, _ := alloc.Properties.GetNamespace()
+			pod, _ := alloc.Properties.GetPod()
+			container, _ := alloc.Properties.GetContainer()
 
-		if n, ok := nodeMap[nodeKey]; !ok {
-			if pod != kubecost.UnmountedSuffix {
-				log.Warningf("CostModel.ComputeAllocation: failed to find node %s for %s", nodeKey, alloc.Name)
+			podKey := newPodKey(cluster, namespace, pod)
+			nodeKey := newNodeKey(cluster, node)
+
+			if n, ok := nodeMap[nodeKey]; !ok {
+				if pod != kubecost.UnmountedSuffix {
+					log.Warningf("CostModel.ComputeAllocation: failed to find node %s for %s", nodeKey, alloc.Name)
+				}
+			} else {
+				alloc.CPUCost = alloc.CPUCoreHours * n.CostPerCPUHr
+				alloc.RAMCost = (alloc.RAMByteHours / 1024 / 1024 / 1024) * n.CostPerRAMGiBHr
+				alloc.GPUCost = alloc.GPUHours * n.CostPerGPUHr
 			}
-		} else {
-			alloc.CPUCost = alloc.CPUCoreHours * n.CostPerCPUHr
-			alloc.RAMCost = (alloc.RAMByteHours / 1024 / 1024 / 1024) * n.CostPerRAMGiBHr
-			alloc.GPUCost = alloc.GPUHours * n.CostPerGPUHr
-		}
 
-		if pvcs, ok := podPVCMap[podKey]; ok {
-			for _, pvc := range pvcs {
-				// Determine the (start, end) of the relationship between the
-				// given PVC and the associated Allocation so that a precise
-				// number of hours can be used to compute cumulative cost.
-				s, e := alloc.Start, alloc.End
-				if pvc.Start.After(alloc.Start) {
-					s = pvc.Start
+			if pvcs, ok := podPVCMap[podKey]; ok {
+				for _, pvc := range pvcs {
+					// Determine the (start, end) of the relationship between the
+					// given PVC and the associated Allocation so that a precise
+					// number of hours can be used to compute cumulative cost.
+					s, e := alloc.Start, alloc.End
+					if pvc.Start.After(alloc.Start) {
+						s = pvc.Start
+					}
+					if pvc.End.Before(alloc.End) {
+						e = pvc.End
+					}
+					minutes := e.Sub(s).Minutes()
+					hrs := minutes / 60.0
+
+					count := float64(pvc.Count)
+					if pvc.Count < 1 {
+						count = 1
+					}
+
+					gib := pvc.Bytes / 1024 / 1024 / 1024
+					cost := pvc.Volume.CostPerGiBHour * gib * hrs
+
+					// Apply the size and cost of the PV to the allocation, each
+					// weighted by count (i.e. the number of containers in the pod)
+					alloc.PVByteHours += pvc.Bytes * hrs / count
+					alloc.PVCost += cost / count
 				}
-				if pvc.End.Before(alloc.End) {
-					e = pvc.End
-				}
-				minutes := e.Sub(s).Minutes()
-				hrs := minutes / 60.0
-
-				count := float64(pvc.Count)
-				if pvc.Count < 1 {
-					count = 1
-				}
-
-				gib := pvc.Bytes / 1024 / 1024 / 1024
-				cost := pvc.Volume.CostPerGiBHour * gib * hrs
-
-				// Apply the size and cost of the PV to the allocation, each
-				// weighted by count (i.e. the number of containers in the pod)
-				alloc.PVByteHours += pvc.Bytes * hrs / count
-				alloc.PVCost += cost / count
 			}
+
+			alloc.TotalCost = 0.0
+			alloc.TotalCost += alloc.CPUCost
+			alloc.TotalCost += alloc.RAMCost
+			alloc.TotalCost += alloc.GPUCost
+			alloc.TotalCost += alloc.PVCost
+			alloc.TotalCost += alloc.NetworkCost
+			alloc.TotalCost += alloc.SharedCost
+			alloc.TotalCost += alloc.ExternalCost
+
+			// Make sure that the name is correct (node may not be present at this
+			// point due to it missing from queryMinutes) then insert.
+			alloc.Name = fmt.Sprintf("%s/%s/%s/%s/%s", cluster, node, namespace, pod, container)
+			allocSet.Set(alloc)
 		}
-
-		alloc.TotalCost = 0.0
-		alloc.TotalCost += alloc.CPUCost
-		alloc.TotalCost += alloc.RAMCost
-		alloc.TotalCost += alloc.GPUCost
-		alloc.TotalCost += alloc.PVCost
-		alloc.TotalCost += alloc.NetworkCost
-		alloc.TotalCost += alloc.SharedCost
-		alloc.TotalCost += alloc.ExternalCost
-
-		// Make sure that the name is correct (node may not be present at this
-		// point due to it missing from queryMinutes) then insert.
-		alloc.Name = fmt.Sprintf("%s/%s/%s/%s/%s", cluster, node, namespace, pod, container)
-		allocSet.Set(alloc)
 	}
 
 	return allocSet, nil
 }
 
-func buildAllocationMap(window kubecost.Window, allocationMap map[containerKey]*kubecost.Allocation, podAllocation map[podKey][]*kubecost.Allocation, clusterStart, clusterEnd map[string]time.Time, resMinutes []*prom.QueryResult) {
-	for _, res := range resMinutes {
+func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSize time.Duration, podMap map[podKey]*Pod, clusterStart, clusterEnd map[string]time.Time) error {
+	// Assumes that window is positive and closed
+	start, end := *window.Start(), *window.End()
+
+	// Convert resolution duration to a query-ready string
+	resStr := util.DurationString(resolution)
+
+	ctx := prom.NewContext(cm.PrometheusClient)
+	profile := time.Now()
+
+	// Query for (start, end) by (pod, namespace, cluster) over the given
+	// window, using the given resolution, and if necessary in batches no
+	// larger than the given maximum batch size. If working in batches, track
+	// overall progress by starting with (window.start, window.start) and
+	// querying in batches no larger than maxBatchSize from start-to-end,
+	// folding each result set into podMap as the results come back.
+	coverage := kubecost.NewWindow(&start, &start)
+
+	numQuery := 1
+	for coverage.End().Before(end) {
+		batchProfile := time.Now()
+
+		// Determine the (start, end) of the current batch
+		batchStart := *coverage.End()
+		batchEnd := coverage.End().Add(maxBatchSize)
+		if batchEnd.After(end) {
+			batchEnd = end
+		}
+		batchWindow := kubecost.NewWindow(&batchStart, &batchEnd)
+
+		var resPods []*prom.QueryResult
+		var err error
+		maxTries := 3
+		numTries := 0
+		for resPods == nil && numTries < maxTries {
+			numTries++
+
+			// Convert window (start, end) to (duration, offset) for querying Prometheus,
+			// including handling Thanos offset
+			durStr, offStr, err := batchWindow.DurationOffsetForPrometheus()
+			if err != nil {
+				// Negative duration, so set empty results and don't query
+				// TODO niko/computeallocation test this!!!
+				resPods = []*prom.QueryResult{}
+				err = nil
+				break
+			}
+
+			// Submit and profile query
+			queryPods := fmt.Sprintf(queryFmtPods, durStr, resStr, offStr)
+			queryProfile := time.Now()
+			resPods, err = ctx.Query(queryPods).Await()
+			if err != nil {
+				// TODO niko/computeallocation do what with the error?
+				log.Profile(queryProfile, fmt.Sprintf("CostModel.ComputeAllocation: pod query batch %d try %d failed: %s", numQuery, numTries, queryPods))
+				resPods = nil
+			}
+		}
+
+		if err != nil {
+			return err
+		}
+
+		// ------------------------------------------------------------------------
+		// TODO niko/compute-allocation remove logs
+		log.Profile(batchProfile, fmt.Sprintf("CostModel.ComputeAllocation: pod query batch %d try %d complete: %s", numQuery, numTries, batchWindow))
+		// ------------------------------------------------------------------------
+
+		applyPodResults(window, resolution, podMap, clusterStart, clusterEnd, resPods)
+
+		coverage = coverage.ExpandEnd(batchEnd)
+		numQuery++
+	}
+
+	log.Profile(profile, "CostModel.ComputeAllocation: pod map built")
+
+	return nil
+}
+
+func applyPodResults(window kubecost.Window, resolution time.Duration, podMap map[podKey]*Pod, clusterStart, clusterEnd map[string]time.Time, resPods []*prom.QueryResult) {
+	for _, res := range resPods {
 		if len(res.Values) == 0 {
 			log.Warningf("CostModel.ComputeAllocation: empty minutes result")
 			continue
@@ -436,7 +476,7 @@ func buildAllocationMap(window kubecost.Window, allocationMap map[containerKey]*
 			cluster = env.GetClusterID()
 		}
 
-		labels, err := res.GetStrings("namespace", "pod", "container")
+		labels, err := res.GetStrings("namespace", "pod")
 		if err != nil {
 			log.Warningf("CostModel.ComputeAllocation: minutes query result missing field: %s", err)
 			continue
@@ -444,33 +484,56 @@ func buildAllocationMap(window kubecost.Window, allocationMap map[containerKey]*
 
 		namespace := labels["namespace"]
 		pod := labels["pod"]
-		container := labels["container"]
-
-		containerKey := newContainerKey(cluster, namespace, pod, container)
-		podKey := newPodKey(cluster, namespace, pod)
+		key := newPodKey(cluster, namespace, pod)
 
 		// allocStart and allocEnd are the timestamps of the first and last
-		// minutes the allocation was running, respectively. We subtract 1m
+		// minutes the pod was running, respectively. We subtract one resolution
 		// from allocStart because this point will actually represent the end
 		// of the first minute. We don't subtract from allocEnd because it
 		// already represents the end of the last minute.
 		var allocStart, allocEnd time.Time
+		startAdjustmentCoeff, endAdjustmentCoeff := 1.0, 1.0
 		for _, datum := range res.Values {
-
-			// TODO niko/computeallocation if Value == 0.5, scale down by 50% in both directions!
-
 			t := time.Unix(int64(datum.Timestamp), 0)
+
 			if allocStart.IsZero() && datum.Value > 0 && window.Contains(t) {
+				// Set the start timestamp to the earliest non-zero timestamp
 				allocStart = t
+
+				// Record adjustment coefficient, i.e. the portion of the start
+				// timestamp to "ignore". That is, sometimes the value will be
+				// 0.5, meaning that we should discount the time running by
+				// half of the resolution the timestamp stands for.
+				startAdjustmentCoeff = (1.0 - datum.Value)
 			}
+
 			if datum.Value > 0 && window.Contains(t) {
+				// Set the end timestamp to the latest non-zero timestamp
 				allocEnd = t
+
+				// If the end timestamp differs from the start, then record the
+				// adjustment coefficient, i.e. the portion of the end
+				// timestamp to "ignore". That is, sometimes the value will be
+				// 0.5, meaning that we should discount the time running by
+				// half of the resolution the timestamp stands for.
+				if !allocStart.Equal(t) {
+					endAdjustmentCoeff = (1.0 - datum.Value)
+				}
 			}
 		}
+
 		if allocStart.IsZero() || allocEnd.IsZero() {
 			continue
 		}
-		allocStart = allocStart.Add(-time.Minute)
+
+		// Adjust timestamps accorind to the resolution and the adjustment
+		// coefficients, as described above. That is, count the start timestamp
+		// from the beginning of the resolution, not the end. Then "reduce" the
+		// start and end by the correct amount, in the case that the "running"
+		// value of the first or last timestamp was not a full 1.0.
+		allocStart = allocStart.Add(-resolution)
+		allocStart = allocStart.Add(time.Duration(startAdjustmentCoeff) * resolution)
+		allocEnd = allocEnd.Add(-time.Duration(endAdjustmentCoeff) * resolution)
 
 		// Set start if unset or this datum's start time is earlier than the
 		// current earliest time.
@@ -484,76 +547,106 @@ func buildAllocationMap(window kubecost.Window, allocationMap map[containerKey]*
 			clusterEnd[cluster] = allocEnd
 		}
 
-		name := fmt.Sprintf("%s/%s/%s/%s", cluster, namespace, pod, container)
+		if pod, ok := podMap[key]; ok {
+			// Pod has already been recorded, so update it accordingly
+			if allocStart.Before(pod.Start) {
+				pod.Start = allocStart
+			}
+			if allocEnd.After(pod.End) {
+				pod.End = allocEnd
+			}
 
-		alloc := &kubecost.Allocation{
-			Name:       name,
-			Properties: kubecost.Properties{},
-			Window:     window.Clone(),
-			Start:      allocStart,
-			End:        allocEnd,
+			// ------------------------------------------------------------------------
+			// TODO niko/compute-allocation remove logs
+			log.Infof("CostModel.ComputeAllocation: update pod: %s (%s, %s)", key, pod.Start.Format("2006-01-02T15:04:05"), pod.End.Format("2006-01-02T15:04:05"))
+			// ------------------------------------------------------------------------
+
+		} else {
+			// Pod has not been recorded yet, so insert it
+			podMap[key] = &Pod{
+				Window:      window.Clone(),
+				Start:       allocStart,
+				End:         allocEnd,
+				Key:         key,
+				Allocations: map[string]*kubecost.Allocation{},
+			}
+
+			// ------------------------------------------------------------------------
+			// TODO niko/compute-allocation remove logs
+			log.Infof("CostModel.ComputeAllocation: found pod: %s (%s, %s)", key, allocStart.Format("2006-01-02T15:04:05"), allocEnd.Format("2006-01-02T15:04:05"))
+			// ------------------------------------------------------------------------
+
 		}
-		alloc.Properties.SetContainer(container)
-		alloc.Properties.SetPod(pod)
-		alloc.Properties.SetNamespace(namespace)
-		alloc.Properties.SetCluster(cluster)
-
-		allocationMap[containerKey] = alloc
-
-		if _, ok := podAllocation[podKey]; !ok {
-			podAllocation[podKey] = []*kubecost.Allocation{}
-		}
-		podAllocation[podKey] = append(podAllocation[podKey], alloc)
 	}
 }
 
-func applyCPUCoresAllocated(allocationMap map[containerKey]*kubecost.Allocation, resCPUCoresAllocated []*prom.QueryResult) {
+func applyCPUCoresAllocated(podMap map[podKey]*Pod, resCPUCoresAllocated []*prom.QueryResult) {
 	for _, res := range resCPUCoresAllocated {
-		key, err := resultContainerKey(res, "cluster_id", "namespace", "pod", "container")
+		key, err := resultPodKey(res, "cluster_id", "namespace", "pod")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: CPU allocation query result missing field: %s", err)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU allocation result missing field: %s", err)
 			continue
 		}
 
-		_, ok := allocationMap[key]
+		pod, ok := podMap[key]
 		if !ok {
-			log.DedupedWarningf(5, "CostModel.ComputeAllocation: unidentified CPU allocation query result: %s", key)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU allocation result for unidentified pod: %s", key)
 			continue
+		}
+
+		container, err := res.GetString("container")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU allocation query result missing 'container': %s", key)
+			continue
+		}
+
+		if _, ok := pod.Allocations[container]; !ok {
+			pod.AppendContainer(container)
 		}
 
 		cpuCores := res.Values[0].Value
-		hours := allocationMap[key].Minutes() / 60.0
-		allocationMap[key].CPUCoreHours = cpuCores * hours
+		hours := pod.Allocations[container].Minutes() / 60.0
+		pod.Allocations[container].CPUCoreHours = cpuCores * hours
 
 		node, err := res.GetString("node")
 		if err != nil {
 			log.Warningf("CostModel.ComputeAllocation: CPU allocation query result missing 'node': %s", key)
 			continue
 		}
-		allocationMap[key].Properties.SetNode(node)
+		pod.Allocations[container].Properties.SetNode(node)
 	}
 }
 
-func applyCPUCoresRequested(allocationMap map[containerKey]*kubecost.Allocation, resCPUCoresRequested []*prom.QueryResult) {
+func applyCPUCoresRequested(podMap map[podKey]*Pod, resCPUCoresRequested []*prom.QueryResult) {
 	for _, res := range resCPUCoresRequested {
-		key, err := resultContainerKey(res, "cluster_id", "namespace", "pod", "container")
+		key, err := resultPodKey(res, "cluster_id", "namespace", "pod")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: CPU request query result missing field: %s", err)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU request result missing field: %s", err)
 			continue
 		}
 
-		_, ok := allocationMap[key]
+		pod, ok := podMap[key]
 		if !ok {
-			log.DedupedWarningf(5, "CostModel.ComputeAllocation: unidentified CPU request query result: %s", key)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU request result for unidentified pod: %s", key)
 			continue
 		}
 
-		allocationMap[key].CPUCoreRequestAverage = res.Values[0].Value
+		container, err := res.GetString("container")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU request query result missing 'container': %s", key)
+			continue
+		}
+
+		if _, ok := pod.Allocations[container]; !ok {
+			pod.AppendContainer(container)
+		}
+
+		pod.Allocations[container].CPUCoreRequestAverage = res.Values[0].Value
 
 		// If CPU allocation is less than requests, set CPUCoreHours to
 		// request level.
-		if allocationMap[key].CPUCores() < res.Values[0].Value {
-			allocationMap[key].CPUCoreHours = res.Values[0].Value * (allocationMap[key].Minutes() / 60.0)
+		if pod.Allocations[container].CPUCores() < res.Values[0].Value {
+			pod.Allocations[container].CPUCoreHours = res.Values[0].Value * (pod.Allocations[container].Minutes() / 60.0)
 		}
 
 		node, err := res.GetString("node")
@@ -561,75 +654,105 @@ func applyCPUCoresRequested(allocationMap map[containerKey]*kubecost.Allocation,
 			log.Warningf("CostModel.ComputeAllocation: CPU request query result missing 'node': %s", key)
 			continue
 		}
-		allocationMap[key].Properties.SetNode(node)
+		pod.Allocations[container].Properties.SetNode(node)
 	}
 }
 
-func applyCPUCoresUsed(allocationMap map[containerKey]*kubecost.Allocation, resCPUCoresUsed []*prom.QueryResult) {
+func applyCPUCoresUsed(podMap map[podKey]*Pod, resCPUCoresUsed []*prom.QueryResult) {
 	for _, res := range resCPUCoresUsed {
-		key, err := resultContainerKey(res, "cluster_id", "namespace", "pod_name", "container_name")
+		key, err := resultPodKey(res, "cluster_id", "namespace", "pod_name")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: CPU usage query result missing field: %s", err)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage result missing field: %s", err)
 			continue
 		}
 
-		_, ok := allocationMap[key]
+		pod, ok := podMap[key]
 		if !ok {
-			log.DedupedWarningf(5, "CostModel.ComputeAllocation: unidentified CPU usage query result: %s", key)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage result for unidentified pod: %s", key)
 			continue
 		}
 
-		allocationMap[key].CPUCoreUsageAverage = res.Values[0].Value
+		container, err := res.GetString("container_name")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage query result missing 'container': %s", key)
+			continue
+		}
+
+		if _, ok := pod.Allocations[container]; !ok {
+			pod.AppendContainer(container)
+		}
+
+		pod.Allocations[container].CPUCoreUsageAverage = res.Values[0].Value
 	}
 }
 
-func applyRAMBytesAllocated(allocationMap map[containerKey]*kubecost.Allocation, resRAMBytesAllocated []*prom.QueryResult) {
+func applyRAMBytesAllocated(podMap map[podKey]*Pod, resRAMBytesAllocated []*prom.QueryResult) {
 	for _, res := range resRAMBytesAllocated {
-		key, err := resultContainerKey(res, "cluster_id", "namespace", "pod", "container")
+		key, err := resultPodKey(res, "cluster_id", "namespace", "pod")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: RAM allocation query result missing field: %s", err)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM allocation result missing field: %s", err)
 			continue
 		}
 
-		_, ok := allocationMap[key]
+		pod, ok := podMap[key]
 		if !ok {
-			log.DedupedWarningf(5, "CostModel.ComputeAllocation: unidentified RAM allocation query result: %s", key)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM allocation result for unidentified pod: %s", key)
 			continue
+		}
+
+		container, err := res.GetString("container")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM allocation query result missing 'container': %s", key)
+			continue
+		}
+
+		if _, ok := pod.Allocations[container]; !ok {
+			pod.AppendContainer(container)
 		}
 
 		ramBytes := res.Values[0].Value
-		hours := allocationMap[key].Minutes() / 60.0
-		allocationMap[key].RAMByteHours = ramBytes * hours
+		hours := pod.Allocations[container].Minutes() / 60.0
+		pod.Allocations[container].RAMByteHours = ramBytes * hours
 
 		node, err := res.GetString("node")
 		if err != nil {
 			log.Warningf("CostModel.ComputeAllocation: RAM allocation query result missing 'node': %s", key)
 			continue
 		}
-		allocationMap[key].Properties.SetNode(node)
+		pod.Allocations[container].Properties.SetNode(node)
 	}
 }
 
-func applyRAMBytesRequested(allocationMap map[containerKey]*kubecost.Allocation, resRAMBytesRequested []*prom.QueryResult) {
+func applyRAMBytesRequested(podMap map[podKey]*Pod, resRAMBytesRequested []*prom.QueryResult) {
 	for _, res := range resRAMBytesRequested {
-		key, err := resultContainerKey(res, "cluster_id", "namespace", "pod", "container")
+		key, err := resultPodKey(res, "cluster_id", "namespace", "pod")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: RAM request query result missing field: %s", err)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM request result missing field: %s", err)
 			continue
 		}
 
-		_, ok := allocationMap[key]
+		pod, ok := podMap[key]
 		if !ok {
-			log.DedupedWarningf(5, "CostModel.ComputeAllocation: unidentified RAM request query result: %s", key)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM request result for unidentified pod: %s", key)
 			continue
 		}
 
-		allocationMap[key].RAMBytesRequestAverage = res.Values[0].Value
+		container, err := res.GetString("container")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM request query result missing 'container': %s", key)
+			continue
+		}
+
+		if _, ok := pod.Allocations[container]; !ok {
+			pod.AppendContainer(container)
+		}
+
+		pod.Allocations[container].RAMBytesRequestAverage = res.Values[0].Value
 
 		// If RAM allocation is less than requests, set RAMByteHours to
 		// request level.
-		if allocationMap[key].RAMBytes() < res.Values[0].Value {
-			allocationMap[key].RAMByteHours = res.Values[0].Value * (allocationMap[key].Minutes() / 60.0)
+		if pod.Allocations[container].RAMBytes() < res.Values[0].Value {
+			pod.Allocations[container].RAMByteHours = res.Values[0].Value * (pod.Allocations[container].Minutes() / 60.0)
 		}
 
 		node, err := res.GetString("node")
@@ -637,51 +760,71 @@ func applyRAMBytesRequested(allocationMap map[containerKey]*kubecost.Allocation,
 			log.Warningf("CostModel.ComputeAllocation: RAM request query result missing 'node': %s", key)
 			continue
 		}
-		allocationMap[key].Properties.SetNode(node)
+		pod.Allocations[container].Properties.SetNode(node)
 	}
 }
 
-func applyRAMBytesUsed(allocationMap map[containerKey]*kubecost.Allocation, resRAMBytesUsed []*prom.QueryResult) {
+func applyRAMBytesUsed(podMap map[podKey]*Pod, resRAMBytesUsed []*prom.QueryResult) {
 	for _, res := range resRAMBytesUsed {
-		key, err := resultContainerKey(res, "cluster_id", "namespace", "pod_name", "container_name")
+		key, err := resultPodKey(res, "cluster_id", "namespace", "pod_name")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: RAM usage query result missing field: %s", err)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage result missing field: %s", err)
 			continue
 		}
 
-		_, ok := allocationMap[key]
+		pod, ok := podMap[key]
 		if !ok {
-			log.DedupedWarningf(5, "CostModel.ComputeAllocation: unidentified RAM usage query result: %s", key)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage result for unidentified pod: %s", key)
 			continue
 		}
 
-		allocationMap[key].RAMBytesUsageAverage = res.Values[0].Value
+		container, err := res.GetString("container_name")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage query result missing 'container': %s", key)
+			continue
+		}
+
+		if _, ok := pod.Allocations[container]; !ok {
+			pod.AppendContainer(container)
+		}
+
+		pod.Allocations[container].RAMBytesUsageAverage = res.Values[0].Value
 	}
 }
 
-func applyGPUsRequested(allocationMap map[containerKey]*kubecost.Allocation, resGPUsRequested []*prom.QueryResult) {
+func applyGPUsRequested(podMap map[podKey]*Pod, resGPUsRequested []*prom.QueryResult) {
 	for _, res := range resGPUsRequested {
-		key, err := resultContainerKey(res, "cluster_id", "namespace", "pod", "container")
+		key, err := resultPodKey(res, "cluster_id", "namespace", "pod")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: GPU allocation query result missing field: %s", err)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU request result missing field: %s", err)
 			continue
 		}
 
-		_, ok := allocationMap[key]
+		pod, ok := podMap[key]
 		if !ok {
-			log.DedupedWarningf(5, "CostModel.ComputeAllocation: unidentified GPU allocation query result: %s", key)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU request result for unidentified pod: %s", key)
 			continue
+		}
+
+		container, err := res.GetString("container")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU request query result missing 'container': %s", key)
+			continue
+		}
+
+		if _, ok := pod.Allocations[container]; !ok {
+			pod.AppendContainer(container)
 		}
 
 		// TODO niko/computeallocation remove log
 		log.Infof("CostModel.ComputeAllocation: GPU results: %s=%f", key, res.Values[0].Value)
 
-		hrs := allocationMap[key].Minutes() / 60.0
-		allocationMap[key].GPUHours = res.Values[0].Value * hrs
+		hrs := pod.Allocations[container].Minutes() / 60.0
+		pod.Allocations[container].GPUHours = res.Values[0].Value * hrs
 	}
 }
 
-func applyNetworkAllocation(allocationMap map[containerKey]*kubecost.Allocation, podAllocation map[podKey][]*kubecost.Allocation, resNetworkGiB []*prom.QueryResult, resNetworkCostPerGiB []*prom.QueryResult) {
+func applyNetworkAllocation(podMap map[podKey]*Pod, resNetworkGiB []*prom.QueryResult, resNetworkCostPerGiB []*prom.QueryResult) {
 	costPerGiBByCluster := map[string]float64{}
 
 	for _, res := range resNetworkCostPerGiB {
@@ -696,18 +839,18 @@ func applyNetworkAllocation(allocationMap map[containerKey]*kubecost.Allocation,
 	for _, res := range resNetworkGiB {
 		podKey, err := resultPodKey(res, "cluster_id", "namespace", "pod_name")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: Network allocation query result missing field: %s", err)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: Network allocation query result missing field: %s", err)
 			continue
 		}
 
-		allocs, ok := podAllocation[podKey]
+		pod, ok := podMap[podKey]
 		if !ok {
-			log.Warningf("CostModel.ComputeAllocation: Network allocation query result for unidentified pod allocations: %s", podKey)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: Network allocation query result for unidentified pod: %s", podKey)
 			continue
 		}
 
-		for _, alloc := range allocs {
-			gib := res.Values[0].Value
+		for _, alloc := range pod.Allocations {
+			gib := res.Values[0].Value / float64(len(pod.Allocations))
 			costPerGiB := costPerGiBByCluster[podKey.Cluster]
 			alloc.NetworkCost = gib * costPerGiB
 		}
@@ -798,53 +941,55 @@ func resToPodAnnotations(resPodAnnotations []*prom.QueryResult) map[podKey]map[s
 	return podAnnotations
 }
 
-func applyLabels(allocationMap map[containerKey]*kubecost.Allocation, namespaceLabels map[string]map[string]string, podLabels map[podKey]map[string]string) {
-	for key, alloc := range allocationMap {
-		allocLabels, err := alloc.Properties.GetLabels()
-		if err != nil {
-			allocLabels = map[string]string{}
-		}
-
-		// Apply namespace labels first, then pod labels so that pod labels
-		// overwrite namespace labels.
-		if labels, ok := namespaceLabels[key.Namespace]; ok {
-			for k, v := range labels {
-				allocLabels[k] = v
+func applyLabels(podMap map[podKey]*Pod, namespaceLabels map[string]map[string]string, podLabels map[podKey]map[string]string) {
+	for key, pod := range podMap {
+		for _, alloc := range pod.Allocations {
+			allocLabels, err := alloc.Properties.GetLabels()
+			if err != nil {
+				allocLabels = map[string]string{}
 			}
-		}
-		podKey := newPodKey(key.Cluster, key.Namespace, key.Pod)
-		if labels, ok := podLabels[podKey]; ok {
-			for k, v := range labels {
-				allocLabels[k] = v
-			}
-		}
 
-		alloc.Properties.SetLabels(allocLabels)
+			// Apply namespace labels first, then pod labels so that pod labels
+			// overwrite namespace labels.
+			if labels, ok := namespaceLabels[key.Namespace]; ok {
+				for k, v := range labels {
+					allocLabels[k] = v
+				}
+			}
+			if labels, ok := podLabels[key]; ok {
+				for k, v := range labels {
+					allocLabels[k] = v
+				}
+			}
+
+			alloc.Properties.SetLabels(allocLabels)
+		}
 	}
 }
 
-func applyAnnotations(allocationMap map[containerKey]*kubecost.Allocation, namespaceAnnotations map[string]map[string]string, podAnnotations map[podKey]map[string]string) {
-	for key, alloc := range allocationMap {
-		allocAnnotations, err := alloc.Properties.GetAnnotations()
-		if err != nil {
-			allocAnnotations = map[string]string{}
-		}
-
-		// Apply namespace annotations first, then pod annotations so that
-		// pod labels overwrite namespace labels.
-		if labels, ok := namespaceAnnotations[key.Namespace]; ok {
-			for k, v := range labels {
-				allocAnnotations[k] = v
+func applyAnnotations(podMap map[podKey]*Pod, namespaceAnnotations map[string]map[string]string, podAnnotations map[podKey]map[string]string) {
+	for key, pod := range podMap {
+		for _, alloc := range pod.Allocations {
+			allocAnnotations, err := alloc.Properties.GetAnnotations()
+			if err != nil {
+				allocAnnotations = map[string]string{}
 			}
-		}
-		podKey := newPodKey(key.Cluster, key.Namespace, key.Pod)
-		if labels, ok := podAnnotations[podKey]; ok {
-			for k, v := range labels {
-				allocAnnotations[k] = v
-			}
-		}
 
-		alloc.Properties.SetAnnotations(allocAnnotations)
+			// Apply namespace annotations first, then pod annotations so that
+			// pod labels overwrite namespace labels.
+			if labels, ok := namespaceAnnotations[key.Namespace]; ok {
+				for k, v := range labels {
+					allocAnnotations[k] = v
+				}
+			}
+			if labels, ok := podAnnotations[key]; ok {
+				for k, v := range labels {
+					allocAnnotations[k] = v
+				}
+			}
+
+			alloc.Properties.SetAnnotations(allocAnnotations)
+		}
 	}
 }
 
@@ -984,7 +1129,7 @@ func resToPodJobMap(resJobLabels []*prom.QueryResult) map[podKey]controllerKey {
 	return jobLabels
 }
 
-func applyServicesToPods(allocationMap map[containerKey]*kubecost.Allocation, podLabels map[podKey]map[string]string, serviceLabels map[serviceKey]map[string]string) {
+func applyServicesToPods(podMap map[podKey]*Pod, podLabels map[podKey]map[string]string, serviceLabels map[serviceKey]map[string]string) {
 	podServicesMap := map[podKey][]serviceKey{}
 
 	// For each service, turn the labels into a selector and attempt to
@@ -1010,26 +1155,28 @@ func applyServicesToPods(allocationMap map[containerKey]*kubecost.Allocation, po
 		}
 	}
 
-	// For each allocation, attempt to find and apply the list of services
-	// associated with the allocation's pod.
-	for key, alloc := range allocationMap {
-		pKey := newPodKey(key.Cluster, key.Namespace, key.Pod)
-		if sKeys, ok := podServicesMap[pKey]; ok {
-			services := []string{}
-			for _, sKey := range sKeys {
-				services = append(services, sKey.Service)
+	// For each allocation in each pod, attempt to find and apply the list of
+	// services associated with the allocation's pod.
+	for key, pod := range podMap {
+		for _, alloc := range pod.Allocations {
+			if sKeys, ok := podServicesMap[key]; ok {
+				services := []string{}
+				for _, sKey := range sKeys {
+					services = append(services, sKey.Service)
+				}
+				alloc.Properties.SetServices(services)
 			}
-			alloc.Properties.SetServices(services)
 		}
 	}
 }
 
-func applyControllersToPods(allocationMap map[containerKey]*kubecost.Allocation, podControllerMap map[podKey]controllerKey) {
-	for key, alloc := range allocationMap {
-		podKey := newPodKey(key.Cluster, key.Namespace, key.Pod)
-		if controllerKey, ok := podControllerMap[podKey]; ok {
-			alloc.Properties.SetControllerKind(controllerKey.ControllerKind)
-			alloc.Properties.SetController(controllerKey.Controller)
+func applyControllersToPods(podMap map[podKey]*Pod, podControllerMap map[podKey]controllerKey) {
+	for key, pod := range podMap {
+		for _, alloc := range pod.Allocations {
+			if controllerKey, ok := podControllerMap[key]; ok {
+				alloc.Properties.SetControllerKind(controllerKey.ControllerKind)
+				alloc.Properties.SetController(controllerKey.Controller)
+			}
 		}
 	}
 }
@@ -1298,7 +1445,7 @@ func applyPVCBytesRequested(pvcMap map[pvcKey]*PVC, resPVCBytesRequested []*prom
 	}
 }
 
-func buildPodPVCMap(podPVCMap map[podKey][]*PVC, pvMap map[pvKey]*PV, pvcMap map[pvcKey]*PVC, podAllocation map[podKey][]*kubecost.Allocation, resPodPVCAllocation []*prom.QueryResult) {
+func buildPodPVCMap(podPVCMap map[podKey][]*PVC, pvMap map[pvKey]*PV, pvcMap map[pvcKey]*PVC, podMap map[podKey]*Pod, resPodPVCAllocation []*prom.QueryResult) {
 	for _, res := range resPodPVCAllocation {
 		cluster, err := res.GetString("cluster_id")
 		if err != nil {
@@ -1335,14 +1482,14 @@ func buildPodPVCMap(podPVCMap map[podKey][]*PVC, pvMap map[pvKey]*PV, pvcMap map
 			continue
 		}
 
-		pvc.Count = len(podAllocation[podKey])
+		pvc.Count = len(podMap[podKey].Allocations)
 		pvc.Mounted = true
 
 		podPVCMap[podKey] = append(podPVCMap[podKey], pvc)
 	}
 }
 
-func applyUnmountedPVs(window kubecost.Window, allocationMap map[containerKey]*kubecost.Allocation, pvMap map[pvKey]*PV, pvcMap map[pvcKey]*PVC) {
+func applyUnmountedPVs(window kubecost.Window, podMap map[podKey]*Pod, pvMap map[pvKey]*PV, pvcMap map[pvcKey]*PVC) {
 	unmountedPVBytes := map[string]float64{}
 	unmountedPVCost := map[string]float64{}
 
@@ -1373,27 +1520,28 @@ func applyUnmountedPVs(window kubecost.Window, allocationMap map[containerKey]*k
 		namespace := kubecost.UnmountedSuffix
 		node := ""
 
-		containerKey := newContainerKey(cluster, namespace, pod, container)
-		allocationMap[containerKey] = &kubecost.Allocation{
-			Name: fmt.Sprintf("%s/%s/%s/%s/%s", cluster, node, namespace, pod, container),
-			Properties: kubecost.Properties{
-				kubecost.ClusterProp:   cluster,
-				kubecost.NodeProp:      node,
-				kubecost.NamespaceProp: namespace,
-				kubecost.PodProp:       pod,
-				kubecost.ContainerProp: container,
-			},
+		key := newPodKey(cluster, namespace, pod)
+		podMap[key] = &Pod{
 			Window:      window.Clone(),
 			Start:       *window.Start(),
 			End:         *window.End(),
-			PVByteHours: unmountedPVBytes[cluster] * window.Minutes() / 60.0,
-			PVCost:      amount,
-			TotalCost:   amount,
+			Key:         key,
+			Allocations: map[string]*kubecost.Allocation{},
 		}
+
+		podMap[key].AppendContainer(container)
+		podMap[key].Allocations[container].Properties.SetCluster(cluster)
+		podMap[key].Allocations[container].Properties.SetNode(node)
+		podMap[key].Allocations[container].Properties.SetNamespace(namespace)
+		podMap[key].Allocations[container].Properties.SetPod(pod)
+		podMap[key].Allocations[container].Properties.SetContainer(container)
+		podMap[key].Allocations[container].PVByteHours = unmountedPVBytes[cluster] * window.Minutes() / 60.0
+		podMap[key].Allocations[container].PVCost = amount
+		podMap[key].Allocations[container].TotalCost = amount
 	}
 }
 
-func applyUnmountedPVCs(window kubecost.Window, allocationMap map[containerKey]*kubecost.Allocation, pvcMap map[pvcKey]*PVC) {
+func applyUnmountedPVCs(window kubecost.Window, podMap map[podKey]*Pod, pvcMap map[pvcKey]*PVC) {
 	unmountedPVCBytes := map[namespaceKey]float64{}
 	unmountedPVCCost := map[namespaceKey]float64{}
 
@@ -1416,24 +1564,53 @@ func applyUnmountedPVCs(window kubecost.Window, allocationMap map[containerKey]*
 		node := ""
 		cluster := key.Cluster
 
-		containerKey := newContainerKey(cluster, namespace, pod, container)
-		allocationMap[containerKey] = &kubecost.Allocation{
-			Name: fmt.Sprintf("%s/%s/%s/%s/%s", cluster, node, namespace, pod, container),
-			Properties: kubecost.Properties{
-				kubecost.ClusterProp:   cluster,
-				kubecost.NodeProp:      node,
-				kubecost.NamespaceProp: namespace,
-				kubecost.PodProp:       pod,
-				kubecost.ContainerProp: container,
-			},
+		podKey := newPodKey(cluster, namespace, pod)
+		podMap[podKey] = &Pod{
 			Window:      window.Clone(),
 			Start:       *window.Start(),
 			End:         *window.End(),
-			PVByteHours: unmountedPVCBytes[key] * window.Minutes() / 60.0,
-			PVCost:      amount,
-			TotalCost:   amount,
+			Key:         podKey,
+			Allocations: map[string]*kubecost.Allocation{},
 		}
+
+		podMap[podKey].AppendContainer(container)
+		podMap[podKey].Allocations[container].Properties.SetCluster(cluster)
+		podMap[podKey].Allocations[container].Properties.SetNode(node)
+		podMap[podKey].Allocations[container].Properties.SetNamespace(namespace)
+		podMap[podKey].Allocations[container].Properties.SetPod(pod)
+		podMap[podKey].Allocations[container].Properties.SetContainer(container)
+		podMap[podKey].Allocations[container].PVByteHours = unmountedPVCBytes[key] * window.Minutes() / 60.0
+		podMap[podKey].Allocations[container].PVCost = amount
+		podMap[podKey].Allocations[container].TotalCost = amount
 	}
+}
+
+// TODO niko/computealloction comment
+type Pod struct {
+	Window      kubecost.Window
+	Start       time.Time
+	End         time.Time
+	Key         podKey
+	Allocations map[string]*kubecost.Allocation
+}
+
+// TODO niko/computealloction comment
+func (p Pod) AppendContainer(container string) {
+	name := fmt.Sprintf("%s/%s/%s/%s", p.Key.Cluster, p.Key.Namespace, p.Key.Pod, container)
+
+	alloc := &kubecost.Allocation{
+		Name:       name,
+		Properties: kubecost.Properties{},
+		Window:     p.Window.Clone(),
+		Start:      p.Start,
+		End:        p.End,
+	}
+	alloc.Properties.SetContainer(container)
+	alloc.Properties.SetPod(p.Key.Pod)
+	alloc.Properties.SetNamespace(p.Key.Namespace)
+	alloc.Properties.SetCluster(p.Key.Cluster)
+
+	p.Allocations[container] = alloc
 }
 
 // PVC describes a PersistentVolumeClaim

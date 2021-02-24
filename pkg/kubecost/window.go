@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/thanos"
 	"github.com/kubecost/cost-model/pkg/util"
 )
 
@@ -572,6 +574,47 @@ func (w Window) DurationOffset() (time.Duration, time.Duration, error) {
 	offset := time.Now().Sub(*w.End())
 
 	return duration, offset, nil
+}
+
+// DurationOffsetForPrometheus returns durations representing the duration and
+// offset of the given window, factoring in the Thanos offset if necessary. The
+// duration is returned as
+func (w Window) DurationOffsetForPrometheus() (string, string, error) {
+	duration, offset, err := w.DurationOffset()
+	if err != nil {
+		return "", "", err
+	}
+
+	// If using Thanos, increase offset to 3 hours, reducing the duration by
+	// equal measure to maintain the same starting point.
+	thanosDur := thanos.OffsetDuration()
+	if offset < thanosDur && env.IsThanosEnabled() {
+		diff := thanosDur - offset
+		offset += diff
+		duration -= diff
+	}
+
+	// If duration < 0, return an error
+	if duration < 0 {
+		return "", "", fmt.Errorf("negative duration: %s", duration)
+	}
+
+	// Negative offset means that the end time is in the future. Prometheus
+	// fails for non-positive offset values, so shrink the duration and
+	// remove the offset altogether.
+	if offset < 0 {
+		duration = duration + offset
+		offset = 0
+	}
+
+	durStr, offStr := util.DurationOffsetStrings(duration, offset)
+	if offset < time.Minute {
+		offStr = ""
+	} else {
+		offStr = " offset " + offStr
+	}
+
+	return durStr, offStr, nil
 }
 
 // DurationOffsetStrings returns formatted, Prometheus-compatible strings representing
