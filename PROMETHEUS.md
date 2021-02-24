@@ -62,3 +62,5 @@ sum(node_total_hourly_cost) * 730
 | container_memory_allocation_bytes   | Average bytes of RAM requested/used over last 1m                 |
 | pod_pvc_allocation   | Bytes provisioned for a PVC attached to a pod                      |
 | pv_hourly_cost   | Hourly cost per GP on a persistent volume                 |
+| kubecost_load_balancer_cost | Hourly cost of load balancers |
+| kubecost_cluster_management_cost | Hourly cost of cluster management |

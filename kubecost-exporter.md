@@ -48,6 +48,8 @@ Done! Kubecost is now exporting cost metrics. See the following sections for dif
 | node_total_hourly_cost   | Total node cost per hour                       |
 | container_cpu_allocation   | Average number of CPUs requested over last 1m                      |
 | container_memory_allocation_bytes   | Average bytes of RAM requested over last 1m                 |
+| kubecost_load_balancer_cost | Hourly cost of load balancers |
+| kubecost_cluster_management_cost | Hourly cost of cluster management |
 
 
 By default, the cost metrics are based on public billing APIs. Supported platforms: AWS, Azure, and GCP. For on-prem clusters, prices are based on configurable defaults. 
