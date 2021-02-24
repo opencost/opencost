@@ -94,8 +94,6 @@ avg(count_over_time(container_memory_allocation_bytes{namespace="kube-system"}[1
 avg(avg_over_time(node_ram_hourly_cost[1d] )) by (node)
 ```
 
-#### Monthly cost of a label
-
 
 ## Setting Cost Alerts
 
