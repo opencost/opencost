@@ -33,7 +33,7 @@ Add Kubecost scrape config to Prom ([more](https://prometheus.io/docs/introducti
   metrics_path: /metrics
   scheme: http
   static_configs:
-    - targets: [‘cost-model.cost-model.:9003/metrics’]
+    - targets: ['cost-model.cost-model.:9003']
 ```
 
 Done! Kubecost is now exporting cost metrics. See the following sections for different metrics available and query examples.
@@ -81,10 +81,10 @@ sum(kubecost_load_balancer_cost) by (namespace)
 #### Monthly rate of each namespace’s CPU request
 
 ```
-sum(container_cpu_allocation * on (node) group_left node_ram_hourly_cost) by (namespace) * 730
+sum(container_cpu_allocation * on (node) group_left node_cpu_hourly_cost) by (namespace) * 730
 ```
 
-#### Historical spend for all `fluentd` pods in the `kube-system` namespace
+#### Historical memory request spend for all `fluentd` pods in the `kube-system` namespace
 
 ```
 avg_over_time(container_memory_allocation_bytes{namespace="kube-system",pod=~"fluentd.*"}[1d])
