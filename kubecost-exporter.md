@@ -112,6 +112,6 @@ Running Kubecost in exporter-only mode by definition limits functionality. The f
 
 - Persistent volume metrics not available (coming soon!)
 - For large clusters, these Prometheus queries might not scale well over large time windows. We recommend using [Kubecost APIs](https://github.com/kubecost/docs/blob/master/apis.md) for these scenarios.
-- Allocation metrics, like `container_cpu_allocation` only contain _requests_ and do not take into account usage.
-- Related to the previous point, efficiency metrics are not available
+- Allocation metrics, like `container_cpu_allocation` only contain _requests_ and do not take usage into account.
+- Related to the previous point, efficiency metrics are not available.
 - Public billing costs on default. The standard Kubecost install and a cloud integration gives you accurate pricing based on your bill. 
