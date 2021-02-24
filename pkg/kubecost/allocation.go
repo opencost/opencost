@@ -316,7 +316,7 @@ func (a *Allocation) add(that *Allocation, isShared, isAccumulating bool) {
 
 		aggTotalCost := a.TotalCost + that.TotalCost
 		if aggTotalCost > 0 {
-			a.TotalEfficiency = (a.TotalEfficiency*a.TotalCost + that.TotalEfficiency*that.TotalCost) / aggTotalCost
+			a.TotalEfficiency = (a.TotalEfficiency*(a.TotalCost-a.ExternalCost) + that.TotalEfficiency*(that.TotalCost-that.ExternalCost)) / (aggTotalCost - a.ExternalCost - that.ExternalCost)
 		} else {
 			aggTotalCost = 0.0
 		}
