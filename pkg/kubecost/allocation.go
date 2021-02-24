@@ -733,13 +733,22 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 	// exact key match, given each external allocation's proerties, and
 	// aggregate if an exact match is found.
 	for _, alloc := range externalSet.allocations {
-		key, err := alloc.generateKey(properties)
-		if err != nil {
-			continue
+		skip := false
+		for _, ff := range options.FilterFuncs {
+			if !ff(alloc) {
+				skip = true
+				break
+			}
 		}
+		if !skip {
+			key, err := alloc.generateKey(properties)
+			if err != nil {
+				continue
+			}
 
-		alloc.Name = key
-		aggSet.Insert(alloc)
+			alloc.Name = key
+			aggSet.Insert(alloc)
+		}
 	}
 
 	// (9) Combine all idle allocations into a single "__idle__" allocation
