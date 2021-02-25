@@ -743,21 +743,6 @@ func TestWindow_DurationOffsetForPrometheus(t *testing.T) {
 	if !strings.HasPrefix(off, " offset ") {
 		t.Fatalf(`expect: offset to start with " offset "; actual: "%s"`, off)
 	}
-
-	w, err = ParseWindowUTC("yesterday")
-	if err != nil {
-		t.Fatalf(`unexpected error parsing "yesterday": %s`, err)
-	}
-	dur, off, err = w.DurationOffsetForPrometheus()
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	if dur != "1d" {
-		t.Fatalf(`expect: window to be "1d"; actual: "%s"`, dur)
-	}
-	if !strings.HasPrefix(off, " offset ") {
-		t.Fatalf(`expect: offset to start with " offset "; actual: "%s"`, off)
-	}
 }
 
 // TODO
