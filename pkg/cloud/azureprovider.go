@@ -243,6 +243,7 @@ type AzureServiceKey struct {
 	ServiceKey     *AzureAppKey `json:"serviceKey"`
 }
 
+
 // Validity check on service key
 func (ask *AzureServiceKey) IsValid() bool {
 	return ask.SubscriptionID != "" &&
