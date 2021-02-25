@@ -230,7 +230,11 @@ func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
 	mf := strings.Split(m, ".")
 	toReturn := ""
 	if useRegion {
-		toReturn = n.Labels[v1.LabelZoneRegion] + ","
+		if region, ok := util.GetRegion(n.Labels); ok {
+			toReturn = region + ","
+		} else {
+			klog.Infof("[ERROR] Getting region based on labels failed")
+		}
 	}
 	if len(mf) == 2 && mf[0] == "spec" && mf[1] == "providerID" {
 		provIdRx := regexp.MustCompile("aws:///([^/]+)/([^/]+)") // It's of the form aws:///us-east-2a/i-0fea4fd46592d050b and we want i-0fea4fd46592d050b, if it exists
