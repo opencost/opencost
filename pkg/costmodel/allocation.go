@@ -1482,7 +1482,14 @@ func buildPodPVCMap(podPVCMap map[podKey][]*PVC, pvMap map[pvKey]*PV, pvcMap map
 			continue
 		}
 
-		pvc.Count = len(podMap[podKey].Allocations)
+		count := 1
+		if pod, ok := podMap[podKey]; ok && len(pod.Allocations) > 0 {
+			count = len(pod.Allocations)
+		} else {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: PVC %s for missing pod %s", pvcKey, podKey)
+		}
+
+		pvc.Count = count
 		pvc.Mounted = true
 
 		podPVCMap[podKey] = append(podPVCMap[podKey], pvc)
