@@ -58,6 +58,9 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	// Create a window spanning the requested query
 	window := kubecost.NewWindow(&start, &end)
 
+	// TODO niko/computeallocation remove log
+	defer log.Profile(time.Now(), fmt.Sprintf("CostModel.ComputeAllocation: completed %s", window))
+
 	// Create an empty AllocationSet. For safety, in the case of an error, we
 	// should prefer to return this empty set with the error. (In the case of
 	// no error, of course we populate the set and return it.)
@@ -405,8 +408,6 @@ func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSiz
 
 	numQuery := 1
 	for coverage.End().Before(end) {
-		batchProfile := time.Now()
-
 		// Determine the (start, end) of the current batch
 		batchStart := *coverage.End()
 		batchEnd := coverage.End().Add(maxBatchSize)
@@ -425,7 +426,7 @@ func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSiz
 			// Convert window (start, end) to (duration, offset) for querying Prometheus,
 			// including handling Thanos offset
 			durStr, offStr, err := batchWindow.DurationOffsetForPrometheus()
-			if err != nil {
+			if err != nil || durStr == "" {
 				// Negative duration, so set empty results and don't query
 				// TODO niko/computeallocation test this!!!
 				resPods = []*prom.QueryResult{}
@@ -438,20 +439,18 @@ func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSiz
 			queryProfile := time.Now()
 			resPods, err = ctx.Query(queryPods).Await()
 			if err != nil {
-				// TODO niko/computeallocation do what with the error?
+				// TODO niko/computeallocation remove log
 				log.Profile(queryProfile, fmt.Sprintf("CostModel.ComputeAllocation: pod query batch %d try %d failed: %s", numQuery, numTries, queryPods))
 				resPods = nil
+			} else {
+				// TODO niko/computeallocation remove log
+				log.Profile(queryProfile, fmt.Sprintf("CostModel.ComputeAllocation: pod query batch %d try %d succeeded: %s", numQuery, numTries, queryPods))
 			}
 		}
 
 		if err != nil {
 			return err
 		}
-
-		// ------------------------------------------------------------------------
-		// TODO niko/compute-allocation remove logs
-		log.Profile(batchProfile, fmt.Sprintf("CostModel.ComputeAllocation: pod query batch %d try %d complete: %s", numQuery, numTries, batchWindow))
-		// ------------------------------------------------------------------------
 
 		applyPodResults(window, resolution, podMap, clusterStart, clusterEnd, resPods)
 
@@ -555,12 +554,6 @@ func applyPodResults(window kubecost.Window, resolution time.Duration, podMap ma
 			if allocEnd.After(pod.End) {
 				pod.End = allocEnd
 			}
-
-			// ------------------------------------------------------------------------
-			// TODO niko/compute-allocation remove logs
-			log.Infof("CostModel.ComputeAllocation: update pod: %s (%s, %s)", key, pod.Start.Format("2006-01-02T15:04:05"), pod.End.Format("2006-01-02T15:04:05"))
-			// ------------------------------------------------------------------------
-
 		} else {
 			// Pod has not been recorded yet, so insert it
 			podMap[key] = &Pod{
@@ -570,12 +563,6 @@ func applyPodResults(window kubecost.Window, resolution time.Duration, podMap ma
 				Key:         key,
 				Allocations: map[string]*kubecost.Allocation{},
 			}
-
-			// ------------------------------------------------------------------------
-			// TODO niko/compute-allocation remove logs
-			log.Infof("CostModel.ComputeAllocation: found pod: %s (%s, %s)", key, allocStart.Format("2006-01-02T15:04:05"), allocEnd.Format("2006-01-02T15:04:05"))
-			// ------------------------------------------------------------------------
-
 		}
 	}
 }
