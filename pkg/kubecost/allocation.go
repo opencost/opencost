@@ -436,6 +436,9 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 	shareSet := &AllocationSet{
 		Window: as.Window.Clone(),
 	}
+	flatShareSet := &AllocationSet{
+		Window: as.Window.Clone(),
+	}
 
 	// Convert SharedHourlyCosts to Allocations in the shareSet
 	for name, cost := range options.SharedHourlyCosts {
@@ -450,7 +453,7 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 
 			totalSharedCost := cost * hours
 
-			shareSet.Insert(&Allocation{
+			flatShareSet.Insert(&Allocation{
 				Name:       fmt.Sprintf("%s/%s", name, SharedSuffix),
 				Start:      as.Start(),
 				End:        as.End(),
@@ -533,6 +536,7 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 
 	// shareCoefficients are organized by [allocation][resource]=coeff (no cluster)
 	var shareCoefficients map[string]float64
+	var flatShareCoefficients map[string]float64
 
 	var err error
 
@@ -545,6 +549,13 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 			log.Warningf("AllocationSet.AggregateBy: compute idle coeff: %s", err)
 			return fmt.Errorf("error computing idle coefficients: %s", err)
 		}
+	}
+
+	flatShareCoefficients, err = computeShareCoeffs(properties, options, as, false)
+	log.Errorf("%+v", flatShareCoefficients)
+	if err != nil {
+		log.Warningf("AllocationSet.AggregateBy: compute shared coeff: missing cluster ID: %s", err)
+		return err
 	}
 
 	// (2b) If we're not sharing idle and we're filtering, we need to track the
@@ -700,11 +711,32 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 	}
 
 	// (7) Split shared allocations and distribute among aggregated allocations
-	if shareSet.Length() > 0 {
-		shareCoefficients, err = computeShareCoeffs(properties, options, aggSet)
+	if shareSet.Length() > 0 || flatShareSet.Length() > 0 {
+		shareCoefficients, err = computeShareCoeffs(properties, options, aggSet, true)
+		log.Errorf("Share Coefficients %+v", shareCoefficients)
 		if err != nil {
 			log.Warningf("AllocationSet.AggregateBy: compute shared coeff: missing cluster ID: %s", err)
 			return err
+		}
+
+		for _, alloc := range aggSet.allocations {
+			if alloc.IsIdle() {
+				// Skip idle allocations (they do not receive shared allocation)
+				continue
+			}
+
+			// Distribute shared allocations by coefficient per-allocation
+			// NOTE: share coefficients do not partition by cluster, like
+			// idle coefficients do.
+			for _, sharedAlloc := range flatShareSet.allocations {
+				if _, ok := flatShareCoefficients[alloc.Name]; !ok {
+					log.Errorf("ETL: flat share allocation: error getting allocation coefficienct for '%s'", alloc.Name)
+					continue
+				}
+
+				alloc.SharedCost += sharedAlloc.TotalCost * flatShareCoefficients[alloc.Name]
+				alloc.TotalCost += sharedAlloc.TotalCost * flatShareCoefficients[alloc.Name]
+			}
 		}
 
 		for _, alloc := range aggSet.allocations {
@@ -766,7 +798,7 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 }
 
 // TODO niko/etl deprecate the use of a map of resources here, we only use totals
-func computeShareCoeffs(properties Properties, options *AllocationAggregationOptions, as *AllocationSet) (map[string]float64, error) {
+func computeShareCoeffs(properties Properties, options *AllocationAggregationOptions, as *AllocationSet, aggregated bool) (map[string]float64, error) {
 	// Compute coeffs by totalling per-allocation, then dividing by the total.
 	coeffs := map[string]float64{}
 
@@ -782,6 +814,9 @@ func computeShareCoeffs(properties Properties, options *AllocationAggregationOpt
 		if alloc.IsIdle() {
 			// Skip idle allocations in coefficient calculation
 			continue
+		}
+		if !aggregated {
+			name, _ = alloc.generateKey(properties)
 		}
 
 		if shareType == ShareEven {
