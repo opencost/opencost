@@ -286,7 +286,7 @@ func PVValueFromMapField(m string, n *v1.PersistentVolume) string {
 			skey := n.Spec.Capacity["storage"]
 			return skey.String()
 		} else {
-			klog.V(4).Infof("[ERROR] Unsupported InstanceIDField %s in CSV For PV", m)
+			log.Infof("[ERROR] Unsupported InstanceIDField %s in CSV For PV", m)
 			return ""
 		}
 	} else {
