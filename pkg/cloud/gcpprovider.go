@@ -666,7 +666,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 				} else if instanceType == "pdstandard" && !strings.Contains(product.Description, "Regional") { // TODO: support regional
 					lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
 					var nanos float64
-					if len(product.PricingInfo) > 0 {
+					if lastRateIndex > -1 && len(product.PricingInfo) > 0 {
 						nanos = product.PricingInfo[0].PricingExpression.TieredRates[lastRateIndex].UnitPrice.Nanos
 					} else {
 						continue
@@ -753,7 +753,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 					if gpuType != "" {
 						lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
 						var nanos float64
-						if len(product.PricingInfo) > 0 {
+						if lastRateIndex > -1 && len(product.PricingInfo) > 0 {
 							nanos = product.PricingInfo[0].PricingExpression.TieredRates[lastRateIndex].UnitPrice.Nanos
 						} else {
 							continue
@@ -788,7 +788,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 						if ok || ok2 {
 							lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
 							var nanos float64
-							if len(product.PricingInfo) > 0 {
+							if lastRateIndex > -1 && len(product.PricingInfo) > 0 {
 								nanos = product.PricingInfo[0].PricingExpression.TieredRates[lastRateIndex].UnitPrice.Nanos
 							} else {
 								continue
