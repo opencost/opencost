@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	util "github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util"
 )
 
 const day = 24 * time.Hour

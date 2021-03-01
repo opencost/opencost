@@ -244,6 +244,7 @@ func ParsePercentString(percentStr string) (float64, error) {
 }
 
 // parseDuration converts a Prometheus-style duration string into a Duration
+// [TODO:CLEANUP] delete this. do it now.
 func ParseDuration(duration string) (*time.Duration, error) {
 	unitStr := duration[len(duration)-1:]
 	var unit time.Duration

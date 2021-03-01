@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	util "github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util"
 )
 
 type Property string

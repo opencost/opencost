@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	util "github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util"
 )
 
 var start1 = time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)
