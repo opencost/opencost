@@ -1,8 +1,10 @@
 package mapper
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 //--------------------------------------------------------------------------
@@ -85,6 +87,10 @@ type PrimitiveMapReader interface {
 	// is empty or fails to parse, the defaultValue parameter is returned.
 	GetBool(key string, defaultValue bool) bool
 
+	// GetDuration parses a time.Duration from the map key paramter. If the
+	// value is empty to fails to parse, the defaultValue is returned.
+	GetDuration(key string, defaultValue time.Duration) time.Duration
+
 	// GetList returns a string list which contains the value set by key split using the
 	// provided delimiter with each entry trimmed of space. If the value doesn't exist,
 	// nil is returned
@@ -129,6 +135,9 @@ type PrimitiveMapWriter interface {
 
 	// SetBool sets the map to a string formatted bool value.
 	SetBool(key string, value bool) error
+
+	// SetDuration sets the map to a string formatted time.Duration value
+	SetDuration(key string, duration time.Duration) error
 
 	// SetList sets the map's value at key to a string consistent of each value in the list separated
 	// by the provided delimiter.
@@ -383,6 +392,19 @@ func (rom *readOnlyMapper) GetBool(key string, defaultValue bool) bool {
 	return b
 }
 
+// GetDuration parses a time.Duration from the read-only mapper key parameter.
+// If the value is empty or fails to parse, the defaultValue parameter is returned.
+func (rom *readOnlyMapper) GetDuration(key string, defaultValue time.Duration) time.Duration {
+	r := rom.getter.Get(key)
+
+	d, err := parseDuration(r)
+	if err != nil {
+		return defaultValue
+	}
+
+	return d
+}
+
 // GetList returns a string list which contains the value set by key split using the
 // provided delimiter with each entry trimmed of space. If the value doesn't exist,
 // nil is returned
@@ -464,8 +486,74 @@ func (wom *writeOnlyMapper) SetBool(key string, value bool) error {
 	return wom.setter.Set(key, strconv.FormatBool(value))
 }
 
+// SetDuration sets the map to a string formatted bool value.
+func (wom *writeOnlyMapper) SetDuration(key string, value time.Duration) error {
+	return wom.setter.Set(key, durationString(value))
+}
+
 // SetList sets the map's value at key to a string consistent of each value in the list separated
 // by the provided delimiter.
 func (wom *writeOnlyMapper) SetList(key string, values []string, delimiter string) error {
 	return wom.setter.Set(key, strings.Join(values, delimiter))
+}
+
+const (
+	secsPerMin  = 60.0
+	secsPerHour = 3600.0
+	secsPerDay  = 86400.0
+)
+
+func durationString(duration time.Duration) string {
+	durSecs := int64(duration.Seconds())
+
+	durStr := ""
+	if durSecs > 0 {
+		if durSecs%secsPerDay == 0 {
+			// convert to days
+			durStr = fmt.Sprintf("%dd", durSecs/secsPerDay)
+		} else if durSecs%secsPerHour == 0 {
+			// convert to hours
+			durStr = fmt.Sprintf("%dh", durSecs/secsPerHour)
+		} else if durSecs%secsPerMin == 0 {
+			// convert to mins
+			durStr = fmt.Sprintf("%dm", durSecs/secsPerMin)
+		} else if durSecs > 0 {
+			// default to mins, as long as duration is positive
+			durStr = fmt.Sprintf("%ds", durSecs)
+		}
+	}
+
+	return durStr
+}
+
+func parseDuration(duration string) (time.Duration, error) {
+	var amountStr string
+	var unit time.Duration
+	switch {
+	case strings.HasSuffix(duration, "s"):
+		unit = time.Second
+		amountStr = strings.TrimSuffix(duration, "s")
+	case strings.HasSuffix(duration, "m"):
+		unit = time.Minute
+		amountStr = strings.TrimSuffix(duration, "m")
+	case strings.HasSuffix(duration, "h"):
+		unit = time.Hour
+		amountStr = strings.TrimSuffix(duration, "h")
+	case strings.HasSuffix(duration, "d"):
+		unit = 24.0 * time.Hour
+		amountStr = strings.TrimSuffix(duration, "d")
+	default:
+		return 0, fmt.Errorf("error parsing duration: %s did not match expected format [0-9+](s|m|d|h)", duration)
+	}
+
+	if len(amountStr) == 0 {
+		return 0, fmt.Errorf("error parsing duration: %s did not match expected format [0-9+](s|m|d|h)", duration)
+	}
+
+	amount, err := strconv.ParseInt(amountStr, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("error parsing duration: %s did not match expected format [0-9+](s|m|d|h)", duration)
+	}
+
+	return time.Duration(amount) * unit, nil
 }

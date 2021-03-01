@@ -47,6 +47,8 @@ type Aggregation struct {
 	Environment                string               `json:"environment"`
 	Cluster                    string               `json:"cluster,omitempty"`
 	Properties                 *kubecost.Properties `json:"-"`
+	Start                      time.Time            `json:"-"`
+	End                        time.Time            `json:"-"`
 	CPUAllocationHourlyAverage float64              `json:"cpuAllocationAverage"`
 	CPUAllocationVectors       []*util.Vector       `json:"-"`
 	CPUAllocationTotal         float64              `json:"-"`

@@ -16,6 +16,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
+	prometheus "github.com/prometheus/client_golang/api"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,22 +47,26 @@ const (
 var isCron = regexp.MustCompile(`^(.+)-\d{10}$`)
 
 type CostModel struct {
-	Cache           clustercache.ClusterCache
-	ClusterMap      clusters.ClusterMap
-	ScrapeInterval  time.Duration
-	RequestGroup    *singleflight.Group
-	pricingMetadata *costAnalyzerCloud.PricingMatchMetadata
+	Cache            clustercache.ClusterCache
+	ClusterMap       clusters.ClusterMap
+	RequestGroup     *singleflight.Group
+	ScrapeInterval   time.Duration
+	PrometheusClient prometheus.Client
+	Provider         costAnalyzerCloud.Provider
+	pricingMetadata  *costAnalyzerCloud.PricingMatchMetadata
 }
 
-func NewCostModel(cache clustercache.ClusterCache, clusterMap clusters.ClusterMap, scrapeInterval time.Duration) *CostModel {
+func NewCostModel(client prometheus.Client, provider costAnalyzerCloud.Provider, cache clustercache.ClusterCache, clusterMap clusters.ClusterMap, scrapeInterval time.Duration) *CostModel {
 	// request grouping to prevent over-requesting the same data prior to caching
 	requestGroup := new(singleflight.Group)
 
 	return &CostModel{
-		Cache:          cache,
-		ClusterMap:     clusterMap,
-		RequestGroup:   requestGroup,
-		ScrapeInterval: scrapeInterval,
+		Cache:            cache,
+		ClusterMap:       clusterMap,
+		PrometheusClient: client,
+		Provider:         provider,
+		RequestGroup:     requestGroup,
+		ScrapeInterval:   scrapeInterval,
 	}
 }
 
@@ -1505,10 +1510,6 @@ func requestKeyFor(window kubecost.Window, resolution time.Duration, filterNames
 
 	return fmt.Sprintf("%s,%s,%s,%s,%s,%t", startKey, endKey, resolution.String(), filterNamespace, filterCluster, remoteEnabled)
 }
-
-// func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, cp costAnalyzerCloud.Provider,
-// 	startString, endString, windowString string, resolutionHours float64, filterNamespace string,
-// 	filterCluster string, remoteEnabled bool, offset string) (map[string]*CostData, error)
 
 // ComputeCostDataRange executes a range query for cost data.
 // Note that "offset" represents the time between the function call and "endString", and is also passed for convenience
