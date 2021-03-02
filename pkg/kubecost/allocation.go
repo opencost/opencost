@@ -548,16 +548,16 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 	// two clusters:
 	//
 	//  namespace1: 25.00
-	// 	namespace2: 30.00
-	// 	namespace3: 15.00
-	// 	idle:       30.00
+	//  namespace2: 30.00
+	//  namespace3: 15.00
+	//  idle:       30.00
 	//
 	// When we then filter by cluster==cluster1, namespaces 2 and 3 are
 	// reduced by the amount that existed on cluster2. Then, idle must also be
 	// reduced by the relevant amount:
 	//
 	//  namespace1: 25.00
-	// 	namespace2: 15.00
+	//  namespace2: 15.00
 	//  idle:       20.00
 	//
 	// Note that this can happen for any field, not just cluster, so we again
