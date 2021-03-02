@@ -726,9 +726,9 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	assertAllocationWindow(t, as, "4c", startYesterday, endYesterday, 1440.0)
 
 	// 4d Share overhead ShareWeighted
-	// namespace1: 37.5000 = 25.00 + (7.0*24.0)*(25.00/70.00)
-	// namespace2: 45.0000 = 30.00 + (7.0*24.0)*(30.00/70.00)
-	// namespace3: 22.5000 = 15.00 + (7.0*24.0)*(15.00/70.00)
+	// namespace1: 85 = 25.00 + (7.0*24.0)*(25.00/70.00)
+	// namespace2: 102 = 30.00 + (7.0*24.0)*(30.00/70.00)
+	// namespace3: 51 = 15.00 + (7.0*24.0)*(15.00/70.00)
 	// idle:       30.0000
 	as = generateAllocationSet(start)
 	err = as.AggregateBy(Properties{NamespaceProp: true}, &AllocationAggregationOptions{
@@ -829,12 +829,8 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	assertAllocationWindow(t, as, "6a", startYesterday, endYesterday, 1440.0)
 
 	// 6b Share idle weighted with filters
-
-	// Should match values from unfiltered aggregation
-	// as = generateAllocationSet(start)
-	// err = as.AggregateBy(Properties{NamespaceProp: true}, &AllocationAggregationOptions{ShareIdle: ShareWeighted})
-	// printAllocationSet("6b unfiltered", as)
-
+	// Should match values from unfiltered aggregation (3a)
+	// namespace2: 40.3125 = 30.00 + 5.0*(3.0/6.0) + 15.0*(3.0/16.0) + 5.0*(3.0/6.0) + 5.0*(3.0/6.0)
 	as = generateAllocationSet(start)
 	err = as.AggregateBy(Properties{NamespaceProp: ""}, &AllocationAggregationOptions{
 		FilterFuncs: []AllocationMatchFunc{isNamespace("namespace2")},
@@ -847,12 +843,8 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	assertAllocationWindow(t, as, "6b", startYesterday, endYesterday, 1440.0)
 
 	// 6c Share idle even with filters
-
-	// Should match values from unfiltered aggregation
-	// as = generateAllocationSet(start)
-	// err = as.AggregateBy(Properties{NamespaceProp: true}, &AllocationAggregationOptions{ShareIdle: ShareEven})
-	// printAllocationSet("6c unfiltered", as)
-
+	// Should match values from unfiltered aggregation (3b)
+	// namespace2: 45.0000 = 30.00 + 5.0*(1.0/2.0) + 15.0*(1.0/2.0) + 5.0*(1.0/2.0) + 5.0*(1.0/2.0)
 	as = generateAllocationSet(start)
 	err = as.AggregateBy(Properties{NamespaceProp: ""}, &AllocationAggregationOptions{
 		FilterFuncs: []AllocationMatchFunc{isNamespace("namespace2")},
@@ -864,8 +856,143 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	})
 	assertAllocationWindow(t, as, "6b", startYesterday, endYesterday, 1440.0)
 
-	// 6d Share resources with filters
-	// 6e Share idle and share resources
+	// 6d Share overhead with filters
+	// namespace1: 85 = 25.00 + (7.0*24.0)*(25.00/70.00)
+	// namespace2: 102 = 30.00 + (7.0*24.0)*(30.00/70.00)
+	// namespace3: 51 = 15.00 + (7.0*24.0)*(15.00/70.00)
+	// idle:       30.0000
+	// Then namespace 2 is filtered.
+	as = generateAllocationSet(start)
+	err = as.AggregateBy(Properties{NamespaceProp: ""}, &AllocationAggregationOptions{
+		FilterFuncs:       []AllocationMatchFunc{isNamespace("namespace2")},
+		SharedHourlyCosts: map[string]float64{"total": sharedOverheadHourlyCost},
+		ShareSplit:        ShareWeighted,
+	})
+	assertAllocationSetTotals(t, as, "6d", err, 2, 132.00)
+	assertAllocationTotals(t, as, "6d", map[string]float64{
+		"namespace2": 102.00,
+		IdleSuffix:   30.00,
+	})
+	assertAllocationWindow(t, as, "6d", startYesterday, endYesterday, 1440.0)
+
+	// 6e Share resources with filters
+	// --- Shared ---
+	// namespace1: 25.00 (gets shared among namespace2 and namespace3)
+	// --- Filtered ---
+	// namespace3: 23.33 = 15.00 + (25.00)*(15.00/45.00) (filtered out)
+	// --- Results ---
+	// namespace2: 46.67 = 30.00 + (25.00)*(15.00/45.00)
+	// idle:       30.0000
+	as = generateAllocationSet(start)
+	err = as.AggregateBy(Properties{NamespaceProp: ""}, &AllocationAggregationOptions{
+		FilterFuncs: []AllocationMatchFunc{isNamespace("namespace2")},
+		ShareFuncs:  []AllocationMatchFunc{isNamespace("namespace1")},
+		ShareSplit:  ShareWeighted,
+	})
+	assertAllocationSetTotals(t, as, "6e", err, 2, 76.67)
+	assertAllocationTotals(t, as, "6e", map[string]float64{
+		"namespace2": 46.67,
+		IdleSuffix:   30.00,
+	})
+	assertAllocationWindow(t, as, "6e", startYesterday, endYesterday, 1440.0)
+
+	// 6f Share idle weighted and share resources weighted
+	//
+	// First, share idle weighted produces:
+	//
+	// namespace1:      39.6875
+	//   initial cost   25.0000
+	//   cluster1.cpu    2.5000 = 5.00*(3.00/6.00)
+	//   cluster1.ram   12.1875 = 15.00*(13.0/16.0)
+	//
+	// namespace2:      40.3125
+	//   initial cost   30.0000
+	//   cluster1.cpu    2.5000 = 5.00*(3.0/6.0)
+	//   cluster1.ram    2.8125 = 15.00*(3.0/16.0)
+	//   cluster2.cpu    2.5000 = 5.00*(3.0/6.0)
+	//   cluster2.ram    2.5000 = 5.00*(3.0/6.0)
+	//
+	// namespace3:      20.0000
+	//   initial cost   15.0000
+	//   cluster2.cpu    2.5000 = 5.00*(3.0/6.0)
+	//   cluster2.ram    2.5000 = 5.00*(3.0/6.0)
+	//
+	// Then, sharing namespace1 means sharing 39.6875 according to coefficients
+	// computed before allocating idle (so that weighting idle differently
+	// doesn't adversely affect the sharing mechanism):
+	//
+	// namespace2:      66.7708
+	//   initial cost   30.0000
+	//   idle cost      10.3125
+	//   shared cost    26.4583 = (39.6875)*(30.0/45.0)
+	//
+	// namespace3:      33.2292
+	//   initial cost   15.0000
+	//   idle cost       5.0000
+	//   shared cost    13.2292 = (39.6875)*(15.0/45.0)
+	//
+	as = generateAllocationSet(start)
+	err = as.AggregateBy(Properties{NamespaceProp: ""}, &AllocationAggregationOptions{
+		ShareFuncs: []AllocationMatchFunc{isNamespace("namespace1")},
+		ShareSplit: ShareWeighted,
+		ShareIdle:  ShareWeighted,
+	})
+	assertAllocationSetTotals(t, as, "6f", err, 2, activeTotalCost+idleTotalCost)
+	assertAllocationTotals(t, as, "6f", map[string]float64{
+		"namespace2": 66.77,
+		"namespace3": 33.23,
+	})
+	assertAllocationWindow(t, as, "6f", startYesterday, endYesterday, 1440.0)
+
+	// 6g Share idle, share resources, and filter
+	//
+	// First, share idle weighted produces:
+	//
+	// namespace1:      39.6875
+	//   initial cost   25.0000
+	//   cluster1.cpu    2.5000 = 5.00*(3.00/6.00)
+	//   cluster1.ram   12.1875 = 15.00*(13.0/16.0)
+	//
+	// namespace2:      40.3125
+	//   initial cost   30.0000
+	//   cluster1.cpu    2.5000 = 5.00*(3.0/6.0)
+	//   cluster1.ram    2.8125 = 15.00*(3.0/16.0)
+	//   cluster2.cpu    2.5000 = 5.00*(3.0/6.0)
+	//   cluster2.ram    2.5000 = 5.00*(3.0/6.0)
+	//
+	// namespace3:      20.0000
+	//   initial cost   15.0000
+	//   cluster2.cpu    2.5000 = 5.00*(3.0/6.0)
+	//   cluster2.ram    2.5000 = 5.00*(3.0/6.0)
+	//
+	// Then, sharing namespace1 means sharing 39.6875 according to coefficients
+	// computed before allocating idle (so that weighting idle differently
+	// doesn't adversely affect the sharing mechanism):
+	//
+	// namespace2:      66.7708
+	//   initial cost   30.0000
+	//   idle cost      10.3125
+	//   shared cost    26.4583 = (39.6875)*(30.0/45.0)
+	//
+	// namespace3:      33.2292
+	//   initial cost   15.0000
+	//   idle cost       5.0000
+	//   shared cost    13.2292 = (39.6875)*(15.0/45.0)
+	//
+	// Then, filter for namespace2: 66.7708
+	//
+	as = generateAllocationSet(start)
+	err = as.AggregateBy(Properties{NamespaceProp: ""}, &AllocationAggregationOptions{
+		FilterFuncs: []AllocationMatchFunc{isNamespace("namespace2")},
+		ShareFuncs:  []AllocationMatchFunc{isNamespace("namespace1")},
+		ShareSplit:  ShareWeighted,
+		ShareIdle:   ShareWeighted,
+	})
+	assertAllocationSetTotals(t, as, "6g", err, 1, 66.77)
+	assertAllocationTotals(t, as, "6g", map[string]float64{
+		"namespace2": 66.77,
+	})
+	assertAllocationWindow(t, as, "6g", startYesterday, endYesterday, 1440.0)
 
 	// 7  Edge cases and errors
 
