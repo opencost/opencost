@@ -937,7 +937,6 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		ShareSplit: ShareWeighted,
 		ShareIdle:  ShareWeighted,
 	})
-	printAllocationSet("6f", as)
 	assertAllocationSetTotals(t, as, "6f", err, 2, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "6f", map[string]float64{
 		"namespace2": 66.77,
@@ -945,7 +944,6 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	})
 	assertAllocationWindow(t, as, "6f", startYesterday, endYesterday, 1440.0)
 
-	fmt.Println("--6g--")
 	// 6g Share idle, share resources, and filter
 	//
 	// First, share idle weighted produces:
