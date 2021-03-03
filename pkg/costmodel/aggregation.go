@@ -1717,6 +1717,10 @@ func GenerateAggKey(window kubecost.Window, field string, subfields []string, op
 	sort.Strings(subfields)
 	fieldStr := fmt.Sprintf("%s:%s", field, strings.Join(subfields, ","))
 
+	if offset == "1m" {
+		offset = ""
+	}
+
 	return fmt.Sprintf("%s:%s:%s:%s:%s:%s:%s:%t:%t:%t", duration, offset, filterStr, fieldStr, opts.Rate,
 		opts.SharedResources, opts.ShareSplit, opts.AllocateIdle, opts.IncludeTimeSeries,
 		opts.IncludeEfficiency)
