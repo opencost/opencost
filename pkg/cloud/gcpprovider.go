@@ -993,7 +993,7 @@ func (gcp *GCP) DownloadPricingData() error {
 	for _, pv := range pvList {
 		params, ok := storageClassMap[pv.Spec.StorageClassName]
 		if !ok {
-			klog.Infof("Unable to find params for storageClassName %s", pv.Name)
+			log.DedupedWarningf(5, "Unable to find params for storageClassName %s", pv.Name)
 			continue
 		}
 		key := gcp.GetPVKey(pv, params, "")
