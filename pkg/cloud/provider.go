@@ -265,7 +265,7 @@ func CustomPricesEnabled(p Provider) bool {
 	if err != nil {
 		return false
 	}
-	// [TODO:CLEANUP] what is going on with this?
+	// TODO:CLEANUP what is going on with this?
 	if config.NegotiatedDiscount == "" {
 		config.NegotiatedDiscount = "0%"
 	}

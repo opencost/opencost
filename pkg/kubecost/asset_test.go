@@ -1094,8 +1094,8 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	if alloc.ExternalCost != 10.00 {
 		t.Fatalf("expected external allocation with ExternalCost %f; got %f", 10.00, alloc.ExternalCost)
 	}
-	if alloc.TotalCost != 10.00 {
-		t.Fatalf("expected external allocation with TotalCost %f; got %f", 10.00, alloc.TotalCost)
+	if alloc.TotalCost() != 10.00 {
+		t.Fatalf("expected external allocation with TotalCost %f; got %f", 10.00, alloc.TotalCost())
 	}
 
 	// 2) multi-prop full match
@@ -1115,8 +1115,8 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	if alloc.ExternalCost != 10.00 {
 		t.Fatalf("expected external allocation with ExternalCost %f; got %f", 10.00, alloc.ExternalCost)
 	}
-	if alloc.TotalCost != 10.00 {
-		t.Fatalf("expected external allocation with TotalCost %f; got %f", 10.00, alloc.TotalCost)
+	if alloc.TotalCost() != 10.00 {
+		t.Fatalf("expected external allocation with TotalCost %f; got %f", 10.00, alloc.TotalCost())
 	}
 
 	// 3) multi-prop partial match
@@ -1133,8 +1133,8 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	if alloc.ExternalCost != 10.00 {
 		t.Fatalf("expected external allocation with ExternalCost %f; got %f", 10.00, alloc.ExternalCost)
 	}
-	if alloc.TotalCost != 10.00 {
-		t.Fatalf("expected external allocation with TotalCost %f; got %f", 10.00, alloc.TotalCost)
+	if alloc.TotalCost() != 10.00 {
+		t.Fatalf("expected external allocation with TotalCost %f; got %f", 10.00, alloc.TotalCost())
 	}
 
 	// 3) no match

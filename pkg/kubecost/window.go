@@ -430,10 +430,11 @@ func (w Window) IsOpen() bool {
 	return w.start == nil || w.end == nil
 }
 
+// TODO:CLEANUP make this unmarshalable (make Start and End public)
 func (w Window) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
-	buffer.WriteString(fmt.Sprintf("\"start\":\"%s\",", w.start.Format("2006-01-02T15:04:05-0700")))
-	buffer.WriteString(fmt.Sprintf("\"end\":\"%s\"", w.end.Format("2006-01-02T15:04:05-0700")))
+	buffer.WriteString(fmt.Sprintf("\"start\":\"%s\",", w.start.Format(time.RFC3339)))
+	buffer.WriteString(fmt.Sprintf("\"end\":\"%s\"", w.end.Format(time.RFC3339)))
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
@@ -449,7 +450,7 @@ func (w Window) Minutes() float64 {
 // Overlaps returns true iff the two given Windows share and amount of temporal
 // coverage.
 // TODO complete (with unit tests!) and then implement in AllocationSet.accumulate
-// [TODO:CLEANUP]
+// TODO:CLEANUP
 func (w Window) Overlaps(x Window) bool {
 	if (w.start == nil && w.end == nil) || (x.start == nil && x.end == nil) {
 		// one window is completely open, so overlap is guaranteed

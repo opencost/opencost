@@ -365,15 +365,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 				}
 			}
 
-			alloc.TotalCost = 0.0
-			alloc.TotalCost += alloc.CPUCost
-			alloc.TotalCost += alloc.RAMCost
-			alloc.TotalCost += alloc.GPUCost
-			alloc.TotalCost += alloc.PVCost
-			alloc.TotalCost += alloc.NetworkCost
-			alloc.TotalCost += alloc.SharedCost
-			alloc.TotalCost += alloc.ExternalCost
-
 			// Make sure that the name is correct (node may not be present at this
 			// point due to it missing from queryMinutes) then insert.
 			alloc.Name = fmt.Sprintf("%s/%s/%s/%s/%s", cluster, nodeName, namespace, pod, container)
@@ -1533,7 +1524,6 @@ func applyUnmountedPVs(window kubecost.Window, podMap map[podKey]*Pod, pvMap map
 		podMap[key].Allocations[container].Properties.SetContainer(container)
 		podMap[key].Allocations[container].PVByteHours = unmountedPVBytes[cluster] * window.Minutes() / 60.0
 		podMap[key].Allocations[container].PVCost = amount
-		podMap[key].Allocations[container].TotalCost = amount
 	}
 }
 
@@ -1577,7 +1567,6 @@ func applyUnmountedPVCs(window kubecost.Window, podMap map[podKey]*Pod, pvcMap m
 		podMap[podKey].Allocations[container].Properties.SetContainer(container)
 		podMap[podKey].Allocations[container].PVByteHours = unmountedPVCBytes[key] * window.Minutes() / 60.0
 		podMap[podKey].Allocations[container].PVCost = amount
-		podMap[podKey].Allocations[container].TotalCost = amount
 	}
 }
 
@@ -1609,7 +1598,7 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*NodePricing, nodeKey no
 
 	// If any of the values are NaN or zero, replace them with the custom
 	// values as default.
-	// [TODO:CLEANUP] can't we parse these custom prices once? why do we store
+	// TODO:CLEANUP can't we parse these custom prices once? why do we store
 	// them as strings like this?
 
 	if node.CostPerCPUHr == 0 || math.IsNaN(node.CostPerCPUHr) {
@@ -1625,7 +1614,7 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*NodePricing, nodeKey no
 		node.CostPerCPUHr = costPerCPUHr
 	}
 
-	if node.CostPerGPUHr == 0 || math.IsNaN(node.CostPerGPUHr) {
+	if math.IsNaN(node.CostPerGPUHr) {
 		log.Warningf("CostModel: node pricing has illegal CostPerGPUHr; replacing with custom pricing: %s", nodeKey)
 		gpuCostStr := customPricingConfig.GPU
 		if node.Preemptible {
@@ -1734,8 +1723,8 @@ func (p Pod) AppendContainer(container string) {
 }
 
 // PVC describes a PersistentVolumeClaim
-// TODO move to pkg/kubecost?  [TODO:CLEANUP]
-// TODO add PersistentVolumeClaims field to type Allocation?  [TODO:CLEANUP]
+// TODO:CLEANUP move to pkg/kubecost?
+// TODO:CLEANUP add PersistentVolumeClaims field to type Allocation?
 type PVC struct {
 	Bytes     float64   `json:"bytes"`
 	Count     int       `json:"count"`
@@ -1778,7 +1767,7 @@ func (pvc *PVC) String() string {
 }
 
 // PV describes a PersistentVolume
-// TODO move to pkg/kubecost? [TODO:CLEANUP]
+// TODO move to pkg/kubecost? TODO:CLEANUP
 type PV struct {
 	Bytes          float64 `json:"bytes"`
 	CostPerGiBHour float64 `json:"costPerGiBHour"` // TODO niko/computeallocation GiB or GB?

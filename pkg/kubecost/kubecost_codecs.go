@@ -14,10 +14,11 @@ package kubecost
 import (
 	"encoding"
 	"fmt"
-	util "github.com/kubecost/cost-model/pkg/util"
 	"reflect"
 	"strings"
 	"time"
+
+	util "github.com/kubecost/cost-model/pkg/util"
 )
 
 const (
@@ -25,7 +26,7 @@ const (
 	GeneratorPackageName string = "kubecost"
 
 	// CodecVersion is the version passed into the generator
-	CodecVersion uint8 = 7
+	CodecVersion uint8 = 8
 )
 
 //--------------------------------------------------------------------------
@@ -167,7 +168,6 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 	buff.WriteFloat64(target.RAMCost)                // write float64
 	buff.WriteFloat64(target.SharedCost)             // write float64
 	buff.WriteFloat64(target.ExternalCost)           // write float64
-	buff.WriteFloat64(target.TotalCost)              // write float64
 	return buff.Bytes(), nil
 }
 
@@ -286,9 +286,6 @@ func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
 
 	ff := buff.ReadFloat64() // read float64
 	target.ExternalCost = ff
-
-	gg := buff.ReadFloat64() // read float64
-	target.TotalCost = gg
 
 	return nil
 }

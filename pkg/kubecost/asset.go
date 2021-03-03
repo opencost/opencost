@@ -220,7 +220,6 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string) (*Allocation, 
 		Start:        asset.Start(),
 		End:          asset.End(),
 		ExternalCost: asset.TotalCost(),
-		TotalCost:    asset.TotalCost(),
 	}, nil
 }
 

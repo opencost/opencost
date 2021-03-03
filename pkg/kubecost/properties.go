@@ -57,7 +57,7 @@ type PropertyValue struct {
 }
 
 // Properties describes a set of Kubernetes objects.
-// TODO make this a struct smdh [TODO:CLEANUP]
+// TODO:CLEANUP make this a struct smdh
 type Properties map[Property]interface{}
 
 // TODO niko/etl make sure Services deep copy works correctly

@@ -1,6 +1,7 @@
 package kubecost
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"testing"
@@ -50,7 +51,6 @@ func NewUnitAllocation(name string, start time.Time, resolution time.Duration, p
 		RAMCost:                1,
 		RAMBytesRequestAverage: 1,
 		RAMBytesUsageAverage:   1,
-		TotalCost:              5,
 	}
 
 	// If idle allocation, remove non-idle costs, but maintain total cost
@@ -86,21 +86,75 @@ func TestAllocation_Add(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Allocation.Add unexpected error: %s", err)
 	}
-	if nilZeroSum == nil || nilZeroSum.TotalCost != 0.0 {
+	if nilZeroSum == nil || nilZeroSum.TotalCost() != 0.0 {
 		t.Fatalf("Allocation.Add failed; exp: 0.0; act: %s", nilZeroSum)
 	}
 
 	// TODO niko/etl more
 }
 
-// TODO niko/etl
-// func TestAllocation_Clone(t *testing.T) {}
+func TestAllocation_MarshalJSON(t *testing.T) {
+	start := time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2021, time.January, 2, 0, 0, 0, 0, time.UTC)
+	hrs := 24.0
 
-// TODO niko/etl
-// func TestAllocation_IsIdle(t *testing.T) {}
+	gib := 1024.0 * 1024.0 * 1024.0
 
-func TestAllocation_String(t *testing.T) {
-	// TODO niko/etl
+	cpuPrice := 0.02
+	gpuPrice := 2.00
+	ramPrice := 0.01
+	pvPrice := 0.00005
+
+	before := &Allocation{
+		Name: "cluster1/namespace1/node1/pod1/container1",
+		Properties: Properties{
+			ClusterProp:   "cluster1",
+			NodeProp:      "node1",
+			NamespaceProp: "namespace1",
+			PodProp:       "pod1",
+			ContainerProp: "container1",
+		},
+		Window:                 NewWindow(&start, &end),
+		Start:                  start,
+		End:                    end,
+		CPUCoreHours:           2.0 * hrs,
+		CPUCoreRequestAverage:  2.0,
+		CPUCoreUsageAverage:    1.0,
+		CPUCost:                2.0 * hrs * cpuPrice,
+		GPUHours:               1.0 * hrs,
+		GPUCost:                1.0 * hrs * gpuPrice,
+		NetworkCost:            0.05,
+		PVByteHours:            100.0 * gib * hrs,
+		PVCost:                 100.0 * hrs * pvPrice,
+		RAMByteHours:           8.0 * gib * hrs,
+		RAMBytesRequestAverage: 8.0 * gib,
+		RAMBytesUsageAverage:   4.0 * gib,
+		RAMCost:                8.0 * hrs * ramPrice,
+		SharedCost:             2.00,
+		ExternalCost:           1.00,
+	}
+
+	data, err := json.Marshal(before)
+	if err != nil {
+		t.Fatalf("Allocation.MarshalJSON: unexpected error: %s", err)
+	}
+
+	after := &Allocation{}
+	err = json.Unmarshal(data, after)
+	if err != nil {
+		t.Fatalf("Allocation.UnmarshalJSON: unexpected error: %s", err)
+	}
+
+	// TODO:CLEANUP fix json marshaling of Window so that all of this works.
+	// In the meantime, just set the Window so that we can test the rest.
+	after.Window = before.Window.Clone()
+
+	fmt.Println(*before)
+	fmt.Println(*after)
+
+	if !after.Equal(before) {
+		t.Fatalf("Allocation.MarshalJSON: before and after are not equal")
+	}
 }
 
 func TestNewAllocationSet(t *testing.T) {
@@ -116,7 +170,6 @@ func generateAllocationSet(start time.Time) *AllocationSet {
 	a1i.CPUCost = 5.0
 	a1i.RAMCost = 15.0
 	a1i.GPUCost = 0.0
-	a1i.TotalCost = 20.0
 
 	a2i := NewUnitAllocation(fmt.Sprintf("cluster2/%s", IdleSuffix), start, day, &Properties{
 		ClusterProp: "cluster2",
@@ -124,7 +177,6 @@ func generateAllocationSet(start time.Time) *AllocationSet {
 	a2i.CPUCost = 5.0
 	a2i.RAMCost = 5.0
 	a2i.GPUCost = 0.0
-	a2i.TotalCost = 10.0
 
 	// Active allocations
 	a1111 := NewUnitAllocation("cluster1/namespace1/pod1/container1", start, day, &Properties{
@@ -134,7 +186,6 @@ func generateAllocationSet(start time.Time) *AllocationSet {
 		ContainerProp: "container1",
 	})
 	a1111.RAMCost = 11.00
-	a1111.TotalCost = 15.00
 
 	a11abc2 := NewUnitAllocation("cluster1/namespace1/pod-abc/container2", start, day, &Properties{
 		ClusterProp:   "cluster1",
@@ -289,8 +340,8 @@ func assertAllocationSetTotals(t *testing.T, as *AllocationSet, msg string, err 
 func assertAllocationTotals(t *testing.T, as *AllocationSet, msg string, exps map[string]float64) {
 	as.Each(func(k string, a *Allocation) {
 		if exp, ok := exps[a.Name]; ok {
-			if math.Round(a.TotalCost*100) != math.Round(exp*100) {
-				t.Fatalf("AllocationSet.AggregateBy[%s]: expected total cost %.2f, actual %.2f", msg, exp, a.TotalCost)
+			if math.Round(a.TotalCost()*100) != math.Round(exp*100) {
+				t.Fatalf("AllocationSet.AggregateBy[%s]: expected total cost %.2f, actual %.2f", msg, exp, a.TotalCost())
 			}
 		} else {
 			t.Fatalf("AllocationSet.AggregateBy[%s]: unexpected allocation: %s", msg, a.Name)
@@ -964,8 +1015,8 @@ func TestAllocationSet_ComputeIdleAllocations(t *testing.T) {
 	if idle, ok := idles["cluster1"]; !ok {
 		t.Fatalf("expected idle cost for %s", "cluster1")
 	} else {
-		if !util.IsApproximately(idle.TotalCost, 72.0) {
-			t.Fatalf("%s idle: expected total cost %f; got total cost %f", "cluster1", 72.0, idle.TotalCost)
+		if !util.IsApproximately(idle.TotalCost(), 72.0) {
+			t.Fatalf("%s idle: expected total cost %f; got total cost %f", "cluster1", 72.0, idle.TotalCost())
 		}
 	}
 	if !util.IsApproximately(idles["cluster1"].CPUCost, 44.0) {
@@ -981,8 +1032,8 @@ func TestAllocationSet_ComputeIdleAllocations(t *testing.T) {
 	if idle, ok := idles["cluster2"]; !ok {
 		t.Fatalf("expected idle cost for %s", "cluster2")
 	} else {
-		if !util.IsApproximately(idle.TotalCost, 82.0) {
-			t.Fatalf("%s idle: expected total cost %f; got total cost %f", "cluster2", 82.0, idle.TotalCost)
+		if !util.IsApproximately(idle.TotalCost(), 82.0) {
+			t.Fatalf("%s idle: expected total cost %f; got total cost %f", "cluster2", 82.0, idle.TotalCost())
 		}
 	}
 
@@ -1051,8 +1102,8 @@ func TestAllocationSet_ComputeIdleAllocations(t *testing.T) {
 	if idle, ok := idles["cluster1"]; !ok {
 		t.Fatalf("expected idle cost for %s", "cluster1")
 	} else {
-		if !util.IsApproximately(idle.TotalCost, 72.0) {
-			t.Fatalf("%s idle: expected total cost %f; got total cost %f", "cluster1", 72.0, idle.TotalCost)
+		if !util.IsApproximately(idle.TotalCost(), 72.0) {
+			t.Fatalf("%s idle: expected total cost %f; got total cost %f", "cluster1", 72.0, idle.TotalCost())
 		}
 	}
 	if !util.IsApproximately(idles["cluster1"].CPUCost, 44.0) {
@@ -1068,8 +1119,8 @@ func TestAllocationSet_ComputeIdleAllocations(t *testing.T) {
 	if idle, ok := idles["cluster2"]; !ok {
 		t.Fatalf("expected idle cost for %s", "cluster2")
 	} else {
-		if !util.IsApproximately(idle.TotalCost, 82.0) {
-			t.Fatalf("%s idle: expected total cost %f; got total cost %f", "cluster2", 82.0, idle.TotalCost)
+		if !util.IsApproximately(idle.TotalCost(), 82.0) {
+			t.Fatalf("%s idle: expected total cost %f; got total cost %f", "cluster2", 82.0, idle.TotalCost())
 		}
 	}
 
@@ -1249,8 +1300,8 @@ func TestAllocationSetRange_Accumulate(t *testing.T) {
 	if alloc.RAMEfficiency() != 1.0 {
 		t.Fatalf("accumulating AllocationSetRange: expected 1.0; actual %f", alloc.RAMEfficiency())
 	}
-	if alloc.TotalCost != 10.0 {
-		t.Fatalf("accumulating AllocationSetRange: expected 10.0; actual %f", alloc.TotalCost)
+	if alloc.TotalCost() != 10.0 {
+		t.Fatalf("accumulating AllocationSetRange: expected 10.0; actual %f", alloc.TotalCost())
 	}
 	if alloc.TotalEfficiency() != 1.0 {
 		t.Fatalf("accumulating AllocationSetRange: expected 1.0; actual %f", alloc.TotalEfficiency())
@@ -1351,8 +1402,8 @@ func TestAllocationSetRange_InsertRange(t *testing.T) {
 			if !util.IsApproximately(a.NetworkCost, unit.NetworkCost) {
 				t.Fatalf("allocation %s: expected %f; got %f", k, unit.NetworkCost, a.NetworkCost)
 			}
-			if !util.IsApproximately(a.TotalCost, unit.TotalCost) {
-				t.Fatalf("allocation %s: expected %f; got %f", k, unit.TotalCost, a.TotalCost)
+			if !util.IsApproximately(a.TotalCost(), unit.TotalCost()) {
+				t.Fatalf("allocation %s: expected %f; got %f", k, unit.TotalCost(), a.TotalCost())
 			}
 		})
 	})
@@ -1399,8 +1450,8 @@ func TestAllocationSetRange_InsertRange(t *testing.T) {
 		if !util.IsApproximately(a.NetworkCost, 2*unit.NetworkCost) {
 			t.Fatalf("allocation %s: expected %f; got %f", k, unit.NetworkCost, a.NetworkCost)
 		}
-		if !util.IsApproximately(a.TotalCost, 2*unit.TotalCost) {
-			t.Fatalf("allocation %s: expected %f; got %f", k, unit.TotalCost, a.TotalCost)
+		if !util.IsApproximately(a.TotalCost(), 2*unit.TotalCost()) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.TotalCost(), a.TotalCost())
 		}
 	})
 	tAS, err := thisASR.Get(1)
@@ -1432,8 +1483,8 @@ func TestAllocationSetRange_InsertRange(t *testing.T) {
 		if !util.IsApproximately(a.NetworkCost, unit.NetworkCost) {
 			t.Fatalf("allocation %s: expected %f; got %f", k, unit.NetworkCost, a.NetworkCost)
 		}
-		if !util.IsApproximately(a.TotalCost, unit.TotalCost) {
-			t.Fatalf("allocation %s: expected %f; got %f", k, unit.TotalCost, a.TotalCost)
+		if !util.IsApproximately(a.TotalCost(), unit.TotalCost()) {
+			t.Fatalf("allocation %s: expected %f; got %f", k, unit.TotalCost(), a.TotalCost())
 		}
 	})
 }
