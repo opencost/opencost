@@ -970,7 +970,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					klog.V(4).Infof("Unable to find parameters for storage class \"%s\". Does pv \"%s\" have a storageClassName?", pv.Spec.StorageClassName, pv.Name)
 				}
 				var region string
-				if r, ok := pv.Labels[v1.LabelZoneRegion]; ok {
+				if r, ok := util.GetRegion(pv.Labels); ok {
 					region = r
 				} else {
 					region = defaultRegion

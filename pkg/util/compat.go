@@ -4,11 +4,13 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+// See https://kubernetes.io/docs/reference/labels-annotations-taints/
+
 func GetRegion(labels map[string]string) (string, bool) {
-	if _, ok := labels[v1.LabelZoneRegion]; ok {
+	if _, ok := labels[v1.LabelTopologyRegion]; ok { // Label as of 1.17
+		return labels[v1.LabelTopologyRegion], true
+	} else if _, ok := labels[v1.LabelZoneRegion]; ok { // deprecated label
 		return labels[v1.LabelZoneRegion], true
-	} else if _, ok := labels["topology.kubernetes.io/region"]; ok { // Label as of 1.17
-		return labels["topology.kubernetes.io/region"], true
 	} else {
 		return "", false
 	}

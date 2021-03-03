@@ -19,7 +19,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/kubecost/cost-model/pkg/log"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/klog"
 
 	"github.com/jszwec/csvutil"
 )
@@ -90,7 +89,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 		csvr, csverr = GetCsv(c.CSVLocation)
 	}
 	if csverr != nil {
-		klog.Infof("Error reading csv at %s: %s", c.CSVLocation, csverr)
+		log.Infof("Error reading csv at %s: %s", c.CSVLocation, csverr)
 		c.Pricing = pricing
 		c.NodeClassPricing = nodeclasspricing
 		c.NodeClassCount = nodeclasscount
@@ -118,20 +117,20 @@ func (c *CSVProvider) DownloadPricingData() error {
 		} else if err == csvutil.ErrFieldCount || (isCsvParseErr && csvParseErr.Err == csv.ErrFieldCount) {
 			rec := dec.Record()
 			if len(rec) != 1 {
-				klog.V(2).Infof("Expected %d price info fields but received %d: %s", fieldsPerRecord, len(rec), rec)
+				log.Infof("Expected %d price info fields but received %d: %s", fieldsPerRecord, len(rec), rec)
 				continue
 			}
 			if strings.Index(rec[0], "#") == 0 {
 				continue
 			} else {
-				klog.V(3).Infof("skipping non-CSV line: %s", rec)
+				log.Infof("skipping non-CSV line: %s", rec)
 				continue
 			}
 		} else if err != nil {
-			klog.V(2).Infof("Error during spot info decode: %+v", err)
+			log.Infof("Error during spot info decode: %+v", err)
 			continue
 		}
-		klog.V(4).Infof("Found price info %+v", p)
+		log.Infof("Found price info %+v", p)
 		key := strings.ToLower(p.InstanceID)
 		if p.Region != "" { // strip the casing from region and add to key.
 			key = fmt.Sprintf("%s,%s", strings.ToLower(p.Region), strings.ToLower(p.InstanceID))
@@ -161,7 +160,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 
 			c.NodeMapField = p.InstanceIDField
 		} else {
-			klog.Infof("Unrecognized asset class %s, defaulting to node", p.AssetClass)
+			log.Infof("Unrecognized asset class %s, defaulting to node", p.AssetClass)
 			pricing[key] = &p
 			c.NodeMapField = p.InstanceIDField
 		}
@@ -217,7 +216,7 @@ func (c *CSVProvider) NodePricing(key Key) (*Node, error) {
 	}
 	classKey := key.Features() // Use node attributes to try and do a class match
 	if cost, ok := c.NodeClassPricing[classKey]; ok {
-		klog.Infof("Unable to find provider ID `%s`, using features:`%s`", key.ID(), key.Features())
+		log.Infof("Unable to find provider ID `%s`, using features:`%s`", key.ID(), key.Features())
 		return &Node{
 			Cost:        fmt.Sprintf("%f", cost),
 			PricingType: CsvClass,
@@ -230,7 +229,11 @@ func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
 	mf := strings.Split(m, ".")
 	toReturn := ""
 	if useRegion {
-		toReturn = n.Labels[v1.LabelZoneRegion] + ","
+		if region, ok := util.GetRegion(n.Labels); ok {
+			toReturn = region + ","
+		} else {
+			log.Errorf("Getting region based on labels failed")
+		}
 	}
 	if len(mf) == 2 && mf[0] == "spec" && mf[1] == "providerID" {
 		provIdRx := regexp.MustCompile("aws:///([^/]+)/([^/]+)") // It's of the form aws:///us-east-2a/i-0fea4fd46592d050b and we want i-0fea4fd46592d050b, if it exists
@@ -254,11 +257,11 @@ func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
 			akey := strings.Join(mf[2:len(mf)], "")
 			return toReturn + n.Annotations[akey]
 		} else {
-			klog.Infof("[ERROR] Unsupported InstanceIDField %s in CSV For Node", m)
+			log.Errorf("Unsupported InstanceIDField %s in CSV For Node", m)
 			return ""
 		}
 	} else {
-		klog.Infof("[ERROR] Unsupported InstanceIDField %s in CSV For Node", m)
+		log.Errorf("Unsupported InstanceIDField %s in CSV For Node", m)
 		return ""
 	}
 }
@@ -275,7 +278,7 @@ func PVValueFromMapField(m string, n *v1.PersistentVolume) string {
 			akey := strings.Join(mf[2:len(mf)], "")
 			return n.Annotations[akey]
 		} else {
-			klog.V(4).Infof("[ERROR] Unsupported InstanceIDField %s in CSV For PV", m)
+			log.Errorf("Unsupported InstanceIDField %s in CSV For PV", m)
 			return ""
 		}
 	} else if len(mf) > 2 && mf[0] == "spec" {
@@ -283,11 +286,11 @@ func PVValueFromMapField(m string, n *v1.PersistentVolume) string {
 			skey := n.Spec.Capacity["storage"]
 			return skey.String()
 		} else {
-			klog.V(4).Infof("[ERROR] Unsupported InstanceIDField %s in CSV For PV", m)
+			log.Infof("[ERROR] Unsupported InstanceIDField %s in CSV For PV", m)
 			return ""
 		}
 	} else {
-		klog.V(4).Infof("[ERROR] Unsupported InstanceIDField %s in CSV For PV", m)
+		log.Errorf("Unsupported InstanceIDField %s in CSV For PV", m)
 		return ""
 	}
 }
@@ -338,7 +341,7 @@ func (c *CSVProvider) PVPricing(pvk PVKey) (*PV, error) {
 	defer c.DownloadPricingDataLock.RUnlock()
 	pricing, ok := c.PricingPV[pvk.Features()]
 	if !ok {
-		klog.V(4).Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
+		log.Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
 		return &PV{}, nil
 	}
 	return &PV{
