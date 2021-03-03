@@ -259,8 +259,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionCostPerGiB)
 	applyNetworkAllocation(podMap, resNetInternetGiB, resNetInternetCostPerGiB)
 
-	// TODO niko/computeallocation pruneDuplicateData? (see costmodel.go)
-
 	namespaceLabels := resToNamespaceLabels(resNamespaceLabels)
 	podLabels := resToPodLabels(resPodLabels)
 	namespaceAnnotations := resToNamespaceAnnotations(resNamespaceAnnotations)
@@ -1332,7 +1330,7 @@ func applyNodeDiscount(nodeMap map[nodeKey]*NodePricing, cm *CostModel) {
 	}
 
 	for _, node := range nodeMap {
-		// TODO niko/computeallocation GKE Reserved Instances into account
+		// TODO GKE Reserved Instances into account
 		node.Discount = cm.Provider.CombinedDiscountForNode(node.NodeType, node.Preemptible, discount, negotiatedDiscount)
 		node.CostPerCPUHr *= (1.0 - node.Discount)
 		node.CostPerRAMGiBHr *= (1.0 - node.Discount)
@@ -1525,7 +1523,7 @@ func applyUnmountedPVs(window kubecost.Window, podMap map[podKey]*Pod, pvMap map
 
 		if !mounted {
 			gib := pv.Bytes / 1024 / 1024 / 1024
-			hrs := window.Minutes() / 60.0 // TODO niko/computeallocation PV hours, not window hours?
+			hrs := window.Minutes() / 60.0 // TODO improve with PV hours, not window hours
 			cost := pv.CostPerGiBHour * gib * hrs
 			unmountedPVCost[pv.Cluster] += cost
 			unmountedPVBytes[pv.Cluster] += pv.Bytes
@@ -1798,10 +1796,10 @@ func (pvc *PVC) String() string {
 }
 
 // PV describes a PersistentVolume
-// TODO move to pkg/kubecost? TODO:CLEANUP
+// TODO:CLEANUP move to pkg/kubecost?
 type PV struct {
 	Bytes          float64 `json:"bytes"`
-	CostPerGiBHour float64 `json:"costPerGiBHour"` // TODO niko/computeallocation GiB or GB?
+	CostPerGiBHour float64 `json:"costPerGiBHour"`
 	Cluster        string  `json:"cluster"`
 	Name           string  `json:"name"`
 	StorageClass   string  `json:"storageClass"`

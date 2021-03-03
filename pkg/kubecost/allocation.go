@@ -290,9 +290,6 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-// TODO niko/computeallocation
-// func (a *Allocation)UnmarshalJSON()
-
 // Resolution returns the duration of time covered by the Allocation
 func (a *Allocation) Resolution() time.Duration {
 	return a.End.Sub(a.Start)
@@ -327,7 +324,7 @@ func (a *Allocation) Minutes() float64 {
 
 // Share works like Add, but converts the entire cost of the given Allocation
 // to SharedCost, rather than adding to the individual resource costs.
-// TODO niko/computeallocation unit test changes!!!
+// TODO unit test
 func (a *Allocation) Share(that *Allocation) (*Allocation, error) {
 	if that == nil {
 		return a.Clone(), nil
@@ -417,7 +414,7 @@ func (a *Allocation) add(that *Allocation) {
 	}
 
 	// Convert cumulatuve request and usage back into rates
-	// TODO niko/computeallocation write a unit test that fails if this is done incorrectly
+	// TODO write a unit test that fails if this is done incorrectly
 	a.CPUCoreRequestAverage = cpuReqCoreMins / a.Minutes()
 	a.CPUCoreUsageAverage = cpuUseCoreMins / a.Minutes()
 	a.RAMBytesRequestAverage = ramReqByteMins / a.Minutes()
