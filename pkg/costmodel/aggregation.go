@@ -2016,13 +2016,13 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 
 	// aggregation subfield is required when aggregation field is "label"
 	if (field == "label" || field == "annotation") && len(subfields) == 0 {
-		WriteError(w, BadRequest("Missing aggregation field parameter"))
+		WriteError(w, BadRequest("Missing aggregation subfield parameter"))
 		return
 	}
 
-	// enforce one of four available rate options
+	// enforce one of the available rate options
 	if opts.Rate != "" && opts.Rate != "hourly" && opts.Rate != "daily" && opts.Rate != "monthly" {
-		WriteError(w, BadRequest("Missing aggregation field parameter"))
+		WriteError(w, BadRequest("Rate parameter only supports: hourly, daily, monthly or empty"))
 		return
 	}
 
