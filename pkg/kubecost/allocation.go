@@ -413,12 +413,19 @@ func (a *Allocation) add(that *Allocation) {
 		a.End = that.End
 	}
 
-	// Convert cumulatuve request and usage back into rates
+	// Convert cumulative request and usage back into rates
 	// TODO:TEST write a unit test that fails if this is done incorrectly
-	a.CPUCoreRequestAverage = cpuReqCoreMins / a.Minutes()
-	a.CPUCoreUsageAverage = cpuUseCoreMins / a.Minutes()
-	a.RAMBytesRequestAverage = ramReqByteMins / a.Minutes()
-	a.RAMBytesUsageAverage = ramUseByteMins / a.Minutes()
+	if a.Minutes() > 0 {
+		a.CPUCoreRequestAverage = cpuReqCoreMins / a.Minutes()
+		a.CPUCoreUsageAverage = cpuUseCoreMins / a.Minutes()
+		a.RAMBytesRequestAverage = ramReqByteMins / a.Minutes()
+		a.RAMBytesUsageAverage = ramUseByteMins / a.Minutes()
+	} else {
+		a.CPUCoreRequestAverage = 0.0
+		a.CPUCoreUsageAverage = 0.0
+		a.RAMBytesRequestAverage = 0.0
+		a.RAMBytesUsageAverage = 0.0
+	}
 
 	// Sum all cumulative resource fields
 	a.CPUCoreHours += that.CPUCoreHours
