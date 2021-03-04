@@ -68,7 +68,6 @@ type Allocation struct {
 	RAMCost                float64    `json:"ramCost"`
 	SharedCost             float64    `json:"sharedCost"`
 	ExternalCost           float64    `json:"externalCost"`
-	// TotalCost              float64    `json:"totalCost"`
 }
 
 // AllocationMatchFunc is a function that can be used to match Allocations by

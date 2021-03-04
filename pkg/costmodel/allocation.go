@@ -477,14 +477,9 @@ func applyPodResults(window kubecost.Window, resolution time.Duration, podMap ma
 				// Set the end timestamp to the latest non-zero timestamp
 				allocEnd = t
 
-				// If the end timestamp differs from the start, then record the
-				// adjustment coefficient, i.e. the portion of the end
-				// timestamp to "ignore". That is, sometimes the value will be
-				// 0.5, meaning that we should discount the time running by
-				// half of the resolution the timestamp stands for.
-				if !allocStart.Equal(t) {
-					endAdjustmentCoeff = (1.0 - datum.Value)
-				}
+				// Record adjustment coefficient, i.e. the portion of the end
+				// timestamp to "ignore". (See explanation above for start.)
+				endAdjustmentCoeff = (1.0 - datum.Value)
 			}
 		}
 
@@ -498,8 +493,10 @@ func applyPodResults(window kubecost.Window, resolution time.Duration, podMap ma
 		// start and end by the correct amount, in the case that the "running"
 		// value of the first or last timestamp was not a full 1.0.
 		allocStart = allocStart.Add(-resolution)
-		allocStart = allocStart.Add(time.Duration(startAdjustmentCoeff) * resolution)
-		allocEnd = allocEnd.Add(-time.Duration(endAdjustmentCoeff) * resolution)
+		// Note: the *100 and /100 are necessary because Duration is an int, so
+		// 0.5, for instance, will be truncated, resulting in no adjustment.
+		allocStart = allocStart.Add(time.Duration(startAdjustmentCoeff*100) * resolution / time.Duration(100))
+		allocEnd = allocEnd.Add(-time.Duration(endAdjustmentCoeff*100) * resolution / time.Duration(100))
 
 		// If there is only one point with a value <= 0.5 that the start and
 		// end timestamps both share, then we will enter this case because at
@@ -509,12 +506,10 @@ func applyPodResults(window kubecost.Window, resolution time.Duration, podMap ma
 		// e.g. For resolution 1m and a value of 0.5 at one timestamp, we'll
 		//      end up with allocEnd == allocStart and each coeff == 0.5. In
 		//      that case, add 0.25m to each side, resulting in 0.5m duration.
-		if !allocEnd.After(allocStart) && startAdjustmentCoeff == endAdjustmentCoeff {
-			allocStart.Add(-time.Duration(0.5*startAdjustmentCoeff) * resolution)
-			allocEnd.Add(time.Duration(0.5*endAdjustmentCoeff) * resolution)
-
-			// TODO niko/computeallocation remove log
-			log.Infof("CostModel.ComputeAllocation: adjusted empty duration for %s to %s", key, allocEnd.Sub(allocStart))
+		// if !allocEnd.After(allocStart) && startAdjustmentCoeff == endAdjustmentCoeff {
+		if !allocEnd.After(allocStart) {
+			allocStart = allocStart.Add(-time.Duration(50*startAdjustmentCoeff) * resolution / time.Duration(100))
+			allocEnd = allocEnd.Add(time.Duration(50*endAdjustmentCoeff) * resolution / time.Duration(100))
 		}
 
 		// Set start if unset or this datum's start time is earlier than the
