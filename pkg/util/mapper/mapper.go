@@ -503,6 +503,9 @@ const (
 	secsPerDay  = 86400.0
 )
 
+// durationString converts duration to a string of the form "4d", "4h", "4m", or "4s" if
+// the number of seconds in the string is evenly divisible into an integer number of
+// days, hours, minutes, or seconds respectively.
 func durationString(duration time.Duration) string {
 	durSecs := int64(duration.Seconds())
 

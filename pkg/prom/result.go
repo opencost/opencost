@@ -224,7 +224,7 @@ func (qr *QueryResult) GetString(field string) (string, error) {
 
 	strField, ok := f.(string)
 	if !ok {
-		return "", fmt.Errorf("'%s' field is improperly formatted", field)
+		return "", fmt.Errorf("'%s' field is improperly formatted and cannot be converted to string", field)
 	}
 
 	return strField, nil
@@ -242,7 +242,7 @@ func (qr *QueryResult) GetStrings(fields ...string) (map[string]string, error) {
 
 		value, ok := f.(string)
 		if !ok {
-			return nil, fmt.Errorf("'%s' field is improperly formatted", field)
+			return nil, fmt.Errorf("'%s' field is improperly formatted and cannot be converted to string", field)
 		}
 
 		values[field] = value
