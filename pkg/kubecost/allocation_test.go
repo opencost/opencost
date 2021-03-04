@@ -235,7 +235,143 @@ func TestAllocation_Add(t *testing.T) {
 }
 
 func TestAllocation_Share(t *testing.T) {
+	cpuPrice := 0.02
+	gpuPrice := 2.00
+	ramPrice := 0.01
+	pvPrice := 0.00005
+	gib := 1024.0 * 1024.0 * 1024.0
 
+	s1 := time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC)
+	e1 := time.Date(2021, time.January, 1, 12, 0, 0, 0, time.UTC)
+	hrs1 := e1.Sub(s1).Hours()
+	a1 := &Allocation{
+		Start:                  s1,
+		End:                    e1,
+		CPUCoreHours:           2.0 * hrs1,
+		CPUCoreRequestAverage:  2.0,
+		CPUCoreUsageAverage:    1.0,
+		CPUCost:                2.0 * hrs1 * cpuPrice,
+		GPUHours:               1.0 * hrs1,
+		GPUCost:                1.0 * hrs1 * gpuPrice,
+		PVByteHours:            100.0 * gib * hrs1,
+		PVCost:                 100.0 * hrs1 * pvPrice,
+		RAMByteHours:           8.0 * gib * hrs1,
+		RAMBytesRequestAverage: 8.0 * gib,
+		RAMBytesUsageAverage:   4.0 * gib,
+		RAMCost:                8.0 * hrs1 * ramPrice,
+		SharedCost:             2.00,
+		ExternalCost:           1.00,
+	}
+	a1b := a1.Clone()
+
+	s2 := time.Date(2021, time.January, 1, 6, 0, 0, 0, time.UTC)
+	e2 := time.Date(2021, time.January, 1, 24, 0, 0, 0, time.UTC)
+	hrs2 := e1.Sub(s1).Hours()
+	a2 := &Allocation{
+		Start:                  s2,
+		End:                    e2,
+		CPUCoreHours:           1.0 * hrs2,
+		CPUCoreRequestAverage:  1.0,
+		CPUCoreUsageAverage:    1.0,
+		CPUCost:                1.0 * hrs2 * cpuPrice,
+		GPUHours:               0.0,
+		GPUCost:                0.0,
+		PVByteHours:            0,
+		PVCost:                 0,
+		RAMByteHours:           8.0 * gib * hrs2,
+		RAMBytesRequestAverage: 0.0,
+		RAMBytesUsageAverage:   8.0 * gib,
+		RAMCost:                8.0 * hrs2 * ramPrice,
+		NetworkCost:            0.01,
+		SharedCost:             0.00,
+		ExternalCost:           1.00,
+	}
+	a2b := a2.Clone()
+
+	act, err := a1.Share(a2)
+	if err != nil {
+		t.Fatalf("Allocation.Share: unexpected error: %s", err)
+	}
+
+	// Neither Allocation should be mutated
+	if !a1.Equal(a1b) {
+		t.Fatalf("Allocation.Share: a1 illegally mutated")
+	}
+	if !a2.Equal(a2b) {
+		t.Fatalf("Allocation.Share: a1 illegally mutated")
+	}
+
+	// SharedCost and TotalCost should reflect increase by a2.TotalCost
+	if !util.IsApproximately(a1.TotalCost()+a2.TotalCost(), act.TotalCost()) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.TotalCost()+a2.TotalCost(), act.TotalCost())
+	}
+	if !util.IsApproximately(a1.SharedCost+a2.TotalCost(), act.SharedCost) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.SharedCost+a2.TotalCost(), act.SharedCost)
+	}
+
+	// Costs should match before (expect TotalCost and SharedCost)
+	if !util.IsApproximately(a1.CPUCost, act.CPUCost) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.CPUCost, act.CPUCost)
+	}
+	if !util.IsApproximately(a1.GPUCost, act.GPUCost) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.GPUCost, act.GPUCost)
+	}
+	if !util.IsApproximately(a1.RAMCost, act.RAMCost) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.RAMCost, act.RAMCost)
+	}
+	if !util.IsApproximately(a1.PVCost, act.PVCost) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.PVCost, act.PVCost)
+	}
+	if !util.IsApproximately(a1.NetworkCost, act.NetworkCost) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.NetworkCost, act.NetworkCost)
+	}
+	if !util.IsApproximately(a1.ExternalCost, act.ExternalCost) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.ExternalCost, act.ExternalCost)
+	}
+
+	// ResourceHours should match before
+	if !util.IsApproximately(a1.CPUCoreHours, act.CPUCoreHours) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.CPUCoreHours, act.CPUCoreHours)
+	}
+	if !util.IsApproximately(a1.RAMByteHours, act.RAMByteHours) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.RAMByteHours, act.RAMByteHours)
+	}
+	if !util.IsApproximately(a1.PVByteHours, act.PVByteHours) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.PVByteHours, act.PVByteHours)
+	}
+
+	// Minutes should match before
+	if !act.Start.Equal(a1.Start) || !act.End.Equal(a1.End) {
+		t.Fatalf("Allocation.Share: expected %s; actual %s", NewWindow(&a1.Start, &a1.End), NewWindow(&act.Start, &act.End))
+	}
+	if act.Minutes() != a1.Minutes() {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.Minutes(), act.Minutes())
+	}
+
+	// Requests and Usage should match before
+	if !util.IsApproximately(a1.CPUCoreRequestAverage, act.CPUCoreRequestAverage) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.CPUCoreRequestAverage, act.CPUCoreRequestAverage)
+	}
+	if !util.IsApproximately(a1.CPUCoreUsageAverage, act.CPUCoreUsageAverage) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.CPUCoreUsageAverage, act.CPUCoreUsageAverage)
+	}
+	if !util.IsApproximately(a1.RAMBytesRequestAverage, act.RAMBytesRequestAverage) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.RAMBytesRequestAverage, act.RAMBytesRequestAverage)
+	}
+	if !util.IsApproximately(a1.RAMBytesUsageAverage, act.RAMBytesUsageAverage) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.RAMBytesUsageAverage, act.RAMBytesUsageAverage)
+	}
+
+	// Efficiency should match before
+	if !util.IsApproximately(a1.CPUEfficiency(), act.CPUEfficiency()) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.CPUEfficiency(), act.CPUEfficiency())
+	}
+	if !util.IsApproximately(a1.RAMEfficiency(), act.RAMEfficiency()) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.RAMEfficiency(), act.RAMEfficiency())
+	}
+	if !util.IsApproximately(a1.TotalEfficiency(), act.TotalEfficiency()) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.TotalEfficiency(), act.TotalEfficiency())
+	}
 }
 
 func TestAllocation_MarshalJSON(t *testing.T) {

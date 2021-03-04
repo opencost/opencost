@@ -322,35 +322,20 @@ func (a *Allocation) Minutes() float64 {
 	return a.End.Sub(a.Start).Minutes()
 }
 
-// Share works like Add, but converts the entire cost of the given Allocation
-// to SharedCost, rather than adding to the individual resource costs.
-// TODO:TEST
+// Share adds the TotalCost of the given Allocation to the SharedCost of the
+// receiving Allocation. No Start, End, Window, or Properties are considered.
+// Neither Allocation is mutated; a new Allocation is always returned.
 func (a *Allocation) Share(that *Allocation) (*Allocation, error) {
 	if that == nil {
 		return a.Clone(), nil
 	}
 
-	// Convert all costs of shared Allocation to SharedCost, zero out all
-	// non-shared costs, then add.
-	share := that.Clone()
-	share.SharedCost += share.TotalCost()
-	share.CPUCost = 0
-	share.CPUCoreHours = 0
-	share.RAMCost = 0
-	share.RAMByteHours = 0
-	share.GPUCost = 0
-	share.GPUHours = 0
-	share.PVCost = 0
-	share.PVByteHours = 0
-	share.NetworkCost = 0
-	share.ExternalCost = 0
-
 	if a == nil {
-		return share, nil
+		return nil, fmt.Errorf("cannot share with nil Allocation")
 	}
 
 	agg := a.Clone()
-	agg.add(that)
+	agg.SharedCost += that.TotalCost()
 
 	return agg, nil
 }
