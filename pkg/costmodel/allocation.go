@@ -512,6 +512,22 @@ func applyPodResults(window kubecost.Window, resolution time.Duration, podMap ma
 		allocStart = allocStart.Add(time.Duration(startAdjustmentCoeff) * resolution)
 		allocEnd = allocEnd.Add(-time.Duration(endAdjustmentCoeff) * resolution)
 
+		// If there is only one point with a value <= 0.5 that the start and
+		// end timestamps both share, then we will enter this case because at
+		// least half of a resolution will be subtracted from both the start
+		// and the end. If that is the case, then add back half of each side
+		// so that the pod is said to run for half a resolution total.
+		// e.g. For resolution 1m and a value of 0.5 at one timestamp, we'll
+		//      end up with allocEnd == allocStart and each coeff == 0.5. In
+		//      that case, add 0.25m to each side, resulting in 0.5m duration.
+		if !allocEnd.After(allocStart) && startAdjustmentCoeff == endAdjustmentCoeff {
+			allocStart.Add(-time.Duration(0.5*startAdjustmentCoeff) * resolution)
+			allocEnd.Add(time.Duration(0.5*endAdjustmentCoeff) * resolution)
+
+			// TODO niko/computeallocation remove log
+			log.Infof("CostModel.ComputeAllocation: adjusted empty duration for %s to %s", key, allocEnd.Sub(allocStart))
+		}
+
 		// Set start if unset or this datum's start time is earlier than the
 		// current earliest time.
 		if _, ok := clusterStart[cluster]; !ok || allocStart.Before(clusterStart[cluster]) {

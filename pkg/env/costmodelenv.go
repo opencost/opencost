@@ -345,7 +345,7 @@ func IsETLEnabled() bool {
 // a 6h query is expected to complete in 1m, then 6h could be a good value.
 func GetETLMaxBatchDuration() time.Duration {
 	// Default to 6h
-	hrs := time.Duration(env.GetInt64(ETLMaxBatchHours, 6))
+	hrs := time.Duration(GetInt64(ETLMaxBatchHours, 6))
 	return hrs * time.Hour
 }
 
