@@ -124,7 +124,9 @@ func (a *Allocation) Clone() *Allocation {
 }
 
 // Equal returns true if the values held in the given Allocation precisely
-// match those of the receiving Allocation. nil does not match nil.
+// match those of the receiving Allocation. nil does not match nil. Floating
+// point values need to match according to util.IsApproximately, which accounts
+// for small, reasonable floating point error margins.
 func (a *Allocation) Equal(that *Allocation) bool {
 	if a == nil || that == nil {
 		return false
