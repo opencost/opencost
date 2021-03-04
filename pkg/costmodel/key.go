@@ -27,6 +27,12 @@ func newContainerKey(cluster, namespace, pod, container string) containerKey {
 	}
 }
 
+// resultContainerKey converts a Prometheus query result to a containerKey by
+// looking up values associated with the given label names. For example,
+// passing "cluster_id" for clusterLabel will use the value of the label
+// "cluster_id" as the containerKey's Cluster field. If a given field does not
+// exist on the result, an error is returned. (The only exception to that is
+// clusterLabel, which we expect may not exist, but has a default value.)
 func resultContainerKey(res *prom.QueryResult, clusterLabel, namespaceLabel, podLabel, containerLabel string) (containerKey, error) {
 	key := containerKey{}
 
@@ -75,6 +81,12 @@ func newPodKey(cluster, namespace, pod string) podKey {
 	}
 }
 
+// resultPodKey converts a Prometheus query result to a podKey by looking
+// up values associated with the given label names. For example, passing
+// "cluster_id" for clusterLabel will use the value of the label "cluster_id"
+// as the podKey's Cluster field. If a given field does not exist on the
+// result, an error is returned. (The only exception to that is clusterLabel,
+// which we expect may not exist, but has a default value.)
 func resultPodKey(res *prom.QueryResult, clusterLabel, namespaceLabel, podLabel string) (podKey, error) {
 	key := podKey{}
 
@@ -115,6 +127,12 @@ func newNamespaceKey(cluster, namespace string) namespaceKey {
 	}
 }
 
+// resultNamespaceKey converts a Prometheus query result to a namespaceKey by
+// looking up values associated with the given label names. For example,
+// passing "cluster_id" for clusterLabel will use the value of the label
+// "cluster_id" as the namespaceKey's Cluster field. If a given field does not
+// exist on the result, an error is returned. (The only exception to that is
+// clusterLabel, which we expect may not exist, but has a default value.)
 func resultNamespaceKey(res *prom.QueryResult, clusterLabel, namespaceLabel string) (namespaceKey, error) {
 	key := namespaceKey{}
 
@@ -153,6 +171,12 @@ func newControllerKey(cluster, namespace, controllerKind, controller string) con
 	}
 }
 
+// resultControllerKey converts a Prometheus query result to a controllerKey by
+// looking up values associated with the given label names. For example,
+// passing "cluster_id" for clusterLabel will use the value of the label
+// "cluster_id" as the controllerKey's Cluster field. If a given field does not
+// exist on the result, an error is returned. (The only exception to that is
+// clusterLabel, which we expect may not exist, but has a default value.)
 func resultControllerKey(controllerKind string, res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
 	key := controllerKey{}
 
@@ -179,18 +203,26 @@ func resultControllerKey(controllerKind string, res *prom.QueryResult, clusterLa
 	return key, nil
 }
 
+// resultDeploymentKey creates a controllerKey for a Deployment.
+// (See resultControllerKey for more.)
 func resultDeploymentKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
 	return resultControllerKey("deployment", res, clusterLabel, namespaceLabel, controllerLabel)
 }
 
+// resultDeploymentKey creates a controllerKey for a StatefulSet.
+// (See resultControllerKey for more.)
 func resultStatefulSetKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
 	return resultControllerKey("statefulset", res, clusterLabel, namespaceLabel, controllerLabel)
 }
 
+// resultDeploymentKey creates a controllerKey for a DaemonSet.
+// (See resultControllerKey for more.)
 func resultDaemonSetKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
 	return resultControllerKey("daemonset", res, clusterLabel, namespaceLabel, controllerLabel)
 }
 
+// resultDeploymentKey creates a controllerKey for a Job.
+// (See resultControllerKey for more.)
 func resultJobKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
 	return resultControllerKey("job", res, clusterLabel, namespaceLabel, controllerLabel)
 }
@@ -213,6 +245,12 @@ func newServiceKey(cluster, namespace, service string) serviceKey {
 	}
 }
 
+// resultServiceKey converts a Prometheus query result to a serviceKey by
+// looking up values associated with the given label names. For example,
+// passing "cluster_id" for clusterLabel will use the value of the label
+// "cluster_id" as the serviceKey's Cluster field. If a given field does not
+// exist on the result, an error is returned. (The only exception to that is
+// clusterLabel, which we expect may not exist, but has a default value.)
 func resultServiceKey(res *prom.QueryResult, clusterLabel, namespaceLabel, serviceLabel string) (serviceKey, error) {
 	key := serviceKey{}
 
@@ -253,6 +291,12 @@ func newNodeKey(cluster, node string) nodeKey {
 	}
 }
 
+// resultNodeKey converts a Prometheus query result to a nodeKey by
+// looking up values associated with the given label names. For example,
+// passing "cluster_id" for clusterLabel will use the value of the label
+// "cluster_id" as the nodeKey's Cluster field. If a given field does not
+// exist on the result, an error is returned. (The only exception to that is
+// clusterLabel, which we expect may not exist, but has a default value.)
 func resultNodeKey(res *prom.QueryResult, clusterLabel, nodeLabel string) (nodeKey, error) {
 	key := nodeKey{}
 
@@ -289,6 +333,12 @@ func newPVCKey(cluster, namespace, persistentVolumeClaim string) pvcKey {
 	}
 }
 
+// resultPVCKey converts a Prometheus query result to a pvcKey by
+// looking up values associated with the given label names. For example,
+// passing "cluster_id" for clusterLabel will use the value of the label
+// "cluster_id" as the pvcKey's Cluster field. If a given field does not
+// exist on the result, an error is returned. (The only exception to that is
+// clusterLabel, which we expect may not exist, but has a default value.)
 func resultPVCKey(res *prom.QueryResult, clusterLabel, namespaceLabel, pvcLabel string) (pvcKey, error) {
 	key := pvcKey{}
 
@@ -329,6 +379,12 @@ func newPVKey(cluster, persistentVolume string) pvKey {
 	}
 }
 
+// resultPVKey converts a Prometheus query result to a pvKey by
+// looking up values associated with the given label names. For example,
+// passing "cluster_id" for clusterLabel will use the value of the label
+// "cluster_id" as the pvKey's Cluster field. If a given field does not
+// exist on the result, an error is returned. (The only exception to that is
+// clusterLabel, which we expect may not exist, but has a default value.)
 func resultPVKey(res *prom.QueryResult, clusterLabel, persistentVolumeLabel string) (pvKey, error) {
 	key := pvKey{}
 
