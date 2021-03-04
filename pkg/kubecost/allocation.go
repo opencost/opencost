@@ -47,7 +47,6 @@ const ShareNone = "__none__"
 // Allocation is a unit of resource allocation and cost for a given window
 // of time and for a given kubernetes construct with its associated set of
 // properties.
-// TODO:CLEANUP make TotalCost a function
 type Allocation struct {
 	Name                   string     `json:"name"`
 	Properties             Properties `json:"properties,omitempty"`
@@ -324,7 +323,7 @@ func (a *Allocation) Minutes() float64 {
 
 // Share works like Add, but converts the entire cost of the given Allocation
 // to SharedCost, rather than adding to the individual resource costs.
-// TODO unit test
+// TODO:TEST
 func (a *Allocation) Share(that *Allocation) (*Allocation, error) {
 	if that == nil {
 		return a.Clone(), nil
@@ -414,7 +413,7 @@ func (a *Allocation) add(that *Allocation) {
 	}
 
 	// Convert cumulatuve request and usage back into rates
-	// TODO:CLEANUP write a unit test that fails if this is done incorrectly
+	// TODO:TEST write a unit test that fails if this is done incorrectly
 	a.CPUCoreRequestAverage = cpuReqCoreMins / a.Minutes()
 	a.CPUCoreUsageAverage = cpuUseCoreMins / a.Minutes()
 	a.RAMBytesRequestAverage = ramReqByteMins / a.Minutes()
@@ -506,9 +505,6 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 	//    the given properties) then aggregate; otherwise... ignore them?
 	// 9. If the merge idle option is enabled, merge any remaining idle
 	//    allocations into a single idle allocation
-
-	// TODO niko/etl revisit (ShareIdle: ShareEven) case, which is probably wrong
-	// (and, frankly, ill-defined; i.e. evenly across clusters? within clusters?)
 
 	if options == nil {
 		options = &AllocationAggregationOptions{}
@@ -864,7 +860,6 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 	return nil
 }
 
-// TODO niko/etl deprecate the use of a map of resources here, we only use totals
 func computeShareCoeffs(properties Properties, options *AllocationAggregationOptions, as *AllocationSet) (map[string]float64, error) {
 	// Compute coeffs by totalling per-allocation, then dividing by the total.
 	coeffs := map[string]float64{}
@@ -1080,7 +1075,6 @@ func (a *Allocation) generateKey(properties Properties) (string, error) {
 			// Indicate that allocation has no services
 			names = append(names, UnallocatedSuffix)
 		} else {
-			// TODO niko/etl support multi-service aggregation
 			if len(services) > 0 {
 				for _, service := range services {
 					names = append(names, service)
@@ -1168,7 +1162,7 @@ func (a *Allocation) generateKey(properties Properties) (string, error) {
 	return strings.Join(names, "/"), nil
 }
 
-// TODO clean up
+// TODO:CLEANUP get rid of this
 // Helper function to check for slice membership. Not sure if repeated elsewhere in our codebase.
 func indexOf(v string, arr []string) int {
 	for i, s := range arr {
