@@ -85,10 +85,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	clusterStart := map[string]time.Time{}
 	clusterEnd := map[string]time.Time{}
 
-	// TODO niko/computeallocation make this configurable?
-	batchSize := 6 * time.Hour
-
-	cm.buildPodMap(window, resolution, batchSize, podMap, clusterStart, clusterEnd)
+	cm.buildPodMap(window, resolution, env.GetETLMaxBatchDuration(), podMap, clusterStart, clusterEnd)
 
 	// (2) Run and apply remaining queries
 
@@ -424,12 +421,8 @@ func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSiz
 			queryProfile := time.Now()
 			resPods, err = ctx.Query(queryPods).Await()
 			if err != nil {
-				// TODO niko/computeallocation remove log
-				log.Profile(queryProfile, fmt.Sprintf("CostModel.ComputeAllocation: pod query batch %d try %d failed: %s", numQuery, numTries, queryPods))
+				log.Profile(queryProfile, fmt.Sprintf("CostModel.ComputeAllocation: pod query %d try %d failed: %s", numQuery, numTries, queryPods))
 				resPods = nil
-			} else {
-				// TODO niko/computeallocation remove log
-				log.Profile(queryProfile, fmt.Sprintf("CostModel.ComputeAllocation: pod query batch %d try %d succeeded: %s", numQuery, numTries, queryPods))
 			}
 		}
 
@@ -787,9 +780,6 @@ func applyGPUsRequested(podMap map[podKey]*Pod, resGPUsRequested []*prom.QueryRe
 		if _, ok := pod.Allocations[container]; !ok {
 			pod.AppendContainer(container)
 		}
-
-		// TODO niko/computeallocation remove log
-		log.Infof("CostModel.ComputeAllocation: GPU results: %s=%f", key, res.Values[0].Value)
 
 		hrs := pod.Allocations[container].Minutes() / 60.0
 		pod.Allocations[container].GPUHours = res.Values[0].Value * hrs
@@ -1723,7 +1713,8 @@ type NodePricing struct {
 	Source          string
 }
 
-// TODO niko/computealloction comment
+// Pod describes a running pod's start and end time within a Window and
+// all the Allocations (i.e. containers) contained within it.
 type Pod struct {
 	Window      kubecost.Window
 	Start       time.Time
@@ -1732,7 +1723,7 @@ type Pod struct {
 	Allocations map[string]*kubecost.Allocation
 }
 
-// TODO niko/computealloction comment
+// AppendContainer adds an entry for the given container name to the Pod.
 func (p Pod) AppendContainer(container string) {
 	name := fmt.Sprintf("%s/%s/%s/%s", p.Key.Cluster, p.Key.Namespace, p.Key.Pod, container)
 

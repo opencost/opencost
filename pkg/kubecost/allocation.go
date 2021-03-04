@@ -414,7 +414,7 @@ func (a *Allocation) add(that *Allocation) {
 	}
 
 	// Convert cumulatuve request and usage back into rates
-	// TODO write a unit test that fails if this is done incorrectly
+	// TODO:CLEANUP write a unit test that fails if this is done incorrectly
 	a.CPUCoreRequestAverage = cpuReqCoreMins / a.Minutes()
 	a.CPUCoreUsageAverage = cpuUseCoreMins / a.Minutes()
 	a.RAMBytesRequestAverage = ramReqByteMins / a.Minutes()
