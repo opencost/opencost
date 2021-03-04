@@ -62,9 +62,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	// Create a window spanning the requested query
 	window := kubecost.NewWindow(&start, &end)
 
-	// TODO niko/computeallocation remove log
-	defer log.Profile(time.Now(), fmt.Sprintf("CostModel.ComputeAllocation: completed %s", window))
-
 	// Create an empty AllocationSet. For safety, in the case of an error, we
 	// should prefer to return this empty set with the error. (In the case of
 	// no error, of course we populate the set and return it.)
