@@ -101,7 +101,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	resStr := util.DurationString(resolution)
 
 	ctx := prom.NewContext(cm.PrometheusClient)
-	startQuerying := time.Now()
 
 	queryRAMBytesAllocated := fmt.Sprintf(queryFmtRAMBytesAllocated, durStr, offStr)
 	resChRAMBytesAllocated := ctx.Query(queryRAMBytesAllocated)
@@ -233,8 +232,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	resDaemonSetLabels, _ := resChDaemonSetLabels.Await()
 	resJobLabels, _ := resChJobLabels.Await()
 
-	log.Profile(startQuerying, "CostModel.ComputeAllocation: queries complete")
-
 	if ctx.HasErrors() {
 		for _, err := range ctx.Errors() {
 			log.Errorf("CostModel.ComputeAllocation: %s", err)
@@ -242,8 +239,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 
 		return allocSet, ctx.ErrorCollection()
 	}
-
-	defer log.Profile(time.Now(), "CostModel.ComputeAllocation: processing complete")
 
 	applyCPUCoresAllocated(podMap, resCPUCoresAllocated)
 	applyCPUCoresRequested(podMap, resCPURequests)
@@ -379,7 +374,6 @@ func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSiz
 	resStr := util.DurationString(resolution)
 
 	ctx := prom.NewContext(cm.PrometheusClient)
-	profile := time.Now()
 
 	// Query for (start, end) by (pod, namespace, cluster) over the given
 	// window, using the given resolution, and if necessary in batches no
@@ -435,8 +429,6 @@ func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSiz
 		coverage = coverage.ExpandEnd(batchEnd)
 		numQuery++
 	}
-
-	log.Profile(profile, "CostModel.ComputeAllocation: pod map built")
 
 	return nil
 }
