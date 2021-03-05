@@ -555,7 +555,7 @@ func applyCPUCoresAllocated(podMap map[podKey]*Pod, resCPUCoresAllocated []*prom
 
 		pod, ok := podMap[key]
 		if !ok {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU allocation result for unidentified pod: %s", key)
+			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU allocation result for unidentified pod: %s", key)
 			continue
 		}
 
@@ -592,7 +592,7 @@ func applyCPUCoresRequested(podMap map[podKey]*Pod, resCPUCoresRequested []*prom
 
 		pod, ok := podMap[key]
 		if !ok {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU request result for unidentified pod: %s", key)
+			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU request result for unidentified pod: %s", key)
 			continue
 		}
 
@@ -633,7 +633,7 @@ func applyCPUCoresUsed(podMap map[podKey]*Pod, resCPUCoresUsed []*prom.QueryResu
 
 		pod, ok := podMap[key]
 		if !ok {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage result for unidentified pod: %s", key)
+			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage result for unidentified pod: %s", key)
 			continue
 		}
 
@@ -661,7 +661,7 @@ func applyRAMBytesAllocated(podMap map[podKey]*Pod, resRAMBytesAllocated []*prom
 
 		pod, ok := podMap[key]
 		if !ok {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM allocation result for unidentified pod: %s", key)
+			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM allocation result for unidentified pod: %s", key)
 			continue
 		}
 
@@ -698,7 +698,7 @@ func applyRAMBytesRequested(podMap map[podKey]*Pod, resRAMBytesRequested []*prom
 
 		pod, ok := podMap[key]
 		if !ok {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM request result for unidentified pod: %s", key)
+			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM request result for unidentified pod: %s", key)
 			continue
 		}
 
@@ -739,7 +739,7 @@ func applyRAMBytesUsed(podMap map[podKey]*Pod, resRAMBytesUsed []*prom.QueryResu
 
 		pod, ok := podMap[key]
 		if !ok {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage result for unidentified pod: %s", key)
+			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage result for unidentified pod: %s", key)
 			continue
 		}
 
@@ -767,7 +767,7 @@ func applyGPUsRequested(podMap map[podKey]*Pod, resGPUsRequested []*prom.QueryRe
 
 		pod, ok := podMap[key]
 		if !ok {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU request result for unidentified pod: %s", key)
+			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU request result for unidentified pod: %s", key)
 			continue
 		}
 
@@ -807,7 +807,7 @@ func applyNetworkAllocation(podMap map[podKey]*Pod, resNetworkGiB []*prom.QueryR
 
 		pod, ok := podMap[podKey]
 		if !ok {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: Network allocation query result for unidentified pod: %s", podKey)
+			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: Network allocation query result for unidentified pod: %s", podKey)
 			continue
 		}
 
@@ -1376,7 +1376,7 @@ func buildPVCMap(window kubecost.Window, pvcMap map[pvcKey]*PVC, pvMap map[pvKey
 
 		values, err := res.GetStrings("persistentvolumeclaim", "storageclass", "volumename", "namespace")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: PVC info query result missing field: %s", err)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: PVC info query result missing field: %s", err)
 			continue
 		}
 
@@ -1409,7 +1409,7 @@ func buildPVCMap(window kubecost.Window, pvcMap map[pvcKey]*PVC, pvMap map[pvKey
 		pvcStart = pvcStart.Add(-time.Minute)
 
 		if _, ok := pvMap[pvKey]; !ok {
-			log.Warningf("CostModel.ComputeAllocation: PV missing for PVC info query result: %s", pvKey)
+			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: PV missing for PVC info query result: %s", pvKey)
 			continue
 		}
 
@@ -1431,12 +1431,12 @@ func applyPVCBytesRequested(pvcMap map[pvcKey]*PVC, resPVCBytesRequested []*prom
 	for _, res := range resPVCBytesRequested {
 		key, err := resultPVCKey(res, "cluster_id", "namespace", "persistentvolumeclaim")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: PVC bytes requested query result missing field: %s", err)
+			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: PVC bytes requested query result missing field: %s", err)
 			continue
 		}
 
 		if _, ok := pvcMap[key]; !ok {
-			log.Warningf("CostModel.ComputeAllocation: PVC bytes requested result for missing PVC: %s", key)
+			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: PVC bytes requested result for missing PVC: %s", key)
 			continue
 		}
 
@@ -1615,6 +1615,8 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*NodePricing, nodeKey no
 		return cm.getCustomNodePricing(node.Preemptible)
 	}
 
+	node.Source = "prometheus"
+
 	// If any of the values are NaN or zero, replace them with the custom
 	// values as default.
 	// TODO:CLEANUP can't we parse these custom prices once? why do we store
@@ -1631,6 +1633,7 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*NodePricing, nodeKey no
 			log.Warningf("CostModel: custom pricing has illegal CPU cost: %s", cpuCostStr)
 		}
 		node.CostPerCPUHr = costPerCPUHr
+		node.Source += "/customCPU"
 	}
 
 	if math.IsNaN(node.CostPerGPUHr) {
@@ -1644,6 +1647,7 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*NodePricing, nodeKey no
 			log.Warningf("CostModel: custom pricing has illegal GPU cost: %s", gpuCostStr)
 		}
 		node.CostPerGPUHr = costPerGPUHr
+		node.Source += "/customGPU"
 	}
 
 	if node.CostPerRAMGiBHr == 0 || math.IsNaN(node.CostPerRAMGiBHr) {
@@ -1657,6 +1661,7 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*NodePricing, nodeKey no
 			log.Warningf("CostModel: custom pricing has illegal RAM cost: %s", ramCostStr)
 		}
 		node.CostPerRAMGiBHr = costPerRAMHr
+		node.Source += "/customRAM"
 	}
 
 	return node
@@ -1679,7 +1684,7 @@ func (cm *CostModel) getCustomNodePricing(spot bool) *NodePricing {
 		ramCostStr = customPricingConfig.SpotRAM
 	}
 
-	node := &NodePricing{}
+	node := &NodePricing{Source: "custom"}
 
 	costPerCPUHr, err := strconv.ParseFloat(cpuCostStr, 64)
 	if err != nil {
@@ -1702,6 +1707,8 @@ func (cm *CostModel) getCustomNodePricing(spot bool) *NodePricing {
 	return node
 }
 
+// NodePricing describes the resource costs associated with a given node, as
+// well as the source of the information (e.g. prometheus, custom)
 type NodePricing struct {
 	Name            string
 	NodeType        string
