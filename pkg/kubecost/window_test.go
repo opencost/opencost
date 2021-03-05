@@ -2,8 +2,11 @@ package kubecost
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/kubecost/cost-model/pkg/env"
 )
 
 func TestRoundBack(t *testing.T) {
@@ -211,7 +214,7 @@ func TestParseWindowUTC(t *testing.T) {
 		t.Fatalf(`expect: window "month" to end before now; actual: %s ends after %s`, month, time.Now().UTC())
 	}
 
-	// TODO niko/etl lastweek
+	// TODO lastweek
 
 	lastmonth, err := ParseWindowUTC("lastmonth")
 	monthMinHours := float64(24 * 28)
@@ -542,30 +545,6 @@ func TestParseWindowWithOffsetString(t *testing.T) {
 
 }
 
-// TODO niko/etl
-// func TestWindow_Contains(t *testing.T) {}
-
-// TODO niko/etl
-// func TestWindow_Duration(t *testing.T) {}
-
-// TODO niko/etl
-// func TestWindow_End(t *testing.T) {}
-
-// TODO niko/etl
-// func TestWindow_Equal(t *testing.T) {}
-
-// TODO niko/etl
-// func TestWindow_ExpandStart(t *testing.T) {}
-
-// TODO niko/etl
-// func TestWindow_ExpandEnd(t *testing.T) {}
-
-// TODO niko/etl
-// func TestWindow_Start(t *testing.T) {}
-
-// TODO niko/etl
-// func TestWindow_String(t *testing.T) {}
-
 func TestWindow_DurationOffsetStrings(t *testing.T) {
 	w, err := ParseWindowUTC("1d")
 	if err != nil {
@@ -624,3 +603,171 @@ func TestWindow_DurationOffsetStrings(t *testing.T) {
 		t.Fatalf(`expect: window to be "1d"; actual: "%s"`, dur)
 	}
 }
+
+func TestWindow_DurationOffsetForPrometheus(t *testing.T) {
+	// Set-up and tear-down
+	thanosEnabled := env.GetBool(env.ThanosEnabledEnvVar, false)
+	defer env.SetBool(env.ThanosEnabledEnvVar, thanosEnabled)
+
+	// Test for Prometheus (env.IsThanosEnabled() == false)
+	env.SetBool(env.ThanosEnabledEnvVar, false)
+	if env.IsThanosEnabled() {
+		t.Fatalf("expected env.IsThanosEnabled() == false")
+	}
+
+	w, err := ParseWindowUTC("1d")
+	if err != nil {
+		t.Fatalf(`unexpected error parsing "1d": %s`, err)
+	}
+	dur, off, err := w.DurationOffsetForPrometheus()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if dur != "1d" {
+		t.Fatalf(`expect: window to be "1d"; actual: "%s"`, dur)
+	}
+	if off != "" {
+		t.Fatalf(`expect: offset to be ""; actual: "%s"`, off)
+	}
+
+	w, err = ParseWindowUTC("2h")
+	if err != nil {
+		t.Fatalf(`unexpected error parsing "2h": %s`, err)
+	}
+	dur, off, err = w.DurationOffsetForPrometheus()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if dur != "2h" {
+		t.Fatalf(`expect: window to be "2h"; actual: "%s"`, dur)
+	}
+	if off != "" {
+		t.Fatalf(`expect: offset to be ""; actual: "%s"`, off)
+	}
+
+	w, err = ParseWindowUTC("10m")
+	if err != nil {
+		t.Fatalf(`unexpected error parsing "10m": %s`, err)
+	}
+	dur, off, err = w.DurationOffsetForPrometheus()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if dur != "10m" {
+		t.Fatalf(`expect: window to be "10m"; actual: "%s"`, dur)
+	}
+	if off != "" {
+		t.Fatalf(`expect: offset to be ""; actual: "%s"`, off)
+	}
+
+	w, err = ParseWindowUTC("1589448338,1589534798")
+	if err != nil {
+		t.Fatalf(`unexpected error parsing "1589448338,1589534798": %s`, err)
+	}
+	dur, off, err = w.DurationOffsetForPrometheus()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if dur != "1441m" {
+		t.Fatalf(`expect: window to be "1441m"; actual: "%s"`, dur)
+	}
+	if !strings.HasPrefix(off, " offset ") {
+		t.Fatalf(`expect: offset to start with " offset "; actual: "%s"`, off)
+	}
+
+	w, err = ParseWindowUTC("yesterday")
+	if err != nil {
+		t.Fatalf(`unexpected error parsing "yesterday": %s`, err)
+	}
+	dur, off, err = w.DurationOffsetForPrometheus()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if dur != "1d" {
+		t.Fatalf(`expect: window to be "1d"; actual: "%s"`, dur)
+	}
+	if !strings.HasPrefix(off, " offset ") {
+		t.Fatalf(`expect: offset to start with " offset "; actual: "%s"`, off)
+	}
+
+	// Test for Thanos (env.IsThanosEnabled() == true)
+	env.SetBool(env.ThanosEnabledEnvVar, true)
+	if !env.IsThanosEnabled() {
+		t.Fatalf("expected env.IsThanosEnabled() == true")
+	}
+
+	w, err = ParseWindowUTC("1d")
+	if err != nil {
+		t.Fatalf(`unexpected error parsing "1d": %s`, err)
+	}
+	dur, off, err = w.DurationOffsetForPrometheus()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if dur != "21h" {
+		t.Fatalf(`expect: window to be "21d"; actual: "%s"`, dur)
+	}
+	if off != " offset 3h" {
+		t.Fatalf(`expect: offset to be " offset 3h"; actual: "%s"`, off)
+	}
+
+	w, err = ParseWindowUTC("2h")
+	if err != nil {
+		t.Fatalf(`unexpected error parsing "2h": %s`, err)
+	}
+	dur, off, err = w.DurationOffsetForPrometheus()
+	if err == nil {
+		t.Fatalf(`expected error (negative duration); got ("%s", "%s")`, dur, off)
+	}
+
+	w, err = ParseWindowUTC("10m")
+	if err != nil {
+		t.Fatalf(`unexpected error parsing "1d": %s`, err)
+	}
+	dur, off, err = w.DurationOffsetForPrometheus()
+	if err == nil {
+		t.Fatalf(`expected error (negative duration); got ("%s", "%s")`, dur, off)
+	}
+
+	w, err = ParseWindowUTC("1589448338,1589534798")
+	if err != nil {
+		t.Fatalf(`unexpected error parsing "1589448338,1589534798": %s`, err)
+	}
+	dur, off, err = w.DurationOffsetForPrometheus()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if dur != "1441m" {
+		t.Fatalf(`expect: window to be "1441m"; actual: "%s"`, dur)
+	}
+	if !strings.HasPrefix(off, " offset ") {
+		t.Fatalf(`expect: offset to start with " offset "; actual: "%s"`, off)
+	}
+}
+
+// TODO
+// func TestWindow_Overlaps(t *testing.T) {}
+
+// TODO
+// func TestWindow_Contains(t *testing.T) {}
+
+// TODO
+// func TestWindow_Duration(t *testing.T) {}
+
+// TODO
+// func TestWindow_End(t *testing.T) {}
+
+// TODO
+// func TestWindow_Equal(t *testing.T) {}
+
+// TODO
+// func TestWindow_ExpandStart(t *testing.T) {}
+
+// TODO
+// func TestWindow_ExpandEnd(t *testing.T) {}
+
+// TODO
+// func TestWindow_Start(t *testing.T) {}
+
+// TODO
+// func TestWindow_String(t *testing.T) {}

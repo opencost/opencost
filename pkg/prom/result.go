@@ -224,10 +224,31 @@ func (qr *QueryResult) GetString(field string) (string, error) {
 
 	strField, ok := f.(string)
 	if !ok {
-		return "", fmt.Errorf("'%s' field is improperly formatted", field)
+		return "", fmt.Errorf("'%s' field is improperly formatted and cannot be converted to string", field)
 	}
 
 	return strField, nil
+}
+
+// GetStrings returns the requested fields, or an error if it does not exist
+func (qr *QueryResult) GetStrings(fields ...string) (map[string]string, error) {
+	values := map[string]string{}
+
+	for _, field := range fields {
+		f, ok := qr.Metric[field]
+		if !ok {
+			return nil, fmt.Errorf("'%s' field does not exist in data result vector", field)
+		}
+
+		value, ok := f.(string)
+		if !ok {
+			return nil, fmt.Errorf("'%s' field is improperly formatted and cannot be converted to string", field)
+		}
+
+		values[field] = value
+	}
+
+	return values, nil
 }
 
 // GetLabels returns all labels and their values from the query result

@@ -1,6 +1,7 @@
 package kubecost
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/cost-model/pkg/util"
 )
 
 // TODO Clean-up use of IsEmpty; nil checks should be separated for safety.
@@ -28,6 +30,9 @@ const SharedSuffix = "__shared__"
 // UnallocatedSuffix indicates an unallocated allocation property
 const UnallocatedSuffix = "__unallocated__"
 
+// UnmountedSuffix indicated allocation to an unmounted PV
+const UnmountedSuffix = "__unmounted__"
+
 // ShareWeighted indicates that a shared resource should be shared as a
 // proportion of the cost of the remaining allocations.
 const ShareWeighted = "__weighted__"
@@ -42,28 +47,29 @@ const ShareNone = "__none__"
 // Allocation is a unit of resource allocation and cost for a given window
 // of time and for a given kubernetes construct with its associated set of
 // properties.
+// TODO:CLEANUP consider dropping name in favor of just Properties and an
+// Assets-style key() function for AllocationSet.
 type Allocation struct {
-	Name            string     `json:"name"`
-	Properties      Properties `json:"properties,omitempty"`
-	Start           time.Time  `json:"start"`
-	End             time.Time  `json:"end"`
-	Minutes         float64    `json:"minutes"`
-	ActiveStart     time.Time  `json:"-"`
-	CPUCoreHours    float64    `json:"cpuCoreHours"`
-	CPUCost         float64    `json:"cpuCost"`
-	CPUEfficiency   float64    `json:"cpuEfficiency"`
-	GPUHours        float64    `json:"gpuHours"`
-	GPUCost         float64    `json:"gpuCost"`
-	NetworkCost     float64    `json:"networkCost"`
-	PVByteHours     float64    `json:"pvByteHours"`
-	PVCost          float64    `json:"pvCost"`
-	RAMByteHours    float64    `json:"ramByteHours"`
-	RAMCost         float64    `json:"ramCost"`
-	RAMEfficiency   float64    `json:"ramEfficiency"`
-	SharedCost      float64    `json:"sharedCost"`
-	ExternalCost    float64    `json:"externalCost"`
-	TotalCost       float64    `json:"totalCost"`
-	TotalEfficiency float64    `json:"totalEfficiency"`
+	Name                   string     `json:"name"`
+	Properties             Properties `json:"properties,omitempty"`
+	Window                 Window     `json:"window"`
+	Start                  time.Time  `json:"start"`
+	End                    time.Time  `json:"end"`
+	CPUCoreHours           float64    `json:"cpuCoreHours"`
+	CPUCoreRequestAverage  float64    `json:"cpuCoreRequestAverage"`
+	CPUCoreUsageAverage    float64    `json:"cpuCoreUsageAverage"`
+	CPUCost                float64    `json:"cpuCost"`
+	GPUHours               float64    `json:"gpuHours"`
+	GPUCost                float64    `json:"gpuCost"`
+	NetworkCost            float64    `json:"networkCost"`
+	PVByteHours            float64    `json:"pvByteHours"`
+	PVCost                 float64    `json:"pvCost"`
+	RAMByteHours           float64    `json:"ramByteHours"`
+	RAMBytesRequestAverage float64    `json:"ramByteRequestAverage"`
+	RAMBytesUsageAverage   float64    `json:"ramByteUsageAverage"`
+	RAMCost                float64    `json:"ramCost"`
+	SharedCost             float64    `json:"sharedCost"`
+	ExternalCost           float64    `json:"externalCost"`
 }
 
 // AllocationMatchFunc is a function that can be used to match Allocations by
@@ -78,12 +84,13 @@ func (a *Allocation) Add(that *Allocation) (*Allocation, error) {
 		return that.Clone(), nil
 	}
 
-	if !a.Start.Equal(that.Start) || !a.End.Equal(that.End) {
-		return nil, fmt.Errorf("error adding Allocations: mismatched windows")
+	if that == nil {
+		return a.Clone(), nil
 	}
 
+	// Note: no need to clone "that", as add only mutates the receiver
 	agg := a.Clone()
-	agg.add(that, false, false)
+	agg.add(that)
 
 	return agg, nil
 }
@@ -95,32 +102,33 @@ func (a *Allocation) Clone() *Allocation {
 	}
 
 	return &Allocation{
-		Name:            a.Name,
-		Properties:      a.Properties.Clone(),
-		Start:           a.Start,
-		End:             a.End,
-		Minutes:         a.Minutes,
-		ActiveStart:     a.ActiveStart,
-		CPUCoreHours:    a.CPUCoreHours,
-		CPUCost:         a.CPUCost,
-		CPUEfficiency:   a.CPUEfficiency,
-		GPUHours:        a.GPUHours,
-		GPUCost:         a.GPUCost,
-		NetworkCost:     a.NetworkCost,
-		PVByteHours:     a.PVByteHours,
-		PVCost:          a.PVCost,
-		RAMByteHours:    a.RAMByteHours,
-		RAMCost:         a.RAMCost,
-		RAMEfficiency:   a.RAMEfficiency,
-		SharedCost:      a.SharedCost,
-		ExternalCost:    a.ExternalCost,
-		TotalCost:       a.TotalCost,
-		TotalEfficiency: a.TotalEfficiency,
+		Name:                   a.Name,
+		Properties:             a.Properties.Clone(),
+		Window:                 a.Window.Clone(),
+		Start:                  a.Start,
+		End:                    a.End,
+		CPUCoreHours:           a.CPUCoreHours,
+		CPUCoreRequestAverage:  a.CPUCoreRequestAverage,
+		CPUCoreUsageAverage:    a.CPUCoreUsageAverage,
+		CPUCost:                a.CPUCost,
+		GPUHours:               a.GPUHours,
+		GPUCost:                a.GPUCost,
+		NetworkCost:            a.NetworkCost,
+		PVByteHours:            a.PVByteHours,
+		PVCost:                 a.PVCost,
+		RAMByteHours:           a.RAMByteHours,
+		RAMBytesRequestAverage: a.RAMBytesRequestAverage,
+		RAMBytesUsageAverage:   a.RAMBytesUsageAverage,
+		RAMCost:                a.RAMCost,
+		SharedCost:             a.SharedCost,
+		ExternalCost:           a.ExternalCost,
 	}
 }
 
 // Equal returns true if the values held in the given Allocation precisely
-// match those of the receiving Allocation. nil does not match nil.
+// match those of the receiving Allocation. nil does not match nil. Floating
+// point values need to match according to util.IsApproximately, which accounts
+// for small, reasonable floating point error margins.
 func (a *Allocation) Equal(that *Allocation) bool {
 	if a == nil || that == nil {
 		return false
@@ -129,68 +137,159 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if a.Name != that.Name {
 		return false
 	}
+	if !a.Properties.Equal(&that.Properties) {
+		return false
+	}
+	if !a.Window.Equal(that.Window) {
+		return false
+	}
 	if !a.Start.Equal(that.Start) {
 		return false
 	}
 	if !a.End.Equal(that.End) {
 		return false
 	}
-	if a.Minutes != that.Minutes {
+	if !util.IsApproximately(a.CPUCoreHours, that.CPUCoreHours) {
 		return false
 	}
-	if !a.ActiveStart.Equal(that.ActiveStart) {
+	if !util.IsApproximately(a.CPUCost, that.CPUCost) {
 		return false
 	}
-	if a.CPUCoreHours != that.CPUCoreHours {
+	if !util.IsApproximately(a.GPUHours, that.GPUHours) {
 		return false
 	}
-	if a.CPUCost != that.CPUCost {
+	if !util.IsApproximately(a.GPUCost, that.GPUCost) {
 		return false
 	}
-	if a.CPUEfficiency != that.CPUEfficiency {
+	if !util.IsApproximately(a.NetworkCost, that.NetworkCost) {
 		return false
 	}
-	if a.GPUHours != that.GPUHours {
+	if !util.IsApproximately(a.PVByteHours, that.PVByteHours) {
 		return false
 	}
-	if a.GPUCost != that.GPUCost {
+	if !util.IsApproximately(a.PVCost, that.PVCost) {
 		return false
 	}
-	if a.NetworkCost != that.NetworkCost {
+	if !util.IsApproximately(a.RAMByteHours, that.RAMByteHours) {
 		return false
 	}
-	if a.PVByteHours != that.PVByteHours {
+	if !util.IsApproximately(a.RAMCost, that.RAMCost) {
 		return false
 	}
-	if a.PVCost != that.PVCost {
+	if !util.IsApproximately(a.SharedCost, that.SharedCost) {
 		return false
 	}
-	if a.RAMByteHours != that.RAMByteHours {
-		return false
-	}
-	if a.RAMCost != that.RAMCost {
-		return false
-	}
-	if a.RAMEfficiency != that.RAMEfficiency {
-		return false
-	}
-	if a.SharedCost != that.SharedCost {
-		return false
-	}
-	if a.ExternalCost != that.ExternalCost {
-		return false
-	}
-	if a.TotalCost != that.TotalCost {
-		return false
-	}
-	if a.TotalEfficiency != that.TotalEfficiency {
-		return false
-	}
-	if !a.Properties.Equal(&that.Properties) {
+	if !util.IsApproximately(a.ExternalCost, that.ExternalCost) {
 		return false
 	}
 
 	return true
+}
+
+// TotalCost is the total cost of the Allocation
+func (a *Allocation) TotalCost() float64 {
+	return a.CPUCost + a.GPUCost + a.RAMCost + a.PVCost + a.NetworkCost + a.SharedCost + a.ExternalCost
+}
+
+// CPUEfficiency is the ratio of usage to request. If there is no request and
+// no usage or cost, then efficiency is zero. If there is no request, but there
+// is usage or cost, then efficiency is 100%.
+func (a *Allocation) CPUEfficiency() float64 {
+	if a.CPUCoreRequestAverage > 0 {
+		return a.CPUCoreUsageAverage / a.CPUCoreRequestAverage
+	}
+
+	if a.CPUCoreUsageAverage == 0.0 || a.CPUCost == 0.0 {
+		return 0.0
+	}
+
+	return 1.0
+}
+
+// RAMEfficiency is the ratio of usage to request. If there is no request and
+// no usage or cost, then efficiency is zero. If there is no request, but there
+// is usage or cost, then efficiency is 100%.
+func (a *Allocation) RAMEfficiency() float64 {
+	if a.RAMBytesRequestAverage > 0 {
+		return a.RAMBytesUsageAverage / a.RAMBytesRequestAverage
+	}
+
+	if a.RAMBytesUsageAverage == 0.0 || a.RAMCost == 0.0 {
+		return 0.0
+	}
+
+	return 1.0
+}
+
+// TotalEfficiency is the cost-weighted average of CPU and RAM efficiency. If
+// there is no cost at all, then efficiency is zero.
+func (a *Allocation) TotalEfficiency() float64 {
+	if a.CPUCost+a.RAMCost > 0 {
+		ramCostEff := a.RAMEfficiency() * a.RAMCost
+		cpuCostEff := a.CPUEfficiency() * a.CPUCost
+		return (ramCostEff + cpuCostEff) / (a.CPUCost + a.RAMCost)
+	}
+
+	return 0.0
+}
+
+// CPUCores converts the Allocation's CPUCoreHours into average CPUCores
+func (a *Allocation) CPUCores() float64 {
+	if a.Minutes() <= 0.0 {
+		return 0.0
+	}
+	return a.CPUCoreHours / (a.Minutes() / 60.0)
+}
+
+// RAMBytes converts the Allocation's RAMByteHours into average RAMBytes
+func (a *Allocation) RAMBytes() float64 {
+	if a.Minutes() <= 0.0 {
+		return 0.0
+	}
+	return a.RAMByteHours / (a.Minutes() / 60.0)
+}
+
+// PVBytes converts the Allocation's PVByteHours into average PVBytes
+func (a *Allocation) PVBytes() float64 {
+	if a.Minutes() <= 0.0 {
+		return 0.0
+	}
+	return a.PVByteHours / (a.Minutes() / 60.0)
+}
+
+// MarshalJSON implements json.Marshal interface
+func (a *Allocation) MarshalJSON() ([]byte, error) {
+	buffer := bytes.NewBufferString("{")
+	jsonEncodeString(buffer, "name", a.Name, ",")
+	jsonEncode(buffer, "properties", a.Properties, ",")
+	jsonEncode(buffer, "window", a.Window, ",")
+	jsonEncodeString(buffer, "start", a.Start.Format(time.RFC3339), ",")
+	jsonEncodeString(buffer, "end", a.End.Format(time.RFC3339), ",")
+	jsonEncodeFloat64(buffer, "minutes", a.Minutes(), ",")
+	jsonEncodeFloat64(buffer, "cpuCores", a.CPUCores(), ",")
+	jsonEncodeFloat64(buffer, "cpuCoreRequestAverage", a.CPUCoreRequestAverage, ",")
+	jsonEncodeFloat64(buffer, "cpuCoreUsageAverage", a.CPUCoreUsageAverage, ",")
+	jsonEncodeFloat64(buffer, "cpuCoreHours", a.CPUCoreHours, ",")
+	jsonEncodeFloat64(buffer, "cpuCost", a.CPUCost, ",")
+	jsonEncodeFloat64(buffer, "cpuEfficiency", a.CPUEfficiency(), ",")
+	jsonEncodeFloat64(buffer, "gpuHours", a.GPUHours, ",")
+	jsonEncodeFloat64(buffer, "gpuCost", a.GPUCost, ",")
+	jsonEncodeFloat64(buffer, "networkCost", a.NetworkCost, ",")
+	jsonEncodeFloat64(buffer, "pvBytes", a.PVBytes(), ",")
+	jsonEncodeFloat64(buffer, "pvByteHours", a.PVByteHours, ",")
+	jsonEncodeFloat64(buffer, "pvCost", a.PVCost, ",")
+	jsonEncodeFloat64(buffer, "ramBytes", a.RAMBytes(), ",")
+	jsonEncodeFloat64(buffer, "ramByteRequestAverage", a.RAMBytesRequestAverage, ",")
+	jsonEncodeFloat64(buffer, "ramByteUsageAverage", a.RAMBytesUsageAverage, ",")
+	jsonEncodeFloat64(buffer, "ramByteHours", a.RAMByteHours, ",")
+	jsonEncodeFloat64(buffer, "ramCost", a.RAMCost, ",")
+	jsonEncodeFloat64(buffer, "ramEfficiency", a.RAMEfficiency(), ",")
+	jsonEncodeFloat64(buffer, "sharedCost", a.SharedCost, ",")
+	jsonEncodeFloat64(buffer, "externalCost", a.ExternalCost, ",")
+	jsonEncodeFloat64(buffer, "totalCost", a.TotalCost(), ",")
+	jsonEncodeFloat64(buffer, "totalEfficiency", a.TotalEfficiency(), "")
+	buffer.WriteString("}")
+	return buffer.Bytes(), nil
 }
 
 // Resolution returns the duration of time covered by the Allocation
@@ -219,32 +318,36 @@ func (a *Allocation) IsUnallocated() bool {
 	return strings.Contains(a.Name, UnallocatedSuffix)
 }
 
-// Share works like Add, but converts the entire cost of the given Allocation
-// to SharedCost, rather than adding to the individual resource costs.
+// Minutes returns the number of minutes the Allocation represents, as defined
+// by the difference between the end and start times.
+func (a *Allocation) Minutes() float64 {
+	return a.End.Sub(a.Start).Minutes()
+}
+
+// Share adds the TotalCost of the given Allocation to the SharedCost of the
+// receiving Allocation. No Start, End, Window, or Properties are considered.
+// Neither Allocation is mutated; a new Allocation is always returned.
 func (a *Allocation) Share(that *Allocation) (*Allocation, error) {
-	if a == nil {
-		return that.Clone(), nil
+	if that == nil {
+		return a.Clone(), nil
 	}
 
-	if !a.Start.Equal(that.Start) {
-		return nil, fmt.Errorf("mismatched start time: expected %s, received %s", a.Start, that.Start)
-	}
-	if !a.End.Equal(that.End) {
-		return nil, fmt.Errorf("mismatched start time: expected %s, received %s", a.End, that.End)
+	if a == nil {
+		return nil, fmt.Errorf("cannot share with nil Allocation")
 	}
 
 	agg := a.Clone()
-	agg.add(that, true, false)
+	agg.SharedCost += that.TotalCost()
 
 	return agg, nil
 }
 
 // String represents the given Allocation as a string
 func (a *Allocation) String() string {
-	return fmt.Sprintf("%s%s=%.2f", a.Name, NewWindow(&a.Start, &a.End), a.TotalCost)
+	return fmt.Sprintf("%s%s=%.2f", a.Name, NewWindow(&a.Start, &a.End), a.TotalCost())
 }
 
-func (a *Allocation) add(that *Allocation, isShared, isAccumulating bool) {
+func (a *Allocation) add(that *Allocation) {
 	if a == nil {
 		log.Warningf("Allocation.AggregateBy: trying to add a nil receiver")
 		return
@@ -271,66 +374,60 @@ func (a *Allocation) add(that *Allocation, isShared, isAccumulating bool) {
 		}
 	}
 
-	if that.ActiveStart.Before(a.ActiveStart) {
-		a.ActiveStart = that.ActiveStart
+	// Expand the window to encompass both Allocations
+	a.Window = a.Window.Expand(that.Window)
+
+	// Sum non-cumulative fields by turning them into cumulative, adding them,
+	// and then converting them back into averages after minutes have been
+	// combined (just below).
+	cpuReqCoreMins := a.CPUCoreRequestAverage * a.Minutes()
+	cpuReqCoreMins += that.CPUCoreRequestAverage * that.Minutes()
+
+	cpuUseCoreMins := a.CPUCoreUsageAverage * a.Minutes()
+	cpuUseCoreMins += that.CPUCoreUsageAverage * that.Minutes()
+
+	ramReqByteMins := a.RAMBytesRequestAverage * a.Minutes()
+	ramReqByteMins += that.RAMBytesRequestAverage * that.Minutes()
+
+	ramUseByteMins := a.RAMBytesUsageAverage * a.Minutes()
+	ramUseByteMins += that.RAMBytesUsageAverage * that.Minutes()
+
+	// Expand Start and End to be the "max" of among the given Allocations
+	if that.Start.Before(a.Start) {
+		a.Start = that.Start
+	}
+	if that.End.After(a.End) {
+		a.End = that.End
 	}
 
-	if isAccumulating {
-		if a.Start.After(that.Start) {
-			a.Start = that.Start
-		}
-
-		if a.End.Before(that.End) {
-			a.End = that.End
-		}
-
-		a.Minutes += that.Minutes
-	} else if that.Minutes > a.Minutes {
-		a.Minutes = that.Minutes
-	}
-
-	// isShared determines whether the given allocation should be spread evenly
-	// across resources (e.g. sharing idle allocation) or lumped into a shared
-	// cost category (e.g. sharing namespace, labels).
-	if isShared {
-		a.SharedCost += that.TotalCost
+	// Convert cumulative request and usage back into rates
+	// TODO:TEST write a unit test that fails if this is done incorrectly
+	if a.Minutes() > 0 {
+		a.CPUCoreRequestAverage = cpuReqCoreMins / a.Minutes()
+		a.CPUCoreUsageAverage = cpuUseCoreMins / a.Minutes()
+		a.RAMBytesRequestAverage = ramReqByteMins / a.Minutes()
+		a.RAMBytesUsageAverage = ramUseByteMins / a.Minutes()
 	} else {
-		a.CPUCoreHours += that.CPUCoreHours
-		a.GPUHours += that.GPUHours
-		a.RAMByteHours += that.RAMByteHours
-		a.PVByteHours += that.PVByteHours
-
-		aggCPUCost := a.CPUCost + that.CPUCost
-		if aggCPUCost > 0 {
-			a.CPUEfficiency = (a.CPUEfficiency*a.CPUCost + that.CPUEfficiency*that.CPUCost) / aggCPUCost
-		} else {
-			a.CPUEfficiency = 0.0
-		}
-
-		aggRAMCost := a.RAMCost + that.RAMCost
-		if aggRAMCost > 0 {
-			a.RAMEfficiency = (a.RAMEfficiency*a.RAMCost + that.RAMEfficiency*that.RAMCost) / aggRAMCost
-		} else {
-			a.RAMEfficiency = 0.0
-		}
-
-		aggTotalCost := a.TotalCost + that.TotalCost
-		if aggTotalCost > 0 {
-			a.TotalEfficiency = (a.TotalEfficiency*(a.TotalCost-a.ExternalCost) + that.TotalEfficiency*(that.TotalCost-that.ExternalCost)) / (aggTotalCost - a.ExternalCost - that.ExternalCost)
-		} else {
-			aggTotalCost = 0.0
-		}
-
-		a.SharedCost += that.SharedCost
-		a.ExternalCost += that.ExternalCost
-		a.CPUCost += that.CPUCost
-		a.GPUCost += that.GPUCost
-		a.NetworkCost += that.NetworkCost
-		a.RAMCost += that.RAMCost
-		a.PVCost += that.PVCost
+		a.CPUCoreRequestAverage = 0.0
+		a.CPUCoreUsageAverage = 0.0
+		a.RAMBytesRequestAverage = 0.0
+		a.RAMBytesUsageAverage = 0.0
 	}
 
-	a.TotalCost += that.TotalCost
+	// Sum all cumulative resource fields
+	a.CPUCoreHours += that.CPUCoreHours
+	a.GPUHours += that.GPUHours
+	a.RAMByteHours += that.RAMByteHours
+	a.PVByteHours += that.PVByteHours
+
+	// Sum all cumulative cost fields
+	a.CPUCost += that.CPUCost
+	a.GPUCost += that.GPUCost
+	a.RAMCost += that.RAMCost
+	a.PVCost += that.PVCost
+	a.NetworkCost += that.NetworkCost
+	a.SharedCost += that.SharedCost
+	a.ExternalCost += that.ExternalCost
 }
 
 // AllocationSet stores a set of Allocations, each with a unique name, that share
@@ -407,9 +504,6 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 	//     the given properties) then aggregate; otherwise... ignore them?
 	// 10. If the merge idle option is enabled, merge any remaining idle
 	//     allocations into a single idle allocation
-
-	// TODO niko/etl revisit (ShareIdle: ShareEven) case, which is probably wrong
-	// (and, frankly, ill-defined; i.e. evenly across clusters? within clusters?)
 
 	if options == nil {
 		options = &AllocationAggregationOptions{}
@@ -674,7 +768,6 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 				alloc.CPUCost += idleCPUCost
 				alloc.GPUCost += idleGPUCost
 				alloc.RAMCost += idleRAMCost
-				alloc.TotalCost += idleCPUCost + idleGPUCost + idleRAMCost
 			}
 		}
 
@@ -785,7 +878,6 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 				idleAlloc.CPUCoreHours *= resourceCoeffs["cpu"]
 				idleAlloc.RAMCost *= resourceCoeffs["ram"]
 				idleAlloc.RAMByteHours *= resourceCoeffs["ram"]
-				idleAlloc.TotalCost = idleAlloc.CPUCost + idleAlloc.RAMCost
 			}
 		}
 	}
@@ -799,8 +891,7 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 					continue
 				}
 
-				alloc.SharedCost += sharedAlloc.TotalCost * shareCoefficients[alloc.Name]
-				alloc.TotalCost += sharedAlloc.TotalCost * shareCoefficients[alloc.Name]
+				alloc.SharedCost += sharedAlloc.TotalCost() * shareCoefficients[alloc.Name]
 			}
 		}
 	}
@@ -892,8 +983,8 @@ func computeShareCoeffs(properties Properties, options *AllocationAggregationOpt
 		} else {
 			// Both are additive for weighted distribution, where each
 			// cumulative coefficient will be divided by the total.
-			coeffs[name] += alloc.TotalCost
-			total += alloc.TotalCost
+			coeffs[name] += alloc.TotalCost()
+			total += alloc.TotalCost()
 		}
 	}
 
@@ -1031,13 +1122,13 @@ func computeIdleCoeffs(properties Properties, options *AllocationAggregationOpti
 	return coeffs, nil
 }
 
-func (alloc *Allocation) generateKey(properties Properties) (string, error) {
+func (a *Allocation) generateKey(properties Properties) (string, error) {
 	// Names will ultimately be joined into a single name, which uniquely
 	// identifies allocations.
 	names := []string{}
 
 	if properties.HasCluster() {
-		cluster, err := alloc.Properties.GetCluster()
+		cluster, err := a.Properties.GetCluster()
 		if err != nil {
 			return "", err
 		}
@@ -1045,7 +1136,7 @@ func (alloc *Allocation) generateKey(properties Properties) (string, error) {
 	}
 
 	if properties.HasNode() {
-		node, err := alloc.Properties.GetNode()
+		node, err := a.Properties.GetNode()
 		if err != nil {
 			return "", err
 		}
@@ -1053,7 +1144,7 @@ func (alloc *Allocation) generateKey(properties Properties) (string, error) {
 	}
 
 	if properties.HasNamespace() {
-		namespace, err := alloc.Properties.GetNamespace()
+		namespace, err := a.Properties.GetNamespace()
 		if err != nil {
 			return "", err
 		}
@@ -1061,7 +1152,7 @@ func (alloc *Allocation) generateKey(properties Properties) (string, error) {
 	}
 
 	if properties.HasControllerKind() {
-		controllerKind, err := alloc.Properties.GetControllerKind()
+		controllerKind, err := a.Properties.GetControllerKind()
 		if err != nil {
 			// Indicate that allocation has no controller
 			controllerKind = UnallocatedSuffix
@@ -1076,13 +1167,13 @@ func (alloc *Allocation) generateKey(properties Properties) (string, error) {
 
 	if properties.HasController() {
 		if !properties.HasControllerKind() {
-			controllerKind, err := alloc.Properties.GetControllerKind()
+			controllerKind, err := a.Properties.GetControllerKind()
 			if err == nil {
 				names = append(names, controllerKind)
 			}
 		}
 
-		controller, err := alloc.Properties.GetController()
+		controller, err := a.Properties.GetController()
 		if err != nil {
 			// Indicate that allocation has no controller
 			controller = UnallocatedSuffix
@@ -1092,7 +1183,7 @@ func (alloc *Allocation) generateKey(properties Properties) (string, error) {
 	}
 
 	if properties.HasPod() {
-		pod, err := alloc.Properties.GetPod()
+		pod, err := a.Properties.GetPod()
 		if err != nil {
 			return "", err
 		}
@@ -1101,7 +1192,7 @@ func (alloc *Allocation) generateKey(properties Properties) (string, error) {
 	}
 
 	if properties.HasContainer() {
-		container, err := alloc.Properties.GetContainer()
+		container, err := a.Properties.GetContainer()
 		if err != nil {
 			return "", err
 		}
@@ -1110,12 +1201,11 @@ func (alloc *Allocation) generateKey(properties Properties) (string, error) {
 	}
 
 	if properties.HasService() {
-		services, err := alloc.Properties.GetServices()
+		services, err := a.Properties.GetServices()
 		if err != nil {
 			// Indicate that allocation has no services
 			names = append(names, UnallocatedSuffix)
 		} else {
-			// TODO niko/etl support multi-service aggregation
 			if len(services) > 0 {
 				for _, service := range services {
 					names = append(names, service)
@@ -1129,7 +1219,7 @@ func (alloc *Allocation) generateKey(properties Properties) (string, error) {
 	}
 
 	if properties.HasAnnotations() {
-		annotations, err := alloc.Properties.GetAnnotations() // annotations that the individual allocation possesses
+		annotations, err := a.Properties.GetAnnotations() // annotations that the individual allocation possesses
 		if err != nil {
 			// Indicate that allocation has no annotations
 			names = append(names, UnallocatedSuffix)
@@ -1165,7 +1255,7 @@ func (alloc *Allocation) generateKey(properties Properties) (string, error) {
 	}
 
 	if properties.HasLabel() {
-		labels, err := alloc.Properties.GetLabels() // labels that the individual allocation possesses
+		labels, err := a.Properties.GetLabels() // labels that the individual allocation possesses
 		if err != nil {
 			// Indicate that allocation has no labels
 			names = append(names, UnallocatedSuffix)
@@ -1203,7 +1293,7 @@ func (alloc *Allocation) generateKey(properties Properties) (string, error) {
 	return strings.Join(names, "/"), nil
 }
 
-// TODO clean up
+// TODO:CLEANUP get rid of this
 // Helper function to check for slice membership. Not sure if repeated elsewhere in our codebase.
 func indexOf(v string, arr []string) int {
 	for i, s := range arr {
@@ -1332,7 +1422,7 @@ func (as *AllocationSet) ComputeIdleAllocations(assetSet *AssetSet) (map[string]
 		if s, ok := clusterStarts[cluster]; !ok || a.Start.Before(s) {
 			clusterStarts[cluster] = a.Start
 		}
-		if e, ok := clusterEnds[cluster]; !ok || a.End.Before(e) {
+		if e, ok := clusterEnds[cluster]; !ok || a.End.After(e) {
 			clusterEnds[cluster] = a.End
 		}
 
@@ -1357,15 +1447,14 @@ func (as *AllocationSet) ComputeIdleAllocations(assetSet *AssetSet) (map[string]
 
 		idleAlloc := &Allocation{
 			Name:       fmt.Sprintf("%s/%s", cluster, IdleSuffix),
+			Window:     window.Clone(),
 			Properties: Properties{ClusterProp: cluster},
 			Start:      start,
 			End:        end,
-			Minutes:    end.Sub(start).Minutes(), // TODO deprecate w/ niko/allocation-minutes
 			CPUCost:    resources["cpu"],
 			GPUCost:    resources["gpu"],
 			RAMCost:    resources["ram"],
 		}
-		idleAlloc.TotalCost = idleAlloc.CPUCost + idleAlloc.GPUCost + idleAlloc.RAMCost
 
 		// Do not continue if multiple idle allocations are computed for a
 		// single cluster.
@@ -1491,10 +1580,10 @@ func (as *AllocationSet) IdleAllocations() map[string]*Allocation {
 // but only if the Allocation is valid, i.e. matches the AllocationSet's window. If
 // there is no existing entry, one is created. Nil error response indicates success.
 func (as *AllocationSet) Insert(that *Allocation) error {
-	return as.insert(that, false)
+	return as.insert(that)
 }
 
-func (as *AllocationSet) insert(that *Allocation, accumulate bool) error {
+func (as *AllocationSet) insert(that *Allocation) error {
 	if as == nil {
 		return fmt.Errorf("cannot insert into nil AllocationSet")
 	}
@@ -1519,7 +1608,7 @@ func (as *AllocationSet) insert(that *Allocation, accumulate bool) error {
 	if _, ok := as.allocations[that.Name]; !ok {
 		as.allocations[that.Name] = that
 	} else {
-		as.allocations[that.Name].add(that, false, accumulate)
+		as.allocations[that.Name].add(that)
 	}
 
 	// If the given Allocation is an external one, record that
@@ -1641,7 +1730,7 @@ func (as *AllocationSet) TotalCost() float64 {
 
 	tc := 0.0
 	for _, a := range as.allocations {
-		tc += a.TotalCost
+		tc += a.TotalCost()
 	}
 	return tc
 }
@@ -1659,12 +1748,6 @@ func (as *AllocationSet) accumulate(that *AllocationSet) (*AllocationSet, error)
 
 	if that.IsEmpty() {
 		return as, nil
-	}
-
-	if that.Start().Before(as.End()) {
-		timefmt := "2006-01-02T15:04:05"
-		err := fmt.Sprintf("that [%s, %s); that [%s, %s)\n", as.Start().Format(timefmt), as.End().Format(timefmt), that.Start().Format(timefmt), that.End().Format(timefmt))
-		return nil, fmt.Errorf("error accumulating AllocationSets: overlapping windows: %s", err)
 	}
 
 	// Set start, end to min(start), max(end)
@@ -1686,26 +1769,14 @@ func (as *AllocationSet) accumulate(that *AllocationSet) (*AllocationSet, error)
 	defer that.RUnlock()
 
 	for _, alloc := range as.allocations {
-		// Change Start and End to match the new window. However, do not
-		// change Minutes because that will be accounted for during the
-		// insert step, if in fact there are two allocations to add.
-		alloc.Start = start
-		alloc.End = end
-
-		err := acc.insert(alloc, true)
+		err := acc.insert(alloc)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	for _, alloc := range that.allocations {
-		// Change Start and End to match the new window. However, do not
-		// change Minutes because that will be accounted for during the
-		// insert step, if in fact there are two allocations to add.
-		alloc.Start = start
-		alloc.End = end
-
-		err := acc.insert(alloc, true)
+		err := acc.insert(alloc)
 		if err != nil {
 			return nil, err
 		}

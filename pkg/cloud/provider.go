@@ -20,7 +20,6 @@ import (
 const authSecretPath = "/var/secrets/service-key.json"
 const storageConfigSecretPath = "/var/azure-storage-config/azure-storage-config.json"
 
-
 var createTableStatements = []string{
 	`CREATE TABLE IF NOT EXISTS names (
 		cluster_id VARCHAR(255) NOT NULL,
@@ -266,6 +265,7 @@ func CustomPricesEnabled(p Provider) bool {
 	if err != nil {
 		return false
 	}
+	// TODO:CLEANUP what is going on with this?
 	if config.NegotiatedDiscount == "" {
 		config.NegotiatedDiscount = "0%"
 	}
