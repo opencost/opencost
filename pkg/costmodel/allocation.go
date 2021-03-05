@@ -237,6 +237,9 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 		return allocSet, ctx.ErrorCollection()
 	}
 
+	// We choose to apply allocation before requests in the cases of RAM and
+	// CPU so that we can assert that allocation should always be greater than
+	// or equal to request.
 	applyCPUCoresAllocated(podMap, resCPUCoresAllocated)
 	applyCPUCoresRequested(podMap, resCPURequests)
 	applyCPUCoresUsed(podMap, resCPUUsage)
