@@ -487,7 +487,7 @@ func applyPodResults(window kubecost.Window, resolution time.Duration, podMap ma
 			continue
 		}
 
-		// Adjust timestamps accorind to the resolution and the adjustment
+		// Adjust timestamps according to the resolution and the adjustment
 		// coefficients, as described above. That is, count the start timestamp
 		// from the beginning of the resolution, not the end. Then "reduce" the
 		// start and end by the correct amount, in the case that the "running"
