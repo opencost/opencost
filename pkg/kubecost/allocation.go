@@ -47,6 +47,8 @@ const ShareNone = "__none__"
 // Allocation is a unit of resource allocation and cost for a given window
 // of time and for a given kubernetes construct with its associated set of
 // properties.
+// TODO:CLEANUP consider dropping name in favor of just Properties and an
+// Assets-style key() function for AllocationSet.
 type Allocation struct {
 	Name                   string     `json:"name"`
 	Properties             Properties `json:"properties,omitempty"`
