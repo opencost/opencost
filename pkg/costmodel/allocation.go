@@ -506,7 +506,6 @@ func applyPodResults(window kubecost.Window, resolution time.Duration, podMap ma
 		// e.g. For resolution 1m and a value of 0.5 at one timestamp, we'll
 		//      end up with allocEnd == allocStart and each coeff == 0.5. In
 		//      that case, add 0.25m to each side, resulting in 0.5m duration.
-		// if !allocEnd.After(allocStart) && startAdjustmentCoeff == endAdjustmentCoeff {
 		if !allocEnd.After(allocStart) {
 			allocStart = allocStart.Add(-time.Duration(50*startAdjustmentCoeff) * resolution / time.Duration(100))
 			allocEnd = allocEnd.Add(time.Duration(50*endAdjustmentCoeff) * resolution / time.Duration(100))
@@ -555,7 +554,6 @@ func applyCPUCoresAllocated(podMap map[podKey]*Pod, resCPUCoresAllocated []*prom
 
 		pod, ok := podMap[key]
 		if !ok {
-			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU allocation result for unidentified pod: %s", key)
 			continue
 		}
 
@@ -592,7 +590,6 @@ func applyCPUCoresRequested(podMap map[podKey]*Pod, resCPUCoresRequested []*prom
 
 		pod, ok := podMap[key]
 		if !ok {
-			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU request result for unidentified pod: %s", key)
 			continue
 		}
 
@@ -633,7 +630,6 @@ func applyCPUCoresUsed(podMap map[podKey]*Pod, resCPUCoresUsed []*prom.QueryResu
 
 		pod, ok := podMap[key]
 		if !ok {
-			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage result for unidentified pod: %s", key)
 			continue
 		}
 
@@ -661,7 +657,6 @@ func applyRAMBytesAllocated(podMap map[podKey]*Pod, resRAMBytesAllocated []*prom
 
 		pod, ok := podMap[key]
 		if !ok {
-			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM allocation result for unidentified pod: %s", key)
 			continue
 		}
 
@@ -698,7 +693,6 @@ func applyRAMBytesRequested(podMap map[podKey]*Pod, resRAMBytesRequested []*prom
 
 		pod, ok := podMap[key]
 		if !ok {
-			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM request result for unidentified pod: %s", key)
 			continue
 		}
 
@@ -739,7 +733,6 @@ func applyRAMBytesUsed(podMap map[podKey]*Pod, resRAMBytesUsed []*prom.QueryResu
 
 		pod, ok := podMap[key]
 		if !ok {
-			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage result for unidentified pod: %s", key)
 			continue
 		}
 
@@ -767,7 +760,6 @@ func applyGPUsRequested(podMap map[podKey]*Pod, resGPUsRequested []*prom.QueryRe
 
 		pod, ok := podMap[key]
 		if !ok {
-			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU request result for unidentified pod: %s", key)
 			continue
 		}
 
@@ -807,7 +799,6 @@ func applyNetworkAllocation(podMap map[podKey]*Pod, resNetworkGiB []*prom.QueryR
 
 		pod, ok := podMap[podKey]
 		if !ok {
-			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: Network allocation query result for unidentified pod: %s", podKey)
 			continue
 		}
 
@@ -1409,7 +1400,6 @@ func buildPVCMap(window kubecost.Window, pvcMap map[pvcKey]*PVC, pvMap map[pvKey
 		pvcStart = pvcStart.Add(-time.Minute)
 
 		if _, ok := pvMap[pvKey]; !ok {
-			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: PV missing for PVC info query result: %s", pvKey)
 			continue
 		}
 
@@ -1431,12 +1421,10 @@ func applyPVCBytesRequested(pvcMap map[pvcKey]*PVC, resPVCBytesRequested []*prom
 	for _, res := range resPVCBytesRequested {
 		key, err := resultPVCKey(res, "cluster_id", "namespace", "persistentvolumeclaim")
 		if err != nil {
-			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: PVC bytes requested query result missing field: %s", err)
 			continue
 		}
 
 		if _, ok := pvcMap[key]; !ok {
-			// log.DedupedWarningf(10, "CostModel.ComputeAllocation: PVC bytes requested result for missing PVC: %s", key)
 			continue
 		}
 
