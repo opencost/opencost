@@ -604,15 +604,9 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 					missingNodes[c.NodeName] = node
 				}
 			}
-			namespacelabels, ok := namespaceLabelsMapping[c.Namespace+","+c.ClusterID]
-			if !ok {
-				klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
-			}
+			namespacelabels, _ := namespaceLabelsMapping[c.Namespace+","+c.ClusterID]
 
-			namespaceAnnotations, ok := namespaceAnnotationsMapping[c.Namespace+","+c.ClusterID]
-			if !ok {
-				klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
-			}
+			namespaceAnnotations, _ := namespaceAnnotationsMapping[c.Namespace+","+c.ClusterID]
 
 			costs := &CostData{
 				Name:            c.ContainerName,
@@ -681,15 +675,9 @@ func findUnmountedPVCostData(clusterMap clusters.ClusterMap, unmountedPVs map[st
 
 		ns, _, clusterID := keyParts[0], keyParts[1], keyParts[2]
 
-		namespacelabels, ok := namespaceLabelsMapping[ns+","+clusterID]
-		if !ok {
-			klog.V(3).Infof("Missing data for namespace %s", ns)
-		}
+		namespacelabels, _ := namespaceLabelsMapping[ns+","+clusterID]
 
-		namespaceAnnotations, ok := namespaceAnnotationsMapping[ns+","+clusterID]
-		if !ok {
-			klog.V(3).Infof("Missing data for namespace %s", ns)
-		}
+		namespaceAnnotations, _ := namespaceAnnotationsMapping[ns+","+clusterID]
 
 		// Should be a unique "Unmounted" cost data type
 		name := "unmounted-pvs"
@@ -1918,10 +1906,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 		nsKey := c.Namespace + "," + c.ClusterID
 		podKey := c.Namespace + "," + c.PodName + "," + c.ClusterID
 
-		namespaceLabels, ok := namespaceLabelsMapping[nsKey]
-		if !ok {
-			klog.V(4).Infof("Missing data for namespace %s", c.Namespace)
-		}
+		namespaceLabels, _ := namespaceLabelsMapping[nsKey]
 
 		pLabels := podLabels[podKey]
 		if pLabels == nil {
@@ -1934,10 +1919,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 			}
 		}
 
-		namespaceAnnotations, ok := namespaceAnnotationsMapping[nsKey]
-		if !ok {
-			klog.V(4).Infof("Missing data for namespace %s", c.Namespace)
-		}
+		namespaceAnnotations, _ := namespaceAnnotationsMapping[nsKey]
 
 		pAnnotations := podAnnotations[podKey]
 		if pAnnotations == nil {
