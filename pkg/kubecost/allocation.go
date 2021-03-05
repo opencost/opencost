@@ -684,7 +684,6 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 				Start:      as.Start(),
 				End:        as.End(),
 				SharedCost: totalSharedCost,
-				TotalCost:  totalSharedCost,
 			})
 		}
 	}
@@ -831,7 +830,6 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 				alloc.CPUCost += idleCPUCost
 				alloc.GPUCost += idleGPUCost
 				alloc.RAMCost += idleRAMCost
-				alloc.TotalCost += idleCPUCost + idleGPUCost + idleRAMCost
 			}
 		}
 	}
