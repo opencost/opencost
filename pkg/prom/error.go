@@ -12,6 +12,16 @@ import (
 // errorType used to check HasError
 var errorType = reflect.TypeOf((*error)(nil)).Elem()
 
+// NoStoreAPIWarning is a warning that we would consider an error. It returns partial data relating only to the
+// store apis which were reachable. In order to ensure integrity of data across all clusters, we'll need to identify
+// this warning and convert it to an error.
+const NoStoreAPIWarning string = "No StoreAPIs matched for this query"
+
+// IsNoStoreAPIWarning checks a warning to determine if it is equivalent to a no store API query.
+func IsNoStoreAPIWarning(warning string) bool {
+	return strings.EqualFold(warning, NoStoreAPIWarning)
+}
+
 //--------------------------------------------------------------------------
 //  Prometheus Error Collection
 //--------------------------------------------------------------------------
