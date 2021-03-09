@@ -580,7 +580,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud
 
 		gpuCountGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_gpu_count",
-			Help: "node_gpu_count hourly cost for each gpu on this node",
+			Help: "node_gpu_count count of gpu on this node",
 		}, []string{"instance", "node", "instance_type", "region", "provider_id"})
 
 		pvGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
