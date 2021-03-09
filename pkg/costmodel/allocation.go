@@ -970,10 +970,12 @@ func getServiceLabels(resServiceLabels []*prom.QueryResult) map[serviceKey]map[s
 	// Prune duplicate services. That is, if the same service exists with
 	// hyphens instead of underscores, keep the one that uses hyphens.
 	for key := range serviceLabels {
-		duplicateService := strings.Replace(key.Service, "_", "-", -1)
-		duplicateKey := newServiceKey(key.Cluster, key.Namespace, duplicateService)
-		if _, ok := serviceLabels[duplicateKey]; ok {
-			delete(serviceLabels, key)
+		if strings.Contains(key.Service, "_") {
+			duplicateService := strings.Replace(key.Service, "_", "-", -1)
+			duplicateKey := newServiceKey(key.Cluster, key.Namespace, duplicateService)
+			if _, ok := serviceLabels[duplicateKey]; ok {
+				delete(serviceLabels, key)
+			}
 		}
 	}
 
@@ -1001,10 +1003,12 @@ func resToDeploymentLabels(resDeploymentLabels []*prom.QueryResult) map[controll
 	// Prune duplicate deployments. That is, if the same deployment exists with
 	// hyphens instead of underscores, keep the one that uses hyphens.
 	for key := range deploymentLabels {
-		duplicateController := strings.Replace(key.Controller, "_", "-", -1)
-		duplicateKey := newControllerKey(key.Cluster, key.Namespace, key.ControllerKind, duplicateController)
-		if _, ok := deploymentLabels[duplicateKey]; ok {
-			delete(deploymentLabels, key)
+		if strings.Contains(key.Controller, "_") {
+			duplicateController := strings.Replace(key.Controller, "_", "-", -1)
+			duplicateKey := newControllerKey(key.Cluster, key.Namespace, key.ControllerKind, duplicateController)
+			if _, ok := deploymentLabels[duplicateKey]; ok {
+				delete(deploymentLabels, key)
+			}
 		}
 	}
 
@@ -1032,10 +1036,12 @@ func resToStatefulSetLabels(resStatefulSetLabels []*prom.QueryResult) map[contro
 	// Prune duplicate stateful sets. That is, if the same stateful set exists
 	// with hyphens instead of underscores, keep the one that uses hyphens.
 	for key := range statefulSetLabels {
-		duplicateController := strings.Replace(key.Controller, "_", "-", -1)
-		duplicateKey := newControllerKey(key.Cluster, key.Namespace, key.ControllerKind, duplicateController)
-		if _, ok := statefulSetLabels[duplicateKey]; ok {
-			delete(statefulSetLabels, key)
+		if strings.Contains(key.Controller, "_") {
+			duplicateController := strings.Replace(key.Controller, "_", "-", -1)
+			duplicateKey := newControllerKey(key.Cluster, key.Namespace, key.ControllerKind, duplicateController)
+			if _, ok := statefulSetLabels[duplicateKey]; ok {
+				delete(statefulSetLabels, key)
+			}
 		}
 	}
 
