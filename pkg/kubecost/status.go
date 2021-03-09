@@ -8,8 +8,8 @@ type ETLStatus struct {
 	LastRun     time.Time        `json:"lastRun"`
 	Progress    float64          `json:"progress"`
 	RefreshRate string           `json:"refreshRate"`
-	Resolution  time.Duration    `json:"resolution"`
-	MaxBatch    time.Duration    `json:"maxBatch"`
+	Resolution  string           `json:"resolution"`
+	MaxBatch    string           `json:"maxBatch"`
 	StartTime   time.Time        `json:"startTime"`
 	UTCOffset   string           `json:"utcOffset"`
 	Backup      *DirectoryStatus `json:"backup,omitempty"`
