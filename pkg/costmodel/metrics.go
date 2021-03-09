@@ -545,6 +545,7 @@ var (
 	cpuGv                      *prometheus.GaugeVec
 	ramGv                      *prometheus.GaugeVec
 	gpuGv                      *prometheus.GaugeVec
+	gpuCountGv                 *prometheus.GaugeVec
 	pvGv                       *prometheus.GaugeVec
 	spotGv                     *prometheus.GaugeVec
 	totalGv                    *prometheus.GaugeVec
@@ -575,6 +576,11 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud
 		gpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_gpu_hourly_cost",
 			Help: "node_gpu_hourly_cost hourly cost for each gpu on this node",
+		}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+
+		gpuCountGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "node_gpu_count",
+			Help: "node_gpu_count hourly cost for each gpu on this node",
 		}, []string{"instance", "node", "instance_type", "region", "provider_id"})
 
 		pvGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -638,7 +644,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud
 		}, []string{"ingress_ip", "namespace", "service_name"}) // assumes one ingress IP per load balancer
 
 		// Register cost-model metrics for emission
-		prometheus.MustRegister(cpuGv, ramGv, gpuGv, totalGv, pvGv, spotGv)
+		prometheus.MustRegister(cpuGv, ramGv, gpuGv, gpuCountGv, totalGv, pvGv, spotGv)
 		prometheus.MustRegister(ramAllocGv, cpuAllocGv, gpuAllocGv, pvAllocGv)
 		prometheus.MustRegister(networkZoneEgressCostG, networkRegionEgressCostG, networkInternetEgressCostG)
 		prometheus.MustRegister(clusterManagementCostGv, lbCostGv)
@@ -689,6 +695,7 @@ type CostModelMetricsEmitter struct {
 	RAMPriceRecorder              *prometheus.GaugeVec
 	PersistentVolumePriceRecorder *prometheus.GaugeVec
 	GPUPriceRecorder              *prometheus.GaugeVec
+	GPUCountRecorder              *prometheus.GaugeVec
 	PVAllocationRecorder          *prometheus.GaugeVec
 	NodeSpotRecorder              *prometheus.GaugeVec
 	NodeTotalPriceRecorder        *prometheus.GaugeVec
@@ -720,6 +727,7 @@ func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clust
 		CPUPriceRecorder:              cpuGv,
 		RAMPriceRecorder:              ramGv,
 		GPUPriceRecorder:              gpuGv,
+		GPUCountRecorder:              gpuCountGv,
 		PersistentVolumePriceRecorder: pvGv,
 		NodeSpotRecorder:              spotGv,
 		NodeTotalPriceRecorder:        totalGv,
@@ -886,6 +894,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				cmme.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(cpuCost)
 				cmme.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(ramCost)
 				cmme.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(gpuCost)
+				cmme.GPUCountRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(gpu)
 				cmme.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(totalCost)
 				if node.IsSpot() {
 					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(1.0)
@@ -1016,6 +1025,12 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 						klog.V(4).Infof("removed %s from gpuprice", labelString)
 					} else {
 						klog.Infof("FAILURE TO REMOVE %s from gpuprice", labelString)
+					}
+					ok = cmme.GPUCountRecorder.DeleteLabelValues(labels...)
+					if ok {
+						klog.V(4).Infof("removed %s from gpucount", labelString)
+					} else {
+						klog.Infof("FAILURE TO REMOVE %s from gpucount", labelString)
 					}
 					ok = cmme.RAMPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
