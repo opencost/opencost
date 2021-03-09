@@ -16,6 +16,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
+	prometheus "github.com/prometheus/client_golang/api"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,22 +47,26 @@ const (
 var isCron = regexp.MustCompile(`^(.+)-\d{10}$`)
 
 type CostModel struct {
-	Cache           clustercache.ClusterCache
-	ClusterMap      clusters.ClusterMap
-	ScrapeInterval  time.Duration
-	RequestGroup    *singleflight.Group
-	pricingMetadata *costAnalyzerCloud.PricingMatchMetadata
+	Cache            clustercache.ClusterCache
+	ClusterMap       clusters.ClusterMap
+	RequestGroup     *singleflight.Group
+	ScrapeInterval   time.Duration
+	PrometheusClient prometheus.Client
+	Provider         costAnalyzerCloud.Provider
+	pricingMetadata  *costAnalyzerCloud.PricingMatchMetadata
 }
 
-func NewCostModel(cache clustercache.ClusterCache, clusterMap clusters.ClusterMap, scrapeInterval time.Duration) *CostModel {
+func NewCostModel(client prometheus.Client, provider costAnalyzerCloud.Provider, cache clustercache.ClusterCache, clusterMap clusters.ClusterMap, scrapeInterval time.Duration) *CostModel {
 	// request grouping to prevent over-requesting the same data prior to caching
 	requestGroup := new(singleflight.Group)
 
 	return &CostModel{
-		Cache:          cache,
-		ClusterMap:     clusterMap,
-		RequestGroup:   requestGroup,
-		ScrapeInterval: scrapeInterval,
+		Cache:            cache,
+		ClusterMap:       clusterMap,
+		PrometheusClient: client,
+		Provider:         provider,
+		RequestGroup:     requestGroup,
+		ScrapeInterval:   scrapeInterval,
 	}
 }
 
@@ -599,15 +604,9 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 					missingNodes[c.NodeName] = node
 				}
 			}
-			namespacelabels, ok := namespaceLabelsMapping[c.Namespace+","+c.ClusterID]
-			if !ok {
-				klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
-			}
+			namespacelabels, _ := namespaceLabelsMapping[c.Namespace+","+c.ClusterID]
 
-			namespaceAnnotations, ok := namespaceAnnotationsMapping[c.Namespace+","+c.ClusterID]
-			if !ok {
-				klog.V(3).Infof("Missing data for namespace %s", c.Namespace)
-			}
+			namespaceAnnotations, _ := namespaceAnnotationsMapping[c.Namespace+","+c.ClusterID]
 
 			costs := &CostData{
 				Name:            c.ContainerName,
@@ -676,15 +675,9 @@ func findUnmountedPVCostData(clusterMap clusters.ClusterMap, unmountedPVs map[st
 
 		ns, _, clusterID := keyParts[0], keyParts[1], keyParts[2]
 
-		namespacelabels, ok := namespaceLabelsMapping[ns+","+clusterID]
-		if !ok {
-			klog.V(3).Infof("Missing data for namespace %s", ns)
-		}
+		namespacelabels, _ := namespaceLabelsMapping[ns+","+clusterID]
 
-		namespaceAnnotations, ok := namespaceAnnotationsMapping[ns+","+clusterID]
-		if !ok {
-			klog.V(3).Infof("Missing data for namespace %s", ns)
-		}
+		namespaceAnnotations, _ := namespaceAnnotationsMapping[ns+","+clusterID]
 
 		// Should be a unique "Unmounted" cost data type
 		name := "unmounted-pvs"
@@ -1506,10 +1499,6 @@ func requestKeyFor(window kubecost.Window, resolution time.Duration, filterNames
 	return fmt.Sprintf("%s,%s,%s,%s,%s,%t", startKey, endKey, resolution.String(), filterNamespace, filterCluster, remoteEnabled)
 }
 
-// func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, cp costAnalyzerCloud.Provider,
-// 	startString, endString, windowString string, resolutionHours float64, filterNamespace string,
-// 	filterCluster string, remoteEnabled bool, offset string) (map[string]*CostData, error)
-
 // ComputeCostDataRange executes a range query for cost data.
 // Note that "offset" represents the time between the function call and "endString", and is also passed for convenience
 func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window kubecost.Window, resolution time.Duration, filterNamespace string, filterCluster string, remoteEnabled bool) (map[string]*CostData, error) {
@@ -1917,10 +1906,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 		nsKey := c.Namespace + "," + c.ClusterID
 		podKey := c.Namespace + "," + c.PodName + "," + c.ClusterID
 
-		namespaceLabels, ok := namespaceLabelsMapping[nsKey]
-		if !ok {
-			klog.V(4).Infof("Missing data for namespace %s", c.Namespace)
-		}
+		namespaceLabels, _ := namespaceLabelsMapping[nsKey]
 
 		pLabels := podLabels[podKey]
 		if pLabels == nil {
@@ -1933,10 +1919,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 			}
 		}
 
-		namespaceAnnotations, ok := namespaceAnnotationsMapping[nsKey]
-		if !ok {
-			klog.V(4).Infof("Missing data for namespace %s", c.Namespace)
-		}
+		namespaceAnnotations, _ := namespaceAnnotationsMapping[nsKey]
 
 		pAnnotations := podAnnotations[podKey]
 		if pAnnotations == nil {

@@ -47,6 +47,8 @@ type Aggregation struct {
 	Environment                string               `json:"environment"`
 	Cluster                    string               `json:"cluster,omitempty"`
 	Properties                 *kubecost.Properties `json:"-"`
+	Start                      time.Time            `json:"-"`
+	End                        time.Time            `json:"-"`
 	CPUAllocationHourlyAverage float64              `json:"cpuAllocationAverage"`
 	CPUAllocationVectors       []*util.Vector       `json:"-"`
 	CPUAllocationTotal         float64              `json:"-"`
@@ -1717,6 +1719,10 @@ func GenerateAggKey(window kubecost.Window, field string, subfields []string, op
 	sort.Strings(subfields)
 	fieldStr := fmt.Sprintf("%s:%s", field, strings.Join(subfields, ","))
 
+	if offset == "1m" {
+		offset = ""
+	}
+
 	return fmt.Sprintf("%s:%s:%s:%s:%s:%s:%s:%t:%t:%t", duration, offset, filterStr, fieldStr, opts.Rate,
 		opts.SharedResources, opts.ShareSplit, opts.AllocateIdle, opts.IncludeTimeSeries,
 		opts.IncludeEfficiency)
@@ -2012,13 +2018,13 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 
 	// aggregation subfield is required when aggregation field is "label"
 	if (field == "label" || field == "annotation") && len(subfields) == 0 {
-		WriteError(w, BadRequest("Missing aggregation field parameter"))
+		WriteError(w, BadRequest("Missing aggregation subfield parameter"))
 		return
 	}
 
-	// enforce one of four available rate options
+	// enforce one of the available rate options
 	if opts.Rate != "" && opts.Rate != "hourly" && opts.Rate != "daily" && opts.Rate != "monthly" {
-		WriteError(w, BadRequest("Missing aggregation field parameter"))
+		WriteError(w, BadRequest("Rate parameter only supports: hourly, daily, monthly or empty"))
 		return
 	}
 

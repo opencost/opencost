@@ -170,6 +170,13 @@ func (ctx *Context) query(query string) (interface{}, prometheus.Warnings, error
 
 	resp, body, warnings, err := ctx.Client.Do(context.Background(), req)
 	for _, w := range warnings {
+		// NoStoreAPIWarning is a warning that we would consider an error. It returns partial data relating only to the
+		// store apis which were reachable. In order to ensure integrity of data across all clusters, we'll need to identify
+		// this warning and convert it to an error.
+		if IsNoStoreAPIWarning(w) {
+			return nil, warnings, NewCommError(fmt.Sprintf("Error: %s, Body: %s, Query: %s", w, body, query))
+		}
+
 		log.Warningf("fetching query '%s': %s", query, w)
 	}
 	if err != nil {
@@ -259,6 +266,13 @@ func (ctx *Context) queryRange(query string, start, end time.Time, step time.Dur
 
 	resp, body, warnings, err := ctx.Client.Do(context.Background(), req)
 	for _, w := range warnings {
+		// NoStoreAPIWarning is a warning that we would consider an error. It returns partial data relating only to the
+		// store apis which were reachable. In order to ensure integrity of data across all clusters, we'll need to identify
+		// this warning and convert it to an error.
+		if IsNoStoreAPIWarning(w) {
+			return nil, warnings, NewCommError(fmt.Sprintf("Error: %s, Body: %s, Query: %s", w, body, query))
+		}
+
 		log.Warningf("fetching query '%s': %s", query, w)
 	}
 	if err != nil {

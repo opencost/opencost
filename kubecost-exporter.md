@@ -25,7 +25,7 @@ If you would prefer to not use the recommended install option and just deploy th
 
     Visit [http://localhost:9003/metrics](http://localhost:9003/metrics) to see exported metrics
 
-Add Kubecost scrape config to Prom ([more](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus))
+Add Kubecost scrape config to Prom ([more info](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus))
 ```
 - job_name: cost-model
   scrape_interval: 1m
@@ -46,17 +46,18 @@ Done! Kubecost is now exporting cost metrics. See the following sections for dif
 | node_gpu_hourly_cost | Hourly cost per GPU on this node  |
 | node_ram_hourly_cost   | Hourly cost per Gb of memory on this node                       |
 | node_total_hourly_cost   | Total node cost per hour                       |
+| kubecost_load_balancer_cost   | Hourly cost of a load balancer                 |
+| kubecost_cluster_management_cost | Hourly management fee per cluster                 |
 | container_cpu_allocation   | Average number of CPUs requested over last 1m                      |
 | container_memory_allocation_bytes   | Average bytes of RAM requested over last 1m                 |
 
-
-By default, the cost metrics are based on public billing APIs. Supported platforms: AWS, Azure, and GCP. For on-prem clusters, prices are based on configurable defaults. 
+By default, all cost metrics are based on public billing APIs. See the Limitations section below about reflecting your precise billing information. Supported platforms are AWS, Azure, and GCP. For on-prem clusters, prices are based on configurable defaults. 
 
 More metrics are available in the recommended install path and are described in [PROMETHEUS.md](PROMETHEUS.md).
 
 ## Dashboard examples
 
-Here’s an example dashboard using Kubecost metrics: 
+Here’s an example dashboard using Kubecost Prometheus metrics: 
 
 ![sample dashboard](https://grafana.com/api/dashboards/8670/images/5480/image)
 
@@ -97,19 +98,20 @@ avg(avg_over_time(node_ram_hourly_cost[1d] )) by (node)
 
 ## Setting Cost Alerts
 
-Custom cost alerts can be implemented with a set of Prometheus queries and can be used for alerting with AlertManager or Grafana alerts.
+Custom cost alerts can be implemented with a set of Prometheus queries and can be used for alerting with AlertManager or Grafana alerts. Below are example alerting rules. 
 
-TODO: Add examples
+#### Determine in real-time if the monthly cost of all nodes is > $1000
+
+```
+sum(node_total_hourly_cost) * 730 > 1000
+```
 
 ## Limitations
 
-Running in exporter-only mode necessarily limits Kubecost functionality. The following limitations of this install method are handled by the [recommended install](http://docs.kubecost.com/install).
+Running Kubecost in exporter-only mode by definition limits functionality. The following limitations of this install method are addressed by the [recommended install path](http://docs.kubecost.com/install).
 
 - Persistent volume metrics not available (coming soon!)
-- For large clusters, these Prometheus queries might not scale well over large time windows. We recommend using Kubecost APIs for these scenarios.
-- Allocation metrics, like `container_cpu_allocation` only contain _requests_ and do not take into account usage.
-- Efficiency metrics are not available
-- Public billing costs on default. The standard Kubecost install + a cloud integration gives you accurate pricing based on your bill. 
-
-
-
+- For large clusters, these Prometheus queries might not scale well over large time windows. We recommend using [Kubecost APIs](https://github.com/kubecost/docs/blob/master/apis.md) for these scenarios.
+- Allocation metrics, like `container_cpu_allocation` only contain _requests_ and do not take usage into account.
+- Related to the previous point, efficiency metrics are not available.
+- Public billing costs on default. The standard Kubecost install and a cloud integration gives you accurate pricing based on your bill. 

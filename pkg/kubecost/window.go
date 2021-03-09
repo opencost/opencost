@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/thanos"
 	"github.com/kubecost/cost-model/pkg/util"
 )
 
@@ -393,7 +395,19 @@ func (w Window) ExpandEnd(end time.Time) Window {
 }
 
 func (w Window) Expand(that Window) Window {
-	return w.ExpandStart(*that.start).ExpandEnd(*that.end)
+	if that.start == nil {
+		w.start = nil
+	} else {
+		w = w.ExpandStart(*that.start)
+	}
+
+	if that.end == nil {
+		w.end = nil
+	} else {
+		w = w.ExpandEnd(*that.end)
+	}
+
+	return w
 }
 
 func (w Window) Hours() float64 {
@@ -416,10 +430,11 @@ func (w Window) IsOpen() bool {
 	return w.start == nil || w.end == nil
 }
 
+// TODO:CLEANUP make this unmarshalable (make Start and End public)
 func (w Window) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
-	buffer.WriteString(fmt.Sprintf("\"start\":\"%s\",", w.start.Format("2006-01-02T15:04:05-0700")))
-	buffer.WriteString(fmt.Sprintf("\"end\":\"%s\"", w.end.Format("2006-01-02T15:04:05-0700")))
+	buffer.WriteString(fmt.Sprintf("\"start\":\"%s\",", w.start.Format(time.RFC3339)))
+	buffer.WriteString(fmt.Sprintf("\"end\":\"%s\"", w.end.Format(time.RFC3339)))
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
@@ -431,6 +446,86 @@ func (w Window) Minutes() float64 {
 
 	return w.end.Sub(*w.start).Minutes()
 }
+
+// Overlaps returns true iff the two given Windows share an amount of temporal
+// coverage.
+// TODO complete (with unit tests!) and then implement in AllocationSet.accumulate
+// TODO:CLEANUP
+// func (w Window) Overlaps(x Window) bool {
+// 	if (w.start == nil && w.end == nil) || (x.start == nil && x.end == nil) {
+// 		// one window is completely open, so overlap is guaranteed
+// 		// <---------->
+// 		//   ?------?
+// 		return true
+// 	}
+
+// 	// Neither window is completely open (nil, nil), but one or the other might
+// 	// still be future- or past-open.
+
+// 	if w.start == nil {
+// 		// w is past-open, future-closed
+// 		// <------]
+
+// 		if x.start != nil && !x.start.Before(*w.end) {
+// 			// x starts after w ends (or eq)
+// 			// <------]
+// 			//          [------?
+// 			return false
+// 		}
+
+// 		// <-----]
+// 		//    ?-----?
+// 		return true
+// 	}
+
+// 	if w.end == nil {
+// 		// w is future-open, past-closed
+// 		// [------>
+
+// 		if x.end != nil && !x.end.After(*w.end) {
+// 			// x ends before w begins (or eq)
+// 			//          [------>
+// 			// ?------]
+// 			return false
+// 		}
+
+// 		//    [------>
+// 		// ?------?
+// 		return true
+// 	}
+
+// 	// Now we know w is closed, but we don't know about x
+// 	//  [------]
+// 	//     ?------?
+// 	if x.start == nil {
+// 		// TODO
+// 	}
+
+// 	if x.end == nil {
+// 		// TODO
+// 	}
+
+// 	// Both are closed.
+
+// 	if !x.start.Before(*w.end) && !x.end.Before(*w.end) {
+// 		// x starts and ends after w ends
+// 		// [------]
+// 		//          [------]
+// 		return false
+// 	}
+
+// 	if !x.start.After(*w.start) && !x.end.After(*w.start) {
+// 		// x starts and ends before w starts
+// 		//          [------]
+// 		// [------]
+// 		return false
+// 	}
+
+// 	// w and x must overlap
+// 	//    [------]
+// 	// [------]
+// 	return true
+// }
 
 func (w Window) Set(start, end *time.Time) {
 	w.start = start
@@ -480,6 +575,50 @@ func (w Window) DurationOffset() (time.Duration, time.Duration, error) {
 	offset := time.Now().Sub(*w.End())
 
 	return duration, offset, nil
+}
+
+// DurationOffsetForPrometheus returns strings representing durations for the
+// duration and offset of the given window, factoring in the Thanos offset if
+// necessary. Whereas duration is a simple duration string (e.g. "1d"), the
+// offset includes the word "offset" (e.g. " offset 2d") so that the values
+// returned can be used directly in the formatting string "some_metric[%s]%s"
+// to generate the query "some_metric[1d] offset 2d".
+func (w Window) DurationOffsetForPrometheus() (string, string, error) {
+	duration, offset, err := w.DurationOffset()
+	if err != nil {
+		return "", "", err
+	}
+
+	// If using Thanos, increase offset to 3 hours, reducing the duration by
+	// equal measure to maintain the same starting point.
+	thanosDur := thanos.OffsetDuration()
+	if offset < thanosDur && env.IsThanosEnabled() {
+		diff := thanosDur - offset
+		offset += diff
+		duration -= diff
+	}
+
+	// If duration < 0, return an error
+	if duration < 0 {
+		return "", "", fmt.Errorf("negative duration: %s", duration)
+	}
+
+	// Negative offset means that the end time is in the future. Prometheus
+	// fails for non-positive offset values, so shrink the duration and
+	// remove the offset altogether.
+	if offset < 0 {
+		duration = duration + offset
+		offset = 0
+	}
+
+	durStr, offStr := util.DurationOffsetStrings(duration, offset)
+	if offset < time.Minute {
+		offStr = ""
+	} else {
+		offStr = " offset " + offStr
+	}
+
+	return durStr, offStr, nil
 }
 
 // DurationOffsetStrings returns formatted, Prometheus-compatible strings representing

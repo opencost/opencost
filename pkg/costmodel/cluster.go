@@ -314,7 +314,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 
 		key := fmt.Sprintf("%s/%s", cluster, name)
 		if _, ok := diskMap[key]; !ok {
-			log.Warningf("ClusterDisks: active mins for unidentified disk")
+			log.DedupedWarningf(5, "ClusterDisks: active mins for unidentified disk")
 			continue
 		}
 
@@ -371,7 +371,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 		disk.Breakdown.Idle = 1.0 - (disk.Breakdown.System + disk.Breakdown.Other + disk.Breakdown.User)
 
 		// Set provider Id to the name for reconciliation on Azure
-		if fmt.Sprintf("%T", provider) == "*provider.Azure"{
+		if fmt.Sprintf("%T", provider) == "*provider.Azure" {
 			if disk.ProviderID == "" {
 				disk.ProviderID = disk.Name
 			}
@@ -382,23 +382,26 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 }
 
 type Node struct {
-	Cluster      string
-	Name         string
-	ProviderID   string
-	NodeType     string
-	CPUCost      float64
-	CPUCores     float64
-	GPUCost      float64
-	RAMCost      float64
-	RAMBytes     float64
-	Discount     float64
-	Preemptible  bool
-	CPUBreakdown *ClusterCostsBreakdown
-	RAMBreakdown *ClusterCostsBreakdown
-	Start        time.Time
-	End          time.Time
-	Minutes      float64
-	Labels       map[string]string
+	Cluster         string
+	Name            string
+	ProviderID      string
+	NodeType        string
+	CPUCost         float64
+	CPUCores        float64
+	GPUCost         float64
+	RAMCost         float64
+	RAMBytes        float64
+	Discount        float64
+	Preemptible     bool
+	CPUBreakdown    *ClusterCostsBreakdown
+	RAMBreakdown    *ClusterCostsBreakdown
+	Start           time.Time
+	End             time.Time
+	Minutes         float64
+	Labels          map[string]string
+	CostPerCPUHr    float64
+	CostPerRAMGiBHr float64
+	CostPerGPUHr    float64
 }
 
 // GKE lies about the number of cores e2 nodes have. This table
@@ -540,7 +543,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	}
 
 	for _, node := range nodeMap {
-		// TODO take RI into account
+		// TODO take GKE Reserved Instances into account
 		node.Discount = cp.CombinedDiscountForNode(node.NodeType, node.Preemptible, discount, negotiatedDiscount)
 
 		// Apply all remaining resources to Idle

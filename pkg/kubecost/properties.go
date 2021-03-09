@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	util "github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util"
 )
 
 type Property string
@@ -57,6 +57,7 @@ type PropertyValue struct {
 }
 
 // Properties describes a set of Kubernetes objects.
+// TODO:CLEANUP make this a struct smdh
 type Properties map[Property]interface{}
 
 // TODO niko/etl make sure Services deep copy works correctly
