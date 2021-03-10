@@ -430,9 +430,6 @@ func TestAllocation_MarshalJSON(t *testing.T) {
 	// In the meantime, just set the Window so that we can test the rest.
 	after.Window = before.Window.Clone()
 
-	fmt.Println(*before)
-	fmt.Println(*after)
-
 	if !after.Equal(before) {
 		t.Fatalf("Allocation.MarshalJSON: before and after are not equal")
 	}
@@ -1326,6 +1323,47 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		"namespace2": 66.77,
 	})
 	assertAllocationWindow(t, as, "6g", startYesterday, endYesterday, 1440.0)
+
+	// 6h Share idle, share resources, share overhead
+	//
+	// Share idle weighted:
+	//
+	// namespace1:      39.6875
+	//   initial cost   25.0000
+	//   cluster1.cpu    2.5000 = 5.00*(3.00/6.00)
+	//   cluster1.ram   12.1875 = 15.00*(13.0/16.0)
+	//
+	// namespace2:      40.3125
+	//   initial cost   30.0000
+	//   cluster1.cpu    2.5000 = 5.00*(3.0/6.0)
+	//   cluster1.ram    2.8125 = 15.00*(3.0/16.0)
+	//   cluster2.cpu    2.5000 = 5.00*(3.0/6.0)
+	//   cluster2.ram    2.5000 = 5.00*(3.0/6.0)
+	//
+	// namespace3:      20.0000
+	//   initial cost   15.0000
+	//   cluster2.cpu    2.5000 = 5.00*(3.0/6.0)
+	//   cluster2.ram    2.5000 = 5.00*(3.0/6.0)
+	//
+	// Then share overhead:
+	//
+	// namespace1:      99.6875 = 39.6875 + (7.0*24.0)*(25.00/70.00)
+	// namespace2:     112.3125 = 40.3125 + (7.0*24.0)*(30.00/70.00)
+	// namespace3:      56.0000 = 20.0000 + (7.0*24.0)*(15.00/70.00)
+	//
+	// Then namespace 2 is filtered.
+	as = generateAllocationSet(start)
+	err = as.AggregateBy(Properties{NamespaceProp: ""}, &AllocationAggregationOptions{
+		FilterFuncs:       []AllocationMatchFunc{isNamespace("namespace2")},
+		ShareSplit:        ShareWeighted,
+		ShareIdle:         ShareWeighted,
+		SharedHourlyCosts: map[string]float64{"total": sharedOverheadHourlyCost},
+	})
+	assertAllocationSetTotals(t, as, "6h", err, 1, 112.31)
+	assertAllocationTotals(t, as, "6h", map[string]float64{
+		"namespace2": 112.31,
+	})
+	assertAllocationWindow(t, as, "6h", startYesterday, endYesterday, 1440.0)
 
 	// 7  Edge cases and errors
 

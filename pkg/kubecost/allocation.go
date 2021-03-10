@@ -684,6 +684,7 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 				Start:      as.Start(),
 				End:        as.End(),
 				SharedCost: totalSharedCost,
+				Properties: Properties{ClusterProp: SharedSuffix}, // The allocation needs to belong to a cluster,but it really doesn't matter which one, so just make it clear.
 			})
 		}
 	}
