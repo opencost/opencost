@@ -1327,6 +1327,20 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	})
 	assertAllocationWindow(t, as, "6g", startYesterday, endYesterday, 1440.0)
 
+	// 6g Share idle, share resources, shareoverhead
+	as = generateAllocationSet(start)
+	err = as.AggregateBy(Properties{NamespaceProp: ""}, &AllocationAggregationOptions{
+		FilterFuncs:       []AllocationMatchFunc{isNamespace("namespace2")},
+		ShareSplit:        ShareWeighted,
+		ShareIdle:         ShareWeighted,
+		SharedHourlyCosts: map[string]float64{"total": sharedOverheadHourlyCost},
+	})
+	assertAllocationSetTotals(t, as, "6g", err, 1, 112.31)
+	assertAllocationTotals(t, as, "6g", map[string]float64{
+		"namespace2": 112.31,
+	})
+	assertAllocationWindow(t, as, "6g", startYesterday, endYesterday, 1440.0)
+
 	// 7  Edge cases and errors
 
 	// 7a Empty AggregationProperties
