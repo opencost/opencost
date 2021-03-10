@@ -162,6 +162,38 @@ func buildGPUCostMap(
 	return gpuCostMap, clusterAndNameToType
 }
 
+func buildGPUCountMap(
+	resNodeGPUCount []*prom.QueryResult,
+) (
+	map[nodeIdentifierNoProviderID]float64,
+) {
+
+	gpuCountMap := make(map[nodeIdentifierNoProviderID]float64)
+
+	for _, result := range resNodeGPUCount {
+		cluster, err := result.GetString("cluster_id")
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("node")
+		if err != nil {
+			log.Warningf("ClusterNodes: GPU count data missing node")
+			continue
+		}
+
+		gpuCost := result.Values[0].Value
+
+		key := nodeIdentifierNoProviderID{
+			Cluster: cluster,
+			Name:    name,
+		}
+		gpuCountMap[key] = gpuCost
+	}
+
+	return gpuCountMap
+}
+
 func buildCPUCoresMap(
 	resNodeCPUCores []*prom.QueryResult,
 	clusterAndNameToType map[nodeIdentifierNoProviderID]string,
@@ -573,7 +605,7 @@ func checkForKeyAndInitIfMissing(
 // complexity.
 func buildNodeMap(
 	cpuCostMap, ramCostMap, gpuCostMap map[NodeIdentifier]float64,
-	cpuCoresMap, ramBytesMap, ramUserPctMap,
+	cpuCoresMap, ramBytesMap, ramUserPctMap, gpuCountMap,
 	ramSystemPctMap map[nodeIdentifierNoProviderID]float64,
 	cpuBreakdownMap map[nodeIdentifierNoProviderID]*ClusterCostsBreakdown,
 	activeDataMap map[NodeIdentifier]activeData,
@@ -631,6 +663,10 @@ func buildNodeMap(
 					nodePtr.CPUCost = nodePtr.CPUCost * adjustmentFactor
 				}
 			}
+		}
+
+		if GPUs, ok := gpuCountMap[clusterAndNameID]; ok {
+			nodePtr.GPUCount = GPUs
 		}
 
 		if ramBytes, ok := ramBytesMap[clusterAndNameID]; ok {

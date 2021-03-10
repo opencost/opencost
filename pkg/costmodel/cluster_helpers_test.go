@@ -133,6 +133,7 @@ func TestBuildNodeMap(t *testing.T) {
 		ramCostMap           map[NodeIdentifier]float64
 		gpuCostMap           map[NodeIdentifier]float64
 		cpuCoresMap          map[nodeIdentifierNoProviderID]float64
+		gpuCountMap          map[nodeIdentifierNoProviderID]float64
 		ramBytesMap          map[nodeIdentifierNoProviderID]float64
 		ramUserPctMap        map[nodeIdentifierNoProviderID]float64
 		ramSystemPctMap      map[nodeIdentifierNoProviderID]float64
@@ -318,6 +319,16 @@ func TestBuildNodeMap(t *testing.T) {
 					Name:    "node2",
 				}: 5.0,
 			},
+			gpuCountMap: map[nodeIdentifierNoProviderID]float64{
+				nodeIdentifierNoProviderID{
+					Cluster: "cluster1",
+					Name:    "node1",
+				}: 1.0,
+				nodeIdentifierNoProviderID{
+					Cluster: "cluster1",
+					Name:    "node2",
+				}: 2.0,
+			},
 			ramBytesMap: map[nodeIdentifierNoProviderID]float64{
 				nodeIdentifierNoProviderID{
 					Cluster: "cluster1",
@@ -450,6 +461,7 @@ func TestBuildNodeMap(t *testing.T) {
 					RAMCost:    0.09,
 					GPUCost:    0.8,
 					CPUCores:   2.0,
+					GPUCount: 1.0,
 					RAMBytes:   2048.0,
 					RAMBreakdown: &ClusterCostsBreakdown{
 						User:   30.0,
@@ -481,6 +493,7 @@ func TestBuildNodeMap(t *testing.T) {
 					RAMCost:    0.3,
 					GPUCost:    1.4,
 					CPUCores:   2.0,
+					GPUCount:   1.0,
 					RAMBytes:   2048.0,
 					RAMBreakdown: &ClusterCostsBreakdown{
 						User:   30.0,
@@ -512,6 +525,7 @@ func TestBuildNodeMap(t *testing.T) {
 					RAMCost:    0.024,
 					GPUCost:    3.1,
 					CPUCores:   5.0,
+					GPUCount:   2.0,
 					RAMBytes:   6303.0,
 					RAMBreakdown: &ClusterCostsBreakdown{
 						User:   42.6,
@@ -652,7 +666,7 @@ func TestBuildNodeMap(t *testing.T) {
 
 		result := buildNodeMap(
 			testCase.cpuCostMap, testCase.ramCostMap, testCase.gpuCostMap,
-			testCase.cpuCoresMap, testCase.ramBytesMap, testCase.ramUserPctMap,
+			testCase.cpuCoresMap, testCase.ramBytesMap, testCase.ramUserPctMap, testCase.gpuCountMap,
 			testCase.ramSystemPctMap,
 			testCase.cpuBreakdownMap,
 			testCase.activeDataMap,

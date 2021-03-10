@@ -60,6 +60,7 @@ sum(node_total_hourly_cost) * 730
 | kubecost_load_balancer_cost   | Hourly cost of a load balancer                 |
 | kubecost_cluster_management_cost | Hourly management fee per cluster                 |
 | pv_hourly_cost   | Hourly cost per GP on a persistent volume                 |
+| node_gpu_count | Number of GPUs available on node |
 | container_cpu_allocation   | Average number of CPUs requested/used over last 1m                      |
 | container_gpu_allocation   | Average number of GPUs requested over last 1m                      |
 | container_memory_allocation_bytes   | Average bytes of RAM requested/used over last 1m                 |
