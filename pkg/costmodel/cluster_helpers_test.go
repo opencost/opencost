@@ -1,6 +1,8 @@
 package costmodel
 
 import (
+	"github.com/kubecost/cost-model/pkg/prom"
+	"github.com/kubecost/cost-model/pkg/util"
 	"reflect"
 	"testing"
 	"time"
@@ -38,7 +40,7 @@ func TestMergeTypeMaps(t *testing.T) {
 			},
 		},
 		{
-			name: "map2 empty",
+			name: "map1 empty",
 			map1: map[nodeIdentifierNoProviderID]string{},
 			map2: map[nodeIdentifierNoProviderID]string{
 				nodeIdentifierNoProviderID{
@@ -118,11 +120,13 @@ func TestMergeTypeMaps(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
-		result := mergeTypeMaps(testCase.map1, testCase.map2)
+		t.Run(testCase.name, func(t *testing.T) {
+			result := mergeTypeMaps(testCase.map1, testCase.map2)
 
-		if !reflect.DeepEqual(result, testCase.expected) {
-			t.Errorf("mergeTypeMaps case %s failed. Got %+v but expected %+v", testCase.name, result, testCase.expected)
-		}
+			if !reflect.DeepEqual(result, testCase.expected) {
+				t.Errorf("mergeTypeMaps case %s failed. Got %+v but expected %+v", testCase.name, result, testCase.expected)
+			}
+		})
 	}
 }
 
@@ -132,6 +136,7 @@ func TestBuildNodeMap(t *testing.T) {
 		cpuCostMap           map[NodeIdentifier]float64
 		ramCostMap           map[NodeIdentifier]float64
 		gpuCostMap           map[NodeIdentifier]float64
+		gpuCountMap          map[NodeIdentifier]float64
 		cpuCoresMap          map[nodeIdentifierNoProviderID]float64
 		ramBytesMap          map[nodeIdentifierNoProviderID]float64
 		ramUserPctMap        map[nodeIdentifierNoProviderID]float64
@@ -308,6 +313,23 @@ func TestBuildNodeMap(t *testing.T) {
 					ProviderID: "prov_node2_A",
 				}: 3.1,
 			},
+			gpuCountMap: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "prov_node1_A",
+				}: 1.0,
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "prov_node1_B",
+				}: 1.0,
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node2",
+					ProviderID: "prov_node2_A",
+				}: 2.0,
+			},
 			cpuCoresMap: map[nodeIdentifierNoProviderID]float64{
 				nodeIdentifierNoProviderID{
 					Cluster: "cluster1",
@@ -450,6 +472,7 @@ func TestBuildNodeMap(t *testing.T) {
 					RAMCost:    0.09,
 					GPUCost:    0.8,
 					CPUCores:   2.0,
+					GPUCount:   1.0,
 					RAMBytes:   2048.0,
 					RAMBreakdown: &ClusterCostsBreakdown{
 						User:   30.0,
@@ -481,6 +504,7 @@ func TestBuildNodeMap(t *testing.T) {
 					RAMCost:    0.3,
 					GPUCost:    1.4,
 					CPUCores:   2.0,
+					GPUCount:   1.0,
 					RAMBytes:   2048.0,
 					RAMBreakdown: &ClusterCostsBreakdown{
 						User:   30.0,
@@ -512,6 +536,7 @@ func TestBuildNodeMap(t *testing.T) {
 					RAMCost:    0.024,
 					GPUCost:    3.1,
 					CPUCores:   5.0,
+					GPUCount:   2.0,
 					RAMBytes:   6303.0,
 					RAMBreakdown: &ClusterCostsBreakdown{
 						User:   42.6,
@@ -649,25 +674,186 @@ func TestBuildNodeMap(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			result := buildNodeMap(
+				testCase.cpuCostMap, testCase.ramCostMap, testCase.gpuCostMap, testCase.gpuCountMap,
+				testCase.cpuCoresMap, testCase.ramBytesMap, testCase.ramUserPctMap,
+				testCase.ramSystemPctMap,
+				testCase.cpuBreakdownMap,
+				testCase.activeDataMap,
+				testCase.preemptibleMap,
+				testCase.labelsMap,
+				testCase.clusterAndNameToType,
+			)
 
-		result := buildNodeMap(
-			testCase.cpuCostMap, testCase.ramCostMap, testCase.gpuCostMap,
-			testCase.cpuCoresMap, testCase.ramBytesMap, testCase.ramUserPctMap,
-			testCase.ramSystemPctMap,
-			testCase.cpuBreakdownMap,
-			testCase.activeDataMap,
-			testCase.preemptibleMap,
-			testCase.labelsMap,
-			testCase.clusterAndNameToType,
-		)
+			if !reflect.DeepEqual(result, testCase.expected) {
+				t.Errorf("buildNodeMap case %s failed. Got %+v but expected %+v", testCase.name, result, testCase.expected)
 
-		if !reflect.DeepEqual(result, testCase.expected) {
-			t.Errorf("buildNodeMap case %s failed. Got %+v but expected %+v", testCase.name, result, testCase.expected)
+				// Use spew because we have to follow pointers to figure out
+				// what isn't matching up
+				t.Logf("Got: %s", spew.Sdump(result))
+				t.Logf("Expected: %s", spew.Sdump(testCase.expected))
+			}
+		})
+	}
+}
 
-			// Use spew because we have to follow pointers to figure out
-			// what isn't matching up
-			t.Logf("Got: %s", spew.Sdump(result))
-			t.Logf("Expected: %s", spew.Sdump(testCase.expected))
-		}
+func TestBuildGPUCostMap(t *testing.T) {
+	providerIDParser := func(s string) string { return s }
+	cases := []struct {
+		name       string
+		promResult []*prom.QueryResult
+		countMap   map[NodeIdentifier]float64
+		expected   map[NodeIdentifier]float64
+	}{
+		{
+			name: "All Zeros",
+			promResult: []*prom.QueryResult{
+				{
+					Metric: map[string]interface{}{
+						"cluster_id": "cluster1",
+						"node": "node1",
+						"instance_type":"type1",
+						"provider_id": "provider1",
+					},
+					Values: []*util.Vector{
+						&util.Vector{
+							Timestamp: 0,
+							Value: 0,
+						},
+					},
+				},
+			},
+			countMap: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 0,
+			},
+			expected: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 0,
+			},
+		},
+		{
+			name: "Zero Node Count",
+			promResult: []*prom.QueryResult{
+				{
+					Metric: map[string]interface{}{
+						"cluster_id": "cluster1",
+						"node": "node1",
+						"instance_type":"type1",
+						"provider_id": "provider1",
+					},
+					Values: []*util.Vector{
+						&util.Vector{
+							Timestamp: 0,
+							Value: 2,
+						},
+					},
+				},
+			},
+			countMap: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 0,
+			},
+			expected: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 2,
+			},
+		},
+		{
+			name: "Missing Node Count",
+			promResult: []*prom.QueryResult{
+				{
+					Metric: map[string]interface{}{
+						"cluster_id": "cluster1",
+						"node": "node1",
+						"instance_type":"type1",
+						"provider_id": "provider1",
+					},
+					Values: []*util.Vector{
+						&util.Vector{
+							Timestamp: 0,
+							Value: 2,
+						},
+					},
+				},
+			},
+			countMap: map[NodeIdentifier]float64{},
+			expected: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 2,
+			},
+		},
+		{
+			name: "missing cost data",
+			promResult: []*prom.QueryResult{
+				{},
+			},
+			countMap: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 0,
+			},
+			expected: map[NodeIdentifier]float64{},
+		},
+		{
+			name: "All values present",
+			promResult: []*prom.QueryResult{
+				{
+					Metric: map[string]interface{}{
+						"cluster_id": "cluster1",
+						"node": "node1",
+						"instance_type":"type1",
+						"provider_id": "provider1",
+					},
+					Values: []*util.Vector{
+						&util.Vector{
+							Timestamp: 0,
+							Value: 2,
+						},
+					},
+				},
+			},
+			countMap: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 2,
+			},
+			expected: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 4,
+			},
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			result, _ := buildGPUCostMap(testCase.promResult, testCase.countMap, providerIDParser)
+			if !reflect.DeepEqual(result, testCase.expected) {
+				t.Errorf("buildGPUCostMap case %s failed. Got %+v but expected %+v", testCase.name, result, testCase.expected)
+			}
+		})
 	}
 }
