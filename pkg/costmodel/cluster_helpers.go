@@ -158,7 +158,7 @@ func buildGPUCostMap(
 		clusterAndNameToType[keyNon] = nodeType
 
 		// If gpu count is available use it to multiply gpu cost
-		if value, ok := gpuCountMap[key]; ok {
+		if value, ok := gpuCountMap[key]; ok && value != 0 {
 			gpuCostMap[key] = gpuCost * value
 		} else {
 			gpuCostMap[key] = gpuCost

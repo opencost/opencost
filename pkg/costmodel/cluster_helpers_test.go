@@ -1,6 +1,8 @@
 package costmodel
 
 import (
+	"github.com/kubecost/cost-model/pkg/prom"
+	"github.com/kubecost/cost-model/pkg/util"
 	"reflect"
 	"testing"
 	"time"
@@ -691,6 +693,166 @@ func TestBuildNodeMap(t *testing.T) {
 				// what isn't matching up
 				t.Logf("Got: %s", spew.Sdump(result))
 				t.Logf("Expected: %s", spew.Sdump(testCase.expected))
+			}
+		})
+	}
+}
+
+func TestBuildGPUCostMap(t *testing.T) {
+	providerIDParser := func(s string) string { return s }
+	cases := []struct {
+		name       string
+		promResult []*prom.QueryResult
+		countMap   map[NodeIdentifier]float64
+		expected   map[NodeIdentifier]float64
+	}{
+		{
+			name: "All Zeros",
+			promResult: []*prom.QueryResult{
+				{
+					Metric: map[string]interface{}{
+						"cluster_id": "cluster1",
+						"node": "node1",
+						"instance_type":"type1",
+						"provider_id": "provider1",
+					},
+					Values: []*util.Vector{
+						&util.Vector{
+							Timestamp: 0,
+							Value: 0,
+						},
+					},
+				},
+			},
+			countMap: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 0,
+			},
+			expected: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 0,
+			},
+		},
+		{
+			name: "Zero Node Count",
+			promResult: []*prom.QueryResult{
+				{
+					Metric: map[string]interface{}{
+						"cluster_id": "cluster1",
+						"node": "node1",
+						"instance_type":"type1",
+						"provider_id": "provider1",
+					},
+					Values: []*util.Vector{
+						&util.Vector{
+							Timestamp: 0,
+							Value: 2,
+						},
+					},
+				},
+			},
+			countMap: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 0,
+			},
+			expected: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 2,
+			},
+		},
+		{
+			name: "Missing Node Count",
+			promResult: []*prom.QueryResult{
+				{
+					Metric: map[string]interface{}{
+						"cluster_id": "cluster1",
+						"node": "node1",
+						"instance_type":"type1",
+						"provider_id": "provider1",
+					},
+					Values: []*util.Vector{
+						&util.Vector{
+							Timestamp: 0,
+							Value: 2,
+						},
+					},
+				},
+			},
+			countMap: map[NodeIdentifier]float64{},
+			expected: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 2,
+			},
+		},
+		{
+			name: "missing cost data",
+			promResult: []*prom.QueryResult{
+				{},
+			},
+			countMap: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 0,
+			},
+			expected: map[NodeIdentifier]float64{},
+		},
+		{
+			name: "All values present",
+			promResult: []*prom.QueryResult{
+				{
+					Metric: map[string]interface{}{
+						"cluster_id": "cluster1",
+						"node": "node1",
+						"instance_type":"type1",
+						"provider_id": "provider1",
+					},
+					Values: []*util.Vector{
+						&util.Vector{
+							Timestamp: 0,
+							Value: 2,
+						},
+					},
+				},
+			},
+			countMap: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 2,
+			},
+			expected: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 4,
+			},
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			result, _ := buildGPUCostMap(testCase.promResult, testCase.countMap, providerIDParser)
+			if !reflect.DeepEqual(result, testCase.expected) {
+				t.Errorf("buildGPUCostMap case %s failed. Got %+v but expected %+v", testCase.name, result, testCase.expected)
 			}
 		})
 	}
