@@ -118,6 +118,7 @@ func buildRAMCostMap(
 
 func buildGPUCostMap(
 	resNodeGPUCost []*prom.QueryResult,
+	gpuCountMap map[NodeIdentifier]float64,
 	providerIDParser func(string) string,
 ) (
 	map[NodeIdentifier]float64,
@@ -156,7 +157,13 @@ func buildGPUCostMap(
 
 		clusterAndNameToType[keyNon] = nodeType
 
-		gpuCostMap[key] = gpuCost
+		// If gpu count is available use it to multiply gpu cost
+		if value, ok := gpuCountMap[key]; ok {
+			gpuCostMap[key] = gpuCost * value
+		} else {
+			gpuCostMap[key] = gpuCost
+		}
+
 	}
 
 	return gpuCostMap, clusterAndNameToType
@@ -164,11 +171,12 @@ func buildGPUCostMap(
 
 func buildGPUCountMap(
 	resNodeGPUCount []*prom.QueryResult,
+	providerIDParser func(string) string,
 ) (
-	map[nodeIdentifierNoProviderID]float64,
+	map[NodeIdentifier]float64,
 ) {
 
-	gpuCountMap := make(map[nodeIdentifierNoProviderID]float64)
+	gpuCountMap := make(map[NodeIdentifier]float64)
 
 	for _, result := range resNodeGPUCount {
 		cluster, err := result.GetString("cluster_id")
@@ -182,13 +190,16 @@ func buildGPUCountMap(
 			continue
 		}
 
-		gpuCost := result.Values[0].Value
+		gpuCount := result.Values[0].Value
+		providerID, _ := result.GetString("provider_id")
 
-		key := nodeIdentifierNoProviderID{
-			Cluster: cluster,
-			Name:    name,
+
+		key := NodeIdentifier{
+			Cluster:    cluster,
+			Name:       name,
+			ProviderID: providerIDParser(providerID),
 		}
-		gpuCountMap[key] = gpuCost
+		gpuCountMap[key] = gpuCount
 	}
 
 	return gpuCountMap
@@ -604,8 +615,8 @@ func checkForKeyAndInitIfMissing(
 // the node map, but this would introduce a roughly quadratic time
 // complexity.
 func buildNodeMap(
-	cpuCostMap, ramCostMap, gpuCostMap map[NodeIdentifier]float64,
-	cpuCoresMap, ramBytesMap, ramUserPctMap, gpuCountMap,
+	cpuCostMap, ramCostMap, gpuCostMap, gpuCountMap map[NodeIdentifier]float64,
+	cpuCoresMap, ramBytesMap, ramUserPctMap,
 	ramSystemPctMap map[nodeIdentifierNoProviderID]float64,
 	cpuBreakdownMap map[nodeIdentifierNoProviderID]*ClusterCostsBreakdown,
 	activeDataMap map[NodeIdentifier]activeData,
@@ -631,6 +642,11 @@ func buildNodeMap(
 	for id, cost := range gpuCostMap {
 		checkForKeyAndInitIfMissing(nodeMap, id, clusterAndNameToType)
 		nodeMap[id].GPUCost = cost
+	}
+
+	for id, count := range gpuCountMap {
+		checkForKeyAndInitIfMissing(nodeMap, id, clusterAndNameToType)
+		nodeMap[id].GPUCount = count
 	}
 
 	for id, preemptible := range preemptibleMap {
@@ -663,10 +679,6 @@ func buildNodeMap(
 					nodePtr.CPUCost = nodePtr.CPUCost * adjustmentFactor
 				}
 			}
-		}
-
-		if GPUs, ok := gpuCountMap[clusterAndNameID]; ok {
-			nodePtr.GPUCount = GPUs
 		}
 
 		if ramBytes, ok := ramBytesMap[clusterAndNameID]; ok {

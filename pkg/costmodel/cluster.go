@@ -452,6 +452,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	queryNodeRAMBytes := fmt.Sprintf(`avg_over_time(avg(kube_node_status_capacity_memory_bytes) by (cluster_id, node)[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 	queryNodeGPUCost := fmt.Sprintf(`sum_over_time((avg(node_gpu_count) by (cluster_id, node) * on(node, cluster_id) group_right avg(node_gpu_hourly_cost) by (cluster_id, node, instance_type, provider_id))[%s:%dm]%s) * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
 	queryNodeGPUCount := fmt.Sprintf(`avg_over_time(avg(node_gpu_count) by (cluster_id, node)[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
+	queryNodeGPUHourlySum := fmt.Sprintf(`sum_over_time(avg(node_gpu_hourly_cost) by (cluster_id, node, instance_type, provider_id)[%s:%dm]%s) * %f`, durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
 	queryNodeCPUModeTotal := fmt.Sprintf(`sum(rate(node_cpu_seconds_total[%s:%dm]%s)) by (kubernetes_node, cluster_id, mode)`, durationStr, minsPerResolution, offsetStr)
 	queryNodeRAMSystemPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace="kube-system"}[%s:%dm]%s)) by (instance, cluster_id) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:%dm]%s)) by (node, cluster_id), "instance", "$1", "node", "(.*)")) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
 	queryNodeRAMUserPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace!="kube-system"}[%s:%dm]%s)) by (instance, cluster_id) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:%dm]%s)) by (node, cluster_id), "instance", "$1", "node", "(.*)")) by (instance, cluster_id)`, durationStr, minsPerResolution, offsetStr, durationStr, minsPerResolution, offsetStr)
@@ -466,6 +467,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	resChNodeRAMBytes := requiredCtx.Query(queryNodeRAMBytes)
 	resChNodeGPUCost := requiredCtx.Query(queryNodeGPUCost)
 	resChNodeGPUCount := requiredCtx.Query(queryNodeGPUCount)
+	resChNodeGPUHourlySum := requiredCtx.Query(queryNodeGPUHourlySum)
 	resChActiveMins := requiredCtx.Query(queryActiveMins)
 	resChIsSpot := requiredCtx.Query(queryIsSpot)
 
@@ -479,6 +481,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	resNodeCPUCores, _ := resChNodeCPUCores.Await()
 	resNodeGPUCost, _ := resChNodeGPUCost.Await()
 	resNodeGPUCount, _ := resChNodeGPUCount.Await()
+	resNodeGPUHourlySum, _ := resChNodeGPUHourlySum.Await()
 	resNodeRAMCost, _ := resChNodeRAMCost.Await()
 	resNodeRAMBytes, _ := resChNodeRAMBytes.Await()
 	resIsSpot, _ := resChIsSpot.Await()
@@ -488,6 +491,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	resActiveMins, _ := resChActiveMins.Await()
 	resLabels, _ := resChLabels.Await()
 
+	log.Infof("%v", resNodeGPUCost)
 	if optionalCtx.HasErrors() {
 		for _, err := range optionalCtx.Errors() {
 			log.Warningf("ClusterNodes: %s", err)
@@ -501,16 +505,17 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		return nil, requiredCtx.ErrorCollection()
 	}
 
+	gpuCountMap := buildGPUCountMap(resNodeGPUCount, cp.ParseID)
+
 	cpuCostMap, clusterAndNameToType1 := buildCPUCostMap(resNodeCPUCost, cp.ParseID)
 	ramCostMap, clusterAndNameToType2 := buildRAMCostMap(resNodeRAMCost, cp.ParseID)
-	gpuCostMap, clusterAndNameToType3 := buildGPUCostMap(resNodeGPUCost, cp.ParseID)
+	gpuCostMap, clusterAndNameToType3 := buildGPUCostMap(resNodeGPUHourlySum, gpuCountMap, cp.ParseID)
 
 	clusterAndNameToTypeIntermediate := mergeTypeMaps(clusterAndNameToType1, clusterAndNameToType2)
 	clusterAndNameToType := mergeTypeMaps(clusterAndNameToTypeIntermediate, clusterAndNameToType3)
 
 	cpuCoresMap := buildCPUCoresMap(resNodeCPUCores, clusterAndNameToType)
 
-	gpuCountMap := buildGPUCountMap(resNodeGPUCount)
 	ramBytesMap := buildRAMBytesMap(resNodeRAMBytes)
 
 	ramUserPctMap := buildRAMUserPctMap(resNodeRAMUserPct)
@@ -522,8 +527,8 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	labelsMap := buildLabelsMap(resLabels)
 
 	nodeMap := buildNodeMap(
-		cpuCostMap, ramCostMap, gpuCostMap,
-		cpuCoresMap, ramBytesMap, ramUserPctMap, gpuCountMap,
+		cpuCostMap, ramCostMap, gpuCostMap, gpuCountMap,
+		cpuCoresMap, ramBytesMap, ramUserPctMap,
 		ramSystemPctMap,
 		cpuBreakdownMap,
 		activeDataMap,
