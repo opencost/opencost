@@ -30,6 +30,7 @@ const (
 	SQLAddressEnvVar               = "SQL_ADDRESS"
 	UseCSVProviderEnvVar           = "USE_CSV_PROVIDER"
 	CSVRegionEnvVar                = "CSV_REGION"
+	CSVEndpointEnvVar 			   = "CSV_ENDPOINT"
 	CSVPathEnvVar                  = "CSV_PATH"
 	ConfigPathEnvVar               = "CONFIG_PATH"
 	CloudProviderAPIKeyEnvVar      = "CLOUD_PROVIDER_API_KEY"
@@ -171,6 +172,12 @@ func IsUseCSVProvider() bool {
 // region configured for a CSV provider.
 func GetCSVRegion() string {
 	return Get(CSVRegionEnvVar, "")
+}
+
+// GetCSVEndpoint returns the environment variable value for CSVEndpointEnvVar which represents the
+// endpoint configured for a S3 CSV provider another than AWS S3.
+func GetCSVEndpoint() string {
+	return Get(CSVEndpointEnvVar, "")
 }
 
 // GetCSVPath returns the environment variable value for CSVPathEnvVar which represents the key path
