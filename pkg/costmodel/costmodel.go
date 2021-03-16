@@ -1226,7 +1226,12 @@ func (cm *CostModel) GetLBCost(cp costAnalyzerCloud.Provider) (map[string]*costA
 			}
 			newLoadBalancer := *loadBalancer
 			for _, loadBalancerIngress := range service.Status.LoadBalancer.Ingress {
-				newLoadBalancer.IngressIPAddresses = append(newLoadBalancer.IngressIPAddresses, loadBalancerIngress.IP)
+				address := loadBalancerIngress.IP
+				if address == "" {
+					address = loadBalancerIngress.Hostname
+				}
+				newLoadBalancer.IngressIPAddresses = append(newLoadBalancer.IngressIPAddresses, address)
+
 			}
 			loadBalancerMap[key] = &newLoadBalancer
 		}

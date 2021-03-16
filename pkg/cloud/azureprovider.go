@@ -1149,3 +1149,7 @@ func (az *Azure) ParseID(id string) string {
 func (az *Azure) ParsePVID(id string) string {
 	return id
 }
+
+func (az *Azure) ParseLBID(id string) string {
+	return id
+}

@@ -2276,3 +2276,16 @@ func (aws *AWS) ParsePVID(id string) string {
 
 	return match[1]
 }
+
+func (aws *AWS) ParseLBID(id string) string {
+	rx := regexp.MustCompile("^([^-]+)-.+$") // Capture "ad9d88195b52a47c89b5055120f28c58" from "ad9d88195b52a47c89b5055120f28c58-1037804914.us-east-2.elb.amazonaws.com"
+	match := rx.FindStringSubmatch(id)
+	if len(match) < 2 {
+		if id != "" {
+			log.Infof("awsprovider.ParseLBID: failed to parse %s, %v", id, match)
+		}
+		return id
+	}
+	log.Infof("awsprovider.ParseLBID: successful parse %s, %v", match[1], match)
+	return match[1]
+}

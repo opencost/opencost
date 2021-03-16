@@ -1482,3 +1482,7 @@ func (gcp *GCP) ParseID(id string) string {
 func (gcp *GCP) ParsePVID(id string) string {
 	return id
 }
+
+func (gcp *GCP) ParseLBID(id string) string {
+	return id
+}

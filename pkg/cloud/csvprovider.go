@@ -370,3 +370,7 @@ func (c *CSVProvider) ParseID(id string) string {
 func (c *CSVProvider) ParsePVID(id string) string {
 	return id
 }
+
+func (c *CSVProvider) ParseLBID(id string) string {
+	return id
+}
