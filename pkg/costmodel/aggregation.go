@@ -2114,6 +2114,61 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+// ParseAggregationProperties attempts to parse and return aggregation properties
+// encoded under the given key. If none exist, or if parsing fails, an error
+// is returned with empty Properties.
+func ParseAggregationProperties(qp util.QueryParams, key string) (kubecost.Properties, error) {
+	aggProps := kubecost.Properties{}
+
+	labelMap := make(map[string]string)
+	annotationMap := make(map[string]string)
+	for _, raw := range qp.GetList(key, ",") {
+		fields := strings.Split(raw, ":")
+
+		switch kubecost.ParseProperty(fields[0]) {
+		case kubecost.ClusterProp:
+			aggProps.SetCluster("")
+		case kubecost.NodeProp:
+			aggProps.SetNode("")
+		case kubecost.NamespaceProp:
+			aggProps.SetNamespace("")
+		case kubecost.ControllerKindProp:
+			aggProps.SetControllerKind("")
+		case kubecost.ControllerProp:
+			aggProps.SetController("")
+		case kubecost.PodProp:
+			aggProps.SetPod("")
+		case kubecost.ContainerProp:
+			aggProps.SetContainer("")
+		case kubecost.ServiceProp:
+			aggProps.SetServices([]string{})
+		case kubecost.LabelProp:
+			if len(fields) != 2 {
+				return kubecost.Properties{}, fmt.Errorf("illegal aggregate by label: %s", raw)
+			}
+			label := prom.SanitizeLabelName(strings.TrimSpace(fields[1]))
+			labelMap[label] = ""
+		case kubecost.AnnotationProp:
+			if len(fields) != 2 {
+				return kubecost.Properties{}, fmt.Errorf("illegal aggregate by annotation: %s", raw)
+			}
+			annotation := prom.SanitizeLabelName(strings.TrimSpace(fields[1]))
+			annotationMap[annotation] = ""
+		}
+
+	}
+
+	if len(labelMap) > 0 {
+		aggProps.SetLabels(labelMap)
+	}
+
+	if len(annotationMap) > 0 {
+		aggProps.SetAnnotations(annotationMap)
+	}
+
+	return aggProps, nil
+}
+
 // ComputeAllocationHandler computes an AllocationSetRange from the CostModel.
 func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
