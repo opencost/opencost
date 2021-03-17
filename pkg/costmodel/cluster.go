@@ -621,8 +621,6 @@ func ClusterLoadBalancers(cp cloud.Provider, client prometheus.Client, duration,
 		if err != nil {
 			log.Warningf("ClusterLoadBalancers: LB cost data missing ingress_ip")
 			providerID = ""
-		} else {
-			providerID = cp.ParseLBID(providerID)
 		}
 		lbCost := result.Values[0].Value
 
@@ -635,6 +633,8 @@ func ClusterLoadBalancers(cp cloud.Provider, client prometheus.Client, duration,
 				ProviderID: cp.ParseLBID(providerID),
 			}
 		}
+		// Fill in Provider ID if it is available and missing in the loadBalancerMap
+		// Prevents there from being a duplicate LoadBalancers on the same day
 		if providerID != "" && loadBalancerMap[key].ProviderID == ""{
 			loadBalancerMap[key].ProviderID = providerID
 		}

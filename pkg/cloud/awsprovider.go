@@ -2286,6 +2286,5 @@ func (aws *AWS) ParseLBID(id string) string {
 		}
 		return id
 	}
-	log.Infof("awsprovider.ParseLBID: successful parse %s, %v", match[1], match)
 	return match[1]
 }
