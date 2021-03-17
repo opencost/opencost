@@ -319,3 +319,7 @@ func (cp *CustomProvider) ParseID(id string) string {
 func (cp *CustomProvider) ParsePVID(id string) string {
 	return id
 }
+
+func (cp *CustomProvider) ParseLBID(id string) string {
+	return id
+}
