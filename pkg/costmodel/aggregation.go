@@ -2114,6 +2114,81 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+// ComputeAllocationHandler computes an AllocationSetRange from the CostModel.
+func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+
+	qp := util.NewQueryParams(r.URL.Query())
+
+	// Window is a required field describing the window of time over which to
+	// compute allocation data.
+	window, err := kubecost.ParseWindowWithOffset(qp.Get("window", ""), env.GetParsedUTCOffset())
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid 'window' parameter: %s", err), http.StatusBadRequest)
+	}
+
+	// Block is an optional parameter that defines the duration per-block, i.e.
+	// the window for an AllocationSet, of the AllocationSetRange to be
+	// computed. Defaults to the window size, making one block.
+	step := qp.GetDuration("step", window.Duration())
+
+	// Resolution is an optional parameter, defaulting to the configured ETL
+	// resolution.
+	resolution := qp.GetDuration("resolution", env.GetETLResolution())
+
+	// Aggregation is a required comma-separated list of fields by which to
+	// aggregate results. Some fields allow a sub-field, which is distinguished
+	// with a colon; e.g. "label:app".
+	// Examples: "namespace", "namespace,label:app"
+	aggregateBy, err := ParseAggregationProperties(qp, "aggregate")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid 'aggregate' parameter: %s", err), http.StatusBadRequest)
+	}
+
+	// Accumulate is an optional parameter, defaulting to false, which if true
+	// sums each Set in the Range, producing one Set.
+	accumulate := qp.GetBool("accumulate", false)
+
+	// Query for AllocationSets in increments of the given step duration,
+	// appending each to the AllocationSetRange.
+	asr := kubecost.NewAllocationSetRange()
+	stepStart := *window.Start()
+	for window.End().After(stepStart) {
+		stepEnd := stepStart.Add(step)
+		stepWindow := kubecost.NewWindow(&stepStart, &stepEnd)
+
+		as, err := a.Model.ComputeAllocation(*stepWindow.Start(), *stepWindow.End(), resolution)
+		if err != nil {
+			WriteError(w, InternalServerError(err.Error()))
+			return
+		}
+		asr.Append(as)
+
+		stepStart = stepEnd
+	}
+
+	// Aggregate, if requested
+	if len(aggregateBy) > 0 {
+		err = asr.AggregateBy(aggregateBy, nil)
+		if err != nil {
+			WriteError(w, InternalServerError(err.Error()))
+			return
+		}
+	}
+
+	// Accumulate, if requested
+	if accumulate {
+		as, err := asr.Accumulate()
+		if err != nil {
+			WriteError(w, InternalServerError(err.Error()))
+			return
+		}
+		asr = kubecost.NewAllocationSetRange(as)
+	}
+
+	w.Write(WrapData(asr, nil))
+}
+
 // The below was transferred from a different package in order to maintain
 // previous behavior. Ultimately, we should clean this up at some point.
 // TODO move to util and/or standardize everything
