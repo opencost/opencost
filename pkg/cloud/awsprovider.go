@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -23,6 +22,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/json"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -36,7 +36,6 @@ import (
 	"github.com/jszwec/csvutil"
 
 	v1 "k8s.io/api/core/v1"
-	jsoniter "github.com/json-iterator/go"
 )
 
 const supportedSpotFeedVersion = "1"
@@ -1285,7 +1284,7 @@ func (aws *AWS) loadAWSAuthSecret(force bool) (*AWSAccessKey, error) {
 	}
 
 	var ak AWSAccessKey
-	err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(result, &ak)
+	err = json.Unmarshal(result, &ak)
 	if err != nil {
 		return nil, err
 	}
@@ -1305,7 +1304,7 @@ func getClusterConfig(ccFile string) (map[string]string, error) {
 		return nil, err
 	}
 	var clusterConf map[string]string
-	err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal([]byte(b), &clusterConf)
+	err = json.Unmarshal([]byte(b), &clusterConf)
 	if err != nil {
 		return nil, err
 	}
@@ -1389,7 +1388,7 @@ func (a *AWS) GetAddresses() ([]byte, error) {
 	// Format the response this way to match the JSON-encoded formatting of a single response
 	// from DescribeAddresss, so that consumers can always expect AWS disk responses to have
 	// a "Addresss" key at the top level.
-	return jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(map[string][]*ec2.Address{
+	return json.Marshal(map[string][]*ec2.Address{
 		"Addresses": addresses,
 	})
 }
@@ -1493,7 +1492,7 @@ func (a *AWS) GetDisks() ([]byte, error) {
 	// Format the response this way to match the JSON-encoded formatting of a single response
 	// from DescribeVolumes, so that consumers can always expect AWS disk responses to have
 	// a "Volumes" key at the top level.
-	return jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(map[string][]*ec2.Volume{
+	return json.Marshal(map[string][]*ec2.Volume{
 		"Volumes": volumes,
 	})
 }
@@ -1969,7 +1968,7 @@ func (a *AWS) QuerySQL(query string) ([]byte, error) {
 		return nil, err
 	}
 	var athenaConf map[string]string
-	jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal([]byte(b), &athenaConf)
+	json.Unmarshal([]byte(b), &athenaConf)
 	region := aws.String(customPricing.AthenaRegion)
 	resultsBucket := customPricing.AthenaBucketName
 	database := customPricing.AthenaDatabase
@@ -2024,7 +2023,7 @@ func (a *AWS) QuerySQL(query string) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		b, err := jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(op.ResultSet)
+		b, err := json.Marshal(op.ResultSet)
 		if err != nil {
 			return nil, err
 		}

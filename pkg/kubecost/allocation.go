@@ -10,7 +10,7 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
-	jsoniter "github.com/json-iterator/go"
+	"github.com/kubecost/cost-model/pkg/util/json"
 )
 
 // TODO Clean-up use of IsEmpty; nil checks should be separated for safety.
@@ -257,7 +257,7 @@ func (a *Allocation) PVBytes() float64 {
 	return a.PVByteHours / (a.Minutes() / 60.0)
 }
 
-// MarshalJSON implements jsoniter.ConfigCompatibleWithStandardLibrary.Marshal interface
+// MarshalJSON implements json.Marshaler interface
 func (a *Allocation) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
 	jsonEncodeString(buffer, "name", a.Name, ",")
@@ -1659,7 +1659,7 @@ func (as *AllocationSet) Map() map[string]*Allocation {
 func (as *AllocationSet) MarshalJSON() ([]byte, error) {
 	as.RLock()
 	defer as.RUnlock()
-	return jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(as.allocations)
+	return json.Marshal(as.allocations)
 }
 
 // Resolution returns the AllocationSet's window duration
@@ -1946,7 +1946,7 @@ func (asr *AllocationSetRange) Length() int {
 func (asr *AllocationSetRange) MarshalJSON() ([]byte, error) {
 	asr.RLock()
 	asr.RUnlock()
-	return jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(asr.allocations)
+	return json.Marshal(asr.allocations)
 }
 
 // Slice copies the underlying slice of AllocationSets, maintaining order,

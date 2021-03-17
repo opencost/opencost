@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"math"
-	jsoniter "github.com/json-iterator/go"
+
+	"github.com/kubecost/cost-model/pkg/util/json"
 )
 
 // TODO move everything below to a separate package
@@ -26,7 +27,7 @@ func jsonEncodeString(buffer *bytes.Buffer, name, val, comma string) {
 
 func jsonEncode(buffer *bytes.Buffer, name string, obj interface{}, comma string) {
 	buffer.WriteString(fmt.Sprintf("\"%s\":", name))
-	if bytes, err := jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(obj); err != nil {
+	if bytes, err := json.Marshal(obj); err != nil {
 		buffer.WriteString("null")
 	} else {
 		buffer.Write(bytes)

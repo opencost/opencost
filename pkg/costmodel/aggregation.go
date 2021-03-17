@@ -19,10 +19,10 @@ import (
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/thanos"
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/json"
 	"github.com/patrickmn/go-cache"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	"k8s.io/klog"
-	jsoniter "github.com/json-iterator/go"
 )
 
 const (
@@ -2130,7 +2130,7 @@ func WriteError(w http.ResponseWriter, err Error) {
 	}
 	w.WriteHeader(status)
 
-	resp, _ := jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(&Response{
+	resp, _ := json.Marshal(&Response{
 		Code:    status,
 		Message: fmt.Sprintf("Error: %s", err.Body),
 	})

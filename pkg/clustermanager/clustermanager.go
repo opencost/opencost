@@ -9,10 +9,10 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/json"
 
 	"k8s.io/klog"
 	"sigs.k8s.io/yaml"
-	jsoniter "github.com/json-iterator/go"
 )
 
 // The details key used to provide auth information
@@ -140,7 +140,7 @@ func (cm *ClusterManager) Add(cluster ClusterDefinition) (*ClusterDefinition, er
 		cluster.ID = uuid.New().String()
 	}
 
-	data, err := jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(cluster)
+	data, err := json.Marshal(cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func (cm *ClusterManager) AddOrUpdate(cluster ClusterDefinition) (*ClusterDefini
 		cluster.ID = uuid.New().String()
 	}
 
-	data, err := jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(cluster)
+	data, err := json.Marshal(cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +181,7 @@ func (cm *ClusterManager) GetAll() []*ClusterDefinition {
 
 	err := cm.storage.Each(func(key string, cluster []byte) error {
 		var cd ClusterDefinition
-		err := jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(cluster, &cd)
+		err := json.Unmarshal(cluster, &cd)
 		if err != nil {
 			klog.V(1).Infof("[Error] Failed to unmarshal json cluster definition for key: %s", key)
 			return nil

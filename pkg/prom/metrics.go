@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	jsoniter "github.com/json-iterator/go"
+	"github.com/kubecost/cost-model/pkg/util/json"
 )
 
 var invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
@@ -21,13 +21,13 @@ func AnyToLabels(a interface{}) (map[string]string, error) {
 		return MapToLabels(a), nil
 	}
 
-	b, e := jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(a)
+	b, e := json.Marshal(a)
 	if e != nil {
 		return nil, e
 	}
 
 	var m map[string]interface{}
-	e = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(b, &m)
+	e = json.Unmarshal(b, &m)
 	if e != nil {
 		return nil, e
 	}

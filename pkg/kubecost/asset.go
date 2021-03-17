@@ -3,14 +3,13 @@ package kubecost
 import (
 	"bytes"
 	"encoding"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/log"
-	jsoniter "github.com/json-iterator/go"
+	"github.com/kubecost/cost-model/pkg/util/json"
 )
 
 const timeFmt = "2006-01-02T15:04:05-0700"
@@ -2793,7 +2792,7 @@ func (as *AssetSet) Map() map[string]Asset {
 func (as *AssetSet) MarshalJSON() ([]byte, error) {
 	as.RLock()
 	defer as.RUnlock()
-	return jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(as.assets)
+	return json.Marshal(as.assets)
 }
 
 func (as *AssetSet) Set(asset Asset, aggregateBy []string) error {
@@ -2993,7 +2992,7 @@ func (asr *AssetSetRange) Length() int {
 func (asr *AssetSetRange) MarshalJSON() ([]byte, error) {
 	asr.RLock()
 	asr.RUnlock()
-	return jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(asr.assets)
+	return json.Marshal(asr.assets)
 }
 
 func (asr *AssetSetRange) UTCOffset() time.Duration {

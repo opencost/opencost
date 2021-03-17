@@ -3,7 +3,6 @@ package cloud
 import (
 	"context"
 	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"github.com/kubecost/cost-model/pkg/kubecost"
 	"io"
@@ -17,6 +16,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/json"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2017-09-01/skus"
 	"github.com/Azure/azure-sdk-for-go/services/containerservice/mgmt/2018-03-31/containerservice"
@@ -28,7 +28,6 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
-	jsoniter "github.com/json-iterator/go"
 )
 
 const (
@@ -388,7 +387,7 @@ func (az *Azure) loadAzureAuthSecret(force bool) (*AzureServiceKey, error) {
 	}
 
 	var ask AzureServiceKey
-	err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(result, &ask)
+	err = json.Unmarshal(result, &ask)
 	if err != nil {
 		return nil, err
 	}
@@ -417,7 +416,7 @@ func (az *Azure) loadAzureStorageConfig(force bool) (*AzureStorageConfig, error)
 	}
 
 	var ask AzureStorageConfig
-	err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(result, &ask)
+	err = json.Unmarshal(result, &ask)
 	if err != nil {
 		return nil, err
 	}
@@ -1024,7 +1023,7 @@ func parseCSV(reader *csv.Reader, start, end time.Time, oocAllocs map[string]*Ou
 		itemTags := make(map[string]string)
 		itemTagJson := makeValidJSON(record[headerMap["Tags"]])
 		if itemTagJson != "" {
-			err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal([]byte(itemTagJson), &itemTags)
+			err = json.Unmarshal([]byte(itemTagJson), &itemTags)
 			if err != nil {
 				klog.Infof("Could not parse item tags %v", err)
 			}

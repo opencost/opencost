@@ -27,6 +27,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/thanos"
+	"github.com/kubecost/cost-model/pkg/util/json"
 	prometheus "github.com/prometheus/client_golang/api"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -38,7 +39,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	jsoniter "github.com/json-iterator/go"
 )
 
 const (
@@ -308,14 +308,14 @@ func WrapData(data interface{}, err error) []byte {
 
 	if err != nil {
 		klog.V(1).Infof("Error returned to client: %s", err.Error())
-		resp, _ = jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(&Response{
+		resp, _ = json.Marshal(&Response{
 			Code:    http.StatusInternalServerError,
 			Status:  "error",
 			Message: err.Error(),
 			Data:    data,
 		})
 	} else {
-		resp, _ = jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(&Response{
+		resp, _ = json.Marshal(&Response{
 			Code:   http.StatusOK,
 			Status: "success",
 			Data:   data,
@@ -330,14 +330,14 @@ func WrapDataWithMessage(data interface{}, err error, message string) []byte {
 
 	if err != nil {
 		klog.V(1).Infof("Error returned to client: %s", err.Error())
-		resp, _ = jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(&Response{
+		resp, _ = json.Marshal(&Response{
 			Code:    http.StatusInternalServerError,
 			Status:  "error",
 			Message: err.Error(),
 			Data:    data,
 		})
 	} else {
-		resp, _ = jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(&Response{
+		resp, _ = json.Marshal(&Response{
 			Code:    http.StatusOK,
 			Status:  "success",
 			Data:    data,
@@ -353,7 +353,7 @@ func WrapDataWithWarning(data interface{}, err error, warning string) []byte {
 
 	if err != nil {
 		klog.V(1).Infof("Error returned to client: %s", err.Error())
-		resp, _ = jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(&Response{
+		resp, _ = json.Marshal(&Response{
 			Code:    http.StatusInternalServerError,
 			Status:  "error",
 			Message: err.Error(),
@@ -361,7 +361,7 @@ func WrapDataWithWarning(data interface{}, err error, warning string) []byte {
 			Data:    data,
 		})
 	} else {
-		resp, _ = jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(&Response{
+		resp, _ = json.Marshal(&Response{
 			Code:    http.StatusOK,
 			Status:  "success",
 			Data:    data,
@@ -377,7 +377,7 @@ func WrapDataWithMessageAndWarning(data interface{}, err error, message, warning
 
 	if err != nil {
 		klog.V(1).Infof("Error returned to client: %s", err.Error())
-		resp, _ = jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(&Response{
+		resp, _ = json.Marshal(&Response{
 			Code:    http.StatusInternalServerError,
 			Status:  "error",
 			Message: err.Error(),
@@ -385,7 +385,7 @@ func WrapDataWithMessageAndWarning(data interface{}, err error, message, warning
 			Data:    data,
 		})
 	} else {
-		resp, _ = jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(&Response{
+		resp, _ = json.Marshal(&Response{
 			Code:    http.StatusOK,
 			Status:  "success",
 			Data:    data,

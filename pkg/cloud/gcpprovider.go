@@ -2,7 +2,6 @@ package cloud
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -23,13 +22,13 @@ import (
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/json"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/iterator"
 	v1 "k8s.io/api/core/v1"
-	jsoniter "github.com/json-iterator/go"
 )
 
 const GKE_GPU_TAG = "cloud.google.com/gke-accelerator"
@@ -81,7 +80,7 @@ func multiKeyGCPAllocationToOutOfClusterAllocation(gcpAlloc multiKeyGCPAllocatio
 	var environment string
 	var usedAggregatorName string
 	if gcpAlloc.Keys.Valid {
-		err := jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal([]byte(gcpAlloc.Keys.StringVal), &keys)
+		err := json.Unmarshal([]byte(gcpAlloc.Keys.StringVal), &keys)
 		if err != nil {
 			klog.Infof("Invalid unmarshaling response from BigQuery filtered query: %s", err.Error())
 		}
@@ -243,7 +242,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 			c.BillingDataDataset = a.BillingDataDataset
 
 			if len(a.Key) > 0 {
-				j, err := jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(a.Key)
+				j, err := json.Marshal(a.Key)
 				if err != nil {
 					return err
 				}
@@ -533,7 +532,7 @@ func (*GCP) GetAddresses() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(res)
+	return json.Marshal(res)
 }
 
 // GetDisks returns the GCP disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
@@ -562,7 +561,7 @@ func (*GCP) GetDisks() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(res)
+	return json.Marshal(res)
 
 }
 
