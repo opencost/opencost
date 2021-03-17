@@ -1,12 +1,13 @@
 package prom
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"regexp"
 	"sort"
 	"strings"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 var invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
@@ -20,13 +21,13 @@ func AnyToLabels(a interface{}) (map[string]string, error) {
 		return MapToLabels(a), nil
 	}
 
-	b, e := json.Marshal(a)
+	b, e := jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(a)
 	if e != nil {
 		return nil, e
 	}
 
 	var m map[string]interface{}
-	e = json.Unmarshal(b, &m)
+	e = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(b, &m)
 	if e != nil {
 		return nil, e
 	}

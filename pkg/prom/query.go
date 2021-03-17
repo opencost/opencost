@@ -2,7 +2,6 @@ package prom
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -13,6 +12,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
 	prometheus "github.com/prometheus/client_golang/api"
+	jsoniter "github.com/json-iterator/go"
 )
 
 const (
@@ -188,7 +188,7 @@ func (ctx *Context) query(query string) (interface{}, prometheus.Warnings, error
 	}
 
 	var toReturn interface{}
-	err = json.Unmarshal(body, &toReturn)
+	err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(body, &toReturn)
 	if err != nil {
 		return nil, warnings, fmt.Errorf("query error: '%s' fetching query '%s'", err.Error(), query)
 	}
@@ -291,7 +291,7 @@ func (ctx *Context) queryRange(query string, start, end time.Time, step time.Dur
 	}
 
 	var toReturn interface{}
-	err = json.Unmarshal(body, &toReturn)
+	err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(body, &toReturn)
 	if err != nil {
 		return nil, warnings, fmt.Errorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", statusCode, statusText, util.HeaderString(resp.Header), err.Error(), body, query)
 	}

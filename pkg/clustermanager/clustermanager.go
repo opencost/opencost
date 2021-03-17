@@ -2,7 +2,6 @@ package clustermanager
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"strings"
@@ -13,6 +12,7 @@ import (
 
 	"k8s.io/klog"
 	"sigs.k8s.io/yaml"
+	jsoniter "github.com/json-iterator/go"
 )
 
 // The details key used to provide auth information
@@ -140,7 +140,7 @@ func (cm *ClusterManager) Add(cluster ClusterDefinition) (*ClusterDefinition, er
 		cluster.ID = uuid.New().String()
 	}
 
-	data, err := json.Marshal(cluster)
+	data, err := jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func (cm *ClusterManager) AddOrUpdate(cluster ClusterDefinition) (*ClusterDefini
 		cluster.ID = uuid.New().String()
 	}
 
-	data, err := json.Marshal(cluster)
+	data, err := jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +181,7 @@ func (cm *ClusterManager) GetAll() []*ClusterDefinition {
 
 	err := cm.storage.Each(func(key string, cluster []byte) error {
 		var cd ClusterDefinition
-		err := json.Unmarshal(cluster, &cd)
+		err := jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(cluster, &cd)
 		if err != nil {
 			klog.V(1).Infof("[Error] Failed to unmarshal json cluster definition for key: %s", key)
 			return nil

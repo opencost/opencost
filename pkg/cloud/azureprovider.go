@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
+	jsoniter "github.com/json-iterator/go"
 )
 
 const (
@@ -387,7 +388,7 @@ func (az *Azure) loadAzureAuthSecret(force bool) (*AzureServiceKey, error) {
 	}
 
 	var ask AzureServiceKey
-	err = json.Unmarshal(result, &ask)
+	err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(result, &ask)
 	if err != nil {
 		return nil, err
 	}
@@ -416,7 +417,7 @@ func (az *Azure) loadAzureStorageConfig(force bool) (*AzureStorageConfig, error)
 	}
 
 	var ask AzureStorageConfig
-	err = json.Unmarshal(result, &ask)
+	err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(result, &ask)
 	if err != nil {
 		return nil, err
 	}
@@ -1023,7 +1024,7 @@ func parseCSV(reader *csv.Reader, start, end time.Time, oocAllocs map[string]*Ou
 		itemTags := make(map[string]string)
 		itemTagJson := makeValidJSON(record[headerMap["Tags"]])
 		if itemTagJson != "" {
-			err = json.Unmarshal([]byte(itemTagJson), &itemTags)
+			err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal([]byte(itemTagJson), &itemTags)
 			if err != nil {
 				klog.Infof("Could not parse item tags %v", err)
 			}

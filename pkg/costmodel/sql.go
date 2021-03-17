@@ -2,7 +2,6 @@ package costmodel
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/util"
 
 	_ "github.com/lib/pq"
+	jsoniter "github.com/json-iterator/go"
 )
 
 func getPVCosts(db *sql.DB) (map[string]*costAnalyzerCloud.PV, error) {
@@ -280,7 +280,7 @@ func CostDataRangeFromSQL(field string, value string, window string, start strin
 		}
 
 		var dat map[string]string
-		err := json.Unmarshal([]byte(result[4]), &dat)
+		err := jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal([]byte(result[4]), &dat)
 		if err != nil {
 			return nil, err
 		}

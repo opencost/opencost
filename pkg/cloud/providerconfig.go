@@ -1,7 +1,6 @@
 package cloud
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"reflect"
@@ -14,6 +13,7 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 
 	"k8s.io/klog"
+	jsoniter "github.com/json-iterator/go"
 )
 
 var sanitizePolicy = bluemonday.UGCPolicy()
@@ -58,7 +58,7 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*CustomPricing, err
 
 		// Only write the file if flag enabled
 		if writeIfNotExists {
-			cj, err := json.Marshal(pc.customPricing)
+			cj, err := jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(pc.customPricing)
 			if err != nil {
 				return pc.customPricing, err
 			}
@@ -82,7 +82,7 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*CustomPricing, err
 	}
 
 	var customPricing CustomPricing
-	err = json.Unmarshal(byteValue, &customPricing)
+	err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(byteValue, &customPricing)
 	if err != nil {
 		klog.Infof("Could not decode Custom Pricing file at path %s", pc.configPath)
 		return DefaultPricing(), err
@@ -123,7 +123,7 @@ func (pc *ProviderConfig) Update(updateFunc func(*CustomPricing) error) (*Custom
 	// Cache Update (possible the ptr already references the cached value)
 	pc.customPricing = c
 
-	cj, err := json.Marshal(c)
+	cj, err := jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(c)
 	if err != nil {
 		return c, err
 	}

@@ -1,7 +1,6 @@
 package costmodel
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
@@ -23,6 +22,7 @@ import (
 	"github.com/patrickmn/go-cache"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	"k8s.io/klog"
+	jsoniter "github.com/json-iterator/go"
 )
 
 const (
@@ -2130,7 +2130,7 @@ func WriteError(w http.ResponseWriter, err Error) {
 	}
 	w.WriteHeader(status)
 
-	resp, _ := json.Marshal(&Response{
+	resp, _ := jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(&Response{
 		Code:    status,
 		Message: fmt.Sprintf("Error: %s", err.Body),
 	})

@@ -1,7 +1,6 @@
 package clustermanager
 
 import (
-	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"net/http"
@@ -9,6 +8,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"k8s.io/klog"
+	jsoniter "github.com/json-iterator/go"
 )
 
 // DataEnvelope is a generic wrapper struct for http response data
@@ -47,7 +47,7 @@ func (cme *ClusterManagerEndpoints) PutCluster(w http.ResponseWriter, r *http.Re
 	}
 
 	var clusterDef ClusterDefinition
-	err = json.Unmarshal(data, &clusterDef)
+	err = jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(data, &clusterDef)
 	if err != nil {
 		w.Write(wrapData(nil, err))
 		return
@@ -86,13 +86,13 @@ func wrapData(data interface{}, err error) []byte {
 
 	if err != nil {
 		klog.V(1).Infof("Error returned to client: %s", err.Error())
-		resp, _ = json.Marshal(&DataEnvelope{
+		resp, _ = jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(&DataEnvelope{
 			Code:   http.StatusInternalServerError,
 			Status: "error",
 			Data:   err.Error(),
 		})
 	} else {
-		resp, _ = json.Marshal(&DataEnvelope{
+		resp, _ = jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(&DataEnvelope{
 			Code:   http.StatusOK,
 			Status: "success",
 			Data:   data,
