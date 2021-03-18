@@ -1,7 +1,6 @@
 package cloud
 
 import (
-	"encoding/json"
 	"io"
 	"strconv"
 	"strings"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/util/json"
 
 	v1 "k8s.io/api/core/v1"
 )
