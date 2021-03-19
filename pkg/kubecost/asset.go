@@ -3,13 +3,13 @@ package kubecost
 import (
 	"bytes"
 	"encoding"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/cost-model/pkg/util/json"
 )
 
 const timeFmt = "2006-01-02T15:04:05-0700"

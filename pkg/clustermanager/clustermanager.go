@@ -2,7 +2,6 @@ package clustermanager
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"strings"
@@ -10,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/json"
 
 	"k8s.io/klog"
 	"sigs.k8s.io/yaml"

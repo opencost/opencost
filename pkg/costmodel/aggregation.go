@@ -1,7 +1,6 @@
 package costmodel
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
@@ -20,6 +19,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/thanos"
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/json"
 	"github.com/patrickmn/go-cache"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	"k8s.io/klog"

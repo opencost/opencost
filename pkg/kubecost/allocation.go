@@ -2,7 +2,6 @@ package kubecost
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/json"
 )
 
 // TODO Clean-up use of IsEmpty; nil checks should be separated for safety.
@@ -257,7 +257,7 @@ func (a *Allocation) PVBytes() float64 {
 	return a.PVByteHours / (a.Minutes() / 60.0)
 }
 
-// MarshalJSON implements json.Marshal interface
+// MarshalJSON implements json.Marshaler interface
 func (a *Allocation) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
 	jsonEncodeString(buffer, "name", a.Name, ",")

@@ -3,7 +3,6 @@ package cloud
 import (
 	"context"
 	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"github.com/kubecost/cost-model/pkg/kubecost"
 	"io"
@@ -17,6 +16,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/json"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2017-09-01/skus"
 	"github.com/Azure/azure-sdk-for-go/services/containerservice/mgmt/2018-03-31/containerservice"
