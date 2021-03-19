@@ -2182,9 +2182,9 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 		http.Error(w, fmt.Sprintf("Invalid 'window' parameter: %s", err), http.StatusBadRequest)
 	}
 
-	// Block is an optional parameter that defines the duration per-block, i.e.
+	// Step is an optional parameter that defines the duration per-set, i.e.
 	// the window for an AllocationSet, of the AllocationSetRange to be
-	// computed. Defaults to the window size, making one block.
+	// computed. Defaults to the window size, making one set.
 	step := qp.GetDuration("step", window.Duration())
 
 	// Resolution is an optional parameter, defaulting to the configured ETL
