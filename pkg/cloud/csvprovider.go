@@ -69,6 +69,10 @@ func (c *CSVProvider) DownloadPricingData() error {
 	if strings.HasPrefix(c.CSVLocation, "s3://") {
 		region := env.GetCSVRegion()
 		conf := aws.NewConfig().WithRegion(region).WithCredentialsChainVerboseErrors(true)
+		endpoint := env.GetCSVEndpoint()
+		if endpoint != "" {
+			conf = conf.WithEndpoint(endpoint)
+		}
 		s3Client := s3.New(session.New(conf))
 		bucketAndKey := strings.Split(strings.TrimPrefix(c.CSVLocation, "s3://"), "/")
 		if len(bucketAndKey) == 2 {
