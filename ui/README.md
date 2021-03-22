@@ -1,4 +1,7 @@
 # Kubecost Open Source UI
+The preferred install path for Kubecost is via Helm chart, and is explained [here](http://docs.kubecost.com/install)
+
+To manually run an open source demo UI, follow the steps below.
 
 ## Installation & Running
 To run the UI, open a terminal to the `cost-model/ui/` directory (where this README is located) and run
