@@ -62,6 +62,7 @@ type Allocation struct {
 	GPUHours               float64    `json:"gpuHours"`
 	GPUCost                float64    `json:"gpuCost"`
 	NetworkCost            float64    `json:"networkCost"`
+	LoadBalancerCost       float64    `json:"loadBalancerCost"`
 	PVByteHours            float64    `json:"pvByteHours"`
 	PVCost                 float64    `json:"pvCost"`
 	RAMByteHours           float64    `json:"ramByteHours"`
@@ -114,6 +115,7 @@ func (a *Allocation) Clone() *Allocation {
 		GPUHours:               a.GPUHours,
 		GPUCost:                a.GPUCost,
 		NetworkCost:            a.NetworkCost,
+		LoadBalancerCost:       a.LoadBalancerCost,
 		PVByteHours:            a.PVByteHours,
 		PVCost:                 a.PVCost,
 		RAMByteHours:           a.RAMByteHours,
@@ -164,6 +166,9 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if !util.IsApproximately(a.NetworkCost, that.NetworkCost) {
 		return false
 	}
+	if !util.IsApproximately(a.LoadBalancerCost, that.LoadBalancerCost) {
+		return false
+	}
 	if !util.IsApproximately(a.PVByteHours, that.PVByteHours) {
 		return false
 	}
@@ -188,7 +193,7 @@ func (a *Allocation) Equal(that *Allocation) bool {
 
 // TotalCost is the total cost of the Allocation
 func (a *Allocation) TotalCost() float64 {
-	return a.CPUCost + a.GPUCost + a.RAMCost + a.PVCost + a.NetworkCost + a.SharedCost + a.ExternalCost
+	return a.CPUCost + a.GPUCost + a.RAMCost + a.PVCost + a.NetworkCost + a.SharedCost + a.ExternalCost + a.LoadBalancerCost
 }
 
 // CPUEfficiency is the ratio of usage to request. If there is no request and
@@ -275,6 +280,7 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "gpuHours", a.GPUHours, ",")
 	jsonEncodeFloat64(buffer, "gpuCost", a.GPUCost, ",")
 	jsonEncodeFloat64(buffer, "networkCost", a.NetworkCost, ",")
+	jsonEncodeFloat64(buffer, "loadBalancerCost", a.LoadBalancerCost, ",")
 	jsonEncodeFloat64(buffer, "pvBytes", a.PVBytes(), ",")
 	jsonEncodeFloat64(buffer, "pvByteHours", a.PVByteHours, ",")
 	jsonEncodeFloat64(buffer, "pvCost", a.PVCost, ",")
@@ -426,6 +432,7 @@ func (a *Allocation) add(that *Allocation) {
 	a.RAMCost += that.RAMCost
 	a.PVCost += that.PVCost
 	a.NetworkCost += that.NetworkCost
+	a.LoadBalancerCost += that.LoadBalancerCost
 	a.SharedCost += that.SharedCost
 	a.ExternalCost += that.ExternalCost
 }

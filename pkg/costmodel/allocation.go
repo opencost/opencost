@@ -1671,7 +1671,7 @@ func applyLoadBalancersToPods(lbMap map[serviceKey]*LB, allocsByService map[serv
 
 		// Distribute cost of service once total hours is calculated
 		for alloc, hours := range allocHours {
-			alloc.NetworkCost += lb.TotalCost * hours / totalHours
+			alloc.LoadBalancerCost += lb.TotalCost * hours / totalHours
 		}
 	}
 }
