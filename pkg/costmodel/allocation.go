@@ -49,8 +49,8 @@ const (
 	queryFmtStatefulSetLabels     = `avg_over_time(statefulSet_match_labels[%s]%s)`
 	queryFmtDaemonSetLabels       = `sum(avg_over_time(kube_pod_owner{owner_kind="DaemonSet"}[%s]%s)) by (pod, owner_name, namespace, cluster_id)`
 	queryFmtJobLabels             = `sum(avg_over_time(kube_pod_owner{owner_kind="Job"}[%s]%s)) by (pod, owner_name, namespace ,cluster_id)`
-	queryFmtLBCostHr              = `avg(avg_over_time(kubecost_load_balancer_cost[%s]%s)) by (namespace, service_name, cluster_id)`
-	queryFmtLBActiveMins            = `count(kubecost_load_balancer_cost) by (namespace, service_name, cluster_id)[%s:%s]%s`
+	queryFmtLBCostPerHr           = `avg(avg_over_time(kubecost_load_balancer_cost[%s]%s)) by (namespace, service_name, cluster_id)`
+	queryFmtLBActiveMins          = `count(kubecost_load_balancer_cost) by (namespace, service_name, cluster_id)[%s:%s]%s`
 )
 
 // ComputeAllocation uses the CostModel instance to compute an AllocationSet
@@ -194,8 +194,8 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	queryJobLabels := fmt.Sprintf(queryFmtJobLabels, durStr, offStr)
 	resChJobLabels := ctx.Query(queryJobLabels)
 
-	queryLBCostHr := fmt.Sprintf(queryFmtLBCostHr, durStr, offStr)
-	resChLBCost := ctx.Query(queryLBCostHr)
+	queryLBCostPerHr := fmt.Sprintf(queryFmtLBCostPerHr, durStr, offStr)
+	resChLBCostPerHr := ctx.Query(queryLBCostPerHr)
 
 	queryLBActiveMins := fmt.Sprintf(queryFmtLBActiveMins, durStr, resStr, offStr)
 	resChLBActiveMins := ctx.Query(queryLBActiveMins)
@@ -236,7 +236,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	resStatefulSetLabels, _ := resChStatefulSetLabels.Await()
 	resDaemonSetLabels, _ := resChDaemonSetLabels.Await()
 	resJobLabels, _ := resChJobLabels.Await()
-	resLBCost, _ := resChLBCost.Await()
+	resLBCostPerHr, _ := resChLBCostPerHr.Await()
 	resLBActiveMins, _ := resChLBActiveMins.Await()
 
 	if ctx.HasErrors() {
@@ -283,7 +283,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 
 	// TODO breakdown network costs?
 
-
 	// Build out a map of Nodes with resource costs, discounts, and node types
 	// for converting resource allocation data to cumulative costs.
 	nodeMap := map[nodeKey]*NodePricing{}
@@ -320,7 +319,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	// cluster representing each cluster's unmounted PVs (if necessary).
 	applyUnmountedPVs(window, podMap, pvMap, pvcMap)
 
-	lbMap := getLoadBalancerCosts(resLBCost, resLBActiveMins, resolution)
+	lbMap := getLoadBalancerCosts(resLBCostPerHr, resLBActiveMins, resolution)
 	applyLoadBalancersToPods(lbMap, allocsByService)
 
 	// (3) Build out AllocationSet from Pod map
@@ -1603,29 +1602,30 @@ func applyUnmountedPVCs(window kubecost.Window, podMap map[podKey]*Pod, pvcMap m
 	}
 }
 
+// LB describes the start and end time of a Load Balancer along with cost
 type LB struct {
-	Cost float64
-	Start time.Time
-	End time.Time
+	TotalCost float64
+	Start     time.Time
+	End       time.Time
 }
 
-func getLoadBalancerCosts(resLBCost, resLBActiveMins []*prom.QueryResult, resolution time.Duration) map[serviceKey]LB {
-	lbMap := make(map[serviceKey]LB)
+func getLoadBalancerCosts(resLBCost, resLBActiveMins []*prom.QueryResult, resolution time.Duration) map[serviceKey]*LB {
+	lbMap := make(map[serviceKey]*LB)
+	lbHourlyCosts := make(map[serviceKey]float64)
 	for _, res := range resLBCost {
 		serviceKey, err := resultServiceKey(res, "cluster_id", "namespace", "service_name")
 		if err != nil {
 			continue
 		}
-		lbMap[serviceKey] = LB{
-			Cost: res.Values[0].Value,
-		}
+		lbHourlyCosts[serviceKey] = res.Values[0].Value
 	}
 	for _, res := range resLBActiveMins {
 		serviceKey, err := resultServiceKey(res, "cluster_id", "namespace", "service_name")
-		if err != nil {
+		if err != nil || len(res.Values) == 0 {
 			continue
 		}
-		if len(res.Values) == 0 {
+		if _, ok := lbHourlyCosts[serviceKey]; !ok {
+			log.Warningf("CostModel: failed to find hourly cost for Load Balancer: %v", serviceKey)
 			continue
 		}
 
@@ -1634,17 +1634,17 @@ func getLoadBalancerCosts(resLBCost, resLBActiveMins []*prom.QueryResult, resolu
 		s = s.Add(-resolution)
 		e := time.Unix(int64(res.Values[len(res.Values)-1].Timestamp), 0)
 		hours := e.Sub(s).Hours()
-		// update values in load balance and convert cost from hourly cost to total cost
-		lb := lbMap[serviceKey]
-		lb.Start = s
-		lb.End = e
-		lb.Cost *= hours
-		lbMap[serviceKey] = lb
+
+		lbMap[serviceKey] = &LB{
+			TotalCost: lbHourlyCosts[serviceKey] * hours,
+			Start:     s,
+			End:       e,
+		}
 	}
 	return lbMap
 }
 
-func applyLoadBalancersToPods(lbMap map[serviceKey]LB, allocsByService map[serviceKey][]*kubecost.Allocation) {
+func applyLoadBalancersToPods(lbMap map[serviceKey]*LB, allocsByService map[serviceKey][]*kubecost.Allocation) {
 	for sKey, lb := range lbMap {
 		totalHours := 0.0
 		allocHours := make(map[*kubecost.Allocation]float64)
@@ -1662,15 +1662,17 @@ func applyLoadBalancersToPods(lbMap map[serviceKey]LB, allocsByService map[servi
 				e = lb.End
 			}
 			hours := e.Sub(s).Hours()
-			totalHours += hours
-			allocHours[alloc] = hours
+			// A negative number of hours signifies no overlap between the windows
+			if hours < 0 {
+				totalHours += hours
+				allocHours[alloc] = hours
+			}
 		}
 
-		// Distribute cost of service once total hours in calculated
+		// Distribute cost of service once total hours is calculated
 		for alloc, hours := range allocHours {
-			alloc.NetworkCost += lb.Cost * hours / totalHours
+			alloc.NetworkCost += lb.TotalCost * hours / totalHours
 		}
-
 	}
 }
 
