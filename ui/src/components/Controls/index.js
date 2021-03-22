@@ -20,24 +20,11 @@ const Controls = ({
   accumulateOptions,
   accumulate,
   setAccumulate,
-  idleOptions,
-  idle,
-  setIdle,
   title,
   cumulativeData,
   currency,
-  titleField,
-  filters,
-  setFilters,
-  clearContext,
-  context,
 }) => {
   const classes = useStyles()
-
-  let reportAggregateBy = aggregateBy
-  if (context.length > 0) {
-    reportAggregateBy = context[0].property.toLowerCase()
-  }
 
   return (
     <div className={classes.controls}>
@@ -51,13 +38,7 @@ const Controls = ({
         accumulateOptions={accumulateOptions}
         accumulate={accumulate}
         setAccumulate={setAccumulate}
-        idleOptions={idleOptions}
-        idle={idle}
-        setIdle={setIdle}
-        filters={filters}
-        setFilters={setFilters}
         currency={currency}
-        clearContext={clearContext}
       />
 
       <DownloadControl

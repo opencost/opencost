@@ -19,32 +19,10 @@ const useStyles = makeStyles({
   },
 })
 
-const Subtitle = ({ report, context, clearContext, goToContext }) => {
+const Subtitle = ({ report }) => {
   const classes = useStyles()
 
   const { aggregateBy, window } = report
-
-  if (!isArray(context) || context.length === 0) {
-    return (
-      <div className={classes.root}>
-        <Breadcrumbs
-          separator={<NavigateNextIcon fontSize="small" />}
-          aria-label="breadcrumb"
-        >
-          {aggregateBy && aggregateBy.length > 0 ? (
-            <Typography>{toVerboseTimeRange(window)} by {upperFirst(aggregateBy)}</Typography>
-          ) : (
-            <Typography>{toVerboseTimeRange(window)}</Typography>
-          )}
-        </Breadcrumbs>
-      </div>
-    )
-  }
-
-  const handleBreadcrumbClick = (i, cb) => (e) => {
-    e.preventDefault()
-    cb(i)
-  }
 
   return (
     <div className={classes.root}>
@@ -52,22 +30,11 @@ const Subtitle = ({ report, context, clearContext, goToContext }) => {
         separator={<NavigateNextIcon fontSize="small" />}
         aria-label="breadcrumb"
       >
-        <Link className={classes.link} color="inherit" onClick={() => clearContext()}>
-          <Typography>{toVerboseTimeRange(window)} by {context[0].property}</Typography>
-        </Link>
-        {context.map((ctx, c) => {
-          return c === context.length-1 ? (
-            <Tooltip key={c} title={ctx.property} arrow>
-              <Typography style={{ cursor: "default" }}>{ctx.name}</Typography>
-            </Tooltip>
-          ) : (
-            <Link key={c} className={classes.link} color="inherit" onClick={handleBreadcrumbClick(c, goToContext)}>
-              <Tooltip title={ctx.property} arrow>
-                <Typography>{ctx.name}</Typography>
-              </Tooltip>
-            </Link>
-          )
-        })}
+        {aggregateBy && aggregateBy.length > 0 ? (
+          <Typography>{toVerboseTimeRange(window)} by {upperFirst(aggregateBy)}</Typography>
+        ) : (
+          <Typography>{toVerboseTimeRange(window)}</Typography>
+        )}
       </Breadcrumbs>
     </div>
   )

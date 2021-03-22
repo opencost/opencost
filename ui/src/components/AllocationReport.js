@@ -54,7 +54,7 @@ const headCells = [
   { id: 'totalCost', numeric: true, label: 'Total cost', width: 90 },
 ]
 
-const AllocationReport = ({ allocationData, cumulativeData, totalData, currency, drillDown }) => {
+const AllocationReport = ({ allocationData, cumulativeData, totalData, currency }) => {
   const classes = useStyles()
 
   if (allocationData.length === 0) {
@@ -171,7 +171,7 @@ const AllocationReport = ({ allocationData, cumulativeData, totalData, currency,
               }
 
               return (
-                <TableRow key={key} hover style={{ cursor: 'pointer' }} onClick={() => drillDown(row)}>
+                <TableRow key={key}>
                   <TableCell align="left">{row.name}</TableCell>
                   <TableCell align="right">{toCurrency(row.cpuCost, currency)}</TableCell>
                   <TableCell align="right">{toCurrency(row.ramCost, currency)}</TableCell>

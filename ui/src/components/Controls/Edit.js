@@ -48,42 +48,10 @@ const EditControl = ({
   accumulateOptions,
   accumulate,
   setAccumulate,
-  idleOptions,
-  idle,
-  setIdle,
-  filters,
-  setFilters,
   currency,
-  clearContext,
 }) => {
   const classes = useStyles()
   const [anchorEl, setAnchorEl] = React.useState(null)
-
-  const [filterProperty, setFilterProperty] = useState("namespace")
-  const [filterValue, setFilterValue] = useState("")
-
-  const filterPropertyOptions = ["cluster", "node", "namespace", "label", "service"]
-
-  const handleAddFilter = (newFilter) => {
-    // remove existing filters using the newFilter's property (overwrite it)
-    const oldFilters = isArray(filters) ? filters : []
-    const fs = filter(oldFilters, f => f.property !== newFilter.property)
-
-    // sanitize comma-separated values
-    const vals = sortBy(newFilter.value.split(',').map(v => trim(v).replace('=', ':')), str => str)
-    newFilter.value = vals.join(', ')
-
-    if (newFilter.value.length > 0) {
-      setFilters(sortBy([ ...fs, newFilter ], 'property'))
-    }
-
-    setFilterValue("")
-  }
-
-  const handleDeleteFilter = (delFilter) => {
-    const oldFilters = isArray(filters) ? filters : []
-    setFilters(filter(oldFilters, f => !(f.property === delFilter.property && f.value === delFilter.value)))
-  }
 
   const handleClick = (event) => {
     setAnchorEl(event.currentTarget)
@@ -130,7 +98,6 @@ const EditControl = ({
                 id="aggregation-select"
                 value={aggregateBy}
                 onChange={e => {
-                  clearContext()
                   setAggregateBy(e.target.value)
                 }}
               >
