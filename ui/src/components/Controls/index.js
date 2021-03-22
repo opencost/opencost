@@ -3,13 +3,6 @@ import { makeStyles } from '@material-ui/styles'
 import EditControl from './Edit'
 import DownloadControl from './Download'
 
-const useStyles = makeStyles({
-  controls: {
-    flexGrow: 0,
-    minWidth: 200,
-  },
-})
-
 const Controls = ({
   windowOptions,
   window,
@@ -24,10 +17,9 @@ const Controls = ({
   cumulativeData,
   currency,
 }) => {
-  const classes = useStyles()
 
   return (
-    <div className={classes.controls}>
+    <div>
       <EditControl
         windowOptions={windowOptions}
         window={window}
