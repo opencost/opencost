@@ -160,6 +160,7 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 	buff.WriteFloat64(target.GPUHours)               // write float64
 	buff.WriteFloat64(target.GPUCost)                // write float64
 	buff.WriteFloat64(target.NetworkCost)            // write float64
+	buff.WriteFloat64(target.LoadBalancerCost)       // write float64
 	buff.WriteFloat64(target.PVByteHours)            // write float64
 	buff.WriteFloat64(target.PVCost)                 // write float64
 	buff.WriteFloat64(target.RAMByteHours)           // write float64
@@ -264,10 +265,13 @@ func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
 	target.NetworkCost = w
 
 	x := buff.ReadFloat64() // read float64
-	target.PVByteHours = x
+	target.LoadBalancerCost = x
 
 	y := buff.ReadFloat64() // read float64
-	target.PVCost = y
+	target.PVByteHours = y
+
+	z := buff.ReadFloat64() // read float64
+	target.PVCost = z
 
 	aa := buff.ReadFloat64() // read float64
 	target.RAMByteHours = aa
