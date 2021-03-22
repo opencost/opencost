@@ -201,10 +201,7 @@ const ReportsPage = () => {
   }
   return (
     <Page active="reports.html">
-      <Header breadcrumbs={[
-        { 'name': 'Reports', 'href': '/' },
-        { 'name': title, 'href': '/' },
-      ]}>
+      <Header>
         <IconButton aria-label="refresh" onClick={() => setFetch(true)}>
           <RefreshIcon />
         </IconButton>
