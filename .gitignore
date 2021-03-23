@@ -1,1 +1,4 @@
 .idea
+ui/.cache
+ui/dist
+ui/node_modules/
