@@ -1663,7 +1663,7 @@ func applyLoadBalancersToPods(lbMap map[serviceKey]*LB, allocsByService map[serv
 			}
 			hours := e.Sub(s).Hours()
 			// A negative number of hours signifies no overlap between the windows
-			if hours < 0 {
+			if hours > 0 {
 				totalHours += hours
 				allocHours[alloc] = hours
 			}
