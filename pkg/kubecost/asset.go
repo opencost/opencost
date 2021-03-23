@@ -1660,6 +1660,7 @@ type Node struct {
 	RAMBreakdown *Breakdown
 	CPUCost      float64
 	GPUCost      float64
+	GPUCount     float64
 	RAMCost      float64
 	Discount     float64
 	Preemptible  float64
@@ -1908,6 +1909,7 @@ func (n *Node) Clone() Asset {
 		RAMBreakdown: n.RAMBreakdown.Clone(),
 		CPUCost:      n.CPUCost,
 		GPUCost:      n.GPUCost,
+		GPUCount:      n.GPUCount,
 		RAMCost:      n.RAMCost,
 		Preemptible:  n.Preemptible,
 		Discount:     n.Discount,
@@ -1997,6 +1999,7 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "discount", n.Discount, ",")
 	jsonEncodeFloat64(buffer, "cpuCost", n.CPUCost, ",")
 	jsonEncodeFloat64(buffer, "gpuCost", n.GPUCost, ",")
+	jsonEncodeFloat64(buffer, "gpuCount", n.GPUCount, ",")
 	jsonEncodeFloat64(buffer, "ramCost", n.RAMCost, ",")
 	jsonEncodeFloat64(buffer, "adjustment", n.Adjustment(), ",")
 	jsonEncodeFloat64(buffer, "totalCost", n.TotalCost(), "")
