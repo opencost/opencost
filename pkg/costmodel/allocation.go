@@ -813,21 +813,21 @@ func applyNetworkAllocation(podMap map[podKey]*Pod, resNetworkGiB []*prom.QueryR
 	}
 }
 
-func resToNamespaceLabels(resNamespaceLabels []*prom.QueryResult) map[string]map[string]string {
-	namespaceLabels := map[string]map[string]string{}
+func resToNamespaceLabels(resNamespaceLabels []*prom.QueryResult) map[namespaceKey]map[string]string {
+	namespaceLabels := map[namespaceKey]map[string]string{}
 
 	for _, res := range resNamespaceLabels {
-		namespace, err := res.GetString("namespace")
+		nsKey, err := resultNamespaceKey(res, "cluster_id", "namespace")
 		if err != nil {
 			continue
 		}
 
-		if _, ok := namespaceLabels[namespace]; !ok {
-			namespaceLabels[namespace] = map[string]string{}
+		if _, ok := namespaceLabels[nsKey]; !ok {
+			namespaceLabels[nsKey] = map[string]string{}
 		}
 
 		for k, l := range res.GetLabels() {
-			namespaceLabels[namespace][k] = l
+			namespaceLabels[nsKey][k] = l
 		}
 	}
 
@@ -897,8 +897,8 @@ func resToPodAnnotations(resPodAnnotations []*prom.QueryResult) map[podKey]map[s
 	return podAnnotations
 }
 
-func applyLabels(podMap map[podKey]*Pod, namespaceLabels map[string]map[string]string, podLabels map[podKey]map[string]string) {
-	for key, pod := range podMap {
+func applyLabels(podMap map[podKey]*Pod, namespaceLabels map[namespaceKey]map[string]string, podLabels map[podKey]map[string]string) {
+	for podKey, pod := range podMap {
 		for _, alloc := range pod.Allocations {
 			allocLabels, err := alloc.Properties.GetLabels()
 			if err != nil {
@@ -907,12 +907,13 @@ func applyLabels(podMap map[podKey]*Pod, namespaceLabels map[string]map[string]s
 
 			// Apply namespace labels first, then pod labels so that pod labels
 			// overwrite namespace labels.
-			if labels, ok := namespaceLabels[key.Namespace]; ok {
+			nsKey := newNamespaceKey(podKey.Cluster, podKey.Namespace)
+			if labels, ok := namespaceLabels[nsKey]; ok {
 				for k, v := range labels {
 					allocLabels[k] = v
 				}
 			}
-			if labels, ok := podLabels[key]; ok {
+			if labels, ok := podLabels[podKey]; ok {
 				for k, v := range labels {
 					allocLabels[k] = v
 				}
