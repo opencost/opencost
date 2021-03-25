@@ -65,12 +65,12 @@ const AllocationReport = ({ allocationData, cumulativeData, totalData, currency 
   const [orderBy, setOrderBy] = React.useState('totalCost')
   const [page, setPage] = useState(0)
   const [rowsPerPage, setRowsPerPage] = useState(25)
+  const numData = cumulativeData.length
 
   useEffect(() => {
     setPage(0)
   }, [numData])
 
-  const numData = cumulativeData.length
   const lastPage = Math.floor(numData / rowsPerPage)
 
   const handleChangePage = (event, newPage) => setPage(newPage)
