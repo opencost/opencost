@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/csv"
 	"fmt"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -1562,6 +1563,7 @@ func (a *AWS) QueryAthenaPaginated(query string) (*athena.GetQueryResultsInput, 
 	database := customPricing.AthenaDatabase
 	c := &aws.Config{
 		Region: region,
+		STSRegionalEndpoint: endpoints.RegionalSTSEndpoint,
 	}
 	s := session.Must(session.NewSession(c))
 	svc := athena.New(s)
@@ -1631,6 +1633,7 @@ func (a *AWS) QueryAthenaBillingData(query string) (*athena.GetQueryResultsOutpu
 	database := customPricing.AthenaDatabase
 	c := &aws.Config{
 		Region: region,
+		STSRegionalEndpoint: endpoints.RegionalSTSEndpoint,
 	}
 	s := session.Must(session.NewSession(c))
 	svc := athena.New(s)
