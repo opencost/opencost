@@ -3,7 +3,6 @@ package cloud
 import (
 	"context"
 	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"github.com/kubecost/cost-model/pkg/kubecost"
 	"io"
@@ -17,6 +16,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/json"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2017-09-01/skus"
 	"github.com/Azure/azure-sdk-for-go/services/containerservice/mgmt/2018-03-31/containerservice"
@@ -67,8 +67,8 @@ var (
 )
 
 const AzureLayout = "2006-01-02"
-var HeaderStrings = []string{"MeterCategory", "UsageDateTime", "InstanceId", "AdditionalInfo", "Tags", "PreTaxCost", "SubscriptionGuid", "ConsumedService", "ResourceGroup", "ResourceType"}
 
+var HeaderStrings = []string{"MeterCategory", "UsageDateTime", "InstanceId", "AdditionalInfo", "Tags", "PreTaxCost", "SubscriptionGuid", "ConsumedService", "ResourceGroup", "ResourceType"}
 
 var loadedAzureSecret bool = false
 var azureSecret *AzureServiceKey = nil
@@ -221,6 +221,43 @@ func (k *azureKey) ID() string {
 	return ""
 }
 
+func (k *azureKey) GetGPUCount() string {
+	instance, _ := util.GetInstanceType(k.Labels)
+	// Double digits that could get matches lower in logic
+	if strings.Contains(instance, "NC64") {
+		return "4"
+	}
+	if strings.Contains(instance, "ND96") ||
+		strings.Contains(instance, "ND40") {
+		return "8"
+	}
+
+	// Ordered asc because of some series have different gpu counts on different versions
+	if strings.Contains(instance, "NC6") ||
+		strings.Contains(instance, "NC4") ||
+		strings.Contains(instance, "NC8") ||
+		strings.Contains(instance, "NC16") ||
+		strings.Contains(instance, "ND6") ||
+		strings.Contains(instance, "NV12s") ||
+		strings.Contains(instance, "NV6") {
+		return "1"
+	}
+
+	if strings.Contains(instance, "NC12") ||
+		strings.Contains(instance, "ND12") ||
+		strings.Contains(instance, "NV24s") ||
+		strings.Contains(instance, "NV12") {
+		return "2"
+	}
+	if strings.Contains(instance, "NC24") ||
+		strings.Contains(instance, "ND24") ||
+		strings.Contains(instance, "NV48s") ||
+		strings.Contains(instance, "NV24") {
+		return "4"
+	}
+	return "0"
+}
+
 // Represents an azure storage config
 type AzureStorageConfig struct {
 	AccountName   string `json:"azureStorageAccount"`
@@ -242,7 +279,6 @@ type AzureServiceKey struct {
 	SubscriptionID string       `json:"subscriptionId"`
 	ServiceKey     *AzureAppKey `json:"serviceKey"`
 }
-
 
 // Validity check on service key
 func (ask *AzureServiceKey) IsValid() bool {
@@ -701,7 +737,7 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 	if n, ok := az.Pricing[key.Features()]; ok {
 		klog.V(4).Infof("Returning pricing for node %s: %+v from key %s", key, n, key.Features())
 		if key.GPUType() != "" {
-			n.Node.GPU = "1" // TODO: support multiple GPUs
+			n.Node.GPU = key.(*azureKey).GetGPUCount()
 		}
 		return n.Node, nil
 	}
@@ -715,7 +751,7 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 			VCPUCost: c.CPU,
 			RAMCost:  c.RAM,
 			GPUCost:  c.GPU,
-			GPU:      "1", // TODO: support multiple GPUs
+			GPU: key.(*azureKey).GetGPUCount(),
 		}, nil
 	}
 	return &Node{
@@ -1041,7 +1077,6 @@ func makeValidJSON(jsonString string) string {
 	return fmt.Sprintf("{%v}", jsonString)
 }
 
-
 // UsageDateTime only contains date information and not time because of this filtering usageDate time is inclusive on start and exclusive on end
 func isValidUsageDateTime(start, end, usageDateTime time.Time) bool {
 	return (usageDateTime.After(start) || usageDateTime.Equal(start)) && usageDateTime.Before(end)
@@ -1112,5 +1147,9 @@ func (az *Azure) ParseID(id string) string {
 }
 
 func (az *Azure) ParsePVID(id string) string {
+	return id
+}
+
+func (az *Azure) ParseLBID(id string) string {
 	return id
 }

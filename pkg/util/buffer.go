@@ -384,9 +384,17 @@ func intDataSize(data interface{}) int {
 	return 0
 }
 
-// Direct byte to string conversion that doesn't allocate.
+// Conversion from byte slice to string
 func bytesToString(b []byte) string {
-	return *(*string)(unsafe.Pointer(&b))
+	// The following commented code will map an existing byte slice's underlying array
+	// to a string. The purpose is to avoid new allocation of a string from an existing
+	// byte array. This is a solid optimization to save total allocations, but effectively
+	// pins the string's existence to the underlying byte array. This can prevent GC of the
+	// bytes in a few cases, and we should just return a newly allocated string to allow
+	// future optimization.
+	//return *(*string)(unsafe.Pointer(&b))
+
+	return string(b)
 }
 
 // Direct string to byte conversion that doesn't allocate.

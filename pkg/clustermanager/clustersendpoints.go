@@ -1,7 +1,6 @@
 package clustermanager
 
 import (
-	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"net/http"
@@ -9,6 +8,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"k8s.io/klog"
+	"github.com/kubecost/cost-model/pkg/util/json"
 )
 
 // DataEnvelope is a generic wrapper struct for http response data

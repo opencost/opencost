@@ -1,7 +1,6 @@
 package costmodel
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
@@ -20,6 +19,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/thanos"
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/json"
 	"github.com/patrickmn/go-cache"
 	prometheusClient "github.com/prometheus/client_golang/api"
 	"k8s.io/klog"
@@ -2112,6 +2112,136 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	} else {
 		w.Write(WrapDataWithMessageAndWarning(data, nil, message, warning))
 	}
+}
+
+// ParseAggregationProperties attempts to parse and return aggregation properties
+// encoded under the given key. If none exist, or if parsing fails, an error
+// is returned with empty Properties.
+func ParseAggregationProperties(qp util.QueryParams, key string) (kubecost.Properties, error) {
+	aggProps := kubecost.Properties{}
+
+	labelMap := make(map[string]string)
+	annotationMap := make(map[string]string)
+	for _, raw := range qp.GetList(key, ",") {
+		fields := strings.Split(raw, ":")
+
+		switch kubecost.ParseProperty(fields[0]) {
+		case kubecost.ClusterProp:
+			aggProps.SetCluster("")
+		case kubecost.NodeProp:
+			aggProps.SetNode("")
+		case kubecost.NamespaceProp:
+			aggProps.SetNamespace("")
+		case kubecost.ControllerKindProp:
+			aggProps.SetControllerKind("")
+		case kubecost.ControllerProp:
+			aggProps.SetController("")
+		case kubecost.PodProp:
+			aggProps.SetPod("")
+		case kubecost.ContainerProp:
+			aggProps.SetContainer("")
+		case kubecost.ServiceProp:
+			aggProps.SetServices([]string{})
+		case kubecost.LabelProp:
+			if len(fields) != 2 {
+				return kubecost.Properties{}, fmt.Errorf("illegal aggregate by label: %s", raw)
+			}
+			label := prom.SanitizeLabelName(strings.TrimSpace(fields[1]))
+			labelMap[label] = ""
+		case kubecost.AnnotationProp:
+			if len(fields) != 2 {
+				return kubecost.Properties{}, fmt.Errorf("illegal aggregate by annotation: %s", raw)
+			}
+			annotation := prom.SanitizeLabelName(strings.TrimSpace(fields[1]))
+			annotationMap[annotation] = ""
+		}
+
+	}
+
+	if len(labelMap) > 0 {
+		aggProps.SetLabels(labelMap)
+	}
+
+	if len(annotationMap) > 0 {
+		aggProps.SetAnnotations(annotationMap)
+	}
+
+	return aggProps, nil
+}
+
+// ComputeAllocationHandler computes an AllocationSetRange from the CostModel.
+func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+
+	qp := util.NewQueryParams(r.URL.Query())
+
+	// Window is a required field describing the window of time over which to
+	// compute allocation data.
+	window, err := kubecost.ParseWindowWithOffset(qp.Get("window", ""), env.GetParsedUTCOffset())
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid 'window' parameter: %s", err), http.StatusBadRequest)
+	}
+
+	// Step is an optional parameter that defines the duration per-set, i.e.
+	// the window for an AllocationSet, of the AllocationSetRange to be
+	// computed. Defaults to the window size, making one set.
+	step := qp.GetDuration("step", window.Duration())
+
+	// Resolution is an optional parameter, defaulting to the configured ETL
+	// resolution.
+	resolution := qp.GetDuration("resolution", env.GetETLResolution())
+
+	// Aggregation is a required comma-separated list of fields by which to
+	// aggregate results. Some fields allow a sub-field, which is distinguished
+	// with a colon; e.g. "label:app".
+	// Examples: "namespace", "namespace,label:app"
+	aggregateBy, err := ParseAggregationProperties(qp, "aggregate")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid 'aggregate' parameter: %s", err), http.StatusBadRequest)
+	}
+
+	// Accumulate is an optional parameter, defaulting to false, which if true
+	// sums each Set in the Range, producing one Set.
+	accumulate := qp.GetBool("accumulate", false)
+
+	// Query for AllocationSets in increments of the given step duration,
+	// appending each to the AllocationSetRange.
+	asr := kubecost.NewAllocationSetRange()
+	stepStart := *window.Start()
+	for window.End().After(stepStart) {
+		stepEnd := stepStart.Add(step)
+		stepWindow := kubecost.NewWindow(&stepStart, &stepEnd)
+
+		as, err := a.Model.ComputeAllocation(*stepWindow.Start(), *stepWindow.End(), resolution)
+		if err != nil {
+			WriteError(w, InternalServerError(err.Error()))
+			return
+		}
+		asr.Append(as)
+
+		stepStart = stepEnd
+	}
+
+	// Aggregate, if requested
+	if len(aggregateBy) > 0 {
+		err = asr.AggregateBy(aggregateBy, nil)
+		if err != nil {
+			WriteError(w, InternalServerError(err.Error()))
+			return
+		}
+	}
+
+	// Accumulate, if requested
+	if accumulate {
+		as, err := asr.Accumulate()
+		if err != nil {
+			WriteError(w, InternalServerError(err.Error()))
+			return
+		}
+		asr = kubecost.NewAllocationSetRange(as)
+	}
+
+	w.Write(WrapData(asr, nil))
 }
 
 // The below was transferred from a different package in order to maintain

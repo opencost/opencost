@@ -118,6 +118,7 @@ func buildRAMCostMap(
 
 func buildGPUCostMap(
 	resNodeGPUCost []*prom.QueryResult,
+	gpuCountMap map[NodeIdentifier]float64,
 	providerIDParser func(string) string,
 ) (
 	map[NodeIdentifier]float64,
@@ -156,10 +157,52 @@ func buildGPUCostMap(
 
 		clusterAndNameToType[keyNon] = nodeType
 
-		gpuCostMap[key] = gpuCost
+		// If gpu count is available use it to multiply gpu cost
+		if value, ok := gpuCountMap[key]; ok && value != 0 {
+			gpuCostMap[key] = gpuCost * value
+		} else {
+			gpuCostMap[key] = gpuCost
+		}
+
 	}
 
 	return gpuCostMap, clusterAndNameToType
+}
+
+func buildGPUCountMap(
+	resNodeGPUCount []*prom.QueryResult,
+	providerIDParser func(string) string,
+) (
+	map[NodeIdentifier]float64,
+) {
+
+	gpuCountMap := make(map[NodeIdentifier]float64)
+
+	for _, result := range resNodeGPUCount {
+		cluster, err := result.GetString("cluster_id")
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("node")
+		if err != nil {
+			log.Warningf("ClusterNodes: GPU count data missing node")
+			continue
+		}
+
+		gpuCount := result.Values[0].Value
+		providerID, _ := result.GetString("provider_id")
+
+
+		key := NodeIdentifier{
+			Cluster:    cluster,
+			Name:       name,
+			ProviderID: providerIDParser(providerID),
+		}
+		gpuCountMap[key] = gpuCount
+	}
+
+	return gpuCountMap
 }
 
 func buildCPUCoresMap(
@@ -572,7 +615,7 @@ func checkForKeyAndInitIfMissing(
 // the node map, but this would introduce a roughly quadratic time
 // complexity.
 func buildNodeMap(
-	cpuCostMap, ramCostMap, gpuCostMap map[NodeIdentifier]float64,
+	cpuCostMap, ramCostMap, gpuCostMap, gpuCountMap map[NodeIdentifier]float64,
 	cpuCoresMap, ramBytesMap, ramUserPctMap,
 	ramSystemPctMap map[nodeIdentifierNoProviderID]float64,
 	cpuBreakdownMap map[nodeIdentifierNoProviderID]*ClusterCostsBreakdown,
@@ -599,6 +642,11 @@ func buildNodeMap(
 	for id, cost := range gpuCostMap {
 		checkForKeyAndInitIfMissing(nodeMap, id, clusterAndNameToType)
 		nodeMap[id].GPUCost = cost
+	}
+
+	for id, count := range gpuCountMap {
+		checkForKeyAndInitIfMissing(nodeMap, id, clusterAndNameToType)
+		nodeMap[id].GPUCount = count
 	}
 
 	for id, preemptible := range preemptibleMap {
