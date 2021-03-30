@@ -1,7 +1,6 @@
 package cloud
 
 import (
-	"encoding/json"
 	"io"
 	"strconv"
 	"strings"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/util/json"
 
 	v1 "k8s.io/api/core/v1"
 )
@@ -317,5 +317,9 @@ func (cp *CustomProvider) ParseID(id string) string {
 }
 
 func (cp *CustomProvider) ParsePVID(id string) string {
+	return id
+}
+
+func (cp *CustomProvider) ParseLBID(id string) string {
 	return id
 }

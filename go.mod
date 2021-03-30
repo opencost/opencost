@@ -18,6 +18,7 @@ require (
 	github.com/google/uuid v1.1.2
 	github.com/googleapis/gax-go v2.0.2+incompatible // indirect
 	github.com/gophercloud/gophercloud v0.2.0 // indirect
+	github.com/json-iterator/go v1.1.10
 	github.com/jszwec/csvutil v1.2.1
 	github.com/julienschmidt/httprouter v1.2.0
 	github.com/lib/pq v1.2.0

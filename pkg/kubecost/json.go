@@ -2,9 +2,10 @@ package kubecost
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"math"
+
+	"github.com/kubecost/cost-model/pkg/util/json"
 )
 
 // TODO move everything below to a separate package

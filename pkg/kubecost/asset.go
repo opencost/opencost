@@ -3,13 +3,13 @@ package kubecost
 import (
 	"bytes"
 	"encoding"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/cost-model/pkg/util/json"
 )
 
 const timeFmt = "2006-01-02T15:04:05-0700"
@@ -123,7 +123,7 @@ type Asset interface {
 //   => nil, err
 //
 // (See asset_test.go for assertions of these examples and more.)
-func AssetToExternalAllocation(asset Asset, aggregateBy []string) (*Allocation, error) {
+func AssetToExternalAllocation(asset Asset, aggregateBy []string, externalLabelsCfg map[string]string) (*Allocation, error) {
 	if asset == nil {
 		return nil, fmt.Errorf("asset is nil")
 	}
@@ -143,9 +143,15 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string) (*Allocation, 
 		// labelName should be derived from the mapping of properties to
 		// label names, unless the aggBy is explicitly a label, in which
 		// case we should pull the label name from the aggBy string.
+		// Unless this matches a special aggregation, as we have that mapping already transformed...
 		labelName := aggBy
+		agglName := aggBy
 		if strings.HasPrefix(aggBy, "label:") {
 			labelName = strings.TrimPrefix(aggBy, "label:")
+			agglName = labelName
+			if v, ok := externalLabelsCfg[labelName]; ok {
+				agglName = v
+			}
 		}
 
 		if labelName == "" {
@@ -155,7 +161,7 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string) (*Allocation, 
 			continue
 		}
 
-		if value := asset.Labels()[labelName]; value != "" {
+		if value := asset.Labels()[agglName]; value != "" {
 			// Valid label value was found for one of the aggregation properties,
 			// so add it to the name.
 			if strings.HasPrefix(aggBy, "label:") {
@@ -1660,6 +1666,7 @@ type Node struct {
 	RAMBreakdown *Breakdown
 	CPUCost      float64
 	GPUCost      float64
+	GPUCount     float64
 	RAMCost      float64
 	Discount     float64
 	Preemptible  float64
@@ -1908,6 +1915,7 @@ func (n *Node) Clone() Asset {
 		RAMBreakdown: n.RAMBreakdown.Clone(),
 		CPUCost:      n.CPUCost,
 		GPUCost:      n.GPUCost,
+		GPUCount:      n.GPUCount,
 		RAMCost:      n.RAMCost,
 		Preemptible:  n.Preemptible,
 		Discount:     n.Discount,
@@ -1997,6 +2005,7 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "discount", n.Discount, ",")
 	jsonEncodeFloat64(buffer, "cpuCost", n.CPUCost, ",")
 	jsonEncodeFloat64(buffer, "gpuCost", n.GPUCost, ",")
+	jsonEncodeFloat64(buffer, "gpuCount", n.GPUCount, ",")
 	jsonEncodeFloat64(buffer, "ramCost", n.RAMCost, ",")
 	jsonEncodeFloat64(buffer, "adjustment", n.Adjustment(), ",")
 	jsonEncodeFloat64(buffer, "totalCost", n.TotalCost(), "")
