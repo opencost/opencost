@@ -435,6 +435,54 @@ func TestAllocation_MarshalJSON(t *testing.T) {
 	}
 }
 
+func TestAllocationSet_generateKey(t *testing.T) {
+	var alloc *Allocation
+	var key string
+
+	props := Properties{}
+	props.SetCluster("")
+
+	key = alloc.generateKey(props)
+	if key != "" {
+		t.Fatalf("generateKey: expected \"\"; actual \"%s\"", key)
+	}
+
+	alloc = &Allocation{}
+	alloc.Properties = Properties{
+		ClusterProp: "cluster1",
+		LabelProp: map[string]string{
+			"app": "app1",
+			"env": "env1",
+		},
+	}
+
+	key = alloc.generateKey(props)
+	if key != "cluster1" {
+		t.Fatalf("generateKey: expected \"cluster1\"; actual \"%s\"", key)
+	}
+
+	props.SetNamespace("")
+	props.SetLabels(map[string]string{"app": ""})
+
+	key = alloc.generateKey(props)
+	if key != "cluster1//app=app1" {
+		t.Fatalf("generateKey: expected \"cluster1//app=app1\"; actual \"%s\"", key)
+	}
+
+	alloc.Properties = Properties{
+		ClusterProp:   "cluster1",
+		NamespaceProp: "namespace1",
+		LabelProp: map[string]string{
+			"app": "app1",
+			"env": "env1",
+		},
+	}
+	key = alloc.generateKey(props)
+	if key != "cluster1/namespace1/app=app1" {
+		t.Fatalf("generateKey: expected \"cluster1/namespace1/app=app1\"; actual \"%s\"", key)
+	}
+}
+
 func TestNewAllocationSet(t *testing.T) {
 	// TODO niko/etl
 }

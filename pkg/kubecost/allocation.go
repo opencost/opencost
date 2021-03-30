@@ -1113,6 +1113,10 @@ func computeIdleCoeffs(properties Properties, options *AllocationAggregationOpti
 }
 
 func (a *Allocation) generateKey(properties Properties) string {
+	if a == nil {
+		return ""
+	}
+
 	// Names will ultimately be joined into a single name, which uniquely
 	// identifies allocations.
 	names := []string{}
