@@ -772,10 +772,7 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 		}
 
 		// (5) generate key to use for aggregation-by-key and allocation name
-		key, err := alloc.generateKey(properties)
-		if err != nil {
-			return err
-		}
+		key := alloc.generateKey(properties)
 
 		alloc.Name = key
 		if options.MergeUnallocated && alloc.IsUnallocated() {
@@ -908,10 +905,7 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 			}
 		}
 		if !skip {
-			key, err := alloc.generateKey(properties)
-			if err != nil {
-				continue
-			}
+			key := alloc.generateKey(properties)
 
 			alloc.Name = key
 			aggSet.Insert(alloc)
@@ -944,7 +938,7 @@ func computeShareCoeffs(properties Properties, options *AllocationAggregationOpt
 	shareType := options.ShareSplit
 
 	// Record allocation values first, then normalize by totals to get percentages
-	for n, alloc := range as.allocations {
+	for _, alloc := range as.allocations {
 		if alloc.IsIdle() {
 			// Skip idle allocations in coefficient calculation
 			continue
@@ -952,10 +946,7 @@ func computeShareCoeffs(properties Properties, options *AllocationAggregationOpt
 
 		// Determine the post-aggregation key under which the allocation will
 		// be shared.
-		name, err := alloc.generateKey(properties)
-		if err != nil {
-			return nil, fmt.Errorf(`failed to generate key for shared allocation "%s": %s`, n, err)
-		}
+		name := alloc.generateKey(properties)
 
 		// If the current allocation will be filtered out in step 3, contribute
 		// its share of the shared coefficient to a "__filtered__" bin, which
@@ -1121,32 +1112,27 @@ func computeIdleCoeffs(properties Properties, options *AllocationAggregationOpti
 	return coeffs, nil
 }
 
-func (a *Allocation) generateKey(properties Properties) (string, error) {
+func (a *Allocation) generateKey(properties Properties) string {
+	if a == nil {
+		return ""
+	}
+
 	// Names will ultimately be joined into a single name, which uniquely
 	// identifies allocations.
 	names := []string{}
 
 	if properties.HasCluster() {
-		cluster, err := a.Properties.GetCluster()
-		if err != nil {
-			return "", err
-		}
+		cluster, _ := a.Properties.GetCluster()
 		names = append(names, cluster)
 	}
 
 	if properties.HasNode() {
-		node, err := a.Properties.GetNode()
-		if err != nil {
-			return "", err
-		}
+		node, _ := a.Properties.GetNode()
 		names = append(names, node)
 	}
 
 	if properties.HasNamespace() {
-		namespace, err := a.Properties.GetNamespace()
-		if err != nil {
-			return "", err
-		}
+		namespace, _ := a.Properties.GetNamespace()
 		names = append(names, namespace)
 	}
 
@@ -1182,20 +1168,12 @@ func (a *Allocation) generateKey(properties Properties) (string, error) {
 	}
 
 	if properties.HasPod() {
-		pod, err := a.Properties.GetPod()
-		if err != nil {
-			return "", err
-		}
-
+		pod, _ := a.Properties.GetPod()
 		names = append(names, pod)
 	}
 
 	if properties.HasContainer() {
-		container, err := a.Properties.GetContainer()
-		if err != nil {
-			return "", err
-		}
-
+		container, _ := a.Properties.GetContainer()
 		names = append(names, container)
 	}
 
@@ -1218,19 +1196,14 @@ func (a *Allocation) generateKey(properties Properties) (string, error) {
 	}
 
 	if properties.HasAnnotations() {
-		annotations, err := a.Properties.GetAnnotations() // annotations that the individual allocation possesses
+		annotations, err := a.Properties.GetAnnotations()
 		if err != nil {
 			// Indicate that allocation has no annotations
 			names = append(names, UnallocatedSuffix)
 		} else {
 			annotationNames := []string{}
 
-			aggAnnotations, err := properties.GetAnnotations() // potential annotations to aggregate on supplied by the API caller
-			if err != nil {
-				// We've already checked HasAnnotation, so this should never occur
-				return "", err
-			}
-			// calvin - support multi-annotation aggregation
+			aggAnnotations, _ := properties.GetAnnotations()
 			for annotationName := range aggAnnotations {
 				if val, ok := annotations[annotationName]; ok {
 					annotationNames = append(annotationNames, fmt.Sprintf("%s=%s", annotationName, val))
@@ -1254,19 +1227,14 @@ func (a *Allocation) generateKey(properties Properties) (string, error) {
 	}
 
 	if properties.HasLabel() {
-		labels, err := a.Properties.GetLabels() // labels that the individual allocation possesses
+		labels, err := a.Properties.GetLabels()
 		if err != nil {
 			// Indicate that allocation has no labels
 			names = append(names, UnallocatedSuffix)
 		} else {
 			labelNames := []string{}
 
-			aggLabels, err := properties.GetLabels() // potential labels to aggregate on supplied by the API caller
-			if err != nil {
-				// We've already checked HasLabel, so this should never occur
-				return "", err
-			}
-			// calvin - support multi-label aggregation
+			aggLabels, _ := properties.GetLabels()
 			for labelName := range aggLabels {
 				if val, ok := labels[labelName]; ok {
 					labelNames = append(labelNames, fmt.Sprintf("%s=%s", labelName, val))
@@ -1289,7 +1257,7 @@ func (a *Allocation) generateKey(properties Properties) (string, error) {
 		}
 	}
 
-	return strings.Join(names, "/"), nil
+	return strings.Join(names, "/")
 }
 
 // TODO:CLEANUP get rid of this

@@ -1028,7 +1028,7 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	var alloc *Allocation
 	var err error
 
-	alloc, err = AssetToExternalAllocation(asset, []string{"namespace"})
+	alloc, err = AssetToExternalAllocation(asset, []string{"namespace"}, map[string]string{})
 	if err == nil {
 		t.Fatalf("expected error due to nil asset")
 	}
@@ -1045,15 +1045,16 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	cloud.SetLabels(map[string]string{
 		"namespace": "monitoring",
 		"env":       "prod",
+		"product":   "cost-analyzer",
 	})
 	cloud.Cost = 10.00
 	asset = cloud
 
-	alloc, err = AssetToExternalAllocation(asset, []string{"namespace"})
+	alloc, err = AssetToExternalAllocation(asset, []string{"namespace"}, map[string]string{})
 	if err != nil {
 		t.Fatalf("expected to not error")
 	}
-	alloc, err = AssetToExternalAllocation(asset, nil)
+	alloc, err = AssetToExternalAllocation(asset, nil, map[string]string{})
 	if err == nil {
 		t.Fatalf("expected error due to nil aggregateBy")
 	}
@@ -1081,7 +1082,7 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	//   => nil, err
 
 	// 1) single-prop full match
-	alloc, err = AssetToExternalAllocation(asset, []string{"namespace"})
+	alloc, err = AssetToExternalAllocation(asset, []string{"namespace"}, map[string]string{})
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1099,7 +1100,7 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	}
 
 	// 2) multi-prop full match
-	alloc, err = AssetToExternalAllocation(asset, []string{"namespace", "label:env"})
+	alloc, err = AssetToExternalAllocation(asset, []string{"namespace", "label:env"}, map[string]string{})
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1120,7 +1121,7 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	}
 
 	// 3) multi-prop partial match
-	alloc, err = AssetToExternalAllocation(asset, []string{"namespace", "label:foo"})
+	alloc, err = AssetToExternalAllocation(asset, []string{"namespace", "label:foo"}, map[string]string{})
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1138,10 +1139,19 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	}
 
 	// 3) no match
-	alloc, err = AssetToExternalAllocation(asset, []string{"cluster"})
+	alloc, err = AssetToExternalAllocation(asset, []string{"cluster"}, map[string]string{})
 	if err == nil {
 		t.Fatalf("expected 'no match' error")
 	}
+
+	alloc, err = AssetToExternalAllocation(asset, []string{"namespace", "label:app"}, map[string]string{"app": "product"})
+	if alloc.ExternalCost != 10.00 {
+		t.Fatalf("expected external allocation with ExternalCost %f; got %f", 10.00, alloc.ExternalCost)
+	}
+	if alloc.TotalCost() != 10.00 {
+		t.Fatalf("expected external allocation with TotalCost %f; got %f", 10.00, alloc.TotalCost())
+	}
+
 }
 
 // TODO merge conflict had this:
