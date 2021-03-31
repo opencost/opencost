@@ -1068,7 +1068,7 @@ func labelsToPodControllerMap(podLabels map[podKey]map[string]string, controller
 			podLabelSet := labels.Set(pLabels)
 			if selector.Matches(podLabelSet) {
 				if _, ok := podControllerMap[pKey]; ok {
-					log.Warningf("CostModel.ComputeAllocation: PodControllerMap match already exists: %s matches %s and %s", pKey, podControllerMap[pKey], cKey)
+					log.DedupedWarningf(5, "CostModel.ComputeAllocation: PodControllerMap match already exists: %s matches %s and %s", pKey, podControllerMap[pKey], cKey)
 				}
 				podControllerMap[pKey] = cKey
 			}
@@ -1451,7 +1451,7 @@ func buildPodPVCMap(podPVCMap map[podKey][]*PVC, pvMap map[pvKey]*PV, pvcMap map
 
 		values, err := res.GetStrings("persistentvolume", "persistentvolumeclaim", "pod", "namespace")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: PVC allocation query result missing field: %s", err)
+			log.DedupedWarningf(5, "CostModel.ComputeAllocation: PVC allocation query result missing field: %s", err)
 			continue
 		}
 
@@ -1465,7 +1465,7 @@ func buildPodPVCMap(podPVCMap map[podKey][]*PVC, pvMap map[pvKey]*PV, pvcMap map
 		pvcKey := newPVCKey(cluster, namespace, name)
 
 		if _, ok := pvMap[pvKey]; !ok {
-			log.Warningf("CostModel.ComputeAllocation: PV missing for PVC allocation query result: %s", pvKey)
+			log.DedupedWarningf(5, "CostModel.ComputeAllocation: PV missing for PVC allocation query result: %s", pvKey)
 			continue
 		}
 
@@ -1475,7 +1475,7 @@ func buildPodPVCMap(podPVCMap map[podKey][]*PVC, pvMap map[pvKey]*PV, pvcMap map
 
 		pvc, ok := pvcMap[pvcKey]
 		if !ok {
-			log.Warningf("CostModel.ComputeAllocation: PVC missing for PVC allocation query: %s", pvcKey)
+			log.DedupedWarningf(5, "CostModel.ComputeAllocation: PVC missing for PVC allocation query: %s", pvcKey)
 			continue
 		}
 
@@ -1598,7 +1598,7 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*NodePricing, nodeKey no
 	node, ok := nodeMap[nodeKey]
 	if !ok || node == nil {
 		if nodeKey.Node != "" {
-			log.Warningf("CostModel: failed to find node for %s", nodeKey)
+			log.DedupedWarningf(5, "CostModel: failed to find node for %s", nodeKey)
 		}
 		return cm.getCustomNodePricing(false)
 	}

@@ -27,7 +27,12 @@ Here is a summary of features enabled by this cost model:
 You can deploy Kubecost on any Kubernetes 1.8+ cluster in a matter of minutes, if not seconds. 
 Visit the Kubecost docs for [recommended install options](https://docs.kubecost.com/install). Compared to building from source, installing from Helm is faster and includes all necessary dependencies. 
 
-> If you want to deploy cost model in Prometheus exporter only mode, check out [kubecost-exporter.md](kubecost-exporter.md).
+## Usage
+
+* User interface
+* [Cost APIs](https://github.com/kubecost/docs/blob/master/apis.md)
+* [CLI / kubectl cost](https://github.com/kubecost/kubectl-cost)
+* [Prometheus metric exporter](kubecost-exporter.md)
 
 ## Contributing
 
