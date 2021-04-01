@@ -16,7 +16,8 @@ Here is a summary of features enabled by this cost model:
 ## Requirements
 
 - Kubernetes version 1.8 or higher
-- Prometheus 
+- Prometheus
+- kube-state-metrics (optional) 
 
 ## Getting Started
 
