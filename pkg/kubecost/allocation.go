@@ -58,6 +58,7 @@ type Allocation struct {
 	CPUCoreHours           float64    `json:"cpuCoreHours"`
 	CPUCoreRequestAverage  float64    `json:"cpuCoreRequestAverage"`
 	CPUCoreUsageAverage    float64    `json:"cpuCoreUsageAverage"`
+	CPUCoreUsageMax        float64    `json:"cpuCoreUsageMax"`
 	CPUCost                float64    `json:"cpuCost"`
 	GPUHours               float64    `json:"gpuHours"`
 	GPUCost                float64    `json:"gpuCost"`
@@ -68,6 +69,7 @@ type Allocation struct {
 	RAMByteHours           float64    `json:"ramByteHours"`
 	RAMBytesRequestAverage float64    `json:"ramByteRequestAverage"`
 	RAMBytesUsageAverage   float64    `json:"ramByteUsageAverage"`
+	RAMBytesUsageMax       float64    `json:"ramByteUsageMax"`
 	RAMCost                float64    `json:"ramCost"`
 	SharedCost             float64    `json:"sharedCost"`
 	ExternalCost           float64    `json:"externalCost"`
@@ -111,6 +113,7 @@ func (a *Allocation) Clone() *Allocation {
 		CPUCoreHours:           a.CPUCoreHours,
 		CPUCoreRequestAverage:  a.CPUCoreRequestAverage,
 		CPUCoreUsageAverage:    a.CPUCoreUsageAverage,
+		CPUCoreUsageMax:        a.CPUCoreUsageMax,
 		CPUCost:                a.CPUCost,
 		GPUHours:               a.GPUHours,
 		GPUCost:                a.GPUCost,
@@ -121,6 +124,7 @@ func (a *Allocation) Clone() *Allocation {
 		RAMByteHours:           a.RAMByteHours,
 		RAMBytesRequestAverage: a.RAMBytesRequestAverage,
 		RAMBytesUsageAverage:   a.RAMBytesUsageAverage,
+		RAMBytesUsageMax:       a.RAMBytesUsageMax,
 		RAMCost:                a.RAMCost,
 		SharedCost:             a.SharedCost,
 		ExternalCost:           a.ExternalCost,
@@ -185,6 +189,12 @@ func (a *Allocation) Equal(that *Allocation) bool {
 		return false
 	}
 	if !util.IsApproximately(a.ExternalCost, that.ExternalCost) {
+		return false
+	}
+	if !util.IsApproximately(a.CPUCoreUsageMax, that.CPUCoreUsageMax) {
+		return false
+	}
+	if !util.IsApproximately(a.RAMBytesUsageMax, that.RAMBytesUsageMax) {
 		return false
 	}
 
@@ -274,6 +284,7 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "cpuCores", a.CPUCores(), ",")
 	jsonEncodeFloat64(buffer, "cpuCoreRequestAverage", a.CPUCoreRequestAverage, ",")
 	jsonEncodeFloat64(buffer, "cpuCoreUsageAverage", a.CPUCoreUsageAverage, ",")
+	jsonEncodeFloat64(buffer, "cpuCoreUsageMax", a.CPUCoreUsageMax, ",")
 	jsonEncodeFloat64(buffer, "cpuCoreHours", a.CPUCoreHours, ",")
 	jsonEncodeFloat64(buffer, "cpuCost", a.CPUCost, ",")
 	jsonEncodeFloat64(buffer, "cpuEfficiency", a.CPUEfficiency(), ",")
@@ -288,6 +299,7 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "ramByteRequestAverage", a.RAMBytesRequestAverage, ",")
 	jsonEncodeFloat64(buffer, "ramByteUsageAverage", a.RAMBytesUsageAverage, ",")
 	jsonEncodeFloat64(buffer, "ramByteHours", a.RAMByteHours, ",")
+	jsonEncodeFloat64(buffer, "ramByteUsageMax", a.RAMBytesUsageMax, ",")
 	jsonEncodeFloat64(buffer, "ramCost", a.RAMCost, ",")
 	jsonEncodeFloat64(buffer, "ramEfficiency", a.RAMEfficiency(), ",")
 	jsonEncodeFloat64(buffer, "sharedCost", a.SharedCost, ",")
