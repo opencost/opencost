@@ -69,12 +69,59 @@ func NewUnitAllocation(name string, start time.Time, resolution time.Duration, p
 	return alloc
 }
 
-func TestAllocation_Add(t *testing.T) {
+// Because it is the standard case, the test for AddAccumulate is expected
+// to test all Add behavior except for Aggregate-specific behavior. This test
+// can therefore be somewhat minimal.
+func TestAllocation_AddAggregate(t *testing.T) {
+	s1 := time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC)
+	e1 := time.Date(2021, time.January, 1, 12, 0, 0, 0, time.UTC)
+	gib := 1024.0 * 1024.0 * 1024.0
+	a1 := &Allocation{
+		Start:            s1,
+		End:              e1,
+		CPUCoreUsageMax:  3.1,
+		RAMBytesUsageMax: 5.0 * gib,
+	}
+	a1b := a1.Clone()
+
+	s2 := time.Date(2021, time.January, 1, 6, 0, 0, 0, time.UTC)
+	e2 := time.Date(2021, time.January, 1, 24, 0, 0, 0, time.UTC)
+	a2 := &Allocation{
+		Start:            s2,
+		End:              e2,
+		CPUCoreUsageMax:  1.2,
+		RAMBytesUsageMax: 10.0 * gib,
+	}
+	a2b := a2.Clone()
+
+	act, err := a1.AddAggregate(a2)
+	if err != nil {
+		t.Fatalf("Allocation.AddAggregate: unexpected error: %s", err)
+	}
+
+	// Neither Allocation should be mutated
+	if !a1.Equal(a1b) {
+		t.Fatalf("Allocation.AddAccumulate: a1 illegally mutated")
+	}
+	if !a2.Equal(a2b) {
+		t.Fatalf("Allocation.AddAccumulate: a1 illegally mutated")
+	}
+
+	// Usage maximums should be added in the aggregate case
+	if !util.IsApproximately(3.1+1.2, act.CPUCoreUsageMax) {
+		t.Errorf("Allocation.AddAggregate: CPUCoreUsageMax: expected %f; actual %f", 3.1+1.2, act.CPUCoreUsageMax)
+	}
+	if !util.IsApproximately(10.0*gib+5.0*gib, act.RAMBytesUsageMax) {
+		t.Errorf("Allocation.AddAggregate: RAMBytesUsageMax: expected %f; actual %f", 10.0*gib+5.0*gib, act.RAMBytesUsageMax)
+	}
+}
+
+func TestAllocation_AddAccumulate(t *testing.T) {
 	var nilAlloc *Allocation
 	zeroAlloc := &Allocation{}
 
 	// nil + nil == nil
-	nilNilSum, err := nilAlloc.Add(nilAlloc)
+	nilNilSum, err := nilAlloc.AddAccumulate(nilAlloc)
 	if err != nil {
 		t.Fatalf("Allocation.Add unexpected error: %s", err)
 	}
@@ -83,7 +130,7 @@ func TestAllocation_Add(t *testing.T) {
 	}
 
 	// nil + zero == zero
-	nilZeroSum, err := nilAlloc.Add(zeroAlloc)
+	nilZeroSum, err := nilAlloc.AddAccumulate(zeroAlloc)
 	if err != nil {
 		t.Fatalf("Allocation.Add unexpected error: %s", err)
 	}
@@ -106,6 +153,7 @@ func TestAllocation_Add(t *testing.T) {
 		CPUCoreHours:           2.0 * hrs1,
 		CPUCoreRequestAverage:  2.0,
 		CPUCoreUsageAverage:    1.0,
+		CPUCoreUsageMax:        3.1,
 		CPUCost:                2.0 * hrs1 * cpuPrice,
 		GPUHours:               1.0 * hrs1,
 		GPUCost:                1.0 * hrs1 * gpuPrice,
@@ -114,6 +162,7 @@ func TestAllocation_Add(t *testing.T) {
 		RAMByteHours:           8.0 * gib * hrs1,
 		RAMBytesRequestAverage: 8.0 * gib,
 		RAMBytesUsageAverage:   4.0 * gib,
+		RAMBytesUsageMax:       5.0 * gib,
 		RAMCost:                8.0 * hrs1 * ramPrice,
 		SharedCost:             2.00,
 		ExternalCost:           1.00,
@@ -129,6 +178,7 @@ func TestAllocation_Add(t *testing.T) {
 		CPUCoreHours:           1.0 * hrs2,
 		CPUCoreRequestAverage:  1.0,
 		CPUCoreUsageAverage:    1.0,
+		CPUCoreUsageMax:        1.2,
 		CPUCost:                1.0 * hrs2 * cpuPrice,
 		GPUHours:               0.0,
 		GPUCost:                0.0,
@@ -137,6 +187,7 @@ func TestAllocation_Add(t *testing.T) {
 		RAMByteHours:           8.0 * gib * hrs2,
 		RAMBytesRequestAverage: 0.0,
 		RAMBytesUsageAverage:   8.0 * gib,
+		RAMBytesUsageMax:       10.0 * gib,
 		RAMCost:                8.0 * hrs2 * ramPrice,
 		NetworkCost:            0.01,
 		LoadBalancerCost:       0.05,
@@ -145,65 +196,65 @@ func TestAllocation_Add(t *testing.T) {
 	}
 	a2b := a2.Clone()
 
-	act, err := a1.Add(a2)
+	act, err := a1.AddAccumulate(a2)
 	if err != nil {
-		t.Fatalf("Allocation.Add: unexpected error: %s", err)
+		t.Fatalf("Allocation.AddAccumulate: unexpected error: %s", err)
 	}
 
 	// Neither Allocation should be mutated
 	if !a1.Equal(a1b) {
-		t.Fatalf("Allocation.Add: a1 illegally mutated")
+		t.Fatalf("Allocation.AddAccumulate: a1 illegally mutated")
 	}
 	if !a2.Equal(a2b) {
-		t.Fatalf("Allocation.Add: a1 illegally mutated")
+		t.Fatalf("Allocation.AddAccumulate: a1 illegally mutated")
 	}
 
 	// Costs should be cumulative
 	if !util.IsApproximately(a1.TotalCost()+a2.TotalCost(), act.TotalCost()) {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.TotalCost()+a2.TotalCost(), act.TotalCost())
+		t.Fatalf("Allocation.AddAccumulate: expected %f; actual %f", a1.TotalCost()+a2.TotalCost(), act.TotalCost())
 	}
 	if !util.IsApproximately(a1.CPUCost+a2.CPUCost, act.CPUCost) {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.CPUCost+a2.CPUCost, act.CPUCost)
+		t.Fatalf("Allocation.AddAccumulate: expected %f; actual %f", a1.CPUCost+a2.CPUCost, act.CPUCost)
 	}
 	if !util.IsApproximately(a1.GPUCost+a2.GPUCost, act.GPUCost) {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.GPUCost+a2.GPUCost, act.GPUCost)
+		t.Fatalf("Allocation.AddAccumulate: expected %f; actual %f", a1.GPUCost+a2.GPUCost, act.GPUCost)
 	}
 	if !util.IsApproximately(a1.RAMCost+a2.RAMCost, act.RAMCost) {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.RAMCost+a2.RAMCost, act.RAMCost)
+		t.Fatalf("Allocation.AddAccumulate: expected %f; actual %f", a1.RAMCost+a2.RAMCost, act.RAMCost)
 	}
 	if !util.IsApproximately(a1.PVCost+a2.PVCost, act.PVCost) {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.PVCost+a2.PVCost, act.PVCost)
+		t.Fatalf("Allocation.AddAccumulate: expected %f; actual %f", a1.PVCost+a2.PVCost, act.PVCost)
 	}
 	if !util.IsApproximately(a1.NetworkCost+a2.NetworkCost, act.NetworkCost) {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.NetworkCost+a2.NetworkCost, act.NetworkCost)
+		t.Fatalf("Allocation.AddAccumulate: expected %f; actual %f", a1.NetworkCost+a2.NetworkCost, act.NetworkCost)
 	}
 	if !util.IsApproximately(a1.LoadBalancerCost+a2.LoadBalancerCost, act.LoadBalancerCost) {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.LoadBalancerCost+a2.LoadBalancerCost, act.LoadBalancerCost)
+		t.Fatalf("Allocation.AddAccumulate: expected %f; actual %f", a1.LoadBalancerCost+a2.LoadBalancerCost, act.LoadBalancerCost)
 	}
 	if !util.IsApproximately(a1.SharedCost+a2.SharedCost, act.SharedCost) {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.SharedCost+a2.SharedCost, act.SharedCost)
+		t.Fatalf("Allocation.AddAccumulate: expected %f; actual %f", a1.SharedCost+a2.SharedCost, act.SharedCost)
 	}
 	if !util.IsApproximately(a1.ExternalCost+a2.ExternalCost, act.ExternalCost) {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.ExternalCost+a2.ExternalCost, act.ExternalCost)
+		t.Fatalf("Allocation.AddAccumulate: expected %f; actual %f", a1.ExternalCost+a2.ExternalCost, act.ExternalCost)
 	}
 
 	// ResourceHours should be cumulative
 	if !util.IsApproximately(a1.CPUCoreHours+a2.CPUCoreHours, act.CPUCoreHours) {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.CPUCoreHours+a2.CPUCoreHours, act.CPUCoreHours)
+		t.Fatalf("Allocation.AddAccumulate: expected %f; actual %f", a1.CPUCoreHours+a2.CPUCoreHours, act.CPUCoreHours)
 	}
 	if !util.IsApproximately(a1.RAMByteHours+a2.RAMByteHours, act.RAMByteHours) {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.RAMByteHours+a2.RAMByteHours, act.RAMByteHours)
+		t.Fatalf("Allocation.AddAccumulate: expected %f; actual %f", a1.RAMByteHours+a2.RAMByteHours, act.RAMByteHours)
 	}
 	if !util.IsApproximately(a1.PVByteHours+a2.PVByteHours, act.PVByteHours) {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.PVByteHours+a2.PVByteHours, act.PVByteHours)
+		t.Fatalf("Allocation.AddAccumulate: expected %f; actual %f", a1.PVByteHours+a2.PVByteHours, act.PVByteHours)
 	}
 
 	// Minutes should be the duration between min(starts) and max(ends)
 	if !act.Start.Equal(a1.Start) || !act.End.Equal(a2.End) {
-		t.Fatalf("Allocation.Add: expected %s; actual %s", NewWindow(&a1.Start, &a2.End), NewWindow(&act.Start, &act.End))
+		t.Fatalf("Allocation.AddAccumulate: expected %s; actual %s", NewWindow(&a1.Start, &a2.End), NewWindow(&act.Start, &act.End))
 	}
 	if act.Minutes() != 1440.0 {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", 1440.0, act.Minutes())
+		t.Fatalf("Allocation.AddAccumulate: expected %f; actual %f", 1440.0, act.Minutes())
 	}
 
 	// Requests and Usage should be averaged correctly
@@ -212,16 +263,24 @@ func TestAllocation_Add(t *testing.T) {
 	// RAM requests = (8.0*12.0 + 0.0*18.0)/(24.0) = 4.00
 	// RAM usage = (4.0*12.0 + 8.0*18.0)/(24.0) = 8.00
 	if !util.IsApproximately(1.75, act.CPUCoreRequestAverage) {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", 1.75, act.CPUCoreRequestAverage)
+		t.Fatalf("Allocation.AddAccumulate: expected %f; actual %f", 1.75, act.CPUCoreRequestAverage)
 	}
 	if !util.IsApproximately(1.25, act.CPUCoreUsageAverage) {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", 1.25, act.CPUCoreUsageAverage)
+		t.Fatalf("Allocation.AddAccumulate: expected %f; actual %f", 1.25, act.CPUCoreUsageAverage)
 	}
 	if !util.IsApproximately(4.00*gib, act.RAMBytesRequestAverage) {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", 4.00*gib, act.RAMBytesRequestAverage)
+		t.Fatalf("Allocation.AddAccumulate: expected %f; actual %f", 4.00*gib, act.RAMBytesRequestAverage)
 	}
 	if !util.IsApproximately(8.00*gib, act.RAMBytesUsageAverage) {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", 8.00*gib, act.RAMBytesUsageAverage)
+		t.Fatalf("Allocation.AddAccumulate: expected %f; actual %f", 8.00*gib, act.RAMBytesUsageAverage)
+	}
+
+	// Usage maximums should be maxed in the accumulate case
+	if !util.IsApproximately(3.1, act.CPUCoreUsageMax) {
+		t.Errorf("Allocation.AddAccumulate: CPUCoreUsageMax: expected %f; actual %f", 3.1, act.CPUCoreUsageMax)
+	}
+	if !util.IsApproximately(10.0*gib, act.RAMBytesUsageMax) {
+		t.Errorf("Allocation.AddAccumulate: RAMBytesUsageMax: expected %f; actual %f", 10.0*gib, act.RAMBytesUsageMax)
 	}
 
 	// Efficiency should be computed accurately from new request/usage
