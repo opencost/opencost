@@ -714,7 +714,13 @@ func applyCPUCoresUsedMax(podMap map[podKey]*Pod, resCPUCoresUsedMax []*prom.Que
 			pod.AppendContainer(container)
 		}
 
-		pod.Allocations[container].CPUCoreUsageMax = res.Values[0].Value
+		if pod.Allocations[container].RawAllocationOnly == nil {
+			pod.Allocations[container].RawAllocationOnly = &kubecost.RawAllocationOnlyData{
+				CPUCoreUsageMax: res.Values[0].Value,
+			}
+		} else {
+			pod.Allocations[container].RawAllocationOnly.CPUCoreUsageMax = res.Values[0].Value
+		}
 	}
 }
 
@@ -844,7 +850,13 @@ func applyRAMBytesUsedMax(podMap map[podKey]*Pod, resRAMBytesUsedMax []*prom.Que
 			pod.AppendContainer(container)
 		}
 
-		pod.Allocations[container].RAMBytesUsageMax = res.Values[0].Value
+		if pod.Allocations[container].RawAllocationOnly == nil {
+			pod.Allocations[container].RawAllocationOnly = &kubecost.RawAllocationOnlyData{
+				RAMBytesUsageMax: res.Values[0].Value,
+			}
+		} else {
+			pod.Allocations[container].RawAllocationOnly.RAMBytesUsageMax = res.Values[0].Value
+		}
 	}
 }
 

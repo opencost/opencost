@@ -20,5 +20,6 @@ package kubecost
 // @bingen:generate:Allocation
 // @bingen:generate:AllocationSet
 // @bingen:generate:AllocationSetRange
+// @bingen:generate:RawAllocationOnlyData
 
-//go:generate bingen -package=kubecost -version=9 -buffer=github.com/kubecost/cost-model/pkg/util
+//go:generate bingen -package=kubecost -version=10 -buffer=github.com/kubecost/cost-model/pkg/util
