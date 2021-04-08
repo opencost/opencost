@@ -34,13 +34,7 @@ const (
 	//
 	// See PromQL subquery documentation for a rate example:
 	// https://prometheus.io/blog/2019/01/28/subquery-support/#examples
-	queryFmtCPUUsageMax = `
-max(
-  max_over_time(
-    kubecost_savings_container_cpu_usage_seconds[%s]%s
-  )
-) by (container_name, pod_name, namespace, instance, cluster_id)`
-
+	queryFmtCPUUsageMax           = `max(max_over_time(kubecost_savings_container_cpu_usage_seconds[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`
 	queryFmtGPUsRequested         = `avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
 	queryFmtNodeCostPerCPUHr      = `avg(avg_over_time(node_cpu_hourly_cost[%s]%s)) by (node, cluster_id, instance_type)`
 	queryFmtNodeCostPerRAMGiBHr   = `avg(avg_over_time(node_ram_hourly_cost[%s]%s)) by (node, cluster_id, instance_type)`
