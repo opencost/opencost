@@ -3,7 +3,6 @@ package kubecost
 import (
 	"bytes"
 	"fmt"
-	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -80,11 +79,10 @@ type Allocation struct {
 // returning true for any given Allocation if a condition is met.
 type AllocationMatchFunc func(*Allocation) bool
 
-// AddAccumulate returns the result of combining the two given Allocations,
-// under the assumption that they refer to the same resource. Costs (and
-// similar fields) are summed, usage maximums are MAXED, and efficiency is
-// recomputed. Neither of the original Allocations are mutated.
-func (a *Allocation) AddAccumulate(that *Allocation) (*Allocation, error) {
+// Add returns the result of summing the two given Allocations, which sums the
+// summary fields (e.g. costs, resources) and recomputes efficiency. Neither of
+// the two original Allocations are mutated in the process.
+func (a *Allocation) Add(that *Allocation) (*Allocation, error) {
 	if a == nil {
 		return that.Clone(), nil
 	}
@@ -95,33 +93,7 @@ func (a *Allocation) AddAccumulate(that *Allocation) (*Allocation, error) {
 
 	// Note: no need to clone "that", as add only mutates the receiver
 	agg := a.Clone()
-	agg.add(that, accumulation)
-
-	return agg, nil
-}
-
-// AddAggregate returns the result of combining the two given Allocations,
-// under the assumption that they refer to different resources. The intended
-// usage is e.g. "aggregate containers by namespace" where the resulting
-// allocation ultimately refers to a greater number of resources than either
-// of the original Allocations. Most fields, including usage maximums, are
-// summed. Neither of the original allocations are mutated.
-//
-// To explain why usage maximums are summed, consider using this method for
-// aggregating by pod. The maximum CPU usage of a pod can be roughly equated
-// to the sum of the maximum CPU usages of its containers.
-func (a *Allocation) AddAggregate(that *Allocation) (*Allocation, error) {
-	if a == nil {
-		return that.Clone(), nil
-	}
-
-	if that == nil {
-		return a.Clone(), nil
-	}
-
-	// Note: no need to clone "that", as add only mutates the receiver
-	agg := a.Clone()
-	agg.add(that, aggregation)
+	agg.add(that)
 
 	return agg, nil
 }
@@ -393,21 +365,7 @@ func (a *Allocation) String() string {
 	return fmt.Sprintf("%s%s=%.2f", a.Name, NewWindow(&a.Start, &a.End), a.TotalCost())
 }
 
-// allocationCombinationType is an enum-like value for
-// flagging what mode an operation that combines allocations,
-// like add(), should operate in.
-//
-// Intentionally unexported - it should only be used by internal
-// methods. Exported methods should have a different variant,
-// like AddAccumulate and AddAggregate, for API clarity.
-type allocationCombinationType int
-
-const (
-	accumulation allocationCombinationType = iota
-	aggregation
-)
-
-func (a *Allocation) add(that *Allocation, addType allocationCombinationType) {
+func (a *Allocation) add(that *Allocation) {
 	if a == nil {
 		log.Warningf("Allocation.AggregateBy: trying to add a nil receiver")
 		return
@@ -489,19 +447,6 @@ func (a *Allocation) add(that *Allocation, addType allocationCombinationType) {
 	a.LoadBalancerCost += that.LoadBalancerCost
 	a.SharedCost += that.SharedCost
 	a.ExternalCost += that.ExternalCost
-
-	if addType == accumulation {
-		// Accumulation-type additions imply same resource, so the overall
-		// maximum is the correct resulting value.
-		a.CPUCoreUsageMax = math.Max(a.CPUCoreUsageMax, that.CPUCoreUsageMax)
-		a.RAMBytesUsageMax = math.Max(a.RAMBytesUsageMax, that.RAMBytesUsageMax)
-	} else if addType == aggregation {
-		// Aggregation-type additions imply different resources, same
-		// aggregation group, so the correct maximum is actually the sum
-		// of maxima.
-		a.CPUCoreUsageMax += that.CPUCoreUsageMax
-		a.RAMBytesUsageMax += that.RAMBytesUsageMax
-	}
 }
 
 // AllocationSet stores a set of Allocations, each with a unique name, that share
@@ -527,7 +472,7 @@ func NewAllocationSet(start, end time.Time, allocs ...*Allocation) *AllocationSe
 	}
 
 	for _, a := range allocs {
-		as.InsertAccumulate(a)
+		as.Insert(a)
 	}
 
 	return as
@@ -622,7 +567,7 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 		if alloc.IsExternal() {
 			delete(as.externalKeys, alloc.Name)
 			delete(as.allocations, alloc.Name)
-			externalSet.InsertAggregate(alloc)
+			externalSet.Insert(alloc)
 			continue
 		}
 
@@ -634,9 +579,9 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 			delete(as.allocations, alloc.Name)
 
 			if options.ShareIdle == ShareEven || options.ShareIdle == ShareWeighted {
-				idleSet.InsertAggregate(alloc)
+				idleSet.Insert(alloc)
 			} else {
-				aggSet.InsertAggregate(alloc)
+				aggSet.Insert(alloc)
 			}
 
 			continue
@@ -649,7 +594,7 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 			if sf(alloc) {
 				delete(as.idleKeys, alloc.Name)
 				delete(as.allocations, alloc.Name)
-				shareSet.InsertAggregate(alloc)
+				shareSet.Insert(alloc)
 				break
 			}
 		}
@@ -753,7 +698,7 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 
 			totalSharedCost := cost * hours
 
-			shareSet.InsertAggregate(&Allocation{
+			shareSet.Insert(&Allocation{
 				Name:       fmt.Sprintf("%s/%s", name, SharedSuffix),
 				Start:      as.Start(),
 				End:        as.End(),
@@ -855,7 +800,7 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 
 		// Inserting the allocation with the generated key for a name will
 		// perform the actual basic aggregation step.
-		aggSet.InsertAggregate(alloc)
+		aggSet.Insert(alloc)
 	}
 
 	// (6) If idle is shared and resources are shared, it's possible that some
@@ -982,7 +927,7 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 			key := alloc.generateKey(properties)
 
 			alloc.Name = key
-			aggSet.InsertAggregate(alloc)
+			aggSet.Insert(alloc)
 		}
 	}
 
@@ -991,7 +936,7 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 		for _, idleAlloc := range aggSet.IdleAllocations() {
 			aggSet.Delete(idleAlloc.Name)
 			idleAlloc.Name = IdleSuffix
-			aggSet.InsertAggregate(idleAlloc)
+			aggSet.Insert(idleAlloc)
 		}
 	}
 
@@ -1617,35 +1562,14 @@ func (as *AllocationSet) IdleAllocations() map[string]*Allocation {
 	return idles
 }
 
-// InsertAggregate aggregates the current entry in the AllocationSet by the given
-// Allocation, but only if the Allocation is valid, i.e. matches the AllocationSet's
-// window.
-// If there is no existing entry, one is created.
-// If there is an existing entry, the given Allocation is added to it using
-// aggregation logic, see Allocation.AddAggregate() for an explanation.
-// Nil error response indicates success.
-//
-// A good heuristic for whether you should use this method is:
-// Are you generating a new, less-specific key for a new Allocation from multiple
-// more specific Allocations?
-func (as *AllocationSet) InsertAggregate(that *Allocation) error {
-	return as.insert(that, aggregation)
+// Insert aggregates the current entry in the AllocationSet by the given Allocation,
+// but only if the Allocation is valid, i.e. matches the AllocationSet's window. If
+// there is no existing entry, one is created. Nil error response indicates success.
+func (as *AllocationSet) Insert(that *Allocation) error {
+	return as.insert(that)
 }
 
-// InsertAccumulate aggregates the current entry in the AllocationSet by the given
-// Allocation, but only if the Allocation is valid, i.e. matches the AllocationSet's
-// window.
-// If there is no existing entry, one is created.
-// If there is an existing entry, the given Allocation is added to it using
-// accumulation logic, see Allocation.AddAccumulate() for an explanation.
-// Nil error response indicates success.
-//
-// If you don't know which insert to use, this is a safe default.
-func (as *AllocationSet) InsertAccumulate(that *Allocation) error {
-	return as.insert(that, accumulation)
-}
-
-func (as *AllocationSet) insert(that *Allocation, combType allocationCombinationType) error {
+func (as *AllocationSet) insert(that *Allocation) error {
 	if as == nil {
 		return fmt.Errorf("cannot insert into nil AllocationSet")
 	}
@@ -1670,7 +1594,7 @@ func (as *AllocationSet) insert(that *Allocation, combType allocationCombination
 	if _, ok := as.allocations[that.Name]; !ok {
 		as.allocations[that.Name] = that
 	} else {
-		as.allocations[that.Name].add(that, combType)
+		as.allocations[that.Name].add(that)
 	}
 
 	// If the given Allocation is an external one, record that
@@ -1831,14 +1755,14 @@ func (as *AllocationSet) accumulate(that *AllocationSet) (*AllocationSet, error)
 	defer that.RUnlock()
 
 	for _, alloc := range as.allocations {
-		err := acc.insert(alloc, accumulation)
+		err := acc.insert(alloc)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	for _, alloc := range that.allocations {
-		err := acc.insert(alloc, accumulation)
+		err := acc.insert(alloc)
 		if err != nil {
 			return nil, err
 		}
@@ -1982,7 +1906,7 @@ func (asr *AllocationSetRange) InsertRange(that *AllocationSetRange) error {
 
 		// Insert each Allocation from the given set
 		thatAS.Each(func(k string, alloc *Allocation) {
-			err = as.InsertAccumulate(alloc)
+			err = as.Insert(alloc)
 			if err != nil {
 				err = fmt.Errorf("error inserting allocation: %s", err)
 				return
