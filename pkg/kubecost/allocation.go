@@ -47,31 +47,33 @@ const ShareNone = "__none__"
 // Allocation is a unit of resource allocation and cost for a given window
 // of time and for a given kubernetes construct with its associated set of
 // properties.
-// TODO:CLEANUP consider dropping name in favor of just Properties and an
+// TODO:CLEANUP consider dropping name in favor of just AllocationProperties and an
 // Assets-style key() function for AllocationSet.
 type Allocation struct {
-	Name                   string     `json:"name"`
-	Properties             Properties `json:"properties,omitempty"`
-	Window                 Window     `json:"window"`
-	Start                  time.Time  `json:"start"`
-	End                    time.Time  `json:"end"`
-	CPUCoreHours           float64    `json:"cpuCoreHours"`
-	CPUCoreRequestAverage  float64    `json:"cpuCoreRequestAverage"`
-	CPUCoreUsageAverage    float64    `json:"cpuCoreUsageAverage"`
-	CPUCost                float64    `json:"cpuCost"`
-	GPUHours               float64    `json:"gpuHours"`
-	GPUCost                float64    `json:"gpuCost"`
-	NetworkCost            float64    `json:"networkCost"`
-	LoadBalancerCost       float64    `json:"loadBalancerCost"`
-	PVByteHours            float64    `json:"pvByteHours"`
-	PVCost                 float64    `json:"pvCost"`
-	RAMByteHours           float64    `json:"ramByteHours"`
-	RAMBytesRequestAverage float64    `json:"ramByteRequestAverage"`
-	RAMBytesUsageAverage   float64    `json:"ramByteUsageAverage"`
-	RAMCost                float64    `json:"ramCost"`
-	SharedCost             float64    `json:"sharedCost"`
-	ExternalCost           float64    `json:"externalCost"`
+	Name                   string                `json:"name"`
+	Properties             *AllocationProperties  `json:"properties,omitempty"`
+	Window                 Window                `json:"window"`
+	Start                  time.Time             `json:"start"`
+	End                    time.Time             `json:"end"`
+	CPUCoreHours           float64               `json:"cpuCoreHours"`
+	CPUCoreRequestAverage  float64               `json:"cpuCoreRequestAverage"`
+	CPUCoreUsageAverage    float64               `json:"cpuCoreUsageAverage"`
+	CPUCost                float64               `json:"cpuCost"`
+	GPUHours               float64               `json:"gpuHours"`
+	GPUCost                float64               `json:"gpuCost"`
+	NetworkCost            float64               `json:"networkCost"`
+	LoadBalancerCost       float64               `json:"loadBalancerCost"`
+	PVByteHours            float64               `json:"pvByteHours"`
+	PVCost                 float64               `json:"pvCost"`
+	RAMByteHours           float64               `json:"ramByteHours"`
+	RAMBytesRequestAverage float64               `json:"ramByteRequestAverage"`
+	RAMBytesUsageAverage   float64               `json:"ramByteUsageAverage"`
+	RAMCost                float64               `json:"ramCost"`
+	SharedCost             float64               `json:"sharedCost"`
+	ExternalCost           float64               `json:"externalCost"`
 }
+
+
 
 // AllocationMatchFunc is a function that can be used to match Allocations by
 // returning true for any given Allocation if a condition is met.
@@ -139,7 +141,7 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if a.Name != that.Name {
 		return false
 	}
-	if !a.Properties.Equal(&that.Properties) {
+	if !a.Properties.Equal(that.Properties) {
 		return false
 	}
 	if !a.Window.Equal(that.Window) {
@@ -304,7 +306,7 @@ func (a *Allocation) Resolution() time.Duration {
 }
 
 // IsAggregated is true if the given Allocation has been aggregated, which we
-// define by a lack of Properties.
+// define by a lack of AllocationProperties.
 func (a *Allocation) IsAggregated() bool {
 	return a == nil || a.Properties == nil
 }
@@ -331,7 +333,7 @@ func (a *Allocation) Minutes() float64 {
 }
 
 // Share adds the TotalCost of the given Allocation to the SharedCost of the
-// receiving Allocation. No Start, End, Window, or Properties are considered.
+// receiving Allocation. No Start, End, Window, or AllocationProperties are considered.
 // Neither Allocation is mutated; a new Allocation is always returned.
 func (a *Allocation) Share(that *Allocation) (*Allocation, error) {
 	if that == nil {
@@ -358,27 +360,31 @@ func (a *Allocation) add(that *Allocation) {
 		log.Warningf("Allocation.AggregateBy: trying to add a nil receiver")
 		return
 	}
+	if a.Properties != nil && that.Properties != nil {
+		aCluster := a.Properties.Cluster
+		thatCluster := that.Properties.Cluster
+		aNode := a.Properties.Node
+		thatNode := that.Properties.Node
 
-	aCluster, _ := a.Properties.GetCluster()
-	thatCluster, _ := that.Properties.GetCluster()
-	aNode, _ := a.Properties.GetNode()
-	thatNode, _ := that.Properties.GetNode()
+		// reset properties
+		a.Properties = nil
 
-	// reset properties
-	a.Properties = nil
-
-	// ensure that we carry cluster ID and/or node over if they're the same
-	// required for idle/shared cost allocation
-	if aCluster == thatCluster {
-		a.Properties = Properties{ClusterProp: aCluster}
-	}
-	if aNode == thatNode {
-		if a.Properties == nil {
-			a.Properties = Properties{NodeProp: aNode}
-		} else {
-			a.Properties.SetNode(aNode)
+		// ensure that we carry cluster ID and/or node over if they're the same
+		// required for idle/shared cost allocation
+		if aCluster == thatCluster {
+			a.Properties = &AllocationProperties{Cluster: aCluster}
 		}
+		if aNode == thatNode {
+			if a.Properties == nil {
+				a.Properties = &AllocationProperties{Node: aNode}
+			} else {
+				a.Properties.Node = aNode
+			}
+		}
+	} else {
+		a.Properties = nil
 	}
+
 
 	// Expand the window to encompass both Allocations
 	a.Window = a.Window.Expand(that.Window)
@@ -483,9 +489,9 @@ type AllocationAggregationOptions struct {
 }
 
 // AggregateBy aggregates the Allocations in the given AllocationSet by the given
-// Property. This will only be legal if the AllocationSet is divisible by the
-// given Property; e.g. Containers can be divided by Namespace, but not vice-a-versa.
-func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationAggregationOptions) error {
+// AllocationProperty. This will only be legal if the AllocationSet is divisible by the
+// given AllocationProperty; e.g. Containers can be divided by Namespace, but not vice-a-versa.
+func (as *AllocationSet) AggregateBy(properties AllocationProperties, options *AllocationAggregationOptions) error {
 	// The order of operations for aggregating allocations is as follows:
 	//  1. Partition external, idle, and shared allocations into separate sets.
 	//     Also, create the aggSet into which the results will be aggregated.
@@ -691,7 +697,7 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 				Start:      as.Start(),
 				End:        as.End(),
 				SharedCost: totalSharedCost,
-				Properties: Properties{ClusterProp: SharedSuffix}, // The allocation needs to belong to a cluster,but it really doesn't matter which one, so just make it clear.
+				Properties: &AllocationProperties{Cluster: SharedSuffix}, // The allocation needs to belong to a cluster,but it really doesn't matter which one, so just make it clear.
 			})
 		}
 	}
@@ -709,10 +715,10 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 
 	// (3-5) Filter, distribute idle cost, and aggregate (in that order)
 	for _, alloc := range as.allocations {
-		cluster, err := alloc.Properties.GetCluster()
-		if err != nil {
+		cluster := alloc.Properties.Cluster
+		if cluster == "" {
 			log.Warningf("AllocationSet.AggregateBy: missing cluster for allocation: %s", alloc.Name)
-			return err
+			return fmt.Errorf("ClusterProp is not set")
 		}
 
 		skip := false
@@ -747,9 +753,9 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 			for _, idleAlloc := range idleSet.allocations {
 				// Only share idle if the cluster matches; i.e. the allocation
 				// is from the same cluster as the idle costs
-				idleCluster, err := idleAlloc.Properties.GetCluster()
-				if err != nil {
-					return err
+				idleCluster := idleAlloc.Properties.Cluster
+				if idleCluster == "" {
+					return fmt.Errorf("ClusterProp is not set")
 				}
 				if idleCluster != cluster {
 					continue
@@ -797,8 +803,8 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 	// before sharing with the aggregated allocations.
 	if idleSet.Length() > 0 && shareSet.Length() > 0 {
 		for _, alloc := range shareSet.allocations {
-			cluster, err := alloc.Properties.GetCluster()
-			if err != nil {
+			cluster := alloc.Properties.Cluster
+			if cluster == "" {
 				log.Warningf("AllocationSet.AggregateBy: missing cluster for allocation: %s", alloc.Name)
 				return err
 			}
@@ -807,9 +813,9 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 			for _, idleAlloc := range idleSet.allocations {
 				// Only share idle if the cluster matches; i.e. the allocation
 				// is from the same cluster as the idle costs
-				idleCluster, err := idleAlloc.Properties.GetCluster()
-				if err != nil {
-					return err
+				idleCluster := idleAlloc.Properties.Cluster
+				if idleCluster == "" {
+					return fmt.Errorf("ClusterProp is not set")
 				}
 				if idleCluster != cluster {
 					continue
@@ -870,8 +876,8 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 		for idleKey := range aggSet.idleKeys {
 			idleAlloc := aggSet.Get(idleKey)
 
-			cluster, err := idleAlloc.Properties.GetCluster()
-			if err != nil {
+			cluster := idleAlloc.Properties.Cluster
+			if cluster == "" {
 				log.Warningf("AllocationSet.AggregateBy: idle allocation without cluster: %s", idleAlloc)
 				continue
 			}
@@ -933,7 +939,7 @@ func (as *AllocationSet) AggregateBy(properties Properties, options *AllocationA
 	return nil
 }
 
-func computeShareCoeffs(properties Properties, options *AllocationAggregationOptions, as *AllocationSet) (map[string]float64, error) {
+func computeShareCoeffs(properties AllocationProperties, options *AllocationAggregationOptions, as *AllocationSet) (map[string]float64, error) {
 	// Compute coeffs by totalling per-allocation, then dividing by the total.
 	coeffs := map[string]float64{}
 
@@ -998,7 +1004,7 @@ func computeShareCoeffs(properties Properties, options *AllocationAggregationOpt
 	return coeffs, nil
 }
 
-func computeIdleCoeffs(properties Properties, options *AllocationAggregationOptions, as *AllocationSet, shareSet *AllocationSet) (map[string]map[string]map[string]float64, error) {
+func computeIdleCoeffs(properties AllocationProperties, options *AllocationAggregationOptions, as *AllocationSet, shareSet *AllocationSet) (map[string]map[string]map[string]float64, error) {
 	types := []string{"cpu", "gpu", "ram"}
 
 	// Compute idle coefficients, then save them in AllocationAggregationOptions
@@ -1019,9 +1025,9 @@ func computeIdleCoeffs(properties Properties, options *AllocationAggregationOpti
 		}
 
 		// We need to key the allocations by cluster id
-		clusterID, err := alloc.Properties.GetCluster()
-		if err != nil {
-			return nil, err
+		clusterID := alloc.Properties.Cluster
+		if clusterID == "" {
+			return nil, fmt.Errorf("ClusterProp is not set")
 		}
 
 		// get the name key for the allocation
@@ -1066,9 +1072,9 @@ func computeIdleCoeffs(properties Properties, options *AllocationAggregationOpti
 		}
 
 		// We need to key the allocations by cluster id
-		clusterID, err := alloc.Properties.GetCluster()
-		if err != nil {
-			return nil, err
+		clusterID := alloc.Properties.Cluster
+		if clusterID == ""{
+			return nil, fmt.Errorf("ClusterProp is not set")
 		}
 
 		// get the name key for the allocation
@@ -1119,7 +1125,7 @@ func computeIdleCoeffs(properties Properties, options *AllocationAggregationOpti
 	return coeffs, nil
 }
 
-func (a *Allocation) generateKey(properties Properties) string {
+func (a *Allocation) generateKey(properties AllocationProperties) string {
 	if a == nil {
 		return ""
 	}
@@ -1128,45 +1134,45 @@ func (a *Allocation) generateKey(properties Properties) string {
 	// identifies allocations.
 	names := []string{}
 
-	if properties.HasCluster() {
-		cluster, _ := a.Properties.GetCluster()
+	if properties.Cluster != "" {
+		cluster := a.Properties.Cluster
 		names = append(names, cluster)
 	}
 
-	if properties.HasNode() {
-		node, _ := a.Properties.GetNode()
+	if properties.Node != "" {
+		node := a.Properties.Node
 		names = append(names, node)
 	}
 
-	if properties.HasNamespace() {
-		namespace, _ := a.Properties.GetNamespace()
+	if properties.Namespace != ""  {
+		namespace := a.Properties.Namespace
 		names = append(names, namespace)
 	}
 
-	if properties.HasControllerKind() {
-		controllerKind, err := a.Properties.GetControllerKind()
-		if err != nil {
+	if properties.ControllerKind  != "" {
+		controllerKind := a.Properties.ControllerKind
+		if controllerKind == "" {
 			// Indicate that allocation has no controller
 			controllerKind = UnallocatedSuffix
 		}
-
-		if prop, _ := properties.GetControllerKind(); prop != "" && prop != controllerKind {
-			// The allocation does not have the specified controller kind
-			controllerKind = UnallocatedSuffix
-		}
+		// TODO figure out if the is functional, refactor breaks this
+		//if prop := properties.ControllerKind; prop != "" && prop != controllerKind {
+		//	// The allocation does not have the specified controller kind
+		//	controllerKind = UnallocatedSuffix
+		//}
 		names = append(names, controllerKind)
 	}
 
-	if properties.HasController() {
-		if !properties.HasControllerKind() {
-			controllerKind, err := a.Properties.GetControllerKind()
-			if err == nil {
+	if properties.Controller != "" {
+		if properties.ControllerKind == "" {
+			controllerKind := a.Properties.ControllerKind
+			if controllerKind != "" {
 				names = append(names, controllerKind)
 			}
 		}
 
-		controller, err := a.Properties.GetController()
-		if err != nil {
+		controller := a.Properties.Controller
+		if controller == "" {
 			// Indicate that allocation has no controller
 			controller = UnallocatedSuffix
 		}
@@ -1174,43 +1180,41 @@ func (a *Allocation) generateKey(properties Properties) string {
 		names = append(names, controller)
 	}
 
-	if properties.HasPod() {
-		pod, _ := a.Properties.GetPod()
+	if properties.Pod != "" {
+		pod := a.Properties.Pod
 		names = append(names, pod)
 	}
 
-	if properties.HasContainer() {
-		container, _ := a.Properties.GetContainer()
+	if properties.Container != "" {
+		container := a.Properties.Container
 		names = append(names, container)
 	}
 
-	if properties.HasService() {
-		services, err := a.Properties.GetServices()
-		if err != nil {
+	if properties.Services != nil {
+		services := a.Properties.Services
+		if services == nil {
 			// Indicate that allocation has no services
 			names = append(names, UnallocatedSuffix)
-		} else {
-			if len(services) > 0 {
-				for _, service := range services {
-					names = append(names, service)
-					break
-				}
-			} else {
-				// Indicate that allocation has no services
-				names = append(names, UnallocatedSuffix)
+		}
+		if services != nil && len(services) > 0 {
+			for _, service := range services {
+				names = append(names, service)
+				break
 			}
+		} else {
+			// Indicate that allocation has no services
+			names = append(names, UnallocatedSuffix)
 		}
 	}
 
-	if properties.HasAnnotations() {
-		annotations, err := a.Properties.GetAnnotations()
-		if err != nil {
+	if properties.Annotations != nil   {
+		annotations:= a.Properties.Annotations
+		if annotations == nil {
 			// Indicate that allocation has no annotations
 			names = append(names, UnallocatedSuffix)
-		} else {
+		}
 			annotationNames := []string{}
-
-			aggAnnotations, _ := properties.GetAnnotations()
+			aggAnnotations := properties.Annotations
 			for annotationName := range aggAnnotations {
 				if val, ok := annotations[annotationName]; ok {
 					annotationNames = append(annotationNames, fmt.Sprintf("%s=%s", annotationName, val))
@@ -1230,38 +1234,36 @@ func (a *Allocation) generateKey(properties Properties) string {
 			}
 
 			names = append(names, annotationNames...)
-		}
+
 	}
 
-	if properties.HasLabel() {
-		labels, err := a.Properties.GetLabels()
-		if err != nil {
+	if properties.Labels != nil {
+		labels := a.Properties.Labels
+		if labels == nil {
 			// Indicate that allocation has no labels
 			names = append(names, UnallocatedSuffix)
-		} else {
-			labelNames := []string{}
-
-			aggLabels, _ := properties.GetLabels()
-			for labelName := range aggLabels {
-				if val, ok := labels[labelName]; ok {
-					labelNames = append(labelNames, fmt.Sprintf("%s=%s", labelName, val))
-				} else if indexOf(UnallocatedSuffix, labelNames) == -1 { // if UnallocatedSuffix not already in names
-					labelNames = append(labelNames, UnallocatedSuffix)
-				}
-			}
-			// resolve arbitrary ordering. e.g., app=app0/env=env0 is the same agg as env=env0/app=app0
-			if len(labelNames) > 1 {
-				sort.Strings(labelNames)
-			}
-			unallocatedSuffixIndex := indexOf(UnallocatedSuffix, labelNames)
-			// suffix should be at index 0 if it exists b/c of underscores
-			if unallocatedSuffixIndex != -1 {
-				labelNames = append(labelNames[:unallocatedSuffixIndex], labelNames[unallocatedSuffixIndex+1:]...)
-				labelNames = append(labelNames, UnallocatedSuffix) // append to end
-			}
-
-			names = append(names, labelNames...)
 		}
+		labelNames := []string{}
+		aggLabels:= properties.Labels
+		for labelName := range aggLabels {
+			if val, ok := labels[labelName]; ok {
+				labelNames = append(labelNames, fmt.Sprintf("%s=%s", labelName, val))
+			} else if indexOf(UnallocatedSuffix, labelNames) == -1 { // if UnallocatedSuffix not already in names
+				labelNames = append(labelNames, UnallocatedSuffix)
+			}
+		}
+		// resolve arbitrary ordering. e.g., app=app0/env=env0 is the same agg as env=env0/app=app0
+		if len(labelNames) > 1 {
+			sort.Strings(labelNames)
+		}
+		unallocatedSuffixIndex := indexOf(UnallocatedSuffix, labelNames)
+		// suffix should be at index 0 if it exists b/c of underscores
+		if unallocatedSuffixIndex != -1 {
+			labelNames = append(labelNames[:unallocatedSuffixIndex], labelNames[unallocatedSuffixIndex+1:]...)
+			labelNames = append(labelNames, UnallocatedSuffix) // append to end
+		}
+
+		names = append(names, labelNames...)
 	}
 
 	return strings.Join(names, "/")
@@ -1379,8 +1381,8 @@ func (as *AllocationSet) ComputeIdleAllocations(assetSet *AssetSet) (map[string]
 	// Subtract allocated costs from asset costs, leaving only the remaining
 	// idle costs.
 	as.Each(func(name string, a *Allocation) {
-		cluster, err := a.Properties.GetCluster()
-		if err != nil {
+		cluster := a.Properties.Cluster
+		if cluster == "" {
 			// Failed to find allocation's cluster
 			return
 		}
@@ -1422,7 +1424,7 @@ func (as *AllocationSet) ComputeIdleAllocations(assetSet *AssetSet) (map[string]
 		idleAlloc := &Allocation{
 			Name:       fmt.Sprintf("%s/%s", cluster, IdleSuffix),
 			Window:     window.Clone(),
-			Properties: Properties{ClusterProp: cluster},
+			Properties: &AllocationProperties{Cluster: cluster},
 			Start:      start,
 			End:        end,
 			CPUCost:    resources["cpu"],
@@ -1800,7 +1802,7 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 
 // AggregateBy aggregates each AllocationSet in the range by the given
 // properties and options.
-func (asr *AllocationSetRange) AggregateBy(properties Properties, options *AllocationAggregationOptions) error {
+func (asr *AllocationSetRange) AggregateBy(properties AllocationProperties, options *AllocationAggregationOptions) error {
 	aggRange := &AllocationSetRange{allocations: []*AllocationSet{}}
 
 	asr.Lock()

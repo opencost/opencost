@@ -9,39 +9,39 @@ import "testing"
 // func TestProperty_String(t *testing.T) {}
 
 func TestProperties_AggregationString(t *testing.T) {
-	var props *Properties
+	var props *AllocationProperties
 	var aggStrs []string
 
-	// nil Properties should produce and empty slice
+	// nil AllocationProperties should produce and empty slice
 	aggStrs = props.AggregationStrings()
 	if aggStrs == nil || len(aggStrs) > 0 {
 		t.Fatalf("expected empty slice; got %v", aggStrs)
 	}
 
-	// empty Properties should product an empty slice
-	props = &Properties{}
+	// empty AllocationProperties should product an empty slice
+	props = &AllocationProperties{}
 	aggStrs = props.AggregationStrings()
 	if aggStrs == nil || len(aggStrs) > 0 {
 		t.Fatalf("expected empty slice; got %v", aggStrs)
 	}
 
-	// Properties with single, simple property set
-	props = &Properties{}
-	props.SetNamespace("")
+	// AllocationProperties with single, simple property set
+	props = &AllocationProperties{}
+	props.Namespace = "true"
 	aggStrs = props.AggregationStrings()
 	if len(aggStrs) != 1 || aggStrs[0] != "namespace" {
 		t.Fatalf("expected [\"namespace\"]; got %v", aggStrs)
 	}
 
-	// Properties with mutiple properties, including labels
+	// AllocationProperties with mutiple properties, including labels
 	// Note: order matters!
-	props = &Properties{}
-	props.SetNamespace("")
-	props.SetLabels(map[string]string{
+	props = &AllocationProperties{}
+	props.Namespace = "true"
+	props.Labels = map[string]string{
 		"env": "",
 		"app": "",
-	})
-	props.SetCluster("")
+	}
+	props.Cluster = "true"
 	aggStrs = props.AggregationStrings()
 	if len(aggStrs) != 4 {
 		t.Fatalf("expected length %d; got lenfth %d", 4, len(aggStrs))

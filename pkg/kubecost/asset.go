@@ -137,7 +137,7 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, externalLabels
 	match := false
 
 	// props records the relevant Properties to set on the resultant Allocation
-	props := Properties{}
+	props := AllocationProperties{}
 
 	for _, aggBy := range aggregateBy {
 		// labelName should be derived from the mapping of properties to
@@ -171,35 +171,36 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, externalLabels
 				match = true
 
 				// Set the corresponding label in props
-				labels, err := props.GetLabels()
-				if err != nil {
+				labels := props.Labels
+				if labels == nil {
 					labels = map[string]string{}
 				}
+
 				labels[labelName] = value
-				props.SetLabels(labels)
+				props.Labels = labels
 			} else {
 				names = append(names, value)
 				match = true
 
 				// Set the corresponding property on props
 				switch aggBy {
-				case ClusterProp.String():
-					props.SetCluster(value)
-				case NodeProp.String():
-					props.SetNode(value)
-				case NamespaceProp.String():
-					props.SetNamespace(value)
-				case ControllerKindProp.String():
-					props.SetControllerKind(value)
-				case ControllerProp.String():
-					props.SetController(value)
-				case PodProp.String():
-					props.SetPod(value)
-				case ContainerProp.String():
-					props.SetContainer(value)
-				case ServiceProp.String():
+				case AllocationClusterProp.String():
+					props.Cluster = value
+				case AllocationNodeProp.String():
+					props.Node = value
+				case AllocationNamespaceProp.String():
+					props.Namespace = value
+				case AllocationControllerKindProp.String():
+					props.ControllerKind = value
+				case AllocationControllerProp.String():
+					props.Controller = value
+				case AllocationPodProp.String():
+					props.Pod = value
+				case AllocationContainerProp.String():
+					props.Container = value
+				case AllocationServiceProp.String():
 					// TODO: external allocation: how to do this? multi-service?
-					props.SetServices([]string{value})
+					props.Services = []string{value}
 				}
 			}
 		} else {
@@ -221,7 +222,7 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, externalLabels
 	// TODO: external allocation: resource totals?
 	return &Allocation{
 		Name:         strings.Join(names, "/"),
-		Properties:   props,
+		Properties:   &props,
 		Window:       asset.Window().Clone(),
 		Start:        asset.Start(),
 		End:          asset.End(),
