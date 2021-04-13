@@ -565,7 +565,6 @@ func (aws *AWS) ClusterManagementPricing() (string, float64, error) {
 func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, error) {
 
 	pricingURL := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/"
-
 	region := ""
 	multiregion := false
 	for _, n := range nodeList {
@@ -573,6 +572,10 @@ func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, e
 		currentNodeRegion := ""
 		if r, ok := util.GetRegion(labels); ok {
 			currentNodeRegion = r
+			// Switch to Chinese endpoint for regions with the Chinese prefix
+			if strings.Contains(currentNodeRegion, "cn-") {
+				pricingURL = "https://pricing.cn-north-1.amazonaws.com.cn/offers/v1.0/cn/AmazonEC2/current/"
+			}
 		} else {
 			multiregion = true // We weren't able to detect the node's region, so pull all data.
 			break
@@ -585,6 +588,7 @@ func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, e
 		}
 	}
 
+	// Chinese multiregion endpoint only contains data for Chinese regions and Chinese regions are excluded from other endpoint
 	if region != "" && !multiregion {
 		pricingURL += region + "/"
 	}
