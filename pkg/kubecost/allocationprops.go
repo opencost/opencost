@@ -300,7 +300,7 @@ func (p *AllocationProperties) AggregationStrings() []string {
 	return aggStrs
 }
 
-func (p *AllocationProperties) isEmpty() bool {
+func (p *AllocationProperties) IsEmpty() bool {
 	if p == nil {
 		return true
 	}

@@ -1155,11 +1155,11 @@ func (a *Allocation) generateKey(properties AllocationProperties) string {
 			// Indicate that allocation has no controller
 			controllerKind = UnallocatedSuffix
 		}
-		// TODO figure out if the is functional, refactor breaks this
-		//if prop := properties.ControllerKind; prop != "" && prop != controllerKind {
-		//	// The allocation does not have the specified controller kind
-		//	controllerKind = UnallocatedSuffix
-		//}
+		// TODO find better way to pass controller kind filter
+		if prop := properties.ControllerKind; prop != "true" && prop != controllerKind {
+			// The allocation does not have the specified controller kind
+			controllerKind = UnallocatedSuffix
+		}
 		names = append(names, controllerKind)
 	}
 
@@ -1195,16 +1195,18 @@ func (a *Allocation) generateKey(properties AllocationProperties) string {
 		if services == nil {
 			// Indicate that allocation has no services
 			names = append(names, UnallocatedSuffix)
-		}
-		if services != nil && len(services) > 0 {
-			for _, service := range services {
-				names = append(names, service)
-				break
-			}
 		} else {
-			// Indicate that allocation has no services
-			names = append(names, UnallocatedSuffix)
+			if len(services) > 0 {
+				for _, service := range services {
+					names = append(names, service)
+					break
+				}
+			} else {
+				// Indicate that allocation has no services
+				names = append(names, UnallocatedSuffix)
+			}
 		}
+
 	}
 
 	if properties.Annotations != nil   {
@@ -1212,7 +1214,7 @@ func (a *Allocation) generateKey(properties AllocationProperties) string {
 		if annotations == nil {
 			// Indicate that allocation has no annotations
 			names = append(names, UnallocatedSuffix)
-		}
+		} else {
 			annotationNames := []string{}
 			aggAnnotations := properties.Annotations
 			for annotationName := range aggAnnotations {
@@ -1234,7 +1236,7 @@ func (a *Allocation) generateKey(properties AllocationProperties) string {
 			}
 
 			names = append(names, annotationNames...)
-
+		}
 	}
 
 	if properties.Labels != nil {
@@ -1242,28 +1244,29 @@ func (a *Allocation) generateKey(properties AllocationProperties) string {
 		if labels == nil {
 			// Indicate that allocation has no labels
 			names = append(names, UnallocatedSuffix)
-		}
-		labelNames := []string{}
-		aggLabels:= properties.Labels
-		for labelName := range aggLabels {
-			if val, ok := labels[labelName]; ok {
-				labelNames = append(labelNames, fmt.Sprintf("%s=%s", labelName, val))
-			} else if indexOf(UnallocatedSuffix, labelNames) == -1 { // if UnallocatedSuffix not already in names
-				labelNames = append(labelNames, UnallocatedSuffix)
+		} else {
+			labelNames := []string{}
+			aggLabels := properties.Labels
+			for labelName := range aggLabels {
+				if val, ok := labels[labelName]; ok {
+					labelNames = append(labelNames, fmt.Sprintf("%s=%s", labelName, val))
+				} else if indexOf(UnallocatedSuffix, labelNames) == -1 { // if UnallocatedSuffix not already in names
+					labelNames = append(labelNames, UnallocatedSuffix)
+				}
 			}
-		}
-		// resolve arbitrary ordering. e.g., app=app0/env=env0 is the same agg as env=env0/app=app0
-		if len(labelNames) > 1 {
-			sort.Strings(labelNames)
-		}
-		unallocatedSuffixIndex := indexOf(UnallocatedSuffix, labelNames)
-		// suffix should be at index 0 if it exists b/c of underscores
-		if unallocatedSuffixIndex != -1 {
-			labelNames = append(labelNames[:unallocatedSuffixIndex], labelNames[unallocatedSuffixIndex+1:]...)
-			labelNames = append(labelNames, UnallocatedSuffix) // append to end
-		}
+			// resolve arbitrary ordering. e.g., app=app0/env=env0 is the same agg as env=env0/app=app0
+			if len(labelNames) > 1 {
+				sort.Strings(labelNames)
+			}
+			unallocatedSuffixIndex := indexOf(UnallocatedSuffix, labelNames)
+			// suffix should be at index 0 if it exists b/c of underscores
+			if unallocatedSuffixIndex != -1 {
+				labelNames = append(labelNames[:unallocatedSuffixIndex], labelNames[unallocatedSuffixIndex+1:]...)
+				labelNames = append(labelNames, UnallocatedSuffix) // append to end
+			}
 
-		names = append(names, labelNames...)
+			names = append(names, labelNames...)
+		}
 	}
 
 	return strings.Join(names, "/")
