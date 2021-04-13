@@ -172,9 +172,7 @@ func buildGPUCostMap(
 func buildGPUCountMap(
 	resNodeGPUCount []*prom.QueryResult,
 	providerIDParser func(string) string,
-) (
-	map[NodeIdentifier]float64,
-) {
+) map[NodeIdentifier]float64 {
 
 	gpuCountMap := make(map[NodeIdentifier]float64)
 
@@ -192,7 +190,6 @@ func buildGPUCountMap(
 
 		gpuCount := result.Values[0].Value
 		providerID, _ := result.GetString("provider_id")
-
 
 		key := NodeIdentifier{
 			Cluster:    cluster,

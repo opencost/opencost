@@ -14,11 +14,10 @@ package kubecost
 import (
 	"encoding"
 	"fmt"
+	util "github.com/kubecost/cost-model/pkg/util"
 	"reflect"
 	"strings"
 	"time"
-
-	util "github.com/kubecost/cost-model/pkg/util"
 )
 
 const (
@@ -26,7 +25,7 @@ const (
 	GeneratorPackageName string = "kubecost"
 
 	// CodecVersion is the version passed into the generator
-	CodecVersion uint8 = 8
+	CodecVersion uint8 = 9
 )
 
 //--------------------------------------------------------------------------
@@ -160,6 +159,7 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 	buff.WriteFloat64(target.GPUHours)               // write float64
 	buff.WriteFloat64(target.GPUCost)                // write float64
 	buff.WriteFloat64(target.NetworkCost)            // write float64
+	buff.WriteFloat64(target.LoadBalancerCost)       // write float64
 	buff.WriteFloat64(target.PVByteHours)            // write float64
 	buff.WriteFloat64(target.PVCost)                 // write float64
 	buff.WriteFloat64(target.RAMByteHours)           // write float64
@@ -264,28 +264,31 @@ func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
 	target.NetworkCost = w
 
 	x := buff.ReadFloat64() // read float64
-	target.PVByteHours = x
+	target.LoadBalancerCost = x
 
 	y := buff.ReadFloat64() // read float64
-	target.PVCost = y
+	target.PVByteHours = y
 
 	aa := buff.ReadFloat64() // read float64
-	target.RAMByteHours = aa
+	target.PVCost = aa
 
 	bb := buff.ReadFloat64() // read float64
-	target.RAMBytesRequestAverage = bb
+	target.RAMByteHours = bb
 
 	cc := buff.ReadFloat64() // read float64
-	target.RAMBytesUsageAverage = cc
+	target.RAMBytesRequestAverage = cc
 
 	dd := buff.ReadFloat64() // read float64
-	target.RAMCost = dd
+	target.RAMBytesUsageAverage = dd
 
 	ee := buff.ReadFloat64() // read float64
-	target.SharedCost = ee
+	target.RAMCost = ee
 
 	ff := buff.ReadFloat64() // read float64
-	target.ExternalCost = ff
+	target.SharedCost = ff
+
+	gg := buff.ReadFloat64() // read float64
+	target.ExternalCost = gg
 
 	return nil
 }
