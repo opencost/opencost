@@ -139,31 +139,31 @@ func (p *AllocationProperties) Equal(that *AllocationProperties) bool {
 
 	pLabels := p.Labels
 	thatLabels := that.Labels
-	if len(pLabels) != len(thatLabels) {
+	if len(pLabels) == len(thatLabels) {
 		for k, pv := range pLabels {
 			tv, ok := thatLabels[k]
 			if !ok || tv != pv {
 				return false
 			}
 		}
-		return false
 	}
 
 	pAnnotations := p.Annotations
 	thatAnnotations := that.Annotations
-	if len(pAnnotations) != len(thatAnnotations) {
+	if len(pAnnotations) == len(thatAnnotations) {
 		for k, pv := range pAnnotations {
 			tv, ok := thatAnnotations[k]
 			if !ok || tv != pv {
 				return false
 			}
 		}
+	} else {
 		return false
 	}
 
 	pServices := p.Services
 	thatServices := that.Services
-	if len(pServices) != len(thatServices) {
+	if len(pServices) == len(thatServices) {
 		sort.Strings(pServices)
 		sort.Strings(thatServices)
 		for i, pv := range pServices {
@@ -172,9 +172,9 @@ func (p *AllocationProperties) Equal(that *AllocationProperties) bool {
 				return false
 			}
 		}
+	} else {
 		return false
 	}
-
 	return true
 }
 
@@ -233,13 +233,13 @@ func (p *AllocationProperties) String() string {
 	}
 	strs = append(strs, fmt.Sprintf("Annotations:{%s}", strings.Join(strs, ",")))
 
-	return strings.Join(strs, ",")
+	return fmt.Sprintf("{%s}", strings.Join(strs, "; "))
 }
 
 // AggregationStrings converts a AllocationProperties object into a slice of strings
 // representing a request to aggregate by certain properties.
 // NOTE: today, the ordering of the properties *has to match the ordering
-// of the allocaiton function generateKey*
+// of the allocation function generateKey*
 func (p *AllocationProperties) AggregationStrings() []string {
 	if p == nil {
 		return []string{}
@@ -273,9 +273,7 @@ func (p *AllocationProperties) AggregationStrings() []string {
 	if len(p.Services) > 0 {
 		aggStrs = append(aggStrs, AllocationServiceProp.String())
 	}
-	if len(p.Services) > 0 {
-		aggStrs = append(aggStrs, AllocationServiceProp.String())
-	}
+	
 	if len(p.Labels) > 0  {
 		// e.g. expect format map[string]string{
 		// 	 "env":""

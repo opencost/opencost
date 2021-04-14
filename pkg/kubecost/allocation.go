@@ -628,7 +628,7 @@ func (as *AllocationSet) AggregateBy(properties AllocationProperties, options *A
 	//
 	// In order to maintain stable results when multiple operations are being
 	// carried out (e.g. sharing idle, sharing resources, and filtering) these
-	// coefficients are computed for the full set of allocaitons prior to
+	// coefficients are computed for the full set of allocations prior to
 	// adding shared overhead and prior to applying filters.
 
 	var err error
