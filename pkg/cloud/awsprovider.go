@@ -191,15 +191,28 @@ type AWSOfferTerm struct {
 	PriceDimensions map[string]*AWSRateCode `json:"priceDimensions"`
 }
 
+func (ot *AWSOfferTerm) String() string {
+	var strs []string
+	for k, rc := range ot.PriceDimensions {
+		strs = append(strs, fmt.Sprintf("%s:%s", k, rc.String()))
+	}
+	return fmt.Sprintf("%s:%s", ot.Sku, strings.Join(strs, ","))
+}
+
 // AWSRateCode encodes data about the price of a product
 type AWSRateCode struct {
 	Unit         string          `json:"unit"`
 	PricePerUnit AWSCurrencyCode `json:"pricePerUnit"`
 }
 
+func (rc *AWSRateCode) String() string {
+	return fmt.Sprintf("{unit: %s, pricePerUnit: %v", rc.Unit, rc.PricePerUnit)
+}
+
 // AWSCurrencyCode is the localized currency. (TODO: support non-USD)
 type AWSCurrencyCode struct {
-	USD string `json:"USD"`
+	USD string `json:"USD,omitempty"`
+	CNY string `json:"CNY,omitempty"`
 }
 
 // AWSProductTerms represents the full terms of the product
@@ -219,12 +232,14 @@ const ClusterIdEnvVar = "AWS_CLUSTER_ID"
 
 // OnDemandRateCode is appended to an node sku
 const OnDemandRateCode = ".JRTCKXETXF"
+const OnDemandRateCodeCn = ".99YE2YK9UR"
 
 // ReservedRateCode is appended to a node sku
 const ReservedRateCode = ".38NPMPTW36"
 
 // HourlyRateCode is appended to a node sku
 const HourlyRateCode = ".6YS6EN2CT7"
+const HourlyRateCodeCn = ".Q7UJUT2CE6"
 
 // volTypes are used to map between AWS UsageTypes and
 // EBS volume types, as they would appear in K8s storage class
@@ -572,8 +587,9 @@ func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, e
 		currentNodeRegion := ""
 		if r, ok := util.GetRegion(labels); ok {
 			currentNodeRegion = r
+			//currentNodeRegion = "cn-north-1"
 			// Switch to Chinese endpoint for regions with the Chinese prefix
-			if strings.Contains(currentNodeRegion, "cn-") {
+			if strings.HasPrefix(currentNodeRegion, "cn-") {
 				pricingURL = "https://pricing.cn-north-1.amazonaws.com.cn/offers/v1.0/cn/AmazonEC2/current/"
 			}
 		} else {
@@ -823,28 +839,33 @@ func (aws *AWS) DownloadPricingData() error {
 					if err != nil {
 						klog.V(1).Infof("Error decoding AWS Offer Term: " + err.Error())
 					}
-					if sku.(string)+OnDemandRateCode == skuOnDemand {
-						key, ok := skusToKeys[sku.(string)]
-						spotKey := key + ",preemptible"
-						if ok {
-							aws.Pricing[key].OnDemand = offerTerm
-							aws.Pricing[spotKey].OnDemand = offerTerm
-							if strings.Contains(key, "EBS:VolumeP-IOPS.piops") {
-								// If the specific UsageType is the per IO cost used on io1 volumes
-								// we need to add the per IO cost to the io1 PV cost
-								cost := offerTerm.PriceDimensions[sku.(string)+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
-								// Add the per IO cost to the PV object for the io1 volume type
-								aws.Pricing[key].PV.CostPerIO = cost
-							} else if strings.Contains(key, "EBS:Volume") {
-								// If volume, we need to get hourly cost and add it to the PV object
-								cost := offerTerm.PriceDimensions[sku.(string)+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
-								costFloat, _ := strconv.ParseFloat(cost, 64)
-								hourlyPrice := costFloat / 730
 
-								aws.Pricing[key].PV.Cost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
-							}
+					key, ok := skusToKeys[sku.(string)]
+					spotKey := key + ",preemptible"
+					if ok {
+						aws.Pricing[key].OnDemand = offerTerm
+						aws.Pricing[spotKey].OnDemand = offerTerm
+						var cost string
+						if sku.(string)+OnDemandRateCode == skuOnDemand {
+							cost = offerTerm.PriceDimensions[sku.(string)+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
+						} else if sku.(string)+OnDemandRateCodeCn == skuOnDemand {
+							cost = offerTerm.PriceDimensions[sku.(string)+OnDemandRateCodeCn+HourlyRateCodeCn].PricePerUnit.CNY
+						}
+						if strings.Contains(key, "EBS:VolumeP-IOPS.piops") {
+						// If the specific UsageType is the per IO cost used on io1 volumes
+						// we need to add the per IO cost to the io1 PV cost
+
+						// Add the per IO cost to the PV object for the io1 volume type
+						aws.Pricing[key].PV.CostPerIO = cost
+						} else if strings.Contains(key, "EBS:Volume") {
+							// If volume, we need to get hourly cost and add it to the PV object
+							costFloat, _ := strconv.ParseFloat(cost, 64)
+							hourlyPrice := costFloat / 730
+
+							aws.Pricing[key].PV.Cost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 						}
 					}
+
 					_, err = dec.Token()
 					if err != nil {
 						return err
@@ -858,6 +879,10 @@ func (aws *AWS) DownloadPricingData() error {
 		}
 	}
 	klog.V(2).Infof("Finished downloading \"%s\"", pricingURL)
+	klog.Infof("Pricing Data:")
+	for k, p := range aws.Pricing {
+		klog.Infof("%v: %v", k, *p)
+	}
 
 	// Always run spot pricing refresh when performing download
 	aws.refreshSpotPricing(true)
