@@ -71,6 +71,38 @@ type Allocation struct {
 	RAMCost                float64    `json:"ramCost"`
 	SharedCost             float64    `json:"sharedCost"`
 	ExternalCost           float64    `json:"externalCost"`
+
+	// RawAllocationOnly is a pointer so if it is not present it will be
+	// marshalled as null rather than as an object with Go default values.
+	RawAllocationOnly *RawAllocationOnlyData `json:"rawAllocationOnly"`
+}
+
+// RawAllocationOnlyData is information that only belong in "raw" Allocations,
+// those which have not undergone aggregation, accumulation, or any other form
+// of combination to produce a new Allocation from other Allocations.
+//
+// Max usage data belongs here because computing the overall maximum from two
+// or more Allocations is a non-trivial operation that cannot be defined without
+// maintaining a large amount of state. Consider the following example:
+// _______________________________________________
+//
+// A1 Using 3 CPU    ----      -----     ------
+// A2 Using 2 CPU      ----      -----      ----
+// A3 Using 1 CPU         ---       --
+// _______________________________________________
+//                   Time ---->
+//
+// The logical maximum CPU usage is 5, but this cannot be calculated iteratively,
+// which is how we calculate aggregations and accumulations of Allocations currently.
+// This becomes a problem I could call "maximum sum of overlapping intervals" and is
+// essentially a variant of an interval scheduling algorithm.
+//
+// If we had types to differentiate between regular Allocations and AggregatedAllocations
+// then this type would be unnecessary and its fields would go into the regular Allocation
+// and not in the AggregatedAllocation.
+type RawAllocationOnlyData struct {
+	CPUCoreUsageMax  float64 `json:"cpuCoreUsageMax"`
+	RAMBytesUsageMax float64 `json:"ramByteUsageMax"`
 }
 
 // AllocationMatchFunc is a function that can be used to match Allocations by
@@ -124,6 +156,19 @@ func (a *Allocation) Clone() *Allocation {
 		RAMCost:                a.RAMCost,
 		SharedCost:             a.SharedCost,
 		ExternalCost:           a.ExternalCost,
+		RawAllocationOnly:      a.RawAllocationOnly.Clone(),
+	}
+}
+
+// Clone returns a deep copy of the given RawAllocationOnlyData
+func (r *RawAllocationOnlyData) Clone() *RawAllocationOnlyData {
+	if r == nil {
+		return nil
+	}
+
+	return &RawAllocationOnlyData{
+		CPUCoreUsageMax:  r.CPUCoreUsageMax,
+		RAMBytesUsageMax: r.RAMBytesUsageMax,
 	}
 }
 
@@ -186,6 +231,22 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	}
 	if !util.IsApproximately(a.ExternalCost, that.ExternalCost) {
 		return false
+	}
+
+	if a.RawAllocationOnly == nil && that.RawAllocationOnly != nil {
+		return false
+	}
+	if a.RawAllocationOnly != nil && that.RawAllocationOnly == nil {
+		return false
+	}
+
+	if a.RawAllocationOnly != nil && that.RawAllocationOnly != nil {
+		if !util.IsApproximately(a.RawAllocationOnly.CPUCoreUsageMax, that.RawAllocationOnly.CPUCoreUsageMax) {
+			return false
+		}
+		if !util.IsApproximately(a.RawAllocationOnly.RAMBytesUsageMax, that.RawAllocationOnly.RAMBytesUsageMax) {
+			return false
+		}
 	}
 
 	return true
@@ -293,7 +354,8 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "sharedCost", a.SharedCost, ",")
 	jsonEncodeFloat64(buffer, "externalCost", a.ExternalCost, ",")
 	jsonEncodeFloat64(buffer, "totalCost", a.TotalCost(), ",")
-	jsonEncodeFloat64(buffer, "totalEfficiency", a.TotalEfficiency(), "")
+	jsonEncodeFloat64(buffer, "totalEfficiency", a.TotalEfficiency(), ",")
+	jsonEncode(buffer, "rawAllocationOnly", a.RawAllocationOnly, "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
@@ -435,6 +497,10 @@ func (a *Allocation) add(that *Allocation) {
 	a.LoadBalancerCost += that.LoadBalancerCost
 	a.SharedCost += that.SharedCost
 	a.ExternalCost += that.ExternalCost
+
+	// Any data that is in a "raw allocation only" is not valid in any
+	// sort of cumulative Allocation (like one that is added).
+	a.RawAllocationOnly = nil
 }
 
 // AllocationSet stores a set of Allocations, each with a unique name, that share

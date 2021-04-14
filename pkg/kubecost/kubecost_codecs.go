@@ -25,7 +25,7 @@ const (
 	GeneratorPackageName string = "kubecost"
 
 	// CodecVersion is the version passed into the generator
-	CodecVersion uint8 = 9
+	CodecVersion uint8 = 10
 )
 
 //--------------------------------------------------------------------------
@@ -35,22 +35,23 @@ const (
 // Generated type map for resolving interface implementations to
 // to concrete types
 var typeMap map[string]reflect.Type = map[string]reflect.Type{
-	"Allocation":         reflect.TypeOf((*Allocation)(nil)).Elem(),
-	"AllocationSet":      reflect.TypeOf((*AllocationSet)(nil)).Elem(),
-	"AllocationSetRange": reflect.TypeOf((*AllocationSetRange)(nil)).Elem(),
-	"Any":                reflect.TypeOf((*Any)(nil)).Elem(),
-	"AssetProperties":    reflect.TypeOf((*AssetProperties)(nil)).Elem(),
-	"AssetSet":           reflect.TypeOf((*AssetSet)(nil)).Elem(),
-	"AssetSetRange":      reflect.TypeOf((*AssetSetRange)(nil)).Elem(),
-	"Breakdown":          reflect.TypeOf((*Breakdown)(nil)).Elem(),
-	"Cloud":              reflect.TypeOf((*Cloud)(nil)).Elem(),
-	"ClusterManagement":  reflect.TypeOf((*ClusterManagement)(nil)).Elem(),
-	"Disk":               reflect.TypeOf((*Disk)(nil)).Elem(),
-	"LoadBalancer":       reflect.TypeOf((*LoadBalancer)(nil)).Elem(),
-	"Network":            reflect.TypeOf((*Network)(nil)).Elem(),
-	"Node":               reflect.TypeOf((*Node)(nil)).Elem(),
-	"SharedAsset":        reflect.TypeOf((*SharedAsset)(nil)).Elem(),
-	"Window":             reflect.TypeOf((*Window)(nil)).Elem(),
+	"Allocation":            reflect.TypeOf((*Allocation)(nil)).Elem(),
+	"AllocationSet":         reflect.TypeOf((*AllocationSet)(nil)).Elem(),
+	"AllocationSetRange":    reflect.TypeOf((*AllocationSetRange)(nil)).Elem(),
+	"Any":                   reflect.TypeOf((*Any)(nil)).Elem(),
+	"AssetProperties":       reflect.TypeOf((*AssetProperties)(nil)).Elem(),
+	"AssetSet":              reflect.TypeOf((*AssetSet)(nil)).Elem(),
+	"AssetSetRange":         reflect.TypeOf((*AssetSetRange)(nil)).Elem(),
+	"Breakdown":             reflect.TypeOf((*Breakdown)(nil)).Elem(),
+	"Cloud":                 reflect.TypeOf((*Cloud)(nil)).Elem(),
+	"ClusterManagement":     reflect.TypeOf((*ClusterManagement)(nil)).Elem(),
+	"Disk":                  reflect.TypeOf((*Disk)(nil)).Elem(),
+	"LoadBalancer":          reflect.TypeOf((*LoadBalancer)(nil)).Elem(),
+	"Network":               reflect.TypeOf((*Network)(nil)).Elem(),
+	"Node":                  reflect.TypeOf((*Node)(nil)).Elem(),
+	"RawAllocationOnlyData": reflect.TypeOf((*RawAllocationOnlyData)(nil)).Elem(),
+	"SharedAsset":           reflect.TypeOf((*SharedAsset)(nil)).Elem(),
+	"Window":                reflect.TypeOf((*Window)(nil)).Elem(),
 }
 
 //--------------------------------------------------------------------------
@@ -168,6 +169,21 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 	buff.WriteFloat64(target.RAMCost)                // write float64
 	buff.WriteFloat64(target.SharedCost)             // write float64
 	buff.WriteFloat64(target.ExternalCost)           // write float64
+	if target.RawAllocationOnly == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][struct](RawAllocationOnlyData) ---
+		e, errE := target.RawAllocationOnly.MarshalBinary()
+		if errE != nil {
+			return nil, errE
+		}
+		buff.WriteInt(len(e))
+		buff.WriteBytes(e)
+		// --- [end][write][struct](RawAllocationOnlyData) ---
+
+	}
 	return buff.Bytes(), nil
 }
 
@@ -290,6 +306,21 @@ func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
 	gg := buff.ReadFloat64() // read float64
 	target.ExternalCost = gg
 
+	if buff.ReadUInt8() == uint8(0) {
+		target.RawAllocationOnly = nil
+	} else {
+		// --- [begin][read][struct](RawAllocationOnlyData) ---
+		hh := &RawAllocationOnlyData{}
+		kk := buff.ReadInt()     // byte array length
+		ll := buff.ReadBytes(kk) // byte array
+		errE := hh.UnmarshalBinary(ll)
+		if errE != nil {
+			return errE
+		}
+		target.RawAllocationOnly = hh
+		// --- [end][read][struct](RawAllocationOnlyData) ---
+
+	}
 	return nil
 }
 
@@ -2447,6 +2478,7 @@ func (target *Node) MarshalBinary() (data []byte, err error) {
 	}
 	buff.WriteFloat64(target.CPUCost)     // write float64
 	buff.WriteFloat64(target.GPUCost)     // write float64
+	buff.WriteFloat64(target.GPUCount)    // write float64
 	buff.WriteFloat64(target.RAMCost)     // write float64
 	buff.WriteFloat64(target.Discount)    // write float64
 	buff.WriteFloat64(target.Preemptible) // write float64
@@ -2600,13 +2632,77 @@ func (target *Node) UnmarshalBinary(data []byte) (err error) {
 	target.GPUCost = gg
 
 	hh := buff.ReadFloat64() // read float64
-	target.RAMCost = hh
+	target.GPUCount = hh
 
 	kk := buff.ReadFloat64() // read float64
-	target.Discount = kk
+	target.RAMCost = kk
 
 	ll := buff.ReadFloat64() // read float64
-	target.Preemptible = ll
+	target.Discount = ll
+
+	mm := buff.ReadFloat64() // read float64
+	target.Preemptible = mm
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  RawAllocationOnlyData
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this RawAllocationOnlyData instance
+// into a byte array
+func (target *RawAllocationOnlyData) MarshalBinary() (data []byte, err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := util.NewBuffer()
+	buff.WriteUInt8(CodecVersion) // version
+
+	buff.WriteFloat64(target.CPUCoreUsageMax)  // write float64
+	buff.WriteFloat64(target.RAMBytesUsageMax) // write float64
+	return buff.Bytes(), nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the RawAllocationOnlyData type
+func (target *RawAllocationOnlyData) UnmarshalBinary(data []byte) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := util.NewBufferFromBytes(data)
+
+	// Codec Version Check
+	version := buff.ReadUInt8()
+	if version != CodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling RawAllocationOnlyData. Expected %d, got %d", CodecVersion, version)
+	}
+
+	a := buff.ReadFloat64() // read float64
+	target.CPUCoreUsageMax = a
+
+	b := buff.ReadFloat64() // read float64
+	target.RAMBytesUsageMax = b
 
 	return nil
 }
