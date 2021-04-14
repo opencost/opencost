@@ -587,7 +587,6 @@ func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, e
 		currentNodeRegion := ""
 		if r, ok := util.GetRegion(labels); ok {
 			currentNodeRegion = r
-			//currentNodeRegion = "cn-north-1"
 			// Switch to Chinese endpoint for regions with the Chinese prefix
 			if strings.HasPrefix(currentNodeRegion, "cn-") {
 				pricingURL = "https://pricing.cn-north-1.amazonaws.com.cn/offers/v1.0/cn/AmazonEC2/current/"
@@ -745,6 +744,9 @@ func (aws *AWS) DownloadPricingData() error {
 		if err == io.EOF {
 			klog.V(2).Infof("done loading \"%s\"\n", pricingURL)
 			break
+		} else if err != nil {
+			klog.V(2).Infof("error parsing response json %v", resp.Body)
+			break
 		}
 		if t == "products" {
 			_, err := dec.Token() // this should parse the opening "{""
@@ -879,10 +881,6 @@ func (aws *AWS) DownloadPricingData() error {
 		}
 	}
 	klog.V(2).Infof("Finished downloading \"%s\"", pricingURL)
-	klog.Infof("Pricing Data:")
-	for k, p := range aws.Pricing {
-		klog.Infof("%v: %v", k, *p)
-	}
 
 	// Always run spot pricing refresh when performing download
 	aws.refreshSpotPricing(true)
