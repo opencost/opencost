@@ -17,13 +17,24 @@ import (
 )
 
 const (
-	queryFmtPods                  = `avg(kube_pod_container_status_running{}) by (pod, namespace, cluster_id)[%s:%s]%s`
-	queryFmtRAMBytesAllocated     = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
-	queryFmtRAMRequests           = `avg(avg_over_time(kube_pod_container_resource_requests_memory_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
-	queryFmtRAMUsage              = `avg(avg_over_time(container_memory_working_set_bytes{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`
-	queryFmtCPUCoresAllocated     = `avg(avg_over_time(container_cpu_allocation{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
-	queryFmtCPURequests           = `avg(avg_over_time(kube_pod_container_resource_requests_cpu_cores{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
-	queryFmtCPUUsage              = `avg(rate(container_cpu_usage_seconds_total{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`
+	queryFmtPods              = `avg(kube_pod_container_status_running{}) by (pod, namespace, cluster_id)[%s:%s]%s`
+	queryFmtRAMBytesAllocated = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
+	queryFmtRAMRequests       = `avg(avg_over_time(kube_pod_container_resource_requests_memory_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
+	queryFmtRAMUsageAvg       = `avg(avg_over_time(container_memory_working_set_bytes{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`
+	queryFmtRAMUsageMax       = `max(max_over_time(container_memory_working_set_bytes{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`
+	queryFmtCPUCoresAllocated = `avg(avg_over_time(container_cpu_allocation{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
+	queryFmtCPURequests       = `avg(avg_over_time(kube_pod_container_resource_requests_cpu_cores{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
+	queryFmtCPUUsageAvg       = `avg(rate(container_cpu_usage_seconds_total{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`
+
+	// This query could be written without the recording rule
+	// "kubecost_savings_container_cpu_usage_seconds", but we should
+	// only do that when we're ready to incur the performance tradeoffs
+	// with subqueries which would probably be in the world of hourly
+	// ETL.
+	//
+	// See PromQL subquery documentation for a rate example:
+	// https://prometheus.io/blog/2019/01/28/subquery-support/#examples
+	queryFmtCPUUsageMax           = `max(max_over_time(kubecost_savings_container_cpu_usage_seconds[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`
 	queryFmtGPUsRequested         = `avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
 	queryFmtNodeCostPerCPUHr      = `avg(avg_over_time(node_cpu_hourly_cost[%s]%s)) by (node, cluster_id, instance_type)`
 	queryFmtNodeCostPerRAMGiBHr   = `avg(avg_over_time(node_ram_hourly_cost[%s]%s)) by (node, cluster_id, instance_type)`
@@ -107,8 +118,11 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	queryRAMRequests := fmt.Sprintf(queryFmtRAMRequests, durStr, offStr)
 	resChRAMRequests := ctx.Query(queryRAMRequests)
 
-	queryRAMUsage := fmt.Sprintf(queryFmtRAMUsage, durStr, offStr)
-	resChRAMUsage := ctx.Query(queryRAMUsage)
+	queryRAMUsageAvg := fmt.Sprintf(queryFmtRAMUsageAvg, durStr, offStr)
+	resChRAMUsageAvg := ctx.Query(queryRAMUsageAvg)
+
+	queryRAMUsageMax := fmt.Sprintf(queryFmtRAMUsageMax, durStr, offStr)
+	resChRAMUsageMax := ctx.Query(queryRAMUsageMax)
 
 	queryCPUCoresAllocated := fmt.Sprintf(queryFmtCPUCoresAllocated, durStr, offStr)
 	resChCPUCoresAllocated := ctx.Query(queryCPUCoresAllocated)
@@ -116,8 +130,11 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	queryCPURequests := fmt.Sprintf(queryFmtCPURequests, durStr, offStr)
 	resChCPURequests := ctx.Query(queryCPURequests)
 
-	queryCPUUsage := fmt.Sprintf(queryFmtCPUUsage, durStr, offStr)
-	resChCPUUsage := ctx.Query(queryCPUUsage)
+	queryCPUUsageAvg := fmt.Sprintf(queryFmtCPUUsageAvg, durStr, offStr)
+	resChCPUUsageAvg := ctx.Query(queryCPUUsageAvg)
+
+	queryCPUUsageMax := fmt.Sprintf(queryFmtCPUUsageMax, durStr, offStr)
+	resChCPUUsageMax := ctx.Query(queryCPUUsageMax)
 
 	queryGPUsRequested := fmt.Sprintf(queryFmtGPUsRequested, durStr, offStr)
 	resChGPUsRequested := ctx.Query(queryGPUsRequested)
@@ -202,10 +219,12 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 
 	resCPUCoresAllocated, _ := resChCPUCoresAllocated.Await()
 	resCPURequests, _ := resChCPURequests.Await()
-	resCPUUsage, _ := resChCPUUsage.Await()
+	resCPUUsageAvg, _ := resChCPUUsageAvg.Await()
+	resCPUUsageMax, _ := resChCPUUsageMax.Await()
 	resRAMBytesAllocated, _ := resChRAMBytesAllocated.Await()
 	resRAMRequests, _ := resChRAMRequests.Await()
-	resRAMUsage, _ := resChRAMUsage.Await()
+	resRAMUsageAvg, _ := resChRAMUsageAvg.Await()
+	resRAMUsageMax, _ := resChRAMUsageMax.Await()
 	resGPUsRequested, _ := resChGPUsRequested.Await()
 
 	resNodeCostPerCPUHr, _ := resChNodeCostPerCPUHr.Await()
@@ -252,10 +271,12 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	// or equal to request.
 	applyCPUCoresAllocated(podMap, resCPUCoresAllocated)
 	applyCPUCoresRequested(podMap, resCPURequests)
-	applyCPUCoresUsed(podMap, resCPUUsage)
+	applyCPUCoresUsedAvg(podMap, resCPUUsageAvg)
+	applyCPUCoresUsedMax(podMap, resCPUUsageMax)
 	applyRAMBytesAllocated(podMap, resRAMBytesAllocated)
 	applyRAMBytesRequested(podMap, resRAMRequests)
-	applyRAMBytesUsed(podMap, resRAMUsage)
+	applyRAMBytesUsedAvg(podMap, resRAMUsageAvg)
+	applyRAMBytesUsedMax(podMap, resRAMUsageMax)
 	applyGPUsRequested(podMap, resGPUsRequested)
 	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZoneCostPerGiB)
 	applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionCostPerGiB)
@@ -637,11 +658,11 @@ func applyCPUCoresRequested(podMap map[podKey]*Pod, resCPUCoresRequested []*prom
 	}
 }
 
-func applyCPUCoresUsed(podMap map[podKey]*Pod, resCPUCoresUsed []*prom.QueryResult) {
-	for _, res := range resCPUCoresUsed {
+func applyCPUCoresUsedAvg(podMap map[podKey]*Pod, resCPUCoresUsedAvg []*prom.QueryResult) {
+	for _, res := range resCPUCoresUsedAvg {
 		key, err := resultPodKey(res, "cluster_id", "namespace", "pod_name")
 		if err != nil {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage result missing field: %s", err)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage avg result missing field: %s", err)
 			continue
 		}
 
@@ -652,7 +673,7 @@ func applyCPUCoresUsed(podMap map[podKey]*Pod, resCPUCoresUsed []*prom.QueryResu
 
 		container, err := res.GetString("container_name")
 		if err != nil {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage query result missing 'container': %s", key)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage avg query result missing 'container': %s", key)
 			continue
 		}
 
@@ -661,6 +682,39 @@ func applyCPUCoresUsed(podMap map[podKey]*Pod, resCPUCoresUsed []*prom.QueryResu
 		}
 
 		pod.Allocations[container].CPUCoreUsageAverage = res.Values[0].Value
+	}
+}
+
+func applyCPUCoresUsedMax(podMap map[podKey]*Pod, resCPUCoresUsedMax []*prom.QueryResult) {
+	for _, res := range resCPUCoresUsedMax {
+		key, err := resultPodKey(res, "cluster_id", "namespace", "pod_name")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage max result missing field: %s", err)
+			continue
+		}
+
+		pod, ok := podMap[key]
+		if !ok {
+			continue
+		}
+
+		container, err := res.GetString("container_name")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage max query result missing 'container': %s", key)
+			continue
+		}
+
+		if _, ok := pod.Allocations[container]; !ok {
+			pod.AppendContainer(container)
+		}
+
+		if pod.Allocations[container].RawAllocationOnly == nil {
+			pod.Allocations[container].RawAllocationOnly = &kubecost.RawAllocationOnlyData{
+				CPUCoreUsageMax: res.Values[0].Value,
+			}
+		} else {
+			pod.Allocations[container].RawAllocationOnly.CPUCoreUsageMax = res.Values[0].Value
+		}
 	}
 }
 
@@ -740,11 +794,11 @@ func applyRAMBytesRequested(podMap map[podKey]*Pod, resRAMBytesRequested []*prom
 	}
 }
 
-func applyRAMBytesUsed(podMap map[podKey]*Pod, resRAMBytesUsed []*prom.QueryResult) {
-	for _, res := range resRAMBytesUsed {
+func applyRAMBytesUsedAvg(podMap map[podKey]*Pod, resRAMBytesUsedAvg []*prom.QueryResult) {
+	for _, res := range resRAMBytesUsedAvg {
 		key, err := resultPodKey(res, "cluster_id", "namespace", "pod_name")
 		if err != nil {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage result missing field: %s", err)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM avg usage result missing field: %s", err)
 			continue
 		}
 
@@ -755,7 +809,7 @@ func applyRAMBytesUsed(podMap map[podKey]*Pod, resRAMBytesUsed []*prom.QueryResu
 
 		container, err := res.GetString("container_name")
 		if err != nil {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage query result missing 'container': %s", key)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage avg query result missing 'container': %s", key)
 			continue
 		}
 
@@ -764,6 +818,39 @@ func applyRAMBytesUsed(podMap map[podKey]*Pod, resRAMBytesUsed []*prom.QueryResu
 		}
 
 		pod.Allocations[container].RAMBytesUsageAverage = res.Values[0].Value
+	}
+}
+
+func applyRAMBytesUsedMax(podMap map[podKey]*Pod, resRAMBytesUsedMax []*prom.QueryResult) {
+	for _, res := range resRAMBytesUsedMax {
+		key, err := resultPodKey(res, "cluster_id", "namespace", "pod_name")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage max result missing field: %s", err)
+			continue
+		}
+
+		pod, ok := podMap[key]
+		if !ok {
+			continue
+		}
+
+		container, err := res.GetString("container_name")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage max query result missing 'container': %s", key)
+			continue
+		}
+
+		if _, ok := pod.Allocations[container]; !ok {
+			pod.AppendContainer(container)
+		}
+
+		if pod.Allocations[container].RawAllocationOnly == nil {
+			pod.Allocations[container].RawAllocationOnly = &kubecost.RawAllocationOnlyData{
+				RAMBytesUsageMax: res.Values[0].Value,
+			}
+		} else {
+			pod.Allocations[container].RawAllocationOnly.RAMBytesUsageMax = res.Values[0].Value
+		}
 	}
 }
 
