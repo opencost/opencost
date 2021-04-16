@@ -17,29 +17,40 @@ import (
 )
 
 const (
-	queryFmtPods                  = `avg(kube_pod_container_status_running{}) by (pod, namespace, %s)[%s:%s]%s`
-	queryFmtRAMBytesAllocated     = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
-	queryFmtRAMRequests           = `avg(avg_over_time(kube_pod_container_resource_requests_memory_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
-	queryFmtRAMUsage              = `avg(avg_over_time(container_memory_working_set_bytes{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, %s)`
-	queryFmtCPUCoresAllocated     = `avg(avg_over_time(container_cpu_allocation{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
-	queryFmtCPURequests           = `avg(avg_over_time(kube_pod_container_resource_requests_cpu_cores{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
-	queryFmtCPUUsage              = `avg(rate(container_cpu_usage_seconds_total{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, %s)`
-	queryFmtGPUsRequested         = `avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
-	queryFmtNodeCostPerCPUHr      = `avg(avg_over_time(node_cpu_hourly_cost[%s]%s)) by (node, %s, instance_type)`
-	queryFmtNodeCostPerRAMGiBHr   = `avg(avg_over_time(node_ram_hourly_cost[%s]%s)) by (node, %s, instance_type)`
-	queryFmtNodeCostPerGPUHr      = `avg(avg_over_time(node_gpu_hourly_cost[%s]%s)) by (node, %s, instance_type)`
+	queryFmtPods              = `avg(kube_pod_container_status_running{}) by (pod, namespace, cluster_id)[%s:%s]%s`
+	queryFmtRAMBytesAllocated = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
+	queryFmtRAMRequests       = `avg(avg_over_time(kube_pod_container_resource_requests_memory_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
+	queryFmtRAMUsageAvg       = `avg(avg_over_time(container_memory_working_set_bytes{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`
+	queryFmtRAMUsageMax       = `max(max_over_time(container_memory_working_set_bytes{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`
+	queryFmtCPUCoresAllocated = `avg(avg_over_time(container_cpu_allocation{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
+	queryFmtCPURequests       = `avg(avg_over_time(kube_pod_container_resource_requests_cpu_cores{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
+	queryFmtCPUUsageAvg       = `avg(rate(container_cpu_usage_seconds_total{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`
+
+	// This query could be written without the recording rule
+	// "kubecost_savings_container_cpu_usage_seconds", but we should
+	// only do that when we're ready to incur the performance tradeoffs
+	// with subqueries which would probably be in the world of hourly
+	// ETL.
+	//
+	// See PromQL subquery documentation for a rate example:
+	// https://prometheus.io/blog/2019/01/28/subquery-support/#examples
+	queryFmtCPUUsageMax           = `max(max_over_time(kubecost_savings_container_cpu_usage_seconds[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`
+	queryFmtGPUsRequested         = `avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
+	queryFmtNodeCostPerCPUHr      = `avg(avg_over_time(node_cpu_hourly_cost[%s]%s)) by (node, cluster_id, instance_type)`
+	queryFmtNodeCostPerRAMGiBHr   = `avg(avg_over_time(node_ram_hourly_cost[%s]%s)) by (node, cluster_id, instance_type)`
+	queryFmtNodeCostPerGPUHr      = `avg(avg_over_time(node_gpu_hourly_cost[%s]%s)) by (node, cluster_id, instance_type)`
 	queryFmtNodeIsSpot            = `avg_over_time(kubecost_node_is_spot[%s]%s)`
-	queryFmtPVCInfo               = `avg(kube_persistentvolumeclaim_info{volumename != ""}) by (persistentvolumeclaim, storageclass, volumename, namespace, %s)[%s:%s]%s`
-	queryFmtPVBytes               = `avg(avg_over_time(kube_persistentvolume_capacity_bytes[%s]%s)) by (persistentvolume, %s)`
-	queryFmtPodPVCAllocation      = `avg(avg_over_time(pod_pvc_allocation[%s]%s)) by (persistentvolume, persistentvolumeclaim, pod, namespace, %s)`
-	queryFmtPVCBytesRequested     = `avg(avg_over_time(kube_persistentvolumeclaim_resource_requests_storage_bytes{}[%s]%s)) by (persistentvolumeclaim, namespace, %s)`
-	queryFmtPVCostPerGiBHour      = `avg(avg_over_time(pv_hourly_cost[%s]%s)) by (volumename, %s)`
-	queryFmtNetZoneGiB            = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s]%s)) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
-	queryFmtNetZoneCostPerGiB     = `avg(avg_over_time(kubecost_network_zone_egress_cost{}[%s]%s)) by (%s)`
-	queryFmtNetRegionGiB          = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s]%s)) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
-	queryFmtNetRegionCostPerGiB   = `avg(avg_over_time(kubecost_network_region_egress_cost{}[%s]%s)) by (%s)`
-	queryFmtNetInternetGiB        = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s]%s)) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
-	queryFmtNetInternetCostPerGiB = `avg(avg_over_time(kubecost_network_internet_egress_cost{}[%s]%s)) by (%s)`
+	queryFmtPVCInfo               = `avg(kube_persistentvolumeclaim_info{volumename != ""}) by (persistentvolumeclaim, storageclass, volumename, namespace, cluster_id)[%s:%s]%s`
+	queryFmtPVBytes               = `avg(avg_over_time(kube_persistentvolume_capacity_bytes[%s]%s)) by (persistentvolume, cluster_id)`
+	queryFmtPodPVCAllocation      = `avg(avg_over_time(pod_pvc_allocation[%s]%s)) by (persistentvolume, persistentvolumeclaim, pod, namespace, cluster_id)`
+	queryFmtPVCBytesRequested     = `avg(avg_over_time(kube_persistentvolumeclaim_resource_requests_storage_bytes{}[%s]%s)) by (persistentvolumeclaim, namespace, cluster_id)`
+	queryFmtPVCostPerGiBHour      = `avg(avg_over_time(pv_hourly_cost[%s]%s)) by (volumename, cluster_id)`
+	queryFmtNetZoneGiB            = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s]%s)) by (pod_name, namespace, cluster_id) / 1024 / 1024 / 1024`
+	queryFmtNetZoneCostPerGiB     = `avg(avg_over_time(kubecost_network_zone_egress_cost{}[%s]%s)) by (cluster_id)`
+	queryFmtNetRegionGiB          = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s]%s)) by (pod_name, namespace, cluster_id) / 1024 / 1024 / 1024`
+	queryFmtNetRegionCostPerGiB   = `avg(avg_over_time(kubecost_network_region_egress_cost{}[%s]%s)) by (cluster_id)`
+	queryFmtNetInternetGiB        = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s]%s)) by (pod_name, namespace, cluster_id) / 1024 / 1024 / 1024`
+	queryFmtNetInternetCostPerGiB = `avg(avg_over_time(kubecost_network_internet_egress_cost{}[%s]%s)) by (cluster_id)`
 	queryFmtNamespaceLabels       = `avg_over_time(kube_namespace_labels[%s]%s)`
 	queryFmtNamespaceAnnotations  = `avg_over_time(kube_namespace_annotations[%s]%s)`
 	queryFmtPodLabels             = `avg_over_time(kube_pod_labels[%s]%s)`
@@ -47,10 +58,10 @@ const (
 	queryFmtServiceLabels         = `avg_over_time(service_selector_labels[%s]%s)`
 	queryFmtDeploymentLabels      = `avg_over_time(deployment_match_labels[%s]%s)`
 	queryFmtStatefulSetLabels     = `avg_over_time(statefulSet_match_labels[%s]%s)`
-	queryFmtDaemonSetLabels       = `sum(avg_over_time(kube_pod_owner{owner_kind="DaemonSet"}[%s]%s)) by (pod, owner_name, namespace, %s)`
-	queryFmtJobLabels             = `sum(avg_over_time(kube_pod_owner{owner_kind="Job"}[%s]%s)) by (pod, owner_name, namespace ,%s)`
-	queryFmtLBCostPerHr           = `avg(avg_over_time(kubecost_load_balancer_cost[%s]%s)) by (namespace, service_name, %s)`
-	queryFmtLBActiveMins          = `count(kubecost_load_balancer_cost) by (namespace, service_name, %s)[%s:%s]%s`
+	queryFmtDaemonSetLabels       = `sum(avg_over_time(kube_pod_owner{owner_kind="DaemonSet"}[%s]%s)) by (pod, owner_name, namespace, cluster_id)`
+	queryFmtJobLabels             = `sum(avg_over_time(kube_pod_owner{owner_kind="Job"}[%s]%s)) by (pod, owner_name, namespace ,cluster_id)`
+	queryFmtLBCostPerHr           = `avg(avg_over_time(kubecost_load_balancer_cost[%s]%s)) by (namespace, service_name, cluster_id)`
+	queryFmtLBActiveMins          = `count(kubecost_load_balancer_cost) by (namespace, service_name, cluster_id)[%s:%s]%s`
 )
 
 // ComputeAllocation uses the CostModel instance to compute an AllocationSet
@@ -101,70 +112,76 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 
 	ctx := prom.NewContext(cm.PrometheusClient)
 
-	queryRAMBytesAllocated := fmt.Sprintf(queryFmtRAMBytesAllocated, durStr, offStr, env.GetPromClusterLabel())
+	queryRAMBytesAllocated := fmt.Sprintf(queryFmtRAMBytesAllocated, durStr, offStr)
 	resChRAMBytesAllocated := ctx.Query(queryRAMBytesAllocated)
 
-	queryRAMRequests := fmt.Sprintf(queryFmtRAMRequests, durStr, offStr, env.GetPromClusterLabel())
+	queryRAMRequests := fmt.Sprintf(queryFmtRAMRequests, durStr, offStr)
 	resChRAMRequests := ctx.Query(queryRAMRequests)
 
-	queryRAMUsage := fmt.Sprintf(queryFmtRAMUsage, durStr, offStr, env.GetPromClusterLabel())
-	resChRAMUsage := ctx.Query(queryRAMUsage)
+	queryRAMUsageAvg := fmt.Sprintf(queryFmtRAMUsageAvg, durStr, offStr)
+	resChRAMUsageAvg := ctx.Query(queryRAMUsageAvg)
 
-	queryCPUCoresAllocated := fmt.Sprintf(queryFmtCPUCoresAllocated, durStr, offStr, env.GetPromClusterLabel())
+	queryRAMUsageMax := fmt.Sprintf(queryFmtRAMUsageMax, durStr, offStr)
+	resChRAMUsageMax := ctx.Query(queryRAMUsageMax)
+
+	queryCPUCoresAllocated := fmt.Sprintf(queryFmtCPUCoresAllocated, durStr, offStr)
 	resChCPUCoresAllocated := ctx.Query(queryCPUCoresAllocated)
 
-	queryCPURequests := fmt.Sprintf(queryFmtCPURequests, durStr, offStr, env.GetPromClusterLabel())
+	queryCPURequests := fmt.Sprintf(queryFmtCPURequests, durStr, offStr)
 	resChCPURequests := ctx.Query(queryCPURequests)
 
-	queryCPUUsage := fmt.Sprintf(queryFmtCPUUsage, durStr, offStr, env.GetPromClusterLabel())
-	resChCPUUsage := ctx.Query(queryCPUUsage)
+	queryCPUUsageAvg := fmt.Sprintf(queryFmtCPUUsageAvg, durStr, offStr)
+	resChCPUUsageAvg := ctx.Query(queryCPUUsageAvg)
 
-	queryGPUsRequested := fmt.Sprintf(queryFmtGPUsRequested, durStr, offStr, env.GetPromClusterLabel())
+	queryCPUUsageMax := fmt.Sprintf(queryFmtCPUUsageMax, durStr, offStr)
+	resChCPUUsageMax := ctx.Query(queryCPUUsageMax)
+
+	queryGPUsRequested := fmt.Sprintf(queryFmtGPUsRequested, durStr, offStr)
 	resChGPUsRequested := ctx.Query(queryGPUsRequested)
 
-	queryNodeCostPerCPUHr := fmt.Sprintf(queryFmtNodeCostPerCPUHr, durStr, offStr, env.GetPromClusterLabel())
+	queryNodeCostPerCPUHr := fmt.Sprintf(queryFmtNodeCostPerCPUHr, durStr, offStr)
 	resChNodeCostPerCPUHr := ctx.Query(queryNodeCostPerCPUHr)
 
-	queryNodeCostPerRAMGiBHr := fmt.Sprintf(queryFmtNodeCostPerRAMGiBHr, durStr, offStr, env.GetPromClusterLabel())
+	queryNodeCostPerRAMGiBHr := fmt.Sprintf(queryFmtNodeCostPerRAMGiBHr, durStr, offStr)
 	resChNodeCostPerRAMGiBHr := ctx.Query(queryNodeCostPerRAMGiBHr)
 
-	queryNodeCostPerGPUHr := fmt.Sprintf(queryFmtNodeCostPerGPUHr, durStr, offStr, env.GetPromClusterLabel())
+	queryNodeCostPerGPUHr := fmt.Sprintf(queryFmtNodeCostPerGPUHr, durStr, offStr)
 	resChNodeCostPerGPUHr := ctx.Query(queryNodeCostPerGPUHr)
 
 	queryNodeIsSpot := fmt.Sprintf(queryFmtNodeIsSpot, durStr, offStr)
 	resChNodeIsSpot := ctx.Query(queryNodeIsSpot)
 
-	queryPVCInfo := fmt.Sprintf(queryFmtPVCInfo, env.GetPromClusterLabel(), durStr, resStr, offStr)
+	queryPVCInfo := fmt.Sprintf(queryFmtPVCInfo, durStr, resStr, offStr)
 	resChPVCInfo := ctx.Query(queryPVCInfo)
 
-	queryPVBytes := fmt.Sprintf(queryFmtPVBytes, durStr, offStr, env.GetPromClusterLabel())
+	queryPVBytes := fmt.Sprintf(queryFmtPVBytes, durStr, offStr)
 	resChPVBytes := ctx.Query(queryPVBytes)
 
-	queryPodPVCAllocation := fmt.Sprintf(queryFmtPodPVCAllocation, durStr, offStr, env.GetPromClusterLabel())
+	queryPodPVCAllocation := fmt.Sprintf(queryFmtPodPVCAllocation, durStr, offStr)
 	resChPodPVCAllocation := ctx.Query(queryPodPVCAllocation)
 
-	queryPVCBytesRequested := fmt.Sprintf(queryFmtPVCBytesRequested, durStr, offStr, env.GetPromClusterLabel())
+	queryPVCBytesRequested := fmt.Sprintf(queryFmtPVCBytesRequested, durStr, offStr)
 	resChPVCBytesRequested := ctx.Query(queryPVCBytesRequested)
 
-	queryPVCostPerGiBHour := fmt.Sprintf(queryFmtPVCostPerGiBHour, durStr, offStr, env.GetPromClusterLabel())
+	queryPVCostPerGiBHour := fmt.Sprintf(queryFmtPVCostPerGiBHour, durStr, offStr)
 	resChPVCostPerGiBHour := ctx.Query(queryPVCostPerGiBHour)
 
-	queryNetZoneGiB := fmt.Sprintf(queryFmtNetZoneGiB, durStr, offStr, env.GetPromClusterLabel())
+	queryNetZoneGiB := fmt.Sprintf(queryFmtNetZoneGiB, durStr, offStr)
 	resChNetZoneGiB := ctx.Query(queryNetZoneGiB)
 
-	queryNetZoneCostPerGiB := fmt.Sprintf(queryFmtNetZoneCostPerGiB, durStr, offStr, env.GetPromClusterLabel())
+	queryNetZoneCostPerGiB := fmt.Sprintf(queryFmtNetZoneCostPerGiB, durStr, offStr)
 	resChNetZoneCostPerGiB := ctx.Query(queryNetZoneCostPerGiB)
 
-	queryNetRegionGiB := fmt.Sprintf(queryFmtNetRegionGiB, durStr, offStr, env.GetPromClusterLabel())
+	queryNetRegionGiB := fmt.Sprintf(queryFmtNetRegionGiB, durStr, offStr)
 	resChNetRegionGiB := ctx.Query(queryNetRegionGiB)
 
-	queryNetRegionCostPerGiB := fmt.Sprintf(queryFmtNetRegionCostPerGiB, durStr, offStr, env.GetPromClusterLabel())
+	queryNetRegionCostPerGiB := fmt.Sprintf(queryFmtNetRegionCostPerGiB, durStr, offStr)
 	resChNetRegionCostPerGiB := ctx.Query(queryNetRegionCostPerGiB)
 
-	queryNetInternetGiB := fmt.Sprintf(queryFmtNetInternetGiB, durStr, offStr, env.GetPromClusterLabel())
+	queryNetInternetGiB := fmt.Sprintf(queryFmtNetInternetGiB, durStr, offStr)
 	resChNetInternetGiB := ctx.Query(queryNetInternetGiB)
 
-	queryNetInternetCostPerGiB := fmt.Sprintf(queryFmtNetInternetCostPerGiB, durStr, offStr, env.GetPromClusterLabel())
+	queryNetInternetCostPerGiB := fmt.Sprintf(queryFmtNetInternetCostPerGiB, durStr, offStr)
 	resChNetInternetCostPerGiB := ctx.Query(queryNetInternetCostPerGiB)
 
 	queryNamespaceLabels := fmt.Sprintf(queryFmtNamespaceLabels, durStr, offStr)
@@ -188,24 +205,26 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	queryStatefulSetLabels := fmt.Sprintf(queryFmtStatefulSetLabels, durStr, offStr)
 	resChStatefulSetLabels := ctx.Query(queryStatefulSetLabels)
 
-	queryDaemonSetLabels := fmt.Sprintf(queryFmtDaemonSetLabels, durStr, offStr, env.GetPromClusterLabel())
+	queryDaemonSetLabels := fmt.Sprintf(queryFmtDaemonSetLabels, durStr, offStr)
 	resChDaemonSetLabels := ctx.Query(queryDaemonSetLabels)
 
-	queryJobLabels := fmt.Sprintf(queryFmtJobLabels, durStr, offStr, env.GetPromClusterLabel())
+	queryJobLabels := fmt.Sprintf(queryFmtJobLabels, durStr, offStr)
 	resChJobLabels := ctx.Query(queryJobLabels)
 
-	queryLBCostPerHr := fmt.Sprintf(queryFmtLBCostPerHr, durStr, offStr, env.GetPromClusterLabel())
+	queryLBCostPerHr := fmt.Sprintf(queryFmtLBCostPerHr, durStr, offStr)
 	resChLBCostPerHr := ctx.Query(queryLBCostPerHr)
 
-	queryLBActiveMins := fmt.Sprintf(queryFmtLBActiveMins, env.GetPromClusterLabel(), durStr, resStr, offStr)
+	queryLBActiveMins := fmt.Sprintf(queryFmtLBActiveMins, durStr, resStr, offStr)
 	resChLBActiveMins := ctx.Query(queryLBActiveMins)
 
 	resCPUCoresAllocated, _ := resChCPUCoresAllocated.Await()
 	resCPURequests, _ := resChCPURequests.Await()
-	resCPUUsage, _ := resChCPUUsage.Await()
+	resCPUUsageAvg, _ := resChCPUUsageAvg.Await()
+	resCPUUsageMax, _ := resChCPUUsageMax.Await()
 	resRAMBytesAllocated, _ := resChRAMBytesAllocated.Await()
 	resRAMRequests, _ := resChRAMRequests.Await()
-	resRAMUsage, _ := resChRAMUsage.Await()
+	resRAMUsageAvg, _ := resChRAMUsageAvg.Await()
+	resRAMUsageMax, _ := resChRAMUsageMax.Await()
 	resGPUsRequested, _ := resChGPUsRequested.Await()
 
 	resNodeCostPerCPUHr, _ := resChNodeCostPerCPUHr.Await()
@@ -252,10 +271,12 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	// or equal to request.
 	applyCPUCoresAllocated(podMap, resCPUCoresAllocated)
 	applyCPUCoresRequested(podMap, resCPURequests)
-	applyCPUCoresUsed(podMap, resCPUUsage)
+	applyCPUCoresUsedAvg(podMap, resCPUUsageAvg)
+	applyCPUCoresUsedMax(podMap, resCPUUsageMax)
 	applyRAMBytesAllocated(podMap, resRAMBytesAllocated)
 	applyRAMBytesRequested(podMap, resRAMRequests)
-	applyRAMBytesUsed(podMap, resRAMUsage)
+	applyRAMBytesUsedAvg(podMap, resRAMUsageAvg)
+	applyRAMBytesUsedMax(podMap, resRAMUsageMax)
 	applyGPUsRequested(podMap, resGPUsRequested)
 	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZoneCostPerGiB)
 	applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionCostPerGiB)
@@ -425,7 +446,7 @@ func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSiz
 			}
 
 			// Submit and profile query
-			queryPods := fmt.Sprintf(queryFmtPods, env.GetPromClusterLabel(), durStr, resStr, offStr)
+			queryPods := fmt.Sprintf(queryFmtPods, durStr, resStr, offStr)
 			queryProfile := time.Now()
 			resPods, err = ctx.Query(queryPods).Await()
 			if err != nil {
@@ -454,7 +475,7 @@ func applyPodResults(window kubecost.Window, resolution time.Duration, podMap ma
 			continue
 		}
 
-		cluster, err := res.GetString(env.GetPromClusterLabel())
+		cluster, err := res.GetString("cluster_id")
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
@@ -563,7 +584,7 @@ func applyPodResults(window kubecost.Window, resolution time.Duration, podMap ma
 
 func applyCPUCoresAllocated(podMap map[podKey]*Pod, resCPUCoresAllocated []*prom.QueryResult) {
 	for _, res := range resCPUCoresAllocated {
-		key, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace", "pod")
+		key, err := resultPodKey(res, "cluster_id", "namespace", "pod")
 		if err != nil {
 			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU allocation result missing field: %s", err)
 			continue
@@ -599,7 +620,7 @@ func applyCPUCoresAllocated(podMap map[podKey]*Pod, resCPUCoresAllocated []*prom
 
 func applyCPUCoresRequested(podMap map[podKey]*Pod, resCPUCoresRequested []*prom.QueryResult) {
 	for _, res := range resCPUCoresRequested {
-		key, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace", "pod")
+		key, err := resultPodKey(res, "cluster_id", "namespace", "pod")
 		if err != nil {
 			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU request result missing field: %s", err)
 			continue
@@ -637,11 +658,11 @@ func applyCPUCoresRequested(podMap map[podKey]*Pod, resCPUCoresRequested []*prom
 	}
 }
 
-func applyCPUCoresUsed(podMap map[podKey]*Pod, resCPUCoresUsed []*prom.QueryResult) {
-	for _, res := range resCPUCoresUsed {
-		key, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace", "pod_name")
+func applyCPUCoresUsedAvg(podMap map[podKey]*Pod, resCPUCoresUsedAvg []*prom.QueryResult) {
+	for _, res := range resCPUCoresUsedAvg {
+		key, err := resultPodKey(res, "cluster_id", "namespace", "pod_name")
 		if err != nil {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage result missing field: %s", err)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage avg result missing field: %s", err)
 			continue
 		}
 
@@ -652,7 +673,7 @@ func applyCPUCoresUsed(podMap map[podKey]*Pod, resCPUCoresUsed []*prom.QueryResu
 
 		container, err := res.GetString("container_name")
 		if err != nil {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage query result missing 'container': %s", key)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage avg query result missing 'container': %s", key)
 			continue
 		}
 
@@ -664,9 +685,42 @@ func applyCPUCoresUsed(podMap map[podKey]*Pod, resCPUCoresUsed []*prom.QueryResu
 	}
 }
 
+func applyCPUCoresUsedMax(podMap map[podKey]*Pod, resCPUCoresUsedMax []*prom.QueryResult) {
+	for _, res := range resCPUCoresUsedMax {
+		key, err := resultPodKey(res, "cluster_id", "namespace", "pod_name")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage max result missing field: %s", err)
+			continue
+		}
+
+		pod, ok := podMap[key]
+		if !ok {
+			continue
+		}
+
+		container, err := res.GetString("container_name")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage max query result missing 'container': %s", key)
+			continue
+		}
+
+		if _, ok := pod.Allocations[container]; !ok {
+			pod.AppendContainer(container)
+		}
+
+		if pod.Allocations[container].RawAllocationOnly == nil {
+			pod.Allocations[container].RawAllocationOnly = &kubecost.RawAllocationOnlyData{
+				CPUCoreUsageMax: res.Values[0].Value,
+			}
+		} else {
+			pod.Allocations[container].RawAllocationOnly.CPUCoreUsageMax = res.Values[0].Value
+		}
+	}
+}
+
 func applyRAMBytesAllocated(podMap map[podKey]*Pod, resRAMBytesAllocated []*prom.QueryResult) {
 	for _, res := range resRAMBytesAllocated {
-		key, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace", "pod")
+		key, err := resultPodKey(res, "cluster_id", "namespace", "pod")
 		if err != nil {
 			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM allocation result missing field: %s", err)
 			continue
@@ -702,7 +756,7 @@ func applyRAMBytesAllocated(podMap map[podKey]*Pod, resRAMBytesAllocated []*prom
 
 func applyRAMBytesRequested(podMap map[podKey]*Pod, resRAMBytesRequested []*prom.QueryResult) {
 	for _, res := range resRAMBytesRequested {
-		key, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace", "pod")
+		key, err := resultPodKey(res, "cluster_id", "namespace", "pod")
 		if err != nil {
 			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM request result missing field: %s", err)
 			continue
@@ -740,11 +794,11 @@ func applyRAMBytesRequested(podMap map[podKey]*Pod, resRAMBytesRequested []*prom
 	}
 }
 
-func applyRAMBytesUsed(podMap map[podKey]*Pod, resRAMBytesUsed []*prom.QueryResult) {
-	for _, res := range resRAMBytesUsed {
-		key, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace", "pod_name")
+func applyRAMBytesUsedAvg(podMap map[podKey]*Pod, resRAMBytesUsedAvg []*prom.QueryResult) {
+	for _, res := range resRAMBytesUsedAvg {
+		key, err := resultPodKey(res, "cluster_id", "namespace", "pod_name")
 		if err != nil {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage result missing field: %s", err)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM avg usage result missing field: %s", err)
 			continue
 		}
 
@@ -755,7 +809,7 @@ func applyRAMBytesUsed(podMap map[podKey]*Pod, resRAMBytesUsed []*prom.QueryResu
 
 		container, err := res.GetString("container_name")
 		if err != nil {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage query result missing 'container': %s", key)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage avg query result missing 'container': %s", key)
 			continue
 		}
 
@@ -767,9 +821,42 @@ func applyRAMBytesUsed(podMap map[podKey]*Pod, resRAMBytesUsed []*prom.QueryResu
 	}
 }
 
+func applyRAMBytesUsedMax(podMap map[podKey]*Pod, resRAMBytesUsedMax []*prom.QueryResult) {
+	for _, res := range resRAMBytesUsedMax {
+		key, err := resultPodKey(res, "cluster_id", "namespace", "pod_name")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage max result missing field: %s", err)
+			continue
+		}
+
+		pod, ok := podMap[key]
+		if !ok {
+			continue
+		}
+
+		container, err := res.GetString("container_name")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage max query result missing 'container': %s", key)
+			continue
+		}
+
+		if _, ok := pod.Allocations[container]; !ok {
+			pod.AppendContainer(container)
+		}
+
+		if pod.Allocations[container].RawAllocationOnly == nil {
+			pod.Allocations[container].RawAllocationOnly = &kubecost.RawAllocationOnlyData{
+				RAMBytesUsageMax: res.Values[0].Value,
+			}
+		} else {
+			pod.Allocations[container].RawAllocationOnly.RAMBytesUsageMax = res.Values[0].Value
+		}
+	}
+}
+
 func applyGPUsRequested(podMap map[podKey]*Pod, resGPUsRequested []*prom.QueryResult) {
 	for _, res := range resGPUsRequested {
-		key, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace", "pod")
+		key, err := resultPodKey(res, "cluster_id", "namespace", "pod")
 		if err != nil {
 			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU request result missing field: %s", err)
 			continue
@@ -799,7 +886,7 @@ func applyNetworkAllocation(podMap map[podKey]*Pod, resNetworkGiB []*prom.QueryR
 	costPerGiBByCluster := map[string]float64{}
 
 	for _, res := range resNetworkCostPerGiB {
-		cluster, err := res.GetString(env.GetPromClusterLabel())
+		cluster, err := res.GetString("cluster_id")
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
@@ -808,7 +895,7 @@ func applyNetworkAllocation(podMap map[podKey]*Pod, resNetworkGiB []*prom.QueryR
 	}
 
 	for _, res := range resNetworkGiB {
-		podKey, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace", "pod_name")
+		podKey, err := resultPodKey(res, "cluster_id", "namespace", "pod_name")
 		if err != nil {
 			log.DedupedWarningf(10, "CostModel.ComputeAllocation: Network allocation query result missing field: %s", err)
 			continue
@@ -831,7 +918,7 @@ func resToNamespaceLabels(resNamespaceLabels []*prom.QueryResult) map[namespaceK
 	namespaceLabels := map[namespaceKey]map[string]string{}
 
 	for _, res := range resNamespaceLabels {
-		nsKey, err := resultNamespaceKey(res, env.GetPromClusterLabel(), "namespace")
+		nsKey, err := resultNamespaceKey(res, "cluster_id", "namespace")
 		if err != nil {
 			continue
 		}
@@ -852,7 +939,7 @@ func resToPodLabels(resPodLabels []*prom.QueryResult) map[podKey]map[string]stri
 	podLabels := map[podKey]map[string]string{}
 
 	for _, res := range resPodLabels {
-		podKey, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace", "pod")
+		podKey, err := resultPodKey(res, "cluster_id", "namespace", "pod")
 		if err != nil {
 			continue
 		}
@@ -894,7 +981,7 @@ func resToPodAnnotations(resPodAnnotations []*prom.QueryResult) map[podKey]map[s
 	podAnnotations := map[podKey]map[string]string{}
 
 	for _, res := range resPodAnnotations {
-		podKey, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace", "pod")
+		podKey, err := resultPodKey(res, "cluster_id", "namespace", "pod")
 		if err != nil {
 			continue
 		}
@@ -968,7 +1055,7 @@ func getServiceLabels(resServiceLabels []*prom.QueryResult) map[serviceKey]map[s
 	serviceLabels := map[serviceKey]map[string]string{}
 
 	for _, res := range resServiceLabels {
-		serviceKey, err := resultServiceKey(res, env.GetPromClusterLabel(), "namespace", "service")
+		serviceKey, err := resultServiceKey(res, "cluster_id", "namespace", "service")
 		if err != nil {
 			continue
 		}
@@ -1001,7 +1088,7 @@ func resToDeploymentLabels(resDeploymentLabels []*prom.QueryResult) map[controll
 	deploymentLabels := map[controllerKey]map[string]string{}
 
 	for _, res := range resDeploymentLabels {
-		controllerKey, err := resultDeploymentKey(res, env.GetPromClusterLabel(), "namespace", "deployment")
+		controllerKey, err := resultDeploymentKey(res, "cluster_id", "namespace", "deployment")
 		if err != nil {
 			continue
 		}
@@ -1034,7 +1121,7 @@ func resToStatefulSetLabels(resStatefulSetLabels []*prom.QueryResult) map[contro
 	statefulSetLabels := map[controllerKey]map[string]string{}
 
 	for _, res := range resStatefulSetLabels {
-		controllerKey, err := resultStatefulSetKey(res, env.GetPromClusterLabel(), "namespace", "statefulSet")
+		controllerKey, err := resultStatefulSetKey(res, "cluster_id", "namespace", "statefulSet")
 		if err != nil {
 			continue
 		}
@@ -1096,7 +1183,7 @@ func resToPodDaemonSetMap(resDaemonSetLabels []*prom.QueryResult) map[podKey]con
 	daemonSetLabels := map[podKey]controllerKey{}
 
 	for _, res := range resDaemonSetLabels {
-		controllerKey, err := resultDaemonSetKey(res, env.GetPromClusterLabel(), "namespace", "owner_name")
+		controllerKey, err := resultDaemonSetKey(res, "cluster_id", "namespace", "owner_name")
 		if err != nil {
 			continue
 		}
@@ -1118,7 +1205,7 @@ func resToPodJobMap(resJobLabels []*prom.QueryResult) map[podKey]controllerKey {
 	jobLabels := map[podKey]controllerKey{}
 
 	for _, res := range resJobLabels {
-		controllerKey, err := resultJobKey(res, env.GetPromClusterLabel(), "namespace", "owner_name")
+		controllerKey, err := resultJobKey(res, "cluster_id", "namespace", "owner_name")
 		if err != nil {
 			continue
 		}
@@ -1199,7 +1286,7 @@ func applyControllersToPods(podMap map[podKey]*Pod, podControllerMap map[podKey]
 
 func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerCPUHr []*prom.QueryResult) {
 	for _, res := range resNodeCostPerCPUHr {
-		cluster, err := res.GetString(env.GetPromClusterLabel())
+		cluster, err := res.GetString("cluster_id")
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
@@ -1230,7 +1317,7 @@ func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerCPUHr
 
 func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerRAMGiBHr []*prom.QueryResult) {
 	for _, res := range resNodeCostPerRAMGiBHr {
-		cluster, err := res.GetString(env.GetPromClusterLabel())
+		cluster, err := res.GetString("cluster_id")
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
@@ -1261,7 +1348,7 @@ func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerRA
 
 func applyNodeCostPerGPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerGPUHr []*prom.QueryResult) {
 	for _, res := range resNodeCostPerGPUHr {
-		cluster, err := res.GetString(env.GetPromClusterLabel())
+		cluster, err := res.GetString("cluster_id")
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
@@ -1292,7 +1379,7 @@ func applyNodeCostPerGPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerGPUHr
 
 func applyNodeSpot(nodeMap map[nodeKey]*NodePricing, resNodeIsSpot []*prom.QueryResult) {
 	for _, res := range resNodeIsSpot {
-		cluster, err := res.GetString(env.GetPromClusterLabel())
+		cluster, err := res.GetString("cluster_id")
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
@@ -1346,7 +1433,7 @@ func applyNodeDiscount(nodeMap map[nodeKey]*NodePricing, cm *CostModel) {
 
 func buildPVMap(pvMap map[pvKey]*PV, resPVCostPerGiBHour []*prom.QueryResult) {
 	for _, res := range resPVCostPerGiBHour {
-		cluster, err := res.GetString(env.GetPromClusterLabel())
+		cluster, err := res.GetString("cluster_id")
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
@@ -1369,7 +1456,7 @@ func buildPVMap(pvMap map[pvKey]*PV, resPVCostPerGiBHour []*prom.QueryResult) {
 
 func applyPVBytes(pvMap map[pvKey]*PV, resPVBytes []*prom.QueryResult) {
 	for _, res := range resPVBytes {
-		key, err := resultPVKey(res, env.GetPromClusterLabel(), "persistentvolume")
+		key, err := resultPVKey(res, "cluster_id", "persistentvolume")
 		if err != nil {
 			log.Warningf("CostModel.ComputeAllocation: PV bytes query result missing field: %s", err)
 			continue
@@ -1386,7 +1473,7 @@ func applyPVBytes(pvMap map[pvKey]*PV, resPVBytes []*prom.QueryResult) {
 
 func buildPVCMap(window kubecost.Window, pvcMap map[pvcKey]*PVC, pvMap map[pvKey]*PV, resPVCInfo []*prom.QueryResult) {
 	for _, res := range resPVCInfo {
-		cluster, err := res.GetString(env.GetPromClusterLabel())
+		cluster, err := res.GetString("cluster_id")
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
@@ -1445,7 +1532,7 @@ func buildPVCMap(window kubecost.Window, pvcMap map[pvcKey]*PVC, pvMap map[pvKey
 
 func applyPVCBytesRequested(pvcMap map[pvcKey]*PVC, resPVCBytesRequested []*prom.QueryResult) {
 	for _, res := range resPVCBytesRequested {
-		key, err := resultPVCKey(res, env.GetPromClusterLabel(), "namespace", "persistentvolumeclaim")
+		key, err := resultPVCKey(res, "cluster_id", "namespace", "persistentvolumeclaim")
 		if err != nil {
 			continue
 		}
@@ -1460,7 +1547,7 @@ func applyPVCBytesRequested(pvcMap map[pvcKey]*PVC, resPVCBytesRequested []*prom
 
 func buildPodPVCMap(podPVCMap map[podKey][]*PVC, pvMap map[pvKey]*PV, pvcMap map[pvcKey]*PVC, podMap map[podKey]*Pod, resPodPVCAllocation []*prom.QueryResult) {
 	for _, res := range resPodPVCAllocation {
-		cluster, err := res.GetString(env.GetPromClusterLabel())
+		cluster, err := res.GetString("cluster_id")
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
@@ -1614,14 +1701,14 @@ func getLoadBalancerCosts(resLBCost, resLBActiveMins []*prom.QueryResult, resolu
 	lbMap := make(map[serviceKey]*LB)
 	lbHourlyCosts := make(map[serviceKey]float64)
 	for _, res := range resLBCost {
-		serviceKey, err := resultServiceKey(res, env.GetPromClusterLabel(), "namespace", "service_name")
+		serviceKey, err := resultServiceKey(res, "cluster_id", "namespace", "service_name")
 		if err != nil {
 			continue
 		}
 		lbHourlyCosts[serviceKey] = res.Values[0].Value
 	}
 	for _, res := range resLBActiveMins {
-		serviceKey, err := resultServiceKey(res, env.GetPromClusterLabel(), "namespace", "service_name")
+		serviceKey, err := resultServiceKey(res, "cluster_id", "namespace", "service_name")
 		if err != nil || len(res.Values) == 0 {
 			continue
 		}

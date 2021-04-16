@@ -52,6 +52,10 @@ func NewUnitAllocation(name string, start time.Time, resolution time.Duration, p
 		RAMCost:                1,
 		RAMBytesRequestAverage: 1,
 		RAMBytesUsageAverage:   1,
+		RawAllocationOnly: &RawAllocationOnlyData{
+			CPUCoreUsageMax:  1,
+			RAMBytesUsageMax: 1,
+		},
 	}
 
 	// If idle allocation, remove non-idle costs, but maintain total cost
@@ -117,6 +121,7 @@ func TestAllocation_Add(t *testing.T) {
 		RAMCost:                8.0 * hrs1 * ramPrice,
 		SharedCost:             2.00,
 		ExternalCost:           1.00,
+		RawAllocationOnly:      &RawAllocationOnlyData{},
 	}
 	a1b := a1.Clone()
 
@@ -142,6 +147,7 @@ func TestAllocation_Add(t *testing.T) {
 		LoadBalancerCost:       0.05,
 		SharedCost:             0.00,
 		ExternalCost:           1.00,
+		RawAllocationOnly:      &RawAllocationOnlyData{},
 	}
 	a2b := a2.Clone()
 
@@ -236,6 +242,10 @@ func TestAllocation_Add(t *testing.T) {
 	}
 	if !util.IsApproximately(1.6493506, act.TotalEfficiency()) {
 		t.Fatalf("Allocation.Add: expected %f; actual %f", 1.6493506, act.TotalEfficiency())
+	}
+
+	if act.RawAllocationOnly != nil {
+		t.Errorf("Allocation.Add: Raw only data must be nil after an add")
 	}
 }
 
@@ -423,6 +433,7 @@ func TestAllocation_MarshalJSON(t *testing.T) {
 		RAMCost:                8.0 * hrs * ramPrice,
 		SharedCost:             2.00,
 		ExternalCost:           1.00,
+		RawAllocationOnly:      &RawAllocationOnlyData{},
 	}
 
 	data, err := json.Marshal(before)
