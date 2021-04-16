@@ -2117,56 +2117,21 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 // ParseAggregationProperties attempts to parse and return aggregation properties
 // encoded under the given key. If none exist, or if parsing fails, an error
 // is returned with empty AllocationProperties.
-func ParseAggregationProperties(qp util.QueryParams, key string) (kubecost.AllocationProperties, error) {
-	aggProps := kubecost.AllocationProperties{}
-
-	labelMap := make(map[string]string)
-	annotationMap := make(map[string]string)
-	for _, raw := range qp.GetList(key, ",") {
-		fields := strings.Split(raw, ":")
-
-		switch prop, _ := kubecost.ParseProperty(fields[0]); prop {
-		case kubecost.AllocationClusterProp:
-			aggProps.Cluster = ""
-		case kubecost.AllocationNodeProp:
-			aggProps.Node = ""
-		case kubecost.AllocationNamespaceProp:
-			aggProps.Namespace = ""
-		case kubecost.AllocationControllerKindProp:
-			aggProps.ControllerKind = ""
-		case kubecost.AllocationControllerProp:
-			aggProps.Controller = ""
-		case kubecost.AllocationPodProp:
-			aggProps.Pod = ""
-		case kubecost.AllocationContainerProp:
-			aggProps.Container = ""
-		case kubecost.AllocationServiceProp:
-			aggProps.Services = []string{}
-		case kubecost.AllocationLabelProp:
-			if len(fields) != 2 {
-				return kubecost.AllocationProperties{}, fmt.Errorf("illegal aggregate by label: %s", raw)
+func ParseAggregationProperties(qp util.QueryParams, key string) ([]string, error) {
+	AggregateBy := []string{}
+	for _, agg := range qp.GetList(key, ",") {
+		aggregate := strings.TrimSpace(agg)
+		if aggregate != "" {
+			if prop, err := kubecost.ParseProperty(aggregate); err == nil {
+				AggregateBy = append(AggregateBy, string(prop))
+			} else if strings.HasPrefix(aggregate, "label:") {
+				AggregateBy = append(AggregateBy, aggregate)
+			} else if strings.HasPrefix(aggregate, "annotation:") {
+				AggregateBy = append(AggregateBy, aggregate)
 			}
-			label := prom.SanitizeLabelName(strings.TrimSpace(fields[1]))
-			labelMap[label] = ""
-		case kubecost.AllocationAnnotationProp:
-			if len(fields) != 2 {
-				return kubecost.AllocationProperties{}, fmt.Errorf("illegal aggregate by annotation: %s", raw)
-			}
-			annotation := prom.SanitizeLabelName(strings.TrimSpace(fields[1]))
-			annotationMap[annotation] = ""
 		}
-
 	}
-
-	if len(labelMap) > 0 {
-		aggProps.Labels = labelMap
-	}
-
-	if len(annotationMap) > 0 {
-		aggProps.Annotations = annotationMap
-	}
-
-	return aggProps, nil
+	return AggregateBy, nil
 }
 
 // ComputeAllocationHandler computes an AllocationSetRange from the CostModel.
@@ -2223,7 +2188,7 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Aggregate, if requested
-	if !aggregateBy.Equal(&kubecost.AllocationProperties{}) {
+	if len(aggregateBy) > 0 {
 		err = asr.AggregateBy(aggregateBy, nil)
 		if err != nil {
 			WriteError(w, InternalServerError(err.Error()))

@@ -1002,7 +1002,9 @@ func applyLabels(podMap map[podKey]*Pod, namespaceLabels map[namespaceKey]map[st
 	for podKey, pod := range podMap {
 		for _, alloc := range pod.Allocations {
 			allocLabels := alloc.Properties.Labels
-
+			if allocLabels == nil {
+				allocLabels = make(map[string]string)
+			}
 			// Apply namespace labels first, then pod labels so that pod labels
 			// overwrite namespace labels.
 			nsKey := newNamespaceKey(podKey.Cluster, podKey.Namespace)
@@ -1026,7 +1028,9 @@ func applyAnnotations(podMap map[podKey]*Pod, namespaceAnnotations map[string]ma
 	for key, pod := range podMap {
 		for _, alloc := range pod.Allocations {
 			allocAnnotations := alloc.Properties.Annotations
-
+			if allocAnnotations == nil {
+				allocAnnotations = make(map[string]string)
+			}
 			// Apply namespace annotations first, then pod annotations so that
 			// pod labels overwrite namespace labels.
 			if labels, ok := namespaceAnnotations[key.Namespace]; ok {

@@ -421,30 +421,8 @@ func (a *Allocation) add(that *Allocation) {
 		log.Warningf("Allocation.AggregateBy: trying to add a nil receiver")
 		return
 	}
-	if a.Properties != nil && that.Properties != nil {
-		aCluster := a.Properties.Cluster
-		thatCluster := that.Properties.Cluster
-		aNode := a.Properties.Node
-		thatNode := that.Properties.Node
-
-		// reset properties
-		a.Properties = nil
-
-		// ensure that we carry cluster ID and/or node over if they're the same
-		// required for idle/shared cost allocation
-		if aCluster == thatCluster {
-			a.Properties = &AllocationProperties{Cluster: aCluster}
-		}
-		if aNode == thatNode {
-			if a.Properties == nil {
-				a.Properties = &AllocationProperties{Node: aNode}
-			} else {
-				a.Properties.Node = aNode
-			}
-		}
-	} else {
-		a.Properties = nil
-	}
+	// Preserve string properties that are matching between the two allocations
+	a.Properties = a.Properties.Intersection(that.Properties)
 
 
 	// Expand the window to encompass both Allocations
@@ -556,7 +534,7 @@ type AllocationAggregationOptions struct {
 // AggregateBy aggregates the Allocations in the given AllocationSet by the given
 // AllocationProperty. This will only be legal if the AllocationSet is divisible by the
 // given AllocationProperty; e.g. Containers can be divided by Namespace, but not vice-a-versa.
-func (as *AllocationSet) AggregateBy(properties AllocationProperties, options *AllocationAggregationOptions) error {
+func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAggregationOptions) error {
 	// The order of operations for aggregating allocations is as follows:
 	//  1. Partition external, idle, and shared allocations into separate sets.
 	//     Also, create the aggSet into which the results will be aggregated.
@@ -703,7 +681,7 @@ func (as *AllocationSet) AggregateBy(properties AllocationProperties, options *A
 	// the shared allocations).
 	var idleCoefficients map[string]map[string]map[string]float64
 	if idleSet.Length() > 0 && options.ShareIdle != ShareNone {
-		idleCoefficients, err = computeIdleCoeffs(properties, options, as, shareSet)
+		idleCoefficients, err = computeIdleCoeffs(options, as, shareSet)
 		if err != nil {
 			log.Warningf("AllocationSet.AggregateBy: compute idle coeff: %s", err)
 			return fmt.Errorf("error computing idle coefficients: %s", err)
@@ -736,7 +714,7 @@ func (as *AllocationSet) AggregateBy(properties AllocationProperties, options *A
 	// need to track this on a per-cluster, per-allocation, per-resource basis.
 	var idleFiltrationCoefficients map[string]map[string]map[string]float64
 	if len(options.FilterFuncs) > 0 && options.ShareIdle == ShareNone {
-		idleFiltrationCoefficients, err = computeIdleCoeffs(properties, options, as, shareSet)
+		idleFiltrationCoefficients, err = computeIdleCoeffs(options, as, shareSet)
 		if err != nil {
 			return fmt.Errorf("error computing idle filtration coefficients: %s", err)
 		}
@@ -772,7 +750,7 @@ func (as *AllocationSet) AggregateBy(properties AllocationProperties, options *A
 	// of the main allocation set. See above for details and an example.
 	var shareCoefficients map[string]float64
 	if shareSet.Length() > 0 {
-		shareCoefficients, err = computeShareCoeffs(properties, options, as)
+		shareCoefficients, err = computeShareCoeffs(aggregateBy, options, as)
 		if err != nil {
 			return fmt.Errorf("error computing share coefficients: %s", err)
 		}
@@ -850,7 +828,7 @@ func (as *AllocationSet) AggregateBy(properties AllocationProperties, options *A
 		}
 
 		// (5) generate key to use for aggregation-by-key and allocation name
-		key := alloc.generateKey(properties)
+		key := alloc.generateKey(aggregateBy)
 
 		alloc.Name = key
 		if options.MergeUnallocated && alloc.IsUnallocated() {
@@ -983,7 +961,7 @@ func (as *AllocationSet) AggregateBy(properties AllocationProperties, options *A
 			}
 		}
 		if !skip {
-			key := alloc.generateKey(properties)
+			key := alloc.generateKey(aggregateBy)
 
 			alloc.Name = key
 			aggSet.Insert(alloc)
@@ -1004,7 +982,7 @@ func (as *AllocationSet) AggregateBy(properties AllocationProperties, options *A
 	return nil
 }
 
-func computeShareCoeffs(properties AllocationProperties, options *AllocationAggregationOptions, as *AllocationSet) (map[string]float64, error) {
+func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOptions, as *AllocationSet) (map[string]float64, error) {
 	// Compute coeffs by totalling per-allocation, then dividing by the total.
 	coeffs := map[string]float64{}
 
@@ -1024,7 +1002,7 @@ func computeShareCoeffs(properties AllocationProperties, options *AllocationAggr
 
 		// Determine the post-aggregation key under which the allocation will
 		// be shared.
-		name := alloc.generateKey(properties)
+		name := alloc.generateKey(aggregateBy)
 
 		// If the current allocation will be filtered out in step 3, contribute
 		// its share of the shared coefficient to a "__filtered__" bin, which
@@ -1069,7 +1047,7 @@ func computeShareCoeffs(properties AllocationProperties, options *AllocationAggr
 	return coeffs, nil
 }
 
-func computeIdleCoeffs(properties AllocationProperties, options *AllocationAggregationOptions, as *AllocationSet, shareSet *AllocationSet) (map[string]map[string]map[string]float64, error) {
+func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet, shareSet *AllocationSet) (map[string]map[string]map[string]float64, error) {
 	types := []string{"cpu", "gpu", "ram"}
 
 	// Compute idle coefficients, then save them in AllocationAggregationOptions
@@ -1190,7 +1168,7 @@ func computeIdleCoeffs(properties AllocationProperties, options *AllocationAggre
 	return coeffs, nil
 }
 
-func (a *Allocation) generateKey(properties AllocationProperties) string {
+func (a *Allocation) generateKey(aggregateBy []string) string {
 	if a == nil {
 		return ""
 	}
@@ -1199,139 +1177,120 @@ func (a *Allocation) generateKey(properties AllocationProperties) string {
 	// identifies allocations.
 	names := []string{}
 
-	if properties.Cluster != "" {
-		cluster := a.Properties.Cluster
-		names = append(names, cluster)
-	}
-
-	if properties.Node != "" {
-		node := a.Properties.Node
-		names = append(names, node)
-	}
-
-	if properties.Namespace != ""  {
-		namespace := a.Properties.Namespace
-		names = append(names, namespace)
-	}
-
-	if properties.ControllerKind  != "" {
-		controllerKind := a.Properties.ControllerKind
-		if controllerKind == "" {
-			// Indicate that allocation has no controller
-			controllerKind = UnallocatedSuffix
+	// Search for special case label for ETL conversion
+	aggControllerKind := ""
+	for _, agg := range aggregateBy {
+		if strings.HasPrefix(agg, "controllerKind:") {
+			aggControllerKind = strings.Split(agg, ":")[1]
 		}
-		// TODO find better way to pass controller kind filter
-		if prop := properties.ControllerKind; prop != "true" && prop != controllerKind {
-			// The allocation does not have the specified controller kind
-			controllerKind = UnallocatedSuffix
-		}
-		names = append(names, controllerKind)
 	}
 
-	if properties.Controller != "" {
-		if properties.ControllerKind == "" {
+	for _, agg := range aggregateBy {
+		switch true {
+		case agg == string(AllocationClusterProp):
+			names = append(names, a.Properties.Cluster)
+		case agg == string(AllocationNodeProp):
+			names = append(names, a.Properties.Node)
+		case agg == string(AllocationNamespaceProp):
+			names = append(names, a.Properties.Namespace)
+		case agg == string(AllocationControllerKindProp):
 			controllerKind := a.Properties.ControllerKind
-			if controllerKind != "" {
-				names = append(names, controllerKind)
+			if controllerKind == "" {
+				// Indicate that allocation has no controller
+				controllerKind = UnallocatedSuffix
 			}
-		}
-
-		controller := a.Properties.Controller
-		if controller == "" {
-			// Indicate that allocation has no controller
-			controller = UnallocatedSuffix
-		}
-
-		names = append(names, controller)
-	}
-
-	if properties.Pod != "" {
-		pod := a.Properties.Pod
-		names = append(names, pod)
-	}
-
-	if properties.Container != "" {
-		container := a.Properties.Container
-		names = append(names, container)
-	}
-
-	if properties.Services != nil {
-		services := a.Properties.Services
-		if services == nil {
-			// Indicate that allocation has no services
-			names = append(names, UnallocatedSuffix)
-		} else {
-			if len(services) > 0 {
+			if aggControllerKind != "" && aggControllerKind != controllerKind {
+				// The allocation does not have the specified controller kind
+				controllerKind = UnallocatedSuffix
+			}
+			names = append(names, controllerKind)
+		case agg == string(AllocationControllerProp):
+			if indexOf(string(AllocationControllerKindProp), aggregateBy) == -1 &&
+				a.Properties.ControllerKind != "" {
+				names = append(names, a.Properties.ControllerKind)
+			}
+			controller := a.Properties.Controller
+			if controller == "" {
+				// Indicate that allocation has no controller
+				controller = UnallocatedSuffix
+			}
+			names = append(names, controller)
+		case agg == string(AllocationPodProp):
+			names = append(names, a.Properties.Pod)
+		case agg == string(AllocationContainerProp):
+			names = append(names, a.Properties.Container)
+		case agg == string(AllocationServiceProp):
+			services := a.Properties.Services
+			if services == nil || len(services) == 0  {
+				// Indicate that allocation has no services
+				names = append(names, UnallocatedSuffix)
+			} else {
+				// This just uses the first service
 				for _, service := range services {
 					names = append(names, service)
 					break
 				}
-			} else {
-				// Indicate that allocation has no services
+			}
+		case strings.HasPrefix(agg, "controllerKind:"):
+			continue
+		case strings.HasPrefix(agg, "label:"):
+			labels := a.Properties.Labels
+			if labels == nil {
+				// Indicate that allocation has no labels
 				names = append(names, UnallocatedSuffix)
-			}
-		}
-
-	}
-
-	if properties.Annotations != nil   {
-		annotations:= a.Properties.Annotations
-		if annotations == nil {
-			// Indicate that allocation has no annotations
-			names = append(names, UnallocatedSuffix)
-		} else {
-			annotationNames := []string{}
-			aggAnnotations := properties.Annotations
-			for annotationName := range aggAnnotations {
-				if val, ok := annotations[annotationName]; ok {
-					annotationNames = append(annotationNames, fmt.Sprintf("%s=%s", annotationName, val))
-				} else if indexOf(UnallocatedSuffix, annotationNames) == -1 { // if UnallocatedSuffix not already in names
-					annotationNames = append(annotationNames, UnallocatedSuffix)
+			} else {
+				labelNames := []string{}
+				aggLabels := strings.Split(strings.TrimPrefix(agg, "label:"), ";")
+				for _, labelName := range aggLabels {
+					if val, ok := labels[labelName]; ok {
+						labelNames = append(labelNames, fmt.Sprintf("%s=%s", labelName, val))
+					} else if indexOf(UnallocatedSuffix, labelNames) == -1 { // if UnallocatedSuffix not already in names
+						labelNames = append(labelNames, UnallocatedSuffix)
+					}
 				}
-			}
-			// resolve arbitrary ordering. e.g., app=app0/env=env0 is the same agg as env=env0/app=app0
-			if len(annotationNames) > 1 {
-				sort.Strings(annotationNames)
-			}
-			unallocatedSuffixIndex := indexOf(UnallocatedSuffix, annotationNames)
-			// suffix should be at index 0 if it exists b/c of underscores
-			if unallocatedSuffixIndex != -1 {
-				annotationNames = append(annotationNames[:unallocatedSuffixIndex], annotationNames[unallocatedSuffixIndex+1:]...)
-				annotationNames = append(annotationNames, UnallocatedSuffix) // append to end
-			}
-
-			names = append(names, annotationNames...)
-		}
-	}
-
-	if properties.Labels != nil {
-		labels := a.Properties.Labels
-		if labels == nil {
-			// Indicate that allocation has no labels
-			names = append(names, UnallocatedSuffix)
-		} else {
-			labelNames := []string{}
-			aggLabels := properties.Labels
-			for labelName := range aggLabels {
-				if val, ok := labels[labelName]; ok {
-					labelNames = append(labelNames, fmt.Sprintf("%s=%s", labelName, val))
-				} else if indexOf(UnallocatedSuffix, labelNames) == -1 { // if UnallocatedSuffix not already in names
-					labelNames = append(labelNames, UnallocatedSuffix)
+				// resolve arbitrary ordering. e.g., app=app0/env=env0 is the same agg as env=env0/app=app0
+				if len(labelNames) > 1 {
+					sort.Strings(labelNames)
 				}
-			}
-			// resolve arbitrary ordering. e.g., app=app0/env=env0 is the same agg as env=env0/app=app0
-			if len(labelNames) > 1 {
-				sort.Strings(labelNames)
-			}
-			unallocatedSuffixIndex := indexOf(UnallocatedSuffix, labelNames)
-			// suffix should be at index 0 if it exists b/c of underscores
-			if unallocatedSuffixIndex != -1 {
-				labelNames = append(labelNames[:unallocatedSuffixIndex], labelNames[unallocatedSuffixIndex+1:]...)
-				labelNames = append(labelNames, UnallocatedSuffix) // append to end
-			}
+				unallocatedSuffixIndex := indexOf(UnallocatedSuffix, labelNames)
+				// suffix should be at index 0 if it exists b/c of underscores
+				if unallocatedSuffixIndex != -1 {
+					labelNames = append(labelNames[:unallocatedSuffixIndex], labelNames[unallocatedSuffixIndex+1:]...)
+					labelNames = append(labelNames, UnallocatedSuffix) // append to end
+				}
 
-			names = append(names, labelNames...)
+				names = append(names, labelNames...)
+			}
+		case strings.HasPrefix(agg, "annotation:"):
+			annotations:= a.Properties.Annotations
+			if annotations == nil {
+				// Indicate that allocation has no annotations
+				names = append(names, UnallocatedSuffix)
+			} else {
+				annotationNames := []string{}
+				aggAnnotations := strings.Split(strings.TrimPrefix(agg, "annotation:"), ";")
+				for _, annotationName := range aggAnnotations {
+					if val, ok := annotations[annotationName]; ok {
+						annotationNames = append(annotationNames, fmt.Sprintf("%s=%s", annotationName, val))
+					} else if indexOf(UnallocatedSuffix, annotationNames) == -1 { // if UnallocatedSuffix not already in names
+						annotationNames = append(annotationNames, UnallocatedSuffix)
+					}
+				}
+				// resolve arbitrary ordering. e.g., app=app0/env=env0 is the same agg as env=env0/app=app0
+				if len(annotationNames) > 1 {
+					sort.Strings(annotationNames)
+				}
+				unallocatedSuffixIndex := indexOf(UnallocatedSuffix, annotationNames)
+				// suffix should be at index 0 if it exists b/c of underscores
+				if unallocatedSuffixIndex != -1 {
+					annotationNames = append(annotationNames[:unallocatedSuffixIndex], annotationNames[unallocatedSuffixIndex+1:]...)
+					annotationNames = append(annotationNames, UnallocatedSuffix) // append to end
+				}
+
+				names = append(names, annotationNames...)
+			}
 		}
+
 	}
 
 	return strings.Join(names, "/")
@@ -1870,14 +1829,14 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 
 // AggregateBy aggregates each AllocationSet in the range by the given
 // properties and options.
-func (asr *AllocationSetRange) AggregateBy(properties AllocationProperties, options *AllocationAggregationOptions) error {
+func (asr *AllocationSetRange) AggregateBy(aggregateBy []string, options *AllocationAggregationOptions) error {
 	aggRange := &AllocationSetRange{allocations: []*AllocationSet{}}
 
 	asr.Lock()
 	defer asr.Unlock()
 
 	for _, as := range asr.allocations {
-		err := as.AggregateBy(properties, options)
+		err := as.AggregateBy(aggregateBy, options)
 		if err != nil {
 			return err
 		}

@@ -33,7 +33,7 @@ func ParseProperty(text string) (AllocationProperty, error) {
 		return AllocationContainerProp, nil
 	case "controller":
 		return AllocationControllerProp, nil
-	case "controllerKind":
+	case "controllerkind":
 		return AllocationControllerKindProp, nil
 	case "namespace":
 		return AllocationNamespaceProp, nil
@@ -78,7 +78,6 @@ type AllocationLabels map[string]string
 // attributed to an Allocation
 type AllocationAnnotations map[string]string
 
-// TODO niko/etl make sure Services deep copy works correctly
 func (p *AllocationProperties) Clone() *AllocationProperties {
 	if p == nil {
 		return nil
@@ -93,9 +92,24 @@ func (p *AllocationProperties) Clone() *AllocationProperties {
 	clone.Namespace = p.Namespace
 	clone.Pod = p.Pod
 	clone.ProviderID = p.ProviderID
-	clone.Services = p.Services
-	clone.Labels = p.Labels
-	clone.Annotations = p.Annotations
+
+	var services []string
+	for _, s := range p.Services {
+		services = append(services, s)
+	}
+	clone.Services = services
+
+	labels := make(map[string]string)
+	for k, v := range p.Labels {
+		labels[k] = v
+	}
+	clone.Labels = labels
+
+	annotations := make(map[string]string)
+	for k, v := range p.Annotations {
+		annotations[k] = v
+	}
+	clone.Annotations = annotations
 
 	return clone
 }
@@ -176,6 +190,40 @@ func (p *AllocationProperties) Equal(that *AllocationProperties) bool {
 		return false
 	}
 	return true
+}
+
+// Intersection returns an *AllocationProperties which contains all matching fields between the calling and parameter AllocationProperties
+// nillable slices and maps are left as nil
+func (p *AllocationProperties) Intersection(that *AllocationProperties) *AllocationProperties {
+	if p == nil || that == nil {
+		return nil
+	}
+	intersectionProps := &AllocationProperties{}
+	if p.Cluster == that.Cluster {
+		intersectionProps.Cluster = p.Cluster
+	}
+	if p.Node == that.Node {
+		intersectionProps.Node = p.Node
+	}
+	if p.Container == that.Container {
+		intersectionProps.Container = p.Container
+	}
+	if p.Controller == that.Controller {
+		intersectionProps.Controller = p.Controller
+	}
+	if p.ControllerKind == that.ControllerKind {
+		intersectionProps.ControllerKind = p.ControllerKind
+	}
+	if p.Namespace == that.Namespace {
+		intersectionProps.Namespace = p.Namespace
+	}
+	if p.Pod == that.Pod {
+		intersectionProps.Pod = p.Pod
+	}
+	if p.ProviderID == that.ProviderID {
+		intersectionProps.ProviderID = p.ProviderID
+	}
+	return intersectionProps
 }
 
 func (p *AllocationProperties) String() string {
