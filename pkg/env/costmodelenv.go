@@ -30,7 +30,7 @@ const (
 	SQLAddressEnvVar               = "SQL_ADDRESS"
 	UseCSVProviderEnvVar           = "USE_CSV_PROVIDER"
 	CSVRegionEnvVar                = "CSV_REGION"
-	CSVEndpointEnvVar 			   = "CSV_ENDPOINT"
+	CSVEndpointEnvVar              = "CSV_ENDPOINT"
 	CSVPathEnvVar                  = "CSV_PATH"
 	ConfigPathEnvVar               = "CONFIG_PATH"
 	CloudProviderAPIKeyEnvVar      = "CLOUD_PROVIDER_API_KEY"
@@ -67,6 +67,8 @@ const (
 	ETLMaxBatchHours             = "ETL_MAX_BATCH_HOURS"
 	ETLResolutionSeconds         = "ETL_RESOLUTION_SECONDS"
 	LegacyExternalAPIDisabledVar = "LEGACY_EXTERNAL_API_DISABLED"
+
+	PromClusterIDLabelEnvVar = "PROM_CLUSTER_ID_LABEL"
 )
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
@@ -375,4 +377,9 @@ func GetETLResolution() time.Duration {
 
 func LegacyExternalCostsAPIDisabled() bool {
 	return GetBool(LegacyExternalAPIDisabledVar, false)
+}
+
+// GetPromClusterLabel returns the environemnt variable value for UTCOffset
+func GetPromClusterLabel() string {
+	return Get(PromClusterIDLabelEnvVar, "cluster_id")
 }
