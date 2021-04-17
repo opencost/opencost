@@ -379,7 +379,7 @@ func LegacyExternalCostsAPIDisabled() bool {
 	return GetBool(LegacyExternalAPIDisabledVar, false)
 }
 
-// GetPromClusterLabel returns the environemnt variable value for UTCOffset
+// GetPromClusterLabel returns the environemnt variable value for PromClusterIDLabel
 func GetPromClusterLabel() string {
 	return Get(PromClusterIDLabelEnvVar, "cluster_id")
 }
