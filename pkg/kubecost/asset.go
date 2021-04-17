@@ -184,21 +184,21 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, externalLabels
 
 				// Set the corresponding property on props
 				switch aggBy {
-				case AllocationClusterProp.String():
+				case AllocationClusterProp:
 					props.Cluster = value
-				case AllocationNodeProp.String():
+				case AllocationNodeProp:
 					props.Node = value
-				case AllocationNamespaceProp.String():
+				case AllocationNamespaceProp:
 					props.Namespace = value
-				case AllocationControllerKindProp.String():
+				case AllocationControllerKindProp:
 					props.ControllerKind = value
-				case AllocationControllerProp.String():
+				case AllocationControllerProp:
 					props.Controller = value
-				case AllocationPodProp.String():
+				case AllocationPodProp:
 					props.Pod = value
-				case AllocationContainerProp.String():
+				case AllocationContainerProp:
 					props.Container = value
-				case AllocationServiceProp.String():
+				case AllocationServiceProp:
 					// TODO: external allocation: how to do this? multi-service?
 					props.Services = []string{value}
 				}

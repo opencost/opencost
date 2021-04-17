@@ -1177,23 +1177,24 @@ func (a *Allocation) generateKey(aggregateBy []string) string {
 	// identifies allocations.
 	names := []string{}
 
-	// Search for special case label for ETL conversion
+	// Search for special case label for ETL conversion. valid values for this are DaemonSet, StatefulSet and Deployment
+	// and are relevant when the result of the ETL is being converted to the format of the Aggregation api.
 	aggControllerKind := ""
 	for _, agg := range aggregateBy {
-		if strings.HasPrefix(agg, "controllerKind:") {
-			aggControllerKind = strings.Split(agg, ":")[1]
+		if agg == "deployment" || agg == "daemonset" || agg == "statefulset" {
+			aggControllerKind = agg
 		}
 	}
 
 	for _, agg := range aggregateBy {
 		switch true {
-		case agg == string(AllocationClusterProp):
+		case agg == AllocationClusterProp:
 			names = append(names, a.Properties.Cluster)
-		case agg == string(AllocationNodeProp):
+		case agg == AllocationNodeProp:
 			names = append(names, a.Properties.Node)
-		case agg == string(AllocationNamespaceProp):
+		case agg == AllocationNamespaceProp:
 			names = append(names, a.Properties.Namespace)
-		case agg == string(AllocationControllerKindProp):
+		case agg == AllocationControllerKindProp:
 			controllerKind := a.Properties.ControllerKind
 			if controllerKind == "" {
 				// Indicate that allocation has no controller
@@ -1204,8 +1205,8 @@ func (a *Allocation) generateKey(aggregateBy []string) string {
 				controllerKind = UnallocatedSuffix
 			}
 			names = append(names, controllerKind)
-		case agg == string(AllocationControllerProp):
-			if indexOf(string(AllocationControllerKindProp), aggregateBy) == -1 &&
+		case agg == AllocationControllerProp:
+			if indexOf(AllocationControllerKindProp, aggregateBy) == -1 &&
 				a.Properties.ControllerKind != "" {
 				names = append(names, a.Properties.ControllerKind)
 			}
@@ -1215,11 +1216,11 @@ func (a *Allocation) generateKey(aggregateBy []string) string {
 				controller = UnallocatedSuffix
 			}
 			names = append(names, controller)
-		case agg == string(AllocationPodProp):
+		case agg == AllocationPodProp:
 			names = append(names, a.Properties.Pod)
-		case agg == string(AllocationContainerProp):
+		case agg == AllocationContainerProp:
 			names = append(names, a.Properties.Container)
-		case agg == string(AllocationServiceProp):
+		case agg == AllocationServiceProp:
 			services := a.Properties.Services
 			if services == nil || len(services) == 0  {
 				// Indicate that allocation has no services
@@ -1231,8 +1232,6 @@ func (a *Allocation) generateKey(aggregateBy []string) string {
 					break
 				}
 			}
-		case strings.HasPrefix(agg, "controllerKind:"):
-			continue
 		case strings.HasPrefix(agg, "label:"):
 			labels := a.Properties.Labels
 			if labels == nil {

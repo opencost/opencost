@@ -2118,20 +2118,20 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 // encoded under the given key. If none exist, or if parsing fails, an error
 // is returned with empty AllocationProperties.
 func ParseAggregationProperties(qp util.QueryParams, key string) ([]string, error) {
-	AggregateBy := []string{}
+	aggregateBy := []string{}
 	for _, agg := range qp.GetList(key, ",") {
 		aggregate := strings.TrimSpace(agg)
 		if aggregate != "" {
 			if prop, err := kubecost.ParseProperty(aggregate); err == nil {
-				AggregateBy = append(AggregateBy, string(prop))
+				aggregateBy = append(aggregateBy, string(prop))
 			} else if strings.HasPrefix(aggregate, "label:") {
-				AggregateBy = append(AggregateBy, aggregate)
+				aggregateBy = append(aggregateBy, aggregate)
 			} else if strings.HasPrefix(aggregate, "annotation:") {
-				AggregateBy = append(AggregateBy, aggregate)
+				aggregateBy = append(aggregateBy, aggregate)
 			}
 		}
 	}
-	return AggregateBy, nil
+	return aggregateBy, nil
 }
 
 // ComputeAllocationHandler computes an AllocationSetRange from the CostModel.

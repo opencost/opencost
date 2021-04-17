@@ -6,24 +6,25 @@ import (
 	"strings"
 )
 
-type AllocationProperty string
+
+
 
 const (
-	AllocationNilProp            AllocationProperty = ""
-	AllocationClusterProp        AllocationProperty = "cluster"
-	AllocationNodeProp           AllocationProperty = "node"
-	AllocationContainerProp      AllocationProperty = "container"
-	AllocationControllerProp     AllocationProperty = "controller"
-	AllocationControllerKindProp AllocationProperty = "controllerKind"
-	AllocationNamespaceProp      AllocationProperty = "namespace"
-	AllocationPodProp            AllocationProperty = "pod"
-	AllocationProviderIDProp     AllocationProperty = "providerID"
-	AllocationServiceProp        AllocationProperty = "service"
-	AllocationLabelProp          AllocationProperty = "label"
-	AllocationAnnotationProp     AllocationProperty = "annotation"
+	AllocationNilProp            string = ""
+	AllocationClusterProp        string = "cluster"
+	AllocationNodeProp           string = "node"
+	AllocationContainerProp      string = "container"
+	AllocationControllerProp     string = "controller"
+	AllocationControllerKindProp string = "controllerKind"
+	AllocationNamespaceProp      string = "namespace"
+	AllocationPodProp            string = "pod"
+	AllocationProviderIDProp     string = "providerID"
+	AllocationServiceProp        string = "service"
+	AllocationLabelProp          string = "label"
+	AllocationAnnotationProp     string = "annotation"
 )
 
-func ParseProperty(text string) (AllocationProperty, error) {
+func ParseProperty(text string) (string, error) {
 	switch strings.TrimSpace(strings.ToLower(text)) {
 	case "cluster":
 		return AllocationClusterProp, nil
@@ -49,10 +50,6 @@ func ParseProperty(text string) (AllocationProperty, error) {
 		return AllocationAnnotationProp, nil
 	}
 	return AllocationNilProp, fmt.Errorf("invalid allocation property: %s", text)
-}
-
-func (p AllocationProperty) String() string {
-	return string(p)
 }
 
 // AllocationProperties describes a set of Kubernetes objects.
@@ -160,6 +157,8 @@ func (p *AllocationProperties) Equal(that *AllocationProperties) bool {
 				return false
 			}
 		}
+	} else {
+		return false
 	}
 
 	pAnnotations := p.Annotations
@@ -189,6 +188,7 @@ func (p *AllocationProperties) Equal(that *AllocationProperties) bool {
 	} else {
 		return false
 	}
+
 	return true
 }
 
@@ -282,73 +282,4 @@ func (p *AllocationProperties) String() string {
 	strs = append(strs, fmt.Sprintf("Annotations:{%s}", strings.Join(strs, ",")))
 
 	return fmt.Sprintf("{%s}", strings.Join(strs, "; "))
-}
-
-// AggregationStrings converts a AllocationProperties object into a slice of strings
-// representing a request to aggregate by certain properties.
-// NOTE: today, the ordering of the properties *has to match the ordering
-// of the allocation function generateKey*
-func (p *AllocationProperties) AggregationStrings() []string {
-	if p == nil {
-		return []string{}
-	}
-
-	aggStrs := []string{}
-	if p.Cluster != "" {
-		aggStrs = append(aggStrs, AllocationClusterProp.String())
-	}
-	if p.Node != "" {
-		aggStrs = append(aggStrs, AllocationNodeProp.String())
-	}
-	if p.Container != "" {
-		aggStrs = append(aggStrs, AllocationContainerProp.String())
-	}
-	if p.Controller != "" {
-		aggStrs = append(aggStrs, AllocationControllerProp.String())
-	}
-	if p.ControllerKind != "" {
-		aggStrs = append(aggStrs, AllocationControllerKindProp.String())
-	}
-	if p.Namespace != "" {
-		aggStrs = append(aggStrs, AllocationNamespaceProp.String())
-	}
-	if p.Pod != "" {
-		aggStrs = append(aggStrs, AllocationPodProp.String())
-	}
-	if p.ProviderID != "" {
-		aggStrs = append(aggStrs, AllocationProviderIDProp.String())
-	}
-	if len(p.Services) > 0 {
-		aggStrs = append(aggStrs, AllocationServiceProp.String())
-	}
-	
-	if len(p.Labels) > 0  {
-		// e.g. expect format map[string]string{
-		// 	 "env":""
-		// 	 "app":"",
-		// }
-		// for aggregating by "label:app,label:env"
-		labels := p.Labels
-		labelAggStrs := []string{}
-		for labelName := range labels {
-			labelAggStrs = append(labelAggStrs, fmt.Sprintf("label:%s", labelName))
-		}
-		if len(labelAggStrs) > 0 {
-			// Enforce alphabetical ordering, then append to aggStrs
-			sort.Strings(labelAggStrs)
-			for _, labelName := range labelAggStrs {
-				aggStrs = append(aggStrs, labelName)
-			}
-		}
-	}
-
-
-	return aggStrs
-}
-
-func (p *AllocationProperties) IsEmpty() bool {
-	if p == nil {
-		return true
-	}
-	return p.Equal(&AllocationProperties{})
 }

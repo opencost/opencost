@@ -465,7 +465,7 @@ func TestAllocationSet_generateKey(t *testing.T) {
 	var key string
 
 	props := []string{
-		AllocationClusterProp.String(),
+		AllocationClusterProp,
 	}
 
 	key = alloc.generateKey(props)
@@ -488,8 +488,8 @@ func TestAllocationSet_generateKey(t *testing.T) {
 	}
 
 	props = []string{
-		AllocationClusterProp.String(),
-		AllocationNamespaceProp.String(),
+		AllocationClusterProp,
+		AllocationNamespaceProp,
 		"label:app",
 	}
 
@@ -864,7 +864,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 1a AggregationProperties=(Cluster)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationClusterProp)}, nil)
+	err = as.AggregateBy([]string{AllocationClusterProp}, nil)
 	assertAllocationSetTotals(t, as, "1a", err, numClusters+numIdle, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "1a", map[string]float64{
 		"cluster1": 46.00,
@@ -875,7 +875,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 1b AggregationProperties=(Namespace)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationNamespaceProp)}, nil)
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, nil)
 	assertAllocationSetTotals(t, as, "1b", err, numNamespaces+numIdle, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "1b", map[string]float64{
 		"namespace1": 28.00,
@@ -887,7 +887,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 1c AggregationProperties=(Pod)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationPodProp)}, nil)
+	err = as.AggregateBy([]string{AllocationPodProp}, nil)
 	assertAllocationSetTotals(t, as, "1c", err, numPods+numIdle, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "1c", map[string]float64{
 		"pod-jkl":  6.00,
@@ -905,7 +905,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 1d AggregationProperties=(Container)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationContainerProp)}, nil)
+	err = as.AggregateBy([]string{AllocationContainerProp}, nil)
 	assertAllocationSetTotals(t, as, "1d", err, numContainers+numIdle, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "1d", map[string]float64{
 		"container2": 6.00,
@@ -923,7 +923,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 1e AggregationProperties=(ControllerKind)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationControllerKindProp)}, nil)
+	err = as.AggregateBy([]string{AllocationControllerKindProp}, nil)
 	assertAllocationSetTotals(t, as, "1e", err, numControllerKinds+numIdle+numUnallocated, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "1e", map[string]float64{
 		"daemonset":       12.00,
@@ -936,7 +936,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 1f AggregationProperties=(Controller)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationControllerProp)}, nil)
+	err = as.AggregateBy([]string{AllocationControllerProp}, nil)
 	assertAllocationSetTotals(t, as, "1f", err, numControllers+numIdle+numUnallocated, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "1f", map[string]float64{
 		"deployment/deployment2":   24.00,
@@ -951,7 +951,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 1g AggregationProperties=(Service)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationServiceProp)}, nil)
+	err = as.AggregateBy([]string{AllocationServiceProp}, nil)
 	assertAllocationSetTotals(t, as, "1g", err, numServices+numIdle+numUnallocated, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "1g", map[string]float64{
 		"service1":        12.00,
@@ -974,7 +974,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 1i AggregationProperties=(ControllerKind:deployment)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationControllerKindProp), "controllerKind:deployment" }, nil)
+	err = as.AggregateBy([]string{AllocationControllerKindProp, "deployment" }, nil)
 	assertAllocationSetTotals(t, as, "1i", err, 1+numIdle+numUnallocated, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "1i", map[string]float64{
 		"deployment":      42.00,
@@ -1016,7 +1016,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 2e AggregationProperties=(Cluster, Label:app, Label:environment)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationClusterProp), "label:app;env"}, nil)
+	err = as.AggregateBy([]string{AllocationClusterProp, "label:app;env"}, nil)
 	assertAllocationSetTotals(t, as, "2e", err, 6, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "2e", map[string]float64{
 		"cluster1/app=app2/env=env2":             12.00,
@@ -1029,7 +1029,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 2f AggregationProperties=(annotation:team, pod)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationPodProp), "annotation:team"}, nil)
+	err = as.AggregateBy([]string{AllocationPodProp, "annotation:team"}, nil)
 	assertAllocationSetTotals(t, as, "2f", err, 11, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "2f", map[string]float64{
 		"pod-jkl/" + UnallocatedSuffix: 6.00,
@@ -1054,7 +1054,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// namespace2: 46.3125 = 36.00 + 5.0*(3.0/6.0) + 15.0*(3.0/16.0) + 5.0*(3.0/6.0) + 5.0*(3.0/6.0)
 	// namespace3: 23.0000 = 18.00 + 5.0*(3.0/6.0) + 5.0*(3.0/6.0)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationNamespaceProp)}, &AllocationAggregationOptions{ShareIdle: ShareWeighted})
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{ShareIdle: ShareWeighted})
 	assertAllocationSetTotals(t, as, "3a", err, numNamespaces, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "3a", map[string]float64{
 		"namespace1": 42.69,
@@ -1068,7 +1068,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// namespace2: 51.0000 = 36.00 + 5.0*(1.0/2.0) + 15.0*(1.0/2.0) + 5.0*(1.0/2.0) + 5.0*(1.0/2.0)
 	// namespace3: 23.0000 = 18.00 + 5.0*(1.0/2.0) + 5.0*(1.0/2.0)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationNamespaceProp)}, &AllocationAggregationOptions{ShareIdle: ShareEven})
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{ShareIdle: ShareEven})
 	assertAllocationSetTotals(t, as, "3a", err, numNamespaces, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "3a", map[string]float64{
 		"namespace1": 38.00,
@@ -1084,7 +1084,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// namespace2: 45.5000 = 36.00 + 18.00*(1.0/2.0)
 	// idle:       30.0000
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationNamespaceProp)}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		ShareFuncs: []AllocationMatchFunc{isNamespace3},
 		ShareSplit: ShareEven,
 	})
@@ -1101,7 +1101,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// namespace2: 37.5000 =
 	// idle:       30.0000
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationNamespaceProp)}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		ShareFuncs: []AllocationMatchFunc{isNamespace3},
 		ShareSplit: ShareWeighted,
 	})
@@ -1119,7 +1119,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// namespace3: 23.3333 = 18.00 + 16.00*(1.0/3.0)
 	// idle:       30.0000
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationNamespaceProp)}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		ShareFuncs: []AllocationMatchFunc{isApp1},
 		ShareSplit: ShareEven,
 	})
@@ -1138,7 +1138,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// namespace3: 54.878 = 18.00 + (7.0*24.0)*(18.00/82.00)
 	// idle:       30.0000
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationNamespaceProp)}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		SharedHourlyCosts: map[string]float64{"total": sharedOverheadHourlyCost},
 		ShareSplit:        ShareWeighted,
 	})
@@ -1169,7 +1169,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 5a Filter by cluster with separate idle
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationClusterProp)}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationClusterProp}, &AllocationAggregationOptions{
 		FilterFuncs: []AllocationMatchFunc{isCluster("cluster1")},
 		ShareIdle:   ShareNone,
 	})
@@ -1182,7 +1182,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 5b Filter by cluster with shared idle
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationClusterProp)}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationClusterProp}, &AllocationAggregationOptions{
 		FilterFuncs: []AllocationMatchFunc{isCluster("cluster1")},
 		ShareIdle:   ShareWeighted,
 	})
@@ -1194,7 +1194,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 5c Filter by cluster, agg by namespace, with separate idle
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationNamespaceProp)}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		FilterFuncs: []AllocationMatchFunc{isCluster("cluster1")},
 		ShareIdle:   ShareNone,
 	})
@@ -1208,7 +1208,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 5d Filter by namespace, agg by cluster, with separate idle
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationClusterProp)}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationClusterProp}, &AllocationAggregationOptions{
 		FilterFuncs: []AllocationMatchFunc{isNamespace("namespace2")},
 		ShareIdle:   ShareNone,
 	})
@@ -1224,7 +1224,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 6a SplitIdle
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationNamespaceProp)}, &AllocationAggregationOptions{SplitIdle: true})
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{SplitIdle: true})
 	assertAllocationSetTotals(t, as, "6a", err, numNamespaces+numSplitIdle, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "6a", map[string]float64{
 		"namespace1":                           28.00,
@@ -1239,7 +1239,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// Should match values from unfiltered aggregation (3a)
 	// namespace2: 46.3125 = 36.00 + 5.0*(3.0/6.0) + 15.0*(3.0/16.0) + 5.0*(3.0/6.0) + 5.0*(3.0/6.0)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationNamespaceProp)}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		FilterFuncs: []AllocationMatchFunc{isNamespace("namespace2")},
 		ShareIdle:   ShareWeighted,
 	})
@@ -1253,7 +1253,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// Should match values from unfiltered aggregation (3b)
 	// namespace2: 51.0000 = 36.00 + 5.0*(1.0/2.0) + 15.0*(1.0/2.0) + 5.0*(1.0/2.0) + 5.0*(1.0/2.0)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationNamespaceProp)}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		FilterFuncs: []AllocationMatchFunc{isNamespace("namespace2")},
 		ShareIdle:   ShareEven,
 	})
@@ -1270,7 +1270,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// idle:       30.0000
 	// Then namespace 2 is filtered.
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationNamespaceProp)}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		FilterFuncs:       []AllocationMatchFunc{isNamespace("namespace2")},
 		SharedHourlyCosts: map[string]float64{"total": sharedOverheadHourlyCost},
 		ShareSplit:        ShareWeighted,
@@ -1291,7 +1291,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// namespace2: 54.667 = 36.00 + (28.00)*(36.00/54.00)
 	// idle:       30.0000
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationNamespaceProp)}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		FilterFuncs: []AllocationMatchFunc{isNamespace("namespace2")},
 		ShareFuncs:  []AllocationMatchFunc{isNamespace("namespace1")},
 		ShareSplit:  ShareWeighted,
@@ -1339,7 +1339,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	//   shared cost    14.2292 = (42.6875)*(18.0/54.0)
 	//
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationNamespaceProp)}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		ShareFuncs: []AllocationMatchFunc{isNamespace("namespace1")},
 		ShareSplit: ShareWeighted,
 		ShareIdle:  ShareWeighted,
@@ -1389,7 +1389,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// Then, filter for namespace2: 74.7708
 	//
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationNamespaceProp)}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		FilterFuncs: []AllocationMatchFunc{isNamespace("namespace2")},
 		ShareFuncs:  []AllocationMatchFunc{isNamespace("namespace1")},
 		ShareSplit:  ShareWeighted,
@@ -1430,7 +1430,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	//
 	// Then namespace 2 is filtered.
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{string(AllocationNamespaceProp)}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		FilterFuncs:       []AllocationMatchFunc{isNamespace("namespace2")},
 		ShareSplit:        ShareWeighted,
 		ShareIdle:         ShareWeighted,
