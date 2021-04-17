@@ -22,7 +22,7 @@ var (
 	NoNamespaceErr     error = errors.New("Prometheus vector does not have namespace")
 	NoNamespaceNameErr error = errors.New("Prometheus vector does not have string namespace")
 	NoNodeNameErr      error = errors.New("Prometheus vector does not have string node")
-	NoClusterIDErr     error = errors.New("Prometheus vector does not have string k8s_cluster_id")
+	NoClusterIDErr     error = errors.New("Prometheus vector does not have string cluster_id")
 )
 
 //--------------------------------------------------------------------------
