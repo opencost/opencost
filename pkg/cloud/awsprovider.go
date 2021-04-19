@@ -1071,11 +1071,20 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 		}, nil
 
 	}
+	var cost string
 	c, ok := terms.OnDemand.PriceDimensions[terms.Sku+OnDemandRateCode+HourlyRateCode]
-	if !ok {
-		return nil, fmt.Errorf("Could not fetch data for \"%s\"", k.ID())
+	if ok {
+		cost = c.PricePerUnit.USD
+	} else {
+		// Check for Chinese pricing before throwing error
+		c, ok = terms.OnDemand.PriceDimensions[terms.Sku+OnDemandRateCodeCn+HourlyRateCodeCn]
+		if ok {
+			cost = c.PricePerUnit.CNY
+		} else{
+			return nil, fmt.Errorf("Could not fetch data for \"%s\"", k.ID())
+		}
 	}
-	cost := c.PricePerUnit.USD
+
 	return &Node{
 		Cost:         cost,
 		VCPU:         terms.VCpu,
