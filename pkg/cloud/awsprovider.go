@@ -854,11 +854,11 @@ func (aws *AWS) DownloadPricingData() error {
 							cost = offerTerm.PriceDimensions[sku.(string)+OnDemandRateCodeCn+HourlyRateCodeCn].PricePerUnit.CNY
 						}
 						if strings.Contains(key, "EBS:VolumeP-IOPS.piops") {
-						// If the specific UsageType is the per IO cost used on io1 volumes
-						// we need to add the per IO cost to the io1 PV cost
+							// If the specific UsageType is the per IO cost used on io1 volumes
+							// we need to add the per IO cost to the io1 PV cost
 
-						// Add the per IO cost to the PV object for the io1 volume type
-						aws.Pricing[key].PV.CostPerIO = cost
+							// Add the per IO cost to the PV object for the io1 volume type
+							aws.Pricing[key].PV.CostPerIO = cost
 						} else if strings.Contains(key, "EBS:Volume") {
 							// If volume, we need to get hourly cost and add it to the PV object
 							costFloat, _ := strconv.ParseFloat(cost, 64)
@@ -1080,7 +1080,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 		c, ok = terms.OnDemand.PriceDimensions[terms.Sku+OnDemandRateCodeCn+HourlyRateCodeCn]
 		if ok {
 			cost = c.PricePerUnit.CNY
-		} else{
+		} else {
 			return nil, fmt.Errorf("Could not fetch data for \"%s\"", k.ID())
 		}
 	}
@@ -1598,7 +1598,7 @@ func (a *AWS) QueryAthenaPaginated(query string) (*athena.GetQueryResultsInput, 
 	resultsBucket := customPricing.AthenaBucketName
 	database := customPricing.AthenaDatabase
 	c := &aws.Config{
-		Region: region,
+		Region:              region,
 		STSRegionalEndpoint: endpoints.RegionalSTSEndpoint,
 	}
 	s := session.Must(session.NewSession(c))
@@ -1668,7 +1668,7 @@ func (a *AWS) QueryAthenaBillingData(query string) (*athena.GetQueryResultsOutpu
 	resultsBucket := customPricing.AthenaBucketName
 	database := customPricing.AthenaDatabase
 	c := &aws.Config{
-		Region: region,
+		Region:              region,
 		STSRegionalEndpoint: endpoints.RegionalSTSEndpoint,
 	}
 	s := session.Must(session.NewSession(c))
@@ -1937,7 +1937,6 @@ func (aws *AWS) ShowAthenaColumns() (map[string]bool, error) {
 
 	return columnSet, nil
 }
-
 
 // ExternalAllocations represents tagged assets outside the scope of kubernetes.
 // "start" and "end" are dates of the format YYYY-MM-DD
