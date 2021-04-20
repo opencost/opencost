@@ -107,7 +107,7 @@ func TestAllocation_Add(t *testing.T) {
 	a1 := &Allocation{
 		Start:                  s1,
 		End:                    e1,
-		Properties: &AllocationProperties{},
+		Properties:             &AllocationProperties{},
 		CPUCoreHours:           2.0 * hrs1,
 		CPUCoreRequestAverage:  2.0,
 		CPUCoreUsageAverage:    1.0,
@@ -132,7 +132,7 @@ func TestAllocation_Add(t *testing.T) {
 	a2 := &Allocation{
 		Start:                  s2,
 		End:                    e2,
-		Properties: &AllocationProperties{},
+		Properties:             &AllocationProperties{},
 		CPUCoreHours:           1.0 * hrs2,
 		CPUCoreRequestAverage:  1.0,
 		CPUCoreUsageAverage:    1.0,
@@ -264,7 +264,7 @@ func TestAllocation_Share(t *testing.T) {
 	a1 := &Allocation{
 		Start:                  s1,
 		End:                    e1,
-		Properties: &AllocationProperties{},
+		Properties:             &AllocationProperties{},
 		CPUCoreHours:           2.0 * hrs1,
 		CPUCoreRequestAverage:  2.0,
 		CPUCoreUsageAverage:    1.0,
@@ -288,7 +288,7 @@ func TestAllocation_Share(t *testing.T) {
 	a2 := &Allocation{
 		Start:                  s2,
 		End:                    e2,
-		Properties: &AllocationProperties{},
+		Properties:             &AllocationProperties{},
 		CPUCoreHours:           1.0 * hrs2,
 		CPUCoreRequestAverage:  1.0,
 		CPUCoreUsageAverage:    1.0,
@@ -939,11 +939,11 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	err = as.AggregateBy([]string{AllocationControllerProp}, nil)
 	assertAllocationSetTotals(t, as, "1f", err, numControllers+numIdle+numUnallocated, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "1f", map[string]float64{
-		"deployment/deployment2":   24.00,
-		"daemonset/daemonset1":     12.00,
-		"deployment/deployment3":   6.00,
-		"statefulset/statefulset1": 12.00,
-		"deployment/deployment1":   12.00,
+		"deployment:deployment2":   24.00,
+		"daemonset:daemonset1":     12.00,
+		"deployment:deployment3":   6.00,
+		"statefulset:statefulset1": 12.00,
+		"deployment:deployment1":   12.00,
 		IdleSuffix:                 30.00,
 		UnallocatedSuffix:          16.00,
 	})
@@ -972,12 +972,14 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	})
 	assertAllocationWindow(t, as, "1h", startYesterday, endYesterday, 1440.0)
 
-	// 1i AggregationProperties=(ControllerKind:deployment)
+	// 1i AggregationProperties=(deployment)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy([]string{AllocationControllerKindProp, "deployment" }, nil)
-	assertAllocationSetTotals(t, as, "1i", err, 1+numIdle+numUnallocated, activeTotalCost+idleTotalCost)
+	err = as.AggregateBy([]string{AllocationDeploymentProp}, nil)
+	assertAllocationSetTotals(t, as, "1i", err, 3+numIdle+numUnallocated, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "1i", map[string]float64{
-		"deployment":      42.00,
+		"deployment1":     12.00,
+		"deployment2":     24.00,
+		"deployment3":     6.00,
 		IdleSuffix:        30.00,
 		UnallocatedSuffix: 40.00,
 	})
@@ -993,7 +995,29 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		IdleSuffix:        30.00,
 		UnallocatedSuffix: 64.00,
 	})
-	assertAllocationWindow(t, as, "1i", startYesterday, endYesterday, 1440.0)
+	assertAllocationWindow(t, as, "1j", startYesterday, endYesterday, 1440.0)
+
+	// 1k AggregationProperties=(daemonSet)
+	as = generateAllocationSet(start)
+	err = as.AggregateBy([]string{AllocationDaemonSetProp}, nil)
+	assertAllocationSetTotals(t, as, "1k", err, 1+numIdle+numUnallocated, activeTotalCost+idleTotalCost)
+	assertAllocationTotals(t, as, "1k", map[string]float64{
+		"daemonset1":      12.00,
+		IdleSuffix:        30.00,
+		UnallocatedSuffix: 70.00,
+	})
+	assertAllocationWindow(t, as, "1k", startYesterday, endYesterday, 1440.0)
+
+	// 1l AggregationProperties=(statefulSet)
+	as = generateAllocationSet(start)
+	err = as.AggregateBy([]string{AllocationStatefulSetProp}, nil)
+	assertAllocationSetTotals(t, as, "1l", err, 1+numIdle+numUnallocated, activeTotalCost+idleTotalCost)
+	assertAllocationTotals(t, as, "1l", map[string]float64{
+		"statefulset1":    12.00,
+		IdleSuffix:        30.00,
+		UnallocatedSuffix: 70.00,
+	})
+	assertAllocationWindow(t, as, "1l", startYesterday, endYesterday, 1440.0)
 
 	// 2  Multi-aggregation
 

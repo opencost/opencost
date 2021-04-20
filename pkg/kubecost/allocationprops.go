@@ -6,9 +6,6 @@ import (
 	"strings"
 )
 
-
-
-
 const (
 	AllocationNilProp            string = ""
 	AllocationClusterProp        string = "cluster"
@@ -22,6 +19,10 @@ const (
 	AllocationServiceProp        string = "service"
 	AllocationLabelProp          string = "label"
 	AllocationAnnotationProp     string = "annotation"
+	AllocationDeploymentProp     string = "deployment"
+	AllocationStatefulSetProp    string = "statefulset"
+	AllocationDaemonSetProp      string = "daemonset"
+	AllocationJobProp            string = "job"
 )
 
 func ParseProperty(text string) (string, error) {
@@ -48,6 +49,14 @@ func ParseProperty(text string) (string, error) {
 		return AllocationLabelProp, nil
 	case "annotation":
 		return AllocationAnnotationProp, nil
+	case "deployment":
+		return AllocationDeploymentProp, nil
+	case "daemonset":
+		return AllocationDaemonSetProp, nil
+	case "statefulset":
+		return AllocationStatefulSetProp, nil
+	case "job":
+		return AllocationJobProp, nil
 	}
 	return AllocationNilProp, fmt.Errorf("invalid allocation property: %s", text)
 }

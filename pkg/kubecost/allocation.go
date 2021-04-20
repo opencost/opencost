@@ -1177,14 +1177,6 @@ func (a *Allocation) generateKey(aggregateBy []string) string {
 	// identifies allocations.
 	names := []string{}
 
-	// Search for special case label for ETL conversion. valid values for this are DaemonSet, StatefulSet and Deployment
-	// and are relevant when the result of the ETL is being converted to the format of the Aggregation api.
-	aggControllerKind := ""
-	for _, agg := range aggregateBy {
-		if agg == "deployment" || agg == "daemonset" || agg == "statefulset" {
-			aggControllerKind = agg
-		}
-	}
 
 	for _, agg := range aggregateBy {
 		switch true {
@@ -1200,20 +1192,21 @@ func (a *Allocation) generateKey(aggregateBy []string) string {
 				// Indicate that allocation has no controller
 				controllerKind = UnallocatedSuffix
 			}
-			if aggControllerKind != "" && aggControllerKind != controllerKind {
-				// The allocation does not have the specified controller kind
-				controllerKind = UnallocatedSuffix
-			}
 			names = append(names, controllerKind)
-		case agg == AllocationControllerProp:
-			if indexOf(AllocationControllerKindProp, aggregateBy) == -1 &&
-				a.Properties.ControllerKind != "" {
-				names = append(names, a.Properties.ControllerKind)
+	case agg == AllocationDaemonSetProp || agg == AllocationStatefulSetProp || agg == AllocationDeploymentProp || agg == AllocationJobProp:
+			controller := a.Properties.Controller
+			if agg != a.Properties.ControllerKind || controller == ""{
+				// The allocation does not have the specified controller kind
+				controller = UnallocatedSuffix
 			}
+			names = append(names, controller)
+		case agg == AllocationControllerProp:
 			controller := a.Properties.Controller
 			if controller == "" {
 				// Indicate that allocation has no controller
 				controller = UnallocatedSuffix
+			} else if a.Properties.ControllerKind != "" {
+				controller = fmt.Sprintf("%s:%s", a.Properties.ControllerKind, controller)
 			}
 			names = append(names, controller)
 		case agg == AllocationPodProp:
