@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 )
+
 type CSVRetriever interface {
 	GetCSVReaders(start, end time.Time) ([]*csv.Reader, error)
 }

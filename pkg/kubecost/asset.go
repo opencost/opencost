@@ -1916,7 +1916,7 @@ func (n *Node) Clone() Asset {
 		RAMBreakdown: n.RAMBreakdown.Clone(),
 		CPUCost:      n.CPUCost,
 		GPUCost:      n.GPUCost,
-		GPUCount:      n.GPUCount,
+		GPUCount:     n.GPUCount,
 		RAMCost:      n.RAMCost,
 		Preemptible:  n.Preemptible,
 		Discount:     n.Discount,

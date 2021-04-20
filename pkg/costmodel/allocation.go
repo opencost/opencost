@@ -348,7 +348,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	for _, pod := range podMap {
 		for _, alloc := range pod.Allocations {
 			cluster := alloc.Properties.Cluster
-			nodeName:= alloc.Properties.Node
+			nodeName := alloc.Properties.Node
 			namespace := alloc.Properties.Namespace
 			pod := alloc.Properties.Pod
 			container := alloc.Properties.Container

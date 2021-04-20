@@ -30,7 +30,7 @@ const (
 	SQLAddressEnvVar               = "SQL_ADDRESS"
 	UseCSVProviderEnvVar           = "USE_CSV_PROVIDER"
 	CSVRegionEnvVar                = "CSV_REGION"
-	CSVEndpointEnvVar 			   = "CSV_ENDPOINT"
+	CSVEndpointEnvVar              = "CSV_ENDPOINT"
 	CSVPathEnvVar                  = "CSV_PATH"
 	ConfigPathEnvVar               = "CONFIG_PATH"
 	CloudProviderAPIKeyEnvVar      = "CLOUD_PROVIDER_API_KEY"

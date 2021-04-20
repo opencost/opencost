@@ -51,7 +51,7 @@ const ShareNone = "__none__"
 // Assets-style key() function for AllocationSet.
 type Allocation struct {
 	Name                   string                `json:"name"`
-	Properties             *AllocationProperties  `json:"properties,omitempty"`
+	Properties             *AllocationProperties `json:"properties,omitempty"`
 	Window                 Window                `json:"window"`
 	Start                  time.Time             `json:"start"`
 	End                    time.Time             `json:"end"`
@@ -104,7 +104,6 @@ type RawAllocationOnlyData struct {
 	CPUCoreUsageMax  float64 `json:"cpuCoreUsageMax"`
 	RAMBytesUsageMax float64 `json:"ramByteUsageMax"`
 }
-
 
 // AllocationMatchFunc is a function that can be used to match Allocations by
 // returning true for any given Allocation if a condition is met.
@@ -423,7 +422,6 @@ func (a *Allocation) add(that *Allocation) {
 	}
 	// Preserve string properties that are matching between the two allocations
 	a.Properties = a.Properties.Intersection(that.Properties)
-
 
 	// Expand the window to encompass both Allocations
 	a.Window = a.Window.Expand(that.Window)
@@ -1116,7 +1114,7 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 
 		// We need to key the allocations by cluster id
 		clusterID := alloc.Properties.Cluster
-		if clusterID == ""{
+		if clusterID == "" {
 			return nil, fmt.Errorf("ClusterProp is not set")
 		}
 
@@ -1177,7 +1175,6 @@ func (a *Allocation) generateKey(aggregateBy []string) string {
 	// identifies allocations.
 	names := []string{}
 
-
 	for _, agg := range aggregateBy {
 		switch true {
 		case agg == AllocationClusterProp:
@@ -1193,9 +1190,9 @@ func (a *Allocation) generateKey(aggregateBy []string) string {
 				controllerKind = UnallocatedSuffix
 			}
 			names = append(names, controllerKind)
-	case agg == AllocationDaemonSetProp || agg == AllocationStatefulSetProp || agg == AllocationDeploymentProp || agg == AllocationJobProp:
+		case agg == AllocationDaemonSetProp || agg == AllocationStatefulSetProp || agg == AllocationDeploymentProp || agg == AllocationJobProp:
 			controller := a.Properties.Controller
-			if agg != a.Properties.ControllerKind || controller == ""{
+			if agg != a.Properties.ControllerKind || controller == "" {
 				// The allocation does not have the specified controller kind
 				controller = UnallocatedSuffix
 			}
@@ -1215,7 +1212,7 @@ func (a *Allocation) generateKey(aggregateBy []string) string {
 			names = append(names, a.Properties.Container)
 		case agg == AllocationServiceProp:
 			services := a.Properties.Services
-			if services == nil || len(services) == 0  {
+			if services == nil || len(services) == 0 {
 				// Indicate that allocation has no services
 				names = append(names, UnallocatedSuffix)
 			} else {
@@ -1254,7 +1251,7 @@ func (a *Allocation) generateKey(aggregateBy []string) string {
 				names = append(names, labelNames...)
 			}
 		case strings.HasPrefix(agg, "annotation:"):
-			annotations:= a.Properties.Annotations
+			annotations := a.Properties.Annotations
 			if annotations == nil {
 				// Indicate that allocation has no annotations
 				names = append(names, UnallocatedSuffix)
