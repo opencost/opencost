@@ -25,7 +25,7 @@ const (
 	GeneratorPackageName string = "kubecost"
 
 	// CodecVersion is the version passed into the generator
-	CodecVersion uint8 = 10
+	CodecVersion uint8 = 11
 )
 
 //--------------------------------------------------------------------------
@@ -36,6 +36,7 @@ const (
 // to concrete types
 var typeMap map[string]reflect.Type = map[string]reflect.Type{
 	"Allocation":            reflect.TypeOf((*Allocation)(nil)).Elem(),
+	"AllocationProperties":  reflect.TypeOf((*AllocationProperties)(nil)).Elem(),
 	"AllocationSet":         reflect.TypeOf((*AllocationSet)(nil)).Elem(),
 	"AllocationSetRange":    reflect.TypeOf((*AllocationSetRange)(nil)).Elem(),
 	"Any":                   reflect.TypeOf((*Any)(nil)).Elem(),
@@ -117,15 +118,21 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 	buff.WriteUInt8(CodecVersion) // version
 
 	buff.WriteString(target.Name) // write string
-	// --- [begin][write][reference](Properties) ---
-	a, errA := target.Properties.MarshalBinary()
-	if errA != nil {
-		return nil, errA
-	}
-	buff.WriteInt(len(a))
-	buff.WriteBytes(a)
-	// --- [end][write][reference](Properties) ---
+	if target.Properties == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
 
+		// --- [begin][write][struct](AllocationProperties) ---
+		a, errA := target.Properties.MarshalBinary()
+		if errA != nil {
+			return nil, errA
+		}
+		buff.WriteInt(len(a))
+		buff.WriteBytes(a)
+		// --- [end][write][struct](AllocationProperties) ---
+
+	}
 	// --- [begin][write][struct](Window) ---
 	b, errB := target.Window.MarshalBinary()
 	if errB != nil {
@@ -214,17 +221,21 @@ func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
 	a := buff.ReadString() // read string
 	target.Name = a
 
-	// --- [begin][read][reference](Properties) ---
-	b := &Properties{}
-	c := buff.ReadInt()    // byte array length
-	d := buff.ReadBytes(c) // byte array
-	errA := b.UnmarshalBinary(d)
-	if errA != nil {
-		return errA
-	}
-	target.Properties = *b
-	// --- [end][read][reference](Properties) ---
+	if buff.ReadUInt8() == uint8(0) {
+		target.Properties = nil
+	} else {
+		// --- [begin][read][struct](AllocationProperties) ---
+		b := &AllocationProperties{}
+		c := buff.ReadInt()    // byte array length
+		d := buff.ReadBytes(c) // byte array
+		errA := b.UnmarshalBinary(d)
+		if errA != nil {
+			return errA
+		}
+		target.Properties = b
+		// --- [end][read][struct](AllocationProperties) ---
 
+	}
 	// --- [begin][read][struct](Window) ---
 	e := &Window{}
 	f := buff.ReadInt()    // byte array length
@@ -321,6 +332,207 @@ func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
 		// --- [end][read][struct](RawAllocationOnlyData) ---
 
 	}
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  AllocationProperties
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this AllocationProperties instance
+// into a byte array
+func (target *AllocationProperties) MarshalBinary() (data []byte, err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := util.NewBuffer()
+	buff.WriteUInt8(CodecVersion) // version
+
+	buff.WriteString(target.Cluster)        // write string
+	buff.WriteString(target.Node)           // write string
+	buff.WriteString(target.Container)      // write string
+	buff.WriteString(target.Controller)     // write string
+	buff.WriteString(target.ControllerKind) // write string
+	buff.WriteString(target.Namespace)      // write string
+	buff.WriteString(target.Pod)            // write string
+	if target.Services == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][slice]([]string) ---
+		buff.WriteInt(len(target.Services)) // array length
+		for i := 0; i < len(target.Services); i++ {
+			buff.WriteString(target.Services[i]) // write string
+		}
+		// --- [end][write][slice]([]string) ---
+
+	}
+	buff.WriteString(target.ProviderID) // write string
+	// --- [begin][write][alias](AllocationLabels) ---
+	if map[string]string(target.Labels) == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]string) ---
+		buff.WriteInt(len(map[string]string(target.Labels))) // map length
+		for v, z := range map[string]string(target.Labels) {
+			buff.WriteString(v) // write string
+			buff.WriteString(z) // write string
+		}
+		// --- [end][write][map](map[string]string) ---
+
+	}
+	// --- [end][write][alias](AllocationLabels) ---
+
+	// --- [begin][write][alias](AllocationAnnotations) ---
+	if map[string]string(target.Annotations) == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]string) ---
+		buff.WriteInt(len(map[string]string(target.Annotations))) // map length
+		for vv, zz := range map[string]string(target.Annotations) {
+			buff.WriteString(vv) // write string
+			buff.WriteString(zz) // write string
+		}
+		// --- [end][write][map](map[string]string) ---
+
+	}
+	// --- [end][write][alias](AllocationAnnotations) ---
+
+	return buff.Bytes(), nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the AllocationProperties type
+func (target *AllocationProperties) UnmarshalBinary(data []byte) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := util.NewBufferFromBytes(data)
+
+	// Codec Version Check
+	version := buff.ReadUInt8()
+	if version != CodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling AllocationProperties. Expected %d, got %d", CodecVersion, version)
+	}
+
+	a := buff.ReadString() // read string
+	target.Cluster = a
+
+	b := buff.ReadString() // read string
+	target.Node = b
+
+	c := buff.ReadString() // read string
+	target.Container = c
+
+	d := buff.ReadString() // read string
+	target.Controller = d
+
+	e := buff.ReadString() // read string
+	target.ControllerKind = e
+
+	f := buff.ReadString() // read string
+	target.Namespace = f
+
+	g := buff.ReadString() // read string
+	target.Pod = g
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.Services = nil
+	} else {
+		// --- [begin][read][slice]([]string) ---
+		k := buff.ReadInt() // array len
+		h := make([]string, k)
+		for i := 0; i < k; i++ {
+			var l string
+			m := buff.ReadString() // read string
+			l = m
+
+			h[i] = l
+		}
+		target.Services = h
+		// --- [end][read][slice]([]string) ---
+
+	}
+	n := buff.ReadString() // read string
+	target.ProviderID = n
+
+	// --- [begin][read][alias](AllocationLabels) ---
+	var o map[string]string
+	if buff.ReadUInt8() == uint8(0) {
+		o = nil
+	} else {
+		// --- [begin][read][map](map[string]string) ---
+		q := buff.ReadInt() // map len
+		p := make(map[string]string, q)
+		for j := 0; j < q; j++ {
+			var v string
+			r := buff.ReadString() // read string
+			v = r
+
+			var z string
+			s := buff.ReadString() // read string
+			z = s
+
+			p[v] = z
+		}
+		o = p
+		// --- [end][read][map](map[string]string) ---
+
+	}
+	target.Labels = AllocationLabels(o)
+	// --- [end][read][alias](AllocationLabels) ---
+
+	// --- [begin][read][alias](AllocationAnnotations) ---
+	var t map[string]string
+	if buff.ReadUInt8() == uint8(0) {
+		t = nil
+	} else {
+		// --- [begin][read][map](map[string]string) ---
+		w := buff.ReadInt() // map len
+		u := make(map[string]string, w)
+		for ii := 0; ii < w; ii++ {
+			var vv string
+			x := buff.ReadString() // read string
+			vv = x
+
+			var zz string
+			y := buff.ReadString() // read string
+			zz = y
+
+			u[vv] = zz
+		}
+		t = u
+		// --- [end][read][map](map[string]string) ---
+
+	}
+	target.Annotations = AllocationAnnotations(t)
+	// --- [end][read][alias](AllocationAnnotations) ---
+
 	return nil
 }
 

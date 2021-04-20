@@ -347,11 +347,11 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 
 	for _, pod := range podMap {
 		for _, alloc := range pod.Allocations {
-			cluster, _ := alloc.Properties.GetCluster()
-			nodeName, _ := alloc.Properties.GetNode()
-			namespace, _ := alloc.Properties.GetNamespace()
-			pod, _ := alloc.Properties.GetPod()
-			container, _ := alloc.Properties.GetContainer()
+			cluster := alloc.Properties.Cluster
+			nodeName := alloc.Properties.Node
+			namespace := alloc.Properties.Namespace
+			pod := alloc.Properties.Pod
+			container := alloc.Properties.Container
 
 			podKey := newPodKey(cluster, namespace, pod)
 			nodeKey := newNodeKey(cluster, nodeName)
@@ -614,7 +614,7 @@ func applyCPUCoresAllocated(podMap map[podKey]*Pod, resCPUCoresAllocated []*prom
 			log.Warningf("CostModel.ComputeAllocation: CPU allocation query result missing 'node': %s", key)
 			continue
 		}
-		pod.Allocations[container].Properties.SetNode(node)
+		pod.Allocations[container].Properties.Node = node
 	}
 }
 
@@ -654,7 +654,7 @@ func applyCPUCoresRequested(podMap map[podKey]*Pod, resCPUCoresRequested []*prom
 			log.Warningf("CostModel.ComputeAllocation: CPU request query result missing 'node': %s", key)
 			continue
 		}
-		pod.Allocations[container].Properties.SetNode(node)
+		pod.Allocations[container].Properties.Node = node
 	}
 }
 
@@ -750,7 +750,7 @@ func applyRAMBytesAllocated(podMap map[podKey]*Pod, resRAMBytesAllocated []*prom
 			log.Warningf("CostModel.ComputeAllocation: RAM allocation query result missing 'node': %s", key)
 			continue
 		}
-		pod.Allocations[container].Properties.SetNode(node)
+		pod.Allocations[container].Properties.Node = node
 	}
 }
 
@@ -790,7 +790,7 @@ func applyRAMBytesRequested(podMap map[podKey]*Pod, resRAMBytesRequested []*prom
 			log.Warningf("CostModel.ComputeAllocation: RAM request query result missing 'node': %s", key)
 			continue
 		}
-		pod.Allocations[container].Properties.SetNode(node)
+		pod.Allocations[container].Properties.Node = node
 	}
 }
 
@@ -1001,11 +1001,10 @@ func resToPodAnnotations(resPodAnnotations []*prom.QueryResult) map[podKey]map[s
 func applyLabels(podMap map[podKey]*Pod, namespaceLabels map[namespaceKey]map[string]string, podLabels map[podKey]map[string]string) {
 	for podKey, pod := range podMap {
 		for _, alloc := range pod.Allocations {
-			allocLabels, err := alloc.Properties.GetLabels()
-			if err != nil {
-				allocLabels = map[string]string{}
+			allocLabels := alloc.Properties.Labels
+			if allocLabels == nil {
+				allocLabels = make(map[string]string)
 			}
-
 			// Apply namespace labels first, then pod labels so that pod labels
 			// overwrite namespace labels.
 			nsKey := newNamespaceKey(podKey.Cluster, podKey.Namespace)
@@ -1020,7 +1019,7 @@ func applyLabels(podMap map[podKey]*Pod, namespaceLabels map[namespaceKey]map[st
 				}
 			}
 
-			alloc.Properties.SetLabels(allocLabels)
+			alloc.Properties.Labels = allocLabels
 		}
 	}
 }
@@ -1028,11 +1027,10 @@ func applyLabels(podMap map[podKey]*Pod, namespaceLabels map[namespaceKey]map[st
 func applyAnnotations(podMap map[podKey]*Pod, namespaceAnnotations map[string]map[string]string, podAnnotations map[podKey]map[string]string) {
 	for key, pod := range podMap {
 		for _, alloc := range pod.Allocations {
-			allocAnnotations, err := alloc.Properties.GetAnnotations()
-			if err != nil {
-				allocAnnotations = map[string]string{}
+			allocAnnotations := alloc.Properties.Annotations
+			if allocAnnotations == nil {
+				allocAnnotations = make(map[string]string)
 			}
-
 			// Apply namespace annotations first, then pod annotations so that
 			// pod labels overwrite namespace labels.
 			if labels, ok := namespaceAnnotations[key.Namespace]; ok {
@@ -1046,7 +1044,7 @@ func applyAnnotations(podMap map[podKey]*Pod, namespaceAnnotations map[string]ma
 				}
 			}
 
-			alloc.Properties.SetAnnotations(allocAnnotations)
+			alloc.Properties.Annotations = allocAnnotations
 		}
 	}
 }
@@ -1266,7 +1264,7 @@ func applyServicesToPods(podMap map[podKey]*Pod, podLabels map[podKey]map[string
 					services = append(services, sKey.Service)
 					allocsByService[sKey] = append(allocsByService[sKey], alloc)
 				}
-				alloc.Properties.SetServices(services)
+				alloc.Properties.Services = services
 
 			}
 		}
@@ -1277,8 +1275,8 @@ func applyControllersToPods(podMap map[podKey]*Pod, podControllerMap map[podKey]
 	for key, pod := range podMap {
 		for _, alloc := range pod.Allocations {
 			if controllerKey, ok := podControllerMap[key]; ok {
-				alloc.Properties.SetControllerKind(controllerKey.ControllerKind)
-				alloc.Properties.SetController(controllerKey.Controller)
+				alloc.Properties.ControllerKind = controllerKey.ControllerKind
+				alloc.Properties.Controller = controllerKey.Controller
 			}
 		}
 	}
@@ -1637,11 +1635,11 @@ func applyUnmountedPVs(window kubecost.Window, podMap map[podKey]*Pod, pvMap map
 		}
 
 		podMap[key].AppendContainer(container)
-		podMap[key].Allocations[container].Properties.SetCluster(cluster)
-		podMap[key].Allocations[container].Properties.SetNode(node)
-		podMap[key].Allocations[container].Properties.SetNamespace(namespace)
-		podMap[key].Allocations[container].Properties.SetPod(pod)
-		podMap[key].Allocations[container].Properties.SetContainer(container)
+		podMap[key].Allocations[container].Properties.Cluster = cluster
+		podMap[key].Allocations[container].Properties.Node = node
+		podMap[key].Allocations[container].Properties.Namespace = namespace
+		podMap[key].Allocations[container].Properties.Pod = pod
+		podMap[key].Allocations[container].Properties.Container = container
 		podMap[key].Allocations[container].PVByteHours = unmountedPVBytes[cluster] * window.Minutes() / 60.0
 		podMap[key].Allocations[container].PVCost = amount
 	}
@@ -1680,11 +1678,11 @@ func applyUnmountedPVCs(window kubecost.Window, podMap map[podKey]*Pod, pvcMap m
 		}
 
 		podMap[podKey].AppendContainer(container)
-		podMap[podKey].Allocations[container].Properties.SetCluster(cluster)
-		podMap[podKey].Allocations[container].Properties.SetNode(node)
-		podMap[podKey].Allocations[container].Properties.SetNamespace(namespace)
-		podMap[podKey].Allocations[container].Properties.SetPod(pod)
-		podMap[podKey].Allocations[container].Properties.SetContainer(container)
+		podMap[podKey].Allocations[container].Properties.Cluster = cluster
+		podMap[podKey].Allocations[container].Properties.Node = node
+		podMap[podKey].Allocations[container].Properties.Namespace = namespace
+		podMap[podKey].Allocations[container].Properties.Pod = pod
+		podMap[podKey].Allocations[container].Properties.Container = container
 		podMap[podKey].Allocations[container].PVByteHours = unmountedPVCBytes[key] * window.Minutes() / 60.0
 		podMap[podKey].Allocations[container].PVCost = amount
 	}
@@ -1911,15 +1909,15 @@ func (p Pod) AppendContainer(container string) {
 
 	alloc := &kubecost.Allocation{
 		Name:       name,
-		Properties: kubecost.Properties{},
+		Properties: &kubecost.AllocationProperties{},
 		Window:     p.Window.Clone(),
 		Start:      p.Start,
 		End:        p.End,
 	}
-	alloc.Properties.SetContainer(container)
-	alloc.Properties.SetPod(p.Key.Pod)
-	alloc.Properties.SetNamespace(p.Key.Namespace)
-	alloc.Properties.SetCluster(p.Key.Cluster)
+	alloc.Properties.Container = container
+	alloc.Properties.Pod = p.Key.Pod
+	alloc.Properties.Namespace = p.Key.Namespace
+	alloc.Properties.Cluster = p.Key.Cluster
 
 	p.Allocations[container] = alloc
 }
