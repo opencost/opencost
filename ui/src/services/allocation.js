@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 class AllocationService {
-  BASE_URL = 'http://localhost:9090/model/allocation';
+  BASE_URL = 'http://localhost:9090/allocation';
 
   async fetchAllocation(win, aggregate, options) {
     const { accumulate, filters, } = options;
