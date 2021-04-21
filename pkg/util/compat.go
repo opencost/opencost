@@ -1,6 +1,7 @@
 package util
 
 import (
+	"github.com/kubecost/cost-model/pkg/log"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -22,6 +23,7 @@ func GetInstanceType(labels map[string]string) (string, bool) {
 	} else if _, ok := labels["node.kubernetes.io/instance-type"]; ok {
 		return labels["node.kubernetes.io/instance-type"], true
 	} else {
+		log.Errorf("Failed to read 'node.kubernetes.io/instance-type' node label")
 		return "", false
 	}
 }
