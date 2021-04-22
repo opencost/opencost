@@ -18,7 +18,7 @@ import (
 
 const (
 	queryFmtPods              = `avg(kube_pod_container_status_running{}) by (pod, namespace, cluster_id)[%s:%s]%s`
-	queryFmtRAMBytesAllocated = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
+	queryFmtRAMBytesAllocated = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id, provider_id)`
 	queryFmtRAMRequests       = `avg(avg_over_time(kube_pod_container_resource_requests_memory_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
 	queryFmtRAMUsageAvg       = `avg(avg_over_time(container_memory_working_set_bytes{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`
 	queryFmtRAMUsageMax       = `max(max_over_time(container_memory_working_set_bytes{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`
@@ -36,9 +36,9 @@ const (
 	// https://prometheus.io/blog/2019/01/28/subquery-support/#examples
 	queryFmtCPUUsageMax           = `max(max_over_time(kubecost_savings_container_cpu_usage_seconds[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`
 	queryFmtGPUsRequested         = `avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
-	queryFmtNodeCostPerCPUHr      = `avg(avg_over_time(node_cpu_hourly_cost[%s]%s)) by (node, cluster_id, instance_type)`
-	queryFmtNodeCostPerRAMGiBHr   = `avg(avg_over_time(node_ram_hourly_cost[%s]%s)) by (node, cluster_id, instance_type)`
-	queryFmtNodeCostPerGPUHr      = `avg(avg_over_time(node_gpu_hourly_cost[%s]%s)) by (node, cluster_id, instance_type)`
+	queryFmtNodeCostPerCPUHr      = `avg(avg_over_time(node_cpu_hourly_cost[%s]%s)) by (node, cluster_id, instance_type, provider_id)`
+	queryFmtNodeCostPerRAMGiBHr   = `avg(avg_over_time(node_ram_hourly_cost[%s]%s)) by (node, cluster_id, instance_type, provider_id)`
+	queryFmtNodeCostPerGPUHr      = `avg(avg_over_time(node_gpu_hourly_cost[%s]%s)) by (node, cluster_id, instance_type, provider_id)`
 	queryFmtNodeIsSpot            = `avg_over_time(kubecost_node_is_spot[%s]%s)`
 	queryFmtPVCInfo               = `avg(kube_persistentvolumeclaim_info{volumename != ""}) by (persistentvolumeclaim, storageclass, volumename, namespace, cluster_id)[%s:%s]%s`
 	queryFmtPVBytes               = `avg(avg_over_time(kube_persistentvolume_capacity_bytes[%s]%s)) by (persistentvolume, cluster_id)`
@@ -357,6 +357,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 			nodeKey := newNodeKey(cluster, nodeName)
 
 			node := cm.getNodePricing(nodeMap, nodeKey)
+			alloc.Properties.ProviderID = node.ProviderID
 			alloc.CPUCost = alloc.CPUCoreHours * node.CostPerCPUHr
 			alloc.RAMCost = (alloc.RAMByteHours / 1024 / 1024 / 1024) * node.CostPerRAMGiBHr
 			alloc.GPUCost = alloc.GPUHours * node.CostPerGPUHr
@@ -1301,11 +1302,18 @@ func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerCPUHr
 			continue
 		}
 
+		providerID, err := res.GetString("provider_id")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: Node CPU cost query result missing field: %s", err)
+			continue
+		}
+
 		key := newNodeKey(cluster, node)
 		if _, ok := nodeMap[key]; !ok {
 			nodeMap[key] = &NodePricing{
-				Name:     node,
-				NodeType: instanceType,
+				Name:       node,
+				NodeType:   instanceType,
+				ProviderID: providerID,
 			}
 		}
 
@@ -1332,11 +1340,18 @@ func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerRA
 			continue
 		}
 
+		providerID, err := res.GetString("provider_id")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: Node RAM cost query result missing field: %s", err)
+			continue
+		}
+
 		key := newNodeKey(cluster, node)
 		if _, ok := nodeMap[key]; !ok {
 			nodeMap[key] = &NodePricing{
-				Name:     node,
-				NodeType: instanceType,
+				Name:       node,
+				NodeType:   instanceType,
+				ProviderID: providerID,
 			}
 		}
 
@@ -1363,11 +1378,18 @@ func applyNodeCostPerGPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerGPUHr
 			continue
 		}
 
+		providerID, err := res.GetString("provider_id")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: Node GPU cost query result missing field: %s", err)
+			continue
+		}
+
 		key := newNodeKey(cluster, node)
 		if _, ok := nodeMap[key]; !ok {
 			nodeMap[key] = &NodePricing{
-				Name:     node,
-				NodeType: instanceType,
+				Name:       node,
+				NodeType:   instanceType,
+				ProviderID: providerID,
 			}
 		}
 
@@ -1885,6 +1907,7 @@ func (cm *CostModel) getCustomNodePricing(spot bool) *NodePricing {
 type NodePricing struct {
 	Name            string
 	NodeType        string
+	ProviderID      string
 	Preemptible     bool
 	CostPerCPUHr    float64
 	CostPerRAMGiBHr float64
