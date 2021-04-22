@@ -1525,7 +1525,7 @@ func (as *AllocationSet) ReconcileAllocations(assetSet *AssetSet) error {
 
 		// Reconcile with node Assets
 		node, ok := nodeByProviderID[providerId]
-		if ok {
+		if !ok {
 			// Failed to find node for allocation
 			return
 		}
