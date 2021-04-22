@@ -516,6 +516,8 @@ func (aws *AWS) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, 
 	providerID := ""
 	if pv.Spec.AWSElasticBlockStore != nil {
 		providerID = pv.Spec.AWSElasticBlockStore.VolumeID
+	} else if pv.Spec.CSI != nil {
+		providerID = pv.Spec.CSI.VolumeHandle
 	}
 	return &awsPVKey{
 		Labels:                 pv.Labels,
