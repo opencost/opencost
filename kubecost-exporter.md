@@ -1,6 +1,6 @@
 # Running Kubecost as a Prometheus metric exporter
 
-Running Kubecost as a Prometheus metric exporter allows you to export various cost metrics to Prometheus without setting up any other Kubecost dependencies. Doing so lets you write PromQL queries to calculate the cost and efficiency of any Kubernetes concept, e.g. namespace, service, label, deployment, etc. You can also calculate the cost of different Kubernetes resources, e.g. nodes, PVs, LoadBalancers, and more. Finally, you can do other interesting things like create custom alerts via AlertManager and custom dashboards via Grafana. 
+Running Kubecost as a Prometheus metric exporter allows you to export various cost metrics to Prometheus without setting up any other Kubecost dependencies. Doing so lets you write PromQL queries to calculate the cost and efficiency of any Kubernetes concept, e.g. namespace, service, label, deployment, etc. You can also calculate the cost of different Kubernetes resources, e.g. nodes, PVs, LoadBalancers, and more. Finally, you can do other interesting things like create custom alerts via AlertManager and custom dashboards via Grafana.
 
 ## Installing
 
@@ -11,9 +11,26 @@ If you would prefer to not use the recommended install option and just deploy th
 
 1. Apply the combined YAML:
 
-    ```
-    kubectl apply -f https://raw.githubusercontent.com/kubecost/cost-model/develop/kubernetes/exporter/exporter.yaml --namespace cost-model
-    ```
+    1.a.
+
+      ```
+      wget https://raw.githubusercontent.com/kubecost/cost-model/develop/kubernetes/exporter/exporter.yaml
+      ```
+
+    1.b.
+      On the line
+
+      ```
+      value: "{{prometheusEndpoint}}" # The endpoint should have the form http://<service-name>.<namespace-name>.svc
+      ```
+
+      of `exporter.yaml`, substitute your own Prometheus URI for `{{prometheusEndpoint}}`
+
+    1.c.
+
+      ```
+      kubectl apply -f exporter.yaml --namespace cost-model
+      ```
 
     > If you want to use a namespace other than `cost-model`, you will have to edit the `ClusterRoleBinding` after applying the YAML to change `subjects[0].namespace`. You can do this with `kubectl edit clusterrolebinding cost-model`.
 
@@ -38,7 +55,7 @@ Add Kubecost scrape config to Prom ([more info](https://prometheus.io/docs/intro
 
 Done! Kubecost is now exporting cost metrics. See the following sections for different metrics available and query examples.
 
-## Available Prometheus Metrics 
+## Available Prometheus Metrics
 
 | Metric       | Description                                                                                            |
 | ------------ | ------------------------------------------------------------------------------------------------------ |
@@ -51,13 +68,13 @@ Done! Kubecost is now exporting cost metrics. See the following sections for dif
 | container_cpu_allocation   | Average number of CPUs requested over last 1m                      |
 | container_memory_allocation_bytes   | Average bytes of RAM requested over last 1m                 |
 
-By default, all cost metrics are based on public billing APIs. See the Limitations section below about reflecting your precise billing information. Supported platforms are AWS, Azure, and GCP. For on-prem clusters, prices are based on configurable defaults. 
+By default, all cost metrics are based on public billing APIs. See the Limitations section below about reflecting your precise billing information. Supported platforms are AWS, Azure, and GCP. For on-prem clusters, prices are based on configurable defaults.
 
 More metrics are available in the recommended install path and are described in [PROMETHEUS.md](PROMETHEUS.md).
 
 ## Dashboard examples
 
-Here’s an example dashboard using Kubecost Prometheus metrics: 
+Here’s an example dashboard using Kubecost Prometheus metrics:
 
 ![sample dashboard](https://grafana.com/api/dashboards/8670/images/5480/image)
 
@@ -98,7 +115,7 @@ avg(avg_over_time(node_ram_hourly_cost[1d] )) by (node)
 
 ## Setting Cost Alerts
 
-Custom cost alerts can be implemented with a set of Prometheus queries and can be used for alerting with AlertManager or Grafana alerts. Below are example alerting rules. 
+Custom cost alerts can be implemented with a set of Prometheus queries and can be used for alerting with AlertManager or Grafana alerts. Below are example alerting rules.
 
 #### Determine in real-time if the monthly cost of all nodes is > $1000
 
@@ -114,4 +131,4 @@ Running Kubecost in exporter-only mode by definition limits functionality. The f
 - For large clusters, these Prometheus queries might not scale well over large time windows. We recommend using [Kubecost APIs](https://github.com/kubecost/docs/blob/master/apis.md) for these scenarios.
 - Allocation metrics, like `container_cpu_allocation` only contain _requests_ and do not take usage into account.
 - Related to the previous point, efficiency metrics are not available.
-- Public billing costs on default. The standard Kubecost install and a cloud integration gives you accurate pricing based on your bill. 
+- Public billing costs on default. The standard Kubecost install and a cloud integration gives you accurate pricing based on your bill.
