@@ -450,76 +450,76 @@ func TestNode_BinaryEncoding(t *testing.T) {
 }
 
 func TestProperties_BinaryEncoding(t *testing.T) {
-	var p0, p1 *Properties
+	var p0, p1 *AllocationProperties
 	var bs []byte
 	var err error
 
 	// empty properties
-	p0 = &Properties{}
+	p0 = &AllocationProperties{}
 	bs, err = p0.MarshalBinary()
 	if err != nil {
-		t.Fatalf("Properties.Binary: unexpected error: %s", err)
+		t.Fatalf("AllocationProperties.Binary: unexpected error: %s", err)
 	}
 
-	p1 = &Properties{}
+	p1 = &AllocationProperties{}
 	err = p1.UnmarshalBinary(bs)
 	if err != nil {
-		t.Fatalf("Properties.Binary: unexpected error: %s", err)
+		t.Fatalf("AllocationProperties.Binary: unexpected error: %s", err)
 	}
 
 	if !p0.Equal(p1) {
-		t.Fatalf("Properties.Binary: expected %s; found %s", p0, p1)
+		t.Fatalf("AllocationProperties.Binary: expected %s; found %s", p0, p1)
 	}
 
 	// complete properties
-	p0 = &Properties{}
-	p0.SetCluster("cluster1")
-	p0.SetContainer("container-abc-1")
-	p0.SetController("daemonset-abc")
-	p0.SetControllerKind("daemonset")
-	p0.SetNamespace("namespace1")
-	p0.SetNode("node1")
-	p0.SetPod("daemonset-abc-123")
-	p0.SetLabels(map[string]string{
+	p0 = &AllocationProperties{}
+	p0.Cluster = "cluster1"
+	p0.Container = "container-abc-1"
+	p0.Controller = "daemonset-abc"
+	p0.ControllerKind = "daemonset"
+	p0.Namespace = "namespace1"
+	p0.Node = "node1"
+	p0.Pod = "daemonset-abc-123"
+	p0.Labels = map[string]string{
 		"app":  "cost-analyzer",
 		"tier": "frontend",
-	})
-	p0.SetServices([]string{"kubecost-frontend"})
+	}
+	p0.Services = []string{"kubecost-frontend"}
 	bs, err = p0.MarshalBinary()
 	if err != nil {
-		t.Fatalf("Properties.Binary: unexpected error: %s", err)
+		t.Fatalf("AllocationProperties.Binary: unexpected error: %s", err)
 	}
 
-	p1 = &Properties{}
+	p1 = &AllocationProperties{}
 	err = p1.UnmarshalBinary(bs)
 	if err != nil {
-		t.Fatalf("Properties.Binary: unexpected error: %s", err)
+		t.Fatalf("AllocationProperties.Binary: unexpected error: %s", err)
 	}
 
 	if !p0.Equal(p1) {
-		t.Fatalf("Properties.Binary: expected %s; found %s", p0, p1)
+		t.Fatalf("AllocationProperties.Binary: expected %s; found %s", p0, p1)
 	}
 
 	// incomplete properties
-	p0 = &Properties{}
-	p0.SetCluster("cluster1")
-	p0.SetController("daemonset-abc")
-	p0.SetControllerKind("daemonset")
-	p0.SetNamespace("namespace1")
-	p0.SetServices([]string{})
+	p0 = &AllocationProperties{}
+	p0.Cluster = ("cluster1")
+	p0.Controller = "daemonset-abc"
+	p0.ControllerKind = "daemonset"
+	p0.Namespace = "namespace1"
+	p0.Services = []string{}
 	bs, err = p0.MarshalBinary()
 	if err != nil {
-		t.Fatalf("Properties.Binary: unexpected error: %s", err)
+		t.Fatalf("AllocationProperties.Binary: unexpected error: %s", err)
 	}
 
-	p1 = &Properties{}
+	p1 = &AllocationProperties{}
 	err = p1.UnmarshalBinary(bs)
 	if err != nil {
-		t.Fatalf("Properties.Binary: unexpected error: %s", err)
+		t.Fatalf("AllocationProperties.Binary: unexpected error: %s", err)
 	}
 
 	if !p0.Equal(p1) {
-		t.Fatalf("Properties.Binary: expected %s; found %s", p0, p1)
+		t.Fatalf("AllocationProperties.Binary: expected %s; found %s", p0, p1)
 	}
 }
 

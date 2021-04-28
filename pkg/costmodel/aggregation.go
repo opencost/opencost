@@ -42,45 +42,45 @@ const (
 // allocation data per resource, vectors of rate data per resource, efficiency
 // data, and metadata describing the type of aggregation operation.
 type Aggregation struct {
-	Aggregator                 string               `json:"aggregation"`
-	Subfields                  []string             `json:"subfields,omitempty"`
-	Environment                string               `json:"environment"`
-	Cluster                    string               `json:"cluster,omitempty"`
-	Properties                 *kubecost.Properties `json:"-"`
-	Start                      time.Time            `json:"-"`
-	End                        time.Time            `json:"-"`
-	CPUAllocationHourlyAverage float64              `json:"cpuAllocationAverage"`
-	CPUAllocationVectors       []*util.Vector       `json:"-"`
-	CPUAllocationTotal         float64              `json:"-"`
-	CPUCost                    float64              `json:"cpuCost"`
-	CPUCostVector              []*util.Vector       `json:"cpuCostVector,omitempty"`
-	CPUEfficiency              float64              `json:"cpuEfficiency"`
-	CPURequestedVectors        []*util.Vector       `json:"-"`
-	CPUUsedVectors             []*util.Vector       `json:"-"`
-	Efficiency                 float64              `json:"efficiency"`
-	GPUAllocationHourlyAverage float64              `json:"gpuAllocationAverage"`
-	GPUAllocationVectors       []*util.Vector       `json:"-"`
-	GPUCost                    float64              `json:"gpuCost"`
-	GPUCostVector              []*util.Vector       `json:"gpuCostVector,omitempty"`
-	GPUAllocationTotal         float64              `json:"-"`
-	RAMAllocationHourlyAverage float64              `json:"ramAllocationAverage"`
-	RAMAllocationVectors       []*util.Vector       `json:"-"`
-	RAMAllocationTotal         float64              `json:"-"`
-	RAMCost                    float64              `json:"ramCost"`
-	RAMCostVector              []*util.Vector       `json:"ramCostVector,omitempty"`
-	RAMEfficiency              float64              `json:"ramEfficiency"`
-	RAMRequestedVectors        []*util.Vector       `json:"-"`
-	RAMUsedVectors             []*util.Vector       `json:"-"`
-	PVAllocationHourlyAverage  float64              `json:"pvAllocationAverage"`
-	PVAllocationVectors        []*util.Vector       `json:"-"`
-	PVAllocationTotal          float64              `json:"-"`
-	PVCost                     float64              `json:"pvCost"`
-	PVCostVector               []*util.Vector       `json:"pvCostVector,omitempty"`
-	NetworkCost                float64              `json:"networkCost"`
-	NetworkCostVector          []*util.Vector       `json:"networkCostVector,omitempty"`
-	SharedCost                 float64              `json:"sharedCost"`
-	TotalCost                  float64              `json:"totalCost"`
-	TotalCostVector            []*util.Vector       `json:"totalCostVector,omitempty"`
+	Aggregator                 string                         `json:"aggregation"`
+	Subfields                  []string                       `json:"subfields,omitempty"`
+	Environment                string                         `json:"environment"`
+	Cluster                    string                         `json:"cluster,omitempty"`
+	Properties                 *kubecost.AllocationProperties `json:"-"`
+	Start                      time.Time                      `json:"-"`
+	End                        time.Time                      `json:"-"`
+	CPUAllocationHourlyAverage float64                        `json:"cpuAllocationAverage"`
+	CPUAllocationVectors       []*util.Vector                 `json:"-"`
+	CPUAllocationTotal         float64                        `json:"-"`
+	CPUCost                    float64                        `json:"cpuCost"`
+	CPUCostVector              []*util.Vector                 `json:"cpuCostVector,omitempty"`
+	CPUEfficiency              float64                        `json:"cpuEfficiency"`
+	CPURequestedVectors        []*util.Vector                 `json:"-"`
+	CPUUsedVectors             []*util.Vector                 `json:"-"`
+	Efficiency                 float64                        `json:"efficiency"`
+	GPUAllocationHourlyAverage float64                        `json:"gpuAllocationAverage"`
+	GPUAllocationVectors       []*util.Vector                 `json:"-"`
+	GPUCost                    float64                        `json:"gpuCost"`
+	GPUCostVector              []*util.Vector                 `json:"gpuCostVector,omitempty"`
+	GPUAllocationTotal         float64                        `json:"-"`
+	RAMAllocationHourlyAverage float64                        `json:"ramAllocationAverage"`
+	RAMAllocationVectors       []*util.Vector                 `json:"-"`
+	RAMAllocationTotal         float64                        `json:"-"`
+	RAMCost                    float64                        `json:"ramCost"`
+	RAMCostVector              []*util.Vector                 `json:"ramCostVector,omitempty"`
+	RAMEfficiency              float64                        `json:"ramEfficiency"`
+	RAMRequestedVectors        []*util.Vector                 `json:"-"`
+	RAMUsedVectors             []*util.Vector                 `json:"-"`
+	PVAllocationHourlyAverage  float64                        `json:"pvAllocationAverage"`
+	PVAllocationVectors        []*util.Vector                 `json:"-"`
+	PVAllocationTotal          float64                        `json:"-"`
+	PVCost                     float64                        `json:"pvCost"`
+	PVCostVector               []*util.Vector                 `json:"pvCostVector,omitempty"`
+	NetworkCost                float64                        `json:"networkCost"`
+	NetworkCostVector          []*util.Vector                 `json:"networkCostVector,omitempty"`
+	SharedCost                 float64                        `json:"sharedCost"`
+	TotalCost                  float64                        `json:"totalCost"`
+	TotalCostVector            []*util.Vector                 `json:"totalCostVector,omitempty"`
 }
 
 // TotalHours determines the amount of hours the Aggregation covers, as a
@@ -593,19 +593,19 @@ func aggregateDatum(cp cloud.Provider, aggregations map[string]*Aggregation, cos
 			agg.Subfields = subfields
 		}
 		if includeProperties {
-			props := &kubecost.Properties{}
-			props.SetCluster(costDatum.ClusterID)
-			props.SetNode(costDatum.NodeName)
+			props := &kubecost.AllocationProperties{}
+			props.Cluster = costDatum.ClusterID
+			props.Node = costDatum.NodeName
 			if controller, kind, hasController := costDatum.GetController(); hasController {
-				props.SetController(controller)
-				props.SetControllerKind(kind)
+				props.Controller = controller
+				props.ControllerKind = kind
 			}
-			props.SetLabels(costDatum.Labels)
-			props.SetAnnotations(costDatum.Annotations)
-			props.SetNamespace(costDatum.Namespace)
-			props.SetPod(costDatum.PodName)
-			props.SetServices(costDatum.Services)
-			props.SetContainer(costDatum.Name)
+			props.Labels = costDatum.Labels
+			props.Annotations = costDatum.Annotations
+			props.Namespace = costDatum.Namespace
+			props.Pod = costDatum.PodName
+			props.Services = costDatum.Services
+			props.Container = costDatum.Name
 			agg.Properties = props
 		}
 
@@ -2116,57 +2116,22 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 
 // ParseAggregationProperties attempts to parse and return aggregation properties
 // encoded under the given key. If none exist, or if parsing fails, an error
-// is returned with empty Properties.
-func ParseAggregationProperties(qp util.QueryParams, key string) (kubecost.Properties, error) {
-	aggProps := kubecost.Properties{}
-
-	labelMap := make(map[string]string)
-	annotationMap := make(map[string]string)
-	for _, raw := range qp.GetList(key, ",") {
-		fields := strings.Split(raw, ":")
-
-		switch kubecost.ParseProperty(fields[0]) {
-		case kubecost.ClusterProp:
-			aggProps.SetCluster("")
-		case kubecost.NodeProp:
-			aggProps.SetNode("")
-		case kubecost.NamespaceProp:
-			aggProps.SetNamespace("")
-		case kubecost.ControllerKindProp:
-			aggProps.SetControllerKind("")
-		case kubecost.ControllerProp:
-			aggProps.SetController("")
-		case kubecost.PodProp:
-			aggProps.SetPod("")
-		case kubecost.ContainerProp:
-			aggProps.SetContainer("")
-		case kubecost.ServiceProp:
-			aggProps.SetServices([]string{})
-		case kubecost.LabelProp:
-			if len(fields) != 2 {
-				return kubecost.Properties{}, fmt.Errorf("illegal aggregate by label: %s", raw)
+// is returned with empty AllocationProperties.
+func ParseAggregationProperties(qp util.QueryParams, key string) ([]string, error) {
+	aggregateBy := []string{}
+	for _, agg := range qp.GetList(key, ",") {
+		aggregate := strings.TrimSpace(agg)
+		if aggregate != "" {
+			if prop, err := kubecost.ParseProperty(aggregate); err == nil {
+				aggregateBy = append(aggregateBy, string(prop))
+			} else if strings.HasPrefix(aggregate, "label:") {
+				aggregateBy = append(aggregateBy, aggregate)
+			} else if strings.HasPrefix(aggregate, "annotation:") {
+				aggregateBy = append(aggregateBy, aggregate)
 			}
-			label := prom.SanitizeLabelName(strings.TrimSpace(fields[1]))
-			labelMap[label] = ""
-		case kubecost.AnnotationProp:
-			if len(fields) != 2 {
-				return kubecost.Properties{}, fmt.Errorf("illegal aggregate by annotation: %s", raw)
-			}
-			annotation := prom.SanitizeLabelName(strings.TrimSpace(fields[1]))
-			annotationMap[annotation] = ""
 		}
-
 	}
-
-	if len(labelMap) > 0 {
-		aggProps.SetLabels(labelMap)
-	}
-
-	if len(annotationMap) > 0 {
-		aggProps.SetAnnotations(annotationMap)
-	}
-
-	return aggProps, nil
+	return aggregateBy, nil
 }
 
 // ComputeAllocationHandler computes an AllocationSetRange from the CostModel.

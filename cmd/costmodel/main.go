@@ -7,6 +7,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/costmodel"
 	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/rs/cors"
 	"k8s.io/klog"
 )
 
@@ -23,5 +24,6 @@ func main() {
 	a.Router.GET("/healthz", Healthz)
 	rootMux.Handle("/", a.Router)
 	rootMux.Handle("/metrics", promhttp.Handler())
-	klog.Fatal(http.ListenAndServe(":9003", errors.PanicHandlerMiddleware(rootMux)))
+	handler := cors.AllowAll().Handler(rootMux)
+	klog.Fatal(http.ListenAndServe(":9003", errors.PanicHandlerMiddleware(handler)))
 }

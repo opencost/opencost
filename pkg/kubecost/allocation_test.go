@@ -12,20 +12,20 @@ import (
 
 const day = 24 * time.Hour
 
-func NewUnitAllocation(name string, start time.Time, resolution time.Duration, props *Properties) *Allocation {
+func NewUnitAllocation(name string, start time.Time, resolution time.Duration, props *AllocationProperties) *Allocation {
 	if name == "" {
 		name = "cluster1/namespace1/pod1/container1"
 	}
 
-	properties := &Properties{}
+	properties := &AllocationProperties{}
 	if props == nil {
-		properties.SetCluster("cluster1")
-		properties.SetNode("node1")
-		properties.SetNamespace("namespace1")
-		properties.SetControllerKind("deployment")
-		properties.SetController("deployment1")
-		properties.SetPod("pod1")
-		properties.SetContainer("container1")
+		properties.Cluster = "cluster1"
+		properties.Node = "node1"
+		properties.Namespace = "namespace1"
+		properties.ControllerKind = "deployment"
+		properties.Controller = "deployment1"
+		properties.Pod = "pod1"
+		properties.Container = "container1"
 	} else {
 		properties = props
 	}
@@ -34,7 +34,7 @@ func NewUnitAllocation(name string, start time.Time, resolution time.Duration, p
 
 	alloc := &Allocation{
 		Name:                   name,
-		Properties:             *properties,
+		Properties:             properties,
 		Window:                 NewWindow(&start, &end).Clone(),
 		Start:                  start,
 		End:                    end,
@@ -52,6 +52,10 @@ func NewUnitAllocation(name string, start time.Time, resolution time.Duration, p
 		RAMCost:                1,
 		RAMBytesRequestAverage: 1,
 		RAMBytesUsageAverage:   1,
+		RawAllocationOnly: &RawAllocationOnlyData{
+			CPUCoreUsageMax:  1,
+			RAMBytesUsageMax: 1,
+		},
 	}
 
 	// If idle allocation, remove non-idle costs, but maintain total cost
@@ -103,6 +107,7 @@ func TestAllocation_Add(t *testing.T) {
 	a1 := &Allocation{
 		Start:                  s1,
 		End:                    e1,
+		Properties:             &AllocationProperties{},
 		CPUCoreHours:           2.0 * hrs1,
 		CPUCoreRequestAverage:  2.0,
 		CPUCoreUsageAverage:    1.0,
@@ -117,6 +122,7 @@ func TestAllocation_Add(t *testing.T) {
 		RAMCost:                8.0 * hrs1 * ramPrice,
 		SharedCost:             2.00,
 		ExternalCost:           1.00,
+		RawAllocationOnly:      &RawAllocationOnlyData{},
 	}
 	a1b := a1.Clone()
 
@@ -126,6 +132,7 @@ func TestAllocation_Add(t *testing.T) {
 	a2 := &Allocation{
 		Start:                  s2,
 		End:                    e2,
+		Properties:             &AllocationProperties{},
 		CPUCoreHours:           1.0 * hrs2,
 		CPUCoreRequestAverage:  1.0,
 		CPUCoreUsageAverage:    1.0,
@@ -142,6 +149,7 @@ func TestAllocation_Add(t *testing.T) {
 		LoadBalancerCost:       0.05,
 		SharedCost:             0.00,
 		ExternalCost:           1.00,
+		RawAllocationOnly:      &RawAllocationOnlyData{},
 	}
 	a2b := a2.Clone()
 
@@ -237,6 +245,10 @@ func TestAllocation_Add(t *testing.T) {
 	if !util.IsApproximately(1.6493506, act.TotalEfficiency()) {
 		t.Fatalf("Allocation.Add: expected %f; actual %f", 1.6493506, act.TotalEfficiency())
 	}
+
+	if act.RawAllocationOnly != nil {
+		t.Errorf("Allocation.Add: Raw only data must be nil after an add")
+	}
 }
 
 func TestAllocation_Share(t *testing.T) {
@@ -252,6 +264,7 @@ func TestAllocation_Share(t *testing.T) {
 	a1 := &Allocation{
 		Start:                  s1,
 		End:                    e1,
+		Properties:             &AllocationProperties{},
 		CPUCoreHours:           2.0 * hrs1,
 		CPUCoreRequestAverage:  2.0,
 		CPUCoreUsageAverage:    1.0,
@@ -275,6 +288,7 @@ func TestAllocation_Share(t *testing.T) {
 	a2 := &Allocation{
 		Start:                  s2,
 		End:                    e2,
+		Properties:             &AllocationProperties{},
 		CPUCoreHours:           1.0 * hrs2,
 		CPUCoreRequestAverage:  1.0,
 		CPUCoreUsageAverage:    1.0,
@@ -397,12 +411,12 @@ func TestAllocation_MarshalJSON(t *testing.T) {
 
 	before := &Allocation{
 		Name: "cluster1/namespace1/node1/pod1/container1",
-		Properties: Properties{
-			ClusterProp:   "cluster1",
-			NodeProp:      "node1",
-			NamespaceProp: "namespace1",
-			PodProp:       "pod1",
-			ContainerProp: "container1",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Node:      "node1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container1",
 		},
 		Window:                 NewWindow(&start, &end),
 		Start:                  start,
@@ -423,6 +437,7 @@ func TestAllocation_MarshalJSON(t *testing.T) {
 		RAMCost:                8.0 * hrs * ramPrice,
 		SharedCost:             2.00,
 		ExternalCost:           1.00,
+		RawAllocationOnly:      &RawAllocationOnlyData{},
 	}
 
 	data, err := json.Marshal(before)
@@ -449,8 +464,9 @@ func TestAllocationSet_generateKey(t *testing.T) {
 	var alloc *Allocation
 	var key string
 
-	props := Properties{}
-	props.SetCluster("")
+	props := []string{
+		AllocationClusterProp,
+	}
 
 	key = alloc.generateKey(props)
 	if key != "" {
@@ -458,9 +474,9 @@ func TestAllocationSet_generateKey(t *testing.T) {
 	}
 
 	alloc = &Allocation{}
-	alloc.Properties = Properties{
-		ClusterProp: "cluster1",
-		LabelProp: map[string]string{
+	alloc.Properties = &AllocationProperties{
+		Cluster: "cluster1",
+		Labels: map[string]string{
 			"app": "app1",
 			"env": "env1",
 		},
@@ -471,18 +487,21 @@ func TestAllocationSet_generateKey(t *testing.T) {
 		t.Fatalf("generateKey: expected \"cluster1\"; actual \"%s\"", key)
 	}
 
-	props.SetNamespace("")
-	props.SetLabels(map[string]string{"app": ""})
+	props = []string{
+		AllocationClusterProp,
+		AllocationNamespaceProp,
+		"label:app",
+	}
 
 	key = alloc.generateKey(props)
 	if key != "cluster1//app=app1" {
 		t.Fatalf("generateKey: expected \"cluster1//app=app1\"; actual \"%s\"", key)
 	}
 
-	alloc.Properties = Properties{
-		ClusterProp:   "cluster1",
-		NamespaceProp: "namespace1",
-		LabelProp: map[string]string{
+	alloc.Properties = &AllocationProperties{
+		Cluster:   "cluster1",
+		Namespace: "namespace1",
+		Labels: map[string]string{
 			"app": "app1",
 			"env": "env1",
 		},
@@ -499,153 +518,153 @@ func TestNewAllocationSet(t *testing.T) {
 
 func generateAllocationSet(start time.Time) *AllocationSet {
 	// Idle allocations
-	a1i := NewUnitAllocation(fmt.Sprintf("cluster1/%s", IdleSuffix), start, day, &Properties{
-		ClusterProp: "cluster1",
-		NodeProp:    "node1",
+	a1i := NewUnitAllocation(fmt.Sprintf("cluster1/%s", IdleSuffix), start, day, &AllocationProperties{
+		Cluster: "cluster1",
+		Node:    "node1",
 	})
 	a1i.CPUCost = 5.0
 	a1i.RAMCost = 15.0
 	a1i.GPUCost = 0.0
 
-	a2i := NewUnitAllocation(fmt.Sprintf("cluster2/%s", IdleSuffix), start, day, &Properties{
-		ClusterProp: "cluster2",
+	a2i := NewUnitAllocation(fmt.Sprintf("cluster2/%s", IdleSuffix), start, day, &AllocationProperties{
+		Cluster: "cluster2",
 	})
 	a2i.CPUCost = 5.0
 	a2i.RAMCost = 5.0
 	a2i.GPUCost = 0.0
 
 	// Active allocations
-	a1111 := NewUnitAllocation("cluster1/namespace1/pod1/container1", start, day, &Properties{
-		ClusterProp:   "cluster1",
-		NamespaceProp: "namespace1",
-		PodProp:       "pod1",
-		ContainerProp: "container1",
+	a1111 := NewUnitAllocation("cluster1/namespace1/pod1/container1", start, day, &AllocationProperties{
+		Cluster:   "cluster1",
+		Namespace: "namespace1",
+		Pod:       "pod1",
+		Container: "container1",
 	})
 	a1111.RAMCost = 11.00
 
-	a11abc2 := NewUnitAllocation("cluster1/namespace1/pod-abc/container2", start, day, &Properties{
-		ClusterProp:   "cluster1",
-		NamespaceProp: "namespace1",
-		PodProp:       "pod-abc",
-		ContainerProp: "container2",
+	a11abc2 := NewUnitAllocation("cluster1/namespace1/pod-abc/container2", start, day, &AllocationProperties{
+		Cluster:   "cluster1",
+		Namespace: "namespace1",
+		Pod:       "pod-abc",
+		Container: "container2",
 	})
 
-	a11def3 := NewUnitAllocation("cluster1/namespace1/pod-def/container3", start, day, &Properties{
-		ClusterProp:   "cluster1",
-		NamespaceProp: "namespace1",
-		PodProp:       "pod-def",
-		ContainerProp: "container3",
+	a11def3 := NewUnitAllocation("cluster1/namespace1/pod-def/container3", start, day, &AllocationProperties{
+		Cluster:   "cluster1",
+		Namespace: "namespace1",
+		Pod:       "pod-def",
+		Container: "container3",
 	})
 
-	a12ghi4 := NewUnitAllocation("cluster1/namespace2/pod-ghi/container4", start, day, &Properties{
-		ClusterProp:   "cluster1",
-		NamespaceProp: "namespace2",
-		PodProp:       "pod-ghi",
-		ContainerProp: "container4",
+	a12ghi4 := NewUnitAllocation("cluster1/namespace2/pod-ghi/container4", start, day, &AllocationProperties{
+		Cluster:   "cluster1",
+		Namespace: "namespace2",
+		Pod:       "pod-ghi",
+		Container: "container4",
 	})
 
-	a12ghi5 := NewUnitAllocation("cluster1/namespace2/pod-ghi/container5", start, day, &Properties{
-		ClusterProp:   "cluster1",
-		NamespaceProp: "namespace2",
-		PodProp:       "pod-ghi",
-		ContainerProp: "container5",
+	a12ghi5 := NewUnitAllocation("cluster1/namespace2/pod-ghi/container5", start, day, &AllocationProperties{
+		Cluster:   "cluster1",
+		Namespace: "namespace2",
+		Pod:       "pod-ghi",
+		Container: "container5",
 	})
 
-	a12jkl6 := NewUnitAllocation("cluster1/namespace2/pod-jkl/container6", start, day, &Properties{
-		ClusterProp:   "cluster1",
-		NamespaceProp: "namespace2",
-		PodProp:       "pod-jkl",
-		ContainerProp: "container6",
+	a12jkl6 := NewUnitAllocation("cluster1/namespace2/pod-jkl/container6", start, day, &AllocationProperties{
+		Cluster:   "cluster1",
+		Namespace: "namespace2",
+		Pod:       "pod-jkl",
+		Container: "container6",
 	})
 
-	a22mno4 := NewUnitAllocation("cluster2/namespace2/pod-mno/container4", start, day, &Properties{
-		ClusterProp:   "cluster2",
-		NamespaceProp: "namespace2",
-		PodProp:       "pod-mno",
-		ContainerProp: "container4",
+	a22mno4 := NewUnitAllocation("cluster2/namespace2/pod-mno/container4", start, day, &AllocationProperties{
+		Cluster:   "cluster2",
+		Namespace: "namespace2",
+		Pod:       "pod-mno",
+		Container: "container4",
 	})
 
-	a22mno5 := NewUnitAllocation("cluster2/namespace2/pod-mno/container5", start, day, &Properties{
-		ClusterProp:   "cluster2",
-		NamespaceProp: "namespace2",
-		PodProp:       "pod-mno",
-		ContainerProp: "container5",
+	a22mno5 := NewUnitAllocation("cluster2/namespace2/pod-mno/container5", start, day, &AllocationProperties{
+		Cluster:   "cluster2",
+		Namespace: "namespace2",
+		Pod:       "pod-mno",
+		Container: "container5",
 	})
 
-	a22pqr6 := NewUnitAllocation("cluster2/namespace2/pod-pqr/container6", start, day, &Properties{
-		ClusterProp:   "cluster2",
-		NamespaceProp: "namespace2",
-		PodProp:       "pod-pqr",
-		ContainerProp: "container6",
+	a22pqr6 := NewUnitAllocation("cluster2/namespace2/pod-pqr/container6", start, day, &AllocationProperties{
+		Cluster:   "cluster2",
+		Namespace: "namespace2",
+		Pod:       "pod-pqr",
+		Container: "container6",
 	})
 
-	a23stu7 := NewUnitAllocation("cluster2/namespace3/pod-stu/container7", start, day, &Properties{
-		ClusterProp:   "cluster2",
-		NamespaceProp: "namespace3",
-		PodProp:       "pod-stu",
-		ContainerProp: "container7",
+	a23stu7 := NewUnitAllocation("cluster2/namespace3/pod-stu/container7", start, day, &AllocationProperties{
+		Cluster:   "cluster2",
+		Namespace: "namespace3",
+		Pod:       "pod-stu",
+		Container: "container7",
 	})
 
-	a23vwx8 := NewUnitAllocation("cluster2/namespace3/pod-vwx/container8", start, day, &Properties{
-		ClusterProp:   "cluster2",
-		NamespaceProp: "namespace3",
-		PodProp:       "pod-vwx",
-		ContainerProp: "container8",
+	a23vwx8 := NewUnitAllocation("cluster2/namespace3/pod-vwx/container8", start, day, &AllocationProperties{
+		Cluster:   "cluster2",
+		Namespace: "namespace3",
+		Pod:       "pod-vwx",
+		Container: "container8",
 	})
 
-	a23vwx9 := NewUnitAllocation("cluster2/namespace3/pod-vwx/container9", start, day, &Properties{
-		ClusterProp:   "cluster2",
-		NamespaceProp: "namespace3",
-		PodProp:       "pod-vwx",
-		ContainerProp: "container9",
+	a23vwx9 := NewUnitAllocation("cluster2/namespace3/pod-vwx/container9", start, day, &AllocationProperties{
+		Cluster:   "cluster2",
+		Namespace: "namespace3",
+		Pod:       "pod-vwx",
+		Container: "container9",
 	})
 
 	// Controllers
 
-	a11abc2.Properties.SetControllerKind("deployment")
-	a11abc2.Properties.SetController("deployment1")
-	a11def3.Properties.SetControllerKind("deployment")
-	a11def3.Properties.SetController("deployment1")
+	a11abc2.Properties.ControllerKind = "deployment"
+	a11abc2.Properties.Controller = "deployment1"
+	a11def3.Properties.ControllerKind = "deployment"
+	a11def3.Properties.Controller = "deployment1"
 
-	a12ghi4.Properties.SetControllerKind("deployment")
-	a12ghi4.Properties.SetController("deployment2")
-	a12ghi5.Properties.SetControllerKind("deployment")
-	a12ghi5.Properties.SetController("deployment2")
-	a22mno4.Properties.SetControllerKind("deployment")
-	a22mno4.Properties.SetController("deployment2")
-	a22mno5.Properties.SetControllerKind("deployment")
-	a22mno5.Properties.SetController("deployment2")
+	a12ghi4.Properties.ControllerKind = "deployment"
+	a12ghi4.Properties.Controller = "deployment2"
+	a12ghi5.Properties.ControllerKind = "deployment"
+	a12ghi5.Properties.Controller = "deployment2"
+	a22mno4.Properties.ControllerKind = "deployment"
+	a22mno4.Properties.Controller = "deployment2"
+	a22mno5.Properties.ControllerKind = "deployment"
+	a22mno5.Properties.Controller = "deployment2"
 
-	a23stu7.Properties.SetControllerKind("deployment")
-	a23stu7.Properties.SetController("deployment3")
+	a23stu7.Properties.ControllerKind = "deployment"
+	a23stu7.Properties.Controller = "deployment3"
 
-	a12jkl6.Properties.SetControllerKind("daemonset")
-	a12jkl6.Properties.SetController("daemonset1")
-	a22pqr6.Properties.SetControllerKind("daemonset")
-	a22pqr6.Properties.SetController("daemonset1")
+	a12jkl6.Properties.ControllerKind = "daemonset"
+	a12jkl6.Properties.Controller = "daemonset1"
+	a22pqr6.Properties.ControllerKind = "daemonset"
+	a22pqr6.Properties.Controller = "daemonset1"
 
-	a23vwx8.Properties.SetControllerKind("statefulset")
-	a23vwx8.Properties.SetController("statefulset1")
-	a23vwx9.Properties.SetControllerKind("statefulset")
-	a23vwx9.Properties.SetController("statefulset1")
+	a23vwx8.Properties.ControllerKind = "statefulset"
+	a23vwx8.Properties.Controller = "statefulset1"
+	a23vwx9.Properties.ControllerKind = "statefulset"
+	a23vwx9.Properties.Controller = "statefulset1"
 
 	// Labels
 
-	a1111.Properties.SetLabels(map[string]string{"app": "app1", "env": "env1"})
-	a12ghi4.Properties.SetLabels(map[string]string{"app": "app2", "env": "env2"})
-	a12ghi5.Properties.SetLabels(map[string]string{"app": "app2", "env": "env2"})
-	a22mno4.Properties.SetLabels(map[string]string{"app": "app2"})
-	a22mno5.Properties.SetLabels(map[string]string{"app": "app2"})
+	a1111.Properties.Labels = map[string]string{"app": "app1", "env": "env1"}
+	a12ghi4.Properties.Labels = map[string]string{"app": "app2", "env": "env2"}
+	a12ghi5.Properties.Labels = map[string]string{"app": "app2", "env": "env2"}
+	a22mno4.Properties.Labels = map[string]string{"app": "app2"}
+	a22mno5.Properties.Labels = map[string]string{"app": "app2"}
 
 	//Annotations
-	a23stu7.Properties.SetAnnotations(map[string]string{"team": "team1"})
-	a23vwx8.Properties.SetAnnotations(map[string]string{"team": "team2"})
-	a23vwx9.Properties.SetAnnotations(map[string]string{"team": "team1"})
+	a23stu7.Properties.Annotations = map[string]string{"team": "team1"}
+	a23vwx8.Properties.Annotations = map[string]string{"team": "team2"}
+	a23vwx9.Properties.Annotations = map[string]string{"team": "team1"}
 
 	// Services
 
-	a12jkl6.Properties.SetServices([]string{"service1"})
-	a22pqr6.Properties.SetServices([]string{"service1"})
+	a12jkl6.Properties.Services = []string{"service1"}
+	a22pqr6.Properties.Services = []string{"service1"}
 
 	return NewAllocationSet(start, start.Add(day),
 		// idle
@@ -824,12 +843,12 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	sharedOverheadHourlyCost := 7.0
 
 	isNamespace3 := func(a *Allocation) bool {
-		ns, err := a.Properties.GetNamespace()
-		return err == nil && ns == "namespace3"
+		ns := a.Properties.Namespace
+		return ns == "namespace3"
 	}
 
 	isApp1 := func(a *Allocation) bool {
-		ls, _ := a.Properties.GetLabels()
+		ls := a.Properties.Labels
 		if app, ok := ls["app"]; ok && app == "app1" {
 			return true
 		}
@@ -845,7 +864,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 1a AggregationProperties=(Cluster)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{ClusterProp: ""}, nil)
+	err = as.AggregateBy([]string{AllocationClusterProp}, nil)
 	assertAllocationSetTotals(t, as, "1a", err, numClusters+numIdle, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "1a", map[string]float64{
 		"cluster1": 46.00,
@@ -856,7 +875,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 1b AggregationProperties=(Namespace)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{NamespaceProp: true}, nil)
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, nil)
 	assertAllocationSetTotals(t, as, "1b", err, numNamespaces+numIdle, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "1b", map[string]float64{
 		"namespace1": 28.00,
@@ -868,7 +887,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 1c AggregationProperties=(Pod)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{PodProp: true}, nil)
+	err = as.AggregateBy([]string{AllocationPodProp}, nil)
 	assertAllocationSetTotals(t, as, "1c", err, numPods+numIdle, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "1c", map[string]float64{
 		"pod-jkl":  6.00,
@@ -886,7 +905,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 1d AggregationProperties=(Container)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{ContainerProp: true}, nil)
+	err = as.AggregateBy([]string{AllocationContainerProp}, nil)
 	assertAllocationSetTotals(t, as, "1d", err, numContainers+numIdle, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "1d", map[string]float64{
 		"container2": 6.00,
@@ -904,7 +923,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 1e AggregationProperties=(ControllerKind)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{ControllerKindProp: true}, nil)
+	err = as.AggregateBy([]string{AllocationControllerKindProp}, nil)
 	assertAllocationSetTotals(t, as, "1e", err, numControllerKinds+numIdle+numUnallocated, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "1e", map[string]float64{
 		"daemonset":       12.00,
@@ -917,14 +936,14 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 1f AggregationProperties=(Controller)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{ControllerProp: true}, nil)
+	err = as.AggregateBy([]string{AllocationControllerProp}, nil)
 	assertAllocationSetTotals(t, as, "1f", err, numControllers+numIdle+numUnallocated, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "1f", map[string]float64{
-		"deployment/deployment2":   24.00,
-		"daemonset/daemonset1":     12.00,
-		"deployment/deployment3":   6.00,
-		"statefulset/statefulset1": 12.00,
-		"deployment/deployment1":   12.00,
+		"deployment:deployment2":   24.00,
+		"daemonset:daemonset1":     12.00,
+		"deployment:deployment3":   6.00,
+		"statefulset:statefulset1": 12.00,
+		"deployment:deployment1":   12.00,
 		IdleSuffix:                 30.00,
 		UnallocatedSuffix:          16.00,
 	})
@@ -932,7 +951,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 1g AggregationProperties=(Service)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{ServiceProp: true}, nil)
+	err = as.AggregateBy([]string{AllocationServiceProp}, nil)
 	assertAllocationSetTotals(t, as, "1g", err, numServices+numIdle+numUnallocated, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "1g", map[string]float64{
 		"service1":        12.00,
@@ -943,7 +962,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 1h AggregationProperties=(Label:app)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{LabelProp: map[string]string{"app": ""}}, nil)
+	err = as.AggregateBy([]string{"label:app"}, nil)
 	assertAllocationSetTotals(t, as, "1h", err, numLabelApps+numIdle+numUnallocated, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "1h", map[string]float64{
 		"app=app1":        16.00,
@@ -953,12 +972,14 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	})
 	assertAllocationWindow(t, as, "1h", startYesterday, endYesterday, 1440.0)
 
-	// 1i AggregationProperties=(ControllerKind:deployment)
+	// 1i AggregationProperties=(deployment)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{ControllerKindProp: "deployment"}, nil)
-	assertAllocationSetTotals(t, as, "1i", err, 1+numIdle+numUnallocated, activeTotalCost+idleTotalCost)
+	err = as.AggregateBy([]string{AllocationDeploymentProp}, nil)
+	assertAllocationSetTotals(t, as, "1i", err, 3+numIdle+numUnallocated, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "1i", map[string]float64{
-		"deployment":      42.00,
+		"deployment1":     12.00,
+		"deployment2":     24.00,
+		"deployment3":     6.00,
 		IdleSuffix:        30.00,
 		UnallocatedSuffix: 40.00,
 	})
@@ -966,7 +987,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 1j AggregationProperties=(Annotation:team)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{AnnotationProp: map[string]string{"team": ""}}, nil)
+	err = as.AggregateBy([]string{"annotation:team"}, nil)
 	assertAllocationSetTotals(t, as, "1j", err, 2+numIdle+numUnallocated, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "1j", map[string]float64{
 		"team=team1":      12.00,
@@ -974,7 +995,29 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		IdleSuffix:        30.00,
 		UnallocatedSuffix: 64.00,
 	})
-	assertAllocationWindow(t, as, "1i", startYesterday, endYesterday, 1440.0)
+	assertAllocationWindow(t, as, "1j", startYesterday, endYesterday, 1440.0)
+
+	// 1k AggregationProperties=(daemonSet)
+	as = generateAllocationSet(start)
+	err = as.AggregateBy([]string{AllocationDaemonSetProp}, nil)
+	assertAllocationSetTotals(t, as, "1k", err, 1+numIdle+numUnallocated, activeTotalCost+idleTotalCost)
+	assertAllocationTotals(t, as, "1k", map[string]float64{
+		"daemonset1":      12.00,
+		IdleSuffix:        30.00,
+		UnallocatedSuffix: 70.00,
+	})
+	assertAllocationWindow(t, as, "1k", startYesterday, endYesterday, 1440.0)
+
+	// 1l AggregationProperties=(statefulSet)
+	as = generateAllocationSet(start)
+	err = as.AggregateBy([]string{AllocationStatefulSetProp}, nil)
+	assertAllocationSetTotals(t, as, "1l", err, 1+numIdle+numUnallocated, activeTotalCost+idleTotalCost)
+	assertAllocationTotals(t, as, "1l", map[string]float64{
+		"statefulset1":    12.00,
+		IdleSuffix:        30.00,
+		UnallocatedSuffix: 70.00,
+	})
+	assertAllocationWindow(t, as, "1l", startYesterday, endYesterday, 1440.0)
 
 	// 2  Multi-aggregation
 
@@ -984,7 +1027,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 2d AggregationProperties=(Label:app, Label:environment)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{LabelProp: map[string]string{"app": "", "env": ""}}, nil)
+	err = as.AggregateBy([]string{"label:app;env"}, nil)
 	// sets should be {idle, unallocated, app1/env1, app2/env2, app2/unallocated}
 	assertAllocationSetTotals(t, as, "2d", err, numIdle+numUnallocated+3, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "2d", map[string]float64{
@@ -997,7 +1040,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 2e AggregationProperties=(Cluster, Label:app, Label:environment)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{ClusterProp: "", LabelProp: map[string]string{"app": "", "env": ""}}, nil)
+	err = as.AggregateBy([]string{AllocationClusterProp, "label:app;env"}, nil)
 	assertAllocationSetTotals(t, as, "2e", err, 6, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "2e", map[string]float64{
 		"cluster1/app=app2/env=env2":             12.00,
@@ -1010,9 +1053,9 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 2f AggregationProperties=(annotation:team, pod)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{AnnotationProp: map[string]string{"team": ""}, PodProp: ""}, nil)
-	assertAllocationSetTotals(t, as, "2e", err, 11, activeTotalCost+idleTotalCost)
-	assertAllocationTotals(t, as, "2e", map[string]float64{
+	err = as.AggregateBy([]string{AllocationPodProp, "annotation:team"}, nil)
+	assertAllocationSetTotals(t, as, "2f", err, 11, activeTotalCost+idleTotalCost)
+	assertAllocationTotals(t, as, "2f", map[string]float64{
 		"pod-jkl/" + UnallocatedSuffix: 6.00,
 		"pod-stu/team=team1":           6.00,
 		"pod-abc/" + UnallocatedSuffix: 6.00,
@@ -1035,7 +1078,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// namespace2: 46.3125 = 36.00 + 5.0*(3.0/6.0) + 15.0*(3.0/16.0) + 5.0*(3.0/6.0) + 5.0*(3.0/6.0)
 	// namespace3: 23.0000 = 18.00 + 5.0*(3.0/6.0) + 5.0*(3.0/6.0)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{NamespaceProp: true}, &AllocationAggregationOptions{ShareIdle: ShareWeighted})
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{ShareIdle: ShareWeighted})
 	assertAllocationSetTotals(t, as, "3a", err, numNamespaces, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "3a", map[string]float64{
 		"namespace1": 42.69,
@@ -1049,7 +1092,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// namespace2: 51.0000 = 36.00 + 5.0*(1.0/2.0) + 15.0*(1.0/2.0) + 5.0*(1.0/2.0) + 5.0*(1.0/2.0)
 	// namespace3: 23.0000 = 18.00 + 5.0*(1.0/2.0) + 5.0*(1.0/2.0)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{NamespaceProp: true}, &AllocationAggregationOptions{ShareIdle: ShareEven})
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{ShareIdle: ShareEven})
 	assertAllocationSetTotals(t, as, "3a", err, numNamespaces, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "3a", map[string]float64{
 		"namespace1": 38.00,
@@ -1065,7 +1108,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// namespace2: 45.5000 = 36.00 + 18.00*(1.0/2.0)
 	// idle:       30.0000
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{NamespaceProp: true}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		ShareFuncs: []AllocationMatchFunc{isNamespace3},
 		ShareSplit: ShareEven,
 	})
@@ -1082,7 +1125,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// namespace2: 37.5000 =
 	// idle:       30.0000
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{NamespaceProp: true}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		ShareFuncs: []AllocationMatchFunc{isNamespace3},
 		ShareSplit: ShareWeighted,
 	})
@@ -1100,7 +1143,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// namespace3: 23.3333 = 18.00 + 16.00*(1.0/3.0)
 	// idle:       30.0000
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{NamespaceProp: true}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		ShareFuncs: []AllocationMatchFunc{isApp1},
 		ShareSplit: ShareEven,
 	})
@@ -1119,7 +1162,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// namespace3: 54.878 = 18.00 + (7.0*24.0)*(18.00/82.00)
 	// idle:       30.0000
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{NamespaceProp: true}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		SharedHourlyCosts: map[string]float64{"total": sharedOverheadHourlyCost},
 		ShareSplit:        ShareWeighted,
 	})
@@ -1136,21 +1179,21 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	isCluster := func(matchCluster string) func(*Allocation) bool {
 		return func(a *Allocation) bool {
-			cluster, err := a.Properties.GetCluster()
-			return err == nil && cluster == matchCluster
+			cluster := a.Properties.Cluster
+			return cluster == matchCluster
 		}
 	}
 
 	isNamespace := func(matchNamespace string) func(*Allocation) bool {
 		return func(a *Allocation) bool {
-			namespace, err := a.Properties.GetNamespace()
-			return err == nil && namespace == matchNamespace
+			namespace := a.Properties.Namespace
+			return namespace == matchNamespace
 		}
 	}
 
 	// 5a Filter by cluster with separate idle
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{ClusterProp: ""}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationClusterProp}, &AllocationAggregationOptions{
 		FilterFuncs: []AllocationMatchFunc{isCluster("cluster1")},
 		ShareIdle:   ShareNone,
 	})
@@ -1163,7 +1206,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 5b Filter by cluster with shared idle
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{ClusterProp: ""}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationClusterProp}, &AllocationAggregationOptions{
 		FilterFuncs: []AllocationMatchFunc{isCluster("cluster1")},
 		ShareIdle:   ShareWeighted,
 	})
@@ -1175,7 +1218,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 5c Filter by cluster, agg by namespace, with separate idle
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{NamespaceProp: ""}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		FilterFuncs: []AllocationMatchFunc{isCluster("cluster1")},
 		ShareIdle:   ShareNone,
 	})
@@ -1189,7 +1232,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 5d Filter by namespace, agg by cluster, with separate idle
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{ClusterProp: ""}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationClusterProp}, &AllocationAggregationOptions{
 		FilterFuncs: []AllocationMatchFunc{isNamespace("namespace2")},
 		ShareIdle:   ShareNone,
 	})
@@ -1205,7 +1248,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 6a SplitIdle
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{NamespaceProp: ""}, &AllocationAggregationOptions{SplitIdle: true})
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{SplitIdle: true})
 	assertAllocationSetTotals(t, as, "6a", err, numNamespaces+numSplitIdle, activeTotalCost+idleTotalCost)
 	assertAllocationTotals(t, as, "6a", map[string]float64{
 		"namespace1":                           28.00,
@@ -1220,7 +1263,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// Should match values from unfiltered aggregation (3a)
 	// namespace2: 46.3125 = 36.00 + 5.0*(3.0/6.0) + 15.0*(3.0/16.0) + 5.0*(3.0/6.0) + 5.0*(3.0/6.0)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{NamespaceProp: ""}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		FilterFuncs: []AllocationMatchFunc{isNamespace("namespace2")},
 		ShareIdle:   ShareWeighted,
 	})
@@ -1234,7 +1277,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// Should match values from unfiltered aggregation (3b)
 	// namespace2: 51.0000 = 36.00 + 5.0*(1.0/2.0) + 15.0*(1.0/2.0) + 5.0*(1.0/2.0) + 5.0*(1.0/2.0)
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{NamespaceProp: ""}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		FilterFuncs: []AllocationMatchFunc{isNamespace("namespace2")},
 		ShareIdle:   ShareEven,
 	})
@@ -1251,7 +1294,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// idle:       30.0000
 	// Then namespace 2 is filtered.
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{NamespaceProp: ""}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		FilterFuncs:       []AllocationMatchFunc{isNamespace("namespace2")},
 		SharedHourlyCosts: map[string]float64{"total": sharedOverheadHourlyCost},
 		ShareSplit:        ShareWeighted,
@@ -1272,7 +1315,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// namespace2: 54.667 = 36.00 + (28.00)*(36.00/54.00)
 	// idle:       30.0000
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{NamespaceProp: ""}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		FilterFuncs: []AllocationMatchFunc{isNamespace("namespace2")},
 		ShareFuncs:  []AllocationMatchFunc{isNamespace("namespace1")},
 		ShareSplit:  ShareWeighted,
@@ -1320,7 +1363,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	//   shared cost    14.2292 = (42.6875)*(18.0/54.0)
 	//
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{NamespaceProp: ""}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		ShareFuncs: []AllocationMatchFunc{isNamespace("namespace1")},
 		ShareSplit: ShareWeighted,
 		ShareIdle:  ShareWeighted,
@@ -1370,7 +1413,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// Then, filter for namespace2: 74.7708
 	//
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{NamespaceProp: ""}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		FilterFuncs: []AllocationMatchFunc{isNamespace("namespace2")},
 		ShareFuncs:  []AllocationMatchFunc{isNamespace("namespace1")},
 		ShareSplit:  ShareWeighted,
@@ -1411,7 +1454,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	//
 	// Then namespace 2 is filtered.
 	as = generateAllocationSet(start)
-	err = as.AggregateBy(Properties{NamespaceProp: ""}, &AllocationAggregationOptions{
+	err = as.AggregateBy([]string{AllocationNamespaceProp}, &AllocationAggregationOptions{
 		FilterFuncs:       []AllocationMatchFunc{isNamespace("namespace2")},
 		ShareSplit:        ShareWeighted,
 		ShareIdle:         ShareWeighted,

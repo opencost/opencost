@@ -191,15 +191,28 @@ type AWSOfferTerm struct {
 	PriceDimensions map[string]*AWSRateCode `json:"priceDimensions"`
 }
 
+func (ot *AWSOfferTerm) String() string {
+	var strs []string
+	for k, rc := range ot.PriceDimensions {
+		strs = append(strs, fmt.Sprintf("%s:%s", k, rc.String()))
+	}
+	return fmt.Sprintf("%s:%s", ot.Sku, strings.Join(strs, ","))
+}
+
 // AWSRateCode encodes data about the price of a product
 type AWSRateCode struct {
 	Unit         string          `json:"unit"`
 	PricePerUnit AWSCurrencyCode `json:"pricePerUnit"`
 }
 
+func (rc *AWSRateCode) String() string {
+	return fmt.Sprintf("{unit: %s, pricePerUnit: %v", rc.Unit, rc.PricePerUnit)
+}
+
 // AWSCurrencyCode is the localized currency. (TODO: support non-USD)
 type AWSCurrencyCode struct {
-	USD string `json:"USD"`
+	USD string `json:"USD,omitempty"`
+	CNY string `json:"CNY,omitempty"`
 }
 
 // AWSProductTerms represents the full terms of the product
@@ -219,12 +232,14 @@ const ClusterIdEnvVar = "AWS_CLUSTER_ID"
 
 // OnDemandRateCode is appended to an node sku
 const OnDemandRateCode = ".JRTCKXETXF"
+const OnDemandRateCodeCn = ".99YE2YK9UR"
 
 // ReservedRateCode is appended to a node sku
 const ReservedRateCode = ".38NPMPTW36"
 
 // HourlyRateCode is appended to a node sku
 const HourlyRateCode = ".6YS6EN2CT7"
+const HourlyRateCodeCn = ".Q7UJUT2CE6"
 
 // volTypes are used to map between AWS UsageTypes and
 // EBS volume types, as they would appear in K8s storage class
@@ -501,6 +516,8 @@ func (aws *AWS) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, 
 	providerID := ""
 	if pv.Spec.AWSElasticBlockStore != nil {
 		providerID = pv.Spec.AWSElasticBlockStore.VolumeID
+	} else if pv.Spec.CSI != nil {
+		providerID = pv.Spec.CSI.VolumeHandle
 	}
 	return &awsPVKey{
 		Labels:                 pv.Labels,
@@ -565,7 +582,6 @@ func (aws *AWS) ClusterManagementPricing() (string, float64, error) {
 func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, error) {
 
 	pricingURL := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/"
-
 	region := ""
 	multiregion := false
 	for _, n := range nodeList {
@@ -573,6 +589,10 @@ func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, e
 		currentNodeRegion := ""
 		if r, ok := util.GetRegion(labels); ok {
 			currentNodeRegion = r
+			// Switch to Chinese endpoint for regions with the Chinese prefix
+			if strings.HasPrefix(currentNodeRegion, "cn-") {
+				pricingURL = "https://pricing.cn-north-1.amazonaws.com.cn/offers/v1.0/cn/AmazonEC2/current/"
+			}
 		} else {
 			multiregion = true // We weren't able to detect the node's region, so pull all data.
 			break
@@ -585,6 +605,7 @@ func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, e
 		}
 	}
 
+	// Chinese multiregion endpoint only contains data for Chinese regions and Chinese regions are excluded from other endpoint
 	if region != "" && !multiregion {
 		pricingURL += region + "/"
 	}
@@ -725,6 +746,9 @@ func (aws *AWS) DownloadPricingData() error {
 		if err == io.EOF {
 			klog.V(2).Infof("done loading \"%s\"\n", pricingURL)
 			break
+		} else if err != nil {
+			klog.V(2).Infof("error parsing response json %v", resp.Body)
+			break
 		}
 		if t == "products" {
 			_, err := dec.Token() // this should parse the opening "{""
@@ -819,28 +843,33 @@ func (aws *AWS) DownloadPricingData() error {
 					if err != nil {
 						klog.V(1).Infof("Error decoding AWS Offer Term: " + err.Error())
 					}
-					if sku.(string)+OnDemandRateCode == skuOnDemand {
-						key, ok := skusToKeys[sku.(string)]
-						spotKey := key + ",preemptible"
-						if ok {
-							aws.Pricing[key].OnDemand = offerTerm
-							aws.Pricing[spotKey].OnDemand = offerTerm
-							if strings.Contains(key, "EBS:VolumeP-IOPS.piops") {
-								// If the specific UsageType is the per IO cost used on io1 volumes
-								// we need to add the per IO cost to the io1 PV cost
-								cost := offerTerm.PriceDimensions[sku.(string)+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
-								// Add the per IO cost to the PV object for the io1 volume type
-								aws.Pricing[key].PV.CostPerIO = cost
-							} else if strings.Contains(key, "EBS:Volume") {
-								// If volume, we need to get hourly cost and add it to the PV object
-								cost := offerTerm.PriceDimensions[sku.(string)+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
-								costFloat, _ := strconv.ParseFloat(cost, 64)
-								hourlyPrice := costFloat / 730
 
-								aws.Pricing[key].PV.Cost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
-							}
+					key, ok := skusToKeys[sku.(string)]
+					spotKey := key + ",preemptible"
+					if ok {
+						aws.Pricing[key].OnDemand = offerTerm
+						aws.Pricing[spotKey].OnDemand = offerTerm
+						var cost string
+						if sku.(string)+OnDemandRateCode == skuOnDemand {
+							cost = offerTerm.PriceDimensions[sku.(string)+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
+						} else if sku.(string)+OnDemandRateCodeCn == skuOnDemand {
+							cost = offerTerm.PriceDimensions[sku.(string)+OnDemandRateCodeCn+HourlyRateCodeCn].PricePerUnit.CNY
+						}
+						if strings.Contains(key, "EBS:VolumeP-IOPS.piops") {
+							// If the specific UsageType is the per IO cost used on io1 volumes
+							// we need to add the per IO cost to the io1 PV cost
+
+							// Add the per IO cost to the PV object for the io1 volume type
+							aws.Pricing[key].PV.CostPerIO = cost
+						} else if strings.Contains(key, "EBS:Volume") {
+							// If volume, we need to get hourly cost and add it to the PV object
+							costFloat, _ := strconv.ParseFloat(cost, 64)
+							hourlyPrice := costFloat / 730
+
+							aws.Pricing[key].PV.Cost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 						}
 					}
+
 					_, err = dec.Token()
 					if err != nil {
 						return err
@@ -1044,11 +1073,20 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 		}, nil
 
 	}
+	var cost string
 	c, ok := terms.OnDemand.PriceDimensions[terms.Sku+OnDemandRateCode+HourlyRateCode]
-	if !ok {
-		return nil, fmt.Errorf("Could not fetch data for \"%s\"", k.ID())
+	if ok {
+		cost = c.PricePerUnit.USD
+	} else {
+		// Check for Chinese pricing before throwing error
+		c, ok = terms.OnDemand.PriceDimensions[terms.Sku+OnDemandRateCodeCn+HourlyRateCodeCn]
+		if ok {
+			cost = c.PricePerUnit.CNY
+		} else {
+			return nil, fmt.Errorf("Could not fetch data for \"%s\"", k.ID())
+		}
 	}
-	cost := c.PricePerUnit.USD
+
 	return &Node{
 		Cost:         cost,
 		VCPU:         terms.VCpu,
@@ -1562,7 +1600,7 @@ func (a *AWS) QueryAthenaPaginated(query string) (*athena.GetQueryResultsInput, 
 	resultsBucket := customPricing.AthenaBucketName
 	database := customPricing.AthenaDatabase
 	c := &aws.Config{
-		Region: region,
+		Region:              region,
 		STSRegionalEndpoint: endpoints.RegionalSTSEndpoint,
 	}
 	s := session.Must(session.NewSession(c))
@@ -1632,7 +1670,7 @@ func (a *AWS) QueryAthenaBillingData(query string) (*athena.GetQueryResultsOutpu
 	resultsBucket := customPricing.AthenaBucketName
 	database := customPricing.AthenaDatabase
 	c := &aws.Config{
-		Region: region,
+		Region:              region,
 		STSRegionalEndpoint: endpoints.RegionalSTSEndpoint,
 	}
 	s := session.Must(session.NewSession(c))
@@ -1901,7 +1939,6 @@ func (aws *AWS) ShowAthenaColumns() (map[string]bool, error) {
 
 	return columnSet, nil
 }
-
 
 // ExternalAllocations represents tagged assets outside the scope of kubernetes.
 // "start" and "end" are dates of the format YYYY-MM-DD

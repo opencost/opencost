@@ -751,7 +751,7 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 			VCPUCost: c.CPU,
 			RAMCost:  c.RAM,
 			GPUCost:  c.GPU,
-			GPU: key.(*azureKey).GetGPUCount(),
+			GPU:      key.(*azureKey).GetGPUCount(),
 		}, nil
 	}
 	return &Node{

@@ -711,15 +711,15 @@ func TestBuildGPUCostMap(t *testing.T) {
 			promResult: []*prom.QueryResult{
 				{
 					Metric: map[string]interface{}{
-						"cluster_id": "cluster1",
-						"node": "node1",
-						"instance_type":"type1",
-						"provider_id": "provider1",
+						"cluster_id":    "cluster1",
+						"node":          "node1",
+						"instance_type": "type1",
+						"provider_id":   "provider1",
 					},
 					Values: []*util.Vector{
 						&util.Vector{
 							Timestamp: 0,
-							Value: 0,
+							Value:     0,
 						},
 					},
 				},
@@ -744,15 +744,15 @@ func TestBuildGPUCostMap(t *testing.T) {
 			promResult: []*prom.QueryResult{
 				{
 					Metric: map[string]interface{}{
-						"cluster_id": "cluster1",
-						"node": "node1",
-						"instance_type":"type1",
-						"provider_id": "provider1",
+						"cluster_id":    "cluster1",
+						"node":          "node1",
+						"instance_type": "type1",
+						"provider_id":   "provider1",
 					},
 					Values: []*util.Vector{
 						&util.Vector{
 							Timestamp: 0,
-							Value: 2,
+							Value:     2,
 						},
 					},
 				},
@@ -777,15 +777,15 @@ func TestBuildGPUCostMap(t *testing.T) {
 			promResult: []*prom.QueryResult{
 				{
 					Metric: map[string]interface{}{
-						"cluster_id": "cluster1",
-						"node": "node1",
-						"instance_type":"type1",
-						"provider_id": "provider1",
+						"cluster_id":    "cluster1",
+						"node":          "node1",
+						"instance_type": "type1",
+						"provider_id":   "provider1",
 					},
 					Values: []*util.Vector{
 						&util.Vector{
 							Timestamp: 0,
-							Value: 2,
+							Value:     2,
 						},
 					},
 				},
@@ -818,15 +818,15 @@ func TestBuildGPUCostMap(t *testing.T) {
 			promResult: []*prom.QueryResult{
 				{
 					Metric: map[string]interface{}{
-						"cluster_id": "cluster1",
-						"node": "node1",
-						"instance_type":"type1",
-						"provider_id": "provider1",
+						"cluster_id":    "cluster1",
+						"node":          "node1",
+						"instance_type": "type1",
+						"provider_id":   "provider1",
 					},
 					Values: []*util.Vector{
 						&util.Vector{
 							Timestamp: 0,
-							Value: 2,
+							Value:     2,
 						},
 					},
 				},

@@ -7,8 +7,8 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 
-	"k8s.io/klog"
 	"github.com/kubecost/cost-model/pkg/util/json"
+	"k8s.io/klog"
 )
 
 // DataEnvelope is a generic wrapper struct for http response data
