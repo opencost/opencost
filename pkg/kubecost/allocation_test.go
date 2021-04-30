@@ -754,7 +754,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster1Nodes.adjustment = -10.00
 	cluster1Nodes.CPUCoreHours = 8
 	cluster1Nodes.RAMByteHours = 6
-	cluster1Nodes.GPUCount = 1
+	cluster1Nodes.GPUHours = 24
 
 	cluster2Node1 := NewNode("node1", "cluster2", "node1", start, end, NewWindow(&start, &end))
 	cluster2Node1.CPUCost = 20.0
@@ -762,7 +762,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster2Node1.GPUCost = 0.0
 	cluster2Node1.CPUCoreHours = 4
 	cluster2Node1.RAMByteHours = 3
-	cluster2Node1.GPUCount = 0
+	cluster2Node1.GPUHours = 0
 
 	cluster2Node2 := NewNode("node2", "cluster2", "node2", start, end, NewWindow(&start, &end))
 	cluster2Node2.CPUCost = 20.0
@@ -770,7 +770,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster2Node2.GPUCost = 0.0
 	cluster2Node2.CPUCoreHours = 3
 	cluster2Node2.RAMByteHours = 2
-	cluster2Node2.GPUCount = 0
+	cluster2Node2.GPUHours = 0
 
 	cluster2Node3 := NewNode("node3", "cluster2", "node3", start, end, NewWindow(&start, &end))
 	cluster2Node3.CPUCost = 10.0
@@ -778,7 +778,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster2Node3.GPUCost = 10.0
 	cluster2Node3.CPUCoreHours = 2
 	cluster2Node3.RAMByteHours = 2
-	cluster2Node3.GPUCount = 1
+	cluster2Node3.GPUHours = 24
 
 	cluster2Disk1 := NewDisk("disk1", "cluster2", "disk1", start, end, NewWindow(&start, &end))
 	cluster2Disk1.Cost = 5.0
@@ -820,7 +820,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster1Nodes.adjustment = 90.00
 	cluster1Nodes.CPUCoreHours = 8
 	cluster1Nodes.RAMByteHours = 6
-	cluster1Nodes.GPUCount = 1
+	cluster1Nodes.GPUHours = 24
 
 	cluster2Node1 = NewNode("node1", "cluster2", "node1", start, end, NewWindow(&start, &end))
 	cluster2Node1.CPUCost = 20.0
@@ -828,7 +828,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster2Node1.GPUCost = 0.0
 	cluster2Node1.CPUCoreHours = 4
 	cluster2Node1.RAMByteHours = 3
-	cluster2Node1.GPUCount = 0
+	cluster2Node1.GPUHours = 0
 
 	cluster2Node2 = NewNode("node2", "cluster2", "node2", start, end, NewWindow(&start, &end))
 	cluster2Node2.CPUCost = 20.0
@@ -836,7 +836,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster2Node2.GPUCost = 0.0
 	cluster2Node2.CPUCoreHours = 3
 	cluster2Node2.RAMByteHours = 2
-	cluster2Node2.GPUCount = 0
+	cluster2Node2.GPUHours = 0
 
 	cluster2Node3 = NewNode("node3", "cluster2", "node3", start, end, NewWindow(&start, &end))
 	cluster2Node3.CPUCost = 10.0
@@ -844,7 +844,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster2Node3.GPUCost = 10.0
 	cluster2Node3.CPUCoreHours = 2
 	cluster2Node3.RAMByteHours = 2
-	cluster2Node3.GPUCount = 1
+	cluster2Node3.GPUHours = 24
 
 	cluster2Disk1 = NewDisk("disk1", "cluster2", "disk1", start, end, NewWindow(&start, &end))
 	cluster2Disk1.Cost = 5.0

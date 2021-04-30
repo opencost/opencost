@@ -342,6 +342,14 @@ func (a *Allocation) RAMBytes() float64 {
 	return a.RAMByteHours / (a.Minutes() / 60.0)
 }
 
+// GPUs converts the Allocation's GPUHours into average GPUs
+func (a *Allocation) GPUs() float64 {
+	if a.Minutes() <= 0.0 {
+		return 0.0
+	}
+	return a.GPUHours / (a.Minutes() / 60.0)
+}
+
 // PVBytes converts the Allocation's PVByteHours into average PVBytes
 func (a *Allocation) PVBytes() float64 {
 	if a.Minutes() <= 0.0 {
@@ -366,6 +374,7 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "cpuCost", a.CPUCost, ",")
 	jsonEncodeFloat64(buffer, "cpuAdjustment", a.CPUAdjustment, ",")
 	jsonEncodeFloat64(buffer, "cpuEfficiency", a.CPUEfficiency(), ",")
+	jsonEncodeFloat64(buffer, "gpuCount", a.GPUs(), ",")
 	jsonEncodeFloat64(buffer, "gpuHours", a.GPUHours, ",")
 	jsonEncodeFloat64(buffer, "gpuCost", a.GPUCost, ",")
 	jsonEncodeFloat64(buffer, "gpuAdjustment", a.GPUAdjustment, ",")
@@ -1568,8 +1577,8 @@ func (as *AllocationSet) ReconcileAllocations(assetSet *AssetSet) error {
 			log.Warningf("Missing Ram Byte Hours for node Provider ID: %s", providerId)
 		}
 		gpuUsageProportion := 0.0
-		if node.GPUCount != 0 && node.Minutes() != 0 {
-			gpuUsageProportion = a.GPUHours / (node.GPUCount * node.Minutes() / 60)
+		if node.GPUHours != 0 {
+			gpuUsageProportion = a.GPUHours / node.GPUHours
 		}
 		// No log for GPU because not all nodes have GPU
 

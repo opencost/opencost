@@ -65,6 +65,7 @@ func generateAssetSet(start time.Time) *AssetSet {
 	node1.Discount = 0.5
 	node1.CPUCoreHours = 2.0 * hours
 	node1.RAMByteHours = 4.0 * gb * hours
+	node1.GPUHours = 1.0 * hours
 	node1.SetAdjustment(1.0)
 	node1.SetLabels(map[string]string{"test": "test"})
 
@@ -75,6 +76,7 @@ func generateAssetSet(start time.Time) *AssetSet {
 	node2.Discount = 0.5
 	node2.CPUCoreHours = 2.0 * hours
 	node2.RAMByteHours = 4.0 * gb * hours
+	node2.GPUHours = 0.0 * hours
 	node2.SetAdjustment(1.5)
 
 	node3 := NewNode("node3", "cluster1", "gcp-node3", *window.Clone().start, *window.Clone().end, window.Clone())
@@ -84,6 +86,7 @@ func generateAssetSet(start time.Time) *AssetSet {
 	node3.Discount = 0.5
 	node3.CPUCoreHours = 2.0 * hours
 	node3.RAMByteHours = 4.0 * gb * hours
+	node3.GPUHours = 2.0 * hours
 	node3.SetAdjustment(-0.5)
 
 	node4 := NewNode("node4", "cluster2", "gcp-node4", *window.Clone().start, *window.Clone().end, window.Clone())
@@ -93,6 +96,7 @@ func generateAssetSet(start time.Time) *AssetSet {
 	node4.Discount = 0.25
 	node4.CPUCoreHours = 4.0 * hours
 	node4.RAMByteHours = 12.0 * gb * hours
+	node4.GPUHours = 0.0 * hours
 	node4.SetAdjustment(-1.0)
 
 	node5 := NewNode("node5", "cluster3", "aws-node5", *window.Clone().start, *window.Clone().end, window.Clone())
@@ -102,6 +106,7 @@ func generateAssetSet(start time.Time) *AssetSet {
 	node5.Discount = 0.0
 	node5.CPUCoreHours = 8.0 * hours
 	node5.RAMByteHours = 24.0 * gb * hours
+	node5.GPUHours = 0.0 * hours
 	node5.SetAdjustment(2.0)
 
 	disk1 := NewDisk("disk1", "cluster1", "gcp-disk1", *window.Clone().start, *window.Clone().end, window.Clone())
@@ -481,6 +486,7 @@ func TestNode_Add(t *testing.T) {
 	node1 := NewNode("node1", "cluster1", "node1", *windows[0].start, *windows[0].end, windows[0])
 	node1.CPUCoreHours = 1.0 * hours
 	node1.RAMByteHours = 2.0 * gb * hours
+	node1.GPUHours = 0.0 * hours
 	node1.GPUCost = 0.0
 	node1.CPUCost = 8.0
 	node1.RAMCost = 4.0
@@ -502,6 +508,7 @@ func TestNode_Add(t *testing.T) {
 	node2 := NewNode("node2", "cluster1", "node2", *windows[0].start, *windows[0].end, windows[0])
 	node2.CPUCoreHours = 1.0 * hours
 	node2.RAMByteHours = 2.0 * gb * hours
+	node2.GPUHours = 0.0 * hours
 	node2.GPUCost = 0.0
 	node2.CPUCost = 3.0
 	node2.RAMCost = 1.0
@@ -566,6 +573,7 @@ func TestNode_Add(t *testing.T) {
 	node3 := NewNode("node3", "cluster1", "node3", *windows[0].start, *windows[0].end, windows[0])
 	node3.CPUCoreHours = 0 * hours
 	node3.RAMByteHours = 0 * hours
+	node3.GPUHours = 0.0 * hours
 	node3.GPUCost = 0
 	node3.CPUCost = 0.0
 	node3.RAMCost = 0.0
@@ -575,6 +583,7 @@ func TestNode_Add(t *testing.T) {
 	node4 := NewNode("node4", "cluster1", "node4", *windows[0].start, *windows[0].end, windows[0])
 	node4.CPUCoreHours = 0 * hours
 	node4.RAMByteHours = 0 * hours
+	node4.GPUHours = 0.0 * hours
 	node4.GPUCost = 0
 	node4.CPUCost = 0.0
 	node4.RAMCost = 0.0
@@ -595,6 +604,7 @@ func TestNode_Add(t *testing.T) {
 	nodeA1 := NewNode("nodeA1", "cluster1", "nodeA1", *windows[0].start, *windows[0].end, windows[0])
 	nodeA1.CPUCoreHours = 1.0 * hours
 	nodeA1.RAMByteHours = 2.0 * gb * hours
+	nodeA1.GPUHours = 0.0 * hours
 	nodeA1.GPUCost = 0.0
 	nodeA1.CPUCost = 8.0
 	nodeA1.RAMCost = 4.0
@@ -604,6 +614,7 @@ func TestNode_Add(t *testing.T) {
 	nodeA2 := NewNode("nodeA2", "cluster1", "nodeA2", *windows[1].start, *windows[1].end, windows[1])
 	nodeA2.CPUCoreHours = 1.0 * hours
 	nodeA2.RAMByteHours = 2.0 * gb * hours
+	nodeA2.GPUHours = 0.0 * hours
 	nodeA2.GPUCost = 0.0
 	nodeA2.CPUCost = 3.0
 	nodeA2.RAMCost = 1.0
@@ -637,6 +648,9 @@ func TestNode_Add(t *testing.T) {
 	if nodeAT.RAMBytes() != 2.0*gb {
 		t.Fatalf("Node.Add: expected %f; got %f", 2.0*gb, nodeAT.RAMBytes())
 	}
+	if nodeAT.GPUs() != 0.0 {
+		t.Fatalf("Node.Add: expected %f; got %f", 0.0, nodeAT.GPUs())
+	}
 
 	// Check that the original assets are unchanged
 	if !util.IsApproximately(nodeA1.TotalCost(), 10.0) {
@@ -664,8 +678,10 @@ func TestNode_MarshalJSON(t *testing.T) {
 	})
 	node.CPUCost = 9.0
 	node.RAMCost = 0.0
+	node.RAMCost = 21.0
 	node.CPUCoreHours = 123.0
 	node.RAMByteHours = 13323.0
+	node.GPUHours = 123.0
 	node.SetAdjustment(1.0)
 
 	_, err := json.Marshal(node)
