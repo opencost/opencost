@@ -537,8 +537,8 @@ func TestNewAllocationSet(t *testing.T) {
 func generateAllocationSet(start time.Time) *AllocationSet {
 	// Idle allocations
 	a1i := NewUnitAllocation(fmt.Sprintf("cluster1/%s", IdleSuffix), start, day, &AllocationProperties{
-		Cluster: "cluster1",
-		Node:    "node1",
+		Cluster:    "cluster1",
+		Node:       "node1",
 		ProviderID: "c1nodes",
 	})
 	a1i.CPUCost = 5.0
@@ -554,99 +554,99 @@ func generateAllocationSet(start time.Time) *AllocationSet {
 
 	// Active allocations
 	a1111 := NewUnitAllocation("cluster1/namespace1/pod1/container1", start, day, &AllocationProperties{
-		Cluster:   "cluster1",
-		Namespace: "namespace1",
-		Pod:       "pod1",
-		Container: "container1",
+		Cluster:    "cluster1",
+		Namespace:  "namespace1",
+		Pod:        "pod1",
+		Container:  "container1",
 		ProviderID: "c1nodes",
 	})
 	a1111.RAMCost = 11.00
 
 	a11abc2 := NewUnitAllocation("cluster1/namespace1/pod-abc/container2", start, day, &AllocationProperties{
-		Cluster:   "cluster1",
-		Namespace: "namespace1",
-		Pod:       "pod-abc",
-		Container: "container2",
+		Cluster:    "cluster1",
+		Namespace:  "namespace1",
+		Pod:        "pod-abc",
+		Container:  "container2",
 		ProviderID: "c1nodes",
 	})
 
 	a11def3 := NewUnitAllocation("cluster1/namespace1/pod-def/container3", start, day, &AllocationProperties{
-		Cluster:   "cluster1",
-		Namespace: "namespace1",
-		Pod:       "pod-def",
-		Container: "container3",
+		Cluster:    "cluster1",
+		Namespace:  "namespace1",
+		Pod:        "pod-def",
+		Container:  "container3",
 		ProviderID: "c1nodes",
 	})
 
 	a12ghi4 := NewUnitAllocation("cluster1/namespace2/pod-ghi/container4", start, day, &AllocationProperties{
-		Cluster:   "cluster1",
-		Namespace: "namespace2",
-		Pod:       "pod-ghi",
-		Container: "container4",
+		Cluster:    "cluster1",
+		Namespace:  "namespace2",
+		Pod:        "pod-ghi",
+		Container:  "container4",
 		ProviderID: "c1nodes",
 	})
 
 	a12ghi5 := NewUnitAllocation("cluster1/namespace2/pod-ghi/container5", start, day, &AllocationProperties{
-		Cluster:   "cluster1",
-		Namespace: "namespace2",
-		Pod:       "pod-ghi",
-		Container: "container5",
+		Cluster:    "cluster1",
+		Namespace:  "namespace2",
+		Pod:        "pod-ghi",
+		Container:  "container5",
 		ProviderID: "c1nodes",
 	})
 
 	a12jkl6 := NewUnitAllocation("cluster1/namespace2/pod-jkl/container6", start, day, &AllocationProperties{
-		Cluster:   "cluster1",
-		Namespace: "namespace2",
-		Pod:       "pod-jkl",
-		Container: "container6",
+		Cluster:    "cluster1",
+		Namespace:  "namespace2",
+		Pod:        "pod-jkl",
+		Container:  "container6",
 		ProviderID: "c1nodes",
 	})
 
 	a22mno4 := NewUnitAllocation("cluster2/namespace2/pod-mno/container4", start, day, &AllocationProperties{
-		Cluster:   "cluster2",
-		Namespace: "namespace2",
-		Pod:       "pod-mno",
-		Container: "container4",
+		Cluster:    "cluster2",
+		Namespace:  "namespace2",
+		Pod:        "pod-mno",
+		Container:  "container4",
 		ProviderID: "node1",
 	})
 
 	a22mno5 := NewUnitAllocation("cluster2/namespace2/pod-mno/container5", start, day, &AllocationProperties{
-		Cluster:   "cluster2",
-		Namespace: "namespace2",
-		Pod:       "pod-mno",
-		Container: "container5",
+		Cluster:    "cluster2",
+		Namespace:  "namespace2",
+		Pod:        "pod-mno",
+		Container:  "container5",
 		ProviderID: "node1",
 	})
 
 	a22pqr6 := NewUnitAllocation("cluster2/namespace2/pod-pqr/container6", start, day, &AllocationProperties{
-		Cluster:   "cluster2",
-		Namespace: "namespace2",
-		Pod:       "pod-pqr",
-		Container: "container6",
+		Cluster:    "cluster2",
+		Namespace:  "namespace2",
+		Pod:        "pod-pqr",
+		Container:  "container6",
 		ProviderID: "node2",
 	})
 
 	a23stu7 := NewUnitAllocation("cluster2/namespace3/pod-stu/container7", start, day, &AllocationProperties{
-		Cluster:   "cluster2",
-		Namespace: "namespace3",
-		Pod:       "pod-stu",
-		Container: "container7",
+		Cluster:    "cluster2",
+		Namespace:  "namespace3",
+		Pod:        "pod-stu",
+		Container:  "container7",
 		ProviderID: "node2",
 	})
 
 	a23vwx8 := NewUnitAllocation("cluster2/namespace3/pod-vwx/container8", start, day, &AllocationProperties{
-		Cluster:   "cluster2",
-		Namespace: "namespace3",
-		Pod:       "pod-vwx",
-		Container: "container8",
+		Cluster:    "cluster2",
+		Namespace:  "namespace3",
+		Pod:        "pod-vwx",
+		Container:  "container8",
 		ProviderID: "node3",
 	})
 
 	a23vwx9 := NewUnitAllocation("cluster2/namespace3/pod-vwx/container9", start, day, &AllocationProperties{
-		Cluster:   "cluster2",
-		Namespace: "namespace3",
-		Pod:       "pod-vwx",
-		Container: "container9",
+		Cluster:    "cluster2",
+		Namespace:  "namespace3",
+		Pod:        "pod-vwx",
+		Container:  "container9",
 		ProviderID: "node3",
 	})
 
@@ -711,7 +711,7 @@ func generateAllocationSet(start time.Time) *AllocationSet {
 	)
 }
 
-func generateAssetSets(start, end time.Time) []*AssetSet{
+func generateAssetSets(start, end time.Time) []*AssetSet {
 	var assetSets []*AssetSet
 
 	// Create an AssetSet representing cluster costs for two clusters (cluster1
@@ -1669,13 +1669,12 @@ func TestAllocationSet_ComputeIdleAllocations(t *testing.T) {
 
 	cases := map[string]struct {
 		allocationSet *AllocationSet
-		assetSet *AssetSet
-		clusters map[string]Allocation
-
+		assetSet      *AssetSet
+		clusters      map[string]Allocation
 	}{
-		"1a" : {
+		"1a": {
 			allocationSet: as,
-			assetSet: assetSets[0],
+			assetSet:      assetSets[0],
 			clusters: map[string]Allocation{
 				"cluster1": {
 					CPUCost: 44.0,
@@ -1689,9 +1688,9 @@ func TestAllocationSet_ComputeIdleAllocations(t *testing.T) {
 				},
 			},
 		},
-		"1b" : {
+		"1b": {
 			allocationSet: as,
-			assetSet: assetSets[1],
+			assetSet:      assetSets[1],
 			clusters: map[string]Allocation{
 				"cluster1": {
 					CPUCost: 44.0,
@@ -1757,13 +1756,12 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 
 	cases := map[string]struct {
 		allocationSet *AllocationSet
-		assetSet *AssetSet
-		allocations map[string]Allocation
-
+		assetSet      *AssetSet
+		allocations   map[string]Allocation
 	}{
-		"1a" : {
+		"1a": {
 			allocationSet: as,
-			assetSet: assetSets[0],
+			assetSet:      assetSets[0],
 			allocations: map[string]Allocation{
 				// Allocation adjustments are found with the formula:
 				// ADJUSTMENT_RATE * NODE_COST * (ALLOC_HOURS / NODE_HOURS) - ALLOC_COST
@@ -1854,9 +1852,9 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 				},
 			},
 		},
-		"1b" : {
+		"1b": {
 			allocationSet: as,
-			assetSet: assetSets[1],
+			assetSet:      assetSets[1],
 			allocations: map[string]Allocation{
 				// ADJUSTMENT_RATE: 10
 				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS

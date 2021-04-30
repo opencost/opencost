@@ -304,7 +304,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 
 	// TODO breakdown network costs?
 
-
 	// Build out a map of Nodes with resource costs, discounts, and node types
 	// for converting resource allocation data to cumulative costs.
 	nodeMap := map[nodeKey]*NodePricing{}
@@ -1285,7 +1284,7 @@ func applyControllersToPods(podMap map[podKey]*Pod, podControllerMap map[podKey]
 }
 
 func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerCPUHr []*prom.QueryResult,
-	providerIDParser func(string) string,) {
+	providerIDParser func(string) string) {
 	for _, res := range resNodeCostPerCPUHr {
 		cluster, err := res.GetString("cluster_id")
 		if err != nil {
@@ -1324,7 +1323,7 @@ func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerCPUHr
 }
 
 func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerRAMGiBHr []*prom.QueryResult,
-	providerIDParser func(string) string,) {
+	providerIDParser func(string) string) {
 	for _, res := range resNodeCostPerRAMGiBHr {
 		cluster, err := res.GetString("cluster_id")
 		if err != nil {
@@ -1363,7 +1362,7 @@ func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerRA
 }
 
 func applyNodeCostPerGPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerGPUHr []*prom.QueryResult,
-	providerIDParser func(string) string,) {
+	providerIDParser func(string) string) {
 	for _, res := range resNodeCostPerGPUHr {
 		cluster, err := res.GetString("cluster_id")
 		if err != nil {
