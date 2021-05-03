@@ -118,6 +118,7 @@ func TestAllocation_Add(t *testing.T) {
 		GPUAdjustment:          2.0,
 		PVByteHours:            100.0 * gib * hrs1,
 		PVCost:                 100.0 * hrs1 * pvPrice,
+		PVAdjustment:           4.0,
 		RAMByteHours:           8.0 * gib * hrs1,
 		RAMBytesRequestAverage: 8.0 * gib,
 		RAMBytesUsageAverage:   4.0 * gib,
@@ -287,6 +288,7 @@ func TestAllocation_Share(t *testing.T) {
 		GPUAdjustment:          2.0,
 		PVByteHours:            100.0 * gib * hrs1,
 		PVCost:                 100.0 * hrs1 * pvPrice,
+		PVAdjustment:           4.0,
 		RAMByteHours:           8.0 * gib * hrs1,
 		RAMBytesRequestAverage: 8.0 * gib,
 		RAMBytesUsageAverage:   4.0 * gib,
@@ -354,8 +356,8 @@ func TestAllocation_Share(t *testing.T) {
 	if !util.IsApproximately(a1.RAMTotalCost(), act.RAMTotalCost()) {
 		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.RAMTotalCost(), act.RAMTotalCost())
 	}
-	if !util.IsApproximately(a1.PVCost, act.PVCost) {
-		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.PVCost, act.PVCost)
+	if !util.IsApproximately(a1.PVTotalCost(), act.PVTotalCost()) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.PVTotalCost(), act.PVTotalCost())
 	}
 	if !util.IsApproximately(a1.NetworkCost, act.NetworkCost) {
 		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.NetworkCost, act.NetworkCost)
@@ -448,6 +450,7 @@ func TestAllocation_MarshalJSON(t *testing.T) {
 		LoadBalancerCost:       0.02,
 		PVByteHours:            100.0 * gib * hrs,
 		PVCost:                 100.0 * hrs * pvPrice,
+		PVAdjustment:           4.0,
 		RAMByteHours:           8.0 * gib * hrs,
 		RAMBytesRequestAverage: 8.0 * gib,
 		RAMBytesUsageAverage:   4.0 * gib,
@@ -697,6 +700,10 @@ func generateAllocationSet(start time.Time) *AllocationSet {
 	a12jkl6.Properties.Services = []string{"service1"}
 	a22pqr6.Properties.Services = []string{"service1"}
 
+	// PV BreakDown
+	a22mno4.Properties.PVBreakDown = map[string]PVUsage{"disk1": {Cost: 2.5, ByteHours: 2.5 * gb}, "disk2": {Cost: 5, ByteHours: 5 * gb}}
+	a22mno5.Properties.PVBreakDown = map[string]PVUsage{"disk1": {Cost: 2.5, ByteHours: 2.5 * gb}, "disk2": {Cost: 5, ByteHours: 5 * gb}}
+
 	return NewAllocationSet(start, start.Add(day),
 		// idle
 		a1i, a2i,
@@ -782,8 +789,15 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 
 	cluster2Disk1 := NewDisk("disk1", "cluster2", "disk1", start, end, NewWindow(&start, &end))
 	cluster2Disk1.Cost = 5.0
+	cluster2Disk1.adjustment = 1.0
+	cluster2Disk1.ByteHours = 5 * gb
 
-	assetSet1 := NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1)
+	cluster2Disk2 := NewDisk("disk2", "cluster2", "disk2", start, end, NewWindow(&start, &end))
+	cluster2Disk2.Cost = 10.0
+	cluster2Disk2.adjustment = 3.0
+	cluster2Disk2.ByteHours = 10 * gb
+
+	assetSet1 := NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1, cluster2Disk2)
 	assetSets = append(assetSets, assetSet1)
 
 	// NOTE: we're re-using generateAllocationSet so this has to line up with
@@ -848,8 +862,15 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 
 	cluster2Disk1 = NewDisk("disk1", "cluster2", "disk1", start, end, NewWindow(&start, &end))
 	cluster2Disk1.Cost = 5.0
+	cluster2Disk1.adjustment = 1.0
+	cluster2Disk1.ByteHours = 5 * gb
 
-	assetSet2 := NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1)
+	cluster2Disk2 = NewDisk("disk2", "cluster2", "disk2", start, end, NewWindow(&start, &end))
+	cluster2Disk2.Cost = 12.0
+	cluster2Disk2.adjustment = 4.0
+	cluster2Disk2.ByteHours = 20 * gb
+
+	assetSet2 := NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1, cluster2Disk2)
 	assetSets = append(assetSets, assetSet2)
 	return assetSets
 }
@@ -1814,11 +1835,13 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 					CPUAdjustment: 4.0,
 					RAMAdjustment: 4.0,
 					GPUAdjustment: -1.0,
+					PVAdjustment:  2.0,
 				},
 				"cluster2/namespace2/pod-mno/container5": {
 					CPUAdjustment: 4.0,
 					RAMAdjustment: 4.0,
 					GPUAdjustment: -1.0,
+					PVAdjustment:  2.0,
 				},
 				// ADJUSTMENT_RATE: 1.0
 				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
@@ -1905,11 +1928,13 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 					CPUAdjustment: 4.0,
 					RAMAdjustment: 4.0,
 					GPUAdjustment: -1.0,
+					PVAdjustment:  -0.5,
 				},
 				"cluster2/namespace2/pod-mno/container5": {
 					CPUAdjustment: 4.0,
 					RAMAdjustment: 4.0,
 					GPUAdjustment: -1.0,
+					PVAdjustment:  -0.5,
 				},
 				// ADJUSTMENT_RATE: 1.0
 				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
@@ -1966,6 +1991,9 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 				}
 				if !util.IsApproximately(reconAllocs[allocationName].GPUAdjustment, testAlloc.GPUAdjustment) {
 					t.Fatalf("expected GPU Adjustment for %s to be %f; got %f", allocationName, testAlloc.GPUAdjustment, reconAllocs[allocationName].GPUAdjustment)
+				}
+				if !util.IsApproximately(reconAllocs[allocationName].PVAdjustment, testAlloc.PVAdjustment) {
+					t.Fatalf("expected PV Adjustment for %s to be %f; got %f", allocationName, testAlloc.PVAdjustment, reconAllocs[allocationName].PVAdjustment)
 				}
 			}
 		})

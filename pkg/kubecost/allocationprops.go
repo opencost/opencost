@@ -74,6 +74,7 @@ type AllocationProperties struct {
 	ProviderID     string                `json:"providerID,omitempty"`
 	Labels         AllocationLabels      `json:"allocationLabels,omitempty"`
 	Annotations    AllocationAnnotations `json:"allocationAnnotations,omitempty"`
+	PVBreakDown    map[string]PVUsage    `json:"pvBreakDown,omitempty"`
 }
 
 // AllocationLabels is a schema-free mapping of key/value pairs that can be
@@ -83,6 +84,13 @@ type AllocationLabels map[string]string
 // AllocationAnnotations is a schema-free mapping of key/value pairs that can be
 // attributed to an Allocation
 type AllocationAnnotations map[string]string
+
+// PVUsage is a mapping between the name of the PV and the byte hour usage
+// and cost of an Allocation
+type PVUsage struct {
+	ByteHours float64
+	Cost      float64
+}
 
 func (p *AllocationProperties) Clone() *AllocationProperties {
 	if p == nil {

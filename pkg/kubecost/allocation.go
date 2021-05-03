@@ -67,6 +67,7 @@ type Allocation struct {
 	LoadBalancerCost       float64               `json:"loadBalancerCost"`
 	PVByteHours            float64               `json:"pvByteHours"`
 	PVCost                 float64               `json:"pvCost"`
+	PVAdjustment           float64               `json:"pvAdjustment"`
 	RAMByteHours           float64               `json:"ramByteHours"`
 	RAMBytesRequestAverage float64               `json:"ramByteRequestAverage"`
 	RAMBytesUsageAverage   float64               `json:"ramByteUsageAverage"`
@@ -74,7 +75,6 @@ type Allocation struct {
 	RAMAdjustment          float64               `json:"ramAdjustment"`
 	SharedCost             float64               `json:"sharedCost"`
 	ExternalCost           float64               `json:"externalCost"`
-
 	// RawAllocationOnly is a pointer so if it is not present it will be
 	// marshalled as null rather than as an object with Go default values.
 	RawAllocationOnly *RawAllocationOnlyData `json:"rawAllocationOnly"`
@@ -155,6 +155,7 @@ func (a *Allocation) Clone() *Allocation {
 		LoadBalancerCost:       a.LoadBalancerCost,
 		PVByteHours:            a.PVByteHours,
 		PVCost:                 a.PVCost,
+		PVAdjustment:           a.PVAdjustment,
 		RAMByteHours:           a.RAMByteHours,
 		RAMBytesRequestAverage: a.RAMBytesRequestAverage,
 		RAMBytesUsageAverage:   a.RAMBytesUsageAverage,
@@ -232,6 +233,9 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if !util.IsApproximately(a.PVCost, that.PVCost) {
 		return false
 	}
+	if !util.IsApproximately(a.PVAdjustment, that.PVAdjustment) {
+		return false
+	}
 	if !util.IsApproximately(a.RAMByteHours, that.RAMByteHours) {
 		return false
 	}
@@ -269,7 +273,7 @@ func (a *Allocation) Equal(that *Allocation) bool {
 
 // TotalCost is the total cost of the Allocation
 func (a *Allocation) TotalCost() float64 {
-	return a.CPUTotalCost() + a.GPUTotalCost() + a.RAMTotalCost() + a.PVCost + a.NetworkCost + a.SharedCost + a.ExternalCost + a.LoadBalancerCost
+	return a.CPUTotalCost() + a.GPUTotalCost() + a.RAMTotalCost() + a.PVTotalCost() + a.NetworkCost + a.SharedCost + a.ExternalCost + a.LoadBalancerCost
 }
 
 func (a *Allocation) CPUTotalCost() float64 {
@@ -282,6 +286,10 @@ func (a *Allocation) GPUTotalCost() float64 {
 
 func (a *Allocation) RAMTotalCost() float64 {
 	return a.RAMCost + a.RAMAdjustment
+}
+
+func (a *Allocation) PVTotalCost() float64 {
+	return a.PVCost + a.PVAdjustment
 }
 
 // CPUEfficiency is the ratio of usage to request. If there is no request and
@@ -374,6 +382,7 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "pvBytes", a.PVBytes(), ",")
 	jsonEncodeFloat64(buffer, "pvByteHours", a.PVByteHours, ",")
 	jsonEncodeFloat64(buffer, "pvCost", a.PVCost, ",")
+	jsonEncodeFloat64(buffer, "pvAdjustment", a.PVAdjustment, ",")
 	jsonEncodeFloat64(buffer, "ramBytes", a.RAMBytes(), ",")
 	jsonEncodeFloat64(buffer, "ramByteRequestAverage", a.RAMBytesRequestAverage, ",")
 	jsonEncodeFloat64(buffer, "ramByteUsageAverage", a.RAMBytesUsageAverage, ",")
@@ -513,6 +522,7 @@ func (a *Allocation) add(that *Allocation) {
 	a.CPUAdjustment += that.CPUAdjustment
 	a.RAMAdjustment += that.RAMAdjustment
 	a.GPUAdjustment += that.GPUAdjustment
+	a.PVAdjustment += that.PVAdjustment
 
 	// Any data that is in a "raw allocation only" is not valid in any
 	// sort of cumulative Allocation (like one that is added).
@@ -1179,7 +1189,7 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 		} else {
 			coeffs[clusterID][name]["cpu"] += alloc.CPUTotalCost()
 			coeffs[clusterID][name]["gpu"] += alloc.GPUTotalCost()
-			coeffs[clusterID][name]["ram"] += alloc.RAMCost
+			coeffs[clusterID][name]["ram"] += alloc.RAMTotalCost()
 
 			totals[clusterID]["cpu"] += alloc.CPUTotalCost()
 			totals[clusterID]["gpu"] += alloc.GPUTotalCost()
@@ -1513,77 +1523,117 @@ func (as *AllocationSet) ReconcileAllocations(assetSet *AssetSet) error {
 	// Build map of Assets with type Node by their ProviderId so that they can be matched to Allocations to determine
 	// proper CPU GPU and Ram prices
 	nodeByProviderID := map[string]*Node{}
+	diskByName := map[string]*Disk{}
 	assetSet.Each(func(key string, a Asset) {
 		if node, ok := a.(*Node); ok {
 			nodeByProviderID[node.properties.ProviderID] = node
+		}
+		if disk, ok := a.(*Disk); ok {
+			diskByName[disk.properties.Name] = disk
 		}
 	})
 
 	// Match Assets against allocations and adjust allocation cost based on the proportion of the asset that they used
 	as.Each(func(name string, a *Allocation) {
-		providerId := a.Properties.ProviderID
-
-		// Reconcile with node Assets
-		node, ok := nodeByProviderID[providerId]
-		if !ok {
-			// Failed to find node for allocation
-			return
-		}
-
-		// adjustmentRate is used to scale resource costs proportionally
-		// by the adjustment. This is necessary because we only get one
-		// adjustment per Node, not one per-resource-per-Node.
-		//
-		// e.g. total cost = $90, adjustment = -$10 => 0.9
-		// e.g. total cost = $150, adjustment = -$300 => 0.3333
-		// e.g. total cost = $150, adjustment = $50 => 1.5
-		adjustmentRate := 1.0
-		if node.TotalCost()-node.Adjustment() == 0 {
-			// If (totalCost - adjustment) is 0.0 then adjustment cancels
-			// the entire node cost and we should make everything 0
-			// without dividing by 0.
-			adjustmentRate = 0.0
-		} else if node.Adjustment() != 0.0 {
-			// adjustmentRate is the ratio of cost-with-adjustment (i.e. TotalCost)
-			// to cost-without-adjustment (i.e. TotalCost - Adjustment).
-			adjustmentRate = node.TotalCost() / (node.TotalCost() - node.Adjustment())
-		}
-
-		// Find total cost of each node resource for the window
-		cpuCost := node.CPUCost * (1.0 - node.Discount) * adjustmentRate
-		ramCost := node.RAMCost * (1.0 - node.Discount) * adjustmentRate
-		gpuCost := node.GPUCost * adjustmentRate
-
-		// Find the proportion of resource hours used by the allocation, checking for 0 denominators
-		cpuUsageProportion := 0.0
-		if node.CPUCoreHours != 0 {
-			cpuUsageProportion = a.CPUCoreHours / node.CPUCoreHours
-		} else {
-			log.Warningf("Missing CPU Hours for node Provider ID: %s", providerId)
-		}
-		ramUsageProportion := 0.0
-		if node.RAMByteHours != 0 {
-			ramUsageProportion = a.RAMByteHours / node.RAMByteHours
-		} else {
-			log.Warningf("Missing Ram Byte Hours for node Provider ID: %s", providerId)
-		}
-		gpuUsageProportion := 0.0
-		if node.GPUCount != 0 && node.Minutes() != 0 {
-			gpuUsageProportion = a.GPUHours / (node.GPUCount * node.Minutes() / 60)
-		}
-		// No log for GPU because not all nodes have GPU
-
-		// Calculate the allocation's resource costs by the proportion of resources used and total costs
-		allocCPUCost := cpuUsageProportion * cpuCost
-		allocRAMCost := ramUsageProportion * ramCost
-		allocGPUCost := gpuUsageProportion * gpuCost
-
-		a.CPUAdjustment = allocCPUCost - a.CPUCost
-		a.RAMAdjustment = allocRAMCost - a.RAMCost
-		a.GPUAdjustment = allocGPUCost - a.GPUCost
+		a.reconcileNodes(nodeByProviderID)
+		a.reconcileDisks(diskByName)
 	})
 
 	return nil
+}
+
+func (a *Allocation) reconcileNodes(nodeByProviderID map[string]*Node) {
+	providerId := a.Properties.ProviderID
+
+	// Reconcile with node Assets
+	node, ok := nodeByProviderID[providerId]
+	if !ok {
+		// Failed to find node for allocation
+		return
+	}
+
+	// adjustmentRate is used to scale resource costs proportionally
+	// by the adjustment. This is necessary because we only get one
+	// adjustment per Node, not one per-resource-per-Node.
+	//
+	// e.g. total cost = $90, adjustment = -$10 => 0.9
+	// e.g. total cost = $150, adjustment = -$300 => 0.3333
+	// e.g. total cost = $150, adjustment = $50 => 1.5
+	adjustmentRate := 1.0
+	if node.TotalCost()-node.Adjustment() == 0 {
+		// If (totalCost - adjustment) is 0.0 then adjustment cancels
+		// the entire node cost and we should make everything 0
+		// without dividing by 0.
+		adjustmentRate = 0.0
+	} else if node.Adjustment() != 0.0 {
+		// adjustmentRate is the ratio of cost-with-adjustment (i.e. TotalCost)
+		// to cost-without-adjustment (i.e. TotalCost - Adjustment).
+		adjustmentRate = node.TotalCost() / (node.TotalCost() - node.Adjustment())
+	}
+
+	// Find total cost of each node resource for the window
+	cpuCost := node.CPUCost * (1.0 - node.Discount) * adjustmentRate
+	ramCost := node.RAMCost * (1.0 - node.Discount) * adjustmentRate
+	gpuCost := node.GPUCost * adjustmentRate
+
+	// Find the proportion of resource hours used by the allocation, checking for 0 denominators
+	cpuUsageProportion := 0.0
+	if node.CPUCoreHours != 0 {
+		cpuUsageProportion = a.CPUCoreHours / node.CPUCoreHours
+	} else {
+		log.Warningf("Missing CPU Hours for node Provider ID: %s", providerId)
+	}
+	ramUsageProportion := 0.0
+	if node.RAMByteHours != 0 {
+		ramUsageProportion = a.RAMByteHours / node.RAMByteHours
+	} else {
+		log.Warningf("Missing Ram Byte Hours for node Provider ID: %s", providerId)
+	}
+	gpuUsageProportion := 0.0
+	if node.GPUCount != 0 && node.Minutes() != 0 {
+		gpuUsageProportion = a.GPUHours / (node.GPUCount * node.Minutes() / 60)
+	}
+	// No log for GPU because not all nodes have GPU
+
+	// Calculate the allocation's resource costs by the proportion of resources used and total costs
+	allocCPUCost := cpuUsageProportion * cpuCost
+	allocRAMCost := ramUsageProportion * ramCost
+	allocGPUCost := gpuUsageProportion * gpuCost
+
+	a.CPUAdjustment = allocCPUCost - a.CPUCost
+	a.RAMAdjustment = allocRAMCost - a.RAMCost
+	a.GPUAdjustment = allocGPUCost - a.GPUCost
+}
+
+func (a *Allocation) reconcileDisks(diskByName map[string]*Disk) {
+	pvBreakDown := a.Properties.PVBreakDown
+	if pvBreakDown == nil {
+		// No PV usage to reconcile
+		return
+	}
+	// Set PV Adjustment for allocation to 0 for idempotency
+	a.PVAdjustment = 0.0
+	for pvName, pvUsage := range pvBreakDown {
+		disk, ok := diskByName[pvName]
+		if !ok {
+			// Failed to find disk in assets
+			continue
+		}
+
+		// Check the proportion of disk that is being used by
+		pvUsageProportion := 0.0
+		if disk.ByteHours != 0 {
+			pvUsageProportion = pvUsage.ByteHours / disk.ByteHours
+		} else {
+			log.Warningf("Missing Byte Hours for disk: %s", pvName)
+		}
+
+		// take proportion of disk adjusted cost
+		allocPVCost := pvUsageProportion * disk.TotalCost()
+
+		// PVAdjustment is cumulative as there can be many PVs for each Allocation
+		a.PVAdjustment += allocPVCost - pvUsage.Cost
+	}
 }
 
 // Delete removes the allocation with the given name from the set

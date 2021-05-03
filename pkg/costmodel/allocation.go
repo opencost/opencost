@@ -361,7 +361,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 			alloc.CPUCost = alloc.CPUCoreHours * node.CostPerCPUHr
 			alloc.RAMCost = (alloc.RAMByteHours / 1024 / 1024 / 1024) * node.CostPerRAMGiBHr
 			alloc.GPUCost = alloc.GPUHours * node.CostPerGPUHr
-
 			if pvcs, ok := podPVCMap[podKey]; ok {
 				for _, pvc := range pvcs {
 					// Determine the (start, end) of the relationship between the
@@ -389,6 +388,15 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 					// weighted by count (i.e. the number of containers in the pod)
 					alloc.PVByteHours += pvc.Bytes * hrs / count
 					alloc.PVCost += cost / count
+
+					// record the amount of total PVBytes Hours attributable to a given PV
+					if alloc.Properties.PVBreakDown == nil {
+						alloc.Properties.PVBreakDown = map[string]kubecost.PVUsage{}
+					}
+					alloc.Properties.PVBreakDown[pvc.Volume.Name] = kubecost.PVUsage{
+						ByteHours: pvc.Bytes * hrs / count,
+						Cost:      cost / count,
+					}
 				}
 			}
 
