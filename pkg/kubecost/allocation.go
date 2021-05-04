@@ -59,20 +59,20 @@ type Allocation struct {
 	CPUCoreRequestAverage  float64               `json:"cpuCoreRequestAverage"`
 	CPUCoreUsageAverage    float64               `json:"cpuCoreUsageAverage"`
 	CPUCost                float64               `json:"cpuCost"`
-	CPUAdjustment          float64               `json:"cpuAdjustment"`
+	CPUCostAdjustment      float64               `json:"cpuCostAdjustment"`
 	GPUHours               float64               `json:"gpuHours"`
 	GPUCost                float64               `json:"gpuCost"`
-	GPUAdjustment          float64               `json:"gpuAdjustment"`
+	GPUCostAdjustment      float64               `json:"gpuCostAdjustment"`
 	NetworkCost            float64               `json:"networkCost"`
 	LoadBalancerCost       float64               `json:"loadBalancerCost"`
 	PVByteHours            float64               `json:"pvByteHours"`
 	PVCost                 float64               `json:"pvCost"`
-	PVAdjustment           float64               `json:"pvAdjustment"`
+	PVCostAdjustment       float64               `json:"pvAdjustment"`
 	RAMByteHours           float64               `json:"ramByteHours"`
 	RAMBytesRequestAverage float64               `json:"ramByteRequestAverage"`
 	RAMBytesUsageAverage   float64               `json:"ramByteUsageAverage"`
 	RAMCost                float64               `json:"ramCost"`
-	RAMAdjustment          float64               `json:"ramAdjustment"`
+	RAMCostAdjustment      float64               `json:"ramCostAdjustment"`
 	SharedCost             float64               `json:"sharedCost"`
 	ExternalCost           float64               `json:"externalCost"`
 	// RawAllocationOnly is a pointer so if it is not present it will be
@@ -147,20 +147,20 @@ func (a *Allocation) Clone() *Allocation {
 		CPUCoreRequestAverage:  a.CPUCoreRequestAverage,
 		CPUCoreUsageAverage:    a.CPUCoreUsageAverage,
 		CPUCost:                a.CPUCost,
-		CPUAdjustment:          a.CPUAdjustment,
+		CPUCostAdjustment:      a.CPUCostAdjustment,
 		GPUHours:               a.GPUHours,
 		GPUCost:                a.GPUCost,
-		GPUAdjustment:          a.GPUAdjustment,
+		GPUCostAdjustment:      a.GPUCostAdjustment,
 		NetworkCost:            a.NetworkCost,
 		LoadBalancerCost:       a.LoadBalancerCost,
 		PVByteHours:            a.PVByteHours,
 		PVCost:                 a.PVCost,
-		PVAdjustment:           a.PVAdjustment,
+		PVCostAdjustment:       a.PVCostAdjustment,
 		RAMByteHours:           a.RAMByteHours,
 		RAMBytesRequestAverage: a.RAMBytesRequestAverage,
 		RAMBytesUsageAverage:   a.RAMBytesUsageAverage,
 		RAMCost:                a.RAMCost,
-		RAMAdjustment:          a.RAMAdjustment,
+		RAMCostAdjustment:      a.RAMCostAdjustment,
 		SharedCost:             a.SharedCost,
 		ExternalCost:           a.ExternalCost,
 		RawAllocationOnly:      a.RawAllocationOnly.Clone(),
@@ -209,7 +209,7 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if !util.IsApproximately(a.CPUCost, that.CPUCost) {
 		return false
 	}
-	if !util.IsApproximately(a.CPUAdjustment, that.CPUAdjustment) {
+	if !util.IsApproximately(a.CPUCostAdjustment, that.CPUCostAdjustment) {
 		return false
 	}
 	if !util.IsApproximately(a.GPUHours, that.GPUHours) {
@@ -218,7 +218,7 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if !util.IsApproximately(a.GPUCost, that.GPUCost) {
 		return false
 	}
-	if !util.IsApproximately(a.GPUAdjustment, that.GPUAdjustment) {
+	if !util.IsApproximately(a.GPUCostAdjustment, that.GPUCostAdjustment) {
 		return false
 	}
 	if !util.IsApproximately(a.NetworkCost, that.NetworkCost) {
@@ -233,7 +233,7 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if !util.IsApproximately(a.PVCost, that.PVCost) {
 		return false
 	}
-	if !util.IsApproximately(a.PVAdjustment, that.PVAdjustment) {
+	if !util.IsApproximately(a.PVCostAdjustment, that.PVCostAdjustment) {
 		return false
 	}
 	if !util.IsApproximately(a.RAMByteHours, that.RAMByteHours) {
@@ -242,7 +242,7 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if !util.IsApproximately(a.RAMCost, that.RAMCost) {
 		return false
 	}
-	if !util.IsApproximately(a.RAMAdjustment, that.RAMAdjustment) {
+	if !util.IsApproximately(a.RAMCostAdjustment, that.RAMCostAdjustment) {
 		return false
 	}
 	if !util.IsApproximately(a.SharedCost, that.SharedCost) {
@@ -277,19 +277,19 @@ func (a *Allocation) TotalCost() float64 {
 }
 
 func (a *Allocation) CPUTotalCost() float64 {
-	return a.CPUCost + a.CPUAdjustment
+	return a.CPUCost + a.CPUCostAdjustment
 }
 
 func (a *Allocation) GPUTotalCost() float64 {
-	return a.GPUCost + a.GPUAdjustment
+	return a.GPUCost + a.GPUCostAdjustment
 }
 
 func (a *Allocation) RAMTotalCost() float64 {
-	return a.RAMCost + a.RAMAdjustment
+	return a.RAMCost + a.RAMCostAdjustment
 }
 
 func (a *Allocation) PVTotalCost() float64 {
-	return a.PVCost + a.PVAdjustment
+	return a.PVCost + a.PVCostAdjustment
 }
 
 // CPUEfficiency is the ratio of usage to request. If there is no request and
@@ -350,6 +350,14 @@ func (a *Allocation) RAMBytes() float64 {
 	return a.RAMByteHours / (a.Minutes() / 60.0)
 }
 
+// GPUs converts the Allocation's GPUHours into average GPUs
+func (a *Allocation) GPUs() float64 {
+	if a.Minutes() <= 0.0 {
+		return 0.0
+	}
+	return a.GPUHours / (a.Minutes() / 60.0)
+}
+
 // PVBytes converts the Allocation's PVByteHours into average PVBytes
 func (a *Allocation) PVBytes() float64 {
 	if a.Minutes() <= 0.0 {
@@ -372,23 +380,24 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "cpuCoreUsageAverage", a.CPUCoreUsageAverage, ",")
 	jsonEncodeFloat64(buffer, "cpuCoreHours", a.CPUCoreHours, ",")
 	jsonEncodeFloat64(buffer, "cpuCost", a.CPUCost, ",")
-	jsonEncodeFloat64(buffer, "cpuAdjustment", a.CPUAdjustment, ",")
+	jsonEncodeFloat64(buffer, "cpuCostAdjustment", a.CPUCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "cpuEfficiency", a.CPUEfficiency(), ",")
+	jsonEncodeFloat64(buffer, "gpuCount", a.GPUs(), ",")
 	jsonEncodeFloat64(buffer, "gpuHours", a.GPUHours, ",")
 	jsonEncodeFloat64(buffer, "gpuCost", a.GPUCost, ",")
-	jsonEncodeFloat64(buffer, "gpuAdjustment", a.GPUAdjustment, ",")
+	jsonEncodeFloat64(buffer, "gpuCostAdjustment", a.GPUCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "networkCost", a.NetworkCost, ",")
 	jsonEncodeFloat64(buffer, "loadBalancerCost", a.LoadBalancerCost, ",")
 	jsonEncodeFloat64(buffer, "pvBytes", a.PVBytes(), ",")
 	jsonEncodeFloat64(buffer, "pvByteHours", a.PVByteHours, ",")
 	jsonEncodeFloat64(buffer, "pvCost", a.PVCost, ",")
-	jsonEncodeFloat64(buffer, "pvAdjustment", a.PVAdjustment, ",")
+	jsonEncodeFloat64(buffer, "pvAdjustment", a.PVCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "ramBytes", a.RAMBytes(), ",")
 	jsonEncodeFloat64(buffer, "ramByteRequestAverage", a.RAMBytesRequestAverage, ",")
 	jsonEncodeFloat64(buffer, "ramByteUsageAverage", a.RAMBytesUsageAverage, ",")
 	jsonEncodeFloat64(buffer, "ramByteHours", a.RAMByteHours, ",")
 	jsonEncodeFloat64(buffer, "ramCost", a.RAMCost, ",")
-	jsonEncodeFloat64(buffer, "ramAdjustment", a.RAMAdjustment, ",")
+	jsonEncodeFloat64(buffer, "ramCostAdjustment", a.RAMCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "ramEfficiency", a.RAMEfficiency(), ",")
 	jsonEncodeFloat64(buffer, "sharedCost", a.SharedCost, ",")
 	jsonEncodeFloat64(buffer, "externalCost", a.ExternalCost, ",")
@@ -519,10 +528,10 @@ func (a *Allocation) add(that *Allocation) {
 	a.ExternalCost += that.ExternalCost
 
 	// Sum all cumulative adjustment fields
-	a.CPUAdjustment += that.CPUAdjustment
-	a.RAMAdjustment += that.RAMAdjustment
-	a.GPUAdjustment += that.GPUAdjustment
-	a.PVAdjustment += that.PVAdjustment
+	a.CPUCostAdjustment += that.CPUCostAdjustment
+	a.RAMCostAdjustment += that.RAMCostAdjustment
+	a.GPUCostAdjustment += that.GPUCostAdjustment
+	a.PVCostAdjustment += that.PVCostAdjustment
 
 	// Any data that is in a "raw allocation only" is not valid in any
 	// sort of cumulative Allocation (like one that is added).
@@ -1505,9 +1514,9 @@ func (as *AllocationSet) ComputeIdleAllocations(assetSet *AssetSet) (map[string]
 	return idleAllocs, nil
 }
 
-// ReconcileAllocations calculate the exact cost of Allocation by resource(cpu, ram, gpu etc) based on Asset(s) on which
+// Reconcile calculate the exact cost of Allocation by resource(cpu, ram, gpu etc) based on Asset(s) on which
 // the Allocation depends.
-func (as *AllocationSet) ReconcileAllocations(assetSet *AssetSet) error {
+func (as *AllocationSet) Reconcile(assetSet *AssetSet) error {
 	if as == nil {
 		return fmt.Errorf("cannot reconcile allocation for nil AllocationSet")
 	}
@@ -1521,11 +1530,11 @@ func (as *AllocationSet) ReconcileAllocations(assetSet *AssetSet) error {
 	}
 
 	// Build map of Assets with type Node by their ProviderId so that they can be matched to Allocations to determine
-	// proper CPU GPU and Ram prices
+	// proper CPU GPU and RAM prices
 	nodeByProviderID := map[string]*Node{}
 	diskByName := map[string]*Disk{}
 	assetSet.Each(func(key string, a Asset) {
-		if node, ok := a.(*Node); ok {
+		if node, ok := a.(*Node); ok && node.properties.ProviderID != "" {
 			nodeByProviderID[node.properties.ProviderID] = node
 		}
 		if disk, ok := a.(*Disk); ok {
@@ -1590,8 +1599,8 @@ func (a *Allocation) reconcileNodes(nodeByProviderID map[string]*Node) {
 		log.Warningf("Missing Ram Byte Hours for node Provider ID: %s", providerId)
 	}
 	gpuUsageProportion := 0.0
-	if node.GPUCount != 0 && node.Minutes() != 0 {
-		gpuUsageProportion = a.GPUHours / (node.GPUCount * node.Minutes() / 60)
+	if node.GPUHours != 0 {
+		gpuUsageProportion = a.GPUHours / node.GPUHours
 	}
 	// No log for GPU because not all nodes have GPU
 
@@ -1600,9 +1609,9 @@ func (a *Allocation) reconcileNodes(nodeByProviderID map[string]*Node) {
 	allocRAMCost := ramUsageProportion * ramCost
 	allocGPUCost := gpuUsageProportion * gpuCost
 
-	a.CPUAdjustment = allocCPUCost - a.CPUCost
-	a.RAMAdjustment = allocRAMCost - a.RAMCost
-	a.GPUAdjustment = allocGPUCost - a.GPUCost
+	a.CPUCostAdjustment = allocCPUCost - a.CPUCost
+	a.RAMCostAdjustment = allocRAMCost - a.RAMCost
+	a.GPUCostAdjustment = allocGPUCost - a.GPUCost
 }
 
 func (a *Allocation) reconcileDisks(diskByName map[string]*Disk) {
@@ -1612,14 +1621,13 @@ func (a *Allocation) reconcileDisks(diskByName map[string]*Disk) {
 		return
 	}
 	// Set PV Adjustment for allocation to 0 for idempotency
-	a.PVAdjustment = 0.0
+	a.PVCostAdjustment = 0.0
 	for pvName, pvUsage := range pvBreakDown {
 		disk, ok := diskByName[pvName]
 		if !ok {
 			// Failed to find disk in assets
 			continue
 		}
-
 		// Check the proportion of disk that is being used by
 		pvUsageProportion := 0.0
 		if disk.ByteHours != 0 {
@@ -1631,9 +1639,10 @@ func (a *Allocation) reconcileDisks(diskByName map[string]*Disk) {
 		// take proportion of disk adjusted cost
 		allocPVCost := pvUsageProportion * disk.TotalCost()
 
-		// PVAdjustment is cumulative as there can be many PVs for each Allocation
-		a.PVAdjustment += allocPVCost - pvUsage.Cost
+		// PVCostAdjustment is cumulative as there can be many PVs for each Allocation
+		a.PVCostAdjustment += allocPVCost - pvUsage.Cost
 	}
+
 }
 
 // Delete removes the allocation with the given name from the set

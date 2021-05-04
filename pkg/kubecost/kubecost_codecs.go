@@ -25,7 +25,7 @@ const (
 	GeneratorPackageName string = "kubecost"
 
 	// CodecVersion is the version passed into the generator
-	CodecVersion uint8 = 11
+	CodecVersion uint8 = 12
 )
 
 //--------------------------------------------------------------------------
@@ -164,8 +164,10 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 	buff.WriteFloat64(target.CPUCoreRequestAverage)  // write float64
 	buff.WriteFloat64(target.CPUCoreUsageAverage)    // write float64
 	buff.WriteFloat64(target.CPUCost)                // write float64
+	buff.WriteFloat64(target.CPUCostAdjustment)      // write float64
 	buff.WriteFloat64(target.GPUHours)               // write float64
 	buff.WriteFloat64(target.GPUCost)                // write float64
+	buff.WriteFloat64(target.GPUCostAdjustment)      // write float64
 	buff.WriteFloat64(target.NetworkCost)            // write float64
 	buff.WriteFloat64(target.LoadBalancerCost)       // write float64
 	buff.WriteFloat64(target.PVByteHours)            // write float64
@@ -174,6 +176,7 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 	buff.WriteFloat64(target.RAMBytesRequestAverage) // write float64
 	buff.WriteFloat64(target.RAMBytesUsageAverage)   // write float64
 	buff.WriteFloat64(target.RAMCost)                // write float64
+	buff.WriteFloat64(target.RAMCostAdjustment)      // write float64
 	buff.WriteFloat64(target.SharedCost)             // write float64
 	buff.WriteFloat64(target.ExternalCost)           // write float64
 	if target.RawAllocationOnly == nil {
@@ -282,53 +285,62 @@ func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
 	target.CPUCost = s
 
 	t := buff.ReadFloat64() // read float64
-	target.GPUHours = t
+	target.CPUCostAdjustment = t
 
 	u := buff.ReadFloat64() // read float64
-	target.GPUCost = u
+	target.GPUHours = u
 
 	w := buff.ReadFloat64() // read float64
-	target.NetworkCost = w
+	target.GPUCost = w
 
 	x := buff.ReadFloat64() // read float64
-	target.LoadBalancerCost = x
+	target.GPUCostAdjustment = x
 
 	y := buff.ReadFloat64() // read float64
-	target.PVByteHours = y
+	target.NetworkCost = y
 
 	aa := buff.ReadFloat64() // read float64
-	target.PVCost = aa
+	target.LoadBalancerCost = aa
 
 	bb := buff.ReadFloat64() // read float64
-	target.RAMByteHours = bb
+	target.PVByteHours = bb
 
 	cc := buff.ReadFloat64() // read float64
-	target.RAMBytesRequestAverage = cc
+	target.PVCost = cc
 
 	dd := buff.ReadFloat64() // read float64
-	target.RAMBytesUsageAverage = dd
+	target.RAMByteHours = dd
 
 	ee := buff.ReadFloat64() // read float64
-	target.RAMCost = ee
+	target.RAMBytesRequestAverage = ee
 
 	ff := buff.ReadFloat64() // read float64
-	target.SharedCost = ff
+	target.RAMBytesUsageAverage = ff
 
 	gg := buff.ReadFloat64() // read float64
-	target.ExternalCost = gg
+	target.RAMCost = gg
+
+	hh := buff.ReadFloat64() // read float64
+	target.RAMCostAdjustment = hh
+
+	kk := buff.ReadFloat64() // read float64
+	target.SharedCost = kk
+
+	ll := buff.ReadFloat64() // read float64
+	target.ExternalCost = ll
 
 	if buff.ReadUInt8() == uint8(0) {
 		target.RawAllocationOnly = nil
 	} else {
 		// --- [begin][read][struct](RawAllocationOnlyData) ---
-		hh := &RawAllocationOnlyData{}
-		kk := buff.ReadInt()     // byte array length
-		ll := buff.ReadBytes(kk) // byte array
-		errE := hh.UnmarshalBinary(ll)
+		mm := &RawAllocationOnlyData{}
+		nn := buff.ReadInt()     // byte array length
+		oo := buff.ReadBytes(nn) // byte array
+		errE := mm.UnmarshalBinary(oo)
 		if errE != nil {
 			return errE
 		}
-		target.RawAllocationOnly = hh
+		target.RawAllocationOnly = mm
 		// --- [end][read][struct](RawAllocationOnlyData) ---
 
 	}
@@ -2658,6 +2670,7 @@ func (target *Node) MarshalBinary() (data []byte, err error) {
 	buff.WriteString(target.NodeType)      // write string
 	buff.WriteFloat64(target.CPUCoreHours) // write float64
 	buff.WriteFloat64(target.RAMByteHours) // write float64
+	buff.WriteFloat64(target.GPUHours)     // write float64
 	if target.CPUBreakdown == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
@@ -2807,18 +2820,21 @@ func (target *Node) UnmarshalBinary(data []byte) (err error) {
 	x := buff.ReadFloat64() // read float64
 	target.RAMByteHours = x
 
+	y := buff.ReadFloat64() // read float64
+	target.GPUHours = y
+
 	if buff.ReadUInt8() == uint8(0) {
 		target.CPUBreakdown = nil
 	} else {
 		// --- [begin][read][struct](Breakdown) ---
-		y := &Breakdown{}
-		aa := buff.ReadInt()     // byte array length
-		bb := buff.ReadBytes(aa) // byte array
-		errE := y.UnmarshalBinary(bb)
+		aa := &Breakdown{}
+		bb := buff.ReadInt()     // byte array length
+		cc := buff.ReadBytes(bb) // byte array
+		errE := aa.UnmarshalBinary(cc)
 		if errE != nil {
 			return errE
 		}
-		target.CPUBreakdown = y
+		target.CPUBreakdown = aa
 		// --- [end][read][struct](Breakdown) ---
 
 	}
@@ -2826,34 +2842,34 @@ func (target *Node) UnmarshalBinary(data []byte) (err error) {
 		target.RAMBreakdown = nil
 	} else {
 		// --- [begin][read][struct](Breakdown) ---
-		cc := &Breakdown{}
-		dd := buff.ReadInt()     // byte array length
-		ee := buff.ReadBytes(dd) // byte array
-		errF := cc.UnmarshalBinary(ee)
+		dd := &Breakdown{}
+		ee := buff.ReadInt()     // byte array length
+		ff := buff.ReadBytes(ee) // byte array
+		errF := dd.UnmarshalBinary(ff)
 		if errF != nil {
 			return errF
 		}
-		target.RAMBreakdown = cc
+		target.RAMBreakdown = dd
 		// --- [end][read][struct](Breakdown) ---
 
 	}
-	ff := buff.ReadFloat64() // read float64
-	target.CPUCost = ff
-
 	gg := buff.ReadFloat64() // read float64
-	target.GPUCost = gg
+	target.CPUCost = gg
 
 	hh := buff.ReadFloat64() // read float64
-	target.GPUCount = hh
+	target.GPUCost = hh
 
 	kk := buff.ReadFloat64() // read float64
-	target.RAMCost = kk
+	target.GPUCount = kk
 
 	ll := buff.ReadFloat64() // read float64
-	target.Discount = ll
+	target.RAMCost = ll
 
 	mm := buff.ReadFloat64() // read float64
-	target.Preemptible = mm
+	target.Discount = mm
+
+	nn := buff.ReadFloat64() // read float64
+	target.Preemptible = nn
 
 	return nil
 }

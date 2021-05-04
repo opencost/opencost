@@ -112,18 +112,18 @@ func TestAllocation_Add(t *testing.T) {
 		CPUCoreRequestAverage:  2.0,
 		CPUCoreUsageAverage:    1.0,
 		CPUCost:                2.0 * hrs1 * cpuPrice,
-		CPUAdjustment:          3.0,
+		CPUCostAdjustment:      3.0,
 		GPUHours:               1.0 * hrs1,
 		GPUCost:                1.0 * hrs1 * gpuPrice,
-		GPUAdjustment:          2.0,
+		GPUCostAdjustment:      2.0,
 		PVByteHours:            100.0 * gib * hrs1,
 		PVCost:                 100.0 * hrs1 * pvPrice,
-		PVAdjustment:           4.0,
+		PVCostAdjustment:       4.0,
 		RAMByteHours:           8.0 * gib * hrs1,
 		RAMBytesRequestAverage: 8.0 * gib,
 		RAMBytesUsageAverage:   4.0 * gib,
 		RAMCost:                8.0 * hrs1 * ramPrice,
-		RAMAdjustment:          1.0,
+		RAMCostAdjustment:      1.0,
 		SharedCost:             2.00,
 		ExternalCost:           1.00,
 		RawAllocationOnly:      &RawAllocationOnlyData{},
@@ -177,20 +177,20 @@ func TestAllocation_Add(t *testing.T) {
 	if !util.IsApproximately(a1.CPUCost+a2.CPUCost, act.CPUCost) {
 		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.CPUCost+a2.CPUCost, act.CPUCost)
 	}
-	if !util.IsApproximately(a1.CPUAdjustment+a2.CPUAdjustment, act.CPUAdjustment) {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.CPUAdjustment+a2.CPUAdjustment, act.CPUAdjustment)
+	if !util.IsApproximately(a1.CPUCostAdjustment+a2.CPUCostAdjustment, act.CPUCostAdjustment) {
+		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.CPUCostAdjustment+a2.CPUCostAdjustment, act.CPUCostAdjustment)
 	}
 	if !util.IsApproximately(a1.GPUCost+a2.GPUCost, act.GPUCost) {
 		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.GPUCost+a2.GPUCost, act.GPUCost)
 	}
-	if !util.IsApproximately(a1.GPUAdjustment+a2.GPUAdjustment, act.GPUAdjustment) {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.GPUAdjustment+a2.GPUAdjustment, act.GPUAdjustment)
+	if !util.IsApproximately(a1.GPUCostAdjustment+a2.GPUCostAdjustment, act.GPUCostAdjustment) {
+		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.GPUCostAdjustment+a2.GPUCostAdjustment, act.GPUCostAdjustment)
 	}
 	if !util.IsApproximately(a1.RAMCost+a2.RAMCost, act.RAMCost) {
 		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.RAMCost+a2.RAMCost, act.RAMCost)
 	}
-	if !util.IsApproximately(a1.RAMAdjustment+a2.RAMAdjustment, act.RAMAdjustment) {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.RAMAdjustment+a2.RAMAdjustment, act.RAMAdjustment)
+	if !util.IsApproximately(a1.RAMCostAdjustment+a2.RAMCostAdjustment, act.RAMCostAdjustment) {
+		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.RAMCostAdjustment+a2.RAMCostAdjustment, act.RAMCostAdjustment)
 	}
 	if !util.IsApproximately(a1.PVCost+a2.PVCost, act.PVCost) {
 		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.PVCost+a2.PVCost, act.PVCost)
@@ -282,18 +282,18 @@ func TestAllocation_Share(t *testing.T) {
 		CPUCoreRequestAverage:  2.0,
 		CPUCoreUsageAverage:    1.0,
 		CPUCost:                2.0 * hrs1 * cpuPrice,
-		CPUAdjustment:          3.0,
+		CPUCostAdjustment:      3.0,
 		GPUHours:               1.0 * hrs1,
 		GPUCost:                1.0 * hrs1 * gpuPrice,
-		GPUAdjustment:          2.0,
+		GPUCostAdjustment:      2.0,
 		PVByteHours:            100.0 * gib * hrs1,
 		PVCost:                 100.0 * hrs1 * pvPrice,
-		PVAdjustment:           4.0,
+		PVCostAdjustment:       4.0,
 		RAMByteHours:           8.0 * gib * hrs1,
 		RAMBytesRequestAverage: 8.0 * gib,
 		RAMBytesUsageAverage:   4.0 * gib,
 		RAMCost:                8.0 * hrs1 * ramPrice,
-		RAMAdjustment:          1.0,
+		RAMCostAdjustment:      1.0,
 		SharedCost:             2.00,
 		ExternalCost:           1.00,
 	}
@@ -442,20 +442,20 @@ func TestAllocation_MarshalJSON(t *testing.T) {
 		CPUCoreRequestAverage:  2.0,
 		CPUCoreUsageAverage:    1.0,
 		CPUCost:                2.0 * hrs * cpuPrice,
-		CPUAdjustment:          3.0,
+		CPUCostAdjustment:      3.0,
 		GPUHours:               1.0 * hrs,
 		GPUCost:                1.0 * hrs * gpuPrice,
-		GPUAdjustment:          2.0,
+		GPUCostAdjustment:      2.0,
 		NetworkCost:            0.05,
 		LoadBalancerCost:       0.02,
 		PVByteHours:            100.0 * gib * hrs,
 		PVCost:                 100.0 * hrs * pvPrice,
-		PVAdjustment:           4.0,
+		PVCostAdjustment:       4.0,
 		RAMByteHours:           8.0 * gib * hrs,
 		RAMBytesRequestAverage: 8.0 * gib,
 		RAMBytesUsageAverage:   4.0 * gib,
 		RAMCost:                8.0 * hrs * ramPrice,
-		RAMAdjustment:          1.0,
+		RAMCostAdjustment:      1.0,
 		SharedCost:             2.00,
 		ExternalCost:           1.00,
 		RawAllocationOnly:      &RawAllocationOnlyData{},
@@ -761,7 +761,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster1Nodes.adjustment = -10.00
 	cluster1Nodes.CPUCoreHours = 8
 	cluster1Nodes.RAMByteHours = 6
-	cluster1Nodes.GPUCount = 1
+	cluster1Nodes.GPUHours = 24
 
 	cluster2Node1 := NewNode("node1", "cluster2", "node1", start, end, NewWindow(&start, &end))
 	cluster2Node1.CPUCost = 20.0
@@ -769,7 +769,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster2Node1.GPUCost = 0.0
 	cluster2Node1.CPUCoreHours = 4
 	cluster2Node1.RAMByteHours = 3
-	cluster2Node1.GPUCount = 0
+	cluster2Node1.GPUHours = 0
 
 	cluster2Node2 := NewNode("node2", "cluster2", "node2", start, end, NewWindow(&start, &end))
 	cluster2Node2.CPUCost = 20.0
@@ -777,7 +777,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster2Node2.GPUCost = 0.0
 	cluster2Node2.CPUCoreHours = 3
 	cluster2Node2.RAMByteHours = 2
-	cluster2Node2.GPUCount = 0
+	cluster2Node2.GPUHours = 0
 
 	cluster2Node3 := NewNode("node3", "cluster2", "node3", start, end, NewWindow(&start, &end))
 	cluster2Node3.CPUCost = 10.0
@@ -785,7 +785,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster2Node3.GPUCost = 10.0
 	cluster2Node3.CPUCoreHours = 2
 	cluster2Node3.RAMByteHours = 2
-	cluster2Node3.GPUCount = 1
+	cluster2Node3.GPUHours = 24
 
 	cluster2Disk1 := NewDisk("disk1", "cluster2", "disk1", start, end, NewWindow(&start, &end))
 	cluster2Disk1.Cost = 5.0
@@ -834,7 +834,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster1Nodes.adjustment = 90.00
 	cluster1Nodes.CPUCoreHours = 8
 	cluster1Nodes.RAMByteHours = 6
-	cluster1Nodes.GPUCount = 1
+	cluster1Nodes.GPUHours = 24
 
 	cluster2Node1 = NewNode("node1", "cluster2", "node1", start, end, NewWindow(&start, &end))
 	cluster2Node1.CPUCost = 20.0
@@ -842,7 +842,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster2Node1.GPUCost = 0.0
 	cluster2Node1.CPUCoreHours = 4
 	cluster2Node1.RAMByteHours = 3
-	cluster2Node1.GPUCount = 0
+	cluster2Node1.GPUHours = 0
 
 	cluster2Node2 = NewNode("node2", "cluster2", "node2", start, end, NewWindow(&start, &end))
 	cluster2Node2.CPUCost = 20.0
@@ -850,7 +850,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster2Node2.GPUCost = 0.0
 	cluster2Node2.CPUCoreHours = 3
 	cluster2Node2.RAMByteHours = 2
-	cluster2Node2.GPUCount = 0
+	cluster2Node2.GPUHours = 0
 
 	cluster2Node3 = NewNode("node3", "cluster2", "node3", start, end, NewWindow(&start, &end))
 	cluster2Node3.CPUCost = 10.0
@@ -858,7 +858,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster2Node3.GPUCost = 10.0
 	cluster2Node3.CPUCoreHours = 2
 	cluster2Node3.RAMByteHours = 2
-	cluster2Node3.GPUCount = 1
+	cluster2Node3.GPUHours = 24
 
 	cluster2Disk1 = NewDisk("disk1", "cluster2", "disk1", start, end, NewWindow(&start, &end))
 	cluster2Disk1.Cost = 5.0
@@ -1792,9 +1792,9 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 				// RAM	|    44	    |	  6	     |     11 	  |	  1
 				// GPU	|    11	    |	 24      |     1 	  |	  1
 				"cluster1/namespace1/pod1/container1": {
-					CPUAdjustment: 5.25,
-					RAMAdjustment: -4.333333,
-					GPUAdjustment: -0.583333,
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: -4.333333,
+					GPUCostAdjustment: -0.583333,
 				},
 				// ADJUSTMENT_RATE: 0.90909090909
 				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
@@ -1802,29 +1802,29 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 				// RAM	|    44	    |	  6	     |     1 	  |	  1
 				// GPU	|    11	    |	 24      |     1 	  |	  1
 				"cluster1/namespace1/pod-abc/container2": {
-					CPUAdjustment: 5.25,
-					RAMAdjustment: 5.666667,
-					GPUAdjustment: -0.583333,
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: 5.666667,
+					GPUCostAdjustment: -0.583333,
 				},
 				"cluster1/namespace1/pod-def/container3": {
-					CPUAdjustment: 5.25,
-					RAMAdjustment: 5.666667,
-					GPUAdjustment: -0.583333,
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: 5.666667,
+					GPUCostAdjustment: -0.583333,
 				},
 				"cluster1/namespace2/pod-ghi/container4": {
-					CPUAdjustment: 5.25,
-					RAMAdjustment: 5.666667,
-					GPUAdjustment: -0.583333,
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: 5.666667,
+					GPUCostAdjustment: -0.583333,
 				},
 				"cluster1/namespace2/pod-ghi/container5": {
-					CPUAdjustment: 5.25,
-					RAMAdjustment: 5.666667,
-					GPUAdjustment: -0.583333,
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: 5.666667,
+					GPUCostAdjustment: -0.583333,
 				},
 				"cluster1/namespace2/pod-jkl/container6": {
-					CPUAdjustment: 5.25,
-					RAMAdjustment: 5.666667,
-					GPUAdjustment: -0.583333,
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: 5.666667,
+					GPUCostAdjustment: -0.583333,
 				},
 				// ADJUSTMENT_RATE: 1.0
 				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
@@ -1832,16 +1832,16 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 				// RAM	|    15	    |	  3	     |     1 	  |	  1
 				// GPU	|    0	    |	  0      |     1 	  |	  1
 				"cluster2/namespace2/pod-mno/container4": {
-					CPUAdjustment: 4.0,
-					RAMAdjustment: 4.0,
-					GPUAdjustment: -1.0,
-					PVAdjustment:  2.0,
+					CPUCostAdjustment: 4.0,
+					RAMCostAdjustment: 4.0,
+					GPUCostAdjustment: -1.0,
+					PVCostAdjustment:  2.0,
 				},
 				"cluster2/namespace2/pod-mno/container5": {
-					CPUAdjustment: 4.0,
-					RAMAdjustment: 4.0,
-					GPUAdjustment: -1.0,
-					PVAdjustment:  2.0,
+					CPUCostAdjustment: 4.0,
+					RAMCostAdjustment: 4.0,
+					GPUCostAdjustment: -1.0,
+					PVCostAdjustment:  2.0,
 				},
 				// ADJUSTMENT_RATE: 1.0
 				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
@@ -1849,14 +1849,14 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 				// RAM	|    15	    |	  2	     |     1 	  |	  1
 				// GPU	|    0	    |	  0      |     1 	  |	  1
 				"cluster2/namespace2/pod-pqr/container6": {
-					CPUAdjustment: 5.666667,
-					RAMAdjustment: 6.5,
-					GPUAdjustment: -1.0,
+					CPUCostAdjustment: 5.666667,
+					RAMCostAdjustment: 6.5,
+					GPUCostAdjustment: -1.0,
 				},
 				"cluster2/namespace3/pod-stu/container7": {
-					CPUAdjustment: 5.666667,
-					RAMAdjustment: 6.5,
-					GPUAdjustment: -1.0,
+					CPUCostAdjustment: 5.666667,
+					RAMCostAdjustment: 6.5,
+					GPUCostAdjustment: -1.0,
 				},
 				// ADJUSTMENT_RATE: 1.0
 				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
@@ -1864,14 +1864,14 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 				// RAM	|    10	    |	  2	     |     1 	  |	  1
 				// GPU	|    10	    |	 24      |     1 	  |	  1
 				"cluster2/namespace3/pod-vwx/container8": {
-					CPUAdjustment: 4.0,
-					RAMAdjustment: 4.0,
-					GPUAdjustment: -0.583333,
+					CPUCostAdjustment: 4.0,
+					RAMCostAdjustment: 4.0,
+					GPUCostAdjustment: -0.583333,
 				},
 				"cluster2/namespace3/pod-vwx/container9": {
-					CPUAdjustment: 4.0,
-					RAMAdjustment: 4.0,
-					GPUAdjustment: -0.583333,
+					CPUCostAdjustment: 4.0,
+					RAMCostAdjustment: 4.0,
+					GPUCostAdjustment: -0.583333,
 				},
 			},
 		},
@@ -1885,9 +1885,9 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 				// RAM	|     4	    |	  6	     |    11 	  |	  1
 				// GPU	|     1	    |	 24      |     1 	  |	  1
 				"cluster1/namespace1/pod1/container1": {
-					CPUAdjustment: 5.25,
-					RAMAdjustment: -4.333333,
-					GPUAdjustment: -0.583333,
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: -4.333333,
+					GPUCostAdjustment: -0.583333,
 				},
 				// ADJUSTMENT_RATE: 10
 				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
@@ -1895,29 +1895,29 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 				// RAM	|     4	    |	  6	     |     1 	  |	  1
 				// GPU	|     1	    |	 24      |     1 	  |	  1
 				"cluster1/namespace1/pod-abc/container2": {
-					CPUAdjustment: 5.25,
-					RAMAdjustment: 5.6666667,
-					GPUAdjustment: -0.583333,
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: 5.6666667,
+					GPUCostAdjustment: -0.583333,
 				},
 				"cluster1/namespace1/pod-def/container3": {
-					CPUAdjustment: 5.25,
-					RAMAdjustment: 5.6666667,
-					GPUAdjustment: -0.583333,
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: 5.6666667,
+					GPUCostAdjustment: -0.583333,
 				},
 				"cluster1/namespace2/pod-ghi/container4": {
-					CPUAdjustment: 5.25,
-					RAMAdjustment: 5.6666667,
-					GPUAdjustment: -0.583333,
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: 5.6666667,
+					GPUCostAdjustment: -0.583333,
 				},
 				"cluster1/namespace2/pod-ghi/container5": {
-					CPUAdjustment: 5.25,
-					RAMAdjustment: 5.6666667,
-					GPUAdjustment: -0.583333,
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: 5.6666667,
+					GPUCostAdjustment: -0.583333,
 				},
 				"cluster1/namespace2/pod-jkl/container6": {
-					CPUAdjustment: 5.25,
-					RAMAdjustment: 5.6666667,
-					GPUAdjustment: -0.583333,
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: 5.6666667,
+					GPUCostAdjustment: -0.583333,
 				},
 				// ADJUSTMENT_RATE: 1.0
 				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
@@ -1925,16 +1925,16 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 				// RAM	|    15	    |	  3	     |     1 	  |	  1
 				// GPU	|    0	    |	  0      |     1 	  |	  1
 				"cluster2/namespace2/pod-mno/container4": {
-					CPUAdjustment: 4.0,
-					RAMAdjustment: 4.0,
-					GPUAdjustment: -1.0,
-					PVAdjustment:  -0.5,
+					CPUCostAdjustment: 4.0,
+					RAMCostAdjustment: 4.0,
+					GPUCostAdjustment: -1.0,
+					PVCostAdjustment:  -0.5,
 				},
 				"cluster2/namespace2/pod-mno/container5": {
-					CPUAdjustment: 4.0,
-					RAMAdjustment: 4.0,
-					GPUAdjustment: -1.0,
-					PVAdjustment:  -0.5,
+					CPUCostAdjustment: 4.0,
+					RAMCostAdjustment: 4.0,
+					GPUCostAdjustment: -1.0,
+					PVCostAdjustment:  -0.5,
 				},
 				// ADJUSTMENT_RATE: 1.0
 				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
@@ -1942,14 +1942,14 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 				// RAM	|    15	    |	  2	     |     1 	  |	  1
 				// GPU	|    0	    |	  0      |     1 	  |	  1
 				"cluster2/namespace2/pod-pqr/container6": {
-					CPUAdjustment: 5.666667,
-					RAMAdjustment: 6.5,
-					GPUAdjustment: -1.0,
+					CPUCostAdjustment: 5.666667,
+					RAMCostAdjustment: 6.5,
+					GPUCostAdjustment: -1.0,
 				},
 				"cluster2/namespace3/pod-stu/container7": {
-					CPUAdjustment: 5.666667,
-					RAMAdjustment: 6.5,
-					GPUAdjustment: -1.0,
+					CPUCostAdjustment: 5.666667,
+					RAMCostAdjustment: 6.5,
+					GPUCostAdjustment: -1.0,
 				},
 				// ADJUSTMENT_RATE: 1.0
 				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
@@ -1957,14 +1957,14 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 				// RAM	|    10	    |	  2	     |     1 	  |	  1
 				// GPU	|    10	    |	 24      |     1 	  |	  1
 				"cluster2/namespace3/pod-vwx/container8": {
-					CPUAdjustment: 4.0,
-					RAMAdjustment: 4.0,
-					GPUAdjustment: -0.583333,
+					CPUCostAdjustment: 4.0,
+					RAMCostAdjustment: 4.0,
+					GPUCostAdjustment: -0.583333,
 				},
 				"cluster2/namespace3/pod-vwx/container9": {
-					CPUAdjustment: 4.0,
-					RAMAdjustment: 4.0,
-					GPUAdjustment: -0.583333,
+					CPUCostAdjustment: 4.0,
+					RAMCostAdjustment: 4.0,
+					GPUCostAdjustment: -0.583333,
 				},
 			},
 		},
@@ -1972,7 +1972,7 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 
 	for name, testcase := range cases {
 		t.Run(name, func(t *testing.T) {
-			err = as.ReconcileAllocations(testcase.assetSet)
+			err = as.Reconcile(testcase.assetSet)
 			reconAllocs := as.allocations
 			if err != nil {
 				t.Fatalf("unexpected error: %s", err)
@@ -1983,17 +1983,17 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 					t.Fatalf("expected allocation %s", allocationName)
 				}
 
-				if !util.IsApproximately(reconAllocs[allocationName].CPUAdjustment, testAlloc.CPUAdjustment) {
-					t.Fatalf("expected CPU Adjustment for %s to be %f; got %f", allocationName, testAlloc.CPUAdjustment, reconAllocs[allocationName].CPUAdjustment)
+				if !util.IsApproximately(reconAllocs[allocationName].CPUCostAdjustment, testAlloc.CPUCostAdjustment) {
+					t.Fatalf("expected CPU Adjustment for %s to be %f; got %f", allocationName, testAlloc.CPUCostAdjustment, reconAllocs[allocationName].CPUCostAdjustment)
 				}
-				if !util.IsApproximately(reconAllocs[allocationName].RAMAdjustment, testAlloc.RAMAdjustment) {
-					t.Fatalf("expected RAM Adjustment for %s to be %f; got %f", allocationName, testAlloc.RAMAdjustment, reconAllocs[allocationName].RAMAdjustment)
+				if !util.IsApproximately(reconAllocs[allocationName].RAMCostAdjustment, testAlloc.RAMCostAdjustment) {
+					t.Fatalf("expected RAM Adjustment for %s to be %f; got %f", allocationName, testAlloc.RAMCostAdjustment, reconAllocs[allocationName].RAMCostAdjustment)
 				}
-				if !util.IsApproximately(reconAllocs[allocationName].GPUAdjustment, testAlloc.GPUAdjustment) {
-					t.Fatalf("expected GPU Adjustment for %s to be %f; got %f", allocationName, testAlloc.GPUAdjustment, reconAllocs[allocationName].GPUAdjustment)
+				if !util.IsApproximately(reconAllocs[allocationName].GPUCostAdjustment, testAlloc.GPUCostAdjustment) {
+					t.Fatalf("expected GPU Adjustment for %s to be %f; got %f", allocationName, testAlloc.GPUCostAdjustment, reconAllocs[allocationName].GPUCostAdjustment)
 				}
-				if !util.IsApproximately(reconAllocs[allocationName].PVAdjustment, testAlloc.PVAdjustment) {
-					t.Fatalf("expected PV Adjustment for %s to be %f; got %f", allocationName, testAlloc.PVAdjustment, reconAllocs[allocationName].PVAdjustment)
+				if !util.IsApproximately(reconAllocs[allocationName].PVCostAdjustment, testAlloc.PVCostAdjustment) {
+					t.Fatalf("expected PV Adjustment for %s to be %f; got %f", allocationName, testAlloc.PVCostAdjustment, reconAllocs[allocationName].PVCostAdjustment)
 				}
 			}
 		})

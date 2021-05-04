@@ -1663,6 +1663,7 @@ type Node struct {
 	NodeType     string
 	CPUCoreHours float64
 	RAMByteHours float64
+	GPUHours     float64
 	CPUBreakdown *Breakdown
 	RAMBreakdown *Breakdown
 	CPUCost      float64
@@ -1889,6 +1890,7 @@ func (n *Node) add(that *Node) {
 
 	n.CPUCoreHours += that.CPUCoreHours
 	n.RAMByteHours += that.RAMByteHours
+	n.GPUHours += that.GPUHours
 
 	n.CPUCost += that.CPUCost
 	n.GPUCost += that.GPUCost
@@ -1912,6 +1914,7 @@ func (n *Node) Clone() Asset {
 		NodeType:     n.NodeType,
 		CPUCoreHours: n.CPUCoreHours,
 		RAMByteHours: n.RAMByteHours,
+		GPUHours:     n.GPUHours,
 		CPUBreakdown: n.CPUBreakdown.Clone(),
 		RAMBreakdown: n.RAMBreakdown.Clone(),
 		CPUCost:      n.CPUCost,
@@ -1960,6 +1963,9 @@ func (n *Node) Equal(a Asset) bool {
 	if n.RAMByteHours != that.RAMByteHours {
 		return false
 	}
+	if n.GPUHours != that.GPUHours {
+		return false
+	}
 	if !n.CPUBreakdown.Equal(that.CPUBreakdown) {
 		return false
 	}
@@ -2000,13 +2006,14 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "ramBytes", n.RAMBytes(), ",")
 	jsonEncodeFloat64(buffer, "cpuCoreHours", n.CPUCoreHours, ",")
 	jsonEncodeFloat64(buffer, "ramByteHours", n.RAMByteHours, ",")
+	jsonEncodeFloat64(buffer, "GPUHours", n.GPUHours, ",")
 	jsonEncode(buffer, "cpuBreakdown", n.CPUBreakdown, ",")
 	jsonEncode(buffer, "ramBreakdown", n.RAMBreakdown, ",")
 	jsonEncodeFloat64(buffer, "preemptible", n.Preemptible, ",")
 	jsonEncodeFloat64(buffer, "discount", n.Discount, ",")
 	jsonEncodeFloat64(buffer, "cpuCost", n.CPUCost, ",")
 	jsonEncodeFloat64(buffer, "gpuCost", n.GPUCost, ",")
-	jsonEncodeFloat64(buffer, "gpuCount", n.GPUCount, ",")
+	jsonEncodeFloat64(buffer, "gpuCount", n.GPUs(), ",")
 	jsonEncodeFloat64(buffer, "ramCost", n.RAMCost, ",")
 	jsonEncodeFloat64(buffer, "adjustment", n.Adjustment(), ",")
 	jsonEncodeFloat64(buffer, "totalCost", n.TotalCost(), "")
@@ -2047,13 +2054,28 @@ func (n *Node) CPUCores() float64 {
 // and a 16GiB-RAM node running for the last 20 hours of the same 24-hour window
 // would produce:
 //   (12*10 + 16*20) / 24 = 18.333GiB RAM
-// However, any number of cores running for the full span of a window will
-// report the actual number of cores of the static node; e.g. the above
+// However, any number of bytes running for the full span of a window will
+// report the actual number of bytes of the static node; e.g. the above
 // scenario for one entire 24-hour window:
-//   (12*24 + 16*24) / 24 = (12 + 16) = 28 cores
+//   (12*24 + 16*24) / 24 = (12 + 16) = 28GiB RAM
 func (n *Node) RAMBytes() float64 {
 	// [b*hr]*([min/hr]*[1/min]) = [b*hr]/[hr] = b
 	return n.RAMByteHours * (60.0 / n.Minutes())
+}
+
+// GPUs returns the amount of GPUs belonging to the node. This could be
+// fractional because it's the number of gpu*hours divided by the number of
+// hours running; e.g. the sum of a 2 gpu node running for the first 10 hours
+// and a 1 gpu node running for the last 20 hours of the same 24-hour window
+// would produce:
+//   (2*10 + 1*20) / 24 = 1.667 GPUs
+// However, any number of GPUs running for the full span of a window will
+// report the actual number of GPUs of the static node; e.g. the above
+// scenario for one entire 24-hour window:
+//   (2*24 + 1*24) / 24 = (2 + 1) = 3 GPUs
+func (n *Node) GPUs() float64 {
+	// [b*hr]*([min/hr]*[1/min]) = [b*hr]/[hr] = b
+	return n.GPUHours * (60.0 / n.Minutes())
 }
 
 // LoadBalancer is an Asset representing a single load balancer in a cluster
