@@ -74,7 +74,7 @@ Resources are allocated based on the time-weighted maximum of resource Requests 
 
 #### How do I set my AWS Spot bids for accurate allocation?
 
-Modify [spotCPU](https://github.com/kubecost/cost-model/blob/master/cloud/default.json#L5) and  [spotRAM](https://github.com/kubecost/cost-model/blob/master/cloud/default.json#L7) in default.json to the price of your bid. Allocation will use these bid prices, but it does not take into account what you are actually charged by AWS. Alternatively, you can provide an AWS key to allow access to the Spot data feed. This will provide accurate Spot prices. 
+Modify [spotCPU](https://github.com/kubecost/cost-model/blob/master/configs/default.json#L5) and  [spotRAM](https://github.com/kubecost/cost-model/blob/master/configs/default.json#L7) in default.json to the price of your bid. Allocation will use these bid prices, but it does not take into account what you are actually charged by AWS. Alternatively, you can provide an AWS key to allow access to the Spot data feed. This will provide accurate Spot prices. 
 
 #### Do I need a GCP billing API key?
 
