@@ -112,14 +112,17 @@ func TestAllocation_Add(t *testing.T) {
 		CPUCoreRequestAverage:  2.0,
 		CPUCoreUsageAverage:    1.0,
 		CPUCost:                2.0 * hrs1 * cpuPrice,
+		CPUCostAdjustment:      3.0,
 		GPUHours:               1.0 * hrs1,
 		GPUCost:                1.0 * hrs1 * gpuPrice,
+		GPUCostAdjustment:      2.0,
 		PVByteHours:            100.0 * gib * hrs1,
 		PVCost:                 100.0 * hrs1 * pvPrice,
 		RAMByteHours:           8.0 * gib * hrs1,
 		RAMBytesRequestAverage: 8.0 * gib,
 		RAMBytesUsageAverage:   4.0 * gib,
 		RAMCost:                8.0 * hrs1 * ramPrice,
+		RAMCostAdjustment:      1.0,
 		SharedCost:             2.00,
 		ExternalCost:           1.00,
 		RawAllocationOnly:      &RawAllocationOnlyData{},
@@ -173,11 +176,20 @@ func TestAllocation_Add(t *testing.T) {
 	if !util.IsApproximately(a1.CPUCost+a2.CPUCost, act.CPUCost) {
 		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.CPUCost+a2.CPUCost, act.CPUCost)
 	}
+	if !util.IsApproximately(a1.CPUCostAdjustment+a2.CPUCostAdjustment, act.CPUCostAdjustment) {
+		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.CPUCostAdjustment+a2.CPUCostAdjustment, act.CPUCostAdjustment)
+	}
 	if !util.IsApproximately(a1.GPUCost+a2.GPUCost, act.GPUCost) {
 		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.GPUCost+a2.GPUCost, act.GPUCost)
 	}
+	if !util.IsApproximately(a1.GPUCostAdjustment+a2.GPUCostAdjustment, act.GPUCostAdjustment) {
+		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.GPUCostAdjustment+a2.GPUCostAdjustment, act.GPUCostAdjustment)
+	}
 	if !util.IsApproximately(a1.RAMCost+a2.RAMCost, act.RAMCost) {
 		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.RAMCost+a2.RAMCost, act.RAMCost)
+	}
+	if !util.IsApproximately(a1.RAMCostAdjustment+a2.RAMCostAdjustment, act.RAMCostAdjustment) {
+		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.RAMCostAdjustment+a2.RAMCostAdjustment, act.RAMCostAdjustment)
 	}
 	if !util.IsApproximately(a1.PVCost+a2.PVCost, act.PVCost) {
 		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.PVCost+a2.PVCost, act.PVCost)
@@ -242,8 +254,8 @@ func TestAllocation_Add(t *testing.T) {
 	if !util.IsApproximately(2.0000000, act.RAMEfficiency()) {
 		t.Fatalf("Allocation.Add: expected %f; actual %f", 2.0000000, act.RAMEfficiency())
 	}
-	if !util.IsApproximately(1.6493506, act.TotalEfficiency()) {
-		t.Fatalf("Allocation.Add: expected %f; actual %f", 1.6493506, act.TotalEfficiency())
+	if !util.IsApproximately(1.279690, act.TotalEfficiency()) {
+		t.Fatalf("Allocation.Add: expected %f; actual %f", 1.279690, act.TotalEfficiency())
 	}
 
 	if act.RawAllocationOnly != nil {
@@ -269,14 +281,17 @@ func TestAllocation_Share(t *testing.T) {
 		CPUCoreRequestAverage:  2.0,
 		CPUCoreUsageAverage:    1.0,
 		CPUCost:                2.0 * hrs1 * cpuPrice,
+		CPUCostAdjustment:      3.0,
 		GPUHours:               1.0 * hrs1,
 		GPUCost:                1.0 * hrs1 * gpuPrice,
+		GPUCostAdjustment:      2.0,
 		PVByteHours:            100.0 * gib * hrs1,
 		PVCost:                 100.0 * hrs1 * pvPrice,
 		RAMByteHours:           8.0 * gib * hrs1,
 		RAMBytesRequestAverage: 8.0 * gib,
 		RAMBytesUsageAverage:   4.0 * gib,
 		RAMCost:                8.0 * hrs1 * ramPrice,
+		RAMCostAdjustment:      1.0,
 		SharedCost:             2.00,
 		ExternalCost:           1.00,
 	}
@@ -330,14 +345,14 @@ func TestAllocation_Share(t *testing.T) {
 	}
 
 	// Costs should match before (expect TotalCost and SharedCost)
-	if !util.IsApproximately(a1.CPUCost, act.CPUCost) {
-		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.CPUCost, act.CPUCost)
+	if !util.IsApproximately(a1.CPUTotalCost(), act.CPUTotalCost()) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.CPUTotalCost(), act.CPUTotalCost())
 	}
-	if !util.IsApproximately(a1.GPUCost, act.GPUCost) {
-		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.GPUCost, act.GPUCost)
+	if !util.IsApproximately(a1.GPUTotalCost(), act.GPUTotalCost()) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.GPUTotalCost(), act.GPUTotalCost())
 	}
-	if !util.IsApproximately(a1.RAMCost, act.RAMCost) {
-		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.RAMCost, act.RAMCost)
+	if !util.IsApproximately(a1.RAMTotalCost(), act.RAMTotalCost()) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.RAMTotalCost(), act.RAMTotalCost())
 	}
 	if !util.IsApproximately(a1.PVCost, act.PVCost) {
 		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.PVCost, act.PVCost)
@@ -425,8 +440,10 @@ func TestAllocation_MarshalJSON(t *testing.T) {
 		CPUCoreRequestAverage:  2.0,
 		CPUCoreUsageAverage:    1.0,
 		CPUCost:                2.0 * hrs * cpuPrice,
+		CPUCostAdjustment:      3.0,
 		GPUHours:               1.0 * hrs,
 		GPUCost:                1.0 * hrs * gpuPrice,
+		GPUCostAdjustment:      2.0,
 		NetworkCost:            0.05,
 		LoadBalancerCost:       0.02,
 		PVByteHours:            100.0 * gib * hrs,
@@ -435,6 +452,7 @@ func TestAllocation_MarshalJSON(t *testing.T) {
 		RAMBytesRequestAverage: 8.0 * gib,
 		RAMBytesUsageAverage:   4.0 * gib,
 		RAMCost:                8.0 * hrs * ramPrice,
+		RAMCostAdjustment:      1.0,
 		SharedCost:             2.00,
 		ExternalCost:           1.00,
 		RawAllocationOnly:      &RawAllocationOnlyData{},
@@ -519,8 +537,9 @@ func TestNewAllocationSet(t *testing.T) {
 func generateAllocationSet(start time.Time) *AllocationSet {
 	// Idle allocations
 	a1i := NewUnitAllocation(fmt.Sprintf("cluster1/%s", IdleSuffix), start, day, &AllocationProperties{
-		Cluster: "cluster1",
-		Node:    "node1",
+		Cluster:    "cluster1",
+		Node:       "node1",
+		ProviderID: "c1nodes",
 	})
 	a1i.CPUCost = 5.0
 	a1i.RAMCost = 15.0
@@ -535,88 +554,100 @@ func generateAllocationSet(start time.Time) *AllocationSet {
 
 	// Active allocations
 	a1111 := NewUnitAllocation("cluster1/namespace1/pod1/container1", start, day, &AllocationProperties{
-		Cluster:   "cluster1",
-		Namespace: "namespace1",
-		Pod:       "pod1",
-		Container: "container1",
+		Cluster:    "cluster1",
+		Namespace:  "namespace1",
+		Pod:        "pod1",
+		Container:  "container1",
+		ProviderID: "c1nodes",
 	})
 	a1111.RAMCost = 11.00
 
 	a11abc2 := NewUnitAllocation("cluster1/namespace1/pod-abc/container2", start, day, &AllocationProperties{
-		Cluster:   "cluster1",
-		Namespace: "namespace1",
-		Pod:       "pod-abc",
-		Container: "container2",
+		Cluster:    "cluster1",
+		Namespace:  "namespace1",
+		Pod:        "pod-abc",
+		Container:  "container2",
+		ProviderID: "c1nodes",
 	})
 
 	a11def3 := NewUnitAllocation("cluster1/namespace1/pod-def/container3", start, day, &AllocationProperties{
-		Cluster:   "cluster1",
-		Namespace: "namespace1",
-		Pod:       "pod-def",
-		Container: "container3",
+		Cluster:    "cluster1",
+		Namespace:  "namespace1",
+		Pod:        "pod-def",
+		Container:  "container3",
+		ProviderID: "c1nodes",
 	})
 
 	a12ghi4 := NewUnitAllocation("cluster1/namespace2/pod-ghi/container4", start, day, &AllocationProperties{
-		Cluster:   "cluster1",
-		Namespace: "namespace2",
-		Pod:       "pod-ghi",
-		Container: "container4",
+		Cluster:    "cluster1",
+		Namespace:  "namespace2",
+		Pod:        "pod-ghi",
+		Container:  "container4",
+		ProviderID: "c1nodes",
 	})
 
 	a12ghi5 := NewUnitAllocation("cluster1/namespace2/pod-ghi/container5", start, day, &AllocationProperties{
-		Cluster:   "cluster1",
-		Namespace: "namespace2",
-		Pod:       "pod-ghi",
-		Container: "container5",
+		Cluster:    "cluster1",
+		Namespace:  "namespace2",
+		Pod:        "pod-ghi",
+		Container:  "container5",
+		ProviderID: "c1nodes",
 	})
 
 	a12jkl6 := NewUnitAllocation("cluster1/namespace2/pod-jkl/container6", start, day, &AllocationProperties{
-		Cluster:   "cluster1",
-		Namespace: "namespace2",
-		Pod:       "pod-jkl",
-		Container: "container6",
+		Cluster:    "cluster1",
+		Namespace:  "namespace2",
+		Pod:        "pod-jkl",
+		Container:  "container6",
+		ProviderID: "c1nodes",
 	})
 
 	a22mno4 := NewUnitAllocation("cluster2/namespace2/pod-mno/container4", start, day, &AllocationProperties{
-		Cluster:   "cluster2",
-		Namespace: "namespace2",
-		Pod:       "pod-mno",
-		Container: "container4",
+		Cluster:    "cluster2",
+		Namespace:  "namespace2",
+		Pod:        "pod-mno",
+		Container:  "container4",
+		ProviderID: "node1",
 	})
 
 	a22mno5 := NewUnitAllocation("cluster2/namespace2/pod-mno/container5", start, day, &AllocationProperties{
-		Cluster:   "cluster2",
-		Namespace: "namespace2",
-		Pod:       "pod-mno",
-		Container: "container5",
+		Cluster:    "cluster2",
+		Namespace:  "namespace2",
+		Pod:        "pod-mno",
+		Container:  "container5",
+		ProviderID: "node1",
 	})
 
 	a22pqr6 := NewUnitAllocation("cluster2/namespace2/pod-pqr/container6", start, day, &AllocationProperties{
-		Cluster:   "cluster2",
-		Namespace: "namespace2",
-		Pod:       "pod-pqr",
-		Container: "container6",
+		Cluster:    "cluster2",
+		Namespace:  "namespace2",
+		Pod:        "pod-pqr",
+		Container:  "container6",
+		ProviderID: "node2",
 	})
 
 	a23stu7 := NewUnitAllocation("cluster2/namespace3/pod-stu/container7", start, day, &AllocationProperties{
-		Cluster:   "cluster2",
-		Namespace: "namespace3",
-		Pod:       "pod-stu",
-		Container: "container7",
+		Cluster:    "cluster2",
+		Namespace:  "namespace3",
+		Pod:        "pod-stu",
+		Container:  "container7",
+		ProviderID: "node2",
 	})
 
 	a23vwx8 := NewUnitAllocation("cluster2/namespace3/pod-vwx/container8", start, day, &AllocationProperties{
-		Cluster:   "cluster2",
-		Namespace: "namespace3",
-		Pod:       "pod-vwx",
-		Container: "container8",
+		Cluster:    "cluster2",
+		Namespace:  "namespace3",
+		Pod:        "pod-vwx",
+		Container:  "container8",
+		ProviderID: "node3",
 	})
 
 	a23vwx9 := NewUnitAllocation("cluster2/namespace3/pod-vwx/container9", start, day, &AllocationProperties{
-		Cluster:   "cluster2",
-		Namespace: "namespace3",
-		Pod:       "pod-vwx",
-		Container: "container9",
+		Cluster:    "cluster2",
+		Namespace:  "namespace3",
+		Pod:        "pod-vwx",
+		Container:  "container9",
+		ProviderID: "node3",
 	})
 
 	// Controllers
@@ -678,6 +709,149 @@ func generateAllocationSet(start time.Time) *AllocationSet {
 		// cluster 2, namespace 3
 		a23stu7, a23vwx8, a23vwx9,
 	)
+}
+
+func generateAssetSets(start, end time.Time) []*AssetSet {
+	var assetSets []*AssetSet
+
+	// Create an AssetSet representing cluster costs for two clusters (cluster1
+	// and cluster2). Include Nodes and Disks for both, even though only
+	// Nodes will be counted. Whereas in practice, Assets should be aggregated
+	// by type, here we will provide multiple Nodes for one of the clusters to
+	// make sure the function still holds.
+
+	// NOTE: we're re-using generateAllocationSet so this has to line up with
+	// the allocated node costs from that function. See table above.
+
+	// | Hierarchy                               | Cost |  CPU |  RAM |  GPU | Adjustment |
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster1:
+	//     nodes                                  100.00  55.00  44.00  11.00      -10.00
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster1 subtotal (adjusted)             100.00  50.00  40.00  10.00        0.00
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster1 allocated                        48.00   6.00  16.00   6.00        0.00
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster1 idle                             72.00  44.00  24.00   4.00        0.00
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster2:
+	//     node1                                   35.00  20.00  15.00   0.00        0.00
+	//     node2                                   35.00  20.00  15.00   0.00        0.00
+	//     node3                                   30.00  10.00  10.00  10.00        0.00
+	//     (disks should not matter for idle)
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster2 subtotal                        100.00  50.00  40.00  10.00        0.00
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster2 allocated                        28.00   6.00   6.00   6.00        0.00
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster2 idle                             82.00  44.00  34.00   4.00        0.00
+	// +-----------------------------------------+------+------+------+------+------------+
+
+	cluster1Nodes := NewNode("", "cluster1", "c1nodes", start, end, NewWindow(&start, &end))
+	cluster1Nodes.CPUCost = 55.0
+	cluster1Nodes.RAMCost = 44.0
+	cluster1Nodes.GPUCost = 11.0
+	cluster1Nodes.adjustment = -10.00
+	cluster1Nodes.CPUCoreHours = 8
+	cluster1Nodes.RAMByteHours = 6
+	cluster1Nodes.GPUHours = 24
+
+	cluster2Node1 := NewNode("node1", "cluster2", "node1", start, end, NewWindow(&start, &end))
+	cluster2Node1.CPUCost = 20.0
+	cluster2Node1.RAMCost = 15.0
+	cluster2Node1.GPUCost = 0.0
+	cluster2Node1.CPUCoreHours = 4
+	cluster2Node1.RAMByteHours = 3
+	cluster2Node1.GPUHours = 0
+
+	cluster2Node2 := NewNode("node2", "cluster2", "node2", start, end, NewWindow(&start, &end))
+	cluster2Node2.CPUCost = 20.0
+	cluster2Node2.RAMCost = 15.0
+	cluster2Node2.GPUCost = 0.0
+	cluster2Node2.CPUCoreHours = 3
+	cluster2Node2.RAMByteHours = 2
+	cluster2Node2.GPUHours = 0
+
+	cluster2Node3 := NewNode("node3", "cluster2", "node3", start, end, NewWindow(&start, &end))
+	cluster2Node3.CPUCost = 10.0
+	cluster2Node3.RAMCost = 10.0
+	cluster2Node3.GPUCost = 10.0
+	cluster2Node3.CPUCoreHours = 2
+	cluster2Node3.RAMByteHours = 2
+	cluster2Node3.GPUHours = 24
+
+	cluster2Disk1 := NewDisk("disk1", "cluster2", "disk1", start, end, NewWindow(&start, &end))
+	cluster2Disk1.Cost = 5.0
+
+	assetSet1 := NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1)
+	assetSets = append(assetSets, assetSet1)
+
+	// NOTE: we're re-using generateAllocationSet so this has to line up with
+	// the allocated node costs from that function. See table above.
+
+	// | Hierarchy                               | Cost |  CPU |  RAM |  GPU | Adjustment |
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster1:
+	//     nodes                                  100.00   5.00   4.00   1.00       90.00
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster1 subtotal (adjusted)             100.00  50.00  40.00  10.00        0.00
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster1 allocated                        48.00   6.00  16.00   6.00        0.00
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster1 idle                             72.00  44.00  24.00   4.00        0.00
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster2:
+	//     node1                                   35.00  20.00  15.00   0.00        0.00
+	//     node2                                   35.00  20.00  15.00   0.00        0.00
+	//     node3                                   30.00  10.00  10.00  10.00        0.00
+	//     (disks should not matter for idle)
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster2 subtotal                        100.00  50.00  40.00  10.00        0.00
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster2 allocated                        28.00   6.00   6.00   6.00        0.00
+	// +-----------------------------------------+------+------+------+------+------------+
+	//   cluster2 idle                             82.00  44.00  34.00   4.00        0.00
+	// +-----------------------------------------+------+------+------+------+------------+
+
+	cluster1Nodes = NewNode("", "cluster1", "c1nodes", start, end, NewWindow(&start, &end))
+	cluster1Nodes.CPUCost = 5.0
+	cluster1Nodes.RAMCost = 4.0
+	cluster1Nodes.GPUCost = 1.0
+	cluster1Nodes.adjustment = 90.00
+	cluster1Nodes.CPUCoreHours = 8
+	cluster1Nodes.RAMByteHours = 6
+	cluster1Nodes.GPUHours = 24
+
+	cluster2Node1 = NewNode("node1", "cluster2", "node1", start, end, NewWindow(&start, &end))
+	cluster2Node1.CPUCost = 20.0
+	cluster2Node1.RAMCost = 15.0
+	cluster2Node1.GPUCost = 0.0
+	cluster2Node1.CPUCoreHours = 4
+	cluster2Node1.RAMByteHours = 3
+	cluster2Node1.GPUHours = 0
+
+	cluster2Node2 = NewNode("node2", "cluster2", "node2", start, end, NewWindow(&start, &end))
+	cluster2Node2.CPUCost = 20.0
+	cluster2Node2.RAMCost = 15.0
+	cluster2Node2.GPUCost = 0.0
+	cluster2Node2.CPUCoreHours = 3
+	cluster2Node2.RAMByteHours = 2
+	cluster2Node2.GPUHours = 0
+
+	cluster2Node3 = NewNode("node3", "cluster2", "node3", start, end, NewWindow(&start, &end))
+	cluster2Node3.CPUCost = 10.0
+	cluster2Node3.RAMCost = 10.0
+	cluster2Node3.GPUCost = 10.0
+	cluster2Node3.CPUCoreHours = 2
+	cluster2Node3.RAMByteHours = 2
+	cluster2Node3.GPUHours = 24
+
+	cluster2Disk1 = NewDisk("disk1", "cluster2", "disk1", start, end, NewWindow(&start, &end))
+	cluster2Disk1.Cost = 5.0
+
+	assetSet2 := NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1)
+	assetSets = append(assetSets, assetSet2)
+	return assetSets
 }
 
 func assertAllocationSetTotals(t *testing.T, as *AllocationSet, msg string, err error, length int, totalCost float64) {
@@ -1491,187 +1665,311 @@ func TestAllocationSet_ComputeIdleAllocations(t *testing.T) {
 		as.Delete(key)
 	}
 
-	// Create an AssetSet representing cluster costs for two clusters (cluster1
-	// and cluster2). Include Nodes and Disks for both, even though only
-	// Nodes will be counted. Whereas in practice, Assets should be aggregated
-	// by type, here we will provide multiple Nodes for one of the clusters to
-	// make sure the function still holds.
+	assetSets := generateAssetSets(start, end)
 
-	// NOTE: we're re-using generateAllocationSet so this has to line up with
-	// the allocated node costs from that function. See table above.
-
-	// | Hierarchy                               | Cost |  CPU |  RAM |  GPU | Adjustment |
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster1:
-	//     nodes                                  100.00  55.00  44.00  11.00      -10.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster1 subtotal (adjusted)             100.00  50.00  40.00  10.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster1 allocated                        48.00   6.00  16.00   6.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster1 idle                             72.00  44.00  24.00   4.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster2:
-	//     node1                                   35.00  20.00  15.00   0.00        0.00
-	//     node2                                   35.00  20.00  15.00   0.00        0.00
-	//     node3                                   30.00  10.00  10.00  10.00        0.00
-	//     (disks should not matter for idle)
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster2 subtotal                        100.00  50.00  40.00  10.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster2 allocated                        28.00   6.00   6.00   6.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster2 idle                             82.00  44.00  34.00   4.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-
-	cluster1Nodes := NewNode("", "cluster1", "", start, end, NewWindow(&start, &end))
-	cluster1Nodes.CPUCost = 55.0
-	cluster1Nodes.RAMCost = 44.0
-	cluster1Nodes.GPUCost = 11.0
-	cluster1Nodes.adjustment = -10.00
-
-	cluster2Node1 := NewNode("node1", "cluster2", "node1", start, end, NewWindow(&start, &end))
-	cluster2Node1.CPUCost = 20.0
-	cluster2Node1.RAMCost = 15.0
-	cluster2Node1.GPUCost = 0.0
-
-	cluster2Node2 := NewNode("node2", "cluster2", "node2", start, end, NewWindow(&start, &end))
-	cluster2Node2.CPUCost = 20.0
-	cluster2Node2.RAMCost = 15.0
-	cluster2Node2.GPUCost = 0.0
-
-	cluster2Node3 := NewNode("node3", "cluster2", "node3", start, end, NewWindow(&start, &end))
-	cluster2Node3.CPUCost = 10.0
-	cluster2Node3.RAMCost = 10.0
-	cluster2Node3.GPUCost = 10.0
-
-	cluster2Disk1 := NewDisk("disk1", "cluster2", "disk1", start, end, NewWindow(&start, &end))
-	cluster2Disk1.Cost = 5.0
-
-	assetSet := NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1)
-
-	idles, err = as.ComputeIdleAllocations(assetSet)
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
+	cases := map[string]struct {
+		allocationSet *AllocationSet
+		assetSet      *AssetSet
+		clusters      map[string]Allocation
+	}{
+		"1a": {
+			allocationSet: as,
+			assetSet:      assetSets[0],
+			clusters: map[string]Allocation{
+				"cluster1": {
+					CPUCost: 44.0,
+					RAMCost: 24.0,
+					GPUCost: 4.0,
+				},
+				"cluster2": {
+					CPUCost: 44.0,
+					RAMCost: 34.0,
+					GPUCost: 4.0,
+				},
+			},
+		},
+		"1b": {
+			allocationSet: as,
+			assetSet:      assetSets[1],
+			clusters: map[string]Allocation{
+				"cluster1": {
+					CPUCost: 44.0,
+					RAMCost: 24.0,
+					GPUCost: 4.0,
+				},
+				"cluster2": {
+					CPUCost: 44.0,
+					RAMCost: 34.0,
+					GPUCost: 4.0,
+				},
+			},
+		},
 	}
 
-	if len(idles) != 2 {
-		t.Fatalf("idles: expected length %d; got length %d", 2, len(idles))
+	for name, testcase := range cases {
+		t.Run(name, func(t *testing.T) {
+			idles, err = as.ComputeIdleAllocations(testcase.assetSet)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+
+			if len(idles) != len(testcase.clusters) {
+				t.Fatalf("idles: expected length %d; got length %d", len(testcase.clusters), len(idles))
+			}
+
+			for clusterName, cluster := range testcase.clusters {
+				if idle, ok := idles[clusterName]; !ok {
+					t.Fatalf("expected idle cost for %s", clusterName)
+				} else {
+					if !util.IsApproximately(idle.TotalCost(), cluster.TotalCost()) {
+						t.Fatalf("%s idle: expected total cost %f; got total cost %f", clusterName, cluster.TotalCost(), idle.TotalCost())
+					}
+				}
+				if !util.IsApproximately(idles[clusterName].CPUCost, cluster.CPUCost) {
+					t.Fatalf("expected idle CPU cost for %s to be %.2f; got %.2f", clusterName, cluster.CPUCost, idles[clusterName].CPUCost)
+				}
+				if !util.IsApproximately(idles[clusterName].RAMCost, cluster.RAMCost) {
+					t.Fatalf("expected idle RAM cost for %s to be %.2f; got %.2f", clusterName, cluster.RAMCost, idles[clusterName].RAMCost)
+				}
+				if !util.IsApproximately(idles[clusterName].GPUCost, cluster.GPUCost) {
+					t.Fatalf("expected idle GPU cost for %s to be %.2f; got %.2f", clusterName, cluster.GPUCost, idles[clusterName].GPUCost)
+				}
+			}
+		})
+	}
+}
+
+func TestAllocationSet_ReconcileAllocations(t *testing.T) {
+	var as *AllocationSet
+	var err error
+
+	end := time.Now().UTC().Truncate(day)
+	start := end.Add(-day)
+
+	// Generate AllocationSet and strip out any existing idle allocations
+	as = generateAllocationSet(start)
+	for key := range as.idleKeys {
+		as.Delete(key)
 	}
 
-	if idle, ok := idles["cluster1"]; !ok {
-		t.Fatalf("expected idle cost for %s", "cluster1")
-	} else {
-		if !util.IsApproximately(idle.TotalCost(), 72.0) {
-			t.Fatalf("%s idle: expected total cost %f; got total cost %f", "cluster1", 72.0, idle.TotalCost())
-		}
+	assetSets := generateAssetSets(start, end)
+
+	cases := map[string]struct {
+		allocationSet *AllocationSet
+		assetSet      *AssetSet
+		allocations   map[string]Allocation
+	}{
+		"1a": {
+			allocationSet: as,
+			assetSet:      assetSets[0],
+			allocations: map[string]Allocation{
+				// Allocation adjustments are found with the formula:
+				// ADJUSTMENT_RATE * NODE_COST * (ALLOC_HOURS / NODE_HOURS) - ALLOC_COST
+				// ADJUSTMENT_RATE: 0.90909090909
+				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
+				// CPU	|    55	    |	  8	     |     1 	  |	  1
+				// RAM	|    44	    |	  6	     |     11 	  |	  1
+				// GPU	|    11	    |	 24      |     1 	  |	  1
+				"cluster1/namespace1/pod1/container1": {
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: -4.333333,
+					GPUCostAdjustment: -0.583333,
+				},
+				// ADJUSTMENT_RATE: 0.90909090909
+				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
+				// CPU	|    55	    |	  8	     |     1 	  |	  1
+				// RAM	|    44	    |	  6	     |     1 	  |	  1
+				// GPU	|    11	    |	 24      |     1 	  |	  1
+				"cluster1/namespace1/pod-abc/container2": {
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: 5.666667,
+					GPUCostAdjustment: -0.583333,
+				},
+				"cluster1/namespace1/pod-def/container3": {
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: 5.666667,
+					GPUCostAdjustment: -0.583333,
+				},
+				"cluster1/namespace2/pod-ghi/container4": {
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: 5.666667,
+					GPUCostAdjustment: -0.583333,
+				},
+				"cluster1/namespace2/pod-ghi/container5": {
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: 5.666667,
+					GPUCostAdjustment: -0.583333,
+				},
+				"cluster1/namespace2/pod-jkl/container6": {
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: 5.666667,
+					GPUCostAdjustment: -0.583333,
+				},
+				// ADJUSTMENT_RATE: 1.0
+				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
+				// CPU	|    20	    |	  4	     |     1 	  |	  1
+				// RAM	|    15	    |	  3	     |     1 	  |	  1
+				// GPU	|    0	    |	  0      |     1 	  |	  1
+				"cluster2/namespace2/pod-mno/container4": {
+					CPUCostAdjustment: 4.0,
+					RAMCostAdjustment: 4.0,
+					GPUCostAdjustment: -1.0,
+				},
+				"cluster2/namespace2/pod-mno/container5": {
+					CPUCostAdjustment: 4.0,
+					RAMCostAdjustment: 4.0,
+					GPUCostAdjustment: -1.0,
+				},
+				// ADJUSTMENT_RATE: 1.0
+				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
+				// CPU	|    20	    |	  3	     |     1 	  |	  1
+				// RAM	|    15	    |	  2	     |     1 	  |	  1
+				// GPU	|    0	    |	  0      |     1 	  |	  1
+				"cluster2/namespace2/pod-pqr/container6": {
+					CPUCostAdjustment: 5.666667,
+					RAMCostAdjustment: 6.5,
+					GPUCostAdjustment: -1.0,
+				},
+				"cluster2/namespace3/pod-stu/container7": {
+					CPUCostAdjustment: 5.666667,
+					RAMCostAdjustment: 6.5,
+					GPUCostAdjustment: -1.0,
+				},
+				// ADJUSTMENT_RATE: 1.0
+				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
+				// CPU	|    10	    |	  2	     |     1 	  |	  1
+				// RAM	|    10	    |	  2	     |     1 	  |	  1
+				// GPU	|    10	    |	 24      |     1 	  |	  1
+				"cluster2/namespace3/pod-vwx/container8": {
+					CPUCostAdjustment: 4.0,
+					RAMCostAdjustment: 4.0,
+					GPUCostAdjustment: -0.583333,
+				},
+				"cluster2/namespace3/pod-vwx/container9": {
+					CPUCostAdjustment: 4.0,
+					RAMCostAdjustment: 4.0,
+					GPUCostAdjustment: -0.583333,
+				},
+			},
+		},
+		"1b": {
+			allocationSet: as,
+			assetSet:      assetSets[1],
+			allocations: map[string]Allocation{
+				// ADJUSTMENT_RATE: 10
+				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
+				// CPU	|     5	    |	  8	     |     1 	  |	  1
+				// RAM	|     4	    |	  6	     |    11 	  |	  1
+				// GPU	|     1	    |	 24      |     1 	  |	  1
+				"cluster1/namespace1/pod1/container1": {
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: -4.333333,
+					GPUCostAdjustment: -0.583333,
+				},
+				// ADJUSTMENT_RATE: 10
+				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
+				// CPU	|     5	    |	  8	     |     1 	  |	  1
+				// RAM	|     4	    |	  6	     |     1 	  |	  1
+				// GPU	|     1	    |	 24      |     1 	  |	  1
+				"cluster1/namespace1/pod-abc/container2": {
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: 5.6666667,
+					GPUCostAdjustment: -0.583333,
+				},
+				"cluster1/namespace1/pod-def/container3": {
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: 5.6666667,
+					GPUCostAdjustment: -0.583333,
+				},
+				"cluster1/namespace2/pod-ghi/container4": {
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: 5.6666667,
+					GPUCostAdjustment: -0.583333,
+				},
+				"cluster1/namespace2/pod-ghi/container5": {
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: 5.6666667,
+					GPUCostAdjustment: -0.583333,
+				},
+				"cluster1/namespace2/pod-jkl/container6": {
+					CPUCostAdjustment: 5.25,
+					RAMCostAdjustment: 5.6666667,
+					GPUCostAdjustment: -0.583333,
+				},
+				// ADJUSTMENT_RATE: 1.0
+				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
+				// CPU	|    20	    |	  4	     |     1 	  |	  1
+				// RAM	|    15	    |	  3	     |     1 	  |	  1
+				// GPU	|    0	    |	  0      |     1 	  |	  1
+				"cluster2/namespace2/pod-mno/container4": {
+					CPUCostAdjustment: 4.0,
+					RAMCostAdjustment: 4.0,
+					GPUCostAdjustment: -1.0,
+				},
+				"cluster2/namespace2/pod-mno/container5": {
+					CPUCostAdjustment: 4.0,
+					RAMCostAdjustment: 4.0,
+					GPUCostAdjustment: -1.0,
+				},
+				// ADJUSTMENT_RATE: 1.0
+				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
+				// CPU	|    20	    |	  3	     |     1 	  |	  1
+				// RAM	|    15	    |	  2	     |     1 	  |	  1
+				// GPU	|    0	    |	  0      |     1 	  |	  1
+				"cluster2/namespace2/pod-pqr/container6": {
+					CPUCostAdjustment: 5.666667,
+					RAMCostAdjustment: 6.5,
+					GPUCostAdjustment: -1.0,
+				},
+				"cluster2/namespace3/pod-stu/container7": {
+					CPUCostAdjustment: 5.666667,
+					RAMCostAdjustment: 6.5,
+					GPUCostAdjustment: -1.0,
+				},
+				// ADJUSTMENT_RATE: 1.0
+				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
+				// CPU	|    10	    |	  2	     |     1 	  |	  1
+				// RAM	|    10	    |	  2	     |     1 	  |	  1
+				// GPU	|    10	    |	 24      |     1 	  |	  1
+				"cluster2/namespace3/pod-vwx/container8": {
+					CPUCostAdjustment: 4.0,
+					RAMCostAdjustment: 4.0,
+					GPUCostAdjustment: -0.583333,
+				},
+				"cluster2/namespace3/pod-vwx/container9": {
+					CPUCostAdjustment: 4.0,
+					RAMCostAdjustment: 4.0,
+					GPUCostAdjustment: -0.583333,
+				},
+			},
+		},
 	}
-	if !util.IsApproximately(idles["cluster1"].CPUCost, 44.0) {
-		t.Fatalf("expected idle CPU cost for %s to be %.2f; got %.2f", "cluster1", 44.0, idles["cluster1"].CPUCost)
+
+	for name, testcase := range cases {
+		t.Run(name, func(t *testing.T) {
+			err = as.Reconcile(testcase.assetSet)
+			reconAllocs := as.allocations
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+
+			for allocationName, testAlloc := range testcase.allocations {
+				if _, ok := reconAllocs[allocationName]; !ok {
+					t.Fatalf("expected allocation %s", allocationName)
+				}
+
+				if !util.IsApproximately(reconAllocs[allocationName].CPUCostAdjustment, testAlloc.CPUCostAdjustment) {
+					t.Fatalf("expected CPU Adjustment for %s to be %f; got %f", allocationName, testAlloc.CPUCostAdjustment, reconAllocs[allocationName].CPUCostAdjustment)
+				}
+				if !util.IsApproximately(reconAllocs[allocationName].RAMCostAdjustment, testAlloc.RAMCostAdjustment) {
+					t.Fatalf("expected RAM Adjustment for %s to be %f; got %f", allocationName, testAlloc.RAMCostAdjustment, reconAllocs[allocationName].RAMCostAdjustment)
+				}
+				if !util.IsApproximately(reconAllocs[allocationName].GPUCostAdjustment, testAlloc.GPUCostAdjustment) {
+					t.Fatalf("expected GPU Adjustment for %s to be %f; got %f", allocationName, testAlloc.GPUCostAdjustment, reconAllocs[allocationName].GPUCostAdjustment)
+				}
+			}
+		})
 	}
-	if !util.IsApproximately(idles["cluster1"].RAMCost, 24.0) {
-		t.Fatalf("expected idle RAM cost for %s to be %.2f; got %.2f", "cluster1", 24.0, idles["cluster1"].RAMCost)
-	}
-	if !util.IsApproximately(idles["cluster1"].GPUCost, 4.0) {
-		t.Fatalf("expected idle GPU cost for %s to be %.2f; got %.2f", "cluster1", 4.0, idles["cluster1"].GPUCost)
-	}
-
-	if idle, ok := idles["cluster2"]; !ok {
-		t.Fatalf("expected idle cost for %s", "cluster2")
-	} else {
-		if !util.IsApproximately(idle.TotalCost(), 82.0) {
-			t.Fatalf("%s idle: expected total cost %f; got total cost %f", "cluster2", 82.0, idle.TotalCost())
-		}
-	}
-
-	// NOTE: we're re-using generateAllocationSet so this has to line up with
-	// the allocated node costs from that function. See table above.
-
-	// | Hierarchy                               | Cost |  CPU |  RAM |  GPU | Adjustment |
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster1:
-	//     nodes                                  100.00   5.00   4.00   1.00       90.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster1 subtotal (adjusted)             100.00  50.00  40.00  10.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster1 allocated                        48.00   6.00  16.00   6.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster1 idle                             72.00  44.00  24.00   4.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster2:
-	//     node1                                   35.00  20.00  15.00   0.00        0.00
-	//     node2                                   35.00  20.00  15.00   0.00        0.00
-	//     node3                                   30.00  10.00  10.00  10.00        0.00
-	//     (disks should not matter for idle)
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster2 subtotal                        100.00  50.00  40.00  10.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster2 allocated                        28.00   6.00   6.00   6.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster2 idle                             82.00  44.00  34.00   4.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-
-	cluster1Nodes = NewNode("", "cluster1", "", start, end, NewWindow(&start, &end))
-	cluster1Nodes.CPUCost = 5.0
-	cluster1Nodes.RAMCost = 4.0
-	cluster1Nodes.GPUCost = 1.0
-	cluster1Nodes.adjustment = 90.00
-
-	cluster2Node1 = NewNode("node1", "cluster2", "node1", start, end, NewWindow(&start, &end))
-	cluster2Node1.CPUCost = 20.0
-	cluster2Node1.RAMCost = 15.0
-	cluster2Node1.GPUCost = 0.0
-
-	cluster2Node2 = NewNode("node2", "cluster2", "node2", start, end, NewWindow(&start, &end))
-	cluster2Node2.CPUCost = 20.0
-	cluster2Node2.RAMCost = 15.0
-	cluster2Node2.GPUCost = 0.0
-
-	cluster2Node3 = NewNode("node3", "cluster2", "node3", start, end, NewWindow(&start, &end))
-	cluster2Node3.CPUCost = 10.0
-	cluster2Node3.RAMCost = 10.0
-	cluster2Node3.GPUCost = 10.0
-
-	cluster2Disk1 = NewDisk("disk1", "cluster2", "disk1", start, end, NewWindow(&start, &end))
-	cluster2Disk1.Cost = 5.0
-
-	assetSet = NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1)
-
-	idles, err = as.ComputeIdleAllocations(assetSet)
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-
-	if len(idles) != 2 {
-		t.Fatalf("idles: expected length %d; got length %d", 2, len(idles))
-	}
-
-	if idle, ok := idles["cluster1"]; !ok {
-		t.Fatalf("expected idle cost for %s", "cluster1")
-	} else {
-		if !util.IsApproximately(idle.TotalCost(), 72.0) {
-			t.Fatalf("%s idle: expected total cost %f; got total cost %f", "cluster1", 72.0, idle.TotalCost())
-		}
-	}
-	if !util.IsApproximately(idles["cluster1"].CPUCost, 44.0) {
-		t.Fatalf("expected idle CPU cost for %s to be %.2f; got %.2f", "cluster1", 44.0, idles["cluster1"].CPUCost)
-	}
-	if !util.IsApproximately(idles["cluster1"].RAMCost, 24.0) {
-		t.Fatalf("expected idle RAM cost for %s to be %.2f; got %.2f", "cluster1", 24.0, idles["cluster1"].RAMCost)
-	}
-	if !util.IsApproximately(idles["cluster1"].GPUCost, 4.0) {
-		t.Fatalf("expected idle GPU cost for %s to be %.2f; got %.2f", "cluster1", 4.0, idles["cluster1"].GPUCost)
-	}
-
-	if idle, ok := idles["cluster2"]; !ok {
-		t.Fatalf("expected idle cost for %s", "cluster2")
-	} else {
-		if !util.IsApproximately(idle.TotalCost(), 82.0) {
-			t.Fatalf("%s idle: expected total cost %f; got total cost %f", "cluster2", 82.0, idle.TotalCost())
-		}
-	}
-
-	// TODO assert value of each resource cost precisely
 }
 
 // TODO niko/etl

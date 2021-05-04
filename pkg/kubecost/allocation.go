@@ -59,8 +59,10 @@ type Allocation struct {
 	CPUCoreRequestAverage  float64               `json:"cpuCoreRequestAverage"`
 	CPUCoreUsageAverage    float64               `json:"cpuCoreUsageAverage"`
 	CPUCost                float64               `json:"cpuCost"`
+	CPUCostAdjustment      float64               `json:"cpuCostAdjustment"`
 	GPUHours               float64               `json:"gpuHours"`
 	GPUCost                float64               `json:"gpuCost"`
+	GPUCostAdjustment      float64               `json:"gpuCostAdjustment"`
 	NetworkCost            float64               `json:"networkCost"`
 	LoadBalancerCost       float64               `json:"loadBalancerCost"`
 	PVByteHours            float64               `json:"pvByteHours"`
@@ -69,6 +71,7 @@ type Allocation struct {
 	RAMBytesRequestAverage float64               `json:"ramByteRequestAverage"`
 	RAMBytesUsageAverage   float64               `json:"ramByteUsageAverage"`
 	RAMCost                float64               `json:"ramCost"`
+	RAMCostAdjustment      float64               `json:"ramCostAdjustment"`
 	SharedCost             float64               `json:"sharedCost"`
 	ExternalCost           float64               `json:"externalCost"`
 
@@ -144,8 +147,10 @@ func (a *Allocation) Clone() *Allocation {
 		CPUCoreRequestAverage:  a.CPUCoreRequestAverage,
 		CPUCoreUsageAverage:    a.CPUCoreUsageAverage,
 		CPUCost:                a.CPUCost,
+		CPUCostAdjustment:      a.CPUCostAdjustment,
 		GPUHours:               a.GPUHours,
 		GPUCost:                a.GPUCost,
+		GPUCostAdjustment:      a.GPUCostAdjustment,
 		NetworkCost:            a.NetworkCost,
 		LoadBalancerCost:       a.LoadBalancerCost,
 		PVByteHours:            a.PVByteHours,
@@ -154,6 +159,7 @@ func (a *Allocation) Clone() *Allocation {
 		RAMBytesRequestAverage: a.RAMBytesRequestAverage,
 		RAMBytesUsageAverage:   a.RAMBytesUsageAverage,
 		RAMCost:                a.RAMCost,
+		RAMCostAdjustment:      a.RAMCostAdjustment,
 		SharedCost:             a.SharedCost,
 		ExternalCost:           a.ExternalCost,
 		RawAllocationOnly:      a.RawAllocationOnly.Clone(),
@@ -202,10 +208,16 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if !util.IsApproximately(a.CPUCost, that.CPUCost) {
 		return false
 	}
+	if !util.IsApproximately(a.CPUCostAdjustment, that.CPUCostAdjustment) {
+		return false
+	}
 	if !util.IsApproximately(a.GPUHours, that.GPUHours) {
 		return false
 	}
 	if !util.IsApproximately(a.GPUCost, that.GPUCost) {
+		return false
+	}
+	if !util.IsApproximately(a.GPUCostAdjustment, that.GPUCostAdjustment) {
 		return false
 	}
 	if !util.IsApproximately(a.NetworkCost, that.NetworkCost) {
@@ -224,6 +236,9 @@ func (a *Allocation) Equal(that *Allocation) bool {
 		return false
 	}
 	if !util.IsApproximately(a.RAMCost, that.RAMCost) {
+		return false
+	}
+	if !util.IsApproximately(a.RAMCostAdjustment, that.RAMCostAdjustment) {
 		return false
 	}
 	if !util.IsApproximately(a.SharedCost, that.SharedCost) {
@@ -254,7 +269,19 @@ func (a *Allocation) Equal(that *Allocation) bool {
 
 // TotalCost is the total cost of the Allocation
 func (a *Allocation) TotalCost() float64 {
-	return a.CPUCost + a.GPUCost + a.RAMCost + a.PVCost + a.NetworkCost + a.SharedCost + a.ExternalCost + a.LoadBalancerCost
+	return a.CPUTotalCost() + a.GPUTotalCost() + a.RAMTotalCost() + a.PVCost + a.NetworkCost + a.SharedCost + a.ExternalCost + a.LoadBalancerCost
+}
+
+func (a *Allocation) CPUTotalCost() float64 {
+	return a.CPUCost + a.CPUCostAdjustment
+}
+
+func (a *Allocation) GPUTotalCost() float64 {
+	return a.GPUCost + a.GPUCostAdjustment
+}
+
+func (a *Allocation) RAMTotalCost() float64 {
+	return a.RAMCost + a.RAMCostAdjustment
 }
 
 // CPUEfficiency is the ratio of usage to request. If there is no request and
@@ -290,10 +317,10 @@ func (a *Allocation) RAMEfficiency() float64 {
 // TotalEfficiency is the cost-weighted average of CPU and RAM efficiency. If
 // there is no cost at all, then efficiency is zero.
 func (a *Allocation) TotalEfficiency() float64 {
-	if a.CPUCost+a.RAMCost > 0 {
-		ramCostEff := a.RAMEfficiency() * a.RAMCost
-		cpuCostEff := a.CPUEfficiency() * a.CPUCost
-		return (ramCostEff + cpuCostEff) / (a.CPUCost + a.RAMCost)
+	if a.RAMTotalCost()+a.CPUTotalCost() > 0 {
+		ramCostEff := a.RAMEfficiency() * a.RAMTotalCost()
+		cpuCostEff := a.CPUEfficiency() * a.CPUTotalCost()
+		return (ramCostEff + cpuCostEff) / (a.CPUTotalCost() + a.RAMTotalCost())
 	}
 
 	return 0.0
@@ -313,6 +340,14 @@ func (a *Allocation) RAMBytes() float64 {
 		return 0.0
 	}
 	return a.RAMByteHours / (a.Minutes() / 60.0)
+}
+
+// GPUs converts the Allocation's GPUHours into average GPUs
+func (a *Allocation) GPUs() float64 {
+	if a.Minutes() <= 0.0 {
+		return 0.0
+	}
+	return a.GPUHours / (a.Minutes() / 60.0)
 }
 
 // PVBytes converts the Allocation's PVByteHours into average PVBytes
@@ -337,9 +372,12 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "cpuCoreUsageAverage", a.CPUCoreUsageAverage, ",")
 	jsonEncodeFloat64(buffer, "cpuCoreHours", a.CPUCoreHours, ",")
 	jsonEncodeFloat64(buffer, "cpuCost", a.CPUCost, ",")
+	jsonEncodeFloat64(buffer, "cpuCostAdjustment", a.CPUCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "cpuEfficiency", a.CPUEfficiency(), ",")
+	jsonEncodeFloat64(buffer, "gpuCount", a.GPUs(), ",")
 	jsonEncodeFloat64(buffer, "gpuHours", a.GPUHours, ",")
 	jsonEncodeFloat64(buffer, "gpuCost", a.GPUCost, ",")
+	jsonEncodeFloat64(buffer, "gpuCostAdjustment", a.GPUCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "networkCost", a.NetworkCost, ",")
 	jsonEncodeFloat64(buffer, "loadBalancerCost", a.LoadBalancerCost, ",")
 	jsonEncodeFloat64(buffer, "pvBytes", a.PVBytes(), ",")
@@ -350,6 +388,7 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "ramByteUsageAverage", a.RAMBytesUsageAverage, ",")
 	jsonEncodeFloat64(buffer, "ramByteHours", a.RAMByteHours, ",")
 	jsonEncodeFloat64(buffer, "ramCost", a.RAMCost, ",")
+	jsonEncodeFloat64(buffer, "ramCostAdjustment", a.RAMCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "ramEfficiency", a.RAMEfficiency(), ",")
 	jsonEncodeFloat64(buffer, "sharedCost", a.SharedCost, ",")
 	jsonEncodeFloat64(buffer, "externalCost", a.ExternalCost, ",")
@@ -478,6 +517,11 @@ func (a *Allocation) add(that *Allocation) {
 	a.LoadBalancerCost += that.LoadBalancerCost
 	a.SharedCost += that.SharedCost
 	a.ExternalCost += that.ExternalCost
+
+	// Sum all cumulative adjustment fields
+	a.CPUCostAdjustment += that.CPUCostAdjustment
+	a.RAMCostAdjustment += that.RAMCostAdjustment
+	a.GPUCostAdjustment += that.GPUCostAdjustment
 
 	// Any data that is in a "raw allocation only" is not valid in any
 	// sort of cumulative Allocation (like one that is added).
@@ -1095,13 +1139,13 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 				totals[clusterID][r] += 1.0
 			}
 		} else {
-			coeffs[clusterID][name]["cpu"] += alloc.CPUCost
-			coeffs[clusterID][name]["gpu"] += alloc.GPUCost
-			coeffs[clusterID][name]["ram"] += alloc.RAMCost
+			coeffs[clusterID][name]["cpu"] += alloc.CPUTotalCost()
+			coeffs[clusterID][name]["gpu"] += alloc.GPUTotalCost()
+			coeffs[clusterID][name]["ram"] += alloc.RAMTotalCost()
 
-			totals[clusterID]["cpu"] += alloc.CPUCost
-			totals[clusterID]["gpu"] += alloc.GPUCost
-			totals[clusterID]["ram"] += alloc.RAMCost
+			totals[clusterID]["cpu"] += alloc.CPUTotalCost()
+			totals[clusterID]["gpu"] += alloc.GPUTotalCost()
+			totals[clusterID]["ram"] += alloc.RAMTotalCost()
 		}
 	}
 
@@ -1142,13 +1186,13 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 				totals[clusterID][r] += 1.0
 			}
 		} else {
-			coeffs[clusterID][name]["cpu"] += alloc.CPUCost
-			coeffs[clusterID][name]["gpu"] += alloc.GPUCost
-			coeffs[clusterID][name]["ram"] += alloc.RAMCost
+			coeffs[clusterID][name]["cpu"] += alloc.CPUTotalCost()
+			coeffs[clusterID][name]["gpu"] += alloc.GPUTotalCost()
+			coeffs[clusterID][name]["ram"] += alloc.RAMTotalCost()
 
-			totals[clusterID]["cpu"] += alloc.CPUCost
-			totals[clusterID]["gpu"] += alloc.GPUCost
-			totals[clusterID]["ram"] += alloc.RAMCost
+			totals[clusterID]["cpu"] += alloc.CPUTotalCost()
+			totals[clusterID]["gpu"] += alloc.GPUTotalCost()
+			totals[clusterID]["ram"] += alloc.RAMTotalCost()
 		}
 	}
 
@@ -1418,9 +1462,9 @@ func (as *AllocationSet) ComputeIdleAllocations(assetSet *AssetSet) (map[string]
 			clusterEnds[cluster] = a.End
 		}
 
-		assetClusterResourceCosts[cluster]["cpu"] -= a.CPUCost
-		assetClusterResourceCosts[cluster]["gpu"] -= a.GPUCost
-		assetClusterResourceCosts[cluster]["ram"] -= a.RAMCost
+		assetClusterResourceCosts[cluster]["cpu"] -= a.CPUTotalCost()
+		assetClusterResourceCosts[cluster]["gpu"] -= a.GPUTotalCost()
+		assetClusterResourceCosts[cluster]["ram"] -= a.RAMTotalCost()
 	})
 
 	// Turn remaining un-allocated asset costs into idle allocations
@@ -1458,6 +1502,97 @@ func (as *AllocationSet) ComputeIdleAllocations(assetSet *AssetSet) (map[string]
 	}
 
 	return idleAllocs, nil
+}
+
+// Reconcile calculate the exact cost of Allocation by resource(cpu, ram, gpu etc) based on Asset(s) on which
+// the Allocation depends.
+func (as *AllocationSet) Reconcile(assetSet *AssetSet) error {
+	if as == nil {
+		return fmt.Errorf("cannot reconcile allocation for nil AllocationSet")
+	}
+
+	if assetSet == nil {
+		return fmt.Errorf("cannot reconcile allocation with nil AssetSet")
+	}
+
+	if !as.Window.Equal(assetSet.Window) {
+		return fmt.Errorf("cannot reconcile allocation for sets with mismatched windows: %s != %s", as.Window, assetSet.Window)
+	}
+
+	// Build map of Assets with type Node by their ProviderId so that they can be matched to Allocations to determine
+	// proper CPU GPU and RAM prices
+	nodeByProviderID := map[string]*Node{}
+	assetSet.Each(func(key string, a Asset) {
+		if node, ok := a.(*Node); ok && node.properties.ProviderID != "" {
+			nodeByProviderID[node.properties.ProviderID] = node
+		}
+	})
+
+	// Match Assets against allocations and adjust allocation cost based on the proportion of the asset that they used
+	as.Each(func(name string, a *Allocation) {
+		providerId := a.Properties.ProviderID
+
+		// Reconcile with node Assets
+		node, ok := nodeByProviderID[providerId]
+		if !ok || providerId == "" {
+			// Failed to find node for allocation
+			return
+		}
+
+		// adjustmentRate is used to scale resource costs proportionally
+		// by the adjustment. This is necessary because we only get one
+		// adjustment per Node, not one per-resource-per-Node.
+		//
+		// e.g. total cost = $90, adjustment = -$10 => 0.9
+		// e.g. total cost = $150, adjustment = -$300 => 0.3333
+		// e.g. total cost = $150, adjustment = $50 => 1.5
+		adjustmentRate := 1.0
+		if node.TotalCost()-node.Adjustment() == 0 {
+			// If (totalCost - adjustment) is 0.0 then adjustment cancels
+			// the entire node cost and we should make everything 0
+			// without dividing by 0.
+			adjustmentRate = 0.0
+		} else if node.Adjustment() != 0.0 {
+			// adjustmentRate is the ratio of cost-with-adjustment (i.e. TotalCost)
+			// to cost-without-adjustment (i.e. TotalCost - Adjustment).
+			adjustmentRate = node.TotalCost() / (node.TotalCost() - node.Adjustment())
+		}
+
+		// Find total cost of each node resource for the window
+		cpuCost := node.CPUCost * (1.0 - node.Discount) * adjustmentRate
+		ramCost := node.RAMCost * (1.0 - node.Discount) * adjustmentRate
+		gpuCost := node.GPUCost * adjustmentRate
+
+		// Find the proportion of resource hours used by the allocation, checking for 0 denominators
+		cpuUsageProportion := 0.0
+		if node.CPUCoreHours != 0 {
+			cpuUsageProportion = a.CPUCoreHours / node.CPUCoreHours
+		} else {
+			log.Warningf("Missing CPU Hours for node Provider ID: %s", providerId)
+		}
+		ramUsageProportion := 0.0
+		if node.RAMByteHours != 0 {
+			ramUsageProportion = a.RAMByteHours / node.RAMByteHours
+		} else {
+			log.Warningf("Missing RAM Byte Hours for node Provider ID: %s", providerId)
+		}
+		gpuUsageProportion := 0.0
+		if node.GPUHours != 0 {
+			gpuUsageProportion = a.GPUHours / node.GPUHours
+		}
+		// No log for GPU because not all nodes have GPU
+
+		// Calculate the allocation's resource costs by the proportion of resources used and total costs
+		allocCPUCost := cpuUsageProportion * cpuCost
+		allocRAMCost := ramUsageProportion * ramCost
+		allocGPUCost := gpuUsageProportion * gpuCost
+
+		a.CPUCostAdjustment = allocCPUCost - a.CPUCost
+		a.RAMCostAdjustment = allocRAMCost - a.RAMCost
+		a.GPUCostAdjustment = allocGPUCost - a.GPUCost
+	})
+
+	return nil
 }
 
 // Delete removes the allocation with the given name from the set

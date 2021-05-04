@@ -1057,7 +1057,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 			cpuToRAMRatio := defaultCPU / defaultRAM
 			if math.IsNaN(cpuToRAMRatio) {
-				klog.V(1).Infof("[Warning] cpuToRAMRatio[defaultCPU: %f / defaultRam: %f] is NaN. Setting to 0.", defaultCPU, defaultRAM)
+				klog.V(1).Infof("[Warning] cpuToRAMRatio[defaultCPU: %f / defaultRAM: %f] is NaN. Setting to 0.", defaultCPU, defaultRAM)
 				cpuToRAMRatio = 0
 			}
 
@@ -1137,7 +1137,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 			cpuToRAMRatio := defaultCPU / defaultRAM
 			if math.IsNaN(cpuToRAMRatio) {
-				klog.V(1).Infof("[Warning] cpuToRAMRatio[defaultCPU: %f / defaultRam: %f] is NaN. Setting to 0.", defaultCPU, defaultRAM)
+				klog.V(1).Infof("[Warning] cpuToRAMRatio[defaultCPU: %f / defaultRAM: %f] is NaN. Setting to 0.", defaultCPU, defaultRAM)
 				cpuToRAMRatio = 0
 			}
 
