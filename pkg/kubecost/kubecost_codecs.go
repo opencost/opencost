@@ -164,10 +164,10 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 	buff.WriteFloat64(target.CPUCoreRequestAverage)  // write float64
 	buff.WriteFloat64(target.CPUCoreUsageAverage)    // write float64
 	buff.WriteFloat64(target.CPUCost)                // write float64
-	buff.WriteFloat64(target.CPUAdjustment)          // write float64
+	buff.WriteFloat64(target.CPUCostAdjustment)      // write float64
 	buff.WriteFloat64(target.GPUHours)               // write float64
 	buff.WriteFloat64(target.GPUCost)                // write float64
-	buff.WriteFloat64(target.GPUAdjustment)          // write float64
+	buff.WriteFloat64(target.GPUCostAdjustment)      // write float64
 	buff.WriteFloat64(target.NetworkCost)            // write float64
 	buff.WriteFloat64(target.LoadBalancerCost)       // write float64
 	buff.WriteFloat64(target.PVByteHours)            // write float64
@@ -176,7 +176,7 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 	buff.WriteFloat64(target.RAMBytesRequestAverage) // write float64
 	buff.WriteFloat64(target.RAMBytesUsageAverage)   // write float64
 	buff.WriteFloat64(target.RAMCost)                // write float64
-	buff.WriteFloat64(target.RAMAdjustment)          // write float64
+	buff.WriteFloat64(target.RAMCostAdjustment)      // write float64
 	buff.WriteFloat64(target.SharedCost)             // write float64
 	buff.WriteFloat64(target.ExternalCost)           // write float64
 	if target.RawAllocationOnly == nil {
@@ -285,7 +285,7 @@ func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
 	target.CPUCost = s
 
 	t := buff.ReadFloat64() // read float64
-	target.CPUAdjustment = t
+	target.CPUCostAdjustment = t
 
 	u := buff.ReadFloat64() // read float64
 	target.GPUHours = u
@@ -294,7 +294,7 @@ func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
 	target.GPUCost = w
 
 	x := buff.ReadFloat64() // read float64
-	target.GPUAdjustment = x
+	target.GPUCostAdjustment = x
 
 	y := buff.ReadFloat64() // read float64
 	target.NetworkCost = y
@@ -321,7 +321,7 @@ func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
 	target.RAMCost = gg
 
 	hh := buff.ReadFloat64() // read float64
-	target.RAMAdjustment = hh
+	target.RAMCostAdjustment = hh
 
 	kk := buff.ReadFloat64() // read float64
 	target.SharedCost = kk
