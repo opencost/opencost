@@ -74,7 +74,6 @@ type AllocationProperties struct {
 	ProviderID     string                `json:"providerID,omitempty"`
 	Labels         AllocationLabels      `json:"allocationLabels,omitempty"`
 	Annotations    AllocationAnnotations `json:"allocationAnnotations,omitempty"`
-	PVBreakdown    map[string]PVUsage    `json:"pvBreakDown,omitempty"`
 }
 
 // AllocationLabels is a schema-free mapping of key/value pairs that can be
@@ -84,13 +83,6 @@ type AllocationLabels map[string]string
 // AllocationAnnotations is a schema-free mapping of key/value pairs that can be
 // attributed to an Allocation
 type AllocationAnnotations map[string]string
-
-// PVUsage is a mapping between the name of the PV and the byte hour usage
-// and cost of an Allocation
-type PVUsage struct {
-	ByteHours float64
-	Cost      float64
-}
 
 func (p *AllocationProperties) Clone() *AllocationProperties {
 	if p == nil {
@@ -124,12 +116,6 @@ func (p *AllocationProperties) Clone() *AllocationProperties {
 		annotations[k] = v
 	}
 	clone.Annotations = annotations
-
-	pvBreakdown := make(map[string]PVUsage)
-	for k, v := range p.PVBreakdown {
-		pvBreakdown[k] = v
-	}
-	clone.PVBreakdown = pvBreakdown
 
 	return clone
 }
@@ -189,19 +175,6 @@ func (p *AllocationProperties) Equal(that *AllocationProperties) bool {
 	if len(pAnnotations) == len(thatAnnotations) {
 		for k, pv := range pAnnotations {
 			tv, ok := thatAnnotations[k]
-			if !ok || tv != pv {
-				return false
-			}
-		}
-	} else {
-		return false
-	}
-
-	pPVBreakdown := p.PVBreakdown
-	thatPVBreakdown := that.PVBreakdown
-	if len(pPVBreakdown) == len(thatPVBreakdown) {
-		for k, pv := range pPVBreakdown {
-			tv, ok := thatPVBreakdown[k]
 			if !ok || tv != pv {
 				return false
 			}

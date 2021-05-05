@@ -65,8 +65,7 @@ type Allocation struct {
 	GPUCostAdjustment      float64               `json:"gpuCostAdjustment"`
 	NetworkCost            float64               `json:"networkCost"`
 	LoadBalancerCost       float64               `json:"loadBalancerCost"`
-	PVByteHours            float64               `json:"pvByteHours"`
-	PVCost                 float64               `json:"pvCost"`
+	PVBreakdown            map[string]PVUsage    `json:"pvBreakDown"`
 	PVCostAdjustment       float64               `json:"pvCostAdjustment"`
 	RAMByteHours           float64               `json:"ramByteHours"`
 	RAMBytesRequestAverage float64               `json:"ramByteRequestAverage"`
@@ -108,6 +107,13 @@ type RawAllocationOnlyData struct {
 	RAMBytesUsageMax float64 `json:"ramByteUsageMax"`
 }
 
+// PVUsage contains the byte hour usage
+// and cost of an Allocation for a single PV
+type PVUsage struct {
+	ByteHours float64 `json:"byteHours"`
+	Cost      float64 `json:"cost"`
+}
+
 // AllocationMatchFunc is a function that can be used to match Allocations by
 // returning true for any given Allocation if a condition is met.
 type AllocationMatchFunc func(*Allocation) bool
@@ -137,6 +143,11 @@ func (a *Allocation) Clone() *Allocation {
 		return nil
 	}
 
+	pvBreakdown := make(map[string]PVUsage)
+	for k, v := range a.PVBreakdown {
+		pvBreakdown[k] = v
+	}
+
 	return &Allocation{
 		Name:                   a.Name,
 		Properties:             a.Properties.Clone(),
@@ -153,8 +164,7 @@ func (a *Allocation) Clone() *Allocation {
 		GPUCostAdjustment:      a.GPUCostAdjustment,
 		NetworkCost:            a.NetworkCost,
 		LoadBalancerCost:       a.LoadBalancerCost,
-		PVByteHours:            a.PVByteHours,
-		PVCost:                 a.PVCost,
+		PVBreakdown:            pvBreakdown,
 		PVCostAdjustment:       a.PVCostAdjustment,
 		RAMByteHours:           a.RAMByteHours,
 		RAMBytesRequestAverage: a.RAMBytesRequestAverage,
@@ -227,12 +237,7 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if !util.IsApproximately(a.LoadBalancerCost, that.LoadBalancerCost) {
 		return false
 	}
-	if !util.IsApproximately(a.PVByteHours, that.PVByteHours) {
-		return false
-	}
-	if !util.IsApproximately(a.PVCost, that.PVCost) {
-		return false
-	}
+
 	if !util.IsApproximately(a.PVCostAdjustment, that.PVCostAdjustment) {
 		return false
 	}
@@ -268,6 +273,19 @@ func (a *Allocation) Equal(that *Allocation) bool {
 		}
 	}
 
+	aPVBreakdown := a.PVBreakdown
+	thatPVBreakdown := that.PVBreakdown
+	if len(aPVBreakdown) == len(thatPVBreakdown) {
+		for k, pv := range aPVBreakdown {
+			tv, ok := thatPVBreakdown[k]
+			if !ok || tv != pv {
+				return false
+			}
+		}
+	} else {
+		return false
+	}
+
 	return true
 }
 
@@ -289,7 +307,23 @@ func (a *Allocation) RAMTotalCost() float64 {
 }
 
 func (a *Allocation) PVTotalCost() float64 {
-	return a.PVCost + a.PVCostAdjustment
+	return a.PVCost() + a.PVCostAdjustment
+}
+
+func (a *Allocation) PVCost() float64 {
+	cost := 0.0
+	for _, pv := range a.PVBreakdown {
+		cost += pv.Cost
+	}
+	return cost
+}
+
+func (a *Allocation) PVByteHours() float64 {
+	byteHours := 0.0
+	for _, pv := range a.PVBreakdown {
+		byteHours += pv.ByteHours
+	}
+	return byteHours
 }
 
 // CPUEfficiency is the ratio of usage to request. If there is no request and
@@ -363,7 +397,7 @@ func (a *Allocation) PVBytes() float64 {
 	if a.Minutes() <= 0.0 {
 		return 0.0
 	}
-	return a.PVByteHours / (a.Minutes() / 60.0)
+	return a.PVByteHours() / (a.Minutes() / 60.0)
 }
 
 // MarshalJSON implements json.Marshaler interface
@@ -389,8 +423,9 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "networkCost", a.NetworkCost, ",")
 	jsonEncodeFloat64(buffer, "loadBalancerCost", a.LoadBalancerCost, ",")
 	jsonEncodeFloat64(buffer, "pvBytes", a.PVBytes(), ",")
-	jsonEncodeFloat64(buffer, "pvByteHours", a.PVByteHours, ",")
-	jsonEncodeFloat64(buffer, "pvCost", a.PVCost, ",")
+	jsonEncodeFloat64(buffer, "pvByteHours", a.PVByteHours(), ",")
+	jsonEncodeFloat64(buffer, "pvCost", a.PVCost(), ",")
+	jsonEncode(buffer, "pvBreakdown", a.PVBreakdown, ",")
 	jsonEncodeFloat64(buffer, "pvCostAdjustment", a.PVCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "ramBytes", a.RAMBytes(), ",")
 	jsonEncodeFloat64(buffer, "ramByteRequestAverage", a.RAMBytesRequestAverage, ",")
@@ -515,17 +550,18 @@ func (a *Allocation) add(that *Allocation) {
 	a.CPUCoreHours += that.CPUCoreHours
 	a.GPUHours += that.GPUHours
 	a.RAMByteHours += that.RAMByteHours
-	a.PVByteHours += that.PVByteHours
 
 	// Sum all cumulative cost fields
 	a.CPUCost += that.CPUCost
 	a.GPUCost += that.GPUCost
 	a.RAMCost += that.RAMCost
-	a.PVCost += that.PVCost
 	a.NetworkCost += that.NetworkCost
 	a.LoadBalancerCost += that.LoadBalancerCost
 	a.SharedCost += that.SharedCost
 	a.ExternalCost += that.ExternalCost
+
+	// Sum PV Breakdown
+	a.AddPVBreakDown(that.PVBreakdown)
 
 	// Sum all cumulative adjustment fields
 	a.CPUCostAdjustment += that.CPUCostAdjustment
@@ -536,6 +572,25 @@ func (a *Allocation) add(that *Allocation) {
 	// Any data that is in a "raw allocation only" is not valid in any
 	// sort of cumulative Allocation (like one that is added).
 	a.RawAllocationOnly = nil
+}
+
+// AddPVBreakDown adds contents of pvBreakdown to Allocation PVBreakdown
+// Property, creating new PVUsage where necessary
+func (a *Allocation) AddPVBreakDown(pvBreakdown map[string]PVUsage) {
+	if pvBreakdown != nil {
+		if a.PVBreakdown == nil {
+			a.PVBreakdown = map[string]PVUsage{}
+		}
+		for pvName, pv := range pvBreakdown {
+			apv, ok := a.PVBreakdown[pvName]
+			if !ok {
+				apv = PVUsage{}
+			}
+			apv.Cost += pv.Cost
+			apv.ByteHours += pv.ByteHours
+			a.PVBreakdown[pvName] = apv
+		}
+	}
 }
 
 // AllocationSet stores a set of Allocations, each with a unique name, that share
@@ -1615,7 +1670,7 @@ func (a *Allocation) reconcileNodes(nodeByProviderID map[string]*Node) {
 }
 
 func (a *Allocation) reconcileDisks(diskByName map[string]*Disk) {
-	pvBreakdown := a.Properties.PVBreakdown
+	pvBreakdown := a.PVBreakdown
 	if pvBreakdown == nil {
 		// No PV usage to reconcile
 		return
