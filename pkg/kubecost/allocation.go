@@ -67,7 +67,7 @@ type Allocation struct {
 	LoadBalancerCost       float64               `json:"loadBalancerCost"`
 	PVByteHours            float64               `json:"pvByteHours"`
 	PVCost                 float64               `json:"pvCost"`
-	PVCostAdjustment       float64               `json:"pvAdjustment"`
+	PVCostAdjustment       float64               `json:"pvCostAdjustment"`
 	RAMByteHours           float64               `json:"ramByteHours"`
 	RAMBytesRequestAverage float64               `json:"ramByteRequestAverage"`
 	RAMBytesUsageAverage   float64               `json:"ramByteUsageAverage"`
@@ -391,7 +391,7 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "pvBytes", a.PVBytes(), ",")
 	jsonEncodeFloat64(buffer, "pvByteHours", a.PVByteHours, ",")
 	jsonEncodeFloat64(buffer, "pvCost", a.PVCost, ",")
-	jsonEncodeFloat64(buffer, "pvAdjustment", a.PVCostAdjustment, ",")
+	jsonEncodeFloat64(buffer, "pvCostAdjustment", a.PVCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "ramBytes", a.RAMBytes(), ",")
 	jsonEncodeFloat64(buffer, "ramByteRequestAverage", a.RAMBytesRequestAverage, ",")
 	jsonEncodeFloat64(buffer, "ramByteUsageAverage", a.RAMBytesUsageAverage, ",")
