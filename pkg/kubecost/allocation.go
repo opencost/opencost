@@ -1615,14 +1615,14 @@ func (a *Allocation) reconcileNodes(nodeByProviderID map[string]*Node) {
 }
 
 func (a *Allocation) reconcileDisks(diskByName map[string]*Disk) {
-	pvBreakDown := a.Properties.PVBreakDown
-	if pvBreakDown == nil {
+	pvBreakdown := a.Properties.PVBreakdown
+	if pvBreakdown == nil {
 		// No PV usage to reconcile
 		return
 	}
 	// Set PV Adjustment for allocation to 0 for idempotency
 	a.PVCostAdjustment = 0.0
-	for pvName, pvUsage := range pvBreakDown {
+	for pvName, pvUsage := range pvBreakdown {
 		disk, ok := diskByName[pvName]
 		if !ok {
 			// Failed to find disk in assets

@@ -390,10 +390,10 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 					alloc.PVCost += cost / count
 
 					// record the amount of total PVBytes Hours attributable to a given PV
-					if alloc.Properties.PVBreakDown == nil {
-						alloc.Properties.PVBreakDown = map[string]kubecost.PVUsage{}
+					if alloc.Properties.PVBreakdown == nil {
+						alloc.Properties.PVBreakdown = map[string]kubecost.PVUsage{}
 					}
-					alloc.Properties.PVBreakDown[pvc.Volume.Name] = kubecost.PVUsage{
+					alloc.Properties.PVBreakdown[pvc.Volume.Name] = kubecost.PVUsage{
 						ByteHours: pvc.Bytes * hrs / count,
 						Cost:      cost / count,
 					}

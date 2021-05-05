@@ -74,7 +74,7 @@ type AllocationProperties struct {
 	ProviderID     string                `json:"providerID,omitempty"`
 	Labels         AllocationLabels      `json:"allocationLabels,omitempty"`
 	Annotations    AllocationAnnotations `json:"allocationAnnotations,omitempty"`
-	PVBreakDown    map[string]PVUsage    `json:"pvBreakDown,omitempty"`
+	PVBreakdown    map[string]PVUsage    `json:"pvBreakDown,omitempty"`
 }
 
 // AllocationLabels is a schema-free mapping of key/value pairs that can be
@@ -124,6 +124,12 @@ func (p *AllocationProperties) Clone() *AllocationProperties {
 		annotations[k] = v
 	}
 	clone.Annotations = annotations
+
+	pvBreakdown := make(map[string]PVUsage)
+	for k, v := range p.PVBreakdown {
+		pvBreakdown[k] = v
+	}
+	clone.PVBreakdown = pvBreakdown
 
 	return clone
 }
@@ -183,6 +189,19 @@ func (p *AllocationProperties) Equal(that *AllocationProperties) bool {
 	if len(pAnnotations) == len(thatAnnotations) {
 		for k, pv := range pAnnotations {
 			tv, ok := thatAnnotations[k]
+			if !ok || tv != pv {
+				return false
+			}
+		}
+	} else {
+		return false
+	}
+
+	pPVBreakdown := p.PVBreakdown
+	thatPVBreakdown := that.PVBreakdown
+	if len(pPVBreakdown) == len(thatPVBreakdown) {
+		for k, pv := range pPVBreakdown {
+			tv, ok := thatPVBreakdown[k]
 			if !ok || tv != pv {
 				return false
 			}

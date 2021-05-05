@@ -701,8 +701,8 @@ func generateAllocationSet(start time.Time) *AllocationSet {
 	a22pqr6.Properties.Services = []string{"service1"}
 
 	// PV BreakDown
-	a22mno4.Properties.PVBreakDown = map[string]PVUsage{"disk1": {Cost: 2.5, ByteHours: 2.5 * gb}, "disk2": {Cost: 5, ByteHours: 5 * gb}}
-	a22mno5.Properties.PVBreakDown = map[string]PVUsage{"disk1": {Cost: 2.5, ByteHours: 2.5 * gb}, "disk2": {Cost: 5, ByteHours: 5 * gb}}
+	a22mno4.Properties.PVBreakdown = map[string]PVUsage{"disk1": {Cost: 2.5, ByteHours: 2.5 * gb}, "disk2": {Cost: 5, ByteHours: 5 * gb}}
+	a22mno5.Properties.PVBreakdown = map[string]PVUsage{"disk1": {Cost: 2.5, ByteHours: 2.5 * gb}, "disk2": {Cost: 5, ByteHours: 5 * gb}}
 
 	return NewAllocationSet(start, start.Add(day),
 		// idle
