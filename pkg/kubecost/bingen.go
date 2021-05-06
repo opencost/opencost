@@ -25,6 +25,8 @@ package kubecost
 // @bingen:generate:AllocationLabels
 // @bingen:generate:AllocationAnnotations
 // @bingen:generate:RawAllocationOnlyData
-// @bingen:generate:PVUsage
+// @bingen:generate:PV
+// @bingen:generate:PVKey
+// @bingen:generate:PVAllocation
 
 //go:generate bingen -package=kubecost -version=13 -buffer=github.com/kubecost/cost-model/pkg/util

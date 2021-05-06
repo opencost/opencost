@@ -65,7 +65,7 @@ type Allocation struct {
 	GPUCostAdjustment      float64               `json:"gpuCostAdjustment"`
 	NetworkCost            float64               `json:"networkCost"`
 	LoadBalancerCost       float64               `json:"loadBalancerCost"`
-	PVBreakdown            map[string]PVUsage    `json:"pvBreakDown"`
+	PVs                    PV
 	PVCostAdjustment       float64               `json:"pvCostAdjustment"`
 	RAMByteHours           float64               `json:"ramByteHours"`
 	RAMBytesRequestAverage float64               `json:"ramByteRequestAverage"`
@@ -107,9 +107,52 @@ type RawAllocationOnlyData struct {
 	RAMBytesUsageMax float64 `json:"ramByteUsageMax"`
 }
 
-// PVUsage contains the byte hour usage
+// PV is a map of Disk Asset Identifiers to the
+// usage of them by an Allocation as recorded in a PVAllocation
+type PV map[PVKey]*PVAllocation
+
+// Clone creates a deep copy of a PV
+func (pv *PV) Clone() PV{
+	if pv == nil || *pv == nil {
+		return nil
+	}
+	apv := *pv
+	clonePV := PV{}
+	for k, v := range apv{
+		clonePV[k] = v
+	}
+	return clonePV
+}
+
+// Add adds contents of that to the calling PV
+func (pv *PV) Add(that PV) PV{
+	apv := pv.Clone()
+	if that != nil {
+		if apv == nil {
+			apv = PV{}
+		}
+		for pvKey, thatPVAlloc := range that {
+			apvAlloc, ok := apv[pvKey]
+			if !ok {
+				apvAlloc = &PVAllocation{}
+			}
+			apvAlloc.Cost += thatPVAlloc.Cost
+			apvAlloc.ByteHours += thatPVAlloc.ByteHours
+			apv[pvKey] = apvAlloc
+		}
+	}
+	return apv
+}
+
+// PVKey for identifying Disk type assets
+type PVKey struct {
+	Cluster string `json:"cluster"`
+	Name    string `json:"name"`
+}
+
+// PVAllocation contains the byte hour usage
 // and cost of an Allocation for a single PV
-type PVUsage struct {
+type PVAllocation struct {
 	ByteHours float64 `json:"byteHours"`
 	Cost      float64 `json:"cost"`
 }
@@ -143,10 +186,6 @@ func (a *Allocation) Clone() *Allocation {
 		return nil
 	}
 
-	pvBreakdown := make(map[string]PVUsage)
-	for k, v := range a.PVBreakdown {
-		pvBreakdown[k] = v
-	}
 
 	return &Allocation{
 		Name:                   a.Name,
@@ -164,7 +203,7 @@ func (a *Allocation) Clone() *Allocation {
 		GPUCostAdjustment:      a.GPUCostAdjustment,
 		NetworkCost:            a.NetworkCost,
 		LoadBalancerCost:       a.LoadBalancerCost,
-		PVBreakdown:            pvBreakdown,
+		PVs:                    a.PVs.Clone(),
 		PVCostAdjustment:       a.PVCostAdjustment,
 		RAMByteHours:           a.RAMByteHours,
 		RAMBytesRequestAverage: a.RAMBytesRequestAverage,
@@ -273,19 +312,18 @@ func (a *Allocation) Equal(that *Allocation) bool {
 		}
 	}
 
-	aPVBreakdown := a.PVBreakdown
-	thatPVBreakdown := that.PVBreakdown
-	if len(aPVBreakdown) == len(thatPVBreakdown) {
-		for k, pv := range aPVBreakdown {
-			tv, ok := thatPVBreakdown[k]
-			if !ok || tv != pv {
+	aPVs := a.PVs
+	thatPVs := that.PVs
+	if len(aPVs) == len(thatPVs) {
+		for k, pv := range aPVs {
+			tv, ok := thatPVs[k]
+			if !ok || *tv != *pv {
 				return false
 			}
 		}
 	} else {
 		return false
 	}
-
 	return true
 }
 
@@ -312,7 +350,7 @@ func (a *Allocation) PVTotalCost() float64 {
 
 func (a *Allocation) PVCost() float64 {
 	cost := 0.0
-	for _, pv := range a.PVBreakdown {
+	for _, pv := range a.PVs {
 		cost += pv.Cost
 	}
 	return cost
@@ -320,7 +358,7 @@ func (a *Allocation) PVCost() float64 {
 
 func (a *Allocation) PVByteHours() float64 {
 	byteHours := 0.0
-	for _, pv := range a.PVBreakdown {
+	for _, pv := range a.PVs {
 		byteHours += pv.ByteHours
 	}
 	return byteHours
@@ -425,7 +463,7 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "pvBytes", a.PVBytes(), ",")
 	jsonEncodeFloat64(buffer, "pvByteHours", a.PVByteHours(), ",")
 	jsonEncodeFloat64(buffer, "pvCost", a.PVCost(), ",")
-	jsonEncode(buffer, "pvBreakdown", a.PVBreakdown, ",")
+	jsonEncode(buffer, "pvs", a.PVs, ",") // Todo Sean: this does not work properly
 	jsonEncodeFloat64(buffer, "pvCostAdjustment", a.PVCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "ramBytes", a.RAMBytes(), ",")
 	jsonEncodeFloat64(buffer, "ramByteRequestAverage", a.RAMBytesRequestAverage, ",")
@@ -561,7 +599,7 @@ func (a *Allocation) add(that *Allocation) {
 	a.ExternalCost += that.ExternalCost
 
 	// Sum PV Breakdown
-	a.AddPVBreakDown(that.PVBreakdown)
+	a.PVs = a.PVs.Add(that.PVs)
 
 	// Sum all cumulative adjustment fields
 	a.CPUCostAdjustment += that.CPUCostAdjustment
@@ -572,25 +610,6 @@ func (a *Allocation) add(that *Allocation) {
 	// Any data that is in a "raw allocation only" is not valid in any
 	// sort of cumulative Allocation (like one that is added).
 	a.RawAllocationOnly = nil
-}
-
-// AddPVBreakDown adds contents of pvBreakdown to Allocation PVBreakdown
-// Property, creating new PVUsage where necessary
-func (a *Allocation) AddPVBreakDown(pvBreakdown map[string]PVUsage) {
-	if pvBreakdown != nil {
-		if a.PVBreakdown == nil {
-			a.PVBreakdown = map[string]PVUsage{}
-		}
-		for pvName, pv := range pvBreakdown {
-			apv, ok := a.PVBreakdown[pvName]
-			if !ok {
-				apv = PVUsage{}
-			}
-			apv.Cost += pv.Cost
-			apv.ByteHours += pv.ByteHours
-			a.PVBreakdown[pvName] = apv
-		}
-	}
 }
 
 // AllocationSet stores a set of Allocations, each with a unique name, that share
@@ -1670,15 +1689,15 @@ func (a *Allocation) reconcileNodes(nodeByProviderID map[string]*Node) {
 }
 
 func (a *Allocation) reconcileDisks(diskByName map[string]*Disk) {
-	pvBreakdown := a.PVBreakdown
-	if pvBreakdown == nil {
+	pvs := a.PVs
+	if pvs == nil {
 		// No PV usage to reconcile
 		return
 	}
 	// Set PV Adjustment for allocation to 0 for idempotency
 	a.PVCostAdjustment = 0.0
-	for pvName, pvUsage := range pvBreakdown {
-		disk, ok := diskByName[pvName]
+	for pvKey, pvUsage := range pvs {
+		disk, ok := diskByName[pvKey.Name]
 		if !ok {
 			// Failed to find disk in assets
 			continue
@@ -1688,7 +1707,7 @@ func (a *Allocation) reconcileDisks(diskByName map[string]*Disk) {
 		if disk.ByteHours != 0 {
 			pvUsageProportion = pvUsage.ByteHours / disk.ByteHours
 		} else {
-			log.Warningf("Missing Byte Hours for disk: %s", pvName)
+			log.Warningf("Missing Byte Hours for disk: %s", pvKey)
 		}
 
 		// take proportion of disk adjusted cost

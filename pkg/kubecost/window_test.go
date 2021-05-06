@@ -198,7 +198,7 @@ func TestParseWindowUTC(t *testing.T) {
 	if week.Duration().Hours() < hoursThisWeek {
 		t.Fatalf(`expect: window "week" to have at least %f hours; actual: %f hours`, hoursThisWeek, week.Duration().Hours())
 	}
-	if !week.End().Before(time.Now().UTC()) {
+	if week.End().After(time.Now().UTC()) {
 		t.Fatalf(`expect: window "week" to end before now; actual: %s ends after %s`, week, time.Now().UTC())
 	}
 

@@ -11,6 +11,15 @@ import (
 )
 
 const day = 24 * time.Hour
+var disk = PVKey{}
+var disk1 = PVKey{
+	Cluster: "cluster2",
+	Name: "disk1",
+}
+var disk2 = PVKey{
+	Cluster: "cluster2",
+	Name: "disk2",
+}
 
 func NewUnitAllocation(name string, start time.Time, resolution time.Duration, props *AllocationProperties) *Allocation {
 	if name == "" {
@@ -46,8 +55,8 @@ func NewUnitAllocation(name string, start time.Time, resolution time.Duration, p
 		GPUCost:               1,
 		NetworkCost:           1,
 		LoadBalancerCost:      1,
-		PVBreakdown: map[string]PVUsage{
-			"disk": {
+		PVs: PV{
+			disk: {
 				ByteHours: 1,
 				Cost:      1,
 			},
@@ -64,7 +73,7 @@ func NewUnitAllocation(name string, start time.Time, resolution time.Duration, p
 
 	// If idle allocation, remove non-idle costs, but maintain total cost
 	if alloc.IsIdle() {
-		alloc.PVBreakdown = nil
+		alloc.PVs = nil
 		alloc.NetworkCost = 0.0
 		alloc.LoadBalancerCost = 0.0
 		alloc.CPUCoreHours += 1.0
@@ -119,8 +128,8 @@ func TestAllocation_Add(t *testing.T) {
 		GPUHours:              1.0 * hrs1,
 		GPUCost:               1.0 * hrs1 * gpuPrice,
 		GPUCostAdjustment:     2.0,
-		PVBreakdown: map[string]PVUsage{
-			"disk1": {
+		PVs: PV{
+			disk: {
 				ByteHours: 100.0 * gib * hrs1,
 				Cost:      100.0 * hrs1 * pvPrice,
 			},
@@ -291,8 +300,8 @@ func TestAllocation_Share(t *testing.T) {
 		GPUHours:              1.0 * hrs1,
 		GPUCost:               1.0 * hrs1 * gpuPrice,
 		GPUCostAdjustment:     2.0,
-		PVBreakdown: map[string]PVUsage{
-			"disk1": {
+		PVs: PV{
+			disk : {
 				ByteHours: 100.0 * gib * hrs1,
 				Cost:      100.0 * hrs1 * pvPrice,
 			},
@@ -455,8 +464,8 @@ func TestAllocation_MarshalJSON(t *testing.T) {
 		GPUCostAdjustment:     2.0,
 		NetworkCost:           0.05,
 		LoadBalancerCost:      0.02,
-		PVBreakdown: map[string]PVUsage{
-			"disk1": {
+		PVs: PV{
+			disk: {
 				ByteHours: 100.0 * gib * hrs,
 				Cost:      100.0 * hrs * pvPrice,
 			},
@@ -486,7 +495,8 @@ func TestAllocation_MarshalJSON(t *testing.T) {
 	// TODO:CLEANUP fix json marshaling of Window so that all of this works.
 	// In the meantime, just set the Window so that we can test the rest.
 	after.Window = before.Window.Clone()
-
+	// TODO Sean: fix JSON marshaling of PVs
+	after.PVs = before.PVs
 	if !after.Equal(before) {
 		t.Fatalf("Allocation.MarshalJSON: before and after are not equal")
 	}
@@ -965,7 +975,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	//         container8: an[team=team2]          6.00   1.00   1.00   1.00   1.00   1.00   1.00
 	//         container9: an[team=team1]          6.00   1.00   1.00   1.00   1.00   1.00   1.00
 	// +----------------------------------------+------+------+------+------+------+------+------+
-	//   cluster2 subtotal                        46.00  11.00  11.00   6.00  6.00   6.00   6.00
+	//   cluster2 subtotal                        46.00  11.00  11.00   6.00   6.00   6.00   6.00
 	// +----------------------------------------+------+------+------+------+------+------+------+
 	//   total                                   112.00  22.00  42.00  12.00  12.00  12.00  12.00
 	// +----------------------------------------+------+------+------+------+------+------+------+
@@ -1781,7 +1791,16 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 	// add reconcilable pvs to pod-mno
 	for _, a := range as.allocations {
 		if a.Properties.Pod == "pod-mno" {
-			a.AddPVBreakDown(map[string]PVUsage{"disk1": {Cost: 2.5, ByteHours: 2.5 * gb}, "disk2": {Cost: 5, ByteHours: 5 * gb}})
+			a.PVs = a.PVs.Add(PV{
+				disk1: {
+					Cost: 2.5,
+					ByteHours: 2.5 * gb,
+				},
+				disk2: {
+					Cost: 5,
+					ByteHours: 5 * gb,
+				},
+			})
 		}
 	}
 

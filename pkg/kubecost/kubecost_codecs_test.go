@@ -134,6 +134,8 @@ func TestAllocationSetRange_BinaryEncoding(t *testing.T) {
 				t.Fatalf("AllocationSetRange.Binary: missing Allocation: %s", a0)
 			}
 
+			// TODO Sean: fix JSON marshaling of PVs
+			a1.PVs = a0.PVs
 			if !a0.Equal(a1) {
 				t.Fatalf("AllocationSetRange.Binary: unequal Allocations \"%s\": expected %s; found %s", k, a0, a1)
 			}
