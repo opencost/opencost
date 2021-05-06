@@ -2930,6 +2930,7 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 }
 
 type AssetSetRange struct {
+	FromStore string
 	sync.RWMutex
 	assets []*AssetSet
 }
@@ -3023,7 +3024,7 @@ func (asr *AssetSetRange) Length() int {
 
 func (asr *AssetSetRange) MarshalJSON() ([]byte, error) {
 	asr.RLock()
-	asr.RUnlock()
+	defer asr.RUnlock()
 	return json.Marshal(asr.assets)
 }
 

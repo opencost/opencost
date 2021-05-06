@@ -6,7 +6,6 @@ import Typography from '@material-ui/core/Typography'
 import RangeChart from './RangeChart'
 import SummaryChart from './SummaryChart'
 
-// TODO niko/etl
 // sum allocationSet to single allocation
 function agg(allocationSet, name) {
   if (allocationSet.length === 0) {

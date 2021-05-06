@@ -448,8 +448,6 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 		agg.GPUAllocationHourlyAverage = averageVectors(agg.GPUAllocationVectors)
 		agg.PVAllocationHourlyAverage = totalVectors(agg.PVAllocationVectors) / agg.TotalHours(resolutionHours)
 
-		// TODO niko/etl does this check out for GPU data? Do we need to rewrite GPU queries to be
-		// culumative?
 		agg.CPUAllocationTotal = totalVectors(agg.CPUAllocationVectors)
 		agg.GPUAllocationTotal = totalVectors(agg.GPUAllocationVectors)
 		agg.PVAllocationTotal = totalVectors(agg.PVAllocationVectors)
@@ -1901,9 +1899,6 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	// Convert UTC-RFC3339 pairs to configured UTC offset
 	// e.g. with UTC offset of -0600, 2020-07-01T00:00:00Z becomes
 	// 2020-07-01T06:00:00Z == 2020-07-01T00:00:00-0600
-	// TODO niko/etl fix the frontend because this is confusing if you're
-	// actually asking for UTC time (...Z) and we swap that "Z" out for the
-	// configured UTC offset without asking
 	rfc3339 := `\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ`
 	regex := regexp.MustCompile(fmt.Sprintf(`(%s),(%s)`, rfc3339, rfc3339))
 	match := regex.FindStringSubmatch(windowStr)

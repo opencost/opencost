@@ -1919,6 +1919,7 @@ func (as *AllocationSet) accumulate(that *AllocationSet) (*AllocationSet, error)
 type AllocationSetRange struct {
 	sync.RWMutex
 	allocations []*AllocationSet
+	FromStore   string
 }
 
 // NewAllocationSetRange instantiates a new range composed of the given
@@ -1948,7 +1949,7 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 	return allocSet, nil
 }
 
-// TODO niko/etl accumulate into lower-resolution chunks of the given resolution
+// TODO accumulate into lower-resolution chunks of the given resolution
 // func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) *AllocationSetRange
 
 // AggregateBy aggregates each AllocationSet in the range by the given
