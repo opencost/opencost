@@ -66,14 +66,14 @@ type Allocation struct {
 	NetworkCost            float64               `json:"networkCost"`
 	LoadBalancerCost       float64               `json:"loadBalancerCost"`
 	PVs                    PV
-	PVCostAdjustment       float64               `json:"pvCostAdjustment"`
-	RAMByteHours           float64               `json:"ramByteHours"`
-	RAMBytesRequestAverage float64               `json:"ramByteRequestAverage"`
-	RAMBytesUsageAverage   float64               `json:"ramByteUsageAverage"`
-	RAMCost                float64               `json:"ramCost"`
-	RAMCostAdjustment      float64               `json:"ramCostAdjustment"`
-	SharedCost             float64               `json:"sharedCost"`
-	ExternalCost           float64               `json:"externalCost"`
+	PVCostAdjustment       float64 `json:"pvCostAdjustment"`
+	RAMByteHours           float64 `json:"ramByteHours"`
+	RAMBytesRequestAverage float64 `json:"ramByteRequestAverage"`
+	RAMBytesUsageAverage   float64 `json:"ramByteUsageAverage"`
+	RAMCost                float64 `json:"ramCost"`
+	RAMCostAdjustment      float64 `json:"ramCostAdjustment"`
+	SharedCost             float64 `json:"sharedCost"`
+	ExternalCost           float64 `json:"externalCost"`
 	// RawAllocationOnly is a pointer so if it is not present it will be
 	// marshalled as null rather than as an object with Go default values.
 	RawAllocationOnly *RawAllocationOnlyData `json:"rawAllocationOnly"`
@@ -112,20 +112,20 @@ type RawAllocationOnlyData struct {
 type PV map[PVKey]*PVAllocation
 
 // Clone creates a deep copy of a PV
-func (pv *PV) Clone() PV{
+func (pv *PV) Clone() PV {
 	if pv == nil || *pv == nil {
 		return nil
 	}
 	apv := *pv
 	clonePV := PV{}
-	for k, v := range apv{
+	for k, v := range apv {
 		clonePV[k] = v
 	}
 	return clonePV
 }
 
 // Add adds contents of that to the calling PV
-func (pv *PV) Add(that PV) PV{
+func (pv *PV) Add(that PV) PV {
 	apv := pv.Clone()
 	if that != nil {
 		if apv == nil {
@@ -185,7 +185,6 @@ func (a *Allocation) Clone() *Allocation {
 	if a == nil {
 		return nil
 	}
-
 
 	return &Allocation{
 		Name:                   a.Name,

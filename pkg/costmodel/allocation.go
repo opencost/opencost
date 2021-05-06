@@ -1676,10 +1676,10 @@ func applyUnmountedPVs(window kubecost.Window, podMap map[podKey]*Pod, pvMap map
 		podMap[key].Allocations[container].Properties.Container = container
 		pvKey := kubecost.PVKey{
 			Cluster: cluster,
-			Name: kubecost.UnmountedSuffix,
+			Name:    kubecost.UnmountedSuffix,
 		}
 		unmountedBreakDown := kubecost.PV{
-			pvKey : {
+			pvKey: {
 				ByteHours: unmountedPVBytes[cluster] * window.Minutes() / 60.0,
 				Cost:      amount,
 			},
@@ -1728,7 +1728,7 @@ func applyUnmountedPVCs(window kubecost.Window, podMap map[podKey]*Pod, pvcMap m
 		podMap[podKey].Allocations[container].Properties.Container = container
 		pvKey := kubecost.PVKey{
 			Cluster: cluster,
-			Name: kubecost.UnmountedSuffix,
+			Name:    kubecost.UnmountedSuffix,
 		}
 		unmountedBreakDown := kubecost.PV{
 			pvKey: {

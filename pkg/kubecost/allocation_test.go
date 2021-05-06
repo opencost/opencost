@@ -11,14 +11,15 @@ import (
 )
 
 const day = 24 * time.Hour
+
 var disk = PVKey{}
 var disk1 = PVKey{
 	Cluster: "cluster2",
-	Name: "disk1",
+	Name:    "disk1",
 }
 var disk2 = PVKey{
 	Cluster: "cluster2",
-	Name: "disk2",
+	Name:    "disk2",
 }
 
 func NewUnitAllocation(name string, start time.Time, resolution time.Duration, props *AllocationProperties) *Allocation {
@@ -301,7 +302,7 @@ func TestAllocation_Share(t *testing.T) {
 		GPUCost:               1.0 * hrs1 * gpuPrice,
 		GPUCostAdjustment:     2.0,
 		PVs: PV{
-			disk : {
+			disk: {
 				ByteHours: 100.0 * gib * hrs1,
 				Cost:      100.0 * hrs1 * pvPrice,
 			},
@@ -1793,11 +1794,11 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 		if a.Properties.Pod == "pod-mno" {
 			a.PVs = a.PVs.Add(PV{
 				disk1: {
-					Cost: 2.5,
+					Cost:      2.5,
 					ByteHours: 2.5 * gb,
 				},
 				disk2: {
-					Cost: 5,
+					Cost:      5,
 					ByteHours: 5 * gb,
 				},
 			})
