@@ -535,6 +535,7 @@ type AllocationSet struct {
 	allocations  map[string]*Allocation
 	externalKeys map[string]bool
 	idleKeys     map[string]bool
+	FromSource   string
 	Window       Window
 	Warnings     []string
 	Errors       []string

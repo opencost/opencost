@@ -2534,6 +2534,7 @@ type AssetSet struct {
 	sync.RWMutex
 	aggregateBy []string
 	assets      map[string]Asset
+	FromSource  string
 	Window      Window
 	Warnings    []string
 	Errors      []string
