@@ -1615,19 +1615,49 @@ func (as *AllocationSet) Reconcile(assetSet *AssetSet) error {
 	// proper CPU GPU and RAM prices
 	nodeByProviderID := map[string]*Node{}
 	diskByName := map[string]*Disk{}
+	clusterManagementByCluster := map[string]*ClusterManagement{}
+
 	assetSet.Each(func(key string, a Asset) {
-		if node, ok := a.(*Node); ok && node.properties.ProviderID != "" {
-			nodeByProviderID[node.properties.ProviderID] = node
-		}
-		if disk, ok := a.(*Disk); ok {
-			diskByName[disk.properties.Name] = disk
+		if a.Properties() != nil {
+			if node, ok := a.(*Node); ok {
+				if node.properties.ProviderID != "" {
+					nodeByProviderID[node.properties.ProviderID] = node
+				}
+			}
+			if disk, ok := a.(*Disk); ok {
+				diskByName[disk.properties.Name] = disk
+			}
+			if cm, ok := a.(*ClusterManagement); ok {
+				clusterManagementByCluster[cm.properties.Cluster] = cm
+			}
 		}
 	})
+
+	// Build maps to find all Nodes in a cluster and all allocation in a node
+	allocByNode := map[string][]*Allocation{}
+	clusterTenants := map[string]int{}
 
 	// Match Assets against allocations and adjust allocation cost based on the proportion of the asset that they used
 	as.Each(func(name string, a *Allocation) {
 		a.reconcileNodes(nodeByProviderID)
 		a.reconcileDisks(diskByName)
+
+		// Count total number of tenants on each cluster
+		if a.Properties.Cluster != "" {
+			clusterTenants[a.Properties.Cluster] += 1
+		}
+		// Populate Allocation by node map
+		if node, ok := nodeByProviderID[a.Properties.ProviderID]; ok {
+			if node.properties.Name != "" {
+				allocByNode[node.properties.Name] = append(allocByNode[node.properties.Name], a)
+			}
+		}
+	})
+
+	// Second pass over allocations once counting from previous loop is done
+	as.Each(func(name string, a *Allocation) {
+		a.shareClusterManagement(clusterManagementByCluster, clusterTenants)
+		a.shareAttachedDisk(diskByName, allocByNode)
 	})
 
 	return nil
@@ -1725,6 +1755,25 @@ func (a *Allocation) reconcileDisks(diskByName map[string]*Disk) {
 		a.PVCostAdjustment += allocPVCost - pvUsage.Cost
 	}
 
+}
+
+func (a *Allocation) shareClusterManagement(clusterManagementByCluster map[string]*ClusterManagement, clusterTenants map[string]int) {
+	clusterName := a.Properties.Cluster
+	if cm, ok := clusterManagementByCluster[clusterName]; ok && clusterName != "" {
+		a.SharedCost += cm.TotalCost() / float64(clusterTenants[clusterName])
+	}
+}
+
+func (a *Allocation) shareAttachedDisk(diskByName map[string]*Disk, allocByNode map[string][]*Allocation) {
+	for diskName, disk := range diskByName {
+		// Attached disks have the same name as their nodes on AWS, Azure and GCP
+		if allocs, ok := allocByNode[diskName]; ok && allocs != nil {
+			count := len(allocs)
+			for _, alloc := range allocs {
+				alloc.SharedCost += disk.TotalCost() / float64(count)
+			}
+		}
+	}
 }
 
 // Delete removes the allocation with the given name from the set
