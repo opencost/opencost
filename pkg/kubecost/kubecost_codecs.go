@@ -172,7 +172,7 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 	buff.WriteFloat64(target.GPUCostAdjustment)     // write float64
 	buff.WriteFloat64(target.NetworkCost)           // write float64
 	buff.WriteFloat64(target.LoadBalancerCost)      // write float64
-	// --- [begin][write][alias](PV) ---
+	// --- [begin][write][alias](PVAllocations) ---
 	if map[PVKey]*PVAllocation(target.PVs) == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
@@ -209,7 +209,7 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 		// --- [end][write][map](map[PVKey]*PVAllocation) ---
 
 	}
-	// --- [end][write][alias](PV) ---
+	// --- [end][write][alias](PVAllocations) ---
 
 	buff.WriteFloat64(target.PVCostAdjustment)       // write float64
 	buff.WriteFloat64(target.RAMByteHours)           // write float64
@@ -342,7 +342,7 @@ func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
 	aa := buff.ReadFloat64() // read float64
 	target.LoadBalancerCost = aa
 
-	// --- [begin][read][alias](PV) ---
+	// --- [begin][read][alias](PVAllocations) ---
 	var bb map[PVKey]*PVAllocation
 	if buff.ReadUInt8() == uint8(0) {
 		bb = nil
@@ -384,8 +384,8 @@ func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
 		// --- [end][read][map](map[PVKey]*PVAllocation) ---
 
 	}
-	target.PVs = PV(bb)
-	// --- [end][read][alias](PV) ---
+	target.PVs = PVAllocations(bb)
+	// --- [end][read][alias](PVAllocations) ---
 
 	mm := buff.ReadFloat64() // read float64
 	target.PVCostAdjustment = mm

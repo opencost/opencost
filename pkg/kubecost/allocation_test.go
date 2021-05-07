@@ -56,7 +56,7 @@ func NewUnitAllocation(name string, start time.Time, resolution time.Duration, p
 		GPUCost:               1,
 		NetworkCost:           1,
 		LoadBalancerCost:      1,
-		PVs: PV{
+		PVs: PVAllocations{
 			disk: {
 				ByteHours: 1,
 				Cost:      1,
@@ -129,7 +129,7 @@ func TestAllocation_Add(t *testing.T) {
 		GPUHours:              1.0 * hrs1,
 		GPUCost:               1.0 * hrs1 * gpuPrice,
 		GPUCostAdjustment:     2.0,
-		PVs: PV{
+		PVs: PVAllocations{
 			disk: {
 				ByteHours: 100.0 * gib * hrs1,
 				Cost:      100.0 * hrs1 * pvPrice,
@@ -301,7 +301,7 @@ func TestAllocation_Share(t *testing.T) {
 		GPUHours:              1.0 * hrs1,
 		GPUCost:               1.0 * hrs1 * gpuPrice,
 		GPUCostAdjustment:     2.0,
-		PVs: PV{
+		PVs: PVAllocations{
 			disk: {
 				ByteHours: 100.0 * gib * hrs1,
 				Cost:      100.0 * hrs1 * pvPrice,
@@ -465,7 +465,7 @@ func TestAllocation_MarshalJSON(t *testing.T) {
 		GPUCostAdjustment:     2.0,
 		NetworkCost:           0.05,
 		LoadBalancerCost:      0.02,
-		PVs: PV{
+		PVs: PVAllocations{
 			disk: {
 				ByteHours: 100.0 * gib * hrs,
 				Cost:      100.0 * hrs * pvPrice,
@@ -1792,7 +1792,7 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 	// add reconcilable pvs to pod-mno
 	for _, a := range as.allocations {
 		if a.Properties.Pod == "pod-mno" {
-			a.PVs = a.PVs.Add(PV{
+			a.PVs = a.PVs.Add(PVAllocations{
 				disk1: {
 					Cost:      2.5,
 					ByteHours: 2.5 * gb,

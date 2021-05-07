@@ -25,7 +25,7 @@ package kubecost
 // @bingen:generate:AllocationLabels
 // @bingen:generate:AllocationAnnotations
 // @bingen:generate:RawAllocationOnlyData
-// @bingen:generate:PV
+// @bingen:generate:PVAllocations
 // @bingen:generate:PVKey
 // @bingen:generate:PVAllocation
 

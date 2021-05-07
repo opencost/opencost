@@ -65,15 +65,15 @@ type Allocation struct {
 	GPUCostAdjustment      float64               `json:"gpuCostAdjustment"`
 	NetworkCost            float64               `json:"networkCost"`
 	LoadBalancerCost       float64               `json:"loadBalancerCost"`
-	PVs                    PV
-	PVCostAdjustment       float64 `json:"pvCostAdjustment"`
-	RAMByteHours           float64 `json:"ramByteHours"`
-	RAMBytesRequestAverage float64 `json:"ramByteRequestAverage"`
-	RAMBytesUsageAverage   float64 `json:"ramByteUsageAverage"`
-	RAMCost                float64 `json:"ramCost"`
-	RAMCostAdjustment      float64 `json:"ramCostAdjustment"`
-	SharedCost             float64 `json:"sharedCost"`
-	ExternalCost           float64 `json:"externalCost"`
+	PVs                    PVAllocations         `json:"-"`
+	PVCostAdjustment       float64               `json:"pvCostAdjustment"`
+	RAMByteHours           float64               `json:"ramByteHours"`
+	RAMBytesRequestAverage float64               `json:"ramByteRequestAverage"`
+	RAMBytesUsageAverage   float64               `json:"ramByteUsageAverage"`
+	RAMCost                float64               `json:"ramCost"`
+	RAMCostAdjustment      float64               `json:"ramCostAdjustment"`
+	SharedCost             float64               `json:"sharedCost"`
+	ExternalCost           float64               `json:"externalCost"`
 	// RawAllocationOnly is a pointer so if it is not present it will be
 	// marshalled as null rather than as an object with Go default values.
 	RawAllocationOnly *RawAllocationOnlyData `json:"rawAllocationOnly"`
@@ -107,17 +107,17 @@ type RawAllocationOnlyData struct {
 	RAMBytesUsageMax float64 `json:"ramByteUsageMax"`
 }
 
-// PV is a map of Disk Asset Identifiers to the
+// PVAllocations is a map of Disk Asset Identifiers to the
 // usage of them by an Allocation as recorded in a PVAllocation
-type PV map[PVKey]*PVAllocation
+type PVAllocations map[PVKey]*PVAllocation
 
-// Clone creates a deep copy of a PV
-func (pv *PV) Clone() PV {
+// Clone creates a deep copy of a PVAllocations
+func (pv *PVAllocations) Clone() PVAllocations {
 	if pv == nil || *pv == nil {
 		return nil
 	}
 	apv := *pv
-	clonePV := PV{}
+	clonePV := PVAllocations{}
 	for k, v := range apv {
 		clonePV[k] = &PVAllocation{
 			ByteHours: v.ByteHours,
@@ -127,12 +127,12 @@ func (pv *PV) Clone() PV {
 	return clonePV
 }
 
-// Add adds contents of that to the calling PV
-func (pv *PV) Add(that PV) PV {
+// Add adds contents of that to the calling PVAllocations
+func (pv *PVAllocations) Add(that PVAllocations) PVAllocations {
 	apv := pv.Clone()
 	if that != nil {
 		if apv == nil {
-			apv = PV{}
+			apv = PVAllocations{}
 		}
 		for pvKey, thatPVAlloc := range that {
 			apvAlloc, ok := apv[pvKey]
@@ -606,7 +606,7 @@ func (a *Allocation) add(that *Allocation) {
 	a.SharedCost += that.SharedCost
 	a.ExternalCost += that.ExternalCost
 
-	// Sum PV Breakdown
+	// Sum PVAllocations
 	a.PVs = a.PVs.Add(that.PVs)
 
 	// Sum all cumulative adjustment fields

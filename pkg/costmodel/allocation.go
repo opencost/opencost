@@ -388,7 +388,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 					// weighted by count (i.e. the number of containers in the pod)
 					// record the amount of total PVBytes Hours attributable to a given PV
 					if alloc.PVs == nil {
-						alloc.PVs = kubecost.PV{}
+						alloc.PVs = kubecost.PVAllocations{}
 					}
 					pvKey := kubecost.PVKey{
 						Cluster: pvc.Cluster,
@@ -1678,7 +1678,7 @@ func applyUnmountedPVs(window kubecost.Window, podMap map[podKey]*Pod, pvMap map
 			Cluster: cluster,
 			Name:    kubecost.UnmountedSuffix,
 		}
-		unmountedBreakDown := kubecost.PV{
+		unmountedBreakDown := kubecost.PVAllocations{
 			pvKey: {
 				ByteHours: unmountedPVBytes[cluster] * window.Minutes() / 60.0,
 				Cost:      amount,
@@ -1730,7 +1730,7 @@ func applyUnmountedPVCs(window kubecost.Window, podMap map[podKey]*Pod, pvcMap m
 			Cluster: cluster,
 			Name:    kubecost.UnmountedSuffix,
 		}
-		unmountedBreakDown := kubecost.PV{
+		unmountedBreakDown := kubecost.PVAllocations{
 			pvKey: {
 				ByteHours: unmountedPVCBytes[key] * window.Minutes() / 60.0,
 				Cost:      amount,
