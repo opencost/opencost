@@ -329,27 +329,32 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	return true
 }
 
-// TotalCost is the total cost of the Allocation
+// TotalCost is the total cost of the Allocation including adjustments
 func (a *Allocation) TotalCost() float64 {
 	return a.CPUTotalCost() + a.GPUTotalCost() + a.RAMTotalCost() + a.PVTotalCost() + a.NetworkCost + a.SharedCost + a.ExternalCost + a.LoadBalancerCost
 }
 
+// CPUTotalCost calculates total CPU cost of Allocation including adjustment
 func (a *Allocation) CPUTotalCost() float64 {
 	return a.CPUCost + a.CPUCostAdjustment
 }
 
+// GPUTotalCost calculates total GPU cost of Allocation including adjustment
 func (a *Allocation) GPUTotalCost() float64 {
 	return a.GPUCost + a.GPUCostAdjustment
 }
 
+// RAMTotalCost calculates total RAM cost of Allocation including adjustment
 func (a *Allocation) RAMTotalCost() float64 {
 	return a.RAMCost + a.RAMCostAdjustment
 }
 
+// PVTotalCost calculates total PV cost of Allocation including adjustment
 func (a *Allocation) PVTotalCost() float64 {
 	return a.PVCost() + a.PVCostAdjustment
 }
 
+// PVCost calculate cumulative cost of all PVs that Allocation is attached to
 func (a *Allocation) PVCost() float64 {
 	cost := 0.0
 	for _, pv := range a.PVs {
@@ -358,6 +363,7 @@ func (a *Allocation) PVCost() float64 {
 	return cost
 }
 
+// PVByteHours calculate cumulative ByteHours of all PVs that Allocation is attached to
 func (a *Allocation) PVByteHours() float64 {
 	byteHours := 0.0
 	for _, pv := range a.PVs {
