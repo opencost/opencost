@@ -119,7 +119,10 @@ func (pv *PV) Clone() PV {
 	apv := *pv
 	clonePV := PV{}
 	for k, v := range apv {
-		clonePV[k] = v
+		clonePV[k] = &PVAllocation{
+			ByteHours: v.ByteHours,
+			Cost:      v.Cost,
+		}
 	}
 	return clonePV
 }
