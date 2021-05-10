@@ -47,33 +47,36 @@ const ShareNone = "__none__"
 // Allocation is a unit of resource allocation and cost for a given window
 // of time and for a given kubernetes construct with its associated set of
 // properties.
-// TODO:CLEANUP consider dropping name in favor of just AllocationProperties and an
+// TODO:CLEANUP consider dropping name in favor of just Allocation and an
 // Assets-style key() function for AllocationSet.
 type Allocation struct {
-	Name                   string                `json:"name"`
-	Properties             *AllocationProperties `json:"properties,omitempty"`
-	Window                 Window                `json:"window"`
-	Start                  time.Time             `json:"start"`
-	End                    time.Time             `json:"end"`
-	CPUCoreHours           float64               `json:"cpuCoreHours"`
-	CPUCoreRequestAverage  float64               `json:"cpuCoreRequestAverage"`
-	CPUCoreUsageAverage    float64               `json:"cpuCoreUsageAverage"`
-	CPUCost                float64               `json:"cpuCost"`
-	CPUCostAdjustment      float64               `json:"cpuCostAdjustment"`
-	GPUHours               float64               `json:"gpuHours"`
-	GPUCost                float64               `json:"gpuCost"`
-	GPUCostAdjustment      float64               `json:"gpuCostAdjustment"`
-	NetworkCost            float64               `json:"networkCost"`
-	LoadBalancerCost       float64               `json:"loadBalancerCost"`
-	PVs                    PVAllocations         `json:"-"`
-	PVCostAdjustment       float64               `json:"pvCostAdjustment"`
-	RAMByteHours           float64               `json:"ramByteHours"`
-	RAMBytesRequestAverage float64               `json:"ramByteRequestAverage"`
-	RAMBytesUsageAverage   float64               `json:"ramByteUsageAverage"`
-	RAMCost                float64               `json:"ramCost"`
-	RAMCostAdjustment      float64               `json:"ramCostAdjustment"`
-	SharedCost             float64               `json:"sharedCost"`
-	ExternalCost           float64               `json:"externalCost"`
+	Name                       string                `json:"name"`
+	Properties                 *AllocationProperties `json:"properties,omitempty"`
+	Window                     Window                `json:"window"`
+	Start                      time.Time             `json:"start"`
+	End                        time.Time             `json:"end"`
+	CPUCoreHours               float64               `json:"cpuCoreHours"`
+	CPUCoreRequestAverage      float64               `json:"cpuCoreRequestAverage"`
+	CPUCoreUsageAverage        float64               `json:"cpuCoreUsageAverage"`
+	CPUCost                    float64               `json:"cpuCost"`
+	CPUCostAdjustment          float64               `json:"cpuCostAdjustment"`
+	GPUHours                   float64               `json:"gpuHours"`
+	GPUCost                    float64               `json:"gpuCost"`
+	GPUCostAdjustment          float64               `json:"gpuCostAdjustment"`
+	NetworkCost                float64               `json:"networkCost"`
+	NetworkCostAdjustment      float64               `json:"networkCostAdjustment"`
+	LoadBalancerCost           float64               `json:"loadBalancerCost"`
+	LoadBalancerCostAdjustment float64               `json:"loadBalancerCostAdjustment"`
+	PVs                        PVAllocations         `json:"-"`
+	PVCostAdjustment           float64               `json:"pvCostAdjustment"`
+	RAMByteHours               float64               `json:"ramByteHours"`
+	RAMBytesRequestAverage     float64               `json:"ramByteRequestAverage"`
+	RAMBytesUsageAverage       float64               `json:"ramByteUsageAverage"`
+	RAMCost                    float64               `json:"ramCost"`
+	RAMCostAdjustment          float64               `json:"ramCostAdjustment"`
+	SharedCost                 float64               `json:"sharedCost"`
+	SharedCostAdjustment       float64               `json:"sharedCostAdjustment"`
+	ExternalCost               float64               `json:"externalCost"`
 	// RawAllocationOnly is a pointer so if it is not present it will be
 	// marshalled as null rather than as an object with Go default values.
 	RawAllocationOnly *RawAllocationOnlyData `json:"rawAllocationOnly"`
@@ -190,31 +193,34 @@ func (a *Allocation) Clone() *Allocation {
 	}
 
 	return &Allocation{
-		Name:                   a.Name,
-		Properties:             a.Properties.Clone(),
-		Window:                 a.Window.Clone(),
-		Start:                  a.Start,
-		End:                    a.End,
-		CPUCoreHours:           a.CPUCoreHours,
-		CPUCoreRequestAverage:  a.CPUCoreRequestAverage,
-		CPUCoreUsageAverage:    a.CPUCoreUsageAverage,
-		CPUCost:                a.CPUCost,
-		CPUCostAdjustment:      a.CPUCostAdjustment,
-		GPUHours:               a.GPUHours,
-		GPUCost:                a.GPUCost,
-		GPUCostAdjustment:      a.GPUCostAdjustment,
-		NetworkCost:            a.NetworkCost,
-		LoadBalancerCost:       a.LoadBalancerCost,
-		PVs:                    a.PVs.Clone(),
-		PVCostAdjustment:       a.PVCostAdjustment,
-		RAMByteHours:           a.RAMByteHours,
-		RAMBytesRequestAverage: a.RAMBytesRequestAverage,
-		RAMBytesUsageAverage:   a.RAMBytesUsageAverage,
-		RAMCost:                a.RAMCost,
-		RAMCostAdjustment:      a.RAMCostAdjustment,
-		SharedCost:             a.SharedCost,
-		ExternalCost:           a.ExternalCost,
-		RawAllocationOnly:      a.RawAllocationOnly.Clone(),
+		Name:                       a.Name,
+		Properties:                 a.Properties.Clone(),
+		Window:                     a.Window.Clone(),
+		Start:                      a.Start,
+		End:                        a.End,
+		CPUCoreHours:               a.CPUCoreHours,
+		CPUCoreRequestAverage:      a.CPUCoreRequestAverage,
+		CPUCoreUsageAverage:        a.CPUCoreUsageAverage,
+		CPUCost:                    a.CPUCost,
+		CPUCostAdjustment:          a.CPUCostAdjustment,
+		GPUHours:                   a.GPUHours,
+		GPUCost:                    a.GPUCost,
+		GPUCostAdjustment:          a.GPUCostAdjustment,
+		NetworkCost:                a.NetworkCost,
+		NetworkCostAdjustment:      a.NetworkCostAdjustment,
+		LoadBalancerCost:           a.LoadBalancerCost,
+		LoadBalancerCostAdjustment: a.LoadBalancerCostAdjustment,
+		PVs:                        a.PVs.Clone(),
+		PVCostAdjustment:           a.PVCostAdjustment,
+		RAMByteHours:               a.RAMByteHours,
+		RAMBytesRequestAverage:     a.RAMBytesRequestAverage,
+		RAMBytesUsageAverage:       a.RAMBytesUsageAverage,
+		RAMCost:                    a.RAMCost,
+		RAMCostAdjustment:          a.RAMCostAdjustment,
+		SharedCost:                 a.SharedCost,
+		SharedCostAdjustment:       a.SharedCostAdjustment,
+		ExternalCost:               a.ExternalCost,
+		RawAllocationOnly:          a.RawAllocationOnly.Clone(),
 	}
 }
 
@@ -275,10 +281,15 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if !util.IsApproximately(a.NetworkCost, that.NetworkCost) {
 		return false
 	}
+	if !util.IsApproximately(a.NetworkCostAdjustment, that.NetworkCostAdjustment) {
+		return false
+	}
 	if !util.IsApproximately(a.LoadBalancerCost, that.LoadBalancerCost) {
 		return false
 	}
-
+	if !util.IsApproximately(a.LoadBalancerCostAdjustment, that.LoadBalancerCostAdjustment) {
+		return false
+	}
 	if !util.IsApproximately(a.PVCostAdjustment, that.PVCostAdjustment) {
 		return false
 	}
@@ -292,6 +303,9 @@ func (a *Allocation) Equal(that *Allocation) bool {
 		return false
 	}
 	if !util.IsApproximately(a.SharedCost, that.SharedCost) {
+		return false
+	}
+	if !util.IsApproximately(a.SharedCostAdjustment, that.SharedCostAdjustment) {
 		return false
 	}
 	if !util.IsApproximately(a.ExternalCost, that.ExternalCost) {
@@ -331,7 +345,7 @@ func (a *Allocation) Equal(that *Allocation) bool {
 
 // TotalCost is the total cost of the Allocation including adjustments
 func (a *Allocation) TotalCost() float64 {
-	return a.CPUTotalCost() + a.GPUTotalCost() + a.RAMTotalCost() + a.PVTotalCost() + a.NetworkCost + a.SharedCost + a.ExternalCost + a.LoadBalancerCost
+	return a.CPUTotalCost() + a.GPUTotalCost() + a.RAMTotalCost() + a.PVTotalCost() + a.NetworkTotalCost() + a.LoadBalancerCost + a.SharedTotalCost() + a.ExternalCost
 }
 
 // CPUTotalCost calculates total CPU cost of Allocation including adjustment
@@ -352,6 +366,21 @@ func (a *Allocation) RAMTotalCost() float64 {
 // PVTotalCost calculates total PV cost of Allocation including adjustment
 func (a *Allocation) PVTotalCost() float64 {
 	return a.PVCost() + a.PVCostAdjustment
+}
+
+// NetworkTotalCost calculates total Network cost of Allocation including adjustment
+func (a *Allocation) NetworkTotalCost() float64 {
+	return a.NetworkCost + a.NetworkCostAdjustment
+}
+
+// LBTotalCost calculates total LB cost of Allocation including adjustment
+func (a *Allocation) LBTotalCost() float64 {
+	return a.LoadBalancerCost + a.LoadBalancerCostAdjustment
+}
+
+// SharedTotalCost calculates total shared cost of Allocation including adjustment
+func (a *Allocation) SharedTotalCost() float64 {
+	return a.SharedCost + a.SharedCostAdjustment
 }
 
 // PVCost calculate cumulative cost of all PVs that Allocation is attached to
@@ -467,7 +496,9 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "gpuCost", a.GPUCost, ",")
 	jsonEncodeFloat64(buffer, "gpuCostAdjustment", a.GPUCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "networkCost", a.NetworkCost, ",")
+	jsonEncodeFloat64(buffer, "networkCostAdjustment", a.NetworkCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "loadBalancerCost", a.LoadBalancerCost, ",")
+	jsonEncodeFloat64(buffer, "loadBalancerCostAdjustment", a.LoadBalancerCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "pvBytes", a.PVBytes(), ",")
 	jsonEncodeFloat64(buffer, "pvByteHours", a.PVByteHours(), ",")
 	jsonEncodeFloat64(buffer, "pvCost", a.PVCost(), ",")
@@ -481,6 +512,7 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "ramCostAdjustment", a.RAMCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "ramEfficiency", a.RAMEfficiency(), ",")
 	jsonEncodeFloat64(buffer, "sharedCost", a.SharedCost, ",")
+	jsonEncodeFloat64(buffer, "sharedCostAdjustment", a.SharedCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "externalCost", a.ExternalCost, ",")
 	jsonEncodeFloat64(buffer, "totalCost", a.TotalCost(), ",")
 	jsonEncodeFloat64(buffer, "totalEfficiency", a.TotalEfficiency(), ",")
@@ -614,6 +646,9 @@ func (a *Allocation) add(that *Allocation) {
 	a.RAMCostAdjustment += that.RAMCostAdjustment
 	a.GPUCostAdjustment += that.GPUCostAdjustment
 	a.PVCostAdjustment += that.PVCostAdjustment
+	a.NetworkCostAdjustment += that.NetworkCostAdjustment
+	a.LoadBalancerCostAdjustment += a.LoadBalancerCostAdjustment
+	a.SharedCostAdjustment += a.SharedCostAdjustment
 
 	// Any data that is in a "raw allocation only" is not valid in any
 	// sort of cumulative Allocation (like one that is added).
