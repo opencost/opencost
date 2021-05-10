@@ -73,6 +73,11 @@ func (cm *CostModel) CanCompute(start, end time.Time) bool {
 	return start.Before(time.Now())
 }
 
+// Name returns the name of the Source
+func (cm *CostModel) Name() string {
+	return "CostModel"
+}
+
 // ComputeAllocation uses the CostModel instance to compute an AllocationSet
 // for the window defined by the given start and end times. The Allocations
 // returned are unaggregated (i.e. down to the container level).
