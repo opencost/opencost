@@ -162,16 +162,18 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 	buff.WriteBytes(d)
 	// --- [end][write][reference](time.Time) ---
 
-	buff.WriteFloat64(target.CPUCoreHours)          // write float64
-	buff.WriteFloat64(target.CPUCoreRequestAverage) // write float64
-	buff.WriteFloat64(target.CPUCoreUsageAverage)   // write float64
-	buff.WriteFloat64(target.CPUCost)               // write float64
-	buff.WriteFloat64(target.CPUCostAdjustment)     // write float64
-	buff.WriteFloat64(target.GPUHours)              // write float64
-	buff.WriteFloat64(target.GPUCost)               // write float64
-	buff.WriteFloat64(target.GPUCostAdjustment)     // write float64
-	buff.WriteFloat64(target.NetworkCost)           // write float64
-	buff.WriteFloat64(target.LoadBalancerCost)      // write float64
+	buff.WriteFloat64(target.CPUCoreHours)               // write float64
+	buff.WriteFloat64(target.CPUCoreRequestAverage)      // write float64
+	buff.WriteFloat64(target.CPUCoreUsageAverage)        // write float64
+	buff.WriteFloat64(target.CPUCost)                    // write float64
+	buff.WriteFloat64(target.CPUCostAdjustment)          // write float64
+	buff.WriteFloat64(target.GPUHours)                   // write float64
+	buff.WriteFloat64(target.GPUCost)                    // write float64
+	buff.WriteFloat64(target.GPUCostAdjustment)          // write float64
+	buff.WriteFloat64(target.NetworkCost)                // write float64
+	buff.WriteFloat64(target.NetworkCostAdjustment)      // write float64
+	buff.WriteFloat64(target.LoadBalancerCost)           // write float64
+	buff.WriteFloat64(target.LoadBalancerCostAdjustment) // write float64
 	// --- [begin][write][alias](PVAllocations) ---
 	if map[PVKey]*PVAllocation(target.PVs) == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
@@ -218,6 +220,7 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 	buff.WriteFloat64(target.RAMCost)                // write float64
 	buff.WriteFloat64(target.RAMCostAdjustment)      // write float64
 	buff.WriteFloat64(target.SharedCost)             // write float64
+	buff.WriteFloat64(target.SharedCostAdjustment)   // write float64
 	buff.WriteFloat64(target.ExternalCost)           // write float64
 	if target.RawAllocationOnly == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
@@ -340,26 +343,32 @@ func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
 	target.NetworkCost = y
 
 	aa := buff.ReadFloat64() // read float64
-	target.LoadBalancerCost = aa
+	target.NetworkCostAdjustment = aa
+
+	bb := buff.ReadFloat64() // read float64
+	target.LoadBalancerCost = bb
+
+	cc := buff.ReadFloat64() // read float64
+	target.LoadBalancerCostAdjustment = cc
 
 	// --- [begin][read][alias](PVAllocations) ---
-	var bb map[PVKey]*PVAllocation
+	var dd map[PVKey]*PVAllocation
 	if buff.ReadUInt8() == uint8(0) {
-		bb = nil
+		dd = nil
 	} else {
 		// --- [begin][read][map](map[PVKey]*PVAllocation) ---
-		dd := buff.ReadInt() // map len
-		cc := make(map[PVKey]*PVAllocation, dd)
-		for i := 0; i < dd; i++ {
+		ff := buff.ReadInt() // map len
+		ee := make(map[PVKey]*PVAllocation, ff)
+		for i := 0; i < ff; i++ {
 			// --- [begin][read][struct](PVKey) ---
-			ee := &PVKey{}
-			ff := buff.ReadInt()     // byte array length
-			gg := buff.ReadBytes(ff) // byte array
-			errE := ee.UnmarshalBinary(gg)
+			gg := &PVKey{}
+			hh := buff.ReadInt()     // byte array length
+			kk := buff.ReadBytes(hh) // byte array
+			errE := gg.UnmarshalBinary(kk)
 			if errE != nil {
 				return errE
 			}
-			v := *ee
+			v = *gg
 			// --- [end][read][struct](PVKey) ---
 
 			var z *PVAllocation
@@ -367,62 +376,65 @@ func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
 				z = nil
 			} else {
 				// --- [begin][read][struct](PVAllocation) ---
-				hh := &PVAllocation{}
-				kk := buff.ReadInt()     // byte array length
-				ll := buff.ReadBytes(kk) // byte array
-				errF := hh.UnmarshalBinary(ll)
+				ll := &PVAllocation{}
+				mm := buff.ReadInt()     // byte array length
+				nn := buff.ReadBytes(mm) // byte array
+				errF := ll.UnmarshalBinary(nn)
 				if errF != nil {
 					return errF
 				}
-				z = hh
+				z = ll
 				// --- [end][read][struct](PVAllocation) ---
 
 			}
-			cc[v] = z
+			ee[v] = z
 		}
-		bb = cc
+		dd = ee
 		// --- [end][read][map](map[PVKey]*PVAllocation) ---
 
 	}
-	target.PVs = PVAllocations(bb)
+	target.PVs = PVAllocations(dd)
 	// --- [end][read][alias](PVAllocations) ---
 
-	mm := buff.ReadFloat64() // read float64
-	target.PVCostAdjustment = mm
-
-	nn := buff.ReadFloat64() // read float64
-	target.RAMByteHours = nn
-
 	oo := buff.ReadFloat64() // read float64
-	target.RAMBytesRequestAverage = oo
+	target.PVCostAdjustment = oo
 
 	pp := buff.ReadFloat64() // read float64
-	target.RAMBytesUsageAverage = pp
+	target.RAMByteHours = pp
 
 	qq := buff.ReadFloat64() // read float64
-	target.RAMCost = qq
+	target.RAMBytesRequestAverage = qq
 
 	rr := buff.ReadFloat64() // read float64
-	target.RAMCostAdjustment = rr
+	target.RAMBytesUsageAverage = rr
 
 	ss := buff.ReadFloat64() // read float64
-	target.SharedCost = ss
+	target.RAMCost = ss
 
 	tt := buff.ReadFloat64() // read float64
-	target.ExternalCost = tt
+	target.RAMCostAdjustment = tt
+
+	uu := buff.ReadFloat64() // read float64
+	target.SharedCost = uu
+
+	ww := buff.ReadFloat64() // read float64
+	target.SharedCostAdjustment = ww
+
+	xx := buff.ReadFloat64() // read float64
+	target.ExternalCost = xx
 
 	if buff.ReadUInt8() == uint8(0) {
 		target.RawAllocationOnly = nil
 	} else {
 		// --- [begin][read][struct](RawAllocationOnlyData) ---
-		uu := &RawAllocationOnlyData{}
-		ww := buff.ReadInt()     // byte array length
-		xx := buff.ReadBytes(ww) // byte array
-		errG := uu.UnmarshalBinary(xx)
+		yy := &RawAllocationOnlyData{}
+		aaa := buff.ReadInt()      // byte array length
+		bbb := buff.ReadBytes(aaa) // byte array
+		errG := yy.UnmarshalBinary(bbb)
 		if errG != nil {
 			return errG
 		}
-		target.RawAllocationOnly = uu
+		target.RawAllocationOnly = yy
 		// --- [end][read][struct](RawAllocationOnlyData) ---
 
 	}
