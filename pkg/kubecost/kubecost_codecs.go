@@ -368,7 +368,7 @@ func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
 			if errE != nil {
 				return errE
 			}
-			v = *gg
+			v := *gg
 			// --- [end][read][struct](PVKey) ---
 
 			var z *PVAllocation
