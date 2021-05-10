@@ -814,7 +814,27 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster2Disk2.adjustment = 3.0
 	cluster2Disk2.ByteHours = 10 * gb
 
-	assetSet1 := NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1, cluster2Disk2)
+	cluster2Node1Disk := NewDisk("node1", "cluster2", "node1", start, end, NewWindow(&start, &end))
+	cluster2Node1Disk.Cost = 1.0
+	cluster2Node1Disk.ByteHours = 5 * gb
+
+	cluster2Node2Disk := NewDisk("node2", "cluster2", "node2", start, end, NewWindow(&start, &end))
+	cluster2Node2Disk.Cost = 2.0
+	cluster2Node2Disk.ByteHours = 5 * gb
+
+	cluster2Node3Disk := NewDisk("node3", "cluster2", "node3", start, end, NewWindow(&start, &end))
+	cluster2Node3Disk.Cost = 3.0
+	cluster2Node3Disk.ByteHours = 5 * gb
+
+	cluster1ClusterManagement := NewClusterManagement("", "cluster1", NewWindow(&start, &end))
+	cluster1ClusterManagement.Cost = 2.0
+
+	cluster2ClusterManagement := NewClusterManagement("", "cluster2", NewWindow(&start, &end))
+	cluster2ClusterManagement.Cost = 2.0
+
+	assetSet1 := NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1,
+		cluster2Disk2, cluster2Node1Disk, cluster2Node2Disk, cluster2Node3Disk, cluster1ClusterManagement,
+		cluster2ClusterManagement)
 	assetSets = append(assetSets, assetSet1)
 
 	// NOTE: we're re-using generateAllocationSet so this has to line up with
@@ -887,7 +907,9 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster2Disk2.adjustment = 4.0
 	cluster2Disk2.ByteHours = 20 * gb
 
-	assetSet2 := NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1, cluster2Disk2)
+	assetSet2 := NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1,
+		cluster2Disk2, cluster2Node1Disk, cluster2Node2Disk, cluster2Node3Disk, cluster1ClusterManagement,
+		cluster2ClusterManagement)
 	assetSets = append(assetSets, assetSet2)
 	return assetSets
 }
@@ -1827,6 +1849,7 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: -4.333333,
 					GPUCostAdjustment: -0.583333,
+					SharedCost: 0.333333,
 				},
 				// ADJUSTMENT_RATE: 0.90909090909
 				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
@@ -1837,26 +1860,31 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: 5.666667,
 					GPUCostAdjustment: -0.583333,
+					SharedCost: 0.333333,
 				},
 				"cluster1/namespace1/pod-def/container3": {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: 5.666667,
 					GPUCostAdjustment: -0.583333,
+					SharedCost: 0.333333,
 				},
 				"cluster1/namespace2/pod-ghi/container4": {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: 5.666667,
 					GPUCostAdjustment: -0.583333,
+					SharedCost: 0.333333,
 				},
 				"cluster1/namespace2/pod-ghi/container5": {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: 5.666667,
 					GPUCostAdjustment: -0.583333,
+					SharedCost: 0.333333,
 				},
 				"cluster1/namespace2/pod-jkl/container6": {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: 5.666667,
 					GPUCostAdjustment: -0.583333,
+					SharedCost: 0.333333,
 				},
 				// ADJUSTMENT_RATE: 1.0
 				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
@@ -1868,12 +1896,14 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 					RAMCostAdjustment: 4.0,
 					GPUCostAdjustment: -1.0,
 					PVCostAdjustment:  2.0,
+					SharedCost: 0.833333,
 				},
 				"cluster2/namespace2/pod-mno/container5": {
 					CPUCostAdjustment: 4.0,
 					RAMCostAdjustment: 4.0,
 					GPUCostAdjustment: -1.0,
 					PVCostAdjustment:  2.0,
+					SharedCost: 0.833333,
 				},
 				// ADJUSTMENT_RATE: 1.0
 				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
@@ -1884,11 +1914,13 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 					CPUCostAdjustment: 5.666667,
 					RAMCostAdjustment: 6.5,
 					GPUCostAdjustment: -1.0,
+					SharedCost: 1.333333,
 				},
 				"cluster2/namespace3/pod-stu/container7": {
 					CPUCostAdjustment: 5.666667,
 					RAMCostAdjustment: 6.5,
 					GPUCostAdjustment: -1.0,
+					SharedCost: 1.333333,
 				},
 				// ADJUSTMENT_RATE: 1.0
 				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
@@ -1899,11 +1931,13 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 					CPUCostAdjustment: 4.0,
 					RAMCostAdjustment: 4.0,
 					GPUCostAdjustment: -0.583333,
+					SharedCost: 1.833333,
 				},
 				"cluster2/namespace3/pod-vwx/container9": {
 					CPUCostAdjustment: 4.0,
 					RAMCostAdjustment: 4.0,
 					GPUCostAdjustment: -0.583333,
+					SharedCost: 1.833333,
 				},
 			},
 		},
@@ -1920,6 +1954,7 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: -4.333333,
 					GPUCostAdjustment: -0.583333,
+					SharedCost: 0.333333,
 				},
 				// ADJUSTMENT_RATE: 10
 				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
@@ -1930,26 +1965,31 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: 5.6666667,
 					GPUCostAdjustment: -0.583333,
+					SharedCost: 0.333333,
 				},
 				"cluster1/namespace1/pod-def/container3": {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: 5.6666667,
 					GPUCostAdjustment: -0.583333,
+					SharedCost: 0.333333,
 				},
 				"cluster1/namespace2/pod-ghi/container4": {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: 5.6666667,
 					GPUCostAdjustment: -0.583333,
+					SharedCost: 0.333333,
 				},
 				"cluster1/namespace2/pod-ghi/container5": {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: 5.6666667,
 					GPUCostAdjustment: -0.583333,
+					SharedCost: 0.333333,
 				},
 				"cluster1/namespace2/pod-jkl/container6": {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: 5.6666667,
 					GPUCostAdjustment: -0.583333,
+					SharedCost: 0.333333,
 				},
 				// ADJUSTMENT_RATE: 1.0
 				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
@@ -1961,12 +2001,14 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 					RAMCostAdjustment: 4.0,
 					GPUCostAdjustment: -1.0,
 					PVCostAdjustment:  -0.5,
+					SharedCost: 0.833333,
 				},
 				"cluster2/namespace2/pod-mno/container5": {
 					CPUCostAdjustment: 4.0,
 					RAMCostAdjustment: 4.0,
 					GPUCostAdjustment: -1.0,
 					PVCostAdjustment:  -0.5,
+					SharedCost: 0.833333,
 				},
 				// ADJUSTMENT_RATE: 1.0
 				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
@@ -1977,11 +2019,13 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 					CPUCostAdjustment: 5.666667,
 					RAMCostAdjustment: 6.5,
 					GPUCostAdjustment: -1.0,
+					SharedCost: 1.333333,
 				},
 				"cluster2/namespace3/pod-stu/container7": {
 					CPUCostAdjustment: 5.666667,
 					RAMCostAdjustment: 6.5,
 					GPUCostAdjustment: -1.0,
+					SharedCost: 1.333333,
 				},
 				// ADJUSTMENT_RATE: 1.0
 				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
@@ -1992,11 +2036,13 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 					CPUCostAdjustment: 4.0,
 					RAMCostAdjustment: 4.0,
 					GPUCostAdjustment: -0.583333,
+					SharedCost: 1.833333,
 				},
 				"cluster2/namespace3/pod-vwx/container9": {
 					CPUCostAdjustment: 4.0,
 					RAMCostAdjustment: 4.0,
 					GPUCostAdjustment: -0.583333,
+					SharedCost: 1.833333,
 				},
 			},
 		},
@@ -2027,6 +2073,10 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 				if !util.IsApproximately(reconAllocs[allocationName].PVCostAdjustment, testAlloc.PVCostAdjustment) {
 					t.Fatalf("expected PV Adjustment for %s to be %f; got %f", allocationName, testAlloc.PVCostAdjustment, reconAllocs[allocationName].PVCostAdjustment)
 				}
+				if !util.IsApproximately(reconAllocs[allocationName].SharedCost, testAlloc.SharedCost) {
+					t.Fatalf("expected PV Adjustment for %s to be %f; got %f", allocationName, testAlloc.SharedCost, reconAllocs[allocationName].SharedCost)
+				}
+
 			}
 		})
 	}
