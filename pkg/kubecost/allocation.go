@@ -1693,6 +1693,8 @@ func (as *AllocationSet) Reconcile(assetSet *AssetSet) error {
 
 	// Second pass over allocations once counting from previous loop is done
 	as.Each(func(name string, a *Allocation) {
+		// Set SharedCostAdjustment for allocation to 0 for idempotency
+		a.SharedCostAdjustment = 0
 		a.shareClusterManagement(clusterManagementByCluster, clusterTenants)
 		a.shareAttachedDisk(diskByName, nodeTenants, nodeProviderIDToName)
 	})
@@ -1796,7 +1798,7 @@ func (a *Allocation) reconcileDisks(diskByName map[string]*Disk) {
 func (a *Allocation) shareClusterManagement(clusterManagementByCluster map[string]*ClusterManagement, clusterTenants map[string]int) {
 	clusterName := a.Properties.Cluster
 	if cm, ok := clusterManagementByCluster[clusterName]; ok && clusterName != "" {
-		a.SharedCost += cm.TotalCost() / float64(clusterTenants[clusterName])
+		a.SharedCostAdjustment += cm.TotalCost() / float64(clusterTenants[clusterName])
 	}
 }
 
@@ -1808,7 +1810,7 @@ func (a *Allocation) shareAttachedDisk(diskByName map[string]*Disk, nodeTenants 
 	disk, ok := diskByName[nodeName]
 	numTenants, ok2 := nodeTenants[nodeName]
 	if nodeName != "" && ok && ok2 {
-		a.SharedCost += disk.TotalCost() / float64(numTenants)
+		a.SharedCostAdjustment += disk.TotalCost() / float64(numTenants)
 	}
 }
 
