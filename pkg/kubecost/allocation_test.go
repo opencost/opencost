@@ -556,7 +556,7 @@ func TestAllocationSet_generateKey(t *testing.T) {
 }
 
 func TestNewAllocationSet(t *testing.T) {
-	// TODO niko/etl
+	// TODO
 }
 
 func generateAllocationSet(start time.Time) *AllocationSet {
@@ -1001,7 +1001,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// 3  Share idle
 	// 3a AggregationProperties=(Namespace) ShareIdle=ShareWeighted
-	// 3b AggregationProperties=(Namespace) ShareIdle=ShareEven (TODO niko/etl)
+	// 3b AggregationProperties=(Namespace) ShareIdle=ShareEven (TODO)
 
 	// 4  Share resources
 	// 4a Share namespace ShareEven
@@ -1281,7 +1281,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		IdleSuffix:                     30.00,
 	})
 
-	// // TODO niko/etl
+	// TODO
 
 	// // 3  Share idle
 
@@ -1686,7 +1686,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// 7d Share and filter the same allocations
 }
 
-// TODO niko/etl
+// TODO
 //func TestAllocationSet_Clone(t *testing.T) {}
 
 func TestAllocationSet_ComputeIdleAllocations(t *testing.T) {
@@ -2032,46 +2032,46 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 	}
 }
 
-// TODO niko/etl
+// TODO
 //func TestAllocationSet_Delete(t *testing.T) {}
 
-// TODO niko/etl
+// TODO
 //func TestAllocationSet_End(t *testing.T) {}
 
-// TODO niko/etl
+// TODO
 //func TestAllocationSet_IdleAllocations(t *testing.T) {}
 
-// TODO niko/etl
+// TODO
 //func TestAllocationSet_Insert(t *testing.T) {}
 
-// TODO niko/etl
+// TODO
 //func TestAllocationSet_IsEmpty(t *testing.T) {}
 
-// TODO niko/etl
+// TODO
 //func TestAllocationSet_Length(t *testing.T) {}
 
-// TODO niko/etl
+// TODO
 //func TestAllocationSet_Map(t *testing.T) {}
 
-// TODO niko/etl
+// TODO
 //func TestAllocationSet_MarshalJSON(t *testing.T) {}
 
-// TODO niko/etl
+// TODO
 //func TestAllocationSet_Resolution(t *testing.T) {}
 
-// TODO niko/etl
+// TODO
 //func TestAllocationSet_Seconds(t *testing.T) {}
 
-// TODO niko/etl
+// TODO
 //func TestAllocationSet_Set(t *testing.T) {}
 
-// TODO niko/etl
+// TODO
 //func TestAllocationSet_Start(t *testing.T) {}
 
-// TODO niko/etl
+// TODO
 //func TestAllocationSet_TotalCost(t *testing.T) {}
 
-// TODO niko/etl
+// TODO
 //func TestNewAllocationSetRange(t *testing.T) {}
 
 func TestAllocationSetRange_Accumulate(t *testing.T) {
@@ -2225,19 +2225,19 @@ func TestAllocationSetRange_Accumulate(t *testing.T) {
 	}
 }
 
-// TODO niko/etl
+// TODO
 // func TestAllocationSetRange_AccumulateBy(t *testing.T) {}
 
-// TODO niko/etl
+// TODO
 // func TestAllocationSetRange_AggregateBy(t *testing.T) {}
 
-// TODO niko/etl
+// TODO
 // func TestAllocationSetRange_Append(t *testing.T) {}
 
-// TODO niko/etl
+// TODO
 // func TestAllocationSetRange_Each(t *testing.T) {}
 
-// TODO niko/etl
+// TODO
 // func TestAllocationSetRange_Get(t *testing.T) {}
 
 func TestAllocationSetRange_InsertRange(t *testing.T) {
@@ -2407,14 +2407,14 @@ func TestAllocationSetRange_InsertRange(t *testing.T) {
 	})
 }
 
-// TODO niko/etl
+// TODO
 // func TestAllocationSetRange_Length(t *testing.T) {}
 
-// TODO niko/etl
+// TODO
 // func TestAllocationSetRange_MarshalJSON(t *testing.T) {}
 
-// TODO niko/etl
+// TODO
 // func TestAllocationSetRange_Slice(t *testing.T) {}
 
-// TODO niko/etl
+// TODO
 // func TestAllocationSetRange_Window(t *testing.T) {}

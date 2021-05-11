@@ -662,6 +662,7 @@ type AllocationSet struct {
 	allocations  map[string]*Allocation
 	externalKeys map[string]bool
 	idleKeys     map[string]bool
+	FromSource   string
 	Window       Window
 	Warnings     []string
 	Errors       []string
@@ -1789,11 +1790,11 @@ func (as *AllocationSet) Each(f func(string, *Allocation)) {
 // End returns the End time of the AllocationSet window
 func (as *AllocationSet) End() time.Time {
 	if as == nil {
-		log.Warningf("Allocation ETL: calling End on nil AllocationSet")
+		log.Warningf("AllocationSet: calling End on nil AllocationSet")
 		return time.Unix(0, 0)
 	}
 	if as.Window.End() == nil {
-		log.Warningf("Allocation ETL: AllocationSet with illegal window: End is nil; len(as.allocations)=%d", len(as.allocations))
+		log.Warningf("AllocationSet: AllocationSet with illegal window: End is nil; len(as.allocations)=%d", len(as.allocations))
 		return time.Unix(0, 0)
 	}
 	return *as.Window.End()
@@ -1994,11 +1995,11 @@ func (as *AllocationSet) Set(alloc *Allocation) error {
 // Start returns the Start time of the AllocationSet window
 func (as *AllocationSet) Start() time.Time {
 	if as == nil {
-		log.Warningf("Allocation ETL: calling Start on nil AllocationSet")
+		log.Warningf("AllocationSet: calling Start on nil AllocationSet")
 		return time.Unix(0, 0)
 	}
 	if as.Window.Start() == nil {
-		log.Warningf("Allocation ETL: AllocationSet with illegal window: Start is nil; len(as.allocations)=%d", len(as.allocations))
+		log.Warningf("AllocationSet: AllocationSet with illegal window: Start is nil; len(as.allocations)=%d", len(as.allocations))
 		return time.Unix(0, 0)
 	}
 	return *as.Window.Start()
@@ -2086,6 +2087,7 @@ func (as *AllocationSet) accumulate(that *AllocationSet) (*AllocationSet, error)
 type AllocationSetRange struct {
 	sync.RWMutex
 	allocations []*AllocationSet
+	FromStore   string
 }
 
 // NewAllocationSetRange instantiates a new range composed of the given
@@ -2115,7 +2117,7 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 	return allocSet, nil
 }
 
-// TODO niko/etl accumulate into lower-resolution chunks of the given resolution
+// TODO accumulate into lower-resolution chunks of the given resolution
 // func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) *AllocationSetRange
 
 // AggregateBy aggregates each AllocationSet in the range by the given
