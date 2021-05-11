@@ -345,7 +345,7 @@ func (a *Allocation) Equal(that *Allocation) bool {
 
 // TotalCost is the total cost of the Allocation including adjustments
 func (a *Allocation) TotalCost() float64 {
-	return a.CPUTotalCost() + a.GPUTotalCost() + a.RAMTotalCost() + a.PVTotalCost() + a.NetworkTotalCost() + a.LoadBalancerCost + a.SharedTotalCost() + a.ExternalCost
+	return a.CPUTotalCost() + a.GPUTotalCost() + a.RAMTotalCost() + a.PVTotalCost() + a.NetworkTotalCost() + a.LBTotalCost() + a.SharedTotalCost() + a.ExternalCost
 }
 
 // CPUTotalCost calculates total CPU cost of Allocation including adjustment
@@ -647,8 +647,8 @@ func (a *Allocation) add(that *Allocation) {
 	a.GPUCostAdjustment += that.GPUCostAdjustment
 	a.PVCostAdjustment += that.PVCostAdjustment
 	a.NetworkCostAdjustment += that.NetworkCostAdjustment
-	a.LoadBalancerCostAdjustment += a.LoadBalancerCostAdjustment
-	a.SharedCostAdjustment += a.SharedCostAdjustment
+	a.LoadBalancerCostAdjustment += that.LoadBalancerCostAdjustment
+	a.SharedCostAdjustment += that.SharedCostAdjustment
 
 	// Any data that is in a "raw allocation only" is not valid in any
 	// sort of cumulative Allocation (like one that is added).
