@@ -345,7 +345,7 @@ func (a *Allocation) Equal(that *Allocation) bool {
 
 // TotalCost is the total cost of the Allocation including adjustments
 func (a *Allocation) TotalCost() float64 {
-	return a.CPUTotalCost() + a.GPUTotalCost() + a.RAMTotalCost() + a.PVTotalCost() + a.NetworkTotalCost() + a.LoadBalancerCost + a.SharedTotalCost() + a.ExternalCost
+	return a.CPUTotalCost() + a.GPUTotalCost() + a.RAMTotalCost() + a.PVTotalCost() + a.NetworkTotalCost() + a.LBTotalCost() + a.SharedTotalCost() + a.ExternalCost
 }
 
 // CPUTotalCost calculates total CPU cost of Allocation including adjustment
@@ -647,8 +647,8 @@ func (a *Allocation) add(that *Allocation) {
 	a.GPUCostAdjustment += that.GPUCostAdjustment
 	a.PVCostAdjustment += that.PVCostAdjustment
 	a.NetworkCostAdjustment += that.NetworkCostAdjustment
-	a.LoadBalancerCostAdjustment += a.LoadBalancerCostAdjustment
-	a.SharedCostAdjustment += a.SharedCostAdjustment
+	a.LoadBalancerCostAdjustment += that.LoadBalancerCostAdjustment
+	a.SharedCostAdjustment += that.SharedCostAdjustment
 
 	// Any data that is in a "raw allocation only" is not valid in any
 	// sort of cumulative Allocation (like one that is added).
@@ -1676,6 +1676,9 @@ func (as *AllocationSet) Reconcile(assetSet *AssetSet) error {
 
 	// Match Assets against allocations and adjust allocation cost based on the proportion of the asset that they used
 	as.Each(func(name string, a *Allocation) {
+		// Set Adjustments for allocation to 0 for idempotency
+		a.resetAdjustments()
+
 		a.reconcileNodes(nodeByProviderID)
 		a.reconcileDisks(diskByName)
 
@@ -1693,13 +1696,21 @@ func (as *AllocationSet) Reconcile(assetSet *AssetSet) error {
 
 	// Second pass over allocations once counting from previous loop is done
 	as.Each(func(name string, a *Allocation) {
-		// Set SharedCostAdjustment for allocation to 0 for idempotency
-		a.SharedCostAdjustment = 0
 		a.shareClusterManagement(clusterManagementByCluster, clusterTenants)
 		a.shareAttachedDisk(diskByName, nodeTenants, nodeProviderIDToName)
 	})
 
 	return nil
+}
+
+func (a *Allocation) resetAdjustments() {
+	a.CPUCostAdjustment = 0.0
+	a.GPUCostAdjustment = 0.0
+	a.RAMCostAdjustment = 0.0
+	a.PVCostAdjustment = 0.0
+	a.NetworkCostAdjustment = 0.0
+	a.LoadBalancerCostAdjustment = 0.0
+	a.SharedCostAdjustment = 0.0
 }
 
 func (a *Allocation) reconcileNodes(nodeByProviderID map[string]*Node) {
@@ -1771,8 +1782,6 @@ func (a *Allocation) reconcileDisks(diskByName map[string]*Disk) {
 		// No PV usage to reconcile
 		return
 	}
-	// Set PV Adjustment for allocation to 0 for idempotency
-	a.PVCostAdjustment = 0.0
 	for pvKey, pvUsage := range pvs {
 		disk, ok := diskByName[pvKey.Name]
 		if !ok {
@@ -1797,7 +1806,7 @@ func (a *Allocation) reconcileDisks(diskByName map[string]*Disk) {
 
 func (a *Allocation) shareClusterManagement(clusterManagementByCluster map[string]*ClusterManagement, clusterTenants map[string]int) {
 	clusterName := a.Properties.Cluster
-	if cm, ok := clusterManagementByCluster[clusterName]; ok && clusterName != "" {
+	if cm, ok := clusterManagementByCluster[clusterName]; ok && clusterName != "" && clusterTenants[clusterName] != 0{
 		a.SharedCostAdjustment += cm.TotalCost() / float64(clusterTenants[clusterName])
 	}
 }
@@ -1809,7 +1818,7 @@ func (a *Allocation) shareAttachedDisk(diskByName map[string]*Disk, nodeTenants 
 	// Attached disks have the same name as their nodes on AWS, Azure and GCP
 	disk, ok := diskByName[nodeName]
 	numTenants, ok2 := nodeTenants[nodeName]
-	if nodeName != "" && ok && ok2 {
+	if nodeName != "" && ok && ok2 && numTenants != 0 {
 		a.SharedCostAdjustment += disk.TotalCost() / float64(numTenants)
 	}
 }
