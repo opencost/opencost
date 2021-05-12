@@ -18,7 +18,7 @@ import (
 
 const (
 	queryFmtPods              = `avg(kube_pod_container_status_running{}) by (pod, namespace, cluster_id)[%s:%s]%s`
-	queryFmtRAMBytesAllocated = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
+	queryFmtRAMBytesAllocated = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id, provider_id)`
 	queryFmtRAMRequests       = `avg(avg_over_time(kube_pod_container_resource_requests_memory_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
 	queryFmtRAMUsageAvg       = `avg(avg_over_time(container_memory_working_set_bytes{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`
 	queryFmtRAMUsageMax       = `max(max_over_time(container_memory_working_set_bytes{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`
@@ -36,9 +36,9 @@ const (
 	// https://prometheus.io/blog/2019/01/28/subquery-support/#examples
 	queryFmtCPUUsageMax           = `max(max_over_time(kubecost_savings_container_cpu_usage_seconds[%s]%s)) by (container_name, pod_name, namespace, instance, cluster_id)`
 	queryFmtGPUsRequested         = `avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, cluster_id)`
-	queryFmtNodeCostPerCPUHr      = `avg(avg_over_time(node_cpu_hourly_cost[%s]%s)) by (node, cluster_id, instance_type)`
-	queryFmtNodeCostPerRAMGiBHr   = `avg(avg_over_time(node_ram_hourly_cost[%s]%s)) by (node, cluster_id, instance_type)`
-	queryFmtNodeCostPerGPUHr      = `avg(avg_over_time(node_gpu_hourly_cost[%s]%s)) by (node, cluster_id, instance_type)`
+	queryFmtNodeCostPerCPUHr      = `avg(avg_over_time(node_cpu_hourly_cost[%s]%s)) by (node, cluster_id, instance_type, provider_id)`
+	queryFmtNodeCostPerRAMGiBHr   = `avg(avg_over_time(node_ram_hourly_cost[%s]%s)) by (node, cluster_id, instance_type, provider_id)`
+	queryFmtNodeCostPerGPUHr      = `avg(avg_over_time(node_gpu_hourly_cost[%s]%s)) by (node, cluster_id, instance_type, provider_id)`
 	queryFmtNodeIsSpot            = `avg_over_time(kubecost_node_is_spot[%s]%s)`
 	queryFmtPVCInfo               = `avg(kube_persistentvolumeclaim_info{volumename != ""}) by (persistentvolumeclaim, storageclass, volumename, namespace, cluster_id)[%s:%s]%s`
 	queryFmtPVBytes               = `avg(avg_over_time(kube_persistentvolume_capacity_bytes[%s]%s)) by (persistentvolume, cluster_id)`
@@ -308,9 +308,9 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	// for converting resource allocation data to cumulative costs.
 	nodeMap := map[nodeKey]*NodePricing{}
 
-	applyNodeCostPerCPUHr(nodeMap, resNodeCostPerCPUHr)
-	applyNodeCostPerRAMGiBHr(nodeMap, resNodeCostPerRAMGiBHr)
-	applyNodeCostPerGPUHr(nodeMap, resNodeCostPerGPUHr)
+	applyNodeCostPerCPUHr(nodeMap, resNodeCostPerCPUHr, cm.Provider.ParseID)
+	applyNodeCostPerRAMGiBHr(nodeMap, resNodeCostPerRAMGiBHr, cm.Provider.ParseID)
+	applyNodeCostPerGPUHr(nodeMap, resNodeCostPerGPUHr, cm.Provider.ParseID)
 	applyNodeSpot(nodeMap, resNodeIsSpot)
 	applyNodeDiscount(nodeMap, cm)
 
@@ -357,10 +357,10 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 			nodeKey := newNodeKey(cluster, nodeName)
 
 			node := cm.getNodePricing(nodeMap, nodeKey)
+			alloc.Properties.ProviderID = node.ProviderID
 			alloc.CPUCost = alloc.CPUCoreHours * node.CostPerCPUHr
 			alloc.RAMCost = (alloc.RAMByteHours / 1024 / 1024 / 1024) * node.CostPerRAMGiBHr
 			alloc.GPUCost = alloc.GPUHours * node.CostPerGPUHr
-
 			if pvcs, ok := podPVCMap[podKey]; ok {
 				for _, pvc := range pvcs {
 					// Determine the (start, end) of the relationship between the
@@ -386,8 +386,18 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 
 					// Apply the size and cost of the PV to the allocation, each
 					// weighted by count (i.e. the number of containers in the pod)
-					alloc.PVByteHours += pvc.Bytes * hrs / count
-					alloc.PVCost += cost / count
+					// record the amount of total PVBytes Hours attributable to a given PV
+					if alloc.PVs == nil {
+						alloc.PVs = kubecost.PVAllocations{}
+					}
+					pvKey := kubecost.PVKey{
+						Cluster: pvc.Cluster,
+						Name:    pvc.Volume.Name,
+					}
+					alloc.PVs[pvKey] = &kubecost.PVAllocation{
+						ByteHours: pvc.Bytes * hrs / count,
+						Cost:      cost / count,
+					}
 				}
 			}
 
@@ -1282,7 +1292,8 @@ func applyControllersToPods(podMap map[podKey]*Pod, podControllerMap map[podKey]
 	}
 }
 
-func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerCPUHr []*prom.QueryResult) {
+func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerCPUHr []*prom.QueryResult,
+	providerIDParser func(string) string) {
 	for _, res := range resNodeCostPerCPUHr {
 		cluster, err := res.GetString("cluster_id")
 		if err != nil {
@@ -1301,11 +1312,18 @@ func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerCPUHr
 			continue
 		}
 
+		providerID, err := res.GetString("provider_id")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: Node CPU cost query result missing field: %s", err)
+			continue
+		}
+
 		key := newNodeKey(cluster, node)
 		if _, ok := nodeMap[key]; !ok {
 			nodeMap[key] = &NodePricing{
-				Name:     node,
-				NodeType: instanceType,
+				Name:       node,
+				NodeType:   instanceType,
+				ProviderID: providerIDParser(providerID),
 			}
 		}
 
@@ -1313,7 +1331,8 @@ func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerCPUHr
 	}
 }
 
-func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerRAMGiBHr []*prom.QueryResult) {
+func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerRAMGiBHr []*prom.QueryResult,
+	providerIDParser func(string) string) {
 	for _, res := range resNodeCostPerRAMGiBHr {
 		cluster, err := res.GetString("cluster_id")
 		if err != nil {
@@ -1332,11 +1351,18 @@ func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerRA
 			continue
 		}
 
+		providerID, err := res.GetString("provider_id")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: Node RAM cost query result missing field: %s", err)
+			continue
+		}
+
 		key := newNodeKey(cluster, node)
 		if _, ok := nodeMap[key]; !ok {
 			nodeMap[key] = &NodePricing{
-				Name:     node,
-				NodeType: instanceType,
+				Name:       node,
+				NodeType:   instanceType,
+				ProviderID: providerIDParser(providerID),
 			}
 		}
 
@@ -1344,7 +1370,8 @@ func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerRA
 	}
 }
 
-func applyNodeCostPerGPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerGPUHr []*prom.QueryResult) {
+func applyNodeCostPerGPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerGPUHr []*prom.QueryResult,
+	providerIDParser func(string) string) {
 	for _, res := range resNodeCostPerGPUHr {
 		cluster, err := res.GetString("cluster_id")
 		if err != nil {
@@ -1363,11 +1390,18 @@ func applyNodeCostPerGPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerGPUHr
 			continue
 		}
 
+		providerID, err := res.GetString("provider_id")
+		if err != nil {
+			log.Warningf("CostModel.ComputeAllocation: Node GPU cost query result missing field: %s", err)
+			continue
+		}
+
 		key := newNodeKey(cluster, node)
 		if _, ok := nodeMap[key]; !ok {
 			nodeMap[key] = &NodePricing{
-				Name:     node,
-				NodeType: instanceType,
+				Name:       node,
+				NodeType:   instanceType,
+				ProviderID: providerIDParser(providerID),
 			}
 		}
 
@@ -1640,8 +1674,17 @@ func applyUnmountedPVs(window kubecost.Window, podMap map[podKey]*Pod, pvMap map
 		podMap[key].Allocations[container].Properties.Namespace = namespace
 		podMap[key].Allocations[container].Properties.Pod = pod
 		podMap[key].Allocations[container].Properties.Container = container
-		podMap[key].Allocations[container].PVByteHours = unmountedPVBytes[cluster] * window.Minutes() / 60.0
-		podMap[key].Allocations[container].PVCost = amount
+		pvKey := kubecost.PVKey{
+			Cluster: cluster,
+			Name:    kubecost.UnmountedSuffix,
+		}
+		unmountedBreakDown := kubecost.PVAllocations{
+			pvKey: {
+				ByteHours: unmountedPVBytes[cluster] * window.Minutes() / 60.0,
+				Cost:      amount,
+			},
+		}
+		podMap[key].Allocations[container].PVs = podMap[key].Allocations[container].PVs.Add(unmountedBreakDown)
 	}
 }
 
@@ -1683,8 +1726,18 @@ func applyUnmountedPVCs(window kubecost.Window, podMap map[podKey]*Pod, pvcMap m
 		podMap[podKey].Allocations[container].Properties.Namespace = namespace
 		podMap[podKey].Allocations[container].Properties.Pod = pod
 		podMap[podKey].Allocations[container].Properties.Container = container
-		podMap[podKey].Allocations[container].PVByteHours = unmountedPVCBytes[key] * window.Minutes() / 60.0
-		podMap[podKey].Allocations[container].PVCost = amount
+		pvKey := kubecost.PVKey{
+			Cluster: cluster,
+			Name:    kubecost.UnmountedSuffix,
+		}
+		unmountedBreakDown := kubecost.PVAllocations{
+			pvKey: {
+				ByteHours: unmountedPVCBytes[key] * window.Minutes() / 60.0,
+				Cost:      amount,
+			},
+		}
+		podMap[podKey].Allocations[container].PVs = podMap[podKey].Allocations[container].PVs.Add(unmountedBreakDown)
+
 	}
 }
 
@@ -1885,6 +1938,7 @@ func (cm *CostModel) getCustomNodePricing(spot bool) *NodePricing {
 type NodePricing struct {
 	Name            string
 	NodeType        string
+	ProviderID      string
 	Preemptible     bool
 	CostPerCPUHr    float64
 	CostPerRAMGiBHr float64
