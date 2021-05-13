@@ -366,7 +366,7 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregators []stri
 				service.description as service,
 				TO_JSON_STRING(labels) as keys,
 				SUM(cost) as cost
-			FROM  %s
+			FROM  "%s"
 			WHERE EXISTS (SELECT * FROM UNNEST(labels) AS l2 WHERE l2.key IN (%s))
 			AND usage_start_time >= "%s" AND usage_start_time < "%s"
 			GROUP BY service, keys
@@ -392,7 +392,7 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregators []stri
 				service.description as service,
 				TO_JSON_STRING(labels) as keys,
 				SUM(cost) as cost
-		  	FROM  %s
+		  	FROM  "%s"
 		 	WHERE EXISTS (SELECT * FROM UNNEST(labels) AS l2 WHERE l2.key IN (%s))
 			AND EXISTS (SELECT * FROM UNNEST(labels) AS l WHERE l.key = "%s" AND l.value = "%s")
 			AND usage_start_time >= "%s" AND usage_start_time < "%s"
