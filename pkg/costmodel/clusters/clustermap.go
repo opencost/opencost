@@ -183,7 +183,7 @@ func (pcm *PrometheusClusterMap) refreshClusters() {
 	updated, err := pcm.loadClusters()
 	if err != nil {
 		log.Errorf("Failed to load cluster info via query after %d retries", LoadRetries)
-		return
+		updated = make(map[string]*ClusterInfo) // If we fail to query prometheus, register no clusters, as we use this to gauge availability of clusters.
 	}
 
 	pcm.lock.Lock()
