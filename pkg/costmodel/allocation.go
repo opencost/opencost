@@ -361,7 +361,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 			alloc.CPUCost = alloc.CPUCoreHours * node.CostPerCPUHr
 			alloc.RAMCost = (alloc.RAMByteHours / 1024 / 1024 / 1024) * node.CostPerRAMGiBHr
 			alloc.GPUCost = alloc.GPUHours * node.CostPerGPUHr
-
 			if pvcs, ok := podPVCMap[podKey]; ok {
 				for _, pvc := range pvcs {
 					// Determine the (start, end) of the relationship between the
@@ -387,8 +386,18 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 
 					// Apply the size and cost of the PV to the allocation, each
 					// weighted by count (i.e. the number of containers in the pod)
-					alloc.PVByteHours += pvc.Bytes * hrs / count
-					alloc.PVCost += cost / count
+					// record the amount of total PVBytes Hours attributable to a given PV
+					if alloc.PVs == nil {
+						alloc.PVs = kubecost.PVAllocations{}
+					}
+					pvKey := kubecost.PVKey{
+						Cluster: pvc.Cluster,
+						Name:    pvc.Volume.Name,
+					}
+					alloc.PVs[pvKey] = &kubecost.PVAllocation{
+						ByteHours: pvc.Bytes * hrs / count,
+						Cost:      cost / count,
+					}
 				}
 			}
 
@@ -1665,8 +1674,17 @@ func applyUnmountedPVs(window kubecost.Window, podMap map[podKey]*Pod, pvMap map
 		podMap[key].Allocations[container].Properties.Namespace = namespace
 		podMap[key].Allocations[container].Properties.Pod = pod
 		podMap[key].Allocations[container].Properties.Container = container
-		podMap[key].Allocations[container].PVByteHours = unmountedPVBytes[cluster] * window.Minutes() / 60.0
-		podMap[key].Allocations[container].PVCost = amount
+		pvKey := kubecost.PVKey{
+			Cluster: cluster,
+			Name:    kubecost.UnmountedSuffix,
+		}
+		unmountedBreakDown := kubecost.PVAllocations{
+			pvKey: {
+				ByteHours: unmountedPVBytes[cluster] * window.Minutes() / 60.0,
+				Cost:      amount,
+			},
+		}
+		podMap[key].Allocations[container].PVs = podMap[key].Allocations[container].PVs.Add(unmountedBreakDown)
 	}
 }
 
@@ -1708,8 +1726,18 @@ func applyUnmountedPVCs(window kubecost.Window, podMap map[podKey]*Pod, pvcMap m
 		podMap[podKey].Allocations[container].Properties.Namespace = namespace
 		podMap[podKey].Allocations[container].Properties.Pod = pod
 		podMap[podKey].Allocations[container].Properties.Container = container
-		podMap[podKey].Allocations[container].PVByteHours = unmountedPVCBytes[key] * window.Minutes() / 60.0
-		podMap[podKey].Allocations[container].PVCost = amount
+		pvKey := kubecost.PVKey{
+			Cluster: cluster,
+			Name:    kubecost.UnmountedSuffix,
+		}
+		unmountedBreakDown := kubecost.PVAllocations{
+			pvKey: {
+				ByteHours: unmountedPVCBytes[key] * window.Minutes() / 60.0,
+				Cost:      amount,
+			},
+		}
+		podMap[podKey].Allocations[container].PVs = podMap[podKey].Allocations[container].PVs.Add(unmountedBreakDown)
+
 	}
 }
 

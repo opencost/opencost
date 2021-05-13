@@ -25,7 +25,7 @@ const (
 	GeneratorPackageName string = "kubecost"
 
 	// CodecVersion is the version passed into the generator
-	CodecVersion uint8 = 12
+	CodecVersion uint8 = 13
 )
 
 //--------------------------------------------------------------------------
@@ -50,6 +50,8 @@ var typeMap map[string]reflect.Type = map[string]reflect.Type{
 	"LoadBalancer":          reflect.TypeOf((*LoadBalancer)(nil)).Elem(),
 	"Network":               reflect.TypeOf((*Network)(nil)).Elem(),
 	"Node":                  reflect.TypeOf((*Node)(nil)).Elem(),
+	"PVAllocation":          reflect.TypeOf((*PVAllocation)(nil)).Elem(),
+	"PVKey":                 reflect.TypeOf((*PVKey)(nil)).Elem(),
 	"RawAllocationOnlyData": reflect.TypeOf((*RawAllocationOnlyData)(nil)).Elem(),
 	"SharedAsset":           reflect.TypeOf((*SharedAsset)(nil)).Elem(),
 	"Window":                reflect.TypeOf((*Window)(nil)).Elem(),
@@ -160,24 +162,65 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 	buff.WriteBytes(d)
 	// --- [end][write][reference](time.Time) ---
 
-	buff.WriteFloat64(target.CPUCoreHours)           // write float64
-	buff.WriteFloat64(target.CPUCoreRequestAverage)  // write float64
-	buff.WriteFloat64(target.CPUCoreUsageAverage)    // write float64
-	buff.WriteFloat64(target.CPUCost)                // write float64
-	buff.WriteFloat64(target.CPUCostAdjustment)      // write float64
-	buff.WriteFloat64(target.GPUHours)               // write float64
-	buff.WriteFloat64(target.GPUCost)                // write float64
-	buff.WriteFloat64(target.GPUCostAdjustment)      // write float64
-	buff.WriteFloat64(target.NetworkCost)            // write float64
-	buff.WriteFloat64(target.LoadBalancerCost)       // write float64
-	buff.WriteFloat64(target.PVByteHours)            // write float64
-	buff.WriteFloat64(target.PVCost)                 // write float64
+	buff.WriteFloat64(target.CPUCoreHours)               // write float64
+	buff.WriteFloat64(target.CPUCoreRequestAverage)      // write float64
+	buff.WriteFloat64(target.CPUCoreUsageAverage)        // write float64
+	buff.WriteFloat64(target.CPUCost)                    // write float64
+	buff.WriteFloat64(target.CPUCostAdjustment)          // write float64
+	buff.WriteFloat64(target.GPUHours)                   // write float64
+	buff.WriteFloat64(target.GPUCost)                    // write float64
+	buff.WriteFloat64(target.GPUCostAdjustment)          // write float64
+	buff.WriteFloat64(target.NetworkCost)                // write float64
+	buff.WriteFloat64(target.NetworkCostAdjustment)      // write float64
+	buff.WriteFloat64(target.LoadBalancerCost)           // write float64
+	buff.WriteFloat64(target.LoadBalancerCostAdjustment) // write float64
+	// --- [begin][write][alias](PVAllocations) ---
+	if map[PVKey]*PVAllocation(target.PVs) == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[PVKey]*PVAllocation) ---
+		buff.WriteInt(len(map[PVKey]*PVAllocation(target.PVs))) // map length
+		for v, z := range map[PVKey]*PVAllocation(target.PVs) {
+			// --- [begin][write][struct](PVKey) ---
+			e, errE := v.MarshalBinary()
+			if errE != nil {
+				return nil, errE
+			}
+			buff.WriteInt(len(e))
+			buff.WriteBytes(e)
+			// --- [end][write][struct](PVKey) ---
+
+			if z == nil {
+				buff.WriteUInt8(uint8(0)) // write nil byte
+			} else {
+				buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+				// --- [begin][write][struct](PVAllocation) ---
+				f, errF := z.MarshalBinary()
+				if errF != nil {
+					return nil, errF
+				}
+				buff.WriteInt(len(f))
+				buff.WriteBytes(f)
+				// --- [end][write][struct](PVAllocation) ---
+
+			}
+		}
+		// --- [end][write][map](map[PVKey]*PVAllocation) ---
+
+	}
+	// --- [end][write][alias](PVAllocations) ---
+
+	buff.WriteFloat64(target.PVCostAdjustment)       // write float64
 	buff.WriteFloat64(target.RAMByteHours)           // write float64
 	buff.WriteFloat64(target.RAMBytesRequestAverage) // write float64
 	buff.WriteFloat64(target.RAMBytesUsageAverage)   // write float64
 	buff.WriteFloat64(target.RAMCost)                // write float64
 	buff.WriteFloat64(target.RAMCostAdjustment)      // write float64
 	buff.WriteFloat64(target.SharedCost)             // write float64
+	buff.WriteFloat64(target.SharedCostAdjustment)   // write float64
 	buff.WriteFloat64(target.ExternalCost)           // write float64
 	if target.RawAllocationOnly == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
@@ -185,12 +228,12 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
 
 		// --- [begin][write][struct](RawAllocationOnlyData) ---
-		e, errE := target.RawAllocationOnly.MarshalBinary()
-		if errE != nil {
-			return nil, errE
+		g, errG := target.RawAllocationOnly.MarshalBinary()
+		if errG != nil {
+			return nil, errG
 		}
-		buff.WriteInt(len(e))
-		buff.WriteBytes(e)
+		buff.WriteInt(len(g))
+		buff.WriteBytes(g)
 		// --- [end][write][struct](RawAllocationOnlyData) ---
 
 	}
@@ -300,47 +343,98 @@ func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
 	target.NetworkCost = y
 
 	aa := buff.ReadFloat64() // read float64
-	target.LoadBalancerCost = aa
+	target.NetworkCostAdjustment = aa
 
 	bb := buff.ReadFloat64() // read float64
-	target.PVByteHours = bb
+	target.LoadBalancerCost = bb
 
 	cc := buff.ReadFloat64() // read float64
-	target.PVCost = cc
+	target.LoadBalancerCostAdjustment = cc
 
-	dd := buff.ReadFloat64() // read float64
-	target.RAMByteHours = dd
+	// --- [begin][read][alias](PVAllocations) ---
+	var dd map[PVKey]*PVAllocation
+	if buff.ReadUInt8() == uint8(0) {
+		dd = nil
+	} else {
+		// --- [begin][read][map](map[PVKey]*PVAllocation) ---
+		ff := buff.ReadInt() // map len
+		ee := make(map[PVKey]*PVAllocation, ff)
+		for i := 0; i < ff; i++ {
+			// --- [begin][read][struct](PVKey) ---
+			gg := &PVKey{}
+			hh := buff.ReadInt()     // byte array length
+			kk := buff.ReadBytes(hh) // byte array
+			errE := gg.UnmarshalBinary(kk)
+			if errE != nil {
+				return errE
+			}
+			v := *gg
+			// --- [end][read][struct](PVKey) ---
 
-	ee := buff.ReadFloat64() // read float64
-	target.RAMBytesRequestAverage = ee
+			var z *PVAllocation
+			if buff.ReadUInt8() == uint8(0) {
+				z = nil
+			} else {
+				// --- [begin][read][struct](PVAllocation) ---
+				ll := &PVAllocation{}
+				mm := buff.ReadInt()     // byte array length
+				nn := buff.ReadBytes(mm) // byte array
+				errF := ll.UnmarshalBinary(nn)
+				if errF != nil {
+					return errF
+				}
+				z = ll
+				// --- [end][read][struct](PVAllocation) ---
 
-	ff := buff.ReadFloat64() // read float64
-	target.RAMBytesUsageAverage = ff
+			}
+			ee[v] = z
+		}
+		dd = ee
+		// --- [end][read][map](map[PVKey]*PVAllocation) ---
 
-	gg := buff.ReadFloat64() // read float64
-	target.RAMCost = gg
+	}
+	target.PVs = PVAllocations(dd)
+	// --- [end][read][alias](PVAllocations) ---
 
-	hh := buff.ReadFloat64() // read float64
-	target.RAMCostAdjustment = hh
+	oo := buff.ReadFloat64() // read float64
+	target.PVCostAdjustment = oo
 
-	kk := buff.ReadFloat64() // read float64
-	target.SharedCost = kk
+	pp := buff.ReadFloat64() // read float64
+	target.RAMByteHours = pp
 
-	ll := buff.ReadFloat64() // read float64
-	target.ExternalCost = ll
+	qq := buff.ReadFloat64() // read float64
+	target.RAMBytesRequestAverage = qq
+
+	rr := buff.ReadFloat64() // read float64
+	target.RAMBytesUsageAverage = rr
+
+	ss := buff.ReadFloat64() // read float64
+	target.RAMCost = ss
+
+	tt := buff.ReadFloat64() // read float64
+	target.RAMCostAdjustment = tt
+
+	uu := buff.ReadFloat64() // read float64
+	target.SharedCost = uu
+
+	ww := buff.ReadFloat64() // read float64
+	target.SharedCostAdjustment = ww
+
+	xx := buff.ReadFloat64() // read float64
+	target.ExternalCost = xx
 
 	if buff.ReadUInt8() == uint8(0) {
 		target.RawAllocationOnly = nil
 	} else {
 		// --- [begin][read][struct](RawAllocationOnlyData) ---
-		mm := &RawAllocationOnlyData{}
-		nn := buff.ReadInt()     // byte array length
-		oo := buff.ReadBytes(nn) // byte array
-		errE := mm.UnmarshalBinary(oo)
-		if errE != nil {
-			return errE
+		yy := &RawAllocationOnlyData{}
+		aaa := buff.ReadInt()      // byte array length
+		bbb := buff.ReadBytes(aaa) // byte array
+		errG := yy.UnmarshalBinary(bbb)
+		if errG != nil {
+			return errG
 		}
-		target.RawAllocationOnly = mm
+		target.RawAllocationOnly = yy
 		// --- [end][read][struct](RawAllocationOnlyData) ---
 
 	}
@@ -2870,6 +2964,128 @@ func (target *Node) UnmarshalBinary(data []byte) (err error) {
 
 	nn := buff.ReadFloat64() // read float64
 	target.Preemptible = nn
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  PVAllocation
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this PVAllocation instance
+// into a byte array
+func (target *PVAllocation) MarshalBinary() (data []byte, err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := util.NewBuffer()
+	buff.WriteUInt8(CodecVersion) // version
+
+	buff.WriteFloat64(target.ByteHours) // write float64
+	buff.WriteFloat64(target.Cost)      // write float64
+	return buff.Bytes(), nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the PVAllocation type
+func (target *PVAllocation) UnmarshalBinary(data []byte) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := util.NewBufferFromBytes(data)
+
+	// Codec Version Check
+	version := buff.ReadUInt8()
+	if version != CodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling PVAllocation. Expected %d, got %d", CodecVersion, version)
+	}
+
+	a := buff.ReadFloat64() // read float64
+	target.ByteHours = a
+
+	b := buff.ReadFloat64() // read float64
+	target.Cost = b
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  PVKey
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this PVKey instance
+// into a byte array
+func (target *PVKey) MarshalBinary() (data []byte, err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := util.NewBuffer()
+	buff.WriteUInt8(CodecVersion) // version
+
+	buff.WriteString(target.Cluster) // write string
+	buff.WriteString(target.Name)    // write string
+	return buff.Bytes(), nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the PVKey type
+func (target *PVKey) UnmarshalBinary(data []byte) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := util.NewBufferFromBytes(data)
+
+	// Codec Version Check
+	version := buff.ReadUInt8()
+	if version != CodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling PVKey. Expected %d, got %d", CodecVersion, version)
+	}
+
+	a := buff.ReadString() // read string
+	target.Cluster = a
+
+	b := buff.ReadString() // read string
+	target.Name = b
 
 	return nil
 }
