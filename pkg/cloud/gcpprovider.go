@@ -388,17 +388,18 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregators []stri
 			}
 		}
 
-		queryString := fmt.Sprintf(`(
+		queryString := `(
 			SELECT
 				service.description as service,
 				TO_JSON_STRING(labels) as keys,
 				SUM(cost) as cost
-		  	FROM  "%s"
-		 	WHERE EXISTS (SELECT * FROM UNNEST(labels) AS l2 WHERE l2.key IN (%s))
+		  	FROM` +
+			fmt.Sprintf(" `%s` ", c.BillingDataDataset) +
+			fmt.Sprintf(`WHERE EXISTS (SELECT * FROM UNNEST(labels) AS l2 WHERE l2.key IN (%s))
 			AND EXISTS (SELECT * FROM UNNEST(labels) AS l WHERE l.key = "%s" AND l.value = "%s")
 			AND usage_start_time >= "%s" AND usage_start_time < "%s"
 			GROUP BY service, keys
-		)`, c.BillingDataDataset, aggregator, filterType, filterValue, start, end)
+		)`, aggregator, filterType, filterValue, start, end)
 		klog.V(4).Infof("Querying \"%s\" with : %s", c.ProjectID, queryString)
 		gcpOOC, err := gcp.multiLabelQuery(queryString, aggregators)
 		s = append(s, gcpOOC...)
