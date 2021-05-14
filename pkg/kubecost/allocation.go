@@ -930,8 +930,8 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	for _, alloc := range as.allocations {
 		idleKey, err := alloc.getIdleKey(options)
 		if err != nil {
-			log.Warningf("AllocationSet.AggregateBy: missing idleKey for allocation: %s", alloc.Name)
-			return err
+			log.DedupedInfof(5,"AllocationSet.AggregateBy: missing idleKey for allocation: %s", alloc.Name)
+			continue
 		}
 
 		skip := false
@@ -1018,8 +1018,8 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		for _, alloc := range shareSet.allocations {
 			idleKey, err := alloc.getIdleKey(options)
 			if err != nil {
-				log.Warningf("AllocationSet.AggregateBy: missing idleKey for allocation: %s", alloc.Name)
-				return err
+				log.DedupedWarningf(5, "AllocationSet.AggregateBy: missing idleKey for allocation: %s", alloc.Name)
+				continue
 			}
 
 			// Distribute idle allocations by coefficient per-idleKey, per-allocation
@@ -1240,7 +1240,8 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 
 		idleKey, err := alloc.getIdleKey(options)
 		if err != nil {
-			return nil, err
+			// skip allocations that are missing idleKey
+			continue
 		}
 
 		// get the name key for the allocation
