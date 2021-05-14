@@ -1367,17 +1367,24 @@ func (gcp *gcpKey) GPUType() string {
 
 // GetKey maps node labels to information needed to retrieve pricing data
 func (gcp *gcpKey) Features() string {
+	var instanceType string
 	it, _ := util.GetInstanceType(gcp.Labels)
-	instanceType := strings.ToLower(strings.Join(strings.Split(it, "-")[:2], ""))
-	if instanceType == "n1highmem" || instanceType == "n1highcpu" {
-		instanceType = "n1standard" // These are priced the same. TODO: support n1ultrahighmem
-	} else if instanceType == "n2highmem" || instanceType == "n2highcpu" {
-		instanceType = "n2standard"
-	} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
-		instanceType = "e2standard"
-	} else if strings.HasPrefix(instanceType, "custom") {
-		instanceType = "custom" // The suffix of custom does not matter
+	if it == "" {
+		log.DedupedErrorf(1, "Missing or Unknown 'node.kubernetes.io/instance-type' node label")
+		instanceType = "unknown"
+	} else {
+		instanceType = strings.ToLower(strings.Join(strings.Split(it, "-")[:2], ""))
+		if instanceType == "n1highmem" || instanceType == "n1highcpu" {
+			instanceType = "n1standard" // These are priced the same. TODO: support n1ultrahighmem
+		} else if instanceType == "n2highmem" || instanceType == "n2highcpu" {
+			instanceType = "n2standard"
+		} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
+			instanceType = "e2standard"
+		} else if strings.HasPrefix(instanceType, "custom") {
+			instanceType = "custom" // The suffix of custom does not matter
+		}
 	}
+
 	r, _ := util.GetRegion(gcp.Labels)
 	region := strings.ToLower(r)
 	var usageType string
