@@ -25,9 +25,9 @@ func BenchmarkAllocationSetRange_BinaryEncoding(b *testing.B) {
 	var err error
 
 	asr0 = NewAllocationSetRange(
-		generateAllocationSet(startD0),
-		generateAllocationSet(startD1),
-		generateAllocationSet(startD2),
+		generateAllocationSetClusterIdle(startD0),
+		generateAllocationSetClusterIdle(startD1),
+		generateAllocationSetClusterIdle(startD2),
 	)
 
 	for it := 0; it < b.N; it++ {
@@ -90,9 +90,9 @@ func TestAllocationSetRange_BinaryEncoding(t *testing.T) {
 	var err error
 
 	asr0 = NewAllocationSetRange(
-		generateAllocationSet(startD0),
-		generateAllocationSet(startD1),
-		generateAllocationSet(startD2),
+		generateAllocationSetClusterIdle(startD0),
+		generateAllocationSetClusterIdle(startD1),
+		generateAllocationSetClusterIdle(startD2),
 	)
 
 	bs, err = asr0.MarshalBinary()

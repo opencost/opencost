@@ -559,12 +559,10 @@ func TestNewAllocationSet(t *testing.T) {
 	// TODO niko/etl
 }
 
-func generateAllocationSet(start time.Time) *AllocationSet {
-	// Idle allocations
+func generateAllocationSetClusterIdle(start time.Time) *AllocationSet {
+	// Cluster Idle allocations
 	a1i := NewUnitAllocation(fmt.Sprintf("cluster1/%s", IdleSuffix), start, day, &AllocationProperties{
-		Cluster:    "cluster1",
-		Node:       "node1",
-		ProviderID: "c1nodes",
+		Cluster: "cluster1",
 	})
 	a1i.CPUCost = 5.0
 	a1i.RAMCost = 15.0
@@ -576,6 +574,61 @@ func generateAllocationSet(start time.Time) *AllocationSet {
 	a2i.CPUCost = 5.0
 	a2i.RAMCost = 5.0
 	a2i.GPUCost = 0.0
+
+	as := generateAllocationSet(start)
+	as.Insert(a1i)
+	as.Insert(a2i)
+	return as
+}
+
+func generateAllocationSetNodeIdle(start time.Time) *AllocationSet {
+	// Node Idle allocations
+	a11i := NewUnitAllocation(fmt.Sprintf("c1nodes/%s", IdleSuffix), start, day, &AllocationProperties{
+		Cluster:    "cluster1",
+		Node:       "c1nodes",
+		ProviderID: "c1nodes",
+	})
+	a11i.CPUCost = 5.0
+	a11i.RAMCost = 15.0
+	a11i.GPUCost = 0.0
+
+	a21i := NewUnitAllocation(fmt.Sprintf("node1/%s", IdleSuffix), start, day, &AllocationProperties{
+		Cluster:    "cluster2",
+		Node:       "node1",
+		ProviderID: "node1",
+	})
+	a21i.CPUCost = 1.666667
+	a21i.RAMCost = 1.666667
+	a21i.GPUCost = 0.0
+
+	a22i := NewUnitAllocation(fmt.Sprintf("node2/%s", IdleSuffix), start, day, &AllocationProperties{
+		Cluster:    "cluster2",
+		Node:       "node2",
+		ProviderID: "node2",
+	})
+	a22i.CPUCost = 1.666667
+	a22i.RAMCost = 1.666667
+	a22i.GPUCost = 0.0
+
+	a23i := NewUnitAllocation(fmt.Sprintf("node3/%s", IdleSuffix), start, day, &AllocationProperties{
+		Cluster:    "cluster2",
+		Node:       "node3",
+		ProviderID: "node3",
+		Namespace: "",
+	})
+	a23i.CPUCost = 1.666667
+	a23i.RAMCost = 1.666667
+	a23i.GPUCost = 0.0
+
+	as := generateAllocationSet(start)
+	as.Insert(a11i)
+	as.Insert(a21i)
+	as.Insert(a22i)
+	as.Insert(a23i)
+	return as
+}
+
+func generateAllocationSet(start time.Time) *AllocationSet {
 
 	// Active allocations
 	a1111 := NewUnitAllocation("cluster1/namespace1/pod1/container1", start, day, &AllocationProperties{
@@ -722,8 +775,6 @@ func generateAllocationSet(start time.Time) *AllocationSet {
 	a22pqr6.Properties.Services = []string{"service1"}
 
 	return NewAllocationSet(start, start.Add(day),
-		// idle
-		a1i, a2i,
 		// cluster 1, namespace1
 		a1111, a11abc2, a11def3,
 		// cluster 1, namespace 2
@@ -771,7 +822,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	//   cluster2 idle                             82.00  44.00  34.00   4.00        0.00
 	// +-----------------------------------------+------+------+------+------+------------+
 
-	cluster1Nodes := NewNode("", "cluster1", "c1nodes", start, end, NewWindow(&start, &end))
+	cluster1Nodes := NewNode("c1nodes", "cluster1", "c1nodes", start, end, NewWindow(&start, &end))
 	cluster1Nodes.CPUCost = 55.0
 	cluster1Nodes.RAMCost = 44.0
 	cluster1Nodes.GPUCost = 11.0
@@ -1019,6 +1070,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// 6b Share idle with filters
 	// 6c Share resources with filters
 	// 6d Share idle and share resources
+	// 6e IdleByNode
 
 	// 7  Edge cases and errors
 	// 7a Empty AggregationProperties
@@ -1048,7 +1100,10 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	// There will only ever be one __unallocated__
 	numUnallocated := 1
 	// There are two clusters, so each gets an idle entry when they are split
-	numSplitIdle := 2
+	numSplitIdleCluster := 2
+
+	// There are two clusters, so each gets an idle entry when they are split
+	numSplitIdleNode := 4
 
 	activeTotalCost := 82.0
 	idleTotalCost := 30.0
@@ -1431,9 +1486,9 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		// namespace2: 45.5000 = 36.00 + 18.00*(1.0/2.0)
 		// idle:       30.0000
 		"4a": {
-			start:      start,
-			aggBy:      []string{AllocationNamespaceProp},
-			aggOpts:    &AllocationAggregationOptions{
+			start: start,
+			aggBy: []string{AllocationNamespaceProp},
+			aggOpts: &AllocationAggregationOptions{
 				ShareFuncs: []AllocationMatchFunc{isNamespace3},
 				ShareSplit: ShareEven,
 			},
@@ -1453,9 +1508,9 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		// namespace2: 37.5000 =
 		// idle:       30.0000
 		"4b": {
-			start:      start,
-			aggBy:      []string{AllocationNamespaceProp},
-			aggOpts:    &AllocationAggregationOptions{
+			start: start,
+			aggBy: []string{AllocationNamespaceProp},
+			aggOpts: &AllocationAggregationOptions{
 				ShareFuncs: []AllocationMatchFunc{isNamespace3},
 				ShareSplit: ShareWeighted,
 			},
@@ -1476,9 +1531,9 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		// namespace3: 23.3333 = 18.00 + 16.00*(1.0/3.0)
 		// idle:       30.0000
 		"4c": {
-			start:      start,
-			aggBy:      []string{AllocationNamespaceProp},
-			aggOpts:    &AllocationAggregationOptions{
+			start: start,
+			aggBy: []string{AllocationNamespaceProp},
+			aggOpts: &AllocationAggregationOptions{
 				ShareFuncs: []AllocationMatchFunc{isApp1},
 				ShareSplit: ShareEven,
 			},
@@ -1500,14 +1555,14 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		// namespace3: 54.878 = 18.00 + (7.0*24.0)*(18.00/82.00)
 		// idle:       30.0000
 		"4d": {
-			start:      start,
-			aggBy:      []string{AllocationNamespaceProp},
-			aggOpts:    &AllocationAggregationOptions{
+			start: start,
+			aggBy: []string{AllocationNamespaceProp},
+			aggOpts: &AllocationAggregationOptions{
 				SharedHourlyCosts: map[string]float64{"total": sharedOverheadHourlyCost},
 				ShareSplit:        ShareWeighted,
 			},
 			numResults: numNamespaces + numIdle,
-			totalCost:  activeTotalCost+idleTotalCost+(sharedOverheadHourlyCost*24.0),
+			totalCost:  activeTotalCost + idleTotalCost + (sharedOverheadHourlyCost * 24.0),
 			results: map[string]float64{
 				"namespace1": 85.366,
 				"namespace2": 109.756,
@@ -1522,14 +1577,14 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 		// 5a Filter by cluster with separate idle
 		"5a": {
-			start:      start,
-			aggBy:      []string{AllocationClusterProp},
-			aggOpts:    &AllocationAggregationOptions{
+			start: start,
+			aggBy: []string{AllocationClusterProp},
+			aggOpts: &AllocationAggregationOptions{
 				FilterFuncs: []AllocationMatchFunc{isCluster("cluster1")},
 				ShareIdle:   ShareNone,
 			},
 			numResults: 1 + numIdle,
-			totalCost: 66.0,
+			totalCost:  66.0,
 			results: map[string]float64{
 				"cluster1": 46.00,
 				IdleSuffix: 20.00,
@@ -1540,14 +1595,14 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		},
 		// 5b Filter by cluster with shared idle
 		"5b": {
-			start:      start,
-			aggBy:      []string{AllocationClusterProp},
-			aggOpts:    &AllocationAggregationOptions{
+			start: start,
+			aggBy: []string{AllocationClusterProp},
+			aggOpts: &AllocationAggregationOptions{
 				FilterFuncs: []AllocationMatchFunc{isCluster("cluster1")},
 				ShareIdle:   ShareWeighted,
 			},
 			numResults: 1,
-			totalCost: 66.0,
+			totalCost:  66.0,
 			results: map[string]float64{
 				"cluster1": 66.00,
 			},
@@ -1557,14 +1612,14 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		},
 		// 5c Filter by cluster, agg by namespace, with separate idle
 		"5c": {
-			start:      start,
-			aggBy:      []string{AllocationNamespaceProp},
-			aggOpts:    &AllocationAggregationOptions{
+			start: start,
+			aggBy: []string{AllocationNamespaceProp},
+			aggOpts: &AllocationAggregationOptions{
 				FilterFuncs: []AllocationMatchFunc{isCluster("cluster1")},
 				ShareIdle:   ShareNone,
 			},
 			numResults: 2 + numIdle,
-			totalCost: 66.0,
+			totalCost:  66.0,
 			results: map[string]float64{
 				"namespace1": 28.00,
 				"namespace2": 18.00,
@@ -1576,14 +1631,14 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		},
 		// 5d Filter by namespace, agg by cluster, with separate idle
 		"5d": {
-			start:      start,
-			aggBy:      []string{AllocationClusterProp},
-			aggOpts:    &AllocationAggregationOptions{
+			start: start,
+			aggBy: []string{AllocationClusterProp},
+			aggOpts: &AllocationAggregationOptions{
 				FilterFuncs: []AllocationMatchFunc{isNamespace("namespace2")},
 				ShareIdle:   ShareNone,
 			},
 			numResults: numClusters + numIdle,
-			totalCost: 46.31,
+			totalCost:  46.31,
 			results: map[string]float64{
 				"cluster1": 18.00,
 				"cluster2": 18.00,
@@ -1597,13 +1652,13 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 		// 6a SplitIdle
 		"6a": {
-			start:      start,
-			aggBy:      []string{AllocationNamespaceProp},
-			aggOpts:    &AllocationAggregationOptions{
+			start: start,
+			aggBy: []string{AllocationNamespaceProp},
+			aggOpts: &AllocationAggregationOptions{
 				SplitIdle: true,
 			},
-			numResults: numNamespaces+numSplitIdle,
-			totalCost: activeTotalCost+idleTotalCost,
+			numResults: numNamespaces + numSplitIdleCluster,
+			totalCost:  activeTotalCost + idleTotalCost,
 			results: map[string]float64{
 				"namespace1":                           28.00,
 				"namespace2":                           36.00,
@@ -1619,14 +1674,14 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		// Should match values from unfiltered aggregation (3a)
 		// namespace2: 46.3125 = 36.00 + 5.0*(3.0/6.0) + 15.0*(3.0/16.0) + 5.0*(3.0/6.0) + 5.0*(3.0/6.0)
 		"6b": {
-			start:      start,
-			aggBy:      []string{AllocationNamespaceProp},
-			aggOpts:    &AllocationAggregationOptions{
+			start: start,
+			aggBy: []string{AllocationNamespaceProp},
+			aggOpts: &AllocationAggregationOptions{
 				FilterFuncs: []AllocationMatchFunc{isNamespace("namespace2")},
 				ShareIdle:   ShareWeighted,
 			},
 			numResults: 1,
-			totalCost: 46.31,
+			totalCost:  46.31,
 			results: map[string]float64{
 				"namespace2": 46.31,
 			},
@@ -1638,14 +1693,14 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		// Should match values from unfiltered aggregation (3b)
 		// namespace2: 51.0000 = 36.00 + 5.0*(1.0/2.0) + 15.0*(1.0/2.0) + 5.0*(1.0/2.0) + 5.0*(1.0/2.0)
 		"6c": {
-			start:      start,
-			aggBy:      []string{AllocationNamespaceProp},
-			aggOpts:    &AllocationAggregationOptions{
+			start: start,
+			aggBy: []string{AllocationNamespaceProp},
+			aggOpts: &AllocationAggregationOptions{
 				FilterFuncs: []AllocationMatchFunc{isNamespace("namespace2")},
 				ShareIdle:   ShareEven,
 			},
 			numResults: 1,
-			totalCost: 51.00,
+			totalCost:  51.00,
 			results: map[string]float64{
 				"namespace2": 51.00,
 			},
@@ -1660,15 +1715,15 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		// idle:       30.0000
 		// Then namespace 2 is filtered.
 		"6d": {
-			start:      start,
-			aggBy:      []string{AllocationNamespaceProp},
-			aggOpts:    &AllocationAggregationOptions{
+			start: start,
+			aggBy: []string{AllocationNamespaceProp},
+			aggOpts: &AllocationAggregationOptions{
 				FilterFuncs:       []AllocationMatchFunc{isNamespace("namespace2")},
 				SharedHourlyCosts: map[string]float64{"total": sharedOverheadHourlyCost},
 				ShareSplit:        ShareWeighted,
 			},
 			numResults: 1 + numIdle,
-			totalCost: 139.756,
+			totalCost:  139.756,
 			results: map[string]float64{
 				"namespace2": 109.756,
 				IdleSuffix:   30.00,
@@ -1686,15 +1741,15 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		// namespace2: 54.667 = 36.00 + (28.00)*(36.00/54.00)
 		// idle:       30.0000
 		"6e": {
-			start:      start,
-			aggBy:      []string{AllocationNamespaceProp},
-			aggOpts:    &AllocationAggregationOptions{
+			start: start,
+			aggBy: []string{AllocationNamespaceProp},
+			aggOpts: &AllocationAggregationOptions{
 				FilterFuncs: []AllocationMatchFunc{isNamespace("namespace2")},
 				ShareFuncs:  []AllocationMatchFunc{isNamespace("namespace1")},
 				ShareSplit:  ShareWeighted,
 			},
 			numResults: 1 + numIdle,
-			totalCost: 84.667,
+			totalCost:  84.667,
 			results: map[string]float64{
 				"namespace2": 54.667,
 				IdleSuffix:   30.00,
@@ -1738,15 +1793,15 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		//   idle cost       5.0000
 		//   shared cost    14.2292 = (42.6875)*(18.0/54.0)
 		"6f": {
-			start:      start,
-			aggBy:      []string{AllocationNamespaceProp},
-			aggOpts:    &AllocationAggregationOptions{
+			start: start,
+			aggBy: []string{AllocationNamespaceProp},
+			aggOpts: &AllocationAggregationOptions{
 				ShareFuncs: []AllocationMatchFunc{isNamespace("namespace1")},
 				ShareSplit: ShareWeighted,
 				ShareIdle:  ShareWeighted,
 			},
 			numResults: 2,
-			totalCost: activeTotalCost+idleTotalCost,
+			totalCost:  activeTotalCost + idleTotalCost,
 			results: map[string]float64{
 				"namespace2": 74.77,
 				"namespace3": 37.23,
@@ -1792,16 +1847,16 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		//
 		// Then, filter for namespace2: 74.7708
 		"6g": {
-			start:      start,
-			aggBy:      []string{AllocationNamespaceProp},
-			aggOpts:    &AllocationAggregationOptions{
+			start: start,
+			aggBy: []string{AllocationNamespaceProp},
+			aggOpts: &AllocationAggregationOptions{
 				FilterFuncs: []AllocationMatchFunc{isNamespace("namespace2")},
 				ShareFuncs:  []AllocationMatchFunc{isNamespace("namespace1")},
 				ShareSplit:  ShareWeighted,
 				ShareIdle:   ShareWeighted,
 			},
 			numResults: 1,
-			totalCost: 74.77,
+			totalCost:  74.77,
 			results: map[string]float64{
 				"namespace2": 74.77,
 			},
@@ -1838,16 +1893,16 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		//
 		// Then namespace 2 is filtered.
 		"6h": {
-			start:      start,
-			aggBy:      []string{AllocationNamespaceProp},
-			aggOpts:    &AllocationAggregationOptions{
+			start: start,
+			aggBy: []string{AllocationNamespaceProp},
+			aggOpts: &AllocationAggregationOptions{
 				FilterFuncs:       []AllocationMatchFunc{isNamespace("namespace2")},
 				ShareSplit:        ShareWeighted,
 				ShareIdle:         ShareWeighted,
 				SharedHourlyCosts: map[string]float64{"total": sharedOverheadHourlyCost},
 			},
 			numResults: 1,
-			totalCost: 120.07,
+			totalCost:  120.07,
 			results: map[string]float64{
 				"namespace2": 120.07,
 			},
@@ -1855,6 +1910,89 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			windowEnd:   endYesterday,
 			expMinutes:  1440.0,
 		},
+		// 6i Idle by Node
+		"6i": {
+			start: start,
+			aggBy: []string{AllocationNamespaceProp},
+			aggOpts: &AllocationAggregationOptions{
+				IdleByNode: true,
+			},
+			numResults: numNamespaces + numIdle,
+			totalCost:  activeTotalCost + idleTotalCost,
+			results: map[string]float64{
+				"namespace1": 28.00,
+				"namespace2": 36.00,
+				"namespace3": 18.00,
+				IdleSuffix:   30.00,
+			},
+			windowStart: startYesterday,
+			windowEnd:   endYesterday,
+			expMinutes:  1440.0,
+		},
+		// 6j Split Idle, Idle by Node
+		"6j": {
+			start: start,
+			aggBy: []string{AllocationNamespaceProp},
+			aggOpts: &AllocationAggregationOptions{
+				SplitIdle:  true,
+				IdleByNode: true,
+			},
+			numResults: numNamespaces + numSplitIdleNode,
+			totalCost:  activeTotalCost + idleTotalCost,
+			results: map[string]float64{
+				"namespace1":                          28.00,
+				"namespace2":                          36.00,
+				"namespace3":                          18.00,
+				fmt.Sprintf("c1nodes/%s", IdleSuffix): 20.00,
+				fmt.Sprintf("node1/%s", IdleSuffix):   3.333333,
+				fmt.Sprintf("node2/%s", IdleSuffix):   3.333333,
+				fmt.Sprintf("node3/%s", IdleSuffix):   3.333333,
+			},
+			windowStart: startYesterday,
+			windowEnd:   endYesterday,
+			expMinutes:  1440.0,
+		},
+		// 6k Share idle Even Idle by Node
+		// Should match values from unfiltered aggregation (3b)
+		"6k": {
+			start: start,
+			aggBy: []string{AllocationNamespaceProp},
+			aggOpts: &AllocationAggregationOptions{
+				ShareIdle:   ShareEven,
+				IdleByNode:  true,
+			},
+			numResults: 3,
+			totalCost:  112.00,
+			results: map[string]float64{
+				"namespace1": 38.00,
+				"namespace2": 51.00,
+				"namespace3": 23.00,
+			},
+			windowStart: startYesterday,
+			windowEnd:   endYesterday,
+			expMinutes:  1440.0,
+		},
+		// 6l Share idle weighted with filters, Idle by Node
+		// Should match values from unfiltered aggregation (3a)
+		// namespace2: 46.3125 = 36.00 + 5.0*(3.0/6.0) + 15.0*(3.0/16.0) + 5.0*(3.0/6.0) + 5.0*(3.0/6.0)
+		"6l": {
+			start: start,
+			aggBy: []string{AllocationNamespaceProp},
+			aggOpts: &AllocationAggregationOptions{
+				FilterFuncs: []AllocationMatchFunc{isNamespace("namespace2")},
+				ShareIdle:   ShareWeighted,
+				IdleByNode:  true,
+			},
+			numResults: 1,
+			totalCost:  46.31,
+			results: map[string]float64{
+				"namespace2": 46.31,
+			},
+			windowStart: startYesterday,
+			windowEnd:   endYesterday,
+			expMinutes:  1440.0,
+		},
+
 		// 7  Edge cases and errors
 
 		// 7a Empty AggregationProperties
@@ -1865,7 +2003,11 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	for name, testcase := range cases {
 		t.Run(name, func(t *testing.T) {
-			as = generateAllocationSet(testcase.start)
+			if testcase.aggOpts != nil && testcase.aggOpts.IdleByNode {
+				as = generateAllocationSetNodeIdle(testcase.start)
+			} else {
+				as = generateAllocationSetClusterIdle(testcase.start)
+			}
 			err = as.AggregateBy(testcase.aggBy, testcase.aggOpts)
 			assertAllocationSetTotals(t, as, name, err, testcase.numResults, testcase.totalCost)
 			assertAllocationTotals(t, as, name, testcase.results)
@@ -1885,11 +2027,8 @@ func TestAllocationSet_ComputeIdleAllocations(t *testing.T) {
 	end := time.Now().UTC().Truncate(day)
 	start := end.Add(-day)
 
-	// Generate AllocationSet and strip out any existing idle allocations
+	// Generate AllocationSet without idle allocations
 	as = generateAllocationSet(start)
-	for key := range as.idleKeys {
-		as.Delete(key)
-	}
 
 	assetSets := generateAssetSets(start, end)
 
@@ -1965,6 +2104,111 @@ func TestAllocationSet_ComputeIdleAllocations(t *testing.T) {
 	}
 }
 
+func TestAllocationSet_ComputeIdleAllocationsPerNode(t *testing.T) {
+	var as *AllocationSet
+	var err error
+	var idles map[string]*Allocation
+
+	end := time.Now().UTC().Truncate(day)
+	start := end.Add(-day)
+
+	// Generate AllocationSet without idle allocations
+	as = generateAllocationSet(start)
+
+	assetSets := generateAssetSets(start, end)
+
+	cases := map[string]struct {
+		allocationSet *AllocationSet
+		assetSet      *AssetSet
+		nodes         map[string]Allocation
+	}{
+		"1a": {
+			allocationSet: as,
+			assetSet:      assetSets[0],
+			nodes: map[string]Allocation{
+				"c1nodes": {
+					CPUCost: 44.0,
+					RAMCost: 24.0,
+					GPUCost: 4.0,
+				},
+				"node1": {
+					CPUCost: 18.0,
+					RAMCost: 13.0,
+					GPUCost: -2.0,
+				},
+				"node2": {
+					CPUCost: 18.0,
+					RAMCost: 13.0,
+					GPUCost: -2.0,
+				},
+				"node3": {
+					CPUCost: 8.0,
+					RAMCost: 8.0,
+					GPUCost: 8.0,
+				},
+			},
+		},
+		"1b": {
+			allocationSet: as,
+			assetSet:      assetSets[1],
+			nodes: map[string]Allocation{
+				"c1nodes": {
+					CPUCost: 44.0,
+					RAMCost: 24.0,
+					GPUCost: 4.0,
+				},
+				"node1": {
+					CPUCost: 18.0,
+					RAMCost: 13.0,
+					GPUCost: -2.0,
+				},
+				"node2": {
+					CPUCost: 18.0,
+					RAMCost: 13.0,
+					GPUCost: -2.0,
+				},
+				"node3": {
+					CPUCost: 8.0,
+					RAMCost: 8.0,
+					GPUCost: 8.0,
+				},
+			},
+		},
+	}
+
+	for name, testcase := range cases {
+		t.Run(name, func(t *testing.T) {
+			idles, err = as.ComputeIdleAllocationsByNode(testcase.assetSet)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+
+			if len(idles) != len(testcase.nodes) {
+				t.Fatalf("idles: expected length %d; got length %d", len(testcase.nodes), len(idles))
+			}
+
+			for nodeName, node := range testcase.nodes {
+				if idle, ok := idles[nodeName]; !ok {
+					t.Fatalf("expected idle cost for %s", nodeName)
+				} else {
+					if !util.IsApproximately(idle.TotalCost(), node.TotalCost()) {
+						t.Fatalf("%s idle: expected total cost %f; got total cost %f", nodeName, node.TotalCost(), idle.TotalCost())
+					}
+				}
+				if !util.IsApproximately(idles[nodeName].CPUCost, node.CPUCost) {
+					t.Fatalf("expected idle CPU cost for %s to be %.2f; got %.2f", nodeName, node.CPUCost, idles[nodeName].CPUCost)
+				}
+				if !util.IsApproximately(idles[nodeName].RAMCost, node.RAMCost) {
+					t.Fatalf("expected idle RAM cost for %s to be %.2f; got %.2f", nodeName, node.RAMCost, idles[nodeName].RAMCost)
+				}
+				if !util.IsApproximately(idles[nodeName].GPUCost, node.GPUCost) {
+					t.Fatalf("expected idle GPU cost for %s to be %.2f; got %.2f", nodeName, node.GPUCost, idles[nodeName].GPUCost)
+				}
+			}
+		})
+	}
+}
+
 func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 	var as *AllocationSet
 	var err error
@@ -1972,11 +2216,9 @@ func TestAllocationSet_ReconcileAllocations(t *testing.T) {
 	end := time.Now().UTC().Truncate(day)
 	start := end.Add(-day)
 
-	// Generate AllocationSet and strip out any existing idle allocations
+	// Generate AllocationSet without idle allocations
 	as = generateAllocationSet(start)
-	for key := range as.idleKeys {
-		as.Delete(key)
-	}
+
 	// add reconcilable pvs to pod-mno
 	for _, a := range as.allocations {
 		if a.Properties.Pod == "pod-mno" {
