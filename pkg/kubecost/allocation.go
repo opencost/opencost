@@ -1631,9 +1631,9 @@ func (as *AllocationSet) ComputeIdleAllocations(assetSet *AssetSet) (map[string]
 	return idleAllocs, nil
 }
 
-// Reconcile calculate the exact cost of Allocation by resource(cpu, ram, gpu etc) based on Asset(s) on which
-// the Allocation depends.
-func (as *AllocationSet) Reconcile(assetSet *AssetSet) error {
+// AllocateAssetCosts reconciles Allocation resource costs and shares Asset overhead of cluster manangemnt
+// and node attached volumes
+func (as *AllocationSet) AllocateAssetCosts(assetSet *AssetSet, reconcile bool, shareOverhead bool) error {
 	if as == nil {
 		return fmt.Errorf("cannot reconcile allocation for nil AllocationSet")
 	}
@@ -1676,28 +1676,34 @@ func (as *AllocationSet) Reconcile(assetSet *AssetSet) error {
 
 	// Match Assets against allocations and adjust allocation cost based on the proportion of the asset that they used
 	as.Each(func(name string, a *Allocation) {
-		// Set Adjustments for allocation to 0 for idempotency
-		a.resetAdjustments()
-
-		a.reconcileNodes(nodeByProviderID)
-		a.reconcileDisks(diskByName)
-
-		// Count total number of tenants on each cluster
-		if a.Properties.Cluster != "" {
-			clusterTenants[a.Properties.Cluster] += 1
+		// Set Adjustments for allocation to 0
+		if reconcile {
+			a.resetAdjustments()
+			a.reconcileNodes(nodeByProviderID)
+			a.reconcileDisks(diskByName)
 		}
-		// Populate Allocation by node map
-		if node, ok := nodeByProviderID[a.Properties.ProviderID]; ok {
-			if node.properties.Name != "" {
-				nodeTenants[node.properties.Name] += 1
+		if shareOverhead {
+			// Count total number of tenants on each cluster
+			if a.Properties.Cluster != "" {
+				clusterTenants[a.Properties.Cluster] += 1
+			}
+			// Populate Allocation by node map
+			if node, ok := nodeByProviderID[a.Properties.ProviderID]; ok {
+				if node.properties.Name != "" {
+					nodeTenants[node.properties.Name] += 1
+				}
 			}
 		}
 	})
 
 	// Second pass over allocations once counting from previous loop is done
+	// This loop runs on the assumption that it will only be run once per allocation set per query
 	as.Each(func(name string, a *Allocation) {
-		a.shareClusterManagement(clusterManagementByCluster, clusterTenants)
-		a.shareAttachedDisk(diskByName, nodeTenants, nodeProviderIDToName)
+		if shareOverhead {
+			a.shareClusterManagement(clusterManagementByCluster, clusterTenants)
+			a.shareAttachedDisk(diskByName, nodeTenants, nodeProviderIDToName)
+		}
+
 	})
 
 	return nil
@@ -1806,8 +1812,8 @@ func (a *Allocation) reconcileDisks(diskByName map[string]*Disk) {
 
 func (a *Allocation) shareClusterManagement(clusterManagementByCluster map[string]*ClusterManagement, clusterTenants map[string]int) {
 	clusterName := a.Properties.Cluster
-	if cm, ok := clusterManagementByCluster[clusterName]; ok && clusterName != "" && clusterTenants[clusterName] != 0{
-		a.SharedCostAdjustment += cm.TotalCost() / float64(clusterTenants[clusterName])
+	if cm, ok := clusterManagementByCluster[clusterName]; ok && clusterName != "" && clusterTenants[clusterName] != 0 {
+		a.SharedCost += cm.TotalCost() / float64(clusterTenants[clusterName])
 	}
 }
 
@@ -1819,7 +1825,7 @@ func (a *Allocation) shareAttachedDisk(diskByName map[string]*Disk, nodeTenants 
 	disk, ok := diskByName[nodeName]
 	numTenants, ok2 := nodeTenants[nodeName]
 	if nodeName != "" && ok && ok2 && numTenants != 0 {
-		a.SharedCostAdjustment += disk.TotalCost() / float64(numTenants)
+		a.SharedCost += disk.TotalCost() / float64(numTenants)
 	}
 }
 
