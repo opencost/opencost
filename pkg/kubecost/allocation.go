@@ -1649,9 +1649,11 @@ func (as *AllocationSet) AllocateAssetCosts(assetSet *AssetSet, reconcile bool, 
 	// Build map of Assets with type Node by their ProviderId so that they can be matched to Allocations to determine
 	// proper CPU GPU and RAM prices
 	nodeByProviderID := map[string]*Node{}
+	networkByProviderId := map[string]*Network{}
 	diskByName := map[string]*Disk{}
 	clusterManagementByCluster := map[string]*ClusterManagement{}
 	nodeProviderIDToName := map[string]string{}
+
 
 	assetSet.Each(func(key string, a Asset) {
 		if a.Properties() != nil {
@@ -1659,6 +1661,11 @@ func (as *AllocationSet) AllocateAssetCosts(assetSet *AssetSet, reconcile bool, 
 				if node.properties.ProviderID != "" {
 					nodeByProviderID[node.properties.ProviderID] = node
 					nodeProviderIDToName[node.properties.ProviderID] = node.properties.Name
+				}
+			}
+			if network, ok := a.(*Network); ok {
+				if network.properties.ProviderID != "" {
+					networkByProviderId[network.properties.ProviderID] = network
 				}
 			}
 			if disk, ok := a.(*Disk); ok {
@@ -1674,24 +1681,32 @@ func (as *AllocationSet) AllocateAssetCosts(assetSet *AssetSet, reconcile bool, 
 	nodeTenants := map[string]int{}
 	clusterTenants := map[string]int{}
 
+	// Build Maps of sums of values that will need to be normalized
+	networkSum := map[string]float64{}
+
 	// Match Assets against allocations and adjust allocation cost based on the proportion of the asset that they used
 	as.Each(func(name string, a *Allocation) {
-		// Set Adjustments for allocation to 0
-		if reconcile {
-			a.resetAdjustments()
-			a.reconcileNodes(nodeByProviderID)
-			a.reconcileDisks(diskByName)
+		// Populate Allocation by node map
+		if node, ok := nodeByProviderID[a.Properties.ProviderID]; ok {
+			nodeTenants[node.properties.ProviderID] += 1
+
 		}
+
 		if shareOverhead {
 			// Count total number of tenants on each cluster
 			if a.Properties.Cluster != "" {
 				clusterTenants[a.Properties.Cluster] += 1
 			}
-			// Populate Allocation by node map
-			if node, ok := nodeByProviderID[a.Properties.ProviderID]; ok {
-				if node.properties.Name != "" {
-					nodeTenants[node.properties.Name] += 1
-				}
+		}
+
+		if reconcile {
+			// Set Adjustments for allocation to 0
+			a.resetAdjustments()
+			a.reconcileNodes(nodeByProviderID)
+			a.reconcileDisks(diskByName)
+
+			if a.Properties.ProviderID != "" {
+				networkSum[a.Properties.ProviderID] += a.NetworkCost
 			}
 		}
 	})
@@ -1704,6 +1719,9 @@ func (as *AllocationSet) AllocateAssetCosts(assetSet *AssetSet, reconcile bool, 
 			a.shareAttachedDisk(diskByName, nodeTenants, nodeProviderIDToName)
 		}
 
+		if reconcile {
+			a.reconcileNetwork(networkByProviderId, networkSum, nodeTenants)
+		}
 	})
 
 	return nil
@@ -1810,6 +1828,38 @@ func (a *Allocation) reconcileDisks(diskByName map[string]*Disk) {
 	}
 }
 
+func (a *Allocation) reconcileNetwork(networkByProviderId map[string]*Network, networkSums map[string]float64, nodeTenants map[string]int) {
+	providerId := a.Properties.ProviderID
+	// If providerId is present then other map calls should have results
+	if providerId == "" {
+		return
+	}
+
+	networkSum := networkSums[providerId]
+	var networkUsageProportion float64
+	if networkSum != 0 {
+		// determin what percentage of the total network usage on a node that the calling allocation is responsible for
+		networkUsageProportion = a.NetworkCost/networkSum
+	} else {
+		// If there is network cost information on the node then distribue network cost evenly to tenants
+		numTenants, ok := nodeTenants[providerId]
+		if !ok || numTenants == 0{
+			return
+		}
+		networkUsageProportion = 1.0 / float64(numTenants)
+	}
+	network, ok := networkByProviderId[providerId]
+	if !ok {
+		// If there is no network asset with a matching providerId then continue
+		return
+	}
+	// Calculate the allocation's resource costs by the proportion of resources used and total costs
+	allocNetworkCost := networkUsageProportion * network.Cost
+
+	a.NetworkCostAdjustment = allocNetworkCost - a.NetworkCost
+
+}
+
 func (a *Allocation) shareClusterManagement(clusterManagementByCluster map[string]*ClusterManagement, clusterTenants map[string]int) {
 	clusterName := a.Properties.Cluster
 	if cm, ok := clusterManagementByCluster[clusterName]; ok && clusterName != "" && clusterTenants[clusterName] != 0 {
@@ -1823,7 +1873,7 @@ func (a *Allocation) shareAttachedDisk(diskByName map[string]*Disk, nodeTenants 
 
 	// Attached disks have the same name as their nodes on AWS, Azure and GCP
 	disk, ok := diskByName[nodeName]
-	numTenants, ok2 := nodeTenants[nodeName]
+	numTenants, ok2 := nodeTenants[providerID]
 	if nodeName != "" && ok && ok2 && numTenants != 0 {
 		a.SharedCost += disk.TotalCost() / float64(numTenants)
 	}
