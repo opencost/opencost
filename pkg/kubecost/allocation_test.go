@@ -804,6 +804,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster2Node3.RAMByteHours = 2
 	cluster2Node3.GPUHours = 24
 
+	// Add PVs
 	cluster2Disk1 := NewDisk("disk1", "cluster2", "disk1", start, end, NewWindow(&start, &end))
 	cluster2Disk1.Cost = 5.0
 	cluster2Disk1.adjustment = 1.0
@@ -818,6 +819,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster2Node1Disk.Cost = 1.0
 	cluster2Node1Disk.ByteHours = 5 * gb
 
+	// Add Attached Disks
 	cluster2Node2Disk := NewDisk("node2", "cluster2", "node2", start, end, NewWindow(&start, &end))
 	cluster2Node2Disk.Cost = 2.0
 	cluster2Node2Disk.ByteHours = 5 * gb
@@ -826,15 +828,29 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster2Node3Disk.Cost = 3.0
 	cluster2Node3Disk.ByteHours = 5 * gb
 
+	// Add Cluster Management
 	cluster1ClusterManagement := NewClusterManagement("", "cluster1", NewWindow(&start, &end))
 	cluster1ClusterManagement.Cost = 2.0
 
 	cluster2ClusterManagement := NewClusterManagement("", "cluster2", NewWindow(&start, &end))
 	cluster2ClusterManagement.Cost = 2.0
 
+	// Add Networks
+	c1Network := NewNetwork("", "cluster1", "c1nodes", start, end, NewWindow(&start, &end))
+	c1Network.Cost = 3.0
+
+	node1Network := NewNetwork("node1", "cluster2", "node1", start, end, NewWindow(&start, &end))
+	node1Network.Cost = 4.0
+
+	node2Network := NewNetwork("node2", "cluster2", "node2", start, end, NewWindow(&start, &end))
+	node2Network.Cost = 5.0
+
+	node3Network := NewNetwork("node3", "cluster2", "node3", start, end, NewWindow(&start, &end))
+	node3Network.Cost = 2.0
+
 	assetSet1 := NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1,
 		cluster2Disk2, cluster2Node1Disk, cluster2Node2Disk, cluster2Node3Disk, cluster1ClusterManagement,
-		cluster2ClusterManagement)
+		cluster2ClusterManagement, c1Network, node1Network, node2Network, node3Network)
 	assetSets = append(assetSets, assetSet1)
 
 	// NOTE: we're re-using generateAllocationSet so this has to line up with
@@ -897,6 +913,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	cluster2Node3.RAMByteHours = 2
 	cluster2Node3.GPUHours = 24
 
+	// Add PVs
 	cluster2Disk1 = NewDisk("disk1", "cluster2", "disk1", start, end, NewWindow(&start, &end))
 	cluster2Disk1.Cost = 5.0
 	cluster2Disk1.adjustment = 1.0
@@ -909,7 +926,7 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 
 	assetSet2 := NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1,
 		cluster2Disk2, cluster2Node1Disk, cluster2Node2Disk, cluster2Node3Disk, cluster1ClusterManagement,
-		cluster2ClusterManagement)
+		cluster2ClusterManagement, c1Network, node1Network, node2Network, node3Network)
 	assetSets = append(assetSets, assetSet2)
 	return assetSets
 }
@@ -1853,6 +1870,7 @@ func TestAllocationSet_AllocateAssetCosts(t *testing.T) {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: -4.333333,
 					GPUCostAdjustment: -0.583333,
+					NetworkCostAdjustment: -0.5,
 					SharedCost:        0.333333,
 				},
 				// ADJUSTMENT_RATE: 0.90909090909
@@ -1864,30 +1882,35 @@ func TestAllocationSet_AllocateAssetCosts(t *testing.T) {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: 5.666667,
 					GPUCostAdjustment: -0.583333,
+					NetworkCostAdjustment: -0.5,
 					SharedCost:        0.333333,
 				},
 				"cluster1/namespace1/pod-def/container3": {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: 5.666667,
 					GPUCostAdjustment: -0.583333,
+					NetworkCostAdjustment: -0.5,
 					SharedCost:        0.333333,
 				},
 				"cluster1/namespace2/pod-ghi/container4": {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: 5.666667,
 					GPUCostAdjustment: -0.583333,
+					NetworkCostAdjustment: -0.5,
 					SharedCost:        0.333333,
 				},
 				"cluster1/namespace2/pod-ghi/container5": {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: 5.666667,
 					GPUCostAdjustment: -0.583333,
+					NetworkCostAdjustment: -0.5,
 					SharedCost:        0.333333,
 				},
 				"cluster1/namespace2/pod-jkl/container6": {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: 5.666667,
 					GPUCostAdjustment: -0.583333,
+					NetworkCostAdjustment: -0.5,
 					SharedCost:        0.333333,
 				},
 				// ADJUSTMENT_RATE: 1.0
@@ -1900,6 +1923,7 @@ func TestAllocationSet_AllocateAssetCosts(t *testing.T) {
 					RAMCostAdjustment: 4.0,
 					GPUCostAdjustment: -1.0,
 					PVCostAdjustment:  2.0,
+					NetworkCostAdjustment: 1.0,
 					SharedCost:        0.833333,
 				},
 				"cluster2/namespace2/pod-mno/container5": {
@@ -1907,6 +1931,7 @@ func TestAllocationSet_AllocateAssetCosts(t *testing.T) {
 					RAMCostAdjustment: 4.0,
 					GPUCostAdjustment: -1.0,
 					PVCostAdjustment:  2.0,
+					NetworkCostAdjustment: 1.0,
 					SharedCost:        0.833333,
 				},
 				// ADJUSTMENT_RATE: 1.0
@@ -1918,12 +1943,14 @@ func TestAllocationSet_AllocateAssetCosts(t *testing.T) {
 					CPUCostAdjustment: 5.666667,
 					RAMCostAdjustment: 6.5,
 					GPUCostAdjustment: -1.0,
+					NetworkCostAdjustment: 1.5,
 					SharedCost:        1.333333,
 				},
 				"cluster2/namespace3/pod-stu/container7": {
 					CPUCostAdjustment: 5.666667,
 					RAMCostAdjustment: 6.5,
 					GPUCostAdjustment: -1.0,
+					NetworkCostAdjustment: 1.5,
 					SharedCost:        1.333333,
 				},
 				// ADJUSTMENT_RATE: 1.0
@@ -1960,6 +1987,7 @@ func TestAllocationSet_AllocateAssetCosts(t *testing.T) {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: -4.333333,
 					GPUCostAdjustment: -0.583333,
+					NetworkCostAdjustment: -0.5,
 					SharedCost:        0.333333,
 				},
 				// ADJUSTMENT_RATE: 10
@@ -1971,30 +1999,35 @@ func TestAllocationSet_AllocateAssetCosts(t *testing.T) {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: 5.6666667,
 					GPUCostAdjustment: -0.583333,
+					NetworkCostAdjustment: -0.5,
 					SharedCost:        0.333333,
 				},
 				"cluster1/namespace1/pod-def/container3": {
 					CPUCostAdjustment:    5.25,
 					RAMCostAdjustment:    5.6666667,
 					GPUCostAdjustment:    -0.583333,
+					NetworkCostAdjustment: -0.5,
 					SharedCost: 0.333333,
 				},
 				"cluster1/namespace2/pod-ghi/container4": {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: 5.6666667,
 					GPUCostAdjustment: -0.583333,
+					NetworkCostAdjustment: -0.5,
 					SharedCost:        0.333333,
 				},
 				"cluster1/namespace2/pod-ghi/container5": {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: 5.6666667,
 					GPUCostAdjustment: -0.583333,
+					NetworkCostAdjustment: -0.5,
 					SharedCost:        0.333333,
 				},
 				"cluster1/namespace2/pod-jkl/container6": {
 					CPUCostAdjustment: 5.25,
 					RAMCostAdjustment: 5.6666667,
 					GPUCostAdjustment: -0.583333,
+					NetworkCostAdjustment: -0.5,
 					SharedCost:        0.333333,
 				},
 				// ADJUSTMENT_RATE: 1.0
@@ -2007,6 +2040,7 @@ func TestAllocationSet_AllocateAssetCosts(t *testing.T) {
 					RAMCostAdjustment: 4.0,
 					GPUCostAdjustment: -1.0,
 					PVCostAdjustment:  -0.5,
+					NetworkCostAdjustment: 1.0,
 					SharedCost:        0.833333,
 				},
 				"cluster2/namespace2/pod-mno/container5": {
@@ -2014,6 +2048,7 @@ func TestAllocationSet_AllocateAssetCosts(t *testing.T) {
 					RAMCostAdjustment: 4.0,
 					GPUCostAdjustment: -1.0,
 					PVCostAdjustment:  -0.5,
+					NetworkCostAdjustment: 1.0,
 					SharedCost:        0.833333,
 				},
 				// ADJUSTMENT_RATE: 1.0
@@ -2025,12 +2060,14 @@ func TestAllocationSet_AllocateAssetCosts(t *testing.T) {
 					CPUCostAdjustment: 5.666667,
 					RAMCostAdjustment: 6.5,
 					GPUCostAdjustment: -1.0,
+					NetworkCostAdjustment: 1.5,
 					SharedCost:        1.333333,
 				},
 				"cluster2/namespace3/pod-stu/container7": {
 					CPUCostAdjustment: 5.666667,
 					RAMCostAdjustment: 6.5,
 					GPUCostAdjustment: -1.0,
+					NetworkCostAdjustment: 1.5,
 					SharedCost:        1.333333,
 				},
 				// ADJUSTMENT_RATE: 1.0
@@ -2078,6 +2115,9 @@ func TestAllocationSet_AllocateAssetCosts(t *testing.T) {
 				}
 				if !util.IsApproximately(reconAllocs[allocationName].PVCostAdjustment, testAlloc.PVCostAdjustment) {
 					t.Fatalf("expected PV Adjustment for %s to be %f; got %f", allocationName, testAlloc.PVCostAdjustment, reconAllocs[allocationName].PVCostAdjustment)
+				}
+				if !util.IsApproximately(reconAllocs[allocationName].NetworkCostAdjustment, testAlloc.NetworkCostAdjustment) {
+					t.Fatalf("expected Network Adjustment for %s to be %f; got %f", allocationName, testAlloc.NetworkCostAdjustment, reconAllocs[allocationName].NetworkCostAdjustment)
 				}
 				if !util.IsApproximately(reconAllocs[allocationName].SharedCost, testAlloc.SharedCost) {
 					t.Fatalf("expected Shared Cost for %s to be %f; got %f", allocationName, testAlloc.SharedCost, reconAllocs[allocationName].SharedCost)
