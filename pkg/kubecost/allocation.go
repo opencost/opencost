@@ -2038,11 +2038,11 @@ func (as *AllocationSet) UTCOffset() time.Duration {
 
 func (as *AllocationSet) accumulate(that *AllocationSet) (*AllocationSet, error) {
 	if as.IsEmpty() {
-		return that, nil
+		return that.Clone(), nil
 	}
 
 	if that.IsEmpty() {
-		return as, nil
+		return as.Clone(), nil
 	}
 
 	// Set start, end to min(start), max(end)
