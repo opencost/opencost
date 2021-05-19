@@ -1651,28 +1651,34 @@ func (as *AllocationSet) AllocateAssetCosts(assetSet *AssetSet, reconcile bool, 
 	nodeByProviderID := map[string]*Node{}
 	networkByProviderId := map[string]*Network{}
 	diskByName := map[string]*Disk{}
+	loadBalancerByName := map[string]*LoadBalancer{}
 	clusterManagementByCluster := map[string]*ClusterManagement{}
 	nodeProviderIDToName := map[string]string{}
 
 
 	assetSet.Each(func(key string, a Asset) {
 		if a.Properties() != nil {
-			if node, ok := a.(*Node); ok {
-				if node.properties.ProviderID != "" {
+			if a.Properties().ProviderID != "" {
+				if node, ok := a.(*Node); ok {
 					nodeByProviderID[node.properties.ProviderID] = node
 					nodeProviderIDToName[node.properties.ProviderID] = node.properties.Name
 				}
-			}
-			if network, ok := a.(*Network); ok {
-				if network.properties.ProviderID != "" {
+				if network, ok := a.(*Network); ok {
 					networkByProviderId[network.properties.ProviderID] = network
 				}
 			}
-			if disk, ok := a.(*Disk); ok {
-				diskByName[disk.properties.Name] = disk
+			if a.Properties().Name != "" {
+				if disk, ok := a.(*Disk); ok {
+					diskByName[disk.properties.Name] = disk
+				}
+				if loadBalancer, ok := a.(*LoadBalancer); ok {
+					loadBalancerByName[loadBalancer.properties.Name] = loadBalancer
+				}
 			}
-			if cm, ok := a.(*ClusterManagement); ok {
-				clusterManagementByCluster[cm.properties.Cluster] = cm
+			if a.Properties().Cluster != "" {
+				if cm, ok := a.(*ClusterManagement); ok {
+					clusterManagementByCluster[cm.properties.Cluster] = cm
+				}
 			}
 		}
 	})
@@ -1680,6 +1686,9 @@ func (as *AllocationSet) AllocateAssetCosts(assetSet *AssetSet, reconcile bool, 
 	// Build maps to hold count of tenants per node and cluster
 	nodeTenants := map[string]int{}
 	clusterTenants := map[string]int{}
+
+	// The number of allocations with that are selected by a given service
+	serviceUsers := map[string]int{}
 
 	// Build Maps of sums of values that will need to be normalized
 	networkSum := map[string]float64{}
@@ -1689,7 +1698,6 @@ func (as *AllocationSet) AllocateAssetCosts(assetSet *AssetSet, reconcile bool, 
 		// Populate Allocation by node map
 		if node, ok := nodeByProviderID[a.Properties.ProviderID]; ok {
 			nodeTenants[node.properties.ProviderID] += 1
-
 		}
 
 		if shareOverhead {
@@ -1708,6 +1716,9 @@ func (as *AllocationSet) AllocateAssetCosts(assetSet *AssetSet, reconcile bool, 
 			if a.Properties.ProviderID != "" {
 				networkSum[a.Properties.ProviderID] += a.NetworkCost
 			}
+			for _, service := range a.Properties.Services {
+				serviceUsers[service] += 1
+			}
 		}
 	})
 
@@ -1721,6 +1732,7 @@ func (as *AllocationSet) AllocateAssetCosts(assetSet *AssetSet, reconcile bool, 
 
 		if reconcile {
 			a.reconcileNetwork(networkByProviderId, networkSum, nodeTenants)
+			a.reconcileLoadBalancer(loadBalancerByName, serviceUsers)
 		}
 	})
 
@@ -1854,10 +1866,20 @@ func (a *Allocation) reconcileNetwork(networkByProviderId map[string]*Network, n
 		return
 	}
 	// Calculate the allocation's resource costs by the proportion of resources used and total costs
-	allocNetworkCost := networkUsageProportion * network.Cost
+	allocNetworkCost := networkUsageProportion * network.TotalCost()
 
 	a.NetworkCostAdjustment = allocNetworkCost - a.NetworkCost
+}
 
+func (a *Allocation) reconcileLoadBalancer(loadBalancerByName map[string]*LoadBalancer, serviceUsers map[string]int) {
+	var allocLoadBalancerCost float64
+	for _, service := range a.Properties.Services {
+		if loadBalancer, ok := loadBalancerByName[service]; ok {
+			loadBalancerUsageProportion := 1.0 / float64(serviceUsers[service])
+			allocLoadBalancerCost += loadBalancerUsageProportion * loadBalancer.TotalCost()
+		}
+	}
+	a.LoadBalancerCostAdjustment += allocLoadBalancerCost - a.LoadBalancerCost
 }
 
 func (a *Allocation) shareClusterManagement(clusterManagementByCluster map[string]*ClusterManagement, clusterTenants map[string]int) {
