@@ -1567,6 +1567,7 @@ func (as *AllocationSet) ComputeIdleAllocations(assetSet *AssetSet) (map[string]
 				// the entire node cost and we should make everything 0
 				// without dividing by 0.
 				adjustmentRate = 0.0
+				log.DedupedWarningf(5, "Compute Idle Allocations: Node Cost Adjusted to $0.00 for %s", node.properties.Name)
 			} else if node.Adjustment() != 0.0 {
 				// adjustmentRate is the ratio of cost-with-adjustment (i.e. TotalCost)
 				// to cost-without-adjustment (i.e. TotalCost - Adjustment).
@@ -1701,6 +1702,7 @@ func (as *AllocationSet) ComputeIdleAllocationsByNode(assetSet *AssetSet) (map[s
 				// the entire node cost and we should make everything 0
 				// without dividing by 0.
 				adjustmentRate = 0.0
+				log.DedupedWarningf(5, "Compute Idle Allocations: Node Cost Adjusted to $0.00 for %s", node.properties.Name)
 			} else if node.Adjustment() != 0.0 {
 				// adjustmentRate is the ratio of cost-with-adjustment (i.e. TotalCost)
 				// to cost-without-adjustment (i.e. TotalCost - Adjustment).
