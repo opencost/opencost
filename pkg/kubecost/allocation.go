@@ -1717,7 +1717,9 @@ func (as *AllocationSet) AllocateAssetCosts(assetSet *AssetSet, reconcile bool, 
 				networkSum[a.Properties.ProviderID] += a.NetworkCost
 			}
 			for _, service := range a.Properties.Services {
-				serviceUsers[service] += 1
+				// LoadBalancer assets include namespace in there name because Assets do not have namespaces
+				serviceKey := fmt.Sprintf("%s/%s", a.Properties.Namespace,service)
+				serviceUsers[serviceKey] += 1
 			}
 		}
 	})
@@ -1874,9 +1876,11 @@ func (a *Allocation) reconcileNetwork(networkByProviderId map[string]*Network, n
 func (a *Allocation) reconcileLoadBalancer(loadBalancerByName map[string]*LoadBalancer, serviceUsers map[string]int) {
 	var allocLoadBalancerCost float64
 	for _, service := range a.Properties.Services {
-		if loadBalancer, ok := loadBalancerByName[service]; ok {
+		// LoadBalancer assets include namespace in there name because Assets do not have namespaces
+		serviceKey := fmt.Sprintf("%s/%s", a.Properties.Namespace,service)
+		if loadBalancer, ok := loadBalancerByName[serviceKey]; ok {
 			// Load balancer cost is distributed evenly to its users
-			loadBalancerUsageProportion := 1.0 / float64(serviceUsers[service])
+			loadBalancerUsageProportion := 1.0 / float64(serviceUsers[serviceKey])
 			// Total cost of the allocation is summed over all services before adjustment is calculated
 			allocLoadBalancerCost += loadBalancerUsageProportion * loadBalancer.TotalCost()
 		}

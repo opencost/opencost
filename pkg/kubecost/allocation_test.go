@@ -849,10 +849,10 @@ func generateAssetSets(start, end time.Time) []*AssetSet {
 	node3Network.Cost = 2.0
 
 	// Add LoadBalancers
-	cluster2LoadBalancer1 := NewLoadBalancer("loadBalancer1", "cluster2", "lb1", start, end, NewWindow(&start, &end))
+	cluster2LoadBalancer1 := NewLoadBalancer("namespace2/loadBalancer1", "cluster2", "lb1", start, end, NewWindow(&start, &end))
 	cluster2LoadBalancer1.Cost = 10.0
 
-	cluster2LoadBalancer2 := NewLoadBalancer("loadBalancer2", "cluster2", "lb2", start, end, NewWindow(&start, &end))
+	cluster2LoadBalancer2 := NewLoadBalancer("namespace2/loadBalancer2", "cluster2", "lb2", start, end, NewWindow(&start, &end))
 	cluster2LoadBalancer2.Cost = 15.0
 
 	assetSet1 := NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1,
@@ -1861,9 +1861,6 @@ func TestAllocationSet_AllocateAssetCosts(t *testing.T) {
 			a.Properties.Services = append(a.Properties.Services, "loadBalancer1")
 			a.Properties.Services = append(a.Properties.Services, "loadBalancer2")
 		}
-		if a.Name == "cluster2/namespace3/pod-stu/container7" {
-			a.Properties.Services = append(a.Properties.Services, "loadBalancer2")
-		}
 	}
 
 	assetSets := generateAssetSets(start, end)
@@ -1961,7 +1958,7 @@ func TestAllocationSet_AllocateAssetCosts(t *testing.T) {
 					GPUCostAdjustment: -1.0,
 					PVCostAdjustment:  2.0,
 					NetworkCostAdjustment: 1.0,
-					LoadBalancerCostAdjustment: 4.0,
+					LoadBalancerCostAdjustment: 6.5,
 					SharedCost:        0.833333,
 				},
 				// ADJUSTMENT_RATE: 1.0
@@ -1974,7 +1971,7 @@ func TestAllocationSet_AllocateAssetCosts(t *testing.T) {
 					RAMCostAdjustment: 6.5,
 					GPUCostAdjustment: -1.0,
 					NetworkCostAdjustment: 1.5,
-					LoadBalancerCostAdjustment: 9.0,
+					LoadBalancerCostAdjustment: 11.5,
 					SharedCost:        1.333333,
 				},
 				"cluster2/namespace3/pod-stu/container7": {
@@ -1982,7 +1979,7 @@ func TestAllocationSet_AllocateAssetCosts(t *testing.T) {
 					RAMCostAdjustment: 6.5,
 					GPUCostAdjustment: -1.0,
 					NetworkCostAdjustment: 1.5,
-					LoadBalancerCostAdjustment: 4.0,
+					LoadBalancerCostAdjustment: -1.0,
 					SharedCost:        1.333333,
 				},
 				// ADJUSTMENT_RATE: 1.0
@@ -2090,7 +2087,7 @@ func TestAllocationSet_AllocateAssetCosts(t *testing.T) {
 					GPUCostAdjustment: -1.0,
 					PVCostAdjustment:  -0.5,
 					NetworkCostAdjustment: 1.0,
-					LoadBalancerCostAdjustment: 4.0,
+					LoadBalancerCostAdjustment: 6.5,
 					SharedCost:        0.833333,
 				},
 				// ADJUSTMENT_RATE: 1.0
@@ -2103,7 +2100,7 @@ func TestAllocationSet_AllocateAssetCosts(t *testing.T) {
 					RAMCostAdjustment: 6.5,
 					GPUCostAdjustment: -1.0,
 					NetworkCostAdjustment: 1.5,
-					LoadBalancerCostAdjustment: 9.0,
+					LoadBalancerCostAdjustment: 11.5,
 					SharedCost:        1.333333,
 				},
 				"cluster2/namespace3/pod-stu/container7": {
@@ -2111,7 +2108,7 @@ func TestAllocationSet_AllocateAssetCosts(t *testing.T) {
 					RAMCostAdjustment: 6.5,
 					GPUCostAdjustment: -1.0,
 					NetworkCostAdjustment: 1.5,
-					LoadBalancerCostAdjustment: 4.0,
+					LoadBalancerCostAdjustment: -1.0,
 					SharedCost:        1.333333,
 				},
 				// ADJUSTMENT_RATE: 1.0
