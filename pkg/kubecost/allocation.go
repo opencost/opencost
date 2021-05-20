@@ -1683,11 +1683,11 @@ func (as *AllocationSet) AllocateAssetCosts(assetSet *AssetSet, reconcile bool, 
 		}
 	})
 
-	// Build maps to hold count of tenants per node and cluster
-	nodeTenants := map[string]int{}
-	clusterTenants := map[string]int{}
 
-	// The number of allocations with that are selected by a given service
+	// The number of allocations with that are Associated with a given assets
+	// Assets are identified with the same identifier used in the maps declared above
+	totalClusterUsageHours := map[string]float64{}
+	totalNodeUsageHours := map[string]float64{}
 	totalServiceUsageHours := map[string]float64{}
 	totalNetworkUsageHours := map[string]float64{}
 
@@ -1698,13 +1698,13 @@ func (as *AllocationSet) AllocateAssetCosts(assetSet *AssetSet, reconcile bool, 
 	as.Each(func(name string, a *Allocation) {
 		// Populate Allocation by node map
 		if node, ok := nodeByProviderID[a.Properties.ProviderID]; ok {
-			nodeTenants[node.properties.ProviderID] += 1
+			totalNodeUsageHours[node.properties.ProviderID] += a.getOverlapHours(node)
 		}
 
 		if shareOverhead {
 			// Count total number of tenants on each cluster
-			if a.Properties.Cluster != "" {
-				clusterTenants[a.Properties.Cluster] += 1
+			if clusterManagement, ok := clusterManagementByCluster[a.Properties.Cluster]; ok {
+				totalClusterUsageHours[a.Properties.Cluster] +=  a.getOverlapHours(clusterManagement)
 			}
 		}
 
@@ -1733,8 +1733,8 @@ func (as *AllocationSet) AllocateAssetCosts(assetSet *AssetSet, reconcile bool, 
 	// This loop runs on the assumption that it will only be run once per allocation set per query
 	as.Each(func(name string, a *Allocation) {
 		if shareOverhead {
-			a.shareClusterManagement(clusterManagementByCluster, clusterTenants)
-			a.shareAttachedDisk(diskByName, nodeTenants, nodeProviderIDToName)
+			a.shareClusterManagement(clusterManagementByCluster, totalClusterUsageHours)
+			a.shareAttachedDisk(diskByName, totalNodeUsageHours, nodeProviderIDToName)
 		}
 
 		if reconcile {
@@ -1891,22 +1891,24 @@ func (a *Allocation) reconcileLoadBalancer(loadBalancerByName map[string]*LoadBa
 	a.LoadBalancerCostAdjustment += allocLoadBalancerCost - a.LoadBalancerCost
 }
 
-func (a *Allocation) shareClusterManagement(clusterManagementByCluster map[string]*ClusterManagement, clusterTenants map[string]int) {
+func (a *Allocation) shareClusterManagement(clusterManagementByCluster map[string]*ClusterManagement, totalClusterUsageHours map[string]float64) {
 	clusterName := a.Properties.Cluster
-	if cm, ok := clusterManagementByCluster[clusterName]; ok && clusterName != "" && clusterTenants[clusterName] != 0 {
-		a.SharedCost += cm.TotalCost() / float64(clusterTenants[clusterName])
+	if cm, ok := clusterManagementByCluster[clusterName]; ok && clusterName != "" && totalClusterUsageHours[clusterName] != 0 {
+		clusterManagementUsageProportion := a.getOverlapHours(cm) / totalClusterUsageHours[clusterName]
+
+		a.SharedCost += clusterManagementUsageProportion * cm.TotalCost()
 	}
 }
 
-func (a *Allocation) shareAttachedDisk(diskByName map[string]*Disk, nodeTenants map[string]int, nodeProviderIDToName map[string]string) {
+func (a *Allocation) shareAttachedDisk(diskByName map[string]*Disk, totalNodeUsageHours map[string]float64, nodeProviderIDToName map[string]string) {
 	providerID := a.Properties.ProviderID
 	nodeName := nodeProviderIDToName[providerID]
 
 	// Attached disks have the same name as their nodes on AWS, Azure and GCP
-	disk, ok := diskByName[nodeName]
-	numTenants, ok2 := nodeTenants[providerID]
-	if nodeName != "" && ok && ok2 && numTenants != 0 {
-		a.SharedCost += disk.TotalCost() / float64(numTenants)
+	if disk, ok := diskByName[nodeName]; ok && totalNodeUsageHours[providerID] != 0.0 {
+		attachedDiskUsageProportion := a.getOverlapHours(disk) / totalNodeUsageHours[providerID]
+
+		a.SharedCost += attachedDiskUsageProportion * disk.TotalCost()
 	}
 }
 
