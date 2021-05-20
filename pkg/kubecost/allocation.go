@@ -1635,15 +1635,15 @@ func (as *AllocationSet) ComputeIdleAllocations(assetSet *AssetSet) (map[string]
 // and node attached volumes
 func (as *AllocationSet) AllocateAssetCosts(assetSet *AssetSet, reconcile bool, shareOverhead bool) error {
 	if as == nil {
-		return fmt.Errorf("cannot reconcile allocation for nil AllocationSet")
+		return fmt.Errorf("cannot allocate asset costs to a nil AllocationSet")
 	}
 
 	if assetSet == nil {
-		return fmt.Errorf("cannot reconcile allocation with nil AssetSet")
+		return fmt.Errorf("cannot allocate asset costs from a nil AssetSet")
 	}
 
 	if !as.Window.Equal(assetSet.Window) {
-		return fmt.Errorf("cannot reconcile allocation for sets with mismatched windows: %s != %s", as.Window, assetSet.Window)
+		return fmt.Errorf("cannot allocate asset costs for sets with mismatched windows: %s != %s", as.Window, assetSet.Window)
 	}
 
 	// Build map of Assets with type Node by their ProviderId so that they can be matched to Allocations to determine
@@ -1850,10 +1850,10 @@ func (a *Allocation) reconcileNetwork(networkByProviderId map[string]*Network, n
 	networkSum := networkSums[providerId]
 	var networkUsageProportion float64
 	if networkSum != 0 {
-		// determin what percentage of the total network usage on a node that the calling allocation is responsible for
+		// Determine what percentage of the total network usage on a node that the calling allocation is responsible for
 		networkUsageProportion = a.NetworkCost/networkSum
 	} else {
-		// If there is network cost information on the node then distribue network cost evenly to tenants
+		// If there is no network cost information for any of the tenants of a node then distribute network cost evenly
 		numTenants, ok := nodeTenants[providerId]
 		if !ok || numTenants == 0{
 			return
@@ -1875,7 +1875,9 @@ func (a *Allocation) reconcileLoadBalancer(loadBalancerByName map[string]*LoadBa
 	var allocLoadBalancerCost float64
 	for _, service := range a.Properties.Services {
 		if loadBalancer, ok := loadBalancerByName[service]; ok {
+			// Load balancer cost is distributed evenly to its users
 			loadBalancerUsageProportion := 1.0 / float64(serviceUsers[service])
+			// Total cost of the allocation is summed over all services before adjustment is calculated
 			allocLoadBalancerCost += loadBalancerUsageProportion * loadBalancer.TotalCost()
 		}
 	}
