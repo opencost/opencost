@@ -361,16 +361,17 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregators []stri
 		s = append(s, gcpOOC...)
 		qerr = err
 		*/
-		queryString := fmt.Sprintf(`(
+		queryString := `(
 			SELECT
 				service.description as service,
 				TO_JSON_STRING(labels) as keys,
 				SUM(cost) as cost
-			FROM  %s
-			WHERE EXISTS (SELECT * FROM UNNEST(labels) AS l2 WHERE l2.key IN (%s))
+			FROM` +
+			fmt.Sprintf(" `%s` ", c.BillingDataDataset) +
+			fmt.Sprintf(`WHERE EXISTS (SELECT * FROM UNNEST(labels) AS l2 WHERE l2.key IN (%s))
 			AND usage_start_time >= "%s" AND usage_start_time < "%s"
 			GROUP BY service, keys
-		)`, c.BillingDataDataset, aggregator, start, end)
+		)`, aggregator, start, end)
 		klog.V(3).Infof("Querying \"%s\" with : %s", c.ProjectID, queryString)
 		gcpOOC, err := gcp.multiLabelQuery(queryString, aggregators)
 		s = append(s, gcpOOC...)
@@ -387,17 +388,18 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregators []stri
 			}
 		}
 
-		queryString := fmt.Sprintf(`(
+		queryString := `(
 			SELECT
 				service.description as service,
 				TO_JSON_STRING(labels) as keys,
 				SUM(cost) as cost
-		  	FROM  %s
-		 	WHERE EXISTS (SELECT * FROM UNNEST(labels) AS l2 WHERE l2.key IN (%s))
+		  	FROM` +
+			fmt.Sprintf(" `%s` ", c.BillingDataDataset) +
+			fmt.Sprintf(`WHERE EXISTS (SELECT * FROM UNNEST(labels) AS l2 WHERE l2.key IN (%s))
 			AND EXISTS (SELECT * FROM UNNEST(labels) AS l WHERE l.key = "%s" AND l.value = "%s")
 			AND usage_start_time >= "%s" AND usage_start_time < "%s"
 			GROUP BY service, keys
-		)`, c.BillingDataDataset, aggregator, filterType, filterValue, start, end)
+		)`, aggregator, filterType, filterValue, start, end)
 		klog.V(4).Infof("Querying \"%s\" with : %s", c.ProjectID, queryString)
 		gcpOOC, err := gcp.multiLabelQuery(queryString, aggregators)
 		s = append(s, gcpOOC...)
@@ -1365,17 +1367,24 @@ func (gcp *gcpKey) GPUType() string {
 
 // GetKey maps node labels to information needed to retrieve pricing data
 func (gcp *gcpKey) Features() string {
+	var instanceType string
 	it, _ := util.GetInstanceType(gcp.Labels)
-	instanceType := strings.ToLower(strings.Join(strings.Split(it, "-")[:2], ""))
-	if instanceType == "n1highmem" || instanceType == "n1highcpu" {
-		instanceType = "n1standard" // These are priced the same. TODO: support n1ultrahighmem
-	} else if instanceType == "n2highmem" || instanceType == "n2highcpu" {
-		instanceType = "n2standard"
-	} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
-		instanceType = "e2standard"
-	} else if strings.HasPrefix(instanceType, "custom") {
-		instanceType = "custom" // The suffix of custom does not matter
+	if it == "" {
+		log.DedupedErrorf(1, "Missing or Unknown 'node.kubernetes.io/instance-type' node label")
+		instanceType = "unknown"
+	} else {
+		instanceType = strings.ToLower(strings.Join(strings.Split(it, "-")[:2], ""))
+		if instanceType == "n1highmem" || instanceType == "n1highcpu" {
+			instanceType = "n1standard" // These are priced the same. TODO: support n1ultrahighmem
+		} else if instanceType == "n2highmem" || instanceType == "n2highcpu" {
+			instanceType = "n2standard"
+		} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
+			instanceType = "e2standard"
+		} else if strings.HasPrefix(instanceType, "custom") {
+			instanceType = "custom" // The suffix of custom does not matter
+		}
 	}
+
 	r, _ := util.GetRegion(gcp.Labels)
 	region := strings.ToLower(r)
 	var usageType string
