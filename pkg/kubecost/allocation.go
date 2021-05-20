@@ -1688,7 +1688,8 @@ func (as *AllocationSet) AllocateAssetCosts(assetSet *AssetSet, reconcile bool, 
 	clusterTenants := map[string]int{}
 
 	// The number of allocations with that are selected by a given service
-	serviceUsers := map[string]int{}
+	totalServiceUsageHours := map[string]float64{}
+	totalNetworkUsageHours := map[string]float64{}
 
 	// Build Maps of sums of values that will need to be normalized
 	networkSum := map[string]float64{}
@@ -1713,13 +1714,17 @@ func (as *AllocationSet) AllocateAssetCosts(assetSet *AssetSet, reconcile bool, 
 			a.reconcileNodes(nodeByProviderID)
 			a.reconcileDisks(diskByName)
 
-			if a.Properties.ProviderID != "" {
+			if network, ok := networkByProviderId[a.Properties.ProviderID]; ok {
 				networkSum[a.Properties.ProviderID] += a.NetworkCost
+				totalNetworkUsageHours[a.Properties.ProviderID] += a.getOverlapHours(network)
 			}
+			// Loop through service to find LoadBalancer on Allocations
 			for _, service := range a.Properties.Services {
 				// LoadBalancer assets include namespace in there name because Assets do not have namespaces
 				serviceKey := fmt.Sprintf("%s/%s", a.Properties.Namespace,service)
-				serviceUsers[serviceKey] += 1
+				if lb, ok := loadBalancerByName[serviceKey]; ok {
+					totalServiceUsageHours[serviceKey] += a.getOverlapHours(lb)
+				}
 			}
 		}
 	})
@@ -1733,8 +1738,8 @@ func (as *AllocationSet) AllocateAssetCosts(assetSet *AssetSet, reconcile bool, 
 		}
 
 		if reconcile {
-			a.reconcileNetwork(networkByProviderId, networkSum, nodeTenants)
-			a.reconcileLoadBalancer(loadBalancerByName, serviceUsers)
+			a.reconcileNetwork(networkByProviderId, networkSum, totalNetworkUsageHours)
+			a.reconcileLoadBalancer(loadBalancerByName, totalServiceUsageHours)
 		}
 	})
 
@@ -1842,10 +1847,15 @@ func (a *Allocation) reconcileDisks(diskByName map[string]*Disk) {
 	}
 }
 
-func (a *Allocation) reconcileNetwork(networkByProviderId map[string]*Network, networkSums map[string]float64, nodeTenants map[string]int) {
+func (a *Allocation) reconcileNetwork(networkByProviderId map[string]*Network, networkSums map[string]float64, totalNetworkUsageHours map[string]float64) {
 	providerId := a.Properties.ProviderID
 	// If providerId is present then other map calls should have results
 	if providerId == "" {
+		return
+	}
+	network, ok := networkByProviderId[providerId]
+	if !ok {
+		// If there is no network asset with a matching providerId then continue
 		return
 	}
 
@@ -1855,32 +1865,25 @@ func (a *Allocation) reconcileNetwork(networkByProviderId map[string]*Network, n
 		// Determine what percentage of the total network usage on a node that the calling allocation is responsible for
 		networkUsageProportion = a.NetworkCost/networkSum
 	} else {
-		// If there is no network cost information for any of the tenants of a node then distribute network cost evenly
-		numTenants, ok := nodeTenants[providerId]
-		if !ok || numTenants == 0{
-			return
+		if totalNetworkUsageHours[providerId] != 0 {
+			networkUsageProportion = a.getOverlapHours(network) / totalNetworkUsageHours[providerId]
 		}
-		networkUsageProportion = 1.0 / float64(numTenants)
 	}
-	network, ok := networkByProviderId[providerId]
-	if !ok {
-		// If there is no network asset with a matching providerId then continue
-		return
-	}
+
 	// Calculate the allocation's resource costs by the proportion of resources used and total costs
 	allocNetworkCost := networkUsageProportion * network.TotalCost()
 
 	a.NetworkCostAdjustment = allocNetworkCost - a.NetworkCost
 }
 
-func (a *Allocation) reconcileLoadBalancer(loadBalancerByName map[string]*LoadBalancer, serviceUsers map[string]int) {
+func (a *Allocation) reconcileLoadBalancer(loadBalancerByName map[string]*LoadBalancer, totalNetworkUsageHours map[string]float64) {
 	var allocLoadBalancerCost float64
 	for _, service := range a.Properties.Services {
 		// LoadBalancer assets include namespace in there name because Assets do not have namespaces
 		serviceKey := fmt.Sprintf("%s/%s", a.Properties.Namespace,service)
-		if loadBalancer, ok := loadBalancerByName[serviceKey]; ok {
+		if loadBalancer, ok := loadBalancerByName[serviceKey]; ok && totalNetworkUsageHours[serviceKey] != 0 {
 			// Load balancer cost is distributed evenly to its users
-			loadBalancerUsageProportion := 1.0 / float64(serviceUsers[serviceKey])
+			loadBalancerUsageProportion := a.getOverlapHours(loadBalancer) / totalNetworkUsageHours[serviceKey]
 			// Total cost of the allocation is summed over all services before adjustment is calculated
 			allocLoadBalancerCost += loadBalancerUsageProportion * loadBalancer.TotalCost()
 		}
@@ -1905,6 +1908,31 @@ func (a *Allocation) shareAttachedDisk(diskByName map[string]*Disk, nodeTenants 
 	if nodeName != "" && ok && ok2 && numTenants != 0 {
 		a.SharedCost += disk.TotalCost() / float64(numTenants)
 	}
+}
+
+func (a *Allocation) populateTotalUsageHours(totalUsageHours map[string]float64, assetByKey map[string]Asset, key string) {
+	asset, ok := assetByKey[key]
+	if !ok {
+		return
+	}
+	totalUsageHours[key] += a.getOverlapHours(asset)
+}
+
+func (a *Allocation) getOverlapHours(asset Asset) float64{
+	s, e := a.Start, a.End
+
+	if asset.Start().After(a.Start) {
+		s = asset.Start()
+	}
+	if asset.End().Before(a.End) {
+		e = asset.End()
+	}
+	hours := e.Sub(s).Hours()
+	// A negative number of hours signifies no overlap between the windows
+	if hours > 0 {
+		return hours
+	}
+	return 0.0
 }
 
 // Delete removes the allocation with the given name from the set
