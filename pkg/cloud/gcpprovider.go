@@ -141,18 +141,18 @@ func (gcp *GCP) GetLocalStorageQuery(window, offset string, rate bool, used bool
 
 	fmtCumulativeQuery := `sum(
 		sum_over_time(%s{device!="tmpfs", id="/"}[%s:1m]%s)
-	) by (cluster_id) / 60 / 730 / 1024 / 1024 / 1024 * %f`
+	) by (%s) / 60 / 730 / 1024 / 1024 / 1024 * %f`
 
 	fmtMonthlyQuery := `sum(
 		avg_over_time(%s{device!="tmpfs", id="/"}[%s:1m]%s)
-	) by (cluster_id) / 1024 / 1024 / 1024 * %f`
+	) by (%s) / 1024 / 1024 / 1024 * %f`
 
 	fmtQuery := fmtCumulativeQuery
 	if rate {
 		fmtQuery = fmtMonthlyQuery
 	}
 
-	return fmt.Sprintf(fmtQuery, baseMetric, window, fmtOffset, localStorageCost)
+	return fmt.Sprintf(fmtQuery, baseMetric, window, fmtOffset, env.GetPromClusterLabel(), localStorageCost)
 }
 
 func (gcp *GCP) GetConfig() (*CustomPricing, error) {

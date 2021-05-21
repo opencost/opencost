@@ -37,7 +37,7 @@ func buildCPUCostMap(
 	clusterAndNameToType := make(map[nodeIdentifierNoProviderID]string)
 
 	for _, result := range resNodeCPUCost {
-		cluster, err := result.GetString("cluster_id")
+		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
@@ -83,7 +83,7 @@ func buildRAMCostMap(
 	clusterAndNameToType := make(map[nodeIdentifierNoProviderID]string)
 
 	for _, result := range resNodeRAMCost {
-		cluster, err := result.GetString("cluster_id")
+		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
@@ -129,7 +129,7 @@ func buildGPUCostMap(
 	clusterAndNameToType := make(map[nodeIdentifierNoProviderID]string)
 
 	for _, result := range resNodeGPUCost {
-		cluster, err := result.GetString("cluster_id")
+		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
@@ -177,7 +177,7 @@ func buildGPUCountMap(
 	gpuCountMap := make(map[NodeIdentifier]float64)
 
 	for _, result := range resNodeGPUCount {
-		cluster, err := result.GetString("cluster_id")
+		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
@@ -210,7 +210,7 @@ func buildCPUCoresMap(
 	m := make(map[nodeIdentifierNoProviderID]float64)
 
 	for _, result := range resNodeCPUCores {
-		cluster, err := result.GetString("cluster_id")
+		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
@@ -238,7 +238,7 @@ func buildRAMBytesMap(resNodeRAMBytes []*prom.QueryResult) map[nodeIdentifierNoP
 	m := make(map[nodeIdentifierNoProviderID]float64)
 
 	for _, result := range resNodeRAMBytes {
-		cluster, err := result.GetString("cluster_id")
+		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
@@ -274,7 +274,7 @@ func buildCPUBreakdownMap(resNodeCPUModeTotal []*prom.QueryResult) map[nodeIdent
 	// Build intermediate structures for CPU usage by (cluster, node) and by
 	// (cluster, node, mode) for computing resouce efficiency
 	for _, result := range resNodeCPUModeTotal {
-		cluster, err := result.GetString("cluster_id")
+		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
@@ -344,7 +344,7 @@ func buildRAMUserPctMap(resNodeRAMUserPct []*prom.QueryResult) map[nodeIdentifie
 	m := make(map[nodeIdentifierNoProviderID]float64)
 
 	for _, result := range resNodeRAMUserPct {
-		cluster, err := result.GetString("cluster_id")
+		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
@@ -373,7 +373,7 @@ func buildRAMSystemPctMap(resNodeRAMSystemPct []*prom.QueryResult) map[nodeIdent
 	m := make(map[nodeIdentifierNoProviderID]float64)
 
 	for _, result := range resNodeRAMSystemPct {
-		cluster, err := result.GetString("cluster_id")
+		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
@@ -408,7 +408,7 @@ func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Durat
 	m := make(map[NodeIdentifier]activeData)
 
 	for _, result := range resActiveMins {
-		cluster, err := result.GetString("cluster_id")
+		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
@@ -464,7 +464,7 @@ func buildPreemptibleMap(
 		// GCP preemptible label
 		pre := result.Values[0].Value
 
-		cluster, err := result.GetString("cluster_id")
+		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
@@ -499,7 +499,7 @@ func buildLabelsMap(
 
 	// Copy labels into node
 	for _, result := range resLabels {
-		cluster, err := result.GetString("cluster_id")
+		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
 			cluster = env.GetClusterID()
 		}

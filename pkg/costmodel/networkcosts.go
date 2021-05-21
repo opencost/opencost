@@ -2,6 +2,7 @@ package costmodel
 
 import (
 	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
@@ -151,7 +152,7 @@ func getNetworkUsage(qrs []*prom.QueryResult, defaultClusterID string) (map[stri
 			return nil, err
 		}
 
-		clusterID, err := val.GetString("cluster_id")
+		clusterID, err := val.GetString(env.GetPromClusterLabel())
 		if clusterID == "" {
 			log.Debugf("Prometheus vector does not have cluster id")
 			clusterID = defaultClusterID
