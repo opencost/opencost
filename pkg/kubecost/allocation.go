@@ -930,8 +930,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	for _, alloc := range as.allocations {
 		idleKey, err := alloc.getIdleKey(options)
 		if err != nil {
-			log.DedupedInfof(5,"AllocationSet.AggregateBy: missing idleKey for allocation: %s", alloc.Name)
-			continue
+			log.DedupedWarningf(3,"AllocationSet.AggregateBy: missing idleKey for allocation: %s", alloc.Name)
 		}
 
 		skip := false
@@ -966,10 +965,8 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 			for _, idleAlloc := range idleSet.allocations {
 				// Only share idle if the idleKey matches; i.e. the allocation
 				// is from the same idleKey as the idle costs
-				iaIdleKey, err := idleAlloc.getIdleKey(options)
-				if err != nil {
-					return err
-				}
+				iaIdleKey, _ := idleAlloc.getIdleKey(options)
+
 				if iaIdleKey != idleKey {
 					continue
 				}
@@ -1018,18 +1015,14 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		for _, alloc := range shareSet.allocations {
 			idleKey, err := alloc.getIdleKey(options)
 			if err != nil {
-				log.DedupedWarningf(5, "AllocationSet.AggregateBy: missing idleKey for allocation: %s", alloc.Name)
-				continue
+				log.DedupedWarningf(3, "AllocationSet.AggregateBy: missing idleKey for allocation: %s", alloc.Name)
 			}
-
 			// Distribute idle allocations by coefficient per-idleKey, per-allocation
 			for _, idleAlloc := range idleSet.allocations {
 				// Only share idle if the idleKey matches; i.e. the allocation
 				// is from the same idleKey as the idle costs
-				iaIdleKey, err := idleAlloc.getIdleKey(options)
-				if err != nil {
-					return nil
-				}
+				iaIdleKey, _ := idleAlloc.getIdleKey(options)
+
 				if iaIdleKey != idleKey {
 					continue
 				}
@@ -1089,12 +1082,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	if len(aggSet.idleKeys) > 0 && groupingIdleFiltrationCoeffs != nil {
 		for idleKey := range aggSet.idleKeys {
 			idleAlloc := aggSet.Get(idleKey)
-
-			iaIdleKey, err := idleAlloc.getIdleKey(options)
-			if err != nil {
-				log.Warningf("AllocationSet.AggregateBy: idle allocation without IdleKey: %s", idleAlloc)
-				continue
-			}
+			iaIdleKey, _ := idleAlloc.getIdleKey(options)
 
 			if resourceCoeffs, ok := groupingIdleFiltrationCoeffs[iaIdleKey]; ok {
 				idleAlloc.CPUCost *= resourceCoeffs["cpu"]
@@ -1240,8 +1228,8 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 
 		idleKey, err := alloc.getIdleKey(options)
 		if err != nil {
-			// skip allocations that are missing idleKey
-			continue
+			// Use Unallocated for allocations without idle key
+			log.DedupedWarningf(3, "Missing Idle Key for %s", alloc.Name)
 		}
 
 		// get the name key for the allocation
@@ -1288,7 +1276,8 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 		// idleKey will be providerId or cluster
 		idleKey, err := alloc.getIdleKey(options)
 		if err != nil {
-			return nil, err
+			// Use Unallocated for allocations without idle key
+			log.DedupedWarningf(3, "Missing Idle Key in share set for %s", alloc.Name)
 		}
 
 		// get the name key for the allocation
@@ -1347,13 +1336,13 @@ func (a *Allocation) getIdleKey(options *AllocationAggregationOptions) (string, 
 		// Key allocations to ProviderId to match against node
 		idleKey = a.Properties.ProviderID
 		if idleKey == "" {
-			return idleKey, fmt.Errorf("ProviderId is not set")
+			return UnmountedSuffix, fmt.Errorf("ProviderId is not set")
 		}
 	} else {
 		// key the allocations by cluster id
 		idleKey = a.Properties.Cluster
 		if idleKey == "" {
-			return idleKey, fmt.Errorf("ClusterProp is not set")
+			return UnmountedSuffix, fmt.Errorf("ClusterProp is not set")
 		}
 	}
 	return idleKey, nil
@@ -1683,6 +1672,7 @@ func (as *AllocationSet) ComputeIdleAllocationsByNode(assetSet *AssetSet) (map[s
 	assetSet.Each(func(key string, a Asset) {
 		if node, ok := a.(*Node); ok {
 			if _, ok := assetNodeResourceCosts[node.Properties().ProviderID]; ok || node.Properties().ProviderID == "" {
+				log.DedupedWarningf(5, "Compute Idle Allocations By Node: Node missing providerId: %s", node.properties.Name)
 				return
 			}
 
@@ -1729,6 +1719,7 @@ func (as *AllocationSet) ComputeIdleAllocationsByNode(assetSet *AssetSet) (map[s
 		providerId := a.Properties.ProviderID
 		if providerId == "" {
 			// Failed to find allocation's node
+			log.DedupedWarningf(5, "Compute Idle Allocations By Node: Allocation missing providerId: %s", a.Name)
 			return
 		}
 
