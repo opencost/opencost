@@ -965,7 +965,11 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 			for _, idleAlloc := range idleSet.allocations {
 				// Only share idle if the idleKey matches; i.e. the allocation
 				// is from the same idleKey as the idle costs
-				iaIdleKey, _ := idleAlloc.getIdleKey(options)
+				iaIdleKey, err := idleAlloc.getIdleKey(options)
+				if err != nil {
+					log.Errorf("AllocationSet.AggregateBy: Idle allocation is missing idlekey %s", idleAlloc.Name)
+					return err
+				}
 
 				if iaIdleKey != idleKey {
 					continue
@@ -1082,7 +1086,11 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	if len(aggSet.idleKeys) > 0 && groupingIdleFiltrationCoeffs != nil {
 		for idleKey := range aggSet.idleKeys {
 			idleAlloc := aggSet.Get(idleKey)
-			iaIdleKey, _ := idleAlloc.getIdleKey(options)
+			iaIdleKey, err := idleAlloc.getIdleKey(options)
+			if err != nil {
+				log.Errorf("AllocationSet.AggregateBy: Idle allocation is missing idlekey %s", idleAlloc.Name)
+				return err
+			}
 
 			if resourceCoeffs, ok := groupingIdleFiltrationCoeffs[iaIdleKey]; ok {
 				idleAlloc.CPUCost *= resourceCoeffs["cpu"]
@@ -1228,7 +1236,6 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 
 		idleKey, err := alloc.getIdleKey(options)
 		if err != nil {
-			// Use Unallocated for allocations without idle key
 			log.DedupedWarningf(3, "Missing Idle Key for %s", alloc.Name)
 		}
 
@@ -1276,7 +1283,6 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 		// idleKey will be providerId or cluster
 		idleKey, err := alloc.getIdleKey(options)
 		if err != nil {
-			// Use Unallocated for allocations without idle key
 			log.DedupedWarningf(3, "Missing Idle Key in share set for %s", alloc.Name)
 		}
 
@@ -1336,13 +1342,13 @@ func (a *Allocation) getIdleKey(options *AllocationAggregationOptions) (string, 
 		// Key allocations to ProviderId to match against node
 		idleKey = a.Properties.ProviderID
 		if idleKey == "" {
-			return UnmountedSuffix, fmt.Errorf("ProviderId is not set")
+			return idleKey, fmt.Errorf("ProviderId is not set")
 		}
 	} else {
 		// key the allocations by cluster id
 		idleKey = a.Properties.Cluster
 		if idleKey == "" {
-			return UnmountedSuffix, fmt.Errorf("ClusterProp is not set")
+			return idleKey, fmt.Errorf("ClusterProp is not set")
 		}
 	}
 	return idleKey, nil
