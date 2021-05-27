@@ -12,8 +12,6 @@ import (
 	"github.com/kubecost/cost-model/pkg/util/json"
 )
 
-const timeFmt = "2006-01-02T15:04:05-0700"
-
 // UndefinedKey is used in composing Asset group keys if the group does not have that property defined.
 // E.g. if aggregating on Cluster, Assets in the AssetSet where Asset has no cluster will be grouped under key "__undefined__"
 const UndefinedKey = "__undefined__"
@@ -285,10 +283,10 @@ func key(a Asset, aggregateBy []string) (string, error) {
 				}
 			} else {
 				// Don't allow aggregating on label ""
-				return "", fmt.Errorf("Attempted to aggregate on invalid key: %s", s)
+				return "", fmt.Errorf("attempted to aggregate on invalid key: %s", s)
 			}
 		default:
-			return "", fmt.Errorf("Attempted to aggregate on invalid key: %s", s)
+			return "", fmt.Errorf("attempted to aggregate on invalid key: %s", s)
 		}
 
 		if key != "" {
@@ -596,9 +594,9 @@ func (a *Any) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
 	jsonEncode(buffer, "properties", a.Properties(), ",")
 	jsonEncode(buffer, "labels", a.Labels(), ",")
-	jsonEncodeString(buffer, "window", a.Window().String(), ",")
-	jsonEncodeString(buffer, "start", a.Start().Format(timeFmt), ",")
-	jsonEncodeString(buffer, "end", a.End().Format(timeFmt), ",")
+	jsonEncode(buffer, "window", a.Window(), ",")
+	jsonEncodeString(buffer, "start", a.Start().Format(time.RFC3339), ",")
+	jsonEncodeString(buffer, "end", a.End().Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", a.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "adjustment", a.Adjustment(), ",")
 	jsonEncodeFloat64(buffer, "totalCost", a.TotalCost(), "")
@@ -839,9 +837,9 @@ func (ca *Cloud) MarshalJSON() ([]byte, error) {
 	jsonEncodeString(buffer, "type", ca.Type().String(), ",")
 	jsonEncode(buffer, "properties", ca.Properties(), ",")
 	jsonEncode(buffer, "labels", ca.Labels(), ",")
-	jsonEncodeString(buffer, "window", ca.Window().String(), ",")
-	jsonEncodeString(buffer, "start", ca.Start().Format(timeFmt), ",")
-	jsonEncodeString(buffer, "end", ca.End().Format(timeFmt), ",")
+	jsonEncode(buffer, "window", ca.Window(), ",")
+	jsonEncodeString(buffer, "start", ca.Start().Format(time.RFC3339), ",")
+	jsonEncodeString(buffer, "end", ca.End().Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", ca.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "adjustment", ca.Adjustment(), ",")
 	jsonEncodeFloat64(buffer, "credit", ca.Credit, ",")
@@ -1039,9 +1037,9 @@ func (cm *ClusterManagement) MarshalJSON() ([]byte, error) {
 	jsonEncodeString(buffer, "type", cm.Type().String(), ",")
 	jsonEncode(buffer, "properties", cm.Properties(), ",")
 	jsonEncode(buffer, "labels", cm.Labels(), ",")
-	jsonEncodeString(buffer, "window", cm.Window().String(), ",")
-	jsonEncodeString(buffer, "start", cm.Start().Format(timeFmt), ",")
-	jsonEncodeString(buffer, "end", cm.End().Format(timeFmt), ",")
+	jsonEncode(buffer, "window", cm.Window(), ",")
+	jsonEncodeString(buffer, "start", cm.Start().Format(time.RFC3339), ",")
+	jsonEncodeString(buffer, "end", cm.End().Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", cm.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "totalCost", cm.TotalCost(), "")
 	buffer.WriteString("}")
@@ -1320,9 +1318,9 @@ func (d *Disk) MarshalJSON() ([]byte, error) {
 	jsonEncodeString(buffer, "type", d.Type().String(), ",")
 	jsonEncode(buffer, "properties", d.Properties(), ",")
 	jsonEncode(buffer, "labels", d.Labels(), ",")
-	jsonEncodeString(buffer, "window", d.Window().String(), ",")
-	jsonEncodeString(buffer, "start", d.Start().Format(timeFmt), ",")
-	jsonEncodeString(buffer, "end", d.End().Format(timeFmt), ",")
+	jsonEncode(buffer, "window", d.Window(), ",")
+	jsonEncodeString(buffer, "start", d.Start().Format(time.RFC3339), ",")
+	jsonEncodeString(buffer, "end", d.End().Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", d.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "byteHours", d.ByteHours, ",")
 	jsonEncodeFloat64(buffer, "bytes", d.Bytes(), ",")
@@ -1637,9 +1635,9 @@ func (n *Network) MarshalJSON() ([]byte, error) {
 	jsonEncodeString(buffer, "type", n.Type().String(), ",")
 	jsonEncode(buffer, "properties", n.Properties(), ",")
 	jsonEncode(buffer, "labels", n.Labels(), ",")
-	jsonEncodeString(buffer, "window", n.Window().String(), ",")
-	jsonEncodeString(buffer, "start", n.Start().Format(timeFmt), ",")
-	jsonEncodeString(buffer, "end", n.End().Format(timeFmt), ",")
+	jsonEncode(buffer, "window", n.Window(), ",")
+	jsonEncodeString(buffer, "start", n.Start().Format(time.RFC3339), ",")
+	jsonEncodeString(buffer, "end", n.End().Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", n.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "adjustment", n.Adjustment(), ",")
 	jsonEncodeFloat64(buffer, "totalCost", n.TotalCost(), "")
@@ -1997,9 +1995,9 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 	jsonEncodeString(buffer, "type", n.Type().String(), ",")
 	jsonEncode(buffer, "properties", n.Properties(), ",")
 	jsonEncode(buffer, "labels", n.Labels(), ",")
-	jsonEncodeString(buffer, "window", n.Window().String(), ",")
-	jsonEncodeString(buffer, "start", n.Start().Format(timeFmt), ",")
-	jsonEncodeString(buffer, "end", n.End().Format(timeFmt), ",")
+	jsonEncode(buffer, "window", n.Window(), ",")
+	jsonEncodeString(buffer, "start", n.Start().Format(time.RFC3339), ",")
+	jsonEncodeString(buffer, "end", n.End().Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", n.Minutes(), ",")
 	jsonEncodeString(buffer, "nodeType", n.NodeType, ",")
 	jsonEncodeFloat64(buffer, "cpuCores", n.CPUCores(), ",")
@@ -2303,9 +2301,9 @@ func (lb *LoadBalancer) MarshalJSON() ([]byte, error) {
 	jsonEncodeString(buffer, "type", lb.Type().String(), ",")
 	jsonEncode(buffer, "properties", lb.Properties(), ",")
 	jsonEncode(buffer, "labels", lb.Labels(), ",")
-	jsonEncodeString(buffer, "window", lb.Window().String(), ",")
-	jsonEncodeString(buffer, "start", lb.Start().Format(timeFmt), ",")
-	jsonEncodeString(buffer, "end", lb.End().Format(timeFmt), ",")
+	jsonEncode(buffer, "window", lb.Window(), ",")
+	jsonEncodeString(buffer, "start", lb.Start().Format(time.RFC3339), ",")
+	jsonEncodeString(buffer, "end", lb.End().Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", lb.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "adjustment", lb.Adjustment(), ",")
 	jsonEncodeFloat64(buffer, "totalCost", lb.TotalCost(), "")
@@ -2514,9 +2512,9 @@ func (sa *SharedAsset) MarshalJSON() ([]byte, error) {
 	jsonEncode(buffer, "labels", sa.Labels(), ",")
 	jsonEncode(buffer, "properties", sa.Properties(), ",")
 	jsonEncode(buffer, "labels", sa.Labels(), ",")
-	jsonEncodeString(buffer, "window", sa.Window().String(), ",")
-	jsonEncodeString(buffer, "start", sa.Start().Format(timeFmt), ",")
-	jsonEncodeString(buffer, "end", sa.End().Format(timeFmt), ",")
+	jsonEncode(buffer, "window", sa.Window(), ",")
+	jsonEncodeString(buffer, "start", sa.Start().Format(time.RFC3339), ",")
+	jsonEncodeString(buffer, "end", sa.End().Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", sa.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "totalCost", sa.TotalCost(), "")
 	buffer.WriteString("}")
@@ -2534,6 +2532,7 @@ type AssetSet struct {
 	sync.RWMutex
 	aggregateBy []string
 	assets      map[string]Asset
+	FromSource  string
 	Window      Window
 	Warnings    []string
 	Errors      []string
@@ -2575,7 +2574,7 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 	// Compute hours of the given AssetSet, and if it ends in the future,
 	// adjust the hours accordingly
 	hours := as.Window.Minutes() / 60.0
-	diff := time.Now().Sub(as.End())
+	diff := time.Since(as.End())
 	if diff < 0.0 {
 		hours += diff.Hours()
 	}
@@ -2628,10 +2627,7 @@ func (as *AssetSet) Clone() *AssetSet {
 
 	var aggregateBy []string
 	if as.aggregateBy != nil {
-		aggregateBy := []string{}
-		for _, s := range as.aggregateBy {
-			aggregateBy = append(aggregateBy, s)
-		}
+		aggregateBy = append([]string{}, as.aggregateBy...)
 	}
 
 	assets := map[string]Asset{}
@@ -2931,7 +2927,8 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 
 type AssetSetRange struct {
 	sync.RWMutex
-	assets []*AssetSet
+	assets    []*AssetSet
+	FromStore string
 }
 
 func NewAssetSetRange(assets ...*AssetSet) *AssetSetRange {
@@ -3023,7 +3020,7 @@ func (asr *AssetSetRange) Length() int {
 
 func (asr *AssetSetRange) MarshalJSON() ([]byte, error) {
 	asr.RLock()
-	asr.RUnlock()
+	defer asr.RUnlock()
 	return json.Marshal(asr.assets)
 }
 

@@ -64,6 +64,20 @@ const (
 	queryFmtLBActiveMins          = `count(kubecost_load_balancer_cost) by (namespace, service_name, %s)[%s:%s]%s`
 )
 
+// CanCompute should return true if CostModel can act as a valid source for the
+// given time range. In the case of CostModel we want to attempt to compute as
+// long as the range starts in the past. If the CostModel ends up not having
+// data to match, that's okay, and should be communicated with an error
+// response from ComputeAllocation.
+func (cm *CostModel) CanCompute(start, end time.Time) bool {
+	return start.Before(time.Now())
+}
+
+// Name returns the name of the Source
+func (cm *CostModel) Name() string {
+	return "CostModel"
+}
+
 // ComputeAllocation uses the CostModel instance to compute an AllocationSet
 // for the window defined by the given start and end times. The Allocations
 // returned are unaggregated (i.e. down to the container level).
@@ -1678,13 +1692,13 @@ func applyUnmountedPVs(window kubecost.Window, podMap map[podKey]*Pod, pvMap map
 			Cluster: cluster,
 			Name:    kubecost.UnmountedSuffix,
 		}
-		unmountedBreakDown := kubecost.PVAllocations{
+		unmountedPVs := kubecost.PVAllocations{
 			pvKey: {
 				ByteHours: unmountedPVBytes[cluster] * window.Minutes() / 60.0,
 				Cost:      amount,
 			},
 		}
-		podMap[key].Allocations[container].PVs = podMap[key].Allocations[container].PVs.Add(unmountedBreakDown)
+		podMap[key].Allocations[container].PVs = podMap[key].Allocations[container].PVs.Add(unmountedPVs)
 	}
 }
 
@@ -1730,13 +1744,13 @@ func applyUnmountedPVCs(window kubecost.Window, podMap map[podKey]*Pod, pvcMap m
 			Cluster: cluster,
 			Name:    kubecost.UnmountedSuffix,
 		}
-		unmountedBreakDown := kubecost.PVAllocations{
+		unmountedPVs := kubecost.PVAllocations{
 			pvKey: {
 				ByteHours: unmountedPVCBytes[key] * window.Minutes() / 60.0,
 				Cost:      amount,
 			},
 		}
-		podMap[podKey].Allocations[container].PVs = podMap[podKey].Allocations[container].PVs.Add(unmountedBreakDown)
+		podMap[podKey].Allocations[container].PVs = podMap[podKey].Allocations[container].PVs.Add(unmountedPVs)
 
 	}
 }
