@@ -2532,7 +2532,7 @@ type AssetSet struct {
 	sync.RWMutex
 	aggregateBy []string
 	assets      map[string]Asset
-	FromSource  string
+	FromSource  string // stores the name of the source used to compute the data
 	Window      Window
 	Warnings    []string
 	Errors      []string
@@ -2925,12 +2925,18 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 	return acc, nil
 }
 
+// AssetSetRange is a thread-safe slice of AssetSets. It is meant to
+// be used such that the AssetSets held are consecutive and coherent with
+// respect to using the same aggregation properties, UTC offset, and
+// resolution. However these rules are not necessarily enforced, so use wisely.
 type AssetSetRange struct {
 	sync.RWMutex
 	assets    []*AssetSet
-	FromStore string
+	FromStore string // stores the name of the store used to retrieve the data
 }
 
+// NewAssetSetRange instantiates a new range composed of the given
+// AssetSets in the order provided.
 func NewAssetSetRange(assets ...*AssetSet) *AssetSetRange {
 	return &AssetSetRange{
 		assets: assets,

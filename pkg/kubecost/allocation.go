@@ -655,7 +655,7 @@ type AllocationSet struct {
 	allocations  map[string]*Allocation
 	externalKeys map[string]bool
 	idleKeys     map[string]bool
-	FromSource   string
+	FromSource   string // stores the name of the source used to compute the data
 	Window       Window
 	Warnings     []string
 	Errors       []string
@@ -2242,7 +2242,7 @@ func (as *AllocationSet) accumulate(that *AllocationSet) (*AllocationSet, error)
 type AllocationSetRange struct {
 	sync.RWMutex
 	allocations []*AllocationSet
-	FromStore   string
+	FromStore   string // stores the name of the store used to retrieve the data
 }
 
 // NewAllocationSetRange instantiates a new range composed of the given
