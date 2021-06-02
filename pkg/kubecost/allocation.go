@@ -75,7 +75,6 @@ type Allocation struct {
 	RAMCost                    float64               `json:"ramCost"`
 	RAMCostAdjustment          float64               `json:"ramCostAdjustment"`
 	SharedCost                 float64               `json:"sharedCost"`
-	SharedCostAdjustment       float64               `json:"sharedCostAdjustment"`
 	ExternalCost               float64               `json:"externalCost"`
 	// RawAllocationOnly is a pointer so if it is not present it will be
 	// marshalled as null rather than as an object with Go default values.
@@ -218,7 +217,6 @@ func (a *Allocation) Clone() *Allocation {
 		RAMCost:                    a.RAMCost,
 		RAMCostAdjustment:          a.RAMCostAdjustment,
 		SharedCost:                 a.SharedCost,
-		SharedCostAdjustment:       a.SharedCostAdjustment,
 		ExternalCost:               a.ExternalCost,
 		RawAllocationOnly:          a.RawAllocationOnly.Clone(),
 	}
@@ -305,9 +303,6 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if !util.IsApproximately(a.SharedCost, that.SharedCost) {
 		return false
 	}
-	if !util.IsApproximately(a.SharedCostAdjustment, that.SharedCostAdjustment) {
-		return false
-	}
 	if !util.IsApproximately(a.ExternalCost, that.ExternalCost) {
 		return false
 	}
@@ -380,7 +375,7 @@ func (a *Allocation) LBTotalCost() float64 {
 
 // SharedTotalCost calculates total shared cost of Allocation including adjustment
 func (a *Allocation) SharedTotalCost() float64 {
-	return a.SharedCost + a.SharedCostAdjustment
+	return a.SharedCost
 }
 
 // PVCost calculate cumulative cost of all PVs that Allocation is attached to
@@ -512,7 +507,6 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "ramCostAdjustment", a.RAMCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "ramEfficiency", a.RAMEfficiency(), ",")
 	jsonEncodeFloat64(buffer, "sharedCost", a.SharedCost, ",")
-	jsonEncodeFloat64(buffer, "sharedCostAdjustment", a.SharedCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "externalCost", a.ExternalCost, ",")
 	jsonEncodeFloat64(buffer, "totalCost", a.TotalCost(), ",")
 	jsonEncodeFloat64(buffer, "totalEfficiency", a.TotalEfficiency(), ",")
@@ -648,7 +642,6 @@ func (a *Allocation) add(that *Allocation) {
 	a.PVCostAdjustment += that.PVCostAdjustment
 	a.NetworkCostAdjustment += that.NetworkCostAdjustment
 	a.LoadBalancerCostAdjustment += that.LoadBalancerCostAdjustment
-	a.SharedCostAdjustment += that.SharedCostAdjustment
 
 	// Any data that is in a "raw allocation only" is not valid in any
 	// sort of cumulative Allocation (like one that is added).
@@ -662,6 +655,7 @@ type AllocationSet struct {
 	allocations  map[string]*Allocation
 	externalKeys map[string]bool
 	idleKeys     map[string]bool
+	FromSource   string // stores the name of the source used to compute the data
 	Window       Window
 	Warnings     []string
 	Errors       []string
@@ -1948,11 +1942,11 @@ func (as *AllocationSet) Each(f func(string, *Allocation)) {
 // End returns the End time of the AllocationSet window
 func (as *AllocationSet) End() time.Time {
 	if as == nil {
-		log.Warningf("Allocation ETL: calling End on nil AllocationSet")
+		log.Warningf("AllocationSet: calling End on nil AllocationSet")
 		return time.Unix(0, 0)
 	}
 	if as.Window.End() == nil {
-		log.Warningf("Allocation ETL: AllocationSet with illegal window: End is nil; len(as.allocations)=%d", len(as.allocations))
+		log.Warningf("AllocationSet: AllocationSet with illegal window: End is nil; len(as.allocations)=%d", len(as.allocations))
 		return time.Unix(0, 0)
 	}
 	return *as.Window.End()
@@ -2153,11 +2147,11 @@ func (as *AllocationSet) Set(alloc *Allocation) error {
 // Start returns the Start time of the AllocationSet window
 func (as *AllocationSet) Start() time.Time {
 	if as == nil {
-		log.Warningf("Allocation ETL: calling Start on nil AllocationSet")
+		log.Warningf("AllocationSet: calling Start on nil AllocationSet")
 		return time.Unix(0, 0)
 	}
 	if as.Window.Start() == nil {
-		log.Warningf("Allocation ETL: AllocationSet with illegal window: Start is nil; len(as.allocations)=%d", len(as.allocations))
+		log.Warningf("AllocationSet: AllocationSet with illegal window: Start is nil; len(as.allocations)=%d", len(as.allocations))
 		return time.Unix(0, 0)
 	}
 	return *as.Window.Start()
@@ -2196,11 +2190,11 @@ func (as *AllocationSet) UTCOffset() time.Duration {
 
 func (as *AllocationSet) accumulate(that *AllocationSet) (*AllocationSet, error) {
 	if as.IsEmpty() {
-		return that, nil
+		return that.Clone(), nil
 	}
 
 	if that.IsEmpty() {
-		return as, nil
+		return as.Clone(), nil
 	}
 
 	// Set start, end to min(start), max(end)
@@ -2245,6 +2239,7 @@ func (as *AllocationSet) accumulate(that *AllocationSet) (*AllocationSet, error)
 type AllocationSetRange struct {
 	sync.RWMutex
 	allocations []*AllocationSet
+	FromStore   string // stores the name of the store used to retrieve the data
 }
 
 // NewAllocationSetRange instantiates a new range composed of the given
@@ -2274,7 +2269,7 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 	return allocSet, nil
 }
 
-// TODO niko/etl accumulate into lower-resolution chunks of the given resolution
+// TODO accumulate into lower-resolution chunks of the given resolution
 // func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) *AllocationSetRange
 
 // AggregateBy aggregates each AllocationSet in the range by the given

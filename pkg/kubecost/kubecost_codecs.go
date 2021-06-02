@@ -14,10 +14,11 @@ package kubecost
 import (
 	"encoding"
 	"fmt"
-	util "github.com/kubecost/cost-model/pkg/util"
 	"reflect"
 	"strings"
 	"time"
+
+	util "github.com/kubecost/cost-model/pkg/util"
 )
 
 const (
@@ -25,7 +26,7 @@ const (
 	GeneratorPackageName string = "kubecost"
 
 	// CodecVersion is the version passed into the generator
-	CodecVersion uint8 = 13
+	CodecVersion uint8 = 14
 )
 
 //--------------------------------------------------------------------------
@@ -220,7 +221,6 @@ func (target *Allocation) MarshalBinary() (data []byte, err error) {
 	buff.WriteFloat64(target.RAMCost)                // write float64
 	buff.WriteFloat64(target.RAMCostAdjustment)      // write float64
 	buff.WriteFloat64(target.SharedCost)             // write float64
-	buff.WriteFloat64(target.SharedCostAdjustment)   // write float64
 	buff.WriteFloat64(target.ExternalCost)           // write float64
 	if target.RawAllocationOnly == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
@@ -418,23 +418,20 @@ func (target *Allocation) UnmarshalBinary(data []byte) (err error) {
 	target.SharedCost = uu
 
 	ww := buff.ReadFloat64() // read float64
-	target.SharedCostAdjustment = ww
-
-	xx := buff.ReadFloat64() // read float64
-	target.ExternalCost = xx
+	target.ExternalCost = ww
 
 	if buff.ReadUInt8() == uint8(0) {
 		target.RawAllocationOnly = nil
 	} else {
 		// --- [begin][read][struct](RawAllocationOnlyData) ---
-		yy := &RawAllocationOnlyData{}
-		aaa := buff.ReadInt()      // byte array length
-		bbb := buff.ReadBytes(aaa) // byte array
-		errG := yy.UnmarshalBinary(bbb)
+		xx := &RawAllocationOnlyData{}
+		yy := buff.ReadInt()      // byte array length
+		aaa := buff.ReadBytes(yy) // byte array
+		errG := xx.UnmarshalBinary(aaa)
 		if errG != nil {
 			return errG
 		}
-		target.RawAllocationOnly = yy
+		target.RawAllocationOnly = xx
 		// --- [end][read][struct](RawAllocationOnlyData) ---
 
 	}
@@ -721,6 +718,7 @@ func (target *AllocationSet) MarshalBinary() (data []byte, err error) {
 		// --- [end][write][map](map[string]bool) ---
 
 	}
+	buff.WriteString(target.FromSource) // write string
 	// --- [begin][write][struct](Window) ---
 	b, errB := target.Window.MarshalBinary()
 	if errB != nil {
@@ -858,31 +856,34 @@ func (target *AllocationSet) UnmarshalBinary(data []byte) (err error) {
 		// --- [end][read][map](map[string]bool) ---
 
 	}
+	q := buff.ReadString() // read string
+	target.FromSource = q
+
 	// --- [begin][read][struct](Window) ---
-	q := &Window{}
-	r := buff.ReadInt()    // byte array length
-	s := buff.ReadBytes(r) // byte array
-	errB := q.UnmarshalBinary(s)
+	r := &Window{}
+	s := buff.ReadInt()    // byte array length
+	t := buff.ReadBytes(s) // byte array
+	errB := r.UnmarshalBinary(t)
 	if errB != nil {
 		return errB
 	}
-	target.Window = *q
+	target.Window = *r
 	// --- [end][read][struct](Window) ---
 
 	if buff.ReadUInt8() == uint8(0) {
 		target.Warnings = nil
 	} else {
 		// --- [begin][read][slice]([]string) ---
-		u := buff.ReadInt() // array len
-		t := make([]string, u)
-		for jj := 0; jj < u; jj++ {
-			var w string
-			x := buff.ReadString() // read string
-			w = x
+		w := buff.ReadInt() // array len
+		u := make([]string, w)
+		for jj := 0; jj < w; jj++ {
+			var x string
+			y := buff.ReadString() // read string
+			x = y
 
-			t[jj] = w
+			u[jj] = x
 		}
-		target.Warnings = t
+		target.Warnings = u
 		// --- [end][read][slice]([]string) ---
 
 	}
@@ -890,16 +891,16 @@ func (target *AllocationSet) UnmarshalBinary(data []byte) (err error) {
 		target.Errors = nil
 	} else {
 		// --- [begin][read][slice]([]string) ---
-		aa := buff.ReadInt() // array len
-		y := make([]string, aa)
-		for iii := 0; iii < aa; iii++ {
-			var bb string
-			cc := buff.ReadString() // read string
-			bb = cc
+		bb := buff.ReadInt() // array len
+		aa := make([]string, bb)
+		for iii := 0; iii < bb; iii++ {
+			var cc string
+			dd := buff.ReadString() // read string
+			cc = dd
 
-			y[iii] = bb
+			aa[iii] = cc
 		}
-		target.Errors = y
+		target.Errors = aa
 		// --- [end][read][slice]([]string) ---
 
 	}
@@ -956,6 +957,7 @@ func (target *AllocationSetRange) MarshalBinary() (data []byte, err error) {
 		// --- [end][write][slice]([]*AllocationSet) ---
 
 	}
+	buff.WriteString(target.FromStore) // write string
 	return buff.Bytes(), nil
 }
 
@@ -1012,6 +1014,9 @@ func (target *AllocationSetRange) UnmarshalBinary(data []byte) (err error) {
 		// --- [end][read][slice]([]*AllocationSet) ---
 
 	}
+	g := buff.ReadString() // read string
+	target.FromStore = g
+
 	return nil
 }
 
@@ -1364,6 +1369,7 @@ func (target *AssetSet) MarshalBinary() (data []byte, err error) {
 		// --- [end][write][map](map[string]Asset) ---
 
 	}
+	buff.WriteString(target.FromSource) // write string
 	// --- [begin][write][struct](Window) ---
 	d, errB := target.Window.MarshalBinary()
 	if errB != nil {
@@ -1484,31 +1490,34 @@ func (target *AssetSet) UnmarshalBinary(data []byte) (err error) {
 		// --- [end][read][map](map[string]Asset) ---
 
 	}
+	o := buff.ReadString() // read string
+	target.FromSource = o
+
 	// --- [begin][read][struct](Window) ---
-	o := &Window{}
-	p := buff.ReadInt()    // byte array length
-	q := buff.ReadBytes(p) // byte array
-	errB := o.UnmarshalBinary(q)
+	p := &Window{}
+	q := buff.ReadInt()    // byte array length
+	r := buff.ReadBytes(q) // byte array
+	errB := p.UnmarshalBinary(r)
 	if errB != nil {
 		return errB
 	}
-	target.Window = *o
+	target.Window = *p
 	// --- [end][read][struct](Window) ---
 
 	if buff.ReadUInt8() == uint8(0) {
 		target.Warnings = nil
 	} else {
 		// --- [begin][read][slice]([]string) ---
-		s := buff.ReadInt() // array len
-		r := make([]string, s)
-		for ii := 0; ii < s; ii++ {
-			var t string
-			u := buff.ReadString() // read string
-			t = u
+		t := buff.ReadInt() // array len
+		s := make([]string, t)
+		for ii := 0; ii < t; ii++ {
+			var u string
+			w := buff.ReadString() // read string
+			u = w
 
-			r[ii] = t
+			s[ii] = u
 		}
-		target.Warnings = r
+		target.Warnings = s
 		// --- [end][read][slice]([]string) ---
 
 	}
@@ -1516,16 +1525,16 @@ func (target *AssetSet) UnmarshalBinary(data []byte) (err error) {
 		target.Errors = nil
 	} else {
 		// --- [begin][read][slice]([]string) ---
-		x := buff.ReadInt() // array len
-		w := make([]string, x)
-		for jj := 0; jj < x; jj++ {
-			var y string
-			aa := buff.ReadString() // read string
-			y = aa
+		y := buff.ReadInt() // array len
+		x := make([]string, y)
+		for jj := 0; jj < y; jj++ {
+			var aa string
+			bb := buff.ReadString() // read string
+			aa = bb
 
-			w[jj] = y
+			x[jj] = aa
 		}
-		target.Errors = w
+		target.Errors = x
 		// --- [end][read][slice]([]string) ---
 
 	}
@@ -1582,6 +1591,7 @@ func (target *AssetSetRange) MarshalBinary() (data []byte, err error) {
 		// --- [end][write][slice]([]*AssetSet) ---
 
 	}
+	buff.WriteString(target.FromStore) // write string
 	return buff.Bytes(), nil
 }
 
@@ -1638,6 +1648,9 @@ func (target *AssetSetRange) UnmarshalBinary(data []byte) (err error) {
 		// --- [end][read][slice]([]*AssetSet) ---
 
 	}
+	g := buff.ReadString() // read string
+	target.FromStore = g
+
 	return nil
 }
 
