@@ -1651,6 +1651,7 @@ func (as *AllocationSet) ComputeIdleAllocations(assetSet *AssetSet) (map[string]
 // allocation with idle reflects the adjusted node costs. One idle allocation
 // per-node will be computed and returned, keyed by cluster_id.
 func (as *AllocationSet) ComputeIdleAllocationsByNode(assetSet *AssetSet) (map[string]*Allocation, error) {
+
 	if as == nil {
 		return nil, fmt.Errorf("cannot compute idle allocation for nil AllocationSet")
 	}
@@ -1782,137 +1783,6 @@ func (as *AllocationSet) ComputeIdleAllocationsByNode(assetSet *AssetSet) (map[s
 	}
 
 	return idleAllocs, nil
-}
-
-// Reconcile calculate the exact cost of Allocation by resource(cpu, ram, gpu etc) based on Asset(s) on which
-// the Allocation depends.
-func (as *AllocationSet) Reconcile(assetSet *AssetSet) error {
-	if as == nil {
-		return fmt.Errorf("cannot reconcile allocation for nil AllocationSet")
-	}
-
-	if assetSet == nil {
-		return fmt.Errorf("cannot reconcile allocation with nil AssetSet")
-	}
-
-	if !as.Window.Equal(assetSet.Window) {
-		return fmt.Errorf("cannot reconcile allocation for sets with mismatched windows: %s != %s", as.Window, assetSet.Window)
-	}
-
-	// Build map of Assets with type Node by their ProviderId so that they can be matched to Allocations to determine
-	// proper CPU GPU and RAM prices
-	nodeByProviderID := map[string]*Node{}
-	diskByName := map[string]*Disk{}
-	assetSet.Each(func(key string, a Asset) {
-		if node, ok := a.(*Node); ok && node.properties.ProviderID != "" {
-			nodeByProviderID[node.properties.ProviderID] = node
-		}
-		if disk, ok := a.(*Disk); ok {
-			diskByName[disk.properties.Name] = disk
-		}
-	})
-
-	// Match Assets against allocations and adjust allocation cost based on the proportion of the asset that they used
-	as.Each(func(name string, a *Allocation) {
-		a.reconcileNodes(nodeByProviderID)
-		a.reconcileDisks(diskByName)
-	})
-
-	return nil
-}
-
-func (a *Allocation) reconcileNodes(nodeByProviderID map[string]*Node) {
-	providerId := a.Properties.ProviderID
-
-	// Reconcile with node Assets
-	node, ok := nodeByProviderID[providerId]
-	if !ok {
-		// Failed to find node for allocation
-		return
-	}
-
-	// adjustmentRate is used to scale resource costs proportionally
-	// by the adjustment. This is necessary because we only get one
-	// adjustment per Node, not one per-resource-per-Node.
-	//
-	// e.g. total cost = $90, adjustment = -$10 => 0.9
-	// e.g. total cost = $150, adjustment = -$300 => 0.3333
-	// e.g. total cost = $150, adjustment = $50 => 1.5
-	adjustmentRate := 1.0
-	if node.TotalCost()-node.Adjustment() == 0 {
-		// If (totalCost - adjustment) is 0.0 then adjustment cancels
-		// the entire node cost and we should make everything 0
-		// without dividing by 0.
-		adjustmentRate = 0.0
-	} else if node.Adjustment() != 0.0 {
-		// adjustmentRate is the ratio of cost-with-adjustment (i.e. TotalCost)
-		// to cost-without-adjustment (i.e. TotalCost - Adjustment).
-		adjustmentRate = node.TotalCost() / (node.TotalCost() - node.Adjustment())
-	}
-
-	// Find total cost of each node resource for the window
-	cpuCost := node.CPUCost * (1.0 - node.Discount) * adjustmentRate
-	ramCost := node.RAMCost * (1.0 - node.Discount) * adjustmentRate
-	gpuCost := node.GPUCost * adjustmentRate
-
-	// Find the proportion of resource hours used by the allocation, checking for 0 denominators
-	cpuUsageProportion := 0.0
-	if node.CPUCoreHours != 0 {
-		cpuUsageProportion = a.CPUCoreHours / node.CPUCoreHours
-	} else {
-		log.Warningf("Missing CPU Hours for node Provider ID: %s", providerId)
-	}
-	ramUsageProportion := 0.0
-	if node.RAMByteHours != 0 {
-		ramUsageProportion = a.RAMByteHours / node.RAMByteHours
-	} else {
-		log.Warningf("Missing Ram Byte Hours for node Provider ID: %s", providerId)
-	}
-	gpuUsageProportion := 0.0
-	if node.GPUHours != 0 {
-		gpuUsageProportion = a.GPUHours / node.GPUHours
-	}
-	// No log for GPU because not all nodes have GPU
-
-	// Calculate the allocation's resource costs by the proportion of resources used and total costs
-	allocCPUCost := cpuUsageProportion * cpuCost
-	allocRAMCost := ramUsageProportion * ramCost
-	allocGPUCost := gpuUsageProportion * gpuCost
-
-	a.CPUCostAdjustment = allocCPUCost - a.CPUCost
-	a.RAMCostAdjustment = allocRAMCost - a.RAMCost
-	a.GPUCostAdjustment = allocGPUCost - a.GPUCost
-}
-
-func (a *Allocation) reconcileDisks(diskByName map[string]*Disk) {
-	pvs := a.PVs
-	if pvs == nil {
-		// No PV usage to reconcile
-		return
-	}
-	// Set PV Adjustment for allocation to 0 for idempotency
-	a.PVCostAdjustment = 0.0
-	for pvKey, pvUsage := range pvs {
-		disk, ok := diskByName[pvKey.Name]
-		if !ok {
-			// Failed to find disk in assets
-			continue
-		}
-		// Check the proportion of disk that is being used by
-		pvUsageProportion := 0.0
-		if disk.ByteHours != 0 {
-			pvUsageProportion = pvUsage.ByteHours / disk.ByteHours
-		} else {
-			log.Warningf("Missing Byte Hours for disk: %s", pvKey)
-		}
-
-		// take proportion of disk adjusted cost
-		allocPVCost := pvUsageProportion * disk.TotalCost()
-
-		// PVCostAdjustment is cumulative as there can be many PVs for each Allocation
-		a.PVCostAdjustment += allocPVCost - pvUsage.Cost
-	}
-
 }
 
 // Delete removes the allocation with the given name from the set

@@ -21,127 +21,6 @@ var windows = []Window{
 	NewWindow(&start3, &start4),
 }
 
-const gb = 1024 * 1024 * 1024
-
-// generateAssetSet generates the following topology:
-//
-// | Asset                        | Cost |  Adj |
-// +------------------------------+------+------+
-//   cluster1:
-//     node1:                        6.00   1.00
-//     node2:                        4.00   1.50
-//     node3:                        7.00  -0.50
-//     disk1:                        2.50   0.00
-//     disk2:                        1.50   0.00
-//     clusterManagement1:           3.00   0.00
-// +------------------------------+------+------+
-//   cluster1 subtotal              24.00   2.00
-// +------------------------------+------+------+
-//   cluster2:
-//     node4:                       12.00  -1.00
-//     disk3:                        2.50   0.00
-//     disk4:                        1.50   0.00
-//     clusterManagement2:           0.00   0.00
-// +------------------------------+------+------+
-//   cluster2 subtotal              16.00  -1.00
-// +------------------------------+------+------+
-//   cluster3:
-//     node5:                       17.00   2.00
-// +------------------------------+------+------+
-//   cluster3 subtotal              17.00   2.00
-// +------------------------------+------+------+
-//   total                          57.00   3.00
-// +------------------------------+------+------+
-func generateAssetSet(start time.Time) *AssetSet {
-	end := start.Add(day)
-	window := NewWindow(&start, &end)
-
-	hours := window.Duration().Hours()
-
-	node1 := NewNode("node1", "cluster1", "gcp-node1", *window.Clone().start, *window.Clone().end, window.Clone())
-	node1.CPUCost = 4.0
-	node1.RAMCost = 4.0
-	node1.GPUCost = 2.0
-	node1.Discount = 0.5
-	node1.CPUCoreHours = 2.0 * hours
-	node1.RAMByteHours = 4.0 * gb * hours
-	node1.GPUHours = 1.0 * hours
-	node1.SetAdjustment(1.0)
-	node1.SetLabels(map[string]string{"test": "test"})
-
-	node2 := NewNode("node2", "cluster1", "gcp-node2", *window.Clone().start, *window.Clone().end, window.Clone())
-	node2.CPUCost = 4.0
-	node2.RAMCost = 4.0
-	node2.GPUCost = 0.0
-	node2.Discount = 0.5
-	node2.CPUCoreHours = 2.0 * hours
-	node2.RAMByteHours = 4.0 * gb * hours
-	node2.GPUHours = 0.0 * hours
-	node2.SetAdjustment(1.5)
-
-	node3 := NewNode("node3", "cluster1", "gcp-node3", *window.Clone().start, *window.Clone().end, window.Clone())
-	node3.CPUCost = 4.0
-	node3.RAMCost = 4.0
-	node3.GPUCost = 3.0
-	node3.Discount = 0.5
-	node3.CPUCoreHours = 2.0 * hours
-	node3.RAMByteHours = 4.0 * gb * hours
-	node3.GPUHours = 2.0 * hours
-	node3.SetAdjustment(-0.5)
-
-	node4 := NewNode("node4", "cluster2", "gcp-node4", *window.Clone().start, *window.Clone().end, window.Clone())
-	node4.CPUCost = 10.0
-	node4.RAMCost = 6.0
-	node4.GPUCost = 0.0
-	node4.Discount = 0.25
-	node4.CPUCoreHours = 4.0 * hours
-	node4.RAMByteHours = 12.0 * gb * hours
-	node4.GPUHours = 0.0 * hours
-	node4.SetAdjustment(-1.0)
-
-	node5 := NewNode("node5", "cluster3", "aws-node5", *window.Clone().start, *window.Clone().end, window.Clone())
-	node5.CPUCost = 10.0
-	node5.RAMCost = 7.0
-	node5.GPUCost = 0.0
-	node5.Discount = 0.0
-	node5.CPUCoreHours = 8.0 * hours
-	node5.RAMByteHours = 24.0 * gb * hours
-	node5.GPUHours = 0.0 * hours
-	node5.SetAdjustment(2.0)
-
-	disk1 := NewDisk("disk1", "cluster1", "gcp-disk1", *window.Clone().start, *window.Clone().end, window.Clone())
-	disk1.Cost = 2.5
-	disk1.ByteHours = 100 * gb * hours
-
-	disk2 := NewDisk("disk2", "cluster1", "gcp-disk2", *window.Clone().start, *window.Clone().end, window.Clone())
-	disk2.Cost = 1.5
-	disk2.ByteHours = 60 * gb * hours
-
-	disk3 := NewDisk("disk3", "cluster2", "gcp-disk3", *window.Clone().start, *window.Clone().end, window.Clone())
-	disk3.Cost = 2.5
-	disk3.ByteHours = 100 * gb * hours
-
-	disk4 := NewDisk("disk4", "cluster2", "gcp-disk4", *window.Clone().start, *window.Clone().end, window.Clone())
-	disk4.Cost = 1.5
-	disk4.ByteHours = 100 * gb * hours
-
-	cm1 := NewClusterManagement("gcp", "cluster1", window.Clone())
-	cm1.Cost = 3.0
-
-	cm2 := NewClusterManagement("gcp", "cluster2", window.Clone())
-	cm2.Cost = 0.0
-
-	return NewAssetSet(
-		start, end,
-		// cluster 1
-		node1, node2, node3, disk1, disk2, cm1,
-		// cluster 2
-		node4, disk3, disk4, cm2,
-		// cluster 3
-		node5,
-	)
-}
-
 func assertAssetSet(t *testing.T, as *AssetSet, msg string, window Window, exps map[string]float64, err error) {
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy[%s]: unexpected error: %s", msg, err)
@@ -794,7 +673,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	// 1  Single-aggregation
 
 	// 1a []AssetProperty=[Cluster]
-	as = generateAssetSet(startYesterday)
+	as = GenerateAssetSet(startYesterday)
 	err = as.AggregateBy([]string{string(AssetClusterProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
@@ -806,7 +685,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	}, nil)
 
 	// 1b []AssetProperty=[Type]
-	as = generateAssetSet(startYesterday)
+	as = GenerateAssetSet(startYesterday)
 	err = as.AggregateBy([]string{string(AssetTypeProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
@@ -818,7 +697,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	}, nil)
 
 	// 1c []AssetProperty=[Nil]
-	as = generateAssetSet(startYesterday)
+	as = GenerateAssetSet(startYesterday)
 	err = as.AggregateBy([]string{}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
@@ -828,7 +707,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	}, nil)
 
 	// 1d []AssetProperty=nil
-	as = generateAssetSet(startYesterday)
+	as = GenerateAssetSet(startYesterday)
 	err = as.AggregateBy(nil, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
@@ -848,7 +727,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	}, nil)
 
 	// 1e aggregateBy []string=["label:test"]
-	as = generateAssetSet(startYesterday)
+	as = GenerateAssetSet(startYesterday)
 	err = as.AggregateBy([]string{"label:test"}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
@@ -861,7 +740,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	// 2  Multi-aggregation
 
 	// 2a []AssetProperty=[Cluster,Type]
-	as = generateAssetSet(startYesterday)
+	as = GenerateAssetSet(startYesterday)
 	err = as.AggregateBy([]string{string(AssetClusterProp), string(AssetTypeProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
@@ -879,7 +758,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	// 3  Share resources
 
 	// 3a Shared hourly cost > 0.0
-	as = generateAssetSet(startYesterday)
+	as = GenerateAssetSet(startYesterday)
 	err = as.AggregateBy([]string{string(AssetTypeProp)}, &AssetAggregationOptions{
 		SharedHourlyCosts: map[string]float64{"shared1": 0.5},
 	})
@@ -905,7 +784,7 @@ func TestAssetSet_FindMatch(t *testing.T) {
 	var err error
 
 	// Assert success of a simple match of Type and ProviderID
-	as = generateAssetSet(startYesterday)
+	as = GenerateAssetSet(startYesterday)
 	query = NewNode("", "", "gcp-node3", s, e, w)
 	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)})
 	if err != nil {
@@ -913,7 +792,7 @@ func TestAssetSet_FindMatch(t *testing.T) {
 	}
 
 	// Assert error of a simple non-match of Type and ProviderID
-	as = generateAssetSet(startYesterday)
+	as = GenerateAssetSet(startYesterday)
 	query = NewNode("", "", "aws-node3", s, e, w)
 	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)})
 	if err == nil {
@@ -921,7 +800,7 @@ func TestAssetSet_FindMatch(t *testing.T) {
 	}
 
 	// Assert error of matching ProviderID, but not Type
-	as = generateAssetSet(startYesterday)
+	as = GenerateAssetSet(startYesterday)
 	query = NewCloud(ComputeCategory, "gcp-node3", s, e, w)
 	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)})
 	if err == nil {
@@ -944,9 +823,9 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 	var err error
 
 	asr = NewAssetSetRange(
-		generateAssetSet(startD0),
-		generateAssetSet(startD1),
-		generateAssetSet(startD2),
+		GenerateAssetSet(startD0),
+		GenerateAssetSet(startD1),
+		GenerateAssetSet(startD2),
 	)
 	err = asr.AggregateBy(nil, nil)
 	as, err = asr.Accumulate()
@@ -968,9 +847,9 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 	}, nil)
 
 	asr = NewAssetSetRange(
-		generateAssetSet(startD0),
-		generateAssetSet(startD1),
-		generateAssetSet(startD2),
+		GenerateAssetSet(startD0),
+		GenerateAssetSet(startD1),
+		GenerateAssetSet(startD2),
 	)
 	err = asr.AggregateBy([]string{}, nil)
 	as, err = asr.Accumulate()
@@ -982,9 +861,9 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 	}, nil)
 
 	asr = NewAssetSetRange(
-		generateAssetSet(startD0),
-		generateAssetSet(startD1),
-		generateAssetSet(startD2),
+		GenerateAssetSet(startD0),
+		GenerateAssetSet(startD1),
+		GenerateAssetSet(startD2),
 	)
 	err = asr.AggregateBy([]string{string(AssetTypeProp)}, nil)
 	if err != nil {
@@ -1001,9 +880,9 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 	}, nil)
 
 	asr = NewAssetSetRange(
-		generateAssetSet(startD0),
-		generateAssetSet(startD1),
-		generateAssetSet(startD2),
+		GenerateAssetSet(startD0),
+		GenerateAssetSet(startD1),
+		GenerateAssetSet(startD2),
 	)
 	err = asr.AggregateBy([]string{string(AssetClusterProp)}, nil)
 	if err != nil {
@@ -1023,8 +902,8 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 	// is empty (this was previously an issue)
 	asr = NewAssetSetRange(
 		NewAssetSet(startD0, startD1),
-		generateAssetSet(startD1),
-		generateAssetSet(startD2),
+		GenerateAssetSet(startD1),
+		GenerateAssetSet(startD2),
 	)
 
 	err = asr.AggregateBy([]string{string(AssetTypeProp)}, nil)
@@ -1186,7 +1065,7 @@ func TestAssetToExternalAllocation(t *testing.T) {
 // })
 // }
 
-// // generateAssetSet generates the following topology:
+// // GenerateAssetSet generates the following topology:
 // //
 // // | Asset                        | Cost |  Adj |
 // // +------------------------------+------+------+
@@ -1215,7 +1094,7 @@ func TestAssetToExternalAllocation(t *testing.T) {
 // // +------------------------------+------+------+
 // //   total                          57.00   3.00
 // // +------------------------------+------+------+
-// func generateAssetSet(start time.Time) *AssetSet {
+// func GenerateAssetSet(start time.Time) *AssetSet {
 // end := start.Add(day)
 // window := NewWindow(&start, &end)
 
