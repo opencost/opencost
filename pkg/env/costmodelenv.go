@@ -67,6 +67,8 @@ const (
 	ETLMaxBatchHours             = "ETL_MAX_BATCH_HOURS"
 	ETLResolutionSeconds         = "ETL_RESOLUTION_SECONDS"
 	LegacyExternalAPIDisabledVar = "LEGACY_EXTERNAL_API_DISABLED"
+
+	PromClusterIDLabelEnvVar = "PROM_CLUSTER_ID_LABEL"
 )
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
@@ -375,4 +377,9 @@ func GetETLResolution() time.Duration {
 
 func LegacyExternalCostsAPIDisabled() bool {
 	return GetBool(LegacyExternalAPIDisabledVar, false)
+}
+
+// GetPromClusterLabel returns the environemnt variable value for PromClusterIDLabel
+func GetPromClusterLabel() string {
+	return Get(PromClusterIDLabelEnvVar, "cluster_id")
 }

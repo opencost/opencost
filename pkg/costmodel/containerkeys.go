@@ -4,8 +4,9 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 var (
@@ -21,7 +22,7 @@ var (
 	NoNamespaceErr     error = errors.New("Prometheus vector does not have namespace")
 	NoNamespaceNameErr error = errors.New("Prometheus vector does not have string namespace")
 	NoNodeNameErr      error = errors.New("Prometheus vector does not have string node")
-	NoClusterIDErr     error = errors.New("Prometheus vector does not have string cluster_id")
+	NoClusterIDErr     error = errors.New("Prometheus vector does not have string cluster id")
 )
 
 //--------------------------------------------------------------------------
@@ -191,7 +192,7 @@ func NewContainerMetricFromPrometheus(metrics map[string]interface{}, defaultClu
 	if !ok {
 		return nil, NoNodeNameErr
 	}
-	cid, ok := metrics["cluster_id"]
+	cid, ok := metrics[env.GetPromClusterLabel()]
 	if !ok {
 		log.Debugf("Prometheus vector does not have cluster id")
 		cid = defaultClusterID

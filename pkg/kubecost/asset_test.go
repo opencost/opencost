@@ -21,7 +21,6 @@ var windows = []Window{
 	NewWindow(&start3, &start4),
 }
 
-const gb = 1024 * 1024 * 1024
 
 // generateAssetSet generates the following topology:
 //
