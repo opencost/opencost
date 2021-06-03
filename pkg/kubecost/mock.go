@@ -8,8 +8,8 @@ const gb = 1024 * 1024 * 1024
 const day = 24 * time.Hour
 var disk = PVKey{}
 
-// NewUnitAllocation creates an *Allocation with all of its float64 values set to 1 and generic properties if not provided in arg
-func NewUnitAllocation(name string, start time.Time, resolution time.Duration, props *AllocationProperties) *Allocation {
+// NewMockUnitAllocation creates an *Allocation with all of its float64 values set to 1 and generic properties if not provided in arg
+func NewMockUnitAllocation(name string, start time.Time, resolution time.Duration, props *AllocationProperties) *Allocation {
 	if name == "" {
 		name = "cluster1/namespace1/pod1/container1"
 	}
@@ -73,33 +73,33 @@ func NewUnitAllocation(name string, start time.Time, resolution time.Duration, p
 	return alloc
 }
 
-// GenerateAllocationSetClusterIdle creates generic allocation set which includes an idle set broken down by cluster
-func GenerateAllocationSetClusterIdle(start time.Time) *AllocationSet {
+// GenerateMockAllocationSetClusterIdle creates generic allocation set which includes an idle set broken down by cluster
+func GenerateMockAllocationSetClusterIdle(start time.Time) *AllocationSet {
 	// Cluster Idle allocations
-	a1i := NewUnitAllocation(fmt.Sprintf("cluster1/%s", IdleSuffix), start, day, &AllocationProperties{
+	a1i := NewMockUnitAllocation(fmt.Sprintf("cluster1/%s", IdleSuffix), start, day, &AllocationProperties{
 		Cluster: "cluster1",
 	})
 	a1i.CPUCost = 5.0
 	a1i.RAMCost = 15.0
 	a1i.GPUCost = 0.0
 
-	a2i := NewUnitAllocation(fmt.Sprintf("cluster2/%s", IdleSuffix), start, day, &AllocationProperties{
+	a2i := NewMockUnitAllocation(fmt.Sprintf("cluster2/%s", IdleSuffix), start, day, &AllocationProperties{
 		Cluster: "cluster2",
 	})
 	a2i.CPUCost = 5.0
 	a2i.RAMCost = 5.0
 	a2i.GPUCost = 0.0
 
-	as := GenerateAllocationSet(start)
+	as := GenerateMockAllocationSet(start)
 	as.Insert(a1i)
 	as.Insert(a2i)
 	return as
 }
 
-// GenerateAllocationSetNodeIdle creates generic allocation set which includes an idle set broken down by node
-func GenerateAllocationSetNodeIdle(start time.Time) *AllocationSet {
+// GenerateMockAllocationSetNodeIdle creates generic allocation set which includes an idle set broken down by node
+func GenerateMockAllocationSetNodeIdle(start time.Time) *AllocationSet {
 	// Node Idle allocations
-	a11i := NewUnitAllocation(fmt.Sprintf("c1nodes/%s", IdleSuffix), start, day, &AllocationProperties{
+	a11i := NewMockUnitAllocation(fmt.Sprintf("c1nodes/%s", IdleSuffix), start, day, &AllocationProperties{
 		Cluster:    "cluster1",
 		Node:       "c1nodes",
 		ProviderID: "c1nodes",
@@ -108,7 +108,7 @@ func GenerateAllocationSetNodeIdle(start time.Time) *AllocationSet {
 	a11i.RAMCost = 15.0
 	a11i.GPUCost = 0.0
 
-	a21i := NewUnitAllocation(fmt.Sprintf("node1/%s", IdleSuffix), start, day, &AllocationProperties{
+	a21i := NewMockUnitAllocation(fmt.Sprintf("node1/%s", IdleSuffix), start, day, &AllocationProperties{
 		Cluster:    "cluster2",
 		Node:       "node1",
 		ProviderID: "node1",
@@ -117,7 +117,7 @@ func GenerateAllocationSetNodeIdle(start time.Time) *AllocationSet {
 	a21i.RAMCost = 1.666667
 	a21i.GPUCost = 0.0
 
-	a22i := NewUnitAllocation(fmt.Sprintf("node2/%s", IdleSuffix), start, day, &AllocationProperties{
+	a22i := NewMockUnitAllocation(fmt.Sprintf("node2/%s", IdleSuffix), start, day, &AllocationProperties{
 		Cluster:    "cluster2",
 		Node:       "node2",
 		ProviderID: "node2",
@@ -126,7 +126,7 @@ func GenerateAllocationSetNodeIdle(start time.Time) *AllocationSet {
 	a22i.RAMCost = 1.666667
 	a22i.GPUCost = 0.0
 
-	a23i := NewUnitAllocation(fmt.Sprintf("node3/%s", IdleSuffix), start, day, &AllocationProperties{
+	a23i := NewMockUnitAllocation(fmt.Sprintf("node3/%s", IdleSuffix), start, day, &AllocationProperties{
 		Cluster:    "cluster2",
 		Node:       "node3",
 		ProviderID: "node3",
@@ -136,7 +136,7 @@ func GenerateAllocationSetNodeIdle(start time.Time) *AllocationSet {
 	a23i.RAMCost = 1.666667
 	a23i.GPUCost = 0.0
 
-	as := GenerateAllocationSet(start)
+	as := GenerateMockAllocationSet(start)
 	as.Insert(a11i)
 	as.Insert(a21i)
 	as.Insert(a22i)
@@ -144,11 +144,11 @@ func GenerateAllocationSetNodeIdle(start time.Time) *AllocationSet {
 	return as
 }
 
-// GenerateAllocationSet creates generic allocation set without idle allocations
-func GenerateAllocationSet(start time.Time) *AllocationSet {
+// GenerateMockAllocationSet creates generic allocation set without idle allocations
+func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 
 	// Active allocations
-	a1111 := NewUnitAllocation("cluster1/namespace1/pod1/container1", start, day, &AllocationProperties{
+	a1111 := NewMockUnitAllocation("cluster1/namespace1/pod1/container1", start, day, &AllocationProperties{
 		Cluster:    "cluster1",
 		Namespace:  "namespace1",
 		Pod:        "pod1",
@@ -157,7 +157,7 @@ func GenerateAllocationSet(start time.Time) *AllocationSet {
 	})
 	a1111.RAMCost = 11.00
 
-	a11abc2 := NewUnitAllocation("cluster1/namespace1/pod-abc/container2", start, day, &AllocationProperties{
+	a11abc2 := NewMockUnitAllocation("cluster1/namespace1/pod-abc/container2", start, day, &AllocationProperties{
 		Cluster:    "cluster1",
 		Namespace:  "namespace1",
 		Pod:        "pod-abc",
@@ -165,7 +165,7 @@ func GenerateAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "c1nodes",
 	})
 
-	a11def3 := NewUnitAllocation("cluster1/namespace1/pod-def/container3", start, day, &AllocationProperties{
+	a11def3 := NewMockUnitAllocation("cluster1/namespace1/pod-def/container3", start, day, &AllocationProperties{
 		Cluster:    "cluster1",
 		Namespace:  "namespace1",
 		Pod:        "pod-def",
@@ -173,7 +173,7 @@ func GenerateAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "c1nodes",
 	})
 
-	a12ghi4 := NewUnitAllocation("cluster1/namespace2/pod-ghi/container4", start, day, &AllocationProperties{
+	a12ghi4 := NewMockUnitAllocation("cluster1/namespace2/pod-ghi/container4", start, day, &AllocationProperties{
 		Cluster:    "cluster1",
 		Namespace:  "namespace2",
 		Pod:        "pod-ghi",
@@ -181,7 +181,7 @@ func GenerateAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "c1nodes",
 	})
 
-	a12ghi5 := NewUnitAllocation("cluster1/namespace2/pod-ghi/container5", start, day, &AllocationProperties{
+	a12ghi5 := NewMockUnitAllocation("cluster1/namespace2/pod-ghi/container5", start, day, &AllocationProperties{
 		Cluster:    "cluster1",
 		Namespace:  "namespace2",
 		Pod:        "pod-ghi",
@@ -189,7 +189,7 @@ func GenerateAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "c1nodes",
 	})
 
-	a12jkl6 := NewUnitAllocation("cluster1/namespace2/pod-jkl/container6", start, day, &AllocationProperties{
+	a12jkl6 := NewMockUnitAllocation("cluster1/namespace2/pod-jkl/container6", start, day, &AllocationProperties{
 		Cluster:    "cluster1",
 		Namespace:  "namespace2",
 		Pod:        "pod-jkl",
@@ -197,7 +197,7 @@ func GenerateAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "c1nodes",
 	})
 
-	a22mno4 := NewUnitAllocation("cluster2/namespace2/pod-mno/container4", start, day, &AllocationProperties{
+	a22mno4 := NewMockUnitAllocation("cluster2/namespace2/pod-mno/container4", start, day, &AllocationProperties{
 		Cluster:    "cluster2",
 		Namespace:  "namespace2",
 		Pod:        "pod-mno",
@@ -205,7 +205,7 @@ func GenerateAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "node1",
 	})
 
-	a22mno5 := NewUnitAllocation("cluster2/namespace2/pod-mno/container5", start, day, &AllocationProperties{
+	a22mno5 := NewMockUnitAllocation("cluster2/namespace2/pod-mno/container5", start, day, &AllocationProperties{
 		Cluster:    "cluster2",
 		Namespace:  "namespace2",
 		Pod:        "pod-mno",
@@ -213,7 +213,7 @@ func GenerateAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "node1",
 	})
 
-	a22pqr6 := NewUnitAllocation("cluster2/namespace2/pod-pqr/container6", start, day, &AllocationProperties{
+	a22pqr6 := NewMockUnitAllocation("cluster2/namespace2/pod-pqr/container6", start, day, &AllocationProperties{
 		Cluster:    "cluster2",
 		Namespace:  "namespace2",
 		Pod:        "pod-pqr",
@@ -221,7 +221,7 @@ func GenerateAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "node2",
 	})
 
-	a23stu7 := NewUnitAllocation("cluster2/namespace3/pod-stu/container7", start, day, &AllocationProperties{
+	a23stu7 := NewMockUnitAllocation("cluster2/namespace3/pod-stu/container7", start, day, &AllocationProperties{
 		Cluster:    "cluster2",
 		Namespace:  "namespace3",
 		Pod:        "pod-stu",
@@ -229,7 +229,7 @@ func GenerateAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "node2",
 	})
 
-	a23vwx8 := NewUnitAllocation("cluster2/namespace3/pod-vwx/container8", start, day, &AllocationProperties{
+	a23vwx8 := NewMockUnitAllocation("cluster2/namespace3/pod-vwx/container8", start, day, &AllocationProperties{
 		Cluster:    "cluster2",
 		Namespace:  "namespace3",
 		Pod:        "pod-vwx",
@@ -237,7 +237,7 @@ func GenerateAllocationSet(start time.Time) *AllocationSet {
 		ProviderID: "node3",
 	})
 
-	a23vwx9 := NewUnitAllocation("cluster2/namespace3/pod-vwx/container9", start, day, &AllocationProperties{
+	a23vwx9 := NewMockUnitAllocation("cluster2/namespace3/pod-vwx/container9", start, day, &AllocationProperties{
 		Cluster:    "cluster2",
 		Namespace:  "namespace3",
 		Pod:        "pod-vwx",
@@ -303,9 +303,9 @@ func GenerateAllocationSet(start time.Time) *AllocationSet {
 	)
 }
 
-// GenerateAllocationSetWithAssetProperties with no idle and connections to Assets in properties
-func GenerateAllocationSetWithAssetProperties(start time.Time)  *AllocationSet {
-	as := GenerateAllocationSet(start)
+// GenerateMockAllocationSetWithAssetProperties with no idle and connections to Assets in properties
+func GenerateMockAllocationSetWithAssetProperties(start time.Time)  *AllocationSet {
+	as := GenerateMockAllocationSet(start)
 	disk1 := PVKey{
 		Cluster: "cluster2",
 		Name:    "disk1",
@@ -343,8 +343,8 @@ func GenerateAllocationSetWithAssetProperties(start time.Time)  *AllocationSet {
 	return as
 }
 
-// GenerateAssetSets creates generic AssetSets
-func GenerateAssetSets(start, end time.Time) []*AssetSet {
+// GenerateMockAssetSets creates generic AssetSets
+func GenerateMockAssetSets(start, end time.Time) []*AssetSet {
 	var assetSets []*AssetSet
 
 	// Create an AssetSet representing cluster costs for two clusters (cluster1
@@ -353,7 +353,7 @@ func GenerateAssetSets(start, end time.Time) []*AssetSet {
 	// by type, here we will provide multiple Nodes for one of the clusters to
 	// make sure the function still holds.
 
-	// NOTE: we're re-using GenerateAllocationSet so this has to line up with
+	// NOTE: we're re-using GenerateMockAllocationSet so this has to line up with
 	// the allocated node costs from that function. See table above.
 
 	// | Hierarchy                               | Cost |  CPU |  RAM |  GPU | Adjustment |
@@ -469,7 +469,7 @@ func GenerateAssetSets(start, end time.Time) []*AssetSet {
 		cluster2ClusterManagement, c1Network, node1Network, node2Network, node3Network, cluster2LoadBalancer1, cluster2LoadBalancer2)
 	assetSets = append(assetSets, assetSet1)
 
-	// NOTE: we're re-using GenerateAllocationSet so this has to line up with
+	// NOTE: we're re-using GenerateMockAllocationSet so this has to line up with
 	// the allocated node costs from that function. See table above.
 
 	// | Hierarchy                               | Cost |  CPU |  RAM |  GPU | Adjustment |
@@ -547,7 +547,7 @@ func GenerateAssetSets(start, end time.Time) []*AssetSet {
 	return assetSets
 }
 
-// GenerateAssetSet generates the following topology:
+// GenerateMockAssetSet generates the following topology:
 //
 // | Asset                        | Cost |  Adj |
 // +------------------------------+------+------+
@@ -576,7 +576,7 @@ func GenerateAssetSets(start, end time.Time) []*AssetSet {
 // +------------------------------+------+------+
 //   total                          57.00   3.00
 // +------------------------------+------+------+
-func GenerateAssetSet(start time.Time) *AssetSet {
+func GenerateMockAssetSet(start time.Time) *AssetSet {
 	end := start.Add(day)
 	window := NewWindow(&start, &end)
 

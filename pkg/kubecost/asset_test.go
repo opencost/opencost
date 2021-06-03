@@ -673,7 +673,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	// 1  Single-aggregation
 
 	// 1a []AssetProperty=[Cluster]
-	as = GenerateAssetSet(startYesterday)
+	as = GenerateMockAssetSet(startYesterday)
 	err = as.AggregateBy([]string{string(AssetClusterProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
@@ -685,7 +685,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	}, nil)
 
 	// 1b []AssetProperty=[Type]
-	as = GenerateAssetSet(startYesterday)
+	as = GenerateMockAssetSet(startYesterday)
 	err = as.AggregateBy([]string{string(AssetTypeProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
@@ -697,7 +697,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	}, nil)
 
 	// 1c []AssetProperty=[Nil]
-	as = GenerateAssetSet(startYesterday)
+	as = GenerateMockAssetSet(startYesterday)
 	err = as.AggregateBy([]string{}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
@@ -707,7 +707,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	}, nil)
 
 	// 1d []AssetProperty=nil
-	as = GenerateAssetSet(startYesterday)
+	as = GenerateMockAssetSet(startYesterday)
 	err = as.AggregateBy(nil, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
@@ -727,7 +727,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	}, nil)
 
 	// 1e aggregateBy []string=["label:test"]
-	as = GenerateAssetSet(startYesterday)
+	as = GenerateMockAssetSet(startYesterday)
 	err = as.AggregateBy([]string{"label:test"}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
@@ -740,7 +740,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	// 2  Multi-aggregation
 
 	// 2a []AssetProperty=[Cluster,Type]
-	as = GenerateAssetSet(startYesterday)
+	as = GenerateMockAssetSet(startYesterday)
 	err = as.AggregateBy([]string{string(AssetClusterProp), string(AssetTypeProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.AggregateBy: unexpected error: %s", err)
@@ -758,7 +758,7 @@ func TestAssetSet_AggregateBy(t *testing.T) {
 	// 3  Share resources
 
 	// 3a Shared hourly cost > 0.0
-	as = GenerateAssetSet(startYesterday)
+	as = GenerateMockAssetSet(startYesterday)
 	err = as.AggregateBy([]string{string(AssetTypeProp)}, &AssetAggregationOptions{
 		SharedHourlyCosts: map[string]float64{"shared1": 0.5},
 	})
@@ -784,7 +784,7 @@ func TestAssetSet_FindMatch(t *testing.T) {
 	var err error
 
 	// Assert success of a simple match of Type and ProviderID
-	as = GenerateAssetSet(startYesterday)
+	as = GenerateMockAssetSet(startYesterday)
 	query = NewNode("", "", "gcp-node3", s, e, w)
 	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)})
 	if err != nil {
@@ -792,7 +792,7 @@ func TestAssetSet_FindMatch(t *testing.T) {
 	}
 
 	// Assert error of a simple non-match of Type and ProviderID
-	as = GenerateAssetSet(startYesterday)
+	as = GenerateMockAssetSet(startYesterday)
 	query = NewNode("", "", "aws-node3", s, e, w)
 	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)})
 	if err == nil {
@@ -800,7 +800,7 @@ func TestAssetSet_FindMatch(t *testing.T) {
 	}
 
 	// Assert error of matching ProviderID, but not Type
-	as = GenerateAssetSet(startYesterday)
+	as = GenerateMockAssetSet(startYesterday)
 	query = NewCloud(ComputeCategory, "gcp-node3", s, e, w)
 	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)})
 	if err == nil {
@@ -823,9 +823,9 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 	var err error
 
 	asr = NewAssetSetRange(
-		GenerateAssetSet(startD0),
-		GenerateAssetSet(startD1),
-		GenerateAssetSet(startD2),
+		GenerateMockAssetSet(startD0),
+		GenerateMockAssetSet(startD1),
+		GenerateMockAssetSet(startD2),
 	)
 	err = asr.AggregateBy(nil, nil)
 	as, err = asr.Accumulate()
@@ -847,9 +847,9 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 	}, nil)
 
 	asr = NewAssetSetRange(
-		GenerateAssetSet(startD0),
-		GenerateAssetSet(startD1),
-		GenerateAssetSet(startD2),
+		GenerateMockAssetSet(startD0),
+		GenerateMockAssetSet(startD1),
+		GenerateMockAssetSet(startD2),
 	)
 	err = asr.AggregateBy([]string{}, nil)
 	as, err = asr.Accumulate()
@@ -861,9 +861,9 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 	}, nil)
 
 	asr = NewAssetSetRange(
-		GenerateAssetSet(startD0),
-		GenerateAssetSet(startD1),
-		GenerateAssetSet(startD2),
+		GenerateMockAssetSet(startD0),
+		GenerateMockAssetSet(startD1),
+		GenerateMockAssetSet(startD2),
 	)
 	err = asr.AggregateBy([]string{string(AssetTypeProp)}, nil)
 	if err != nil {
@@ -880,9 +880,9 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 	}, nil)
 
 	asr = NewAssetSetRange(
-		GenerateAssetSet(startD0),
-		GenerateAssetSet(startD1),
-		GenerateAssetSet(startD2),
+		GenerateMockAssetSet(startD0),
+		GenerateMockAssetSet(startD1),
+		GenerateMockAssetSet(startD2),
 	)
 	err = asr.AggregateBy([]string{string(AssetClusterProp)}, nil)
 	if err != nil {
@@ -902,8 +902,8 @@ func TestAssetSetRange_Accumulate(t *testing.T) {
 	// is empty (this was previously an issue)
 	asr = NewAssetSetRange(
 		NewAssetSet(startD0, startD1),
-		GenerateAssetSet(startD1),
-		GenerateAssetSet(startD2),
+		GenerateMockAssetSet(startD1),
+		GenerateMockAssetSet(startD2),
 	)
 
 	err = asr.AggregateBy([]string{string(AssetTypeProp)}, nil)
@@ -1065,7 +1065,7 @@ func TestAssetToExternalAllocation(t *testing.T) {
 // })
 // }
 
-// // GenerateAssetSet generates the following topology:
+// // GenerateMockAssetSet generates the following topology:
 // //
 // // | Asset                        | Cost |  Adj |
 // // +------------------------------+------+------+
@@ -1094,7 +1094,7 @@ func TestAssetToExternalAllocation(t *testing.T) {
 // // +------------------------------+------+------+
 // //   total                          57.00   3.00
 // // +------------------------------+------+------+
-// func GenerateAssetSet(start time.Time) *AssetSet {
+// func GenerateMockAssetSet(start time.Time) *AssetSet {
 // end := start.Add(day)
 // window := NewWindow(&start, &end)
 
