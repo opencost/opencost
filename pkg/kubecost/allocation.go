@@ -470,6 +470,16 @@ func (a *Allocation) PVBytes() float64 {
 	return a.PVByteHours() / (a.Minutes() / 60.0)
 }
 
+// ResetAdjustments sets all cost adjustment fields to zero
+func (a *Allocation) ResetAdjustments() {
+	a.CPUCostAdjustment = 0.0
+	a.GPUCostAdjustment = 0.0
+	a.RAMCostAdjustment = 0.0
+	a.PVCostAdjustment = 0.0
+	a.NetworkCostAdjustment = 0.0
+	a.LoadBalancerCostAdjustment = 0.0
+}
+
 // MarshalJSON implements json.Marshaler interface
 func (a *Allocation) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
