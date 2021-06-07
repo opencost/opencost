@@ -901,10 +901,12 @@ func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cp costAnalyz
 	key := cp.GetPVKey(kpv, pv.Parameters, defaultRegion)
 	pvWithCost, err := cp.PVPricing(key)
 	if err != nil {
+		pv.ProviderID = key.ID()
 		pv.Cost = cfg.Storage
 		return err
 	}
 	if pvWithCost == nil || pvWithCost.Cost == "" {
+		pv.ProviderID = key.ID()
 		pv.Cost = cfg.Storage
 		return nil // set default cost
 	}
