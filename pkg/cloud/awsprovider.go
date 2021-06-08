@@ -5,7 +5,6 @@ import (
 	"compress/gzip"
 	"encoding/csv"
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -15,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 
 	"k8s.io/klog"
 
