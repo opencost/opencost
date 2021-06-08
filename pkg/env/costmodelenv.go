@@ -94,13 +94,13 @@ func IsEmitPodAnnotationsMetric() bool {
 // IsEmitKubeNodeStatusCapacityMemoryBytesMetric returns true if cost-model is configured
 // to emit the kube_node_status_capacity_memory_bytes metric.
 func IsEmitKubeNodeStatusCapacityMemoryBytesMetric() bool {
-	return GetBool(EmitKubeNodeStatusCapacityMemoryBytesMetricEnvVar, false)
+	return GetBool(EmitKubeNodeStatusCapacityMemoryBytesMetricEnvVar, true)
 }
 
 // IsEmitKubeNodeStatusCapacityCPUCoresMetric returns true if cost-model is configured
 // to emit the kube_node_status_capacity_cpu_cores metric.
 func IsEmitKubeNodeStatusCapacityCPUCoresMetric() bool {
-	return GetBool(EmitKubeNodeStatusCapacityCPUCoresMetricEnvVar, false)
+	return GetBool(EmitKubeNodeStatusCapacityCPUCoresMetricEnvVar, true)
 }
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
