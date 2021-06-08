@@ -35,8 +35,10 @@ const (
 	ConfigPathEnvVar               = "CONFIG_PATH"
 	CloudProviderAPIKeyEnvVar      = "CLOUD_PROVIDER_API_KEY"
 
-	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
-	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
+	EmitPodAnnotationsMetricEnvVar                    = "EMIT_POD_ANNOTATIONS_METRIC"
+	EmitNamespaceAnnotationsMetricEnvVar              = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
+	EmitKubeNodeStatusCapacityMemoryBytesMetricEnvVar = "EMIT_KUBE_NODE_STATUS_CAPACITY_MEMORY_BYTES_METRIC"
+	EmitKubeNodeStatusCapacityCPUCoresMetricEnvVar    = "EMIT_KUBE_NODE_STATUS_CAPACITY_CPU_CORES_METRIC"
 
 	ThanosEnabledEnvVar      = "THANOS_ENABLED"
 	ThanosQueryUrlEnvVar     = "THANOS_QUERY_URL"
@@ -87,6 +89,18 @@ func IsEmitNamespaceAnnotationsMetric() bool {
 // pod annotations.
 func IsEmitPodAnnotationsMetric() bool {
 	return GetBool(EmitPodAnnotationsMetricEnvVar, false)
+}
+
+// IsEmitKubeNodeStatusCapacityMemoryBytesMetric returns true if cost-model is configured
+// to emit the kube_node_status_capacity_memory_bytes metric.
+func IsEmitKubeNodeStatusCapacityMemoryBytesMetric() bool {
+	return GetBool(EmitKubeNodeStatusCapacityMemoryBytesMetricEnvVar, false)
+}
+
+// IsEmitKubeNodeStatusCapacityCPUCoresMetric returns true if cost-model is configured
+// to emit the kube_node_status_capacity_cpu_cores metric.
+func IsEmitKubeNodeStatusCapacityCPUCoresMetric() bool {
+	return GetBool(EmitKubeNodeStatusCapacityCPUCoresMetricEnvVar, false)
 }
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
