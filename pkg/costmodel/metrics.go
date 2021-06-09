@@ -529,6 +529,188 @@ func (cim ClusterInfoMetric) Write(m *dto.Metric) error {
 	return nil
 }
 
+//--------------------------------------------------------------------------
+//  KubeNodeStatusCapacityMemoryBytesCollector
+//--------------------------------------------------------------------------
+
+// KubeNodeStatusCapacityMemoryBytesCollector is a prometheus collector that generates
+// KubeNodeStatusCapacityMemoryBytesMetrics
+type KubeNodeStatusCapacityMemoryBytesCollector struct {
+	KubeClusterCache clustercache.ClusterCache
+}
+
+// Describe sends the super-set of all possible descriptors of metrics
+// collected by this Collector.
+func (nsac KubeNodeStatusCapacityMemoryBytesCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- prometheus.NewDesc("kube_node_status_capacity_memory_bytes", "node capacity memory bytes", []string{}, nil)
+}
+
+// Collect is called by the Prometheus registry when collecting metrics.
+func (nsac KubeNodeStatusCapacityMemoryBytesCollector) Collect(ch chan<- prometheus.Metric) {
+	nodes := nsac.KubeClusterCache.GetAllNodes()
+	for _, node := range nodes {
+		// k8s.io/apimachinery/pkg/api/resource/amount.go and
+		// k8s.io/apimachinery/pkg/api/resource/quantity.go for
+		// details on the "amount" API. See
+		// https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-types
+		// for the units of memory and CPU.
+		memoryBytes := node.Status.Capacity.Memory().Value()
+
+		m := newKubeNodeStatusCapacityMemoryBytesMetric(node.GetName(), memoryBytes, "kube_node_status_capacity_memory_bytes", nil, nil)
+		ch <- m
+	}
+}
+
+//--------------------------------------------------------------------------
+//  KubeNodeStatusCapacityMemoryBytesMetric
+//--------------------------------------------------------------------------
+
+// KubeNodeStatusCapacityMemoryBytesMetric is a prometheus.Metric used to encode
+// a duplicate of the deprecated kube-state-metrics metric
+// kube_node_status_capacity_memory_bytes
+type KubeNodeStatusCapacityMemoryBytesMetric struct {
+	fqName      string
+	help        string
+	labelNames  []string
+	labelValues []string
+	bytes       int64
+	node        string
+}
+
+// Creates a new KubeNodeStatusCapacityMemoryBytesMetric, implementation of prometheus.Metric
+func newKubeNodeStatusCapacityMemoryBytesMetric(node string, bytes int64, fqname string, labelNames []string, labelValues []string) KubeNodeStatusCapacityMemoryBytesMetric {
+	return KubeNodeStatusCapacityMemoryBytesMetric{
+		fqName:      fqname,
+		labelNames:  labelNames,
+		labelValues: labelValues,
+		help:        "kube_node_status_capacity_memory_bytes Node Capacity Memory Bytes",
+		bytes:       bytes,
+		node:        node,
+	}
+}
+
+// Desc returns the descriptor for the Metric. This method idempotently
+// returns the same descriptor throughout the lifetime of the Metric.
+func (nam KubeNodeStatusCapacityMemoryBytesMetric) Desc() *prometheus.Desc {
+	l := prometheus.Labels{"node": nam.node}
+	return prometheus.NewDesc(nam.fqName, nam.help, nam.labelNames, l)
+}
+
+// Write encodes the Metric into a "Metric" Protocol Buffer data
+// transmission object.
+func (nam KubeNodeStatusCapacityMemoryBytesMetric) Write(m *dto.Metric) error {
+	h := float64(nam.bytes)
+	m.Gauge = &dto.Gauge{
+		Value: &h,
+	}
+
+	var labels []*dto.LabelPair
+	for i := range nam.labelNames {
+		labels = append(labels, &dto.LabelPair{
+			Name:  &nam.labelNames[i],
+			Value: &nam.labelValues[i],
+		})
+	}
+	n := "node"
+	labels = append(labels, &dto.LabelPair{
+		Name:  &n,
+		Value: &nam.node,
+	})
+	m.Label = labels
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  KubeNodeStatusCapacityCPUCoresCollector
+//--------------------------------------------------------------------------
+
+// KubeNodeStatusCapacityCPUCoresCollector is a prometheus collector that generates
+// KubeNodeStatusCapacityCPUCoresMetrics
+type KubeNodeStatusCapacityCPUCoresCollector struct {
+	KubeClusterCache clustercache.ClusterCache
+}
+
+// Describe sends the super-set of all possible descriptors of metrics
+// collected by this Collector.
+func (nsac KubeNodeStatusCapacityCPUCoresCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- prometheus.NewDesc("kube_node_status_capacity_cpu_cores", "node capacity cpu cores", []string{}, nil)
+}
+
+// Collect is called by the Prometheus registry when collecting metrics.
+func (nsac KubeNodeStatusCapacityCPUCoresCollector) Collect(ch chan<- prometheus.Metric) {
+	nodes := nsac.KubeClusterCache.GetAllNodes()
+	for _, node := range nodes {
+		// k8s.io/apimachinery/pkg/api/resource/amount.go and
+		// k8s.io/apimachinery/pkg/api/resource/quantity.go for
+		// details on the "amount" API. See
+		// https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-types
+		// for the units of memory and CPU.
+		cpuCores := float64(node.Status.Capacity.Cpu().MilliValue()) / 1000
+
+		m := newKubeNodeStatusCapacityCPUCoresMetric(node.GetName(), cpuCores, "kube_node_status_capacity_cpu_cores", nil, nil)
+		ch <- m
+	}
+}
+
+//--------------------------------------------------------------------------
+//  KubeNodeStatusCapacityCPUCoresMetric
+//--------------------------------------------------------------------------
+
+// KubeNodeStatusCapacityCPUCoresMetric is a prometheus.Metric used to encode
+// a duplicate of the deprecated kube-state-metrics metric
+// kube_node_status_capacity_memory_bytes
+type KubeNodeStatusCapacityCPUCoresMetric struct {
+	fqName      string
+	help        string
+	labelNames  []string
+	labelValues []string
+	cores       float64
+	node        string
+}
+
+// Creates a new KubeNodeStatusCapacityCPUCoresMetric, implementation of prometheus.Metric
+func newKubeNodeStatusCapacityCPUCoresMetric(node string, cores float64, fqname string, labelNames []string, labelValues []string) KubeNodeStatusCapacityCPUCoresMetric {
+	return KubeNodeStatusCapacityCPUCoresMetric{
+		fqName:      fqname,
+		labelNames:  labelNames,
+		labelValues: labelValues,
+		help:        "kube_node_status_capacity_cpu_cores Node Capacity CPU Cores",
+		cores:       cores,
+		node:        node,
+	}
+}
+
+// Desc returns the descriptor for the Metric. This method idempotently
+// returns the same descriptor throughout the lifetime of the Metric.
+func (nam KubeNodeStatusCapacityCPUCoresMetric) Desc() *prometheus.Desc {
+	l := prometheus.Labels{"node": nam.node}
+	return prometheus.NewDesc(nam.fqName, nam.help, nam.labelNames, l)
+}
+
+// Write encodes the Metric into a "Metric" Protocol Buffer data
+// transmission object.
+func (nam KubeNodeStatusCapacityCPUCoresMetric) Write(m *dto.Metric) error {
+	h := nam.cores
+	m.Gauge = &dto.Gauge{
+		Value: &h,
+	}
+
+	var labels []*dto.LabelPair
+	for i := range nam.labelNames {
+		labels = append(labels, &dto.LabelPair{
+			Name:  &nam.labelNames[i],
+			Value: &nam.labelValues[i],
+		})
+	}
+	n := "node"
+	labels = append(labels, &dto.LabelPair{
+		Name:  &n,
+		Value: &nam.node,
+	})
+	m.Label = labels
+	return nil
+}
+
 // toStringPtr is used to create a new string pointer from iteration vars
 func toStringPtr(s string) *string {
 	return &s
@@ -672,6 +854,18 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud
 
 		if env.IsEmitPodAnnotationsMetric() {
 			prometheus.MustRegister(PodAnnotationCollector{
+				KubeClusterCache: clusterCache,
+			})
+		}
+
+		if env.IsEmitKubeNodeStatusCapacityMemoryBytesMetric() {
+			prometheus.MustRegister(KubeNodeStatusCapacityMemoryBytesCollector{
+				KubeClusterCache: clusterCache,
+			})
+		}
+
+		if env.IsEmitKubeNodeStatusCapacityCPUCoresMetric() {
+			prometheus.MustRegister(KubeNodeStatusCapacityCPUCoresCollector{
 				KubeClusterCache: clusterCache,
 			})
 		}
