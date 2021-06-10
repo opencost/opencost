@@ -711,6 +711,122 @@ func (nam KubeNodeStatusCapacityCPUCoresMetric) Write(m *dto.Metric) error {
 	return nil
 }
 
+//--------------------------------------------------------------------------
+//  KubePodLabelsCollector
+//--------------------------------------------------------------------------
+//
+// We use this to emit kube_pod_labels with all of a pod's labels, regardless
+// of the whitelist setting introduced in KSM v2. See
+// https://github.com/kubernetes/kube-state-metrics/issues/1270#issuecomment-712986441
+
+// KubePodLabelsCollector is a prometheus collector that generates
+// KubePodLabelsMetrics
+type KubePodLabelsCollector struct {
+	KubeClusterCache clustercache.ClusterCache
+}
+
+// Describe sends the super-set of all possible descriptors of metrics
+// collected by this Collector.
+func (nsac KubePodLabelsCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- prometheus.NewDesc("kube_pod_labels", "all labels for each pod prefixed with label_", []string{}, nil)
+}
+
+// Collect is called by the Prometheus registry when collecting metrics.
+func (nsac KubePodLabelsCollector) Collect(ch chan<- prometheus.Metric) {
+	pods := nsac.KubeClusterCache.GetAllPods()
+	for _, pod := range pods {
+
+		labelNames, labelValues := prom.KubePrependQualifierToLabels(pod.GetLabels(), "label_")
+
+		m := newKubePodLabelsMetric(
+			pod.GetName(),
+			pod.GetNamespace(),
+			string(pod.GetUID()),
+			"kube_pod_labels",
+			labelNames,
+			labelValues,
+		)
+		ch <- m
+	}
+}
+
+//--------------------------------------------------------------------------
+//  KubePodLabelsMetric
+//--------------------------------------------------------------------------
+
+// KubePodLabelsMetric is a prometheus.Metric used to encode
+// a duplicate of the deprecated kube-state-metrics metric
+// kube_pod_labels
+type KubePodLabelsMetric struct {
+	fqName      string
+	help        string
+	labelNames  []string
+	labelValues []string
+	pod         string
+	namespace   string
+	uid         string
+}
+
+// Creates a new KubePodLabelsMetric, implementation of prometheus.Metric
+func newKubePodLabelsMetric(pod string, namespace string, uid string, fqname string, labelNames []string, labelValues []string) KubePodLabelsMetric {
+	return KubePodLabelsMetric{
+		fqName:      fqname,
+		labelNames:  labelNames,
+		labelValues: labelValues,
+		help:        "kube_pod_labels all labels for each pod prefixed with label_",
+		pod:         pod,
+		namespace:   namespace,
+		uid:         uid,
+	}
+}
+
+// Desc returns the descriptor for the Metric. This method idempotently
+// returns the same descriptor throughout the lifetime of the Metric.
+func (nam KubePodLabelsMetric) Desc() *prometheus.Desc {
+	l := prometheus.Labels{
+		"pod":       nam.pod,
+		"namespace": nam.namespace,
+		"uid":       nam.uid,
+	}
+	return prometheus.NewDesc(nam.fqName, nam.help, nam.labelNames, l)
+}
+
+// Write encodes the Metric into a "Metric" Protocol Buffer data
+// transmission object.
+func (nam KubePodLabelsMetric) Write(m *dto.Metric) error {
+	h := float64(1)
+	m.Gauge = &dto.Gauge{
+		Value: &h,
+	}
+
+	var labels []*dto.LabelPair
+	for i := range nam.labelNames {
+		labels = append(labels, &dto.LabelPair{
+			Name:  &nam.labelNames[i],
+			Value: &nam.labelValues[i],
+		})
+	}
+
+	podString := "pod"
+	namespaceString := "namespace"
+	uidString := "uid"
+	labels = append(labels,
+		&dto.LabelPair{
+			Name:  &podString,
+			Value: &nam.pod,
+		},
+		&dto.LabelPair{
+			Name:  &namespaceString,
+			Value: &nam.namespace,
+		}, &dto.LabelPair{
+			Name:  &uidString,
+			Value: &nam.uid,
+		},
+	)
+	m.Label = labels
+	return nil
+}
+
 // toStringPtr is used to create a new string pointer from iteration vars
 func toStringPtr(s string) *string {
 	return &s
@@ -866,6 +982,12 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud
 
 		if env.IsEmitKubeNodeStatusCapacityCPUCoresMetric() {
 			prometheus.MustRegister(KubeNodeStatusCapacityCPUCoresCollector{
+				KubeClusterCache: clusterCache,
+			})
+		}
+
+		if env.IsEmitKubePodLabelsMetric() {
+			prometheus.MustRegister(KubePodLabelsCollector{
 				KubeClusterCache: clusterCache,
 			})
 		}
