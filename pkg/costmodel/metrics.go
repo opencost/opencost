@@ -1,7 +1,6 @@
 package costmodel
 
 import (
-	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -732,28 +731,12 @@ func (nsac KubePodLabelsCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- prometheus.NewDesc("kube_pod_labels", "all labels for each pod prefixed with label_", []string{}, nil)
 }
 
-// makeLabelNameValueArraysForPod takes a pod and returns two aligned arrays
-// the length of the number of labels on the pod. The first array contains
-// the name of each label prefixed with "label_" to match the kube-state-metrics
-// standard. The second array contains the value of the index-matched label name.
-func makeLabelNameValueArraysForPod(pod *v1.Pod) ([]string, []string) {
-	labelNames := []string{}
-	labelValues := []string{}
-
-	for labelName, labelValue := range pod.GetLabels() {
-		labelNames = append(labelNames, fmt.Sprintf("label_%s", labelName))
-		labelValues = append(labelValues, labelValue)
-	}
-
-	return labelNames, labelValues
-}
-
 // Collect is called by the Prometheus registry when collecting metrics.
 func (nsac KubePodLabelsCollector) Collect(ch chan<- prometheus.Metric) {
 	pods := nsac.KubeClusterCache.GetAllPods()
 	for _, pod := range pods {
 
-		labelNames, labelValues := makeLabelNameValueArraysForPod(pod)
+		labelNames, labelValues := prom.KubePrependQualifierToLabels(pod.GetLabels(), "label_")
 
 		m := newKubePodLabelsMetric(
 			pod.GetName(),
