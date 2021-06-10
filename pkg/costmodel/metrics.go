@@ -827,6 +827,100 @@ func (nam KubePodLabelsMetric) Write(m *dto.Metric) error {
 	return nil
 }
 
+//--------------------------------------------------------------------------
+//  KubeNodeLabelsCollector
+//--------------------------------------------------------------------------
+//
+// We use this to emit kube_node_labels with all of a node's labels, regardless
+// of the whitelist setting introduced in KSM v2. See
+// https://github.com/kubernetes/kube-state-metrics/issues/1270#issuecomment-712986441
+
+// KubeNodeLabelsCollector is a prometheus collector that generates
+// KubeNodeLabelsMetrics
+type KubeNodeLabelsCollector struct {
+	KubeClusterCache clustercache.ClusterCache
+}
+
+// Describe sends the super-set of all possible descriptors of metrics
+// collected by this Collector.
+func (nsac KubeNodeLabelsCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- prometheus.NewDesc("kube_node_labels", "all labels for each node prefixed with label_", []string{}, nil)
+}
+
+// Collect is called by the Prometheus registry when collecting metrics.
+func (nsac KubeNodeLabelsCollector) Collect(ch chan<- prometheus.Metric) {
+	nodes := nsac.KubeClusterCache.GetAllNodes()
+	for _, node := range nodes {
+
+		labelNames, labelValues := prom.KubePrependQualifierToLabels(node.GetLabels(), "label_")
+
+		m := newKubeNodeLabelsMetric(
+			node.GetName(),
+			"kube_node_labels",
+			labelNames,
+			labelValues,
+		)
+		ch <- m
+	}
+}
+
+//--------------------------------------------------------------------------
+//  KubeNodeLabelsMetric
+//--------------------------------------------------------------------------
+
+// KubeNodeLabelsMetric is a prometheus.Metric used to encode
+// a duplicate of the deprecated kube-state-metrics metric
+// kube_node_labels
+type KubeNodeLabelsMetric struct {
+	fqName      string
+	help        string
+	labelNames  []string
+	labelValues []string
+	node        string
+}
+
+// Creates a new KubeNodeLabelsMetric, implementation of prometheus.Metric
+func newKubeNodeLabelsMetric(node string, fqname string, labelNames []string, labelValues []string) KubeNodeLabelsMetric {
+	return KubeNodeLabelsMetric{
+		fqName:      fqname,
+		labelNames:  labelNames,
+		labelValues: labelValues,
+		help:        "kube_node_labels all labels for each node prefixed with label_",
+		node:        node,
+	}
+}
+
+// Desc returns the descriptor for the Metric. This method idempotently
+// returns the same descriptor throughout the lifetime of the Metric.
+func (nam KubeNodeLabelsMetric) Desc() *prometheus.Desc {
+	l := prometheus.Labels{
+		"node": nam.node,
+	}
+	return prometheus.NewDesc(nam.fqName, nam.help, nam.labelNames, l)
+}
+
+// Write encodes the Metric into a "Metric" Protocol Buffer data
+// transmission object.
+func (nam KubeNodeLabelsMetric) Write(m *dto.Metric) error {
+	h := float64(1)
+	m.Gauge = &dto.Gauge{
+		Value: &h,
+	}
+
+	var labels []*dto.LabelPair
+	for i := range nam.labelNames {
+		labels = append(labels, &dto.LabelPair{
+			Name:  &nam.labelNames[i],
+			Value: &nam.labelValues[i],
+		})
+	}
+
+	nodeString := "node"
+	labels = append(labels, &dto.LabelPair{Name: &nodeString, Value: &nam.node})
+	m.Label = labels
+	return nil
+}
+
 // toStringPtr is used to create a new string pointer from iteration vars
 func toStringPtr(s string) *string {
 	return &s
@@ -988,6 +1082,12 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud
 
 		if env.IsEmitKubePodLabelsMetric() {
 			prometheus.MustRegister(KubePodLabelsCollector{
+				KubeClusterCache: clusterCache,
+			})
+		}
+
+		if env.IsEmitKubeNodeLabelsMetric() {
+			prometheus.MustRegister(KubeNodeLabelsCollector{
 				KubeClusterCache: clusterCache,
 			})
 		}
