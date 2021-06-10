@@ -175,6 +175,7 @@ type CustomPricing struct {
 	SharedLabelNames             string            `json:"sharedLabelNames"`
 	SharedLabelValues            string            `json:"sharedLabelValues"`
 	ReadOnly                     string            `json:"readOnly"`
+	KubecostToken                string            `json:"kubecostToken"`
 }
 
 type ServiceAccountStatus struct {
