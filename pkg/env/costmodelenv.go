@@ -40,6 +40,7 @@ const (
 	EmitKubeNodeStatusCapacityMemoryBytesMetricEnvVar = "EMIT_KUBE_NODE_STATUS_CAPACITY_MEMORY_BYTES_METRIC"
 	EmitKubeNodeStatusCapacityCPUCoresMetricEnvVar    = "EMIT_KUBE_NODE_STATUS_CAPACITY_CPU_CORES_METRIC"
 	EmitKubePodLabelsMetricEnvVar                     = "EMIT_KUBE_POD_LABELS_METRIC"
+	EmitKubeNodeLabelsMetricEnvVar                    = "EMIT_KUBE_NODE_LABELS_METRIC"
 
 	ThanosEnabledEnvVar      = "THANOS_ENABLED"
 	ThanosQueryUrlEnvVar     = "THANOS_QUERY_URL"
@@ -109,6 +110,13 @@ func IsEmitKubeNodeStatusCapacityCPUCoresMetric() bool {
 // where all labels are emitted instead of requiring a whitelist.
 func IsEmitKubePodLabelsMetric() bool {
 	return GetBool(EmitKubePodLabelsMetricEnvVar, true)
+}
+
+// IsEmitKubeNodeLabelsMetric returns true if cost-model is configured
+// to emit the kube_node_labels metric. It uses the old, pre KSM 2.0 logic
+// where all labels are emitted instead of requiring a whitelist.
+func IsEmitKubeNodeLabelsMetric() bool {
+	return GetBool(EmitKubeNodeLabelsMetricEnvVar, true)
 }
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
