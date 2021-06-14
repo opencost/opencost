@@ -30,7 +30,7 @@ const (
 func RandSeq(n int) string {
 	b := make([]rune, n)
 	for i := range b {
-		b[i] = alpha[rand.Intn(len(alpha))]
+		b[i] = alpha[rand.Intn(len(alpha))] // #nosec No need for a cryptographic strength random here
 	}
 	return string(b)
 }
