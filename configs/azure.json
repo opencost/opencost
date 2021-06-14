@@ -9,6 +9,8 @@
     "zoneNetworkEgress": "0.01",
     "regionNetworkEgress": "0.01",
     "internetNetworkEgress": "0.0725",
+    "spotLabel": "kubernetes.azure.com/scalesetpriority",
+    "spotLabelValue": "spot",
     "azureSubscriptionID": "",
     "azureClientID": "" ,
     "azureClientSecret": "" ,
