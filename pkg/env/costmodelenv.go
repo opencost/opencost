@@ -35,12 +35,10 @@ const (
 	ConfigPathEnvVar               = "CONFIG_PATH"
 	CloudProviderAPIKeyEnvVar      = "CLOUD_PROVIDER_API_KEY"
 
-	EmitPodAnnotationsMetricEnvVar                    = "EMIT_POD_ANNOTATIONS_METRIC"
-	EmitNamespaceAnnotationsMetricEnvVar              = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
-	EmitKubeNodeStatusCapacityMemoryBytesMetricEnvVar = "EMIT_KUBE_NODE_STATUS_CAPACITY_MEMORY_BYTES_METRIC"
-	EmitKubeNodeStatusCapacityCPUCoresMetricEnvVar    = "EMIT_KUBE_NODE_STATUS_CAPACITY_CPU_CORES_METRIC"
-	EmitKubePodLabelsMetricEnvVar                     = "EMIT_KUBE_POD_LABELS_METRIC"
-	EmitKubeNodeLabelsMetricEnvVar                    = "EMIT_KUBE_NODE_LABELS_METRIC"
+	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
+	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
+
+	EmitKsmV1MetricsEnvVar = "EMIT_KSM_V1_METRICS"
 
 	ThanosEnabledEnvVar      = "THANOS_ENABLED"
 	ThanosQueryUrlEnvVar     = "THANOS_QUERY_URL"
@@ -93,30 +91,10 @@ func IsEmitPodAnnotationsMetric() bool {
 	return GetBool(EmitPodAnnotationsMetricEnvVar, false)
 }
 
-// IsEmitKubeNodeStatusCapacityMemoryBytesMetric returns true if cost-model is configured
-// to emit the kube_node_status_capacity_memory_bytes metric.
-func IsEmitKubeNodeStatusCapacityMemoryBytesMetric() bool {
-	return GetBool(EmitKubeNodeStatusCapacityMemoryBytesMetricEnvVar, true)
-}
-
-// IsEmitKubeNodeStatusCapacityCPUCoresMetric returns true if cost-model is configured
-// to emit the kube_node_status_capacity_cpu_cores metric.
-func IsEmitKubeNodeStatusCapacityCPUCoresMetric() bool {
-	return GetBool(EmitKubeNodeStatusCapacityCPUCoresMetricEnvVar, true)
-}
-
-// IsEmitKubePodLabelsMetric returns true if cost-model is configured
-// to emit the kube_pod_labels metric. It uses the old, pre KSM 2.0 logic
-// where all labels are emitted instead of requiring a whitelist.
-func IsEmitKubePodLabelsMetric() bool {
-	return GetBool(EmitKubePodLabelsMetricEnvVar, true)
-}
-
-// IsEmitKubeNodeLabelsMetric returns true if cost-model is configured
-// to emit the kube_node_labels metric. It uses the old, pre KSM 2.0 logic
-// where all labels are emitted instead of requiring a whitelist.
-func IsEmitKubeNodeLabelsMetric() bool {
-	return GetBool(EmitKubeNodeLabelsMetricEnvVar, true)
+// IsEmitKsmV1Metrics returns true if cost-model is configured to emit all necessary KSM v1
+// metrics that were removed in KSM v2
+func IsEmitKsmV1Metrics() bool {
+	return GetBool(EmitKsmV1MetricsEnvVar, true)
 }
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
