@@ -68,6 +68,7 @@ func QueryOffset() string {
 }
 
 func NewThanosClient(address string, timeout, keepAlive time.Duration, queryConcurrency int, queryLogFile string) (prometheus.Client, error) {
+	// #nosec It's up to the user to configure this.
 	tlsConfig := &tls.Config{InsecureSkipVerify: env.GetInsecureSkipVerify()}
 
 	tc := prometheus.Config{

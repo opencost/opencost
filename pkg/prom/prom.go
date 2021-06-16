@@ -231,6 +231,7 @@ func (rlpc *RateLimitedPrometheusClient) Do(ctx context.Context, req *http.Reque
 //--------------------------------------------------------------------------
 
 func NewPrometheusClient(address string, timeout, keepAlive time.Duration, queryConcurrency int, queryLogFile string) (prometheus.Client, error) {
+	// #nosec It's up to the user to configure this.
 	tlsConfig := &tls.Config{InsecureSkipVerify: env.GetInsecureSkipVerify()}
 
 	// may be necessary for long prometheus queries. TODO: make this configurable
