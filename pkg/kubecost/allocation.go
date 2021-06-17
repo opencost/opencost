@@ -921,7 +921,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 			hours := as.Resolution().Hours()
 
 			// If set ends in the future, adjust hours accordingly
-			diff := time.Now().Sub(as.End())
+			diff := time.Since(as.End())
 			if diff < 0.0 {
 				hours += diff.Hours()
 			}
@@ -1429,7 +1429,7 @@ func (a *Allocation) generateKey(aggregateBy []string) string {
 			names = append(names, a.Properties.Container)
 		case agg == AllocationServiceProp:
 			services := a.Properties.Services
-			if services == nil || len(services) == 0 {
+			if len(services) == 0 {
 				// Indicate that allocation has no services
 				names = append(names, UnallocatedSuffix)
 			} else {
@@ -2299,7 +2299,7 @@ func (asr *AllocationSetRange) Length() int {
 // MarshalJSON JSON-encodes the range
 func (asr *AllocationSetRange) MarshalJSON() ([]byte, error) {
 	asr.RLock()
-	asr.RUnlock()
+	defer asr.RUnlock()
 	return json.Marshal(asr.allocations)
 }
 

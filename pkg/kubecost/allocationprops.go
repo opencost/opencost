@@ -72,8 +72,8 @@ type AllocationProperties struct {
 	Pod            string                `json:"pod,omitempty"`
 	Services       []string              `json:"services,omitempty"`
 	ProviderID     string                `json:"providerID,omitempty"`
-	Labels         AllocationLabels      `json:"allocationLabels,omitempty"`
-	Annotations    AllocationAnnotations `json:"allocationAnnotations,omitempty"`
+	Labels         AllocationLabels      `json:"labels,omitempty"`
+	Annotations    AllocationAnnotations `json:"annotations,omitempty"`
 }
 
 // AllocationLabels is a schema-free mapping of key/value pairs that can be
