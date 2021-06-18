@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -2019,6 +2020,105 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
+func (n *Node) UnmarshalJSON(b []byte) error {
+	//f := reflect.New(reflect.TypeOf((*Node)(nil)).Elem()).Interface().(interface{ UnmarshalBinary([]byte) error })
+	//var f map[string]*json.RawMessage
+	var f interface{}
+	//fmt.Println(fmt.Sprintf("%T", f))
+	err := json.Unmarshal(b, &f)
+	if err != nil {
+		return err
+	}
+	//fmt.Println(f)
+
+	fmap := f.(map[string]interface{})
+
+	// parse properties map to AssetProperties
+	fproperties := fmap["properties"].(map[string]interface{})
+	properties := toAssetProp(fproperties)
+
+	// parse labels map to AssetLabels
+	labels := make(map[string]string)
+	for k, v := range fmap["labels"].(map[string]interface{}) {
+		labels[k] = v.(string)
+	}
+
+	// parse start and end strings to time.Time
+	start, err := time.Parse(time.RFC3339, fmap["start"].(string))
+	if err != nil {
+		return err
+	}
+	end, err := time.Parse(time.RFC3339, fmap["start"].(string))
+	if err != nil {
+		return err
+	}
+
+	n.properties = &properties
+	n.labels = labels
+	n.start = start
+	n.end = end
+	n.window = Window{
+		start: &start,
+		end:   &end,
+	}
+
+	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
+		n.adjustment = adjustment.(float64)
+	}
+	if NodeType, err := getTypedVal(fmap["nodeType"]); err == nil {
+		n.NodeType = NodeType.(string)
+	}
+	if CPUCoreHours, err := getTypedVal(fmap["cpuCoreHours"]); err == nil {
+		n.CPUCoreHours = CPUCoreHours.(float64)
+	}
+	if RAMByteHours, err := getTypedVal(fmap["ramByteHours"]); err == nil {
+		n.RAMByteHours = RAMByteHours.(float64)
+	}
+	if GPUHours, err := getTypedVal(fmap["GPUHours"]); err == nil {
+		n.GPUHours = GPUHours.(float64)
+	}
+	if CPUCost, err := getTypedVal(fmap["cpuCost"]); err == nil {
+		n.CPUCost = CPUCost.(float64)
+	}
+	if GPUCost, err := getTypedVal(fmap["gpuCost"]); err == nil {
+		n.GPUCost = GPUCost.(float64)
+	}
+	if GPUCount, err := getTypedVal(fmap["gpuCount"]); err == nil {
+		n.GPUCount = GPUCount.(float64)
+	}
+	if RAMCost, err := getTypedVal(fmap["ramCost"]); err == nil {
+		n.RAMCost = RAMCost.(float64)
+	}
+	if Discount, err := getTypedVal(fmap["discount"]); err == nil {
+		n.Discount = Discount.(float64)
+	}
+	if Preemptible, err := getTypedVal(fmap["preemptible"]); err == nil {
+		n.Preemptible = Preemptible.(float64)
+	}
+
+	fmt.Println(n)
+
+	return nil
+}
+
+// labels       AssetLabels
+// 	start        time.Time
+// 	end          time.Time
+// 	window       Window
+// 	adjustment   float64
+// 	NodeType     string
+// 	CPUCoreHours float64
+// 	RAMByteHours float64
+// 	GPUHours     float64
+// 	CPUBreakdown *Breakdown
+// 	RAMBreakdown *Breakdown
+// 	CPUCost      float64
+// 	GPUCost      float64
+// 	GPUCount     float64
+// 	RAMCost      float64
+// 	Discount     float64
+// 	Preemptible  float64
+
 // String implements fmt.Stringer
 func (n *Node) String() string {
 	return toString(n)
@@ -3075,4 +3175,49 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+// Creates an AssetProperties directly from map[string]interface{}
+func toAssetProp(fproperties map[string]interface{}) AssetProperties {
+	var properties AssetProperties
+
+	if category, v := fproperties["category"].(string); v {
+		properties.Category = category
+	}
+	if provider, v := fproperties["provider"].(string); v {
+		properties.Provider = provider
+	}
+	if account, v := fproperties["account"].(string); v {
+		properties.Account = account
+	}
+	if project, v := fproperties["project"].(string); v {
+		properties.Project = project
+	}
+	if service, v := fproperties["service"].(string); v {
+		properties.Service = service
+	}
+	if cluster, v := fproperties["cluster"].(string); v {
+		properties.Cluster = cluster
+	}
+	if name, v := fproperties["name"].(string); v {
+		properties.Name = name
+	}
+	if providerID, v := fproperties["providerID"].(string); v {
+		properties.ProviderID = providerID
+	}
+
+	return properties
+
+}
+
+func getTypedVal(itf interface{}) (interface{}, error) {
+	switch itf := itf.(type) {
+	case float64:
+		return float64(itf), nil
+	case string:
+		return string(itf), nil
+	default:
+		unktype := reflect.ValueOf(itf)
+		return nil, fmt.Errorf("Type %v is an invalid type", unktype)
+	}
 }
