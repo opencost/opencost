@@ -2021,15 +2021,13 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 }
 
 func (n *Node) UnmarshalJSON(b []byte) error {
-	//f := reflect.New(reflect.TypeOf((*Node)(nil)).Elem()).Interface().(interface{ UnmarshalBinary([]byte) error })
-	//var f map[string]*json.RawMessage
+
 	var f interface{}
-	//fmt.Println(fmt.Sprintf("%T", f))
+
 	err := json.Unmarshal(b, &f)
 	if err != nil {
 		return err
 	}
-	//fmt.Println(f)
 
 	fmap := f.(map[string]interface{})
 
@@ -2048,10 +2046,16 @@ func (n *Node) UnmarshalJSON(b []byte) error {
 	if err != nil {
 		return err
 	}
-	end, err := time.Parse(time.RFC3339, fmap["start"].(string))
+	end, err := time.Parse(time.RFC3339, fmap["end"].(string))
 	if err != nil {
 		return err
 	}
+
+	fcpuBreakdown := fmap["cpuBreakdown"].(map[string]interface{})
+	framBreakdown := fmap["ramBreakdown"].(map[string]interface{})
+
+	cpuBreakdown := toBreakdown(fcpuBreakdown)
+	ramBreakdown := toBreakdown(framBreakdown)
 
 	n.properties = &properties
 	n.labels = labels
@@ -2061,6 +2065,8 @@ func (n *Node) UnmarshalJSON(b []byte) error {
 		start: &start,
 		end:   &end,
 	}
+	n.CPUBreakdown = &cpuBreakdown
+	n.RAMBreakdown = &ramBreakdown
 
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
 		n.adjustment = adjustment.(float64)
@@ -2096,28 +2102,8 @@ func (n *Node) UnmarshalJSON(b []byte) error {
 		n.Preemptible = Preemptible.(float64)
 	}
 
-	fmt.Println(n)
-
 	return nil
 }
-
-// labels       AssetLabels
-// 	start        time.Time
-// 	end          time.Time
-// 	window       Window
-// 	adjustment   float64
-// 	NodeType     string
-// 	CPUCoreHours float64
-// 	RAMByteHours float64
-// 	GPUHours     float64
-// 	CPUBreakdown *Breakdown
-// 	RAMBreakdown *Breakdown
-// 	CPUCost      float64
-// 	GPUCost      float64
-// 	GPUCount     float64
-// 	RAMCost      float64
-// 	Discount     float64
-// 	Preemptible  float64
 
 // String implements fmt.Stringer
 func (n *Node) String() string {
@@ -3207,6 +3193,27 @@ func toAssetProp(fproperties map[string]interface{}) AssetProperties {
 	}
 
 	return properties
+
+}
+
+// Creates an Breakdown directly from map[string]interface{}
+func toBreakdown(fproperties map[string]interface{}) Breakdown {
+	var breakdown Breakdown
+
+	if idle, v := fproperties["idle"].(float64); v {
+		breakdown.Idle = idle
+	}
+	if other, v := fproperties["other"].(float64); v {
+		breakdown.Other = other
+	}
+	if system, v := fproperties["system"].(float64); v {
+		breakdown.System = system
+	}
+	if user, v := fproperties["user"].(float64); v {
+		breakdown.User = user
+	}
+
+	return breakdown
 
 }
 
