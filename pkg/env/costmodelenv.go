@@ -38,6 +38,8 @@ const (
 	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
 	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
 
+	EmitKsmV1MetricsEnvVar = "EMIT_KSM_V1_METRICS"
+
 	ThanosEnabledEnvVar      = "THANOS_ENABLED"
 	ThanosQueryUrlEnvVar     = "THANOS_QUERY_URL"
 	ThanosOffsetEnvVar       = "THANOS_QUERY_OFFSET"
@@ -74,7 +76,7 @@ const (
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
 // the AWS access key for authentication
 func GetAppVersion() string {
-	return Get(AppVersionEnvVar, "1.81.0")
+	return Get(AppVersionEnvVar, "1.82.0")
 }
 
 // IsEmitNamespaceAnnotationsMetric returns true if cost-model is configured to emit the kube_namespace_annotations metric
@@ -87,6 +89,12 @@ func IsEmitNamespaceAnnotationsMetric() bool {
 // pod annotations.
 func IsEmitPodAnnotationsMetric() bool {
 	return GetBool(EmitPodAnnotationsMetricEnvVar, false)
+}
+
+// IsEmitKsmV1Metrics returns true if cost-model is configured to emit all necessary KSM v1
+// metrics that were removed in KSM v2
+func IsEmitKsmV1Metrics() bool {
+	return GetBool(EmitKsmV1MetricsEnvVar, true)
 }
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents

@@ -10,82 +10,6 @@ import (
 	"github.com/kubecost/cost-model/pkg/util"
 )
 
-const day = 24 * time.Hour
-
-var disk = PVKey{}
-var disk1 = PVKey{
-	Cluster: "cluster2",
-	Name:    "disk1",
-}
-var disk2 = PVKey{
-	Cluster: "cluster2",
-	Name:    "disk2",
-}
-
-func NewUnitAllocation(name string, start time.Time, resolution time.Duration, props *AllocationProperties) *Allocation {
-	if name == "" {
-		name = "cluster1/namespace1/pod1/container1"
-	}
-
-	properties := &AllocationProperties{}
-	if props == nil {
-		properties.Cluster = "cluster1"
-		properties.Node = "node1"
-		properties.Namespace = "namespace1"
-		properties.ControllerKind = "deployment"
-		properties.Controller = "deployment1"
-		properties.Pod = "pod1"
-		properties.Container = "container1"
-	} else {
-		properties = props
-	}
-
-	end := start.Add(resolution)
-
-	alloc := &Allocation{
-		Name:                  name,
-		Properties:            properties,
-		Window:                NewWindow(&start, &end).Clone(),
-		Start:                 start,
-		End:                   end,
-		CPUCoreHours:          1,
-		CPUCost:               1,
-		CPUCoreRequestAverage: 1,
-		CPUCoreUsageAverage:   1,
-		GPUHours:              1,
-		GPUCost:               1,
-		NetworkCost:           1,
-		LoadBalancerCost:      1,
-		PVs: PVAllocations{
-			disk: {
-				ByteHours: 1,
-				Cost:      1,
-			},
-		},
-		RAMByteHours:           1,
-		RAMCost:                1,
-		RAMBytesRequestAverage: 1,
-		RAMBytesUsageAverage:   1,
-		RawAllocationOnly: &RawAllocationOnlyData{
-			CPUCoreUsageMax:  1,
-			RAMBytesUsageMax: 1,
-		},
-	}
-
-	// If idle allocation, remove non-idle costs, but maintain total cost
-	if alloc.IsIdle() {
-		alloc.PVs = nil
-		alloc.NetworkCost = 0.0
-		alloc.LoadBalancerCost = 0.0
-		alloc.CPUCoreHours += 1.0
-		alloc.CPUCost += 1.0
-		alloc.RAMByteHours += 1.0
-		alloc.RAMCost += 1.0
-	}
-
-	return alloc
-}
-
 func TestAllocation_Add(t *testing.T) {
 	var nilAlloc *Allocation
 	zeroAlloc := &Allocation{}
@@ -559,390 +483,6 @@ func TestNewAllocationSet(t *testing.T) {
 	// TODO niko/etl
 }
 
-func generateAllocationSetClusterIdle(start time.Time) *AllocationSet {
-	// Cluster Idle allocations
-	a1i := NewUnitAllocation(fmt.Sprintf("cluster1/%s", IdleSuffix), start, day, &AllocationProperties{
-		Cluster: "cluster1",
-	})
-	a1i.CPUCost = 5.0
-	a1i.RAMCost = 15.0
-	a1i.GPUCost = 0.0
-
-	a2i := NewUnitAllocation(fmt.Sprintf("cluster2/%s", IdleSuffix), start, day, &AllocationProperties{
-		Cluster: "cluster2",
-	})
-	a2i.CPUCost = 5.0
-	a2i.RAMCost = 5.0
-	a2i.GPUCost = 0.0
-
-	as := generateAllocationSet(start)
-	as.Insert(a1i)
-	as.Insert(a2i)
-	return as
-}
-
-func generateAllocationSetNodeIdle(start time.Time) *AllocationSet {
-	// Node Idle allocations
-	a11i := NewUnitAllocation(fmt.Sprintf("c1nodes/%s", IdleSuffix), start, day, &AllocationProperties{
-		Cluster:    "cluster1",
-		Node:       "c1nodes",
-		ProviderID: "c1nodes",
-	})
-	a11i.CPUCost = 5.0
-	a11i.RAMCost = 15.0
-	a11i.GPUCost = 0.0
-
-	a21i := NewUnitAllocation(fmt.Sprintf("node1/%s", IdleSuffix), start, day, &AllocationProperties{
-		Cluster:    "cluster2",
-		Node:       "node1",
-		ProviderID: "node1",
-	})
-	a21i.CPUCost = 1.666667
-	a21i.RAMCost = 1.666667
-	a21i.GPUCost = 0.0
-
-	a22i := NewUnitAllocation(fmt.Sprintf("node2/%s", IdleSuffix), start, day, &AllocationProperties{
-		Cluster:    "cluster2",
-		Node:       "node2",
-		ProviderID: "node2",
-	})
-	a22i.CPUCost = 1.666667
-	a22i.RAMCost = 1.666667
-	a22i.GPUCost = 0.0
-
-	a23i := NewUnitAllocation(fmt.Sprintf("node3/%s", IdleSuffix), start, day, &AllocationProperties{
-		Cluster:    "cluster2",
-		Node:       "node3",
-		ProviderID: "node3",
-		Namespace: "",
-	})
-	a23i.CPUCost = 1.666667
-	a23i.RAMCost = 1.666667
-	a23i.GPUCost = 0.0
-
-	as := generateAllocationSet(start)
-	as.Insert(a11i)
-	as.Insert(a21i)
-	as.Insert(a22i)
-	as.Insert(a23i)
-	return as
-}
-
-func generateAllocationSet(start time.Time) *AllocationSet {
-
-	// Active allocations
-	a1111 := NewUnitAllocation("cluster1/namespace1/pod1/container1", start, day, &AllocationProperties{
-		Cluster:    "cluster1",
-		Namespace:  "namespace1",
-		Pod:        "pod1",
-		Container:  "container1",
-		ProviderID: "c1nodes",
-	})
-	a1111.RAMCost = 11.00
-
-	a11abc2 := NewUnitAllocation("cluster1/namespace1/pod-abc/container2", start, day, &AllocationProperties{
-		Cluster:    "cluster1",
-		Namespace:  "namespace1",
-		Pod:        "pod-abc",
-		Container:  "container2",
-		ProviderID: "c1nodes",
-	})
-
-	a11def3 := NewUnitAllocation("cluster1/namespace1/pod-def/container3", start, day, &AllocationProperties{
-		Cluster:    "cluster1",
-		Namespace:  "namespace1",
-		Pod:        "pod-def",
-		Container:  "container3",
-		ProviderID: "c1nodes",
-	})
-
-	a12ghi4 := NewUnitAllocation("cluster1/namespace2/pod-ghi/container4", start, day, &AllocationProperties{
-		Cluster:    "cluster1",
-		Namespace:  "namespace2",
-		Pod:        "pod-ghi",
-		Container:  "container4",
-		ProviderID: "c1nodes",
-	})
-
-	a12ghi5 := NewUnitAllocation("cluster1/namespace2/pod-ghi/container5", start, day, &AllocationProperties{
-		Cluster:    "cluster1",
-		Namespace:  "namespace2",
-		Pod:        "pod-ghi",
-		Container:  "container5",
-		ProviderID: "c1nodes",
-	})
-
-	a12jkl6 := NewUnitAllocation("cluster1/namespace2/pod-jkl/container6", start, day, &AllocationProperties{
-		Cluster:    "cluster1",
-		Namespace:  "namespace2",
-		Pod:        "pod-jkl",
-		Container:  "container6",
-		ProviderID: "c1nodes",
-	})
-
-	a22mno4 := NewUnitAllocation("cluster2/namespace2/pod-mno/container4", start, day, &AllocationProperties{
-		Cluster:    "cluster2",
-		Namespace:  "namespace2",
-		Pod:        "pod-mno",
-		Container:  "container4",
-		ProviderID: "node1",
-	})
-
-	a22mno5 := NewUnitAllocation("cluster2/namespace2/pod-mno/container5", start, day, &AllocationProperties{
-		Cluster:    "cluster2",
-		Namespace:  "namespace2",
-		Pod:        "pod-mno",
-		Container:  "container5",
-		ProviderID: "node1",
-	})
-
-	a22pqr6 := NewUnitAllocation("cluster2/namespace2/pod-pqr/container6", start, day, &AllocationProperties{
-		Cluster:    "cluster2",
-		Namespace:  "namespace2",
-		Pod:        "pod-pqr",
-		Container:  "container6",
-		ProviderID: "node2",
-	})
-
-	a23stu7 := NewUnitAllocation("cluster2/namespace3/pod-stu/container7", start, day, &AllocationProperties{
-		Cluster:    "cluster2",
-		Namespace:  "namespace3",
-		Pod:        "pod-stu",
-		Container:  "container7",
-		ProviderID: "node2",
-	})
-
-	a23vwx8 := NewUnitAllocation("cluster2/namespace3/pod-vwx/container8", start, day, &AllocationProperties{
-		Cluster:    "cluster2",
-		Namespace:  "namespace3",
-		Pod:        "pod-vwx",
-		Container:  "container8",
-		ProviderID: "node3",
-	})
-
-	a23vwx9 := NewUnitAllocation("cluster2/namespace3/pod-vwx/container9", start, day, &AllocationProperties{
-		Cluster:    "cluster2",
-		Namespace:  "namespace3",
-		Pod:        "pod-vwx",
-		Container:  "container9",
-		ProviderID: "node3",
-	})
-
-	// Controllers
-
-	a11abc2.Properties.ControllerKind = "deployment"
-	a11abc2.Properties.Controller = "deployment1"
-	a11def3.Properties.ControllerKind = "deployment"
-	a11def3.Properties.Controller = "deployment1"
-
-	a12ghi4.Properties.ControllerKind = "deployment"
-	a12ghi4.Properties.Controller = "deployment2"
-	a12ghi5.Properties.ControllerKind = "deployment"
-	a12ghi5.Properties.Controller = "deployment2"
-	a22mno4.Properties.ControllerKind = "deployment"
-	a22mno4.Properties.Controller = "deployment2"
-	a22mno5.Properties.ControllerKind = "deployment"
-	a22mno5.Properties.Controller = "deployment2"
-
-	a23stu7.Properties.ControllerKind = "deployment"
-	a23stu7.Properties.Controller = "deployment3"
-
-	a12jkl6.Properties.ControllerKind = "daemonset"
-	a12jkl6.Properties.Controller = "daemonset1"
-	a22pqr6.Properties.ControllerKind = "daemonset"
-	a22pqr6.Properties.Controller = "daemonset1"
-
-	a23vwx8.Properties.ControllerKind = "statefulset"
-	a23vwx8.Properties.Controller = "statefulset1"
-	a23vwx9.Properties.ControllerKind = "statefulset"
-	a23vwx9.Properties.Controller = "statefulset1"
-
-	// Labels
-
-	a1111.Properties.Labels = map[string]string{"app": "app1", "env": "env1"}
-	a12ghi4.Properties.Labels = map[string]string{"app": "app2", "env": "env2"}
-	a12ghi5.Properties.Labels = map[string]string{"app": "app2", "env": "env2"}
-	a22mno4.Properties.Labels = map[string]string{"app": "app2"}
-	a22mno5.Properties.Labels = map[string]string{"app": "app2"}
-
-	//Annotations
-	a23stu7.Properties.Annotations = map[string]string{"team": "team1"}
-	a23vwx8.Properties.Annotations = map[string]string{"team": "team2"}
-	a23vwx9.Properties.Annotations = map[string]string{"team": "team1"}
-
-	// Services
-	a12jkl6.Properties.Services = []string{"service1"}
-	a22pqr6.Properties.Services = []string{"service1"}
-
-	return NewAllocationSet(start, start.Add(day),
-		// cluster 1, namespace1
-		a1111, a11abc2, a11def3,
-		// cluster 1, namespace 2
-		a12ghi4, a12ghi5, a12jkl6,
-		// cluster 2, namespace 2
-		a22mno4, a22mno5, a22pqr6,
-		// cluster 2, namespace 3
-		a23stu7, a23vwx8, a23vwx9,
-	)
-}
-
-func generateAssetSets(start, end time.Time) []*AssetSet {
-	var assetSets []*AssetSet
-
-	// Create an AssetSet representing cluster costs for two clusters (cluster1
-	// and cluster2). Include Nodes and Disks for both, even though only
-	// Nodes will be counted. Whereas in practice, Assets should be aggregated
-	// by type, here we will provide multiple Nodes for one of the clusters to
-	// make sure the function still holds.
-
-	// NOTE: we're re-using generateAllocationSet so this has to line up with
-	// the allocated node costs from that function. See table above.
-
-	// | Hierarchy                               | Cost |  CPU |  RAM |  GPU | Adjustment |
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster1:
-	//     nodes                                  100.00  55.00  44.00  11.00      -10.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster1 subtotal (adjusted)             100.00  50.00  40.00  10.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster1 allocated                        48.00   6.00  16.00   6.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster1 idle                             72.00  44.00  24.00   4.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster2:
-	//     node1                                   35.00  20.00  15.00   0.00        0.00
-	//     node2                                   35.00  20.00  15.00   0.00        0.00
-	//     node3                                   30.00  10.00  10.00  10.00        0.00
-	//     (disks should not matter for idle)
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster2 subtotal                        100.00  50.00  40.00  10.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster2 allocated                        28.00   6.00   6.00   6.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster2 idle                             82.00  44.00  34.00   4.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-
-	cluster1Nodes := NewNode("c1nodes", "cluster1", "c1nodes", start, end, NewWindow(&start, &end))
-	cluster1Nodes.CPUCost = 55.0
-	cluster1Nodes.RAMCost = 44.0
-	cluster1Nodes.GPUCost = 11.0
-	cluster1Nodes.adjustment = -10.00
-	cluster1Nodes.CPUCoreHours = 8
-	cluster1Nodes.RAMByteHours = 6
-	cluster1Nodes.GPUHours = 24
-
-	cluster2Node1 := NewNode("node1", "cluster2", "node1", start, end, NewWindow(&start, &end))
-	cluster2Node1.CPUCost = 20.0
-	cluster2Node1.RAMCost = 15.0
-	cluster2Node1.GPUCost = 0.0
-	cluster2Node1.CPUCoreHours = 4
-	cluster2Node1.RAMByteHours = 3
-	cluster2Node1.GPUHours = 0
-
-	cluster2Node2 := NewNode("node2", "cluster2", "node2", start, end, NewWindow(&start, &end))
-	cluster2Node2.CPUCost = 20.0
-	cluster2Node2.RAMCost = 15.0
-	cluster2Node2.GPUCost = 0.0
-	cluster2Node2.CPUCoreHours = 3
-	cluster2Node2.RAMByteHours = 2
-	cluster2Node2.GPUHours = 0
-
-	cluster2Node3 := NewNode("node3", "cluster2", "node3", start, end, NewWindow(&start, &end))
-	cluster2Node3.CPUCost = 10.0
-	cluster2Node3.RAMCost = 10.0
-	cluster2Node3.GPUCost = 10.0
-	cluster2Node3.CPUCoreHours = 2
-	cluster2Node3.RAMByteHours = 2
-	cluster2Node3.GPUHours = 24
-
-	cluster2Disk1 := NewDisk("disk1", "cluster2", "disk1", start, end, NewWindow(&start, &end))
-	cluster2Disk1.Cost = 5.0
-	cluster2Disk1.adjustment = 1.0
-	cluster2Disk1.ByteHours = 5 * gb
-
-	cluster2Disk2 := NewDisk("disk2", "cluster2", "disk2", start, end, NewWindow(&start, &end))
-	cluster2Disk2.Cost = 10.0
-	cluster2Disk2.adjustment = 3.0
-	cluster2Disk2.ByteHours = 10 * gb
-
-	assetSet1 := NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1, cluster2Disk2)
-	assetSets = append(assetSets, assetSet1)
-
-	// NOTE: we're re-using generateAllocationSet so this has to line up with
-	// the allocated node costs from that function. See table above.
-
-	// | Hierarchy                               | Cost |  CPU |  RAM |  GPU | Adjustment |
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster1:
-	//     nodes                                  100.00   5.00   4.00   1.00       90.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster1 subtotal (adjusted)             100.00  50.00  40.00  10.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster1 allocated                        48.00   6.00  16.00   6.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster1 idle                             72.00  44.00  24.00   4.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster2:
-	//     node1                                   35.00  20.00  15.00   0.00        0.00
-	//     node2                                   35.00  20.00  15.00   0.00        0.00
-	//     node3                                   30.00  10.00  10.00  10.00        0.00
-	//     (disks should not matter for idle)
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster2 subtotal                        100.00  50.00  40.00  10.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster2 allocated                        28.00   6.00   6.00   6.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-	//   cluster2 idle                             82.00  44.00  34.00   4.00        0.00
-	// +-----------------------------------------+------+------+------+------+------------+
-
-	cluster1Nodes = NewNode("", "cluster1", "c1nodes", start, end, NewWindow(&start, &end))
-	cluster1Nodes.CPUCost = 5.0
-	cluster1Nodes.RAMCost = 4.0
-	cluster1Nodes.GPUCost = 1.0
-	cluster1Nodes.adjustment = 90.00
-	cluster1Nodes.CPUCoreHours = 8
-	cluster1Nodes.RAMByteHours = 6
-	cluster1Nodes.GPUHours = 24
-
-	cluster2Node1 = NewNode("node1", "cluster2", "node1", start, end, NewWindow(&start, &end))
-	cluster2Node1.CPUCost = 20.0
-	cluster2Node1.RAMCost = 15.0
-	cluster2Node1.GPUCost = 0.0
-	cluster2Node1.CPUCoreHours = 4
-	cluster2Node1.RAMByteHours = 3
-	cluster2Node1.GPUHours = 0
-
-	cluster2Node2 = NewNode("node2", "cluster2", "node2", start, end, NewWindow(&start, &end))
-	cluster2Node2.CPUCost = 20.0
-	cluster2Node2.RAMCost = 15.0
-	cluster2Node2.GPUCost = 0.0
-	cluster2Node2.CPUCoreHours = 3
-	cluster2Node2.RAMByteHours = 2
-	cluster2Node2.GPUHours = 0
-
-	cluster2Node3 = NewNode("node3", "cluster2", "node3", start, end, NewWindow(&start, &end))
-	cluster2Node3.CPUCost = 10.0
-	cluster2Node3.RAMCost = 10.0
-	cluster2Node3.GPUCost = 10.0
-	cluster2Node3.CPUCoreHours = 2
-	cluster2Node3.RAMByteHours = 2
-	cluster2Node3.GPUHours = 24
-
-	cluster2Disk1 = NewDisk("disk1", "cluster2", "disk1", start, end, NewWindow(&start, &end))
-	cluster2Disk1.Cost = 5.0
-	cluster2Disk1.adjustment = 1.0
-	cluster2Disk1.ByteHours = 5 * gb
-
-	cluster2Disk2 = NewDisk("disk2", "cluster2", "disk2", start, end, NewWindow(&start, &end))
-	cluster2Disk2.Cost = 12.0
-	cluster2Disk2.adjustment = 4.0
-	cluster2Disk2.ByteHours = 20 * gb
-
-	assetSet2 := NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1, cluster2Disk2)
-	assetSets = append(assetSets, assetSet2)
-	return assetSets
-}
-
 func assertAllocationSetTotals(t *testing.T, as *AllocationSet, msg string, err error, length int, totalCost float64) {
 	if err != nil {
 		t.Fatalf("AllocationSet.AggregateBy[%s]: unexpected error: %s", msg, err)
@@ -990,7 +530,7 @@ func printAllocationSet(msg string, as *AllocationSet) {
 
 func TestAllocationSet_AggregateBy(t *testing.T) {
 	// Test AggregateBy against the following workload topology, which is
-	// generated by generateAllocationSet:
+	// generated by GenerateMockAllocationSet:
 
 	// | Hierarchy                              | Cost |  CPU |  RAM |  GPU |   PV |  Net |  LB  |
 	// +----------------------------------------+------+------+------+------+------+------+------+
@@ -1992,7 +1532,6 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			windowEnd:   endYesterday,
 			expMinutes:  1440.0,
 		},
-
 		// 7  Edge cases and errors
 
 		// 7a Empty AggregationProperties
@@ -2004,9 +1543,9 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	for name, testcase := range cases {
 		t.Run(name, func(t *testing.T) {
 			if testcase.aggOpts != nil && testcase.aggOpts.IdleByNode {
-				as = generateAllocationSetNodeIdle(testcase.start)
+				as = GenerateMockAllocationSetNodeIdle(testcase.start)
 			} else {
-				as = generateAllocationSetClusterIdle(testcase.start)
+				as = GenerateMockAllocationSetClusterIdle(testcase.start)
 			}
 			err = as.AggregateBy(testcase.aggBy, testcase.aggOpts)
 			assertAllocationSetTotals(t, as, name, err, testcase.numResults, testcase.totalCost)
@@ -2028,9 +1567,9 @@ func TestAllocationSet_ComputeIdleAllocations(t *testing.T) {
 	start := end.Add(-day)
 
 	// Generate AllocationSet without idle allocations
-	as = generateAllocationSet(start)
+	as = GenerateMockAllocationSet(start)
 
-	assetSets := generateAssetSets(start, end)
+	assetSets := GenerateMockAssetSets(start, end)
 
 	cases := map[string]struct {
 		allocationSet *AllocationSet
@@ -2105,6 +1644,7 @@ func TestAllocationSet_ComputeIdleAllocations(t *testing.T) {
 }
 
 func TestAllocationSet_ComputeIdleAllocationsPerNode(t *testing.T) {
+
 	var as *AllocationSet
 	var err error
 	var idles map[string]*Allocation
@@ -2113,9 +1653,9 @@ func TestAllocationSet_ComputeIdleAllocationsPerNode(t *testing.T) {
 	start := end.Add(-day)
 
 	// Generate AllocationSet without idle allocations
-	as = generateAllocationSet(start)
+	as = GenerateMockAllocationSet(start)
 
-	assetSets := generateAssetSets(start, end)
+	assetSets := GenerateMockAssetSets(start, end)
 
 	cases := map[string]struct {
 		allocationSet *AllocationSet
@@ -2209,259 +1749,6 @@ func TestAllocationSet_ComputeIdleAllocationsPerNode(t *testing.T) {
 	}
 }
 
-func TestAllocationSet_ReconcileAllocations(t *testing.T) {
-	var as *AllocationSet
-	var err error
-
-	end := time.Now().UTC().Truncate(day)
-	start := end.Add(-day)
-
-	// Generate AllocationSet without idle allocations
-	as = generateAllocationSet(start)
-
-	// add reconcilable pvs to pod-mno
-	for _, a := range as.allocations {
-		if a.Properties.Pod == "pod-mno" {
-			a.PVs = a.PVs.Add(PVAllocations{
-				disk1: {
-					Cost:      2.5,
-					ByteHours: 2.5 * gb,
-				},
-				disk2: {
-					Cost:      5,
-					ByteHours: 5 * gb,
-				},
-			})
-		}
-	}
-
-	assetSets := generateAssetSets(start, end)
-
-	cases := map[string]struct {
-		allocationSet *AllocationSet
-		assetSet      *AssetSet
-		allocations   map[string]Allocation
-	}{
-		"1a": {
-			allocationSet: as,
-			assetSet:      assetSets[0],
-			allocations: map[string]Allocation{
-				// Allocation adjustments are found with the formula:
-				// ADJUSTMENT_RATE * NODE_COST * (ALLOC_HOURS / NODE_HOURS) - ALLOC_COST
-				// ADJUSTMENT_RATE: 0.90909090909
-				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
-				// CPU	|    55	    |	  8	     |     1 	  |	  1
-				// RAM	|    44	    |	  6	     |     11 	  |	  1
-				// GPU	|    11	    |	 24      |     1 	  |	  1
-				"cluster1/namespace1/pod1/container1": {
-					CPUCostAdjustment: 5.25,
-					RAMCostAdjustment: -4.333333,
-					GPUCostAdjustment: -0.583333,
-				},
-				// ADJUSTMENT_RATE: 0.90909090909
-				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
-				// CPU	|    55	    |	  8	     |     1 	  |	  1
-				// RAM	|    44	    |	  6	     |     1 	  |	  1
-				// GPU	|    11	    |	 24      |     1 	  |	  1
-				"cluster1/namespace1/pod-abc/container2": {
-					CPUCostAdjustment: 5.25,
-					RAMCostAdjustment: 5.666667,
-					GPUCostAdjustment: -0.583333,
-				},
-				"cluster1/namespace1/pod-def/container3": {
-					CPUCostAdjustment: 5.25,
-					RAMCostAdjustment: 5.666667,
-					GPUCostAdjustment: -0.583333,
-				},
-				"cluster1/namespace2/pod-ghi/container4": {
-					CPUCostAdjustment: 5.25,
-					RAMCostAdjustment: 5.666667,
-					GPUCostAdjustment: -0.583333,
-				},
-				"cluster1/namespace2/pod-ghi/container5": {
-					CPUCostAdjustment: 5.25,
-					RAMCostAdjustment: 5.666667,
-					GPUCostAdjustment: -0.583333,
-				},
-				"cluster1/namespace2/pod-jkl/container6": {
-					CPUCostAdjustment: 5.25,
-					RAMCostAdjustment: 5.666667,
-					GPUCostAdjustment: -0.583333,
-				},
-				// ADJUSTMENT_RATE: 1.0
-				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
-				// CPU	|    20	    |	  4	     |     1 	  |	  1
-				// RAM	|    15	    |	  3	     |     1 	  |	  1
-				// GPU	|    0	    |	  0      |     1 	  |	  1
-				"cluster2/namespace2/pod-mno/container4": {
-					CPUCostAdjustment: 4.0,
-					RAMCostAdjustment: 4.0,
-					GPUCostAdjustment: -1.0,
-					PVCostAdjustment:  2.0,
-				},
-				"cluster2/namespace2/pod-mno/container5": {
-					CPUCostAdjustment: 4.0,
-					RAMCostAdjustment: 4.0,
-					GPUCostAdjustment: -1.0,
-					PVCostAdjustment:  2.0,
-				},
-				// ADJUSTMENT_RATE: 1.0
-				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
-				// CPU	|    20	    |	  3	     |     1 	  |	  1
-				// RAM	|    15	    |	  2	     |     1 	  |	  1
-				// GPU	|    0	    |	  0      |     1 	  |	  1
-				"cluster2/namespace2/pod-pqr/container6": {
-					CPUCostAdjustment: 5.666667,
-					RAMCostAdjustment: 6.5,
-					GPUCostAdjustment: -1.0,
-				},
-				"cluster2/namespace3/pod-stu/container7": {
-					CPUCostAdjustment: 5.666667,
-					RAMCostAdjustment: 6.5,
-					GPUCostAdjustment: -1.0,
-				},
-				// ADJUSTMENT_RATE: 1.0
-				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
-				// CPU	|    10	    |	  2	     |     1 	  |	  1
-				// RAM	|    10	    |	  2	     |     1 	  |	  1
-				// GPU	|    10	    |	 24      |     1 	  |	  1
-				"cluster2/namespace3/pod-vwx/container8": {
-					CPUCostAdjustment: 4.0,
-					RAMCostAdjustment: 4.0,
-					GPUCostAdjustment: -0.583333,
-				},
-				"cluster2/namespace3/pod-vwx/container9": {
-					CPUCostAdjustment: 4.0,
-					RAMCostAdjustment: 4.0,
-					GPUCostAdjustment: -0.583333,
-				},
-			},
-		},
-		"1b": {
-			allocationSet: as,
-			assetSet:      assetSets[1],
-			allocations: map[string]Allocation{
-				// ADJUSTMENT_RATE: 10
-				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
-				// CPU	|     5	    |	  8	     |     1 	  |	  1
-				// RAM	|     4	    |	  6	     |    11 	  |	  1
-				// GPU	|     1	    |	 24      |     1 	  |	  1
-				"cluster1/namespace1/pod1/container1": {
-					CPUCostAdjustment: 5.25,
-					RAMCostAdjustment: -4.333333,
-					GPUCostAdjustment: -0.583333,
-				},
-				// ADJUSTMENT_RATE: 10
-				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
-				// CPU	|     5	    |	  8	     |     1 	  |	  1
-				// RAM	|     4	    |	  6	     |     1 	  |	  1
-				// GPU	|     1	    |	 24      |     1 	  |	  1
-				"cluster1/namespace1/pod-abc/container2": {
-					CPUCostAdjustment: 5.25,
-					RAMCostAdjustment: 5.6666667,
-					GPUCostAdjustment: -0.583333,
-				},
-				"cluster1/namespace1/pod-def/container3": {
-					CPUCostAdjustment: 5.25,
-					RAMCostAdjustment: 5.6666667,
-					GPUCostAdjustment: -0.583333,
-				},
-				"cluster1/namespace2/pod-ghi/container4": {
-					CPUCostAdjustment: 5.25,
-					RAMCostAdjustment: 5.6666667,
-					GPUCostAdjustment: -0.583333,
-				},
-				"cluster1/namespace2/pod-ghi/container5": {
-					CPUCostAdjustment: 5.25,
-					RAMCostAdjustment: 5.6666667,
-					GPUCostAdjustment: -0.583333,
-				},
-				"cluster1/namespace2/pod-jkl/container6": {
-					CPUCostAdjustment: 5.25,
-					RAMCostAdjustment: 5.6666667,
-					GPUCostAdjustment: -0.583333,
-				},
-				// ADJUSTMENT_RATE: 1.0
-				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
-				// CPU	|    20	    |	  4	     |     1 	  |	  1
-				// RAM	|    15	    |	  3	     |     1 	  |	  1
-				// GPU	|    0	    |	  0      |     1 	  |	  1
-				"cluster2/namespace2/pod-mno/container4": {
-					CPUCostAdjustment: 4.0,
-					RAMCostAdjustment: 4.0,
-					GPUCostAdjustment: -1.0,
-					PVCostAdjustment:  -0.5,
-				},
-				"cluster2/namespace2/pod-mno/container5": {
-					CPUCostAdjustment: 4.0,
-					RAMCostAdjustment: 4.0,
-					GPUCostAdjustment: -1.0,
-					PVCostAdjustment:  -0.5,
-				},
-				// ADJUSTMENT_RATE: 1.0
-				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
-				// CPU	|    20	    |	  3	     |     1 	  |	  1
-				// RAM	|    15	    |	  2	     |     1 	  |	  1
-				// GPU	|    0	    |	  0      |     1 	  |	  1
-				"cluster2/namespace2/pod-pqr/container6": {
-					CPUCostAdjustment: 5.666667,
-					RAMCostAdjustment: 6.5,
-					GPUCostAdjustment: -1.0,
-				},
-				"cluster2/namespace3/pod-stu/container7": {
-					CPUCostAdjustment: 5.666667,
-					RAMCostAdjustment: 6.5,
-					GPUCostAdjustment: -1.0,
-				},
-				// ADJUSTMENT_RATE: 1.0
-				// Type | NODE_COST | NODE_HOURs | ALLOC_COST | ALLOC_HOURS
-				// CPU	|    10	    |	  2	     |     1 	  |	  1
-				// RAM	|    10	    |	  2	     |     1 	  |	  1
-				// GPU	|    10	    |	 24      |     1 	  |	  1
-				"cluster2/namespace3/pod-vwx/container8": {
-					CPUCostAdjustment: 4.0,
-					RAMCostAdjustment: 4.0,
-					GPUCostAdjustment: -0.583333,
-				},
-				"cluster2/namespace3/pod-vwx/container9": {
-					CPUCostAdjustment: 4.0,
-					RAMCostAdjustment: 4.0,
-					GPUCostAdjustment: -0.583333,
-				},
-			},
-		},
-	}
-
-	for name, testcase := range cases {
-		t.Run(name, func(t *testing.T) {
-			err = as.Reconcile(testcase.assetSet)
-			reconAllocs := as.allocations
-			if err != nil {
-				t.Fatalf("unexpected error: %s", err)
-			}
-
-			for allocationName, testAlloc := range testcase.allocations {
-				if _, ok := reconAllocs[allocationName]; !ok {
-					t.Fatalf("expected allocation %s", allocationName)
-				}
-
-				if !util.IsApproximately(reconAllocs[allocationName].CPUCostAdjustment, testAlloc.CPUCostAdjustment) {
-					t.Fatalf("expected CPU Adjustment for %s to be %f; got %f", allocationName, testAlloc.CPUCostAdjustment, reconAllocs[allocationName].CPUCostAdjustment)
-				}
-				if !util.IsApproximately(reconAllocs[allocationName].RAMCostAdjustment, testAlloc.RAMCostAdjustment) {
-					t.Fatalf("expected RAM Adjustment for %s to be %f; got %f", allocationName, testAlloc.RAMCostAdjustment, reconAllocs[allocationName].RAMCostAdjustment)
-				}
-				if !util.IsApproximately(reconAllocs[allocationName].GPUCostAdjustment, testAlloc.GPUCostAdjustment) {
-					t.Fatalf("expected GPU Adjustment for %s to be %f; got %f", allocationName, testAlloc.GPUCostAdjustment, reconAllocs[allocationName].GPUCostAdjustment)
-				}
-				if !util.IsApproximately(reconAllocs[allocationName].PVCostAdjustment, testAlloc.PVCostAdjustment) {
-					t.Fatalf("expected PV Adjustment for %s to be %f; got %f", allocationName, testAlloc.PVCostAdjustment, reconAllocs[allocationName].PVCostAdjustment)
-				}
-			}
-		})
-	}
-}
-
 // TODO niko/etl
 //func TestAllocationSet_Delete(t *testing.T) {}
 
@@ -2544,10 +1831,10 @@ func TestAllocationSetRange_Accumulate(t *testing.T) {
 	}
 
 	todayAS := NewAllocationSet(today, tomorrow)
-	todayAS.Set(NewUnitAllocation("", today, day, nil))
+	todayAS.Set(NewMockUnitAllocation("", today, day, nil))
 
 	yesterdayAS := NewAllocationSet(yesterday, today)
-	yesterdayAS.Set(NewUnitAllocation("", yesterday, day, nil))
+	yesterdayAS.Set(NewMockUnitAllocation("", yesterday, day, nil))
 
 	// Accumulate non-nil with nil should result in copy of non-nil, regardless of order
 	result, err = NewAllocationSetRange(nil, todayAS).Accumulate()
@@ -2677,22 +1964,22 @@ func TestAllocationSetRange_InsertRange(t *testing.T) {
 	today := time.Now().UTC().Truncate(day)
 	tomorrow := time.Now().UTC().Truncate(day).Add(day)
 
-	unit := NewUnitAllocation("", today, day, nil)
+	unit := NewMockUnitAllocation("", today, day, nil)
 
 	ago2dAS := NewAllocationSet(ago2d, yesterday)
-	ago2dAS.Set(NewUnitAllocation("a", ago2d, day, nil))
-	ago2dAS.Set(NewUnitAllocation("b", ago2d, day, nil))
-	ago2dAS.Set(NewUnitAllocation("c", ago2d, day, nil))
+	ago2dAS.Set(NewMockUnitAllocation("a", ago2d, day, nil))
+	ago2dAS.Set(NewMockUnitAllocation("b", ago2d, day, nil))
+	ago2dAS.Set(NewMockUnitAllocation("c", ago2d, day, nil))
 
 	yesterdayAS := NewAllocationSet(yesterday, today)
-	yesterdayAS.Set(NewUnitAllocation("a", yesterday, day, nil))
-	yesterdayAS.Set(NewUnitAllocation("b", yesterday, day, nil))
-	yesterdayAS.Set(NewUnitAllocation("c", yesterday, day, nil))
+	yesterdayAS.Set(NewMockUnitAllocation("a", yesterday, day, nil))
+	yesterdayAS.Set(NewMockUnitAllocation("b", yesterday, day, nil))
+	yesterdayAS.Set(NewMockUnitAllocation("c", yesterday, day, nil))
 
 	todayAS := NewAllocationSet(today, tomorrow)
-	todayAS.Set(NewUnitAllocation("a", today, day, nil))
-	todayAS.Set(NewUnitAllocation("b", today, day, nil))
-	todayAS.Set(NewUnitAllocation("c", today, day, nil))
+	todayAS.Set(NewMockUnitAllocation("a", today, day, nil))
+	todayAS.Set(NewMockUnitAllocation("b", today, day, nil))
+	todayAS.Set(NewMockUnitAllocation("c", today, day, nil))
 
 	var nilASR *AllocationSetRange
 	thisASR := NewAllocationSetRange(yesterdayAS.Clone(), todayAS.Clone())

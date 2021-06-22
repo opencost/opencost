@@ -19,11 +19,11 @@ import (
 const (
 	queryFmtPods              = `avg(kube_pod_container_status_running{}) by (pod, namespace, %s)[%s:%s]%s`
 	queryFmtRAMBytesAllocated = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s, provider_id)`
-	queryFmtRAMRequests       = `avg(avg_over_time(kube_pod_container_resource_requests_memory_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
+	queryFmtRAMRequests       = `avg(avg_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
 	queryFmtRAMUsageAvg       = `avg(avg_over_time(container_memory_working_set_bytes{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, %s)`
 	queryFmtRAMUsageMax       = `max(max_over_time(container_memory_working_set_bytes{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, %s)`
 	queryFmtCPUCoresAllocated = `avg(avg_over_time(container_cpu_allocation{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
-	queryFmtCPURequests       = `avg(avg_over_time(kube_pod_container_resource_requests_cpu_cores{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
+	queryFmtCPURequests       = `avg(avg_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
 	queryFmtCPUUsageAvg       = `avg(rate(container_cpu_usage_seconds_total{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, %s)`
 
 	// This query could be written without the recording rule
@@ -63,6 +63,20 @@ const (
 	queryFmtLBCostPerHr           = `avg(avg_over_time(kubecost_load_balancer_cost[%s]%s)) by (namespace, service_name, %s)`
 	queryFmtLBActiveMins          = `count(kubecost_load_balancer_cost) by (namespace, service_name, %s)[%s:%s]%s`
 )
+
+// CanCompute should return true if CostModel can act as a valid source for the
+// given time range. In the case of CostModel we want to attempt to compute as
+// long as the range starts in the past. If the CostModel ends up not having
+// data to match, that's okay, and should be communicated with an error
+// response from ComputeAllocation.
+func (cm *CostModel) CanCompute(start, end time.Time) bool {
+	return start.Before(time.Now())
+}
+
+// Name returns the name of the Source
+func (cm *CostModel) Name() string {
+	return "CostModel"
+}
 
 // ComputeAllocation uses the CostModel instance to compute an AllocationSet
 // for the window defined by the given start and end times. The Allocations
@@ -1678,13 +1692,13 @@ func applyUnmountedPVs(window kubecost.Window, podMap map[podKey]*Pod, pvMap map
 			Cluster: cluster,
 			Name:    kubecost.UnmountedSuffix,
 		}
-		unmountedBreakDown := kubecost.PVAllocations{
+		unmountedPVs := kubecost.PVAllocations{
 			pvKey: {
 				ByteHours: unmountedPVBytes[cluster] * window.Minutes() / 60.0,
 				Cost:      amount,
 			},
 		}
-		podMap[key].Allocations[container].PVs = podMap[key].Allocations[container].PVs.Add(unmountedBreakDown)
+		podMap[key].Allocations[container].PVs = podMap[key].Allocations[container].PVs.Add(unmountedPVs)
 	}
 }
 
@@ -1730,13 +1744,13 @@ func applyUnmountedPVCs(window kubecost.Window, podMap map[podKey]*Pod, pvcMap m
 			Cluster: cluster,
 			Name:    kubecost.UnmountedSuffix,
 		}
-		unmountedBreakDown := kubecost.PVAllocations{
+		unmountedPVs := kubecost.PVAllocations{
 			pvKey: {
 				ByteHours: unmountedPVCBytes[key] * window.Minutes() / 60.0,
 				Cost:      amount,
 			},
 		}
-		podMap[podKey].Allocations[container].PVs = podMap[podKey].Allocations[container].PVs.Add(unmountedBreakDown)
+		podMap[podKey].Allocations[container].PVs = podMap[podKey].Allocations[container].PVs.Add(unmountedPVs)
 
 	}
 }

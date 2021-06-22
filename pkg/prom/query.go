@@ -186,6 +186,12 @@ func (ctx *Context) query(query string) (interface{}, prometheus.Warnings, error
 
 		return nil, warnings, fmt.Errorf("query error %d: '%s' fetching query '%s'", resp.StatusCode, err.Error(), query)
 	}
+	// Unsuccessful Status Code, log body and status
+	statusCode := resp.StatusCode
+	statusText := http.StatusText(statusCode)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, warnings, CommErrorf("%d (%s) URL: '%s' Headers: '%s', Body: '%s' Query: '%s'", statusCode, statusText, req.URL, util.HeaderString(resp.Header), body, query)
+	}
 
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
@@ -287,7 +293,7 @@ func (ctx *Context) queryRange(query string, start, end time.Time, step time.Dur
 	statusCode := resp.StatusCode
 	statusText := http.StatusText(statusCode)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, warnings, fmt.Errorf("%d (%s) Headers: %s, Body: %s Query: %s", statusCode, statusText, util.HeaderString(resp.Header), body, query)
+		return nil, warnings, CommErrorf("%d (%s) Headers: %s, Body: %s Query: %s", statusCode, statusText, util.HeaderString(resp.Header), body, query)
 	}
 
 	var toReturn interface{}

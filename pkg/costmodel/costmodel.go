@@ -138,9 +138,9 @@ const (
 		label_replace(
 			label_replace(
 				avg(
-					count_over_time(kube_pod_container_resource_requests_memory_bytes{container!="",container!="POD", node!=""}[%s] %s)
+					count_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="",container!="POD", node!=""}[%s] %s)
 					*
-					avg_over_time(kube_pod_container_resource_requests_memory_bytes{container!="",container!="POD", node!=""}[%s] %s)
+					avg_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="",container!="POD", node!=""}[%s] %s)
 				) by (namespace,container,pod,node,%s) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		)
@@ -156,9 +156,9 @@ const (
 		label_replace(
 			label_replace(
 				avg(
-					count_over_time(kube_pod_container_resource_requests_cpu_cores{container!="",container!="POD", node!=""}[%s] %s)
+					count_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="",container!="POD", node!=""}[%s] %s)
 					*
-					avg_over_time(kube_pod_container_resource_requests_cpu_cores{container!="",container!="POD", node!=""}[%s] %s)
+					avg_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="",container!="POD", node!=""}[%s] %s)
 				) by (namespace,container,pod,node,%s) , "container_name","$1","container","(.+)"
 			), "pod_name","$1","pod","(.+)"
 		)
@@ -227,7 +227,7 @@ const (
 	queryZoneNetworkUsage     = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s] %s)) by (namespace,pod_name,%s) / 1024 / 1024 / 1024`
 	queryRegionNetworkUsage   = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s] %s)) by (namespace,pod_name,%s) / 1024 / 1024 / 1024`
 	queryInternetNetworkUsage = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s] %s)) by (namespace,pod_name,%s) / 1024 / 1024 / 1024`
-	normalizationStr          = `max(count_over_time(kube_pod_container_resource_requests_memory_bytes{}[%s] %s))`
+	normalizationStr          = `max(count_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte"}[%s] %s))`
 )
 
 func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
@@ -899,6 +899,7 @@ func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cp costAnalyz
 		return err
 	}
 	key := cp.GetPVKey(kpv, pv.Parameters, defaultRegion)
+	pv.ProviderID = key.ID()
 	pvWithCost, err := cp.PVPricing(key)
 	if err != nil {
 		pv.Cost = cfg.Storage
@@ -909,7 +910,6 @@ func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cp costAnalyz
 		return nil // set default cost
 	}
 	pv.Cost = pvWithCost.Cost
-	pv.ProviderID = key.ID()
 	return nil
 }
 
