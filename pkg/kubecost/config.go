@@ -29,6 +29,30 @@ type LabelConfig struct {
 	TeamExternalLabel        string `json:"team_external_label"`
 }
 
+// NewLabelConfig creates a new LabelConfig instance with default values.
+func NewLabelConfig() *LabelConfig {
+	return &LabelConfig{
+		DepartmentLabel:          "department",
+		EnvironmentLabel:         "env",
+		OwnerLabel:               "owner",
+		ProductLabel:             "app",
+		TeamLabel:                "team",
+		ClusterExternalLabel:     "kubernetes_cluster",
+		NamespaceExternalLabel:   "kubernetes_namespace",
+		ControllerExternalLabel:  "kubernetes_controller",
+		DaemonsetExternalLabel:   "kubernetes_daemonset",
+		DeploymentExternalLabel:  "kubernetes_deployment",
+		StatefulsetExternalLabel: "kubernetes_statefulset",
+		ServiceExternalLabel:     "kubernetes_service",
+		PodExternalLabel:         "kubernetes_pod",
+		DepartmentExternalLabel:  "kubernetes_label_department",
+		EnvironmentExternalLabel: "kubernetes_label_env",
+		OwnerExternalLabel:       "kubernetes_label_owner",
+		ProductExternalLabel:     "kubernetes_label_app",
+		TeamExternalLabel:        "kubernetes_label_team",
+	}
+}
+
 // Map returns the config as a basic string map, with default values if not set
 func (lc *LabelConfig) Map() map[string]string {
 	// Start with default values
@@ -195,4 +219,70 @@ func (lc *LabelConfig) AllocationPropertyLabels() map[string]string {
 	}
 
 	return labels
+}
+
+// GetExternalAllocationName derives an external allocation name from a set of
+// labels, given an aggregation property. If the aggregation property is,
+// itself, a label (e.g. label:app) then this function looks for a
+// corresponding value under "app" and returns "app=thatvalue". If the
+// aggregation property is not a label but a Kubernetes concept
+// (e.g. namespace) then this function first finds the "external label"
+// configured to represent it (e.g. NamespaceExternalLabel: "kubens") and uses
+// that label to determine an external allocation name. If no label value can
+// be found, return an empty string.
+func (lc *LabelConfig) GetExternalAllocationName(labels map[string]string, aggregateBy string) string {
+	labelName := ""
+	aggByLabel := false
+
+	// Determine if the aggregation property is, itself, a label or not. If
+	// not, determine the label associated with the given aggregation property.
+	if strings.HasPrefix(aggregateBy, "label:") {
+		labelName = strings.TrimPrefix(aggregateBy, "label:")
+		aggByLabel = true
+	} else {
+		// If lc is nil, use a default LabelConfig to do a best-effort match
+		if lc == nil {
+			lc = NewLabelConfig()
+		}
+
+		switch strings.ToLower(aggregateBy) {
+		case AllocationClusterProp:
+			labelName = lc.ClusterExternalLabel
+		case AllocationControllerProp:
+			labelName = lc.ControllerExternalLabel
+		case AllocationNamespaceProp:
+			labelName = lc.NamespaceExternalLabel
+		case AllocationPodProp:
+			labelName = lc.PodExternalLabel
+		case AllocationServiceProp:
+			labelName = lc.ServiceExternalLabel
+		case AllocationDeploymentProp:
+			labelName = lc.DeploymentExternalLabel
+		case AllocationStatefulSetProp:
+			labelName = lc.StatefulsetExternalLabel
+		case AllocationDaemonSetProp:
+			labelName = lc.DaemonsetExternalLabel
+		}
+	}
+
+	// No label is set for the given aggregation property.
+	if labelName == "" {
+		return ""
+	}
+
+	// The relevant label is not present in the set of labels provided.
+	labelValue, ok := labels[labelName]
+	if !ok {
+		return ""
+	}
+
+	// When aggregating by some label (i.e. not by a Kubernetes concept),
+	// prepend the label value with the label name (e.g. "app=cost-analyzer").
+	// This step is not necessary for Kubernetes concepts (e.g. for namespace,
+	// we do not need "namespace=kubecost"; just "kubecost" will do).
+	if aggByLabel {
+		return fmt.Sprintf("%s=%s", labelName, labelValue)
+	}
+
+	return labelValue
 }

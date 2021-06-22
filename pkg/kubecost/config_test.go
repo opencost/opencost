@@ -62,7 +62,7 @@ func TestLabelConfig_ExternalQueryLabels(t *testing.T) {
 	}
 }
 
-func TestTestLabelConfig_AllocationPropertyLabels(t *testing.T) {
+func TestLabelConfig_AllocationPropertyLabels(t *testing.T) {
 	var labels map[string]string
 	var lc *LabelConfig
 
@@ -90,5 +90,80 @@ func TestTestLabelConfig_AllocationPropertyLabels(t *testing.T) {
 	}
 	if val, ok := labels["label:kubeenv"]; !ok || val != "kubeenv" {
 		t.Fatalf("AllocationPropertyLabels: expected %s; got %s", "kubeenv", val)
+	}
+}
+
+func TestLabelConfig_GetExternalAllocationName(t *testing.T) {
+	labels := map[string]string{
+		"kubens":                      "kubecost-staging",
+		"env":                         "env1",
+		"app":                         "app1",
+		"kubernetes_cluster":          "cluster-one",
+		"kubernetes_namespace":        "kubecost",
+		"kubernetes_controller":       "kubecost-controller",
+		"kubernetes_daemonset":        "kubecost-daemonset",
+		"kubernetes_deployment":       "kubecost-deployment",
+		"kubernetes_statefulset":      "kubecost-statefulset",
+		"kubernetes_service":          "kubecost-service",
+		"kubernetes_pod":              "kubecost-cost-analyzer-abc123",
+		"kubernetes_label_department": "kubecost-department",
+		"kubernetes_label_env":        "kubecost-env",
+		"kubernetes_label_owner":      "kubecost-owner",
+		"kubernetes_label_app":        "kubecost-app",
+		"kubernetes_label_team":       "kubecost-team",
+	}
+
+	testCases := []struct {
+		aggBy    string
+		expected string
+	}{
+		{"label:env", "env=env1"},
+		{"label:app", "app=app1"},
+		{"cluster", "cluster-one"},
+		{"namespace", "kubecost"},
+		{"controller", "kubecost-controller"},
+		{"daemonset", "kubecost-daemonset"},
+		{"deployment", "kubecost-deployment"},
+		{"statefulset", "kubecost-statefulset"},
+		{"service", "kubecost-service"},
+		{"pod", "kubecost-cost-analyzer-abc123"},
+		{"pod", "kubecost-cost-analyzer-abc123"},
+		{"notathing", ""},
+		{"", ""},
+	}
+
+	var lc *LabelConfig
+
+	// If lc is nil, everything should still work off of defaults.
+	for _, tc := range testCases {
+		actual := lc.GetExternalAllocationName(labels, tc.aggBy)
+		if actual != tc.expected {
+			t.Fatalf("GetExternalAllocationName failed; expected '%s'; got '%s'", tc.expected, actual)
+		}
+	}
+
+	// If lc is default, everything should work, just like the nil.
+	lc = NewLabelConfig()
+	for _, tc := range testCases {
+		actual := lc.GetExternalAllocationName(labels, tc.aggBy)
+		if actual != tc.expected {
+			t.Fatalf("GetExternalAllocationName failed; expected '%s'; got '%s'", tc.expected, actual)
+		}
+	}
+
+	// Change the external label for namespace and confirm it still works
+	lc.NamespaceExternalLabel = "kubens"
+
+	testCases = []struct {
+		aggBy    string
+		expected string
+	}{
+		{"namespace", "kubecost-staging"},
+	}
+	for _, tc := range testCases {
+		actual := lc.GetExternalAllocationName(labels, tc.aggBy)
+		if actual != tc.expected {
+			t.Fatalf("GetExternalAllocationName failed; expected '%s'; got '%s'", tc.expected, actual)
+		}
 	}
 }
