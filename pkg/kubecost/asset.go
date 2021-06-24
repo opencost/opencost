@@ -155,43 +155,43 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, labelConfig *L
 	// external cost under "kubecost").
 	for _, aggBy := range aggregateBy {
 		name := labelConfig.GetExternalAllocationName(asset.Labels(), aggBy)
-		if name != "" {
-			names = append(names, name)
-			match = true
-		} else {
+		if name == "" {
 			// No matching label has been defined in the cost-analyzer label config
 			// relating to the given aggregateBy property.
 			names = append(names, UnallocatedSuffix)
 			continue
-		}
+		} else {
+			names = append(names, name)
+			match = true
 
-		// Set the corresponding property on props
-		switch aggBy {
-		case AllocationClusterProp:
-			props.Cluster = name
-		case AllocationNodeProp:
-			props.Node = name
-		case AllocationNamespaceProp:
-			props.Namespace = name
-		case AllocationControllerKindProp:
-			props.ControllerKind = name
-		case AllocationControllerProp:
-			props.Controller = name
-		case AllocationPodProp:
-			props.Pod = name
-		case AllocationContainerProp:
-			props.Container = name
-		case AllocationServiceProp:
-			props.Services = []string{name}
-		default:
-			if strings.HasPrefix(aggBy, "label:") {
-				// Set the corresponding label in props
-				if props.Labels == nil {
-					props.Labels = map[string]string{}
+			// Set the corresponding property on props
+			switch aggBy {
+			case AllocationClusterProp:
+				props.Cluster = name
+			case AllocationNodeProp:
+				props.Node = name
+			case AllocationNamespaceProp:
+				props.Namespace = name
+			case AllocationControllerKindProp:
+				props.ControllerKind = name
+			case AllocationControllerProp:
+				props.Controller = name
+			case AllocationPodProp:
+				props.Pod = name
+			case AllocationContainerProp:
+				props.Container = name
+			case AllocationServiceProp:
+				props.Services = []string{name}
+			default:
+				if strings.HasPrefix(aggBy, "label:") {
+					// Set the corresponding label in props
+					if props.Labels == nil {
+						props.Labels = map[string]string{}
+					}
+					labelName := strings.TrimPrefix(aggBy, "label:")
+					labelValue := strings.TrimPrefix(name, labelName+"=")
+					props.Labels[labelName] = labelValue
 				}
-				labelName := strings.TrimPrefix(aggBy, "label:")
-				labelValue := strings.TrimPrefix(name, labelName+"=")
-				props.Labels[labelName] = labelValue
 			}
 		}
 	}
