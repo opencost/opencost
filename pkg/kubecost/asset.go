@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	gojson "encoding/json"
+
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util/json"
 )
@@ -2029,7 +2031,14 @@ func (n *Node) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	fmap := f.(map[string]interface{})
+	n.InterfaceToNode(f)
+
+	return nil
+}
+
+func (n *Node) InterfaceToNode(itf interface{}) error {
+
+	fmap := itf.(map[string]interface{})
 
 	// parse properties map to AssetProperties
 	fproperties := fmap["properties"].(map[string]interface{})
@@ -2103,6 +2112,7 @@ func (n *Node) UnmarshalJSON(b []byte) error {
 	}
 
 	return nil
+
 }
 
 // String implements fmt.Stringer
@@ -2907,6 +2917,42 @@ func (as *AssetSet) MarshalJSON() ([]byte, error) {
 	as.RLock()
 	defer as.RUnlock()
 	return json.Marshal(as.assets)
+}
+
+func (as *AssetSet) UnmarshalJSON(b []byte) error {
+
+	var assetMap map[string]*gojson.RawMessage
+
+	err := gojson.Unmarshal(b, &assetMap)
+	if err != nil {
+		return err
+	}
+
+	var newAssets map[string]Asset
+
+	for _, rawMessage := range assetMap {
+
+		var f interface{}
+
+		err := json.Unmarshal(*rawMessage, &f)
+		if err != nil {
+			return err
+		}
+		fmt.Println(f)
+		fmap := f.(map[string]interface{})
+
+		switch t := fmap["type"]; t {
+		case "Node":
+			var n Node
+			n.InterfaceToNode(f)
+
+			fmt.Println(n)
+		}
+	}
+
+	fmt.Println(assetMap)
+
+	return nil
 }
 
 func (as *AssetSet) Set(asset Asset, aggregateBy []string) error {

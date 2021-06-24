@@ -2,6 +2,7 @@ package kubecost
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -109,4 +110,32 @@ func TestNode_Unmarshal(t *testing.T) {
 		t.Fatalf("Node Unmarshal: Node mutated in unmarshal")
 	}
 
+}
+
+func TestAssetset_Unmarshal(t *testing.T) {
+
+	var s time.Time
+	var e time.Time
+	unmarshalWindow := NewWindow(&s, &e)
+
+	node1 := NewNode("node1", "cluster1", "provider1", *unmarshalWindow.start, *unmarshalWindow.end, unmarshalWindow)
+	node2 := NewNode("node2", "cluster1", "provider1", *unmarshalWindow.start, *unmarshalWindow.end, unmarshalWindow)
+	node3 := NewNode("node3", "cluster1", "provider1", *unmarshalWindow.start, *unmarshalWindow.end, unmarshalWindow)
+
+	assetList := []Asset{node1, node2, node3}
+
+	assetset1 := NewAssetSet(s, e, assetList...)
+
+	//fmt.Println(assetset1)
+
+	bytes, _ := json.Marshal(assetset1)
+
+	//print(string(bytes))
+
+	var thisassetset AssetSet
+	assetset2 := &thisassetset
+
+	err := json.Unmarshal(bytes, assetset2)
+
+	fmt.Println(err)
 }
