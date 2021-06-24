@@ -166,61 +166,6 @@ func (lc *LabelConfig) Map() map[string]string {
 	return m
 }
 
-// ExternalQueryLabels returns the config's external labels as a mapping of the
-// query column to the label it should set;
-// e.g. if the config stores "statefulset_external_label": "kubernetes_sset",
-//      then this would return "kubernetes_sset": "statefulset"
-func (lc *LabelConfig) ExternalQueryLabels() map[string]string {
-	queryLabels := map[string]string{}
-
-	for label, query := range lc.Map() {
-		if strings.HasSuffix(label, "external_label") && query != "" {
-			queryLabels[query] = label
-		}
-	}
-
-	return queryLabels
-}
-
-// AllocationPropertyLabels returns the config's external resource labels
-// as a mapping from k8s resource-to-label name.
-// e.g. if the config stores "statefulset_external_label": "kubernetes_sset",
-//      then this would return "statefulset": "kubernetes_sset"
-// e.g. if the config stores "owner_label": "product_owner",
-//      then this would return "label:product_owner": "product_owner"
-func (lc *LabelConfig) AllocationPropertyLabels() map[string]string {
-	labels := map[string]string{}
-
-	for labelKind, labelName := range lc.Map() {
-		if labelName != "" {
-			switch labelKind {
-			case "namespace_external_label":
-				labels["namespace"] = labelName
-			case "cluster_external_label":
-				labels["cluster"] = labelName
-			case "controller_external_label":
-				labels["controller"] = labelName
-			case "product_external_label":
-				labels["product"] = labelName
-			case "service_external_label":
-				labels["service"] = labelName
-			case "deployment_external_label":
-				labels["deployment"] = labelName
-			case "statefulset_external_label":
-				labels["statefulset"] = labelName
-			case "daemonset_external_label":
-				labels["daemonset"] = labelName
-			case "pod_external_label":
-				labels["pod"] = labelName
-			default:
-				labels[fmt.Sprintf("label:%s", labelName)] = labelName
-			}
-		}
-	}
-
-	return labels
-}
-
 // GetExternalAllocationName derives an external allocation name from a set of
 // labels, given an aggregation property. If the aggregation property is,
 // itself, a label (e.g. label:app) then this function looks for a
