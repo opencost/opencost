@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	gojson "encoding/json"
+	gojson "encoding/json" // gojson is default golang json, required for RawMessage decoding
 
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util/json"
@@ -607,6 +607,66 @@ func (a *Any) MarshalJSON() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
+func (a *Any) UnmarshalJSON(b []byte) error {
+
+	var f interface{}
+
+	err := json.Unmarshal(b, &f)
+	if err != nil {
+		return err
+	}
+
+	err = a.InterfaceToAny(f)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *Any) InterfaceToAny(itf interface{}) error {
+
+	fmap := itf.(map[string]interface{})
+
+	// parse properties map to AssetProperties
+	fproperties := fmap["properties"].(map[string]interface{})
+	properties := toAssetProp(fproperties)
+
+	// parse labels map to AssetLabels
+	labels := make(map[string]string)
+	for k, v := range fmap["labels"].(map[string]interface{}) {
+		labels[k] = v.(string)
+	}
+
+	// parse start and end strings to time.Time
+	start, err := time.Parse(time.RFC3339, fmap["start"].(string))
+	if err != nil {
+		return err
+	}
+	end, err := time.Parse(time.RFC3339, fmap["end"].(string))
+	if err != nil {
+		return err
+	}
+
+	a.properties = &properties
+	a.labels = labels
+	a.start = start
+	a.end = end
+	a.window = Window{
+		start: &start,
+		end:   &end,
+	}
+
+	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
+		a.adjustment = adjustment.(float64)
+	}
+	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
+		a.Cost = Cost.(float64) - a.adjustment
+	}
+
+	return nil
+}
+
 // String implements fmt.Stringer
 func (a *Any) String() string {
 	return toString(a)
@@ -851,6 +911,69 @@ func (ca *Cloud) MarshalJSON() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
+func (ca *Cloud) UnmarshalJSON(b []byte) error {
+
+	var f interface{}
+
+	err := json.Unmarshal(b, &f)
+	if err != nil {
+		return err
+	}
+
+	err = ca.InterfaceToCloud(f)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (ca *Cloud) InterfaceToCloud(itf interface{}) error {
+
+	fmap := itf.(map[string]interface{})
+
+	// parse properties map to AssetProperties
+	fproperties := fmap["properties"].(map[string]interface{})
+	properties := toAssetProp(fproperties)
+
+	// parse labels map to AssetLabels
+	labels := make(map[string]string)
+	for k, v := range fmap["labels"].(map[string]interface{}) {
+		labels[k] = v.(string)
+	}
+
+	// parse start and end strings to time.Time
+	start, err := time.Parse(time.RFC3339, fmap["start"].(string))
+	if err != nil {
+		return err
+	}
+	end, err := time.Parse(time.RFC3339, fmap["end"].(string))
+	if err != nil {
+		return err
+	}
+
+	ca.properties = &properties
+	ca.labels = labels
+	ca.start = start
+	ca.end = end
+	ca.window = Window{
+		start: &start,
+		end:   &end,
+	}
+
+	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
+		ca.adjustment = adjustment.(float64)
+	}
+	if Credit, err := getTypedVal(fmap["credit"]); err == nil {
+		ca.Credit = Credit.(float64)
+	}
+	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
+		ca.Cost = Cost.(float64) - ca.adjustment - ca.Credit
+	}
+
+	return nil
+}
+
 // String implements fmt.Stringer
 func (ca *Cloud) String() string {
 	return toString(ca)
@@ -1047,6 +1170,61 @@ func (cm *ClusterManagement) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "totalCost", cm.TotalCost(), "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
+}
+
+func (cm *ClusterManagement) UnmarshalJSON(b []byte) error {
+
+	var f interface{}
+
+	err := json.Unmarshal(b, &f)
+	if err != nil {
+		return err
+	}
+
+	err = cm.InterfaceToClusterManagement(f)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (cm *ClusterManagement) InterfaceToClusterManagement(itf interface{}) error {
+
+	fmap := itf.(map[string]interface{})
+
+	// parse properties map to AssetProperties
+	fproperties := fmap["properties"].(map[string]interface{})
+	properties := toAssetProp(fproperties)
+
+	// parse labels map to AssetLabels
+	labels := make(map[string]string)
+	for k, v := range fmap["labels"].(map[string]interface{}) {
+		labels[k] = v.(string)
+	}
+
+	// parse start and end strings to time.Time
+	start, err := time.Parse(time.RFC3339, fmap["start"].(string))
+	if err != nil {
+		return err
+	}
+	end, err := time.Parse(time.RFC3339, fmap["end"].(string))
+	if err != nil {
+		return err
+	}
+
+	cm.properties = &properties
+	cm.labels = labels
+	cm.window = Window{
+		start: &start,
+		end:   &end,
+	}
+
+	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
+		cm.Cost = Cost.(float64)
+	}
+
+	return nil
 }
 
 // String implements fmt.Stringer
@@ -1332,6 +1510,80 @@ func (d *Disk) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "totalCost", d.TotalCost(), "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
+}
+
+func (d *Disk) UnmarshalJSON(b []byte) error {
+
+	var f interface{}
+
+	err := json.Unmarshal(b, &f)
+	if err != nil {
+		return err
+	}
+
+	err = d.InterfaceToDisk(f)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d *Disk) InterfaceToDisk(itf interface{}) error {
+
+	fmap := itf.(map[string]interface{})
+
+	// parse properties map to AssetProperties
+	fproperties := fmap["properties"].(map[string]interface{})
+	properties := toAssetProp(fproperties)
+
+	// parse labels map to AssetLabels
+	labels := make(map[string]string)
+	for k, v := range fmap["labels"].(map[string]interface{}) {
+		labels[k] = v.(string)
+	}
+
+	// parse start and end strings to time.Time
+	start, err := time.Parse(time.RFC3339, fmap["start"].(string))
+	if err != nil {
+		return err
+	}
+	end, err := time.Parse(time.RFC3339, fmap["end"].(string))
+	if err != nil {
+		return err
+	}
+
+	fbreakdown := fmap["breakdown"].(map[string]interface{})
+
+	breakdown := toBreakdown(fbreakdown)
+
+	d.properties = &properties
+	d.labels = labels
+	d.start = start
+	d.end = end
+	d.window = Window{
+		start: &start,
+		end:   &end,
+	}
+	d.Breakdown = &breakdown
+
+	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
+		d.adjustment = adjustment.(float64)
+	}
+	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
+		d.Cost = Cost.(float64) - d.adjustment
+	}
+	if ByteHours, err := getTypedVal(fmap["byteHours"]); err == nil {
+		d.ByteHours = ByteHours.(float64)
+	}
+
+	// d.Local is not marhsaled, and cannot be calculated from marshaled values.
+	// Currently, it is just ignored and not set in the resulting unmarshal to Disk
+	//  be aware that this means a resulting Disk from an unmarshal is therefore NOT
+	// equal to the originally marshaled Disk.
+
+	return nil
+
 }
 
 // String implements fmt.Stringer
@@ -1646,6 +1898,67 @@ func (n *Network) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "totalCost", n.TotalCost(), "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
+}
+
+func (n *Network) UnmarshalJSON(b []byte) error {
+
+	var f interface{}
+
+	err := json.Unmarshal(b, &f)
+	if err != nil {
+		return err
+	}
+
+	err = n.InterfaceToNetwork(f)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (n *Network) InterfaceToNetwork(itf interface{}) error {
+
+	fmap := itf.(map[string]interface{})
+
+	// parse properties map to AssetProperties
+	fproperties := fmap["properties"].(map[string]interface{})
+	properties := toAssetProp(fproperties)
+
+	// parse labels map to AssetLabels
+	labels := make(map[string]string)
+	for k, v := range fmap["labels"].(map[string]interface{}) {
+		labels[k] = v.(string)
+	}
+
+	// parse start and end strings to time.Time
+	start, err := time.Parse(time.RFC3339, fmap["start"].(string))
+	if err != nil {
+		return err
+	}
+	end, err := time.Parse(time.RFC3339, fmap["end"].(string))
+	if err != nil {
+		return err
+	}
+
+	n.properties = &properties
+	n.labels = labels
+	n.start = start
+	n.end = end
+	n.window = Window{
+		start: &start,
+		end:   &end,
+	}
+
+	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
+		n.adjustment = adjustment.(float64)
+	}
+	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
+		n.Cost = Cost.(float64) - n.adjustment
+	}
+
+	return nil
+
 }
 
 // String implements fmt.Stringer
@@ -2410,6 +2723,67 @@ func (lb *LoadBalancer) MarshalJSON() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
+func (lb *LoadBalancer) UnmarshalJSON(b []byte) error {
+
+	var f interface{}
+
+	err := json.Unmarshal(b, &f)
+	if err != nil {
+		return err
+	}
+
+	err = lb.InterfaceToLoadBalancer(f)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (lb *LoadBalancer) InterfaceToLoadBalancer(itf interface{}) error {
+
+	fmap := itf.(map[string]interface{})
+
+	// parse properties map to AssetProperties
+	fproperties := fmap["properties"].(map[string]interface{})
+	properties := toAssetProp(fproperties)
+
+	// parse labels map to AssetLabels
+	labels := make(map[string]string)
+	for k, v := range fmap["labels"].(map[string]interface{}) {
+		labels[k] = v.(string)
+	}
+
+	// parse start and end strings to time.Time
+	start, err := time.Parse(time.RFC3339, fmap["start"].(string))
+	if err != nil {
+		return err
+	}
+	end, err := time.Parse(time.RFC3339, fmap["end"].(string))
+	if err != nil {
+		return err
+	}
+
+	lb.properties = &properties
+	lb.labels = labels
+	lb.start = start
+	lb.end = end
+	lb.window = Window{
+		start: &start,
+		end:   &end,
+	}
+
+	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
+		lb.adjustment = adjustment.(float64)
+	}
+	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
+		lb.Cost = Cost.(float64) - lb.adjustment
+	}
+
+	return nil
+
+}
+
 // String implements fmt.Stringer
 func (lb *LoadBalancer) String() string {
 	return toString(lb)
@@ -2620,6 +2994,62 @@ func (sa *SharedAsset) MarshalJSON() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
+func (sa *SharedAsset) UnmarshalJSON(b []byte) error {
+
+	var f interface{}
+
+	err := json.Unmarshal(b, &f)
+	if err != nil {
+		return err
+	}
+
+	err = sa.InterfaceToSharedAsset(f)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (sa *SharedAsset) InterfaceToSharedAsset(itf interface{}) error {
+
+	fmap := itf.(map[string]interface{})
+
+	// parse properties map to AssetProperties
+	fproperties := fmap["properties"].(map[string]interface{})
+	properties := toAssetProp(fproperties)
+
+	// parse labels map to AssetLabels
+	labels := make(map[string]string)
+	for k, v := range fmap["labels"].(map[string]interface{}) {
+		labels[k] = v.(string)
+	}
+
+	// parse start and end strings to time.Time
+	start, err := time.Parse(time.RFC3339, fmap["start"].(string))
+	if err != nil {
+		return err
+	}
+	end, err := time.Parse(time.RFC3339, fmap["end"].(string))
+	if err != nil {
+		return err
+	}
+
+	sa.properties = &properties
+	sa.labels = labels
+	sa.window = Window{
+		start: &start,
+		end:   &end,
+	}
+
+	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
+		sa.Cost = Cost.(float64)
+	}
+
+	return nil
+
+}
+
 // String implements fmt.Stringer
 func (sa *SharedAsset) String() string {
 	return toString(sa)
@@ -2655,6 +3085,50 @@ func (asr *AssetSetResponse) UnmarshalJSON(b []byte) error {
 		fmap := f.(map[string]interface{})
 
 		switch t := fmap["type"]; t {
+		case "Cloud":
+
+			var ca Cloud
+			err := ca.InterfaceToCloud(f)
+
+			if err != nil {
+				return err
+			}
+
+			newAssetMap[key] = &ca
+
+		case "ClusterManagement":
+
+			var cm ClusterManagement
+			err := cm.InterfaceToClusterManagement(f)
+
+			if err != nil {
+				return err
+			}
+
+			newAssetMap[key] = &cm
+
+		case "Disk":
+
+			var d Disk
+			err := d.InterfaceToDisk(f)
+
+			if err != nil {
+				return err
+			}
+
+			newAssetMap[key] = &d
+
+		case "Network":
+
+			var nw Network
+			err := nw.InterfaceToNetwork(f)
+
+			if err != nil {
+				return err
+			}
+
+			newAssetMap[key] = &nw
+
 		case "Node":
 
 			var n Node
@@ -2665,6 +3139,40 @@ func (asr *AssetSetResponse) UnmarshalJSON(b []byte) error {
 			}
 
 			newAssetMap[key] = &n
+
+		case "LoadBalancer":
+
+			var lb LoadBalancer
+			err := lb.InterfaceToLoadBalancer(f)
+
+			if err != nil {
+				return err
+			}
+
+			newAssetMap[key] = &lb
+
+		case "Shared":
+
+			var sa SharedAsset
+			err := sa.InterfaceToSharedAsset(f)
+
+			if err != nil {
+				return err
+			}
+
+			newAssetMap[key] = &sa
+
+		default:
+
+			var a Any
+			err := a.InterfaceToAny(f)
+
+			if err != nil {
+				return err
+			}
+
+			newAssetMap[key] = &a
+
 		}
 	}
 
