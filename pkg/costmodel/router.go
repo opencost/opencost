@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -224,7 +225,7 @@ func normalizeTimeParam(param string) (string, error) {
 	return param, nil
 }
 
-// parsePercentString takes a string of expected format "N%" and returns a floating point 0.0N.
+// ParsePercentString takes a string of expected format "N%" and returns a floating point 0.0N.
 // If the "%" symbol is missing, it just returns 0.0N. Empty string is interpreted as "0%" and
 // return 0.0.
 func ParsePercentString(percentStr string) (float64, error) {
@@ -243,34 +244,6 @@ func ParsePercentString(percentStr string) (float64, error) {
 	return discount, nil
 }
 
-// parseDuration converts a Prometheus-style duration string into a Duration
-// TODO:CLEANUP delete this. do it now.
-func ParseDuration(duration string) (*time.Duration, error) {
-	unitStr := duration[len(duration)-1:]
-	var unit time.Duration
-	switch unitStr {
-	case "s":
-		unit = time.Second
-	case "m":
-		unit = time.Minute
-	case "h":
-		unit = time.Hour
-	case "d":
-		unit = 24.0 * time.Hour
-	default:
-		return nil, fmt.Errorf("error parsing duration: %s did not match expected format [0-9+](s|m|d|h)", duration)
-	}
-
-	amountStr := duration[:len(duration)-1]
-	amount, err := strconv.ParseInt(amountStr, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing duration: %s did not match expected format [0-9+](s|m|d|h)", duration)
-	}
-
-	dur := time.Duration(amount) * unit
-	return &dur, nil
-}
-
 // ParseTimeRange returns a start and end time, respectively, which are converted from
 // a duration and offset, defined as strings with Prometheus-style syntax.
 func ParseTimeRange(duration, offset string) (*time.Time, *time.Time, error) {
@@ -278,7 +251,7 @@ func ParseTimeRange(duration, offset string) (*time.Time, *time.Time, error) {
 	// in which case it shifts endTime back by given duration
 	endTime := time.Now()
 	if offset != "" {
-		o, err := ParseDuration(offset)
+		o, err := timeutil.ParseDuration(offset)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error parsing offset (%s): %s", offset, err)
 		}

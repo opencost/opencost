@@ -2,6 +2,7 @@ package costmodel
 
 import (
 	"fmt"
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"math"
 	"net/http"
 	"regexp"
@@ -118,9 +119,9 @@ func (a *Aggregation) RateCoefficient(rateStr string, resolutionHours float64) f
 	coeff := 1.0
 	switch rateStr {
 	case "daily":
-		coeff = util.HoursPerDay
+		coeff = timeutil.HoursPerDay
 	case "monthly":
-		coeff = util.HoursPerMonth
+		coeff = timeutil.HoursPerMonth
 	}
 
 	return coeff / a.TotalHours(resolutionHours)
@@ -1452,7 +1453,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 	if !disableSharedOverhead {
 		for key, val := range c.SharedCosts {
 			cost, err := strconv.ParseFloat(val, 64)
-			durationCoefficient := window.Hours() / util.HoursPerMonth
+			durationCoefficient := window.Hours() / timeutil.HoursPerMonth
 			if err != nil {
 				return nil, "", fmt.Errorf("unable to parse shared cost %s: %s", val, err)
 			}
@@ -1492,7 +1493,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 		}
 
 		// Convert to Prometheus-compatible strings
-		durStr, offStr := util.DurationOffsetStrings(dur, off)
+		durStr, offStr := timeutil.DurationOffsetStrings(dur, off)
 
 		idleCoefficients, err = a.ComputeIdleCoefficient(costData, promClient, a.CloudProvider, discount, customDiscount, durStr, offStr)
 		if err != nil {

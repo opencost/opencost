@@ -2,13 +2,13 @@ package costmodel
 
 import (
 	"fmt"
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
-	"github.com/kubecost/cost-model/pkg/util"
 
 	prometheus "github.com/prometheus/client_golang/api"
 	"k8s.io/klog"
@@ -71,7 +71,8 @@ type ClusterCostsBreakdown struct {
 // NewClusterCostsFromCumulative takes cumulative cost data over a given time range, computes
 // the associated monthly rate data, and returns the Costs.
 func NewClusterCostsFromCumulative(cpu, gpu, ram, storage float64, window, offset string, dataHours float64) (*ClusterCosts, error) {
-	start, end, err := util.ParseTimeRange(window, offset)
+	offset = timeutil.CleanDurationString(offset)
+	start, end, err := timeutil.ParseTimeRange(window, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -94,10 +95,10 @@ func NewClusterCostsFromCumulative(cpu, gpu, ram, storage float64, window, offse
 		RAMCumulative:     ram,
 		StorageCumulative: storage,
 		TotalCumulative:   cpu + gpu + ram + storage,
-		CPUMonthly:        cpu / dataHours * (util.HoursPerMonth),
-		GPUMonthly:        gpu / dataHours * (util.HoursPerMonth),
-		RAMMonthly:        ram / dataHours * (util.HoursPerMonth),
-		StorageMonthly:    storage / dataHours * (util.HoursPerMonth),
+		CPUMonthly:        cpu / dataHours * (timeutil.HoursPerMonth),
+		GPUMonthly:        gpu / dataHours * (timeutil.HoursPerMonth),
+		RAMMonthly:        ram / dataHours * (timeutil.HoursPerMonth),
+		StorageMonthly:    storage / dataHours * (timeutil.HoursPerMonth),
 	}
 	cc.TotalMonthly = cc.CPUMonthly + cc.GPUMonthly + cc.RAMMonthly + cc.StorageMonthly
 
@@ -704,7 +705,8 @@ func ClusterLoadBalancers(cp cloud.Provider, client prometheus.Client, duration,
 // ComputeClusterCosts gives the cumulative and monthly-rate cluster costs over a window of time for all clusters.
 func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, window, offset string, withBreakdown bool) (map[string]*ClusterCosts, error) {
 	// Compute number of minutes in the full interval, for use interpolating missed scrapes or scaling missing data
-	start, end, err := util.ParseTimeRange(window, offset)
+	offset = timeutil.CleanDurationString(offset)
+	start, end, err := timeutil.ParseTimeRange(window, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -1003,7 +1005,7 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 			dataMins = mins
 			klog.V(3).Infof("[Warning] cluster cost data count not found for cluster %s", id)
 		}
-		costs, err := NewClusterCostsFromCumulative(cd["cpu"], cd["gpu"], cd["ram"], cd["storage"]+cd["localstorage"], window, offset, dataMins/util.MinsPerHour)
+		costs, err := NewClusterCostsFromCumulative(cd["cpu"], cd["gpu"], cd["ram"], cd["storage"]+cd["localstorage"], window, offset, dataMins/timeutil.MinsPerHour)
 		if err != nil {
 			klog.V(3).Infof("[Warning] Failed to parse cluster costs on %s (%s) from cumulative data: %+v", window, offset, cd)
 			return nil, err
