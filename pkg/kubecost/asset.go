@@ -624,6 +624,7 @@ func (a *Any) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// Converts interface{} to Any, carrying over relevant fields
 func (a *Any) InterfaceToAny(itf interface{}) error {
 
 	fmap := itf.(map[string]interface{})
@@ -928,6 +929,7 @@ func (ca *Cloud) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// Converts interface{} to Cloud, carrying over relevant fields
 func (ca *Cloud) InterfaceToCloud(itf interface{}) error {
 
 	fmap := itf.(map[string]interface{})
@@ -1189,6 +1191,7 @@ func (cm *ClusterManagement) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// Converts interface{} to ClusterManagement, carrying over relevant fields
 func (cm *ClusterManagement) InterfaceToClusterManagement(itf interface{}) error {
 
 	fmap := itf.(map[string]interface{})
@@ -1529,6 +1532,7 @@ func (d *Disk) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// Converts interface{} to Disk, carrying over relevant fields
 func (d *Disk) InterfaceToDisk(itf interface{}) error {
 
 	fmap := itf.(map[string]interface{})
@@ -1917,6 +1921,7 @@ func (n *Network) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// Converts interface{} to Network, carrying over relevant fields
 func (n *Network) InterfaceToNetwork(itf interface{}) error {
 
 	fmap := itf.(map[string]interface{})
@@ -2352,6 +2357,7 @@ func (n *Node) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// Converts interface{} to Node, carrying over relevant fields
 func (n *Node) InterfaceToNode(itf interface{}) error {
 
 	fmap := itf.(map[string]interface{})
@@ -2739,6 +2745,7 @@ func (lb *LoadBalancer) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// Converts interface{} to LoadBalancer, carrying over relevant fields
 func (lb *LoadBalancer) InterfaceToLoadBalancer(itf interface{}) error {
 
 	fmap := itf.(map[string]interface{})
@@ -3010,6 +3017,7 @@ func (sa *SharedAsset) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// Converts interface{} to SharedAsset, carrying over relevant fields
 func (sa *SharedAsset) InterfaceToSharedAsset(itf interface{}) error {
 
 	fmap := itf.(map[string]interface{})
@@ -3061,10 +3069,13 @@ type AssetSetResponse struct {
 	assets map[string]Asset
 }
 
+// Unmarshals a marshaled AssetSet json into AssetSetResponse
 func (asr *AssetSetResponse) UnmarshalJSON(b []byte) error {
 
+	// gojson used here, as jsonitter UnmarshalJSON won't work with RawMessage
 	var assetMap map[string]*gojson.RawMessage
 
+	// Partial unmarshal to map of json RawMessage
 	err := gojson.Unmarshal(b, &assetMap)
 	if err != nil {
 		return err
@@ -3072,6 +3083,7 @@ func (asr *AssetSetResponse) UnmarshalJSON(b []byte) error {
 
 	newAssetMap := make(map[string]Asset)
 
+	// For each item in asset map, unmarshal to appropriate type
 	for key, rawMessage := range assetMap {
 
 		var f interface{}
@@ -3785,6 +3797,8 @@ func toBreakdown(fproperties map[string]interface{}) Breakdown {
 
 }
 
+// Not strictly nessesary, but cleans up the code and is a secondary check
+// for correct types
 func getTypedVal(itf interface{}) (interface{}, error) {
 	switch itf := itf.(type) {
 	case float64:

@@ -2,7 +2,6 @@ package kubecost
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 )
@@ -482,9 +481,6 @@ func TestAssetset_Unmarshal(t *testing.T) {
 
 	err := json.Unmarshal(bytes, assetUnmarshalResponse)
 
-	//fmt.Println(assetset.assets)
-	//fmt.Println(assetUnmarshalResponse.assets)
-
 	// Check if unmarshal was successful
 	if err != nil {
 		t.Fatalf("AssetSet Unmarshal: unexpected error: %s", err)
@@ -542,10 +538,6 @@ func TestAssetset_Unmarshal(t *testing.T) {
 			} else {
 
 				if !asset.Equal(unmarshaledAsset) {
-
-					fmt.Println(asset)
-					fmt.Println(unmarshaledAsset)
-
 					t.Fatalf("AssetSet Unmarshal: asset at key '%s' from unmarshaled AssetSetResponse does not match corresponding asset from AssetSet", key)
 				}
 
