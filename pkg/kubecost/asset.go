@@ -2031,7 +2031,10 @@ func (n *Node) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	n.InterfaceToNode(f)
+	err = n.InterfaceToNode(f)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -2622,6 +2625,54 @@ func (sa *SharedAsset) String() string {
 	return toString(sa)
 }
 
+// This type exists because only the assets map of AssetSet is marshaled to
+// json, which makes it impossible to recreate an AssetSet struct. Thus,
+// the type when unmarshaling a marshaled AssetSet,is AssetSetResponse
+type AssetSetResponse struct {
+	assets map[string]Asset
+}
+
+func (asr *AssetSetResponse) UnmarshalJSON(b []byte) error {
+
+	var assetMap map[string]*gojson.RawMessage
+
+	err := gojson.Unmarshal(b, &assetMap)
+	if err != nil {
+		return err
+	}
+
+	newAssetMap := make(map[string]Asset)
+
+	for key, rawMessage := range assetMap {
+
+		var f interface{}
+
+		err := json.Unmarshal(*rawMessage, &f)
+		if err != nil {
+			return err
+		}
+
+		fmap := f.(map[string]interface{})
+
+		switch t := fmap["type"]; t {
+		case "Node":
+
+			var n Node
+			err := n.InterfaceToNode(f)
+
+			if err != nil {
+				return err
+			}
+
+			newAssetMap[key] = &n
+		}
+	}
+
+	asr.assets = newAssetMap
+
+	return nil
+}
+
 // AssetSet stores a set of Assets, each with a unique name, that share
 // a window. An AssetSet is mutable, so treat it like a threadsafe map.
 type AssetSet struct {
@@ -2917,42 +2968,6 @@ func (as *AssetSet) MarshalJSON() ([]byte, error) {
 	as.RLock()
 	defer as.RUnlock()
 	return json.Marshal(as.assets)
-}
-
-func (as *AssetSet) UnmarshalJSON(b []byte) error {
-
-	var assetMap map[string]*gojson.RawMessage
-
-	err := gojson.Unmarshal(b, &assetMap)
-	if err != nil {
-		return err
-	}
-
-	var newAssets map[string]Asset
-
-	for _, rawMessage := range assetMap {
-
-		var f interface{}
-
-		err := json.Unmarshal(*rawMessage, &f)
-		if err != nil {
-			return err
-		}
-		fmt.Println(f)
-		fmap := f.(map[string]interface{})
-
-		switch t := fmap["type"]; t {
-		case "Node":
-			var n Node
-			n.InterfaceToNode(f)
-
-			fmt.Println(n)
-		}
-	}
-
-	fmt.Println(assetMap)
-
-	return nil
 }
 
 func (as *AssetSet) Set(asset Asset, aggregateBy []string) error {

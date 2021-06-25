@@ -2,7 +2,6 @@ package kubecost
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 )
@@ -124,18 +123,32 @@ func TestAssetset_Unmarshal(t *testing.T) {
 
 	assetList := []Asset{node1, node2, node3}
 
-	assetset1 := NewAssetSet(s, e, assetList...)
+	assetset := NewAssetSet(s, e, assetList...)
+	bytes, _ := json.Marshal(assetset)
 
-	//fmt.Println(assetset1)
+	var assetSetResponse AssetSetResponse
+	assetUnmarshalResponse := &assetSetResponse
 
-	bytes, _ := json.Marshal(assetset1)
+	err := json.Unmarshal(bytes, assetUnmarshalResponse)
 
-	//print(string(bytes))
+	// Check if unmarshal was successful
+	if err != nil {
+		t.Fatalf("AssetSet Unmarshal: unexpected error: %s", err)
+	}
 
-	var thisassetset AssetSet
-	assetset2 := &thisassetset
+	// For each asset in unmarshaled AssetSetResponse, check if it is equal to the corresponding AssetSet asset
+	for key, asset := range assetset.assets {
 
-	err := json.Unmarshal(bytes, assetset2)
+		if unmarshaledAsset, exists := assetUnmarshalResponse.assets[key]; exists {
 
-	fmt.Println(err)
+			if !asset.Equal(unmarshaledAsset) {
+				t.Fatalf("AssetSet Unmarshal: asset at key '%s' from unmarshaled AssetSetResponse does not match corresponding asset from AssetSet", key)
+			}
+
+		} else {
+			t.Fatalf("AssetSet Unmarshal: key '%s' from marshaled AssetSet does not exist in AssetSetResponse", key)
+		}
+
+	}
+
 }
