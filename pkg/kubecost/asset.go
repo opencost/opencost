@@ -2428,7 +2428,6 @@ func (n *Node) InterfaceToNode(itf interface{}) error {
 	}
 
 	return nil
-
 }
 
 // String implements fmt.Stringer
