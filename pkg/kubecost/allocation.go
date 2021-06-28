@@ -278,6 +278,12 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if !util.IsApproximately(a.GPUCostAdjustment, that.GPUCostAdjustment) {
 		return false
 	}
+	if !util.IsApproximately(a.NetworkTransferBytes, that.NetworkTransferBytes) {
+		return false
+	}
+	if !util.IsApproximately(a.NetworkReceiveBytes, that.NetworkReceiveBytes) {
+		return false
+	}
 	if !util.IsApproximately(a.NetworkCost, that.NetworkCost) {
 		return false
 	}
@@ -636,6 +642,8 @@ func (a *Allocation) add(that *Allocation) {
 	a.CPUCoreHours += that.CPUCoreHours
 	a.GPUHours += that.GPUHours
 	a.RAMByteHours += that.RAMByteHours
+	a.NetworkTransferBytes += that.NetworkTransferBytes
+	a.NetworkReceiveBytes += that.NetworkReceiveBytes
 
 	// Sum all cumulative cost fields
 	a.CPUCost += that.CPUCost
