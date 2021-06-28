@@ -190,7 +190,7 @@ func (ctx *Context) query(query string) (interface{}, prometheus.Warnings, error
 	statusCode := resp.StatusCode
 	statusText := http.StatusText(statusCode)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, warnings, fmt.Errorf("%d (%s) URL: '%s', Request Headers: '%s', Headers: '%s', Body: '%s' Query: '%s'", statusCode, statusText, req.URL, req.Header, util.HeaderString(resp.Header), body, query)
+		return nil, warnings, CommErrorf("%d (%s) URL: '%s', Request Headers: '%s', Headers: '%s', Body: '%s' Query: '%s'", statusCode, statusText, req.URL, req.Header, util.HeaderString(resp.Header), body, query)
 	}
 
 	var toReturn interface{}
