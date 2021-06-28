@@ -207,6 +207,8 @@ func (a *Allocation) Clone() *Allocation {
 		GPUHours:                   a.GPUHours,
 		GPUCost:                    a.GPUCost,
 		GPUCostAdjustment:          a.GPUCostAdjustment,
+		NetworkTransferBytes:       a.NetworkTransferBytes,
+		NetworkReceiveBytes:        a.NetworkReceiveBytes,
 		NetworkCost:                a.NetworkCost,
 		NetworkCostAdjustment:      a.NetworkCostAdjustment,
 		LoadBalancerCost:           a.LoadBalancerCost,
