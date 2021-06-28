@@ -502,6 +502,8 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "gpuHours", a.GPUHours, ",")
 	jsonEncodeFloat64(buffer, "gpuCost", a.GPUCost, ",")
 	jsonEncodeFloat64(buffer, "gpuCostAdjustment", a.GPUCostAdjustment, ",")
+	jsonEncodeFloat64(buffer, "networkTransferBytes", a.NetworkTransferBytes, ",")
+	jsonEncodeFloat64(buffer, "networkReceiveBytes", a.NetworkReceiveBytes, ",")
 	jsonEncodeFloat64(buffer, "networkCost", a.NetworkCost, ",")
 	jsonEncodeFloat64(buffer, "networkCostAdjustment", a.NetworkCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "loadBalancerCost", a.LoadBalancerCost, ",")
