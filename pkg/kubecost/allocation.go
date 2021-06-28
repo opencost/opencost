@@ -63,6 +63,8 @@ type Allocation struct {
 	GPUHours                   float64               `json:"gpuHours"`
 	GPUCost                    float64               `json:"gpuCost"`
 	GPUCostAdjustment          float64               `json:"gpuCostAdjustment"`
+	NetworkTransferBytes       float64               `json:"networkTransferBytes"`
+	NetworkReceiveBytes        float64               `json:"networkReceiveBytes"`
 	NetworkCost                float64               `json:"networkCost"`
 	NetworkCostAdjustment      float64               `json:"networkCostAdjustment"`
 	LoadBalancerCost           float64               `json:"loadBalancerCost"`
@@ -934,7 +936,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	for _, alloc := range as.allocations {
 		idleId, err := alloc.getIdleId(options)
 		if err != nil {
-			log.DedupedWarningf(3,"AllocationSet.AggregateBy: missing idleId for allocation: %s", alloc.Name)
+			log.DedupedWarningf(3, "AllocationSet.AggregateBy: missing idleId for allocation: %s", alloc.Name)
 		}
 
 		skip := false
