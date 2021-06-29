@@ -3,6 +3,8 @@ package kubecost
 import (
 	"fmt"
 	"strings"
+
+	"github.com/kubecost/cost-model/pkg/util/cloudutil"
 )
 
 // LabelConfig is a port of type AnalyzerConfig. We need to be more thoughtful
@@ -218,7 +220,14 @@ func (lc *LabelConfig) GetExternalAllocationName(labels map[string]string, aggre
 	// The relevant label is not present in the set of labels provided.
 	labelValue, ok := labels[labelName]
 	if !ok {
-		return ""
+		// Convert the label name to a format compatible with AWS Glue and
+		// Athena column naming and check again. If not found after that, then
+		// consider the label not present.
+		labelName = cloudutil.ConvertToGlueColumnFormat(labelName)
+		labelValue, ok = labels[labelName]
+		if !ok {
+			return ""
+		}
 	}
 
 	// When aggregating by some label (i.e. not by a Kubernetes concept),

@@ -1,6 +1,10 @@
 package kubecost
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/kubecost/cost-model/pkg/util/cloudutil"
+)
 
 func TestLabelConfig_Map(t *testing.T) {
 	var m map[string]string
@@ -33,10 +37,14 @@ func TestLabelConfig_Map(t *testing.T) {
 }
 
 func TestLabelConfig_GetExternalAllocationName(t *testing.T) {
+	// Make sure that AWS's Glue/Athena column formatting is supported
+	glueFormattedLabel := cloudutil.ConvertToGlueColumnFormat("Non__GlueFormattedLabel")
+
 	labels := map[string]string{
 		"kubens":                      "kubecost-staging",
 		"env":                         "env1",
 		"app":                         "app1",
+		glueFormattedLabel:            "glue",
 		"kubernetes_cluster":          "cluster-one",
 		"kubernetes_namespace":        "kubecost",
 		"kubernetes_controller":       "kubecost-controller",
@@ -58,6 +66,7 @@ func TestLabelConfig_GetExternalAllocationName(t *testing.T) {
 	}{
 		{"label:env", "env=env1"},
 		{"label:app", "app=app1"},
+		{"label:Non__GlueFormattedLabel", "non_glue_formatted_label=glue"},
 		{"cluster", "cluster-one"},
 		{"namespace", "kubecost"},
 		{"controller", "kubecost-controller"},
@@ -92,12 +101,16 @@ func TestLabelConfig_GetExternalAllocationName(t *testing.T) {
 
 	// Change the external label for namespace and confirm it still works
 	lc.NamespaceExternalLabel = "kubens"
+	lc.PodExternalLabel = "Non__GlueFormattedLabel"
+
+	// TODO how is e.g. OwnerExternalLabel supposed to work?
 
 	testCases = []struct {
 		aggBy    string
 		expected string
 	}{
 		{"namespace", "kubecost-staging"},
+		{"pod", "glue"},
 	}
 	for _, tc := range testCases {
 		actual := lc.GetExternalAllocationName(labels, tc.aggBy)

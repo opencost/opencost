@@ -24,6 +24,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/cloudutil"
 	"github.com/kubecost/cost-model/pkg/util/json"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -1540,52 +1541,6 @@ func (a *AWS) GetDisks() ([]byte, error) {
 	})
 }
 
-// ConvertToGlueColumnFormat takes a string and runs through various regex
-// and string replacement statements to convert it to a format compatible
-// with AWS Glue and Athena column names.
-// Following guidance from AWS provided here ('Column Names' section):
-// https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/run-athena-sql.html
-// It returns a string containing the column name in proper column name format and length.
-func ConvertToGlueColumnFormat(column_name string) string {
-	log.Debugf("Converting string \"%s\" to proper AWS Glue column name.", column_name)
-
-	// An underscore is added in front of uppercase letters
-	capital_underscore := regexp.MustCompile(`[A-Z]`)
-	final := capital_underscore.ReplaceAllString(column_name, `_$0`)
-
-	// Any non-alphanumeric characters are replaced with an underscore
-	no_space_punc := regexp.MustCompile(`[\s]{1,}|[^A-Za-z0-9]`)
-	final = no_space_punc.ReplaceAllString(final, "_")
-
-	// Duplicate underscores are removed
-	no_dup_underscore := regexp.MustCompile(`_{2,}`)
-	final = no_dup_underscore.ReplaceAllString(final, "_")
-
-	// Any leading and trailing underscores are removed
-	no_front_end_underscore := regexp.MustCompile(`(^\_|\_$)`)
-	final = no_front_end_underscore.ReplaceAllString(final, "")
-
-	// Uppercase to lowercase
-	final = strings.ToLower(final)
-
-	// Longer column name than expected - remove _ left to right
-	allowed_col_len := 128
-	undersc_to_remove := len(final) - allowed_col_len
-	if undersc_to_remove > 0 {
-		final = strings.Replace(final, "_", "", undersc_to_remove)
-	}
-
-	// If removing all of the underscores still didn't
-	// make the column name < 128 characters, trim it!
-	if len(final) > allowed_col_len {
-		final = final[:allowed_col_len]
-	}
-
-	log.Debugf("Column name being returned: \"%s\". Length: \"%d\".", final, len(final))
-
-	return final
-}
-
 func generateAWSGroupBy(lastIdx int) string {
 	sequence := []string{}
 	for i := 1; i < lastIdx+1; i++ {
@@ -1955,7 +1910,7 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 	formattedAggregators := []string{}
 	for _, agg := range aggregators {
 		aggregator_column_name := "resource_tags_user_" + agg
-		aggregator_column_name = ConvertToGlueColumnFormat(aggregator_column_name)
+		aggregator_column_name = cloudutil.ConvertToGlueColumnFormat(aggregator_column_name)
 		formattedAggregators = append(formattedAggregators, aggregator_column_name)
 	}
 	aggregatorNames := strings.Join(formattedAggregators, ",")
@@ -1963,7 +1918,7 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 	aggregatorOr = aggregatorOr + " <> ''"
 
 	filter_column_name := "resource_tags_user_" + filterType
-	filter_column_name = ConvertToGlueColumnFormat(filter_column_name)
+	filter_column_name = cloudutil.ConvertToGlueColumnFormat(filter_column_name)
 
 	var query string
 	var lastIdx int
