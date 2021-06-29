@@ -51,6 +51,8 @@ const (
 	queryFmtNetRegionCostPerGiB   = `avg(avg_over_time(kubecost_network_region_egress_cost{}[%s]%s)) by (%s)`
 	queryFmtNetInternetGiB        = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s]%s)) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
 	queryFmtNetInternetCostPerGiB = `avg(avg_over_time(kubecost_network_internet_egress_cost{}[%s]%s)) by (%s)`
+	queryFmtNetReceiveBytes       = `sum(increase(container_network_receive_bytes_total{pod_name!=""}[%s]%s)) by (pod_name, namespace, %s)`
+	queryFmtNetTransferBytes      = `sum(increase(container_network_transmit_bytes_total{pod_name!=""}[%s]%s)) by (pod_name, namespace, %s)`
 	queryFmtNamespaceLabels       = `avg_over_time(kube_namespace_labels[%s]%s)`
 	queryFmtNamespaceAnnotations  = `avg_over_time(kube_namespace_annotations[%s]%s)`
 	queryFmtPodLabels             = `avg_over_time(kube_pod_labels[%s]%s)`
@@ -180,6 +182,12 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	queryPVCostPerGiBHour := fmt.Sprintf(queryFmtPVCostPerGiBHour, durStr, offStr, env.GetPromClusterLabel())
 	resChPVCostPerGiBHour := ctx.Query(queryPVCostPerGiBHour)
 
+	queryNetTransferBytes := fmt.Sprintf(queryFmtNetTransferBytes, durStr, offStr, env.GetPromClusterLabel())
+	resChNetTransferBytes := ctx.Query(queryNetTransferBytes)
+
+	queryNetReceiveBytes := fmt.Sprintf(queryFmtNetReceiveBytes, durStr, offStr, env.GetPromClusterLabel())
+	resChNetReceiveBytes := ctx.Query(queryNetReceiveBytes)
+
 	queryNetZoneGiB := fmt.Sprintf(queryFmtNetZoneGiB, durStr, offStr, env.GetPromClusterLabel())
 	resChNetZoneGiB := ctx.Query(queryNetZoneGiB)
 
@@ -253,6 +261,8 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	resPVCBytesRequested, _ := resChPVCBytesRequested.Await()
 	resPodPVCAllocation, _ := resChPodPVCAllocation.Await()
 
+	resNetTransferBytes, _ := resChNetTransferBytes.Await()
+	resNetReceiveBytes, _ := resChNetReceiveBytes.Await()
 	resNetZoneGiB, _ := resChNetZoneGiB.Await()
 	resNetZoneCostPerGiB, _ := resChNetZoneCostPerGiB.Await()
 	resNetRegionGiB, _ := resChNetRegionGiB.Await()
@@ -292,6 +302,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	applyRAMBytesUsedAvg(podMap, resRAMUsageAvg)
 	applyRAMBytesUsedMax(podMap, resRAMUsageMax)
 	applyGPUsRequested(podMap, resGPUsRequested)
+	applyNetworkTotals(podMap, resNetTransferBytes, resNetReceiveBytes)
 	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZoneCostPerGiB)
 	applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionCostPerGiB)
 	applyNetworkAllocation(podMap, resNetInternetGiB, resNetInternetCostPerGiB)
@@ -903,6 +914,41 @@ func applyGPUsRequested(podMap map[podKey]*Pod, resGPUsRequested []*prom.QueryRe
 
 		hrs := pod.Allocations[container].Minutes() / 60.0
 		pod.Allocations[container].GPUHours = res.Values[0].Value * hrs
+	}
+}
+
+func applyNetworkTotals(podMap map[podKey]*Pod, resNetworkTransferBytes []*prom.QueryResult, resNetworkReceiveBytes []*prom.QueryResult) {
+	for _, res := range resNetworkTransferBytes {
+		podKey, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace", "pod_name")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: Network Transfer Bytes query result missing field: %s", err)
+			continue
+		}
+
+		pod, ok := podMap[podKey]
+		if !ok {
+			continue
+		}
+
+		for _, alloc := range pod.Allocations {
+			alloc.NetworkTransferBytes = res.Values[0].Value / float64(len(pod.Allocations))
+		}
+	}
+	for _, res := range resNetworkReceiveBytes {
+		podKey, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace", "pod_name")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: Network Receive Bytes query result missing field: %s", err)
+			continue
+		}
+
+		pod, ok := podMap[podKey]
+		if !ok {
+			continue
+		}
+
+		for _, alloc := range pod.Allocations {
+			alloc.NetworkReceiveBytes = res.Values[0].Value / float64(len(pod.Allocations))
+		}
 	}
 }
 
