@@ -210,11 +210,16 @@ func (k *azureKey) Features() string {
 	return fmt.Sprintf("%s,%s,%s", region, instance, usageType)
 }
 
+// GPUType returns value of GPULabel if present
 func (k *azureKey) GPUType() string {
 	if t, ok := k.Labels[k.GPULabel]; ok {
 		return t
 	}
 	return ""
+}
+
+func (k *azureKey) isValidGPUNode() bool {
+	return k.GPUType() == k.GPULabelValue && k.GetGPUCount() != "0"
 }
 
 func (k *azureKey) ID() string {
@@ -734,24 +739,30 @@ func (az *Azure) AllNodePricing() (interface{}, error) {
 func (az *Azure) NodePricing(key Key) (*Node, error) {
 	az.DownloadPricingDataLock.RLock()
 	defer az.DownloadPricingDataLock.RUnlock()
-	if n, ok := az.Pricing[key.Features()]; ok {
-		klog.V(4).Infof("Returning pricing for node %s: %+v from key %s", key, n, key.Features())
-		if key.GPUType() != "" {
-			n.Node.GPU = key.(*azureKey).GetGPUCount()
+	azKey, ok := key.(*azureKey)
+	if !ok {
+		return nil, fmt.Errorf("azure: NodePricing: key is of type %T", key)
+	}
+
+	if n, ok := az.Pricing[azKey.Features()]; ok {
+		klog.V(4).Infof("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
+		if azKey.isValidGPUNode() {
+			n.Node.GPU = azKey.GetGPUCount()
 		}
 		return n.Node, nil
 	}
-	klog.V(1).Infof("[Warning] no pricing data found for %s: %s", key.Features(), key)
+	klog.V(1).Infof("[Warning] no pricing data found for %s: %s", azKey.Features(), azKey)
 	c, err := az.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("No default pricing data available")
 	}
-	if key.GPUType() != "" {
+	if azKey.isValidGPUNode()  {
 		return &Node{
 			VCPUCost: c.CPU,
 			RAMCost:  c.RAM,
+			UsesBaseCPUPrice: true,
 			GPUCost:  c.GPU,
-			GPU:      key.(*azureKey).GetGPUCount(),
+			GPU:      azKey.GetGPUCount(),
 		}, nil
 	}
 	return &Node{
