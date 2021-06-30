@@ -124,16 +124,18 @@ func (a *Accesses) GetCacheRefresh(dur time.Duration) time.Duration {
 func (a *Accesses) ClusterCostsFromCacheHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 
+	duration := 24 * time.Hour
+	offset := time.Minute
 	durationHrs := "24h"
-	offset := "1m"
+	fmtOffset := "1m"
 	pClient := a.GetPrometheusClient(true)
 
-	key := fmt.Sprintf("%s:%s", durationHrs, offset)
+	key := fmt.Sprintf("%s:%s", durationHrs, fmtOffset)
 	if data, valid := a.ClusterCostsCache.Get(key); valid {
 		clusterCosts := data.(map[string]*ClusterCosts)
 		w.Write(WrapDataWithMessage(clusterCosts, nil, "clusterCosts cache hit"))
 	} else {
-		data, err := a.ComputeClusterCosts(pClient, a.CloudProvider, durationHrs, offset, true)
+		data, err := a.ComputeClusterCosts(pClient, a.CloudProvider, duration, offset, true)
 		w.Write(WrapDataWithMessage(data, err, fmt.Sprintf("clusterCosts cache miss: %s", key)))
 	}
 }
@@ -242,38 +244,6 @@ func ParsePercentString(percentStr string) (float64, error) {
 	discount *= 0.01
 
 	return discount, nil
-}
-
-// ParseTimeRange returns a start and end time, respectively, which are converted from
-// a duration and offset, defined as strings with Prometheus-style syntax.
-func ParseTimeRange(duration, offset string) (*time.Time, *time.Time, error) {
-	// endTime defaults to the current time, unless an offset is explicity declared,
-	// in which case it shifts endTime back by given duration
-	endTime := time.Now()
-	if offset != "" {
-		o, err := timeutil.ParseDuration(offset)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error parsing offset (%s): %s", offset, err)
-		}
-		endTime = endTime.Add(-1 * *o)
-	}
-
-	// if duration is defined in terms of days, convert to hours
-	// e.g. convert "2d" to "48h"
-	durationNorm, err := normalizeTimeParam(duration)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error parsing duration (%s): %s", duration, err)
-	}
-
-	// convert time duration into start and end times, formatted
-	// as ISO datetime strings
-	dur, err := time.ParseDuration(durationNorm)
-	if err != nil {
-		return nil, nil, fmt.Errorf("errorf parsing duration (%s): %s", durationNorm, err)
-	}
-	startTime := endTime.Add(-1 * dur)
-
-	return &startTime, &endTime, nil
 }
 
 func WrapData(data interface{}, err error) []byte {
@@ -411,6 +381,27 @@ func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httpr
 	window := r.URL.Query().Get("window")
 	offset := r.URL.Query().Get("offset")
 
+	if window == "" {
+		w.Write(WrapData(nil, fmt.Errorf("missing window arguement")))
+		return
+	}
+	windowDur, err := timeutil.ParseDuration(window)
+	if err != nil {
+		w.Write(WrapData(nil, fmt.Errorf("error parsing window (%s): %s", window, err)))
+		return
+	}
+
+	// offset is not a required parameter
+	var offsetDur time.Duration
+	if offset != "" {
+		offsetDur, err = timeutil.ParseDuration(offset)
+		if err != nil {
+			w.Write(WrapData(nil, fmt.Errorf("error parsing offset (%s): %s", offset, err)))
+			return
+		}
+	}
+
+
 	useThanos, _ := strconv.ParseBool(r.URL.Query().Get("multi"))
 
 	if useThanos && !thanos.IsEnabled() {
@@ -421,12 +412,13 @@ func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httpr
 	var client prometheusClient.Client
 	if useThanos {
 		client = a.ThanosClient
-		offset = thanos.Offset()
+		offsetDur = thanos.OffsetDuration()
+
 	} else {
 		client = a.PrometheusClient
 	}
 
-	data, err := a.ComputeClusterCosts(client, a.CloudProvider, window, offset, true)
+	data, err := a.ComputeClusterCosts(client, a.CloudProvider, windowDur, offsetDur, true)
 	w.Write(WrapData(data, err))
 }
 
@@ -439,7 +431,27 @@ func (a *Accesses) ClusterCostsOverTime(w http.ResponseWriter, r *http.Request, 
 	window := r.URL.Query().Get("window")
 	offset := r.URL.Query().Get("offset")
 
-	data, err := ClusterCostsOverTime(a.PrometheusClient, a.CloudProvider, start, end, window, offset)
+	if window == "" {
+		w.Write(WrapData(nil, fmt.Errorf("missing window arguement")))
+		return
+	}
+	windowDur, err := timeutil.ParseDuration(window)
+	if err != nil {
+		w.Write(WrapData(nil, fmt.Errorf("error parsing window (%s): %s", window, err)))
+		return
+	}
+
+	// offset is not a required parameter
+	var offsetDur time.Duration
+	if offset != "" {
+		offsetDur, err = timeutil.ParseDuration(offset)
+		if err != nil {
+			w.Write(WrapData(nil, fmt.Errorf("error parsing offset (%s): %s", offset, err)))
+			return
+		}
+	}
+
+	data, err := ClusterCostsOverTime(a.PrometheusClient, a.CloudProvider, start, end, windowDur, offsetDur)
 	w.Write(WrapData(data, err))
 }
 

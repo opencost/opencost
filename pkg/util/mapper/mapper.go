@@ -402,7 +402,7 @@ func (rom *readOnlyMapper) GetDuration(key string, defaultValue time.Duration) t
 		return defaultValue
 	}
 
-	return *d
+	return d
 }
 
 // GetList returns a string list which contains the value set by key split using the

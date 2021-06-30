@@ -70,16 +70,12 @@ type ClusterCostsBreakdown struct {
 
 // NewClusterCostsFromCumulative takes cumulative cost data over a given time range, computes
 // the associated monthly rate data, and returns the Costs.
-func NewClusterCostsFromCumulative(cpu, gpu, ram, storage float64, window, offset string, dataHours float64) (*ClusterCosts, error) {
-	offset = timeutil.CleanDurationString(offset)
-	start, end, err := timeutil.ParseTimeRange(window, offset)
-	if err != nil {
-		return nil, err
-	}
+func NewClusterCostsFromCumulative(cpu, gpu, ram, storage float64, window, offset time.Duration, dataHours float64) (*ClusterCosts, error) {
+	start, end := timeutil.ParseTimeRange(window, offset)
 
 	// If the number of hours is not given (i.e. is zero) compute one from the window and offset
 	if dataHours == 0 {
-		dataHours = end.Sub(*start).Hours()
+		dataHours = end.Sub(start).Hours()
 	}
 
 	// Do not allow zero-length windows to prevent divide-by-zero issues
@@ -88,8 +84,8 @@ func NewClusterCostsFromCumulative(cpu, gpu, ram, storage float64, window, offse
 	}
 
 	cc := &ClusterCosts{
-		Start:             start,
-		End:               end,
+		Start:             &start,
+		End:               &end,
 		CPUCumulative:     cpu,
 		GPUCumulative:     gpu,
 		RAMCumulative:     ram,
@@ -703,14 +699,11 @@ func ClusterLoadBalancers(cp cloud.Provider, client prometheus.Client, duration,
 }
 
 // ComputeClusterCosts gives the cumulative and monthly-rate cluster costs over a window of time for all clusters.
-func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, window, offset string, withBreakdown bool) (map[string]*ClusterCosts, error) {
+func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, window, offset time.Duration, withBreakdown bool) (map[string]*ClusterCosts, error) {
 	// Compute number of minutes in the full interval, for use interpolating missed scrapes or scaling missing data
-	offset = timeutil.CleanDurationString(offset)
-	start, end, err := timeutil.ParseTimeRange(window, offset)
-	if err != nil {
-		return nil, err
-	}
-	mins := end.Sub(*start).Minutes()
+	start, end := timeutil.ParseTimeRange(window, offset)
+
+	mins := end.Sub(start).Minutes()
 
 	// minsPerResolution determines accuracy and resource use for the following
 	// queries. Smaller values (higher resolution) result in better accuracy,
@@ -779,10 +772,7 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 		queryTotalLocalStorage = fmt.Sprintf(" + %s", queryTotalLocalStorage)
 	}
 
-	fmtOffset := ""
-	if offset != "" {
-		fmtOffset = fmt.Sprintf("offset %s", offset)
-	}
+	fmtOffset := timeutil.DurationToPromString(offset)
 
 	queryDataCount := fmt.Sprintf(fmtQueryDataCount, env.GetPromClusterLabel(), window, minsPerResolution, fmtOffset, minsPerResolution)
 	queryTotalGPU := fmt.Sprintf(fmtQueryTotalGPU, window, minsPerResolution, fmtOffset, hourlyToCumulative, env.GetPromClusterLabel())
@@ -1056,8 +1046,8 @@ func resultToTotals(qrs []*prom.QueryResult) ([][]string, error) {
 }
 
 // ClusterCostsOverTime gives the full cluster costs over time
-func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startString, endString, windowString, offset string) (*Totals, error) {
-	localStorageQuery := provider.GetLocalStorageQuery(windowString, offset, true, false)
+func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startString, endString string, window, offset time.Duration) (*Totals, error) {
+	localStorageQuery := provider.GetLocalStorageQuery(window, offset, true, false)
 	if localStorageQuery != "" {
 		localStorageQuery = fmt.Sprintf("+ %s", localStorageQuery)
 	}
@@ -1066,28 +1056,27 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 
 	start, err := time.Parse(layout, startString)
 	if err != nil {
-		klog.V(1).Infof("Error parsing time " + startString + ". Error: " + err.Error())
+		klog.V(1).Infof("Error parsing time %s. Error: %s", startString, err.Error())
 		return nil, err
 	}
 	end, err := time.Parse(layout, endString)
 	if err != nil {
-		klog.V(1).Infof("Error parsing time " + endString + ". Error: " + err.Error())
+		klog.V(1).Infof("Error parsing time %s. Error: %s", endString, err.Error())
 		return nil, err
 	}
-	window, err := time.ParseDuration(windowString)
-	if err != nil {
-		klog.V(1).Infof("Error parsing time " + windowString + ". Error: " + err.Error())
+	fmtWindow := timeutil.DurationString(window)
+
+	if fmtWindow == "" {
+		err := fmt.Errorf("window value invalid or missing")
+		klog.V(1).Infof("Error parsing time %v. Error: %s", window, err.Error())
 		return nil, err
 	}
 
-	// turn offsets of the format "[0-9+]h" into the format "offset [0-9+]h" for use in query templatess
-	if offset != "" {
-		offset = fmt.Sprintf("offset %s", offset)
-	}
+	fmtOffset := timeutil.DurationToPromString(offset)
 
-	qCores := fmt.Sprintf(queryClusterCores, windowString, offset, env.GetPromClusterLabel(), windowString, offset, env.GetPromClusterLabel(), windowString, offset, env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	qRAM := fmt.Sprintf(queryClusterRAM, windowString, offset, env.GetPromClusterLabel(), windowString, offset, env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	qStorage := fmt.Sprintf(queryStorage, windowString, offset, env.GetPromClusterLabel(), windowString, offset, env.GetPromClusterLabel(), env.GetPromClusterLabel(), localStorageQuery)
+	qCores := fmt.Sprintf(queryClusterCores, fmtWindow, fmtOffset, env.GetPromClusterLabel(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterLabel())
+	qRAM := fmt.Sprintf(queryClusterRAM, fmtWindow, fmtOffset, env.GetPromClusterLabel(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterLabel())
+	qStorage := fmt.Sprintf(queryStorage, fmtWindow, fmtOffset, env.GetPromClusterLabel(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterLabel(), localStorageQuery)
 	qTotal := fmt.Sprintf(queryTotal, env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), localStorageQuery)
 
 	ctx := prom.NewContext(cli)

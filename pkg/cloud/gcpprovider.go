@@ -3,6 +3,7 @@ package cloud
 import (
 	"context"
 	"fmt"
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"io"
 	"io/ioutil"
 	"math"
@@ -124,7 +125,7 @@ func gcpAllocationToOutOfClusterAllocation(gcpAlloc gcpAllocation) *OutOfCluster
 
 // GetLocalStorageQuery returns the cost of local storage for the given window. Setting rate=true
 // returns hourly spend. Setting used=true only tracks used storage, not total.
-func (gcp *GCP) GetLocalStorageQuery(window, offset string, rate bool, used bool) string {
+func (gcp *GCP) GetLocalStorageQuery(window, offset time.Duration, rate bool, used bool) string {
 	// TODO Set to the price for the appropriate storage class. It's not trivial to determine the local storage disk type
 	// See https://cloud.google.com/compute/disks-image-pricing#persistentdisk
 	localStorageCost := 0.04
@@ -134,10 +135,7 @@ func (gcp *GCP) GetLocalStorageQuery(window, offset string, rate bool, used bool
 		baseMetric = "container_fs_usage_bytes"
 	}
 
-	fmtOffset := ""
-	if offset != "" {
-		fmtOffset = fmt.Sprintf("offset %s", offset)
-	}
+	fmtOffset := timeutil.DurationToPromString(offset)
 
 	fmtCumulativeQuery := `sum(
 		sum_over_time(%s{device!="tmpfs", id="/"}[%s:1m]%s)
@@ -151,8 +149,9 @@ func (gcp *GCP) GetLocalStorageQuery(window, offset string, rate bool, used bool
 	if rate {
 		fmtQuery = fmtMonthlyQuery
 	}
+	fmtWindow := timeutil.DurationString(window)
 
-	return fmt.Sprintf(fmtQuery, baseMetric, window, fmtOffset, env.GetPromClusterLabel(), localStorageCost)
+	return fmt.Sprintf(fmtQuery, baseMetric, fmtWindow, fmtOffset, env.GetPromClusterLabel(), localStorageCost)
 }
 
 func (gcp *GCP) GetConfig() (*CustomPricing, error) {

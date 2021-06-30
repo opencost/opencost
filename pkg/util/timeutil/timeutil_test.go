@@ -60,59 +60,52 @@ func TestParseDuration(t *testing.T) {
 	testCases := map[string]struct {
 		input string
 		expected time.Duration
-		errorExpected bool
 	} {
 		"expected" : {
 			input: "3h",
 			expected: time.Hour * 3,
-			errorExpected: false,
 		},
 		"white space" : {
 			input: " 4s ",
 			expected: time.Second * 4,
-			errorExpected: false,
 		},
 		"prom prefix" : {
 			input: "offset 3m",
 			expected: time.Minute * 3,
-			errorExpected: false,
 		},
 		"prom prefix white space" : {
 			input: " offset 3d ",
 			expected: 24.0 * time.Hour * 3,
-			errorExpected: false,
+		},
+		"zero" : {
+			input: "0h",
+			expected: time.Duration(0),
 		},
 		"empty" : {
 			input: "",
-			expected: time.Second,
-			errorExpected: true,
+			expected: time.Duration(0),
 		},
 		"bad string" : {
 			input: "oqwd3dk5hk",
-			expected: time.Second,
-			errorExpected: true,
+			expected: time.Duration(0),
 		},
 		"digit" : {
 			input: "3",
-			expected: time.Second,
-			errorExpected: true,
+			expected: time.Duration(0),
 		},
 		"unit" : {
 			input: "h",
-			expected: time.Second,
-			errorExpected: true,
+			expected: time.Duration(0),
 		},
 	}
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
-			dur, err := ParseDuration(test.input)
-			if err != nil && test.errorExpected{
-				return
-			}
-			if *dur != test.expected {
+			dur, _ := ParseDuration(test.input)
+			if dur != test.expected {
 				t.Errorf("Expected duration %v did not match result %v", test.expected, dur)
 			}
 		})
 	}
-
 }
+
+
