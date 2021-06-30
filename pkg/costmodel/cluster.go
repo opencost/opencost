@@ -687,14 +687,16 @@ func ClusterLoadBalancers(cp cloud.Provider, client prometheus.Client, duration,
 			continue
 		}
 
-		s := time.Unix(int64(result.Values[0].Timestamp), 0)
-		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
-		mins := e.Sub(s).Minutes()
+		if lb, ok := loadBalancerMap[key]; ok {
+			s := time.Unix(int64(result.Values[0].Timestamp), 0)
+			e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
+			mins := e.Sub(s).Minutes()
 
-		// TODO niko/assets if mins >= threshold, interpolate for missing data?
-
-		loadBalancerMap[key].Start = s
-		loadBalancerMap[key].Minutes = mins
+			lb.Start = s
+			lb.Minutes = mins
+		} else {
+			log.Warningf("ClusterLoadBalancers: found minutes for key that does not exist: %s", key)
+		}
 	}
 	return loadBalancerMap, nil
 }
