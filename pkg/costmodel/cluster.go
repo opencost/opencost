@@ -695,7 +695,7 @@ func ClusterLoadBalancers(cp cloud.Provider, client prometheus.Client, duration,
 			lb.Start = s
 			lb.Minutes = mins
 		} else {
-			log.Warningf("ClusterLoadBalancers: found minutes for key that does not exist: %s", key)
+			log.DedupedWarningf(20, "ClusterLoadBalancers: found minutes for key that does not exist: %s", key)
 		}
 	}
 	return loadBalancerMap, nil
