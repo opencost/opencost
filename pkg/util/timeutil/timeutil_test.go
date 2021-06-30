@@ -5,96 +5,281 @@ import (
 	"time"
 )
 
-func TestDurationOffsetStrings(t *testing.T) {
-	dur, off := "", ""
-
-	dur, off = DurationOffsetStrings(0, 0)
-	if dur != "" || off != "" {
-		t.Fatalf("DurationOffsetStrings: exp (%s %s); act (%s, %s)", "", "", dur, off)
+func Test_DurationString(t *testing.T) {
+	testCases := map[string]struct {
+		duration time.Duration
+		expectedDuration string
+	}{
+		"1a": {
+			duration:         0,
+			expectedDuration: "",
+		},
+		"1b": {
+			duration:         24*time.Hour,
+			expectedDuration: "1d",
+		},
+		"1c": {
+			duration:         24*time.Hour+5*time.Minute,
+			expectedDuration: "1445m",
+		},
+		"1d": {
+			duration:         25*time.Hour,
+			expectedDuration: "25h",
+		},
+		"1e": {
+			duration:         25*time.Hour,
+			expectedDuration: "25h",
+		},
+		"1f": {
+			duration:         72*time.Hour,
+			expectedDuration: "3d",
+		},
+		"1g": {
+			duration:         25*time.Hour,
+			expectedDuration: "25h",
+		},
+		"1h": {
+			duration:         24*time.Hour+time.Second,
+			expectedDuration: "86401s",
+		},
+		// Expect empty strings if durations are negative
+		"1i": {
+			duration:         -25*time.Hour,
+			expectedDuration: "",
+		},
 	}
 
-	dur, off = DurationOffsetStrings(24*time.Hour, 0)
-	if dur != "1d" || off != "" {
-		t.Fatalf("DurationOffsetStrings: exp (%s %s); act (%s, %s)", "1d", "", dur, off)
-	}
-
-	dur, off = DurationOffsetStrings(24*time.Hour+5*time.Minute, 0)
-	if dur != "1445m" || off != "" {
-		t.Fatalf("DurationOffsetStrings: exp (%s %s); act (%s, %s)", "1445m", "", dur, off)
-	}
-
-	dur, off = DurationOffsetStrings(25*time.Hour, 5*time.Minute)
-	if dur != "25h" || off != "5m" {
-		t.Fatalf("DurationOffsetStrings: exp (%s %s); act (%s, %s)", "25h", "5m", dur, off)
-	}
-
-	dur, off = DurationOffsetStrings(25*time.Hour, 60*time.Minute)
-	if dur != "25h" || off != "1h" {
-		t.Fatalf("DurationOffsetStrings: exp (%s %s); act (%s, %s)", "25h", "1h", dur, off)
-	}
-
-	dur, off = DurationOffsetStrings(72*time.Hour, 1440*time.Minute)
-	if dur != "3d" || off != "1d" {
-		t.Fatalf("DurationOffsetStrings: exp (%s %s); act (%s, %s)", "3d", "1d", dur, off)
-	}
-
-	dur, off = DurationOffsetStrings(25*time.Hour, 1*time.Second)
-	if dur != "25h" || off != "1s" {
-		t.Fatalf("DurationOffsetStrings: exp (%s %s); act (%s, %s)", "25h", "1s", dur, off)
-	}
-
-	dur, off = DurationOffsetStrings(24*time.Hour+time.Second, 1*time.Second)
-	if dur != "86401s" || off != "1s" {
-		t.Fatalf("DurationOffsetStrings: exp (%s %s); act (%s, %s)", "86401s", "1s", dur, off)
-	}
-
-	// Expect empty strings if durations are negative
-	dur, off = DurationOffsetStrings(-25*time.Hour, -1*time.Second)
-	if dur != "" || off != "" {
-		t.Fatalf("DurationOffsetStrings: exp (%s %s); act (%s, %s)", "", "", dur, off)
+	for name, test := range testCases {
+		t.Run(name, func(t *testing.T) {
+			dur := DurationString(test.duration)
+			if dur != test.expectedDuration {
+				t.Fatalf("DurationOffsetStrings: exp (%s); act (%s)", test.expectedDuration, dur)
+			}
+		})
 	}
 }
 
-
-func TestParseDuration(t *testing.T) {
+func Test_DurationToPromString(t *testing.T) {
 	testCases := map[string]struct {
-		input string
+		duration time.Duration
+		expectedDuration string
+	}{
+		"1a": {
+			duration:         0,
+			expectedDuration: "",
+		},
+		"1b": {
+			duration:         24*time.Hour,
+			expectedDuration: "offset 1d",
+		},
+		"1c": {
+			duration:         24*time.Hour+5*time.Minute,
+			expectedDuration: "offset 1445m",
+		},
+		"1d": {
+			duration:         25*time.Hour,
+			expectedDuration: "offset 25h",
+		},
+		"1e": {
+			duration:         25*time.Hour,
+			expectedDuration: "offset 25h",
+		},
+		"1f": {
+			duration:         72*time.Hour,
+			expectedDuration: "offset 3d",
+		},
+		"1g": {
+			duration:         25*time.Hour,
+			expectedDuration: "offset 25h",
+		},
+		"1h": {
+			duration:         24*time.Hour+time.Second,
+			expectedDuration: "offset 86401s",
+		},
+		// Expect empty strings if durations are negative
+		"1i": {
+			duration:         -25*time.Hour,
+			expectedDuration: "",
+		},
+	}
+
+	for name, test := range testCases {
+		t.Run(name, func(t *testing.T) {
+			dur := DurationToPromString(test.duration)
+			if dur != test.expectedDuration {
+				t.Fatalf("DurationOffsetStrings: exp (%s); act (%s)", test.expectedDuration, dur)
+			}
+		})
+	}
+}
+
+func Test_FormatStoreResolution(t *testing.T) {
+	testCases := map[string]struct {
+		duration time.Duration
+		expectedDuration string
+	}{
+		"1a": {
+			duration:         0,
+			expectedDuration: "0s",
+		},
+		"1b": {
+			duration:         24*time.Hour,
+			expectedDuration: "1d",
+		},
+		"1c": {
+			duration:         24*time.Hour+5*time.Minute,
+			expectedDuration: "1d",
+		},
+		"1d": {
+			duration:         25*time.Hour,
+			expectedDuration: "1d",
+		},
+		"1e": {
+			duration:         25*time.Hour,
+			expectedDuration: "1d",
+		},
+		"1f": {
+			duration:         72*time.Hour,
+			expectedDuration: "3d",
+		},
+		"1g": {
+			duration:         25*time.Hour,
+			expectedDuration: "1d",
+		},
+		"1h": {
+			duration:         24*time.Hour+time.Second,
+			expectedDuration: "1d",
+		},
+		// Expect empty strings if durations are negative
+		"1i": {
+			duration:         -25*time.Hour,
+			expectedDuration: "-25h0m0s",
+		},
+	}
+
+	for name, test := range testCases {
+		t.Run(name, func(t *testing.T) {
+			dur := FormatStoreResolution(test.duration)
+			if dur != test.expectedDuration {
+				t.Fatalf("DurationOffsetStrings: exp (%s); act (%s)", test.expectedDuration, dur)
+			}
+		})
+	}
+}
+
+func Test_DurationOffsetStrings(t *testing.T) {
+	testCases := map[string]struct {
+		duration time.Duration
+		offset time.Duration
+		expectedDuration string
+		expectedOffset string
+	}{
+		"1a": {
+			duration:         0,
+			offset:           0,
+			expectedDuration: "",
+			expectedOffset:   "",
+		},
+		"1b": {
+			duration:         24*time.Hour,
+			offset:           0,
+			expectedDuration: "1d",
+			expectedOffset:   "",
+		},
+		"1c": {
+			duration:         24*time.Hour+5*time.Minute,
+			offset:           0,
+			expectedDuration: "1445m",
+			expectedOffset:   "",
+		},
+		"1d": {
+			duration:         25*time.Hour,
+			offset:           5*time.Minute,
+			expectedDuration: "25h",
+			expectedOffset:   "5m",
+		},
+		"1e": {
+			duration:         25*time.Hour,
+			offset:           60*time.Minute,
+			expectedDuration: "25h",
+			expectedOffset:   "1h",
+		},
+		"1f": {
+			duration:         72*time.Hour,
+			offset:           1440*time.Minute,
+			expectedDuration: "3d",
+			expectedOffset:   "1d",
+		},
+		"1g": {
+			duration:         25*time.Hour,
+			offset:           1*time.Second,
+			expectedDuration: "25h",
+			expectedOffset:   "1s",
+		},
+		"1h": {
+			duration:         24*time.Hour+time.Second,
+			offset:           1*time.Second,
+			expectedDuration: "86401s",
+			expectedOffset:   "1s",
+		},
+		// Expect empty strings if durations are negative
+		"1i": {
+			duration:         -25*time.Hour,
+			offset:           -1*time.Second,
+			expectedDuration: "",
+			expectedOffset:   "",
+		},
+	}
+
+	for name, test := range testCases {
+		t.Run(name, func(t *testing.T) {
+			dur, off:= DurationOffsetStrings(test.duration, test.offset)
+			if dur != test.expectedDuration || off != test.expectedOffset {
+				t.Fatalf("DurationOffsetStrings: exp (%s %s); act (%s, %s)", test.expectedDuration, test.expectedOffset, dur, off)
+			}
+		})
+	}
+}
+
+func Test_ParseDuration(t *testing.T) {
+	testCases := map[string]struct {
+		input    string
 		expected time.Duration
-	} {
-		"expected" : {
-			input: "3h",
+	}{
+		"expected": {
+			input:    "3h",
 			expected: time.Hour * 3,
 		},
-		"white space" : {
-			input: " 4s ",
+		"white space": {
+			input:    " 4s ",
 			expected: time.Second * 4,
 		},
-		"prom prefix" : {
-			input: "offset 3m",
+		"prom prefix": {
+			input:    "offset 3m",
 			expected: time.Minute * 3,
 		},
-		"prom prefix white space" : {
-			input: " offset 3d ",
+		"prom prefix white space": {
+			input:    " offset 3d ",
 			expected: 24.0 * time.Hour * 3,
 		},
-		"zero" : {
-			input: "0h",
+		"zero": {
+			input:    "0h",
 			expected: time.Duration(0),
 		},
-		"empty" : {
-			input: "",
+		"empty": {
+			input:    "",
 			expected: time.Duration(0),
 		},
-		"bad string" : {
-			input: "oqwd3dk5hk",
+		"bad string": {
+			input:    "oqwd3dk5hk",
 			expected: time.Duration(0),
 		},
-		"digit" : {
-			input: "3",
+		"digit": {
+			input:    "3",
 			expected: time.Duration(0),
 		},
-		"unit" : {
-			input: "h",
+		"unit": {
+			input:    "h",
 			expected: time.Duration(0),
 		},
 	}
@@ -108,4 +293,89 @@ func TestParseDuration(t *testing.T) {
 	}
 }
 
+func Test_CleanDurationString(t *testing.T) {
+	testCases := map[string]struct {
+		input    string
+		expected string
+	}{
+		"white space": {
+			input:    " 1d ",
+			expected: "1d",
+		},
+		"no change": {
+			input:    "1d",
+			expected: "1d",
+		},
+		"prefix": {
+			input:    "offset 1d",
+			expected: "1d",
+		},
+		"prefix white space": {
+			input:    " offset 1d ",
+			expected: "1d",
+		},
+		"empty": {
+			input:    "",
+			expected: "",
+		},
+		"random": {
+			input:    "oqwd3dk5hk",
+			expected: "oqwd3dk5hk",
+		},
 
+
+	}
+	for name, test := range testCases {
+		t.Run(name, func(t *testing.T) {
+			res := CleanDurationString(test.input)
+			if res != test.expected {
+				t.Errorf("Expected output %s did not match result %s", test.expected, res)
+			}
+		})
+	}
+}
+
+func Test_DayDurationToHourDuration(t *testing.T) {
+	testCases := map[string]struct {
+		input    string
+		expected string
+	}{
+		"1 day": {
+			input:    "1d",
+			expected: "24h",
+		},
+		"2 days": {
+			input:    "1d",
+			expected: "24h",
+		},
+		"500 days": {
+			input:    "500d",
+			expected: "12000h",
+		},
+		"1h": {
+			input:    "1h",
+			expected: "1h",
+		},
+		"empty": {
+			input:    "",
+			expected: "",
+		},
+		"no unit": {
+			input:    "1",
+			expected: "1",
+		},
+		"random": {
+			input:    "oqwd3dk5hk",
+			expected: "oqwd3dk5hk",
+		},
+
+	}
+	for name, test := range testCases {
+		t.Run(name, func(t *testing.T) {
+			res, _ := DayDurationToHourDuration(test.input)
+			if res != test.expected {
+				t.Errorf("Expected output %s did not match result %s", test.expected, res)
+			}
+		})
+	}
+}

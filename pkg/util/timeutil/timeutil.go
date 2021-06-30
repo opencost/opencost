@@ -2,6 +2,7 @@ package timeutil
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -85,6 +86,84 @@ func FormatStoreResolution(dur time.Duration) string {
 	return fmt.Sprint(dur)
 }
 
+// ParseDuration converts a Prometheus-style duration string into a Duration
+func ParseDuration(duration string) (time.Duration, error) {
+	// Trim prefix of Prometheus format duration
+	duration = CleanDurationString(duration)
+	if len(duration) < 2 {
+		return 0, fmt.Errorf("error parsing duration: %s did not match expected format [0-9+](s|m|d|h)", duration)
+	}
+	unitStr := duration[len(duration)-1:]
+	var unit time.Duration
+	switch unitStr {
+	case "s":
+		unit = time.Second
+	case "m":
+		unit = time.Minute
+	case "h":
+		unit = time.Hour
+	case "d":
+		unit = 24.0 * time.Hour
+	default:
+		return 0, fmt.Errorf("error parsing duration: %s did not match expected format [0-9+](s|m|d|h)", duration)
+	}
+
+	amountStr := duration[:len(duration)-1]
+	amount, err := strconv.ParseInt(amountStr, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("error parsing duration: %s did not match expected format [0-9+](s|m|d|h)", duration)
+	}
+
+	return time.Duration(amount) * unit, nil
+}
+
+// CleanDurationString removes prometheus formatted prefix "offset " allong with leading a trailing whitespace
+// from duration string, leaving behind a string with format [0-9+](s|m|d|h)
+func CleanDurationString(duration string) string {
+	duration = strings.TrimSpace(duration)
+	duration = strings.TrimPrefix(duration, "offset ")
+	return duration
+}
+
+// ParseTimeRange returns a start and end time, respectively, which are converted from
+// a duration and offset, defined as strings with Prometheus-style syntax.
+func ParseTimeRange(duration, offset time.Duration) (time.Time, time.Time) {
+	// endTime defaults to the current time, unless an offset is explicity declared,
+	// in which case it shifts endTime back by given duration
+	endTime := time.Now()
+	if offset > 0 {
+		endTime = endTime.Add(-1 * offset)
+	}
+
+	startTime := endTime.Add(-1 * duration)
+
+	return startTime, endTime
+}
+
+// DayDurationToHourDuration converts string from format [0-9+]d to [0-9+]h
+func DayDurationToHourDuration(param string) (string, error) {
+	//check that input matches format
+	ok, err := regexp.MatchString("[0-9+]d", param)
+	if !ok {
+		return param, fmt.Errorf("DayDurationToHourDuration: input string (%s) not formatted as [0-9+]d", param)
+	}
+	if err != nil {
+		return "", err
+	}
+	// convert days to hours
+	if param[len(param)-1:] == "d" {
+		count := param[:len(param)-1]
+		val, err := strconv.ParseInt(count, 10, 64)
+		if err != nil {
+			return "", err
+		}
+		val = val * 24
+		param = fmt.Sprintf("%dh", val)
+	}
+
+	return param, nil
+}
+
 // JobTicker is a ticker used to synchronize the next run of a repeating
 // process. The designated use-case is for infinitely-looping selects,
 // where a timeout or an exit channel might cancel the process, but otherwise
@@ -158,76 +237,4 @@ func (jt *JobTicker) TickIn(d time.Duration) {
 			jt.ch <- time.Now()
 		}
 	}(d)
-}
-
-
-
-// ParseDuration converts a Prometheus-style duration string into a Duration
-func ParseDuration(duration string) (time.Duration, error) {
-	// Trim prefix of Prometheus format duration
-	duration = CleanDurationString(duration)
-	if len(duration) < 2 {
-		return 0, fmt.Errorf("error parsing duration: %s did not match expected format [0-9+](s|m|d|h)", duration)
-	}
-	unitStr := duration[len(duration)-1:]
-	var unit time.Duration
-	switch unitStr {
-	case "s":
-		unit = time.Second
-	case "m":
-		unit = time.Minute
-	case "h":
-		unit = time.Hour
-	case "d":
-		unit = 24.0 * time.Hour
-	default:
-		return 0, fmt.Errorf("error parsing duration: %s did not match expected format [0-9+](s|m|d|h)", duration)
-	}
-
-	amountStr := duration[:len(duration)-1]
-	amount, err := strconv.ParseInt(amountStr, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("error parsing duration: %s did not match expected format [0-9+](s|m|d|h)", duration)
-	}
-
-	return time.Duration(amount) * unit, nil
-}
-
-// CleanDurationString removes prometheus formatted prefix "offset " allong with leading a trailing whitespace
-// from duration string, leaving behind a string with format [0-9+](s|m|d|h)
-func CleanDurationString(duration string) string {
-	duration = strings.TrimSpace(duration)
-	duration = strings.TrimPrefix(duration, "offset ")
-	return duration
-}
-
-// ParseTimeRange returns a start and end time, respectively, which are converted from
-// a duration and offset, defined as strings with Prometheus-style syntax.
-func ParseTimeRange(duration, offset time.Duration) (time.Time, time.Time) {
-	// endTime defaults to the current time, unless an offset is explicity declared,
-	// in which case it shifts endTime back by given duration
-	endTime := time.Now()
-	if offset > 0 {
-		endTime = endTime.Add(-1 * offset)
-	}
-
-	startTime := endTime.Add(-1 * duration)
-
-	return startTime, endTime
-}
-
-// DayDurationToHourDuration converts string from format [0-9+]d to [0-9+]h
-func DayDurationToHourDuration(param string) (string, error) {
-	// convert days to hours
-	if param[len(param)-1:] == "d" {
-		count := param[:len(param)-1]
-		val, err := strconv.ParseInt(count, 10, 64)
-		if err != nil {
-			return "", err
-		}
-		val = val * 24
-		param = fmt.Sprintf("%dh", val)
-	}
-
-	return param, nil
 }
