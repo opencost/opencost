@@ -503,7 +503,7 @@ func buildLabelsMap(
 		if err != nil {
 			cluster = env.GetClusterID()
 		}
-		node, err := result.GetString("kubernetes_node")
+		node, err := result.GetString("node")
 		if err != nil {
 			log.DedupedWarningf(5, "ClusterNodes: label data missing node")
 			continue
