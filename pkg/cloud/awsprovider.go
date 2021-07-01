@@ -2366,7 +2366,7 @@ func (aws *AWS) ParseID(id string) string {
 	match := rx.FindStringSubmatch(id)
 	if len(match) < 2 {
 		if id != "" {
-			log.Infof("awsprovider.ParseID: failed to parse %s", id)
+			log.DedupedInfof(5, "awsprovider.ParseID: failed to parse %s", id)
 		}
 		return id
 	}
@@ -2379,7 +2379,7 @@ func (aws *AWS) ParsePVID(id string) string {
 	match := rx.FindStringSubmatch(id)
 	if len(match) < 2 {
 		if id != "" {
-			log.Infof("awsprovider.ParseID: failed to parse %s", id)
+			log.DedupedInfof(5,"awsprovider.ParseID: failed to parse %s", id)
 		}
 		return id
 	}
@@ -2392,7 +2392,7 @@ func (aws *AWS) ParseLBID(id string) string {
 	match := rx.FindStringSubmatch(id)
 	if len(match) < 2 {
 		if id != "" {
-			log.Infof("awsprovider.ParseLBID: failed to parse %s, %v", id, match)
+			log.DedupedInfof(5, "awsprovider.ParseLBID: failed to parse %s, %v", id, match)
 		}
 		return id
 	}

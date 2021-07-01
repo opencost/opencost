@@ -265,9 +265,10 @@ func (k *azureKey) GetGPUCount() string {
 
 // Represents an azure storage config
 type AzureStorageConfig struct {
-	AccountName   string `json:"azureStorageAccount"`
-	AccessKey     string `json:"azureStorageAccessKey"`
-	ContainerName string `json:"azureStorageContainer"`
+	SubscriptionId string `json:"azureSubscriptionID"`
+	AccountName    string `json:"azureStorageAccount"`
+	AccessKey      string `json:"azureStorageAccessKey"`
+	ContainerName  string `json:"azureStorageContainer"`
 }
 
 // Represents an azure app key

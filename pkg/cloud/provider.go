@@ -347,6 +347,11 @@ func NewCrossClusterProvider(ctype string, overrideConfigPath string, cache clus
 			Clientset: cache,
 			Config:    NewProviderConfig(overrideConfigPath),
 		}, nil
+	} else if ctype == "azure" {
+		return &Azure{
+			Clientset: cache,
+			Config:    NewProviderConfig(overrideConfigPath),
+		}, nil
 	}
 	return &CustomProvider{
 		Clientset: cache,
