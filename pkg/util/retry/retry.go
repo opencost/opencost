@@ -36,7 +36,7 @@ func Retry(ctx context.Context, f func() (interface{}, error), attempts uint, de
 
 		time.Sleep(d)
 
-		jitter := time.Duration(rand.Int63n(int64(d)))
+		jitter := time.Duration(rand.Int63n(int64(d))) // #nosec No need for a cryptographic strength random here
 		d = d + jitter/2
 	}
 

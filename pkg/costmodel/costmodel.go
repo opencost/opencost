@@ -233,7 +233,6 @@ const (
 func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, window, offset, window, offset, env.GetPromClusterLabel())
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, window, offset, env.GetPromClusterLabel())
-	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, window, offset, window, offset, 1.0, env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), window, offset, env.GetPromClusterLabel())
 	queryPVRequests := fmt.Sprintf(queryPVRequestsStr, env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel())
 	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, window, "", env.GetPromClusterLabel())
 	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, window, "", env.GetPromClusterLabel())
@@ -247,7 +246,6 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 	ctx := prom.NewContext(cli)
 	resChRAMUsage := ctx.Query(queryRAMUsage)
 	resChCPUUsage := ctx.Query(queryCPUUsage)
-	resChGPURequests := ctx.Query(queryGPURequests)
 	resChPVRequests := ctx.Query(queryPVRequests)
 	resChNetZoneRequests := ctx.Query(queryNetZoneRequests)
 	resChNetRegionRequests := ctx.Query(queryNetRegionRequests)
@@ -280,7 +278,6 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 	// Process Prometheus query results. Handle errors using ctx.Errors.
 	resRAMUsage, _ := resChRAMUsage.Await()
 	resCPUUsage, _ := resChCPUUsage.Await()
-	resGPURequests, _ := resChGPURequests.Await()
 	resPVRequests, _ := resChPVRequests.Await()
 	resNetZoneRequests, _ := resChNetZoneRequests.Await()
 	resNetRegionRequests, _ := resChNetRegionRequests.Await()
@@ -351,13 +348,6 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 		return nil, err
 	}
 	for key := range RAMUsedMap {
-		containers[key] = true
-	}
-	GPUReqMap, err := GetContainerMetricVector(resGPURequests, true, normalizationValue, clusterID)
-	if err != nil {
-		return nil, err
-	}
-	for key := range GPUReqMap {
 		containers[key] = true
 	}
 	CPUUsedMap, err := GetContainerMetricVector(resCPUUsage, false, 0, clusterID) // No need to normalize here, as this comes from a counter
@@ -504,17 +494,29 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 					},
 				}
 
+				gpuReqCount := 0.0
+				if g, ok := container.Resources.Requests["nvidia.com/gpu"]; ok {
+					gpuReqCount = float64(g.Value())
+				} else if g, ok := container.Resources.Limits["nvidia.com/gpu"]; ok {
+					gpuReqCount = float64(g.Value())
+				} else if g, ok := container.Resources.Requests["k8s.amazonaws.com/vgpu"]; ok {
+					gpuReqCount = float64(g.Value())
+				} else if g, ok := container.Resources.Limits["k8s.amazonaws.com/vgpu"]; ok {
+					gpuReqCount = float64(g.Value())
+				}
+				GPUReqV := []*util.Vector{
+					{
+						Value:     float64(gpuReqCount),
+						Timestamp: float64(time.Now().UTC().Unix()),
+					},
+				}
+
 				RAMUsedV, ok := RAMUsedMap[newKey]
 				if !ok {
 					klog.V(4).Info("no RAM usage for " + newKey)
 					RAMUsedV = []*util.Vector{{}}
 				}
 
-				GPUReqV, ok := GPUReqMap[newKey]
-				if !ok {
-					klog.V(4).Info("no GPU requests for " + newKey)
-					GPUReqV = []*util.Vector{{}}
-				}
 				CPUUsedV, ok := CPUUsedMap[newKey]
 				if !ok {
 					klog.V(4).Info("no CPU usage for " + newKey)
@@ -576,6 +578,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 			// with very short-lived pods that over-request resources.
 			RAMReqV := []*util.Vector{{}}
 			CPUReqV := []*util.Vector{{}}
+			GPUReqV := []*util.Vector{{}}
 
 			RAMUsedV, ok := RAMUsedMap[key]
 			if !ok {
@@ -583,11 +586,6 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				RAMUsedV = []*util.Vector{{}}
 			}
 
-			GPUReqV, ok := GPUReqMap[key]
-			if !ok {
-				klog.V(4).Info("no GPU requests for " + key)
-				GPUReqV = []*util.Vector{{}}
-			}
 			CPUUsedV, ok := CPUUsedMap[key]
 			if !ok {
 				klog.V(4).Info("no CPU usage for " + key)
@@ -1006,6 +1004,12 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 		q, ok := n.Status.Capacity["nvidia.com/gpu"]
 		if ok {
 			gpuCount := q.Value()
+			if gpuCount != 0 {
+				newCnode.GPU = fmt.Sprintf("%d", q.Value())
+				gpuc = float64(gpuCount)
+			}
+		} else if g, ok := n.Status.Capacity["k8s.amazonaws.com/vgpu"]; ok {
+			gpuCount := g.Value()
 			if gpuCount != 0 {
 				newCnode.GPU = fmt.Sprintf("%d", q.Value())
 				gpuc = float64(gpuCount)
