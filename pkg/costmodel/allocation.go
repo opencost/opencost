@@ -895,7 +895,7 @@ func applyRAMBytesUsedMax(podMap map[podKey]*Pod, resRAMBytesUsedMax []*prom.Que
 }
 
 func applyGPUsRequested(podMap map[podKey]*Pod, resGPUsRequested []*prom.QueryResult, resGPUsAllocated []*prom.QueryResult) {
-	if len(resGPUsAllocated) > len(resGPUsRequested) { // Use the new query, when it's been available in a window longer than the old query
+	if len(resGPUsAllocated) >= len(resGPUsRequested) { // Use the new query, when it's been available in a window longer/equal to than the old query
 		resGPUsRequested = resGPUsAllocated
 	}
 	for _, res := range resGPUsRequested {
