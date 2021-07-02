@@ -42,6 +42,7 @@ func TestLabelConfig_GetExternalAllocationName(t *testing.T) {
 
 	labels := map[string]string{
 		"kubens":                      "kubecost-staging",
+		"kubeowner":                   "kubecost-owner",
 		"env":                         "env1",
 		"app":                         "app1",
 		glueFormattedLabel:            "glue",
@@ -102,6 +103,7 @@ func TestLabelConfig_GetExternalAllocationName(t *testing.T) {
 	// Change the external label for namespace and confirm it still works
 	lc.NamespaceExternalLabel = "kubens"
 	lc.PodExternalLabel = "Non__GlueFormattedLabel"
+	lc.OwnerExternalLabel = "kubeowner"
 
 	// TODO how is e.g. OwnerExternalLabel supposed to work?
 
@@ -111,6 +113,7 @@ func TestLabelConfig_GetExternalAllocationName(t *testing.T) {
 	}{
 		{"namespace", "kubecost-staging"},
 		{"pod", "glue"},
+		// {"owner", "kubeowner"},
 	}
 	for _, tc := range testCases {
 		actual := lc.GetExternalAllocationName(labels, tc.aggBy)

@@ -3,7 +3,6 @@ package kubecost
 import (
 	"bytes"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -715,13 +714,14 @@ func NewAllocationSet(start, end time.Time, allocs ...*Allocation) *AllocationSe
 // simple flag for sharing idle resources.
 type AllocationAggregationOptions struct {
 	FilterFuncs       []AllocationMatchFunc
-	SplitIdle         bool
 	IdleByNode        bool
+	LabelConfig       *LabelConfig
 	MergeUnallocated  bool
+	SharedHourlyCosts map[string]float64
 	ShareFuncs        []AllocationMatchFunc
 	ShareIdle         string
 	ShareSplit        string
-	SharedHourlyCosts map[string]float64
+	SplitIdle         bool
 }
 
 // AggregateBy aggregates the Allocations in the given AllocationSet by the given
@@ -754,11 +754,26 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// 10. If the merge idle option is enabled, merge any remaining idle
 	//     allocations into a single idle allocation
 
+	if as.IsEmpty() {
+		return nil
+	}
+
 	if options == nil {
 		options = &AllocationAggregationOptions{}
 	}
 
-	if as.IsEmpty() {
+	if options.LabelConfig == nil {
+		options.LabelConfig = NewLabelConfig()
+	}
+
+	// If aggregateBy is nil, we don't aggregate anything. On the other hand,
+	// an empty slice implies that we should aggregate everything. See
+	// generateKey for why that makes sense.
+	shouldAggregate := aggregateBy != nil
+	shouldFilter := len(options.FilterFuncs) > 0
+	shouldShare := len(options.SharedHourlyCosts) > 0 || len(options.ShareFuncs) > 0
+	if !shouldAggregate && !shouldFilter && !shouldShare {
+		// There is nothing for AggregateBy to do, so simply return nil
 		return nil
 	}
 
@@ -1022,7 +1037,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		}
 
 		// (5) generate key to use for aggregation-by-key and allocation name
-		key := alloc.generateKey(aggregateBy)
+		key := alloc.generateKey(aggregateBy, options.LabelConfig)
 
 		alloc.Name = key
 		if options.MergeUnallocated && alloc.IsUnallocated() {
@@ -1153,7 +1168,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 			}
 		}
 		if !skip {
-			key := alloc.generateKey(aggregateBy)
+			key := alloc.generateKey(aggregateBy, options.LabelConfig)
 
 			alloc.Name = key
 			aggSet.Insert(alloc)
@@ -1198,7 +1213,7 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 
 		// Determine the post-aggregation key under which the allocation will
 		// be shared.
-		name := alloc.generateKey(aggregateBy)
+		name := alloc.generateKey(aggregateBy, options.LabelConfig)
 
 		// If the current allocation will be filtered out in step 3, contribute
 		// its share of the shared coefficient to a "__filtered__" bin, which
@@ -1383,9 +1398,13 @@ func (a *Allocation) getIdleId(options *AllocationAggregationOptions) (string, e
 	return idleId, nil
 }
 
-func (a *Allocation) generateKey(aggregateBy []string) string {
+func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig) string {
 	if a == nil {
 		return ""
+	}
+
+	if labelConfig == nil {
+		labelConfig = NewLabelConfig()
 	}
 
 	// Names will ultimately be joined into a single name, which uniquely
@@ -1442,61 +1461,93 @@ func (a *Allocation) generateKey(aggregateBy []string) string {
 		case strings.HasPrefix(agg, "label:"):
 			labels := a.Properties.Labels
 			if labels == nil {
-				// Indicate that allocation has no labels
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelNames := []string{}
-				aggLabels := strings.Split(strings.TrimPrefix(agg, "label:"), ";")
-				for _, labelName := range aggLabels {
-					if val, ok := labels[labelName]; ok {
-						labelNames = append(labelNames, fmt.Sprintf("%s=%s", labelName, val))
-					} else if indexOf(UnallocatedSuffix, labelNames) == -1 { // if UnallocatedSuffix not already in names
-						labelNames = append(labelNames, UnallocatedSuffix)
-					}
+				labelName := strings.TrimPrefix(agg, "label:")
+				if labelValue, ok := labels[labelName]; ok {
+					names = append(names, fmt.Sprintf("%s=%s", labelName, labelValue))
+				} else {
+					names = append(names, UnallocatedSuffix)
 				}
-				// resolve arbitrary ordering. e.g., app=app0/env=env0 is the same agg as env=env0/app=app0
-				if len(labelNames) > 1 {
-					sort.Strings(labelNames)
-				}
-				unallocatedSuffixIndex := indexOf(UnallocatedSuffix, labelNames)
-				// suffix should be at index 0 if it exists b/c of underscores
-				if unallocatedSuffixIndex != -1 {
-					labelNames = append(labelNames[:unallocatedSuffixIndex], labelNames[unallocatedSuffixIndex+1:]...)
-					labelNames = append(labelNames, UnallocatedSuffix) // append to end
-				}
-
-				names = append(names, labelNames...)
 			}
 		case strings.HasPrefix(agg, "annotation:"):
 			annotations := a.Properties.Annotations
 			if annotations == nil {
-				// Indicate that allocation has no annotations
 				names = append(names, UnallocatedSuffix)
 			} else {
-				annotationNames := []string{}
-				aggAnnotations := strings.Split(strings.TrimPrefix(agg, "annotation:"), ";")
-				for _, annotationName := range aggAnnotations {
-					if val, ok := annotations[annotationName]; ok {
-						annotationNames = append(annotationNames, fmt.Sprintf("%s=%s", annotationName, val))
-					} else if indexOf(UnallocatedSuffix, annotationNames) == -1 { // if UnallocatedSuffix not already in names
-						annotationNames = append(annotationNames, UnallocatedSuffix)
-					}
+				annotationName := strings.TrimPrefix(agg, "annotation:")
+				if annotationValue, ok := annotations[annotationName]; ok {
+					names = append(names, fmt.Sprintf("%s=%s", annotationName, annotationValue))
+				} else {
+					names = append(names, UnallocatedSuffix)
 				}
-				// resolve arbitrary ordering. e.g., app=app0/env=env0 is the same agg as env=env0/app=app0
-				if len(annotationNames) > 1 {
-					sort.Strings(annotationNames)
-				}
-				unallocatedSuffixIndex := indexOf(UnallocatedSuffix, annotationNames)
-				// suffix should be at index 0 if it exists b/c of underscores
-				if unallocatedSuffixIndex != -1 {
-					annotationNames = append(annotationNames[:unallocatedSuffixIndex], annotationNames[unallocatedSuffixIndex+1:]...)
-					annotationNames = append(annotationNames, UnallocatedSuffix) // append to end
-				}
-
-				names = append(names, annotationNames...)
 			}
+		case agg == AllocationDepartmentProp:
+			labels := a.Properties.Labels
+			if labels == nil {
+				names = append(names, UnallocatedSuffix)
+			} else {
+				labelName := labelConfig.DepartmentLabel
+				if labelValue, ok := labels[labelName]; ok {
+					names = append(names, labelValue)
+				} else {
+					names = append(names, UnallocatedSuffix)
+				}
+			}
+		case agg == AllocationEnvironmentProp:
+			labels := a.Properties.Labels
+			if labels == nil {
+				names = append(names, UnallocatedSuffix)
+			} else {
+				labelName := labelConfig.EnvironmentLabel
+				if labelValue, ok := labels[labelName]; ok {
+					names = append(names, labelValue)
+				} else {
+					names = append(names, UnallocatedSuffix)
+				}
+			}
+		case agg == AllocationOwnerProp:
+			labels := a.Properties.Labels
+			if labels == nil {
+				names = append(names, UnallocatedSuffix)
+			} else {
+				labelName := labelConfig.OwnerLabel
+				if labelValue, ok := labels[labelName]; ok {
+					names = append(names, labelValue)
+				} else {
+					names = append(names, UnallocatedSuffix)
+				}
+			}
+		case agg == AllocationProductProp:
+			labels := a.Properties.Labels
+			if labels == nil {
+				names = append(names, UnallocatedSuffix)
+			} else {
+				labelName := labelConfig.ProductLabel
+				if labelValue, ok := labels[labelName]; ok {
+					names = append(names, labelValue)
+				} else {
+					names = append(names, UnallocatedSuffix)
+				}
+			}
+		case agg == AllocationTeamProp:
+			labels := a.Properties.Labels
+			if labels == nil {
+				names = append(names, UnallocatedSuffix)
+			} else {
+				labelName := labelConfig.TeamLabel
+				if labelValue, ok := labels[labelName]; ok {
+					names = append(names, labelValue)
+				} else {
+					names = append(names, UnallocatedSuffix)
+				}
+			}
+		default:
+			// This case should never be reached, as input up until this point
+			// should be checked and rejected if invalid. But if we do get a
+			// value we don't recognize, log a warning.
+			log.Warningf("AggregateBy: illegal aggregation parameter: %s", agg)
 		}
-
 	}
 
 	return strings.Join(names, "/")
