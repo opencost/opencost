@@ -156,8 +156,8 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	queryGPUsRequested := fmt.Sprintf(queryFmtGPUsRequested, durStr, offStr, env.GetPromClusterLabel())
 	resChGPUsRequested := ctx.Query(queryGPUsRequested)
 
-	queryGPUsAllocated := fmt.Sprintf(queryGPUsAllocated, durStr, offStr, env.GetPromClusterLabel())
-	resGPUsAllocated := ctx.Query(queryGPUsAllocated)
+	queryGPUsAllocated := fmt.Sprintf(queryFmtGPUsAllocated, durStr, offStr, env.GetPromClusterLabel())
+	resChGPUsAllocated := ctx.Query(queryGPUsAllocated)
 
 	queryNodeCostPerCPUHr := fmt.Sprintf(queryFmtNodeCostPerCPUHr, durStr, offStr, env.GetPromClusterLabel())
 	resChNodeCostPerCPUHr := ctx.Query(queryNodeCostPerCPUHr)
@@ -252,6 +252,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	resRAMUsageAvg, _ := resChRAMUsageAvg.Await()
 	resRAMUsageMax, _ := resChRAMUsageMax.Await()
 	resGPUsRequested, _ := resChGPUsRequested.Await()
+	resGPUsAllocated, _ := resChGPUsAllocated.Await()
 
 	resNodeCostPerCPUHr, _ := resChNodeCostPerCPUHr.Await()
 	resNodeCostPerRAMGiBHr, _ := resChNodeCostPerRAMGiBHr.Await()
