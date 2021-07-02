@@ -45,7 +45,9 @@ func TestLabelConfig_GetExternalAllocationName(t *testing.T) {
 		"kubeowner":                   "kubecost-owner",
 		"env":                         "env1",
 		"app":                         "app1",
+		"team":                        "team1",
 		glueFormattedLabel:            "glue",
+		"prom_sanitization_test":      "pass",
 		"kubernetes_cluster":          "cluster-one",
 		"kubernetes_namespace":        "kubecost",
 		"kubernetes_controller":       "kubecost-controller",
@@ -102,8 +104,11 @@ func TestLabelConfig_GetExternalAllocationName(t *testing.T) {
 
 	// Change the external label for namespace and confirm it still works
 	lc.NamespaceExternalLabel = "kubens"
+	lc.ServiceExternalLabel = "prom-sanitization-test"
 	lc.PodExternalLabel = "Non__GlueFormattedLabel"
 	lc.OwnerExternalLabel = "kubeowner"
+	lc.DepartmentExternalLabel = "doesntexist,env"
+	lc.TeamExternalLabel = "team,env"
 
 	// TODO how is e.g. OwnerExternalLabel supposed to work?
 
@@ -112,8 +117,11 @@ func TestLabelConfig_GetExternalAllocationName(t *testing.T) {
 		expected string
 	}{
 		{"namespace", "kubecost-staging"},
+		{"service", "pass"},
 		{"pod", "glue"},
-		// {"owner", "kubeowner"},
+		{"owner", "kubecost-owner"},
+		{"department", "env1"},
+		{"team", "team1"},
 	}
 	for _, tc := range testCases {
 		actual := lc.GetExternalAllocationName(labels, tc.aggBy)

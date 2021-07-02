@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util/cloudutil"
 )
 
@@ -178,13 +179,13 @@ func (lc *LabelConfig) Map() map[string]string {
 // that label to determine an external allocation name. If no label value can
 // be found, return an empty string.
 func (lc *LabelConfig) GetExternalAllocationName(labels map[string]string, aggregateBy string) string {
-	labelName := ""
+	labelNames := []string{}
 	aggByLabel := false
 
 	// Determine if the aggregation property is, itself, a label or not. If
 	// not, determine the label associated with the given aggregation property.
 	if strings.HasPrefix(aggregateBy, "label:") {
-		labelName = strings.TrimPrefix(aggregateBy, "label:")
+		labelNames = append(labelNames, prom.SanitizeLabelName(strings.TrimPrefix(aggregateBy, "label:")))
 		aggByLabel = true
 	} else {
 		// If lc is nil, use a default LabelConfig to do a best-effort match
@@ -194,40 +195,69 @@ func (lc *LabelConfig) GetExternalAllocationName(labels map[string]string, aggre
 
 		switch strings.ToLower(aggregateBy) {
 		case AllocationClusterProp:
-			labelName = lc.ClusterExternalLabel
+			labelNames = strings.Split(lc.ClusterExternalLabel, ",")
 		case AllocationControllerProp:
-			labelName = lc.ControllerExternalLabel
+			labelNames = strings.Split(lc.ControllerExternalLabel, ",")
 		case AllocationNamespaceProp:
-			labelName = lc.NamespaceExternalLabel
+			labelNames = strings.Split(lc.NamespaceExternalLabel, ",")
 		case AllocationPodProp:
-			labelName = lc.PodExternalLabel
+			labelNames = strings.Split(lc.PodExternalLabel, ",")
 		case AllocationServiceProp:
-			labelName = lc.ServiceExternalLabel
+			labelNames = strings.Split(lc.ServiceExternalLabel, ",")
 		case AllocationDeploymentProp:
-			labelName = lc.DeploymentExternalLabel
+			labelNames = strings.Split(lc.DeploymentExternalLabel, ",")
 		case AllocationStatefulSetProp:
-			labelName = lc.StatefulsetExternalLabel
+			labelNames = strings.Split(lc.StatefulsetExternalLabel, ",")
 		case AllocationDaemonSetProp:
-			labelName = lc.DaemonsetExternalLabel
+			labelNames = strings.Split(lc.DaemonsetExternalLabel, ",")
+		case AllocationDepartmentProp:
+			labelNames = strings.Split(lc.DepartmentExternalLabel, ",")
+		case AllocationEnvironmentProp:
+			labelNames = strings.Split(lc.EnvironmentExternalLabel, ",")
+		case AllocationOwnerProp:
+			labelNames = strings.Split(lc.OwnerExternalLabel, ",")
+		case AllocationProductProp:
+			labelNames = strings.Split(lc.ProductExternalLabel, ",")
+		case AllocationTeamProp:
+			labelNames = strings.Split(lc.TeamExternalLabel, ",")
+		}
+
+		for i, labelName := range labelNames {
+			labelNames[i] = prom.SanitizeLabelName(strings.TrimSpace(labelName))
 		}
 	}
 
 	// No label is set for the given aggregation property.
-	if labelName == "" {
+	if len(labelNames) == 0 {
 		return ""
 	}
 
 	// The relevant label is not present in the set of labels provided.
-	labelValue, ok := labels[labelName]
-	if !ok {
-		// Convert the label name to a format compatible with AWS Glue and
-		// Athena column naming and check again. If not found after that, then
-		// consider the label not present.
-		labelName = cloudutil.ConvertToGlueColumnFormat(labelName)
-		labelValue, ok = labels[labelName]
-		if !ok {
-			return ""
+	labelName := ""
+	labelValue := ""
+	for _, ln := range labelNames {
+		if lv, ok := labels[ln]; ok {
+			// Match found for given label
+			labelName = ln
+			labelValue = lv
+			break
+		} else {
+			// Convert the label name to a format compatible with AWS Glue and
+			// Athena column naming and check again. If not found after that,
+			// then consider the label not present.
+			ln = cloudutil.ConvertToGlueColumnFormat(ln)
+			if lv, ok = labels[ln]; ok {
+				// Match found for given label after converting to AWS format
+				labelName = ln
+				labelValue = lv
+				break
+			}
 		}
+	}
+
+	// No match found
+	if labelName == "" {
+		return ""
 	}
 
 	// When aggregating by some label (i.e. not by a Kubernetes concept),
