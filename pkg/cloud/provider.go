@@ -185,7 +185,7 @@ type ServiceAccountStatus struct {
 type ServiceAccountCheck struct {
 	Message        string `json:"message"`
 	Status         bool   `json:"status"`
-	AdditionalInfo string `json:additionalInfo`
+	AdditionalInfo string `json:"additionalInfo"`
 }
 
 type PricingSources struct {
