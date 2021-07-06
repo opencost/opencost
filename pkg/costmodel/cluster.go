@@ -772,7 +772,7 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 		queryTotalLocalStorage = fmt.Sprintf(" + %s", queryTotalLocalStorage)
 	}
 
-	fmtOffset := timeutil.DurationToPromString(offset)
+	fmtOffset := timeutil.DurationToPromOffsetString(offset)
 
 	queryDataCount := fmt.Sprintf(fmtQueryDataCount, env.GetPromClusterLabel(), window, minsPerResolution, fmtOffset, minsPerResolution)
 	queryTotalGPU := fmt.Sprintf(fmtQueryTotalGPU, window, minsPerResolution, fmtOffset, hourlyToCumulative, env.GetPromClusterLabel())
@@ -1072,7 +1072,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 		return nil, err
 	}
 
-	fmtOffset := timeutil.DurationToPromString(offset)
+	fmtOffset := timeutil.DurationToPromOffsetString(offset)
 
 	qCores := fmt.Sprintf(queryClusterCores, fmtWindow, fmtOffset, env.GetPromClusterLabel(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterLabel())
 	qRAM := fmt.Sprintf(queryClusterRAM, fmtWindow, fmtOffset, env.GetPromClusterLabel(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterLabel())

@@ -135,7 +135,7 @@ func (gcp *GCP) GetLocalStorageQuery(window, offset time.Duration, rate bool, us
 		baseMetric = "container_fs_usage_bytes"
 	}
 
-	fmtOffset := timeutil.DurationToPromString(offset)
+	fmtOffset := timeutil.DurationToPromOffsetString(offset)
 
 	fmtCumulativeQuery := `sum(
 		sum_over_time(%s{device!="tmpfs", id="/"}[%s:1m]%s)

@@ -60,8 +60,8 @@ func DurationString(duration time.Duration) string {
 	return durStr
 }
 
-// DurationToPromString returns a Prometheus formatted string with leading offset or empty string if given a negative duration
-func DurationToPromString(duration time.Duration) string {
+// DurationToPromOffsetString returns a Prometheus formatted string with leading offset or empty string if given a negative duration
+func DurationToPromOffsetString(duration time.Duration) string {
 	dirStr := DurationString(duration)
 	if dirStr != "" {
 		dirStr = fmt.Sprintf("offset %s", dirStr)
@@ -140,12 +140,12 @@ func ParseTimeRange(duration, offset time.Duration) (time.Time, time.Time) {
 	return startTime, endTime
 }
 
-// DayDurationToHourDuration converts string from format [0-9+]d to [0-9+]h
-func DayDurationToHourDuration(param string) (string, error) {
+// FormatDurationStringDaysToHours converts string from format [0-9+]d to [0-9+]h
+func FormatDurationStringDaysToHours(param string) (string, error) {
 	//check that input matches format
 	ok, err := regexp.MatchString("[0-9+]d", param)
 	if !ok {
-		return param, fmt.Errorf("DayDurationToHourDuration: input string (%s) not formatted as [0-9+]d", param)
+		return param, fmt.Errorf("FormatDurationStringDaysToHours: input string (%s) not formatted as [0-9+]d", param)
 	}
 	if err != nil {
 		return "", err

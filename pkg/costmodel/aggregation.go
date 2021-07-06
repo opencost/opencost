@@ -1748,10 +1748,10 @@ func (a *Accesses) warmAggregateCostModelCache() {
 			log.Infof("Setting Offset to %s", duration)
 		}
 		fmtDuration, fmtOffset := timeutil.DurationOffsetStrings(duration, offset)
-		durationHrs, err := timeutil.DayDurationToHourDuration(fmtDuration)
+		durationHrs, err := timeutil.FormatDurationStringDaysToHours(fmtDuration)
 		promClient := a.GetPrometheusClient(true)
 
-		windowStr := fmt.Sprintf("%s fmtOffset %s", fmtDuration, fmtOffset)
+		windowStr := fmt.Sprintf("%s offset %s", fmtDuration, fmtOffset)
 		window, err := kubecost.ParseWindowUTC(windowStr)
 		if err != nil {
 			return nil, fmt.Errorf("invalid window from window string: %s", windowStr)

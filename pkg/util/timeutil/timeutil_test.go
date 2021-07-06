@@ -59,7 +59,7 @@ func Test_DurationString(t *testing.T) {
 	}
 }
 
-func Test_DurationToPromString(t *testing.T) {
+func Test_DurationToPromOffsetString(t *testing.T) {
 	testCases := map[string]struct {
 		duration time.Duration
 		expectedDuration string
@@ -105,7 +105,7 @@ func Test_DurationToPromString(t *testing.T) {
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
-			dur := DurationToPromString(test.duration)
+			dur := DurationToPromOffsetString(test.duration)
 			if dur != test.expectedDuration {
 				t.Fatalf("DurationOffsetStrings: exp (%s); act (%s)", test.expectedDuration, dur)
 			}
@@ -335,7 +335,7 @@ func Test_CleanDurationString(t *testing.T) {
 	}
 }
 
-func Test_DayDurationToHourDuration(t *testing.T) {
+func Test_FormatDurationStringDaysToHours(t *testing.T) {
 	testCases := map[string]struct {
 		input    string
 		expected string
@@ -372,7 +372,7 @@ func Test_DayDurationToHourDuration(t *testing.T) {
 	}
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
-			res, _ := DayDurationToHourDuration(test.input)
+			res, _ := FormatDurationStringDaysToHours(test.input)
 			if res != test.expected {
 				t.Errorf("Expected output %s did not match result %s", test.expected, res)
 			}
