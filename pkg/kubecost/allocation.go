@@ -563,6 +563,11 @@ func (a *Allocation) IsUnallocated() bool {
 	return strings.Contains(a.Name, UnallocatedSuffix)
 }
 
+// IsUnmounted is true if the given Allocation represents unmounted volume costs.
+func (a *Allocation) IsUnmounted() bool {
+	return strings.Contains(a.Name, UnmountedSuffix)
+}
+
 // Minutes returns the number of minutes the Allocation represents, as defined
 // by the difference between the end and start times.
 func (a *Allocation) Minutes() float64 {
@@ -1182,6 +1187,10 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 	for _, alloc := range as.allocations {
 		if alloc.IsIdle() {
 			// Skip idle allocations in coefficient calculation
+			continue
+		}
+		if alloc.IsUnmounted() {
+			// Skip unmounted allocations in coefficient calculation
 			continue
 		}
 

@@ -1498,8 +1498,8 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				ShareIdle:   ShareEven,
-				IdleByNode:  true,
+				ShareIdle:  ShareEven,
+				IdleByNode: true,
 			},
 			numResults: 3,
 			totalCost:  112.00,
