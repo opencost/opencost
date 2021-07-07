@@ -333,9 +333,9 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	// for converting resource allocation data to cumulative costs.
 	nodeMap := map[nodeKey]*NodePricing{}
 
-	applyNodeCostPerCPUHr(nodeMap, resNodeCostPerCPUHr, cm.Provider.ParseID)
-	applyNodeCostPerRAMGiBHr(nodeMap, resNodeCostPerRAMGiBHr, cm.Provider.ParseID)
-	applyNodeCostPerGPUHr(nodeMap, resNodeCostPerGPUHr, cm.Provider.ParseID)
+	applyNodeCostPerCPUHr(nodeMap, resNodeCostPerCPUHr)
+	applyNodeCostPerRAMGiBHr(nodeMap, resNodeCostPerRAMGiBHr)
+	applyNodeCostPerGPUHr(nodeMap, resNodeCostPerGPUHr)
 	applyNodeSpot(nodeMap, resNodeIsSpot)
 	applyNodeDiscount(nodeMap, cm)
 
@@ -1352,8 +1352,7 @@ func applyControllersToPods(podMap map[podKey]*Pod, podControllerMap map[podKey]
 	}
 }
 
-func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerCPUHr []*prom.QueryResult,
-	providerIDParser func(string) string) {
+func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerCPUHr []*prom.QueryResult) {
 	for _, res := range resNodeCostPerCPUHr {
 		cluster, err := res.GetString(env.GetPromClusterLabel())
 		if err != nil {
@@ -1383,7 +1382,7 @@ func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerCPUHr
 			nodeMap[key] = &NodePricing{
 				Name:       node,
 				NodeType:   instanceType,
-				ProviderID: providerIDParser(providerID),
+				ProviderID: cloud.ParseID(providerID),
 			}
 		}
 
@@ -1391,8 +1390,7 @@ func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerCPUHr
 	}
 }
 
-func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerRAMGiBHr []*prom.QueryResult,
-	providerIDParser func(string) string) {
+func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerRAMGiBHr []*prom.QueryResult) {
 	for _, res := range resNodeCostPerRAMGiBHr {
 		cluster, err := res.GetString(env.GetPromClusterLabel())
 		if err != nil {
@@ -1422,7 +1420,7 @@ func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerRA
 			nodeMap[key] = &NodePricing{
 				Name:       node,
 				NodeType:   instanceType,
-				ProviderID: providerIDParser(providerID),
+				ProviderID: cloud.ParseID(providerID),
 			}
 		}
 
@@ -1430,8 +1428,7 @@ func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerRA
 	}
 }
 
-func applyNodeCostPerGPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerGPUHr []*prom.QueryResult,
-	providerIDParser func(string) string) {
+func applyNodeCostPerGPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerGPUHr []*prom.QueryResult) {
 	for _, res := range resNodeCostPerGPUHr {
 		cluster, err := res.GetString(env.GetPromClusterLabel())
 		if err != nil {
@@ -1461,7 +1458,7 @@ func applyNodeCostPerGPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerGPUHr
 			nodeMap[key] = &NodePricing{
 				Name:       node,
 				NodeType:   instanceType,
-				ProviderID: providerIDParser(providerID),
+				ProviderID: cloud.ParseID(providerID),
 			}
 		}
 

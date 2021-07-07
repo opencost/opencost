@@ -1471,26 +1471,3 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 	}
 	return discount
 }
-
-func (gcp *GCP) ParseID(id string) string {
-	// gce://guestbook-227502/us-central1-a/gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
-	//  => gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
-	rx := regexp.MustCompile("gce://[^/]*/[^/]*/([^/]+)")
-	match := rx.FindStringSubmatch(id)
-	if len(match) < 2 {
-		if id != "" {
-			log.DedupedInfof(5,"gcpprovider.ParseID: failed to parse %s", id)
-		}
-		return id
-	}
-
-	return match[1]
-}
-
-func (gcp *GCP) ParsePVID(id string) string {
-	return id
-}
-
-func (gcp *GCP) ParseLBID(id string) string {
-	return id
-}

@@ -192,7 +192,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 		diskMap[key].Cost += cost
 		providerID, _ := result.GetString("provider_id") // just put the providerID set up here, it's the simplest query.
 		if providerID != "" {
-			diskMap[key].ProviderID = provider.ParsePVID(providerID)
+			diskMap[key].ProviderID = cloud.ParsePVID(providerID)
 		}
 	}
 
@@ -519,18 +519,18 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		return nil, requiredCtx.ErrorCollection()
 	}
 
-	activeDataMap := buildActiveDataMap(resActiveMins, resolution, cp.ParseID)
+	activeDataMap := buildActiveDataMap(resActiveMins, resolution)
 
-	gpuCountMap := buildGPUCountMap(resNodeGPUCount, cp.ParseID)
+	gpuCountMap := buildGPUCountMap(resNodeGPUCount)
 
-	cpuCostMap, clusterAndNameToType1 := buildCPUCostMap(resNodeCPUHourlyCost, cp.ParseID)
-	ramCostMap, clusterAndNameToType2 := buildRAMCostMap(resNodeRAMHourlyCost, cp.ParseID)
-	gpuCostMap, clusterAndNameToType3 := buildGPUCostMap(resNodeGPUHourlyCost, gpuCountMap, cp.ParseID)
+	cpuCostMap, clusterAndNameToType1 := buildCPUCostMap(resNodeCPUHourlyCost)
+	ramCostMap, clusterAndNameToType2 := buildRAMCostMap(resNodeRAMHourlyCost)
+	gpuCostMap, clusterAndNameToType3 := buildGPUCostMap(resNodeGPUHourlyCost, gpuCountMap)
 
 	clusterAndNameToTypeIntermediate := mergeTypeMaps(clusterAndNameToType1, clusterAndNameToType2)
 	clusterAndNameToType := mergeTypeMaps(clusterAndNameToTypeIntermediate, clusterAndNameToType3)
 
-	cpuCoresMap := buildCPUCoresMap(resNodeCPUCores, clusterAndNameToType)
+	cpuCoresMap := buildCPUCoresMap(resNodeCPUCores)
 
 	ramBytesMap := buildRAMBytesMap(resNodeRAMBytes)
 
@@ -538,7 +538,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	ramSystemPctMap := buildRAMSystemPctMap(resNodeRAMSystemPct)
 
 	cpuBreakdownMap := buildCPUBreakdownMap(resNodeCPUModeTotal)
-	preemptibleMap := buildPreemptibleMap(resIsSpot, cp.ParseID)
+	preemptibleMap := buildPreemptibleMap(resIsSpot)
 	labelsMap := buildLabelsMap(resLabels)
 
 	costTimesMinuteAndCount(activeDataMap, cpuCostMap, cpuCoresMap)
@@ -592,7 +592,7 @@ type LoadBalancer struct {
 	Minutes    float64
 }
 
-func ClusterLoadBalancers(cp cloud.Provider, client prometheus.Client, duration, offset time.Duration) (map[string]*LoadBalancer, error) {
+func ClusterLoadBalancers(client prometheus.Client, duration, offset time.Duration) (map[string]*LoadBalancer, error) {
 	durationStr := fmt.Sprintf("%dm", int64(duration.Minutes()))
 	offsetStr := fmt.Sprintf(" offset %dm", int64(offset.Minutes()))
 	if offset < time.Minute {
@@ -652,7 +652,7 @@ func ClusterLoadBalancers(cp cloud.Provider, client prometheus.Client, duration,
 			loadBalancerMap[key] = &LoadBalancer{
 				Cluster:    cluster,
 				Name:       namespace + "/" + serviceName,
-				ProviderID: cp.ParseLBID(providerID),
+				ProviderID: cloud.ParseLBID(providerID),
 			}
 		}
 		// Fill in Provider ID if it is available and missing in the loadBalancerMap
