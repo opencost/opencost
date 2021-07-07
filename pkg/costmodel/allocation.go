@@ -2,6 +2,7 @@ package costmodel
 
 import (
 	"fmt"
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"math"
 	"strconv"
 	"strings"
@@ -12,7 +13,6 @@ import (
 	"github.com/kubecost/cost-model/pkg/kubecost"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
-	"github.com/kubecost/cost-model/pkg/util"
 	"k8s.io/apimachinery/pkg/labels"
 )
 
@@ -124,7 +124,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	}
 
 	// Convert resolution duration to a query-ready string
-	resStr := util.DurationString(resolution)
+	resStr := timeutil.DurationString(resolution)
 
 	ctx := prom.NewContext(cm.PrometheusClient)
 
@@ -441,7 +441,7 @@ func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSiz
 	start, end := *window.Start(), *window.End()
 
 	// Convert resolution duration to a query-ready string
-	resStr := util.DurationString(resolution)
+	resStr := timeutil.DurationString(resolution)
 
 	ctx := prom.NewContext(cm.PrometheusClient)
 

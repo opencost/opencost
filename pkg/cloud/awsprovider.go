@@ -314,7 +314,7 @@ var regionToBillingRegionCode = map[string]string{
 var loadedAWSSecret bool = false
 var awsSecret *AWSAccessKey = nil
 
-func (aws *AWS) GetLocalStorageQuery(window, offset string, rate bool, used bool) string {
+func (aws *AWS) GetLocalStorageQuery(window, offset time.Duration, rate bool, used bool) string {
 	return ""
 }
 
