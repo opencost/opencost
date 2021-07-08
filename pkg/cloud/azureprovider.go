@@ -757,13 +757,13 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 	if err != nil {
 		return nil, fmt.Errorf("No default pricing data available")
 	}
-	if azKey.isValidGPUNode()  {
+	if azKey.isValidGPUNode() {
 		return &Node{
-			VCPUCost: c.CPU,
-			RAMCost:  c.RAM,
+			VCPUCost:         c.CPU,
+			RAMCost:          c.RAM,
 			UsesBaseCPUPrice: true,
-			GPUCost:  c.GPU,
-			GPU:      azKey.GetGPUCount(),
+			GPUCost:          c.GPU,
+			GPU:              azKey.GetGPUCount(),
 		}, nil
 	}
 	return &Node{

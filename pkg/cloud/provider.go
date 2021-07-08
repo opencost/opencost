@@ -515,6 +515,7 @@ func ParseID(id string) string {
 	if len(match) >= 2 {
 		return match[1]
 	}
+
 	// gce://guestbook-227502/us-central1-a/gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
 	//  => gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
 	rx = regexp.MustCompile("gce://[^/]*/[^/]*/([^/]+)")
@@ -524,12 +525,8 @@ func ParseID(id string) string {
 	}
 
 	// Return id for Azure Provider, CSV Provider and Custom Provider
-
 	return id
-
-
 }
-
 
 // ParsePVID attempts to parse a PV ProviderId from a string based on formats from the various providers and
 // returns the string as is if it cannot find a match
@@ -542,9 +539,7 @@ func ParsePVID(id string) string {
 	}
 
 	// Return id for GCP Provider, Azure Provider, CSV Provider and Custom Provider
-
 	return id
-
 }
 
 // ParseLBID attempts to parse a LB ProviderId from a string based on formats from the various providers and
@@ -559,4 +554,3 @@ func ParseLBID(id string) string {
 	// Return id for GCP Provider, Azure Provider, CSV Provider and Custom Provider
 	return id
 }
-
