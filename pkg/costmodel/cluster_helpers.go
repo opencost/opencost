@@ -1,6 +1,7 @@
 package costmodel
 
 import (
+	"github.com/kubecost/cost-model/pkg/cloud"
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/env"
@@ -27,7 +28,6 @@ func mergeTypeMaps(clusterAndNameToType1, clusterAndNameToType2 map[nodeIdentifi
 
 func buildCPUCostMap(
 	resNodeCPUCost []*prom.QueryResult,
-	providerIDParser func(string) string,
 ) (
 	map[NodeIdentifier]float64,
 	map[nodeIdentifierNoProviderID]string,
@@ -56,7 +56,7 @@ func buildCPUCostMap(
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       name,
-			ProviderID: providerIDParser(providerID),
+			ProviderID: cloud.ParseID(providerID),
 		}
 		keyNon := nodeIdentifierNoProviderID{
 			Cluster: cluster,
@@ -73,7 +73,6 @@ func buildCPUCostMap(
 
 func buildRAMCostMap(
 	resNodeRAMCost []*prom.QueryResult,
-	providerIDParser func(string) string,
 ) (
 	map[NodeIdentifier]float64,
 	map[nodeIdentifierNoProviderID]string,
@@ -102,7 +101,7 @@ func buildRAMCostMap(
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       name,
-			ProviderID: providerIDParser(providerID),
+			ProviderID: cloud.ParseID(providerID),
 		}
 		keyNon := nodeIdentifierNoProviderID{
 			Cluster: cluster,
@@ -119,7 +118,6 @@ func buildRAMCostMap(
 func buildGPUCostMap(
 	resNodeGPUCost []*prom.QueryResult,
 	gpuCountMap map[NodeIdentifier]float64,
-	providerIDParser func(string) string,
 ) (
 	map[NodeIdentifier]float64,
 	map[nodeIdentifierNoProviderID]string,
@@ -148,7 +146,7 @@ func buildGPUCostMap(
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       name,
-			ProviderID: providerIDParser(providerID),
+			ProviderID: cloud.ParseID(providerID),
 		}
 		keyNon := nodeIdentifierNoProviderID{
 			Cluster: cluster,
@@ -171,7 +169,6 @@ func buildGPUCostMap(
 
 func buildGPUCountMap(
 	resNodeGPUCount []*prom.QueryResult,
-	providerIDParser func(string) string,
 ) map[NodeIdentifier]float64 {
 
 	gpuCountMap := make(map[NodeIdentifier]float64)
@@ -194,7 +191,7 @@ func buildGPUCountMap(
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       name,
-			ProviderID: providerIDParser(providerID),
+			ProviderID: cloud.ParseID(providerID),
 		}
 		gpuCountMap[key] = gpuCount
 	}
@@ -204,7 +201,6 @@ func buildGPUCountMap(
 
 func buildCPUCoresMap(
 	resNodeCPUCores []*prom.QueryResult,
-	clusterAndNameToType map[nodeIdentifierNoProviderID]string,
 ) map[nodeIdentifierNoProviderID]float64 {
 
 	m := make(map[nodeIdentifierNoProviderID]float64)
@@ -403,7 +399,7 @@ type activeData struct {
 	minutes float64
 }
 
-func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Duration, providerIDParser func(string) string) map[NodeIdentifier]activeData {
+func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Duration) map[NodeIdentifier]activeData {
 
 	m := make(map[NodeIdentifier]activeData)
 
@@ -424,7 +420,7 @@ func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Durat
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       name,
-			ProviderID: providerIDParser(providerID),
+			ProviderID: cloud.ParseID(providerID),
 		}
 
 		if len(result.Values) == 0 {
@@ -450,7 +446,6 @@ func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Durat
 // node id -> is preemptible?
 func buildPreemptibleMap(
 	resIsSpot []*prom.QueryResult,
-	providerIDParser func(string) string,
 ) map[NodeIdentifier]bool {
 
 	m := make(map[NodeIdentifier]bool)
@@ -474,7 +469,7 @@ func buildPreemptibleMap(
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       nodeName,
-			ProviderID: providerIDParser(providerID),
+			ProviderID: cloud.ParseID(providerID),
 		}
 
 		// TODO(michaelmdresser): check this condition at merge time?

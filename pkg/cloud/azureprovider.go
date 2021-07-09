@@ -265,9 +265,10 @@ func (k *azureKey) GetGPUCount() string {
 
 // Represents an azure storage config
 type AzureStorageConfig struct {
-	AccountName   string `json:"azureStorageAccount"`
-	AccessKey     string `json:"azureStorageAccessKey"`
-	ContainerName string `json:"azureStorageContainer"`
+	SubscriptionId string `json:"azureSubscriptionID"`
+	AccountName    string `json:"azureStorageAccount"`
+	AccessKey      string `json:"azureStorageAccessKey"`
+	ContainerName  string `json:"azureStorageContainer"`
 }
 
 // Represents an azure app key
@@ -756,13 +757,13 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 	if err != nil {
 		return nil, fmt.Errorf("No default pricing data available")
 	}
-	if azKey.isValidGPUNode()  {
+	if azKey.isValidGPUNode() {
 		return &Node{
-			VCPUCost: c.CPU,
-			RAMCost:  c.RAM,
+			VCPUCost:         c.CPU,
+			RAMCost:          c.RAM,
 			UsesBaseCPUPrice: true,
-			GPUCost:  c.GPU,
-			GPU:      azKey.GetGPUCount(),
+			GPUCost:          c.GPU,
+			GPU:              azKey.GetGPUCount(),
 		}, nil
 	}
 	return &Node{
@@ -1151,16 +1152,4 @@ func (*Azure) ClusterManagementPricing() (string, float64, error) {
 
 func (az *Azure) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
-}
-
-func (az *Azure) ParseID(id string) string {
-	return id
-}
-
-func (az *Azure) ParsePVID(id string) string {
-	return id
-}
-
-func (az *Azure) ParseLBID(id string) string {
-	return id
 }
