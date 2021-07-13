@@ -63,6 +63,8 @@ type Allocation struct {
 	GPUHours                   float64               `json:"gpuHours"`
 	GPUCost                    float64               `json:"gpuCost"`
 	GPUCostAdjustment          float64               `json:"gpuCostAdjustment"`
+	NetworkTransferBytes       float64               `json:"networkTransferBytes"`
+	NetworkReceiveBytes        float64               `json:"networkReceiveBytes"`
 	NetworkCost                float64               `json:"networkCost"`
 	NetworkCostAdjustment      float64               `json:"networkCostAdjustment"`
 	LoadBalancerCost           float64               `json:"loadBalancerCost"`
@@ -205,6 +207,8 @@ func (a *Allocation) Clone() *Allocation {
 		GPUHours:                   a.GPUHours,
 		GPUCost:                    a.GPUCost,
 		GPUCostAdjustment:          a.GPUCostAdjustment,
+		NetworkTransferBytes:       a.NetworkTransferBytes,
+		NetworkReceiveBytes:        a.NetworkReceiveBytes,
 		NetworkCost:                a.NetworkCost,
 		NetworkCostAdjustment:      a.NetworkCostAdjustment,
 		LoadBalancerCost:           a.LoadBalancerCost,
@@ -274,6 +278,12 @@ func (a *Allocation) Equal(that *Allocation) bool {
 		return false
 	}
 	if !util.IsApproximately(a.GPUCostAdjustment, that.GPUCostAdjustment) {
+		return false
+	}
+	if !util.IsApproximately(a.NetworkTransferBytes, that.NetworkTransferBytes) {
+		return false
+	}
+	if !util.IsApproximately(a.NetworkReceiveBytes, that.NetworkReceiveBytes) {
 		return false
 	}
 	if !util.IsApproximately(a.NetworkCost, that.NetworkCost) {
@@ -500,6 +510,8 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "gpuHours", a.GPUHours, ",")
 	jsonEncodeFloat64(buffer, "gpuCost", a.GPUCost, ",")
 	jsonEncodeFloat64(buffer, "gpuCostAdjustment", a.GPUCostAdjustment, ",")
+	jsonEncodeFloat64(buffer, "networkTransferBytes", a.NetworkTransferBytes, ",")
+	jsonEncodeFloat64(buffer, "networkReceiveBytes", a.NetworkReceiveBytes, ",")
 	jsonEncodeFloat64(buffer, "networkCost", a.NetworkCost, ",")
 	jsonEncodeFloat64(buffer, "networkCostAdjustment", a.NetworkCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "loadBalancerCost", a.LoadBalancerCost, ",")
@@ -549,6 +561,11 @@ func (a *Allocation) IsIdle() bool {
 // IsUnallocated is true if the given Allocation represents unallocated costs.
 func (a *Allocation) IsUnallocated() bool {
 	return strings.Contains(a.Name, UnallocatedSuffix)
+}
+
+// IsUnmounted is true if the given Allocation represents unmounted volume costs.
+func (a *Allocation) IsUnmounted() bool {
+	return strings.Contains(a.Name, UnmountedSuffix)
 }
 
 // Minutes returns the number of minutes the Allocation represents, as defined
@@ -632,6 +649,8 @@ func (a *Allocation) add(that *Allocation) {
 	a.CPUCoreHours += that.CPUCoreHours
 	a.GPUHours += that.GPUHours
 	a.RAMByteHours += that.RAMByteHours
+	a.NetworkTransferBytes += that.NetworkTransferBytes
+	a.NetworkReceiveBytes += that.NetworkReceiveBytes
 
 	// Sum all cumulative cost fields
 	a.CPUCost += that.CPUCost
@@ -934,7 +953,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	for _, alloc := range as.allocations {
 		idleId, err := alloc.getIdleId(options)
 		if err != nil {
-			log.DedupedWarningf(3,"AllocationSet.AggregateBy: missing idleId for allocation: %s", alloc.Name)
+			log.DedupedWarningf(3, "AllocationSet.AggregateBy: missing idleId for allocation: %s", alloc.Name)
 		}
 
 		skip := false
@@ -1110,7 +1129,9 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		for _, alloc := range aggSet.allocations {
 			for _, sharedAlloc := range shareSet.allocations {
 				if _, ok := shareCoefficients[alloc.Name]; !ok {
-					log.Warningf("AllocationSet.AggregateBy: error getting share coefficienct for '%s'", alloc.Name)
+					if !alloc.IsIdle() {
+						log.Warningf("AllocationSet.AggregateBy: error getting share coefficienct for '%s'", alloc.Name)
+					}
 					continue
 				}
 
@@ -1168,6 +1189,10 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 	for _, alloc := range as.allocations {
 		if alloc.IsIdle() {
 			// Skip idle allocations in coefficient calculation
+			continue
+		}
+		if alloc.IsUnmounted() {
+			// Skip unmounted allocations in coefficient calculation
 			continue
 		}
 

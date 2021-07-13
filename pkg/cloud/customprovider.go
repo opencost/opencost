@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
@@ -42,7 +43,7 @@ func (*CustomProvider) ClusterManagementPricing() (string, float64, error) {
 	return "", 0.0, nil
 }
 
-func (*CustomProvider) GetLocalStorageQuery(window, offset string, rate bool, used bool) string {
+func (*CustomProvider) GetLocalStorageQuery(window, offset time.Duration, rate bool, used bool) string {
 	return ""
 }
 
@@ -310,16 +311,4 @@ func (cp *CustomProvider) PricingSourceStatus() map[string]*PricingSource {
 
 func (cp *CustomProvider) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
-}
-
-func (cp *CustomProvider) ParseID(id string) string {
-	return id
-}
-
-func (cp *CustomProvider) ParsePVID(id string) string {
-	return id
-}
-
-func (cp *CustomProvider) ParseLBID(id string) string {
-	return id
 }
