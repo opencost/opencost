@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	"github.com/kubecost/cost-model/pkg/kubecost"
 	"io"
 	"io/ioutil"
 	"regexp"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/kubecost"
 	"github.com/kubecost/cost-model/pkg/util"
 	"github.com/kubecost/cost-model/pkg/util/json"
 
@@ -943,6 +943,9 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 }
 func (az *Azure) GetConfig() (*CustomPricing, error) {
 	c, err := az.Config.GetCustomPricingData()
+	if err != nil {
+		return nil, err
+	}
 	if c.Discount == "" {
 		c.Discount = "0%"
 	}
@@ -955,8 +958,8 @@ func (az *Azure) GetConfig() (*CustomPricing, error) {
 	if c.AzureBillingRegion == "" {
 		c.AzureBillingRegion = "US"
 	}
-	if err != nil {
-		return nil, err
+	if c.ShareTenancyCosts == "" {
+		c.ShareTenancyCosts = defaultShareTenancyCost
 	}
 	return c, nil
 }

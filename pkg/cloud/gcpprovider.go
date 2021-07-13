@@ -3,7 +3,6 @@ package cloud
 import (
 	"context"
 	"fmt"
-	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"io"
 	"io/ioutil"
 	"math"
@@ -14,22 +13,21 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/klog"
-
-	"cloud.google.com/go/bigquery"
-	"cloud.google.com/go/compute/metadata"
-
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
 	"github.com/kubecost/cost-model/pkg/util/json"
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
 
+	"cloud.google.com/go/bigquery"
+	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/iterator"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/klog"
 )
 
 const GKE_GPU_TAG = "cloud.google.com/gke-accelerator"
@@ -167,6 +165,9 @@ func (gcp *GCP) GetConfig() (*CustomPricing, error) {
 	}
 	if c.CurrencyCode == "" {
 		c.CurrencyCode = "USD"
+	}
+	if c.ShareTenancyCosts == "" {
+		c.ShareTenancyCosts = defaultShareTenancyCost
 	}
 	return c, nil
 }
