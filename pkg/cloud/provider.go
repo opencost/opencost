@@ -21,6 +21,7 @@ import (
 
 const authSecretPath = "/var/secrets/service-key.json"
 const storageConfigSecretPath = "/var/azure-storage-config/azure-storage-config.json"
+const defaultShareTenancyCost = "true"
 
 var createTableStatements = []string{
 	`CREATE TABLE IF NOT EXISTS names (
@@ -176,6 +177,7 @@ type CustomPricing struct {
 	SharedNamespaces             string            `json:"sharedNamespaces"`
 	SharedLabelNames             string            `json:"sharedLabelNames"`
 	SharedLabelValues            string            `json:"sharedLabelValues"`
+	ShareTenancyCosts            string            `json:"shareTenancyCosts"` // TODO clean up configuration so we can use a type other that string (this should be a bool, but the app panics if it's not a string)
 	ReadOnly                     string            `json:"readOnly"`
 	KubecostToken                string            `json:"kubecostToken"`
 }
@@ -332,6 +334,17 @@ func SharedLabels(p Provider) ([]string, []string) {
 	}
 
 	return names, values
+}
+
+// ShareTenancyCosts returns true if the application settings specify to share
+// tenancy costs by default.
+func ShareTenancyCosts(p Provider) bool {
+	config, err := p.GetConfig()
+	if err != nil {
+		return false
+	}
+
+	return config.ShareTenancyCosts == "true"
 }
 
 func NewCrossClusterProvider(ctype string, overrideConfigPath string, cache clustercache.ClusterCache) (Provider, error) {
