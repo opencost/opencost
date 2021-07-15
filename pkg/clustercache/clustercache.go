@@ -53,6 +53,9 @@ type ClusterCache interface {
 	// GetAllPersistentVolumes returns all the cached persistent volumes
 	GetAllPersistentVolumes() []*v1.PersistentVolume
 
+	// GetAllPersistentVolumeClaims returns all the cached persistent volume claims
+	GetAllPersistentVolumeClaims() []*v1.PersistentVolumeClaim
+
 	// GetAllStorageClasses returns all the cached storage classes
 	GetAllStorageClasses() []*stv1.StorageClass
 
@@ -74,6 +77,7 @@ type KubernetesClusterCache struct {
 	statefulsetWatch       WatchController
 	replicasetWatch        WatchController
 	pvWatch                WatchController
+	pvcWatch               WatchController
 	storageClassWatch      WatchController
 	stop                   chan struct{}
 }
@@ -103,12 +107,13 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 		statefulsetWatch:       NewCachingWatcher(appsRestClient, "statefulsets", &appsv1.StatefulSet{}, "", fields.Everything()),
 		replicasetWatch:        NewCachingWatcher(appsRestClient, "replicasets", &appsv1.ReplicaSet{}, "", fields.Everything()),
 		pvWatch:                NewCachingWatcher(coreRestClient, "persistentvolumes", &v1.PersistentVolume{}, "", fields.Everything()),
+		pvcWatch:               NewCachingWatcher(coreRestClient, "persistentvolumeclaims", &v1.PersistentVolumeClaim{}, "", fields.Everything()),
 		storageClassWatch:      NewCachingWatcher(storageRestClient, "storageclasses", &stv1.StorageClass{}, "", fields.Everything()),
 	}
 
 	// Wait for each caching watcher to initialize
 	var wg sync.WaitGroup
-	wg.Add(11)
+	wg.Add(12)
 
 	cancel := make(chan struct{})
 
@@ -122,6 +127,7 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 	go initializeCache(kcc.statefulsetWatch, &wg, cancel)
 	go initializeCache(kcc.replicasetWatch, &wg, cancel)
 	go initializeCache(kcc.pvWatch, &wg, cancel)
+	go initializeCache(kcc.pvcWatch, &wg, cancel)
 	go initializeCache(kcc.storageClassWatch, &wg, cancel)
 
 	wg.Wait()
@@ -145,6 +151,7 @@ func (kcc *KubernetesClusterCache) Run() {
 	go kcc.statefulsetWatch.Run(1, stopCh)
 	go kcc.replicasetWatch.Run(1, stopCh)
 	go kcc.pvWatch.Run(1, stopCh)
+	go kcc.pvcWatch.Run(1, stopCh)
 	go kcc.storageClassWatch.Run(1, stopCh)
 
 	kcc.stop = stopCh
@@ -242,6 +249,15 @@ func (kcc *KubernetesClusterCache) GetAllPersistentVolumes() []*v1.PersistentVol
 		pvs = append(pvs, pv.(*v1.PersistentVolume))
 	}
 	return pvs
+}
+
+func (kcc *KubernetesClusterCache) GetAllPersistentVolumeClaims() []*v1.PersistentVolumeClaim {
+	var pvcs []*v1.PersistentVolumeClaim
+	items := kcc.pvcWatch.GetAll()
+	for _, pvc := range items {
+		pvcs = append(pvcs, pvc.(*v1.PersistentVolumeClaim))
+	}
+	return pvcs
 }
 
 func (kcc *KubernetesClusterCache) GetAllStorageClasses() []*stv1.StorageClass {
