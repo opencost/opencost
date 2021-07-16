@@ -72,9 +72,9 @@ As an example, let's imagine a node with 1 CPU and 1 Gb of RAM that costs $20/mo
 
 Resources are allocated based on the time-weighted maximum of resource Requests and Usage over the measured period. For example, a pod with no usage and 1 CPU requested for 12 hours out of a 24 hour window would be allocated 12 CPU hours. For pods with BestEffort quality of service (i.e. no requests) allocation is done solely on resource usage. 
 
-#### How do I set my AWS Spot bids for accurate allocation?
+#### How do I set my AWS Spot estimates for cost allocation?
 
-Modify [spotCPU](https://github.com/kubecost/cost-model/blob/master/configs/default.json#L5) and  [spotRAM](https://github.com/kubecost/cost-model/blob/master/configs/default.json#L7) in default.json to the price of your bid. Allocation will use these bid prices, but it does not take into account what you are actually charged by AWS. Alternatively, you can provide an AWS key to allow access to the Spot data feed. This will provide accurate Spot prices. 
+Modify [spotCPU](https://github.com/kubecost/cost-model/blob/master/configs/default.json#L5) and  [spotRAM](https://github.com/kubecost/cost-model/blob/master/configs/default.json#L7) in default.json to the level of recent market prices. Allocation will use these prices, but it does not take into account what you are actually charged by AWS. Alternatively, you can provide an AWS key to allow access to the Spot data feed. This will provide accurate Spot price reconciliation. 
 
 #### Do I need a GCP billing API key?
 
