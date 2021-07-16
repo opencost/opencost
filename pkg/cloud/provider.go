@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
+	"time"
 
 	"k8s.io/klog"
 
@@ -19,6 +21,7 @@ import (
 
 const authSecretPath = "/var/secrets/service-key.json"
 const storageConfigSecretPath = "/var/azure-storage-config/azure-storage-config.json"
+const defaultShareTenancyCost = "true"
 
 var createTableStatements = []string{
 	`CREATE TABLE IF NOT EXISTS names (
@@ -174,6 +177,7 @@ type CustomPricing struct {
 	SharedNamespaces             string            `json:"sharedNamespaces"`
 	SharedLabelNames             string            `json:"sharedLabelNames"`
 	SharedLabelValues            string            `json:"sharedLabelValues"`
+	ShareTenancyCosts            string            `json:"shareTenancyCosts"` // TODO clean up configuration so we can use a type other that string (this should be a bool, but the app panics if it's not a string)
 	ReadOnly                     string            `json:"readOnly"`
 	KubecostToken                string            `json:"kubecostToken"`
 }
@@ -185,7 +189,7 @@ type ServiceAccountStatus struct {
 type ServiceAccountCheck struct {
 	Message        string `json:"message"`
 	Status         bool   `json:"status"`
-	AdditionalInfo string `json:additionalInfo`
+	AdditionalInfo string `json:"additionalInfo"`
 }
 
 type PricingSources struct {
@@ -232,16 +236,13 @@ type Provider interface {
 	UpdateConfigFromConfigMap(map[string]string) (*CustomPricing, error)
 	GetConfig() (*CustomPricing, error)
 	GetManagementPlatform() (string, error)
-	GetLocalStorageQuery(string, string, bool, bool) string
+	GetLocalStorageQuery(time.Duration, time.Duration, bool, bool) string
 	ExternalAllocations(string, string, []string, string, string, bool) ([]*OutOfClusterAllocation, error)
 	ApplyReservedInstancePricing(map[string]*Node)
 	ServiceAccountStatus() *ServiceAccountStatus
 	PricingSourceStatus() map[string]*PricingSource
 	ClusterManagementPricing() (string, float64, error)
 	CombinedDiscountForNode(string, bool, float64, float64) float64
-	ParseID(string) string
-	ParsePVID(string) string
-	ParseLBID(string) string
 }
 
 // ClusterName returns the name defined in cluster info, defaulting to the
@@ -335,6 +336,17 @@ func SharedLabels(p Provider) ([]string, []string) {
 	return names, values
 }
 
+// ShareTenancyCosts returns true if the application settings specify to share
+// tenancy costs by default.
+func ShareTenancyCosts(p Provider) bool {
+	config, err := p.GetConfig()
+	if err != nil {
+		return false
+	}
+
+	return config.ShareTenancyCosts == "true"
+}
+
 func NewCrossClusterProvider(ctype string, overrideConfigPath string, cache clustercache.ClusterCache) (Provider, error) {
 	if ctype == "aws" {
 		return &AWS{
@@ -343,6 +355,11 @@ func NewCrossClusterProvider(ctype string, overrideConfigPath string, cache clus
 		}, nil
 	} else if ctype == "gcp" {
 		return &GCP{
+			Clientset: cache,
+			Config:    NewProviderConfig(overrideConfigPath),
+		}, nil
+	} else if ctype == "azure" {
+		return &Azure{
 			Clientset: cache,
 			Config:    NewProviderConfig(overrideConfigPath),
 		}, nil
@@ -500,4 +517,53 @@ func GetOrCreateClusterMeta(cluster_id, cluster_name string) (string, string, er
 	}
 
 	return id, name, nil
+}
+
+// ParseID attempts to parse a ProviderId from a string based on formats from the various providers and
+// returns the string as is if it cannot find a match
+func ParseID(id string) string {
+	// It's of the form aws:///us-east-2a/i-0fea4fd46592d050b and we want i-0fea4fd46592d050b, if it exists
+	rx := regexp.MustCompile("aws://[^/]*/[^/]*/([^/]+)")
+	match := rx.FindStringSubmatch(id)
+	if len(match) >= 2 {
+		return match[1]
+	}
+
+	// gce://guestbook-227502/us-central1-a/gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
+	//  => gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
+	rx = regexp.MustCompile("gce://[^/]*/[^/]*/([^/]+)")
+	match = rx.FindStringSubmatch(id)
+	if len(match) >= 2 {
+		return match[1]
+	}
+
+	// Return id for Azure Provider, CSV Provider and Custom Provider
+	return id
+}
+
+// ParsePVID attempts to parse a PV ProviderId from a string based on formats from the various providers and
+// returns the string as is if it cannot find a match
+func ParsePVID(id string) string {
+	// Capture "vol-0fc54c5e83b8d2b76" from "aws://us-east-2a/vol-0fc54c5e83b8d2b76"
+	rx := regexp.MustCompile("aws:/[^/]*/[^/]*/([^/]+)")
+	match := rx.FindStringSubmatch(id)
+	if len(match) >= 2 {
+		return match[1]
+	}
+
+	// Return id for GCP Provider, Azure Provider, CSV Provider and Custom Provider
+	return id
+}
+
+// ParseLBID attempts to parse a LB ProviderId from a string based on formats from the various providers and
+// returns the string as is if it cannot find a match
+func ParseLBID(id string) string {
+	rx := regexp.MustCompile("^([^-]+)-.+amazonaws\\.com$") // Capture "ad9d88195b52a47c89b5055120f28c58" from "ad9d88195b52a47c89b5055120f28c58-1037804914.us-east-2.elb.amazonaws.com"
+	match := rx.FindStringSubmatch(id)
+	if len(match) >= 2 {
+		return match[1]
+	}
+
+	// Return id for GCP Provider, Azure Provider, CSV Provider and Custom Provider
+	return id
 }

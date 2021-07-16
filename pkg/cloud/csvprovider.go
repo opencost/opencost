@@ -366,15 +366,3 @@ func (*CSVProvider) ClusterManagementPricing() (string, float64, error) {
 func (c *CSVProvider) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
 }
-
-func (c *CSVProvider) ParseID(id string) string {
-	return id
-}
-
-func (c *CSVProvider) ParsePVID(id string) string {
-	return id
-}
-
-func (c *CSVProvider) ParseLBID(id string) string {
-	return id
-}

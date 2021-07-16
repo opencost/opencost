@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	"github.com/kubecost/cost-model/pkg/kubecost"
 	"io"
 	"io/ioutil"
 	"regexp"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/kubecost"
 	"github.com/kubecost/cost-model/pkg/util"
 	"github.com/kubecost/cost-model/pkg/util/json"
 
@@ -265,9 +265,10 @@ func (k *azureKey) GetGPUCount() string {
 
 // Represents an azure storage config
 type AzureStorageConfig struct {
-	AccountName   string `json:"azureStorageAccount"`
-	AccessKey     string `json:"azureStorageAccessKey"`
-	ContainerName string `json:"azureStorageContainer"`
+	SubscriptionId string `json:"azureSubscriptionID"`
+	AccountName    string `json:"azureStorageAccount"`
+	AccessKey      string `json:"azureStorageAccessKey"`
+	ContainerName  string `json:"azureStorageContainer"`
 }
 
 // Represents an azure app key
@@ -756,13 +757,13 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 	if err != nil {
 		return nil, fmt.Errorf("No default pricing data available")
 	}
-	if azKey.isValidGPUNode()  {
+	if azKey.isValidGPUNode() {
 		return &Node{
-			VCPUCost: c.CPU,
-			RAMCost:  c.RAM,
+			VCPUCost:         c.CPU,
+			RAMCost:          c.RAM,
 			UsesBaseCPUPrice: true,
-			GPUCost:  c.GPU,
-			GPU:      azKey.GetGPUCount(),
+			GPUCost:          c.GPU,
+			GPU:              azKey.GetGPUCount(),
 		}, nil
 	}
 	return &Node{
@@ -942,6 +943,9 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 }
 func (az *Azure) GetConfig() (*CustomPricing, error) {
 	c, err := az.Config.GetCustomPricingData()
+	if err != nil {
+		return nil, err
+	}
 	if c.Discount == "" {
 		c.Discount = "0%"
 	}
@@ -954,8 +958,8 @@ func (az *Azure) GetConfig() (*CustomPricing, error) {
 	if c.AzureBillingRegion == "" {
 		c.AzureBillingRegion = "US"
 	}
-	if err != nil {
-		return nil, err
+	if c.ShareTenancyCosts == "" {
+		c.ShareTenancyCosts = defaultShareTenancyCost
 	}
 	return c, nil
 }
@@ -1127,7 +1131,7 @@ func (az *Azure) PVPricing(pvk PVKey) (*PV, error) {
 	return pricing.PV, nil
 }
 
-func (az *Azure) GetLocalStorageQuery(window, offset string, rate bool, used bool) string {
+func (az *Azure) GetLocalStorageQuery(window, offset time.Duration, rate bool, used bool) string {
 	return ""
 }
 
@@ -1151,16 +1155,4 @@ func (*Azure) ClusterManagementPricing() (string, float64, error) {
 
 func (az *Azure) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
-}
-
-func (az *Azure) ParseID(id string) string {
-	return id
-}
-
-func (az *Azure) ParsePVID(id string) string {
-	return id
-}
-
-func (az *Azure) ParseLBID(id string) string {
-	return id
 }

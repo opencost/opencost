@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"time"
 )
+
 const gb = 1024 * 1024 * 1024
 const day = 24 * time.Hour
+
 var disk = PVKey{}
 
 // NewMockUnitAllocation creates an *Allocation with all of its float64 values set to 1 and generic properties if not provided in arg
@@ -304,7 +306,7 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 }
 
 // GenerateMockAllocationSetWithAssetProperties with no idle and connections to Assets in properties
-func GenerateMockAllocationSetWithAssetProperties(start time.Time)  *AllocationSet {
+func GenerateMockAllocationSetWithAssetProperties(start time.Time) *AllocationSet {
 	as := GenerateMockAllocationSet(start)
 	disk1 := PVKey{
 		Cluster: "cluster2",
