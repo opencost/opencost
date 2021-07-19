@@ -92,6 +92,11 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*CustomPricing, err
 	if pc.customPricing.SpotGPU == "" {
 		pc.customPricing.SpotGPU = DefaultPricing().SpotGPU // Migration for users without this value set by default.
 	}
+
+	if pc.customPricing.ShareTenancyCosts == "" {
+		pc.customPricing.ShareTenancyCosts = defaultShareTenancyCost
+	}
+
 	return pc.customPricing, nil
 }
 
@@ -177,6 +182,7 @@ func DefaultPricing() *CustomPricing {
 		RegionNetworkEgress:   "0.01",
 		InternetNetworkEgress: "0.12",
 		CustomPricesEnabled:   "false",
+		ShareTenancyCosts:     "true",
 	}
 }
 

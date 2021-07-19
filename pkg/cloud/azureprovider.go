@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	"github.com/kubecost/cost-model/pkg/kubecost"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/kubecost"
 	"github.com/kubecost/cost-model/pkg/util"
 	"github.com/kubecost/cost-model/pkg/util/json"
 
@@ -303,11 +303,16 @@ func (k *azureKey) Features() string {
 	return fmt.Sprintf("%s,%s,%s", region, instance, usageType)
 }
 
+// GPUType returns value of GPULabel if present
 func (k *azureKey) GPUType() string {
 	if t, ok := k.Labels[k.GPULabel]; ok {
 		return t
 	}
 	return ""
+}
+
+func (k *azureKey) isValidGPUNode() bool {
+	return k.GPUType() == k.GPULabelValue && k.GetGPUCount() != "0"
 }
 
 func (k *azureKey) ID() string {
@@ -353,9 +358,10 @@ func (k *azureKey) GetGPUCount() string {
 
 // Represents an azure storage config
 type AzureStorageConfig struct {
-	AccountName   string `json:"azureStorageAccount"`
-	AccessKey     string `json:"azureStorageAccessKey"`
-	ContainerName string `json:"azureStorageContainer"`
+	SubscriptionId string `json:"azureSubscriptionID"`
+	AccountName    string `json:"azureStorageAccount"`
+	AccessKey      string `json:"azureStorageAccessKey"`
+	ContainerName  string `json:"azureStorageContainer"`
 }
 
 // Represents an azure app key
@@ -828,16 +834,20 @@ func (az *Azure) AllNodePricing() (interface{}, error) {
 func (az *Azure) NodePricing(key Key) (*Node, error) {
 	az.DownloadPricingDataLock.RLock()
 	defer az.DownloadPricingDataLock.RUnlock()
+  azKey, ok := key.(*azureKey)
+	if !ok {
+		return nil, fmt.Errorf("azure: NodePricing: key is of type %T", key)
+	}
 	config, _ := az.Config.GetCustomPricingData()
 	if config.SpotLabel != "" && config.SpotLabelValue != "" {
 		labelsMapStr := fmt.Sprintf("%s", key)
 		spotLabelMapStr := " " + config.SpotLabel + ":" + config.SpotLabelValue + " "
 		if strings.Contains(labelsMapStr, spotLabelMapStr) {
-			features := strings.Split(key.Features(), ",")
-			spotFeatures := strings.ReplaceAll(key.Features(), ",ondemand", ",spot")
+			features := strings.Split(azKey.Features(), ",")
+			spotFeatures := strings.ReplaceAll(azKey.Features(), ",ondemand", ",spot")
 			if n, ok := az.Pricing[spotFeatures]; ok {
-				klog.V(4).Infof("Returning pricing for node %s: %+v from key %s", key, n, spotFeatures)
-				if key.GPUType() != "" {
+				klog.V(4).Infof("Returning pricing for node %s: %+v from key %s", azKey, n, spotFeatures)
+				if azKey.isValidGPUNode() {
 					n.Node.GPU = "1" // TODO: support multiple GPUs
 				}
 				return n.Node, nil
@@ -849,7 +859,7 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 				gpu := ""
 				allPrices, err := az.AllNodePricing()
 				if err == nil {
-					if key.GPUType() != "" {
+					if azKey.isValidGPUNode() {
 						gpu = "1"
 					}
 					allPrices.(map[string]*AzurePricing)[spotFeatures] = &AzurePricing{
@@ -871,24 +881,25 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 		}
 	}
 
-	if n, ok := az.Pricing[key.Features()]; ok {
-		klog.V(4).Infof("Returning pricing for node %s: %+v from key %s", key, n, key.Features())
-		if key.GPUType() != "" {
-			n.Node.GPU = key.(*azureKey).GetGPUCount()
+	if n, ok := az.Pricing[azKey.Features()]; ok {
+		klog.V(4).Infof("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
+		if azKey.isValidGPUNode() {
+			n.Node.GPU = azKey.GetGPUCount()
 		}
 		return n.Node, nil
 	}
-	klog.V(1).Infof("[Warning] no pricing data found for %s: %s", key.Features(), key)
+	klog.V(1).Infof("[Warning] no pricing data found for %s: %s", azKey.Features(), azKey)
 	c, err := az.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("No default pricing data available")
 	}
-	if key.GPUType() != "" {
+	if azKey.isValidGPUNode() {
 		return &Node{
-			VCPUCost: c.CPU,
-			RAMCost:  c.RAM,
-			GPUCost:  c.GPU,
-			GPU:      key.(*azureKey).GetGPUCount(),
+			VCPUCost:         c.CPU,
+			RAMCost:          c.RAM,
+			UsesBaseCPUPrice: true,
+			GPUCost:          c.GPU,
+			GPU:              azKey.GetGPUCount(),
 		}, nil
 	}
 	return &Node{
@@ -1068,6 +1079,9 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 }
 func (az *Azure) GetConfig() (*CustomPricing, error) {
 	c, err := az.Config.GetCustomPricingData()
+	if err != nil {
+		return nil, err
+	}
 	if c.Discount == "" {
 		c.Discount = "0%"
 	}
@@ -1080,8 +1094,8 @@ func (az *Azure) GetConfig() (*CustomPricing, error) {
 	if c.AzureBillingRegion == "" {
 		c.AzureBillingRegion = "US"
 	}
-	if err != nil {
-		return nil, err
+	if c.ShareTenancyCosts == "" {
+		c.ShareTenancyCosts = defaultShareTenancyCost
 	}
 	return c, nil
 }
@@ -1253,7 +1267,7 @@ func (az *Azure) PVPricing(pvk PVKey) (*PV, error) {
 	return pricing.PV, nil
 }
 
-func (az *Azure) GetLocalStorageQuery(window, offset string, rate bool, used bool) string {
+func (az *Azure) GetLocalStorageQuery(window, offset time.Duration, rate bool, used bool) string {
 	return ""
 }
 
@@ -1277,16 +1291,4 @@ func (*Azure) ClusterManagementPricing() (string, float64, error) {
 
 func (az *Azure) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
-}
-
-func (az *Azure) ParseID(id string) string {
-	return id
-}
-
-func (az *Azure) ParsePVID(id string) string {
-	return id
-}
-
-func (az *Azure) ParseLBID(id string) string {
-	return id
 }

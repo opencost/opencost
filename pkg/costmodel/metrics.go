@@ -1068,25 +1068,16 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud
 			})
 		}
 
-		if env.IsEmitKubeNodeStatusCapacityMemoryBytesMetric() {
+		if env.IsEmitKsmV1Metrics() {
 			prometheus.MustRegister(KubeNodeStatusCapacityMemoryBytesCollector{
 				KubeClusterCache: clusterCache,
 			})
-		}
-
-		if env.IsEmitKubeNodeStatusCapacityCPUCoresMetric() {
 			prometheus.MustRegister(KubeNodeStatusCapacityCPUCoresCollector{
 				KubeClusterCache: clusterCache,
 			})
-		}
-
-		if env.IsEmitKubePodLabelsMetric() {
 			prometheus.MustRegister(KubePodLabelsCollector{
 				KubeClusterCache: clusterCache,
 			})
-		}
-
-		if env.IsEmitKubeNodeLabelsMetric() {
 			prometheus.MustRegister(KubeNodeLabelsCollector{
 				KubeClusterCache: clusterCache,
 			})

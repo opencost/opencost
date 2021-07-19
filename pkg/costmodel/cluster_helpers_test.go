@@ -699,7 +699,6 @@ func TestBuildNodeMap(t *testing.T) {
 }
 
 func TestBuildGPUCostMap(t *testing.T) {
-	providerIDParser := func(s string) string { return s }
 	cases := []struct {
 		name       string
 		promResult []*prom.QueryResult
@@ -850,7 +849,7 @@ func TestBuildGPUCostMap(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			result, _ := buildGPUCostMap(testCase.promResult, testCase.countMap, providerIDParser)
+			result, _ := buildGPUCostMap(testCase.promResult, testCase.countMap)
 			if !reflect.DeepEqual(result, testCase.expected) {
 				t.Errorf("buildGPUCostMap case %s failed. Got %+v but expected %+v", testCase.name, result, testCase.expected)
 			}

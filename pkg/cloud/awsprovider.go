@@ -314,7 +314,7 @@ var regionToBillingRegionCode = map[string]string{
 var loadedAWSSecret bool = false
 var awsSecret *AWSAccessKey = nil
 
-func (aws *AWS) GetLocalStorageQuery(window, offset string, rate bool, used bool) string {
+func (aws *AWS) GetLocalStorageQuery(window, offset time.Duration, rate bool, used bool) string {
 	return ""
 }
 
@@ -366,14 +366,17 @@ func (aws *AWS) GetManagementPlatform() (string, error) {
 
 func (aws *AWS) GetConfig() (*CustomPricing, error) {
 	c, err := aws.Config.GetCustomPricingData()
+	if err != nil {
+		return nil, err
+	}
 	if c.Discount == "" {
 		c.Discount = "0%"
 	}
 	if c.NegotiatedDiscount == "" {
 		c.NegotiatedDiscount = "0%"
 	}
-	if err != nil {
-		return nil, err
+	if c.ShareTenancyCosts == "" {
+		c.ShareTenancyCosts = defaultShareTenancyCost
 	}
 
 	return c, nil
@@ -1754,14 +1757,14 @@ func (a *AWS) GetSavingsPlanDataFromAthena() error {
 	end := tNow.Format("2006-01-02")
 	// Use Savings Plan Effective Rate as an estimation for cost, assuming the 1h most recent period got a fully loaded savings plan.
 	//
-	q := `SELECT   
+	q := `SELECT
 		line_item_usage_start_date,
 		savings_plan_savings_plan_a_r_n,
 		line_item_resource_id,
-		savings_plan_savings_plan_rate 
+		savings_plan_savings_plan_rate
 	FROM %s as cost_data
 	WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s'
-	AND line_item_line_item_type = 'SavingsPlanCoveredUsage' ORDER BY 
+	AND line_item_line_item_type = 'SavingsPlanCoveredUsage' ORDER BY
 	line_item_usage_start_date DESC`
 
 	page := 0
@@ -1844,14 +1847,14 @@ func (a *AWS) GetReservationDataFromAthena() error {
 		tOneDayAgo := tNow.Add(time.Duration(-25) * time.Hour) // Also get files from one day ago to avoid boundary conditions
 		start := tOneDayAgo.Format("2006-01-02")
 		end := tNow.Format("2006-01-02")
-		q := `SELECT   
+		q := `SELECT
 		line_item_usage_start_date,
 		reservation_reservation_a_r_n,
 		line_item_resource_id,
 		reservation_effective_cost
 	FROM %s as cost_data
 	WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s'
-	AND reservation_reservation_a_r_n <> '' ORDER BY 
+	AND reservation_reservation_a_r_n <> '' ORDER BY
 	line_item_usage_start_date DESC`
 		query := fmt.Sprintf(q, cfg.AthenaTable, start, end)
 		op, err := a.QueryAthenaBillingData(query)
@@ -1967,19 +1970,19 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 	if filterType != "kubernetes_" { // This gets appended upstream and is equivalent to no filter.
 		lastIdx = len(formattedAggregators) + 3
 		groupby := generateAWSGroupBy(lastIdx)
-		query = fmt.Sprintf(`SELECT   
+		query = fmt.Sprintf(`SELECT
 			CAST(line_item_usage_start_date AS DATE) as start_date,
 			%s,
 			line_item_product_code,
 			%s,
 			SUM(line_item_blended_cost) as blended_cost
 		FROM %s as cost_data
-		WHERE (%s='%s') AND line_item_usage_start_date BETWEEN date '%s' AND date '%s' AND (%s) 
+		WHERE (%s='%s') AND line_item_usage_start_date BETWEEN date '%s' AND date '%s' AND (%s)
 		GROUP BY %s`, aggregatorNames, filter_column_name, customPricing.AthenaTable, filter_column_name, filterValue, start, end, aggregatorOr, groupby)
 	} else {
 		lastIdx = len(formattedAggregators) + 2
 		groupby := generateAWSGroupBy(lastIdx)
-		query = fmt.Sprintf(`SELECT   
+		query = fmt.Sprintf(`SELECT
 			CAST(line_item_usage_start_date AS DATE) as start_date,
 			%s,
 			line_item_product_code,
@@ -2358,43 +2361,4 @@ func (a *AWS) ServiceAccountStatus() *ServiceAccountStatus {
 
 func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
-}
-
-func (aws *AWS) ParseID(id string) string {
-	// It's of the form aws:///us-east-2a/i-0fea4fd46592d050b and we want i-0fea4fd46592d050b, if it exists
-	rx := regexp.MustCompile("aws://[^/]*/[^/]*/([^/]+)")
-	match := rx.FindStringSubmatch(id)
-	if len(match) < 2 {
-		if id != "" {
-			log.Infof("awsprovider.ParseID: failed to parse %s", id)
-		}
-		return id
-	}
-
-	return match[1]
-}
-
-func (aws *AWS) ParsePVID(id string) string {
-	rx := regexp.MustCompile("aws:/[^/]*/[^/]*/([^/]+)") // Capture "vol-0fc54c5e83b8d2b76" from "aws://us-east-2a/vol-0fc54c5e83b8d2b76"
-	match := rx.FindStringSubmatch(id)
-	if len(match) < 2 {
-		if id != "" {
-			log.Infof("awsprovider.ParseID: failed to parse %s", id)
-		}
-		return id
-	}
-
-	return match[1]
-}
-
-func (aws *AWS) ParseLBID(id string) string {
-	rx := regexp.MustCompile("^([^-]+)-.+$") // Capture "ad9d88195b52a47c89b5055120f28c58" from "ad9d88195b52a47c89b5055120f28c58-1037804914.us-east-2.elb.amazonaws.com"
-	match := rx.FindStringSubmatch(id)
-	if len(match) < 2 {
-		if id != "" {
-			log.Infof("awsprovider.ParseLBID: failed to parse %s, %v", id, match)
-		}
-		return id
-	}
-	return match[1]
 }

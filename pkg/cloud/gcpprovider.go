@@ -13,22 +13,21 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/klog"
-
-	"cloud.google.com/go/bigquery"
-	"cloud.google.com/go/compute/metadata"
-
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
 	"github.com/kubecost/cost-model/pkg/util/json"
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
 
+	"cloud.google.com/go/bigquery"
+	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/iterator"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/klog"
 )
 
 const GKE_GPU_TAG = "cloud.google.com/gke-accelerator"
@@ -124,7 +123,7 @@ func gcpAllocationToOutOfClusterAllocation(gcpAlloc gcpAllocation) *OutOfCluster
 
 // GetLocalStorageQuery returns the cost of local storage for the given window. Setting rate=true
 // returns hourly spend. Setting used=true only tracks used storage, not total.
-func (gcp *GCP) GetLocalStorageQuery(window, offset string, rate bool, used bool) string {
+func (gcp *GCP) GetLocalStorageQuery(window, offset time.Duration, rate bool, used bool) string {
 	// TODO Set to the price for the appropriate storage class. It's not trivial to determine the local storage disk type
 	// See https://cloud.google.com/compute/disks-image-pricing#persistentdisk
 	localStorageCost := 0.04
@@ -134,10 +133,7 @@ func (gcp *GCP) GetLocalStorageQuery(window, offset string, rate bool, used bool
 		baseMetric = "container_fs_usage_bytes"
 	}
 
-	fmtOffset := ""
-	if offset != "" {
-		fmtOffset = fmt.Sprintf("offset %s", offset)
-	}
+	fmtOffset := timeutil.DurationToPromOffsetString(offset)
 
 	fmtCumulativeQuery := `sum(
 		sum_over_time(%s{device!="tmpfs", id="/"}[%s:1m]%s)
@@ -151,8 +147,9 @@ func (gcp *GCP) GetLocalStorageQuery(window, offset string, rate bool, used bool
 	if rate {
 		fmtQuery = fmtMonthlyQuery
 	}
+	fmtWindow := timeutil.DurationString(window)
 
-	return fmt.Sprintf(fmtQuery, baseMetric, window, fmtOffset, env.GetPromClusterLabel(), localStorageCost)
+	return fmt.Sprintf(fmtQuery, baseMetric, fmtWindow, fmtOffset, env.GetPromClusterLabel(), localStorageCost)
 }
 
 func (gcp *GCP) GetConfig() (*CustomPricing, error) {
@@ -168,6 +165,9 @@ func (gcp *GCP) GetConfig() (*CustomPricing, error) {
 	}
 	if c.CurrencyCode == "" {
 		c.CurrencyCode = "USD"
+	}
+	if c.ShareTenancyCosts == "" {
+		c.ShareTenancyCosts = defaultShareTenancyCost
 	}
 	return c, nil
 }
@@ -1471,27 +1471,4 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 		discount = 0.2
 	}
 	return discount
-}
-
-func (gcp *GCP) ParseID(id string) string {
-	// gce://guestbook-227502/us-central1-a/gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
-	//  => gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
-	rx := regexp.MustCompile("gce://[^/]*/[^/]*/([^/]+)")
-	match := rx.FindStringSubmatch(id)
-	if len(match) < 2 {
-		if id != "" {
-			log.Infof("gcpprovider.ParseID: failed to parse %s", id)
-		}
-		return id
-	}
-
-	return match[1]
-}
-
-func (gcp *GCP) ParsePVID(id string) string {
-	return id
-}
-
-func (gcp *GCP) ParseLBID(id string) string {
-	return id
 }
