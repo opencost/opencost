@@ -7,6 +7,7 @@ import (
 	"k8s.io/klog"
 
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	stv1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -59,6 +60,9 @@ type ClusterCache interface {
 	// GetAllStorageClasses returns all the cached storage classes
 	GetAllStorageClasses() []*stv1.StorageClass
 
+	// GetAllJobs returns all the cached jobs
+	GetAllJobs() []*batchv1.Job
+
 	// SetConfigMapUpdateFunc sets the configmap update function
 	SetConfigMapUpdateFunc(func(interface{}))
 }
@@ -79,6 +83,7 @@ type KubernetesClusterCache struct {
 	pvWatch                WatchController
 	pvcWatch               WatchController
 	storageClassWatch      WatchController
+	jobsWatch              WatchController
 	stop                   chan struct{}
 }
 
@@ -91,6 +96,7 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 	coreRestClient := client.CoreV1().RESTClient()
 	appsRestClient := client.AppsV1().RESTClient()
 	storageRestClient := client.StorageV1().RESTClient()
+	batchClient := client.BatchV1().RESTClient()
 
 	kubecostNamespace := env.GetKubecostNamespace()
 	klog.Infof("NAMESPACE: %s", kubecostNamespace)
@@ -109,11 +115,12 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 		pvWatch:                NewCachingWatcher(coreRestClient, "persistentvolumes", &v1.PersistentVolume{}, "", fields.Everything()),
 		pvcWatch:               NewCachingWatcher(coreRestClient, "persistentvolumeclaims", &v1.PersistentVolumeClaim{}, "", fields.Everything()),
 		storageClassWatch:      NewCachingWatcher(storageRestClient, "storageclasses", &stv1.StorageClass{}, "", fields.Everything()),
+		jobsWatch:              NewCachingWatcher(batchClient, "jobs", &batchv1.Job{}, "", fields.Everything()),
 	}
 
 	// Wait for each caching watcher to initialize
 	var wg sync.WaitGroup
-	wg.Add(12)
+	wg.Add(13)
 
 	cancel := make(chan struct{})
 
@@ -129,6 +136,7 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 	go initializeCache(kcc.pvWatch, &wg, cancel)
 	go initializeCache(kcc.pvcWatch, &wg, cancel)
 	go initializeCache(kcc.storageClassWatch, &wg, cancel)
+	go initializeCache(kcc.jobsWatch, &wg, cancel)
 
 	wg.Wait()
 
@@ -153,6 +161,7 @@ func (kcc *KubernetesClusterCache) Run() {
 	go kcc.pvWatch.Run(1, stopCh)
 	go kcc.pvcWatch.Run(1, stopCh)
 	go kcc.storageClassWatch.Run(1, stopCh)
+	go kcc.jobsWatch.Run(1, stopCh)
 
 	kcc.stop = stopCh
 }
@@ -267,6 +276,15 @@ func (kcc *KubernetesClusterCache) GetAllStorageClasses() []*stv1.StorageClass {
 		storageClasses = append(storageClasses, stc.(*stv1.StorageClass))
 	}
 	return storageClasses
+}
+
+func (kcc *KubernetesClusterCache) GetAllJobs() []*batchv1.Job {
+	var jobs []*batchv1.Job
+	items := kcc.jobsWatch.GetAll()
+	for _, job := range items {
+		jobs = append(jobs, job.(*batchv1.Job))
+	}
+	return jobs
 }
 
 func (kcc *KubernetesClusterCache) SetConfigMapUpdateFunc(f func(interface{})) {
