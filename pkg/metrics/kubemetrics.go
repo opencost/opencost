@@ -69,7 +69,7 @@ func InitKubeMetrics(clusterCache clustercache.ClusterCache, opts *KubeMetricsOp
 			prometheus.MustRegister(KubeNodeCollector{
 				KubeClusterCache: clusterCache,
 			})
-			prometheus.MustRegister(KubePodMetricCollector{
+			prometheus.MustRegister(KubePodCollector{
 				KubeClusterCache:   clusterCache,
 				emitPodAnnotations: opts.EmitPodAnnotations,
 			})
