@@ -12,18 +12,18 @@ import (
 )
 
 //--------------------------------------------------------------------------
-//  KubePodMetricCollector
+//  KubePodCollector
 //--------------------------------------------------------------------------
 
 // KubePodMetricCollector is a prometheus collector that emits pod metrics
-type KubePodMetricCollector struct {
+type KubePodCollector struct {
 	KubeClusterCache   clustercache.ClusterCache
 	emitPodAnnotations bool
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
 // collected by this Collector.
-func (kpmc KubePodMetricCollector) Describe(ch chan<- *prometheus.Desc) {
+func (kpmc KubePodCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- prometheus.NewDesc("kube_pod_labels", "All labels for each pod prefixed with label_", []string{}, nil)
 	if kpmc.emitPodAnnotations {
 		ch <- prometheus.NewDesc("kube_pod_annotations", "All annotations for each pod prefix with annotation_", []string{}, nil)
@@ -38,7 +38,7 @@ func (kpmc KubePodMetricCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
-func (kpmc KubePodMetricCollector) Collect(ch chan<- prometheus.Metric) {
+func (kpmc KubePodCollector) Collect(ch chan<- prometheus.Metric) {
 	pods := kpmc.KubeClusterCache.GetAllPods()
 	for _, pod := range pods {
 		podName := pod.GetName()
