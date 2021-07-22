@@ -59,8 +59,14 @@ func InitKubeMetrics(clusterCache clustercache.ClusterCache, opts *KubeMetricsOp
 			})
 		}
 
+		if opts.EmitPodAnnotations {
+			prometheus.MustRegister(KubecostPodCollector{
+				KubeClusterCache: clusterCache,
+			})
+		}
+
 		if opts.EmitNamespaceAnnotations {
-			prometheus.MustRegister(KubeNamespaceCollector{
+			prometheus.MustRegister(KubecostNamespaceCollector{
 				KubeClusterCache: clusterCache,
 			})
 		}
@@ -69,12 +75,14 @@ func InitKubeMetrics(clusterCache clustercache.ClusterCache, opts *KubeMetricsOp
 			prometheus.MustRegister(KubeNodeCollector{
 				KubeClusterCache: clusterCache,
 			})
+			prometheus.MustRegister(KubeNamespaceCollector{
+				KubeClusterCache: clusterCache,
+			})
 			prometheus.MustRegister(KubeDeploymentCollector{
 				KubeClusterCache: clusterCache,
 			})
 			prometheus.MustRegister(KubePodCollector{
-				KubeClusterCache:   clusterCache,
-				emitPodAnnotations: opts.EmitPodAnnotations,
+				KubeClusterCache: clusterCache,
 			})
 			prometheus.MustRegister(KubePVCollector{
 				KubeClusterCache: clusterCache,
