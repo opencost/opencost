@@ -435,7 +435,7 @@ func TestAllocationSet_generateKey(t *testing.T) {
 		AllocationClusterProp,
 	}
 
-	key = alloc.generateKey(props)
+	key = alloc.generateKey(props, nil)
 	if key != "" {
 		t.Fatalf("generateKey: expected \"\"; actual \"%s\"", key)
 	}
@@ -449,7 +449,7 @@ func TestAllocationSet_generateKey(t *testing.T) {
 		},
 	}
 
-	key = alloc.generateKey(props)
+	key = alloc.generateKey(props, nil)
 	if key != "cluster1" {
 		t.Fatalf("generateKey: expected \"cluster1\"; actual \"%s\"", key)
 	}
@@ -460,7 +460,7 @@ func TestAllocationSet_generateKey(t *testing.T) {
 		"label:app",
 	}
 
-	key = alloc.generateKey(props)
+	key = alloc.generateKey(props, nil)
 	if key != "cluster1//app=app1" {
 		t.Fatalf("generateKey: expected \"cluster1//app=app1\"; actual \"%s\"", key)
 	}
@@ -473,9 +473,35 @@ func TestAllocationSet_generateKey(t *testing.T) {
 			"env": "env1",
 		},
 	}
-	key = alloc.generateKey(props)
+	key = alloc.generateKey(props, nil)
 	if key != "cluster1/namespace1/app=app1" {
 		t.Fatalf("generateKey: expected \"cluster1/namespace1/app=app1\"; actual \"%s\"", key)
+	}
+
+	props = []string{
+		AllocationDepartmentProp,
+		AllocationEnvironmentProp,
+		AllocationOwnerProp,
+		AllocationProductProp,
+		AllocationTeamProp,
+	}
+
+	labelConfig := NewLabelConfig()
+
+	alloc.Properties = &AllocationProperties{
+		Cluster:   "cluster1",
+		Namespace: "namespace1",
+		Labels: map[string]string{
+			labelConfig.DepartmentLabel:  "dept1",
+			labelConfig.EnvironmentLabel: "envt1",
+			labelConfig.OwnerLabel:       "ownr1",
+			labelConfig.ProductLabel:     "prod1",
+			labelConfig.TeamLabel:        "team1",
+		},
+	}
+	key = alloc.generateKey(props, nil)
+	if key != "dept1/envt1/ownr1/prod1/team1" {
+		t.Fatalf("generateKey: expected \"dept1/envt1/ownr1/prod1/team1\"; actual \"%s\"", key)
 	}
 }
 
@@ -920,17 +946,17 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		// 2d AggregationProperties=(Label:app, Label:environment)
 		"2d": {
 			start:      start,
-			aggBy:      []string{"label:app;env"},
+			aggBy:      []string{"label:app", "label:env"},
 			aggOpts:    nil,
 			numResults: 3 + numIdle + numUnallocated,
 			totalCost:  activeTotalCost + idleTotalCost,
 			// sets should be {idle, unallocated, app1/env1, app2/env2, app2/unallocated}
 			results: map[string]float64{
-				"app=app1/env=env1":             16.00,
-				"app=app2/env=env2":             12.00,
-				"app=app2/" + UnallocatedSuffix: 12.00,
-				IdleSuffix:                      30.00,
-				UnallocatedSuffix:               42.00,
+				"app=app1/env=env1":                         16.00,
+				"app=app2/env=env2":                         12.00,
+				"app=app2/" + UnallocatedSuffix:             12.00,
+				IdleSuffix:                                  30.00,
+				UnallocatedSuffix + "/" + UnallocatedSuffix: 42.00,
 			},
 			windowStart: startYesterday,
 			windowEnd:   endYesterday,
@@ -939,17 +965,17 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		// 2e AggregationProperties=(Cluster, Label:app, Label:environment)
 		"2e": {
 			start:      start,
-			aggBy:      []string{AllocationClusterProp, "label:app;env"},
+			aggBy:      []string{AllocationClusterProp, "label:app", "label:env"},
 			aggOpts:    nil,
 			numResults: 6,
 			totalCost:  activeTotalCost + idleTotalCost,
 			results: map[string]float64{
-				"cluster1/app=app2/env=env2":             12.00,
-				"__idle__":                               30.00,
-				"cluster1/app=app1/env=env1":             16.00,
-				"cluster1/" + UnallocatedSuffix:          18.00,
-				"cluster2/app=app2/" + UnallocatedSuffix: 12.00,
-				"cluster2/" + UnallocatedSuffix:          24.00,
+				"cluster1/app=app2/env=env2": 12.00,
+				"__idle__":                   30.00,
+				"cluster1/app=app1/env=env1": 16.00,
+				"cluster1/" + UnallocatedSuffix + "/" + UnallocatedSuffix: 18.00,
+				"cluster2/app=app2/" + UnallocatedSuffix:                  12.00,
+				"cluster2/" + UnallocatedSuffix + "/" + UnallocatedSuffix: 24.00,
 			},
 			windowStart: startYesterday,
 			windowEnd:   endYesterday,

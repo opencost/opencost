@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/kubecost/cost-model/pkg/prom"
 )
 
 const (
@@ -23,6 +25,11 @@ const (
 	AllocationStatefulSetProp    string = "statefulset"
 	AllocationDaemonSetProp      string = "daemonset"
 	AllocationJobProp            string = "job"
+	AllocationDepartmentProp     string = "department"
+	AllocationEnvironmentProp    string = "environment"
+	AllocationOwnerProp          string = "owner"
+	AllocationProductProp        string = "product"
+	AllocationTeamProp           string = "team"
 )
 
 func ParseProperty(text string) (string, error) {
@@ -57,7 +64,28 @@ func ParseProperty(text string) (string, error) {
 		return AllocationStatefulSetProp, nil
 	case "job":
 		return AllocationJobProp, nil
+	case "department":
+		return AllocationDepartmentProp, nil
+	case "environment":
+		return AllocationEnvironmentProp, nil
+	case "owner":
+		return AllocationOwnerProp, nil
+	case "product":
+		return AllocationProductProp, nil
+	case "team":
+		return AllocationTeamProp, nil
 	}
+
+	if strings.HasPrefix(text, "label:") {
+		label := prom.SanitizeLabelName(strings.TrimSpace(strings.TrimPrefix(text, "label:")))
+		return fmt.Sprintf("label:%s", label), nil
+	}
+
+	if strings.HasPrefix(text, "annotation:") {
+		annotation := prom.SanitizeLabelName(strings.TrimSpace(strings.TrimPrefix(text, "annotation:")))
+		return fmt.Sprintf("annotation:%s", annotation), nil
+	}
+
 	return AllocationNilProp, fmt.Errorf("invalid allocation property: %s", text)
 }
 
@@ -72,8 +100,8 @@ type AllocationProperties struct {
 	Pod            string                `json:"pod,omitempty"`
 	Services       []string              `json:"services,omitempty"`
 	ProviderID     string                `json:"providerID,omitempty"`
-	Labels         AllocationLabels      `json:"allocationLabels,omitempty"`
-	Annotations    AllocationAnnotations `json:"allocationAnnotations,omitempty"`
+	Labels         AllocationLabels      `json:"labels,omitempty"`
+	Annotations    AllocationAnnotations `json:"annotations,omitempty"`
 }
 
 // AllocationLabels is a schema-free mapping of key/value pairs that can be
