@@ -12,22 +12,48 @@ import (
 )
 
 //--------------------------------------------------------------------------
+//  KubecostPodCollector
+//--------------------------------------------------------------------------
+
+// KubecostPodCollector is a prometheus collector that emits pod metrics
+type KubecostPodCollector struct {
+	KubeClusterCache clustercache.ClusterCache
+}
+
+// Describe sends the super-set of all possible descriptors of metrics
+// collected by this Collector.
+func (kpmc KubecostPodCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- prometheus.NewDesc("kube_pod_annotations", "All annotations for each pod prefix with annotation_", []string{}, nil)
+}
+
+// Collect is called by the Prometheus registry when collecting metrics.
+func (kpmc KubecostPodCollector) Collect(ch chan<- prometheus.Metric) {
+	pods := kpmc.KubeClusterCache.GetAllPods()
+	for _, pod := range pods {
+		podName := pod.GetName()
+		podNS := pod.GetNamespace()
+
+		// Pod Annotations
+		labels, values := prom.KubeAnnotationsToLabels(pod.Annotations)
+		if len(labels) > 0 {
+			ch <- newPodAnnotationMetric("kube_pod_annotations", podNS, podName, labels, values)
+		}
+	}
+}
+
+//--------------------------------------------------------------------------
 //  KubePodCollector
 //--------------------------------------------------------------------------
 
 // KubePodMetricCollector is a prometheus collector that emits pod metrics
 type KubePodCollector struct {
-	KubeClusterCache   clustercache.ClusterCache
-	emitPodAnnotations bool
+	KubeClusterCache clustercache.ClusterCache
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
 // collected by this Collector.
 func (kpmc KubePodCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- prometheus.NewDesc("kube_pod_labels", "All labels for each pod prefixed with label_", []string{}, nil)
-	if kpmc.emitPodAnnotations {
-		ch <- prometheus.NewDesc("kube_pod_annotations", "All annotations for each pod prefix with annotation_", []string{}, nil)
-	}
 	ch <- prometheus.NewDesc("kube_pod_owner", "Information about the Pod's owner", []string{}, nil)
 	ch <- prometheus.NewDesc("kube_pod_container_status_running", "Describes whether the container is currently in running state", []string{}, nil)
 	ch <- prometheus.NewDesc("kube_pod_container_status_terminated_reason", "Describes the reason the container is currently in terminated state.", []string{}, nil)
@@ -63,22 +89,13 @@ func (kpmc KubePodCollector) Collect(ch chan<- prometheus.Metric) {
 			}
 
 			for _, p := range phases {
-				ch <- newKubePodStatusPhaseMetric("kube_pod_status_phase", podName, podNS, podUID, p.n, boolFloat64(p.v))
+				ch <- newKubePodStatusPhaseMetric("kube_pod_status_phase", podNS, podName, podUID, p.n, boolFloat64(p.v))
 			}
 		}
 
 		// Pod Labels
 		labelNames, labelValues := prom.KubePrependQualifierToLabels(pod.GetLabels(), "label_")
-		ch <- newKubePodLabelsMetric(podName, podNS, podUID, "kube_pod_labels", labelNames, labelValues)
-
-		// Pod Annotations
-		if kpmc.emitPodAnnotations {
-			labels, values := prom.KubeAnnotationsToLabels(pod.Annotations)
-
-			if len(labels) > 0 {
-				ch <- newPodAnnotationMetric(podNS, podName, "kube_pod_annotations", labels, values)
-			}
-		}
+		ch <- newKubePodLabelsMetric("kube_pod_labels", podNS, podName, podUID, labelNames, labelValues)
 
 		// Owner References
 		for _, owner := range pod.OwnerReferences {
@@ -87,16 +104,16 @@ func (kpmc KubePodCollector) Collect(ch chan<- prometheus.Metric) {
 
 		// Container Status
 		for _, status := range pod.Status.ContainerStatuses {
-			ch <- newKubePodContainerStatusRestartsTotalMetric("kube_pod_container_status_restarts_total", podName, podNS, podUID, status.Name, float64(status.RestartCount))
+			ch <- newKubePodContainerStatusRestartsTotalMetric("kube_pod_container_status_restarts_total", podNS, podName, podUID, status.Name, float64(status.RestartCount))
 			if status.State.Running != nil {
-				ch <- newKubePodContainerStatusRunningMetric("kube_pod_container_status_running", podName, podNS, podUID, status.Name)
+				ch <- newKubePodContainerStatusRunningMetric("kube_pod_container_status_running", podNS, podName, podUID, status.Name)
 			}
 
 			if status.State.Terminated != nil {
 				ch <- newKubePodContainerStatusTerminatedReasonMetric(
 					"kube_pod_container_status_terminated_reason",
-					podName,
 					podNS,
+					podName,
 					podUID,
 					status.Name,
 					status.State.Terminated.Reason)
@@ -116,8 +133,8 @@ func (kpmc KubePodCollector) Collect(ch chan<- prometheus.Metric) {
 
 				ch <- newKubePodContainerResourceRequestsMetric(
 					"kube_pod_container_resource_requests",
-					podName,
 					podNS,
+					podName,
 					podUID,
 					container.Name,
 					node,
@@ -140,8 +157,8 @@ func (kpmc KubePodCollector) Collect(ch chan<- prometheus.Metric) {
 				if resource == "cpu" {
 					ch <- newKubePodContainerResourceLimitsCPUCoresMetric(
 						"kube_pod_container_resource_limits_cpu_cores",
-						podName,
 						podNS,
+						podName,
 						podUID,
 						container.Name,
 						node,
@@ -150,8 +167,8 @@ func (kpmc KubePodCollector) Collect(ch chan<- prometheus.Metric) {
 				if resource == "memory" {
 					ch <- newKubePodContainerResourceLimitsMemoryBytesMetric(
 						"kube_pod_container_resource_limits_memory_bytes",
-						podName,
 						podNS,
+						podName,
 						podUID,
 						container.Name,
 						node,
@@ -160,8 +177,8 @@ func (kpmc KubePodCollector) Collect(ch chan<- prometheus.Metric) {
 
 				ch <- newKubePodContainerResourceLimitsMetric(
 					"kube_pod_container_resource_limits",
-					podName,
 					podNS,
+					podName,
 					podUID,
 					container.Name,
 					node,
@@ -179,31 +196,34 @@ func (kpmc KubePodCollector) Collect(ch chan<- prometheus.Metric) {
 
 // PodAnnotationsMetric is a prometheus.Metric used to encode namespace annotations
 type PodAnnotationsMetric struct {
-	name        string
 	fqName      string
 	help        string
+	namespace   string
+	pod         string
 	labelNames  []string
 	labelValues []string
-	namespace   string
 }
 
 // Creates a new PodAnnotationsMetric, implementation of prometheus.Metric
-func newPodAnnotationMetric(namespace, name, fqname string, labelNames []string, labelValues []string) PodAnnotationsMetric {
+func newPodAnnotationMetric(fqname, namespace, pod string, labelNames, labelValues []string) PodAnnotationsMetric {
 	return PodAnnotationsMetric{
-		namespace:   namespace,
-		name:        name,
 		fqName:      fqname,
+		help:        "kube_pod_annotations Pod Annotations",
+		namespace:   namespace,
+		pod:         pod,
 		labelNames:  labelNames,
 		labelValues: labelValues,
-		help:        "kube_pod_annotations Pod Annotations",
 	}
 }
 
 // Desc returns the descriptor for the Metric. This method idempotently
 // returns the same descriptor throughout the lifetime of the Metric.
 func (pam PodAnnotationsMetric) Desc() *prometheus.Desc {
-	l := prometheus.Labels{"namespace": pam.namespace, "pod": pam.name}
-	return prometheus.NewDesc(pam.fqName, pam.help, pam.labelNames, l)
+	l := prometheus.Labels{
+		"namespace": pam.namespace,
+		"pod":       pam.pod,
+	}
+	return prometheus.NewDesc(pam.fqName, pam.help, []string{}, l)
 }
 
 // Write encodes the Metric into a "Metric" Protocol Buffer data
@@ -228,7 +248,7 @@ func (pam PodAnnotationsMetric) Write(m *dto.Metric) error {
 		},
 		&dto.LabelPair{
 			Name:  toStringPtr("pod"),
-			Value: &pam.name,
+			Value: &pam.pod,
 		})
 	m.Label = labels
 	return nil
@@ -244,23 +264,23 @@ func (pam PodAnnotationsMetric) Write(m *dto.Metric) error {
 type KubePodLabelsMetric struct {
 	fqName      string
 	help        string
-	labelNames  []string
-	labelValues []string
 	pod         string
 	namespace   string
 	uid         string
+	labelNames  []string
+	labelValues []string
 }
 
 // Creates a new KubePodLabelsMetric, implementation of prometheus.Metric
-func newKubePodLabelsMetric(pod string, namespace string, uid string, fqname string, labelNames []string, labelValues []string) KubePodLabelsMetric {
+func newKubePodLabelsMetric(fqname, namespace, pod, uid string, labelNames []string, labelValues []string) KubePodLabelsMetric {
 	return KubePodLabelsMetric{
 		fqName:      fqname,
-		labelNames:  labelNames,
-		labelValues: labelValues,
 		help:        "kube_pod_labels all labels for each pod prefixed with label_",
 		pod:         pod,
 		namespace:   namespace,
 		uid:         uid,
+		labelNames:  labelNames,
+		labelValues: labelValues,
 	}
 }
 
@@ -268,8 +288,8 @@ func newKubePodLabelsMetric(pod string, namespace string, uid string, fqname str
 // returns the same descriptor throughout the lifetime of the Metric.
 func (nam KubePodLabelsMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"pod":       nam.pod,
 		"namespace": nam.namespace,
+		"pod":       nam.pod,
 		"uid":       nam.uid,
 	}
 	return prometheus.NewDesc(nam.fqName, nam.help, nam.labelNames, l)
@@ -325,7 +345,7 @@ type KubePodContainerStatusRestartsTotalMetric struct {
 }
 
 // Creates a new KubePodContainerStatusRestartsTotalMetric, implementation of prometheus.Metric
-func newKubePodContainerStatusRestartsTotalMetric(fqname, pod, namespace, uid, container string, value float64) KubePodContainerStatusRestartsTotalMetric {
+func newKubePodContainerStatusRestartsTotalMetric(fqname, namespace, pod, uid, container string, value float64) KubePodContainerStatusRestartsTotalMetric {
 	return KubePodContainerStatusRestartsTotalMetric{
 		fqName:    fqname,
 		help:      "kube_pod_container_status_restarts_total total container restarts",
@@ -341,8 +361,8 @@ func newKubePodContainerStatusRestartsTotalMetric(fqname, pod, namespace, uid, c
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcs KubePodContainerStatusRestartsTotalMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"pod":       kpcs.pod,
 		"namespace": kpcs.namespace,
+		"pod":       kpcs.pod,
 		"uid":       kpcs.uid,
 		"container": kpcs.container,
 	}
@@ -358,12 +378,12 @@ func (kpcs KubePodContainerStatusRestartsTotalMetric) Write(m *dto.Metric) error
 	var labels []*dto.LabelPair
 	labels = append(labels,
 		&dto.LabelPair{
-			Name:  toStringPtr("pod"),
-			Value: &kpcs.pod,
-		},
-		&dto.LabelPair{
 			Name:  toStringPtr("namespace"),
 			Value: &kpcs.namespace,
+		},
+		&dto.LabelPair{
+			Name:  toStringPtr("pod"),
+			Value: &kpcs.pod,
 		},
 		&dto.LabelPair{
 			Name:  toStringPtr("container"),
@@ -394,7 +414,7 @@ type KubePodContainerStatusTerminatedReasonMetric struct {
 }
 
 // Creates a new KubePodContainerStatusRestartsTotalMetric, implementation of prometheus.Metric
-func newKubePodContainerStatusTerminatedReasonMetric(fqname, pod, namespace, uid, container, reason string) KubePodContainerStatusTerminatedReasonMetric {
+func newKubePodContainerStatusTerminatedReasonMetric(fqname, namespace, pod, uid, container, reason string) KubePodContainerStatusTerminatedReasonMetric {
 	return KubePodContainerStatusTerminatedReasonMetric{
 		fqName:    fqname,
 		help:      "kube_pod_container_status_terminated_reason Describes the reason the container is currently in terminated state.",
@@ -410,8 +430,8 @@ func newKubePodContainerStatusTerminatedReasonMetric(fqname, pod, namespace, uid
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcs KubePodContainerStatusTerminatedReasonMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"pod":       kpcs.pod,
 		"namespace": kpcs.namespace,
+		"pod":       kpcs.pod,
 		"uid":       kpcs.uid,
 		"container": kpcs.container,
 		"reason":    kpcs.reason,
@@ -429,12 +449,12 @@ func (kpcs KubePodContainerStatusTerminatedReasonMetric) Write(m *dto.Metric) er
 	var labels []*dto.LabelPair
 	labels = append(labels,
 		&dto.LabelPair{
-			Name:  toStringPtr("pod"),
-			Value: &kpcs.pod,
-		},
-		&dto.LabelPair{
 			Name:  toStringPtr("namespace"),
 			Value: &kpcs.namespace,
+		},
+		&dto.LabelPair{
+			Name:  toStringPtr("pod"),
+			Value: &kpcs.pod,
 		},
 		&dto.LabelPair{
 			Name:  toStringPtr("container"),
@@ -469,7 +489,7 @@ type KubePodStatusPhaseMetric struct {
 }
 
 // Creates a new KubePodContainerStatusRestartsTotalMetric, implementation of prometheus.Metric
-func newKubePodStatusPhaseMetric(fqname, pod, namespace, uid, phase string, value float64) KubePodStatusPhaseMetric {
+func newKubePodStatusPhaseMetric(fqname, namespace, pod, uid, phase string, value float64) KubePodStatusPhaseMetric {
 	return KubePodStatusPhaseMetric{
 		fqName:    fqname,
 		help:      "kube_pod_container_status_terminated_reason Describes the reason the container is currently in terminated state.",
@@ -485,8 +505,8 @@ func newKubePodStatusPhaseMetric(fqname, pod, namespace, uid, phase string, valu
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcs KubePodStatusPhaseMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"pod":       kpcs.pod,
 		"namespace": kpcs.namespace,
+		"pod":       kpcs.pod,
 		"uid":       kpcs.uid,
 		"phase":     kpcs.phase,
 	}
@@ -502,12 +522,12 @@ func (kpcs KubePodStatusPhaseMetric) Write(m *dto.Metric) error {
 	var labels []*dto.LabelPair
 	labels = append(labels,
 		&dto.LabelPair{
-			Name:  toStringPtr("pod"),
-			Value: &kpcs.pod,
-		},
-		&dto.LabelPair{
 			Name:  toStringPtr("namespace"),
 			Value: &kpcs.namespace,
+		},
+		&dto.LabelPair{
+			Name:  toStringPtr("pod"),
+			Value: &kpcs.pod,
 		},
 		&dto.LabelPair{
 			Name:  toStringPtr("uid"),
@@ -539,7 +559,7 @@ type KubePodContainerStatusRunningMetric struct {
 }
 
 // Creates a new KubePodContainerStatusRunningMetric, implementation of prometheus.Metric
-func newKubePodContainerStatusRunningMetric(fqname string, pod string, namespace string, uid string, container string) KubePodContainerStatusRunningMetric {
+func newKubePodContainerStatusRunningMetric(fqname, namespace, pod, uid, container string) KubePodContainerStatusRunningMetric {
 	return KubePodContainerStatusRunningMetric{
 		fqName:    fqname,
 		help:      "kube_pod_container_status_running pods container status",
@@ -554,8 +574,8 @@ func newKubePodContainerStatusRunningMetric(fqname string, pod string, namespace
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcs KubePodContainerStatusRunningMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"pod":       kpcs.pod,
 		"namespace": kpcs.namespace,
+		"pod":       kpcs.pod,
 		"uid":       kpcs.uid,
 		"container": kpcs.container,
 	}
@@ -573,12 +593,12 @@ func (kpcs KubePodContainerStatusRunningMetric) Write(m *dto.Metric) error {
 	var labels []*dto.LabelPair
 	labels = append(labels,
 		&dto.LabelPair{
-			Name:  toStringPtr("pod"),
-			Value: &kpcs.pod,
-		},
-		&dto.LabelPair{
 			Name:  toStringPtr("namespace"),
 			Value: &kpcs.namespace,
+		},
+		&dto.LabelPair{
+			Name:  toStringPtr("pod"),
+			Value: &kpcs.pod,
 		},
 		&dto.LabelPair{
 			Name:  toStringPtr("container"),
@@ -612,7 +632,7 @@ type KubePodContainerResourceRequestsMetric struct {
 }
 
 // Creates a new newKubePodContainerResourceRequestsMetric, implementation of prometheus.Metric
-func newKubePodContainerResourceRequestsMetric(fqname, pod, namespace, uid, container, node, resource, unit string, value float64) KubePodContainerResourceRequestsMetric {
+func newKubePodContainerResourceRequestsMetric(fqname, namespace, pod, uid, container, node, resource, unit string, value float64) KubePodContainerResourceRequestsMetric {
 	return KubePodContainerResourceRequestsMetric{
 		fqName:    fqname,
 		help:      "kube_pod_container_resource_requests pods container resource requests",
@@ -631,8 +651,8 @@ func newKubePodContainerResourceRequestsMetric(fqname, pod, namespace, uid, cont
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcrr KubePodContainerResourceRequestsMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"pod":       kpcrr.pod,
 		"namespace": kpcrr.namespace,
+		"pod":       kpcrr.pod,
 		"uid":       kpcrr.uid,
 		"container": kpcrr.container,
 		"node":      kpcrr.node,
@@ -651,12 +671,12 @@ func (kpcrr KubePodContainerResourceRequestsMetric) Write(m *dto.Metric) error {
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("pod"),
-			Value: &kpcrr.pod,
-		},
-		{
 			Name:  toStringPtr("namespace"),
 			Value: &kpcrr.namespace,
+		},
+		{
+			Name:  toStringPtr("pod"),
+			Value: &kpcrr.pod,
 		},
 		{
 			Name:  toStringPtr("container"),
@@ -701,7 +721,7 @@ type KubePodContainerResourceLimitsMetric struct {
 }
 
 // Creates a new KubePodContainerResourceLimitsMetric, implementation of prometheus.Metric
-func newKubePodContainerResourceLimitsMetric(fqname, pod, namespace, uid, container, node, resource, unit string, value float64) KubePodContainerResourceLimitsMetric {
+func newKubePodContainerResourceLimitsMetric(fqname, namespace, pod, uid, container, node, resource, unit string, value float64) KubePodContainerResourceLimitsMetric {
 	return KubePodContainerResourceLimitsMetric{
 		fqName:    fqname,
 		help:      "kube_pod_container_resource_limits pods container resource limits",
@@ -720,8 +740,8 @@ func newKubePodContainerResourceLimitsMetric(fqname, pod, namespace, uid, contai
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcrr KubePodContainerResourceLimitsMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"pod":       kpcrr.pod,
 		"namespace": kpcrr.namespace,
+		"pod":       kpcrr.pod,
 		"uid":       kpcrr.uid,
 		"container": kpcrr.container,
 		"node":      kpcrr.node,
@@ -740,12 +760,12 @@ func (kpcrr KubePodContainerResourceLimitsMetric) Write(m *dto.Metric) error {
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("pod"),
-			Value: &kpcrr.pod,
-		},
-		{
 			Name:  toStringPtr("namespace"),
 			Value: &kpcrr.namespace,
+		},
+		{
+			Name:  toStringPtr("pod"),
+			Value: &kpcrr.pod,
 		},
 		{
 			Name:  toStringPtr("container"),
@@ -788,7 +808,7 @@ type KubePodContainerResourceLimitsCPUCoresMetric struct {
 }
 
 // Creates a new KubePodContainerResourceLimitsMetric, implementation of prometheus.Metric
-func newKubePodContainerResourceLimitsCPUCoresMetric(fqname, pod, namespace, uid, container, node string, value float64) KubePodContainerResourceLimitsCPUCoresMetric {
+func newKubePodContainerResourceLimitsCPUCoresMetric(fqname, namespace, pod, uid, container, node string, value float64) KubePodContainerResourceLimitsCPUCoresMetric {
 	return KubePodContainerResourceLimitsCPUCoresMetric{
 		fqName:    fqname,
 		help:      "kube_pod_container_resource_limits_cpu_cores pods container cpu cores resource limits",
@@ -805,8 +825,8 @@ func newKubePodContainerResourceLimitsCPUCoresMetric(fqname, pod, namespace, uid
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcrr KubePodContainerResourceLimitsCPUCoresMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"pod":       kpcrr.pod,
 		"namespace": kpcrr.namespace,
+		"pod":       kpcrr.pod,
 		"uid":       kpcrr.uid,
 		"container": kpcrr.container,
 		"node":      kpcrr.node,
@@ -823,12 +843,12 @@ func (kpcrr KubePodContainerResourceLimitsCPUCoresMetric) Write(m *dto.Metric) e
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("pod"),
-			Value: &kpcrr.pod,
-		},
-		{
 			Name:  toStringPtr("namespace"),
 			Value: &kpcrr.namespace,
+		},
+		{
+			Name:  toStringPtr("pod"),
+			Value: &kpcrr.pod,
 		},
 		{
 			Name:  toStringPtr("container"),
@@ -863,7 +883,7 @@ type KubePodContainerResourceLimitsMemoryBytesMetric struct {
 }
 
 // Creates a new KubePodContainerResourceLimitsMemoryBytesMetric, implementation of prometheus.Metric
-func newKubePodContainerResourceLimitsMemoryBytesMetric(fqname, pod, namespace, uid, container, node string, value float64) KubePodContainerResourceLimitsMemoryBytesMetric {
+func newKubePodContainerResourceLimitsMemoryBytesMetric(fqname, namespace, pod, uid, container, node string, value float64) KubePodContainerResourceLimitsMemoryBytesMetric {
 	return KubePodContainerResourceLimitsMemoryBytesMetric{
 		fqName:    fqname,
 		help:      "kube_pod_container_resource_limits_memory_bytes pods container memory bytes resource limits",
@@ -880,8 +900,8 @@ func newKubePodContainerResourceLimitsMemoryBytesMetric(fqname, pod, namespace, 
 // returns the same descriptor throughout the lifetime of the Metric.
 func (kpcrr KubePodContainerResourceLimitsMemoryBytesMetric) Desc() *prometheus.Desc {
 	l := prometheus.Labels{
-		"pod":       kpcrr.pod,
 		"namespace": kpcrr.namespace,
+		"pod":       kpcrr.pod,
 		"uid":       kpcrr.uid,
 		"container": kpcrr.container,
 		"node":      kpcrr.node,
@@ -898,12 +918,12 @@ func (kpcrr KubePodContainerResourceLimitsMemoryBytesMetric) Write(m *dto.Metric
 
 	m.Label = []*dto.LabelPair{
 		{
-			Name:  toStringPtr("pod"),
-			Value: &kpcrr.pod,
-		},
-		{
 			Name:  toStringPtr("namespace"),
 			Value: &kpcrr.namespace,
+		},
+		{
+			Name:  toStringPtr("pod"),
+			Value: &kpcrr.pod,
 		},
 		{
 			Name:  toStringPtr("container"),
