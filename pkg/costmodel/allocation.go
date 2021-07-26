@@ -389,6 +389,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 
 			node := cm.getNodePricing(nodeMap, nodeKey)
 			alloc.Properties.ProviderID = node.ProviderID
+			alloc.Properties.NodeType = node.NodeType
 			alloc.CPUCost = alloc.CPUCoreHours * node.CostPerCPUHr
 			alloc.RAMCost = (alloc.RAMByteHours / 1024 / 1024 / 1024) * node.CostPerRAMGiBHr
 			alloc.GPUCost = alloc.GPUHours * node.CostPerGPUHr
