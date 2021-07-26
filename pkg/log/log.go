@@ -63,7 +63,7 @@ func Profilef(format string, a ...interface{}) {
 }
 
 func Debugf(format string, a ...interface{}) {
-	klog.V(4).Infof(fmt.Sprintf("[Debug] %s", format), a...)
+	klog.V(5).Infof(fmt.Sprintf("[Debug] %s", format), a...)
 }
 
 func Profile(start time.Time, name string) {

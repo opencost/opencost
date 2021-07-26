@@ -572,7 +572,7 @@ func (w Window) DurationOffset() (time.Duration, time.Duration, error) {
 	}
 
 	duration := w.Duration()
-	offset := time.Now().Sub(*w.End())
+	offset := time.Since(*w.End())
 
 	return duration, offset, nil
 }
