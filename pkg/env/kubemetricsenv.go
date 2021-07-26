@@ -11,5 +11,5 @@ func GetKubecostMetricsPort() int {
 
 // IsKubecostMetricsPodEnabled returns true if the kubecost metrics pod is deployed
 func IsKubecostMetricsPodEnabled() bool {
-	return GetBool(KubecostMetricsPodEnabledEnvVar, true)
+	return GetBool(KubecostMetricsPodEnabledEnvVar, false)
 }
