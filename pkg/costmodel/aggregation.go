@@ -1789,7 +1789,6 @@ func (a *Accesses) warmAggregateCostModelCache() {
 			log.Infof("Error building cache %s: %s", window, aggErr)
 		}
 
-
 		totals, err := a.ComputeClusterCosts(promClient, a.CloudProvider, duration, offset, cacheEfficiencyData)
 		if err != nil {
 			log.Infof("Error building cluster costs cache %s", key)

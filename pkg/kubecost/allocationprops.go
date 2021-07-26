@@ -12,6 +12,7 @@ const (
 	AllocationNilProp            string = ""
 	AllocationClusterProp        string = "cluster"
 	AllocationNodeProp           string = "node"
+	AllocationNodeTypeProp       string = "nodeType"
 	AllocationContainerProp      string = "container"
 	AllocationControllerProp     string = "controller"
 	AllocationControllerKindProp string = "controllerKind"
@@ -38,6 +39,8 @@ func ParseProperty(text string) (string, error) {
 		return AllocationClusterProp, nil
 	case "node":
 		return AllocationNodeProp, nil
+	case "nodeType":
+		return AllocationNodeTypeProp, nil
 	case "container":
 		return AllocationContainerProp, nil
 	case "controller":
@@ -93,6 +96,7 @@ func ParseProperty(text string) (string, error) {
 type AllocationProperties struct {
 	Cluster        string                `json:"cluster,omitempty"`
 	Node           string                `json:"node,omitempty"`
+	NodeType       string                `json:"nodeType,omitempty"`
 	Container      string                `json:"container,omitempty"`
 	Controller     string                `json:"controller,omitempty"`
 	ControllerKind string                `json:"controllerKind,omitempty"`
@@ -120,6 +124,7 @@ func (p *AllocationProperties) Clone() *AllocationProperties {
 	clone := &AllocationProperties{}
 	clone.Cluster = p.Cluster
 	clone.Node = p.Node
+	clone.NodeType = p.NodeType
 	clone.Container = p.Container
 	clone.Controller = p.Controller
 	clone.ControllerKind = p.ControllerKind
@@ -158,6 +163,10 @@ func (p *AllocationProperties) Equal(that *AllocationProperties) bool {
 	}
 
 	if p.Node != that.Node {
+		return false
+	}
+
+	if p.NodeType != that.NodeType {
 		return false
 	}
 
@@ -242,6 +251,9 @@ func (p *AllocationProperties) Intersection(that *AllocationProperties) *Allocat
 	if p.Node == that.Node {
 		intersectionProps.Node = p.Node
 	}
+	if p.NodeType == that.NodeType {
+		intersectionProps.NodeType = p.NodeType
+	}
 	if p.Container == that.Container {
 		intersectionProps.Container = p.Container
 	}
@@ -276,6 +288,10 @@ func (p *AllocationProperties) String() string {
 
 	if p.Node != "" {
 		strs = append(strs, "Node:"+p.Node)
+	}
+
+	if p.NodeType != "" {
+		strs = append(strs, "NodeType:"+p.NodeType)
 	}
 
 	if p.Container != "" {

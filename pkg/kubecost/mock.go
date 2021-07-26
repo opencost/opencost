@@ -20,6 +20,7 @@ func NewMockUnitAllocation(name string, start time.Time, resolution time.Duratio
 	if props == nil {
 		properties.Cluster = "cluster1"
 		properties.Node = "node1"
+		properties.NodeType = "kc1-super-medium"
 		properties.Namespace = "namespace1"
 		properties.ControllerKind = "deployment"
 		properties.Controller = "deployment1"
