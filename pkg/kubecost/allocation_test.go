@@ -2161,3 +2161,265 @@ func TestAllocationSetRange_InsertRange(t *testing.T) {
 
 // TODO niko/etl
 // func TestAllocationSetRange_Window(t *testing.T) {}
+
+func TestAllocationSetRange_Start(t *testing.T) {
+	tests := []struct {
+		name string
+		arg  *AllocationSetRange
+
+		expectError bool
+		expected    time.Time
+	}{
+		{
+			name: "Empty ASR",
+			arg:  nil,
+
+			expectError: true,
+		},
+		{
+			name: "Single allocation",
+			arg: &AllocationSetRange{
+				allocations: []*AllocationSet{
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"a": &Allocation{
+								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Two allocations",
+			arg: &AllocationSetRange{
+				allocations: []*AllocationSet{
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"a": &Allocation{
+								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+							},
+							"b": &Allocation{
+								Start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Two AllocationSets",
+			arg: &AllocationSetRange{
+				allocations: []*AllocationSet{
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"a": &Allocation{
+								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"b": &Allocation{
+								Start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+		},
+	}
+
+	for _, test := range tests {
+		result, err := test.arg.Start()
+		if test.expectError && err != nil {
+			continue
+		}
+
+		if test.expectError && err == nil {
+			t.Errorf("%s: expected error and got none", test.name)
+		} else if result != test.expected {
+			t.Errorf("%s: expected %s but got %s", test.name, test.expected, result)
+		}
+	}
+}
+
+func TestAllocationSetRange_End(t *testing.T) {
+	tests := []struct {
+		name string
+		arg  *AllocationSetRange
+
+		expectError bool
+		expected    time.Time
+	}{
+		{
+			name: "Empty ASR",
+			arg:  nil,
+
+			expectError: true,
+		},
+		{
+			name: "Single allocation",
+			arg: &AllocationSetRange{
+				allocations: []*AllocationSet{
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"a": &Allocation{
+								End: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Two allocations",
+			arg: &AllocationSetRange{
+				allocations: []*AllocationSet{
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"a": &Allocation{
+								End: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+							},
+							"b": &Allocation{
+								End: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Two AllocationSets",
+			arg: &AllocationSetRange{
+				allocations: []*AllocationSet{
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"a": &Allocation{
+								End: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"b": &Allocation{
+								End: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+		},
+	}
+
+	for _, test := range tests {
+		result, err := test.arg.End()
+		if test.expectError && err != nil {
+			continue
+		}
+
+		if test.expectError && err == nil {
+			t.Errorf("%s: expected error and got none", test.name)
+		} else if result != test.expected {
+			t.Errorf("%s: expected %s but got %s", test.name, test.expected, result)
+		}
+	}
+}
+
+func TestAllocationSetRange_Minutes(t *testing.T) {
+	tests := []struct {
+		name string
+		arg  *AllocationSetRange
+
+		expected float64
+	}{
+		{
+			name: "Empty ASR",
+			arg:  nil,
+
+			expected: 0,
+		},
+		{
+			name: "Single allocation",
+			arg: &AllocationSetRange{
+				allocations: []*AllocationSet{
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"a": &Allocation{
+								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+								End:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: 24 * 60,
+		},
+		{
+			name: "Two allocations",
+			arg: &AllocationSetRange{
+				allocations: []*AllocationSet{
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"a": &Allocation{
+								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+								End:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+							"b": &Allocation{
+								Start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+								End:   time.Date(1970, 1, 3, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: 2 * 24 * 60,
+		},
+		{
+			name: "Two AllocationSets",
+			arg: &AllocationSetRange{
+				allocations: []*AllocationSet{
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"a": &Allocation{
+								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+								End:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"b": &Allocation{
+								Start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+								End:   time.Date(1970, 1, 3, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: 2 * 24 * 60,
+		},
+	}
+
+	for _, test := range tests {
+		result := test.arg.Minutes()
+		if result != test.expected {
+			t.Errorf("%s: expected %f but got %f", test.name, test.expected, result)
+		}
+	}
+}
