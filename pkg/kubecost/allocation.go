@@ -2456,16 +2456,16 @@ func (asr *AllocationSetRange) End() (time.Time, error) {
 
 // Minutes returns the duration, in minutes, between the earliest start
 // and the latest end of all allocations in the AllocationSetRange.
-func (asr *AllocationSetRange) Minutes() (float64, error) {
+func (asr *AllocationSetRange) Minutes() float64 {
 	start, err := asr.Start()
 	if err != nil {
-		return 0, fmt.Errorf("failed to calculate start: %s", err)
+		return 0
 	}
 	end, err := asr.End()
 	if err != nil {
-		return 0, fmt.Errorf("failed to calculate end: %s", err)
+		return 0
 	}
 	duration := end.Sub(start)
 
-	return duration.Minutes(), nil
+	return duration.Minutes()
 }

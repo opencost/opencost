@@ -2343,14 +2343,13 @@ func TestAllocationSetRange_Minutes(t *testing.T) {
 		name string
 		arg  *AllocationSetRange
 
-		expectError bool
-		expected    float64
+		expected float64
 	}{
 		{
 			name: "Empty ASR",
 			arg:  nil,
 
-			expectError: true,
+			expected: 0,
 		},
 		{
 			name: "Single allocation",
@@ -2418,14 +2417,8 @@ func TestAllocationSetRange_Minutes(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result, err := test.arg.Minutes()
-		if test.expectError && err != nil {
-			continue
-		}
-
-		if test.expectError && err == nil {
-			t.Errorf("%s: expected error and got none", test.name)
-		} else if result != test.expected {
+		result := test.arg.Minutes()
+		if result != test.expected {
 			t.Errorf("%s: expected %f but got %f", test.name, test.expected, result)
 		}
 	}
