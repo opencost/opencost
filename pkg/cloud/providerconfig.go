@@ -188,22 +188,6 @@ func DefaultPricing() *CustomPricing {
 
 func SetCustomPricingField(obj *CustomPricing, name string, value string) error {
 
-	// shared overhead costs go into SharedCosts with key "total" in CustomPricing
-	if name == "SharedOverhead" {
-
-		value = sanitizePolicy.Sanitize(value)
-		val := reflect.ValueOf(value)
-
-		if reflect.ValueOf(obj.SharedCosts["total"]).Type() != val.Type() {
-			return fmt.Errorf("cannot insert value into custom pricing shared costs")
-		}
-
-		obj.SharedCosts["total"] = value
-
-		return nil
-
-	}
-
 	structValue := reflect.ValueOf(obj).Elem()
 	structFieldValue := structValue.FieldByName(name)
 

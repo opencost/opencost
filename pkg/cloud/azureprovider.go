@@ -922,12 +922,7 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 					return err
 				}
 			} else {
-				sci := v.(map[string]interface{})
-				sc := make(map[string]string)
-				for k, val := range sci {
-					sc[k] = val.(string)
-				}
-				c.SharedCosts = sc //todo: support reflection/multiple map fields
+				return fmt.Errorf("type error while updating config for %s", kUpper)
 			}
 		}
 

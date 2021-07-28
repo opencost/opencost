@@ -2,7 +2,6 @@ package costmodel
 
 import (
 	"fmt"
-	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"math"
 	"net/http"
 	"regexp"
@@ -10,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/kubecost/cost-model/pkg/cloud"
@@ -1451,17 +1452,19 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 
 	sc := make(map[string]*SharedCostInfo)
 	if !disableSharedOverhead {
-		for key, val := range c.SharedCosts {
-			cost, err := strconv.ParseFloat(val, 64)
-			durationCoefficient := window.Hours() / timeutil.HoursPerMonth
-			if err != nil {
-				return nil, "", fmt.Errorf("unable to parse shared cost %s: %s", val, err)
-			}
-			sc[key] = &SharedCostInfo{
-				Name: key,
-				Cost: cost * durationCoefficient,
-			}
+
+		overheadVal := c.SharedOverhead
+
+		cost, err := strconv.ParseFloat(overheadVal, 64)
+		durationCoefficient := window.Hours() / timeutil.HoursPerMonth
+		if err != nil {
+			return nil, "", fmt.Errorf("unable to parse shared cost %s: %s", overheadVal, err)
 		}
+		sc["total"] = &SharedCostInfo{
+			Name: "total",
+			Cost: cost * durationCoefficient,
+		}
+
 	}
 
 	idleCoefficients := make(map[string]float64)
@@ -1788,7 +1791,6 @@ func (a *Accesses) warmAggregateCostModelCache() {
 		if aggErr != nil {
 			log.Infof("Error building cache %s: %s", window, aggErr)
 		}
-
 
 		totals, err := a.ComputeClusterCosts(promClient, a.CloudProvider, duration, offset, cacheEfficiencyData)
 		if err != nil {
