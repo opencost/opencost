@@ -155,23 +155,27 @@ func getRegions(service string, subscriptionsClient subscriptions.Client, provid
 }
 
 func getRetailPrice(region string, skuName string, currencyCode string, spot bool) (string, error) {
-	pricingURL := "https://prices.azure.com/api/retail/prices?$skip=0&currencyCode='" + currencyCode + "'"
-	filterBase := "&$filter="
+	pricingURL := "https://prices.azure.com/api/retail/prices?$skip=0"
+
+	if currencyCode != "" {
+		pricingURL += fmt.Sprintf("&currencyCode='%s'", currencyCode)
+	}
+
 	var filterParams []string
 
 	if region != "" {
-		regionParam := "armRegionName eq '" + region + "'"
+		regionParam := fmt.Sprintf("armRegionName eq '%s'",region)
 		filterParams = append(filterParams, regionParam)
 	}
 
 	if skuName != "" {
-		skuNameParam := "armSkuName eq '" + skuName + "'"
+		skuNameParam := fmt.Sprintf("armSkuName eq '%s'",skuName)
 		filterParams = append(filterParams, skuNameParam)
 	}
 
 	if len(filterParams) > 0 {
 		filterParamsEscaped := url.QueryEscape(strings.Join(filterParams[:], " and "))
-		pricingURL += filterBase + filterParamsEscaped
+		pricingURL += fmt.Sprintf("&$filter=%s", filterParamsEscaped)
 	}
 
 	klog.V(4).Infof("starting download retail price payload from \"%s\"", pricingURL)
@@ -179,6 +183,10 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 
 	if err != nil {
 		return "", fmt.Errorf("bogus fetch of \"%s\": %v", pricingURL, err)
+	}
+
+	if resp.StatusCode != 200 {
+		log.DedupedInfof(5, "retail price responded with status code %d", resp.StatusCode)
 	}
 
 	pricingPayload := AzureRetailPricing{}
@@ -845,49 +853,49 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 		return nil, fmt.Errorf("azure: NodePricing: key is of type %T", key)
 	}
 	config, _ := az.GetConfig()
-	if config.SpotLabel != "" && config.SpotLabelValue != "" {
-		labelsMapStr := fmt.Sprintf("%s", azKey)
-		spotLabelMapStr := fmt.Sprintf(" %s:%s ", config.SpotLabel, config.SpotLabelValue)
-		if strings.Contains(labelsMapStr, spotLabelMapStr) {
-			features := strings.Split(azKey.Features(), ",")
-			spotFeatures := strings.ReplaceAll(azKey.Features(), ",ondemand", ",spot")
-			if n, ok := az.Pricing[spotFeatures]; ok {
-				klog.V(4).Infof("Returning pricing for node %s: %+v from key %s", azKey, n, spotFeatures)
-				if azKey.isValidGPUNode() {
-					n.Node.GPU = "1" // TODO: support multiple GPUs
-				}
-				return n.Node, nil
+	if slv, ok := azKey.Labels[config.SpotLabel];
+	ok && slv == config.SpotLabelValue && config.SpotLabel != "" && config.SpotLabelValue != "" {
+		features := strings.Split(azKey.Features(), ",")
+		region := features[0]
+		instance := features[1]
+		spotFeatures := fmt.Sprintf("%s,%s,%s", region, instance, "spot")
+		if n, ok := az.Pricing[spotFeatures]; ok {
+			log.DedupedInfof(5, "Returning pricing for node %s: %+v from key %s", azKey, n, spotFeatures)
+			if azKey.isValidGPUNode() {
+				n.Node.GPU = "1" // TODO: support multiple GPUs
 			}
-			klog.V(1).Infof("[Info] found spot instance, trying to get retail price for %s: %s, ", spotFeatures, azKey)
+			return n.Node, nil
+		}
+		log.Infof("[Info] found spot instance, trying to get retail price for %s: %s, ", spotFeatures, azKey)
 
-			spotCost, err := getRetailPrice(features[0], features[1], config.CurrencyCode, true)
-			if err != nil {
-				log.DedupedWarningf(5, "failed to retrieve spot retail pricing")
-			} else {
-				gpu := ""
-				allPrices, err := az.AllNodePricing()
-				if err == nil {
-					if azKey.isValidGPUNode() {
-						gpu = "1"
-					}
-					allPrices.(map[string]*AzurePricing)[spotFeatures] = &AzurePricing{
-						Node: &Node{
-							Cost:      spotCost,
-							UsageType: "spot",
-							GPU:       gpu,
-						},
-					}
-					az.Pricing = allPrices.(map[string]*AzurePricing)
-				}
-
-				return &Node{
-					Cost:      spotCost,
-					UsageType: "spot",
-					GPU:       gpu,
-				}, nil
+		spotCost, err := getRetailPrice(region, instance, config.CurrencyCode, true)
+		if err != nil {
+			log.DedupedWarningf(5, "failed to retrieve spot retail pricing")
+		} else {
+			gpu := ""
+			if azKey.isValidGPUNode() {
+				gpu = "1"
 			}
+			allPrices, err := az.AllNodePricing()
+			if err == nil {
+				allPrices.(map[string]*AzurePricing)[spotFeatures] = &AzurePricing{
+					Node: &Node{
+						Cost:      spotCost,
+						UsageType: "spot",
+						GPU:       gpu,
+					},
+				}
+				az.Pricing = allPrices.(map[string]*AzurePricing)
+			}
+
+			return &Node{
+				Cost:      spotCost,
+				UsageType: "spot",
+				GPU:       gpu,
+			}, nil
 		}
 	}
+
 
 	if n, ok := az.Pricing[azKey.Features()]; ok {
 		klog.V(4).Infof("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
