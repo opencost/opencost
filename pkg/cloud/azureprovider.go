@@ -178,15 +178,15 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 		pricingURL += fmt.Sprintf("&$filter=%s", filterParamsEscaped)
 	}
 
-	klog.V(4).Infof("starting download retail price payload from \"%s\"", pricingURL)
+	log.Infof("starting download retail price payload from \"%s\"", pricingURL)
 	resp, err := http.Get(pricingURL)
 
 	if err != nil {
 		return "", fmt.Errorf("bogus fetch of \"%s\": %v", pricingURL, err)
 	}
 
-	if resp.StatusCode != 200 {
-		log.DedupedInfof(5, "retail price responded with status code %d", resp.StatusCode)
+	if resp.StatusCode < 200 && resp.StatusCode > 299 {
+		return "", fmt.Errorf("retail price responded with error status code %d", resp.StatusCode)
 	}
 
 	pricingPayload := AzureRetailPricing{}
