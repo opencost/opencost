@@ -837,8 +837,8 @@ func (az *Azure) DownloadPricingData() error {
 }
 
 func (az *Azure) addPricing(features string, azurePricing *AzurePricing) {
-	az.DownloadPricingDataLock.RLock()
-	defer az.DownloadPricingDataLock.RUnlock()
+	az.DownloadPricingDataLock.Lock()
+	defer az.DownloadPricingDataLock.Unlock()
 	if az.Pricing == nil {
 		az.Pricing = map[string]*AzurePricing{}
 	}
@@ -890,7 +890,7 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 				UsageType: "spot",
 				GPU:       gpu,
 			}
-			
+
 			az.addPricing(spotFeatures, &AzurePricing{
 				Node: spotNode,
 			})
