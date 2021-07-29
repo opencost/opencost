@@ -2,11 +2,12 @@ package costmodel
 
 import (
 	"fmt"
-	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"math"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
 
 	"github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/env"
@@ -20,11 +21,11 @@ const (
 	queryFmtPods              = `avg(kube_pod_container_status_running{}) by (pod, namespace, %s)[%s:%s]%s`
 	queryFmtRAMBytesAllocated = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s, provider_id)`
 	queryFmtRAMRequests       = `avg(avg_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
-	queryFmtRAMUsageAvg       = `avg(avg_over_time(container_memory_working_set_bytes{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, %s)`
-	queryFmtRAMUsageMax       = `max(max_over_time(container_memory_working_set_bytes{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, %s)`
+	queryFmtRAMUsageAvg       = `avg(avg_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD", instance!=""}[%s]%s)) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+	queryFmtRAMUsageMax       = `max(max_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD", instance!=""}[%s]%s)) by (container_name, container, pod_name, pod namespace, instance, %s)`
 	queryFmtCPUCoresAllocated = `avg(avg_over_time(container_cpu_allocation{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
 	queryFmtCPURequests       = `avg(avg_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
-	queryFmtCPUUsageAvg       = `avg(rate(container_cpu_usage_seconds_total{container_name!="", container_name!="POD", instance!=""}[%s]%s)) by (container_name, pod_name, namespace, instance, %s)`
+	queryFmtCPUUsageAvg       = `avg(rate(container_cpu_usage_seconds_total{container!="", container_name!="POD", container!="POD", instance!=""}[%s]%s)) by (container_name, container, pod_name, pod, namespace, instance, %s)`
 
 	// This query could be written without the recording rule
 	// "kubecost_savings_container_cpu_usage_seconds", but we should
@@ -705,11 +706,13 @@ func applyCPUCoresUsedAvg(podMap map[podKey]*Pod, resCPUCoresUsedAvg []*prom.Que
 		if !ok {
 			continue
 		}
-
-		container, err := res.GetString("container_name")
-		if err != nil {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage avg query result missing 'container': %s", key)
-			continue
+		container, err := res.GetString("container")
+		if container == "" || err != nil {
+			container, err = res.GetString("container_name")
+			if err != nil {
+				log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage avg query result missing 'container': %s", key)
+				continue
+			}
 		}
 
 		if _, ok := pod.Allocations[container]; !ok {
@@ -842,10 +845,13 @@ func applyRAMBytesUsedAvg(podMap map[podKey]*Pod, resRAMBytesUsedAvg []*prom.Que
 			continue
 		}
 
-		container, err := res.GetString("container_name")
-		if err != nil {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage avg query result missing 'container': %s", key)
-			continue
+		container, err := res.GetString("container")
+		if container == "" || err != nil {
+			container, err = res.GetString("container_name")
+			if err != nil {
+				log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage avg query result missing 'container': %s", key)
+				continue
+			}
 		}
 
 		if _, ok := pod.Allocations[container]; !ok {
