@@ -836,6 +836,15 @@ func (az *Azure) DownloadPricingData() error {
 	return nil
 }
 
+func (az *Azure) addPricing(features string, azurePricing *AzurePricing) {
+	az.DownloadPricingDataLock.RLock()
+	defer az.DownloadPricingDataLock.RUnlock()
+	if az.Pricing == nil {
+		az.Pricing = map[string]*AzurePricing{}
+	}
+	az.Pricing[features] = azurePricing
+}
+
 // AllNodePricing returns the Azure pricing objects stored
 func (az *Azure) AllNodePricing() (interface{}, error) {
 	az.DownloadPricingDataLock.RLock()
@@ -876,23 +885,17 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 			if azKey.isValidGPUNode() {
 				gpu = "1"
 			}
-			allPrices, err := az.AllNodePricing()
-			if err == nil {
-				allPrices.(map[string]*AzurePricing)[spotFeatures] = &AzurePricing{
-					Node: &Node{
-						Cost:      spotCost,
-						UsageType: "spot",
-						GPU:       gpu,
-					},
-				}
-				az.Pricing = allPrices.(map[string]*AzurePricing)
-			}
-
-			return &Node{
+			spotNode := &Node{
 				Cost:      spotCost,
 				UsageType: "spot",
 				GPU:       gpu,
-			}, nil
+			}
+			
+			az.addPricing(spotFeatures, &AzurePricing{
+				Node: spotNode,
+			})
+
+			return spotNode, nil
 		}
 	}
 
