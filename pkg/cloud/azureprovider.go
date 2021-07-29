@@ -837,8 +837,6 @@ func (az *Azure) DownloadPricingData() error {
 }
 
 func (az *Azure) addPricing(features string, azurePricing *AzurePricing) {
-	az.DownloadPricingDataLock.Lock()
-	defer az.DownloadPricingDataLock.Unlock()
 	if az.Pricing == nil {
 		az.Pricing = map[string]*AzurePricing{}
 	}
