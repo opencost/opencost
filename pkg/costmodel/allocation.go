@@ -22,7 +22,7 @@ const (
 	queryFmtRAMBytesAllocated = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s, provider_id)`
 	queryFmtRAMRequests       = `avg(avg_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
 	queryFmtRAMUsageAvg       = `avg(avg_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD", instance!=""}[%s]%s)) by (container_name, container, pod_name, pod, namespace, instance, %s)`
-	queryFmtRAMUsageMax       = `max(max_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD", instance!=""}[%s]%s)) by (container_name, container, pod_name, pod namespace, instance, %s)`
+	queryFmtRAMUsageMax       = `max(max_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD", instance!=""}[%s]%s)) by (container_name, container, pod_name, pod, namespace, instance, %s)`
 	queryFmtCPUCoresAllocated = `avg(avg_over_time(container_cpu_allocation{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
 	queryFmtCPURequests       = `avg(avg_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
 	queryFmtCPUUsageAvg       = `avg(rate(container_cpu_usage_seconds_total{container!="", container_name!="POD", container!="POD", instance!=""}[%s]%s)) by (container_name, container, pod_name, pod, namespace, instance, %s)`
