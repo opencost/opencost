@@ -752,8 +752,10 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	//     the output (i.e. they can be used to generate a valid key for
 	//     the given properties) then aggregate; otherwise... ignore them?
 	// 10. If the merge idle option is enabled, merge any remaining idle
-	//     allocations into a single idle allocation
-
+	//     allocations into a single idle allocation. If there was any idle
+	//	   whose costs were not distributed because there was no usage of a
+	//     specific resource type, re-add the idle to the aggregation with
+	//     only that type.
 	if as.IsEmpty() {
 		return nil
 	}
@@ -765,6 +767,8 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	if options.LabelConfig == nil {
 		options.LabelConfig = NewLabelConfig()
 	}
+
+	var undistributedIdleMap map[string]bool
 
 	// If aggregateBy is nil, we don't aggregate anything. On the other hand,
 	// an empty slice implies that we should aggregate everything. See
@@ -889,7 +893,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// the shared allocations).
 	var idleCoefficients map[string]map[string]map[string]float64
 	if idleSet.Length() > 0 && options.ShareIdle != ShareNone {
-		idleCoefficients, err = computeIdleCoeffs(options, as, shareSet)
+		idleCoefficients, undistributedIdleMap, err = computeIdleCoeffs(options, as, shareSet)
 		if err != nil {
 			log.Warningf("AllocationSet.AggregateBy: compute idle coeff: %s", err)
 			return fmt.Errorf("error computing idle coefficients: %s", err)
@@ -922,7 +926,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// need to track this on a per-cluster or per-node, per-allocation, per-resource basis.
 	var idleFiltrationCoefficients map[string]map[string]map[string]float64
 	if len(options.FilterFuncs) > 0 && options.ShareIdle == ShareNone {
-		idleFiltrationCoefficients, err = computeIdleCoeffs(options, as, shareSet)
+		idleFiltrationCoefficients, _, err = computeIdleCoeffs(options, as, shareSet)
 		if err != nil {
 			return fmt.Errorf("error computing idle filtration coefficients: %s", err)
 		}
@@ -1184,6 +1188,66 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		}
 	}
 
+	// In the edge case that some idle has not been distributed because
+	// there is no usage of that resource type, add idle back to
+	// aggregations with only that cost applied.
+
+	// E.g. in the case where we have a result that looks like this on the
+	// frontend:
+
+	// Name		CPU		GPU		RAM
+	// __idle__ $10     $12     $6
+	// kubecost $2      $0      $1
+
+	// Sharing idle weighted would result in no idle GPU cost being
+	// distributed, because the coefficient for the kubecost GPU cost would
+	// be zero. Thus, instead we re-add idle to the aggSet with distributed
+	// costs zeroed out but the undistributed costs left in.
+
+	// Name		CPU		GPU		RAM
+	// __idle__ $0      $12     $0
+	// kubecost $12     $0      $7
+
+	if idleSet.Length() > 0 && !options.SplitIdle {
+		if undistributedIdleMap["cpu"] || undistributedIdleMap["gpu"] || undistributedIdleMap["ram"] {
+
+			for _, idleAlloc := range idleSet.allocations {
+
+				skip := false
+
+				// if the idle does not apply to the non-filtered values, skip it
+				for _, ff := range options.FilterFuncs {
+					if !ff(idleAlloc) {
+						skip = true
+						break
+					}
+				}
+
+				if skip {
+					continue
+				}
+
+				// if the idle doesn't have a cost to be shared, also skip it
+				if idleAlloc.CPUCost != 0 && idleAlloc.GPUCost != 0 && idleAlloc.RAMCost != 0 {
+
+					// artificially set the already shared costs to zero
+					if !undistributedIdleMap["cpu"] {
+						idleAlloc.CPUCost = 0
+					}
+					if !undistributedIdleMap["gpu"] {
+						idleAlloc.GPUCost = 0
+					}
+					if !undistributedIdleMap["ram"] {
+						idleAlloc.RAMCost = 0
+					}
+
+					idleAlloc.Name = IdleSuffix
+					aggSet.Insert(idleAlloc)
+				}
+			}
+		}
+	}
+
 	as.allocations = aggSet.allocations
 
 	return nil
@@ -1258,8 +1322,13 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 	return coeffs, nil
 }
 
-func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet, shareSet *AllocationSet) (map[string]map[string]map[string]float64, error) {
+func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet, shareSet *AllocationSet) (map[string]map[string]map[string]float64, map[string]bool, error) {
 	types := []string{"cpu", "gpu", "ram"}
+	undistributedIdleMap := map[string]bool{
+		"cpu": true,
+		"gpu": true,
+		"ram": true,
+	}
 
 	// Compute idle coefficients, then save them in AllocationAggregationOptions
 	coeffs := map[string]map[string]map[string]float64{}
@@ -1315,6 +1384,7 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 			totals[idleId]["gpu"] += alloc.GPUTotalCost()
 			totals[idleId]["ram"] += alloc.RAMTotalCost()
 		}
+
 	}
 
 	// Do the same for shared allocations
@@ -1370,12 +1440,13 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 			for _, r := range types {
 				if coeffs[c][a][r] > 0 && totals[c][r] > 0 {
 					coeffs[c][a][r] /= totals[c][r]
+					undistributedIdleMap[r] = false
 				}
 			}
 		}
 	}
 
-	return coeffs, nil
+	return coeffs, undistributedIdleMap, nil
 }
 
 // getIdleId returns the providerId or cluster of an Allocation depending on the IdleByNode
