@@ -65,20 +65,6 @@ func ParseAssetProperty(text string) (AssetProperty, error) {
 	return AssetNilProp, fmt.Errorf("invalid asset property: %s", text)
 }
 
-func propsEqual(p1, p2 []AssetProperty) bool {
-	if len(p1) != len(p2) {
-		return false
-	}
-
-	for _, p := range p1 {
-		if !hasProp(p2, p) {
-			return false
-		}
-	}
-
-	return true
-}
-
 // Category options
 
 // ComputeCategory signifies the Compute Category

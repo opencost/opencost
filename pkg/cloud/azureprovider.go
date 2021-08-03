@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
+	"github.com/kubecost/cost-model/pkg/log"
 	"io"
 	"io/ioutil"
+	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -36,6 +39,8 @@ const (
 	AzureDiskPremiumSSDStorageClass  = "premium_ssd"
 	AzureDiskStandardSSDStorageClass = "standard_ssd"
 	AzureDiskStandardStorageClass    = "standard_hdd"
+	defaultSpotLabel                 = "kubernetes.azure.com/scalesetpriority"
+	defaultSpotLabelValue            = "spot"
 )
 
 var (
@@ -149,6 +154,72 @@ func getRegions(service string, subscriptionsClient subscriptions.Client, provid
 	}
 }
 
+func getRetailPrice(region string, skuName string, currencyCode string, spot bool) (string, error) {
+	pricingURL := "https://prices.azure.com/api/retail/prices?$skip=0"
+
+	if currencyCode != "" {
+		pricingURL += fmt.Sprintf("&currencyCode='%s'", currencyCode)
+	}
+
+	var filterParams []string
+
+	if region != "" {
+		regionParam := fmt.Sprintf("armRegionName eq '%s'",region)
+		filterParams = append(filterParams, regionParam)
+	}
+
+	if skuName != "" {
+		skuNameParam := fmt.Sprintf("armSkuName eq '%s'",skuName)
+		filterParams = append(filterParams, skuNameParam)
+	}
+
+	if len(filterParams) > 0 {
+		filterParamsEscaped := url.QueryEscape(strings.Join(filterParams[:], " and "))
+		pricingURL += fmt.Sprintf("&$filter=%s", filterParamsEscaped)
+	}
+
+	log.Infof("starting download retail price payload from \"%s\"", pricingURL)
+	resp, err := http.Get(pricingURL)
+
+	if err != nil {
+		return "", fmt.Errorf("bogus fetch of \"%s\": %v", pricingURL, err)
+	}
+
+	if resp.StatusCode < 200 && resp.StatusCode > 299 {
+		return "", fmt.Errorf("retail price responded with error status code %d", resp.StatusCode)
+	}
+
+	pricingPayload := AzureRetailPricing{}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("Error getting response: %v", err)
+	}
+
+	jsonErr := json.Unmarshal(body, &pricingPayload)
+	if jsonErr != nil {
+		return "", fmt.Errorf("Error unmarshalling data: %v", jsonErr)
+	}
+
+	retailPrice := ""
+	for _, item := range pricingPayload.Items {
+		if item.Type == "Consumption" && !strings.Contains(item.ProductName, "Windows") {
+			// if spot is true SkuName should contain "spot, if it is false it should not
+			if spot == strings.Contains(strings.ToLower(item.SkuName), " spot") {
+				retailPrice = fmt.Sprintf("%f", item.RetailPrice)
+			}
+		}
+	}
+
+	log.DedupedInfof(5, "done parsing retail price payload from \"%s\"\n", pricingURL)
+
+	if retailPrice == "" {
+		return retailPrice, fmt.Errorf("Couldn't find price for product \"%s\" in \"%s\" region", skuName, region)
+	}
+
+	return retailPrice, nil
+}
+
 func toRegionID(meterRegion string, regions map[string]string) (string, error) {
 	var rp regionParts = strings.Split(strings.ToLower(meterRegion), " ")
 	regionCode := regionCodeMappings[rp[0]]
@@ -180,6 +251,41 @@ func checkRegionID(regionID string, regions map[string]string) bool {
 		}
 	}
 	return false
+}
+
+// AzureRetailPricing struct for unmarshalling Azure Retail pricing api JSON response
+type AzureRetailPricing struct {
+	BillingCurrency    string                         `json:"BillingCurrency"`
+	CustomerEntityId   string                         `json:"CustomerEntityId"`
+	CustomerEntityType string                         `json:"CustomerEntityType"`
+	Items              []AzureRetailPricingAttributes `json:"Items"`
+	NextPageLink       string                         `json:"NextPageLink"`
+	Count              int                            `json:"Count"`
+}
+
+//AzureRetailPricingAttributes struct for unmarshalling Azure Retail pricing api JSON response
+type AzureRetailPricingAttributes struct {
+	CurrencyCode         string     `json:"currencyCode"`
+	TierMinimumUnits     float32    `json:"tierMinimumUnits"`
+	RetailPrice          float32    `json:"retailPrice"`
+	UnitPrice            float32    `json:"unitPrice"`
+	ArmRegionName        string     `json:"armRegionName"`
+	Location             string     `json:"location"`
+	EffectiveStartDate   *time.Time `json:"effectiveStartDate"`
+	EffectiveEndDate     *time.Time `json:"effectiveEndDate"`
+	MeterId              string     `json:"meterId"`
+	MeterName            string     `json:"meterName"`
+	ProductId            string     `json:"productId"`
+	SkuId                string     `json:"skuId"`
+	ProductName          string     `json:"productName"`
+	SkuName              string     `json:"skuName"`
+	ServiceName          string     `json:"serviceName"`
+	ServiceId            string     `json:"serviceId"`
+	ServiceFamily        string     `json:"serviceFamily"`
+	UnitOfMeasure        string     `json:"unitOfMeasure"`
+	Type                 string     `json:"type"`
+	IsPrimaryMeterRegion bool       `json:"isPrimaryMeterRegion"`
+	ArmSkuName           string     `json:"armSkuName"`
 }
 
 // AzurePricing either contains a Node or PV
@@ -703,6 +809,7 @@ func (az *Azure) DownloadPricingData() error {
 						Node: &Node{
 							Cost:         priceStr,
 							BaseCPUPrice: baseCPUPrice,
+							UsageType:    usageType,
 						},
 					}
 				}
@@ -729,6 +836,13 @@ func (az *Azure) DownloadPricingData() error {
 	return nil
 }
 
+func (az *Azure) addPricing(features string, azurePricing *AzurePricing) {
+	if az.Pricing == nil {
+		az.Pricing = map[string]*AzurePricing{}
+	}
+	az.Pricing[features] = azurePricing
+}
+
 // AllNodePricing returns the Azure pricing objects stored
 func (az *Azure) AllNodePricing() (interface{}, error) {
 	az.DownloadPricingDataLock.RLock()
@@ -740,10 +854,49 @@ func (az *Azure) AllNodePricing() (interface{}, error) {
 func (az *Azure) NodePricing(key Key) (*Node, error) {
 	az.DownloadPricingDataLock.RLock()
 	defer az.DownloadPricingDataLock.RUnlock()
+
 	azKey, ok := key.(*azureKey)
 	if !ok {
 		return nil, fmt.Errorf("azure: NodePricing: key is of type %T", key)
 	}
+	config, _ := az.GetConfig()
+	if slv, ok := azKey.Labels[config.SpotLabel];
+	ok && slv == config.SpotLabelValue && config.SpotLabel != "" && config.SpotLabelValue != "" {
+		features := strings.Split(azKey.Features(), ",")
+		region := features[0]
+		instance := features[1]
+		spotFeatures := fmt.Sprintf("%s,%s,%s", region, instance, "spot")
+		if n, ok := az.Pricing[spotFeatures]; ok {
+			log.DedupedInfof(5, "Returning pricing for node %s: %+v from key %s", azKey, n, spotFeatures)
+			if azKey.isValidGPUNode() {
+				n.Node.GPU = "1" // TODO: support multiple GPUs
+			}
+			return n.Node, nil
+		}
+		log.Infof("[Info] found spot instance, trying to get retail price for %s: %s, ", spotFeatures, azKey)
+
+		spotCost, err := getRetailPrice(region, instance, config.CurrencyCode, true)
+		if err != nil {
+			log.DedupedWarningf(5, "failed to retrieve spot retail pricing")
+		} else {
+			gpu := ""
+			if azKey.isValidGPUNode() {
+				gpu = "1"
+			}
+			spotNode := &Node{
+				Cost:      spotCost,
+				UsageType: "spot",
+				GPU:       gpu,
+			}
+
+			az.addPricing(spotFeatures, &AzurePricing{
+				Node: spotNode,
+			})
+
+			return spotNode, nil
+		}
+	}
+
 
 	if n, ok := az.Pricing[azKey.Features()]; ok {
 		klog.V(4).Infof("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
@@ -960,6 +1113,12 @@ func (az *Azure) GetConfig() (*CustomPricing, error) {
 	}
 	if c.ShareTenancyCosts == "" {
 		c.ShareTenancyCosts = defaultShareTenancyCost
+	}
+	if c.SpotLabel == "" {
+		c.SpotLabel = defaultSpotLabel
+	}
+	if c.SpotLabelValue == "" {
+		c.SpotLabelValue = defaultSpotLabelValue
 	}
 	return c, nil
 }
