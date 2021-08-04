@@ -13,6 +13,7 @@ type Obj struct {
 }
 
 func TestPtrSliceRetry(t *testing.T) {
+	t.Parallel()
 	const Expected uint64 = 3
 
 	var count uint64 = 0
@@ -42,6 +43,7 @@ func TestPtrSliceRetry(t *testing.T) {
 }
 
 func TestSuccessRetry(t *testing.T) {
+	t.Parallel()
 	const Expected uint64 = 3
 
 	var count uint64 = 0
@@ -64,6 +66,7 @@ func TestSuccessRetry(t *testing.T) {
 }
 
 func TestFailRetry(t *testing.T) {
+	t.Parallel()
 	const Expected uint64 = 5
 
 	expectedError := fmt.Sprintf("Failed: %d", Expected)
@@ -86,6 +89,8 @@ func TestFailRetry(t *testing.T) {
 }
 
 func TestCancelRetry(t *testing.T) {
+	t.Parallel()
+
 	const Expected uint64 = 5
 
 	var count uint64 = 0
