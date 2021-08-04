@@ -1381,8 +1381,8 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 			pvs := cmme.KubeClusterCache.GetAllPersistentVolumes()
 			for _, pv := range pvs {
-				// Omit pv_hourly_cost if the volume status is not available or unbound
-				if pv.Status.Phase != v1.VolumeAvailable && pv.Status.Phase != v1.VolumeBound {
+				// Omit pv_hourly_cost if the volume status is failed
+				if pv.Status.Phase == v1.VolumeFailed {
 					continue
 				}
 
