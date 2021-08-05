@@ -4,13 +4,14 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"net/http"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
 
 	"k8s.io/klog"
 
@@ -401,7 +402,6 @@ func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httpr
 		}
 	}
 
-
 	useThanos, _ := strconv.ParseBool(r.URL.Query().Get("multi"))
 
 	if useThanos && !thanos.IsEnabled() {
@@ -720,6 +720,16 @@ func (a *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request,
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	w.Write(WrapData(prom.Validate(a.PrometheusClient)))
+}
+
+func (a *Accesses) GetPrometheusQueueState(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	promClient := a.GetPrometheusClient(true)
+	queueState, err := prom.GetPrometheusQueueState(promClient)
+
+	w.Write(WrapData(queueState, err))
 }
 
 // Creates a new ClusterManager instance using a boltdb storage. If that fails,
@@ -1072,6 +1082,9 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	a.Router.GET("/serviceAccountStatus", a.GetServiceAccountStatus)
 	a.Router.GET("/pricingSourceStatus", a.GetPricingSourceStatus)
 	a.Router.GET("/pricingSourceCounts", a.GetPricingSourceCounts)
+
+	// diagnostics
+	a.Router.GET("/diagnostics/requestQueue", a.GetPrometheusQueueState)
 
 	// cluster manager endpoints
 	a.Router.GET("/clusters", managerEndpoints.GetAllClusters)
