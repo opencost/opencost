@@ -2,8 +2,9 @@ package costmodel
 
 import (
 	"fmt"
-	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"time"
+
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
 
 	"github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/env"
@@ -135,7 +136,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 	// TODO niko/assets how do we not hard-code this price?
 	costPerGBHr := 0.04 / 730.0
 
-	ctx := prom.NewContext(client)
+	ctx := prom.NewNamedContext(client, prom.ClusterContextName)
 	queryPVCost := fmt.Sprintf(`sum_over_time((avg(kube_persistentvolume_capacity_bytes) by (%s, persistentvolume)  * on(%s, persistentvolume) group_right avg(pv_hourly_cost) by (%s, persistentvolume,provider_id))[%s:%dm]%s)/1024/1024/1024 * %f`, env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
 	queryPVSize := fmt.Sprintf(`avg_over_time(kube_persistentvolume_capacity_bytes[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
 	queryActiveMins := fmt.Sprintf(`count(pv_hourly_cost) by (%s, persistentvolume)[%s:%dm]%s`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr)
@@ -461,8 +462,8 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	minsPerResolution := 1
 	resolution := time.Duration(minsPerResolution) * time.Minute
 
-	requiredCtx := prom.NewContext(client)
-	optionalCtx := prom.NewContext(client)
+	requiredCtx := prom.NewNamedContext(client, prom.ClusterContextName)
+	optionalCtx := prom.NewNamedContext(client, prom.ClusterOptionalContextName)
 
 	queryNodeCPUHourlyCost := fmt.Sprintf(`avg(avg_over_time(node_cpu_hourly_cost[%s]%s)) by (%s, node, instance_type, provider_id)`, durationStr, offsetStr, env.GetPromClusterLabel())
 	queryNodeCPUCores := fmt.Sprintf(`avg(avg_over_time(kube_node_status_capacity_cpu_cores[%s]%s)) by (%s, node)`, durationStr, offsetStr, env.GetPromClusterLabel())
@@ -609,7 +610,7 @@ func ClusterLoadBalancers(client prometheus.Client, duration, offset time.Durati
 	// [$/hr] * [min/res]*[hr/min] = [$/res]
 	hourlyToCumulative := float64(minsPerResolution) * (1.0 / 60.0)
 
-	ctx := prom.NewContext(client)
+	ctx := prom.NewNamedContext(client, prom.ClusterContextName)
 	queryLBCost := fmt.Sprintf(`sum_over_time((avg(kubecost_load_balancer_cost) by (namespace, service_name, %s, ingress_ip))[%s:%dm]%s) * %f`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
 	queryActiveMins := fmt.Sprintf(`count(kubecost_load_balancer_cost) by (namespace, service_name, %s, ingress_ip)[%s:%dm]%s`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr)
 
@@ -780,7 +781,7 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 	queryTotalRAM := fmt.Sprintf(fmtQueryTotalRAM, env.GetPromClusterLabel(), window, minsPerResolution, fmtOffset, window, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), hourlyToCumulative, env.GetPromClusterLabel())
 	queryTotalStorage := fmt.Sprintf(fmtQueryTotalStorage, env.GetPromClusterLabel(), window, minsPerResolution, fmtOffset, window, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), hourlyToCumulative, env.GetPromClusterLabel())
 
-	ctx := prom.NewContext(client)
+	ctx := prom.NewNamedContext(client, prom.ClusterContextName)
 
 	resChs := ctx.QueryAll(
 		queryDataCount,
@@ -1079,7 +1080,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 	qStorage := fmt.Sprintf(queryStorage, fmtWindow, fmtOffset, env.GetPromClusterLabel(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterLabel(), localStorageQuery)
 	qTotal := fmt.Sprintf(queryTotal, env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), localStorageQuery)
 
-	ctx := prom.NewContext(cli)
+	ctx := prom.NewNamedContext(cli, prom.ClusterContextName)
 	resChClusterCores := ctx.QueryRange(qCores, start, end, window)
 	resChClusterRAM := ctx.QueryRange(qRAM, start, end, window)
 	resChStorage := ctx.QueryRange(qStorage, start, end, window)
