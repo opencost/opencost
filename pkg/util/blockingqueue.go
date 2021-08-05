@@ -17,6 +17,9 @@ type BlockingQueue interface {
 	// Dequeue removes the first item from the queue and returns it.
 	Dequeue() interface{}
 
+	// Each blocks modification and allows iteration of the queue.
+	Each(f func(int, interface{}))
+
 	// Length returns the length of the queue
 	Length() int
 
@@ -68,6 +71,16 @@ func (q *blockingSliceQueue) Dequeue() interface{} {
 	q.q[0] = nil
 	q.q = q.q[1:]
 	return e
+}
+
+// Each blocks modification and allows iteration of the queue.
+func (q *blockingSliceQueue) Each(f func(int, interface{})) {
+	q.l.Lock()
+	defer q.l.Unlock()
+
+	for i, entry := range q.q {
+		f(i, entry)
+	}
 }
 
 // Length returns the length of the queue

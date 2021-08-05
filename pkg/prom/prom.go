@@ -72,7 +72,7 @@ type RateLimitedPrometheusClient struct {
 // requestCounter is used to determine if the prometheus client keeps track of
 // the concurrent outbound requests
 type requestCounter interface {
-	TotalRequests() int
+	TotalQueuedRequests() int
 	TotalOutboundRequests() int
 }
 
@@ -127,7 +127,7 @@ func (rlpc *RateLimitedPrometheusClient) ID() string {
 
 // TotalRequests returns the total number of requests that are either waiting to be sent and/or
 // are currently outbound.
-func (rlpc *RateLimitedPrometheusClient) TotalRequests() int {
+func (rlpc *RateLimitedPrometheusClient) TotalQueuedRequests() int {
 	return rlpc.queue.Length()
 }
 
@@ -150,6 +150,9 @@ type workRequest struct {
 	respChan chan *workResponse
 	// used as a sentinel value to close the worker goroutine
 	closer bool
+	// request metadata for diagnostics
+	contextName string
+	query       string
 }
 
 // workResponse is the response payload returned to the Do method
@@ -214,12 +217,21 @@ func (rlpc *RateLimitedPrometheusClient) Do(ctx context.Context, req *http.Reque
 	respChan := make(chan *workResponse)
 	defer close(respChan)
 
+	// request names are used as a debug utility to identify requests in queue
+	contextName := "<none>"
+	if n, ok := util.GetName(req); ok {
+		contextName = n
+	}
+	query, _ := util.GetQuery(req)
+
 	rlpc.queue.Enqueue(&workRequest{
-		ctx:      ctx,
-		req:      req,
-		start:    time.Now(),
-		respChan: respChan,
-		closer:   false,
+		ctx:         ctx,
+		req:         req,
+		start:       time.Now(),
+		respChan:    respChan,
+		closer:      false,
+		contextName: contextName,
+		query:       query,
 	})
 
 	workRes := <-respChan
@@ -254,18 +266,6 @@ func NewPrometheusClient(address string, timeout, keepAlive time.Duration, query
 	}
 
 	return NewRateLimitedClient(PrometheusClientID, pc, queryConcurrency, auth, nil, queryLogFile)
-}
-
-// LogPrometheusClientState logs the current state, with respect to outbound requests, if that
-// information is available.
-func LogPrometheusClientState(client prometheus.Client) {
-	if rc, ok := client.(requestCounter); ok {
-		total := rc.TotalRequests()
-		outbound := rc.TotalOutboundRequests()
-		queued := total - outbound
-
-		log.Infof("Outbound Requests: %d, Queued Requests: %d, Total Requests: %d", outbound, queued, total)
-	}
 }
 
 // LogQueryRequest logs the query that was send to prom/thanos with the time in queue and total time after being sent
