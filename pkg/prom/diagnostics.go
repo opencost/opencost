@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
 	prometheus "github.com/prometheus/client_golang/api"
 )
@@ -19,9 +20,10 @@ type QueuedPromRequest struct {
 // PrometheusQueueState contains diagnostic information concerning the state of the prometheus request
 // queue
 type PrometheusQueueState struct {
-	QueuedRequests   []*QueuedPromRequest `json:"queuedRequests"`
-	OutboundRequests int                  `json:"outboundRequests"`
-	TotalRequests    int                  `json:"totalRequests"`
+	QueuedRequests      []*QueuedPromRequest `json:"queuedRequests"`
+	OutboundRequests    int                  `json:"outboundRequests"`
+	TotalRequests       int                  `json:"totalRequests"`
+	MaxQueryConcurrency int                  `json:"maxQueryConcurrency"`
 }
 
 // GetPrometheusQueueState is a diagnostic function that probes the prometheus request queue and gathers
@@ -46,9 +48,10 @@ func GetPrometheusQueueState(client prometheus.Client) (*PrometheusQueueState, e
 	})
 
 	return &PrometheusQueueState{
-		QueuedRequests:   requests,
-		OutboundRequests: outbound,
-		TotalRequests:    outbound + len(requests),
+		QueuedRequests:      requests,
+		OutboundRequests:    outbound,
+		TotalRequests:       outbound + len(requests),
+		MaxQueryConcurrency: env.GetMaxQueryConcurrency(),
 	}, nil
 }
 
