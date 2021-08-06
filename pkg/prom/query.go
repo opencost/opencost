@@ -166,7 +166,8 @@ func runQuery(query string, ctx *Context, resCh QueryResultsChan, profileLabel s
 	resCh <- results
 }
 
-func (ctx *Context) query(query string) (interface{}, prometheus.Warnings, error) {
+// RawQuery is a direct query to the prometheus client and returns the body of the response
+func (ctx *Context) RawQuery(query string) ([]byte, error) {
 	u := ctx.Client.URL(epQuery, nil)
 	q := u.Query()
 	q.Set("query", query)
@@ -174,7 +175,7 @@ func (ctx *Context) query(query string) (interface{}, prometheus.Warnings, error
 
 	req, err := http.NewRequest(http.MethodPost, u.String(), nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Set QueryContext name if non empty
@@ -189,22 +190,32 @@ func (ctx *Context) query(query string) (interface{}, prometheus.Warnings, error
 	resp, body, _, err := ctx.Client.Do(context.Background(), req)
 	if err != nil {
 		if resp == nil {
-			return nil, nil, fmt.Errorf("query error: '%s' fetching query '%s'", err.Error(), query)
+			return nil, fmt.Errorf("query error: '%s' fetching query '%s'", err.Error(), query)
 		}
 
-		return nil, nil, fmt.Errorf("query error %d: '%s' fetching query '%s'", resp.StatusCode, err.Error(), query)
+		return nil, fmt.Errorf("query error %d: '%s' fetching query '%s'", resp.StatusCode, err.Error(), query)
 	}
+
 	// Unsuccessful Status Code, log body and status
 	statusCode := resp.StatusCode
 	statusText := http.StatusText(statusCode)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, nil, CommErrorf("%d (%s) URL: '%s', Request Headers: '%s', Headers: '%s', Body: '%s' Query: '%s'", statusCode, statusText, req.URL, req.Header, httputil.HeaderString(resp.Header), body, query)
+		return nil, CommErrorf("%d (%s) URL: '%s', Request Headers: '%s', Headers: '%s', Body: '%s' Query: '%s'", statusCode, statusText, req.URL, req.Header, httputil.HeaderString(resp.Header), body, query)
+	}
+
+	return body, err
+}
+
+func (ctx *Context) query(query string) (interface{}, prometheus.Warnings, error) {
+	body, err := ctx.RawQuery(query)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		return nil, nil, fmt.Errorf("query error: '%s' fetching query '%s'", err.Error(), query)
+		return nil, nil, fmt.Errorf("Unmarshal Error: %s\nQuery: %s", err, query)
 	}
 
 	warnings := warningsFrom(toReturn)
@@ -276,7 +287,8 @@ func runQueryRange(query string, start, end time.Time, step time.Duration, ctx *
 	resCh <- results
 }
 
-func (ctx *Context) queryRange(query string, start, end time.Time, step time.Duration) (interface{}, prometheus.Warnings, error) {
+// RawQuery is a direct query to the prometheus client and returns the body of the response
+func (ctx *Context) RawQueryRange(query string, start, end time.Time, step time.Duration) ([]byte, error) {
 	u := ctx.Client.URL(epQueryRange, nil)
 	q := u.Query()
 	q.Set("query", query)
@@ -287,7 +299,7 @@ func (ctx *Context) queryRange(query string, start, end time.Time, step time.Dur
 
 	req, err := http.NewRequest(http.MethodPost, u.String(), nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Set QueryContext name if non empty
@@ -302,23 +314,32 @@ func (ctx *Context) queryRange(query string, start, end time.Time, step time.Dur
 	resp, body, _, err := ctx.Client.Do(context.Background(), req)
 	if err != nil {
 		if resp == nil {
-			return nil, nil, fmt.Errorf("Error: %s, Body: %s Query: %s", err.Error(), body, query)
+			return nil, fmt.Errorf("Error: %s, Body: %s Query: %s", err.Error(), body, query)
 		}
 
-		return nil, nil, fmt.Errorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", resp.StatusCode, http.StatusText(resp.StatusCode), httputil.HeaderString(resp.Header), body, err.Error(), query)
+		return nil, fmt.Errorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", resp.StatusCode, http.StatusText(resp.StatusCode), httputil.HeaderString(resp.Header), body, err.Error(), query)
 	}
 
 	// Unsuccessful Status Code, log body and status
 	statusCode := resp.StatusCode
 	statusText := http.StatusText(statusCode)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, nil, CommErrorf("%d (%s) Headers: %s, Body: %s Query: %s", statusCode, statusText, httputil.HeaderString(resp.Header), body, query)
+		return nil, CommErrorf("%d (%s) Headers: %s, Body: %s Query: %s", statusCode, statusText, httputil.HeaderString(resp.Header), body, query)
+	}
+
+	return body, err
+}
+
+func (ctx *Context) queryRange(query string, start, end time.Time, step time.Duration) (interface{}, prometheus.Warnings, error) {
+	body, err := ctx.RawQueryRange(query, start, end, step)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		return nil, nil, fmt.Errorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", statusCode, statusText, httputil.HeaderString(resp.Header), err.Error(), body, query)
+		return nil, nil, fmt.Errorf("Unmarshal Error: %s\nQuery: %s", err, query)
 	}
 
 	warnings := warningsFrom(toReturn)
