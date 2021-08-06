@@ -23,7 +23,7 @@ const (
 var alpha = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 var alphanumeric = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 
-// Any strings created at runtime, duplicate or not, is copied, even though by specification,
+// Any strings created at runtime, duplicate or not, are copied, even though by specification,
 // a go string is immutable. This utility allows us to cache runtime strings and retrieve them
 // when we expect heavy duplicates.
 var strings sync.Map
