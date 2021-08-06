@@ -17,6 +17,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/fileutil"
 	"github.com/kubecost/cost-model/pkg/util/json"
 	"github.com/kubecost/cost-model/pkg/util/timeutil"
 
@@ -196,13 +197,13 @@ func (*GCP) loadGCPAuthSecret() {
 	path := env.GetConfigPathWithDefault("/models/")
 
 	keyPath := path + "key.json"
-	keyExists, _ := util.FileExists(keyPath)
+	keyExists, _ := fileutil.FileExists(keyPath)
 	if keyExists {
 		klog.V(1).Infof("GCP Auth Key already exists, no need to load from secret")
 		return
 	}
 
-	exists, err := util.FileExists(authSecretPath)
+	exists, err := fileutil.FileExists(authSecretPath)
 	if !exists || err != nil {
 		errMessage := "Secret does not exist"
 		if err != nil {

@@ -2,7 +2,6 @@ package costmodel
 
 import (
 	"fmt"
-	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"math"
 	"net/http"
 	"regexp"
@@ -10,6 +9,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kubecost/cost-model/pkg/util/httputil"
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/kubecost/cost-model/pkg/cloud"
@@ -1789,7 +1791,6 @@ func (a *Accesses) warmAggregateCostModelCache() {
 			log.Infof("Error building cache %s: %s", window, aggErr)
 		}
 
-
 		totals, err := a.ComputeClusterCosts(promClient, a.CloudProvider, duration, offset, cacheEfficiencyData)
 		if err != nil {
 			log.Infof("Error building cluster costs cache %s", key)
@@ -2064,7 +2065,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	data, message, err = a.AggAPI.ComputeAggregateCostModel(promClient, window, field, subfields, opts)
 
 	// Find any warnings in http request context
-	warning, _ := util.GetWarning(r)
+	warning, _ := httputil.GetWarning(r)
 
 	if err != nil {
 		if emptyErr, ok := err.(*EmptyDataError); ok {

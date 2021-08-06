@@ -10,7 +10,7 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/log"
-	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/httputil"
 	"github.com/kubecost/cost-model/pkg/util/json"
 	prometheus "github.com/prometheus/client_golang/api"
 )
@@ -179,9 +179,9 @@ func (ctx *Context) query(query string) (interface{}, prometheus.Warnings, error
 
 	// Set QueryContext name if non empty
 	if ctx.name != "" {
-		req = util.SetName(req, ctx.name)
+		req = httputil.SetName(req, ctx.name)
 	}
-	req = util.SetQuery(req, query)
+	req = httputil.SetQuery(req, query)
 
 	// Note that the warnings return value from client.Do() is always nil using this
 	// version of the prometheus client library. We parse the warnings out of the response
@@ -198,7 +198,7 @@ func (ctx *Context) query(query string) (interface{}, prometheus.Warnings, error
 	statusCode := resp.StatusCode
 	statusText := http.StatusText(statusCode)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, nil, CommErrorf("%d (%s) URL: '%s', Request Headers: '%s', Headers: '%s', Body: '%s' Query: '%s'", statusCode, statusText, req.URL, req.Header, util.HeaderString(resp.Header), body, query)
+		return nil, nil, CommErrorf("%d (%s) URL: '%s', Request Headers: '%s', Headers: '%s', Body: '%s' Query: '%s'", statusCode, statusText, req.URL, req.Header, httputil.HeaderString(resp.Header), body, query)
 	}
 
 	var toReturn interface{}
@@ -292,9 +292,9 @@ func (ctx *Context) queryRange(query string, start, end time.Time, step time.Dur
 
 	// Set QueryContext name if non empty
 	if ctx.name != "" {
-		req = util.SetName(req, ctx.name)
+		req = httputil.SetName(req, ctx.name)
 	}
-	req = util.SetQuery(req, query)
+	req = httputil.SetQuery(req, query)
 
 	// Note that the warnings return value from client.Do() is always nil using this
 	// version of the prometheus client library. We parse the warnings out of the response
@@ -305,20 +305,20 @@ func (ctx *Context) queryRange(query string, start, end time.Time, step time.Dur
 			return nil, nil, fmt.Errorf("Error: %s, Body: %s Query: %s", err.Error(), body, query)
 		}
 
-		return nil, nil, fmt.Errorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", resp.StatusCode, http.StatusText(resp.StatusCode), util.HeaderString(resp.Header), body, err.Error(), query)
+		return nil, nil, fmt.Errorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", resp.StatusCode, http.StatusText(resp.StatusCode), httputil.HeaderString(resp.Header), body, err.Error(), query)
 	}
 
 	// Unsuccessful Status Code, log body and status
 	statusCode := resp.StatusCode
 	statusText := http.StatusText(statusCode)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, nil, CommErrorf("%d (%s) Headers: %s, Body: %s Query: %s", statusCode, statusText, util.HeaderString(resp.Header), body, query)
+		return nil, nil, CommErrorf("%d (%s) Headers: %s, Body: %s Query: %s", statusCode, statusText, httputil.HeaderString(resp.Header), body, query)
 	}
 
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		return nil, nil, fmt.Errorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", statusCode, statusText, util.HeaderString(resp.Header), err.Error(), body, query)
+		return nil, nil, fmt.Errorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", statusCode, statusText, httputil.HeaderString(resp.Header), err.Error(), body, query)
 	}
 
 	warnings := warningsFrom(toReturn)
