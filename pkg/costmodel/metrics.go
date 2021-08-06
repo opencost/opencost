@@ -530,6 +530,11 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 			pvs := cmme.KubeClusterCache.GetAllPersistentVolumes()
 			for _, pv := range pvs {
+				// Omit pv_hourly_cost if the volume status is failed
+				if pv.Status.Phase == v1.VolumeFailed {
+					continue
+				}
+
 				parameters, ok := storageClassMap[pv.Spec.StorageClassName]
 				if !ok {
 					klog.V(4).Infof("Unable to find parameters for storage class \"%s\". Does pv \"%s\" have a storageClassName?", pv.Spec.StorageClassName, pv.Name)
