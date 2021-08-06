@@ -1105,7 +1105,7 @@ func applyLabels(podMap map[podKey]*Pod, namespaceLabels map[namespaceKey]map[st
 			}
 			// Apply namespace labels first, then pod labels so that pod labels
 			// overwrite namespace labels.
-			nsKey := newNamespaceKey(podKey.Cluster, podKey.Namespace)
+			nsKey := podKey.namespaceKey // newNamespaceKey(podKey.Cluster, podKey.Namespace)
 			if labels, ok := namespaceLabels[nsKey]; ok {
 				for k, v := range labels {
 					allocLabels[k] = v

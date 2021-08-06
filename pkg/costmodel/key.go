@@ -64,9 +64,8 @@ func resultContainerKey(res *prom.QueryResult, clusterLabel, namespaceLabel, pod
 }
 
 type podKey struct {
-	Cluster   string
-	Namespace string
-	Pod       string
+	namespaceKey
+	Pod string
 }
 
 func (k podKey) String() string {
@@ -75,9 +74,11 @@ func (k podKey) String() string {
 
 func newPodKey(cluster, namespace, pod string) podKey {
 	return podKey{
-		Cluster:   cluster,
-		Namespace: namespace,
-		Pod:       pod,
+		namespaceKey: namespaceKey{
+			Cluster:   cluster,
+			Namespace: namespace,
+		},
+		Pod: pod,
 	}
 }
 

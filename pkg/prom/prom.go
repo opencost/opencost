@@ -9,9 +9,12 @@ import (
 	"os"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/collections"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
-	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/atomic"
+	"github.com/kubecost/cost-model/pkg/util/fileutil"
+	"github.com/kubecost/cost-model/pkg/util/httputil"
 
 	golog "log"
 
@@ -63,9 +66,9 @@ type RateLimitedPrometheusClient struct {
 	id         string
 	client     prometheus.Client
 	auth       *ClientAuth
-	queue      util.BlockingQueue
+	queue      collections.BlockingQueue
 	decorator  QueryParamsDecorator
-	outbound   *util.AtomicInt32
+	outbound   *atomic.AtomicInt32
 	fileLogger *golog.Logger
 }
 
@@ -84,12 +87,12 @@ func NewRateLimitedClient(id string, config prometheus.Config, maxConcurrency in
 		return nil, err
 	}
 
-	queue := util.NewBlockingQueue()
-	outbound := util.NewAtomicInt32(0)
+	queue := collections.NewBlockingQueue()
+	outbound := atomic.NewAtomicInt32(0)
 
 	var logger *golog.Logger
 	if queryLogFile != "" {
-		exists, err := util.FileExists(queryLogFile)
+		exists, err := fileutil.FileExists(queryLogFile)
 		if exists {
 			os.Remove(queryLogFile)
 		}
@@ -219,10 +222,10 @@ func (rlpc *RateLimitedPrometheusClient) Do(ctx context.Context, req *http.Reque
 
 	// request names are used as a debug utility to identify requests in queue
 	contextName := "<none>"
-	if n, ok := util.GetName(req); ok {
+	if n, ok := httputil.GetName(req); ok {
 		contextName = n
 	}
-	query, _ := util.GetQuery(req)
+	query, _ := httputil.GetQuery(req)
 
 	rlpc.queue.Enqueue(&workRequest{
 		ctx:         ctx,
@@ -273,7 +276,7 @@ func LogQueryRequest(l *golog.Logger, req *http.Request, queueTime time.Duration
 	if l == nil {
 		return
 	}
-	qp := util.NewQueryParams(req.URL.Query())
+	qp := httputil.NewQueryParams(req.URL.Query())
 	query := qp.Get("query", "<Unknown>")
 
 	l.Printf("[Queue: %fs, Outbound: %fs][Query: %s]\n", queueTime.Seconds(), sendTime.Seconds(), query)

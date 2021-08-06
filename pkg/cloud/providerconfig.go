@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/kubecost/cost-model/pkg/env"
-	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/fileutil"
 	"github.com/kubecost/cost-model/pkg/util/json"
 	"github.com/microcosm-cc/bluemonday"
 
@@ -218,7 +218,7 @@ func SetCustomPricingField(obj *CustomPricing, name string, value string) error 
 // but the error isn't relevant to the path. This can happen when the current
 // user doesn't have permission to access the file.
 func fileExists(filename string) (bool, error) {
-	return util.FileExists(filename) // delegate to utility method
+	return fileutil.FileExists(filename) // delegate to utility method
 }
 
 // Returns the configuration directory concatenated with a specific config file name
