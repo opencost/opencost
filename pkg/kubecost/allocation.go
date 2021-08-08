@@ -2405,3 +2405,67 @@ func (asr *AllocationSetRange) Window() Window {
 
 	return NewWindow(&start, &end)
 }
+
+// Start returns the earliest start of all Allocations in the AllocationSetRange.
+// It returns an error if there are no allocations.
+func (asr *AllocationSetRange) Start() (time.Time, error) {
+	start := time.Time{}
+	firstStartNotSet := true
+	asr.Each(func(i int, as *AllocationSet) {
+		as.Each(func(s string, a *Allocation) {
+			if firstStartNotSet {
+				start = a.Start
+				firstStartNotSet = false
+			}
+			if a.Start.Before(start) {
+				start = a.Start
+			}
+		})
+	})
+
+	if firstStartNotSet {
+		return start, fmt.Errorf("had no data to compute a start from")
+	}
+
+	return start, nil
+}
+
+// End returns the latest end of all Allocations in the AllocationSetRange.
+// It returns an error if there are no allocations.
+func (asr *AllocationSetRange) End() (time.Time, error) {
+	end := time.Time{}
+	firstEndNotSet := true
+	asr.Each(func(i int, as *AllocationSet) {
+		as.Each(func(s string, a *Allocation) {
+			if firstEndNotSet {
+				end = a.End
+				firstEndNotSet = false
+			}
+			if a.End.After(end) {
+				end = a.End
+			}
+		})
+	})
+
+	if firstEndNotSet {
+		return end, fmt.Errorf("had no data to compute an end from")
+	}
+
+	return end, nil
+}
+
+// Minutes returns the duration, in minutes, between the earliest start
+// and the latest end of all allocations in the AllocationSetRange.
+func (asr *AllocationSetRange) Minutes() float64 {
+	start, err := asr.Start()
+	if err != nil {
+		return 0
+	}
+	end, err := asr.End()
+	if err != nil {
+		return 0
+	}
+	duration := end.Sub(start)
+
+	return duration.Minutes()
+}

@@ -37,6 +37,7 @@ const (
 	// https://prometheus.io/blog/2019/01/28/subquery-support/#examples
 	queryFmtCPUUsageMax           = `max(max_over_time(kubecost_savings_container_cpu_usage_seconds[%s]%s)) by (container_name, pod_name, namespace, instance, %s)`
 	queryFmtGPUsRequested         = `avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
+	queryFmtGPUsAllocated         = `avg(avg_over_time(container_gpu_allocation{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
 	queryFmtNodeCostPerCPUHr      = `avg(avg_over_time(node_cpu_hourly_cost[%s]%s)) by (node, %s, instance_type, provider_id)`
 	queryFmtNodeCostPerRAMGiBHr   = `avg(avg_over_time(node_ram_hourly_cost[%s]%s)) by (node, %s, instance_type, provider_id)`
 	queryFmtNodeCostPerGPUHr      = `avg(avg_over_time(node_gpu_hourly_cost[%s]%s)) by (node, %s, instance_type, provider_id)`
@@ -156,6 +157,9 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	queryGPUsRequested := fmt.Sprintf(queryFmtGPUsRequested, durStr, offStr, env.GetPromClusterLabel())
 	resChGPUsRequested := ctx.Query(queryGPUsRequested)
 
+	queryGPUsAllocated := fmt.Sprintf(queryFmtGPUsAllocated, durStr, offStr, env.GetPromClusterLabel())
+	resChGPUsAllocated := ctx.Query(queryGPUsAllocated)
+
 	queryNodeCostPerCPUHr := fmt.Sprintf(queryFmtNodeCostPerCPUHr, durStr, offStr, env.GetPromClusterLabel())
 	resChNodeCostPerCPUHr := ctx.Query(queryNodeCostPerCPUHr)
 
@@ -249,6 +253,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	resRAMUsageAvg, _ := resChRAMUsageAvg.Await()
 	resRAMUsageMax, _ := resChRAMUsageMax.Await()
 	resGPUsRequested, _ := resChGPUsRequested.Await()
+	resGPUsAllocated, _ := resChGPUsAllocated.Await()
 
 	resNodeCostPerCPUHr, _ := resChNodeCostPerCPUHr.Await()
 	resNodeCostPerRAMGiBHr, _ := resChNodeCostPerRAMGiBHr.Await()
@@ -302,7 +307,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	applyRAMBytesRequested(podMap, resRAMRequests)
 	applyRAMBytesUsedAvg(podMap, resRAMUsageAvg)
 	applyRAMBytesUsedMax(podMap, resRAMUsageMax)
-	applyGPUsRequested(podMap, resGPUsRequested)
+	applyGPUsAllocated(podMap, resGPUsRequested, resGPUsAllocated)
 	applyNetworkTotals(podMap, resNetTransferBytes, resNetReceiveBytes)
 	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZoneCostPerGiB)
 	applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionCostPerGiB)
@@ -895,7 +900,10 @@ func applyRAMBytesUsedMax(podMap map[podKey]*Pod, resRAMBytesUsedMax []*prom.Que
 	}
 }
 
-func applyGPUsRequested(podMap map[podKey]*Pod, resGPUsRequested []*prom.QueryResult) {
+func applyGPUsAllocated(podMap map[podKey]*Pod, resGPUsRequested []*prom.QueryResult, resGPUsAllocated []*prom.QueryResult) {
+	if len(resGPUsAllocated) > 0 { // Use the new query, when it's become available in a window
+		resGPUsRequested = resGPUsAllocated
+	}
 	for _, res := range resGPUsRequested {
 		key, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace")
 		if err != nil {
