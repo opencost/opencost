@@ -15,6 +15,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/klog"
 )
 
 const (
@@ -67,6 +68,11 @@ const (
 	queryFmtLBCostPerHr           = `avg(avg_over_time(kubecost_load_balancer_cost[%s]%s)) by (namespace, service_name, %s)`
 	queryFmtLBActiveMins          = `count(kubecost_load_balancer_cost) by (namespace, service_name, %s)[%s:%s]%s`
 )
+
+// This is a bit of a hack to work around garbage data from cadvisor
+// The maximum CPU count on AWS is 96. Standard_M192idms_v2 on azure allows 192. GCP offers 224 in n2ds. Many improvements here are possible to get lower bounnds, but 96 seems reasonable now.
+// Ideally you cap each pod to the max CPU on its node, but that involves a bit more complexity, as it it would need to be done when allocations joins with asset data.
+const MAX_CPU_CAP = 96
 
 // CanCompute should return true if CostModel can act as a valid source for the
 // given time range. In the case of CostModel we want to attempt to compute as
@@ -647,6 +653,10 @@ func applyCPUCoresAllocated(podMap map[podKey]*Pod, resCPUCoresAllocated []*prom
 		}
 
 		cpuCores := res.Values[0].Value
+		if cpuCores > MAX_CPU_CAP {
+			klog.Infof("[WARNING] Very large cpu allocation, clamping to %f", res.Values[0].Value*(pod.Allocations[container].Minutes()/60.0))
+			cpuCores = 0.0
+		}
 		hours := pod.Allocations[container].Minutes() / 60.0
 		pod.Allocations[container].CPUCoreHours = cpuCores * hours
 
@@ -689,6 +699,10 @@ func applyCPUCoresRequested(podMap map[podKey]*Pod, resCPUCoresRequested []*prom
 		if pod.Allocations[container].CPUCores() < res.Values[0].Value {
 			pod.Allocations[container].CPUCoreHours = res.Values[0].Value * (pod.Allocations[container].Minutes() / 60.0)
 		}
+		if pod.Allocations[container].CPUCores() > MAX_CPU_CAP {
+			klog.Infof("[WARNING] Very large cpu allocation, clamping! to %f", res.Values[0].Value*(pod.Allocations[container].Minutes()/60.0))
+			pod.Allocations[container].CPUCoreHours = res.Values[0].Value * (pod.Allocations[container].Minutes() / 60.0)
+		}
 
 		node, err := res.GetString("node")
 		if err != nil {
@@ -725,6 +739,10 @@ func applyCPUCoresUsedAvg(podMap map[podKey]*Pod, resCPUCoresUsedAvg []*prom.Que
 		}
 
 		pod.Allocations[container].CPUCoreUsageAverage = res.Values[0].Value
+		if res.Values[0].Value > MAX_CPU_CAP {
+			klog.Infof("[WARNING] Very large cpu USAGE, dropping outlier")
+			pod.Allocations[container].CPUCoreUsageAverage = 0.0
+		}
 	}
 }
 
