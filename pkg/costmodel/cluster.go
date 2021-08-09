@@ -115,99 +115,6 @@ type Disk struct {
 	Breakdown  *ClusterCostsBreakdown
 }
 
-func pvCosts(diskMap map[string]*Disk, resActiveMins, resPVSize, resPVCost []*prom.QueryResult) {
-	for _, result := range resActiveMins {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		name, err := result.GetString("persistentvolume")
-		if err != nil {
-			log.Warningf("ClusterDisks: active mins missing pv name")
-			continue
-		}
-
-		if len(result.Values) == 0 {
-			continue
-		}
-
-		key := fmt.Sprintf("%s/%s", cluster, name)
-		if _, ok := diskMap[key]; !ok {
-			diskMap[key] = &Disk{
-				Cluster:   cluster,
-				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
-			}
-		}
-		s := time.Unix(int64(result.Values[0].Timestamp), 0)
-		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).Add(resolution)
-		mins := e.Sub(s).Minutes()
-
-		// TODO niko/assets if mins >= threshold, interpolate for missing data?
-
-		diskMap[key].End = e
-		diskMap[key].Start = s
-		diskMap[key].Minutes = mins
-	}
-
-	for _, result := range resPVSize {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		name, err := result.GetString("persistentvolume")
-		if err != nil {
-			log.Warningf("ClusterDisks: PV size data missing persistentvolume")
-			continue
-		}
-
-		// TODO niko/assets storage class
-
-		bytes := result.Values[0].Value
-		key := fmt.Sprintf("%s/%s", cluster, name)
-		if _, ok := diskMap[key]; !ok {
-			diskMap[key] = &Disk{
-				Cluster:   cluster,
-				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
-			}
-		}
-		diskMap[key].Bytes = bytes
-	}
-
-	for _, result := range resPVCost {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		name, err := result.GetString("persistentvolume")
-		if err != nil {
-			log.Warningf("ClusterDisks: PV cost data missing persistentvolume")
-			continue
-		}
-
-		// TODO niko/assets storage class
-
-		cost := result.Values[0].Value
-		key := fmt.Sprintf("%s/%s", cluster, name)
-		if _, ok := diskMap[key]; !ok {
-			diskMap[key] = &Disk{
-				Cluster:   cluster,
-				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
-			}
-		}
-		diskMap[key].Cost = cost * (diskMap[key].Bytes / 1024 / 1024 / 1024) * (diskMap[key].Minutes / 60)
-		providerID, _ := result.GetString("provider_id") // just put the providerID set up here, it's the simplest query.
-		if providerID != "" {
-			diskMap[key].ProviderID = cloud.ParsePVID(providerID)
-		}
-	}
-}
-
 func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, offset time.Duration) (map[string]*Disk, error) {
 	durationStr := fmt.Sprintf("%dm", int64(duration.Minutes()))
 	offsetStr := fmt.Sprintf(" offset %dm", int64(offset.Minutes()))
@@ -1157,4 +1064,97 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 		MemCost:     ramTotal,
 		StorageCost: storageTotal,
 	}, nil
+}
+
+func pvCosts(diskMap map[string]*Disk, resActiveMins, resPVSize, resPVCost []*prom.QueryResult) {
+	for _, result := range resActiveMins {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("persistentvolume")
+		if err != nil {
+			log.Warningf("ClusterDisks: active mins missing pv name")
+			continue
+		}
+
+		if len(result.Values) == 0 {
+			continue
+		}
+
+		key := fmt.Sprintf("%s/%s", cluster, name)
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+			}
+		}
+		s := time.Unix(int64(result.Values[0].Timestamp), 0)
+		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).Add(resolution)
+		mins := e.Sub(s).Minutes()
+
+		// TODO niko/assets if mins >= threshold, interpolate for missing data?
+
+		diskMap[key].End = e
+		diskMap[key].Start = s
+		diskMap[key].Minutes = mins
+	}
+
+	for _, result := range resPVSize {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("persistentvolume")
+		if err != nil {
+			log.Warningf("ClusterDisks: PV size data missing persistentvolume")
+			continue
+		}
+
+		// TODO niko/assets storage class
+
+		bytes := result.Values[0].Value
+		key := fmt.Sprintf("%s/%s", cluster, name)
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+			}
+		}
+		diskMap[key].Bytes = bytes
+	}
+
+	for _, result := range resPVCost {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("persistentvolume")
+		if err != nil {
+			log.Warningf("ClusterDisks: PV cost data missing persistentvolume")
+			continue
+		}
+
+		// TODO niko/assets storage class
+
+		cost := result.Values[0].Value
+		key := fmt.Sprintf("%s/%s", cluster, name)
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+			}
+		}
+		diskMap[key].Cost = cost * (diskMap[key].Bytes / 1024 / 1024 / 1024) * (diskMap[key].Minutes / 60)
+		providerID, _ := result.GetString("provider_id") // just put the providerID set up here, it's the simplest query.
+		if providerID != "" {
+			diskMap[key].ProviderID = cloud.ParsePVID(providerID)
+		}
+	}
 }
