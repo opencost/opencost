@@ -943,7 +943,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 	vgpuCount, err := getAllocatableVGPUs(cm.Cache)
 	vgpuCoeff := 1.0
 	if err != nil {
-		log.Warningf("GetNodeCost: unable to get allocable vgpus from daemonset: " + err.Error())
+		klog.Infof("unable to get allocable vgpus from daemonset: " + err.Error())
 	}
 	if vgpuCount > 0.0 {
 		vgpuCoeff = vgpuCount
@@ -2225,7 +2225,7 @@ func getAllocatableVGPUs(cache clustercache.ClusterCache) (float64, error) {
 					if strings.Contains(arg, "--vgpu=") {
 						vgpus, err := strconv.ParseFloat(arg[strings.IndexByte(arg, '=')+1:], 64)
 						if err != nil {
-							return 0.0, fmt.Errorf("cannot parse vgpu allocation string %s: %v", arg, err)
+							return 10.0, fmt.Errorf("cannot parse vgpu allocation string %s: %v", arg, err)
 						}
 						vgpuCount = vgpus
 						return vgpuCount, nil
