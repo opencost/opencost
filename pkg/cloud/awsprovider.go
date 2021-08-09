@@ -48,7 +48,7 @@ const PreemptibleType = "preemptible"
 
 const APIPricingSource = "Public API"
 const SpotPricingSource = "Spot Data Feed"
-const ReservedInstancePricingSource = "Savings Plan, Reservied Instance, and Out-Of-Cluster"
+const ReservedInstancePricingSource = "Savings Plan, Reserved Instance, and Out-Of-Cluster"
 
 func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 
