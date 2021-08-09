@@ -315,9 +315,6 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 	// If there are no vgpus, the coefficient is set to 1.0
 	vgpuCount, err := getAllocatableVGPUs(cm.Cache)
 	vgpuCoeff := 10.0
-	if err != nil {
-		log.Warningf("ComputeCostData: unable to set allocable vgpus from daemonset: " + err.Error())
-	}
 	if vgpuCount > 0.0 {
 		vgpuCoeff = vgpuCount
 	}
@@ -942,9 +939,6 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 	vgpuCount, err := getAllocatableVGPUs(cm.Cache)
 	vgpuCoeff := 10.0
-	if err != nil {
-		klog.Infof("unable to get allocable vgpus from daemonset: " + err.Error())
-	}
 	if vgpuCount > 0.0 {
 		vgpuCoeff = vgpuCount
 	}
@@ -2225,7 +2219,8 @@ func getAllocatableVGPUs(cache clustercache.ClusterCache) (float64, error) {
 					if strings.Contains(arg, "--vgpu=") {
 						vgpus, err := strconv.ParseFloat(arg[strings.IndexByte(arg, '=')+1:], 64)
 						if err != nil {
-							return 10.0, fmt.Errorf("cannot parse vgpu allocation string %s: %v", arg, err)
+							klog.V(1).Infof("failed to parse vgpu allocation string %s: %v", arg, err)
+							continue
 						}
 						vgpuCount = vgpus
 						return vgpuCount, nil
