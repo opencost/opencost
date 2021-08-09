@@ -167,7 +167,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 
 	diskMap := map[string]*Disk{}
 
-	pvCosts(diskMap, resActiveMins, resPVSize, resPVCost)
+	pvCosts(diskMap, resolution, resActiveMins, resPVSize, resPVCost)
 
 	for _, result := range resLocalStorageCost {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
@@ -1066,7 +1066,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 	}, nil
 }
 
-func pvCosts(diskMap map[string]*Disk, resActiveMins, resPVSize, resPVCost []*prom.QueryResult) {
+func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost []*prom.QueryResult) {
 	for _, result := range resActiveMins {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
