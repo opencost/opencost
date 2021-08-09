@@ -314,7 +314,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 	// Determine if there are vgpus configured and if so get the total allocatable number
 	// If there are no vgpus, the coefficient is set to 1.0
 	vgpuCount, err := getAllocatableVGPUs(cm.Cache)
-	vgpuCoeff := 1.0
+	vgpuCoeff := 10.0
 	if err != nil {
 		log.Warningf("ComputeCostData: unable to set allocable vgpus from daemonset: " + err.Error())
 	}
@@ -941,7 +941,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 	nodes := make(map[string]*costAnalyzerCloud.Node)
 
 	vgpuCount, err := getAllocatableVGPUs(cm.Cache)
-	vgpuCoeff := 1.0
+	vgpuCoeff := 10.0
 	if err != nil {
 		klog.Infof("unable to get allocable vgpus from daemonset: " + err.Error())
 	}
