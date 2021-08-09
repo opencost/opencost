@@ -311,6 +311,17 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 		log.Warningf("ComputeCostData: continuing despite error parsing normalization values from %s: %s", queryNormalization, err.Error())
 	}
 
+	// Determine if there are vgpus configured and if so get the total allocatable number
+	// If there are no vgpus, the coefficient is set to 1.0
+	vgpuCount, err := getAllocatableVGPUs(cm.Cache)
+	vgpuCoeff := 1.0
+	if err != nil {
+		log.Warningf("ComputeCostData: unable to set allocable vgpus from daemonset: " + err.Error())
+	}
+	if vgpuCount > 0.0 {
+		vgpuCoeff = vgpuCount
+	}
+
 	nodes, err := cm.GetNodeCost(cp)
 	if err != nil {
 		log.Warningf("GetNodeCost: no node cost model available: " + err.Error())
@@ -500,9 +511,10 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				} else if g, ok := container.Resources.Limits["nvidia.com/gpu"]; ok {
 					gpuReqCount = float64(g.Value())
 				} else if g, ok := container.Resources.Requests["k8s.amazonaws.com/vgpu"]; ok {
-					gpuReqCount = float64(g.Value())
+					// divide vgpu request/limits by total vgpus to get the portion of physical gpus requested
+					gpuReqCount = float64(g.Value()) / vgpuCoeff
 				} else if g, ok := container.Resources.Limits["k8s.amazonaws.com/vgpu"]; ok {
-					gpuReqCount = float64(g.Value())
+					gpuReqCount = float64(g.Value()) / vgpuCoeff
 				}
 				GPUReqV := []*util.Vector{
 					{
@@ -928,6 +940,15 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 	nodeList := cm.Cache.GetAllNodes()
 	nodes := make(map[string]*costAnalyzerCloud.Node)
 
+	vgpuCount, err := getAllocatableVGPUs(cm.Cache)
+	vgpuCoeff := 1.0
+	if err != nil {
+		log.Warningf("GetNodeCost: unable to get allocable vgpus from daemonset: " + err.Error())
+	}
+	if vgpuCount > 0.0 {
+		vgpuCoeff = vgpuCount
+	}
+
 	pmd := &costAnalyzerCloud.PricingMatchMetadata{
 		TotalNodes:        0,
 		PricingTypeCounts: make(map[costAnalyzerCloud.PricingType]int),
@@ -1011,8 +1032,8 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 		} else if g, ok := n.Status.Capacity["k8s.amazonaws.com/vgpu"]; ok {
 			gpuCount := g.Value()
 			if gpuCount != 0 {
-				newCnode.GPU = fmt.Sprintf("%d", q.Value())
-				gpuc = float64(gpuCount)
+				newCnode.GPU = fmt.Sprintf("%d", int(float64(q.Value())/vgpuCoeff))
+				gpuc = float64(gpuCount) / vgpuCoeff
 			}
 		} else {
 			gpuc, err = strconv.ParseFloat(newCnode.GPU, 64)
@@ -2191,6 +2212,30 @@ func getStatefulSetsOfPod(pod v1.Pod) []string {
 		}
 	}
 	return []string{}
+}
+
+func getAllocatableVGPUs(cache clustercache.ClusterCache) (float64, error) {
+	daemonsets := cache.GetAllDaemonSets()
+	vgpuCount := 0.0
+	for _, ds := range daemonsets {
+		dsContainerList := &ds.Spec.Template.Spec.Containers
+		for _, ctnr := range *dsContainerList {
+			if ctnr.Args != nil {
+				for _, arg := range ctnr.Args {
+					if strings.Contains(arg, "--vgpu=") {
+						vgpus, err := strconv.ParseFloat(arg[strings.IndexByte(arg, '=')+1:], 64)
+						if err != nil {
+							return 0.0, fmt.Errorf("cannot parse vgpu allocation string %s: %v", arg, err)
+						}
+						vgpuCount = vgpus
+						return vgpuCount, nil
+					}
+
+				}
+			}
+		}
+	}
+	return vgpuCount, nil
 }
 
 type PersistentVolumeClaimData struct {
