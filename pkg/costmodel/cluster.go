@@ -228,36 +228,6 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 		diskMap[key].Bytes = bytes
 	}
 
-	for _, result := range resPVCost {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		name, err := result.GetString("persistentvolume")
-		if err != nil {
-			log.Warningf("ClusterDisks: PV cost data missing persistentvolume")
-			continue
-		}
-
-		// TODO niko/assets storage class
-
-		cost := result.Values[0].Value
-		key := fmt.Sprintf("%s/%s", cluster, name)
-		if _, ok := diskMap[key]; !ok {
-			diskMap[key] = &Disk{
-				Cluster:   cluster,
-				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
-			}
-		}
-		diskMap[key].Cost = cost * (diskMap[key].Bytes / 1024 / 1024 / 1024) * (diskMap[key].Minutes / 60)
-		providerID, _ := result.GetString("provider_id") // just put the providerID set up here, it's the simplest query.
-		if providerID != "" {
-			diskMap[key].ProviderID = cloud.ParsePVID(providerID)
-		}
-	}
-
 	for _, result := range resLocalStorageCost {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
@@ -364,6 +334,36 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 		diskMap[key].End = e
 		diskMap[key].Start = s
 		diskMap[key].Minutes = mins
+	}
+
+	for _, result := range resPVCost {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("persistentvolume")
+		if err != nil {
+			log.Warningf("ClusterDisks: PV cost data missing persistentvolume")
+			continue
+		}
+
+		// TODO niko/assets storage class
+
+		cost := result.Values[0].Value
+		key := fmt.Sprintf("%s/%s", cluster, name)
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+			}
+		}
+		diskMap[key].Cost = cost * (diskMap[key].Bytes / 1024 / 1024 / 1024) * (diskMap[key].Minutes / 60)
+		providerID, _ := result.GetString("provider_id") // just put the providerID set up here, it's the simplest query.
+		if providerID != "" {
+			diskMap[key].ProviderID = cloud.ParsePVID(providerID)
+		}
 	}
 
 	for _, disk := range diskMap {
