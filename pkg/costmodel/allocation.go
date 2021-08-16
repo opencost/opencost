@@ -61,7 +61,6 @@ const (
 )
 
 // This is a bit of a hack to work around garbage data from cadvisor
-// The maximum CPU count on AWS is 96. Standard_M192idms_v2 on azure allows 192. GCP offers 224 in n2ds. Many improvements here are possible to get lower bounnds, but 96 seems reasonable now.
 // Ideally you cap each pod to the max CPU on its node, but that involves a bit more complexity, as it it would need to be done when allocations joins with asset data.
 const MAX_CPU_CAP = 512
 
