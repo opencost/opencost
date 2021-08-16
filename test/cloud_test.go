@@ -13,6 +13,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/costmodel"
 	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
 
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -246,6 +247,10 @@ type FakeCache struct {
 
 func (f FakeCache) GetAllNodes() []*v1.Node {
 	return f.nodes
+}
+
+func (f FakeCache) GetAllDaemonSets() []*appsv1.DaemonSet {
+	return nil
 }
 
 func NewFakeNodeCache(nodes []*v1.Node) FakeCache {
