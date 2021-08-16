@@ -104,7 +104,7 @@ func TestLabelConfig_GetExternalAllocationName(t *testing.T) {
 
 	// Change the external label for namespace and confirm it still works
 	lc.NamespaceExternalLabel = "kubens"
-	lc.ServiceExternalLabel = "prom-sanitization-test"
+	lc.ServiceExternalLabel = "prom/sanitization-test"
 	lc.PodExternalLabel = "Non__GlueFormattedLabel"
 	lc.OwnerExternalLabel = "kubeowner"
 	lc.DepartmentExternalLabel = "doesntexist,env"
@@ -127,6 +127,26 @@ func TestLabelConfig_GetExternalAllocationName(t *testing.T) {
 		actual := lc.GetExternalAllocationName(labels, tc.aggBy)
 		if actual != tc.expected {
 			t.Fatalf("GetExternalAllocationName failed; expected '%s'; got '%s'", tc.expected, actual)
+		}
+	}
+}
+
+func TestLabelConfig_Sanitize(t *testing.T) {
+	testCases := []struct {
+		label    string
+		expected string
+	}{
+		{"", ""},
+		{"simple", "simple"},
+		{"prom/sanitization-test", "prom_sanitization_test"},
+		{" prom/sanitization-test$  ", "prom_sanitization_test_"},
+	}
+
+	lc := NewLabelConfig()
+	for _, tc := range testCases {
+		actual := lc.Sanitize(tc.label)
+		if actual != tc.expected {
+			t.Fatalf("Sanitize failed; expected '%s'; got '%s'", tc.expected, actual)
 		}
 	}
 }
