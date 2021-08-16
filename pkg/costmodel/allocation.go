@@ -19,24 +19,15 @@ import (
 )
 
 const (
-	queryFmtPods              = `avg(kube_pod_container_status_running{}) by (pod, namespace, %s)[%s:%s]%s`
-	queryFmtRAMBytesAllocated = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s, provider_id)`
-	queryFmtRAMRequests       = `avg(avg_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
-	queryFmtRAMUsageAvg       = `avg(avg_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD"}[%s]%s)) by (container_name, container, pod_name, pod, namespace, instance, %s)`
-	queryFmtRAMUsageMax       = `max(max_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD"}[%s]%s)) by (container_name, container, pod_name, pod, namespace, instance, %s)`
-	queryFmtCPUCoresAllocated = `avg(avg_over_time(container_cpu_allocation{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
-	queryFmtCPURequests       = `avg(avg_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
-	queryFmtCPUUsageAvg       = `avg(rate(container_cpu_usage_seconds_total{container!="", container_name!="POD", container!="POD"}[%s]%s)) by (container_name, container, pod_name, pod, namespace, instance, %s)`
-
-	// This query could be written without the recording rule
-	// "kubecost_savings_container_cpu_usage_seconds", but we should
-	// only do that when we're ready to incur the performance tradeoffs
-	// with subqueries which would probably be in the world of hourly
-	// ETL.
-	//
-	// See PromQL subquery documentation for a rate example:
-	// https://prometheus.io/blog/2019/01/28/subquery-support/#examples
-	queryFmtCPUUsageMax           = `max(max_over_time(kubecost_savings_container_cpu_usage_seconds[%s]%s)) by (container_name, pod_name, namespace, instance, %s)`
+	queryFmtPods                  = `avg(kube_pod_container_status_running{}) by (pod, namespace, %s)[%s:%s]%s`
+	queryFmtRAMBytesAllocated     = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s, provider_id)`
+	queryFmtRAMRequests           = `avg(avg_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
+	queryFmtRAMUsageAvg           = `avg(avg_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD"}[%s]%s)) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+	queryFmtRAMUsageMax           = `max(max_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD"}[%s]%s)) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+	queryFmtCPUCoresAllocated     = `avg(avg_over_time(container_cpu_allocation{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
+	queryFmtCPURequests           = `avg(avg_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
+	queryFmtCPUUsageAvg           = `avg(rate(container_cpu_usage_seconds_total{container!="", container_name!="POD", container!="POD"}[%s]%s)) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+	queryFmtCPUUsageMax           = `max(rate(container_cpu_usage_seconds_total{container!="", container_name!="POD", container!="POD"}[%s]%s)) by (container_name, container, pod_name, pod, namespace, instance, %s)`
 	queryFmtGPUsRequested         = `avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
 	queryFmtGPUsAllocated         = `avg(avg_over_time(container_gpu_allocation{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
 	queryFmtNodeCostPerCPUHr      = `avg(avg_over_time(node_cpu_hourly_cost[%s]%s)) by (node, %s, instance_type, provider_id)`
@@ -759,11 +750,15 @@ func applyCPUCoresUsedMax(podMap map[podKey]*Pod, resCPUCoresUsedMax []*prom.Que
 			continue
 		}
 
-		container, err := res.GetString("container_name")
-		if err != nil {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage max query result missing 'container': %s", key)
-			continue
+		container, err := res.GetString("container")
+		if container == "" || err != nil {
+			container, err = res.GetString("container_name")
+			if err != nil {
+				log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage max query result missing 'container': %s", key)
+				continue
+			}
 		}
+		klog.Infof("FOUND CONTAINER %s", container)
 
 		if _, ok := pod.Allocations[container]; !ok {
 			pod.AppendContainer(container)
@@ -872,7 +867,7 @@ func applyRAMBytesUsedAvg(podMap map[podKey]*Pod, resRAMBytesUsedAvg []*prom.Que
 		if container == "" || err != nil {
 			container, err = res.GetString("container_name")
 			if err != nil {
-				log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage avg query result missing 'container': %s", key)
+				log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage avg query result missing 'container': %s", key)
 				continue
 			}
 		}
@@ -898,10 +893,13 @@ func applyRAMBytesUsedMax(podMap map[podKey]*Pod, resRAMBytesUsedMax []*prom.Que
 			continue
 		}
 
-		container, err := res.GetString("container_name")
-		if err != nil {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage max query result missing 'container': %s", key)
-			continue
+		container, err := res.GetString("container")
+		if container == "" || err != nil {
+			container, err = res.GetString("container_name")
+			if err != nil {
+				log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage max query result missing 'container': %s", key)
+				continue
+			}
 		}
 
 		if _, ok := pod.Allocations[container]; !ok {
