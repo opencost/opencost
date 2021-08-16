@@ -3,6 +3,7 @@ package kubecost
 import (
 	"bytes"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -601,8 +602,37 @@ func (a *Allocation) add(that *Allocation) {
 		log.Warningf("Allocation.AggregateBy: trying to add a nil receiver")
 		return
 	}
+
+	// Save the original properties so we can set a controller name in the event of
+	// equality in all fields except the controller name
+	leftProperties := a.Properties
+	rightProperties := that.Properties
+
 	// Preserve string properties that are matching between the two allocations
 	a.Properties = a.Properties.Intersection(that.Properties)
+
+	// Overwrite regular intersection logic for the controller name property in the
+	// case that all properties except controller name are the same.
+	if leftProperties != nil &&
+		rightProperties != nil &&
+		leftProperties.Controller != rightProperties.Controller &&
+		leftProperties.Controller != "" &&
+		rightProperties.Controller != "" {
+
+		lpNoController := leftProperties.Clone()
+		lpNoController.Controller = ""
+		rpNoController := rightProperties.Clone()
+		rpNoController.Controller = ""
+
+		if lpNoController.Equal(rpNoController) {
+			controllers := []string{
+				leftProperties.Controller,
+				rightProperties.Controller,
+			}
+			sort.Strings(controllers)
+			a.Properties.Controller = controllers[0]
+		}
+	}
 
 	// Expand the window to encompass both Allocations
 	a.Window = a.Window.Expand(that.Window)

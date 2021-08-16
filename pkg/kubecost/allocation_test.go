@@ -355,6 +355,30 @@ func TestAllocation_Share(t *testing.T) {
 	}
 }
 
+func TestAllocation_AddDifferentController(t *testing.T) {
+	a1 := &Allocation{
+		Properties: &AllocationProperties{
+			Container:  "container",
+			Pod:        "pod",
+			Namespace:  "ns",
+			Cluster:    "cluster",
+			Controller: "controller 1",
+		},
+	}
+	a2 := a1.Clone()
+	a2.Properties.Controller = "controller 2"
+
+	result, err := a1.Add(a2)
+	if err != nil {
+		t.Fatalf("Allocation.Add: unexpected error: %s", err)
+	}
+
+	if result.Properties.Controller == "" {
+		t.Errorf("Adding allocations whose properties only differ in controller name should not result in an empty string controller name.")
+	}
+
+}
+
 func TestAllocation_MarshalJSON(t *testing.T) {
 	start := time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2021, time.January, 2, 0, 0, 0, 0, time.UTC)
