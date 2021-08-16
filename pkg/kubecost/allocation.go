@@ -1463,7 +1463,7 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if labels == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelName := strings.TrimPrefix(agg, "label:")
+				labelName := labelConfig.Sanitize(strings.TrimPrefix(agg, "label:"))
 				if labelValue, ok := labels[labelName]; ok {
 					names = append(names, fmt.Sprintf("%s=%s", labelName, labelValue))
 				} else {
@@ -1475,7 +1475,7 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if annotations == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				annotationName := strings.TrimPrefix(agg, "annotation:")
+				annotationName := labelConfig.Sanitize(strings.TrimPrefix(agg, "annotation:"))
 				if annotationValue, ok := annotations[annotationName]; ok {
 					names = append(names, fmt.Sprintf("%s=%s", annotationName, annotationValue))
 				} else {
@@ -1487,7 +1487,7 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if labels == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelName := labelConfig.DepartmentLabel
+				labelName := labelConfig.Sanitize(labelConfig.DepartmentLabel)
 				if labelValue, ok := labels[labelName]; ok {
 					names = append(names, labelValue)
 				} else {
@@ -1499,7 +1499,7 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if labels == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelName := labelConfig.EnvironmentLabel
+				labelName := labelConfig.Sanitize(labelConfig.EnvironmentLabel)
 				if labelValue, ok := labels[labelName]; ok {
 					names = append(names, labelValue)
 				} else {
@@ -1511,7 +1511,7 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if labels == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelName := labelConfig.OwnerLabel
+				labelName := labelConfig.Sanitize(labelConfig.OwnerLabel)
 				if labelValue, ok := labels[labelName]; ok {
 					names = append(names, labelValue)
 				} else {
@@ -1523,7 +1523,7 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if labels == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelName := labelConfig.ProductLabel
+				labelName := labelConfig.Sanitize(labelConfig.ProductLabel)
 				if labelValue, ok := labels[labelName]; ok {
 					names = append(names, labelValue)
 				} else {
@@ -1535,7 +1535,7 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if labels == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelName := labelConfig.TeamLabel
+				labelName := labelConfig.Sanitize(labelConfig.TeamLabel)
 				if labelValue, ok := labels[labelName]; ok {
 					names = append(names, labelValue)
 				} else {
@@ -1551,18 +1551,6 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 	}
 
 	return strings.Join(names, "/")
-}
-
-// TODO:CLEANUP get rid of this
-// Helper function to check for slice membership. Not sure if repeated elsewhere in our codebase.
-func indexOf(v string, arr []string) int {
-	for i, s := range arr {
-		// This is caseless equivalence
-		if strings.EqualFold(v, s) {
-			return i
-		}
-	}
-	return -1
 }
 
 // Clone returns a new AllocationSet with a deep copy of the given

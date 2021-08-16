@@ -503,6 +503,37 @@ func TestAllocationSet_generateKey(t *testing.T) {
 	if key != "dept1/envt1/ownr1/prod1/team1" {
 		t.Fatalf("generateKey: expected \"dept1/envt1/ownr1/prod1/team1\"; actual \"%s\"", key)
 	}
+
+	// Ensure that labels with illegal Prometheus characters in LabelConfig
+	// still match their sanitized values.
+
+	labelConfig.DepartmentLabel = "prom/illegal-department"
+	labelConfig.EnvironmentLabel = " env "
+	labelConfig.OwnerLabel = "$owner%"
+	labelConfig.ProductLabel = "app.kubernetes.io/app"
+
+	alloc.Properties = &AllocationProperties{
+		Cluster:   "cluster1",
+		Namespace: "namespace1",
+		Labels: map[string]string{
+			"prom_illegal_department": "dept1",
+			"env":                     "envt1",
+			"_owner_":                 "ownr1",
+			"app_kubernetes_io_app":   "prod1",
+		},
+	}
+
+	props = []string{
+		AllocationDepartmentProp,
+		AllocationEnvironmentProp,
+		AllocationOwnerProp,
+		AllocationProductProp,
+	}
+
+	key = alloc.generateKey(props, labelConfig)
+	if key != "dept1/envt1/ownr1/prod1" {
+		t.Fatalf("generateKey: expected \"dept1/envt1/ownr1/prod\"; actual \"%s\"", key)
+	}
 }
 
 func TestNewAllocationSet(t *testing.T) {
