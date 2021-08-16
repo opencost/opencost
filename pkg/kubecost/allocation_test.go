@@ -510,6 +510,7 @@ func TestAllocationSet_generateKey(t *testing.T) {
 	labelConfig.DepartmentLabel = "prom/illegal-department"
 	labelConfig.EnvironmentLabel = " env "
 	labelConfig.OwnerLabel = "$owner%"
+	labelConfig.ProductLabel = "app.kubernetes.io/app"
 
 	alloc.Properties = &AllocationProperties{
 		Cluster:   "cluster1",
@@ -518,6 +519,7 @@ func TestAllocationSet_generateKey(t *testing.T) {
 			"prom_illegal_department": "dept1",
 			"env":                     "envt1",
 			"_owner_":                 "ownr1",
+			"app_kubernetes_io_app":   "prod1",
 		},
 	}
 
@@ -525,11 +527,12 @@ func TestAllocationSet_generateKey(t *testing.T) {
 		AllocationDepartmentProp,
 		AllocationEnvironmentProp,
 		AllocationOwnerProp,
+		AllocationProductProp,
 	}
 
 	key = alloc.generateKey(props, labelConfig)
-	if key != "dept1/envt1/ownr1" {
-		t.Fatalf("generateKey: expected \"dept1/envt1/ownr1\"; actual \"%s\"", key)
+	if key != "dept1/envt1/ownr1/prod1" {
+		t.Fatalf("generateKey: expected \"dept1/envt1/ownr1/prod\"; actual \"%s\"", key)
 	}
 }
 
