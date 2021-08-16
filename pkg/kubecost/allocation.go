@@ -1463,7 +1463,7 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if labels == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelName := strings.TrimPrefix(agg, "label:")
+				labelName := labelConfig.Sanitize(strings.TrimPrefix(agg, "label:"))
 				if labelValue, ok := labels[labelName]; ok {
 					names = append(names, fmt.Sprintf("%s=%s", labelName, labelValue))
 				} else {
@@ -1475,7 +1475,7 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if annotations == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				annotationName := strings.TrimPrefix(agg, "annotation:")
+				annotationName := labelConfig.Sanitize(strings.TrimPrefix(agg, "annotation:"))
 				if annotationValue, ok := annotations[annotationName]; ok {
 					names = append(names, fmt.Sprintf("%s=%s", annotationName, annotationValue))
 				} else {
