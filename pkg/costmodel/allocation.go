@@ -757,7 +757,6 @@ func applyCPUCoresUsedMax(podMap map[podKey]*Pod, resCPUCoresUsedMax []*prom.Que
 				continue
 			}
 		}
-		klog.Infof("FOUND CONTAINER %s", container)
 
 		if _, ok := pod.Allocations[container]; !ok {
 			pod.AppendContainer(container)
