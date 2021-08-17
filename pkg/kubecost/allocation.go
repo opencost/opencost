@@ -603,28 +603,28 @@ func (a *Allocation) add(that *Allocation) {
 		return
 	}
 
-	// Save the original properties so we can set a controller name in the event of
-	// equality in all fields except the controller name
-	leftProperties := a.Properties
+	// Generate keys for each allocation to allow for special logic to set the controller
+	// in the case of keys matching but controllers not matching.
+	aggByForKey := []string{"cluster", "node", "namespace", "pod", "container"}
+	leftKey := a.generateKey(aggByForKey, nil)
+	rightKey := a.generateKey(aggByForKey, nil)
+	leftProperties := a.Properties.Clone()
 	rightProperties := that.Properties
 
 	// Preserve string properties that are matching between the two allocations
 	a.Properties = a.Properties.Intersection(that.Properties)
 
 	// Overwrite regular intersection logic for the controller name property in the
-	// case that all properties except controller name are the same.
-	if leftProperties != nil &&
+	// case that the Allocation keys are the same but the controllers are not.
+	if leftKey == rightKey &&
+		leftProperties != nil &&
 		rightProperties != nil &&
-		leftProperties.Controller != rightProperties.Controller &&
-		leftProperties.Controller != "" &&
-		rightProperties.Controller != "" {
-
-		lpNoController := leftProperties.Clone()
-		lpNoController.Controller = ""
-		rpNoController := rightProperties.Clone()
-		rpNoController.Controller = ""
-
-		if lpNoController.Equal(rpNoController) {
+		leftProperties.Controller != rightProperties.Controller {
+		if leftProperties.Controller == "" {
+			a.Properties.Controller = rightProperties.Controller
+		} else if rightProperties.Controller == "" {
+			a.Properties.Controller = leftProperties.Controller
+		} else {
 			controllers := []string{
 				leftProperties.Controller,
 				rightProperties.Controller,
