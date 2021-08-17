@@ -505,12 +505,14 @@ func TestAllocationSet_generateKey(t *testing.T) {
 	}
 
 	// Ensure that labels with illegal Prometheus characters in LabelConfig
-	// still match their sanitized values.
+	// still match their sanitized values. Ensure also that multiple comma-
+	// separated values work.
 
 	labelConfig.DepartmentLabel = "prom/illegal-department"
 	labelConfig.EnvironmentLabel = " env "
 	labelConfig.OwnerLabel = "$owner%"
 	labelConfig.ProductLabel = "app.kubernetes.io/app"
+	labelConfig.TeamLabel = "team,app.kubernetes.io/team,k8s-team"
 
 	alloc.Properties = &AllocationProperties{
 		Cluster:   "cluster1",
@@ -519,7 +521,9 @@ func TestAllocationSet_generateKey(t *testing.T) {
 			"prom_illegal_department": "dept1",
 			"env":                     "envt1",
 			"_owner_":                 "ownr1",
+			"team":                    "team1",
 			"app_kubernetes_io_app":   "prod1",
+			"app_kubernetes_io_team":  "team2",
 		},
 	}
 
@@ -528,11 +532,12 @@ func TestAllocationSet_generateKey(t *testing.T) {
 		AllocationEnvironmentProp,
 		AllocationOwnerProp,
 		AllocationProductProp,
+		AllocationTeamProp,
 	}
 
 	key = alloc.generateKey(props, labelConfig)
-	if key != "dept1/envt1/ownr1/prod1" {
-		t.Fatalf("generateKey: expected \"dept1/envt1/ownr1/prod\"; actual \"%s\"", key)
+	if key != "dept1/envt1/ownr1/prod1/team1/team2/__unallocated__" {
+		t.Fatalf("generateKey: expected \"dept1/envt1/ownr1/prod1/team1/team2/__unallocated__\"; actual \"%s\"", key)
 	}
 }
 

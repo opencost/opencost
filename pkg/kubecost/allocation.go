@@ -1487,11 +1487,14 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if labels == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelName := labelConfig.Sanitize(labelConfig.DepartmentLabel)
-				if labelValue, ok := labels[labelName]; ok {
-					names = append(names, labelValue)
-				} else {
-					names = append(names, UnallocatedSuffix)
+				labelNames := strings.Split(labelConfig.DepartmentLabel, ",")
+				for _, labelName := range labelNames {
+					labelName = labelConfig.Sanitize(labelName)
+					if labelValue, ok := labels[labelName]; ok {
+						names = append(names, labelValue)
+					} else {
+						names = append(names, UnallocatedSuffix)
+					}
 				}
 			}
 		case agg == AllocationEnvironmentProp:
@@ -1499,11 +1502,14 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if labels == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelName := labelConfig.Sanitize(labelConfig.EnvironmentLabel)
-				if labelValue, ok := labels[labelName]; ok {
-					names = append(names, labelValue)
-				} else {
-					names = append(names, UnallocatedSuffix)
+				labelNames := strings.Split(labelConfig.EnvironmentLabel, ",")
+				for _, labelName := range labelNames {
+					labelName = labelConfig.Sanitize(labelName)
+					if labelValue, ok := labels[labelName]; ok {
+						names = append(names, labelValue)
+					} else {
+						names = append(names, UnallocatedSuffix)
+					}
 				}
 			}
 		case agg == AllocationOwnerProp:
@@ -1511,11 +1517,14 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if labels == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelName := labelConfig.Sanitize(labelConfig.OwnerLabel)
-				if labelValue, ok := labels[labelName]; ok {
-					names = append(names, labelValue)
-				} else {
-					names = append(names, UnallocatedSuffix)
+				labelNames := strings.Split(labelConfig.OwnerLabel, ",")
+				for _, labelName := range labelNames {
+					labelName = labelConfig.Sanitize(labelName)
+					if labelValue, ok := labels[labelName]; ok {
+						names = append(names, labelValue)
+					} else {
+						names = append(names, UnallocatedSuffix)
+					}
 				}
 			}
 		case agg == AllocationProductProp:
@@ -1523,11 +1532,14 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if labels == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelName := labelConfig.Sanitize(labelConfig.ProductLabel)
-				if labelValue, ok := labels[labelName]; ok {
-					names = append(names, labelValue)
-				} else {
-					names = append(names, UnallocatedSuffix)
+				labelNames := strings.Split(labelConfig.ProductLabel, ",")
+				for _, labelName := range labelNames {
+					labelName = labelConfig.Sanitize(labelName)
+					if labelValue, ok := labels[labelName]; ok {
+						names = append(names, labelValue)
+					} else {
+						names = append(names, UnallocatedSuffix)
+					}
 				}
 			}
 		case agg == AllocationTeamProp:
@@ -1535,11 +1547,14 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if labels == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelName := labelConfig.Sanitize(labelConfig.TeamLabel)
-				if labelValue, ok := labels[labelName]; ok {
-					names = append(names, labelValue)
-				} else {
-					names = append(names, UnallocatedSuffix)
+				labelNames := strings.Split(labelConfig.TeamLabel, ",")
+				for _, labelName := range labelNames {
+					labelName = labelConfig.Sanitize(labelName)
+					if labelValue, ok := labels[labelName]; ok {
+						names = append(names, labelValue)
+					} else {
+						names = append(names, UnallocatedSuffix)
+					}
 				}
 			}
 		default:
