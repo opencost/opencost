@@ -44,7 +44,7 @@ type CloudStatus struct {
 type CloudAssetStatus struct {
 	Coverage    Window            `json:"coverage"`
 	LastRun     time.Time         `json:"lastRun"`
-	NextRun     time.Time         `json:"NextRun"`
+	NextRun     time.Time         `json:"nextRun"`
 	Progress    float64           `json:"progress"`
 	RefreshRate string            `json:"refreshRate"`
 	Resolution  string            `json:"resolution"`
@@ -55,7 +55,7 @@ type CloudAssetStatus struct {
 type ReconciliationStatus struct {
 	Coverage    Window            `json:"coverage"`
 	LastRun     time.Time         `json:"lastRun"`
-	NextRun     time.Time         `json:"NextRun"`
+	NextRun     time.Time         `json:"nextRun"`
 	Progress    float64           `json:"progress"`
 	RefreshRate string            `json:"refreshRate"`
 	Resolution  string            `json:"resolution"`
