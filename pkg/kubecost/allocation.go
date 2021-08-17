@@ -608,7 +608,7 @@ func (a *Allocation) add(that *Allocation) {
 	aggByForKey := []string{"cluster", "node", "namespace", "pod", "container"}
 	leftKey := a.generateKey(aggByForKey, nil)
 	rightKey := a.generateKey(aggByForKey, nil)
-	leftProperties := a.Properties.Clone()
+	leftProperties := a.Properties
 	rightProperties := that.Properties
 
 	// Preserve string properties that are matching between the two allocations
