@@ -82,7 +82,7 @@ type ErrorsAndWarningStrings struct {
 }
 
 // QueryErrorCollector is used to collect prometheus query errors and warnings, and also meets the
-// Error
+// Error interface
 type QueryErrorCollector struct {
 	m        sync.RWMutex
 	errors   []*QueryError

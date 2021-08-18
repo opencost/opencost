@@ -2,8 +2,9 @@ package costmodel
 
 import (
 	"fmt"
-	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"time"
+
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
 
 	"github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/env"
@@ -136,8 +137,8 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 	costPerGBHr := 0.04 / 730.0
 
 	ctx := prom.NewContext(client)
-	queryPVCost := fmt.Sprintf(`sum_over_time((avg(kube_persistentvolume_capacity_bytes) by (%s, persistentvolume)  * on(%s, persistentvolume) group_right avg(pv_hourly_cost) by (%s, persistentvolume,provider_id))[%s:%dm]%s)/1024/1024/1024 * %f`, env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
-	queryPVSize := fmt.Sprintf(`avg_over_time(kube_persistentvolume_capacity_bytes[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
+	queryPVCost := fmt.Sprintf(`avg(avg_over_time(pv_hourly_cost[%s]%s)) by (%s, persistentvolume,provider_id)`, durationStr, offsetStr, env.GetPromClusterLabel())
+	queryPVSize := fmt.Sprintf(`avg(avg_over_time(kube_persistentvolume_capacity_bytes[%s]%s)) by (%s, persistentvolume)`, durationStr, offsetStr, env.GetPromClusterLabel())
 	queryActiveMins := fmt.Sprintf(`count(pv_hourly_cost) by (%s, persistentvolume)[%s:%dm]%s`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr)
 
 	queryLocalStorageCost := fmt.Sprintf(`sum_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance, %s)[%s:%dm]%s) / 1024 / 1024 / 1024 * %f * %f`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr, hourlyToCumulative, costPerGBHr)
@@ -166,61 +167,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 
 	diskMap := map[string]*Disk{}
 
-	for _, result := range resPVCost {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		name, err := result.GetString("persistentvolume")
-		if err != nil {
-			log.Warningf("ClusterDisks: PV cost data missing persistentvolume")
-			continue
-		}
-
-		// TODO niko/assets storage class
-
-		cost := result.Values[0].Value
-		key := fmt.Sprintf("%s/%s", cluster, name)
-		if _, ok := diskMap[key]; !ok {
-			diskMap[key] = &Disk{
-				Cluster:   cluster,
-				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
-			}
-		}
-		diskMap[key].Cost += cost
-		providerID, _ := result.GetString("provider_id") // just put the providerID set up here, it's the simplest query.
-		if providerID != "" {
-			diskMap[key].ProviderID = cloud.ParsePVID(providerID)
-		}
-	}
-
-	for _, result := range resPVSize {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		name, err := result.GetString("persistentvolume")
-		if err != nil {
-			log.Warningf("ClusterDisks: PV size data missing persistentvolume")
-			continue
-		}
-
-		// TODO niko/assets storage class
-
-		bytes := result.Values[0].Value
-		key := fmt.Sprintf("%s/%s", cluster, name)
-		if _, ok := diskMap[key]; !ok {
-			diskMap[key] = &Disk{
-				Cluster:   cluster,
-				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
-			}
-		}
-		diskMap[key].Bytes = bytes
-	}
+	pvCosts(diskMap, resolution, resActiveMins, resPVSize, resPVCost)
 
 	for _, result := range resLocalStorageCost {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
@@ -295,39 +242,6 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 			}
 		}
 		diskMap[key].Bytes = bytes
-	}
-
-	for _, result := range resActiveMins {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		name, err := result.GetString("persistentvolume")
-		if err != nil {
-			log.Warningf("ClusterDisks: active mins missing instance")
-			continue
-		}
-
-		key := fmt.Sprintf("%s/%s", cluster, name)
-		if _, ok := diskMap[key]; !ok {
-			log.DedupedWarningf(5, "ClusterDisks: active mins for unidentified disk")
-			continue
-		}
-
-		if len(result.Values) == 0 {
-			continue
-		}
-
-		s := time.Unix(int64(result.Values[0].Timestamp), 0)
-		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).Add(resolution)
-		mins := e.Sub(s).Minutes()
-
-		// TODO niko/assets if mins >= threshold, interpolate for missing data?
-
-		diskMap[key].End = e
-		diskMap[key].Start = s
-		diskMap[key].Minutes = mins
 	}
 
 	for _, result := range resLocalActiveMins {
@@ -1150,4 +1064,97 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 		MemCost:     ramTotal,
 		StorageCost: storageTotal,
 	}, nil
+}
+
+func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost []*prom.QueryResult) {
+	for _, result := range resActiveMins {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("persistentvolume")
+		if err != nil {
+			log.Warningf("ClusterDisks: active mins missing pv name")
+			continue
+		}
+
+		if len(result.Values) == 0 {
+			continue
+		}
+
+		key := fmt.Sprintf("%s/%s", cluster, name)
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+			}
+		}
+		s := time.Unix(int64(result.Values[0].Timestamp), 0)
+		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).Add(resolution)
+		mins := e.Sub(s).Minutes()
+
+		// TODO niko/assets if mins >= threshold, interpolate for missing data?
+
+		diskMap[key].End = e
+		diskMap[key].Start = s
+		diskMap[key].Minutes = mins
+	}
+
+	for _, result := range resPVSize {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("persistentvolume")
+		if err != nil {
+			log.Warningf("ClusterDisks: PV size data missing persistentvolume")
+			continue
+		}
+
+		// TODO niko/assets storage class
+
+		bytes := result.Values[0].Value
+		key := fmt.Sprintf("%s/%s", cluster, name)
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+			}
+		}
+		diskMap[key].Bytes = bytes
+	}
+
+	for _, result := range resPVCost {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("persistentvolume")
+		if err != nil {
+			log.Warningf("ClusterDisks: PV cost data missing persistentvolume")
+			continue
+		}
+
+		// TODO niko/assets storage class
+
+		cost := result.Values[0].Value
+		key := fmt.Sprintf("%s/%s", cluster, name)
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+			}
+		}
+		diskMap[key].Cost = cost * (diskMap[key].Bytes / 1024 / 1024 / 1024) * (diskMap[key].Minutes / 60)
+		providerID, _ := result.GetString("provider_id") // just put the providerID set up here, it's the simplest query.
+		if providerID != "" {
+			diskMap[key].ProviderID = cloud.ParsePVID(providerID)
+		}
+	}
 }

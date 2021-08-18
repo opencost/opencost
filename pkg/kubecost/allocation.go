@@ -3,6 +3,7 @@ package kubecost
 import (
 	"bytes"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -601,8 +602,37 @@ func (a *Allocation) add(that *Allocation) {
 		log.Warningf("Allocation.AggregateBy: trying to add a nil receiver")
 		return
 	}
+
+	// Generate keys for each allocation to allow for special logic to set the controller
+	// in the case of keys matching but controllers not matching.
+	aggByForKey := []string{"cluster", "node", "namespace", "pod", "container"}
+	leftKey := a.generateKey(aggByForKey, nil)
+	rightKey := a.generateKey(aggByForKey, nil)
+	leftProperties := a.Properties
+	rightProperties := that.Properties
+
 	// Preserve string properties that are matching between the two allocations
 	a.Properties = a.Properties.Intersection(that.Properties)
+
+	// Overwrite regular intersection logic for the controller name property in the
+	// case that the Allocation keys are the same but the controllers are not.
+	if leftKey == rightKey &&
+		leftProperties != nil &&
+		rightProperties != nil &&
+		leftProperties.Controller != rightProperties.Controller {
+		if leftProperties.Controller == "" {
+			a.Properties.Controller = rightProperties.Controller
+		} else if rightProperties.Controller == "" {
+			a.Properties.Controller = leftProperties.Controller
+		} else {
+			controllers := []string{
+				leftProperties.Controller,
+				rightProperties.Controller,
+			}
+			sort.Strings(controllers)
+			a.Properties.Controller = controllers[0]
+		}
+	}
 
 	// Expand the window to encompass both Allocations
 	a.Window = a.Window.Expand(that.Window)
@@ -1463,7 +1493,7 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if labels == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelName := strings.TrimPrefix(agg, "label:")
+				labelName := labelConfig.Sanitize(strings.TrimPrefix(agg, "label:"))
 				if labelValue, ok := labels[labelName]; ok {
 					names = append(names, fmt.Sprintf("%s=%s", labelName, labelValue))
 				} else {
@@ -1475,7 +1505,7 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if annotations == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				annotationName := strings.TrimPrefix(agg, "annotation:")
+				annotationName := labelConfig.Sanitize(strings.TrimPrefix(agg, "annotation:"))
 				if annotationValue, ok := annotations[annotationName]; ok {
 					names = append(names, fmt.Sprintf("%s=%s", annotationName, annotationValue))
 				} else {
@@ -1487,11 +1517,14 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if labels == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelName := labelConfig.DepartmentLabel
-				if labelValue, ok := labels[labelName]; ok {
-					names = append(names, labelValue)
-				} else {
-					names = append(names, UnallocatedSuffix)
+				labelNames := strings.Split(labelConfig.DepartmentLabel, ",")
+				for _, labelName := range labelNames {
+					labelName = labelConfig.Sanitize(labelName)
+					if labelValue, ok := labels[labelName]; ok {
+						names = append(names, labelValue)
+					} else {
+						names = append(names, UnallocatedSuffix)
+					}
 				}
 			}
 		case agg == AllocationEnvironmentProp:
@@ -1499,11 +1532,14 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if labels == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelName := labelConfig.EnvironmentLabel
-				if labelValue, ok := labels[labelName]; ok {
-					names = append(names, labelValue)
-				} else {
-					names = append(names, UnallocatedSuffix)
+				labelNames := strings.Split(labelConfig.EnvironmentLabel, ",")
+				for _, labelName := range labelNames {
+					labelName = labelConfig.Sanitize(labelName)
+					if labelValue, ok := labels[labelName]; ok {
+						names = append(names, labelValue)
+					} else {
+						names = append(names, UnallocatedSuffix)
+					}
 				}
 			}
 		case agg == AllocationOwnerProp:
@@ -1511,11 +1547,14 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if labels == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelName := labelConfig.OwnerLabel
-				if labelValue, ok := labels[labelName]; ok {
-					names = append(names, labelValue)
-				} else {
-					names = append(names, UnallocatedSuffix)
+				labelNames := strings.Split(labelConfig.OwnerLabel, ",")
+				for _, labelName := range labelNames {
+					labelName = labelConfig.Sanitize(labelName)
+					if labelValue, ok := labels[labelName]; ok {
+						names = append(names, labelValue)
+					} else {
+						names = append(names, UnallocatedSuffix)
+					}
 				}
 			}
 		case agg == AllocationProductProp:
@@ -1523,11 +1562,14 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if labels == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelName := labelConfig.ProductLabel
-				if labelValue, ok := labels[labelName]; ok {
-					names = append(names, labelValue)
-				} else {
-					names = append(names, UnallocatedSuffix)
+				labelNames := strings.Split(labelConfig.ProductLabel, ",")
+				for _, labelName := range labelNames {
+					labelName = labelConfig.Sanitize(labelName)
+					if labelValue, ok := labels[labelName]; ok {
+						names = append(names, labelValue)
+					} else {
+						names = append(names, UnallocatedSuffix)
+					}
 				}
 			}
 		case agg == AllocationTeamProp:
@@ -1535,11 +1577,14 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 			if labels == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelName := labelConfig.TeamLabel
-				if labelValue, ok := labels[labelName]; ok {
-					names = append(names, labelValue)
-				} else {
-					names = append(names, UnallocatedSuffix)
+				labelNames := strings.Split(labelConfig.TeamLabel, ",")
+				for _, labelName := range labelNames {
+					labelName = labelConfig.Sanitize(labelName)
+					if labelValue, ok := labels[labelName]; ok {
+						names = append(names, labelValue)
+					} else {
+						names = append(names, UnallocatedSuffix)
+					}
 				}
 			}
 		default:
@@ -1551,18 +1596,6 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 	}
 
 	return strings.Join(names, "/")
-}
-
-// TODO:CLEANUP get rid of this
-// Helper function to check for slice membership. Not sure if repeated elsewhere in our codebase.
-func indexOf(v string, arr []string) int {
-	for i, s := range arr {
-		// This is caseless equivalence
-		if strings.EqualFold(v, s) {
-			return i
-		}
-	}
-	return -1
 }
 
 // Clone returns a new AllocationSet with a deep copy of the given

@@ -169,6 +169,13 @@ func (lc *LabelConfig) Map() map[string]string {
 	return m
 }
 
+// Sanitize returns a sanitized version of the given string, which converts
+// all illegal characters to underscores. Illegal characters are those that
+// Prometheus does not support; i.e. [^a-zA-Z0-9_]
+func (lc *LabelConfig) Sanitize(label string) string {
+	return prom.SanitizeLabelName(strings.TrimSpace(label))
+}
+
 // GetExternalAllocationName derives an external allocation name from a set of
 // labels, given an aggregation property. If the aggregation property is,
 // itself, a label (e.g. label:app) then this function looks for a

@@ -923,7 +923,9 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	var alloc *Allocation
 	var err error
 
-	_, err = AssetToExternalAllocation(asset, []string{"namespace"}, nil)
+	labelConfig := NewLabelConfig()
+
+	_, err = AssetToExternalAllocation(asset, []string{"namespace"}, labelConfig)
 	if err == nil {
 		t.Fatalf("expected error due to nil asset; no error returned")
 	}
@@ -938,9 +940,14 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	//   }
 	cloud := NewCloud(ComputeCategory, "abc123", start1, start2, windows[0])
 	cloud.SetLabels(map[string]string{
-		"kubernetes_namespace": "monitoring",
-		"env":                  "prod",
-		"app":                  "cost-analyzer",
+		"kubernetes_namespace":        "monitoring",
+		"env":                         "prod",
+		"app":                         "cost-analyzer",
+		"kubernetes_label_app":        "app",
+		"kubernetes_label_department": "department",
+		"kubernetes_label_env":        "env",
+		"kubernetes_label_owner":      "owner",
+		"kubernetes_label_team":       "team",
 	})
 	cloud.Cost = 10.00
 	asset = cloud
@@ -971,7 +978,12 @@ func TestAssetToExternalAllocation(t *testing.T) {
 	//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
 	//   => Allocation{Name: "monitoring/__unallocated__", ExternalCost: 10.00, TotalCost: 10.00}, nil
 	//
-	//   4) no match
+	//	 4) label alias match(es)
+	//	 aggregateBy = ["product", "deployment", "environment", "owner", "team"]
+	//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+	//   => Allocation{Name: "app/department/env/owner/team", ExternalCost: 10.00, TotalCost: 10.00}, nil
+	//
+	//   5) no match
 	//   aggregateBy = ["cluster"]
 	//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
 	//   => nil, err
@@ -1033,13 +1045,48 @@ func TestAssetToExternalAllocation(t *testing.T) {
 		t.Fatalf("expected external allocation with TotalCost %f; got %f", 10.00, alloc.TotalCost())
 	}
 
-	// 4) no match
-	alloc, err = AssetToExternalAllocation(asset, []string{"cluster"}, nil)
+	// 4) label alias match(es)
+	alloc, err = AssetToExternalAllocation(asset, []string{"product", "department", "environment", "owner", "team"}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if alloc.Name != "app/department/env/owner/team/__external__" {
+		t.Fatalf("expected external allocation with name '%s'; got '%s'", "app/department/env/owner/team/__external__", alloc.Name)
+	}
+	if alloc.Properties.Labels[labelConfig.ProductLabel] != "app" {
+		t.Fatalf("expected external allocation with label %s equal to %s; got %s", labelConfig.ProductLabel, "app", alloc.Properties.Labels[labelConfig.ProductLabel])
+	}
+	if alloc.Properties.Labels[labelConfig.DepartmentLabel] != "department" {
+		t.Fatalf("expected external allocation with label %s equal to %s; got %s", labelConfig.DepartmentLabel, "department", alloc.Properties.Labels[labelConfig.DepartmentLabel])
+	}
+	if alloc.Properties.Labels[labelConfig.EnvironmentLabel] != "env" {
+		t.Fatalf("expected external allocation with label %s equal to %s; got %s", labelConfig.EnvironmentLabel, "env", alloc.Properties.Labels[labelConfig.EnvironmentLabel])
+	}
+	if alloc.Properties.Labels[labelConfig.OwnerLabel] != "owner" {
+		t.Fatalf("expected external allocation with label %s equal to %s; got %s", labelConfig.OwnerLabel, "owner", alloc.Properties.Labels[labelConfig.OwnerLabel])
+	}
+	if alloc.Properties.Labels[labelConfig.TeamLabel] != "team" {
+		t.Fatalf("expected external allocation with label %s equal to %s; got %s", labelConfig.TeamLabel, "team", alloc.Properties.Labels[labelConfig.TeamLabel])
+	}
+	if alloc.ExternalCost != 10.00 {
+		t.Fatalf("expected external allocation with ExternalCost %f; got %f", 10.00, alloc.ExternalCost)
+	}
+	if alloc.TotalCost() != 10.00 {
+		t.Fatalf("expected external allocation with TotalCost %f; got %f", 10.00, alloc.TotalCost())
+	}
+
+	// 5) no match
+	_, err = AssetToExternalAllocation(asset, []string{"cluster"}, nil)
 	if err == nil {
 		t.Fatalf("expected 'no match' error")
 	}
 
+	// other cases
+
 	alloc, err = AssetToExternalAllocation(asset, []string{"namespace", "label:app"}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
 	if alloc.ExternalCost != 10.00 {
 		t.Fatalf("expected external allocation with ExternalCost %f; got %f", 10.00, alloc.ExternalCost)
 	}
