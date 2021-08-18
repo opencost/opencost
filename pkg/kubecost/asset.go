@@ -155,6 +155,9 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, labelConfig *L
 	// external cost under "kubecost").
 	for _, aggBy := range aggregateBy {
 		name := labelConfig.GetExternalAllocationName(asset.Labels(), aggBy)
+
+		log.Infof("External: %s => %s", asset.Properties().Name, name)
+
 		if name == "" {
 			// No matching label has been defined in the cost-analyzer label config
 			// relating to the given aggregateBy property.
@@ -163,6 +166,11 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, labelConfig *L
 		} else {
 			names = append(names, name)
 			match = true
+
+			// Default labels to an empty map, if necessary
+			if props.Labels == nil {
+				props.Labels = map[string]string{}
+			}
 
 			// Set the corresponding property on props
 			switch aggBy {
@@ -182,12 +190,28 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, labelConfig *L
 				props.Container = name
 			case AllocationServiceProp:
 				props.Services = []string{name}
+			case AllocationDeploymentProp:
+				props.Controller = name
+				props.ControllerKind = "deployment"
+			case AllocationStatefulSetProp:
+				props.Controller = name
+				props.ControllerKind = "statefulset"
+			case AllocationDaemonSetProp:
+				props.Controller = name
+				props.ControllerKind = "daemonset"
+			case AllocationDepartmentProp:
+				props.Labels[labelConfig.DepartmentLabel] = name
+			case AllocationEnvironmentProp:
+				props.Labels[labelConfig.EnvironmentLabel] = name
+			case AllocationOwnerProp:
+				props.Labels[labelConfig.OwnerLabel] = name
+			case AllocationProductProp:
+				props.Labels[labelConfig.ProductLabel] = name
+			case AllocationTeamProp:
+				props.Labels[labelConfig.TeamLabel] = name
 			default:
 				if strings.HasPrefix(aggBy, "label:") {
 					// Set the corresponding label in props
-					if props.Labels == nil {
-						props.Labels = map[string]string{}
-					}
 					labelName := strings.TrimPrefix(aggBy, "label:")
 					labelValue := strings.TrimPrefix(name, labelName+"=")
 					props.Labels[labelName] = labelValue
