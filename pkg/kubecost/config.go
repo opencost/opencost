@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util/cloudutil"
 )
@@ -235,8 +234,6 @@ func (lc *LabelConfig) GetExternalAllocationName(labels map[string]string, aggre
 		}
 	}
 
-	log.Infof("External: aggregate by %s: labelNames: %v", aggregateBy, labelNames)
-
 	// No label is set for the given aggregation property.
 	if len(labelNames) == 0 {
 		return ""
@@ -264,8 +261,6 @@ func (lc *LabelConfig) GetExternalAllocationName(labels map[string]string, aggre
 			}
 		}
 	}
-
-	log.Infof("External: aggregate by %s: %s = %s", aggregateBy, labelName, labelValue)
 
 	// No match found
 	if labelName == "" {

@@ -156,8 +156,6 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, labelConfig *L
 	for _, aggBy := range aggregateBy {
 		name := labelConfig.GetExternalAllocationName(asset.Labels(), aggBy)
 
-		log.Infof("External: %s => %s", asset.Properties().Name, name)
-
 		if name == "" {
 			// No matching label has been defined in the cost-analyzer label config
 			// relating to the given aggregateBy property.
