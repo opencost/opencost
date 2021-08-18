@@ -36,28 +36,29 @@ type FileStatus struct {
 
 // CloudStatus describes CloudStore metadata
 type CloudStatus struct {
-	CloudAssets    *CloudAssetStatus     `json:"cloudAssets,omitempty`
-	Reconciliation *ReconciliationStatus `json:"reconciliation,omitempty"`
+	CloudConnectionStatus string                `json:"cloudConnectionStatus"`
+	CloudAssets           *CloudAssetStatus     `json:"cloudAssets,omitempty`
+	Reconciliation        *ReconciliationStatus `json:"reconciliation,omitempty"`
 }
 
 // CloudAssetStatus describes CloudAsset metadata of a CloudStore
 type CloudAssetStatus struct {
-	Coverage    Window            `json:"coverage"`
-	LastRun     time.Time         `json:"lastRun"`
-	NextRun     time.Time         `json:"nextRun"`
-	Progress    float64           `json:"progress"`
-	RefreshRate string            `json:"refreshRate"`
-	Resolution  string            `json:"resolution"`
-	StartTime   time.Time         `json:"startTime"`
+	Coverage    Window    `json:"coverage"`
+	LastRun     time.Time `json:"lastRun"`
+	NextRun     time.Time `json:"nextRun"`
+	Progress    float64   `json:"progress"`
+	RefreshRate string    `json:"refreshRate"`
+	Resolution  string    `json:"resolution"`
+	StartTime   time.Time `json:"startTime"`
 }
 
 // ReconciliationStatus describes Reconcilation metadata of a CloudStore
 type ReconciliationStatus struct {
-	Coverage    Window            `json:"coverage"`
-	LastRun     time.Time         `json:"lastRun"`
-	NextRun     time.Time         `json:"nextRun"`
-	Progress    float64           `json:"progress"`
-	RefreshRate string            `json:"refreshRate"`
-	Resolution  string            `json:"resolution"`
-	StartTime   time.Time         `json:"startTime"`
+	Coverage    Window    `json:"coverage"`
+	LastRun     time.Time `json:"lastRun"`
+	NextRun     time.Time `json:"nextRun"`
+	Progress    float64   `json:"progress"`
+	RefreshRate string    `json:"refreshRate"`
+	Resolution  string    `json:"resolution"`
+	StartTime   time.Time `json:"startTime"`
 }
