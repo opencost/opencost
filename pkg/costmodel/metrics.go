@@ -407,6 +407,9 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 			// TODO: Pass CloudProvider into CostModel on instantiation so this isn't so awkward
 			nodes, err := cmme.Model.GetNodeCost(cmme.CloudProvider)
+			if err != nil {
+				log.Warningf("Metric emission: error getting Node cost: %s", err)
+			}
 			for nodeName, node := range nodes {
 				// Emit costs, guarding against NaN inputs for custom pricing.
 				cpuCost, _ := strconv.ParseFloat(node.VCPUCost, 64)
@@ -463,6 +466,9 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 			// TODO: Pass CloudProvider into CostModel on instantiation so this isn't so awkward
 			loadBalancers, err := cmme.Model.GetLBCost(cmme.CloudProvider)
+			if err != nil {
+				log.Warningf("Metric emission: error getting LoadBalancer cost: %s", err)
+			}
 			for lbKey, lb := range loadBalancers {
 				// TODO: parse (if necessary) and calculate cost associated with loadBalancer based on dynamic cloud prices fetched into each lb struct on GetLBCost() call
 				keyParts := getLabelStringsFromKey(lbKey)
@@ -474,7 +480,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				}
 				cmme.LBCostRecorder.WithLabelValues(ingressIP, namespace, serviceName).Set(lb.Cost)
 
-				labelKey := getKeyFromLabelStrings(namespace, serviceName)
+				labelKey := getKeyFromLabelStrings(ingressIP, namespace, serviceName)
 				loadBalancerSeen[labelKey] = true
 			}
 
@@ -607,7 +613,11 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			for labelString, seen := range loadBalancerSeen {
 				if !seen {
 					labels := getLabelStringsFromKey(labelString)
-					cmme.LBCostRecorder.DeleteLabelValues(labels...)
+					ok := cmme.LBCostRecorder.DeleteLabelValues(labels...)
+					if !ok {
+						log.Warningf("Metric emission: failed to delete LoadBalancer with labels: %v", labels)
+					}
+					delete(loadBalancerSeen, labelString)
 				} else {
 					loadBalancerSeen[labelString] = false
 				}
