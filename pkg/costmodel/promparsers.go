@@ -3,8 +3,10 @@ package costmodel
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
@@ -31,6 +33,34 @@ func GetPrometheusConfig(pcfg string) (PromCfg, error) {
 
 func GetKubecostJobName() string {
 	return DEFAULT_KUBECOST_JOB_NAME // TODO: look this up from a prometheus variable?
+}
+
+func GetPVInfoLocal(cache clustercache.ClusterCache, defaultClusterID string) (map[string]*PersistentVolumeClaimData, error) {
+	toReturn := make(map[string]*PersistentVolumeClaimData)
+
+	pvcs := cache.GetAllPersistentVolumeClaims()
+	for _, pvc := range pvcs {
+		var vals []*util.Vector
+		vals = append(vals, &util.Vector{
+			Timestamp: float64(time.Now().Unix()),
+			Value:     float64(pvc.Spec.Resources.Requests.Storage().Value()),
+		})
+		ns := pvc.Namespace
+		pvcName := pvc.Name
+		volumeName := pvc.Spec.VolumeName
+		pvClass := *pvc.Spec.StorageClassName
+		clusterID := defaultClusterID
+		key := fmt.Sprintf("%s,%s,%s", ns, pvcName, clusterID)
+		toReturn[key] = &PersistentVolumeClaimData{
+			Class:      pvClass,
+			Claim:      pvcName,
+			Namespace:  ns,
+			ClusterID:  clusterID,
+			VolumeName: volumeName,
+			Values:     vals,
+		}
+	}
+	return toReturn, nil
 }
 
 // TODO niko/prom move parsing functions from costmodel.go

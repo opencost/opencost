@@ -233,7 +233,6 @@ const (
 func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, window, offset, window, offset, env.GetPromClusterLabel())
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, window, offset, env.GetPromClusterLabel())
-	queryPVRequests := fmt.Sprintf(queryPVRequestsStr, env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel())
 	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, window, "", env.GetPromClusterLabel())
 	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, window, "", env.GetPromClusterLabel())
 	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, window, "", env.GetPromClusterLabel())
@@ -246,7 +245,6 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 	ctx := prom.NewContext(cli)
 	resChRAMUsage := ctx.Query(queryRAMUsage)
 	resChCPUUsage := ctx.Query(queryCPUUsage)
-	resChPVRequests := ctx.Query(queryPVRequests)
 	resChNetZoneRequests := ctx.Query(queryNetZoneRequests)
 	resChNetRegionRequests := ctx.Query(queryNetRegionRequests)
 	resChNetInternetRequests := ctx.Query(queryNetInternetRequests)
@@ -278,7 +276,6 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 	// Process Prometheus query results. Handle errors using ctx.Errors.
 	resRAMUsage, _ := resChRAMUsage.Await()
 	resCPUUsage, _ := resChCPUUsage.Await()
-	resPVRequests, _ := resChPVRequests.Await()
 	resNetZoneRequests, _ := resChNetZoneRequests.Await()
 	resNetRegionRequests, _ := resChNetRegionRequests.Await()
 	resNetInternetRequests, _ := resChNetInternetRequests.Await()
@@ -327,7 +324,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 
 	// Unmounted PVs represent the PVs that are not mounted or tied to a volume on a container
 	unmountedPVs := make(map[string][]*PersistentVolumeClaimData)
-	pvClaimMapping, err := GetPVInfo(resPVRequests, clusterID)
+	pvClaimMapping, err := GetPVInfoLocal(cm.Cache, clusterID)
 	if err != nil {
 		log.Warningf("GetPVInfo: unable to get PV data: %s", err.Error())
 	}
