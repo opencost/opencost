@@ -54,7 +54,7 @@ type GCP struct {
 	DownloadPricingDataLock sync.RWMutex
 	ReservedInstances       []*GCPReservedInstance
 	Config                  *ProviderConfig
-	serviceKeyProvided      bool
+	ServiceKeyProvided      bool
 	ValidPricingKeys        map[string]bool
 	clusterManagementPrice  float64
 	clusterProvisioner      string
@@ -254,7 +254,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 				if err != nil {
 					return err
 				}
-				gcp.serviceKeyProvided = true
+				gcp.ServiceKeyProvided = true
 			}
 		} else if updateType == AthenaInfoUpdateType {
 			a := AwsAthenaInfo{}
@@ -405,7 +405,7 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregators []stri
 		s = append(s, gcpOOC...)
 		qerr = err
 	}
-	if qerr != nil && gcp.serviceKeyProvided {
+	if qerr != nil && gcp.ServiceKeyProvided {
 		klog.Infof("Error querying gcp: %s", qerr)
 	}
 	return s, qerr
