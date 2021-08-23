@@ -30,6 +30,9 @@ type BlockingQueue interface {
 
 	// IsEmpty returns true if the queue is empty
 	IsEmpty() bool
+
+	// Clear empties the queue
+	Clear()
 }
 
 // blockingSliceQueue is an implementation of BlockingQueue which uses a slice for storage.
@@ -118,4 +121,16 @@ func (q *blockingSliceQueue) Length() int {
 // IsEmpty returns true if the queue is empty
 func (q *blockingSliceQueue) IsEmpty() bool {
 	return q.Length() == 0
+}
+
+// Clear empties the queue
+func (q *blockingSliceQueue) Clear() {
+	q.l.Lock()
+	defer q.l.Unlock()
+
+	// seems optimal here to create a new underlying slice/array to
+	// avoid capacity ballooning, but does feel like an implementation
+	// specific detail -- we can revisit if there are other relevant
+	// use-cases
+	q.q = []interface{}{}
 }
