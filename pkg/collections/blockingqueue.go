@@ -17,6 +17,11 @@ type BlockingQueue interface {
 	// Dequeue removes the first item from the queue and returns it.
 	Dequeue() interface{}
 
+	// TryDequeue attempts to remove the first item from the queue and return it. This
+	// method does not block, and instead, returns true if the item was available and false
+	// otherwise
+	TryDequeue() (interface{}, bool)
+
 	// Each blocks modification and allows iteration of the queue.
 	Each(f func(int, interface{}))
 
@@ -71,6 +76,25 @@ func (q *blockingSliceQueue) Dequeue() interface{} {
 	q.q[0] = nil
 	q.q = q.q[1:]
 	return e
+}
+
+// TryDequeue attempts to remove the first item from the queue and return it. This
+// method does not block, and instead, returns true if the item was available and false
+// otherwise
+func (q *blockingSliceQueue) TryDequeue() (interface{}, bool) {
+	q.l.Lock()
+	defer q.l.Unlock()
+
+	if len(q.q) == 0 {
+		return nil, false
+	}
+
+	e := q.q[0]
+
+	// nil 0 index to prevent leak
+	q.q[0] = nil
+	q.q = q.q[1:]
+	return e, true
 }
 
 // Each blocks modification and allows iteration of the queue.
