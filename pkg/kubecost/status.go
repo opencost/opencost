@@ -37,7 +37,7 @@ type FileStatus struct {
 // CloudStatus describes CloudStore metadata
 type CloudStatus struct {
 	CloudConnectionStatus string                `json:"cloudConnectionStatus"`
-	CloudAssets           *CloudAssetStatus     `json:"cloudAssets,omitempty`
+	CloudAssets           *CloudAssetStatus     `json:"cloudAssets,omitempty"`
 	Reconciliation        *ReconciliationStatus `json:"reconciliation,omitempty"`
 }
 
@@ -52,7 +52,7 @@ type CloudAssetStatus struct {
 	StartTime   time.Time `json:"startTime"`
 }
 
-// ReconciliationStatus describes Reconcilation metadata of a CloudStore
+// ReconciliationStatus describes Reconciliation metadata of a CloudStore
 type ReconciliationStatus struct {
 	Coverage    Window    `json:"coverage"`
 	LastRun     time.Time `json:"lastRun"`
