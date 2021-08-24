@@ -45,8 +45,8 @@ const (
 	queryFmtNetRegionCostPerGiB   = `avg(avg_over_time(kubecost_network_region_egress_cost{}[%s]%s)) by (%s)`
 	queryFmtNetInternetGiB        = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s]%s)) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
 	queryFmtNetInternetCostPerGiB = `avg(avg_over_time(kubecost_network_internet_egress_cost{}[%s]%s)) by (%s)`
-	queryFmtNetReceiveBytes       = `sum(increase(container_network_receive_bytes_total{pod_name!=""}[%s]%s)) by (pod_name, namespace, %s)`
-	queryFmtNetTransferBytes      = `sum(increase(container_network_transmit_bytes_total{pod_name!=""}[%s]%s)) by (pod_name, namespace, %s)`
+	queryFmtNetReceiveBytes       = `sum(increase(container_network_receive_bytes_total{pod!="", container_name!="POD", container!="POD"}[%s]%s)) by (pod_name, pod, namespace, %s)`
+	queryFmtNetTransferBytes      = `sum(increase(container_network_transmit_bytes_total{pod!="", container_name!="POD", container!="POD"}[%s]%s)) by (pod_name, pod, namespace, %s)`
 	queryFmtNamespaceLabels       = `avg_over_time(kube_namespace_labels[%s]%s)`
 	queryFmtNamespaceAnnotations  = `avg_over_time(kube_namespace_annotations[%s]%s)`
 	queryFmtPodLabels             = `avg_over_time(kube_pod_labels[%s]%s)`
