@@ -48,7 +48,10 @@ func GetPVInfoLocal(cache clustercache.ClusterCache, defaultClusterID string) (m
 		ns := pvc.Namespace
 		pvcName := pvc.Name
 		volumeName := pvc.Spec.VolumeName
-		pvClass := *pvc.Spec.StorageClassName
+		pvClass := ""
+		if pvc.Spec.StorageClassName != nil {
+			pvClass = *pvc.Spec.StorageClassName
+		}
 		clusterID := defaultClusterID
 		key := fmt.Sprintf("%s,%s,%s", ns, pvcName, clusterID)
 		toReturn[key] = &PersistentVolumeClaimData{
