@@ -122,7 +122,7 @@ func (pcm *PrometheusClusterMap) loadClusters() (map[string]*ClusterInfo, error)
 
 	// Execute Query
 	tryQuery := func() (interface{}, error) {
-		ctx := prom.NewContext(pcm.client)
+		ctx := prom.NewNamedContext(pcm.client, prom.ClusterMapContextName)
 		r, _, e := ctx.QuerySync(clusterInfoQuery(offset))
 		return r, e
 	}

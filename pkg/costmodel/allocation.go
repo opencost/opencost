@@ -124,7 +124,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	// Convert resolution duration to a query-ready string
 	resStr := timeutil.DurationString(resolution)
 
-	ctx := prom.NewContext(cm.PrometheusClient)
+	ctx := prom.NewNamedContext(cm.PrometheusClient, prom.AllocationContextName)
 
 	queryRAMBytesAllocated := fmt.Sprintf(queryFmtRAMBytesAllocated, durStr, offStr, env.GetPromClusterLabel())
 	resChRAMBytesAllocated := ctx.Query(queryRAMBytesAllocated)
@@ -445,7 +445,7 @@ func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSiz
 	// Convert resolution duration to a query-ready string
 	resStr := timeutil.DurationString(resolution)
 
-	ctx := prom.NewContext(cm.PrometheusClient)
+	ctx := prom.NewNamedContext(cm.PrometheusClient, prom.AllocationContextName)
 
 	// Query for (start, end) by (pod, namespace, cluster) over the given
 	// window, using the given resolution, and if necessary in batches no
@@ -1105,7 +1105,7 @@ func applyLabels(podMap map[podKey]*Pod, namespaceLabels map[namespaceKey]map[st
 			}
 			// Apply namespace labels first, then pod labels so that pod labels
 			// overwrite namespace labels.
-			nsKey := newNamespaceKey(podKey.Cluster, podKey.Namespace)
+			nsKey := podKey.namespaceKey // newNamespaceKey(podKey.Cluster, podKey.Namespace)
 			if labels, ok := namespaceLabels[nsKey]; ok {
 				for k, v := range labels {
 					allocLabels[k] = v

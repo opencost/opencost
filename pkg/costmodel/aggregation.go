@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/util/httputil"
 	"github.com/kubecost/cost-model/pkg/util/timeutil"
 
 	"github.com/julienschmidt/httprouter"
@@ -2066,7 +2067,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	data, message, err = a.AggAPI.ComputeAggregateCostModel(promClient, window, field, subfields, opts)
 
 	// Find any warnings in http request context
-	warning, _ := util.GetWarning(r)
+	warning, _ := httputil.GetWarning(r)
 
 	if err != nil {
 		if emptyErr, ok := err.(*EmptyDataError); ok {
@@ -2114,7 +2115,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 // ParseAggregationProperties attempts to parse and return aggregation properties
 // encoded under the given key. If none exist, or if parsing fails, an error
 // is returned with empty AllocationProperties.
-func ParseAggregationProperties(qp util.QueryParams, key string) ([]string, error) {
+func ParseAggregationProperties(qp httputil.QueryParams, key string) ([]string, error) {
 	aggregateBy := []string{}
 	for _, agg := range qp.GetList(key, ",") {
 		aggregate := strings.TrimSpace(agg)
@@ -2135,7 +2136,7 @@ func ParseAggregationProperties(qp util.QueryParams, key string) ([]string, erro
 func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 
-	qp := util.NewQueryParams(r.URL.Query())
+	qp := httputil.NewQueryParams(r.URL.Query())
 
 	// Window is a required field describing the window of time over which to
 	// compute allocation data.

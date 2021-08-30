@@ -242,7 +242,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 	clusterID := env.GetClusterID()
 
 	// Submit all Prometheus queries asynchronously
-	ctx := prom.NewContext(cli)
+	ctx := prom.NewNamedContext(cli, prom.ComputeCostDataContextName)
 	resChRAMUsage := ctx.Query(queryRAMUsage)
 	resChCPUUsage := ctx.Query(queryCPUUsage)
 	resChNetZoneRequests := ctx.Query(queryNetZoneRequests)
@@ -714,7 +714,7 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 	if len(missingContainers) > 0 {
 		queryHistoricalPodLabels := fmt.Sprintf(`kube_pod_labels{}[%s]`, window)
 
-		podLabelsResult, _, err := prom.NewContext(cli).QuerySync(queryHistoricalPodLabels)
+		podLabelsResult, _, err := prom.NewNamedContext(cli, prom.ComputeCostDataContextName).QuerySync(queryHistoricalPodLabels)
 		if err != nil {
 			log.Errorf("failed to parse historical pod labels: %s", err.Error())
 		}
@@ -755,7 +755,7 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 		queryHistoricalRAMCost := fmt.Sprintf(`avg(avg_over_time(node_ram_hourly_cost[%s] %s)) by (node, instance, %s)`, window, offsetStr, env.GetPromClusterLabel())
 		queryHistoricalGPUCost := fmt.Sprintf(`avg(avg_over_time(node_gpu_hourly_cost[%s] %s)) by (node, instance, %s)`, window, offsetStr, env.GetPromClusterLabel())
 
-		ctx := prom.NewContext(cli)
+		ctx := prom.NewNamedContext(cli, prom.ComputeCostDataContextName)
 		cpuCostResCh := ctx.Query(queryHistoricalCPUCost)
 		ramCostResCh := ctx.Query(queryHistoricalRAMCost)
 		gpuCostResCh := ctx.Query(queryHistoricalGPUCost)
@@ -1583,7 +1583,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 
 	scrapeIntervalSeconds := cm.ScrapeInterval.Seconds()
 
-	ctx := prom.NewContext(cli)
+	ctx := prom.NewNamedContext(cli, prom.ComputeCostDataRangeContextName)
 
 	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, resStr, env.GetPromClusterLabel(), scrapeIntervalSeconds)
 	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, resStr, env.GetPromClusterLabel(), scrapeIntervalSeconds)
