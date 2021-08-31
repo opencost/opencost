@@ -4,13 +4,14 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"net/http"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
 
 	"k8s.io/klog"
 
@@ -400,7 +401,6 @@ func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httpr
 			return
 		}
 	}
-
 
 	useThanos, _ := strconv.ParseBool(r.URL.Query().Get("multi"))
 
@@ -896,7 +896,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 
 	watchConfigFunc := func(c interface{}) {
 		conf := c.(*v1.ConfigMap)
-		if conf.GetName() == "pricing-configs" {
+		if conf.GetName() == env.GetPricingConfigmapName() {
 			_, err := cloudProvider.UpdateConfigFromConfigMap(conf.Data)
 			if err != nil {
 				klog.Infof("ERROR UPDATING %s CONFIG: %s", "pricing-configs", err.Error())
@@ -926,6 +926,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 		if err != nil {
 			klog.Infof("No %s configmap found at installtime, using existing configs: %s", cw.ConfigmapName, err.Error())
 		} else {
+			klog.Infof("Found configmap %s, watching...", configs.Name)
 			watchConfigFunc(configs)
 		}
 	}
