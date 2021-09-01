@@ -1094,3 +1094,265 @@ func TestAssetToExternalAllocation(t *testing.T) {
 		t.Fatalf("expected external allocation with TotalCost %f; got %f", 10.00, alloc.TotalCost())
 	}
 }
+
+func TestAssetSetRange_Start(t *testing.T) {
+	tests := []struct {
+		name string
+		arg  *AssetSetRange
+
+		expectError bool
+		expected    time.Time
+	}{
+		{
+			name: "Empty ASR",
+			arg:  nil,
+
+			expectError: true,
+		},
+		{
+			name: "Single asset",
+			arg: &AssetSetRange{
+				assets: []*AssetSet{
+					&AssetSet{
+						assets: map[string]Asset{
+							"a": &Node{
+								start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Two assets",
+			arg: &AssetSetRange{
+				assets: []*AssetSet{
+					&AssetSet{
+						assets: map[string]Asset{
+							"a": &Node{
+								start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+							},
+							"b": &Node{
+								start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Two AssetSets",
+			arg: &AssetSetRange{
+				assets: []*AssetSet{
+					&AssetSet{
+						assets: map[string]Asset{
+							"a": &Node{
+								start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+					&AssetSet{
+						assets: map[string]Asset{
+							"b": &Node{
+								start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+		},
+	}
+
+	for _, test := range tests {
+		result, err := test.arg.Start()
+		if test.expectError && err != nil {
+			continue
+		}
+
+		if test.expectError && err == nil {
+			t.Errorf("%s: expected error and got none", test.name)
+		} else if result != test.expected {
+			t.Errorf("%s: expected %s but got %s", test.name, test.expected, result)
+		}
+	}
+}
+
+func TestAssetSetRange_End(t *testing.T) {
+	tests := []struct {
+		name string
+		arg  *AssetSetRange
+
+		expectError bool
+		expected    time.Time
+	}{
+		{
+			name: "Empty ASR",
+			arg:  nil,
+
+			expectError: true,
+		},
+		{
+			name: "Single asset",
+			arg: &AssetSetRange{
+				assets: []*AssetSet{
+					&AssetSet{
+						assets: map[string]Asset{
+							"a": &Node{
+								end: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Two assets",
+			arg: &AssetSetRange{
+				assets: []*AssetSet{
+					&AssetSet{
+						assets: map[string]Asset{
+							"a": &Node{
+								end: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+							},
+							"b": &Node{
+								end: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Two AssetSets",
+			arg: &AssetSetRange{
+				assets: []*AssetSet{
+					&AssetSet{
+						assets: map[string]Asset{
+							"a": &Node{
+								end: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+					&AssetSet{
+						assets: map[string]Asset{
+							"b": &Node{
+								end: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+		},
+	}
+
+	for _, test := range tests {
+		result, err := test.arg.End()
+		if test.expectError && err != nil {
+			continue
+		}
+
+		if test.expectError && err == nil {
+			t.Errorf("%s: expected error and got none", test.name)
+		} else if result != test.expected {
+			t.Errorf("%s: expected %s but got %s", test.name, test.expected, result)
+		}
+	}
+}
+
+func TestAssetSetRange_Minutes(t *testing.T) {
+	tests := []struct {
+		name string
+		arg  *AssetSetRange
+
+		expected float64
+	}{
+		{
+			name: "Empty ASR",
+			arg:  nil,
+
+			expected: 0,
+		},
+		{
+			name: "Single asset",
+			arg: &AssetSetRange{
+				assets: []*AssetSet{
+					&AssetSet{
+						assets: map[string]Asset{
+							"a": &Node{
+								start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+								end:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: 24 * 60,
+		},
+		{
+			name: "Two assets",
+			arg: &AssetSetRange{
+				assets: []*AssetSet{
+					&AssetSet{
+						assets: map[string]Asset{
+							"a": &Node{
+								start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+								end:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+							"b": &Node{
+								start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+								end:   time.Date(1970, 1, 3, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: 2 * 24 * 60,
+		},
+		{
+			name: "Two AssetSets",
+			arg: &AssetSetRange{
+				assets: []*AssetSet{
+					&AssetSet{
+						assets: map[string]Asset{
+							"a": &Node{
+								start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+								end:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+					&AssetSet{
+						assets: map[string]Asset{
+							"b": &Node{
+								start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+								end:   time.Date(1970, 1, 3, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: 2 * 24 * 60,
+		},
+	}
+
+	for _, test := range tests {
+		result := test.arg.Minutes()
+		if result != test.expected {
+			t.Errorf("%s: expected %f but got %f", test.name, test.expected, result)
+		}
+	}
+}
