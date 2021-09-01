@@ -128,13 +128,12 @@ func GetPrometheusMetrics(client prometheus.Client, offset string) ([]*Prometheu
 			Description: "Determine if prometheus has its own self-scraped metrics during the last 5 minutes.",
 		},
 		{
-			ID:          "cpuThrottling",
-			Query:       `avg(increase(container_cpu_cfs_throttled_periods_total{container="cost-model"}[10m])) by (container_name, pod_name, namespace)
+			ID: "cpuThrottling",
+			Query: `avg(increase(container_cpu_cfs_throttled_periods_total{container="cost-model"}[10m])) by (container_name, pod_name, namespace)
 		/ avg(increase(container_cpu_cfs_periods_total{container="cost-model"}[10m])) by (container_name, pod_name, namespace) > 0.2`,
 			Label:       "Kubecost is not CPU throttled",
 			Description: "Kubecost loading slowly? A kubecost component might be CPU throttled",
 		},
-
 	}
 
 	for _, pd := range result {
@@ -165,8 +164,8 @@ func (pd *PrometheusDiagnostic) executePrometheusDiagnosticQuery(ctx *Context) e
 	if err != nil {
 		return fmt.Errorf("prometheus diagnostic %s failed with error: %s", pd.ID, err)
 	}
-    if result == nil {
-    	result = []*QueryResult{}
+	if result == nil {
+		result = []*QueryResult{}
 	}
 	pd.Result = result
 	pd.Passed = len(result) == 0

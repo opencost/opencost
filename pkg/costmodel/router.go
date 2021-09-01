@@ -908,8 +908,6 @@ func (a *Accesses) GetPrometheusMetrics(w http.ResponseWriter, _ *http.Request, 
 		}
 	}
 
-
-
 	w.Write(WrapData(result, nil))
 }
 

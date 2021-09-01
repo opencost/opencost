@@ -496,6 +496,3 @@ func (wom *writeOnlyMapper) SetDuration(key string, value time.Duration) error {
 func (wom *writeOnlyMapper) SetList(key string, values []string, delimiter string) error {
 	return wom.setter.Set(key, strings.Join(values, delimiter))
 }
-
-
-
