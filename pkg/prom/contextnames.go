@@ -21,4 +21,7 @@ const (
 
 	// FrontendContextName is the name we assign queries proxied from the frontend [metadata]
 	FrontendContextName = "frontend"
+
+	// DiagnosticContextName is the name we assign queries that check the state of the prometheus connection
+	DiagnosticContextName = "diagnostic"
 )
