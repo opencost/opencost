@@ -7,7 +7,7 @@ import (
 
 func Test_DurationString(t *testing.T) {
 	testCases := map[string]struct {
-		duration time.Duration
+		duration         time.Duration
 		expectedDuration string
 	}{
 		"1a": {
@@ -15,36 +15,36 @@ func Test_DurationString(t *testing.T) {
 			expectedDuration: "",
 		},
 		"1b": {
-			duration:         24*time.Hour,
+			duration:         24 * time.Hour,
 			expectedDuration: "1d",
 		},
 		"1c": {
-			duration:         24*time.Hour+5*time.Minute,
+			duration:         24*time.Hour + 5*time.Minute,
 			expectedDuration: "1445m",
 		},
 		"1d": {
-			duration:         25*time.Hour,
+			duration:         25 * time.Hour,
 			expectedDuration: "25h",
 		},
 		"1e": {
-			duration:         25*time.Hour,
+			duration:         25 * time.Hour,
 			expectedDuration: "25h",
 		},
 		"1f": {
-			duration:         72*time.Hour,
+			duration:         72 * time.Hour,
 			expectedDuration: "3d",
 		},
 		"1g": {
-			duration:         25*time.Hour,
+			duration:         25 * time.Hour,
 			expectedDuration: "25h",
 		},
 		"1h": {
-			duration:         24*time.Hour+time.Second,
+			duration:         24*time.Hour + time.Second,
 			expectedDuration: "86401s",
 		},
 		// Expect empty strings if durations are negative
 		"1i": {
-			duration:         -25*time.Hour,
+			duration:         -25 * time.Hour,
 			expectedDuration: "",
 		},
 	}
@@ -61,7 +61,7 @@ func Test_DurationString(t *testing.T) {
 
 func Test_DurationToPromOffsetString(t *testing.T) {
 	testCases := map[string]struct {
-		duration time.Duration
+		duration         time.Duration
 		expectedDuration string
 	}{
 		"1a": {
@@ -69,36 +69,36 @@ func Test_DurationToPromOffsetString(t *testing.T) {
 			expectedDuration: "",
 		},
 		"1b": {
-			duration:         24*time.Hour,
+			duration:         24 * time.Hour,
 			expectedDuration: "offset 1d",
 		},
 		"1c": {
-			duration:         24*time.Hour+5*time.Minute,
+			duration:         24*time.Hour + 5*time.Minute,
 			expectedDuration: "offset 1445m",
 		},
 		"1d": {
-			duration:         25*time.Hour,
+			duration:         25 * time.Hour,
 			expectedDuration: "offset 25h",
 		},
 		"1e": {
-			duration:         25*time.Hour,
+			duration:         25 * time.Hour,
 			expectedDuration: "offset 25h",
 		},
 		"1f": {
-			duration:         72*time.Hour,
+			duration:         72 * time.Hour,
 			expectedDuration: "offset 3d",
 		},
 		"1g": {
-			duration:         25*time.Hour,
+			duration:         25 * time.Hour,
 			expectedDuration: "offset 25h",
 		},
 		"1h": {
-			duration:         24*time.Hour+time.Second,
+			duration:         24*time.Hour + time.Second,
 			expectedDuration: "offset 86401s",
 		},
 		// Expect empty strings if durations are negative
 		"1i": {
-			duration:         -25*time.Hour,
+			duration:         -25 * time.Hour,
 			expectedDuration: "",
 		},
 	}
@@ -115,7 +115,7 @@ func Test_DurationToPromOffsetString(t *testing.T) {
 
 func Test_FormatStoreResolution(t *testing.T) {
 	testCases := map[string]struct {
-		duration time.Duration
+		duration         time.Duration
 		expectedDuration string
 	}{
 		"1a": {
@@ -123,36 +123,36 @@ func Test_FormatStoreResolution(t *testing.T) {
 			expectedDuration: "0s",
 		},
 		"1b": {
-			duration:         24*time.Hour,
+			duration:         24 * time.Hour,
 			expectedDuration: "1d",
 		},
 		"1c": {
-			duration:         24*time.Hour+5*time.Minute,
+			duration:         24*time.Hour + 5*time.Minute,
 			expectedDuration: "1d",
 		},
 		"1d": {
-			duration:         25*time.Hour,
+			duration:         25 * time.Hour,
 			expectedDuration: "1d",
 		},
 		"1e": {
-			duration:         25*time.Hour,
+			duration:         25 * time.Hour,
 			expectedDuration: "1d",
 		},
 		"1f": {
-			duration:         72*time.Hour,
+			duration:         72 * time.Hour,
 			expectedDuration: "3d",
 		},
 		"1g": {
-			duration:         25*time.Hour,
+			duration:         25 * time.Hour,
 			expectedDuration: "1d",
 		},
 		"1h": {
-			duration:         24*time.Hour+time.Second,
+			duration:         24*time.Hour + time.Second,
 			expectedDuration: "1d",
 		},
 		// Expect empty strings if durations are negative
 		"1i": {
-			duration:         -25*time.Hour,
+			duration:         -25 * time.Hour,
 			expectedDuration: "-25h0m0s",
 		},
 	}
@@ -169,10 +169,10 @@ func Test_FormatStoreResolution(t *testing.T) {
 
 func Test_DurationOffsetStrings(t *testing.T) {
 	testCases := map[string]struct {
-		duration time.Duration
-		offset time.Duration
+		duration         time.Duration
+		offset           time.Duration
 		expectedDuration string
-		expectedOffset string
+		expectedOffset   string
 	}{
 		"1a": {
 			duration:         0,
@@ -181,51 +181,51 @@ func Test_DurationOffsetStrings(t *testing.T) {
 			expectedOffset:   "",
 		},
 		"1b": {
-			duration:         24*time.Hour,
+			duration:         24 * time.Hour,
 			offset:           0,
 			expectedDuration: "1d",
 			expectedOffset:   "",
 		},
 		"1c": {
-			duration:         24*time.Hour+5*time.Minute,
+			duration:         24*time.Hour + 5*time.Minute,
 			offset:           0,
 			expectedDuration: "1445m",
 			expectedOffset:   "",
 		},
 		"1d": {
-			duration:         25*time.Hour,
-			offset:           5*time.Minute,
+			duration:         25 * time.Hour,
+			offset:           5 * time.Minute,
 			expectedDuration: "25h",
 			expectedOffset:   "5m",
 		},
 		"1e": {
-			duration:         25*time.Hour,
-			offset:           60*time.Minute,
+			duration:         25 * time.Hour,
+			offset:           60 * time.Minute,
 			expectedDuration: "25h",
 			expectedOffset:   "1h",
 		},
 		"1f": {
-			duration:         72*time.Hour,
-			offset:           1440*time.Minute,
+			duration:         72 * time.Hour,
+			offset:           1440 * time.Minute,
 			expectedDuration: "3d",
 			expectedOffset:   "1d",
 		},
 		"1g": {
-			duration:         25*time.Hour,
-			offset:           1*time.Second,
+			duration:         25 * time.Hour,
+			offset:           1 * time.Second,
 			expectedDuration: "25h",
 			expectedOffset:   "1s",
 		},
 		"1h": {
-			duration:         24*time.Hour+time.Second,
-			offset:           1*time.Second,
+			duration:         24*time.Hour + time.Second,
+			offset:           1 * time.Second,
 			expectedDuration: "86401s",
 			expectedOffset:   "1s",
 		},
 		// Expect empty strings if durations are negative
 		"1i": {
-			duration:         -25*time.Hour,
-			offset:           -1*time.Second,
+			duration:         -25 * time.Hour,
+			offset:           -1 * time.Second,
 			expectedDuration: "",
 			expectedOffset:   "",
 		},
@@ -233,7 +233,7 @@ func Test_DurationOffsetStrings(t *testing.T) {
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
-			dur, off:= DurationOffsetStrings(test.duration, test.offset)
+			dur, off := DurationOffsetStrings(test.duration, test.offset)
 			if dur != test.expectedDuration || off != test.expectedOffset {
 				t.Fatalf("DurationOffsetStrings: exp (%s %s); act (%s, %s)", test.expectedDuration, test.expectedOffset, dur, off)
 			}
@@ -322,8 +322,6 @@ func Test_CleanDurationString(t *testing.T) {
 			input:    "oqwd3dk5hk",
 			expected: "oqwd3dk5hk",
 		},
-
-
 	}
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
@@ -368,7 +366,6 @@ func Test_FormatDurationStringDaysToHours(t *testing.T) {
 			input:    "oqwd3dk5hk",
 			expected: "oqwd3dk5hk",
 		},
-
 	}
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {

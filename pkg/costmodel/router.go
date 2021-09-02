@@ -884,6 +884,33 @@ func (a *Accesses) GetPrometheusQueueState(w http.ResponseWriter, _ *http.Reques
 	w.Write(WrapData(result, nil))
 }
 
+// GetPrometheusMetrics retrieves availability of Prometheus and Thanos metrics
+func (a *Accesses) GetPrometheusMetrics(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	promMetrics, err := prom.GetPrometheusMetrics(a.PrometheusClient, "")
+	if err != nil {
+		w.Write(WrapData(nil, err))
+		return
+	}
+
+	result := map[string][]*prom.PrometheusDiagnostic{
+		"prometheus": promMetrics,
+	}
+
+	if thanos.IsEnabled() {
+		thanosMetrics, err := prom.GetPrometheusMetrics(a.ThanosClient, thanos.QueryOffset())
+		if err != nil {
+			log.Warningf("Error getting Thanos queue state: %s", err)
+		} else {
+			result["thanos"] = thanosMetrics
+		}
+	}
+
+	w.Write(WrapData(result, nil))
+}
+
 // Creates a new ClusterManager instance using a boltdb storage. If that fails,
 // then we fall back to a memory-only storage.
 func newClusterManager() *cm.ClusterManager {
@@ -1243,6 +1270,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 
 	// diagnostics
 	a.Router.GET("/diagnostics/requestQueue", a.GetPrometheusQueueState)
+	a.Router.GET("/diagnostics/prometheusMetrics", a.GetPrometheusMetrics)
 
 	// cluster manager endpoints
 	a.Router.GET("/clusters", managerEndpoints.GetAllClusters)
