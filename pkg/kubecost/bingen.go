@@ -1,5 +1,10 @@
 package kubecost
 
+// Default Version Set (uses -version flag passed) includes shared resources
+// @bingen:generate:Window
+
+// Asset Version Set: Includes Asset pipeline specific resources
+// @bingen:set[name=Assets,version=15]
 // @bingen:generate:Any
 // @bingen:generate:Asset
 // @bingen:generate:AssetLabels
@@ -15,8 +20,10 @@ package kubecost
 // @bingen:generate:Network
 // @bingen:generate:Node
 // @bingen:generate:SharedAsset
-// @bingen:generate:Window
+// @bingen:end
 
+// Allocation Version Set: Includes Allocation pipeline specific resources
+// @bingen:set[name=Allocation,version=15]
 // @bingen:generate:Allocation
 // @bingen:generate:AllocationSet
 // @bingen:generate:AllocationSetRange
@@ -28,5 +35,6 @@ package kubecost
 // @bingen:generate:PVAllocations
 // @bingen:generate:PVKey
 // @bingen:generate:PVAllocation
+// @bingen:end
 
 //go:generate bingen -package=kubecost -version=15 -buffer=github.com/kubecost/cost-model/pkg/util
