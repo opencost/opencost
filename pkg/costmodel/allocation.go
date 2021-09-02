@@ -1580,7 +1580,7 @@ func applyPVBytes(pvMap map[pvKey]*PV, resPVBytes []*prom.QueryResult) {
 		}
 
 		if _, ok := pvMap[key]; !ok {
-			log.Warningf("CostModel.ComputeAllocation: PV bytes result for missing PV: %s", err)
+			log.DedupedWarningf(1, "CostModel.ComputeAllocation: PV bytes result for missing PV: %s", err)
 			continue
 		}
 
