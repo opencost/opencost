@@ -10,7 +10,7 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/log"
-	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/httputil"
 	"github.com/kubecost/cost-model/pkg/util/json"
 	prometheus "github.com/prometheus/client_golang/api"
 )
@@ -25,6 +25,7 @@ const (
 // parsing query responses and errors.
 type Context struct {
 	Client         prometheus.Client
+	name           string
 	errorCollector *QueryErrorCollector
 }
 
@@ -34,8 +35,16 @@ func NewContext(client prometheus.Client) *Context {
 
 	return &Context{
 		Client:         client,
+		name:           "",
 		errorCollector: &ec,
 	}
+}
+
+// NewNamedContext creates a new named Promethues querying context from the given client
+func NewNamedContext(client prometheus.Client, name string) *Context {
+	ctx := NewContext(client)
+	ctx.name = name
+	return ctx
 }
 
 // Warnings returns the warnings collected from the Context's ErrorCollector
@@ -157,7 +166,8 @@ func runQuery(query string, ctx *Context, resCh QueryResultsChan, profileLabel s
 	resCh <- results
 }
 
-func (ctx *Context) query(query string) (interface{}, prometheus.Warnings, error) {
+// RawQuery is a direct query to the prometheus client and returns the body of the response
+func (ctx *Context) RawQuery(query string) ([]byte, error) {
 	u := ctx.Client.URL(epQuery, nil)
 	q := u.Query()
 	q.Set("query", query)
@@ -165,38 +175,59 @@ func (ctx *Context) query(query string) (interface{}, prometheus.Warnings, error
 
 	req, err := http.NewRequest(http.MethodPost, u.String(), nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	resp, body, warnings, err := ctx.Client.Do(context.Background(), req)
-	for _, w := range warnings {
-		// NoStoreAPIWarning is a warning that we would consider an error. It returns partial data relating only to the
-		// store apis which were reachable. In order to ensure integrity of data across all clusters, we'll need to identify
-		// this warning and convert it to an error.
-		if IsNoStoreAPIWarning(w) {
-			return nil, warnings, NewCommError(fmt.Sprintf("Error: %s, Body: %s, Query: %s", w, body, query))
-		}
-
-		log.Warningf("fetching query '%s': %s", query, w)
+	// Set QueryContext name if non empty
+	if ctx.name != "" {
+		req = httputil.SetName(req, ctx.name)
 	}
+	req = httputil.SetQuery(req, query)
+
+	// Note that the warnings return value from client.Do() is always nil using this
+	// version of the prometheus client library. We parse the warnings out of the response
+	// body after json decodidng completes.
+	resp, body, _, err := ctx.Client.Do(context.Background(), req)
 	if err != nil {
 		if resp == nil {
-			return nil, warnings, fmt.Errorf("query error: '%s' fetching query '%s'", err.Error(), query)
+			return nil, fmt.Errorf("query error: '%s' fetching query '%s'", err.Error(), query)
 		}
 
-		return nil, warnings, fmt.Errorf("query error %d: '%s' fetching query '%s'", resp.StatusCode, err.Error(), query)
+		return nil, fmt.Errorf("query error %d: '%s' fetching query '%s'", resp.StatusCode, err.Error(), query)
 	}
+
 	// Unsuccessful Status Code, log body and status
 	statusCode := resp.StatusCode
 	statusText := http.StatusText(statusCode)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, warnings, CommErrorf("%d (%s) URL: '%s', Request Headers: '%s', Headers: '%s', Body: '%s' Query: '%s'", statusCode, statusText, req.URL, req.Header, util.HeaderString(resp.Header), body, query)
+		return nil, CommErrorf("%d (%s) URL: '%s', Request Headers: '%s', Headers: '%s', Body: '%s' Query: '%s'", statusCode, statusText, req.URL, req.Header, httputil.HeaderString(resp.Header), body, query)
+	}
+
+	return body, err
+}
+
+func (ctx *Context) query(query string) (interface{}, prometheus.Warnings, error) {
+	body, err := ctx.RawQuery(query)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		return nil, warnings, fmt.Errorf("query error: '%s' fetching query '%s'", err.Error(), query)
+		return nil, nil, fmt.Errorf("Unmarshal Error: %s\nQuery: %s", err, query)
+	}
+
+	warnings := warningsFrom(toReturn)
+	for _, w := range warnings {
+		// NoStoreAPIWarning is a warning that we would consider an error. It returns partial data relating only to the
+		// store apis which were reachable. In order to ensure integrity of data across all clusters, we'll need to identify
+		// this warning and convert it to an error.
+		if IsNoStoreAPIWarning(w) {
+			return nil, warnings, CommErrorf("Error: %s, Body: %s, Query: %s", w, body, query)
+		}
+
+		log.Warningf("fetching query '%s': %s", query, w)
 	}
 
 	return toReturn, warnings, nil
@@ -256,7 +287,8 @@ func runQueryRange(query string, start, end time.Time, step time.Duration, ctx *
 	resCh <- results
 }
 
-func (ctx *Context) queryRange(query string, start, end time.Time, step time.Duration) (interface{}, prometheus.Warnings, error) {
+// RawQuery is a direct query to the prometheus client and returns the body of the response
+func (ctx *Context) RawQueryRange(query string, start, end time.Time, step time.Duration) ([]byte, error) {
 	u := ctx.Client.URL(epQueryRange, nil)
 	q := u.Query()
 	q.Set("query", query)
@@ -267,40 +299,75 @@ func (ctx *Context) queryRange(query string, start, end time.Time, step time.Dur
 
 	req, err := http.NewRequest(http.MethodPost, u.String(), nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	resp, body, warnings, err := ctx.Client.Do(context.Background(), req)
-	for _, w := range warnings {
-		// NoStoreAPIWarning is a warning that we would consider an error. It returns partial data relating only to the
-		// store apis which were reachable. In order to ensure integrity of data across all clusters, we'll need to identify
-		// this warning and convert it to an error.
-		if IsNoStoreAPIWarning(w) {
-			return nil, warnings, NewCommError(fmt.Sprintf("Error: %s, Body: %s, Query: %s", w, body, query))
-		}
-
-		log.Warningf("fetching query '%s': %s", query, w)
+	// Set QueryContext name if non empty
+	if ctx.name != "" {
+		req = httputil.SetName(req, ctx.name)
 	}
+	req = httputil.SetQuery(req, query)
+
+	// Note that the warnings return value from client.Do() is always nil using this
+	// version of the prometheus client library. We parse the warnings out of the response
+	// body after json decodidng completes.
+	resp, body, _, err := ctx.Client.Do(context.Background(), req)
 	if err != nil {
 		if resp == nil {
-			return nil, warnings, fmt.Errorf("Error: %s, Body: %s Query: %s", err.Error(), body, query)
+			return nil, fmt.Errorf("Error: %s, Body: %s Query: %s", err.Error(), body, query)
 		}
 
-		return nil, warnings, fmt.Errorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", resp.StatusCode, http.StatusText(resp.StatusCode), util.HeaderString(resp.Header), body, err.Error(), query)
+		return nil, fmt.Errorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", resp.StatusCode, http.StatusText(resp.StatusCode), httputil.HeaderString(resp.Header), body, err.Error(), query)
 	}
 
 	// Unsuccessful Status Code, log body and status
 	statusCode := resp.StatusCode
 	statusText := http.StatusText(statusCode)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, warnings, CommErrorf("%d (%s) Headers: %s, Body: %s Query: %s", statusCode, statusText, util.HeaderString(resp.Header), body, query)
+		return nil, CommErrorf("%d (%s) Headers: %s, Body: %s Query: %s", statusCode, statusText, httputil.HeaderString(resp.Header), body, query)
+	}
+
+	return body, err
+}
+
+func (ctx *Context) queryRange(query string, start, end time.Time, step time.Duration) (interface{}, prometheus.Warnings, error) {
+	body, err := ctx.RawQueryRange(query, start, end, step)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		return nil, warnings, fmt.Errorf("%d (%s) Headers: %s Error: %s Body: %s Query: %s", statusCode, statusText, util.HeaderString(resp.Header), err.Error(), body, query)
+		return nil, nil, fmt.Errorf("Unmarshal Error: %s\nQuery: %s", err, query)
+	}
+
+	warnings := warningsFrom(toReturn)
+	for _, w := range warnings {
+		// NoStoreAPIWarning is a warning that we would consider an error. It returns partial data relating only to the
+		// store apis which were reachable. In order to ensure integrity of data across all clusters, we'll need to identify
+		// this warning and convert it to an error.
+		if IsNoStoreAPIWarning(w) {
+			return nil, warnings, CommErrorf("Error: %s, Body: %s, Query: %s", w, body, query)
+		}
+
+		log.Warningf("fetching query '%s': %s", query, w)
 	}
 
 	return toReturn, warnings, nil
+}
+
+// Extracts the warnings from the resulting json if they exist (part of the prometheus response api).
+func warningsFrom(result interface{}) prometheus.Warnings {
+	var warnings prometheus.Warnings
+
+	if resultMap, ok := result.(map[string]interface{}); ok {
+		if warningProp, ok := resultMap["warnings"]; ok {
+			if w, ok := warningProp.([]string); ok {
+				warnings = w
+			}
+		}
+	}
+
+	return warnings
 }

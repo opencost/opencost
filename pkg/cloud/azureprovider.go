@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	"github.com/kubecost/cost-model/pkg/log"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -15,10 +14,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/log"
+
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/kubecost"
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/fileutil"
 	"github.com/kubecost/cost-model/pkg/util/json"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2017-09-01/skus"
@@ -164,12 +166,12 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 	var filterParams []string
 
 	if region != "" {
-		regionParam := fmt.Sprintf("armRegionName eq '%s'",region)
+		regionParam := fmt.Sprintf("armRegionName eq '%s'", region)
 		filterParams = append(filterParams, regionParam)
 	}
 
 	if skuName != "" {
-		skuNameParam := fmt.Sprintf("armSkuName eq '%s'",skuName)
+		skuNameParam := fmt.Sprintf("armSkuName eq '%s'", skuName)
 		filterParams = append(filterParams, skuNameParam)
 	}
 
@@ -488,7 +490,7 @@ func (az *Azure) loadAzureAuthSecret(force bool) (*AzureServiceKey, error) {
 	}
 	loadedAzureSecret = true
 
-	exists, err := util.FileExists(authSecretPath)
+	exists, err := fileutil.FileExists(authSecretPath)
 	if !exists || err != nil {
 		return nil, fmt.Errorf("Failed to locate service account file: %s", authSecretPath)
 	}
@@ -517,7 +519,7 @@ func (az *Azure) loadAzureStorageConfig(force bool) (*AzureStorageConfig, error)
 	}
 	loadedAzureStorageConfigSecret = true
 
-	exists, err := util.FileExists(storageConfigSecretPath)
+	exists, err := fileutil.FileExists(storageConfigSecretPath)
 	if !exists || err != nil {
 		return nil, fmt.Errorf("Failed to locate azure storage config file: %s", storageConfigSecretPath)
 	}
@@ -860,8 +862,7 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 		return nil, fmt.Errorf("azure: NodePricing: key is of type %T", key)
 	}
 	config, _ := az.GetConfig()
-	if slv, ok := azKey.Labels[config.SpotLabel];
-	ok && slv == config.SpotLabelValue && config.SpotLabel != "" && config.SpotLabelValue != "" {
+	if slv, ok := azKey.Labels[config.SpotLabel]; ok && slv == config.SpotLabelValue && config.SpotLabel != "" && config.SpotLabelValue != "" {
 		features := strings.Split(azKey.Features(), ",")
 		region := features[0]
 		instance := features[1]
@@ -896,7 +897,6 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 			return spotNode, nil
 		}
 	}
-
 
 	if n, ok := az.Pricing[azKey.Features()]; ok {
 		klog.V(4).Infof("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
@@ -1075,12 +1075,7 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 					return err
 				}
 			} else {
-				sci := v.(map[string]interface{})
-				sc := make(map[string]string)
-				for k, val := range sci {
-					sc[k] = val.(string)
-				}
-				c.SharedCosts = sc //todo: support reflection/multiple map fields
+				return fmt.Errorf("type error while updating config for %s", kUpper)
 			}
 		}
 

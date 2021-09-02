@@ -3066,6 +3066,71 @@ func (asr *AssetSetRange) Window() Window {
 	return NewWindow(&start, &end)
 }
 
+// Start returns the earliest start of all Assets in the AssetSetRange.
+// It returns an error if there are no assets
+func (asr *AssetSetRange) Start() (time.Time, error) {
+	start := time.Time{}
+	firstStartNotSet := true
+	asr.Each(func(i int, as *AssetSet) {
+		as.Each(func(s string, a Asset) {
+			if firstStartNotSet {
+				start = a.Start()
+				firstStartNotSet = false
+			}
+			if a.Start().Before(start) {
+				start = a.Start()
+			}
+		})
+	})
+
+	if firstStartNotSet {
+		return start, fmt.Errorf("had no data to compute a start from")
+	}
+
+	return start, nil
+}
+
+// End returns the latest end of all Assets in the AssetSetRange.
+// It returns an error if there are no assets.
+func (asr *AssetSetRange) End() (time.Time, error) {
+	end := time.Time{}
+	firstEndNotSet := true
+	asr.Each(func(i int, as *AssetSet) {
+		as.Each(func(s string, a Asset) {
+			if firstEndNotSet {
+				end = a.End()
+				firstEndNotSet = false
+			}
+			if a.End().After(end) {
+				end = a.End()
+			}
+		})
+	})
+
+	if firstEndNotSet {
+		return end, fmt.Errorf("had no data to compute an end from")
+	}
+
+	return end, nil
+}
+
+// Minutes returns the duration, in minutes, between the earliest start
+// and the latest end of all assets in the AssetSetRange.
+func (asr *AssetSetRange) Minutes() float64 {
+	start, err := asr.Start()
+	if err != nil {
+		return 0
+	}
+	end, err := asr.End()
+	if err != nil {
+		return 0
+	}
+
+	duration := end.Sub(start)
+
+	return duration.Minutes()
+}
+
 // Returns true if string slices a and b contain all of the same strings, in any order.
 func sameContents(a, b []string) bool {
 	if len(a) != len(b) {

@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/fileutil"
 	"github.com/kubecost/cost-model/pkg/util/json"
 
 	"k8s.io/klog"
@@ -88,7 +88,7 @@ func NewClusterManager(storage ClusterStorage) *ClusterManager {
 func NewConfiguredClusterManager(storage ClusterStorage, config string) *ClusterManager {
 	clusterManager := NewClusterManager(storage)
 
-	exists, err := util.FileExists(config)
+	exists, err := fileutil.FileExists(config)
 	if !exists {
 		if err != nil {
 			klog.V(1).Infof("[Error] Failed to load config file: %s. Error: %s", config, err.Error())
@@ -212,7 +212,7 @@ func fileFromSecret(secretName string) string {
 
 func fromSecret(secretName string) (string, error) {
 	file := fileFromSecret(secretName)
-	exists, err := util.FileExists(file)
+	exists, err := fileutil.FileExists(file)
 	if !exists || err != nil {
 		return "", fmt.Errorf("Failed to locate secret: %s", file)
 	}

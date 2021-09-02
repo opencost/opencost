@@ -1,4 +1,4 @@
-package util
+package httputil
 
 import (
 	"context"
@@ -43,6 +43,8 @@ func NewQueryParams(values url.Values) QueryParams {
 
 const (
 	ContextWarning string = "Warning"
+	ContextName    string = "Name"
+	ContextQuery   string = "Query"
 )
 
 // GetWarning Extracts a warning message from the request context if it exists
@@ -55,6 +57,32 @@ func GetWarning(r *http.Request) (warning string, ok bool) {
 // with the new context.
 func SetWarning(r *http.Request, warning string) *http.Request {
 	ctx := context.WithValue(r.Context(), ContextWarning, warning)
+	return r.WithContext(ctx)
+}
+
+// GetName Extracts a name value from the request context if it exists
+func GetName(r *http.Request) (name string, ok bool) {
+	name, ok = r.Context().Value(ContextName).(string)
+	return
+}
+
+// SetName Sets the name value on the provided request and returns a new instance of the request
+// with the new context.
+func SetName(r *http.Request, name string) *http.Request {
+	ctx := context.WithValue(r.Context(), ContextName, name)
+	return r.WithContext(ctx)
+}
+
+// GetQuery Extracts a query value from the request context if it exists
+func GetQuery(r *http.Request) (name string, ok bool) {
+	name, ok = r.Context().Value(ContextQuery).(string)
+	return
+}
+
+// SetQuery Sets the query value on the provided request and returns a new instance of the request
+// with the new context.
+func SetQuery(r *http.Request, query string) *http.Request {
+	ctx := context.WithValue(r.Context(), ContextQuery, query)
 	return r.WithContext(ctx)
 }
 
