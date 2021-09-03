@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/util/httputil"
 	"github.com/kubecost/cost-model/pkg/util/timeutil"
 
 	"k8s.io/klog"
@@ -722,6 +723,167 @@ func (a *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request,
 	w.Write(WrapData(prom.Validate(a.PrometheusClient)))
 }
 
+func (a *Accesses) PrometheusQuery(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	qp := httputil.NewQueryParams(r.URL.Query())
+	query := qp.Get("query", "")
+	if query == "" {
+		w.Write(WrapData(nil, fmt.Errorf("Query Parameter 'query' is unset'")))
+		return
+	}
+
+	ctx := prom.NewNamedContext(a.PrometheusClient, prom.FrontendContextName)
+	body, err := ctx.RawQuery(query)
+	if err != nil {
+		w.Write(WrapData(nil, fmt.Errorf("Error running query %s. Error: %s", query, err)))
+		return
+	}
+
+	w.Write(body)
+}
+
+func (a *Accesses) PrometheusQueryRange(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	qp := httputil.NewQueryParams(r.URL.Query())
+	query := qp.Get("query", "")
+	if query == "" {
+		fmt.Fprintf(w, "Error parsing query from request parameters.")
+		return
+	}
+
+	start, end, duration, err := toStartEndStep(qp)
+	if err != nil {
+		fmt.Fprintf(w, err.Error())
+		return
+	}
+
+	ctx := prom.NewNamedContext(a.PrometheusClient, prom.FrontendContextName)
+	body, err := ctx.RawQueryRange(query, start, end, duration)
+	if err != nil {
+		fmt.Fprintf(w, "Error running query %s. Error: %s", query, err)
+		return
+	}
+
+	w.Write(body)
+}
+
+func (a *Accesses) ThanosQuery(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	if !thanos.IsEnabled() {
+		w.Write(WrapData(nil, fmt.Errorf("ThanosDisabled")))
+		return
+	}
+
+	qp := httputil.NewQueryParams(r.URL.Query())
+	query := qp.Get("query", "")
+	if query == "" {
+		w.Write(WrapData(nil, fmt.Errorf("Query Parameter 'query' is unset'")))
+		return
+	}
+
+	ctx := prom.NewNamedContext(a.ThanosClient, prom.FrontendContextName)
+	body, err := ctx.RawQuery(query)
+	if err != nil {
+		w.Write(WrapData(nil, fmt.Errorf("Error running query %s. Error: %s", query, err)))
+		return
+	}
+
+	w.Write(body)
+}
+
+func (a *Accesses) ThanosQueryRange(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	if !thanos.IsEnabled() {
+		w.Write(WrapData(nil, fmt.Errorf("ThanosDisabled")))
+		return
+	}
+
+	qp := httputil.NewQueryParams(r.URL.Query())
+	query := qp.Get("query", "")
+	if query == "" {
+		fmt.Fprintf(w, "Error parsing query from request parameters.")
+		return
+	}
+
+	start, end, duration, err := toStartEndStep(qp)
+	if err != nil {
+		fmt.Fprintf(w, err.Error())
+		return
+	}
+
+	ctx := prom.NewNamedContext(a.ThanosClient, prom.FrontendContextName)
+	body, err := ctx.RawQueryRange(query, start, end, duration)
+	if err != nil {
+		fmt.Fprintf(w, "Error running query %s. Error: %s", query, err)
+		return
+	}
+
+	w.Write(body)
+}
+
+// helper for query range proxy requests
+func toStartEndStep(qp httputil.QueryParams) (start, end time.Time, step time.Duration, err error) {
+	var e error
+
+	ss := qp.Get("start", "")
+	es := qp.Get("end", "")
+	ds := qp.Get("duration", "")
+	layout := "2006-01-02T15:04:05.000Z"
+
+	start, e = time.Parse(layout, ss)
+	if e != nil {
+		err = fmt.Errorf("Error parsing time %s. Error: %s", ss, err)
+		return
+	}
+	end, e = time.Parse(layout, es)
+	if e != nil {
+		err = fmt.Errorf("Error parsing time %s. Error: %s", es, err)
+		return
+	}
+	step, e = time.ParseDuration(ds)
+	if e != nil {
+		err = fmt.Errorf("Error parsing duration %s. Error: %s", ds, err)
+		return
+	}
+	err = nil
+
+	return
+}
+
+func (a *Accesses) GetPrometheusQueueState(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	promQueueState, err := prom.GetPrometheusQueueState(a.PrometheusClient)
+	if err != nil {
+		w.Write(WrapData(nil, err))
+		return
+	}
+
+	result := map[string]*prom.PrometheusQueueState{
+		"prometheus": promQueueState,
+	}
+
+	if thanos.IsEnabled() {
+		thanosQueueState, err := prom.GetPrometheusQueueState(a.ThanosClient)
+		if err != nil {
+			log.Warningf("Error getting Thanos queue state: %s", err)
+		} else {
+			result["thanos"] = thanosQueueState
+		}
+	}
+
+	w.Write(WrapData(result, nil))
+}
+
 // Creates a new ClusterManager instance using a boltdb storage. If that fails,
 // then we fall back to a memory-only storage.
 func newClusterManager() *cm.ClusterManager {
@@ -914,9 +1076,9 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 
 	kubecostNamespace := env.GetKubecostNamespace()
 	// We need an initial invocation because the init of the cache has happened before we had access to the provider.
-	configs, err := kubeClientset.CoreV1().ConfigMaps(kubecostNamespace).Get(context.Background(), "pricing-configs", metav1.GetOptions{})
+	configs, err := kubeClientset.CoreV1().ConfigMaps(kubecostNamespace).Get(context.Background(), env.GetPricingConfigmapName(), metav1.GetOptions{})
 	if err != nil {
-		klog.Infof("No %s configmap found at installtime, using existing configs: %s", "pricing-configs", err.Error())
+		klog.Infof("No %s configmap found at installtime, using existing configs: %s", env.GetPricingConfigmapName(), err.Error())
 	} else {
 		watchConfigFunc(configs)
 	}
@@ -1073,6 +1235,15 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	a.Router.GET("/serviceAccountStatus", a.GetServiceAccountStatus)
 	a.Router.GET("/pricingSourceStatus", a.GetPricingSourceStatus)
 	a.Router.GET("/pricingSourceCounts", a.GetPricingSourceCounts)
+
+	// prom query proxies
+	a.Router.GET("/prometheusQuery", a.PrometheusQuery)
+	a.Router.GET("/prometheusQueryRange", a.PrometheusQueryRange)
+	a.Router.GET("/thanosQuery", a.ThanosQuery)
+	a.Router.GET("/thanosQueryRange", a.ThanosQueryRange)
+
+	// diagnostics
+	a.Router.GET("/diagnostics/requestQueue", a.GetPrometheusQueueState)
 
 	// cluster manager endpoints
 	a.Router.GET("/clusters", managerEndpoints.GetAllClusters)

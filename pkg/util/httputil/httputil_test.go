@@ -1,10 +1,8 @@
-package test
+package httputil
 
 import (
 	"net/http"
 	"testing"
-
-	"github.com/kubecost/cost-model/pkg/util"
 )
 
 func TestHeaderString(t *testing.T) {
@@ -14,7 +12,7 @@ func TestHeaderString(t *testing.T) {
 	h.Add("bar", "foo")
 	h.Add("Content-Type", "application/octet-stream")
 
-	s := util.HeaderString(h)
+	s := HeaderString(h)
 	if len(s) == 0 {
 		t.Errorf("Header String failed to produce a valid output")
 		return
@@ -26,7 +24,7 @@ func TestHeaderString(t *testing.T) {
 func TestEmptyHeader(t *testing.T) {
 	h := make(http.Header)
 
-	s := util.HeaderString(h)
+	s := HeaderString(h)
 	if len(s) == 0 {
 		t.Errorf("Header String failed to produce a valid output")
 		return
@@ -38,7 +36,7 @@ func TestEmptyHeader(t *testing.T) {
 func TestNilHeader(t *testing.T) {
 	var h http.Header
 
-	s := util.HeaderString(h)
+	s := HeaderString(h)
 	if len(s) == 0 {
 		t.Errorf("Header String failed to produce a valid output")
 		return
