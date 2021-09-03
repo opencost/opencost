@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	cloudProvider "github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/thanos"
 
@@ -37,6 +38,27 @@ func writeThanosFlags(clusterInfo map[string]string) {
 	clusterInfo["thanosEnabled"] = fmt.Sprintf("%t", thanos.IsEnabled())
 	if thanos.IsEnabled() {
 		clusterInfo["thanosOffset"] = thanos.Offset()
+	}
+}
+
+// default local cluster info provider implementation which provides an instanced object for
+// getting the local cluster info
+type defaultLocalClusterInfoProvider struct {
+	k8s      kubernetes.Interface
+	provider cloudProvider.Provider
+}
+
+// GetClusterInfo returns a string map containing the local cluster info
+func (dlcip *defaultLocalClusterInfoProvider) GetClusterInfo() map[string]string {
+	return GetClusterInfo(dlcip.k8s, dlcip.provider)
+}
+
+// NewLocalClusterInfoProvider creates a new clusters.LocalClusterInfoProvider implementation for providing local
+// cluster information
+func NewLocalClusterInfoProvider(k8s kubernetes.Interface, cloud cloudProvider.Provider) clusters.LocalClusterInfoProvider {
+	return &defaultLocalClusterInfoProvider{
+		k8s:      k8s,
+		provider: cloud,
 	}
 }
 
