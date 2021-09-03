@@ -1167,10 +1167,11 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 
 	// Initialize ClusterMap for maintaining ClusterInfo by ClusterID
 	var clusterMap clusters.ClusterMap
+	localCIProvider := NewLocalClusterInfoProvider(kubeClientset, cloudProvider)
 	if thanosClient != nil {
-		clusterMap = clusters.NewClusterMap(thanosClient, 10*time.Minute)
+		clusterMap = clusters.NewClusterMap(thanosClient, localCIProvider, 10*time.Minute)
 	} else {
-		clusterMap = clusters.NewClusterMap(promCli, 5*time.Minute)
+		clusterMap = clusters.NewClusterMap(promCli, localCIProvider, 5*time.Minute)
 	}
 
 	// cache responses from model and aggregation for a default of 10 minutes;
