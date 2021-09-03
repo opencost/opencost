@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/thanos"
@@ -183,7 +184,9 @@ func (pcm *PrometheusClusterMap) loadClusters() (map[string]*ClusterInfo, error)
 		}
 	}
 
-	if len(clusters) == 0 {
+	// populate the local cluster if it doesn't exist
+	localID := env.GetClusterID()
+	if _, ok := clusters[localID]; !ok {
 		localInfo, err := pcm.getLocalClusterInfo()
 		if err != nil {
 			log.Warningf("Failed to load local cluster info: %s", err)
