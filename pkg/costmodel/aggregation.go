@@ -1453,19 +1453,12 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 
 	sc := make(map[string]*SharedCostInfo)
 	if !disableSharedOverhead {
-
-		overheadVal := c.SharedOverhead
-
-		cost, err := strconv.ParseFloat(overheadVal, 64)
+		costPerMonth := c.GetSharedOverheadCostPerMonth()
 		durationCoefficient := window.Hours() / timeutil.HoursPerMonth
-		if err != nil {
-			return nil, "", fmt.Errorf("unable to parse shared cost %s: %s", overheadVal, err)
-		}
 		sc["total"] = &SharedCostInfo{
 			Name: "total",
-			Cost: cost * durationCoefficient,
+			Cost: costPerMonth * durationCoefficient,
 		}
-
 	}
 
 	idleCoefficients := make(map[string]float64)
