@@ -133,34 +133,35 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 	// [$/hr] * [min/res]*[hr/min] = [$/res]
 	hourlyToCumulative := float64(minsPerResolution) * (1.0 / 60.0)
 
-	// TODO niko/assets how do we not hard-code this price?
-	costPerGBHr := 0.04 / 730.0
-
 	ctx := prom.NewNamedContext(client, prom.ClusterContextName)
 	queryPVCost := fmt.Sprintf(`avg(avg_over_time(pv_hourly_cost[%s]%s)) by (%s, persistentvolume,provider_id)`, durationStr, offsetStr, env.GetPromClusterLabel())
 	queryPVSize := fmt.Sprintf(`avg(avg_over_time(kube_persistentvolume_capacity_bytes[%s]%s)) by (%s, persistentvolume)`, durationStr, offsetStr, env.GetPromClusterLabel())
 	queryActiveMins := fmt.Sprintf(`count(pv_hourly_cost) by (%s, persistentvolume)[%s:%dm]%s`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr)
 
-	queryLocalStorageCost := fmt.Sprintf(`sum_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance, %s)[%s:%dm]%s) / 1024 / 1024 / 1024 * %f * %f`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr, hourlyToCumulative, costPerGBHr)
-	queryLocalStorageUsedCost := fmt.Sprintf(`sum_over_time(sum(container_fs_usage_bytes{device!="tmpfs", id="/"}) by (instance, %s)[%s:%dm]%s) / 1024 / 1024 / 1024 * %f * %f`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr, hourlyToCumulative, costPerGBHr)
-	queryLocalStorageBytes := fmt.Sprintf(`avg_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance, %s)[%s:%dm]%s)`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr)
-	queryLocalActiveMins := fmt.Sprintf(`count(node_total_hourly_cost) by (%s, node)[%s:%dm]%s`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr)
+	queryLocalStorageCost, queryLocalStorageUsedCost, queryLocalStorageBytes, queryLocalActiveMins := provider.ETLLocalStorageQueries(env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
 
 	resChPVCost := ctx.Query(queryPVCost)
 	resChPVSize := ctx.Query(queryPVSize)
 	resChActiveMins := ctx.Query(queryActiveMins)
-	resChLocalStorageCost := ctx.Query(queryLocalStorageCost)
-	resChLocalStorageUsedCost := ctx.Query(queryLocalStorageUsedCost)
-	resChLocalStorageBytes := ctx.Query(queryLocalStorageBytes)
-	resChLocalActiveMins := ctx.Query(queryLocalActiveMins)
+
+	resLocalStorageCost := []*prom.QueryResult{}
+	resLocalStorageUsedCost := []*prom.QueryResult{}
+	resLocalStorageBytes := []*prom.QueryResult{}
+	resLocalActiveMins := []*prom.QueryResult{}
+	if queryLocalStorageCost != "" {
+		resChLocalStorageCost := ctx.Query(queryLocalStorageCost)
+		resChLocalStorageUsedCost := ctx.Query(queryLocalStorageUsedCost)
+		resChLocalStorageBytes := ctx.Query(queryLocalStorageBytes)
+		resChLocalActiveMins := ctx.Query(queryLocalActiveMins)
+		resLocalStorageCost, _ = resChLocalStorageCost.Await()
+		resLocalStorageUsedCost, _ = resChLocalStorageUsedCost.Await()
+		resLocalStorageBytes, _ = resChLocalStorageBytes.Await()
+		resLocalActiveMins, _ = resChLocalActiveMins.Await()
+	}
 
 	resPVCost, _ := resChPVCost.Await()
 	resPVSize, _ := resChPVSize.Await()
 	resActiveMins, _ := resChActiveMins.Await()
-	resLocalStorageCost, _ := resChLocalStorageCost.Await()
-	resLocalStorageUsedCost, _ := resChLocalStorageUsedCost.Await()
-	resLocalStorageBytes, _ := resChLocalStorageBytes.Await()
-	resLocalActiveMins, _ := resChLocalActiveMins.Await()
 	if ctx.HasErrors() {
 		return nil, ctx.ErrorCollection()
 	}

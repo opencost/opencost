@@ -428,6 +428,10 @@ func (az *Azure) getAzureAuth(forceReload bool, cp *CustomPricing) (subscription
 	return "", "", "", ""
 }
 
+func (az *Azure) ETLLocalStorageQueries(clusterLabel string, durationStr string, minsPerResolution int, offsetStr string, hourlyToCumulative float64) (string, string, string, string) {
+	return "", "", "", "" // local storage is not charged on azure.
+}
+
 func (az *Azure) ConfigureAzureStorage() error {
 	accessKey, accountName, containerName := az.getAzureStorageConfig(false)
 	if accessKey != "" && accountName != "" && containerName != "" {

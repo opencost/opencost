@@ -40,6 +40,10 @@ type customProviderKey struct {
 	Labels         map[string]string
 }
 
+func (*CustomProvider) ETLLocalStorageQueries(clusterLabel string, durationStr string, minsPerResolution int, offsetStr string, hourlyToCumulative float64) (string, string, string, string) {
+	return "", "", "", ""
+}
+
 func (*CustomProvider) ClusterManagementPricing() (string, float64, error) {
 	return "", 0.0, nil
 }

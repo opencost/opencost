@@ -179,6 +179,16 @@ type BigQueryConfig struct {
 	Key                map[string]string `json:"key"`
 }
 
+func (gcp *GCP) ETLLocalStorageQueries(clusterLabel string, durationStr string, minsPerResolution int, offsetStr string, hourlyToCumulative float64) (string, string, string, string) {
+	costPerGBHr := 0.04 / 730.0
+	queryLocalStorageCost := fmt.Sprintf(`sum_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance, %s)[%s:%dm]%s) / 1024 / 1024 / 1024 * %f * %f`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr, hourlyToCumulative, costPerGBHr)
+	queryLocalStorageUsedCost := fmt.Sprintf(`sum_over_time(sum(container_fs_usage_bytes{device!="tmpfs", id="/"}) by (instance, %s)[%s:%dm]%s) / 1024 / 1024 / 1024 * %f * %f`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr, hourlyToCumulative, costPerGBHr)
+	queryLocalStorageBytes := fmt.Sprintf(`avg_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance, %s)[%s:%dm]%s)`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr)
+	queryLocalActiveMins := fmt.Sprintf(`count(node_total_hourly_cost) by (%s, node)[%s:%dm]%s`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr)
+
+	return queryLocalStorageCost, queryLocalStorageUsedCost, queryLocalStorageBytes, queryLocalActiveMins
+}
+
 func (gcp *GCP) GetManagementPlatform() (string, error) {
 	nodes := gcp.Clientset.GetAllNodes()
 
