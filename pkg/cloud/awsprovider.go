@@ -3,6 +3,7 @@ package cloud
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -37,6 +38,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+
+	awsV2 "github.com/aws/aws-sdk-go-v2/aws"
+
 	"github.com/jszwec/csvutil"
 
 	v1 "k8s.io/api/core/v1"
@@ -87,7 +91,7 @@ const SpotRefreshDuration = 15 * time.Minute
 
 const defaultConfigPath = "/var/configs/"
 
-var awsRegions = []string{
+var AWSRegions = []string{
 	"us-east-2",
 	"us-east-1",
 	"us-west-1",
@@ -153,6 +157,15 @@ type AWS struct {
 type AWSAccessKey struct {
 	AccessKeyID     string `json:"aws_access_key_id"`
 	SecretAccessKey string `json:"aws_secret_access_key"`
+}
+
+// Retrieve returns a set of awsV2 credentials using the AWSAccessKey's key and secret.
+// This fullfils the awsV2.CredentialsProvider interface contract.
+func (accessKey AWSAccessKey) Retrieve(ctx context.Context) (awsV2.Credentials, error) {
+	return awsV2.Credentials{
+		AccessKeyID:     accessKey.AccessKeyID,
+		SecretAccessKey: accessKey.SecretAccessKey,
+	}, nil
 }
 
 // AWSPricing maps a k8s node to an AWS Pricing "product"
@@ -1368,14 +1381,14 @@ func (a *AWS) getAddressesForRegion(region string) (*ec2.DescribeAddressesOutput
 func (a *AWS) GetAddresses() ([]byte, error) {
 	a.ConfigureAuth() // load authentication data into env vars
 
-	addressCh := make(chan *ec2.DescribeAddressesOutput, len(awsRegions))
-	errorCh := make(chan error, len(awsRegions))
+	addressCh := make(chan *ec2.DescribeAddressesOutput, len(AWSRegions))
+	errorCh := make(chan error, len(AWSRegions))
 
 	var wg sync.WaitGroup
-	wg.Add(len(awsRegions))
+	wg.Add(len(AWSRegions))
 
 	// Get volumes from each AWS region
-	for _, r := range awsRegions {
+	for _, r := range AWSRegions {
 		// Fetch IP address response and send results and errors to their
 		// respective channels
 		go func(region string) {
@@ -1453,14 +1466,14 @@ func (a *AWS) getDisksForRegion(region string, maxResults int64, nextToken *stri
 func (a *AWS) GetDisks() ([]byte, error) {
 	a.ConfigureAuth() // load authentication data into env vars
 
-	volumeCh := make(chan *ec2.DescribeVolumesOutput, len(awsRegions))
-	errorCh := make(chan error, len(awsRegions))
+	volumeCh := make(chan *ec2.DescribeVolumesOutput, len(AWSRegions))
+	errorCh := make(chan error, len(AWSRegions))
 
 	var wg sync.WaitGroup
-	wg.Add(len(awsRegions))
+	wg.Add(len(AWSRegions))
 
 	// Get volumes from each AWS region
-	for _, r := range awsRegions {
+	for _, r := range AWSRegions {
 		// Fetch volume response and send results and errors to their
 		// respective channels
 		go func(region string) {
