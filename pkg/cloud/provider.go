@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/log"
 
 	v1 "k8s.io/api/core/v1"
 )
@@ -180,6 +182,25 @@ type CustomPricing struct {
 	ShareTenancyCosts            string `json:"shareTenancyCosts"` // TODO clean up configuration so we can use a type other that string (this should be a bool, but the app panics if it's not a string)
 	ReadOnly                     string `json:"readOnly"`
 	KubecostToken                string `json:"kubecostToken"`
+}
+
+// GetSharedOverheadCostPerMonth parses and returns a float64 representation
+// of the configured monthly shared overhead cost. If the string version cannot
+// be parsed into a float, an error is logged and 0.0 is returned.
+func (cp *CustomPricing) GetSharedOverheadCostPerMonth() float64 {
+	// Empty string should be interpreted as "no cost", i.e. 0.0
+	if cp.SharedOverhead == "" {
+		return 0.0
+	}
+
+	// Attempt to parse, but log and return 0.0 if that fails.
+	sharedCostPerMonth, err := strconv.ParseFloat(cp.SharedOverhead, 64)
+	if err != nil {
+		log.Errorf("SharedOverhead: failed to parse shared overhead \"%s\": %s", cp.SharedOverhead, err)
+		return 0.0
+	}
+
+	return sharedCostPerMonth
 }
 
 type ServiceAccountStatus struct {
