@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -43,13 +44,21 @@ import (
 )
 
 const supportedSpotFeedVersion = "1"
+const athenaConfigFile = "athena.json"
+const defaultConfigPath = "/var/configs/"
+
 const SpotInfoUpdateType = "spotinfo"
 const AthenaInfoUpdateType = "athenainfo"
 const PreemptibleType = "preemptible"
 
 const APIPricingSource = "Public API"
 const SpotPricingSource = "Spot Data Feed"
+const SpotRefreshDuration = 15 * time.Minute // How often spot data is refreshed
 const ReservedInstancePricingSource = "Savings Plan, Reserved Instance, and Out-Of-Cluster"
+
+func getAtenaConfigFilePath() string {
+	return path.Join(env.GetConfigPathWithDefault(defaultConfigPath), athenaConfigFile)
+}
 
 func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 
@@ -81,11 +90,6 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 	return sources
 
 }
-
-// How often spot data is refreshed
-const SpotRefreshDuration = 15 * time.Minute
-
-const defaultConfigPath = "/var/configs/"
 
 var awsRegions = []string{
 	"us-east-2",
@@ -2022,7 +2026,7 @@ func (a *AWS) QuerySQL(query string) ([]byte, error) {
 
 	a.ConfigureAuthWith(customPricing) // load aws authentication from configuration or secret
 
-	athenaConfigs, err := os.Open("/var/configs/athena.json")
+	athenaConfigs, err := os.Open(getAtenaConfigFilePath())
 	if err != nil {
 		return nil, err
 	}

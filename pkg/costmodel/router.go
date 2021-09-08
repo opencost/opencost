@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"path"
 	"reflect"
 	"strconv"
 	"strings"
@@ -914,7 +915,7 @@ func (a *Accesses) GetPrometheusMetrics(w http.ResponseWriter, _ *http.Request, 
 // Creates a new ClusterManager instance using a boltdb storage. If that fails,
 // then we fall back to a memory-only storage.
 func newClusterManager() *cm.ClusterManager {
-	clustersConfigFile := "/var/configs/clusters/default-clusters.yaml"
+	clustersConfigFile := path.Join(env.GetConfigPathWithDefault("/var/configs/"), "clusters/default-clusters.yaml")
 
 	// Return a memory-backed cluster manager populated by configmap
 	return cm.NewConfiguredClusterManager(cm.NewMapDBClusterStorage(), clustersConfigFile)
