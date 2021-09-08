@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/log"
 
 	v1 "k8s.io/api/core/v1"
 )
@@ -130,56 +132,75 @@ type OutOfClusterAllocation struct {
 }
 
 type CustomPricing struct {
-	Provider                     string            `json:"provider"`
-	Description                  string            `json:"description"`
-	CPU                          string            `json:"CPU"`
-	SpotCPU                      string            `json:"spotCPU"`
-	RAM                          string            `json:"RAM"`
-	SpotRAM                      string            `json:"spotRAM"`
-	GPU                          string            `json:"GPU"`
-	SpotGPU                      string            `json:"spotGPU"`
-	Storage                      string            `json:"storage"`
-	ZoneNetworkEgress            string            `json:"zoneNetworkEgress"`
-	RegionNetworkEgress          string            `json:"regionNetworkEgress"`
-	InternetNetworkEgress        string            `json:"internetNetworkEgress"`
-	FirstFiveForwardingRulesCost string            `json:"firstFiveForwardingRulesCost"`
-	AdditionalForwardingRuleCost string            `json:"additionalForwardingRuleCost"`
-	LBIngressDataCost            string            `json:"LBIngressDataCost"`
-	SpotLabel                    string            `json:"spotLabel,omitempty"`
-	SpotLabelValue               string            `json:"spotLabelValue,omitempty"`
-	GpuLabel                     string            `json:"gpuLabel,omitempty"`
-	GpuLabelValue                string            `json:"gpuLabelValue,omitempty"`
-	ServiceKeyName               string            `json:"awsServiceKeyName,omitempty"`
-	ServiceKeySecret             string            `json:"awsServiceKeySecret,omitempty"`
-	SpotDataRegion               string            `json:"awsSpotDataRegion,omitempty"`
-	SpotDataBucket               string            `json:"awsSpotDataBucket,omitempty"`
-	SpotDataPrefix               string            `json:"awsSpotDataPrefix,omitempty"`
-	ProjectID                    string            `json:"projectID,omitempty"`
-	AthenaProjectID              string            `json:"athenaProjectID,omitempty"`
-	AthenaBucketName             string            `json:"athenaBucketName"`
-	AthenaRegion                 string            `json:"athenaRegion"`
-	AthenaDatabase               string            `json:"athenaDatabase"`
-	AthenaTable                  string            `json:"athenaTable"`
-	MasterPayerARN               string            `json:"masterPayerARN"`
-	BillingDataDataset           string            `json:"billingDataDataset,omitempty"`
-	CustomPricesEnabled          string            `json:"customPricesEnabled"`
-	DefaultIdle                  string            `json:"defaultIdle"`
-	AzureSubscriptionID          string            `json:"azureSubscriptionID"`
-	AzureClientID                string            `json:"azureClientID"`
-	AzureClientSecret            string            `json:"azureClientSecret"`
-	AzureTenantID                string            `json:"azureTenantID"`
-	AzureBillingRegion           string            `json:"azureBillingRegion"`
-	CurrencyCode                 string            `json:"currencyCode"`
-	Discount                     string            `json:"discount"`
-	NegotiatedDiscount           string            `json:"negotiatedDiscount"`
-	SharedCosts                  map[string]string `json:"sharedCost"`
-	ClusterName                  string            `json:"clusterName"`
-	SharedNamespaces             string            `json:"sharedNamespaces"`
-	SharedLabelNames             string            `json:"sharedLabelNames"`
-	SharedLabelValues            string            `json:"sharedLabelValues"`
-	ShareTenancyCosts            string            `json:"shareTenancyCosts"` // TODO clean up configuration so we can use a type other that string (this should be a bool, but the app panics if it's not a string)
-	ReadOnly                     string            `json:"readOnly"`
-	KubecostToken                string            `json:"kubecostToken"`
+	Provider                     string `json:"provider"`
+	Description                  string `json:"description"`
+	CPU                          string `json:"CPU"`
+	SpotCPU                      string `json:"spotCPU"`
+	RAM                          string `json:"RAM"`
+	SpotRAM                      string `json:"spotRAM"`
+	GPU                          string `json:"GPU"`
+	SpotGPU                      string `json:"spotGPU"`
+	Storage                      string `json:"storage"`
+	ZoneNetworkEgress            string `json:"zoneNetworkEgress"`
+	RegionNetworkEgress          string `json:"regionNetworkEgress"`
+	InternetNetworkEgress        string `json:"internetNetworkEgress"`
+	FirstFiveForwardingRulesCost string `json:"firstFiveForwardingRulesCost"`
+	AdditionalForwardingRuleCost string `json:"additionalForwardingRuleCost"`
+	LBIngressDataCost            string `json:"LBIngressDataCost"`
+	SpotLabel                    string `json:"spotLabel,omitempty"`
+	SpotLabelValue               string `json:"spotLabelValue,omitempty"`
+	GpuLabel                     string `json:"gpuLabel,omitempty"`
+	GpuLabelValue                string `json:"gpuLabelValue,omitempty"`
+	ServiceKeyName               string `json:"awsServiceKeyName,omitempty"`
+	ServiceKeySecret             string `json:"awsServiceKeySecret,omitempty"`
+	SpotDataRegion               string `json:"awsSpotDataRegion,omitempty"`
+	SpotDataBucket               string `json:"awsSpotDataBucket,omitempty"`
+	SpotDataPrefix               string `json:"awsSpotDataPrefix,omitempty"`
+	ProjectID                    string `json:"projectID,omitempty"`
+	AthenaProjectID              string `json:"athenaProjectID,omitempty"`
+	AthenaBucketName             string `json:"athenaBucketName"`
+	AthenaRegion                 string `json:"athenaRegion"`
+	AthenaDatabase               string `json:"athenaDatabase"`
+	AthenaTable                  string `json:"athenaTable"`
+	MasterPayerARN               string `json:"masterPayerARN"`
+	BillingDataDataset           string `json:"billingDataDataset,omitempty"`
+	CustomPricesEnabled          string `json:"customPricesEnabled"`
+	DefaultIdle                  string `json:"defaultIdle"`
+	AzureSubscriptionID          string `json:"azureSubscriptionID"`
+	AzureClientID                string `json:"azureClientID"`
+	AzureClientSecret            string `json:"azureClientSecret"`
+	AzureTenantID                string `json:"azureTenantID"`
+	AzureBillingRegion           string `json:"azureBillingRegion"`
+	CurrencyCode                 string `json:"currencyCode"`
+	Discount                     string `json:"discount"`
+	NegotiatedDiscount           string `json:"negotiatedDiscount"`
+	SharedOverhead               string `json:"sharedOverhead"`
+	ClusterName                  string `json:"clusterName"`
+	SharedNamespaces             string `json:"sharedNamespaces"`
+	SharedLabelNames             string `json:"sharedLabelNames"`
+	SharedLabelValues            string `json:"sharedLabelValues"`
+	ShareTenancyCosts            string `json:"shareTenancyCosts"` // TODO clean up configuration so we can use a type other that string (this should be a bool, but the app panics if it's not a string)
+	ReadOnly                     string `json:"readOnly"`
+	KubecostToken                string `json:"kubecostToken"`
+}
+
+// GetSharedOverheadCostPerMonth parses and returns a float64 representation
+// of the configured monthly shared overhead cost. If the string version cannot
+// be parsed into a float, an error is logged and 0.0 is returned.
+func (cp *CustomPricing) GetSharedOverheadCostPerMonth() float64 {
+	// Empty string should be interpreted as "no cost", i.e. 0.0
+	if cp.SharedOverhead == "" {
+		return 0.0
+	}
+
+	// Attempt to parse, but log and return 0.0 if that fails.
+	sharedCostPerMonth, err := strconv.ParseFloat(cp.SharedOverhead, 64)
+	if err != nil {
+		log.Errorf("SharedOverhead: failed to parse shared overhead \"%s\": %s", cp.SharedOverhead, err)
+		return 0.0
+	}
+
+	return sharedCostPerMonth
 }
 
 type ServiceAccountStatus struct {

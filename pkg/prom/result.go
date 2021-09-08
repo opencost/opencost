@@ -90,8 +90,8 @@ type QueryResults struct {
 // QueryResult contains a single result from a prometheus query. It's common
 // to refer to query results as a slice of QueryResult
 type QueryResult struct {
-	Metric map[string]interface{}
-	Values []*util.Vector
+	Metric map[string]interface{} `json:"metric"`
+	Values []*util.Vector         `json:"values"`
 }
 
 // NewQueryResults accepts the raw prometheus query result and returns an array of

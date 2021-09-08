@@ -25,6 +25,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
 	"github.com/kubecost/cost-model/pkg/util/cloudutil"
+	"github.com/kubecost/cost-model/pkg/util/fileutil"
 	"github.com/kubecost/cost-model/pkg/util/json"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -439,12 +440,7 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 						return err
 					}
 				} else {
-					sci := v.(map[string]interface{})
-					sc := make(map[string]string)
-					for k, val := range sci {
-						sc[k] = val.(string)
-					}
-					c.SharedCosts = sc //todo: support reflection/multiple map fields
+					return fmt.Errorf("type error while updating config for %s", kUpper)
 				}
 			}
 		}
@@ -1317,7 +1313,7 @@ func (aws *AWS) loadAWSAuthSecret(force bool) (*AWSAccessKey, error) {
 	}
 	loadedAWSSecret = true
 
-	exists, err := util.FileExists(authSecretPath)
+	exists, err := fileutil.FileExists(authSecretPath)
 	if !exists || err != nil {
 		return nil, fmt.Errorf("Failed to locate service account file: %s", authSecretPath)
 	}

@@ -29,6 +29,7 @@ type FileStatus struct {
 	Name         string            `json:"name"`
 	Size         string            `json:"size"`
 	LastModified time.Time         `json:"lastModified"`
+	IsRepairing  bool              `json:"isRepairing"`
 	Details      map[string]string `json:"details,omitempty"`
 	Errors       []string          `json:"errors,omitempty"`
 	Warnings     []string          `json:"warnings,omitempty"`
@@ -37,7 +38,7 @@ type FileStatus struct {
 // CloudStatus describes CloudStore metadata
 type CloudStatus struct {
 	CloudConnectionStatus string                `json:"cloudConnectionStatus"`
-	CloudAssets           *CloudAssetStatus     `json:"cloudAssets,omitempty`
+	CloudAssets           *CloudAssetStatus     `json:"cloudAssets,omitempty"`
 	Reconciliation        *ReconciliationStatus `json:"reconciliation,omitempty"`
 }
 
@@ -52,7 +53,7 @@ type CloudAssetStatus struct {
 	StartTime   time.Time `json:"startTime"`
 }
 
-// ReconciliationStatus describes Reconcilation metadata of a CloudStore
+// ReconciliationStatus describes Reconciliation metadata of a CloudStore
 type ReconciliationStatus struct {
 	Coverage    Window    `json:"coverage"`
 	LastRun     time.Time `json:"lastRun"`

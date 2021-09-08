@@ -8,6 +8,8 @@ import (
 	"math"
 	"reflect"
 	"unsafe"
+
+	"github.com/kubecost/cost-model/pkg/util/stringutil"
 )
 
 // NonPrimitiveTypeError represents an error where the user provided a non-primitive data type for reading/writing
@@ -394,7 +396,7 @@ func bytesToString(b []byte) string {
 	// future optimization.
 	//return *(*string)(unsafe.Pointer(&b))
 
-	return string(b)
+	return stringutil.Bank(string(b))
 }
 
 // Direct string to byte conversion that doesn't allocate.
