@@ -559,10 +559,10 @@ func (key *awsPVKey) Features() string {
 	// Storage class names are generally EBS volume types (gp2)
 	// Keys in Pricing are based on UsageTypes (EBS:VolumeType.gp2)
 	// Converts between the 2
-	region, _ := util.GetRegion(key.Labels)
-	//if region == "" {
-	//	region = "us-east-1"
-	//}
+	region, ok := util.GetRegion(key.Labels)
+	if !ok {
+		region = key.DefaultRegion
+	}
 	class, ok := volTypes[storageClass]
 	if !ok {
 		klog.V(4).Infof("No voltype mapping for %s's storageClass: %s", key.Name, storageClass)
