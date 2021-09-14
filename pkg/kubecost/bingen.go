@@ -10,7 +10,7 @@ package kubecost
 // @bingen:generate:AssetLabels
 // @bingen:generate:AssetProperties
 // @bingen:generate:AssetProperty
-// @bingen:generate:AssetSet
+// @bingen:generate[stringtable]:AssetSet
 // @bingen:generate:AssetSetRange
 // @bingen:generate:Breakdown
 // @bingen:generate:Cloud
@@ -25,7 +25,7 @@ package kubecost
 // Allocation Version Set: Includes Allocation pipeline specific resources
 // @bingen:set[name=Allocation,version=15]
 // @bingen:generate:Allocation
-// @bingen:generate:AllocationSet
+// @bingen:generate[stringtable]:AllocationSet
 // @bingen:generate:AllocationSetRange
 // @bingen:generate:AllocationProperties
 // @bingen:generate:AllocationProperty

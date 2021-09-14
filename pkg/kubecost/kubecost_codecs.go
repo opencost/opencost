@@ -34,14 +34,14 @@ const (
 )
 
 const (
+	// AllocationCodecVersion is used for any resources listed in the Allocation version set
+	AllocationCodecVersion uint8 = 15
+
 	// DefaultCodecVersion is used for any resources listed in the Default version set
 	DefaultCodecVersion uint8 = 15
 
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
 	AssetsCodecVersion uint8 = 15
-
-	// AllocationCodecVersion is used for any resources listed in the Allocation version set
-	AllocationCodecVersion uint8 = 15
 )
 
 //--------------------------------------------------------------------------
@@ -1059,7 +1059,7 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 func (target *AllocationSet) MarshalBinary() (data []byte, err error) {
 	ctx := &EncodingContext{
 		Buffer: util.NewBuffer(),
-		Table:  nil,
+		Table:  NewStringTable(),
 	}
 
 	e := target.MarshalBinaryWithContext(ctx)
@@ -1068,7 +1068,9 @@ func (target *AllocationSet) MarshalBinary() (data []byte, err error) {
 	}
 
 	encBytes := ctx.Buffer.Bytes()
-	return encBytes, nil
+	sTableBytes := ctx.Table.ToBytes()
+	merged := appendBytes(sTableBytes, encBytes)
+	return merged, nil
 }
 
 // MarshalBinaryWithContext serializes the internal properties of this AllocationSet instance
@@ -2101,7 +2103,7 @@ func (target *AssetProperties) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 func (target *AssetSet) MarshalBinary() (data []byte, err error) {
 	ctx := &EncodingContext{
 		Buffer: util.NewBuffer(),
-		Table:  nil,
+		Table:  NewStringTable(),
 	}
 
 	e := target.MarshalBinaryWithContext(ctx)
@@ -2110,7 +2112,9 @@ func (target *AssetSet) MarshalBinary() (data []byte, err error) {
 	}
 
 	encBytes := ctx.Buffer.Bytes()
-	return encBytes, nil
+	sTableBytes := ctx.Table.ToBytes()
+	merged := appendBytes(sTableBytes, encBytes)
+	return merged, nil
 }
 
 // MarshalBinaryWithContext serializes the internal properties of this AssetSet instance
