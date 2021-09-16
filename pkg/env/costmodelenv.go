@@ -60,6 +60,8 @@ const (
 
 	InsecureSkipVerify = "INSECURE_SKIP_VERIFY"
 
+	ETLOnlyMode = "ETL_ONLY_MODE"
+
 	KubeConfigPathEnvVar = "KUBECONFIG_PATH"
 
 	UTCOffsetEnvVar = "UTC_OFFSET"
@@ -153,6 +155,12 @@ func GetPrometheusServerEndpoint() string {
 
 func GetInsecureSkipVerify() bool {
 	return GetBool(InsecureSkipVerify, false)
+}
+
+// IsETLOnlyMode represents a kubecost instance that only reads ETL from a prom/thanos endpoint and does not
+// collect any information about the cluster itself
+func IsETLOnlyMode() bool {
+	return GetBool(ETLOnlyMode, false)
 }
 
 // IsRemoteEnabled returns the environment variable value for RemoteEnabledEnvVar which represents whether

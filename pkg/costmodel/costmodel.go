@@ -999,6 +999,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 		var ram float64
 		if newCnode.RAM == "" {
+			klog.Infof("I AM HERE {TSXTASDRASD]")
 			newCnode.RAM = n.Status.Capacity.Memory().String()
 		}
 		ram = float64(n.Status.Capacity.Memory().Value())

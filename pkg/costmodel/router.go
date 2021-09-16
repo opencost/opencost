@@ -1073,6 +1073,8 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 		panic(err.Error())
 	}
 
+	klog.Infof("Got kubeconfig")
+
 	// Create Kubernetes Cluster Cache + Watchers
 	k8sCache := clustercache.NewKubernetesClusterCache(kubeClientset)
 	k8sCache.Run()
@@ -1080,7 +1082,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	cloudProviderKey := env.GetCloudProviderAPIKey()
 	cloudProvider, err := cloud.NewProvider(k8sCache, cloudProviderKey)
 	if err != nil {
-		panic(err.Error())
+		klog.Infof(err.Error())
 	}
 
 	watchConfigFunc := func(c interface{}) {
@@ -1228,11 +1230,12 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	// Initialize mechanism for subscribing to settings changes
 	a.InitializeSettingsPubSub()
 
-	err = a.CloudProvider.DownloadPricingData()
-	if err != nil {
-		klog.V(1).Info("Failed to download pricing data: " + err.Error())
+	if !env.IsETLOnlyMode() {
+		err = a.CloudProvider.DownloadPricingData()
+		if err != nil {
+			klog.V(1).Info("Failed to download pricing data: " + err.Error())
+		}
 	}
-
 	// Warm the aggregate cache unless explicitly set to false
 	if env.IsCacheWarmingEnabled() {
 		log.Infof("Init: AggregateCostModel cache warming enabled")
@@ -1240,8 +1243,9 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	} else {
 		log.Infof("Init: AggregateCostModel cache warming disabled")
 	}
-
-	a.MetricsEmitter.Start()
+	if !env.IsETLOnlyMode() {
+		a.MetricsEmitter.Start()
+	}
 
 	managerEndpoints := cm.NewClusterManagerEndpoints(a.ClusterManager)
 

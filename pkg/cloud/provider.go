@@ -395,7 +395,10 @@ func NewCrossClusterProvider(ctype string, overrideConfigPath string, cache clus
 func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, error) {
 	nodes := cache.GetAllNodes()
 	if len(nodes) == 0 {
-		return nil, fmt.Errorf("Could not locate any nodes for cluster.")
+		return &CustomProvider{
+			Clientset: cache,
+			Config:    NewProviderConfig("default.json"),
+		}, nil
 	}
 
 	provider := strings.ToLower(nodes[0].Spec.ProviderID)

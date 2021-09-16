@@ -126,25 +126,31 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 	}
 
 	// Wait for each caching watcher to initialize
+	wgCount := 14
+	if env.ETLOnlyMode() {
+		wgCount = 1
+	}
 	var wg sync.WaitGroup
-	wg.Add(14)
+	wg.Add(wgCount)
 
 	cancel := make(chan struct{})
 
-	go initializeCache(kcc.namespaceWatch, &wg, cancel)
-	go initializeCache(kcc.nodeWatch, &wg, cancel)
-	go initializeCache(kcc.podWatch, &wg, cancel)
 	go initializeCache(kcc.kubecostConfigMapWatch, &wg, cancel)
-	go initializeCache(kcc.serviceWatch, &wg, cancel)
-	go initializeCache(kcc.daemonsetsWatch, &wg, cancel)
-	go initializeCache(kcc.deploymentsWatch, &wg, cancel)
-	go initializeCache(kcc.statefulsetWatch, &wg, cancel)
-	go initializeCache(kcc.replicasetWatch, &wg, cancel)
-	go initializeCache(kcc.pvWatch, &wg, cancel)
-	go initializeCache(kcc.pvcWatch, &wg, cancel)
-	go initializeCache(kcc.storageClassWatch, &wg, cancel)
-	go initializeCache(kcc.jobsWatch, &wg, cancel)
-	go initializeCache(kcc.hpaWatch, &wg, cancel)
+	if !env.ETLOnlyMode() {
+		go initializeCache(kcc.namespaceWatch, &wg, cancel)
+		go initializeCache(kcc.nodeWatch, &wg, cancel)
+		go initializeCache(kcc.podWatch, &wg, cancel)
+		go initializeCache(kcc.serviceWatch, &wg, cancel)
+		go initializeCache(kcc.daemonsetsWatch, &wg, cancel)
+		go initializeCache(kcc.deploymentsWatch, &wg, cancel)
+		go initializeCache(kcc.statefulsetWatch, &wg, cancel)
+		go initializeCache(kcc.replicasetWatch, &wg, cancel)
+		go initializeCache(kcc.pvWatch, &wg, cancel)
+		go initializeCache(kcc.pvcWatch, &wg, cancel)
+		go initializeCache(kcc.storageClassWatch, &wg, cancel)
+		go initializeCache(kcc.jobsWatch, &wg, cancel)
+		go initializeCache(kcc.hpaWatch, &wg, cancel)
+	}
 
 	wg.Wait()
 
@@ -157,20 +163,22 @@ func (kcc *KubernetesClusterCache) Run() {
 	}
 	stopCh := make(chan struct{})
 
-	go kcc.namespaceWatch.Run(1, stopCh)
-	go kcc.nodeWatch.Run(1, stopCh)
-	go kcc.podWatch.Run(1, stopCh)
-	go kcc.serviceWatch.Run(1, stopCh)
 	go kcc.kubecostConfigMapWatch.Run(1, stopCh)
-	go kcc.daemonsetsWatch.Run(1, stopCh)
-	go kcc.deploymentsWatch.Run(1, stopCh)
-	go kcc.statefulsetWatch.Run(1, stopCh)
-	go kcc.replicasetWatch.Run(1, stopCh)
-	go kcc.pvWatch.Run(1, stopCh)
-	go kcc.pvcWatch.Run(1, stopCh)
-	go kcc.storageClassWatch.Run(1, stopCh)
-	go kcc.jobsWatch.Run(1, stopCh)
-	go kcc.hpaWatch.Run(1, stopCh)
+	if !env.ETLOnlyMode() {
+		go kcc.namespaceWatch.Run(1, stopCh)
+		go kcc.nodeWatch.Run(1, stopCh)
+		go kcc.podWatch.Run(1, stopCh)
+		go kcc.serviceWatch.Run(1, stopCh)
+		go kcc.daemonsetsWatch.Run(1, stopCh)
+		go kcc.deploymentsWatch.Run(1, stopCh)
+		go kcc.statefulsetWatch.Run(1, stopCh)
+		go kcc.replicasetWatch.Run(1, stopCh)
+		go kcc.pvWatch.Run(1, stopCh)
+		go kcc.pvcWatch.Run(1, stopCh)
+		go kcc.storageClassWatch.Run(1, stopCh)
+		go kcc.jobsWatch.Run(1, stopCh)
+		go kcc.hpaWatch.Run(1, stopCh)
+	}
 
 	kcc.stop = stopCh
 }
