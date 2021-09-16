@@ -73,6 +73,77 @@ var (
 	mtStandardN, _ = regexp.Compile(`^Standard_N[C|D|V]\d+r?[_v\d]*[_Promo]*$`)
 )
 
+var azureRegions = []string{
+	"eastus",
+	"eastus2",
+	"southcentralus",
+	"westus2",
+	"westus3",
+	"australiaeast",
+	"southeastasia",
+	"northeurope",
+	"swedencentral",
+	"uksouth",
+	"westeurope",
+	"centralus",
+	"northcentralus",
+	"westus",
+	"southafricanorth",
+	"centralindia",
+	"eastasia",
+	"japaneast",
+	"jioindiawest",
+	"koreacentral",
+	"canadacentral",
+	"francecentral",
+	"germanywestcentral",
+	"norwayeast",
+	"switzerlandnorth",
+	"uaenorth",
+	"brazilsouth",
+	"centralusstage",
+	"eastusstage",
+	"eastus2stage",
+	"northcentralusstage",
+	"southcentralusstage",
+	"westusstage",
+	"westus2stage",
+	"asia",
+	"asiapacific",
+	"australia",
+	"brazil",
+	"canada",
+	"europe",
+	"global",
+	"india",
+	"japan",
+	"uk",
+	"unitedstates",
+	"eastasiastage",
+	"southeastasiastage",
+	"centraluseuap",
+	"eastus2euap",
+	"westcentralus",
+	"southafricawest",
+	"australiacentral",
+	"australiacentral2",
+	"australiasoutheast",
+	"japanwest",
+	"jioindiacentral",
+	"koreasouth",
+	"southindia",
+	"westindia",
+	"canadaeast",
+	"francesouth",
+	"germanynorth",
+	"norwaywest",
+	"swedensouth",
+	"switzerlandwest",
+	"ukwest",
+	"uaecentral",
+	"brazilsoutheast",
+}
+
 const AzureLayout = "2006-01-02"
 
 var HeaderStrings = []string{"MeterCategory", "UsageDateTime", "InstanceId", "AdditionalInfo", "Tags", "PreTaxCost", "SubscriptionGuid", "ConsumedService", "ResourceGroup", "ResourceType"}
@@ -1309,4 +1380,8 @@ func (*Azure) ClusterManagementPricing() (string, float64, error) {
 
 func (az *Azure) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
+}
+
+func (az *Azure) Regions() []string {
+	return azureRegions
 }

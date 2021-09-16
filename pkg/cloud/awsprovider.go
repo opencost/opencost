@@ -91,7 +91,7 @@ const SpotRefreshDuration = 15 * time.Minute
 
 const defaultConfigPath = "/var/configs/"
 
-var AWSRegions = []string{
+var awsRegions = []string{
 	"us-east-2",
 	"us-east-1",
 	"us-west-1",
@@ -1381,14 +1381,14 @@ func (a *AWS) getAddressesForRegion(region string) (*ec2.DescribeAddressesOutput
 func (a *AWS) GetAddresses() ([]byte, error) {
 	a.ConfigureAuth() // load authentication data into env vars
 
-	addressCh := make(chan *ec2.DescribeAddressesOutput, len(AWSRegions))
-	errorCh := make(chan error, len(AWSRegions))
+	addressCh := make(chan *ec2.DescribeAddressesOutput, len(awsRegions))
+	errorCh := make(chan error, len(awsRegions))
 
 	var wg sync.WaitGroup
-	wg.Add(len(AWSRegions))
+	wg.Add(len(awsRegions))
 
 	// Get volumes from each AWS region
-	for _, r := range AWSRegions {
+	for _, r := range awsRegions {
 		// Fetch IP address response and send results and errors to their
 		// respective channels
 		go func(region string) {
@@ -1466,14 +1466,14 @@ func (a *AWS) getDisksForRegion(region string, maxResults int64, nextToken *stri
 func (a *AWS) GetDisks() ([]byte, error) {
 	a.ConfigureAuth() // load authentication data into env vars
 
-	volumeCh := make(chan *ec2.DescribeVolumesOutput, len(AWSRegions))
-	errorCh := make(chan error, len(AWSRegions))
+	volumeCh := make(chan *ec2.DescribeVolumesOutput, len(awsRegions))
+	errorCh := make(chan error, len(awsRegions))
 
 	var wg sync.WaitGroup
-	wg.Add(len(AWSRegions))
+	wg.Add(len(awsRegions))
 
 	// Get volumes from each AWS region
-	for _, r := range AWSRegions {
+	for _, r := range awsRegions {
 		// Fetch volume response and send results and errors to their
 		// respective channels
 		go func(region string) {
@@ -2325,4 +2325,8 @@ func (a *AWS) ServiceAccountStatus() *ServiceAccountStatus {
 
 func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
+}
+
+func (aws *AWS) Regions() []string {
+	return awsRegions
 }
