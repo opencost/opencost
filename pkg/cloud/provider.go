@@ -264,6 +264,7 @@ type Provider interface {
 	PricingSourceStatus() map[string]*PricingSource
 	ClusterManagementPricing() (string, float64, error)
 	CombinedDiscountForNode(string, bool, float64, float64) float64
+	Regions() []string
 }
 
 // ClusterName returns the name defined in cluster info, defaulting to the
