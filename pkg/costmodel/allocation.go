@@ -986,8 +986,7 @@ func applyGPUUsageAvg(podMap map[podKey]*Pod, resGPUUsageAvg []*prom.QueryResult
 			pod.AppendContainer(container)
 		}
 
-		log.Infof("COMPUTEALLOCATION TESTING: GPU AVERAGE FOR POD CONTAINER %s: %f", container, res.Values[0].Value)
-		pod.Allocations[container].GPUUsageAverage = res.Values[0].Value * 0.1
+		pod.Allocations[container].GPUUsageAverage = res.Values[0].Value * 0.01
 	}
 }
 
