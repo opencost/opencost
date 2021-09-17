@@ -49,6 +49,8 @@ func TestAllocation_Add(t *testing.T) {
 		CPUCoreRequestAverage: 2.0,
 		CPUCoreUsageAverage:   1.0,
 		CPUCost:               2.0 * hrs1 * cpuPrice,
+		GPURequestAverage:     1.0,
+		GPUUsageAverage:       0.70,
 		CPUCostAdjustment:     3.0,
 		GPUHours:              1.0 * hrs1,
 		GPUCost:               1.0 * hrs1 * gpuPrice,
@@ -83,6 +85,8 @@ func TestAllocation_Add(t *testing.T) {
 		CPUCoreUsageAverage:    1.0,
 		CPUCost:                1.0 * hrs2 * cpuPrice,
 		GPUHours:               0.0,
+		GPURequestAverage:      1.0,
+		GPUUsageAverage:        0.30,
 		GPUCost:                0.0,
 		RAMByteHours:           8.0 * gib * hrs2,
 		RAMBytesRequestAverage: 0.0,
@@ -171,6 +175,8 @@ func TestAllocation_Add(t *testing.T) {
 	// CPU usage = (1.0*12.0 + 1.0*18.0)/(24.0) = 1.25
 	// RAM requests = (8.0*12.0 + 0.0*18.0)/(24.0) = 4.00
 	// RAM usage = (4.0*12.0 + 8.0*18.0)/(24.0) = 8.00
+	// GPU requests = (1.0*12.0 + 1.0*18.0)/(24.0) = 1.25
+	// GPU usage = (0.7*12.0 + 0.3*18.0)/(24.0) = 0.575
 	if !util.IsApproximately(1.75, act.CPUCoreRequestAverage) {
 		t.Fatalf("Allocation.Add: expected %f; actual %f", 1.75, act.CPUCoreRequestAverage)
 	}
@@ -183,16 +189,26 @@ func TestAllocation_Add(t *testing.T) {
 	if !util.IsApproximately(8.00*gib, act.RAMBytesUsageAverage) {
 		t.Fatalf("Allocation.Add: expected %f; actual %f", 8.00*gib, act.RAMBytesUsageAverage)
 	}
+	if !util.IsApproximately(1.25, act.GPURequestAverage) {
+		t.Fatalf("Allocation.Add: expected %f; actual %f", 1.25, act.GPURequestAverage)
+	}
+	if !util.IsApproximately(0.575, act.GPUUsageAverage) {
+		t.Fatalf("Allocation.Add: expected %f; actual %f", 0.575, act.GPUUsageAverage)
+	}
 
 	// Efficiency should be computed accurately from new request/usage
 	// CPU efficiency = 1.25/1.75 = 0.7142857
 	// RAM efficiency = 8.00/4.00 = 2.0000000
+	// GPU efficiency = 0.575/1.25 = 0.46
 	// Total efficiency = (0.7142857*0.72 + 2.0*1.92)/(2.64) = 1.6493506
 	if !util.IsApproximately(0.7142857, act.CPUEfficiency()) {
 		t.Fatalf("Allocation.Add: expected %f; actual %f", 0.7142857, act.CPUEfficiency())
 	}
 	if !util.IsApproximately(2.0000000, act.RAMEfficiency()) {
 		t.Fatalf("Allocation.Add: expected %f; actual %f", 2.0000000, act.RAMEfficiency())
+	}
+	if !util.IsApproximately(0.46, act.GPUEfficiency()) {
+		t.Fatalf("Allocation.Add: expected %f; actual %f", 0.46, act.GPUEfficiency())
 	}
 	if !util.IsApproximately(1.279690, act.TotalEfficiency()) {
 		t.Fatalf("Allocation.Add: expected %f; actual %f", 1.279690, act.TotalEfficiency())
@@ -223,6 +239,8 @@ func TestAllocation_Share(t *testing.T) {
 		CPUCost:               2.0 * hrs1 * cpuPrice,
 		CPUCostAdjustment:     3.0,
 		GPUHours:              1.0 * hrs1,
+		GPURequestAverage:     3.0,
+		GPUUsageAverage:       0.20,
 		GPUCost:               1.0 * hrs1 * gpuPrice,
 		GPUCostAdjustment:     2.0,
 		PVs: PVAllocations{
@@ -254,6 +272,8 @@ func TestAllocation_Share(t *testing.T) {
 		CPUCoreUsageAverage:    1.0,
 		CPUCost:                1.0 * hrs2 * cpuPrice,
 		GPUHours:               0.0,
+		GPURequestAverage:      0.0,
+		GPUUsageAverage:        0.0,
 		GPUCost:                0.0,
 		RAMByteHours:           8.0 * gib * hrs2,
 		RAMBytesRequestAverage: 0.0,
@@ -342,6 +362,12 @@ func TestAllocation_Share(t *testing.T) {
 	if !util.IsApproximately(a1.RAMBytesUsageAverage, act.RAMBytesUsageAverage) {
 		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.RAMBytesUsageAverage, act.RAMBytesUsageAverage)
 	}
+	if !util.IsApproximately(a1.GPURequestAverage, act.GPURequestAverage) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.GPURequestAverage, act.GPURequestAverage)
+	}
+	if !util.IsApproximately(a1.GPUUsageAverage, act.GPUUsageAverage) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.GPUUsageAverage, act.GPUUsageAverage)
+	}
 
 	// Efficiency should match before
 	if !util.IsApproximately(a1.CPUEfficiency(), act.CPUEfficiency()) {
@@ -349,6 +375,9 @@ func TestAllocation_Share(t *testing.T) {
 	}
 	if !util.IsApproximately(a1.RAMEfficiency(), act.RAMEfficiency()) {
 		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.RAMEfficiency(), act.RAMEfficiency())
+	}
+	if !util.IsApproximately(a1.GPUEfficiency(), act.GPUEfficiency()) {
+		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.GPUEfficiency(), act.GPUEfficiency())
 	}
 	if !util.IsApproximately(a1.TotalEfficiency(), act.TotalEfficiency()) {
 		t.Fatalf("Allocation.Share: expected %f; actual %f", a1.TotalEfficiency(), act.TotalEfficiency())
@@ -409,6 +438,8 @@ func TestAllocation_MarshalJSON(t *testing.T) {
 		CPUCost:               2.0 * hrs * cpuPrice,
 		CPUCostAdjustment:     3.0,
 		GPUHours:              1.0 * hrs,
+		GPURequestAverage:     1.0,
+		GPUUsageAverage:       0.70,
 		GPUCost:               1.0 * hrs * gpuPrice,
 		GPUCostAdjustment:     2.0,
 		NetworkCost:           0.05,

@@ -446,10 +446,27 @@ func (a *Allocation) RAMEfficiency() float64 {
 	return 1.0
 }
 
+// GPUEfficiency is the ratio of usage to request. If there is no request and
+// no usage or cost, then efficiency is zero. If there is no request, but there
+// is usage or cost, then efficiency is 100%. Note that, without the Nvidia dcgm
+// providing Prometheus with usage metrics, this will always be zero, as
+// GPUUsageAverage will be zero (the default value).
+func (a *Allocation) GPUEfficiency() float64 {
+	if a.GPURequestAverage > 0 && a.GPUUsageAverage > 0 {
+		return a.GPUUsageAverage / a.GPURequestAverage
+	}
+
+	if a.GPUUsageAverage == 0.0 || a.GPUCost == 0.0 {
+		return 0.0
+	}
+
+	return 1.0
+}
+
 // TotalEfficiency is the cost-weighted average of CPU and RAM efficiency. If
 // there is no cost at all, then efficiency is zero.
 func (a *Allocation) TotalEfficiency() float64 {
-	if a.RAMTotalCost()+a.CPUTotalCost() > 0 {
+	if a.RAMTotalCost()+a.CPUTotalCost()+a.GPUEfficiency() > 0 {
 		ramCostEff := a.RAMEfficiency() * a.RAMTotalCost()
 		cpuCostEff := a.CPUEfficiency() * a.CPUTotalCost()
 		return (ramCostEff + cpuCostEff) / (a.CPUTotalCost() + a.RAMTotalCost())
@@ -664,6 +681,12 @@ func (a *Allocation) add(that *Allocation) {
 	ramUseByteMins := a.RAMBytesUsageAverage * a.Minutes()
 	ramUseByteMins += that.RAMBytesUsageAverage * that.Minutes()
 
+	gpuReqMins := a.GPURequestAverage * a.Minutes()
+	gpuReqMins += that.GPURequestAverage * that.Minutes()
+
+	gpuUseMins := a.GPUUsageAverage * a.Minutes()
+	gpuUseMins += that.GPUUsageAverage * that.Minutes()
+
 	// Expand Start and End to be the "max" of among the given Allocations
 	if that.Start.Before(a.Start) {
 		a.Start = that.Start
@@ -679,11 +702,15 @@ func (a *Allocation) add(that *Allocation) {
 		a.CPUCoreUsageAverage = cpuUseCoreMins / a.Minutes()
 		a.RAMBytesRequestAverage = ramReqByteMins / a.Minutes()
 		a.RAMBytesUsageAverage = ramUseByteMins / a.Minutes()
+		a.GPURequestAverage = gpuReqMins / a.Minutes()
+		a.GPUUsageAverage = gpuUseMins / a.Minutes()
 	} else {
 		a.CPUCoreRequestAverage = 0.0
 		a.CPUCoreUsageAverage = 0.0
 		a.RAMBytesRequestAverage = 0.0
 		a.RAMBytesUsageAverage = 0.0
+		a.GPURequestAverage = 0.0
+		a.GPUUsageAverage = 0.0
 	}
 
 	// Sum all cumulative resource fields
