@@ -950,7 +950,7 @@ func applyGPUsAllocated(podMap map[podKey]*Pod, resGPUsRequested []*prom.QueryRe
 
 		container, err := res.GetString("container")
 		if err != nil {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU usage avg query result missing 'container': %s", key)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU request query result missing 'container': %s", key)
 			continue
 		}
 
@@ -960,6 +960,7 @@ func applyGPUsAllocated(podMap map[podKey]*Pod, resGPUsRequested []*prom.QueryRe
 
 		hrs := pod.Allocations[container].Minutes() / 60.0
 		pod.Allocations[container].GPUHours = res.Values[0].Value * hrs
+		pod.Allocations[container].GPURequestAverage = res.Values[0].Value
 	}
 }
 
@@ -977,7 +978,7 @@ func applyGPUUsageAvg(podMap map[podKey]*Pod, resGPUUsageAvg []*prom.QueryResult
 		}
 		container, err := res.GetString("container")
 		if err != nil {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU request query result missing 'container': %s", key)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU usage avg query result missing 'container': %s", key)
 			continue
 		}
 
@@ -986,7 +987,7 @@ func applyGPUUsageAvg(podMap map[podKey]*Pod, resGPUUsageAvg []*prom.QueryResult
 		}
 
 		log.Infof("COMPUTEALLOCATION TESTING: GPU AVERAGE FOR POD CONTAINER %s: %f", container, res.Values[0].Value)
-		// pod.Allocations[container].GPUUsageAverage = res.Values[0].Value
+		pod.Allocations[container].GPUUsageAverage = res.Values[0].Value
 	}
 }
 
