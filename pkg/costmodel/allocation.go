@@ -30,7 +30,7 @@ const (
 	queryFmtCPUUsageMax              = `max(rate(container_cpu_usage_seconds_total{container!="", container_name!="POD", container!="POD"}[%s]%s)) by (container_name, container, pod_name, pod, namespace, instance, %s)`
 	queryFmtGPUsRequested            = `avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
 	queryFmtGPUsAllocated            = `avg(avg_over_time(container_gpu_allocation{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
-	queryFmtGPUUsageAvg              = `avg(rate(DCGM_FI_DEV_GPU_UTIL{container!=""}[%s]%s)) by (container, pod, namespace, %s)`
+	queryFmtGPUUsageAvg              = `avg(avg_over_time(DCGM_FI_DEV_GPU_UTIL{container!=""}[%s]%s)) by (container, pod, namespace, %s)`
 	queryFmtNodeCostPerCPUHr         = `avg(avg_over_time(node_cpu_hourly_cost[%s]%s)) by (node, %s, instance_type, provider_id)`
 	queryFmtNodeCostPerRAMGiBHr      = `avg(avg_over_time(node_ram_hourly_cost[%s]%s)) by (node, %s, instance_type, provider_id)`
 	queryFmtNodeCostPerGPUHr         = `avg(avg_over_time(node_gpu_hourly_cost[%s]%s)) by (node, %s, instance_type, provider_id)`
@@ -987,7 +987,7 @@ func applyGPUUsageAvg(podMap map[podKey]*Pod, resGPUUsageAvg []*prom.QueryResult
 		}
 
 		log.Infof("COMPUTEALLOCATION TESTING: GPU AVERAGE FOR POD CONTAINER %s: %f", container, res.Values[0].Value)
-		pod.Allocations[container].GPUUsageAverage = res.Values[0].Value
+		pod.Allocations[container].GPUUsageAverage = res.Values[0].Value * 0.1
 	}
 }
 
