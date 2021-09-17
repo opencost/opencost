@@ -328,14 +328,10 @@ func (cmme *CostModelMetricsEmitter) IsRunning() bool {
 // NodeCostAverages tracks a running average of a node's cost attributes.
 // The averages are used to detect and discard spurrious outliers.
 type NodeCostAverages struct {
-	CpuCostAverage         float64
-	RamCostAverage         float64
-	GpuCostAverage         float64
-	TotalCostAverage       float64
-	NumCpuDataPoints       float64
-	NumRamDataPoints       float64
-	NumGpuDataPoints       float64
-	NumTotalCostDataPoints float64
+	CpuCostAverage   float64
+	RamCostAverage   float64
+	NumCpuDataPoints float64
+	NumRamDataPoints float64
 }
 
 // StartCostModelMetricRecording starts the go routine that emits metrics used to determine
@@ -471,14 +467,10 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				// initialize average cost tracking for this node if there is none
 				if !ok {
 					avgCosts = NodeCostAverages{
-						CpuCostAverage:         cpuCost,
-						RamCostAverage:         ramCost,
-						GpuCostAverage:         gpuCost,
-						TotalCostAverage:       totalCost,
-						NumCpuDataPoints:       1,
-						NumRamDataPoints:       1,
-						NumGpuDataPoints:       1,
-						NumTotalCostDataPoints: 1,
+						CpuCostAverage:   cpuCost,
+						RamCostAverage:   ramCost,
+						NumCpuDataPoints: 1,
+						NumRamDataPoints: 1,
 					}
 					nodeCostAverages[labelKey] = avgCosts
 				}
@@ -503,21 +495,10 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				} else {
 					log.Warningf("RAM cost outlier detected; skipping data point.")
 				}
-				if gpuCost < outlierFactor*avgCosts.GpuCostAverage {
-					cmme.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(gpuCost)
-					avgCosts.GpuCostAverage = (avgCosts.GpuCostAverage*avgCosts.NumGpuDataPoints + gpuCost) / (avgCosts.NumGpuDataPoints + 1)
-					avgCosts.NumGpuDataPoints += 1
-				} else {
-					log.Warningf("GPU cost outlier detected; skipping data point.")
-				}
 				// skip redording totalCost if any constituent costs were outliers
 				if cpuCost < outlierFactor*avgCosts.CpuCostAverage &&
-					ramCost < outlierFactor*avgCosts.RamCostAverage &&
-					gpuCost < outlierFactor*avgCosts.GpuCostAverage {
-
+					ramCost < outlierFactor*avgCosts.RamCostAverage {
 					cmme.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(totalCost)
-					avgCosts.TotalCostAverage = (avgCosts.TotalCostAverage*avgCosts.NumTotalCostDataPoints + totalCost) / (avgCosts.NumTotalCostDataPoints + 1)
-					avgCosts.NumTotalCostDataPoints += 1
 				}
 
 				if node.IsSpot() {
