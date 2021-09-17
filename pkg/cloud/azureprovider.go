@@ -73,6 +73,9 @@ var (
 	mtStandardN, _ = regexp.Compile(`^Standard_N[C|D|V]\d+r?[_v\d]*[_Promo]*$`)
 )
 
+// List obtained by installing the Azure CLI tool "az", described here:
+// https://docs.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt
+// logging into an Azure account, and running command `az account list-locations`
 var azureRegions = []string{
 	"eastus",
 	"eastus2",
@@ -114,9 +117,16 @@ var azureRegions = []string{
 	"brazil",
 	"canada",
 	"europe",
+	"france",
+	"germany",
 	"global",
 	"india",
 	"japan",
+	"korea",
+	"norway",
+	"southafrica",
+	"switzerland",
+	"uae",
 	"uk",
 	"unitedstates",
 	"eastasiastage",
@@ -137,7 +147,6 @@ var azureRegions = []string{
 	"francesouth",
 	"germanynorth",
 	"norwaywest",
-	"swedensouth",
 	"switzerlandwest",
 	"ukwest",
 	"uaecentral",

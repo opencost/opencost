@@ -34,6 +34,9 @@ import (
 const GKE_GPU_TAG = "cloud.google.com/gke-accelerator"
 const BigqueryUpdateType = "bigqueryupdate"
 
+// List obtained by installing the `gcloud` CLI tool,
+// logging into gcp account, and running command
+// `gcloud compute regions list`
 var gcpRegions = []string{
 	"asia-east1",
 	"asia-east2",
