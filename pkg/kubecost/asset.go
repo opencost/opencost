@@ -2725,6 +2725,10 @@ func (as *AssetSet) ReconciliationMatch(query Asset) (Asset, bool, error) {
 
 	var providerIDMatch Asset
 	for _, asset := range as.assets {
+		// Ignore cloud assets when looking for reconciliation matches
+		if asset.Type() == CloudAssetType {
+			continue
+		}
 		if k, err := key(asset, fullMatchProps); err != nil {
 			return nil, false, err
 		} else if k == fullMatchKey {
