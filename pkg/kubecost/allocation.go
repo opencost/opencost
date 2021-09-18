@@ -466,7 +466,7 @@ func (a *Allocation) GPUEfficiency() float64 {
 // TotalEfficiency is the cost-weighted average of CPU and RAM efficiency. If
 // there is no cost at all, then efficiency is zero.
 func (a *Allocation) TotalEfficiency() float64 {
-	if a.RAMTotalCost()+a.CPUTotalCost()+a.GPUEfficiency() > 0 {
+	if a.RAMTotalCost()+a.CPUTotalCost() > 0 {
 		ramCostEff := a.RAMEfficiency() * a.RAMTotalCost()
 		cpuCostEff := a.CPUEfficiency() * a.CPUTotalCost()
 		return (ramCostEff + cpuCostEff) / (a.CPUTotalCost() + a.RAMTotalCost())
