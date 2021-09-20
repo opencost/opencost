@@ -11,8 +11,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/services"
 	"github.com/kubecost/cost-model/pkg/util/httputil"
 	"github.com/kubecost/cost-model/pkg/util/timeutil"
+	"github.com/kubecost/cost-model/pkg/util/watcher"
 
 	"k8s.io/klog"
 
@@ -22,7 +24,6 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/clustercache"
-	cm "github.com/kubecost/cost-model/pkg/clustermanager"
 	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/errors"
@@ -32,9 +33,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/thanos"
 	"github.com/kubecost/cost-model/pkg/util/json"
 	prometheus "github.com/prometheus/client_golang/api"
-	prometheusClient "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/patrickmn/go-cache"
@@ -45,14 +44,13 @@ import (
 )
 
 const (
-	prometheusTroubleshootingEp = "http://docs.kubecost.com/custom-prom#troubleshoot"
-	RFC3339Milli                = "2006-01-02T15:04:05.000Z"
-	maxCacheMinutes1d           = 11
-	maxCacheMinutes2d           = 17
-	maxCacheMinutes7d           = 37
-	maxCacheMinutes30d          = 137
-	CustomPricingSetting        = "CustomPricing"
-	DiscountSetting             = "Discount"
+	RFC3339Milli         = "2006-01-02T15:04:05.000Z"
+	maxCacheMinutes1d    = 11
+	maxCacheMinutes2d    = 17
+	maxCacheMinutes7d    = 37
+	maxCacheMinutes30d   = 137
+	CustomPricingSetting = "CustomPricing"
+	DiscountSetting      = "Discount"
 )
 
 var (
@@ -64,10 +62,9 @@ var (
 // Prometheus, Kubernetes, the cloud provider, and caches.
 type Accesses struct {
 	Router            *httprouter.Router
-	PrometheusClient  prometheusClient.Client
-	ThanosClient      prometheusClient.Client
+	PrometheusClient  prometheus.Client
+	ThanosClient      prometheus.Client
 	KubeClientSet     kubernetes.Interface
-	ClusterManager    *cm.ClusterManager
 	ClusterMap        clusters.ClusterMap
 	CloudProvider     cloud.Provider
 	Model             *CostModel
@@ -84,13 +81,15 @@ type Accesses struct {
 	// settings will be published in a pub/sub model
 	settingsSubscribers map[string][]chan string
 	settingsMutex       sync.Mutex
+	// registered http service instances
+	httpServices services.HTTPServices
 }
 
 // GetPrometheusClient decides whether the default Prometheus client or the Thanos client
 // should be used.
-func (a *Accesses) GetPrometheusClient(remote bool) prometheusClient.Client {
+func (a *Accesses) GetPrometheusClient(remote bool) prometheus.Client {
 	// Use Thanos Client if it exists (enabled) and remote flag set
-	var pc prometheusClient.Client
+	var pc prometheus.Client
 
 	if remote && a.ThanosClient != nil {
 		pc = a.ThanosClient
@@ -410,7 +409,7 @@ func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httpr
 		return
 	}
 
-	var client prometheusClient.Client
+	var client prometheus.Client
 	if useThanos {
 		client = a.ThanosClient
 		offsetDur = thanos.OffsetDuration()
@@ -493,7 +492,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	// Use Thanos Client if it exists (enabled) and remote flag set
-	var pClient prometheusClient.Client
+	var pClient prometheus.Client
 	if remote != "false" && a.ThanosClient != nil {
 		pClient = a.ThanosClient
 	} else {
@@ -911,40 +910,6 @@ func (a *Accesses) GetPrometheusMetrics(w http.ResponseWriter, _ *http.Request, 
 	w.Write(WrapData(result, nil))
 }
 
-// Creates a new ClusterManager instance using a boltdb storage. If that fails,
-// then we fall back to a memory-only storage.
-func newClusterManager() *cm.ClusterManager {
-	clustersConfigFile := "/var/configs/clusters/default-clusters.yaml"
-
-	// Return a memory-backed cluster manager populated by configmap
-	return cm.NewConfiguredClusterManager(cm.NewMapDBClusterStorage(), clustersConfigFile)
-
-	// NOTE: The following should be used with a persistent disk store. Since the
-	// NOTE: configmap approach is currently the "persistent" source (entries are read-only
-	// NOTE: on the backend), we don't currently need to store on disk.
-	/*
-		path := env.GetConfigPath()
-		db, err := bolt.Open(path+"costmodel.db", 0600, nil)
-		if err != nil {
-			klog.V(1).Infof("[Error] Failed to create costmodel.db: %s", err.Error())
-			return cm.NewConfiguredClusterManager(cm.NewMapDBClusterStorage(), clustersConfigFile)
-		}
-
-		store, err := cm.NewBoltDBClusterStorage("clusters", db)
-		if err != nil {
-			klog.V(1).Infof("[Error] Failed to Create Cluster Storage: %s", err.Error())
-			return cm.NewConfiguredClusterManager(cm.NewMapDBClusterStorage(), clustersConfigFile)
-		}
-
-		return cm.NewConfiguredClusterManager(store, clustersConfigFile)
-	*/
-}
-
-type ConfigWatchers struct {
-	ConfigmapName string
-	WatchFunc     func(string, map[string]string) error
-}
-
 // captures the panic event in sentry
 func capturePanicEvent(err string, stack string) {
 	msg := fmt.Sprintf("Panic: %s\nStackTrace: %s\n", err, stack)
@@ -975,11 +940,13 @@ func handlePanic(p errors.Panic) bool {
 	return p.Type == errors.PanicTypeHTTP
 }
 
-func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
+func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses {
 	klog.InitFlags(nil)
 	flag.Set("v", "3")
 	flag.Parse()
 	klog.V(1).Infof("Starting cost-model (git commit \"%s\")", env.GetAppVersion())
+
+	configWatchers := watcher.NewConfigMapWatchers(additionalConfigWatchers...)
 
 	var err error
 	if errorReportingEnabled {
@@ -1004,58 +971,39 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 
 	timeout := 120 * time.Second
 	keepAlive := 120 * time.Second
-	scrapeInterval, _ := time.ParseDuration("1m")
+	scrapeInterval := time.Minute
 
 	promCli, err := prom.NewPrometheusClient(address, timeout, keepAlive, queryConcurrency, "")
 	if err != nil {
 		klog.Fatalf("Failed to create prometheus client, Error: %v", err)
 	}
 
-	api := prometheusAPI.NewAPI(promCli)
-	pcfg, err := api.Config(context.Background())
-	if err != nil {
-		klog.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/thanos here.", address, err.Error(), prometheusTroubleshootingEp)
-	} else {
-		klog.V(1).Info("Retrieved a prometheus config file from: " + address)
-		sc, err := GetPrometheusConfig(pcfg.YAML)
-		if err != nil {
-			klog.Infof("Fix YAML error %s", err)
-		}
-		for _, scrapeconfig := range sc.ScrapeConfigs {
-			if scrapeconfig.JobName == GetKubecostJobName() {
-				if scrapeconfig.ScrapeInterval != "" {
-					si := scrapeconfig.ScrapeInterval
-					sid, err := time.ParseDuration(si)
-					if err != nil {
-						klog.Infof("error parseing scrapeConfig for %s", scrapeconfig.JobName)
-					} else {
-						klog.Infof("Found Kubecost job scrape interval of: %s", si)
-						scrapeInterval = sid
-					}
-				}
-			}
-		}
-	}
-	klog.Infof("Using scrape interval of %f", scrapeInterval.Seconds())
-
 	m, err := prom.Validate(promCli)
-	if err != nil || m.Running == false {
+	if err != nil || !m.Running {
 		if err != nil {
-			klog.Errorf("Failed to query prometheus at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prometheusTroubleshootingEp)
-		} else if m.Running == false {
-			klog.Errorf("Prometheus at %s is not running. Troubleshooting help available at: %s", address, prometheusTroubleshootingEp)
-		}
-
-		api := prometheusAPI.NewAPI(promCli)
-		_, err = api.Config(context.Background())
-		if err != nil {
-			klog.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/thanos here.", address, err.Error(), prometheusTroubleshootingEp)
-		} else {
-			klog.V(1).Info("Retrieved a prometheus config file from: " + address)
+			klog.Errorf("Failed to query prometheus at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prom.PrometheusTroubleshootingURL)
+		} else if !m.Running {
+			klog.Errorf("Prometheus at %s is not running. Troubleshooting help available at: %s", address, prom.PrometheusTroubleshootingURL)
 		}
 	} else {
 		klog.V(1).Info("Success: retrieved the 'up' query against prometheus at: " + address)
 	}
+
+	api := prometheusAPI.NewAPI(promCli)
+	_, err = api.Config(context.Background())
+	if err != nil {
+		klog.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
+	} else {
+		klog.Infof("Retrieved a prometheus config file from: %s", address)
+	}
+
+	// Lookup scrape interval for kubecost job, update if found
+	si, err := prom.ScrapeIntervalFor(promCli, env.GetKubecostJobName())
+	if err == nil {
+		scrapeInterval = si
+	}
+
+	klog.Infof("Using scrape interval of %f", scrapeInterval.Seconds())
 
 	// Kubernetes API setup
 	var kc *rest.Config
@@ -1083,37 +1031,17 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 		panic(err.Error())
 	}
 
-	watchConfigFunc := func(c interface{}) {
-		conf := c.(*v1.ConfigMap)
-		if conf.GetName() == env.GetPricingConfigmapName() {
-			_, err := cloudProvider.UpdateConfigFromConfigMap(conf.Data)
-			if err != nil {
-				klog.Infof("ERROR UPDATING %s CONFIG: %s", "pricing-configs", err.Error())
-			}
-		}
-		for _, cw := range additionalConfigWatchers {
-			if conf.GetName() == cw.ConfigmapName {
-				err := cw.WatchFunc(conf.GetName(), conf.Data)
-				if err != nil {
-					klog.Infof("ERROR UPDATING %s CONFIG: %s", cw.ConfigmapName, err.Error())
-				}
-			}
-		}
-	}
+	// Append the pricing config watcher
+	configWatchers.AddWatcher(cloud.ConfigWatcherFor(cloudProvider))
+	watchConfigFunc := configWatchers.ToWatchFunc()
+	watchedConfigs := configWatchers.GetWatchedConfigs()
 
 	kubecostNamespace := env.GetKubecostNamespace()
 	// We need an initial invocation because the init of the cache has happened before we had access to the provider.
-	configs, err := kubeClientset.CoreV1().ConfigMaps(kubecostNamespace).Get(context.Background(), env.GetPricingConfigmapName(), metav1.GetOptions{})
-	if err != nil {
-		klog.Infof("No %s configmap found at installtime, using existing configs: %s", env.GetPricingConfigmapName(), err.Error())
-	} else {
-		watchConfigFunc(configs)
-	}
-
-	for _, cw := range additionalConfigWatchers {
-		configs, err := kubeClientset.CoreV1().ConfigMaps(kubecostNamespace).Get(context.Background(), cw.ConfigmapName, metav1.GetOptions{})
+	for _, cw := range watchedConfigs {
+		configs, err := kubeClientset.CoreV1().ConfigMaps(kubecostNamespace).Get(context.Background(), cw, metav1.GetOptions{})
 		if err != nil {
-			klog.Infof("No %s configmap found at installtime, using existing configs: %s", cw.ConfigmapName, err.Error())
+			klog.Infof("No %s configmap found at install time, using existing configs: %s", cw, err.Error())
 		} else {
 			klog.Infof("Found configmap %s, watching...", configs.Name)
 			watchConfigFunc(configs)
@@ -1121,14 +1049,6 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	}
 
 	k8sCache.SetConfigMapUpdateFunc(watchConfigFunc)
-
-	// TODO: General Architecture Note: Several passes have been made to modularize a lot of
-	// TODO: our code, but the router still continues to be the obvious entry point for new \
-	// TODO: features. We should look to split out the actual "router" functionality and
-	// TODO: implement a builder -> controller for stitching new features and other dependencies.
-	clusterManager := newClusterManager()
-
-	// Initialize metrics here
 
 	remoteEnabled := env.IsRemoteEnabled()
 	if remoteEnabled {
@@ -1144,7 +1064,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	}
 
 	// Thanos Client
-	var thanosClient prometheusClient.Client
+	var thanosClient prometheus.Client
 	if thanos.IsEnabled() {
 		thanosAddress := thanos.QueryURL()
 
@@ -1208,7 +1128,6 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 		PrometheusClient:  promCli,
 		ThanosClient:      thanosClient,
 		KubeClientSet:     kubeClientset,
-		ClusterManager:    clusterManager,
 		ClusterMap:        clusterMap,
 		CloudProvider:     cloudProvider,
 		Model:             costModel,
@@ -1219,6 +1138,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 		OutOfClusterCache: outOfClusterCache,
 		SettingsCache:     settingsCache,
 		CacheExpiration:   cacheExpiration,
+		httpServices:      services.NewCostModelServices(),
 	}
 	// Use the Accesses instance, itself, as the CostModelAggregator. This is
 	// confusing and unconventional, but necessary so that we can swap it
@@ -1242,9 +1162,9 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 		log.Infof("Init: AggregateCostModel cache warming disabled")
 	}
 
-	a.MetricsEmitter.Start()
-
-	managerEndpoints := cm.NewClusterManagerEndpoints(a.ClusterManager)
+	if !env.IsKubecostMetricsPodEnabled() {
+		a.MetricsEmitter.Start()
+	}
 
 	a.Router.GET("/costDataModel", a.CostDataModel)
 	a.Router.GET("/costDataModelRange", a.CostDataModelRange)
@@ -1274,10 +1194,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	a.Router.GET("/diagnostics/requestQueue", a.GetPrometheusQueueState)
 	a.Router.GET("/diagnostics/prometheusMetrics", a.GetPrometheusMetrics)
 
-	// cluster manager endpoints
-	a.Router.GET("/clusters", managerEndpoints.GetAllClusters)
-	a.Router.PUT("/clusters", managerEndpoints.PutCluster)
-	a.Router.DELETE("/clusters/:id", managerEndpoints.DeleteCluster)
+	a.httpServices.RegisterAll(a.Router)
 
 	return a
 }

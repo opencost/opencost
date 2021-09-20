@@ -17,6 +17,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/cost-model/pkg/util/watcher"
 
 	v1 "k8s.io/api/core/v1"
 )
@@ -295,6 +296,18 @@ func CustomPricesEnabled(p Provider) bool {
 	}
 
 	return config.CustomPricesEnabled == "true"
+}
+
+// ConfigWatcherFor returns a new ConfigWatcher instance which watches changes to the "pricing-configs"
+// configmap
+func ConfigWatcherFor(p Provider) *watcher.ConfigMapWatcher {
+	return &watcher.ConfigMapWatcher{
+		ConfigMapName: env.GetPricingConfigmapName(),
+		WatchFunc: func(name string, data map[string]string) error {
+			_, err := p.UpdateConfigFromConfigMap(data)
+			return err
+		},
+	}
 }
 
 // AllocateIdleByDefault returns true if the application settings specify to allocate idle by default
