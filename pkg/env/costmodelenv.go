@@ -71,7 +71,13 @@ const (
 	LegacyExternalAPIDisabledVar = "LEGACY_EXTERNAL_API_DISABLED"
 
 	PromClusterIDLabelEnvVar = "PROM_CLUSTER_ID_LABEL"
+
+	PricingConfigmapName = "PRICING_CONFIGMAP_NAME"
 )
+
+func GetPricingConfigmapName() string {
+	return Get(PricingConfigmapName, "pricing-configs")
+}
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
 // the AWS access key for authentication
