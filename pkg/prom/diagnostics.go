@@ -109,7 +109,7 @@ func GetPrometheusMetrics(client prometheus.Client, offset string) ([]*Prometheu
 		},
 		{
 			ID:          "cadvisorLabel",
-			Query:       fmt.Sprintf(`absent_over_time(container_cpu_usage_seconds_total{container_name!="",pod_name!="",instance!~"10.*|192.*|172.*"}[5m]  %s)`, offset),
+			Query:       fmt.Sprintf(`absent_over_time(container_cpu_usage_seconds_total{container!="",pod!=""}[5m]  %s)`, offset),
 			Label:       "Expected cAdvsior labels available",
 			Description: "Determine if expected cAdvisor labels are present during last 5 minutes.",
 			DocLink:     fmt.Sprintf("%s#cadvisor-metrics-available", docs),
