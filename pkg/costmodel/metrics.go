@@ -501,6 +501,8 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					cmme.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(totalCost)
 				}
 
+				nodeCostAverages[labelKey] = avgCosts
+
 				if node.IsSpot() {
 					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(1.0)
 				} else {
