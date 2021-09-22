@@ -71,12 +71,18 @@ const (
 	LegacyExternalAPIDisabledVar = "LEGACY_EXTERNAL_API_DISABLED"
 
 	PromClusterIDLabelEnvVar = "PROM_CLUSTER_ID_LABEL"
+
+	PricingConfigmapName = "PRICING_CONFIGMAP_NAME"
 )
+
+func GetPricingConfigmapName() string {
+	return Get(PricingConfigmapName, "pricing-configs")
+}
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
 // the AWS access key for authentication
 func GetAppVersion() string {
-	return Get(AppVersionEnvVar, "1.86.1")
+	return Get(AppVersionEnvVar, "1.87.0")
 }
 
 // IsEmitNamespaceAnnotationsMetric returns true if cost-model is configured to emit the kube_namespace_annotations metric

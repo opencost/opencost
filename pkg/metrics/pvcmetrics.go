@@ -29,7 +29,7 @@ func (kpvc KubePVCCollector) Collect(ch chan<- prometheus.Metric) {
 		storageClass := getPersistentVolumeClaimClass(pvc)
 		volume := pvc.Spec.VolumeName
 
-		ch <- newKubePVCInfoMetric("kube_persistentvolumeclaim_info", pvc.Name, pvc.Namespace, volume, storageClass)
+		ch <- newKubePVCInfoMetric("kube_persistentvolumeclaim_info", pvc.Name, pvc.Namespace, storageClass, volume)
 
 		if storage, ok := pvc.Spec.Resources.Requests[v1.ResourceStorage]; ok {
 			ch <- newKubePVCResourceRequestsStorageBytesMetric("kube_persistentvolumeclaim_resource_requests_storage_bytes", pvc.Name, pvc.Namespace, float64(storage.Value()))
