@@ -2656,6 +2656,21 @@ func (as *AssetSet) Clone() *AssetSet {
 	}
 }
 
+// Delete removes the asset with the given name from the set
+func (as *AssetSet) Delete(name string) bool {
+	if as == nil {
+		return false
+	}
+
+	as.Lock()
+	defer as.Unlock()
+
+	var ok bool
+	_, ok = as.assets[name]
+	delete(as.assets, name)
+	return ok
+}
+
 // Each invokes the given function for each Asset in the set
 func (as *AssetSet) Each(f func(string, Asset)) {
 	if as == nil {

@@ -97,7 +97,7 @@ const GCPProvider = "GCP"
 const AzureProvider = "Azure"
 
 // NilProvider describes unknown provider
-const NilProvider = "-"
+const NilProvider = ""
 
 // Service options
 
