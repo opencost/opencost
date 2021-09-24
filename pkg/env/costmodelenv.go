@@ -72,7 +72,8 @@ const (
 
 	PromClusterIDLabelEnvVar = "PROM_CLUSTER_ID_LABEL"
 
-	PricingConfigmapName = "PRICING_CONFIGMAP_NAME"
+	PricingConfigmapName  = "PRICING_CONFIGMAP_NAME"
+	KubecostJobNameEnvVar = "KUBECOST_JOB_NAME"
 )
 
 func GetPricingConfigmapName() string {
@@ -353,6 +354,11 @@ func GetParsedUTCOffset() time.Duration {
 	}
 
 	return offset
+}
+
+// GetKubecostJobName returns the environment variable value for KubecostJobNameEnvVar
+func GetKubecostJobName() string {
+	return Get(KubecostJobNameEnvVar, "kubecost")
 }
 
 func IsCacheWarmingEnabled() bool {

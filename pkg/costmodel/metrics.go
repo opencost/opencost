@@ -263,17 +263,12 @@ func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clust
 	// init will only actually execute once to register the custom gauges
 	initCostModelMetrics(clusterCache, provider)
 
-	// if the metrics pod is not enabled, we want to emit those metrics from this pod.
-	// NOTE: This is not optimal, as we calculate costs based on run times for other containers.
-	// NOTE: The metrics for run times should be emitted separate from cost-model
-	if !env.IsKubecostMetricsPodEnabled() {
-		metrics.InitKubeMetrics(clusterCache, &metrics.KubeMetricsOpts{
-			EmitKubecostControllerMetrics: true,
-			EmitNamespaceAnnotations:      env.IsEmitNamespaceAnnotationsMetric(),
-			EmitPodAnnotations:            env.IsEmitPodAnnotationsMetric(),
-			EmitKubeStateMetrics:          env.IsEmitKsmV1Metrics(),
-		})
-	}
+	metrics.InitKubeMetrics(clusterCache, &metrics.KubeMetricsOpts{
+		EmitKubecostControllerMetrics: true,
+		EmitNamespaceAnnotations:      env.IsEmitNamespaceAnnotationsMetric(),
+		EmitPodAnnotations:            env.IsEmitPodAnnotationsMetric(),
+		EmitKubeStateMetrics:          env.IsEmitKsmV1Metrics(),
+	})
 
 	return &CostModelMetricsEmitter{
 		PrometheusClient:              promClient,
