@@ -1,10 +1,12 @@
 package cloud
 
 import (
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
@@ -42,7 +44,7 @@ func (*CustomProvider) ClusterManagementPricing() (string, float64, error) {
 	return "", 0.0, nil
 }
 
-func (*CustomProvider) GetLocalStorageQuery(window, offset string, rate bool, used bool) string {
+func (*CustomProvider) GetLocalStorageQuery(window, offset time.Duration, rate bool, used bool) string {
 	return ""
 }
 
@@ -81,12 +83,7 @@ func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomP
 					return err
 				}
 			} else {
-				sci := v.(map[string]interface{})
-				sc := make(map[string]string)
-				for k, val := range sci {
-					sc[k] = val.(string)
-				}
-				c.SharedCosts = sc //todo: support reflection/multiple map fields
+				return fmt.Errorf("type error while updating config for %s", kUpper)
 			}
 		}
 
@@ -312,14 +309,6 @@ func (cp *CustomProvider) CombinedDiscountForNode(instanceType string, isPreempt
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
 }
 
-func (cp *CustomProvider) ParseID(id string) string {
-	return id
-}
-
-func (cp *CustomProvider) ParsePVID(id string) string {
-	return id
-}
-
-func (cp *CustomProvider) ParseLBID(id string) string {
-	return id
+func (cp *CustomProvider) Regions() []string {
+	return []string{}
 }

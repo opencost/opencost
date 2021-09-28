@@ -3,34 +3,45 @@ package costmodel
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
-	"gopkg.in/yaml.v2"
 )
 
-const DEFAULT_KUBECOST_JOB_NAME = "kubecost"
+func GetPVInfoLocal(cache clustercache.ClusterCache, defaultClusterID string) (map[string]*PersistentVolumeClaimData, error) {
+	toReturn := make(map[string]*PersistentVolumeClaimData)
 
-type ScrapeConfig struct {
-	JobName        string `yaml:"job_name,omitempty"`
-	ScrapeInterval string `yaml:"scrape_interval,omitempty"`
-}
-
-type PromCfg struct {
-	ScrapeConfigs []ScrapeConfig `yaml:"scrape_configs,omitempty"`
-}
-
-func GetPrometheusConfig(pcfg string) (PromCfg, error) {
-	var promCfg PromCfg
-	err := yaml.Unmarshal([]byte(pcfg), &promCfg)
-	return promCfg, err
-}
-
-func GetKubecostJobName() string {
-	return DEFAULT_KUBECOST_JOB_NAME // TODO: look this up from a prometheus variable?
+	pvcs := cache.GetAllPersistentVolumeClaims()
+	for _, pvc := range pvcs {
+		var vals []*util.Vector
+		vals = append(vals, &util.Vector{
+			Timestamp: float64(time.Now().Unix()),
+			Value:     float64(pvc.Spec.Resources.Requests.Storage().Value()),
+		})
+		ns := pvc.Namespace
+		pvcName := pvc.Name
+		volumeName := pvc.Spec.VolumeName
+		pvClass := ""
+		if pvc.Spec.StorageClassName != nil {
+			pvClass = *pvc.Spec.StorageClassName
+		}
+		clusterID := defaultClusterID
+		key := fmt.Sprintf("%s,%s,%s", ns, pvcName, clusterID)
+		toReturn[key] = &PersistentVolumeClaimData{
+			Class:      pvClass,
+			Claim:      pvcName,
+			Namespace:  ns,
+			ClusterID:  clusterID,
+			VolumeName: volumeName,
+			Values:     vals,
+		}
+	}
+	return toReturn, nil
 }
 
 // TODO niko/prom move parsing functions from costmodel.go

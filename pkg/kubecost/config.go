@@ -3,6 +3,9 @@ package kubecost
 import (
 	"fmt"
 	"strings"
+
+	"github.com/kubecost/cost-model/pkg/prom"
+	"github.com/kubecost/cost-model/pkg/util/cloudutil"
 )
 
 // LabelConfig is a port of type AnalyzerConfig. We need to be more thoughtful
@@ -27,6 +30,30 @@ type LabelConfig struct {
 	OwnerExternalLabel       string `json:"owner_external_label"`
 	ProductExternalLabel     string `json:"product_external_label"`
 	TeamExternalLabel        string `json:"team_external_label"`
+}
+
+// NewLabelConfig creates a new LabelConfig instance with default values.
+func NewLabelConfig() *LabelConfig {
+	return &LabelConfig{
+		DepartmentLabel:          "department",
+		EnvironmentLabel:         "env",
+		OwnerLabel:               "owner",
+		ProductLabel:             "app",
+		TeamLabel:                "team",
+		ClusterExternalLabel:     "kubernetes_cluster",
+		NamespaceExternalLabel:   "kubernetes_namespace",
+		ControllerExternalLabel:  "kubernetes_controller",
+		DaemonsetExternalLabel:   "kubernetes_daemonset",
+		DeploymentExternalLabel:  "kubernetes_deployment",
+		StatefulsetExternalLabel: "kubernetes_statefulset",
+		ServiceExternalLabel:     "kubernetes_service",
+		PodExternalLabel:         "kubernetes_pod",
+		DepartmentExternalLabel:  "kubernetes_label_department",
+		EnvironmentExternalLabel: "kubernetes_label_env",
+		OwnerExternalLabel:       "kubernetes_label_owner",
+		ProductExternalLabel:     "kubernetes_label_app",
+		TeamExternalLabel:        "kubernetes_label_team",
+	}
 }
 
 // Map returns the config as a basic string map, with default values if not set
@@ -142,57 +169,111 @@ func (lc *LabelConfig) Map() map[string]string {
 	return m
 }
 
-// ExternalQueryLabels returns the config's external labels as a mapping of the
-// query column to the label it should set;
-// e.g. if the config stores "statefulset_external_label": "kubernetes_sset",
-//      then this would return "kubernetes_sset": "statefulset"
-func (lc *LabelConfig) ExternalQueryLabels() map[string]string {
-	queryLabels := map[string]string{}
+// Sanitize returns a sanitized version of the given string, which converts
+// all illegal characters to underscores. Illegal characters are those that
+// Prometheus does not support; i.e. [^a-zA-Z0-9_]
+func (lc *LabelConfig) Sanitize(label string) string {
+	return prom.SanitizeLabelName(strings.TrimSpace(label))
+}
 
-	for label, query := range lc.Map() {
-		if strings.HasSuffix(label, "external_label") && query != "" {
-			queryLabels[query] = label
+// GetExternalAllocationName derives an external allocation name from a set of
+// labels, given an aggregation property. If the aggregation property is,
+// itself, a label (e.g. label:app) then this function looks for a
+// corresponding value under "app" and returns "app=thatvalue". If the
+// aggregation property is not a label but a Kubernetes concept
+// (e.g. namespace) then this function first finds the "external label"
+// configured to represent it (e.g. NamespaceExternalLabel: "kubens") and uses
+// that label to determine an external allocation name. If no label value can
+// be found, return an empty string.
+func (lc *LabelConfig) GetExternalAllocationName(labels map[string]string, aggregateBy string) string {
+	labelNames := []string{}
+	aggByLabel := false
+
+	// Determine if the aggregation property is, itself, a label or not. If
+	// not, determine the label associated with the given aggregation property.
+	if strings.HasPrefix(aggregateBy, "label:") {
+		labelNames = append(labelNames, prom.SanitizeLabelName(strings.TrimPrefix(aggregateBy, "label:")))
+		aggByLabel = true
+	} else {
+		// If lc is nil, use a default LabelConfig to do a best-effort match
+		if lc == nil {
+			lc = NewLabelConfig()
+		}
+
+		switch strings.ToLower(aggregateBy) {
+		case AllocationClusterProp:
+			labelNames = strings.Split(lc.ClusterExternalLabel, ",")
+		case AllocationControllerProp:
+			labelNames = strings.Split(lc.ControllerExternalLabel, ",")
+		case AllocationNamespaceProp:
+			labelNames = strings.Split(lc.NamespaceExternalLabel, ",")
+		case AllocationPodProp:
+			labelNames = strings.Split(lc.PodExternalLabel, ",")
+		case AllocationServiceProp:
+			labelNames = strings.Split(lc.ServiceExternalLabel, ",")
+		case AllocationDeploymentProp:
+			labelNames = strings.Split(lc.DeploymentExternalLabel, ",")
+		case AllocationStatefulSetProp:
+			labelNames = strings.Split(lc.StatefulsetExternalLabel, ",")
+		case AllocationDaemonSetProp:
+			labelNames = strings.Split(lc.DaemonsetExternalLabel, ",")
+		case AllocationDepartmentProp:
+			labelNames = strings.Split(lc.DepartmentExternalLabel, ",")
+		case AllocationEnvironmentProp:
+			labelNames = strings.Split(lc.EnvironmentExternalLabel, ",")
+		case AllocationOwnerProp:
+			labelNames = strings.Split(lc.OwnerExternalLabel, ",")
+		case AllocationProductProp:
+			labelNames = strings.Split(lc.ProductExternalLabel, ",")
+		case AllocationTeamProp:
+			labelNames = strings.Split(lc.TeamExternalLabel, ",")
+		}
+
+		for i, labelName := range labelNames {
+			labelNames[i] = prom.SanitizeLabelName(strings.TrimSpace(labelName))
 		}
 	}
 
-	return queryLabels
-}
+	// No label is set for the given aggregation property.
+	if len(labelNames) == 0 {
+		return ""
+	}
 
-// AllocationPropertyLabels returns the config's external resource labels
-// as a mapping from k8s resource-to-label name.
-// e.g. if the config stores "statefulset_external_label": "kubernetes_sset",
-//      then this would return "statefulset": "kubernetes_sset"
-// e.g. if the config stores "owner_label": "product_owner",
-//      then this would return "label:product_owner": "product_owner"
-func (lc *LabelConfig) AllocationPropertyLabels() map[string]string {
-	labels := map[string]string{}
-
-	for labelKind, labelName := range lc.Map() {
-		if labelName != "" {
-			switch labelKind {
-			case "namespace_external_label":
-				labels["namespace"] = labelName
-			case "cluster_external_label":
-				labels["cluster"] = labelName
-			case "controller_external_label":
-				labels["controller"] = labelName
-			case "product_external_label":
-				labels["product"] = labelName
-			case "service_external_label":
-				labels["service"] = labelName
-			case "deployment_external_label":
-				labels["deployment"] = labelName
-			case "statefulset_external_label":
-				labels["statefulset"] = labelName
-			case "daemonset_external_label":
-				labels["daemonset"] = labelName
-			case "pod_external_label":
-				labels["pod"] = labelName
-			default:
-				labels[fmt.Sprintf("label:%s", labelName)] = labelName
+	// The relevant label is not present in the set of labels provided.
+	labelName := ""
+	labelValue := ""
+	for _, ln := range labelNames {
+		if lv, ok := labels[ln]; ok {
+			// Match found for given label
+			labelName = ln
+			labelValue = lv
+			break
+		} else {
+			// Convert the label name to a format compatible with AWS Glue and
+			// Athena column naming and check again. If not found after that,
+			// then consider the label not present.
+			ln = cloudutil.ConvertToGlueColumnFormat(ln)
+			if lv, ok = labels[ln]; ok {
+				// Match found for given label after converting to AWS format
+				labelName = ln
+				labelValue = lv
+				break
 			}
 		}
 	}
 
-	return labels
+	// No match found
+	if labelName == "" {
+		return ""
+	}
+
+	// When aggregating by some label (i.e. not by a Kubernetes concept),
+	// prepend the label value with the label name (e.g. "app=cost-analyzer").
+	// This step is not necessary for Kubernetes concepts (e.g. for namespace,
+	// we do not need "namespace=kubecost"; just "kubecost" will do).
+	if aggByLabel {
+		return fmt.Sprintf("%s=%s", labelName, labelValue)
+	}
+
+	return labelValue
 }

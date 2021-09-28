@@ -1,4 +1,4 @@
-package clustermanager
+package clusters
 
 import (
 	"errors"
@@ -18,27 +18,37 @@ type DataEnvelope struct {
 	Data   interface{} `json:"data"`
 }
 
-type ClusterManagerEndpoints struct {
+// ClusterManagerHTTPService is an implementation of HTTPService which provides
+// the frontend with the ability to manage stored cluster definitions.
+type ClusterManagerHTTPService struct {
 	manager *ClusterManager
 }
 
-func NewClusterManagerEndpoints(manager *ClusterManager) *ClusterManagerEndpoints {
-	return &ClusterManagerEndpoints{
+// NewClusterManagerHTTPService creates a new cluster management http service
+func NewClusterManagerHTTPService(manager *ClusterManager) *ClusterManagerHTTPService {
+	return &ClusterManagerHTTPService{
 		manager: manager,
 	}
 }
 
-func (cme *ClusterManagerEndpoints) GetAllClusters(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+// Register assigns the endpoints and returns an error on failure.
+func (cme *ClusterManagerHTTPService) Register(router *httprouter.Router) error {
+	router.GET("/clusters", cme.GetAllClusters)
+	router.PUT("/clusters", cme.PutCluster)
+	router.DELETE("/clusters/:id", cme.DeleteCluster)
+
+	return nil
+}
+
+func (cme *ClusterManagerHTTPService) GetAllClusters(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	clusters := cme.manager.GetAll()
 	w.Write(wrapData(clusters, nil))
 }
 
-func (cme *ClusterManagerEndpoints) PutCluster(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (cme *ClusterManagerHTTPService) PutCluster(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -62,9 +72,8 @@ func (cme *ClusterManagerEndpoints) PutCluster(w http.ResponseWriter, r *http.Re
 	w.Write(wrapData(cd, nil))
 }
 
-func (cme *ClusterManagerEndpoints) DeleteCluster(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (cme *ClusterManagerHTTPService) DeleteCluster(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	clusterID := ps.ByName("id")
 	if clusterID == "" {

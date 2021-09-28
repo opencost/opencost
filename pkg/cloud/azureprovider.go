@@ -4,18 +4,23 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	"github.com/kubecost/cost-model/pkg/kubecost"
 	"io"
 	"io/ioutil"
+	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/log"
+
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/kubecost"
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/fileutil"
 	"github.com/kubecost/cost-model/pkg/util/json"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2017-09-01/skus"
@@ -36,6 +41,8 @@ const (
 	AzureDiskPremiumSSDStorageClass  = "premium_ssd"
 	AzureDiskStandardSSDStorageClass = "standard_ssd"
 	AzureDiskStandardStorageClass    = "standard_hdd"
+	defaultSpotLabel                 = "kubernetes.azure.com/scalesetpriority"
+	defaultSpotLabelValue            = "spot"
 )
 
 var (
@@ -65,6 +72,86 @@ var (
 	mtStandardM, _ = regexp.Compile(`^Standard_M\d+[m|t|l]*s[_v\d]*[_Promo]*$`)
 	mtStandardN, _ = regexp.Compile(`^Standard_N[C|D|V]\d+r?[_v\d]*[_Promo]*$`)
 )
+
+// List obtained by installing the Azure CLI tool "az", described here:
+// https://docs.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt
+// logging into an Azure account, and running command `az account list-locations`
+var azureRegions = []string{
+	"eastus",
+	"eastus2",
+	"southcentralus",
+	"westus2",
+	"westus3",
+	"australiaeast",
+	"southeastasia",
+	"northeurope",
+	"swedencentral",
+	"uksouth",
+	"westeurope",
+	"centralus",
+	"northcentralus",
+	"westus",
+	"southafricanorth",
+	"centralindia",
+	"eastasia",
+	"japaneast",
+	"jioindiawest",
+	"koreacentral",
+	"canadacentral",
+	"francecentral",
+	"germanywestcentral",
+	"norwayeast",
+	"switzerlandnorth",
+	"uaenorth",
+	"brazilsouth",
+	"centralusstage",
+	"eastusstage",
+	"eastus2stage",
+	"northcentralusstage",
+	"southcentralusstage",
+	"westusstage",
+	"westus2stage",
+	"asia",
+	"asiapacific",
+	"australia",
+	"brazil",
+	"canada",
+	"europe",
+	"france",
+	"germany",
+	"global",
+	"india",
+	"japan",
+	"korea",
+	"norway",
+	"southafrica",
+	"switzerland",
+	"uae",
+	"uk",
+	"unitedstates",
+	"eastasiastage",
+	"southeastasiastage",
+	"centraluseuap",
+	"eastus2euap",
+	"westcentralus",
+	"southafricawest",
+	"australiacentral",
+	"australiacentral2",
+	"australiasoutheast",
+	"japanwest",
+	"jioindiacentral",
+	"koreasouth",
+	"southindia",
+	"westindia",
+	"canadaeast",
+	"francesouth",
+	"germanynorth",
+	"norwaywest",
+	"switzerlandwest",
+	"ukwest",
+	"uaecentral",
+	"brazilsoutheast",
+}
 
 const AzureLayout = "2006-01-02"
 
@@ -149,6 +236,72 @@ func getRegions(service string, subscriptionsClient subscriptions.Client, provid
 	}
 }
 
+func getRetailPrice(region string, skuName string, currencyCode string, spot bool) (string, error) {
+	pricingURL := "https://prices.azure.com/api/retail/prices?$skip=0"
+
+	if currencyCode != "" {
+		pricingURL += fmt.Sprintf("&currencyCode='%s'", currencyCode)
+	}
+
+	var filterParams []string
+
+	if region != "" {
+		regionParam := fmt.Sprintf("armRegionName eq '%s'", region)
+		filterParams = append(filterParams, regionParam)
+	}
+
+	if skuName != "" {
+		skuNameParam := fmt.Sprintf("armSkuName eq '%s'", skuName)
+		filterParams = append(filterParams, skuNameParam)
+	}
+
+	if len(filterParams) > 0 {
+		filterParamsEscaped := url.QueryEscape(strings.Join(filterParams[:], " and "))
+		pricingURL += fmt.Sprintf("&$filter=%s", filterParamsEscaped)
+	}
+
+	log.Infof("starting download retail price payload from \"%s\"", pricingURL)
+	resp, err := http.Get(pricingURL)
+
+	if err != nil {
+		return "", fmt.Errorf("bogus fetch of \"%s\": %v", pricingURL, err)
+	}
+
+	if resp.StatusCode < 200 && resp.StatusCode > 299 {
+		return "", fmt.Errorf("retail price responded with error status code %d", resp.StatusCode)
+	}
+
+	pricingPayload := AzureRetailPricing{}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("Error getting response: %v", err)
+	}
+
+	jsonErr := json.Unmarshal(body, &pricingPayload)
+	if jsonErr != nil {
+		return "", fmt.Errorf("Error unmarshalling data: %v", jsonErr)
+	}
+
+	retailPrice := ""
+	for _, item := range pricingPayload.Items {
+		if item.Type == "Consumption" && !strings.Contains(item.ProductName, "Windows") {
+			// if spot is true SkuName should contain "spot, if it is false it should not
+			if spot == strings.Contains(strings.ToLower(item.SkuName), " spot") {
+				retailPrice = fmt.Sprintf("%f", item.RetailPrice)
+			}
+		}
+	}
+
+	log.DedupedInfof(5, "done parsing retail price payload from \"%s\"\n", pricingURL)
+
+	if retailPrice == "" {
+		return retailPrice, fmt.Errorf("Couldn't find price for product \"%s\" in \"%s\" region", skuName, region)
+	}
+
+	return retailPrice, nil
+}
+
 func toRegionID(meterRegion string, regions map[string]string) (string, error) {
 	var rp regionParts = strings.Split(strings.ToLower(meterRegion), " ")
 	regionCode := regionCodeMappings[rp[0]]
@@ -182,6 +335,41 @@ func checkRegionID(regionID string, regions map[string]string) bool {
 	return false
 }
 
+// AzureRetailPricing struct for unmarshalling Azure Retail pricing api JSON response
+type AzureRetailPricing struct {
+	BillingCurrency    string                         `json:"BillingCurrency"`
+	CustomerEntityId   string                         `json:"CustomerEntityId"`
+	CustomerEntityType string                         `json:"CustomerEntityType"`
+	Items              []AzureRetailPricingAttributes `json:"Items"`
+	NextPageLink       string                         `json:"NextPageLink"`
+	Count              int                            `json:"Count"`
+}
+
+//AzureRetailPricingAttributes struct for unmarshalling Azure Retail pricing api JSON response
+type AzureRetailPricingAttributes struct {
+	CurrencyCode         string     `json:"currencyCode"`
+	TierMinimumUnits     float32    `json:"tierMinimumUnits"`
+	RetailPrice          float32    `json:"retailPrice"`
+	UnitPrice            float32    `json:"unitPrice"`
+	ArmRegionName        string     `json:"armRegionName"`
+	Location             string     `json:"location"`
+	EffectiveStartDate   *time.Time `json:"effectiveStartDate"`
+	EffectiveEndDate     *time.Time `json:"effectiveEndDate"`
+	MeterId              string     `json:"meterId"`
+	MeterName            string     `json:"meterName"`
+	ProductId            string     `json:"productId"`
+	SkuId                string     `json:"skuId"`
+	ProductName          string     `json:"productName"`
+	SkuName              string     `json:"skuName"`
+	ServiceName          string     `json:"serviceName"`
+	ServiceId            string     `json:"serviceId"`
+	ServiceFamily        string     `json:"serviceFamily"`
+	UnitOfMeasure        string     `json:"unitOfMeasure"`
+	Type                 string     `json:"type"`
+	IsPrimaryMeterRegion bool       `json:"isPrimaryMeterRegion"`
+	ArmSkuName           string     `json:"armSkuName"`
+}
+
 // AzurePricing either contains a Node or PV
 type AzurePricing struct {
 	Node *Node
@@ -194,6 +382,7 @@ type Azure struct {
 	Clientset               clustercache.ClusterCache
 	Config                  *ProviderConfig
 	ServiceAccountChecks    map[string]*ServiceAccountCheck
+	RateCardPricingError    error
 }
 
 type azureKey struct {
@@ -210,11 +399,16 @@ func (k *azureKey) Features() string {
 	return fmt.Sprintf("%s,%s,%s", region, instance, usageType)
 }
 
+// GPUType returns value of GPULabel if present
 func (k *azureKey) GPUType() string {
 	if t, ok := k.Labels[k.GPULabel]; ok {
 		return t
 	}
 	return ""
+}
+
+func (k *azureKey) isValidGPUNode() bool {
+	return k.GPUType() == k.GPULabelValue && k.GetGPUCount() != "0"
 }
 
 func (k *azureKey) ID() string {
@@ -260,9 +454,10 @@ func (k *azureKey) GetGPUCount() string {
 
 // Represents an azure storage config
 type AzureStorageConfig struct {
-	AccountName   string `json:"azureStorageAccount"`
-	AccessKey     string `json:"azureStorageAccessKey"`
-	ContainerName string `json:"azureStorageContainer"`
+	SubscriptionId string `json:"azureSubscriptionID"`
+	AccountName    string `json:"azureStorageAccount"`
+	AccessKey      string `json:"azureStorageAccessKey"`
+	ContainerName  string `json:"azureStorageContainer"`
 }
 
 // Represents an azure app key
@@ -376,7 +571,7 @@ func (az *Azure) loadAzureAuthSecret(force bool) (*AzureServiceKey, error) {
 	}
 	loadedAzureSecret = true
 
-	exists, err := util.FileExists(authSecretPath)
+	exists, err := fileutil.FileExists(authSecretPath)
 	if !exists || err != nil {
 		return nil, fmt.Errorf("Failed to locate service account file: %s", authSecretPath)
 	}
@@ -405,7 +600,7 @@ func (az *Azure) loadAzureStorageConfig(force bool) (*AzureStorageConfig, error)
 	}
 	loadedAzureStorageConfigSecret = true
 
-	exists, err := util.FileExists(storageConfigSecretPath)
+	exists, err := fileutil.FileExists(storageConfigSecretPath)
 	if !exists || err != nil {
 		return nil, fmt.Errorf("Failed to locate azure storage config file: %s", storageConfigSecretPath)
 	}
@@ -537,6 +732,7 @@ func (az *Azure) DownloadPricingData() error {
 
 	config, err := az.GetConfig()
 	if err != nil {
+		az.RateCardPricingError = err
 		return err
 	}
 
@@ -553,6 +749,7 @@ func (az *Azure) DownloadPricingData() error {
 		credentialsConfig := auth.NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID)
 		a, err := credentialsConfig.Authorizer()
 		if err != nil {
+			az.RateCardPricingError = err
 			return err
 		}
 		authorizer = a
@@ -564,6 +761,7 @@ func (az *Azure) DownloadPricingData() error {
 		if err != nil { // Failed to create authorizer from environment, try from file
 			a, err := auth.NewAuthorizerFromFile(azure.PublicCloud.ResourceManagerEndpoint)
 			if err != nil {
+				az.RateCardPricingError = err
 				return err
 			}
 			authorizer = a
@@ -590,19 +788,17 @@ func (az *Azure) DownloadPricingData() error {
 	klog.Infof("Using ratecard query %s", rateCardFilter)
 	result, err := rcClient.Get(context.TODO(), rateCardFilter)
 	if err != nil {
+		az.RateCardPricingError = err
 		return err
 	}
 	allPrices := make(map[string]*AzurePricing)
 	regions, err := getRegions("compute", sClient, providersClient, config.AzureSubscriptionID)
 	if err != nil {
+		az.RateCardPricingError = err
 		return err
 	}
 
-	c, err := az.GetConfig()
-	if err != nil {
-		return err
-	}
-	baseCPUPrice := c.CPU
+	baseCPUPrice := config.CPU
 
 	for _, v := range *result.Meters {
 		meterName := *v.MeterName
@@ -697,6 +893,7 @@ func (az *Azure) DownloadPricingData() error {
 						Node: &Node{
 							Cost:         priceStr,
 							BaseCPUPrice: baseCPUPrice,
+							UsageType:    usageType,
 						},
 					}
 				}
@@ -720,7 +917,15 @@ func (az *Azure) DownloadPricingData() error {
 	}
 
 	az.Pricing = allPrices
+	az.RateCardPricingError = nil
 	return nil
+}
+
+func (az *Azure) addPricing(features string, azurePricing *AzurePricing) {
+	if az.Pricing == nil {
+		az.Pricing = map[string]*AzurePricing{}
+	}
+	az.Pricing[features] = azurePricing
 }
 
 // AllNodePricing returns the Azure pricing objects stored
@@ -734,24 +939,67 @@ func (az *Azure) AllNodePricing() (interface{}, error) {
 func (az *Azure) NodePricing(key Key) (*Node, error) {
 	az.DownloadPricingDataLock.RLock()
 	defer az.DownloadPricingDataLock.RUnlock()
-	if n, ok := az.Pricing[key.Features()]; ok {
-		klog.V(4).Infof("Returning pricing for node %s: %+v from key %s", key, n, key.Features())
-		if key.GPUType() != "" {
-			n.Node.GPU = key.(*azureKey).GetGPUCount()
+
+	azKey, ok := key.(*azureKey)
+	if !ok {
+		return nil, fmt.Errorf("azure: NodePricing: key is of type %T", key)
+	}
+	config, _ := az.GetConfig()
+	if slv, ok := azKey.Labels[config.SpotLabel]; ok && slv == config.SpotLabelValue && config.SpotLabel != "" && config.SpotLabelValue != "" {
+		features := strings.Split(azKey.Features(), ",")
+		region := features[0]
+		instance := features[1]
+		spotFeatures := fmt.Sprintf("%s,%s,%s", region, instance, "spot")
+		if n, ok := az.Pricing[spotFeatures]; ok {
+			log.DedupedInfof(5, "Returning pricing for node %s: %+v from key %s", azKey, n, spotFeatures)
+			if azKey.isValidGPUNode() {
+				n.Node.GPU = "1" // TODO: support multiple GPUs
+			}
+			return n.Node, nil
+		}
+		log.Infof("[Info] found spot instance, trying to get retail price for %s: %s, ", spotFeatures, azKey)
+
+		spotCost, err := getRetailPrice(region, instance, config.CurrencyCode, true)
+		if err != nil {
+			log.DedupedWarningf(5, "failed to retrieve spot retail pricing")
+		} else {
+			gpu := ""
+			if azKey.isValidGPUNode() {
+				gpu = "1"
+			}
+			spotNode := &Node{
+				Cost:      spotCost,
+				UsageType: "spot",
+				GPU:       gpu,
+			}
+
+			az.addPricing(spotFeatures, &AzurePricing{
+				Node: spotNode,
+			})
+
+			return spotNode, nil
+		}
+	}
+
+	if n, ok := az.Pricing[azKey.Features()]; ok {
+		klog.V(4).Infof("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
+		if azKey.isValidGPUNode() {
+			n.Node.GPU = azKey.GetGPUCount()
 		}
 		return n.Node, nil
 	}
-	klog.V(1).Infof("[Warning] no pricing data found for %s: %s", key.Features(), key)
+	klog.V(1).Infof("[Warning] no pricing data found for %s: %s", azKey.Features(), azKey)
 	c, err := az.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("No default pricing data available")
 	}
-	if key.GPUType() != "" {
+	if azKey.isValidGPUNode() {
 		return &Node{
-			VCPUCost: c.CPU,
-			RAMCost:  c.RAM,
-			GPUCost:  c.GPU,
-			GPU:      key.(*azureKey).GetGPUCount(),
+			VCPUCost:         c.CPU,
+			RAMCost:          c.RAM,
+			UsesBaseCPUPrice: true,
+			GPUCost:          c.GPU,
+			GPU:              azKey.GetGPUCount(),
 		}, nil
 	}
 	return &Node{
@@ -910,12 +1158,7 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 					return err
 				}
 			} else {
-				sci := v.(map[string]interface{})
-				sc := make(map[string]string)
-				for k, val := range sci {
-					sc[k] = val.(string)
-				}
-				c.SharedCosts = sc //todo: support reflection/multiple map fields
+				return fmt.Errorf("type error while updating config for %s", kUpper)
 			}
 		}
 
@@ -931,6 +1174,9 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 }
 func (az *Azure) GetConfig() (*CustomPricing, error) {
 	c, err := az.Config.GetCustomPricingData()
+	if err != nil {
+		return nil, err
+	}
 	if c.Discount == "" {
 		c.Discount = "0%"
 	}
@@ -943,8 +1189,14 @@ func (az *Azure) GetConfig() (*CustomPricing, error) {
 	if c.AzureBillingRegion == "" {
 		c.AzureBillingRegion = "US"
 	}
-	if err != nil {
-		return nil, err
+	if c.ShareTenancyCosts == "" {
+		c.ShareTenancyCosts = defaultShareTenancyCost
+	}
+	if c.SpotLabel == "" {
+		c.SpotLabel = defaultSpotLabel
+	}
+	if c.SpotLabelValue == "" {
+		c.SpotLabelValue = defaultSpotLabelValue
 	}
 	return c, nil
 }
@@ -1116,7 +1368,7 @@ func (az *Azure) PVPricing(pvk PVKey) (*PV, error) {
 	return pricing.PV, nil
 }
 
-func (az *Azure) GetLocalStorageQuery(window, offset string, rate bool, used bool) string {
+func (az *Azure) GetLocalStorageQuery(window, offset time.Duration, rate bool, used bool) string {
 	return ""
 }
 
@@ -1130,8 +1382,29 @@ func (az *Azure) ServiceAccountStatus() *ServiceAccountStatus {
 	}
 }
 
+const rateCardPricingSource = "Rate Card API"
+
+// PricingSourceStatus returns the status of the rate card api
 func (az *Azure) PricingSourceStatus() map[string]*PricingSource {
-	return make(map[string]*PricingSource)
+	sources := make(map[string]*PricingSource)
+	errMsg := ""
+	if az.RateCardPricingError != nil {
+		errMsg = az.RateCardPricingError.Error()
+	}
+	rcps := &PricingSource {
+		Name: rateCardPricingSource,
+		Error: errMsg,
+	}
+	if rcps.Error != "" {
+		rcps.Available = false
+	} else if len(az.Pricing) == 0 {
+		rcps.Error = "No Pricing Data Available"
+		rcps.Available = false
+	}else {
+		rcps.Available = true
+	}
+	sources[rateCardPricingSource] = rcps
+	return sources
 }
 
 func (*Azure) ClusterManagementPricing() (string, float64, error) {
@@ -1142,14 +1415,6 @@ func (az *Azure) CombinedDiscountForNode(instanceType string, isPreemptible bool
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
 }
 
-func (az *Azure) ParseID(id string) string {
-	return id
-}
-
-func (az *Azure) ParsePVID(id string) string {
-	return id
-}
-
-func (az *Azure) ParseLBID(id string) string {
-	return id
+func (az *Azure) Regions() []string {
+	return azureRegions
 }

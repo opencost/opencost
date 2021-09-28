@@ -1,18 +1,12 @@
-package util
+package stringutil
 
 import (
 	"fmt"
 	"math"
 	"math/rand"
+	"sync"
 	"time"
 )
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
-
-var alpha = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-var alphanumeric = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 
 const (
 	_ = 1 << (10 * iota)
@@ -26,11 +20,30 @@ const (
 	TiB
 )
 
+var alpha = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+var alphanumeric = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+
+// Any strings created at runtime, duplicate or not, are copied, even though by specification,
+// a go string is immutable. This utility allows us to cache runtime strings and retrieve them
+// when we expect heavy duplicates.
+var strings sync.Map
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
+// Bank will return a non-copy of a string if it has been used before. Otherwise, it will store
+// the string as the unique instance.
+func Bank(s string) string {
+	ss, _ := strings.LoadOrStore(s, s)
+	return ss.(string)
+}
+
 // RandSeq generates a pseudo-random alphabetic string of the given length
 func RandSeq(n int) string {
 	b := make([]rune, n)
 	for i := range b {
-		b[i] = alpha[rand.Intn(len(alpha))]
+		b[i] = alpha[rand.Intn(len(alpha))] // #nosec No need for a cryptographic strength random here
 	}
 	return string(b)
 }

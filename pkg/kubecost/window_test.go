@@ -598,7 +598,7 @@ func TestWindow_DurationOffsetStrings(t *testing.T) {
 	if err != nil {
 		t.Fatalf(`unexpected error parsing "1589448338,1589534798": %s`, err)
 	}
-	dur, off = w.DurationOffsetStrings()
+	dur, _ = w.DurationOffsetStrings()
 	if dur != "1d" {
 		t.Fatalf(`expect: window to be "1d"; actual: "%s"`, dur)
 	}

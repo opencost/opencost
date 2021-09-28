@@ -233,8 +233,6 @@ const (
 func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, window, offset, window, offset, env.GetPromClusterLabel())
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, window, offset, env.GetPromClusterLabel())
-	queryGPURequests := fmt.Sprintf(queryGPURequestsStr, window, offset, window, offset, 1.0, env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), window, offset, env.GetPromClusterLabel())
-	queryPVRequests := fmt.Sprintf(queryPVRequestsStr, env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel())
 	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, window, "", env.GetPromClusterLabel())
 	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, window, "", env.GetPromClusterLabel())
 	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, window, "", env.GetPromClusterLabel())
@@ -244,11 +242,9 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 	clusterID := env.GetClusterID()
 
 	// Submit all Prometheus queries asynchronously
-	ctx := prom.NewContext(cli)
+	ctx := prom.NewNamedContext(cli, prom.ComputeCostDataContextName)
 	resChRAMUsage := ctx.Query(queryRAMUsage)
 	resChCPUUsage := ctx.Query(queryCPUUsage)
-	resChGPURequests := ctx.Query(queryGPURequests)
-	resChPVRequests := ctx.Query(queryPVRequests)
 	resChNetZoneRequests := ctx.Query(queryNetZoneRequests)
 	resChNetRegionRequests := ctx.Query(queryNetRegionRequests)
 	resChNetInternetRequests := ctx.Query(queryNetInternetRequests)
@@ -280,8 +276,6 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 	// Process Prometheus query results. Handle errors using ctx.Errors.
 	resRAMUsage, _ := resChRAMUsage.Await()
 	resCPUUsage, _ := resChCPUUsage.Await()
-	resGPURequests, _ := resChGPURequests.Await()
-	resPVRequests, _ := resChPVRequests.Await()
 	resNetZoneRequests, _ := resChNetZoneRequests.Await()
 	resNetRegionRequests, _ := resChNetRegionRequests.Await()
 	resNetInternetRequests, _ := resChNetInternetRequests.Await()
@@ -314,6 +308,14 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 		log.Warningf("ComputeCostData: continuing despite error parsing normalization values from %s: %s", queryNormalization, err.Error())
 	}
 
+	// Determine if there are vgpus configured and if so get the total allocatable number
+	// If there are no vgpus, the coefficient is set to 1.0
+	vgpuCount, err := getAllocatableVGPUs(cm.Cache)
+	vgpuCoeff := 10.0
+	if vgpuCount > 0.0 {
+		vgpuCoeff = vgpuCount
+	}
+
 	nodes, err := cm.GetNodeCost(cp)
 	if err != nil {
 		log.Warningf("GetNodeCost: no node cost model available: " + err.Error())
@@ -322,7 +324,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 
 	// Unmounted PVs represent the PVs that are not mounted or tied to a volume on a container
 	unmountedPVs := make(map[string][]*PersistentVolumeClaimData)
-	pvClaimMapping, err := GetPVInfo(resPVRequests, clusterID)
+	pvClaimMapping, err := GetPVInfoLocal(cm.Cache, clusterID)
 	if err != nil {
 		log.Warningf("GetPVInfo: unable to get PV data: %s", err.Error())
 	}
@@ -351,13 +353,6 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 		return nil, err
 	}
 	for key := range RAMUsedMap {
-		containers[key] = true
-	}
-	GPUReqMap, err := GetContainerMetricVector(resGPURequests, true, normalizationValue, clusterID)
-	if err != nil {
-		return nil, err
-	}
-	for key := range GPUReqMap {
 		containers[key] = true
 	}
 	CPUUsedMap, err := GetContainerMetricVector(resCPUUsage, false, 0, clusterID) // No need to normalize here, as this comes from a counter
@@ -504,17 +499,30 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 					},
 				}
 
+				gpuReqCount := 0.0
+				if g, ok := container.Resources.Requests["nvidia.com/gpu"]; ok {
+					gpuReqCount = g.AsApproximateFloat64()
+				} else if g, ok := container.Resources.Limits["nvidia.com/gpu"]; ok {
+					gpuReqCount = g.AsApproximateFloat64()
+				} else if g, ok := container.Resources.Requests["k8s.amazonaws.com/vgpu"]; ok {
+					// divide vgpu request/limits by total vgpus to get the portion of physical gpus requested
+					gpuReqCount = g.AsApproximateFloat64() / vgpuCoeff
+				} else if g, ok := container.Resources.Limits["k8s.amazonaws.com/vgpu"]; ok {
+					gpuReqCount = g.AsApproximateFloat64() / vgpuCoeff
+				}
+				GPUReqV := []*util.Vector{
+					{
+						Value:     float64(gpuReqCount),
+						Timestamp: float64(time.Now().UTC().Unix()),
+					},
+				}
+
 				RAMUsedV, ok := RAMUsedMap[newKey]
 				if !ok {
 					klog.V(4).Info("no RAM usage for " + newKey)
 					RAMUsedV = []*util.Vector{{}}
 				}
 
-				GPUReqV, ok := GPUReqMap[newKey]
-				if !ok {
-					klog.V(4).Info("no GPU requests for " + newKey)
-					GPUReqV = []*util.Vector{{}}
-				}
 				CPUUsedV, ok := CPUUsedMap[newKey]
 				if !ok {
 					klog.V(4).Info("no CPU usage for " + newKey)
@@ -576,6 +584,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 			// with very short-lived pods that over-request resources.
 			RAMReqV := []*util.Vector{{}}
 			CPUReqV := []*util.Vector{{}}
+			GPUReqV := []*util.Vector{{}}
 
 			RAMUsedV, ok := RAMUsedMap[key]
 			if !ok {
@@ -583,11 +592,6 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				RAMUsedV = []*util.Vector{{}}
 			}
 
-			GPUReqV, ok := GPUReqMap[key]
-			if !ok {
-				klog.V(4).Info("no GPU requests for " + key)
-				GPUReqV = []*util.Vector{{}}
-			}
 			CPUUsedV, ok := CPUUsedMap[key]
 			if !ok {
 				klog.V(4).Info("no CPU usage for " + key)
@@ -710,7 +714,7 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 	if len(missingContainers) > 0 {
 		queryHistoricalPodLabels := fmt.Sprintf(`kube_pod_labels{}[%s]`, window)
 
-		podLabelsResult, _, err := prom.NewContext(cli).QuerySync(queryHistoricalPodLabels)
+		podLabelsResult, _, err := prom.NewNamedContext(cli, prom.ComputeCostDataContextName).QuerySync(queryHistoricalPodLabels)
 		if err != nil {
 			log.Errorf("failed to parse historical pod labels: %s", err.Error())
 		}
@@ -751,7 +755,7 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 		queryHistoricalRAMCost := fmt.Sprintf(`avg(avg_over_time(node_ram_hourly_cost[%s] %s)) by (node, instance, %s)`, window, offsetStr, env.GetPromClusterLabel())
 		queryHistoricalGPUCost := fmt.Sprintf(`avg(avg_over_time(node_gpu_hourly_cost[%s] %s)) by (node, instance, %s)`, window, offsetStr, env.GetPromClusterLabel())
 
-		ctx := prom.NewContext(cli)
+		ctx := prom.NewNamedContext(cli, prom.ComputeCostDataContextName)
 		cpuCostResCh := ctx.Query(queryHistoricalCPUCost)
 		ramCostResCh := ctx.Query(queryHistoricalRAMCost)
 		gpuCostResCh := ctx.Query(queryHistoricalGPUCost)
@@ -930,6 +934,12 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 	nodeList := cm.Cache.GetAllNodes()
 	nodes := make(map[string]*costAnalyzerCloud.Node)
 
+	vgpuCount, err := getAllocatableVGPUs(cm.Cache)
+	vgpuCoeff := 10.0
+	if vgpuCount > 0.0 {
+		vgpuCoeff = vgpuCount
+	}
+
 	pmd := &costAnalyzerCloud.PricingMatchMetadata{
 		TotalNodes:        0,
 		PricingTypeCounts: make(map[costAnalyzerCloud.PricingType]int),
@@ -1010,6 +1020,12 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 				newCnode.GPU = fmt.Sprintf("%d", q.Value())
 				gpuc = float64(gpuCount)
 			}
+		} else if g, ok := n.Status.Capacity["k8s.amazonaws.com/vgpu"]; ok {
+			gpuCount := g.Value()
+			if gpuCount != 0 {
+				newCnode.GPU = fmt.Sprintf("%d", int(float64(q.Value())/vgpuCoeff))
+				gpuc = float64(gpuCount) / vgpuCoeff
+			}
 		} else {
 			gpuc, err = strconv.ParseFloat(newCnode.GPU, 64)
 			if err != nil {
@@ -1087,7 +1103,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 					return nil, err
 				}
 			} else {
-				nodePrice, err = strconv.ParseFloat(newCnode.VCPUCost, 64) // all the price was allocated the the CPU
+				nodePrice, err = strconv.ParseFloat(newCnode.VCPUCost, 64) // all the price was allocated to the CPU
 				if err != nil {
 					klog.V(3).Infof("Could not parse node vcpu price")
 					return nil, err
@@ -1161,7 +1177,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 					return nil, err
 				}
 			} else {
-				nodePrice, err = strconv.ParseFloat(newCnode.VCPUCost, 64) // all the price was allocated the the CPU
+				nodePrice, err = strconv.ParseFloat(newCnode.VCPUCost, 64) // all the price was allocated to the CPU
 				if err != nil {
 					klog.V(3).Infof("Could not parse node vcpu price")
 					return nil, err
@@ -1567,7 +1583,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 
 	scrapeIntervalSeconds := cm.ScrapeInterval.Seconds()
 
-	ctx := prom.NewContext(cli)
+	ctx := prom.NewNamedContext(cli, prom.ComputeCostDataRangeContextName)
 
 	queryRAMAlloc := fmt.Sprintf(queryRAMAllocationByteHours, resStr, env.GetPromClusterLabel(), scrapeIntervalSeconds)
 	queryCPUAlloc := fmt.Sprintf(queryCPUAllocationVCPUHours, resStr, env.GetPromClusterLabel(), scrapeIntervalSeconds)
@@ -2187,6 +2203,31 @@ func getStatefulSetsOfPod(pod v1.Pod) []string {
 		}
 	}
 	return []string{}
+}
+
+func getAllocatableVGPUs(cache clustercache.ClusterCache) (float64, error) {
+	daemonsets := cache.GetAllDaemonSets()
+	vgpuCount := 0.0
+	for _, ds := range daemonsets {
+		dsContainerList := &ds.Spec.Template.Spec.Containers
+		for _, ctnr := range *dsContainerList {
+			if ctnr.Args != nil {
+				for _, arg := range ctnr.Args {
+					if strings.Contains(arg, "--vgpu=") {
+						vgpus, err := strconv.ParseFloat(arg[strings.IndexByte(arg, '=')+1:], 64)
+						if err != nil {
+							klog.V(1).Infof("failed to parse vgpu allocation string %s: %v", arg, err)
+							continue
+						}
+						vgpuCount = vgpus
+						return vgpuCount, nil
+					}
+
+				}
+			}
+		}
+	}
+	return vgpuCount, nil
 }
 
 type PersistentVolumeClaimData struct {

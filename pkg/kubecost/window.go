@@ -3,6 +3,7 @@ package kubecost
 import (
 	"bytes"
 	"fmt"
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"math"
 	"regexp"
 	"strconv"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/thanos"
-	"github.com/kubecost/cost-model/pkg/util"
 )
 
 const (
@@ -572,7 +572,7 @@ func (w Window) DurationOffset() (time.Duration, time.Duration, error) {
 	}
 
 	duration := w.Duration()
-	offset := time.Now().Sub(*w.End())
+	offset := time.Since(*w.End())
 
 	return duration, offset, nil
 }
@@ -611,7 +611,7 @@ func (w Window) DurationOffsetForPrometheus() (string, string, error) {
 		offset = 0
 	}
 
-	durStr, offStr := util.DurationOffsetStrings(duration, offset)
+	durStr, offStr := timeutil.DurationOffsetStrings(duration, offset)
 	if offset < time.Minute {
 		offStr = ""
 	} else {
@@ -630,7 +630,7 @@ func (w Window) DurationOffsetStrings() (string, string) {
 		return "", ""
 	}
 
-	return util.DurationOffsetStrings(dur, off)
+	return timeutil.DurationOffsetStrings(dur, off)
 }
 
 type BoundaryError struct {

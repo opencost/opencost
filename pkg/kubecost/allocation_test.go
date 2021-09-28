@@ -355,6 +355,30 @@ func TestAllocation_Share(t *testing.T) {
 	}
 }
 
+func TestAllocation_AddDifferentController(t *testing.T) {
+	a1 := &Allocation{
+		Properties: &AllocationProperties{
+			Container:  "container",
+			Pod:        "pod",
+			Namespace:  "ns",
+			Cluster:    "cluster",
+			Controller: "controller 1",
+		},
+	}
+	a2 := a1.Clone()
+	a2.Properties.Controller = "controller 2"
+
+	result, err := a1.Add(a2)
+	if err != nil {
+		t.Fatalf("Allocation.Add: unexpected error: %s", err)
+	}
+
+	if result.Properties.Controller == "" {
+		t.Errorf("Adding allocations whose properties only differ in controller name should not result in an empty string controller name.")
+	}
+
+}
+
 func TestAllocation_MarshalJSON(t *testing.T) {
 	start := time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2021, time.January, 2, 0, 0, 0, 0, time.UTC)
@@ -435,7 +459,7 @@ func TestAllocationSet_generateKey(t *testing.T) {
 		AllocationClusterProp,
 	}
 
-	key = alloc.generateKey(props)
+	key = alloc.generateKey(props, nil)
 	if key != "" {
 		t.Fatalf("generateKey: expected \"\"; actual \"%s\"", key)
 	}
@@ -449,7 +473,7 @@ func TestAllocationSet_generateKey(t *testing.T) {
 		},
 	}
 
-	key = alloc.generateKey(props)
+	key = alloc.generateKey(props, nil)
 	if key != "cluster1" {
 		t.Fatalf("generateKey: expected \"cluster1\"; actual \"%s\"", key)
 	}
@@ -460,7 +484,7 @@ func TestAllocationSet_generateKey(t *testing.T) {
 		"label:app",
 	}
 
-	key = alloc.generateKey(props)
+	key = alloc.generateKey(props, nil)
 	if key != "cluster1//app=app1" {
 		t.Fatalf("generateKey: expected \"cluster1//app=app1\"; actual \"%s\"", key)
 	}
@@ -473,9 +497,71 @@ func TestAllocationSet_generateKey(t *testing.T) {
 			"env": "env1",
 		},
 	}
-	key = alloc.generateKey(props)
+	key = alloc.generateKey(props, nil)
 	if key != "cluster1/namespace1/app=app1" {
 		t.Fatalf("generateKey: expected \"cluster1/namespace1/app=app1\"; actual \"%s\"", key)
+	}
+
+	props = []string{
+		AllocationDepartmentProp,
+		AllocationEnvironmentProp,
+		AllocationOwnerProp,
+		AllocationProductProp,
+		AllocationTeamProp,
+	}
+
+	labelConfig := NewLabelConfig()
+
+	alloc.Properties = &AllocationProperties{
+		Cluster:   "cluster1",
+		Namespace: "namespace1",
+		Labels: map[string]string{
+			labelConfig.DepartmentLabel:  "dept1",
+			labelConfig.EnvironmentLabel: "envt1",
+			labelConfig.OwnerLabel:       "ownr1",
+			labelConfig.ProductLabel:     "prod1",
+			labelConfig.TeamLabel:        "team1",
+		},
+	}
+	key = alloc.generateKey(props, nil)
+	if key != "dept1/envt1/ownr1/prod1/team1" {
+		t.Fatalf("generateKey: expected \"dept1/envt1/ownr1/prod1/team1\"; actual \"%s\"", key)
+	}
+
+	// Ensure that labels with illegal Prometheus characters in LabelConfig
+	// still match their sanitized values. Ensure also that multiple comma-
+	// separated values work.
+
+	labelConfig.DepartmentLabel = "prom/illegal-department"
+	labelConfig.EnvironmentLabel = " env "
+	labelConfig.OwnerLabel = "$owner%"
+	labelConfig.ProductLabel = "app.kubernetes.io/app"
+	labelConfig.TeamLabel = "team,app.kubernetes.io/team,k8s-team"
+
+	alloc.Properties = &AllocationProperties{
+		Cluster:   "cluster1",
+		Namespace: "namespace1",
+		Labels: map[string]string{
+			"prom_illegal_department": "dept1",
+			"env":                     "envt1",
+			"_owner_":                 "ownr1",
+			"team":                    "team1",
+			"app_kubernetes_io_app":   "prod1",
+			"app_kubernetes_io_team":  "team2",
+		},
+	}
+
+	props = []string{
+		AllocationDepartmentProp,
+		AllocationEnvironmentProp,
+		AllocationOwnerProp,
+		AllocationProductProp,
+		AllocationTeamProp,
+	}
+
+	key = alloc.generateKey(props, labelConfig)
+	if key != "dept1/envt1/ownr1/prod1/team1/team2/__unallocated__" {
+		t.Fatalf("generateKey: expected \"dept1/envt1/ownr1/prod1/team1/team2/__unallocated__\"; actual \"%s\"", key)
 	}
 }
 
@@ -920,17 +1006,17 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		// 2d AggregationProperties=(Label:app, Label:environment)
 		"2d": {
 			start:      start,
-			aggBy:      []string{"label:app;env"},
+			aggBy:      []string{"label:app", "label:env"},
 			aggOpts:    nil,
 			numResults: 3 + numIdle + numUnallocated,
 			totalCost:  activeTotalCost + idleTotalCost,
 			// sets should be {idle, unallocated, app1/env1, app2/env2, app2/unallocated}
 			results: map[string]float64{
-				"app=app1/env=env1":             16.00,
-				"app=app2/env=env2":             12.00,
-				"app=app2/" + UnallocatedSuffix: 12.00,
-				IdleSuffix:                      30.00,
-				UnallocatedSuffix:               42.00,
+				"app=app1/env=env1":                         16.00,
+				"app=app2/env=env2":                         12.00,
+				"app=app2/" + UnallocatedSuffix:             12.00,
+				IdleSuffix:                                  30.00,
+				UnallocatedSuffix + "/" + UnallocatedSuffix: 42.00,
 			},
 			windowStart: startYesterday,
 			windowEnd:   endYesterday,
@@ -939,17 +1025,17 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 		// 2e AggregationProperties=(Cluster, Label:app, Label:environment)
 		"2e": {
 			start:      start,
-			aggBy:      []string{AllocationClusterProp, "label:app;env"},
+			aggBy:      []string{AllocationClusterProp, "label:app", "label:env"},
 			aggOpts:    nil,
 			numResults: 6,
 			totalCost:  activeTotalCost + idleTotalCost,
 			results: map[string]float64{
-				"cluster1/app=app2/env=env2":             12.00,
-				"__idle__":                               30.00,
-				"cluster1/app=app1/env=env1":             16.00,
-				"cluster1/" + UnallocatedSuffix:          18.00,
-				"cluster2/app=app2/" + UnallocatedSuffix: 12.00,
-				"cluster2/" + UnallocatedSuffix:          24.00,
+				"cluster1/app=app2/env=env2": 12.00,
+				"__idle__":                   30.00,
+				"cluster1/app=app1/env=env1": 16.00,
+				"cluster1/" + UnallocatedSuffix + "/" + UnallocatedSuffix: 18.00,
+				"cluster2/app=app2/" + UnallocatedSuffix:                  12.00,
+				"cluster2/" + UnallocatedSuffix + "/" + UnallocatedSuffix: 24.00,
 			},
 			windowStart: startYesterday,
 			windowEnd:   endYesterday,
@@ -1498,8 +1584,8 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				ShareIdle:   ShareEven,
-				IdleByNode:  true,
+				ShareIdle:  ShareEven,
+				IdleByNode: true,
 			},
 			numResults: 3,
 			totalCost:  112.00,
@@ -2135,3 +2221,265 @@ func TestAllocationSetRange_InsertRange(t *testing.T) {
 
 // TODO niko/etl
 // func TestAllocationSetRange_Window(t *testing.T) {}
+
+func TestAllocationSetRange_Start(t *testing.T) {
+	tests := []struct {
+		name string
+		arg  *AllocationSetRange
+
+		expectError bool
+		expected    time.Time
+	}{
+		{
+			name: "Empty ASR",
+			arg:  nil,
+
+			expectError: true,
+		},
+		{
+			name: "Single allocation",
+			arg: &AllocationSetRange{
+				allocations: []*AllocationSet{
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"a": &Allocation{
+								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Two allocations",
+			arg: &AllocationSetRange{
+				allocations: []*AllocationSet{
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"a": &Allocation{
+								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+							},
+							"b": &Allocation{
+								Start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Two AllocationSets",
+			arg: &AllocationSetRange{
+				allocations: []*AllocationSet{
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"a": &Allocation{
+								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"b": &Allocation{
+								Start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+		},
+	}
+
+	for _, test := range tests {
+		result, err := test.arg.Start()
+		if test.expectError && err != nil {
+			continue
+		}
+
+		if test.expectError && err == nil {
+			t.Errorf("%s: expected error and got none", test.name)
+		} else if result != test.expected {
+			t.Errorf("%s: expected %s but got %s", test.name, test.expected, result)
+		}
+	}
+}
+
+func TestAllocationSetRange_End(t *testing.T) {
+	tests := []struct {
+		name string
+		arg  *AllocationSetRange
+
+		expectError bool
+		expected    time.Time
+	}{
+		{
+			name: "Empty ASR",
+			arg:  nil,
+
+			expectError: true,
+		},
+		{
+			name: "Single allocation",
+			arg: &AllocationSetRange{
+				allocations: []*AllocationSet{
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"a": &Allocation{
+								End: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Two allocations",
+			arg: &AllocationSetRange{
+				allocations: []*AllocationSet{
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"a": &Allocation{
+								End: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+							},
+							"b": &Allocation{
+								End: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Two AllocationSets",
+			arg: &AllocationSetRange{
+				allocations: []*AllocationSet{
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"a": &Allocation{
+								End: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"b": &Allocation{
+								End: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+		},
+	}
+
+	for _, test := range tests {
+		result, err := test.arg.End()
+		if test.expectError && err != nil {
+			continue
+		}
+
+		if test.expectError && err == nil {
+			t.Errorf("%s: expected error and got none", test.name)
+		} else if result != test.expected {
+			t.Errorf("%s: expected %s but got %s", test.name, test.expected, result)
+		}
+	}
+}
+
+func TestAllocationSetRange_Minutes(t *testing.T) {
+	tests := []struct {
+		name string
+		arg  *AllocationSetRange
+
+		expected float64
+	}{
+		{
+			name: "Empty ASR",
+			arg:  nil,
+
+			expected: 0,
+		},
+		{
+			name: "Single allocation",
+			arg: &AllocationSetRange{
+				allocations: []*AllocationSet{
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"a": &Allocation{
+								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+								End:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: 24 * 60,
+		},
+		{
+			name: "Two allocations",
+			arg: &AllocationSetRange{
+				allocations: []*AllocationSet{
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"a": &Allocation{
+								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+								End:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+							"b": &Allocation{
+								Start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+								End:   time.Date(1970, 1, 3, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: 2 * 24 * 60,
+		},
+		{
+			name: "Two AllocationSets",
+			arg: &AllocationSetRange{
+				allocations: []*AllocationSet{
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"a": &Allocation{
+								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+								End:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+					&AllocationSet{
+						allocations: map[string]*Allocation{
+							"b": &Allocation{
+								Start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+								End:   time.Date(1970, 1, 3, 0, 0, 0, 0, time.UTC),
+							},
+						},
+					},
+				},
+			},
+
+			expected: 2 * 24 * 60,
+		},
+	}
+
+	for _, test := range tests {
+		result := test.arg.Minutes()
+		if result != test.expected {
+			t.Errorf("%s: expected %f but got %f", test.name, test.expected, result)
+		}
+	}
+}

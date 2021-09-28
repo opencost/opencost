@@ -1,8 +1,10 @@
-package util
+package timeutil
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -50,12 +52,21 @@ func DurationString(duration time.Duration) string {
 			// convert to mins
 			durStr = fmt.Sprintf("%dm", durSecs/SecsPerMin)
 		} else if durSecs > 0 {
-			// default to mins, as long as duration is positive
+			// default to secs, as long as duration is positive
 			durStr = fmt.Sprintf("%ds", durSecs)
 		}
 	}
 
 	return durStr
+}
+
+// DurationToPromOffsetString returns a Prometheus formatted string with leading offset or empty string if given a negative duration
+func DurationToPromOffsetString(duration time.Duration) string {
+	dirStr := DurationString(duration)
+	if dirStr != "" {
+		dirStr = fmt.Sprintf("offset %s", dirStr)
+	}
+	return dirStr
 }
 
 // DurationOffsetStrings converts a (duration, offset) pair to Prometheus-
@@ -64,8 +75,24 @@ func DurationOffsetStrings(duration, offset time.Duration) (string, string) {
 	return DurationString(duration), DurationString(offset)
 }
 
+// FormatStoreResolution provides a clean notation for ETL store resolutions.
+// e.g. daily => 1d; hourly => 1h
+func FormatStoreResolution(dur time.Duration) string {
+	if dur >= 24*time.Hour {
+		return fmt.Sprintf("%dd", int(dur.Hours()/24.0))
+	} else if dur >= time.Hour {
+		return fmt.Sprintf("%dh", int(dur.Hours()))
+	}
+	return fmt.Sprint(dur)
+}
+
 // ParseDuration converts a Prometheus-style duration string into a Duration
-func ParseDuration(duration string) (*time.Duration, error) {
+func ParseDuration(duration string) (time.Duration, error) {
+	// Trim prefix of Prometheus format duration
+	duration = CleanDurationString(duration)
+	if len(duration) < 2 {
+		return 0, fmt.Errorf("error parsing duration: %s did not match expected format [0-9+](s|m|d|h)", duration)
+	}
 	unitStr := duration[len(duration)-1:]
 	var unit time.Duration
 	switch unitStr {
@@ -78,52 +105,51 @@ func ParseDuration(duration string) (*time.Duration, error) {
 	case "d":
 		unit = 24.0 * time.Hour
 	default:
-		return nil, fmt.Errorf("error parsing duration: %s did not match expected format [0-9+](s|m|d|h)", duration)
+		return 0, fmt.Errorf("error parsing duration: %s did not match expected format [0-9+](s|m|d|h)", duration)
 	}
 
 	amountStr := duration[:len(duration)-1]
 	amount, err := strconv.ParseInt(amountStr, 10, 64)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing duration: %s did not match expected format [0-9+](s|m|d|h)", duration)
+		return 0, fmt.Errorf("error parsing duration: %s did not match expected format [0-9+](s|m|d|h)", duration)
 	}
 
-	dur := time.Duration(amount) * unit
-	return &dur, nil
+	return time.Duration(amount) * unit, nil
+}
+
+// CleanDurationString removes prometheus formatted prefix "offset " allong with leading a trailing whitespace
+// from duration string, leaving behind a string with format [0-9+](s|m|d|h)
+func CleanDurationString(duration string) string {
+	duration = strings.TrimSpace(duration)
+	duration = strings.TrimPrefix(duration, "offset ")
+	return duration
 }
 
 // ParseTimeRange returns a start and end time, respectively, which are converted from
 // a duration and offset, defined as strings with Prometheus-style syntax.
-func ParseTimeRange(duration, offset string) (*time.Time, *time.Time, error) {
+func ParseTimeRange(duration, offset time.Duration) (time.Time, time.Time) {
 	// endTime defaults to the current time, unless an offset is explicity declared,
 	// in which case it shifts endTime back by given duration
 	endTime := time.Now()
-	if offset != "" {
-		o, err := ParseDuration(offset)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error parsing offset (%s): %s", offset, err)
-		}
-		endTime = endTime.Add(-1 * *o)
+	if offset > 0 {
+		endTime = endTime.Add(-1 * offset)
 	}
 
-	// if duration is defined in terms of days, convert to hours
-	// e.g. convert "2d" to "48h"
-	durationNorm, err := normalizeTimeParam(duration)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error parsing duration (%s): %s", duration, err)
-	}
+	startTime := endTime.Add(-1 * duration)
 
-	// convert time duration into start and end times, formatted
-	// as ISO datetime strings
-	dur, err := time.ParseDuration(durationNorm)
-	if err != nil {
-		return nil, nil, fmt.Errorf("errorf parsing duration (%s): %s", durationNorm, err)
-	}
-	startTime := endTime.Add(-1 * dur)
-
-	return &startTime, &endTime, nil
+	return startTime, endTime
 }
 
-func normalizeTimeParam(param string) (string, error) {
+// FormatDurationStringDaysToHours converts string from format [0-9+]d to [0-9+]h
+func FormatDurationStringDaysToHours(param string) (string, error) {
+	//check that input matches format
+	ok, err := regexp.MatchString("[0-9+]d", param)
+	if !ok {
+		return param, fmt.Errorf("FormatDurationStringDaysToHours: input string (%s) not formatted as [0-9+]d", param)
+	}
+	if err != nil {
+		return "", err
+	}
 	// convert days to hours
 	if param[len(param)-1:] == "d" {
 		count := param[:len(param)-1]
@@ -136,17 +162,6 @@ func normalizeTimeParam(param string) (string, error) {
 	}
 
 	return param, nil
-}
-
-// FormatStoreResolution provides a clean notation for ETL store resolutions.
-// e.g. daily => 1d; hourly => 1h
-func FormatStoreResolution(dur time.Duration) string {
-	if dur >= 24*time.Hour {
-		return fmt.Sprintf("%dd", int(dur.Hours()/24.0))
-	} else if dur >= time.Hour {
-		return fmt.Sprintf("%dh", int(dur.Hours()))
-	}
-	return fmt.Sprint(dur)
 }
 
 // JobTicker is a ticker used to synchronize the next run of a repeating

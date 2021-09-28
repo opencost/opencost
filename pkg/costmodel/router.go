@@ -11,6 +11,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/services"
+	"github.com/kubecost/cost-model/pkg/util/httputil"
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
+	"github.com/kubecost/cost-model/pkg/util/watcher"
+
 	"k8s.io/klog"
 
 	"github.com/julienschmidt/httprouter"
@@ -19,7 +24,6 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/clustercache"
-	cm "github.com/kubecost/cost-model/pkg/clustermanager"
 	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/errors"
@@ -29,9 +33,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/thanos"
 	"github.com/kubecost/cost-model/pkg/util/json"
 	prometheus "github.com/prometheus/client_golang/api"
-	prometheusClient "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/patrickmn/go-cache"
@@ -42,14 +44,13 @@ import (
 )
 
 const (
-	prometheusTroubleshootingEp = "http://docs.kubecost.com/custom-prom#troubleshoot"
-	RFC3339Milli                = "2006-01-02T15:04:05.000Z"
-	maxCacheMinutes1d           = 11
-	maxCacheMinutes2d           = 17
-	maxCacheMinutes7d           = 37
-	maxCacheMinutes30d          = 137
-	CustomPricingSetting        = "CustomPricing"
-	DiscountSetting             = "Discount"
+	RFC3339Milli         = "2006-01-02T15:04:05.000Z"
+	maxCacheMinutes1d    = 11
+	maxCacheMinutes2d    = 17
+	maxCacheMinutes7d    = 37
+	maxCacheMinutes30d   = 137
+	CustomPricingSetting = "CustomPricing"
+	DiscountSetting      = "Discount"
 )
 
 var (
@@ -61,10 +62,9 @@ var (
 // Prometheus, Kubernetes, the cloud provider, and caches.
 type Accesses struct {
 	Router            *httprouter.Router
-	PrometheusClient  prometheusClient.Client
-	ThanosClient      prometheusClient.Client
+	PrometheusClient  prometheus.Client
+	ThanosClient      prometheus.Client
 	KubeClientSet     kubernetes.Interface
-	ClusterManager    *cm.ClusterManager
 	ClusterMap        clusters.ClusterMap
 	CloudProvider     cloud.Provider
 	Model             *CostModel
@@ -81,13 +81,15 @@ type Accesses struct {
 	// settings will be published in a pub/sub model
 	settingsSubscribers map[string][]chan string
 	settingsMutex       sync.Mutex
+	// registered http service instances
+	httpServices services.HTTPServices
 }
 
 // GetPrometheusClient decides whether the default Prometheus client or the Thanos client
 // should be used.
-func (a *Accesses) GetPrometheusClient(remote bool) prometheusClient.Client {
+func (a *Accesses) GetPrometheusClient(remote bool) prometheus.Client {
 	// Use Thanos Client if it exists (enabled) and remote flag set
-	var pc prometheusClient.Client
+	var pc prometheus.Client
 
 	if remote && a.ThanosClient != nil {
 		pc = a.ThanosClient
@@ -123,16 +125,18 @@ func (a *Accesses) GetCacheRefresh(dur time.Duration) time.Duration {
 func (a *Accesses) ClusterCostsFromCacheHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 
+	duration := 24 * time.Hour
+	offset := time.Minute
 	durationHrs := "24h"
-	offset := "1m"
+	fmtOffset := "1m"
 	pClient := a.GetPrometheusClient(true)
 
-	key := fmt.Sprintf("%s:%s", durationHrs, offset)
+	key := fmt.Sprintf("%s:%s", durationHrs, fmtOffset)
 	if data, valid := a.ClusterCostsCache.Get(key); valid {
 		clusterCosts := data.(map[string]*ClusterCosts)
 		w.Write(WrapDataWithMessage(clusterCosts, nil, "clusterCosts cache hit"))
 	} else {
-		data, err := a.ComputeClusterCosts(pClient, a.CloudProvider, durationHrs, offset, true)
+		data, err := a.ComputeClusterCosts(pClient, a.CloudProvider, duration, offset, true)
 		w.Write(WrapDataWithMessage(data, err, fmt.Sprintf("clusterCosts cache miss: %s", key)))
 	}
 }
@@ -224,7 +228,7 @@ func normalizeTimeParam(param string) (string, error) {
 	return param, nil
 }
 
-// parsePercentString takes a string of expected format "N%" and returns a floating point 0.0N.
+// ParsePercentString takes a string of expected format "N%" and returns a floating point 0.0N.
 // If the "%" symbol is missing, it just returns 0.0N. Empty string is interpreted as "0%" and
 // return 0.0.
 func ParsePercentString(percentStr string) (float64, error) {
@@ -241,66 +245,6 @@ func ParsePercentString(percentStr string) (float64, error) {
 	discount *= 0.01
 
 	return discount, nil
-}
-
-// parseDuration converts a Prometheus-style duration string into a Duration
-// TODO:CLEANUP delete this. do it now.
-func ParseDuration(duration string) (*time.Duration, error) {
-	unitStr := duration[len(duration)-1:]
-	var unit time.Duration
-	switch unitStr {
-	case "s":
-		unit = time.Second
-	case "m":
-		unit = time.Minute
-	case "h":
-		unit = time.Hour
-	case "d":
-		unit = 24.0 * time.Hour
-	default:
-		return nil, fmt.Errorf("error parsing duration: %s did not match expected format [0-9+](s|m|d|h)", duration)
-	}
-
-	amountStr := duration[:len(duration)-1]
-	amount, err := strconv.ParseInt(amountStr, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing duration: %s did not match expected format [0-9+](s|m|d|h)", duration)
-	}
-
-	dur := time.Duration(amount) * unit
-	return &dur, nil
-}
-
-// ParseTimeRange returns a start and end time, respectively, which are converted from
-// a duration and offset, defined as strings with Prometheus-style syntax.
-func ParseTimeRange(duration, offset string) (*time.Time, *time.Time, error) {
-	// endTime defaults to the current time, unless an offset is explicity declared,
-	// in which case it shifts endTime back by given duration
-	endTime := time.Now()
-	if offset != "" {
-		o, err := ParseDuration(offset)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error parsing offset (%s): %s", offset, err)
-		}
-		endTime = endTime.Add(-1 * *o)
-	}
-
-	// if duration is defined in terms of days, convert to hours
-	// e.g. convert "2d" to "48h"
-	durationNorm, err := normalizeTimeParam(duration)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error parsing duration (%s): %s", duration, err)
-	}
-
-	// convert time duration into start and end times, formatted
-	// as ISO datetime strings
-	dur, err := time.ParseDuration(durationNorm)
-	if err != nil {
-		return nil, nil, fmt.Errorf("errorf parsing duration (%s): %s", durationNorm, err)
-	}
-	startTime := endTime.Add(-1 * dur)
-
-	return &startTime, &endTime, nil
 }
 
 func WrapData(data interface{}, err error) []byte {
@@ -438,6 +382,26 @@ func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httpr
 	window := r.URL.Query().Get("window")
 	offset := r.URL.Query().Get("offset")
 
+	if window == "" {
+		w.Write(WrapData(nil, fmt.Errorf("missing window arguement")))
+		return
+	}
+	windowDur, err := timeutil.ParseDuration(window)
+	if err != nil {
+		w.Write(WrapData(nil, fmt.Errorf("error parsing window (%s): %s", window, err)))
+		return
+	}
+
+	// offset is not a required parameter
+	var offsetDur time.Duration
+	if offset != "" {
+		offsetDur, err = timeutil.ParseDuration(offset)
+		if err != nil {
+			w.Write(WrapData(nil, fmt.Errorf("error parsing offset (%s): %s", offset, err)))
+			return
+		}
+	}
+
 	useThanos, _ := strconv.ParseBool(r.URL.Query().Get("multi"))
 
 	if useThanos && !thanos.IsEnabled() {
@@ -445,15 +409,16 @@ func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httpr
 		return
 	}
 
-	var client prometheusClient.Client
+	var client prometheus.Client
 	if useThanos {
 		client = a.ThanosClient
-		offset = thanos.Offset()
+		offsetDur = thanos.OffsetDuration()
+
 	} else {
 		client = a.PrometheusClient
 	}
 
-	data, err := a.ComputeClusterCosts(client, a.CloudProvider, window, offset, true)
+	data, err := a.ComputeClusterCosts(client, a.CloudProvider, windowDur, offsetDur, true)
 	w.Write(WrapData(data, err))
 }
 
@@ -466,7 +431,27 @@ func (a *Accesses) ClusterCostsOverTime(w http.ResponseWriter, r *http.Request, 
 	window := r.URL.Query().Get("window")
 	offset := r.URL.Query().Get("offset")
 
-	data, err := ClusterCostsOverTime(a.PrometheusClient, a.CloudProvider, start, end, window, offset)
+	if window == "" {
+		w.Write(WrapData(nil, fmt.Errorf("missing window arguement")))
+		return
+	}
+	windowDur, err := timeutil.ParseDuration(window)
+	if err != nil {
+		w.Write(WrapData(nil, fmt.Errorf("error parsing window (%s): %s", window, err)))
+		return
+	}
+
+	// offset is not a required parameter
+	var offsetDur time.Duration
+	if offset != "" {
+		offsetDur, err = timeutil.ParseDuration(offset)
+		if err != nil {
+			w.Write(WrapData(nil, fmt.Errorf("error parsing offset (%s): %s", offset, err)))
+			return
+		}
+	}
+
+	data, err := ClusterCostsOverTime(a.PrometheusClient, a.CloudProvider, start, end, windowDur, offsetDur)
 	w.Write(WrapData(data, err))
 }
 
@@ -507,7 +492,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	// Use Thanos Client if it exists (enabled) and remote flag set
-	var pClient prometheusClient.Client
+	var pClient prometheus.Client
 	if remote != "false" && a.ThanosClient != nil {
 		pClient = a.ThanosClient
 	} else {
@@ -737,38 +722,192 @@ func (a *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request,
 	w.Write(WrapData(prom.Validate(a.PrometheusClient)))
 }
 
-// Creates a new ClusterManager instance using a boltdb storage. If that fails,
-// then we fall back to a memory-only storage.
-func newClusterManager() *cm.ClusterManager {
-	clustersConfigFile := "/var/configs/clusters/default-clusters.yaml"
+func (a *Accesses) PrometheusQuery(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	// Return a memory-backed cluster manager populated by configmap
-	return cm.NewConfiguredClusterManager(cm.NewMapDBClusterStorage(), clustersConfigFile)
+	qp := httputil.NewQueryParams(r.URL.Query())
+	query := qp.Get("query", "")
+	if query == "" {
+		w.Write(WrapData(nil, fmt.Errorf("Query Parameter 'query' is unset'")))
+		return
+	}
 
-	// NOTE: The following should be used with a persistent disk store. Since the
-	// NOTE: configmap approach is currently the "persistent" source (entries are read-only
-	// NOTE: on the backend), we don't currently need to store on disk.
-	/*
-		path := env.GetConfigPath()
-		db, err := bolt.Open(path+"costmodel.db", 0600, nil)
-		if err != nil {
-			klog.V(1).Infof("[Error] Failed to create costmodel.db: %s", err.Error())
-			return cm.NewConfiguredClusterManager(cm.NewMapDBClusterStorage(), clustersConfigFile)
-		}
+	ctx := prom.NewNamedContext(a.PrometheusClient, prom.FrontendContextName)
+	body, err := ctx.RawQuery(query)
+	if err != nil {
+		w.Write(WrapData(nil, fmt.Errorf("Error running query %s. Error: %s", query, err)))
+		return
+	}
 
-		store, err := cm.NewBoltDBClusterStorage("clusters", db)
-		if err != nil {
-			klog.V(1).Infof("[Error] Failed to Create Cluster Storage: %s", err.Error())
-			return cm.NewConfiguredClusterManager(cm.NewMapDBClusterStorage(), clustersConfigFile)
-		}
-
-		return cm.NewConfiguredClusterManager(store, clustersConfigFile)
-	*/
+	w.Write(body)
 }
 
-type ConfigWatchers struct {
-	ConfigmapName string
-	WatchFunc     func(string, map[string]string) error
+func (a *Accesses) PrometheusQueryRange(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	qp := httputil.NewQueryParams(r.URL.Query())
+	query := qp.Get("query", "")
+	if query == "" {
+		fmt.Fprintf(w, "Error parsing query from request parameters.")
+		return
+	}
+
+	start, end, duration, err := toStartEndStep(qp)
+	if err != nil {
+		fmt.Fprintf(w, err.Error())
+		return
+	}
+
+	ctx := prom.NewNamedContext(a.PrometheusClient, prom.FrontendContextName)
+	body, err := ctx.RawQueryRange(query, start, end, duration)
+	if err != nil {
+		fmt.Fprintf(w, "Error running query %s. Error: %s", query, err)
+		return
+	}
+
+	w.Write(body)
+}
+
+func (a *Accesses) ThanosQuery(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	if !thanos.IsEnabled() {
+		w.Write(WrapData(nil, fmt.Errorf("ThanosDisabled")))
+		return
+	}
+
+	qp := httputil.NewQueryParams(r.URL.Query())
+	query := qp.Get("query", "")
+	if query == "" {
+		w.Write(WrapData(nil, fmt.Errorf("Query Parameter 'query' is unset'")))
+		return
+	}
+
+	ctx := prom.NewNamedContext(a.ThanosClient, prom.FrontendContextName)
+	body, err := ctx.RawQuery(query)
+	if err != nil {
+		w.Write(WrapData(nil, fmt.Errorf("Error running query %s. Error: %s", query, err)))
+		return
+	}
+
+	w.Write(body)
+}
+
+func (a *Accesses) ThanosQueryRange(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	if !thanos.IsEnabled() {
+		w.Write(WrapData(nil, fmt.Errorf("ThanosDisabled")))
+		return
+	}
+
+	qp := httputil.NewQueryParams(r.URL.Query())
+	query := qp.Get("query", "")
+	if query == "" {
+		fmt.Fprintf(w, "Error parsing query from request parameters.")
+		return
+	}
+
+	start, end, duration, err := toStartEndStep(qp)
+	if err != nil {
+		fmt.Fprintf(w, err.Error())
+		return
+	}
+
+	ctx := prom.NewNamedContext(a.ThanosClient, prom.FrontendContextName)
+	body, err := ctx.RawQueryRange(query, start, end, duration)
+	if err != nil {
+		fmt.Fprintf(w, "Error running query %s. Error: %s", query, err)
+		return
+	}
+
+	w.Write(body)
+}
+
+// helper for query range proxy requests
+func toStartEndStep(qp httputil.QueryParams) (start, end time.Time, step time.Duration, err error) {
+	var e error
+
+	ss := qp.Get("start", "")
+	es := qp.Get("end", "")
+	ds := qp.Get("duration", "")
+	layout := "2006-01-02T15:04:05.000Z"
+
+	start, e = time.Parse(layout, ss)
+	if e != nil {
+		err = fmt.Errorf("Error parsing time %s. Error: %s", ss, err)
+		return
+	}
+	end, e = time.Parse(layout, es)
+	if e != nil {
+		err = fmt.Errorf("Error parsing time %s. Error: %s", es, err)
+		return
+	}
+	step, e = time.ParseDuration(ds)
+	if e != nil {
+		err = fmt.Errorf("Error parsing duration %s. Error: %s", ds, err)
+		return
+	}
+	err = nil
+
+	return
+}
+
+func (a *Accesses) GetPrometheusQueueState(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	promQueueState, err := prom.GetPrometheusQueueState(a.PrometheusClient)
+	if err != nil {
+		w.Write(WrapData(nil, err))
+		return
+	}
+
+	result := map[string]*prom.PrometheusQueueState{
+		"prometheus": promQueueState,
+	}
+
+	if thanos.IsEnabled() {
+		thanosQueueState, err := prom.GetPrometheusQueueState(a.ThanosClient)
+		if err != nil {
+			log.Warningf("Error getting Thanos queue state: %s", err)
+		} else {
+			result["thanos"] = thanosQueueState
+		}
+	}
+
+	w.Write(WrapData(result, nil))
+}
+
+// GetPrometheusMetrics retrieves availability of Prometheus and Thanos metrics
+func (a *Accesses) GetPrometheusMetrics(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	promMetrics, err := prom.GetPrometheusMetrics(a.PrometheusClient, "")
+	if err != nil {
+		w.Write(WrapData(nil, err))
+		return
+	}
+
+	result := map[string][]*prom.PrometheusDiagnostic{
+		"prometheus": promMetrics,
+	}
+
+	if thanos.IsEnabled() {
+		thanosMetrics, err := prom.GetPrometheusMetrics(a.ThanosClient, thanos.QueryOffset())
+		if err != nil {
+			log.Warningf("Error getting Thanos queue state: %s", err)
+		} else {
+			result["thanos"] = thanosMetrics
+		}
+	}
+
+	w.Write(WrapData(result, nil))
 }
 
 // captures the panic event in sentry
@@ -801,11 +940,13 @@ func handlePanic(p errors.Panic) bool {
 	return p.Type == errors.PanicTypeHTTP
 }
 
-func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
+func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses {
 	klog.InitFlags(nil)
 	flag.Set("v", "3")
 	flag.Parse()
 	klog.V(1).Infof("Starting cost-model (git commit \"%s\")", env.GetAppVersion())
+
+	configWatchers := watcher.NewConfigMapWatchers(additionalConfigWatchers...)
 
 	var err error
 	if errorReportingEnabled {
@@ -830,55 +971,39 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 
 	timeout := 120 * time.Second
 	keepAlive := 120 * time.Second
-	scrapeInterval, _ := time.ParseDuration("1m")
+	scrapeInterval := time.Minute
 
-	promCli, _ := prom.NewPrometheusClient(address, timeout, keepAlive, queryConcurrency, "")
-
-	api := prometheusAPI.NewAPI(promCli)
-	pcfg, err := api.Config(context.Background())
+	promCli, err := prom.NewPrometheusClient(address, timeout, keepAlive, queryConcurrency, "")
 	if err != nil {
-		klog.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/thanos here.", address, err.Error(), prometheusTroubleshootingEp)
-	} else {
-		klog.V(1).Info("Retrieved a prometheus config file from: " + address)
-		sc, err := GetPrometheusConfig(pcfg.YAML)
-		if err != nil {
-			klog.Infof("Fix YAML error %s", err)
-		}
-		for _, scrapeconfig := range sc.ScrapeConfigs {
-			if scrapeconfig.JobName == GetKubecostJobName() {
-				if scrapeconfig.ScrapeInterval != "" {
-					si := scrapeconfig.ScrapeInterval
-					sid, err := time.ParseDuration(si)
-					if err != nil {
-						klog.Infof("error parseing scrapeConfig for %s", scrapeconfig.JobName)
-					} else {
-						klog.Infof("Found Kubecost job scrape interval of: %s", si)
-						scrapeInterval = sid
-					}
-				}
-			}
-		}
+		klog.Fatalf("Failed to create prometheus client, Error: %v", err)
 	}
-	klog.Infof("Using scrape interval of %f", scrapeInterval.Seconds())
 
 	m, err := prom.Validate(promCli)
-	if err != nil || m.Running == false {
+	if err != nil || !m.Running {
 		if err != nil {
-			klog.Errorf("Failed to query prometheus at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prometheusTroubleshootingEp)
-		} else if m.Running == false {
-			klog.Errorf("Prometheus at %s is not running. Troubleshooting help available at: %s", address, prometheusTroubleshootingEp)
-		}
-
-		api := prometheusAPI.NewAPI(promCli)
-		_, err = api.Config(context.Background())
-		if err != nil {
-			klog.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/thanos here.", address, err.Error(), prometheusTroubleshootingEp)
-		} else {
-			klog.V(1).Info("Retrieved a prometheus config file from: " + address)
+			klog.Errorf("Failed to query prometheus at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prom.PrometheusTroubleshootingURL)
+		} else if !m.Running {
+			klog.Errorf("Prometheus at %s is not running. Troubleshooting help available at: %s", address, prom.PrometheusTroubleshootingURL)
 		}
 	} else {
 		klog.V(1).Info("Success: retrieved the 'up' query against prometheus at: " + address)
 	}
+
+	api := prometheusAPI.NewAPI(promCli)
+	_, err = api.Config(context.Background())
+	if err != nil {
+		klog.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
+	} else {
+		klog.Infof("Retrieved a prometheus config file from: %s", address)
+	}
+
+	// Lookup scrape interval for kubecost job, update if found
+	si, err := prom.ScrapeIntervalFor(promCli, env.GetKubecostJobName())
+	if err == nil {
+		scrapeInterval = si
+	}
+
+	klog.Infof("Using scrape interval of %f", scrapeInterval.Seconds())
 
 	// Kubernetes API setup
 	var kc *rest.Config
@@ -906,51 +1031,24 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 		panic(err.Error())
 	}
 
-	watchConfigFunc := func(c interface{}) {
-		conf := c.(*v1.ConfigMap)
-		if conf.GetName() == "pricing-configs" {
-			_, err := cloudProvider.UpdateConfigFromConfigMap(conf.Data)
-			if err != nil {
-				klog.Infof("ERROR UPDATING %s CONFIG: %s", "pricing-configs", err.Error())
-			}
-		}
-		for _, cw := range additionalConfigWatchers {
-			if conf.GetName() == cw.ConfigmapName {
-				err := cw.WatchFunc(conf.GetName(), conf.Data)
-				if err != nil {
-					klog.Infof("ERROR UPDATING %s CONFIG: %s", cw.ConfigmapName, err.Error())
-				}
-			}
-		}
-	}
+	// Append the pricing config watcher
+	configWatchers.AddWatcher(cloud.ConfigWatcherFor(cloudProvider))
+	watchConfigFunc := configWatchers.ToWatchFunc()
+	watchedConfigs := configWatchers.GetWatchedConfigs()
 
 	kubecostNamespace := env.GetKubecostNamespace()
 	// We need an initial invocation because the init of the cache has happened before we had access to the provider.
-	configs, err := kubeClientset.CoreV1().ConfigMaps(kubecostNamespace).Get(context.Background(), "pricing-configs", metav1.GetOptions{})
-	if err != nil {
-		klog.Infof("No %s configmap found at installtime, using existing configs: %s", "pricing-configs", err.Error())
-	} else {
-		watchConfigFunc(configs)
-	}
-
-	for _, cw := range additionalConfigWatchers {
-		configs, err := kubeClientset.CoreV1().ConfigMaps(kubecostNamespace).Get(context.Background(), cw.ConfigmapName, metav1.GetOptions{})
+	for _, cw := range watchedConfigs {
+		configs, err := kubeClientset.CoreV1().ConfigMaps(kubecostNamespace).Get(context.Background(), cw, metav1.GetOptions{})
 		if err != nil {
-			klog.Infof("No %s configmap found at installtime, using existing configs: %s", cw.ConfigmapName, err.Error())
+			klog.Infof("No %s configmap found at install time, using existing configs: %s", cw, err.Error())
 		} else {
+			klog.Infof("Found configmap %s, watching...", configs.Name)
 			watchConfigFunc(configs)
 		}
 	}
 
 	k8sCache.SetConfigMapUpdateFunc(watchConfigFunc)
-
-	// TODO: General Architecture Note: Several passes have been made to modularize a lot of
-	// TODO: our code, but the router still continues to be the obvious entry point for new \
-	// TODO: features. We should look to split out the actual "router" functionality and
-	// TODO: implement a builder -> controller for stitching new features and other dependencies.
-	clusterManager := newClusterManager()
-
-	// Initialize metrics here
 
 	remoteEnabled := env.IsRemoteEnabled()
 	if remoteEnabled {
@@ -966,7 +1064,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	}
 
 	// Thanos Client
-	var thanosClient prometheusClient.Client
+	var thanosClient prometheus.Client
 	if thanos.IsEnabled() {
 		thanosAddress := thanos.QueryURL()
 
@@ -990,10 +1088,11 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 
 	// Initialize ClusterMap for maintaining ClusterInfo by ClusterID
 	var clusterMap clusters.ClusterMap
+	localCIProvider := NewLocalClusterInfoProvider(kubeClientset, cloudProvider)
 	if thanosClient != nil {
-		clusterMap = clusters.NewClusterMap(thanosClient, 10*time.Minute)
+		clusterMap = clusters.NewClusterMap(thanosClient, localCIProvider, 10*time.Minute)
 	} else {
-		clusterMap = clusters.NewClusterMap(promCli, 5*time.Minute)
+		clusterMap = clusters.NewClusterMap(promCli, localCIProvider, 5*time.Minute)
 	}
 
 	// cache responses from model and aggregation for a default of 10 minutes;
@@ -1029,7 +1128,6 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 		PrometheusClient:  promCli,
 		ThanosClient:      thanosClient,
 		KubeClientSet:     kubeClientset,
-		ClusterManager:    clusterManager,
 		ClusterMap:        clusterMap,
 		CloudProvider:     cloudProvider,
 		Model:             costModel,
@@ -1040,6 +1138,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 		OutOfClusterCache: outOfClusterCache,
 		SettingsCache:     settingsCache,
 		CacheExpiration:   cacheExpiration,
+		httpServices:      services.NewCostModelServices(),
 	}
 	// Use the Accesses instance, itself, as the CostModelAggregator. This is
 	// confusing and unconventional, but necessary so that we can swap it
@@ -1063,9 +1162,9 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 		log.Infof("Init: AggregateCostModel cache warming disabled")
 	}
 
-	a.MetricsEmitter.Start()
-
-	managerEndpoints := cm.NewClusterManagerEndpoints(a.ClusterManager)
+	if !env.IsKubecostMetricsPodEnabled() {
+		a.MetricsEmitter.Start()
+	}
 
 	a.Router.GET("/costDataModel", a.CostDataModel)
 	a.Router.GET("/costDataModelRange", a.CostDataModelRange)
@@ -1085,10 +1184,17 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 	a.Router.GET("/pricingSourceStatus", a.GetPricingSourceStatus)
 	a.Router.GET("/pricingSourceCounts", a.GetPricingSourceCounts)
 
-	// cluster manager endpoints
-	a.Router.GET("/clusters", managerEndpoints.GetAllClusters)
-	a.Router.PUT("/clusters", managerEndpoints.PutCluster)
-	a.Router.DELETE("/clusters/:id", managerEndpoints.DeleteCluster)
+	// prom query proxies
+	a.Router.GET("/prometheusQuery", a.PrometheusQuery)
+	a.Router.GET("/prometheusQueryRange", a.PrometheusQueryRange)
+	a.Router.GET("/thanosQuery", a.ThanosQuery)
+	a.Router.GET("/thanosQueryRange", a.ThanosQueryRange)
+
+	// diagnostics
+	a.Router.GET("/diagnostics/requestQueue", a.GetPrometheusQueueState)
+	a.Router.GET("/diagnostics/prometheusMetrics", a.GetPrometheusMetrics)
+
+	a.httpServices.RegisterAll(a.Router)
 
 	return a
 }

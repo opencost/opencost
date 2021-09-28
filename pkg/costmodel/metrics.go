@@ -12,6 +12,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/cost-model/pkg/metrics"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
 
@@ -19,445 +20,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	v1 "k8s.io/api/core/v1"
+
 	"k8s.io/client-go/kubernetes"
 
 	"k8s.io/klog"
 )
-
-//--------------------------------------------------------------------------
-//  StatefulsetCollector
-//--------------------------------------------------------------------------
-
-// StatefulsetCollector is a prometheus collector that generates StatefulsetMetrics
-type StatefulsetCollector struct {
-	KubeClusterCache clustercache.ClusterCache
-}
-
-// Describe sends the super-set of all possible descriptors of metrics
-// collected by this Collector.
-func (sc StatefulsetCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc("statefulSet_match_labels", "statfulSet match labels", []string{}, nil)
-}
-
-// Collect is called by the Prometheus registry when collecting metrics.
-func (sc StatefulsetCollector) Collect(ch chan<- prometheus.Metric) {
-	ds := sc.KubeClusterCache.GetAllStatefulSets()
-	for _, statefulset := range ds {
-		labels, values := prom.KubeLabelsToLabels(statefulset.Spec.Selector.MatchLabels)
-		if len(labels) > 0 {
-			m := newStatefulsetMetric(statefulset.GetName(), statefulset.GetNamespace(), "statefulSet_match_labels", labels, values)
-			ch <- m
-		}
-	}
-}
-
-//--------------------------------------------------------------------------
-//  StatefulsetMetric
-//--------------------------------------------------------------------------
-
-// StatefulsetMetric is a prometheus.Metric used to encode statefulset match labels
-type StatefulsetMetric struct {
-	fqName          string
-	help            string
-	labelNames      []string
-	labelValues     []string
-	statefulsetName string
-	namespace       string
-}
-
-// Creates a new StatefulsetMetric, implementation of prometheus.Metric
-func newStatefulsetMetric(name, namespace, fqname string, labelNames []string, labelvalues []string) StatefulsetMetric {
-	return StatefulsetMetric{
-		fqName:          fqname,
-		labelNames:      labelNames,
-		labelValues:     labelvalues,
-		help:            "statefulSet_match_labels StatefulSet Match Labels",
-		statefulsetName: name,
-		namespace:       namespace,
-	}
-}
-
-// Desc returns the descriptor for the Metric. This method idempotently
-// returns the same descriptor throughout the lifetime of the Metric.
-func (s StatefulsetMetric) Desc() *prometheus.Desc {
-	l := prometheus.Labels{"statefulSet": s.statefulsetName, "namespace": s.namespace}
-	return prometheus.NewDesc(s.fqName, s.help, s.labelNames, l)
-}
-
-// Write encodes the Metric into a "Metric" Protocol Buffer data
-// transmission object.
-func (s StatefulsetMetric) Write(m *dto.Metric) error {
-	h := float64(1)
-	m.Gauge = &dto.Gauge{
-		Value: &h,
-	}
-	var labels []*dto.LabelPair
-	for i := range s.labelNames {
-		labels = append(labels, &dto.LabelPair{
-			Name:  &s.labelNames[i],
-			Value: &s.labelValues[i],
-		})
-	}
-	n := "namespace"
-	labels = append(labels, &dto.LabelPair{
-		Name:  &n,
-		Value: &s.namespace,
-	})
-	r := "statefulSet"
-	labels = append(labels, &dto.LabelPair{
-		Name:  &r,
-		Value: &s.statefulsetName,
-	})
-	m.Label = labels
-	return nil
-}
-
-//--------------------------------------------------------------------------
-//  DeploymentCollector
-//--------------------------------------------------------------------------
-
-// DeploymentCollector is a prometheus collector that generates DeploymentMetrics
-type DeploymentCollector struct {
-	KubeClusterCache clustercache.ClusterCache
-}
-
-// Describe sends the super-set of all possible descriptors of metrics
-// collected by this Collector.
-func (sc DeploymentCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc("deployment_match_labels", "deployment match labels", []string{}, nil)
-}
-
-// Collect is called by the Prometheus registry when collecting metrics.
-func (sc DeploymentCollector) Collect(ch chan<- prometheus.Metric) {
-	ds := sc.KubeClusterCache.GetAllDeployments()
-	for _, deployment := range ds {
-		labels, values := prom.KubeLabelsToLabels(deployment.Spec.Selector.MatchLabels)
-		if len(labels) > 0 {
-			m := newDeploymentMetric(deployment.GetName(), deployment.GetNamespace(), "deployment_match_labels", labels, values)
-			ch <- m
-		}
-	}
-}
-
-//--------------------------------------------------------------------------
-//  DeploymentMetric
-//--------------------------------------------------------------------------
-
-// DeploymentMetric is a prometheus.Metric used to encode deployment match labels
-type DeploymentMetric struct {
-	fqName         string
-	help           string
-	labelNames     []string
-	labelValues    []string
-	deploymentName string
-	namespace      string
-}
-
-// Creates a new DeploymentMetric, implementation of prometheus.Metric
-func newDeploymentMetric(name, namespace, fqname string, labelNames []string, labelvalues []string) DeploymentMetric {
-	return DeploymentMetric{
-		fqName:         fqname,
-		labelNames:     labelNames,
-		labelValues:    labelvalues,
-		help:           "deployment_match_labels Deployment Match Labels",
-		deploymentName: name,
-		namespace:      namespace,
-	}
-}
-
-// Desc returns the descriptor for the Metric. This method idempotently
-// returns the same descriptor throughout the lifetime of the Metric.
-func (s DeploymentMetric) Desc() *prometheus.Desc {
-	l := prometheus.Labels{"deployment": s.deploymentName, "namespace": s.namespace}
-	return prometheus.NewDesc(s.fqName, s.help, s.labelNames, l)
-}
-
-// Write encodes the Metric into a "Metric" Protocol Buffer data
-// transmission object.
-func (s DeploymentMetric) Write(m *dto.Metric) error {
-	h := float64(1)
-	m.Gauge = &dto.Gauge{
-		Value: &h,
-	}
-	var labels []*dto.LabelPair
-	for i := range s.labelNames {
-		labels = append(labels, &dto.LabelPair{
-			Name:  &s.labelNames[i],
-			Value: &s.labelValues[i],
-		})
-	}
-	n := "namespace"
-	labels = append(labels, &dto.LabelPair{
-		Name:  &n,
-		Value: &s.namespace,
-	})
-	r := "deployment"
-	labels = append(labels, &dto.LabelPair{
-		Name:  &r,
-		Value: &s.deploymentName,
-	})
-	m.Label = labels
-	return nil
-}
-
-//--------------------------------------------------------------------------
-//  ServiceCollector
-//--------------------------------------------------------------------------
-
-// ServiceCollector is a prometheus collector that generates ServiceMetrics
-type ServiceCollector struct {
-	KubeClusterCache clustercache.ClusterCache
-}
-
-// Describe sends the super-set of all possible descriptors of metrics
-// collected by this Collector.
-func (sc ServiceCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc("service_selector_labels", "service selector labels", []string{}, nil)
-}
-
-// Collect is called by the Prometheus registry when collecting metrics.
-func (sc ServiceCollector) Collect(ch chan<- prometheus.Metric) {
-	svcs := sc.KubeClusterCache.GetAllServices()
-	for _, svc := range svcs {
-		labels, values := prom.KubeLabelsToLabels(svc.Spec.Selector)
-		if len(labels) > 0 {
-			m := newServiceMetric(svc.GetName(), svc.GetNamespace(), "service_selector_labels", labels, values)
-			ch <- m
-		}
-	}
-}
-
-//--------------------------------------------------------------------------
-//  ServiceMetric
-//--------------------------------------------------------------------------
-
-// ServiceMetric is a prometheus.Metric used to encode service selector labels
-type ServiceMetric struct {
-	fqName      string
-	help        string
-	labelNames  []string
-	labelValues []string
-	serviceName string
-	namespace   string
-}
-
-// Creates a new ServiceMetric, implementation of prometheus.Metric
-func newServiceMetric(name, namespace, fqname string, labelNames []string, labelvalues []string) ServiceMetric {
-	return ServiceMetric{
-		fqName:      fqname,
-		labelNames:  labelNames,
-		labelValues: labelvalues,
-		help:        "service_selector_labels Service Selector Labels",
-		serviceName: name,
-		namespace:   namespace,
-	}
-}
-
-// Desc returns the descriptor for the Metric. This method idempotently
-// returns the same descriptor throughout the lifetime of the Metric.
-func (s ServiceMetric) Desc() *prometheus.Desc {
-	l := prometheus.Labels{"service": s.serviceName, "namespace": s.namespace}
-	return prometheus.NewDesc(s.fqName, s.help, s.labelNames, l)
-}
-
-// Write encodes the Metric into a "Metric" Protocol Buffer data
-// transmission object.
-func (s ServiceMetric) Write(m *dto.Metric) error {
-	h := float64(1)
-	m.Gauge = &dto.Gauge{
-		Value: &h,
-	}
-	var labels []*dto.LabelPair
-	for i := range s.labelNames {
-		labels = append(labels, &dto.LabelPair{
-			Name:  &s.labelNames[i],
-			Value: &s.labelValues[i],
-		})
-	}
-	n := "namespace"
-	labels = append(labels, &dto.LabelPair{
-		Name:  &n,
-		Value: &s.namespace,
-	})
-	r := "service"
-	labels = append(labels, &dto.LabelPair{
-		Name:  &r,
-		Value: &s.serviceName,
-	})
-	m.Label = labels
-	return nil
-}
-
-//--------------------------------------------------------------------------
-//  NamespaceAnnotationCollector
-//--------------------------------------------------------------------------
-
-// NamespaceAnnotationCollector is a prometheus collector that generates NamespaceAnnotationMetrics
-type NamespaceAnnotationCollector struct {
-	KubeClusterCache clustercache.ClusterCache
-}
-
-// Describe sends the super-set of all possible descriptors of metrics
-// collected by this Collector.
-func (nsac NamespaceAnnotationCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc("kube_namespace_annotations", "namespace annotations", []string{}, nil)
-}
-
-// Collect is called by the Prometheus registry when collecting metrics.
-func (nsac NamespaceAnnotationCollector) Collect(ch chan<- prometheus.Metric) {
-	namespaces := nsac.KubeClusterCache.GetAllNamespaces()
-	for _, namespace := range namespaces {
-		labels, values := prom.KubeAnnotationsToLabels(namespace.Annotations)
-		if len(labels) > 0 {
-			m := newNamespaceAnnotationsMetric(namespace.GetName(), "kube_namespace_annotations", labels, values)
-			ch <- m
-		}
-	}
-}
-
-//--------------------------------------------------------------------------
-//  NamespaceAnnotationsMetric
-//--------------------------------------------------------------------------
-
-// NamespaceAnnotationsMetric is a prometheus.Metric used to encode namespace annotations
-type NamespaceAnnotationsMetric struct {
-	fqName      string
-	help        string
-	labelNames  []string
-	labelValues []string
-	namespace   string
-}
-
-// Creates a new NamespaceAnnotationsMetric, implementation of prometheus.Metric
-func newNamespaceAnnotationsMetric(namespace, fqname string, labelNames []string, labelValues []string) NamespaceAnnotationsMetric {
-	return NamespaceAnnotationsMetric{
-		namespace:   namespace,
-		fqName:      fqname,
-		labelNames:  labelNames,
-		labelValues: labelValues,
-		help:        "kube_namespace_annotations Namespace Annotations",
-	}
-}
-
-// Desc returns the descriptor for the Metric. This method idempotently
-// returns the same descriptor throughout the lifetime of the Metric.
-func (nam NamespaceAnnotationsMetric) Desc() *prometheus.Desc {
-	l := prometheus.Labels{"namespace": nam.namespace}
-	return prometheus.NewDesc(nam.fqName, nam.help, nam.labelNames, l)
-}
-
-// Write encodes the Metric into a "Metric" Protocol Buffer data
-// transmission object.
-func (nam NamespaceAnnotationsMetric) Write(m *dto.Metric) error {
-	h := float64(1)
-	m.Gauge = &dto.Gauge{
-		Value: &h,
-	}
-
-	var labels []*dto.LabelPair
-	for i := range nam.labelNames {
-		labels = append(labels, &dto.LabelPair{
-			Name:  &nam.labelNames[i],
-			Value: &nam.labelValues[i],
-		})
-	}
-	n := "namespace"
-	labels = append(labels, &dto.LabelPair{
-		Name:  &n,
-		Value: &nam.namespace,
-	})
-	m.Label = labels
-	return nil
-}
-
-//--------------------------------------------------------------------------
-//  PodAnnotationCollector
-//--------------------------------------------------------------------------
-
-// PodAnnotationCollector is a prometheus collector that generates PodAnnotationMetrics
-type PodAnnotationCollector struct {
-	KubeClusterCache clustercache.ClusterCache
-}
-
-// Describe sends the super-set of all possible descriptors of metrics
-// collected by this Collector.
-func (pac PodAnnotationCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc("kube_pod_annotations", "pod annotations", []string{}, nil)
-}
-
-// Collect is called by the Prometheus registry when collecting metrics.
-func (pac PodAnnotationCollector) Collect(ch chan<- prometheus.Metric) {
-	pods := pac.KubeClusterCache.GetAllPods()
-	for _, pod := range pods {
-		labels, values := prom.KubeAnnotationsToLabels(pod.Annotations)
-		if len(labels) > 0 {
-			m := newPodAnnotationMetric(pod.GetNamespace(), pod.GetName(), "kube_pod_annotations", labels, values)
-			ch <- m
-		}
-	}
-}
-
-//--------------------------------------------------------------------------
-//  PodAnnotationsMetric
-//--------------------------------------------------------------------------
-
-// PodAnnotationsMetric is a prometheus.Metric used to encode namespace annotations
-type PodAnnotationsMetric struct {
-	name        string
-	fqName      string
-	help        string
-	labelNames  []string
-	labelValues []string
-	namespace   string
-}
-
-// Creates a new PodAnnotationsMetric, implementation of prometheus.Metric
-func newPodAnnotationMetric(namespace, name, fqname string, labelNames []string, labelValues []string) PodAnnotationsMetric {
-	return PodAnnotationsMetric{
-		namespace:   namespace,
-		name:        name,
-		fqName:      fqname,
-		labelNames:  labelNames,
-		labelValues: labelValues,
-		help:        "kube_pod_annotations Pod Annotations",
-	}
-}
-
-// Desc returns the descriptor for the Metric. This method idempotently
-// returns the same descriptor throughout the lifetime of the Metric.
-func (pam PodAnnotationsMetric) Desc() *prometheus.Desc {
-	l := prometheus.Labels{"namespace": pam.namespace, "pod": pam.name}
-	return prometheus.NewDesc(pam.fqName, pam.help, pam.labelNames, l)
-}
-
-// Write encodes the Metric into a "Metric" Protocol Buffer data
-// transmission object.
-func (pam PodAnnotationsMetric) Write(m *dto.Metric) error {
-	h := float64(1)
-	m.Gauge = &dto.Gauge{
-		Value: &h,
-	}
-
-	var labels []*dto.LabelPair
-	for i := range pam.labelNames {
-		labels = append(labels, &dto.LabelPair{
-			Name:  &pam.labelNames[i],
-			Value: &pam.labelValues[i],
-		})
-	}
-	n := "namespace"
-	labels = append(labels, &dto.LabelPair{
-		Name:  &n,
-		Value: &pam.namespace,
-	})
-	r := "pod"
-	labels = append(labels, &dto.LabelPair{
-		Name:  &r,
-		Value: &pam.name,
-	})
-	m.Label = labels
-	return nil
-}
 
 //--------------------------------------------------------------------------
 //  ClusterInfoCollector
@@ -529,402 +96,8 @@ func (cim ClusterInfoMetric) Write(m *dto.Metric) error {
 	return nil
 }
 
-//--------------------------------------------------------------------------
-//  KubeNodeStatusCapacityMemoryBytesCollector
-//--------------------------------------------------------------------------
-
-// KubeNodeStatusCapacityMemoryBytesCollector is a prometheus collector that generates
-// KubeNodeStatusCapacityMemoryBytesMetrics
-type KubeNodeStatusCapacityMemoryBytesCollector struct {
-	KubeClusterCache clustercache.ClusterCache
-}
-
-// Describe sends the super-set of all possible descriptors of metrics
-// collected by this Collector.
-func (nsac KubeNodeStatusCapacityMemoryBytesCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc("kube_node_status_capacity_memory_bytes", "node capacity memory bytes", []string{}, nil)
-}
-
-// Collect is called by the Prometheus registry when collecting metrics.
-func (nsac KubeNodeStatusCapacityMemoryBytesCollector) Collect(ch chan<- prometheus.Metric) {
-	nodes := nsac.KubeClusterCache.GetAllNodes()
-	for _, node := range nodes {
-		// k8s.io/apimachinery/pkg/api/resource/amount.go and
-		// k8s.io/apimachinery/pkg/api/resource/quantity.go for
-		// details on the "amount" API. See
-		// https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-types
-		// for the units of memory and CPU.
-		memoryBytes := node.Status.Capacity.Memory().Value()
-
-		m := newKubeNodeStatusCapacityMemoryBytesMetric(node.GetName(), memoryBytes, "kube_node_status_capacity_memory_bytes", nil, nil)
-		ch <- m
-	}
-}
-
-//--------------------------------------------------------------------------
-//  KubeNodeStatusCapacityMemoryBytesMetric
-//--------------------------------------------------------------------------
-
-// KubeNodeStatusCapacityMemoryBytesMetric is a prometheus.Metric used to encode
-// a duplicate of the deprecated kube-state-metrics metric
-// kube_node_status_capacity_memory_bytes
-type KubeNodeStatusCapacityMemoryBytesMetric struct {
-	fqName      string
-	help        string
-	labelNames  []string
-	labelValues []string
-	bytes       int64
-	node        string
-}
-
-// Creates a new KubeNodeStatusCapacityMemoryBytesMetric, implementation of prometheus.Metric
-func newKubeNodeStatusCapacityMemoryBytesMetric(node string, bytes int64, fqname string, labelNames []string, labelValues []string) KubeNodeStatusCapacityMemoryBytesMetric {
-	return KubeNodeStatusCapacityMemoryBytesMetric{
-		fqName:      fqname,
-		labelNames:  labelNames,
-		labelValues: labelValues,
-		help:        "kube_node_status_capacity_memory_bytes Node Capacity Memory Bytes",
-		bytes:       bytes,
-		node:        node,
-	}
-}
-
-// Desc returns the descriptor for the Metric. This method idempotently
-// returns the same descriptor throughout the lifetime of the Metric.
-func (nam KubeNodeStatusCapacityMemoryBytesMetric) Desc() *prometheus.Desc {
-	l := prometheus.Labels{"node": nam.node}
-	return prometheus.NewDesc(nam.fqName, nam.help, nam.labelNames, l)
-}
-
-// Write encodes the Metric into a "Metric" Protocol Buffer data
-// transmission object.
-func (nam KubeNodeStatusCapacityMemoryBytesMetric) Write(m *dto.Metric) error {
-	h := float64(nam.bytes)
-	m.Gauge = &dto.Gauge{
-		Value: &h,
-	}
-
-	var labels []*dto.LabelPair
-	for i := range nam.labelNames {
-		labels = append(labels, &dto.LabelPair{
-			Name:  &nam.labelNames[i],
-			Value: &nam.labelValues[i],
-		})
-	}
-	n := "node"
-	labels = append(labels, &dto.LabelPair{
-		Name:  &n,
-		Value: &nam.node,
-	})
-	m.Label = labels
-	return nil
-}
-
-//--------------------------------------------------------------------------
-//  KubeNodeStatusCapacityCPUCoresCollector
-//--------------------------------------------------------------------------
-
-// KubeNodeStatusCapacityCPUCoresCollector is a prometheus collector that generates
-// KubeNodeStatusCapacityCPUCoresMetrics
-type KubeNodeStatusCapacityCPUCoresCollector struct {
-	KubeClusterCache clustercache.ClusterCache
-}
-
-// Describe sends the super-set of all possible descriptors of metrics
-// collected by this Collector.
-func (nsac KubeNodeStatusCapacityCPUCoresCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc("kube_node_status_capacity_cpu_cores", "node capacity cpu cores", []string{}, nil)
-}
-
-// Collect is called by the Prometheus registry when collecting metrics.
-func (nsac KubeNodeStatusCapacityCPUCoresCollector) Collect(ch chan<- prometheus.Metric) {
-	nodes := nsac.KubeClusterCache.GetAllNodes()
-	for _, node := range nodes {
-		// k8s.io/apimachinery/pkg/api/resource/amount.go and
-		// k8s.io/apimachinery/pkg/api/resource/quantity.go for
-		// details on the "amount" API. See
-		// https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-types
-		// for the units of memory and CPU.
-		cpuCores := float64(node.Status.Capacity.Cpu().MilliValue()) / 1000
-
-		m := newKubeNodeStatusCapacityCPUCoresMetric(node.GetName(), cpuCores, "kube_node_status_capacity_cpu_cores", nil, nil)
-		ch <- m
-	}
-}
-
-//--------------------------------------------------------------------------
-//  KubeNodeStatusCapacityCPUCoresMetric
-//--------------------------------------------------------------------------
-
-// KubeNodeStatusCapacityCPUCoresMetric is a prometheus.Metric used to encode
-// a duplicate of the deprecated kube-state-metrics metric
-// kube_node_status_capacity_memory_bytes
-type KubeNodeStatusCapacityCPUCoresMetric struct {
-	fqName      string
-	help        string
-	labelNames  []string
-	labelValues []string
-	cores       float64
-	node        string
-}
-
-// Creates a new KubeNodeStatusCapacityCPUCoresMetric, implementation of prometheus.Metric
-func newKubeNodeStatusCapacityCPUCoresMetric(node string, cores float64, fqname string, labelNames []string, labelValues []string) KubeNodeStatusCapacityCPUCoresMetric {
-	return KubeNodeStatusCapacityCPUCoresMetric{
-		fqName:      fqname,
-		labelNames:  labelNames,
-		labelValues: labelValues,
-		help:        "kube_node_status_capacity_cpu_cores Node Capacity CPU Cores",
-		cores:       cores,
-		node:        node,
-	}
-}
-
-// Desc returns the descriptor for the Metric. This method idempotently
-// returns the same descriptor throughout the lifetime of the Metric.
-func (nam KubeNodeStatusCapacityCPUCoresMetric) Desc() *prometheus.Desc {
-	l := prometheus.Labels{"node": nam.node}
-	return prometheus.NewDesc(nam.fqName, nam.help, nam.labelNames, l)
-}
-
-// Write encodes the Metric into a "Metric" Protocol Buffer data
-// transmission object.
-func (nam KubeNodeStatusCapacityCPUCoresMetric) Write(m *dto.Metric) error {
-	h := nam.cores
-	m.Gauge = &dto.Gauge{
-		Value: &h,
-	}
-
-	var labels []*dto.LabelPair
-	for i := range nam.labelNames {
-		labels = append(labels, &dto.LabelPair{
-			Name:  &nam.labelNames[i],
-			Value: &nam.labelValues[i],
-		})
-	}
-	n := "node"
-	labels = append(labels, &dto.LabelPair{
-		Name:  &n,
-		Value: &nam.node,
-	})
-	m.Label = labels
-	return nil
-}
-
-//--------------------------------------------------------------------------
-//  KubePodLabelsCollector
-//--------------------------------------------------------------------------
-//
-// We use this to emit kube_pod_labels with all of a pod's labels, regardless
-// of the whitelist setting introduced in KSM v2. See
-// https://github.com/kubernetes/kube-state-metrics/issues/1270#issuecomment-712986441
-
-// KubePodLabelsCollector is a prometheus collector that generates
-// KubePodLabelsMetrics
-type KubePodLabelsCollector struct {
-	KubeClusterCache clustercache.ClusterCache
-}
-
-// Describe sends the super-set of all possible descriptors of metrics
-// collected by this Collector.
-func (nsac KubePodLabelsCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc("kube_pod_labels", "all labels for each pod prefixed with label_", []string{}, nil)
-}
-
-// Collect is called by the Prometheus registry when collecting metrics.
-func (nsac KubePodLabelsCollector) Collect(ch chan<- prometheus.Metric) {
-	pods := nsac.KubeClusterCache.GetAllPods()
-	for _, pod := range pods {
-
-		labelNames, labelValues := prom.KubePrependQualifierToLabels(pod.GetLabels(), "label_")
-
-		m := newKubePodLabelsMetric(
-			pod.GetName(),
-			pod.GetNamespace(),
-			string(pod.GetUID()),
-			"kube_pod_labels",
-			labelNames,
-			labelValues,
-		)
-		ch <- m
-	}
-}
-
-//--------------------------------------------------------------------------
-//  KubePodLabelsMetric
-//--------------------------------------------------------------------------
-
-// KubePodLabelsMetric is a prometheus.Metric used to encode
-// a duplicate of the deprecated kube-state-metrics metric
-// kube_pod_labels
-type KubePodLabelsMetric struct {
-	fqName      string
-	help        string
-	labelNames  []string
-	labelValues []string
-	pod         string
-	namespace   string
-	uid         string
-}
-
-// Creates a new KubePodLabelsMetric, implementation of prometheus.Metric
-func newKubePodLabelsMetric(pod string, namespace string, uid string, fqname string, labelNames []string, labelValues []string) KubePodLabelsMetric {
-	return KubePodLabelsMetric{
-		fqName:      fqname,
-		labelNames:  labelNames,
-		labelValues: labelValues,
-		help:        "kube_pod_labels all labels for each pod prefixed with label_",
-		pod:         pod,
-		namespace:   namespace,
-		uid:         uid,
-	}
-}
-
-// Desc returns the descriptor for the Metric. This method idempotently
-// returns the same descriptor throughout the lifetime of the Metric.
-func (nam KubePodLabelsMetric) Desc() *prometheus.Desc {
-	l := prometheus.Labels{
-		"pod":       nam.pod,
-		"namespace": nam.namespace,
-		"uid":       nam.uid,
-	}
-	return prometheus.NewDesc(nam.fqName, nam.help, nam.labelNames, l)
-}
-
-// Write encodes the Metric into a "Metric" Protocol Buffer data
-// transmission object.
-func (nam KubePodLabelsMetric) Write(m *dto.Metric) error {
-	h := float64(1)
-	m.Gauge = &dto.Gauge{
-		Value: &h,
-	}
-
-	var labels []*dto.LabelPair
-	for i := range nam.labelNames {
-		labels = append(labels, &dto.LabelPair{
-			Name:  &nam.labelNames[i],
-			Value: &nam.labelValues[i],
-		})
-	}
-
-	podString := "pod"
-	namespaceString := "namespace"
-	uidString := "uid"
-	labels = append(labels,
-		&dto.LabelPair{
-			Name:  &podString,
-			Value: &nam.pod,
-		},
-		&dto.LabelPair{
-			Name:  &namespaceString,
-			Value: &nam.namespace,
-		}, &dto.LabelPair{
-			Name:  &uidString,
-			Value: &nam.uid,
-		},
-	)
-	m.Label = labels
-	return nil
-}
-
-//--------------------------------------------------------------------------
-//  KubeNodeLabelsCollector
-//--------------------------------------------------------------------------
-//
-// We use this to emit kube_node_labels with all of a node's labels, regardless
-// of the whitelist setting introduced in KSM v2. See
-// https://github.com/kubernetes/kube-state-metrics/issues/1270#issuecomment-712986441
-
-// KubeNodeLabelsCollector is a prometheus collector that generates
-// KubeNodeLabelsMetrics
-type KubeNodeLabelsCollector struct {
-	KubeClusterCache clustercache.ClusterCache
-}
-
-// Describe sends the super-set of all possible descriptors of metrics
-// collected by this Collector.
-func (nsac KubeNodeLabelsCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc("kube_node_labels", "all labels for each node prefixed with label_", []string{}, nil)
-}
-
-// Collect is called by the Prometheus registry when collecting metrics.
-func (nsac KubeNodeLabelsCollector) Collect(ch chan<- prometheus.Metric) {
-	nodes := nsac.KubeClusterCache.GetAllNodes()
-	for _, node := range nodes {
-
-		labelNames, labelValues := prom.KubePrependQualifierToLabels(node.GetLabels(), "label_")
-
-		m := newKubeNodeLabelsMetric(
-			node.GetName(),
-			"kube_node_labels",
-			labelNames,
-			labelValues,
-		)
-		ch <- m
-	}
-}
-
-//--------------------------------------------------------------------------
-//  KubeNodeLabelsMetric
-//--------------------------------------------------------------------------
-
-// KubeNodeLabelsMetric is a prometheus.Metric used to encode
-// a duplicate of the deprecated kube-state-metrics metric
-// kube_node_labels
-type KubeNodeLabelsMetric struct {
-	fqName      string
-	help        string
-	labelNames  []string
-	labelValues []string
-	node        string
-}
-
-// Creates a new KubeNodeLabelsMetric, implementation of prometheus.Metric
-func newKubeNodeLabelsMetric(node string, fqname string, labelNames []string, labelValues []string) KubeNodeLabelsMetric {
-	return KubeNodeLabelsMetric{
-		fqName:      fqname,
-		labelNames:  labelNames,
-		labelValues: labelValues,
-		help:        "kube_node_labels all labels for each node prefixed with label_",
-		node:        node,
-	}
-}
-
-// Desc returns the descriptor for the Metric. This method idempotently
-// returns the same descriptor throughout the lifetime of the Metric.
-func (nam KubeNodeLabelsMetric) Desc() *prometheus.Desc {
-	l := prometheus.Labels{
-		"node": nam.node,
-	}
-	return prometheus.NewDesc(nam.fqName, nam.help, nam.labelNames, l)
-}
-
-// Write encodes the Metric into a "Metric" Protocol Buffer data
-// transmission object.
-func (nam KubeNodeLabelsMetric) Write(m *dto.Metric) error {
-	h := float64(1)
-	m.Gauge = &dto.Gauge{
-		Value: &h,
-	}
-
-	var labels []*dto.LabelPair
-	for i := range nam.labelNames {
-		labels = append(labels, &dto.LabelPair{
-			Name:  &nam.labelNames[i],
-			Value: &nam.labelValues[i],
-		})
-	}
-
-	nodeString := "node"
-	labels = append(labels, &dto.LabelPair{Name: &nodeString, Value: &nam.node})
-	m.Label = labels
-	return nil
-}
-
-// toStringPtr is used to create a new string pointer from iteration vars
-func toStringPtr(s string) *string {
-	return &s
-}
+// returns a pointer to the string provided
+func toStringPtr(s string) *string { return &s }
 
 //--------------------------------------------------------------------------
 //  Cost Model Metrics Initialization
@@ -1042,46 +215,10 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud
 		prometheus.MustRegister(clusterManagementCostGv, lbCostGv)
 
 		// General Metric Collectors
-		prometheus.MustRegister(ServiceCollector{
-			KubeClusterCache: clusterCache,
-		})
-		prometheus.MustRegister(DeploymentCollector{
-			KubeClusterCache: clusterCache,
-		})
-		prometheus.MustRegister(StatefulsetCollector{
-			KubeClusterCache: clusterCache,
-		})
 		prometheus.MustRegister(ClusterInfoCollector{
 			KubeClientSet: clusterCache.GetClient(),
 			Cloud:         provider,
 		})
-
-		if env.IsEmitNamespaceAnnotationsMetric() {
-			prometheus.MustRegister(NamespaceAnnotationCollector{
-				KubeClusterCache: clusterCache,
-			})
-		}
-
-		if env.IsEmitPodAnnotationsMetric() {
-			prometheus.MustRegister(PodAnnotationCollector{
-				KubeClusterCache: clusterCache,
-			})
-		}
-
-		if env.IsEmitKsmV1Metrics() {
-			prometheus.MustRegister(KubeNodeStatusCapacityMemoryBytesCollector{
-				KubeClusterCache: clusterCache,
-			})
-			prometheus.MustRegister(KubeNodeStatusCapacityCPUCoresCollector{
-				KubeClusterCache: clusterCache,
-			})
-			prometheus.MustRegister(KubePodLabelsCollector{
-				KubeClusterCache: clusterCache,
-			})
-			prometheus.MustRegister(KubeNodeLabelsCollector{
-				KubeClusterCache: clusterCache,
-			})
-		}
 	})
 }
 
@@ -1125,6 +262,13 @@ type CostModelMetricsEmitter struct {
 func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clustercache.ClusterCache, provider cloud.Provider, model *CostModel) *CostModelMetricsEmitter {
 	// init will only actually execute once to register the custom gauges
 	initCostModelMetrics(clusterCache, provider)
+
+	metrics.InitKubeMetrics(clusterCache, &metrics.KubeMetricsOpts{
+		EmitKubecostControllerMetrics: true,
+		EmitNamespaceAnnotations:      env.IsEmitNamespaceAnnotationsMetric(),
+		EmitPodAnnotations:            env.IsEmitPodAnnotationsMetric(),
+		EmitKubeStateMetrics:          env.IsEmitKsmV1Metrics(),
+	})
 
 	return &CostModelMetricsEmitter{
 		PrometheusClient:              promClient,
@@ -1176,6 +320,15 @@ func (cmme *CostModelMetricsEmitter) IsRunning() bool {
 	return cmme.recordingStop != nil
 }
 
+// NodeCostAverages tracks a running average of a node's cost attributes.
+// The averages are used to detect and discard spurrious outliers.
+type NodeCostAverages struct {
+	CpuCostAverage   float64
+	RamCostAverage   float64
+	NumCpuDataPoints float64
+	NumRamDataPoints float64
+}
+
 // StartCostModelMetricRecording starts the go routine that emits metrics used to determine
 // cluster costs.
 func (cmme *CostModelMetricsEmitter) Start() bool {
@@ -1195,6 +348,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 		loadBalancerSeen := make(map[string]bool)
 		pvSeen := make(map[string]bool)
 		pvcSeen := make(map[string]bool)
+		nodeCostAverages := make(map[string]NodeCostAverages)
 
 		getKeyFromLabelStrings := func(labels ...string) string {
 			return strings.Join(labels, ",")
@@ -1258,6 +412,9 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 			// TODO: Pass CloudProvider into CostModel on instantiation so this isn't so awkward
 			nodes, err := cmme.Model.GetNodeCost(cmme.CloudProvider)
+			if err != nil {
+				log.Warningf("Metric emission: error getting Node cost: %s", err)
+			}
 			for nodeName, node := range nodes {
 				// Emit costs, guarding against NaN inputs for custom pricing.
 				cpuCost, _ := strconv.ParseFloat(node.VCPUCost, 64)
@@ -1298,22 +455,62 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
-				cmme.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(cpuCost)
-				cmme.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(ramCost)
-				cmme.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(gpuCost)
+				labelKey := getKeyFromLabelStrings(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID)
+
+				avgCosts, ok := nodeCostAverages[labelKey]
+
+				// initialize average cost tracking for this node if there is none
+				if !ok {
+					avgCosts = NodeCostAverages{
+						CpuCostAverage:   cpuCost,
+						RamCostAverage:   ramCost,
+						NumCpuDataPoints: 1,
+						NumRamDataPoints: 1,
+					}
+					nodeCostAverages[labelKey] = avgCosts
+				}
+
 				cmme.GPUCountRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(gpu)
-				cmme.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(totalCost)
+
+				const outlierFactor float64 = 30
+				// don't record cpuCost, ramCost, or gpuCost in the case of wild outliers
+				// k8s api sometimes causes cost spikes as described here:
+				// https://github.com/kubecost/cost-model/issues/927
+				if cpuCost < outlierFactor*avgCosts.CpuCostAverage {
+					cmme.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(cpuCost)
+					avgCosts.CpuCostAverage = (avgCosts.CpuCostAverage*avgCosts.NumCpuDataPoints + cpuCost) / (avgCosts.NumCpuDataPoints + 1)
+					avgCosts.NumCpuDataPoints += 1
+				} else {
+					log.Warningf("CPU cost outlier detected; skipping data point.")
+				}
+				if ramCost < outlierFactor*avgCosts.RamCostAverage {
+					cmme.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(ramCost)
+					avgCosts.RamCostAverage = (avgCosts.RamCostAverage*avgCosts.NumRamDataPoints + ramCost) / (avgCosts.NumRamDataPoints + 1)
+					avgCosts.NumRamDataPoints += 1
+				} else {
+					log.Warningf("RAM cost outlier detected; skipping data point.")
+				}
+				// skip redording totalCost if any constituent costs were outliers
+				if cpuCost < outlierFactor*avgCosts.CpuCostAverage &&
+					ramCost < outlierFactor*avgCosts.RamCostAverage {
+					cmme.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(totalCost)
+				}
+
+				nodeCostAverages[labelKey] = avgCosts
+
 				if node.IsSpot() {
 					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(1.0)
 				} else {
 					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(0.0)
 				}
-				labelKey := getKeyFromLabelStrings(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID)
 				nodeSeen[labelKey] = true
 			}
 
 			// TODO: Pass CloudProvider into CostModel on instantiation so this isn't so awkward
 			loadBalancers, err := cmme.Model.GetLBCost(cmme.CloudProvider)
+			if err != nil {
+				log.Warningf("Metric emission: error getting LoadBalancer cost: %s", err)
+			}
 			for lbKey, lb := range loadBalancers {
 				// TODO: parse (if necessary) and calculate cost associated with loadBalancer based on dynamic cloud prices fetched into each lb struct on GetLBCost() call
 				keyParts := getLabelStringsFromKey(lbKey)
@@ -1325,7 +522,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				}
 				cmme.LBCostRecorder.WithLabelValues(ingressIP, namespace, serviceName).Set(lb.Cost)
 
-				labelKey := getKeyFromLabelStrings(namespace, serviceName)
+				labelKey := getKeyFromLabelStrings(ingressIP, namespace, serviceName)
 				loadBalancerSeen[labelKey] = true
 			}
 
@@ -1381,6 +578,11 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 			pvs := cmme.KubeClusterCache.GetAllPersistentVolumes()
 			for _, pv := range pvs {
+				// Omit pv_hourly_cost if the volume status is failed
+				if pv.Status.Phase == v1.VolumeFailed {
+					continue
+				}
+
 				parameters, ok := storageClassMap[pv.Spec.StorageClassName]
 				if !ok {
 					klog.V(4).Infof("Unable to find parameters for storage class \"%s\". Does pv \"%s\" have a storageClassName?", pv.Spec.StorageClassName, pv.Name)
@@ -1446,6 +648,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 						klog.Infof("FAILURE TO REMOVE %s from ramprice", labelString)
 					}
 					delete(nodeSeen, labelString)
+					delete(nodeCostAverages, labelString)
 				} else {
 					nodeSeen[labelString] = false
 				}
@@ -1453,7 +656,11 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			for labelString, seen := range loadBalancerSeen {
 				if !seen {
 					labels := getLabelStringsFromKey(labelString)
-					cmme.LBCostRecorder.DeleteLabelValues(labels...)
+					ok := cmme.LBCostRecorder.DeleteLabelValues(labels...)
+					if !ok {
+						log.Warningf("Metric emission: failed to delete LoadBalancer with labels: %v", labels)
+					}
+					delete(loadBalancerSeen, labelString)
 				} else {
 					loadBalancerSeen[labelString] = false
 				}

@@ -63,6 +63,8 @@ type Allocation struct {
 	GPUHours                   float64               `json:"gpuHours"`
 	GPUCost                    float64               `json:"gpuCost"`
 	GPUCostAdjustment          float64               `json:"gpuCostAdjustment"`
+	NetworkTransferBytes       float64               `json:"networkTransferBytes"`
+	NetworkReceiveBytes        float64               `json:"networkReceiveBytes"`
 	NetworkCost                float64               `json:"networkCost"`
 	NetworkCostAdjustment      float64               `json:"networkCostAdjustment"`
 	LoadBalancerCost           float64               `json:"loadBalancerCost"`
@@ -205,6 +207,8 @@ func (a *Allocation) Clone() *Allocation {
 		GPUHours:                   a.GPUHours,
 		GPUCost:                    a.GPUCost,
 		GPUCostAdjustment:          a.GPUCostAdjustment,
+		NetworkTransferBytes:       a.NetworkTransferBytes,
+		NetworkReceiveBytes:        a.NetworkReceiveBytes,
 		NetworkCost:                a.NetworkCost,
 		NetworkCostAdjustment:      a.NetworkCostAdjustment,
 		LoadBalancerCost:           a.LoadBalancerCost,
@@ -274,6 +278,12 @@ func (a *Allocation) Equal(that *Allocation) bool {
 		return false
 	}
 	if !util.IsApproximately(a.GPUCostAdjustment, that.GPUCostAdjustment) {
+		return false
+	}
+	if !util.IsApproximately(a.NetworkTransferBytes, that.NetworkTransferBytes) {
+		return false
+	}
+	if !util.IsApproximately(a.NetworkReceiveBytes, that.NetworkReceiveBytes) {
 		return false
 	}
 	if !util.IsApproximately(a.NetworkCost, that.NetworkCost) {
@@ -500,6 +510,8 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "gpuHours", a.GPUHours, ",")
 	jsonEncodeFloat64(buffer, "gpuCost", a.GPUCost, ",")
 	jsonEncodeFloat64(buffer, "gpuCostAdjustment", a.GPUCostAdjustment, ",")
+	jsonEncodeFloat64(buffer, "networkTransferBytes", a.NetworkTransferBytes, ",")
+	jsonEncodeFloat64(buffer, "networkReceiveBytes", a.NetworkReceiveBytes, ",")
 	jsonEncodeFloat64(buffer, "networkCost", a.NetworkCost, ",")
 	jsonEncodeFloat64(buffer, "networkCostAdjustment", a.NetworkCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "loadBalancerCost", a.LoadBalancerCost, ",")
@@ -551,6 +563,11 @@ func (a *Allocation) IsUnallocated() bool {
 	return strings.Contains(a.Name, UnallocatedSuffix)
 }
 
+// IsUnmounted is true if the given Allocation represents unmounted volume costs.
+func (a *Allocation) IsUnmounted() bool {
+	return strings.Contains(a.Name, UnmountedSuffix)
+}
+
 // Minutes returns the number of minutes the Allocation represents, as defined
 // by the difference between the end and start times.
 func (a *Allocation) Minutes() float64 {
@@ -585,8 +602,37 @@ func (a *Allocation) add(that *Allocation) {
 		log.Warningf("Allocation.AggregateBy: trying to add a nil receiver")
 		return
 	}
+
+	// Generate keys for each allocation to allow for special logic to set the controller
+	// in the case of keys matching but controllers not matching.
+	aggByForKey := []string{"cluster", "node", "namespace", "pod", "container"}
+	leftKey := a.generateKey(aggByForKey, nil)
+	rightKey := a.generateKey(aggByForKey, nil)
+	leftProperties := a.Properties
+	rightProperties := that.Properties
+
 	// Preserve string properties that are matching between the two allocations
 	a.Properties = a.Properties.Intersection(that.Properties)
+
+	// Overwrite regular intersection logic for the controller name property in the
+	// case that the Allocation keys are the same but the controllers are not.
+	if leftKey == rightKey &&
+		leftProperties != nil &&
+		rightProperties != nil &&
+		leftProperties.Controller != rightProperties.Controller {
+		if leftProperties.Controller == "" {
+			a.Properties.Controller = rightProperties.Controller
+		} else if rightProperties.Controller == "" {
+			a.Properties.Controller = leftProperties.Controller
+		} else {
+			controllers := []string{
+				leftProperties.Controller,
+				rightProperties.Controller,
+			}
+			sort.Strings(controllers)
+			a.Properties.Controller = controllers[0]
+		}
+	}
 
 	// Expand the window to encompass both Allocations
 	a.Window = a.Window.Expand(that.Window)
@@ -632,6 +678,8 @@ func (a *Allocation) add(that *Allocation) {
 	a.CPUCoreHours += that.CPUCoreHours
 	a.GPUHours += that.GPUHours
 	a.RAMByteHours += that.RAMByteHours
+	a.NetworkTransferBytes += that.NetworkTransferBytes
+	a.NetworkReceiveBytes += that.NetworkReceiveBytes
 
 	// Sum all cumulative cost fields
 	a.CPUCost += that.CPUCost
@@ -696,13 +744,14 @@ func NewAllocationSet(start, end time.Time, allocs ...*Allocation) *AllocationSe
 // simple flag for sharing idle resources.
 type AllocationAggregationOptions struct {
 	FilterFuncs       []AllocationMatchFunc
-	SplitIdle         bool
 	IdleByNode        bool
+	LabelConfig       *LabelConfig
 	MergeUnallocated  bool
+	SharedHourlyCosts map[string]float64
 	ShareFuncs        []AllocationMatchFunc
 	ShareIdle         string
 	ShareSplit        string
-	SharedHourlyCosts map[string]float64
+	SplitIdle         bool
 }
 
 // AggregateBy aggregates the Allocations in the given AllocationSet by the given
@@ -733,13 +782,32 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	//     the output (i.e. they can be used to generate a valid key for
 	//     the given properties) then aggregate; otherwise... ignore them?
 	// 10. If the merge idle option is enabled, merge any remaining idle
-	//     allocations into a single idle allocation
+	//     allocations into a single idle allocation. If there was any idle
+	//	   whose costs were not distributed because there was no usage of a
+	//     specific resource type, re-add the idle to the aggregation with
+	//     only that type.
+	if as.IsEmpty() {
+		return nil
+	}
 
 	if options == nil {
 		options = &AllocationAggregationOptions{}
 	}
 
-	if as.IsEmpty() {
+	if options.LabelConfig == nil {
+		options.LabelConfig = NewLabelConfig()
+	}
+
+	var undistributedIdleMap map[string]bool
+
+	// If aggregateBy is nil, we don't aggregate anything. On the other hand,
+	// an empty slice implies that we should aggregate everything. See
+	// generateKey for why that makes sense.
+	shouldAggregate := aggregateBy != nil
+	shouldFilter := len(options.FilterFuncs) > 0
+	shouldShare := len(options.SharedHourlyCosts) > 0 || len(options.ShareFuncs) > 0
+	if !shouldAggregate && !shouldFilter && !shouldShare {
+		// There is nothing for AggregateBy to do, so simply return nil
 		return nil
 	}
 
@@ -855,7 +923,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// the shared allocations).
 	var idleCoefficients map[string]map[string]map[string]float64
 	if idleSet.Length() > 0 && options.ShareIdle != ShareNone {
-		idleCoefficients, err = computeIdleCoeffs(options, as, shareSet)
+		idleCoefficients, undistributedIdleMap, err = computeIdleCoeffs(options, as, shareSet)
 		if err != nil {
 			log.Warningf("AllocationSet.AggregateBy: compute idle coeff: %s", err)
 			return fmt.Errorf("error computing idle coefficients: %s", err)
@@ -888,7 +956,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// need to track this on a per-cluster or per-node, per-allocation, per-resource basis.
 	var idleFiltrationCoefficients map[string]map[string]map[string]float64
 	if len(options.FilterFuncs) > 0 && options.ShareIdle == ShareNone {
-		idleFiltrationCoefficients, err = computeIdleCoeffs(options, as, shareSet)
+		idleFiltrationCoefficients, _, err = computeIdleCoeffs(options, as, shareSet)
 		if err != nil {
 			return fmt.Errorf("error computing idle filtration coefficients: %s", err)
 		}
@@ -902,7 +970,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 			hours := as.Resolution().Hours()
 
 			// If set ends in the future, adjust hours accordingly
-			diff := time.Now().Sub(as.End())
+			diff := time.Since(as.End())
 			if diff < 0.0 {
 				hours += diff.Hours()
 			}
@@ -934,7 +1002,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	for _, alloc := range as.allocations {
 		idleId, err := alloc.getIdleId(options)
 		if err != nil {
-			log.DedupedWarningf(3,"AllocationSet.AggregateBy: missing idleId for allocation: %s", alloc.Name)
+			log.DedupedWarningf(3, "AllocationSet.AggregateBy: missing idleId for allocation: %s", alloc.Name)
 		}
 
 		skip := false
@@ -1003,7 +1071,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		}
 
 		// (5) generate key to use for aggregation-by-key and allocation name
-		key := alloc.generateKey(aggregateBy)
+		key := alloc.generateKey(aggregateBy, options.LabelConfig)
 
 		alloc.Name = key
 		if options.MergeUnallocated && alloc.IsUnallocated() {
@@ -1110,7 +1178,9 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		for _, alloc := range aggSet.allocations {
 			for _, sharedAlloc := range shareSet.allocations {
 				if _, ok := shareCoefficients[alloc.Name]; !ok {
-					log.Warningf("AllocationSet.AggregateBy: error getting share coefficienct for '%s'", alloc.Name)
+					if !alloc.IsIdle() {
+						log.Warningf("AllocationSet.AggregateBy: error getting share coefficienct for '%s'", alloc.Name)
+					}
 					continue
 				}
 
@@ -1132,7 +1202,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 			}
 		}
 		if !skip {
-			key := alloc.generateKey(aggregateBy)
+			key := alloc.generateKey(aggregateBy, options.LabelConfig)
 
 			alloc.Name = key
 			aggSet.Insert(alloc)
@@ -1145,6 +1215,66 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 			aggSet.Delete(idleAlloc.Name)
 			idleAlloc.Name = IdleSuffix
 			aggSet.Insert(idleAlloc)
+		}
+	}
+
+	// In the edge case that some idle has not been distributed because
+	// there is no usage of that resource type, add idle back to
+	// aggregations with only that cost applied.
+
+	// E.g. in the case where we have a result that looks like this on the
+	// frontend:
+
+	// Name		CPU		GPU		RAM
+	// __idle__ $10     $12     $6
+	// kubecost $2      $0      $1
+
+	// Sharing idle weighted would result in no idle GPU cost being
+	// distributed, because the coefficient for the kubecost GPU cost would
+	// be zero. Thus, instead we re-add idle to the aggSet with distributed
+	// costs zeroed out but the undistributed costs left in.
+
+	// Name		CPU		GPU		RAM
+	// __idle__ $0      $12     $0
+	// kubecost $12     $0      $7
+
+	if idleSet.Length() > 0 && !options.SplitIdle {
+		if undistributedIdleMap["cpu"] || undistributedIdleMap["gpu"] || undistributedIdleMap["ram"] {
+
+			for _, idleAlloc := range idleSet.allocations {
+
+				skip := false
+
+				// if the idle does not apply to the non-filtered values, skip it
+				for _, ff := range options.FilterFuncs {
+					if !ff(idleAlloc) {
+						skip = true
+						break
+					}
+				}
+
+				if skip {
+					continue
+				}
+
+				// if the idle doesn't have a cost to be shared, also skip it
+				if idleAlloc.CPUCost != 0 && idleAlloc.GPUCost != 0 && idleAlloc.RAMCost != 0 {
+
+					// artificially set the already shared costs to zero
+					if !undistributedIdleMap["cpu"] {
+						idleAlloc.CPUCost = 0
+					}
+					if !undistributedIdleMap["gpu"] {
+						idleAlloc.GPUCost = 0
+					}
+					if !undistributedIdleMap["ram"] {
+						idleAlloc.RAMCost = 0
+					}
+
+					idleAlloc.Name = IdleSuffix
+					aggSet.Insert(idleAlloc)
+				}
+			}
 		}
 	}
 
@@ -1170,10 +1300,14 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 			// Skip idle allocations in coefficient calculation
 			continue
 		}
+		if alloc.IsUnmounted() {
+			// Skip unmounted allocations in coefficient calculation
+			continue
+		}
 
 		// Determine the post-aggregation key under which the allocation will
 		// be shared.
-		name := alloc.generateKey(aggregateBy)
+		name := alloc.generateKey(aggregateBy, options.LabelConfig)
 
 		// If the current allocation will be filtered out in step 3, contribute
 		// its share of the shared coefficient to a "__filtered__" bin, which
@@ -1218,8 +1352,13 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 	return coeffs, nil
 }
 
-func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet, shareSet *AllocationSet) (map[string]map[string]map[string]float64, error) {
+func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet, shareSet *AllocationSet) (map[string]map[string]map[string]float64, map[string]bool, error) {
 	types := []string{"cpu", "gpu", "ram"}
+	undistributedIdleMap := map[string]bool{
+		"cpu": true,
+		"gpu": true,
+		"ram": true,
+	}
 
 	// Compute idle coefficients, then save them in AllocationAggregationOptions
 	coeffs := map[string]map[string]map[string]float64{}
@@ -1275,6 +1414,7 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 			totals[idleId]["gpu"] += alloc.GPUTotalCost()
 			totals[idleId]["ram"] += alloc.RAMTotalCost()
 		}
+
 	}
 
 	// Do the same for shared allocations
@@ -1330,12 +1470,13 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 			for _, r := range types {
 				if coeffs[c][a][r] > 0 && totals[c][r] > 0 {
 					coeffs[c][a][r] /= totals[c][r]
+					undistributedIdleMap[r] = false
 				}
 			}
 		}
 	}
 
-	return coeffs, nil
+	return coeffs, undistributedIdleMap, nil
 }
 
 // getIdleId returns the providerId or cluster of an Allocation depending on the IdleByNode
@@ -1358,9 +1499,13 @@ func (a *Allocation) getIdleId(options *AllocationAggregationOptions) (string, e
 	return idleId, nil
 }
 
-func (a *Allocation) generateKey(aggregateBy []string) string {
+func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig) string {
 	if a == nil {
 		return ""
+	}
+
+	if labelConfig == nil {
+		labelConfig = NewLabelConfig()
 	}
 
 	// Names will ultimately be joined into a single name, which uniquely
@@ -1404,7 +1549,7 @@ func (a *Allocation) generateKey(aggregateBy []string) string {
 			names = append(names, a.Properties.Container)
 		case agg == AllocationServiceProp:
 			services := a.Properties.Services
-			if services == nil || len(services) == 0 {
+			if len(services) == 0 {
 				// Indicate that allocation has no services
 				names = append(names, UnallocatedSuffix)
 			} else {
@@ -1417,76 +1562,111 @@ func (a *Allocation) generateKey(aggregateBy []string) string {
 		case strings.HasPrefix(agg, "label:"):
 			labels := a.Properties.Labels
 			if labels == nil {
-				// Indicate that allocation has no labels
 				names = append(names, UnallocatedSuffix)
 			} else {
-				labelNames := []string{}
-				aggLabels := strings.Split(strings.TrimPrefix(agg, "label:"), ";")
-				for _, labelName := range aggLabels {
-					if val, ok := labels[labelName]; ok {
-						labelNames = append(labelNames, fmt.Sprintf("%s=%s", labelName, val))
-					} else if indexOf(UnallocatedSuffix, labelNames) == -1 { // if UnallocatedSuffix not already in names
-						labelNames = append(labelNames, UnallocatedSuffix)
-					}
+				labelName := labelConfig.Sanitize(strings.TrimPrefix(agg, "label:"))
+				if labelValue, ok := labels[labelName]; ok {
+					names = append(names, fmt.Sprintf("%s=%s", labelName, labelValue))
+				} else {
+					names = append(names, UnallocatedSuffix)
 				}
-				// resolve arbitrary ordering. e.g., app=app0/env=env0 is the same agg as env=env0/app=app0
-				if len(labelNames) > 1 {
-					sort.Strings(labelNames)
-				}
-				unallocatedSuffixIndex := indexOf(UnallocatedSuffix, labelNames)
-				// suffix should be at index 0 if it exists b/c of underscores
-				if unallocatedSuffixIndex != -1 {
-					labelNames = append(labelNames[:unallocatedSuffixIndex], labelNames[unallocatedSuffixIndex+1:]...)
-					labelNames = append(labelNames, UnallocatedSuffix) // append to end
-				}
-
-				names = append(names, labelNames...)
 			}
 		case strings.HasPrefix(agg, "annotation:"):
 			annotations := a.Properties.Annotations
 			if annotations == nil {
-				// Indicate that allocation has no annotations
 				names = append(names, UnallocatedSuffix)
 			} else {
-				annotationNames := []string{}
-				aggAnnotations := strings.Split(strings.TrimPrefix(agg, "annotation:"), ";")
-				for _, annotationName := range aggAnnotations {
-					if val, ok := annotations[annotationName]; ok {
-						annotationNames = append(annotationNames, fmt.Sprintf("%s=%s", annotationName, val))
-					} else if indexOf(UnallocatedSuffix, annotationNames) == -1 { // if UnallocatedSuffix not already in names
-						annotationNames = append(annotationNames, UnallocatedSuffix)
+				annotationName := labelConfig.Sanitize(strings.TrimPrefix(agg, "annotation:"))
+				if annotationValue, ok := annotations[annotationName]; ok {
+					names = append(names, fmt.Sprintf("%s=%s", annotationName, annotationValue))
+				} else {
+					names = append(names, UnallocatedSuffix)
+				}
+			}
+		case agg == AllocationDepartmentProp:
+			labels := a.Properties.Labels
+			if labels == nil {
+				names = append(names, UnallocatedSuffix)
+			} else {
+				labelNames := strings.Split(labelConfig.DepartmentLabel, ",")
+				for _, labelName := range labelNames {
+					labelName = labelConfig.Sanitize(labelName)
+					if labelValue, ok := labels[labelName]; ok {
+						names = append(names, labelValue)
+					} else {
+						names = append(names, UnallocatedSuffix)
 					}
 				}
-				// resolve arbitrary ordering. e.g., app=app0/env=env0 is the same agg as env=env0/app=app0
-				if len(annotationNames) > 1 {
-					sort.Strings(annotationNames)
-				}
-				unallocatedSuffixIndex := indexOf(UnallocatedSuffix, annotationNames)
-				// suffix should be at index 0 if it exists b/c of underscores
-				if unallocatedSuffixIndex != -1 {
-					annotationNames = append(annotationNames[:unallocatedSuffixIndex], annotationNames[unallocatedSuffixIndex+1:]...)
-					annotationNames = append(annotationNames, UnallocatedSuffix) // append to end
-				}
-
-				names = append(names, annotationNames...)
 			}
+		case agg == AllocationEnvironmentProp:
+			labels := a.Properties.Labels
+			if labels == nil {
+				names = append(names, UnallocatedSuffix)
+			} else {
+				labelNames := strings.Split(labelConfig.EnvironmentLabel, ",")
+				for _, labelName := range labelNames {
+					labelName = labelConfig.Sanitize(labelName)
+					if labelValue, ok := labels[labelName]; ok {
+						names = append(names, labelValue)
+					} else {
+						names = append(names, UnallocatedSuffix)
+					}
+				}
+			}
+		case agg == AllocationOwnerProp:
+			labels := a.Properties.Labels
+			if labels == nil {
+				names = append(names, UnallocatedSuffix)
+			} else {
+				labelNames := strings.Split(labelConfig.OwnerLabel, ",")
+				for _, labelName := range labelNames {
+					labelName = labelConfig.Sanitize(labelName)
+					if labelValue, ok := labels[labelName]; ok {
+						names = append(names, labelValue)
+					} else {
+						names = append(names, UnallocatedSuffix)
+					}
+				}
+			}
+		case agg == AllocationProductProp:
+			labels := a.Properties.Labels
+			if labels == nil {
+				names = append(names, UnallocatedSuffix)
+			} else {
+				labelNames := strings.Split(labelConfig.ProductLabel, ",")
+				for _, labelName := range labelNames {
+					labelName = labelConfig.Sanitize(labelName)
+					if labelValue, ok := labels[labelName]; ok {
+						names = append(names, labelValue)
+					} else {
+						names = append(names, UnallocatedSuffix)
+					}
+				}
+			}
+		case agg == AllocationTeamProp:
+			labels := a.Properties.Labels
+			if labels == nil {
+				names = append(names, UnallocatedSuffix)
+			} else {
+				labelNames := strings.Split(labelConfig.TeamLabel, ",")
+				for _, labelName := range labelNames {
+					labelName = labelConfig.Sanitize(labelName)
+					if labelValue, ok := labels[labelName]; ok {
+						names = append(names, labelValue)
+					} else {
+						names = append(names, UnallocatedSuffix)
+					}
+				}
+			}
+		default:
+			// This case should never be reached, as input up until this point
+			// should be checked and rejected if invalid. But if we do get a
+			// value we don't recognize, log a warning.
+			log.Warningf("AggregateBy: illegal aggregation parameter: %s", agg)
 		}
-
 	}
 
 	return strings.Join(names, "/")
-}
-
-// TODO:CLEANUP get rid of this
-// Helper function to check for slice membership. Not sure if repeated elsewhere in our codebase.
-func indexOf(v string, arr []string) int {
-	for i, s := range arr {
-		// This is caseless equivalence
-		if strings.EqualFold(v, s) {
-			return i
-		}
-	}
-	return -1
 }
 
 // Clone returns a new AllocationSet with a deep copy of the given
@@ -2274,7 +2454,7 @@ func (asr *AllocationSetRange) Length() int {
 // MarshalJSON JSON-encodes the range
 func (asr *AllocationSetRange) MarshalJSON() ([]byte, error) {
 	asr.RLock()
-	asr.RUnlock()
+	defer asr.RUnlock()
 	return json.Marshal(asr.allocations)
 }
 
@@ -2328,4 +2508,68 @@ func (asr *AllocationSetRange) Window() Window {
 	end := asr.allocations[asr.Length()-1].End()
 
 	return NewWindow(&start, &end)
+}
+
+// Start returns the earliest start of all Allocations in the AllocationSetRange.
+// It returns an error if there are no allocations.
+func (asr *AllocationSetRange) Start() (time.Time, error) {
+	start := time.Time{}
+	firstStartNotSet := true
+	asr.Each(func(i int, as *AllocationSet) {
+		as.Each(func(s string, a *Allocation) {
+			if firstStartNotSet {
+				start = a.Start
+				firstStartNotSet = false
+			}
+			if a.Start.Before(start) {
+				start = a.Start
+			}
+		})
+	})
+
+	if firstStartNotSet {
+		return start, fmt.Errorf("had no data to compute a start from")
+	}
+
+	return start, nil
+}
+
+// End returns the latest end of all Allocations in the AllocationSetRange.
+// It returns an error if there are no allocations.
+func (asr *AllocationSetRange) End() (time.Time, error) {
+	end := time.Time{}
+	firstEndNotSet := true
+	asr.Each(func(i int, as *AllocationSet) {
+		as.Each(func(s string, a *Allocation) {
+			if firstEndNotSet {
+				end = a.End
+				firstEndNotSet = false
+			}
+			if a.End.After(end) {
+				end = a.End
+			}
+		})
+	})
+
+	if firstEndNotSet {
+		return end, fmt.Errorf("had no data to compute an end from")
+	}
+
+	return end, nil
+}
+
+// Minutes returns the duration, in minutes, between the earliest start
+// and the latest end of all allocations in the AllocationSetRange.
+func (asr *AllocationSetRange) Minutes() float64 {
+	start, err := asr.Start()
+	if err != nil {
+		return 0
+	}
+	end, err := asr.End()
+	if err != nil {
+		return 0
+	}
+	duration := end.Sub(start)
+
+	return duration.Minutes()
 }

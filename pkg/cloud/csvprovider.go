@@ -367,14 +367,6 @@ func (c *CSVProvider) CombinedDiscountForNode(instanceType string, isPreemptible
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
 }
 
-func (c *CSVProvider) ParseID(id string) string {
-	return id
-}
-
-func (c *CSVProvider) ParsePVID(id string) string {
-	return id
-}
-
-func (c *CSVProvider) ParseLBID(id string) string {
-	return id
+func (c *CSVProvider) Regions() []string {
+	return []string{}
 }

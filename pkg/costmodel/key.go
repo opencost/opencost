@@ -64,9 +64,8 @@ func resultContainerKey(res *prom.QueryResult, clusterLabel, namespaceLabel, pod
 }
 
 type podKey struct {
-	Cluster   string
-	Namespace string
-	Pod       string
+	namespaceKey
+	Pod string
 }
 
 func (k podKey) String() string {
@@ -75,9 +74,11 @@ func (k podKey) String() string {
 
 func newPodKey(cluster, namespace, pod string) podKey {
 	return podKey{
-		Cluster:   cluster,
-		Namespace: namespace,
-		Pod:       pod,
+		namespaceKey: namespaceKey{
+			Cluster:   cluster,
+			Namespace: namespace,
+		},
+		Pod: pod,
 	}
 }
 
@@ -87,7 +88,7 @@ func newPodKey(cluster, namespace, pod string) podKey {
 // as the podKey's Cluster field. If a given field does not exist on the
 // result, an error is returned. (The only exception to that is clusterLabel,
 // which we expect may not exist, but has a default value.)
-func resultPodKey(res *prom.QueryResult, clusterLabel, namespaceLabel, podLabel string) (podKey, error) {
+func resultPodKey(res *prom.QueryResult, clusterLabel, namespaceLabel string) (podKey, error) {
 	key := podKey{}
 
 	cluster, err := res.GetString(clusterLabel)
@@ -102,9 +103,12 @@ func resultPodKey(res *prom.QueryResult, clusterLabel, namespaceLabel, podLabel 
 	}
 	key.Namespace = namespace
 
-	pod, err := res.GetString(podLabel)
-	if err != nil {
-		return key, err
+	pod, err := res.GetString("pod")
+	if pod == "" || err != nil {
+		pod, err = res.GetString("pod_name")
+		if err != nil {
+			return key, err
+		}
 	}
 	key.Pod = pod
 
@@ -209,22 +213,28 @@ func resultDeploymentKey(res *prom.QueryResult, clusterLabel, namespaceLabel, co
 	return resultControllerKey("deployment", res, clusterLabel, namespaceLabel, controllerLabel)
 }
 
-// resultDeploymentKey creates a controllerKey for a StatefulSet.
+// resultStatefulSetKey creates a controllerKey for a StatefulSet.
 // (See resultControllerKey for more.)
 func resultStatefulSetKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
 	return resultControllerKey("statefulset", res, clusterLabel, namespaceLabel, controllerLabel)
 }
 
-// resultDeploymentKey creates a controllerKey for a DaemonSet.
+// resultDaemonSetKey creates a controllerKey for a DaemonSet.
 // (See resultControllerKey for more.)
 func resultDaemonSetKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
 	return resultControllerKey("daemonset", res, clusterLabel, namespaceLabel, controllerLabel)
 }
 
-// resultDeploymentKey creates a controllerKey for a Job.
+// resultJobKey creates a controllerKey for a Job.
 // (See resultControllerKey for more.)
 func resultJobKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
 	return resultControllerKey("job", res, clusterLabel, namespaceLabel, controllerLabel)
+}
+
+// resultReplicaSetKey creates a controllerKey for a Job.
+// (See resultControllerKey for more.)
+func resultReplicaSetKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
+	return resultControllerKey("replicaset", res, clusterLabel, namespaceLabel, controllerLabel)
 }
 
 type serviceKey struct {

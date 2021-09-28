@@ -1,4 +1,4 @@
-package clustermanager
+package clusters
 
 import (
 	"encoding/base64"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/fileutil"
 	"github.com/kubecost/cost-model/pkg/util/json"
 
 	"k8s.io/klog"
@@ -71,6 +71,7 @@ type ClusterStorage interface {
 	Close() error
 }
 
+// ClusterManager provides an implementation
 type ClusterManager struct {
 	storage ClusterStorage
 	// cache   map[string]*ClusterDefinition
@@ -88,7 +89,7 @@ func NewClusterManager(storage ClusterStorage) *ClusterManager {
 func NewConfiguredClusterManager(storage ClusterStorage, config string) *ClusterManager {
 	clusterManager := NewClusterManager(storage)
 
-	exists, err := util.FileExists(config)
+	exists, err := fileutil.FileExists(config)
 	if !exists {
 		if err != nil {
 			klog.V(1).Infof("[Error] Failed to load config file: %s. Error: %s", config, err.Error())
@@ -133,7 +134,7 @@ func NewConfiguredClusterManager(storage ClusterStorage, config string) *Cluster
 	return clusterManager
 }
 
-// Adds, but will not update an existing entry.
+// Add Adds a cluster definition, but will not update an existing entry.
 func (cm *ClusterManager) Add(cluster ClusterDefinition) (*ClusterDefinition, error) {
 	// First time add
 	if cluster.ID == "" {
@@ -153,6 +154,8 @@ func (cm *ClusterManager) Add(cluster ClusterDefinition) (*ClusterDefinition, er
 	return &cluster, nil
 }
 
+// AddOrUpdate will add the cluster definition if it doesn't exist, or update the existing definition
+// if it does exist.
 func (cm *ClusterManager) AddOrUpdate(cluster ClusterDefinition) (*ClusterDefinition, error) {
 	// First time add
 	if cluster.ID == "" {
@@ -172,10 +175,12 @@ func (cm *ClusterManager) AddOrUpdate(cluster ClusterDefinition) (*ClusterDefini
 	return &cluster, nil
 }
 
+// Remove will remove a cluster definition by id.
 func (cm *ClusterManager) Remove(id string) error {
 	return cm.storage.Remove(id)
 }
 
+// GetAll will return all of the cluster definitions
 func (cm *ClusterManager) GetAll() []*ClusterDefinition {
 	clusters := []*ClusterDefinition{}
 
@@ -198,6 +203,7 @@ func (cm *ClusterManager) GetAll() []*ClusterDefinition {
 	return clusters
 }
 
+// Close will close the backing database
 func (cm *ClusterManager) Close() error {
 	return cm.storage.Close()
 }
@@ -212,7 +218,7 @@ func fileFromSecret(secretName string) string {
 
 func fromSecret(secretName string) (string, error) {
 	file := fileFromSecret(secretName)
-	exists, err := util.FileExists(file)
+	exists, err := fileutil.FileExists(file)
 	if !exists || err != nil {
 		return "", fmt.Errorf("Failed to locate secret: %s", file)
 	}

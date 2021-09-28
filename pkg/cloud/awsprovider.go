@@ -3,6 +3,7 @@ package cloud
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -24,6 +25,8 @@ import (
 	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/cloudutil"
+	"github.com/kubecost/cost-model/pkg/util/fileutil"
 	"github.com/kubecost/cost-model/pkg/util/json"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -35,6 +38,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+
+	awsV2 "github.com/aws/aws-sdk-go-v2/aws"
+
 	"github.com/jszwec/csvutil"
 
 	v1 "k8s.io/api/core/v1"
@@ -47,7 +53,7 @@ const PreemptibleType = "preemptible"
 
 const APIPricingSource = "Public API"
 const SpotPricingSource = "Spot Data Feed"
-const ReservedInstancePricingSource = "Savings Plan, Reservied Instance, and Out-Of-Cluster"
+const ReservedInstancePricingSource = "Savings Plan, Reserved Instance, and Out-Of-Cluster"
 
 func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 
@@ -56,7 +62,10 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 	sps := &PricingSource{
 		Name: SpotPricingSource,
 	}
-	sps.Error = aws.SpotPricingStatus
+	sps.Error = ""
+	if aws.SpotPricingError != nil {
+		sps.Error = aws.SpotPricingError.Error()
+	}
 	if sps.Error != "" {
 		sps.Available = false
 	} else if len(aws.SpotPricingByInstanceID) > 0 {
@@ -69,7 +78,10 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 	rps := &PricingSource{
 		Name: ReservedInstancePricingSource,
 	}
-	rps.Error = aws.RIPricingStatus
+	rps.Error = ""
+	if aws.RIPricingError != nil {
+		rps.Error = aws.RIPricingError.Error()
+	}
 	if rps.Error != "" {
 		rps.Available = false
 	} else {
@@ -118,9 +130,9 @@ type AWS struct {
 	SpotPricingUpdatedAt        *time.Time
 	SpotRefreshRunning          bool
 	SpotPricingLock             sync.RWMutex
-	SpotPricingStatus           string
+	SpotPricingError           error
 	RIPricingByInstanceID       map[string]*RIData
-	RIPricingStatus             string
+	RIPricingError             error
 	RIDataRunning               bool
 	RIDataLock                  sync.RWMutex
 	SavingsPlanDataByInstanceID map[string]*SavingsPlanData
@@ -151,6 +163,15 @@ type AWS struct {
 type AWSAccessKey struct {
 	AccessKeyID     string `json:"aws_access_key_id"`
 	SecretAccessKey string `json:"aws_secret_access_key"`
+}
+
+// Retrieve returns a set of awsV2 credentials using the AWSAccessKey's key and secret.
+// This fullfils the awsV2.CredentialsProvider interface contract.
+func (accessKey AWSAccessKey) Retrieve(ctx context.Context) (awsV2.Credentials, error) {
+	return awsV2.Credentials{
+		AccessKeyID:     accessKey.AccessKeyID,
+		SecretAccessKey: accessKey.SecretAccessKey,
+	}, nil
 }
 
 // AWSPricing maps a k8s node to an AWS Pricing "product"
@@ -314,7 +335,7 @@ var regionToBillingRegionCode = map[string]string{
 var loadedAWSSecret bool = false
 var awsSecret *AWSAccessKey = nil
 
-func (aws *AWS) GetLocalStorageQuery(window, offset string, rate bool, used bool) string {
+func (aws *AWS) GetLocalStorageQuery(window, offset time.Duration, rate bool, used bool) string {
 	return ""
 }
 
@@ -366,14 +387,17 @@ func (aws *AWS) GetManagementPlatform() (string, error) {
 
 func (aws *AWS) GetConfig() (*CustomPricing, error) {
 	c, err := aws.Config.GetCustomPricingData()
+	if err != nil {
+		return nil, err
+	}
 	if c.Discount == "" {
 		c.Discount = "0%"
 	}
 	if c.NegotiatedDiscount == "" {
 		c.NegotiatedDiscount = "0%"
 	}
-	if err != nil {
-		return nil, err
+	if c.ShareTenancyCosts == "" {
+		c.ShareTenancyCosts = defaultShareTenancyCost
 	}
 
 	return c, nil
@@ -435,12 +459,7 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 						return err
 					}
 				} else {
-					sci := v.(map[string]interface{})
-					sc := make(map[string]string)
-					for k, val := range sci {
-						sc[k] = val.(string)
-					}
-					c.SharedCosts = sc //todo: support reflection/multiple map fields
+					return fmt.Errorf("type error while updating config for %s", kUpper)
 				}
 			}
 		}
@@ -546,10 +565,10 @@ func (key *awsPVKey) Features() string {
 	// Storage class names are generally EBS volume types (gp2)
 	// Keys in Pricing are based on UsageTypes (EBS:VolumeType.gp2)
 	// Converts between the 2
-	region, _ := util.GetRegion(key.Labels)
-	//if region == "" {
-	//	region = "us-east-1"
-	//}
+	region, ok := util.GetRegion(key.Labels)
+	if !ok {
+		region = key.DefaultRegion
+	}
 	class, ok := volTypes[storageClass]
 	if !ok {
 		klog.V(4).Infof("No voltype mapping for %s's storageClass: %s", key.Name, storageClass)
@@ -923,10 +942,10 @@ func (aws *AWS) refreshSpotPricing(force bool) {
 	sp, err := aws.parseSpotData(aws.SpotDataBucket, aws.SpotDataPrefix, aws.ProjectID, aws.SpotDataRegion)
 	if err != nil {
 		klog.V(1).Infof("Skipping AWS spot data download: %s", err.Error())
-		aws.SpotPricingStatus = err.Error()
+		aws.SpotPricingError = err
 		return
 	}
-	aws.SpotPricingStatus = ""
+	aws.SpotPricingError = nil
 
 	// update time last updated
 	aws.SpotPricingUpdatedAt = &now
@@ -1313,7 +1332,7 @@ func (aws *AWS) loadAWSAuthSecret(force bool) (*AWSAccessKey, error) {
 	}
 	loadedAWSSecret = true
 
-	exists, err := util.FileExists(authSecretPath)
+	exists, err := fileutil.FileExists(authSecretPath)
 	if !exists || err != nil {
 		return nil, fmt.Errorf("Failed to locate service account file: %s", authSecretPath)
 	}
@@ -1537,52 +1556,6 @@ func (a *AWS) GetDisks() ([]byte, error) {
 	})
 }
 
-// ConvertToGlueColumnFormat takes a string and runs through various regex
-// and string replacement statements to convert it to a format compatible
-// with AWS Glue and Athena column names.
-// Following guidance from AWS provided here ('Column Names' section):
-// https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/run-athena-sql.html
-// It returns a string containing the column name in proper column name format and length.
-func ConvertToGlueColumnFormat(column_name string) string {
-	klog.V(5).Infof("Converting string \"%s\" to proper AWS Glue column name.", column_name)
-
-	// An underscore is added in front of uppercase letters
-	capital_underscore := regexp.MustCompile(`[A-Z]`)
-	final := capital_underscore.ReplaceAllString(column_name, `_$0`)
-
-	// Any non-alphanumeric characters are replaced with an underscore
-	no_space_punc := regexp.MustCompile(`[\s]{1,}|[^A-Za-z0-9]`)
-	final = no_space_punc.ReplaceAllString(final, "_")
-
-	// Duplicate underscores are removed
-	no_dup_underscore := regexp.MustCompile(`_{2,}`)
-	final = no_dup_underscore.ReplaceAllString(final, "_")
-
-	// Any leading and trailing underscores are removed
-	no_front_end_underscore := regexp.MustCompile(`(^\_|\_$)`)
-	final = no_front_end_underscore.ReplaceAllString(final, "")
-
-	// Uppercase to lowercase
-	final = strings.ToLower(final)
-
-	// Longer column name than expected - remove _ left to right
-	allowed_col_len := 128
-	undersc_to_remove := len(final) - allowed_col_len
-	if undersc_to_remove > 0 {
-		final = strings.Replace(final, "_", "", undersc_to_remove)
-	}
-
-	// If removing all of the underscores still didn't
-	// make the column name < 128 characters, trim it!
-	if len(final) > allowed_col_len {
-		final = final[:allowed_col_len]
-	}
-
-	klog.V(5).Infof("Column name being returned: \"%s\". Length: \"%d\".", final, len(final))
-
-	return final
-}
-
 func generateAWSGroupBy(lastIdx int) string {
 	sequence := []string{}
 	for i := 1; i < lastIdx+1; i++ {
@@ -1754,14 +1727,14 @@ func (a *AWS) GetSavingsPlanDataFromAthena() error {
 	end := tNow.Format("2006-01-02")
 	// Use Savings Plan Effective Rate as an estimation for cost, assuming the 1h most recent period got a fully loaded savings plan.
 	//
-	q := `SELECT   
+	q := `SELECT
 		line_item_usage_start_date,
 		savings_plan_savings_plan_a_r_n,
 		line_item_resource_id,
-		savings_plan_savings_plan_rate 
+		savings_plan_savings_plan_rate
 	FROM %s as cost_data
 	WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s'
-	AND line_item_line_item_type = 'SavingsPlanCoveredUsage' ORDER BY 
+	AND line_item_line_item_type = 'SavingsPlanCoveredUsage' ORDER BY
 	line_item_usage_start_date DESC`
 
 	page := 0
@@ -1844,22 +1817,22 @@ func (a *AWS) GetReservationDataFromAthena() error {
 		tOneDayAgo := tNow.Add(time.Duration(-25) * time.Hour) // Also get files from one day ago to avoid boundary conditions
 		start := tOneDayAgo.Format("2006-01-02")
 		end := tNow.Format("2006-01-02")
-		q := `SELECT   
+		q := `SELECT
 		line_item_usage_start_date,
 		reservation_reservation_a_r_n,
 		line_item_resource_id,
 		reservation_effective_cost
 	FROM %s as cost_data
 	WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s'
-	AND reservation_reservation_a_r_n <> '' ORDER BY 
+	AND reservation_reservation_a_r_n <> '' ORDER BY
 	line_item_usage_start_date DESC`
 		query := fmt.Sprintf(q, cfg.AthenaTable, start, end)
 		op, err := a.QueryAthenaBillingData(query)
 		if err != nil {
-			a.RIPricingStatus = err.Error()
+			a.RIPricingError = err
 			return fmt.Errorf("Error fetching Reserved Instance Data: %s", err)
 		}
-		a.RIPricingStatus = ""
+		a.RIPricingError = nil
 		klog.Infof("Fetching RI data...")
 		if len(op.ResultSet.Rows) > 1 {
 			a.RIDataLock.Lock()
@@ -1893,7 +1866,7 @@ func (a *AWS) GetReservationDataFromAthena() error {
 		}
 	} else {
 		klog.Infof("No reserved data available in Athena")
-		a.RIPricingStatus = ""
+		a.RIPricingError = nil
 	}
 	return nil
 }
@@ -1952,7 +1925,7 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 	formattedAggregators := []string{}
 	for _, agg := range aggregators {
 		aggregator_column_name := "resource_tags_user_" + agg
-		aggregator_column_name = ConvertToGlueColumnFormat(aggregator_column_name)
+		aggregator_column_name = cloudutil.ConvertToGlueColumnFormat(aggregator_column_name)
 		formattedAggregators = append(formattedAggregators, aggregator_column_name)
 	}
 	aggregatorNames := strings.Join(formattedAggregators, ",")
@@ -1960,26 +1933,26 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 	aggregatorOr = aggregatorOr + " <> ''"
 
 	filter_column_name := "resource_tags_user_" + filterType
-	filter_column_name = ConvertToGlueColumnFormat(filter_column_name)
+	filter_column_name = cloudutil.ConvertToGlueColumnFormat(filter_column_name)
 
 	var query string
 	var lastIdx int
 	if filterType != "kubernetes_" { // This gets appended upstream and is equivalent to no filter.
 		lastIdx = len(formattedAggregators) + 3
 		groupby := generateAWSGroupBy(lastIdx)
-		query = fmt.Sprintf(`SELECT   
+		query = fmt.Sprintf(`SELECT
 			CAST(line_item_usage_start_date AS DATE) as start_date,
 			%s,
 			line_item_product_code,
 			%s,
 			SUM(line_item_blended_cost) as blended_cost
 		FROM %s as cost_data
-		WHERE (%s='%s') AND line_item_usage_start_date BETWEEN date '%s' AND date '%s' AND (%s) 
+		WHERE (%s='%s') AND line_item_usage_start_date BETWEEN date '%s' AND date '%s' AND (%s)
 		GROUP BY %s`, aggregatorNames, filter_column_name, customPricing.AthenaTable, filter_column_name, filterValue, start, end, aggregatorOr, groupby)
 	} else {
 		lastIdx = len(formattedAggregators) + 2
 		groupby := generateAWSGroupBy(lastIdx)
-		query = fmt.Sprintf(`SELECT   
+		query = fmt.Sprintf(`SELECT
 			CAST(line_item_usage_start_date AS DATE) as start_date,
 			%s,
 			line_item_product_code,
@@ -2360,41 +2333,6 @@ func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool,
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
 }
 
-func (aws *AWS) ParseID(id string) string {
-	// It's of the form aws:///us-east-2a/i-0fea4fd46592d050b and we want i-0fea4fd46592d050b, if it exists
-	rx := regexp.MustCompile("aws://[^/]*/[^/]*/([^/]+)")
-	match := rx.FindStringSubmatch(id)
-	if len(match) < 2 {
-		if id != "" {
-			log.Infof("awsprovider.ParseID: failed to parse %s", id)
-		}
-		return id
-	}
-
-	return match[1]
-}
-
-func (aws *AWS) ParsePVID(id string) string {
-	rx := regexp.MustCompile("aws:/[^/]*/[^/]*/([^/]+)") // Capture "vol-0fc54c5e83b8d2b76" from "aws://us-east-2a/vol-0fc54c5e83b8d2b76"
-	match := rx.FindStringSubmatch(id)
-	if len(match) < 2 {
-		if id != "" {
-			log.Infof("awsprovider.ParseID: failed to parse %s", id)
-		}
-		return id
-	}
-
-	return match[1]
-}
-
-func (aws *AWS) ParseLBID(id string) string {
-	rx := regexp.MustCompile("^([^-]+)-.+$") // Capture "ad9d88195b52a47c89b5055120f28c58" from "ad9d88195b52a47c89b5055120f28c58-1037804914.us-east-2.elb.amazonaws.com"
-	match := rx.FindStringSubmatch(id)
-	if len(match) < 2 {
-		if id != "" {
-			log.Infof("awsprovider.ParseLBID: failed to parse %s, %v", id, match)
-		}
-		return id
-	}
-	return match[1]
+func (aws *AWS) Regions() []string {
+	return awsRegions
 }

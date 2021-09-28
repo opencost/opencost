@@ -13,26 +13,60 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/klog"
-
-	"cloud.google.com/go/bigquery"
-	"cloud.google.com/go/compute/metadata"
-
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/fileutil"
 	"github.com/kubecost/cost-model/pkg/util/json"
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
 
+	"cloud.google.com/go/bigquery"
+	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/iterator"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/klog"
 )
 
 const GKE_GPU_TAG = "cloud.google.com/gke-accelerator"
 const BigqueryUpdateType = "bigqueryupdate"
+
+// List obtained by installing the `gcloud` CLI tool,
+// logging into gcp account, and running command
+// `gcloud compute regions list`
+var gcpRegions = []string{
+	"asia-east1",
+	"asia-east2",
+	"asia-northeast1",
+	"asia-northeast2",
+	"asia-northeast3",
+	"asia-south1",
+	"asia-south2",
+	"asia-southeast1",
+	"asia-southeast2",
+	"australia-southeast1",
+	"australia-southeast2",
+	"europe-central2",
+	"europe-north1",
+	"europe-west1",
+	"europe-west2",
+	"europe-west3",
+	"europe-west4",
+	"europe-west6",
+	"northamerica-northeast1",
+	"northamerica-northeast2",
+	"southamerica-east1",
+	"us-central1",
+	"us-east1",
+	"us-east4",
+	"us-west1",
+	"us-west2",
+	"us-west3",
+	"us-west4",
+}
 
 type userAgentTransport struct {
 	userAgent string
@@ -55,7 +89,7 @@ type GCP struct {
 	DownloadPricingDataLock sync.RWMutex
 	ReservedInstances       []*GCPReservedInstance
 	Config                  *ProviderConfig
-	serviceKeyProvided      bool
+	ServiceKeyProvided      bool
 	ValidPricingKeys        map[string]bool
 	clusterManagementPrice  float64
 	clusterProvisioner      string
@@ -124,7 +158,7 @@ func gcpAllocationToOutOfClusterAllocation(gcpAlloc gcpAllocation) *OutOfCluster
 
 // GetLocalStorageQuery returns the cost of local storage for the given window. Setting rate=true
 // returns hourly spend. Setting used=true only tracks used storage, not total.
-func (gcp *GCP) GetLocalStorageQuery(window, offset string, rate bool, used bool) string {
+func (gcp *GCP) GetLocalStorageQuery(window, offset time.Duration, rate bool, used bool) string {
 	// TODO Set to the price for the appropriate storage class. It's not trivial to determine the local storage disk type
 	// See https://cloud.google.com/compute/disks-image-pricing#persistentdisk
 	localStorageCost := 0.04
@@ -134,10 +168,7 @@ func (gcp *GCP) GetLocalStorageQuery(window, offset string, rate bool, used bool
 		baseMetric = "container_fs_usage_bytes"
 	}
 
-	fmtOffset := ""
-	if offset != "" {
-		fmtOffset = fmt.Sprintf("offset %s", offset)
-	}
+	fmtOffset := timeutil.DurationToPromOffsetString(offset)
 
 	fmtCumulativeQuery := `sum(
 		sum_over_time(%s{device!="tmpfs", id="/"}[%s:1m]%s)
@@ -151,8 +182,9 @@ func (gcp *GCP) GetLocalStorageQuery(window, offset string, rate bool, used bool
 	if rate {
 		fmtQuery = fmtMonthlyQuery
 	}
+	fmtWindow := timeutil.DurationString(window)
 
-	return fmt.Sprintf(fmtQuery, baseMetric, window, fmtOffset, env.GetPromClusterLabel(), localStorageCost)
+	return fmt.Sprintf(fmtQuery, baseMetric, fmtWindow, fmtOffset, env.GetPromClusterLabel(), localStorageCost)
 }
 
 func (gcp *GCP) GetConfig() (*CustomPricing, error) {
@@ -168,6 +200,9 @@ func (gcp *GCP) GetConfig() (*CustomPricing, error) {
 	}
 	if c.CurrencyCode == "" {
 		c.CurrencyCode = "USD"
+	}
+	if c.ShareTenancyCosts == "" {
+		c.ShareTenancyCosts = defaultShareTenancyCost
 	}
 	return c, nil
 }
@@ -196,13 +231,13 @@ func (*GCP) loadGCPAuthSecret() {
 	path := env.GetConfigPathWithDefault("/models/")
 
 	keyPath := path + "key.json"
-	keyExists, _ := util.FileExists(keyPath)
+	keyExists, _ := fileutil.FileExists(keyPath)
 	if keyExists {
 		klog.V(1).Infof("GCP Auth Key already exists, no need to load from secret")
 		return
 	}
 
-	exists, err := util.FileExists(authSecretPath)
+	exists, err := fileutil.FileExists(authSecretPath)
 	if !exists || err != nil {
 		errMessage := "Secret does not exist"
 		if err != nil {
@@ -254,7 +289,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 				if err != nil {
 					return err
 				}
-				gcp.serviceKeyProvided = true
+				gcp.ServiceKeyProvided = true
 			}
 		} else if updateType == AthenaInfoUpdateType {
 			a := AwsAthenaInfo{}
@@ -284,12 +319,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 						return err
 					}
 				} else {
-					sci := v.(map[string]interface{})
-					sc := make(map[string]string)
-					for k, val := range sci {
-						sc[k] = val.(string)
-					}
-					c.SharedCosts = sc //todo: support reflection/multiple map fields
+					return fmt.Errorf("type error while updating config for %s", kUpper)
 				}
 			}
 		}
@@ -405,7 +435,7 @@ func (gcp *GCP) ExternalAllocations(start string, end string, aggregators []stri
 		s = append(s, gcpOOC...)
 		qerr = err
 	}
-	if qerr != nil && gcp.serviceKeyProvided {
+	if qerr != nil && gcp.ServiceKeyProvided {
 		klog.Infof("Error querying gcp: %s", qerr)
 	}
 	return s, qerr
@@ -1459,6 +1489,10 @@ func (gcp *GCP) CombinedDiscountForNode(instanceType string, isPreemptible bool,
 	return 1.0 - ((1.0 - sustainedUseDiscount(class, defaultDiscount, isPreemptible)) * (1.0 - negotiatedDiscount))
 }
 
+func (gcp *GCP) Regions() []string {
+	return gcpRegions
+}
+
 func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible bool) float64 {
 	if isPreemptible {
 		return 0.0
@@ -1471,27 +1505,4 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 		discount = 0.2
 	}
 	return discount
-}
-
-func (gcp *GCP) ParseID(id string) string {
-	// gce://guestbook-227502/us-central1-a/gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
-	//  => gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
-	rx := regexp.MustCompile("gce://[^/]*/[^/]*/([^/]+)")
-	match := rx.FindStringSubmatch(id)
-	if len(match) < 2 {
-		if id != "" {
-			log.Infof("gcpprovider.ParseID: failed to parse %s", id)
-		}
-		return id
-	}
-
-	return match[1]
-}
-
-func (gcp *GCP) ParsePVID(id string) string {
-	return id
-}
-
-func (gcp *GCP) ParseLBID(id string) string {
-	return id
 }

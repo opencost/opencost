@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
+
 	"github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
-	"github.com/kubecost/cost-model/pkg/util"
 
 	prometheus "github.com/prometheus/client_golang/api"
 	"k8s.io/klog"
@@ -70,15 +71,12 @@ type ClusterCostsBreakdown struct {
 
 // NewClusterCostsFromCumulative takes cumulative cost data over a given time range, computes
 // the associated monthly rate data, and returns the Costs.
-func NewClusterCostsFromCumulative(cpu, gpu, ram, storage float64, window, offset string, dataHours float64) (*ClusterCosts, error) {
-	start, end, err := util.ParseTimeRange(window, offset)
-	if err != nil {
-		return nil, err
-	}
+func NewClusterCostsFromCumulative(cpu, gpu, ram, storage float64, window, offset time.Duration, dataHours float64) (*ClusterCosts, error) {
+	start, end := timeutil.ParseTimeRange(window, offset)
 
 	// If the number of hours is not given (i.e. is zero) compute one from the window and offset
 	if dataHours == 0 {
-		dataHours = end.Sub(*start).Hours()
+		dataHours = end.Sub(start).Hours()
 	}
 
 	// Do not allow zero-length windows to prevent divide-by-zero issues
@@ -87,17 +85,17 @@ func NewClusterCostsFromCumulative(cpu, gpu, ram, storage float64, window, offse
 	}
 
 	cc := &ClusterCosts{
-		Start:             start,
-		End:               end,
+		Start:             &start,
+		End:               &end,
 		CPUCumulative:     cpu,
 		GPUCumulative:     gpu,
 		RAMCumulative:     ram,
 		StorageCumulative: storage,
 		TotalCumulative:   cpu + gpu + ram + storage,
-		CPUMonthly:        cpu / dataHours * (util.HoursPerMonth),
-		GPUMonthly:        gpu / dataHours * (util.HoursPerMonth),
-		RAMMonthly:        ram / dataHours * (util.HoursPerMonth),
-		StorageMonthly:    storage / dataHours * (util.HoursPerMonth),
+		CPUMonthly:        cpu / dataHours * (timeutil.HoursPerMonth),
+		GPUMonthly:        gpu / dataHours * (timeutil.HoursPerMonth),
+		RAMMonthly:        ram / dataHours * (timeutil.HoursPerMonth),
+		StorageMonthly:    storage / dataHours * (timeutil.HoursPerMonth),
 	}
 	cc.TotalMonthly = cc.CPUMonthly + cc.GPUMonthly + cc.RAMMonthly + cc.StorageMonthly
 
@@ -138,9 +136,9 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 	// TODO niko/assets how do we not hard-code this price?
 	costPerGBHr := 0.04 / 730.0
 
-	ctx := prom.NewContext(client)
-	queryPVCost := fmt.Sprintf(`sum_over_time((avg(kube_persistentvolume_capacity_bytes) by (%s, persistentvolume)  * on(%s, persistentvolume) group_right avg(pv_hourly_cost) by (%s, persistentvolume,provider_id))[%s:%dm]%s)/1024/1024/1024 * %f`, env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
-	queryPVSize := fmt.Sprintf(`avg_over_time(kube_persistentvolume_capacity_bytes[%s:%dm]%s)`, durationStr, minsPerResolution, offsetStr)
+	ctx := prom.NewNamedContext(client, prom.ClusterContextName)
+	queryPVCost := fmt.Sprintf(`avg(avg_over_time(pv_hourly_cost[%s]%s)) by (%s, persistentvolume,provider_id)`, durationStr, offsetStr, env.GetPromClusterLabel())
+	queryPVSize := fmt.Sprintf(`avg(avg_over_time(kube_persistentvolume_capacity_bytes[%s]%s)) by (%s, persistentvolume)`, durationStr, offsetStr, env.GetPromClusterLabel())
 	queryActiveMins := fmt.Sprintf(`count(pv_hourly_cost) by (%s, persistentvolume)[%s:%dm]%s`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr)
 
 	queryLocalStorageCost := fmt.Sprintf(`sum_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance, %s)[%s:%dm]%s) / 1024 / 1024 / 1024 * %f * %f`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr, hourlyToCumulative, costPerGBHr)
@@ -169,61 +167,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 
 	diskMap := map[string]*Disk{}
 
-	for _, result := range resPVCost {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		name, err := result.GetString("persistentvolume")
-		if err != nil {
-			log.Warningf("ClusterDisks: PV cost data missing persistentvolume")
-			continue
-		}
-
-		// TODO niko/assets storage class
-
-		cost := result.Values[0].Value
-		key := fmt.Sprintf("%s/%s", cluster, name)
-		if _, ok := diskMap[key]; !ok {
-			diskMap[key] = &Disk{
-				Cluster:   cluster,
-				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
-			}
-		}
-		diskMap[key].Cost += cost
-		providerID, _ := result.GetString("provider_id") // just put the providerID set up here, it's the simplest query.
-		if providerID != "" {
-			diskMap[key].ProviderID = provider.ParsePVID(providerID)
-		}
-	}
-
-	for _, result := range resPVSize {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		name, err := result.GetString("persistentvolume")
-		if err != nil {
-			log.Warningf("ClusterDisks: PV size data missing persistentvolume")
-			continue
-		}
-
-		// TODO niko/assets storage class
-
-		bytes := result.Values[0].Value
-		key := fmt.Sprintf("%s/%s", cluster, name)
-		if _, ok := diskMap[key]; !ok {
-			diskMap[key] = &Disk{
-				Cluster:   cluster,
-				Name:      name,
-				Breakdown: &ClusterCostsBreakdown{},
-			}
-		}
-		diskMap[key].Bytes = bytes
-	}
+	pvCosts(diskMap, resolution, resActiveMins, resPVSize, resPVCost)
 
 	for _, result := range resLocalStorageCost {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
@@ -298,39 +242,6 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 			}
 		}
 		diskMap[key].Bytes = bytes
-	}
-
-	for _, result := range resActiveMins {
-		cluster, err := result.GetString(env.GetPromClusterLabel())
-		if err != nil {
-			cluster = env.GetClusterID()
-		}
-
-		name, err := result.GetString("persistentvolume")
-		if err != nil {
-			log.Warningf("ClusterDisks: active mins missing instance")
-			continue
-		}
-
-		key := fmt.Sprintf("%s/%s", cluster, name)
-		if _, ok := diskMap[key]; !ok {
-			log.DedupedWarningf(5, "ClusterDisks: active mins for unidentified disk")
-			continue
-		}
-
-		if len(result.Values) == 0 {
-			continue
-		}
-
-		s := time.Unix(int64(result.Values[0].Timestamp), 0)
-		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).Add(resolution)
-		mins := e.Sub(s).Minutes()
-
-		// TODO niko/assets if mins >= threshold, interpolate for missing data?
-
-		diskMap[key].End = e
-		diskMap[key].Start = s
-		diskMap[key].Minutes = mins
 	}
 
 	for _, result := range resLocalActiveMins {
@@ -464,8 +375,8 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	minsPerResolution := 1
 	resolution := time.Duration(minsPerResolution) * time.Minute
 
-	requiredCtx := prom.NewContext(client)
-	optionalCtx := prom.NewContext(client)
+	requiredCtx := prom.NewNamedContext(client, prom.ClusterContextName)
+	optionalCtx := prom.NewNamedContext(client, prom.ClusterOptionalContextName)
 
 	queryNodeCPUHourlyCost := fmt.Sprintf(`avg(avg_over_time(node_cpu_hourly_cost[%s]%s)) by (%s, node, instance_type, provider_id)`, durationStr, offsetStr, env.GetPromClusterLabel())
 	queryNodeCPUCores := fmt.Sprintf(`avg(avg_over_time(kube_node_status_capacity_cpu_cores[%s]%s)) by (%s, node)`, durationStr, offsetStr, env.GetPromClusterLabel())
@@ -522,18 +433,18 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 		return nil, requiredCtx.ErrorCollection()
 	}
 
-	activeDataMap := buildActiveDataMap(resActiveMins, resolution, cp.ParseID)
+	activeDataMap := buildActiveDataMap(resActiveMins, resolution)
 
-	gpuCountMap := buildGPUCountMap(resNodeGPUCount, cp.ParseID)
+	gpuCountMap := buildGPUCountMap(resNodeGPUCount)
 
-	cpuCostMap, clusterAndNameToType1 := buildCPUCostMap(resNodeCPUHourlyCost, cp.ParseID)
-	ramCostMap, clusterAndNameToType2 := buildRAMCostMap(resNodeRAMHourlyCost, cp.ParseID)
-	gpuCostMap, clusterAndNameToType3 := buildGPUCostMap(resNodeGPUHourlyCost, gpuCountMap, cp.ParseID)
+	cpuCostMap, clusterAndNameToType1 := buildCPUCostMap(resNodeCPUHourlyCost)
+	ramCostMap, clusterAndNameToType2 := buildRAMCostMap(resNodeRAMHourlyCost)
+	gpuCostMap, clusterAndNameToType3 := buildGPUCostMap(resNodeGPUHourlyCost, gpuCountMap)
 
 	clusterAndNameToTypeIntermediate := mergeTypeMaps(clusterAndNameToType1, clusterAndNameToType2)
 	clusterAndNameToType := mergeTypeMaps(clusterAndNameToTypeIntermediate, clusterAndNameToType3)
 
-	cpuCoresMap := buildCPUCoresMap(resNodeCPUCores, clusterAndNameToType)
+	cpuCoresMap := buildCPUCoresMap(resNodeCPUCores)
 
 	ramBytesMap := buildRAMBytesMap(resNodeRAMBytes)
 
@@ -541,7 +452,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	ramSystemPctMap := buildRAMSystemPctMap(resNodeRAMSystemPct)
 
 	cpuBreakdownMap := buildCPUBreakdownMap(resNodeCPUModeTotal)
-	preemptibleMap := buildPreemptibleMap(resIsSpot, cp.ParseID)
+	preemptibleMap := buildPreemptibleMap(resIsSpot)
 	labelsMap := buildLabelsMap(resLabels)
 
 	costTimesMinuteAndCount(activeDataMap, cpuCostMap, cpuCoresMap)
@@ -595,7 +506,7 @@ type LoadBalancer struct {
 	Minutes    float64
 }
 
-func ClusterLoadBalancers(cp cloud.Provider, client prometheus.Client, duration, offset time.Duration) (map[string]*LoadBalancer, error) {
+func ClusterLoadBalancers(client prometheus.Client, duration, offset time.Duration) (map[string]*LoadBalancer, error) {
 	durationStr := fmt.Sprintf("%dm", int64(duration.Minutes()))
 	offsetStr := fmt.Sprintf(" offset %dm", int64(offset.Minutes()))
 	if offset < time.Minute {
@@ -612,7 +523,7 @@ func ClusterLoadBalancers(cp cloud.Provider, client prometheus.Client, duration,
 	// [$/hr] * [min/res]*[hr/min] = [$/res]
 	hourlyToCumulative := float64(minsPerResolution) * (1.0 / 60.0)
 
-	ctx := prom.NewContext(client)
+	ctx := prom.NewNamedContext(client, prom.ClusterContextName)
 	queryLBCost := fmt.Sprintf(`sum_over_time((avg(kubecost_load_balancer_cost) by (namespace, service_name, %s, ingress_ip))[%s:%dm]%s) * %f`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr, hourlyToCumulative)
 	queryActiveMins := fmt.Sprintf(`count(kubecost_load_balancer_cost) by (namespace, service_name, %s, ingress_ip)[%s:%dm]%s`, env.GetPromClusterLabel(), durationStr, minsPerResolution, offsetStr)
 
@@ -655,7 +566,7 @@ func ClusterLoadBalancers(cp cloud.Provider, client prometheus.Client, duration,
 			loadBalancerMap[key] = &LoadBalancer{
 				Cluster:    cluster,
 				Name:       namespace + "/" + serviceName,
-				ProviderID: cp.ParseLBID(providerID),
+				ProviderID: cloud.ParseLBID(providerID),
 			}
 		}
 		// Fill in Provider ID if it is available and missing in the loadBalancerMap
@@ -687,26 +598,26 @@ func ClusterLoadBalancers(cp cloud.Provider, client prometheus.Client, duration,
 			continue
 		}
 
-		s := time.Unix(int64(result.Values[0].Timestamp), 0)
-		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
-		mins := e.Sub(s).Minutes()
+		if lb, ok := loadBalancerMap[key]; ok {
+			s := time.Unix(int64(result.Values[0].Timestamp), 0)
+			e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
+			mins := e.Sub(s).Minutes()
 
-		// TODO niko/assets if mins >= threshold, interpolate for missing data?
-
-		loadBalancerMap[key].Start = s
-		loadBalancerMap[key].Minutes = mins
+			lb.Start = s
+			lb.Minutes = mins
+		} else {
+			log.DedupedWarningf(20, "ClusterLoadBalancers: found minutes for key that does not exist: %s", key)
+		}
 	}
 	return loadBalancerMap, nil
 }
 
 // ComputeClusterCosts gives the cumulative and monthly-rate cluster costs over a window of time for all clusters.
-func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, window, offset string, withBreakdown bool) (map[string]*ClusterCosts, error) {
+func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, window, offset time.Duration, withBreakdown bool) (map[string]*ClusterCosts, error) {
 	// Compute number of minutes in the full interval, for use interpolating missed scrapes or scaling missing data
-	start, end, err := util.ParseTimeRange(window, offset)
-	if err != nil {
-		return nil, err
-	}
-	mins := end.Sub(*start).Minutes()
+	start, end := timeutil.ParseTimeRange(window, offset)
+
+	mins := end.Sub(start).Minutes()
 
 	// minsPerResolution determines accuracy and resource use for the following
 	// queries. Smaller values (higher resolution) result in better accuracy,
@@ -775,10 +686,7 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 		queryTotalLocalStorage = fmt.Sprintf(" + %s", queryTotalLocalStorage)
 	}
 
-	fmtOffset := ""
-	if offset != "" {
-		fmtOffset = fmt.Sprintf("offset %s", offset)
-	}
+	fmtOffset := timeutil.DurationToPromOffsetString(offset)
 
 	queryDataCount := fmt.Sprintf(fmtQueryDataCount, env.GetPromClusterLabel(), window, minsPerResolution, fmtOffset, minsPerResolution)
 	queryTotalGPU := fmt.Sprintf(fmtQueryTotalGPU, window, minsPerResolution, fmtOffset, hourlyToCumulative, env.GetPromClusterLabel())
@@ -786,7 +694,7 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 	queryTotalRAM := fmt.Sprintf(fmtQueryTotalRAM, env.GetPromClusterLabel(), window, minsPerResolution, fmtOffset, window, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), hourlyToCumulative, env.GetPromClusterLabel())
 	queryTotalStorage := fmt.Sprintf(fmtQueryTotalStorage, env.GetPromClusterLabel(), window, minsPerResolution, fmtOffset, window, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), hourlyToCumulative, env.GetPromClusterLabel())
 
-	ctx := prom.NewContext(client)
+	ctx := prom.NewNamedContext(client, prom.ClusterContextName)
 
 	resChs := ctx.QueryAll(
 		queryDataCount,
@@ -1001,7 +909,7 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 			dataMins = mins
 			klog.V(3).Infof("[Warning] cluster cost data count not found for cluster %s", id)
 		}
-		costs, err := NewClusterCostsFromCumulative(cd["cpu"], cd["gpu"], cd["ram"], cd["storage"]+cd["localstorage"], window, offset, dataMins/util.MinsPerHour)
+		costs, err := NewClusterCostsFromCumulative(cd["cpu"], cd["gpu"], cd["ram"], cd["storage"]+cd["localstorage"], window, offset, dataMins/timeutil.MinsPerHour)
 		if err != nil {
 			klog.V(3).Infof("[Warning] Failed to parse cluster costs on %s (%s) from cumulative data: %+v", window, offset, cd)
 			return nil, err
@@ -1052,8 +960,8 @@ func resultToTotals(qrs []*prom.QueryResult) ([][]string, error) {
 }
 
 // ClusterCostsOverTime gives the full cluster costs over time
-func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startString, endString, windowString, offset string) (*Totals, error) {
-	localStorageQuery := provider.GetLocalStorageQuery(windowString, offset, true, false)
+func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startString, endString string, window, offset time.Duration) (*Totals, error) {
+	localStorageQuery := provider.GetLocalStorageQuery(window, offset, true, false)
 	if localStorageQuery != "" {
 		localStorageQuery = fmt.Sprintf("+ %s", localStorageQuery)
 	}
@@ -1062,31 +970,30 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 
 	start, err := time.Parse(layout, startString)
 	if err != nil {
-		klog.V(1).Infof("Error parsing time " + startString + ". Error: " + err.Error())
+		klog.V(1).Infof("Error parsing time %s. Error: %s", startString, err.Error())
 		return nil, err
 	}
 	end, err := time.Parse(layout, endString)
 	if err != nil {
-		klog.V(1).Infof("Error parsing time " + endString + ". Error: " + err.Error())
+		klog.V(1).Infof("Error parsing time %s. Error: %s", endString, err.Error())
 		return nil, err
 	}
-	window, err := time.ParseDuration(windowString)
-	if err != nil {
-		klog.V(1).Infof("Error parsing time " + windowString + ". Error: " + err.Error())
+	fmtWindow := timeutil.DurationString(window)
+
+	if fmtWindow == "" {
+		err := fmt.Errorf("window value invalid or missing")
+		klog.V(1).Infof("Error parsing time %v. Error: %s", window, err.Error())
 		return nil, err
 	}
 
-	// turn offsets of the format "[0-9+]h" into the format "offset [0-9+]h" for use in query templatess
-	if offset != "" {
-		offset = fmt.Sprintf("offset %s", offset)
-	}
+	fmtOffset := timeutil.DurationToPromOffsetString(offset)
 
-	qCores := fmt.Sprintf(queryClusterCores, windowString, offset, env.GetPromClusterLabel(), windowString, offset, env.GetPromClusterLabel(), windowString, offset, env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	qRAM := fmt.Sprintf(queryClusterRAM, windowString, offset, env.GetPromClusterLabel(), windowString, offset, env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	qStorage := fmt.Sprintf(queryStorage, windowString, offset, env.GetPromClusterLabel(), windowString, offset, env.GetPromClusterLabel(), env.GetPromClusterLabel(), localStorageQuery)
+	qCores := fmt.Sprintf(queryClusterCores, fmtWindow, fmtOffset, env.GetPromClusterLabel(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterLabel())
+	qRAM := fmt.Sprintf(queryClusterRAM, fmtWindow, fmtOffset, env.GetPromClusterLabel(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterLabel())
+	qStorage := fmt.Sprintf(queryStorage, fmtWindow, fmtOffset, env.GetPromClusterLabel(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterLabel(), localStorageQuery)
 	qTotal := fmt.Sprintf(queryTotal, env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), localStorageQuery)
 
-	ctx := prom.NewContext(cli)
+	ctx := prom.NewNamedContext(cli, prom.ClusterContextName)
 	resChClusterCores := ctx.QueryRange(qCores, start, end, window)
 	resChClusterRAM := ctx.QueryRange(qRAM, start, end, window)
 	resChStorage := ctx.QueryRange(qStorage, start, end, window)
@@ -1157,4 +1064,97 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 		MemCost:     ramTotal,
 		StorageCost: storageTotal,
 	}, nil
+}
+
+func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost []*prom.QueryResult) {
+	for _, result := range resActiveMins {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("persistentvolume")
+		if err != nil {
+			log.Warningf("ClusterDisks: active mins missing pv name")
+			continue
+		}
+
+		if len(result.Values) == 0 {
+			continue
+		}
+
+		key := fmt.Sprintf("%s/%s", cluster, name)
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+			}
+		}
+		s := time.Unix(int64(result.Values[0].Timestamp), 0)
+		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).Add(resolution)
+		mins := e.Sub(s).Minutes()
+
+		// TODO niko/assets if mins >= threshold, interpolate for missing data?
+
+		diskMap[key].End = e
+		diskMap[key].Start = s
+		diskMap[key].Minutes = mins
+	}
+
+	for _, result := range resPVSize {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("persistentvolume")
+		if err != nil {
+			log.Warningf("ClusterDisks: PV size data missing persistentvolume")
+			continue
+		}
+
+		// TODO niko/assets storage class
+
+		bytes := result.Values[0].Value
+		key := fmt.Sprintf("%s/%s", cluster, name)
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+			}
+		}
+		diskMap[key].Bytes = bytes
+	}
+
+	for _, result := range resPVCost {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("persistentvolume")
+		if err != nil {
+			log.Warningf("ClusterDisks: PV cost data missing persistentvolume")
+			continue
+		}
+
+		// TODO niko/assets storage class
+
+		cost := result.Values[0].Value
+		key := fmt.Sprintf("%s/%s", cluster, name)
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+			}
+		}
+		diskMap[key].Cost = cost * (diskMap[key].Bytes / 1024 / 1024 / 1024) * (diskMap[key].Minutes / 60)
+		providerID, _ := result.GetString("provider_id") // just put the providerID set up here, it's the simplest query.
+		if providerID != "" {
+			diskMap[key].ProviderID = cloud.ParsePVID(providerID)
+		}
+	}
 }

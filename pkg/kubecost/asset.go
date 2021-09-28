@@ -124,9 +124,14 @@ type Asset interface {
 //   => nil, err
 //
 // (See asset_test.go for assertions of these examples and more.)
-func AssetToExternalAllocation(asset Asset, aggregateBy []string, externalLabelsCfg map[string]string) (*Allocation, error) {
+func AssetToExternalAllocation(asset Asset, aggregateBy []string, labelConfig *LabelConfig) (*Allocation, error) {
 	if asset == nil {
 		return nil, fmt.Errorf("asset is nil")
+	}
+
+	// Use default label config if one is not provided.
+	if labelConfig == nil {
+		labelConfig = NewLabelConfig()
 	}
 
 	// names will collect the slash-separated names accrued by iterating over
@@ -140,83 +145,89 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, externalLabels
 	// props records the relevant Properties to set on the resultant Allocation
 	props := AllocationProperties{}
 
+	// For each aggregation parameter, try to find a match in the asset's
+	// labels, using the labelConfig to translate. For an aggregation parameter
+	// defined by a label (e.g. "label:app") this is simple: look for the label
+	// and use it (e.g. if "app" is a defined label on the asset, then use its
+	// value). For an aggregation parameter defined by a non-label property
+	// (e.g. "namespace") this requires using the labelConfig to look up the
+	// label name associated with that property and to use the value under that
+	// label, if set (e.g. if the aggregation property is "namespace" and the
+	// labelConfig is configured with "namespace_external_label" => "kubens"
+	// and the asset has label "kubens":"kubecost", then file the asset as an
+	// external cost under "kubecost").
 	for _, aggBy := range aggregateBy {
-		// labelName should be derived from the mapping of properties to
-		// label names, unless the aggBy is explicitly a label, in which
-		// case we should pull the label name from the aggBy string.
-		// Unless this matches a special aggregation, as we have that mapping already transformed...
-		labelName := aggBy
-		agglName := aggBy
-		if strings.HasPrefix(aggBy, "label:") {
-			labelName = strings.TrimPrefix(aggBy, "label:")
-			agglName = labelName
-			if v, ok := externalLabelsCfg[labelName]; ok {
-				agglName = v
-			}
-		}
+		name := labelConfig.GetExternalAllocationName(asset.Labels(), aggBy)
 
-		if labelName == "" {
+		if name == "" {
 			// No matching label has been defined in the cost-analyzer label config
 			// relating to the given aggregateBy property.
 			names = append(names, UnallocatedSuffix)
 			continue
-		}
+		} else {
+			names = append(names, name)
+			match = true
 
-		if value := asset.Labels()[agglName]; value != "" {
-			// Valid label value was found for one of the aggregation properties,
-			// so add it to the name.
-			if strings.HasPrefix(aggBy, "label:") {
-				// Use naming convention labelName=labelValue for labels
-				// e.g. aggBy="label:env", value="prod" => "env=prod"
-				names = append(names, fmt.Sprintf("%s=%s", strings.TrimPrefix(aggBy, "label:"), value))
-				match = true
+			// Default labels to an empty map, if necessary
+			if props.Labels == nil {
+				props.Labels = map[string]string{}
+			}
 
-				// Set the corresponding label in props
-				labels := props.Labels
-				if labels == nil {
-					labels = map[string]string{}
-				}
-
-				labels[labelName] = value
-				props.Labels = labels
-			} else {
-				names = append(names, value)
-				match = true
-
-				// Set the corresponding property on props
-				switch aggBy {
-				case AllocationClusterProp:
-					props.Cluster = value
-				case AllocationNodeProp:
-					props.Node = value
-				case AllocationNamespaceProp:
-					props.Namespace = value
-				case AllocationControllerKindProp:
-					props.ControllerKind = value
-				case AllocationControllerProp:
-					props.Controller = value
-				case AllocationPodProp:
-					props.Pod = value
-				case AllocationContainerProp:
-					props.Container = value
-				case AllocationServiceProp:
-					// TODO: external allocation: how to do this? multi-service?
-					props.Services = []string{value}
+			// Set the corresponding property on props
+			switch aggBy {
+			case AllocationClusterProp:
+				props.Cluster = name
+			case AllocationNodeProp:
+				props.Node = name
+			case AllocationNamespaceProp:
+				props.Namespace = name
+			case AllocationControllerKindProp:
+				props.ControllerKind = name
+			case AllocationControllerProp:
+				props.Controller = name
+			case AllocationPodProp:
+				props.Pod = name
+			case AllocationContainerProp:
+				props.Container = name
+			case AllocationServiceProp:
+				props.Services = []string{name}
+			case AllocationDeploymentProp:
+				props.Controller = name
+				props.ControllerKind = "deployment"
+			case AllocationStatefulSetProp:
+				props.Controller = name
+				props.ControllerKind = "statefulset"
+			case AllocationDaemonSetProp:
+				props.Controller = name
+				props.ControllerKind = "daemonset"
+			case AllocationDepartmentProp:
+				props.Labels[labelConfig.DepartmentLabel] = name
+			case AllocationEnvironmentProp:
+				props.Labels[labelConfig.EnvironmentLabel] = name
+			case AllocationOwnerProp:
+				props.Labels[labelConfig.OwnerLabel] = name
+			case AllocationProductProp:
+				props.Labels[labelConfig.ProductLabel] = name
+			case AllocationTeamProp:
+				props.Labels[labelConfig.TeamLabel] = name
+			default:
+				if strings.HasPrefix(aggBy, "label:") {
+					// Set the corresponding label in props
+					labelName := strings.TrimPrefix(aggBy, "label:")
+					labelValue := strings.TrimPrefix(name, labelName+"=")
+					props.Labels[labelName] = labelValue
 				}
 			}
-		} else {
-			// No value label value was found on the Asset; consider it
-			// unallocated. Note that this case is only truly relevant if at
-			// least one other property matches (e.g. case 3 in the examples)
-			// because if there are no matches, then an error is returned.
-			names = append(names, UnallocatedSuffix)
 		}
 	}
 
+	// If not a signle aggregation property generated a matching label property,
+	// then consider the asset ineligible to be treated as an external allocation.
 	if !match {
 		return nil, fmt.Errorf("asset does not qualify as an external allocation")
 	}
 
+	// Use naming to label as an external allocation. See IsExternal() for more.
 	names = append(names, ExternalSuffix)
 
 	// TODO: external allocation: efficiency?
@@ -3380,6 +3391,10 @@ func (as *AssetSet) ReconciliationMatch(query Asset) (Asset, bool, error) {
 
 	var providerIDMatch Asset
 	for _, asset := range as.assets {
+		// Ignore cloud assets when looking for reconciliation matches
+		if asset.Type() == CloudAssetType {
+			continue
+		}
 		if k, err := key(asset, fullMatchProps); err != nil {
 			return nil, false, err
 		} else if k == fullMatchKey {
@@ -3719,6 +3734,71 @@ func (asr *AssetSetRange) Window() Window {
 	end := asr.assets[asr.Length()-1].End()
 
 	return NewWindow(&start, &end)
+}
+
+// Start returns the earliest start of all Assets in the AssetSetRange.
+// It returns an error if there are no assets
+func (asr *AssetSetRange) Start() (time.Time, error) {
+	start := time.Time{}
+	firstStartNotSet := true
+	asr.Each(func(i int, as *AssetSet) {
+		as.Each(func(s string, a Asset) {
+			if firstStartNotSet {
+				start = a.Start()
+				firstStartNotSet = false
+			}
+			if a.Start().Before(start) {
+				start = a.Start()
+			}
+		})
+	})
+
+	if firstStartNotSet {
+		return start, fmt.Errorf("had no data to compute a start from")
+	}
+
+	return start, nil
+}
+
+// End returns the latest end of all Assets in the AssetSetRange.
+// It returns an error if there are no assets.
+func (asr *AssetSetRange) End() (time.Time, error) {
+	end := time.Time{}
+	firstEndNotSet := true
+	asr.Each(func(i int, as *AssetSet) {
+		as.Each(func(s string, a Asset) {
+			if firstEndNotSet {
+				end = a.End()
+				firstEndNotSet = false
+			}
+			if a.End().After(end) {
+				end = a.End()
+			}
+		})
+	})
+
+	if firstEndNotSet {
+		return end, fmt.Errorf("had no data to compute an end from")
+	}
+
+	return end, nil
+}
+
+// Minutes returns the duration, in minutes, between the earliest start
+// and the latest end of all assets in the AssetSetRange.
+func (asr *AssetSetRange) Minutes() float64 {
+	start, err := asr.Start()
+	if err != nil {
+		return 0
+	}
+	end, err := asr.End()
+	if err != nil {
+		return 0
+	}
+
+	duration := end.Sub(start)
+
+	return duration.Minutes()
 }
 
 // Returns true if string slices a and b contain all of the same strings, in any order.

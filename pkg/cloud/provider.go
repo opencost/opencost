@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
+	"strconv"
 	"strings"
+	"time"
 
 	"k8s.io/klog"
 
@@ -13,12 +16,15 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/cost-model/pkg/util/watcher"
 
 	v1 "k8s.io/api/core/v1"
 )
 
 const authSecretPath = "/var/secrets/service-key.json"
 const storageConfigSecretPath = "/var/azure-storage-config/azure-storage-config.json"
+const defaultShareTenancyCost = "true"
 
 var createTableStatements = []string{
 	`CREATE TABLE IF NOT EXISTS names (
@@ -127,55 +133,75 @@ type OutOfClusterAllocation struct {
 }
 
 type CustomPricing struct {
-	Provider                     string            `json:"provider"`
-	Description                  string            `json:"description"`
-	CPU                          string            `json:"CPU"`
-	SpotCPU                      string            `json:"spotCPU"`
-	RAM                          string            `json:"RAM"`
-	SpotRAM                      string            `json:"spotRAM"`
-	GPU                          string            `json:"GPU"`
-	SpotGPU                      string            `json:"spotGPU"`
-	Storage                      string            `json:"storage"`
-	ZoneNetworkEgress            string            `json:"zoneNetworkEgress"`
-	RegionNetworkEgress          string            `json:"regionNetworkEgress"`
-	InternetNetworkEgress        string            `json:"internetNetworkEgress"`
-	FirstFiveForwardingRulesCost string            `json:"firstFiveForwardingRulesCost"`
-	AdditionalForwardingRuleCost string            `json:"additionalForwardingRuleCost"`
-	LBIngressDataCost            string            `json:"LBIngressDataCost"`
-	SpotLabel                    string            `json:"spotLabel,omitempty"`
-	SpotLabelValue               string            `json:"spotLabelValue,omitempty"`
-	GpuLabel                     string            `json:"gpuLabel,omitempty"`
-	GpuLabelValue                string            `json:"gpuLabelValue,omitempty"`
-	ServiceKeyName               string            `json:"awsServiceKeyName,omitempty"`
-	ServiceKeySecret             string            `json:"awsServiceKeySecret,omitempty"`
-	SpotDataRegion               string            `json:"awsSpotDataRegion,omitempty"`
-	SpotDataBucket               string            `json:"awsSpotDataBucket,omitempty"`
-	SpotDataPrefix               string            `json:"awsSpotDataPrefix,omitempty"`
-	ProjectID                    string            `json:"projectID,omitempty"`
-	AthenaProjectID              string            `json:"athenaProjectID,omitempty"`
-	AthenaBucketName             string            `json:"athenaBucketName"`
-	AthenaRegion                 string            `json:"athenaRegion"`
-	AthenaDatabase               string            `json:"athenaDatabase"`
-	AthenaTable                  string            `json:"athenaTable"`
-	MasterPayerARN               string            `json:"masterPayerARN"`
-	BillingDataDataset           string            `json:"billingDataDataset,omitempty"`
-	CustomPricesEnabled          string            `json:"customPricesEnabled"`
-	DefaultIdle                  string            `json:"defaultIdle"`
-	AzureSubscriptionID          string            `json:"azureSubscriptionID"`
-	AzureClientID                string            `json:"azureClientID"`
-	AzureClientSecret            string            `json:"azureClientSecret"`
-	AzureTenantID                string            `json:"azureTenantID"`
-	AzureBillingRegion           string            `json:"azureBillingRegion"`
-	CurrencyCode                 string            `json:"currencyCode"`
-	Discount                     string            `json:"discount"`
-	NegotiatedDiscount           string            `json:"negotiatedDiscount"`
-	SharedCosts                  map[string]string `json:"sharedCost"`
-	ClusterName                  string            `json:"clusterName"`
-	SharedNamespaces             string            `json:"sharedNamespaces"`
-	SharedLabelNames             string            `json:"sharedLabelNames"`
-	SharedLabelValues            string            `json:"sharedLabelValues"`
-	ReadOnly                     string            `json:"readOnly"`
-	KubecostToken                string            `json:"kubecostToken"`
+	Provider                     string `json:"provider"`
+	Description                  string `json:"description"`
+	CPU                          string `json:"CPU"`
+	SpotCPU                      string `json:"spotCPU"`
+	RAM                          string `json:"RAM"`
+	SpotRAM                      string `json:"spotRAM"`
+	GPU                          string `json:"GPU"`
+	SpotGPU                      string `json:"spotGPU"`
+	Storage                      string `json:"storage"`
+	ZoneNetworkEgress            string `json:"zoneNetworkEgress"`
+	RegionNetworkEgress          string `json:"regionNetworkEgress"`
+	InternetNetworkEgress        string `json:"internetNetworkEgress"`
+	FirstFiveForwardingRulesCost string `json:"firstFiveForwardingRulesCost"`
+	AdditionalForwardingRuleCost string `json:"additionalForwardingRuleCost"`
+	LBIngressDataCost            string `json:"LBIngressDataCost"`
+	SpotLabel                    string `json:"spotLabel,omitempty"`
+	SpotLabelValue               string `json:"spotLabelValue,omitempty"`
+	GpuLabel                     string `json:"gpuLabel,omitempty"`
+	GpuLabelValue                string `json:"gpuLabelValue,omitempty"`
+	ServiceKeyName               string `json:"awsServiceKeyName,omitempty"`
+	ServiceKeySecret             string `json:"awsServiceKeySecret,omitempty"`
+	SpotDataRegion               string `json:"awsSpotDataRegion,omitempty"`
+	SpotDataBucket               string `json:"awsSpotDataBucket,omitempty"`
+	SpotDataPrefix               string `json:"awsSpotDataPrefix,omitempty"`
+	ProjectID                    string `json:"projectID,omitempty"`
+	AthenaProjectID              string `json:"athenaProjectID,omitempty"`
+	AthenaBucketName             string `json:"athenaBucketName"`
+	AthenaRegion                 string `json:"athenaRegion"`
+	AthenaDatabase               string `json:"athenaDatabase"`
+	AthenaTable                  string `json:"athenaTable"`
+	MasterPayerARN               string `json:"masterPayerARN"`
+	BillingDataDataset           string `json:"billingDataDataset,omitempty"`
+	CustomPricesEnabled          string `json:"customPricesEnabled"`
+	DefaultIdle                  string `json:"defaultIdle"`
+	AzureSubscriptionID          string `json:"azureSubscriptionID"`
+	AzureClientID                string `json:"azureClientID"`
+	AzureClientSecret            string `json:"azureClientSecret"`
+	AzureTenantID                string `json:"azureTenantID"`
+	AzureBillingRegion           string `json:"azureBillingRegion"`
+	CurrencyCode                 string `json:"currencyCode"`
+	Discount                     string `json:"discount"`
+	NegotiatedDiscount           string `json:"negotiatedDiscount"`
+	SharedOverhead               string `json:"sharedOverhead"`
+	ClusterName                  string `json:"clusterName"`
+	SharedNamespaces             string `json:"sharedNamespaces"`
+	SharedLabelNames             string `json:"sharedLabelNames"`
+	SharedLabelValues            string `json:"sharedLabelValues"`
+	ShareTenancyCosts            string `json:"shareTenancyCosts"` // TODO clean up configuration so we can use a type other that string (this should be a bool, but the app panics if it's not a string)
+	ReadOnly                     string `json:"readOnly"`
+	KubecostToken                string `json:"kubecostToken"`
+}
+
+// GetSharedOverheadCostPerMonth parses and returns a float64 representation
+// of the configured monthly shared overhead cost. If the string version cannot
+// be parsed into a float, an error is logged and 0.0 is returned.
+func (cp *CustomPricing) GetSharedOverheadCostPerMonth() float64 {
+	// Empty string should be interpreted as "no cost", i.e. 0.0
+	if cp.SharedOverhead == "" {
+		return 0.0
+	}
+
+	// Attempt to parse, but log and return 0.0 if that fails.
+	sharedCostPerMonth, err := strconv.ParseFloat(cp.SharedOverhead, 64)
+	if err != nil {
+		log.Errorf("SharedOverhead: failed to parse shared overhead \"%s\": %s", cp.SharedOverhead, err)
+		return 0.0
+	}
+
+	return sharedCostPerMonth
 }
 
 type ServiceAccountStatus struct {
@@ -185,7 +211,7 @@ type ServiceAccountStatus struct {
 type ServiceAccountCheck struct {
 	Message        string `json:"message"`
 	Status         bool   `json:"status"`
-	AdditionalInfo string `json:additionalInfo`
+	AdditionalInfo string `json:"additionalInfo"`
 }
 
 type PricingSources struct {
@@ -232,16 +258,14 @@ type Provider interface {
 	UpdateConfigFromConfigMap(map[string]string) (*CustomPricing, error)
 	GetConfig() (*CustomPricing, error)
 	GetManagementPlatform() (string, error)
-	GetLocalStorageQuery(string, string, bool, bool) string
+	GetLocalStorageQuery(time.Duration, time.Duration, bool, bool) string
 	ExternalAllocations(string, string, []string, string, string, bool) ([]*OutOfClusterAllocation, error)
 	ApplyReservedInstancePricing(map[string]*Node)
 	ServiceAccountStatus() *ServiceAccountStatus
 	PricingSourceStatus() map[string]*PricingSource
 	ClusterManagementPricing() (string, float64, error)
 	CombinedDiscountForNode(string, bool, float64, float64) float64
-	ParseID(string) string
-	ParsePVID(string) string
-	ParseLBID(string) string
+	Regions() []string
 }
 
 // ClusterName returns the name defined in cluster info, defaulting to the
@@ -273,6 +297,18 @@ func CustomPricesEnabled(p Provider) bool {
 	}
 
 	return config.CustomPricesEnabled == "true"
+}
+
+// ConfigWatcherFor returns a new ConfigWatcher instance which watches changes to the "pricing-configs"
+// configmap
+func ConfigWatcherFor(p Provider) *watcher.ConfigMapWatcher {
+	return &watcher.ConfigMapWatcher{
+		ConfigMapName: env.GetPricingConfigmapName(),
+		WatchFunc: func(name string, data map[string]string) error {
+			_, err := p.UpdateConfigFromConfigMap(data)
+			return err
+		},
+	}
 }
 
 // AllocateIdleByDefault returns true if the application settings specify to allocate idle by default
@@ -335,6 +371,17 @@ func SharedLabels(p Provider) ([]string, []string) {
 	return names, values
 }
 
+// ShareTenancyCosts returns true if the application settings specify to share
+// tenancy costs by default.
+func ShareTenancyCosts(p Provider) bool {
+	config, err := p.GetConfig()
+	if err != nil {
+		return false
+	}
+
+	return config.ShareTenancyCosts == "true"
+}
+
 func NewCrossClusterProvider(ctype string, overrideConfigPath string, cache clustercache.ClusterCache) (Provider, error) {
 	if ctype == "aws" {
 		return &AWS{
@@ -343,6 +390,11 @@ func NewCrossClusterProvider(ctype string, overrideConfigPath string, cache clus
 		}, nil
 	} else if ctype == "gcp" {
 		return &GCP{
+			Clientset: cache,
+			Config:    NewProviderConfig(overrideConfigPath),
+		}, nil
+	} else if ctype == "azure" {
+		return &Azure{
 			Clientset: cache,
 			Config:    NewProviderConfig(overrideConfigPath),
 		}, nil
@@ -500,4 +552,53 @@ func GetOrCreateClusterMeta(cluster_id, cluster_name string) (string, string, er
 	}
 
 	return id, name, nil
+}
+
+// ParseID attempts to parse a ProviderId from a string based on formats from the various providers and
+// returns the string as is if it cannot find a match
+func ParseID(id string) string {
+	// It's of the form aws:///us-east-2a/i-0fea4fd46592d050b and we want i-0fea4fd46592d050b, if it exists
+	rx := regexp.MustCompile("aws://[^/]*/[^/]*/([^/]+)")
+	match := rx.FindStringSubmatch(id)
+	if len(match) >= 2 {
+		return match[1]
+	}
+
+	// gce://guestbook-227502/us-central1-a/gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
+	//  => gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
+	rx = regexp.MustCompile("gce://[^/]*/[^/]*/([^/]+)")
+	match = rx.FindStringSubmatch(id)
+	if len(match) >= 2 {
+		return match[1]
+	}
+
+	// Return id for Azure Provider, CSV Provider and Custom Provider
+	return id
+}
+
+// ParsePVID attempts to parse a PV ProviderId from a string based on formats from the various providers and
+// returns the string as is if it cannot find a match
+func ParsePVID(id string) string {
+	// Capture "vol-0fc54c5e83b8d2b76" from "aws://us-east-2a/vol-0fc54c5e83b8d2b76"
+	rx := regexp.MustCompile("aws:/[^/]*/[^/]*/([^/]+)")
+	match := rx.FindStringSubmatch(id)
+	if len(match) >= 2 {
+		return match[1]
+	}
+
+	// Return id for GCP Provider, Azure Provider, CSV Provider and Custom Provider
+	return id
+}
+
+// ParseLBID attempts to parse a LB ProviderId from a string based on formats from the various providers and
+// returns the string as is if it cannot find a match
+func ParseLBID(id string) string {
+	rx := regexp.MustCompile("^([^-]+)-.+amazonaws\\.com$") // Capture "ad9d88195b52a47c89b5055120f28c58" from "ad9d88195b52a47c89b5055120f28c58-1037804914.us-east-2.elb.amazonaws.com"
+	match := rx.FindStringSubmatch(id)
+	if len(match) >= 2 {
+		return match[1]
+	}
+
+	// Return id for GCP Provider, Azure Provider, CSV Provider and Custom Provider
+	return id
 }
