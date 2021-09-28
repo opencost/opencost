@@ -501,14 +501,14 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 
 				gpuReqCount := 0.0
 				if g, ok := container.Resources.Requests["nvidia.com/gpu"]; ok {
-					gpuReqCount = float64(g.Value())
+					gpuReqCount = g.AsApproximateFloat64()
 				} else if g, ok := container.Resources.Limits["nvidia.com/gpu"]; ok {
-					gpuReqCount = float64(g.Value())
+					gpuReqCount = g.AsApproximateFloat64()
 				} else if g, ok := container.Resources.Requests["k8s.amazonaws.com/vgpu"]; ok {
 					// divide vgpu request/limits by total vgpus to get the portion of physical gpus requested
-					gpuReqCount = float64(g.Value()) / vgpuCoeff
+					gpuReqCount = g.AsApproximateFloat64() / vgpuCoeff
 				} else if g, ok := container.Resources.Limits["k8s.amazonaws.com/vgpu"]; ok {
-					gpuReqCount = float64(g.Value()) / vgpuCoeff
+					gpuReqCount = g.AsApproximateFloat64() / vgpuCoeff
 				}
 				GPUReqV := []*util.Vector{
 					{

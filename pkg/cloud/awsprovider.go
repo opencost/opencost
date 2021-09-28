@@ -3,6 +3,7 @@ package cloud
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -37,6 +38,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+
+	awsV2 "github.com/aws/aws-sdk-go-v2/aws"
+
 	"github.com/jszwec/csvutil"
 
 	v1 "k8s.io/api/core/v1"
@@ -153,6 +157,15 @@ type AWS struct {
 type AWSAccessKey struct {
 	AccessKeyID     string `json:"aws_access_key_id"`
 	SecretAccessKey string `json:"aws_secret_access_key"`
+}
+
+// Retrieve returns a set of awsV2 credentials using the AWSAccessKey's key and secret.
+// This fullfils the awsV2.CredentialsProvider interface contract.
+func (accessKey AWSAccessKey) Retrieve(ctx context.Context) (awsV2.Credentials, error) {
+	return awsV2.Credentials{
+		AccessKeyID:     accessKey.AccessKeyID,
+		SecretAccessKey: accessKey.SecretAccessKey,
+	}, nil
 }
 
 // AWSPricing maps a k8s node to an AWS Pricing "product"
@@ -546,10 +559,10 @@ func (key *awsPVKey) Features() string {
 	// Storage class names are generally EBS volume types (gp2)
 	// Keys in Pricing are based on UsageTypes (EBS:VolumeType.gp2)
 	// Converts between the 2
-	region, _ := util.GetRegion(key.Labels)
-	//if region == "" {
-	//	region = "us-east-1"
-	//}
+	region, ok := util.GetRegion(key.Labels)
+	if !ok {
+		region = key.DefaultRegion
+	}
 	class, ok := volTypes[storageClass]
 	if !ok {
 		klog.V(4).Infof("No voltype mapping for %s's storageClass: %s", key.Name, storageClass)
@@ -2312,4 +2325,8 @@ func (a *AWS) ServiceAccountStatus() *ServiceAccountStatus {
 
 func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
+}
+
+func (aws *AWS) Regions() []string {
+	return awsRegions
 }

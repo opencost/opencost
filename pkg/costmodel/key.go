@@ -213,22 +213,28 @@ func resultDeploymentKey(res *prom.QueryResult, clusterLabel, namespaceLabel, co
 	return resultControllerKey("deployment", res, clusterLabel, namespaceLabel, controllerLabel)
 }
 
-// resultDeploymentKey creates a controllerKey for a StatefulSet.
+// resultStatefulSetKey creates a controllerKey for a StatefulSet.
 // (See resultControllerKey for more.)
 func resultStatefulSetKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
 	return resultControllerKey("statefulset", res, clusterLabel, namespaceLabel, controllerLabel)
 }
 
-// resultDeploymentKey creates a controllerKey for a DaemonSet.
+// resultDaemonSetKey creates a controllerKey for a DaemonSet.
 // (See resultControllerKey for more.)
 func resultDaemonSetKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
 	return resultControllerKey("daemonset", res, clusterLabel, namespaceLabel, controllerLabel)
 }
 
-// resultDeploymentKey creates a controllerKey for a Job.
+// resultJobKey creates a controllerKey for a Job.
 // (See resultControllerKey for more.)
 func resultJobKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
 	return resultControllerKey("job", res, clusterLabel, namespaceLabel, controllerLabel)
+}
+
+// resultReplicaSetKey creates a controllerKey for a Job.
+// (See resultControllerKey for more.)
+func resultReplicaSetKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
+	return resultControllerKey("replicaset", res, clusterLabel, namespaceLabel, controllerLabel)
 }
 
 type serviceKey struct {

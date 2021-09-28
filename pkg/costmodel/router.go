@@ -1087,7 +1087,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 
 	watchConfigFunc := func(c interface{}) {
 		conf := c.(*v1.ConfigMap)
-		if conf.GetName() == "pricing-configs" {
+		if conf.GetName() == env.GetPricingConfigmapName() {
 			_, err := cloudProvider.UpdateConfigFromConfigMap(conf.Data)
 			if err != nil {
 				klog.Infof("ERROR UPDATING %s CONFIG: %s", "pricing-configs", err.Error())
@@ -1105,9 +1105,9 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 
 	kubecostNamespace := env.GetKubecostNamespace()
 	// We need an initial invocation because the init of the cache has happened before we had access to the provider.
-	configs, err := kubeClientset.CoreV1().ConfigMaps(kubecostNamespace).Get(context.Background(), "pricing-configs", metav1.GetOptions{})
+	configs, err := kubeClientset.CoreV1().ConfigMaps(kubecostNamespace).Get(context.Background(), env.GetPricingConfigmapName(), metav1.GetOptions{})
 	if err != nil {
-		klog.Infof("No %s configmap found at installtime, using existing configs: %s", "pricing-configs", err.Error())
+		klog.Infof("No %s configmap found at installtime, using existing configs: %s", env.GetPricingConfigmapName(), err.Error())
 	} else {
 		watchConfigFunc(configs)
 	}
@@ -1117,6 +1117,7 @@ func Initialize(additionalConfigWatchers ...ConfigWatchers) *Accesses {
 		if err != nil {
 			klog.Infof("No %s configmap found at installtime, using existing configs: %s", cw.ConfigmapName, err.Error())
 		} else {
+			klog.Infof("Found configmap %s, watching...", configs.Name)
 			watchConfigFunc(configs)
 		}
 	}
