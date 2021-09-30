@@ -369,7 +369,7 @@ func TestNode_Add(t *testing.T) {
 	node1.GPUCost = 0.0
 	node1.CPUCost = 8.0
 	node1.RAMCost = 4.0
-	node1.Discount = 0.3
+	node1.SetDiscount(0.3)
 	node1.CPUBreakdown = &Breakdown{
 		Idle:   0.6,
 		System: 0.2,
@@ -391,7 +391,7 @@ func TestNode_Add(t *testing.T) {
 	node2.GPUCost = 0.0
 	node2.CPUCost = 3.0
 	node2.RAMCost = 1.0
-	node2.Discount = 0.0
+	node2.SetDiscount(0.0)
 	node1.CPUBreakdown = &Breakdown{
 		Idle:   0.9,
 		System: 0.05,
@@ -456,7 +456,7 @@ func TestNode_Add(t *testing.T) {
 	node3.GPUCost = 0
 	node3.CPUCost = 0.0
 	node3.RAMCost = 0.0
-	node3.Discount = 0.3
+	node3.SetDiscount(0.3)
 	node3.SetAdjustment(0.0)
 
 	node4 := NewNode("node4", "cluster1", "node4", *windows[0].start, *windows[0].end, windows[0])
@@ -466,7 +466,7 @@ func TestNode_Add(t *testing.T) {
 	node4.GPUCost = 0
 	node4.CPUCost = 0.0
 	node4.RAMCost = 0.0
-	node4.Discount = 0.1
+	node4.SetDiscount(0.1)
 	node4.SetAdjustment(0.0)
 
 	nodeT = node3.Add(node4).(*Node)
@@ -475,8 +475,8 @@ func TestNode_Add(t *testing.T) {
 	if nodeT.TotalCost() != 0.0 {
 		t.Fatalf("Node.Add: expected %f; got %f", 0.0, nodeT.TotalCost())
 	}
-	if nodeT.Discount != 0.2 {
-		t.Fatalf("Node.Add: expected %f; got %f", 0.2, nodeT.Discount)
+	if nodeT.Discount() != 0.2 {
+		t.Fatalf("Node.Add: expected %f; got %f", 0.2, nodeT.Discount())
 	}
 
 	// Accumulate: one nodes, two window
@@ -487,7 +487,7 @@ func TestNode_Add(t *testing.T) {
 	nodeA1.GPUCost = 0.0
 	nodeA1.CPUCost = 8.0
 	nodeA1.RAMCost = 4.0
-	nodeA1.Discount = 0.3
+	nodeA1.SetDiscount(0.3)
 	nodeA1.SetAdjustment(1.6)
 
 	nodeA2 := NewNode("nodeA2", "cluster1", "nodeA2", *windows[1].start, *windows[1].end, windows[1])
@@ -497,7 +497,7 @@ func TestNode_Add(t *testing.T) {
 	nodeA2.GPUCost = 0.0
 	nodeA2.CPUCost = 3.0
 	nodeA2.RAMCost = 1.0
-	nodeA2.Discount = 0.0
+	nodeA2.SetDiscount(0.0)
 	nodeA2.SetAdjustment(1.0)
 
 	nodeAT := nodeA1.Add(nodeA2).(*Node)

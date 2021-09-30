@@ -55,7 +55,7 @@ type ClusterMap interface {
 	// GetClusterIDs returns a slice containing all of the cluster identifiers.
 	GetClusterIDs() []string
 
-	// AsMap returns the cluster map as a standard go map
+	//AsMap returns the cluster map as a standard go map
 	AsMap() map[string]*ClusterInfo
 
 	// InfoFor returns the ClusterInfo entry for the provided clusterID or nil if it
