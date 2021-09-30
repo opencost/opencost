@@ -127,7 +127,7 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 
 	// Wait for each caching watcher to initialize
 	wgCount := 14
-	if env.ETLOnlyMode() {
+	if env.GetETLOnlyMode() {
 		wgCount = 1
 	}
 	var wg sync.WaitGroup
@@ -136,7 +136,7 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 	cancel := make(chan struct{})
 
 	go initializeCache(kcc.kubecostConfigMapWatch, &wg, cancel)
-	if !env.ETLOnlyMode() {
+	if !env.GetETLOnlyMode() {
 		go initializeCache(kcc.namespaceWatch, &wg, cancel)
 		go initializeCache(kcc.nodeWatch, &wg, cancel)
 		go initializeCache(kcc.podWatch, &wg, cancel)
@@ -164,7 +164,7 @@ func (kcc *KubernetesClusterCache) Run() {
 	stopCh := make(chan struct{})
 
 	go kcc.kubecostConfigMapWatch.Run(1, stopCh)
-	if !env.ETLOnlyMode() {
+	if !env.GetETLOnlyMode() {
 		go kcc.namespaceWatch.Run(1, stopCh)
 		go kcc.nodeWatch.Run(1, stopCh)
 		go kcc.podWatch.Run(1, stopCh)
