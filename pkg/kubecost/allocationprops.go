@@ -18,6 +18,10 @@ const (
 	AllocationNamespaceProp      string = "namespace"
 	AllocationPodProp            string = "pod"
 	AllocationProviderIDProp     string = "providerID"
+	AllocationProviderProp       string = "provider"
+	AllocationAccountProp        string = "account"
+	AllocationProjectProp        string = "project"
+	AllocationRegionProp         string = "region"
 	AllocationServiceProp        string = "service"
 	AllocationLabelProp          string = "label"
 	AllocationAnnotationProp     string = "annotation"
@@ -50,6 +54,14 @@ func ParseProperty(text string) (string, error) {
 		return AllocationPodProp, nil
 	case "providerid":
 		return AllocationProviderIDProp, nil
+	case "provider":
+		return AllocationProviderProp, nil
+	case "account":
+		return AllocationAccountProp, nil
+	case "project":
+		return AllocationProjectProp, nil
+	case "region":
+		return AllocationRegionProp, nil
 	case "service":
 		return AllocationServiceProp, nil
 	case "label":
@@ -100,6 +112,10 @@ type AllocationProperties struct {
 	Pod            string                `json:"pod,omitempty"`
 	Services       []string              `json:"services,omitempty"`
 	ProviderID     string                `json:"providerID,omitempty"`
+	Provider       string                `json:"provider,omitempty"`
+	Account        string                `json:"account,omitempty"`
+	Project        string                `json:"project,omitempty"`
+	Region         string                `json:"region,omitempty"`
 	Labels         AllocationLabels      `json:"labels,omitempty"`
 	Annotations    AllocationAnnotations `json:"annotations,omitempty"`
 }
@@ -126,6 +142,10 @@ func (p *AllocationProperties) Clone() *AllocationProperties {
 	clone.Namespace = p.Namespace
 	clone.Pod = p.Pod
 	clone.ProviderID = p.ProviderID
+	clone.Provider = p.Provider
+	clone.Account = p.Account
+	clone.Project = p.Project
+	clone.Region = p.Region
 
 	var services []string
 	for _, s := range p.Services {
@@ -181,7 +201,19 @@ func (p *AllocationProperties) Equal(that *AllocationProperties) bool {
 		return false
 	}
 
-	if p.ProviderID != that.ProviderID {
+	if p.Provider != that.Provider {
+		return false
+	}
+
+	if p.Account != that.Account {
+		return false
+	}
+
+	if p.Project != that.Project {
+		return false
+	}
+
+	if p.Region != that.Region {
 		return false
 	}
 
@@ -260,6 +292,18 @@ func (p *AllocationProperties) Intersection(that *AllocationProperties) *Allocat
 	if p.ProviderID == that.ProviderID {
 		intersectionProps.ProviderID = p.ProviderID
 	}
+	if p.Provider == that.Provider {
+		intersectionProps.Provider = p.Provider
+	}
+	if p.Account == that.Account {
+		intersectionProps.Account = p.Account
+	}
+	if p.Project == that.Project {
+		intersectionProps.Project = p.Project
+	}
+	if p.Region == that.Region {
+		intersectionProps.Region = p.Region
+	}
 	return intersectionProps
 }
 
@@ -300,6 +344,21 @@ func (p *AllocationProperties) String() string {
 
 	if p.ProviderID != "" {
 		strs = append(strs, "ProviderID:"+p.ProviderID)
+	}
+
+	if p.Provider != "" {
+		strs = append(strs, "Provider:"+p.Provider)
+	}
+
+	if p.Account != "" {
+		strs = append(strs, "Account:"+p.Account)
+	}
+
+	if p.Project != "" {
+		strs = append(strs, "Project:"+p.Project)
+	}
+	if p.Region != "" {
+		strs = append(strs, "Region:"+p.Region)
 	}
 
 	if len(p.Services) > 0 {

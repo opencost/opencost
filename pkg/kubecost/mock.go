@@ -588,7 +588,7 @@ func GenerateMockAssetSet(start time.Time) *AssetSet {
 	node1.CPUCost = 4.0
 	node1.RAMCost = 4.0
 	node1.GPUCost = 2.0
-	node1.Discount = 0.5
+	node1.SetDiscount(0.5)
 	node1.CPUCoreHours = 2.0 * hours
 	node1.RAMByteHours = 4.0 * gb * hours
 	node1.GPUHours = 1.0 * hours
@@ -599,7 +599,7 @@ func GenerateMockAssetSet(start time.Time) *AssetSet {
 	node2.CPUCost = 4.0
 	node2.RAMCost = 4.0
 	node2.GPUCost = 0.0
-	node2.Discount = 0.5
+	node2.SetDiscount(0.5)
 	node2.CPUCoreHours = 2.0 * hours
 	node2.RAMByteHours = 4.0 * gb * hours
 	node2.GPUHours = 0.0 * hours
@@ -609,7 +609,7 @@ func GenerateMockAssetSet(start time.Time) *AssetSet {
 	node3.CPUCost = 4.0
 	node3.RAMCost = 4.0
 	node3.GPUCost = 3.0
-	node3.Discount = 0.5
+	node3.SetDiscount(0.5)
 	node3.CPUCoreHours = 2.0 * hours
 	node3.RAMByteHours = 4.0 * gb * hours
 	node3.GPUHours = 2.0 * hours
@@ -619,7 +619,7 @@ func GenerateMockAssetSet(start time.Time) *AssetSet {
 	node4.CPUCost = 10.0
 	node4.RAMCost = 6.0
 	node4.GPUCost = 0.0
-	node4.Discount = 0.25
+	node4.SetDiscount(0.25)
 	node4.CPUCoreHours = 4.0 * hours
 	node4.RAMByteHours = 12.0 * gb * hours
 	node4.GPUHours = 0.0 * hours
@@ -629,7 +629,7 @@ func GenerateMockAssetSet(start time.Time) *AssetSet {
 	node5.CPUCost = 10.0
 	node5.RAMCost = 7.0
 	node5.GPUCost = 0.0
-	node5.Discount = 0.0
+	node5.SetDiscount(0.0)
 	node5.CPUCoreHours = 8.0 * hours
 	node5.RAMByteHours = 24.0 * gb * hours
 	node5.GPUHours = 0.0 * hours

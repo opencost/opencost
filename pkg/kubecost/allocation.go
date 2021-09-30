@@ -1753,9 +1753,9 @@ func (as *AllocationSet) ComputeIdleAllocations(assetSet *AssetSet) (map[string]
 				adjustmentRate = node.TotalCost() / (node.TotalCost() - node.Adjustment())
 			}
 
-			cpuCost := node.CPUCost * (1.0 - node.Discount) * adjustmentRate
-			ramCost := node.RAMCost * (1.0 - node.Discount) * adjustmentRate
-			gpuCost := node.GPUCost * (1.0) * adjustmentRate
+			cpuCost := node.CPUCost * (1.0 - node.Discount()) * adjustmentRate
+			ramCost := node.RAMCost * (1.0 - node.Discount()) * adjustmentRate
+			gpuCost := node.GPUCost * adjustmentRate
 
 			assetClusterResourceCosts[node.Properties().Cluster]["cpu"] += cpuCost
 			assetClusterResourceCosts[node.Properties().Cluster]["ram"] += ramCost
@@ -1890,8 +1890,8 @@ func (as *AllocationSet) ComputeIdleAllocationsByNode(assetSet *AssetSet) (map[s
 				adjustmentRate = node.TotalCost() / (node.TotalCost() - node.Adjustment())
 			}
 
-			cpuCost := node.CPUCost * (1.0 - node.Discount) * adjustmentRate
-			ramCost := node.RAMCost * (1.0 - node.Discount) * adjustmentRate
+			cpuCost := node.CPUCost * (1.0 - node.Discount()) * adjustmentRate
+			ramCost := node.RAMCost * (1.0 - node.Discount()) * adjustmentRate
 			gpuCost := node.GPUCost * adjustmentRate
 
 			assetNodeResourceCosts[node.Properties().ProviderID]["cpu"] += cpuCost

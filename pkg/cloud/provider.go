@@ -495,7 +495,6 @@ func getClusterProperties(node *v1.Node) (clusterProperties) {
 	if env.IsUseCSVProvider() {
 		cp.provider = "CSV"
 	}
-
 	return cp
 }
 

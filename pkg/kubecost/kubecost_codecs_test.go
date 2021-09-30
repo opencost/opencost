@@ -414,13 +414,13 @@ func TestNode_BinaryEncoding(t *testing.T) {
 
 	a0 = NewNode("any1", "cluster1", "世界", start, end, window)
 	a0.NodeType = "n2-standard"
-	a0.Preemptible = 1.0
+	a0.SetAssetPricingModels(&AssetPricingModels{Preemptible: 1.0})
 	a0.CPUCoreHours = 2.0 * hours
 	a0.RAMByteHours = 12.0 * gb * hours
 	a0.CPUCost = 1.50
 	a0.GPUCost = 30.44
 	a0.RAMCost = 15.0
-	a0.Discount = 0.9
+	a0.SetDiscount(0.9)
 	a0.CPUBreakdown = &Breakdown{
 		Idle:   0.9,
 		Other:  0.05,

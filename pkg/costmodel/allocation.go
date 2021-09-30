@@ -386,6 +386,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 
 	for _, pod := range podMap {
 		for _, alloc := range pod.Allocations {
+			cm.propertiesFromCluster(alloc.Properties)
 			cluster := alloc.Properties.Cluster
 			nodeName := alloc.Properties.Node
 			namespace := alloc.Properties.Namespace
@@ -448,6 +449,23 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	}
 
 	return allocSet, nil
+}
+
+// propertiesFromCluster populates static cluster properties to individual asset properties
+func (cm *CostModel) propertiesFromCluster(props *kubecost.AllocationProperties) {
+	// If properties does not have cluster value, do nothing
+	if props.Cluster == "" {
+		return
+	}
+	clusterMap := cm.ClusterMap.AsMap()
+	ci, ok := clusterMap[props.Cluster]
+	if !ok {
+		log.DedupedWarningf(5, "Allocation Cluster \"%s\" was not found in Cluster Map")
+	}
+	props.Region = ci.Region
+	props.Project = ci.Project
+	props.Account = ci.Account
+	props.Provider = ci.Provider
 }
 
 func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSize time.Duration, podMap map[podKey]*Pod, clusterStart, clusterEnd map[string]time.Time) error {

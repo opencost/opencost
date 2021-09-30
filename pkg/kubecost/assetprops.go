@@ -24,6 +24,9 @@ const (
 	// AssetNameProp describes the name of the Asset
 	AssetNameProp AssetProperty = "name"
 
+	// AssetRegionProp describes the name of the Asset
+	AssetRegionProp AssetProperty = "region"
+
 	// AssetProjectProp describes the project of the Asset
 	AssetProjectProp AssetProperty = "project"
 
@@ -38,6 +41,12 @@ const (
 
 	// AssetTypeProp describes the type of the Asset
 	AssetTypeProp AssetProperty = "type"
+
+	// AssetPricingSourceProp describes the most recent source of the Asset's Cost
+	AssetPricingSourceProp AssetProperty = "pricingSource"
+
+	// AssetCurrencyProp describes the currency of the Asset's Cost
+	AssetCurrencyProp AssetProperty = "currency"
 )
 
 // ParseAssetProperty attempts to parse a string into an AssetProperty
@@ -51,6 +60,8 @@ func ParseAssetProperty(text string) (AssetProperty, error) {
 		return AssetClusterProp, nil
 	case "name":
 		return AssetNameProp, nil
+	case "region":
+		return AssetRegionProp, nil
 	case "project":
 		return AssetProjectProp, nil
 	case "provider":
@@ -61,6 +72,10 @@ func ParseAssetProperty(text string) (AssetProperty, error) {
 		return AssetServiceProp, nil
 	case "type":
 		return AssetTypeProp, nil
+	case "pricingSource":
+		return AssetPricingSourceProp, nil
+	case "currency":
+		return AssetCurrencyProp, nil
 	}
 	return AssetNilProp, fmt.Errorf("invalid asset property: %s", text)
 }
@@ -101,6 +116,7 @@ const NilProvider = "-"
 
 // Service options
 
+// KubernetesService describes the service of in cluster Assets
 const KubernetesService = "Kubernetes"
 
 // ParseProvider attempts to parse and return a known provider, given a string
@@ -119,14 +135,17 @@ func ParseProvider(str string) string {
 
 // AssetProperties describes all properties assigned to an Asset.
 type AssetProperties struct {
-	Category   string `json:"category,omitempty"`
-	Provider   string `json:"provider,omitempty"`
-	Account    string `json:"account,omitempty"`
-	Project    string `json:"project,omitempty"`
-	Service    string `json:"service,omitempty"`
-	Cluster    string `json:"cluster,omitempty"`
-	Name       string `json:"name,omitempty"`
-	ProviderID string `json:"providerID,omitempty"`
+	Category      string `json:"category,omitempty"`
+	Provider      string `json:"provider,omitempty"`
+	Account       string `json:"account,omitempty"`
+	Project       string `json:"project,omitempty"`
+	Service       string `json:"service,omitempty"`
+	Cluster       string `json:"cluster,omitempty"`
+	Name          string `json:"name,omitempty"`
+	Region        string `json:"region,omitempty"`
+	ProviderID    string `json:"providerID,omitempty"`
+	PricingSource string `json:"pricingSource,omitempty"`
+	Currency      string `json:"currency,omitempty"`
 }
 
 // Clone returns a cloned instance of the given AssetProperties
@@ -143,7 +162,10 @@ func (ap *AssetProperties) Clone() *AssetProperties {
 	clone.Service = ap.Service
 	clone.Cluster = ap.Cluster
 	clone.Name = ap.Name
+	clone.Region = ap.Region
 	clone.ProviderID = ap.ProviderID
+	clone.PricingSource = ap.PricingSource
+	clone.Currency = ap.Currency
 
 	return clone
 }
@@ -182,7 +204,19 @@ func (ap *AssetProperties) Equal(that *AssetProperties) bool {
 		return false
 	}
 
+	if ap.Region != that.Region {
+		return false
+	}
+
 	if ap.ProviderID != that.ProviderID {
+		return false
+	}
+
+	if ap.PricingSource != that.PricingSource {
+		return false
+	}
+
+	if ap.Currency != that.Currency {
 		return false
 	}
 
@@ -226,8 +260,18 @@ func (ap *AssetProperties) Keys(props []AssetProperty) []string {
 		keys = append(keys, ap.Name)
 	}
 
+	if (props == nil || hasProp(props, AssetRegionProp)) && ap.Region != "" {
+		keys = append(keys, ap.Region)
+	}
+
 	if (props == nil || hasProp(props, AssetProviderIDProp)) && ap.ProviderID != "" {
 		keys = append(keys, ap.ProviderID)
+	}
+
+	// AssetPricingSourceProp is purposefully excluded from key because it is updated post asset creation
+
+	if (props == nil || hasProp(props, AssetCurrencyProp)) && ap.Currency != "" {
+		keys = append(keys, ap.Currency)
 	}
 
 	return keys
@@ -269,8 +313,20 @@ func (ap *AssetProperties) Merge(that *AssetProperties) *AssetProperties {
 		result.Name = ap.Name
 	}
 
+	if ap.Region == that.Region {
+		result.Region = ap.Region
+	}
+
 	if ap.ProviderID == that.ProviderID {
 		result.ProviderID = ap.ProviderID
+	}
+
+	if ap.PricingSource == that.PricingSource {
+		result.PricingSource = ap.PricingSource
+	}
+
+	if ap.Currency == that.Currency {
+		result.Currency = ap.Currency
 	}
 
 	return result
@@ -312,8 +368,20 @@ func (ap *AssetProperties) String() string {
 		strs = append(strs, "Name:"+ap.Name)
 	}
 
+	if ap.Region != "" {
+		strs = append(strs, "Region:"+ap.Region)
+	}
+
 	if ap.ProviderID != "" {
 		strs = append(strs, "ProviderID:"+ap.ProviderID)
+	}
+
+	if ap.PricingSource != "" {
+		strs = append(strs, "PricingSource:"+ap.PricingSource)
+	}
+
+	if ap.Currency != "" {
+		strs = append(strs, "Currency:"+ap.Currency)
 	}
 
 	return strings.Join(strs, ",")

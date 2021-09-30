@@ -27,6 +27,11 @@ type Asset interface {
 	Properties() *AssetProperties
 	SetProperties(*AssetProperties)
 
+	// AssetPricingModels are predefined discounts that can be applied to assets,
+	// for asset types that these discounts do not apply to nil pointers are used
+	AssetPricingModels() *AssetPricingModels
+	SetAssetPricingModels(*AssetPricingModels)
+
 	// Labels are a map of undefined string-to-string values
 	Labels() AssetLabels
 	SetLabels(AssetLabels)
@@ -34,6 +39,10 @@ type Asset interface {
 	// Monetary values
 	Adjustment() float64
 	SetAdjustment(float64)
+	Credit() float64
+	SetCredit(float64)
+	Discount() float64
+	SetDiscount(float64)
 	TotalCost() float64
 
 	// Temporal values
@@ -312,6 +321,68 @@ func toString(a Asset) string {
 	return fmt.Sprintf("%s{%s}%s=%.2f", a.Type().String(), a.Properties(), a.Window(), a.TotalCost())
 }
 
+// AssetPricingModels contains different discount types that can be applied to an asset along with the percent of the total
+// that is represented by that discount type
+type AssetPricingModels struct {
+	Preemptible      float64 `json:"preemptible,omitempty"`
+	ReservedInstance float64 `json:"reservedInstance,omitempty"`
+	SavingsPlan      float64 `json:"savingsPlan,omitempty"`
+}
+
+// Clone create a copy of the calling AssetPricingModels
+func (apm *AssetPricingModels) Clone() *AssetPricingModels {
+	if apm == nil {
+		return nil
+	}
+	return &AssetPricingModels{
+		Preemptible:      apm.Preemptible,
+		ReservedInstance: apm.ReservedInstance,
+		SavingsPlan:      apm.SavingsPlan,
+	}
+}
+
+// Equal determines if two *AssetPricingModels contain the same value
+func (apm *AssetPricingModels) Equal(that *AssetPricingModels) bool {
+	if apm == nil && that == nil {
+		return true
+	}
+	if apm != nil && that != nil {
+		return apm.Preemptible == that.Preemptible && apm.ReservedInstance == that.ReservedInstance && apm.SavingsPlan == that.SavingsPlan
+	}
+	return false
+}
+
+// mergePricingModels merges the discounts of two assets for use in Asset Add() methods
+func mergePricingModels(this, that Asset) *AssetPricingModels {
+	thisDiscounts := this.AssetPricingModels()
+	thatDiscounts := that.AssetPricingModels()
+
+	// In case of nil AssetPricingModels return the other AssetPricingModels.
+	// If both are nil then nil will be returned
+	if thisDiscounts == nil {
+		return thatDiscounts
+	}
+	if thatDiscounts == nil {
+		return thisDiscounts
+	}
+
+	ad := AssetPricingModels{}
+
+	// if that is of type any or cloud, merge
+	thisNoAdj := this.TotalCost() - this.Adjustment()
+	thatNoAdj := that.TotalCost() - that.Adjustment()
+	if (thisNoAdj + thatNoAdj) > 0 {
+		ad.Preemptible = (thisNoAdj*thisDiscounts.Preemptible + thatNoAdj*thatDiscounts.Preemptible) / (thisNoAdj + thatNoAdj)
+		ad.ReservedInstance = (thisNoAdj*thisDiscounts.ReservedInstance + thatNoAdj*thatDiscounts.ReservedInstance) / (thisNoAdj + thatNoAdj)
+		ad.SavingsPlan = (thisNoAdj*thisDiscounts.SavingsPlan + thatNoAdj*thatDiscounts.SavingsPlan) / (thisNoAdj + thatNoAdj)
+	} else {
+		ad.Preemptible = (thisDiscounts.Preemptible + thatDiscounts.Preemptible) / 2.0
+		ad.ReservedInstance = (thisDiscounts.ReservedInstance + thatDiscounts.ReservedInstance) / 2.0
+		ad.SavingsPlan = (thisDiscounts.SavingsPlan + thatDiscounts.SavingsPlan) / 2.0
+	}
+	return &ad
+}
+
 // AssetLabels is a schema-free mapping of key/value pairs that can be
 // attributed to an Asset as a flexible a
 type AssetLabels map[string]string
@@ -426,23 +497,27 @@ func (at AssetType) String() string {
 // Any is the most general Asset, which is usually created as a result of
 // adding two Assets of different types.
 type Any struct {
-	labels     AssetLabels
-	properties *AssetProperties
-	start      time.Time
-	end        time.Time
-	window     Window
-	adjustment float64
-	Cost       float64
+	labels             AssetLabels
+	properties         *AssetProperties
+	assetPricingModels *AssetPricingModels
+	start              time.Time
+	end                time.Time
+	window             Window
+	adjustment         float64
+	credit             float64
+	discount           float64
+	Cost               float64
 }
 
 // NewAsset creates a new Any-type Asset for the given period of time
 func NewAsset(start, end time.Time, window Window) *Any {
 	return &Any{
-		labels:     AssetLabels{},
-		properties: &AssetProperties{},
-		start:      start,
-		end:        end,
-		window:     window.Clone(),
+		labels:             AssetLabels{},
+		properties:         &AssetProperties{},
+		assetPricingModels: &AssetPricingModels{},
+		start:              start,
+		end:                end,
+		window:             window.Clone(),
 	}
 }
 
@@ -471,6 +546,16 @@ func (a *Any) SetLabels(labels AssetLabels) {
 	a.labels = labels
 }
 
+// AssetPricingModels returns the Asset's labels
+func (a *Any) AssetPricingModels() *AssetPricingModels {
+	return a.assetPricingModels
+}
+
+// SetAssetPricingModels sets the Asset's labels
+func (a *Any) SetAssetPricingModels(assetPricingModels *AssetPricingModels) {
+	a.assetPricingModels = assetPricingModels
+}
+
 // Adjustment returns the Asset's cost adjustment
 func (a *Any) Adjustment() float64 {
 	return a.adjustment
@@ -481,9 +566,29 @@ func (a *Any) SetAdjustment(adj float64) {
 	a.adjustment = adj
 }
 
+// Credit returns the Asset's credit value
+func (a *Any) Credit() float64 {
+	return a.credit
+}
+
+// SetCredit sets the Asset's credit value
+func (a *Any) SetCredit(cred float64) {
+	a.credit = cred
+}
+
+// Discount returns the Asset's discount value
+func (a *Any) Discount() float64 {
+	return a.discount
+}
+
+// SetDiscount sets the Asset's discount value
+func (a *Any) SetDiscount(discount float64) {
+	a.discount = discount
+}
+
 // TotalCost returns the Asset's TotalCost
 func (a *Any) TotalCost() float64 {
-	return a.Cost + a.adjustment
+	return a.Cost + a.adjustment + a.credit
 }
 
 // Start returns the Asset's start time within the window
@@ -549,8 +654,10 @@ func (a *Any) Add(that Asset) Asset {
 	this.window = window
 	this.SetProperties(props)
 	this.SetLabels(labels)
+	this.SetAssetPricingModels(mergePricingModels(a, that))
 	this.adjustment += that.Adjustment()
-	this.Cost += (that.TotalCost() - that.Adjustment())
+	this.credit += that.Credit()
+	this.Cost += (that.TotalCost() - that.Adjustment() - that.Credit())
 
 	return this
 }
@@ -558,13 +665,16 @@ func (a *Any) Add(that Asset) Asset {
 // Clone returns a cloned instance of the Asset
 func (a *Any) Clone() Asset {
 	return &Any{
-		labels:     a.labels.Clone(),
-		properties: a.properties.Clone(),
-		start:      a.start,
-		end:        a.end,
-		window:     a.window.Clone(),
-		adjustment: a.adjustment,
-		Cost:       a.Cost,
+		labels:             a.labels.Clone(),
+		assetPricingModels: a.assetPricingModels.Clone(),
+		properties:         a.properties.Clone(),
+		start:              a.start,
+		end:                a.end,
+		window:             a.window.Clone(),
+		adjustment:         a.adjustment,
+		credit:             a.credit,
+		discount:           a.discount,
+		Cost:               a.Cost,
 	}
 }
 
@@ -582,6 +692,10 @@ func (a *Any) Equal(that Asset) bool {
 		return false
 	}
 
+	if !a.assetPricingModels.Equal(t.assetPricingModels) {
+		return false
+	}
+
 	if !a.start.Equal(t.start) {
 		return false
 	}
@@ -589,6 +703,18 @@ func (a *Any) Equal(that Asset) bool {
 		return false
 	}
 	if !a.window.Equal(t.window) {
+		return false
+	}
+
+	if a.adjustment != t.adjustment {
+		return false
+	}
+
+	if a.credit != t.credit {
+		return false
+	}
+
+	if a.discount != t.discount {
 		return false
 	}
 
@@ -606,14 +732,18 @@ func (a *Any) String() string {
 
 // Cloud describes a cloud asset
 type Cloud struct {
-	labels     AssetLabels
-	properties *AssetProperties
-	start      time.Time
-	end        time.Time
-	window     Window
-	adjustment float64
-	Cost       float64
-	Credit     float64 // Credit is a negative value representing dollars credited back to a given line-item
+	labels             AssetLabels
+	properties         *AssetProperties
+	assetPricingModels *AssetPricingModels
+	start              time.Time
+	end                time.Time
+	window             Window
+	adjustment         float64
+	credit             float64 // Credit is a negative value representing dollars credited back to a given line-item
+	discount           float64
+	Cost               float64
+	UsageType          string
+	UsageDetail        string
 }
 
 // NewCloud returns a new Cloud Asset
@@ -624,11 +754,12 @@ func NewCloud(category, providerID string, start, end time.Time, window Window) 
 	}
 
 	return &Cloud{
-		labels:     AssetLabels{},
-		properties: properties,
-		start:      start,
-		end:        end,
-		window:     window.Clone(),
+		labels:             AssetLabels{},
+		properties:         properties,
+		assetPricingModels: &AssetPricingModels{},
+		start:              start,
+		end:                end,
+		window:             window.Clone(),
 	}
 }
 
@@ -657,6 +788,16 @@ func (ca *Cloud) SetLabels(labels AssetLabels) {
 	ca.labels = labels
 }
 
+// AssetPricingModels returns the Asset's labels
+func (ca *Cloud) AssetPricingModels() *AssetPricingModels {
+	return ca.assetPricingModels
+}
+
+// SetAssetPricingModels sets the Asset's labels
+func (ca *Cloud) SetAssetPricingModels(assetPricingModels *AssetPricingModels) {
+	ca.assetPricingModels = assetPricingModels
+}
+
 // Adjustment returns the Asset's adjustment value
 func (ca *Cloud) Adjustment() float64 {
 	return ca.adjustment
@@ -667,9 +808,29 @@ func (ca *Cloud) SetAdjustment(adj float64) {
 	ca.adjustment = adj
 }
 
+// Credit returns the Asset's credit value
+func (ca *Cloud) Credit() float64 {
+	return ca.credit
+}
+
+// SetCredit sets the Asset's credit value
+func (ca *Cloud) SetCredit(cred float64) {
+	ca.credit = cred
+}
+
+// Discount returns the Asset's discount value
+func (ca *Cloud) Discount() float64 {
+	return ca.discount
+}
+
+// SetDiscount sets the Asset's discount value
+func (ca *Cloud) SetDiscount(discount float64) {
+	ca.discount = discount
+}
+
 // TotalCost returns the Asset's total cost
 func (ca *Cloud) TotalCost() float64 {
-	return ca.Cost + ca.adjustment + ca.Credit
+	return ca.Cost + ca.adjustment + ca.credit
 }
 
 // Start returns the Asset's precise start time within the window
@@ -739,8 +900,10 @@ func (ca *Cloud) Add(a Asset) Asset {
 	any := NewAsset(start, end, window)
 	any.SetProperties(props)
 	any.SetLabels(labels)
+	any.SetAssetPricingModels(mergePricingModels(ca, a))
 	any.adjustment = ca.Adjustment() + a.Adjustment()
-	any.Cost = (ca.TotalCost() - ca.Adjustment()) + (a.TotalCost() - a.Adjustment())
+	any.credit = ca.Credit() + a.Credit()
+	any.Cost = (ca.TotalCost() - ca.Adjustment() - ca.Credit()) + (a.TotalCost() - a.Adjustment() - a.Credit())
 
 	return any
 }
@@ -764,27 +927,41 @@ func (ca *Cloud) add(that *Cloud) {
 	}
 	window := ca.Window().Expand(that.Window())
 
+	if ca.UsageType != that.UsageType {
+		ca.UsageType = ""
+	}
+
+	if ca.UsageDetail != that.UsageDetail {
+		ca.UsageDetail = ""
+	}
+
 	ca.start = start
 	ca.end = end
 	ca.window = window
 	ca.SetProperties(props)
 	ca.SetLabels(labels)
+	ca.SetAssetPricingModels(mergePricingModels(ca, that))
 	ca.adjustment += that.adjustment
+	ca.credit += that.credit
 	ca.Cost += that.Cost
-	ca.Credit += that.Credit
+
 }
 
 // Clone returns a cloned instance of the Asset
 func (ca *Cloud) Clone() Asset {
 	return &Cloud{
-		labels:     ca.labels.Clone(),
-		properties: ca.properties.Clone(),
-		start:      ca.start,
-		end:        ca.end,
-		window:     ca.window.Clone(),
-		adjustment: ca.adjustment,
-		Cost:       ca.Cost,
-		Credit:     ca.Credit,
+		labels:             ca.labels.Clone(),
+		properties:         ca.properties.Clone(),
+		assetPricingModels: ca.assetPricingModels.Clone(),
+		start:              ca.start,
+		end:                ca.end,
+		window:             ca.window.Clone(),
+		adjustment:         ca.adjustment,
+		credit:             ca.credit,
+		discount:           ca.discount,
+		Cost:               ca.Cost,
+		UsageType:          ca.UsageType,
+		UsageDetail:        ca.UsageDetail,
 	}
 }
 
@@ -802,6 +979,10 @@ func (ca *Cloud) Equal(a Asset) bool {
 		return false
 	}
 
+	if !ca.assetPricingModels.Equal(that.assetPricingModels) {
+		return false
+	}
+
 	if !ca.start.Equal(that.start) {
 		return false
 	}
@@ -816,10 +997,23 @@ func (ca *Cloud) Equal(a Asset) bool {
 		return false
 	}
 
+	if ca.credit != that.credit {
+		return false
+	}
+
+	if ca.discount != that.discount {
+		return false
+	}
+
 	if ca.Cost != that.Cost {
 		return false
 	}
-	if ca.Credit != that.Credit {
+
+	if ca.UsageType != that.UsageType {
+		return false
+	}
+
+	if ca.UsageDetail != that.UsageDetail {
 		return false
 	}
 
@@ -833,10 +1027,14 @@ func (ca *Cloud) String() string {
 
 // ClusterManagement describes a provider's cluster management fee
 type ClusterManagement struct {
-	labels     AssetLabels
-	properties *AssetProperties
-	window     Window
-	Cost       float64
+	labels             AssetLabels
+	properties         *AssetProperties
+	assetPricingModels *AssetPricingModels
+	window             Window
+	adjustment         float64
+	credit             float64
+	discount           float64
+	Cost               float64
 }
 
 // NewClusterManagement creates and returns a new ClusterManagement instance
@@ -880,19 +1078,49 @@ func (cm *ClusterManagement) SetLabels(props AssetLabels) {
 	cm.labels = props
 }
 
-// Adjustment does not apply to ClusterManagement
-func (cm *ClusterManagement) Adjustment() float64 {
-	return 0.0
+// AssetPricingModels returns the Asset's labels
+func (cm *ClusterManagement) AssetPricingModels() *AssetPricingModels {
+	return cm.assetPricingModels
 }
 
-// SetAdjustment does not apply to ClusterManagement
-func (cm *ClusterManagement) SetAdjustment(float64) {
-	return
+// SetAssetPricingModels sets the Asset's labels
+func (cm *ClusterManagement) SetAssetPricingModels(assetPricingModels *AssetPricingModels) {
+	cm.assetPricingModels = assetPricingModels
+}
+
+// Adjustment returns the Asset's adjustment value
+func (cm *ClusterManagement) Adjustment() float64 {
+	return cm.adjustment
+}
+
+// SetAdjustment sets the Asset's adjustment value
+func (cm *ClusterManagement) SetAdjustment(adj float64) {
+	cm.adjustment = adj
+}
+
+// Credit returns the Asset's credit value
+func (cm *ClusterManagement) Credit() float64 {
+	return cm.credit
+}
+
+// SetCredit sets the Asset's credit value
+func (cm *ClusterManagement) SetCredit(cred float64) {
+	cm.credit = cred
+}
+
+// Discount returns the Asset's discount value
+func (cm *ClusterManagement) Discount() float64 {
+	return cm.discount
+}
+
+// SetDiscount sets the Asset's discount value
+func (cm *ClusterManagement) SetDiscount(discount float64) {
+	cm.discount = discount
 }
 
 // TotalCost returns the Asset's total cost
 func (cm *ClusterManagement) TotalCost() float64 {
-	return cm.Cost
+	return cm.Cost + cm.adjustment + cm.credit
 }
 
 // Start returns the Asset's precise start time within the window
@@ -952,8 +1180,10 @@ func (cm *ClusterManagement) Add(a Asset) Asset {
 	any := NewAsset(start, end, window)
 	any.SetProperties(props)
 	any.SetLabels(labels)
+	any.SetAssetPricingModels(mergePricingModels(cm, a))
 	any.adjustment = cm.Adjustment() + a.Adjustment()
-	any.Cost = (cm.TotalCost() - cm.Adjustment()) + (a.TotalCost() - a.Adjustment())
+	any.credit = cm.Credit() + a.Credit()
+	any.Cost = (cm.TotalCost() - cm.Adjustment() - cm.Credit()) + (a.TotalCost() - a.Adjustment() - a.Credit())
 
 	return any
 }
@@ -966,21 +1196,26 @@ func (cm *ClusterManagement) add(that *ClusterManagement) {
 
 	props := cm.Properties().Merge(that.Properties())
 	labels := cm.Labels().Merge(that.Labels())
-	window := cm.Window().Expand(that.Window())
-
-	cm.window = window
+	cm.SetAssetPricingModels(mergePricingModels(cm, that))
+	cm.window = cm.Window().Expand(that.Window())
 	cm.SetProperties(props)
 	cm.SetLabels(labels)
+	cm.adjustment += that.adjustment
+	cm.credit += that.credit
 	cm.Cost += that.Cost
 }
 
 // Clone returns a cloned instance of the Asset
 func (cm *ClusterManagement) Clone() Asset {
 	return &ClusterManagement{
-		labels:     cm.labels.Clone(),
-		properties: cm.properties.Clone(),
-		window:     cm.window.Clone(),
-		Cost:       cm.Cost,
+		labels:             cm.labels.Clone(),
+		properties:         cm.properties.Clone(),
+		assetPricingModels: cm.assetPricingModels.Clone(),
+		window:             cm.window.Clone(),
+		adjustment:         cm.adjustment,
+		credit:             cm.credit,
+		discount:           cm.discount,
+		Cost:               cm.Cost,
 	}
 }
 
@@ -998,7 +1233,27 @@ func (cm *ClusterManagement) Equal(a Asset) bool {
 		return false
 	}
 
+	if !cm.assetPricingModels.Equal(that.assetPricingModels) {
+		return false
+	}
+
+	if !cm.assetPricingModels.Equal(that.assetPricingModels) {
+		return false
+	}
+
 	if !cm.window.Equal(that.window) {
+		return false
+	}
+
+	if cm.adjustment != that.adjustment {
+		return false
+	}
+
+	if cm.credit != that.credit {
+		return false
+	}
+
+	if cm.discount != that.discount {
 		return false
 	}
 
@@ -1016,16 +1271,20 @@ func (cm *ClusterManagement) String() string {
 
 // Disk represents an in-cluster disk Asset
 type Disk struct {
-	labels     AssetLabels
-	properties *AssetProperties
-	start      time.Time
-	end        time.Time
-	window     Window
-	adjustment float64
-	Cost       float64
-	ByteHours  float64
-	Local      float64
-	Breakdown  *Breakdown
+	labels             AssetLabels
+	properties         *AssetProperties
+	assetPricingModels *AssetPricingModels
+	start              time.Time
+	end                time.Time
+	window             Window
+	adjustment         float64
+	credit             float64
+	discount           float64
+	Cost               float64
+	ByteHours          float64
+	Local              float64
+	Breakdown          *Breakdown
+	StorageClass       string
 }
 
 // NewDisk creates and returns a new Disk Asset
@@ -1073,6 +1332,16 @@ func (d *Disk) SetLabels(labels AssetLabels) {
 	d.labels = labels
 }
 
+// AssetPricingModels returns the Asset's labels
+func (d *Disk) AssetPricingModels() *AssetPricingModels {
+	return d.assetPricingModels
+}
+
+// SetAssetPricingModels sets the Asset's labels
+func (d *Disk) SetAssetPricingModels(assetPricingModels *AssetPricingModels) {
+	d.assetPricingModels = assetPricingModels
+}
+
 // Adjustment returns the Asset's cost adjustment
 func (d *Disk) Adjustment() float64 {
 	return d.adjustment
@@ -1083,9 +1352,29 @@ func (d *Disk) SetAdjustment(adj float64) {
 	d.adjustment = adj
 }
 
+// Credit returns the Asset's credit value
+func (d *Disk) Credit() float64 {
+	return d.credit
+}
+
+// SetCredit sets the Asset's credit value
+func (d *Disk) SetCredit(cred float64) {
+	d.credit = cred
+}
+
+// Discount returns the Asset's discount value
+func (d *Disk) Discount() float64 {
+	return d.discount
+}
+
+// SetDiscount sets the Asset's discount value
+func (d *Disk) SetDiscount(discount float64) {
+	d.discount = discount
+}
+
 // TotalCost returns the Asset's total cost
 func (d *Disk) TotalCost() float64 {
-	return d.Cost + d.adjustment
+	return d.Cost + d.adjustment + d.credit
 }
 
 // Start returns the precise start time of the Asset within the window
@@ -1167,9 +1456,10 @@ func (d *Disk) Add(a Asset) Asset {
 	any := NewAsset(start, end, window)
 	any.SetProperties(props)
 	any.SetLabels(labels)
+	any.SetAssetPricingModels(mergePricingModels(d, a))
 	any.adjustment = d.Adjustment() + a.Adjustment()
-	any.Cost = (d.TotalCost() - d.Adjustment()) + (a.TotalCost() - a.Adjustment())
-
+	any.credit = d.Credit() + a.Credit()
+	any.Cost = (d.TotalCost() - d.Adjustment() - d.Credit()) + (a.TotalCost() - a.Adjustment() - a.Credit())
 	return any
 }
 
@@ -1183,6 +1473,7 @@ func (d *Disk) add(that *Disk) {
 	labels := d.Labels().Merge(that.Labels())
 	d.SetProperties(props)
 	d.SetLabels(labels)
+	d.SetAssetPricingModels(mergePricingModels(d, that))
 
 	start := d.Start()
 	if that.Start().Before(start) {
@@ -1197,6 +1488,10 @@ func (d *Disk) add(that *Disk) {
 	d.end = end
 	d.window = window
 
+	if d.StorageClass != that.StorageClass {
+		d.StorageClass = ""
+	}
+
 	totalCost := d.Cost + that.Cost
 	if totalCost > 0.0 {
 		d.Breakdown.Idle = (d.Breakdown.Idle*d.Cost + that.Breakdown.Idle*that.Cost) / totalCost
@@ -1210,24 +1505,30 @@ func (d *Disk) add(that *Disk) {
 	}
 
 	d.adjustment += that.adjustment
+	d.credit += that.credit
 	d.Cost += that.Cost
 
 	d.ByteHours += that.ByteHours
+
 }
 
 // Clone returns a cloned instance of the Asset
 func (d *Disk) Clone() Asset {
 	return &Disk{
-		properties: d.properties.Clone(),
-		labels:     d.labels.Clone(),
-		start:      d.start,
-		end:        d.end,
-		window:     d.window.Clone(),
-		adjustment: d.adjustment,
-		Cost:       d.Cost,
-		ByteHours:  d.ByteHours,
-		Local:      d.Local,
-		Breakdown:  d.Breakdown.Clone(),
+		properties:         d.properties.Clone(),
+		labels:             d.labels.Clone(),
+		assetPricingModels: d.assetPricingModels.Clone(),
+		start:              d.start,
+		end:                d.end,
+		window:             d.window.Clone(),
+		adjustment:         d.adjustment,
+		credit:             d.credit,
+		discount:           d.discount,
+		Cost:               d.Cost,
+		ByteHours:          d.ByteHours,
+		Local:              d.Local,
+		Breakdown:          d.Breakdown.Clone(),
+		StorageClass:       d.StorageClass,
 	}
 }
 
@@ -1245,6 +1546,10 @@ func (d *Disk) Equal(a Asset) bool {
 		return false
 	}
 
+	if !d.assetPricingModels.Equal(that.assetPricingModels) {
+		return false
+	}
+
 	if !d.Start().Equal(that.Start()) {
 		return false
 	}
@@ -1258,6 +1563,15 @@ func (d *Disk) Equal(a Asset) bool {
 	if d.adjustment != that.adjustment {
 		return false
 	}
+
+	if d.credit != that.credit {
+		return false
+	}
+
+	if d.discount != that.discount {
+		return false
+	}
+
 	if d.Cost != that.Cost {
 		return false
 	}
@@ -1272,8 +1586,13 @@ func (d *Disk) Equal(a Asset) bool {
 		return false
 	}
 
+	if d.StorageClass != that.StorageClass {
+		return false
+	}
+
 	return true
 }
+
 
 // String implements fmt.Stringer
 func (d *Disk) String() string {
@@ -1341,13 +1660,16 @@ func (b *Breakdown) Equal(that *Breakdown) bool {
 
 // Network is an Asset representing a single node's network costs
 type Network struct {
-	properties *AssetProperties
-	labels     AssetLabels
-	start      time.Time
-	end        time.Time
-	window     Window
-	adjustment float64
-	Cost       float64
+	properties         *AssetProperties
+	labels             AssetLabels
+	assetPricingModels *AssetPricingModels
+	start              time.Time
+	end                time.Time
+	window             Window
+	adjustment         float64
+	credit             float64
+	discount           float64
+	Cost               float64
 }
 
 // NewNetwork creates and returns a new Network Asset
@@ -1394,6 +1716,16 @@ func (n *Network) SetLabels(labels AssetLabels) {
 	n.labels = labels
 }
 
+// AssetPricingModels returns the Asset's labels
+func (n *Network) AssetPricingModels() *AssetPricingModels {
+	return n.assetPricingModels
+}
+
+// SetAssetPricingModels sets the Asset's labels
+func (n *Network) SetAssetPricingModels(assetPricingModels *AssetPricingModels) {
+	n.assetPricingModels = assetPricingModels
+}
+
 // Adjustment returns the Asset's cost adjustment
 func (n *Network) Adjustment() float64 {
 	return n.adjustment
@@ -1404,9 +1736,29 @@ func (n *Network) SetAdjustment(adj float64) {
 	n.adjustment = adj
 }
 
+// Credit returns the Asset's credit value
+func (n *Network) Credit() float64 {
+	return n.credit
+}
+
+// SetCredit sets the Asset's credit value
+func (n *Network) SetCredit(cred float64) {
+	n.credit = cred
+}
+
+// Discount returns the Asset's discount value
+func (n *Network) Discount() float64 {
+	return n.discount
+}
+
+// SetDiscount sets the Asset's discount value
+func (n *Network) SetDiscount(discount float64) {
+	n.discount = discount
+}
+
 // TotalCost returns the Asset's total cost
 func (n *Network) TotalCost() float64 {
-	return n.Cost + n.adjustment
+	return n.Cost + n.adjustment + n.credit
 }
 
 // Start returns the precise start time of the Asset within the window
@@ -1488,8 +1840,10 @@ func (n *Network) Add(a Asset) Asset {
 	any := NewAsset(start, end, window)
 	any.SetProperties(props)
 	any.SetLabels(labels)
+	any.SetAssetPricingModels(mergePricingModels(n, a))
 	any.adjustment = n.Adjustment() + a.Adjustment()
-	any.Cost = (n.TotalCost() - n.Adjustment()) + (a.TotalCost() - a.Adjustment())
+	any.credit = n.Credit() + a.Credit()
+	any.Cost = (n.TotalCost() - n.Adjustment() - n.Credit()) + (a.TotalCost() - a.Adjustment() - a.Credit())
 
 	return any
 }
@@ -1504,7 +1858,7 @@ func (n *Network) add(that *Network) {
 	labels := n.Labels().Merge(that.Labels())
 	n.SetProperties(props)
 	n.SetLabels(labels)
-
+	n.SetAssetPricingModels(mergePricingModels(n, that))
 	start := n.Start()
 	if that.Start().Before(start) {
 		start = that.Start()
@@ -1518,8 +1872,10 @@ func (n *Network) add(that *Network) {
 	n.end = end
 	n.window = window
 
-	n.Cost += that.Cost
 	n.adjustment += that.adjustment
+	n.credit += that.credit
+	n.Cost += that.Cost
+
 }
 
 // Clone returns a deep copy of the given Network
@@ -1529,13 +1885,16 @@ func (n *Network) Clone() Asset {
 	}
 
 	return &Network{
-		properties: n.properties.Clone(),
-		labels:     n.labels.Clone(),
-		start:      n.start,
-		end:        n.end,
-		window:     n.window.Clone(),
-		adjustment: n.adjustment,
-		Cost:       n.Cost,
+		properties:         n.properties.Clone(),
+		labels:             n.labels.Clone(),
+		assetPricingModels: n.assetPricingModels.Clone(),
+		start:              n.start,
+		end:                n.end,
+		window:             n.window.Clone(),
+		adjustment:         n.adjustment,
+		credit:             n.credit,
+		discount:           n.discount,
+		Cost:               n.Cost,
 	}
 }
 
@@ -1553,6 +1912,10 @@ func (n *Network) Equal(a Asset) bool {
 		return false
 	}
 
+	if !n.assetPricingModels.Equal(that.assetPricingModels) {
+		return false
+	}
+
 	if !n.Start().Equal(that.Start()) {
 		return false
 	}
@@ -1566,6 +1929,15 @@ func (n *Network) Equal(a Asset) bool {
 	if n.adjustment != that.adjustment {
 		return false
 	}
+
+	if n.credit != that.credit {
+		return false
+	}
+
+	if n.discount != that.discount {
+		return false
+	}
+
 	if n.Cost != that.Cost {
 		return false
 	}
@@ -1580,24 +1952,25 @@ func (n *Network) String() string {
 
 // Node is an Asset representing a single node in a cluster
 type Node struct {
-	properties   *AssetProperties
-	labels       AssetLabels
-	start        time.Time
-	end          time.Time
-	window       Window
-	adjustment   float64
-	NodeType     string
-	CPUCoreHours float64
-	RAMByteHours float64
-	GPUHours     float64
-	CPUBreakdown *Breakdown
-	RAMBreakdown *Breakdown
-	CPUCost      float64
-	GPUCost      float64
-	GPUCount     float64
-	RAMCost      float64
-	Discount     float64
-	Preemptible  float64
+	properties         *AssetProperties
+	labels             AssetLabels
+	assetPricingModels *AssetPricingModels
+	start              time.Time
+	end                time.Time
+	window             Window
+	adjustment         float64
+	credit             float64
+	discount           float64
+	NodeType           string
+	CPUCoreHours       float64
+	RAMByteHours       float64
+	GPUHours           float64
+	CPUBreakdown       *Breakdown
+	RAMBreakdown       *Breakdown
+	CPUCost            float64
+	GPUCost            float64
+	GPUCount           float64
+	RAMCost            float64
 }
 
 // NewNode creates and returns a new Node Asset
@@ -1611,13 +1984,14 @@ func NewNode(name, cluster, providerID string, start, end time.Time, window Wind
 	}
 
 	return &Node{
-		properties:   properties,
-		labels:       AssetLabels{},
-		start:        start,
-		end:          end,
-		window:       window.Clone(),
-		CPUBreakdown: &Breakdown{},
-		RAMBreakdown: &Breakdown{},
+		properties:         properties,
+		labels:             AssetLabels{},
+		assetPricingModels: &AssetPricingModels{},
+		start:              start,
+		end:                end,
+		window:             window.Clone(),
+		CPUBreakdown:       &Breakdown{},
+		RAMBreakdown:       &Breakdown{},
 	}
 }
 
@@ -1646,6 +2020,16 @@ func (n *Node) SetLabels(labels AssetLabels) {
 	n.labels = labels
 }
 
+// AssetPricingModels returns the Asset's labels
+func (n *Node) AssetPricingModels() *AssetPricingModels {
+	return n.assetPricingModels
+}
+
+// SetAssetPricingModels sets the Asset's labels
+func (n *Node) SetAssetPricingModels(assetPricingModels *AssetPricingModels) {
+	n.assetPricingModels = assetPricingModels
+}
+
 // Adjustment returns the Asset's cost adjustment
 func (n *Node) Adjustment() float64 {
 	return n.adjustment
@@ -1656,9 +2040,29 @@ func (n *Node) SetAdjustment(adj float64) {
 	n.adjustment = adj
 }
 
+// Credit returns the Asset's credit value
+func (n *Node) Credit() float64 {
+	return n.credit
+}
+
+// SetCredit sets the Asset's credit value
+func (n *Node) SetCredit(cred float64) {
+	n.credit = cred
+}
+
+// Discount returns the Asset's discount value
+func (n *Node) Discount() float64 {
+	return n.discount
+}
+
+// SetDiscount sets the Asset's discount value
+func (n *Node) SetDiscount(discount float64) {
+	n.discount = discount
+}
+
 // TotalCost returns the Asset's total cost
 func (n *Node) TotalCost() float64 {
-	return ((n.CPUCost + n.RAMCost) * (1.0 - n.Discount)) + n.GPUCost + n.adjustment
+	return ((n.CPUCost + n.RAMCost) * (1.0 - n.discount)) + n.GPUCost + n.adjustment
 }
 
 // Start returns the precise start time of the Asset within the window
@@ -1740,8 +2144,10 @@ func (n *Node) Add(a Asset) Asset {
 	any := NewAsset(start, end, window)
 	any.SetProperties(props)
 	any.SetLabels(labels)
+	any.SetAssetPricingModels(mergePricingModels(n, a))
 	any.adjustment = n.Adjustment() + a.Adjustment()
-	any.Cost = (n.TotalCost() - n.Adjustment()) + (a.TotalCost() - a.Adjustment())
+	any.credit = n.Credit() + a.Credit()
+	any.Cost = (n.TotalCost() - n.Adjustment() - n.Credit()) + (a.TotalCost() - a.Adjustment() - a.Credit())
 
 	return any
 }
@@ -1756,6 +2162,7 @@ func (n *Node) add(that *Node) {
 	labels := n.Labels().Merge(that.Labels())
 	n.SetProperties(props)
 	n.SetLabels(labels)
+	n.SetAssetPricingModels(mergePricingModels(n, that))
 
 	if n.NodeType != that.NodeType {
 		n.NodeType = ""
@@ -1782,20 +2189,12 @@ func (n *Node) add(that *Node) {
 	// hand, is done with all three (but not Adjustment, which can change
 	// without triggering a re-computation of Preemtible).
 
-	disc := (n.CPUCost+n.RAMCost)*(1.0-n.Discount) + (that.CPUCost+that.RAMCost)*(1.0-that.Discount)
+	disc := (n.CPUCost+n.RAMCost)*(1.0-n.discount) + (that.CPUCost+that.RAMCost)*(1.0-that.discount)
 	nonDisc := (n.CPUCost + n.RAMCost) + (that.CPUCost + that.RAMCost)
 	if nonDisc > 0 {
-		n.Discount = 1.0 - (disc / nonDisc)
+		n.discount = 1.0 - (disc / nonDisc)
 	} else {
-		n.Discount = (n.Discount + that.Discount) / 2.0
-	}
-
-	nNoAdj := n.TotalCost() - n.Adjustment()
-	thatNoAdj := that.TotalCost() - that.Adjustment()
-	if (nNoAdj + thatNoAdj) > 0 {
-		n.Preemptible = (nNoAdj*n.Preemptible + thatNoAdj*that.Preemptible) / (nNoAdj + thatNoAdj)
-	} else {
-		n.Preemptible = (n.Preemptible + that.Preemptible) / 2.0
+		n.discount = (n.discount + that.discount) / 2.0
 	}
 
 	totalCPUCost := n.CPUCost + that.CPUCost
@@ -1822,6 +2221,7 @@ func (n *Node) add(that *Node) {
 	n.GPUCost += that.GPUCost
 	n.RAMCost += that.RAMCost
 	n.adjustment += that.adjustment
+	n.credit += that.credit
 }
 
 // Clone returns a deep copy of the given Node
@@ -1831,24 +2231,25 @@ func (n *Node) Clone() Asset {
 	}
 
 	return &Node{
-		properties:   n.properties.Clone(),
-		labels:       n.labels.Clone(),
-		start:        n.start,
-		end:          n.end,
-		window:       n.window.Clone(),
-		adjustment:   n.adjustment,
-		NodeType:     n.NodeType,
-		CPUCoreHours: n.CPUCoreHours,
-		RAMByteHours: n.RAMByteHours,
-		GPUHours:     n.GPUHours,
-		CPUBreakdown: n.CPUBreakdown.Clone(),
-		RAMBreakdown: n.RAMBreakdown.Clone(),
-		CPUCost:      n.CPUCost,
-		GPUCost:      n.GPUCost,
-		GPUCount:     n.GPUCount,
-		RAMCost:      n.RAMCost,
-		Preemptible:  n.Preemptible,
-		Discount:     n.Discount,
+		properties:         n.properties.Clone(),
+		labels:             n.labels.Clone(),
+		assetPricingModels: n.assetPricingModels.Clone(),
+		start:              n.start,
+		end:                n.end,
+		window:             n.window.Clone(),
+		adjustment:         n.adjustment,
+		credit:             n.credit,
+		discount:           n.discount,
+		NodeType:           n.NodeType,
+		CPUCoreHours:       n.CPUCoreHours,
+		RAMByteHours:       n.RAMByteHours,
+		GPUHours:           n.GPUHours,
+		CPUBreakdown:       n.CPUBreakdown.Clone(),
+		RAMBreakdown:       n.RAMBreakdown.Clone(),
+		CPUCost:            n.CPUCost,
+		GPUCost:            n.GPUCost,
+		GPUCount:           n.GPUCount,
+		RAMCost:            n.RAMCost,
 	}
 }
 
@@ -1866,6 +2267,10 @@ func (n *Node) Equal(a Asset) bool {
 		return false
 	}
 
+	if !n.assetPricingModels.Equal(that.assetPricingModels) {
+		return false
+	}
+
 	if !n.Start().Equal(that.Start()) {
 		return false
 	}
@@ -1877,6 +2282,14 @@ func (n *Node) Equal(a Asset) bool {
 	}
 
 	if n.adjustment != that.adjustment {
+		return false
+	}
+
+	if n.credit != that.credit {
+		return false
+	}
+
+	if n.discount != that.discount {
 		return false
 	}
 
@@ -1907,12 +2320,6 @@ func (n *Node) Equal(a Asset) bool {
 	if n.RAMCost != that.RAMCost {
 		return false
 	}
-	if n.Discount != that.Discount {
-		return false
-	}
-	if n.Preemptible != that.Preemptible {
-		return false
-	}
 
 	return true
 }
@@ -1926,7 +2333,7 @@ func (n *Node) String() string {
 // to be "partially preemptible" by adding a preemptible node with a
 // non-preemptible node.
 func (n *Node) IsPreemptible() bool {
-	return n.Preemptible == 1.0
+	return n.assetPricingModels != nil && n.assetPricingModels.Preemptible == 1.0
 }
 
 // CPUCores returns the number of cores belonging to the node. This could be
@@ -1977,13 +2384,16 @@ func (n *Node) GPUs() float64 {
 // LoadBalancer is an Asset representing a single load balancer in a cluster
 // TODO: add GB of ingress processed, numForwardingRules once we start recording those to prometheus metric
 type LoadBalancer struct {
-	properties *AssetProperties
-	labels     AssetLabels
-	start      time.Time
-	end        time.Time
-	window     Window
-	adjustment float64
-	Cost       float64
+	properties         *AssetProperties
+	labels             AssetLabels
+	assetPricingModels *AssetPricingModels
+	start              time.Time
+	end                time.Time
+	window             Window
+	adjustment         float64
+	credit             float64
+	discount           float64
+	Cost               float64
 }
 
 // NewLoadBalancer instantiates and returns a new LoadBalancer
@@ -2030,6 +2440,16 @@ func (lb *LoadBalancer) SetLabels(labels AssetLabels) {
 	lb.labels = labels
 }
 
+// AssetPricingModels returns the Asset's labels
+func (lb *LoadBalancer) AssetPricingModels() *AssetPricingModels {
+	return lb.assetPricingModels
+}
+
+// SetAssetPricingModels sets the Asset's labels
+func (lb *LoadBalancer) SetAssetPricingModels(assetPricingModels *AssetPricingModels) {
+	lb.assetPricingModels = assetPricingModels
+}
+
 // Adjustment returns the Asset's cost adjustment
 func (lb *LoadBalancer) Adjustment() float64 {
 	return lb.adjustment
@@ -2040,9 +2460,29 @@ func (lb *LoadBalancer) SetAdjustment(adj float64) {
 	lb.adjustment = adj
 }
 
+// Credit returns the Asset's credit value
+func (lb *LoadBalancer) Credit() float64 {
+	return lb.credit
+}
+
+// SetCredit sets the Asset's credit value
+func (lb *LoadBalancer) SetCredit(cred float64) {
+	lb.credit = cred
+}
+
+// Discount returns the Asset's discount value
+func (lb *LoadBalancer) Discount() float64 {
+	return lb.discount
+}
+
+// SetDiscount sets the Asset's discount value
+func (lb *LoadBalancer) SetDiscount(discount float64) {
+	lb.discount = discount
+}
+
 // TotalCost returns the total cost of the Asset
 func (lb *LoadBalancer) TotalCost() float64 {
-	return lb.Cost + lb.adjustment
+	return lb.Cost + lb.adjustment + lb.credit
 }
 
 // Start returns the preceise start point of the Asset within the window
@@ -2112,8 +2552,10 @@ func (lb *LoadBalancer) Add(a Asset) Asset {
 	any := NewAsset(start, end, window)
 	any.SetProperties(props)
 	any.SetLabels(labels)
+	any.SetAssetPricingModels(mergePricingModels(lb, a))
 	any.adjustment = lb.Adjustment() + a.Adjustment()
-	any.Cost = (lb.TotalCost() - lb.Adjustment()) + (a.TotalCost() - a.Adjustment())
+	any.credit = lb.Credit() + a.Credit()
+	any.Cost = (lb.TotalCost() - lb.Adjustment() - lb.Credit()) + (a.TotalCost() - a.Adjustment() - a.Credit())
 
 	return any
 }
@@ -2128,7 +2570,7 @@ func (lb *LoadBalancer) add(that *LoadBalancer) {
 	labels := lb.Labels().Merge(that.Labels())
 	lb.SetProperties(props)
 	lb.SetLabels(labels)
-
+	lb.SetAssetPricingModels(mergePricingModels(lb, that))
 	start := lb.Start()
 	if that.Start().Before(start) {
 		start = that.Start()
@@ -2143,19 +2585,23 @@ func (lb *LoadBalancer) add(that *LoadBalancer) {
 	lb.window = window
 
 	lb.Cost += that.Cost
+	lb.credit += that.credit
 	lb.adjustment += that.adjustment
 }
 
 // Clone returns a cloned instance of the given Asset
 func (lb *LoadBalancer) Clone() Asset {
 	return &LoadBalancer{
-		properties: lb.properties.Clone(),
-		labels:     lb.labels.Clone(),
-		start:      lb.start,
-		end:        lb.end,
-		window:     lb.window.Clone(),
-		adjustment: lb.adjustment,
-		Cost:       lb.Cost,
+		properties:         lb.properties.Clone(),
+		labels:             lb.labels.Clone(),
+		assetPricingModels: lb.AssetPricingModels(),
+		start:              lb.start,
+		end:                lb.end,
+		window:             lb.window.Clone(),
+		adjustment:         lb.adjustment,
+		credit:             lb.credit,
+		discount:           lb.discount,
+		Cost:               lb.Cost,
 	}
 }
 
@@ -2173,6 +2619,10 @@ func (lb *LoadBalancer) Equal(a Asset) bool {
 		return false
 	}
 
+	if !lb.assetPricingModels.Equal(that.assetPricingModels) {
+		return false
+	}
+
 	if !lb.Start().Equal(that.Start()) {
 		return false
 	}
@@ -2186,6 +2636,15 @@ func (lb *LoadBalancer) Equal(a Asset) bool {
 	if lb.adjustment != that.adjustment {
 		return false
 	}
+
+	if lb.credit != that.credit {
+		return false
+	}
+
+	if lb.discount != that.discount {
+		return false
+	}
+
 	if lb.Cost != that.Cost {
 		return false
 	}
@@ -2200,10 +2659,14 @@ func (lb *LoadBalancer) String() string {
 
 // SharedAsset is an Asset representing a shared cost
 type SharedAsset struct {
-	properties *AssetProperties
-	labels     AssetLabels
-	window     Window
-	Cost       float64
+	properties         *AssetProperties
+	assetPricingModels *AssetPricingModels
+	labels             AssetLabels
+	window             Window
+	adjustment         float64
+	credit             float64
+	discount           float64
+	Cost               float64
 }
 
 // NewSharedAsset creates and returns a new SharedAsset
@@ -2246,19 +2709,49 @@ func (sa *SharedAsset) SetLabels(labels AssetLabels) {
 	sa.labels = labels
 }
 
-// Adjustment is not relevant to SharedAsset, but required to implement Asset
-func (sa *SharedAsset) Adjustment() float64 {
-	return 0.0
+// AssetPricingModels returns the Asset's labels
+func (sa *SharedAsset) AssetPricingModels() *AssetPricingModels {
+	return sa.assetPricingModels
 }
 
-// SetAdjustment is not relevant to SharedAsset, but required to implement Asset
-func (sa *SharedAsset) SetAdjustment(float64) {
-	return
+// SetAssetPricingModels sets the Asset's labels
+func (sa *SharedAsset) SetAssetPricingModels(assetPricingModels *AssetPricingModels) {
+	sa.assetPricingModels = assetPricingModels
+}
+
+// Adjustment is not relevant to SharedAsset, but required to implement Asset
+func (sa *SharedAsset) Adjustment() float64 {
+	return sa.adjustment
+}
+
+// SetAdjustment sets the Asset's cost adjustment
+func (sa *SharedAsset) SetAdjustment(adj float64) {
+	sa.adjustment = adj
+}
+
+// Credit returns the Asset's credit value
+func (sa *SharedAsset) Credit() float64 {
+	return sa.credit
+}
+
+// SetCredit sets the Asset's credit value
+func (sa *SharedAsset) SetCredit(cred float64) {
+	sa.credit = cred
+}
+
+// Discount returns the Asset's discount value
+func (sa *SharedAsset) Discount() float64 {
+	return sa.discount
+}
+
+// SetDiscount sets the Asset's discount value
+func (sa *SharedAsset) SetDiscount(discount float64) {
+	sa.discount = discount
 }
 
 // TotalCost returns the Asset's total cost
 func (sa *SharedAsset) TotalCost() float64 {
-	return sa.Cost
+	return sa.Cost + sa.adjustment + sa.credit
 }
 
 // Start returns the start time of the Asset
@@ -2318,8 +2811,10 @@ func (sa *SharedAsset) Add(a Asset) Asset {
 	any := NewAsset(start, end, window)
 	any.SetProperties(props)
 	any.SetLabels(labels)
+	any.SetAssetPricingModels(mergePricingModels(sa, a))
 	any.adjustment = sa.Adjustment() + a.Adjustment()
-	any.Cost = (sa.TotalCost() - sa.Adjustment()) + (a.TotalCost() - a.Adjustment())
+	any.credit = sa.Credit() + a.Credit()
+	any.Cost = (sa.TotalCost() - sa.Adjustment() - sa.Credit()) + (a.TotalCost() - a.Adjustment() - a.Credit())
 
 	return any
 }
@@ -2334,10 +2829,11 @@ func (sa *SharedAsset) add(that *SharedAsset) {
 	labels := sa.Labels().Merge(that.Labels())
 	sa.SetProperties(props)
 	sa.SetLabels(labels)
-
+	sa.SetAssetPricingModels(mergePricingModels(sa, that))
 	window := sa.Window().Expand(that.Window())
 	sa.window = window
-
+	sa.adjustment += that.adjustment
+	sa.credit += that.credit
 	sa.Cost += that.Cost
 }
 
@@ -2348,10 +2844,14 @@ func (sa *SharedAsset) Clone() Asset {
 	}
 
 	return &SharedAsset{
-		properties: sa.properties.Clone(),
-		labels:     sa.labels.Clone(),
-		window:     sa.window.Clone(),
-		Cost:       sa.Cost,
+		properties:         sa.properties.Clone(),
+		labels:             sa.labels.Clone(),
+		assetPricingModels: sa.assetPricingModels.Clone(),
+		window:             sa.window.Clone(),
+		adjustment:         sa.adjustment,
+		credit:             sa.credit,
+		discount:           sa.discount,
+		Cost:               sa.Cost,
 	}
 }
 
@@ -2368,7 +2868,9 @@ func (sa *SharedAsset) Equal(a Asset) bool {
 	if !sa.Properties().Equal(that.Properties()) {
 		return false
 	}
-
+	if !sa.assetPricingModels.Equal(that.assetPricingModels) {
+		return false
+	}
 	if !sa.Start().Equal(that.Start()) {
 		return false
 	}
@@ -2376,6 +2878,18 @@ func (sa *SharedAsset) Equal(a Asset) bool {
 		return false
 	}
 	if !sa.window.Equal(that.window) {
+		return false
+	}
+
+	if sa.adjustment != that.adjustment {
+		return false
+	}
+
+	if sa.credit != that.credit {
+		return false
+	}
+
+	if sa.discount != that.discount {
 		return false
 	}
 

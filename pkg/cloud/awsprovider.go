@@ -46,6 +46,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+
 const supportedSpotFeedVersion = "1"
 const SpotInfoUpdateType = "spotinfo"
 const AthenaInfoUpdateType = "athenainfo"
@@ -56,7 +57,6 @@ const SpotPricingSource = "Spot Data Feed"
 const ReservedInstancePricingSource = "Savings Plan, Reserved Instance, and Out-Of-Cluster"
 
 func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
-
 	sources := make(map[string]*PricingSource)
 
 	sps := &PricingSource{
