@@ -489,7 +489,7 @@ func TestAssetset_Unmarshal(t *testing.T) {
 	// For each asset in unmarshaled AssetSetResponse, check if it is equal to the corresponding AssetSet asset
 	for key, asset := range assetset.assets {
 
-		if unmarshaledAsset, exists := assetUnmarshalResponse.assets[key]; exists {
+		if unmarshaledAsset, exists := assetUnmarshalResponse.Assets[key]; exists {
 
 			// As Disk is not marshaled with all fields, the resultant Disk will be unequal. Test all fields we have instead.
 			if unmarshaledAsset.Type().String() == "Disk" {

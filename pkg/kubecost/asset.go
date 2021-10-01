@@ -2395,7 +2395,7 @@ func (sa *SharedAsset) String() string {
 // json, which makes it impossible to recreate an AssetSet struct. Thus,
 // the type when unmarshaling a marshaled AssetSet,is AssetSetResponse
 type AssetSetResponse struct {
-	assets map[string]Asset
+	Assets map[string]Asset
 }
 
 // AssetSet stores a set of Assets, each with a unique name, that share
@@ -2899,6 +2899,14 @@ func (asr *AssetSetRange) MarshalJSON() ([]byte, error) {
 	return json.Marshal(asr.assets)
 }
 
+// As with AssetSet, AssetSetRange does not serialize all its fields,
+// making it impossible to reconstruct the AssetSetRange from its json.
+// Therefore, the type a marshaled AssetSetRange unmarshals to is
+// AssetSetRangeResponse
+type AssetSetRangeResponse struct {
+	Assets []*AssetSetResponse
+}
+
 func (asr *AssetSetRange) UTCOffset() time.Duration {
 	if asr.Length() == 0 {
 		return 0
@@ -2987,6 +2995,15 @@ func (asr *AssetSetRange) Minutes() float64 {
 	duration := end.Sub(start)
 
 	return duration.Minutes()
+}
+
+// This is a helper type. The Asset API returns a json which cannot be natively
+// unmarshaled into any Asset struct. Therefore, this struct IN COMBINATION WITH
+// DESERIALIZATION LOGIC DEFINED IN asset_unmarshal.go can unmarshal a json directly
+// from an Assets API query
+type AssetAPIResponse struct {
+	Code int                   `json:"code"`
+	Data AssetSetRangeResponse `json:"data"`
 }
 
 // Returns true if string slices a and b contain all of the same strings, in any order.

@@ -731,6 +731,16 @@ func (asr *AssetSetResponse) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
+	err = asr.RawMessageToAssetSetResponse(assetMap)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (asr *AssetSetResponse) RawMessageToAssetSetResponse(assetMap map[string]*gojson.RawMessage) error {
+
 	newAssetMap := make(map[string]Asset)
 
 	// For each item in asset map, unmarshal to appropriate type
@@ -837,7 +847,37 @@ func (asr *AssetSetResponse) UnmarshalJSON(b []byte) error {
 		}
 	}
 
-	asr.assets = newAssetMap
+	asr.Assets = newAssetMap
+
+	return nil
+}
+
+func (asrr *AssetSetRangeResponse) UnmarshalJSON(b []byte) error {
+
+	// gojson used here, as jsonitter UnmarshalJSON won't work with RawMessage
+	var assetMapList []map[string]*gojson.RawMessage
+
+	// Partial unmarshal to map of json RawMessage
+	err := gojson.Unmarshal(b, &assetMapList)
+	if err != nil {
+		return err
+	}
+
+	var assetSetList []*AssetSetResponse
+
+	for _, rawm := range assetMapList {
+
+		var asresp AssetSetResponse
+		err = asresp.RawMessageToAssetSetResponse(rawm)
+		if err != nil {
+			return err
+		}
+
+		assetSetList = append(assetSetList, &asresp)
+
+	}
+
+	asrr.Assets = assetSetList
 
 	return nil
 }
