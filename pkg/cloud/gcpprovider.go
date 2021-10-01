@@ -1403,15 +1403,25 @@ func (gcp *gcpKey) Features() string {
 		log.DedupedErrorf(1, "Missing or Unknown 'node.kubernetes.io/instance-type' node label")
 		instanceType = "unknown"
 	} else {
-		instanceType = strings.ToLower(strings.Join(strings.Split(it, "-")[:2], ""))
-		if instanceType == "n1highmem" || instanceType == "n1highcpu" {
-			instanceType = "n1standard" // These are priced the same. TODO: support n1ultrahighmem
-		} else if instanceType == "n2highmem" || instanceType == "n2highcpu" {
-			instanceType = "n2standard"
-		} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
-			instanceType = "e2standard"
-		} else if strings.HasPrefix(instanceType, "custom") {
-			instanceType = "custom" // The suffix of custom does not matter
+		splitByDash := strings.Split(it, "-")
+
+		// GKE nodes are labeled with the GCP instance type, but users can deploy on GCP
+		// with tools like K3s, whose instance type labels will be "k3s". This logic
+		// avoids a panic in the slice operation then there are no dashes (-) in the
+		// instance type label value.
+		if len(splitByDash) < 3 {
+			instanceType = "unknown"
+		} else {
+			instanceType = strings.ToLower(strings.Join(splitByDash[:2], ""))
+			if instanceType == "n1highmem" || instanceType == "n1highcpu" {
+				instanceType = "n1standard" // These are priced the same. TODO: support n1ultrahighmem
+			} else if instanceType == "n2highmem" || instanceType == "n2highcpu" {
+				instanceType = "n2standard"
+			} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
+				instanceType = "e2standard"
+			} else if strings.HasPrefix(instanceType, "custom") {
+				instanceType = "custom" // The suffix of custom does not matter
+			}
 		}
 	}
 
