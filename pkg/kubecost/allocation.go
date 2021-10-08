@@ -121,7 +121,7 @@ func (pv *PVAllocations) Clone() PVAllocations {
 		return nil
 	}
 	apv := *pv
-	clonePV := PVAllocations{}
+	clonePV := make(map[PVKey]*PVAllocation, len(apv))
 	for k, v := range apv {
 		clonePV[k] = &PVAllocation{
 			ByteHours: v.ByteHours,
@@ -1679,17 +1679,17 @@ func (as *AllocationSet) Clone() *AllocationSet {
 	as.RLock()
 	defer as.RUnlock()
 
-	allocs := map[string]*Allocation{}
+	allocs := make(map[string]*Allocation, len(as.allocations))
 	for k, v := range as.allocations {
 		allocs[k] = v.Clone()
 	}
 
-	externalKeys := map[string]bool{}
+	externalKeys := make(map[string]bool, len(as.externalKeys))
 	for k, v := range as.externalKeys {
 		externalKeys[k] = v
 	}
 
-	idleKeys := map[string]bool{}
+	idleKeys := make(map[string]bool, len(as.idleKeys))
 	for k, v := range as.idleKeys {
 		idleKeys[k] = v
 	}
