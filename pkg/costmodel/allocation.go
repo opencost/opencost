@@ -986,6 +986,8 @@ func applyGPUUsageAvg(podMap map[podKey]*Pod, resGPUUsageAvg []*prom.QueryResult
 			pod.AppendContainer(container)
 		}
 
+		// Metric represents percentages as full numbers, so scale down by factor of 100 to make consistent
+		// with other efficiency fields
 		pod.Allocations[container].GPUUsageAverage = res.Values[0].Value * 0.01
 	}
 }
