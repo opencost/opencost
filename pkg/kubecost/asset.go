@@ -1,7 +1,6 @@
 package kubecost
 
 import (
-	"bytes"
 	"encoding"
 	"fmt"
 	"strings"
@@ -600,21 +599,6 @@ func (a *Any) Equal(that Asset) bool {
 	return true
 }
 
-// MarshalJSON implements json.Marshaler
-func (a *Any) MarshalJSON() ([]byte, error) {
-	buffer := bytes.NewBufferString("{")
-	jsonEncode(buffer, "properties", a.Properties(), ",")
-	jsonEncode(buffer, "labels", a.Labels(), ",")
-	jsonEncode(buffer, "window", a.Window(), ",")
-	jsonEncodeString(buffer, "start", a.Start().Format(time.RFC3339), ",")
-	jsonEncodeString(buffer, "end", a.End().Format(time.RFC3339), ",")
-	jsonEncodeFloat64(buffer, "minutes", a.Minutes(), ",")
-	jsonEncodeFloat64(buffer, "adjustment", a.Adjustment(), ",")
-	jsonEncodeFloat64(buffer, "totalCost", a.TotalCost(), "")
-	buffer.WriteString("}")
-	return buffer.Bytes(), nil
-}
-
 // String implements fmt.Stringer
 func (a *Any) String() string {
 	return toString(a)
@@ -842,23 +826,6 @@ func (ca *Cloud) Equal(a Asset) bool {
 	return true
 }
 
-// MarshalJSON implements json.Marshaler
-func (ca *Cloud) MarshalJSON() ([]byte, error) {
-	buffer := bytes.NewBufferString("{")
-	jsonEncodeString(buffer, "type", ca.Type().String(), ",")
-	jsonEncode(buffer, "properties", ca.Properties(), ",")
-	jsonEncode(buffer, "labels", ca.Labels(), ",")
-	jsonEncode(buffer, "window", ca.Window(), ",")
-	jsonEncodeString(buffer, "start", ca.Start().Format(time.RFC3339), ",")
-	jsonEncodeString(buffer, "end", ca.End().Format(time.RFC3339), ",")
-	jsonEncodeFloat64(buffer, "minutes", ca.Minutes(), ",")
-	jsonEncodeFloat64(buffer, "adjustment", ca.Adjustment(), ",")
-	jsonEncodeFloat64(buffer, "credit", ca.Credit, ",")
-	jsonEncodeFloat64(buffer, "totalCost", ca.TotalCost(), "")
-	buffer.WriteString("}")
-	return buffer.Bytes(), nil
-}
-
 // String implements fmt.Stringer
 func (ca *Cloud) String() string {
 	return toString(ca)
@@ -1040,21 +1007,6 @@ func (cm *ClusterManagement) Equal(a Asset) bool {
 	}
 
 	return true
-}
-
-// MarshalJSON implements json.Marshler
-func (cm *ClusterManagement) MarshalJSON() ([]byte, error) {
-	buffer := bytes.NewBufferString("{")
-	jsonEncodeString(buffer, "type", cm.Type().String(), ",")
-	jsonEncode(buffer, "properties", cm.Properties(), ",")
-	jsonEncode(buffer, "labels", cm.Labels(), ",")
-	jsonEncode(buffer, "window", cm.Window(), ",")
-	jsonEncodeString(buffer, "start", cm.Start().Format(time.RFC3339), ",")
-	jsonEncodeString(buffer, "end", cm.End().Format(time.RFC3339), ",")
-	jsonEncodeFloat64(buffer, "minutes", cm.Minutes(), ",")
-	jsonEncodeFloat64(buffer, "totalCost", cm.TotalCost(), "")
-	buffer.WriteString("}")
-	return buffer.Bytes(), nil
 }
 
 // String implements fmt.Stringer
@@ -1321,25 +1273,6 @@ func (d *Disk) Equal(a Asset) bool {
 	}
 
 	return true
-}
-
-// MarshalJSON implements the json.Marshaler interface
-func (d *Disk) MarshalJSON() ([]byte, error) {
-	buffer := bytes.NewBufferString("{")
-	jsonEncodeString(buffer, "type", d.Type().String(), ",")
-	jsonEncode(buffer, "properties", d.Properties(), ",")
-	jsonEncode(buffer, "labels", d.Labels(), ",")
-	jsonEncode(buffer, "window", d.Window(), ",")
-	jsonEncodeString(buffer, "start", d.Start().Format(time.RFC3339), ",")
-	jsonEncodeString(buffer, "end", d.End().Format(time.RFC3339), ",")
-	jsonEncodeFloat64(buffer, "minutes", d.Minutes(), ",")
-	jsonEncodeFloat64(buffer, "byteHours", d.ByteHours, ",")
-	jsonEncodeFloat64(buffer, "bytes", d.Bytes(), ",")
-	jsonEncode(buffer, "breakdown", d.Breakdown, ",")
-	jsonEncodeFloat64(buffer, "adjustment", d.Adjustment(), ",")
-	jsonEncodeFloat64(buffer, "totalCost", d.TotalCost(), "")
-	buffer.WriteString("}")
-	return buffer.Bytes(), nil
 }
 
 // String implements fmt.Stringer
@@ -1638,22 +1571,6 @@ func (n *Network) Equal(a Asset) bool {
 	}
 
 	return true
-}
-
-// MarshalJSON implements json.Marshal interface
-func (n *Network) MarshalJSON() ([]byte, error) {
-	buffer := bytes.NewBufferString("{")
-	jsonEncodeString(buffer, "type", n.Type().String(), ",")
-	jsonEncode(buffer, "properties", n.Properties(), ",")
-	jsonEncode(buffer, "labels", n.Labels(), ",")
-	jsonEncode(buffer, "window", n.Window(), ",")
-	jsonEncodeString(buffer, "start", n.Start().Format(time.RFC3339), ",")
-	jsonEncodeString(buffer, "end", n.End().Format(time.RFC3339), ",")
-	jsonEncodeFloat64(buffer, "minutes", n.Minutes(), ",")
-	jsonEncodeFloat64(buffer, "adjustment", n.Adjustment(), ",")
-	jsonEncodeFloat64(buffer, "totalCost", n.TotalCost(), "")
-	buffer.WriteString("}")
-	return buffer.Bytes(), nil
 }
 
 // String implements fmt.Stringer
@@ -2000,36 +1917,6 @@ func (n *Node) Equal(a Asset) bool {
 	return true
 }
 
-// MarshalJSON implements json.Marshal interface
-func (n *Node) MarshalJSON() ([]byte, error) {
-	buffer := bytes.NewBufferString("{")
-	jsonEncodeString(buffer, "type", n.Type().String(), ",")
-	jsonEncode(buffer, "properties", n.Properties(), ",")
-	jsonEncode(buffer, "labels", n.Labels(), ",")
-	jsonEncode(buffer, "window", n.Window(), ",")
-	jsonEncodeString(buffer, "start", n.Start().Format(time.RFC3339), ",")
-	jsonEncodeString(buffer, "end", n.End().Format(time.RFC3339), ",")
-	jsonEncodeFloat64(buffer, "minutes", n.Minutes(), ",")
-	jsonEncodeString(buffer, "nodeType", n.NodeType, ",")
-	jsonEncodeFloat64(buffer, "cpuCores", n.CPUCores(), ",")
-	jsonEncodeFloat64(buffer, "ramBytes", n.RAMBytes(), ",")
-	jsonEncodeFloat64(buffer, "cpuCoreHours", n.CPUCoreHours, ",")
-	jsonEncodeFloat64(buffer, "ramByteHours", n.RAMByteHours, ",")
-	jsonEncodeFloat64(buffer, "GPUHours", n.GPUHours, ",")
-	jsonEncode(buffer, "cpuBreakdown", n.CPUBreakdown, ",")
-	jsonEncode(buffer, "ramBreakdown", n.RAMBreakdown, ",")
-	jsonEncodeFloat64(buffer, "preemptible", n.Preemptible, ",")
-	jsonEncodeFloat64(buffer, "discount", n.Discount, ",")
-	jsonEncodeFloat64(buffer, "cpuCost", n.CPUCost, ",")
-	jsonEncodeFloat64(buffer, "gpuCost", n.GPUCost, ",")
-	jsonEncodeFloat64(buffer, "gpuCount", n.GPUs(), ",")
-	jsonEncodeFloat64(buffer, "ramCost", n.RAMCost, ",")
-	jsonEncodeFloat64(buffer, "adjustment", n.Adjustment(), ",")
-	jsonEncodeFloat64(buffer, "totalCost", n.TotalCost(), "")
-	buffer.WriteString("}")
-	return buffer.Bytes(), nil
-}
-
 // String implements fmt.Stringer
 func (n *Node) String() string {
 	return toString(n)
@@ -2306,22 +2193,6 @@ func (lb *LoadBalancer) Equal(a Asset) bool {
 	return true
 }
 
-// MarshalJSON implements json.Marshal
-func (lb *LoadBalancer) MarshalJSON() ([]byte, error) {
-	buffer := bytes.NewBufferString("{")
-	jsonEncodeString(buffer, "type", lb.Type().String(), ",")
-	jsonEncode(buffer, "properties", lb.Properties(), ",")
-	jsonEncode(buffer, "labels", lb.Labels(), ",")
-	jsonEncode(buffer, "window", lb.Window(), ",")
-	jsonEncodeString(buffer, "start", lb.Start().Format(time.RFC3339), ",")
-	jsonEncodeString(buffer, "end", lb.End().Format(time.RFC3339), ",")
-	jsonEncodeFloat64(buffer, "minutes", lb.Minutes(), ",")
-	jsonEncodeFloat64(buffer, "adjustment", lb.Adjustment(), ",")
-	jsonEncodeFloat64(buffer, "totalCost", lb.TotalCost(), "")
-	buffer.WriteString("}")
-	return buffer.Bytes(), nil
-}
-
 // String implements fmt.Stringer
 func (lb *LoadBalancer) String() string {
 	return toString(lb)
@@ -2515,26 +2386,16 @@ func (sa *SharedAsset) Equal(a Asset) bool {
 	return true
 }
 
-// MarshalJSON implements json.Marshaler
-func (sa *SharedAsset) MarshalJSON() ([]byte, error) {
-	buffer := bytes.NewBufferString("{")
-	jsonEncodeString(buffer, "type", sa.Type().String(), ",")
-	jsonEncode(buffer, "properties", sa.Properties(), ",")
-	jsonEncode(buffer, "labels", sa.Labels(), ",")
-	jsonEncode(buffer, "properties", sa.Properties(), ",")
-	jsonEncode(buffer, "labels", sa.Labels(), ",")
-	jsonEncode(buffer, "window", sa.Window(), ",")
-	jsonEncodeString(buffer, "start", sa.Start().Format(time.RFC3339), ",")
-	jsonEncodeString(buffer, "end", sa.End().Format(time.RFC3339), ",")
-	jsonEncodeFloat64(buffer, "minutes", sa.Minutes(), ",")
-	jsonEncodeFloat64(buffer, "totalCost", sa.TotalCost(), "")
-	buffer.WriteString("}")
-	return buffer.Bytes(), nil
-}
-
 // String implements fmt.Stringer
 func (sa *SharedAsset) String() string {
 	return toString(sa)
+}
+
+// This type exists because only the assets map of AssetSet is marshaled to
+// json, which makes it impossible to recreate an AssetSet struct. Thus,
+// the type when unmarshaling a marshaled AssetSet,is AssetSetResponse
+type AssetSetResponse struct {
+	Assets map[string]Asset
 }
 
 // AssetSet stores a set of Assets, each with a unique name, that share
@@ -2831,13 +2692,6 @@ func (as *AssetSet) Map() map[string]Asset {
 	return as.Clone().assets
 }
 
-// MarshalJSON JSON-encodes the AssetSet
-func (as *AssetSet) MarshalJSON() ([]byte, error) {
-	as.RLock()
-	defer as.RUnlock()
-	return json.Marshal(as.assets)
-}
-
 func (as *AssetSet) Set(asset Asset, aggregateBy []string) error {
 	if as.IsEmpty() {
 		as.Lock()
@@ -3045,6 +2899,14 @@ func (asr *AssetSetRange) MarshalJSON() ([]byte, error) {
 	return json.Marshal(asr.assets)
 }
 
+// As with AssetSet, AssetSetRange does not serialize all its fields,
+// making it impossible to reconstruct the AssetSetRange from its json.
+// Therefore, the type a marshaled AssetSetRange unmarshals to is
+// AssetSetRangeResponse
+type AssetSetRangeResponse struct {
+	Assets []*AssetSetResponse
+}
+
 func (asr *AssetSetRange) UTCOffset() time.Duration {
 	if asr.Length() == 0 {
 		return 0
@@ -3133,6 +2995,15 @@ func (asr *AssetSetRange) Minutes() float64 {
 	duration := end.Sub(start)
 
 	return duration.Minutes()
+}
+
+// This is a helper type. The Asset API returns a json which cannot be natively
+// unmarshaled into any Asset struct. Therefore, this struct IN COMBINATION WITH
+// DESERIALIZATION LOGIC DEFINED IN asset_unmarshal.go can unmarshal a json directly
+// from an Assets API query
+type AssetAPIResponse struct {
+	Code int                   `json:"code"`
+	Data AssetSetRangeResponse `json:"data"`
 }
 
 // Returns true if string slices a and b contain all of the same strings, in any order.
