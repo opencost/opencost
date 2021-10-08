@@ -7,6 +7,11 @@ import (
 	"github.com/kubecost/cost-model/pkg/log"
 )
 
+var capitalUnderscore = regexp.MustCompile(`[A-Z]`)
+var noSpacePunc = regexp.MustCompile(`[\s]{1,}|[^A-Za-z0-9]`)
+var noDupUnderscore = regexp.MustCompile(`_{2,}`)
+var noFrontUnderscore = regexp.MustCompile(`(^\_|\_$)`)
+
 // ConvertToGlueColumnFormat takes a string and runs through various regex
 // and string replacement statements to convert it to a format compatible
 // with AWS Glue and Athena column names.
@@ -17,19 +22,15 @@ func ConvertToGlueColumnFormat(columnName string) string {
 	log.Debugf("Converting string \"%s\" to proper AWS Glue column name.", columnName)
 
 	// An underscore is added in front of uppercase letters
-	capitalUnderscore := regexp.MustCompile(`[A-Z]`)
 	final := capitalUnderscore.ReplaceAllString(columnName, `_$0`)
 
 	// Any non-alphanumeric characters are replaced with an underscore
-	noSpacePunc := regexp.MustCompile(`[\s]{1,}|[^A-Za-z0-9]`)
 	final = noSpacePunc.ReplaceAllString(final, "_")
 
 	// Duplicate underscores are removed
-	noDupUnderscore := regexp.MustCompile(`_{2,}`)
 	final = noDupUnderscore.ReplaceAllString(final, "_")
 
 	// Any leading and trailing underscores are removed
-	noFrontUnderscore := regexp.MustCompile(`(^\_|\_$)`)
 	final = noFrontUnderscore.ReplaceAllString(final, "")
 
 	// Uppercase to lowercase
