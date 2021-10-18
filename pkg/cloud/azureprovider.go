@@ -383,6 +383,8 @@ type Azure struct {
 	Config                  *ProviderConfig
 	ServiceAccountChecks    map[string]*ServiceAccountCheck
 	RateCardPricingError    error
+	clusterAccountId        string
+	clusterRegion           string
 }
 
 type azureKey struct {
@@ -1130,6 +1132,8 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 		m["name"] = c.ClusterName
 	}
 	m["provider"] = "azure"
+	m["account"] = az.clusterAccountId
+	m["region"] = az.clusterRegion
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	m["id"] = env.GetClusterID()
 	return m, nil
@@ -1417,4 +1421,16 @@ func (az *Azure) CombinedDiscountForNode(instanceType string, isPreemptible bool
 
 func (az *Azure) Regions() []string {
 	return azureRegions
+}
+
+func parseAzureSubscriptionID(id string) string {
+	// azure:///subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/...
+	//  => 0bd50fdf-c923-4e1e-850c-196dd3dcc5d3
+	rx := regexp.MustCompile("azure:///subscriptions/([^/]*)/*")
+	match := rx.FindStringSubmatch(id)
+	if len(match) >= 2 {
+		return match[1]
+	}
+	// Return empty string if an account could not be parsed from provided string
+	return ""
 }
