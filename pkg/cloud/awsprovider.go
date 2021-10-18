@@ -130,9 +130,9 @@ type AWS struct {
 	SpotPricingUpdatedAt        *time.Time
 	SpotRefreshRunning          bool
 	SpotPricingLock             sync.RWMutex
-	SpotPricingError           error
+	SpotPricingError            error
 	RIPricingByInstanceID       map[string]*RIData
-	RIPricingError             error
+	RIPricingError              error
 	RIDataRunning               bool
 	RIDataLock                  sync.RWMutex
 	SavingsPlanDataByInstanceID map[string]*SavingsPlanData

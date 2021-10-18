@@ -1391,8 +1391,8 @@ func (az *Azure) PricingSourceStatus() map[string]*PricingSource {
 	if az.RateCardPricingError != nil {
 		errMsg = az.RateCardPricingError.Error()
 	}
-	rcps := &PricingSource {
-		Name: rateCardPricingSource,
+	rcps := &PricingSource{
+		Name:  rateCardPricingSource,
 		Error: errMsg,
 	}
 	if rcps.Error != "" {
@@ -1400,7 +1400,7 @@ func (az *Azure) PricingSourceStatus() map[string]*PricingSource {
 	} else if len(az.Pricing) == 0 {
 		rcps.Error = "No Pricing Data Available"
 		rcps.Available = false
-	}else {
+	} else {
 		rcps.Available = true
 	}
 	sources[rateCardPricingSource] = rcps
