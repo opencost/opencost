@@ -1,16 +1,11 @@
 package cloudutil
 
 import (
-	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/kubecost/cost-model/pkg/log"
 )
-
-var capitalUnderscore = regexp.MustCompile(`[A-Z]`)
-var noSpacePunc = regexp.MustCompile(`[\s]{1,}|[^A-Za-z0-9]`)
-var noDupUnderscore = regexp.MustCompile(`_{2,}`)
-var noFrontUnderscore = regexp.MustCompile(`(^\_|\_$)`)
 
 // ConvertToGlueColumnFormat takes a string and runs through various regex
 // and string replacement statements to convert it to a format compatible
@@ -19,23 +14,27 @@ var noFrontUnderscore = regexp.MustCompile(`(^\_|\_$)`)
 // https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/run-athena-sql.html
 // It returns a string containing the column name in proper column name format and length.
 func ConvertToGlueColumnFormat(columnName string) string {
-	log.Debugf("Converting string \"%s\" to proper AWS Glue column name.", columnName)
 
-	// An underscore is added in front of uppercase letters
-	final := capitalUnderscore.ReplaceAllString(columnName, `_$0`)
-
-	// Any non-alphanumeric characters are replaced with an underscore
-	final = noSpacePunc.ReplaceAllString(final, "_")
-
-	// Duplicate underscores are removed
-	final = noDupUnderscore.ReplaceAllString(final, "_")
-
-	// Any leading and trailing underscores are removed
-	final = noFrontUnderscore.ReplaceAllString(final, "")
-
-	// Uppercase to lowercase
-	final = strings.ToLower(final)
-
+	var sb strings.Builder
+	var prev rune
+	for i, r := range columnName {
+		if unicode.IsUpper(r) && prev != '_' && i != 0 {
+			sb.WriteRune('_')
+		}
+		if !unicode.IsLetter(r) && !unicode.IsNumber(r) && prev != '_' && i != 0 && i != (len(columnName)-1) {
+			sb.WriteRune('_')
+			prev = '_'
+			continue
+		}
+		if r == '_' {
+			if prev == '_' || i == 0 || i == len(columnName)-1 {
+				continue
+			}
+		}
+		sb.WriteRune(unicode.ToLower(r))
+		prev = r
+	}
+	final := sb.String()
 	// Longer column name than expected - remove _ left to right
 	allowedColLen := 128
 	underscoreToRemove := len(final) - allowedColLen
