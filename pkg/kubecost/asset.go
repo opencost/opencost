@@ -352,33 +352,33 @@ func (apm *AssetPricingModels) Equal(that *AssetPricingModels) bool {
 	return false
 }
 
-// mergePricingModels merges the discounts of two assets for use in Asset Add() methods
+// mergePricingModels merges the pricingModels of two assets for use in Asset Add() methods
 func mergePricingModels(this, that Asset) *AssetPricingModels {
-	thisDiscounts := this.AssetPricingModels()
-	thatDiscounts := that.AssetPricingModels()
+	thisPricingModels := this.AssetPricingModels()
+	thatPricingModels := that.AssetPricingModels()
 
 	// In case of nil AssetPricingModels return the other AssetPricingModels.
 	// If both are nil then nil will be returned
-	if thisDiscounts == nil {
-		return thatDiscounts
+	if thisPricingModels == nil {
+		return thatPricingModels
 	}
-	if thatDiscounts == nil {
-		return thisDiscounts
+	if thatPricingModels == nil {
+		return thisPricingModels
 	}
 
 	ad := AssetPricingModels{}
 
 	// if that is of type any or cloud, merge
-	thisNoAdj := this.TotalCost() - this.Adjustment()
-	thatNoAdj := that.TotalCost() - that.Adjustment()
-	if (thisNoAdj + thatNoAdj) > 0 {
-		ad.Preemptible = (thisNoAdj*thisDiscounts.Preemptible + thatNoAdj*thatDiscounts.Preemptible) / (thisNoAdj + thatNoAdj)
-		ad.ReservedInstance = (thisNoAdj*thisDiscounts.ReservedInstance + thatNoAdj*thatDiscounts.ReservedInstance) / (thisNoAdj + thatNoAdj)
-		ad.SavingsPlan = (thisNoAdj*thisDiscounts.SavingsPlan + thatNoAdj*thatDiscounts.SavingsPlan) / (thisNoAdj + thatNoAdj)
+	thisBaseCost := this.TotalCost() - this.Adjustment() - this.Credit()
+	thatBaseCost := that.TotalCost() - that.Adjustment() - that.Credit()
+	if (thisBaseCost + thatBaseCost) > 0 {
+		ad.Preemptible = (thisBaseCost*thisPricingModels.Preemptible + thatBaseCost*thatPricingModels.Preemptible) / (thisBaseCost + thatBaseCost)
+		ad.ReservedInstance = (thisBaseCost*thisPricingModels.ReservedInstance + thatBaseCost*thatPricingModels.ReservedInstance) / (thisBaseCost + thatBaseCost)
+		ad.SavingsPlan = (thisBaseCost*thisPricingModels.SavingsPlan + thatBaseCost*thatPricingModels.SavingsPlan) / (thisBaseCost + thatBaseCost)
 	} else {
-		ad.Preemptible = (thisDiscounts.Preemptible + thatDiscounts.Preemptible) / 2.0
-		ad.ReservedInstance = (thisDiscounts.ReservedInstance + thatDiscounts.ReservedInstance) / 2.0
-		ad.SavingsPlan = (thisDiscounts.SavingsPlan + thatDiscounts.SavingsPlan) / 2.0
+		ad.Preemptible = (thisPricingModels.Preemptible + thatPricingModels.Preemptible) / 2.0
+		ad.ReservedInstance = (thisPricingModels.ReservedInstance + thatPricingModels.ReservedInstance) / 2.0
+		ad.SavingsPlan = (thisPricingModels.SavingsPlan + thatPricingModels.SavingsPlan) / 2.0
 	}
 	return &ad
 }
