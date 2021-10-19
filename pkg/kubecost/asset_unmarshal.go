@@ -21,16 +21,20 @@ func (a *Any) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
 	jsonEncode(buffer, "properties", a.Properties(), ",")
 	jsonEncode(buffer, "labels", a.Labels(), ",")
+	jsonEncode(buffer, "assetPricingModels", a.AssetPricingModels(), ",")
 	jsonEncode(buffer, "window", a.Window(), ",")
 	jsonEncodeString(buffer, "start", a.Start().Format(time.RFC3339), ",")
 	jsonEncodeString(buffer, "end", a.End().Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", a.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "adjustment", a.Adjustment(), ",")
+	jsonEncodeFloat64(buffer, "credit", a.Credit(), ",")
+	jsonEncodeFloat64(buffer, "discount", a.Discount(), ",")
 	jsonEncodeFloat64(buffer, "totalCost", a.TotalCost(), "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
 
+// UnmarshalJSON implements json.Unmarshal
 func (a *Any) UnmarshalJSON(b []byte) error {
 
 	var f interface{}
@@ -57,6 +61,12 @@ func (a *Any) InterfaceToAny(itf interface{}) error {
 	fproperties := fmap["properties"].(map[string]interface{})
 	properties := toAssetProp(fproperties)
 
+	// parse pricingModels map to AssetPricingModels
+	var pricingModels *AssetPricingModels = nil
+	if fpricingModels := fmap["assetPricingModels"]; fpricingModels != nil {
+		pricingModels = toAssetPricingModels(fpricingModels.(map[string]interface{}))
+	}
+
 	// parse labels map to AssetLabels
 	labels := make(map[string]string)
 	for k, v := range fmap["labels"].(map[string]interface{}) {
@@ -75,6 +85,7 @@ func (a *Any) InterfaceToAny(itf interface{}) error {
 
 	a.properties = &properties
 	a.labels = labels
+	a.assetPricingModels = pricingModels
 	a.start = start
 	a.end = end
 	a.window = Window{
@@ -85,8 +96,14 @@ func (a *Any) InterfaceToAny(itf interface{}) error {
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
 		a.adjustment = adjustment.(float64)
 	}
+	if credit, err := getTypedVal(fmap["credit"]); err == nil {
+		a.credit = credit.(float64)
+	}
+	if discount, err := getTypedVal(fmap["discount"]); err == nil {
+		a.discount = discount.(float64)
+	}
 	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
-		a.Cost = Cost.(float64) - a.adjustment
+		a.Cost = Cost.(float64) - a.adjustment - a.credit
 	}
 
 	return nil
@@ -100,17 +117,22 @@ func (ca *Cloud) MarshalJSON() ([]byte, error) {
 	jsonEncodeString(buffer, "type", ca.Type().String(), ",")
 	jsonEncode(buffer, "properties", ca.Properties(), ",")
 	jsonEncode(buffer, "labels", ca.Labels(), ",")
+	jsonEncode(buffer, "assetPricingModels", ca.AssetPricingModels(), ",")
+	jsonEncode(buffer, "usageType", ca.UsageType, ",")
+	jsonEncode(buffer, "usageDetail", ca.UsageDetail, ",")
 	jsonEncode(buffer, "window", ca.Window(), ",")
 	jsonEncodeString(buffer, "start", ca.Start().Format(time.RFC3339), ",")
 	jsonEncodeString(buffer, "end", ca.End().Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", ca.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "adjustment", ca.Adjustment(), ",")
-	jsonEncodeFloat64(buffer, "credit", ca.Credit, ",")
+	jsonEncodeFloat64(buffer, "credit", ca.Credit(), ",")
+	jsonEncodeFloat64(buffer, "discount", ca.Discount(), ",")
 	jsonEncodeFloat64(buffer, "totalCost", ca.TotalCost(), "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
 
+// UnmarshalJSON implements json.Unmarshal
 func (ca *Cloud) UnmarshalJSON(b []byte) error {
 
 	var f interface{}
@@ -137,6 +159,12 @@ func (ca *Cloud) InterfaceToCloud(itf interface{}) error {
 	fproperties := fmap["properties"].(map[string]interface{})
 	properties := toAssetProp(fproperties)
 
+	// parse pricingModels map to AssetPricingModels
+	var pricingModels *AssetPricingModels = nil
+	if fpricingModels := fmap["assetPricingModels"]; fpricingModels != nil {
+		pricingModels = toAssetPricingModels(fpricingModels.(map[string]interface{}))
+	}
+
 	// parse labels map to AssetLabels
 	labels := make(map[string]string)
 	for k, v := range fmap["labels"].(map[string]interface{}) {
@@ -155,6 +183,7 @@ func (ca *Cloud) InterfaceToCloud(itf interface{}) error {
 
 	ca.properties = &properties
 	ca.labels = labels
+	ca.assetPricingModels = pricingModels
 	ca.start = start
 	ca.end = end
 	ca.window = Window{
@@ -162,14 +191,23 @@ func (ca *Cloud) InterfaceToCloud(itf interface{}) error {
 		end:   &end,
 	}
 
+	if usageType, err := getTypedVal(fmap["usageType"]); err == nil {
+		ca.UsageType = usageType.(string)
+	}
+	if usageDetail, err := getTypedVal(fmap["usageDetail"]); err == nil {
+		ca.UsageDetail = usageDetail.(string)
+	}
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
 		ca.adjustment = adjustment.(float64)
 	}
-	if Credit, err := getTypedVal(fmap["credit"]); err == nil {
-		ca.Credit = Credit.(float64)
+	if credit, err := getTypedVal(fmap["credit"]); err == nil {
+		ca.credit = credit.(float64)
+	}
+	if discount, err := getTypedVal(fmap["discount"]); err == nil {
+		ca.discount = discount.(float64)
 	}
 	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
-		ca.Cost = Cost.(float64) - ca.adjustment - ca.Credit
+		ca.Cost = Cost.(float64) - ca.adjustment - ca.credit
 	}
 
 	return nil
@@ -183,15 +221,20 @@ func (cm *ClusterManagement) MarshalJSON() ([]byte, error) {
 	jsonEncodeString(buffer, "type", cm.Type().String(), ",")
 	jsonEncode(buffer, "properties", cm.Properties(), ",")
 	jsonEncode(buffer, "labels", cm.Labels(), ",")
+	jsonEncode(buffer, "assetPricingModels", cm.AssetPricingModels(), ",")
 	jsonEncode(buffer, "window", cm.Window(), ",")
 	jsonEncodeString(buffer, "start", cm.Start().Format(time.RFC3339), ",")
 	jsonEncodeString(buffer, "end", cm.End().Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", cm.Minutes(), ",")
+	jsonEncodeFloat64(buffer, "adjustment", cm.Adjustment(), ",")
+	jsonEncodeFloat64(buffer, "credit", cm.Credit(), ",")
+	jsonEncodeFloat64(buffer, "discount", cm.Discount(), ",")
 	jsonEncodeFloat64(buffer, "totalCost", cm.TotalCost(), "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
 
+// UnmarshalJSON implements json.Unmarshal
 func (cm *ClusterManagement) UnmarshalJSON(b []byte) error {
 
 	var f interface{}
@@ -209,7 +252,7 @@ func (cm *ClusterManagement) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// Converts interface{} to ClusterManagement, carrying over relevant fields
+// InterfaceToClusterManagement Converts interface{} to ClusterManagement, carrying over relevant fields
 func (cm *ClusterManagement) InterfaceToClusterManagement(itf interface{}) error {
 
 	fmap := itf.(map[string]interface{})
@@ -217,6 +260,13 @@ func (cm *ClusterManagement) InterfaceToClusterManagement(itf interface{}) error
 	// parse properties map to AssetProperties
 	fproperties := fmap["properties"].(map[string]interface{})
 	properties := toAssetProp(fproperties)
+
+
+	// parse pricingModels map to AssetPricingModels
+	var pricingModels *AssetPricingModels = nil
+	if fpricingModels := fmap["assetPricingModels"]; fpricingModels != nil {
+		pricingModels = toAssetPricingModels(fpricingModels.(map[string]interface{}))
+	}
 
 	// parse labels map to AssetLabels
 	labels := make(map[string]string)
@@ -236,13 +286,23 @@ func (cm *ClusterManagement) InterfaceToClusterManagement(itf interface{}) error
 
 	cm.properties = &properties
 	cm.labels = labels
+	cm.assetPricingModels = pricingModels
 	cm.window = Window{
 		start: &start,
 		end:   &end,
 	}
 
+	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
+		cm.adjustment = adjustment.(float64)
+	}
+	if credit, err := getTypedVal(fmap["credit"]); err == nil {
+		cm.credit = credit.(float64)
+	}
+	if discount, err := getTypedVal(fmap["discount"]); err == nil {
+		cm.discount = discount.(float64)
+	}
 	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
-		cm.Cost = Cost.(float64)
+		cm.Cost = Cost.(float64) - cm.adjustment - cm.credit
 	}
 
 	return nil
@@ -256,6 +316,7 @@ func (d *Disk) MarshalJSON() ([]byte, error) {
 	jsonEncodeString(buffer, "type", d.Type().String(), ",")
 	jsonEncode(buffer, "properties", d.Properties(), ",")
 	jsonEncode(buffer, "labels", d.Labels(), ",")
+	jsonEncode(buffer, "assetPricingModels", d.AssetPricingModels(), ",")
 	jsonEncode(buffer, "window", d.Window(), ",")
 	jsonEncodeString(buffer, "start", d.Start().Format(time.RFC3339), ",")
 	jsonEncodeString(buffer, "end", d.End().Format(time.RFC3339), ",")
@@ -263,12 +324,16 @@ func (d *Disk) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "byteHours", d.ByteHours, ",")
 	jsonEncodeFloat64(buffer, "bytes", d.Bytes(), ",")
 	jsonEncode(buffer, "breakdown", d.Breakdown, ",")
+	jsonEncode(buffer, "storageClass", d.StorageClass, ",")
 	jsonEncodeFloat64(buffer, "adjustment", d.Adjustment(), ",")
+	jsonEncodeFloat64(buffer, "credit", d.Credit(), ",")
+	jsonEncodeFloat64(buffer, "discount", d.Discount(), ",")
 	jsonEncodeFloat64(buffer, "totalCost", d.TotalCost(), "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
 
+// UnmarshalJSON implements json.Unmarshal
 func (d *Disk) UnmarshalJSON(b []byte) error {
 
 	var f interface{}
@@ -295,6 +360,12 @@ func (d *Disk) InterfaceToDisk(itf interface{}) error {
 	fproperties := fmap["properties"].(map[string]interface{})
 	properties := toAssetProp(fproperties)
 
+	// parse pricingModels map to AssetPricingModels
+	var pricingModels *AssetPricingModels = nil
+	if fpricingModels := fmap["assetPricingModels"]; fpricingModels != nil {
+		pricingModels = toAssetPricingModels(fpricingModels.(map[string]interface{}))
+	}
+
 	// parse labels map to AssetLabels
 	labels := make(map[string]string)
 	for k, v := range fmap["labels"].(map[string]interface{}) {
@@ -317,6 +388,7 @@ func (d *Disk) InterfaceToDisk(itf interface{}) error {
 
 	d.properties = &properties
 	d.labels = labels
+	d.assetPricingModels = pricingModels
 	d.start = start
 	d.end = end
 	d.window = Window{
@@ -325,11 +397,20 @@ func (d *Disk) InterfaceToDisk(itf interface{}) error {
 	}
 	d.Breakdown = &breakdown
 
+	if storageClass, err := getTypedVal(fmap["storageClass"]); err == nil {
+		d.StorageClass = storageClass.(string)
+	}
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
 		d.adjustment = adjustment.(float64)
 	}
+	if credit, err := getTypedVal(fmap["credit"]); err == nil {
+		d.credit = credit.(float64)
+	}
+	if discount, err := getTypedVal(fmap["discount"]); err == nil {
+		d.discount = discount.(float64)
+	}
 	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
-		d.Cost = Cost.(float64) - d.adjustment
+		d.Cost = Cost.(float64) - d.adjustment - d.credit
 	}
 	if ByteHours, err := getTypedVal(fmap["byteHours"]); err == nil {
 		d.ByteHours = ByteHours.(float64)
@@ -352,16 +433,20 @@ func (n *Network) MarshalJSON() ([]byte, error) {
 	jsonEncodeString(buffer, "type", n.Type().String(), ",")
 	jsonEncode(buffer, "properties", n.Properties(), ",")
 	jsonEncode(buffer, "labels", n.Labels(), ",")
+	jsonEncode(buffer, "assetPricingModels", n.AssetPricingModels(), ",")
 	jsonEncode(buffer, "window", n.Window(), ",")
 	jsonEncodeString(buffer, "start", n.Start().Format(time.RFC3339), ",")
 	jsonEncodeString(buffer, "end", n.End().Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", n.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "adjustment", n.Adjustment(), ",")
+	jsonEncodeFloat64(buffer, "credit", n.Credit(), ",")
+	jsonEncodeFloat64(buffer, "discount", n.Discount(), ",")
 	jsonEncodeFloat64(buffer, "totalCost", n.TotalCost(), "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
 
+// UnmarshalJSON implements json.Unmarshal
 func (n *Network) UnmarshalJSON(b []byte) error {
 
 	var f interface{}
@@ -388,6 +473,12 @@ func (n *Network) InterfaceToNetwork(itf interface{}) error {
 	fproperties := fmap["properties"].(map[string]interface{})
 	properties := toAssetProp(fproperties)
 
+	// parse pricingModels map to AssetPricingModels
+	var pricingModels *AssetPricingModels = nil
+	if fpricingModels := fmap["assetPricingModels"]; fpricingModels != nil {
+		pricingModels = toAssetPricingModels(fpricingModels.(map[string]interface{}))
+	}
+
 	// parse labels map to AssetLabels
 	labels := make(map[string]string)
 	for k, v := range fmap["labels"].(map[string]interface{}) {
@@ -406,6 +497,7 @@ func (n *Network) InterfaceToNetwork(itf interface{}) error {
 
 	n.properties = &properties
 	n.labels = labels
+	n.assetPricingModels = pricingModels
 	n.start = start
 	n.end = end
 	n.window = Window{
@@ -416,8 +508,14 @@ func (n *Network) InterfaceToNetwork(itf interface{}) error {
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
 		n.adjustment = adjustment.(float64)
 	}
+	if credit, err := getTypedVal(fmap["credit"]); err == nil {
+		n.credit = credit.(float64)
+	}
+	if discount, err := getTypedVal(fmap["discount"]); err == nil {
+		n.discount = discount.(float64)
+	}
 	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
-		n.Cost = Cost.(float64) - n.adjustment
+		n.Cost = Cost.(float64) - n.adjustment - n.credit
 	}
 
 	return nil
@@ -431,6 +529,7 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
 	jsonEncodeString(buffer, "type", n.Type().String(), ",")
 	jsonEncode(buffer, "properties", n.Properties(), ",")
+	jsonEncode(buffer, "assetPricingModels", n.AssetPricingModels(), ",")
 	jsonEncode(buffer, "labels", n.Labels(), ",")
 	jsonEncode(buffer, "window", n.Window(), ",")
 	jsonEncodeString(buffer, "start", n.Start().Format(time.RFC3339), ",")
@@ -444,18 +543,19 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "GPUHours", n.GPUHours, ",")
 	jsonEncode(buffer, "cpuBreakdown", n.CPUBreakdown, ",")
 	jsonEncode(buffer, "ramBreakdown", n.RAMBreakdown, ",")
-	jsonEncodeFloat64(buffer, "preemptible", n.Preemptible, ",")
-	jsonEncodeFloat64(buffer, "discount", n.Discount, ",")
 	jsonEncodeFloat64(buffer, "cpuCost", n.CPUCost, ",")
 	jsonEncodeFloat64(buffer, "gpuCost", n.GPUCost, ",")
 	jsonEncodeFloat64(buffer, "gpuCount", n.GPUs(), ",")
 	jsonEncodeFloat64(buffer, "ramCost", n.RAMCost, ",")
 	jsonEncodeFloat64(buffer, "adjustment", n.Adjustment(), ",")
+	jsonEncodeFloat64(buffer, "credit", n.Credit(), ",")
+	jsonEncodeFloat64(buffer, "discount", n.Discount(), ",")
 	jsonEncodeFloat64(buffer, "totalCost", n.TotalCost(), "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
 
+// UnmarshalJSON implements json.Unmarshal
 func (n *Node) UnmarshalJSON(b []byte) error {
 
 	var f interface{}
@@ -482,6 +582,12 @@ func (n *Node) InterfaceToNode(itf interface{}) error {
 	fproperties := fmap["properties"].(map[string]interface{})
 	properties := toAssetProp(fproperties)
 
+	// parse pricingModels map to AssetPricingModels
+	var pricingModels *AssetPricingModels = nil
+	if fpricingModels := fmap["assetPricingModels"]; fpricingModels != nil {
+		pricingModels = toAssetPricingModels(fpricingModels.(map[string]interface{}))
+	}
+
 	// parse labels map to AssetLabels
 	labels := make(map[string]string)
 	for k, v := range fmap["labels"].(map[string]interface{}) {
@@ -506,6 +612,7 @@ func (n *Node) InterfaceToNode(itf interface{}) error {
 
 	n.properties = &properties
 	n.labels = labels
+	n.assetPricingModels = pricingModels
 	n.start = start
 	n.end = end
 	n.window = Window{
@@ -517,6 +624,12 @@ func (n *Node) InterfaceToNode(itf interface{}) error {
 
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
 		n.adjustment = adjustment.(float64)
+	}
+	if credit, err := getTypedVal(fmap["credit"]); err == nil {
+		n.credit = credit.(float64)
+	}
+	if discount, err := getTypedVal(fmap["discount"]); err == nil {
+		n.discount = discount.(float64)
 	}
 	if NodeType, err := getTypedVal(fmap["nodeType"]); err == nil {
 		n.NodeType = NodeType.(string)
@@ -542,12 +655,6 @@ func (n *Node) InterfaceToNode(itf interface{}) error {
 	if RAMCost, err := getTypedVal(fmap["ramCost"]); err == nil {
 		n.RAMCost = RAMCost.(float64)
 	}
-	if Discount, err := getTypedVal(fmap["discount"]); err == nil {
-		n.Discount = Discount.(float64)
-	}
-	if Preemptible, err := getTypedVal(fmap["preemptible"]); err == nil {
-		n.Preemptible = Preemptible.(float64)
-	}
 
 	return nil
 }
@@ -560,16 +667,20 @@ func (lb *LoadBalancer) MarshalJSON() ([]byte, error) {
 	jsonEncodeString(buffer, "type", lb.Type().String(), ",")
 	jsonEncode(buffer, "properties", lb.Properties(), ",")
 	jsonEncode(buffer, "labels", lb.Labels(), ",")
+	jsonEncode(buffer, "assetPricingModels", lb.AssetPricingModels(), ",")
 	jsonEncode(buffer, "window", lb.Window(), ",")
 	jsonEncodeString(buffer, "start", lb.Start().Format(time.RFC3339), ",")
 	jsonEncodeString(buffer, "end", lb.End().Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", lb.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "adjustment", lb.Adjustment(), ",")
+	jsonEncodeFloat64(buffer, "credit", lb.Credit(), ",")
+	jsonEncodeFloat64(buffer, "discount", lb.Discount(), ",")
 	jsonEncodeFloat64(buffer, "totalCost", lb.TotalCost(), "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
 
+// UnmarshalJSON implements json.Unmarshal
 func (lb *LoadBalancer) UnmarshalJSON(b []byte) error {
 
 	var f interface{}
@@ -596,6 +707,12 @@ func (lb *LoadBalancer) InterfaceToLoadBalancer(itf interface{}) error {
 	fproperties := fmap["properties"].(map[string]interface{})
 	properties := toAssetProp(fproperties)
 
+	// parse pricingModels map to AssetPricingModels
+	var pricingModels *AssetPricingModels = nil
+	if fpricingModels := fmap["assetPricingModels"]; fpricingModels != nil {
+		pricingModels = toAssetPricingModels(fpricingModels.(map[string]interface{}))
+	}
+
 	// parse labels map to AssetLabels
 	labels := make(map[string]string)
 	for k, v := range fmap["labels"].(map[string]interface{}) {
@@ -614,6 +731,7 @@ func (lb *LoadBalancer) InterfaceToLoadBalancer(itf interface{}) error {
 
 	lb.properties = &properties
 	lb.labels = labels
+	lb.assetPricingModels = pricingModels
 	lb.start = start
 	lb.end = end
 	lb.window = Window{
@@ -624,8 +742,14 @@ func (lb *LoadBalancer) InterfaceToLoadBalancer(itf interface{}) error {
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
 		lb.adjustment = adjustment.(float64)
 	}
+	if credit, err := getTypedVal(fmap["credit"]); err == nil {
+		lb.credit = credit.(float64)
+	}
+	if discount, err := getTypedVal(fmap["discount"]); err == nil {
+		lb.discount = discount.(float64)
+	}
 	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
-		lb.Cost = Cost.(float64) - lb.adjustment
+		lb.Cost = Cost.(float64) - lb.adjustment - lb.credit
 	}
 
 	return nil
@@ -640,17 +764,20 @@ func (sa *SharedAsset) MarshalJSON() ([]byte, error) {
 	jsonEncodeString(buffer, "type", sa.Type().String(), ",")
 	jsonEncode(buffer, "properties", sa.Properties(), ",")
 	jsonEncode(buffer, "labels", sa.Labels(), ",")
-	jsonEncode(buffer, "properties", sa.Properties(), ",")
-	jsonEncode(buffer, "labels", sa.Labels(), ",")
+	jsonEncode(buffer, "assetPricingModels", sa.AssetPricingModels(), ",")
 	jsonEncode(buffer, "window", sa.Window(), ",")
 	jsonEncodeString(buffer, "start", sa.Start().Format(time.RFC3339), ",")
 	jsonEncodeString(buffer, "end", sa.End().Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", sa.Minutes(), ",")
+	jsonEncodeFloat64(buffer, "adjustment", sa.Adjustment(), ",")
+	jsonEncodeFloat64(buffer, "credit", sa.Credit(), ",")
+	jsonEncodeFloat64(buffer, "discount", sa.Discount(), ",")
 	jsonEncodeFloat64(buffer, "totalCost", sa.TotalCost(), "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
 
+// UnmarshalJSON implements json.Unmarshal
 func (sa *SharedAsset) UnmarshalJSON(b []byte) error {
 
 	var f interface{}
@@ -677,6 +804,12 @@ func (sa *SharedAsset) InterfaceToSharedAsset(itf interface{}) error {
 	fproperties := fmap["properties"].(map[string]interface{})
 	properties := toAssetProp(fproperties)
 
+	// parse pricingModels map to AssetPricingModels
+	var pricingModels *AssetPricingModels = nil
+	if fpricingModels := fmap["assetPricingModels"]; fpricingModels != nil {
+		pricingModels = toAssetPricingModels(fpricingModels.(map[string]interface{}))
+	}
+
 	// parse labels map to AssetLabels
 	labels := make(map[string]string)
 	for k, v := range fmap["labels"].(map[string]interface{}) {
@@ -695,13 +828,23 @@ func (sa *SharedAsset) InterfaceToSharedAsset(itf interface{}) error {
 
 	sa.properties = &properties
 	sa.labels = labels
+	sa.assetPricingModels = pricingModels
 	sa.window = Window{
 		start: &start,
 		end:   &end,
 	}
 
+	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
+		sa.adjustment = adjustment.(float64)
+	}
+	if credit, err := getTypedVal(fmap["credit"]); err == nil {
+		sa.credit = credit.(float64)
+	}
+	if discount, err := getTypedVal(fmap["discount"]); err == nil {
+		sa.discount = discount.(float64)
+	}
 	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
-		sa.Cost = Cost.(float64)
+		sa.Cost = Cost.(float64) - sa.adjustment - sa.credit
 	}
 
 	return nil
@@ -719,7 +862,7 @@ func (as *AssetSet) MarshalJSON() ([]byte, error) {
 
 // AssetSetResponse for unmarshaling of AssetSet.assets into AssetSet
 
-// Unmarshals a marshaled AssetSet json into AssetSetResponse
+// UnmarshalJSON Unmarshals a marshaled AssetSet json into AssetSetResponse
 func (asr *AssetSetResponse) UnmarshalJSON(b []byte) error {
 
 	// gojson used here, as jsonitter UnmarshalJSON won't work with RawMessage
@@ -852,6 +995,7 @@ func (asr *AssetSetResponse) RawMessageToAssetSetResponse(assetMap map[string]*g
 	return nil
 }
 
+// UnmarshalJSON implements json.Unmarshal
 func (asrr *AssetSetRangeResponse) UnmarshalJSON(b []byte) error {
 
 	// gojson used here, as jsonitter UnmarshalJSON won't work with RawMessage
@@ -912,9 +1056,38 @@ func toAssetProp(fproperties map[string]interface{}) AssetProperties {
 	if providerID, v := fproperties["providerID"].(string); v {
 		properties.ProviderID = providerID
 	}
+	if region, v := fproperties["region"].(string); v {
+		properties.Region = region
+	}
+	if pricingSource, v := fproperties["pricingSource"].(string); v {
+		properties.PricingSource = pricingSource
+	}
+	if currency, v := fproperties["currency"].(string); v {
+		properties.Currency = currency
+	}
 
 	return properties
+}
 
+// Creates an AssetPricingModels directly from map[string]interface{}
+func toAssetPricingModels(fpricingModels map[string]interface{}) *AssetPricingModels {
+	if fpricingModels == nil {
+		return nil
+	}
+
+	pricingModels := AssetPricingModels{}
+
+	if preemptible, v := fpricingModels["preemptible"].(float64); v {
+		pricingModels.Preemptible = preemptible
+	}
+	if reservedInstance, v := fpricingModels["reservedInstance"].(float64); v {
+		pricingModels.ReservedInstance = reservedInstance
+	}
+	if savingsPlan, v := fpricingModels["savingsPlan"].(float64); v {
+		pricingModels.SavingsPlan = savingsPlan
+	}
+
+	return &pricingModels
 }
 
 // Creates an Breakdown directly from map[string]interface{}
