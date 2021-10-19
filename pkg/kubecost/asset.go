@@ -740,7 +740,7 @@ func (ca *Cloud) Add(a Asset) Asset {
 	any.SetProperties(props)
 	any.SetLabels(labels)
 	any.adjustment = ca.Adjustment() + a.Adjustment()
-	any.Cost = (ca.TotalCost() - ca.Adjustment() - ca.Credit) + (a.TotalCost() - a.Adjustment() - ca.Credit)
+	any.Cost = (ca.TotalCost() - ca.Adjustment()) + (a.TotalCost() - a.Adjustment())
 
 	return any
 }
