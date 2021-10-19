@@ -61,8 +61,6 @@ type Allocation struct {
 	CPUCost                    float64               `json:"cpuCost"`
 	CPUCostAdjustment          float64               `json:"cpuCostAdjustment"`
 	GPUHours                   float64               `json:"gpuHours"`
-	GPURequestAverage          float64               `json:"gpuRequestAverage"`
-	GPUUsageAverage            float64               `json:"gpuUsageAverage"`
 	GPUCost                    float64               `json:"gpuCost"`
 	GPUCostAdjustment          float64               `json:"gpuCostAdjustment"`
 	NetworkTransferBytes       float64               `json:"networkTransferBytes"`
@@ -207,8 +205,6 @@ func (a *Allocation) Clone() *Allocation {
 		CPUCost:                    a.CPUCost,
 		CPUCostAdjustment:          a.CPUCostAdjustment,
 		GPUHours:                   a.GPUHours,
-		GPURequestAverage:          a.GPURequestAverage,
-		GPUUsageAverage:            a.GPUUsageAverage,
 		GPUCost:                    a.GPUCost,
 		GPUCostAdjustment:          a.GPUCostAdjustment,
 		NetworkTransferBytes:       a.NetworkTransferBytes,
@@ -276,12 +272,6 @@ func (a *Allocation) Equal(that *Allocation) bool {
 		return false
 	}
 	if !util.IsApproximately(a.GPUHours, that.GPUHours) {
-		return false
-	}
-	if !util.IsApproximately(a.GPURequestAverage, that.GPURequestAverage) {
-		return false
-	}
-	if !util.IsApproximately(a.GPUUsageAverage, that.GPUUsageAverage) {
 		return false
 	}
 	if !util.IsApproximately(a.GPUCost, that.GPUCost) {
@@ -446,23 +436,6 @@ func (a *Allocation) RAMEfficiency() float64 {
 	return 1.0
 }
 
-// GPUEfficiency is the ratio of usage to request. If there is no request and
-// no usage or cost, then efficiency is zero. If there is no request, but there
-// is usage or cost, then efficiency is 100%. Note that, without the Nvidia dcgm
-// providing Prometheus with usage metrics, this will always be zero, as
-// GPUUsageAverage will be zero (the default value).
-func (a *Allocation) GPUEfficiency() float64 {
-	if a.GPURequestAverage > 0 && a.GPUUsageAverage > 0 {
-		return a.GPUUsageAverage / a.GPURequestAverage
-	}
-
-	if a.GPUUsageAverage == 0.0 || a.GPUCost == 0.0 {
-		return 0.0
-	}
-
-	return 1.0
-}
-
 // TotalEfficiency is the cost-weighted average of CPU and RAM efficiency. If
 // there is no cost at all, then efficiency is zero.
 func (a *Allocation) TotalEfficiency() float64 {
@@ -535,8 +508,6 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "cpuEfficiency", a.CPUEfficiency(), ",")
 	jsonEncodeFloat64(buffer, "gpuCount", a.GPUs(), ",")
 	jsonEncodeFloat64(buffer, "gpuHours", a.GPUHours, ",")
-	jsonEncodeFloat64(buffer, "gpuRequestAverage", a.GPURequestAverage, ",")
-	jsonEncodeFloat64(buffer, "gpuUsageAverage", a.GPUUsageAverage, ",")
 	jsonEncodeFloat64(buffer, "gpuCost", a.GPUCost, ",")
 	jsonEncodeFloat64(buffer, "gpuCostAdjustment", a.GPUCostAdjustment, ",")
 	jsonEncodeFloat64(buffer, "networkTransferBytes", a.NetworkTransferBytes, ",")
@@ -681,12 +652,6 @@ func (a *Allocation) add(that *Allocation) {
 	ramUseByteMins := a.RAMBytesUsageAverage * a.Minutes()
 	ramUseByteMins += that.RAMBytesUsageAverage * that.Minutes()
 
-	gpuReqMins := a.GPURequestAverage * a.Minutes()
-	gpuReqMins += that.GPURequestAverage * that.Minutes()
-
-	gpuUseMins := a.GPUUsageAverage * a.Minutes()
-	gpuUseMins += that.GPUUsageAverage * that.Minutes()
-
 	// Expand Start and End to be the "max" of among the given Allocations
 	if that.Start.Before(a.Start) {
 		a.Start = that.Start
@@ -702,15 +667,11 @@ func (a *Allocation) add(that *Allocation) {
 		a.CPUCoreUsageAverage = cpuUseCoreMins / a.Minutes()
 		a.RAMBytesRequestAverage = ramReqByteMins / a.Minutes()
 		a.RAMBytesUsageAverage = ramUseByteMins / a.Minutes()
-		a.GPURequestAverage = gpuReqMins / a.Minutes()
-		a.GPUUsageAverage = gpuUseMins / a.Minutes()
 	} else {
 		a.CPUCoreRequestAverage = 0.0
 		a.CPUCoreUsageAverage = 0.0
 		a.RAMBytesRequestAverage = 0.0
 		a.RAMBytesUsageAverage = 0.0
-		a.GPURequestAverage = 0.0
-		a.GPUUsageAverage = 0.0
 	}
 
 	// Sum all cumulative resource fields

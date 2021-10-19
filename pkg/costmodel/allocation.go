@@ -30,7 +30,6 @@ const (
 	queryFmtCPUUsageMax              = `max(rate(container_cpu_usage_seconds_total{container!="", container_name!="POD", container!="POD"}[%s]%s)) by (container_name, container, pod_name, pod, namespace, instance, %s)`
 	queryFmtGPUsRequested            = `avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
 	queryFmtGPUsAllocated            = `avg(avg_over_time(container_gpu_allocation{container!="", container!="POD", node!=""}[%s]%s)) by (container, pod, namespace, node, %s)`
-	queryFmtGPUUsageAvg              = `avg(avg_over_time(DCGM_FI_DEV_GPU_UTIL{container!=""}[%s]%s)) by (container, pod, namespace, %s)`
 	queryFmtNodeCostPerCPUHr         = `avg(avg_over_time(node_cpu_hourly_cost[%s]%s)) by (node, %s, instance_type, provider_id)`
 	queryFmtNodeCostPerRAMGiBHr      = `avg(avg_over_time(node_ram_hourly_cost[%s]%s)) by (node, %s, instance_type, provider_id)`
 	queryFmtNodeCostPerGPUHr         = `avg(avg_over_time(node_gpu_hourly_cost[%s]%s)) by (node, %s, instance_type, provider_id)`
@@ -159,9 +158,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	queryGPUsAllocated := fmt.Sprintf(queryFmtGPUsAllocated, durStr, offStr, env.GetPromClusterLabel())
 	resChGPUsAllocated := ctx.Query(queryGPUsAllocated)
 
-	queryGPUUsageAvg := fmt.Sprintf(queryFmtGPUUsageAvg, durStr, offStr, env.GetPromClusterLabel())
-	resChGPUUsageAvg := ctx.Query(queryGPUUsageAvg)
-
 	queryNodeCostPerCPUHr := fmt.Sprintf(queryFmtNodeCostPerCPUHr, durStr, offStr, env.GetPromClusterLabel())
 	resChNodeCostPerCPUHr := ctx.Query(queryNodeCostPerCPUHr)
 
@@ -262,7 +258,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	resRAMUsageMax, _ := resChRAMUsageMax.Await()
 	resGPUsRequested, _ := resChGPUsRequested.Await()
 	resGPUsAllocated, _ := resChGPUsAllocated.Await()
-	resGPUUsageAvg, _ := resChGPUUsageAvg.Await()
 
 	resNodeCostPerCPUHr, _ := resChNodeCostPerCPUHr.Await()
 	resNodeCostPerRAMGiBHr, _ := resChNodeCostPerRAMGiBHr.Await()
@@ -319,7 +314,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	applyRAMBytesUsedAvg(podMap, resRAMUsageAvg)
 	applyRAMBytesUsedMax(podMap, resRAMUsageMax)
 	applyGPUsAllocated(podMap, resGPUsRequested, resGPUsAllocated)
-	applyGPUUsageAvg(podMap, resGPUUsageAvg)
 	applyNetworkTotals(podMap, resNetTransferBytes, resNetReceiveBytes)
 	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZoneCostPerGiB)
 	applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionCostPerGiB)
@@ -960,35 +954,6 @@ func applyGPUsAllocated(podMap map[podKey]*Pod, resGPUsRequested []*prom.QueryRe
 
 		hrs := pod.Allocations[container].Minutes() / 60.0
 		pod.Allocations[container].GPUHours = res.Values[0].Value * hrs
-		pod.Allocations[container].GPURequestAverage = res.Values[0].Value
-	}
-}
-
-func applyGPUUsageAvg(podMap map[podKey]*Pod, resGPUUsageAvg []*prom.QueryResult) {
-	for _, res := range resGPUUsageAvg {
-		key, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace")
-		if err != nil {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU usage avg result missing field: %s", err)
-			continue
-		}
-
-		pod, ok := podMap[key]
-		if !ok {
-			continue
-		}
-		container, err := res.GetString("container")
-		if err != nil {
-			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU usage avg query result missing 'container': %s", key)
-			continue
-		}
-
-		if _, ok := pod.Allocations[container]; !ok {
-			pod.AppendContainer(container)
-		}
-
-		// Metric represents percentages as full numbers, so scale down by factor of 100 to make consistent
-		// with other efficiency fields
-		pod.Allocations[container].GPUUsageAverage = res.Values[0].Value * 0.01
 	}
 }
 
