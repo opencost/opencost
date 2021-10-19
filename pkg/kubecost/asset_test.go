@@ -1356,3 +1356,306 @@ func TestAssetSetRange_Minutes(t *testing.T) {
 		}
 	}
 }
+
+func TestAssetPricingModels_Equal(t *testing.T) {
+	tests := []struct {
+		name     string
+		apm1     *AssetPricingModels
+		apm2     *AssetPricingModels
+		expected bool
+	}{
+		{
+			name: "Equal pricing models",
+			apm1: &AssetPricingModels{
+				Preemptible:      1.0,
+				ReservedInstance: .95,
+				SavingsPlan:      .607,
+			},
+			apm2: &AssetPricingModels{
+				Preemptible:      1.0,
+				ReservedInstance: .95,
+				SavingsPlan:      .607,
+			},
+			expected: true,
+		},
+		{
+			name: "Preemptible not equal",
+			apm1: &AssetPricingModels{
+				Preemptible:      .9,
+				ReservedInstance: .95,
+				SavingsPlan:      .607,
+			},
+			apm2: &AssetPricingModels{
+				Preemptible:      1.0,
+				ReservedInstance: .95,
+				SavingsPlan:      .607,
+			},
+			expected: false,
+		},
+		{
+			name: "Reserved Instance not equal",
+			apm1: &AssetPricingModels{
+				Preemptible:      1.0,
+				ReservedInstance: .90,
+				SavingsPlan:      .607,
+			},
+			apm2: &AssetPricingModels{
+				Preemptible:      1.0,
+				ReservedInstance: .95,
+				SavingsPlan:      .607,
+			},
+			expected: false,
+		},
+		{
+			name: "Savings Plan not equal",
+			apm1: &AssetPricingModels{
+				Preemptible:      1.0,
+				ReservedInstance: .95,
+				SavingsPlan:      .6,
+			},
+			apm2: &AssetPricingModels{
+				Preemptible:      1.0,
+				ReservedInstance: .95,
+				SavingsPlan:      .607,
+			},
+			expected: false,
+		},
+		{
+			name: "zero value equality",
+			apm1: &AssetPricingModels{
+				Preemptible:      0,
+				ReservedInstance: 0,
+				SavingsPlan:      0,
+			},
+			apm2:     &AssetPricingModels{},
+			expected: true,
+		},
+		{
+			name: "one nil",
+			apm1: &AssetPricingModels{
+				Preemptible:      0,
+				ReservedInstance: 0,
+				SavingsPlan:      0,
+			},
+			apm2:     nil,
+			expected: false,
+		},
+		{
+			name:     "both nil",
+			apm1:     nil,
+			apm2:     nil,
+			expected: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := test.apm1.Equal(test.apm2)
+			if result != test.expected {
+				t.Errorf("%s: expected %v but got %v", test.name, test.expected, result)
+			}
+		})
+	}
+}
+
+func TestAssetPricingModels_Clone(t *testing.T) {
+	tests := []struct {
+		name string
+		apm  *AssetPricingModels
+	}{
+		{
+			name: "Clone Normal",
+			apm: &AssetPricingModels{
+				Preemptible:      1.0,
+				ReservedInstance: .95,
+				SavingsPlan:      .607,
+			},
+		},
+		{
+			name: "Clone Empty",
+			apm:  &AssetPricingModels{},
+		},
+		{
+			name: "Clone nil",
+			apm:  nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			apm2 := test.apm.Clone()
+			result := test.apm.Equal(apm2)
+			if !result {
+				t.Errorf("%s: clone was not equal to original", test.name)
+			}
+		})
+	}
+}
+
+func TestMergePricingModels(t *testing.T) {
+	tests := []struct {
+		name     string
+		asset1   Asset
+		asset2   Asset
+		expected *AssetPricingModels
+	}{
+		{
+			name: "cost only test",
+			asset1: &Any{
+				Cost: 3,
+				assetPricingModels: &AssetPricingModels{
+					Preemptible:      1.0,
+					ReservedInstance: 1.0,
+					SavingsPlan:      1.0,
+				},
+
+			},
+			asset2: &Any{
+				Cost: 1,
+				assetPricingModels: &AssetPricingModels{
+					Preemptible:      0.0,
+					ReservedInstance: 0.0,
+					SavingsPlan:      0.0,
+				},
+
+			},
+			expected: &AssetPricingModels{
+				Preemptible:      0.75,
+				ReservedInstance: 0.75,
+				SavingsPlan:     0.75,
+			},
+		},
+		{
+			name: "Adjustment test",
+			asset1: &Any{
+				adjustment: 1,
+				Cost: 3,
+				assetPricingModels: &AssetPricingModels{
+					Preemptible:      1.0,
+					ReservedInstance: 1.0,
+					SavingsPlan:      1.0,
+				},
+
+			},
+			asset2: &Any{
+				Cost: 1,
+				assetPricingModels: &AssetPricingModels{
+					Preemptible:      0.0,
+					ReservedInstance: 0.0,
+					SavingsPlan:      0.0,
+				},
+
+			},
+			expected: &AssetPricingModels{
+				Preemptible:      0.75,
+				ReservedInstance: 0.75,
+				SavingsPlan:     0.75,
+			},
+		},
+		{
+			name: "Credit test",
+			asset1: &Any{
+				credit: -1.0,
+				adjustment: 1,
+				Cost: 3,
+				assetPricingModels: &AssetPricingModels{
+					Preemptible:      1.0,
+					ReservedInstance: 1.0,
+					SavingsPlan:      1.0,
+				},
+
+			},
+			asset2: &Any{
+				credit: -10.0,
+				Cost: 1,
+				assetPricingModels: &AssetPricingModels{},
+
+			},
+			expected: &AssetPricingModels{
+				Preemptible:      0.75,
+				ReservedInstance: 0.75,
+				SavingsPlan:     0.75,
+			},
+		},
+		{
+			name: "one nil",
+			asset1: &Any{
+				credit: -1.0,
+				adjustment: 1,
+				Cost: 3,
+				assetPricingModels: &AssetPricingModels{
+					Preemptible:      1.0,
+					ReservedInstance: 1.0,
+					SavingsPlan:      1.0,
+				},
+
+			},
+			asset2: &Any{
+				credit: -1.0,
+				Cost: 2,
+				assetPricingModels: nil,
+
+			},
+			expected: &AssetPricingModels{
+				Preemptible:      1.0,
+				ReservedInstance: 1.0,
+				SavingsPlan:      1.0,
+			},
+		},
+		{
+			name: "two nil",
+			asset1: &Any{
+				credit: -1.0,
+				Cost: 2,
+				assetPricingModels: nil,
+
+			},
+			asset2: &Any{
+				credit: -1.0,
+				Cost: 2,
+				assetPricingModels: nil,
+
+			},
+			expected: nil,
+		},
+		{
+			name: "Negative cost",
+			asset1: &Any{
+				adjustment: 1,
+				Cost: -10,
+				assetPricingModels: &AssetPricingModels{
+					Preemptible:      1.0,
+					ReservedInstance: 1.0,
+					SavingsPlan:      1.0,
+				},
+
+			},
+			asset2: &Any{
+				Cost: 1,
+				assetPricingModels: &AssetPricingModels{
+					Preemptible:      0.0,
+					ReservedInstance: 0.0,
+					SavingsPlan:      0.0,
+				},
+
+			},
+			expected: &AssetPricingModels{
+				Preemptible:      0.5,
+				ReservedInstance: 0.5,
+				SavingsPlan:     0.5,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mergedPricingModes := mergePricingModels(test.asset1, test.asset2)
+			result := mergedPricingModes.Equal(test.expected)
+			if !result {
+				t.Errorf("%s: output pricing model was not equal to expected", test.name)
+			}
+		})
+	}
+}
+
+
