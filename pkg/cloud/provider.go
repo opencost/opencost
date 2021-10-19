@@ -412,16 +412,16 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, erro
 		return nil, fmt.Errorf("Could not locate any nodes for cluster.")
 	}
 
-	provider, configFileName, region, accountID, projectID := getClusterProperties(nodes[0])
+	cp := getClusterProperties(nodes[0])
 
-	switch provider {
+	switch cp.provider {
 	case "CSV":
 		klog.Infof("Using CSV Provider with CSV at %s", env.GetCSVPath())
 		return &CSVProvider{
 			CSVLocation: env.GetCSVPath(),
 			CustomProvider: &CustomProvider{
 				Clientset: cache,
-				Config:    NewProviderConfig(configFileName),
+				Config:    NewProviderConfig(cp.configFileName),
 			},
 		}, nil
 	case "GCP":
@@ -430,61 +430,71 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, erro
 			return nil, errors.New("Supply a GCP Key to start getting data")
 		}
 		return &GCP{
-			Clientset: cache,
-			APIKey:    apiKey,
-			Config:    NewProviderConfig(configFileName),
-			clusterRegion: region,
-			clusterProjectId: projectID,
+			Clientset:        cache,
+			APIKey:           apiKey,
+			Config:           NewProviderConfig(cp.configFileName),
+			clusterRegion:    cp.region,
+			clusterProjectId: cp.projectID,
 		}, nil
 	case "AWS":
 		klog.V(2).Info("Found ProviderID starting with \"aws\", using AWS Provider")
 		return &AWS{
-			Clientset: cache,
-			Config:    NewProviderConfig(configFileName),
-			clusterRegion: region,
-			clusterAccountId: accountID,
+			Clientset:        cache,
+			Config:           NewProviderConfig(cp.configFileName),
+			clusterRegion:    cp.region,
+			clusterAccountId: cp.accountID,
 		}, nil
 	case "AZURE":
 		klog.V(2).Info("Found ProviderID starting with \"azure\", using Azure Provider")
 		return &Azure{
-			Clientset: cache,
-			Config:    NewProviderConfig(configFileName),
-			clusterRegion: region,
-			clusterAccountId: accountID,
+			Clientset:        cache,
+			Config:           NewProviderConfig(cp.configFileName),
+			clusterRegion:    cp.region,
+			clusterAccountId: cp.accountID,
 		}, nil
 	default:
 		klog.V(2).Info("Unsupported provider, falling back to default")
 		return &CustomProvider{
 			Clientset: cache,
-			Config:    NewProviderConfig(configFileName),
+			Config:    NewProviderConfig(cp.configFileName),
 		}, nil
 	}
 }
 
-func getClusterProperties(node *v1.Node) (string, string, string, string, string) {
+type clusterProperties struct {
+	provider       string
+	configFileName string
+	region         string
+	accountID      string
+	projectID      string
+}
+
+func getClusterProperties(node *v1.Node) (clusterProperties) {
 	providerID := strings.ToLower(node.Spec.ProviderID)
-	provider := "DEFAULT"
-	configFileName := "default.json"
-	region := node.Labels["topology.kubernetes.io/region"]
-	accountID := ""
-	projectID := ""
+	cp := clusterProperties{
+		provider: "DEFAULT",
+		configFileName: "default.json",
+		region: node.Labels["topology.kubernetes.io/region"],
+		accountID: "",
+		projectID: "",
+	}
 	if metadata.OnGCE() {
-		provider = "GCP"
-		configFileName = "gcp.json"
-		projectID = parseGCPProjectID(providerID)
+		cp.provider = "GCP"
+		cp.configFileName = "gcp.json"
+		cp.projectID = parseGCPProjectID(providerID)
 	} else if strings.HasPrefix(providerID, "aws") {
-		provider = "AWS"
-		configFileName = "aws.json"
+		cp.provider = "AWS"
+		cp.configFileName = "aws.json"
 	} else if strings.HasPrefix(providerID, "azure") {
-		provider = "AZURE"
-		configFileName = "azure.json"
-		accountID = parseAzureSubscriptionID(providerID)
+		cp.provider = "AZURE"
+		cp.configFileName = "azure.json"
+		cp.accountID = parseAzureSubscriptionID(providerID)
 	}
 	if env.IsUseCSVProvider() {
-		provider = "CSV"
+		cp.provider = "CSV"
 	}
 
-	return provider, configFileName, region, accountID, projectID
+	return cp
 }
 
 func UpdateClusterMeta(cluster_id, cluster_name string) error {

@@ -1529,9 +1529,9 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 	return discount
 }
 
-func parseGCPProjectID (id string) string {
-	// gce://guestbook-227502/...
-	//  => guestbook-227502
+func parseGCPProjectID(id string) string {
+	// gce://guestbook-12345/...
+	//  => guestbook-12345
 	rx := regexp.MustCompile("gce://([^/]*)/*")
 	match := rx.FindStringSubmatch(id)
 	if len(match) >= 2 {

@@ -1424,8 +1424,8 @@ func (az *Azure) Regions() []string {
 }
 
 func parseAzureSubscriptionID(id string) string {
-	// azure:///subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/...
-	//  => 0bd50fdf-c923-4e1e-850c-196dd3dcc5d3
+	// azure:///subscriptions/0badafdf-1234-abcd-wxyz-123456789/...
+	//  => 0badafdf-1234-abcd-wxyz-123456789
 	rx := regexp.MustCompile("azure:///subscriptions/([^/]*)/*")
 	match := rx.FindStringSubmatch(id)
 	if len(match) >= 2 {
