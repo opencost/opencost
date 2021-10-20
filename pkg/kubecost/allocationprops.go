@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 )
 
@@ -227,6 +228,176 @@ func (p *AllocationProperties) Equal(that *AllocationProperties) bool {
 	}
 
 	return true
+}
+
+func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *LabelConfig) string {
+	if p == nil {
+		return ""
+	}
+
+	if labelConfig == nil {
+		labelConfig = NewLabelConfig()
+	}
+
+	// Names will ultimately be joined into a single name, which uniquely
+	// identifies allocations.
+	names := []string{}
+
+	for _, agg := range aggregateBy {
+		switch true {
+		case agg == AllocationClusterProp:
+			names = append(names, p.Cluster)
+		case agg == AllocationNodeProp:
+			names = append(names, p.Node)
+		case agg == AllocationNamespaceProp:
+			names = append(names, p.Namespace)
+		case agg == AllocationControllerKindProp:
+			controllerKind := p.ControllerKind
+			if controllerKind == "" {
+				// Indicate that allocation has no controller
+				controllerKind = UnallocatedSuffix
+			}
+			names = append(names, controllerKind)
+		case agg == AllocationDaemonSetProp || agg == AllocationStatefulSetProp || agg == AllocationDeploymentProp || agg == AllocationJobProp:
+			controller := p.Controller
+			if agg != p.ControllerKind || controller == "" {
+				// The allocation does not have the specified controller kind
+				controller = UnallocatedSuffix
+			}
+			names = append(names, controller)
+		case agg == AllocationControllerProp:
+			controller := p.Controller
+			if controller == "" {
+				// Indicate that allocation has no controller
+				controller = UnallocatedSuffix
+			} else if p.ControllerKind != "" {
+				controller = fmt.Sprintf("%s:%s", p.ControllerKind, controller)
+			}
+			names = append(names, controller)
+		case agg == AllocationPodProp:
+			names = append(names, p.Pod)
+		case agg == AllocationContainerProp:
+			names = append(names, p.Container)
+		case agg == AllocationServiceProp:
+			services := p.Services
+			if len(services) == 0 {
+				// Indicate that allocation has no services
+				names = append(names, UnallocatedSuffix)
+			} else {
+				// This just uses the first service
+				for _, service := range services {
+					names = append(names, service)
+					break
+				}
+			}
+		case strings.HasPrefix(agg, "label:"):
+			labels := p.Labels
+			if labels == nil {
+				names = append(names, UnallocatedSuffix)
+			} else {
+				labelName := labelConfig.Sanitize(strings.TrimPrefix(agg, "label:"))
+				if labelValue, ok := labels[labelName]; ok {
+					names = append(names, fmt.Sprintf("%s=%s", labelName, labelValue))
+				} else {
+					names = append(names, UnallocatedSuffix)
+				}
+			}
+		case strings.HasPrefix(agg, "annotation:"):
+			annotations := p.Annotations
+			if annotations == nil {
+				names = append(names, UnallocatedSuffix)
+			} else {
+				annotationName := labelConfig.Sanitize(strings.TrimPrefix(agg, "annotation:"))
+				if annotationValue, ok := annotations[annotationName]; ok {
+					names = append(names, fmt.Sprintf("%s=%s", annotationName, annotationValue))
+				} else {
+					names = append(names, UnallocatedSuffix)
+				}
+			}
+		case agg == AllocationDepartmentProp:
+			labels := p.Labels
+			if labels == nil {
+				names = append(names, UnallocatedSuffix)
+			} else {
+				labelNames := strings.Split(labelConfig.DepartmentLabel, ",")
+				for _, labelName := range labelNames {
+					labelName = labelConfig.Sanitize(labelName)
+					if labelValue, ok := labels[labelName]; ok {
+						names = append(names, labelValue)
+					} else {
+						names = append(names, UnallocatedSuffix)
+					}
+				}
+			}
+		case agg == AllocationEnvironmentProp:
+			labels := p.Labels
+			if labels == nil {
+				names = append(names, UnallocatedSuffix)
+			} else {
+				labelNames := strings.Split(labelConfig.EnvironmentLabel, ",")
+				for _, labelName := range labelNames {
+					labelName = labelConfig.Sanitize(labelName)
+					if labelValue, ok := labels[labelName]; ok {
+						names = append(names, labelValue)
+					} else {
+						names = append(names, UnallocatedSuffix)
+					}
+				}
+			}
+		case agg == AllocationOwnerProp:
+			labels := p.Labels
+			if labels == nil {
+				names = append(names, UnallocatedSuffix)
+			} else {
+				labelNames := strings.Split(labelConfig.OwnerLabel, ",")
+				for _, labelName := range labelNames {
+					labelName = labelConfig.Sanitize(labelName)
+					if labelValue, ok := labels[labelName]; ok {
+						names = append(names, labelValue)
+					} else {
+						names = append(names, UnallocatedSuffix)
+					}
+				}
+			}
+		case agg == AllocationProductProp:
+			labels := p.Labels
+			if labels == nil {
+				names = append(names, UnallocatedSuffix)
+			} else {
+				labelNames := strings.Split(labelConfig.ProductLabel, ",")
+				for _, labelName := range labelNames {
+					labelName = labelConfig.Sanitize(labelName)
+					if labelValue, ok := labels[labelName]; ok {
+						names = append(names, labelValue)
+					} else {
+						names = append(names, UnallocatedSuffix)
+					}
+				}
+			}
+		case agg == AllocationTeamProp:
+			labels := p.Labels
+			if labels == nil {
+				names = append(names, UnallocatedSuffix)
+			} else {
+				labelNames := strings.Split(labelConfig.TeamLabel, ",")
+				for _, labelName := range labelNames {
+					labelName = labelConfig.Sanitize(labelName)
+					if labelValue, ok := labels[labelName]; ok {
+						names = append(names, labelValue)
+					} else {
+						names = append(names, UnallocatedSuffix)
+					}
+				}
+			}
+		default:
+			// This case should never be reached, as input up until this point
+			// should be checked and rejected if invalid. But if we do get a
+			// value we don't recognize, log a warning.
+			log.Warningf("generateKey: illegal aggregation parameter: %s", agg)
+		}
+	}
+
+	return strings.Join(names, "/")
 }
 
 // Intersection returns an *AllocationProperties which contains all matching fields between the calling and parameter AllocationProperties

@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
+
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/thanos"
 	"github.com/kubecost/cost-model/pkg/util/timeutil"
@@ -459,8 +461,16 @@ func (w Window) IsOpen() bool {
 // TODO:CLEANUP make this unmarshalable (make Start and End public)
 func (w Window) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
-	buffer.WriteString(fmt.Sprintf("\"start\":\"%s\",", w.start.Format(time.RFC3339)))
-	buffer.WriteString(fmt.Sprintf("\"end\":\"%s\"", w.end.Format(time.RFC3339)))
+	if w.start != nil {
+		buffer.WriteString(fmt.Sprintf("\"start\":\"%s\",", w.start.Format(time.RFC3339)))
+	} else {
+		buffer.WriteString(fmt.Sprintf("\"start\":\"%s\",", "null"))
+	}
+	if w.end != nil {
+		buffer.WriteString(fmt.Sprintf("\"end\":\"%s\"", w.end.Format(time.RFC3339)))
+	} else {
+		buffer.WriteString(fmt.Sprintf("\"end\":\"%s\"", "null"))
+	}
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }

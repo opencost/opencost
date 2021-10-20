@@ -743,15 +743,16 @@ func NewAllocationSet(start, end time.Time, allocs ...*Allocation) *AllocationSe
 // succeeds, the allocation is marked as a shared resource. ShareIdle is a
 // simple flag for sharing idle resources.
 type AllocationAggregationOptions struct {
-	FilterFuncs       []AllocationMatchFunc
-	IdleByNode        bool
-	LabelConfig       *LabelConfig
-	MergeUnallocated  bool
-	SharedHourlyCosts map[string]float64
-	ShareFuncs        []AllocationMatchFunc
-	ShareIdle         string
-	ShareSplit        string
-	SplitIdle         bool
+	AllocationResourceTotalsStore ResourceTotalsStore
+	FilterFuncs                   []AllocationMatchFunc
+	IdleByNode                    bool
+	LabelConfig                   *LabelConfig
+	MergeUnallocated              bool
+	ShareFuncs                    []AllocationMatchFunc
+	ShareIdle                     string
+	ShareSplit                    string
+	SharedHourlyCosts             map[string]float64
+	SplitIdle                     bool
 }
 
 // AggregateBy aggregates the Allocations in the given AllocationSet by the given
@@ -759,33 +760,47 @@ type AllocationAggregationOptions struct {
 // given AllocationProperty; e.g. Containers can be divided by Namespace, but not vice-a-versa.
 func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAggregationOptions) error {
 	// The order of operations for aggregating allocations is as follows:
+	//
 	//  1. Partition external, idle, and shared allocations into separate sets.
 	//     Also, create the aggSet into which the results will be aggregated.
+	//
 	//  2. Compute sharing coefficients for idle and shared resources
 	//     a) if idle allocation is to be shared, compute idle coefficients
 	//     b) if idle allocation is NOT shared, but filters are present, compute
 	//        idle filtration coefficients for the purpose of only returning the
 	//        portion of idle allocation that would have been shared with the
 	//        unfiltered results. (See unit tests 5.a,b,c)
-	//     c) generate shared allocation for then given shared overhead, which
+	//     c) generate shared allocation for them given shared overhead, which
 	//        must happen after (2a) and (2b)
 	//     d) if there are shared resources, compute share coefficients
+	//
 	//  3. Drop any allocation that fails any of the filters
+	//
 	//  4. Distribute idle allocations according to the idle coefficients
+	//
 	//  5. Generate aggregation key and insert allocation into the output set
+	//
 	//  6. If idle is shared and resources are shared, some idle might be shared
 	//     with a shared resource. Distribute that to the shared resources
 	//     prior to sharing them with the aggregated results.
+	//
 	//  7. Apply idle filtration coefficients from step (2b)
+	//
 	//  8. Distribute shared allocations according to the share coefficients.
+	//
 	//  9. If there are external allocations that can be aggregated into
 	//     the output (i.e. they can be used to generate a valid key for
 	//     the given properties) then aggregate; otherwise... ignore them?
+	//
 	// 10. If the merge idle option is enabled, merge any remaining idle
 	//     allocations into a single idle allocation. If there was any idle
 	//	   whose costs were not distributed because there was no usage of a
 	//     specific resource type, re-add the idle to the aggregation with
 	//     only that type.
+	//
+	// 11. Distribute any undistributed idle, in the case that idle
+	//     coefficients end up being zero and some idle is not shared.
+
 	if as.IsEmpty() {
 		return nil
 	}
@@ -879,6 +894,8 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		}
 	}
 
+	// TODO shouldn't we just return all shared cost in this case below?
+
 	// It's possible that no more un-shared, non-idle, non-external allocations
 	// remain at this point. This always results in an emptySet, so return early.
 	if len(as.allocations) == 0 {
@@ -963,7 +980,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	}
 
 	// (2c) Convert SharedHourlyCosts to Allocations in the shareSet. This must
-	// come after idle coefficients are computes so that allocations generated
+	// come after idle coefficients are computed so that allocations generated
 	// by shared overhead do not skew the idle coefficient computation.
 	for name, cost := range options.SharedHourlyCosts {
 		if cost > 0.0 {
@@ -1218,7 +1235,9 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		}
 	}
 
-	// In the edge case that some idle has not been distributed because
+	// TODO move the following to a self-contained function?
+
+	// (11) In the edge case that some idle has not been distributed because
 	// there is no usage of that resource type, add idle back to
 	// aggregations with only that cost applied.
 
@@ -1240,9 +1259,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 
 	if idleSet.Length() > 0 && !options.SplitIdle {
 		if undistributedIdleMap["cpu"] || undistributedIdleMap["gpu"] || undistributedIdleMap["ram"] {
-
 			for _, idleAlloc := range idleSet.allocations {
-
 				skip := false
 
 				// if the idle does not apply to the non-filtered values, skip it
@@ -1504,169 +1521,7 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 		return ""
 	}
 
-	if labelConfig == nil {
-		labelConfig = NewLabelConfig()
-	}
-
-	// Names will ultimately be joined into a single name, which uniquely
-	// identifies allocations.
-	names := []string{}
-
-	for _, agg := range aggregateBy {
-		switch true {
-		case agg == AllocationClusterProp:
-			names = append(names, a.Properties.Cluster)
-		case agg == AllocationNodeProp:
-			names = append(names, a.Properties.Node)
-		case agg == AllocationNamespaceProp:
-			names = append(names, a.Properties.Namespace)
-		case agg == AllocationControllerKindProp:
-			controllerKind := a.Properties.ControllerKind
-			if controllerKind == "" {
-				// Indicate that allocation has no controller
-				controllerKind = UnallocatedSuffix
-			}
-			names = append(names, controllerKind)
-		case agg == AllocationDaemonSetProp || agg == AllocationStatefulSetProp || agg == AllocationDeploymentProp || agg == AllocationJobProp:
-			controller := a.Properties.Controller
-			if agg != a.Properties.ControllerKind || controller == "" {
-				// The allocation does not have the specified controller kind
-				controller = UnallocatedSuffix
-			}
-			names = append(names, controller)
-		case agg == AllocationControllerProp:
-			controller := a.Properties.Controller
-			if controller == "" {
-				// Indicate that allocation has no controller
-				controller = UnallocatedSuffix
-			} else if a.Properties.ControllerKind != "" {
-				controller = fmt.Sprintf("%s:%s", a.Properties.ControllerKind, controller)
-			}
-			names = append(names, controller)
-		case agg == AllocationPodProp:
-			names = append(names, a.Properties.Pod)
-		case agg == AllocationContainerProp:
-			names = append(names, a.Properties.Container)
-		case agg == AllocationServiceProp:
-			services := a.Properties.Services
-			if len(services) == 0 {
-				// Indicate that allocation has no services
-				names = append(names, UnallocatedSuffix)
-			} else {
-				// This just uses the first service
-				for _, service := range services {
-					names = append(names, service)
-					break
-				}
-			}
-		case strings.HasPrefix(agg, "label:"):
-			labels := a.Properties.Labels
-			if labels == nil {
-				names = append(names, UnallocatedSuffix)
-			} else {
-				labelName := labelConfig.Sanitize(strings.TrimPrefix(agg, "label:"))
-				if labelValue, ok := labels[labelName]; ok {
-					names = append(names, fmt.Sprintf("%s=%s", labelName, labelValue))
-				} else {
-					names = append(names, UnallocatedSuffix)
-				}
-			}
-		case strings.HasPrefix(agg, "annotation:"):
-			annotations := a.Properties.Annotations
-			if annotations == nil {
-				names = append(names, UnallocatedSuffix)
-			} else {
-				annotationName := labelConfig.Sanitize(strings.TrimPrefix(agg, "annotation:"))
-				if annotationValue, ok := annotations[annotationName]; ok {
-					names = append(names, fmt.Sprintf("%s=%s", annotationName, annotationValue))
-				} else {
-					names = append(names, UnallocatedSuffix)
-				}
-			}
-		case agg == AllocationDepartmentProp:
-			labels := a.Properties.Labels
-			if labels == nil {
-				names = append(names, UnallocatedSuffix)
-			} else {
-				labelNames := strings.Split(labelConfig.DepartmentLabel, ",")
-				for _, labelName := range labelNames {
-					labelName = labelConfig.Sanitize(labelName)
-					if labelValue, ok := labels[labelName]; ok {
-						names = append(names, labelValue)
-					} else {
-						names = append(names, UnallocatedSuffix)
-					}
-				}
-			}
-		case agg == AllocationEnvironmentProp:
-			labels := a.Properties.Labels
-			if labels == nil {
-				names = append(names, UnallocatedSuffix)
-			} else {
-				labelNames := strings.Split(labelConfig.EnvironmentLabel, ",")
-				for _, labelName := range labelNames {
-					labelName = labelConfig.Sanitize(labelName)
-					if labelValue, ok := labels[labelName]; ok {
-						names = append(names, labelValue)
-					} else {
-						names = append(names, UnallocatedSuffix)
-					}
-				}
-			}
-		case agg == AllocationOwnerProp:
-			labels := a.Properties.Labels
-			if labels == nil {
-				names = append(names, UnallocatedSuffix)
-			} else {
-				labelNames := strings.Split(labelConfig.OwnerLabel, ",")
-				for _, labelName := range labelNames {
-					labelName = labelConfig.Sanitize(labelName)
-					if labelValue, ok := labels[labelName]; ok {
-						names = append(names, labelValue)
-					} else {
-						names = append(names, UnallocatedSuffix)
-					}
-				}
-			}
-		case agg == AllocationProductProp:
-			labels := a.Properties.Labels
-			if labels == nil {
-				names = append(names, UnallocatedSuffix)
-			} else {
-				labelNames := strings.Split(labelConfig.ProductLabel, ",")
-				for _, labelName := range labelNames {
-					labelName = labelConfig.Sanitize(labelName)
-					if labelValue, ok := labels[labelName]; ok {
-						names = append(names, labelValue)
-					} else {
-						names = append(names, UnallocatedSuffix)
-					}
-				}
-			}
-		case agg == AllocationTeamProp:
-			labels := a.Properties.Labels
-			if labels == nil {
-				names = append(names, UnallocatedSuffix)
-			} else {
-				labelNames := strings.Split(labelConfig.TeamLabel, ",")
-				for _, labelName := range labelNames {
-					labelName = labelConfig.Sanitize(labelName)
-					if labelValue, ok := labels[labelName]; ok {
-						names = append(names, labelValue)
-					} else {
-						names = append(names, UnallocatedSuffix)
-					}
-				}
-			}
-		default:
-			// This case should never be reached, as input up until this point
-			// should be checked and rejected if invalid. But if we do get a
-			// value we don't recognize, log a warning.
-			log.Warningf("AggregateBy: illegal aggregation parameter: %s", agg)
-		}
-	}
-
-	return strings.Join(names, "/")
+	return a.Properties.GenerateKey(aggregateBy, labelConfig)
 }
 
 // Clone returns a new AllocationSet with a deep copy of the given
