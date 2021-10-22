@@ -39,7 +39,7 @@ const (
 	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
 
 	EmitKsmV1MetricsEnvVar = "EMIT_KSM_V1_METRICS"
-	EmitKsmNodeMetricsOnly = "EMIT_KSM_NODE_METRICS_ONLY"
+	EmitKsmV1MetricsOnly   = "EMIT_KSM_V1_METRICS_ONLY"
 
 	ThanosEnabledEnvVar      = "THANOS_ENABLED"
 	ThanosQueryUrlEnvVar     = "THANOS_QUERY_URL"
@@ -105,8 +105,8 @@ func IsEmitKsmV1Metrics() bool {
 	return GetBool(EmitKsmV1MetricsEnvVar, true)
 }
 
-func IsEmitNodeKubeStateMetrisOnly() bool {
-	return GetBool(EmitKsmNodeMetricsOnly, true)
+func IsEmitKsmV1MetricsOnly() bool {
+	return GetBool(EmitKsmV1MetricsOnly, true)
 }
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
