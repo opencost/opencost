@@ -106,7 +106,7 @@ func IsEmitKsmV1Metrics() bool {
 }
 
 func IsEmitKsmV1MetricsOnly() bool {
-	return GetBool(EmitKsmV1MetricsOnly, true)
+	return GetBool(EmitKsmV1MetricsOnly, false)
 }
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
