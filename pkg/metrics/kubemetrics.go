@@ -24,21 +24,21 @@ var kubeMetricInit sync.Once
 
 // KubeMetricsOpts represents our Kubernetes metrics emission options.
 type KubeMetricsOpts struct {
-	EmitKubecostControllerMetrics  bool
-	EmitNamespaceAnnotations       bool
-	EmitPodAnnotations             bool
-	EmitKubeStateMetrics           bool
-	EmitV1NodeKubeStateMetricsOnly bool
+	EmitKubecostControllerMetrics bool
+	EmitNamespaceAnnotations      bool
+	EmitPodAnnotations            bool
+	EmitKubeStateMetrics          bool
+	EmitKubeStateMetricsV1Only    bool
 }
 
 // DefaultKubeMetricsOpts returns KubeMetricsOpts with default values set
 func DefaultKubeMetricsOpts() *KubeMetricsOpts {
 	return &KubeMetricsOpts{
-		EmitKubecostControllerMetrics:  true,
-		EmitNamespaceAnnotations:       false,
-		EmitPodAnnotations:             false,
-		EmitKubeStateMetrics:           true,
-		EmitV1NodeKubeStateMetricsOnly: false,
+		EmitKubecostControllerMetrics: true,
+		EmitNamespaceAnnotations:      false,
+		EmitPodAnnotations:            false,
+		EmitKubeStateMetrics:          true,
+		EmitKubeStateMetricsV1Only:    false,
 	}
 }
 
@@ -95,7 +95,7 @@ func InitKubeMetrics(clusterCache clustercache.ClusterCache, opts *KubeMetricsOp
 			prometheus.MustRegister(KubeJobCollector{
 				KubeClusterCache: clusterCache,
 			})
-		} else if opts.EmitV1NodeKubeStateMetricsOnly {
+		} else if opts.EmitKubeStateMetricsV1Only {
 			prometheus.MustRegister(KubeNodeCollector{
 				KubeClusterCache: clusterCache,
 			})
