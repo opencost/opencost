@@ -268,6 +268,7 @@ func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clust
 		EmitNamespaceAnnotations:      env.IsEmitNamespaceAnnotationsMetric(),
 		EmitPodAnnotations:            env.IsEmitPodAnnotationsMetric(),
 		EmitKubeStateMetrics:          env.IsEmitKsmV1Metrics(),
+		EmitKubeStateMetricsV1Only:    env.IsEmitKsmV1MetricsOnly(),
 	})
 
 	return &CostModelMetricsEmitter{
