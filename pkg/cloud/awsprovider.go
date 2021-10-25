@@ -130,9 +130,9 @@ type AWS struct {
 	SpotPricingUpdatedAt        *time.Time
 	SpotRefreshRunning          bool
 	SpotPricingLock             sync.RWMutex
-	SpotPricingError           error
+	SpotPricingError            error
 	RIPricingByInstanceID       map[string]*RIData
-	RIPricingError             error
+	RIPricingError              error
 	RIDataRunning               bool
 	RIDataLock                  sync.RWMutex
 	SavingsPlanDataByInstanceID map[string]*SavingsPlanData
@@ -156,6 +156,8 @@ type AWS struct {
 	Config                      *ProviderConfig
 	ServiceAccountChecks        map[string]*ServiceAccountCheck
 	clusterManagementPrice      float64
+	clusterAccountId            string
+	clusterRegion               string
 	clusterProvisioner          string
 	*CustomProvider
 }
@@ -1180,6 +1182,8 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 		m := make(map[string]string)
 		m["name"] = c.ClusterName
 		m["provider"] = "AWS"
+		m["account"] = c.AthenaProjectID // this value requires configuration but is unavailable else where
+		m["region"] = awsProvider.clusterRegion
 		m["id"] = env.GetClusterID()
 		m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 		m["provisioner"] = awsProvider.clusterProvisioner
@@ -1190,6 +1194,8 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 		m := make(map[string]string)
 		m["name"] = clusterName
 		m["provider"] = "AWS"
+		m["account"] = c.AthenaProjectID // this value requires configuration but is unavailable else where
+		m["region"] = awsProvider.clusterRegion
 		m["id"] = env.GetClusterID()
 		m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 		return m, nil

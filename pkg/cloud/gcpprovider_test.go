@@ -34,3 +34,34 @@ func TestParseGCPInstanceTypeLabel(t *testing.T) {
 		}
 	}
 }
+
+func TestParseGCPProjectID(t *testing.T) {
+	cases := []struct {
+		input    string
+		expected string
+	}{
+		{
+			input:    "gce://guestbook-12345/...",
+			expected: "guestbook-12345",
+		},
+		{
+			input:    "gce:/guestbook-12345/...",
+			expected: "",
+		},
+		{
+			input:    "asdfa",
+			expected: "",
+		},
+		{
+			input:    "",
+			expected: "",
+		},
+	}
+
+	for _, test := range cases {
+		result := parseGCPProjectID(test.input)
+		if result != test.expected {
+			t.Errorf("Input: %s, Expected: %s, Actual: %s", test.input, test.expected, result)
+		}
+	}
+}
