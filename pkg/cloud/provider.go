@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/kubecost/cost-model/pkg/util"
 	"io"
 	"regexp"
 	"strconv"
@@ -471,10 +472,11 @@ type clusterProperties struct {
 
 func getClusterProperties(node *v1.Node) (clusterProperties) {
 	providerID := strings.ToLower(node.Spec.ProviderID)
+	region, _ := util.GetRegion(node.Labels)
 	cp := clusterProperties{
 		provider: "DEFAULT",
 		configFileName: "default.json",
-		region: node.Labels["topology.kubernetes.io/region"],
+		region: region,
 		accountID: "",
 		projectID: "",
 	}
