@@ -1,6 +1,7 @@
 package cloudutil
 
 import (
+	"fmt"
 	"strings"
 	"unicode"
 
@@ -14,27 +15,34 @@ import (
 // https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/run-athena-sql.html
 // It returns a string containing the column name in proper column name format and length.
 func ConvertToGlueColumnFormat(columnName string) string {
-
+	fmt.Printf("Calling convert on %s: ", columnName)
 	var sb strings.Builder
 	var prev rune
 	for i, r := range columnName {
 		if unicode.IsUpper(r) && prev != '_' && i != 0 {
 			sb.WriteRune('_')
 		}
-		if !unicode.IsLetter(r) && !unicode.IsNumber(r) && prev != '_' && i != 0 && i != (len(columnName)-1) {
-			sb.WriteRune('_')
+		if !unicode.IsLetter(r) && !unicode.IsNumber(r) {
+			if prev != '_' && i != 0 && i != (len(columnName)-1) {
+				sb.WriteRune('_')
+			}
 			prev = '_'
 			continue
 		}
 		if r == '_' {
 			if prev == '_' || i == 0 || i == len(columnName)-1 {
+				prev = '_'
 				continue
 			}
 		}
 		sb.WriteRune(unicode.ToLower(r))
 		prev = r
 	}
+
 	final := sb.String()
+	if prev == '_' { // string any trailing '_'
+		final = final[:len(final)-1]
+	}
 	// Longer column name than expected - remove _ left to right
 	allowedColLen := 128
 	underscoreToRemove := len(final) - allowedColLen
@@ -47,7 +55,7 @@ func ConvertToGlueColumnFormat(columnName string) string {
 	if len(final) > allowedColLen {
 		final = final[:allowedColLen]
 	}
-
+	fmt.Println(final)
 	log.Debugf("Column name being returned: \"%s\". Length: \"%d\".", final, len(final))
 
 	return final
