@@ -1,16 +1,8 @@
 package cloudutil
 
 import (
-<<<<<<< HEAD
 	"strings"
 	"unicode"
-=======
-	"fmt"
-	"strings"
-	"unicode"
-
-	"github.com/kubecost/cost-model/pkg/log"
->>>>>>> 8f84d202d4aa2126642ec05b1f03513893dabfbc
 )
 
 // ConvertToGlueColumnFormat takes a string and runs through various regex
