@@ -38,7 +38,7 @@ func TestLabelConfig_Map(t *testing.T) {
 
 func TestLabelConfig_GetExternalAllocationName(t *testing.T) {
 	// Make sure that AWS's Glue/Athena column formatting is supported
-	glueFormattedLabel := cloudutil.ConvertToGlueColumnFormat("Non__GlueFormattedLabel")
+	glueFormattedLabel := cloudutil.ConvertToGlueColumnFormat("___Non_&GlueFormattedLabel___&")
 
 	labels := map[string]string{
 		"kubens":                      "kubecost-staging",

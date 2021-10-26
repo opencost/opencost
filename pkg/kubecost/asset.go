@@ -2502,7 +2502,7 @@ func (as *AssetSet) Clone() *AssetSet {
 		aggregateBy = append([]string{}, as.aggregateBy...)
 	}
 
-	assets := map[string]Asset{}
+	assets := make(map[string]Asset, len(as.assets))
 	for k, v := range as.assets {
 		assets[k] = v.Clone()
 	}
