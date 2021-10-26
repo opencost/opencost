@@ -1,8 +1,16 @@
 package cloudutil
 
 import (
+<<<<<<< HEAD
 	"strings"
 	"unicode"
+=======
+	"fmt"
+	"strings"
+	"unicode"
+
+	"github.com/kubecost/cost-model/pkg/log"
+>>>>>>> 8f84d202d4aa2126642ec05b1f03513893dabfbc
 )
 
 // ConvertToGlueColumnFormat takes a string and runs through various regex
@@ -34,7 +42,11 @@ func ConvertToGlueColumnFormat(columnName string) string {
 		sb.WriteRune(unicode.ToLower(r))
 		prev = r
 	}
+
 	final := sb.String()
+	if prev == '_' { // string any trailing '_'
+		final = final[:len(final)-1]
+	}
 	// Longer column name than expected - remove _ left to right
 	allowedColLen := 128
 	underscoreToRemove := len(final) - allowedColLen

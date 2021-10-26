@@ -740,7 +740,7 @@ func (ca *Cloud) Add(a Asset) Asset {
 	any.SetProperties(props)
 	any.SetLabels(labels)
 	any.adjustment = ca.Adjustment() + a.Adjustment()
-	any.Cost = (ca.TotalCost() - ca.Adjustment() - ca.Credit) + (a.TotalCost() - a.Adjustment() - ca.Credit)
+	any.Cost = (ca.TotalCost() - ca.Adjustment()) + (a.TotalCost() - a.Adjustment())
 
 	return any
 }
@@ -2502,7 +2502,7 @@ func (as *AssetSet) Clone() *AssetSet {
 		aggregateBy = append([]string{}, as.aggregateBy...)
 	}
 
-	assets := map[string]Asset{}
+	assets := make(map[string]Asset, len(as.assets))
 	for k, v := range as.assets {
 		assets[k] = v.Clone()
 	}

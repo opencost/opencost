@@ -383,6 +383,8 @@ type Azure struct {
 	Config                  *ProviderConfig
 	ServiceAccountChecks    map[string]*ServiceAccountCheck
 	RateCardPricingError    error
+	clusterAccountId        string
+	clusterRegion           string
 }
 
 type azureKey struct {
@@ -1130,6 +1132,8 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 		m["name"] = c.ClusterName
 	}
 	m["provider"] = "azure"
+	m["account"] = az.clusterAccountId
+	m["region"] = az.clusterRegion
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	m["id"] = env.GetClusterID()
 	return m, nil
@@ -1391,8 +1395,8 @@ func (az *Azure) PricingSourceStatus() map[string]*PricingSource {
 	if az.RateCardPricingError != nil {
 		errMsg = az.RateCardPricingError.Error()
 	}
-	rcps := &PricingSource {
-		Name: rateCardPricingSource,
+	rcps := &PricingSource{
+		Name:  rateCardPricingSource,
 		Error: errMsg,
 	}
 	if rcps.Error != "" {
@@ -1400,7 +1404,7 @@ func (az *Azure) PricingSourceStatus() map[string]*PricingSource {
 	} else if len(az.Pricing) == 0 {
 		rcps.Error = "No Pricing Data Available"
 		rcps.Available = false
-	}else {
+	} else {
 		rcps.Available = true
 	}
 	sources[rateCardPricingSource] = rcps
@@ -1417,4 +1421,16 @@ func (az *Azure) CombinedDiscountForNode(instanceType string, isPreemptible bool
 
 func (az *Azure) Regions() []string {
 	return azureRegions
+}
+
+func parseAzureSubscriptionID(id string) string {
+	// azure:///subscriptions/0badafdf-1234-abcd-wxyz-123456789/...
+	//  => 0badafdf-1234-abcd-wxyz-123456789
+	rx := regexp.MustCompile("azure:///subscriptions/([^/]*)/*")
+	match := rx.FindStringSubmatch(id)
+	if len(match) >= 2 {
+		return match[1]
+	}
+	// Return empty string if an account could not be parsed from provided string
+	return ""
 }

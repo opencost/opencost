@@ -92,6 +92,8 @@ type GCP struct {
 	ServiceKeyProvided      bool
 	ValidPricingKeys        map[string]bool
 	clusterManagementPrice  float64
+	clusterProjectId        string
+	clusterRegion           string
 	clusterProvisioner      string
 	*CustomProvider
 }
@@ -529,6 +531,8 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	m := make(map[string]string)
 	m["name"] = attribute
 	m["provider"] = "GCP"
+	m["project"] = gcp.clusterProjectId
+	m["region"] = gcp.clusterRegion
 	m["provisioner"] = gcp.clusterProvisioner
 	m["id"] = env.GetClusterID()
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
@@ -1523,4 +1527,16 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 		discount = 0.2
 	}
 	return discount
+}
+
+func parseGCPProjectID(id string) string {
+	// gce://guestbook-12345/...
+	//  => guestbook-12345
+	rx := regexp.MustCompile("gce://([^/]*)/*")
+	match := rx.FindStringSubmatch(id)
+	if len(match) >= 2 {
+		return match[1]
+	}
+	// Return empty string if an account could not be parsed from provided string
+	return ""
 }

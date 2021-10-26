@@ -28,7 +28,7 @@ type KubeMetricsOpts struct {
 	EmitNamespaceAnnotations      bool
 	EmitPodAnnotations            bool
 	EmitKubeStateMetrics          bool
-	EmitNodeKubeStateMetrisOnly   bool
+	EmitKubeStateMetricsV1Only    bool
 }
 
 // DefaultKubeMetricsOpts returns KubeMetricsOpts with default values set
@@ -38,7 +38,7 @@ func DefaultKubeMetricsOpts() *KubeMetricsOpts {
 		EmitNamespaceAnnotations:      false,
 		EmitPodAnnotations:            false,
 		EmitKubeStateMetrics:          true,
-		EmitNodeKubeStateMetrisOnly:   false,
+		EmitKubeStateMetricsV1Only:    false,
 	}
 }
 
@@ -95,8 +95,14 @@ func InitKubeMetrics(clusterCache clustercache.ClusterCache, opts *KubeMetricsOp
 			prometheus.MustRegister(KubeJobCollector{
 				KubeClusterCache: clusterCache,
 			})
-		} else if opts.EmitNodeKubeStateMetrisOnly {
+		} else if opts.EmitKubeStateMetricsV1Only {
 			prometheus.MustRegister(KubeNodeCollector{
+				KubeClusterCache: clusterCache,
+			})
+			prometheus.MustRegister(KubeNamespaceCollector{
+				KubeClusterCache: clusterCache,
+			})
+			prometheus.MustRegister(KubePodLabelsCollector{
 				KubeClusterCache: clusterCache,
 			})
 		}

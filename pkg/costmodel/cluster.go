@@ -39,6 +39,8 @@ const (
 	queryNodes = `sum(avg(node_total_hourly_cost) by (node, %s)) * 730 %s`
 )
 
+const maxLocalDiskSize = 200 // AWS limits root disks to 100 Gi, and occasional metric errors in filesystem size should not contribute to large costs.
+
 // Costs represents cumulative and monthly cluster costs over a given duration. Costs
 // are broken down by cores, memory, and storage.
 type ClusterCosts struct {
@@ -242,6 +244,10 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 			}
 		}
 		diskMap[key].Bytes = bytes
+		if bytes/1024/1024/1024 > maxLocalDiskSize {
+			log.Warningf("Deleting large root disk/localstorage disk from analysis")
+			delete(diskMap, key)
+		}
 	}
 
 	for _, result := range resLocalActiveMins {
@@ -258,7 +264,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 
 		key := fmt.Sprintf("%s/%s", cluster, name)
 		if _, ok := diskMap[key]; !ok {
-			log.Warningf("ClusterDisks: local active mins for unidentified disk")
+			log.Warningf("ClusterDisks: local active mins for unidentified disk or disk deleted from analysis")
 			continue
 		}
 
