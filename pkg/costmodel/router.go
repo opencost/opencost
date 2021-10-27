@@ -1294,7 +1294,7 @@ func (a *Accesses) GetPodLogs(w http.ResponseWriter, r *http.Request, ps httprou
 	w.Write([]byte(logResult))
 }
 
-func (p *Accesses) AddServiceKey(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (a *Accesses) AddServiceKey(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
