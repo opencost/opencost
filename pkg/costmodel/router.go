@@ -1133,195 +1133,6 @@ func (a *Accesses) PrometheusTargets(w http.ResponseWriter, r *http.Request, _ h
 	}
 }
 
-// structs required for alertconfigs
-type AlertConfigs struct {
-	Alerts map[string]*Alert `json:"alerts"`
-}
-
-type Alert struct {
-	Name      string `json:"name"`
-	Severity  string `json:"severity"`
-	On        bool   `json:"on"`
-	Threshold string `json:"threshold"`
-}
-
-func (a *Accesses) AlertConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	body, err := ioutil.ReadFile("/var/configs/alertConfig.json")
-	if err != nil {
-		configs := make(map[string]*Alert)
-		configs["clusterHealth"] = &Alert{
-			On:        true,
-			Name:      "clusterHealth",
-			Threshold: "",
-			Severity:  "",
-		}
-		configs["weeklyUpdate"] = &Alert{
-			On:        true,
-			Name:      "weeklyUpdate",
-			Threshold: "",
-			Severity:  "",
-		}
-		configs["clusterCost"] = &Alert{
-			On:        true,
-			Name:      "clusterCost",
-			Threshold: "",
-			Severity:  "",
-		}
-
-		body, _ = json.Marshal(&AlertConfigs{
-			Alerts: configs,
-		}) // alertconfigs not set.
-	}
-	w.Write(body)
-}
-
-type SlackWebhookInfo struct {
-	WebhookUrl  string `json:"webhookUrl"`
-	FrontendUrl string `json:"frontendUrl"`
-}
-
-func (a *Accesses) GetSlackWebhook(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	body, err := ioutil.ReadFile("/var/configs/slackWebhookInfo.json")
-	if err != nil {
-		body, _ = json.Marshal(&SlackWebhookInfo{}) // alertconfigs not set.
-	}
-	w.Write(body)
-}
-
-type Linkback struct {
-	FrontendUrl string `json:"frontendUrl"`
-}
-
-func (a *Accesses) GetLinkBackURL(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	slackConfig := &SlackWebhookInfo{}
-	linkBack := &Linkback{}
-	data, err := ioutil.ReadFile("/var/configs/slackWebhookInfo.json")
-	if err != nil {
-		data, _ = json.Marshal(&SlackWebhookInfo{}) // alertconfigs not set.
-	}
-	json.Unmarshal(data, slackConfig)
-	linkBack.FrontendUrl = slackConfig.FrontendUrl
-	cj, err := json.Marshal(linkBack)
-	if err != nil {
-		fmt.Fprintf(w, "Error decoding linkback configs: "+err.Error())
-	}
-	w.Write(cj)
-}
-
-type Budgets struct {
-	ByNamespace map[string]Budget `json:"byNamespace"`
-}
-
-type Budget struct {
-	Value     string `json:"value"`
-	Alert     string `json:"alert"`
-	Namespace string `json:"namespace"`
-}
-
-func (a *Accesses) GetBudgets(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	body, err := ioutil.ReadFile("/var/configs/budgets.json")
-	if err != nil {
-		attributes := make(map[string]Budget)
-		body, _ = json.Marshal(&Budgets{
-			ByNamespace: attributes,
-		}) // configs not set.
-	}
-	w.Write(body)
-}
-
-func (a *Accesses) SetBudgets(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	c := Budget{}
-	json.NewDecoder(r.Body).Decode(&c)
-	c.Alert = sanitizePolicy.Sanitize(c.Alert)
-	c.Namespace = sanitizePolicy.Sanitize(c.Namespace)
-	c.Value = sanitizePolicy.Sanitize(c.Value)
-
-	budgets := &Budgets{}
-	data, err := ioutil.ReadFile("/var/configs/budgets.json")
-	if err != nil && os.IsNotExist(err) {
-		budgets.ByNamespace = make(map[string]Budget)
-	} else {
-		json.Unmarshal(data, budgets)
-		if budgets.ByNamespace == nil {
-			budgets.ByNamespace = make(map[string]Budget)
-		}
-	}
-	budgets.ByNamespace[c.Namespace] = c
-
-	cj, err := json.Marshal(budgets)
-
-	if err != nil {
-		fmt.Fprintf(w, "Error decoding budget configs: "+err.Error())
-	}
-
-	err = ioutil.WriteFile("/var/configs/budgets.json", cj, 0644)
-	if err != nil {
-		fmt.Fprintf(w, "Error writing budget configs: "+err.Error())
-	}
-	w.Write(cj)
-}
-
-type Namespaces struct {
-	Namespaces map[string]*NamespaceAttributes `json:"namespaces"`
-}
-
-type NamespaceAttributes struct {
-	OwnerLabel      string `json:"ownerLabel"`
-	Email           string `json:"email"`
-	EmailCredential string `json:"emailCredential,omitempty"`
-	SendAlert       string `json:"sendAlert"`
-}
-
-func (a *Accesses) GetNamespaceAttributes(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	body, err := ioutil.ReadFile("/var/configs/namespaceAttributes.json")
-	if err != nil {
-		attributes := make(map[string]*NamespaceAttributes)
-		body, _ = json.Marshal(&Namespaces{
-			Namespaces: attributes,
-		}) // configs not set.
-	}
-	w.Write(body)
-}
-
-func (a *Accesses) SetNamespaceAttributes(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	c := Namespaces{}
-	json.NewDecoder(r.Body).Decode(&c)
-	for _, nsattr := range c.Namespaces {
-		nsattr.Email = sanitizePolicy.Sanitize(nsattr.Email)
-		nsattr.EmailCredential = sanitizePolicy.Sanitize(nsattr.EmailCredential)
-		nsattr.OwnerLabel = sanitizePolicy.Sanitize(nsattr.OwnerLabel)
-		nsattr.SendAlert = sanitizePolicy.Sanitize(nsattr.SendAlert)
-	}
-	cj, err := json.Marshal(c)
-
-	if err != nil {
-		fmt.Fprintf(w, "Error decoding namespaceAttrribtues configs: "+err.Error())
-	}
-
-	err = ioutil.WriteFile("/var/configs/namespaceAttributes.json", cj, 0644)
-	if err != nil {
-		fmt.Fprintf(w, "Error writing namespaceAttributes configs: "+err.Error())
-	}
-	w.Write(cj)
-}
-
 func (a *Accesses) GetHelmValues(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -1775,6 +1586,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	a.Router.GET("/pricingSourceStatus", a.GetPricingSourceStatus)
 	a.Router.GET("/pricingSourceCounts", a.GetPricingSourceCounts)
 
+	// endpoints migrated from server
 	a.Router.GET("/allPersistentVolumes", a.GetAllPersistentVolumes)
 	a.Router.GET("/allDeployments", a.GetAllDeployments)
 	a.Router.GET("/allStorageClasses", a.GetAllStorageClasses)
@@ -1787,13 +1599,6 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	a.Router.GET("/prometheusRecordingRules", a.PrometheusRecordingRules)
 	a.Router.GET("/prometheusConfig", a.PrometheusConfig)
 	a.Router.GET("/prometheusTargets", a.PrometheusTargets)
-	a.Router.GET("/alertConfigs", a.AlertConfigs)
-	a.Router.GET("/getSlackWebhook", a.GetSlackWebhook)
-	a.Router.GET("/linkback", a.GetLinkBackURL)
-	a.Router.GET("/getBudget", a.GetBudgets)
-	a.Router.POST("/setBudget", a.SetBudgets)
-	a.Router.GET("/getNamespaceAttributes", a.GetNamespaceAttributes)
-	a.Router.POST("/setNamespaceAttributes", a.SetNamespaceAttributes)
 	a.Router.GET("/helmValues", a.GetHelmValues)
 	a.Router.GET("/orphanedPods", a.GetOrphanedPods)
 	a.Router.GET("/installNamespace", a.GetInstallNamespace)
