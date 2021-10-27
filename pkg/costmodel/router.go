@@ -2,9 +2,12 @@ package costmodel
 
 import (
 	"context"
+	"encoding/base64"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -15,8 +18,12 @@ import (
 	"github.com/kubecost/cost-model/pkg/util/httputil"
 	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"github.com/kubecost/cost-model/pkg/util/watcher"
+	"github.com/microcosm-cc/bluemonday"
 
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
+
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/julienschmidt/httprouter"
 
@@ -43,6 +50,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+var sanitizePolicy = bluemonday.UGCPolicy()
+
 const (
 	RFC3339Milli         = "2006-01-02T15:04:05.000Z"
 	maxCacheMinutes1d    = 11
@@ -51,6 +60,8 @@ const (
 	maxCacheMinutes30d   = 137
 	CustomPricingSetting = "CustomPricing"
 	DiscountSetting      = "Discount"
+	epRules              = apiPrefix + "/rules"
+	LogSeparator         = "+-------------------------------------------------------------------------------------"
 )
 
 var (
@@ -910,6 +921,586 @@ func (a *Accesses) GetPrometheusMetrics(w http.ResponseWriter, _ *http.Request, 
 	w.Write(WrapData(result, nil))
 }
 
+func (a *Accesses) GetAllPersistentVolumes(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	pvList, err := a.KubeClientSet.CoreV1().PersistentVolumes().List(r.Context(), metav1.ListOptions{})
+	if err != nil {
+		fmt.Fprintf(w, "Error getting persistent volume %v\n", err)
+	}
+
+	body, err := json.Marshal(pvList)
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding persistent volumes: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+
+}
+
+func (a *Accesses) GetAllDeployments(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	namespace := r.URL.Query().Get("namespace")
+	deploymentsList, err := a.KubeClientSet.AppsV1().Deployments(namespace).List(r.Context(), metav1.ListOptions{})
+	if err != nil {
+		fmt.Fprintf(w, "Error getting deployments %v\n", err)
+	}
+	body, err := json.Marshal(deploymentsList)
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding deployment: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) GetAllStorageClasses(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	scList, err := a.KubeClientSet.StorageV1().StorageClasses().List(r.Context(), metav1.ListOptions{})
+	if err != nil {
+		fmt.Fprintf(w, "Error getting storageclasses: "+err.Error())
+	}
+	body, err := json.Marshal(scList)
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding storageclasses: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) GetAllStatefulSets(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	namespace := r.URL.Query().Get("namespace")
+	deploymentsList, err := a.KubeClientSet.AppsV1().StatefulSets(namespace).List(r.Context(), metav1.ListOptions{})
+	if err != nil {
+		fmt.Fprintf(w, "Error getting deployments %v\n", err)
+	}
+	body, err := json.Marshal(deploymentsList)
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding deployment: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) GetAllNodes(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	nodeList, err := a.KubeClientSet.CoreV1().Nodes().List(r.Context(), metav1.ListOptions{})
+	if err != nil {
+		fmt.Fprintf(w, "Error getting node %v\n", err)
+	}
+
+	body, err := json.Marshal(nodeList)
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding nodes: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) GetAllPods(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	podlist, err := a.KubeClientSet.CoreV1().Pods("").List(r.Context(), metav1.ListOptions{})
+	if err != nil {
+		fmt.Fprintf(w, "Error getting pod %v\n", err)
+	}
+
+	body, err := json.Marshal(podlist)
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding pods: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) GetAllNamespaces(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	namespaces, err := a.KubeClientSet.CoreV1().Namespaces().List(r.Context(), metav1.ListOptions{})
+	if err != nil {
+		fmt.Fprintf(w, "Error getting namespaces %v\n", err)
+	}
+	body, err := json.Marshal(namespaces)
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding deployment: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) GetAllDaemonSets(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	daemonSets, err := a.KubeClientSet.AppsV1().DaemonSets("").List(r.Context(), metav1.ListOptions{})
+	if err != nil {
+		fmt.Fprintf(w, "Error getting daemon sets %v\n", err)
+	}
+	body, err := json.Marshal(daemonSets)
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding daemon set: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) GetPod(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	podName := ps.ByName("name")
+	podNamespace := ps.ByName("namespace")
+
+	// Examples for error handling:
+	// - Use helper functions like e.g. errors.IsNotFound()
+	// - And/or cast to StatusError and use its properties like e.g. ErrStatus.Message
+	pod, err := a.KubeClientSet.CoreV1().Pods(podNamespace).Get(r.Context(), podName, metav1.GetOptions{})
+	if k8serrors.IsNotFound(err) {
+		fmt.Fprintf(w, "Pod not found\n")
+	} else if statusError, isStatus := err.(*k8serrors.StatusError); isStatus {
+		fmt.Fprintf(w, "Error getting pod %v\n", statusError.ErrStatus.Message)
+	} else if err != nil {
+		fmt.Fprintf(w, "Error getting pod: "+err.Error())
+	} else {
+		body, err := json.Marshal(pod)
+		if err != nil {
+			fmt.Fprintf(w, "Error decoding pod: "+err.Error())
+		} else {
+			w.Write(body)
+		}
+	}
+}
+
+func (a *Accesses) PrometheusRecordingRules(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	u := a.PrometheusClient.URL(epRules, nil)
+
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		fmt.Fprintf(w, "Error creating Prometheus rule request: "+err.Error())
+	}
+
+	_, body, _, err := a.PrometheusClient.Do(r.Context(), req)
+	if err != nil {
+		fmt.Fprintf(w, "Error making Prometheus rule request: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) PrometheusConfig(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	pConfig := make(map[string]string)
+
+	pConfig["address"] = os.Getenv("PROMETHEUS_SERVER_ENDPOINT")
+
+	body, err := json.Marshal(pConfig)
+	if err != nil {
+		fmt.Fprintf(w, "Error marshalling prometheus config")
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) PrometheusTargets(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	u := a.PrometheusClient.URL(epTargets, nil)
+
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		fmt.Fprintf(w, "Error creating Prometheus rule request: "+err.Error())
+	}
+
+	_, body, _, err := a.PrometheusClient.Do(r.Context(), req)
+	if err != nil {
+		fmt.Fprintf(w, "Error making Prometheus rule request: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+}
+
+// structs required for alertconfigs
+type AlertConfigs struct {
+	Alerts map[string]*Alert `json:"alerts"`
+}
+
+type Alert struct {
+	Name      string `json:"name"`
+	Severity  string `json:"severity"`
+	On        bool   `json:"on"`
+	Threshold string `json:"threshold"`
+}
+
+func (a *Accesses) AlertConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	body, err := ioutil.ReadFile("/var/configs/alertConfig.json")
+	if err != nil {
+		configs := make(map[string]*Alert)
+		configs["clusterHealth"] = &Alert{
+			On:        true,
+			Name:      "clusterHealth",
+			Threshold: "",
+			Severity:  "",
+		}
+		configs["weeklyUpdate"] = &Alert{
+			On:        true,
+			Name:      "weeklyUpdate",
+			Threshold: "",
+			Severity:  "",
+		}
+		configs["clusterCost"] = &Alert{
+			On:        true,
+			Name:      "clusterCost",
+			Threshold: "",
+			Severity:  "",
+		}
+
+		body, _ = json.Marshal(&AlertConfigs{
+			Alerts: configs,
+		}) // alertconfigs not set.
+	}
+	w.Write(body)
+}
+
+type SlackWebhookInfo struct {
+	WebhookUrl  string `json:"webhookUrl"`
+	FrontendUrl string `json:"frontendUrl"`
+}
+
+func (a *Accesses) GetSlackWebhook(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	body, err := ioutil.ReadFile("/var/configs/slackWebhookInfo.json")
+	if err != nil {
+		body, _ = json.Marshal(&SlackWebhookInfo{}) // alertconfigs not set.
+	}
+	w.Write(body)
+}
+
+type Linkback struct {
+	FrontendUrl string `json:"frontendUrl"`
+}
+
+func (a *Accesses) GetLinkBackURL(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	slackConfig := &SlackWebhookInfo{}
+	linkBack := &Linkback{}
+	data, err := ioutil.ReadFile("/var/configs/slackWebhookInfo.json")
+	if err != nil {
+		data, _ = json.Marshal(&SlackWebhookInfo{}) // alertconfigs not set.
+	}
+	json.Unmarshal(data, slackConfig)
+	linkBack.FrontendUrl = slackConfig.FrontendUrl
+	cj, err := json.Marshal(linkBack)
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding linkback configs: "+err.Error())
+	}
+	w.Write(cj)
+}
+
+type Budgets struct {
+	ByNamespace map[string]Budget `json:"byNamespace"`
+}
+
+type Budget struct {
+	Value     string `json:"value"`
+	Alert     string `json:"alert"`
+	Namespace string `json:"namespace"`
+}
+
+func (a *Accesses) GetBudgets(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	body, err := ioutil.ReadFile("/var/configs/budgets.json")
+	if err != nil {
+		attributes := make(map[string]Budget)
+		body, _ = json.Marshal(&Budgets{
+			ByNamespace: attributes,
+		}) // configs not set.
+	}
+	w.Write(body)
+}
+
+func (a *Accesses) SetBudgets(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	c := Budget{}
+	json.NewDecoder(r.Body).Decode(&c)
+	c.Alert = sanitizePolicy.Sanitize(c.Alert)
+	c.Namespace = sanitizePolicy.Sanitize(c.Namespace)
+	c.Value = sanitizePolicy.Sanitize(c.Value)
+
+	budgets := &Budgets{}
+	data, err := ioutil.ReadFile("/var/configs/budgets.json")
+	if err != nil && os.IsNotExist(err) {
+		budgets.ByNamespace = make(map[string]Budget)
+	} else {
+		json.Unmarshal(data, budgets)
+		if budgets.ByNamespace == nil {
+			budgets.ByNamespace = make(map[string]Budget)
+		}
+	}
+	budgets.ByNamespace[c.Namespace] = c
+
+	cj, err := json.Marshal(budgets)
+
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding budget configs: "+err.Error())
+	}
+
+	err = ioutil.WriteFile("/var/configs/budgets.json", cj, 0644)
+	if err != nil {
+		fmt.Fprintf(w, "Error writing budget configs: "+err.Error())
+	}
+	w.Write(cj)
+}
+
+type Namespaces struct {
+	Namespaces map[string]*NamespaceAttributes `json:"namespaces"`
+}
+
+type NamespaceAttributes struct {
+	OwnerLabel      string `json:"ownerLabel"`
+	Email           string `json:"email"`
+	EmailCredential string `json:"emailCredential,omitempty"`
+	SendAlert       string `json:"sendAlert"`
+}
+
+func (a *Accesses) GetNamespaceAttributes(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	body, err := ioutil.ReadFile("/var/configs/namespaceAttributes.json")
+	if err != nil {
+		attributes := make(map[string]*NamespaceAttributes)
+		body, _ = json.Marshal(&Namespaces{
+			Namespaces: attributes,
+		}) // configs not set.
+	}
+	w.Write(body)
+}
+
+func (a *Accesses) SetNamespaceAttributes(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	c := Namespaces{}
+	json.NewDecoder(r.Body).Decode(&c)
+	for _, nsattr := range c.Namespaces {
+		nsattr.Email = sanitizePolicy.Sanitize(nsattr.Email)
+		nsattr.EmailCredential = sanitizePolicy.Sanitize(nsattr.EmailCredential)
+		nsattr.OwnerLabel = sanitizePolicy.Sanitize(nsattr.OwnerLabel)
+		nsattr.SendAlert = sanitizePolicy.Sanitize(nsattr.SendAlert)
+	}
+	cj, err := json.Marshal(c)
+
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding namespaceAttrribtues configs: "+err.Error())
+	}
+
+	err = ioutil.WriteFile("/var/configs/namespaceAttributes.json", cj, 0644)
+	if err != nil {
+		fmt.Fprintf(w, "Error writing namespaceAttributes configs: "+err.Error())
+	}
+	w.Write(cj)
+}
+
+func (a *Accesses) GetHelmValues(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	encodedValues := os.Getenv("HELM_VALUES")
+	if encodedValues == "" {
+		fmt.Fprintf(w, "Values reporting disabled")
+		return
+	}
+
+	result, err := base64.StdEncoding.DecodeString(encodedValues)
+	if err != nil {
+		fmt.Fprintf(w, "Failed to decode encoded values: %s", err)
+		return
+	}
+
+	w.Write(result)
+}
+
+func (a *Accesses) GetOrphanedPods(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	podlist, err := a.KubeClientSet.CoreV1().Pods("").List(r.Context(), metav1.ListOptions{})
+	if err != nil {
+		fmt.Fprintf(w, "Error getting pod %v\n", err)
+	}
+
+	var lonePods []v1.Pod
+	for _, pod := range podlist.Items {
+		if len(pod.OwnerReferences) == 0 {
+			lonePods = append(lonePods, pod)
+		}
+	}
+
+	body, err := json.Marshal(lonePods)
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding pod: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) GetInstallNamespace(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	ns := os.Getenv("KUBECOST_NAMESPACE")
+	w.Write([]byte(ns))
+}
+
+func logsFor(c kubernetes.Interface, namespace string, pod string, container string, dur time.Duration, ctx context.Context) (string, error) {
+	since := time.Now().UTC().Add(-dur)
+
+	logOpts := v1.PodLogOptions{
+		SinceTime: &metav1.Time{Time: since},
+	}
+	if container != "" {
+		logOpts.Container = container
+	}
+
+	req := c.CoreV1().Pods(namespace).GetLogs(pod, &logOpts)
+	reader, err := req.Stream(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	podLogs, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return "", err
+	}
+
+	return string(podLogs), nil
+}
+
+func (a *Accesses) GetPodLogs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	q := r.URL.Query()
+	ns := q.Get("namespace")
+	if ns == "" {
+		ns = os.Getenv("KUBECOST_NAMESPACE")
+	}
+	pod := q.Get("pod")
+	selector := q.Get("selector")
+	container := q.Get("container")
+	since := q.Get("since")
+	if since == "" {
+		since = "24h"
+	}
+
+	sinceDuration, err := time.ParseDuration(since)
+	if err != nil {
+		fmt.Fprintf(w, "Invalid Duration String: "+err.Error())
+		return
+	}
+
+	var logResult string
+	appendLog := func(ns string, pod string, container string, l string) {
+		if l == "" {
+			return
+		}
+
+		logResult += fmt.Sprintf("%s\n| %s:%s:%s\n%s\n%s\n\n", LogSeparator, ns, pod, container, LogSeparator, l)
+	}
+
+	if pod != "" {
+		pd, err := a.KubeClientSet.CoreV1().Pods(ns).Get(r.Context(), pod, metav1.GetOptions{})
+		if err != nil {
+			fmt.Fprintf(w, "Error Finding Pod: "+err.Error())
+			return
+		}
+
+		if container != "" {
+			var foundContainer bool
+			for _, cont := range pd.Spec.Containers {
+				if strings.EqualFold(cont.Name, container) {
+					foundContainer = true
+					break
+				}
+			}
+			if !foundContainer {
+				fmt.Fprintf(w, "Could not find container: "+container)
+				return
+			}
+		}
+
+		logs, err := logsFor(a.KubeClientSet, ns, pod, container, sinceDuration, r.Context())
+		if err != nil {
+			fmt.Fprintf(w, "Error Getting Logs: "+err.Error())
+			return
+		}
+
+		appendLog(ns, pod, container, logs)
+
+		w.Write([]byte(logResult))
+		return
+	}
+
+	if selector != "" {
+		pods, err := a.KubeClientSet.CoreV1().Pods(ns).List(r.Context(), metav1.ListOptions{LabelSelector: selector})
+		if err != nil {
+			fmt.Fprintf(w, "Error Finding Pod: "+err.Error())
+			return
+		}
+
+		for _, pd := range pods.Items {
+			for _, cont := range pd.Spec.Containers {
+				logs, err := logsFor(a.KubeClientSet, ns, pd.Name, cont.Name, sinceDuration, r.Context())
+				if err != nil {
+					continue
+				}
+				appendLog(ns, pd.Name, cont.Name, logs)
+			}
+		}
+	}
+
+	w.Write([]byte(logResult))
+}
+
+func (p *Accesses) AddServiceKey(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	r.ParseForm()
+
+	//p.CloudProvider.AddServiceKey(r.PostForm)
+
+	key := r.PostForm.Get("key")
+	k := []byte(key)
+	err := ioutil.WriteFile("/var/configs/key.json", k, 0644)
+	if err != nil {
+		fmt.Fprintf(w, "Error writing service key: "+err.Error())
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 // captures the panic event in sentry
 func capturePanicEvent(err string, stack string) {
 	msg := fmt.Sprintf("Panic: %s\nStackTrace: %s\n", err, stack)
@@ -1183,6 +1774,31 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	a.Router.GET("/serviceAccountStatus", a.GetServiceAccountStatus)
 	a.Router.GET("/pricingSourceStatus", a.GetPricingSourceStatus)
 	a.Router.GET("/pricingSourceCounts", a.GetPricingSourceCounts)
+
+	a.Router.GET("/allPersistentVolumes", a.GetAllPersistentVolumes)
+	a.Router.GET("/allDeployments", a.GetAllDeployments)
+	a.Router.GET("/allStorageClasses", a.GetAllStorageClasses)
+	a.Router.GET("/allStatefulSets", a.GetAllStatefulSets)
+	a.Router.GET("/allNodes", a.GetAllNodes)
+	a.Router.GET("/allPods", a.GetAllPods)
+	a.Router.GET("/allNamespaces", a.GetAllNamespaces)
+	a.Router.GET("/allDaemonSets", a.GetAllDaemonSets)
+	a.Router.GET("/pod/:namespace/:name", a.GetPod)
+	a.Router.GET("/prometheusRecordingRules", a.PrometheusRecordingRules)
+	a.Router.GET("/prometheusConfig", a.PrometheusConfig)
+	a.Router.GET("/prometheusTargets", a.PrometheusTargets)
+	a.Router.GET("/alertConfigs", a.AlertConfigs)
+	a.Router.GET("/getSlackWebhook", a.GetSlackWebhook)
+	a.Router.GET("/linkback", a.GetLinkBackURL)
+	a.Router.GET("/getBudget", a.GetBudgets)
+	a.Router.POST("/setBudget", a.SetBudgets)
+	a.Router.GET("/getNamespaceAttributes", a.GetNamespaceAttributes)
+	a.Router.POST("/setNamespaceAttributes", a.SetNamespaceAttributes)
+	a.Router.GET("/helmValues", a.GetHelmValues)
+	a.Router.GET("/orphanedPods", a.GetOrphanedPods)
+	a.Router.GET("/installNamespace", a.GetInstallNamespace)
+	a.Router.GET("/podLogs", a.GetPodLogs)
+	a.Router.POST("/serviceKey", a.AddServiceKey)
 
 	// prom query proxies
 	a.Router.GET("/prometheusQuery", a.PrometheusQuery)
