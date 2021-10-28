@@ -1133,25 +1133,6 @@ func (a *Accesses) PrometheusTargets(w http.ResponseWriter, r *http.Request, _ h
 	}
 }
 
-func (a *Accesses) GetHelmValues(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	encodedValues := os.Getenv("HELM_VALUES")
-	if encodedValues == "" {
-		fmt.Fprintf(w, "Values reporting disabled")
-		return
-	}
-
-	result, err := base64.StdEncoding.DecodeString(encodedValues)
-	if err != nil {
-		fmt.Fprintf(w, "Failed to decode encoded values: %s", err)
-		return
-	}
-
-	w.Write(result)
-}
-
 func (a *Accesses) GetOrphanedPods(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -1310,6 +1291,40 @@ func (a *Accesses) AddServiceKey(w http.ResponseWriter, r *http.Request, ps http
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (a *Accesses) GetHelmValues(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	encodedValues := os.Getenv("HELM_VALUES")
+	if encodedValues == "" {
+		fmt.Fprintf(w, "Values reporting disabled")
+		return
+	}
+
+	result, err := base64.StdEncoding.DecodeString(encodedValues)
+	if err != nil {
+		fmt.Fprintf(w, "Failed to decode encoded values: %s", err)
+		return
+	}
+
+	w.Write(result)
+}
+
+func (a *Accesses) Status(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	api := prometheusAPI.NewAPI(a.PrometheusClient)
+	result, err := api.Config(r.Context())
+	if err != nil {
+
+		fmt.Fprintf(w, "Using Prometheus at "+os.Getenv("PROMETHEUS_SERVER_ENDPOINT")+". Error: "+err.Error())
+	} else {
+
+		fmt.Fprintf(w, "Using Prometheus at "+os.Getenv("PROMETHEUS_SERVER_ENDPOINT")+". PrometheusConfig: "+result.YAML)
+	}
 }
 
 // captures the panic event in sentry
@@ -1599,11 +1614,12 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	a.Router.GET("/prometheusRecordingRules", a.PrometheusRecordingRules)
 	a.Router.GET("/prometheusConfig", a.PrometheusConfig)
 	a.Router.GET("/prometheusTargets", a.PrometheusTargets)
-	a.Router.GET("/helmValues", a.GetHelmValues)
 	a.Router.GET("/orphanedPods", a.GetOrphanedPods)
 	a.Router.GET("/installNamespace", a.GetInstallNamespace)
 	a.Router.GET("/podLogs", a.GetPodLogs)
 	a.Router.POST("/serviceKey", a.AddServiceKey)
+	a.Router.GET("/helmValues", a.GetHelmValues)
+	a.Router.GET("/status", a.Status)
 
 	// prom query proxies
 	a.Router.GET("/prometheusQuery", a.PrometheusQuery)
