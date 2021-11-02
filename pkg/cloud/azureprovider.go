@@ -382,6 +382,9 @@ type Azure struct {
 	Clientset               clustercache.ClusterCache
 	Config                  *ProviderConfig
 	ServiceAccountChecks    map[string]*ServiceAccountCheck
+	RateCardPricingError    error
+	clusterAccountId        string
+	clusterRegion           string
 }
 
 type azureKey struct {
@@ -731,6 +734,7 @@ func (az *Azure) DownloadPricingData() error {
 
 	config, err := az.GetConfig()
 	if err != nil {
+		az.RateCardPricingError = err
 		return err
 	}
 
@@ -747,6 +751,7 @@ func (az *Azure) DownloadPricingData() error {
 		credentialsConfig := auth.NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID)
 		a, err := credentialsConfig.Authorizer()
 		if err != nil {
+			az.RateCardPricingError = err
 			return err
 		}
 		authorizer = a
@@ -758,6 +763,7 @@ func (az *Azure) DownloadPricingData() error {
 		if err != nil { // Failed to create authorizer from environment, try from file
 			a, err := auth.NewAuthorizerFromFile(azure.PublicCloud.ResourceManagerEndpoint)
 			if err != nil {
+				az.RateCardPricingError = err
 				return err
 			}
 			authorizer = a
@@ -784,19 +790,17 @@ func (az *Azure) DownloadPricingData() error {
 	klog.Infof("Using ratecard query %s", rateCardFilter)
 	result, err := rcClient.Get(context.TODO(), rateCardFilter)
 	if err != nil {
+		az.RateCardPricingError = err
 		return err
 	}
 	allPrices := make(map[string]*AzurePricing)
 	regions, err := getRegions("compute", sClient, providersClient, config.AzureSubscriptionID)
 	if err != nil {
+		az.RateCardPricingError = err
 		return err
 	}
 
-	c, err := az.GetConfig()
-	if err != nil {
-		return err
-	}
-	baseCPUPrice := c.CPU
+	baseCPUPrice := config.CPU
 
 	for _, v := range *result.Meters {
 		meterName := *v.MeterName
@@ -915,6 +919,7 @@ func (az *Azure) DownloadPricingData() error {
 	}
 
 	az.Pricing = allPrices
+	az.RateCardPricingError = nil
 	return nil
 }
 
@@ -1127,6 +1132,8 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 		m["name"] = c.ClusterName
 	}
 	m["provider"] = "azure"
+	m["account"] = az.clusterAccountId
+	m["region"] = az.clusterRegion
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	m["id"] = env.GetClusterID()
 	return m, nil
@@ -1379,8 +1386,29 @@ func (az *Azure) ServiceAccountStatus() *ServiceAccountStatus {
 	}
 }
 
+const rateCardPricingSource = "Rate Card API"
+
+// PricingSourceStatus returns the status of the rate card api
 func (az *Azure) PricingSourceStatus() map[string]*PricingSource {
-	return make(map[string]*PricingSource)
+	sources := make(map[string]*PricingSource)
+	errMsg := ""
+	if az.RateCardPricingError != nil {
+		errMsg = az.RateCardPricingError.Error()
+	}
+	rcps := &PricingSource{
+		Name:  rateCardPricingSource,
+		Error: errMsg,
+	}
+	if rcps.Error != "" {
+		rcps.Available = false
+	} else if len(az.Pricing) == 0 {
+		rcps.Error = "No Pricing Data Available"
+		rcps.Available = false
+	} else {
+		rcps.Available = true
+	}
+	sources[rateCardPricingSource] = rcps
+	return sources
 }
 
 func (*Azure) ClusterManagementPricing() (string, float64, error) {
@@ -1393,4 +1421,16 @@ func (az *Azure) CombinedDiscountForNode(instanceType string, isPreemptible bool
 
 func (az *Azure) Regions() []string {
 	return azureRegions
+}
+
+func parseAzureSubscriptionID(id string) string {
+	// azure:///subscriptions/0badafdf-1234-abcd-wxyz-123456789/...
+	//  => 0badafdf-1234-abcd-wxyz-123456789
+	rx := regexp.MustCompile("azure:///subscriptions/([^/]*)/*")
+	match := rx.FindStringSubmatch(id)
+	if len(match) >= 2 {
+		return match[1]
+	}
+	// Return empty string if an account could not be parsed from provided string
+	return ""
 }

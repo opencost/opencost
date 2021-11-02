@@ -21,11 +21,15 @@ const (
 	LoadRetryDelay time.Duration = 10 * time.Second
 )
 
+// ClusterInfo holds attributes of Cluster from metrics pulled from Prometheus
 type ClusterInfo struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Profile     string `json:"profile"`
 	Provider    string `json:"provider"`
+	Account     string `json:"account"`
+	Project     string `json:"project"`
+	Region      string `json:"region"`
 	Provisioner string `json:"provisioner"`
 }
 
@@ -40,6 +44,9 @@ func (ci *ClusterInfo) Clone() *ClusterInfo {
 		Name:        ci.Name,
 		Profile:     ci.Profile,
 		Provider:    ci.Provider,
+		Account:     ci.Account,
+		Project:     ci.Project,
+		Region:      ci.Region,
 		Provisioner: ci.Provisioner,
 	}
 }
@@ -170,6 +177,21 @@ func (pcm *PrometheusClusterMap) loadClusters() (map[string]*ClusterInfo, error)
 			provider = ""
 		}
 
+		account, err := result.GetString("account")
+		if err != nil {
+			account = ""
+		}
+
+		project, err := result.GetString("project")
+		if err != nil {
+			project = ""
+		}
+
+		region, err := result.GetString("region")
+		if err != nil {
+			region = ""
+		}
+
 		provisioner, err := result.GetString("provisioner")
 		if err != nil {
 			provisioner = ""
@@ -180,6 +202,9 @@ func (pcm *PrometheusClusterMap) loadClusters() (map[string]*ClusterInfo, error)
 			Name:        name,
 			Profile:     profile,
 			Provider:    provider,
+			Account:     account,
+			Project:     project,
+			Region:      region,
 			Provisioner: provisioner,
 		}
 	}
@@ -218,14 +243,31 @@ func (pcm *PrometheusClusterMap) getLocalClusterInfo() (*ClusterInfo, error) {
 
 	var clusterProfile string
 	var provider string
+	var account string
+	var project string
+	var region string
 	var provisioner string
 
 	if cp, ok := info["clusterProfile"]; ok {
 		clusterProfile = cp
 	}
+
 	if pvdr, ok := info["provider"]; ok {
 		provider = pvdr
 	}
+
+	if acct, ok := info["account"]; ok {
+		account = acct
+	}
+
+	if proj, ok := info["project"]; ok {
+		project = proj
+	}
+
+	if reg, ok := info["region"]; ok {
+		region = reg
+	}
+
 	if pvsr, ok := info["provisioner"]; ok {
 		provisioner = pvsr
 	}
@@ -235,6 +277,9 @@ func (pcm *PrometheusClusterMap) getLocalClusterInfo() (*ClusterInfo, error) {
 		Name:        name,
 		Profile:     clusterProfile,
 		Provider:    provider,
+		Account:     account,
+		Project:     project,
+		Region:      region,
 		Provisioner: provisioner,
 	}, nil
 }

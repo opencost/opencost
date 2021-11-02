@@ -1,15 +1,16 @@
-package clustermanager
+package clusters
 
 import (
 	bolt "go.etcd.io/bbolt"
-	_ "k8s.io/klog"
 )
 
+// BoltDBClusterStorage is a boltdb implementation of a database used to store cluster definitions
 type BoltDBClusterStorage struct {
 	bucket []byte
 	db     *bolt.DB
 }
 
+// NewBoltDBClusterStorage creates a new boltdb backed ClusterStorage implementation
 func NewBoltDBClusterStorage(bucket string, db *bolt.DB) (ClusterStorage, error) {
 	bucketKey := []byte(bucket)
 
@@ -32,7 +33,7 @@ func NewBoltDBClusterStorage(bucket string, db *bolt.DB) (ClusterStorage, error)
 	}, nil
 }
 
-// Adds the entry if the key does not exist
+// AddIfNotExists Adds the entry if the key does not exist
 func (cs *BoltDBClusterStorage) AddIfNotExists(key string, cluster []byte) error {
 	return cs.db.Update(func(tx *bolt.Tx) error {
 		k := []byte(key)
@@ -45,7 +46,7 @@ func (cs *BoltDBClusterStorage) AddIfNotExists(key string, cluster []byte) error
 	})
 }
 
-// Adds the encoded cluster to storage if it doesn't exist. Otherwise, update the existing
+// AddOrUpdate Adds the encoded cluster to storage if it doesn't exist. Otherwise, update the existing
 // value with the provided.
 func (cs *BoltDBClusterStorage) AddOrUpdate(key string, cluster []byte) error {
 	return cs.db.Update(func(tx *bolt.Tx) error {
@@ -55,7 +56,7 @@ func (cs *BoltDBClusterStorage) AddOrUpdate(key string, cluster []byte) error {
 	})
 }
 
-// Removes a key from the cluster storage
+// Remove Removes a key from the cluster storage
 func (cs *BoltDBClusterStorage) Remove(key string) error {
 	return cs.db.Update(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket(cs.bucket)
@@ -64,7 +65,7 @@ func (cs *BoltDBClusterStorage) Remove(key string) error {
 	})
 }
 
-// Iterates through all key/values for the storage and calls the handler func. If a handler returns
+// Each Iterates through all key/values for the storage and calls the handler func. If a handler returns
 // an error, the iteration stops.
 func (cs *BoltDBClusterStorage) Each(handler func(string, []byte) error) error {
 	return cs.db.View(func(tx *bolt.Tx) error {
@@ -87,7 +88,7 @@ func (cs *BoltDBClusterStorage) Each(handler func(string, []byte) error) error {
 	})
 }
 
-// Closes the backing storage
+// Close Closes the backing storage
 func (cs *BoltDBClusterStorage) Close() error {
 	return cs.db.Close()
 }

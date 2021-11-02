@@ -39,6 +39,7 @@ const (
 	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
 
 	EmitKsmV1MetricsEnvVar = "EMIT_KSM_V1_METRICS"
+	EmitKsmV1MetricsOnly   = "EMIT_KSM_V1_METRICS_ONLY"
 
 	ThanosEnabledEnvVar      = "THANOS_ENABLED"
 	ThanosQueryUrlEnvVar     = "THANOS_QUERY_URL"
@@ -72,7 +73,8 @@ const (
 
 	PromClusterIDLabelEnvVar = "PROM_CLUSTER_ID_LABEL"
 
-	PricingConfigmapName = "PRICING_CONFIGMAP_NAME"
+	PricingConfigmapName  = "PRICING_CONFIGMAP_NAME"
+	KubecostJobNameEnvVar = "KUBECOST_JOB_NAME"
 )
 
 func GetPricingConfigmapName() string {
@@ -82,7 +84,7 @@ func GetPricingConfigmapName() string {
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
 // the AWS access key for authentication
 func GetAppVersion() string {
-	return Get(AppVersionEnvVar, "1.87.3")
+	return Get(AppVersionEnvVar, "1.88.0")
 }
 
 // IsEmitNamespaceAnnotationsMetric returns true if cost-model is configured to emit the kube_namespace_annotations metric
@@ -101,6 +103,10 @@ func IsEmitPodAnnotationsMetric() bool {
 // metrics that were removed in KSM v2
 func IsEmitKsmV1Metrics() bool {
 	return GetBool(EmitKsmV1MetricsEnvVar, true)
+}
+
+func IsEmitKsmV1MetricsOnly() bool {
+	return GetBool(EmitKsmV1MetricsOnly, false)
 }
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
@@ -353,6 +359,11 @@ func GetParsedUTCOffset() time.Duration {
 	}
 
 	return offset
+}
+
+// GetKubecostJobName returns the environment variable value for KubecostJobNameEnvVar
+func GetKubecostJobName() string {
+	return Get(KubecostJobNameEnvVar, "kubecost")
 }
 
 func IsCacheWarmingEnabled() bool {

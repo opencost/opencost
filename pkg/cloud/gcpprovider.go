@@ -92,6 +92,8 @@ type GCP struct {
 	ServiceKeyProvided      bool
 	ValidPricingKeys        map[string]bool
 	clusterManagementPrice  float64
+	clusterProjectId        string
+	clusterRegion           string
 	clusterProvisioner      string
 	*CustomProvider
 }
@@ -529,6 +531,8 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	m := make(map[string]string)
 	m["name"] = attribute
 	m["provider"] = "GCP"
+	m["project"] = gcp.clusterProjectId
+	m["region"] = gcp.clusterRegion
 	m["provisioner"] = gcp.clusterProvisioner
 	m["id"] = env.GetClusterID()
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
@@ -673,7 +677,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 				usageType := strings.ToLower(product.Category.UsageType)
 				instanceType := strings.ToLower(product.Category.ResourceGroup)
 
-				if instanceType == "ssd" && !strings.Contains(product.Description, "Regional") { // TODO: support regional
+				if instanceType == "ssd" && strings.Contains(product.Description, "SSD backed") && !strings.Contains(product.Description, "Regional") { // TODO: support regional
 					lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
 					var nanos float64
 					if lastRateIndex > -1 && len(product.PricingInfo) > 0 {
@@ -695,6 +699,28 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 						}
 					}
 					continue
+				} else if instanceType == "ssd" && strings.Contains(product.Description, "SSD backed") && strings.Contains(product.Description, "Regional") { // TODO: support regional
+					lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
+					var nanos float64
+					if lastRateIndex > -1 && len(product.PricingInfo) > 0 {
+						nanos = product.PricingInfo[0].PricingExpression.TieredRates[lastRateIndex].UnitPrice.Nanos
+					} else {
+						continue
+					}
+					hourlyPrice := (nanos * math.Pow10(-9)) / 730
+
+					for _, sr := range product.ServiceRegions {
+						region := sr
+						candidateKey := region + "," + "ssd" + "," + "regional"
+						if _, ok := pvKeys[candidateKey]; ok {
+							product.PV = &PV{
+								Cost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
+							}
+							gcpPricingList[candidateKey] = product
+							continue
+						}
+					}
+					continue
 				} else if instanceType == "pdstandard" && !strings.Contains(product.Description, "Regional") { // TODO: support regional
 					lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
 					var nanos float64
@@ -707,6 +733,27 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 					for _, sr := range product.ServiceRegions {
 						region := sr
 						candidateKey := region + "," + "pdstandard"
+						if _, ok := pvKeys[candidateKey]; ok {
+							product.PV = &PV{
+								Cost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
+							}
+							gcpPricingList[candidateKey] = product
+							continue
+						}
+					}
+					continue
+				} else if instanceType == "pdstandard" && strings.Contains(product.Description, "Regional") { // TODO: support regional
+					lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
+					var nanos float64
+					if lastRateIndex > -1 && len(product.PricingInfo) > 0 {
+						nanos = product.PricingInfo[0].PricingExpression.TieredRates[lastRateIndex].UnitPrice.Nanos
+					} else {
+						continue
+					}
+					hourlyPrice := (nanos * math.Pow10(-9)) / 730
+					for _, sr := range product.ServiceRegions {
+						region := sr
+						candidateKey := region + "," + "pdstandard" + "," + "regional"
 						if _, ok := pvKeys[candidateKey]; ok {
 							product.PV = &PV{
 								Cost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
@@ -975,7 +1022,12 @@ func (gcp *GCP) parsePages(inputKeys map[string]Key, pvKeys map[string]PVKey) (m
 	}
 	klog.V(1).Infof("ALL PAGES: %+v", returnPages)
 	for k, v := range returnPages {
-		klog.V(1).Infof("Returned Page: %s : %+v", k, v.Node)
+		if v.Node != nil {
+			klog.V(1).Infof("Returned Page: %s : %+v", k, v.Node)
+		}
+		if v.PV != nil {
+			klog.V(1).Infof("Returned Page: %s : %+v", k, v.PV)
+		}
 	}
 	return returnPages, err
 }
@@ -998,13 +1050,17 @@ func (gcp *GCP) DownloadPricingData() error {
 	nodeList := gcp.Clientset.GetAllNodes()
 	inputkeys := make(map[string]Key)
 
+	defaultRegion := "" // Sometimes, PVs may be missing the region label. In that case assume that they are in the same region as the nodes
 	for _, n := range nodeList {
 		labels := n.GetObjectMeta().GetLabels()
 		if _, ok := labels["cloud.google.com/gke-nodepool"]; ok { // The node is part of a GKE nodepool, so you're paying a cluster management cost
 			gcp.clusterManagementPrice = 0.10
 			gcp.clusterProvisioner = "GKE"
 		}
-
+		r, _ := util.GetRegion(labels)
+		if r != "" {
+			defaultRegion = r
+		}
 		key := gcp.GetKey(labels, n)
 		inputkeys[key.Features()] = key
 	}
@@ -1028,7 +1084,7 @@ func (gcp *GCP) DownloadPricingData() error {
 			log.DedupedWarningf(5, "Unable to find params for storageClassName %s", pv.Name)
 			continue
 		}
-		key := gcp.GetPVKey(pv, params, "")
+		key := gcp.GetPVKey(pv, params, defaultRegion)
 		pvkeys[key.Features()] = key
 	}
 
@@ -1057,7 +1113,7 @@ func (gcp *GCP) PVPricing(pvk PVKey) (*PV, error) {
 	defer gcp.DownloadPricingDataLock.RUnlock()
 	pricing, ok := gcp.Pricing[pvk.Features()]
 	if !ok {
-		klog.V(4).Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
+		klog.V(3).Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
 		return &PV{}, nil
 	}
 	return pricing.PV, nil
@@ -1363,8 +1419,17 @@ func (key *pvKey) Features() string {
 	} else if storageClass == "pd-standard" {
 		storageClass = "pdstandard"
 	}
+	replicationType := ""
+	if rt, ok := key.StorageClassParameters["replication-type"]; ok {
+		if rt == "regional-pd" {
+			replicationType = ",regional"
+		}
+	}
 	region, _ := util.GetRegion(key.Labels)
-	return region + "," + storageClass
+	if region == "" {
+		region = key.DefaultRegion
+	}
+	return region + "," + storageClass + replicationType
 }
 
 type gcpKey struct {
@@ -1395,15 +1460,19 @@ func (gcp *gcpKey) GPUType() string {
 	return ""
 }
 
-// GetKey maps node labels to information needed to retrieve pricing data
-func (gcp *gcpKey) Features() string {
+func parseGCPInstanceTypeLabel(it string) string {
 	var instanceType string
-	it, _ := util.GetInstanceType(gcp.Labels)
-	if it == "" {
-		log.DedupedErrorf(1, "Missing or Unknown 'node.kubernetes.io/instance-type' node label")
+
+	splitByDash := strings.Split(it, "-")
+
+	// GKE nodes are labeled with the GCP instance type, but users can deploy on GCP
+	// with tools like K3s, whose instance type labels will be "k3s". This logic
+	// avoids a panic in the slice operation then there are no dashes (-) in the
+	// instance type label value.
+	if len(splitByDash) < 2 {
 		instanceType = "unknown"
 	} else {
-		instanceType = strings.ToLower(strings.Join(strings.Split(it, "-")[:2], ""))
+		instanceType = strings.ToLower(strings.Join(splitByDash[:2], ""))
 		if instanceType == "n1highmem" || instanceType == "n1highcpu" {
 			instanceType = "n1standard" // These are priced the same. TODO: support n1ultrahighmem
 		} else if instanceType == "n2highmem" || instanceType == "n2highcpu" {
@@ -1413,6 +1482,20 @@ func (gcp *gcpKey) Features() string {
 		} else if strings.HasPrefix(instanceType, "custom") {
 			instanceType = "custom" // The suffix of custom does not matter
 		}
+	}
+
+	return instanceType
+}
+
+// GetKey maps node labels to information needed to retrieve pricing data
+func (gcp *gcpKey) Features() string {
+	var instanceType string
+	it, _ := util.GetInstanceType(gcp.Labels)
+	if it == "" {
+		log.DedupedErrorf(1, "Missing or Unknown 'node.kubernetes.io/instance-type' node label")
+		instanceType = "unknown"
+	} else {
+		instanceType = parseGCPInstanceTypeLabel(it)
 	}
 
 	r, _ := util.GetRegion(gcp.Labels)
@@ -1505,4 +1588,16 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 		discount = 0.2
 	}
 	return discount
+}
+
+func parseGCPProjectID(id string) string {
+	// gce://guestbook-12345/...
+	//  => guestbook-12345
+	rx := regexp.MustCompile("gce://([^/]*)/*")
+	match := rx.FindStringSubmatch(id)
+	if len(match) >= 2 {
+		return match[1]
+	}
+	// Return empty string if an account could not be parsed from provided string
+	return ""
 }

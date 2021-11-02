@@ -133,13 +133,13 @@ func (p *AllocationProperties) Clone() *AllocationProperties {
 	}
 	clone.Services = services
 
-	labels := make(map[string]string)
+	labels := make(map[string]string, len(p.Labels))
 	for k, v := range p.Labels {
 		labels[k] = v
 	}
 	clone.Labels = labels
 
-	annotations := make(map[string]string)
+	annotations := make(map[string]string, len(p.Annotations))
 	for k, v := range p.Annotations {
 		annotations[k] = v
 	}

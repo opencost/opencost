@@ -263,17 +263,13 @@ func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clust
 	// init will only actually execute once to register the custom gauges
 	initCostModelMetrics(clusterCache, provider)
 
-	// if the metrics pod is not enabled, we want to emit those metrics from this pod.
-	// NOTE: This is not optimal, as we calculate costs based on run times for other containers.
-	// NOTE: The metrics for run times should be emitted separate from cost-model
-	if !env.IsKubecostMetricsPodEnabled() {
-		metrics.InitKubeMetrics(clusterCache, &metrics.KubeMetricsOpts{
-			EmitKubecostControllerMetrics: true,
-			EmitNamespaceAnnotations:      env.IsEmitNamespaceAnnotationsMetric(),
-			EmitPodAnnotations:            env.IsEmitPodAnnotationsMetric(),
-			EmitKubeStateMetrics:          env.IsEmitKsmV1Metrics(),
-		})
-	}
+	metrics.InitKubeMetrics(clusterCache, &metrics.KubeMetricsOpts{
+		EmitKubecostControllerMetrics: true,
+		EmitNamespaceAnnotations:      env.IsEmitNamespaceAnnotationsMetric(),
+		EmitPodAnnotations:            env.IsEmitPodAnnotationsMetric(),
+		EmitKubeStateMetrics:          env.IsEmitKsmV1Metrics(),
+		EmitKubeStateMetricsV1Only:    env.IsEmitKsmV1MetricsOnly(),
+	})
 
 	return &CostModelMetricsEmitter{
 		PrometheusClient:              promClient,
@@ -325,6 +321,15 @@ func (cmme *CostModelMetricsEmitter) IsRunning() bool {
 	return cmme.recordingStop != nil
 }
 
+// NodeCostAverages tracks a running average of a node's cost attributes.
+// The averages are used to detect and discard spurrious outliers.
+type NodeCostAverages struct {
+	CpuCostAverage   float64
+	RamCostAverage   float64
+	NumCpuDataPoints float64
+	NumRamDataPoints float64
+}
+
 // StartCostModelMetricRecording starts the go routine that emits metrics used to determine
 // cluster costs.
 func (cmme *CostModelMetricsEmitter) Start() bool {
@@ -344,6 +349,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 		loadBalancerSeen := make(map[string]bool)
 		pvSeen := make(map[string]bool)
 		pvcSeen := make(map[string]bool)
+		nodeCostAverages := make(map[string]NodeCostAverages)
 
 		getKeyFromLabelStrings := func(labels ...string) string {
 			return strings.Join(labels, ",")
@@ -450,17 +456,54 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 				totalCost := cpu*cpuCost + ramCost*(ram/1024/1024/1024) + gpu*gpuCost
 
-				cmme.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(cpuCost)
-				cmme.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(ramCost)
-				cmme.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(gpuCost)
+				labelKey := getKeyFromLabelStrings(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID)
+
+				avgCosts, ok := nodeCostAverages[labelKey]
+
+				// initialize average cost tracking for this node if there is none
+				if !ok {
+					avgCosts = NodeCostAverages{
+						CpuCostAverage:   cpuCost,
+						RamCostAverage:   ramCost,
+						NumCpuDataPoints: 1,
+						NumRamDataPoints: 1,
+					}
+					nodeCostAverages[labelKey] = avgCosts
+				}
+
 				cmme.GPUCountRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(gpu)
-				cmme.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(totalCost)
+
+				const outlierFactor float64 = 30
+				// don't record cpuCost, ramCost, or gpuCost in the case of wild outliers
+				// k8s api sometimes causes cost spikes as described here:
+				// https://github.com/kubecost/cost-model/issues/927
+				if cpuCost < outlierFactor*avgCosts.CpuCostAverage {
+					cmme.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(cpuCost)
+					avgCosts.CpuCostAverage = (avgCosts.CpuCostAverage*avgCosts.NumCpuDataPoints + cpuCost) / (avgCosts.NumCpuDataPoints + 1)
+					avgCosts.NumCpuDataPoints += 1
+				} else {
+					log.Warningf("CPU cost outlier detected; skipping data point.")
+				}
+				if ramCost < outlierFactor*avgCosts.RamCostAverage {
+					cmme.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(ramCost)
+					avgCosts.RamCostAverage = (avgCosts.RamCostAverage*avgCosts.NumRamDataPoints + ramCost) / (avgCosts.NumRamDataPoints + 1)
+					avgCosts.NumRamDataPoints += 1
+				} else {
+					log.Warningf("RAM cost outlier detected; skipping data point.")
+				}
+				// skip redording totalCost if any constituent costs were outliers
+				if cpuCost < outlierFactor*avgCosts.CpuCostAverage &&
+					ramCost < outlierFactor*avgCosts.RamCostAverage {
+					cmme.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(totalCost)
+				}
+
+				nodeCostAverages[labelKey] = avgCosts
+
 				if node.IsSpot() {
 					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(1.0)
 				} else {
 					cmme.NodeSpotRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(0.0)
 				}
-				labelKey := getKeyFromLabelStrings(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID)
 				nodeSeen[labelKey] = true
 			}
 
@@ -606,6 +649,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 						klog.Infof("FAILURE TO REMOVE %s from ramprice", labelString)
 					}
 					delete(nodeSeen, labelString)
+					delete(nodeCostAverages, labelString)
 				} else {
 					nodeSeen[labelString] = false
 				}

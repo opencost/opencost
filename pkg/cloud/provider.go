@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/kubecost/cost-model/pkg/util"
 	"io"
 	"regexp"
 	"strconv"
@@ -17,6 +18,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/cost-model/pkg/util/watcher"
 
 	v1 "k8s.io/api/core/v1"
 )
@@ -298,6 +300,18 @@ func CustomPricesEnabled(p Provider) bool {
 	return config.CustomPricesEnabled == "true"
 }
 
+// ConfigWatcherFor returns a new ConfigWatcher instance which watches changes to the "pricing-configs"
+// configmap
+func ConfigWatcherFor(p Provider) *watcher.ConfigMapWatcher {
+	return &watcher.ConfigMapWatcher{
+		ConfigMapName: env.GetPricingConfigmapName(),
+		WatchFunc: func(name string, data map[string]string) error {
+			_, err := p.UpdateConfigFromConfigMap(data)
+			return err
+		},
+	}
+}
+
 // AllocateIdleByDefault returns true if the application settings specify to allocate idle by default
 func AllocateIdleByDefault(p Provider) bool {
 	config, err := p.GetConfig()
@@ -399,60 +413,90 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, erro
 		return nil, fmt.Errorf("Could not locate any nodes for cluster.")
 	}
 
-	provider := strings.ToLower(nodes[0].Spec.ProviderID)
+	cp := getClusterProperties(nodes[0])
 
-	if env.IsUseCSVProvider() {
+	switch cp.provider {
+	case "CSV":
 		klog.Infof("Using CSV Provider with CSV at %s", env.GetCSVPath())
-		configFileName := ""
-		if metadata.OnGCE() {
-			configFileName = "gcp.json"
-		} else if strings.HasPrefix(provider, "aws") {
-			configFileName = "aws.json"
-		} else if strings.HasPrefix(provider, "azure") {
-			configFileName = "azure.json"
-
-		} else {
-			configFileName = "default.json"
-		}
 		return &CSVProvider{
 			CSVLocation: env.GetCSVPath(),
 			CustomProvider: &CustomProvider{
 				Clientset: cache,
-				Config:    NewProviderConfig(configFileName),
+				Config:    NewProviderConfig(cp.configFileName),
 			},
 		}, nil
-	}
-	if metadata.OnGCE() {
+	case "GCP":
 		klog.V(3).Info("metadata reports we are in GCE")
 		if apiKey == "" {
 			return nil, errors.New("Supply a GCP Key to start getting data")
 		}
 		return &GCP{
-			Clientset: cache,
-			APIKey:    apiKey,
-			Config:    NewProviderConfig("gcp.json"),
+			Clientset:        cache,
+			APIKey:           apiKey,
+			Config:           NewProviderConfig(cp.configFileName),
+			clusterRegion:    cp.region,
+			clusterProjectId: cp.projectID,
 		}, nil
-	}
-
-	if strings.HasPrefix(provider, "aws") {
+	case "AWS":
 		klog.V(2).Info("Found ProviderID starting with \"aws\", using AWS Provider")
 		return &AWS{
-			Clientset: cache,
-			Config:    NewProviderConfig("aws.json"),
+			Clientset:        cache,
+			Config:           NewProviderConfig(cp.configFileName),
+			clusterRegion:    cp.region,
+			clusterAccountId: cp.accountID,
 		}, nil
-	} else if strings.HasPrefix(provider, "azure") {
+	case "AZURE":
 		klog.V(2).Info("Found ProviderID starting with \"azure\", using Azure Provider")
 		return &Azure{
-			Clientset: cache,
-			Config:    NewProviderConfig("azure.json"),
+			Clientset:        cache,
+			Config:           NewProviderConfig(cp.configFileName),
+			clusterRegion:    cp.region,
+			clusterAccountId: cp.accountID,
 		}, nil
-	} else {
+	default:
 		klog.V(2).Info("Unsupported provider, falling back to default")
 		return &CustomProvider{
 			Clientset: cache,
-			Config:    NewProviderConfig("default.json"),
+			Config:    NewProviderConfig(cp.configFileName),
 		}, nil
 	}
+}
+
+type clusterProperties struct {
+	provider       string
+	configFileName string
+	region         string
+	accountID      string
+	projectID      string
+}
+
+func getClusterProperties(node *v1.Node) (clusterProperties) {
+	providerID := strings.ToLower(node.Spec.ProviderID)
+	region, _ := util.GetRegion(node.Labels)
+	cp := clusterProperties{
+		provider: "DEFAULT",
+		configFileName: "default.json",
+		region: region,
+		accountID: "",
+		projectID: "",
+	}
+	if metadata.OnGCE() {
+		cp.provider = "GCP"
+		cp.configFileName = "gcp.json"
+		cp.projectID = parseGCPProjectID(providerID)
+	} else if strings.HasPrefix(providerID, "aws") {
+		cp.provider = "AWS"
+		cp.configFileName = "aws.json"
+	} else if strings.HasPrefix(providerID, "azure") {
+		cp.provider = "AZURE"
+		cp.configFileName = "azure.json"
+		cp.accountID = parseAzureSubscriptionID(providerID)
+	}
+	if env.IsUseCSVProvider() {
+		cp.provider = "CSV"
+	}
+
+	return cp
 }
 
 func UpdateClusterMeta(cluster_id, cluster_name string) error {

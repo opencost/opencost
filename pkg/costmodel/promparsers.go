@@ -11,29 +11,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
-	"gopkg.in/yaml.v2"
 )
-
-const DEFAULT_KUBECOST_JOB_NAME = "kubecost"
-
-type ScrapeConfig struct {
-	JobName        string `yaml:"job_name,omitempty"`
-	ScrapeInterval string `yaml:"scrape_interval,omitempty"`
-}
-
-type PromCfg struct {
-	ScrapeConfigs []ScrapeConfig `yaml:"scrape_configs,omitempty"`
-}
-
-func GetPrometheusConfig(pcfg string) (PromCfg, error) {
-	var promCfg PromCfg
-	err := yaml.Unmarshal([]byte(pcfg), &promCfg)
-	return promCfg, err
-}
-
-func GetKubecostJobName() string {
-	return DEFAULT_KUBECOST_JOB_NAME // TODO: look this up from a prometheus variable?
-}
 
 func GetPVInfoLocal(cache clustercache.ClusterCache, defaultClusterID string) (map[string]*PersistentVolumeClaimData, error) {
 	toReturn := make(map[string]*PersistentVolumeClaimData)

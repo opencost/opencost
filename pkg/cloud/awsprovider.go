@@ -62,7 +62,10 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 	sps := &PricingSource{
 		Name: SpotPricingSource,
 	}
-	sps.Error = aws.SpotPricingStatus
+	sps.Error = ""
+	if aws.SpotPricingError != nil {
+		sps.Error = aws.SpotPricingError.Error()
+	}
 	if sps.Error != "" {
 		sps.Available = false
 	} else if len(aws.SpotPricingByInstanceID) > 0 {
@@ -75,7 +78,10 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 	rps := &PricingSource{
 		Name: ReservedInstancePricingSource,
 	}
-	rps.Error = aws.RIPricingStatus
+	rps.Error = ""
+	if aws.RIPricingError != nil {
+		rps.Error = aws.RIPricingError.Error()
+	}
 	if rps.Error != "" {
 		rps.Available = false
 	} else {
@@ -124,9 +130,9 @@ type AWS struct {
 	SpotPricingUpdatedAt        *time.Time
 	SpotRefreshRunning          bool
 	SpotPricingLock             sync.RWMutex
-	SpotPricingStatus           string
+	SpotPricingError            error
 	RIPricingByInstanceID       map[string]*RIData
-	RIPricingStatus             string
+	RIPricingError              error
 	RIDataRunning               bool
 	RIDataLock                  sync.RWMutex
 	SavingsPlanDataByInstanceID map[string]*SavingsPlanData
@@ -150,6 +156,8 @@ type AWS struct {
 	Config                      *ProviderConfig
 	ServiceAccountChecks        map[string]*ServiceAccountCheck
 	clusterManagementPrice      float64
+	clusterAccountId            string
+	clusterRegion               string
 	clusterProvisioner          string
 	*CustomProvider
 }
@@ -936,10 +944,10 @@ func (aws *AWS) refreshSpotPricing(force bool) {
 	sp, err := aws.parseSpotData(aws.SpotDataBucket, aws.SpotDataPrefix, aws.ProjectID, aws.SpotDataRegion)
 	if err != nil {
 		klog.V(1).Infof("Skipping AWS spot data download: %s", err.Error())
-		aws.SpotPricingStatus = err.Error()
+		aws.SpotPricingError = err
 		return
 	}
-	aws.SpotPricingStatus = ""
+	aws.SpotPricingError = nil
 
 	// update time last updated
 	aws.SpotPricingUpdatedAt = &now
@@ -1174,6 +1182,8 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 		m := make(map[string]string)
 		m["name"] = c.ClusterName
 		m["provider"] = "AWS"
+		m["account"] = c.AthenaProjectID // this value requires configuration but is unavailable else where
+		m["region"] = awsProvider.clusterRegion
 		m["id"] = env.GetClusterID()
 		m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 		m["provisioner"] = awsProvider.clusterProvisioner
@@ -1184,6 +1194,8 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 		m := make(map[string]string)
 		m["name"] = clusterName
 		m["provider"] = "AWS"
+		m["account"] = c.AthenaProjectID // this value requires configuration but is unavailable else where
+		m["region"] = awsProvider.clusterRegion
 		m["id"] = env.GetClusterID()
 		m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 		return m, nil
@@ -1823,10 +1835,10 @@ func (a *AWS) GetReservationDataFromAthena() error {
 		query := fmt.Sprintf(q, cfg.AthenaTable, start, end)
 		op, err := a.QueryAthenaBillingData(query)
 		if err != nil {
-			a.RIPricingStatus = err.Error()
+			a.RIPricingError = err
 			return fmt.Errorf("Error fetching Reserved Instance Data: %s", err)
 		}
-		a.RIPricingStatus = ""
+		a.RIPricingError = nil
 		klog.Infof("Fetching RI data...")
 		if len(op.ResultSet.Rows) > 1 {
 			a.RIDataLock.Lock()
@@ -1860,7 +1872,7 @@ func (a *AWS) GetReservationDataFromAthena() error {
 		}
 	} else {
 		klog.Infof("No reserved data available in Athena")
-		a.RIPricingStatus = ""
+		a.RIPricingError = nil
 	}
 	return nil
 }

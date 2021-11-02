@@ -1,10 +1,8 @@
 package cloudutil
 
 import (
-	"regexp"
 	"strings"
-
-	"github.com/kubecost/cost-model/pkg/log"
+	"unicode"
 )
 
 // ConvertToGlueColumnFormat takes a string and runs through various regex
@@ -14,27 +12,33 @@ import (
 // https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/run-athena-sql.html
 // It returns a string containing the column name in proper column name format and length.
 func ConvertToGlueColumnFormat(columnName string) string {
-	log.Debugf("Converting string \"%s\" to proper AWS Glue column name.", columnName)
+	var sb strings.Builder
+	var prev rune
+	for i, r := range columnName {
+		if unicode.IsUpper(r) && prev != '_' && i != 0 {
+			sb.WriteRune('_')
+		}
+		if !unicode.IsLetter(r) && !unicode.IsNumber(r) {
+			if prev != '_' && i != 0 && i != (len(columnName)-1) {
+				sb.WriteRune('_')
+			}
+			prev = '_'
+			continue
+		}
+		if r == '_' {
+			if prev == '_' || i == 0 || i == len(columnName)-1 {
+				prev = '_'
+				continue
+			}
+		}
+		sb.WriteRune(unicode.ToLower(r))
+		prev = r
+	}
 
-	// An underscore is added in front of uppercase letters
-	capitalUnderscore := regexp.MustCompile(`[A-Z]`)
-	final := capitalUnderscore.ReplaceAllString(columnName, `_$0`)
-
-	// Any non-alphanumeric characters are replaced with an underscore
-	noSpacePunc := regexp.MustCompile(`[\s]{1,}|[^A-Za-z0-9]`)
-	final = noSpacePunc.ReplaceAllString(final, "_")
-
-	// Duplicate underscores are removed
-	noDupUnderscore := regexp.MustCompile(`_{2,}`)
-	final = noDupUnderscore.ReplaceAllString(final, "_")
-
-	// Any leading and trailing underscores are removed
-	noFrontUnderscore := regexp.MustCompile(`(^\_|\_$)`)
-	final = noFrontUnderscore.ReplaceAllString(final, "")
-
-	// Uppercase to lowercase
-	final = strings.ToLower(final)
-
+	final := sb.String()
+	if prev == '_' { // string any trailing '_'
+		final = final[:len(final)-1]
+	}
 	// Longer column name than expected - remove _ left to right
 	allowedColLen := 128
 	underscoreToRemove := len(final) - allowedColLen
@@ -47,8 +51,6 @@ func ConvertToGlueColumnFormat(columnName string) string {
 	if len(final) > allowedColLen {
 		final = final[:allowedColLen]
 	}
-
-	log.Debugf("Column name being returned: \"%s\". Length: \"%d\".", final, len(final))
 
 	return final
 }
