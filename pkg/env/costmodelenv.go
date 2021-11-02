@@ -84,7 +84,7 @@ func GetPricingConfigmapName() string {
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
 // the AWS access key for authentication
 func GetAppVersion() string {
-	return Get(AppVersionEnvVar, "1.87.2")
+	return Get(AppVersionEnvVar, "1.87.3")
 }
 
 // IsEmitNamespaceAnnotationsMetric returns true if cost-model is configured to emit the kube_namespace_annotations metric
