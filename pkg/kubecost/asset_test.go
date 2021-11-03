@@ -808,6 +808,48 @@ func TestAssetSet_FindMatch(t *testing.T) {
 	}
 }
 
+// Asserts that all Assets within an AssetSet have a Window that
+// matches that of the AssetSet.
+func TestAssetSet_InsertMatchingWindow(t *testing.T) {
+	setStart := time.Now().Round(time.Hour)
+	setEnd := setStart.Add(1 * time.Hour)
+
+	a1WindowStart := setStart.Add(5 * time.Minute)
+	a1WindowEnd := setStart.Add(50 * time.Minute)
+
+	a2WindowStart := setStart.Add(17 * time.Minute)
+	a2WindowEnd := setStart.Add(34 * time.Minute)
+
+	a1 := &Node{}
+	a1.SetProperties(&AssetProperties{
+		Name: "asset-1",
+	})
+	a1.window = NewClosedWindow(a1WindowStart, a1WindowEnd)
+
+	a2 := &Disk{}
+	a2.SetProperties(&AssetProperties{
+		Name: "asset-2",
+	})
+	a2.window = NewClosedWindow(a2WindowStart, a2WindowEnd)
+
+	as := NewAssetSet(setStart, setEnd)
+	as.Insert(a1)
+	as.Insert(a2)
+
+	if as.Length() != 2 {
+		t.Errorf("AS length got %d, expected %d", as.Length(), 2)
+	}
+
+	as.Each(func(k string, a Asset) {
+		if !(*a.Window().Start()).Equal(setStart) {
+			t.Errorf("Asset %s window start is %s, expected %s", a.Properties().Name, *a.Window().Start(), setStart)
+		}
+		if !(*a.Window().End()).Equal(setEnd) {
+			t.Errorf("Asset %s window end is %s, expected %s", a.Properties().Name, *a.Window().End(), setEnd)
+		}
+	})
+}
+
 func TestAssetSetRange_Accumulate(t *testing.T) {
 	endYesterday := time.Now().UTC().Truncate(day)
 	startYesterday := endYesterday.Add(-day)
