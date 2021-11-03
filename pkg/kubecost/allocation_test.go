@@ -1847,6 +1847,46 @@ func TestAllocationSet_ComputeIdleAllocationsPerNode(t *testing.T) {
 // TODO niko/etl
 //func TestAllocationSet_Insert(t *testing.T) {}
 
+// Asserts that all Allocations within an AllocationSet have a Window that
+// matches that of the AllocationSet.
+func TestAllocationSet_insertMatchingWindow(t *testing.T) {
+	setStart := time.Now().Round(time.Hour)
+	setEnd := setStart.Add(1 * time.Hour)
+
+	a1WindowStart := setStart.Add(5 * time.Minute)
+	a1WindowEnd := setStart.Add(50 * time.Minute)
+
+	a2WindowStart := setStart.Add(17 * time.Minute)
+	a2WindowEnd := setStart.Add(34 * time.Minute)
+
+	a1 := &Allocation{
+		Name:   "allocation-1",
+		Window: Window(NewClosedWindow(a1WindowStart, a1WindowEnd)),
+	}
+
+	a2 := &Allocation{
+		Name:   "allocation-2",
+		Window: Window(NewClosedWindow(a2WindowStart, a2WindowEnd)),
+	}
+
+	as := NewAllocationSet(setStart, setEnd)
+	as.insert(a1)
+	as.insert(a2)
+
+	if as.Length() != 2 {
+		t.Errorf("AS length got %d, expected %d", as.Length(), 2)
+	}
+
+	as.Each(func(k string, a *Allocation) {
+		if !(*a.Window.Start()).Equal(setStart) {
+			t.Errorf("Allocation %s window start is %s, expected %s", a.Name, *a.Window.Start(), setStart)
+		}
+		if !(*a.Window.End()).Equal(setEnd) {
+			t.Errorf("Allocation %s window end is %s, expected %s", a.Name, *a.Window.End(), setEnd)
+		}
+	})
+}
+
 // TODO niko/etl
 //func TestAllocationSet_IsEmpty(t *testing.T) {}
 

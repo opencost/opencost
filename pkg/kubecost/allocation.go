@@ -2128,6 +2128,10 @@ func (as *AllocationSet) insert(that *Allocation) error {
 		as.idleKeys[that.Name] = true
 	}
 
+	// Expand the window, just to be safe. It's possible that the Allocation will
+	// be set into the map without expanding it to the AllocationSet's window.
+	as.allocations[that.Name].Window = as.allocations[that.Name].Window.Expand(as.Window)
+
 	return nil
 }
 
