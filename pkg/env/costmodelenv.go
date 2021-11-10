@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
 )
 
 const (
@@ -79,6 +80,7 @@ const (
 	KubecostConfigBucketEnvVar    = "KUBECOST_CONFIG_BUCKET"
 	ClusterInfoFileEnabledEnvVar  = "CLUSTER_INFO_FILE_ENABLED"
 	ClusterCacheFileEnabledEnvVar = "CLUSTER_CACHE_FILE_ENABLED"
+	PrometheusQueryOffsetEnvVar   = "PROMETHEUS_QUERY_OFFSET"
 )
 
 // GetKubecostConfigBucket returns a file location for a mounted bucket configuration which is used to store
@@ -97,6 +99,26 @@ func IsClusterInfoFileEnabled() bool {
 // kubernetes API.
 func IsClusterCacheFileEnabled() bool {
 	return GetBool(ClusterCacheFileEnabledEnvVar, false)
+}
+
+// GetPrometheusQueryOffset returns the time.Duration to offset all prometheus queries by. NOTE: This env var is applied
+// to all non-range queries made via our query context. This should only be applied when there is a significant delay in
+// data arriving in the target prom db. For example, if supplying a thanos or cortex querier for the prometheus server, using
+// a 3h offset will ensure that current time = current time - 3h.
+//
+// This offset is NOT the same as the GetThanosOffset() option, as that is only applied to queries made specifically targetting
+// thanos. This offset is applied globally.
+func GetPrometheusQueryOffset() time.Duration {
+	offset := Get(PrometheusQueryOffsetEnvVar, "")
+	if offset == "" {
+		return 0
+	}
+
+	dur, err := timeutil.ParseDuration(offset)
+	if err != nil {
+		return 0
+	}
+	return dur
 }
 
 func GetPricingConfigmapName() string {
