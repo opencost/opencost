@@ -303,6 +303,11 @@ func validate(conf S3Config) error {
 	return nil
 }
 
+// FullPath returns the storage working path combined with the path provided
+func (s3 *S3Storage) FullPath(name string) string {
+	return name
+}
+
 // Get returns a reader for the given object name.
 func (s3 *S3Storage) Read(name string) ([]byte, error) {
 	log.Infof("S3Storage::Read(%s)", name)
@@ -314,7 +319,7 @@ func (s3 *S3Storage) Read(name string) ([]byte, error) {
 
 // Exists checks if the given object exists.
 func (s3 *S3Storage) Exists(name string) (bool, error) {
-	log.Infof("S3Storage::Exists(%s)", name)
+	//log.Infof("S3Storage::Exists(%s)", name)
 
 	ctx := context.Background()
 
@@ -358,11 +363,14 @@ func (s3 *S3Storage) Write(name string, data []byte) error {
 
 // Attributes returns information about the specified object.
 func (s3 *S3Storage) Stat(name string) (*StorageInfo, error) {
-	log.Infof("S3Storage::Stat(%s)", name)
+	//log.Infof("S3Storage::Stat(%s)", name)
 	ctx := context.Background()
 
 	objInfo, err := s3.client.StatObject(ctx, s3.name, name, minio.StatObjectOptions{})
 	if err != nil {
+		if s3.isDoesNotExist(err) {
+			return nil, DoesNotExistError
+		}
 		return nil, err
 	}
 

@@ -1,13 +1,13 @@
 package storage
 
 import (
-	"errors"
+	"os"
 	"time"
 )
 
 // DoesNotExistError is used as a generic error to return when a target path does not
-// exist in storage.
-var DoesNotExistError = errors.New("DoesNotExist")
+// exist in storage. Equivalent to os.ErrorNotExist such that it will work with os.IsNotExist(err)
+var DoesNotExistError = os.ErrNotExist
 
 // StorageInfo is a data object containing basic information about the path in storage.
 type StorageInfo struct {
@@ -18,6 +18,9 @@ type StorageInfo struct {
 
 // Storage provides an API for storing binary data
 type Storage interface {
+	// FullPath returns the storage working path combined with the path provided
+	FullPath(path string) string
+
 	// Stat returns the StorageStats for the specific path.
 	Stat(path string) (*StorageInfo, error)
 

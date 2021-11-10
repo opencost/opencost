@@ -171,6 +171,7 @@ func (ctx *Context) RawQuery(query string) ([]byte, error) {
 	u := ctx.Client.URL(epQuery, nil)
 	q := u.Query()
 	q.Set("query", query)
+	q.Set("time", time.Now().UTC().Add(-3*time.Hour).Format(time.RFC3339))
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequest(http.MethodPost, u.String(), nil)

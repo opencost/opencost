@@ -75,7 +75,29 @@ const (
 
 	PricingConfigmapName  = "PRICING_CONFIGMAP_NAME"
 	KubecostJobNameEnvVar = "KUBECOST_JOB_NAME"
+
+	KubecostConfigBucketEnvVar    = "KUBECOST_CONFIG_BUCKET"
+	ClusterInfoFileEnabledEnvVar  = "CLUSTER_INFO_FILE_ENABLED"
+	ClusterCacheFileEnabledEnvVar = "CLUSTER_CACHE_FILE_ENABLED"
 )
+
+// GetKubecostConfigBucket returns a file location for a mounted bucket configuration which is used to store
+// a subset of kubecost configurations that require sharing via remote storage.
+func GetKubecostConfigBucket() string {
+	return Get(KubecostConfigBucketEnvVar, "")
+}
+
+// IsClusterInfoFileEnabled returns true if the cluster info is read from a file or pulled from the local
+// cloud provider and kubernetes.
+func IsClusterInfoFileEnabled() bool {
+	return GetBool(ClusterInfoFileEnabledEnvVar, false)
+}
+
+// IsClusterCacheFileEnabled returns true if the kubernetes cluster data is read from a file or pulled from the local
+// kubernetes API.
+func IsClusterCacheFileEnabled() bool {
+	return GetBool(ClusterCacheFileEnabledEnvVar, false)
+}
 
 func GetPricingConfigmapName() string {
 	return Get(PricingConfigmapName, "pricing-configs")

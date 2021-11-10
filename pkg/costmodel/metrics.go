@@ -9,6 +9,7 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/log"
@@ -21,8 +22,6 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	v1 "k8s.io/api/core/v1"
 
-	"k8s.io/client-go/kubernetes"
-
 	"k8s.io/klog"
 )
 
@@ -32,8 +31,7 @@ import (
 
 // ClusterInfoCollector is a prometheus collector that generates ClusterInfoMetrics
 type ClusterInfoCollector struct {
-	Cloud         cloud.Provider
-	KubeClientSet kubernetes.Interface
+	ClusterInfo clusters.ClusterInfoProvider
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
@@ -44,7 +42,7 @@ func (cic ClusterInfoCollector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (cic ClusterInfoCollector) Collect(ch chan<- prometheus.Metric) {
-	clusterInfo := GetClusterInfo(cic.KubeClientSet, cic.Cloud)
+	clusterInfo := cic.ClusterInfo.GetClusterInfo()
 	labels := prom.MapToLabels(clusterInfo)
 
 	m := newClusterInfoMetric("kubecost_cluster_info", labels)
@@ -126,7 +124,7 @@ var (
 )
 
 // initCostModelMetrics uses a sync.Once to ensure that these metrics are only created once
-func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud.Provider) {
+func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud.Provider, clusterInfo clusters.ClusterInfoProvider) {
 	metricsInit.Do(func() {
 		cpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_cpu_hourly_cost",
@@ -216,8 +214,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud
 
 		// General Metric Collectors
 		prometheus.MustRegister(ClusterInfoCollector{
-			KubeClientSet: clusterCache.GetClient(),
-			Cloud:         provider,
+			ClusterInfo: clusterInfo,
 		})
 	})
 }
@@ -259,9 +256,9 @@ type CostModelMetricsEmitter struct {
 }
 
 // NewCostModelMetricsEmitter creates a new cost-model metrics emitter. Use Start() to begin metric emission.
-func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clustercache.ClusterCache, provider cloud.Provider, model *CostModel) *CostModelMetricsEmitter {
+func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clustercache.ClusterCache, provider cloud.Provider, clusterInfo clusters.ClusterInfoProvider, model *CostModel) *CostModelMetricsEmitter {
 	// init will only actually execute once to register the custom gauges
-	initCostModelMetrics(clusterCache, provider)
+	initCostModelMetrics(clusterCache, provider, clusterInfo)
 
 	metrics.InitKubeMetrics(clusterCache, &metrics.KubeMetricsOpts{
 		EmitKubecostControllerMetrics: true,
