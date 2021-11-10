@@ -10,6 +10,7 @@ import (
 	autoscaling "k8s.io/api/autoscaling/v2beta1"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/policy/v1beta1"
 	stv1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
@@ -23,10 +24,6 @@ type ClusterCache interface {
 
 	// Stops the watcher processes
 	Stop()
-
-	// Gets the underlying clientset
-	// TODO: Remove once we support all cached cluster components
-	GetClient() kubernetes.Interface
 
 	// GetAllNamespaces returns all the cached namespaces
 	GetAllNamespaces() []*v1.Namespace
@@ -64,8 +61,11 @@ type ClusterCache interface {
 	// GetAllJobs returns all the cached jobs
 	GetAllJobs() []*batchv1.Job
 
-	// GetAllHorizontalPodAutoscalers() returns all cached horizontal pod autoscalers
+	// GetAllHorizontalPodAutoscalers returns all cached horizontal pod autoscalers
 	GetAllHorizontalPodAutoscalers() []*autoscaling.HorizontalPodAutoscaler
+
+	// GetAllPodDisruptionBudgets returns all cached pod disruption budgets
+	GetAllPodDisruptionBudgets() []*v1beta1.PodDisruptionBudget
 
 	// SetConfigMapUpdateFunc sets the configmap update function
 	SetConfigMapUpdateFunc(func(interface{}))
@@ -89,6 +89,7 @@ type KubernetesClusterCache struct {
 	storageClassWatch      WatchController
 	jobsWatch              WatchController
 	hpaWatch               WatchController
+	pdbWatch               WatchController
 	stop                   chan struct{}
 }
 
@@ -103,6 +104,7 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 	storageRestClient := client.StorageV1().RESTClient()
 	batchClient := client.BatchV1().RESTClient()
 	autoscalingClient := client.AutoscalingV2beta1().RESTClient()
+	pdbClient := client.PolicyV1beta1().RESTClient()
 
 	kubecostNamespace := env.GetKubecostNamespace()
 	klog.Infof("NAMESPACE: %s", kubecostNamespace)
@@ -123,11 +125,12 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 		storageClassWatch:      NewCachingWatcher(storageRestClient, "storageclasses", &stv1.StorageClass{}, "", fields.Everything()),
 		jobsWatch:              NewCachingWatcher(batchClient, "jobs", &batchv1.Job{}, "", fields.Everything()),
 		hpaWatch:               NewCachingWatcher(autoscalingClient, "horizontalpodautoscalers", &autoscaling.HorizontalPodAutoscaler{}, "", fields.Everything()),
+		pdbWatch:               NewCachingWatcher(pdbClient, "poddisruptionbudgets", &v1beta1.PodDisruptionBudget{}, "", fields.Everything()),
 	}
 
 	// Wait for each caching watcher to initialize
 	var wg sync.WaitGroup
-	wg.Add(14)
+	wg.Add(15)
 
 	cancel := make(chan struct{})
 
@@ -145,6 +148,7 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 	go initializeCache(kcc.storageClassWatch, &wg, cancel)
 	go initializeCache(kcc.jobsWatch, &wg, cancel)
 	go initializeCache(kcc.hpaWatch, &wg, cancel)
+	go initializeCache(kcc.podWatch, &wg, cancel)
 
 	wg.Wait()
 
@@ -171,6 +175,7 @@ func (kcc *KubernetesClusterCache) Run() {
 	go kcc.storageClassWatch.Run(1, stopCh)
 	go kcc.jobsWatch.Run(1, stopCh)
 	go kcc.hpaWatch.Run(1, stopCh)
+	go kcc.pdbWatch.Run(1, stopCh)
 
 	kcc.stop = stopCh
 }
@@ -182,10 +187,6 @@ func (kcc *KubernetesClusterCache) Stop() {
 
 	close(kcc.stop)
 	kcc.stop = nil
-}
-
-func (kcc *KubernetesClusterCache) GetClient() kubernetes.Interface {
-	return kcc.client
 }
 
 func (kcc *KubernetesClusterCache) GetAllNamespaces() []*v1.Namespace {
@@ -303,6 +304,15 @@ func (kcc *KubernetesClusterCache) GetAllHorizontalPodAutoscalers() []*autoscali
 		hpas = append(hpas, hpa.(*autoscaling.HorizontalPodAutoscaler))
 	}
 	return hpas
+}
+
+func (kcc *KubernetesClusterCache) GetAllPodDisruptionBudgets() []*v1beta1.PodDisruptionBudget {
+	var pdbs []*v1beta1.PodDisruptionBudget
+	items := kcc.pdbWatch.GetAll()
+	for _, pdb := range items {
+		pdbs = append(pdbs, pdb.(*v1beta1.PodDisruptionBudget))
+	}
+	return pdbs
 }
 
 func (kcc *KubernetesClusterCache) SetConfigMapUpdateFunc(f func(interface{})) {

@@ -21,6 +21,11 @@ func NewFileStorage(baseDir string) Storage {
 	return &FileStorage{baseDir}
 }
 
+// FullPath returns the storage working path combined with the path provided
+func (fs *FileStorage) FullPath(path string) string {
+	return gopath.Join(fs.baseDir, path)
+}
+
 // Stat returns the StorageStats for the specific path.
 func (fs *FileStorage) Stat(path string) (*StorageInfo, error) {
 	f := gopath.Join(fs.baseDir, path)

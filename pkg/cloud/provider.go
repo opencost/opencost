@@ -15,6 +15,7 @@ import (
 	"cloud.google.com/go/compute/metadata"
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/config"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util/watcher"
@@ -382,31 +383,31 @@ func ShareTenancyCosts(p Provider) bool {
 	return config.ShareTenancyCosts == "true"
 }
 
-func NewCrossClusterProvider(ctype string, overrideConfigPath string, cache clustercache.ClusterCache) (Provider, error) {
+func NewCrossClusterProvider(ctype string, config *config.ConfigFileManager, overrideConfigPath string, cache clustercache.ClusterCache) (Provider, error) {
 	if ctype == "aws" {
 		return &AWS{
 			Clientset: cache,
-			Config:    NewProviderConfig(overrideConfigPath),
+			Config:    NewProviderConfig(config, overrideConfigPath),
 		}, nil
 	} else if ctype == "gcp" {
 		return &GCP{
 			Clientset: cache,
-			Config:    NewProviderConfig(overrideConfigPath),
+			Config:    NewProviderConfig(config, overrideConfigPath),
 		}, nil
 	} else if ctype == "azure" {
 		return &Azure{
 			Clientset: cache,
-			Config:    NewProviderConfig(overrideConfigPath),
+			Config:    NewProviderConfig(config, overrideConfigPath),
 		}, nil
 	}
 	return &CustomProvider{
 		Clientset: cache,
-		Config:    NewProviderConfig(overrideConfigPath),
+		Config:    NewProviderConfig(config, overrideConfigPath),
 	}, nil
 }
 
 // NewProvider looks at the nodespec or provider metadata server to decide which provider to instantiate.
-func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, error) {
+func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.ConfigFileManager) (Provider, error) {
 	nodes := cache.GetAllNodes()
 	if len(nodes) == 0 {
 		return nil, fmt.Errorf("Could not locate any nodes for cluster.")
@@ -431,7 +432,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, erro
 			CSVLocation: env.GetCSVPath(),
 			CustomProvider: &CustomProvider{
 				Clientset: cache,
-				Config:    NewProviderConfig(configFileName),
+				Config:    NewProviderConfig(config, configFileName),
 			},
 		}, nil
 	}
@@ -443,7 +444,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, erro
 		return &GCP{
 			Clientset: cache,
 			APIKey:    apiKey,
-			Config:    NewProviderConfig("gcp.json"),
+			Config:    NewProviderConfig(config, "gcp.json"),
 		}, nil
 	}
 
@@ -451,19 +452,19 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, erro
 		klog.V(2).Info("Found ProviderID starting with \"aws\", using AWS Provider")
 		return &AWS{
 			Clientset: cache,
-			Config:    NewProviderConfig("aws.json"),
+			Config:    NewProviderConfig(config, "aws.json"),
 		}, nil
 	} else if strings.HasPrefix(provider, "azure") {
 		klog.V(2).Info("Found ProviderID starting with \"azure\", using Azure Provider")
 		return &Azure{
 			Clientset: cache,
-			Config:    NewProviderConfig("azure.json"),
+			Config:    NewProviderConfig(config, "azure.json"),
 		}, nil
 	} else {
 		klog.V(2).Info("Unsupported provider, falling back to default")
 		return &CustomProvider{
 			Clientset: cache,
-			Config:    NewProviderConfig("default.json"),
+			Config:    NewProviderConfig(config, "default.json"),
 		}, nil
 	}
 }

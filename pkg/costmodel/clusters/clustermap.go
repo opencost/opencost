@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/thanos"
@@ -69,31 +68,31 @@ type ClusterMap interface {
 	StopRefresh()
 }
 
-// LocalClusterInfoProvider is a contract which is capable of performing local cluster info lookups.
-type LocalClusterInfoProvider interface {
-	// GetClusterInfo returns a string map containing the local cluster info
+// ClusterInfoProvider is a contract which is capable of performing cluster info lookups.
+type ClusterInfoProvider interface {
+	// GetClusterInfo returns a string map containing the local/remote connected cluster info
 	GetClusterInfo() map[string]string
 }
 
 // ClusterMap keeps records of all known cost-model clusters.
 type PrometheusClusterMap struct {
-	lock         *sync.RWMutex
-	client       prometheus.Client
-	clusters     map[string]*ClusterInfo
-	localCluster LocalClusterInfoProvider
-	stop         chan struct{}
+	lock        *sync.RWMutex
+	client      prometheus.Client
+	clusters    map[string]*ClusterInfo
+	clusterInfo ClusterInfoProvider
+	stop        chan struct{}
 }
 
 // NewClusterMap creates a new ClusterMap implementation using a prometheus or thanos client
-func NewClusterMap(client prometheus.Client, lcip LocalClusterInfoProvider, refresh time.Duration) ClusterMap {
+func NewClusterMap(client prometheus.Client, cip ClusterInfoProvider, refresh time.Duration) ClusterMap {
 	stop := make(chan struct{})
 
 	cm := &PrometheusClusterMap{
-		lock:         new(sync.RWMutex),
-		client:       client,
-		clusters:     make(map[string]*ClusterInfo),
-		localCluster: lcip,
-		stop:         stop,
+		lock:        new(sync.RWMutex),
+		client:      client,
+		clusters:    make(map[string]*ClusterInfo),
+		clusterInfo: cip,
+		stop:        stop,
 	}
 
 	// Run an updater to ensure cluster data stays relevant over time
@@ -185,14 +184,14 @@ func (pcm *PrometheusClusterMap) loadClusters() (map[string]*ClusterInfo, error)
 	}
 
 	// populate the local cluster if it doesn't exist
-	localID := env.GetClusterID()
-	if _, ok := clusters[localID]; !ok {
-		localInfo, err := pcm.getLocalClusterInfo()
-		if err != nil {
-			log.Warningf("Failed to load local cluster info: %s", err)
-		} else {
-			clusters[localInfo.ID] = localInfo
-		}
+	localInfo, err := pcm.getLocalClusterInfo()
+	if err != nil {
+		return clusters, nil
+	}
+
+	// Check to see if the local cluster's id is part of our loaded clusters, and include if not
+	if _, ok := clusters[localInfo.ID]; !ok {
+		clusters[localInfo.ID] = localInfo
 	}
 
 	return clusters, nil
@@ -200,7 +199,7 @@ func (pcm *PrometheusClusterMap) loadClusters() (map[string]*ClusterInfo, error)
 
 // getLocalClusterInfo returns the local cluster info in the event there does not exist a metric available.
 func (pcm *PrometheusClusterMap) getLocalClusterInfo() (*ClusterInfo, error) {
-	info := pcm.localCluster.GetClusterInfo()
+	info := pcm.clusterInfo.GetClusterInfo()
 
 	var id string
 	var name string

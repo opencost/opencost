@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/config"
 	"github.com/kubecost/cost-model/pkg/services"
 	"github.com/kubecost/cost-model/pkg/util/httputil"
 	"github.com/kubecost/cost-model/pkg/util/timeutil"
@@ -61,20 +62,22 @@ var (
 // Accesses defines a singleton application instance, providing access to
 // Prometheus, Kubernetes, the cloud provider, and caches.
 type Accesses struct {
-	Router            *httprouter.Router
-	PrometheusClient  prometheus.Client
-	ThanosClient      prometheus.Client
-	KubeClientSet     kubernetes.Interface
-	ClusterMap        clusters.ClusterMap
-	CloudProvider     cloud.Provider
-	Model             *CostModel
-	MetricsEmitter    *CostModelMetricsEmitter
-	OutOfClusterCache *cache.Cache
-	AggregateCache    *cache.Cache
-	CostDataCache     *cache.Cache
-	ClusterCostsCache *cache.Cache
-	CacheExpiration   map[time.Duration]time.Duration
-	AggAPI            Aggregator
+	Router              *httprouter.Router
+	PrometheusClient    prometheus.Client
+	ThanosClient        prometheus.Client
+	KubeClientSet       kubernetes.Interface
+	ClusterMap          clusters.ClusterMap
+	CloudProvider       cloud.Provider
+	ConfigFileManager   *config.ConfigFileManager
+	ClusterInfoProvider clusters.ClusterInfoProvider
+	Model               *CostModel
+	MetricsEmitter      *CostModelMetricsEmitter
+	OutOfClusterCache   *cache.Cache
+	AggregateCache      *cache.Cache
+	CostDataCache       *cache.Cache
+	ClusterCostsCache   *cache.Cache
+	CacheExpiration     map[time.Duration]time.Duration
+	AggAPI              Aggregator
 	// SettingsCache stores current state of app settings
 	SettingsCache *cache.Cache
 	// settingsSubscribers tracks channels through which changes to different
@@ -680,7 +683,7 @@ func (a *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httpro
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	data := GetClusterInfo(a.KubeClientSet, a.CloudProvider)
+	data := a.ClusterInfoProvider.GetClusterInfo()
 
 	w.Write(WrapData(data, nil))
 }
@@ -1021,12 +1024,24 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		panic(err.Error())
 	}
 
+	// Create ConfigFileManager for synchronization of shared configuration
+	confManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		BucketStoreConfig: env.GetKubecostConfigBucket(),
+		LocalConfigPath:   "/",
+	})
+
 	// Create Kubernetes Cluster Cache + Watchers
-	k8sCache := clustercache.NewKubernetesClusterCache(kubeClientset)
+	var k8sCache clustercache.ClusterCache
+	if env.IsClusterCacheFileEnabled() {
+		importLocation := confManager.ConfigFileAt("/var/configs/cluster-cache.json")
+		k8sCache = clustercache.NewClusterImporter(importLocation)
+	} else {
+		k8sCache = clustercache.NewKubernetesClusterCache(kubeClientset)
+	}
 	k8sCache.Run()
 
 	cloudProviderKey := env.GetCloudProviderAPIKey()
-	cloudProvider, err := cloud.NewProvider(k8sCache, cloudProviderKey)
+	cloudProvider, err := cloud.NewProvider(k8sCache, cloudProviderKey, confManager)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -1086,13 +1101,21 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		}
 	}
 
+	// ClusterInfo Provider to provide the cluster map with local and remote cluster data
+	var clusterInfoProvider clusters.ClusterInfoProvider
+	if env.IsClusterInfoFileEnabled() {
+		clusterInfoFile := confManager.ConfigFileAt("/var/configs/cluster-info.json")
+		clusterInfoProvider = NewConfiguredClusterInfoProvider(clusterInfoFile)
+	} else {
+		clusterInfoProvider = NewLocalClusterInfoProvider(kubeClientset, cloudProvider)
+	}
+
 	// Initialize ClusterMap for maintaining ClusterInfo by ClusterID
 	var clusterMap clusters.ClusterMap
-	localCIProvider := NewLocalClusterInfoProvider(kubeClientset, cloudProvider)
 	if thanosClient != nil {
-		clusterMap = clusters.NewClusterMap(thanosClient, localCIProvider, 10*time.Minute)
+		clusterMap = clusters.NewClusterMap(thanosClient, clusterInfoProvider, 10*time.Minute)
 	} else {
-		clusterMap = clusters.NewClusterMap(promCli, localCIProvider, 5*time.Minute)
+		clusterMap = clusters.NewClusterMap(promCli, clusterInfoProvider, 5*time.Minute)
 	}
 
 	// cache responses from model and aggregation for a default of 10 minutes;
@@ -1121,24 +1144,26 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		pc = promCli
 	}
 	costModel := NewCostModel(pc, cloudProvider, k8sCache, clusterMap, scrapeInterval)
-	metricsEmitter := NewCostModelMetricsEmitter(promCli, k8sCache, cloudProvider, costModel)
+	metricsEmitter := NewCostModelMetricsEmitter(promCli, k8sCache, cloudProvider, clusterInfoProvider, costModel)
 
 	a := &Accesses{
-		Router:            httprouter.New(),
-		PrometheusClient:  promCli,
-		ThanosClient:      thanosClient,
-		KubeClientSet:     kubeClientset,
-		ClusterMap:        clusterMap,
-		CloudProvider:     cloudProvider,
-		Model:             costModel,
-		MetricsEmitter:    metricsEmitter,
-		AggregateCache:    aggregateCache,
-		CostDataCache:     costDataCache,
-		ClusterCostsCache: clusterCostsCache,
-		OutOfClusterCache: outOfClusterCache,
-		SettingsCache:     settingsCache,
-		CacheExpiration:   cacheExpiration,
-		httpServices:      services.NewCostModelServices(),
+		Router:              httprouter.New(),
+		PrometheusClient:    promCli,
+		ThanosClient:        thanosClient,
+		KubeClientSet:       kubeClientset,
+		ClusterMap:          clusterMap,
+		CloudProvider:       cloudProvider,
+		ConfigFileManager:   confManager,
+		ClusterInfoProvider: clusterInfoProvider,
+		Model:               costModel,
+		MetricsEmitter:      metricsEmitter,
+		AggregateCache:      aggregateCache,
+		CostDataCache:       costDataCache,
+		ClusterCostsCache:   clusterCostsCache,
+		OutOfClusterCache:   outOfClusterCache,
+		SettingsCache:       settingsCache,
+		CacheExpiration:     cacheExpiration,
+		httpServices:        services.NewCostModelServices(),
 	}
 	// Use the Accesses instance, itself, as the CostModelAggregator. This is
 	// confusing and unconventional, but necessary so that we can swap it
