@@ -1,11 +1,13 @@
 package costmodel
 
 import (
-	"github.com/kubecost/cost-model/pkg/prom"
-	"github.com/kubecost/cost-model/pkg/util"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/prom"
+	"github.com/kubecost/cost-model/pkg/util"
 
 	"github.com/davecgh/go-spew/spew"
 )
@@ -849,7 +851,11 @@ func TestBuildGPUCostMap(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			result, _ := buildGPUCostMap(testCase.promResult, testCase.countMap)
+			testProvider := &cloud.CustomProvider{
+				Config: cloud.NewProviderConfig("fakeFile"),
+			}
+			testPreemptible := make(map[NodeIdentifier]bool)
+			result, _ := buildGPUCostMap(testCase.promResult, testCase.countMap, testProvider, testPreemptible)
 			if !reflect.DeepEqual(result, testCase.expected) {
 				t.Errorf("buildGPUCostMap case %s failed. Got %+v but expected %+v", testCase.name, result, testCase.expected)
 			}
