@@ -929,9 +929,6 @@ func determineCloudByRegion(region string) azure.Environment{
 	if strings.Contains(lcRegion, "china") {
 		return azure.ChinaCloud
 	}
-	if strings.Contains(lcRegion, "germany") {
-		return azure.GermanCloud
-	}
 	if strings.Contains(lcRegion, "gov") || strings.Contains(lcRegion, "dod") {
 		return azure.USGovernmentCloud
 	}
