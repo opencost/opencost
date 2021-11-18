@@ -761,7 +761,7 @@ func (az *Azure) DownloadPricingData() error {
 		a, err := auth.NewAuthorizerFromEnvironment()
 		authorizer = a
 		if err != nil { // Failed to create authorizer from environment, try from file
-			a, err := auth.NewAuthorizerFromFile(azure.PublicCloud.ResourceManagerEndpoint)
+			a, err := auth.NewAuthorizerFromFile(determineCloudByRegion(config.AzureBillingRegion).ResourceManagerEndpoint)
 			if err != nil {
 				az.RateCardPricingError = err
 				return err
@@ -921,6 +921,22 @@ func (az *Azure) DownloadPricingData() error {
 	az.Pricing = allPrices
 	az.RateCardPricingError = nil
 	return nil
+}
+
+// determineCloudByRegion uses region name to pick the correct Cloud Environment for the azure provider to use
+func determineCloudByRegion(region string) azure.Environment{
+	lcRegion := strings.ToLower(region)
+	if strings.Contains(lcRegion, "china") {
+		return azure.ChinaCloud
+	}
+	if strings.Contains(lcRegion, "germany") {
+		return azure.GermanCloud
+	}
+	if strings.Contains(lcRegion, "gov") || strings.Contains(lcRegion, "dod") {
+		return azure.USGovernmentCloud
+	}
+	// Default to public cloud
+	return azure.PublicCloud
 }
 
 func (az *Azure) addPricing(features string, azurePricing *AzurePricing) {
