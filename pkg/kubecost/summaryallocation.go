@@ -514,16 +514,24 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// allocation's per-resource cost to the allocated per-resource totals.
 	var allocTotals map[string]*ResourceTotals
 	if options.IdleByNode {
-		allocTotals = options.AllocationResourceTotalsStore.GetResourceTotalsByNode(*sas.Window.Start(), *sas.Window.End())
-		if allocTotals == nil {
-			// TODO
-			log.Warningf("SummaryAllocation: nil allocTotals by node for %s", sas.Window)
+		if options.AllocationResourceTotalsStore != nil {
+			allocTotals = options.AllocationResourceTotalsStore.GetResourceTotalsByNode(*sas.Window.Start(), *sas.Window.End())
+			if allocTotals == nil {
+				// TODO
+				log.Warningf("SummaryAllocation: nil allocTotals by node for %s", sas.Window)
+			}
+		} else {
+			// TODO ?
 		}
 	} else {
-		allocTotals = options.AllocationResourceTotalsStore.GetResourceTotalsByCluster(*sas.Window.Start(), *sas.Window.End())
-		if allocTotals == nil {
-			// TODO
-			log.Warningf("SummaryAllocation: nil allocTotals by cluster for %s", sas.Window)
+		if options.AllocationResourceTotalsStore != nil {
+			allocTotals = options.AllocationResourceTotalsStore.GetResourceTotalsByCluster(*sas.Window.Start(), *sas.Window.End())
+			if allocTotals == nil {
+				// TODO
+				log.Warningf("SummaryAllocation: nil allocTotals by cluster for %s", sas.Window)
+			}
+		} else {
+			// TODO ?
 		}
 	}
 
