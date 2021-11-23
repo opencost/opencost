@@ -789,13 +789,16 @@ func (az *Azure) DownloadPricingData() error {
 
 	klog.Infof("Using ratecard query %s", rateCardFilter)
 	result, err := rcClient.Get(context.TODO(), rateCardFilter)
+	//klog.Infof("result meters valid %t", result.Meters != nil)
 	if err != nil {
+		klog.Infof("Error in pricing download query")
 		az.RateCardPricingError = err
 		return err
 	}
 	allPrices := make(map[string]*AzurePricing)
 	regions, err := getRegions("compute", sClient, providersClient, config.AzureSubscriptionID)
 	if err != nil {
+		klog.Infof("Error in pricing download regions")
 		az.RateCardPricingError = err
 		return err
 	}
@@ -807,6 +810,8 @@ func (az *Azure) DownloadPricingData() error {
 		meterRegion := *v.MeterRegion
 		meterCategory := *v.MeterCategory
 		meterSubCategory := *v.MeterSubCategory
+
+		//klog.Infof("MeterName: %s", meterName)
 
 		region, err := toRegionID(meterRegion, regions)
 		if err != nil {
@@ -919,6 +924,14 @@ func (az *Azure) DownloadPricingData() error {
 	}
 
 	az.Pricing = allPrices
+
+	klog.Infof("--AZURE PRICING RESULTS IN DOWNLOAD--")
+
+	for key, _ := range az.Pricing {
+		//klog.Infof("KEY: %s has Node pricing of %s: %s and PV pricing of %s.", key, azp.Node.Region, azp.Node.InstanceType, azp.PV.Class)
+		klog.Infof("THIS: %s", key)
+	}
+
 	az.RateCardPricingError = nil
 	return nil
 }
@@ -991,6 +1004,14 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 		return n.Node, nil
 	}
 	klog.V(1).Infof("[Warning] no pricing data found for %s: %s", azKey.Features(), azKey)
+
+	klog.Infof("--AZURE PRICING RESULTS IN NODE PRICING--")
+
+	for key, _ := range az.Pricing {
+		//klog.Infof("KEY: %s has Node pricing of %s: %s and PV pricing of %s.", key, azp.Node.Region, azp.Node.InstanceType, azp.PV.Class)
+		klog.Infof("THIS: %s", key)
+	}
+
 	c, err := az.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("No default pricing data available")

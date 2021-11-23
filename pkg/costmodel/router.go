@@ -358,6 +358,9 @@ func (a *Accesses) RefreshPricingData(w http.ResponseWriter, r *http.Request, ps
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	err := a.CloudProvider.DownloadPricingData()
+	if err != nil {
+		klog.V(1).Infof("Error refreshing pricing data: %s", err.Error())
+	}
 
 	w.Write(WrapData(nil, err))
 }
