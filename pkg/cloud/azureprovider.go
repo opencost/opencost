@@ -790,7 +790,6 @@ func (az *Azure) DownloadPricingData() error {
 
 	klog.Infof("Using ratecard query %s", rateCardFilter)
 	result, err := rcClient.Get(context.TODO(), rateCardFilter)
-	//klog.Infof("result meters valid %t", result.Meters != nil)
 	if err != nil {
 		klog.Warningf("Error in pricing download query from API")
 		az.RateCardPricingError = err
@@ -805,7 +804,6 @@ func (az *Azure) DownloadPricingData() error {
 	}
 
 	baseCPUPrice := config.CPU
-	regionError := false
 
 	for _, v := range *result.Meters {
 		meterName := *v.MeterName
@@ -815,7 +813,6 @@ func (az *Azure) DownloadPricingData() error {
 
 		region, err := toRegionID(meterRegion, regions)
 		if err != nil {
-			regionError = true
 			continue
 		}
 
@@ -908,10 +905,6 @@ func (az *Azure) DownloadPricingData() error {
 				}
 			}
 		}
-	}
-
-	if regionError {
-		klog.V(1).Infof("Some pricing regions failed to parse. This is not an error, but could lead to errors in NodePricing.")
 	}
 
 	// There is no easy way of supporting Standard Azure-File, because it's billed per used GB
