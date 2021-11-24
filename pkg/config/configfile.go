@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"sort"
 	"sync"
@@ -45,6 +46,9 @@ type ConfigChangedHandler func(ChangeType, []byte)
 // DefaultHandlerPriority is used as the priority for any handlers added via AddChangeHandler
 const DefaultHandlerPriority int = 1000
 
+// NoBackingStore error is used when the config file's backing storage is missing
+var NoBackingStore error = errors.New("Backing storage does not exist.")
+
 // ConfigFile is representation of a configuration file that can be written to, read, and watched
 // for updates
 type ConfigFile struct {
@@ -73,11 +77,19 @@ func NewConfigFile(store storage.Storage, file string) *ConfigFile {
 
 // Path returns the fully qualified path of the config file.
 func (cf *ConfigFile) Path() string {
+	if cf.store == nil {
+		return cf.file
+	}
+
 	return cf.store.FullPath(cf.file)
 }
 
 // Write will write the binary data to the file.
 func (cf *ConfigFile) Write(data []byte) error {
+	if cf.store == nil {
+		return NoBackingStore
+	}
+
 	e := cf.store.Write(cf.file, data)
 	// update cache on successful write
 	if e == nil {
@@ -96,6 +108,10 @@ func (cf *ConfigFile) Read() ([]byte, error) {
 
 // internalRead is used to allow a forced override of data cache to refresh data
 func (cf *ConfigFile) internalRead(force bool) ([]byte, error) {
+	if cf.store == nil {
+		return nil, NoBackingStore
+	}
+
 	cf.dataLock.Lock()
 	defer cf.dataLock.Unlock()
 	if !force {
@@ -114,17 +130,29 @@ func (cf *ConfigFile) internalRead(force bool) ([]byte, error) {
 
 // Stat returns the StorageStats for the file.
 func (cf *ConfigFile) Stat() (*storage.StorageInfo, error) {
+	if cf.store == nil {
+		return nil, NoBackingStore
+	}
+
 	return cf.store.Stat(cf.file)
 }
 
 // Exists returns true if the file exist. If an error other than a NotExist error is returned,
 // the result will be false with the provided error.
 func (cf *ConfigFile) Exists() (bool, error) {
+	if cf.store == nil {
+		return false, NoBackingStore
+	}
+
 	return cf.store.Exists(cf.file)
 }
 
 // Delete removes the file from storage permanently.
 func (cf *ConfigFile) Delete() error {
+	if cf.store == nil {
+		return NoBackingStore
+	}
+
 	e := cf.store.Remove(cf.file)
 
 	// on removal, clear data cache
