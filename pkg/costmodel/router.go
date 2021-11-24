@@ -354,6 +354,13 @@ func WrapDataWithMessageAndWarning(data interface{}, err error, message, warning
 	return resp
 }
 
+// wrapAsObjectItems wraps a slice of items into an object containing a single items list
+func wrapAsObjectItems(items interface{}) map[string]interface{} {
+	return map[string]interface{}{
+		"items": items,
+	}
+}
+
 // RefreshPricingData needs to be called when a new node joins the fleet, since we cache the relevant subsets of pricing data to avoid storing the whole thing.
 func (a *Accesses) RefreshPricingData(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
@@ -929,7 +936,7 @@ func (a *Accesses) GetAllPersistentVolumes(w http.ResponseWriter, r *http.Reques
 
 	pvList := a.ClusterCache.GetAllPersistentVolumes()
 
-	body, err := json.Marshal(pvList)
+	body, err := json.Marshal(wrapAsObjectItems(pvList))
 	if err != nil {
 		fmt.Fprintf(w, "Error decoding persistent volumes: "+err.Error())
 	} else {
@@ -962,7 +969,7 @@ func (a *Accesses) GetAllDeployments(w http.ResponseWriter, r *http.Request, ps 
 		}
 	}
 
-	body, err := json.Marshal(deployments)
+	body, err := json.Marshal(wrapAsObjectItems(deployments))
 	if err != nil {
 		fmt.Fprintf(w, "Error decoding deployment: "+err.Error())
 	} else {
@@ -976,7 +983,7 @@ func (a *Accesses) GetAllStorageClasses(w http.ResponseWriter, r *http.Request, 
 
 	scList := a.ClusterCache.GetAllStorageClasses()
 
-	body, err := json.Marshal(scList)
+	body, err := json.Marshal(wrapAsObjectItems(scList))
 	if err != nil {
 		fmt.Fprintf(w, "Error decoding storageclasses: "+err.Error())
 	} else {
@@ -1008,7 +1015,7 @@ func (a *Accesses) GetAllStatefulSets(w http.ResponseWriter, r *http.Request, ps
 		}
 	}
 
-	body, err := json.Marshal(statefulSets)
+	body, err := json.Marshal(wrapAsObjectItems(statefulSets))
 	if err != nil {
 		fmt.Fprintf(w, "Error decoding deployment: "+err.Error())
 	} else {
@@ -1022,7 +1029,7 @@ func (a *Accesses) GetAllNodes(w http.ResponseWriter, r *http.Request, ps httpro
 
 	nodeList := a.ClusterCache.GetAllNodes()
 
-	body, err := json.Marshal(nodeList)
+	body, err := json.Marshal(wrapAsObjectItems(nodeList))
 	if err != nil {
 		fmt.Fprintf(w, "Error decoding nodes: "+err.Error())
 	} else {
@@ -1036,7 +1043,7 @@ func (a *Accesses) GetAllPods(w http.ResponseWriter, r *http.Request, ps httprou
 
 	podlist := a.ClusterCache.GetAllPods()
 
-	body, err := json.Marshal(podlist)
+	body, err := json.Marshal(wrapAsObjectItems(podlist))
 	if err != nil {
 		fmt.Fprintf(w, "Error decoding pods: "+err.Error())
 	} else {
@@ -1050,7 +1057,7 @@ func (a *Accesses) GetAllNamespaces(w http.ResponseWriter, r *http.Request, ps h
 
 	namespaces := a.ClusterCache.GetAllNamespaces()
 
-	body, err := json.Marshal(namespaces)
+	body, err := json.Marshal(wrapAsObjectItems(namespaces))
 	if err != nil {
 		fmt.Fprintf(w, "Error decoding deployment: "+err.Error())
 	} else {
@@ -1064,7 +1071,7 @@ func (a *Accesses) GetAllDaemonSets(w http.ResponseWriter, r *http.Request, ps h
 
 	daemonSets := a.ClusterCache.GetAllDaemonSets()
 
-	body, err := json.Marshal(daemonSets)
+	body, err := json.Marshal(wrapAsObjectItems(daemonSets))
 	if err != nil {
 		fmt.Fprintf(w, "Error decoding daemon set: "+err.Error())
 	} else {
@@ -1399,7 +1406,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	keepAlive := 120 * time.Second
 	scrapeInterval := time.Minute
 
-	promCli, err := prom.NewPrometheusClient(address, timeout, keepAlive, queryConcurrency, "")
+	promCli, err := prom.NewPrometheusClient(address, timeout, keepAlive, queryConcurrency, "/var/configs/queries.log")
 	if err != nil {
 		klog.Fatalf("Failed to create prometheus client, Error: %v", err)
 	}

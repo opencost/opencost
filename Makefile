@@ -1,4 +1,4 @@
-VERSION?=v0.0.2-SNAPSHOT
+VERSION?=v0.0.3-SNAPSHOT
 REGISTRY?=gcr.io
 PROJECT_ID?=kubecost1
 APPNAME?=kube-metrics

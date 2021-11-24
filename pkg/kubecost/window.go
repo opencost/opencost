@@ -3,11 +3,12 @@ package kubecost
 import (
 	"bytes"
 	"fmt"
-	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"math"
 	"regexp"
 	"strconv"
 	"time"
+
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
 
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/thanos"

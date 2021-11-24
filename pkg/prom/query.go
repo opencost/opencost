@@ -180,8 +180,10 @@ func (ctx *Context) RawQuery(query string) ([]byte, error) {
 	// for non-range queries, we set the timestamp for the query to time-offset
 	// this is a special use case that's typically only used when our primary
 	// prom db has delayed insertion (thanos, cortex, etc...)
-	if promQueryOffset != 0 {
-		q.Set("time", time.Now().UTC().Add(-promQueryOffset).Format(time.RFC3339))
+	if promQueryOffset != 0 && ctx.name != AllocationContextName {
+		q.Set("time", time.Now().Add(-promQueryOffset).UTC().Format(time.RFC3339))
+	} else {
+		q.Set("time", time.Now().UTC().Format(time.RFC3339))
 	}
 
 	u.RawQuery = q.Encode()
