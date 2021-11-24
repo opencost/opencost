@@ -59,6 +59,7 @@ var (
 		"uk": "uk",
 		"us": "us",
 		"za": "southafrica",
+		"no": "norway",
 	}
 
 	//mtBasic, _     = regexp.Compile("^BASIC.A\\d+[_Promo]*$")
@@ -791,19 +792,20 @@ func (az *Azure) DownloadPricingData() error {
 	result, err := rcClient.Get(context.TODO(), rateCardFilter)
 	//klog.Infof("result meters valid %t", result.Meters != nil)
 	if err != nil {
-		klog.Infof("Error in pricing download query")
+		klog.Warningf("Error in pricing download query from API")
 		az.RateCardPricingError = err
 		return err
 	}
 	allPrices := make(map[string]*AzurePricing)
 	regions, err := getRegions("compute", sClient, providersClient, config.AzureSubscriptionID)
 	if err != nil {
-		klog.Infof("Error in pricing download regions")
+		klog.Warningf("Error in pricing download regions from API")
 		az.RateCardPricingError = err
 		return err
 	}
 
 	baseCPUPrice := config.CPU
+	regionError := false
 
 	for _, v := range *result.Meters {
 		meterName := *v.MeterName
@@ -811,10 +813,9 @@ func (az *Azure) DownloadPricingData() error {
 		meterCategory := *v.MeterCategory
 		meterSubCategory := *v.MeterSubCategory
 
-		//klog.Infof("MeterName: %s", meterName)
-
 		region, err := toRegionID(meterRegion, regions)
 		if err != nil {
+			regionError = true
 			continue
 		}
 
@@ -896,6 +897,7 @@ func (az *Azure) DownloadPricingData() error {
 				for _, instanceType := range instanceTypes {
 
 					key := fmt.Sprintf("%s,%s,%s", region, instanceType, usageType)
+
 					allPrices[key] = &AzurePricing{
 						Node: &Node{
 							Cost:         priceStr,
@@ -906,6 +908,10 @@ func (az *Azure) DownloadPricingData() error {
 				}
 			}
 		}
+	}
+
+	if regionError {
+		klog.V(1).Infof("Some pricing regions failed to parse. This is not an error, but could lead to errors in NodePricing.")
 	}
 
 	// There is no easy way of supporting Standard Azure-File, because it's billed per used GB
@@ -924,14 +930,6 @@ func (az *Azure) DownloadPricingData() error {
 	}
 
 	az.Pricing = allPrices
-
-	klog.Infof("--AZURE PRICING RESULTS IN DOWNLOAD--")
-
-	for key, _ := range az.Pricing {
-		//klog.Infof("KEY: %s has Node pricing of %s: %s and PV pricing of %s.", key, azp.Node.Region, azp.Node.InstanceType, azp.PV.Class)
-		klog.Infof("THIS: %s", key)
-	}
-
 	az.RateCardPricingError = nil
 	return nil
 }
@@ -1004,14 +1002,6 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 		return n.Node, nil
 	}
 	klog.V(1).Infof("[Warning] no pricing data found for %s: %s", azKey.Features(), azKey)
-
-	klog.Infof("--AZURE PRICING RESULTS IN NODE PRICING--")
-
-	for key, _ := range az.Pricing {
-		//klog.Infof("KEY: %s has Node pricing of %s: %s and PV pricing of %s.", key, azp.Node.Region, azp.Node.InstanceType, azp.PV.Class)
-		klog.Infof("THIS: %s", key)
-	}
-
 	c, err := az.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("No default pricing data available")
