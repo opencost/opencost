@@ -61,7 +61,7 @@ func (pc *ProviderConfig) onConfigFileUpdated(changeType config.ChangeType, data
 		customPricing := new(CustomPricing)
 		err := json.Unmarshal(data, customPricing)
 		if err != nil {
-			klog.Infof("Could not decode Custom Pricing file at path %s", pc.configFile.Path())
+			klog.Infof("Could not decode Custom Pricing file at path %s. Using default.", pc.configFile.Path())
 			customPricing = DefaultPricing()
 		}
 
