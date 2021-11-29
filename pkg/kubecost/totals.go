@@ -10,33 +10,37 @@ import (
 	"github.com/patrickmn/go-cache"
 )
 
-// TODO can we use ResourceTotals for all things or do we need specific structs
-// like AllocationResourceTotals, AssetResourceTotals, etc.
-
-type ResourceTotals struct {
-	Start                 time.Time `json:"end"`
-	End                   time.Time `json:"start"`
-	Cluster               string    `json:"cluster,omitempty"`
-	Node                  string    `json:"node,omitempty"`
-	Count                 int       `json:"count"`
-	AttachedVolumeCost    float64   `json:"attachedVolumeCost"`
-	ClusterManagementCost float64   `json:"clusterManagementCost"`
-	CPUCost               float64   `json:"cpuCost"`
-	GPUCost               float64   `json:"gpuCost"`
-	LoadBalancerCost      float64   `json:"loadBalancerCost"`
-	NetworkCost           float64   `json:"networkCost"`
-	PersistentVolumeCost  float64   `json:"persistentVolumeCost"`
-	RAMCost               float64   `json:"ramCost"`
+// AllocationTotals represents aggregate costs of all Allocations for
+// a given cluster or tuple of (cluster, node) between a given start and end
+// time, where the costs are aggregated per-resource. AllocationTotals
+// is designed to be used as a pre-computed intermediate data structure when
+// contextual knowledge is required to carry out a task, but computing totals
+// on-the-fly would be expensive; e.g. idle allocation; sharing coefficients
+// for idle or shared resources, etc.
+type AllocationTotals struct {
+	Start                time.Time `json:"end"`
+	End                  time.Time `json:"start"`
+	Cluster              string    `json:"cluster"`
+	Node                 string    `json:"node"`
+	Count                int       `json:"count"`
+	CPUCost              float64   `json:"cpuCost"`
+	GPUCost              float64   `json:"gpuCost"`
+	LoadBalancerCost     float64   `json:"loadBalancerCost"`
+	NetworkCost          float64   `json:"networkCost"`
+	PersistentVolumeCost float64   `json:"persistentVolumeCost"`
+	RAMCost              float64   `json:"ramCost"`
 }
 
-// TODO Do we need TotalAllocationCost? Maybe just different types?
-
-func (rt *ResourceTotals) TotalCost() float64 {
-	return rt.CPUCost + rt.GPUCost + rt.LoadBalancerCost + rt.AttachedVolumeCost + rt.ClusterManagementCost + rt.NetworkCost + rt.PersistentVolumeCost + rt.RAMCost
+// TotalCost returns the sum of all costs
+func (art *AllocationTotals) TotalCost() float64 {
+	return art.CPUCost + art.GPUCost + art.LoadBalancerCost + art.NetworkCost + art.PersistentVolumeCost + art.RAMCost
 }
 
-func ComputeResourceTotalsFromAllocations(as *AllocationSet, prop string) map[string]*ResourceTotals {
-	rts := map[string]*ResourceTotals{}
+// ComputeAllocationTotals totals the resource costs of the given AllocationSet
+// using the given property, i.e. cluster or node, where "node" really means to
+// use the fully-qualified (cluster, node) tuple.
+func ComputeAllocationTotals(as *AllocationSet, prop string) map[string]*AllocationTotals {
+	arts := map[string]*AllocationTotals{}
 
 	as.Each(func(name string, alloc *Allocation) {
 		// Do not count idle or unmounted allocations
@@ -47,59 +51,75 @@ func ComputeResourceTotalsFromAllocations(as *AllocationSet, prop string) map[st
 		// Default to computing totals by Cluster, but allow override to use Node.
 		key := alloc.Properties.Cluster
 		if prop == AllocationNodeProp {
-			key = alloc.Properties.Node
+			key = fmt.Sprintf("%s/%s", alloc.Properties.Cluster, alloc.Properties.Node)
 		}
 
-		if rt, ok := rts[key]; ok {
-			if rt.Start.After(alloc.Start) {
-				rt.Start = alloc.Start
-			}
-			if rt.End.Before(alloc.End) {
-				rt.End = alloc.End
-			}
-
-			if rt.Node != alloc.Properties.Node {
-				rt.Node = ""
-			}
-
-			rt.Count++
-			rt.CPUCost += alloc.CPUTotalCost()
-			rt.GPUCost += alloc.GPUTotalCost()
-			rt.LoadBalancerCost += alloc.LBTotalCost()
-			rt.NetworkCost += alloc.NetworkTotalCost()
-			rt.PersistentVolumeCost += alloc.PVCost()
-			rt.RAMCost += alloc.RAMTotalCost()
-		} else {
-			rts[key] = &ResourceTotals{
-				Start:                alloc.Start,
-				End:                  alloc.End,
-				Cluster:              alloc.Properties.Cluster,
-				Node:                 alloc.Properties.Node,
-				Count:                1,
-				CPUCost:              alloc.CPUTotalCost(),
-				GPUCost:              alloc.GPUTotalCost(),
-				LoadBalancerCost:     alloc.LBTotalCost(),
-				NetworkCost:          alloc.NetworkTotalCost(),
-				PersistentVolumeCost: alloc.PVCost(),
-				RAMCost:              alloc.RAMTotalCost(),
+		if _, ok := arts[key]; !ok {
+			arts[key] = &AllocationTotals{
+				Start:   alloc.Start,
+				End:     alloc.End,
+				Cluster: alloc.Properties.Cluster,
+				Node:    alloc.Properties.Node,
 			}
 		}
+
+		if arts[key].Start.After(alloc.Start) {
+			arts[key].Start = alloc.Start
+		}
+		if arts[key].End.Before(alloc.End) {
+			arts[key].End = alloc.End
+		}
+
+		if arts[key].Node != alloc.Properties.Node {
+			arts[key].Node = ""
+		}
+
+		arts[key].Count++
+		arts[key].CPUCost += alloc.CPUTotalCost()
+		arts[key].GPUCost += alloc.GPUTotalCost()
+		arts[key].LoadBalancerCost += alloc.LBTotalCost()
+		arts[key].NetworkCost += alloc.NetworkTotalCost()
+		arts[key].PersistentVolumeCost += alloc.PVCost()
+		arts[key].RAMCost += alloc.RAMTotalCost()
 	})
 
-	// TODO clean up
-	total := 0.0
-	for _, rt := range rts {
-		total += rt.TotalCost()
-	}
-	log.Infof("ResourceTotals: recorded %.4f over %d %ss for %s", total, len(rts), prop, as.Window)
-
-	return rts
+	return arts
 }
 
-func ComputeResourceTotalsFromAssets(as *AssetSet, prop AssetProperty) map[string]*ResourceTotals {
-	rts := map[string]*ResourceTotals{}
+// AssetTotals represents aggregate costs of all Assets for a given
+// cluster or tuple of (cluster, node) between a given start and end time,
+// where the costs are aggregated per-resource. AssetTotals is designed
+// to be used as a pre-computed intermediate data structure when contextual
+// knowledge is required to carry out a task, but computing totals on-the-fly
+// would be expensive; e.g. idle allocation, shared tenancy costs
+type AssetTotals struct {
+	Start                 time.Time `json:"end"`
+	End                   time.Time `json:"start"`
+	Cluster               string    `json:"cluster"`
+	Node                  string    `json:"node"`
+	Count                 int       `json:"count"`
+	AttachedVolumeCost    float64   `json:"attachedVolumeCost"`
+	ClusterManagementCost float64   `json:"clusterManagementCost"`
+	CPUCost               float64   `json:"cpuCost"`
+	GPUCost               float64   `json:"gpuCost"`
+	PersistentVolumeCost  float64   `json:"persistentVolumeCost"`
+	RAMCost               float64   `json:"ramCost"`
+}
 
-	// TODO comment
+// TotalCost returns the sum of all costs
+func (art *AssetTotals) TotalCost() float64 {
+	return art.AttachedVolumeCost + art.ClusterManagementCost + art.CPUCost + art.GPUCost + art.PersistentVolumeCost + art.RAMCost
+}
+
+// ComputeAssetTotals totals the resource costs of the given AssetSet,
+// using the given property, i.e. cluster or node, where "node" really means to
+// use the fully-qualified (cluster, node) tuple.
+// TODO summary: should we be capturing load balancers here?
+func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotals {
+	arts := map[string]*AssetTotals{}
+
+	// Attached disks are tracked by matching their name with the name of the
+	// node, as is standard for attached disks.
 	nodeNames := map[string]bool{}
 	disks := map[string]*Disk{}
 
@@ -108,13 +128,11 @@ func ComputeResourceTotalsFromAssets(as *AssetSet, prop AssetProperty) map[strin
 			// Default to computing totals by Cluster, but allow override to use Node.
 			key := node.Properties().Cluster
 			if prop == AssetNodeProp {
-				key = node.Properties().Name
-			}
+				key = fmt.Sprintf("%s/%s", node.Properties().Cluster, node.Properties().Name)
 
-			// Add node name to list of node names, but only if aggregating
-			// by node. (These are to be used later for attached volumes.)
-			if prop == AssetNodeProp {
-				nodeNames[node.Properties().Name] = true
+				// Add node name to list of node names, but only if aggregating
+				// by node. (These are to be used later for attached volumes.)
+				nodeNames[key] = true
 			}
 
 			// adjustmentRate is used to scale resource costs proportionally
@@ -130,7 +148,7 @@ func ComputeResourceTotalsFromAssets(as *AssetSet, prop AssetProperty) map[strin
 				// the entire node cost and we should make everything 0
 				// without dividing by 0.
 				adjustmentRate = 0.0
-				log.DedupedWarningf(5, "ComputeResourceTotals: node cost adjusted to $0.00 for %s", node.Properties().Name)
+				log.DedupedWarningf(5, "ComputeTotals: node cost adjusted to $0.00 for %s", node.Properties().Name)
 			} else if node.Adjustment() != 0.0 {
 				// adjustmentRate is the ratio of cost-with-adjustment (i.e. TotalCost)
 				// to cost-without-adjustment (i.e. TotalCost - Adjustment).
@@ -141,97 +159,76 @@ func ComputeResourceTotalsFromAssets(as *AssetSet, prop AssetProperty) map[strin
 			gpuCost := node.GPUCost * (1.0 - node.Discount) * adjustmentRate
 			ramCost := node.RAMCost * (1.0 - node.Discount) * adjustmentRate
 
-			if rt, ok := rts[key]; ok {
-				if rt.Start.After(node.Start()) {
-					rt.Start = node.Start()
-				}
-				if rt.End.Before(node.End()) {
-					rt.End = node.End()
-				}
-
-				if rt.Node != node.Properties().Name {
-					rt.Node = ""
-				}
-
-				rt.Count++
-				rt.CPUCost += cpuCost
-				rt.RAMCost += ramCost
-				rt.GPUCost += gpuCost
-			} else {
-				rts[key] = &ResourceTotals{
+			if _, ok := arts[key]; !ok {
+				arts[key] = &AssetTotals{
 					Start:   node.Start(),
 					End:     node.End(),
 					Cluster: node.Properties().Cluster,
 					Node:    node.Properties().Name,
-					Count:   1,
-					CPUCost: cpuCost,
-					RAMCost: ramCost,
-					GPUCost: gpuCost,
 				}
 			}
+
+			if arts[key].Start.After(node.Start()) {
+				arts[key].Start = node.Start()
+			}
+			if arts[key].End.Before(node.End()) {
+				arts[key].End = node.End()
+			}
+
+			if arts[key].Node != node.Properties().Name {
+				arts[key].Node = ""
+			}
+
+			arts[key].Count++
+			arts[key].CPUCost += cpuCost
+			arts[key].RAMCost += ramCost
+			arts[key].GPUCost += gpuCost
 		} else if disk, ok := asset.(*Disk); ok && prop == AssetNodeProp {
 			// Only record attached disks when prop is Node
-			disks[disk.Properties().Name] = disk
+			// TODO summary: why?
+			key := fmt.Sprintf("%s/%s", disk.Properties().Cluster, disk.Properties().Name)
+			disks[key] = disk
 		} else if cm, ok := asset.(*ClusterManagement); ok && prop == AssetClusterProp {
-			// TODO ?
 			// Only record cluster management when prop is Cluster because we
 			// can't break down ClusterManagement by node.
 			key := cm.Properties().Cluster
 
-			if _, ok := rts[key]; !ok {
-				rts[key] = &ResourceTotals{
+			if _, ok := arts[key]; !ok {
+				arts[key] = &AssetTotals{
 					Start:   cm.Start(),
 					End:     cm.End(),
 					Cluster: cm.Properties().Cluster,
 				}
 			}
 
-			rts[key].Count++
-			rts[key].ClusterManagementCost += cm.TotalCost()
+			arts[key].Count++
+			arts[key].ClusterManagementCost += cm.TotalCost()
 		}
 	})
 
 	// Identify attached volumes as disks with names matching a node's name
-	for name := range nodeNames {
-		if disk, ok := disks[name]; ok {
-			// Default to computing totals by Cluster, but allow override to use Node.
-			key := disk.Properties().Cluster
-			if prop == AssetNodeProp {
-				key = disk.Properties().Name
-			}
-
-			if key == "" {
-				// TODO ?
-				log.Warningf("ResourceTotals: disk missing key: %s", disk.Properties().Name)
-			}
-
-			if _, ok := rts[key]; !ok {
-				rts[key] = &ResourceTotals{
+	for key := range nodeNames {
+		if disk, ok := disks[key]; ok {
+			if _, ok := arts[key]; !ok {
+				arts[key] = &AssetTotals{
 					Start:   disk.Start(),
 					End:     disk.End(),
 					Cluster: disk.Properties().Cluster,
-					Node:    name,
+					Node:    disk.Properties().Name,
 				}
 			}
 
-			rts[key].Count++
-			rts[key].AttachedVolumeCost += disk.TotalCost()
+			arts[key].Count++
+			arts[key].AttachedVolumeCost += disk.TotalCost()
 		}
 	}
 
-	// TODO clean up
-	total := 0.0
-	for _, rt := range rts {
-		total += rt.TotalCost()
-	}
-	log.Infof("ResourceTotals: recorded %.4f over %d %ss for %s", total, len(rts), prop, as.Window)
-
-	return rts
+	return arts
 }
 
 // ComputeIdleCoefficients returns the idle coefficients for CPU, GPU, and RAM
 // (in that order) for the given resource costs and totals.
-func ComputeIdleCoefficients(shareSplit, key string, cpuCost, gpuCost, ramCost float64, allocationTotals map[string]*ResourceTotals) (float64, float64, float64) {
+func ComputeIdleCoefficients(shareSplit, key string, cpuCost, gpuCost, ramCost float64, allocationTotals map[string]*AllocationTotals) (float64, float64, float64) {
 	if shareSplit == ShareNone {
 		return 0.0, 0.0, 0.0
 	}
@@ -266,97 +263,178 @@ func ComputeIdleCoefficients(shareSplit, key string, cpuCost, gpuCost, ramCost f
 	return cpuCoeff, gpuCoeff, ramCoeff
 }
 
-type ResourceTotalsStore interface {
-	GetResourceTotalsByCluster(start, end time.Time) map[string]*ResourceTotals
-	GetResourceTotalsByNode(start, end time.Time) map[string]*ResourceTotals
-	SetResourceTotalsByCluster(start, end time.Time, rts map[string]*ResourceTotals)
-	SetResourceTotalsByNode(start, end time.Time, rts map[string]*ResourceTotals)
+// TotalsStore acts as both an AllocationTotalsStore and an
+// AssetTotalsStore.
+type TotalsStore interface {
+	AllocationTotalsStore
+	AssetTotalsStore
 }
 
-func UpdateResourceTotalsStoreFromAllocationSet(rts ResourceTotalsStore, as *AllocationSet) error {
-	if rts == nil {
-		return errors.New("cannot update resource totals from AllocationSet for nil ResourceTotalsStore")
+// AllocationTotalsStore allows for storing (i.e. setting and
+// getting) AllocationTotals by cluster and by node.
+type AllocationTotalsStore interface {
+	GetAllocationTotalsByCluster(start, end time.Time) (map[string]*AllocationTotals, bool)
+	GetAllocationTotalsByNode(start, end time.Time) (map[string]*AllocationTotals, bool)
+	SetAllocationTotalsByCluster(start, end time.Time, rts map[string]*AllocationTotals)
+	SetAllocationTotalsByNode(start, end time.Time, rts map[string]*AllocationTotals)
+}
+
+// UpdateAllocationTotalsStore updates an AllocationTotalsStore
+// by totaling the given AllocationSet and saving the totals.
+func UpdateAllocationTotalsStore(arts AllocationTotalsStore, as *AllocationSet) error {
+	if arts == nil {
+		return errors.New("cannot update nil AllocationTotalsStore")
 	}
 
 	if as == nil {
-		return errors.New("cannot update resource totals from AllocationSet for nil AllocationSet")
+		return errors.New("cannot update AllocationTotalsStore from nil AllocationSet")
+	}
+
+	if as.Window.IsOpen() {
+		return errors.New("cannot update AllocationTotalsStore from AllocationSet with open window")
 	}
 
 	start := *as.Window.Start()
 	end := *as.Window.End()
 
-	rtsByCluster := ComputeResourceTotalsFromAllocations(as, AllocationClusterProp)
-	rts.SetResourceTotalsByCluster(start, end, rtsByCluster)
+	artsByCluster := ComputeAllocationTotals(as, AllocationClusterProp)
+	arts.SetAllocationTotalsByCluster(start, end, artsByCluster)
 
-	rtsByNode := ComputeResourceTotalsFromAllocations(as, AllocationNodeProp)
-	rts.SetResourceTotalsByNode(start, end, rtsByNode)
+	artsByNode := ComputeAllocationTotals(as, AllocationNodeProp)
+	arts.SetAllocationTotalsByNode(start, end, artsByNode)
 
-	log.Infof("ETL: Allocation: updated resource totals: %s", as.Window)
+	log.Infof("ETL: Allocation: updated resource totals for %s", as.Window)
 
 	return nil
 }
 
-func UpdateResourceTotalsStoreFromAssetSet(rts ResourceTotalsStore, as *AssetSet) error {
-	if rts == nil {
-		return errors.New("cannot update resource totals from AssetSet for nil ResourceTotalsStore")
+// AssetTotalsStore allows for storing (i.e. setting and getting)
+// AssetTotals by cluster and by node.
+type AssetTotalsStore interface {
+	GetAssetTotalsByCluster(start, end time.Time) (map[string]*AssetTotals, bool)
+	GetAssetTotalsByNode(start, end time.Time) (map[string]*AssetTotals, bool)
+	SetAssetTotalsByCluster(start, end time.Time, rts map[string]*AssetTotals)
+	SetAssetTotalsByNode(start, end time.Time, rts map[string]*AssetTotals)
+}
+
+// UpdateAssetTotalsStore updates an AssetTotalsStore
+// by totaling the given AssetSet and saving the totals.
+func UpdateAssetTotalsStore(arts AssetTotalsStore, as *AssetSet) error {
+	if arts == nil {
+		return errors.New("cannot update nil AssetTotalsStore")
 	}
 
 	if as == nil {
-		return errors.New("cannot update resource totals from AssetSet for nil AssetSet")
+		return errors.New("cannot update AssetTotalsStore from nil AssetSet")
+	}
+
+	if as.Window.IsOpen() {
+		return errors.New("cannot update AssetTotalsStore from AssetSet with open window")
 	}
 
 	start := *as.Window.Start()
 	end := *as.Window.End()
 
-	rtsByCluster := ComputeResourceTotalsFromAssets(as, AssetClusterProp)
-	rts.SetResourceTotalsByCluster(start, end, rtsByCluster)
+	artsByCluster := ComputeAssetTotals(as, AssetClusterProp)
+	arts.SetAssetTotalsByCluster(start, end, artsByCluster)
 
-	rtsByNode := ComputeResourceTotalsFromAssets(as, AssetNodeProp)
-	rts.SetResourceTotalsByNode(start, end, rtsByNode)
+	artsByNode := ComputeAssetTotals(as, AssetNodeProp)
+	arts.SetAssetTotalsByNode(start, end, artsByNode)
 
-	log.Infof("ETL: Asset: updated resource totals: %s", as.Window)
+	log.Infof("ETL: Asset: updated resource totals for %s", as.Window)
 
 	return nil
 }
 
-type MemoryResourceTotalsStore struct {
-	byCluster *cache.Cache
-	byNode    *cache.Cache
+// MemoryTotalsStore is an in-memory cache TotalsStore
+type MemoryTotalsStore struct {
+	allocTotalsByCluster *cache.Cache
+	allocTotalsByNode    *cache.Cache
+	assetTotalsByCluster *cache.Cache
+	assetTotalsByNode    *cache.Cache
 }
 
-func NewResourceTotalsStore() *MemoryResourceTotalsStore {
-	return &MemoryResourceTotalsStore{
-		byCluster: cache.New(cache.NoExpiration, cache.NoExpiration),
-		byNode:    cache.New(cache.NoExpiration, cache.NoExpiration),
+// NewMemoryTotalsStore instantiates a new MemoryTotalsStore,
+// which is composed of four in-memory caches.
+func NewMemoryTotalsStore() *MemoryTotalsStore {
+	return &MemoryTotalsStore{
+		allocTotalsByCluster: cache.New(cache.NoExpiration, cache.NoExpiration),
+		allocTotalsByNode:    cache.New(cache.NoExpiration, cache.NoExpiration),
+		assetTotalsByCluster: cache.New(cache.NoExpiration, cache.NoExpiration),
+		assetTotalsByNode:    cache.New(cache.NoExpiration, cache.NoExpiration),
 	}
 }
 
-func (mrts *MemoryResourceTotalsStore) GetResourceTotalsByCluster(start time.Time, end time.Time) map[string]*ResourceTotals {
+// GetAllocationTotalsByCluster retrieves the AllocationTotals
+// by cluster for the given start and end times.
+func (mts *MemoryTotalsStore) GetAllocationTotalsByCluster(start time.Time, end time.Time) (map[string]*AllocationTotals, bool) {
 	k := storeKey(start, end)
-	if raw, ok := mrts.byCluster.Get(k); ok {
-		return raw.(map[string]*ResourceTotals)
+	if raw, ok := mts.allocTotalsByCluster.Get(k); ok {
+		return raw.(map[string]*AllocationTotals), true
 	} else {
-		return nil
+		return map[string]*AllocationTotals{}, false
 	}
 }
 
-func (mrts *MemoryResourceTotalsStore) GetResourceTotalsByNode(start time.Time, end time.Time) map[string]*ResourceTotals {
+// GetAllocationTotalsByNode retrieves the AllocationTotals
+// by node for the given start and end times.
+func (mts *MemoryTotalsStore) GetAllocationTotalsByNode(start time.Time, end time.Time) (map[string]*AllocationTotals, bool) {
 	k := storeKey(start, end)
-	if raw, ok := mrts.byNode.Get(k); ok {
-		return raw.(map[string]*ResourceTotals)
+	if raw, ok := mts.allocTotalsByNode.Get(k); ok {
+		return raw.(map[string]*AllocationTotals), true
 	} else {
-		return nil
+		return map[string]*AllocationTotals{}, false
 	}
 }
 
-func (mrts *MemoryResourceTotalsStore) SetResourceTotalsByCluster(start time.Time, end time.Time, rts map[string]*ResourceTotals) {
+// SetAllocationTotalsByCluster set the per-cluster AllocationTotals
+// to the given values for the given start and end times.
+func (mts *MemoryTotalsStore) SetAllocationTotalsByCluster(start time.Time, end time.Time, arts map[string]*AllocationTotals) {
 	k := storeKey(start, end)
-	mrts.byCluster.Set(k, rts, cache.NoExpiration)
+	mts.allocTotalsByCluster.Set(k, arts, cache.NoExpiration)
 }
 
-func (mrts *MemoryResourceTotalsStore) SetResourceTotalsByNode(start time.Time, end time.Time, rts map[string]*ResourceTotals) {
+// SetAllocationTotalsByNode set the per-node AllocationTotals
+// to the given values for the given start and end times.
+func (mts *MemoryTotalsStore) SetAllocationTotalsByNode(start time.Time, end time.Time, arts map[string]*AllocationTotals) {
 	k := storeKey(start, end)
-	mrts.byNode.Set(k, rts, cache.NoExpiration)
+	mts.allocTotalsByNode.Set(k, arts, cache.NoExpiration)
+}
+
+// GetAssetTotalsByCluster retrieves the AssetTotals
+// by cluster for the given start and end times.
+func (mts *MemoryTotalsStore) GetAssetTotalsByCluster(start time.Time, end time.Time) (map[string]*AssetTotals, bool) {
+	k := storeKey(start, end)
+	if raw, ok := mts.assetTotalsByCluster.Get(k); ok {
+		return raw.(map[string]*AssetTotals), true
+	} else {
+		return map[string]*AssetTotals{}, false
+	}
+}
+
+// GetAssetTotalsByNode retrieves the AssetTotals
+// by node for the given start and end times.
+func (mts *MemoryTotalsStore) GetAssetTotalsByNode(start time.Time, end time.Time) (map[string]*AssetTotals, bool) {
+	k := storeKey(start, end)
+	if raw, ok := mts.assetTotalsByNode.Get(k); ok {
+		return raw.(map[string]*AssetTotals), true
+	} else {
+		return map[string]*AssetTotals{}, false
+	}
+}
+
+// SetAssetTotalsByCluster set the per-cluster AssetTotals
+// to the given values for the given start and end times.
+func (mts *MemoryTotalsStore) SetAssetTotalsByCluster(start time.Time, end time.Time, arts map[string]*AssetTotals) {
+	k := storeKey(start, end)
+	mts.assetTotalsByCluster.Set(k, arts, cache.NoExpiration)
+}
+
+// SetAssetTotalsByNode set the per-node AssetTotals
+// to the given values for the given start and end times.
+func (mts *MemoryTotalsStore) SetAssetTotalsByNode(start time.Time, end time.Time, arts map[string]*AssetTotals) {
+	k := storeKey(start, end)
+	mts.assetTotalsByNode.Set(k, arts, cache.NoExpiration)
 }
 
 // storeKey creates a storage key based on start and end times

@@ -129,9 +129,7 @@ func (p *AllocationProperties) Clone() *AllocationProperties {
 	clone.ProviderID = p.ProviderID
 
 	var services []string
-	for _, s := range p.Services {
-		services = append(services, s)
-	}
+	services = append(services, p.Services...)
 	clone.Services = services
 
 	labels := make(map[string]string, len(p.Labels))
@@ -230,6 +228,9 @@ func (p *AllocationProperties) Equal(that *AllocationProperties) bool {
 	return true
 }
 
+// GenerateKey generates a string that represents the key by which the
+// AllocationProperties should be aggregated, given the properties defined by
+// the aggregateBy parameter and the given label configuration.
 func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *LabelConfig) string {
 	if p == nil {
 		return ""
@@ -481,13 +482,13 @@ func (p *AllocationProperties) String() string {
 	for k, prop := range p.Labels {
 		labelStrs = append(labelStrs, fmt.Sprintf("%s:%s", k, prop))
 	}
-	strs = append(strs, fmt.Sprintf("Labels:{%s}", strings.Join(strs, ",")))
+	strs = append(strs, fmt.Sprintf("Labels:{%s}", strings.Join(labelStrs, ",")))
 
-	var AnnotationStrs []string
+	var annotationStrs []string
 	for k, prop := range p.Annotations {
-		AnnotationStrs = append(AnnotationStrs, fmt.Sprintf("%s:%s", k, prop))
+		annotationStrs = append(annotationStrs, fmt.Sprintf("%s:%s", k, prop))
 	}
-	strs = append(strs, fmt.Sprintf("Annotations:{%s}", strings.Join(strs, ",")))
+	strs = append(strs, fmt.Sprintf("Annotations:{%s}", strings.Join(annotationStrs, ",")))
 
 	return fmt.Sprintf("{%s}", strings.Join(strs, "; "))
 }

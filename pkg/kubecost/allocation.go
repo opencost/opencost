@@ -350,46 +350,82 @@ func (a *Allocation) Equal(that *Allocation) bool {
 
 // TotalCost is the total cost of the Allocation including adjustments
 func (a *Allocation) TotalCost() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	return a.CPUTotalCost() + a.GPUTotalCost() + a.RAMTotalCost() + a.PVTotalCost() + a.NetworkTotalCost() + a.LBTotalCost() + a.SharedTotalCost() + a.ExternalCost
 }
 
 // CPUTotalCost calculates total CPU cost of Allocation including adjustment
 func (a *Allocation) CPUTotalCost() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	return a.CPUCost + a.CPUCostAdjustment
 }
 
 // GPUTotalCost calculates total GPU cost of Allocation including adjustment
 func (a *Allocation) GPUTotalCost() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	return a.GPUCost + a.GPUCostAdjustment
 }
 
 // RAMTotalCost calculates total RAM cost of Allocation including adjustment
 func (a *Allocation) RAMTotalCost() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	return a.RAMCost + a.RAMCostAdjustment
 }
 
 // PVTotalCost calculates total PV cost of Allocation including adjustment
 func (a *Allocation) PVTotalCost() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	return a.PVCost() + a.PVCostAdjustment
 }
 
 // NetworkTotalCost calculates total Network cost of Allocation including adjustment
 func (a *Allocation) NetworkTotalCost() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	return a.NetworkCost + a.NetworkCostAdjustment
 }
 
 // LBTotalCost calculates total LB cost of Allocation including adjustment
 func (a *Allocation) LBTotalCost() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	return a.LoadBalancerCost + a.LoadBalancerCostAdjustment
 }
 
 // SharedTotalCost calculates total shared cost of Allocation including adjustment
 func (a *Allocation) SharedTotalCost() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	return a.SharedCost
 }
 
 // PVCost calculate cumulative cost of all PVs that Allocation is attached to
 func (a *Allocation) PVCost() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	cost := 0.0
 	for _, pv := range a.PVs {
 		cost += pv.Cost
@@ -399,6 +435,10 @@ func (a *Allocation) PVCost() float64 {
 
 // PVByteHours calculate cumulative ByteHours of all PVs that Allocation is attached to
 func (a *Allocation) PVByteHours() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	byteHours := 0.0
 	for _, pv := range a.PVs {
 		byteHours += pv.ByteHours
@@ -410,6 +450,10 @@ func (a *Allocation) PVByteHours() float64 {
 // no usage or cost, then efficiency is zero. If there is no request, but there
 // is usage or cost, then efficiency is 100%.
 func (a *Allocation) CPUEfficiency() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	if a.CPUCoreRequestAverage > 0 {
 		return a.CPUCoreUsageAverage / a.CPUCoreRequestAverage
 	}
@@ -425,6 +469,10 @@ func (a *Allocation) CPUEfficiency() float64 {
 // no usage or cost, then efficiency is zero. If there is no request, but there
 // is usage or cost, then efficiency is 100%.
 func (a *Allocation) RAMEfficiency() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	if a.RAMBytesRequestAverage > 0 {
 		return a.RAMBytesUsageAverage / a.RAMBytesRequestAverage
 	}
@@ -439,6 +487,10 @@ func (a *Allocation) RAMEfficiency() float64 {
 // TotalEfficiency is the cost-weighted average of CPU and RAM efficiency. If
 // there is no cost at all, then efficiency is zero.
 func (a *Allocation) TotalEfficiency() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	if a.RAMTotalCost()+a.CPUTotalCost() > 0 {
 		ramCostEff := a.RAMEfficiency() * a.RAMTotalCost()
 		cpuCostEff := a.CPUEfficiency() * a.CPUTotalCost()
@@ -482,6 +534,10 @@ func (a *Allocation) PVBytes() float64 {
 
 // ResetAdjustments sets all cost adjustment fields to zero
 func (a *Allocation) ResetAdjustments() {
+	if a == nil {
+		return
+	}
+
 	a.CPUCostAdjustment = 0.0
 	a.GPUCostAdjustment = 0.0
 	a.RAMCostAdjustment = 0.0
@@ -550,27 +606,47 @@ func (a *Allocation) IsAggregated() bool {
 
 // IsExternal is true if the given Allocation represents external costs.
 func (a *Allocation) IsExternal() bool {
+	if a == nil {
+		return false
+	}
+
 	return strings.Contains(a.Name, ExternalSuffix)
 }
 
 // IsIdle is true if the given Allocation represents idle costs.
 func (a *Allocation) IsIdle() bool {
+	if a == nil {
+		return false
+	}
+
 	return strings.Contains(a.Name, IdleSuffix)
 }
 
 // IsUnallocated is true if the given Allocation represents unallocated costs.
 func (a *Allocation) IsUnallocated() bool {
+	if a == nil {
+		return false
+	}
+
 	return strings.Contains(a.Name, UnallocatedSuffix)
 }
 
 // IsUnmounted is true if the given Allocation represents unmounted volume costs.
 func (a *Allocation) IsUnmounted() bool {
+	if a == nil {
+		return false
+	}
+
 	return strings.Contains(a.Name, UnmountedSuffix)
 }
 
 // Minutes returns the number of minutes the Allocation represents, as defined
 // by the difference between the end and start times.
 func (a *Allocation) Minutes() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	return a.End.Sub(a.Start).Minutes()
 }
 
@@ -594,6 +670,10 @@ func (a *Allocation) Share(that *Allocation) (*Allocation, error) {
 
 // String represents the given Allocation as a string
 func (a *Allocation) String() string {
+	if a == nil {
+		return "<nil>"
+	}
+
 	return fmt.Sprintf("%s%s=%.2f", a.Name, NewWindow(&a.Start, &a.End), a.TotalCost())
 }
 
@@ -743,16 +823,16 @@ func NewAllocationSet(start, end time.Time, allocs ...*Allocation) *AllocationSe
 // succeeds, the allocation is marked as a shared resource. ShareIdle is a
 // simple flag for sharing idle resources.
 type AllocationAggregationOptions struct {
-	AllocationResourceTotalsStore ResourceTotalsStore
-	FilterFuncs                   []AllocationMatchFunc
-	IdleByNode                    bool
-	LabelConfig                   *LabelConfig
-	MergeUnallocated              bool
-	ShareFuncs                    []AllocationMatchFunc
-	ShareIdle                     string
-	ShareSplit                    string
-	SharedHourlyCosts             map[string]float64
-	SplitIdle                     bool
+	AllocationTotalsStore AllocationTotalsStore
+	FilterFuncs           []AllocationMatchFunc
+	IdleByNode            bool
+	LabelConfig           *LabelConfig
+	MergeUnallocated      bool
+	ShareFuncs            []AllocationMatchFunc
+	ShareIdle             string
+	ShareSplit            string
+	SharedHourlyCosts     map[string]float64
+	SplitIdle             bool
 }
 
 // AggregateBy aggregates the Allocations in the given AllocationSet by the given
@@ -893,8 +973,6 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 			}
 		}
 	}
-
-	// TODO shouldn't we just return all shared cost in this case below?
 
 	// It's possible that no more un-shared, non-idle, non-external allocations
 	// remain at this point. This always results in an emptySet, so return early.
@@ -1235,8 +1313,6 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		}
 	}
 
-	// TODO move the following to a self-contained function?
-
 	// (11) In the edge case that some idle has not been distributed because
 	// there is no usage of that resource type, add idle back to
 	// aggregations with only that cost applied.
@@ -1257,40 +1333,36 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// __idle__ $0      $12     $0
 	// kubecost $12     $0      $7
 
-	if idleSet.Length() > 0 && !options.SplitIdle {
-		if undistributedIdleMap["cpu"] || undistributedIdleMap["gpu"] || undistributedIdleMap["ram"] {
-			for _, idleAlloc := range idleSet.allocations {
-				skip := false
+	hasUndistributedIdle := undistributedIdleMap["cpu"] || undistributedIdleMap["gpu"] || undistributedIdleMap["ram"]
+	if idleSet.Length() > 0 && hasUndistributedIdle {
+		for _, idleAlloc := range idleSet.allocations {
+			// if the idle does not apply to the non-filtered values, skip it
+			skip := false
+			for _, ff := range options.FilterFuncs {
+				if !ff(idleAlloc) {
+					skip = true
+					break
+				}
+			}
+			if skip {
+				continue
+			}
 
-				// if the idle does not apply to the non-filtered values, skip it
-				for _, ff := range options.FilterFuncs {
-					if !ff(idleAlloc) {
-						skip = true
-						break
-					}
+			// if the idle doesn't have a cost to be shared, also skip it
+			if idleAlloc.CPUCost != 0 && idleAlloc.GPUCost != 0 && idleAlloc.RAMCost != 0 {
+				// artificially set the already shared costs to zero
+				if !undistributedIdleMap["cpu"] {
+					idleAlloc.CPUCost = 0
+				}
+				if !undistributedIdleMap["gpu"] {
+					idleAlloc.GPUCost = 0
+				}
+				if !undistributedIdleMap["ram"] {
+					idleAlloc.RAMCost = 0
 				}
 
-				if skip {
-					continue
-				}
-
-				// if the idle doesn't have a cost to be shared, also skip it
-				if idleAlloc.CPUCost != 0 && idleAlloc.GPUCost != 0 && idleAlloc.RAMCost != 0 {
-
-					// artificially set the already shared costs to zero
-					if !undistributedIdleMap["cpu"] {
-						idleAlloc.CPUCost = 0
-					}
-					if !undistributedIdleMap["gpu"] {
-						idleAlloc.GPUCost = 0
-					}
-					if !undistributedIdleMap["ram"] {
-						idleAlloc.RAMCost = 0
-					}
-
-					idleAlloc.Name = IdleSuffix
-					aggSet.Insert(idleAlloc)
-				}
+				idleAlloc.Name = IdleSuffix
+				aggSet.Insert(idleAlloc)
 			}
 		}
 	}
