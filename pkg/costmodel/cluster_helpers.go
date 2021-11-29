@@ -96,8 +96,6 @@ func buildCPUCostMap(
 
 		clusterAndNameToType[keyNon] = nodeType
 
-		log.Infof("ASSET CLUSTERNODES NODE: %s WITH CPUPRICE: %f", key.Name, cpuCost)
-
 		cpuCostMap[key] = cpuCost
 	}
 
@@ -171,8 +169,6 @@ func buildRAMCostMap(
 		}
 
 		clusterAndNameToType[keyNon] = nodeType
-
-		log.Infof("ASSET CLUSTERNODES NODE: %s WITH RAMPRICE: %f", key.Name, ramCost)
 
 		ramCostMap[key] = ramCost
 	}
@@ -255,8 +251,6 @@ func buildGPUCostMap(
 		} else {
 			gpuCostMap[key] = gpuCost
 		}
-
-		log.Infof("ASSET CLUSTERNODES NODE: %s WITH GPUPRICE: %f", key.Name, gpuCost)
 
 	}
 
