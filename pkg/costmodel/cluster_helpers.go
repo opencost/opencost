@@ -1,8 +1,10 @@
 package costmodel
 
 import (
-	"github.com/kubecost/cost-model/pkg/cloud"
+	"strconv"
 	"time"
+
+	"github.com/kubecost/cost-model/pkg/cloud"
 
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
@@ -28,6 +30,8 @@ func mergeTypeMaps(clusterAndNameToType1, clusterAndNameToType2 map[nodeIdentifi
 
 func buildCPUCostMap(
 	resNodeCPUCost []*prom.QueryResult,
+	cp cloud.Provider,
+	preemptible map[NodeIdentifier]bool,
 ) (
 	map[NodeIdentifier]float64,
 	map[nodeIdentifierNoProviderID]string,
@@ -35,6 +39,12 @@ func buildCPUCostMap(
 
 	cpuCostMap := make(map[NodeIdentifier]float64)
 	clusterAndNameToType := make(map[nodeIdentifierNoProviderID]string)
+
+	customPricingEnabled := cloud.CustomPricesEnabled(cp)
+	customPricingConfig, err := cp.GetConfig()
+	if err != nil {
+		log.Warningf("ClusterNodes: failed to load custom pricing: %s", err)
+	}
 
 	for _, result := range resNodeCPUCost {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
@@ -51,8 +61,6 @@ func buildCPUCostMap(
 		nodeType, _ := result.GetString("instance_type")
 		providerID, _ := result.GetString("provider_id")
 
-		cpuCost := result.Values[0].Value
-
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       name,
@@ -61,6 +69,29 @@ func buildCPUCostMap(
 		keyNon := nodeIdentifierNoProviderID{
 			Cluster: cluster,
 			Name:    name,
+		}
+
+		var cpuCost float64
+
+		if customPricingEnabled && customPricingConfig != nil {
+
+			var customCPUStr string
+			if spot, ok := preemptible[key]; ok && spot {
+				customCPUStr = customPricingConfig.SpotCPU
+			} else {
+				customCPUStr = customPricingConfig.CPU
+			}
+
+			customCPUCost, err := strconv.ParseFloat(customCPUStr, 64)
+			if err != nil {
+				log.Warningf("ClusterNodes: error parsing custom CPU price: %s", customCPUStr)
+			}
+			cpuCost = customCPUCost
+
+		} else {
+
+			cpuCost = result.Values[0].Value
+
 		}
 
 		clusterAndNameToType[keyNon] = nodeType
@@ -73,6 +104,8 @@ func buildCPUCostMap(
 
 func buildRAMCostMap(
 	resNodeRAMCost []*prom.QueryResult,
+	cp cloud.Provider,
+	preemptible map[NodeIdentifier]bool,
 ) (
 	map[NodeIdentifier]float64,
 	map[nodeIdentifierNoProviderID]string,
@@ -80,6 +113,12 @@ func buildRAMCostMap(
 
 	ramCostMap := make(map[NodeIdentifier]float64)
 	clusterAndNameToType := make(map[nodeIdentifierNoProviderID]string)
+
+	customPricingEnabled := cloud.CustomPricesEnabled(cp)
+	customPricingConfig, err := cp.GetConfig()
+	if err != nil {
+		log.Warningf("ClusterNodes: failed to load custom pricing: %s", err)
+	}
 
 	for _, result := range resNodeRAMCost {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
@@ -96,8 +135,6 @@ func buildRAMCostMap(
 		nodeType, _ := result.GetString("instance_type")
 		providerID, _ := result.GetString("provider_id")
 
-		ramCost := result.Values[0].Value
-
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       name,
@@ -108,7 +145,31 @@ func buildRAMCostMap(
 			Name:    name,
 		}
 
+		var ramCost float64
+
+		if customPricingEnabled && customPricingConfig != nil {
+
+			var customRAMStr string
+			if spot, ok := preemptible[key]; ok && spot {
+				customRAMStr = customPricingConfig.SpotRAM
+			} else {
+				customRAMStr = customPricingConfig.RAM
+			}
+
+			customRAMCost, err := strconv.ParseFloat(customRAMStr, 64)
+			if err != nil {
+				log.Warningf("ClusterNodes: error parsing custom RAM price: %s", customRAMStr)
+			}
+			ramCost = customRAMCost / 1024 / 1024 / 1024
+
+		} else {
+
+			ramCost = result.Values[0].Value
+
+		}
+
 		clusterAndNameToType[keyNon] = nodeType
+
 		ramCostMap[key] = ramCost
 	}
 
@@ -118,6 +179,8 @@ func buildRAMCostMap(
 func buildGPUCostMap(
 	resNodeGPUCost []*prom.QueryResult,
 	gpuCountMap map[NodeIdentifier]float64,
+	cp cloud.Provider,
+	preemptible map[NodeIdentifier]bool,
 ) (
 	map[NodeIdentifier]float64,
 	map[nodeIdentifierNoProviderID]string,
@@ -125,6 +188,12 @@ func buildGPUCostMap(
 
 	gpuCostMap := make(map[NodeIdentifier]float64)
 	clusterAndNameToType := make(map[nodeIdentifierNoProviderID]string)
+
+	customPricingEnabled := cloud.CustomPricesEnabled(cp)
+	customPricingConfig, err := cp.GetConfig()
+	if err != nil {
+		log.Warningf("ClusterNodes: failed to load custom pricing: %s", err)
+	}
 
 	for _, result := range resNodeGPUCost {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
@@ -141,8 +210,6 @@ func buildGPUCostMap(
 		nodeType, _ := result.GetString("instance_type")
 		providerID, _ := result.GetString("provider_id")
 
-		gpuCost := result.Values[0].Value
-
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       name,
@@ -151,6 +218,29 @@ func buildGPUCostMap(
 		keyNon := nodeIdentifierNoProviderID{
 			Cluster: cluster,
 			Name:    name,
+		}
+
+		var gpuCost float64
+
+		if customPricingEnabled && customPricingConfig != nil {
+
+			var customGPUStr string
+			if spot, ok := preemptible[key]; ok && spot {
+				customGPUStr = customPricingConfig.SpotGPU
+			} else {
+				customGPUStr = customPricingConfig.GPU
+			}
+
+			customGPUCost, err := strconv.ParseFloat(customGPUStr, 64)
+			if err != nil {
+				log.Warningf("ClusterNodes: error parsing custom GPU price: %s", customGPUStr)
+			}
+			gpuCost = customGPUCost
+
+		} else {
+
+			gpuCost = result.Values[0].Value
+
 		}
 
 		clusterAndNameToType[keyNon] = nodeType
