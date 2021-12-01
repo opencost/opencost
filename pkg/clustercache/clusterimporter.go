@@ -60,6 +60,11 @@ func (ci *ClusterImporter) update(data []byte) {
 
 // Run starts the watcher processes
 func (ci *ClusterImporter) Run() {
+	if ci.source == nil {
+		log.Errorf("ClusterImporter source does not exist, not running")
+		return
+	}
+
 	exists, err := ci.source.Exists()
 	if err != nil {
 		log.Errorf("Failed to import source for cluster: %s", err)
