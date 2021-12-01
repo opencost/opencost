@@ -1407,7 +1407,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	keepAlive := 120 * time.Second
 	scrapeInterval := time.Minute
 
-	promCli, err := prom.NewPrometheusClient(address, timeout, keepAlive, queryConcurrency, "/var/configs/queries.log")
+	promCli, err := prom.NewPrometheusClient(address, timeout, keepAlive, queryConcurrency, "")
 	if err != nil {
 		klog.Fatalf("Failed to create prometheus client, Error: %v", err)
 	}
