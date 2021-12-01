@@ -5,6 +5,7 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/config"
 	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/cost-model/pkg/util/atomic"
 	"github.com/kubecost/cost-model/pkg/util/json"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -38,7 +39,7 @@ type ClusterExporter struct {
 	cluster  ClusterCache
 	target   *config.ConfigFile
 	interval time.Duration
-	stop     chan struct{}
+	runState atomic.AtomicRunState
 }
 
 // NewClusterExporter creates a new ClusterExporter instance for exporting the kubernetes cluster.
@@ -52,11 +53,15 @@ func NewClusterExporter(cluster ClusterCache, target *config.ConfigFile, interva
 
 // Run starts the automated process of running Export on a specific interval.
 func (ce *ClusterExporter) Run() {
-	if ce.stop != nil {
+	// in the event there is a race that occurs between Run() and Stop(), we
+	// ensure that we wait for the reset to occur before starting again
+	ce.runState.WaitForReset()
+
+	if !ce.runState.Start() {
+		log.Warningf("ClusterExporter already running")
 		return
 	}
 
-	ce.stop = make(chan struct{})
 	go func() {
 		for {
 			err := ce.Export()
@@ -66,7 +71,8 @@ func (ce *ClusterExporter) Run() {
 
 			select {
 			case <-time.After(ce.interval):
-			case <-ce.stop:
+			case <-ce.runState.OnStop():
+				ce.runState.Reset()
 				return
 			}
 		}
@@ -75,13 +81,7 @@ func (ce *ClusterExporter) Run() {
 
 // Stop halts the Cluster export on an interval
 func (ce *ClusterExporter) Stop() {
-	if ce.stop == nil {
-		log.Warningf("Cluster exporter is already stopped.")
-		return
-	}
-
-	close(ce.stop)
-	ce.stop = nil
+	ce.runState.Stop()
 }
 
 // Export stores the cluster cache data into a PODO, marshals as JSON, and saves it to the

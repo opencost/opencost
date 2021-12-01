@@ -237,6 +237,12 @@ func (cf *ConfigFile) RemoveAllHandlers() {
 // runWatcher creates a go routine which will poll the stat of a storage target on a specific
 // interval and dispatch created, modified, and deleted events for that file.
 func (cf *ConfigFile) runWatcher() {
+	// we wait for a reset on the run state prior to starting, which
+	// will only block iff the run state is in the process of stopping
+	cf.runState.WaitForReset()
+
+	// if start fails after waiting for a reset, it means that another thread
+	// beat this thread to the start
 	if !cf.runState.Start() {
 		log.Warningf("Run watcher already running for file: %s", cf.file)
 		return
@@ -337,7 +343,9 @@ func (cf *ConfigFile) onFileChange(changeType ChangeType, newData []byte) {
 	copy(toNotify, cf.watchers)
 	cf.watchLock.Unlock()
 
-	sort.Sort(byPriority(toNotify))
+	sort.SliceStable(toNotify, func(i, j int) bool {
+		return toNotify[i].priority < toNotify[j].priority
+	})
 
 	for _, handler := range toNotify {
 		handler.handler(changeType, newData)
@@ -354,10 +362,3 @@ type pHandler struct {
 	handler  ConfigChangedHandler
 	priority int
 }
-
-// byPriority is an implementation of sort.Interface to allow sorting a slice of pHandlers by priority
-type byPriority []*pHandler
-
-func (b byPriority) Len() int           { return len(b) }
-func (b byPriority) Less(i, j int) bool { return b[i].priority < b[j].priority }
-func (b byPriority) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
