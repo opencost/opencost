@@ -1,0 +1,64 @@
+package atomic
+
+import "sync"
+
+// AtomicRunState can be used to provide thread-safe start/stop functionality to internal run-loops
+// inside a goroutine.
+type AtomicRunState struct {
+	lock     sync.Mutex
+	stopping bool
+	stop     chan struct{}
+}
+
+// Start checks for an existing run state and returns false if the run state has already started. If
+// the run state has not started, then it will advance to the started state and return true.
+func (ars *AtomicRunState) Start() bool {
+	ars.lock.Lock()
+	defer ars.lock.Unlock()
+
+	if ars.stop != nil {
+		return false
+	}
+
+	ars.stop = make(chan struct{}, 1)
+	return true
+}
+
+// OnStop returns a channel that should be used within a select goroutine run loop. It is set to signal
+// whenever Stop() is executed. Once the channel is signaled, Reset() should be called if the runstate
+// is to be used again.
+func (ars *AtomicRunState) OnStop() <-chan struct{} {
+	ars.lock.Lock()
+	defer ars.lock.Unlock()
+
+	return ars.stop
+}
+
+// Stops closes the stop channel triggering any selects waiting for OnStop()
+func (ars *AtomicRunState) Stop() {
+	ars.lock.Lock()
+	defer ars.lock.Unlock()
+
+	if !ars.stopping && ars.stop != nil {
+		ars.stopping = true
+		close(ars.stop)
+	}
+}
+
+// Reset should be called in the select case for OnStop(). Note that calling Reset() prior to
+// selecting OnStop() will result in failed Stop signal receive.
+func (ars *AtomicRunState) Reset() {
+	ars.lock.Lock()
+	defer ars.lock.Unlock()
+
+	ars.stopping = false
+	ars.stop = nil
+}
+
+// IsRunning returns true if metric recording is running.
+func (ars *AtomicRunState) IsRunning() bool {
+	ars.lock.Lock()
+	defer ars.lock.Unlock()
+
+	return ars.stop != nil
+}

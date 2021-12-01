@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/storage"
+	"github.com/kubecost/cost-model/pkg/util/atomic"
 )
 
 // HandlerID is a unique identifier assigned to a provided ConfigChangedHandler. This is used to remove a handler
@@ -58,7 +59,7 @@ type ConfigFile struct {
 	data       []byte
 	watchLock  *sync.Mutex
 	watchers   []*pHandler
-	watchStop  chan struct{}
+	runState   atomic.AtomicRunState
 	lastChange time.Time
 }
 
@@ -71,7 +72,6 @@ func NewConfigFile(store storage.Storage, file string) *ConfigFile {
 		dataLock:  new(sync.Mutex),
 		data:      nil,
 		watchLock: new(sync.Mutex),
-		watchStop: nil,
 	}
 }
 
@@ -237,12 +237,10 @@ func (cf *ConfigFile) RemoveAllHandlers() {
 // runWatcher creates a go routine which will poll the stat of a storage target on a specific
 // interval and dispatch created, modified, and deleted events for that file.
 func (cf *ConfigFile) runWatcher() {
-	if cf.watchStop != nil {
+	if !cf.runState.Start() {
 		log.Warningf("Run watcher already running for file: %s", cf.file)
 		return
 	}
-
-	cf.watchStop = make(chan struct{})
 
 	go func() {
 		first := true
@@ -253,7 +251,8 @@ func (cf *ConfigFile) runWatcher() {
 		for {
 			// Each iteration, check for the stop trigger, or wait 10 seconds
 			select {
-			case <-cf.watchStop:
+			case <-cf.runState.OnStop():
+				cf.runState.Reset()
 				return
 			case <-time.After(10 * time.Second):
 			}
@@ -318,12 +317,7 @@ func (cf *ConfigFile) runWatcher() {
 // stopWatcher closes the stop channel, returning from the runWatcher go routine. Allows us
 // to remove any polling stat checks on files when there are no change handlers.
 func (cf *ConfigFile) stopWatcher() {
-	if cf.watchStop == nil {
-		return
-	}
-
-	close(cf.watchStop)
-	cf.watchStop = nil
+	cf.runState.Stop()
 }
 
 // onFileChange is internally called when the core watcher recognizes a change in the ConfigFile. This
