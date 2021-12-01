@@ -17,7 +17,8 @@ const (
 	// GCS   StorageProvider = "GCS"
 )
 
-// StorageConfig is the configuration type used to
+// StorageConfig is the configuration type used as the "parent" configuration. It contains a type, which will
+// specify the bucket storage implementation, and a configuration object specific to that storage implementation.
 type StorageConfig struct {
 	Type   StorageProvider `yaml:"type"`
 	Config interface{}     `yaml:"config"`
@@ -31,6 +32,8 @@ func NewBucketStorage(config []byte) (Storage, error) {
 		return nil, errors.Wrap(err, "parsing config YAML file")
 	}
 
+	// Because the Config property is specific to the storage implementation, we'll marshal back into yaml, and allow
+	// the specific implementation to unmarshal back into a concrete configuration type.
 	config, err := yaml.Marshal(storageConfig.Config)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal content of storage configuration")
