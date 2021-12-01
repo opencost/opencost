@@ -20,7 +20,7 @@ import (
 var sanitizePolicy = bluemonday.UGCPolicy()
 
 // ProviderConfig is a utility class that provides a thread-safe configuration storage/cache for all Provider
-// implementations, and provides a
+// implementations
 type ProviderConfig struct {
 	lock            *sync.Mutex
 	configManager   *config.ConfigFileManager
