@@ -355,6 +355,7 @@ func WrapDataWithMessageAndWarning(data interface{}, err error, message, warning
 }
 
 // wrapAsObjectItems wraps a slice of items into an object containing a single items list
+// allows our k8s proxy methods to emulate a List() request to k8s API
 func wrapAsObjectItems(items interface{}) map[string]interface{} {
 	return map[string]interface{}{
 		"items": items,

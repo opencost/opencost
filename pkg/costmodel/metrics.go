@@ -250,7 +250,7 @@ type CostModelMetricsEmitter struct {
 	NetworkRegionEgressRecorder   prometheus.Gauge
 	NetworkInternetEgressRecorder prometheus.Gauge
 
-	// Flow Control
+	// Concurrent Flow Control - Manages the run state of the metric emitter
 	runState atomic.AtomicRunState
 }
 
