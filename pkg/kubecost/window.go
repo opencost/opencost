@@ -3,7 +3,6 @@ package kubecost
 import (
 	"bytes"
 	"fmt"
-	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"math"
 	"regexp"
 	"strconv"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/thanos"
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
 )
 
 const (
@@ -405,6 +405,32 @@ func (w Window) Expand(that Window) Window {
 		w.end = nil
 	} else {
 		w = w.ExpandEnd(*that.end)
+	}
+
+	return w
+}
+
+func (w Window) ContractStart(start time.Time) Window {
+	if w.start == nil || start.After(*w.start) {
+		w.start = &start
+	}
+	return w
+}
+
+func (w Window) ContractEnd(end time.Time) Window {
+	if w.end == nil || end.Before(*w.end) {
+		w.end = &end
+	}
+	return w
+}
+
+func (w Window) Contract(that Window) Window {
+	if that.start != nil {
+		w = w.ContractStart(*that.start)
+	}
+
+	if that.end != nil {
+		w = w.ContractEnd(*that.end)
 	}
 
 	return w
