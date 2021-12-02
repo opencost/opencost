@@ -23,7 +23,7 @@ func (ars *AtomicRunState) Start() bool {
 		return false
 	}
 
-	ars.stop = make(chan struct{}, 1)
+	ars.stop = make(chan struct{})
 	return true
 }
 
@@ -44,7 +44,7 @@ func (ars *AtomicRunState) Stop() bool {
 
 	if !ars.stopping && ars.stop != nil {
 		ars.stopping = true
-		ars.reset = make(chan struct{}, 1)
+		ars.reset = make(chan struct{})
 		close(ars.stop)
 		return true
 	}

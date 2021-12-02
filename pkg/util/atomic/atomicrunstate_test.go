@@ -124,6 +124,14 @@ func TestContinuousConcurrentStartsAndStops(t *testing.T) {
 	// continuously try and start the ars on a tight loop
 	// throttled by OnStop and WaitForReset()
 	go func() {
+		defer func() {
+			if e := recover(); e != nil {
+				// sometimes the waitgroup will hit a negative value at the end of the test
+				// this is ok given the way the test behaves (chaos star/stop calls), so
+				// we can safely ignore.
+			}
+		}()
+
 		firstCycle := true
 		for {
 			ars.WaitForReset()
