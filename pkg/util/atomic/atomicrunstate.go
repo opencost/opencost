@@ -63,7 +63,7 @@ func (ars *AtomicRunState) Reset() {
 	ars.stop = nil
 }
 
-// IsRunning returns true if metric recording is running or in the process of stopping.
+// IsRunning returns true if the state is running or in the process of stopping.
 func (ars *AtomicRunState) IsRunning() bool {
 	ars.lock.Lock()
 	defer ars.lock.Unlock()
