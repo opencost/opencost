@@ -1273,7 +1273,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		for _, alloc := range aggSet.allocations {
 			for _, sharedAlloc := range shareSet.allocations {
 				if _, ok := shareCoefficients[alloc.Name]; !ok {
-					if !alloc.IsIdle() {
+					if !alloc.IsIdle() && !alloc.IsUnmounted() {
 						log.Warningf("AllocationSet.AggregateBy: error getting share coefficienct for '%s'", alloc.Name)
 					}
 					continue

@@ -18,8 +18,8 @@ import (
 // on-the-fly would be expensive; e.g. idle allocation; sharing coefficients
 // for idle or shared resources, etc.
 type AllocationTotals struct {
-	Start                          time.Time `json:"end"`
-	End                            time.Time `json:"start"`
+	Start                          time.Time `json:"start"`
+	End                            time.Time `json:"end"`
 	Cluster                        string    `json:"cluster"`
 	Node                           string    `json:"node"`
 	Count                          int       `json:"count"`
@@ -125,8 +125,8 @@ func ComputeAllocationTotals(as *AllocationSet, prop string) map[string]*Allocat
 // knowledge is required to carry out a task, but computing totals on-the-fly
 // would be expensive; e.g. idle allocation, shared tenancy costs
 type AssetTotals struct {
-	Start                 time.Time `json:"end"`
-	End                   time.Time `json:"start"`
+	Start                 time.Time `json:"start"`
+	End                   time.Time `json:"end"`
 	Cluster               string    `json:"cluster"`
 	Node                  string    `json:"node"`
 	Count                 int       `json:"count"`
@@ -254,7 +254,6 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 			arts[key].GPUCost += gpuCost
 			arts[key].GPUCostAdjustment += gpuCostAdjustment
 		} else if disk, ok := asset.(*Disk); ok {
-
 			key := fmt.Sprintf("%s/%s", disk.Properties().Cluster, disk.Properties().Name)
 			disks[key] = disk
 		} else if cm, ok := asset.(*ClusterManagement); ok && prop == AssetClusterProp {
@@ -282,7 +281,7 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 			// cluster/node. But if we're aggregating by cluster only, then
 			// reset the key to just the cluster.
 			key := name
-			if prop != AssetClusterProp {
+			if prop == AssetClusterProp {
 				key = disk.Properties().Cluster
 			}
 

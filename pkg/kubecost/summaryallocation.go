@@ -90,13 +90,9 @@ func (sa *SummaryAllocation) Add(that *SummaryAllocation) error {
 		return errors.New("cannot Add a nil SummaryAllocation")
 	}
 
-	if sa.Properties == nil {
-		return errors.New("cannot Add a SummaryAllocation without Properties")
-	}
-
-	// Once Added, a SummaryAllocation has no Properties, preventing it from
-	// being Added a second time. This saves us from having to compute the
-	// intersection of two sets of Properties, which is expensive.
+	// Once Added, a SummaryAllocation has no Properties. This saves us from
+	// having to compute the intersection of two sets of Properties, which is
+	// expensive.
 	sa.Properties = nil
 
 	// Sum non-cumulative fields by turning them into cumulative, adding them,
@@ -146,6 +142,28 @@ func (sa *SummaryAllocation) Add(that *SummaryAllocation) error {
 	sa.SharedCost += that.SharedCost
 
 	return nil
+}
+
+// Clone copies the SummaryAllocation and returns the copy
+func (sa *SummaryAllocation) Clone() *SummaryAllocation {
+	return &SummaryAllocation{
+		Name:                   sa.Name,
+		Properties:             sa.Properties.Clone(),
+		Start:                  sa.Start,
+		End:                    sa.End,
+		CPUCoreRequestAverage:  sa.CPUCoreRequestAverage,
+		CPUCoreUsageAverage:    sa.CPUCoreUsageAverage,
+		CPUCost:                sa.CPUCost,
+		GPUCost:                sa.GPUCost,
+		NetworkCost:            sa.NetworkCost,
+		LoadBalancerCost:       sa.LoadBalancerCost,
+		PVCost:                 sa.PVCost,
+		RAMBytesRequestAverage: sa.RAMBytesRequestAverage,
+		RAMBytesUsageAverage:   sa.RAMBytesUsageAverage,
+		RAMCost:                sa.RAMCost,
+		SharedCost:             sa.SharedCost,
+		ExternalCost:           sa.ExternalCost,
+	}
 }
 
 // CPUEfficiency is the ratio of usage to request. If there is no request and
