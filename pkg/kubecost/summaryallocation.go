@@ -578,7 +578,12 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		}
 	}
 
-	// TODO summary: do we need to handle case where len(SummaryAllocations) == 0?
+	// It's possible that no more un-shared, non-idle, non-external allocations
+	// remain at this point. This always results in an emptySet, so return early.
+	if len(sas.SummaryAllocations) == 0 {
+		sas.SummaryAllocations = map[string]*SummaryAllocation{}
+		return nil
+	}
 
 	// 3. Retrieve pre-computed allocation resource totals, which will be used
 	// to compute idle coefficients, based on the ratio of an allocation's per-
@@ -602,9 +607,6 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 			}
 		}
 	}
-
-	// TODO summary: make sure that we're robust to missing (nil) allocTotals.
-	// To test, pass nil options.AllocationTotalsStore.
 
 	// If filters have been applied, then we need to record allocation resource
 	// totals after filtration (i.e. the allocations that are present) so that
@@ -883,15 +885,17 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	for _, sa := range externalSet.SummaryAllocations {
 		skip := false
 
-		// TODO summary: deal with filters... maybe make an Allocation with the
-		// same Properties and test the filter func?
-
-		// for _, ff := range options.FilterFuncs {
-		// 	if !ff(sa) {
-		// 		skip = true
-		// 		break
-		// 	}
-		// }
+		for _, ff := range options.FilterFuncs {
+			// Make an allocation with the same properties and test that
+			// against the FilterFunc to see if the external allocation should
+			// be filtered or not.
+			// TODO:CLEANUP do something about external cost, this stinks
+			ea := &Allocation{Properties: sa.Properties}
+			if !ff(ea) {
+				skip = true
+				break
+			}
+		}
 
 		if !skip {
 			key := sa.generateKey(aggregateBy, options.LabelConfig)
