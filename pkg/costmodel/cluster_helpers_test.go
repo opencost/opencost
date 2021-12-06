@@ -1,6 +1,7 @@
 package costmodel
 
 import (
+	"github.com/kubecost/cost-model/pkg/config"
 	"reflect"
 	"testing"
 	"time"
@@ -852,7 +853,7 @@ func TestBuildGPUCostMap(t *testing.T) {
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			testProvider := &cloud.CustomProvider{
-				Config: cloud.NewProviderConfig("fakeFile"),
+				Config: cloud.NewProviderConfig(config.NewConfigFileManager(nil),"fakeFile"),
 			}
 			testPreemptible := make(map[NodeIdentifier]bool)
 			result, _ := buildGPUCostMap(testCase.promResult, testCase.countMap, testProvider, testPreemptible)
@@ -980,7 +981,7 @@ func TestAssetCustompricing(t *testing.T) {
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			testProvider := &cloud.CustomProvider{
-				Config: cloud.NewProviderConfig(""),
+				Config: cloud.NewProviderConfig(config.NewConfigFileManager(nil),""),
 			}
 			testProvider.UpdateConfigFromConfigMap(testCase.customPricingMap)
 
