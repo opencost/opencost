@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util/httputil"
@@ -20,6 +21,10 @@ const (
 	epQuery      = apiPrefix + "/query"
 	epQueryRange = apiPrefix + "/query_range"
 )
+
+// prometheus query offset to apply to each non-range query
+// package scope to prevent calling duration parse each use
+var promQueryOffset time.Duration = env.GetPrometheusQueryOffset()
 
 // Context wraps a Prometheus client and provides methods for querying and
 // parsing query responses and errors.
@@ -171,6 +176,16 @@ func (ctx *Context) RawQuery(query string) ([]byte, error) {
 	u := ctx.Client.URL(epQuery, nil)
 	q := u.Query()
 	q.Set("query", query)
+
+	// for non-range queries, we set the timestamp for the query to time-offset
+	// this is a special use case that's typically only used when our primary
+	// prom db has delayed insertion (thanos, cortex, etc...)
+	if promQueryOffset != 0 && ctx.name != AllocationContextName {
+		q.Set("time", time.Now().Add(-promQueryOffset).UTC().Format(time.RFC3339))
+	} else {
+		q.Set("time", time.Now().UTC().Format(time.RFC3339))
+	}
+
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequest(http.MethodPost, u.String(), nil)

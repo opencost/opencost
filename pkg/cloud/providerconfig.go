@@ -2,14 +2,15 @@ package cloud
 
 import (
 	"fmt"
-	"io/ioutil"
+	gopath "path"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 
+	"github.com/kubecost/cost-model/pkg/config"
 	"github.com/kubecost/cost-model/pkg/env"
-	"github.com/kubecost/cost-model/pkg/util/fileutil"
+	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util/json"
 	"github.com/microcosm-cc/bluemonday"
 
@@ -18,22 +19,60 @@ import (
 
 var sanitizePolicy = bluemonday.UGCPolicy()
 
-// ProviderConfig is a utility class that provides a thread-safe configuration
-// storage/cache for all Provider implementations
+// ProviderConfig is a utility class that provides a thread-safe configuration storage/cache for all Provider
+// implementations
 type ProviderConfig struct {
-	lock          *sync.Mutex
-	fileName      string
-	configPath    string
-	customPricing *CustomPricing
+	lock            *sync.Mutex
+	configManager   *config.ConfigFileManager
+	configFile      *config.ConfigFile
+	customPricing   *CustomPricing
+	watcherHandleID config.HandlerID
 }
 
-// Creates a new ProviderConfig instance
-func NewProviderConfig(file string) *ProviderConfig {
-	return &ProviderConfig{
+// NewProviderConfig creates a new ConfigFile and returns the ProviderConfig
+func NewProviderConfig(configManager *config.ConfigFileManager, fileName string) *ProviderConfig {
+	configFile := configManager.ConfigFileAt(configPathFor(fileName))
+	pc := &ProviderConfig{
 		lock:          new(sync.Mutex),
-		fileName:      file,
-		configPath:    configPathFor(file),
+		configManager: configManager,
+		configFile:    configFile,
 		customPricing: nil,
+	}
+
+	// add the provider config func as handler for the config file changes
+	pc.watcherHandleID = configFile.AddChangeHandler(pc.onConfigFileUpdated)
+	return pc
+}
+
+// onConfigFileUpdated handles any time the config file contents are updated, created, or deleted
+func (pc *ProviderConfig) onConfigFileUpdated(changeType config.ChangeType, data []byte) {
+	// TODO: (bolt) Currently this has the side-effect of setting pc.customPricing twice when the update
+	// TODO: (bolt) is made from this ProviderConfig instance. We'll need to implement a way of identifying
+	// TODO: (bolt) when to ignore updates when the change and handler are the same source
+	log.Infof("CustomPricing Config Updated: %s", changeType)
+
+	switch changeType {
+	case config.ChangeTypeCreated:
+		fallthrough
+	case config.ChangeTypeModified:
+		pc.lock.Lock()
+		defer pc.lock.Unlock()
+
+		customPricing := new(CustomPricing)
+		err := json.Unmarshal(data, customPricing)
+		if err != nil {
+			klog.Infof("Could not decode Custom Pricing file at path %s. Using default.", pc.configFile.Path())
+			customPricing = DefaultPricing()
+		}
+
+		pc.customPricing = customPricing
+		if pc.customPricing.SpotGPU == "" {
+			pc.customPricing.SpotGPU = DefaultPricing().SpotGPU // Migration for users without this value set by default.
+		}
+
+		if pc.customPricing.ShareTenancyCosts == "" {
+			pc.customPricing.ShareTenancyCosts = defaultShareTenancyCost
+		}
 	}
 }
 
@@ -44,16 +83,16 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*CustomPricing, err
 		return pc.customPricing, nil
 	}
 
-	exists, err := fileExists(pc.configPath)
+	exists, err := pc.configFile.Exists()
 	// File Error other than NotExists
 	if err != nil {
-		klog.Infof("Custom Pricing file at path '%s' read error: '%s'", pc.configPath, err.Error())
+		klog.Infof("Custom Pricing file at path '%s' read error: '%s'", pc.configFile.Path(), err.Error())
 		return DefaultPricing(), err
 	}
 
 	// File Doesn't Exist
 	if !exists {
-		klog.Infof("Could not find Custom Pricing file at path '%s'", pc.configPath)
+		klog.Infof("Could not find Custom Pricing file at path '%s'", pc.configFile.Path())
 		pc.customPricing = DefaultPricing()
 
 		// Only write the file if flag enabled
@@ -63,9 +102,9 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*CustomPricing, err
 				return pc.customPricing, err
 			}
 
-			err = ioutil.WriteFile(pc.configPath, cj, 0644)
+			err = pc.configFile.Write(cj)
 			if err != nil {
-				klog.Infof("Could not write Custom Pricing file to path '%s'", pc.configPath)
+				klog.Infof("Could not write Custom Pricing file to path '%s'", pc.configFile.Path())
 				return pc.customPricing, err
 			}
 		}
@@ -74,9 +113,9 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*CustomPricing, err
 	}
 
 	// File Exists - Read all contents of file, unmarshal json
-	byteValue, err := ioutil.ReadFile(pc.configPath)
+	byteValue, err := pc.configFile.Read()
 	if err != nil {
-		klog.Infof("Could not read Custom Pricing file at path %s", pc.configPath)
+		klog.Infof("Could not read Custom Pricing file at path %s", pc.configFile.Path())
 		// If read fails, we don't want to cache default, assuming that the file is valid
 		return DefaultPricing(), err
 	}
@@ -84,7 +123,7 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*CustomPricing, err
 	var customPricing CustomPricing
 	err = json.Unmarshal(byteValue, &customPricing)
 	if err != nil {
-		klog.Infof("Could not decode Custom Pricing file at path %s", pc.configPath)
+		klog.Infof("Could not decode Custom Pricing file at path %s", pc.configFile.Path())
 		return DefaultPricing(), err
 	}
 
@@ -106,6 +145,13 @@ func (pc *ProviderConfig) GetCustomPricingData() (*CustomPricing, error) {
 	defer pc.lock.Unlock()
 
 	return pc.loadConfig(true)
+}
+
+// ConfigFileManager returns the ConfigFileManager instance used to manage the CustomPricing
+// configuration. In the event of a multi-provider setup, this instance should be used to
+// configure any other configuration providers.
+func (pc *ProviderConfig) ConfigFileManager() *config.ConfigFileManager {
+	return pc.configManager
 }
 
 // Allows a call to manually update the configuration while maintaining proper thread-safety
@@ -132,7 +178,7 @@ func (pc *ProviderConfig) Update(updateFunc func(*CustomPricing) error) (*Custom
 	if err != nil {
 		return c, err
 	}
-	err = ioutil.WriteFile(pc.configPath, cj, 0644)
+	err = pc.configFile.Write(cj)
 
 	if err != nil {
 		return c, err
@@ -210,19 +256,8 @@ func SetCustomPricingField(obj *CustomPricing, name string, value string) error 
 	return nil
 }
 
-// File exists has three different return cases that should be handled:
-//   1. File exists and is not a directory (true, nil)
-//   2. File does not exist (false, nil)
-//   3. File may or may not exist. Error occurred during stat (false, error)
-// The third case represents the scenario where the stat returns an error,
-// but the error isn't relevant to the path. This can happen when the current
-// user doesn't have permission to access the file.
-func fileExists(filename string) (bool, error) {
-	return fileutil.FileExists(filename) // delegate to utility method
-}
-
 // Returns the configuration directory concatenated with a specific config file name
 func configPathFor(filename string) string {
 	path := env.GetConfigPathWithDefault("/models/")
-	return path + filename
+	return gopath.Join(path, filename)
 }

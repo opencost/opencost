@@ -4,18 +4,20 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/kubecost/cost-model/pkg/util"
 	"io"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/util"
+
 	"k8s.io/klog"
 
 	"cloud.google.com/go/compute/metadata"
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/config"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util/watcher"
@@ -383,31 +385,31 @@ func ShareTenancyCosts(p Provider) bool {
 	return config.ShareTenancyCosts == "true"
 }
 
-func NewCrossClusterProvider(ctype string, overrideConfigPath string, cache clustercache.ClusterCache) (Provider, error) {
+func NewCrossClusterProvider(ctype string, config *config.ConfigFileManager, overrideConfigPath string, cache clustercache.ClusterCache) (Provider, error) {
 	if ctype == "aws" {
 		return &AWS{
 			Clientset: cache,
-			Config:    NewProviderConfig(overrideConfigPath),
+			Config:    NewProviderConfig(config, overrideConfigPath),
 		}, nil
 	} else if ctype == "gcp" {
 		return &GCP{
 			Clientset: cache,
-			Config:    NewProviderConfig(overrideConfigPath),
+			Config:    NewProviderConfig(config, overrideConfigPath),
 		}, nil
 	} else if ctype == "azure" {
 		return &Azure{
 			Clientset: cache,
-			Config:    NewProviderConfig(overrideConfigPath),
+			Config:    NewProviderConfig(config, overrideConfigPath),
 		}, nil
 	}
 	return &CustomProvider{
 		Clientset: cache,
-		Config:    NewProviderConfig(overrideConfigPath),
+		Config:    NewProviderConfig(config, overrideConfigPath),
 	}, nil
 }
 
 // NewProvider looks at the nodespec or provider metadata server to decide which provider to instantiate.
-func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, error) {
+func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.ConfigFileManager) (Provider, error) {
 	nodes := cache.GetAllNodes()
 	if len(nodes) == 0 {
 		return nil, fmt.Errorf("Could not locate any nodes for cluster.")
@@ -422,7 +424,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, erro
 			CSVLocation: env.GetCSVPath(),
 			CustomProvider: &CustomProvider{
 				Clientset: cache,
-				Config:    NewProviderConfig(cp.configFileName),
+				Config:    NewProviderConfig(config, cp.configFileName),
 			},
 		}, nil
 	case "GCP":
@@ -433,7 +435,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, erro
 		return &GCP{
 			Clientset:        cache,
 			APIKey:           apiKey,
-			Config:           NewProviderConfig(cp.configFileName),
+			Config:           NewProviderConfig(config, cp.configFileName),
 			clusterRegion:    cp.region,
 			clusterProjectId: cp.projectID,
 		}, nil
@@ -441,7 +443,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, erro
 		klog.V(2).Info("Found ProviderID starting with \"aws\", using AWS Provider")
 		return &AWS{
 			Clientset:        cache,
-			Config:           NewProviderConfig(cp.configFileName),
+			Config:           NewProviderConfig(config, cp.configFileName),
 			clusterRegion:    cp.region,
 			clusterAccountId: cp.accountID,
 		}, nil
@@ -449,7 +451,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, erro
 		klog.V(2).Info("Found ProviderID starting with \"azure\", using Azure Provider")
 		return &Azure{
 			Clientset:        cache,
-			Config:           NewProviderConfig(cp.configFileName),
+			Config:           NewProviderConfig(config, cp.configFileName),
 			clusterRegion:    cp.region,
 			clusterAccountId: cp.accountID,
 		}, nil
@@ -457,7 +459,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, erro
 		klog.V(2).Info("Unsupported provider, falling back to default")
 		return &CustomProvider{
 			Clientset: cache,
-			Config:    NewProviderConfig(cp.configFileName),
+			Config:    NewProviderConfig(config, cp.configFileName),
 		}, nil
 	}
 }
@@ -470,15 +472,15 @@ type clusterProperties struct {
 	projectID      string
 }
 
-func getClusterProperties(node *v1.Node) (clusterProperties) {
+func getClusterProperties(node *v1.Node) clusterProperties {
 	providerID := strings.ToLower(node.Spec.ProviderID)
 	region, _ := util.GetRegion(node.Labels)
 	cp := clusterProperties{
-		provider: "DEFAULT",
+		provider:       "DEFAULT",
 		configFileName: "default.json",
-		region: region,
-		accountID: "",
-		projectID: "",
+		region:         region,
+		accountID:      "",
+		projectID:      "",
 	}
 	if metadata.OnGCE() {
 		cp.provider = "GCP"
