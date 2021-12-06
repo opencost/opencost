@@ -471,26 +471,27 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	//  3. Retrieve pre-computed allocation resource totals, which will be used
 	//     to compute idle sharing coefficients.
 	//
-	//  4. Compute sharing coefficients per-aggregation, if sharing resources.
+	//  4. Convert shared hourly cost into a cumulative allocation to share,
+	//     and insert it into the share set.
 	//
-	//  5. Distribute idle allocations according to the idle coefficients.
+	//  5. Compute sharing coefficients per-aggregation, if sharing resources.
 	//
-	//  6. Record allocation resource totals (after filtration) if filters have
+	//  6. Distribute idle allocations according to the idle coefficients.
+	//
+	//  7. Record allocation resource totals (after filtration) if filters have
 	//     been applied. (Used for filtering proportional amount of idle.)
 	//
-	//  7. Generate aggregation key and insert allocation into the output set
+	//  8. Generate aggregation key and insert allocation into the output set
 	//
-	//  8. If idle is shared and resources are shared, it's probable that some
+	//  9. If idle is shared and resources are shared, it's probable that some
 	//     amount of idle cost will be shared with a shared resource.
 	//     Distribute that idle cost, if it exists, among the respective shared
 	//     allocations before sharing them with the aggregated allocations.
 	//
-	//  9. Apply idle filtration, which "filters" the idle cost, or scales it
+	// 10. Apply idle filtration, which "filters" the idle cost, or scales it
 	//     by the proportion of allocation resources remaining after filters
 	//     have been applied.
 	//
-	// 10. Convert shared hourly cost into a cumulative allocation to share,
-	//     and insert it into the share set.
 	//
 	// 11. Distribute shared resources according to sharing coefficients.
 	//
@@ -654,6 +655,29 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		}
 	}
 
+	// 4. Convert shared hourly cost into a cumulative allocation to share,
+	// and insert it into the share set.
+	for name, cost := range options.SharedHourlyCosts {
+		if cost > 0.0 {
+			hours := sas.Window.Hours()
+
+			// If set ends in the future, adjust hours accordingly
+			diff := time.Since(*sas.Window.End())
+			if diff < 0.0 {
+				hours += diff.Hours()
+			}
+
+			totalSharedCost := cost * hours
+
+			shareSet.Insert(&SummaryAllocation{
+				Name:       fmt.Sprintf("%s/%s", name, SharedSuffix),
+				Start:      *sas.Window.Start(),
+				End:        *sas.Window.End(),
+				SharedCost: totalSharedCost,
+			})
+		}
+	}
+
 	// Sharing coefficients are recorded by post-aggregation-key (e.g. if
 	// aggregating by namespace, then the key will be the namespace) and only
 	// need to be recorded if there are shared resources. Instantiating this
@@ -665,15 +689,15 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 
 	// Loop over all remaining SummaryAllocations (after filters, sharing, &c.)
 	// doing the following, in this order:
-	//  4. Compute sharing coefficients, if there are shared resources
-	//  5. Distribute idle cost, if sharing idle
-	//  6. Record allocTotalsAfterFiltration, if filters have been applied
-	//  7. Aggregate by key
+	//  5. Compute sharing coefficients, if there are shared resources
+	//  6. Distribute idle cost, if sharing idle
+	//  7. Record allocTotalsAfterFiltration, if filters have been applied
+	//  8. Aggregate by key
 	for _, sa := range sas.SummaryAllocations {
 		// Generate key to use for aggregation-by-key and allocation name
 		key := sa.generateKey(aggregateBy, options.LabelConfig)
 
-		// 4. Incrementally add to sharing coefficients before adding idle
+		// 5. Incrementally add to sharing coefficients before adding idle
 		// cost, which would skew the coefficients. These coefficients will be
 		// later divided by a total, turning them into a coefficient between
 		// 0.0 and 1.0.
@@ -683,7 +707,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 			sharingCoeffs[key] += sa.TotalCost()
 		}
 
-		// 5. Distribute idle allocations according to the idle coefficients.
+		// 6. Distribute idle allocations according to the idle coefficients.
 		// NOTE: if idle allocation is off (i.e. ShareIdle == ShareNone) then
 		// all idle allocations will be in the resultSet at this point, so idleSet
 		// will be empty and we won't enter this block.
@@ -725,7 +749,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 			sa.Name = UnallocatedSuffix
 		}
 
-		// 6. Record filtered resource totals for idle allocation filtration,
+		// 7. Record filtered resource totals for idle allocation filtration,
 		// only if necessary.
 		if allocTotalsAfterFilters != nil {
 			key := sa.Properties.Cluster
@@ -746,12 +770,12 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 			}
 		}
 
-		// 7. Inserting the allocation with the generated key for a name
+		// 8. Inserting the allocation with the generated key for a name
 		// performs the actual aggregation step.
 		resultSet.Insert(sa)
 	}
 
-	// 8. If idle is shared and resources are shared, it's probable that some
+	// 9. If idle is shared and resources are shared, it's probable that some
 	// amount of idle cost will be shared with a shared resource. Distribute
 	// that idle cost, if it exists, among the respective shared allocations
 	// before sharing them with the aggregated allocations.
@@ -786,7 +810,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		}
 	}
 
-	// 9. Apply idle filtration, which "filters" the idle cost, i.e. scales
+	// 10. Apply idle filtration, which "filters" the idle cost, i.e. scales
 	// idle allocation costs per-resource by the proportion of allocation
 	// resources remaining after filtering. In effect, this returns only the
 	// idle costs that would have been shared with the remaining allocations,
@@ -823,29 +847,6 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 			ia.CPUCost *= cpuFilterCoeff
 			ia.GPUCost *= gpuFilterCoeff
 			ia.RAMCost *= ramFilterCoeff
-		}
-	}
-
-	// 10. Convert shared hourly cost into a cumulative allocation to share,
-	// and insert it into the share set.
-	for name, cost := range options.SharedHourlyCosts {
-		if cost > 0.0 {
-			hours := sas.Window.Hours()
-
-			// If set ends in the future, adjust hours accordingly
-			diff := time.Since(*sas.Window.End())
-			if diff < 0.0 {
-				hours += diff.Hours()
-			}
-
-			totalSharedCost := cost * hours
-
-			shareSet.Insert(&SummaryAllocation{
-				Name:       fmt.Sprintf("%s/%s", name, SharedSuffix),
-				Start:      *sas.Window.Start(),
-				End:        *sas.Window.End(),
-				SharedCost: totalSharedCost,
-			})
 		}
 	}
 
