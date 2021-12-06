@@ -671,6 +671,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 
 			shareSet.Insert(&SummaryAllocation{
 				Name:       fmt.Sprintf("%s/%s", name, SharedSuffix),
+				Properties: &AllocationProperties{},
 				Start:      *sas.Window.Start(),
 				End:        *sas.Window.End(),
 				SharedCost: totalSharedCost,
