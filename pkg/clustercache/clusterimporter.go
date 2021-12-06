@@ -97,7 +97,7 @@ func (ci *ClusterImporter) GetAllNamespaces() []*v1.Namespace {
 	defer ci.dataLock.Unlock()
 
 	// Deep copy here to avoid callers from corrupting the cache
-	// This also mimic's the behavior of the default cluster cache impl.
+	// This also mimics the behavior of the default cluster cache impl.
 	namespaces := ci.data.Namespaces
 	cloneList := make([]*v1.Namespace, 0, len(namespaces))
 	for _, v := range namespaces {
@@ -112,7 +112,7 @@ func (ci *ClusterImporter) GetAllNodes() []*v1.Node {
 	defer ci.dataLock.Unlock()
 
 	// Deep copy here to avoid callers from corrupting the cache
-	// This also mimic's the behavior of the default cluster cache impl.
+	// This also mimics the behavior of the default cluster cache impl.
 	nodes := ci.data.Nodes
 	cloneList := make([]*v1.Node, 0, len(nodes))
 	for _, v := range nodes {
@@ -127,7 +127,7 @@ func (ci *ClusterImporter) GetAllPods() []*v1.Pod {
 	defer ci.dataLock.Unlock()
 
 	// Deep copy here to avoid callers from corrupting the cache
-	// This also mimic's the behavior of the default cluster cache impl.
+	// This also mimics the behavior of the default cluster cache impl.
 	pods := ci.data.Pods
 	cloneList := make([]*v1.Pod, 0, len(pods))
 	for _, v := range pods {
@@ -142,7 +142,7 @@ func (ci *ClusterImporter) GetAllServices() []*v1.Service {
 	defer ci.dataLock.Unlock()
 
 	// Deep copy here to avoid callers from corrupting the cache
-	// This also mimic's the behavior of the default cluster cache impl.
+	// This also mimics the behavior of the default cluster cache impl.
 	services := ci.data.Services
 	cloneList := make([]*v1.Service, 0, len(services))
 	for _, v := range services {
@@ -157,7 +157,7 @@ func (ci *ClusterImporter) GetAllDaemonSets() []*appsv1.DaemonSet {
 	defer ci.dataLock.Unlock()
 
 	// Deep copy here to avoid callers from corrupting the cache
-	// This also mimic's the behavior of the default cluster cache impl.
+	// This also mimics the behavior of the default cluster cache impl.
 	daemonSets := ci.data.DaemonSets
 	cloneList := make([]*appsv1.DaemonSet, 0, len(daemonSets))
 	for _, v := range daemonSets {
@@ -172,7 +172,7 @@ func (ci *ClusterImporter) GetAllDeployments() []*appsv1.Deployment {
 	defer ci.dataLock.Unlock()
 
 	// Deep copy here to avoid callers from corrupting the cache
-	// This also mimic's the behavior of the default cluster cache impl.
+	// This also mimics the behavior of the default cluster cache impl.
 	deployments := ci.data.Deployments
 	cloneList := make([]*appsv1.Deployment, 0, len(deployments))
 	for _, v := range deployments {
@@ -187,7 +187,7 @@ func (ci *ClusterImporter) GetAllStatefulSets() []*appsv1.StatefulSet {
 	defer ci.dataLock.Unlock()
 
 	// Deep copy here to avoid callers from corrupting the cache
-	// This also mimic's the behavior of the default cluster cache impl.
+	// This also mimics the behavior of the default cluster cache impl.
 	statefulSets := ci.data.StatefulSets
 	cloneList := make([]*appsv1.StatefulSet, 0, len(statefulSets))
 	for _, v := range statefulSets {
@@ -202,7 +202,7 @@ func (ci *ClusterImporter) GetAllReplicaSets() []*appsv1.ReplicaSet {
 	defer ci.dataLock.Unlock()
 
 	// Deep copy here to avoid callers from corrupting the cache
-	// This also mimic's the behavior of the default cluster cache impl.
+	// This also mimics the behavior of the default cluster cache impl.
 	replicaSets := ci.data.ReplicaSets
 	cloneList := make([]*appsv1.ReplicaSet, 0, len(replicaSets))
 	for _, v := range replicaSets {
@@ -217,7 +217,7 @@ func (ci *ClusterImporter) GetAllPersistentVolumes() []*v1.PersistentVolume {
 	defer ci.dataLock.Unlock()
 
 	// Deep copy here to avoid callers from corrupting the cache
-	// This also mimic's the behavior of the default cluster cache impl.
+	// This also mimics the behavior of the default cluster cache impl.
 	pvs := ci.data.PersistentVolumes
 	cloneList := make([]*v1.PersistentVolume, 0, len(pvs))
 	for _, v := range pvs {
@@ -232,7 +232,7 @@ func (ci *ClusterImporter) GetAllPersistentVolumeClaims() []*v1.PersistentVolume
 	defer ci.dataLock.Unlock()
 
 	// Deep copy here to avoid callers from corrupting the cache
-	// This also mimic's the behavior of the default cluster cache impl.
+	// This also mimics the behavior of the default cluster cache impl.
 	pvcs := ci.data.PersistentVolumeClaims
 	cloneList := make([]*v1.PersistentVolumeClaim, 0, len(pvcs))
 	for _, v := range pvcs {
@@ -247,7 +247,7 @@ func (ci *ClusterImporter) GetAllStorageClasses() []*stv1.StorageClass {
 	defer ci.dataLock.Unlock()
 
 	// Deep copy here to avoid callers from corrupting the cache
-	// This also mimic's the behavior of the default cluster cache impl.
+	// This also mimics the behavior of the default cluster cache impl.
 	storageClasses := ci.data.StorageClasses
 	cloneList := make([]*stv1.StorageClass, 0, len(storageClasses))
 	for _, v := range storageClasses {
@@ -262,7 +262,7 @@ func (ci *ClusterImporter) GetAllJobs() []*batchv1.Job {
 	defer ci.dataLock.Unlock()
 
 	// Deep copy here to avoid callers from corrupting the cache
-	// This also mimic's the behavior of the default cluster cache impl.
+	// This also mimics the behavior of the default cluster cache impl.
 	jobs := ci.data.Jobs
 	cloneList := make([]*batchv1.Job, 0, len(jobs))
 	for _, v := range jobs {
@@ -277,7 +277,7 @@ func (ci *ClusterImporter) GetAllHorizontalPodAutoscalers() []*autoscaling.Horiz
 	defer ci.dataLock.Unlock()
 
 	// Deep copy here to avoid callers from corrupting the cache
-	// This also mimic's the behavior of the default cluster cache impl.
+	// This also mimics the behavior of the default cluster cache impl.
 	hpas := ci.data.HorizontalPodAutoscalers
 	cloneList := make([]*autoscaling.HorizontalPodAutoscaler, 0, len(hpas))
 	for _, v := range hpas {
@@ -292,7 +292,7 @@ func (ci *ClusterImporter) GetAllPodDisruptionBudgets() []*v1beta1.PodDisruption
 	defer ci.dataLock.Unlock()
 
 	// Deep copy here to avoid callers from corrupting the cache
-	// This also mimic's the behavior of the default cluster cache impl.
+	// This also mimics the behavior of the default cluster cache impl.
 	pdbs := ci.data.PodDisruptionBudgets
 	cloneList := make([]*v1beta1.PodDisruptionBudget, 0, len(pdbs))
 	for _, v := range pdbs {
