@@ -58,9 +58,9 @@ func (acr AzureCSVRetriever) getMostRecentFiles(start, end time.Time, containerU
 }
 
 func (acr AzureCSVRetriever) getContainer() (*azblob.ContainerURL, error) {
-	accountKey := env.GetAzureStorageAccessKey()
-	accountName := env.GetAzureStorageAccountName()
-	containerName := env.GetAzureStorageContainerName()
+	accountName := env.Get(env.AzureStorageAccountNameEnvVar, "")
+	accountKey := env.Get(env.AzureStorageAccessKeyEnvVar, "")
+	containerName := env.Get(env.AzureStorageContainerNameEnvVar, "")
 	if accountName == "" || accountKey == "" || containerName == "" {
 		return nil, fmt.Errorf("set up Azure storage config to access out of cluster costs")
 	}
