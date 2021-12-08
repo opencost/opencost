@@ -585,6 +585,16 @@ func applyPodResults(window kubecost.Window, resolution time.Duration, podMap ma
 		allocStart = allocStart.Add(time.Duration(startAdjustmentCoeff*100) * resolution / time.Duration(100))
 		allocEnd = allocEnd.Add(-time.Duration(endAdjustmentCoeff*100) * resolution / time.Duration(100))
 
+		// Ensure that the allocStart is always within the window, adjusting
+		// for the occasions where start falls 1m before the query window.
+		// NOTE: window here will always be closed (so no need to nil check
+		// "start").
+		// TODO:CLEANUP revisit query methodology to figure out why this is
+		// happening on occasion
+		if allocStart.Before(*window.Start()) {
+			allocStart = *window.Start()
+		}
+
 		// If there is only one point with a value <= 0.5 that the start and
 		// end timestamps both share, then we will enter this case because at
 		// least half of a resolution will be subtracted from both the start
@@ -596,6 +606,18 @@ func applyPodResults(window kubecost.Window, resolution time.Duration, podMap ma
 		if !allocEnd.After(allocStart) {
 			allocStart = allocStart.Add(-time.Duration(50*startAdjustmentCoeff) * resolution / time.Duration(100))
 			allocEnd = allocEnd.Add(time.Duration(50*endAdjustmentCoeff) * resolution / time.Duration(100))
+		}
+
+		// Ensure that the allocEnf is always within the window, adjusting
+		// for the occasions where end falls 1m after the query window. This
+		// has not ever happened, but is symmetrical with the start check
+		// above.
+		// NOTE: window here will always be closed (so no need to nil check
+		// "end").
+		// TODO:CLEANUP revisit query methodology to figure out why this is
+		// happening on occasion
+		if allocEnd.After(*window.End()) {
+			allocEnd = *window.End()
 		}
 
 		// Set start if unset or this datum's start time is earlier than the
