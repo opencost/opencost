@@ -92,6 +92,32 @@ func TestNodeValueFromMapField(t *testing.T) {
 
 }
 
+func TestPVPriceFromCSV(t *testing.T) {
+	nameWant := "pvc-08e1f205-d7a9-4430-90fc-7b3965a18c4d"
+	pv := &v1.PersistentVolume{}
+	pv.Name = nameWant
+
+	wantPrice := "0.1337"
+	c := &cloud.CSVProvider{
+		CSVLocation: "../configs/pricing_schema_pv.csv",
+		CustomProvider: &cloud.CustomProvider{
+			Config: cloud.NewProviderConfig("../configs/default.json"),
+		},
+	}
+	c.DownloadPricingData()
+	k := c.GetPVKey(pv, make(map[string]string), "")
+	resPV, err := c.PVPricing(k)
+	if err != nil {
+		t.Errorf("Error in NodePricing: %s", err.Error())
+	} else {
+		gotPrice := resPV.Cost
+		if gotPrice != wantPrice {
+			t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+		}
+	}
+
+}
+
 func TestNodePriceFromCSV(t *testing.T) {
 	providerIDWant := "providerid"
 	nameWant := "gke-standard-cluster-1-pool-1-91dc432d-cg69"
