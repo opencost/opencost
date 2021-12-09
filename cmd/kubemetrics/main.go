@@ -9,6 +9,7 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/config"
 	"github.com/kubecost/cost-model/pkg/costmodel"
 	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
 	"github.com/kubecost/cost-model/pkg/env"
@@ -27,6 +28,13 @@ import (
 	"k8s.io/klog"
 )
 
+// ClusterExportInterval is the interval used to export the cluster if env.IsExportClusterCacheEnabled() is true
+const ClusterExportInterval = 5 * time.Minute
+
+// clusterExporter is used if env.IsExportClusterCacheEnabled() is set to true
+// it will export the kubernetes cluster data to a file on a specific interval
+var clusterExporter *clustercache.ClusterExporter
+
 func Healthz(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(200)
 	w.Header().Set("Content-Length", "0")
@@ -34,7 +42,7 @@ func Healthz(w http.ResponseWriter, _ *http.Request) {
 }
 
 // initializes the kubernetes client cache
-func newKubernetesClusterCache() (clustercache.ClusterCache, error) {
+func newKubernetesClusterCache() (kubernetes.Interface, clustercache.ClusterCache, error) {
 	var err error
 
 	// Kubernetes API setup
@@ -46,19 +54,19 @@ func newKubernetesClusterCache() (clustercache.ClusterCache, error) {
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	kubeClientset, err := kubernetes.NewForConfig(kc)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Create Kubernetes Cluster Cache + Watchers
 	k8sCache := clustercache.NewKubernetesClusterCache(kubeClientset)
 	k8sCache.Run()
 
-	return k8sCache, nil
+	return kubeClientset, k8sCache, nil
 }
 
 func newPrometheusClient() (prometheus.Client, error) {
@@ -124,13 +132,19 @@ func main() {
 	klog.Infof("Using scrape interval of %f", scrapeInterval.Seconds())
 
 	// initialize kubernetes client and cluster cache
-	clusterCache, err := newKubernetesClusterCache()
+	k8sClient, clusterCache, err := newKubernetesClusterCache()
 	if err != nil {
 		panic(err.Error())
 	}
 
+	// Create ConfigFileManager for synchronization of shared configuration
+	confManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		BucketStoreConfig: env.GetKubecostConfigBucket(),
+		LocalConfigPath:   "/",
+	})
+
 	cloudProviderKey := env.GetCloudProviderAPIKey()
-	cloudProvider, err := cloud.NewProvider(clusterCache, cloudProviderKey)
+	cloudProvider, err := cloud.NewProvider(clusterCache, cloudProviderKey, confManager)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -140,7 +154,6 @@ func main() {
 	watchConfigFunc := configWatchers.ToWatchFunc()
 	watchedConfigs := configWatchers.GetWatchedConfigs()
 
-	k8sClient := clusterCache.GetClient()
 	kubecostNamespace := env.GetKubecostNamespace()
 
 	// We need an initial invocation because the init of the cache has happened before we had access to the provider.
@@ -155,16 +168,25 @@ func main() {
 
 	clusterCache.SetConfigMapUpdateFunc(watchConfigFunc)
 
+	// Initialize cluster exporting if it's enabled
+	if env.IsExportClusterCacheEnabled() {
+		cacheLocation := confManager.ConfigFileAt("/var/configs/cluster-cache.json")
+		clusterExporter = clustercache.NewClusterExporter(clusterCache, cacheLocation, ClusterExportInterval)
+		clusterExporter.Run()
+	}
+
+	// ClusterInfo Provider to provide the cluster map with local and remote cluster data
+	clusterInfoConf := confManager.ConfigFileAt("/var/configs/cluster-info.json")
+	localClusterInfo := costmodel.NewLocalClusterInfoProvider(k8sClient, cloudProvider)
+	clusterInfoProvider := costmodel.NewClusterInfoWriteOnRequest(localClusterInfo, clusterInfoConf)
+
 	// Initialize ClusterMap for maintaining ClusterInfo by ClusterID
-	clusterMap := clusters.NewClusterMap(
-		promCli,
-		costmodel.NewLocalClusterInfoProvider(k8sClient, cloudProvider),
-		5*time.Minute)
+	clusterMap := clusters.NewClusterMap(promCli, clusterInfoProvider, 5*time.Minute)
 
 	costModel := costmodel.NewCostModel(promCli, cloudProvider, clusterCache, clusterMap, scrapeInterval)
 
 	// initialize Kubernetes Metrics Emitter
-	metricsEmitter := costmodel.NewCostModelMetricsEmitter(promCli, clusterCache, cloudProvider, costModel)
+	metricsEmitter := costmodel.NewCostModelMetricsEmitter(promCli, clusterCache, cloudProvider, clusterInfoProvider, costModel)
 
 	// download pricing data
 	err = cloudProvider.DownloadPricingData()

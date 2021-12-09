@@ -2,8 +2,10 @@ package costmodel
 
 import (
 	"context"
+	"encoding/base64"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -11,11 +13,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/config"
 	"github.com/kubecost/cost-model/pkg/services"
 	"github.com/kubecost/cost-model/pkg/util/httputil"
 	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"github.com/kubecost/cost-model/pkg/util/watcher"
+	"github.com/microcosm-cc/bluemonday"
 
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
 
 	"github.com/julienschmidt/httprouter"
@@ -34,6 +39,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/util/json"
 	prometheus "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/patrickmn/go-cache"
@@ -43,6 +49,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+var sanitizePolicy = bluemonday.UGCPolicy()
+
 const (
 	RFC3339Milli         = "2006-01-02T15:04:05.000Z"
 	maxCacheMinutes1d    = 11
@@ -51,6 +59,8 @@ const (
 	maxCacheMinutes30d   = 137
 	CustomPricingSetting = "CustomPricing"
 	DiscountSetting      = "Discount"
+	epRules              = apiPrefix + "/rules"
+	LogSeparator         = "+-------------------------------------------------------------------------------------"
 )
 
 var (
@@ -61,20 +71,23 @@ var (
 // Accesses defines a singleton application instance, providing access to
 // Prometheus, Kubernetes, the cloud provider, and caches.
 type Accesses struct {
-	Router            *httprouter.Router
-	PrometheusClient  prometheus.Client
-	ThanosClient      prometheus.Client
-	KubeClientSet     kubernetes.Interface
-	ClusterMap        clusters.ClusterMap
-	CloudProvider     cloud.Provider
-	Model             *CostModel
-	MetricsEmitter    *CostModelMetricsEmitter
-	OutOfClusterCache *cache.Cache
-	AggregateCache    *cache.Cache
-	CostDataCache     *cache.Cache
-	ClusterCostsCache *cache.Cache
-	CacheExpiration   map[time.Duration]time.Duration
-	AggAPI            Aggregator
+	Router              *httprouter.Router
+	PrometheusClient    prometheus.Client
+	ThanosClient        prometheus.Client
+	KubeClientSet       kubernetes.Interface
+	ClusterCache        clustercache.ClusterCache
+	ClusterMap          clusters.ClusterMap
+	CloudProvider       cloud.Provider
+	ConfigFileManager   *config.ConfigFileManager
+	ClusterInfoProvider clusters.ClusterInfoProvider
+	Model               *CostModel
+	MetricsEmitter      *CostModelMetricsEmitter
+	OutOfClusterCache   *cache.Cache
+	AggregateCache      *cache.Cache
+	CostDataCache       *cache.Cache
+	ClusterCostsCache   *cache.Cache
+	CacheExpiration     map[time.Duration]time.Duration
+	AggAPI              Aggregator
 	// SettingsCache stores current state of app settings
 	SettingsCache *cache.Cache
 	// settingsSubscribers tracks channels through which changes to different
@@ -341,12 +354,23 @@ func WrapDataWithMessageAndWarning(data interface{}, err error, message, warning
 	return resp
 }
 
+// wrapAsObjectItems wraps a slice of items into an object containing a single items list
+// allows our k8s proxy methods to emulate a List() request to k8s API
+func wrapAsObjectItems(items interface{}) map[string]interface{} {
+	return map[string]interface{}{
+		"items": items,
+	}
+}
+
 // RefreshPricingData needs to be called when a new node joins the fleet, since we cache the relevant subsets of pricing data to avoid storing the whole thing.
 func (a *Accesses) RefreshPricingData(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	err := a.CloudProvider.DownloadPricingData()
+	if err != nil {
+		klog.V(1).Infof("Error refreshing pricing data: %s", err.Error())
+	}
 
 	w.Write(WrapData(nil, err))
 }
@@ -680,7 +704,7 @@ func (a *Accesses) ClusterInfo(w http.ResponseWriter, r *http.Request, ps httpro
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	data := GetClusterInfo(a.KubeClientSet, a.CloudProvider)
+	data := a.ClusterInfoProvider.GetClusterInfo()
 
 	w.Write(WrapData(data, nil))
 }
@@ -910,6 +934,419 @@ func (a *Accesses) GetPrometheusMetrics(w http.ResponseWriter, _ *http.Request, 
 	w.Write(WrapData(result, nil))
 }
 
+func (a *Accesses) GetAllPersistentVolumes(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	pvList := a.ClusterCache.GetAllPersistentVolumes()
+
+	body, err := json.Marshal(wrapAsObjectItems(pvList))
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding persistent volumes: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+
+}
+
+func (a *Accesses) GetAllDeployments(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	qp := httputil.NewQueryParams(r.URL.Query())
+
+	namespace := qp.Get("namespace", "")
+
+	deploymentsList := a.ClusterCache.GetAllDeployments()
+
+	// filter for provided namespace
+	var deployments []*appsv1.Deployment
+	if namespace == "" {
+		deployments = deploymentsList
+	} else {
+		deployments = []*appsv1.Deployment{}
+
+		for _, d := range deploymentsList {
+			if d.Namespace == namespace {
+				deployments = append(deployments, d)
+			}
+		}
+	}
+
+	body, err := json.Marshal(wrapAsObjectItems(deployments))
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding deployment: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) GetAllStorageClasses(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	scList := a.ClusterCache.GetAllStorageClasses()
+
+	body, err := json.Marshal(wrapAsObjectItems(scList))
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding storageclasses: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) GetAllStatefulSets(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	qp := httputil.NewQueryParams(r.URL.Query())
+
+	namespace := qp.Get("namespace", "")
+
+	statefulSetsList := a.ClusterCache.GetAllStatefulSets()
+
+	// filter for provided namespace
+	var statefulSets []*appsv1.StatefulSet
+	if namespace == "" {
+		statefulSets = statefulSetsList
+	} else {
+		statefulSets = []*appsv1.StatefulSet{}
+
+		for _, ss := range statefulSetsList {
+			if ss.Namespace == namespace {
+				statefulSets = append(statefulSets, ss)
+			}
+		}
+	}
+
+	body, err := json.Marshal(wrapAsObjectItems(statefulSets))
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding deployment: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) GetAllNodes(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	nodeList := a.ClusterCache.GetAllNodes()
+
+	body, err := json.Marshal(wrapAsObjectItems(nodeList))
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding nodes: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) GetAllPods(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	podlist := a.ClusterCache.GetAllPods()
+
+	body, err := json.Marshal(wrapAsObjectItems(podlist))
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding pods: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) GetAllNamespaces(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	namespaces := a.ClusterCache.GetAllNamespaces()
+
+	body, err := json.Marshal(wrapAsObjectItems(namespaces))
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding deployment: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) GetAllDaemonSets(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	daemonSets := a.ClusterCache.GetAllDaemonSets()
+
+	body, err := json.Marshal(wrapAsObjectItems(daemonSets))
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding daemon set: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) GetPod(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	podName := ps.ByName("name")
+	podNamespace := ps.ByName("namespace")
+
+	// TODO: ClusterCache API could probably afford to have some better filtering
+	allPods := a.ClusterCache.GetAllPods()
+	for _, pod := range allPods {
+		if pod.Namespace == podNamespace && pod.Name == podName {
+			body, err := json.Marshal(pod)
+			if err != nil {
+				fmt.Fprintf(w, "Error decoding pod: "+err.Error())
+			} else {
+				w.Write(body)
+			}
+			return
+		}
+	}
+
+	fmt.Fprintf(w, "Pod not found\n")
+}
+
+func (a *Accesses) PrometheusRecordingRules(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	u := a.PrometheusClient.URL(epRules, nil)
+
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		fmt.Fprintf(w, "Error creating Prometheus rule request: "+err.Error())
+	}
+
+	_, body, _, err := a.PrometheusClient.Do(r.Context(), req)
+	if err != nil {
+		fmt.Fprintf(w, "Error making Prometheus rule request: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) PrometheusConfig(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	pConfig := map[string]string{
+		"address": env.GetPrometheusServerEndpoint(),
+	}
+
+	body, err := json.Marshal(pConfig)
+	if err != nil {
+		fmt.Fprintf(w, "Error marshalling prometheus config")
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) PrometheusTargets(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	u := a.PrometheusClient.URL(epTargets, nil)
+
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		fmt.Fprintf(w, "Error creating Prometheus rule request: "+err.Error())
+	}
+
+	_, body, _, err := a.PrometheusClient.Do(r.Context(), req)
+	if err != nil {
+		fmt.Fprintf(w, "Error making Prometheus rule request: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) GetOrphanedPods(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	podlist := a.ClusterCache.GetAllPods()
+
+	var lonePods []*v1.Pod
+	for _, pod := range podlist {
+		if len(pod.OwnerReferences) == 0 {
+			lonePods = append(lonePods, pod)
+		}
+	}
+
+	body, err := json.Marshal(lonePods)
+	if err != nil {
+		fmt.Fprintf(w, "Error decoding pod: "+err.Error())
+	} else {
+		w.Write(body)
+	}
+}
+
+func (a *Accesses) GetInstallNamespace(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	ns := env.GetKubecostNamespace()
+	w.Write([]byte(ns))
+}
+
+// logsFor pulls the logs for a specific pod, namespace, and container
+func logsFor(c kubernetes.Interface, namespace string, pod string, container string, dur time.Duration, ctx context.Context) (string, error) {
+	since := time.Now().UTC().Add(-dur)
+
+	logOpts := v1.PodLogOptions{
+		SinceTime: &metav1.Time{Time: since},
+	}
+	if container != "" {
+		logOpts.Container = container
+	}
+
+	req := c.CoreV1().Pods(namespace).GetLogs(pod, &logOpts)
+	reader, err := req.Stream(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	podLogs, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return "", err
+	}
+
+	return string(podLogs), nil
+}
+
+func (a *Accesses) GetPodLogs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	qp := httputil.NewQueryParams(r.URL.Query())
+
+	ns := qp.Get("namespace", env.GetKubecostNamespace())
+	pod := qp.Get("pod", "")
+	selector := qp.Get("selector", "")
+	container := qp.Get("container", "")
+	since := qp.Get("since", "24h")
+
+	sinceDuration, err := time.ParseDuration(since)
+	if err != nil {
+		fmt.Fprintf(w, "Invalid Duration String: "+err.Error())
+		return
+	}
+
+	var logResult string
+	appendLog := func(ns string, pod string, container string, l string) {
+		if l == "" {
+			return
+		}
+
+		logResult += fmt.Sprintf("%s\n| %s:%s:%s\n%s\n%s\n\n", LogSeparator, ns, pod, container, LogSeparator, l)
+	}
+
+	if pod != "" {
+		pd, err := a.KubeClientSet.CoreV1().Pods(ns).Get(r.Context(), pod, metav1.GetOptions{})
+		if err != nil {
+			fmt.Fprintf(w, "Error Finding Pod: "+err.Error())
+			return
+		}
+
+		if container != "" {
+			var foundContainer bool
+			for _, cont := range pd.Spec.Containers {
+				if strings.EqualFold(cont.Name, container) {
+					foundContainer = true
+					break
+				}
+			}
+			if !foundContainer {
+				fmt.Fprintf(w, "Could not find container: "+container)
+				return
+			}
+		}
+
+		logs, err := logsFor(a.KubeClientSet, ns, pod, container, sinceDuration, r.Context())
+		if err != nil {
+			fmt.Fprintf(w, "Error Getting Logs: "+err.Error())
+			return
+		}
+
+		appendLog(ns, pod, container, logs)
+
+		w.Write([]byte(logResult))
+		return
+	}
+
+	if selector != "" {
+		pods, err := a.KubeClientSet.CoreV1().Pods(ns).List(r.Context(), metav1.ListOptions{LabelSelector: selector})
+		if err != nil {
+			fmt.Fprintf(w, "Error Finding Pod: "+err.Error())
+			return
+		}
+
+		for _, pd := range pods.Items {
+			for _, cont := range pd.Spec.Containers {
+				logs, err := logsFor(a.KubeClientSet, ns, pd.Name, cont.Name, sinceDuration, r.Context())
+				if err != nil {
+					continue
+				}
+				appendLog(ns, pd.Name, cont.Name, logs)
+			}
+		}
+	}
+
+	w.Write([]byte(logResult))
+}
+
+func (a *Accesses) AddServiceKey(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	r.ParseForm()
+
+	key := r.PostForm.Get("key")
+	k := []byte(key)
+	err := ioutil.WriteFile("/var/configs/key.json", k, 0644)
+	if err != nil {
+		fmt.Fprintf(w, "Error writing service key: "+err.Error())
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (a *Accesses) GetHelmValues(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	encodedValues := env.Get("HELM_VALUES", "")
+	if encodedValues == "" {
+		fmt.Fprintf(w, "Values reporting disabled")
+		return
+	}
+
+	result, err := base64.StdEncoding.DecodeString(encodedValues)
+	if err != nil {
+		fmt.Fprintf(w, "Failed to decode encoded values: %s", err)
+		return
+	}
+
+	w.Write(result)
+}
+
+func (a *Accesses) Status(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	promServer := env.GetPrometheusServerEndpoint()
+
+	api := prometheusAPI.NewAPI(a.PrometheusClient)
+	result, err := api.Config(r.Context())
+	if err != nil {
+		fmt.Fprintf(w, "Using Prometheus at "+promServer+". Error: "+err.Error())
+	} else {
+
+		fmt.Fprintf(w, "Using Prometheus at "+promServer+". PrometheusConfig: "+result.YAML)
+	}
+}
+
 // captures the panic event in sentry
 func capturePanicEvent(err string, stack string) {
 	msg := fmt.Sprintf("Panic: %s\nStackTrace: %s\n", err, stack)
@@ -1021,12 +1458,24 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		panic(err.Error())
 	}
 
+	// Create ConfigFileManager for synchronization of shared configuration
+	confManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		BucketStoreConfig: env.GetKubecostConfigBucket(),
+		LocalConfigPath:   "/",
+	})
+
 	// Create Kubernetes Cluster Cache + Watchers
-	k8sCache := clustercache.NewKubernetesClusterCache(kubeClientset)
+	var k8sCache clustercache.ClusterCache
+	if env.IsClusterCacheFileEnabled() {
+		importLocation := confManager.ConfigFileAt("/var/configs/cluster-cache.json")
+		k8sCache = clustercache.NewClusterImporter(importLocation)
+	} else {
+		k8sCache = clustercache.NewKubernetesClusterCache(kubeClientset)
+	}
 	k8sCache.Run()
 
 	cloudProviderKey := env.GetCloudProviderAPIKey()
-	cloudProvider, err := cloud.NewProvider(k8sCache, cloudProviderKey)
+	cloudProvider, err := cloud.NewProvider(k8sCache, cloudProviderKey, confManager)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -1086,13 +1535,21 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		}
 	}
 
+	// ClusterInfo Provider to provide the cluster map with local and remote cluster data
+	var clusterInfoProvider clusters.ClusterInfoProvider
+	if env.IsClusterInfoFileEnabled() {
+		clusterInfoFile := confManager.ConfigFileAt("/var/configs/cluster-info.json")
+		clusterInfoProvider = NewConfiguredClusterInfoProvider(clusterInfoFile)
+	} else {
+		clusterInfoProvider = NewLocalClusterInfoProvider(kubeClientset, cloudProvider)
+	}
+
 	// Initialize ClusterMap for maintaining ClusterInfo by ClusterID
 	var clusterMap clusters.ClusterMap
-	localCIProvider := NewLocalClusterInfoProvider(kubeClientset, cloudProvider)
 	if thanosClient != nil {
-		clusterMap = clusters.NewClusterMap(thanosClient, localCIProvider, 10*time.Minute)
+		clusterMap = clusters.NewClusterMap(thanosClient, clusterInfoProvider, 10*time.Minute)
 	} else {
-		clusterMap = clusters.NewClusterMap(promCli, localCIProvider, 5*time.Minute)
+		clusterMap = clusters.NewClusterMap(promCli, clusterInfoProvider, 5*time.Minute)
 	}
 
 	// cache responses from model and aggregation for a default of 10 minutes;
@@ -1121,24 +1578,27 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		pc = promCli
 	}
 	costModel := NewCostModel(pc, cloudProvider, k8sCache, clusterMap, scrapeInterval)
-	metricsEmitter := NewCostModelMetricsEmitter(promCli, k8sCache, cloudProvider, costModel)
+	metricsEmitter := NewCostModelMetricsEmitter(promCli, k8sCache, cloudProvider, clusterInfoProvider, costModel)
 
 	a := &Accesses{
-		Router:            httprouter.New(),
-		PrometheusClient:  promCli,
-		ThanosClient:      thanosClient,
-		KubeClientSet:     kubeClientset,
-		ClusterMap:        clusterMap,
-		CloudProvider:     cloudProvider,
-		Model:             costModel,
-		MetricsEmitter:    metricsEmitter,
-		AggregateCache:    aggregateCache,
-		CostDataCache:     costDataCache,
-		ClusterCostsCache: clusterCostsCache,
-		OutOfClusterCache: outOfClusterCache,
-		SettingsCache:     settingsCache,
-		CacheExpiration:   cacheExpiration,
-		httpServices:      services.NewCostModelServices(),
+		Router:              httprouter.New(),
+		PrometheusClient:    promCli,
+		ThanosClient:        thanosClient,
+		KubeClientSet:       kubeClientset,
+		ClusterCache:        k8sCache,
+		ClusterMap:          clusterMap,
+		CloudProvider:       cloudProvider,
+		ConfigFileManager:   confManager,
+		ClusterInfoProvider: clusterInfoProvider,
+		Model:               costModel,
+		MetricsEmitter:      metricsEmitter,
+		AggregateCache:      aggregateCache,
+		CostDataCache:       costDataCache,
+		ClusterCostsCache:   clusterCostsCache,
+		OutOfClusterCache:   outOfClusterCache,
+		SettingsCache:       settingsCache,
+		CacheExpiration:     cacheExpiration,
+		httpServices:        services.NewCostModelServices(),
 	}
 	// Use the Accesses instance, itself, as the CostModelAggregator. This is
 	// confusing and unconventional, but necessary so that we can swap it
@@ -1183,6 +1643,26 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	a.Router.GET("/serviceAccountStatus", a.GetServiceAccountStatus)
 	a.Router.GET("/pricingSourceStatus", a.GetPricingSourceStatus)
 	a.Router.GET("/pricingSourceCounts", a.GetPricingSourceCounts)
+
+	// endpoints migrated from server
+	a.Router.GET("/allPersistentVolumes", a.GetAllPersistentVolumes)
+	a.Router.GET("/allDeployments", a.GetAllDeployments)
+	a.Router.GET("/allStorageClasses", a.GetAllStorageClasses)
+	a.Router.GET("/allStatefulSets", a.GetAllStatefulSets)
+	a.Router.GET("/allNodes", a.GetAllNodes)
+	a.Router.GET("/allPods", a.GetAllPods)
+	a.Router.GET("/allNamespaces", a.GetAllNamespaces)
+	a.Router.GET("/allDaemonSets", a.GetAllDaemonSets)
+	a.Router.GET("/pod/:namespace/:name", a.GetPod)
+	a.Router.GET("/prometheusRecordingRules", a.PrometheusRecordingRules)
+	a.Router.GET("/prometheusConfig", a.PrometheusConfig)
+	a.Router.GET("/prometheusTargets", a.PrometheusTargets)
+	a.Router.GET("/orphanedPods", a.GetOrphanedPods)
+	a.Router.GET("/installNamespace", a.GetInstallNamespace)
+	a.Router.GET("/podLogs", a.GetPodLogs)
+	a.Router.POST("/serviceKey", a.AddServiceKey)
+	a.Router.GET("/helmValues", a.GetHelmValues)
+	a.Router.GET("/status", a.Status)
 
 	// prom query proxies
 	a.Router.GET("/prometheusQuery", a.PrometheusQuery)

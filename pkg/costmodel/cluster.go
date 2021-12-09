@@ -2,6 +2,7 @@ package costmodel
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/util/timeutil"
@@ -169,7 +170,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 
 	diskMap := map[string]*Disk{}
 
-	pvCosts(diskMap, resolution, resActiveMins, resPVSize, resPVCost)
+	pvCosts(diskMap, resolution, resActiveMins, resPVSize, resPVCost, provider)
 
 	for _, result := range resLocalStorageCost {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
@@ -442,23 +443,23 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset 
 	activeDataMap := buildActiveDataMap(resActiveMins, resolution)
 
 	gpuCountMap := buildGPUCountMap(resNodeGPUCount)
+	preemptibleMap := buildPreemptibleMap(resIsSpot)
 
-	cpuCostMap, clusterAndNameToType1 := buildCPUCostMap(resNodeCPUHourlyCost)
-	ramCostMap, clusterAndNameToType2 := buildRAMCostMap(resNodeRAMHourlyCost)
-	gpuCostMap, clusterAndNameToType3 := buildGPUCostMap(resNodeGPUHourlyCost, gpuCountMap)
+	cpuCostMap, clusterAndNameToType1 := buildCPUCostMap(resNodeCPUHourlyCost, cp, preemptibleMap)
+	ramCostMap, clusterAndNameToType2 := buildRAMCostMap(resNodeRAMHourlyCost, cp, preemptibleMap)
+	gpuCostMap, clusterAndNameToType3 := buildGPUCostMap(resNodeGPUHourlyCost, gpuCountMap, cp, preemptibleMap)
 
 	clusterAndNameToTypeIntermediate := mergeTypeMaps(clusterAndNameToType1, clusterAndNameToType2)
 	clusterAndNameToType := mergeTypeMaps(clusterAndNameToTypeIntermediate, clusterAndNameToType3)
 
 	cpuCoresMap := buildCPUCoresMap(resNodeCPUCores)
-
 	ramBytesMap := buildRAMBytesMap(resNodeRAMBytes)
 
 	ramUserPctMap := buildRAMUserPctMap(resNodeRAMUserPct)
 	ramSystemPctMap := buildRAMSystemPctMap(resNodeRAMSystemPct)
 
 	cpuBreakdownMap := buildCPUBreakdownMap(resNodeCPUModeTotal)
-	preemptibleMap := buildPreemptibleMap(resIsSpot)
+
 	labelsMap := buildLabelsMap(resLabels)
 
 	costTimesMinuteAndCount(activeDataMap, cpuCostMap, cpuCoresMap)
@@ -1072,7 +1073,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 	}, nil
 }
 
-func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost []*prom.QueryResult) {
+func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost []*prom.QueryResult, cp cloud.Provider) {
 	for _, result := range resActiveMins {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
@@ -1134,6 +1135,12 @@ func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, 
 		diskMap[key].Bytes = bytes
 	}
 
+	customPricingEnabled := cloud.CustomPricesEnabled(cp)
+	customPricingConfig, err := cp.GetConfig()
+	if err != nil {
+		log.Warningf("ClusterDisks: failed to load custom pricing: %s", err)
+	}
+
 	for _, result := range resPVCost {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
@@ -1148,7 +1155,25 @@ func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, 
 
 		// TODO niko/assets storage class
 
-		cost := result.Values[0].Value
+		var cost float64
+
+		if customPricingEnabled && customPricingConfig != nil {
+
+			customPVCostStr := customPricingConfig.Storage
+
+			customPVCost, err := strconv.ParseFloat(customPVCostStr, 64)
+			if err != nil {
+				log.Warningf("ClusterDisks: error parsing custom PV price: %s", customPVCostStr)
+			}
+
+			cost = customPVCost
+
+		} else {
+
+			cost = result.Values[0].Value
+
+		}
+
 		key := fmt.Sprintf("%s/%s", cluster, name)
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{

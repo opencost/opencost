@@ -766,6 +766,71 @@ func TestWindow_DurationOffsetForPrometheus(t *testing.T) {
 // TODO
 // func TestWindow_ExpandEnd(t *testing.T) {}
 
+func TestWindow_Expand(t *testing.T) {
+
+	t1 := time.Now().Round(time.Hour)
+	t2 := t1.Add(34 * time.Minute)
+	t3 := t1.Add(50 * time.Minute)
+	t4 := t1.Add(84 * time.Minute)
+
+	cases := []struct {
+		windowToExpand Window
+		windowArgument Window
+
+		expected Window
+	}{
+		{
+			windowToExpand: NewClosedWindow(t1, t2),
+			windowArgument: NewClosedWindow(t3, t4),
+
+			expected: NewClosedWindow(t1, t4),
+		},
+		{
+			windowToExpand: NewClosedWindow(t3, t4),
+			windowArgument: NewClosedWindow(t1, t2),
+
+			expected: NewClosedWindow(t1, t4),
+		},
+		{
+			windowToExpand: NewClosedWindow(t1, t3),
+			windowArgument: NewClosedWindow(t2, t4),
+
+			expected: NewClosedWindow(t1, t4),
+		},
+		{
+			windowToExpand: NewClosedWindow(t2, t4),
+			windowArgument: NewClosedWindow(t1, t3),
+
+			expected: NewClosedWindow(t1, t4),
+		},
+		{
+			windowToExpand: Window{},
+			windowArgument: NewClosedWindow(t1, t2),
+
+			expected: NewClosedWindow(t1, t2),
+		},
+		{
+			windowToExpand: NewWindow(nil, &t2),
+			windowArgument: NewWindow(nil, &t3),
+
+			expected: NewWindow(nil, &t3),
+		},
+		{
+			windowToExpand: NewWindow(&t2, nil),
+			windowArgument: NewWindow(&t1, nil),
+
+			expected: NewWindow(&t1, nil),
+		},
+	}
+
+	for _, c := range cases {
+		result := c.windowToExpand.Expand(c.windowArgument)
+		if !result.Equal(c.expected) {
+			t.Errorf("Expand %s with %s, expected %s but got %s", c.windowToExpand, c.windowArgument, c.expected, result)
+		}
+	}
+}
+
 // TODO
 // func TestWindow_Start(t *testing.T) {}
 

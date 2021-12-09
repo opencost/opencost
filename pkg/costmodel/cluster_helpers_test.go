@@ -1,11 +1,14 @@
 package costmodel
 
 import (
-	"github.com/kubecost/cost-model/pkg/prom"
-	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/config"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/prom"
+	"github.com/kubecost/cost-model/pkg/util"
 
 	"github.com/davecgh/go-spew/spew"
 )
@@ -849,10 +852,166 @@ func TestBuildGPUCostMap(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			result, _ := buildGPUCostMap(testCase.promResult, testCase.countMap)
+			testProvider := &cloud.CustomProvider{
+				Config: cloud.NewProviderConfig(config.NewConfigFileManager(nil),"fakeFile"),
+			}
+			testPreemptible := make(map[NodeIdentifier]bool)
+			result, _ := buildGPUCostMap(testCase.promResult, testCase.countMap, testProvider, testPreemptible)
 			if !reflect.DeepEqual(result, testCase.expected) {
 				t.Errorf("buildGPUCostMap case %s failed. Got %+v but expected %+v", testCase.name, result, testCase.expected)
 			}
 		})
 	}
+}
+
+func TestAssetCustompricing(t *testing.T) {
+
+	nodePromResult := []*prom.QueryResult{
+		{
+			Metric: map[string]interface{}{
+				"cluster_id":    "cluster1",
+				"node":          "node1",
+				"instance_type": "type1",
+				"provider_id":   "provider1",
+			},
+			Values: []*util.Vector{
+				&util.Vector{
+					Timestamp: 0,
+					Value:     0.5,
+				},
+			},
+		},
+	}
+
+	pvCostPromResult := []*prom.QueryResult{
+		{
+			Metric: map[string]interface{}{
+				"cluster_id":       "cluster1",
+				"persistentvolume": "pvc1",
+				"provider_id":      "provider1",
+			},
+			Values: []*util.Vector{
+				&util.Vector{
+					Timestamp: 0,
+					Value:     1.0,
+				},
+			},
+		},
+	}
+
+	pvSizePromResult := []*prom.QueryResult{
+		{
+			Metric: map[string]interface{}{
+				"cluster_id":       "cluster1",
+				"persistentvolume": "pvc1",
+				"provider_id":      "provider1",
+			},
+			Values: []*util.Vector{
+				&util.Vector{
+					Timestamp: 0,
+					Value:     1073741824.0,
+				},
+			},
+		},
+	}
+
+	pvMinsPromResult := []*prom.QueryResult{
+		{
+			Metric: map[string]interface{}{
+				"cluster_id":       "cluster1",
+				"persistentvolume": "pvc1",
+				"provider_id":      "provider1",
+			},
+			Values: []*util.Vector{
+				&util.Vector{
+					Timestamp: 0,
+					Value:     60.0,
+				},
+			},
+		},
+	}
+
+	gpuCountMap := map[NodeIdentifier]float64{
+		NodeIdentifier{
+			Cluster:    "cluster1",
+			Name:       "node1",
+			ProviderID: "provider1",
+		}: 2,
+	}
+
+	nodeKey := NodeIdentifier{
+		Cluster:    "cluster1",
+		Name:       "node1",
+		ProviderID: "provider1",
+	}
+
+	cases := []struct {
+		name             string
+		customPricingMap map[string]string
+		expectedPricing  map[string]float64
+	}{
+		{
+			name:             "No custom pricing",
+			customPricingMap: map[string]string{},
+			expectedPricing: map[string]float64{
+				"CPU":     0.5,
+				"RAM":     0.5,
+				"GPU":     1.0,
+				"Storage": 1.0,
+			},
+		},
+		{
+			name: "Custom pricing enabled",
+			customPricingMap: map[string]string{
+				"CPU":                 "20.0",
+				"RAM":                 "4.0",
+				"GPU":                 "500.0",
+				"Storage":             "0.1",
+				"customPricesEnabled": "true",
+			},
+			expectedPricing: map[string]float64{
+				"CPU":     0.027397,              // 20.0 / 730
+				"RAM":     5.102716386318207e-12, // 4.0 / 730 / 1024^3
+				"GPU":     1.369864,              // 500.0 / 730 * 2
+				"Storage": 0.000137,              // 0.1 / 730 * (1073741824.0 / 1024 / 1024 / 1024) * (60 / 60) => 0.1 / 730 * 1 * 1
+			},
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			testProvider := &cloud.CustomProvider{
+				Config: cloud.NewProviderConfig(config.NewConfigFileManager(nil),""),
+			}
+			testProvider.UpdateConfigFromConfigMap(testCase.customPricingMap)
+
+			testPreemptible := make(map[NodeIdentifier]bool)
+			cpuMap, _ := buildCPUCostMap(nodePromResult, testProvider, testPreemptible)
+			ramMap, _ := buildRAMCostMap(nodePromResult, testProvider, testPreemptible)
+			gpuMap, _ := buildGPUCostMap(nodePromResult, gpuCountMap, testProvider, testPreemptible)
+
+			cpuResult := cpuMap[nodeKey]
+			ramResult := ramMap[nodeKey]
+			gpuResult := gpuMap[nodeKey]
+
+			diskMap := map[string]*Disk{}
+			pvCosts(diskMap, time.Hour, pvMinsPromResult, pvSizePromResult, pvCostPromResult, testProvider)
+
+			diskResult := diskMap["cluster1/pvc1"].Cost
+
+			if !util.IsApproximately(cpuResult, testCase.expectedPricing["CPU"]) {
+				t.Errorf("CPU custom pricing error in %s. Got %v but expected %v", testCase.name, cpuResult, testCase.expectedPricing["CPU"])
+			}
+			if !util.IsApproximately(ramResult, testCase.expectedPricing["RAM"]) {
+				t.Errorf("RAM custom pricing error in %s. Got %v but expected %v", testCase.name, ramResult, testCase.expectedPricing["RAM"])
+			}
+			if !util.IsApproximately(gpuResult, testCase.expectedPricing["GPU"]) {
+				t.Errorf("GPU custom pricing error in %s. Got %v but expected %v", testCase.name, gpuResult, testCase.expectedPricing["GPU"])
+			}
+			if !util.IsApproximately(diskResult, testCase.expectedPricing["Storage"]) {
+				t.Errorf("Disk custom pricing error in %s. Got %v but expected %v", testCase.name, diskResult, testCase.expectedPricing["Storage"])
+			}
+		})
+	}
+
 }

@@ -24,6 +24,9 @@ const (
 	// AssetNameProp describes the name of the Asset
 	AssetNameProp AssetProperty = "name"
 
+	// AssetNodeProp describes the node of the Asset
+	AssetNodeProp AssetProperty = "node"
+
 	// AssetProjectProp describes the project of the Asset
 	AssetProjectProp AssetProperty = "project"
 
