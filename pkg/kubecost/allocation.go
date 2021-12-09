@@ -350,46 +350,82 @@ func (a *Allocation) Equal(that *Allocation) bool {
 
 // TotalCost is the total cost of the Allocation including adjustments
 func (a *Allocation) TotalCost() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	return a.CPUTotalCost() + a.GPUTotalCost() + a.RAMTotalCost() + a.PVTotalCost() + a.NetworkTotalCost() + a.LBTotalCost() + a.SharedTotalCost() + a.ExternalCost
 }
 
 // CPUTotalCost calculates total CPU cost of Allocation including adjustment
 func (a *Allocation) CPUTotalCost() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	return a.CPUCost + a.CPUCostAdjustment
 }
 
 // GPUTotalCost calculates total GPU cost of Allocation including adjustment
 func (a *Allocation) GPUTotalCost() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	return a.GPUCost + a.GPUCostAdjustment
 }
 
 // RAMTotalCost calculates total RAM cost of Allocation including adjustment
 func (a *Allocation) RAMTotalCost() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	return a.RAMCost + a.RAMCostAdjustment
 }
 
 // PVTotalCost calculates total PV cost of Allocation including adjustment
 func (a *Allocation) PVTotalCost() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	return a.PVCost() + a.PVCostAdjustment
 }
 
 // NetworkTotalCost calculates total Network cost of Allocation including adjustment
 func (a *Allocation) NetworkTotalCost() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	return a.NetworkCost + a.NetworkCostAdjustment
 }
 
 // LBTotalCost calculates total LB cost of Allocation including adjustment
 func (a *Allocation) LBTotalCost() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	return a.LoadBalancerCost + a.LoadBalancerCostAdjustment
 }
 
 // SharedTotalCost calculates total shared cost of Allocation including adjustment
 func (a *Allocation) SharedTotalCost() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	return a.SharedCost
 }
 
 // PVCost calculate cumulative cost of all PVs that Allocation is attached to
 func (a *Allocation) PVCost() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	cost := 0.0
 	for _, pv := range a.PVs {
 		cost += pv.Cost
@@ -399,6 +435,10 @@ func (a *Allocation) PVCost() float64 {
 
 // PVByteHours calculate cumulative ByteHours of all PVs that Allocation is attached to
 func (a *Allocation) PVByteHours() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	byteHours := 0.0
 	for _, pv := range a.PVs {
 		byteHours += pv.ByteHours
@@ -410,6 +450,10 @@ func (a *Allocation) PVByteHours() float64 {
 // no usage or cost, then efficiency is zero. If there is no request, but there
 // is usage or cost, then efficiency is 100%.
 func (a *Allocation) CPUEfficiency() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	if a.CPUCoreRequestAverage > 0 {
 		return a.CPUCoreUsageAverage / a.CPUCoreRequestAverage
 	}
@@ -425,6 +469,10 @@ func (a *Allocation) CPUEfficiency() float64 {
 // no usage or cost, then efficiency is zero. If there is no request, but there
 // is usage or cost, then efficiency is 100%.
 func (a *Allocation) RAMEfficiency() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	if a.RAMBytesRequestAverage > 0 {
 		return a.RAMBytesUsageAverage / a.RAMBytesRequestAverage
 	}
@@ -439,6 +487,10 @@ func (a *Allocation) RAMEfficiency() float64 {
 // TotalEfficiency is the cost-weighted average of CPU and RAM efficiency. If
 // there is no cost at all, then efficiency is zero.
 func (a *Allocation) TotalEfficiency() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	if a.RAMTotalCost()+a.CPUTotalCost() > 0 {
 		ramCostEff := a.RAMEfficiency() * a.RAMTotalCost()
 		cpuCostEff := a.CPUEfficiency() * a.CPUTotalCost()
@@ -482,6 +534,10 @@ func (a *Allocation) PVBytes() float64 {
 
 // ResetAdjustments sets all cost adjustment fields to zero
 func (a *Allocation) ResetAdjustments() {
+	if a == nil {
+		return
+	}
+
 	a.CPUCostAdjustment = 0.0
 	a.GPUCostAdjustment = 0.0
 	a.RAMCostAdjustment = 0.0
@@ -550,27 +606,47 @@ func (a *Allocation) IsAggregated() bool {
 
 // IsExternal is true if the given Allocation represents external costs.
 func (a *Allocation) IsExternal() bool {
+	if a == nil {
+		return false
+	}
+
 	return strings.Contains(a.Name, ExternalSuffix)
 }
 
 // IsIdle is true if the given Allocation represents idle costs.
 func (a *Allocation) IsIdle() bool {
+	if a == nil {
+		return false
+	}
+
 	return strings.Contains(a.Name, IdleSuffix)
 }
 
 // IsUnallocated is true if the given Allocation represents unallocated costs.
 func (a *Allocation) IsUnallocated() bool {
+	if a == nil {
+		return false
+	}
+
 	return strings.Contains(a.Name, UnallocatedSuffix)
 }
 
 // IsUnmounted is true if the given Allocation represents unmounted volume costs.
 func (a *Allocation) IsUnmounted() bool {
+	if a == nil {
+		return false
+	}
+
 	return strings.Contains(a.Name, UnmountedSuffix)
 }
 
 // Minutes returns the number of minutes the Allocation represents, as defined
 // by the difference between the end and start times.
 func (a *Allocation) Minutes() float64 {
+	if a == nil {
+		return 0.0
+	}
+
 	return a.End.Sub(a.Start).Minutes()
 }
 
@@ -594,6 +670,10 @@ func (a *Allocation) Share(that *Allocation) (*Allocation, error) {
 
 // String represents the given Allocation as a string
 func (a *Allocation) String() string {
+	if a == nil {
+		return "<nil>"
+	}
+
 	return fmt.Sprintf("%s%s=%.2f", a.Name, NewWindow(&a.Start, &a.End), a.TotalCost())
 }
 
@@ -743,15 +823,16 @@ func NewAllocationSet(start, end time.Time, allocs ...*Allocation) *AllocationSe
 // succeeds, the allocation is marked as a shared resource. ShareIdle is a
 // simple flag for sharing idle resources.
 type AllocationAggregationOptions struct {
-	FilterFuncs       []AllocationMatchFunc
-	IdleByNode        bool
-	LabelConfig       *LabelConfig
-	MergeUnallocated  bool
-	SharedHourlyCosts map[string]float64
-	ShareFuncs        []AllocationMatchFunc
-	ShareIdle         string
-	ShareSplit        string
-	SplitIdle         bool
+	AllocationTotalsStore AllocationTotalsStore
+	FilterFuncs           []AllocationMatchFunc
+	IdleByNode            bool
+	LabelConfig           *LabelConfig
+	MergeUnallocated      bool
+	ShareFuncs            []AllocationMatchFunc
+	ShareIdle             string
+	ShareSplit            string
+	SharedHourlyCosts     map[string]float64
+	SplitIdle             bool
 }
 
 // AggregateBy aggregates the Allocations in the given AllocationSet by the given
@@ -759,33 +840,47 @@ type AllocationAggregationOptions struct {
 // given AllocationProperty; e.g. Containers can be divided by Namespace, but not vice-a-versa.
 func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAggregationOptions) error {
 	// The order of operations for aggregating allocations is as follows:
+	//
 	//  1. Partition external, idle, and shared allocations into separate sets.
 	//     Also, create the aggSet into which the results will be aggregated.
+	//
 	//  2. Compute sharing coefficients for idle and shared resources
 	//     a) if idle allocation is to be shared, compute idle coefficients
 	//     b) if idle allocation is NOT shared, but filters are present, compute
 	//        idle filtration coefficients for the purpose of only returning the
 	//        portion of idle allocation that would have been shared with the
 	//        unfiltered results. (See unit tests 5.a,b,c)
-	//     c) generate shared allocation for then given shared overhead, which
+	//     c) generate shared allocation for them given shared overhead, which
 	//        must happen after (2a) and (2b)
 	//     d) if there are shared resources, compute share coefficients
+	//
 	//  3. Drop any allocation that fails any of the filters
+	//
 	//  4. Distribute idle allocations according to the idle coefficients
+	//
 	//  5. Generate aggregation key and insert allocation into the output set
+	//
 	//  6. If idle is shared and resources are shared, some idle might be shared
 	//     with a shared resource. Distribute that to the shared resources
 	//     prior to sharing them with the aggregated results.
+	//
 	//  7. Apply idle filtration coefficients from step (2b)
+	//
 	//  8. Distribute shared allocations according to the share coefficients.
+	//
 	//  9. If there are external allocations that can be aggregated into
 	//     the output (i.e. they can be used to generate a valid key for
 	//     the given properties) then aggregate; otherwise... ignore them?
+	//
 	// 10. If the merge idle option is enabled, merge any remaining idle
 	//     allocations into a single idle allocation. If there was any idle
 	//	   whose costs were not distributed because there was no usage of a
 	//     specific resource type, re-add the idle to the aggregation with
 	//     only that type.
+	//
+	// 11. Distribute any undistributed idle, in the case that idle
+	//     coefficients end up being zero and some idle is not shared.
+
 	if as.IsEmpty() {
 		return nil
 	}
@@ -963,7 +1058,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	}
 
 	// (2c) Convert SharedHourlyCosts to Allocations in the shareSet. This must
-	// come after idle coefficients are computes so that allocations generated
+	// come after idle coefficients are computed so that allocations generated
 	// by shared overhead do not skew the idle coefficient computation.
 	for name, cost := range options.SharedHourlyCosts {
 		if cost > 0.0 {
@@ -1178,7 +1273,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		for _, alloc := range aggSet.allocations {
 			for _, sharedAlloc := range shareSet.allocations {
 				if _, ok := shareCoefficients[alloc.Name]; !ok {
-					if !alloc.IsIdle() {
+					if !alloc.IsIdle() && !alloc.IsUnmounted() {
 						log.Warningf("AllocationSet.AggregateBy: error getting share coefficienct for '%s'", alloc.Name)
 					}
 					continue
@@ -1218,7 +1313,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		}
 	}
 
-	// In the edge case that some idle has not been distributed because
+	// (11) In the edge case that some idle has not been distributed because
 	// there is no usage of that resource type, add idle back to
 	// aggregations with only that cost applied.
 
@@ -1238,42 +1333,36 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// __idle__ $0      $12     $0
 	// kubecost $12     $0      $7
 
-	if idleSet.Length() > 0 && !options.SplitIdle {
-		if undistributedIdleMap["cpu"] || undistributedIdleMap["gpu"] || undistributedIdleMap["ram"] {
+	hasUndistributedIdle := undistributedIdleMap["cpu"] || undistributedIdleMap["gpu"] || undistributedIdleMap["ram"]
+	if idleSet.Length() > 0 && hasUndistributedIdle {
+		for _, idleAlloc := range idleSet.allocations {
+			// if the idle does not apply to the non-filtered values, skip it
+			skip := false
+			for _, ff := range options.FilterFuncs {
+				if !ff(idleAlloc) {
+					skip = true
+					break
+				}
+			}
+			if skip {
+				continue
+			}
 
-			for _, idleAlloc := range idleSet.allocations {
-
-				skip := false
-
-				// if the idle does not apply to the non-filtered values, skip it
-				for _, ff := range options.FilterFuncs {
-					if !ff(idleAlloc) {
-						skip = true
-						break
-					}
+			// if the idle doesn't have a cost to be shared, also skip it
+			if idleAlloc.CPUCost != 0 && idleAlloc.GPUCost != 0 && idleAlloc.RAMCost != 0 {
+				// artificially set the already shared costs to zero
+				if !undistributedIdleMap["cpu"] {
+					idleAlloc.CPUCost = 0
+				}
+				if !undistributedIdleMap["gpu"] {
+					idleAlloc.GPUCost = 0
+				}
+				if !undistributedIdleMap["ram"] {
+					idleAlloc.RAMCost = 0
 				}
 
-				if skip {
-					continue
-				}
-
-				// if the idle doesn't have a cost to be shared, also skip it
-				if idleAlloc.CPUCost != 0 && idleAlloc.GPUCost != 0 && idleAlloc.RAMCost != 0 {
-
-					// artificially set the already shared costs to zero
-					if !undistributedIdleMap["cpu"] {
-						idleAlloc.CPUCost = 0
-					}
-					if !undistributedIdleMap["gpu"] {
-						idleAlloc.GPUCost = 0
-					}
-					if !undistributedIdleMap["ram"] {
-						idleAlloc.RAMCost = 0
-					}
-
-					idleAlloc.Name = IdleSuffix
-					aggSet.Insert(idleAlloc)
-				}
+				idleAlloc.Name = IdleSuffix
+				aggSet.Insert(idleAlloc)
 			}
 		}
 	}
@@ -1504,169 +1593,7 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 		return ""
 	}
 
-	if labelConfig == nil {
-		labelConfig = NewLabelConfig()
-	}
-
-	// Names will ultimately be joined into a single name, which uniquely
-	// identifies allocations.
-	names := []string{}
-
-	for _, agg := range aggregateBy {
-		switch true {
-		case agg == AllocationClusterProp:
-			names = append(names, a.Properties.Cluster)
-		case agg == AllocationNodeProp:
-			names = append(names, a.Properties.Node)
-		case agg == AllocationNamespaceProp:
-			names = append(names, a.Properties.Namespace)
-		case agg == AllocationControllerKindProp:
-			controllerKind := a.Properties.ControllerKind
-			if controllerKind == "" {
-				// Indicate that allocation has no controller
-				controllerKind = UnallocatedSuffix
-			}
-			names = append(names, controllerKind)
-		case agg == AllocationDaemonSetProp || agg == AllocationStatefulSetProp || agg == AllocationDeploymentProp || agg == AllocationJobProp:
-			controller := a.Properties.Controller
-			if agg != a.Properties.ControllerKind || controller == "" {
-				// The allocation does not have the specified controller kind
-				controller = UnallocatedSuffix
-			}
-			names = append(names, controller)
-		case agg == AllocationControllerProp:
-			controller := a.Properties.Controller
-			if controller == "" {
-				// Indicate that allocation has no controller
-				controller = UnallocatedSuffix
-			} else if a.Properties.ControllerKind != "" {
-				controller = fmt.Sprintf("%s:%s", a.Properties.ControllerKind, controller)
-			}
-			names = append(names, controller)
-		case agg == AllocationPodProp:
-			names = append(names, a.Properties.Pod)
-		case agg == AllocationContainerProp:
-			names = append(names, a.Properties.Container)
-		case agg == AllocationServiceProp:
-			services := a.Properties.Services
-			if len(services) == 0 {
-				// Indicate that allocation has no services
-				names = append(names, UnallocatedSuffix)
-			} else {
-				// This just uses the first service
-				for _, service := range services {
-					names = append(names, service)
-					break
-				}
-			}
-		case strings.HasPrefix(agg, "label:"):
-			labels := a.Properties.Labels
-			if labels == nil {
-				names = append(names, UnallocatedSuffix)
-			} else {
-				labelName := labelConfig.Sanitize(strings.TrimPrefix(agg, "label:"))
-				if labelValue, ok := labels[labelName]; ok {
-					names = append(names, fmt.Sprintf("%s=%s", labelName, labelValue))
-				} else {
-					names = append(names, UnallocatedSuffix)
-				}
-			}
-		case strings.HasPrefix(agg, "annotation:"):
-			annotations := a.Properties.Annotations
-			if annotations == nil {
-				names = append(names, UnallocatedSuffix)
-			} else {
-				annotationName := labelConfig.Sanitize(strings.TrimPrefix(agg, "annotation:"))
-				if annotationValue, ok := annotations[annotationName]; ok {
-					names = append(names, fmt.Sprintf("%s=%s", annotationName, annotationValue))
-				} else {
-					names = append(names, UnallocatedSuffix)
-				}
-			}
-		case agg == AllocationDepartmentProp:
-			labels := a.Properties.Labels
-			if labels == nil {
-				names = append(names, UnallocatedSuffix)
-			} else {
-				labelNames := strings.Split(labelConfig.DepartmentLabel, ",")
-				for _, labelName := range labelNames {
-					labelName = labelConfig.Sanitize(labelName)
-					if labelValue, ok := labels[labelName]; ok {
-						names = append(names, labelValue)
-					} else {
-						names = append(names, UnallocatedSuffix)
-					}
-				}
-			}
-		case agg == AllocationEnvironmentProp:
-			labels := a.Properties.Labels
-			if labels == nil {
-				names = append(names, UnallocatedSuffix)
-			} else {
-				labelNames := strings.Split(labelConfig.EnvironmentLabel, ",")
-				for _, labelName := range labelNames {
-					labelName = labelConfig.Sanitize(labelName)
-					if labelValue, ok := labels[labelName]; ok {
-						names = append(names, labelValue)
-					} else {
-						names = append(names, UnallocatedSuffix)
-					}
-				}
-			}
-		case agg == AllocationOwnerProp:
-			labels := a.Properties.Labels
-			if labels == nil {
-				names = append(names, UnallocatedSuffix)
-			} else {
-				labelNames := strings.Split(labelConfig.OwnerLabel, ",")
-				for _, labelName := range labelNames {
-					labelName = labelConfig.Sanitize(labelName)
-					if labelValue, ok := labels[labelName]; ok {
-						names = append(names, labelValue)
-					} else {
-						names = append(names, UnallocatedSuffix)
-					}
-				}
-			}
-		case agg == AllocationProductProp:
-			labels := a.Properties.Labels
-			if labels == nil {
-				names = append(names, UnallocatedSuffix)
-			} else {
-				labelNames := strings.Split(labelConfig.ProductLabel, ",")
-				for _, labelName := range labelNames {
-					labelName = labelConfig.Sanitize(labelName)
-					if labelValue, ok := labels[labelName]; ok {
-						names = append(names, labelValue)
-					} else {
-						names = append(names, UnallocatedSuffix)
-					}
-				}
-			}
-		case agg == AllocationTeamProp:
-			labels := a.Properties.Labels
-			if labels == nil {
-				names = append(names, UnallocatedSuffix)
-			} else {
-				labelNames := strings.Split(labelConfig.TeamLabel, ",")
-				for _, labelName := range labelNames {
-					labelName = labelConfig.Sanitize(labelName)
-					if labelValue, ok := labels[labelName]; ok {
-						names = append(names, labelValue)
-					} else {
-						names = append(names, UnallocatedSuffix)
-					}
-				}
-			}
-		default:
-			// This case should never be reached, as input up until this point
-			// should be checked and rejected if invalid. But if we do get a
-			// value we don't recognize, log a warning.
-			log.Warningf("AggregateBy: illegal aggregation parameter: %s", agg)
-		}
-	}
-
-	return strings.Join(names, "/")
+	return a.Properties.GenerateKey(aggregateBy, labelConfig)
 }
 
 // Clone returns a new AllocationSet with a deep copy of the given

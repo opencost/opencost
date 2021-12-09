@@ -9,19 +9,19 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/metrics"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/atomic"
 
 	promclient "github.com/prometheus/client_golang/api"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	v1 "k8s.io/api/core/v1"
-
-	"k8s.io/client-go/kubernetes"
 
 	"k8s.io/klog"
 )
@@ -32,8 +32,7 @@ import (
 
 // ClusterInfoCollector is a prometheus collector that generates ClusterInfoMetrics
 type ClusterInfoCollector struct {
-	Cloud         cloud.Provider
-	KubeClientSet kubernetes.Interface
+	ClusterInfo clusters.ClusterInfoProvider
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
@@ -44,7 +43,7 @@ func (cic ClusterInfoCollector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (cic ClusterInfoCollector) Collect(ch chan<- prometheus.Metric) {
-	clusterInfo := GetClusterInfo(cic.KubeClientSet, cic.Cloud)
+	clusterInfo := cic.ClusterInfo.GetClusterInfo()
 	labels := prom.MapToLabels(clusterInfo)
 
 	m := newClusterInfoMetric("kubecost_cluster_info", labels)
@@ -126,7 +125,7 @@ var (
 )
 
 // initCostModelMetrics uses a sync.Once to ensure that these metrics are only created once
-func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud.Provider) {
+func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud.Provider, clusterInfo clusters.ClusterInfoProvider) {
 	metricsInit.Do(func() {
 		cpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_cpu_hourly_cost",
@@ -216,8 +215,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud
 
 		// General Metric Collectors
 		prometheus.MustRegister(ClusterInfoCollector{
-			KubeClientSet: clusterCache.GetClient(),
-			Cloud:         provider,
+			ClusterInfo: clusterInfo,
 		})
 	})
 }
@@ -252,16 +250,14 @@ type CostModelMetricsEmitter struct {
 	NetworkRegionEgressRecorder   prometheus.Gauge
 	NetworkInternetEgressRecorder prometheus.Gauge
 
-	// Flow Control
-	recordingLock     *sync.Mutex
-	recordingStopping bool
-	recordingStop     chan bool
+	// Concurrent Flow Control - Manages the run state of the metric emitter
+	runState atomic.AtomicRunState
 }
 
 // NewCostModelMetricsEmitter creates a new cost-model metrics emitter. Use Start() to begin metric emission.
-func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clustercache.ClusterCache, provider cloud.Provider, model *CostModel) *CostModelMetricsEmitter {
+func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clustercache.ClusterCache, provider cloud.Provider, clusterInfo clusters.ClusterInfoProvider, model *CostModel) *CostModelMetricsEmitter {
 	// init will only actually execute once to register the custom gauges
-	initCostModelMetrics(clusterCache, provider)
+	initCostModelMetrics(clusterCache, provider, clusterInfo)
 
 	metrics.InitKubeMetrics(clusterCache, &metrics.KubeMetricsOpts{
 		EmitKubecostControllerMetrics: true,
@@ -292,33 +288,12 @@ func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clust
 		NetworkInternetEgressRecorder: networkInternetEgressCostG,
 		ClusterManagementCostRecorder: clusterManagementCostGv,
 		LBCostRecorder:                lbCostGv,
-		recordingLock:                 new(sync.Mutex),
-		recordingStopping:             false,
-		recordingStop:                 nil,
 	}
-}
-
-// Checks to see if there is a metric recording stop channel. If it exists, a new
-// channel is not created and false is returned. If it doesn't exist, a new channel
-// is created and true is returned.
-func (cmme *CostModelMetricsEmitter) checkOrCreateRecordingChan() bool {
-	cmme.recordingLock.Lock()
-	defer cmme.recordingLock.Unlock()
-
-	if cmme.recordingStop != nil {
-		return false
-	}
-
-	cmme.recordingStop = make(chan bool, 1)
-	return true
 }
 
 // IsRunning returns true if metric recording is running.
 func (cmme *CostModelMetricsEmitter) IsRunning() bool {
-	cmme.recordingLock.Lock()
-	defer cmme.recordingLock.Unlock()
-
-	return cmme.recordingStop != nil
+	return cmme.runState.IsRunning()
 }
 
 // NodeCostAverages tracks a running average of a node's cost attributes.
@@ -333,10 +308,11 @@ type NodeCostAverages struct {
 // StartCostModelMetricRecording starts the go routine that emits metrics used to determine
 // cluster costs.
 func (cmme *CostModelMetricsEmitter) Start() bool {
-	// Check to see if we're already recording
-	// This function will create the stop recording channel and return true
-	// if it doesn't exist.
-	if !cmme.checkOrCreateRecordingChan() {
+	// wait for a reset to prevent a race between start and stop calls
+	cmme.runState.WaitForReset()
+
+	// Check to see if we're already recording, and atomically advance the run state to start if we're not
+	if !cmme.runState.Start() {
 		log.Errorf("Attempted to start cost model metric recording when it's already running.")
 		return false
 	}
@@ -699,11 +675,8 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 			select {
 			case <-time.After(time.Minute):
-			case <-cmme.recordingStop:
-				cmme.recordingLock.Lock()
-				cmme.recordingStopping = false
-				cmme.recordingStop = nil
-				cmme.recordingLock.Unlock()
+			case <-cmme.runState.OnStop():
+				cmme.runState.Reset()
 				return
 			}
 		}
@@ -715,11 +688,5 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 // Stop halts the metrics emission loop after the current emission is completed
 // or if the emission is paused.
 func (cmme *CostModelMetricsEmitter) Stop() {
-	cmme.recordingLock.Lock()
-	defer cmme.recordingLock.Unlock()
-
-	if !cmme.recordingStopping && cmme.recordingStop != nil {
-		cmme.recordingStopping = true
-		close(cmme.recordingStop)
-	}
+	cmme.runState.Stop()
 }

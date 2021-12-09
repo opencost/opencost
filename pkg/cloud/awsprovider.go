@@ -2020,7 +2020,7 @@ func (a *AWS) ExternalAllocations(start string, end string, aggregators []string
 		}
 
 		if customPricing.BillingDataDataset != "" && !crossCluster { // There is GCP data, meaning someone has tried to configure a GCP out-of-cluster allocation.
-			gcp, err := NewCrossClusterProvider("gcp", "aws.json", a.Clientset)
+			gcp, err := NewCrossClusterProvider("gcp", a.Config.ConfigFileManager(), "aws.json", a.Clientset)
 			if err != nil {
 				klog.Infof("Could not instantiate cross-cluster provider %s", err.Error())
 			}

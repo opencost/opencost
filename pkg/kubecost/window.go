@@ -3,11 +3,12 @@ package kubecost
 import (
 	"bytes"
 	"fmt"
-	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"math"
 	"regexp"
 	"strconv"
 	"time"
+
+	"github.com/kubecost/cost-model/pkg/util/timeutil"
 
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/thanos"
@@ -410,6 +411,32 @@ func (w Window) Expand(that Window) Window {
 	return w
 }
 
+func (w Window) ContractStart(start time.Time) Window {
+	if w.start == nil || start.After(*w.start) {
+		w.start = &start
+	}
+	return w
+}
+
+func (w Window) ContractEnd(end time.Time) Window {
+	if w.end == nil || end.Before(*w.end) {
+		w.end = &end
+	}
+	return w
+}
+
+func (w Window) Contract(that Window) Window {
+	if that.start != nil {
+		w = w.ContractStart(*that.start)
+	}
+
+	if that.end != nil {
+		w = w.ContractEnd(*that.end)
+	}
+
+	return w
+}
+
 func (w Window) Hours() float64 {
 	if w.IsOpen() {
 		return math.Inf(1)
@@ -433,8 +460,16 @@ func (w Window) IsOpen() bool {
 // TODO:CLEANUP make this unmarshalable (make Start and End public)
 func (w Window) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
-	buffer.WriteString(fmt.Sprintf("\"start\":\"%s\",", w.start.Format(time.RFC3339)))
-	buffer.WriteString(fmt.Sprintf("\"end\":\"%s\"", w.end.Format(time.RFC3339)))
+	if w.start != nil {
+		buffer.WriteString(fmt.Sprintf("\"start\":\"%s\",", w.start.Format(time.RFC3339)))
+	} else {
+		buffer.WriteString(fmt.Sprintf("\"start\":\"%s\",", "null"))
+	}
+	if w.end != nil {
+		buffer.WriteString(fmt.Sprintf("\"end\":\"%s\"", w.end.Format(time.RFC3339)))
+	} else {
+		buffer.WriteString(fmt.Sprintf("\"end\":\"%s\"", "null"))
+	}
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
