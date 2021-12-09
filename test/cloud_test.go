@@ -98,11 +98,15 @@ func TestPVPriceFromCSV(t *testing.T) {
 	pv := &v1.PersistentVolume{}
 	pv.Name = nameWant
 
+	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		LocalConfigPath: "./",
+	})
+
 	wantPrice := "0.1337"
 	c := &cloud.CSVProvider{
 		CSVLocation: "../configs/pricing_schema_pv.csv",
 		CustomProvider: &cloud.CustomProvider{
-			Config: cloud.NewProviderConfig("../configs/default.json"),
+			Config: cloud.NewProviderConfig(confMan, "../configs/default.json"),
 		},
 	}
 	c.DownloadPricingData()
