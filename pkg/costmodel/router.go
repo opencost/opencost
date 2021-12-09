@@ -1093,6 +1093,9 @@ func (a *Accesses) GetPod(w http.ResponseWriter, r *http.Request, ps httprouter.
 	// TODO: ClusterCache API could probably afford to have some better filtering
 	allPods := a.ClusterCache.GetAllPods()
 	for _, pod := range allPods {
+		for _, container := range pod.Spec.Containers {
+			container.Env = make([]v1.EnvVar, 0)
+		}
 		if pod.Namespace == podNamespace && pod.Name == podName {
 			body, err := json.Marshal(pod)
 			if err != nil {
