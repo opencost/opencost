@@ -1,8 +1,7 @@
-package main
+package agent
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"net/http"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/costmodel"
 	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
 	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util/watcher"
 
@@ -20,13 +20,18 @@ import (
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog"
 
 	"github.com/rs/cors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/klog"
 )
+
+// AgentOpts contain configuration options that can be passed to the Execute() method
+type AgentOpts struct {
+	// Stubbed for future configuration
+}
 
 // ClusterExportInterval is the interval used to export the cluster if env.IsExportClusterCacheEnabled() is true
 const ClusterExportInterval = 5 * time.Minute
@@ -76,7 +81,7 @@ func newPrometheusClient() (prometheus.Client, error) {
 	}
 
 	queryConcurrency := env.GetMaxQueryConcurrency()
-	klog.Infof("Prometheus Client Max Concurrency set to %d", queryConcurrency)
+	log.Infof("Prometheus Client Max Concurrency set to %d", queryConcurrency)
 
 	timeout := 120 * time.Second
 	keepAlive := 120 * time.Second
@@ -89,31 +94,27 @@ func newPrometheusClient() (prometheus.Client, error) {
 	m, err := prom.Validate(promCli)
 	if err != nil || !m.Running {
 		if err != nil {
-			klog.Errorf("Failed to query prometheus at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prom.PrometheusTroubleshootingURL)
+			log.Errorf("Failed to query prometheus at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prom.PrometheusTroubleshootingURL)
 		} else if !m.Running {
-			klog.Errorf("Prometheus at %s is not running. Troubleshooting help available at: %s", address, prom.PrometheusTroubleshootingURL)
+			log.Errorf("Prometheus at %s is not running. Troubleshooting help available at: %s", address, prom.PrometheusTroubleshootingURL)
 		}
 	} else {
-		klog.V(1).Info("Success: retrieved the 'up' query against prometheus at: " + address)
+		log.Infof("Success: retrieved the 'up' query against prometheus at: %s", address)
 	}
 
 	api := prometheusAPI.NewAPI(promCli)
 	_, err = api.Config(context.Background())
 	if err != nil {
-		klog.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
+		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
 	} else {
-		klog.Infof("Retrieved a prometheus config file from: %s", address)
+		log.Infof("Retrieved a prometheus config file from: %s", address)
 	}
 
 	return promCli, nil
 }
 
-func main() {
-	klog.InitFlags(nil)
-	flag.Set("v", "3")
-	flag.Parse()
-
-	klog.V(1).Infof("Starting kubecost-metrics...")
+func Execute(opts *AgentOpts) error {
+	log.Infof("Starting Kubecost Agent")
 
 	configWatchers := watcher.NewConfigMapWatchers()
 
@@ -202,5 +203,5 @@ func main() {
 	rootMux.Handle("/metrics", promhttp.Handler())
 	handler := cors.AllowAll().Handler(rootMux)
 
-	klog.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", env.GetKubecostMetricsPort()), handler))
+	return http.ListenAndServe(fmt.Sprintf(":%d", env.GetKubecostMetricsPort()), handler)
 }

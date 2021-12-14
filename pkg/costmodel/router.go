@@ -3,7 +3,6 @@ package costmodel
 import (
 	"context"
 	"encoding/base64"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -1378,9 +1377,6 @@ func handlePanic(p errors.Panic) bool {
 }
 
 func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses {
-	klog.InitFlags(nil)
-	flag.Set("v", "3")
-	flag.Parse()
 	klog.V(1).Infof("Starting cost-model (git commit \"%s\")", env.GetAppVersion())
 
 	configWatchers := watcher.NewConfigMapWatchers(additionalConfigWatchers...)
