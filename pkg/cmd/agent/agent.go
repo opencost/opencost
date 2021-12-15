@@ -177,9 +177,15 @@ func Execute(opts *AgentOpts) error {
 	}
 
 	// ClusterInfo Provider to provide the cluster map with local and remote cluster data
-	clusterInfoConf := confManager.ConfigFileAt("/var/configs/cluster-info.json")
 	localClusterInfo := costmodel.NewLocalClusterInfoProvider(k8sClient, cloudProvider)
-	clusterInfoProvider := costmodel.NewClusterInfoWriteOnRequest(localClusterInfo, clusterInfoConf)
+
+	var clusterInfoProvider clusters.ClusterInfoProvider
+	if env.IsExportClusterInfoEnabled() {
+		clusterInfoConf := confManager.ConfigFileAt("/var/configs/cluster-info.json")
+		clusterInfoProvider = costmodel.NewClusterInfoWriteOnRequest(localClusterInfo, clusterInfoConf)
+	} else {
+		clusterInfoProvider = localClusterInfo
+	}
 
 	// Initialize ClusterMap for maintaining ClusterInfo by ClusterID
 	clusterMap := clusters.NewClusterMap(promCli, clusterInfoProvider, 5*time.Minute)
