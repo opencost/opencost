@@ -7,6 +7,15 @@ Thanks for your help improving the project!
 If you have a question about Kubecost or have encountered problems using it,
 you can start by asking a question on [Slack](https://join.slack.com/t/kubecost/shared_invite/enQtNTA2MjQ1NDUyODE5LWFjYzIzNWE4MDkzMmUyZGU4NjkwMzMyMjIyM2E0NGNmYjExZjBiNjk1YzY5ZDI0ZTNhZDg4NjlkMGRkYzFlZTU) or via email at [team@kubecost.com](team@kubecost.com)
 
+
+## Workflow ##
+
+This repository's contribution workflow follows a typical open-source model:
+- [Fork](https://docs.github.com/en/get-started/quickstart/fork-a-repo) this repository
+- Work on the forked repository
+- Open a pull request to [merge the fork back into this repository](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request-from-a-fork)
+
+
 ## Building ## 
 
 Follow these steps to build from source and deploy:
