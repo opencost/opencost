@@ -301,6 +301,12 @@ func (ci *ClusterImporter) GetAllPodDisruptionBudgets() []*v1beta1.PodDisruption
 	return cloneList
 }
 
+func (ci *ClusterImporter) GetAllReplicationControllers() []*v1.ReplicationController {
+	var rcs []*v1.ReplicationController
+	//TODO: Implement
+	return rcs
+}
+
 // SetConfigMapUpdateFunc sets the configmap update function
 func (ci *ClusterImporter) SetConfigMapUpdateFunc(_ func(interface{})) {
 	// TODO: (bolt) This function is still a bit strange to me for the ClusterCache interface.

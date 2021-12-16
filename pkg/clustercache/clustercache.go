@@ -67,6 +67,9 @@ type ClusterCache interface {
 	// GetAllPodDisruptionBudgets returns all cached pod disruption budgets
 	GetAllPodDisruptionBudgets() []*v1beta1.PodDisruptionBudget
 
+	// GetAllReplicationControllers returns all cached replication controllers
+	GetAllReplicationControllers() []*v1.ReplicationController
+
 	// SetConfigMapUpdateFunc sets the configmap update function
 	SetConfigMapUpdateFunc(func(interface{}))
 }
@@ -313,6 +316,12 @@ func (kcc *KubernetesClusterCache) GetAllPodDisruptionBudgets() []*v1beta1.PodDi
 		pdbs = append(pdbs, pdb.(*v1beta1.PodDisruptionBudget))
 	}
 	return pdbs
+}
+
+func (kcc *KubernetesClusterCache) GetAllReplicationControllers() []*v1.ReplicationController {
+	var rcs []*v1.ReplicationController
+	//TODO: Implement
+	return rcs
 }
 
 func (kcc *KubernetesClusterCache) SetConfigMapUpdateFunc(f func(interface{})) {
