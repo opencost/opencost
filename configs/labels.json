@@ -1,0 +1,20 @@
+{
+    "department_label": "department",
+    "environment_label": "env",
+    "owner_label": "owner",
+    "product_label": "app",
+    "team_label": "team",
+    "cluster_external_label": "kubernetes_cluster",
+    "namespace_external_label": "kubernetes_namespace",
+    "controller_external_label": "kubernetes_controller",
+    "daemonset_external_label": "kubernetes_daemonset",
+    "deployment_external_label": "kubernetes_deployment",
+    "statefulset_external_label": "kubernetes_statefulset",
+    "service_external_label": "kubernetes_service",
+    "pod_external_label": "kubernetes_pod",
+    "department_external_label": "kubernetes_label_department",
+    "environment_external_label": "kubernetes_label_env",
+    "owner_external_label": "kubernetes_label_owner",
+    "product_external_label": "kubernetes_label_app",
+    "team_external_label": "kubernetes_label_team"
+}

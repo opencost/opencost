@@ -24,5 +24,6 @@ ADD ./configs/default.json /models/default.json
 ADD ./configs/azure.json /models/azure.json
 ADD ./configs/aws.json /models/aws.json
 ADD ./configs/gcp.json /models/gcp.json
+ADD ./configs/labels.json /var/configs/labels.json
 USER 1001
 ENTRYPOINT ["/go/bin/app"]

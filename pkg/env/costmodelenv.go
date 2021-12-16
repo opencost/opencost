@@ -34,6 +34,7 @@ const (
 	CSVEndpointEnvVar              = "CSV_ENDPOINT"
 	CSVPathEnvVar                  = "CSV_PATH"
 	ConfigPathEnvVar               = "CONFIG_PATH"
+	LabelConfigPathEnvVar 		   = "LABELCONFIG_PATH"
 	CloudProviderAPIKeyEnvVar      = "CLOUD_PROVIDER_API_KEY"
 
 	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
@@ -263,6 +264,11 @@ func GetConfigPath() string {
 // model configuration path
 func GetConfigPathWithDefault(defaultValue string) string {
 	return Get(ConfigPathEnvVar, defaultValue)
+}
+
+// GetLabelConfigPath returns the environment variable value for LabelConfigPathEnvVar
+func GetLabelConfigPath() string {
+	return Get(LabelConfigPathEnvVar, "")
 }
 
 // GetCloudProviderAPI returns the environment variable value for CloudProviderAPIEnvVar which represents
