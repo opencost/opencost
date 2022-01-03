@@ -384,29 +384,6 @@ func ShareTenancyCosts(p Provider) bool {
 	return config.ShareTenancyCosts == "true"
 }
 
-func NewCrossClusterProvider(ctype string, config *config.ConfigFileManager, overrideConfigPath string, cache clustercache.ClusterCache) (Provider, error) {
-	if ctype == "aws" {
-		return &AWS{
-			Clientset: cache,
-			Config:    NewProviderConfig(config, overrideConfigPath),
-		}, nil
-	} else if ctype == "gcp" {
-		return &GCP{
-			Clientset: cache,
-			Config:    NewProviderConfig(config, overrideConfigPath),
-		}, nil
-	} else if ctype == "azure" {
-		return &Azure{
-			Clientset: cache,
-			Config:    NewProviderConfig(config, overrideConfigPath),
-		}, nil
-	}
-	return &CustomProvider{
-		Clientset: cache,
-		Config:    NewProviderConfig(config, overrideConfigPath),
-	}, nil
-}
-
 // NewProvider looks at the nodespec or provider metadata server to decide which provider to instantiate.
 func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.ConfigFileManager) (Provider, error) {
 	nodes := cache.GetAllNodes()
