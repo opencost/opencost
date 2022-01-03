@@ -104,6 +104,7 @@ func (ce *ClusterExporter) Export() error {
 		Jobs:                     c.GetAllJobs(),
 		HorizontalPodAutoscalers: c.GetAllHorizontalPodAutoscalers(),
 		PodDisruptionBudgets:     c.GetAllPodDisruptionBudgets(),
+		ReplicationControllers:   c.GetAllReplicationControllers(),
 	}
 
 	data, err := json.Marshal(encoding)
