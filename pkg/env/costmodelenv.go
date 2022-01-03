@@ -16,6 +16,7 @@ const (
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
 
+	AzureStorageSubscriptionIDEnvVar       = "AZURE_SUBSCRIPTION_ID"
 	AzureStorageAccessKeyEnvVar     = "AZURE_STORAGE_ACCESS_KEY"
 	AzureStorageAccountNameEnvVar   = "AZURE_STORAGE_ACCOUNT"
 	AzureStorageContainerNameEnvVar = "AZURE_STORAGE_CONTAINER"
@@ -169,18 +170,6 @@ func GetAWSAccessKeySecret() string {
 // an AWS specific cluster identifier.
 func GetAWSClusterID() string {
 	return Get(AWSClusterIDEnvVar, "")
-}
-
-func GetAzureStorageAccessKey() string {
-	return Get(AzureStorageAccessKeyEnvVar, "")
-}
-
-func GetAzureStorageAccountName() string {
-	return Get(AzureStorageAccountNameEnvVar, "")
-}
-
-func GetAzureStorageContainerName() string {
-	return Get(AzureStorageContainerNameEnvVar, "")
 }
 
 // GetKubecostNamespace returns the environment variable value for KubecostNamespaceEnvVar which
