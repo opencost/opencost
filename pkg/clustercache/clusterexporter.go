@@ -32,6 +32,7 @@ type clusterEncoding struct {
 	Jobs                     []*batchv1.Job                         `json:"jobs,omitempty"`
 	HorizontalPodAutoscalers []*autoscaling.HorizontalPodAutoscaler `json:"horizontalPodAutoscalers,omitempty"`
 	PodDisruptionBudgets     []*v1beta1.PodDisruptionBudget         `json:"podDisruptionBudgets,omitEmpty"`
+	ReplicationControllers   []*v1.ReplicationController            `json:"replicationController,omitEmpty"`
 }
 
 // ClusterExporter manages and runs an file export process which dumps the local kubernetes cluster to a target location.
