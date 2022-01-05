@@ -158,11 +158,6 @@ const AzureLayout = "2006-01-02"
 
 var HeaderStrings = []string{"MeterCategory", "UsageDateTime", "InstanceId", "AdditionalInfo", "Tags", "PreTaxCost", "SubscriptionGuid", "ConsumedService", "ResourceGroup", "ResourceType"}
 
-var loadedAzureSecret bool = false
-var azureSecret *AzureServiceKey = nil
-var loadedAzureStorageConfigSecret bool = false
-var azureStorageConfig *AzureStorageConfig = nil
-
 type regionParts []string
 
 func (r regionParts) String() string {
@@ -378,14 +373,18 @@ type AzurePricing struct {
 }
 
 type Azure struct {
-	Pricing                 map[string]*AzurePricing
-	DownloadPricingDataLock sync.RWMutex
-	Clientset               clustercache.ClusterCache
-	Config                  *ProviderConfig
-	ServiceAccountChecks    map[string]*ServiceAccountCheck
-	RateCardPricingError    error
-	clusterAccountId        string
-	clusterRegion           string
+	Pricing                        map[string]*AzurePricing
+	DownloadPricingDataLock        sync.RWMutex
+	Clientset                      clustercache.ClusterCache
+	Config                         *ProviderConfig
+	ServiceAccountChecks           map[string]*ServiceAccountCheck
+	RateCardPricingError           error
+	clusterAccountId               string
+	clusterRegion                  string
+	loadedAzureSecret              bool
+	azureSecret                    *AzureServiceKey
+	loadedAzureStorageConfigSecret bool
+	azureStorageConfig             *AzureStorageConfig
 }
 
 type azureKey struct {
@@ -513,9 +512,13 @@ func (az *Azure) getAzureAuth(forceReload bool, cp *CustomPricing) (subscription
 }
 
 func (az *Azure) ConfigureAzureStorage() error {
-	accessKey, accountName, containerName := az.getAzureStorageConfig(false)
-	if accessKey != "" && accountName != "" && containerName != "" {
-		err := env.Set(env.AzureStorageAccessKeyEnvVar, accessKey)
+	subscriptionID, accessKey, accountName, containerName := az.getAzureStorageConfig(false)
+	if subscriptionID != "" && accessKey != "" && accountName != "" && containerName != "" {
+		err := env.Set(env.AzureStorageSubscriptionIDEnvVar, subscriptionID)
+		if err != nil {
+			return err
+		}
+		err = env.Set(env.AzureStorageAccessKeyEnvVar, accessKey)
 		if err != nil {
 			return err
 		}
@@ -530,17 +533,33 @@ func (az *Azure) ConfigureAzureStorage() error {
 	}
 	return nil
 }
-func (az *Azure) getAzureStorageConfig(forceReload bool) (accessKey, accountName, containerName string) {
+func (az *Azure) getAzureStorageConfig(forceReload bool) (subscriptionId, accessKey, accountName, containerName string) {
+	// retrieve config for default subscription id
+	defaultSubscriptionID := ""
+	config, err := az.GetConfig()
+	if err == nil {
+		defaultSubscriptionID = config.AzureSubscriptionID
+	}
+
 	if az.ServiceAccountChecks == nil {
 		az.ServiceAccountChecks = make(map[string]*ServiceAccountCheck)
 	}
 	// 1. Check for secret
-	s, _ := az.loadAzureStorageConfig(forceReload)
+	s, err := az.loadAzureStorageConfig(forceReload)
+	if err != nil {
+		log.Errorf("Error, %s", err.Error())
+	}
 	if s != nil && s.AccessKey != "" && s.AccountName != "" && s.ContainerName != "" {
-
 		az.ServiceAccountChecks["hasStorage"] = &ServiceAccountCheck{
 			Message: "Azure Storage Config exists",
 			Status:  true,
+		}
+
+		// To support already configured users, subscriptionID may not be set in secret in which case, the subscriptionID
+		// for the rate card API is used
+		subscriptionId = defaultSubscriptionID
+		if s.SubscriptionId != "" {
+			subscriptionId = s.SubscriptionId
 		}
 
 		accessKey = s.AccessKey
@@ -550,7 +569,10 @@ func (az *Azure) getAzureStorageConfig(forceReload bool) (accessKey, accountName
 	}
 
 	// 3. Fall back to env vars
-	accessKey, accountName, containerName = env.GetAzureStorageAccessKey(), env.GetAzureStorageAccountName(), env.GetAzureStorageContainerName()
+    subscriptionId = env.Get(env.AzureStorageSubscriptionIDEnvVar, config.AzureSubscriptionID)
+    accountName = env.Get(env.AzureStorageAccountNameEnvVar, "")
+    accessKey = env.Get(env.AzureStorageAccessKeyEnvVar, "")
+	containerName = env.Get(env.AzureStorageContainerNameEnvVar, "")
 	if accessKey != "" && accountName != "" && containerName != "" {
 		az.ServiceAccountChecks["hasStorage"] = &ServiceAccountCheck{
 			Message: "Azure Storage Config exists",
@@ -569,10 +591,10 @@ func (az *Azure) getAzureStorageConfig(forceReload bool) (accessKey, accountName
 // we don't expect the secret to change. If it does, however, we can force reload using
 // the input parameter.
 func (az *Azure) loadAzureAuthSecret(force bool) (*AzureServiceKey, error) {
-	if !force && loadedAzureSecret {
-		return azureSecret, nil
+	if !force && az.loadedAzureSecret {
+		return az.azureSecret, nil
 	}
-	loadedAzureSecret = true
+	az.loadedAzureSecret = true
 
 	exists, err := fileutil.FileExists(authSecretPath)
 	if !exists || err != nil {
@@ -590,18 +612,18 @@ func (az *Azure) loadAzureAuthSecret(force bool) (*AzureServiceKey, error) {
 		return nil, err
 	}
 
-	azureSecret = &ask
-	return azureSecret, nil
+	az.azureSecret = &ask
+	return &ask, nil
 }
 
 // Load once and cache the result (even on failure). This is an install time secret, so
 // we don't expect the secret to change. If it does, however, we can force reload using
 // the input parameter.
 func (az *Azure) loadAzureStorageConfig(force bool) (*AzureStorageConfig, error) {
-	if !force && loadedAzureStorageConfigSecret {
-		return azureStorageConfig, nil
+	if !force && az.loadedAzureStorageConfigSecret {
+		return az.azureStorageConfig, nil
 	}
-	loadedAzureStorageConfigSecret = true
+	az.loadedAzureStorageConfigSecret = true
 
 	exists, err := fileutil.FileExists(storageConfigSecretPath)
 	if !exists || err != nil {
@@ -613,14 +635,14 @@ func (az *Azure) loadAzureStorageConfig(force bool) (*AzureStorageConfig, error)
 		return nil, err
 	}
 
-	var ask AzureStorageConfig
-	err = json.Unmarshal(result, &ask)
+	var asc AzureStorageConfig
+	err = json.Unmarshal(result, &asc)
 	if err != nil {
 		return nil, err
 	}
 
-	azureStorageConfig = &ask
-	return azureStorageConfig, nil
+	az.azureStorageConfig = &asc
+	return &asc, nil
 }
 
 func (az *Azure) GetKey(labels map[string]string, n *v1.Node) Key {
@@ -928,7 +950,7 @@ func (az *Azure) DownloadPricingData() error {
 }
 
 // determineCloudByRegion uses region name to pick the correct Cloud Environment for the azure provider to use
-func determineCloudByRegion(region string) azure.Environment{
+func determineCloudByRegion(region string) azure.Environment {
 	lcRegion := strings.ToLower(region)
 	if strings.Contains(lcRegion, "china") {
 		return azure.ChinaCloud

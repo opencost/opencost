@@ -16,6 +16,7 @@ const (
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
 
+	AzureStorageSubscriptionIDEnvVar       = "AZURE_SUBSCRIPTION_ID"
 	AzureStorageAccessKeyEnvVar     = "AZURE_STORAGE_ACCESS_KEY"
 	AzureStorageAccountNameEnvVar   = "AZURE_STORAGE_ACCOUNT"
 	AzureStorageContainerNameEnvVar = "AZURE_STORAGE_CONTAINER"
@@ -128,7 +129,7 @@ func GetPricingConfigmapName() string {
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
 // the AWS access key for authentication
 func GetAppVersion() string {
-	return Get(AppVersionEnvVar, "1.89.0-rc.0")
+	return Get(AppVersionEnvVar, "1.89.0-rc.2")
 }
 
 // IsEmitNamespaceAnnotationsMetric returns true if cost-model is configured to emit the kube_namespace_annotations metric
@@ -169,18 +170,6 @@ func GetAWSAccessKeySecret() string {
 // an AWS specific cluster identifier.
 func GetAWSClusterID() string {
 	return Get(AWSClusterIDEnvVar, "")
-}
-
-func GetAzureStorageAccessKey() string {
-	return Get(AzureStorageAccessKeyEnvVar, "")
-}
-
-func GetAzureStorageAccountName() string {
-	return Get(AzureStorageAccountNameEnvVar, "")
-}
-
-func GetAzureStorageContainerName() string {
-	return Get(AzureStorageContainerNameEnvVar, "")
 }
 
 // GetKubecostNamespace returns the environment variable value for KubecostNamespaceEnvVar which
