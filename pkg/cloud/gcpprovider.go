@@ -289,7 +289,6 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 	})
 }
 
-
 // ClusterName returns the name of a GKE cluster, as provided by metadata.
 func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	remoteEnabled := env.IsRemoteEnabled()

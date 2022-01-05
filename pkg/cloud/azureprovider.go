@@ -152,7 +152,6 @@ var azureRegions = []string{
 	"brazilsoutheast",
 }
 
-
 type regionParts []string
 
 func (r regionParts) String() string {
@@ -564,9 +563,9 @@ func (az *Azure) getAzureStorageConfig(forceReload bool) (subscriptionId, access
 	}
 
 	// 3. Fall back to env vars
-    subscriptionId = env.Get(env.AzureStorageSubscriptionIDEnvVar, config.AzureSubscriptionID)
-    accountName = env.Get(env.AzureStorageAccountNameEnvVar, "")
-    accessKey = env.Get(env.AzureStorageAccessKeyEnvVar, "")
+	subscriptionId = env.Get(env.AzureStorageSubscriptionIDEnvVar, config.AzureSubscriptionID)
+	accountName = env.Get(env.AzureStorageAccountNameEnvVar, "")
+	accessKey = env.Get(env.AzureStorageAccessKeyEnvVar, "")
 	containerName = env.Get(env.AzureStorageContainerNameEnvVar, "")
 	if accessKey != "" && accountName != "" && containerName != "" {
 		az.ServiceAccountChecks["hasStorage"] = &ServiceAccountCheck{

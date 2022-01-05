@@ -1834,7 +1834,6 @@ func (aws *AWS) ShowAthenaColumns() (map[string]bool, error) {
 	q := `SHOW COLUMNS IN  %s`
 	query := fmt.Sprintf(q, cfg.AthenaTable)
 
-
 	columns := []string{}
 	pageNum := 0
 	processResults := func(page *athena.GetQueryResultsOutput, lastpage bool) bool {
