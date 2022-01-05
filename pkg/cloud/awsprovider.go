@@ -25,7 +25,6 @@ import (
 	"github.com/kubecost/cost-model/pkg/errors"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
-	"github.com/kubecost/cost-model/pkg/util/cloudutil"
 	"github.com/kubecost/cost-model/pkg/util/fileutil"
 	"github.com/kubecost/cost-model/pkg/util/json"
 
@@ -1570,10 +1569,10 @@ func generateAWSGroupBy(lastIdx int) string {
 	return strings.Join(sequence, ",")
 }
 
-func (a *AWS) QueryAthenaPaginated(query string) (*athena.GetQueryResultsInput, *athena.Athena, error) {
+func (a *AWS) QueryAthenaPaginated(query string, fn func(*athena.GetQueryResultsOutput, bool) bool) error {
 	customPricing, err := a.GetConfig()
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 	a.ConfigureAuthWith(customPricing)
 	region := aws.String(customPricing.AthenaRegion)
@@ -1606,7 +1605,7 @@ func (a *AWS) QueryAthenaPaginated(query string) (*athena.GetQueryResultsInput, 
 
 	res, err := svc.StartQueryExecution(&e)
 	if err != nil {
-		return nil, svc, err
+		return err
 	}
 
 	klog.V(2).Infof("StartQueryExecution result:")
@@ -1621,7 +1620,7 @@ func (a *AWS) QueryAthenaPaginated(query string) (*athena.GetQueryResultsInput, 
 	for {
 		qrop, err = svc.GetQueryExecution(&qri)
 		if err != nil {
-			return nil, svc, err
+			return err
 		}
 		if *qrop.QueryExecution.Status.State != "RUNNING" && *qrop.QueryExecution.Status.State != "QUEUED" {
 			break
@@ -1632,80 +1631,13 @@ func (a *AWS) QueryAthenaPaginated(query string) (*athena.GetQueryResultsInput, 
 
 		var ip athena.GetQueryResultsInput
 		ip.SetQueryExecutionId(*res.QueryExecutionId)
-		return &ip, svc, nil
-	} else {
-		return nil, svc, fmt.Errorf("No results available for %s", query)
-	}
-}
-
-func (a *AWS) QueryAthenaBillingData(query string) (*athena.GetQueryResultsOutput, error) {
-	customPricing, err := a.GetConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	a.ConfigureAuthWith(customPricing) // load aws authentication from configuration or secret
-
-	region := aws.String(customPricing.AthenaRegion)
-	resultsBucket := customPricing.AthenaBucketName
-	database := customPricing.AthenaDatabase
-	c := &aws.Config{
-		Region:              region,
-		STSRegionalEndpoint: endpoints.RegionalSTSEndpoint,
-	}
-	s := session.Must(session.NewSession(c))
-	svc := athena.New(s)
-	if customPricing.MasterPayerARN != "" {
-		creds := stscreds.NewCredentials(s, customPricing.MasterPayerARN)
-		svc = athena.New(s, &aws.Config{
-			Region:      region,
-			Credentials: creds,
-		})
-	}
-
-	var e athena.StartQueryExecutionInput
-
-	var r athena.ResultConfiguration
-	r.SetOutputLocation(resultsBucket)
-	e.SetResultConfiguration(&r)
-
-	e.SetQueryString(query)
-	var q athena.QueryExecutionContext
-	q.SetDatabase(database)
-	e.SetQueryExecutionContext(&q)
-
-	res, err := svc.StartQueryExecution(&e)
-	if err != nil {
-		return nil, err
-	}
-
-	klog.V(2).Infof("StartQueryExecution result:")
-	klog.V(2).Infof(res.GoString())
-
-	var qri athena.GetQueryExecutionInput
-	qri.SetQueryExecutionId(*res.QueryExecutionId)
-
-	var qrop *athena.GetQueryExecutionOutput
-	duration := time.Duration(2) * time.Second // Pause for 2 seconds
-
-	for {
-		qrop, err = svc.GetQueryExecution(&qri)
+		err = svc.GetQueryResultsPages(&ip, fn)
 		if err != nil {
-			return nil, err
+			return fmt.Errorf("queryAthenaPaginated: error getting query resultsPages from athena service %s", err)
 		}
-		if *qrop.QueryExecution.Status.State != "RUNNING" && *qrop.QueryExecution.Status.State != "QUEUED" {
-			break
-		}
-		time.Sleep(duration)
-	}
-	if *qrop.QueryExecution.Status.State == "SUCCEEDED" {
-
-		var ip athena.GetQueryResultsInput
-		ip.SetQueryExecutionId(*res.QueryExecutionId)
-
-		return svc.GetQueryResults(&ip)
+		return nil
 	} else {
-		return nil, fmt.Errorf("No results available for %s", query)
+		return fmt.Errorf("No results available for %s", query)
 	}
 }
 
@@ -1784,14 +1716,11 @@ func (a *AWS) GetSavingsPlanDataFromAthena() error {
 
 	klog.V(3).Infof("Running Query: %s", query)
 
-	ip, svc, err := a.QueryAthenaPaginated(query)
+	err = a.QueryAthenaPaginated(query, processResults)
 	if err != nil {
 		return fmt.Errorf("Error fetching Savings Plan Data: %s", err)
 	}
-	athenaErr := svc.GetQueryResultsPages(ip, processResults)
-	if athenaErr != nil {
-		return athenaErr
-	}
+
 	return nil
 }
 
@@ -1815,15 +1744,18 @@ func (a *AWS) GetReservationDataFromAthena() error {
 	// label columns
 	columns, _ := a.ShowAthenaColumns()
 
-	if columns["reservation_reservation_a_r_n"] && columns["reservation_effective_cost"] {
-		if a.RIPricingByInstanceID == nil {
-			a.RIPricingByInstanceID = make(map[string]*RIData)
-		}
-		tNow := time.Now()
-		tOneDayAgo := tNow.Add(time.Duration(-25) * time.Hour) // Also get files from one day ago to avoid boundary conditions
-		start := tOneDayAgo.Format("2006-01-02")
-		end := tNow.Format("2006-01-02")
-		q := `SELECT
+	if !columns["reservation_reservation_a_r_n"] || !columns["reservation_effective_cost"] {
+		klog.Infof("No reserved data available in Athena")
+		a.RIPricingError = nil
+	}
+	if a.RIPricingByInstanceID == nil {
+		a.RIPricingByInstanceID = make(map[string]*RIData)
+	}
+	tNow := time.Now()
+	tOneDayAgo := tNow.Add(time.Duration(-25) * time.Hour) // Also get files from one day ago to avoid boundary conditions
+	start := tOneDayAgo.Format("2006-01-02")
+	end := tNow.Format("2006-01-02")
+	q := `SELECT
 		line_item_usage_start_date,
 		reservation_reservation_a_r_n,
 		line_item_resource_id,
@@ -1832,48 +1764,54 @@ func (a *AWS) GetReservationDataFromAthena() error {
 	WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s'
 	AND reservation_reservation_a_r_n <> '' ORDER BY
 	line_item_usage_start_date DESC`
-		query := fmt.Sprintf(q, cfg.AthenaTable, start, end)
-		op, err := a.QueryAthenaBillingData(query)
-		if err != nil {
-			a.RIPricingError = err
-			return fmt.Errorf("Error fetching Reserved Instance Data: %s", err)
+
+	page := 0
+	processResults := func(op *athena.GetQueryResultsOutput, lastpage bool) bool {
+		a.RIDataLock.Lock()
+		a.RIPricingByInstanceID = make(map[string]*RIData) // Clean out the old data and only report a RI price if its in the most recent run.
+		mostRecentDate := ""
+		iter := op.ResultSet.Rows
+		if page == 0 && len(iter) > 0 {
+			iter = op.ResultSet.Rows[1:len(op.ResultSet.Rows)]
 		}
-		a.RIPricingError = nil
-		klog.Infof("Fetching RI data...")
-		if len(op.ResultSet.Rows) > 1 {
-			a.RIDataLock.Lock()
-			mostRecentDate := ""
-			for _, r := range op.ResultSet.Rows[1:(len(op.ResultSet.Rows) - 1)] {
-				d := *r.Data[0].VarCharValue
-				if mostRecentDate == "" {
-					mostRecentDate = d
-				} else if mostRecentDate != d { // Get all most recent assignments
-					break
-				}
-				cost, err := strconv.ParseFloat(*r.Data[3].VarCharValue, 64)
-				if err != nil {
-					klog.Infof("Error converting `%s` from float ", *r.Data[3].VarCharValue)
-				}
-				r := &RIData{
-					ResourceID:     *r.Data[2].VarCharValue,
-					EffectiveCost:  cost,
-					ReservationARN: *r.Data[1].VarCharValue,
-					MostRecentDate: d,
-				}
-				a.RIPricingByInstanceID[r.ResourceID] = r
+		page++
+		for _, r := range iter {
+			d := *r.Data[0].VarCharValue
+			if mostRecentDate == "" {
+				mostRecentDate = d
+			} else if mostRecentDate != d { // Get all most recent assignments
+				break
 			}
-			klog.V(1).Infof("Found %d reserved instances", len(a.RIPricingByInstanceID))
-			for k, r := range a.RIPricingByInstanceID {
-				log.DedupedInfof(5, "Reserved Instance Data found for node %s : %f at time %s", k, r.EffectiveCost, r.MostRecentDate)
+			cost, err := strconv.ParseFloat(*r.Data[3].VarCharValue, 64)
+			if err != nil {
+				klog.Infof("Error converting `%s` from float ", *r.Data[3].VarCharValue)
 			}
-			a.RIDataLock.Unlock()
-		} else {
-			klog.Infof("No reserved instance data found")
+			r := &RIData{
+				ResourceID:     *r.Data[2].VarCharValue,
+				EffectiveCost:  cost,
+				ReservationARN: *r.Data[1].VarCharValue,
+				MostRecentDate: d,
+			}
+			a.RIPricingByInstanceID[r.ResourceID] = r
 		}
-	} else {
-		klog.Infof("No reserved data available in Athena")
-		a.RIPricingError = nil
+		klog.V(1).Infof("Found %d reserved instances", len(a.RIPricingByInstanceID))
+		for k, r := range a.RIPricingByInstanceID {
+			log.DedupedInfof(5, "Reserved Instance Data found for node %s : %f at time %s", k, r.EffectiveCost, r.MostRecentDate)
+		}
+		a.RIDataLock.Unlock()
+		return true
 	}
+
+	query := fmt.Sprintf(q, cfg.AthenaTable, start, end)
+
+	klog.V(3).Infof("Running Query: %s", query)
+
+	err = a.QueryAthenaPaginated(query, processResults)
+	if err != nil {
+		a.RIPricingError = err
+		return fmt.Errorf("Error fetching Reserved Instance Data: %s", err)
+	}
+	a.RIPricingError = nil
 	return nil
 }
 
@@ -1895,11 +1833,10 @@ func (aws *AWS) ShowAthenaColumns() (map[string]bool, error) {
 
 	q := `SHOW COLUMNS IN  %s`
 	query := fmt.Sprintf(q, cfg.AthenaTable)
-	results, svc, err := aws.QueryAthenaPaginated(query)
 
 	columns := []string{}
 	pageNum := 0
-	athenaErr := svc.GetQueryResultsPages(results, func(page *athena.GetQueryResultsOutput, lastpage bool) bool {
+	processResults := func(page *athena.GetQueryResultsOutput, lastpage bool) bool {
 		for _, row := range page.ResultSet.Rows {
 			columns = append(columns, *row.Data[0].VarCharValue)
 		}
@@ -1907,10 +1844,11 @@ func (aws *AWS) ShowAthenaColumns() (map[string]bool, error) {
 		pageNum++
 
 		return true
-	})
-	if athenaErr != nil {
+	}
+	err = aws.QueryAthenaPaginated(query, processResults)
+	if err != nil {
 		log.Warningf("Error getting Athena columns: %s", err)
-		return columnSet, athenaErr
+		return columnSet, err
 	}
 
 	for _, col := range columns {
@@ -1918,208 +1856,6 @@ func (aws *AWS) ShowAthenaColumns() (map[string]bool, error) {
 	}
 
 	return columnSet, nil
-}
-
-// ExternalAllocations represents tagged assets outside the scope of kubernetes.
-// "start" and "end" are dates of the format YYYY-MM-DD
-// "aggregator" is the tag used to determine how to allocate those assets, ie namespace, pod, etc.
-func (a *AWS) ExternalAllocations(start string, end string, aggregators []string, filterType string, filterValue string, crossCluster bool) ([]*OutOfClusterAllocation, error) {
-	customPricing, err := a.GetConfig()
-	if err != nil {
-		return nil, err
-	}
-	formattedAggregators := []string{}
-	for _, agg := range aggregators {
-		aggregator_column_name := "resource_tags_user_" + agg
-		aggregator_column_name = cloudutil.ConvertToGlueColumnFormat(aggregator_column_name)
-		formattedAggregators = append(formattedAggregators, aggregator_column_name)
-	}
-	aggregatorNames := strings.Join(formattedAggregators, ",")
-	aggregatorOr := strings.Join(formattedAggregators, " <> '' OR ")
-	aggregatorOr = aggregatorOr + " <> ''"
-
-	filter_column_name := "resource_tags_user_" + filterType
-	filter_column_name = cloudutil.ConvertToGlueColumnFormat(filter_column_name)
-
-	var query string
-	var lastIdx int
-	if filterType != "kubernetes_" { // This gets appended upstream and is equivalent to no filter.
-		lastIdx = len(formattedAggregators) + 3
-		groupby := generateAWSGroupBy(lastIdx)
-		query = fmt.Sprintf(`SELECT
-			CAST(line_item_usage_start_date AS DATE) as start_date,
-			%s,
-			line_item_product_code,
-			%s,
-			SUM(line_item_blended_cost) as blended_cost
-		FROM %s as cost_data
-		WHERE (%s='%s') AND line_item_usage_start_date BETWEEN date '%s' AND date '%s' AND (%s)
-		GROUP BY %s`, aggregatorNames, filter_column_name, customPricing.AthenaTable, filter_column_name, filterValue, start, end, aggregatorOr, groupby)
-	} else {
-		lastIdx = len(formattedAggregators) + 2
-		groupby := generateAWSGroupBy(lastIdx)
-		query = fmt.Sprintf(`SELECT
-			CAST(line_item_usage_start_date AS DATE) as start_date,
-			%s,
-			line_item_product_code,
-			SUM(line_item_blended_cost) as blended_cost
-		FROM %s as cost_data
-		WHERE line_item_usage_start_date BETWEEN date '%s' AND date '%s' AND (%s)
-		GROUP BY %s`, aggregatorNames, customPricing.AthenaTable, start, end, aggregatorOr, groupby)
-	}
-	var oocAllocs []*OutOfClusterAllocation
-	page := 0
-	processResults := func(op *athena.GetQueryResultsOutput, lastpage bool) bool {
-		iter := op.ResultSet.Rows
-		if page == 0 && len(iter) > 0 {
-			iter = op.ResultSet.Rows[1:len(op.ResultSet.Rows)]
-		}
-		page++
-		for _, r := range iter {
-			cost, err := strconv.ParseFloat(*r.Data[lastIdx].VarCharValue, 64)
-			if err != nil {
-				klog.Infof("Error converting cost `%s` from float ", *r.Data[lastIdx].VarCharValue)
-			}
-			environment := ""
-			for _, d := range r.Data[1 : len(formattedAggregators)+1] {
-				if *d.VarCharValue != "" {
-					environment = *d.VarCharValue // just set to the first nonempty match
-				}
-				break
-			}
-			ooc := &OutOfClusterAllocation{
-				Aggregator:  strings.Join(aggregators, ","),
-				Environment: environment,
-				Service:     *r.Data[len(formattedAggregators)+1].VarCharValue,
-				Cost:        cost,
-			}
-			oocAllocs = append(oocAllocs, ooc)
-		}
-		return true
-	}
-	// Query for all column names in advance in order to validate configured
-	// label columns
-	columns, _ := a.ShowAthenaColumns()
-
-	// Check for all aggregators being formatted into the query
-	containsColumns := true
-	for _, agg := range formattedAggregators {
-		if columns[agg] != true {
-			containsColumns = false
-			klog.Warningf("Athena missing column: %s", agg)
-		}
-	}
-	if containsColumns {
-		klog.V(3).Infof("Running Query: %s", query)
-		ip, svc, _ := a.QueryAthenaPaginated(query)
-
-		athenaErr := svc.GetQueryResultsPages(ip, processResults)
-		if athenaErr != nil {
-			klog.Infof("RETURNING ATHENA ERROR")
-			return nil, athenaErr
-		}
-
-		if customPricing.BillingDataDataset != "" && !crossCluster { // There is GCP data, meaning someone has tried to configure a GCP out-of-cluster allocation.
-			gcp, err := NewCrossClusterProvider("gcp", a.Config.ConfigFileManager(), "aws.json", a.Clientset)
-			if err != nil {
-				klog.Infof("Could not instantiate cross-cluster provider %s", err.Error())
-			}
-			gcpOOC, err := gcp.ExternalAllocations(start, end, aggregators, filterType, filterValue, true)
-			if err != nil {
-				klog.Infof("Could not fetch cross-cluster costs %s", err.Error())
-			}
-			oocAllocs = append(oocAllocs, gcpOOC...)
-		}
-	} else {
-		klog.Infof("External Allocations: Athena Query skipped due to missing columns")
-	}
-	return oocAllocs, nil
-}
-
-// QuerySQL can query a properly configured Athena database.
-// Used to fetch billing data.
-// Requires a json config in /var/configs with key region, output, and database.
-func (a *AWS) QuerySQL(query string) ([]byte, error) {
-	customPricing, err := a.GetConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	a.ConfigureAuthWith(customPricing) // load aws authentication from configuration or secret
-
-	athenaConfigs, err := os.Open("/var/configs/athena.json")
-	if err != nil {
-		return nil, err
-	}
-	defer athenaConfigs.Close()
-	b, err := ioutil.ReadAll(athenaConfigs)
-	if err != nil {
-		return nil, err
-	}
-	var athenaConf map[string]string
-	json.Unmarshal([]byte(b), &athenaConf)
-	region := aws.String(customPricing.AthenaRegion)
-	resultsBucket := customPricing.AthenaBucketName
-	database := customPricing.AthenaDatabase
-
-	c := &aws.Config{
-		Region: region,
-	}
-	s := session.Must(session.NewSession(c))
-	svc := athena.New(s)
-
-	var e athena.StartQueryExecutionInput
-
-	var r athena.ResultConfiguration
-	r.SetOutputLocation(resultsBucket)
-	e.SetResultConfiguration(&r)
-
-	e.SetQueryString(query)
-	var q athena.QueryExecutionContext
-	q.SetDatabase(database)
-	e.SetQueryExecutionContext(&q)
-
-	res, err := svc.StartQueryExecution(&e)
-	if err != nil {
-		return nil, err
-	}
-
-	klog.V(2).Infof("StartQueryExecution result:")
-	klog.V(2).Infof(res.GoString())
-
-	var qri athena.GetQueryExecutionInput
-	qri.SetQueryExecutionId(*res.QueryExecutionId)
-
-	var qrop *athena.GetQueryExecutionOutput
-	duration := time.Duration(2) * time.Second // Pause for 2 seconds
-
-	for {
-		qrop, err = svc.GetQueryExecution(&qri)
-		if err != nil {
-			return nil, err
-		}
-		if *qrop.QueryExecution.Status.State != "RUNNING" && *qrop.QueryExecution.Status.State != "QUEUED" {
-			break
-		}
-		time.Sleep(duration)
-	}
-	if *qrop.QueryExecution.Status.State == "SUCCEEDED" {
-
-		var ip athena.GetQueryResultsInput
-		ip.SetQueryExecutionId(*res.QueryExecutionId)
-
-		op, err := svc.GetQueryResults(&ip)
-		if err != nil {
-			return nil, err
-		}
-		b, err := json.Marshal(op.ResultSet)
-		if err != nil {
-			return nil, err
-		}
-
-		return b, nil
-	}
-	return nil, fmt.Errorf("Error getting query results : %s", *qrop.QueryExecution.Status.State)
 }
 
 type spotInfo struct {
@@ -2132,33 +1868,6 @@ type spotInfo struct {
 	MarketPrice string `csv:"MarketPrice"`
 	Charge      string `csv:"Charge"`
 	Version     string `csv:"Version"`
-}
-
-type fnames []*string
-
-func (f fnames) Len() int {
-	return len(f)
-}
-
-func (f fnames) Swap(i, j int) {
-	f[i], f[j] = f[j], f[i]
-}
-
-func (f fnames) Less(i, j int) bool {
-	key1 := strings.Split(*f[i], ".")
-	key2 := strings.Split(*f[j], ".")
-
-	t1, err := time.Parse("2006-01-02-15", key1[1])
-	if err != nil {
-		klog.V(1).Info("Unable to parse timestamp" + key1[1])
-		return false
-	}
-	t2, err := time.Parse("2006-01-02-15", key2[1])
-	if err != nil {
-		klog.V(1).Info("Unable to parse timestamp" + key2[1])
-		return false
-	}
-	return t1.Before(t2)
 }
 
 func (a *AWS) parseSpotData(bucket string, prefix string, projectID string, region string) (map[string]*spotInfo, error) {
