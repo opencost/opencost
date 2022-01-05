@@ -1626,6 +1626,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	a.Router.GET("/costDataModelRange", a.CostDataModelRange)
 	a.Router.GET("/aggregatedCostModel", a.AggregateCostModelHandler)
 	a.Router.GET("/allocation/compute", a.ComputeAllocationHandler)
+	a.Router.GET("/allocation/compute/summary", a.ComputeAllocationHandlerSummary)
 	a.Router.GET("/outOfClusterCosts", a.OutOfClusterCostsWithCache)
 	a.Router.GET("/allNodePricing", a.GetAllNodePricing)
 	a.Router.POST("/refreshPricing", a.RefreshPricingData)
