@@ -12,6 +12,7 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/thanos"
+	"github.com/rickb777/date/period"
 )
 
 const (
@@ -119,6 +120,15 @@ func parseWindow(window string, now time.Time) (Window, error) {
 	offHr := now.UTC().Hour() - now.Hour()
 	offMin := (now.UTC().Minute() - now.Minute()) + (offHr * 60)
 	offset := time.Duration(offMin) * time.Minute
+
+	duration, err := period.Parse(window)
+	if err == nil {
+		end := now
+		start, precise := duration.Negate().AddTo(end)
+		if precise {
+			return NewWindow(&start, &end), nil
+		}
+	}
 
 	if window == "today" {
 		start := now

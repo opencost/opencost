@@ -163,6 +163,41 @@ func TestRoundForward(t *testing.T) {
 	}
 }
 
+func TestParseWindowUTC_ISO8601(t *testing.T) {
+	ago30s := time.Now().UTC().Add(-30 * time.Second)
+	ago12h := time.Now().UTC().Add(-12 * time.Hour)
+	ago30h := time.Now().UTC().Add(-30 * time.Hour)
+
+	pt24h, err := ParseWindowUTC("PT24H")
+	if err != nil {
+		t.Fatalf(`unexpected error parsing "PT1H": %s`, err)
+	}
+	if pt24h.Duration().Hours() != 24 {
+		t.Fatalf(`expect: window "PT24H" to have duration 24 hour; actual: %f hours`, pt24h.Duration().Hours())
+	}
+	if !pt24h.Contains(ago12h) {
+		t.Fatalf(`expect: window "PT24H" to contain ago12h; actual: %s -- %s`, pt24h, ago12h)
+	}
+	if pt24h.Contains(ago30h) {
+		t.Fatalf(`expect: window "PT24H" to NOT contain ago30h; actual: %s`, pt24h)
+	}
+
+	pt1m, err := ParseWindowUTC("PT1M")
+	if err != nil {
+		t.Fatalf(`unexpected error parsing "PT1M": %s`, err)
+	}
+	if pt1m.Duration().Minutes() != 1 {
+		t.Fatalf(`expect: window "PT1M" to have duration 1 hour; actual: %f hours`, pt1m.Duration().Hours())
+	}
+	if !pt1m.Contains(ago30s) {
+		t.Fatalf(`expect: window "PT1M" to contain ago30m; actual: %s`, pt1m)
+	}
+	if pt1m.Contains(ago12h) {
+		t.Fatalf(`expect: window "PT1M" to NOT contain ago12h; actual: %s`, pt1m)
+	}
+
+}
+
 func TestParseWindowUTC(t *testing.T) {
 	now := time.Now().UTC()
 
@@ -560,7 +595,7 @@ func TestWindow_DurationOffsetStrings(t *testing.T) {
 
 	w, err = ParseWindowUTC("3h")
 	if err != nil {
-		t.Fatalf(`unexpected error parsing "1d": %s`, err)
+		t.Fatalf(`unexpected error parsing "3h": %s`, err)
 	}
 	dur, off = w.DurationOffsetStrings()
 	if dur != "3h" {
@@ -572,7 +607,7 @@ func TestWindow_DurationOffsetStrings(t *testing.T) {
 
 	w, err = ParseWindowUTC("10m")
 	if err != nil {
-		t.Fatalf(`unexpected error parsing "1d": %s`, err)
+		t.Fatalf(`unexpected error parsing "10m": %s`, err)
 	}
 	dur, off = w.DurationOffsetStrings()
 	if dur != "10m" {
