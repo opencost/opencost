@@ -375,6 +375,27 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	podPVCMap := map[podKey][]*PVC{}
 	buildPodPVCMap(podPVCMap, pvMap, pvcMap, podMap, resPodPVCAllocation)
 
+	for key, pvcs := range podPVCMap {
+		for _, pvc := range pvcs {
+			klog.Infof("POD %s has associated PVC %s with an alloc count of %d", key.Pod, pvc.Name, pvc.Count)
+		}
+	}
+
+	// create map of PVC keys to number of pod-to-PVC relationships for corresponding PVC
+	pvcRelationCountMap := make(map[pvcKey]int)
+
+	for _, pvcs := range podPVCMap {
+		for _, pvc := range pvcs {
+			pvcKey := newPVCKey(pvc.Cluster, pvc.Namespace, pvc.Name)
+			pvcRelationCountMap[pvcKey] += 1
+		}
+	}
+
+	klog.Infof("-- ASSEMBLED MAP --")
+	for key, count := range pvcRelationCountMap {
+		klog.Infof("PVC %s : %d ALLOCATIONS", key.PersistentVolumeClaim, count)
+	}
+	klog.Infof("-------------------")
 	// Identify unmounted PVs (PVs without PVCs) and add one Allocation per
 	// cluster representing each cluster's unmounted PVs (if necessary).
 	applyUnmountedPVs(window, podMap, pvMap, pvcMap)
@@ -422,6 +443,8 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 
 					gib := pvc.Bytes / 1024 / 1024 / 1024
 					cost := pvc.Volume.CostPerGiBHour * gib * hrs
+
+					klog.Infof("ALLOC %s has pvc %s with count %f", alloc.Name, pvc.Name, count)
 
 					// Apply the size and cost of the PV to the allocation, each
 					// weighted by count (i.e. the number of containers in the pod)
@@ -1760,6 +1783,8 @@ func buildPodPVCMap(podPVCMap map[podKey][]*PVC, pvMap map[pvKey]*PV, pvcMap map
 		pvKey := newPVKey(cluster, volume)
 		pvcKey := newPVCKey(cluster, namespace, name)
 
+		klog.Infof("-- PVC %s for pod %s -- ", name, pod)
+
 		if _, ok := pvMap[pvKey]; !ok {
 			log.DedupedWarningf(5, "CostModel.ComputeAllocation: PV missing for PVC allocation query result: %s", pvKey)
 			continue
@@ -1778,6 +1803,10 @@ func buildPodPVCMap(podPVCMap map[podKey][]*PVC, pvMap map[pvKey]*PV, pvcMap map
 		count := 1
 		if pod, ok := podMap[podKey]; ok && len(pod.Allocations) > 0 {
 			count = len(pod.Allocations)
+			klog.Infof("POD %s:", pod.Key.Pod)
+			for _, alloc := range pod.Allocations {
+				klog.Infof(alloc.Name)
+			}
 		} else {
 			log.DedupedWarningf(10, "CostModel.ComputeAllocation: PVC %s for missing pod %s", pvcKey, podKey)
 		}
