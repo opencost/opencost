@@ -8,6 +8,7 @@ import (
 
 
 	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util/cloudutil"
 )
@@ -36,34 +37,47 @@ type LabelConfig struct {
 	TeamExternalLabel        string `json:"team_external_label"`
 }
 
+func GetDefaultLabelConfig() *LabelConfig {
+	return &LabelConfig{
+		DepartmentLabel:          "department",
+		EnvironmentLabel:         "env",
+		OwnerLabel:               "owner",
+		ProductLabel:             "app",
+		TeamLabel:                "team",
+		ClusterExternalLabel:     "kubernetes_cluster",
+		NamespaceExternalLabel:   "kubernetes_namespace",
+		ControllerExternalLabel:  "kubernetes_controller",
+		DaemonsetExternalLabel:   "kubernetes_daemonset",
+		DeploymentExternalLabel:  "kubernetes_deployment",
+		StatefulsetExternalLabel: "kubernetes_statefulset",
+		ServiceExternalLabel:     "kubernetes_service",
+		PodExternalLabel:         "kubernetes_pod",
+		DepartmentExternalLabel:  "kubernetes_label_department",
+		EnvironmentExternalLabel: "kubernetes_label_env",
+		OwnerExternalLabel:       "kubernetes_label_owner",
+		ProductExternalLabel:     "kubernetes_label_app",
+		TeamExternalLabel:        "kubernetes_label_team",
+	}
+}
+
 // NewLabelConfig creates a new LabelConfig instance with default values.
 func NewLabelConfig() *LabelConfig {
 	if env.GetLabelConfigPath() != "" {
 		labelConfig := LabelConfig{}
-		bytes, _ := ioutil.ReadFile(env.GetLabelConfigPath())
-		_ = json.Unmarshal([]byte(bytes), &labelConfig)
+		bytes, err := ioutil.ReadFile(env.GetLabelConfigPath())
+		if err != nil {
+			log.Warningf("Could not read labels from %s. Using defaults instead. Error: %s", env.GetLabelConfigPath(), err)
+			return GetDefaultLabelConfig()
+
+		}
+		err = json.Unmarshal([]byte(bytes), &labelConfig)
+		if err != nil {
+			log.Warningf("Could not read labels from %s. Using defaults instead. Error: %s", env.GetLabelConfigPath(), err)
+			return GetDefaultLabelConfig()
+		}
 		return &labelConfig
 	} else {
-		return &LabelConfig{
-			DepartmentLabel:          "department",
-			EnvironmentLabel:         "env",
-			OwnerLabel:               "owner",
-			ProductLabel:             "app",
-			TeamLabel:                "team",
-			ClusterExternalLabel:     "kubernetes_cluster",
-			NamespaceExternalLabel:   "kubernetes_namespace",
-			ControllerExternalLabel:  "kubernetes_controller",
-			DaemonsetExternalLabel:   "kubernetes_daemonset",
-			DeploymentExternalLabel:  "kubernetes_deployment",
-			StatefulsetExternalLabel: "kubernetes_statefulset",
-			ServiceExternalLabel:     "kubernetes_service",
-			PodExternalLabel:         "kubernetes_pod",
-			DepartmentExternalLabel:  "kubernetes_label_department",
-			EnvironmentExternalLabel: "kubernetes_label_env",
-			OwnerExternalLabel:       "kubernetes_label_owner",
-			ProductExternalLabel:     "kubernetes_label_app",
-			TeamExternalLabel:        "kubernetes_label_team",
-		}
+		return GetDefaultLabelConfig()
 	}
 }
 
