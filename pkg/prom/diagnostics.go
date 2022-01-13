@@ -101,13 +101,6 @@ func GetPrometheusMetrics(client prometheus.Client, offset string) ([]*Prometheu
 			DocLink:     fmt.Sprintf("%s#node-exporter-metrics-available", docs),
 		},
 		{
-			ID:          "recordingMetric",
-			Query:       fmt.Sprintf(`absent_over_time(node_cpu_seconds_total[5m]  %s)`, offset),
-			Label:       "Recording rules are available",
-			Description: "Determine if metrics defined by kubecost recording rules are available during last 5 minutes.",
-			DocLink:     fmt.Sprintf("%s#recording-rules-are-available", docs),
-		},
-		{
 			ID:          "cadvisorLabel",
 			Query:       fmt.Sprintf(`absent_over_time(container_cpu_usage_seconds_total{container!="",pod!=""}[5m]  %s)`, offset),
 			Label:       "Expected cAdvsior labels available",

@@ -554,71 +554,6 @@ func parseAggregations(customAggregation, aggregator, filterType string) (string
 	return key, val, filter
 }
 
-func (a *Accesses) OutofClusterCosts(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	start := r.URL.Query().Get("start")
-	end := r.URL.Query().Get("end")
-	aggregator := r.URL.Query().Get("aggregator")
-	customAggregation := r.URL.Query().Get("customAggregation")
-	filterType := r.URL.Query().Get("filterType")
-	filterValue := r.URL.Query().Get("filterValue")
-	var data []*cloud.OutOfClusterAllocation
-	var err error
-	_, aggregations, filter := parseAggregations(customAggregation, aggregator, filterType)
-	data, err = a.CloudProvider.ExternalAllocations(start, end, aggregations, filter, filterValue, false)
-	w.Write(WrapData(data, err))
-}
-
-func (a *Accesses) OutOfClusterCostsWithCache(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	// start date for which to query costs, inclusive; format YYYY-MM-DD
-	start := r.URL.Query().Get("start")
-	// end date for which to query costs, inclusive; format YYYY-MM-DD
-	end := r.URL.Query().Get("end")
-	// aggregator sets the field by which to aggregate; default, prepended by "kubernetes_"
-	kubernetesAggregation := r.URL.Query().Get("aggregator")
-	// customAggregation allows full customization of aggregator w/o prepending
-	customAggregation := r.URL.Query().Get("customAggregation")
-	// disableCache, if set to "true", tells this function to recompute and
-	// cache the requested data
-	disableCache := r.URL.Query().Get("disableCache") == "true"
-	// clearCache, if set to "true", tells this function to flush the cache,
-	// then recompute and cache the requested data
-	clearCache := r.URL.Query().Get("clearCache") == "true"
-
-	filterType := r.URL.Query().Get("filterType")
-	filterValue := r.URL.Query().Get("filterValue")
-
-	aggregationkey, aggregation, filter := parseAggregations(customAggregation, kubernetesAggregation, filterType)
-
-	// clear cache prior to checking the cache so that a clearCache=true
-	// request always returns a freshly computed value
-	if clearCache {
-		a.OutOfClusterCache.Flush()
-	}
-
-	// attempt to retrieve cost data from cache
-	key := fmt.Sprintf(`%s:%s:%s:%s:%s`, start, end, aggregationkey, filter, filterValue)
-	if value, found := a.OutOfClusterCache.Get(key); found && !disableCache {
-		if data, ok := value.([]*cloud.OutOfClusterAllocation); ok {
-			w.Write(WrapDataWithMessage(data, nil, fmt.Sprintf("out of cluster cache hit: %s", key)))
-			return
-		}
-		klog.Errorf("caching error: failed to type cast data: %s", key)
-	}
-
-	data, err := a.CloudProvider.ExternalAllocations(start, end, aggregation, filter, filterValue, false)
-	if err == nil {
-		a.OutOfClusterCache.Set(key, data, cache.DefaultExpiration)
-	}
-
-	w.Write(WrapDataWithMessage(data, err, fmt.Sprintf("out of cluser cache miss: %s", key)))
-}
-
 func (a *Accesses) GetAllNodePricing(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -1092,6 +1027,9 @@ func (a *Accesses) GetPod(w http.ResponseWriter, r *http.Request, ps httprouter.
 	// TODO: ClusterCache API could probably afford to have some better filtering
 	allPods := a.ClusterCache.GetAllPods()
 	for _, pod := range allPods {
+		for _, container := range pod.Spec.Containers {
+			container.Env = make([]v1.EnvVar, 0)
+		}
 		if pod.Namespace == podNamespace && pod.Name == podName {
 			body, err := json.Marshal(pod)
 			if err != nil {
@@ -1626,7 +1564,6 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	a.Router.GET("/costDataModelRange", a.CostDataModelRange)
 	a.Router.GET("/aggregatedCostModel", a.AggregateCostModelHandler)
 	a.Router.GET("/allocation/compute", a.ComputeAllocationHandler)
-	a.Router.GET("/outOfClusterCosts", a.OutOfClusterCostsWithCache)
 	a.Router.GET("/allNodePricing", a.GetAllNodePricing)
 	a.Router.POST("/refreshPricing", a.RefreshPricingData)
 	a.Router.GET("/clusterCostsOverTime", a.ClusterCostsOverTime)

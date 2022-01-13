@@ -687,7 +687,7 @@ func (a *Allocation) add(that *Allocation) {
 	// in the case of keys matching but controllers not matching.
 	aggByForKey := []string{"cluster", "node", "namespace", "pod", "container"}
 	leftKey := a.generateKey(aggByForKey, nil)
-	rightKey := a.generateKey(aggByForKey, nil)
+	rightKey := that.generateKey(aggByForKey, nil)
 	leftProperties := a.Properties
 	rightProperties := that.Properties
 
