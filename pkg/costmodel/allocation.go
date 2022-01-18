@@ -374,28 +374,58 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	// split appropriately among each pod's container allocation.
 	podPVCMap := map[podKey][]*PVC{}
 	buildPodPVCMap(podPVCMap, pvMap, pvcMap, podMap, resPodPVCAllocation)
+	pvcPodIntervalMap := make(map[pvcKey]map[podKey]kubecost.Window)
 
-	for key, pvcs := range podPVCMap {
-		for _, pvc := range pvcs {
-			klog.Infof("POD %s has associated PVC %s with an alloc count of %d", key.Pod, pvc.Name, pvc.Count)
+	for _, pod := range podMap {
+
+		for _, alloc := range pod.Allocations {
+
+			cluster := alloc.Properties.Cluster
+			namespace := alloc.Properties.Namespace
+			pod := alloc.Properties.Pod
+			thisPodKey := newPodKey(cluster, namespace, pod)
+
+			if pvcs, ok := podPVCMap[thisPodKey]; ok {
+				for _, pvc := range pvcs {
+
+					// Determine the (start, end) of the relationship between the
+					// given PVC and the associated Allocation so that a precise
+					// number of hours can be used to compute cumulative cost.
+					s, e := alloc.Start, alloc.End
+					if pvc.Start.After(alloc.Start) {
+						s = pvc.Start
+					}
+					if pvc.End.Before(alloc.End) {
+						e = pvc.End
+					}
+
+					thisPVCKey := newPVCKey(cluster, namespace, pvc.Name)
+					if pvcPodIntervalMap[thisPVCKey] == nil {
+						pvcPodIntervalMap[thisPVCKey] = make(map[podKey]kubecost.Window)
+					}
+
+					pvcPodIntervalMap[thisPVCKey][thisPodKey] = kubecost.NewWindow(&s, &e)
+					klog.Infof("For alloc %s adding pvcPodIntervalMap[%s][%s] : %s", alloc.Name, thisPVCKey.String(), thisPodKey.String(), pvcPodIntervalMap[thisPVCKey][thisPodKey])
+				}
+			}
+
 		}
+
 	}
 
-	// create map of PVC keys to number of pod-to-PVC relationships for corresponding PVC
-	pvcRelationCountMap := make(map[pvcKey]int)
+	sharedPVCCostCoefficientMap := make(map[pvcKey]map[podKey][][]float64)
 
-	for _, pvcs := range podPVCMap {
-		for _, pvc := range pvcs {
-			pvcKey := newPVCKey(pvc.Cluster, pvc.Namespace, pvc.Name)
-			pvcRelationCountMap[pvcKey] += 1
-		}
+	for pvcKey, podIntervalMap := range pvcPodIntervalMap {
+
+		intervals := getIntervalPointsFromWindows(podIntervalMap)
+		pvcCostCoefficientMap := make(map[podKey][][]float64)
+
+		getPVCCostCoefficients(intervals, podIntervalMap, pvcCostCoefficientMap)
+
+		sharedPVCCostCoefficientMap[pvcKey] = pvcCostCoefficientMap
+
 	}
 
-	klog.Infof("-- ASSEMBLED MAP --")
-	for key, count := range pvcRelationCountMap {
-		klog.Infof("PVC %s : %d ALLOCATIONS", key.PersistentVolumeClaim, count)
-	}
-	klog.Infof("-------------------")
 	// Identify unmounted PVs (PVs without PVCs) and add one Allocation per
 	// cluster representing each cluster's unmounted PVs (if necessary).
 	applyUnmountedPVs(window, podMap, pvMap, pvcMap)
@@ -423,16 +453,16 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 			alloc.GPUCost = alloc.GPUHours * node.CostPerGPUHr
 			if pvcs, ok := podPVCMap[podKey]; ok {
 				for _, pvc := range pvcs {
-					// Determine the (start, end) of the relationship between the
-					// given PVC and the associated Allocation so that a precise
-					// number of hours can be used to compute cumulative cost.
+
+					pvcKey := newPVCKey(cluster, namespace, pvc.Name)
+
 					s, e := alloc.Start, alloc.End
-					if pvc.Start.After(alloc.Start) {
-						s = pvc.Start
+					if pvcInterval, ok := pvcPodIntervalMap[pvcKey][podKey]; ok {
+						s, e = *pvcInterval.Start(), *pvcInterval.End()
+					} else {
+						log.Warningf("CostModel.ComputeAllocation: allocation %s and PVC %s have no associated active window", alloc.Name, pvc.Name)
 					}
-					if pvc.End.Before(alloc.End) {
-						e = pvc.End
-					}
+
 					minutes := e.Sub(s).Minutes()
 					hrs := minutes / 60.0
 
@@ -444,7 +474,25 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 					gib := pvc.Bytes / 1024 / 1024 / 1024
 					cost := pvc.Volume.CostPerGiBHour * gib * hrs
 
-					klog.Infof("ALLOC %s has pvc %s with count %f", alloc.Name, pvc.Name, count)
+					klog.Infof("x-x-x-x-x-x-x-x-x-x")
+					klog.Infof("Allocation %s has pvc %s", alloc.Name, pvc.Name)
+
+					if coeffComponents, ok := sharedPVCCostCoefficientMap[pvcKey][podKey]; ok {
+
+						cost *= getCoefficient(coeffComponents)
+
+						klog.Infof("Original cost %f mutliplied by %f gives final cost of %f", pvc.Volume.CostPerGiBHour*gib*hrs, getCoefficient(coeffComponents), cost)
+
+						for _, coeff := range coeffComponents {
+							klog.Infof("Coeff Components: pod %s has cost of %f for %f of total runtime", pod, coeff[0], coeff[1])
+						}
+
+						//klog.Infof("This results in a coeff %f leading to a cost of %f in comparison versus a cost of %f", getCoefficient(coeffComponents), testCost, cost)
+
+					} else {
+						klog.Infof("x-x-x-x-x-x-x-x-x-x")
+						klog.Warningf("CostModel.ComputeAllocation: allocation %s and PVC %s have relation but no coeff", alloc.Name, pvc.Name)
+					}
 
 					// Apply the size and cost of the PV to the allocation, each
 					// weighted by count (i.e. the number of containers in the pod)
