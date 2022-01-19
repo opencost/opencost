@@ -374,6 +374,14 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	// split appropriately among each pod's container allocation.
 	podPVCMap := map[podKey][]*PVC{}
 	buildPodPVCMap(podPVCMap, pvMap, pvcMap, podMap, resPodPVCAllocation)
+
+	// Because PVCs can be shared among pods, the respective PV cost
+	// needs to be evenly distributed to those pods based on time
+	// running, as well as the amount of time the PVC was shared.
+
+	// Build a relation between every PVC to the pods that mount it
+	// and a window representing the interval during which they
+	// were associated.
 	pvcPodIntervalMap := make(map[pvcKey]map[podKey]kubecost.Window)
 
 	for _, pod := range podMap {
@@ -412,13 +420,17 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 
 	}
 
+	// Build out a PV price coefficient for each pod with a PVC. Each
+	// PVC-pod relation needs a coefficient which modifies the PV cost
+	// such that PV costs can be shared between all pods using that PVC.
 	sharedPVCCostCoefficientMap := make(map[pvcKey]map[podKey][][]float64)
-
 	for pvcKey, podIntervalMap := range pvcPodIntervalMap {
 
+		// Get single-point intervals from alloc-PVC relation windows.
 		intervals := getIntervalPointsFromWindows(podIntervalMap)
 		pvcCostCoefficientMap := make(map[podKey][][]float64)
 
+		// Determine coefficients for each PVC-pod relation.
 		getPVCCostCoefficients(intervals, podIntervalMap, pvcCostCoefficientMap)
 
 		sharedPVCCostCoefficientMap[pvcKey] = pvcCostCoefficientMap
@@ -473,6 +485,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 					gib := pvc.Bytes / 1024 / 1024 / 1024
 					cost := pvc.Volume.CostPerGiBHour * gib * hrs
 
+					// Scale PV cost by PVC sharing coefficient.
 					if coeffComponents, ok := sharedPVCCostCoefficientMap[pvcKey][podKey]; ok {
 						cost *= getCoefficient(coeffComponents)
 					} else {
