@@ -8,7 +8,7 @@ import (
 	//"k8s.io/klog"
 )
 
-// pvcIntervalPoint describes a start or end of a window of time
+// IntervalPoint describes a start or end of a window of time
 // Currently, this used in PVC-pod relations and is used to
 // detect/calculate coefficients for PVCs shared between pods.
 type IntervalPoint struct {
@@ -38,6 +38,8 @@ func getIntervalPointsFromWindows(windows map[podKey]kubecost.Window) []Interval
 
 	}
 
+	sortIntervalPoints(intervals)
+
 	return intervals
 
 }
@@ -52,8 +54,6 @@ func sortIntervalPoints(intervals []IntervalPoint) {
 }
 
 func getPVCCostCoefficients(intervals []IntervalPoint, pvcIntervalMap map[podKey]kubecost.Window, pvcCostCoefficientMap map[podKey][][]float64) {
-
-	sortIntervalPoints(intervals)
 
 	var activePods float64
 

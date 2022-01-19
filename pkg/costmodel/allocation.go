@@ -405,7 +405,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 					}
 
 					pvcPodIntervalMap[thisPVCKey][thisPodKey] = kubecost.NewWindow(&s, &e)
-					klog.Infof("For alloc %s adding pvcPodIntervalMap[%s][%s] : %s", alloc.Name, thisPVCKey.String(), thisPodKey.String(), pvcPodIntervalMap[thisPVCKey][thisPodKey])
 				}
 			}
 
@@ -474,23 +473,9 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 					gib := pvc.Bytes / 1024 / 1024 / 1024
 					cost := pvc.Volume.CostPerGiBHour * gib * hrs
 
-					klog.Infof("x-x-x-x-x-x-x-x-x-x")
-					klog.Infof("Allocation %s has pvc %s", alloc.Name, pvc.Name)
-
 					if coeffComponents, ok := sharedPVCCostCoefficientMap[pvcKey][podKey]; ok {
-
 						cost *= getCoefficient(coeffComponents)
-
-						klog.Infof("Original cost %f mutliplied by %f gives final cost of %f", pvc.Volume.CostPerGiBHour*gib*hrs, getCoefficient(coeffComponents), cost)
-
-						for _, coeff := range coeffComponents {
-							klog.Infof("Coeff Components: pod %s has cost of %f for %f of total runtime", pod, coeff[0], coeff[1])
-						}
-
-						//klog.Infof("This results in a coeff %f leading to a cost of %f in comparison versus a cost of %f", getCoefficient(coeffComponents), testCost, cost)
-
 					} else {
-						klog.Infof("x-x-x-x-x-x-x-x-x-x")
 						klog.Warningf("CostModel.ComputeAllocation: allocation %s and PVC %s have relation but no coeff", alloc.Name, pvc.Name)
 					}
 
@@ -1831,8 +1816,6 @@ func buildPodPVCMap(podPVCMap map[podKey][]*PVC, pvMap map[pvKey]*PV, pvcMap map
 		pvKey := newPVKey(cluster, volume)
 		pvcKey := newPVCKey(cluster, namespace, name)
 
-		klog.Infof("-- PVC %s for pod %s -- ", name, pod)
-
 		if _, ok := pvMap[pvKey]; !ok {
 			log.DedupedWarningf(5, "CostModel.ComputeAllocation: PV missing for PVC allocation query result: %s", pvKey)
 			continue
@@ -1851,10 +1834,6 @@ func buildPodPVCMap(podPVCMap map[podKey][]*PVC, pvMap map[pvKey]*PV, pvcMap map
 		count := 1
 		if pod, ok := podMap[podKey]; ok && len(pod.Allocations) > 0 {
 			count = len(pod.Allocations)
-			klog.Infof("POD %s:", pod.Key.Pod)
-			for _, alloc := range pod.Allocations {
-				klog.Infof(alloc.Name)
-			}
 		} else {
 			log.DedupedWarningf(10, "CostModel.ComputeAllocation: PVC %s for missing pod %s", pvcKey, podKey)
 		}
