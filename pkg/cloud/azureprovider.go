@@ -764,27 +764,36 @@ func (az *Azure) DownloadPricingData() error {
 
 	var authorizer autorest.Authorizer
 
-	if config.AzureClientID != "" && config.AzureClientSecret != "" && config.AzureTenantID != "" {
-		credentialsConfig := auth.NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID)
-		a, err := credentialsConfig.Authorizer()
-		if err != nil {
-			az.RateCardPricingError = err
-			return err
-		}
-		authorizer = a
-	}
+	azureEnv := determineCloudByRegion(config.AzureBillingRegion)
 
-	if authorizer == nil {
-		a, err := auth.NewAuthorizerFromEnvironment()
-		authorizer = a
-		if err != nil { // Failed to create authorizer from environment, try from file
-			a, err := auth.NewAuthorizerFromFile(determineCloudByRegion(config.AzureBillingRegion).ResourceManagerEndpoint)
+	// These Auth methods exclusively connect to Azure's public cloud
+	if azureEnv == azure.PublicCloud {
+		if config.AzureClientID != "" && config.AzureClientSecret != "" && config.AzureTenantID != "" {
+			credentialsConfig := auth.NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID)
+			a, err := credentialsConfig.Authorizer()
 			if err != nil {
 				az.RateCardPricingError = err
 				return err
 			}
 			authorizer = a
 		}
+
+		if authorizer == nil {
+			a, err := auth.NewAuthorizerFromEnvironment()
+			if err == nil {
+				authorizer = a
+			}
+		}
+	}
+
+	// Create Authorizer from file if it has not yet been created
+	if authorizer == nil {
+		a, err := auth.NewAuthorizerFromFile(azureEnv.ResourceManagerEndpoint)
+		if err != nil {
+			az.RateCardPricingError = err
+			return err
+		}
+		authorizer = a
 	}
 
 	sClient := subscriptions.NewClient()
