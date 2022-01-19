@@ -766,34 +766,28 @@ func (az *Azure) DownloadPricingData() error {
 
 	azureEnv := determineCloudByRegion(config.AzureBillingRegion)
 
-	// These Auth methods exclusively connect to Azure's public cloud
-	if azureEnv == azure.PublicCloud {
-		if config.AzureClientID != "" && config.AzureClientSecret != "" && config.AzureTenantID != "" {
-			credentialsConfig := auth.NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID)
-			a, err := credentialsConfig.Authorizer()
+
+	if config.AzureClientID != "" && config.AzureClientSecret != "" && config.AzureTenantID != "" {
+		credentialsConfig := NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID, azureEnv)
+		a, err := credentialsConfig.Authorizer()
+		if err != nil {
+			az.RateCardPricingError = err
+			return err
+		}
+		authorizer = a
+	}
+
+	if authorizer == nil {
+		a, err := auth.NewAuthorizerFromEnvironment()
+		authorizer = a
+		if err != nil {
+			a, err := auth.NewAuthorizerFromFile(azureEnv.ResourceManagerEndpoint)
 			if err != nil {
 				az.RateCardPricingError = err
 				return err
 			}
 			authorizer = a
 		}
-
-		if authorizer == nil {
-			a, err := auth.NewAuthorizerFromEnvironment()
-			if err == nil {
-				authorizer = a
-			}
-		}
-	}
-
-	// Create Authorizer from file if it has not yet been created
-	if authorizer == nil {
-		a, err := auth.NewAuthorizerFromFile(azureEnv.ResourceManagerEndpoint)
-		if err != nil {
-			az.RateCardPricingError = err
-			return err
-		}
-		authorizer = a
 	}
 
 	sClient := subscriptions.NewClient()
@@ -964,6 +958,18 @@ func determineCloudByRegion(region string) azure.Environment {
 	// Default to public cloud
 	return azure.PublicCloud
 }
+
+// NewClientCredentialsConfig creates an AuthorizerConfig object configured to obtain an Authorizer through Client Credentials.
+func NewClientCredentialsConfig(clientID string, clientSecret string, tenantID string, env azure.Environment) auth.ClientCredentialsConfig {
+	return auth.ClientCredentialsConfig{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		TenantID:     tenantID,
+		Resource:     env.ResourceManagerEndpoint,
+		AADEndpoint:  env.ActiveDirectoryEndpoint,
+	}
+}
+
 
 func (az *Azure) addPricing(features string, azurePricing *AzurePricing) {
 	if az.Pricing == nil {
