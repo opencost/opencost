@@ -129,9 +129,21 @@ func TestGetIntervalPointsFromWindows(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			result := getIntervalPointsFromWindows(testCase.pvcIntervalMap)
 
-			if !reflect.DeepEqual(result, testCase.expected) {
+			if len(result) != len(testCase.expected) {
 				t.Errorf("getIntervalPointsFromWindows test failed: %s: Got %+v but expected %+v", testCase.name, result, testCase.expected)
 			}
+
+			for i := range testCase.expected {
+
+				// For correctness in terms of individual position of IntervalPoints, we only need to check the time/type.
+				// Key is used in other associated calculations, so it must exist, but order does not matter if other sorting
+				// logic is obeyed.
+				if !testCase.expected[i].Time.Equal(result[i].Time) || testCase.expected[i].PointType != result[i].PointType {
+					t.Errorf("getIntervalPointsFromWindows test failed: %s: Got point %s:%s but expected %s:%s", testCase.name, testCase.expected[i].PointType, testCase.expected[i].Time, result[i].PointType, result[i].Time)
+				}
+
+			}
+
 		})
 	}
 }
