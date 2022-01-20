@@ -764,8 +764,11 @@ func (az *Azure) DownloadPricingData() error {
 
 	var authorizer autorest.Authorizer
 
+	azureEnv := determineCloudByRegion(config.AzureBillingRegion)
+
+
 	if config.AzureClientID != "" && config.AzureClientSecret != "" && config.AzureTenantID != "" {
-		credentialsConfig := auth.NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID)
+		credentialsConfig := NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID, azureEnv)
 		a, err := credentialsConfig.Authorizer()
 		if err != nil {
 			az.RateCardPricingError = err
@@ -777,8 +780,8 @@ func (az *Azure) DownloadPricingData() error {
 	if authorizer == nil {
 		a, err := auth.NewAuthorizerFromEnvironment()
 		authorizer = a
-		if err != nil { // Failed to create authorizer from environment, try from file
-			a, err := auth.NewAuthorizerFromFile(determineCloudByRegion(config.AzureBillingRegion).ResourceManagerEndpoint)
+		if err != nil {
+			a, err := auth.NewAuthorizerFromFile(azureEnv.ResourceManagerEndpoint)
 			if err != nil {
 				az.RateCardPricingError = err
 				return err
@@ -955,6 +958,18 @@ func determineCloudByRegion(region string) azure.Environment {
 	// Default to public cloud
 	return azure.PublicCloud
 }
+
+// NewClientCredentialsConfig creates an AuthorizerConfig object configured to obtain an Authorizer through Client Credentials.
+func NewClientCredentialsConfig(clientID string, clientSecret string, tenantID string, env azure.Environment) auth.ClientCredentialsConfig {
+	return auth.ClientCredentialsConfig{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		TenantID:     tenantID,
+		Resource:     env.ResourceManagerEndpoint,
+		AADEndpoint:  env.ActiveDirectoryEndpoint,
+	}
+}
+
 
 func (az *Azure) addPricing(features string, azurePricing *AzurePricing) {
 	if az.Pricing == nil {
