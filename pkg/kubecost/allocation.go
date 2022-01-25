@@ -2261,10 +2261,68 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 }
 
 // TODO accumulate into lower-resolution chunks of the given resolution
-// func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) *AllocationSetRange
+func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*AllocationSetRange, error) {
+	allocSetRange := &AllocationSetRange{allocations: []*AllocationSet{}}
+	var allocSet *AllocationSet
+	var err error
+
+	asr.Lock()
+	defer asr.Unlock()
+
+	fmt.Printf("asrWindow: %v", asr.Window())
+	// fmt.Println(time.Hour > 61*time.Minute)
+	// if asr.Window().IsEmpty() {
+	// 	return asr, nil
+	// }
+
+	// Call total accumulate func if resolution is greater than total window duration
+	// if resolution > asr.Window().Duration() {
+	// 	as, err := asr.Accumulate()
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	allocSetRange.allocations = append(allocSetRange.allocations, as)
+	// 	return allocSetRange, nil
+	// }
+
+	// if asrResolution < 1 hour then there is not enough data to accumulate
+	// if as.allocations end - start > resolution then no need, it's already accumulated. Requery to make more granular in the future?
+
+	// asrResolution := asr.Window().Duration()
+	// fmt.Printf("asrResolution: %s", asrResolution)
+	// if asrResolution <= time.Hour || asrResolution < resolution {
+	// 	return asr, nil
+	// }
+
+	// if(resolution)
+
+	// do not compound
+	// check as.window and accumulate till windowSum == time.duration wanted -> add accumulated set to allocSetRange
+
+	// var currAccumulatedSum time.Duration
+	for _, as := range asr.allocations {
+		//What time group are we in? Is time group bigger than duration?
+
+		allocSet, err = allocSet.accumulate(as)
+		if err != nil {
+			return nil, err
+		}
+		// currAccumulatedSum += allocSet.Window.Duration()
+
+		// if currAccumulatedSum >= resolution { // || check if end of asr to sum the final as
+		allocSetRange.allocations = append(allocSetRange.allocations, allocSet)
+		// make allocSet empty somehow
+		// allocSet = NewAllocationSet(nil, nil, nil)
+		// currAccumulatedSum = 0
+		// }
+	}
+
+	return allocSetRange, nil
+}
 
 // AggregateBy aggregates each AllocationSet in the range by the given
 // properties and options.
+// func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAggregationOptions) error {
 func (asr *AllocationSetRange) AggregateBy(aggregateBy []string, options *AllocationAggregationOptions) error {
 	aggRange := &AllocationSetRange{allocations: []*AllocationSet{}}
 
