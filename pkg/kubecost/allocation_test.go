@@ -2069,14 +2069,17 @@ func TestAllocationSetRange_Accumulate(t *testing.T) {
 }
 
 func TestAllocationSetRange_AccumulateBy(t *testing.T) {
+	ago4d := time.Now().UTC().Truncate(day).Add(-4 * day)
+	ago3d := time.Now().UTC().Truncate(day).Add(-3 * day)
 	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
 	yesterday := time.Now().UTC().Truncate(day).Add(-day)
 	today := time.Now().UTC().Truncate(day)
 	tomorrow := time.Now().UTC().Truncate(day).Add(day)
-	dur := time.Hour
+	dur := time.Hour * 24 * 2
 
 	// Accumulating any combination of nil and/or empty set should result in empty set
-	fmt.Println("test 1")
+	fmt.Println("======================")
+	fmt.Println("test 1 nil set")
 	result, err := NewAllocationSetRange(nil).AccumulateBy(dur)
 	for _, as := range result.allocations {
 		if err != nil {
@@ -2087,7 +2090,8 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 		}
 	}
 
-	fmt.Println("test 2")
+	fmt.Println("======================")
+	fmt.Println("test 2 nil sets")
 	result, err = NewAllocationSetRange(nil, nil).AccumulateBy(dur)
 	for _, as := range result.allocations {
 		if err != nil {
@@ -2098,6 +2102,8 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 		}
 	}
 
+	fmt.Println("======================")
+	fmt.Println("test 1 set 2d long")
 	result, err = NewAllocationSetRange(NewAllocationSet(yesterday, today)).AccumulateBy(dur)
 	for _, as := range result.allocations {
 		if err != nil {
@@ -2108,6 +2114,8 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 		}
 	}
 
+	fmt.Println("======================")
+	fmt.Println("test 2 nil sets 2 1d sets")
 	result, err = NewAllocationSetRange(nil, NewAllocationSet(ago2d, yesterday), nil, NewAllocationSet(today, tomorrow), nil).AccumulateBy(dur)
 	for _, as := range result.allocations {
 		if err != nil {
@@ -2118,21 +2126,58 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 		}
 	}
 
-	todayAS := NewAllocationSet(today, tomorrow)
-	todayAS.Set(NewMockUnitAllocation("", today, day, nil))
-
-	yesterdayAS := NewAllocationSet(yesterday, today)
-	yesterdayAS.Set(NewMockUnitAllocation("", yesterday, day, nil))
-
-	// Accumulate non-nil with nil should result in copy of non-nil, regardless of order
-	result, err = NewAllocationSetRange(nil, todayAS).AccumulateBy(dur)
-	if err != nil {
-		t.Fatalf("unexpected error accumulating AllocationSetRange of length 1: %s", err)
-	}
-	if result == nil {
-		t.Fatalf("accumulating AllocationSetRange: expected AllocationSet; actual %s", result)
+	fmt.Println("======================")
+	fmt.Println("test 2 nil sets 2 1d sets")
+	result, err = NewAllocationSetRange(nil, NewAllocationSet(ago2d, yesterday), nil, NewAllocationSet(today, tomorrow), nil).AccumulateBy(dur)
+	for _, as := range result.allocations {
+		if err != nil {
+			t.Fatalf("unexpected error accumulating nil AllocationSetRange: %s", err)
+		}
+		if !as.IsEmpty() {
+			t.Fatalf("accumulating nil AllocationSetRange: expected empty; actual %s", result)
+		}
 	}
 
+	fmt.Println("======================")
+	fmt.Println("test 2 1d sets")
+	result, err = NewAllocationSetRange(NewAllocationSet(ago2d, yesterday), NewAllocationSet(today, tomorrow), nil).AccumulateBy(dur)
+	for _, as := range result.allocations {
+		if err != nil {
+			t.Fatalf("unexpected error accumulating nil AllocationSetRange: %s", err)
+		}
+		if !as.IsEmpty() {
+			t.Fatalf("accumulating nil AllocationSetRange: expected empty; actual %s", result)
+		}
+	}
+
+	fmt.Println("======================")
+	fmt.Println("test 3 1d sets")
+	result, err = NewAllocationSetRange(NewAllocationSet(ago4d, ago3d), NewAllocationSet(ago2d, yesterday), NewAllocationSet(today, tomorrow), nil).AccumulateBy(dur)
+	for _, as := range result.allocations {
+		if err != nil {
+			t.Fatalf("unexpected error accumulating nil AllocationSetRange: %s", err)
+		}
+		if !as.IsEmpty() {
+			t.Fatalf("accumulating nil AllocationSetRange: expected empty; actual %s", result)
+		}
+	}
+	// todayAS := NewAllocationSet(today, tomorrow)
+	// todayAS.Set(NewMockUnitAllocation("", today, day, nil))
+
+	// yesterdayAS := NewAllocationSet(yesterday, today)
+	// yesterdayAS.Set(NewMockUnitAllocation("", yesterday, day, nil))
+
+	// fmt.Println("test 5")
+	// // Accumulate non-nil with nil should result in copy of non-nil, regardless of order
+	// result, err = NewAllocationSetRange(nil, todayAS).AccumulateBy(dur)
+	// if err != nil {
+	// 	t.Fatalf("unexpected error accumulating AllocationSetRange of length 1: %s", err)
+	// }
+	// if result == nil {
+	// 	t.Fatalf("accumulating AllocationSetRange: expected AllocationSet; actual %s", result)
+	// }
+
+	// fmt.Println("test 6")
 	// for _, as := range result.allocations {
 	// 	if as.TotalCost() != 6.0 {
 	// 		t.Fatalf("accumulating AllocationSetRange: expected total cost 6.0; actual %f", as.TotalCost())

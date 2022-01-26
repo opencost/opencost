@@ -2269,52 +2269,62 @@ func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*Allocati
 	asr.Lock()
 	defer asr.Unlock()
 
-	fmt.Printf("asrWindow: %v", asr.Window())
-	// fmt.Println(time.Hour > 61*time.Minute)
-	// if asr.Window().IsEmpty() {
-	// 	return asr, nil
-	// }
+	fmt.Printf("asr window duration: %v\n", asr.window().Duration())
+	fmt.Printf("resolution: %v\n", resolution)
+
+	// use window() with no lock
+	if asr.window().IsEmpty() {
+		return asr, nil
+	}
 
 	// Call total accumulate func if resolution is greater than total window duration
-	// if resolution > asr.Window().Duration() {
-	// 	as, err := asr.Accumulate()
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	allocSetRange.allocations = append(allocSetRange.allocations, as)
-	// 	return allocSetRange, nil
-	// }
+	if resolution > asr.window().Duration() {
+		// unable to acquire lock here if old accumulate is called
+		for _, as := range asr.allocations {
+			allocSet, err = allocSet.accumulate(as)
+			if err != nil {
+				return nil, err
+			}
+		}
+		allocSetRange.allocations = append(allocSetRange.allocations, allocSet)
+		return allocSetRange, nil
+	}
+
+	asrWindow := asr.window()
+	asrResolution := asrWindow.Duration()
 
 	// if asrResolution < 1 hour then there is not enough data to accumulate
-	// if as.allocations end - start > resolution then no need, it's already accumulated. Requery to make more granular in the future?
-
-	// asrResolution := asr.Window().Duration()
-	// fmt.Printf("asrResolution: %s", asrResolution)
-	// if asrResolution <= time.Hour || asrResolution < resolution {
-	// 	return asr, nil
-	// }
-
-	// if(resolution)
+	// if as.allocations(end - start) > resolution then no need, it's already accumulated. Requery to make more granular in the future?
+	// check this again?
+	if asrResolution <= time.Hour || asrResolution < resolution {
+		return asr, nil
+	}
 
 	// do not compound
 	// check as.window and accumulate till windowSum == time.duration wanted -> add accumulated set to allocSetRange
-
-	// var currAccumulatedSum time.Duration
+	var currAccumulatedSum time.Duration
 	for _, as := range asr.allocations {
 		//What time group are we in? Is time group bigger than duration?
-
 		allocSet, err = allocSet.accumulate(as)
 		if err != nil {
 			return nil, err
 		}
-		// currAccumulatedSum += allocSet.Window.Duration()
+		currAccumulatedSum += allocSet.Window.Duration()
 
-		// if currAccumulatedSum >= resolution { // || check if end of asr to sum the final as
-		allocSetRange.allocations = append(allocSetRange.allocations, allocSet)
-		// make allocSet empty somehow
-		// allocSet = NewAllocationSet(nil, nil, nil)
-		// currAccumulatedSum = 0
-		// }
+		fmt.Printf("asr end %v as end %v\n", asrWindow.end, allocSet.Window.end)
+		// two ways to get end of asr window
+		// 1. check if last set of asr
+		// 2. check if set window.end is asr.window.end
+		// both require no lock to be present
+		// option 1: 2 asr.window methods
+		// option 2: 2 window.length methods
+
+		// check if end of asr to sum the final set too
+		if currAccumulatedSum >= resolution || NewWindow(nil, asrWindow.end).Equal(NewWindow(nil, allocSet.Window.end)) {
+			allocSetRange.allocations = append(allocSetRange.allocations, allocSet)
+			allocSet = &AllocationSet{allocations: map[string]*Allocation{}}
+			currAccumulatedSum = 0
+		}
 	}
 
 	return allocSetRange, nil
@@ -2322,7 +2332,6 @@ func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*Allocati
 
 // AggregateBy aggregates each AllocationSet in the range by the given
 // properties and options.
-// func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAggregationOptions) error {
 func (asr *AllocationSetRange) AggregateBy(aggregateBy []string, options *AllocationAggregationOptions) error {
 	aggRange := &AllocationSetRange{allocations: []*AllocationSet{}}
 
@@ -2489,13 +2498,29 @@ func (asr *AllocationSetRange) UTCOffset() time.Duration {
 // Window returns the full window that the AllocationSetRange spans, from the
 // start of the first AllocationSet to the end of the last one.
 func (asr *AllocationSetRange) Window() Window {
-	if asr == nil || asr.Length() == 0 {
+	asr.Lock()
+	defer asr.Unlock()
+	return asr.window()
+}
+
+func (asr *AllocationSetRange) window() Window {
+	var length int
+
+	if asr == nil || asr.allocations == nil {
+		length = 0
+	} else {
+		length = len(asr.allocations)
+	}
+
+	if asr == nil || length == 0 {
 		return NewWindow(nil, nil)
 	}
 
 	start := asr.allocations[0].Start()
-	end := asr.allocations[asr.Length()-1].End()
+	end := asr.allocations[length-1].End()
 
+	fmt.Printf("start %v\n", start)
+	fmt.Printf("end %v\n", end)
 	return NewWindow(&start, &end)
 }
 
