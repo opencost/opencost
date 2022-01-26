@@ -225,6 +225,7 @@ func (a *Allocation) Clone() *Allocation {
 		SharedCost:                 a.SharedCost,
 		ExternalCost:               a.ExternalCost,
 		RawAllocationOnly:          a.RawAllocationOnly.Clone(),
+		TestNewField:               a.TestNewField,
 	}
 }
 
