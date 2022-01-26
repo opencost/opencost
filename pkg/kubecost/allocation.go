@@ -788,6 +788,8 @@ func (a *Allocation) add(that *Allocation) {
 	// Any data that is in a "raw allocation only" is not valid in any
 	// sort of cumulative Allocation (like one that is added).
 	a.RawAllocationOnly = nil
+
+	a.TestNewField += that.TestNewField
 }
 
 // AllocationSet stores a set of Allocations, each with a unique name, that share
