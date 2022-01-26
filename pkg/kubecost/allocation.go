@@ -2269,9 +2269,6 @@ func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*Allocati
 	asr.Lock()
 	defer asr.Unlock()
 
-	fmt.Printf("asr window duration: %v\n", asr.window().Duration())
-	fmt.Printf("resolution: %v\n", resolution)
-
 	// use window() with no lock
 	if asr.window().IsEmpty() {
 		return asr, nil
@@ -2279,7 +2276,7 @@ func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*Allocati
 
 	// Call total accumulate func if resolution is greater than total window duration
 	if resolution > asr.window().Duration() {
-		// unable to acquire lock here if old accumulate is called
+		// unable to acquire lock here if old asr.accumulate is called
 		for _, as := range asr.allocations {
 			allocSet, err = allocSet.accumulate(as)
 			if err != nil {
@@ -2304,14 +2301,13 @@ func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*Allocati
 	// check as.window and accumulate till windowSum == time.duration wanted -> add accumulated set to allocSetRange
 	var currAccumulatedSum time.Duration
 	for _, as := range asr.allocations {
-		//What time group are we in? Is time group bigger than duration?
 		allocSet, err = allocSet.accumulate(as)
 		if err != nil {
 			return nil, err
 		}
 		currAccumulatedSum += allocSet.Window.Duration()
 
-		fmt.Printf("asr end %v as end %v\n", asrWindow.end, allocSet.Window.end)
+		// fmt.Printf("asr end %v as end %v\n", asrWindow.end, allocSet.Window.end)
 		// two ways to get end of asr window
 		// 1. check if last set of asr
 		// 2. check if set window.end is asr.window.end
@@ -2519,8 +2515,6 @@ func (asr *AllocationSetRange) window() Window {
 	start := asr.allocations[0].Start()
 	end := asr.allocations[length-1].End()
 
-	fmt.Printf("start %v\n", start)
-	fmt.Printf("end %v\n", end)
 	return NewWindow(&start, &end)
 }
 
