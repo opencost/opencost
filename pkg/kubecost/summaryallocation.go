@@ -640,7 +640,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	}
 
 	// If we're recording allocTotalsAfterFilters and there are shared costs,
-	// then record those resource totals here so that idle for thpse shared
+	// then record those resource totals here so that idle for those shared
 	// resources gets included.
 	if allocTotalsAfterFilters != nil {
 		for key, rt := range sharedResourceTotals {
@@ -822,7 +822,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 
 			var key string
 			if options.IdleByNode {
-				key = ia.Properties.Node
+				key = fmt.Sprintf("%s/%s", ia.Properties.Cluster, ia.Properties.Node)
 			} else {
 				key = ia.Properties.Cluster
 			}
@@ -831,18 +831,32 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 			// which equals the proportion of filtered-to-actual cost.
 			cpuFilterCoeff := 0.0
 			if allocTotals[key].CPUCost > 0.0 {
-				cpuFilterCoeff = allocTotalsAfterFilters[key].CPUCost / allocTotals[key].CPUCost
+				filteredAlloc, ok := allocTotalsAfterFilters[key]
+				if ok {
+					cpuFilterCoeff = filteredAlloc.CPUCost / allocTotals[key].CPUCost
+				} else {
+					cpuFilterCoeff = 0.0
+				}
 			}
 
 			gpuFilterCoeff := 0.0
-			if allocTotals[key].RAMCost > 0.0 {
-				gpuFilterCoeff = allocTotalsAfterFilters[key].RAMCost / allocTotals[key].RAMCost
+			if allocTotals[key].GPUCost > 0.0 {
+				filteredAlloc, ok := allocTotalsAfterFilters[key]
+				if ok {
+					gpuFilterCoeff = filteredAlloc.GPUCost / allocTotals[key].GPUCost
+				} else {
+					gpuFilterCoeff = 0.0
+				}
 			}
 
 			ramFilterCoeff := 0.0
-
 			if allocTotals[key].RAMCost > 0.0 {
-				ramFilterCoeff = allocTotalsAfterFilters[key].RAMCost / allocTotals[key].RAMCost
+				filteredAlloc, ok := allocTotalsAfterFilters[key]
+				if ok {
+					ramFilterCoeff = filteredAlloc.RAMCost / allocTotals[key].RAMCost
+				} else {
+					ramFilterCoeff = 0.0
+				}
 			}
 
 			ia.CPUCost *= cpuFilterCoeff
