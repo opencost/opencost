@@ -34,13 +34,13 @@ const (
 
 const (
 	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 15
+	DefaultCodecVersion uint8 = 16
 
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
-	AssetsCodecVersion uint8 = 15
+	AssetsCodecVersion uint8 = 16
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
-	AllocationCodecVersion uint8 = 15
+	AllocationCodecVersion uint8 = 16
 )
 
 //--------------------------------------------------------------------------
@@ -406,6 +406,7 @@ func (target *Allocation) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 		// --- [end][write][struct](RawAllocationOnlyData) ---
 
 	}
+	buff.WriteFloat64(target.TestNewField) // write float64
 	return nil
 }
 
@@ -783,6 +784,14 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 	} else {
 		target.RawAllocationOnly = nil
 
+	}
+
+	if uint8(16) /* field version */ <= version {
+		tt := buff.ReadFloat64() // read float64
+		target.TestNewField = tt
+
+	} else {
+		target.TestNewField = float64(0.3) // default
 	}
 
 	return nil

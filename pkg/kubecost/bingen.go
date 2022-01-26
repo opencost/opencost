@@ -24,7 +24,7 @@ package kubecost
 // @bingen:generate:Window
 
 // Asset Version Set: Includes Asset pipeline specific resources
-// @bingen:set[name=Assets,version=15]
+// @bingen:set[name=Assets,version=16]
 // @bingen:generate:Any
 // @bingen:generate:Asset
 // @bingen:generate:AssetLabels
@@ -43,7 +43,7 @@ package kubecost
 // @bingen:end
 
 // Allocation Version Set: Includes Allocation pipeline specific resources
-// @bingen:set[name=Allocation,version=15]
+// @bingen:set[name=Allocation,version=16]
 // @bingen:generate:Allocation
 // @bingen:generate[stringtable]:AllocationSet
 // @bingen:generate:AllocationSetRange
@@ -57,4 +57,4 @@ package kubecost
 // @bingen:generate:PVAllocation
 // @bingen:end
 
-//go:generate bingen -package=kubecost -version=15 -buffer=github.com/kubecost/cost-model/pkg/util
+//go:generate bingen -package=kubecost -version=16 -buffer=github.com/kubecost/cost-model/pkg/util

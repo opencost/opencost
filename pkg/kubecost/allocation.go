@@ -81,6 +81,8 @@ type Allocation struct {
 	// RawAllocationOnly is a pointer so if it is not present it will be
 	// marshalled as null rather than as an object with Go default values.
 	RawAllocationOnly *RawAllocationOnlyData `json:"rawAllocationOnly"`
+
+	TestNewField float64 `json:"testNewField"` // @bingen:field[version=16, default=0.3]
 }
 
 // RawAllocationOnlyData is information that only belong in "raw" Allocations,
@@ -588,7 +590,8 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "externalCost", a.ExternalCost, ",")
 	jsonEncodeFloat64(buffer, "totalCost", a.TotalCost(), ",")
 	jsonEncodeFloat64(buffer, "totalEfficiency", a.TotalEfficiency(), ",")
-	jsonEncode(buffer, "rawAllocationOnly", a.RawAllocationOnly, "")
+	jsonEncode(buffer, "rawAllocationOnly", a.RawAllocationOnly, ",")
+	jsonEncodeFloat64(buffer, "testNewField", a.TestNewField, "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
