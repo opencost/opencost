@@ -82,7 +82,8 @@ type Allocation struct {
 	// marshalled as null rather than as an object with Go default values.
 	RawAllocationOnly *RawAllocationOnlyData `json:"rawAllocationOnly"`
 
-	TestNewField float64 `json:"testNewField"` // @bingen:field[version=16, default=0.3]
+	TestNewField  float64 `json:"testNewField"`  // @bingen:field[version=16, default=0.3]
+	TestNewField2 float64 `json:"testNewField2"` // @bingen:field[version=17, default=0.222]
 }
 
 // RawAllocationOnlyData is information that only belong in "raw" Allocations,
@@ -226,6 +227,7 @@ func (a *Allocation) Clone() *Allocation {
 		ExternalCost:               a.ExternalCost,
 		RawAllocationOnly:          a.RawAllocationOnly.Clone(),
 		TestNewField:               a.TestNewField,
+		TestNewField2:              a.TestNewField2,
 	}
 }
 
@@ -592,7 +594,8 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "totalCost", a.TotalCost(), ",")
 	jsonEncodeFloat64(buffer, "totalEfficiency", a.TotalEfficiency(), ",")
 	jsonEncode(buffer, "rawAllocationOnly", a.RawAllocationOnly, ",")
-	jsonEncodeFloat64(buffer, "testNewField", a.TestNewField, "")
+	jsonEncodeFloat64(buffer, "testNewField", a.TestNewField, ",")
+	jsonEncodeFloat64(buffer, "testNewField2", a.TestNewField2, "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
@@ -790,6 +793,7 @@ func (a *Allocation) add(that *Allocation) {
 	a.RawAllocationOnly = nil
 
 	a.TestNewField += that.TestNewField
+	a.TestNewField2 += that.TestNewField2
 }
 
 // AllocationSet stores a set of Allocations, each with a unique name, that share
