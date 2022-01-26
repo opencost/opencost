@@ -2204,43 +2204,50 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 		t.Fatalf("accumulating AllocationSetRange: expected first allocationSet window duration to be %v; actual %v", dur, result.allocations[1].Resolution())
 	}
 
-	// // Accumulate non-nil with nil should result in copy of non-nil, regardless of order
-	// accumulateBy -> accumulate -> returns todayAs to set as result but nil pointer dereference error?
-	// result, err = NewAllocationSetRange(nil, todayAS).AccumulateBy(dur)
-	// if err != nil {
-	// 	t.Fatalf("unexpected error accumulating AllocationSetRange of length 1: %s", err)
-	// }
-	// if result == nil {
-	// 	t.Fatalf("accumulating AllocationSetRange: expected AllocationSet; actual %s", result)
-	// }
+	// Accumulate non-nil with nil should result in copy of non-nil, regardless of order
+	result, err = NewAllocationSetRange(nil, todayAS).AccumulateBy(dur)
+	if err != nil {
+		t.Fatalf("unexpected error accumulating AllocationSetRange of length 1: %s", err)
+	}
+	if result == nil {
+		t.Fatalf("accumulating AllocationSetRange: expected AllocationSet; actual %s", result)
+	}
 
-	// for _, as := range result.allocations {
-	// 	if as.TotalCost() != 6.0 {
-	// 		t.Fatalf("accumulating AllocationSetRange: expected total cost 6.0; actual %f", as.TotalCost())
-	// 	}
-	// }
+	for _, as := range result.allocations {
+		if as.TotalCost() != 6.0 {
+			t.Fatalf("accumulating AllocationSetRange: expected total cost 6.0; actual %f", as.TotalCost())
+		}
+	}
 
-	// result, err = NewAllocationSetRange(todayAS, nil).Accumulate()
-	// if err != nil {
-	// 	t.Fatalf("unexpected error accumulating AllocationSetRange of length 1: %s", err)
-	// }
-	// if result == nil {
-	// 	t.Fatalf("accumulating AllocationSetRange: expected AllocationSet; actual %s", result)
-	// }
-	// if result.TotalCost() != 6.0 {
-	// 	t.Fatalf("accumulating AllocationSetRange: expected total cost 6.0; actual %f", result.TotalCost())
-	// }
+	result, err = NewAllocationSetRange(todayAS, nil).AccumulateBy(dur)
+	if err != nil {
+		t.Fatalf("unexpected error accumulating AllocationSetRange of length 1: %s", err)
+	}
+	if result == nil {
+		t.Fatalf("accumulating AllocationSetRange: expected AllocationSet; actual %s", result)
+	}
+	sumCost = 0.0
+	for _, as := range result.allocations {
+		sumCost += as.TotalCost()
+	}
+	if sumCost != 6.0 {
+		t.Fatalf("accumulating AllocationSetRange: expected total cost 6.0; actual %f", sumCost)
+	}
 
-	// result, err = NewAllocationSetRange(nil, todayAS, nil).Accumulate()
-	// if err != nil {
-	// 	t.Fatalf("unexpected error accumulating AllocationSetRange of length 1: %s", err)
-	// }
-	// if result == nil {
-	// 	t.Fatalf("accumulating AllocationSetRange: expected AllocationSet; actual %s", result)
-	// }
-	// if result.TotalCost() != 6.0 {
-	// 	t.Fatalf("accumulating AllocationSetRange: expected total cost 6.0; actual %f", result.TotalCost())
-	// }
+	result, err = NewAllocationSetRange(nil, todayAS, nil).AccumulateBy(dur)
+	if err != nil {
+		t.Fatalf("unexpected error accumulating AllocationSetRange of length 1: %s", err)
+	}
+	if result == nil {
+		t.Fatalf("accumulating AllocationSetRange: expected AllocationSet; actual %s", result)
+	}
+	sumCost = 0.0
+	for _, as := range result.allocations {
+		sumCost += as.TotalCost()
+	}
+	if sumCost != 6.0 {
+		t.Fatalf("accumulating AllocationSetRange: expected total cost 6.0; actual %f", sumCost)
+	}
 
 	// // Accumulate three non-nil should result in sum of both with appropriate start, end
 	result, err = NewAllocationSetRange(ago2dAS, yesterdayAS, todayAS).AccumulateBy(dur)
@@ -2300,9 +2307,9 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 	if alloc.RAMEfficiency() != 1.0 {
 		t.Fatalf("accumulating AllocationSetRange: expected 1.0; actual %f", alloc.RAMEfficiency())
 	}
-	// if alloc.TotalCost() != 12.0 {
-	// 	t.Fatalf("accumulating AllocationSetRange: expected 12.0; actual %f", alloc.TotalCost())
-	// }
+	if alloc.TotalCost() != 12.0 {
+		t.Fatalf("accumulating AllocationSetRange: expected 12.0; actual %f", alloc.TotalCost())
+	}
 	if alloc.TotalEfficiency() != 1.0 {
 		t.Fatalf("accumulating AllocationSetRange: expected 1.0; actual %f", alloc.TotalEfficiency())
 	}

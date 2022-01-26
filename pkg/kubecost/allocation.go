@@ -2287,6 +2287,12 @@ func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*Allocati
 		return allocSetRange, nil
 	}
 
+	// two ways to get end of asr window
+	// 1. check if last set of asr
+	// 2. check if set window.end is asr.window.end
+	// both require no lock to be present
+	// option 1: 2 asr.window methods
+	// option 2: 2 window.length methods
 	asrWindow := asr.window()
 	asrResolution := asrWindow.Duration()
 
@@ -2305,21 +2311,16 @@ func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*Allocati
 		if err != nil {
 			return nil, err
 		}
-		currAccumulatedSum += allocSet.Window.Duration()
 
-		// fmt.Printf("asr end %v as end %v\n", asrWindow.end, allocSet.Window.end)
-		// two ways to get end of asr window
-		// 1. check if last set of asr
-		// 2. check if set window.end is asr.window.end
-		// both require no lock to be present
-		// option 1: 2 asr.window methods
-		// option 2: 2 window.length methods
+		if allocSet != nil {
+			currAccumulatedSum += allocSet.Window.Duration()
 
-		// check if end of asr to sum the final set too
-		if currAccumulatedSum >= resolution || NewWindow(nil, asrWindow.end).Equal(NewWindow(nil, allocSet.Window.end)) {
-			allocSetRange.allocations = append(allocSetRange.allocations, allocSet)
-			allocSet = &AllocationSet{allocations: map[string]*Allocation{}}
-			currAccumulatedSum = 0
+			// check if end of asr to sum the final set too
+			if currAccumulatedSum >= resolution || NewWindow(nil, asrWindow.end).Equal(NewWindow(nil, allocSet.Window.end)) {
+				allocSetRange.allocations = append(allocSetRange.allocations, allocSet)
+				allocSet = &AllocationSet{allocations: map[string]*Allocation{}}
+				currAccumulatedSum = 0
+			}
 		}
 	}
 
