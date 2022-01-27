@@ -2260,51 +2260,22 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 	return allocSet, nil
 }
 
-// TODO accumulate into lower-resolution chunks of the given resolution
 func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*AllocationSetRange, error) {
 	allocSetRange := &AllocationSetRange{allocations: []*AllocationSet{}}
 	var allocSet *AllocationSet
 	var err error
 
+	//This uses a lock and can't be called after locking asr
+	asrWindow := asr.Window()
+
 	asr.Lock()
 	defer asr.Unlock()
 
-	// use window() with no lock
-	if asr.window().IsEmpty() {
+	if asrWindow.IsEmpty() {
 		return asr, nil
 	}
 
-	// Call total accumulate func if resolution is greater than total window duration
-	if resolution > asr.window().Duration() {
-		// unable to acquire lock here if old asr.accumulate is called
-		for _, as := range asr.allocations {
-			allocSet, err = allocSet.accumulate(as)
-			if err != nil {
-				return nil, err
-			}
-		}
-		allocSetRange.allocations = append(allocSetRange.allocations, allocSet)
-		return allocSetRange, nil
-	}
-
-	// two ways to get end of asr window
-	// 1. check if last set of asr
-	// 2. check if set window.end is asr.window.end
-	// both require no lock to be present
-	// option 1: 2 asr.window methods
-	// option 2: 2 window.length methods
-	asrWindow := asr.window()
-	asrResolution := asrWindow.Duration()
-
-	// if asrResolution < 1 hour then there is not enough data to accumulate
-	// if as.allocations(end - start) > resolution then no need, it's already accumulated. Requery to make more granular in the future?
-	// check this again?
-	if asrResolution <= time.Hour || asrResolution < resolution {
-		return asr, nil
-	}
-
-	// do not compound
-	// check as.window and accumulate till windowSum == time.duration wanted -> add accumulated set to allocSetRange
+	// check as.window and accumulate sets until sum of window durations == time.duration wanted -> add accumulated set to allocSetRange
 	var currAccumulatedSum time.Duration
 	for _, as := range asr.allocations {
 		allocSet, err = allocSet.accumulate(as)
@@ -2495,26 +2466,12 @@ func (asr *AllocationSetRange) UTCOffset() time.Duration {
 // Window returns the full window that the AllocationSetRange spans, from the
 // start of the first AllocationSet to the end of the last one.
 func (asr *AllocationSetRange) Window() Window {
-	asr.Lock()
-	defer asr.Unlock()
-	return asr.window()
-}
-
-func (asr *AllocationSetRange) window() Window {
-	var length int
-
-	if asr == nil || asr.allocations == nil {
-		length = 0
-	} else {
-		length = len(asr.allocations)
-	}
-
-	if asr == nil || length == 0 {
+	if asr == nil || asr.Length() == 0 {
 		return NewWindow(nil, nil)
 	}
 
 	start := asr.allocations[0].Start()
-	end := asr.allocations[length-1].End()
+	end := asr.allocations[asr.Length()-1].End()
 
 	return NewWindow(&start, &end)
 }

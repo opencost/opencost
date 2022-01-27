@@ -158,7 +158,7 @@ func TestAllocation_Add(t *testing.T) {
 		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.PVByteHours()+a2.PVByteHours(), act.PVByteHours())
 	}
 
-	// Minutes should be the duration between min(starts) and max(ends)
+	// Minutes should be the duration2Daysation between min(starts) and max(ends)
 	if !act.Start.Equal(a1.Start) || !act.End.Equal(a2.End) {
 		t.Fatalf("Allocation.Add: expected %s; actual %s", NewWindow(&a1.Start, &a2.End), NewWindow(&act.Start, &act.End))
 	}
@@ -2074,11 +2074,11 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 	yesterday := time.Now().UTC().Truncate(day).Add(-day)
 	today := time.Now().UTC().Truncate(day)
 	tomorrow := time.Now().UTC().Truncate(day).Add(day)
-	dur := time.Hour * 24 * 2
+	duration2Days := time.Hour * 24 * 2
 
 	// Accumulating any combination of nil and/or empty set should result in empty set
 	// test 1 nil set
-	result, err := NewAllocationSetRange(nil).AccumulateBy(dur)
+	result, err := NewAllocationSetRange(nil).AccumulateBy(duration2Days)
 	for _, as := range result.allocations {
 		if err != nil {
 			t.Fatalf("unexpected error accumulating nil AllocationSetRange: %s", err)
@@ -2089,7 +2089,7 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 	}
 
 	// test 2 nil sets
-	result, err = NewAllocationSetRange(nil, nil).AccumulateBy(dur)
+	result, err = NewAllocationSetRange(nil, nil).AccumulateBy(duration2Days)
 	for _, as := range result.allocations {
 		if err != nil {
 			t.Fatalf("unexpected error accumulating nil AllocationSetRange: %s", err)
@@ -2100,7 +2100,7 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 	}
 
 	// test 1 set 2d long
-	result, err = NewAllocationSetRange(NewAllocationSet(yesterday, today)).AccumulateBy(dur)
+	result, err = NewAllocationSetRange(NewAllocationSet(yesterday, today)).AccumulateBy(duration2Days)
 	for _, as := range result.allocations {
 		if err != nil {
 			t.Fatalf("unexpected error accumulating nil AllocationSetRange: %s", err)
@@ -2111,7 +2111,7 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 	}
 
 	// test 2 nil sets 2 1d sets
-	result, err = NewAllocationSetRange(nil, NewAllocationSet(ago2d, yesterday), nil, NewAllocationSet(today, tomorrow), nil).AccumulateBy(dur)
+	result, err = NewAllocationSetRange(nil, NewAllocationSet(ago2d, yesterday), nil, NewAllocationSet(today, tomorrow), nil).AccumulateBy(duration2Days)
 	for _, as := range result.allocations {
 		if err != nil {
 			t.Fatalf("unexpected error accumulating nil AllocationSetRange: %s", err)
@@ -2122,7 +2122,7 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 	}
 
 	// test 2 nil sets 2 1d sets
-	result, err = NewAllocationSetRange(nil, NewAllocationSet(ago2d, yesterday), nil, NewAllocationSet(today, tomorrow), nil).AccumulateBy(dur)
+	result, err = NewAllocationSetRange(nil, NewAllocationSet(ago2d, yesterday), nil, NewAllocationSet(today, tomorrow), nil).AccumulateBy(duration2Days)
 	for _, as := range result.allocations {
 		if err != nil {
 			t.Fatalf("unexpected error accumulating nil AllocationSetRange: %s", err)
@@ -2132,7 +2132,6 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 		}
 	}
 
-	// test 2 1d sets
 	ago3dAS := NewAllocationSet(ago3d, ago2d)
 	ago3dAS.Set(NewMockUnitAllocation("a", ago3d, day, nil))
 	ago2dAS := NewAllocationSet(ago2d, yesterday)
@@ -2143,7 +2142,8 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 	todayAS.Set(NewMockUnitAllocation("", today, day, nil))
 	sumCost := 0.0
 
-	result, err = NewAllocationSetRange(ago2dAS, yesterdayAS).AccumulateBy(dur)
+	// test 2 1d sets
+	result, err = NewAllocationSetRange(ago2dAS, yesterdayAS).AccumulateBy(duration2Days)
 	if err != nil {
 		t.Fatalf("unexpected error accumulating nil AllocationSetRange: %s", err)
 	}
@@ -2160,7 +2160,7 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 
 	// test 3 1d sets
 	sumCost = 0.0
-	result, err = NewAllocationSetRange(ago2dAS, yesterdayAS, todayAS).AccumulateBy(dur)
+	result, err = NewAllocationSetRange(ago2dAS, yesterdayAS, todayAS).AccumulateBy(duration2Days)
 	if err != nil {
 		t.Fatalf("unexpected error accumulating nil AllocationSetRange: %s", err)
 	}
@@ -2174,16 +2174,33 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 	if sumCost != 18.0 {
 		t.Fatalf("accumulating AllocationSetRange: expected total cost 18.0; actual %f", sumCost)
 	}
-	if result.allocations[0].Resolution() != dur {
-		t.Fatalf("accumulating AllocationSetRange: expected first allocationSet window duration to be %v; actual %v", dur, result.allocations[0].Resolution())
+	if result.allocations[0].Resolution() != duration2Days {
+		t.Fatalf("accumulating AllocationSetRange: expected first allocationSet window duration2Days to be %v; actual %v", duration2Days, result.allocations[0].Resolution())
 	}
-	if result.allocations[1].Resolution() != dur/2 {
-		t.Fatalf("accumulating AllocationSetRange: expected second allocationSet window duration to be %v; actual %v", dur, result.allocations[1].Resolution())
+	if result.allocations[1].Resolution() != duration2Days/2 {
+		t.Fatalf("accumulating AllocationSetRange: expected second allocationSet window duration to be %v; actual %v", duration2Days, result.allocations[1].Resolution())
+	}
+
+	// test 3 1d sets - duration is larger than asr.window
+	sumCost = 0.0
+	result, err = NewAllocationSetRange(ago2dAS, yesterdayAS, todayAS).AccumulateBy(duration2Days * 2)
+	if err != nil {
+		t.Fatalf("unexpected error accumulating nil AllocationSetRange: %s", err)
+	}
+	if result == nil {
+		t.Fatalf("accumulating AllocationSetRange: expected AllocationSet; actual %s", result)
+	}
+
+	for _, as := range result.allocations {
+		sumCost += as.TotalCost()
+	}
+	if sumCost != 18.0 {
+		t.Fatalf("accumulating AllocationSetRange: expected total cost 18.0; actual %f", sumCost)
 	}
 
 	// test 4 1d sets
 	sumCost = 0.0
-	result, err = NewAllocationSetRange(ago3dAS, ago2dAS, yesterdayAS, todayAS).AccumulateBy(dur)
+	result, err = NewAllocationSetRange(ago3dAS, ago2dAS, yesterdayAS, todayAS).AccumulateBy(duration2Days)
 	if err != nil {
 		t.Fatalf("unexpected error accumulating nil AllocationSetRange: %s", err)
 	}
@@ -2197,15 +2214,16 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 	if sumCost != 24.0 {
 		t.Fatalf("accumulating AllocationSetRange: expected total cost 24.0; actual %f", sumCost)
 	}
-	if result.allocations[0].Resolution() != dur {
-		t.Fatalf("accumulating AllocationSetRange: expected first allocationSet window duration to be %v; actual %v", dur, result.allocations[0].Resolution())
+	if result.allocations[0].Resolution() != duration2Days {
+		t.Fatalf("accumulating AllocationSetRange: expected first allocationSet window duration2Days to be %v; actual %v", duration2Days, result.allocations[0].Resolution())
+
 	}
-	if result.allocations[1].Resolution() != dur {
-		t.Fatalf("accumulating AllocationSetRange: expected first allocationSet window duration to be %v; actual %v", dur, result.allocations[1].Resolution())
+	if result.allocations[1].Resolution() != duration2Days {
+		t.Fatalf("accumulating AllocationSetRange: expected first allocationSet window duration2Days to be %v; actual %v", duration2Days, result.allocations[1].Resolution())
 	}
 
 	// Accumulate non-nil with nil should result in copy of non-nil, regardless of order
-	result, err = NewAllocationSetRange(nil, todayAS).AccumulateBy(dur)
+	result, err = NewAllocationSetRange(nil, todayAS).AccumulateBy(duration2Days)
 	if err != nil {
 		t.Fatalf("unexpected error accumulating AllocationSetRange of length 1: %s", err)
 	}
@@ -2219,7 +2237,7 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 		}
 	}
 
-	result, err = NewAllocationSetRange(todayAS, nil).AccumulateBy(dur)
+	result, err = NewAllocationSetRange(todayAS, nil).AccumulateBy(duration2Days)
 	if err != nil {
 		t.Fatalf("unexpected error accumulating AllocationSetRange of length 1: %s", err)
 	}
@@ -2234,7 +2252,7 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 		t.Fatalf("accumulating AllocationSetRange: expected total cost 6.0; actual %f", sumCost)
 	}
 
-	result, err = NewAllocationSetRange(nil, todayAS, nil).AccumulateBy(dur)
+	result, err = NewAllocationSetRange(nil, todayAS, nil).AccumulateBy(duration2Days)
 	if err != nil {
 		t.Fatalf("unexpected error accumulating AllocationSetRange of length 1: %s", err)
 	}
@@ -2250,7 +2268,7 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 	}
 
 	// // Accumulate three non-nil should result in sum of both with appropriate start, end
-	result, err = NewAllocationSetRange(ago2dAS, yesterdayAS, todayAS).AccumulateBy(dur)
+	result, err = NewAllocationSetRange(ago2dAS, yesterdayAS, todayAS).AccumulateBy(duration2Days)
 	if err != nil {
 		t.Fatalf("unexpected error accumulating AllocationSetRange of length 1: %s", err)
 	}
