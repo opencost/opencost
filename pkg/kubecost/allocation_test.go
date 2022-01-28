@@ -2285,6 +2285,15 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 
 			testId: "AccumulateBy Test 8",
 		},
+		{
+			asr:        NewAllocationSetRange(ago2dAS, yesterdayAS, todayAS),
+			resolution: time.Hour * 24 * 2,
+
+			expectedCost: 18.0,
+			expectedSets: 2,
+
+			testId: "AccumulateBy Test 9",
+		},
 	}
 
 	for _, c := range cases {

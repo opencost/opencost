@@ -2272,7 +2272,6 @@ func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*Allocati
 	asr.Lock()
 	defer asr.Unlock()
 
-	// check as.window and accumulate sets until sum of window durations == time.duration wanted -> add accumulated set to allocSetRange
 	for i, as := range asr.allocations {
 		allocSet, err = allocSet.accumulate(as)
 		if err != nil {
@@ -2283,7 +2282,7 @@ func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*Allocati
 			currAccumulatedSum += allocSet.Window.Duration()
 
 			// check if end of asr to sum the final set
-			// If accumulated sum never reaches the desired resolution then all sets are returned as 1 accumulated set
+			// If accumulated sum !>= resolution return 1 accumulated set
 			if currAccumulatedSum >= resolution || i == len(asr.allocations)-1 {
 				allocSetRange.allocations = append(allocSetRange.allocations, allocSet)
 				allocSet = &AllocationSet{allocations: map[string]*Allocation{}}
