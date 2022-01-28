@@ -2263,20 +2263,20 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*AllocationSetRange, error) {
 	allocSetRange := &AllocationSetRange{allocations: []*AllocationSet{}}
 	var allocSet *AllocationSet
+	var currAccumulatedSum time.Duration
 	var err error
-
-	//This uses a lock and can't be called after locking asr
-	asrWindow := asr.Window()
 
 	asr.Lock()
 	defer asr.Unlock()
 
-	if asrWindow.IsEmpty() {
+	// // use window() with no lock
+	if asr.window().IsEmpty() {
 		return asr, nil
 	}
 
+	asrWindow := asr.window()
+
 	// check as.window and accumulate sets until sum of window durations == time.duration wanted -> add accumulated set to allocSetRange
-	var currAccumulatedSum time.Duration
 	for _, as := range asr.allocations {
 		allocSet, err = allocSet.accumulate(as)
 		if err != nil {
@@ -2466,12 +2466,20 @@ func (asr *AllocationSetRange) UTCOffset() time.Duration {
 // Window returns the full window that the AllocationSetRange spans, from the
 // start of the first AllocationSet to the end of the last one.
 func (asr *AllocationSetRange) Window() Window {
-	if asr == nil || asr.Length() == 0 {
+	asr.Lock()
+	defer asr.Unlock()
+	return asr.window()
+}
+
+// (*AllocationSetRange).window() is not safe for concurrent use as it does not acquire a lock.
+// For the safe method please use (*AllocationSetRange).Window()
+func (asr *AllocationSetRange) window() Window {
+	if asr == nil || len(asr.allocations) == 0 {
 		return NewWindow(nil, nil)
 	}
 
 	start := asr.allocations[0].Start()
-	end := asr.allocations[asr.Length()-1].End()
+	end := asr.allocations[len(asr.allocations)-1].End()
 
 	return NewWindow(&start, &end)
 }
