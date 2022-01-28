@@ -2272,15 +2272,8 @@ func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*Allocati
 	asr.Lock()
 	defer asr.Unlock()
 
-	// // use window() with no lock
-	if asr.window().IsEmpty() {
-		return asr, nil
-	}
-
-	asrWindow := asr.window()
-
 	// check as.window and accumulate sets until sum of window durations == time.duration wanted -> add accumulated set to allocSetRange
-	for _, as := range asr.allocations {
+	for i, as := range asr.allocations {
 		allocSet, err = allocSet.accumulate(as)
 		if err != nil {
 			return nil, err
@@ -2289,8 +2282,9 @@ func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*Allocati
 		if allocSet != nil {
 			currAccumulatedSum += allocSet.Window.Duration()
 
-			// check if end of asr to sum the final set too
-			if currAccumulatedSum >= resolution || NewWindow(nil, asrWindow.end).Equal(NewWindow(nil, allocSet.Window.end)) {
+			// check if end of asr to sum the final set
+			// If accumulated sum never reaches the desired resolution then all sets are returned as 1 accumulated set
+			if currAccumulatedSum >= resolution || i == len(asr.allocations)-1 {
 				allocSetRange.allocations = append(allocSetRange.allocations, allocSet)
 				allocSet = &AllocationSet{allocations: map[string]*Allocation{}}
 				currAccumulatedSum = 0
@@ -2469,20 +2463,12 @@ func (asr *AllocationSetRange) UTCOffset() time.Duration {
 // Window returns the full window that the AllocationSetRange spans, from the
 // start of the first AllocationSet to the end of the last one.
 func (asr *AllocationSetRange) Window() Window {
-	asr.Lock()
-	defer asr.Unlock()
-	return asr.window()
-}
-
-// (*AllocationSetRange).window() is not safe for concurrent use as it does not acquire a lock.
-// For the safe method please use (*AllocationSetRange).Window()
-func (asr *AllocationSetRange) window() Window {
-	if asr == nil || len(asr.allocations) == 0 {
+	if asr == nil || asr.Length() == 0 {
 		return NewWindow(nil, nil)
 	}
 
 	start := asr.allocations[0].Start()
-	end := asr.allocations[len(asr.allocations)-1].End()
+	end := asr.allocations[asr.Length()-1].End()
 
 	return NewWindow(&start, &end)
 }
