@@ -2260,6 +2260,9 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 	return allocSet, nil
 }
 
+// AccumulateBy sums AllocationSets based on the resolution given. The resolution given is subject to the scale used for the AllocationSets.
+// If the requested resolution is smaller than the window of an AllocationSet then the resolution will default to the duration of a set.
+// Resolutions larger than the duration of the entire AllocationSetRange will default to the duration of the range.
 func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*AllocationSetRange, error) {
 	allocSetRange := &AllocationSetRange{allocations: []*AllocationSet{}}
 	var allocSet *AllocationSet
