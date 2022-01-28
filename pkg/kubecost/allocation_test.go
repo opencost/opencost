@@ -158,7 +158,7 @@ func TestAllocation_Add(t *testing.T) {
 		t.Fatalf("Allocation.Add: expected %f; actual %f", a1.PVByteHours()+a2.PVByteHours(), act.PVByteHours())
 	}
 
-	// Minutes should be the duration2Daysation between min(starts) and max(ends)
+	// Minutes should be the duration between min(starts) and max(ends)
 	if !act.Start.Equal(a1.Start) || !act.End.Equal(a2.End) {
 		t.Fatalf("Allocation.Add: expected %s; actual %s", NewWindow(&a1.Start, &a2.End), NewWindow(&act.Start, &act.End))
 	}
