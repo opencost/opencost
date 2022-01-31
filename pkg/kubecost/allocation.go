@@ -2261,10 +2261,12 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 }
 
 // AccumulateBy sums AllocationSets based on the resolution given. The resolution given is subject to the scale used for the AllocationSets.
+// Resolutions not evenly divisible by the AllocationSetRange window durations accumulate sets until a sum greater than or equal to the resolution is met,
+// at which point AccumulateBy will start summing from 0 until the requested resolution is met again.
 // If the requested resolution is smaller than the window of an AllocationSet then the resolution will default to the duration of a set.
 // Resolutions larger than the duration of the entire AllocationSetRange will default to the duration of the range.
 func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*AllocationSetRange, error) {
-	allocSetRange := &AllocationSetRange{allocations: []*AllocationSet{}}
+	allocSetRange := NewAllocationSetRange()
 	var allocSet *AllocationSet
 	var currAccumulatedSum time.Duration
 	var err error
@@ -2282,10 +2284,10 @@ func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*Allocati
 			currAccumulatedSum += allocSet.Window.Duration()
 
 			// check if end of asr to sum the final set
-			// If accumulated sum !>= resolution return 1 accumulated set
+			// If total asr accumulated sum <= resolution return 1 accumulated set
 			if currAccumulatedSum >= resolution || i == len(asr.allocations)-1 {
 				allocSetRange.allocations = append(allocSetRange.allocations, allocSet)
-				allocSet = &AllocationSet{allocations: map[string]*Allocation{}}
+				allocSet = NewAllocationSet(time.Time{}, time.Time{})
 				currAccumulatedSum = 0
 			}
 		}
