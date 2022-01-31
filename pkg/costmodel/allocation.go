@@ -15,7 +15,6 @@ import (
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/klog"
 )
 
 const (
@@ -416,6 +415,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 				}
 			}
 
+			break
 		}
 
 	}
@@ -428,12 +428,11 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 
 		// Get single-point intervals from alloc-PVC relation windows.
 		intervals := getIntervalPointsFromWindows(podIntervalMap)
-		pvcCostCoefficientMap := make(map[podKey][][]float64)
 
 		// Determine coefficients for each PVC-pod relation.
-		getPVCCostCoefficients(intervals, podIntervalMap, pvcCostCoefficientMap)
+		sharedPVCCostCoefficientMap[pvcKey] = getPVCCostCoefficients(intervals, podIntervalMap)
 
-		sharedPVCCostCoefficientMap[pvcKey] = pvcCostCoefficientMap
+		//sharedPVCCostCoefficientMap[pvcKey] = pvcCostCoefficientMap
 
 	}
 
@@ -489,7 +488,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 					if coeffComponents, ok := sharedPVCCostCoefficientMap[pvcKey][podKey]; ok {
 						cost *= getCoefficient(coeffComponents)
 					} else {
-						klog.Warningf("CostModel.ComputeAllocation: allocation %s and PVC %s have relation but no coeff", alloc.Name, pvc.Name)
+						log.Warningf("CostModel.ComputeAllocation: allocation %s and PVC %s have relation but no coeff", alloc.Name, pvc.Name)
 					}
 
 					// Apply the size and cost of the PV to the allocation, each
@@ -747,7 +746,7 @@ func applyCPUCoresAllocated(podMap map[podKey]*Pod, resCPUCoresAllocated []*prom
 
 		cpuCores := res.Values[0].Value
 		if cpuCores > MAX_CPU_CAP {
-			klog.Infof("[WARNING] Very large cpu allocation, clamping to %f", res.Values[0].Value*(pod.Allocations[container].Minutes()/60.0))
+			log.Infof("[WARNING] Very large cpu allocation, clamping to %f", res.Values[0].Value*(pod.Allocations[container].Minutes()/60.0))
 			cpuCores = 0.0
 		}
 		hours := pod.Allocations[container].Minutes() / 60.0
@@ -793,7 +792,7 @@ func applyCPUCoresRequested(podMap map[podKey]*Pod, resCPUCoresRequested []*prom
 			pod.Allocations[container].CPUCoreHours = res.Values[0].Value * (pod.Allocations[container].Minutes() / 60.0)
 		}
 		if pod.Allocations[container].CPUCores() > MAX_CPU_CAP {
-			klog.Infof("[WARNING] Very large cpu allocation, clamping! to %f", res.Values[0].Value*(pod.Allocations[container].Minutes()/60.0))
+			log.Infof("[WARNING] Very large cpu allocation, clamping! to %f", res.Values[0].Value*(pod.Allocations[container].Minutes()/60.0))
 			pod.Allocations[container].CPUCoreHours = res.Values[0].Value * (pod.Allocations[container].Minutes() / 60.0)
 		}
 
@@ -833,7 +832,7 @@ func applyCPUCoresUsedAvg(podMap map[podKey]*Pod, resCPUCoresUsedAvg []*prom.Que
 
 		pod.Allocations[container].CPUCoreUsageAverage = res.Values[0].Value
 		if res.Values[0].Value > MAX_CPU_CAP {
-			klog.Infof("[WARNING] Very large cpu USAGE, dropping outlier")
+			log.Infof("[WARNING] Very large cpu USAGE, dropping outlier")
 			pod.Allocations[container].CPUCoreUsageAverage = 0.0
 		}
 	}

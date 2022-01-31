@@ -325,8 +325,7 @@ func TestGetPVCCostCoefficients(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			result := make(map[podKey][][]float64)
-			getPVCCostCoefficients(testCase.intervals, testCase.pvcIntervalMap, result)
+			result := getPVCCostCoefficients(testCase.intervals, testCase.pvcIntervalMap)
 
 			if !reflect.DeepEqual(result, testCase.expected) {
 				t.Errorf("getPVCCostCoefficients test failed: %s: Got %+v but expected %+v", testCase.name, result, testCase.expected)

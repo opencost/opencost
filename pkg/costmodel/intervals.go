@@ -16,6 +16,14 @@ type IntervalPoint struct {
 	Key       podKey
 }
 
+// CostCoefficient is a representitive struct holding two fields which describe an interval:
+// 1. Proportion: The division of cost based on how many pods were running between those points
+// 2. Time: The ratio of the time between those points to the total time that pod was running
+type CostCoefficient struct {
+	Proportion float64
+	Time       float64
+}
+
 // NewIntervalPoint creates and returns a new IntervalPoint instance with given parameters.
 func NewIntervalPoint(time time.Time, pointType string, key podKey) IntervalPoint {
 	return IntervalPoint{
@@ -63,34 +71,30 @@ func sortIntervalPoints(intervals []IntervalPoint) {
 // getPVCCostCoefficients gets a coefficient which represents the scale
 // factor that each PVC in a pvcIntervalMap and corresponding slice of
 // IntervalPoints intervals uses to calculate a cost for that PVC's PV.
-func getPVCCostCoefficients(intervals []IntervalPoint, pvcIntervalMap map[podKey]kubecost.Window, pvcCostCoefficientMap map[podKey][][]float64) {
+func getPVCCostCoefficients(intervals []IntervalPoint, pvcIntervalMap map[podKey]kubecost.Window) map[podKey][][]float64 {
+
+	pvcCostCoefficientMap := make(map[podKey][][]float64)
 
 	// pvcCostCoefficientMap is mutated in this function. The format is
 	// such that the individual coefficient components are preserved for
 	// testing purposes.
 
-	var activePods float64
+	activePods := 1.0
 
-	activeKeys := make(map[podKey]struct{})
+	activeKeys := map[podKey]struct{}{
+		intervals[0].Key: struct{}{},
+	}
 
 	// For each interval i.e. for any time a pod-PVC relation ends or starts...
 	for i := 1; i < len(intervals); i++ {
 
+		// intervals will always have at least two IntervalPoints (one start/end)
 		point := intervals[i]
 		prevPoint := intervals[i-1]
-
-		// intervals will always have at least two IntervalPoints (one start/end)
-		if i == 1 {
-			activePods += 1
-			activeKeys[prevPoint.Key] = struct{}{}
-		}
 
 		// If the current point happens at a later time than the previous point
 		if !point.Time.Equal(prevPoint.Time) {
 			for key := range activeKeys {
-				// Add a two-long slice of float64 representing:
-				// 1. The division of cost based on how many pods were running between those points
-				// 2. The ratio of the time between those points to the total time that pod was running
 				pvcCostCoefficientMap[key] = append(
 					pvcCostCoefficientMap[key],
 					[]float64{1.0 / activePods, point.Time.Sub(prevPoint.Time).Minutes() / pvcIntervalMap[key].Duration().Minutes()},
@@ -111,6 +115,8 @@ func getPVCCostCoefficients(intervals []IntervalPoint, pvcIntervalMap map[podKey
 		}
 
 	}
+
+	return pvcCostCoefficientMap
 }
 
 // getCoefficient takes the components of a PVC-pod PV cost coefficient
