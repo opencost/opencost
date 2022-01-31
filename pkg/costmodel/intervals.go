@@ -16,10 +16,11 @@ type IntervalPoint struct {
 	Key       podKey
 }
 
-// CostCoefficient is a representitive struct holding two fields which describe an interval:
+// CoefficientComponent is a representitive struct holding two fields which describe an interval
+// as part of a single number cost coefficient calculation:
 // 1. Proportion: The division of cost based on how many pods were running between those points
 // 2. Time: The ratio of the time between those points to the total time that pod was running
-type CostCoefficient struct {
+type CoefficientComponent struct {
 	Proportion float64
 	Time       float64
 }
@@ -71,9 +72,9 @@ func sortIntervalPoints(intervals []IntervalPoint) {
 // getPVCCostCoefficients gets a coefficient which represents the scale
 // factor that each PVC in a pvcIntervalMap and corresponding slice of
 // IntervalPoints intervals uses to calculate a cost for that PVC's PV.
-func getPVCCostCoefficients(intervals []IntervalPoint, pvcIntervalMap map[podKey]kubecost.Window) map[podKey][][]float64 {
+func getPVCCostCoefficients(intervals []IntervalPoint, pvcIntervalMap map[podKey]kubecost.Window) map[podKey][]CoefficientComponent {
 
-	pvcCostCoefficientMap := make(map[podKey][][]float64)
+	pvcCostCoefficientMap := make(map[podKey][]CoefficientComponent)
 
 	// pvcCostCoefficientMap is mutated in this function. The format is
 	// such that the individual coefficient components are preserved for
@@ -97,7 +98,10 @@ func getPVCCostCoefficients(intervals []IntervalPoint, pvcIntervalMap map[podKey
 			for key := range activeKeys {
 				pvcCostCoefficientMap[key] = append(
 					pvcCostCoefficientMap[key],
-					[]float64{1.0 / activePods, point.Time.Sub(prevPoint.Time).Minutes() / pvcIntervalMap[key].Duration().Minutes()},
+					CoefficientComponent{
+						Time:       point.Time.Sub(prevPoint.Time).Minutes() / pvcIntervalMap[key].Duration().Minutes(),
+						Proportion: 1.0 / activePods,
+					},
 				)
 			}
 		}
@@ -122,16 +126,16 @@ func getPVCCostCoefficients(intervals []IntervalPoint, pvcIntervalMap map[podKey
 // getCoefficient takes the components of a PVC-pod PV cost coefficient
 // determined by getPVCCostCoefficient and gets the resulting single
 // floating point coefficient.
-func getCoefficient(coefficientComponents [][]float64) float64 {
+func getCoefficient(coefficientComponents []CoefficientComponent) float64 {
 
 	coefficient := 0.0
 
 	for i := range coefficientComponents {
 
-		cost := coefficientComponents[i][0]
-		duration := coefficientComponents[i][1]
+		proportion := coefficientComponents[i].Proportion
+		time := coefficientComponents[i].Time
 
-		coefficient += cost * duration
+		coefficient += proportion * time
 
 	}
 

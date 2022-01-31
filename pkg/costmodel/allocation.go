@@ -423,7 +423,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	// Build out a PV price coefficient for each pod with a PVC. Each
 	// PVC-pod relation needs a coefficient which modifies the PV cost
 	// such that PV costs can be shared between all pods using that PVC.
-	sharedPVCCostCoefficientMap := make(map[pvcKey]map[podKey][][]float64)
+	sharedPVCCostCoefficientMap := make(map[pvcKey]map[podKey][]CoefficientComponent)
 	for pvcKey, podIntervalMap := range pvcPodIntervalMap {
 
 		// Get single-point intervals from alloc-PVC relation windows.

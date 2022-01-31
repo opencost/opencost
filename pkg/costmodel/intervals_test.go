@@ -153,7 +153,7 @@ func TestGetPVCCostCoefficients(t *testing.T) {
 		name           string
 		pvcIntervalMap map[podKey]kubecost.Window
 		intervals      []IntervalPoint
-		expected       map[podKey][][]float64
+		expected       map[podKey][]CoefficientComponent
 	}{
 		{
 			name: "four pods w/ various overlaps",
@@ -197,30 +197,30 @@ func TestGetPVCCostCoefficients(t *testing.T) {
 				NewIntervalPoint(time.Date(2021, 2, 19, 9, 0, 0, 0, time.UTC), "end", podKey{Pod: "Pod3"}),
 				NewIntervalPoint(time.Date(2021, 2, 19, 9, 0, 0, 0, time.UTC), "end", podKey{Pod: "Pod1"}),
 			},
-			expected: map[podKey][][]float64{
+			expected: map[podKey][]CoefficientComponent{
 				podKey{
 					Pod: "Pod1",
-				}: [][]float64{
-					[]float64{0.5, 0.25},
-					[]float64{1, 0.25},
-					[]float64{0.5, 0.25},
-					[]float64{1.0 / 3.0, 0.25},
+				}: []CoefficientComponent{
+					CoefficientComponent{0.5, 0.25},
+					CoefficientComponent{1, 0.25},
+					CoefficientComponent{0.5, 0.25},
+					CoefficientComponent{1.0 / 3.0, 0.25},
 				},
 				podKey{
 					Pod: "Pod2",
-				}: [][]float64{
-					[]float64{0.5, 0.50},
-					[]float64{1.0 / 3.0, 0.50},
+				}: []CoefficientComponent{
+					CoefficientComponent{0.5, 0.50},
+					CoefficientComponent{1.0 / 3.0, 0.50},
 				},
 				podKey{
 					Pod: "Pod3",
-				}: [][]float64{
-					[]float64{1.0 / 3.0, 1.0},
+				}: []CoefficientComponent{
+					CoefficientComponent{1.0 / 3.0, 1.0},
 				},
 				podKey{
 					Pod: "Pod4",
-				}: [][]float64{
-					[]float64{0.5, 1.0},
+				}: []CoefficientComponent{
+					CoefficientComponent{0.5, 1.0},
 				},
 			},
 		},
@@ -248,16 +248,16 @@ func TestGetPVCCostCoefficients(t *testing.T) {
 				NewIntervalPoint(time.Date(2021, 2, 19, 8, 30, 0, 0, time.UTC), "end", podKey{Pod: "Pod1"}),
 				NewIntervalPoint(time.Date(2021, 2, 19, 9, 0, 0, 0, time.UTC), "end", podKey{Pod: "Pod2"}),
 			},
-			expected: map[podKey][][]float64{
+			expected: map[podKey][]CoefficientComponent{
 				podKey{
 					Pod: "Pod1",
-				}: [][]float64{
-					[]float64{1.0, 1.0},
+				}: []CoefficientComponent{
+					CoefficientComponent{1.0, 1.0},
 				},
 				podKey{
 					Pod: "Pod2",
-				}: [][]float64{
-					[]float64{1.0, 1.0},
+				}: []CoefficientComponent{
+					CoefficientComponent{1.0, 1.0},
 				},
 			},
 		},
@@ -285,16 +285,16 @@ func TestGetPVCCostCoefficients(t *testing.T) {
 				NewIntervalPoint(time.Date(2021, 2, 19, 9, 0, 0, 0, time.UTC), "end", podKey{Pod: "Pod1"}),
 				NewIntervalPoint(time.Date(2021, 2, 19, 9, 0, 0, 0, time.UTC), "end", podKey{Pod: "Pod2"}),
 			},
-			expected: map[podKey][][]float64{
+			expected: map[podKey][]CoefficientComponent{
 				podKey{
 					Pod: "Pod1",
-				}: [][]float64{
-					[]float64{0.5, 1.0},
+				}: []CoefficientComponent{
+					CoefficientComponent{0.5, 1.0},
 				},
 				podKey{
 					Pod: "Pod2",
-				}: [][]float64{
-					[]float64{0.5, 1.0},
+				}: []CoefficientComponent{
+					CoefficientComponent{0.5, 1.0},
 				},
 			},
 		},
@@ -313,11 +313,11 @@ func TestGetPVCCostCoefficients(t *testing.T) {
 				NewIntervalPoint(time.Date(2021, 2, 19, 8, 0, 0, 0, time.UTC), "start", podKey{Pod: "Pod1"}),
 				NewIntervalPoint(time.Date(2021, 2, 19, 9, 0, 0, 0, time.UTC), "end", podKey{Pod: "Pod1"}),
 			},
-			expected: map[podKey][][]float64{
+			expected: map[podKey][]CoefficientComponent{
 				podKey{
 					Pod: "Pod1",
-				}: [][]float64{
-					[]float64{1.0, 1.0},
+				}: []CoefficientComponent{
+					CoefficientComponent{1.0, 1.0},
 				},
 			},
 		},
