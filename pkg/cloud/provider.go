@@ -262,7 +262,6 @@ type Provider interface {
 	GetConfig() (*CustomPricing, error)
 	GetManagementPlatform() (string, error)
 	GetLocalStorageQuery(time.Duration, time.Duration, bool, bool) string
-	ExternalAllocations(string, string, []string, string, string, bool) ([]*OutOfClusterAllocation, error)
 	ApplyReservedInstancePricing(map[string]*Node)
 	ServiceAccountStatus() *ServiceAccountStatus
 	PricingSourceStatus() map[string]*PricingSource
@@ -383,29 +382,6 @@ func ShareTenancyCosts(p Provider) bool {
 	}
 
 	return config.ShareTenancyCosts == "true"
-}
-
-func NewCrossClusterProvider(ctype string, config *config.ConfigFileManager, overrideConfigPath string, cache clustercache.ClusterCache) (Provider, error) {
-	if ctype == "aws" {
-		return &AWS{
-			Clientset: cache,
-			Config:    NewProviderConfig(config, overrideConfigPath),
-		}, nil
-	} else if ctype == "gcp" {
-		return &GCP{
-			Clientset: cache,
-			Config:    NewProviderConfig(config, overrideConfigPath),
-		}, nil
-	} else if ctype == "azure" {
-		return &Azure{
-			Clientset: cache,
-			Config:    NewProviderConfig(config, overrideConfigPath),
-		}, nil
-	}
-	return &CustomProvider{
-		Clientset: cache,
-		Config:    NewProviderConfig(config, overrideConfigPath),
-	}, nil
 }
 
 // NewProvider looks at the nodespec or provider metadata server to decide which provider to instantiate.

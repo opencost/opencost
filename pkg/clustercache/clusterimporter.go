@@ -301,6 +301,20 @@ func (ci *ClusterImporter) GetAllPodDisruptionBudgets() []*v1beta1.PodDisruption
 	return cloneList
 }
 
+func (ci *ClusterImporter) GetAllReplicationControllers() []*v1.ReplicationController {
+	ci.dataLock.Lock()
+	defer ci.dataLock.Unlock()
+
+	// Deep copy here to avoid callers from corrupting the cache
+	// This also mimics the behavior of the default cluster cache impl.
+	rcs := ci.data.ReplicationControllers
+	cloneList := make([]*v1.ReplicationController, 0, len(rcs))
+	for _, v := range rcs {
+		cloneList = append(cloneList, v.DeepCopy())
+	}
+	return cloneList
+}
+
 // SetConfigMapUpdateFunc sets the configmap update function
 func (ci *ClusterImporter) SetConfigMapUpdateFunc(_ func(interface{})) {
 	// TODO: (bolt) This function is still a bit strange to me for the ClusterCache interface.
