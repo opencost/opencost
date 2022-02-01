@@ -16,13 +16,24 @@ type IntervalPoint struct {
 	Key       podKey
 }
 
-// CoefficientComponent is a representitive struct holding two fields which describe an interval
-// as part of a single number cost coefficient calculation:
-// 1. Proportion: The division of cost based on how many pods were running between those points
-// 2. Time: The ratio of the time between those points to the total time that pod was running
-type CoefficientComponent struct {
-	Proportion float64
-	Time       float64
+// IntervalPoints describes a slice of IntervalPoint structs
+type IntervalPoints []IntervalPoint
+
+// Requisite functions for implementing sort.Sort for
+// IntervalPointList
+func (ips IntervalPoints) Len() int {
+	return len(ips)
+}
+
+func (ips IntervalPoints) Less(i, j int) bool {
+	if ips[i].Time.Equal(ips[j].Time) {
+		return ips[i].PointType == "start" && ips[j].PointType == "end"
+	}
+	return ips[i].Time.Before(ips[j].Time)
+}
+
+func (ips IntervalPoints) Swap(i, j int) {
+	ips[i], ips[j] = ips[j], ips[i]
 }
 
 // NewIntervalPoint creates and returns a new IntervalPoint instance with given parameters.
@@ -34,12 +45,21 @@ func NewIntervalPoint(time time.Time, pointType string, key podKey) IntervalPoin
 	}
 }
 
+// CoefficientComponent is a representitive struct holding two fields which describe an interval
+// as part of a single number cost coefficient calculation:
+// 1. Proportion: The division of cost based on how many pods were running between those points
+// 2. Time: The ratio of the time between those points to the total time that pod was running
+type CoefficientComponent struct {
+	Proportion float64
+	Time       float64
+}
+
 // getIntervalPointFromWindows takes a map of podKeys to windows
 // and returns a sorted list of IntervalPoints representing the
 // starts and ends of all those windows.
-func getIntervalPointsFromWindows(windows map[podKey]kubecost.Window) []IntervalPoint {
+func getIntervalPointsFromWindows(windows map[podKey]kubecost.Window) IntervalPoints {
 
-	var intervals []IntervalPoint
+	var intervals IntervalPoints
 
 	for podKey, podInterval := range windows {
 
@@ -50,37 +70,22 @@ func getIntervalPointsFromWindows(windows map[podKey]kubecost.Window) []Interval
 
 	}
 
-	sortIntervalPoints(intervals)
+	sort.Sort(intervals)
 
 	return intervals
 
 }
 
-// sortIntervalPoints sorts a list of IntervalPoints from earliest
-// to latest IntervalPoint.Time. In the case that two IntervalPoints
-// have the same time, the point with Type "start" is treated as coming
-// before the "end".
-func sortIntervalPoints(intervals []IntervalPoint) {
-	sort.Slice(intervals, func(i, j int) bool {
-		if intervals[i].Time.Equal(intervals[j].Time) {
-			return intervals[i].PointType == "start" && intervals[j].PointType == "end"
-		}
-		return intervals[i].Time.Before(intervals[j].Time)
-	})
-}
-
 // getPVCCostCoefficients gets a coefficient which represents the scale
 // factor that each PVC in a pvcIntervalMap and corresponding slice of
 // IntervalPoints intervals uses to calculate a cost for that PVC's PV.
-func getPVCCostCoefficients(intervals []IntervalPoint, pvcIntervalMap map[podKey]kubecost.Window) map[podKey][]CoefficientComponent {
+func getPVCCostCoefficients(intervals IntervalPoints, pvcIntervalMap map[podKey]kubecost.Window) map[podKey][]CoefficientComponent {
 
 	pvcCostCoefficientMap := make(map[podKey][]CoefficientComponent)
 
 	// pvcCostCoefficientMap is mutated in this function. The format is
 	// such that the individual coefficient components are preserved for
 	// testing purposes.
-
-	activePods := 1.0
 
 	activeKeys := map[podKey]struct{}{
 		intervals[0].Key: struct{}{},
@@ -96,25 +101,25 @@ func getPVCCostCoefficients(intervals []IntervalPoint, pvcIntervalMap map[podKey
 		// If the current point happens at a later time than the previous point
 		if !point.Time.Equal(prevPoint.Time) {
 			for key := range activeKeys {
-				pvcCostCoefficientMap[key] = append(
-					pvcCostCoefficientMap[key],
-					CoefficientComponent{
-						Time:       point.Time.Sub(prevPoint.Time).Minutes() / pvcIntervalMap[key].Duration().Minutes(),
-						Proportion: 1.0 / activePods,
-					},
-				)
+				if pvcIntervalMap[key].Duration().Minutes() != 0 {
+					pvcCostCoefficientMap[key] = append(
+						pvcCostCoefficientMap[key],
+						CoefficientComponent{
+							Time:       point.Time.Sub(prevPoint.Time).Minutes() / pvcIntervalMap[key].Duration().Minutes(),
+							Proportion: 1.0 / float64(len(activeKeys)),
+						},
+					)
+				}
 			}
 		}
 
 		// If the point was a start, increment and track
 		if point.PointType == "start" {
-			activePods += 1
 			activeKeys[point.Key] = struct{}{}
 		}
 
 		// If the point was an end, decrement and stop tracking
 		if point.PointType == "end" {
-			activePods -= 1
 			delete(activeKeys, point.Key)
 		}
 
@@ -123,10 +128,10 @@ func getPVCCostCoefficients(intervals []IntervalPoint, pvcIntervalMap map[podKey
 	return pvcCostCoefficientMap
 }
 
-// getCoefficient takes the components of a PVC-pod PV cost coefficient
+// getCoefficientFromComponents takes the components of a PVC-pod PV cost coefficient
 // determined by getPVCCostCoefficient and gets the resulting single
 // floating point coefficient.
-func getCoefficient(coefficientComponents []CoefficientComponent) float64 {
+func getCoefficientFromComponents(coefficientComponents []CoefficientComponent) float64 {
 
 	coefficient := 0.0
 

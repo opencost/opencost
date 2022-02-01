@@ -415,6 +415,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 				}
 			}
 
+			// We only need to look at one alloc per pod
 			break
 		}
 
@@ -431,8 +432,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 
 		// Determine coefficients for each PVC-pod relation.
 		sharedPVCCostCoefficientMap[pvcKey] = getPVCCostCoefficients(intervals, podIntervalMap)
-
-		//sharedPVCCostCoefficientMap[pvcKey] = pvcCostCoefficientMap
 
 	}
 
@@ -486,7 +485,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 
 					// Scale PV cost by PVC sharing coefficient.
 					if coeffComponents, ok := sharedPVCCostCoefficientMap[pvcKey][podKey]; ok {
-						cost *= getCoefficient(coeffComponents)
+						cost *= getCoefficientFromComponents(coeffComponents)
 					} else {
 						log.Warningf("CostModel.ComputeAllocation: allocation %s and PVC %s have relation but no coeff", alloc.Name, pvc.Name)
 					}

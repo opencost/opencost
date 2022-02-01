@@ -127,6 +127,7 @@ func TestGetIntervalPointsFromWindows(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
+
 			result := getIntervalPointsFromWindows(testCase.pvcIntervalMap)
 
 			if len(result) != len(testCase.expected) {
