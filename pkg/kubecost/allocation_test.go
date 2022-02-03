@@ -2320,7 +2320,6 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 	for _, c := range cases {
 		result, err = c.asr.AccumulateBy(c.resolution)
 		sumCost := 0.0
-		fmt.Println(c.testId)
 		if result == nil {
 			t.Errorf("accumulating AllocationSetRange: expected AllocationSet; actual %s; TestId: %s", result, c.testId)
 		}
