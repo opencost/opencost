@@ -2176,12 +2176,15 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 	var err error
 	var result *AllocationSetRange
 
+	ago4d := time.Now().UTC().Truncate(day).Add(-4 * day)
 	ago3d := time.Now().UTC().Truncate(day).Add(-3 * day)
 	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
 	yesterday := time.Now().UTC().Truncate(day).Add(-day)
 	today := time.Now().UTC().Truncate(day)
 	tomorrow := time.Now().UTC().Truncate(day).Add(day)
 
+	ago4dAS := NewAllocationSet(ago4d, ago3d)
+	ago4dAS.Set(NewMockUnitAllocation("4", ago4d, day, nil))
 	ago3dAS := NewAllocationSet(ago3d, ago2d)
 	ago3dAS.Set(NewMockUnitAllocation("a", ago3d, day, nil))
 	ago2dAS := NewAllocationSet(ago2d, yesterday)
@@ -2303,12 +2306,21 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 
 			testId: "AccumulateBy Test 10",
 		},
+		{
+			asr:        NewAllocationSetRange(ago4dAS, ago3dAS, ago2dAS, yesterdayAS, todayAS),
+			resolution: time.Hour * 72,
+
+			expectedCost: 30.0,
+			expectedSets: 2,
+
+			testId: "AccumulateBy Test 11",
+		},
 	}
 
 	for _, c := range cases {
 		result, err = c.asr.AccumulateBy(c.resolution)
 		sumCost := 0.0
-
+		fmt.Println(c.testId)
 		if result == nil {
 			t.Errorf("accumulating AllocationSetRange: expected AllocationSet; actual %s; TestId: %s", result, c.testId)
 		}
