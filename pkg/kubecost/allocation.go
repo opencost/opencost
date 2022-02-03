@@ -2268,7 +2268,6 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*AllocationSetRange, error) {
 	allocSetRange := NewAllocationSetRange()
 	var allocSet *AllocationSet
-	var currAccumulatedSum time.Duration
 	var err error
 
 	asr.Lock()
@@ -2280,14 +2279,12 @@ func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*Allocati
 		}
 
 		if allocSet != nil {
-			currAccumulatedSum = allocSet.Window.Duration()
 
 			// check if end of asr to sum the final set
 			// If total asr accumulated sum <= resolution return 1 accumulated set
-			if currAccumulatedSum >= resolution || i == len(asr.allocations)-1 {
+			if allocSet.Window.Duration() >= resolution || i == len(asr.allocations)-1 {
 				allocSetRange.allocations = append(allocSetRange.allocations, allocSet)
 				allocSet = NewAllocationSet(time.Time{}, time.Time{})
-				currAccumulatedSum = 0
 			}
 		}
 	}
