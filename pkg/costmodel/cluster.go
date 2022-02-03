@@ -246,7 +246,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 		}
 		diskMap[key].Bytes = bytes
 		if bytes/1024/1024/1024 > maxLocalDiskSize {
-			log.Warningf("Deleting large root disk/localstorage disk from analysis")
+			log.DedupedWarningf(5, "Deleting large root disk/localstorage disk from analysis")
 			delete(diskMap, key)
 		}
 	}
@@ -259,13 +259,13 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, o
 
 		name, err := result.GetString("node")
 		if err != nil {
-			log.Warningf("ClusterDisks: local active mins data missing instance")
+			log.DedupedWarningf(5, "ClusterDisks: local active mins data missing instance")
 			continue
 		}
 
 		key := fmt.Sprintf("%s/%s", cluster, name)
 		if _, ok := diskMap[key]; !ok {
-			log.Warningf("ClusterDisks: local active mins for unidentified disk or disk deleted from analysis")
+			log.DedupedWarningf(5, "ClusterDisks: local active mins for unidentified disk or disk deleted from analysis")
 			continue
 		}
 
