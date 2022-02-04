@@ -1342,9 +1342,23 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 
 	timeout := 120 * time.Second
 	keepAlive := 120 * time.Second
+	tlsHandshakeTimeout := 10 * time.Second
 	scrapeInterval := time.Minute
 
-	promCli, err := prom.NewPrometheusClient(address, timeout, keepAlive, queryConcurrency, "")
+	promCli, err := prom.NewPrometheusClient(address, &prom.PrometheusClientConfig{
+		Timeout:                  timeout,
+		KeepAlive:                keepAlive,
+		TLSHandshakeTimeout:      tlsHandshakeTimeout,
+		TLSInsecureSkipVerify:    env.GetInsecureSkipVerify(),
+		RetryOnRateLimitResponse: env.IsPrometheusRetryOnRateLimitResponse(),
+		Auth: &prom.ClientAuth{
+			Username:    env.GetDBBasicAuthUsername(),
+			Password:    env.GetDBBasicAuthUserPassword(),
+			BearerToken: env.GetDBBearerToken(),
+		},
+		QueryConcurrency: queryConcurrency,
+		QueryLogFile:     "",
+	})
 	if err != nil {
 		klog.Fatalf("Failed to create prometheus client, Error: %v", err)
 	}
@@ -1452,7 +1466,20 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		thanosAddress := thanos.QueryURL()
 
 		if thanosAddress != "" {
-			thanosCli, _ := thanos.NewThanosClient(thanosAddress, timeout, keepAlive, queryConcurrency, env.GetQueryLoggingFile())
+			thanosCli, _ := thanos.NewThanosClient(thanosAddress, &prom.PrometheusClientConfig{
+				Timeout:                  timeout,
+				KeepAlive:                keepAlive,
+				TLSHandshakeTimeout:      tlsHandshakeTimeout,
+				TLSInsecureSkipVerify:    env.GetInsecureSkipVerify(),
+				RetryOnRateLimitResponse: env.IsPrometheusRetryOnRateLimitResponse(),
+				Auth: &prom.ClientAuth{
+					Username:    env.GetMultiClusterBasicAuthUsername(),
+					Password:    env.GetMultiClusterBasicAuthPassword(),
+					BearerToken: env.GetMultiClusterBearerToken(),
+				},
+				QueryConcurrency: queryConcurrency,
+				QueryLogFile:     env.GetQueryLoggingFile(),
+			})
 
 			_, err = prom.Validate(thanosCli)
 			if err != nil {

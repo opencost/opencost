@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/kubecost/cost-model/pkg/util/mapper"
 )
@@ -89,6 +91,61 @@ func SetQuery(r *http.Request, query string) *http.Request {
 //--------------------------------------------------------------------------
 //  Package Funcs
 //--------------------------------------------------------------------------
+
+// IsRateLimited accepts a response and body to determine if either indicate
+// a rate limited return
+func IsRateLimited(resp *http.Response, body []byte) bool {
+	return IsRateLimitedResponse(resp) || IsRateLimitedBody(resp, body)
+}
+
+// RateLimitedRetryFor returns the parsed Retry-After header relative to the
+// current time. If the Retry-After header does not exist, the defaultWait parameter
+// is returned.
+func RateLimitedRetryFor(resp *http.Response, defaultWait time.Duration) time.Duration {
+	if resp.Header == nil {
+		return defaultWait
+	}
+	// Retry-After is either the number of seconds to wait or a target datetime (RFC1123)
+	value := resp.Header.Get("Retry-After")
+	if value == "" {
+		return defaultWait
+	}
+
+	seconds, err := strconv.ParseInt(value, 10, 64)
+	if err == nil {
+		return time.Duration(seconds) * time.Second
+	}
+
+	// failed to parse an integer, try datetime RFC1123
+	t, err := time.Parse(time.RFC1123, value)
+	if err == nil {
+		// return 0 if the datetime has already elapsed
+		result := t.Sub(time.Now())
+		if result < 0 {
+			return 0
+		}
+		return result
+	}
+
+	// failed to parse datetime, return default
+	return defaultWait
+}
+
+// IsRateLimitedResponse returns true if the status code is a 429 (TooManyRequests)
+func IsRateLimitedResponse(resp *http.Response) bool {
+	return resp.StatusCode == http.StatusTooManyRequests
+}
+
+// IsRateLimitedBody attempts to determine if a response body indicates throttling
+// has occurred. This function is a result of some API providers (AWS) returning
+// a 400 status code instead of 429 for rate limit exceptions.
+func IsRateLimitedBody(resp *http.Response, body []byte) bool {
+	// ignore non-400 status
+	if resp.StatusCode < http.StatusBadRequest || resp.StatusCode >= http.StatusInternalServerError {
+		return false
+	}
+	return strings.Contains(string(body), "ThrottlingException")
+}
 
 // HeaderString writes the request/response http.Header to a string.
 func HeaderString(h http.Header) string {

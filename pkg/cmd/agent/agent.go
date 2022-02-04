@@ -85,8 +85,22 @@ func newPrometheusClient() (prometheus.Client, error) {
 
 	timeout := 120 * time.Second
 	keepAlive := 120 * time.Second
+	tlsHandshakeTimeout := 10 * time.Second
 
-	promCli, err := prom.NewPrometheusClient(address, timeout, keepAlive, queryConcurrency, "")
+	promCli, err := prom.NewPrometheusClient(address, &prom.PrometheusClientConfig{
+		Timeout:                  timeout,
+		KeepAlive:                keepAlive,
+		TLSHandshakeTimeout:      tlsHandshakeTimeout,
+		TLSInsecureSkipVerify:    env.GetInsecureSkipVerify(),
+		RetryOnRateLimitResponse: env.IsPrometheusRetryOnRateLimitResponse(),
+		Auth: &prom.ClientAuth{
+			Username:    env.GetDBBasicAuthUsername(),
+			Password:    env.GetDBBasicAuthUserPassword(),
+			BearerToken: env.GetDBBearerToken(),
+		},
+		QueryConcurrency: queryConcurrency,
+		QueryLogFile:     "",
+	})
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create prometheus client, Error: %v", err)
 	}
