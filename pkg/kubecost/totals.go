@@ -54,6 +54,21 @@ func (art *AllocationTotals) TotalGPUCost() float64 {
 	return art.GPUCost + art.GPUCostAdjustment
 }
 
+// TotalLoadBalancerCost returns LoadBalancer cost with adjustment.
+func (art *AllocationTotals) TotalLoadBalancerCost() float64 {
+	return art.LoadBalancerCost + art.LoadBalancerCostAdjustment
+}
+
+// TotalNetworkCost returns Network cost with adjustment.
+func (art *AllocationTotals) TotalNetworkCost() float64 {
+	return art.NetworkCost + art.NetworkCostAdjustment
+}
+
+// TotalPersistentVolumeCost returns PersistentVolume cost with adjustment.
+func (art *AllocationTotals) TotalPersistentVolumeCost() float64 {
+	return art.PersistentVolumeCost + art.PersistentVolumeCostAdjustment
+}
+
 // TotalRAMCost returns RAM cost with adjustment.
 func (art *AllocationTotals) TotalRAMCost() float64 {
 	return art.RAMCost + art.RAMCostAdjustment
@@ -61,8 +76,8 @@ func (art *AllocationTotals) TotalRAMCost() float64 {
 
 // TotalCost returns the sum of all costs.
 func (art *AllocationTotals) TotalCost() float64 {
-	return art.TotalCPUCost() + art.TotalGPUCost() + art.LoadBalancerCost +
-		art.NetworkCost + art.PersistentVolumeCost + art.TotalRAMCost()
+	return art.TotalCPUCost() + art.TotalGPUCost() + art.TotalLoadBalancerCost() +
+		art.TotalNetworkCost() + art.TotalPersistentVolumeCost() + art.TotalRAMCost()
 }
 
 // ComputeAllocationTotals totals the resource costs of the given AllocationSet
@@ -108,9 +123,12 @@ func ComputeAllocationTotals(as *AllocationSet, prop string) map[string]*Allocat
 		arts[key].CPUCostAdjustment += alloc.CPUCostAdjustment
 		arts[key].GPUCost += alloc.GPUCost
 		arts[key].GPUCostAdjustment += alloc.GPUCostAdjustment
-		arts[key].LoadBalancerCost += alloc.LBTotalCost()
-		arts[key].NetworkCost += alloc.NetworkTotalCost()
+		arts[key].LoadBalancerCost += alloc.LoadBalancerCost
+		arts[key].LoadBalancerCostAdjustment += alloc.LoadBalancerCostAdjustment
+		arts[key].NetworkCost += alloc.NetworkCost
+		arts[key].NetworkCostAdjustment += alloc.NetworkCostAdjustment
 		arts[key].PersistentVolumeCost += alloc.PVCost()
+		arts[key].PersistentVolumeCostAdjustment += alloc.PVCostAdjustment
 		arts[key].RAMCost += alloc.RAMCost
 		arts[key].RAMCostAdjustment += alloc.RAMCostAdjustment
 	})
@@ -198,9 +216,9 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 			// by the adjustment. This is necessary because we only get one
 			// adjustment per Node, not one per-resource-per-Node.
 			//
-			// e.g. total cost = $90, adjustment = -$10 => 0.9
-			// e.g. total cost = $150, adjustment = -$300 => 0.3333
-			// e.g. total cost = $150, adjustment = $50 => 1.5
+			// e.g. total cost = $90, adjustment = -$10 => 0.9 (90 / 100)
+			// e.g. total cost = $150, adjustment = -$300 => 0.3333 (150 / 450)
+			// e.g. total cost = $150, adjustment = $50 => 1.5 (150 / 100)
 			adjustmentRate := 1.0
 			if node.TotalCost()-node.Adjustment() == 0 {
 				// If (totalCost - adjustment) is 0.0 then adjustment cancels
