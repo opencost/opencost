@@ -73,6 +73,19 @@ func newSuccessfulResponse() *ResponseAndBody {
 	}
 }
 
+// creates a ResponseAndBody representing a 400 status code
+func newFailureResponse() *ResponseAndBody {
+	body := []byte("Fail")
+
+	return &ResponseAndBody{
+		Response: &http.Response{
+			StatusCode: 400,
+			Body:       io.NopCloser(bytes.NewReader(body)),
+		},
+		Body: body,
+	}
+}
+
 // creates a ResponseAndBody representing a 429 status code and 'Retry-After' header
 func newNormalRateLimitedResponse(retryAfter string) *ResponseAndBody {
 	body := []byte("Rate Limitted")
@@ -140,6 +153,47 @@ func TestRateLimitedOnceAndSuccess(t *testing.T) {
 
 	if string(body) != "Success" {
 		t.Fatalf("Expected 'Success' message body. Got: %s", string(body))
+	}
+}
+
+func TestRateLimitedOnceAndFail(t *testing.T) {
+	t.Parallel()
+
+	// creates a prom client with hard coded responses for any requests that
+	// are issued
+	promClient := newMockPromClientWith([]*ResponseAndBody{
+		newNormalRateLimitedResponse("2"),
+		newFailureResponse(),
+	})
+
+	client, err := NewRateLimitedClient(
+		"TestClient",
+		promClient,
+		1,
+		nil,
+		nil,
+		true,
+		"",
+	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// we just need to execute this  once to see retries in effect
+	res, body, _, err := client.Do(context.Background(), req)
+
+	if res.StatusCode != 400 {
+		t.Fatalf("400 StatusCode expected. Got: %d", res.StatusCode)
+	}
+
+	if string(body) != "Fail" {
+		t.Fatalf("Expected 'fail' message body. Got: %s", string(body))
 	}
 }
 
@@ -233,9 +287,9 @@ func TestRateLimitedResponses(t *testing.T) {
 func TestConcurrentRateLimiting(t *testing.T) {
 	t.Parallel()
 
-	// Set QueryConcurrency to 3 here, then test double that
+	// Set QueryConcurrency to 3 here, then add a few for total requests
 	const QueryConcurrency = 3
-	const TotalRequests = QueryConcurrency * 2
+	const TotalRequests = QueryConcurrency + 2
 
 	dateRetry := time.Now().Add(5 * time.Second).Format(time.RFC1123)
 

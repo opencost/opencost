@@ -107,7 +107,7 @@ func IsClusterCacheFileEnabled() bool {
 // IsPrometheusRetryOnRateLimitResponse will attempt to retry if a 429 response is received OR a 400 with a body containing
 // ThrottleException (common in AWS services like AMP)
 func IsPrometheusRetryOnRateLimitResponse() bool {
-	return GetBool(PrometheusRetryOnRateLimitResponseEnvVar, false)
+	return GetBool(PrometheusRetryOnRateLimitResponseEnvVar, true)
 }
 
 // GetPrometheusQueryOffset returns the time.Duration to offset all prometheus queries by. NOTE: This env var is applied

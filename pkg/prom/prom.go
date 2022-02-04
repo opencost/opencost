@@ -61,6 +61,11 @@ func (auth *ClientAuth) Apply(req *http.Request) {
 //  Rate Limited Error
 //--------------------------------------------------------------------------
 
+// MaxRetryAfterDuration is the maximum amount of time we should ever wait
+// during a retry. This is to prevent starvation on the request threads
+const MaxRetryAfterDuration = 10 * time.Second
+
+// RateLimitResponseStatus contains the status of the rate limited retries
 type RateLimitResponseStatus struct {
 	RetriesRemaining int
 	WaitTime         time.Duration
@@ -266,6 +271,13 @@ func (rlpc *RateLimitedPrometheusClient) worker() {
 					retryAfter := httputil.RateLimitedRetryFor(res, time.Second)
 					status = append(status, &RateLimitResponseStatus{RetriesRemaining: retries, WaitTime: retryAfter})
 					log.DedupedInfof(50, "Rate Limited Prometheus Request. Waiting for: %.2f seconds. Retries Remaining: %d", retryAfter.Seconds(), retries)
+
+					// To prevent total starvation of request threads, hard limit wait time to 10s. We also want quota limits/throttles
+					// to eventually pass through as an error. For example, if some quota is reached with 10 days left, we clearly
+					// don't want to block for 10 days.
+					if retryAfter > MaxRetryAfterDuration {
+						retryAfter = MaxRetryAfterDuration
+					}
 
 					// execute wait and retry
 					time.Sleep(retryAfter)
