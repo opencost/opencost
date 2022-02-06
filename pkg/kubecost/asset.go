@@ -2893,6 +2893,63 @@ func (asr *AssetSetRange) Length() int {
 	return len(asr.assets)
 }
 
+// InsertRange merges the given AssetSetRange into the receiving one by
+// lining up sets with matching windows, then inserting each asset from
+// the given ASR into the respective set in the receiving ASR. If the given
+// ASR contains an AssetSetRange from a window that does not exist in the
+// receiving ASR, then an error is returned. However, the given ASR does not
+// need to cover the full range of the receiver.
+func (asr *AssetSetRange) InsertRange(that *AssetSetRange) error {
+	if asr == nil {
+		return fmt.Errorf("cannot insert range into nil AssetSetRange")
+	}
+
+	// keys maps window to index in asr
+	keys := map[string]int{}
+	asr.Each(func(i int, as *AssetSet) {
+		if as == nil {
+			return
+		}
+		keys[as.Window.String()] = i
+	})
+
+	// Nothing to merge, so simply return
+	if len(keys) == 0 {
+		return nil
+	}
+
+	var err error
+	that.Each(func(j int, thatAS *AssetSet) {
+		if thatAS == nil || err != nil {
+			return
+		}
+
+		// Find matching AssetSet in asr
+		i, ok := keys[thatAS.Window.String()]
+		if !ok {
+			err = fmt.Errorf("cannot merge AssetSet into window that does not exist: %s", thatAS.Window.String())
+			return
+		}
+		as, err := asr.Get(i)
+		if err != nil {
+			err = fmt.Errorf("AssetSetRange index does not exist: %d", i)
+			return
+		}
+
+		// Insert each Asset from the given set
+		thatAS.Each(func(k string, asset Asset) {
+			err = as.Insert(asset)
+			if err != nil {
+				err = fmt.Errorf("error inserting asset: %s", err)
+				return
+			}
+		})
+	})
+
+	// err might be nil
+	return err
+}
+
 func (asr *AssetSetRange) MarshalJSON() ([]byte, error) {
 	asr.RLock()
 	defer asr.RUnlock()

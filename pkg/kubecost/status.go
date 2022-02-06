@@ -38,6 +38,7 @@ type FileStatus struct {
 // CloudStatus describes CloudStore metadata
 type CloudStatus struct {
 	CloudConnectionStatus string                `json:"cloudConnectionStatus"`
+	CloudUsage            *CloudAssetStatus     `json:"cloudUsage,omitempty"`
 	CloudAssets           *CloudAssetStatus     `json:"cloudAssets,omitempty"`
 	Reconciliation        *ReconciliationStatus `json:"reconciliation,omitempty"`
 }

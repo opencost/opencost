@@ -76,3 +76,34 @@ func FormatUTCOffset(dur time.Duration) string {
 
 	return fmt.Sprintf("%s%02d:%02d", utcOffSig, utcOffHrs, utcOffMin)
 }
+
+// StringSlicesEqual checks if two string slices with arbitrary order have the same elements
+func StringSlicesEqual(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	// Build maps for each slice that counts each unique instance
+	leftMap := make(map[string]int, len(left))
+	for _, str := range left {
+		count, ok := leftMap[str]; if ok {
+			leftMap[str] = count + 1
+		} else {
+			leftMap[str] = 1
+		}
+	}
+	rightMap := make(map[string]int, len(right))
+	for _, str := range right {
+		count, ok := rightMap[str]; if ok {
+			rightMap[str] = count + 1
+		} else {
+			rightMap[str] = 1
+		}
+	}
+	// check that each unique key has the same count in each slice
+	for key, count := range leftMap {
+		if rightMap[key] != count {
+			return false
+		}
+	}
+	return true
+}
