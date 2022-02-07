@@ -1416,6 +1416,9 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 
 	// Append the pricing config watcher
 	configWatchers.AddWatcher(cloud.ConfigWatcherFor(cloudProvider))
+
+	configWatchers.AddWatcher(GetMetricsConfigWatcher())
+
 	watchConfigFunc := configWatchers.ToWatchFunc()
 	watchedConfigs := configWatchers.GetWatchedConfigs()
 

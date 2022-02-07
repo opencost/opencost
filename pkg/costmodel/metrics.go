@@ -1,7 +1,10 @@
 package costmodel
 
 import (
+	"fmt"
+	"io/ioutil"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,6 +20,8 @@ import (
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
 	"github.com/kubecost/cost-model/pkg/util/atomic"
+	"github.com/kubecost/cost-model/pkg/util/json"
+	"github.com/kubecost/cost-model/pkg/util/watcher"
 
 	promclient "github.com/prometheus/client_golang/api"
 	"github.com/prometheus/client_golang/prometheus"
@@ -127,6 +132,18 @@ var (
 // initCostModelMetrics uses a sync.Once to ensure that these metrics are only created once
 func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud.Provider, clusterInfo clusters.ClusterInfoProvider) {
 	metricsInit.Do(func() {
+
+		metricsConfig, err := GetMetricsConfig()
+		if err != nil {
+			log.Infof("Failed to get metrics configuration: %s", err)
+		}
+
+		log.Infof("--DISABLED LABELS--")
+		for i := range metricsConfig.DisabledMetrics {
+			log.Infof("DISABLE LABEL: %s", metricsConfig.DisabledMetrics[i])
+		}
+		log.Infof("-------------------")
+
 		cpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_cpu_hourly_cost",
 			Help: "node_cpu_hourly_cost hourly cost for each cpu on this node",
@@ -218,6 +235,98 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud
 			ClusterInfo: clusterInfo,
 		})
 	})
+}
+
+var metricsConfigLock = new(sync.Mutex)
+
+type MetricsConfig struct {
+	DisabledMetrics []string `json:"disabledMetrics"`
+}
+
+func (mc MetricsConfig) GetDisabledMetricsMap() map[string]struct{} {
+	disabledMetricsMap := make(map[string]struct{})
+
+	for i := range mc.DisabledMetrics {
+		disabledMetricsMap[mc.DisabledMetrics[i]] = struct{}{}
+	}
+
+	return disabledMetricsMap
+}
+
+func GetMetricsConfig() (*MetricsConfig, error) {
+	metricsConfigLock.Lock()
+	defer metricsConfigLock.Unlock()
+	mc := &MetricsConfig{}
+	body, err := ioutil.ReadFile("/var/configs/metrics.json")
+	if os.IsNotExist(err) {
+
+		return mc, nil
+	} else if err != nil {
+		return mc, err
+	}
+
+	err = json.Unmarshal(body, mc)
+	if err != nil {
+		return mc, err
+	}
+
+	return mc, nil
+}
+
+func UpdateMetricsConfig(mc *MetricsConfig) (*MetricsConfig, error) {
+	metricsConfigLock.Lock()
+	defer metricsConfigLock.Unlock()
+
+	mcb, err := json.Marshal(mc)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding metrics config struct: %s", err)
+	}
+
+	err = ioutil.WriteFile("/var/configs/metrics.json", mcb, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("error writing to metrics config file: %s", err)
+	}
+
+	return mc, nil
+}
+
+func UpdateMetricsConfigFromConfigmap(data map[string]string) error {
+
+	mc := &MetricsConfig{}
+	key := "metrics.json"
+
+	cdata, ok := data[key]
+	if !ok {
+		return fmt.Errorf("error finding metrics config data")
+	}
+
+	err := json.Unmarshal([]byte(cdata), &mc)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal metrics configs: %s", err)
+	}
+
+	_, err = UpdateMetricsConfig(mc)
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
+func GetMetricsConfigWatcher() *watcher.ConfigMapWatcher {
+	return &watcher.ConfigMapWatcher{
+		ConfigMapName: "metrics-config", // temporary, use env
+		WatchFunc: func(name string, data map[string]string) error {
+			klog.Infof("--CONFIGMAP DATA--")
+			for key, val := range data {
+				klog.Infof("%s : %s", key, val)
+			}
+			klog.Infof("------------------")
+			err := UpdateMetricsConfigFromConfigmap(data)
+			return err
+		},
+	}
 }
 
 //--------------------------------------------------------------------------
