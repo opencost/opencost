@@ -1,12 +1,15 @@
 package cmd
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
 	"github.com/kubecost/cost-model/pkg/cmd/agent"
 	"github.com/kubecost/cost-model/pkg/cmd/costmodel"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	"k8s.io/klog"
 )
 
 const (
@@ -37,6 +40,12 @@ func Execute(costModelCmd *cobra.Command) error {
 	}
 
 	rootCmd := newRootCommand(costModelCmd)
+
+	// initialize klog and make cobra aware of all the go flags
+	klog.InitFlags(nil)
+	pflag.CommandLine.AddGoFlag(flag.CommandLine.Lookup("v"))
+	pflag.CommandLine.AddGoFlag(flag.CommandLine.Lookup("logtostderr"))
+	pflag.CommandLine.Set("v", "3")
 
 	// in the event that no directive/command is passed, we want to default to using the cost-model command
 	// cobra doesn't provide a way within the API to do this, so we'll prepend the command if it is omitted.
