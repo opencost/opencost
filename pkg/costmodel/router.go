@@ -1345,12 +1345,20 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	tlsHandshakeTimeout := 10 * time.Second
 	scrapeInterval := time.Minute
 
+	var rateLimitRetryOpts *prom.RateLimitRetryOpts = nil
+	if env.IsPrometheusRetryOnRateLimitResponse() {
+		rateLimitRetryOpts = &prom.RateLimitRetryOpts{
+			MaxRetries:       env.GetPrometheusRetryOnRateLimitMaxRetries(),
+			DefaultRetryWait: env.GetPrometheusRetryOnRateLimitDefaultWait(),
+		}
+	}
+
 	promCli, err := prom.NewPrometheusClient(address, &prom.PrometheusClientConfig{
-		Timeout:                  timeout,
-		KeepAlive:                keepAlive,
-		TLSHandshakeTimeout:      tlsHandshakeTimeout,
-		TLSInsecureSkipVerify:    env.GetInsecureSkipVerify(),
-		RetryOnRateLimitResponse: env.IsPrometheusRetryOnRateLimitResponse(),
+		Timeout:               timeout,
+		KeepAlive:             keepAlive,
+		TLSHandshakeTimeout:   tlsHandshakeTimeout,
+		TLSInsecureSkipVerify: env.GetInsecureSkipVerify(),
+		RateLimitRetryOpts:    rateLimitRetryOpts,
 		Auth: &prom.ClientAuth{
 			Username:    env.GetDBBasicAuthUsername(),
 			Password:    env.GetDBBasicAuthUserPassword(),
@@ -1471,7 +1479,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 				KeepAlive:                keepAlive,
 				TLSHandshakeTimeout:      tlsHandshakeTimeout,
 				TLSInsecureSkipVerify:    env.GetInsecureSkipVerify(),
-				RetryOnRateLimitResponse: env.IsPrometheusRetryOnRateLimitResponse(),
+				RetryOnRateLimitResponse: rateLimitRetryOpts,
 				Auth: &prom.ClientAuth{
 					Username:    env.GetMultiClusterBasicAuthUsername(),
 					Password:    env.GetMultiClusterBasicAuthPassword(),

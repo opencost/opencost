@@ -6,12 +6,14 @@ import (
 	"io"
 	"math"
 	"net/http"
+
 	"net/url"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/httputil"
 	prometheus "github.com/prometheus/client_golang/api"
 )
 
@@ -115,6 +117,13 @@ func newHackyAmazonRateLimitedResponse() *ResponseAndBody {
 	}
 }
 
+func newTestRetryOpts() *RateLimitRetryOpts {
+	return &RateLimitRetryOpts{
+		MaxRetries:       5,
+		DefaultRetryWait: 100 * time.Millisecond,
+	}
+}
+
 func TestRateLimitedOnceAndSuccess(t *testing.T) {
 	t.Parallel()
 
@@ -131,7 +140,7 @@ func TestRateLimitedOnceAndSuccess(t *testing.T) {
 		1,
 		nil,
 		nil,
-		true,
+		newTestRetryOpts(),
 		"",
 	)
 
@@ -172,7 +181,7 @@ func TestRateLimitedOnceAndFail(t *testing.T) {
 		1,
 		nil,
 		nil,
-		true,
+		newTestRetryOpts(),
 		"",
 	)
 
@@ -218,7 +227,7 @@ func TestRateLimitedResponses(t *testing.T) {
 		1,
 		nil,
 		nil,
-		true,
+		newTestRetryOpts(),
 		"",
 	)
 
@@ -266,14 +275,14 @@ func TestRateLimitedResponses(t *testing.T) {
 
 	// check 1s wait
 	seconds = rateLimitRetries[2].WaitTime.Seconds()
-	if !util.IsApproximately(seconds, 1.0) {
-		t.Fatalf("Expected 1.0 seconds. Got %.2f", seconds)
+	if !util.IsApproximately(seconds, 0.4) {
+		t.Fatalf("Expected 0.4 seconds. Got %.2f", seconds)
 	}
 
 	// check 1s wait
 	seconds = rateLimitRetries[3].WaitTime.Seconds()
-	if !util.IsApproximately(seconds, 1.0) {
-		t.Fatalf("Expected 1.0 seconds. Got %.2f", seconds)
+	if !util.IsApproximately(seconds, 0.8) {
+		t.Fatalf("Expected 0.8 seconds. Got %.2f", seconds)
 	}
 
 	// check 3s wait
@@ -282,6 +291,29 @@ func TestRateLimitedResponses(t *testing.T) {
 		t.Fatalf("Expected 3.0 seconds. Got %.2f", seconds)
 	}
 
+}
+
+//
+func AssertDurationEqual(t *testing.T, expected, actual time.Duration) {
+	if actual != expected {
+		t.Fatalf("Expected: %dms, Got: %dms", expected.Milliseconds(), actual.Milliseconds())
+	}
+}
+
+func TestExponentialBackOff(t *testing.T) {
+	var ExpectedResults = []time.Duration{
+		100 * time.Millisecond,
+		200 * time.Millisecond,
+		400 * time.Millisecond,
+		800 * time.Millisecond,
+		1600 * time.Millisecond,
+	}
+
+	w := 100 * time.Millisecond
+
+	for retry := 0; retry < 5; retry++ {
+		AssertDurationEqual(t, ExpectedResults[retry], httputil.ExponentialBackoffWaitFor(w, retry))
+	}
 }
 
 func TestConcurrentRateLimiting(t *testing.T) {
@@ -309,7 +341,7 @@ func TestConcurrentRateLimiting(t *testing.T) {
 		QueryConcurrency,
 		nil,
 		nil,
-		true,
+		newTestRetryOpts(),
 		"",
 	)
 

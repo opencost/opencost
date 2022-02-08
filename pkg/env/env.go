@@ -2,6 +2,7 @@ package env
 
 import (
 	"os"
+	"time"
 
 	"github.com/kubecost/cost-model/pkg/util/mapper"
 )
@@ -116,6 +117,12 @@ func GetBool(key string, defaultValue bool) bool {
 	return envMapper.GetBool(key, defaultValue)
 }
 
+// GetDuration parses a time.Duration from the environment variable key parameter. If the environment
+// variable is empty or fails to parse, the defaultValue parameter is returned.
+func GetDuration(key string, defaultValue time.Duration) time.Duration {
+	return envMapper.GetDuration(key, defaultValue)
+}
+
 // Set sets the environment variable for the key provided using the value provided.
 func Set(key string, value string) error {
 	return envMapper.Set(key, value)
@@ -174,4 +181,9 @@ func SetUInt64(key string, value uint64) error {
 // SetBool sets the environment variable to a string formatted bool value.
 func SetBool(key string, value bool) error {
 	return envMapper.SetBool(key, value)
+}
+
+// SetDuration sets the environment variable to a string formatted time.Duration
+func SetDuration(key string, value time.Duration) error {
+	return envMapper.SetDuration(key, value)
 }

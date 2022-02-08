@@ -102,7 +102,7 @@ func NewThanosClient(address string, config *prom.PrometheusClientConfig) (prome
 		config.QueryConcurrency,
 		config.Auth,
 		maxSourceDecorator,
-		config.RetryOnRateLimitResponse,
+		config.RateLimitRetryOpts,
 		config.QueryLogFile,
 	)
 }

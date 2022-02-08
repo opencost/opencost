@@ -87,12 +87,20 @@ func newPrometheusClient() (prometheus.Client, error) {
 	keepAlive := 120 * time.Second
 	tlsHandshakeTimeout := 10 * time.Second
 
+	var rateLimitRetryOpts *prom.RateLimitRetryOpts = nil
+	if env.IsPrometheusRetryOnRateLimitResponse() {
+		rateLimitRetryOpts = &prom.RateLimitRetryOpts{
+			MaxRetries:       env.GetPrometheusRetryOnRateLimitMaxRetries(),
+			DefaultRetryWait: env.GetPrometheusRetryOnRateLimitDefaultWait(),
+		}
+	}
+
 	promCli, err := prom.NewPrometheusClient(address, &prom.PrometheusClientConfig{
-		Timeout:                  timeout,
-		KeepAlive:                keepAlive,
-		TLSHandshakeTimeout:      tlsHandshakeTimeout,
-		TLSInsecureSkipVerify:    env.GetInsecureSkipVerify(),
-		RetryOnRateLimitResponse: env.IsPrometheusRetryOnRateLimitResponse(),
+		Timeout:               timeout,
+		KeepAlive:             keepAlive,
+		TLSHandshakeTimeout:   tlsHandshakeTimeout,
+		TLSInsecureSkipVerify: env.GetInsecureSkipVerify(),
+		RateLimitRetryOpts:    rateLimitRetryOpts,
 		Auth: &prom.ClientAuth{
 			Username:    env.GetDBBasicAuthUsername(),
 			Password:    env.GetDBBasicAuthUserPassword(),

@@ -3,6 +3,7 @@ package httputil
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -101,10 +102,11 @@ func IsRateLimited(resp *http.Response, body []byte) bool {
 // RateLimitedRetryFor returns the parsed Retry-After header relative to the
 // current time. If the Retry-After header does not exist, the defaultWait parameter
 // is returned.
-func RateLimitedRetryFor(resp *http.Response, defaultWait time.Duration) time.Duration {
+func RateLimitedRetryFor(resp *http.Response, defaultWait time.Duration, retry int) time.Duration {
 	if resp.Header == nil {
-		return defaultWait
+		return ExponentialBackoffWaitFor(defaultWait, retry)
 	}
+
 	// Retry-After is either the number of seconds to wait or a target datetime (RFC1123)
 	value := resp.Header.Get("Retry-After")
 	if value == "" {
@@ -129,6 +131,12 @@ func RateLimitedRetryFor(resp *http.Response, defaultWait time.Duration) time.Du
 
 	// failed to parse datetime, return default
 	return defaultWait
+}
+
+// ExpontentialBackoffWatiFor accepts a default wait duration and the current retry count
+// and returns a new duration
+func ExponentialBackoffWaitFor(defaultWait time.Duration, retry int) time.Duration {
+	return time.Duration(math.Pow(2, float64(retry))*float64(defaultWait.Milliseconds())) * time.Millisecond
 }
 
 // IsRateLimitedResponse returns true if the status code is a 429 (TooManyRequests)
