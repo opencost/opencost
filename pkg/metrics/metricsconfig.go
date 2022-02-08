@@ -7,9 +7,8 @@ import (
 	"os"
 	"sync"
 
-	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/util/watcher"
-	"k8s.io/klog"
 )
 
 var metricsConfigLock = new(sync.Mutex)
@@ -18,17 +17,18 @@ type MetricsConfig struct {
 	DisabledMetrics []string `json:"disabledMetrics"`
 }
 
+// Gets map of disabled metrics to empty structs
 func (mc MetricsConfig) GetDisabledMetricsMap() map[string]struct{} {
 	disabledMetricsMap := make(map[string]struct{})
 
 	for i := range mc.DisabledMetrics {
 		disabledMetricsMap[mc.DisabledMetrics[i]] = struct{}{}
-		log.Infof("Adding disabled metric %s", mc.DisabledMetrics[i])
 	}
 
 	return disabledMetricsMap
 }
 
+// Unmarshals metrics.json to a MetricsConfig struct
 func GetMetricsConfig() (*MetricsConfig, error) {
 	metricsConfigLock.Lock()
 	defer metricsConfigLock.Unlock()
@@ -49,6 +49,7 @@ func GetMetricsConfig() (*MetricsConfig, error) {
 	return mc, nil
 }
 
+// Writes MetricsConfig struct to json file
 func UpdateMetricsConfig(mc *MetricsConfig) (*MetricsConfig, error) {
 	metricsConfigLock.Lock()
 	defer metricsConfigLock.Unlock()
@@ -66,6 +67,7 @@ func UpdateMetricsConfig(mc *MetricsConfig) (*MetricsConfig, error) {
 	return mc, nil
 }
 
+// Updates metric config file from configmap
 func UpdateMetricsConfigFromConfigmap(data map[string]string) error {
 
 	mc := &MetricsConfig{}
@@ -90,15 +92,11 @@ func UpdateMetricsConfigFromConfigmap(data map[string]string) error {
 
 }
 
+// Returns ConfigMapWatcher for metrics configuration configmap
 func GetMetricsConfigWatcher() *watcher.ConfigMapWatcher {
 	return &watcher.ConfigMapWatcher{
-		ConfigMapName: "metrics-config", // temporary, use env
+		ConfigMapName: env.GetMetricsConfigmapName(),
 		WatchFunc: func(name string, data map[string]string) error {
-			klog.Infof("--CONFIGMAP DATA--")
-			for key, val := range data {
-				klog.Infof("%s : %s", key, val)
-			}
-			klog.Infof("------------------")
 			err := UpdateMetricsConfigFromConfigmap(data)
 			return err
 		},

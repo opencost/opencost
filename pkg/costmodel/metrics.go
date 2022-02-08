@@ -323,16 +323,11 @@ type CostModelMetricsEmitter struct {
 // NewCostModelMetricsEmitter creates a new cost-model metrics emitter. Use Start() to begin metric emission.
 func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clustercache.ClusterCache, provider cloud.Provider, clusterInfo clusters.ClusterInfoProvider, model *CostModel) *CostModelMetricsEmitter {
 
+	// Get metric configurations, if any
 	metricsConfig, err := metrics.GetMetricsConfig()
 	if err != nil {
-		log.Infof("Failed to get metrics configuration: %s", err)
+		log.Infof("Failed to get metrics config before init: %s", err)
 	}
-
-	log.Infof("--DISABLED LABELS--")
-	for i := range metricsConfig.DisabledMetrics {
-		log.Infof("DISABLE LABEL: %s", metricsConfig.DisabledMetrics[i])
-	}
-	log.Infof("-------------------")
 
 	// init will only actually execute once to register the custom gauges
 	initCostModelMetrics(clusterCache, provider, clusterInfo, metricsConfig)
