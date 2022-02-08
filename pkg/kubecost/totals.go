@@ -127,7 +127,7 @@ func ComputeAllocationTotals(as *AllocationSet, prop string) map[string]*Allocat
 		arts[key].LoadBalancerCostAdjustment += alloc.LoadBalancerCostAdjustment
 		arts[key].NetworkCost += alloc.NetworkCost
 		arts[key].NetworkCostAdjustment += alloc.NetworkCostAdjustment
-		arts[key].PersistentVolumeCost += alloc.PVCost()
+		arts[key].PersistentVolumeCost += alloc.PVCost() // NOTE: PVCost() does not include adjustment
 		arts[key].PersistentVolumeCostAdjustment += alloc.PVCostAdjustment
 		arts[key].RAMCost += alloc.RAMCost
 		arts[key].RAMCostAdjustment += alloc.RAMCostAdjustment
@@ -143,27 +143,46 @@ func ComputeAllocationTotals(as *AllocationSet, prop string) map[string]*Allocat
 // knowledge is required to carry out a task, but computing totals on-the-fly
 // would be expensive; e.g. idle allocation, shared tenancy costs
 type AssetTotals struct {
-	Start                 time.Time `json:"start"`
-	End                   time.Time `json:"end"`
-	Cluster               string    `json:"cluster"`
-	Node                  string    `json:"node"`
-	Count                 int       `json:"count"`
-	AttachedVolumeCost    float64   `json:"attachedVolumeCost"`
-	ClusterManagementCost float64   `json:"clusterManagementCost"`
-	CPUCost               float64   `json:"cpuCost"`
-	CPUCostAdjustment     float64   `json:"cpuCostAdjustment"`
-	GPUCost               float64   `json:"gpuCost"`
-	GPUCostAdjustment     float64   `json:"gpuCostAdjustment"`
-	PersistentVolumeCost  float64   `json:"persistentVolumeCost"`
-	RAMCost               float64   `json:"ramCost"`
-	RAMCostAdjustment     float64   `json:"ramCostAdjustment"`
+	Start                           time.Time `json:"start"`
+	End                             time.Time `json:"end"`
+	Cluster                         string    `json:"cluster"`
+	Node                            string    `json:"node"`
+	Count                           int       `json:"count"`
+	AttachedVolumeCost              float64   `json:"attachedVolumeCost"`
+	AttachedVolumeCostAdjustment    float64   `json:"attachedVolumeCostAdjustment"`
+	ClusterManagementCost           float64   `json:"clusterManagementCost"`
+	ClusterManagementCostAdjustment float64   `json:"clusterManagementCostAdjustment"`
+	CPUCost                         float64   `json:"cpuCost"`
+	CPUCostAdjustment               float64   `json:"cpuCostAdjustment"`
+	GPUCost                         float64   `json:"gpuCost"`
+	GPUCostAdjustment               float64   `json:"gpuCostAdjustment"`
+	LoadBalancerCost                float64   `json:"loadBalancerCost"`
+	LoadBalancerCostAdjustment      float64   `json:"loadBalancerCostAdjustment"`
+	PersistentVolumeCost            float64   `json:"persistentVolumeCost"`
+	PersistentVolumeCostAdjustment  float64   `json:"persistentVolumeCostAdjustment"`
+	RAMCost                         float64   `json:"ramCost"`
+	RAMCostAdjustment               float64   `json:"ramCostAdjustment"`
 }
 
 // ClearAdjustments sets all adjustment fields to 0.0
 func (art *AssetTotals) ClearAdjustments() {
+	art.AttachedVolumeCostAdjustment = 0.0
+	art.ClusterManagementCostAdjustment = 0.0
 	art.CPUCostAdjustment = 0.0
 	art.GPUCostAdjustment = 0.0
+	art.LoadBalancerCostAdjustment = 0.0
+	art.PersistentVolumeCostAdjustment = 0.0
 	art.RAMCostAdjustment = 0.0
+}
+
+// TotalAttachedVolumeCost returns CPU cost with adjustment.
+func (art *AssetTotals) TotalAttachedVolumeCost() float64 {
+	return art.AttachedVolumeCost + art.AttachedVolumeCostAdjustment
+}
+
+// TotalClusterManagementCost returns ClusterManagement cost with adjustment.
+func (art *AssetTotals) TotalClusterManagementCost() float64 {
+	return art.ClusterManagementCost + art.ClusterManagementCostAdjustment
 }
 
 // TotalCPUCost returns CPU cost with adjustment.
@@ -176,6 +195,16 @@ func (art *AssetTotals) TotalGPUCost() float64 {
 	return art.GPUCost + art.GPUCostAdjustment
 }
 
+// TotalLoadBalancerCost returns LoadBalancer cost with adjustment.
+func (art *AssetTotals) TotalLoadBalancerCost() float64 {
+	return art.LoadBalancerCost + art.LoadBalancerCostAdjustment
+}
+
+// TotalPersistentVolumeCost returns PersistentVolume cost with adjustment.
+func (art *AssetTotals) TotalPersistentVolumeCost() float64 {
+	return art.PersistentVolumeCost + art.PersistentVolumeCostAdjustment
+}
+
 // TotalRAMCost returns RAM cost with adjustment.
 func (art *AssetTotals) TotalRAMCost() float64 {
 	return art.RAMCost + art.RAMCostAdjustment
@@ -183,8 +212,9 @@ func (art *AssetTotals) TotalRAMCost() float64 {
 
 // TotalCost returns the sum of all costs
 func (art *AssetTotals) TotalCost() float64 {
-	return art.AttachedVolumeCost + art.ClusterManagementCost + art.TotalCPUCost() +
-		art.TotalGPUCost() + art.PersistentVolumeCost + art.TotalRAMCost()
+	return art.TotalAttachedVolumeCost() + art.TotalClusterManagementCost() +
+		art.TotalCPUCost() + art.TotalGPUCost() + art.TotalLoadBalancerCost() +
+		art.TotalPersistentVolumeCost() + art.TotalRAMCost()
 }
 
 // ComputeAssetTotals totals the resource costs of the given AssetSet,
@@ -216,9 +246,9 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 			// by the adjustment. This is necessary because we only get one
 			// adjustment per Node, not one per-resource-per-Node.
 			//
-			// e.g. total cost = $90, adjustment = -$10 => 0.9 (90 / 100)
-			// e.g. total cost = $150, adjustment = -$300 => 0.3333 (150 / 450)
-			// e.g. total cost = $150, adjustment = $50 => 1.5 (150 / 100)
+			// e.g. total cost =  $90 (cost = $100, adjustment = -$10)  => 0.9000 ( 90 / 100)
+			// e.g. total cost = $150 (cost = $450, adjustment = -$300) => 0.3333 (150 / 450)
+			// e.g. total cost = $150 (cost = $100, adjustment = $50)   => 1.5000 (150 / 100)
 			adjustmentRate := 1.0
 			if node.TotalCost()-node.Adjustment() == 0 {
 				// If (totalCost - adjustment) is 0.0 then adjustment cancels
@@ -232,17 +262,34 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 				adjustmentRate = node.TotalCost() / (node.TotalCost() - node.Adjustment())
 			}
 
-			totalCPUCost := node.CPUCost * (1.0 - node.Discount)
-			cpuCost := totalCPUCost * adjustmentRate
-			cpuCostAdjustment := totalCPUCost - cpuCost
+			// 1. Start with raw, measured resource cost
+			// 2. Apply discount to get discounted resource cost
+			// 3. Apply adjustment to get final "adjusted" resource cost
+			// 4. Subtract (3 - 2) to get adjustment in doller-terms
+			// 5. Use (2 + 4) as total cost, so (2) is "cost" and (4) is "adjustment"
 
-			totalGPUCost := node.GPUCost * (1.0 - node.Discount)
-			gpuCost := totalGPUCost * adjustmentRate
-			gpuCostAdjustment := totalGPUCost - gpuCost
+			// Example:
+			// - node.CPUCost   = 10.00
+			// - node.Discount  =  0.20  // We assume a 20% discount
+			// - adjustmentRate =  0.75  // CUR says we need to reduce to 75% of our post-discount node cost
+			//
+			// 1. See above
+			// 2. discountedCPUCost = 10.00 * (1.0 - 0.2) =  8.00
+			// 3. adjustedCPUCost   =  8.00 * 0.75        =  6.00  // this is the actual cost according to the CUR
+			// 4. adjustment        =  6.00 - 8.00        = -2.00
+			// 5. totalCost = 6.00, which is the sum of (2) cost = 8.00 and (4) adjustment = -2.00
 
-			totalRAMCost := node.RAMCost * (1.0 - node.Discount)
-			ramCost := totalRAMCost * adjustmentRate
-			ramCostAdjustment := totalRAMCost - ramCost
+			discountedCPUCost := node.CPUCost * (1.0 - node.Discount)
+			adjustedCPUCost := discountedCPUCost * adjustmentRate
+			cpuCostAdjustment := adjustedCPUCost - discountedCPUCost
+
+			discountedGPUCost := node.GPUCost * (1.0 - node.Discount)
+			adjustedGPUCost := discountedGPUCost * adjustmentRate
+			gpuCostAdjustment := discountedGPUCost - adjustedGPUCost
+
+			discountedRAMCost := node.RAMCost * (1.0 - node.Discount)
+			adjustedRAMCost := discountedRAMCost * adjustmentRate
+			ramCostAdjustment := adjustedRAMCost - discountedRAMCost
 
 			if _, ok := arts[key]; !ok {
 				arts[key] = &AssetTotals{
@@ -265,15 +312,34 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 			}
 
 			arts[key].Count++
-			arts[key].CPUCost += cpuCost
+
+			// TotalCPUCost will be discounted cost + adjustment
+			arts[key].CPUCost += discountedCPUCost
 			arts[key].CPUCostAdjustment += cpuCostAdjustment
-			arts[key].RAMCost += ramCost
+
+			// TotalRAMCost will be discounted cost + adjustment
+			arts[key].RAMCost += discountedRAMCost
 			arts[key].RAMCostAdjustment += ramCostAdjustment
-			arts[key].GPUCost += gpuCost
+
+			// TotalGPUCost will be discounted cost + adjustment
+			arts[key].GPUCost += discountedGPUCost
 			arts[key].GPUCostAdjustment += gpuCostAdjustment
-		} else if disk, ok := asset.(*Disk); ok {
-			key := fmt.Sprintf("%s/%s", disk.Properties().Cluster, disk.Properties().Name)
-			disks[key] = disk
+		} else if lb, ok := asset.(*LoadBalancer); ok && prop == AssetClusterProp {
+			// Only record load balancers when prop is Cluster because we
+			// can't break down LoadBalancer by node.
+			key := lb.Properties().Cluster
+
+			if _, ok := arts[key]; !ok {
+				arts[key] = &AssetTotals{
+					Start:   lb.Start(),
+					End:     lb.End(),
+					Cluster: lb.Properties().Cluster,
+				}
+			}
+
+			arts[key].Count++
+			arts[key].LoadBalancerCost += lb.Cost
+			arts[key].LoadBalancerCost += lb.adjustment
 		} else if cm, ok := asset.(*ClusterManagement); ok && prop == AssetClusterProp {
 			// Only record cluster management when prop is Cluster because we
 			// can't break down ClusterManagement by node.
@@ -289,34 +355,50 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 
 			arts[key].Count++
 			arts[key].ClusterManagementCost += cm.TotalCost()
+		} else if disk, ok := asset.(*Disk); ok {
+			// Record disks in an intermediate structure, which will be
+			// processed after all assets have been seen.
+			key := fmt.Sprintf("%s/%s", disk.Properties().Cluster, disk.Properties().Name)
+
+			disks[key] = disk
 		}
 	})
 
-	// Identify attached volumes as disks with names matching a node's name
-	for name := range nodeNames {
-		if disk, ok := disks[name]; ok {
-			// By default, the key will be the name, which is the tuple of
-			// cluster/node. But if we're aggregating by cluster only, then
-			// reset the key to just the cluster.
-			key := name
-			if prop == AssetClusterProp {
-				key = disk.Properties().Cluster
+	// Record all disks as either attached volumes or persistent volumes.
+	for name, disk := range disks {
+		// By default, the key will be the name, which is the tuple of
+		// cluster/node. But if we're aggregating by cluster only, then
+		// reset the key to just the cluster.
+		key := name
+		if prop == AssetClusterProp {
+			key = disk.Properties().Cluster
+		}
+
+		if _, ok := arts[key]; !ok {
+			arts[key] = &AssetTotals{
+				Start:   disk.Start(),
+				End:     disk.End(),
+				Cluster: disk.Properties().Cluster,
 			}
 
-			if _, ok := arts[key]; !ok {
-				arts[key] = &AssetTotals{
-					Start:   disk.Start(),
-					End:     disk.End(),
-					Cluster: disk.Properties().Cluster,
-				}
-
-				if prop == AssetNodeProp {
-					arts[key].Node = disk.Properties().Name
-				}
+			if prop == AssetNodeProp {
+				arts[key].Node = disk.Properties().Name
 			}
+		}
 
+		_, isAttached := nodeNames[name]
+		if isAttached {
+			// Record attached volume data at the cluster and node level, using
+			// name matching to distinguish from PersistentVolumes.
+			// TODO can we make a stronger match at the underlying ETL layer?
 			arts[key].Count++
-			arts[key].AttachedVolumeCost += disk.TotalCost()
+			arts[key].AttachedVolumeCost += disk.Cost
+			arts[key].AttachedVolumeCostAdjustment += disk.adjustment
+		} else if prop == AssetClusterProp {
+			// Only record PersistentVolume data at the cluster level
+			arts[key].Count++
+			arts[key].PersistentVolumeCost += disk.Cost
+			arts[key].PersistentVolumeCostAdjustment += disk.adjustment
 		}
 	}
 
@@ -345,16 +427,16 @@ func ComputeIdleCoefficients(shareSplit, key string, cpuCost, gpuCost, ramCost f
 		return coeff, coeff, coeff
 	}
 
-	if allocationTotals[key].CPUCost > 0 {
-		cpuCoeff = cpuCost / allocationTotals[key].CPUCost
+	if allocationTotals[key].TotalCPUCost() > 0 {
+		cpuCoeff = cpuCost / allocationTotals[key].TotalCPUCost()
 	}
 
-	if allocationTotals[key].GPUCost > 0 {
-		gpuCoeff = cpuCost / allocationTotals[key].GPUCost
+	if allocationTotals[key].TotalGPUCost() > 0 {
+		gpuCoeff = gpuCost / allocationTotals[key].TotalGPUCost()
 	}
 
-	if allocationTotals[key].RAMCost > 0 {
-		ramCoeff = ramCost / allocationTotals[key].RAMCost
+	if allocationTotals[key].TotalRAMCost() > 0 {
+		ramCoeff = ramCost / allocationTotals[key].TotalRAMCost()
 	}
 
 	return cpuCoeff, gpuCoeff, ramCoeff
@@ -437,8 +519,6 @@ func UpdateAssetTotalsStore(arts AssetTotalsStore, as *AssetSet) error {
 
 	artsByNode := ComputeAssetTotals(as, AssetNodeProp)
 	arts.SetAssetTotalsByNode(start, end, artsByNode)
-
-	log.Infof("ETL: Asset: updated resource totals for %s", as.Window)
 
 	return nil
 }

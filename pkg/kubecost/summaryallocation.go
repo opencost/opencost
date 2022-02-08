@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/log"
+	"k8s.io/klog"
 )
 
 // SummaryAllocation summarizes an Allocation, keeping only fields necessary
@@ -688,6 +689,8 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		sharingCoeffs = map[string]float64{}
 	}
 
+	idleCoeffTotals := map[string]map[string]float64{}
+
 	// Loop over all remaining SummaryAllocations (after filters, sharing, &c.)
 	// doing the following, in this order:
 	//  5. Compute sharing coefficients, if there are shared resources
@@ -734,6 +737,18 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 
 				cpuCoeff, gpuCoeff, ramCoeff := ComputeIdleCoefficients(options.ShareIdle, key, sa.CPUCost, sa.GPUCost, sa.RAMCost, allocTotals)
 
+				// TODO remove
+				if _, ok := idleCoeffTotals[key]; !ok {
+					idleCoeffTotals[key] = map[string]float64{
+						"cpu": 0.0,
+						"gpu": 0.0,
+						"ram": 0.0,
+					}
+				}
+				idleCoeffTotals[key]["cpu"] += cpuCoeff
+				idleCoeffTotals[key]["gpu"] += gpuCoeff
+				idleCoeffTotals[key]["ram"] += ramCoeff
+
 				sa.CPUCost += idle.CPUCost * cpuCoeff
 				sa.GPUCost += idle.GPUCost * gpuCoeff
 				sa.RAMCost += idle.RAMCost * ramCoeff
@@ -774,6 +789,10 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		// 8. Inserting the allocation with the generated key for a name
 		// performs the actual aggregation step.
 		resultSet.Insert(sa)
+	}
+
+	for key, idleCoeff := range idleCoeffTotals {
+		klog.Infof("Totals: %s: CPU=%.3f, GPU=%.3f, RAM=%.3f", key, idleCoeff["cpu"], idleCoeff["gpu"], idleCoeff["ram"])
 	}
 
 	// 9. If idle is shared and resources are shared, it's probable that some
