@@ -54,6 +54,7 @@ func GetCsv(location string) (io.Reader, error) {
 
 func (c *CSVProvider) DownloadPricingData() error {
 	c.DownloadPricingDataLock.Lock()
+	defer time.AfterFunc(refreshMinutes*time.Minute, func() { c.DownloadPricingData() })
 	defer c.DownloadPricingDataLock.Unlock()
 	pricing := make(map[string]*price)
 	nodeclasspricing := make(map[string]float64)
@@ -177,7 +178,6 @@ func (c *CSVProvider) DownloadPricingData() error {
 	} else {
 		log.DedupedWarningf(5, "No data received from csv at %s", c.CSVLocation)
 	}
-	time.AfterFunc(refreshMinutes*time.Minute, func() { c.DownloadPricingData() })
 	return nil
 }
 
