@@ -262,6 +262,14 @@ func Test_ParseDuration(t *testing.T) {
 			input:    " offset 3d ",
 			expected: 24.0 * time.Hour * 3,
 		},
+		"complex duration": {
+			input:    "2d3h14m2s",
+			expected: (24 * time.Hour * 2) + (3 * time.Hour) + (14 * time.Minute) + (2 * time.Second),
+		},
+		"negative duration": {
+			input:    "-2d",
+			expected: -48 * time.Hour,
+		},
 		"zero": {
 			input:    "0h",
 			expected: time.Duration(0),
