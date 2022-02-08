@@ -22,24 +22,45 @@ var (
 // KubeNodeCollector is a prometheus collector that generates node sourced metrics.
 type KubeNodeCollector struct {
 	KubeClusterCache clustercache.ClusterCache
+	metricsConfig    MetricsConfig
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
 // collected by this Collector.
 func (nsac KubeNodeCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc("kube_node_status_capacity", "Node resource capacity.", []string{}, nil)
-	ch <- prometheus.NewDesc("kube_node_status_capacity_memory_bytes", "node capacity memory bytes", []string{}, nil)
-	ch <- prometheus.NewDesc("kube_node_status_capacity_cpu_cores", "node capacity cpu cores", []string{}, nil)
-	ch <- prometheus.NewDesc("kube_node_status_allocatable", "The allocatable for different resources of a node that are available for scheduling.", []string{}, nil)
-	ch <- prometheus.NewDesc("kube_node_status_allocatable_cpu_cores", "The allocatable cpu cores.", []string{}, nil)
-	ch <- prometheus.NewDesc("kube_node_status_allocatable_memory_bytes", "The allocatable memory in bytes.", []string{}, nil)
-	ch <- prometheus.NewDesc("kube_node_labels", "all labels for each node prefixed with label_", []string{}, nil)
-	ch <- prometheus.NewDesc("kube_node_status_condition", "The condition of a cluster node.", []string{}, nil)
+	disabledMetrics := nsac.metricsConfig.GetDisabledMetricsMap()
+
+	if _, ok := disabledMetrics["kube_node_status_capacity"]; !ok {
+		ch <- prometheus.NewDesc("kube_node_status_capacity", "Node resource capacity.", []string{}, nil)
+	}
+	if _, ok := disabledMetrics["kube_node_status_capacity_memory_bytes"]; !ok {
+		ch <- prometheus.NewDesc("kube_node_status_capacity_memory_bytes", "node capacity memory bytes", []string{}, nil)
+	}
+	if _, ok := disabledMetrics["kube_node_status_capacity_cpu_cores"]; !ok {
+		ch <- prometheus.NewDesc("kube_node_status_capacity_cpu_cores", "node capacity cpu cores", []string{}, nil)
+	}
+	if _, ok := disabledMetrics["kube_node_status_allocatable"]; !ok {
+		ch <- prometheus.NewDesc("kube_node_status_allocatable", "The allocatable for different resources of a node that are available for scheduling.", []string{}, nil)
+	}
+	if _, ok := disabledMetrics["kube_node_status_allocatable_cpu_cores"]; !ok {
+		ch <- prometheus.NewDesc("kube_node_status_allocatable_cpu_cores", "The allocatable cpu cores.", []string{}, nil)
+	}
+	if _, ok := disabledMetrics["kube_node_status_allocatable_memory_bytes"]; !ok {
+		ch <- prometheus.NewDesc("kube_node_status_allocatable_memory_bytes", "The allocatable memory in bytes.", []string{}, nil)
+	}
+	if _, ok := disabledMetrics["kube_node_labels"]; !ok {
+		ch <- prometheus.NewDesc("kube_node_labels", "all labels for each node prefixed with label_", []string{}, nil)
+	}
+	if _, ok := disabledMetrics["kube_node_status_condition"]; !ok {
+		ch <- prometheus.NewDesc("kube_node_status_condition", "The condition of a cluster node.", []string{}, nil)
+	}
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (nsac KubeNodeCollector) Collect(ch chan<- prometheus.Metric) {
 	nodes := nsac.KubeClusterCache.GetAllNodes()
+	disabledMetrics := nsac.metricsConfig.GetDisabledMetricsMap()
+
 	for _, node := range nodes {
 		nodeName := node.GetName()
 
@@ -54,15 +75,21 @@ func (nsac KubeNodeCollector) Collect(ch chan<- prometheus.Metric) {
 			}
 
 			// KSM v1 Emission
-			if resource == "cpu" {
-				ch <- newKubeNodeStatusCapacityCPUCoresMetric("kube_node_status_capacity_cpu_cores", nodeName, value)
+			if _, ok := disabledMetrics["kube_node_status_capacity_cpu_cores"]; !ok {
+				if resource == "cpu" {
+					ch <- newKubeNodeStatusCapacityCPUCoresMetric("kube_node_status_capacity_cpu_cores", nodeName, value)
 
+				}
 			}
-			if resource == "memory" {
-				ch <- newKubeNodeStatusCapacityMemoryBytesMetric("kube_node_status_capacity_memory_bytes", nodeName, value)
+			if _, ok := disabledMetrics["kube_node_status_capacity_memory_bytes"]; !ok {
+				if resource == "memory" {
+					ch <- newKubeNodeStatusCapacityMemoryBytesMetric("kube_node_status_capacity_memory_bytes", nodeName, value)
+				}
 			}
 
-			ch <- newKubeNodeStatusCapacityMetric("kube_node_status_capacity", nodeName, resource, unit, value)
+			if _, ok := disabledMetrics["kube_node_status_capacity"]; !ok {
+				ch <- newKubeNodeStatusCapacityMetric("kube_node_status_capacity", nodeName, resource, unit, value)
+			}
 		}
 
 		// Node Allocatable Resources
@@ -76,31 +103,38 @@ func (nsac KubeNodeCollector) Collect(ch chan<- prometheus.Metric) {
 			}
 
 			// KSM v1 Emission
-			if resource == "cpu" {
-				ch <- newKubeNodeStatusAllocatableCPUCoresMetric("kube_node_status_allocatable_cpu_cores", nodeName, value)
-
+			if _, ok := disabledMetrics["kube_node_status_allocatable_cpu_cores"]; !ok {
+				if resource == "cpu" {
+					ch <- newKubeNodeStatusAllocatableCPUCoresMetric("kube_node_status_allocatable_cpu_cores", nodeName, value)
+				}
 			}
-			if resource == "memory" {
-				ch <- newKubeNodeStatusAllocatableMemoryBytesMetric("kube_node_status_allocatable_memory_bytes", nodeName, value)
+			if _, ok := disabledMetrics["kube_node_status_allocatable_memory_bytes"]; !ok {
+				if resource == "memory" {
+					ch <- newKubeNodeStatusAllocatableMemoryBytesMetric("kube_node_status_allocatable_memory_bytes", nodeName, value)
+				}
 			}
-
-			ch <- newKubeNodeStatusAllocatableMetric("kube_node_status_allocatable", nodeName, resource, unit, value)
+			if _, ok := disabledMetrics["kube_node_status_allocatable"]; !ok {
+				ch <- newKubeNodeStatusAllocatableMetric("kube_node_status_allocatable", nodeName, resource, unit, value)
+			}
 		}
 
 		// node labels
-		labelNames, labelValues := prom.KubePrependQualifierToLabels(node.GetLabels(), "label_")
-		ch <- newKubeNodeLabelsMetric(nodeName, "kube_node_labels", labelNames, labelValues)
+		if _, ok := disabledMetrics["kube_node_labels"]; !ok {
+			labelNames, labelValues := prom.KubePrependQualifierToLabels(node.GetLabels(), "label_")
+			ch <- newKubeNodeLabelsMetric(nodeName, "kube_node_labels", labelNames, labelValues)
+		}
 
 		// kube_node_status_condition
 		// Collect node conditions and while default to false.
-		for _, c := range node.Status.Conditions {
-			conditions := getConditions(c.Status)
+		if _, ok := disabledMetrics["kube_node_status_condition"]; !ok {
+			for _, c := range node.Status.Conditions {
+				conditions := getConditions(c.Status)
 
-			for _, cond := range conditions {
-				ch <- newKubeNodeStatusConditionMetric(nodeName, "kube_node_status_condition", string(c.Type), cond.status, cond.value)
+				for _, cond := range conditions {
+					ch <- newKubeNodeStatusConditionMetric(nodeName, "kube_node_status_condition", string(c.Type), cond.status, cond.value)
+				}
 			}
 		}
-
 	}
 }
 
@@ -255,14 +289,6 @@ func (nam KubeNodeStatusCapacityCPUCoresMetric) Write(m *dto.Metric) error {
 	}
 	return nil
 }
-
-//--------------------------------------------------------------------------
-//  KubeNodeLabelsCollector
-//--------------------------------------------------------------------------
-//
-// We use this to emit kube_node_labels with all of a node's labels, regardless
-// of the whitelist setting introduced in KSM v2. See
-// https://github.com/kubernetes/kube-state-metrics/issues/1270#issuecomment-712986441
 
 //--------------------------------------------------------------------------
 //  KubeNodeLabelsMetric

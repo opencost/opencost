@@ -15,24 +15,33 @@ import (
 // KubecostNamespaceCollector is a prometheus collector that generates namespace sourced metrics
 type KubecostNamespaceCollector struct {
 	KubeClusterCache clustercache.ClusterCache
+	metricsConfig    MetricsConfig
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
 // collected by this Collector.
 func (nsac KubecostNamespaceCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc("kube_namespace_annotations", "namespace annotations", []string{}, nil)
+	disabledMetrics := nsac.metricsConfig.GetDisabledMetricsMap()
+
+	if _, ok := disabledMetrics["kube_namespace_labels"]; !ok {
+		ch <- prometheus.NewDesc("kube_namespace_annotations", "namespace annotations", []string{}, nil)
+	}
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (nsac KubecostNamespaceCollector) Collect(ch chan<- prometheus.Metric) {
-	namespaces := nsac.KubeClusterCache.GetAllNamespaces()
-	for _, namespace := range namespaces {
-		nsName := namespace.GetName()
+	disabledMetrics := nsac.metricsConfig.GetDisabledMetricsMap()
 
-		labels, values := prom.KubeAnnotationsToLabels(namespace.Annotations)
-		if len(labels) > 0 {
-			m := newNamespaceAnnotationsMetric("kube_namespace_annotations", nsName, labels, values)
-			ch <- m
+	if _, ok := disabledMetrics["kube_namespace_labels"]; !ok {
+		namespaces := nsac.KubeClusterCache.GetAllNamespaces()
+		for _, namespace := range namespaces {
+			nsName := namespace.GetName()
+
+			labels, values := prom.KubeAnnotationsToLabels(namespace.Annotations)
+			if len(labels) > 0 {
+				m := newNamespaceAnnotationsMetric("kube_namespace_annotations", nsName, labels, values)
+				ch <- m
+			}
 		}
 	}
 }
@@ -100,24 +109,33 @@ func (nam NamespaceAnnotationsMetric) Write(m *dto.Metric) error {
 // KubeNamespaceCollector is a prometheus collector that generates namespace sourced metrics
 type KubeNamespaceCollector struct {
 	KubeClusterCache clustercache.ClusterCache
+	metricsConfig    MetricsConfig
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
 // collected by this Collector.
 func (nsac KubeNamespaceCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc("kube_namespace_labels", "namespace labels", []string{}, nil)
+	disabledMetrics := nsac.metricsConfig.GetDisabledMetricsMap()
+
+	if _, ok := disabledMetrics["kube_namespace_labels"]; !ok {
+		ch <- prometheus.NewDesc("kube_namespace_labels", "namespace labels", []string{}, nil)
+	}
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (nsac KubeNamespaceCollector) Collect(ch chan<- prometheus.Metric) {
-	namespaces := nsac.KubeClusterCache.GetAllNamespaces()
-	for _, namespace := range namespaces {
-		nsName := namespace.GetName()
+	disabledMetrics := nsac.metricsConfig.GetDisabledMetricsMap()
 
-		labels, values := prom.KubeLabelsToLabels(namespace.Labels)
-		if len(labels) > 0 {
-			m := newNamespaceAnnotationsMetric("kube_namespace_labels", nsName, labels, values)
-			ch <- m
+	if _, ok := disabledMetrics["kube_namespace_labels"]; !ok {
+		namespaces := nsac.KubeClusterCache.GetAllNamespaces()
+		for _, namespace := range namespaces {
+			nsName := namespace.GetName()
+
+			labels, values := prom.KubeLabelsToLabels(namespace.Labels)
+			if len(labels) > 0 {
+				m := newNamespaceAnnotationsMetric("kube_namespace_labels", nsName, labels, values)
+				ch <- m
+			}
 		}
 	}
 }

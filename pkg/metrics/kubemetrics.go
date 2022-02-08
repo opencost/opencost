@@ -43,7 +43,7 @@ func DefaultKubeMetricsOpts() *KubeMetricsOpts {
 }
 
 // InitKubeMetrics initializes kubernetes metric emission using the provided options.
-func InitKubeMetrics(clusterCache clustercache.ClusterCache, opts *KubeMetricsOpts) {
+func InitKubeMetrics(clusterCache clustercache.ClusterCache, metricsConfig *MetricsConfig, opts *KubeMetricsOpts) {
 	if opts == nil {
 		opts = DefaultKubeMetricsOpts()
 	}
@@ -52,58 +52,73 @@ func InitKubeMetrics(clusterCache clustercache.ClusterCache, opts *KubeMetricsOp
 		if opts.EmitKubecostControllerMetrics {
 			prometheus.MustRegister(KubecostServiceCollector{
 				KubeClusterCache: clusterCache,
+				metricsConfig:    *metricsConfig,
 			})
 			prometheus.MustRegister(KubecostDeploymentCollector{
 				KubeClusterCache: clusterCache,
+				metricsConfig:    *metricsConfig,
 			})
 			prometheus.MustRegister(KubecostStatefulsetCollector{
 				KubeClusterCache: clusterCache,
+				metricsConfig:    *metricsConfig,
 			})
 		}
 
 		if opts.EmitPodAnnotations {
 			prometheus.MustRegister(KubecostPodCollector{
 				KubeClusterCache: clusterCache,
+				metricsConfig:    *metricsConfig,
 			})
 		}
 
 		if opts.EmitNamespaceAnnotations {
 			prometheus.MustRegister(KubecostNamespaceCollector{
 				KubeClusterCache: clusterCache,
+				metricsConfig:    *metricsConfig,
 			})
 		}
 
 		if opts.EmitKubeStateMetrics {
 			prometheus.MustRegister(KubeNodeCollector{
 				KubeClusterCache: clusterCache,
+				metricsConfig:    *metricsConfig,
 			})
 			prometheus.MustRegister(KubeNamespaceCollector{
 				KubeClusterCache: clusterCache,
+				metricsConfig:    *metricsConfig,
 			})
 			prometheus.MustRegister(KubeDeploymentCollector{
 				KubeClusterCache: clusterCache,
+				metricsConfig:    *metricsConfig,
 			})
 			prometheus.MustRegister(KubePodCollector{
 				KubeClusterCache: clusterCache,
+				metricsConfig:    *metricsConfig,
 			})
 			prometheus.MustRegister(KubePVCollector{
 				KubeClusterCache: clusterCache,
+				metricsConfig:    *metricsConfig,
 			})
 			prometheus.MustRegister(KubePVCCollector{
 				KubeClusterCache: clusterCache,
+				metricsConfig:    *metricsConfig,
 			})
 			prometheus.MustRegister(KubeJobCollector{
 				KubeClusterCache: clusterCache,
+				metricsConfig:    *metricsConfig,
 			})
 		} else if opts.EmitKubeStateMetricsV1Only {
 			prometheus.MustRegister(KubeNodeCollector{
 				KubeClusterCache: clusterCache,
+				metricsConfig:    *metricsConfig,
 			})
 			prometheus.MustRegister(KubeNamespaceCollector{
 				KubeClusterCache: clusterCache,
+				metricsConfig:    *metricsConfig,
 			})
 			prometheus.MustRegister(KubePodLabelsCollector{
 				KubeClusterCache: clusterCache,
+				metricsConfig:    *metricsConfig,
 			})
 		}
 	})

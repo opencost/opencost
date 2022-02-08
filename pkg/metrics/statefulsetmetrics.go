@@ -15,25 +15,34 @@ import (
 // StatefulsetCollector is a prometheus collector that generates StatefulsetMetrics
 type KubecostStatefulsetCollector struct {
 	KubeClusterCache clustercache.ClusterCache
+	metricsConfig    MetricsConfig
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
 // collected by this Collector.
 func (sc KubecostStatefulsetCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc("statefulSet_match_labels", "statfulSet match labels", []string{}, nil)
+	disabledMetrics := sc.metricsConfig.GetDisabledMetricsMap()
+
+	if _, ok := disabledMetrics["statefulSet_match_labels"]; !ok {
+		ch <- prometheus.NewDesc("statefulSet_match_labels", "statfulSet match labels", []string{}, nil)
+	}
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (sc KubecostStatefulsetCollector) Collect(ch chan<- prometheus.Metric) {
-	ds := sc.KubeClusterCache.GetAllStatefulSets()
-	for _, statefulset := range ds {
-		statefulsetName := statefulset.GetName()
-		statefulsetNS := statefulset.GetNamespace()
+	disabledMetrics := sc.metricsConfig.GetDisabledMetricsMap()
 
-		labels, values := prom.KubeLabelsToLabels(statefulset.Spec.Selector.MatchLabels)
-		if len(labels) > 0 {
-			m := newStatefulsetMatchLabelsMetric(statefulsetName, statefulsetNS, "statefulSet_match_labels", labels, values)
-			ch <- m
+	if _, ok := disabledMetrics["statefulSet_match_labels"]; !ok {
+		ds := sc.KubeClusterCache.GetAllStatefulSets()
+		for _, statefulset := range ds {
+			statefulsetName := statefulset.GetName()
+			statefulsetNS := statefulset.GetNamespace()
+
+			labels, values := prom.KubeLabelsToLabels(statefulset.Spec.Selector.MatchLabels)
+			if len(labels) > 0 {
+				m := newStatefulsetMatchLabelsMetric(statefulsetName, statefulsetNS, "statefulSet_match_labels", labels, values)
+				ch <- m
+			}
 		}
 	}
 }

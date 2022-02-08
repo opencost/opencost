@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/config"
+	"github.com/kubecost/cost-model/pkg/metrics"
 	"github.com/kubecost/cost-model/pkg/services"
 	"github.com/kubecost/cost-model/pkg/util/httputil"
 	"github.com/kubecost/cost-model/pkg/util/timeutil"
@@ -1416,8 +1417,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 
 	// Append the pricing config watcher
 	configWatchers.AddWatcher(cloud.ConfigWatcherFor(cloudProvider))
-
-	configWatchers.AddWatcher(GetMetricsConfigWatcher())
+	configWatchers.AddWatcher(metrics.GetMetricsConfigWatcher())
 
 	watchConfigFunc := configWatchers.ToWatchFunc()
 	watchedConfigs := configWatchers.GetWatchedConfigs()

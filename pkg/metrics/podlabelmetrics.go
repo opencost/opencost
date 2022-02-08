@@ -43,30 +43,43 @@ func (kpmc KubecostPodLabelsCollector) Collect(ch chan<- prometheus.Metric) {
 // KubePodLabelsCollector is a prometheus collector that emits pod labels only
 type KubePodLabelsCollector struct {
 	KubeClusterCache clustercache.ClusterCache
+	metricsConfig    MetricsConfig
 }
 
 // Describe sends the super-set of all possible descriptors of pod labels only
 // collected by this Collector.
 func (kpmc KubePodLabelsCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc("kube_pod_labels", "All labels for each pod prefixed with label_", []string{}, nil)
-	ch <- prometheus.NewDesc("kube_pod_owner", "Information about the Pod's owner", []string{}, nil)
+	disabledMetrics := kpmc.metricsConfig.GetDisabledMetricsMap()
+
+	if _, ok := disabledMetrics["kube_pod_labels"]; ok {
+		ch <- prometheus.NewDesc("kube_pod_labels", "All labels for each pod prefixed with label_", []string{}, nil)
+	}
+	if _, ok := disabledMetrics["kube_pod_owner"]; ok {
+		ch <- prometheus.NewDesc("kube_pod_owner", "Information about the Pod's owner", []string{}, nil)
+	}
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (kpmc KubePodLabelsCollector) Collect(ch chan<- prometheus.Metric) {
 	pods := kpmc.KubeClusterCache.GetAllPods()
+	disabledMetrics := kpmc.metricsConfig.GetDisabledMetricsMap()
+
 	for _, pod := range pods {
 		podName := pod.GetName()
 		podNS := pod.GetNamespace()
 		podUID := string(pod.GetUID())
 
 		// Pod Labels
-		labelNames, labelValues := prom.KubePrependQualifierToLabels(pod.GetLabels(), "label_")
-		ch <- newKubePodLabelsMetric("kube_pod_labels", podNS, podName, podUID, labelNames, labelValues)
+		if _, ok := disabledMetrics["kube_pod_labels"]; ok {
+			labelNames, labelValues := prom.KubePrependQualifierToLabels(pod.GetLabels(), "label_")
+			ch <- newKubePodLabelsMetric("kube_pod_labels", podNS, podName, podUID, labelNames, labelValues)
+		}
 
 		// Owner References
-		for _, owner := range pod.OwnerReferences {
-			ch <- newKubePodOwnerMetric("kube_pod_owner", podNS, podName, owner.Name, owner.Kind, owner.Controller != nil)
+		if _, ok := disabledMetrics["kube_pod_owner"]; ok {
+			for _, owner := range pod.OwnerReferences {
+				ch <- newKubePodOwnerMetric("kube_pod_owner", podNS, podName, owner.Name, owner.Kind, owner.Controller != nil)
+			}
 		}
 	}
 }

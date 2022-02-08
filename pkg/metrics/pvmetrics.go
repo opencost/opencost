@@ -14,41 +14,54 @@ import (
 // KubePVCollector is a prometheus collector that generates PV metrics
 type KubePVCollector struct {
 	KubeClusterCache clustercache.ClusterCache
+	metricsConfig    MetricsConfig
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
 // collected by this Collector.
 func (kpvcb KubePVCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc("kube_persistentvolume_capacity_bytes", "The pv storage capacity in bytes", []string{}, nil)
-	ch <- prometheus.NewDesc("kube_persistentvolume_status_phase", "The phase indicates if a volume is available, bound to a claim, or released by a claim.", []string{}, nil)
+	disabledMetrics := kpvcb.metricsConfig.GetDisabledMetricsMap()
+
+	if _, ok := disabledMetrics["kube_persistentvolume_capacity_bytes"]; !ok {
+		ch <- prometheus.NewDesc("kube_persistentvolume_capacity_bytes", "The pv storage capacity in bytes", []string{}, nil)
+	}
+	if _, ok := disabledMetrics["kube_persistentvolume_status_phase"]; !ok {
+		ch <- prometheus.NewDesc("kube_persistentvolume_status_phase", "The phase indicates if a volume is available, bound to a claim, or released by a claim.", []string{}, nil)
+	}
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (kpvcb KubePVCollector) Collect(ch chan<- prometheus.Metric) {
 	pvs := kpvcb.KubeClusterCache.GetAllPersistentVolumes()
-	for _, pv := range pvs {
-		phase := pv.Status.Phase
-		if phase != "" {
-			phases := []struct {
-				v bool
-				n string
-			}{
-				{phase == v1.VolumePending, string(v1.VolumePending)},
-				{phase == v1.VolumeAvailable, string(v1.VolumeAvailable)},
-				{phase == v1.VolumeBound, string(v1.VolumeBound)},
-				{phase == v1.VolumeReleased, string(v1.VolumeReleased)},
-				{phase == v1.VolumeFailed, string(v1.VolumeFailed)},
-			}
+	disabledMetrics := kpvcb.metricsConfig.GetDisabledMetricsMap()
 
-			for _, p := range phases {
-				ch <- newKubePVStatusPhaseMetric("kube_persistentvolume_status_phase", pv.Name, p.n, boolFloat64(p.v))
+	for _, pv := range pvs {
+		if _, ok := disabledMetrics["kube_persistentvolume_status_phase"]; !ok {
+			phase := pv.Status.Phase
+			if phase != "" {
+				phases := []struct {
+					v bool
+					n string
+				}{
+					{phase == v1.VolumePending, string(v1.VolumePending)},
+					{phase == v1.VolumeAvailable, string(v1.VolumeAvailable)},
+					{phase == v1.VolumeBound, string(v1.VolumeBound)},
+					{phase == v1.VolumeReleased, string(v1.VolumeReleased)},
+					{phase == v1.VolumeFailed, string(v1.VolumeFailed)},
+				}
+
+				for _, p := range phases {
+					ch <- newKubePVStatusPhaseMetric("kube_persistentvolume_status_phase", pv.Name, p.n, boolFloat64(p.v))
+				}
 			}
 		}
 
-		storage := pv.Spec.Capacity[v1.ResourceStorage]
-		m := newKubePVCapacityBytesMetric("kube_persistentvolume_capacity_bytes", pv.Name, float64(storage.Value()))
+		if _, ok := disabledMetrics["kube_persistentvolume_capacity_bytes"]; !ok {
+			storage := pv.Spec.Capacity[v1.ResourceStorage]
+			m := newKubePVCapacityBytesMetric("kube_persistentvolume_capacity_bytes", pv.Name, float64(storage.Value()))
 
-		ch <- m
+			ch <- m
+		}
 	}
 }
 
