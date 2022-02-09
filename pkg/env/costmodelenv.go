@@ -81,7 +81,11 @@ const (
 	KubecostConfigBucketEnvVar    = "KUBECOST_CONFIG_BUCKET"
 	ClusterInfoFileEnabledEnvVar  = "CLUSTER_INFO_FILE_ENABLED"
 	ClusterCacheFileEnabledEnvVar = "CLUSTER_CACHE_FILE_ENABLED"
-	PrometheusQueryOffsetEnvVar   = "PROMETHEUS_QUERY_OFFSET"
+
+	PrometheusQueryOffsetEnvVar                 = "PROMETHEUS_QUERY_OFFSET"
+	PrometheusRetryOnRateLimitResponseEnvVar    = "PROMETHEUS_RETRY_ON_RATE_LIMIT"
+	PrometheusRetryOnRateLimitMaxRetriesEnvVar  = "PROMETHEUS_RETRY_ON_RATE_LIMIT_MAX_RETRIES"
+	PrometheusRetryOnRateLimitDefaultWaitEnvVar = "PROMETHEUS_RETRY_ON_RATE_LIMIT_DEFAULT_WAIT"
 )
 
 // GetKubecostConfigBucket returns a file location for a mounted bucket configuration which is used to store
@@ -100,6 +104,24 @@ func IsClusterInfoFileEnabled() bool {
 // kubernetes API.
 func IsClusterCacheFileEnabled() bool {
 	return GetBool(ClusterCacheFileEnabledEnvVar, false)
+}
+
+// IsPrometheusRetryOnRateLimitResponse will attempt to retry if a 429 response is received OR a 400 with a body containing
+// ThrottleException (common in AWS services like AMP)
+func IsPrometheusRetryOnRateLimitResponse() bool {
+	return GetBool(PrometheusRetryOnRateLimitResponseEnvVar, true)
+}
+
+// GetPrometheusRetryOnRateLimitMaxRetries returns the maximum number of retries that should be attempted prior to failing.
+// Only used if IsPrometheusRetryOnRateLimitResponse() is true.
+func GetPrometheusRetryOnRateLimitMaxRetries() int {
+	return GetInt(PrometheusRetryOnRateLimitMaxRetriesEnvVar, 5)
+}
+
+// GetPrometheusRetryOnRateLimitDefaultWait returns the default wait time for a retriable rate limit response without a
+// Retry-After header.
+func GetPrometheusRetryOnRateLimitDefaultWait() time.Duration {
+	return GetDuration(PrometheusRetryOnRateLimitDefaultWaitEnvVar, 100*time.Millisecond)
 }
 
 // GetPrometheusQueryOffset returns the time.Duration to offset all prometheus queries by. NOTE: This env var is applied

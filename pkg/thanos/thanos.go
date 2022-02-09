@@ -67,26 +67,25 @@ func QueryOffset() string {
 	return queryOffset
 }
 
-func NewThanosClient(address string, timeout, keepAlive time.Duration, queryConcurrency int, queryLogFile string) (prometheus.Client, error) {
-	tlsConfig := &tls.Config{InsecureSkipVerify: env.GetInsecureSkipVerify()}
-
+func NewThanosClient(address string, config *prom.PrometheusClientConfig) (prometheus.Client, error) {
 	tc := prometheus.Config{
 		Address: address,
 		RoundTripper: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
 			DialContext: (&net.Dialer{
-				Timeout:   timeout,
-				KeepAlive: keepAlive,
+				Timeout:   config.Timeout,
+				KeepAlive: config.KeepAlive,
 			}).DialContext,
-			TLSHandshakeTimeout: 10 * time.Second,
-			TLSClientConfig:     tlsConfig,
+			TLSHandshakeTimeout: config.TLSHandshakeTimeout,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: config.TLSInsecureSkipVerify,
+			},
 		},
 	}
 
-	auth := &prom.ClientAuth{
-		Username:    env.GetMultiClusterBasicAuthUsername(),
-		Password:    env.GetMultiClusterBasicAuthPassword(),
-		BearerToken: env.GetMultiClusterBearerToken(),
+	client, err := prometheus.NewClient(tc)
+	if err != nil {
+		return nil, err
 	}
 
 	// max source resolution decorator
@@ -97,5 +96,13 @@ func NewThanosClient(address string, timeout, keepAlive time.Duration, queryConc
 		return queryParams
 	}
 
-	return prom.NewRateLimitedClient(prom.ThanosClientID, tc, queryConcurrency, auth, maxSourceDecorator, queryLogFile)
+	return prom.NewRateLimitedClient(
+		prom.ThanosClientID,
+		client,
+		config.QueryConcurrency,
+		config.Auth,
+		maxSourceDecorator,
+		config.RateLimitRetryOpts,
+		config.QueryLogFile,
+	)
 }
