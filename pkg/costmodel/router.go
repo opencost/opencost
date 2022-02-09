@@ -1475,11 +1475,11 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 
 		if thanosAddress != "" {
 			thanosCli, _ := thanos.NewThanosClient(thanosAddress, &prom.PrometheusClientConfig{
-				Timeout:                  timeout,
-				KeepAlive:                keepAlive,
-				TLSHandshakeTimeout:      tlsHandshakeTimeout,
-				TLSInsecureSkipVerify:    env.GetInsecureSkipVerify(),
-				RetryOnRateLimitResponse: rateLimitRetryOpts,
+				Timeout:               timeout,
+				KeepAlive:             keepAlive,
+				TLSHandshakeTimeout:   tlsHandshakeTimeout,
+				TLSInsecureSkipVerify: env.GetInsecureSkipVerify(),
+				RateLimitRetryOpts:    rateLimitRetryOpts,
 				Auth: &prom.ClientAuth{
 					Username:    env.GetMultiClusterBasicAuthUsername(),
 					Password:    env.GetMultiClusterBasicAuthPassword(),
