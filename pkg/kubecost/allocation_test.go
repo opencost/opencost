@@ -2423,6 +2423,16 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 // TODO niko/etl
 // func TestAllocationSetRange_Each(t *testing.T) {}
 
+func TestAllocationSetRange_Filter(t *testing.T) {
+	// nil should return without panicking
+
+	// empty should return
+
+	// non-empty should filter correctly
+
+	// filtering all should work correctly
+}
+
 // TODO niko/etl
 // func TestAllocationSetRange_Get(t *testing.T) {}
 

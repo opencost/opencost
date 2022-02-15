@@ -71,8 +71,8 @@ func NewSummaryAllocation(alloc *Allocation, reconcile, reconcileNetwork bool) *
 	if !reconcile {
 		sa.CPUCost -= alloc.CPUCostAdjustment
 		sa.GPUCost -= alloc.GPUCostAdjustment
-		sa.NetworkCost -= alloc.NetworkCostAdjustment
 		sa.LoadBalancerCost -= alloc.LoadBalancerCostAdjustment
+		sa.NetworkCost -= alloc.NetworkCostAdjustment
 		sa.PVCost -= alloc.PVCostAdjustment
 		sa.RAMCost -= alloc.RAMCostAdjustment
 	} else if !reconcileNetwork {

@@ -1596,6 +1596,20 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 	return a.Properties.GenerateKey(aggregateBy, labelConfig)
 }
 
+// ResetAdjustments sets all adjustment fields for each Allocation to zero.
+func (as *AllocationSet) ResetAdjustments() {
+	if as == nil {
+		return
+	}
+
+	as.Lock()
+	defer as.Unlock()
+
+	for _, alloc := range as.allocations {
+		alloc.ResetAdjustments()
+	}
+}
+
 // Clone returns a new AllocationSet with a deep copy of the given
 // AllocationSet's allocations.
 func (as *AllocationSet) Clone() *AllocationSet {
@@ -1910,6 +1924,11 @@ func (as *AllocationSet) Delete(name string) {
 
 	as.Lock()
 	defer as.Unlock()
+
+	as.delete(name)
+}
+
+func (as *AllocationSet) delete(name string) {
 	delete(as.externalKeys, name)
 	delete(as.idleKeys, name)
 	delete(as.allocations, name)
@@ -1987,6 +2006,25 @@ func (as *AllocationSet) ExternalCost() float64 {
 	}
 
 	return externalCost
+}
+
+// Filter evaluates each Allocation in the AllocationSet, retaining only those
+// which pass each filter function in the given list.
+func (as *AllocationSet) Filter(ffs []AllocationMatchFunc) {
+	if as == nil {
+		return
+	}
+
+	as.Lock()
+	defer as.Unlock()
+
+	for name, alloc := range as.allocations {
+		for _, ff := range ffs {
+			if !ff(alloc) {
+				as.delete(name)
+			}
+		}
+	}
 }
 
 // IdleAllocations returns a map of the idle allocations in the AllocationSet.
@@ -2329,6 +2367,21 @@ func (asr *AllocationSetRange) Each(f func(int, *AllocationSet)) {
 
 	for i, as := range asr.allocations {
 		f(i, as)
+	}
+}
+
+// Filter evaluates each Allocation in the AllocationSetRange, retaining only
+// those which pass each filter function in the given list.
+func (asr *AllocationSetRange) Filter(ffs []AllocationMatchFunc) {
+	if asr == nil {
+		return
+	}
+
+	asr.Lock()
+	defer asr.Unlock()
+
+	for _, as := range asr.allocations {
+		as.Filter(ffs)
 	}
 }
 
