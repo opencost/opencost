@@ -22,10 +22,10 @@ type KubePVCollector struct {
 func (kpvcb KubePVCollector) Describe(ch chan<- *prometheus.Desc) {
 	disabledMetrics := kpvcb.metricsConfig.GetDisabledMetricsMap()
 
-	if _, ok := disabledMetrics["kube_persistentvolume_capacity_bytes"]; !ok {
+	if _, disabled := disabledMetrics["kube_persistentvolume_capacity_bytes"]; !disabled {
 		ch <- prometheus.NewDesc("kube_persistentvolume_capacity_bytes", "The pv storage capacity in bytes", []string{}, nil)
 	}
-	if _, ok := disabledMetrics["kube_persistentvolume_status_phase"]; !ok {
+	if _, disabled := disabledMetrics["kube_persistentvolume_status_phase"]; !disabled {
 		ch <- prometheus.NewDesc("kube_persistentvolume_status_phase", "The phase indicates if a volume is available, bound to a claim, or released by a claim.", []string{}, nil)
 	}
 }
@@ -36,7 +36,7 @@ func (kpvcb KubePVCollector) Collect(ch chan<- prometheus.Metric) {
 	disabledMetrics := kpvcb.metricsConfig.GetDisabledMetricsMap()
 
 	for _, pv := range pvs {
-		if _, ok := disabledMetrics["kube_persistentvolume_status_phase"]; !ok {
+		if _, disabled := disabledMetrics["kube_persistentvolume_status_phase"]; !disabled {
 			phase := pv.Status.Phase
 			if phase != "" {
 				phases := []struct {
@@ -56,7 +56,7 @@ func (kpvcb KubePVCollector) Collect(ch chan<- prometheus.Metric) {
 			}
 		}
 
-		if _, ok := disabledMetrics["kube_persistentvolume_capacity_bytes"]; !ok {
+		if _, disabled := disabledMetrics["kube_persistentvolume_capacity_bytes"]; !disabled {
 			storage := pv.Spec.Capacity[v1.ResourceStorage]
 			m := newKubePVCapacityBytesMetric("kube_persistentvolume_capacity_bytes", pv.Name, float64(storage.Value()))
 

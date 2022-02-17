@@ -25,43 +25,46 @@ type KubeJobCollector struct {
 // collected by this Collector.
 func (kjc KubeJobCollector) Describe(ch chan<- *prometheus.Desc) {
 	disabledMetrics := kjc.metricsConfig.GetDisabledMetricsMap()
-
-	if _, ok := disabledMetrics["kube_pod_annotations"]; !ok {
-		ch <- prometheus.NewDesc("kube_job_status_failed", "The number of pods which reached Phase Failed and the reason for failure.", []string{}, nil)
+	if _, disabled := disabledMetrics["kube_pod_annotations"]; disabled {
+		return
 	}
+
+	ch <- prometheus.NewDesc("kube_job_status_failed", "The number of pods which reached Phase Failed and the reason for failure.", []string{}, nil)
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (kjc KubeJobCollector) Collect(ch chan<- prometheus.Metric) {
 	disabledMetrics := kjc.metricsConfig.GetDisabledMetricsMap()
+	if _, disabled := disabledMetrics["kube_pod_annotations"]; disabled {
+		return
+	}
 
-	if _, ok := disabledMetrics["kube_pod_annotations"]; !ok {
-		jobs := kjc.KubeClusterCache.GetAllJobs()
-		for _, job := range jobs {
-			jobName := job.GetName()
-			jobNS := job.GetNamespace()
+	jobs := kjc.KubeClusterCache.GetAllJobs()
+	for _, job := range jobs {
+		jobName := job.GetName()
+		jobNS := job.GetNamespace()
 
-			if job.Status.Failed == 0 {
-				ch <- newKubeJobStatusFailedMetric(jobName, jobNS, "kube_job_status_failed", "", 0)
-			} else {
-				for _, condition := range job.Status.Conditions {
-					if condition.Type == batchv1.JobFailed {
-						reasonKnown := false
-						for _, reason := range jobFailureReasons {
-							reasonKnown = reasonKnown || failureReason(&condition, reason)
+		if job.Status.Failed == 0 {
+			ch <- newKubeJobStatusFailedMetric(jobName, jobNS, "kube_job_status_failed", "", 0)
+		} else {
+			for _, condition := range job.Status.Conditions {
+				if condition.Type == batchv1.JobFailed {
+					reasonKnown := false
+					for _, reason := range jobFailureReasons {
+						reasonKnown = reasonKnown || failureReason(&condition, reason)
 
-							ch <- newKubeJobStatusFailedMetric(jobName, jobNS, "kube_job_status_failed", reason, boolFloat64(failureReason(&condition, reason)))
-						}
+						ch <- newKubeJobStatusFailedMetric(jobName, jobNS, "kube_job_status_failed", reason, boolFloat64(failureReason(&condition, reason)))
+					}
 
-						// for unknown reasons
-						if !reasonKnown {
-							ch <- newKubeJobStatusFailedMetric(jobName, jobNS, "kube_job_status_failed", "", float64(job.Status.Failed))
-						}
+					// for unknown reasons
+					if !reasonKnown {
+						ch <- newKubeJobStatusFailedMetric(jobName, jobNS, "kube_job_status_failed", "", float64(job.Status.Failed))
 					}
 				}
 			}
 		}
 	}
+
 }
 
 //--------------------------------------------------------------------------

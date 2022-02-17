@@ -51,10 +51,10 @@ type KubePodLabelsCollector struct {
 func (kpmc KubePodLabelsCollector) Describe(ch chan<- *prometheus.Desc) {
 	disabledMetrics := kpmc.metricsConfig.GetDisabledMetricsMap()
 
-	if _, ok := disabledMetrics["kube_pod_labels"]; !ok {
+	if _, disabled := disabledMetrics["kube_pod_labels"]; !disabled {
 		ch <- prometheus.NewDesc("kube_pod_labels", "All labels for each pod prefixed with label_", []string{}, nil)
 	}
-	if _, ok := disabledMetrics["kube_pod_owner"]; !ok {
+	if _, disabled := disabledMetrics["kube_pod_owner"]; !disabled {
 		ch <- prometheus.NewDesc("kube_pod_owner", "Information about the Pod's owner", []string{}, nil)
 	}
 }
@@ -70,13 +70,13 @@ func (kpmc KubePodLabelsCollector) Collect(ch chan<- prometheus.Metric) {
 		podUID := string(pod.GetUID())
 
 		// Pod Labels
-		if _, ok := disabledMetrics["kube_pod_labels"]; !ok {
+		if _, disabled := disabledMetrics["kube_pod_labels"]; !disabled {
 			labelNames, labelValues := prom.KubePrependQualifierToLabels(pod.GetLabels(), "label_")
 			ch <- newKubePodLabelsMetric("kube_pod_labels", podNS, podName, podUID, labelNames, labelValues)
 		}
 
 		// Owner References
-		if _, ok := disabledMetrics["kube_pod_owner"]; !ok {
+		if _, disabled := disabledMetrics["kube_pod_owner"]; !disabled {
 			for _, owner := range pod.OwnerReferences {
 				ch <- newKubePodOwnerMetric("kube_pod_owner", podNS, podName, owner.Name, owner.Kind, owner.Controller != nil)
 			}

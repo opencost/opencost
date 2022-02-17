@@ -22,29 +22,33 @@ type KubecostServiceCollector struct {
 // collected by this Collector.
 func (sc KubecostServiceCollector) Describe(ch chan<- *prometheus.Desc) {
 	disabledMetrics := sc.metricsConfig.GetDisabledMetricsMap()
-
-	if _, ok := disabledMetrics["service_selector_labels"]; !ok {
-		ch <- prometheus.NewDesc("service_selector_labels", "service selector labels", []string{}, nil)
+	if _, disabled := disabledMetrics["service_selector_labels"]; disabled {
+		return
 	}
+
+	ch <- prometheus.NewDesc("service_selector_labels", "service selector labels", []string{}, nil)
+
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (sc KubecostServiceCollector) Collect(ch chan<- prometheus.Metric) {
 	disabledMetrics := sc.metricsConfig.GetDisabledMetricsMap()
+	if _, disabled := disabledMetrics["service_selector_labels"]; disabled {
+		return
+	}
 
-	if _, ok := disabledMetrics["service_selector_labels"]; !ok {
-		svcs := sc.KubeClusterCache.GetAllServices()
-		for _, svc := range svcs {
-			serviceName := svc.GetName()
-			serviceNS := svc.GetNamespace()
+	svcs := sc.KubeClusterCache.GetAllServices()
+	for _, svc := range svcs {
+		serviceName := svc.GetName()
+		serviceNS := svc.GetNamespace()
 
-			labels, values := prom.KubeLabelsToLabels(svc.Spec.Selector)
-			if len(labels) > 0 {
-				m := newServiceSelectorLabelsMetric(serviceName, serviceNS, "service_selector_labels", labels, values)
-				ch <- m
-			}
+		labels, values := prom.KubeLabelsToLabels(svc.Spec.Selector)
+		if len(labels) > 0 {
+			m := newServiceSelectorLabelsMetric(serviceName, serviceNS, "service_selector_labels", labels, values)
+			ch <- m
 		}
 	}
+
 }
 
 //--------------------------------------------------------------------------

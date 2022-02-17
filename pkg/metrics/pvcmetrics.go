@@ -21,10 +21,10 @@ type KubePVCCollector struct {
 func (kpvc KubePVCCollector) Describe(ch chan<- *prometheus.Desc) {
 	disabledMetrics := kpvc.metricsConfig.GetDisabledMetricsMap()
 
-	if _, ok := disabledMetrics["kube_persistentvolumeclaim_resource_requests_storage_bytes"]; !ok {
+	if _, disabled := disabledMetrics["kube_persistentvolumeclaim_resource_requests_storage_bytes"]; !disabled {
 		ch <- prometheus.NewDesc("kube_persistentvolumeclaim_resource_requests_storage_bytes", "The pvc storage resource requests in bytes", []string{}, nil)
 	}
-	if _, ok := disabledMetrics["kube_persistentvolumeclaim_info"]; !ok {
+	if _, disabled := disabledMetrics["kube_persistentvolumeclaim_info"]; !disabled {
 		ch <- prometheus.NewDesc("kube_persistentvolumeclaim_info", "The pvc storage resource requests in bytes", []string{}, nil)
 	}
 }
@@ -38,12 +38,12 @@ func (kpvc KubePVCCollector) Collect(ch chan<- prometheus.Metric) {
 		storageClass := getPersistentVolumeClaimClass(pvc)
 		volume := pvc.Spec.VolumeName
 
-		if _, ok := disabledMetrics["kube_persistentvolumeclaim_info"]; !ok {
+		if _, disabled := disabledMetrics["kube_persistentvolumeclaim_info"]; !disabled {
 			ch <- newKubePVCInfoMetric("kube_persistentvolumeclaim_info", pvc.Name, pvc.Namespace, storageClass, volume)
 		}
 
 		if storage, ok := pvc.Spec.Resources.Requests[v1.ResourceStorage]; ok {
-			if _, ok := disabledMetrics["kube_persistentvolumeclaim_resource_requests_storage_bytes"]; !ok {
+			if _, disabled := disabledMetrics["kube_persistentvolumeclaim_resource_requests_storage_bytes"]; !disabled {
 				ch <- newKubePVCResourceRequestsStorageBytesMetric("kube_persistentvolumeclaim_resource_requests_storage_bytes", pvc.Name, pvc.Namespace, float64(storage.Value()))
 			}
 		}

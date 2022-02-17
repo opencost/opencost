@@ -25,29 +25,33 @@ type KubecostPodCollector struct {
 // collected by this Collector.
 func (kpmc KubecostPodCollector) Describe(ch chan<- *prometheus.Desc) {
 	disabledMetrics := kpmc.metricsConfig.GetDisabledMetricsMap()
-
-	if _, ok := disabledMetrics["kube_pod_annotations"]; !ok {
-		ch <- prometheus.NewDesc("kube_pod_annotations", "All annotations for each pod prefix with annotation_", []string{}, nil)
+	if _, disabled := disabledMetrics["kube_pod_annotations"]; disabled {
+		return
 	}
+
+	ch <- prometheus.NewDesc("kube_pod_annotations", "All annotations for each pod prefix with annotation_", []string{}, nil)
+
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (kpmc KubecostPodCollector) Collect(ch chan<- prometheus.Metric) {
 	disabledMetrics := kpmc.metricsConfig.GetDisabledMetricsMap()
+	if _, disabled := disabledMetrics["kube_pod_annotations"]; disabled {
+		return
+	}
 
-	if _, ok := disabledMetrics["kube_pod_annotations"]; !ok {
-		pods := kpmc.KubeClusterCache.GetAllPods()
-		for _, pod := range pods {
-			podName := pod.GetName()
-			podNS := pod.GetNamespace()
+	pods := kpmc.KubeClusterCache.GetAllPods()
+	for _, pod := range pods {
+		podName := pod.GetName()
+		podNS := pod.GetNamespace()
 
-			// Pod Annotations
-			labels, values := prom.KubeAnnotationsToLabels(pod.Annotations)
-			if len(labels) > 0 {
-				ch <- newPodAnnotationMetric("kube_pod_annotations", podNS, podName, labels, values)
-			}
+		// Pod Annotations
+		labels, values := prom.KubeAnnotationsToLabels(pod.Annotations)
+		if len(labels) > 0 {
+			ch <- newPodAnnotationMetric("kube_pod_annotations", podNS, podName, labels, values)
 		}
 	}
+
 }
 
 //--------------------------------------------------------------------------
@@ -65,34 +69,34 @@ type KubePodCollector struct {
 func (kpmc KubePodCollector) Describe(ch chan<- *prometheus.Desc) {
 	disabledMetrics := kpmc.metricsConfig.GetDisabledMetricsMap()
 
-	if _, ok := disabledMetrics["kube_pod_labels"]; !ok {
+	if _, disabled := disabledMetrics["kube_pod_labels"]; !disabled {
 		ch <- prometheus.NewDesc("kube_pod_labels", "All labels for each pod prefixed with label_", []string{}, nil)
 	}
-	if _, ok := disabledMetrics["kube_pod_owner"]; !ok {
+	if _, disabled := disabledMetrics["kube_pod_owner"]; !disabled {
 		ch <- prometheus.NewDesc("kube_pod_owner", "Information about the Pod's owner", []string{}, nil)
 	}
-	if _, ok := disabledMetrics["kube_pod_container_status_running"]; !ok {
+	if _, disabled := disabledMetrics["kube_pod_container_status_running"]; !disabled {
 		ch <- prometheus.NewDesc("kube_pod_container_status_running", "Describes whether the container is currently in running state", []string{}, nil)
 	}
-	if _, ok := disabledMetrics["kube_pod_container_status_terminated_reason"]; !ok {
+	if _, disabled := disabledMetrics["kube_pod_container_status_terminated_reason"]; !disabled {
 		ch <- prometheus.NewDesc("kube_pod_container_status_terminated_reason", "Describes the reason the container is currently in terminated state.", []string{}, nil)
 	}
-	if _, ok := disabledMetrics["kube_pod_container_status_restarts_total"]; !ok {
+	if _, disabled := disabledMetrics["kube_pod_container_status_restarts_total"]; !disabled {
 		ch <- prometheus.NewDesc("kube_pod_container_status_restarts_total", "The number of container restarts per container.", []string{}, nil)
 	}
-	if _, ok := disabledMetrics["kube_pod_container_resource_requests"]; !ok {
+	if _, disabled := disabledMetrics["kube_pod_container_resource_requests"]; !disabled {
 		ch <- prometheus.NewDesc("kube_pod_container_resource_requests", "The number of requested resource by a container", []string{}, nil)
 	}
-	if _, ok := disabledMetrics["kube_pod_container_resource_limits"]; !ok {
+	if _, disabled := disabledMetrics["kube_pod_container_resource_limits"]; !disabled {
 		ch <- prometheus.NewDesc("kube_pod_container_resource_limits", "The number of requested limit resource by a container.", []string{}, nil)
 	}
-	if _, ok := disabledMetrics["kube_pod_container_resource_limits_cpu_cores"]; !ok {
+	if _, disabled := disabledMetrics["kube_pod_container_resource_limits_cpu_cores"]; !disabled {
 		ch <- prometheus.NewDesc("kube_pod_container_resource_limits_cpu_cores", "The number of requested limit cpu core resource by a container.", []string{}, nil)
 	}
-	if _, ok := disabledMetrics["kube_pod_container_resource_limits_memory_bytes"]; !ok {
+	if _, disabled := disabledMetrics["kube_pod_container_resource_limits_memory_bytes"]; !disabled {
 		ch <- prometheus.NewDesc("kube_pod_container_resource_limits_memory_bytes", "The number of requested limit memory resource by a container.", []string{}, nil)
 	}
-	if _, ok := disabledMetrics["kube_pod_status_phase"]; !ok {
+	if _, disabled := disabledMetrics["kube_pod_status_phase"]; !disabled {
 		ch <- prometheus.NewDesc("kube_pod_status_phase", "The pods current phase.", []string{}, nil)
 	}
 }
@@ -110,7 +114,7 @@ func (kpmc KubePodCollector) Collect(ch chan<- prometheus.Metric) {
 		phase := pod.Status.Phase
 
 		// Pod Status Phase
-		if _, ok := disabledMetrics["kube_pod_status_phase"]; !ok {
+		if _, disabled := disabledMetrics["kube_pod_status_phase"]; !disabled {
 			if phase != "" {
 				phases := []struct {
 					v bool
@@ -130,13 +134,13 @@ func (kpmc KubePodCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 
 		// Pod Labels
-		if _, ok := disabledMetrics["kube_pod_labels"]; !ok {
+		if _, disabled := disabledMetrics["kube_pod_labels"]; !disabled {
 			labelNames, labelValues := prom.KubePrependQualifierToLabels(pod.GetLabels(), "label_")
 			ch <- newKubePodLabelsMetric("kube_pod_labels", podNS, podName, podUID, labelNames, labelValues)
 		}
 
 		// Owner References
-		if _, ok := disabledMetrics["kube_pod_owner"]; !ok {
+		if _, disabled := disabledMetrics["kube_pod_owner"]; !disabled {
 			for _, owner := range pod.OwnerReferences {
 				ch <- newKubePodOwnerMetric("kube_pod_owner", podNS, podName, owner.Name, owner.Kind, owner.Controller != nil)
 			}
@@ -144,17 +148,17 @@ func (kpmc KubePodCollector) Collect(ch chan<- prometheus.Metric) {
 
 		// Container Status
 		for _, status := range pod.Status.ContainerStatuses {
-			if _, ok := disabledMetrics["kube_pod_container_status_restarts_total"]; !ok {
+			if _, disabled := disabledMetrics["kube_pod_container_status_restarts_total"]; !disabled {
 				ch <- newKubePodContainerStatusRestartsTotalMetric("kube_pod_container_status_restarts_total", podNS, podName, podUID, status.Name, float64(status.RestartCount))
 			}
 			if status.State.Running != nil {
-				if _, ok := disabledMetrics["kube_pod_container_status_running"]; !ok {
+				if _, disabled := disabledMetrics["kube_pod_container_status_running"]; !disabled {
 					ch <- newKubePodContainerStatusRunningMetric("kube_pod_container_status_running", podNS, podName, podUID, status.Name)
 				}
 			}
 
 			if status.State.Terminated != nil {
-				if _, ok := disabledMetrics["kube_pod_container_status_terminated_reason"]; !ok {
+				if _, disabled := disabledMetrics["kube_pod_container_status_terminated_reason"]; !disabled {
 					ch <- newKubePodContainerStatusTerminatedReasonMetric(
 						"kube_pod_container_status_terminated_reason",
 						podNS,
@@ -169,7 +173,7 @@ func (kpmc KubePodCollector) Collect(ch chan<- prometheus.Metric) {
 		for _, container := range pod.Spec.Containers {
 
 			// Requests
-			if _, ok := disabledMetrics["kube_pod_container_resource_requests"]; !ok {
+			if _, disabled := disabledMetrics["kube_pod_container_resource_requests"]; !disabled {
 				for resourceName, quantity := range container.Resources.Requests {
 					resource, unit, value := toResourceUnitValue(resourceName, quantity)
 
@@ -203,7 +207,7 @@ func (kpmc KubePodCollector) Collect(ch chan<- prometheus.Metric) {
 				}
 
 				// KSM v1 Emission
-				if _, ok := disabledMetrics["kube_pod_container_resource_limits_cpu_cores"]; !ok {
+				if _, disabled := disabledMetrics["kube_pod_container_resource_limits_cpu_cores"]; !disabled {
 					if resource == "cpu" {
 						ch <- newKubePodContainerResourceLimitsCPUCoresMetric(
 							"kube_pod_container_resource_limits_cpu_cores",
@@ -215,7 +219,7 @@ func (kpmc KubePodCollector) Collect(ch chan<- prometheus.Metric) {
 							value)
 					}
 				}
-				if _, ok := disabledMetrics["kube_pod_container_resource_limits_memory_bytes"]; !ok {
+				if _, disabled := disabledMetrics["kube_pod_container_resource_limits_memory_bytes"]; !disabled {
 					if resource == "memory" {
 						ch <- newKubePodContainerResourceLimitsMemoryBytesMetric(
 							"kube_pod_container_resource_limits_memory_bytes",
@@ -227,7 +231,7 @@ func (kpmc KubePodCollector) Collect(ch chan<- prometheus.Metric) {
 							value)
 					}
 				}
-				if _, ok := disabledMetrics["kube_pod_container_resource_limits"]; !ok {
+				if _, disabled := disabledMetrics["kube_pod_container_resource_limits"]; !disabled {
 					ch <- newKubePodContainerResourceLimitsMetric(
 						"kube_pod_container_resource_limits",
 						podNS,

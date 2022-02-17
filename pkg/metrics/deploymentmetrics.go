@@ -23,29 +23,32 @@ type KubecostDeploymentCollector struct {
 // collected by this Collector.
 func (kdc KubecostDeploymentCollector) Describe(ch chan<- *prometheus.Desc) {
 	disabledMetrics := kdc.metricsConfig.GetDisabledMetricsMap()
-
-	if _, ok := disabledMetrics["deployment_match_labels"]; !ok {
-		ch <- prometheus.NewDesc("deployment_match_labels", "deployment match labels", []string{}, nil)
+	if _, disabled := disabledMetrics["deployment_match_labels"]; disabled {
+		return
 	}
+
+	ch <- prometheus.NewDesc("deployment_match_labels", "deployment match labels", []string{}, nil)
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (kdc KubecostDeploymentCollector) Collect(ch chan<- prometheus.Metric) {
 	disabledMetrics := kdc.metricsConfig.GetDisabledMetricsMap()
+	if _, disabled := disabledMetrics["deployment_match_labels"]; disabled {
+		return
+	}
 
-	if _, ok := disabledMetrics["deployment_match_labels"]; !ok {
-		ds := kdc.KubeClusterCache.GetAllDeployments()
-		for _, deployment := range ds {
-			deploymentName := deployment.GetName()
-			deploymentNS := deployment.GetNamespace()
+	ds := kdc.KubeClusterCache.GetAllDeployments()
+	for _, deployment := range ds {
+		deploymentName := deployment.GetName()
+		deploymentNS := deployment.GetNamespace()
 
-			labels, values := prom.KubeLabelsToLabels(deployment.Spec.Selector.MatchLabels)
-			if len(labels) > 0 {
-				m := newDeploymentMatchLabelsMetric(deploymentName, deploymentNS, "deployment_match_labels", labels, values)
-				ch <- m
-			}
+		labels, values := prom.KubeLabelsToLabels(deployment.Spec.Selector.MatchLabels)
+		if len(labels) > 0 {
+			m := newDeploymentMatchLabelsMetric(deploymentName, deploymentNS, "deployment_match_labels", labels, values)
+			ch <- m
 		}
 	}
+
 }
 
 //--------------------------------------------------------------------------
@@ -125,10 +128,10 @@ type KubeDeploymentCollector struct {
 func (kdc KubeDeploymentCollector) Describe(ch chan<- *prometheus.Desc) {
 	disabledMetrics := kdc.metricsConfig.GetDisabledMetricsMap()
 
-	if _, ok := disabledMetrics["kube_deployment_spec_replicas"]; !ok {
+	if _, disabled := disabledMetrics["kube_deployment_spec_replicas"]; !disabled {
 		ch <- prometheus.NewDesc("kube_deployment_spec_replicas", "Number of desired pods for a deployment.", []string{}, nil)
 	}
-	if _, ok := disabledMetrics["kube_deployment_status_replicas_available"]; !ok {
+	if _, disabled := disabledMetrics["kube_deployment_status_replicas_available"]; !disabled {
 		ch <- prometheus.NewDesc("kube_deployment_status_replicas_available", "The number of available replicas per deployment.", []string{}, nil)
 	}
 
@@ -151,10 +154,10 @@ func (kdc KubeDeploymentCollector) Collect(ch chan<- prometheus.Metric) {
 			replicas = *deployment.Spec.Replicas
 		}
 
-		if _, ok := disabledMetrics["kube_deployment_spec_replicas"]; !ok {
+		if _, disabled := disabledMetrics["kube_deployment_spec_replicas"]; !disabled {
 			ch <- newKubeDeploymentReplicasMetric("kube_deployment_spec_replicas", deploymentName, deploymentNS, replicas)
 		}
-		if _, ok := disabledMetrics["kube_deployment_status_replicas_available"]; !ok {
+		if _, disabled := disabledMetrics["kube_deployment_status_replicas_available"]; !disabled {
 			// Replicas Available
 			ch <- newKubeDeploymentStatusAvailableReplicasMetric(
 				"kube_deployment_status_replicas_available",

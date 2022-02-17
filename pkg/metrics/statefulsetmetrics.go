@@ -22,29 +22,32 @@ type KubecostStatefulsetCollector struct {
 // collected by this Collector.
 func (sc KubecostStatefulsetCollector) Describe(ch chan<- *prometheus.Desc) {
 	disabledMetrics := sc.metricsConfig.GetDisabledMetricsMap()
-
-	if _, ok := disabledMetrics["statefulSet_match_labels"]; !ok {
-		ch <- prometheus.NewDesc("statefulSet_match_labels", "statfulSet match labels", []string{}, nil)
+	if _, disabled := disabledMetrics["statefulSet_match_labels"]; disabled {
+		return
 	}
+
+	ch <- prometheus.NewDesc("statefulSet_match_labels", "statfulSet match labels", []string{}, nil)
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (sc KubecostStatefulsetCollector) Collect(ch chan<- prometheus.Metric) {
 	disabledMetrics := sc.metricsConfig.GetDisabledMetricsMap()
+	if _, disabled := disabledMetrics["statefulSet_match_labels"]; disabled {
+		return
+	}
 
-	if _, ok := disabledMetrics["statefulSet_match_labels"]; !ok {
-		ds := sc.KubeClusterCache.GetAllStatefulSets()
-		for _, statefulset := range ds {
-			statefulsetName := statefulset.GetName()
-			statefulsetNS := statefulset.GetNamespace()
+	ds := sc.KubeClusterCache.GetAllStatefulSets()
+	for _, statefulset := range ds {
+		statefulsetName := statefulset.GetName()
+		statefulsetNS := statefulset.GetNamespace()
 
-			labels, values := prom.KubeLabelsToLabels(statefulset.Spec.Selector.MatchLabels)
-			if len(labels) > 0 {
-				m := newStatefulsetMatchLabelsMetric(statefulsetName, statefulsetNS, "statefulSet_match_labels", labels, values)
-				ch <- m
-			}
+		labels, values := prom.KubeLabelsToLabels(statefulset.Spec.Selector.MatchLabels)
+		if len(labels) > 0 {
+			m := newStatefulsetMatchLabelsMetric(statefulsetName, statefulsetNS, "statefulSet_match_labels", labels, values)
+			ch <- m
 		}
 	}
+
 }
 
 //--------------------------------------------------------------------------
