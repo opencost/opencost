@@ -38,12 +38,12 @@ func GetMetricsConfig() (*MetricsConfig, error) {
 
 		return mc, nil
 	} else if err != nil {
-		return mc, err
+		return mc, fmt.Errorf("error reading metrics config file: %s", err)
 	}
 
 	err = json.Unmarshal(body, mc)
 	if err != nil {
-		return mc, err
+		return mc, fmt.Errorf("error decoding metrics config: %s", err)
 	}
 
 	return mc, nil
@@ -56,7 +56,7 @@ func UpdateMetricsConfig(mc *MetricsConfig) (*MetricsConfig, error) {
 
 	mcb, err := json.Marshal(mc)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding metrics config struct: %s", err)
+		return nil, fmt.Errorf("error encoding metrics config struct: %s", err)
 	}
 
 	err = ioutil.WriteFile("/var/configs/metrics.json", mcb, 0644)
