@@ -1613,7 +1613,7 @@ func waitForQueryToComplete(ctx context.Context, client *athena.Client, queryExe
 		if qe.QueryExecution.Status.State == "SUCCEEDED" {
 			isQueryStillRunning = false
 		}
-		time.Sleep(10 * time.Second)
+		time.Sleep(2 * time.Second)
 	}
 }
 
