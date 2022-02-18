@@ -6,17 +6,15 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
+
 	"io"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/aws/aws-sdk-go/aws/endpoints"
 
 	"k8s.io/klog"
 
@@ -28,17 +26,16 @@ import (
 	"github.com/kubecost/cost-model/pkg/util/fileutil"
 	"github.com/kubecost/cost-model/pkg/util/json"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/athena"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-
-	awsV2 "github.com/aws/aws-sdk-go-v2/aws"
+	awsSDK "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/athena"
+	athenaTypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 
 	"github.com/jszwec/csvutil"
 
@@ -161,18 +158,40 @@ type AWS struct {
 	*CustomProvider
 }
 
+// AWSAccessKey holds AWS credentials and fulfils the awsV2.CredentialsProvider interface
 type AWSAccessKey struct {
 	AccessKeyID     string `json:"aws_access_key_id"`
 	SecretAccessKey string `json:"aws_secret_access_key"`
 }
 
 // Retrieve returns a set of awsV2 credentials using the AWSAccessKey's key and secret.
-// This fullfils the awsV2.CredentialsProvider interface contract.
-func (accessKey AWSAccessKey) Retrieve(ctx context.Context) (awsV2.Credentials, error) {
-	return awsV2.Credentials{
+// This fulfils the awsV2.CredentialsProvider interface contract.
+func (accessKey AWSAccessKey) Retrieve(ctx context.Context) (awsSDK.Credentials, error) {
+	return awsSDK.Credentials{
 		AccessKeyID:     accessKey.AccessKeyID,
 		SecretAccessKey: accessKey.SecretAccessKey,
 	}, nil
+}
+
+// CreateConfig creates an AWS SDK V2 Config for the credentials that it contains for the provided region
+func (accessKey AWSAccessKey) CreateConfig(region string) (awsSDK.Config, error) {
+	var cfg awsSDK.Config
+	var err error
+	// If accessKey values have not been provided, attempt to load cfg from service key annotations
+	if accessKey.AccessKeyID == "" && accessKey.SecretAccessKey == "" {
+		cfg, err = config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
+		if err != nil {
+			return cfg, fmt.Errorf("failed to initialize AWS SDK config for region from annotation %s: %s", region, err)
+		}
+	} else {
+		// The AWS SDK v2 requires an object fulfilling the CredentialsProvider interface, which cloud.AWSAccessKey does
+		cfg, err = config.LoadDefaultConfig(context.TODO(), config.WithCredentialsProvider(accessKey), config.WithRegion(region))
+		if err != nil {
+			return cfg, fmt.Errorf("failed to initialize AWS SDK config for region %s: %s", region, err)
+		}
+	}
+
+	return cfg, nil
 }
 
 // AWSPricing maps a k8s node to an AWS Pricing "product"
@@ -348,6 +367,7 @@ func (aws *AWS) KubeAttrConversion(location, instanceType, operatingSystem strin
 	return region + "," + instanceType + "," + operatingSystem
 }
 
+// AwsSpotFeedInfo contains configuration for spot feed integration
 type AwsSpotFeedInfo struct {
 	BucketName       string `json:"bucketName"`
 	Prefix           string `json:"prefix"`
@@ -359,6 +379,7 @@ type AwsSpotFeedInfo struct {
 	SpotLabelValue   string `json:"spotLabelValue"`
 }
 
+// AwsAthenaInfo contains configuration for CUR integration
 type AwsAthenaInfo struct {
 	AthenaBucketName string `json:"athenaBucketName"`
 	AthenaRegion     string `json:"athenaRegion"`
@@ -368,6 +389,23 @@ type AwsAthenaInfo struct {
 	ServiceKeySecret string `json:"serviceKeySecret"`
 	AccountID        string `json:"projectID"`
 	MasterPayerARN   string `json:"masterPayerARN"`
+}
+
+// CreateConfig creates an AWS SDK V2 Config for the credentials that it contains
+func (aai *AwsAthenaInfo) CreateConfig() (awsSDK.Config, error) {
+	keyProvider := AWSAccessKey{AccessKeyID: aai.ServiceKeyName, SecretAccessKey: aai.ServiceKeySecret}
+	cfg, err := keyProvider.CreateConfig(aai.AthenaRegion)
+	if err != nil {
+		return cfg, err
+	}
+	if aai.MasterPayerARN != "" {
+		// Create the credentials from AssumeRoleProvider to assume the role
+		// referenced by the roleARN.
+		stsSvc := sts.NewFromConfig(cfg)
+		creds := stscreds.NewAssumeRoleProvider(stsSvc, aai.MasterPayerARN)
+		cfg.Credentials = awsSDK.NewCredentialsCache(creds)
+	}
+	return cfg, nil
 }
 
 func (aws *AWS) GetManagementPlatform() (string, error) {
@@ -403,48 +441,98 @@ func (aws *AWS) GetConfig() (*CustomPricing, error) {
 
 	return c, nil
 }
-func (aws *AWS) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
-	return aws.Config.UpdateFromMap(a)
+
+// GetAWSAccessKey generate an AWSAccessKey object from the config
+func (aws *AWS) GetAWSAccessKey() (*AWSAccessKey, error) {
+	config, err := aws.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve AwsAthenaInfo %s", err)
+	}
+	err = aws.ConfigureAuthWith(config)
+	if err != nil {
+		return nil, fmt.Errorf("error configuring Cloud Provider %s", err)
+	}
+	//Look for service key values in env if not present in config
+	if config.ServiceKeyName == "" {
+		config.ServiceKeyName = env.GetAWSAccessKeyID()
+	}
+	if config.ServiceKeySecret == "" {
+		config.ServiceKeySecret = env.GetAWSAccessKeySecret()
+	}
+
+	if config.ServiceKeyName == "" && config.ServiceKeySecret == "" {
+		log.DedupedInfof(1, "missing service key values for AWS cloud integration attempting to use service account integration")
+	}
+
+	return &AWSAccessKey{AccessKeyID: config.ServiceKeyName, SecretAccessKey: config.ServiceKeySecret}, nil
+}
+
+// GetAWSAthenaInfo generate an AWSAthenaInfo object from the config
+func (aws *AWS) GetAWSAthenaInfo() (*AwsAthenaInfo, error) {
+	config, err := aws.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve AwsAthenaInfo %s", err)
+	}
+
+	aak, err := aws.GetAWSAccessKey()
+	if err != nil {
+		return nil, err
+	}
+
+	return &AwsAthenaInfo{
+		AthenaBucketName: config.AthenaBucketName,
+		AthenaRegion:     config.AthenaRegion,
+		AthenaDatabase:   config.AthenaDatabase,
+		AthenaTable:      config.AthenaTable,
+		ServiceKeyName:   aak.AccessKeyID,
+		ServiceKeySecret: aak.SecretAccessKey,
+		AccountID:        config.AthenaProjectID,
+		MasterPayerARN:   config.MasterPayerARN,
+	}, nil
+}
+
+func (aws *AWS) UpdateConfigFromConfigMap(cm map[string]string) (*CustomPricing, error) {
+	return aws.Config.UpdateFromMap(cm)
 }
 
 func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
 	return aws.Config.Update(func(c *CustomPricing) error {
 		if updateType == SpotInfoUpdateType {
-			a := AwsSpotFeedInfo{}
-			err := json.NewDecoder(r).Decode(&a)
+			asfi := AwsSpotFeedInfo{}
+			err := json.NewDecoder(r).Decode(&asfi)
 			if err != nil {
 				return err
 			}
 
-			c.ServiceKeyName = a.ServiceKeyName
-			if a.ServiceKeySecret != "" {
-				c.ServiceKeySecret = a.ServiceKeySecret
+			c.ServiceKeyName = asfi.ServiceKeyName
+			if asfi.ServiceKeySecret != "" {
+				c.ServiceKeySecret = asfi.ServiceKeySecret
 			}
-			c.SpotDataPrefix = a.Prefix
-			c.SpotDataBucket = a.BucketName
-			c.ProjectID = a.AccountID
-			c.SpotDataRegion = a.Region
-			c.SpotLabel = a.SpotLabel
-			c.SpotLabelValue = a.SpotLabelValue
+			c.SpotDataPrefix = asfi.Prefix
+			c.SpotDataBucket = asfi.BucketName
+			c.ProjectID = asfi.AccountID
+			c.SpotDataRegion = asfi.Region
+			c.SpotLabel = asfi.SpotLabel
+			c.SpotLabelValue = asfi.SpotLabelValue
 
 		} else if updateType == AthenaInfoUpdateType {
-			a := AwsAthenaInfo{}
-			err := json.NewDecoder(r).Decode(&a)
+			aai := AwsAthenaInfo{}
+			err := json.NewDecoder(r).Decode(&aai)
 			if err != nil {
 				return err
 			}
-			c.AthenaBucketName = a.AthenaBucketName
-			c.AthenaRegion = a.AthenaRegion
-			c.AthenaDatabase = a.AthenaDatabase
-			c.AthenaTable = a.AthenaTable
-			c.ServiceKeyName = a.ServiceKeyName
-			if a.ServiceKeySecret != "" {
-				c.ServiceKeySecret = a.ServiceKeySecret
+			c.AthenaBucketName = aai.AthenaBucketName
+			c.AthenaRegion = aai.AthenaRegion
+			c.AthenaDatabase = aai.AthenaDatabase
+			c.AthenaTable = aai.AthenaTable
+			c.ServiceKeyName = aai.ServiceKeyName
+			if aai.ServiceKeySecret != "" {
+				c.ServiceKeySecret = aai.ServiceKeySecret
 			}
-			if a.MasterPayerARN != "" {
-				c.MasterPayerARN = a.MasterPayerARN
+			if aai.MasterPayerARN != "" {
+				c.MasterPayerARN = aai.MasterPayerARN
 			}
-			c.AthenaProjectID = a.AccountID
+			c.AthenaProjectID = aai.AccountID
 		} else {
 			a := make(map[string]interface{})
 			err := json.NewDecoder(r).Decode(&a)
@@ -1177,9 +1265,9 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 
 	remoteEnabled := env.IsRemoteEnabled()
 
-	if c.ClusterName != "" {
+	makeStructure := func(clusterName string) (map[string]string, error) {
 		m := make(map[string]string)
-		m["name"] = c.ClusterName
+		m["name"] = clusterName
 		m["provider"] = "AWS"
 		m["account"] = c.AthenaProjectID // this value requires configuration but is unavailable else where
 		m["region"] = awsProvider.clusterRegion
@@ -1188,77 +1276,17 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 		m["provisioner"] = awsProvider.clusterProvisioner
 		return m, nil
 	}
-	makeStructure := func(clusterName string) (map[string]string, error) {
-		klog.V(2).Infof("Returning \"%s\" as ClusterName", clusterName)
-		m := make(map[string]string)
-		m["name"] = clusterName
-		m["provider"] = "AWS"
-		m["account"] = c.AthenaProjectID // this value requires configuration but is unavailable else where
-		m["region"] = awsProvider.clusterRegion
-		m["id"] = env.GetClusterID()
-		m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
-		return m, nil
+
+	if c.ClusterName != "" {
+		return makeStructure(c.ClusterName)
 	}
 
 	maybeClusterId := env.GetAWSClusterID()
 	if len(maybeClusterId) != 0 {
+		klog.V(2).Infof("Returning \"%s\" as ClusterName", maybeClusterId)
 		return makeStructure(maybeClusterId)
 	}
-	// TODO: This should be cached, it can take a long time to hit the API
-	//provIdRx := regexp.MustCompile("aws:///([^/]+)/([^/]+)")
-	//clusterIdRx := regexp.MustCompile("^kubernetes\\.io/cluster/([^/]+)")
-	//klog.Infof("nodelist get here %s", time.Now())
-	//nodeList := awsProvider.Clientset.GetAllNodes()
-	//klog.Infof("nodelist done here %s", time.Now())
-	/*for _, n := range nodeList {
-		region := ""
-		instanceId := ""
-		providerId := n.Spec.ProviderID
-		for matchNum, group := range provIdRx.FindStringSubmatch(providerId) {
-			if matchNum == 1 {
-				region = group
-			} else if matchNum == 2 {
-				instanceId = group
-			}
-		}
-		if len(instanceId) == 0 {
-			klog.V(2).Infof("Unable to decode Node.ProviderID \"%s\", skipping it", providerId)
-			continue
-		}
-		c := &aws.Config{
-			Region: aws.String(region),
-		}
-		s := session.Must(session.NewSession(c))
-		ec2Svc := ec2.New(s)
-		di, diErr := ec2Svc.DescribeInstances(&ec2.DescribeInstancesInput{
-			InstanceIds: []*string{
-				aws.String(instanceId),
-			},
-		})
-		if diErr != nil {
-			klog.Infof("Error describing instances: %s", diErr)
-			continue
-		}
-		if len(di.Reservations) != 1 {
-			klog.V(2).Infof("Expected 1 Reservation back from DescribeInstances(%s), received %d", instanceId, len(di.Reservations))
-			continue
-		}
-		res := di.Reservations[0]
-		if len(res.Instances) != 1 {
-			klog.V(2).Infof("Expected 1 Instance back from DescribeInstances(%s), received %d", instanceId, len(res.Instances))
-			continue
-		}
-		inst := res.Instances[0]
-		for _, tag := range inst.Tags {
-			tagKey := *tag.Key
-			for matchNum, group := range clusterIdRx.FindStringSubmatch(tagKey) {
-				if matchNum != 1 {
-					continue
-				}
-				return makeStructure(group)
-			}
-		}
-	}*/
+
 	klog.V(2).Infof("Unable to sniff out cluster ID, perhaps set $%s to force one", env.AWSClusterIDEnvVar)
 	return makeStructure(defaultClusterName)
 }
@@ -1357,40 +1385,23 @@ func (aws *AWS) loadAWSAuthSecret(force bool) (*AWSAccessKey, error) {
 	return awsSecret, nil
 }
 
-func getClusterConfig(ccFile string) (map[string]string, error) {
-	clusterConfig, err := os.Open(ccFile)
+func (aws *AWS) getAddressesForRegion(ctx context.Context, region string) (*ec2.DescribeAddressesOutput, error) {
+	aak, err := aws.GetAWSAccessKey()
 	if err != nil {
 		return nil, err
 	}
-	defer clusterConfig.Close()
-	b, err := ioutil.ReadAll(clusterConfig)
-	if err != nil {
-		return nil, err
-	}
-	var clusterConf map[string]string
-	err = json.Unmarshal([]byte(b), &clusterConf)
+	cfg, err := aak.CreateConfig(region)
 	if err != nil {
 		return nil, err
 	}
 
-	return clusterConf, nil
+	cli := ec2.NewFromConfig(cfg)
+	return cli.DescribeAddresses(ctx, &ec2.DescribeAddressesInput{})
 }
 
-func (a *AWS) getAddressesForRegion(region string) (*ec2.DescribeAddressesOutput, error) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String(region),
-		Credentials: credentials.NewEnvCredentials(),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	ec2Svc := ec2.New(sess)
-	return ec2Svc.DescribeAddresses(&ec2.DescribeAddressesInput{})
-}
-
-func (a *AWS) GetAddresses() ([]byte, error) {
-	a.ConfigureAuth() // load authentication data into env vars
+// GetAddresses retrieves EC2 addresses
+func (aws *AWS) GetAddresses() ([]byte, error) {
+	aws.ConfigureAuth() // load authentication data into env vars
 
 	addressCh := make(chan *ec2.DescribeAddressesOutput, len(awsRegions))
 	errorCh := make(chan error, len(awsRegions))
@@ -1407,18 +1418,10 @@ func (a *AWS) GetAddresses() ([]byte, error) {
 			defer errors.HandlePanic()
 
 			// Query for first page of volume results
-			resp, err := a.getAddressesForRegion(region)
+			resp, err := aws.getAddressesForRegion(context.TODO(), region)
 			if err != nil {
-				if aerr, ok := err.(awserr.Error); ok {
-					switch aerr.Code() {
-					default:
-						errorCh <- aerr
-					}
-					return
-				} else {
-					errorCh <- err
-					return
-				}
+				errorCh <- err
+				return
 			}
 			addressCh <- resp
 		}(r)
@@ -1433,49 +1436,54 @@ func (a *AWS) GetAddresses() ([]byte, error) {
 		close(addressCh)
 	}()
 
-	addresses := []*ec2.Address{}
+	var addresses []*ec2Types.Address
 	for adds := range addressCh {
-		addresses = append(addresses, adds.Addresses...)
+		for _, add := range adds.Addresses {
+			addresses = append(addresses, &add)
+		}
+
 	}
 
-	errors := []error{}
+	var errs []error
 	for err := range errorCh {
 		log.DedupedWarningf(5, "unable to get addresses: %s", err)
-		errors = append(errors, err)
+		errs = append(errs, err)
 	}
 
 	// Return error if no addresses are returned
-	if len(errors) > 0 && len(addresses) == 0 {
-		return nil, fmt.Errorf("%d error(s) retrieving addresses: %v", len(errors), errors)
+	if len(errs) > 0 && len(addresses) == 0 {
+		return nil, fmt.Errorf("%d error(s) retrieving addresses: %v", len(errs), errs)
 	}
 
 	// Format the response this way to match the JSON-encoded formatting of a single response
 	// from DescribeAddresss, so that consumers can always expect AWS disk responses to have
 	// a "Addresss" key at the top level.
-	return json.Marshal(map[string][]*ec2.Address{
+	return json.Marshal(map[string][]*ec2Types.Address{
 		"Addresses": addresses,
 	})
 }
 
-func (a *AWS) getDisksForRegion(region string, maxResults int64, nextToken *string) (*ec2.DescribeVolumesOutput, error) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String(region),
-		Credentials: credentials.NewEnvCredentials(),
-	})
+func (aws *AWS) getDisksForRegion(ctx context.Context, region string, maxResults int32, nextToken *string) (*ec2.DescribeVolumesOutput, error) {
+	aak, err := aws.GetAWSAccessKey()
 	if err != nil {
 		return nil, err
 	}
 
-	ec2Svc := ec2.New(sess)
-	return ec2Svc.DescribeVolumes(&ec2.DescribeVolumesInput{
+	cfg, err := aak.CreateConfig(region)
+	if err != nil {
+		return nil, err
+	}
+
+	cli := ec2.NewFromConfig(cfg)
+	return cli.DescribeVolumes(ctx, &ec2.DescribeVolumesInput{
 		MaxResults: &maxResults,
 		NextToken:  nextToken,
 	})
 }
 
 // GetDisks returns the AWS disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
-func (a *AWS) GetDisks() ([]byte, error) {
-	a.ConfigureAuth() // load authentication data into env vars
+func (aws *AWS) GetDisks() ([]byte, error) {
+	aws.ConfigureAuth() // load authentication data into env vars
 
 	volumeCh := make(chan *ec2.DescribeVolumesOutput, len(awsRegions))
 	errorCh := make(chan error, len(awsRegions))
@@ -1492,36 +1500,20 @@ func (a *AWS) GetDisks() ([]byte, error) {
 			defer errors.HandlePanic()
 
 			// Query for first page of volume results
-			resp, err := a.getDisksForRegion(region, 1000, nil)
+			resp, err := aws.getDisksForRegion(context.TODO(), region, 1000, nil)
 			if err != nil {
-				if aerr, ok := err.(awserr.Error); ok {
-					switch aerr.Code() {
-					default:
-						errorCh <- aerr
-					}
-					return
-				} else {
-					errorCh <- err
-					return
-				}
+				errorCh <- err
+				return
 			}
 			volumeCh <- resp
 
 			// A NextToken indicates more pages of results. Keep querying
 			// until all pages are retrieved.
 			for resp.NextToken != nil {
-				resp, err = a.getDisksForRegion(region, 100, resp.NextToken)
+				resp, err = aws.getDisksForRegion(context.TODO(), region, 100, resp.NextToken)
 				if err != nil {
-					if aerr, ok := err.(awserr.Error); ok {
-						switch aerr.Code() {
-						default:
-							errorCh <- aerr
-						}
-						return
-					} else {
-						errorCh <- err
-						return
-					}
+					errorCh <- err
+					return
 				}
 				volumeCh <- resp
 			}
@@ -1537,107 +1529,91 @@ func (a *AWS) GetDisks() ([]byte, error) {
 		close(volumeCh)
 	}()
 
-	volumes := []*ec2.Volume{}
+	var volumes []*ec2Types.Volume
 	for vols := range volumeCh {
-		volumes = append(volumes, vols.Volumes...)
+		for _, vol := range vols.Volumes {
+			volumes = append(volumes, &vol)
+		}
 	}
 
-	errors := []error{}
+	var errs []error
 	for err := range errorCh {
 		log.DedupedWarningf(5, "unable to get disks: %s", err)
-		errors = append(errors, err)
+		errs = append(errs, err)
 	}
 
 	// Return error if no volumes are returned
-	if len(errors) > 0 && len(volumes) == 0 {
-		return nil, fmt.Errorf("%d error(s) retrieving volumes: %v", len(errors), errors)
+	if len(errs) > 0 && len(volumes) == 0 {
+		return nil, fmt.Errorf("%d error(s) retrieving volumes: %v", len(errs), errs)
 	}
 
 	// Format the response this way to match the JSON-encoded formatting of a single response
 	// from DescribeVolumes, so that consumers can always expect AWS disk responses to have
 	// a "Volumes" key at the top level.
-	return json.Marshal(map[string][]*ec2.Volume{
+	return json.Marshal(map[string][]*ec2Types.Volume{
 		"Volumes": volumes,
 	})
 }
 
-func generateAWSGroupBy(lastIdx int) string {
-	sequence := []string{}
-	for i := 1; i < lastIdx+1; i++ {
-		sequence = append(sequence, strconv.Itoa(i))
+// QueryAthenaPaginated executes athena query and processes results.
+func (aws *AWS) QueryAthenaPaginated(ctx context.Context, query string, fn func(*athena.GetQueryResultsOutput) bool) error {
+	awsAthenaInfo, err := aws.GetAWSAthenaInfo()
+	if err != nil {
+		return err
 	}
-	return strings.Join(sequence, ",")
+	if awsAthenaInfo.AthenaDatabase == "" || awsAthenaInfo.AthenaTable == "" || awsAthenaInfo.AthenaRegion == "" ||
+		awsAthenaInfo.AthenaBucketName == "" || awsAthenaInfo.AccountID == "" {
+		return fmt.Errorf("QueryAthenaPaginated: athena configuration incomplete")
+	}
+
+	queryExecutionCtx := &athenaTypes.QueryExecutionContext{
+		Database: awsSDK.String(awsAthenaInfo.AthenaDatabase),
+	}
+
+	resultConfiguration := &athenaTypes.ResultConfiguration{
+		OutputLocation: awsSDK.String(awsAthenaInfo.AthenaBucketName),
+	}
+	startQueryExecutionInput := &athena.StartQueryExecutionInput{
+		QueryString:           awsSDK.String(query),
+		QueryExecutionContext: queryExecutionCtx,
+		ResultConfiguration:   resultConfiguration,
+	}
+
+	// Create Athena Client
+	cfg, err := awsAthenaInfo.CreateConfig()
+	if err != nil {
+		log.Errorf("Could not retrieve Athena Configuration: %s", err.Error())
+	}
+	cli := athena.NewFromConfig(cfg)
+
+	// Query Athena
+	startQueryExecutionOutput, err := cli.StartQueryExecution(ctx, startQueryExecutionInput)
+	if err != nil {
+		log.Errorf(err.Error())
+	}
+	waitForQueryToComplete(ctx, cli, startQueryExecutionOutput.QueryExecutionId)
+	queryResultsInput := &athena.GetQueryResultsInput{
+		QueryExecutionId: startQueryExecutionOutput.QueryExecutionId,
+	}
+	getQueryResultsPaginator := athena.NewGetQueryResultsPaginator(cli, queryResultsInput)
+	for getQueryResultsPaginator.HasMorePages() {
+		pg, _ := getQueryResultsPaginator.NextPage(ctx)
+		fn(pg)
+	}
+	return nil
 }
 
-func (a *AWS) QueryAthenaPaginated(query string, fn func(*athena.GetQueryResultsOutput, bool) bool) error {
-	customPricing, err := a.GetConfig()
-	if err != nil {
-		return err
+func waitForQueryToComplete(ctx context.Context, client *athena.Client, queryExecutionID *string) {
+	inp := &athena.GetQueryExecutionInput{
+		QueryExecutionId: queryExecutionID,
 	}
-	a.ConfigureAuthWith(customPricing)
-	region := aws.String(customPricing.AthenaRegion)
-	resultsBucket := customPricing.AthenaBucketName
-	database := customPricing.AthenaDatabase
-	c := &aws.Config{
-		Region:              region,
-		STSRegionalEndpoint: endpoints.RegionalSTSEndpoint,
-	}
-	s := session.Must(session.NewSession(c))
-	svc := athena.New(s)
-	if customPricing.MasterPayerARN != "" {
-		creds := stscreds.NewCredentials(s, customPricing.MasterPayerARN)
-		svc = athena.New(s, &aws.Config{
-			Region:      region,
-			Credentials: creds,
-		})
-	}
-
-	var e athena.StartQueryExecutionInput
-
-	var r athena.ResultConfiguration
-	r.SetOutputLocation(resultsBucket)
-	e.SetResultConfiguration(&r)
-
-	e.SetQueryString(query)
-	var q athena.QueryExecutionContext
-	q.SetDatabase(database)
-	e.SetQueryExecutionContext(&q)
-
-	res, err := svc.StartQueryExecution(&e)
-	if err != nil {
-		return err
-	}
-
-	klog.V(2).Infof("StartQueryExecution result:")
-	klog.V(2).Infof(res.GoString())
-
-	var qri athena.GetQueryExecutionInput
-	qri.SetQueryExecutionId(*res.QueryExecutionId)
-
-	var qrop *athena.GetQueryExecutionOutput
-	duration := time.Duration(2) * time.Second // Pause for 2 seconds
-
-	for {
-		qrop, err = svc.GetQueryExecution(&qri)
-		if err != nil {
-			return err
+	isQueryStillRunning := true
+	for isQueryStillRunning {
+		qe, _ := client.GetQueryExecution(ctx, inp)
+		if qe.QueryExecution.Status.State == "SUCCEEDED" {
+			isQueryStillRunning = false
 		}
-		if *qrop.QueryExecution.Status.State != "RUNNING" && *qrop.QueryExecution.Status.State != "QUEUED" {
-			break
-		}
-		time.Sleep(duration)
-	}
-	if *qrop.QueryExecution.Status.State == "SUCCEEDED" {
-
-		var ip athena.GetQueryResultsInput
-		ip.SetQueryExecutionId(*res.QueryExecutionId)
-		err = svc.GetQueryResultsPages(&ip, fn)
-		if err != nil {
-			return fmt.Errorf("queryAthenaPaginated: error getting query resultsPages from athena service %s", err)
-		}
-		return nil
-	} else {
-		return fmt.Errorf("No results available for %s", query)
+		time.Sleep(2 * time.Second)
 	}
 }
 
@@ -1648,16 +1624,16 @@ type SavingsPlanData struct {
 	MostRecentDate string
 }
 
-func (a *AWS) GetSavingsPlanDataFromAthena() error {
-	cfg, err := a.GetConfig()
+func (aws *AWS) GetSavingsPlanDataFromAthena() error {
+	cfg, err := aws.GetConfig()
 	if err != nil {
 		return err
 	}
 	if cfg.AthenaBucketName == "" {
 		return fmt.Errorf("No Athena Bucket configured")
 	}
-	if a.SavingsPlanDataByInstanceID == nil {
-		a.SavingsPlanDataByInstanceID = make(map[string]*SavingsPlanData)
+	if aws.SavingsPlanDataByInstanceID == nil {
+		aws.SavingsPlanDataByInstanceID = make(map[string]*SavingsPlanData)
 	}
 	tNow := time.Now()
 	tOneDayAgo := tNow.Add(time.Duration(-25) * time.Hour) // Also get files from one day ago to avoid boundary conditions
@@ -1676,9 +1652,9 @@ func (a *AWS) GetSavingsPlanDataFromAthena() error {
 	line_item_usage_start_date DESC`
 
 	page := 0
-	processResults := func(op *athena.GetQueryResultsOutput, lastpage bool) bool {
-		a.SavingsPlanDataLock.Lock()
-		a.SavingsPlanDataByInstanceID = make(map[string]*SavingsPlanData) // Clean out the old data and only report a savingsplan price if its in the most recent run.
+	processResults := func(op *athena.GetQueryResultsOutput) bool {
+		aws.SavingsPlanDataLock.Lock()
+		aws.SavingsPlanDataByInstanceID = make(map[string]*SavingsPlanData) // Clean out the old data and only report a savingsplan price if its in the most recent run.
 		mostRecentDate := ""
 		iter := op.ResultSet.Rows
 		if page == 0 && len(iter) > 0 {
@@ -1702,13 +1678,13 @@ func (a *AWS) GetSavingsPlanDataFromAthena() error {
 				SavingsPlanARN: *r.Data[1].VarCharValue,
 				MostRecentDate: d,
 			}
-			a.SavingsPlanDataByInstanceID[r.ResourceID] = r
+			aws.SavingsPlanDataByInstanceID[r.ResourceID] = r
 		}
-		klog.V(1).Infof("Found %d savings plan applied instances", len(a.SavingsPlanDataByInstanceID))
-		for k, r := range a.SavingsPlanDataByInstanceID {
+		klog.V(1).Infof("Found %d savings plan applied instances", len(aws.SavingsPlanDataByInstanceID))
+		for k, r := range aws.SavingsPlanDataByInstanceID {
 			log.DedupedInfof(5, "Savings Plan Instance Data found for node %s : %f at time %s", k, r.EffectiveCost, r.MostRecentDate)
 		}
-		a.SavingsPlanDataLock.Unlock()
+		aws.SavingsPlanDataLock.Unlock()
 		return true
 	}
 
@@ -1716,7 +1692,7 @@ func (a *AWS) GetSavingsPlanDataFromAthena() error {
 
 	klog.V(3).Infof("Running Query: %s", query)
 
-	err = a.QueryAthenaPaginated(query, processResults)
+	err = aws.QueryAthenaPaginated(context.TODO(), query, processResults)
 	if err != nil {
 		return fmt.Errorf("Error fetching Savings Plan Data: %s", err)
 	}
@@ -1731,8 +1707,8 @@ type RIData struct {
 	MostRecentDate string
 }
 
-func (a *AWS) GetReservationDataFromAthena() error {
-	cfg, err := a.GetConfig()
+func (aws *AWS) GetReservationDataFromAthena() error {
+	cfg, err := aws.GetConfig()
 	if err != nil {
 		return err
 	}
@@ -1742,14 +1718,14 @@ func (a *AWS) GetReservationDataFromAthena() error {
 
 	// Query for all column names in advance in order to validate configured
 	// label columns
-	columns, _ := a.ShowAthenaColumns()
+	columns, _ := aws.fetchColumns()
 
 	if !columns["reservation_reservation_a_r_n"] || !columns["reservation_effective_cost"] {
 		klog.Infof("No reserved data available in Athena")
-		a.RIPricingError = nil
+		aws.RIPricingError = nil
 	}
-	if a.RIPricingByInstanceID == nil {
-		a.RIPricingByInstanceID = make(map[string]*RIData)
+	if aws.RIPricingByInstanceID == nil {
+		aws.RIPricingByInstanceID = make(map[string]*RIData)
 	}
 	tNow := time.Now()
 	tOneDayAgo := tNow.Add(time.Duration(-25) * time.Hour) // Also get files from one day ago to avoid boundary conditions
@@ -1766,9 +1742,9 @@ func (a *AWS) GetReservationDataFromAthena() error {
 	line_item_usage_start_date DESC`
 
 	page := 0
-	processResults := func(op *athena.GetQueryResultsOutput, lastpage bool) bool {
-		a.RIDataLock.Lock()
-		a.RIPricingByInstanceID = make(map[string]*RIData) // Clean out the old data and only report a RI price if its in the most recent run.
+	processResults := func(op *athena.GetQueryResultsOutput) bool {
+		aws.RIDataLock.Lock()
+		aws.RIPricingByInstanceID = make(map[string]*RIData) // Clean out the old data and only report a RI price if its in the most recent run.
 		mostRecentDate := ""
 		iter := op.ResultSet.Rows
 		if page == 0 && len(iter) > 0 {
@@ -1792,13 +1768,13 @@ func (a *AWS) GetReservationDataFromAthena() error {
 				ReservationARN: *r.Data[1].VarCharValue,
 				MostRecentDate: d,
 			}
-			a.RIPricingByInstanceID[r.ResourceID] = r
+			aws.RIPricingByInstanceID[r.ResourceID] = r
 		}
-		klog.V(1).Infof("Found %d reserved instances", len(a.RIPricingByInstanceID))
-		for k, r := range a.RIPricingByInstanceID {
+		klog.V(1).Infof("Found %d reserved instances", len(aws.RIPricingByInstanceID))
+		for k, r := range aws.RIPricingByInstanceID {
 			log.DedupedInfof(5, "Reserved Instance Data found for node %s : %f at time %s", k, r.EffectiveCost, r.MostRecentDate)
 		}
-		a.RIDataLock.Unlock()
+		aws.RIDataLock.Unlock()
 		return true
 	}
 
@@ -1806,53 +1782,45 @@ func (a *AWS) GetReservationDataFromAthena() error {
 
 	klog.V(3).Infof("Running Query: %s", query)
 
-	err = a.QueryAthenaPaginated(query, processResults)
+	err = aws.QueryAthenaPaginated(context.TODO(), query, processResults)
 	if err != nil {
-		a.RIPricingError = err
+		aws.RIPricingError = err
 		return fmt.Errorf("Error fetching Reserved Instance Data: %s", err)
 	}
-	a.RIPricingError = nil
+	aws.RIPricingError = nil
 	return nil
 }
 
-// ShowAthenaColumns returns a list of the names of all columns in the configured
+// fetchColumns returns a list of the names of all columns in the configured
 // Athena tables
-func (aws *AWS) ShowAthenaColumns() (map[string]bool, error) {
+func (aws *AWS) fetchColumns() (map[string]bool, error) {
 	columnSet := map[string]bool{}
-	// Configure Athena query
-	cfg, err := aws.GetConfig()
+
+	awsAthenaInfo, err := aws.GetAWSAthenaInfo()
 	if err != nil {
 		return nil, err
 	}
-	if cfg.AthenaTable == "" {
-		return nil, fmt.Errorf("AthenaTable not configured")
-	}
-	if cfg.AthenaBucketName == "" {
-		return nil, fmt.Errorf("AthenaBucketName not configured")
-	}
 
-	q := `SHOW COLUMNS IN  %s`
-	query := fmt.Sprintf(q, cfg.AthenaTable)
-
-	columns := []string{}
+	// This Query is supported by Athena tables and views
+	q := `SELECT column_name FROM information_schema.columns WHERE table_schema = '%s' AND table_name = '%s'`
+	query := fmt.Sprintf(q, awsAthenaInfo.AthenaDatabase, awsAthenaInfo.AthenaTable)
 	pageNum := 0
-	processResults := func(page *athena.GetQueryResultsOutput, lastpage bool) bool {
-		for _, row := range page.ResultSet.Rows {
-			columns = append(columns, *row.Data[0].VarCharValue)
+	athenaErr := aws.QueryAthenaPaginated(context.TODO(), query, func(page *athena.GetQueryResultsOutput) bool {
+		// remove header row 'column_name'
+		rows := page.ResultSet.Rows[1:]
+		for _, row := range rows {
+			columnSet[*row.Data[0].VarCharValue] = true
 		}
-
 		pageNum++
-
 		return true
-	}
-	err = aws.QueryAthenaPaginated(query, processResults)
-	if err != nil {
-		log.Warningf("Error getting Athena columns: %s", err)
-		return columnSet, err
+	})
+
+	if athenaErr != nil {
+		return columnSet, athenaErr
 	}
 
-	for _, col := range columns {
-		columnSet[col] = true
+	if len(columnSet) == 0 {
+		log.Infof("No columns retrieved from Athena")
 	}
 
 	return columnSet, nil
@@ -1870,44 +1838,50 @@ type spotInfo struct {
 	Version     string `csv:"Version"`
 }
 
-func (a *AWS) parseSpotData(bucket string, prefix string, projectID string, region string) (map[string]*spotInfo, error) {
-	if a.ServiceAccountChecks == nil { // Set up checks to store error/success states
-		a.ServiceAccountChecks = make(map[string]*ServiceAccountCheck)
+func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, region string) (map[string]*spotInfo, error) {
+	if aws.ServiceAccountChecks == nil { // Set up checks to store error/success states
+		aws.ServiceAccountChecks = make(map[string]*ServiceAccountCheck)
 	}
 
-	a.ConfigureAuth() // configure aws api authentication by setting env vars
+	aws.ConfigureAuth() // configure aws api authentication by setting env vars
 
 	s3Prefix := projectID
 	if len(prefix) != 0 {
 		s3Prefix = prefix + "/" + s3Prefix
 	}
 
-	c := aws.NewConfig().WithRegion(region)
+	aak, err := aws.GetAWSAccessKey()
+	if err != nil {
+		return nil, err
+	}
 
-	s := session.Must(session.NewSession(c))
-	s3Svc := s3.New(s)
-	downloader := s3manager.NewDownloaderWithClient(s3Svc)
+	cfg, err := aak.CreateConfig(region)
+	if err != nil {
+		return nil, err
+	}
+	cli := s3.NewFromConfig(cfg)
+	downloader := manager.NewDownloader(cli)
 
 	tNow := time.Now()
 	tOneDayAgo := tNow.Add(time.Duration(-24) * time.Hour) // Also get files from one day ago to avoid boundary conditions
 	ls := &s3.ListObjectsInput{
-		Bucket: aws.String(bucket),
-		Prefix: aws.String(s3Prefix + "." + tOneDayAgo.Format("2006-01-02")),
+		Bucket: awsSDK.String(bucket),
+		Prefix: awsSDK.String(s3Prefix + "." + tOneDayAgo.Format("2006-01-02")),
 	}
 	ls2 := &s3.ListObjectsInput{
-		Bucket: aws.String(bucket),
-		Prefix: aws.String(s3Prefix + "." + tNow.Format("2006-01-02")),
+		Bucket: awsSDK.String(bucket),
+		Prefix: awsSDK.String(s3Prefix + "." + tNow.Format("2006-01-02")),
 	}
-	lso, err := s3Svc.ListObjects(ls)
+	lso, err := cli.ListObjects(context.TODO(), ls)
 	if err != nil {
-		a.ServiceAccountChecks["bucketList"] = &ServiceAccountCheck{
+		aws.ServiceAccountChecks["bucketList"] = &ServiceAccountCheck{
 			Message:        "Bucket List Permissions Available",
 			Status:         false,
 			AdditionalInfo: err.Error(),
 		}
 		return nil, err
 	} else {
-		a.ServiceAccountChecks["bucketList"] = &ServiceAccountCheck{
+		aws.ServiceAccountChecks["bucketList"] = &ServiceAccountCheck{
 			Message: "Bucket List Permissions Available",
 			Status:  true,
 		}
@@ -1917,7 +1891,7 @@ func (a *AWS) parseSpotData(bucket string, prefix string, projectID string, regi
 	if lsoLen == 0 {
 		klog.V(5).Infof("ListObjects \"s3://%s/%s\" produced no keys", *ls.Bucket, *ls.Prefix)
 	}
-	lso2, err := s3Svc.ListObjects(ls2)
+	lso2, err := cli.ListObjects(context.TODO(), ls2)
 	if err != nil {
 		return nil, err
 	}
@@ -1946,21 +1920,21 @@ func (a *AWS) parseSpotData(bucket string, prefix string, projectID string, regi
 	spots := make(map[string]*spotInfo)
 	for _, key := range keys {
 		getObj := &s3.GetObjectInput{
-			Bucket: aws.String(bucket),
+			Bucket: awsSDK.String(bucket),
 			Key:    key,
 		}
 
-		buf := aws.NewWriteAtBuffer([]byte{})
-		_, err := downloader.Download(buf, getObj)
+		buf := manager.NewWriteAtBuffer([]byte{})
+		_, err := downloader.Download(context.TODO(), buf, getObj)
 		if err != nil {
-			a.ServiceAccountChecks["objectList"] = &ServiceAccountCheck{
+			aws.ServiceAccountChecks["objectList"] = &ServiceAccountCheck{
 				Message:        "Object Get Permissions Available",
 				Status:         false,
 				AdditionalInfo: err.Error(),
 			}
 			return nil, err
 		} else {
-			a.ServiceAccountChecks["objectList"] = &ServiceAccountCheck{
+			aws.ServiceAccountChecks["objectList"] = &ServiceAccountCheck{
 				Message: "Object Get Permissions Available",
 				Status:  true,
 			}
@@ -2030,13 +2004,14 @@ func (a *AWS) parseSpotData(bucket string, prefix string, projectID string, regi
 	return spots, nil
 }
 
-func (a *AWS) ApplyReservedInstancePricing(nodes map[string]*Node) {
+// ApplyReservedInstancePricing TODO
+func (aws *AWS) ApplyReservedInstancePricing(nodes map[string]*Node) {
 
 }
 
-func (a *AWS) ServiceAccountStatus() *ServiceAccountStatus {
+func (aws *AWS) ServiceAccountStatus() *ServiceAccountStatus {
 	checks := []*ServiceAccountCheck{}
-	for _, v := range a.ServiceAccountChecks {
+	for _, v := range aws.ServiceAccountChecks {
 		checks = append(checks, v)
 	}
 	return &ServiceAccountStatus{
@@ -2046,8 +2021,4 @@ func (a *AWS) ServiceAccountStatus() *ServiceAccountStatus {
 
 func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
-}
-
-func (aws *AWS) Regions() []string {
-	return awsRegions
 }
