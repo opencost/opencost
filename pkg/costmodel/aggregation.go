@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/util/httputil"
@@ -2126,124 +2125,6 @@ func ParseAggregationProperties(qp httputil.QueryParams, key string) ([]string, 
 	return aggregateBy, nil
 }
 
-type SummaryAllocation struct {
-	Name                   string                         `json:"name"`
-	Properties             *kubecost.AllocationProperties `json:"-"`
-	Start                  time.Time                      `json:"start"`
-	End                    time.Time                      `json:"end"`
-	CPUCoreRequestAverage  float64                        `json:"cpuCoreRequestAverage"`
-	CPUCoreUsageAverage    float64                        `json:"cpuCoreUsageAverage"`
-	CPUCost                float64                        `json:"cpuCost"`
-	GPUCost                float64                        `json:"gpuCost"`
-	NetworkCost            float64                        `json:"networkCost"`
-	LoadBalancerCost       float64                        `json:"loadBalancerCost"`
-	PVCost                 float64                        `json:"pvCost"`
-	RAMBytesRequestAverage float64                        `json:"ramByteRequestAverage"`
-	RAMBytesUsageAverage   float64                        `json:"ramByteUsageAverage"`
-	RAMCost                float64                        `json:"ramCost"`
-	SharedCost             float64                        `json:"sharedCost"`
-	ExternalCost           float64                        `json:"externalCost"`
-	Share                  bool                           `json:"-"`
-}
-
-func NewSummaryAllocation(alloc *kubecost.Allocation) *SummaryAllocation {
-	if alloc == nil {
-		return nil
-	}
-
-	return &SummaryAllocation{
-		Name:                   alloc.Name,
-		Properties:             alloc.Properties.Clone(),
-		Start:                  alloc.Start,
-		End:                    alloc.End,
-		CPUCoreRequestAverage:  alloc.CPUCoreRequestAverage,
-		CPUCoreUsageAverage:    alloc.CPUCoreUsageAverage,
-		CPUCost:                alloc.CPUCost + alloc.CPUCostAdjustment,
-		GPUCost:                alloc.GPUCost + alloc.GPUCostAdjustment,
-		NetworkCost:            alloc.NetworkCost + alloc.NetworkCostAdjustment,
-		LoadBalancerCost:       alloc.LoadBalancerCost + alloc.LoadBalancerCostAdjustment,
-		PVCost:                 alloc.PVCost() + alloc.PVCostAdjustment,
-		RAMBytesRequestAverage: alloc.RAMBytesRequestAverage,
-		RAMBytesUsageAverage:   alloc.RAMBytesUsageAverage,
-		RAMCost:                alloc.RAMCost + alloc.RAMCostAdjustment,
-		SharedCost:             alloc.SharedCost,
-		ExternalCost:           alloc.ExternalCost,
-	}
-}
-
-type SummaryAllocationSet struct {
-	sync.RWMutex
-	externalKeys       map[string]bool
-	idleKeys           map[string]bool
-	SummaryAllocations map[string]*SummaryAllocation `json:"allocations"`
-	Window             kubecost.Window               `json:"window"`
-}
-
-func NewSummaryAllocationSet(as *kubecost.AllocationSet) *SummaryAllocationSet {
-	if as == nil {
-		return nil
-	}
-	asMap := as.Map()
-	var sasMap map[string]*SummaryAllocation
-
-	sasMap = make(map[string]*SummaryAllocation, len(asMap))
-
-	sas := &SummaryAllocationSet{
-		SummaryAllocations: sasMap,
-		Window:             as.Window.Clone(),
-	}
-	sas.externalKeys = map[string]bool{}
-	sas.idleKeys = map[string]bool{}
-
-	for _, alloc := range as.Map() {
-		sa := NewSummaryAllocation(alloc)
-		sas.SummaryAllocations[sa.Name] = sa
-
-		if alloc.IsExternal() {
-			sas.externalKeys[sa.Name] = true
-		}
-
-		if alloc.IsIdle() {
-			sas.idleKeys[sa.Name] = true
-		}
-
-	}
-
-	return sas
-}
-
-type SummaryAllocationSetRange struct {
-	sync.RWMutex
-	Step                  time.Duration           `json:"step"`
-	SummaryAllocationSets []*SummaryAllocationSet `json:"sets"`
-	Window                kubecost.Window         `json:"window"`
-}
-
-func NewSummaryAllocationSetRange(sass ...*SummaryAllocationSet) *SummaryAllocationSetRange {
-	var step time.Duration
-	window := kubecost.NewWindow(nil, nil)
-
-	for _, sas := range sass {
-		if window.Start() == nil || (sas.Window.Start() != nil && sas.Window.Start().Before(*window.Start())) {
-			window.Expand(sas.Window)
-		}
-		if window.End() == nil || (sas.Window.End() != nil && sas.Window.End().After(*window.End())) {
-			window.Expand(sas.Window)
-		}
-		if step == 0 {
-			step = sas.Window.Duration()
-		} else if step != sas.Window.Duration() {
-			log.Warningf("instantiating range with step %s using set of step %s is illegal", step, sas.Window.Duration())
-		}
-	}
-
-	return &SummaryAllocationSetRange{
-		Step:                  step,
-		SummaryAllocationSets: sass,
-		Window:                window,
-	}
-}
-
 func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -2315,12 +2196,12 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 		asr = kubecost.NewAllocationSetRange(as)
 	}
 
-	sasl := []*SummaryAllocationSet{}
+	sasl := []*kubecost.SummaryAllocationSet{}
 	for _, as := range asr.Slice() {
-		sas := NewSummaryAllocationSet(as)
+		sas := kubecost.NewSummaryAllocationSet(as, []kubecost.AllocationMatchFunc{}, []kubecost.AllocationMatchFunc{}, false, false)
 		sasl = append(sasl, sas)
 	}
-	sasr := NewSummaryAllocationSetRange(sasl...)
+	sasr := kubecost.NewSummaryAllocationSetRange(sasl...)
 
 	w.Write(WrapData(sasr, nil))
 }
