@@ -15,7 +15,6 @@ import (
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/klog"
 )
 
 const (
@@ -375,6 +374,67 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	podPVCMap := map[podKey][]*PVC{}
 	buildPodPVCMap(podPVCMap, pvMap, pvcMap, podMap, resPodPVCAllocation)
 
+	// Because PVCs can be shared among pods, the respective PV cost
+	// needs to be evenly distributed to those pods based on time
+	// running, as well as the amount of time the PVC was shared.
+
+	// Build a relation between every PVC to the pods that mount it
+	// and a window representing the interval during which they
+	// were associated.
+	pvcPodIntervalMap := make(map[pvcKey]map[podKey]kubecost.Window)
+
+	for _, pod := range podMap {
+
+		for _, alloc := range pod.Allocations {
+
+			cluster := alloc.Properties.Cluster
+			namespace := alloc.Properties.Namespace
+			pod := alloc.Properties.Pod
+			thisPodKey := newPodKey(cluster, namespace, pod)
+
+			if pvcs, ok := podPVCMap[thisPodKey]; ok {
+				for _, pvc := range pvcs {
+
+					// Determine the (start, end) of the relationship between the
+					// given PVC and the associated Allocation so that a precise
+					// number of hours can be used to compute cumulative cost.
+					s, e := alloc.Start, alloc.End
+					if pvc.Start.After(alloc.Start) {
+						s = pvc.Start
+					}
+					if pvc.End.Before(alloc.End) {
+						e = pvc.End
+					}
+
+					thisPVCKey := newPVCKey(cluster, namespace, pvc.Name)
+					if pvcPodIntervalMap[thisPVCKey] == nil {
+						pvcPodIntervalMap[thisPVCKey] = make(map[podKey]kubecost.Window)
+					}
+
+					pvcPodIntervalMap[thisPVCKey][thisPodKey] = kubecost.NewWindow(&s, &e)
+				}
+			}
+
+			// We only need to look at one alloc per pod
+			break
+		}
+
+	}
+
+	// Build out a PV price coefficient for each pod with a PVC. Each
+	// PVC-pod relation needs a coefficient which modifies the PV cost
+	// such that PV costs can be shared between all pods using that PVC.
+	sharedPVCCostCoefficientMap := make(map[pvcKey]map[podKey][]CoefficientComponent)
+	for pvcKey, podIntervalMap := range pvcPodIntervalMap {
+
+		// Get single-point intervals from alloc-PVC relation windows.
+		intervals := getIntervalPointsFromWindows(podIntervalMap)
+
+		// Determine coefficients for each PVC-pod relation.
+		sharedPVCCostCoefficientMap[pvcKey] = getPVCCostCoefficients(intervals, podIntervalMap)
+
+	}
+
 	// Identify unmounted PVs (PVs without PVCs) and add one Allocation per
 	// cluster representing each cluster's unmounted PVs (if necessary).
 	applyUnmountedPVs(window, podMap, pvMap, pvcMap)
@@ -402,16 +462,16 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 			alloc.GPUCost = alloc.GPUHours * node.CostPerGPUHr
 			if pvcs, ok := podPVCMap[podKey]; ok {
 				for _, pvc := range pvcs {
-					// Determine the (start, end) of the relationship between the
-					// given PVC and the associated Allocation so that a precise
-					// number of hours can be used to compute cumulative cost.
+
+					pvcKey := newPVCKey(cluster, namespace, pvc.Name)
+
 					s, e := alloc.Start, alloc.End
-					if pvc.Start.After(alloc.Start) {
-						s = pvc.Start
+					if pvcInterval, ok := pvcPodIntervalMap[pvcKey][podKey]; ok {
+						s, e = *pvcInterval.Start(), *pvcInterval.End()
+					} else {
+						log.Warningf("CostModel.ComputeAllocation: allocation %s and PVC %s have no associated active window", alloc.Name, pvc.Name)
 					}
-					if pvc.End.Before(alloc.End) {
-						e = pvc.End
-					}
+
 					minutes := e.Sub(s).Minutes()
 					hrs := minutes / 60.0
 
@@ -422,6 +482,13 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 
 					gib := pvc.Bytes / 1024 / 1024 / 1024
 					cost := pvc.Volume.CostPerGiBHour * gib * hrs
+
+					// Scale PV cost by PVC sharing coefficient.
+					if coeffComponents, ok := sharedPVCCostCoefficientMap[pvcKey][podKey]; ok {
+						cost *= getCoefficientFromComponents(coeffComponents)
+					} else {
+						log.Warningf("CostModel.ComputeAllocation: allocation %s and PVC %s have relation but no coeff", alloc.Name, pvc.Name)
+					}
 
 					// Apply the size and cost of the PV to the allocation, each
 					// weighted by count (i.e. the number of containers in the pod)
@@ -678,7 +745,7 @@ func applyCPUCoresAllocated(podMap map[podKey]*Pod, resCPUCoresAllocated []*prom
 
 		cpuCores := res.Values[0].Value
 		if cpuCores > MAX_CPU_CAP {
-			klog.Infof("[WARNING] Very large cpu allocation, clamping to %f", res.Values[0].Value*(pod.Allocations[container].Minutes()/60.0))
+			log.Infof("[WARNING] Very large cpu allocation, clamping to %f", res.Values[0].Value*(pod.Allocations[container].Minutes()/60.0))
 			cpuCores = 0.0
 		}
 		hours := pod.Allocations[container].Minutes() / 60.0
@@ -724,7 +791,7 @@ func applyCPUCoresRequested(podMap map[podKey]*Pod, resCPUCoresRequested []*prom
 			pod.Allocations[container].CPUCoreHours = res.Values[0].Value * (pod.Allocations[container].Minutes() / 60.0)
 		}
 		if pod.Allocations[container].CPUCores() > MAX_CPU_CAP {
-			klog.Infof("[WARNING] Very large cpu allocation, clamping! to %f", res.Values[0].Value*(pod.Allocations[container].Minutes()/60.0))
+			log.Infof("[WARNING] Very large cpu allocation, clamping! to %f", res.Values[0].Value*(pod.Allocations[container].Minutes()/60.0))
 			pod.Allocations[container].CPUCoreHours = res.Values[0].Value * (pod.Allocations[container].Minutes() / 60.0)
 		}
 
@@ -764,7 +831,7 @@ func applyCPUCoresUsedAvg(podMap map[podKey]*Pod, resCPUCoresUsedAvg []*prom.Que
 
 		pod.Allocations[container].CPUCoreUsageAverage = res.Values[0].Value
 		if res.Values[0].Value > MAX_CPU_CAP {
-			klog.Infof("[WARNING] Very large cpu USAGE, dropping outlier")
+			log.Infof("[WARNING] Very large cpu USAGE, dropping outlier")
 			pod.Allocations[container].CPUCoreUsageAverage = 0.0
 		}
 	}

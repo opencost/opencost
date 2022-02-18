@@ -2,7 +2,6 @@ package cloud
 
 import (
 	"context"
-	"encoding/csv"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -18,7 +17,6 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
-	"github.com/kubecost/cost-model/pkg/kubecost"
 	"github.com/kubecost/cost-model/pkg/util"
 	"github.com/kubecost/cost-model/pkg/util/fileutil"
 	"github.com/kubecost/cost-model/pkg/util/json"
@@ -153,10 +151,6 @@ var azureRegions = []string{
 	"uaecentral",
 	"brazilsoutheast",
 }
-
-const AzureLayout = "2006-01-02"
-
-var HeaderStrings = []string{"MeterCategory", "UsageDateTime", "InstanceId", "AdditionalInfo", "Tags", "PreTaxCost", "SubscriptionGuid", "ConsumedService", "ResourceGroup", "ResourceType"}
 
 type regionParts []string
 
@@ -569,9 +563,9 @@ func (az *Azure) getAzureStorageConfig(forceReload bool) (subscriptionId, access
 	}
 
 	// 3. Fall back to env vars
-    subscriptionId = env.Get(env.AzureStorageSubscriptionIDEnvVar, config.AzureSubscriptionID)
-    accountName = env.Get(env.AzureStorageAccountNameEnvVar, "")
-    accessKey = env.Get(env.AzureStorageAccessKeyEnvVar, "")
+	subscriptionId = env.Get(env.AzureStorageSubscriptionIDEnvVar, config.AzureSubscriptionID)
+	accountName = env.Get(env.AzureStorageAccountNameEnvVar, "")
+	accessKey = env.Get(env.AzureStorageAccessKeyEnvVar, "")
 	containerName = env.Get(env.AzureStorageContainerNameEnvVar, "")
 	if accessKey != "" && accountName != "" && containerName != "" {
 		az.ServiceAccountChecks["hasStorage"] = &ServiceAccountCheck{
@@ -770,8 +764,11 @@ func (az *Azure) DownloadPricingData() error {
 
 	var authorizer autorest.Authorizer
 
+	azureEnv := determineCloudByRegion(config.AzureBillingRegion)
+
+
 	if config.AzureClientID != "" && config.AzureClientSecret != "" && config.AzureTenantID != "" {
-		credentialsConfig := auth.NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID)
+		credentialsConfig := NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID, azureEnv)
 		a, err := credentialsConfig.Authorizer()
 		if err != nil {
 			az.RateCardPricingError = err
@@ -783,8 +780,8 @@ func (az *Azure) DownloadPricingData() error {
 	if authorizer == nil {
 		a, err := auth.NewAuthorizerFromEnvironment()
 		authorizer = a
-		if err != nil { // Failed to create authorizer from environment, try from file
-			a, err := auth.NewAuthorizerFromFile(determineCloudByRegion(config.AzureBillingRegion).ResourceManagerEndpoint)
+		if err != nil {
+			a, err := auth.NewAuthorizerFromFile(azureEnv.ResourceManagerEndpoint)
 			if err != nil {
 				az.RateCardPricingError = err
 				return err
@@ -961,6 +958,18 @@ func determineCloudByRegion(region string) azure.Environment {
 	// Default to public cloud
 	return azure.PublicCloud
 }
+
+// NewClientCredentialsConfig creates an AuthorizerConfig object configured to obtain an Authorizer through Client Credentials.
+func NewClientCredentialsConfig(clientID string, clientSecret string, tenantID string, env azure.Environment) auth.ClientCredentialsConfig {
+	return auth.ClientCredentialsConfig{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		TenantID:     tenantID,
+		Resource:     env.ResourceManagerEndpoint,
+		AADEndpoint:  env.ActiveDirectoryEndpoint,
+	}
+}
+
 
 func (az *Azure) addPricing(features string, azurePricing *AzurePricing) {
 	if az.Pricing == nil {
@@ -1242,157 +1251,6 @@ func (az *Azure) GetConfig() (*CustomPricing, error) {
 		c.SpotLabelValue = defaultSpotLabelValue
 	}
 	return c, nil
-}
-
-// ExternalAllocations represents tagged assets outside the scope of kubernetes.
-// "start" and "end" are dates of the format YYYY-MM-DD
-// "aggregator" is the tag used to determine how to allocate those assets, ie namespace, pod, etc.
-func (az *Azure) ExternalAllocations(start string, end string, aggregators []string, filterType string, filterValue string, crossCluster bool) ([]*OutOfClusterAllocation, error) {
-	var csvRetriever CSVRetriever = AzureCSVRetriever{}
-	err := az.ConfigureAzureStorage() // load Azure Storage config
-	if err != nil {
-		return nil, err
-	}
-	return getExternalAllocations(start, end, aggregators, filterType, filterValue, crossCluster, csvRetriever)
-}
-
-func getExternalAllocations(start string, end string, aggregators []string, filterType string, filterValue string, crossCluster bool, csvRetriever CSVRetriever) ([]*OutOfClusterAllocation, error) {
-	dateFormat := "2006-1-2"
-	startTime, err := time.Parse(dateFormat, start)
-	if err != nil {
-		return nil, err
-	}
-	endTime, err := time.Parse(dateFormat, end)
-	if err != nil {
-		return nil, err
-	}
-	readers, err := csvRetriever.GetCSVReaders(startTime, endTime)
-	if err != nil {
-		return nil, err
-	}
-	oocAllocs := make(map[string]*OutOfClusterAllocation)
-	for _, reader := range readers {
-		err = parseCSV(reader, startTime, endTime, oocAllocs, aggregators, filterType, filterValue, crossCluster)
-		if err != nil {
-			return nil, err
-		}
-	}
-	var oocAllocsArr []*OutOfClusterAllocation
-	for _, alloc := range oocAllocs {
-		oocAllocsArr = append(oocAllocsArr, alloc)
-	}
-	return oocAllocsArr, nil
-}
-
-func parseCSV(reader *csv.Reader, start, end time.Time, oocAllocs map[string]*OutOfClusterAllocation, aggregators []string, filterType string, filterValue string, crossCluster bool) error {
-	headers, _ := reader.Read()
-	headerMap := createHeaderMap(headers)
-
-	for {
-		var record, err = reader.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return err
-		}
-
-		meterCategory := record[headerMap["MeterCategory"]]
-		category := selectCategory(meterCategory)
-		usageDateTime, err := time.Parse(AzureLayout, record[headerMap["UsageDateTime"]])
-		if err != nil {
-			klog.Errorf("failed to parse usage date: '%s'", record[headerMap["UsageDateTime"]])
-			continue
-		}
-		// Ignore VM's and Storage Items for now
-		if category == kubecost.ComputeCategory || category == kubecost.StorageCategory || !isValidUsageDateTime(start, end, usageDateTime) {
-			continue
-		}
-
-		itemCost, err := strconv.ParseFloat(record[headerMap["PreTaxCost"]], 64)
-		if err != nil {
-			klog.Infof("failed to parse cost: '%s'", record[headerMap["PreTaxCost"]])
-			continue
-		}
-
-		itemTags := make(map[string]string)
-		itemTagJson := makeValidJSON(record[headerMap["Tags"]])
-		if itemTagJson != "" {
-			err = json.Unmarshal([]byte(itemTagJson), &itemTags)
-			if err != nil {
-				klog.Infof("Could not parse item tags %v", err)
-			}
-		}
-
-		if filterType != "kubernetes_" {
-			if value, ok := itemTags[filterType]; !ok || value != filterValue {
-				continue
-			}
-		}
-		environment := ""
-		for _, agg := range aggregators {
-			if tag, ok := itemTags[agg]; ok {
-				environment = tag // just set to the first nonempty match
-				break
-			}
-		}
-		key := environment + record[headerMap["ConsumedService"]]
-		if alloc, ok := oocAllocs[key]; ok {
-			alloc.Cost += itemCost
-		} else {
-			ooc := &OutOfClusterAllocation{
-				Aggregator:  strings.Join(aggregators, ","),
-				Environment: environment,
-				Service:     record[headerMap["ConsumedService"]],
-				Cost:        itemCost,
-			}
-			oocAllocs[key] = ooc
-		}
-
-	}
-	return nil
-}
-
-func createHeaderMap(headers []string) map[string]int {
-	headerMap := make(map[string]int)
-	for i, header := range headers {
-		for _, headerString := range HeaderStrings {
-			if strings.Contains(header, headerString) {
-				headerMap[headerString] = i
-			}
-		}
-	}
-	return headerMap
-}
-
-func makeValidJSON(jsonString string) string {
-	if jsonString == "" || (jsonString[0] == '{' && jsonString[len(jsonString)-1] == '}') {
-		return jsonString
-	}
-	return fmt.Sprintf("{%v}", jsonString)
-}
-
-// UsageDateTime only contains date information and not time because of this filtering usageDate time is inclusive on start and exclusive on end
-func isValidUsageDateTime(start, end, usageDateTime time.Time) bool {
-	return (usageDateTime.After(start) || usageDateTime.Equal(start)) && usageDateTime.Before(end)
-}
-
-func getStartAndEndTimes(usageDateTime time.Time) (time.Time, time.Time) {
-	start := time.Date(usageDateTime.Year(), usageDateTime.Month(), usageDateTime.Day(), 0, 0, 0, 0, usageDateTime.Location())
-	end := time.Date(usageDateTime.Year(), usageDateTime.Month(), usageDateTime.Day(), 23, 59, 59, 999999999, usageDateTime.Location())
-	return start, end
-}
-
-func selectCategory(meterCategory string) string {
-	if meterCategory == "Virtual Machines" {
-		return kubecost.ComputeCategory
-	} else if meterCategory == "Storage" {
-		return kubecost.StorageCategory
-	} else if meterCategory == "Load Balancer" || meterCategory == "Bandwidth" {
-		return kubecost.NetworkCategory
-	} else {
-		return kubecost.OtherCategory
-	}
 }
 
 func (az *Azure) ApplyReservedInstancePricing(nodes map[string]*Node) {

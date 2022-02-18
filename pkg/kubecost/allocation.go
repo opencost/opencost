@@ -687,7 +687,7 @@ func (a *Allocation) add(that *Allocation) {
 	// in the case of keys matching but controllers not matching.
 	aggByForKey := []string{"cluster", "node", "namespace", "pod", "container"}
 	leftKey := a.generateKey(aggByForKey, nil)
-	rightKey := a.generateKey(aggByForKey, nil)
+	rightKey := that.generateKey(aggByForKey, nil)
 	leftProperties := a.Properties
 	rightProperties := that.Properties
 
@@ -2260,8 +2260,37 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 	return allocSet, nil
 }
 
-// TODO accumulate into lower-resolution chunks of the given resolution
-// func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) *AllocationSetRange
+// AccumulateBy sums AllocationSets based on the resolution given. The resolution given is subject to the scale used for the AllocationSets.
+// Resolutions not evenly divisible by the AllocationSetRange window durations accumulate sets until a sum greater than or equal to the resolution is met,
+// at which point AccumulateBy will start summing from 0 until the requested resolution is met again.
+// If the requested resolution is smaller than the window of an AllocationSet then the resolution will default to the duration of a set.
+// Resolutions larger than the duration of the entire AllocationSetRange will default to the duration of the range.
+func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*AllocationSetRange, error) {
+	allocSetRange := NewAllocationSetRange()
+	var allocSet *AllocationSet
+	var err error
+
+	asr.Lock()
+	defer asr.Unlock()
+	for i, as := range asr.allocations {
+		allocSet, err = allocSet.accumulate(as)
+		if err != nil {
+			return nil, err
+		}
+
+		if allocSet != nil {
+
+			// check if end of asr to sum the final set
+			// If total asr accumulated sum <= resolution return 1 accumulated set
+			if allocSet.Window.Duration() >= resolution || i == len(asr.allocations)-1 {
+				allocSetRange.allocations = append(allocSetRange.allocations, allocSet)
+				allocSet = NewAllocationSet(time.Time{}, time.Time{})
+			}
+		}
+	}
+
+	return allocSetRange, nil
+}
 
 // AggregateBy aggregates each AllocationSet in the range by the given
 // properties and options.

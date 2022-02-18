@@ -2360,6 +2360,11 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// sums each Set in the Range, producing one Set.
 	accumulate := qp.GetBool("accumulate", false)
 
+	// AccumulateBy is an optional parameter that accumulates an AllocationSetRange
+	// by the resolution of the given time duration.
+	// Defaults to 0. If a value is not passed then the parameter is not used.
+	accumulateBy := qp.GetDuration("accumulateBy", 0)
+
 	// Query for AllocationSets in increments of the given step duration,
 	// appending each to the AllocationSetRange.
 	asr := kubecost.NewAllocationSetRange()
@@ -2388,7 +2393,13 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Accumulate, if requested
-	if accumulate {
+	if accumulateBy != 0 {
+		asr, err = asr.AccumulateBy(accumulateBy)
+		if err != nil {
+			WriteError(w, InternalServerError(err.Error()))
+			return
+		}
+	} else if accumulate {
 		as, err := asr.Accumulate()
 		if err != nil {
 			WriteError(w, InternalServerError(err.Error()))

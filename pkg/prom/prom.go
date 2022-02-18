@@ -3,14 +3,15 @@ package prom
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/collections"
-	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util/atomic"
 	"github.com/kubecost/cost-model/pkg/util/fileutil"
@@ -57,19 +58,67 @@ func (auth *ClientAuth) Apply(req *http.Request) {
 }
 
 //--------------------------------------------------------------------------
+//  Rate Limit Options
+//--------------------------------------------------------------------------
+
+// MaxRetryAfterDuration is the maximum amount of time we should ever wait
+// during a retry. This is to prevent starvation on the request threads
+const MaxRetryAfterDuration = 10 * time.Second
+
+// RateLimitRetryOpts contains retry options
+type RateLimitRetryOpts struct {
+	MaxRetries       int
+	DefaultRetryWait time.Duration
+}
+
+// RateLimitResponseStatus contains the status of the rate limited retries
+type RateLimitResponseStatus struct {
+	RetriesRemaining int
+	WaitTime         time.Duration
+}
+
+// String creates a string representation of the rate limit status
+func (rtrs *RateLimitResponseStatus) String() string {
+	return fmt.Sprintf("Wait Time: %.2f seconds, Retries Remaining: %d", rtrs.WaitTime.Seconds(), rtrs.RetriesRemaining)
+}
+
+// RateLimitedError contains a list of retry statuses that occurred during
+// retries on a rate limited response
+type RateLimitedResponseError struct {
+	RateLimitStatus []*RateLimitResponseStatus
+}
+
+// Error returns a string representation of the error, including the rate limit
+// status reports
+func (rlre *RateLimitedResponseError) Error() string {
+	var sb strings.Builder
+
+	sb.WriteString("Request was Rate Limited and Retries Exhausted:\n")
+
+	for _, rls := range rlre.RateLimitStatus {
+		sb.WriteString(" * ")
+		sb.WriteString(rls.String())
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
+}
+
+//--------------------------------------------------------------------------
 //  RateLimitedPrometheusClient
 //--------------------------------------------------------------------------
 
 // RateLimitedPrometheusClient is a prometheus client which limits the total number of
 // concurrent outbound requests allowed at a given moment.
 type RateLimitedPrometheusClient struct {
-	id         string
-	client     prometheus.Client
-	auth       *ClientAuth
-	queue      collections.BlockingQueue
-	decorator  QueryParamsDecorator
-	outbound   *atomic.AtomicInt32
-	fileLogger *golog.Logger
+	id             string
+	client         prometheus.Client
+	auth           *ClientAuth
+	queue          collections.BlockingQueue
+	decorator      QueryParamsDecorator
+	rateLimitRetry *RateLimitRetryOpts
+	outbound       *atomic.AtomicInt32
+	fileLogger     *golog.Logger
 }
 
 // requestCounter is used to determine if the prometheus client keeps track of
@@ -81,11 +130,14 @@ type requestCounter interface {
 
 // NewRateLimitedClient creates a prometheus client which limits the number of concurrent outbound
 // prometheus requests.
-func NewRateLimitedClient(id string, config prometheus.Config, maxConcurrency int, auth *ClientAuth, decorator QueryParamsDecorator, queryLogFile string) (prometheus.Client, error) {
-	c, err := prometheus.NewClient(config)
-	if err != nil {
-		return nil, err
-	}
+func NewRateLimitedClient(
+	id string,
+	client prometheus.Client,
+	maxConcurrency int,
+	auth *ClientAuth,
+	decorator QueryParamsDecorator,
+	rateLimitRetryOpts *RateLimitRetryOpts,
+	queryLogFile string) (prometheus.Client, error) {
 
 	queue := collections.NewBlockingQueue()
 	outbound := atomic.NewAtomicInt32(0)
@@ -105,14 +157,24 @@ func NewRateLimitedClient(id string, config prometheus.Config, maxConcurrency in
 		}
 	}
 
+	// default authentication
+	if auth == nil {
+		auth = &ClientAuth{
+			Username:    "",
+			Password:    "",
+			BearerToken: "",
+		}
+	}
+
 	rlpc := &RateLimitedPrometheusClient{
-		id:         id,
-		client:     c,
-		queue:      queue,
-		decorator:  decorator,
-		outbound:   outbound,
-		auth:       auth,
-		fileLogger: logger,
+		id:             id,
+		client:         client,
+		queue:          queue,
+		decorator:      decorator,
+		rateLimitRetry: rateLimitRetryOpts,
+		outbound:       outbound,
+		auth:           auth,
+		fileLogger:     logger,
 	}
 
 	// Start concurrent request processing
@@ -168,6 +230,9 @@ type workResponse struct {
 
 // worker is used as a consumer goroutine to pull workRequest from the blocking queue and execute them
 func (rlpc *RateLimitedPrometheusClient) worker() {
+	retryOpts := rlpc.rateLimitRetry
+	retryRateLimit := retryOpts != nil
+
 	for {
 		// blocks until there is an item available
 		item := rlpc.queue.Dequeue()
@@ -197,6 +262,43 @@ func (rlpc *RateLimitedPrometheusClient) worker() {
 			// Execute Request
 			roundTripStart := time.Now()
 			res, body, warnings, err := rlpc.client.Do(ctx, req)
+
+			// If retries on rate limited response is enabled:
+			// * Check for a 429 StatusCode OR 400 StatusCode and message containing "ThrottlingException"
+			// * Attempt to parse a Retry-After from response headers (common on 429)
+			// * If we couldn't determine how long to wait for a retry, use 1 second by default
+			if retryRateLimit {
+				var status []*RateLimitResponseStatus
+				var retries int = retryOpts.MaxRetries
+				var defaultWait time.Duration = retryOpts.DefaultRetryWait
+
+				for httputil.IsRateLimited(res, body) && retries > 0 {
+					// calculate amount of time to wait before retry, in the event the default wait is used,
+					// an exponential backoff is applied based on the number of times we've retried.
+					retryAfter := httputil.RateLimitedRetryFor(res, defaultWait, retryOpts.MaxRetries-retries)
+					retries--
+
+					status = append(status, &RateLimitResponseStatus{RetriesRemaining: retries, WaitTime: retryAfter})
+					log.DedupedInfof(50, "Rate Limited Prometheus Request. Waiting for: %d ms. Retries Remaining: %d", retryAfter.Milliseconds(), retries)
+
+					// To prevent total starvation of request threads, hard limit wait time to 10s. We also want quota limits/throttles
+					// to eventually pass through as an error. For example, if some quota is reached with 10 days left, we clearly
+					// don't want to block for 10 days.
+					if retryAfter > MaxRetryAfterDuration {
+						retryAfter = MaxRetryAfterDuration
+					}
+
+					// execute wait and retry
+					time.Sleep(retryAfter)
+					res, body, warnings, err = rlpc.client.Do(ctx, req)
+				}
+
+				// if we've broken out of our retry loop and the resp is still rate limited,
+				// then let's generate a meaningful error to pass back
+				if retries == 0 && httputil.IsRateLimited(res, body) {
+					err = &RateLimitedResponseError{RateLimitStatus: status}
+				}
+			}
 
 			// Decrement outbound counter
 			rlpc.outbound.Decrement()
@@ -245,30 +347,50 @@ func (rlpc *RateLimitedPrometheusClient) Do(ctx context.Context, req *http.Reque
 //  Client Helpers
 //--------------------------------------------------------------------------
 
-func NewPrometheusClient(address string, timeout, keepAlive time.Duration, queryConcurrency int, queryLogFile string) (prometheus.Client, error) {
-	tlsConfig := &tls.Config{InsecureSkipVerify: env.GetInsecureSkipVerify()}
+// PrometheusClientConfig contains all configurable options for creating a new prometheus client
+type PrometheusClientConfig struct {
+	Timeout               time.Duration
+	KeepAlive             time.Duration
+	TLSHandshakeTimeout   time.Duration
+	TLSInsecureSkipVerify bool
+	RateLimitRetryOpts    *RateLimitRetryOpts
+	Auth                  *ClientAuth
+	QueryConcurrency      int
+	QueryLogFile          string
+}
 
-	// may be necessary for long prometheus queries. TODO: make this configurable
+// NewPrometheusClient creates a new rate limited client which limits by outbound concurrent requests.
+func NewPrometheusClient(address string, config *PrometheusClientConfig) (prometheus.Client, error) {
+	// may be necessary for long prometheus queries
 	pc := prometheus.Config{
 		Address: address,
 		RoundTripper: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
 			DialContext: (&net.Dialer{
-				Timeout:   timeout,
-				KeepAlive: keepAlive,
+				Timeout:   config.Timeout,
+				KeepAlive: config.KeepAlive,
 			}).DialContext,
-			TLSHandshakeTimeout: 10 * time.Second,
-			TLSClientConfig:     tlsConfig,
+			TLSHandshakeTimeout: config.TLSHandshakeTimeout,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: config.TLSInsecureSkipVerify,
+			},
 		},
 	}
 
-	auth := &ClientAuth{
-		Username:    env.GetDBBasicAuthUsername(),
-		Password:    env.GetDBBasicAuthUserPassword(),
-		BearerToken: env.GetDBBearerToken(),
+	client, err := prometheus.NewClient(pc)
+	if err != nil {
+		return nil, err
 	}
 
-	return NewRateLimitedClient(PrometheusClientID, pc, queryConcurrency, auth, nil, queryLogFile)
+	return NewRateLimitedClient(
+		PrometheusClientID,
+		client,
+		config.QueryConcurrency,
+		config.Auth,
+		nil,
+		config.RateLimitRetryOpts,
+		config.QueryLogFile,
+	)
 }
 
 // LogQueryRequest logs the query that was send to prom/thanos with the time in queue and total time after being sent
