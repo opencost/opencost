@@ -52,7 +52,7 @@ Kubernetes.
 
 #### How do you measure the cost of CPU/RAM/GPU/storage for a container, pod, deployment, etc.
 
-The Kubecost model collects pricing data from major cloud providers, e.g. GCP, Azure and AWS, to provide the real-time cost of running workloads. Based on data from these APIs, each container/pod inherits a cost per CPU-hour, GPU-hour, Storage Gb-hour and cost per RAM Gb-hour based on the node where it was running or the class of storage provisioned. This means containers of the same size, as measured by the max of requests or usage, could be charged different resource rates if they are scheduled in seperate regions, on nodes with different usage types (on-demand vs preemptible), etc. 
+The Kubecost model collects pricing data from major cloud providers, e.g. GCP, Azure and AWS, to provide the real-time cost of running workloads. Based on data from these APIs, each container/pod inherits a cost per CPU-hour, GPU-hour, Storage Gb-hour and cost per RAM Gb-hour based on the node where it was running or the class of storage provisioned. This means containers of the same size, as measured by the max of requests or usage, could be charged different resource rates if they are scheduled in separate regions, on nodes with different usage types (on-demand vs preemptible), etc. 
 
 For on-prem clusters, these resource prices can be configured directly with custom pricing sheets (more below).
 
