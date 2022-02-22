@@ -758,17 +758,12 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 				key = fmt.Sprintf("%s/%s", sa.Properties.Cluster, sa.Properties.Node)
 			}
 
-			if _, ok := allocTotalsAfterFilters[key]; ok {
-				allocTotalsAfterFilters[key].CPUCost += sa.CPUCost
-				allocTotalsAfterFilters[key].GPUCost += sa.GPUCost
-				allocTotalsAfterFilters[key].RAMCost += sa.RAMCost
-			} else {
-				allocTotalsAfterFilters[key] = &AllocationTotals{
-					CPUCost: sa.CPUCost,
-					GPUCost: sa.GPUCost,
-					RAMCost: sa.RAMCost,
-				}
+			if _, ok := allocTotalsAfterFilters[key]; !ok {
+				allocTotalsAfterFilters[key] = &AllocationTotals{}
 			}
+			allocTotalsAfterFilters[key].CPUCost += sa.CPUCost
+			allocTotalsAfterFilters[key].GPUCost += sa.GPUCost
+			allocTotalsAfterFilters[key].RAMCost += sa.RAMCost
 		}
 
 		// 8. Inserting the allocation with the generated key for a name
@@ -830,30 +825,30 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 			// Percentage of idle that should remain after filters are applied,
 			// which equals the proportion of filtered-to-actual cost.
 			cpuFilterCoeff := 0.0
-			if allocTotals[key].CPUCost > 0.0 {
+			if allocTotals[key].TotalCPUCost() > 0.0 {
 				filteredAlloc, ok := allocTotalsAfterFilters[key]
 				if ok {
-					cpuFilterCoeff = filteredAlloc.CPUCost / allocTotals[key].CPUCost
+					cpuFilterCoeff = filteredAlloc.TotalCPUCost() / allocTotals[key].TotalCPUCost()
 				} else {
 					cpuFilterCoeff = 0.0
 				}
 			}
 
 			gpuFilterCoeff := 0.0
-			if allocTotals[key].GPUCost > 0.0 {
+			if allocTotals[key].TotalGPUCost() > 0.0 {
 				filteredAlloc, ok := allocTotalsAfterFilters[key]
 				if ok {
-					gpuFilterCoeff = filteredAlloc.GPUCost / allocTotals[key].GPUCost
+					gpuFilterCoeff = filteredAlloc.TotalGPUCost() / allocTotals[key].TotalGPUCost()
 				} else {
 					gpuFilterCoeff = 0.0
 				}
 			}
 
 			ramFilterCoeff := 0.0
-			if allocTotals[key].RAMCost > 0.0 {
+			if allocTotals[key].TotalRAMCost() > 0.0 {
 				filteredAlloc, ok := allocTotalsAfterFilters[key]
 				if ok {
-					ramFilterCoeff = filteredAlloc.RAMCost / allocTotals[key].RAMCost
+					ramFilterCoeff = filteredAlloc.TotalRAMCost() / allocTotals[key].TotalRAMCost()
 				} else {
 					ramFilterCoeff = 0.0
 				}
