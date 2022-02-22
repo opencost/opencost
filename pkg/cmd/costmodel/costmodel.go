@@ -26,6 +26,7 @@ func Execute(opts *CostModelOpts) error {
 
 	rootMux := http.NewServeMux()
 	a.Router.GET("/healthz", Healthz)
+	a.Router.GET("/allocation/summary", a.ComputeAllocationHandlerSummary)
 	rootMux.Handle("/", a.Router)
 	rootMux.Handle("/metrics", promhttp.Handler())
 	handler := cors.AllowAll().Handler(rootMux)
