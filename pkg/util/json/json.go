@@ -8,8 +8,8 @@ import (
 
 var Marshal = gojson.Marshal
 var Unmarshal = gojson.Unmarshal
-var NewEncoder = json.NewEncoder
-var NewDecoder = json.NewDecoder
+var NewEncoder = gojson.NewEncoder
+var NewDecoder = gojson.NewDecoder
 
 type Marshaler = json.Marshaler
 type Unmarshaler = json.Unmarshaler
