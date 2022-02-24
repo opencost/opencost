@@ -1597,7 +1597,11 @@ func (aws *AWS) QueryAthenaPaginated(ctx context.Context, query string, fn func(
 	}
 	getQueryResultsPaginator := athena.NewGetQueryResultsPaginator(cli, queryResultsInput)
 	for getQueryResultsPaginator.HasMorePages() {
-		pg, _ := getQueryResultsPaginator.NextPage(ctx)
+		pg, err := getQueryResultsPaginator.NextPage(ctx)
+		if err != nil {
+			log.Errorf("QueryAthenaPaginated: NextPage error: %s", err.Error())
+			continue
+		}
 		fn(pg)
 	}
 	return nil
@@ -1653,6 +1657,13 @@ func (aws *AWS) GetSavingsPlanDataFromAthena() error {
 
 	page := 0
 	processResults := func(op *athena.GetQueryResultsOutput) bool {
+		if op == nil {
+			log.Errorf("GetSavingsPlanDataFromAthena: Athena page is nil")
+			return false
+		} else if op.ResultSet == nil {
+			log.Errorf("GetSavingsPlanDataFromAthena: Athena page.ResultSet is nil")
+			return false
+		}
 		aws.SavingsPlanDataLock.Lock()
 		aws.SavingsPlanDataByInstanceID = make(map[string]*SavingsPlanData) // Clean out the old data and only report a savingsplan price if its in the most recent run.
 		mostRecentDate := ""
@@ -1743,6 +1754,13 @@ func (aws *AWS) GetReservationDataFromAthena() error {
 
 	page := 0
 	processResults := func(op *athena.GetQueryResultsOutput) bool {
+		if op == nil {
+			log.Errorf("GetReservationDataFromAthena: Athena page is nil")
+			return false
+		} else if op.ResultSet == nil {
+			log.Errorf("GetReservationDataFromAthena: Athena page.ResultSet is nil")
+			return false
+		}
 		aws.RIDataLock.Lock()
 		aws.RIPricingByInstanceID = make(map[string]*RIData) // Clean out the old data and only report a RI price if its in the most recent run.
 		mostRecentDate := ""
@@ -1806,6 +1824,13 @@ func (aws *AWS) fetchColumns() (map[string]bool, error) {
 	query := fmt.Sprintf(q, awsAthenaInfo.AthenaDatabase, awsAthenaInfo.AthenaTable)
 	pageNum := 0
 	athenaErr := aws.QueryAthenaPaginated(context.TODO(), query, func(page *athena.GetQueryResultsOutput) bool {
+		if page == nil {
+			log.Errorf("fetchColumns: Athena page is nil")
+			return false
+		} else if page.ResultSet == nil {
+			log.Errorf("fetchColumns: Athena page.ResultSet is nil")
+			return false
+		}
 		// remove header row 'column_name'
 		rows := page.ResultSet.Rows[1:]
 		for _, row := range rows {
