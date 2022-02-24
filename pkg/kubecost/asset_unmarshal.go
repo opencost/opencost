@@ -718,8 +718,6 @@ func (as *AssetSet) MarshalJSON() ([]byte, error) {
 
 // Unmarshals a marshaled AssetSet json into AssetSetResponse
 func (asr *AssetSetResponse) UnmarshalJSON(b []byte) error {
-
-	// json used here, as jsonitter UnmarshalJSON won't work with RawMessage
 	var assetMap map[string]*json.RawMessage
 
 	// Partial unmarshal to map of json RawMessage
@@ -850,8 +848,6 @@ func (asr *AssetSetResponse) RawMessageToAssetSetResponse(assetMap map[string]*j
 }
 
 func (asrr *AssetSetRangeResponse) UnmarshalJSON(b []byte) error {
-
-	// json used here, as jsonitter UnmarshalJSON won't work with RawMessage
 	var assetMapList []map[string]*json.RawMessage
 
 	// Partial unmarshal to map of json RawMessage
