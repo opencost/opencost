@@ -5,6 +5,12 @@ WORKDIR /app
 COPY go.mod .
 COPY go.sum .
 
+# This ensures that CGO is disabled for go test running AND for the build
+# step. This prevents a build failure when building an ARM64 image with
+# docker buildx. I believe this is because the ARM64 version of the
+# golang:latest image does not contain GCC, while the AMD64 version does.
+ARG CGO_ENABLED=0
+
 # Get dependencies - will also be cached if we won't change mod/sum
 RUN go mod download
 # COPY the source code as the last step
@@ -14,7 +20,7 @@ RUN set -e ;\
     go test ./test/*.go;\
     go test ./pkg/*;\
     cd cmd/costmodel;\
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    GOOS=linux GOARCH=amd64 \
     go build -a -installsuffix cgo -o /go/bin/app
 
 FROM alpine:latest
