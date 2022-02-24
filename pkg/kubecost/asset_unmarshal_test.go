@@ -1,7 +1,8 @@
 package kubecost
 
 import (
-	"encoding/json"
+	"github.com/kubecost/cost-model/pkg/util/json"
+
 	"testing"
 	"time"
 )
