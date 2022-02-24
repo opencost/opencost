@@ -18,16 +18,27 @@ var (
 // KubeJobCollector is a prometheus collector that generates job sourced metrics.
 type KubeJobCollector struct {
 	KubeClusterCache clustercache.ClusterCache
+	metricsConfig    MetricsConfig
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
 // collected by this Collector.
 func (kjc KubeJobCollector) Describe(ch chan<- *prometheus.Desc) {
+	disabledMetrics := kjc.metricsConfig.GetDisabledMetricsMap()
+	if _, disabled := disabledMetrics["kube_pod_annotations"]; disabled {
+		return
+	}
+
 	ch <- prometheus.NewDesc("kube_job_status_failed", "The number of pods which reached Phase Failed and the reason for failure.", []string{}, nil)
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (kjc KubeJobCollector) Collect(ch chan<- prometheus.Metric) {
+	disabledMetrics := kjc.metricsConfig.GetDisabledMetricsMap()
+	if _, disabled := disabledMetrics["kube_pod_annotations"]; disabled {
+		return
+	}
+
 	jobs := kjc.KubeClusterCache.GetAllJobs()
 	for _, job := range jobs {
 		jobName := job.GetName()
@@ -53,6 +64,7 @@ func (kjc KubeJobCollector) Collect(ch chan<- prometheus.Metric) {
 			}
 		}
 	}
+
 }
 
 //--------------------------------------------------------------------------

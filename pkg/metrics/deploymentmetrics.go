@@ -16,18 +16,28 @@ import (
 // specific deployment metrics.
 type KubecostDeploymentCollector struct {
 	KubeClusterCache clustercache.ClusterCache
+	metricsConfig    MetricsConfig
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
 // collected by this Collector.
 func (kdc KubecostDeploymentCollector) Describe(ch chan<- *prometheus.Desc) {
+	disabledMetrics := kdc.metricsConfig.GetDisabledMetricsMap()
+	if _, disabled := disabledMetrics["deployment_match_labels"]; disabled {
+		return
+	}
+
 	ch <- prometheus.NewDesc("deployment_match_labels", "deployment match labels", []string{}, nil)
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (kdc KubecostDeploymentCollector) Collect(ch chan<- prometheus.Metric) {
-	ds := kdc.KubeClusterCache.GetAllDeployments()
+	disabledMetrics := kdc.metricsConfig.GetDisabledMetricsMap()
+	if _, disabled := disabledMetrics["deployment_match_labels"]; disabled {
+		return
+	}
 
+	ds := kdc.KubeClusterCache.GetAllDeployments()
 	for _, deployment := range ds {
 		deploymentName := deployment.GetName()
 		deploymentNS := deployment.GetNamespace()
@@ -38,6 +48,7 @@ func (kdc KubecostDeploymentCollector) Collect(ch chan<- prometheus.Metric) {
 			ch <- m
 		}
 	}
+
 }
 
 //--------------------------------------------------------------------------
@@ -109,19 +120,27 @@ func (dmlm DeploymentMatchLabelsMetric) Write(m *dto.Metric) error {
 // KubeDeploymentCollector is a prometheus collector that generates
 type KubeDeploymentCollector struct {
 	KubeClusterCache clustercache.ClusterCache
+	metricsConfig    MetricsConfig
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
 // collected by this Collector.
 func (kdc KubeDeploymentCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc("kube_deployment_spec_replicas", "Number of desired pods for a deployment.", []string{}, nil)
-	ch <- prometheus.NewDesc("kube_deployment_status_replicas_available", "The number of available replicas per deployment.", []string{}, nil)
+	disabledMetrics := kdc.metricsConfig.GetDisabledMetricsMap()
+
+	if _, disabled := disabledMetrics["kube_deployment_spec_replicas"]; !disabled {
+		ch <- prometheus.NewDesc("kube_deployment_spec_replicas", "Number of desired pods for a deployment.", []string{}, nil)
+	}
+	if _, disabled := disabledMetrics["kube_deployment_status_replicas_available"]; !disabled {
+		ch <- prometheus.NewDesc("kube_deployment_status_replicas_available", "The number of available replicas per deployment.", []string{}, nil)
+	}
 
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (kdc KubeDeploymentCollector) Collect(ch chan<- prometheus.Metric) {
 	deployments := kdc.KubeClusterCache.GetAllDeployments()
+	disabledMetrics := kdc.metricsConfig.GetDisabledMetricsMap()
 
 	for _, deployment := range deployments {
 		deploymentName := deployment.GetName()
@@ -135,14 +154,17 @@ func (kdc KubeDeploymentCollector) Collect(ch chan<- prometheus.Metric) {
 			replicas = *deployment.Spec.Replicas
 		}
 
-		ch <- newKubeDeploymentReplicasMetric("kube_deployment_spec_replicas", deploymentName, deploymentNS, replicas)
-
-		// Replicas Available
-		ch <- newKubeDeploymentStatusAvailableReplicasMetric(
-			"kube_deployment_status_replicas_available",
-			deploymentName,
-			deploymentNS,
-			deployment.Status.AvailableReplicas)
+		if _, disabled := disabledMetrics["kube_deployment_spec_replicas"]; !disabled {
+			ch <- newKubeDeploymentReplicasMetric("kube_deployment_spec_replicas", deploymentName, deploymentNS, replicas)
+		}
+		if _, disabled := disabledMetrics["kube_deployment_status_replicas_available"]; !disabled {
+			// Replicas Available
+			ch <- newKubeDeploymentStatusAvailableReplicasMetric(
+				"kube_deployment_status_replicas_available",
+				deploymentName,
+				deploymentNS,
+				deployment.Status.AvailableReplicas)
+		}
 	}
 }
 

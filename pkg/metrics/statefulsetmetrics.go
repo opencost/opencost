@@ -15,16 +15,27 @@ import (
 // StatefulsetCollector is a prometheus collector that generates StatefulsetMetrics
 type KubecostStatefulsetCollector struct {
 	KubeClusterCache clustercache.ClusterCache
+	metricsConfig    MetricsConfig
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
 // collected by this Collector.
 func (sc KubecostStatefulsetCollector) Describe(ch chan<- *prometheus.Desc) {
+	disabledMetrics := sc.metricsConfig.GetDisabledMetricsMap()
+	if _, disabled := disabledMetrics["statefulSet_match_labels"]; disabled {
+		return
+	}
+
 	ch <- prometheus.NewDesc("statefulSet_match_labels", "statfulSet match labels", []string{}, nil)
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (sc KubecostStatefulsetCollector) Collect(ch chan<- prometheus.Metric) {
+	disabledMetrics := sc.metricsConfig.GetDisabledMetricsMap()
+	if _, disabled := disabledMetrics["statefulSet_match_labels"]; disabled {
+		return
+	}
+
 	ds := sc.KubeClusterCache.GetAllStatefulSets()
 	for _, statefulset := range ds {
 		statefulsetName := statefulset.GetName()
@@ -36,6 +47,7 @@ func (sc KubecostStatefulsetCollector) Collect(ch chan<- prometheus.Metric) {
 			ch <- m
 		}
 	}
+
 }
 
 //--------------------------------------------------------------------------

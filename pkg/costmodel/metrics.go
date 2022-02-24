@@ -32,22 +32,35 @@ import (
 
 // ClusterInfoCollector is a prometheus collector that generates ClusterInfoMetrics
 type ClusterInfoCollector struct {
-	ClusterInfo clusters.ClusterInfoProvider
+	ClusterInfo   clusters.ClusterInfoProvider
+	metricsConfig metrics.MetricsConfig
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
 // collected by this Collector.
 func (cic ClusterInfoCollector) Describe(ch chan<- *prometheus.Desc) {
+	disabledMetrics := cic.metricsConfig.GetDisabledMetricsMap()
+	if _, disabled := disabledMetrics["kube_pod_annotations"]; disabled {
+		return
+	}
+
 	ch <- prometheus.NewDesc("kubecost_cluster_info", "Kubecost Cluster Info", []string{}, nil)
+
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (cic ClusterInfoCollector) Collect(ch chan<- prometheus.Metric) {
+	disabledMetrics := cic.metricsConfig.GetDisabledMetricsMap()
+	if _, disabled := disabledMetrics["kube_pod_annotations"]; disabled {
+		return
+	}
+
 	clusterInfo := cic.ClusterInfo.GetClusterInfo()
 	labels := prom.MapToLabels(clusterInfo)
 
 	m := newClusterInfoMetric("kubecost_cluster_info", labels)
 	ch <- m
+
 }
 
 //--------------------------------------------------------------------------
@@ -125,97 +138,154 @@ var (
 )
 
 // initCostModelMetrics uses a sync.Once to ensure that these metrics are only created once
-func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud.Provider, clusterInfo clusters.ClusterInfoProvider) {
+func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud.Provider, clusterInfo clusters.ClusterInfoProvider, metricsConfig *metrics.MetricsConfig) {
+
+	disabledMetrics := metricsConfig.GetDisabledMetricsMap()
+	var toRegisterGV []*prometheus.GaugeVec
+	var toRegisterGauge []prometheus.Gauge
+
 	metricsInit.Do(func() {
-		cpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "node_cpu_hourly_cost",
-			Help: "node_cpu_hourly_cost hourly cost for each cpu on this node",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id"})
 
-		ramGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "node_ram_hourly_cost",
-			Help: "node_ram_hourly_cost hourly cost for each gb of ram on this node",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+		if _, disabled := disabledMetrics["node_cpu_hourly_cost"]; !disabled {
+			cpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "node_cpu_hourly_cost",
+				Help: "node_cpu_hourly_cost hourly cost for each cpu on this node",
+			}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+			toRegisterGV = append(toRegisterGV, cpuGv)
+		}
 
-		gpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "node_gpu_hourly_cost",
-			Help: "node_gpu_hourly_cost hourly cost for each gpu on this node",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+		if _, disabled := disabledMetrics["node_ram_hourly_cost"]; !disabled {
+			ramGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "node_ram_hourly_cost",
+				Help: "node_ram_hourly_cost hourly cost for each gb of ram on this node",
+			}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+			toRegisterGV = append(toRegisterGV, ramGv)
+		}
 
-		gpuCountGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "node_gpu_count",
-			Help: "node_gpu_count count of gpu on this node",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+		if _, disabled := disabledMetrics["node_gpu_hourly_cost"]; !disabled {
+			gpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "node_gpu_hourly_cost",
+				Help: "node_gpu_hourly_cost hourly cost for each gpu on this node",
+			}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+			toRegisterGV = append(toRegisterGV, gpuGv)
+		}
 
-		pvGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "pv_hourly_cost",
-			Help: "pv_hourly_cost Cost per GB per hour on a persistent disk",
-		}, []string{"volumename", "persistentvolume", "provider_id"})
+		if _, disabled := disabledMetrics["node_gpu_count"]; !disabled {
+			gpuCountGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "node_gpu_count",
+				Help: "node_gpu_count count of gpu on this node",
+			}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+			toRegisterGV = append(toRegisterGV, gpuCountGv)
+		}
 
-		spotGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "kubecost_node_is_spot",
-			Help: "kubecost_node_is_spot Cloud provider info about node preemptibility",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+		if _, disabled := disabledMetrics["pv_hourly_cost"]; !disabled {
+			pvGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "pv_hourly_cost",
+				Help: "pv_hourly_cost Cost per GB per hour on a persistent disk",
+			}, []string{"volumename", "persistentvolume", "provider_id"})
+			toRegisterGV = append(toRegisterGV, pvGv)
+		}
 
-		totalGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "node_total_hourly_cost",
-			Help: "node_total_hourly_cost Total node cost per hour",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+		if _, disabled := disabledMetrics["kubecost_node_is_spot"]; !disabled {
+			spotGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "kubecost_node_is_spot",
+				Help: "kubecost_node_is_spot Cloud provider info about node preemptibility",
+			}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+			toRegisterGV = append(toRegisterGV, spotGv)
+		}
 
-		ramAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "container_memory_allocation_bytes",
-			Help: "container_memory_allocation_bytes Bytes of RAM used",
-		}, []string{"namespace", "pod", "container", "instance", "node"})
+		if _, disabled := disabledMetrics["node_total_hourly_cost"]; !disabled {
+			totalGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "node_total_hourly_cost",
+				Help: "node_total_hourly_cost Total node cost per hour",
+			}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+			toRegisterGV = append(toRegisterGV, totalGv)
+		}
 
-		cpuAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "container_cpu_allocation",
-			Help: "container_cpu_allocation Percent of a single CPU used in a minute",
-		}, []string{"namespace", "pod", "container", "instance", "node"})
+		if _, disabled := disabledMetrics["container_memory_allocation_bytes"]; !disabled {
+			ramAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "container_memory_allocation_bytes",
+				Help: "container_memory_allocation_bytes Bytes of RAM used",
+			}, []string{"namespace", "pod", "container", "instance", "node"})
+			toRegisterGV = append(toRegisterGV, ramAllocGv)
+		}
 
-		gpuAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "container_gpu_allocation",
-			Help: "container_gpu_allocation GPU used",
-		}, []string{"namespace", "pod", "container", "instance", "node"})
+		if _, disabled := disabledMetrics["container_cpu_allocation"]; !disabled {
+			cpuAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "container_cpu_allocation",
+				Help: "container_cpu_allocation Percent of a single CPU used in a minute",
+			}, []string{"namespace", "pod", "container", "instance", "node"})
+			toRegisterGV = append(toRegisterGV, cpuAllocGv)
+		}
 
-		pvAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "pod_pvc_allocation",
-			Help: "pod_pvc_allocation Bytes used by a PVC attached to a pod",
-		}, []string{"namespace", "pod", "persistentvolumeclaim", "persistentvolume"})
+		if _, disabled := disabledMetrics["container_gpu_allocation"]; !disabled {
+			gpuAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "container_gpu_allocation",
+				Help: "container_gpu_allocation GPU used",
+			}, []string{"namespace", "pod", "container", "instance", "node"})
+			toRegisterGV = append(toRegisterGV, gpuAllocGv)
+		}
 
-		networkZoneEgressCostG = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "kubecost_network_zone_egress_cost",
-			Help: "kubecost_network_zone_egress_cost Total cost per GB egress across zones",
-		})
+		if _, disabled := disabledMetrics["pod_pvc_allocation"]; !disabled {
+			pvAllocGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "pod_pvc_allocation",
+				Help: "pod_pvc_allocation Bytes used by a PVC attached to a pod",
+			}, []string{"namespace", "pod", "persistentvolumeclaim", "persistentvolume"})
+			toRegisterGV = append(toRegisterGV, pvAllocGv)
+		}
 
-		networkRegionEgressCostG = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "kubecost_network_region_egress_cost",
-			Help: "kubecost_network_region_egress_cost Total cost per GB egress across regions",
-		})
+		if _, disabled := disabledMetrics["kubecost_network_zone_egress_cost"]; !disabled {
+			networkZoneEgressCostG = prometheus.NewGauge(prometheus.GaugeOpts{
+				Name: "kubecost_network_zone_egress_cost",
+				Help: "kubecost_network_zone_egress_cost Total cost per GB egress across zones",
+			})
+			toRegisterGauge = append(toRegisterGauge, networkZoneEgressCostG)
+		}
 
-		networkInternetEgressCostG = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "kubecost_network_internet_egress_cost",
-			Help: "kubecost_network_internet_egress_cost Total cost per GB of internet egress.",
-		})
+		if _, disabled := disabledMetrics["kubecost_network_region_egress_cost"]; !disabled {
+			networkRegionEgressCostG = prometheus.NewGauge(prometheus.GaugeOpts{
+				Name: "kubecost_network_region_egress_cost",
+				Help: "kubecost_network_region_egress_cost Total cost per GB egress across regions",
+			})
+			toRegisterGauge = append(toRegisterGauge, networkRegionEgressCostG)
+		}
 
-		clusterManagementCostGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "kubecost_cluster_management_cost",
-			Help: "kubecost_cluster_management_cost Hourly cost paid as a cluster management fee.",
-		}, []string{"provisioner_name"})
+		if _, disabled := disabledMetrics["kubecost_network_internet_egress_cost"]; !disabled {
+			networkInternetEgressCostG = prometheus.NewGauge(prometheus.GaugeOpts{
+				Name: "kubecost_network_internet_egress_cost",
+				Help: "kubecost_network_internet_egress_cost Total cost per GB of internet egress.",
+			})
+			toRegisterGauge = append(toRegisterGauge, networkInternetEgressCostG)
+		}
 
-		lbCostGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{ // no differentiation between ELB and ALB right now
-			Name: "kubecost_load_balancer_cost",
-			Help: "kubecost_load_balancer_cost Hourly cost of load balancer",
-		}, []string{"ingress_ip", "namespace", "service_name"}) // assumes one ingress IP per load balancer
+		if _, disabled := disabledMetrics["kubecost_cluster_management_cost"]; !disabled {
+			clusterManagementCostGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "kubecost_cluster_management_cost",
+				Help: "kubecost_cluster_management_cost Hourly cost paid as a cluster management fee.",
+			}, []string{"provisioner_name"})
+			toRegisterGV = append(toRegisterGV, clusterManagementCostGv)
+		}
+
+		if _, disabled := disabledMetrics["kubecost_load_balancer_cost"]; !disabled {
+			lbCostGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{ // no differentiation between ELB and ALB right now
+				Name: "kubecost_load_balancer_cost",
+				Help: "kubecost_load_balancer_cost Hourly cost of load balancer",
+			}, []string{"ingress_ip", "namespace", "service_name"}) // assumes one ingress IP per load balancer
+			toRegisterGV = append(toRegisterGV, lbCostGv)
+		}
 
 		// Register cost-model metrics for emission
-		prometheus.MustRegister(cpuGv, ramGv, gpuGv, gpuCountGv, totalGv, pvGv, spotGv)
-		prometheus.MustRegister(ramAllocGv, cpuAllocGv, gpuAllocGv, pvAllocGv)
-		prometheus.MustRegister(networkZoneEgressCostG, networkRegionEgressCostG, networkInternetEgressCostG)
-		prometheus.MustRegister(clusterManagementCostGv, lbCostGv)
+		for _, gv := range toRegisterGV {
+			prometheus.MustRegister(gv)
+		}
+		for _, g := range toRegisterGauge {
+			prometheus.MustRegister(g)
+		}
 
 		// General Metric Collectors
 		prometheus.MustRegister(ClusterInfoCollector{
-			ClusterInfo: clusterInfo,
+			ClusterInfo:   clusterInfo,
+			metricsConfig: *metricsConfig,
 		})
 	})
 }
@@ -256,10 +326,21 @@ type CostModelMetricsEmitter struct {
 
 // NewCostModelMetricsEmitter creates a new cost-model metrics emitter. Use Start() to begin metric emission.
 func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clustercache.ClusterCache, provider cloud.Provider, clusterInfo clusters.ClusterInfoProvider, model *CostModel) *CostModelMetricsEmitter {
-	// init will only actually execute once to register the custom gauges
-	initCostModelMetrics(clusterCache, provider, clusterInfo)
 
-	metrics.InitKubeMetrics(clusterCache, &metrics.KubeMetricsOpts{
+	// Get metric configurations, if any
+	metricsConfig, err := metrics.GetMetricsConfig()
+	if err != nil {
+		log.Infof("Failed to get metrics config before init: %s", err)
+	}
+
+	if len(metricsConfig.DisabledMetrics) > 0 {
+		log.Infof("Starting metrics init with disabled metrics: %v", metricsConfig.DisabledMetrics)
+	}
+
+	// init will only actually execute once to register the custom gauges
+	initCostModelMetrics(clusterCache, provider, clusterInfo, metricsConfig)
+
+	metrics.InitKubeMetrics(clusterCache, metricsConfig, &metrics.KubeMetricsOpts{
 		EmitKubecostControllerMetrics: true,
 		EmitNamespaceAnnotations:      env.IsEmitNamespaceAnnotationsMetric(),
 		EmitPodAnnotations:            env.IsEmitPodAnnotationsMetric(),

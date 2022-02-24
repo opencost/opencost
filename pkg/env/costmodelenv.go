@@ -76,6 +76,7 @@ const (
 	PromClusterIDLabelEnvVar = "PROM_CLUSTER_ID_LABEL"
 
 	PricingConfigmapName  = "PRICING_CONFIGMAP_NAME"
+	MetricsConfigmapName  = "METRICS_CONFIGMAP_NAME"
 	KubecostJobNameEnvVar = "KUBECOST_JOB_NAME"
 
 	KubecostConfigBucketEnvVar    = "KUBECOST_CONFIG_BUCKET"
@@ -146,6 +147,10 @@ func GetPrometheusQueryOffset() time.Duration {
 
 func GetPricingConfigmapName() string {
 	return Get(PricingConfigmapName, "pricing-configs")
+}
+
+func GetMetricsConfigmapName() string {
+	return Get(MetricsConfigmapName, "metrics-config")
 }
 
 // GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents

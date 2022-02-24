@@ -15,16 +15,28 @@ import (
 // KubecostServiceCollector is a prometheus collector that generates service sourced metrics.
 type KubecostServiceCollector struct {
 	KubeClusterCache clustercache.ClusterCache
+	metricsConfig    MetricsConfig
 }
 
 // Describe sends the super-set of all possible descriptors of metrics
 // collected by this Collector.
 func (sc KubecostServiceCollector) Describe(ch chan<- *prometheus.Desc) {
+	disabledMetrics := sc.metricsConfig.GetDisabledMetricsMap()
+	if _, disabled := disabledMetrics["service_selector_labels"]; disabled {
+		return
+	}
+
 	ch <- prometheus.NewDesc("service_selector_labels", "service selector labels", []string{}, nil)
+
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
 func (sc KubecostServiceCollector) Collect(ch chan<- prometheus.Metric) {
+	disabledMetrics := sc.metricsConfig.GetDisabledMetricsMap()
+	if _, disabled := disabledMetrics["service_selector_labels"]; disabled {
+		return
+	}
+
 	svcs := sc.KubeClusterCache.GetAllServices()
 	for _, svc := range svcs {
 		serviceName := svc.GetName()
@@ -36,6 +48,7 @@ func (sc KubecostServiceCollector) Collect(ch chan<- prometheus.Metric) {
 			ch <- m
 		}
 	}
+
 }
 
 //--------------------------------------------------------------------------
