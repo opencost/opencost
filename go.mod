@@ -5,7 +5,7 @@ replace github.com/golang/lint => golang.org/x/lint v0.0.0-20180702182130-06c868
 require (
 	cloud.google.com/go v0.81.0
 	cloud.google.com/go/bigquery v1.8.0
-	github.com/Azure/azure-sdk-for-go v51.1.0+incompatible
+	github.com/Azure/azure-sdk-for-go v61.6.0+incompatible
 	github.com/Azure/go-autorest/autorest v0.11.17
 	github.com/Azure/go-autorest/autorest/azure/auth v0.5.6
 	github.com/Azure/go-autorest/autorest/to v0.4.0 // indirect
@@ -21,6 +21,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.14.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/getsentry/sentry-go v0.6.1
+	github.com/gofrs/uuid v4.2.0+incompatible // indirect
 	github.com/google/uuid v1.3.0
 	github.com/json-iterator/go v1.1.11
 	github.com/jszwec/csvutil v1.2.1
@@ -34,7 +35,6 @@ require (
 	github.com/prometheus/client_golang v1.0.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/rs/cors v1.7.0
-	github.com/satori/go.uuid v1.2.0 // indirect
 	github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24 // indirect
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5
