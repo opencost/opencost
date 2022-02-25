@@ -21,8 +21,6 @@ import (
 	"github.com/kubecost/cost-model/pkg/util/fileutil"
 	"github.com/kubecost/cost-model/pkg/util/json"
 
-	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2017-09-01/skus"
-	"github.com/Azure/azure-sdk-for-go/services/containerservice/mgmt/2018-03-31/containerservice"
 	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
 	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2016-06-01/subscriptions"
 	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2018-05-01/resources"
@@ -150,6 +148,10 @@ var azureRegions = []string{
 	"ukwest",
 	"uaecentral",
 	"brazilsoutheast",
+	"usgovarizona",
+	"usgoviowa",
+	"usgovvirginia",
+	"usgovtexas",
 }
 
 type regionParts []string
@@ -297,7 +299,11 @@ func toRegionID(meterRegion string, regions map[string]string) (string, error) {
 	regionCode := regionCodeMappings[rp[0]]
 	lastPart := rp[len(rp)-1]
 	var regionIds []string
-	if _, err := strconv.Atoi(lastPart); err == nil {
+	if regionID, ok := regionIdByDisplayName[meterRegion]; ok {
+		regionIds = []string{
+			regionID,
+		}
+	} else if _, err := strconv.Atoi(lastPart); err == nil {
 		regionIds = []string{
 			fmt.Sprintf("%s%s%s", regionCode, rp[1:len(rp)-1], lastPart),
 			fmt.Sprintf("%s%s%s", rp[1:len(rp)-1], regionCode, lastPart),
@@ -314,6 +320,14 @@ func toRegionID(meterRegion string, regions map[string]string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("Couldn't find region")
+}
+
+// azure has very inconsistent naming standards between display names from the rate card api and display names from the regions api
+// this map is to connect display names from the ratecard api to the appropriate id.
+var regionIdByDisplayName = map[string]string{
+	"US Gov AZ": "usgovarizona",
+	"US Gov TX": "usgovtexas",
+	"US Gov": "usgovvirginia",
 }
 
 func checkRegionID(regionID string, regions map[string]string) bool {
@@ -454,6 +468,7 @@ type AzureStorageConfig struct {
 	AccountName    string `json:"azureStorageAccount"`
 	AccessKey      string `json:"azureStorageAccessKey"`
 	ContainerName  string `json:"azureStorageContainer"`
+	AzureCloud     string `json:"azureCloud"`
 }
 
 // Represents an azure app key
@@ -488,6 +503,7 @@ func (az *Azure) getAzureAuth(forceReload bool, cp *CustomPricing) (subscription
 		clientID = cp.AzureClientID
 		clientSecret = cp.AzureClientSecret
 		tenantID = cp.AzureTenantID
+
 		return
 	}
 
@@ -505,29 +521,8 @@ func (az *Azure) getAzureAuth(forceReload bool, cp *CustomPricing) (subscription
 	return "", "", "", ""
 }
 
-func (az *Azure) ConfigureAzureStorage() error {
-	subscriptionID, accessKey, accountName, containerName := az.getAzureStorageConfig(false)
-	if subscriptionID != "" && accessKey != "" && accountName != "" && containerName != "" {
-		err := env.Set(env.AzureStorageSubscriptionIDEnvVar, subscriptionID)
-		if err != nil {
-			return err
-		}
-		err = env.Set(env.AzureStorageAccessKeyEnvVar, accessKey)
-		if err != nil {
-			return err
-		}
-		err = env.Set(env.AzureStorageAccountNameEnvVar, accountName)
-		if err != nil {
-			return err
-		}
-		err = env.Set(env.AzureStorageContainerNameEnvVar, containerName)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-func (az *Azure) getAzureStorageConfig(forceReload bool) (subscriptionId, accessKey, accountName, containerName string) {
+// GetAzureStorageConfig retrieves storage config from secret and sets default values
+func (az *Azure) GetAzureStorageConfig(forceReload bool) (*AzureStorageConfig, error) {
 	// retrieve config for default subscription id
 	defaultSubscriptionID := ""
 	config, err := az.GetConfig()
@@ -551,34 +546,17 @@ func (az *Azure) getAzureStorageConfig(forceReload bool) (subscriptionId, access
 
 		// To support already configured users, subscriptionID may not be set in secret in which case, the subscriptionID
 		// for the rate card API is used
-		subscriptionId = defaultSubscriptionID
-		if s.SubscriptionId != "" {
-			subscriptionId = s.SubscriptionId
+		if s.SubscriptionId == "" {
+			s.SubscriptionId  = defaultSubscriptionID
 		}
-
-		accessKey = s.AccessKey
-		accountName = s.AccountName
-		containerName = s.ContainerName
-		return
+		return s, nil
 	}
-
-	// 3. Fall back to env vars
-	subscriptionId = env.Get(env.AzureStorageSubscriptionIDEnvVar, config.AzureSubscriptionID)
-	accountName = env.Get(env.AzureStorageAccountNameEnvVar, "")
-	accessKey = env.Get(env.AzureStorageAccessKeyEnvVar, "")
-	containerName = env.Get(env.AzureStorageContainerNameEnvVar, "")
-	if accessKey != "" && accountName != "" && containerName != "" {
-		az.ServiceAccountChecks["hasStorage"] = &ServiceAccountCheck{
-			Message: "Azure Storage Config exists",
-			Status:  true,
-		}
-	} else {
-		az.ServiceAccountChecks["hasStorage"] = &ServiceAccountCheck{
-			Message: "Azure Storage Config exists",
-			Status:  false,
-		}
+	az.ServiceAccountChecks["hasStorage"] = &ServiceAccountCheck{
+		Message: "Azure Storage Config exists",
+		Status:  false,
 	}
-	return
+	return nil, fmt.Errorf("azure storage config not found")
+
 }
 
 // Load once and cache the result (even on failure). This is an install time secret, so
@@ -756,7 +734,7 @@ func (az *Azure) DownloadPricingData() error {
 	}
 
 	// Load the service provider keys
-	subscriptionID, clientID, clientSecret, tenantID := az.getAzureAuth(false, config)
+	subscriptionID, clientID, clientSecret, tenantID := az.getAzureAuth(true, config)
 	config.AzureSubscriptionID = subscriptionID
 	config.AzureClientID = clientID
 	config.AzureClientSecret = clientSecret
@@ -764,8 +742,7 @@ func (az *Azure) DownloadPricingData() error {
 
 	var authorizer autorest.Authorizer
 
-	azureEnv := determineCloudByRegion(config.AzureBillingRegion)
-
+	azureEnv := determineCloudByRegion(az.clusterRegion)
 
 	if config.AzureClientID != "" && config.AzureClientSecret != "" && config.AzureTenantID != "" {
 		credentialsConfig := NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID, azureEnv)
@@ -790,22 +767,16 @@ func (az *Azure) DownloadPricingData() error {
 		}
 	}
 
-	sClient := subscriptions.NewClient()
+	sClient := subscriptions.NewClientWithBaseURI(azureEnv.ResourceManagerEndpoint)
 	sClient.Authorizer = authorizer
 
-	rcClient := commerce.NewRateCardClient(config.AzureSubscriptionID)
+	rcClient := commerce.NewRateCardClientWithBaseURI(azureEnv.ResourceManagerEndpoint, config.AzureSubscriptionID)
 	rcClient.Authorizer = authorizer
 
-	skusClient := skus.NewResourceSkusClient(config.AzureSubscriptionID)
-	skusClient.Authorizer = authorizer
-
-	providersClient := resources.NewProvidersClient(config.AzureSubscriptionID)
+	providersClient := resources.NewProvidersClientWithBaseURI(azureEnv.ResourceManagerEndpoint, config.AzureSubscriptionID)
 	providersClient.Authorizer = authorizer
 
-	containerServiceClient := containerservice.NewContainerServicesClient(config.AzureSubscriptionID)
-	containerServiceClient.Authorizer = authorizer
-
-	rateCardFilter := fmt.Sprintf("OfferDurableId eq 'MS-AZR-0003p' and Currency eq '%s' and Locale eq 'en-US' and RegionInfo eq '%s'", config.CurrencyCode, config.AzureBillingRegion)
+	rateCardFilter := fmt.Sprintf("OfferDurableId eq '%s' and Currency eq '%s' and Locale eq 'en-US' and RegionInfo eq '%s'", config.AzureOfferDurableID, config.CurrencyCode, config.AzureBillingRegion)
 
 	klog.Infof("Using ratecard query %s", rateCardFilter)
 	result, err := rcClient.Get(context.TODO(), rateCardFilter)
@@ -814,7 +785,7 @@ func (az *Azure) DownloadPricingData() error {
 		az.RateCardPricingError = err
 		return err
 	}
-	allPrices := make(map[string]*AzurePricing)
+
 	regions, err := getRegions("compute", sClient, providersClient, config.AzureSubscriptionID)
 	if err != nil {
 		klog.Warningf("Error in pricing download regions from API")
@@ -823,6 +794,7 @@ func (az *Azure) DownloadPricingData() error {
 	}
 
 	baseCPUPrice := config.CPU
+	allPrices := make(map[string]*AzurePricing)
 
 	for _, v := range *result.Meters {
 		meterName := *v.MeterName
@@ -969,7 +941,6 @@ func NewClientCredentialsConfig(clientID string, clientSecret string, tenantID s
 		AADEndpoint:  env.ActiveDirectoryEndpoint,
 	}
 }
-
 
 func (az *Azure) addPricing(features string, azurePricing *AzurePricing) {
 	if az.Pricing == nil {
@@ -1240,6 +1211,10 @@ func (az *Azure) GetConfig() (*CustomPricing, error) {
 	}
 	if c.AzureBillingRegion == "" {
 		c.AzureBillingRegion = "US"
+	}
+	// Default to pay-as-you-go Durable offer id
+	if c.AzureOfferDurableID == "" {
+		c.AzureOfferDurableID = "MS-AZR-0003p"
 	}
 	if c.ShareTenancyCosts == "" {
 		c.ShareTenancyCosts = defaultShareTenancyCost
