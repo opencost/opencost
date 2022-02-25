@@ -267,7 +267,7 @@ func (rlpc *RateLimitedPrometheusClient) worker() {
 			// * Check for a 429 StatusCode OR 400 StatusCode and message containing "ThrottlingException"
 			// * Attempt to parse a Retry-After from response headers (common on 429)
 			// * If we couldn't determine how long to wait for a retry, use 1 second by default
-			if retryRateLimit {
+			if res != nil && retryRateLimit {
 				var status []*RateLimitResponseStatus
 				var retries int = retryOpts.MaxRetries
 				var defaultWait time.Duration = retryOpts.DefaultRetryWait
