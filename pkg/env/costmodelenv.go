@@ -16,11 +16,6 @@ const (
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
 
-	AzureStorageSubscriptionIDEnvVar = "AZURE_SUBSCRIPTION_ID"
-	AzureStorageAccessKeyEnvVar      = "AZURE_STORAGE_ACCESS_KEY"
-	AzureStorageAccountNameEnvVar    = "AZURE_STORAGE_ACCOUNT"
-	AzureStorageContainerNameEnvVar  = "AZURE_STORAGE_CONTAINER"
-
 	KubecostNamespaceEnvVar        = "KUBECOST_NAMESPACE"
 	ClusterIDEnvVar                = "CLUSTER_ID"
 	ClusterProfileEnvVar           = "CLUSTER_PROFILE"
