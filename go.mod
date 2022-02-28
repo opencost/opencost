@@ -22,9 +22,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.14.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/getsentry/sentry-go v0.6.1
+	github.com/goccy/go-json v0.9.4
 	github.com/gofrs/uuid v4.2.0+incompatible // indirect
 	github.com/google/uuid v1.3.0
-	github.com/json-iterator/go v1.1.11
 	github.com/jszwec/csvutil v1.2.1
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/lib/pq v1.2.0

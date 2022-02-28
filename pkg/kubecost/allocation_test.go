@@ -1,13 +1,13 @@
 package kubecost
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"testing"
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/cost-model/pkg/util/json"
 )
 
 func TestAllocation_Add(t *testing.T) {
@@ -2623,9 +2623,9 @@ func TestAllocationSetRange_Start(t *testing.T) {
 			name: "Single allocation",
 			arg: &AllocationSetRange{
 				allocations: []*AllocationSet{
-					&AllocationSet{
+					{
 						allocations: map[string]*Allocation{
-							"a": &Allocation{
+							"a": {
 								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 							},
 						},
@@ -2639,12 +2639,12 @@ func TestAllocationSetRange_Start(t *testing.T) {
 			name: "Two allocations",
 			arg: &AllocationSetRange{
 				allocations: []*AllocationSet{
-					&AllocationSet{
+					{
 						allocations: map[string]*Allocation{
-							"a": &Allocation{
+							"a": {
 								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 							},
-							"b": &Allocation{
+							"b": {
 								Start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
 							},
 						},
@@ -2658,16 +2658,16 @@ func TestAllocationSetRange_Start(t *testing.T) {
 			name: "Two AllocationSets",
 			arg: &AllocationSetRange{
 				allocations: []*AllocationSet{
-					&AllocationSet{
+					{
 						allocations: map[string]*Allocation{
-							"a": &Allocation{
+							"a": {
 								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 							},
 						},
 					},
-					&AllocationSet{
+					{
 						allocations: map[string]*Allocation{
-							"b": &Allocation{
+							"b": {
 								Start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
 							},
 						},
@@ -2711,9 +2711,9 @@ func TestAllocationSetRange_End(t *testing.T) {
 			name: "Single allocation",
 			arg: &AllocationSetRange{
 				allocations: []*AllocationSet{
-					&AllocationSet{
+					{
 						allocations: map[string]*Allocation{
-							"a": &Allocation{
+							"a": {
 								End: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 							},
 						},
@@ -2727,12 +2727,12 @@ func TestAllocationSetRange_End(t *testing.T) {
 			name: "Two allocations",
 			arg: &AllocationSetRange{
 				allocations: []*AllocationSet{
-					&AllocationSet{
+					{
 						allocations: map[string]*Allocation{
-							"a": &Allocation{
+							"a": {
 								End: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 							},
-							"b": &Allocation{
+							"b": {
 								End: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
 							},
 						},
@@ -2746,16 +2746,16 @@ func TestAllocationSetRange_End(t *testing.T) {
 			name: "Two AllocationSets",
 			arg: &AllocationSetRange{
 				allocations: []*AllocationSet{
-					&AllocationSet{
+					{
 						allocations: map[string]*Allocation{
-							"a": &Allocation{
+							"a": {
 								End: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 							},
 						},
 					},
-					&AllocationSet{
+					{
 						allocations: map[string]*Allocation{
-							"b": &Allocation{
+							"b": {
 								End: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
 							},
 						},
@@ -2798,9 +2798,9 @@ func TestAllocationSetRange_Minutes(t *testing.T) {
 			name: "Single allocation",
 			arg: &AllocationSetRange{
 				allocations: []*AllocationSet{
-					&AllocationSet{
+					{
 						allocations: map[string]*Allocation{
-							"a": &Allocation{
+							"a": {
 								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 								End:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
 							},
@@ -2815,13 +2815,13 @@ func TestAllocationSetRange_Minutes(t *testing.T) {
 			name: "Two allocations",
 			arg: &AllocationSetRange{
 				allocations: []*AllocationSet{
-					&AllocationSet{
+					{
 						allocations: map[string]*Allocation{
-							"a": &Allocation{
+							"a": {
 								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 								End:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
 							},
-							"b": &Allocation{
+							"b": {
 								Start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
 								End:   time.Date(1970, 1, 3, 0, 0, 0, 0, time.UTC),
 							},
@@ -2836,17 +2836,17 @@ func TestAllocationSetRange_Minutes(t *testing.T) {
 			name: "Two AllocationSets",
 			arg: &AllocationSetRange{
 				allocations: []*AllocationSet{
-					&AllocationSet{
+					{
 						allocations: map[string]*Allocation{
-							"a": &Allocation{
+							"a": {
 								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 								End:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
 							},
 						},
 					},
-					&AllocationSet{
+					{
 						allocations: map[string]*Allocation{
-							"b": &Allocation{
+							"b": {
 								Start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
 								End:   time.Date(1970, 1, 3, 0, 0, 0, 0, time.UTC),
 							},

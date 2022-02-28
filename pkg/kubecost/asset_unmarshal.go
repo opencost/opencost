@@ -6,9 +6,6 @@ import (
 	"reflect"
 	"time"
 
-	// gojson is default golang json, required for RawMessage decoding
-	gojson "encoding/json"
-
 	"github.com/kubecost/cost-model/pkg/util/json"
 )
 
@@ -721,12 +718,10 @@ func (as *AssetSet) MarshalJSON() ([]byte, error) {
 
 // Unmarshals a marshaled AssetSet json into AssetSetResponse
 func (asr *AssetSetResponse) UnmarshalJSON(b []byte) error {
-
-	// gojson used here, as jsonitter UnmarshalJSON won't work with RawMessage
-	var assetMap map[string]*gojson.RawMessage
+	var assetMap map[string]*json.RawMessage
 
 	// Partial unmarshal to map of json RawMessage
-	err := gojson.Unmarshal(b, &assetMap)
+	err := json.Unmarshal(b, &assetMap)
 	if err != nil {
 		return err
 	}
@@ -739,7 +734,7 @@ func (asr *AssetSetResponse) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (asr *AssetSetResponse) RawMessageToAssetSetResponse(assetMap map[string]*gojson.RawMessage) error {
+func (asr *AssetSetResponse) RawMessageToAssetSetResponse(assetMap map[string]*json.RawMessage) error {
 
 	newAssetMap := make(map[string]Asset)
 
@@ -853,12 +848,10 @@ func (asr *AssetSetResponse) RawMessageToAssetSetResponse(assetMap map[string]*g
 }
 
 func (asrr *AssetSetRangeResponse) UnmarshalJSON(b []byte) error {
-
-	// gojson used here, as jsonitter UnmarshalJSON won't work with RawMessage
-	var assetMapList []map[string]*gojson.RawMessage
+	var assetMapList []map[string]*json.RawMessage
 
 	// Partial unmarshal to map of json RawMessage
-	err := gojson.Unmarshal(b, &assetMapList)
+	err := json.Unmarshal(b, &assetMapList)
 	if err != nil {
 		return err
 	}
