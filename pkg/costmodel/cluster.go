@@ -119,8 +119,8 @@ type Disk struct {
 }
 
 func ClusterDisks(client prometheus.Client, provider cloud.Provider, duration, offset time.Duration) (map[string]*Disk, error) {
-	durationStr := fmt.Sprintf("%dm", int64(duration.Minutes()))
-	offsetStr := fmt.Sprintf(" offset %dm", int64(offset.Minutes()))
+	durationStr := timeutil.DurationString(duration)
+	offsetStr := timeutil.DurationToPromOffsetString(offset)
 	if offset < time.Minute {
 		offsetStr = ""
 	}
@@ -370,8 +370,8 @@ func costTimesMinute(activeDataMap map[NodeIdentifier]activeData, costMap map[No
 }
 
 func ClusterNodes(cp cloud.Provider, client prometheus.Client, duration, offset time.Duration) (map[NodeIdentifier]*Node, error) {
-	durationStr := fmt.Sprintf("%dm", int64(duration.Minutes()))
-	offsetStr := fmt.Sprintf(" offset %dm", int64(offset.Minutes()))
+	durationStr := timeutil.DurationString(duration)
+	offsetStr := timeutil.DurationToPromOffsetString(offset)
 	if offset < time.Minute {
 		offsetStr = ""
 	}
@@ -514,8 +514,8 @@ type LoadBalancer struct {
 }
 
 func ClusterLoadBalancers(client prometheus.Client, duration, offset time.Duration) (map[string]*LoadBalancer, error) {
-	durationStr := fmt.Sprintf("%dm", int64(duration.Minutes()))
-	offsetStr := fmt.Sprintf(" offset %dm", int64(offset.Minutes()))
+	durationStr := timeutil.DurationString(duration)
+	offsetStr := timeutil.DurationToPromOffsetString(offset)
 	if offset < time.Minute {
 		offsetStr = ""
 	}
