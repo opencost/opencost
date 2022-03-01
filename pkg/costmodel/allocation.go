@@ -1718,12 +1718,12 @@ func applyPVBytes(pvMap map[pvKey]*PV, resPVBytes []*prom.QueryResult) {
 	for _, res := range resPVBytes {
 		key, err := resultPVKey(res, env.GetPromClusterLabel(), "persistentvolume")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: PV bytes query result missing field: %s", err)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: PV bytes query result missing field: %s", err)
 			continue
 		}
 
 		if _, ok := pvMap[key]; !ok {
-			log.Warningf("CostModel.ComputeAllocation: PV bytes result for missing PV: %s", err)
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: PV bytes result for missing PV: %s", err)
 			continue
 		}
 
