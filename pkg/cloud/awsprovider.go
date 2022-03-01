@@ -2056,3 +2056,7 @@ func (aws *AWS) ServiceAccountStatus() *ServiceAccountStatus {
 func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
 }
+
+func (aws *AWS) Regions() []string {
+	return awsRegions
+}
