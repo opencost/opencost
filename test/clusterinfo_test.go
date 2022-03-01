@@ -1,10 +1,10 @@
 package test
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/kubecost/cost-model/pkg/prom"
+	"github.com/kubecost/cost-model/pkg/util/json"
 )
 
 func TestClusterInfoLabels(t *testing.T) {
