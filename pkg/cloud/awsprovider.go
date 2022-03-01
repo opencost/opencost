@@ -2057,6 +2057,7 @@ func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool,
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
 }
 
+// Regions returns a predefined list of AWS regions
 func (aws *AWS) Regions() []string {
 	return awsRegions
 }
