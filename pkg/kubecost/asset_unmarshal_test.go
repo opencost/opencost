@@ -1,9 +1,10 @@
 package kubecost
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
+
+	"github.com/kubecost/cost-model/pkg/util/json"
 )
 
 var s = time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)
