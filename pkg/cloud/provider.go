@@ -214,28 +214,27 @@ type ServiceAccountStatus struct {
 
 // ServiceAccountChecks is a thread safe map for holding ServiceAccountCheck objects
 type ServiceAccountChecks struct {
+	sync.RWMutex
 	serviceAccountChecks map[string]*ServiceAccountCheck
-	lock                 *sync.RWMutex
 }
 
 // NewServiceAccountChecks initialize ServiceAccountChecks
 func NewServiceAccountChecks() *ServiceAccountChecks {
 	return &ServiceAccountChecks{
 		serviceAccountChecks: make(map[string]*ServiceAccountCheck),
-		lock: new(sync.RWMutex),
 	}
 }
 
 func (sac *ServiceAccountChecks) set(key string, check *ServiceAccountCheck) {
-	sac.lock.Lock()
-	defer sac.lock.Unlock()
+	sac.Lock()
+	defer sac.Unlock()
 	sac.serviceAccountChecks[key] = check
 }
 
 // getStatus extracts ServiceAccountCheck objects into a slice and returns them in a ServiceAccountStatus
 func (sac *ServiceAccountChecks) getStatus() *ServiceAccountStatus {
-	sac.lock.Lock()
-	defer sac.lock.Unlock()
+	sac.Lock()
+	defer sac.Unlock()
 	checks := []*ServiceAccountCheck{}
 	for _, v := range sac.serviceAccountChecks {
 		checks = append(checks, v)
