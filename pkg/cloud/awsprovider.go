@@ -1442,7 +1442,8 @@ func (aws *AWS) GetAddresses() ([]byte, error) {
 	var addresses []*ec2Types.Address
 	for adds := range addressCh {
 		for _, add := range adds.Addresses {
-			addresses = append(addresses, &add)
+			a := add // duplicate to avoid pointer to iterator
+			addresses = append(addresses, &a)
 		}
 
 	}
@@ -1535,7 +1536,8 @@ func (aws *AWS) GetDisks() ([]byte, error) {
 	var volumes []*ec2Types.Volume
 	for vols := range volumeCh {
 		for _, vol := range vols.Volumes {
-			volumes = append(volumes, &vol)
+			v := vol // duplicate to avoid pointer to iterator
+			volumes = append(volumes, &v)
 		}
 	}
 
