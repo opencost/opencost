@@ -371,7 +371,7 @@ type Azure struct {
 	DownloadPricingDataLock        sync.RWMutex
 	Clientset                      clustercache.ClusterCache
 	Config                         *ProviderConfig
-	ServiceAccountChecks           map[string]*ServiceAccountCheck
+	serviceAccountChecks           *ServiceAccountChecks
 	RateCardPricingError           error
 	clusterAccountId               string
 	clusterRegion                  string
@@ -535,19 +535,17 @@ func (az *Azure) getAzureStorageConfig(forceReload bool) (subscriptionId, access
 		defaultSubscriptionID = config.AzureSubscriptionID
 	}
 
-	if az.ServiceAccountChecks == nil {
-		az.ServiceAccountChecks = make(map[string]*ServiceAccountCheck)
-	}
+
 	// 1. Check for secret
 	s, err := az.loadAzureStorageConfig(forceReload)
 	if err != nil {
 		log.Errorf("Error, %s", err.Error())
 	}
 	if s != nil && s.AccessKey != "" && s.AccountName != "" && s.ContainerName != "" {
-		az.ServiceAccountChecks["hasStorage"] = &ServiceAccountCheck{
+		az.serviceAccountChecks.set("hasStorage", &ServiceAccountCheck{
 			Message: "Azure Storage Config exists",
 			Status:  true,
-		}
+		})
 
 		// To support already configured users, subscriptionID may not be set in secret in which case, the subscriptionID
 		// for the rate card API is used
@@ -568,15 +566,15 @@ func (az *Azure) getAzureStorageConfig(forceReload bool) (subscriptionId, access
 	accessKey = env.Get(env.AzureStorageAccessKeyEnvVar, "")
 	containerName = env.Get(env.AzureStorageContainerNameEnvVar, "")
 	if accessKey != "" && accountName != "" && containerName != "" {
-		az.ServiceAccountChecks["hasStorage"] = &ServiceAccountCheck{
+		az.serviceAccountChecks.set("hasStorage", &ServiceAccountCheck{
 			Message: "Azure Storage Config exists",
 			Status:  true,
-		}
+		})
 	} else {
-		az.ServiceAccountChecks["hasStorage"] = &ServiceAccountCheck{
+		az.serviceAccountChecks.set("hasStorage", &ServiceAccountCheck{
 			Message: "Azure Storage Config exists",
 			Status:  false,
-		}
+		})
 	}
 	return
 }
@@ -1274,13 +1272,7 @@ func (az *Azure) GetLocalStorageQuery(window, offset time.Duration, rate bool, u
 }
 
 func (az *Azure) ServiceAccountStatus() *ServiceAccountStatus {
-	checks := []*ServiceAccountCheck{}
-	for _, v := range az.ServiceAccountChecks {
-		checks = append(checks, v)
-	}
-	return &ServiceAccountStatus{
-		Checks: checks,
-	}
+	return az.serviceAccountChecks.getStatus()
 }
 
 const rateCardPricingSource = "Rate Card API"
