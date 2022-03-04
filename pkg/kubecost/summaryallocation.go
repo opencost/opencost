@@ -537,6 +537,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// unmounted volume costs, which only require a total cost.
 	sharedResourceTotals := map[string]*AllocationTotals{}
 	totalUnmountedCost := 0.0
+	totalUnmountedCount := 0
 
 	// 1 & 2. Identify set membership and aggregate aforementioned totals.
 	for _, sa := range sas.SummaryAllocations {
@@ -594,6 +595,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		// allocated costs for sharing coefficients.
 		if sa.IsUnmounted() {
 			totalUnmountedCost += sa.TotalCost()
+			totalUnmountedCount += 1
 		}
 	}
 
@@ -705,7 +707,13 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		// NOTE: SummaryAllocation does not support ShareEven, so only record
 		// by cost for cost-weighted distribution.
 		if sharingCoeffs != nil {
-			sharingCoeffs[key] += sa.TotalCost()
+			// keep track of the count per aggregate
+			if options.ShareIdle == ShareEven {
+				sharingCoeffs[key] += 1.0
+			} else {
+				sharingCoeffs[key] += sa.TotalCost()
+			}
+
 		}
 
 		// 6. Distribute idle allocations according to the idle coefficients.
@@ -864,34 +872,27 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// NOTE: ShareEven is not supported
 	if len(shareSet.SummaryAllocations) > 0 {
 		sharingCoeffDenominator := 0.0
-		for _, rt := range allocTotals {
-			sharingCoeffDenominator += rt.TotalCost()
+		totalCountDenominator := 0
+		for _, at := range allocTotals {
+			sharingCoeffDenominator += at.TotalCost()
+			totalCountDenominator += at.Count
 		}
 
 		// Do not include the shared costs, themselves, when determining
 		// sharing coefficients.
 		for _, rt := range sharedResourceTotals {
 			sharingCoeffDenominator -= rt.TotalCost()
+			totalCountDenominator -= rt.Count
 		}
 
 		// Do not include the unmounted costs when determining sharing
 		// coefficients becuase they do not receive shared costs.
 		sharingCoeffDenominator -= totalUnmountedCost
+		totalCountDenominator -= totalUnmountedCount
 
 		if sharingCoeffDenominator <= 0.0 {
 			log.Warningf("SummaryAllocation: sharing coefficient denominator is %f", sharingCoeffDenominator)
 		} else {
-			// Compute sharing coeffs by dividing the thus-far accumulated
-			// numerators by the now-finalized denominator.
-			for key := range sharingCoeffs {
-				if sharingCoeffs[key] > 0.0 {
-					sharingCoeffs[key] /= sharingCoeffDenominator
-				} else {
-					log.Warningf("SummaryAllocation: detected illegal sharing coefficient for %s: %v (setting to zero)", key, sharingCoeffs[key])
-					sharingCoeffs[key] = 0.0
-				}
-			}
-
 			for key, sa := range resultSet.SummaryAllocations {
 				// Idle and unmounted allocations, by definition, do not
 				// receive shared cost
@@ -899,7 +900,18 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 					continue
 				}
 
-				sharingCoeff := sharingCoeffs[key]
+				// Compute sharing coeffs by dividing the thus-far accumulated
+				// numerators by the now-finalized denominator.
+				sharingCoeff := 0.0
+				if sharingCoeffs[key] > 0.0 {
+					if options.ShareIdle == ShareEven {
+						sharingCoeff = sharingCoeffs[key] / float64(totalCountDenominator)
+					} else {
+						sharingCoeff = sharingCoeffs[key] / sharingCoeffDenominator
+					}
+				} else {
+					log.Warningf("SummaryAllocation: detected illegal sharing coefficient for %s: %v (setting to zero)", key, sharingCoeffs[key])
+				}
 
 				// Distribute each shared cost with the current allocation on the
 				// basis of the proportion of the allocation's cost (ShareWeighted)
