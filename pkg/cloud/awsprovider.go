@@ -153,7 +153,7 @@ type AWS struct {
 	ProjectID                   string
 	DownloadPricingDataLock     sync.RWMutex
 	Config                      *ProviderConfig
-	ServiceAccountChecks        map[string]*ServiceAccountCheck
+	serviceAccountChecks        *ServiceAccountChecks
 	clusterManagementPrice      float64
 	clusterAccountId            string
 	clusterRegion               string
@@ -743,9 +743,6 @@ func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, e
 func (aws *AWS) DownloadPricingData() error {
 	aws.DownloadPricingDataLock.Lock()
 	defer aws.DownloadPricingDataLock.Unlock()
-	if aws.ServiceAccountChecks == nil {
-		aws.ServiceAccountChecks = make(map[string]*ServiceAccountCheck)
-	}
 	c, err := aws.Config.GetCustomPricingData()
 	if err != nil {
 		klog.V(1).Infof("Error downloading default pricing data: %s", err.Error())
@@ -1327,40 +1324,37 @@ func (aws *AWS) ConfigureAuthWith(config *CustomPricing) error {
 
 // Gets the aws key id and secret
 func (aws *AWS) getAWSAuth(forceReload bool, cp *CustomPricing) (string, string) {
-	if aws.ServiceAccountChecks == nil { // safety in case checks don't exist
-		aws.ServiceAccountChecks = make(map[string]*ServiceAccountCheck)
-	}
 
 	// 1. Check config values first (set from frontend UI)
 	if cp.ServiceKeyName != "" && cp.ServiceKeySecret != "" {
-		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
+		aws.serviceAccountChecks.set("hasKey", &ServiceAccountCheck{
 			Message: "AWS ServiceKey exists",
 			Status:  true,
-		}
+		})
 		return cp.ServiceKeyName, cp.ServiceKeySecret
 	}
 
 	// 2. Check for secret
 	s, _ := aws.loadAWSAuthSecret(forceReload)
 	if s != nil && s.AccessKeyID != "" && s.SecretAccessKey != "" {
-		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
+		aws.serviceAccountChecks.set("hasKey", &ServiceAccountCheck{
 			Message: "AWS ServiceKey exists",
 			Status:  true,
-		}
+		})
 		return s.AccessKeyID, s.SecretAccessKey
 	}
 
 	// 3. Fall back to env vars
 	if env.GetAWSAccessKeyID() == "" || env.GetAWSAccessKeyID() == "" {
-		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
+		aws.serviceAccountChecks.set("hasKey", &ServiceAccountCheck{
 			Message: "AWS ServiceKey exists",
 			Status:  false,
-		}
+		})
 	} else {
-		aws.ServiceAccountChecks["hasKey"] = &ServiceAccountCheck{
+		aws.serviceAccountChecks.set("hasKey", &ServiceAccountCheck{
 			Message: "AWS ServiceKey exists",
 			Status:  true,
-		}
+		})
 	}
 	return env.GetAWSAccessKeyID(), env.GetAWSAccessKeySecret()
 }
@@ -1448,7 +1442,8 @@ func (aws *AWS) GetAddresses() ([]byte, error) {
 	var addresses []*ec2Types.Address
 	for adds := range addressCh {
 		for _, add := range adds.Addresses {
-			addresses = append(addresses, &add)
+			a := add // duplicate to avoid pointer to iterator
+			addresses = append(addresses, &a)
 		}
 
 	}
@@ -1541,7 +1536,8 @@ func (aws *AWS) GetDisks() ([]byte, error) {
 	var volumes []*ec2Types.Volume
 	for vols := range volumeCh {
 		for _, vol := range vols.Volumes {
-			volumes = append(volumes, &vol)
+			v := vol // duplicate to avoid pointer to iterator
+			volumes = append(volumes, &v)
 		}
 	}
 
@@ -1873,9 +1869,6 @@ type spotInfo struct {
 }
 
 func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, region string) (map[string]*spotInfo, error) {
-	if aws.ServiceAccountChecks == nil { // Set up checks to store error/success states
-		aws.ServiceAccountChecks = make(map[string]*ServiceAccountCheck)
-	}
 
 	aws.ConfigureAuth() // configure aws api authentication by setting env vars
 
@@ -1908,17 +1901,17 @@ func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, re
 	}
 	lso, err := cli.ListObjects(context.TODO(), ls)
 	if err != nil {
-		aws.ServiceAccountChecks["bucketList"] = &ServiceAccountCheck{
+		aws.serviceAccountChecks.set("bucketList", &ServiceAccountCheck{
 			Message:        "Bucket List Permissions Available",
 			Status:         false,
 			AdditionalInfo: err.Error(),
-		}
+		})
 		return nil, err
 	} else {
-		aws.ServiceAccountChecks["bucketList"] = &ServiceAccountCheck{
+		aws.serviceAccountChecks.set("bucketList", &ServiceAccountCheck{
 			Message: "Bucket List Permissions Available",
 			Status:  true,
-		}
+		})
 	}
 	lsoLen := len(lso.Contents)
 	klog.V(2).Infof("Found %d spot data files from yesterday", lsoLen)
@@ -1961,17 +1954,17 @@ func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, re
 		buf := manager.NewWriteAtBuffer([]byte{})
 		_, err := downloader.Download(context.TODO(), buf, getObj)
 		if err != nil {
-			aws.ServiceAccountChecks["objectList"] = &ServiceAccountCheck{
+			aws.serviceAccountChecks.set("objectList", &ServiceAccountCheck{
 				Message:        "Object Get Permissions Available",
 				Status:         false,
 				AdditionalInfo: err.Error(),
-			}
+			})
 			return nil, err
 		} else {
-			aws.ServiceAccountChecks["objectList"] = &ServiceAccountCheck{
+			aws.serviceAccountChecks.set("objectList", &ServiceAccountCheck{
 				Message: "Object Get Permissions Available",
 				Status:  true,
-			}
+			})
 		}
 
 		r := bytes.NewReader(buf.Bytes())
@@ -2044,15 +2037,14 @@ func (aws *AWS) ApplyReservedInstancePricing(nodes map[string]*Node) {
 }
 
 func (aws *AWS) ServiceAccountStatus() *ServiceAccountStatus {
-	checks := []*ServiceAccountCheck{}
-	for _, v := range aws.ServiceAccountChecks {
-		checks = append(checks, v)
-	}
-	return &ServiceAccountStatus{
-		Checks: checks,
-	}
+	return aws.serviceAccountChecks.getStatus()
 }
 
 func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
+}
+
+// Regions returns a predefined list of AWS regions
+func (aws *AWS) Regions() []string {
+	return awsRegions
 }

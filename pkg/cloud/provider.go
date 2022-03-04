@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/util"
@@ -209,6 +210,38 @@ func (cp *CustomPricing) GetSharedOverheadCostPerMonth() float64 {
 
 type ServiceAccountStatus struct {
 	Checks []*ServiceAccountCheck `json:"checks"`
+}
+
+// ServiceAccountChecks is a thread safe map for holding ServiceAccountCheck objects
+type ServiceAccountChecks struct {
+	sync.RWMutex
+	serviceAccountChecks map[string]*ServiceAccountCheck
+}
+
+// NewServiceAccountChecks initialize ServiceAccountChecks
+func NewServiceAccountChecks() *ServiceAccountChecks {
+	return &ServiceAccountChecks{
+		serviceAccountChecks: make(map[string]*ServiceAccountCheck),
+	}
+}
+
+func (sac *ServiceAccountChecks) set(key string, check *ServiceAccountCheck) {
+	sac.Lock()
+	defer sac.Unlock()
+	sac.serviceAccountChecks[key] = check
+}
+
+// getStatus extracts ServiceAccountCheck objects into a slice and returns them in a ServiceAccountStatus
+func (sac *ServiceAccountChecks) getStatus() *ServiceAccountStatus {
+	sac.Lock()
+	defer sac.Unlock()
+	checks := []*ServiceAccountCheck{}
+	for _, v := range sac.serviceAccountChecks {
+		checks = append(checks, v)
+	}
+	return &ServiceAccountStatus{
+		Checks: checks,
+	}
 }
 
 type ServiceAccountCheck struct {
@@ -418,18 +451,20 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 	case "AWS":
 		klog.V(2).Info("Found ProviderID starting with \"aws\", using AWS Provider")
 		return &AWS{
-			Clientset:        cache,
-			Config:           NewProviderConfig(config, cp.configFileName),
-			clusterRegion:    cp.region,
-			clusterAccountId: cp.accountID,
+			Clientset:            cache,
+			Config:               NewProviderConfig(config, cp.configFileName),
+			clusterRegion:        cp.region,
+			clusterAccountId:     cp.accountID,
+			serviceAccountChecks: NewServiceAccountChecks(),
 		}, nil
 	case "AZURE":
 		klog.V(2).Info("Found ProviderID starting with \"azure\", using Azure Provider")
 		return &Azure{
-			Clientset:        cache,
-			Config:           NewProviderConfig(config, cp.configFileName),
-			clusterRegion:    cp.region,
-			clusterAccountId: cp.accountID,
+			Clientset:            cache,
+			Config:               NewProviderConfig(config, cp.configFileName),
+			clusterRegion:        cp.region,
+			clusterAccountId:     cp.accountID,
+			serviceAccountChecks: NewServiceAccountChecks(),
 		}, nil
 	default:
 		klog.V(2).Info("Unsupported provider, falling back to default")
