@@ -400,6 +400,18 @@ type AwsAthenaInfo struct {
 	MasterPayerARN   string `json:"masterPayerARN"`
 }
 
+// IsEmpty returns true if all fields in config are empty, false if not.
+func (aai *AwsAthenaInfo) IsEmpty() bool {
+	return aai.AthenaBucketName == "" &&
+		aai.AthenaRegion == "" &&
+		aai.AthenaDatabase == "" &&
+		aai.AthenaTable == "" &&
+		aai.ServiceKeyName == "" &&
+		aai.ServiceKeySecret == "" &&
+		aai.AccountID == "" &&
+		aai.MasterPayerARN == ""
+}
+
 // CreateConfig creates an AWS SDK V2 Config for the credentials that it contains
 func (aai *AwsAthenaInfo) CreateConfig() (awsSDK.Config, error) {
 	keyProvider := AWSAccessKey{AccessKeyID: aai.ServiceKeyName, SecretAccessKey: aai.ServiceKeySecret}
@@ -807,7 +819,7 @@ func (aws *AWS) DownloadPricingData() error {
 
 	// RIDataRunning establishes the existance of the goroutine. Since it's possible we
 	// run multiple downloads, we don't want to create multiple go routines if one already exists
-	if !aws.RIDataRunning && c.AthenaBucketName != "" {
+	if !aws.RIDataRunning {
 		err = aws.GetReservationDataFromAthena() // Block until one run has completed.
 		if err != nil {
 			klog.V(1).Infof("Failed to lookup reserved instance data: %s", err.Error())
@@ -827,7 +839,7 @@ func (aws *AWS) DownloadPricingData() error {
 			}()
 		}
 	}
-	if !aws.SavingsPlanDataRunning && c.AthenaBucketName != "" {
+	if !aws.SavingsPlanDataRunning {
 		err = aws.GetSavingsPlanDataFromAthena()
 		if err != nil {
 			klog.V(1).Infof("Failed to lookup savings plan data: %s", err.Error())
@@ -1636,10 +1648,13 @@ type SavingsPlanData struct {
 func (aws *AWS) GetSavingsPlanDataFromAthena() error {
 	cfg, err := aws.GetConfig()
 	if err != nil {
+		aws.RIPricingError = err
 		return err
 	}
 	if cfg.AthenaBucketName == "" {
-		return fmt.Errorf("No Athena Bucket configured")
+		err = fmt.Errorf("No Athena Bucket configured")
+		aws.RIPricingError = err
+		return err
 	}
 	if aws.SavingsPlanDataByInstanceID == nil {
 		aws.SavingsPlanDataByInstanceID = make(map[string]*SavingsPlanData)
@@ -1710,6 +1725,7 @@ func (aws *AWS) GetSavingsPlanDataFromAthena() error {
 
 	err = aws.QueryAthenaPaginated(context.TODO(), query, processResults)
 	if err != nil {
+		aws.RIPricingError = err
 		return fmt.Errorf("Error fetching Savings Plan Data: %s", err)
 	}
 
@@ -1726,10 +1742,13 @@ type RIData struct {
 func (aws *AWS) GetReservationDataFromAthena() error {
 	cfg, err := aws.GetConfig()
 	if err != nil {
+		aws.RIPricingError = err
 		return err
 	}
 	if cfg.AthenaBucketName == "" {
-		return fmt.Errorf("No Athena Bucket configured")
+		err = fmt.Errorf("No Athena Bucket configured")
+		aws.RIPricingError = err
+		return err
 	}
 
 	// Query for all column names in advance in order to validate configured
@@ -1737,8 +1756,9 @@ func (aws *AWS) GetReservationDataFromAthena() error {
 	columns, _ := aws.fetchColumns()
 
 	if !columns["reservation_reservation_a_r_n"] || !columns["reservation_effective_cost"] {
-		klog.Infof("No reserved data available in Athena")
-		aws.RIPricingError = nil
+		err = fmt.Errorf("No reservation data available in Athena")
+		aws.RIPricingError = err
+		log.Infof(err.Error())
 	}
 	if aws.RIPricingByInstanceID == nil {
 		aws.RIPricingByInstanceID = make(map[string]*RIData)

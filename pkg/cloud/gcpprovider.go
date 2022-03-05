@@ -161,12 +161,19 @@ func (gcp *GCP) GetConfig() (*CustomPricing, error) {
 	return c, nil
 }
 
+// BigQueryConfig contain the required config and credentials to access OOC resources for GCP
 type BigQueryConfig struct {
 	ProjectID          string            `json:"projectID"`
 	BillingDataDataset string            `json:"billingDataDataset"`
 	Key                map[string]string `json:"key"`
 }
 
+// IsEmpty returns true if all fields in config are empty, false if not.
+func (bqc *BigQueryConfig) IsEmpty() bool {
+	return bqc.ProjectID == "" &&
+		bqc.BillingDataDataset == "" &&
+		(bqc.Key == nil || len(bqc.Key) == 0)
+}
 func (gcp *GCP) GetManagementPlatform() (string, error) {
 	nodes := gcp.Clientset.GetAllNodes()
 
