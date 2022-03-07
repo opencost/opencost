@@ -327,7 +327,7 @@ func toRegionID(meterRegion string, regions map[string]string) (string, error) {
 var regionIdByDisplayName = map[string]string{
 	"US Gov AZ": "usgovarizona",
 	"US Gov TX": "usgovtexas",
-	"US Gov": "usgovvirginia",
+	"US Gov":    "usgovvirginia",
 }
 
 func checkRegionID(regionID string, regions map[string]string) bool {
@@ -462,13 +462,22 @@ func (k *azureKey) GetGPUCount() string {
 	return "0"
 }
 
-// Represents an azure storage config
+// AzureStorageConfig Represents an azure storage config
 type AzureStorageConfig struct {
 	SubscriptionId string `json:"azureSubscriptionID"`
 	AccountName    string `json:"azureStorageAccount"`
 	AccessKey      string `json:"azureStorageAccessKey"`
 	ContainerName  string `json:"azureStorageContainer"`
 	AzureCloud     string `json:"azureCloud"`
+}
+
+// IsEmpty returns true if all fields in config are empty, false if not.
+func (asc *AzureStorageConfig) IsEmpty() bool {
+	return asc.SubscriptionId == "" &&
+		asc.AccountName == "" &&
+		asc.AccessKey == "" &&
+		asc.ContainerName == "" &&
+		asc.AzureCloud == ""
 }
 
 // Represents an azure app key
@@ -530,7 +539,6 @@ func (az *Azure) GetAzureStorageConfig(forceReload bool) (*AzureStorageConfig, e
 		defaultSubscriptionID = config.AzureSubscriptionID
 	}
 
-
 	// 1. Check for secret
 	s, err := az.loadAzureStorageConfig(forceReload)
 	if err != nil {
@@ -545,7 +553,7 @@ func (az *Azure) GetAzureStorageConfig(forceReload bool) (*AzureStorageConfig, e
 		// To support already configured users, subscriptionID may not be set in secret in which case, the subscriptionID
 		// for the rate card API is used
 		if s.SubscriptionId == "" {
-			s.SubscriptionId  = defaultSubscriptionID
+			s.SubscriptionId = defaultSubscriptionID
 		}
 		return s, nil
 	}
