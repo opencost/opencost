@@ -2103,6 +2103,24 @@ func (as *AllocationSet) MarshalJSON() ([]byte, error) {
 	return json.Marshal(as.allocations)
 }
 
+// ResetAdjustments sets all cost adjustment fields to zero
+func (as *AllocationSet) ResetAdjustments() {
+	if as == nil {
+		return
+	}
+
+	as.Lock()
+	defer as.Unlock()
+
+	as.resetAdjustments()
+}
+
+func (as *AllocationSet) resetAdjustments() {
+	for _, a := range as.allocations {
+		a.ResetAdjustments()
+	}
+}
+
 // Resolution returns the AllocationSet's window duration
 func (as *AllocationSet) Resolution() time.Duration {
 	return as.Window.Duration()
