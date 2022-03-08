@@ -403,7 +403,13 @@ func (a *Allocation) NetworkTotalCost() float64 {
 }
 
 // LBTotalCost calculates total LB cost of Allocation including adjustment
+// TODO deprecate
 func (a *Allocation) LBTotalCost() float64 {
+	return a.LoadBalancerTotalCost()
+}
+
+// LoadBalancerTotalCost calculates total LB cost of Allocation including adjustment
+func (a *Allocation) LoadBalancerTotalCost() float64 {
 	if a == nil {
 		return 0.0
 	}
