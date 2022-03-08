@@ -343,6 +343,16 @@ func (w Window) Contains(t time.Time) bool {
 	return true
 }
 
+func (w Window) ContainsWindow(that Window) bool {
+	// only support containing closed windows for now
+	// could check if openness is compatible with closure
+	if that.IsOpen() {
+		return false
+	}
+
+	return w.Contains(*that.start) && w.Contains(*that.end)
+}
+
 func (w Window) Duration() time.Duration {
 	if w.IsOpen() {
 		// TODO test
