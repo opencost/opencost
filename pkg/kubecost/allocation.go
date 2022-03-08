@@ -1760,6 +1760,8 @@ func (as *AllocationSet) ComputeIdleAllocations(assetSet *AssetSet) (map[string]
 	return idleAllocs, nil
 }
 
+// TODO etl -- deprecate!
+
 // ComputeIdleAllocationsByNode computes the idle allocations for the AllocationSet,
 // given a set of Assets. Ideally, assetSet should contain only Nodes, but if
 // it contains other Assets, they will be ignored; only CPU, GPU and RAM are
