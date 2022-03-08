@@ -297,11 +297,11 @@ type SummaryAllocationSet struct {
 }
 
 // NewSummaryAllocationSet converts an AllocationSet to a SummaryAllocationSet.
-// Filter functions, sharing functions, and reconciliation parameters are
+// Filter functions, keep functions, and reconciliation parameters are
 // required for unfortunate reasons to do with performance and legacy order-of-
 // operations details, as well as the fact that reconciliation has been
 // pushed down to the conversion step between Allocation and SummaryAllocation.
-func NewSummaryAllocationSet(as *AllocationSet, ffs, sfs []AllocationMatchFunc, reconcile, reconcileNetwork bool) *SummaryAllocationSet {
+func NewSummaryAllocationSet(as *AllocationSet, ffs, kfs []AllocationMatchFunc, reconcile, reconcileNetwork bool) *SummaryAllocationSet {
 	if as == nil {
 		return nil
 	}
@@ -309,7 +309,7 @@ func NewSummaryAllocationSet(as *AllocationSet, ffs, sfs []AllocationMatchFunc, 
 	// If we can know the exact size of the map, use it. If filters or sharing
 	// functions are present, we can't know the size, so we make a default map.
 	var sasMap map[string]*SummaryAllocation
-	if len(ffs) == 0 && len(sfs) == 0 {
+	if len(ffs) == 0 && len(kfs) == 0 {
 		// No filters, so make the map of summary allocations exactly the size
 		// of the origin allocation set.
 		sasMap = make(map[string]*SummaryAllocation, len(as.allocations))
@@ -324,16 +324,16 @@ func NewSummaryAllocationSet(as *AllocationSet, ffs, sfs []AllocationMatchFunc, 
 	}
 
 	for _, alloc := range as.allocations {
-		// First, detect if the allocation should be shared. If so, mark it as
+		// First, detect if the allocation should be kept. If so, mark it as
 		// such, insert it, and continue.
-		shouldShare := false
-		for _, sf := range sfs {
-			if sf(alloc) {
-				shouldShare = true
+		sholdKeep := false
+		for _, kf := range kfs {
+			if kf(alloc) {
+				sholdKeep = true
 				break
 			}
 		}
-		if shouldShare {
+		if sholdKeep {
 			sa := NewSummaryAllocation(alloc, reconcile, reconcileNetwork)
 			sa.Share = true
 			sas.Insert(sa)
@@ -454,8 +454,8 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// an empty slice implies that we should aggregate everything. (See
 	// generateKey for why that makes sense.)
 	shouldAggregate := aggregateBy != nil
-	shouldShare := len(options.SharedHourlyCosts) > 0 || len(options.ShareFuncs) > 0
-	if !shouldAggregate && !shouldShare {
+	sholdKeep := len(options.SharedHourlyCosts) > 0 || len(options.ShareFuncs) > 0
+	if !shouldAggregate && !sholdKeep {
 		return nil
 	}
 
