@@ -63,7 +63,6 @@ type AssetQueryOptions struct {
 	Compute            bool
 	DisableAdjustments bool
 	FilterFuncs        []AssetMatchFunc
-	ShareFuncs         []AssetMatchFunc
 	SharedHourlyCosts  map[string]float64
 	Step               time.Duration
 }
