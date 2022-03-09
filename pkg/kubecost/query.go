@@ -14,14 +14,12 @@ type Querier interface {
 
 // AllocationQuerier interface defining api for requesting Allocation data
 type AllocationQuerier interface {
-	QueryAllocation(start, end time.Time, opts *AllocationQueryOptions) (chan *AllocationSetRange, chan error)
-	QueryAllocationSync(start, end time.Time, opts *AllocationQueryOptions) (*AllocationSetRange, error)
+	QueryAllocation(start, end time.Time, opts *AllocationQueryOptions) (*AllocationSetRange, error)
 }
 
 // SummaryAllocationQuerier interface defining api for requesting SummaryAllocation data
 type SummaryAllocationQuerier interface {
-	QuerySummaryAllocation(start, end time.Time, opts *AllocationQueryOptions) (chan *SummaryAllocationSetRange, chan error)
-	QuerySummaryAllocationSync(start, end time.Time, opts *AllocationQueryOptions) (*SummaryAllocationSetRange, error)
+	QuerySummaryAllocation(start, end time.Time, opts *AllocationQueryOptions) (*SummaryAllocationSetRange, error)
 }
 
 // AssetQuerier interface defining api for requesting Asset data
@@ -80,7 +78,7 @@ type CloudUsageQueryOptions struct {
 }
 
 // QueryAllocationAsync provide a functions for retrieving results from any AllocationQuerier Asynchronously
-func QueryAllocationAsync(allocationQuerier *AllocationQuerier, start, end time.Time, opts *AllocationQueryOptions) (chan *AllocationSetRange, chan error) {
+func QueryAllocationAsync(allocationQuerier AllocationQuerier, start, end time.Time, opts *AllocationQueryOptions) (chan *AllocationSetRange, chan error) {
 	asrCh := make(chan *AllocationSetRange)
 	errCh := make(chan error)
 
@@ -88,7 +86,7 @@ func QueryAllocationAsync(allocationQuerier *AllocationQuerier, start, end time.
 		defer close(asrCh)
 		defer close(errCh)
 
-		asr, err := allocationQuerier.QueryAllocationSync(start, end, opts)
+		asr, err := allocationQuerier.QueryAllocation(start, end, opts)
 		if err != nil {
 			errCh <- err
 			return
@@ -101,7 +99,7 @@ func QueryAllocationAsync(allocationQuerier *AllocationQuerier, start, end time.
 }
 
 // QuerySummaryAllocationAsync provide a functions for retrieving results from any SummaryAllocationQuerier Asynchronously
-func QuerySummaryAllocationAsync(summaryAllocationQuerier *SummaryAllocationQuerier, start, end time.Time, opts *AllocationQueryOptions) (chan *SummaryAllocationSetRange, chan error) {
+func QuerySummaryAllocationAsync(summaryAllocationQuerier SummaryAllocationQuerier, start, end time.Time, opts *AllocationQueryOptions) (chan *SummaryAllocationSetRange, chan error) {
 	asrCh := make(chan *SummaryAllocationSetRange)
 	errCh := make(chan error)
 
@@ -109,7 +107,7 @@ func QuerySummaryAllocationAsync(summaryAllocationQuerier *SummaryAllocationQuer
 		defer close(asrCh)
 		defer close(errCh)
 
-		asr, err := summaryAllocationQuerier.QuerySummaryAllocationSync(start, end, opts)
+		asr, err := summaryAllocationQuerier.QuerySummaryAllocation(start, end, opts)
 		if err != nil {
 			errCh <- err
 			return
@@ -122,7 +120,7 @@ func QuerySummaryAllocationAsync(summaryAllocationQuerier *SummaryAllocationQuer
 }
 
 // QueryAsseetAsync provide a functions for retrieving results from any AssetQuerier Asynchronously
-func QueryAssetAsync(assetQuerier *AssetQuerier, start, end time.Time, opts *AssetQueryOptions) (chan *AssetSetRange, chan error) {
+func QueryAssetAsync(assetQuerier AssetQuerier, start, end time.Time, opts *AssetQueryOptions) (chan *AssetSetRange, chan error) {
 	asrCh := make(chan *AssetSetRange)
 	errCh := make(chan error)
 
@@ -132,12 +130,12 @@ func QueryAssetAsync(assetQuerier *AssetQuerier, start, end time.Time, opts *Ass
 
 		asr, err := assetQuerier.QueryAsset(start, end, opts)
 		if err != nil {
-			errCh <-  err
+			errCh <- err
 			return
 		}
 
 		asrCh <- asr
-	} (asrCh, errCh)
+	}(asrCh, errCh)
 
 	return asrCh, errCh
 }
@@ -146,9 +144,11 @@ func QueryAssetAsync(assetQuerier *AssetQuerier, start, end time.Time, opts *Ass
 func QueryCloudUsage(cloudUsageQuerier CloudUsageQuerier, start, end time.Time, opts *CloudUsageQueryOptions) (chan *CloudUsageSetRange, chan error) {
 	cusrCh := make(chan *CloudUsageSetRange)
 	errCh := make(chan error)
+
 	go func(cusrCh chan *CloudUsageSetRange, errCh chan error) {
 		defer close(cusrCh)
 		defer close(errCh)
+
 		cusr, err := cloudUsageQuerier.QueryCloudUsage(start, end, opts)
 		if err != nil {
 			errCh <- err
@@ -157,5 +157,6 @@ func QueryCloudUsage(cloudUsageQuerier CloudUsageQuerier, start, end time.Time, 
 
 		cusrCh <- cusr
 	}(cusrCh, errCh)
+
 	return cusrCh, errCh
 }
