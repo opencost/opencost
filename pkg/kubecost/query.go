@@ -140,8 +140,8 @@ func QueryAssetAsync(assetQuerier AssetQuerier, start, end time.Time, opts *Asse
 	return asrCh, errCh
 }
 
-// QueryCloudUsage provide a functions for retrieving results from any CloudUsageQuerier Asynchronously
-func QueryCloudUsage(cloudUsageQuerier CloudUsageQuerier, start, end time.Time, opts *CloudUsageQueryOptions) (chan *CloudUsageSetRange, chan error) {
+// QueryCloudUsageAsync provide a functions for retrieving results from any CloudUsageQuerier Asynchronously
+func QueryCloudUsageAsync(cloudUsageQuerier CloudUsageQuerier, start, end time.Time, opts *CloudUsageQueryOptions) (chan *CloudUsageSetRange, chan error) {
 	cusrCh := make(chan *CloudUsageSetRange)
 	errCh := make(chan error)
 
