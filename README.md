@@ -64,9 +64,9 @@ When explicit RAM or CPU prices are not provided by your cloud provider, the Kub
 
 These base RAM/CPU prices are normalized to ensure the sum of each component is equal to the total price of the node provisioned, based on billing rates from your provider. When the sum of RAM/CPU costs is greater (or less) than the price of the node, then the ratio between the two input prices are held constant.  
 
-As an example, let's imagine a node with 1 CPU and 1 Gb of RAM that costs $20/mo. If your base CPU price is $30 and your RAM Gb price is $10, then these inputs will be normlized to $15 for CPU and $5 for RAM so that the sum equals the cost of the node. Note that the price of a CPU remains 3x the price of a Gb of RAM. 
+As an example, let's imagine a node with 1 GPU, 1 CPU and 1 Gb of RAM that costs $35/mo. If your base GPU price is $30, base CPU price is $30 and RAM Gb price is $10, then these inputs will be normalized to $15 for GPU, $15 for CPU and $5 for RAM so that the sum equals the cost of the node. Note that the price of a CPU, as well as the price of a GPU remain 3x the price of a Gb of RAM.
 
-    NodeHourlyCost = NORMALIZED_CPU_PRICE * # of CPUS + NORMALIZED_RAM_PRICE * # of RAM Gb
+    NodeHourlyCost = NORMALIZED_CPU_PRICE * # of CPUS + NORMALIZED_GPU_PRICE * # of GPUS + NORMALIZED_RAM_PRICE * # of RAM Gb
 
 #### How do you allocate a specific amount of RAM/CPU to an individual pod or container?
 
