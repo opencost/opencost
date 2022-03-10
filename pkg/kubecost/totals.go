@@ -618,7 +618,7 @@ func (mts *MemoryTotalsStore) GetAllocationTotalsByCluster(start time.Time, end 
 // by node for the given start and end times.
 func (mts *MemoryTotalsStore) GetAllocationTotalsByNode(start time.Time, end time.Time) (map[string]*AllocationTotals, bool) {
 	k := storeKey(start, end)
-	if raw, ok := mts.allocTotalsByNode.Get(k); ok {
+	if raw, ok := mts.allocTotalsByNode.Get(k); !ok {
 		return map[string]*AllocationTotals{}, false
 	} else {
 		original := raw.(map[string]*AllocationTotals)
