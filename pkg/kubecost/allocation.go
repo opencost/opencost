@@ -899,6 +899,11 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		options.LabelConfig = NewLabelConfig()
 	}
 
+	// idleFiltrationCoefficients relies on this being explicitly set
+	if options.ShareIdle != ShareWeighted {
+		options.ShareIdle = ShareNone
+	}
+
 	var undistributedIdleMap map[string]bool
 
 	// If aggregateBy is nil, we don't aggregate anything. On the other hand,
@@ -1270,6 +1275,8 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 				idleAlloc.CPUCoreHours *= resourceCoeffs["cpu"]
 				idleAlloc.RAMCost *= resourceCoeffs["ram"]
 				idleAlloc.RAMByteHours *= resourceCoeffs["ram"]
+				idleAlloc.GPUCost *= resourceCoeffs["gpu"]
+				idleAlloc.GPUHours *= resourceCoeffs["gpu"]
 			}
 		}
 	}
@@ -1338,6 +1345,8 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// Name		CPU		GPU		RAM
 	// __idle__ $0      $12     $0
 	// kubecost $12     $0      $7
+
+	// TODO etl -- fix the following for idle-by-node
 
 	hasUndistributedIdle := undistributedIdleMap["cpu"] || undistributedIdleMap["gpu"] || undistributedIdleMap["ram"]
 	if idleSet.Length() > 0 && hasUndistributedIdle {
@@ -2558,4 +2567,38 @@ func (asr *AllocationSetRange) Minutes() float64 {
 	duration := end.Sub(start)
 
 	return duration.Minutes()
+}
+
+// TotalCost returns the sum of all TotalCosts of the allocations contained
+func (asr *AllocationSetRange) TotalCost() float64 {
+	if asr == nil || len(asr.allocations) == 0 {
+		return 0.0
+	}
+
+	asr.RLock()
+	defer asr.RUnlock()
+
+	tc := 0.0
+	for _, as := range asr.allocations {
+		tc += as.TotalCost()
+	}
+	return tc
+}
+
+// TODO remove after testing
+func (asr *AllocationSetRange) Print(verbose bool) {
+	fmt.Printf("%s (dur=%s, len=%d, cost=%.5f)\n", asr.Window(), asr.Window().Duration(), asr.Length(), asr.TotalCost())
+	asr.Each(func(i int, as *AllocationSet) {
+		fmt.Printf(" > %s (dur=%s, len=%d, cost=%.5f) \n", as.Window, as.Window.Duration(), as.Length(), as.TotalCost())
+		as.Each(func(key string, a *Allocation) {
+			if verbose {
+				fmt.Printf("   {\"%s\", %.5f, %.5f, %.5f, %.5f, %.5f, %.5f, %.5f, %.5f, %.5f, %.5f, %.5f, %.5f, %.5f, %.5f}\n",
+					key, a.CPUCost, a.CPUCostAdjustment, a.GPUCost, a.GPUCostAdjustment, a.LoadBalancerCost, a.LoadBalancerCostAdjustment,
+					a.NetworkCost, a.NetworkCostAdjustment, a.PVCost(), a.PVCostAdjustment, a.RAMCost, a.RAMCostAdjustment,
+					a.SharedCost, a.ExternalCost)
+			} else {
+				fmt.Printf("   - \"%s\": %.5f\n", key, a.TotalCost())
+			}
+		})
+	})
 }
