@@ -709,9 +709,9 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		}
 
 		// 6. Distribute idle allocations according to the idle coefficients.
-		// NOTE: if idle allocation is off (i.e. ShareIdle == ShareNone) then
-		// all idle allocations will be in the resultSet at this point, so idleSet
-		// will be empty and we won't enter this block.
+		// NOTE: if idle allocation is off (i.e. options.ShareIdle: ShareNone)
+		// then all idle allocations will be in the resultSet at this point, so
+		// idleSet will be empty and we won't enter this block.
 		if len(idleSet.SummaryAllocations) > 0 {
 			for _, idle := range idleSet.SummaryAllocations {
 				// Idle key is either cluster or node, as determined by the
@@ -1101,6 +1101,22 @@ func (sas *SummaryAllocationSet) Insert(sa *SummaryAllocation) error {
 	return nil
 }
 
+func (sas *SummaryAllocationSet) TotalCost() float64 {
+	if sas == nil {
+		return 0.0
+	}
+
+	sas.RLock()
+	defer sas.RUnlock()
+
+	tc := 0.0
+	for _, sa := range sas.SummaryAllocations {
+		tc += sa.TotalCost()
+	}
+
+	return tc
+}
+
 // SummaryAllocationSetRange is a thread-safe slice of SummaryAllocationSets.
 type SummaryAllocationSetRange struct {
 	sync.RWMutex
@@ -1267,4 +1283,36 @@ func (sasr *SummaryAllocationSetRange) InsertExternalAllocations(that *Allocatio
 
 	// err might be nil
 	return err
+}
+
+func (sasr *SummaryAllocationSetRange) TotalCost() float64 {
+	if sasr == nil {
+		return 0.0
+	}
+
+	sasr.RLock()
+	defer sasr.RUnlock()
+
+	tc := 0.0
+	for _, sas := range sasr.SummaryAllocationSets {
+		tc += sas.TotalCost()
+	}
+
+	return tc
+}
+
+// TODO remove after testing
+func (sasr *SummaryAllocationSetRange) Print(verbose bool) {
+	fmt.Printf("%s (dur=%s, len=%d, cost=%.5f)\n", sasr.Window, sasr.Window.Duration(), len(sasr.SummaryAllocationSets), sasr.TotalCost())
+	for _, sas := range sasr.SummaryAllocationSets {
+		fmt.Printf(" > %s (dur=%s, len=%d, cost=%.5f) \n", sas.Window, sas.Window.Duration(), len(sas.SummaryAllocations), sas.TotalCost())
+		for key, sa := range sas.SummaryAllocations {
+			if verbose {
+				fmt.Printf("   {\"%s\", cpu: %.5f, gpu: %.5f, lb: %.5f, net: %.5f, pv: %.5f, ram: %.5f, shared: %.5f, external: %.5f}\n",
+					key, sa.CPUCost, sa.GPUCost, sa.LoadBalancerCost, sa.NetworkCost, sa.PVCost, sa.RAMCost, sa.SharedCost, sa.ExternalCost)
+			} else {
+				fmt.Printf("   - \"%s\": %.5f\n", key, sa.TotalCost())
+			}
+		}
+	}
 }
