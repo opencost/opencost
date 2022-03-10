@@ -63,6 +63,7 @@ type AssetQueryOptions struct {
 	Compute            bool
 	DisableAdjustments bool
 	FilterFuncs        []AssetMatchFunc
+	IncludeCloud       bool
 	SharedHourlyCosts  map[string]float64
 	Step               time.Duration
 }
@@ -73,7 +74,6 @@ type CloudUsageQueryOptions struct {
 	AggregateBy   []string
 	AwaitCoverage bool
 	FilterFuncs   []CloudUsageMatchFunc
-	Step          time.Duration
 }
 
 // QueryAllocationAsync provide a functions for retrieving results from any AllocationQuerier Asynchronously
