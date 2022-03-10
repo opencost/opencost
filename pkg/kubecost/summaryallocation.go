@@ -611,15 +611,13 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// option. (See IdleByNode documentation; defaults to idle-by-cluster.)
 	var allocTotals map[string]*AllocationTotals
 	var ok bool
-	if options.IdleByNode {
-		if options.AllocationTotalsStore != nil {
+	if options.AllocationTotalsStore != nil {
+		if options.IdleByNode {
 			allocTotals, ok = options.AllocationTotalsStore.GetAllocationTotalsByNode(*sas.Window.Start(), *sas.Window.End())
 			if !ok {
 				return fmt.Errorf("nil allocation resource totals by node for %s", sas.Window)
 			}
-		}
-	} else {
-		if options.AllocationTotalsStore != nil {
+		} else {
 			allocTotals, ok = options.AllocationTotalsStore.GetAllocationTotalsByCluster(*sas.Window.Start(), *sas.Window.End())
 			if !ok {
 				return fmt.Errorf("nil allocation resource totals by cluster for %s", sas.Window)
