@@ -326,14 +326,14 @@ func NewSummaryAllocationSet(as *AllocationSet, ffs, kfs []AllocationMatchFunc, 
 	for _, alloc := range as.allocations {
 		// First, detect if the allocation should be kept. If so, mark it as
 		// such, insert it, and continue.
-		sholdKeep := false
+		shouldKeep := false
 		for _, kf := range kfs {
 			if kf(alloc) {
-				sholdKeep = true
+				shouldKeep = true
 				break
 			}
 		}
-		if sholdKeep {
+		if shouldKeep {
 			sa := NewSummaryAllocation(alloc, reconcile, reconcileNetwork)
 			sa.Share = true
 			sas.Insert(sa)
@@ -454,8 +454,8 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// an empty slice implies that we should aggregate everything. (See
 	// generateKey for why that makes sense.)
 	shouldAggregate := aggregateBy != nil
-	sholdKeep := len(options.SharedHourlyCosts) > 0 || len(options.ShareFuncs) > 0
-	if !shouldAggregate && !sholdKeep {
+	shouldKeep := len(options.SharedHourlyCosts) > 0 || len(options.ShareFuncs) > 0
+	if !shouldAggregate && !shouldKeep {
 		return nil
 	}
 
@@ -623,6 +623,20 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 			allocTotals, ok = options.AllocationTotalsStore.GetAllocationTotalsByCluster(*sas.Window.Start(), *sas.Window.End())
 			if !ok {
 				return fmt.Errorf("nil allocation resource totals by cluster for %s", sas.Window)
+			}
+		}
+	}
+
+	// If reconciliation has been fully or partially disabled, clear the
+	// relevant adjustments from the alloc totals
+	if allocTotals != nil && (!options.Reconcile || !options.ReconcileNetwork) {
+		if !options.Reconcile {
+			for _, tot := range allocTotals {
+				tot.ClearAdjustments()
+			}
+		} else if !options.ReconcileNetwork {
+			for _, tot := range allocTotals {
+				tot.NetworkCostAdjustment = 0.0
 			}
 		}
 	}

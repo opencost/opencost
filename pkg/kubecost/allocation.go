@@ -834,6 +834,8 @@ type AllocationAggregationOptions struct {
 	IdleByNode            bool
 	LabelConfig           *LabelConfig
 	MergeUnallocated      bool
+	Reconcile             bool
+	ReconcileNetwork      bool
 	ShareFuncs            []AllocationMatchFunc
 	ShareIdle             string
 	ShareSplit            string
