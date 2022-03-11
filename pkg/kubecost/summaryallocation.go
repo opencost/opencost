@@ -796,11 +796,11 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 				// the relevant property matches (i.e. Cluster or Node,
 				// depending on which idle sharing option is selected)
 				if options.IdleByNode {
-					if idle.Properties.Node != sa.Properties.Node {
+					if idle.Properties.Cluster != sa.Properties.Cluster || idle.Properties.Node != sa.Properties.Node {
 						continue
 					}
 
-					key = idle.Properties.Node
+					key = fmt.Sprintf("%s/%s", idle.Properties.Cluster, idle.Properties.Node)
 				} else {
 					if idle.Properties.Cluster != sa.Properties.Cluster {
 						continue
@@ -931,12 +931,12 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	for _, sa := range externalSet.SummaryAllocations {
 		skip := false
 
+		// Make an allocation with the same properties and test that
+		// against the FilterFunc to see if the external allocation should
+		// be filtered or not.
+		// TODO:CLEANUP do something about external cost, this stinks
+		ea := &Allocation{Properties: sa.Properties}
 		for _, ff := range options.FilterFuncs {
-			// Make an allocation with the same properties and test that
-			// against the FilterFunc to see if the external allocation should
-			// be filtered or not.
-			// TODO:CLEANUP do something about external cost, this stinks
-			ea := &Allocation{Properties: sa.Properties}
 			if !ff(ea) {
 				skip = true
 				break
@@ -954,10 +954,27 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// 13. Distribute remaining, undistributed idle. Undistributed idle is any
 	// per-resource idle cost for which there can be no idle coefficient
 	// computed because there is zero usage across all allocations.
-	for _, ia := range idleSet.SummaryAllocations {
-		key := ia.Properties.Cluster
+	for _, isa := range idleSet.SummaryAllocations {
+		// if the idle does not apply to the non-filtered values, skip it
+		skip := false
+		// Make an allocation with the same properties and test that
+		// against the FilterFunc to see if the external allocation should
+		// be filtered or not.
+		// TODO:CLEANUP do something about external cost, this stinks
+		ia := &Allocation{Properties: isa.Properties}
+		for _, ff := range options.FilterFuncs {
+			if !ff(ia) {
+				skip = true
+				break
+			}
+		}
+		if skip {
+			continue
+		}
+
+		key := isa.Properties.Cluster
 		if options.IdleByNode {
-			key = fmt.Sprintf("%s/%s", ia.Properties.Cluster, ia.Properties.Node)
+			key = fmt.Sprintf("%s/%s", isa.Properties.Cluster, isa.Properties.Node)
 		}
 
 		rt, ok := allocTotals[key]
@@ -968,36 +985,36 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 
 		hasUndistributableCost := false
 
-		if ia.CPUCost > 0.0 && rt.CPUCost == 0.0 {
+		if isa.CPUCost > 0.0 && rt.CPUCost == 0.0 {
 			// There is idle CPU cost, but no allocated CPU cost, so that cost
 			// is undistributable and must be inserted.
 			hasUndistributableCost = true
 		} else {
 			// Cost was entirely distributed, so zero it out
-			ia.CPUCost = 0.0
+			isa.CPUCost = 0.0
 		}
 
-		if ia.GPUCost > 0.0 && rt.GPUCost == 0.0 {
+		if isa.GPUCost > 0.0 && rt.GPUCost == 0.0 {
 			// There is idle GPU cost, but no allocated GPU cost, so that cost
 			// is undistributable and must be inserted.
 			hasUndistributableCost = true
 		} else {
 			// Cost was entirely distributed, so zero it out
-			ia.GPUCost = 0.0
+			isa.GPUCost = 0.0
 		}
 
-		if ia.RAMCost > 0.0 && rt.RAMCost == 0.0 {
+		if isa.RAMCost > 0.0 && rt.RAMCost == 0.0 {
 			// There is idle CPU cost, but no allocated CPU cost, so that cost
 			// is undistributable and must be inserted.
 			hasUndistributableCost = true
 		} else {
 			// Cost was entirely distributed, so zero it out
-			ia.RAMCost = 0.0
+			isa.RAMCost = 0.0
 		}
 
 		if hasUndistributableCost {
-			ia.Name = fmt.Sprintf("%s/%s", key, IdleSuffix)
-			resultSet.Insert(ia)
+			isa.Name = fmt.Sprintf("%s/%s", key, IdleSuffix)
+			resultSet.Insert(isa)
 		}
 	}
 
