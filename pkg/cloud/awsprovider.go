@@ -1596,7 +1596,10 @@ func (aws *AWS) QueryAthenaPaginated(ctx context.Context, query string, fn func(
 	if err != nil {
 		log.Errorf(err.Error())
 	}
-	waitForQueryToComplete(ctx, cli, startQueryExecutionOutput.QueryExecutionId)
+	err = waitForQueryToComplete(ctx, cli, startQueryExecutionOutput.QueryExecutionId)
+	if err != nil {
+		return fmt.Errorf("QueryAthenaPaginated: query execution error: %s", err.Error())
+	}
 	queryResultsInput := &athena.GetQueryResultsInput{
 		QueryExecutionId: startQueryExecutionOutput.QueryExecutionId,
 	}
@@ -1612,18 +1615,25 @@ func (aws *AWS) QueryAthenaPaginated(ctx context.Context, query string, fn func(
 	return nil
 }
 
-func waitForQueryToComplete(ctx context.Context, client *athena.Client, queryExecutionID *string) {
+func waitForQueryToComplete(ctx context.Context, client *athena.Client, queryExecutionID *string) error {
 	inp := &athena.GetQueryExecutionInput{
 		QueryExecutionId: queryExecutionID,
 	}
 	isQueryStillRunning := true
 	for isQueryStillRunning {
-		qe, _ := client.GetQueryExecution(ctx, inp)
+		qe, err := client.GetQueryExecution(ctx, inp)
+		if err != nil {
+			return err
+		}
+		if qe.QueryExecution.Status.State != "RUNNING" && qe.QueryExecution.Status.State != "QUEUED" {
+			return fmt.Errorf("no query results available for query %s", *queryExecutionID)
+		}
 		if qe.QueryExecution.Status.State == "SUCCEEDED" {
 			isQueryStillRunning = false
 		}
 		time.Sleep(2 * time.Second)
 	}
+	return nil
 }
 
 type SavingsPlanData struct {
@@ -1737,8 +1747,9 @@ func (aws *AWS) GetReservationDataFromAthena() error {
 	columns, _ := aws.fetchColumns()
 
 	if !columns["reservation_reservation_a_r_n"] || !columns["reservation_effective_cost"] {
-		klog.Infof("No reserved data available in Athena")
-		aws.RIPricingError = nil
+		err = fmt.Errorf("no reservation data available in Athena")
+		aws.RIPricingError = err
+		return err
 	}
 	if aws.RIPricingByInstanceID == nil {
 		aws.RIPricingByInstanceID = make(map[string]*RIData)
