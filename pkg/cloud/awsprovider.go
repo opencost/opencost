@@ -1610,7 +1610,7 @@ func (aws *AWS) QueryAthenaPaginated(ctx context.Context, query string, fn func(
 	}
 	err = waitForQueryToComplete(ctx, cli, startQueryExecutionOutput.QueryExecutionId)
 	if err != nil {
-		log.Errorf("QueryAthenaPaginated: query execution error: %s", err.Error())
+		return fmt.Errorf("QueryAthenaPaginated: query execution error: %s", err.Error())
 	}
 	queryResultsInput := &athena.GetQueryResultsInput{
 		QueryExecutionId: startQueryExecutionOutput.QueryExecutionId,
