@@ -1594,7 +1594,7 @@ func (aws *AWS) QueryAthenaPaginated(ctx context.Context, query string, fn func(
 	// Query Athena
 	startQueryExecutionOutput, err := cli.StartQueryExecution(ctx, startQueryExecutionInput)
 	if err != nil {
-		log.Errorf(err.Error())
+		return fmt.Errorf("QueryAthenaPaginated: start query error: %s", err.Error())
 	}
 	err = waitForQueryToComplete(ctx, cli, startQueryExecutionOutput.QueryExecutionId)
 	if err != nil {
@@ -1625,11 +1625,12 @@ func waitForQueryToComplete(ctx context.Context, client *athena.Client, queryExe
 		if err != nil {
 			return err
 		}
-		if qe.QueryExecution.Status.State != "RUNNING" && qe.QueryExecution.Status.State != "QUEUED" {
-			return fmt.Errorf("no query results available for query %s", *queryExecutionID)
-		}
 		if qe.QueryExecution.Status.State == "SUCCEEDED" {
 			isQueryStillRunning = false
+			continue
+		}
+		if qe.QueryExecution.Status.State != "RUNNING" && qe.QueryExecution.Status.State != "QUEUED" {
+			return fmt.Errorf("no query results available for query %s", *queryExecutionID)
 		}
 		time.Sleep(2 * time.Second)
 	}
