@@ -25,6 +25,8 @@ jobs:
           push: false
 
   build-with-KCM-develop:
+    name: "Build closed-source with KCM@develop. Failure=warning, should not block merge."
+
     runs-on: ubuntu-latest
 
     steps:
