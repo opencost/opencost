@@ -1499,8 +1499,8 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 		} else {
 			// Both are additive for weighted distribution, where each
 			// cumulative coefficient will be divided by the total.
-			coeffs[name] += alloc.TotalCost()
-			total += alloc.TotalCost()
+			coeffs[name] += alloc.TotalCost() - alloc.SharedCost
+			total += alloc.TotalCost() - alloc.SharedCost
 		}
 	}
 

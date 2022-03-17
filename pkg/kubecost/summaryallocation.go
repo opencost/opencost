@@ -716,7 +716,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		// NOTE: SummaryAllocation does not support ShareEven, so only record
 		// by cost for cost-weighted distribution.
 		if sharingCoeffs != nil {
-			sharingCoeffs[key] += sa.TotalCost()
+			sharingCoeffs[key] += sa.TotalCost() - sa.SharedCost
 		}
 
 		// 6. Distribute idle allocations according to the idle coefficients.
