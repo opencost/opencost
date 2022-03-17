@@ -492,7 +492,6 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	//     by the proportion of allocation resources remaining after filters
 	//     have been applied.
 	//
-	//
 	// 11. Distribute shared resources according to sharing coefficients.
 	//
 	// 12. Insert external allocations into the result set.

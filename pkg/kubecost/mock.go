@@ -156,6 +156,7 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		Pod:        "pod1",
 		Container:  "container1",
 		ProviderID: "c1nodes",
+		Node:       "c1nodes",
 	})
 	a1111.RAMCost = 11.00
 
@@ -165,6 +166,7 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		Pod:        "pod-abc",
 		Container:  "container2",
 		ProviderID: "c1nodes",
+		Node:       "c1nodes",
 	})
 
 	a11def3 := NewMockUnitAllocation("cluster1/namespace1/pod-def/container3", start, day, &AllocationProperties{
@@ -173,6 +175,7 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		Pod:        "pod-def",
 		Container:  "container3",
 		ProviderID: "c1nodes",
+		Node:       "c1nodes",
 	})
 
 	a12ghi4 := NewMockUnitAllocation("cluster1/namespace2/pod-ghi/container4", start, day, &AllocationProperties{
@@ -181,6 +184,7 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		Pod:        "pod-ghi",
 		Container:  "container4",
 		ProviderID: "c1nodes",
+		Node:       "c1nodes",
 	})
 
 	a12ghi5 := NewMockUnitAllocation("cluster1/namespace2/pod-ghi/container5", start, day, &AllocationProperties{
@@ -189,6 +193,7 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		Pod:        "pod-ghi",
 		Container:  "container5",
 		ProviderID: "c1nodes",
+		Node:       "c1nodes",
 	})
 
 	a12jkl6 := NewMockUnitAllocation("cluster1/namespace2/pod-jkl/container6", start, day, &AllocationProperties{
@@ -197,6 +202,7 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		Pod:        "pod-jkl",
 		Container:  "container6",
 		ProviderID: "c1nodes",
+		Node:       "c1nodes",
 	})
 
 	a22mno4 := NewMockUnitAllocation("cluster2/namespace2/pod-mno/container4", start, day, &AllocationProperties{
@@ -205,6 +211,7 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		Pod:        "pod-mno",
 		Container:  "container4",
 		ProviderID: "node1",
+		Node:       "node1",
 	})
 
 	a22mno5 := NewMockUnitAllocation("cluster2/namespace2/pod-mno/container5", start, day, &AllocationProperties{
@@ -213,6 +220,7 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		Pod:        "pod-mno",
 		Container:  "container5",
 		ProviderID: "node1",
+		Node:       "node1",
 	})
 
 	a22pqr6 := NewMockUnitAllocation("cluster2/namespace2/pod-pqr/container6", start, day, &AllocationProperties{
@@ -221,6 +229,7 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		Pod:        "pod-pqr",
 		Container:  "container6",
 		ProviderID: "node2",
+		Node:       "node2",
 	})
 
 	a23stu7 := NewMockUnitAllocation("cluster2/namespace3/pod-stu/container7", start, day, &AllocationProperties{
@@ -229,6 +238,7 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		Pod:        "pod-stu",
 		Container:  "container7",
 		ProviderID: "node2",
+		Node:       "node2",
 	})
 
 	a23vwx8 := NewMockUnitAllocation("cluster2/namespace3/pod-vwx/container8", start, day, &AllocationProperties{
@@ -237,6 +247,7 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		Pod:        "pod-vwx",
 		Container:  "container8",
 		ProviderID: "node3",
+		Node:       "node3",
 	})
 
 	a23vwx9 := NewMockUnitAllocation("cluster2/namespace3/pod-vwx/container9", start, day, &AllocationProperties{
@@ -245,6 +256,7 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 		Pod:        "pod-vwx",
 		Container:  "container9",
 		ProviderID: "node3",
+		Node:       "node3",
 	})
 
 	// Controllers
