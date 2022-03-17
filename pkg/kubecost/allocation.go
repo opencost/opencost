@@ -1394,6 +1394,55 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		}
 	}
 
+	// TODO revisit this (ideally we just remove sharing from this function!)
+	// If filters and shared resources and shared idle are all enabled then
+	// we will over-count idle by exactly the portion that gets shared with the
+	// filtered allocations -- and idle filtration will miss this because it
+	// only filters the non-idle filtered costs.
+	//
+	// Consider the following example, from unit tests:
+	// - namespace1     28.000
+	// - namespace2     36.000
+	// - namespace3     18.000
+	// - cluster1/idle  20.000
+	// - cluster2/idle  10.000
+	//
+	// Now, we want to share namespace1, filter namespace2, and share idle:
+	//
+	// 1. Distribute idle
+	//                 ns1     ns2     ns3
+	//    non-idle  28.000  36.000  18.000
+	//        idle  14.688  10.312   5.000
+	//
+	// 2. Share namespace1
+	//
+	//                        ns2     ns3
+	//           non-idle  36.000  18.000
+	//               idle  10.312   5.000
+	//    shared non-idle  18.667   9.333
+	//    shared     idle   9.792   4.896 (***)
+	//
+	// 3. Filter out all but namespace2
+	//
+	//    ns2 = 36.000 + 10.312 + 18.667 + 9.792 = 74.771
+	//
+	// So, if we had NOT shared idle, we would expect something like this:
+	//
+	//    ns2 = 36.000 + 18.667 = 54.667
+	//   idle = 10.312 + 9.792  = 20.104
+	//
+	// But we will instead get this:
+	//
+	//    ns2 = 36.000 + 18.667 = 54.667
+	//   idle = 10.312 + 14.688 = 25.000
+	//
+	// Which over-shoots idle by 4.896 (***), i.e. precisely the amount of idle
+	// cost corresponding to namespace1 AND shared with namespace3. Phew.
+	//
+	// I originally wanted to fix this, but after 2 days, I'm punting with the
+	// recommendation that we rewrite this function soon. Too difficult.
+	// - Niko
+
 	as.allocations = aggSet.allocations
 
 	return nil
