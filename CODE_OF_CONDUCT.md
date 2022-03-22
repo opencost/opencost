@@ -23,6 +23,7 @@ Examples of unacceptable behavior include:
 * Trolling, insulting or derogatory comments, and personal or political attacks
 * Public or private harassment
 * Publishing others' private information, such as a physical or email address, without their explicit permission
+* No solicitation. This is a community to help foster innovation, education, and professional & personal networking. 
 * Other conduct which could reasonably be considered inappropriate in a professional setting
 
 Project maintainers have the right and responsibility to remove, edit, or reject comments, commits, code, wiki edits, issues, and other contributions that are not aligned to this Code of Conduct. 
