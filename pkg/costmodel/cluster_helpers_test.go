@@ -1,10 +1,11 @@
 package costmodel
 
 import (
-	"github.com/kubecost/cost-model/pkg/config"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/kubecost/cost-model/pkg/config"
 
 	"github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/prom"
@@ -687,6 +688,7 @@ func TestBuildNodeMap(t *testing.T) {
 				testCase.preemptibleMap,
 				testCase.labelsMap,
 				testCase.clusterAndNameToType,
+				time.Minute,
 			)
 
 			if !reflect.DeepEqual(result, testCase.expected) {

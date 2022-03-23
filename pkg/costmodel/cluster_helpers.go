@@ -518,7 +518,7 @@ func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Durat
 		}
 
 		s := time.Unix(int64(result.Values[0].Timestamp), 0)
-		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).Add(resolution)
+		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
 		mins := e.Sub(s).Minutes()
 
 		// TODO niko/assets if mins >= threshold, interpolate for missing data?
@@ -705,6 +705,7 @@ func buildNodeMap(
 	preemptibleMap map[NodeIdentifier]bool,
 	labelsMap map[nodeIdentifierNoProviderID]map[string]string,
 	clusterAndNameToType map[nodeIdentifierNoProviderID]string,
+	res time.Duration,
 ) map[NodeIdentifier]*Node {
 
 	nodeMap := make(map[NodeIdentifier]*Node)
@@ -740,7 +741,7 @@ func buildNodeMap(
 		checkForKeyAndInitIfMissing(nodeMap, id, clusterAndNameToType)
 		nodeMap[id].Start = activeData.start
 		nodeMap[id].End = activeData.end
-		nodeMap[id].Minutes = activeData.minutes
+		nodeMap[id].Minutes = nodeMap[id].End.Sub(nodeMap[id].Start).Minutes()
 	}
 
 	// We now merge in data that doesn't have a provider id by looping over

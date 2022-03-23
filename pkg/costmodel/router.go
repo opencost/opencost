@@ -692,8 +692,15 @@ func (a *Accesses) PrometheusQuery(w http.ResponseWriter, r *http.Request, _ htt
 		return
 	}
 
+	// TODO test to make sure "time" does not get set, if not given
+
+	var ts time.Time
+	if qp.GetInt64("time", 0) > 0 {
+		ts = time.Unix(qp.GetInt64("time", 0), 0)
+	}
+
 	ctx := prom.NewNamedContext(a.PrometheusClient, prom.FrontendContextName)
-	body, err := ctx.RawQuery(query)
+	body, err := ctx.RawQuery(query, ts)
 	if err != nil {
 		w.Write(WrapData(nil, fmt.Errorf("Error running query %s. Error: %s", query, err)))
 		return
@@ -745,8 +752,15 @@ func (a *Accesses) ThanosQuery(w http.ResponseWriter, r *http.Request, _ httprou
 		return
 	}
 
+	// TODO test to make sure "time" does not get set, if not given
+
+	var ts time.Time
+	if qp.GetInt64("time", 0) > 0 {
+		ts = time.Unix(qp.GetInt64("time", 0), 0)
+	}
+
 	ctx := prom.NewNamedContext(a.ThanosClient, prom.FrontendContextName)
-	body, err := ctx.RawQuery(query)
+	body, err := ctx.RawQuery(query, ts)
 	if err != nil {
 		w.Write(WrapData(nil, fmt.Errorf("Error running query %s. Error: %s", query, err)))
 		return
