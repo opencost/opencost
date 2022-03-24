@@ -111,6 +111,18 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	clusterStart := map[string]time.Time{}
 	clusterEnd := map[string]time.Time{}
 
+	// If ingesting pod UID, we query kube_pod_container_status_running avg
+	// by uid as well as the default values, and all podKeys/pods have their
+	// names changed to "<pod_name> <pod_uid>". Because other metrics need
+	// to generate keys to match pods but don't have UIDs, podUIDKeyMap
+	// stores values of format:
+
+	// default podKey : []{edited podkey 1, edited podkey 2}
+
+	// This is because ingesting UID allows us to catch uncontrolled pods
+	// with the same names. However, this will lead to a many-to-one metric
+	// to podKey relation, so this map allows us to map the metric's
+	// "<pod_name>" key to the edited "<pod_name> <pod_uid>" keys in podMap.
 	ingestPodUID := env.IsIngestingPodUID()
 	podUIDKeyMap := make(map[podKey][]podKey)
 
@@ -571,7 +583,9 @@ func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSiz
 			}
 
 			// Submit and profile query
+
 			var queryPods string
+			// If ingesting UIDs, avg on them
 			if ingestPodUID {
 				queryPods = fmt.Sprintf(queryFmtPodsUID, env.GetPromClusterLabel(), durStr, resStr, offStr)
 			} else {
@@ -590,6 +604,8 @@ func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSiz
 			return err
 		}
 
+		// queryFmtPodsUID will return both UID-containing results, and non-UID-containing results,
+		// so filter out the non-containing results so we don't duplicate pods.
 		if ingestPodUID {
 			var resPodsUID []*prom.QueryResult
 
@@ -638,6 +654,8 @@ func applyPodResults(window kubecost.Window, resolution time.Duration, podMap ma
 		pod := labels["pod"]
 		key := newPodKey(cluster, namespace, pod)
 
+		// If pod UIDs are being used to ID pods, append them to the pod name in
+		// the podKey.
 		if ingestPodUID {
 
 			uid, err := res.GetString("uid")
