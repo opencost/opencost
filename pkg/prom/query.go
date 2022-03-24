@@ -190,8 +190,6 @@ func (ctx *Context) RawQuery(query string, t time.Time) ([]byte, error) {
 	q.Set("query", query)
 
 	if !t.IsZero() {
-		// TODO remove log
-		log.Infof("[Prom] time=%s query=%s", strconv.FormatInt(t.Unix(), 10), query)
 		q.Set("time", strconv.FormatInt(t.Unix(), 10))
 	} else {
 		// for non-range queries, we set the timestamp for the query to time-offset
