@@ -111,8 +111,12 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	clusterStart := map[string]time.Time{}
 	clusterEnd := map[string]time.Time{}
 
-	ingestPodUID := true
+	ingestPodUID := env.IsIngestingPodUID()
 	podUIDKeyMap := make(map[podKey][]podKey)
+
+	if ingestPodUID {
+		log.Infof("CostModel.ComputeAllocation: ingesting UID data from KSM metrics...")
+	}
 
 	cm.buildPodMap(window, resolution, env.GetETLMaxBatchDuration(), podMap, clusterStart, clusterEnd, ingestPodUID, podUIDKeyMap)
 
@@ -866,7 +870,7 @@ func applyCPUCoresRequested(podMap map[podKey]*Pod, resCPUCoresRequested []*prom
 			if pod.Allocations[container].CPUCores() > MAX_CPU_CAP {
 				log.Infof("[WARNING] Very large cpu allocation, clamping! to %f", res.Values[0].Value*(pod.Allocations[container].Minutes()/60.0))
 				pod.Allocations[container].CPUCoreHours = res.Values[0].Value * (pod.Allocations[container].Minutes() / 60.0)
-
+			}
 			node, err := res.GetString("node")
 			if err != nil {
 				log.Warningf("CostModel.ComputeAllocation: CPU request query result missing 'node': %s", key)
