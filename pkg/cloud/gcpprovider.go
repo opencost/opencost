@@ -319,6 +319,11 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 		attribute = c.ClusterName
 	}
 
+	// Use a default name if none has been set until this point
+	if attribute == "" {
+		attribute = "GKE Cluster #1"
+	}
+
 	m := make(map[string]string)
 	m["name"] = attribute
 	m["provider"] = "GCP"
