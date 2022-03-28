@@ -36,7 +36,6 @@ type CloudUsageQuerier interface {
 type AllocationQueryOptions struct {
 	Accumulate        bool
 	AccumulateBy      time.Duration
-	AwaitCoverage     bool
 	AggregateBy       []string
 	Compute           bool
 	FilterFuncs       []AllocationMatchFunc
@@ -60,7 +59,6 @@ type AllocationQueryOptions struct {
 type AssetQueryOptions struct {
 	Accumulate         bool
 	AggregateBy        []string
-	AwaitCoverage      bool
 	Compute            bool
 	DisableAdjustments bool
 	FilterFuncs        []AssetMatchFunc
@@ -71,10 +69,9 @@ type AssetQueryOptions struct {
 
 // CloudUsageQueryOptions define optional parameters for querying a Store
 type CloudUsageQueryOptions struct {
-	Accumulate    bool
-	AggregateBy   []string
-	AwaitCoverage bool
-	FilterFuncs   []CloudUsageMatchFunc
+	Accumulate  bool
+	AggregateBy []string
+	FilterFuncs []CloudUsageMatchFunc
 }
 
 // QueryAllocationAsync provide a functions for retrieving results from any AllocationQuerier Asynchronously
