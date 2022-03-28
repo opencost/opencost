@@ -41,6 +41,9 @@ type AllocationTotals struct {
 func (art *AllocationTotals) ClearAdjustments() {
 	art.CPUCostAdjustment = 0.0
 	art.GPUCostAdjustment = 0.0
+	art.LoadBalancerCostAdjustment = 0.0
+	art.NetworkCostAdjustment = 0.0
+	art.PersistentVolumeCostAdjustment = 0.0
 	art.RAMCostAdjustment = 0.0
 }
 
