@@ -36,6 +36,7 @@ type CloudUsageQuerier interface {
 type AllocationQueryOptions struct {
 	Accumulate        bool
 	AccumulateBy      time.Duration
+	AwaitCoverage     bool
 	AggregateBy       []string
 	Compute           bool
 	FilterFuncs       []AllocationMatchFunc
