@@ -5,9 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/config"
-
 	"github.com/kubecost/cost-model/pkg/cloud"
+	"github.com/kubecost/cost-model/pkg/config"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util"
 
@@ -927,7 +926,11 @@ func TestAssetCustompricing(t *testing.T) {
 			Values: []*util.Vector{
 				&util.Vector{
 					Timestamp: 0,
-					Value:     60.0,
+					Value:     1.0,
+				},
+				&util.Vector{
+					Timestamp: 3600.0,
+					Value:     1.0,
 				},
 			},
 		},
@@ -996,10 +999,10 @@ func TestAssetCustompricing(t *testing.T) {
 			ramResult := ramMap[nodeKey]
 			gpuResult := gpuMap[nodeKey]
 
-			diskMap := map[string]*Disk{}
+			diskMap := map[DiskIdentifier]*Disk{}
 			pvCosts(diskMap, time.Hour, pvMinsPromResult, pvSizePromResult, pvCostPromResult, testProvider)
 
-			diskResult := diskMap["cluster1/pvc1"].Cost
+			diskResult := diskMap[DiskIdentifier{"cluster1", "pvc1"}].Cost
 
 			if !util.IsApproximately(cpuResult, testCase.expectedPricing["CPU"]) {
 				t.Errorf("CPU custom pricing error in %s. Got %v but expected %v", testCase.name, cpuResult, testCase.expectedPricing["CPU"])

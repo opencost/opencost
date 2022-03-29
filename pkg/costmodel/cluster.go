@@ -118,7 +118,12 @@ type Disk struct {
 	Breakdown  *ClusterCostsBreakdown
 }
 
-func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end time.Time) (map[string]*Disk, error) {
+type DiskIdentifier struct {
+	Cluster string
+	Name    string
+}
+
+func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end time.Time) (map[DiskIdentifier]*Disk, error) {
 	// Query for the duration between start and end
 	durStr := timeutil.DurationString(end.Sub(start))
 
@@ -168,7 +173,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 		return nil, ctx.ErrorCollection()
 	}
 
-	diskMap := map[string]*Disk{}
+	diskMap := map[DiskIdentifier]*Disk{}
 
 	pvCosts(diskMap, resolution, resActiveMins, resPVSize, resPVCost, provider)
 
@@ -185,7 +190,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 		}
 
 		cost := result.Values[0].Value
-		key := fmt.Sprintf("%s/%s", cluster, name)
+		key := DiskIdentifier{cluster, name}
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
@@ -210,7 +215,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 		}
 
 		cost := result.Values[0].Value
-		key := fmt.Sprintf("%s/%s", cluster, name)
+		key := DiskIdentifier{cluster, name}
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
@@ -235,7 +240,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 		}
 
 		bytes := result.Values[0].Value
-		key := fmt.Sprintf("%s/%s", cluster, name)
+		key := DiskIdentifier{cluster, name}
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
@@ -263,7 +268,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 			continue
 		}
 
-		key := fmt.Sprintf("%s/%s", cluster, name)
+		key := DiskIdentifier{cluster, name}
 		if _, ok := diskMap[key]; !ok {
 			log.DedupedWarningf(5, "ClusterDisks: local active mins for unidentified disk or disk deleted from analysis")
 			continue
@@ -538,9 +543,6 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 
 	queryLBCost := fmt.Sprintf(`avg(avg_over_time(kubecost_load_balancer_cost[%s])) by (namespace, service_name, %s, ingress_ip)`, durStr, env.GetPromClusterLabel())
 	queryActiveMins := fmt.Sprintf(`avg(kubecost_load_balancer_cost) by (namespace, service_name, %s, ingress_ip)[%s:%dm]`, env.GetPromClusterLabel(), durStr, minsPerResolution)
-
-	log.Infof("[Prom] t=%d q=%s", t.Unix(), queryLBCost)
-	log.Infof("[Prom] t=%d q=%s", t.Unix(), queryActiveMins)
 
 	resChLBCost := ctx.QueryAtTime(queryLBCost, t)
 	resChActiveMins := ctx.QueryAtTime(queryActiveMins, t)
@@ -1105,7 +1107,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 	}, nil
 }
 
-func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost []*prom.QueryResult, cp cloud.Provider) {
+func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost []*prom.QueryResult, cp cloud.Provider) {
 	for _, result := range resActiveMins {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
@@ -1122,7 +1124,7 @@ func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, 
 			continue
 		}
 
-		key := fmt.Sprintf("%s/%s", cluster, name)
+		key := DiskIdentifier{cluster, name}
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
@@ -1156,7 +1158,7 @@ func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, 
 		// TODO niko/assets storage class
 
 		bytes := result.Values[0].Value
-		key := fmt.Sprintf("%s/%s", cluster, name)
+		key := DiskIdentifier{cluster, name}
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
@@ -1188,9 +1190,7 @@ func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, 
 		// TODO niko/assets storage class
 
 		var cost float64
-
 		if customPricingEnabled && customPricingConfig != nil {
-
 			customPVCostStr := customPricingConfig.Storage
 
 			customPVCost, err := strconv.ParseFloat(customPVCostStr, 64)
@@ -1199,14 +1199,11 @@ func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, 
 			}
 
 			cost = customPVCost
-
 		} else {
-
 			cost = result.Values[0].Value
-
 		}
 
-		key := fmt.Sprintf("%s/%s", cluster, name)
+		key := DiskIdentifier{cluster, name}
 		if _, ok := diskMap[key]; !ok {
 			diskMap[key] = &Disk{
 				Cluster:   cluster,
@@ -1214,6 +1211,7 @@ func pvCosts(diskMap map[string]*Disk, resolution time.Duration, resActiveMins, 
 				Breakdown: &ClusterCostsBreakdown{},
 			}
 		}
+		fmt.Printf("price: %.5f & minutes: %.5f & cost: %.5f\n", cost, diskMap[key].Minutes, diskMap[key].Cost)
 		diskMap[key].Cost = cost * (diskMap[key].Bytes / 1024 / 1024 / 1024) * (diskMap[key].Minutes / 60)
 		providerID, _ := result.GetString("provider_id") // just put the providerID set up here, it's the simplest query.
 		if providerID != "" {
