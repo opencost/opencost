@@ -39,7 +39,6 @@ type FileStatus struct {
 type CloudStatus struct {
 	CloudConnectionStatus string                `json:"cloudConnectionStatus"`
 	CloudUsage            *CloudAssetStatus     `json:"cloudUsage,omitempty"`
-	CloudAssets           *CloudAssetStatus     `json:"cloudAssets,omitempty"`
 	Reconciliation        *ReconciliationStatus `json:"reconciliation,omitempty"`
 }
 

@@ -3054,6 +3054,23 @@ func (asr *AssetSetRange) Minutes() float64 {
 	return duration.Minutes()
 }
 
+// TotalCost returns the AssetSetRange's total cost
+func (asr *AssetSetRange) TotalCost() float64 {
+	if asr == nil {
+		return 0.0
+	}
+
+	asr.RLock()
+	defer asr.RUnlock()
+
+	tc := 0.0
+	for _, as := range asr.assets {
+		tc += as.TotalCost()
+	}
+
+	return tc
+}
+
 // This is a helper type. The Asset API returns a json which cannot be natively
 // unmarshaled into any Asset struct. Therefore, this struct IN COMBINATION WITH
 // DESERIALIZATION LOGIC DEFINED IN asset_unmarshal.go can unmarshal a json directly

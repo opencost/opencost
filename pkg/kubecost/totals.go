@@ -41,7 +41,33 @@ type AllocationTotals struct {
 func (art *AllocationTotals) ClearAdjustments() {
 	art.CPUCostAdjustment = 0.0
 	art.GPUCostAdjustment = 0.0
+	art.LoadBalancerCostAdjustment = 0.0
+	art.NetworkCostAdjustment = 0.0
+	art.PersistentVolumeCostAdjustment = 0.0
 	art.RAMCostAdjustment = 0.0
+}
+
+// Clone deep copies the AllocationTotals
+func (art *AllocationTotals) Clone() *AllocationTotals {
+	return &AllocationTotals{
+		Start:                          art.Start,
+		End:                            art.End,
+		Cluster:                        art.Cluster,
+		Node:                           art.Node,
+		Count:                          art.Count,
+		CPUCost:                        art.CPUCost,
+		CPUCostAdjustment:              art.CPUCostAdjustment,
+		GPUCost:                        art.GPUCost,
+		GPUCostAdjustment:              art.GPUCostAdjustment,
+		LoadBalancerCost:               art.LoadBalancerCost,
+		LoadBalancerCostAdjustment:     art.LoadBalancerCostAdjustment,
+		NetworkCost:                    art.NetworkCost,
+		NetworkCostAdjustment:          art.NetworkCostAdjustment,
+		PersistentVolumeCost:           art.PersistentVolumeCost,
+		PersistentVolumeCostAdjustment: art.PersistentVolumeCostAdjustment,
+		RAMCost:                        art.RAMCost,
+		RAMCostAdjustment:              art.RAMCostAdjustment,
+	}
 }
 
 // TotalCPUCost returns CPU cost with adjustment.
@@ -179,6 +205,31 @@ func (art *AssetTotals) ClearAdjustments() {
 	art.LoadBalancerCostAdjustment = 0.0
 	art.PersistentVolumeCostAdjustment = 0.0
 	art.RAMCostAdjustment = 0.0
+}
+
+// Clone deep copies the AssetTotals
+func (art *AssetTotals) Clone() *AssetTotals {
+	return &AssetTotals{
+		Start:                           art.Start,
+		End:                             art.End,
+		Cluster:                         art.Cluster,
+		Node:                            art.Node,
+		Count:                           art.Count,
+		AttachedVolumeCost:              art.AttachedVolumeCost,
+		AttachedVolumeCostAdjustment:    art.AttachedVolumeCostAdjustment,
+		ClusterManagementCost:           art.ClusterManagementCost,
+		ClusterManagementCostAdjustment: art.ClusterManagementCostAdjustment,
+		CPUCost:                         art.CPUCost,
+		CPUCostAdjustment:               art.CPUCostAdjustment,
+		GPUCost:                         art.GPUCost,
+		GPUCostAdjustment:               art.GPUCostAdjustment,
+		LoadBalancerCost:                art.LoadBalancerCost,
+		LoadBalancerCostAdjustment:      art.LoadBalancerCostAdjustment,
+		PersistentVolumeCost:            art.PersistentVolumeCost,
+		PersistentVolumeCostAdjustment:  art.PersistentVolumeCostAdjustment,
+		RAMCost:                         art.RAMCost,
+		RAMCostAdjustment:               art.RAMCostAdjustment,
+	}
 }
 
 // TotalAttachedVolumeCost returns CPU cost with adjustment.
@@ -554,10 +605,15 @@ func NewMemoryTotalsStore() *MemoryTotalsStore {
 // by cluster for the given start and end times.
 func (mts *MemoryTotalsStore) GetAllocationTotalsByCluster(start time.Time, end time.Time) (map[string]*AllocationTotals, bool) {
 	k := storeKey(start, end)
-	if raw, ok := mts.allocTotalsByCluster.Get(k); ok {
-		return raw.(map[string]*AllocationTotals), true
-	} else {
+	if raw, ok := mts.allocTotalsByCluster.Get(k); !ok {
 		return map[string]*AllocationTotals{}, false
+	} else {
+		original := raw.(map[string]*AllocationTotals)
+		totals := make(map[string]*AllocationTotals, len(original))
+		for k, v := range original {
+			totals[k] = v.Clone()
+		}
+		return totals, true
 	}
 }
 
@@ -565,10 +621,15 @@ func (mts *MemoryTotalsStore) GetAllocationTotalsByCluster(start time.Time, end 
 // by node for the given start and end times.
 func (mts *MemoryTotalsStore) GetAllocationTotalsByNode(start time.Time, end time.Time) (map[string]*AllocationTotals, bool) {
 	k := storeKey(start, end)
-	if raw, ok := mts.allocTotalsByNode.Get(k); ok {
-		return raw.(map[string]*AllocationTotals), true
-	} else {
+	if raw, ok := mts.allocTotalsByNode.Get(k); !ok {
 		return map[string]*AllocationTotals{}, false
+	} else {
+		original := raw.(map[string]*AllocationTotals)
+		totals := make(map[string]*AllocationTotals, len(original))
+		for k, v := range original {
+			totals[k] = v.Clone()
+		}
+		return totals, true
 	}
 }
 
@@ -590,10 +651,15 @@ func (mts *MemoryTotalsStore) SetAllocationTotalsByNode(start time.Time, end tim
 // by cluster for the given start and end times.
 func (mts *MemoryTotalsStore) GetAssetTotalsByCluster(start time.Time, end time.Time) (map[string]*AssetTotals, bool) {
 	k := storeKey(start, end)
-	if raw, ok := mts.assetTotalsByCluster.Get(k); ok {
-		return raw.(map[string]*AssetTotals), true
-	} else {
+	if raw, ok := mts.assetTotalsByCluster.Get(k); !ok {
 		return map[string]*AssetTotals{}, false
+	} else {
+		original := raw.(map[string]*AssetTotals)
+		totals := make(map[string]*AssetTotals, len(original))
+		for k, v := range original {
+			totals[k] = v.Clone()
+		}
+		return totals, true
 	}
 }
 
@@ -601,10 +667,15 @@ func (mts *MemoryTotalsStore) GetAssetTotalsByCluster(start time.Time, end time.
 // by node for the given start and end times.
 func (mts *MemoryTotalsStore) GetAssetTotalsByNode(start time.Time, end time.Time) (map[string]*AssetTotals, bool) {
 	k := storeKey(start, end)
-	if raw, ok := mts.assetTotalsByNode.Get(k); ok {
-		return raw.(map[string]*AssetTotals), true
-	} else {
+	if raw, ok := mts.assetTotalsByNode.Get(k); !ok {
 		return map[string]*AssetTotals{}, false
+	} else {
+		original := raw.(map[string]*AssetTotals)
+		totals := make(map[string]*AssetTotals, len(original))
+		for k, v := range original {
+			totals[k] = v.Clone()
+		}
+		return totals, true
 	}
 }
 
