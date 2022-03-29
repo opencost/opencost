@@ -1211,7 +1211,6 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 				Breakdown: &ClusterCostsBreakdown{},
 			}
 		}
-		fmt.Printf("price: %.5f & minutes: %.5f & cost: %.5f\n", cost, diskMap[key].Minutes, diskMap[key].Cost)
 		diskMap[key].Cost = cost * (diskMap[key].Bytes / 1024 / 1024 / 1024) * (diskMap[key].Minutes / 60)
 		providerID, _ := result.GetString("provider_id") // just put the providerID set up here, it's the simplest query.
 		if providerID != "" {
