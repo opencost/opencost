@@ -89,7 +89,19 @@ func (ctx *Context) ErrorCollection() error {
 func (ctx *Context) Query(query string) QueryResultsChan {
 	resCh := make(QueryResultsChan)
 
-	go runQuery(query, ctx, resCh, "")
+	go runQuery(query, ctx, resCh, time.Now(), "")
+
+	return resCh
+}
+
+// QueryWithTime returns a QueryResultsChan, then runs the given query at the
+// given time (see time parameter here: https://prometheus.io/docs/prometheus/latest/querying/api/#instant-queries)
+// and sends the results on the provided channel. Receiver is responsible for
+// closing the channel, preferably using the Read method.
+func (ctx *Context) QueryAtTime(query string, t time.Time) QueryResultsChan {
+	resCh := make(QueryResultsChan)
+
+	go runQuery(query, ctx, resCh, t, "")
 
 	return resCh
 }
@@ -100,7 +112,7 @@ func (ctx *Context) Query(query string) QueryResultsChan {
 func (ctx *Context) ProfileQuery(query string, profileLabel string) QueryResultsChan {
 	resCh := make(QueryResultsChan)
 
-	go runQuery(query, ctx, resCh, profileLabel)
+	go runQuery(query, ctx, resCh, time.Now(), profileLabel)
 
 	return resCh
 }
@@ -134,7 +146,7 @@ func (ctx *Context) ProfileQueryAll(queries ...string) []QueryResultsChan {
 }
 
 func (ctx *Context) QuerySync(query string) ([]*QueryResult, prometheus.Warnings, error) {
-	raw, warnings, err := ctx.query(query)
+	raw, warnings, err := ctx.query(query, time.Now())
 	if err != nil {
 		return nil, warnings, err
 	}
@@ -154,11 +166,11 @@ func (ctx *Context) QueryURL() *url.URL {
 
 // runQuery executes the prometheus query asynchronously, collects results and
 // errors, and passes them through the results channel.
-func runQuery(query string, ctx *Context, resCh QueryResultsChan, profileLabel string) {
+func runQuery(query string, ctx *Context, resCh QueryResultsChan, t time.Time, profileLabel string) {
 	defer errors.HandlePanic()
 	startQuery := time.Now()
 
-	raw, warnings, requestError := ctx.query(query)
+	raw, warnings, requestError := ctx.query(query, t)
 	results := NewQueryResults(query, raw)
 
 	// report all warnings, request, and parse errors (nils will be ignored)
@@ -172,18 +184,22 @@ func runQuery(query string, ctx *Context, resCh QueryResultsChan, profileLabel s
 }
 
 // RawQuery is a direct query to the prometheus client and returns the body of the response
-func (ctx *Context) RawQuery(query string) ([]byte, error) {
+func (ctx *Context) RawQuery(query string, t time.Time) ([]byte, error) {
 	u := ctx.Client.URL(epQuery, nil)
 	q := u.Query()
 	q.Set("query", query)
 
-	// for non-range queries, we set the timestamp for the query to time-offset
-	// this is a special use case that's typically only used when our primary
-	// prom db has delayed insertion (thanos, cortex, etc...)
-	if promQueryOffset != 0 && ctx.name != AllocationContextName {
-		q.Set("time", time.Now().Add(-promQueryOffset).UTC().Format(time.RFC3339))
+	if !t.IsZero() {
+		q.Set("time", strconv.FormatInt(t.Unix(), 10))
 	} else {
-		q.Set("time", time.Now().UTC().Format(time.RFC3339))
+		// for non-range queries, we set the timestamp for the query to time-offset
+		// this is a special use case that's typically only used when our primary
+		// prom db has delayed insertion (thanos, cortex, etc...)
+		if promQueryOffset != 0 && ctx.name != AllocationContextName {
+			q.Set("time", time.Now().Add(-promQueryOffset).UTC().Format(time.RFC3339))
+		} else {
+			q.Set("time", time.Now().UTC().Format(time.RFC3339))
+		}
 	}
 
 	u.RawQuery = q.Encode()
@@ -221,8 +237,8 @@ func (ctx *Context) RawQuery(query string) ([]byte, error) {
 	return body, err
 }
 
-func (ctx *Context) query(query string) (interface{}, prometheus.Warnings, error) {
-	body, err := ctx.RawQuery(query)
+func (ctx *Context) query(query string, t time.Time) (interface{}, prometheus.Warnings, error) {
+	body, err := ctx.RawQuery(query, t)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -230,7 +246,7 @@ func (ctx *Context) query(query string) (interface{}, prometheus.Warnings, error
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Unmarshal Error: %s\nQuery: %s", err, query)
+		return nil, nil, fmt.Errorf("query '%s' caused unmarshal error: %s", query, err)
 	}
 
 	warnings := warningsFrom(toReturn)
@@ -354,7 +370,7 @@ func (ctx *Context) queryRange(query string, start, end time.Time, step time.Dur
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Unmarshal Error: %s\nQuery: %s", err, query)
+		return nil, nil, fmt.Errorf("query '%s' caused unmarshal error: %s", query, err)
 	}
 
 	warnings := warningsFrom(toReturn)

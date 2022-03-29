@@ -692,8 +692,24 @@ func (a *Accesses) PrometheusQuery(w http.ResponseWriter, r *http.Request, _ htt
 		return
 	}
 
+	// Attempt to parse time as either a unix timestamp or as an RFC3339 value
+	var timeVal time.Time
+	timeStr := qp.Get("time", "")
+	if len(timeStr) > 0 {
+		if t, err := strconv.ParseInt(timeStr, 10, 64); err == nil {
+			timeVal = time.Unix(t, 0)
+		} else if t, err := time.Parse(time.RFC3339, timeStr); err == nil {
+			timeVal = t
+		}
+
+		// If time is given, but not parse-able, return an error
+		if timeVal.IsZero() {
+			http.Error(w, fmt.Sprintf("time must be a unix timestamp or RFC3339 value; illegal value given: %s", timeStr), http.StatusBadRequest)
+		}
+	}
+
 	ctx := prom.NewNamedContext(a.PrometheusClient, prom.FrontendContextName)
-	body, err := ctx.RawQuery(query)
+	body, err := ctx.RawQuery(query, timeVal)
 	if err != nil {
 		w.Write(WrapData(nil, fmt.Errorf("Error running query %s. Error: %s", query, err)))
 		return
@@ -745,8 +761,24 @@ func (a *Accesses) ThanosQuery(w http.ResponseWriter, r *http.Request, _ httprou
 		return
 	}
 
+	// Attempt to parse time as either a unix timestamp or as an RFC3339 value
+	var timeVal time.Time
+	timeStr := qp.Get("time", "")
+	if len(timeStr) > 0 {
+		if t, err := strconv.ParseInt(timeStr, 10, 64); err == nil {
+			timeVal = time.Unix(t, 0)
+		} else if t, err := time.Parse(time.RFC3339, timeStr); err == nil {
+			timeVal = t
+		}
+
+		// If time is given, but not parse-able, return an error
+		if timeVal.IsZero() {
+			http.Error(w, fmt.Sprintf("time must be a unix timestamp or RFC3339 value; illegal value given: %s", timeStr), http.StatusBadRequest)
+		}
+	}
+
 	ctx := prom.NewNamedContext(a.ThanosClient, prom.FrontendContextName)
-	body, err := ctx.RawQuery(query)
+	body, err := ctx.RawQuery(query, timeVal)
 	if err != nil {
 		w.Write(WrapData(nil, fmt.Errorf("Error running query %s. Error: %s", query, err)))
 		return
