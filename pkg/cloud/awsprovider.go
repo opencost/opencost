@@ -128,6 +128,7 @@ type AWS struct {
 	SpotPricingByInstanceID     map[string]*spotInfo
 	SpotPricingUpdatedAt        *time.Time
 	SpotRefreshRunning          bool
+	SpotRefreshAllowed          bool
 	SpotPricingLock             sync.RWMutex
 	SpotPricingError            error
 	RIPricingByInstanceID       map[string]*RIData
@@ -774,6 +775,10 @@ func (aws *AWS) DownloadPricingData() error {
 
 	aws.ConfigureAuthWith(c) // load aws authentication from configuration or secret
 
+	if len(aws.SpotDataBucket) != 0 {
+		aws.SpotRefreshAllowed = true
+	}
+
 	if len(aws.SpotDataBucket) != 0 && len(aws.ProjectID) == 0 {
 		klog.V(1).Infof("using SpotDataBucket \"%s\" without ProjectID will not end well", aws.SpotDataBucket)
 	}
@@ -1011,24 +1016,26 @@ func (aws *AWS) DownloadPricingData() error {
 	}
 	klog.V(2).Infof("Finished downloading \"%s\"", pricingURL)
 
-	// Always run spot pricing refresh when performing download
-	aws.refreshSpotPricing(true)
+	if aws.SpotRefreshAllowed {
+		// Always run spot pricing refresh when performing download
+		aws.refreshSpotPricing(true)
 
-	// Only start a single refresh goroutine
-	if !aws.SpotRefreshRunning {
-		aws.SpotRefreshRunning = true
+		// Only start a single refresh goroutine
+		if !aws.SpotRefreshRunning {
+			aws.SpotRefreshRunning = true
 
-		go func() {
-			defer errors.HandlePanic()
+			go func() {
+				defer errors.HandlePanic()
 
-			for {
-				klog.Infof("Spot Pricing Refresh scheduled in %.2f minutes.", SpotRefreshDuration.Minutes())
-				time.Sleep(SpotRefreshDuration)
+				for {
+					klog.Infof("Spot Pricing Refresh scheduled in %.2f minutes.", SpotRefreshDuration.Minutes())
+					time.Sleep(SpotRefreshDuration)
 
-				// Reoccurring refresh checks update times
-				aws.refreshSpotPricing(false)
-			}
-		}()
+					// Reoccurring refresh checks update times
+					aws.refreshSpotPricing(false)
+				}
+			}()
+		}
 	}
 
 	return nil
