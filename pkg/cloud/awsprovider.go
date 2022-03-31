@@ -1016,26 +1016,29 @@ func (aws *AWS) DownloadPricingData() error {
 	}
 	klog.V(2).Infof("Finished downloading \"%s\"", pricingURL)
 
-	if aws.SpotRefreshAllowed {
-		// Always run spot pricing refresh when performing download
-		aws.refreshSpotPricing(true)
+	if !aws.SpotRefreshAllowed {
+		// Don't refresh spot pricing
+		return nil
+	}
 
-		// Only start a single refresh goroutine
-		if !aws.SpotRefreshRunning {
-			aws.SpotRefreshRunning = true
+	// Always run spot pricing refresh when performing download
+	aws.refreshSpotPricing(true)
 
-			go func() {
-				defer errors.HandlePanic()
+	// Only start a single refresh goroutine
+	if !aws.SpotRefreshRunning {
+		aws.SpotRefreshRunning = true
 
-				for {
-					klog.Infof("Spot Pricing Refresh scheduled in %.2f minutes.", SpotRefreshDuration.Minutes())
-					time.Sleep(SpotRefreshDuration)
+		go func() {
+			defer errors.HandlePanic()
 
-					// Reoccurring refresh checks update times
-					aws.refreshSpotPricing(false)
-				}
-			}()
-		}
+			for {
+				klog.Infof("Spot Pricing Refresh scheduled in %.2f minutes.", SpotRefreshDuration.Minutes())
+				time.Sleep(SpotRefreshDuration)
+
+				// Reoccurring refresh checks update times
+				aws.refreshSpotPricing(false)
+			}
+		}()
 	}
 
 	return nil
