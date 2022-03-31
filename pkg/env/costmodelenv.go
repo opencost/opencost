@@ -62,11 +62,11 @@ const (
 
 	UTCOffsetEnvVar = "UTC_OFFSET"
 
-	CacheWarmingEnabledEnvVar    = "CACHE_WARMING_ENABLED"
-	ETLEnabledEnvVar             = "ETL_ENABLED"
-	ETLMaxBatchHours             = "ETL_MAX_BATCH_HOURS"
-	ETLResolutionSeconds         = "ETL_RESOLUTION_SECONDS"
-	LegacyExternalAPIDisabledVar = "LEGACY_EXTERNAL_API_DISABLED"
+	CacheWarmingEnabledEnvVar            = "CACHE_WARMING_ENABLED"
+	ETLEnabledEnvVar                     = "ETL_ENABLED"
+	ETLMaxPrometheusQueryDurationMinutes = "ETL_MAX_PROMETHEUS_QUERY_DURATION_MINUTES"
+	ETLResolutionSeconds                 = "ETL_RESOLUTION_SECONDS"
+	LegacyExternalAPIDisabledVar         = "LEGACY_EXTERNAL_API_DISABLED"
 
 	PromClusterIDLabelEnvVar = "PROM_CLUSTER_ID_LABEL"
 
@@ -429,14 +429,10 @@ func IsETLEnabled() bool {
 	return GetBool(ETLEnabledEnvVar, true)
 }
 
-// GetETLMaxBatchDuration limits the window duration of the most expensive ETL
-// queries to a maximum batch size, such that queries can be tuned to avoid
-// timeout for large windows; e.g. if a 24h query is expected to timeout, but
-// a 6h query is expected to complete in 1m, then 6h could be a good value.
-func GetETLMaxBatchDuration() time.Duration {
-	// Default to 6h
-	hrs := time.Duration(GetInt64(ETLMaxBatchHours, 6))
-	return hrs * time.Hour
+func GetETLMaxPrometheusQueryDuration() time.Duration {
+	dayMins := 60 * 24
+	mins := time.Duration(GetInt64(ETLMaxPrometheusQueryDurationMinutes, int64(dayMins)))
+	return mins * time.Minute
 }
 
 // GetETLResolution determines the resolution of ETL queries. The smaller the

@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/kubecost/cost-model/pkg/kubecost"
 	"github.com/kubecost/cost-model/pkg/util/timeutil"
 
 	"github.com/kubecost/cost-model/pkg/cloud"
@@ -126,6 +127,9 @@ type DiskIdentifier struct {
 func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end time.Time) (map[DiskIdentifier]*Disk, error) {
 	// Query for the duration between start and end
 	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
+	}
 
 	// Start from the time "end", querying backwards
 	t := end
@@ -377,6 +381,9 @@ func costTimesMinute(activeDataMap map[NodeIdentifier]activeData, costMap map[No
 func ClusterNodes(cp cloud.Provider, client prometheus.Client, start, end time.Time) (map[NodeIdentifier]*Node, error) {
 	// Query for the duration between start and end
 	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
+	}
 
 	// Start from the time "end", querying backwards
 	t := end
@@ -530,6 +537,9 @@ type LoadBalancer struct {
 func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[LoadBalancerIdentifier]*LoadBalancer, error) {
 	// Query for the duration between start and end
 	durStr := timeutil.DurationString(end.Sub(start))
+	if durStr == "" {
+		return nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
+	}
 
 	// Start from the time "end", querying backwards
 	t := end
