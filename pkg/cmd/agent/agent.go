@@ -51,6 +51,10 @@ func newKubernetesClusterCache() (kubernetes.Interface, clustercache.ClusterCach
 	var err error
 
 	// Kubernetes API setup
+	// set no proxy for kubernetes api server
+	if err = env.AddK8sApiNoProxy(); err != nil {
+		return nil, nil, err
+	}
 	var kc *rest.Config
 	if kubeconfig := env.GetKubeConfigPath(); kubeconfig != "" {
 		kc, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
