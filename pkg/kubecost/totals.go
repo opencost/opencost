@@ -484,15 +484,15 @@ func ComputeIdleCoefficients(shareSplit, key string, cpuCost, gpuCost, ramCost f
 		return coeff, coeff, coeff
 	}
 
-	if allocationTotals[key].CPUCost > 0 {
+	if allocationTotals[key].TotalCPUCost() > 0 {
 		cpuCoeff = cpuCost / allocationTotals[key].TotalCPUCost()
 	}
 
-	if allocationTotals[key].GPUCost > 0 {
+	if allocationTotals[key].TotalGPUCost() > 0 {
 		gpuCoeff = gpuCost / allocationTotals[key].TotalGPUCost()
 	}
 
-	if allocationTotals[key].RAMCost > 0 {
+	if allocationTotals[key].TotalRAMCost() > 0 {
 		ramCoeff = ramCost / allocationTotals[key].TotalRAMCost()
 	}
 
