@@ -3,6 +3,7 @@ package costmodel
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -126,9 +127,9 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	resStr := timeutil.DurationString(resolution)
 
 	ctx := prom.NewNamedContext(cm.PrometheusClient, prom.AllocationContextName)
-
-	queryRAMBytesAllocated := fmt.Sprintf(queryFmtRAMBytesAllocated, durStr, offStr, env.GetPromClusterLabel())
-	resChRAMBytesAllocated := ctx.Query(queryRAMBytesAllocated)
+	keyNames := []string{"container", "pod", "namespace", env.GetPromClusterLabel()}
+	ramBytesAllocatedQueries := cm.SubqueryBatch(queryFmtRAMBytesAllocated, window, env.GetETLMaxBatchDuration())
+	resRAMBytesAllocated := cm.RunSubqueryExecute(ramBytesAllocatedQueries, "avg", keyNames...)
 
 	queryRAMRequests := fmt.Sprintf(queryFmtRAMRequests, durStr, offStr, env.GetPromClusterLabel())
 	resChRAMRequests := ctx.Query(queryRAMRequests)
@@ -251,7 +252,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	resCPURequests, _ := resChCPURequests.Await()
 	resCPUUsageAvg, _ := resChCPUUsageAvg.Await()
 	resCPUUsageMax, _ := resChCPUUsageMax.Await()
-	resRAMBytesAllocated, _ := resChRAMBytesAllocated.Await()
 	resRAMRequests, _ := resChRAMRequests.Await()
 	resRAMUsageAvg, _ := resChRAMUsageAvg.Await()
 	resRAMUsageMax, _ := resChRAMUsageMax.Await()
@@ -515,6 +515,90 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	}
 
 	return allocSet, nil
+}
+
+func (cm *CostModel) RunSubqueryExecute(queries []string, aggType string, matchKeys ...string) []*prom.QueryResult {
+	ctx := prom.NewNamedContext(cm.PrometheusClient, prom.AllocationContextName)
+	aggQueryResults := make(map[string]*prom.QueryResult)
+	aggQueryResultsCount := make(map[string]int) // for running average
+	for _, query := range queries {
+		queryProfile := time.Now()
+		resData, err := ctx.Query(query).Await()
+		if err != nil {
+			log.Profile(queryProfile, fmt.Sprintf("CostModel.ComputeAllocation: subquery %s failed: %s", query, err))
+		}
+		for _, res := range resData {
+			strvals, err := res.GetStrings(matchKeys...)
+			if err != nil {
+				log.DedupedWarningf(10, "CostModel.runSubQueryExecute: allocation query %s missing data: %s", query, err)
+				continue
+			}
+			vals := make([]string, 0)
+			for _, v := range strvals {
+				vals = append(vals, v)
+			}
+			sort.Strings(vals)
+			key := strings.Join(vals, ",")
+			if qr, ok := aggQueryResults[key]; !ok {
+				aggQueryResults[key] = qr
+				aggQueryResultsCount[key] = 1
+			} else {
+				if aggType == "avg" {
+					curr := qr.Values[0].Value
+					new := res.Values[0].Value
+					points := aggQueryResultsCount[key]
+					newPoints := points + 1
+					total := ((curr * float64(points)) + new) / (float64(newPoints))
+					qr.Values[0].Value = total
+				} else if aggType == "max" {
+					if qr.Values[0].Value < res.Values[0].Value {
+						aggQueryResults[key] = res
+					}
+				} else if aggType == "sum" {
+					new := res.Values[0].Value
+					qr.Values[0].Value += new
+				} else {
+					aggQueryResults[key] = qr // a no-op aggregation for informational purposes; just use the latest query result
+				}
+				aggQueryResultsCount[key]++
+			}
+		}
+	}
+	toReturn := make([]*prom.QueryResult)
+	for _, val := range aggQueryResults {
+		toReturn = append(toReturn, val)
+	}
+	return toReturn
+}
+
+// Converts an arbitrary time query into an array of subqueries
+func (cm *CostModel) SubqueryBatch(query string, window kubecost.Window, maxBatchSize time.Duration) []string {
+	// Assumes that window is positive and closed
+	start, end := *window.Start(), *window.End()
+	coverage := kubecost.NewWindow(&start, &start)
+	queries := make([]string, 0)
+	for coverage.End().Before(end) {
+		// Determine the (start, end) of the current batch
+		batchStart := *coverage.End()
+		batchEnd := coverage.End().Add(maxBatchSize)
+		if batchEnd.After(end) {
+			batchEnd = end
+		}
+		batchWindow := kubecost.NewWindow(&batchStart, &batchEnd)
+
+		// Convert window (start, end) to (duration, offset) for querying Prometheus,
+		// including handling Thanos offset
+		durStr, offStr, err := batchWindow.DurationOffsetForPrometheus()
+		if err != nil || durStr == "" {
+			// Negative duration, so set empty results and don't query
+			err = nil
+			break
+		}
+		q := fmt.Sprintf(query, durStr, offStr, env.GetPromClusterLabel())
+		queries = append(queries, q)
+		coverage = coverage.ExpandEnd(batchEnd)
+	}
+	return queries
 }
 
 func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSize time.Duration, podMap map[podKey]*Pod, clusterStart, clusterEnd map[string]time.Time) error {
