@@ -49,7 +49,7 @@ func NewSummaryAllocation(alloc *Allocation, reconcile, reconcileNetwork bool) *
 
 	sa := &SummaryAllocation{
 		Name:                   alloc.Name,
-		Properties:             alloc.Properties.Clone(),
+		Properties:             alloc.Properties,
 		Start:                  alloc.Start,
 		End:                    alloc.End,
 		CPUCoreRequestAverage:  alloc.CPUCoreRequestAverage,
