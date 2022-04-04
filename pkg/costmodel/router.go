@@ -1433,7 +1433,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 
 	// Kubernetes API setup
 	if err = env.AddK8sApiNoProxy(); err != nil {
-		klog.Errorf("unable to set k8s api server in no proxy: %w\n", err)
+		klog.Errorf("unable to set k8s api server in no proxy: %v\n", err)
 	}
 	var kc *rest.Config
 	if kubeconfig := env.GetKubeConfigPath(); kubeconfig != "" {
