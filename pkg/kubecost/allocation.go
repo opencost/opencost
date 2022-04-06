@@ -2341,21 +2341,3 @@ func (asr *AllocationSetRange) TotalCost() float64 {
 	}
 	return tc
 }
-
-// TODO remove after testing
-func (asr *AllocationSetRange) Print(verbose bool) {
-	fmt.Printf("%s (dur=%s, len=%d, cost=%.5f)\n", asr.Window(), asr.Window().Duration(), asr.Length(), asr.TotalCost())
-	asr.Each(func(i int, as *AllocationSet) {
-		fmt.Printf(" > %s (dur=%s, len=%d, cost=%.5f) \n", as.Window, as.Window.Duration(), as.Length(), as.TotalCost())
-		as.Each(func(key string, a *Allocation) {
-			if verbose {
-				fmt.Printf("   {\"%s\", %.5f, %.5f, %.5f, %.5f, %.5f, %.5f, %.5f, %.5f, %.5f, %.5f, %.5f, %.5f, %.5f, %.5f}\n",
-					key, a.CPUCost, a.CPUCostAdjustment, a.GPUCost, a.GPUCostAdjustment, a.LoadBalancerCost, a.LoadBalancerCostAdjustment,
-					a.NetworkCost, a.NetworkCostAdjustment, a.PVCost(), a.PVCostAdjustment, a.RAMCost, a.RAMCostAdjustment,
-					a.SharedCost, a.ExternalCost)
-			} else {
-				fmt.Printf("   - \"%s\": %.5f\n", key, a.TotalCost())
-			}
-		})
-	})
-}
