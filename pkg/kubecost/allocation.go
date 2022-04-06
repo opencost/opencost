@@ -1691,16 +1691,10 @@ func (as *AllocationSet) Delete(name string) {
 
 // Each invokes the given function for each Allocation in the set
 func (as *AllocationSet) Each(f func(string, *Allocation)) {
-	as.RLock()
-	defer as.RUnlock()
-
 	if as == nil {
 		return
 	}
 
-	// note: if we find that f() is causing heavy contention and blocking
-	// note: writes, we can hold a read lock while we copy the allocations,
-	// note: then execute the each over the copied map
 	for k, a := range as.allocations {
 		f(k, a)
 	}
