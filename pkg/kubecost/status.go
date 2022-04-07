@@ -11,7 +11,6 @@ type ETLStatus struct {
 	Resolution  string           `json:"resolution"`
 	MaxBatch    string           `json:"maxBatch"`
 	StartTime   time.Time        `json:"startTime"`
-	UTCOffset   string           `json:"utcOffset"`
 	Backup      *DirectoryStatus `json:"backup,omitempty"`
 }
 
@@ -37,24 +36,13 @@ type FileStatus struct {
 
 // CloudStatus describes CloudStore metadata
 type CloudStatus struct {
-	CloudConnectionStatus string                `json:"cloudConnectionStatus"`
-	CloudUsage            *CloudAssetStatus     `json:"cloudUsage,omitempty"`
-	Reconciliation        *ReconciliationStatus `json:"reconciliation,omitempty"`
+	CloudConnectionStatus string              `json:"cloudConnectionStatus"`
+	CloudUsage            *CloudProcessStatus `json:"cloudUsage,omitempty"`
+	Reconciliation        *CloudProcessStatus `json:"reconciliation,omitempty"`
 }
 
-// CloudAssetStatus describes CloudAsset metadata of a CloudStore
-type CloudAssetStatus struct {
-	Coverage    Window    `json:"coverage"`
-	LastRun     time.Time `json:"lastRun"`
-	NextRun     time.Time `json:"nextRun"`
-	Progress    float64   `json:"progress"`
-	RefreshRate string    `json:"refreshRate"`
-	Resolution  string    `json:"resolution"`
-	StartTime   time.Time `json:"startTime"`
-}
-
-// ReconciliationStatus describes Reconciliation metadata of a CloudStore
-type ReconciliationStatus struct {
+// CloudProcessStatus describes process metadata of a CloudStore
+type CloudProcessStatus struct {
 	Coverage    Window    `json:"coverage"`
 	LastRun     time.Time `json:"lastRun"`
 	NextRun     time.Time `json:"nextRun"`
