@@ -1,6 +1,7 @@
 package file
 
 import (
+	"fmt"
 	"io/ioutil"
 	"sync"
 
@@ -87,14 +88,18 @@ func InitManager(opts *ManagerOpts) {
 	}
 }
 
-func (m *manager) newFile(key string, newFn func(*manager) any) any {
+func (m *manager) newFile(key string, newFn func(*manager) any) (any, error) {
+	if m == nil {
+		return nil, fmt.Errorf("manager has not been initialized")
+	}
+
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
 	file, ok := m.files[key]
 	if !ok {
-		return newFn(m)
+		return newFn(m), nil
 	}
 
-	return file
+	return file, nil
 }

@@ -14,8 +14,8 @@ type jsonFile[T any] struct {
 	storage  storage.Storage
 }
 
-// NewJSONFileStore creates a singleton FileStore per provided path to ensure that fileName access is thread safe
-func NewJSONFileStore[T any](fileName string, storage storage.Storage) (*jsonFile[T], error) {
+// NewJSONFile creates a singleton FileStore per provided path to ensure that fileName access is thread safe
+func NewJSONFile[T any](fileName string) (*jsonFile[T], error) {
 
 	newJSONFileStore := func(m *manager) any {
 		return &jsonFile[T]{
@@ -24,7 +24,10 @@ func NewJSONFileStore[T any](fileName string, storage storage.Storage) (*jsonFil
 		}
 	}
 
-	file := _m.newFile(fileName, newJSONFileStore)
+	file, err := _m.newFile(fileName, newJSONFileStore)
+	if err != nil {
+		return nil, err
+	}
 
 	jf, ok := file.(*jsonFile[T])
 	if !ok {

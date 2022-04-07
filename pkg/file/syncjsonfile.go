@@ -70,7 +70,7 @@ type syncJSONFile[T any] struct {
 func NewSyncJSONFile[T any](fileName string) (*syncJSONFile[T], error) {
 
 	newJSONFileStore := func(m *manager) any {
-		return &syncJSONFile{
+		return &syncJSONFile[T]{
 			store:     m.store,
 			fileName:  fileName,
 			dataLock:  new(sync.Mutex),
@@ -79,7 +79,10 @@ func NewSyncJSONFile[T any](fileName string) (*syncJSONFile[T], error) {
 		}
 	}
 
-	file := _m.newFile(fileName, newJSONFileStore)
+	file, err := _m.newFile(fileName, newJSONFileStore)
+	if err != nil {
+		return nil, err
+	}
 
 	sjf, ok := file.(*syncJSONFile[T])
 	if !ok {
@@ -147,7 +150,7 @@ func (sjf *syncJSONFile[T]) internalRead(force bool) (T, error) {
 	}
 
 	if e != nil {
-		return nil, e
+		return storedObject, e
 	}
 	sjf.data = &storedObject
 	return *sjf.data, nil
@@ -313,7 +316,7 @@ func (sjf *syncJSONFile[T]) runWatcher() {
 				// check to see if the fileName has gone from exists to !exists
 				if exists {
 					exists = false
-					sjf.onFileChange(ChangeTypeDeleted, nil)
+					sjf.onFileChange(ChangeTypeDeleted, *new(T))
 				}
 				continue
 			}
