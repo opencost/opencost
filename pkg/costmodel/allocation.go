@@ -127,7 +127,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	podUIDKeyMap := make(map[podKey][]podKey)
 
 	if ingestPodUID {
-		log.Infof("CostModel.ComputeAllocation: ingesting UID data from KSM metrics...")
+		log.Debugf("CostModel.ComputeAllocation: ingesting UID data from KSM metrics...")
 	}
 
 	cm.buildPodMap(window, resolution, env.GetETLMaxBatchDuration(), podMap, clusterStart, clusterEnd, ingestPodUID, podUIDKeyMap)
@@ -337,6 +337,14 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZoneCostPerGiB, podUIDKeyMap)
 	applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionCostPerGiB, podUIDKeyMap)
 	applyNetworkAllocation(podMap, resNetInternetGiB, resNetInternetCostPerGiB, podUIDKeyMap)
+
+	// In the case that a two pods with the same name had different containers,
+	// we will double-count the containers. There is no way to associate each
+	// container with the proper pod from the usage metrics above. This will
+	// show up as a pod having two Allocations running for the whole pod runtime.
+
+	// Other than that case, Allocations should be associated with pods by the
+	// above functions.
 
 	namespaceLabels := resToNamespaceLabels(resNamespaceLabels)
 	podLabels := resToPodLabels(resPodLabels, podUIDKeyMap, ingestPodUID)
@@ -605,7 +613,9 @@ func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSiz
 		}
 
 		// queryFmtPodsUID will return both UID-containing results, and non-UID-containing results,
-		// so filter out the non-containing results so we don't duplicate pods.
+		// so filter out the non-containing results so we don't duplicate pods. This is due to the
+		// default setup of Kubecost having replicated kube_pod_container_status_running and
+		// included KSM kube_pod_container_status_running. Querying w/ UID will return both.
 		if ingestPodUID {
 			var resPodsUID []*prom.QueryResult
 
@@ -794,6 +804,12 @@ func applyCPUCoresAllocated(podMap map[podKey]*Pod, resCPUCoresAllocated []*prom
 			continue
 		}
 
+		container, err := res.GetString("container")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU allocation query result missing 'container': %s", key)
+			continue
+		}
+
 		var pods []*Pod
 
 		pod, ok := podMap[key]
@@ -813,11 +829,6 @@ func applyCPUCoresAllocated(podMap map[podKey]*Pod, resCPUCoresAllocated []*prom
 		}
 
 		for _, pod := range pods {
-			container, err := res.GetString("container")
-			if err != nil {
-				log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU allocation query result missing 'container': %s", key)
-				continue
-			}
 
 			if _, ok := pod.Allocations[container]; !ok {
 				pod.AppendContainer(container)
@@ -849,6 +860,12 @@ func applyCPUCoresRequested(podMap map[podKey]*Pod, resCPUCoresRequested []*prom
 			continue
 		}
 
+		container, err := res.GetString("container")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU request query result missing 'container': %s", key)
+			continue
+		}
+
 		var pods []*Pod
 
 		pod, ok := podMap[key]
@@ -868,11 +885,6 @@ func applyCPUCoresRequested(podMap map[podKey]*Pod, resCPUCoresRequested []*prom
 		}
 
 		for _, pod := range pods {
-			container, err := res.GetString("container")
-			if err != nil {
-				log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU request query result missing 'container': %s", key)
-				continue
-			}
 
 			if _, ok := pod.Allocations[container]; !ok {
 				pod.AppendContainer(container)
@@ -907,6 +919,15 @@ func applyCPUCoresUsedAvg(podMap map[podKey]*Pod, resCPUCoresUsedAvg []*prom.Que
 			continue
 		}
 
+		container, err := res.GetString("container")
+		if container == "" || err != nil {
+			container, err = res.GetString("container_name")
+			if err != nil {
+				log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage avg query result missing 'container': %s", key)
+				continue
+			}
+		}
+
 		var pods []*Pod
 
 		pod, ok := podMap[key]
@@ -926,14 +947,6 @@ func applyCPUCoresUsedAvg(podMap map[podKey]*Pod, resCPUCoresUsedAvg []*prom.Que
 		}
 
 		for _, pod := range pods {
-			container, err := res.GetString("container")
-			if container == "" || err != nil {
-				container, err = res.GetString("container_name")
-				if err != nil {
-					log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage avg query result missing 'container': %s", key)
-					continue
-				}
-			}
 
 			if _, ok := pod.Allocations[container]; !ok {
 				pod.AppendContainer(container)
@@ -956,6 +969,15 @@ func applyCPUCoresUsedMax(podMap map[podKey]*Pod, resCPUCoresUsedMax []*prom.Que
 			continue
 		}
 
+		container, err := res.GetString("container")
+		if container == "" || err != nil {
+			container, err = res.GetString("container_name")
+			if err != nil {
+				log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage max query result missing 'container': %s", key)
+				continue
+			}
+		}
+
 		var pods []*Pod
 
 		pod, ok := podMap[key]
@@ -975,14 +997,6 @@ func applyCPUCoresUsedMax(podMap map[podKey]*Pod, resCPUCoresUsedMax []*prom.Que
 		}
 
 		for _, pod := range pods {
-			container, err := res.GetString("container")
-			if container == "" || err != nil {
-				container, err = res.GetString("container_name")
-				if err != nil {
-					log.DedupedWarningf(10, "CostModel.ComputeAllocation: CPU usage max query result missing 'container': %s", key)
-					continue
-				}
-			}
 
 			if _, ok := pod.Allocations[container]; !ok {
 				pod.AppendContainer(container)
@@ -1007,6 +1021,12 @@ func applyRAMBytesAllocated(podMap map[podKey]*Pod, resRAMBytesAllocated []*prom
 			continue
 		}
 
+		container, err := res.GetString("container")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM allocation query result missing 'container': %s", key)
+			continue
+		}
+
 		var pods []*Pod
 
 		pod, ok := podMap[key]
@@ -1026,11 +1046,6 @@ func applyRAMBytesAllocated(podMap map[podKey]*Pod, resRAMBytesAllocated []*prom
 		}
 
 		for _, pod := range pods {
-			container, err := res.GetString("container")
-			if err != nil {
-				log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM allocation query result missing 'container': %s", key)
-				continue
-			}
 
 			if _, ok := pod.Allocations[container]; !ok {
 				pod.AppendContainer(container)
@@ -1058,6 +1073,12 @@ func applyRAMBytesRequested(podMap map[podKey]*Pod, resRAMBytesRequested []*prom
 			continue
 		}
 
+		container, err := res.GetString("container")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM request query result missing 'container': %s", key)
+			continue
+		}
+
 		var pods []*Pod
 
 		pod, ok := podMap[key]
@@ -1077,11 +1098,6 @@ func applyRAMBytesRequested(podMap map[podKey]*Pod, resRAMBytesRequested []*prom
 		}
 
 		for _, pod := range pods {
-			container, err := res.GetString("container")
-			if err != nil {
-				log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM request query result missing 'container': %s", key)
-				continue
-			}
 
 			if _, ok := pod.Allocations[container]; !ok {
 				pod.AppendContainer(container)
@@ -1113,6 +1129,15 @@ func applyRAMBytesUsedAvg(podMap map[podKey]*Pod, resRAMBytesUsedAvg []*prom.Que
 			continue
 		}
 
+		container, err := res.GetString("container")
+		if container == "" || err != nil {
+			container, err = res.GetString("container_name")
+			if err != nil {
+				log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage avg query result missing 'container': %s", key)
+				continue
+			}
+		}
+
 		var pods []*Pod
 
 		pod, ok := podMap[key]
@@ -1132,14 +1157,6 @@ func applyRAMBytesUsedAvg(podMap map[podKey]*Pod, resRAMBytesUsedAvg []*prom.Que
 		}
 
 		for _, pod := range pods {
-			container, err := res.GetString("container")
-			if container == "" || err != nil {
-				container, err = res.GetString("container_name")
-				if err != nil {
-					log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage avg query result missing 'container': %s", key)
-					continue
-				}
-			}
 
 			if _, ok := pod.Allocations[container]; !ok {
 				pod.AppendContainer(container)
@@ -1158,6 +1175,15 @@ func applyRAMBytesUsedMax(podMap map[podKey]*Pod, resRAMBytesUsedMax []*prom.Que
 			continue
 		}
 
+		container, err := res.GetString("container")
+		if container == "" || err != nil {
+			container, err = res.GetString("container_name")
+			if err != nil {
+				log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage max query result missing 'container': %s", key)
+				continue
+			}
+		}
+
 		var pods []*Pod
 
 		pod, ok := podMap[key]
@@ -1177,14 +1203,6 @@ func applyRAMBytesUsedMax(podMap map[podKey]*Pod, resRAMBytesUsedMax []*prom.Que
 		}
 
 		for _, pod := range pods {
-			container, err := res.GetString("container")
-			if container == "" || err != nil {
-				container, err = res.GetString("container_name")
-				if err != nil {
-					log.DedupedWarningf(10, "CostModel.ComputeAllocation: RAM usage max query result missing 'container': %s", key)
-					continue
-				}
-			}
 
 			if _, ok := pod.Allocations[container]; !ok {
 				pod.AppendContainer(container)
@@ -1212,6 +1230,12 @@ func applyGPUsAllocated(podMap map[podKey]*Pod, resGPUsRequested []*prom.QueryRe
 			continue
 		}
 
+		container, err := res.GetString("container")
+		if err != nil {
+			log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU request query result missing 'container': %s", key)
+			continue
+		}
+
 		var pods []*Pod
 
 		pod, ok := podMap[key]
@@ -1231,11 +1255,6 @@ func applyGPUsAllocated(podMap map[podKey]*Pod, resGPUsRequested []*prom.QueryRe
 		}
 
 		for _, pod := range pods {
-			container, err := res.GetString("container")
-			if err != nil {
-				log.DedupedWarningf(10, "CostModel.ComputeAllocation: GPU request query result missing 'container': %s", key)
-				continue
-			}
 
 			if _, ok := pod.Allocations[container]; !ok {
 				pod.AppendContainer(container)
