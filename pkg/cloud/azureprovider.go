@@ -1269,6 +1269,7 @@ func (az *Azure) PricingSourceStatus() map[string]*PricingSource {
 	}
 	rcps := &PricingSource{
 		Name:  rateCardPricingSource,
+		Enabled: true,
 		Error: errMsg,
 	}
 	if rcps.Error != "" {

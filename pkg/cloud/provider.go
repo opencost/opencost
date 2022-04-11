@@ -257,6 +257,7 @@ type PricingSources struct {
 
 type PricingSource struct {
 	Name      string `json:"name"`
+	Enabled   bool   `json:"enabled"`
 	Available bool   `json:"available"`
 	Error     string `json:"error"`
 }

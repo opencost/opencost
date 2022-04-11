@@ -57,11 +57,13 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 
 	sps := &PricingSource{
 		Name: SpotPricingSource,
+		Enabled: true,
 	}
 
 	if !aws.SpotRefreshEnabled {
 		sps.Available = false
 		sps.Error = "Spot instances not set up"
+		sps.Enabled = false
 	} else {
 		sps.Error = ""
 		if aws.SpotPricingError != nil {
@@ -79,6 +81,7 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 
 	rps := &PricingSource{
 		Name: ReservedInstancePricingSource,
+		Enabled: true,
 	}
 	rps.Error = ""
 	if aws.RIPricingError != nil {
