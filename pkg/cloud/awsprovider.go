@@ -781,7 +781,7 @@ func (aws *AWS) DownloadPricingData() error {
 
 	aws.ConfigureAuthWith(c) // load aws authentication from configuration or secret
 
-	// Need valid values for at least one of the three fields to consider spot pricing enabled
+	// Need a valid value for at least one of these fields to consider spot pricing as enabled
 	if len(aws.SpotDataBucket) != 0 || len(aws.SpotDataRegion) != 0 || len(aws.ProjectID) != 0 {
 		aws.SpotRefreshEnabled = true
 	} else {
