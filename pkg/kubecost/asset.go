@@ -1,6 +1,7 @@
 package kubecost
 
 import (
+	"bytes"
 	"encoding"
 	"fmt"
 	"strings"
@@ -246,7 +247,7 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, labelConfig *L
 // Valid values of `aggregateBy` elements are strings which are an `AssetProperty`, and strings prefixed
 // with `"label:"`.
 func key(a Asset, aggregateBy []string) (string, error) {
-	keys := []string{}
+	var buffer bytes.Buffer
 
 	if aggregateBy == nil {
 		aggregateBy = []string{
@@ -262,7 +263,7 @@ func key(a Asset, aggregateBy []string) (string, error) {
 		}
 	}
 
-	for _, s := range aggregateBy {
+	for i, s := range aggregateBy {
 		key := ""
 		switch true {
 		case s == string(AssetProviderProp):
@@ -300,12 +301,15 @@ func key(a Asset, aggregateBy []string) (string, error) {
 		}
 
 		if key != "" {
-			keys = append(keys, key)
+			buffer.WriteString(key)
 		} else {
-			keys = append(keys, UndefinedKey)
+			buffer.WriteString(UndefinedKey)
+		}
+		if i != (len(aggregateBy) - 1) {
+			buffer.WriteString("/")
 		}
 	}
-	return strings.Join(keys, "/"), nil
+	return buffer.String(), nil
 }
 
 func toString(a Asset) string {
