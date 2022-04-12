@@ -1,7 +1,6 @@
 package kubecost
 
 import (
-	"bytes"
 	"encoding"
 	"fmt"
 	"strings"
@@ -247,7 +246,7 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, labelConfig *L
 // Valid values of `aggregateBy` elements are strings which are an `AssetProperty`, and strings prefixed
 // with `"label:"`.
 func key(a Asset, aggregateBy []string) (string, error) {
-	var buffer bytes.Buffer
+	var buffer strings.Builder
 
 	if aggregateBy == nil {
 		aggregateBy = []string{
