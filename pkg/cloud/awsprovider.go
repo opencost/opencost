@@ -60,7 +60,7 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 		Enabled: true,
 	}
 
-	if !aws.isSpotRefreshEnabled() {
+	if !aws.SpotRefreshEnabled() {
 		sps.Available = false
 		sps.Error = "Spot instances not set up"
 		sps.Enabled = false
@@ -760,7 +760,8 @@ func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, e
 	return resp, pricingURL, err
 }
 
-func (aws *AWS) isSpotRefreshEnabled() bool {
+// SpotRefreshEnabled determines whether the required configs to run the spot feed query have been set up
+func (aws *AWS) SpotRefreshEnabled() bool {
 	// Need a valid value for at least one of these fields to consider spot pricing as enabled
 	return len(aws.SpotDataBucket) != 0 || len(aws.SpotDataRegion) != 0 || len(aws.ProjectID) != 0
 }
@@ -1025,7 +1026,7 @@ func (aws *AWS) DownloadPricingData() error {
 	}
 	klog.V(2).Infof("Finished downloading \"%s\"", pricingURL)
 
-	if !aws.isSpotRefreshEnabled() {
+	if !aws.SpotRefreshEnabled() {
 		return nil
 	}
 
