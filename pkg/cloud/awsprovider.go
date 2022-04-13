@@ -60,7 +60,7 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 		Enabled: true,
 	}
 
-	if !aws.SpotRefreshEnabled {
+	if !aws.isSpotRefreshEnabled() {
 		sps.Available = false
 		sps.Error = "Spot instances not set up"
 		sps.Enabled = false
@@ -136,7 +136,6 @@ type AWS struct {
 	Pricing                     map[string]*AWSProductTerms
 	SpotPricingByInstanceID     map[string]*spotInfo
 	SpotPricingUpdatedAt        *time.Time
-	SpotRefreshEnabled          bool
 	SpotRefreshRunning          bool
 	SpotPricingLock             sync.RWMutex
 	SpotPricingError            error
@@ -761,6 +760,11 @@ func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, e
 	return resp, pricingURL, err
 }
 
+func (aws *AWS) isSpotRefreshEnabled() bool {
+	// Need a valid value for at least one of these fields to consider spot pricing as enabled
+	return len(aws.SpotDataBucket) != 0 || len(aws.SpotDataRegion) != 0 || len(aws.ProjectID) != 0
+}
+
 // DownloadPricingData fetches data from the AWS Pricing API
 func (aws *AWS) DownloadPricingData() error {
 	aws.DownloadPricingDataLock.Lock()
@@ -783,13 +787,6 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.SpotDataRegion = c.SpotDataRegion
 
 	aws.ConfigureAuthWith(c) // load aws authentication from configuration or secret
-
-	// Need a valid value for at least one of these fields to consider spot pricing as enabled
-	if len(aws.SpotDataBucket) != 0 || len(aws.SpotDataRegion) != 0 || len(aws.ProjectID) != 0 {
-		aws.SpotRefreshEnabled = true
-	} else {
-		aws.SpotRefreshEnabled = false
-	}
 
 	if len(aws.SpotDataBucket) != 0 && len(aws.ProjectID) == 0 {
 		klog.V(1).Infof("using SpotDataBucket \"%s\" without ProjectID will not end well", aws.SpotDataBucket)
@@ -1028,7 +1025,7 @@ func (aws *AWS) DownloadPricingData() error {
 	}
 	klog.V(2).Infof("Finished downloading \"%s\"", pricingURL)
 
-	if !aws.SpotRefreshEnabled {
+	if !aws.isSpotRefreshEnabled() {
 		return nil
 	}
 
