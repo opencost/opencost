@@ -57,22 +57,31 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 
 	sps := &PricingSource{
 		Name: SpotPricingSource,
+		Enabled: true,
 	}
-	sps.Error = ""
-	if aws.SpotPricingError != nil {
-		sps.Error = aws.SpotPricingError.Error()
-	}
-	if sps.Error != "" {
+
+	if !aws.SpotRefreshEnabled() {
 		sps.Available = false
-	} else if len(aws.SpotPricingByInstanceID) > 0 {
-		sps.Available = true
+		sps.Error = "Spot instances not set up"
+		sps.Enabled = false
 	} else {
-		sps.Error = "No spot instances detected"
+		sps.Error = ""
+		if aws.SpotPricingError != nil {
+			sps.Error = aws.SpotPricingError.Error()
+		}
+		if sps.Error != "" {
+			sps.Available = false
+		} else if len(aws.SpotPricingByInstanceID) > 0 {
+			sps.Available = true
+		} else {
+			sps.Error = "No spot instances detected"
+		}
 	}
 	sources[SpotPricingSource] = sps
 
 	rps := &PricingSource{
 		Name: ReservedInstancePricingSource,
+		Enabled: true,
 	}
 	rps.Error = ""
 	if aws.RIPricingError != nil {
@@ -751,6 +760,12 @@ func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, e
 	return resp, pricingURL, err
 }
 
+// SpotRefreshEnabled determines whether the required configs to run the spot feed query have been set up
+func (aws *AWS) SpotRefreshEnabled() bool {
+	// Need a valid value for at least one of these fields to consider spot pricing as enabled
+	return len(aws.SpotDataBucket) != 0 || len(aws.SpotDataRegion) != 0 || len(aws.ProjectID) != 0
+}
+
 // DownloadPricingData fetches data from the AWS Pricing API
 func (aws *AWS) DownloadPricingData() error {
 	aws.DownloadPricingDataLock.Lock()
@@ -1010,6 +1025,10 @@ func (aws *AWS) DownloadPricingData() error {
 		}
 	}
 	klog.V(2).Infof("Finished downloading \"%s\"", pricingURL)
+
+	if !aws.SpotRefreshEnabled() {
+		return nil
+	}
 
 	// Always run spot pricing refresh when performing download
 	aws.refreshSpotPricing(true)
