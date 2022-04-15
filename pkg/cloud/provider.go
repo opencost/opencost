@@ -188,7 +188,7 @@ type CustomPricing struct {
 	ShareTenancyCosts            string `json:"shareTenancyCosts"` // TODO clean up configuration so we can use a type other that string (this should be a bool, but the app panics if it's not a string)
 	ReadOnly                     string `json:"readOnly"`
 	KubecostToken                string `json:"kubecostToken"`
-	CustomerGoogleTag            string `json:"customerGoogleTag"`
+	GoogleAnalyticsTag           string `json:"googleAnalyticsTag"`
 }
 
 // GetSharedOverheadCostPerMonth parses and returns a float64 representation
