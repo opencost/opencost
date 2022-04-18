@@ -117,18 +117,12 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 			return kubecost.NewAllocationSet(start, end), fmt.Errorf("error computing allocation for %s: %s", kubecost.NewClosedWindow(s, e), err)
 		}
 
-		// TODO remove log
-		log.Infof("[Hourly] computeAllocation => AllocationSet{ %s window, %d allocations, %.5f total cost }", as.Window, as.Length(), as.TotalCost())
-
 		// Append to the range
 		asr.Append(as)
 
 		// Set s equal to e to set up the next query, if one exists.
 		s = e
 	}
-
-	// TODO remove log
-	log.Infof("[Hourly] ComputeAllocation(%s) => AllocationSetRange{ %s window, %d sets, %.5f total cost }", kubecost.NewClosedWindow(start, end), asr.Window(), asr.Length(), asr.TotalCost())
 
 	// Populate annotations, labels, and services on each Allocation. This is
 	// necessary because Properties.Intersection does not propagate any values
@@ -137,6 +131,10 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	allocationAnnotations := map[string]map[string]string{}
 	allocationLabels := map[string]map[string]string{}
 	allocationServices := map[string]map[string]bool{}
+
+	// Also record errors and warnings, then append them to the results later.
+	errors := []string{}
+	warnings := []string{}
 
 	asr.Each(func(i int, as *kubecost.AllocationSet) {
 		as.Each(func(k string, a *kubecost.Allocation) {
@@ -167,6 +165,9 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 				}
 			}
 		})
+
+		errors = append(errors, as.Errors...)
+		warnings = append(warnings, as.Warnings...)
 	})
 
 	// Accumulate to yield the result AllocationSet. After this step, we will
@@ -204,9 +205,6 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	// Maintain RAM and CPU max usage values by iterating over the range,
 	// computing maximums on a rolling basis, and setting on the result set.
 	asr.Each(func(i int, as *kubecost.AllocationSet) {
-
-		// TODO pass through warnings and errors
-
 		as.Each(func(key string, alloc *kubecost.Allocation) {
 			resultAlloc := result.Get(key)
 			if resultAlloc == nil {
@@ -239,8 +237,9 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	// Expand the window to match the queried time range.
 	result.Window = result.Window.ExpandStart(start).ExpandEnd(end)
 
-	// TODO remove log
-	log.Infof("[Hourly] ComputeAllocation(%s) => AllocationSet{ %s window, %d allocations, %.5f total cost }", kubecost.NewClosedWindow(start, end), result.Window, result.Length(), result.TotalCost())
+	// Append errors and warnings
+	result.Errors = errors
+	result.Warnings = warnings
 
 	return result, nil
 }
