@@ -1294,7 +1294,7 @@ func applyNetworkTotals(podMap map[podKey]*Pod, resNetworkTransferBytes []*prom.
 
 		for _, pod := range pods {
 			for _, alloc := range pod.Allocations {
-				alloc.NetworkTransferBytes = res.Values[0].Value / float64(len(pod.Allocations))
+				alloc.NetworkTransferBytes = res.Values[0].Value / float64(len(pod.Allocations)) / float64(len(pods))
 			}
 		}
 	}
@@ -1325,7 +1325,7 @@ func applyNetworkTotals(podMap map[podKey]*Pod, resNetworkTransferBytes []*prom.
 
 		for _, pod := range pods {
 			for _, alloc := range pod.Allocations {
-				alloc.NetworkReceiveBytes = res.Values[0].Value / float64(len(pod.Allocations))
+				alloc.NetworkReceiveBytes = res.Values[0].Value / float64(len(pod.Allocations)) / float64(len(pods))
 			}
 		}
 	}
@@ -1372,7 +1372,7 @@ func applyNetworkAllocation(podMap map[podKey]*Pod, resNetworkGiB []*prom.QueryR
 			for _, alloc := range pod.Allocations {
 				gib := res.Values[0].Value / float64(len(pod.Allocations))
 				costPerGiB := costPerGiBByCluster[podKey.Cluster]
-				alloc.NetworkCost = gib * costPerGiB
+				alloc.NetworkCost = gib * costPerGiB / float64(len(pods))
 			}
 		}
 	}
