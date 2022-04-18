@@ -43,8 +43,10 @@ func Execute(costModelCmd *cobra.Command) error {
 
 	// initialize klog and make cobra aware of all the go flags
 	klog.InitFlags(nil)
-	pflag.CommandLine.AddGoFlag(flag.CommandLine.Lookup("v"))
-	pflag.CommandLine.AddGoFlag(flag.CommandLine.Lookup("logtostderr"))
+
+	flag.CommandLine.VisitAll(func(f *flag.Flag) {
+		pflag.CommandLine.AddGoFlag(f)
+	})
 	pflag.CommandLine.Set("v", "3")
 
 	// in the event that no directive/command is passed, we want to default to using the cost-model command
