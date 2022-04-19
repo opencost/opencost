@@ -44,10 +44,17 @@ func Execute(costModelCmd *cobra.Command) error {
 	// initialize klog and make cobra aware of all the go flags
 	klog.InitFlags(nil)
 
+	// Register all the klog flags with pflag
 	flag.CommandLine.VisitAll(func(f *flag.Flag) {
 		pflag.CommandLine.AddGoFlag(f)
 	})
+
+	// Set our default level so we don't use 0
 	pflag.CommandLine.Set("v", "3")
+	// Parse incoming args for pflag
+	pflag.CommandLine.Parse(os.Args[1:])
+
+	klog.Infof("Logging with verbosity: %v", pflag.CommandLine.Lookup("v").Value.String())
 
 	// in the event that no directive/command is passed, we want to default to using the cost-model command
 	// cobra doesn't provide a way within the API to do this, so we'll prepend the command if it is omitted.
