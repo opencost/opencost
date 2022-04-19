@@ -451,6 +451,8 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 		t, err := dec.Token()
 		if err == io.EOF {
 			break
+		} else if err != nil {
+			return nil, "", fmt.Errorf("Error parsing GCP pricing page: %s", err)
 		}
 		if t == "skus" {
 			_, err := dec.Token() // consumes [
