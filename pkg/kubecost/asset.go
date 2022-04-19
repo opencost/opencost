@@ -358,6 +358,25 @@ func (al AssetLabels) Merge(that AssetLabels) AssetLabels {
 	return result
 }
 
+// Append joins the existing AssetLabels with a given map of labels
+func (al AssetLabels) Append(newLabels map[string]string) AssetLabels {
+	if al == nil {
+		// If the asset didn't have labels before, it will now
+		return newLabels
+	}
+
+	if len(newLabels) == 0 {
+		return al
+	}
+
+	// If a label with the given name already exists, its value will be overwritten by this input
+	for label, value := range newLabels {
+		al[label] = value
+	}
+
+	return al
+}
+
 // AssetMatchFunc is a function that can be used to match Assets by
 // returning true for any given Asset if a condition is met.
 type AssetMatchFunc func(Asset) bool
