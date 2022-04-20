@@ -360,15 +360,17 @@ func (al AssetLabels) Merge(that AssetLabels) AssetLabels {
 
 // Append joins AssetLabels with a given map of labels
 func (al AssetLabels) Append(newLabels map[string]string, overwrite bool) {
-	if len(newLabels) > 0 {
-		for label, value := range newLabels {
-			if _, ok := al[label]; ok {
-				if overwrite {
-					al[label] = value
-				}
-			} else {
+	if len(newLabels) == 0 {
+		return
+	}
+
+	for label, value := range newLabels {
+		if _, ok := al[label]; ok {
+			if overwrite {
 				al[label] = value
 			}
+		} else {
+			al[label] = value
 		}
 	}
 }
