@@ -4,22 +4,32 @@ package kubecost
 // that can be filtered on (namespace, label, etc.)
 type FilterField int
 
+// If you add a FilterField, MAKE SURE TO UPDATE ALL FILTER IMPLEMENTATIONS! Go
+// does not enforce exhaustive pattern matching on "enum" types.
 const (
 	FilterClusterID FilterField = iota
+	FilterNode
 	FilterNamespace
-	// ControllerKind
-	// ControllerName
-	// Pod
-	// Container
+	FilterControllerKind
+	FilterControllerName
+	FilterPod
+	FilterContainer
+
+	// Filtering based on label aliases (team, department, etc.) should be a
+	// responsibility of the query handler. By the time it reaches this
+	// structured representation, we shouldn't have to be aware of what is
+	// aliased to what.
 
 	FilterLabel
-	// Annotation
+	FilterAnnotation
 )
 
 // FilterOp is an enum that represents operations that can be performed
 // when filtering (equality, inequality, etc.)
 type FilterOp int
 
+// If you add a FilterOp, MAKE SURE TO UPDATE ALL FILTER IMPLEMENTATIONS! Go
+// does not enforce exhaustive pattern matching on "enum" types.
 const (
 	FilterEquals FilterOp = iota
 
@@ -91,13 +101,32 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 	switch filter.Field {
 	case FilterClusterID:
 		valueToCompare = a.Properties.Cluster
+	case FilterNode:
+		valueToCompare = a.Properties.Node
 	case FilterNamespace:
 		valueToCompare = a.Properties.Namespace
+	case FilterControllerKind:
+		valueToCompare = a.Properties.ControllerKind
+	case FilterControllerName:
+		valueToCompare = a.Properties.Controller
+	case FilterPod:
+		valueToCompare = a.Properties.Pod
+	case FilterContainer:
+		valueToCompare = a.Properties.Container
 	// Comes from GetAnnotation/LabelFilterFunc in KCM
 	case FilterLabel:
 		val, ok := a.Properties.Labels[filter.Key]
 
 		// TODO: What about label != ?
+		if !ok {
+			return false
+		}
+
+		valueToCompare = val
+	case FilterAnnotation:
+		val, ok := a.Properties.Annotations[filter.Key]
+
+		// TODO: What about annotation != ?
 		if !ok {
 			return false
 		}

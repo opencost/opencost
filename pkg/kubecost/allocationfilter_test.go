@@ -28,6 +28,21 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 			expected: true,
 		},
 		{
+			name: "Node Equals -> true",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Node: "node123",
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterNode,
+				Op:    FilterEquals,
+				Value: "node123",
+			},
+
+			expected: true,
+		},
+		{
 			name: "Namespace NotEquals -> false",
 			a: &Allocation{
 				Properties: &AllocationProperties{
@@ -43,6 +58,66 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 			expected: false,
 		},
 		{
+			name: "ControllerKind Equals -> true",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					ControllerKind: "deployment", // We generally store controller kinds as all lowercase
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterControllerKind,
+				Op:    FilterEquals,
+				Value: "deployment",
+			},
+
+			expected: true,
+		},
+		{
+			name: "ControllerName Equals -> true",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Controller: "kc-cost-analyzer",
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterControllerName,
+				Op:    FilterEquals,
+				Value: "kc-cost-analyzer",
+			},
+
+			expected: true,
+		},
+		{
+			name: "Pod (with UID) Equals -> true",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Pod: "pod-123 UID-ABC",
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterPod,
+				Op:    FilterEquals,
+				Value: "pod-123 UID-ABC",
+			},
+
+			expected: true,
+		},
+		{
+			name: "Container Equals -> true",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Container: "cost-model",
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterContainer,
+				Op:    FilterEquals,
+				Value: "cost-model",
+			},
+
+			expected: true,
+		},
+		{
 			name: `label[app]="foo" -> true`,
 			a: &Allocation{
 				Properties: &AllocationProperties{
@@ -56,6 +131,24 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 				Op:    FilterEquals,
 				Key:   "app",
 				Value: "foo",
+			},
+
+			expected: true,
+		},
+		{
+			name: `annotation[prom_modified_name]="testing123" -> true`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Annotations: map[string]string{
+						"prom_modified_name": "testing123",
+					},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterAnnotation,
+				Op:    FilterEquals,
+				Key:   "prom_modified_name",
+				Value: "testing123",
 			},
 
 			expected: true,
