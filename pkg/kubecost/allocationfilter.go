@@ -1,5 +1,7 @@
 package kubecost
 
+import "github.com/kubecost/cost-model/pkg/log"
+
 // FilterCondition is an enum that represents Allocation-specific fields
 // that can be filtered on (namespace, label, etc.)
 type FilterField int
@@ -135,7 +137,7 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 			valueToCompare = val
 		}
 	default:
-		// TODO: log an error here? this should never happen
+		log.Errorf("Allocation Filter: Unhandled filter field. This is a filter implementation error and requires immediate patching. Field: %d", filter.Field)
 		return false
 	}
 
@@ -167,7 +169,7 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 			return true
 		}
 	default:
-		// TODO: log an error here? this should never happen
+		log.Errorf("Allocation Filter: Unhandled filter op. This is a filter implementation error and requires immediate patching. Op: %d", filter.Op)
 		return false
 	}
 
