@@ -58,6 +58,51 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 			expected: false,
 		},
 		{
+			name: "Namespace NotEquals Unallocated -> true",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Namespace: "kube-system",
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterNamespace,
+				Op:    FilterNotEquals,
+				Value: UnallocatedSuffix,
+			},
+
+			expected: true,
+		},
+		{
+			name: "Namespace NotEquals Unallocated -> false",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Namespace: "",
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterNamespace,
+				Op:    FilterNotEquals,
+				Value: UnallocatedSuffix,
+			},
+
+			expected: false,
+		},
+		{
+			name: "Namespace Equals Unallocated -> true",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Namespace: "",
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterNamespace,
+				Op:    FilterEquals,
+				Value: UnallocatedSuffix,
+			},
+
+			expected: true,
+		},
+		{
 			name: "ControllerKind Equals -> true",
 			a: &Allocation{
 				Properties: &AllocationProperties{

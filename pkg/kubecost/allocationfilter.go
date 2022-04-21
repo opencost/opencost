@@ -32,8 +32,6 @@ type FilterOp int
 // does not enforce exhaustive pattern matching on "enum" types.
 const (
 	FilterEquals FilterOp = iota
-
-	// TODO: what is the != behavior for __unallocated__?
 	FilterNotEquals
 )
 
@@ -147,9 +145,9 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 			return false
 		}
 
-		// namespace="__unallocated__" should match a.Properties.Namespace = ""
-		if valueToCompare == "" && filter.Value == UnallocatedSuffix {
-			return true
+		// namespace:"__unallocated__" should match a.Properties.Namespace = ""
+		if valueToCompare == "" {
+			return filter.Value == UnallocatedSuffix
 		}
 
 		if valueToCompare == filter.Value {
@@ -160,7 +158,10 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 			return true
 		}
 
-		// TODO: __unallocated__ behavior?
+		// namespace!:"__unallocated__" should match a.Properties.Namespace != ""
+		if filter.Value == UnallocatedSuffix {
+			return valueToCompare != ""
+		}
 
 		if valueToCompare != filter.Value {
 			return true
