@@ -37,13 +37,18 @@ const (
 	FilterNotEquals
 )
 
-// AllocationFilter is a mini-DSL for filtering Allocation data by different
-// conditions. By specifying a more strict DSL instead of using arbitrary
-// functions we gain the ability to take advantage of storage-level filtering
-// performance improvements like indexes in databases. We can create a
-// transformation from our DSL to the storage's specific query language. We
-// also gain the ability to define a more feature-rich query language for
-// users, supporting more operators and more complex logic, if desired.
+// AllocationFilter represents anything that can be used to filter an
+// Allocation.
+//
+// Implement this interface with caution. While it is generic, it
+// is intended to be introspectable so query handlers can perform various
+// optimizations. These optimizations include:
+// - Routing a query to the most optimal cache
+// - Querying backing data stores efficiently (e.g. translation to SQL)
+//
+// Custom implementations of this interface outside of this package should not
+// expect to receive these benefits. Passing a custom implementation to a
+// handler may in errors.
 type AllocationFilter interface {
 	// Matches is the canonical in-Go function for determing if an Allocation
 	// matches a filter.
@@ -156,7 +161,8 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 			return true
 		}
 
-		// namespace!:"__unallocated__" should match a.Properties.Namespace != ""
+		// namespace!:"__unallocated__" should match
+		// a.Properties.Namespace != ""
 		if filter.Value == UnallocatedSuffix {
 			return valueToCompare != ""
 		}
