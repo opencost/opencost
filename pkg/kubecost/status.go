@@ -4,15 +4,15 @@ import "time"
 
 // ETLStatus describes ETL metadata
 type ETLStatus struct {
-	Coverage    Window           `json:"coverage"`
-	LastRun     time.Time        `json:"lastRun"`
-	Progress    float64          `json:"progress"`
-	RefreshRate string           `json:"refreshRate"`
-	Resolution  string           `json:"resolution"`
-	MaxBatch    string           `json:"maxBatch"`
-	StartTime   time.Time        `json:"startTime"`
-	UTCOffset   string           `json:"utcOffset"`
-	Backup      *DirectoryStatus `json:"backup,omitempty"`
+	Coverage                   Window           `json:"coverage"`
+	LastRun                    time.Time        `json:"lastRun"`
+	Progress                   float64          `json:"progress"`
+	RefreshRate                string           `json:"refreshRate"`
+	Resolution                 string           `json:"resolution"`
+	MaxPrometheusQueryDuration string           `json:"maxPrometheusQueryDuration"`
+	StartTime                  time.Time        `json:"startTime"`
+	UTCOffset                  string           `json:"utcOffset"`
+	Backup                     *DirectoryStatus `json:"backup,omitempty"`
 }
 
 // DirectoryStatus describes metadata of a directory of files

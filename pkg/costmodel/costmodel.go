@@ -47,13 +47,14 @@ const (
 var isCron = regexp.MustCompile(`^(.+)-\d{10}$`)
 
 type CostModel struct {
-	Cache            clustercache.ClusterCache
-	ClusterMap       clusters.ClusterMap
-	RequestGroup     *singleflight.Group
-	ScrapeInterval   time.Duration
-	PrometheusClient prometheus.Client
-	Provider         costAnalyzerCloud.Provider
-	pricingMetadata  *costAnalyzerCloud.PricingMatchMetadata
+	Cache                      clustercache.ClusterCache
+	ClusterMap                 clusters.ClusterMap
+	MaxPrometheusQueryDuration time.Duration
+	RequestGroup               *singleflight.Group
+	ScrapeInterval             time.Duration
+	PrometheusClient           prometheus.Client
+	Provider                   costAnalyzerCloud.Provider
+	pricingMetadata            *costAnalyzerCloud.PricingMatchMetadata
 }
 
 func NewCostModel(client prometheus.Client, provider costAnalyzerCloud.Provider, cache clustercache.ClusterCache, clusterMap clusters.ClusterMap, scrapeInterval time.Duration) *CostModel {
@@ -61,12 +62,13 @@ func NewCostModel(client prometheus.Client, provider costAnalyzerCloud.Provider,
 	requestGroup := new(singleflight.Group)
 
 	return &CostModel{
-		Cache:            cache,
-		ClusterMap:       clusterMap,
-		PrometheusClient: client,
-		Provider:         provider,
-		RequestGroup:     requestGroup,
-		ScrapeInterval:   scrapeInterval,
+		Cache:                      cache,
+		ClusterMap:                 clusterMap,
+		MaxPrometheusQueryDuration: env.GetETLMaxPrometheusQueryDuration(),
+		PrometheusClient:           client,
+		Provider:                   provider,
+		RequestGroup:               requestGroup,
+		ScrapeInterval:             scrapeInterval,
 	}
 }
 
