@@ -89,10 +89,6 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 		return false
 	}
 
-	// TODO Controller PARSING should allow controllerkind:controllername
-	// syntax, converted to:
-	// (AND (ControllerName Equals) (ControllerKind Equals))
-
 	// The Allocation's value for the field to compare
 	var valueToCompare string
 
