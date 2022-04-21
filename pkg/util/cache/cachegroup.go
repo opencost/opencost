@@ -59,7 +59,7 @@ func (cg *CacheGroup[T]) Do(key string, factory func() (T, error)) (T, error) {
 
 		// assign cache once a result for the group key is returned
 		cg.lock.Lock()
-		cg.removeOldest()
+		cg.removeOldestBeyondCapacity()
 		cg.cache[key] = &cacheEntry[T]{
 			item: i,
 			ts:   time.Now(),
@@ -115,7 +115,7 @@ func (cg *CacheGroup[T]) DisableExpiration() {
 
 // locates the oldest entry and removes it from the map. caller should lock
 // prior to calling
-func (cg *CacheGroup[T]) removeOldest() {
+func (cg *CacheGroup[T]) removeOldestBeyondCapacity() {
 	// only remove the oldest entries if we're at max capacity
 	if len(cg.cache) < cg.max {
 		return
