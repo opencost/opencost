@@ -341,7 +341,7 @@ func Test_AllocationFilterAnd_Matches(t *testing.T) {
 		expected bool
 	}{
 		{
-			name: `label[app]="foo" and namespace="kubecost" -> true`,
+			name: `label[app]="foo" and namespace="kubecost" -> both true`,
 			a: &Allocation{
 				Properties: &AllocationProperties{
 					Namespace: "kubecost",
@@ -366,12 +366,62 @@ func Test_AllocationFilterAnd_Matches(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: `label[app]="foo" and namespace="kubecost" -> false`,
+			name: `label[app]="foo" and namespace="kubecost" -> first true`,
 			a: &Allocation{
 				Properties: &AllocationProperties{
-					Namespace: "kubecost-secondary",
+					Namespace: "kube-system",
 					Labels: map[string]string{
 						"app": "foo",
+					},
+				},
+			},
+			filter: AllocationFilterAnd{[]AllocationFilter{
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterEquals,
+					Key:   "app",
+					Value: "foo",
+				},
+				AllocationFilterCondition{
+					Field: FilterNamespace,
+					Op:    FilterEquals,
+					Value: "kubecost",
+				},
+			}},
+			expected: false,
+		},
+		{
+			name: `label[app]="foo" and namespace="kubecost" -> second true`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Namespace: "kubecost",
+					Labels: map[string]string{
+						"app": "bar",
+					},
+				},
+			},
+			filter: AllocationFilterAnd{[]AllocationFilter{
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterEquals,
+					Key:   "app",
+					Value: "foo",
+				},
+				AllocationFilterCondition{
+					Field: FilterNamespace,
+					Op:    FilterEquals,
+					Value: "kubecost",
+				},
+			}},
+			expected: false,
+		},
+		{
+			name: `label[app]="foo" and namespace="kubecost" -> both false`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Namespace: "kube-system",
+					Labels: map[string]string{
+						"app": "bar",
 					},
 				},
 			},
@@ -409,6 +459,31 @@ func Test_AllocationFilterOr_Matches(t *testing.T) {
 
 		expected bool
 	}{
+		{
+			name: `label[app]="foo" or namespace="kubecost" -> both true`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Namespace: "kubecost",
+					Labels: map[string]string{
+						"app": "foo",
+					},
+				},
+			},
+			filter: AllocationFilterOr{[]AllocationFilter{
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterEquals,
+					Key:   "app",
+					Value: "foo",
+				},
+				AllocationFilterCondition{
+					Field: FilterNamespace,
+					Op:    FilterEquals,
+					Value: "kubecost",
+				},
+			}},
+			expected: true,
+		},
 		{
 			name: `label[app]="foo" or namespace="kubecost" -> first true`,
 			a: &Allocation{
@@ -460,10 +535,10 @@ func Test_AllocationFilterOr_Matches(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: `label[app]="foo" or namespace="kubecost" -> false`,
+			name: `label[app]="foo" or namespace="kubecost" -> both false`,
 			a: &Allocation{
 				Properties: &AllocationProperties{
-					Namespace: "kubecost-secondary",
+					Namespace: "kube-system",
 					Labels: map[string]string{
 						"app": "bar",
 					},
