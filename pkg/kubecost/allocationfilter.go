@@ -2,8 +2,8 @@ package kubecost
 
 import "github.com/kubecost/cost-model/pkg/log"
 
-// FilterCondition is an enum that represents Allocation-specific fields
-// that can be filtered on (namespace, label, etc.)
+// FilterField is an enum that represents Allocation-specific fields that can be
+// filtered on (namespace, label, etc.)
 type FilterField int
 
 // If you add a FilterField, MAKE SURE TO UPDATE ALL FILTER IMPLEMENTATIONS! Go
