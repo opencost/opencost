@@ -136,6 +136,60 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 			expected: true,
 		},
 		{
+			name: `label[app]="foo" -> different value -> false`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Labels: map[string]string{
+						"app": "bar",
+					},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterLabel,
+				Op:    FilterEquals,
+				Key:   "app",
+				Value: "foo",
+			},
+
+			expected: false,
+		},
+		{
+			name: `label[app]="foo" -> label missing -> false`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Labels: map[string]string{
+						"someotherlabel": "someothervalue",
+					},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterLabel,
+				Op:    FilterEquals,
+				Key:   "app",
+				Value: "foo",
+			},
+
+			expected: false,
+		},
+		{
+			name: `label[app]!="foo" -> label missing -> true`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Labels: map[string]string{
+						"someotherlabel": "someothervalue",
+					},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterLabel,
+				Op:    FilterNotEquals,
+				Key:   "app",
+				Value: "foo",
+			},
+
+			expected: true,
+		},
+		{
 			name: `annotation[prom_modified_name]="testing123" -> true`,
 			a: &Allocation{
 				Properties: &AllocationProperties{
@@ -149,6 +203,60 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 				Op:    FilterEquals,
 				Key:   "prom_modified_name",
 				Value: "testing123",
+			},
+
+			expected: true,
+		},
+		{
+			name: `annotation[app]="foo" -> different value -> false`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Annotations: map[string]string{
+						"app": "bar",
+					},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterAnnotation,
+				Op:    FilterEquals,
+				Key:   "app",
+				Value: "foo",
+			},
+
+			expected: false,
+		},
+		{
+			name: `annotation[app]="foo" -> annotation missing -> false`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Annotations: map[string]string{
+						"someotherannotation": "someothervalue",
+					},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterAnnotation,
+				Op:    FilterEquals,
+				Key:   "app",
+				Value: "foo",
+			},
+
+			expected: false,
+		},
+		{
+			name: `annotation[app]!="foo" -> annotation missing -> true`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Annotations: map[string]string{
+						"someotherannotation": "someothervalue",
+					},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterAnnotation,
+				Op:    FilterNotEquals,
+				Key:   "app",
+				Value: "foo",
 			},
 
 			expected: true,

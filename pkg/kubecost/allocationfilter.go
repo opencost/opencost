@@ -96,6 +96,12 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 	// The Allocation's value for the field to compare
 	var valueToCompare string
 
+	// toCompareMissing will be true if the value to be compared is missing in
+	// the Allocation. For example, if we're filtering based on the value of
+	// the "app" label, but the Allocation doesn't have an "app" label, this
+	// will become true. This lets us deal with != gracefully.
+	toCompareMissing := false
+
 	// This switch maps the filter.Field to the field to be compared in
 	// a.Properties and sets valueToCompare from the value in a.Properties.
 	switch filter.Field {
@@ -117,21 +123,19 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 	case FilterLabel:
 		val, ok := a.Properties.Labels[filter.Key]
 
-		// TODO: What about label != ?
 		if !ok {
-			return false
+			toCompareMissing = true
+		} else {
+			valueToCompare = val
 		}
-
-		valueToCompare = val
 	case FilterAnnotation:
 		val, ok := a.Properties.Annotations[filter.Key]
 
-		// TODO: What about annotation != ?
 		if !ok {
-			return false
+			toCompareMissing = true
+		} else {
+			valueToCompare = val
 		}
-
-		valueToCompare = val
 	default:
 		// TODO: log an error here? this should never happen
 		return false
@@ -139,6 +143,11 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 
 	switch filter.Op {
 	case FilterEquals:
+		if toCompareMissing {
+			return false
+		}
+
+		// namespace="__unallocated__" should match a.Properties.Namespace = ""
 		if valueToCompare == "" && filter.Value == UnallocatedSuffix {
 			return true
 		}
@@ -147,6 +156,10 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 			return true
 		}
 	case FilterNotEquals:
+		if toCompareMissing {
+			return true
+		}
+
 		// TODO: __unallocated__ behavior?
 
 		if valueToCompare != filter.Value {
