@@ -27,7 +27,7 @@ type CacheGroup[T comparable] struct {
 	max              int
 }
 
-// NewCacheGroup[T] creates a new cache group instance the max number of keys to cache at any given time.
+// NewCacheGroup[T] creates a new cache group instance given the max number of keys to cache. 
 // If a new cache entry is added that exceeds the maximum, the oldest entry is evicted.
 func NewCacheGroup[T comparable](max int) *CacheGroup[T] {
 	return &CacheGroup[T]{
