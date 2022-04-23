@@ -69,9 +69,21 @@ type AssetQueryOptions struct {
 
 // CloudUsageQueryOptions define optional parameters for querying a Store
 type CloudUsageQueryOptions struct {
-	Accumulate  bool
-	AggregateBy []string
-	FilterFuncs []CloudUsageMatchFunc
+	Accumulate   bool
+	AggregateBy  []string
+	Compute      bool
+	FilterFuncs  []CloudUsageMatchFunc
+	FilterValues CloudUsageFilter
+}
+
+type CloudUsageFilter struct {
+	Categories  []string            `json:"categories"`
+	Providers   []string            `json:"providers"`
+	ProviderIDs []string            `json:"providerIDs"`
+	Accounts    []string            `json:"accounts"`
+	Projects    []string            `json:"projects"`
+	Services    []string            `json:"services"`
+	Labels      map[string][]string `json:"labels"`
 }
 
 // QueryAllocationAsync provide a functions for retrieving results from any AllocationQuerier Asynchronously
