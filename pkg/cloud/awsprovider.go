@@ -56,7 +56,7 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 	sources := make(map[string]*PricingSource)
 
 	sps := &PricingSource{
-		Name: SpotPricingSource,
+		Name:    SpotPricingSource,
 		Enabled: true,
 	}
 
@@ -80,7 +80,7 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 	sources[SpotPricingSource] = sps
 
 	rps := &PricingSource{
-		Name: ReservedInstancePricingSource,
+		Name:    ReservedInstancePricingSource,
 		Enabled: true,
 	}
 	rps.Error = ""
@@ -403,6 +403,7 @@ type AwsAthenaInfo struct {
 	AthenaRegion     string `json:"athenaRegion"`
 	AthenaDatabase   string `json:"athenaDatabase"`
 	AthenaTable      string `json:"athenaTable"`
+	AthenaWorkgroup  string `json:"athenaWorkgroup"`
 	ServiceKeyName   string `json:"serviceKeyName"`
 	ServiceKeySecret string `json:"serviceKeySecret"`
 	AccountID        string `json:"projectID"`
@@ -415,6 +416,7 @@ func (aai *AwsAthenaInfo) IsEmpty() bool {
 		aai.AthenaRegion == "" &&
 		aai.AthenaDatabase == "" &&
 		aai.AthenaTable == "" &&
+		aai.AthenaWorkgroup == "" &&
 		aai.ServiceKeyName == "" &&
 		aai.ServiceKeySecret == "" &&
 		aai.AccountID == "" &&
@@ -514,6 +516,7 @@ func (aws *AWS) GetAWSAthenaInfo() (*AwsAthenaInfo, error) {
 		AthenaRegion:     config.AthenaRegion,
 		AthenaDatabase:   config.AthenaDatabase,
 		AthenaTable:      config.AthenaTable,
+		AthenaWorkgroup:  config.AthenaWorkgroup,
 		ServiceKeyName:   aak.AccessKeyID,
 		ServiceKeySecret: aak.SecretAccessKey,
 		AccountID:        config.AthenaProjectID,
@@ -555,6 +558,7 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 			c.AthenaRegion = aai.AthenaRegion
 			c.AthenaDatabase = aai.AthenaDatabase
 			c.AthenaTable = aai.AthenaTable
+			c.AthenaWorkgroup = aai.AthenaWorkgroup
 			c.ServiceKeyName = aai.ServiceKeyName
 			if aai.ServiceKeySecret != "" {
 				c.ServiceKeySecret = aai.ServiceKeySecret
@@ -1613,6 +1617,11 @@ func (aws *AWS) QueryAthenaPaginated(ctx context.Context, query string, fn func(
 		QueryString:           awsSDK.String(query),
 		QueryExecutionContext: queryExecutionCtx,
 		ResultConfiguration:   resultConfiguration,
+	}
+
+	// Only set if there is a value, the default input is nil which defaults to the 'primary' workgroup
+	if awsAthenaInfo.AthenaWorkgroup != "" {
+		startQueryExecutionInput.WorkGroup = awsSDK.String(awsAthenaInfo.AthenaWorkgroup)
 	}
 
 	// Create Athena Client
