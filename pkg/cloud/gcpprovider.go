@@ -262,6 +262,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 			c.AthenaRegion = a.AthenaRegion
 			c.AthenaDatabase = a.AthenaDatabase
 			c.AthenaTable = a.AthenaTable
+			c.AthenaWorkgroup = a.AthenaWorkgroup
 			c.ServiceKeyName = a.ServiceKeyName
 			c.ServiceKeySecret = a.ServiceKeySecret
 			c.AthenaProjectID = a.AccountID
