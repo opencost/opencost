@@ -20,7 +20,6 @@ import (
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/klog"
 
 	"github.com/rs/cors"
 	"k8s.io/client-go/kubernetes"
@@ -152,7 +151,7 @@ func Execute(opts *AgentOpts) error {
 		scrapeInterval = si
 	}
 
-	klog.Infof("Using scrape interval of %f", scrapeInterval.Seconds())
+	log.Infof("Using scrape interval of %f", scrapeInterval.Seconds())
 
 	// initialize kubernetes client and cluster cache
 	k8sClient, clusterCache, err := newKubernetesClusterCache()
@@ -183,7 +182,7 @@ func Execute(opts *AgentOpts) error {
 	for _, cw := range watchedConfigs {
 		configs, err := k8sClient.CoreV1().ConfigMaps(kubecostNamespace).Get(context.Background(), cw, metav1.GetOptions{})
 		if err != nil {
-			klog.Infof("No %s configmap found at install time, using existing configs: %s", cw, err.Error())
+			log.Infof("No %s configmap found at install time, using existing configs: %s", cw, err.Error())
 		} else {
 			watchConfigFunc(configs)
 		}
@@ -220,7 +219,7 @@ func Execute(opts *AgentOpts) error {
 	// download pricing data
 	err = cloudProvider.DownloadPricingData()
 	if err != nil {
-		klog.Errorf("Error downloading pricing data: %s", err)
+		log.Errorf("Error downloading pricing data: %s", err)
 	}
 
 	// start emitting metrics

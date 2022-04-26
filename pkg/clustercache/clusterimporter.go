@@ -49,7 +49,7 @@ func (ci *ClusterImporter) update(data []byte) {
 	ce := new(clusterEncoding)
 	err := json.Unmarshal(data, ce)
 	if err != nil {
-		log.Warningf("Failed to unmarshal cluster during import: %s", err)
+		log.Warnf("Failed to unmarshal cluster during import: %s", err)
 		return
 	}
 
@@ -74,7 +74,7 @@ func (ci *ClusterImporter) Run() {
 	if exists {
 		data, err := ci.source.Read()
 		if err != nil {
-			log.Warningf("Failed to import cluster: %s", err)
+			log.Warnf("Failed to import cluster: %s", err)
 		} else {
 			ci.update(data)
 		}
@@ -319,5 +319,5 @@ func (ci *ClusterImporter) GetAllReplicationControllers() []*v1.ReplicationContr
 func (ci *ClusterImporter) SetConfigMapUpdateFunc(_ func(interface{})) {
 	// TODO: (bolt) This function is still a bit strange to me for the ClusterCache interface.
 	// TODO: (bolt) no-op for now.
-	log.Warningf("SetConfigMapUpdateFunc is disabled for imported cluster data.")
+	log.Warnf("SetConfigMapUpdateFunc is disabled for imported cluster data.")
 }

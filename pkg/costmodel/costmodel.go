@@ -21,7 +21,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/klog"
 
 	"golang.org/x/sync/singleflight"
 )
@@ -299,7 +298,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 
 		// ErrorCollection is an collection of errors wrapped in a single error implementation
 		// We opt to not return an error for the sake of running as a pure exporter.
-		log.Warningf("ComputeCostData: continuing despite prometheus errors: %s", ctx.ErrorCollection().Error())
+		log.Warnf("ComputeCostData: continuing despite prometheus errors: %s", ctx.ErrorCollection().Error())
 	}
 
 	defer measureTime(time.Now(), profileThreshold, "ComputeCostData: Processing Query Data")
@@ -307,7 +306,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 	normalizationValue, err := getNormalization(resNormalization)
 	if err != nil {
 		// We opt to not return an error for the sake of running as a pure exporter.
-		log.Warningf("ComputeCostData: continuing despite error parsing normalization values from %s: %s", queryNormalization, err.Error())
+		log.Warnf("ComputeCostData: continuing despite error parsing normalization values from %s: %s", queryNormalization, err.Error())
 	}
 
 	// Determine if there are vgpus configured and if so get the total allocatable number
@@ -320,7 +319,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 
 	nodes, err := cm.GetNodeCost(cp)
 	if err != nil {
-		log.Warningf("GetNodeCost: no node cost model available: " + err.Error())
+		log.Warnf("GetNodeCost: no node cost model available: " + err.Error())
 		return nil, err
 	}
 
@@ -328,7 +327,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 	unmountedPVs := make(map[string][]*PersistentVolumeClaimData)
 	pvClaimMapping, err := GetPVInfoLocal(cm.Cache, clusterID)
 	if err != nil {
-		log.Warningf("GetPVInfo: unable to get PV data: %s", err.Error())
+		log.Warnf("GetPVInfo: unable to get PV data: %s", err.Error())
 	}
 	if pvClaimMapping != nil {
 		err = addPVData(cm.Cache, pvClaimMapping, cp)
@@ -343,7 +342,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 
 	networkUsageMap, err := GetNetworkUsageData(resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, clusterID)
 	if err != nil {
-		klog.V(1).Infof("[Warning] Unable to get Network Cost Data: %s", err.Error())
+		log.Warnf("Unable to get Network Cost Data: %s", err.Error())
 		networkUsageMap = make(map[string]*NetworkUsageData)
 	}
 
@@ -452,7 +451,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 			if usage, ok := networkUsageMap[ns+","+podName+","+clusterID]; ok {
 				netCosts, err := GetNetworkCost(usage, cp)
 				if err != nil {
-					klog.V(4).Infof("Error pulling network costs: %s", err.Error())
+					log.Debugf("Error pulling network costs: %s", err.Error())
 				} else {
 					podNetCosts = netCosts
 				}
@@ -521,13 +520,13 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 
 				RAMUsedV, ok := RAMUsedMap[newKey]
 				if !ok {
-					klog.V(4).Info("no RAM usage for " + newKey)
+					log.Debug("no RAM usage for " + newKey)
 					RAMUsedV = []*util.Vector{{}}
 				}
 
 				CPUUsedV, ok := CPUUsedMap[newKey]
 				if !ok {
-					klog.V(4).Info("no CPU usage for " + newKey)
+					log.Debug("no CPU usage for " + newKey)
 					CPUUsedV = []*util.Vector{{}}
 				}
 
@@ -572,7 +571,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 			}
 		} else {
 			// The container has been deleted. Not all information is sent to prometheus via ksm, so fill out what we can without k8s api
-			klog.V(4).Info("The container " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
+			log.Debug("The container " + key + " has been deleted. Calculating allocation but resulting object will be missing data.")
 			c, err := NewContainerMetricFromKey(key)
 			if err != nil {
 				return nil, err
@@ -590,19 +589,19 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 
 			RAMUsedV, ok := RAMUsedMap[key]
 			if !ok {
-				klog.V(4).Info("no RAM usage for " + key)
+				log.Debug("no RAM usage for " + key)
 				RAMUsedV = []*util.Vector{{}}
 			}
 
 			CPUUsedV, ok := CPUUsedMap[key]
 			if !ok {
-				klog.V(4).Info("no CPU usage for " + key)
+				log.Debug("no CPU usage for " + key)
 				CPUUsedV = []*util.Vector{{}}
 			}
 
 			node, ok := nodes[c.NodeName]
 			if !ok {
-				klog.V(4).Infof("Node \"%s\" has been deleted from Kubernetes. Query historical data to get it.", c.NodeName)
+				log.Debugf("Node \"%s\" has been deleted from Kubernetes. Query historical data to get it.", c.NodeName)
 				if n, ok := missingNodes[c.NodeName]; ok {
 					node = n
 				} else {
@@ -645,7 +644,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 	// to pass along the cost data
 	unmounted := findUnmountedPVCostData(cm.ClusterMap, unmountedPVs, namespaceLabelsMapping, namespaceAnnotationsMapping)
 	for k, costs := range unmounted {
-		klog.V(4).Infof("Unmounted PVs in Namespace/ClusterID: %s/%s", costs.Namespace, costs.ClusterID)
+		log.Debugf("Unmounted PVs in Namespace/ClusterID: %s/%s", costs.Namespace, costs.ClusterID)
 
 		if filterNamespace == "" {
 			containerNameCost[k] = costs
@@ -656,12 +655,12 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 
 	err = findDeletedNodeInfo(cli, missingNodes, window, "")
 	if err != nil {
-		klog.V(1).Infof("Error fetching historical node data: %s", err.Error())
+		log.Errorf("Error fetching historical node data: %s", err.Error())
 	}
 
 	err = findDeletedPodInfo(cli, missingContainers, window)
 	if err != nil {
-		klog.V(1).Infof("Error fetching historical pod data: %s", err.Error())
+		log.Errorf("Error fetching historical pod data: %s", err.Error())
 	}
 	return containerNameCost, err
 }
@@ -675,7 +674,7 @@ func findUnmountedPVCostData(clusterMap clusters.ClusterMap, unmountedPVs map[st
 	for k, pv := range unmountedPVs {
 		keyParts := strings.Split(k, ",")
 		if len(keyParts) != 3 {
-			klog.V(1).Infof("Unmounted PV used key with incorrect parts: %s", k)
+			log.Warnf("Unmounted PV used key with incorrect parts: %s", k)
 			continue
 		}
 
@@ -783,7 +782,7 @@ func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*c
 		}
 
 		if len(cpuCosts) == 0 {
-			klog.V(1).Infof("Kubecost prometheus metrics not currently available. Ingest this server's /metrics endpoint to get that data.")
+			log.Infof("Kubecost prometheus metrics not currently available. Ingest this server's /metrics endpoint to get that data.")
 		}
 
 		for node, costv := range cpuCosts {
@@ -814,12 +813,12 @@ func getContainerAllocation(req []*util.Vector, used []*util.Vector, allocationT
 		if x != nil && y != nil {
 			x1 := *x
 			if math.IsNaN(x1) {
-				klog.V(1).Infof("[Warning] NaN value found during %s allocation calculation for requests.", allocationType)
+				log.Warnf("NaN value found during %s allocation calculation for requests.", allocationType)
 				x1 = 0.0
 			}
 			y1 := *y
 			if math.IsNaN(y1) {
-				klog.V(1).Infof("[Warning] NaN value found during %s allocation calculation for used.", allocationType)
+				log.Warnf("NaN value found during %s allocation calculation for used.", allocationType)
 				y1 = 0.0
 			}
 
@@ -864,7 +863,7 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 	for _, pv := range pvs {
 		parameters, ok := storageClassMap[pv.Spec.StorageClassName]
 		if !ok {
-			klog.V(4).Infof("Unable to find parameters for storage class \"%s\". Does pv \"%s\" have a storageClassName?", pv.Spec.StorageClassName, pv.Name)
+			log.Debugf("Unable to find parameters for storage class \"%s\". Does pv \"%s\" have a storageClassName?", pv.Spec.StorageClassName, pv.Name)
 		}
 		var region string
 		if r, ok := util.GetRegion(pv.Labels); ok {
@@ -889,7 +888,7 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 		if vol, ok := pvMap[pvc.VolumeName]; ok {
 			pvc.Volume = vol
 		} else {
-			klog.V(4).Infof("PV not found, using default")
+			log.Debugf("PV not found, using default")
 			pvc.Volume = &costAnalyzerCloud.PV{
 				Cost: cfg.Storage,
 			}
@@ -955,7 +954,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 		cnode, err := cp.NodePricing(cp.GetKey(nodeLabels, n))
 		if err != nil {
-			klog.Infof("Error getting node pricing. Error: %s", err.Error())
+			log.Infof("Error getting node pricing. Error: %s", err.Error())
 			if cnode != nil {
 				nodes[name] = cnode
 				continue
@@ -991,11 +990,11 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 		} else {
 			cpu, err = strconv.ParseFloat(newCnode.VCPU, 64)
 			if err != nil {
-				klog.V(1).Infof("[Warning] parsing VCPU value: \"%s\" as float64", newCnode.VCPU)
+				log.Warnf("parsing VCPU value: \"%s\" as float64", newCnode.VCPU)
 			}
 		}
 		if math.IsNaN(cpu) {
-			klog.V(1).Infof("[Warning] cpu parsed as NaN. Setting to 0.")
+			log.Warnf("cpu parsed as NaN. Setting to 0.")
 			cpu = 0
 		}
 
@@ -1005,7 +1004,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 		}
 		ram = float64(n.Status.Capacity.Memory().Value())
 		if math.IsNaN(ram) {
-			klog.V(1).Infof("[Warning] ram parsed as NaN. Setting to 0.")
+			log.Warnf("ram parsed as NaN. Setting to 0.")
 			ram = 0
 		}
 
@@ -1035,65 +1034,65 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 			}
 		}
 		if math.IsNaN(gpuc) {
-			klog.V(1).Infof("[Warning] gpu count parsed as NaN. Setting to 0.")
+			log.Warnf("gpu count parsed as NaN. Setting to 0.")
 			gpuc = 0.0
 		}
 
 		if newCnode.GPU != "" && newCnode.GPUCost == "" {
 			// We couldn't find a gpu cost, so fix cpu and ram, then accordingly
-			klog.V(4).Infof("GPU without cost found for %s, calculating...", cp.GetKey(nodeLabels, n).Features())
+			log.Debugf("GPU without cost found for %s, calculating...", cp.GetKey(nodeLabels, n).Features())
 
 			defaultCPU, err := strconv.ParseFloat(cfg.CPU, 64)
 			if err != nil {
-				klog.V(3).Infof("Could not parse default cpu price")
+				log.Errorf("Could not parse default cpu price")
 				defaultCPU = 0
 			}
 			if math.IsNaN(defaultCPU) {
-				klog.V(1).Infof("[Warning] defaultCPU parsed as NaN. Setting to 0.")
+				log.Warnf("defaultCPU parsed as NaN. Setting to 0.")
 				defaultCPU = 0
 			}
 
 			defaultRAM, err := strconv.ParseFloat(cfg.RAM, 64)
 			if err != nil {
-				klog.V(3).Infof("Could not parse default ram price")
+				log.Errorf("Could not parse default ram price")
 				defaultRAM = 0
 			}
 			if math.IsNaN(defaultRAM) {
-				klog.V(1).Infof("[Warning] defaultRAM parsed as NaN. Setting to 0.")
+				log.Warnf("defaultRAM parsed as NaN. Setting to 0.")
 				defaultRAM = 0
 			}
 
 			defaultGPU, err := strconv.ParseFloat(cfg.GPU, 64)
 			if err != nil {
-				klog.V(3).Infof("Could not parse default gpu price")
+				log.Errorf("Could not parse default gpu price")
 				defaultGPU = 0
 			}
 			if math.IsNaN(defaultGPU) {
-				klog.V(1).Infof("[Warning] defaultGPU parsed as NaN. Setting to 0.")
+				log.Warnf("defaultGPU parsed as NaN. Setting to 0.")
 				defaultGPU = 0
 			}
 
 			cpuToRAMRatio := defaultCPU / defaultRAM
 			if math.IsNaN(cpuToRAMRatio) {
-				klog.V(1).Infof("[Warning] cpuToRAMRatio[defaultCPU: %f / defaultRAM: %f] is NaN. Setting to 0.", defaultCPU, defaultRAM)
+				log.Warnf("cpuToRAMRatio[defaultCPU: %f / defaultRAM: %f] is NaN. Setting to 0.", defaultCPU, defaultRAM)
 				cpuToRAMRatio = 0
 			}
 
 			gpuToRAMRatio := defaultGPU / defaultRAM
 			if math.IsNaN(gpuToRAMRatio) {
-				klog.V(1).Infof("[Warning] gpuToRAMRatio is NaN. Setting to 0.")
+				log.Warnf("gpuToRAMRatio is NaN. Setting to 0.")
 				gpuToRAMRatio = 0
 			}
 
 			ramGB := ram / 1024 / 1024 / 1024
 			if math.IsNaN(ramGB) {
-				klog.V(1).Infof("[Warning] ramGB is NaN. Setting to 0.")
+				log.Warnf("ramGB is NaN. Setting to 0.")
 				ramGB = 0
 			}
 
 			ramMultiple := gpuc*gpuToRAMRatio + cpu*cpuToRAMRatio + ramGB
 			if math.IsNaN(ramMultiple) {
-				klog.V(1).Infof("[Warning] ramMultiple is NaN. Setting to 0.")
+				log.Warnf("ramMultiple is NaN. Setting to 0.")
 				ramMultiple = 0
 			}
 
@@ -1101,24 +1100,24 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 			if newCnode.Cost != "" {
 				nodePrice, err = strconv.ParseFloat(newCnode.Cost, 64)
 				if err != nil {
-					klog.V(3).Infof("Could not parse total node price")
+					log.Errorf("Could not parse total node price")
 					return nil, err
 				}
 			} else {
 				nodePrice, err = strconv.ParseFloat(newCnode.VCPUCost, 64) // all the price was allocated to the CPU
 				if err != nil {
-					klog.V(3).Infof("Could not parse node vcpu price")
+					log.Errorf("Could not parse node vcpu price")
 					return nil, err
 				}
 			}
 			if math.IsNaN(nodePrice) {
-				klog.V(1).Infof("[Warning] nodePrice parsed as NaN. Setting to 0.")
+				log.Warnf("nodePrice parsed as NaN. Setting to 0.")
 				nodePrice = 0
 			}
 
 			ramPrice := (nodePrice / ramMultiple)
 			if math.IsNaN(ramPrice) {
-				klog.V(1).Infof("[Warning] ramPrice[nodePrice: %f / ramMultiple: %f] parsed as NaN. Setting to 0.", nodePrice, ramMultiple)
+				log.Warnf("ramPrice[nodePrice: %f / ramMultiple: %f] parsed as NaN. Setting to 0.", nodePrice, ramMultiple)
 				ramPrice = 0
 			}
 
@@ -1131,43 +1130,43 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 			newCnode.GPUCost = fmt.Sprintf("%f", gpuPrice)
 		} else if newCnode.RAMCost == "" {
 			// We couldn't find a ramcost, so fix cpu and allocate ram accordingly
-			klog.V(4).Infof("No RAM cost found for %s, calculating...", cp.GetKey(nodeLabels, n).Features())
+			log.Debugf("No RAM cost found for %s, calculating...", cp.GetKey(nodeLabels, n).Features())
 
 			defaultCPU, err := strconv.ParseFloat(cfg.CPU, 64)
 			if err != nil {
-				klog.V(3).Infof("Could not parse default cpu price")
+				log.Warnf("Could not parse default cpu price")
 				defaultCPU = 0
 			}
 			if math.IsNaN(defaultCPU) {
-				klog.V(1).Infof("[Warning] defaultCPU parsed as NaN. Setting to 0.")
+				log.Warnf("defaultCPU parsed as NaN. Setting to 0.")
 				defaultCPU = 0
 			}
 
 			defaultRAM, err := strconv.ParseFloat(cfg.RAM, 64)
 			if err != nil {
-				klog.V(3).Infof("Could not parse default ram price")
+				log.Warnf("Could not parse default ram price")
 				defaultRAM = 0
 			}
 			if math.IsNaN(defaultRAM) {
-				klog.V(1).Infof("[Warning] defaultRAM parsed as NaN. Setting to 0.")
+				log.Warnf("defaultRAM parsed as NaN. Setting to 0.")
 				defaultRAM = 0
 			}
 
 			cpuToRAMRatio := defaultCPU / defaultRAM
 			if math.IsNaN(cpuToRAMRatio) {
-				klog.V(1).Infof("[Warning] cpuToRAMRatio[defaultCPU: %f / defaultRAM: %f] is NaN. Setting to 0.", defaultCPU, defaultRAM)
+				log.Warnf("cpuToRAMRatio[defaultCPU: %f / defaultRAM: %f] is NaN. Setting to 0.", defaultCPU, defaultRAM)
 				cpuToRAMRatio = 0
 			}
 
 			ramGB := ram / 1024 / 1024 / 1024
 			if math.IsNaN(ramGB) {
-				klog.V(1).Infof("[Warning] ramGB is NaN. Setting to 0.")
+				log.Warnf("ramGB is NaN. Setting to 0.")
 				ramGB = 0
 			}
 
 			ramMultiple := cpu*cpuToRAMRatio + ramGB
 			if math.IsNaN(ramMultiple) {
-				klog.V(1).Infof("[Warning] ramMultiple is NaN. Setting to 0.")
+				log.Warnf("ramMultiple is NaN. Setting to 0.")
 				ramMultiple = 0
 			}
 
@@ -1175,24 +1174,24 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 			if newCnode.Cost != "" {
 				nodePrice, err = strconv.ParseFloat(newCnode.Cost, 64)
 				if err != nil {
-					klog.V(3).Infof("Could not parse total node price")
+					log.Warnf("Could not parse total node price")
 					return nil, err
 				}
 			} else {
 				nodePrice, err = strconv.ParseFloat(newCnode.VCPUCost, 64) // all the price was allocated to the CPU
 				if err != nil {
-					klog.V(3).Infof("Could not parse node vcpu price")
+					log.Warnf("Could not parse node vcpu price")
 					return nil, err
 				}
 			}
 			if math.IsNaN(nodePrice) {
-				klog.V(1).Infof("[Warning] nodePrice parsed as NaN. Setting to 0.")
+				log.Warnf("nodePrice parsed as NaN. Setting to 0.")
 				nodePrice = 0
 			}
 
 			ramPrice := (nodePrice / ramMultiple)
 			if math.IsNaN(ramPrice) {
-				klog.V(1).Infof("[Warning] ramPrice[nodePrice: %f / ramMultiple: %f] parsed as NaN. Setting to 0.", nodePrice, ramMultiple)
+				log.Warnf("ramPrice[nodePrice: %f / ramMultiple: %f] parsed as NaN. Setting to 0.", nodePrice, ramMultiple)
 				ramPrice = 0
 			}
 
@@ -1210,7 +1209,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 			}
 			newCnode.RAMBytes = fmt.Sprintf("%f", ram)
 
-			klog.V(4).Infof("Computed \"%s\" RAM Cost := %v", name, newCnode.RAMCost)
+			log.Debugf("Computed \"%s\" RAM Cost := %v", name, newCnode.RAMCost)
 		}
 
 		nodes[name] = &newCnode
@@ -1300,7 +1299,7 @@ func getPodStatefulsets(cache clustercache.ClusterCache, podList []*v1.Pod, clus
 		}
 		s, err := metav1.LabelSelectorAsSelector(ss.Spec.Selector)
 		if err != nil {
-			klog.V(2).Infof("Error doing deployment label conversion: " + err.Error())
+			log.Errorf("Error doing deployment label conversion: " + err.Error())
 		}
 		for _, pod := range podList {
 			labelSet := labels.Set(pod.GetObjectMeta().GetLabels())
@@ -1331,7 +1330,7 @@ func getPodDeployments(cache clustercache.ClusterCache, podList []*v1.Pod, clust
 		}
 		s, err := metav1.LabelSelectorAsSelector(deployment.Spec.Selector)
 		if err != nil {
-			klog.V(2).Infof("Error doing deployment label conversion: " + err.Error())
+			log.Errorf("Error doing deployment label conversion: " + err.Error())
 		}
 		for _, pod := range podList {
 			labelSet := labels.Set(pod.GetObjectMeta().GetLabels())
@@ -1530,7 +1529,7 @@ func (cm *CostModel) ComputeCostDataRange(cli prometheusClient.Client, cp costAn
 	// for the specific inputs to prevent multiple queries for identical data.
 	key := requestKeyFor(window, resolution, filterNamespace, filterCluster, remoteEnabled)
 
-	klog.V(4).Infof("ComputeCostDataRange with Key: %s", key)
+	log.Debugf("ComputeCostDataRange with Key: %s", key)
 
 	// If there is already a request out that uses the same data, wait for it to return to share the results.
 	// Otherwise, start executing.
@@ -1566,7 +1565,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 
 	// Warn if resolution does not evenly divide window
 	if int64(window.Minutes())%int64(resolution.Minutes()) != 0 {
-		log.Warningf("CostDataRange: window should be divisible by resolution or else samples may be missed: %s %% %s = %dm", window, resolution, int64(window.Minutes())%int64(resolution.Minutes()))
+		log.Warnf("CostDataRange: window should be divisible by resolution or else samples may be missed: %s %% %s = %dm", window, resolution, int64(window.Minutes())%int64(resolution.Minutes()))
 	}
 
 	// Convert to Prometheus-style duration string in terms of m or h
@@ -1579,7 +1578,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 		remoteLayout := "2006-01-02T15:04:05Z"
 		remoteStartStr := window.Start().Format(remoteLayout)
 		remoteEndStr := window.End().Format(remoteLayout)
-		klog.V(1).Infof("Using remote database for query from %s to %s with window %s", remoteStartStr, remoteEndStr, resolution)
+		log.Infof("Using remote database for query from %s to %s with window %s", remoteStartStr, remoteEndStr, resolution)
 		return CostDataRangeFromSQL("", "", resolution.String(), remoteStartStr, remoteEndStr)
 	}
 
@@ -1707,7 +1706,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 	pvClaimMapping, err := GetPVInfo(resPVRequests, clusterID)
 	if err != nil {
 		// Just log for compatibility with KSM less than 1.6
-		klog.Infof("Unable to get PV Data: %s", err.Error())
+		log.Infof("Unable to get PV Data: %s", err.Error())
 	}
 	if pvClaimMapping != nil {
 		err = addPVData(cm.Cache, pvClaimMapping, cp)
@@ -1718,13 +1717,13 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 
 	pvCostMapping, err := GetPVCostMetrics(resPVHourlyCost, clusterID)
 	if err != nil {
-		klog.V(1).Infof("Unable to get PV Hourly Cost Data: %s", err.Error())
+		log.Errorf("Unable to get PV Hourly Cost Data: %s", err.Error())
 	}
 
 	unmountedPVs := make(map[string][]*PersistentVolumeClaimData)
 	pvAllocationMapping, err := GetPVAllocationMetrics(resPVCAlloc, clusterID)
 	if err != nil {
-		klog.V(1).Infof("Unable to get PV Allocation Cost Data: %s", err.Error())
+		log.Errorf("Unable to get PV Allocation Cost Data: %s", err.Error())
 	}
 	if pvAllocationMapping != nil {
 		addMetricPVData(pvAllocationMapping, pvCostMapping, cp)
@@ -1735,7 +1734,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 
 	nsLabels, err := GetNamespaceLabelsMetrics(resNSLabels, clusterID)
 	if err != nil {
-		klog.V(1).Infof("Unable to get Namespace Labels for Metrics: %s", err.Error())
+		log.Errorf("Unable to get Namespace Labels for Metrics: %s", err.Error())
 	}
 	if nsLabels != nil {
 		mergeStringMap(namespaceLabelsMapping, nsLabels)
@@ -1743,12 +1742,12 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 
 	podLabels, err := GetPodLabelsMetrics(resPodLabels, clusterID)
 	if err != nil {
-		klog.V(1).Infof("Unable to get Pod Labels for Metrics: %s", err.Error())
+		log.Errorf("Unable to get Pod Labels for Metrics: %s", err.Error())
 	}
 
 	nsAnnotations, err := GetNamespaceAnnotationsMetrics(resNSAnnotations, clusterID)
 	if err != nil {
-		klog.V(1).Infof("Unable to get Namespace Annotations for Metrics: %s", err.Error())
+		log.Errorf("Unable to get Namespace Annotations for Metrics: %s", err.Error())
 	}
 	if nsAnnotations != nil {
 		mergeStringMap(namespaceAnnotationsMapping, nsAnnotations)
@@ -1756,55 +1755,55 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 
 	podAnnotations, err := GetPodAnnotationsMetrics(resPodAnnotations, clusterID)
 	if err != nil {
-		klog.V(1).Infof("Unable to get Pod Annotations for Metrics: %s", err.Error())
+		log.Errorf("Unable to get Pod Annotations for Metrics: %s", err.Error())
 	}
 
 	serviceLabels, err := GetServiceSelectorLabelsMetrics(resServiceLabels, clusterID)
 	if err != nil {
-		klog.V(1).Infof("Unable to get Service Selector Labels for Metrics: %s", err.Error())
+		log.Errorf("Unable to get Service Selector Labels for Metrics: %s", err.Error())
 	}
 
 	deploymentLabels, err := GetDeploymentMatchLabelsMetrics(resDeploymentLabels, clusterID)
 	if err != nil {
-		klog.V(1).Infof("Unable to get Deployment Match Labels for Metrics: %s", err.Error())
+		log.Errorf("Unable to get Deployment Match Labels for Metrics: %s", err.Error())
 	}
 
 	statefulsetLabels, err := GetStatefulsetMatchLabelsMetrics(resStatefulsetLabels, clusterID)
 	if err != nil {
-		klog.V(1).Infof("Unable to get Deployment Match Labels for Metrics: %s", err.Error())
+		log.Errorf("Unable to get Deployment Match Labels for Metrics: %s", err.Error())
 	}
 
 	podStatefulsetMetricsMapping, err := getPodDeploymentsWithMetrics(statefulsetLabels, podLabels)
 	if err != nil {
-		klog.V(1).Infof("Unable to get match Statefulset Labels Metrics to Pods: %s", err.Error())
+		log.Errorf("Unable to get match Statefulset Labels Metrics to Pods: %s", err.Error())
 	}
 	appendLabelsList(podStatefulsetsMapping, podStatefulsetMetricsMapping)
 
 	podDeploymentsMetricsMapping, err := getPodDeploymentsWithMetrics(deploymentLabels, podLabels)
 	if err != nil {
-		klog.V(1).Infof("Unable to get match Deployment Labels Metrics to Pods: %s", err.Error())
+		log.Errorf("Unable to get match Deployment Labels Metrics to Pods: %s", err.Error())
 	}
 	appendLabelsList(podDeploymentsMapping, podDeploymentsMetricsMapping)
 
 	podDaemonsets, err := GetPodDaemonsetsWithMetrics(resDaemonsets, clusterID)
 	if err != nil {
-		klog.V(1).Infof("Unable to get Pod Daemonsets for Metrics: %s", err.Error())
+		log.Errorf("Unable to get Pod Daemonsets for Metrics: %s", err.Error())
 	}
 
 	podJobs, err := GetPodJobsWithMetrics(resJobs, clusterID)
 	if err != nil {
-		klog.V(1).Infof("Unable to get Pod Jobs for Metrics: %s", err.Error())
+		log.Errorf("Unable to get Pod Jobs for Metrics: %s", err.Error())
 	}
 
 	podServicesMetricsMapping, err := getPodServicesWithMetrics(serviceLabels, podLabels)
 	if err != nil {
-		klog.V(1).Infof("Unable to get match Service Labels Metrics to Pods: %s", err.Error())
+		log.Errorf("Unable to get match Service Labels Metrics to Pods: %s", err.Error())
 	}
 	appendLabelsList(podServicesMapping, podServicesMetricsMapping)
 
 	networkUsageMap, err := GetNetworkUsageData(resNetZoneRequests, resNetRegionRequests, resNetInternetRequests, clusterID)
 	if err != nil {
-		klog.V(1).Infof("Unable to get Network Cost Data: %s", err.Error())
+		log.Errorf("Unable to get Network Cost Data: %s", err.Error())
 		networkUsageMap = make(map[string]*NetworkUsageData)
 	}
 
@@ -1885,37 +1884,37 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 		c, _ := NewContainerMetricFromKey(key)
 		RAMReqV, ok := RAMReqMap[key]
 		if !ok {
-			klog.V(4).Info("no RAM requests for " + key)
+			log.Debug("no RAM requests for " + key)
 			RAMReqV = []*util.Vector{}
 		}
 		RAMUsedV, ok := RAMUsedMap[key]
 		if !ok {
-			klog.V(4).Info("no RAM usage for " + key)
+			log.Debug("no RAM usage for " + key)
 			RAMUsedV = []*util.Vector{}
 		}
 		CPUReqV, ok := CPUReqMap[key]
 		if !ok {
-			klog.V(4).Info("no CPU requests for " + key)
+			log.Debug("no CPU requests for " + key)
 			CPUReqV = []*util.Vector{}
 		}
 		CPUUsedV, ok := CPUUsedMap[key]
 		if !ok {
-			klog.V(4).Info("no CPU usage for " + key)
+			log.Debug("no CPU usage for " + key)
 			CPUUsedV = []*util.Vector{}
 		}
 		RAMAllocsV, ok := RAMAllocMap[key]
 		if !ok {
-			klog.V(4).Info("no RAM allocation for " + key)
+			log.Debug("no RAM allocation for " + key)
 			RAMAllocsV = []*util.Vector{}
 		}
 		CPUAllocsV, ok := CPUAllocMap[key]
 		if !ok {
-			klog.V(4).Info("no CPU allocation for " + key)
+			log.Debug("no CPU allocation for " + key)
 			CPUAllocsV = []*util.Vector{}
 		}
 		GPUReqV, ok := GPUReqMap[key]
 		if !ok {
-			klog.V(4).Info("no GPU requests for " + key)
+			log.Debug("no GPU requests for " + key)
 			GPUReqV = []*util.Vector{}
 		}
 
@@ -1992,7 +1991,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 		// the pod_pvc_allocation metric
 		podPVData, ok := pvAllocationMapping[podKey]
 		if !ok {
-			klog.V(4).Infof("Failed to locate pv allocation mapping for missing pod.")
+			log.Debugf("Failed to locate pv allocation mapping for missing pod.")
 		}
 
 		// Delete the current pod key from potentially unmounted pvs
@@ -2004,7 +2003,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 		if usage, ok := networkUsageMap[podKey]; ok {
 			netCosts, err := GetNetworkCost(usage, cp)
 			if err != nil {
-				klog.V(3).Infof("Error pulling network costs: %s", err.Error())
+				log.Errorf("Error pulling network costs: %s", err.Error())
 			} else {
 				podNetworkCosts = netCosts
 			}
@@ -2064,7 +2063,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 
 	unmounted := findUnmountedPVCostData(cm.ClusterMap, unmountedPVs, namespaceLabelsMapping, namespaceAnnotationsMapping)
 	for k, costs := range unmounted {
-		klog.V(4).Infof("Unmounted PVs in Namespace/ClusterID: %s/%s", costs.Namespace, costs.ClusterID)
+		log.Debugf("Unmounted PVs in Namespace/ClusterID: %s/%s", costs.Namespace, costs.ClusterID)
 
 		if costDataPassesFilters(cm.ClusterMap, costs, filterNamespace, filterCluster) {
 			containerNameCost[k] = costs
@@ -2075,7 +2074,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 		dur, off := window.DurationOffsetStrings()
 		err = findDeletedNodeInfo(cli, missingNodes, dur, off)
 		if err != nil {
-			klog.V(1).Infof("Error fetching historical node data: %s", err.Error())
+			log.Errorf("Error fetching historical node data: %s", err.Error())
 		}
 	}
 
@@ -2118,7 +2117,7 @@ func applyAllocationToRequests(allocationMap map[string][]*util.Vector, requestM
 func addMetricPVData(pvAllocationMap map[string][]*PersistentVolumeClaimData, pvCostMap map[string]*costAnalyzerCloud.PV, cp costAnalyzerCloud.Provider) {
 	cfg, err := cp.GetConfig()
 	if err != nil {
-		klog.V(1).Infof("Failed to get provider config while adding pv metrics data.")
+		log.Errorf("Failed to get provider config while adding pv metrics data.")
 		return
 	}
 
@@ -2218,7 +2217,7 @@ func getAllocatableVGPUs(cache clustercache.ClusterCache) (float64, error) {
 					if strings.Contains(arg, "--vgpu=") {
 						vgpus, err := strconv.ParseFloat(arg[strings.IndexByte(arg, '=')+1:], 64)
 						if err != nil {
-							klog.V(1).Infof("failed to parse vgpu allocation string %s: %v", arg, err)
+							log.Errorf("failed to parse vgpu allocation string %s: %v", arg, err)
 							continue
 						}
 						vgpuCount = vgpus
@@ -2246,7 +2245,7 @@ type PersistentVolumeClaimData struct {
 func measureTime(start time.Time, threshold time.Duration, name string) {
 	elapsed := time.Since(start)
 	if elapsed > threshold {
-		klog.V(3).Infof("[Profiler] %s: %s", elapsed, name)
+		log.Infof("[Profiler] %s: %s", elapsed, name)
 	}
 }
 

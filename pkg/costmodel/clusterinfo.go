@@ -12,7 +12,6 @@ import (
 	"github.com/kubecost/cost-model/pkg/util/json"
 
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/klog"
 )
 
 var (
@@ -64,12 +63,12 @@ func (dlcip *localClusterInfoProvider) GetClusterInfo() map[string]string {
 	if ok && data != nil {
 		v, err := kc.ServerVersion()
 		if err != nil {
-			klog.Infof("Could not get k8s version info: %s", err.Error())
+			log.Infof("Could not get k8s version info: %s", err.Error())
 		} else if v != nil {
 			data["version"] = v.Major + "." + v.Minor
 		}
 	} else {
-		klog.Infof("Could not get k8s version info: %s", err.Error())
+		log.Infof("Could not get k8s version info: %s", err.Error())
 	}
 
 	writeClusterProfile(data)
@@ -104,7 +103,7 @@ func (ccip *configuredClusterInfoProvider) GetClusterInfo() map[string]string {
 
 	err = json.Unmarshal(data, &clusterInfo)
 	if err != nil {
-		log.Warningf("ClusterInfo failed to load from configuration: %s", err)
+		log.Warnf("ClusterInfo failed to load from configuration: %s", err)
 		return clusterInfo
 	}
 
@@ -131,13 +130,13 @@ func (ciw *clusterInfoWriteOnRequest) GetClusterInfo() map[string]string {
 
 	result, err := json.Marshal(cInfo)
 	if err != nil {
-		log.Warningf("Failed to write the cluster info: %s", err)
+		log.Warnf("Failed to write the cluster info: %s", err)
 		return cInfo
 	}
 
 	err = ciw.config.Write(result)
 	if err != nil {
-		log.Warningf("Failed to write the cluster info to config: %s", err)
+		log.Warnf("Failed to write the cluster info to config: %s", err)
 	}
 
 	return cInfo

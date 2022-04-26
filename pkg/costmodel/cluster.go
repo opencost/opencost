@@ -14,7 +14,6 @@ import (
 	"github.com/kubecost/cost-model/pkg/prom"
 
 	prometheus "github.com/prometheus/client_golang/api"
-	"k8s.io/klog"
 )
 
 const (
@@ -189,7 +188,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 
 		name, err := result.GetString("instance")
 		if err != nil {
-			log.Warningf("ClusterDisks: local storage data missing instance")
+			log.Warnf("ClusterDisks: local storage data missing instance")
 			continue
 		}
 
@@ -214,7 +213,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 
 		name, err := result.GetString("instance")
 		if err != nil {
-			log.Warningf("ClusterDisks: local storage usage data missing instance")
+			log.Warnf("ClusterDisks: local storage usage data missing instance")
 			continue
 		}
 
@@ -239,7 +238,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 
 		name, err := result.GetString("instance")
 		if err != nil {
-			log.Warningf("ClusterDisks: local storage data missing instance")
+			log.Warnf("ClusterDisks: local storage data missing instance")
 			continue
 		}
 
@@ -441,7 +440,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, start, end time.T
 
 	if optionalCtx.HasErrors() {
 		for _, err := range optionalCtx.Errors() {
-			log.Warningf("ClusterNodes: %s", err)
+			log.Warnf("ClusterNodes: %s", err)
 		}
 	}
 	if requiredCtx.HasErrors() {
@@ -573,12 +572,12 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 		}
 		namespace, err := result.GetString("namespace")
 		if err != nil {
-			log.Warningf("ClusterLoadBalancers: LB cost data missing namespace")
+			log.Warnf("ClusterLoadBalancers: LB cost data missing namespace")
 			continue
 		}
 		name, err := result.GetString("service_name")
 		if err != nil {
-			log.Warningf("ClusterLoadBalancers: LB cost data missing service_name")
+			log.Warnf("ClusterLoadBalancers: LB cost data missing service_name")
 			continue
 		}
 		providerID, err := result.GetString("ingress_ip")
@@ -629,12 +628,12 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 		}
 		namespace, err := result.GetString("namespace")
 		if err != nil {
-			log.Warningf("ClusterLoadBalancers: LB cost data missing namespace")
+			log.Warnf("ClusterLoadBalancers: LB cost data missing namespace")
 			continue
 		}
 		name, err := result.GetString("service_name")
 		if err != nil {
-			log.Warningf("ClusterLoadBalancers: LB cost data missing service_name")
+			log.Warnf("ClusterLoadBalancers: LB cost data missing service_name")
 			continue
 		}
 
@@ -808,7 +807,7 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 		if len(result.Values) > 0 {
 			dataMins = result.Values[0].Value
 		} else {
-			klog.V(3).Infof("[Warning] cluster cost data count returned no results for cluster %s", clusterID)
+			log.Warnf("Cluster cost data count returned no results for cluster %s", clusterID)
 		}
 		dataMinsByCluster[clusterID] = dataMins
 	}
@@ -884,7 +883,7 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 
 			mode, err := result.GetString("mode")
 			if err != nil {
-				klog.V(3).Infof("[Warning] ComputeClusterCosts: unable to read CPU mode: %s", err)
+				log.Warnf("ComputeClusterCosts: unable to read CPU mode: %s", err)
 				mode = "other"
 			}
 
@@ -958,11 +957,11 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 		dataMins, ok := dataMinsByCluster[id]
 		if !ok {
 			dataMins = mins
-			klog.V(3).Infof("[Warning] cluster cost data count not found for cluster %s", id)
+			log.Warnf("Cluster cost data count not found for cluster %s", id)
 		}
 		costs, err := NewClusterCostsFromCumulative(cd["cpu"], cd["gpu"], cd["ram"], cd["storage"]+cd["localstorage"], window, offset, dataMins/timeutil.MinsPerHour)
 		if err != nil {
-			klog.V(3).Infof("[Warning] Failed to parse cluster costs on %s (%s) from cumulative data: %+v", window, offset, cd)
+			log.Warnf("Failed to parse cluster costs on %s (%s) from cumulative data: %+v", window, offset, cd)
 			return nil, err
 		}
 
@@ -1021,19 +1020,19 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 
 	start, err := time.Parse(layout, startString)
 	if err != nil {
-		klog.V(1).Infof("Error parsing time %s. Error: %s", startString, err.Error())
+		log.Errorf("Error parsing time %s. Error: %s", startString, err.Error())
 		return nil, err
 	}
 	end, err := time.Parse(layout, endString)
 	if err != nil {
-		klog.V(1).Infof("Error parsing time %s. Error: %s", endString, err.Error())
+		log.Errorf("Error parsing time %s. Error: %s", endString, err.Error())
 		return nil, err
 	}
 	fmtWindow := timeutil.DurationString(window)
 
 	if fmtWindow == "" {
 		err := fmt.Errorf("window value invalid or missing")
-		klog.V(1).Infof("Error parsing time %v. Error: %s", window, err.Error())
+		log.Errorf("Error parsing time %v. Error: %s", window, err.Error())
 		return nil, err
 	}
 
@@ -1072,19 +1071,19 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 
 	coreTotal, err := resultToTotals(resultClusterCores)
 	if err != nil {
-		klog.Infof("[Warning] ClusterCostsOverTime: no cpu data: %s", err)
+		log.Infof("[Warning] ClusterCostsOverTime: no cpu data: %s", err)
 		return nil, err
 	}
 
 	ramTotal, err := resultToTotals(resultClusterRAM)
 	if err != nil {
-		klog.Infof("[Warning] ClusterCostsOverTime: no ram data: %s", err)
+		log.Infof("[Warning] ClusterCostsOverTime: no ram data: %s", err)
 		return nil, err
 	}
 
 	storageTotal, err := resultToTotals(resultStorage)
 	if err != nil {
-		klog.Infof("[Warning] ClusterCostsOverTime: no storage data: %s", err)
+		log.Infof("[Warning] ClusterCostsOverTime: no storage data: %s", err)
 	}
 
 	clusterTotal, err := resultToTotals(resultTotal)
@@ -1096,7 +1095,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 
 		resultNodes, warnings, err := ctx.QueryRangeSync(qNodes, start, end, window)
 		for _, warning := range warnings {
-			log.Warningf(warning)
+			log.Warnf(warning)
 		}
 		if err != nil {
 			return nil, err
@@ -1104,7 +1103,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 
 		clusterTotal, err = resultToTotals(resultNodes)
 		if err != nil {
-			klog.Infof("[Warning] ClusterCostsOverTime: no node data: %s", err)
+			log.Infof("[Warning] ClusterCostsOverTime: no node data: %s", err)
 			return nil, err
 		}
 	}
@@ -1126,7 +1125,7 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 
 		name, err := result.GetString("persistentvolume")
 		if err != nil {
-			log.Warningf("ClusterDisks: active mins missing pv name")
+			log.Warnf("ClusterDisks: active mins missing pv name")
 			continue
 		}
 
@@ -1161,7 +1160,7 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 
 		name, err := result.GetString("persistentvolume")
 		if err != nil {
-			log.Warningf("ClusterDisks: PV size data missing persistentvolume")
+			log.Warnf("ClusterDisks: PV size data missing persistentvolume")
 			continue
 		}
 
@@ -1182,7 +1181,7 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 	customPricingEnabled := cloud.CustomPricesEnabled(cp)
 	customPricingConfig, err := cp.GetConfig()
 	if err != nil {
-		log.Warningf("ClusterDisks: failed to load custom pricing: %s", err)
+		log.Warnf("ClusterDisks: failed to load custom pricing: %s", err)
 	}
 
 	for _, result := range resPVCost {
@@ -1193,7 +1192,7 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 
 		name, err := result.GetString("persistentvolume")
 		if err != nil {
-			log.Warningf("ClusterDisks: PV cost data missing persistentvolume")
+			log.Warnf("ClusterDisks: PV cost data missing persistentvolume")
 			continue
 		}
 
@@ -1205,7 +1204,7 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 
 			customPVCost, err := strconv.ParseFloat(customPVCostStr, 64)
 			if err != nil {
-				log.Warningf("ClusterDisks: error parsing custom PV price: %s", customPVCostStr)
+				log.Warnf("ClusterDisks: error parsing custom PV price: %s", customPVCostStr)
 			}
 
 			cost = customPVCost

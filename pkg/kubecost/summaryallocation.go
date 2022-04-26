@@ -890,7 +890,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		sharingCoeffDenominator -= totalUnmountedCost
 
 		if sharingCoeffDenominator <= 0.0 {
-			log.Warningf("SummaryAllocation: sharing coefficient denominator is %f", sharingCoeffDenominator)
+			log.Warnf("SummaryAllocation: sharing coefficient denominator is %f", sharingCoeffDenominator)
 		} else {
 			// Compute sharing coeffs by dividing the thus-far accumulated
 			// numerators by the now-finalized denominator.
@@ -898,7 +898,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 				if sharingCoeffs[key] > 0.0 {
 					sharingCoeffs[key] /= sharingCoeffDenominator
 				} else {
-					log.Warningf("SummaryAllocation: detected illegal sharing coefficient for %s: %v (setting to zero)", key, sharingCoeffs[key])
+					log.Warnf("SummaryAllocation: detected illegal sharing coefficient for %s: %v (setting to zero)", key, sharingCoeffs[key])
 					sharingCoeffs[key] = 0.0
 				}
 			}
@@ -978,7 +978,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 
 		rt, ok := allocTotals[key]
 		if !ok {
-			log.Warningf("SummaryAllocation: AggregateBy: cannot handle undistributed idle for '%s'", key)
+			log.Warnf("SummaryAllocation: AggregateBy: cannot handle undistributed idle for '%s'", key)
 			continue
 		}
 
@@ -1174,7 +1174,7 @@ func NewSummaryAllocationSetRange(sass ...*SummaryAllocationSet) *SummaryAllocat
 		if step == 0 {
 			step = sas.Window.Duration()
 		} else if step != sas.Window.Duration() {
-			log.Warningf("instantiating range with step %s using set of step %s is illegal", step, sas.Window.Duration())
+			log.Warnf("instantiating range with step %s using set of step %s is illegal", step, sas.Window.Duration())
 		}
 	}
 

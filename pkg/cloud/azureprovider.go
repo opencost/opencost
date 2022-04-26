@@ -13,10 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/log"
-
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
 	"github.com/kubecost/cost-model/pkg/util/fileutil"
 	"github.com/kubecost/cost-model/pkg/util/json"
@@ -28,7 +27,6 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/klog"
 )
 
 const (
@@ -196,7 +194,7 @@ func getRegions(service string, subscriptionsClient subscriptions.Client, provid
 						if loc, ok := allLocations[displName]; ok {
 							supLocations[loc] = displName
 						} else {
-							klog.V(1).Infof("unsupported cloud region %s", loc)
+							log.Warnf("unsupported cloud region %s", loc)
 						}
 					}
 					break
@@ -214,7 +212,7 @@ func getRegions(service string, subscriptionsClient subscriptions.Client, provid
 						if loc, ok := allLocations[displName]; ok {
 							supLocations[loc] = displName
 						} else {
-							klog.V(1).Infof("unsupported cloud region %s", loc)
+							log.Warnf("unsupported cloud region %s", loc)
 						}
 					}
 					break
@@ -628,7 +626,7 @@ func (az *Azure) loadAzureStorageConfig(force bool) (*AzureStorageConfig, error)
 func (az *Azure) GetKey(labels map[string]string, n *v1.Node) Key {
 	cfg, err := az.GetConfig()
 	if err != nil {
-		klog.Infof("Error loading azure custom pricing information")
+		log.Infof("Error loading azure custom pricing information")
 	}
 	// azure defaults, see https://docs.microsoft.com/en-us/azure/aks/gpu-cluster
 	gpuLabel := "accelerator"
@@ -786,17 +784,17 @@ func (az *Azure) DownloadPricingData() error {
 
 	rateCardFilter := fmt.Sprintf("OfferDurableId eq '%s' and Currency eq '%s' and Locale eq 'en-US' and RegionInfo eq '%s'", config.AzureOfferDurableID, config.CurrencyCode, config.AzureBillingRegion)
 
-	klog.Infof("Using ratecard query %s", rateCardFilter)
+	log.Infof("Using ratecard query %s", rateCardFilter)
 	result, err := rcClient.Get(context.TODO(), rateCardFilter)
 	if err != nil {
-		klog.Warningf("Error in pricing download query from API")
+		log.Warnf("Error in pricing download query from API")
 		az.RateCardPricingError = err
 		return err
 	}
 
 	regions, err := getRegions("compute", sClient, providersClient, config.AzureSubscriptionID)
 	if err != nil {
-		klog.Warningf("Error in pricing download regions from API")
+		log.Warnf("Error in pricing download regions from API")
 		az.RateCardPricingError = err
 		return err
 	}
@@ -834,7 +832,7 @@ func (az *Azure) DownloadPricingData() error {
 						var priceInUsd float64
 
 						if len(v.MeterRates) < 1 {
-							klog.V(1).Infof("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *v.MeterSubCategory, "region": region})
+							log.Warnf("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *v.MeterSubCategory, "region": region})
 							continue
 						}
 						for _, rate := range v.MeterRates {
@@ -845,7 +843,7 @@ func (az *Azure) DownloadPricingData() error {
 						priceStr := fmt.Sprintf("%f", pricePerHour)
 
 						key := region + "," + storageClass
-						klog.V(4).Infof("Adding PV.Key: %s, Cost: %s", key, priceStr)
+						log.Debugf("Adding PV.Key: %s, Cost: %s", key, priceStr)
 						allPrices[key] = &AzurePricing{
 							PV: &PV{
 								Cost:   priceStr,
@@ -883,7 +881,7 @@ func (az *Azure) DownloadPricingData() error {
 				var priceInUsd float64
 
 				if len(v.MeterRates) < 1 {
-					klog.V(1).Infof("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *v.MeterSubCategory, "region": region})
+					log.Warnf("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *v.MeterSubCategory, "region": region})
 					continue
 				}
 				for _, rate := range v.MeterRates {
@@ -912,7 +910,7 @@ func (az *Azure) DownloadPricingData() error {
 	zeroPrice := "0.0"
 	for region := range regions {
 		key := region + "," + AzureFileStandardStorageClass
-		klog.V(4).Infof("Adding PV.Key: %s, Cost: %s", key, zeroPrice)
+		log.Debugf("Adding PV.Key: %s, Cost: %s", key, zeroPrice)
 		allPrices[key] = &AzurePricing{
 			PV: &PV{
 				Cost:   zeroPrice,
@@ -1011,13 +1009,13 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 	}
 
 	if n, ok := az.Pricing[azKey.Features()]; ok {
-		klog.V(4).Infof("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
+		log.Debugf("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
 		if azKey.isValidGPUNode() {
 			n.Node.GPU = azKey.GetGPUCount()
 		}
 		return n.Node, nil
 	}
-	klog.V(1).Infof("[Warning] no pricing data found for %s: %s", azKey.Features(), azKey)
+	log.Warnf("no pricing data found for %s: %s", azKey.Features(), azKey)
 	c, err := az.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("No default pricing data available")
@@ -1246,7 +1244,7 @@ func (az *Azure) PVPricing(pvk PVKey) (*PV, error) {
 
 	pricing, ok := az.Pricing[pvk.Features()]
 	if !ok {
-		klog.V(4).Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
+		log.Debugf("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
 		return &PV{}, nil
 	}
 	return pricing.PV, nil

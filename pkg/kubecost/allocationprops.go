@@ -394,7 +394,7 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 			// This case should never be reached, as input up until this point
 			// should be checked and rejected if invalid. But if we do get a
 			// value we don't recognize, log a warning.
-			log.Warningf("generateKey: illegal aggregation parameter: %s", agg)
+			log.Warnf("generateKey: illegal aggregation parameter: %s", agg)
 		}
 	}
 

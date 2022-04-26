@@ -630,7 +630,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 					if pvcInterval, ok := pvcPodIntervalMap[pvcKey][podKey]; ok {
 						s, e = *pvcInterval.Start(), *pvcInterval.End()
 					} else {
-						log.Warningf("CostModel.ComputeAllocation: allocation %s and PVC %s have no associated active window", alloc.Name, pvc.Name)
+						log.Warnf("CostModel.ComputeAllocation: allocation %s and PVC %s have no associated active window", alloc.Name, pvc.Name)
 					}
 
 					minutes := e.Sub(s).Minutes()
@@ -648,7 +648,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 					if coeffComponents, ok := sharedPVCCostCoefficientMap[pvcKey][podKey]; ok {
 						cost *= getCoefficientFromComponents(coeffComponents)
 					} else {
-						log.Warningf("CostModel.ComputeAllocation: allocation %s and PVC %s have relation but no coeff", alloc.Name, pvc.Name)
+						log.Warnf("CostModel.ComputeAllocation: allocation %s and PVC %s have relation but no coeff", alloc.Name, pvc.Name)
 					}
 
 					// Apply the size and cost of the PV to the allocation, each
@@ -746,7 +746,7 @@ func (cm *CostModel) buildPodMap(window kubecost.Window, resolution, maxBatchSiz
 func applyPodResults(window kubecost.Window, resolution time.Duration, podMap map[podKey]*Pod, clusterStart, clusterEnd map[string]time.Time, resPods []*prom.QueryResult) {
 	for _, res := range resPods {
 		if len(res.Values) == 0 {
-			log.Warningf("CostModel.ComputeAllocation: empty minutes result")
+			log.Warnf("CostModel.ComputeAllocation: empty minutes result")
 			continue
 		}
 
@@ -757,7 +757,7 @@ func applyPodResults(window kubecost.Window, resolution time.Duration, podMap ma
 
 		labels, err := res.GetStrings("namespace", "pod")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: minutes query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: minutes query result missing field: %s", err)
 			continue
 		}
 
@@ -912,7 +912,7 @@ func applyCPUCoresAllocated(podMap map[podKey]*Pod, resCPUCoresAllocated []*prom
 
 		node, err := res.GetString("node")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: CPU allocation query result missing 'node': %s", key)
+			log.Warnf("CostModel.ComputeAllocation: CPU allocation query result missing 'node': %s", key)
 			continue
 		}
 		pod.Allocations[container].Properties.Node = node
@@ -956,7 +956,7 @@ func applyCPUCoresRequested(podMap map[podKey]*Pod, resCPUCoresRequested []*prom
 
 		node, err := res.GetString("node")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: CPU request query result missing 'node': %s", key)
+			log.Warnf("CostModel.ComputeAllocation: CPU request query result missing 'node': %s", key)
 			continue
 		}
 		pod.Allocations[container].Properties.Node = node
@@ -1061,7 +1061,7 @@ func applyRAMBytesAllocated(podMap map[podKey]*Pod, resRAMBytesAllocated []*prom
 
 		node, err := res.GetString("node")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: RAM allocation query result missing 'node': %s", key)
+			log.Warnf("CostModel.ComputeAllocation: RAM allocation query result missing 'node': %s", key)
 			continue
 		}
 		pod.Allocations[container].Properties.Node = node
@@ -1101,7 +1101,7 @@ func applyRAMBytesRequested(podMap map[podKey]*Pod, resRAMBytesRequested []*prom
 
 		node, err := res.GetString("node")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: RAM request query result missing 'node': %s", key)
+			log.Warnf("CostModel.ComputeAllocation: RAM request query result missing 'node': %s", key)
 			continue
 		}
 		pod.Allocations[container].Properties.Node = node
@@ -1546,7 +1546,7 @@ func resToPodDaemonSetMap(resDaemonSetLabels []*prom.QueryResult) map[podKey]con
 
 		pod, err := res.GetString("pod")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: DaemonSetLabel result without pod: %s", controllerKey)
+			log.Warnf("CostModel.ComputeAllocation: DaemonSetLabel result without pod: %s", controllerKey)
 		}
 
 		podKey := newPodKey(controllerKey.Cluster, controllerKey.Namespace, pod)
@@ -1575,7 +1575,7 @@ func resToPodJobMap(resJobLabels []*prom.QueryResult) map[podKey]controllerKey {
 
 		pod, err := res.GetString("pod")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: JobLabel result without pod: %s", controllerKey)
+			log.Warnf("CostModel.ComputeAllocation: JobLabel result without pod: %s", controllerKey)
 		}
 
 		podKey := newPodKey(controllerKey.Cluster, controllerKey.Namespace, pod)
@@ -1617,7 +1617,7 @@ func resToPodReplicaSetMap(resPodsWithReplicaSetOwner []*prom.QueryResult, resRe
 
 		pod, err := res.GetString("pod")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: ReplicaSet result without pod: %s", controllerKey)
+			log.Warnf("CostModel.ComputeAllocation: ReplicaSet result without pod: %s", controllerKey)
 		}
 
 		podKey := newPodKey(controllerKey.Cluster, controllerKey.Namespace, pod)
@@ -1691,19 +1691,19 @@ func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerCPUHr
 
 		node, err := res.GetString("node")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: Node CPU cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node CPU cost query result missing field: %s", err)
 			continue
 		}
 
 		instanceType, err := res.GetString("instance_type")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: Node CPU cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node CPU cost query result missing field: %s", err)
 			continue
 		}
 
 		providerID, err := res.GetString("provider_id")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: Node CPU cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node CPU cost query result missing field: %s", err)
 			continue
 		}
 
@@ -1729,19 +1729,19 @@ func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerRA
 
 		node, err := res.GetString("node")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: Node RAM cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node RAM cost query result missing field: %s", err)
 			continue
 		}
 
 		instanceType, err := res.GetString("instance_type")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: Node RAM cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node RAM cost query result missing field: %s", err)
 			continue
 		}
 
 		providerID, err := res.GetString("provider_id")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: Node RAM cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node RAM cost query result missing field: %s", err)
 			continue
 		}
 
@@ -1767,19 +1767,19 @@ func applyNodeCostPerGPUHr(nodeMap map[nodeKey]*NodePricing, resNodeCostPerGPUHr
 
 		node, err := res.GetString("node")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: Node GPU cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node GPU cost query result missing field: %s", err)
 			continue
 		}
 
 		instanceType, err := res.GetString("instance_type")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: Node GPU cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node GPU cost query result missing field: %s", err)
 			continue
 		}
 
 		providerID, err := res.GetString("provider_id")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: Node GPU cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node GPU cost query result missing field: %s", err)
 			continue
 		}
 
@@ -1805,13 +1805,13 @@ func applyNodeSpot(nodeMap map[nodeKey]*NodePricing, resNodeIsSpot []*prom.Query
 
 		node, err := res.GetString("node")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: Node spot query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node spot query result missing field: %s", err)
 			continue
 		}
 
 		key := newNodeKey(cluster, node)
 		if _, ok := nodeMap[key]; !ok {
-			log.Warningf("CostModel.ComputeAllocation: Node spot  query result for missing node: %s", key)
+			log.Warnf("CostModel.ComputeAllocation: Node spot  query result for missing node: %s", key)
 			continue
 		}
 
@@ -1859,7 +1859,7 @@ func buildPVMap(pvMap map[pvKey]*PV, resPVCostPerGiBHour []*prom.QueryResult) {
 
 		name, err := res.GetString("volumename")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: PV cost without volumename")
+			log.Warnf("CostModel.ComputeAllocation: PV cost without volumename")
 			continue
 		}
 
@@ -1877,12 +1877,12 @@ func applyPVBytes(pvMap map[pvKey]*PV, resPVBytes []*prom.QueryResult) {
 	for _, res := range resPVBytes {
 		key, err := resultPVKey(res, env.GetPromClusterLabel(), "persistentvolume")
 		if err != nil {
-			log.Warningf("CostModel.ComputeAllocation: PV bytes query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: PV bytes query result missing field: %s", err)
 			continue
 		}
 
 		if _, ok := pvMap[key]; !ok {
-			log.Warningf("CostModel.ComputeAllocation: PV bytes result for missing PV: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: PV bytes result for missing PV: %s", err)
 			continue
 		}
 
@@ -1927,7 +1927,7 @@ func buildPVCMap(window kubecost.Window, pvcMap map[pvcKey]*PVC, pvMap map[pvKey
 			}
 		}
 		if pvcStart.IsZero() || pvcEnd.IsZero() {
-			log.Warningf("CostModel.ComputeAllocation: PVC %s has no running time", pvcKey)
+			log.Warnf("CostModel.ComputeAllocation: PVC %s has no running time", pvcKey)
 		}
 		pvcStart = pvcStart.Add(-time.Minute)
 
@@ -2151,7 +2151,7 @@ func getLoadBalancerCosts(resLBCost, resLBActiveMins []*prom.QueryResult, resolu
 			continue
 		}
 		if _, ok := lbHourlyCosts[serviceKey]; !ok {
-			log.Warningf("CostModel: failed to find hourly cost for Load Balancer: %v", serviceKey)
+			log.Warnf("CostModel: failed to find hourly cost for Load Balancer: %v", serviceKey)
 			continue
 		}
 
@@ -2222,7 +2222,7 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*NodePricing, nodeKey no
 	// node pricing with the custom values.
 	customPricingConfig, err := cm.Provider.GetConfig()
 	if err != nil {
-		log.Warningf("CostModel: failed to load custom pricing: %s", err)
+		log.Warnf("CostModel: failed to load custom pricing: %s", err)
 	}
 	if cloud.CustomPricesEnabled(cm.Provider) && customPricingConfig != nil {
 		return cm.getCustomNodePricing(node.Preemptible)
@@ -2236,42 +2236,42 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*NodePricing, nodeKey no
 	// them as strings like this?
 
 	if node.CostPerCPUHr == 0 || math.IsNaN(node.CostPerCPUHr) {
-		log.Warningf("CostModel: node pricing has illegal CostPerCPUHr; replacing with custom pricing: %s", nodeKey)
+		log.Warnf("CostModel: node pricing has illegal CostPerCPUHr; replacing with custom pricing: %s", nodeKey)
 		cpuCostStr := customPricingConfig.CPU
 		if node.Preemptible {
 			cpuCostStr = customPricingConfig.SpotCPU
 		}
 		costPerCPUHr, err := strconv.ParseFloat(cpuCostStr, 64)
 		if err != nil {
-			log.Warningf("CostModel: custom pricing has illegal CPU cost: %s", cpuCostStr)
+			log.Warnf("CostModel: custom pricing has illegal CPU cost: %s", cpuCostStr)
 		}
 		node.CostPerCPUHr = costPerCPUHr
 		node.Source += "/customCPU"
 	}
 
 	if math.IsNaN(node.CostPerGPUHr) {
-		log.Warningf("CostModel: node pricing has illegal CostPerGPUHr; replacing with custom pricing: %s", nodeKey)
+		log.Warnf("CostModel: node pricing has illegal CostPerGPUHr; replacing with custom pricing: %s", nodeKey)
 		gpuCostStr := customPricingConfig.GPU
 		if node.Preemptible {
 			gpuCostStr = customPricingConfig.SpotGPU
 		}
 		costPerGPUHr, err := strconv.ParseFloat(gpuCostStr, 64)
 		if err != nil {
-			log.Warningf("CostModel: custom pricing has illegal GPU cost: %s", gpuCostStr)
+			log.Warnf("CostModel: custom pricing has illegal GPU cost: %s", gpuCostStr)
 		}
 		node.CostPerGPUHr = costPerGPUHr
 		node.Source += "/customGPU"
 	}
 
 	if node.CostPerRAMGiBHr == 0 || math.IsNaN(node.CostPerRAMGiBHr) {
-		log.Warningf("CostModel: node pricing has illegal CostPerRAMHr; replacing with custom pricing: %s", nodeKey)
+		log.Warnf("CostModel: node pricing has illegal CostPerRAMHr; replacing with custom pricing: %s", nodeKey)
 		ramCostStr := customPricingConfig.RAM
 		if node.Preemptible {
 			ramCostStr = customPricingConfig.SpotRAM
 		}
 		costPerRAMHr, err := strconv.ParseFloat(ramCostStr, 64)
 		if err != nil {
-			log.Warningf("CostModel: custom pricing has illegal RAM cost: %s", ramCostStr)
+			log.Warnf("CostModel: custom pricing has illegal RAM cost: %s", ramCostStr)
 		}
 		node.CostPerRAMGiBHr = costPerRAMHr
 		node.Source += "/customRAM"
@@ -2301,19 +2301,19 @@ func (cm *CostModel) getCustomNodePricing(spot bool) *NodePricing {
 
 	costPerCPUHr, err := strconv.ParseFloat(cpuCostStr, 64)
 	if err != nil {
-		log.Warningf("CostModel: custom pricing has illegal CPU cost: %s", cpuCostStr)
+		log.Warnf("CostModel: custom pricing has illegal CPU cost: %s", cpuCostStr)
 	}
 	node.CostPerCPUHr = costPerCPUHr
 
 	costPerGPUHr, err := strconv.ParseFloat(gpuCostStr, 64)
 	if err != nil {
-		log.Warningf("CostModel: custom pricing has illegal GPU cost: %s", gpuCostStr)
+		log.Warnf("CostModel: custom pricing has illegal GPU cost: %s", gpuCostStr)
 	}
 	node.CostPerGPUHr = costPerGPUHr
 
 	costPerRAMHr, err := strconv.ParseFloat(ramCostStr, 64)
 	if err != nil {
-		log.Warningf("CostModel: custom pricing has illegal RAM cost: %s", ramCostStr)
+		log.Warnf("CostModel: custom pricing has illegal RAM cost: %s", ramCostStr)
 	}
 	node.CostPerRAMGiBHr = costPerRAMHr
 

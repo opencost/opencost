@@ -59,7 +59,7 @@ func (ce *ClusterExporter) Run() {
 	ce.runState.WaitForReset()
 
 	if !ce.runState.Start() {
-		log.Warningf("ClusterExporter already running")
+		log.Warnf("ClusterExporter already running")
 		return
 	}
 
@@ -67,7 +67,7 @@ func (ce *ClusterExporter) Run() {
 		for {
 			err := ce.Export()
 			if err != nil {
-				log.Warningf("Failed to export cluster: %s", err)
+				log.Warnf("Failed to export cluster: %s", err)
 			}
 
 			select {

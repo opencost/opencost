@@ -25,7 +25,6 @@ import (
 	"github.com/kubecost/cost-model/pkg/util/json"
 	"github.com/patrickmn/go-cache"
 	prometheusClient "github.com/prometheus/client_golang/api"
-	"k8s.io/klog"
 )
 
 const (
@@ -221,7 +220,7 @@ func (a *Accesses) ComputeIdleCoefficient(costData map[string]*CostData, cli pro
 
 	for cid, costs := range clusterCosts {
 		if costs.CPUCumulative == 0 && costs.RAMCumulative == 0 && costs.StorageCumulative == 0 {
-			klog.V(1).Infof("[Warning] No ClusterCosts data for cluster '%s'. Is it emitting data?", cid)
+			log.Warnf("No ClusterCosts data for cluster '%s'. Is it emitting data?", cid)
 			coefficients[cid] = 1.0
 			continue
 		}
@@ -272,13 +271,13 @@ type AggregationOptions struct {
 func clampAverage(requestsAvg float64, usedAverage float64, allocationAvg float64, resource string) (float64, float64) {
 	rAvg := requestsAvg
 	if rAvg > allocationAvg {
-		klog.V(4).Infof("[Warning] Average %s Requested (%f) > Average %s Allocated (%f). Clamping.", resource, rAvg, resource, allocationAvg)
+		log.Debugf("Average %s Requested (%f) > Average %s Allocated (%f). Clamping.", resource, rAvg, resource, allocationAvg)
 		rAvg = allocationAvg
 	}
 
 	uAvg := usedAverage
 	if uAvg > allocationAvg {
-		klog.V(4).Infof("[Warning]: Average %s Used (%f) > Average %s Allocated (%f). Clamping.", resource, uAvg, resource, allocationAvg)
+		log.Debugf(" Average %s Used (%f) > Average %s Allocated (%f). Clamping.", resource, uAvg, resource, allocationAvg)
 		uAvg = allocationAvg
 	}
 
@@ -414,7 +413,7 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 		if opts.SharedSplit == SplitTypeWeighted {
 			d := opts.TotalContainerCost - sharedResourceCost
 			if d == 0 {
-				klog.V(1).Infof("[Warning] Total container cost '%f' and shared resource cost '%f are the same'. Setting sharedCoefficient to 1", opts.TotalContainerCost, sharedResourceCost)
+				log.Warnf("Total container cost '%f' and shared resource cost '%f are the same'. Setting sharedCoefficient to 1", opts.TotalContainerCost, sharedResourceCost)
 				sharedCoefficient = 1.0
 			} else {
 				sharedCoefficient = (agg.CPUCost + agg.RAMCost + agg.GPUCost + agg.PVCost + agg.NetworkCost) / d
@@ -525,59 +524,59 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 		}
 		// Typesafety checks
 		if math.IsNaN(agg.CPUAllocationHourlyAverage) || math.IsInf(agg.CPUAllocationHourlyAverage, 0) {
-			klog.V(1).Infof("[Warning] CPUAllocationHourlyAverage is %f for '%s: %s/%s'", agg.CPUAllocationHourlyAverage, agg.Cluster, agg.Aggregator, agg.Environment)
+			log.Warnf("CPUAllocationHourlyAverage is %f for '%s: %s/%s'", agg.CPUAllocationHourlyAverage, agg.Cluster, agg.Aggregator, agg.Environment)
 			agg.CPUAllocationHourlyAverage = 0
 		}
 		if math.IsNaN(agg.CPUCost) || math.IsInf(agg.CPUCost, 0) {
-			klog.V(1).Infof("[Warning] CPUCost is %f for '%s: %s/%s'", agg.CPUCost, agg.Cluster, agg.Aggregator, agg.Environment)
+			log.Warnf("CPUCost is %f for '%s: %s/%s'", agg.CPUCost, agg.Cluster, agg.Aggregator, agg.Environment)
 			agg.CPUCost = 0
 		}
 		if math.IsNaN(agg.CPUEfficiency) || math.IsInf(agg.CPUEfficiency, 0) {
-			klog.V(1).Infof("[Warning] CPUEfficiency is %f for '%s: %s/%s'", agg.CPUEfficiency, agg.Cluster, agg.Aggregator, agg.Environment)
+			log.Warnf("CPUEfficiency is %f for '%s: %s/%s'", agg.CPUEfficiency, agg.Cluster, agg.Aggregator, agg.Environment)
 			agg.CPUEfficiency = 0
 		}
 		if math.IsNaN(agg.Efficiency) || math.IsInf(agg.Efficiency, 0) {
-			klog.V(1).Infof("[Warning] Efficiency is %f for '%s: %s/%s'", agg.Efficiency, agg.Cluster, agg.Aggregator, agg.Environment)
+			log.Warnf("Efficiency is %f for '%s: %s/%s'", agg.Efficiency, agg.Cluster, agg.Aggregator, agg.Environment)
 			agg.Efficiency = 0
 		}
 		if math.IsNaN(agg.GPUAllocationHourlyAverage) || math.IsInf(agg.GPUAllocationHourlyAverage, 0) {
-			klog.V(1).Infof("[Warning] GPUAllocationHourlyAverage is %f for '%s: %s/%s'", agg.GPUAllocationHourlyAverage, agg.Cluster, agg.Aggregator, agg.Environment)
+			log.Warnf("GPUAllocationHourlyAverage is %f for '%s: %s/%s'", agg.GPUAllocationHourlyAverage, agg.Cluster, agg.Aggregator, agg.Environment)
 			agg.GPUAllocationHourlyAverage = 0
 		}
 		if math.IsNaN(agg.GPUCost) || math.IsInf(agg.GPUCost, 0) {
-			klog.V(1).Infof("[Warning] GPUCost is %f for '%s: %s/%s'", agg.GPUCost, agg.Cluster, agg.Aggregator, agg.Environment)
+			log.Warnf("GPUCost is %f for '%s: %s/%s'", agg.GPUCost, agg.Cluster, agg.Aggregator, agg.Environment)
 			agg.GPUCost = 0
 		}
 		if math.IsNaN(agg.RAMAllocationHourlyAverage) || math.IsInf(agg.RAMAllocationHourlyAverage, 0) {
-			klog.V(1).Infof("[Warning] RAMAllocationHourlyAverage is %f for '%s: %s/%s'", agg.RAMAllocationHourlyAverage, agg.Cluster, agg.Aggregator, agg.Environment)
+			log.Warnf("RAMAllocationHourlyAverage is %f for '%s: %s/%s'", agg.RAMAllocationHourlyAverage, agg.Cluster, agg.Aggregator, agg.Environment)
 			agg.RAMAllocationHourlyAverage = 0
 		}
 		if math.IsNaN(agg.RAMCost) || math.IsInf(agg.RAMCost, 0) {
-			klog.V(1).Infof("[Warning] RAMCost is %f for '%s: %s/%s'", agg.RAMCost, agg.Cluster, agg.Aggregator, agg.Environment)
+			log.Warnf("RAMCost is %f for '%s: %s/%s'", agg.RAMCost, agg.Cluster, agg.Aggregator, agg.Environment)
 			agg.RAMCost = 0
 		}
 		if math.IsNaN(agg.RAMEfficiency) || math.IsInf(agg.RAMEfficiency, 0) {
-			klog.V(1).Infof("[Warning] RAMEfficiency is %f for '%s: %s/%s'", agg.RAMEfficiency, agg.Cluster, agg.Aggregator, agg.Environment)
+			log.Warnf("RAMEfficiency is %f for '%s: %s/%s'", agg.RAMEfficiency, agg.Cluster, agg.Aggregator, agg.Environment)
 			agg.RAMEfficiency = 0
 		}
 		if math.IsNaN(agg.PVAllocationHourlyAverage) || math.IsInf(agg.PVAllocationHourlyAverage, 0) {
-			klog.V(1).Infof("[Warning] PVAllocationHourlyAverage is %f for '%s: %s/%s'", agg.PVAllocationHourlyAverage, agg.Cluster, agg.Aggregator, agg.Environment)
+			log.Warnf("PVAllocationHourlyAverage is %f for '%s: %s/%s'", agg.PVAllocationHourlyAverage, agg.Cluster, agg.Aggregator, agg.Environment)
 			agg.PVAllocationHourlyAverage = 0
 		}
 		if math.IsNaN(agg.PVCost) || math.IsInf(agg.PVCost, 0) {
-			klog.V(1).Infof("[Warning] PVCost is %f for '%s: %s/%s'", agg.PVCost, agg.Cluster, agg.Aggregator, agg.Environment)
+			log.Warnf("PVCost is %f for '%s: %s/%s'", agg.PVCost, agg.Cluster, agg.Aggregator, agg.Environment)
 			agg.PVCost = 0
 		}
 		if math.IsNaN(agg.NetworkCost) || math.IsInf(agg.NetworkCost, 0) {
-			klog.V(1).Infof("[Warning] NetworkCost is %f for '%s: %s/%s'", agg.NetworkCost, agg.Cluster, agg.Aggregator, agg.Environment)
+			log.Warnf("NetworkCost is %f for '%s: %s/%s'", agg.NetworkCost, agg.Cluster, agg.Aggregator, agg.Environment)
 			agg.NetworkCost = 0
 		}
 		if math.IsNaN(agg.SharedCost) || math.IsInf(agg.SharedCost, 0) {
-			klog.V(1).Infof("[Warning] SharedCost is %f for '%s: %s/%s'", agg.SharedCost, agg.Cluster, agg.Aggregator, agg.Environment)
+			log.Warnf("SharedCost is %f for '%s: %s/%s'", agg.SharedCost, agg.Cluster, agg.Aggregator, agg.Environment)
 			agg.SharedCost = 0
 		}
 		if math.IsNaN(agg.TotalCost) || math.IsInf(agg.TotalCost, 0) {
-			klog.V(1).Infof("[Warning] TotalCost is %f for '%s: %s/%s'", agg.TotalCost, agg.Cluster, agg.Aggregator, agg.Environment)
+			log.Warnf("TotalCost is %f for '%s: %s/%s'", agg.TotalCost, agg.Cluster, agg.Aggregator, agg.Environment)
 			agg.TotalCost = 0
 		}
 	}
@@ -662,13 +661,13 @@ func getDiscounts(costDatum *CostData, cpuCost float64, ramCost float64, discoun
 	if reserved != nil && reserved.CPUCost > 0 && reserved.RAMCost > 0 {
 		reservedCPUDiscount := 0.0
 		if cpuCost == 0 {
-			klog.V(1).Infof("[Warning] No cpu cost found for cluster '%s' node '%s'", costDatum.ClusterID, costDatum.NodeName)
+			log.Warnf("No cpu cost found for cluster '%s' node '%s'", costDatum.ClusterID, costDatum.NodeName)
 		} else {
 			reservedCPUDiscount = 1.0 - (reserved.CPUCost / cpuCost)
 		}
 		reservedRAMDiscount := 0.0
 		if ramCost == 0 {
-			klog.V(1).Infof("[Warning] No ram cost found for cluster '%s' node '%s'", costDatum.ClusterID, costDatum.NodeName)
+			log.Warnf("No ram cost found for cluster '%s' node '%s'", costDatum.ClusterID, costDatum.NodeName)
 		} else {
 			reservedRAMDiscount = 1.0 - (reserved.RAMCost / ramCost)
 		}
@@ -690,7 +689,7 @@ func getDiscounts(costDatum *CostData, cpuCost float64, ramCost float64, discoun
 					blendedCPUDiscount = reservedCPUDiscount
 				} else {
 					if nodeCPU == 0 {
-						klog.V(1).Infof("[Warning] No ram found for cluster '%s' node '%s'", costDatum.ClusterID, costDatum.NodeName)
+						log.Warnf("No ram found for cluster '%s' node '%s'", costDatum.ClusterID, costDatum.NodeName)
 					} else {
 						blendedCPUDiscount = (float64(reserved.ReservedCPU) * reservedCPUDiscount) + (float64(nonReservedCPU)*discount)/float64(nodeCPU)
 					}
@@ -700,7 +699,7 @@ func getDiscounts(costDatum *CostData, cpuCost float64, ramCost float64, discoun
 					blendedRAMDiscount = reservedRAMDiscount
 				} else {
 					if nodeRAMGB == 0 {
-						klog.V(1).Infof("[Warning] No ram found for cluster '%s' node '%s'", costDatum.ClusterID, costDatum.NodeName)
+						log.Warnf("No ram found for cluster '%s' node '%s'", costDatum.ClusterID, costDatum.NodeName)
 					} else {
 						blendedRAMDiscount = (reservedRAMGB * reservedRAMDiscount) + (nonReservedRAM*discount)/nodeRAMGB
 					}
@@ -759,7 +758,7 @@ func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discou
 	// default cost values with custom values
 	customPricing, err := cp.GetConfig()
 	if err != nil {
-		klog.Errorf("failed to load custom pricing: %s", err)
+		log.Errorf("failed to load custom pricing: %s", err)
 	}
 	if cloud.CustomPricesEnabled(cp) && err == nil {
 		var cpuCostStr string
@@ -797,9 +796,9 @@ func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discou
 
 	cpuDiscount, ramDiscount := getDiscounts(costDatum, cpuCost, ramCost, discount)
 
-	klog.V(4).Infof("Node Name: %s", costDatum.NodeName)
-	klog.V(4).Infof("Blended CPU Discount: %f", cpuDiscount)
-	klog.V(4).Infof("Blended RAM Discount: %f", ramDiscount)
+	log.Debugf("Node Name: %s", costDatum.NodeName)
+	log.Debugf("Blended CPU Discount: %f", cpuDiscount)
+	log.Debugf("Blended RAM Discount: %f", ramDiscount)
 
 	// TODO should we try to apply the rate coefficient here or leave it as a totals-only metric?
 	rateCoeff := 1.0
@@ -1263,7 +1262,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 				labelValues[ln] = append(labelValues[ln], lv)
 			} else {
 				// label is not of the form name=value, so log it and move on
-				log.Warningf("ComputeAggregateCostModel: skipping illegal label filter: %s", l)
+				log.Warnf("ComputeAggregateCostModel: skipping illegal label filter: %s", l)
 			}
 		}
 
@@ -1312,7 +1311,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 				annotationValues[an] = append(annotationValues[an], av)
 			} else {
 				// annotation is not of the form name=value, so log it and move on
-				log.Warningf("ComputeAggregateCostModel: skipping illegal annotation filter: %s", annot)
+				log.Warnf("ComputeAggregateCostModel: skipping illegal annotation filter: %s", annot)
 			}
 		}
 
@@ -1682,7 +1681,7 @@ func GenerateAggKey(window kubecost.Window, field string, subfields []string, op
 				lFilters = append(lFilters, fmt.Sprintf("%s=%s", lfn, lfv))
 			} else {
 				// label is not of the form name=value, so log it and move on
-				klog.V(2).Infof("[Warning] GenerateAggKey: skipping illegal label filter: %s", lf)
+				log.Warnf("GenerateAggKey: skipping illegal label filter: %s", lf)
 			}
 		}
 	}
@@ -1703,7 +1702,7 @@ func GenerateAggKey(window kubecost.Window, field string, subfields []string, op
 				aFilters = append(aFilters, fmt.Sprintf("%s=%s", afn, afv))
 			} else {
 				// annotation is not of the form name=value, so log it and move on
-				klog.V(2).Infof("[Warning] GenerateAggKey: skipping illegal annotation filter: %s", af)
+				log.Warnf("GenerateAggKey: skipping illegal annotation filter: %s", af)
 			}
 		}
 	}
@@ -1800,7 +1799,7 @@ func (a *Accesses) warmAggregateCostModelCache() {
 			a.ClusterCostsCache.Set(key, totals, a.GetCacheExpiration(window.Duration()))
 			log.Infof("caching %s cluster costs for %s", fmtDuration, a.GetCacheExpiration(window.Duration()))
 		} else {
-			log.Warningf("not caching %s cluster costs: no data or less than %f minutes data ", fmtDuration, clusterCostsCacheMinutes)
+			log.Warnf("not caching %s cluster costs: no data or less than %f minutes data ", fmtDuration, clusterCostsCacheMinutes)
 		}
 		return aggErr, err
 	}

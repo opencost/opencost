@@ -395,7 +395,7 @@ func GetParsedUTCOffset() time.Duration {
 		regex := regexp.MustCompile(`^(\+|-)(\d\d):(\d\d)$`)
 		match := regex.FindStringSubmatch(offsetStr)
 		if match == nil {
-			log.Warningf("Illegal UTC offset: %s", offsetStr)
+			log.Warnf("Illegal UTC offset: %s", offsetStr)
 			return offset
 		}
 

@@ -32,7 +32,7 @@ type defaultHTTPServices struct {
 // Add a HTTPService implementation for
 func (dhs *defaultHTTPServices) Add(service HTTPService) {
 	if service == nil {
-		log.Warningf("Attempting to Add nil HTTPService")
+		log.Warnf("Attempting to Add nil HTTPService")
 		return
 	}
 
