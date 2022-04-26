@@ -468,6 +468,7 @@ type AzureStorageConfig struct {
 	AccountName    string `json:"azureStorageAccount"`
 	AccessKey      string `json:"azureStorageAccessKey"`
 	ContainerName  string `json:"azureStorageContainer"`
+	ContainerPath  string `json:"azureContainerPath"`
 	AzureCloud     string `json:"azureCloud"`
 }
 
@@ -477,6 +478,7 @@ func (asc *AzureStorageConfig) IsEmpty() bool {
 		asc.AccountName == "" &&
 		asc.AccessKey == "" &&
 		asc.ContainerName == "" &&
+		asc.ContainerPath == "" &&
 		asc.AzureCloud == ""
 }
 
@@ -1268,9 +1270,9 @@ func (az *Azure) PricingSourceStatus() map[string]*PricingSource {
 		errMsg = az.RateCardPricingError.Error()
 	}
 	rcps := &PricingSource{
-		Name:  rateCardPricingSource,
+		Name:    rateCardPricingSource,
 		Enabled: true,
-		Error: errMsg,
+		Error:   errMsg,
 	}
 	if rcps.Error != "" {
 		rcps.Available = false
