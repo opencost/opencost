@@ -2970,6 +2970,21 @@ func (asr *AssetSetRange) InsertRange(that *AssetSetRange) error {
 	return err
 }
 
+// IsEmpty returns false if AssetSetRange contains a single AssetSet that is not empty
+func (asr *AssetSetRange) IsEmpty() bool {
+	if asr == nil || asr.Length() == 0 {
+		return true
+	}
+	asr.RLock()
+	defer asr.RUnlock()
+	for _, asset := range asr.assets {
+		if !asset.IsEmpty() {
+			return false
+		}
+	}
+	return true
+}
+
 func (asr *AssetSetRange) MarshalJSON() ([]byte, error) {
 	asr.RLock()
 	defer asr.RUnlock()
