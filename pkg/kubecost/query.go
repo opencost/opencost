@@ -58,14 +58,15 @@ type AllocationQueryOptions struct {
 
 // AssetQueryOptions defines optional parameters for querying an Asset Store
 type AssetQueryOptions struct {
-	Accumulate         bool
-	AggregateBy        []string
-	Compute            bool
-	DisableAdjustments bool
-	FilterFuncs        []AssetMatchFunc
-	IncludeCloud       bool
-	SharedHourlyCosts  map[string]float64
-	Step               time.Duration
+	Accumulate              bool
+	AggregateBy             []string
+	Compute                 bool
+	DisableAdjustments      bool
+	DisableAggregatedStores bool
+	FilterFuncs             []AssetMatchFunc
+	IncludeCloud            bool
+	SharedHourlyCosts       map[string]float64
+	Step                    time.Duration
 }
 
 // CloudUsageQueryOptions define optional parameters for querying a Store
