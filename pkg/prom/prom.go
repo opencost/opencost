@@ -114,7 +114,7 @@ type RateLimitedPrometheusClient struct {
 	id             string
 	client         prometheus.Client
 	auth           *ClientAuth
-	queue          collections.BlockingQueue
+	queue          collections.BlockingQueue[*workRequest]
 	decorator      QueryParamsDecorator
 	rateLimitRetry *RateLimitRetryOpts
 	outbound       *atomic.AtomicInt32
@@ -139,7 +139,7 @@ func NewRateLimitedClient(
 	rateLimitRetryOpts *RateLimitRetryOpts,
 	queryLogFile string) (prometheus.Client, error) {
 
-	queue := collections.NewBlockingQueue()
+	queue := collections.NewBlockingQueue[*workRequest]()
 	outbound := atomic.NewAtomicInt32(0)
 
 	var logger *golog.Logger
@@ -235,82 +235,79 @@ func (rlpc *RateLimitedPrometheusClient) worker() {
 
 	for {
 		// blocks until there is an item available
-		item := rlpc.queue.Dequeue()
+		we := rlpc.queue.Dequeue()
 
-		// Ensure the dequeued item was a workRequest
-		if we, ok := item.(*workRequest); ok {
-			// if we need to shut down all workers, we'll need to submit sentinel values
-			// that will force the worker to return
-			if we.closer {
-				return
-			}
+		// if we need to shut down all workers, we'll need to submit sentinel values
+		// that will force the worker to return
+		if we.closer {
+			return
+		}
 
-			ctx := we.ctx
-			req := we.req
+		ctx := we.ctx
+		req := we.req
 
-			// decorate the raw query parameters
-			if rlpc.decorator != nil {
-				req.URL.RawQuery = rlpc.decorator(req.URL.Path, req.URL.Query()).Encode()
-			}
+		// decorate the raw query parameters
+		if rlpc.decorator != nil {
+			req.URL.RawQuery = rlpc.decorator(req.URL.Path, req.URL.Query()).Encode()
+		}
 
-			// measure time in queue
-			timeInQueue := time.Since(we.start)
+		// measure time in queue
+		timeInQueue := time.Since(we.start)
 
-			// Increment outbound counter
-			rlpc.outbound.Increment()
+		// Increment outbound counter
+		rlpc.outbound.Increment()
 
-			// Execute Request
-			roundTripStart := time.Now()
-			res, body, warnings, err := rlpc.client.Do(ctx, req)
+		// Execute Request
+		roundTripStart := time.Now()
+		res, body, warnings, err := rlpc.client.Do(ctx, req)
 
-			// If retries on rate limited response is enabled:
-			// * Check for a 429 StatusCode OR 400 StatusCode and message containing "ThrottlingException"
-			// * Attempt to parse a Retry-After from response headers (common on 429)
-			// * If we couldn't determine how long to wait for a retry, use 1 second by default
-			if res != nil && retryRateLimit {
-				var status []*RateLimitResponseStatus
-				var retries int = retryOpts.MaxRetries
-				var defaultWait time.Duration = retryOpts.DefaultRetryWait
+		// If retries on rate limited response is enabled:
+		// * Check for a 429 StatusCode OR 400 StatusCode and message containing "ThrottlingException"
+		// * Attempt to parse a Retry-After from response headers (common on 429)
+		// * If we couldn't determine how long to wait for a retry, use 1 second by default
+		if res != nil && retryRateLimit {
+			var status []*RateLimitResponseStatus
+			var retries int = retryOpts.MaxRetries
+			var defaultWait time.Duration = retryOpts.DefaultRetryWait
 
-				for httputil.IsRateLimited(res, body) && retries > 0 {
-					// calculate amount of time to wait before retry, in the event the default wait is used,
-					// an exponential backoff is applied based on the number of times we've retried.
-					retryAfter := httputil.RateLimitedRetryFor(res, defaultWait, retryOpts.MaxRetries-retries)
-					retries--
+			for httputil.IsRateLimited(res, body) && retries > 0 {
+				// calculate amount of time to wait before retry, in the event the default wait is used,
+				// an exponential backoff is applied based on the number of times we've retried.
+				retryAfter := httputil.RateLimitedRetryFor(res, defaultWait, retryOpts.MaxRetries-retries)
+				retries--
 
-					status = append(status, &RateLimitResponseStatus{RetriesRemaining: retries, WaitTime: retryAfter})
-					log.DedupedInfof(50, "Rate Limited Prometheus Request. Waiting for: %d ms. Retries Remaining: %d", retryAfter.Milliseconds(), retries)
+				status = append(status, &RateLimitResponseStatus{RetriesRemaining: retries, WaitTime: retryAfter})
+				log.DedupedInfof(50, "Rate Limited Prometheus Request. Waiting for: %d ms. Retries Remaining: %d", retryAfter.Milliseconds(), retries)
 
-					// To prevent total starvation of request threads, hard limit wait time to 10s. We also want quota limits/throttles
-					// to eventually pass through as an error. For example, if some quota is reached with 10 days left, we clearly
-					// don't want to block for 10 days.
-					if retryAfter > MaxRetryAfterDuration {
-						retryAfter = MaxRetryAfterDuration
-					}
-
-					// execute wait and retry
-					time.Sleep(retryAfter)
-					res, body, warnings, err = rlpc.client.Do(ctx, req)
+				// To prevent total starvation of request threads, hard limit wait time to 10s. We also want quota limits/throttles
+				// to eventually pass through as an error. For example, if some quota is reached with 10 days left, we clearly
+				// don't want to block for 10 days.
+				if retryAfter > MaxRetryAfterDuration {
+					retryAfter = MaxRetryAfterDuration
 				}
 
-				// if we've broken out of our retry loop and the resp is still rate limited,
-				// then let's generate a meaningful error to pass back
-				if retries == 0 && httputil.IsRateLimited(res, body) {
-					err = &RateLimitedResponseError{RateLimitStatus: status}
-				}
+				// execute wait and retry
+				time.Sleep(retryAfter)
+				res, body, warnings, err = rlpc.client.Do(ctx, req)
 			}
 
-			// Decrement outbound counter
-			rlpc.outbound.Decrement()
-			LogQueryRequest(rlpc.fileLogger, req, timeInQueue, time.Since(roundTripStart))
-
-			// Pass back response data over channel to caller
-			we.respChan <- &workResponse{
-				res:      res,
-				body:     body,
-				warnings: warnings,
-				err:      err,
+			// if we've broken out of our retry loop and the resp is still rate limited,
+			// then let's generate a meaningful error to pass back
+			if retries == 0 && httputil.IsRateLimited(res, body) {
+				err = &RateLimitedResponseError{RateLimitStatus: status}
 			}
+		}
+
+		// Decrement outbound counter
+		rlpc.outbound.Decrement()
+		LogQueryRequest(rlpc.fileLogger, req, timeInQueue, time.Since(roundTripStart))
+
+		// Pass back response data over channel to caller
+		we.respChan <- &workResponse{
+			res:      res,
+			body:     body,
+			warnings: warnings,
+			err:      err,
 		}
 	}
 }
