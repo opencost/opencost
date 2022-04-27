@@ -47,7 +47,8 @@ func Example_concurrentWorkers() {
 				fmt.Printf("Receive Result: %.2f for Input: %d\n", result, input)
 			}(i, receive)
 		} else {
-
+			// pass nil if receiving the result isn't necessary
+			workerPool.Run(i, nil)
 		}
 	}
 
