@@ -44,7 +44,11 @@ const (
 )
 
 // isCron matches a CronJob name and captures the non-timestamp name
-var isCron = regexp.MustCompile(`^(.+)-\d{10}$`)
+//
+// We support either a 10 character timestamp OR an 8 character timestamp
+// because batch/v1beta1 CronJobs creates Jobs with 10 character timestamps
+// and batch/v1 CronJobs create Jobs with 8 character timestamps.
+var isCron = regexp.MustCompile(`^(.+)-(\d{10}|\d{8})$`)
 
 type CostModel struct {
 	Cache                      clustercache.ClusterCache
