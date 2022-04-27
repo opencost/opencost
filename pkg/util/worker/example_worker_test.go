@@ -26,14 +26,14 @@ func Example_concurrentWorkers() {
 	// Create a worker pool using 50 goroutines:
 	workerPool := worker.NewWorkerPool(50, slowAddTenToFloat)
 
-	// went want to shutdown the workerPool at the end of it's use to ensure we don't
+	// we want to shutdown the workerPool at the end of it's use to ensure we don't
 	// leak go routines
 	defer workerPool.Shutdown()
 
 	// Loop over 100 inputs and run slowAddTenToFloat
 	for i := 0; i < 100; i++ {
-		// Run accepts a receive channel for each input, but it is not required
-		// to demonstrate receiving, we'll receive the results when the input
+		// Run accepts a receive channel for each input, but it is not required.
+		// To demonstrate receiving, we'll receive the results when the input
 		// is 50:
 		if i == 50 {
 			receive := make(chan float64)
@@ -51,7 +51,7 @@ func Example_concurrentWorkers() {
 		}
 	}
 
-	// 100 inputs with 50 go routines should take 2 seconds, so let's wait a bit longer than that:
+	// 100 inputs with 50 go routines should take 2 seconds, so let's wait a bit longer than that
 	time.Sleep((2 * time.Second) + (500 * time.Millisecond))
 
 	// Output:
