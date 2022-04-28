@@ -82,6 +82,8 @@ const (
 	PrometheusRetryOnRateLimitResponseEnvVar    = "PROMETHEUS_RETRY_ON_RATE_LIMIT"
 	PrometheusRetryOnRateLimitMaxRetriesEnvVar  = "PROMETHEUS_RETRY_ON_RATE_LIMIT_MAX_RETRIES"
 	PrometheusRetryOnRateLimitDefaultWaitEnvVar = "PROMETHEUS_RETRY_ON_RATE_LIMIT_DEFAULT_WAIT"
+
+	IngestPodUIDEnvVar = "INGEST_POD_UID"
 )
 
 // GetKubecostConfigBucket returns a file location for a mounted bucket configuration which is used to store
@@ -458,4 +460,10 @@ func LegacyExternalCostsAPIDisabled() bool {
 // GetPromClusterLabel returns the environemnt variable value for PromClusterIDLabel
 func GetPromClusterLabel() string {
 	return Get(PromClusterIDLabelEnvVar, "cluster_id")
+}
+
+// IsIngestingPodUID returns the env variable from ingestPodUID, which alters the
+// contents of podKeys in Allocation
+func IsIngestingPodUID() bool {
+	return GetBool(IngestPodUIDEnvVar, false)
 }
