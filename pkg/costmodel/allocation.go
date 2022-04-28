@@ -829,7 +829,7 @@ func applyPodResults(window kubecost.Window, resolution time.Duration, podMap ma
 
 			uid, err := res.GetString("uid")
 			if err != nil {
-				log.Warningf("CostModel.ComputeAllocation: UID ingestion enabled, but query result missing field: %s", err)
+				log.Warnf("CostModel.ComputeAllocation: UID ingestion enabled, but query result missing field: %s", err)
 			} else {
 
 				newKey := newPodKey(cluster, namespace, pod+" "+uid)
