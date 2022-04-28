@@ -1,8 +1,8 @@
 package watcher
 
 import (
+	"github.com/kubecost/cost-model/pkg/log"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/klog"
 )
 
 // ConfigMapWatcher represents a single configmap watcher
@@ -66,7 +66,7 @@ func (cmw *ConfigMapWatchers) ToWatchFunc() func(interface{}) {
 			for _, cw := range watchers {
 				err := cw.WatchFunc(name, data)
 				if err != nil {
-					klog.Infof("ERROR UPDATING %s CONFIG: %s", name, err.Error())
+					log.Infof("ERROR UPDATING %s CONFIG: %s", name, err.Error())
 				}
 			}
 		}

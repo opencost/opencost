@@ -264,7 +264,7 @@ func (qr *QueryResult) GetLabels() map[string]string {
 		label := strings.TrimPrefix(k, "label_")
 		value, ok := v.(string)
 		if !ok {
-			log.Warningf("Failed to parse label value for label: '%s'", label)
+			log.Warnf("Failed to parse label value for label: '%s'", label)
 			continue
 		}
 
@@ -287,7 +287,7 @@ func (qr *QueryResult) GetAnnotations() map[string]string {
 		annotations := strings.TrimPrefix(k, "annotation_")
 		value, ok := v.(string)
 		if !ok {
-			log.Warningf("Failed to parse label value for label: '%s'", annotations)
+			log.Warnf("Failed to parse label value for label: '%s'", annotations)
 			continue
 		}
 

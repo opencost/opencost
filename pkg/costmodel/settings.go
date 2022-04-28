@@ -7,7 +7,6 @@ import (
 	"github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/patrickmn/go-cache"
-	"k8s.io/klog"
 )
 
 // InitializeSettingsPubSub sets up the pub/sub mechanisms and kicks of
@@ -82,7 +81,7 @@ func (a *Accesses) SubscribeToDiscountChanges(ch chan string) {
 func (a *Accesses) customPricingHasChanged() bool {
 	customPricing, err := a.CloudProvider.GetConfig()
 	if err != nil || customPricing == nil {
-		klog.Errorf("error accessing cloud provider configuration: %s", err)
+		log.Errorf("error accessing cloud provider configuration: %s", err)
 		return false
 	}
 
@@ -105,7 +104,7 @@ func (a *Accesses) customPricingHasChanged() bool {
 	}
 	cpStrCached, ok := val.(string)
 	if !ok {
-		klog.Errorf("caching error: failed to cast custom pricing to string")
+		log.Errorf("caching error: failed to cast custom pricing to string")
 	}
 	if cpStr == cpStrCached {
 		return false
@@ -122,7 +121,7 @@ func (a *Accesses) customPricingHasChanged() bool {
 func (a *Accesses) discountHasChanged() bool {
 	customPricing, err := a.CloudProvider.GetConfig()
 	if err != nil || customPricing == nil {
-		klog.Errorf("error accessing cloud provider configuration: %s", err)
+		log.Errorf("error accessing cloud provider configuration: %s", err)
 		return false
 	}
 
@@ -144,7 +143,7 @@ func (a *Accesses) discountHasChanged() bool {
 	}
 	discStrCached, ok := val.(string)
 	if !ok {
-		klog.Errorf("caching error: failed to cast discount to string")
+		log.Errorf("caching error: failed to cast discount to string")
 	}
 	if discStr == discStrCached {
 		return false

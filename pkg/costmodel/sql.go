@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/klog"
-
 	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
 	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util"
 	"github.com/kubecost/cost-model/pkg/util/json"
 
@@ -302,7 +301,7 @@ func CostDataRangeFromSQL(field string, value string, window string, start strin
 
 	volumes, err := getPVCosts(db)
 	if err != nil {
-		klog.Infof("Error fetching pv data from sql: %s. Skipping PVData", err.Error())
+		log.Infof("Error fetching pv data from sql: %s. Skipping PVData", err.Error())
 	} else {
 		query = `SELECT time_bucket($1, time) AS bucket, name, avg(value), labels->>'persistentvolumeclaim' AS claim, labels->>'pod' AS pod,labels->>'namespace' AS namespace, labels->>'persistentvolume' AS volumename, labels->>'cluster_id' AS clusterid
 		FROM metrics

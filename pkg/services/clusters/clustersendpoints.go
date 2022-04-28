@@ -7,8 +7,8 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util/json"
-	"k8s.io/klog"
 )
 
 // DataEnvelope is a generic wrapper struct for http response data
@@ -94,7 +94,7 @@ func wrapData(data interface{}, err error) []byte {
 	var resp []byte
 
 	if err != nil {
-		klog.V(1).Infof("Error returned to client: %s", err.Error())
+		log.Infof("Error returned to client: %s", err.Error())
 		resp, _ = json.Marshal(&DataEnvelope{
 			Code:   http.StatusInternalServerError,
 			Status: "error",

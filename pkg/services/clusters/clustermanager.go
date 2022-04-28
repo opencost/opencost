@@ -8,10 +8,10 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util/fileutil"
 	"github.com/kubecost/cost-model/pkg/util/json"
 
-	"k8s.io/klog"
 	"sigs.k8s.io/yaml"
 )
 
@@ -92,7 +92,7 @@ func NewConfiguredClusterManager(storage ClusterStorage, config string) *Cluster
 	exists, err := fileutil.FileExists(config)
 	if !exists {
 		if err != nil {
-			klog.V(1).Infof("[Error] Failed to load config file: %s. Error: %s", config, err.Error())
+			log.Errorf("Failed to load config file: %s. Error: %s", config, err.Error())
 		}
 		return clusterManager
 	}
@@ -117,7 +117,7 @@ func NewConfiguredClusterManager(storage ClusterStorage, config string) *Cluster
 		if entry.Auth != nil {
 			authData, err := getAuth(entry.Auth)
 			if err != nil {
-				klog.V(1).Infof("[Error]: %s", err)
+				log.Errorf("%s", err)
 			} else {
 				details[DetailsAuthKey] = authData
 			}
@@ -188,7 +188,7 @@ func (cm *ClusterManager) GetAll() []*ClusterDefinition {
 		var cd ClusterDefinition
 		err := json.Unmarshal(cluster, &cd)
 		if err != nil {
-			klog.V(1).Infof("[Error] Failed to unmarshal json cluster definition for key: %s", key)
+			log.Errorf("Failed to unmarshal json cluster definition for key: %s", key)
 			return nil
 		}
 
@@ -197,7 +197,7 @@ func (cm *ClusterManager) GetAll() []*ClusterDefinition {
 	})
 
 	if err != nil {
-		klog.Infof("[Error] Failed to load list of clusters: %s", err.Error())
+		log.Infof("[Error] Failed to load list of clusters: %s", err.Error())
 	}
 
 	return clusters

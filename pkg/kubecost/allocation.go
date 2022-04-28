@@ -403,7 +403,13 @@ func (a *Allocation) NetworkTotalCost() float64 {
 }
 
 // LBTotalCost calculates total LB cost of Allocation including adjustment
+// TODO deprecate
 func (a *Allocation) LBTotalCost() float64 {
+	return a.LoadBalancerTotalCost()
+}
+
+// LoadBalancerTotalCost calculates total LB cost of Allocation including adjustment
+func (a *Allocation) LoadBalancerTotalCost() float64 {
 	if a == nil {
 		return 0.0
 	}
@@ -679,7 +685,7 @@ func (a *Allocation) String() string {
 
 func (a *Allocation) add(that *Allocation) {
 	if a == nil {
-		log.Warningf("Allocation.AggregateBy: trying to add a nil receiver")
+		log.Warnf("Allocation.AggregateBy: trying to add a nil receiver")
 		return
 	}
 
@@ -828,6 +834,8 @@ type AllocationAggregationOptions struct {
 	IdleByNode            bool
 	LabelConfig           *LabelConfig
 	MergeUnallocated      bool
+	Reconcile             bool
+	ReconcileNetwork      bool
 	ShareFuncs            []AllocationMatchFunc
 	ShareIdle             string
 	ShareSplit            string
@@ -872,14 +880,14 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	//     the output (i.e. they can be used to generate a valid key for
 	//     the given properties) then aggregate; otherwise... ignore them?
 	//
-	// 10. If the merge idle option is enabled, merge any remaining idle
+	// 10. Distribute any undistributed idle, in the case that idle
+	//     coefficients end up being zero and some idle is not shared.
+	//
+	// 11. If the merge idle option is enabled, merge any remaining idle
 	//     allocations into a single idle allocation. If there was any idle
 	//	   whose costs were not distributed because there was no usage of a
 	//     specific resource type, re-add the idle to the aggregation with
 	//     only that type.
-	//
-	// 11. Distribute any undistributed idle, in the case that idle
-	//     coefficients end up being zero and some idle is not shared.
 
 	if as.IsEmpty() {
 		return nil
@@ -893,7 +901,12 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		options.LabelConfig = NewLabelConfig()
 	}
 
-	var undistributedIdleMap map[string]bool
+	// idleFiltrationCoefficients relies on this being explicitly set
+	if options.ShareIdle != ShareWeighted {
+		options.ShareIdle = ShareNone
+	}
+
+	var allocatedTotalsMap map[string]map[string]float64
 
 	// If aggregateBy is nil, we don't aggregate anything. On the other hand,
 	// an empty slice implies that we should aggregate everything. See
@@ -1018,9 +1031,9 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// the shared allocations).
 	var idleCoefficients map[string]map[string]map[string]float64
 	if idleSet.Length() > 0 && options.ShareIdle != ShareNone {
-		idleCoefficients, undistributedIdleMap, err = computeIdleCoeffs(options, as, shareSet)
+		idleCoefficients, allocatedTotalsMap, err = computeIdleCoeffs(options, as, shareSet)
 		if err != nil {
-			log.Warningf("AllocationSet.AggregateBy: compute idle coeff: %s", err)
+			log.Warnf("AllocationSet.AggregateBy: compute idle coeff: %s", err)
 			return fmt.Errorf("error computing idle coefficients: %s", err)
 		}
 	}
@@ -1144,11 +1157,11 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 
 				// Make sure idle coefficients exist
 				if _, ok := idleCoefficients[idleId]; !ok {
-					log.Warningf("AllocationSet.AggregateBy: error getting idle coefficient: no idleId '%s' for '%s'", idleId, alloc.Name)
+					log.Warnf("AllocationSet.AggregateBy: error getting idle coefficient: no idleId '%s' for '%s'", idleId, alloc.Name)
 					continue
 				}
 				if _, ok := idleCoefficients[idleId][alloc.Name]; !ok {
-					log.Warningf("AllocationSet.AggregateBy: error getting idle coefficient for '%s'", alloc.Name)
+					log.Warnf("AllocationSet.AggregateBy: error getting idle coefficient for '%s'", alloc.Name)
 					continue
 				}
 
@@ -1200,11 +1213,11 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 
 				// Make sure idle coefficients exist
 				if _, ok := idleCoefficients[idleId]; !ok {
-					log.Warningf("AllocationSet.AggregateBy: error getting idle coefficient: no idleId '%s' for '%s'", idleId, alloc.Name)
+					log.Warnf("AllocationSet.AggregateBy: error getting idle coefficient: no idleId '%s' for '%s'", idleId, alloc.Name)
 					continue
 				}
 				if _, ok := idleCoefficients[idleId][alloc.Name]; !ok {
-					log.Warningf("AllocationSet.AggregateBy: error getting idle coefficient for '%s'", alloc.Name)
+					log.Warnf("AllocationSet.AggregateBy: error getting idle coefficient for '%s'", alloc.Name)
 					continue
 				}
 
@@ -1264,6 +1277,8 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 				idleAlloc.CPUCoreHours *= resourceCoeffs["cpu"]
 				idleAlloc.RAMCost *= resourceCoeffs["ram"]
 				idleAlloc.RAMByteHours *= resourceCoeffs["ram"]
+				idleAlloc.GPUCost *= resourceCoeffs["gpu"]
+				idleAlloc.GPUHours *= resourceCoeffs["gpu"]
 			}
 		}
 	}
@@ -1274,7 +1289,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 			for _, sharedAlloc := range shareSet.allocations {
 				if _, ok := shareCoefficients[alloc.Name]; !ok {
 					if !alloc.IsIdle() && !alloc.IsUnmounted() {
-						log.Warningf("AllocationSet.AggregateBy: error getting share coefficienct for '%s'", alloc.Name)
+						log.Warnf("AllocationSet.AggregateBy: error getting share coefficienct for '%s'", alloc.Name)
 					}
 					continue
 				}
@@ -1304,16 +1319,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		}
 	}
 
-	// (10) Combine all idle allocations into a single "__idle__" allocation
-	if !options.SplitIdle {
-		for _, idleAlloc := range aggSet.IdleAllocations() {
-			aggSet.Delete(idleAlloc.Name)
-			idleAlloc.Name = IdleSuffix
-			aggSet.Insert(idleAlloc)
-		}
-	}
-
-	// (11) In the edge case that some idle has not been distributed because
+	// (10) In the edge case that some idle has not been distributed because
 	// there is no usage of that resource type, add idle back to
 	// aggregations with only that cost applied.
 
@@ -1332,9 +1338,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// Name		CPU		GPU		RAM
 	// __idle__ $0      $12     $0
 	// kubecost $12     $0      $7
-
-	hasUndistributedIdle := undistributedIdleMap["cpu"] || undistributedIdleMap["gpu"] || undistributedIdleMap["ram"]
-	if idleSet.Length() > 0 && hasUndistributedIdle {
+	if idleSet.Length() > 0 {
 		for _, idleAlloc := range idleSet.allocations {
 			// if the idle does not apply to the non-filtered values, skip it
 			skip := false
@@ -1348,24 +1352,96 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 				continue
 			}
 
-			// if the idle doesn't have a cost to be shared, also skip it
-			if idleAlloc.CPUCost != 0 && idleAlloc.GPUCost != 0 && idleAlloc.RAMCost != 0 {
-				// artificially set the already shared costs to zero
-				if !undistributedIdleMap["cpu"] {
-					idleAlloc.CPUCost = 0
-				}
-				if !undistributedIdleMap["gpu"] {
-					idleAlloc.GPUCost = 0
-				}
-				if !undistributedIdleMap["ram"] {
-					idleAlloc.RAMCost = 0
-				}
+			idleId, err := idleAlloc.getIdleId(options)
+			if err != nil {
+				log.Errorf("AllocationSet.AggregateBy: idle allocation is missing idleId %s", idleAlloc.Name)
+				continue
+			}
 
-				idleAlloc.Name = IdleSuffix
+			hasUndistributableCost := false
+
+			if idleAlloc.CPUCost > 0 && allocatedTotalsMap[idleId]["cpu"] == 0 {
+				hasUndistributableCost = true
+			} else {
+				idleAlloc.CPUCost = 0
+			}
+
+			if idleAlloc.GPUCost > 0 && allocatedTotalsMap[idleId]["gpu"] == 0 {
+				hasUndistributableCost = true
+			} else {
+				idleAlloc.GPUCost = 0
+			}
+
+			if idleAlloc.RAMCost > 0 && allocatedTotalsMap[idleId]["ram"] == 0 {
+				hasUndistributableCost = true
+			} else {
+				idleAlloc.RAMCost = 0
+			}
+
+			if hasUndistributableCost {
+				idleAlloc.Name = fmt.Sprintf("%s/%s", idleId, IdleSuffix)
 				aggSet.Insert(idleAlloc)
 			}
 		}
 	}
+
+	// (11) Combine all idle allocations into a single "__idle__" allocation
+	if !options.SplitIdle {
+		for _, idleAlloc := range aggSet.IdleAllocations() {
+			aggSet.Delete(idleAlloc.Name)
+			idleAlloc.Name = IdleSuffix
+			aggSet.Insert(idleAlloc)
+		}
+	}
+
+	// TODO revisit this (ideally we just remove sharing from this function!)
+	// If filters and shared resources and shared idle are all enabled then
+	// we will over-count idle by exactly the portion that gets shared with the
+	// filtered allocations -- and idle filtration will miss this because it
+	// only filters the non-idle filtered costs.
+	//
+	// Consider the following example, from unit tests:
+	// - namespace1     28.000
+	// - namespace2     36.000
+	// - namespace3     18.000
+	// - cluster1/idle  20.000
+	// - cluster2/idle  10.000
+	//
+	// Now, we want to share namespace1, filter namespace2, and share idle:
+	//
+	// 1. Distribute idle
+	//                 ns1     ns2     ns3
+	//    non-idle  28.000  36.000  18.000
+	//        idle  14.688  10.312   5.000
+	//
+	// 2. Share namespace1
+	//
+	//                        ns2     ns3
+	//           non-idle  36.000  18.000
+	//               idle  10.312   5.000
+	//    shared non-idle  18.667   9.333
+	//    shared     idle   9.792   4.896 (***)
+	//
+	// 3. Filter out all but namespace2
+	//
+	//    ns2 = 36.000 + 10.312 + 18.667 + 9.792 = 74.771
+	//
+	// So, if we had NOT shared idle, we would expect something like this:
+	//
+	//    ns2 = 36.000 + 18.667 = 54.667
+	//   idle = 10.312 + 9.792  = 20.104
+	//
+	// But we will instead get this:
+	//
+	//    ns2 = 36.000 + 18.667 = 54.667
+	//   idle = 10.312 + 14.688 = 25.000
+	//
+	// Which over-shoots idle by 4.896 (***), i.e. precisely the amount of idle
+	// cost corresponding to namespace1 AND shared with namespace3. Phew.
+	//
+	// I originally wanted to fix this, but after 2 days, I'm punting with the
+	// recommendation that we rewrite this function soon. Too difficult.
+	// - Niko
 
 	as.allocations = aggSet.allocations
 
@@ -1423,8 +1499,8 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 		} else {
 			// Both are additive for weighted distribution, where each
 			// cumulative coefficient will be divided by the total.
-			coeffs[name] += alloc.TotalCost()
-			total += alloc.TotalCost()
+			coeffs[name] += alloc.TotalCost() - alloc.SharedCost
+			total += alloc.TotalCost() - alloc.SharedCost
 		}
 	}
 
@@ -1433,7 +1509,7 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 		if coeffs[a] > 0 && total > 0 {
 			coeffs[a] /= total
 		} else {
-			log.Warningf("ETL: invalid values for shared coefficients: %d, %d", coeffs[a], total)
+			log.Warnf("ETL: invalid values for shared coefficients: %v, %v", coeffs[a], total)
 			coeffs[a] = 0.0
 		}
 	}
@@ -1441,23 +1517,16 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 	return coeffs, nil
 }
 
-func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet, shareSet *AllocationSet) (map[string]map[string]map[string]float64, map[string]bool, error) {
+func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet, shareSet *AllocationSet) (map[string]map[string]map[string]float64, map[string]map[string]float64, error) {
 	types := []string{"cpu", "gpu", "ram"}
-	undistributedIdleMap := map[string]bool{
-		"cpu": true,
-		"gpu": true,
-		"ram": true,
-	}
 
 	// Compute idle coefficients, then save them in AllocationAggregationOptions
+	// [idle_id][allocation name][resource] = [coeff]
 	coeffs := map[string]map[string]map[string]float64{}
 
 	// Compute totals per resource for CPU, GPU, RAM, and PV
+	// [idle_id][resource] = [total]
 	totals := map[string]map[string]float64{}
-
-	// ShareEven counts each allocation with even weight, whereas ShareWeighted
-	// counts each allocation proportionally to its respective costs
-	shareType := options.ShareIdle
 
 	// Record allocation values first, then normalize by totals to get percentages
 	for _, alloc := range as.allocations {
@@ -1486,24 +1555,13 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 			coeffs[idleId][name] = map[string]float64{}
 		}
 
-		if shareType == ShareEven {
-			for _, r := range types {
-				// Not additive - hard set to 1.0
-				coeffs[idleId][name][r] = 1.0
+		coeffs[idleId][name]["cpu"] += alloc.CPUTotalCost()
+		coeffs[idleId][name]["gpu"] += alloc.GPUTotalCost()
+		coeffs[idleId][name]["ram"] += alloc.RAMTotalCost()
 
-				// totals are additive
-				totals[idleId][r] += 1.0
-			}
-		} else {
-			coeffs[idleId][name]["cpu"] += alloc.CPUTotalCost()
-			coeffs[idleId][name]["gpu"] += alloc.GPUTotalCost()
-			coeffs[idleId][name]["ram"] += alloc.RAMTotalCost()
-
-			totals[idleId]["cpu"] += alloc.CPUTotalCost()
-			totals[idleId]["gpu"] += alloc.GPUTotalCost()
-			totals[idleId]["ram"] += alloc.RAMTotalCost()
-		}
-
+		totals[idleId]["cpu"] += alloc.CPUTotalCost()
+		totals[idleId]["gpu"] += alloc.GPUTotalCost()
+		totals[idleId]["ram"] += alloc.RAMTotalCost()
 	}
 
 	// Do the same for shared allocations
@@ -1534,38 +1592,27 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 			coeffs[idleId][name] = map[string]float64{}
 		}
 
-		if shareType == ShareEven {
-			for _, r := range types {
-				// Not additive - hard set to 1.0
-				coeffs[idleId][name][r] = 1.0
+		coeffs[idleId][name]["cpu"] += alloc.CPUTotalCost()
+		coeffs[idleId][name]["gpu"] += alloc.GPUTotalCost()
+		coeffs[idleId][name]["ram"] += alloc.RAMTotalCost()
 
-				// totals are additive
-				totals[idleId][r] += 1.0
-			}
-		} else {
-			coeffs[idleId][name]["cpu"] += alloc.CPUTotalCost()
-			coeffs[idleId][name]["gpu"] += alloc.GPUTotalCost()
-			coeffs[idleId][name]["ram"] += alloc.RAMTotalCost()
-
-			totals[idleId]["cpu"] += alloc.CPUTotalCost()
-			totals[idleId]["gpu"] += alloc.GPUTotalCost()
-			totals[idleId]["ram"] += alloc.RAMTotalCost()
-		}
+		totals[idleId]["cpu"] += alloc.CPUTotalCost()
+		totals[idleId]["gpu"] += alloc.GPUTotalCost()
+		totals[idleId]["ram"] += alloc.RAMTotalCost()
 	}
 
 	// Normalize coefficients by totals
-	for c := range coeffs {
-		for a := range coeffs[c] {
+	for id := range coeffs {
+		for a := range coeffs[id] {
 			for _, r := range types {
-				if coeffs[c][a][r] > 0 && totals[c][r] > 0 {
-					coeffs[c][a][r] /= totals[c][r]
-					undistributedIdleMap[r] = false
+				if coeffs[id][a][r] > 0 && totals[id][r] > 0 {
+					coeffs[id][a][r] /= totals[id][r]
 				}
 			}
 		}
 	}
 
-	return coeffs, undistributedIdleMap, nil
+	return coeffs, totals, nil
 }
 
 // getIdleId returns the providerId or cluster of an Allocation depending on the IdleByNode
@@ -1574,7 +1621,7 @@ func (a *Allocation) getIdleId(options *AllocationAggregationOptions) (string, e
 	var idleId string
 	if options.IdleByNode {
 		// Key allocations to ProviderId to match against node
-		idleId = a.Properties.ProviderID
+		idleId = fmt.Sprintf("%s/%s", a.Properties.Cluster, a.Properties.Node)
 		if idleId == "" {
 			return idleId, fmt.Errorf("ProviderId is not set")
 		}
@@ -1629,279 +1676,6 @@ func (as *AllocationSet) Clone() *AllocationSet {
 	}
 }
 
-// ComputeIdleAllocations computes the idle allocations for the AllocationSet,
-// given a set of Assets. Ideally, assetSet should contain only Nodes, but if
-// it contains other Assets, they will be ignored; only CPU, GPU and RAM are
-// considered for idle allocation. If the Nodes have adjustments, then apply
-// the adjustments proportionally to each of the resources so that total
-// allocation with idle reflects the adjusted node costs. One idle allocation
-// per-cluster will be computed and returned, keyed by cluster_id.
-func (as *AllocationSet) ComputeIdleAllocations(assetSet *AssetSet) (map[string]*Allocation, error) {
-	if as == nil {
-		return nil, fmt.Errorf("cannot compute idle allocation for nil AllocationSet")
-	}
-
-	if assetSet == nil {
-		return nil, fmt.Errorf("cannot compute idle allocation with nil AssetSet")
-	}
-
-	if !as.Window.Equal(assetSet.Window) {
-		return nil, fmt.Errorf("cannot compute idle allocation for sets with mismatched windows: %s != %s", as.Window, assetSet.Window)
-	}
-
-	window := as.Window
-
-	// Build a map of cumulative cluster asset costs, per resource; i.e.
-	// cluster-to-{cpu|gpu|ram}-to-cost.
-	assetClusterResourceCosts := map[string]map[string]float64{}
-	assetSet.Each(func(key string, a Asset) {
-		if node, ok := a.(*Node); ok {
-			if _, ok := assetClusterResourceCosts[node.Properties().Cluster]; !ok {
-				assetClusterResourceCosts[node.Properties().Cluster] = map[string]float64{}
-			}
-
-			// adjustmentRate is used to scale resource costs proportionally
-			// by the adjustment. This is necessary because we only get one
-			// adjustment per Node, not one per-resource-per-Node.
-			//
-			// e.g. total cost = $90, adjustment = -$10 => 0.9
-			// e.g. total cost = $150, adjustment = -$300 => 0.3333
-			// e.g. total cost = $150, adjustment = $50 => 1.5
-			adjustmentRate := 1.0
-			if node.TotalCost()-node.Adjustment() == 0 {
-				// If (totalCost - adjustment) is 0.0 then adjustment cancels
-				// the entire node cost and we should make everything 0
-				// without dividing by 0.
-				adjustmentRate = 0.0
-				log.DedupedWarningf(5, "Compute Idle Allocations: Node Cost Adjusted to $0.00 for %s", node.properties.Name)
-			} else if node.Adjustment() != 0.0 {
-				// adjustmentRate is the ratio of cost-with-adjustment (i.e. TotalCost)
-				// to cost-without-adjustment (i.e. TotalCost - Adjustment).
-				adjustmentRate = node.TotalCost() / (node.TotalCost() - node.Adjustment())
-			}
-
-			cpuCost := node.CPUCost * (1.0 - node.Discount) * adjustmentRate
-			ramCost := node.RAMCost * (1.0 - node.Discount) * adjustmentRate
-			gpuCost := node.GPUCost * (1.0) * adjustmentRate
-
-			assetClusterResourceCosts[node.Properties().Cluster]["cpu"] += cpuCost
-			assetClusterResourceCosts[node.Properties().Cluster]["ram"] += ramCost
-			assetClusterResourceCosts[node.Properties().Cluster]["gpu"] += gpuCost
-		}
-	})
-
-	// Determine start, end on a per-cluster basis
-	clusterStarts := map[string]time.Time{}
-	clusterEnds := map[string]time.Time{}
-
-	// Subtract allocated costs from asset costs, leaving only the remaining
-	// idle costs.
-	as.Each(func(name string, a *Allocation) {
-		cluster := a.Properties.Cluster
-		if cluster == "" {
-			// Failed to find allocation's cluster
-			return
-		}
-
-		if _, ok := assetClusterResourceCosts[cluster]; !ok {
-			// Failed to find assets for allocation's cluster
-			return
-		}
-
-		// Set cluster (start, end) if they are either not currently set,
-		// or if the detected (start, end) of the current allocation falls
-		// before or after, respectively, the current values.
-		if s, ok := clusterStarts[cluster]; !ok || a.Start.Before(s) {
-			clusterStarts[cluster] = a.Start
-		}
-		if e, ok := clusterEnds[cluster]; !ok || a.End.After(e) {
-			clusterEnds[cluster] = a.End
-		}
-
-		assetClusterResourceCosts[cluster]["cpu"] -= a.CPUTotalCost()
-		assetClusterResourceCosts[cluster]["gpu"] -= a.GPUTotalCost()
-		assetClusterResourceCosts[cluster]["ram"] -= a.RAMTotalCost()
-	})
-
-	// Turn remaining un-allocated asset costs into idle allocations
-	idleAllocs := map[string]*Allocation{}
-	for cluster, resources := range assetClusterResourceCosts {
-		// Default start and end to the (start, end) of the given window, but
-		// use the actual, detected (start, end) pair if they are available.
-		start := *window.Start()
-		if s, ok := clusterStarts[cluster]; ok && window.Contains(s) {
-			start = s
-		}
-		end := *window.End()
-		if e, ok := clusterEnds[cluster]; ok && window.Contains(e) {
-			end = e
-		}
-
-		idleAlloc := &Allocation{
-			Name:       fmt.Sprintf("%s/%s", cluster, IdleSuffix),
-			Window:     window.Clone(),
-			Properties: &AllocationProperties{Cluster: cluster},
-			Start:      start,
-			End:        end,
-			CPUCost:    resources["cpu"],
-			GPUCost:    resources["gpu"],
-			RAMCost:    resources["ram"],
-		}
-
-		// Do not continue if multiple idle allocations are computed for a
-		// single cluster.
-		if _, ok := idleAllocs[cluster]; ok {
-			return nil, fmt.Errorf("duplicate idle allocations for cluster %s", cluster)
-		}
-
-		idleAllocs[cluster] = idleAlloc
-	}
-
-	return idleAllocs, nil
-}
-
-// ComputeIdleAllocationsByNode computes the idle allocations for the AllocationSet,
-// given a set of Assets. Ideally, assetSet should contain only Nodes, but if
-// it contains other Assets, they will be ignored; only CPU, GPU and RAM are
-// considered for idle allocation. If the Nodes have adjustments, then apply
-// the adjustments proportionally to each of the resources so that total
-// allocation with idle reflects the adjusted node costs. One idle allocation
-// per-node will be computed and returned, keyed by cluster_id.
-func (as *AllocationSet) ComputeIdleAllocationsByNode(assetSet *AssetSet) (map[string]*Allocation, error) {
-
-	if as == nil {
-		return nil, fmt.Errorf("cannot compute idle allocation for nil AllocationSet")
-	}
-
-	if assetSet == nil {
-		return nil, fmt.Errorf("cannot compute idle allocation with nil AssetSet")
-	}
-
-	if !as.Window.Equal(assetSet.Window) {
-		return nil, fmt.Errorf("cannot compute idle allocation for sets with mismatched windows: %s != %s", as.Window, assetSet.Window)
-	}
-
-	window := as.Window
-
-	// Build a map of cumulative cluster asset costs, per resource; i.e.
-	// cluster-to-{cpu|gpu|ram}-to-cost.
-	assetNodeResourceCosts := map[string]map[string]float64{}
-	nodesByProviderId := map[string]*Node{}
-	assetSet.Each(func(key string, a Asset) {
-		if node, ok := a.(*Node); ok {
-			if _, ok := assetNodeResourceCosts[node.Properties().ProviderID]; ok || node.Properties().ProviderID == "" {
-				log.DedupedWarningf(5, "Compute Idle Allocations By Node: Node missing providerId: %s", node.properties.Name)
-				return
-			}
-
-			nodesByProviderId[node.Properties().ProviderID] = node
-			assetNodeResourceCosts[node.Properties().ProviderID] = map[string]float64{}
-
-			// adjustmentRate is used to scale resource costs proportionally
-			// by the adjustment. This is necessary because we only get one
-			// adjustment per Node, not one per-resource-per-Node.
-			//
-			// e.g. total cost = $90, adjustment = -$10 => 0.9
-			// e.g. total cost = $150, adjustment = -$300 => 0.3333
-			// e.g. total cost = $150, adjustment = $50 => 1.5
-			adjustmentRate := 1.0
-			if node.TotalCost()-node.Adjustment() == 0 {
-				// If (totalCost - adjustment) is 0.0 then adjustment cancels
-				// the entire node cost and we should make everything 0
-				// without dividing by 0.
-				adjustmentRate = 0.0
-				log.DedupedWarningf(5, "Compute Idle Allocations: Node Cost Adjusted to $0.00 for %s", node.properties.Name)
-			} else if node.Adjustment() != 0.0 {
-				// adjustmentRate is the ratio of cost-with-adjustment (i.e. TotalCost)
-				// to cost-without-adjustment (i.e. TotalCost - Adjustment).
-				adjustmentRate = node.TotalCost() / (node.TotalCost() - node.Adjustment())
-			}
-
-			cpuCost := node.CPUCost * (1.0 - node.Discount) * adjustmentRate
-			ramCost := node.RAMCost * (1.0 - node.Discount) * adjustmentRate
-			gpuCost := node.GPUCost * adjustmentRate
-
-			assetNodeResourceCosts[node.Properties().ProviderID]["cpu"] += cpuCost
-			assetNodeResourceCosts[node.Properties().ProviderID]["ram"] += ramCost
-			assetNodeResourceCosts[node.Properties().ProviderID]["gpu"] += gpuCost
-		}
-	})
-
-	// Determine start, end on a per-cluster basis
-	nodeStarts := map[string]time.Time{}
-	nodeEnds := map[string]time.Time{}
-
-	// Subtract allocated costs from asset costs, leaving only the remaining
-	// idle costs.
-	as.Each(func(name string, a *Allocation) {
-		providerId := a.Properties.ProviderID
-		if providerId == "" {
-			// Failed to find allocation's node
-			log.DedupedWarningf(5, "Compute Idle Allocations By Node: Allocation missing providerId: %s", a.Name)
-			return
-		}
-
-		if _, ok := assetNodeResourceCosts[providerId]; !ok {
-			// Failed to find assets for allocation's node
-			return
-		}
-
-		// Set cluster (start, end) if they are either not currently set,
-		// or if the detected (start, end) of the current allocation falls
-		// before or after, respectively, the current values.
-		if s, ok := nodeStarts[providerId]; !ok || a.Start.Before(s) {
-			nodeStarts[providerId] = a.Start
-		}
-		if e, ok := nodeEnds[providerId]; !ok || a.End.After(e) {
-			nodeEnds[providerId] = a.End
-		}
-
-		assetNodeResourceCosts[providerId]["cpu"] -= a.CPUTotalCost()
-		assetNodeResourceCosts[providerId]["gpu"] -= a.GPUTotalCost()
-		assetNodeResourceCosts[providerId]["ram"] -= a.RAMTotalCost()
-	})
-
-	// Turn remaining un-allocated asset costs into idle allocations
-	idleAllocs := map[string]*Allocation{}
-	for providerId, resources := range assetNodeResourceCosts {
-		// Default start and end to the (start, end) of the given window, but
-		// use the actual, detected (start, end) pair if they are available.
-		start := *window.Start()
-		if s, ok := nodeStarts[providerId]; ok && window.Contains(s) {
-			start = s
-		}
-		end := *window.End()
-		if e, ok := nodeEnds[providerId]; ok && window.Contains(e) {
-			end = e
-		}
-		node := nodesByProviderId[providerId]
-		idleAlloc := &Allocation{
-			Name:   fmt.Sprintf("%s/%s", node.properties.Name, IdleSuffix),
-			Window: window.Clone(),
-			Properties: &AllocationProperties{
-				Cluster:    node.properties.Cluster,
-				Node:       node.properties.Name,
-				ProviderID: providerId,
-			},
-			Start:   start,
-			End:     end,
-			CPUCost: resources["cpu"],
-			GPUCost: resources["gpu"],
-			RAMCost: resources["ram"],
-		}
-
-		// Do not continue if multiple idle allocations are computed for a
-		// single node.
-		if _, ok := idleAllocs[providerId]; ok {
-			return nil, fmt.Errorf("duplicate idle allocations for node Provider ID: %s", providerId)
-		}
-
-		idleAllocs[providerId] = idleAlloc
-	}
-
-	return idleAllocs, nil
-}
-
 // Delete removes the allocation with the given name from the set
 func (as *AllocationSet) Delete(name string) {
 	if as == nil {
@@ -1929,11 +1703,11 @@ func (as *AllocationSet) Each(f func(string, *Allocation)) {
 // End returns the End time of the AllocationSet window
 func (as *AllocationSet) End() time.Time {
 	if as == nil {
-		log.Warningf("AllocationSet: calling End on nil AllocationSet")
+		log.Warnf("AllocationSet: calling End on nil AllocationSet")
 		return time.Unix(0, 0)
 	}
 	if as.Window.End() == nil {
-		log.Warningf("AllocationSet: AllocationSet with illegal window: End is nil; len(as.allocations)=%d", len(as.allocations))
+		log.Warnf("AllocationSet: AllocationSet with illegal window: End is nil; len(as.allocations)=%d", len(as.allocations))
 		return time.Unix(0, 0)
 	}
 	return *as.Window.End()
@@ -2101,6 +1875,24 @@ func (as *AllocationSet) MarshalJSON() ([]byte, error) {
 	return json.Marshal(as.allocations)
 }
 
+// ResetAdjustments sets all cost adjustment fields to zero
+func (as *AllocationSet) ResetAdjustments() {
+	if as == nil {
+		return
+	}
+
+	as.Lock()
+	defer as.Unlock()
+
+	as.resetAdjustments()
+}
+
+func (as *AllocationSet) resetAdjustments() {
+	for _, a := range as.allocations {
+		a.ResetAdjustments()
+	}
+}
+
 // Resolution returns the AllocationSet's window duration
 func (as *AllocationSet) Resolution() time.Duration {
 	return as.Window.Duration()
@@ -2138,11 +1930,11 @@ func (as *AllocationSet) Set(alloc *Allocation) error {
 // Start returns the Start time of the AllocationSet window
 func (as *AllocationSet) Start() time.Time {
 	if as == nil {
-		log.Warningf("AllocationSet: calling Start on nil AllocationSet")
+		log.Warnf("AllocationSet: calling Start on nil AllocationSet")
 		return time.Unix(0, 0)
 	}
 	if as.Window.Start() == nil {
-		log.Warningf("AllocationSet: AllocationSet with illegal window: Start is nil; len(as.allocations)=%d", len(as.allocations))
+		log.Warnf("AllocationSet: AllocationSet with illegal window: Start is nil; len(as.allocations)=%d", len(as.allocations))
 		return time.Unix(0, 0)
 	}
 	return *as.Window.Start()
@@ -2532,4 +2324,20 @@ func (asr *AllocationSetRange) Minutes() float64 {
 	duration := end.Sub(start)
 
 	return duration.Minutes()
+}
+
+// TotalCost returns the sum of all TotalCosts of the allocations contained
+func (asr *AllocationSetRange) TotalCost() float64 {
+	if asr == nil || len(asr.allocations) == 0 {
+		return 0.0
+	}
+
+	asr.RLock()
+	defer asr.RUnlock()
+
+	tc := 0.0
+	for _, as := range asr.allocations {
+		tc += as.TotalCost()
+	}
+	return tc
 }

@@ -49,7 +49,7 @@ func NewSummaryAllocation(alloc *Allocation, reconcile, reconcileNetwork bool) *
 
 	sa := &SummaryAllocation{
 		Name:                   alloc.Name,
-		Properties:             alloc.Properties.Clone(),
+		Properties:             alloc.Properties,
 		Start:                  alloc.Start,
 		End:                    alloc.End,
 		CPUCoreRequestAverage:  alloc.CPUCoreRequestAverage,
@@ -297,11 +297,11 @@ type SummaryAllocationSet struct {
 }
 
 // NewSummaryAllocationSet converts an AllocationSet to a SummaryAllocationSet.
-// Filter functions, sharing functions, and reconciliation parameters are
+// Filter functions, keep functions, and reconciliation parameters are
 // required for unfortunate reasons to do with performance and legacy order-of-
 // operations details, as well as the fact that reconciliation has been
 // pushed down to the conversion step between Allocation and SummaryAllocation.
-func NewSummaryAllocationSet(as *AllocationSet, ffs, sfs []AllocationMatchFunc, reconcile, reconcileNetwork bool) *SummaryAllocationSet {
+func NewSummaryAllocationSet(as *AllocationSet, ffs, kfs []AllocationMatchFunc, reconcile, reconcileNetwork bool) *SummaryAllocationSet {
 	if as == nil {
 		return nil
 	}
@@ -309,7 +309,7 @@ func NewSummaryAllocationSet(as *AllocationSet, ffs, sfs []AllocationMatchFunc, 
 	// If we can know the exact size of the map, use it. If filters or sharing
 	// functions are present, we can't know the size, so we make a default map.
 	var sasMap map[string]*SummaryAllocation
-	if len(ffs) == 0 && len(sfs) == 0 {
+	if len(ffs) == 0 && len(kfs) == 0 {
 		// No filters, so make the map of summary allocations exactly the size
 		// of the origin allocation set.
 		sasMap = make(map[string]*SummaryAllocation, len(as.allocations))
@@ -324,16 +324,16 @@ func NewSummaryAllocationSet(as *AllocationSet, ffs, sfs []AllocationMatchFunc, 
 	}
 
 	for _, alloc := range as.allocations {
-		// First, detect if the allocation should be shared. If so, mark it as
+		// First, detect if the allocation should be kept. If so, mark it as
 		// such, insert it, and continue.
-		shouldShare := false
-		for _, sf := range sfs {
-			if sf(alloc) {
-				shouldShare = true
+		shouldKeep := false
+		for _, kf := range kfs {
+			if kf(alloc) {
+				shouldKeep = true
 				break
 			}
 		}
-		if shouldShare {
+		if shouldKeep {
 			sa := NewSummaryAllocation(alloc, reconcile, reconcileNetwork)
 			sa.Share = true
 			sas.Insert(sa)
@@ -454,8 +454,8 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// an empty slice implies that we should aggregate everything. (See
 	// generateKey for why that makes sense.)
 	shouldAggregate := aggregateBy != nil
-	shouldShare := len(options.SharedHourlyCosts) > 0 || len(options.ShareFuncs) > 0
-	if !shouldAggregate && !shouldShare {
+	shouldKeep := len(options.SharedHourlyCosts) > 0 || len(options.ShareFuncs) > 0
+	if !shouldAggregate && !shouldKeep {
 		return nil
 	}
 
@@ -491,7 +491,6 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// 10. Apply idle filtration, which "filters" the idle cost, or scales it
 	//     by the proportion of allocation resources remaining after filters
 	//     have been applied.
-	//
 	//
 	// 11. Distribute shared resources according to sharing coefficients.
 	//
@@ -611,18 +610,30 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// option. (See IdleByNode documentation; defaults to idle-by-cluster.)
 	var allocTotals map[string]*AllocationTotals
 	var ok bool
-	if options.IdleByNode {
-		if options.AllocationTotalsStore != nil {
+	if options.AllocationTotalsStore != nil {
+		if options.IdleByNode {
 			allocTotals, ok = options.AllocationTotalsStore.GetAllocationTotalsByNode(*sas.Window.Start(), *sas.Window.End())
 			if !ok {
 				return fmt.Errorf("nil allocation resource totals by node for %s", sas.Window)
 			}
-		}
-	} else {
-		if options.AllocationTotalsStore != nil {
+		} else {
 			allocTotals, ok = options.AllocationTotalsStore.GetAllocationTotalsByCluster(*sas.Window.Start(), *sas.Window.End())
 			if !ok {
 				return fmt.Errorf("nil allocation resource totals by cluster for %s", sas.Window)
+			}
+		}
+	}
+
+	// If reconciliation has been fully or partially disabled, clear the
+	// relevant adjustments from the alloc totals
+	if allocTotals != nil && (!options.Reconcile || !options.ReconcileNetwork) {
+		if !options.Reconcile {
+			for _, tot := range allocTotals {
+				tot.ClearAdjustments()
+			}
+		} else if !options.ReconcileNetwork {
+			for _, tot := range allocTotals {
+				tot.NetworkCostAdjustment = 0.0
 			}
 		}
 	}
@@ -705,13 +716,13 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		// NOTE: SummaryAllocation does not support ShareEven, so only record
 		// by cost for cost-weighted distribution.
 		if sharingCoeffs != nil {
-			sharingCoeffs[key] += sa.TotalCost()
+			sharingCoeffs[key] += sa.TotalCost() - sa.SharedCost
 		}
 
 		// 6. Distribute idle allocations according to the idle coefficients.
-		// NOTE: if idle allocation is off (i.e. ShareIdle == ShareNone) then
-		// all idle allocations will be in the resultSet at this point, so idleSet
-		// will be empty and we won't enter this block.
+		// NOTE: if idle allocation is off (i.e. options.ShareIdle: ShareNone)
+		// then all idle allocations will be in the resultSet at this point, so
+		// idleSet will be empty and we won't enter this block.
 		if len(idleSet.SummaryAllocations) > 0 {
 			for _, idle := range idleSet.SummaryAllocations {
 				// Idle key is either cluster or node, as determined by the
@@ -784,11 +795,11 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 				// the relevant property matches (i.e. Cluster or Node,
 				// depending on which idle sharing option is selected)
 				if options.IdleByNode {
-					if idle.Properties.Node != sa.Properties.Node {
+					if idle.Properties.Cluster != sa.Properties.Cluster || idle.Properties.Node != sa.Properties.Node {
 						continue
 					}
 
-					key = idle.Properties.Node
+					key = fmt.Sprintf("%s/%s", idle.Properties.Cluster, idle.Properties.Node)
 				} else {
 					if idle.Properties.Cluster != sa.Properties.Cluster {
 						continue
@@ -879,7 +890,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		sharingCoeffDenominator -= totalUnmountedCost
 
 		if sharingCoeffDenominator <= 0.0 {
-			log.Warningf("SummaryAllocation: sharing coefficient denominator is %f", sharingCoeffDenominator)
+			log.Warnf("SummaryAllocation: sharing coefficient denominator is %f", sharingCoeffDenominator)
 		} else {
 			// Compute sharing coeffs by dividing the thus-far accumulated
 			// numerators by the now-finalized denominator.
@@ -887,7 +898,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 				if sharingCoeffs[key] > 0.0 {
 					sharingCoeffs[key] /= sharingCoeffDenominator
 				} else {
-					log.Warningf("SummaryAllocation: detected illegal sharing coefficient for %s: %v (setting to zero)", key, sharingCoeffs[key])
+					log.Warnf("SummaryAllocation: detected illegal sharing coefficient for %s: %v (setting to zero)", key, sharingCoeffs[key])
 					sharingCoeffs[key] = 0.0
 				}
 			}
@@ -919,12 +930,12 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	for _, sa := range externalSet.SummaryAllocations {
 		skip := false
 
+		// Make an allocation with the same properties and test that
+		// against the FilterFunc to see if the external allocation should
+		// be filtered or not.
+		// TODO:CLEANUP do something about external cost, this stinks
+		ea := &Allocation{Properties: sa.Properties}
 		for _, ff := range options.FilterFuncs {
-			// Make an allocation with the same properties and test that
-			// against the FilterFunc to see if the external allocation should
-			// be filtered or not.
-			// TODO:CLEANUP do something about external cost, this stinks
-			ea := &Allocation{Properties: sa.Properties}
 			if !ff(ea) {
 				skip = true
 				break
@@ -942,50 +953,67 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// 13. Distribute remaining, undistributed idle. Undistributed idle is any
 	// per-resource idle cost for which there can be no idle coefficient
 	// computed because there is zero usage across all allocations.
-	for _, ia := range idleSet.SummaryAllocations {
-		key := ia.Properties.Cluster
+	for _, isa := range idleSet.SummaryAllocations {
+		// if the idle does not apply to the non-filtered values, skip it
+		skip := false
+		// Make an allocation with the same properties and test that
+		// against the FilterFunc to see if the external allocation should
+		// be filtered or not.
+		// TODO:CLEANUP do something about external cost, this stinks
+		ia := &Allocation{Properties: isa.Properties}
+		for _, ff := range options.FilterFuncs {
+			if !ff(ia) {
+				skip = true
+				break
+			}
+		}
+		if skip {
+			continue
+		}
+
+		key := isa.Properties.Cluster
 		if options.IdleByNode {
-			key = fmt.Sprintf("%s/%s", ia.Properties.Cluster, ia.Properties.Node)
+			key = fmt.Sprintf("%s/%s", isa.Properties.Cluster, isa.Properties.Node)
 		}
 
 		rt, ok := allocTotals[key]
 		if !ok {
-			log.Warningf("SummaryAllocation: AggregateBy: cannot handle undistributed idle for '%s'", key)
+			log.Warnf("SummaryAllocation: AggregateBy: cannot handle undistributed idle for '%s'", key)
 			continue
 		}
 
 		hasUndistributableCost := false
 
-		if ia.CPUCost > 0.0 && rt.CPUCost == 0.0 {
+		if isa.CPUCost > 0.0 && rt.CPUCost == 0.0 {
 			// There is idle CPU cost, but no allocated CPU cost, so that cost
 			// is undistributable and must be inserted.
 			hasUndistributableCost = true
 		} else {
 			// Cost was entirely distributed, so zero it out
-			ia.CPUCost = 0.0
+			isa.CPUCost = 0.0
 		}
 
-		if ia.GPUCost > 0.0 && rt.GPUCost == 0.0 {
+		if isa.GPUCost > 0.0 && rt.GPUCost == 0.0 {
 			// There is idle GPU cost, but no allocated GPU cost, so that cost
 			// is undistributable and must be inserted.
 			hasUndistributableCost = true
 		} else {
 			// Cost was entirely distributed, so zero it out
-			ia.GPUCost = 0.0
+			isa.GPUCost = 0.0
 		}
 
-		if ia.RAMCost > 0.0 && rt.RAMCost == 0.0 {
+		if isa.RAMCost > 0.0 && rt.RAMCost == 0.0 {
 			// There is idle CPU cost, but no allocated CPU cost, so that cost
 			// is undistributable and must be inserted.
 			hasUndistributableCost = true
 		} else {
 			// Cost was entirely distributed, so zero it out
-			ia.RAMCost = 0.0
+			isa.RAMCost = 0.0
 		}
 
 		if hasUndistributableCost {
-			ia.Name = fmt.Sprintf("%s/%s", key, IdleSuffix)
-			resultSet.Insert(ia)
+			isa.Name = fmt.Sprintf("%s/%s", key, IdleSuffix)
+			resultSet.Insert(isa)
 		}
 	}
 
@@ -1101,6 +1129,22 @@ func (sas *SummaryAllocationSet) Insert(sa *SummaryAllocation) error {
 	return nil
 }
 
+func (sas *SummaryAllocationSet) TotalCost() float64 {
+	if sas == nil {
+		return 0.0
+	}
+
+	sas.RLock()
+	defer sas.RUnlock()
+
+	tc := 0.0
+	for _, sa := range sas.SummaryAllocations {
+		tc += sa.TotalCost()
+	}
+
+	return tc
+}
+
 // SummaryAllocationSetRange is a thread-safe slice of SummaryAllocationSets.
 type SummaryAllocationSetRange struct {
 	sync.RWMutex
@@ -1130,7 +1174,7 @@ func NewSummaryAllocationSetRange(sass ...*SummaryAllocationSet) *SummaryAllocat
 		if step == 0 {
 			step = sas.Window.Duration()
 		} else if step != sas.Window.Duration() {
-			log.Warningf("instantiating range with step %s using set of step %s is illegal", step, sas.Window.Duration())
+			log.Warnf("instantiating range with step %s using set of step %s is illegal", step, sas.Window.Duration())
 		}
 	}
 
@@ -1267,4 +1311,36 @@ func (sasr *SummaryAllocationSetRange) InsertExternalAllocations(that *Allocatio
 
 	// err might be nil
 	return err
+}
+
+func (sasr *SummaryAllocationSetRange) TotalCost() float64 {
+	if sasr == nil {
+		return 0.0
+	}
+
+	sasr.RLock()
+	defer sasr.RUnlock()
+
+	tc := 0.0
+	for _, sas := range sasr.SummaryAllocationSets {
+		tc += sas.TotalCost()
+	}
+
+	return tc
+}
+
+// TODO remove after testing
+func (sasr *SummaryAllocationSetRange) Print(verbose bool) {
+	fmt.Printf("%s (dur=%s, len=%d, cost=%.5f)\n", sasr.Window, sasr.Window.Duration(), len(sasr.SummaryAllocationSets), sasr.TotalCost())
+	for _, sas := range sasr.SummaryAllocationSets {
+		fmt.Printf(" > %s (dur=%s, len=%d, cost=%.5f) \n", sas.Window, sas.Window.Duration(), len(sas.SummaryAllocations), sas.TotalCost())
+		for key, sa := range sas.SummaryAllocations {
+			if verbose {
+				fmt.Printf("   {\"%s\", cpu: %.5f, gpu: %.5f, lb: %.5f, net: %.5f, pv: %.5f, ram: %.5f, shared: %.5f, external: %.5f}\n",
+					key, sa.CPUCost, sa.GPUCost, sa.LoadBalancerCost, sa.NetworkCost, sa.PVCost, sa.RAMCost, sa.SharedCost, sa.ExternalCost)
+			} else {
+				fmt.Printf("   - \"%s\": %.5f\n", key, sa.TotalCost())
+			}
+		}
+	}
 }

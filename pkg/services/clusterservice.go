@@ -22,13 +22,13 @@ func newClusterManager() *clusters.ClusterManager {
 		path := env.GetConfigPath()
 		db, err := bolt.Open(path+"costmodel.db", 0600, nil)
 		if err != nil {
-			klog.V(1).Infof("[Error] Failed to create costmodel.db: %s", err.Error())
+			log.Errorf("[Error] Failed to create costmodel.db: %s", err.Error())
 			return cm.NewConfiguredClusterManager(cm.NewMapDBClusterStorage(), clustersConfigFile)
 		}
 
 		store, err := clusters.NewBoltDBClusterStorage("clusters", db)
 		if err != nil {
-			klog.V(1).Infof("[Error] Failed to Create Cluster Storage: %s", err.Error())
+			log.Errorf("[Error] Failed to Create Cluster Storage: %s", err.Error())
 			return clusters.NewConfiguredClusterManager(clusters.NewMapDBClusterStorage(), clustersConfigFile)
 		}
 

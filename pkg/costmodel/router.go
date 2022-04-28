@@ -21,7 +21,6 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/klog"
 
 	"github.com/julienschmidt/httprouter"
 
@@ -200,7 +199,7 @@ func filterFields(fields string, data map[string]*CostData) map[string]CostData 
 	fmap := make(map[string]bool)
 	for _, f := range fs {
 		fieldNameLower := strings.ToLower(f) // convert to go struct name by uppercasing first letter
-		klog.V(1).Infof("to delete: %s", fieldNameLower)
+		log.Debugf("to delete: %s", fieldNameLower)
 		fmap[fieldNameLower] = true
 	}
 	filteredData := make(map[string]CostData)
@@ -264,7 +263,7 @@ func WrapData(data interface{}, err error) []byte {
 	var resp []byte
 
 	if err != nil {
-		klog.V(1).Infof("Error returned to client: %s", err.Error())
+		log.Errorf("Error returned to client: %s", err.Error())
 		resp, _ = json.Marshal(&Response{
 			Code:    http.StatusInternalServerError,
 			Status:  "error",
@@ -286,7 +285,7 @@ func WrapDataWithMessage(data interface{}, err error, message string) []byte {
 	var resp []byte
 
 	if err != nil {
-		klog.V(1).Infof("Error returned to client: %s", err.Error())
+		log.Errorf("Error returned to client: %s", err.Error())
 		resp, _ = json.Marshal(&Response{
 			Code:    http.StatusInternalServerError,
 			Status:  "error",
@@ -309,7 +308,7 @@ func WrapDataWithWarning(data interface{}, err error, warning string) []byte {
 	var resp []byte
 
 	if err != nil {
-		klog.V(1).Infof("Error returned to client: %s", err.Error())
+		log.Errorf("Error returned to client: %s", err.Error())
 		resp, _ = json.Marshal(&Response{
 			Code:    http.StatusInternalServerError,
 			Status:  "error",
@@ -333,7 +332,7 @@ func WrapDataWithMessageAndWarning(data interface{}, err error, message, warning
 	var resp []byte
 
 	if err != nil {
-		klog.V(1).Infof("Error returned to client: %s", err.Error())
+		log.Errorf("Error returned to client: %s", err.Error())
 		resp, _ = json.Marshal(&Response{
 			Code:    http.StatusInternalServerError,
 			Status:  "error",
@@ -369,7 +368,7 @@ func (a *Accesses) RefreshPricingData(w http.ResponseWriter, r *http.Request, ps
 
 	err := a.CloudProvider.DownloadPricingData()
 	if err != nil {
-		klog.V(1).Infof("Error refreshing pricing data: %s", err.Error())
+		log.Errorf("Error refreshing pricing data: %s", err.Error())
 	}
 
 	w.Write(WrapData(nil, err))
@@ -581,7 +580,7 @@ func (a *Accesses) UpdateSpotInfoConfigs(w http.ResponseWriter, r *http.Request,
 	w.Write(WrapData(data, err))
 	err = a.CloudProvider.DownloadPricingData()
 	if err != nil {
-		klog.V(1).Infof("Error redownloading data on config update: %s", err.Error())
+		log.Errorf("Error redownloading data on config update: %s", err.Error())
 	}
 	return
 }
@@ -692,8 +691,24 @@ func (a *Accesses) PrometheusQuery(w http.ResponseWriter, r *http.Request, _ htt
 		return
 	}
 
+	// Attempt to parse time as either a unix timestamp or as an RFC3339 value
+	var timeVal time.Time
+	timeStr := qp.Get("time", "")
+	if len(timeStr) > 0 {
+		if t, err := strconv.ParseInt(timeStr, 10, 64); err == nil {
+			timeVal = time.Unix(t, 0)
+		} else if t, err := time.Parse(time.RFC3339, timeStr); err == nil {
+			timeVal = t
+		}
+
+		// If time is given, but not parse-able, return an error
+		if timeVal.IsZero() {
+			http.Error(w, fmt.Sprintf("time must be a unix timestamp or RFC3339 value; illegal value given: %s", timeStr), http.StatusBadRequest)
+		}
+	}
+
 	ctx := prom.NewNamedContext(a.PrometheusClient, prom.FrontendContextName)
-	body, err := ctx.RawQuery(query)
+	body, err := ctx.RawQuery(query, timeVal)
 	if err != nil {
 		w.Write(WrapData(nil, fmt.Errorf("Error running query %s. Error: %s", query, err)))
 		return
@@ -745,8 +760,24 @@ func (a *Accesses) ThanosQuery(w http.ResponseWriter, r *http.Request, _ httprou
 		return
 	}
 
+	// Attempt to parse time as either a unix timestamp or as an RFC3339 value
+	var timeVal time.Time
+	timeStr := qp.Get("time", "")
+	if len(timeStr) > 0 {
+		if t, err := strconv.ParseInt(timeStr, 10, 64); err == nil {
+			timeVal = time.Unix(t, 0)
+		} else if t, err := time.Parse(time.RFC3339, timeStr); err == nil {
+			timeVal = t
+		}
+
+		// If time is given, but not parse-able, return an error
+		if timeVal.IsZero() {
+			http.Error(w, fmt.Sprintf("time must be a unix timestamp or RFC3339 value; illegal value given: %s", timeStr), http.StatusBadRequest)
+		}
+	}
+
 	ctx := prom.NewNamedContext(a.ThanosClient, prom.FrontendContextName)
-	body, err := ctx.RawQuery(query)
+	body, err := ctx.RawQuery(query, timeVal)
 	if err != nil {
 		w.Write(WrapData(nil, fmt.Errorf("Error running query %s. Error: %s", query, err)))
 		return
@@ -833,7 +864,7 @@ func (a *Accesses) GetPrometheusQueueState(w http.ResponseWriter, _ *http.Reques
 	if thanos.IsEnabled() {
 		thanosQueueState, err := prom.GetPrometheusQueueState(a.ThanosClient)
 		if err != nil {
-			log.Warningf("Error getting Thanos queue state: %s", err)
+			log.Warnf("Error getting Thanos queue state: %s", err)
 		} else {
 			result["thanos"] = thanosQueueState
 		}
@@ -860,7 +891,7 @@ func (a *Accesses) GetPrometheusMetrics(w http.ResponseWriter, _ *http.Request, 
 	if thanos.IsEnabled() {
 		thanosMetrics, err := prom.GetPrometheusMetrics(a.ThanosClient, thanos.QueryOffset())
 		if err != nil {
-			log.Warningf("Error getting Thanos queue state: %s", err)
+			log.Warnf("Error getting Thanos queue state: %s", err)
 		} else {
 			result["thanos"] = thanosMetrics
 		}
@@ -1288,7 +1319,7 @@ func (a *Accesses) Status(w http.ResponseWriter, r *http.Request, _ httprouter.P
 // captures the panic event in sentry
 func capturePanicEvent(err string, stack string) {
 	msg := fmt.Sprintf("Panic: %s\nStackTrace: %s\n", err, stack)
-	klog.V(1).Infoln(msg)
+	log.Infof(msg)
 	sentry.CurrentHub().CaptureEvent(&sentry.Event{
 		Level:   sentry.LevelError,
 		Message: msg,
@@ -1316,7 +1347,7 @@ func handlePanic(p errors.Panic) bool {
 }
 
 func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses {
-	klog.V(1).Infof("Starting cost-model (git commit \"%s\")", env.GetAppVersion())
+	log.Infof("Starting cost-model (git commit \"%s\")", env.GetAppVersion())
 
 	configWatchers := watcher.NewConfigMapWatchers(additionalConfigWatchers...)
 
@@ -1324,22 +1355,22 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	if errorReportingEnabled {
 		err = sentry.Init(sentry.ClientOptions{Release: env.GetAppVersion()})
 		if err != nil {
-			klog.Infof("Failed to initialize sentry for error reporting")
+			log.Infof("Failed to initialize sentry for error reporting")
 		} else {
 			err = errors.SetPanicHandler(handlePanic)
 			if err != nil {
-				klog.Infof("Failed to set panic handler: %s", err)
+				log.Infof("Failed to set panic handler: %s", err)
 			}
 		}
 	}
 
 	address := env.GetPrometheusServerEndpoint()
 	if address == "" {
-		klog.Fatalf("No address for prometheus set in $%s. Aborting.", env.PrometheusServerEndpointEnvVar)
+		log.Fatalf("No address for prometheus set in $%s. Aborting.", env.PrometheusServerEndpointEnvVar)
 	}
 
 	queryConcurrency := env.GetMaxQueryConcurrency()
-	klog.Infof("Prometheus/Thanos Client Max Concurrency set to %d", queryConcurrency)
+	log.Infof("Prometheus/Thanos Client Max Concurrency set to %d", queryConcurrency)
 
 	timeout := 120 * time.Second
 	keepAlive := 120 * time.Second
@@ -1369,26 +1400,26 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		QueryLogFile:     "",
 	})
 	if err != nil {
-		klog.Fatalf("Failed to create prometheus client, Error: %v", err)
+		log.Fatalf("Failed to create prometheus client, Error: %v", err)
 	}
 
 	m, err := prom.Validate(promCli)
 	if err != nil || !m.Running {
 		if err != nil {
-			klog.Errorf("Failed to query prometheus at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prom.PrometheusTroubleshootingURL)
+			log.Errorf("Failed to query prometheus at %s. Error: %s . Troubleshooting help available at: %s", address, err.Error(), prom.PrometheusTroubleshootingURL)
 		} else if !m.Running {
-			klog.Errorf("Prometheus at %s is not running. Troubleshooting help available at: %s", address, prom.PrometheusTroubleshootingURL)
+			log.Errorf("Prometheus at %s is not running. Troubleshooting help available at: %s", address, prom.PrometheusTroubleshootingURL)
 		}
 	} else {
-		klog.V(1).Info("Success: retrieved the 'up' query against prometheus at: " + address)
+		log.Infof("Success: retrieved the 'up' query against prometheus at: " + address)
 	}
 
 	api := prometheusAPI.NewAPI(promCli)
 	_, err = api.Config(context.Background())
 	if err != nil {
-		klog.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
+		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
 	} else {
-		klog.Infof("Retrieved a prometheus config file from: %s", address)
+		log.Infof("Retrieved a prometheus config file from: %s", address)
 	}
 
 	// Lookup scrape interval for kubecost job, update if found
@@ -1397,7 +1428,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		scrapeInterval = si
 	}
 
-	klog.Infof("Using scrape interval of %f", scrapeInterval.Seconds())
+	log.Infof("Using scrape interval of %f", scrapeInterval.Seconds())
 
 	// Kubernetes API setup
 	var kc *rest.Config
@@ -1449,9 +1480,9 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	for _, cw := range watchedConfigs {
 		configs, err := kubeClientset.CoreV1().ConfigMaps(kubecostNamespace).Get(context.Background(), cw, metav1.GetOptions{})
 		if err != nil {
-			klog.Infof("No %s configmap found at install time, using existing configs: %s", cw, err.Error())
+			log.Infof("No %s configmap found at install time, using existing configs: %s", cw, err.Error())
 		} else {
-			klog.Infof("Found configmap %s, watching...", configs.Name)
+			log.Infof("Found configmap %s, watching...", configs.Name)
 			watchConfigFunc(configs)
 		}
 	}
@@ -1461,13 +1492,13 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	remoteEnabled := env.IsRemoteEnabled()
 	if remoteEnabled {
 		info, err := cloudProvider.ClusterInfo()
-		klog.Infof("Saving cluster  with id:'%s', and name:'%s' to durable storage", info["id"], info["name"])
+		log.Infof("Saving cluster  with id:'%s', and name:'%s' to durable storage", info["id"], info["name"])
 		if err != nil {
-			klog.Infof("Error saving cluster id %s", err.Error())
+			log.Infof("Error saving cluster id %s", err.Error())
 		}
 		_, _, err = cloud.GetOrCreateClusterMeta(info["id"], info["name"])
 		if err != nil {
-			klog.Infof("Unable to set cluster id '%s' for cluster '%s', %s", info["id"], info["name"], err.Error())
+			log.Infof("Unable to set cluster id '%s' for cluster '%s', %s", info["id"], info["name"], err.Error())
 		}
 	}
 
@@ -1494,16 +1525,16 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 
 			_, err = prom.Validate(thanosCli)
 			if err != nil {
-				klog.V(1).Infof("[Warning] Failed to query Thanos at %s. Error: %s.", thanosAddress, err.Error())
+				log.Warnf("Failed to query Thanos at %s. Error: %s.", thanosAddress, err.Error())
 				thanosClient = thanosCli
 			} else {
-				klog.V(1).Info("Success: retrieved the 'up' query against Thanos at: " + thanosAddress)
+				log.Infof("Success: retrieved the 'up' query against Thanos at: " + thanosAddress)
 
 				thanosClient = thanosCli
 			}
 
 		} else {
-			klog.Infof("Error resolving environment variable: $%s", env.ThanosQueryUrlEnvVar)
+			log.Infof("Error resolving environment variable: $%s", env.ThanosQueryUrlEnvVar)
 		}
 	}
 
@@ -1583,7 +1614,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 
 	err = a.CloudProvider.DownloadPricingData()
 	if err != nil {
-		klog.V(1).Info("Failed to download pricing data: " + err.Error())
+		log.Infof("Failed to download pricing data: " + err.Error())
 	}
 
 	// Warm the aggregate cache unless explicitly set to false

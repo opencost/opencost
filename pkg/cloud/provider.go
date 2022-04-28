@@ -13,8 +13,6 @@ import (
 
 	"github.com/kubecost/cost-model/pkg/util"
 
-	"k8s.io/klog"
-
 	"cloud.google.com/go/compute/metadata"
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
@@ -167,6 +165,7 @@ type CustomPricing struct {
 	AthenaRegion                 string `json:"athenaRegion"`
 	AthenaDatabase               string `json:"athenaDatabase"`
 	AthenaTable                  string `json:"athenaTable"`
+	AthenaWorkgroup              string `json:"athenaWorkgroup"`
 	MasterPayerARN               string `json:"masterPayerARN"`
 	BillingDataDataset           string `json:"billingDataDataset,omitempty"`
 	CustomPricesEnabled          string `json:"customPricesEnabled"`
@@ -188,6 +187,7 @@ type CustomPricing struct {
 	ShareTenancyCosts            string `json:"shareTenancyCosts"` // TODO clean up configuration so we can use a type other that string (this should be a bool, but the app panics if it's not a string)
 	ReadOnly                     string `json:"readOnly"`
 	KubecostToken                string `json:"kubecostToken"`
+	GoogleAnalyticsTag           string `json:"googleAnalyticsTag"`
 }
 
 // GetSharedOverheadCostPerMonth parses and returns a float64 representation
@@ -257,6 +257,7 @@ type PricingSources struct {
 
 type PricingSource struct {
 	Name      string `json:"name"`
+	Enabled   bool   `json:"enabled"`
 	Available bool   `json:"available"`
 	Error     string `json:"error"`
 }
@@ -395,7 +396,7 @@ func SharedLabels(p Provider) ([]string, []string) {
 	ks := strings.Split(config.SharedLabelNames, ",")
 	vs := strings.Split(config.SharedLabelValues, ",")
 	if len(ks) != len(vs) {
-		klog.V(2).Infof("[Warning] shared labels have mis-matched lengths: %d names, %d values", len(ks), len(vs))
+		log.Warnf("Shared labels have mis-matched lengths: %d names, %d values", len(ks), len(vs))
 		return names, values
 	}
 
@@ -429,7 +430,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 
 	switch cp.provider {
 	case "CSV":
-		klog.Infof("Using CSV Provider with CSV at %s", env.GetCSVPath())
+		log.Infof("Using CSV Provider with CSV at %s", env.GetCSVPath())
 		return &CSVProvider{
 			CSVLocation: env.GetCSVPath(),
 			CustomProvider: &CustomProvider{
@@ -438,7 +439,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			},
 		}, nil
 	case "GCP":
-		klog.V(3).Info("metadata reports we are in GCE")
+		log.Info("metadata reports we are in GCE")
 		if apiKey == "" {
 			return nil, errors.New("Supply a GCP Key to start getting data")
 		}
@@ -450,7 +451,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			clusterProjectId: cp.projectID,
 		}, nil
 	case "AWS":
-		klog.V(2).Info("Found ProviderID starting with \"aws\", using AWS Provider")
+		log.Info("Found ProviderID starting with \"aws\", using AWS Provider")
 		return &AWS{
 			Clientset:            cache,
 			Config:               NewProviderConfig(config, cp.configFileName),
@@ -459,7 +460,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			serviceAccountChecks: NewServiceAccountChecks(),
 		}, nil
 	case "AZURE":
-		klog.V(2).Info("Found ProviderID starting with \"azure\", using Azure Provider")
+		log.Info("Found ProviderID starting with \"azure\", using Azure Provider")
 		return &Azure{
 			Clientset:            cache,
 			Config:               NewProviderConfig(config, cp.configFileName),
@@ -468,7 +469,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			serviceAccountChecks: NewServiceAccountChecks(),
 		}, nil
 	default:
-		klog.V(2).Info("Unsupported provider, falling back to default")
+		log.Info("Unsupported provider, falling back to default")
 		return &CustomProvider{
 			Clientset: cache,
 			Config:    NewProviderConfig(config, cp.configFileName),

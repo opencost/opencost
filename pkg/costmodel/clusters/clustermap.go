@@ -156,13 +156,13 @@ func (pcm *PrometheusClusterMap) loadClusters() (map[string]*ClusterInfo, error)
 	for _, result := range qr {
 		id, err := result.GetString("id")
 		if err != nil {
-			log.Warningf("Failed to load 'id' field for ClusterInfo")
+			log.Warnf("Failed to load 'id' field for ClusterInfo")
 			continue
 		}
 
 		name, err := result.GetString("name")
 		if err != nil {
-			log.Warningf("Failed to load 'name' field for ClusterInfo")
+			log.Warnf("Failed to load 'name' field for ClusterInfo")
 			continue
 		}
 

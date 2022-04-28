@@ -1,25 +1,20 @@
 ## What does this PR change?
+* 
 
+## Does this PR relate to any other PRs?
+* 
 
+## How will this PR impact users?
+* 
 
-## Does this PR rely on any other PRs?
-
-- 
-- 
-
-
-## How does this PR impact users? (This is the kind of thing that goes in release notes!)
-
-
-
-## Links to Issues or ZD tickets this PR addresses or fixes
-
-- 
-- 
-
+## Does this PR address any GitHub or Zendesk issues?
+* Closes ...
 
 ## How was this PR tested?
+* 
 
+## Does this PR require changes to documentation?
+* 
 
-## Have you made an update to documentation?
-
+## Have you labeled this PR and its corresponding Issue as "next release" if it should be part of the next Kubecost release? If not, why not?
+* 

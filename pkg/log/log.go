@@ -2,9 +2,13 @@ package log
 
 import (
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	"github.com/spf13/viper"
 )
 
 // TODO for deduped functions, if timeLogged > logTypeLimit, should we log once
@@ -13,8 +17,26 @@ import (
 // concurrency-safe counter
 var ctr = newCounter()
 
+func InitLogging() {
+	zerolog.TimeFieldFormat = time.RFC3339Nano
+	// Default to using pretty formatting
+	if strings.ToLower(viper.GetString("log-format")) != "json" {
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339Nano})
+	}
+
+	level, err := zerolog.ParseLevel(viper.GetString("log-level"))
+	if err != nil {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+		log.Warn().Msg("Error parsing log-level, setting level to 'info'")
+		return
+	}
+	zerolog.SetGlobalLevel(level)
+	log.Log().Msgf("Log level set to %v", level)
+
+}
+
 func Errorf(format string, a ...interface{}) {
-	klog.Errorf(fmt.Sprintf("[Error] %s", format), a...)
+	log.Error().Msgf(format, a...)
 }
 
 func DedupedErrorf(logTypeLimit int, format string, a ...interface{}) {
@@ -28,23 +50,27 @@ func DedupedErrorf(logTypeLimit int, format string, a ...interface{}) {
 	}
 }
 
-func Warningf(format string, a ...interface{}) {
-	klog.V(2).Infof(fmt.Sprintf("[Warning] %s", format), a...)
+func Warnf(format string, a ...interface{}) {
+	log.Warn().Msgf(format, a...)
 }
 
 func DedupedWarningf(logTypeLimit int, format string, a ...interface{}) {
 	timesLogged := ctr.increment(format)
 
 	if timesLogged < logTypeLimit {
-		Warningf(format, a...)
+		Warnf(format, a...)
 	} else if timesLogged == logTypeLimit {
-		Warningf(format, a...)
+		Warnf(format, a...)
 		Infof("%s logged %d times: suppressing future logs", format, logTypeLimit)
 	}
 }
 
+func Info(msg string) {
+	log.Info().Msg(msg)
+}
+
 func Infof(format string, a ...interface{}) {
-	klog.V(3).Infof(fmt.Sprintf("[Info] %s", format), a...)
+	log.Info().Msgf(format, a...)
 }
 
 func DedupedInfof(logTypeLimit int, format string, a ...interface{}) {
@@ -59,11 +85,19 @@ func DedupedInfof(logTypeLimit int, format string, a ...interface{}) {
 }
 
 func Profilef(format string, a ...interface{}) {
-	klog.V(3).Infof(fmt.Sprintf("[Profiler] %s", format), a...)
+	log.Info().Msgf(fmt.Sprintf("[Profiler] %s", format), a...)
+}
+
+func Debug(msg string) {
+	log.Debug().Msg(msg)
 }
 
 func Debugf(format string, a ...interface{}) {
-	klog.V(5).Infof(fmt.Sprintf("[Debug] %s", format), a...)
+	log.Debug().Msgf(format, a...)
+}
+
+func Fatalf(format string, a ...interface{}) {
+	log.Fatal().Msgf(format, a...)
 }
 
 func Profile(start time.Time, name string) {

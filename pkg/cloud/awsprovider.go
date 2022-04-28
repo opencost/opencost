@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -15,8 +14,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"k8s.io/klog"
 
 	"github.com/kubecost/cost-model/pkg/clustercache"
 	"github.com/kubecost/cost-model/pkg/env"
@@ -56,23 +53,32 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 	sources := make(map[string]*PricingSource)
 
 	sps := &PricingSource{
-		Name: SpotPricingSource,
+		Name:    SpotPricingSource,
+		Enabled: true,
 	}
-	sps.Error = ""
-	if aws.SpotPricingError != nil {
-		sps.Error = aws.SpotPricingError.Error()
-	}
-	if sps.Error != "" {
+
+	if !aws.SpotRefreshEnabled() {
 		sps.Available = false
-	} else if len(aws.SpotPricingByInstanceID) > 0 {
-		sps.Available = true
+		sps.Error = "Spot instances not set up"
+		sps.Enabled = false
 	} else {
-		sps.Error = "No spot instances detected"
+		sps.Error = ""
+		if aws.SpotPricingError != nil {
+			sps.Error = aws.SpotPricingError.Error()
+		}
+		if sps.Error != "" {
+			sps.Available = false
+		} else if len(aws.SpotPricingByInstanceID) > 0 {
+			sps.Available = true
+		} else {
+			sps.Error = "No spot instances detected"
+		}
 	}
 	sources[SpotPricingSource] = sps
 
 	rps := &PricingSource{
-		Name: ReservedInstancePricingSource,
+		Name:    ReservedInstancePricingSource,
+		Enabled: true,
 	}
 	rps.Error = ""
 	if aws.RIPricingError != nil {
@@ -394,6 +400,7 @@ type AwsAthenaInfo struct {
 	AthenaRegion     string `json:"athenaRegion"`
 	AthenaDatabase   string `json:"athenaDatabase"`
 	AthenaTable      string `json:"athenaTable"`
+	AthenaWorkgroup  string `json:"athenaWorkgroup"`
 	ServiceKeyName   string `json:"serviceKeyName"`
 	ServiceKeySecret string `json:"serviceKeySecret"`
 	AccountID        string `json:"projectID"`
@@ -406,6 +413,7 @@ func (aai *AwsAthenaInfo) IsEmpty() bool {
 		aai.AthenaRegion == "" &&
 		aai.AthenaDatabase == "" &&
 		aai.AthenaTable == "" &&
+		aai.AthenaWorkgroup == "" &&
 		aai.ServiceKeyName == "" &&
 		aai.ServiceKeySecret == "" &&
 		aai.AccountID == "" &&
@@ -505,6 +513,7 @@ func (aws *AWS) GetAWSAthenaInfo() (*AwsAthenaInfo, error) {
 		AthenaRegion:     config.AthenaRegion,
 		AthenaDatabase:   config.AthenaDatabase,
 		AthenaTable:      config.AthenaTable,
+		AthenaWorkgroup:  config.AthenaWorkgroup,
 		ServiceKeyName:   aak.AccessKeyID,
 		ServiceKeySecret: aak.SecretAccessKey,
 		AccountID:        config.AthenaProjectID,
@@ -546,6 +555,7 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 			c.AthenaRegion = aai.AthenaRegion
 			c.AthenaDatabase = aai.AthenaDatabase
 			c.AthenaTable = aai.AthenaTable
+			c.AthenaWorkgroup = aai.AthenaWorkgroup
 			c.ServiceKeyName = aai.ServiceKeyName
 			if aai.ServiceKeySecret != "" {
 				c.ServiceKeySecret = aai.ServiceKeySecret
@@ -602,7 +612,7 @@ func (k *awsKey) ID() string {
 			return group
 		}
 	}
-	klog.V(3).Infof("Could not find instance ID in \"%s\"", k.ProviderID)
+	log.Warnf("Could not find instance ID in \"%s\"", k.ProviderID)
 	return ""
 }
 
@@ -627,7 +637,7 @@ func (k *awsKey) Features() string {
 func (aws *AWS) PVPricing(pvk PVKey) (*PV, error) {
 	pricing, ok := aws.Pricing[pvk.Features()]
 	if !ok {
-		klog.V(4).Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
+		log.Debugf("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
 		return &PV{}, nil
 	}
 	return pricing.PV, nil
@@ -681,7 +691,7 @@ func (key *awsPVKey) Features() string {
 	}
 	class, ok := volTypes[storageClass]
 	if !ok {
-		klog.V(4).Infof("No voltype mapping for %s's storageClass: %s", key.Name, storageClass)
+		log.Debugf("No voltype mapping for %s's storageClass: %s", key.Name, storageClass)
 	}
 	return region + "," + class
 }
@@ -742,13 +752,19 @@ func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, e
 
 	pricingURL += "index.json"
 
-	klog.V(2).Infof("starting download of \"%s\", which is quite large ...", pricingURL)
+	log.Infof("starting download of \"%s\", which is quite large ...", pricingURL)
 	resp, err := http.Get(pricingURL)
 	if err != nil {
-		klog.V(2).Infof("Bogus fetch of \"%s\": %v", pricingURL, err)
+		log.Errorf("Bogus fetch of \"%s\": %v", pricingURL, err)
 		return nil, pricingURL, err
 	}
 	return resp, pricingURL, err
+}
+
+// SpotRefreshEnabled determines whether the required configs to run the spot feed query have been set up
+func (aws *AWS) SpotRefreshEnabled() bool {
+	// Need a valid value for at least one of these fields to consider spot pricing as enabled
+	return len(aws.SpotDataBucket) != 0 || len(aws.SpotDataRegion) != 0 || len(aws.ProjectID) != 0
 }
 
 // DownloadPricingData fetches data from the AWS Pricing API
@@ -757,7 +773,7 @@ func (aws *AWS) DownloadPricingData() error {
 	defer aws.DownloadPricingDataLock.Unlock()
 	c, err := aws.Config.GetCustomPricingData()
 	if err != nil {
-		klog.V(1).Infof("Error downloading default pricing data: %s", err.Error())
+		log.Errorf("Error downloading default pricing data: %s", err.Error())
 	}
 	aws.BaseCPUPrice = c.CPU
 	aws.BaseRAMPrice = c.RAM
@@ -775,7 +791,7 @@ func (aws *AWS) DownloadPricingData() error {
 	aws.ConfigureAuthWith(c) // load aws authentication from configuration or secret
 
 	if len(aws.SpotDataBucket) != 0 && len(aws.ProjectID) == 0 {
-		klog.V(1).Infof("using SpotDataBucket \"%s\" without ProjectID will not end well", aws.SpotDataBucket)
+		log.Warnf("using SpotDataBucket \"%s\" without ProjectID will not end well", aws.SpotDataBucket)
 	}
 	nodeList := aws.Clientset.GetAllNodes()
 
@@ -810,7 +826,7 @@ func (aws *AWS) DownloadPricingData() error {
 	for _, pv := range pvList {
 		params, ok := storageClassMap[pv.Spec.StorageClassName]
 		if !ok {
-			klog.V(2).Infof("Unable to find params for storageClassName %s, falling back to default pricing", pv.Spec.StorageClassName)
+			log.Infof("Unable to find params for storageClassName %s, falling back to default pricing", pv.Spec.StorageClassName)
 			continue
 		}
 		key := aws.GetPVKey(pv, params, "")
@@ -822,18 +838,18 @@ func (aws *AWS) DownloadPricingData() error {
 	if !aws.RIDataRunning {
 		err = aws.GetReservationDataFromAthena() // Block until one run has completed.
 		if err != nil {
-			klog.V(1).Infof("Failed to lookup reserved instance data: %s", err.Error())
+			log.Errorf("Failed to lookup reserved instance data: %s", err.Error())
 		} else { // If we make one successful run, check on new reservation data every hour
 			go func() {
 				defer errors.HandlePanic()
 				aws.RIDataRunning = true
 
 				for {
-					klog.Infof("Reserved Instance watcher running... next update in 1h")
+					log.Infof("Reserved Instance watcher running... next update in 1h")
 					time.Sleep(time.Hour)
 					err := aws.GetReservationDataFromAthena()
 					if err != nil {
-						klog.Infof("Error updating RI data: %s", err.Error())
+						log.Infof("Error updating RI data: %s", err.Error())
 					}
 				}
 			}()
@@ -842,17 +858,17 @@ func (aws *AWS) DownloadPricingData() error {
 	if !aws.SavingsPlanDataRunning {
 		err = aws.GetSavingsPlanDataFromAthena()
 		if err != nil {
-			klog.V(1).Infof("Failed to lookup savings plan data: %s", err.Error())
+			log.Errorf("Failed to lookup savings plan data: %s", err.Error())
 		} else {
 			go func() {
 				defer errors.HandlePanic()
 				aws.SavingsPlanDataRunning = true
 				for {
-					klog.Infof("Savings Plan watcher running... next update in 1h")
+					log.Infof("Savings Plan watcher running... next update in 1h")
 					time.Sleep(time.Hour)
 					err := aws.GetSavingsPlanDataFromAthena()
 					if err != nil {
-						klog.Infof("Error updating Savings Plan data: %s", err.Error())
+						log.Infof("Error updating Savings Plan data: %s", err.Error())
 					}
 				}
 			}()
@@ -871,10 +887,10 @@ func (aws *AWS) DownloadPricingData() error {
 	for {
 		t, err := dec.Token()
 		if err == io.EOF {
-			klog.V(2).Infof("done loading \"%s\"\n", pricingURL)
+			log.Infof("done loading \"%s\"\n", pricingURL)
 			break
 		} else if err != nil {
-			klog.V(2).Infof("error parsing response json %v", resp.Body)
+			log.Errorf("error parsing response json %v", resp.Body)
 			break
 		}
 		if t == "products" {
@@ -891,7 +907,7 @@ func (aws *AWS) DownloadPricingData() error {
 
 				err = dec.Decode(&product)
 				if err != nil {
-					klog.V(1).Infof("Error parsing response from \"%s\": %v", pricingURL, err.Error())
+					log.Errorf("Error parsing response from \"%s\": %v", pricingURL, err.Error())
 					break
 				}
 
@@ -968,7 +984,7 @@ func (aws *AWS) DownloadPricingData() error {
 					offerTerm := &AWSOfferTerm{}
 					err = dec.Decode(&offerTerm)
 					if err != nil {
-						klog.V(1).Infof("Error decoding AWS Offer Term: " + err.Error())
+						log.Errorf("Error decoding AWS Offer Term: " + err.Error())
 					}
 
 					key, ok := skusToKeys[sku.(string)]
@@ -1009,7 +1025,11 @@ func (aws *AWS) DownloadPricingData() error {
 			}
 		}
 	}
-	klog.V(2).Infof("Finished downloading \"%s\"", pricingURL)
+	log.Infof("Finished downloading \"%s\"", pricingURL)
+
+	if !aws.SpotRefreshEnabled() {
+		return nil
+	}
 
 	// Always run spot pricing refresh when performing download
 	aws.refreshSpotPricing(true)
@@ -1022,7 +1042,7 @@ func (aws *AWS) DownloadPricingData() error {
 			defer errors.HandlePanic()
 
 			for {
-				klog.Infof("Spot Pricing Refresh scheduled in %.2f minutes.", SpotRefreshDuration.Minutes())
+				log.Infof("Spot Pricing Refresh scheduled in %.2f minutes.", SpotRefreshDuration.Minutes())
 				time.Sleep(SpotRefreshDuration)
 
 				// Reoccurring refresh checks update times
@@ -1048,7 +1068,7 @@ func (aws *AWS) refreshSpotPricing(force bool) {
 
 	sp, err := aws.parseSpotData(aws.SpotDataBucket, aws.SpotDataPrefix, aws.ProjectID, aws.SpotDataRegion)
 	if err != nil {
-		klog.V(1).Infof("Skipping AWS spot data download: %s", err.Error())
+		log.Warnf("Skipping AWS spot data download: %s", err.Error())
 		aws.SpotPricingError = err
 		return
 	}
@@ -1145,7 +1165,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 		if len(arr) == 2 {
 			spotcost = arr[0]
 		} else {
-			klog.V(2).Infof("Spot data for node %s is missing", k.ID())
+			log.Infof("Spot data for node %s is missing", k.ID())
 		}
 		return &Node{
 			Cost:         spotcost,
@@ -1301,11 +1321,11 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 
 	maybeClusterId := env.GetAWSClusterID()
 	if len(maybeClusterId) != 0 {
-		klog.V(2).Infof("Returning \"%s\" as ClusterName", maybeClusterId)
+		log.Infof("Returning \"%s\" as ClusterName", maybeClusterId)
 		return makeStructure(maybeClusterId)
 	}
 
-	klog.V(2).Infof("Unable to sniff out cluster ID, perhaps set $%s to force one", env.AWSClusterIDEnvVar)
+	log.Infof("Unable to sniff out cluster ID, perhaps set $%s to force one", env.AWSClusterIDEnvVar)
 	return makeStructure(defaultClusterName)
 }
 
@@ -1313,7 +1333,7 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 func (aws *AWS) ConfigureAuth() error {
 	c, err := aws.Config.GetCustomPricingData()
 	if err != nil {
-		klog.V(1).Infof("Error downloading default pricing data: %s", err.Error())
+		log.Errorf("Error downloading default pricing data: %s", err.Error())
 	}
 	return aws.ConfigureAuthWith(c)
 }
@@ -1596,6 +1616,11 @@ func (aws *AWS) QueryAthenaPaginated(ctx context.Context, query string, fn func(
 		ResultConfiguration:   resultConfiguration,
 	}
 
+	// Only set if there is a value, the default input is nil which defaults to the 'primary' workgroup
+	if awsAthenaInfo.AthenaWorkgroup != "" {
+		startQueryExecutionInput.WorkGroup = awsSDK.String(awsAthenaInfo.AthenaWorkgroup)
+	}
+
 	// Create Athena Client
 	cfg, err := awsAthenaInfo.CreateConfig()
 	if err != nil {
@@ -1712,7 +1737,7 @@ func (aws *AWS) GetSavingsPlanDataFromAthena() error {
 			}
 			cost, err := strconv.ParseFloat(*r.Data[3].VarCharValue, 64)
 			if err != nil {
-				klog.Infof("Error converting `%s` from float ", *r.Data[3].VarCharValue)
+				log.Infof("Error converting `%s` from float ", *r.Data[3].VarCharValue)
 			}
 			r := &SavingsPlanData{
 				ResourceID:     *r.Data[2].VarCharValue,
@@ -1722,7 +1747,7 @@ func (aws *AWS) GetSavingsPlanDataFromAthena() error {
 			}
 			aws.SavingsPlanDataByInstanceID[r.ResourceID] = r
 		}
-		klog.V(1).Infof("Found %d savings plan applied instances", len(aws.SavingsPlanDataByInstanceID))
+		log.Debugf("Found %d savings plan applied instances", len(aws.SavingsPlanDataByInstanceID))
 		for k, r := range aws.SavingsPlanDataByInstanceID {
 			log.DedupedInfof(5, "Savings Plan Instance Data found for node %s : %f at time %s", k, r.EffectiveCost, r.MostRecentDate)
 		}
@@ -1732,7 +1757,7 @@ func (aws *AWS) GetSavingsPlanDataFromAthena() error {
 
 	query := fmt.Sprintf(q, cfg.AthenaTable, start, end)
 
-	klog.V(3).Infof("Running Query: %s", query)
+	log.Debugf("Running Query: %s", query)
 
 	err = aws.QueryAthenaPaginated(context.TODO(), query, processResults)
 	if err != nil {
@@ -1814,7 +1839,7 @@ func (aws *AWS) GetReservationDataFromAthena() error {
 			}
 			cost, err := strconv.ParseFloat(*r.Data[3].VarCharValue, 64)
 			if err != nil {
-				klog.Infof("Error converting `%s` from float ", *r.Data[3].VarCharValue)
+				log.Infof("Error converting `%s` from float ", *r.Data[3].VarCharValue)
 			}
 			r := &RIData{
 				ResourceID:     *r.Data[2].VarCharValue,
@@ -1824,7 +1849,7 @@ func (aws *AWS) GetReservationDataFromAthena() error {
 			}
 			aws.RIPricingByInstanceID[r.ResourceID] = r
 		}
-		klog.V(1).Infof("Found %d reserved instances", len(aws.RIPricingByInstanceID))
+		log.Debugf("Found %d reserved instances", len(aws.RIPricingByInstanceID))
 		for k, r := range aws.RIPricingByInstanceID {
 			log.DedupedInfof(5, "Reserved Instance Data found for node %s : %f at time %s", k, r.EffectiveCost, r.MostRecentDate)
 		}
@@ -1834,7 +1859,7 @@ func (aws *AWS) GetReservationDataFromAthena() error {
 
 	query := fmt.Sprintf(q, cfg.AthenaTable, start, end)
 
-	klog.V(3).Infof("Running Query: %s", query)
+	log.Debugf("Running Query: %s", query)
 
 	err = aws.QueryAthenaPaginated(context.TODO(), query, processResults)
 	if err != nil {
@@ -1945,18 +1970,18 @@ func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, re
 		})
 	}
 	lsoLen := len(lso.Contents)
-	klog.V(2).Infof("Found %d spot data files from yesterday", lsoLen)
+	log.Debugf("Found %d spot data files from yesterday", lsoLen)
 	if lsoLen == 0 {
-		klog.V(5).Infof("ListObjects \"s3://%s/%s\" produced no keys", *ls.Bucket, *ls.Prefix)
+		log.Debugf("ListObjects \"s3://%s/%s\" produced no keys", *ls.Bucket, *ls.Prefix)
 	}
 	lso2, err := cli.ListObjects(context.TODO(), ls2)
 	if err != nil {
 		return nil, err
 	}
 	lso2Len := len(lso2.Contents)
-	klog.V(2).Infof("Found %d spot data files from today", lso2Len)
+	log.Debugf("Found %d spot data files from today", lso2Len)
 	if lso2Len == 0 {
-		klog.V(5).Infof("ListObjects \"s3://%s/%s\" produced no keys", *ls2.Bucket, *ls2.Prefix)
+		log.Debugf("ListObjects \"s3://%s/%s\" produced no keys", *ls2.Bucket, *ls2.Prefix)
 	}
 
 	// TODO: Worth it to use LastModifiedDate to determine if we should reparse the spot data?
@@ -2028,17 +2053,17 @@ func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, re
 				// the first of which is "#Version"
 				// the second of which is "#Fields: "
 				if len(rec) != 1 {
-					klog.V(2).Infof("Expected %d spot info fields but received %d: %s", fieldsPerRecord, len(rec), rec)
+					log.Infof("Expected %d spot info fields but received %d: %s", fieldsPerRecord, len(rec), rec)
 					continue
 				}
 				if len(foundVersion) == 0 {
 					spotFeedVersion := rec[0]
-					klog.V(4).Infof("Spot feed version is \"%s\"", spotFeedVersion)
+					log.Debugf("Spot feed version is \"%s\"", spotFeedVersion)
 					matches := versionRx.FindStringSubmatch(spotFeedVersion)
 					if matches != nil {
 						foundVersion = matches[1]
 						if foundVersion != supportedSpotFeedVersion {
-							klog.V(2).Infof("Unsupported spot info feed version: wanted \"%s\" got \"%s\"", supportedSpotFeedVersion, foundVersion)
+							log.Infof("Unsupported spot info feed version: wanted \"%s\" got \"%s\"", supportedSpotFeedVersion, foundVersion)
 							break
 						}
 					}
@@ -2046,11 +2071,11 @@ func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, re
 				} else if strings.Index(rec[0], "#") == 0 {
 					continue
 				} else {
-					klog.V(3).Infof("skipping non-TSV line: %s", rec)
+					log.Infof("skipping non-TSV line: %s", rec)
 					continue
 				}
 			} else if err != nil {
-				klog.V(2).Infof("Error during spot info decode: %+v", err)
+				log.Warnf("Error during spot info decode: %+v", err)
 				continue
 			}
 

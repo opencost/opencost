@@ -246,7 +246,7 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, labelConfig *L
 // Valid values of `aggregateBy` elements are strings which are an `AssetProperty`, and strings prefixed
 // with `"label:"`.
 func key(a Asset, aggregateBy []string) (string, error) {
-	keys := []string{}
+	var buffer strings.Builder
 
 	if aggregateBy == nil {
 		aggregateBy = []string{
@@ -262,7 +262,7 @@ func key(a Asset, aggregateBy []string) (string, error) {
 		}
 	}
 
-	for _, s := range aggregateBy {
+	for i, s := range aggregateBy {
 		key := ""
 		switch true {
 		case s == string(AssetProviderProp):
@@ -300,12 +300,15 @@ func key(a Asset, aggregateBy []string) (string, error) {
 		}
 
 		if key != "" {
-			keys = append(keys, key)
+			buffer.WriteString(key)
 		} else {
-			keys = append(keys, UndefinedKey)
+			buffer.WriteString(UndefinedKey)
+		}
+		if i != (len(aggregateBy) - 1) {
+			buffer.WriteString("/")
 		}
 	}
-	return strings.Join(keys, "/"), nil
+	return buffer.String(), nil
 }
 
 func toString(a Asset) string {
@@ -353,6 +356,23 @@ func (al AssetLabels) Merge(that AssetLabels) AssetLabels {
 	}
 
 	return result
+}
+
+// Append joins AssetLabels with a given map of labels
+func (al AssetLabels) Append(newLabels map[string]string, overwrite bool) {
+	if len(newLabels) == 0 {
+		return
+	}
+
+	for label, value := range newLabels {
+		if _, ok := al[label]; ok {
+			if overwrite {
+				al[label] = value
+			}
+		} else {
+			al[label] = value
+		}
+	}
 }
 
 // AssetMatchFunc is a function that can be used to match Assets by
@@ -516,13 +536,13 @@ func (a *Any) SetStartEnd(start, end time.Time) {
 	if a.Window().Contains(start) {
 		a.start = start
 	} else {
-		log.Warningf("Any.SetStartEnd: start %s not in %s", start, a.Window())
+		log.Warnf("Any.SetStartEnd: start %s not in %s", start, a.Window())
 	}
 
 	if a.Window().Contains(end) {
 		a.end = end
 	} else {
-		log.Warningf("Any.SetStartEnd: end %s not in %s", end, a.Window())
+		log.Warnf("Any.SetStartEnd: end %s not in %s", end, a.Window())
 	}
 }
 
@@ -702,13 +722,13 @@ func (ca *Cloud) SetStartEnd(start, end time.Time) {
 	if ca.Window().Contains(start) {
 		ca.start = start
 	} else {
-		log.Warningf("Cloud.SetStartEnd: start %s not in %s", start, ca.Window())
+		log.Warnf("Cloud.SetStartEnd: start %s not in %s", start, ca.Window())
 	}
 
 	if ca.Window().Contains(end) {
 		ca.end = end
 	} else {
-		log.Warningf("Cloud.SetStartEnd: end %s not in %s", end, ca.Window())
+		log.Warnf("Cloud.SetStartEnd: end %s not in %s", end, ca.Window())
 	}
 }
 
@@ -1104,7 +1124,7 @@ func (d *Disk) Minutes() float64 {
 	windowMins := d.window.Minutes()
 
 	if diskMins > windowMins {
-		log.Warningf("Asset ETL: Disk.Minutes exceeds window: %.2f > %.2f", diskMins, windowMins)
+		log.Warnf("Asset ETL: Disk.Minutes exceeds window: %.2f > %.2f", diskMins, windowMins)
 		diskMins = windowMins
 	}
 
@@ -1130,13 +1150,13 @@ func (d *Disk) SetStartEnd(start, end time.Time) {
 	if d.Window().Contains(start) {
 		d.start = start
 	} else {
-		log.Warningf("Disk.SetStartEnd: start %s not in %s", start, d.Window())
+		log.Warnf("Disk.SetStartEnd: start %s not in %s", start, d.Window())
 	}
 
 	if d.Window().Contains(end) {
 		d.end = end
 	} else {
-		log.Warningf("Disk.SetStartEnd: end %s not in %s", end, d.Window())
+		log.Warnf("Disk.SetStartEnd: end %s not in %s", end, d.Window())
 	}
 }
 
@@ -1425,7 +1445,7 @@ func (n *Network) Minutes() float64 {
 	windowMins := n.window.Minutes()
 
 	if netMins > windowMins {
-		log.Warningf("Asset ETL: Network.Minutes exceeds window: %.2f > %.2f", netMins, windowMins)
+		log.Warnf("Asset ETL: Network.Minutes exceeds window: %.2f > %.2f", netMins, windowMins)
 		netMins = windowMins
 	}
 
@@ -1451,13 +1471,13 @@ func (n *Network) SetStartEnd(start, end time.Time) {
 	if n.Window().Contains(start) {
 		n.start = start
 	} else {
-		log.Warningf("Disk.SetStartEnd: start %s not in %s", start, n.Window())
+		log.Warnf("Disk.SetStartEnd: start %s not in %s", start, n.Window())
 	}
 
 	if n.Window().Contains(end) {
 		n.end = end
 	} else {
-		log.Warningf("Disk.SetStartEnd: end %s not in %s", end, n.Window())
+		log.Warnf("Disk.SetStartEnd: end %s not in %s", end, n.Window())
 	}
 }
 
@@ -1677,7 +1697,7 @@ func (n *Node) Minutes() float64 {
 	windowMins := n.window.Minutes()
 
 	if nodeMins > windowMins {
-		log.Warningf("Asset ETL: Node.Minutes exceeds window: %.2f > %.2f", nodeMins, windowMins)
+		log.Warnf("Asset ETL: Node.Minutes exceeds window: %.2f > %.2f", nodeMins, windowMins)
 		nodeMins = windowMins
 	}
 
@@ -1703,13 +1723,13 @@ func (n *Node) SetStartEnd(start, end time.Time) {
 	if n.Window().Contains(start) {
 		n.start = start
 	} else {
-		log.Warningf("Disk.SetStartEnd: start %s not in %s", start, n.Window())
+		log.Warnf("Disk.SetStartEnd: start %s not in %s", start, n.Window())
 	}
 
 	if n.Window().Contains(end) {
 		n.end = end
 	} else {
-		log.Warningf("Disk.SetStartEnd: end %s not in %s", end, n.Window())
+		log.Warnf("Disk.SetStartEnd: end %s not in %s", end, n.Window())
 	}
 }
 
@@ -2075,13 +2095,13 @@ func (lb *LoadBalancer) SetStartEnd(start, end time.Time) {
 	if lb.Window().Contains(start) {
 		lb.start = start
 	} else {
-		log.Warningf("Disk.SetStartEnd: start %s not in %s", start, lb.Window())
+		log.Warnf("Disk.SetStartEnd: start %s not in %s", start, lb.Window())
 	}
 
 	if lb.Window().Contains(end) {
 		lb.end = end
 	} else {
-		log.Warningf("Disk.SetStartEnd: end %s not in %s", end, lb.Window())
+		log.Warnf("Disk.SetStartEnd: end %s not in %s", end, lb.Window())
 	}
 }
 
@@ -2950,6 +2970,21 @@ func (asr *AssetSetRange) InsertRange(that *AssetSetRange) error {
 	return err
 }
 
+// IsEmpty returns false if AssetSetRange contains a single AssetSet that is not empty
+func (asr *AssetSetRange) IsEmpty() bool {
+	if asr == nil || asr.Length() == 0 {
+		return true
+	}
+	asr.RLock()
+	defer asr.RUnlock()
+	for _, asset := range asr.assets {
+		if !asset.IsEmpty() {
+			return false
+		}
+	}
+	return true
+}
+
 func (asr *AssetSetRange) MarshalJSON() ([]byte, error) {
 	asr.RLock()
 	defer asr.RUnlock()
@@ -3052,6 +3087,23 @@ func (asr *AssetSetRange) Minutes() float64 {
 	duration := end.Sub(start)
 
 	return duration.Minutes()
+}
+
+// TotalCost returns the AssetSetRange's total cost
+func (asr *AssetSetRange) TotalCost() float64 {
+	if asr == nil {
+		return 0.0
+	}
+
+	asr.RLock()
+	defer asr.RUnlock()
+
+	tc := 0.0
+	for _, as := range asr.assets {
+		tc += as.TotalCost()
+	}
+
+	return tc
 }
 
 // This is a helper type. The Asset API returns a json which cannot be natively

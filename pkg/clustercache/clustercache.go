@@ -4,7 +4,7 @@ import (
 	"sync"
 
 	"github.com/kubecost/cost-model/pkg/env"
-	"k8s.io/klog"
+	"github.com/kubecost/cost-model/pkg/log"
 
 	appsv1 "k8s.io/api/apps/v1"
 	autoscaling "k8s.io/api/autoscaling/v2beta1"
@@ -111,7 +111,7 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 	pdbClient := client.PolicyV1beta1().RESTClient()
 
 	kubecostNamespace := env.GetKubecostNamespace()
-	klog.Infof("NAMESPACE: %s", kubecostNamespace)
+	log.Infof("NAMESPACE: %s", kubecostNamespace)
 
 	kcc := &KubernetesClusterCache{
 		client:                     client,
@@ -158,7 +158,7 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 
 	wg.Wait()
 
-	klog.Infof("Done waiting")
+	log.Infof("Done waiting")
 
 	return kcc
 }

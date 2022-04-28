@@ -1,15 +1,15 @@
 package cmd
 
 import (
-	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/kubecost/cost-model/pkg/cmd/agent"
 	"github.com/kubecost/cost-model/pkg/cmd/costmodel"
+	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
-	"k8s.io/klog"
+	"github.com/spf13/viper"
 )
 
 const (
@@ -41,12 +41,6 @@ func Execute(costModelCmd *cobra.Command) error {
 
 	rootCmd := newRootCommand(costModelCmd)
 
-	// initialize klog and make cobra aware of all the go flags
-	klog.InitFlags(nil)
-	pflag.CommandLine.AddGoFlag(flag.CommandLine.Lookup("v"))
-	pflag.CommandLine.AddGoFlag(flag.CommandLine.Lookup("logtostderr"))
-	pflag.CommandLine.Set("v", "3")
-
 	// in the event that no directive/command is passed, we want to default to using the cost-model command
 	// cobra doesn't provide a way within the API to do this, so we'll prepend the command if it is omitted.
 	if len(os.Args) > 1 {
@@ -71,11 +65,25 @@ func newRootCommand(costModelCmd *cobra.Command) *cobra.Command {
 		SilenceUsage: true,
 	}
 
+	// Add our persistent flags, these are global and available anywhere
+	cmd.PersistentFlags().String("log-level", "info", "Set the log level")
+	cmd.PersistentFlags().String("log-format", "pretty", "Set the log format - Can be either 'JSON' or 'pretty'")
+
+	viper.BindPFlag("log-level", cmd.PersistentFlags().Lookup("log-level"))
+	viper.BindPFlag("log-format", cmd.PersistentFlags().Lookup("log-format"))
+
+	// Setup viper to read from the env, this allows reading flags from the command line or the env
+	// using the format 'LOG_LEVEL'
+	viper.AutomaticEnv()
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+
 	// add the modes of operation
 	cmd.AddCommand(
 		costModelCmd,
 		newAgentCommand(),
 	)
+
+	log.InitLogging()
 
 	return cmd
 }

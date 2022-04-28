@@ -43,7 +43,7 @@ func buildCPUCostMap(
 	customPricingEnabled := cloud.CustomPricesEnabled(cp)
 	customPricingConfig, err := cp.GetConfig()
 	if err != nil {
-		log.Warningf("ClusterNodes: failed to load custom pricing: %s", err)
+		log.Warnf("ClusterNodes: failed to load custom pricing: %s", err)
 	}
 
 	for _, result := range resNodeCPUCost {
@@ -54,7 +54,7 @@ func buildCPUCostMap(
 
 		name, err := result.GetString("node")
 		if err != nil {
-			log.Warningf("ClusterNodes: CPU cost data missing node")
+			log.Warnf("ClusterNodes: CPU cost data missing node")
 			continue
 		}
 
@@ -84,7 +84,7 @@ func buildCPUCostMap(
 
 			customCPUCost, err := strconv.ParseFloat(customCPUStr, 64)
 			if err != nil {
-				log.Warningf("ClusterNodes: error parsing custom CPU price: %s", customCPUStr)
+				log.Warnf("ClusterNodes: error parsing custom CPU price: %s", customCPUStr)
 			}
 			cpuCost = customCPUCost
 
@@ -117,7 +117,7 @@ func buildRAMCostMap(
 	customPricingEnabled := cloud.CustomPricesEnabled(cp)
 	customPricingConfig, err := cp.GetConfig()
 	if err != nil {
-		log.Warningf("ClusterNodes: failed to load custom pricing: %s", err)
+		log.Warnf("ClusterNodes: failed to load custom pricing: %s", err)
 	}
 
 	for _, result := range resNodeRAMCost {
@@ -128,7 +128,7 @@ func buildRAMCostMap(
 
 		name, err := result.GetString("node")
 		if err != nil {
-			log.Warningf("ClusterNodes: RAM cost data missing node")
+			log.Warnf("ClusterNodes: RAM cost data missing node")
 			continue
 		}
 
@@ -158,7 +158,7 @@ func buildRAMCostMap(
 
 			customRAMCost, err := strconv.ParseFloat(customRAMStr, 64)
 			if err != nil {
-				log.Warningf("ClusterNodes: error parsing custom RAM price: %s", customRAMStr)
+				log.Warnf("ClusterNodes: error parsing custom RAM price: %s", customRAMStr)
 			}
 			ramCost = customRAMCost / 1024 / 1024 / 1024
 
@@ -192,7 +192,7 @@ func buildGPUCostMap(
 	customPricingEnabled := cloud.CustomPricesEnabled(cp)
 	customPricingConfig, err := cp.GetConfig()
 	if err != nil {
-		log.Warningf("ClusterNodes: failed to load custom pricing: %s", err)
+		log.Warnf("ClusterNodes: failed to load custom pricing: %s", err)
 	}
 
 	for _, result := range resNodeGPUCost {
@@ -203,7 +203,7 @@ func buildGPUCostMap(
 
 		name, err := result.GetString("node")
 		if err != nil {
-			log.Warningf("ClusterNodes: GPU cost data missing node")
+			log.Warnf("ClusterNodes: GPU cost data missing node")
 			continue
 		}
 
@@ -233,7 +233,7 @@ func buildGPUCostMap(
 
 			customGPUCost, err := strconv.ParseFloat(customGPUStr, 64)
 			if err != nil {
-				log.Warningf("ClusterNodes: error parsing custom GPU price: %s", customGPUStr)
+				log.Warnf("ClusterNodes: error parsing custom GPU price: %s", customGPUStr)
 			}
 			gpuCost = customGPUCost
 
@@ -271,7 +271,7 @@ func buildGPUCountMap(
 
 		name, err := result.GetString("node")
 		if err != nil {
-			log.Warningf("ClusterNodes: GPU count data missing node")
+			log.Warnf("ClusterNodes: GPU count data missing node")
 			continue
 		}
 
@@ -303,7 +303,7 @@ func buildCPUCoresMap(
 
 		name, err := result.GetString("node")
 		if err != nil {
-			log.Warningf("ClusterNodes: CPU cores data missing node")
+			log.Warnf("ClusterNodes: CPU cores data missing node")
 			continue
 		}
 
@@ -331,7 +331,7 @@ func buildRAMBytesMap(resNodeRAMBytes []*prom.QueryResult) map[nodeIdentifierNoP
 
 		name, err := result.GetString("node")
 		if err != nil {
-			log.Warningf("ClusterNodes: RAM bytes data missing node")
+			log.Warnf("ClusterNodes: RAM bytes data missing node")
 			continue
 		}
 
@@ -373,7 +373,7 @@ func buildCPUBreakdownMap(resNodeCPUModeTotal []*prom.QueryResult) map[nodeIdent
 
 		mode, err := result.GetString("mode")
 		if err != nil {
-			log.Warningf("ClusterNodes: unable to read CPU mode: %s", err)
+			log.Warnf("ClusterNodes: unable to read CPU mode: %s", err)
 			mode = "other"
 		}
 
@@ -437,7 +437,7 @@ func buildRAMUserPctMap(resNodeRAMUserPct []*prom.QueryResult) map[nodeIdentifie
 
 		name, err := result.GetString("instance")
 		if err != nil {
-			log.Warningf("ClusterNodes: RAM user percent missing node")
+			log.Warnf("ClusterNodes: RAM user percent missing node")
 			continue
 		}
 
@@ -466,7 +466,7 @@ func buildRAMSystemPctMap(resNodeRAMSystemPct []*prom.QueryResult) map[nodeIdent
 
 		name, err := result.GetString("instance")
 		if err != nil {
-			log.Warningf("ClusterNodes: RAM system percent missing node")
+			log.Warnf("ClusterNodes: RAM system percent missing node")
 			continue
 		}
 
@@ -501,7 +501,7 @@ func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Durat
 
 		name, err := result.GetString("node")
 		if err != nil {
-			log.Warningf("ClusterNodes: active mins missing node")
+			log.Warnf("ClusterNodes: active mins missing node")
 			continue
 		}
 
@@ -518,7 +518,7 @@ func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Durat
 		}
 
 		s := time.Unix(int64(result.Values[0].Timestamp), 0)
-		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0).Add(resolution)
+		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
 		mins := e.Sub(s).Minutes()
 
 		// TODO niko/assets if mins >= threshold, interpolate for missing data?
@@ -625,7 +625,7 @@ func checkForKeyAndInitIfMissing(
 		}]; ok {
 			nodeType = t
 		} else {
-			log.Warningf("ClusterNodes: Type does not exist for node identifier %s", key)
+			log.Warnf("ClusterNodes: Type does not exist for node identifier %s", key)
 		}
 
 		nodeMap[key] = &Node{
@@ -705,6 +705,7 @@ func buildNodeMap(
 	preemptibleMap map[NodeIdentifier]bool,
 	labelsMap map[nodeIdentifierNoProviderID]map[string]string,
 	clusterAndNameToType map[nodeIdentifierNoProviderID]string,
+	res time.Duration,
 ) map[NodeIdentifier]*Node {
 
 	nodeMap := make(map[NodeIdentifier]*Node)
@@ -740,7 +741,7 @@ func buildNodeMap(
 		checkForKeyAndInitIfMissing(nodeMap, id, clusterAndNameToType)
 		nodeMap[id].Start = activeData.start
 		nodeMap[id].End = activeData.end
-		nodeMap[id].Minutes = activeData.minutes
+		nodeMap[id].Minutes = nodeMap[id].End.Sub(nodeMap[id].Start).Minutes()
 	}
 
 	// We now merge in data that doesn't have a provider id by looping over
