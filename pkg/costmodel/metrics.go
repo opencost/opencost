@@ -22,8 +22,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	v1 "k8s.io/api/core/v1"
-
-	"k8s.io/klog"
 )
 
 //--------------------------------------------------------------------------
@@ -426,7 +424,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 		}
 
 		for {
-			klog.V(4).Info("Recording prices...")
+			log.Debugf("Recording prices...")
 			podlist := cmme.KubeClusterCache.GetAllPods()
 			podStatus := make(map[string]v1.PodPhase)
 			for _, pod := range podlist {
@@ -437,14 +435,14 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 			provisioner, clusterManagementCost, err := cmme.CloudProvider.ClusterManagementPricing()
 			if err != nil {
-				klog.V(1).Infof("Error getting cluster management cost %s", err.Error())
+				log.Errorf("Error getting cluster management cost %s", err.Error())
 			}
 			cmme.ClusterManagementCostRecorder.WithLabelValues(provisioner).Set(clusterManagementCost)
 
 			// Record network pricing at global scope
 			networkCosts, err := cmme.CloudProvider.NetworkPricing()
 			if err != nil {
-				klog.V(4).Infof("Failed to retrieve network costs: %s", err.Error())
+				log.Debugf("Failed to retrieve network costs: %s", err.Error())
 			} else {
 				cmme.NetworkZoneEgressRecorder.Set(networkCosts.ZoneNetworkEgressCost)
 				cmme.NetworkRegionEgressRecorder.Set(networkCosts.RegionNetworkEgressCost)
@@ -471,7 +469,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			// TODO: Pass CloudProvider into CostModel on instantiation so this isn't so awkward
 			nodes, err := cmme.Model.GetNodeCost(cmme.CloudProvider)
 			if err != nil {
-				log.Warningf("Metric emission: error getting Node cost: %s", err)
+				log.Warnf("Metric emission: error getting Node cost: %s", err)
 			}
 			for nodeName, node := range nodes {
 				// Emit costs, guarding against NaN inputs for custom pricing.
@@ -540,14 +538,14 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					avgCosts.CpuCostAverage = (avgCosts.CpuCostAverage*avgCosts.NumCpuDataPoints + cpuCost) / (avgCosts.NumCpuDataPoints + 1)
 					avgCosts.NumCpuDataPoints += 1
 				} else {
-					log.Warningf("CPU cost outlier detected; skipping data point.")
+					log.Warnf("CPU cost outlier detected; skipping data point.")
 				}
 				if ramCost < outlierFactor*avgCosts.RamCostAverage {
 					cmme.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(ramCost)
 					avgCosts.RamCostAverage = (avgCosts.RamCostAverage*avgCosts.NumRamDataPoints + ramCost) / (avgCosts.NumRamDataPoints + 1)
 					avgCosts.NumRamDataPoints += 1
 				} else {
-					log.Warningf("RAM cost outlier detected; skipping data point.")
+					log.Warnf("RAM cost outlier detected; skipping data point.")
 				}
 				// skip redording totalCost if any constituent costs were outliers
 				if cpuCost < outlierFactor*avgCosts.CpuCostAverage &&
@@ -568,7 +566,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			// TODO: Pass CloudProvider into CostModel on instantiation so this isn't so awkward
 			loadBalancers, err := cmme.Model.GetLBCost(cmme.CloudProvider)
 			if err != nil {
-				log.Warningf("Metric emission: error getting LoadBalancer cost: %s", err)
+				log.Warnf("Metric emission: error getting LoadBalancer cost: %s", err)
 			}
 			for lbKey, lb := range loadBalancers {
 				// TODO: parse (if necessary) and calculate cost associated with loadBalancer based on dynamic cloud prices fetched into each lb struct on GetLBCost() call
@@ -644,7 +642,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 				parameters, ok := storageClassMap[pv.Spec.StorageClassName]
 				if !ok {
-					klog.V(4).Infof("Unable to find parameters for storage class \"%s\". Does pv \"%s\" have a storageClassName?", pv.Spec.StorageClassName, pv.Name)
+					log.Debugf("Unable to find parameters for storage class \"%s\". Does pv \"%s\" have a storageClassName?", pv.Spec.StorageClassName, pv.Name)
 				}
 				var region string
 				if r, ok := util.GetRegion(pv.Labels); ok {
@@ -668,43 +666,43 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 
 			for labelString, seen := range nodeSeen {
 				if !seen {
-					klog.V(4).Infof("Removing %s from nodes", labelString)
+					log.Debugf("Removing %s from nodes", labelString)
 					labels := getLabelStringsFromKey(labelString)
 					ok := cmme.NodeTotalPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
-						klog.V(4).Infof("removed %s from totalprice", labelString)
+						log.Debugf("removed %s from totalprice", labelString)
 					} else {
-						klog.Infof("FAILURE TO REMOVE %s from totalprice", labelString)
+						log.Infof("FAILURE TO REMOVE %s from totalprice", labelString)
 					}
 					ok = cmme.NodeSpotRecorder.DeleteLabelValues(labels...)
 					if ok {
-						klog.V(4).Infof("removed %s from spot records", labelString)
+						log.Debugf("removed %s from spot records", labelString)
 					} else {
-						klog.Infof("FAILURE TO REMOVE %s from spot records", labelString)
+						log.Infof("FAILURE TO REMOVE %s from spot records", labelString)
 					}
 					ok = cmme.CPUPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
-						klog.V(4).Infof("removed %s from cpuprice", labelString)
+						log.Debugf("removed %s from cpuprice", labelString)
 					} else {
-						klog.Infof("FAILURE TO REMOVE %s from cpuprice", labelString)
+						log.Infof("FAILURE TO REMOVE %s from cpuprice", labelString)
 					}
 					ok = cmme.GPUPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
-						klog.V(4).Infof("removed %s from gpuprice", labelString)
+						log.Debugf("removed %s from gpuprice", labelString)
 					} else {
-						klog.Infof("FAILURE TO REMOVE %s from gpuprice", labelString)
+						log.Infof("FAILURE TO REMOVE %s from gpuprice", labelString)
 					}
 					ok = cmme.GPUCountRecorder.DeleteLabelValues(labels...)
 					if ok {
-						klog.V(4).Infof("removed %s from gpucount", labelString)
+						log.Debugf("removed %s from gpucount", labelString)
 					} else {
-						klog.Infof("FAILURE TO REMOVE %s from gpucount", labelString)
+						log.Infof("FAILURE TO REMOVE %s from gpucount", labelString)
 					}
 					ok = cmme.RAMPriceRecorder.DeleteLabelValues(labels...)
 					if ok {
-						klog.V(4).Infof("removed %s from ramprice", labelString)
+						log.Debugf("removed %s from ramprice", labelString)
 					} else {
-						klog.Infof("FAILURE TO REMOVE %s from ramprice", labelString)
+						log.Infof("FAILURE TO REMOVE %s from ramprice", labelString)
 					}
 					delete(nodeSeen, labelString)
 					delete(nodeCostAverages, labelString)
@@ -717,7 +715,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					labels := getLabelStringsFromKey(labelString)
 					ok := cmme.LBCostRecorder.DeleteLabelValues(labels...)
 					if !ok {
-						log.Warningf("Metric emission: failed to delete LoadBalancer with labels: %v", labels)
+						log.Warnf("Metric emission: failed to delete LoadBalancer with labels: %v", labels)
 					}
 					delete(loadBalancerSeen, labelString)
 				} else {

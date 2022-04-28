@@ -13,8 +13,6 @@ import (
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/util/json"
 	"github.com/microcosm-cc/bluemonday"
-
-	"k8s.io/klog"
 )
 
 var sanitizePolicy = bluemonday.UGCPolicy()
@@ -61,7 +59,7 @@ func (pc *ProviderConfig) onConfigFileUpdated(changeType config.ChangeType, data
 		customPricing := new(CustomPricing)
 		err := json.Unmarshal(data, customPricing)
 		if err != nil {
-			klog.Infof("Could not decode Custom Pricing file at path %s. Using default.", pc.configFile.Path())
+			log.Infof("Could not decode Custom Pricing file at path %s. Using default.", pc.configFile.Path())
 			customPricing = DefaultPricing()
 		}
 
@@ -86,13 +84,13 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*CustomPricing, err
 	exists, err := pc.configFile.Exists()
 	// File Error other than NotExists
 	if err != nil {
-		klog.Infof("Custom Pricing file at path '%s' read error: '%s'", pc.configFile.Path(), err.Error())
+		log.Infof("Custom Pricing file at path '%s' read error: '%s'", pc.configFile.Path(), err.Error())
 		return DefaultPricing(), err
 	}
 
 	// File Doesn't Exist
 	if !exists {
-		klog.Infof("Could not find Custom Pricing file at path '%s'", pc.configFile.Path())
+		log.Infof("Could not find Custom Pricing file at path '%s'", pc.configFile.Path())
 		pc.customPricing = DefaultPricing()
 
 		// Only write the file if flag enabled
@@ -104,7 +102,7 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*CustomPricing, err
 
 			err = pc.configFile.Write(cj)
 			if err != nil {
-				klog.Infof("Could not write Custom Pricing file to path '%s'", pc.configFile.Path())
+				log.Infof("Could not write Custom Pricing file to path '%s'", pc.configFile.Path())
 				return pc.customPricing, err
 			}
 		}
@@ -115,7 +113,7 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*CustomPricing, err
 	// File Exists - Read all contents of file, unmarshal json
 	byteValue, err := pc.configFile.Read()
 	if err != nil {
-		klog.Infof("Could not read Custom Pricing file at path %s", pc.configFile.Path())
+		log.Infof("Could not read Custom Pricing file at path %s", pc.configFile.Path())
 		// If read fails, we don't want to cache default, assuming that the file is valid
 		return DefaultPricing(), err
 	}
@@ -123,7 +121,7 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*CustomPricing, err
 	var customPricing CustomPricing
 	err = json.Unmarshal(byteValue, &customPricing)
 	if err != nil {
-		klog.Infof("Could not decode Custom Pricing file at path %s", pc.configFile.Path())
+		log.Infof("Could not decode Custom Pricing file at path %s", pc.configFile.Path())
 		return DefaultPricing(), err
 	}
 

@@ -685,7 +685,7 @@ func (a *Allocation) String() string {
 
 func (a *Allocation) add(that *Allocation) {
 	if a == nil {
-		log.Warningf("Allocation.AggregateBy: trying to add a nil receiver")
+		log.Warnf("Allocation.AggregateBy: trying to add a nil receiver")
 		return
 	}
 
@@ -1033,7 +1033,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	if idleSet.Length() > 0 && options.ShareIdle != ShareNone {
 		idleCoefficients, allocatedTotalsMap, err = computeIdleCoeffs(options, as, shareSet)
 		if err != nil {
-			log.Warningf("AllocationSet.AggregateBy: compute idle coeff: %s", err)
+			log.Warnf("AllocationSet.AggregateBy: compute idle coeff: %s", err)
 			return fmt.Errorf("error computing idle coefficients: %s", err)
 		}
 	}
@@ -1157,11 +1157,11 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 
 				// Make sure idle coefficients exist
 				if _, ok := idleCoefficients[idleId]; !ok {
-					log.Warningf("AllocationSet.AggregateBy: error getting idle coefficient: no idleId '%s' for '%s'", idleId, alloc.Name)
+					log.Warnf("AllocationSet.AggregateBy: error getting idle coefficient: no idleId '%s' for '%s'", idleId, alloc.Name)
 					continue
 				}
 				if _, ok := idleCoefficients[idleId][alloc.Name]; !ok {
-					log.Warningf("AllocationSet.AggregateBy: error getting idle coefficient for '%s'", alloc.Name)
+					log.Warnf("AllocationSet.AggregateBy: error getting idle coefficient for '%s'", alloc.Name)
 					continue
 				}
 
@@ -1213,11 +1213,11 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 
 				// Make sure idle coefficients exist
 				if _, ok := idleCoefficients[idleId]; !ok {
-					log.Warningf("AllocationSet.AggregateBy: error getting idle coefficient: no idleId '%s' for '%s'", idleId, alloc.Name)
+					log.Warnf("AllocationSet.AggregateBy: error getting idle coefficient: no idleId '%s' for '%s'", idleId, alloc.Name)
 					continue
 				}
 				if _, ok := idleCoefficients[idleId][alloc.Name]; !ok {
-					log.Warningf("AllocationSet.AggregateBy: error getting idle coefficient for '%s'", alloc.Name)
+					log.Warnf("AllocationSet.AggregateBy: error getting idle coefficient for '%s'", alloc.Name)
 					continue
 				}
 
@@ -1289,7 +1289,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 			for _, sharedAlloc := range shareSet.allocations {
 				if _, ok := shareCoefficients[alloc.Name]; !ok {
 					if !alloc.IsIdle() && !alloc.IsUnmounted() {
-						log.Warningf("AllocationSet.AggregateBy: error getting share coefficienct for '%s'", alloc.Name)
+						log.Warnf("AllocationSet.AggregateBy: error getting share coefficienct for '%s'", alloc.Name)
 					}
 					continue
 				}
@@ -1509,7 +1509,7 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 		if coeffs[a] > 0 && total > 0 {
 			coeffs[a] /= total
 		} else {
-			log.Warningf("ETL: invalid values for shared coefficients: %d, %d", coeffs[a], total)
+			log.Warnf("ETL: invalid values for shared coefficients: %v, %v", coeffs[a], total)
 			coeffs[a] = 0.0
 		}
 	}
@@ -1703,11 +1703,11 @@ func (as *AllocationSet) Each(f func(string, *Allocation)) {
 // End returns the End time of the AllocationSet window
 func (as *AllocationSet) End() time.Time {
 	if as == nil {
-		log.Warningf("AllocationSet: calling End on nil AllocationSet")
+		log.Warnf("AllocationSet: calling End on nil AllocationSet")
 		return time.Unix(0, 0)
 	}
 	if as.Window.End() == nil {
-		log.Warningf("AllocationSet: AllocationSet with illegal window: End is nil; len(as.allocations)=%d", len(as.allocations))
+		log.Warnf("AllocationSet: AllocationSet with illegal window: End is nil; len(as.allocations)=%d", len(as.allocations))
 		return time.Unix(0, 0)
 	}
 	return *as.Window.End()
@@ -1930,11 +1930,11 @@ func (as *AllocationSet) Set(alloc *Allocation) error {
 // Start returns the Start time of the AllocationSet window
 func (as *AllocationSet) Start() time.Time {
 	if as == nil {
-		log.Warningf("AllocationSet: calling Start on nil AllocationSet")
+		log.Warnf("AllocationSet: calling Start on nil AllocationSet")
 		return time.Unix(0, 0)
 	}
 	if as.Window.Start() == nil {
-		log.Warningf("AllocationSet: AllocationSet with illegal window: Start is nil; len(as.allocations)=%d", len(as.allocations))
+		log.Warnf("AllocationSet: AllocationSet with illegal window: Start is nil; len(as.allocations)=%d", len(as.allocations))
 		return time.Unix(0, 0)
 	}
 	return *as.Window.Start()

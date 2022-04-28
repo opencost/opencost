@@ -536,13 +536,13 @@ func (a *Any) SetStartEnd(start, end time.Time) {
 	if a.Window().Contains(start) {
 		a.start = start
 	} else {
-		log.Warningf("Any.SetStartEnd: start %s not in %s", start, a.Window())
+		log.Warnf("Any.SetStartEnd: start %s not in %s", start, a.Window())
 	}
 
 	if a.Window().Contains(end) {
 		a.end = end
 	} else {
-		log.Warningf("Any.SetStartEnd: end %s not in %s", end, a.Window())
+		log.Warnf("Any.SetStartEnd: end %s not in %s", end, a.Window())
 	}
 }
 
@@ -722,13 +722,13 @@ func (ca *Cloud) SetStartEnd(start, end time.Time) {
 	if ca.Window().Contains(start) {
 		ca.start = start
 	} else {
-		log.Warningf("Cloud.SetStartEnd: start %s not in %s", start, ca.Window())
+		log.Warnf("Cloud.SetStartEnd: start %s not in %s", start, ca.Window())
 	}
 
 	if ca.Window().Contains(end) {
 		ca.end = end
 	} else {
-		log.Warningf("Cloud.SetStartEnd: end %s not in %s", end, ca.Window())
+		log.Warnf("Cloud.SetStartEnd: end %s not in %s", end, ca.Window())
 	}
 }
 
@@ -1124,7 +1124,7 @@ func (d *Disk) Minutes() float64 {
 	windowMins := d.window.Minutes()
 
 	if diskMins > windowMins {
-		log.Warningf("Asset ETL: Disk.Minutes exceeds window: %.2f > %.2f", diskMins, windowMins)
+		log.Warnf("Asset ETL: Disk.Minutes exceeds window: %.2f > %.2f", diskMins, windowMins)
 		diskMins = windowMins
 	}
 
@@ -1150,13 +1150,13 @@ func (d *Disk) SetStartEnd(start, end time.Time) {
 	if d.Window().Contains(start) {
 		d.start = start
 	} else {
-		log.Warningf("Disk.SetStartEnd: start %s not in %s", start, d.Window())
+		log.Warnf("Disk.SetStartEnd: start %s not in %s", start, d.Window())
 	}
 
 	if d.Window().Contains(end) {
 		d.end = end
 	} else {
-		log.Warningf("Disk.SetStartEnd: end %s not in %s", end, d.Window())
+		log.Warnf("Disk.SetStartEnd: end %s not in %s", end, d.Window())
 	}
 }
 
@@ -1445,7 +1445,7 @@ func (n *Network) Minutes() float64 {
 	windowMins := n.window.Minutes()
 
 	if netMins > windowMins {
-		log.Warningf("Asset ETL: Network.Minutes exceeds window: %.2f > %.2f", netMins, windowMins)
+		log.Warnf("Asset ETL: Network.Minutes exceeds window: %.2f > %.2f", netMins, windowMins)
 		netMins = windowMins
 	}
 
@@ -1471,13 +1471,13 @@ func (n *Network) SetStartEnd(start, end time.Time) {
 	if n.Window().Contains(start) {
 		n.start = start
 	} else {
-		log.Warningf("Disk.SetStartEnd: start %s not in %s", start, n.Window())
+		log.Warnf("Disk.SetStartEnd: start %s not in %s", start, n.Window())
 	}
 
 	if n.Window().Contains(end) {
 		n.end = end
 	} else {
-		log.Warningf("Disk.SetStartEnd: end %s not in %s", end, n.Window())
+		log.Warnf("Disk.SetStartEnd: end %s not in %s", end, n.Window())
 	}
 }
 
@@ -1697,7 +1697,7 @@ func (n *Node) Minutes() float64 {
 	windowMins := n.window.Minutes()
 
 	if nodeMins > windowMins {
-		log.Warningf("Asset ETL: Node.Minutes exceeds window: %.2f > %.2f", nodeMins, windowMins)
+		log.Warnf("Asset ETL: Node.Minutes exceeds window: %.2f > %.2f", nodeMins, windowMins)
 		nodeMins = windowMins
 	}
 
@@ -1723,13 +1723,13 @@ func (n *Node) SetStartEnd(start, end time.Time) {
 	if n.Window().Contains(start) {
 		n.start = start
 	} else {
-		log.Warningf("Disk.SetStartEnd: start %s not in %s", start, n.Window())
+		log.Warnf("Disk.SetStartEnd: start %s not in %s", start, n.Window())
 	}
 
 	if n.Window().Contains(end) {
 		n.end = end
 	} else {
-		log.Warningf("Disk.SetStartEnd: end %s not in %s", end, n.Window())
+		log.Warnf("Disk.SetStartEnd: end %s not in %s", end, n.Window())
 	}
 }
 
@@ -2095,13 +2095,13 @@ func (lb *LoadBalancer) SetStartEnd(start, end time.Time) {
 	if lb.Window().Contains(start) {
 		lb.start = start
 	} else {
-		log.Warningf("Disk.SetStartEnd: start %s not in %s", start, lb.Window())
+		log.Warnf("Disk.SetStartEnd: start %s not in %s", start, lb.Window())
 	}
 
 	if lb.Window().Contains(end) {
 		lb.end = end
 	} else {
-		log.Warningf("Disk.SetStartEnd: end %s not in %s", end, lb.Window())
+		log.Warnf("Disk.SetStartEnd: end %s not in %s", end, lb.Window())
 	}
 }
 

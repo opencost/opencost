@@ -244,7 +244,7 @@ func (cf *ConfigFile) runWatcher() {
 	// if start fails after waiting for a reset, it means that another thread
 	// beat this thread to the start
 	if !cf.runState.Start() {
-		log.Warningf("Run watcher already running for file: %s", cf.file)
+		log.Warnf("Run watcher already running for file: %s", cf.file)
 		return
 	}
 
@@ -297,7 +297,7 @@ func (cf *ConfigFile) runWatcher() {
 			if !exists {
 				data, err := cf.internalRead(true)
 				if err != nil {
-					log.Warningf("Read() Error: %s\n", err)
+					log.Warnf("Read() Error: %s\n", err)
 					continue
 				}
 				exists = true

@@ -118,7 +118,7 @@ func GetPVAllocationMetrics(qrs []*prom.QueryResult, defaultClusterID string) (m
 
 		pvName, err := val.GetString("persistentvolume")
 		if err != nil {
-			log.Warningf("persistentvolume field does not exist for pv %s", pvcName) // This is possible for an unfulfilled claim
+			log.Warnf("persistentvolume field does not exist for pv %s", pvcName) // This is possible for an unfulfilled claim
 			continue
 		}
 

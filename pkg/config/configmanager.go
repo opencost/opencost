@@ -61,11 +61,11 @@ func NewConfigFileManager(opts *ConfigFileManagerOpts) *ConfigFileManager {
 	if opts.IsBucketStorageEnabled() {
 		bucketConfig, err := ioutil.ReadFile(opts.BucketStoreConfig)
 		if err != nil {
-			log.Warningf("Failed to initialize config bucket storage: %s", err)
+			log.Warnf("Failed to initialize config bucket storage: %s", err)
 		} else {
 			bucketStore, err := storage.NewBucketStorage(bucketConfig)
 			if err != nil {
-				log.Warningf("Failed to create config bucket storage: %s", err)
+				log.Warnf("Failed to create config bucket storage: %s", err)
 			} else {
 				configStore = bucketStore
 			}

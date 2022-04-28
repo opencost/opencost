@@ -20,6 +20,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/util/fileutil"
 	"github.com/kubecost/cost-model/pkg/util/json"
 	"github.com/kubecost/cost-model/pkg/util/timeutil"
+	"github.com/rs/zerolog"
 
 	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/compute/metadata"
@@ -27,7 +28,6 @@ import (
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/klog"
 )
 
 const GKE_GPU_TAG = "cloud.google.com/gke-accelerator"
@@ -194,7 +194,7 @@ func (*GCP) loadGCPAuthSecret() {
 	keyPath := path + "key.json"
 	keyExists, _ := fileutil.FileExists(keyPath)
 	if keyExists {
-		klog.V(1).Infof("GCP Auth Key already exists, no need to load from secret")
+		log.Info("GCP Auth Key already exists, no need to load from secret")
 		return
 	}
 
@@ -205,19 +205,19 @@ func (*GCP) loadGCPAuthSecret() {
 			errMessage = err.Error()
 		}
 
-		klog.V(4).Infof("[Warning] Failed to load auth secret, or was not mounted: %s", errMessage)
+		log.Warnf("Failed to load auth secret, or was not mounted: %s", errMessage)
 		return
 	}
 
 	result, err := ioutil.ReadFile(authSecretPath)
 	if err != nil {
-		klog.V(4).Infof("[Warning] Failed to load auth secret, or was not mounted: %s", err.Error())
+		log.Warnf("Failed to load auth secret, or was not mounted: %s", err.Error())
 		return
 	}
 
 	err = ioutil.WriteFile(keyPath, result, 0644)
 	if err != nil {
-		klog.V(4).Infof("[Warning] Failed to copy auth secret to %s: %s", keyPath, err.Error())
+		log.Warnf("Failed to copy auth secret to %s: %s", keyPath, err.Error())
 	}
 }
 
@@ -308,12 +308,12 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 
 	attribute, err := metadataClient.InstanceAttributeValue("cluster-name")
 	if err != nil {
-		klog.Infof("Error loading metadata cluster-name: %s", err.Error())
+		log.Infof("Error loading metadata cluster-name: %s", err.Error())
 	}
 
 	c, err := gcp.GetConfig()
 	if err != nil {
-		klog.V(1).Infof("Error opening config: %s", err.Error())
+		log.Errorf("Error opening config: %s", err.Error())
 	}
 	if c.ClusterName != "" {
 		attribute = c.ClusterName
@@ -594,7 +594,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 				for matchnum, group := range provIdRx.FindStringSubmatch(product.Description) {
 					if matchnum == 1 {
 						gpuType = strings.ToLower(strings.Join(strings.Split(group, " "), "-"))
-						klog.V(4).Info("GPU type found: " + gpuType)
+						log.Debug("GPU type found: " + gpuType)
 					}
 				}
 
@@ -635,8 +635,8 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 						for k, key := range inputKeys {
 							if key.GPUType() == gpuType+","+usageType {
 								if region == strings.Split(k, ",")[0] {
-									klog.V(3).Infof("Matched GPU to node in region \"%s\"", region)
-									klog.V(4).Infof("PRODUCT DESCRIPTION: %s", product.Description)
+									log.Infof("Matched GPU to node in region \"%s\"", region)
+									log.Debugf("PRODUCT DESCRIPTION: %s", product.Description)
 									matchedKey := key.Features()
 									if pl, ok := gcpPricingList[matchedKey]; ok {
 										pl.Node.GPUName = gpuType
@@ -650,7 +650,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 										}
 										gcpPricingList[matchedKey] = product
 									}
-									klog.V(3).Infof("Added data for " + matchedKey)
+									log.Infof("Added data for " + matchedKey)
 								}
 							}
 						}
@@ -671,7 +671,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 								continue
 							} else if strings.Contains(strings.ToUpper(product.Description), "RAM") {
 								if instanceType == "custom" {
-									klog.V(4).Infof("RAM custom sku is: " + product.Name)
+									log.Debug("RAM custom sku is: " + product.Name)
 								}
 								if _, ok := gcpPricingList[candidateKey]; ok {
 									gcpPricingList[candidateKey].Node.RAMCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
@@ -688,10 +688,10 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 									gcpPricingList[candidateKey] = product
 								}
 								if _, ok := gcpPricingList[candidateKeyGPU]; ok {
-									klog.V(1).Infof("Adding RAM %f for %s", hourlyPrice, candidateKeyGPU)
+									log.Infof("Adding RAM %f for %s", hourlyPrice, candidateKeyGPU)
 									gcpPricingList[candidateKeyGPU].Node.RAMCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 								} else {
-									klog.V(1).Infof("Adding RAM %f for %s", hourlyPrice, candidateKeyGPU)
+									log.Infof("Adding RAM %f for %s", hourlyPrice, candidateKeyGPU)
 									product = &GCPPricing{}
 									product.Node = &Node{
 										RAMCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
@@ -743,7 +743,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 		if t == "nextPageToken" {
 			pageToken, err := dec.Token()
 			if err != nil {
-				klog.V(2).Infof("Error parsing nextpage token: " + err.Error())
+				log.Errorf("Error parsing nextpage token: " + err.Error())
 				return nil, "", err
 			}
 			if pageToken.(string) != "" {
@@ -763,7 +763,7 @@ func (gcp *GCP) parsePages(inputKeys map[string]Key, pvKeys map[string]PVKey) (m
 		return nil, err
 	}
 	url := "https://cloudbilling.googleapis.com/v1/services/6F81-5844-456A/skus?key=" + gcp.APIKey + "&currencyCode=" + c.CurrencyCode
-	klog.V(2).Infof("Fetch GCP Billing Data from URL: %s", url)
+	log.Infof("Fetch GCP Billing Data from URL: %s", url)
 	var parsePagesHelper func(string) error
 	parsePagesHelper = func(pageToken string) error {
 		if pageToken == "done" {
@@ -813,13 +813,13 @@ func (gcp *GCP) parsePages(inputKeys map[string]Key, pvKeys map[string]PVKey) (m
 			}
 		}
 	}
-	klog.V(1).Infof("ALL PAGES: %+v", returnPages)
+	log.Debugf("ALL PAGES: %+v", returnPages)
 	for k, v := range returnPages {
 		if v.Node != nil {
-			klog.V(1).Infof("Returned Page: %s : %+v", k, v.Node)
+			log.Debugf("Returned Page: %s : %+v", k, v.Node)
 		}
 		if v.PV != nil {
-			klog.V(1).Infof("Returned Page: %s : %+v", k, v.PV)
+			log.Debugf("Returned Page: %s : %+v", k, v.PV)
 		}
 	}
 	return returnPages, err
@@ -831,7 +831,7 @@ func (gcp *GCP) DownloadPricingData() error {
 	defer gcp.DownloadPricingDataLock.Unlock()
 	c, err := gcp.Config.GetCustomPricingData()
 	if err != nil {
-		klog.V(2).Infof("Error downloading default pricing data: %s", err.Error())
+		log.Errorf("Error downloading default pricing data: %s", err.Error())
 		return err
 	}
 	gcp.loadGCPAuthSecret()
@@ -883,12 +883,15 @@ func (gcp *GCP) DownloadPricingData() error {
 
 	reserved, err := gcp.getReservedInstances()
 	if err != nil {
-		klog.V(1).Infof("Failed to lookup reserved instance data: %s", err.Error())
+		log.Errorf("Failed to lookup reserved instance data: %s", err.Error())
 	} else {
-		klog.V(1).Infof("Found %d reserved instances", len(reserved))
 		gcp.ReservedInstances = reserved
-		for _, r := range reserved {
-			klog.V(1).Infof("%s", r)
+
+		if zerolog.GlobalLevel() <= zerolog.DebugLevel {
+			log.Debugf("Found %d reserved instances", len(reserved))
+			for _, r := range reserved {
+				log.Debugf("%s", r)
+			}
 		}
 	}
 
@@ -906,7 +909,7 @@ func (gcp *GCP) PVPricing(pvk PVKey) (*PV, error) {
 	defer gcp.DownloadPricingDataLock.RUnlock()
 	pricing, ok := gcp.Pricing[pvk.Features()]
 	if !ok {
-		klog.V(3).Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
+		log.Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
 		return &PV{}, nil
 	}
 	return pricing.PV, nil
@@ -1017,7 +1020,7 @@ func (gcp *GCP) ApplyReservedInstancePricing(nodes map[string]*Node) {
 
 	// Early return if no reserved instance data loaded
 	if numReserved == 0 {
-		klog.V(4).Infof("[Reserved] No Reserved Instances")
+		log.Debug("[Reserved] No Reserved Instances")
 		return
 	}
 
@@ -1026,7 +1029,7 @@ func (gcp *GCP) ApplyReservedInstancePricing(nodes map[string]*Node) {
 	counters := make(map[string][]*GCPReservedCounter)
 	for _, r := range gcp.ReservedInstances {
 		if now.Before(r.StartDate) || now.After(r.EndDate) {
-			klog.V(1).Infof("[Reserved] Skipped Reserved Instance due to dates")
+			log.Infof("[Reserved] Skipped Reserved Instance due to dates")
 			continue
 		}
 
@@ -1054,19 +1057,19 @@ func (gcp *GCP) ApplyReservedInstancePricing(nodes map[string]*Node) {
 
 		kNode, ok := gcpNodes[nodeName]
 		if !ok {
-			klog.V(4).Infof("[Reserved] Could not find K8s Node with name: %s", nodeName)
+			log.Debugf("[Reserved] Could not find K8s Node with name: %s", nodeName)
 			continue
 		}
 
 		nodeRegion, ok := util.GetRegion(kNode.Labels)
 		if !ok {
-			klog.V(4).Infof("[Reserved] Could not find node region")
+			log.Debug("[Reserved] Could not find node region")
 			continue
 		}
 
 		reservedCounters, ok := counters[nodeRegion]
 		if !ok {
-			klog.V(4).Infof("[Reserved] Could not find counters for region: %s", nodeRegion)
+			log.Debugf("[Reserved] Could not find counters for region: %s", nodeRegion)
 			continue
 		}
 
@@ -1137,7 +1140,7 @@ func (gcp *GCP) getReservedInstances() ([]*GCPReservedInstance, error) {
 				case GCPReservedInstanceResourceTypeCPU:
 					vcpu = resource.Amount
 				default:
-					klog.V(4).Infof("Failed to handle resource type: %s", resource.Type)
+					log.Debugf("Failed to handle resource type: %s", resource.Type)
 				}
 			}
 
@@ -1150,13 +1153,13 @@ func (gcp *GCP) getReservedInstances() ([]*GCPReservedInstance, error) {
 			timeLayout := "2006-01-02T15:04:05Z07:00"
 			startTime, err := time.Parse(timeLayout, commit.StartTimestamp)
 			if err != nil {
-				klog.V(1).Infof("Failed to parse start date: %s", commit.StartTimestamp)
+				log.Warnf("Failed to parse start date: %s", commit.StartTimestamp)
 				continue
 			}
 
 			endTime, err := time.Parse(timeLayout, commit.EndTimestamp)
 			if err != nil {
-				klog.V(1).Infof("Failed to parse end date: %s", commit.EndTimestamp)
+				log.Warnf("Failed to parse end date: %s", commit.EndTimestamp)
 				continue
 			}
 
@@ -1247,7 +1250,7 @@ func (gcp *gcpKey) GPUType() string {
 		} else {
 			usageType = "ondemand"
 		}
-		klog.V(4).Infof("GPU of type: \"%s\" found", t)
+		log.Debugf("GPU of type: \"%s\" found", t)
 		return t + "," + usageType
 	}
 	return ""
@@ -1331,7 +1334,7 @@ func (gcp *GCP) isValidPricingKey(key Key) bool {
 // NodePricing returns GCP pricing data for a single node
 func (gcp *GCP) NodePricing(key Key) (*Node, error) {
 	if n, ok := gcp.getPricing(key); ok {
-		klog.V(4).Infof("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
+		log.Debugf("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
 		n.Node.BaseCPUPrice = gcp.BaseCPUPrice
 		return n.Node, nil
 	} else if ok := gcp.isValidPricingKey(key); ok {
@@ -1340,11 +1343,11 @@ func (gcp *GCP) NodePricing(key Key) (*Node, error) {
 			return nil, fmt.Errorf("Download pricing data failed: %s", err.Error())
 		}
 		if n, ok := gcp.getPricing(key); ok {
-			klog.V(4).Infof("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
+			log.Debugf("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
 			n.Node.BaseCPUPrice = gcp.BaseCPUPrice
 			return n.Node, nil
 		}
-		klog.V(1).Infof("[Warning] no pricing data found for %s: %s", key.Features(), key)
+		log.Warnf("no pricing data found for %s: %s", key.Features(), key)
 		return nil, fmt.Errorf("Warning: no pricing data found for %s", key)
 	}
 	return nil, fmt.Errorf("Warning: no pricing data found for %s", key)

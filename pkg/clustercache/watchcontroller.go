@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/kubecost/cost-model/pkg/log"
 
 	"k8s.io/apimachinery/pkg/fields"
 	rt "k8s.io/apimachinery/pkg/runtime"
@@ -135,7 +135,7 @@ func (c *CachingWatchController) processNextItem() bool {
 func (c *CachingWatchController) handle(key string) error {
 	obj, exists, err := c.indexer.GetByKey(key)
 	if err != nil {
-		klog.Errorf("Fetching %s with key %s from store failed with %v", c.resourceType, key, err)
+		log.Errorf("Fetching %s with key %s from store failed with %v", c.resourceType, key, err)
 		return err
 	}
 
@@ -163,7 +163,7 @@ func (c *CachingWatchController) handleErr(err error, key interface{}) {
 
 	// This controller retries 5 times if something goes wrong. After that, it stops trying.
 	if c.queue.NumRequeues(key) < 5 {
-		klog.V(3).Infof("Error syncing %s %v: %v", c.resourceType, key, err)
+		log.Errorf("Error syncing %s %v: %v", c.resourceType, key, err)
 
 		// Re-enqueue the key rate limited. Based on the rate limiter on the
 		// queue and the re-enqueue history, the key will be processed later again.
@@ -174,7 +174,7 @@ func (c *CachingWatchController) handleErr(err error, key interface{}) {
 	c.queue.Forget(key)
 	// Report to an external entity that, even after several retries, we could not successfully process this key
 	runtime.HandleError(err)
-	klog.Infof("Dropping %s %q out of the queue: %v", c.resourceType, key, err)
+	log.Infof("Dropping %s %q out of the queue: %v", c.resourceType, key, err)
 }
 
 func (c *CachingWatchController) WarmUp(cancelCh chan struct{}) {
@@ -192,14 +192,14 @@ func (c *CachingWatchController) Run(threadiness int, stopCh chan struct{}) {
 
 	// Let the workers stop when we are done
 	defer c.queue.ShutDown()
-	klog.V(3).Infof("Starting %s controller", c.resourceType)
+	log.Infof("Starting %s controller", c.resourceType)
 
 	for i := 0; i < threadiness; i++ {
 		go wait.Until(c.runWorker, time.Second, stopCh)
 	}
 
 	<-stopCh
-	klog.V(3).Infof("Stopping %s controller", c.resourceType)
+	log.Infof("Stopping %s controller", c.resourceType)
 }
 
 func (c *CachingWatchController) runWorker() {

@@ -258,7 +258,7 @@ func (ctx *Context) query(query string, t time.Time) (interface{}, prometheus.Wa
 			return nil, warnings, CommErrorf("Error: %s, Body: %s, Query: %s", w, body, query)
 		}
 
-		log.Warningf("fetching query '%s': %s", query, w)
+		log.Warnf("fetching query '%s': %s", query, w)
 	}
 
 	return toReturn, warnings, nil
@@ -382,7 +382,7 @@ func (ctx *Context) queryRange(query string, start, end time.Time, step time.Dur
 			return nil, warnings, CommErrorf("Error: %s, Body: %s, Query: %s", w, body, query)
 		}
 
-		log.Warningf("fetching query '%s': %s", query, w)
+		log.Warnf("fetching query '%s': %s", query, w)
 	}
 
 	return toReturn, warnings, nil
