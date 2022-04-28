@@ -1668,11 +1668,30 @@ func (as *AllocationSet) Clone() *AllocationSet {
 		idleKeys[k] = v
 	}
 
+	var errors []string
+	var warnings []string
+
+	if as.Errors != nil {
+		errors = make([]string, len(as.Errors))
+		copy(errors, as.Errors)
+	} else {
+		errors = nil
+	}
+
+	if as.Warnings != nil {
+		warnings := make([]string, len(as.Warnings))
+		copy(warnings, as.Warnings)
+	} else {
+		warnings = nil
+	}
+
 	return &AllocationSet{
 		allocations:  allocs,
 		externalKeys: externalKeys,
 		idleKeys:     idleKeys,
 		Window:       as.Window.Clone(),
+		Errors:       errors,
+		Warnings:     warnings,
 	}
 }
 
