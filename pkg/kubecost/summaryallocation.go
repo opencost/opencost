@@ -371,6 +371,32 @@ func NewSummaryAllocationSet(as *AllocationSet, ffs, kfs []AllocationMatchFunc, 
 	return sas
 }
 
+// Clone creates a deep copy of the SummaryAllocationSet
+func (sas *SummaryAllocationSet) Clone() *SummaryAllocationSet {
+	sas.RLock()
+	defer sas.RUnlock()
+
+	externalKeys := make(map[string]bool, len(sas.externalKeys))
+	for k, v := range sas.externalKeys {
+		externalKeys[k] = v
+	}
+	idleKeys := make(map[string]bool, len(sas.idleKeys))
+	for k, v := range sas.idleKeys {
+		idleKeys[k] = v
+	}
+	summaryAllocations := make(map[string]*SummaryAllocation, len(sas.SummaryAllocations))
+	for k, v := range sas.SummaryAllocations {
+		summaryAllocations[k] = v.Clone()
+	}
+
+	return &SummaryAllocationSet{
+		externalKeys:       externalKeys,
+		idleKeys:           idleKeys,
+		SummaryAllocations: summaryAllocations,
+		Window:             sas.Window.Clone(),
+	}
+}
+
 // Add sums two SummaryAllocationSets, which Adds all SummaryAllocations in the
 // given SummaryAllocationSet to thier counterparts in the receiving set. Add
 // also expands the Window to include both constituent Windows, in the case
