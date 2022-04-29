@@ -37,14 +37,12 @@ func GetPrometheusQueueState(client prometheus.Client) (*PrometheusQueueState, e
 	outbound := rlpc.TotalOutboundRequests()
 
 	requests := []*QueuedPromRequest{}
-	rlpc.queue.Each(func(_ int, entry interface{}) {
-		if req, ok := entry.(*workRequest); ok {
-			requests = append(requests, &QueuedPromRequest{
-				Context:   req.contextName,
-				Query:     req.query,
-				QueueTime: time.Since(req.start).Milliseconds(),
-			})
-		}
+	rlpc.queue.Each(func(_ int, req *workRequest) {
+		requests = append(requests, &QueuedPromRequest{
+			Context:   req.contextName,
+			Query:     req.query,
+			QueueTime: time.Since(req.start).Milliseconds(),
+		})
 	})
 
 	return &PrometheusQueueState{
