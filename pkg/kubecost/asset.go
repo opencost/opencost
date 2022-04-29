@@ -2712,6 +2712,11 @@ func (as *AssetSet) Map() map[string]Asset {
 	return as.Clone().assets
 }
 
+// Resolution returns the AssetSet's window duration
+func (as *AssetSet) Resolution() time.Duration {
+	return as.Window.Duration()
+}
+
 func (as *AssetSet) Set(asset Asset, aggregateBy []string) error {
 	if as.IsEmpty() {
 		as.Lock()

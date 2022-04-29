@@ -34,37 +34,39 @@ type CloudUsageQuerier interface {
 
 // AllocationQueryOptions defines optional parameters for querying an Allocation Store
 type AllocationQueryOptions struct {
-	Accumulate        bool
-	AccumulateBy      time.Duration
-	AggregateBy       []string
-	Compute           bool
-	FilterFuncs       []AllocationMatchFunc
-	IdleByNode        bool
-	IncludeExternal   bool
-	IncludeIdle       bool
-	LabelConfig       *LabelConfig
-	MergeUnallocated  bool
-	Reconcile         bool
-	ReconcileNetwork  bool
-	ShareFuncs        []AllocationMatchFunc
-	SharedHourlyCosts map[string]float64
-	ShareIdle         string
-	ShareSplit        string
-	ShareTenancyCosts bool
-	SplitIdle         bool
-	Step              time.Duration
+	Accumulate              bool
+	AccumulateBy            time.Duration
+	AggregateBy             []string
+	Compute                 bool
+	DisableAggregatedStores bool
+	FilterFuncs             []AllocationMatchFunc
+	IdleByNode              bool
+	IncludeExternal         bool
+	IncludeIdle             bool
+	LabelConfig             *LabelConfig
+	MergeUnallocated        bool
+	Reconcile               bool
+	ReconcileNetwork        bool
+	ShareFuncs              []AllocationMatchFunc
+	SharedHourlyCosts       map[string]float64
+	ShareIdle               string
+	ShareSplit              string
+	ShareTenancyCosts       bool
+	SplitIdle               bool
+	Step                    time.Duration
 }
 
 // AssetQueryOptions defines optional parameters for querying an Asset Store
 type AssetQueryOptions struct {
-	Accumulate         bool
-	AggregateBy        []string
-	Compute            bool
-	DisableAdjustments bool
-	FilterFuncs        []AssetMatchFunc
-	IncludeCloud       bool
-	SharedHourlyCosts  map[string]float64
-	Step               time.Duration
+	Accumulate              bool
+	AggregateBy             []string
+	Compute                 bool
+	DisableAdjustments      bool
+	DisableAggregatedStores bool
+	FilterFuncs             []AssetMatchFunc
+	IncludeCloud            bool
+	SharedHourlyCosts       map[string]float64
+	Step                    time.Duration
 }
 
 // CloudUsageQueryOptions define optional parameters for querying a Store
