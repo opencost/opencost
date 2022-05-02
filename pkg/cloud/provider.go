@@ -188,6 +188,7 @@ type CustomPricing struct {
 	ReadOnly                     string `json:"readOnly"`
 	KubecostToken                string `json:"kubecostToken"`
 	GoogleAnalyticsTag           string `json:"googleAnalyticsTag"`
+	ExcludeProviderID            string `json:"excludeProviderID"`
 }
 
 // GetSharedOverheadCostPerMonth parses and returns a float64 representation

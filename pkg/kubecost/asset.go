@@ -315,6 +315,9 @@ func toString(a Asset) string {
 	return fmt.Sprintf("%s{%s}%s=%.2f", a.Type().String(), a.Properties(), a.Window(), a.TotalCost())
 }
 
+// AssetLabelAccountPrefix is the prefix added to Account level labels which are distributed to assets so that they can be identified as such
+const AssetLabelAccountPrefix = "Account_Inherited_"
+
 // AssetLabels is a schema-free mapping of key/value pairs that can be
 // attributed to an Asset as a flexible a
 type AssetLabels map[string]string
