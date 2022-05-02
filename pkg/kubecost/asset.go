@@ -2533,10 +2533,29 @@ func (as *AssetSet) Clone() *AssetSet {
 	s := as.Start()
 	e := as.End()
 
+	var errors []string
+	var warnings []string
+
+	if as.Errors != nil {
+		errors = make([]string, len(as.Errors))
+		copy(errors, as.Errors)
+	} else {
+		errors = nil
+	}
+
+	if as.Warnings != nil {
+		warnings := make([]string, len(as.Warnings))
+		copy(warnings, as.Warnings)
+	} else {
+		warnings = nil
+	}
+
 	return &AssetSet{
 		Window:      NewWindow(&s, &e),
 		aggregateBy: aggregateBy,
 		assets:      assets,
+		Errors:      errors,
+		Warnings:    warnings,
 	}
 }
 
