@@ -1611,7 +1611,6 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 
 	// Initialize mechanism for subscribing to settings changes
 	a.InitializeSettingsPubSub()
-
 	err = a.CloudProvider.DownloadPricingData()
 	if err != nil {
 		log.Infof("Failed to download pricing data: " + err.Error())

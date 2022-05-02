@@ -134,27 +134,30 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 	}
 
 	// Wait for each caching watcher to initialize
-	var wg sync.WaitGroup
-	wg.Add(16)
-
 	cancel := make(chan struct{})
-
-	go initializeCache(kcc.namespaceWatch, &wg, cancel)
-	go initializeCache(kcc.nodeWatch, &wg, cancel)
-	go initializeCache(kcc.podWatch, &wg, cancel)
-	go initializeCache(kcc.kubecostConfigMapWatch, &wg, cancel)
-	go initializeCache(kcc.serviceWatch, &wg, cancel)
-	go initializeCache(kcc.daemonsetsWatch, &wg, cancel)
-	go initializeCache(kcc.deploymentsWatch, &wg, cancel)
-	go initializeCache(kcc.statefulsetWatch, &wg, cancel)
-	go initializeCache(kcc.replicasetWatch, &wg, cancel)
-	go initializeCache(kcc.pvWatch, &wg, cancel)
-	go initializeCache(kcc.pvcWatch, &wg, cancel)
-	go initializeCache(kcc.storageClassWatch, &wg, cancel)
-	go initializeCache(kcc.jobsWatch, &wg, cancel)
-	go initializeCache(kcc.hpaWatch, &wg, cancel)
-	go initializeCache(kcc.podWatch, &wg, cancel)
-	go initializeCache(kcc.replicationControllerWatch, &wg, cancel)
+	var wg sync.WaitGroup
+	if env.GetETLReadOnlyMode() {
+		wg.Add(1)
+		go initializeCache(kcc.kubecostConfigMapWatch, &wg, cancel)
+	} else {
+		wg.Add(16)
+		go initializeCache(kcc.kubecostConfigMapWatch, &wg, cancel)
+		go initializeCache(kcc.namespaceWatch, &wg, cancel)
+		go initializeCache(kcc.nodeWatch, &wg, cancel)
+		go initializeCache(kcc.podWatch, &wg, cancel)
+		go initializeCache(kcc.serviceWatch, &wg, cancel)
+		go initializeCache(kcc.daemonsetsWatch, &wg, cancel)
+		go initializeCache(kcc.deploymentsWatch, &wg, cancel)
+		go initializeCache(kcc.statefulsetWatch, &wg, cancel)
+		go initializeCache(kcc.replicasetWatch, &wg, cancel)
+		go initializeCache(kcc.pvWatch, &wg, cancel)
+		go initializeCache(kcc.pvcWatch, &wg, cancel)
+		go initializeCache(kcc.storageClassWatch, &wg, cancel)
+		go initializeCache(kcc.jobsWatch, &wg, cancel)
+		go initializeCache(kcc.hpaWatch, &wg, cancel)
+		go initializeCache(kcc.podWatch, &wg, cancel)
+		go initializeCache(kcc.replicationControllerWatch, &wg, cancel)
+	}
 
 	wg.Wait()
 

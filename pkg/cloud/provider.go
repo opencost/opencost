@@ -423,7 +423,11 @@ func ShareTenancyCosts(p Provider) bool {
 func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.ConfigFileManager) (Provider, error) {
 	nodes := cache.GetAllNodes()
 	if len(nodes) == 0 {
-		return nil, fmt.Errorf("Could not locate any nodes for cluster.")
+		log.Infof("Could not locate any nodes for cluster.") // valid in ETL readonly mode
+		return &CustomProvider{
+			Clientset: cache,
+			Config:    NewProviderConfig(config, "default.json"),
+		}, nil
 	}
 
 	cp := getClusterProperties(nodes[0])
