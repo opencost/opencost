@@ -88,7 +88,7 @@ const (
 	ETLReadOnlyMode = "ETL_READ_ONLY"
 )
 
-func GetETLReadOnlyMode() bool {
+func IsETLReadOnlyMode() bool {
 	return GetBool(ETLReadOnlyMode, false)
 }
 

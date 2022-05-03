@@ -136,7 +136,7 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 	// Wait for each caching watcher to initialize
 	cancel := make(chan struct{})
 	var wg sync.WaitGroup
-	if env.GetETLReadOnlyMode() {
+	if env.IsETLReadOnlyMode() {
 		wg.Add(1)
 		go initializeCache(kcc.kubecostConfigMapWatch, &wg, cancel)
 	} else {
