@@ -84,7 +84,13 @@ const (
 	PrometheusRetryOnRateLimitDefaultWaitEnvVar = "PROMETHEUS_RETRY_ON_RATE_LIMIT_DEFAULT_WAIT"
 
 	IngestPodUIDEnvVar = "INGEST_POD_UID"
+
+	ETLReadOnlyMode = "ETL_READ_ONLY"
 )
+
+func IsETLReadOnlyMode() bool {
+	return GetBool(ETLReadOnlyMode, false)
+}
 
 // GetKubecostConfigBucket returns a file location for a mounted bucket configuration which is used to store
 // a subset of kubecost configurations that require sharing via remote storage.
