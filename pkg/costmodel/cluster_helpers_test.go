@@ -772,7 +772,7 @@ func TestBuildGPUCostMap(t *testing.T) {
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "provider1",
-				}: 2,
+				}: 0,
 			},
 		},
 		{
@@ -799,7 +799,7 @@ func TestBuildGPUCostMap(t *testing.T) {
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "provider1",
-				}: 2,
+				}: 0,
 			},
 		},
 		{
