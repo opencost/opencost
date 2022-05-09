@@ -295,9 +295,9 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 				key = fmt.Sprintf("%s/%s", node.Properties().Cluster, node.Properties().Name)
 			}
 
-			// Add node name to list of node names, but only if aggregating
-			// by node. (These are to be used later for attached volumes.)
-			nodeNames[key] = true
+			// Add node name to list of node names. (These are to be used later
+			// for attached volumes.)
+			nodeNames[fmt.Sprintf("%s/%s", node.Properties().Cluster, node.Properties().Name)] = true
 
 			// adjustmentRate is used to scale resource costs proportionally
 			// by the adjustment. This is necessary because we only get one
@@ -452,7 +452,9 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 			arts[key].AttachedVolumeCost += disk.Cost
 			arts[key].AttachedVolumeCostAdjustment += disk.adjustment
 		} else if prop == AssetClusterProp {
-			// Only record PersistentVolume data at the cluster level
+			// Here, we're looking at a PersistentVolume because we're not
+			// looking at an AttachedVolume. Only record PersistentVolume data
+			// at the cluster level (i.e. prop == AssetClusterProp).
 			arts[key].Count++
 			arts[key].PersistentVolumeCost += disk.Cost
 			arts[key].PersistentVolumeCostAdjustment += disk.adjustment
@@ -539,7 +541,7 @@ func UpdateAllocationTotalsStore(arts AllocationTotalsStore, as *AllocationSet) 
 	artsByNode := ComputeAllocationTotals(as, AllocationNodeProp)
 	arts.SetAllocationTotalsByNode(start, end, artsByNode)
 
-	log.Infof("ETL: Allocation: updated resource totals for %s", as.Window)
+	log.Debugf("ETL: Allocation: updated resource totals for %s", as.Window)
 
 	return nil
 }
