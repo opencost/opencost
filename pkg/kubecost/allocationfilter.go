@@ -4,37 +4,37 @@ import "github.com/kubecost/cost-model/pkg/log"
 
 // FilterField is an enum that represents Allocation-specific fields that can be
 // filtered on (namespace, label, etc.)
-type FilterField int
+type FilterField string
 
 // If you add a FilterField, MAKE SURE TO UPDATE ALL FILTER IMPLEMENTATIONS! Go
 // does not enforce exhaustive pattern matching on "enum" types.
 const (
-	FilterClusterID FilterField = iota
-	FilterNode
-	FilterNamespace
-	FilterControllerKind
-	FilterControllerName
-	FilterPod
-	FilterContainer
+	FilterClusterID      FilterField = "clusterid"
+	FilterNode                       = "node"
+	FilterNamespace                  = "namespace"
+	FilterControllerKind             = "controllerkind"
+	FilterControllerName             = "controllername"
+	FilterPod                        = "pod"
+	FilterContainer                  = "container"
 
 	// Filtering based on label aliases (team, department, etc.) should be a
 	// responsibility of the query handler. By the time it reaches this
 	// structured representation, we shouldn't have to be aware of what is
 	// aliased to what.
 
-	FilterLabel
-	FilterAnnotation
+	FilterLabel      = "label"
+	FilterAnnotation = "annotation"
 )
 
 // FilterOp is an enum that represents operations that can be performed
 // when filtering (equality, inequality, etc.)
-type FilterOp int
+type FilterOp string
 
 // If you add a FilterOp, MAKE SURE TO UPDATE ALL FILTER IMPLEMENTATIONS! Go
 // does not enforce exhaustive pattern matching on "enum" types.
 const (
-	FilterEquals FilterOp = iota
-	FilterNotEquals
+	FilterEquals    FilterOp = "equals"
+	FilterNotEquals          = "notequals"
 )
 
 // AllocationFilter represents anything that can be used to filter an
