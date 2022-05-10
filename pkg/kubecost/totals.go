@@ -579,7 +579,7 @@ func UpdateAssetTotalsStore(arts AssetTotalsStore, as *AssetSet) error {
 	artsByNode := ComputeAssetTotals(as, AssetNodeProp)
 	arts.SetAssetTotalsByNode(start, end, artsByNode)
 
-	log.Infof("ETL: Asset: updated resource totals for %s", as.Window)
+	log.Debugf("ETL: Asset: updated resource totals for %s", as.Window)
 
 	return nil
 }
