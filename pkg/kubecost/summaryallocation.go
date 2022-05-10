@@ -1177,6 +1177,7 @@ type SummaryAllocationSetRange struct {
 	Step                  time.Duration           `json:"step"`
 	SummaryAllocationSets []*SummaryAllocationSet `json:"sets"`
 	Window                Window                  `json:"window"`
+	Message               string                  `json:"-"`
 }
 
 // NewSummaryAllocationSetRange instantiates a new range composed of the given
