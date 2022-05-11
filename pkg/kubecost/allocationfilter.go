@@ -86,7 +86,6 @@ type AllocationFilterAnd struct {
 }
 
 func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
-	// TODO: For these nil cases, what about != filters?
 	if a == nil {
 		return false
 	}
@@ -181,7 +180,6 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 func (and AllocationFilterAnd) Matches(a *Allocation) bool {
 	filters := and.Filters
 	if len(filters) == 0 {
-		// TODO: Should an empty set of ANDs be true or false?
 		return true
 	}
 
