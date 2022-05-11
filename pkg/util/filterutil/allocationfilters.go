@@ -63,10 +63,44 @@ func FiltersFromParamsV1(qp httputil.QueryParams) kubecost.AllocationFilter {
 	)
 
 	filterControllers := qp.GetList("filterControllers", ",")
-	filter.Filters = append(filter.Filters,
-		filterV1SingleValueFromList(filterControllers, kubecost.FilterControllerName),
-	)
-	// TODO: controllerkind:controllername filter e.g. "deployment:kubecost"
+	// filterControllers= accepts controllerkind:controllername filters, e.g.
+	// "deployment:kubecost-cost-analyzer"
+	//
+	// Thus, we have to make a custom OR filter for this condition.
+	controllersOr := kubecost.AllocationFilterOr{
+		Filters: []kubecost.AllocationFilter{},
+	}
+	for _, rawFilterValue := range filterControllers {
+		split := strings.Split(rawFilterValue, ":")
+		if len(split) == 1 {
+			controllersOr.Filters = append(controllersOr.Filters,
+				kubecost.AllocationFilterCondition{
+					Field: kubecost.FilterControllerName,
+					Op:    kubecost.FilterEquals,
+					Value: split[0],
+				})
+		} else if len(split) == 2 {
+			// The controller name AND the controller kind must match
+			multiFilter := kubecost.AllocationFilterAnd{
+				Filters: []kubecost.AllocationFilter{
+					kubecost.AllocationFilterCondition{
+						Field: kubecost.FilterControllerKind,
+						Op:    kubecost.FilterEquals,
+						Value: split[0],
+					},
+					kubecost.AllocationFilterCondition{
+						Field: kubecost.FilterControllerName,
+						Op:    kubecost.FilterEquals,
+						Value: split[1],
+					},
+				},
+			}
+			controllersOr.Filters = append(controllersOr.Filters, multiFilter)
+		} else {
+			log.Warningf("illegal filter for controller: %s", rawFilterValue)
+		}
+	}
+	filter.Filters = append(filter.Filters, controllersOr)
 
 	filterPods := qp.GetList("filterPods", ",")
 	filter.Filters = append(filter.Filters,
@@ -182,8 +216,7 @@ func filterV1SingleValueFromList(rawFilterValues []string, filterField kubecost.
 				Field: filterField,
 				Op:    kubecost.FilterEquals,
 				Value: filterValue,
-			},
-		)
+			})
 	}
 
 	return filter
