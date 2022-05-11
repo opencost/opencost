@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,6 +20,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"github.com/kubecost/cost-model/pkg/util/watcher"
 	"github.com/microcosm-cc/bluemonday"
+	"github.com/spf13/viper"
 
 	v1 "k8s.io/api/core/v1"
 
@@ -65,6 +67,9 @@ const (
 var (
 	// gitCommit is set by the build system
 	gitCommit string
+
+	// ANSIRegex matches ANSI escape and colors https://en.wikipedia.org/wiki/ANSI_escape_code
+	ANSIRegex = regexp.MustCompile("\x1b\\[[0-9;]*m")
 )
 
 // Accesses defines a singleton application instance, providing access to
@@ -1179,6 +1184,12 @@ func logsFor(c kubernetes.Interface, namespace string, pod string, container str
 	podLogs, err := ioutil.ReadAll(reader)
 	if err != nil {
 		return "", err
+	}
+
+	// If color is already disabled then we don't need to process the logs
+	// to drop ANSI colors
+	if !viper.GetBool("disable-log-color") {
+		podLogs = ANSIRegex.ReplaceAll(podLogs, []byte{})
 	}
 
 	return string(podLogs), nil
