@@ -68,9 +68,11 @@ func newRootCommand(costModelCmd *cobra.Command) *cobra.Command {
 	// Add our persistent flags, these are global and available anywhere
 	cmd.PersistentFlags().String("log-level", "info", "Set the log level")
 	cmd.PersistentFlags().String("log-format", "pretty", "Set the log format - Can be either 'JSON' or 'pretty'")
+	cmd.PersistentFlags().Bool("disable-log-color", false, "Disable coloring of log output")
 
 	viper.BindPFlag("log-level", cmd.PersistentFlags().Lookup("log-level"))
 	viper.BindPFlag("log-format", cmd.PersistentFlags().Lookup("log-format"))
+	viper.BindPFlag("disable-log-color", cmd.PersistentFlags().Lookup("disable-log-color"))
 
 	// Setup viper to read from the env, this allows reading flags from the command line or the env
 	// using the format 'LOG_LEVEL'
@@ -83,8 +85,6 @@ func newRootCommand(costModelCmd *cobra.Command) *cobra.Command {
 		newAgentCommand(),
 	)
 
-	log.InitLogging()
-
 	return cmd
 }
 
@@ -96,6 +96,9 @@ func newCostModelCommand() *cobra.Command {
 		Use:   CommandCostModel,
 		Short: "Cost-Model metric exporter and data aggregator.",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Init logging here so cobra/viper has processed the command line args and flags
+			// otherwise only envvars are available during init
+			log.InitLogging()
 			return costmodel.Execute(opts)
 		},
 	}
@@ -114,6 +117,9 @@ func newAgentCommand() *cobra.Command {
 		Use:   CommandAgent,
 		Short: "Agent mode operates as a metric exporter only.",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Init logging here so cobra/viper has processed the command line args and flags
+			// otherwise only envvars are available during init
+			log.InitLogging()
 			return agent.Execute(opts)
 		},
 	}

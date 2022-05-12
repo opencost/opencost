@@ -21,7 +21,8 @@ func InitLogging() {
 	zerolog.TimeFieldFormat = time.RFC3339Nano
 	// Default to using pretty formatting
 	if strings.ToLower(viper.GetString("log-format")) != "json" {
-		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339Nano})
+		disableColor := viper.GetBool("disable-log-color")
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339Nano, NoColor: disableColor})
 	}
 
 	level, err := zerolog.ParseLevel(viper.GetString("log-level"))
