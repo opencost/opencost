@@ -37,36 +37,32 @@ func FiltersFromParamsV1(qp httputil.QueryParams) kubecost.AllocationFilter {
 	// 	labelConfig = cfg.LabelConfig()
 	// }
 
-	filterClusters := qp.GetList("filterClusters", ",")
 	filter.Filters = append(filter.Filters,
-		filterV1SingleValueFromList(filterClusters, kubecost.FilterClusterID),
+		filterV1SingleValueFromList(qp.GetList("filterClusters", ","), kubecost.FilterClusterID),
 	)
 	// TODO: OR by cluster name
 	// Cluster Map doesn't seem to have a name -> ID mapping,
 	// only an ID (from the allocation) -> name mapping
 
 	// generate a filter func for each node filter, and OR the results
-	filterNodes := qp.GetList("filterNodes", ",")
 	filter.Filters = append(filter.Filters,
-		filterV1SingleValueFromList(filterNodes, kubecost.FilterNode),
+		filterV1SingleValueFromList(qp.GetList("filterNodes", ","), kubecost.FilterNode),
 	)
 
 	// generate a filter func for each namespace filter, and OR the results
-	filterNamespaces := qp.GetList("filterNamespaces", ",")
 	filter.Filters = append(filter.Filters,
-		filterV1SingleValueFromList(filterNamespaces, kubecost.FilterNamespace),
+		filterV1SingleValueFromList(qp.GetList("filterNamespaces", ","), kubecost.FilterNamespace),
 	)
 
-	filterControllerKinds := qp.GetList("filterControllerKinds", ",")
 	filter.Filters = append(filter.Filters,
-		filterV1SingleValueFromList(filterControllerKinds, kubecost.FilterControllerKind),
+		filterV1SingleValueFromList(qp.GetList("filterControllerKinds", ","), kubecost.FilterControllerKind),
 	)
 
-	filterControllers := qp.GetList("filterControllers", ",")
 	// filterControllers= accepts controllerkind:controllername filters, e.g.
 	// "deployment:kubecost-cost-analyzer"
 	//
 	// Thus, we have to make a custom OR filter for this condition.
+	filterControllers := qp.GetList("filterControllers", ",")
 	controllersOr := kubecost.AllocationFilterOr{
 		Filters: []kubecost.AllocationFilter{},
 	}
@@ -102,14 +98,12 @@ func FiltersFromParamsV1(qp httputil.QueryParams) kubecost.AllocationFilter {
 	}
 	filter.Filters = append(filter.Filters, controllersOr)
 
-	filterPods := qp.GetList("filterPods", ",")
 	filter.Filters = append(filter.Filters,
-		filterV1SingleValueFromList(filterPods, kubecost.FilterPod),
+		filterV1SingleValueFromList(qp.GetList("filterPods", ","), kubecost.FilterPod),
 	)
 
-	filterContainers := qp.GetList("filterContainers", ",")
 	filter.Filters = append(filter.Filters,
-		filterV1SingleValueFromList(filterContainers, kubecost.FilterContainer),
+		filterV1SingleValueFromList(qp.GetList("filterContainers", ","), kubecost.FilterContainer),
 	)
 
 	// TODO: label mapping special things
@@ -173,14 +167,12 @@ func FiltersFromParamsV1(qp httputil.QueryParams) kubecost.AllocationFilter {
 	// 	filter.Filters = append(filter.Filters, subFilter)
 	// }
 
-	filterAnnotations := qp.GetList("filterAnnotations", ",")
 	filter.Filters = append(filter.Filters,
-		filterV1DoubleValueFromList(filterAnnotations, kubecost.FilterAnnotation),
+		filterV1DoubleValueFromList(qp.GetList("filterAnnotations", ","), kubecost.FilterAnnotation),
 	)
 
-	filterLabels := qp.GetList("filterLabels", ",")
 	filter.Filters = append(filter.Filters,
-		filterV1DoubleValueFromList(filterLabels, kubecost.FilterLabel),
+		filterV1DoubleValueFromList(qp.GetList("filterLabels", ","), kubecost.FilterLabel),
 	)
 
 	// TODO: filter service condition
