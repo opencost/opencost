@@ -10,6 +10,16 @@ import (
 	"github.com/kubecost/cost-model/pkg/util/httputil"
 )
 
+// parseWildcardEnd checks if the given filter value is wildcarded, meaning
+// it ends in "*". If it does, it removes the suffix and returns the cleaned
+// string and true. Otherwise, it returns the same filter and false.
+//
+// parseWildcardEnd("kube*") = "kube", true
+// parseWildcardEnd("kube") = "kube", false
+func parseWildcardEnd(rawFilterValue string) (string, bool) {
+	return strings.TrimSuffix(rawFilterValue, "*"), strings.HasSuffix(rawFilterValue, "*")
+}
+
 // AllocationFilterFromParamsV1 takes a set of HTTP query parameters and
 // converts them to an AllocationFilter, which is a structured in-Go
 // representation of a set of filters.
@@ -69,8 +79,19 @@ func AllocationFilterFromParamsV1(
 		Filters: []kubecost.AllocationFilter{},
 	}
 	clustersOr.Filters = append(clustersOr.Filters, filterV1SingleValueFromList(filterClusters, kubecost.FilterClusterID))
-	for _, possibleClusterName := range filterClusters {
-		for _, clusterID := range clusterNameToIDs[possibleClusterName] {
+	for _, rawFilterValue := range filterClusters {
+		clusterNameFilter, wildcard := parseWildcardEnd(rawFilterValue)
+
+		clusterIDsToFilter := []string{}
+		for clusterName := range clusterNameToIDs {
+			if wildcard && strings.HasPrefix(clusterName, clusterNameFilter) {
+				clusterIDsToFilter = append(clusterIDsToFilter, clusterNameToIDs[clusterName]...)
+			} else if !wildcard && clusterName == clusterNameFilter {
+				clusterIDsToFilter = append(clusterIDsToFilter, clusterNameToIDs[clusterName]...)
+			}
+		}
+
+		for _, clusterID := range clusterIDsToFilter {
 			clustersOr.Filters = append(clustersOr.Filters,
 				kubecost.AllocationFilterCondition{
 					Field: kubecost.FilterClusterID,
@@ -105,27 +126,39 @@ func AllocationFilterFromParamsV1(
 	for _, rawFilterValue := range filterControllers {
 		split := strings.Split(rawFilterValue, ":")
 		if len(split) == 1 {
-			controllersOr.Filters = append(controllersOr.Filters,
-				kubecost.AllocationFilterCondition{
-					Field: kubecost.FilterControllerName,
-					Op:    kubecost.FilterEquals,
-					Value: split[0],
-				})
+			filterValue, wildcard := parseWildcardEnd(split[0])
+			subFilter := kubecost.AllocationFilterCondition{
+				Field: kubecost.FilterControllerName,
+				Op:    kubecost.FilterEquals,
+				Value: filterValue,
+			}
+
+			if wildcard {
+				subFilter.Op = kubecost.FilterStartsWith
+			}
+			controllersOr.Filters = append(controllersOr.Filters, subFilter)
 		} else if len(split) == 2 {
+			kindFilterVal := split[0]
+			nameFilterVal, wildcard := parseWildcardEnd(split[1])
+
+			kindFilter := kubecost.AllocationFilterCondition{
+				Field: kubecost.FilterControllerKind,
+				Op:    kubecost.FilterEquals,
+				Value: kindFilterVal,
+			}
+			nameFilter := kubecost.AllocationFilterCondition{
+				Field: kubecost.FilterControllerName,
+				Op:    kubecost.FilterEquals,
+				Value: nameFilterVal,
+			}
+
+			if wildcard {
+				nameFilter.Op = kubecost.FilterStartsWith
+			}
+
 			// The controller name AND the controller kind must match
 			multiFilter := kubecost.AllocationFilterAnd{
-				Filters: []kubecost.AllocationFilter{
-					kubecost.AllocationFilterCondition{
-						Field: kubecost.FilterControllerKind,
-						Op:    kubecost.FilterEquals,
-						Value: split[0],
-					},
-					kubecost.AllocationFilterCondition{
-						Field: kubecost.FilterControllerName,
-						Op:    kubecost.FilterEquals,
-						Value: split[1],
-					},
-				},
+				Filters: []kubecost.AllocationFilter{kindFilter, nameFilter},
 			}
 			controllersOr.Filters = append(controllersOr.Filters, multiFilter)
 		} else {
@@ -176,13 +209,17 @@ func AllocationFilterFromParamsV1(
 		Filters: []kubecost.AllocationFilter{},
 	}
 	for _, filterValue := range qp.GetList("filterServices", ",") {
-		servicesFilter.Filters = append(servicesFilter.Filters,
-			kubecost.AllocationFilterCondition{
-				Field: kubecost.FilterServices,
-				Op:    kubecost.FilterContains,
-				Value: filterValue,
-			},
-		)
+		// TODO: wildcard support
+		filterValue, wildcard := parseWildcardEnd(filterValue)
+		subFilter := kubecost.AllocationFilterCondition{
+			Field: kubecost.FilterServices,
+			Op:    kubecost.FilterContains,
+			Value: filterValue,
+		}
+		if wildcard {
+			subFilter.Op = kubecost.FilterContainsPrefix
+		}
+		servicesFilter.Filters = append(servicesFilter.Filters, subFilter)
 	}
 	filter.Filters = append(filter.Filters, servicesFilter)
 
@@ -201,14 +238,20 @@ func filterV1SingleValueFromList(rawFilterValues []string, filterField kubecost.
 
 	for _, filterValue := range rawFilterValues {
 		filterValue = strings.TrimSpace(filterValue)
+		filterValue, wildcard := parseWildcardEnd(filterValue)
 
-		filter.Filters = append(filter.Filters,
-			kubecost.AllocationFilterCondition{
-				Field: filterField,
-				// All v1 filters are equality comparisons
-				Op:    kubecost.FilterEquals,
-				Value: filterValue,
-			})
+		subFilter := kubecost.AllocationFilterCondition{
+			Field: filterField,
+			// All v1 filters are equality comparisons
+			Op:    kubecost.FilterEquals,
+			Value: filterValue,
+		}
+
+		if wildcard {
+			subFilter.Op = kubecost.FilterStartsWith
+		}
+
+		filter.Filters = append(filter.Filters, subFilter)
 	}
 
 	return filter
@@ -224,15 +267,21 @@ func filterV1LabelMappedFromList(rawFilterValues []string, labelName string) kub
 
 	for _, filterValue := range rawFilterValues {
 		filterValue = strings.TrimSpace(filterValue)
+		filterValue, wildcard := parseWildcardEnd(filterValue)
 
-		filter.Filters = append(filter.Filters,
-			kubecost.AllocationFilterCondition{
-				Field: kubecost.FilterLabel,
-				// All v1 filters are equality comparisons
-				Op:    kubecost.FilterEquals,
-				Key:   labelName,
-				Value: filterValue,
-			})
+		subFilter := kubecost.AllocationFilterCondition{
+			Field: kubecost.FilterLabel,
+			// All v1 filters are equality comparisons
+			Op:    kubecost.FilterEquals,
+			Key:   labelName,
+			Value: filterValue,
+		}
+
+		if wildcard {
+			subFilter.Op = kubecost.FilterStartsWith
+		}
+
+		filter.Filters = append(filter.Filters, subFilter)
 	}
 
 	return filter
@@ -257,16 +306,21 @@ func filterV1DoubleValueFromList(rawFilterValuesUnsplit []string, filterField ku
 			}
 			key := prom.SanitizeLabelName(strings.TrimSpace(split[0]))
 			val := strings.TrimSpace(split[1])
+			val, wildcard := parseWildcardEnd(val)
 
-			filter.Filters = append(filter.Filters,
-				kubecost.AllocationFilterCondition{
-					Field: filterField,
-					// All v1 filters are equality comparisons
-					Op:    kubecost.FilterEquals,
-					Key:   key,
-					Value: val,
-				},
-			)
+			subFilter := kubecost.AllocationFilterCondition{
+				Field: filterField,
+				// All v1 filters are equality comparisons
+				Op:    kubecost.FilterEquals,
+				Key:   key,
+				Value: val,
+			}
+
+			if wildcard {
+				subFilter.Op = kubecost.FilterStartsWith
+			}
+
+			filter.Filters = append(filter.Filters, subFilter)
 		}
 	}
 

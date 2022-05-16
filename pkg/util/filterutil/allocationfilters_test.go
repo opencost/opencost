@@ -70,9 +70,50 @@ func TestFiltersFromParamsV1(t *testing.T) {
 			},
 		},
 		{
+			name: "wildcard cluster ID",
+			qp: map[string]string{
+				"filterClusters": "cluster*",
+			},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Cluster: "cluster-one",
+				}),
+				allocGenerator(kubecost.AllocationProperties{
+					Cluster: "cluster-two",
+				}),
+				allocGenerator(kubecost.AllocationProperties{
+					Cluster: "cluster",
+				}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Cluster: "foo",
+				}),
+				allocGenerator(kubecost.AllocationProperties{
+					Cluster: "cluste",
+				}),
+			},
+		},
+		{
 			name: "single cluster name",
 			qp: map[string]string{
 				"filterClusters": "cluster ABC",
+			},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Cluster: "mapped-cluster-ID-ABC",
+				}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Cluster: "cluster-one",
+				}),
+			},
+		},
+		{
+			name: "wildcard cluster name",
+			qp: map[string]string{
+				"filterClusters": "cluster A*",
 			},
 			shouldMatch: []kubecost.Allocation{
 				allocGenerator(kubecost.AllocationProperties{
@@ -102,6 +143,22 @@ func TestFiltersFromParamsV1(t *testing.T) {
 			},
 		},
 		{
+			name: "wildcard node",
+			qp: map[string]string{
+				"filterNodes": "node-1*",
+			},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Node: "node-123-abc",
+				}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Node: "node-456-def",
+				}),
+			},
+		},
+		{
 			name: "single namespace",
 			qp: map[string]string{
 				"filterNamespaces": "kubecost",
@@ -118,9 +175,44 @@ func TestFiltersFromParamsV1(t *testing.T) {
 			},
 		},
 		{
+			name: "wildcard namespace",
+			qp: map[string]string{
+				"filterNamespaces": "kube*",
+			},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Namespace: "kubecost",
+				}),
+				allocGenerator(kubecost.AllocationProperties{
+					Namespace: "kube-system",
+				}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Namespace: "kub",
+				}),
+			},
+		},
+		{
 			name: "single controller kind",
 			qp: map[string]string{
 				"filterControllerKinds": "deployment",
+			},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					ControllerKind: "deployment",
+				}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					ControllerKind: "daemonset",
+				}),
+			},
+		},
+		{
+			name: "wildcard controller kind",
+			qp: map[string]string{
+				"filterControllerKinds": "depl*",
 			},
 			shouldMatch: []kubecost.Allocation{
 				allocGenerator(kubecost.AllocationProperties{
@@ -150,6 +242,25 @@ func TestFiltersFromParamsV1(t *testing.T) {
 			},
 		},
 		{
+			name: "wildcard controller name",
+			qp: map[string]string{
+				"filterControllers": "kubecost-*",
+			},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Controller: "kubecost-cost-analyzer",
+				}),
+				allocGenerator(kubecost.AllocationProperties{
+					Controller: "kubecost-frontend",
+				}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Controller: "kube-proxy",
+				}),
+			},
+		},
+		{
 			name: "single controller kind:name combo",
 			qp: map[string]string{
 				"filterControllers": "deployment:kubecost-cost-analyzer",
@@ -168,9 +279,47 @@ func TestFiltersFromParamsV1(t *testing.T) {
 			},
 		},
 		{
+			name: "wildcard controller kind:name combo",
+			qp: map[string]string{
+				"filterControllers": "deployment:kubecost*",
+			},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					ControllerKind: "deployment",
+					Controller:     "kubecost-cost-analyzer",
+				}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					ControllerKind: "daemonset",
+					Controller:     "kubecost-cost-analyzer",
+				}),
+				allocGenerator(kubecost.AllocationProperties{
+					ControllerKind: "deployment",
+					Controller:     "kube-system",
+				}),
+			},
+		},
+		{
 			name: "single pod",
 			qp: map[string]string{
 				"filterPods": "pod-123-abc",
+			},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Pod: "pod-123-abc",
+				}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Pod: "pod-456-def",
+				}),
+			},
+		},
+		{
+			name: "wildcard pod",
+			qp: map[string]string{
+				"filterPods": "pod-1*",
 			},
 			shouldMatch: []kubecost.Allocation{
 				allocGenerator(kubecost.AllocationProperties{
@@ -200,9 +349,45 @@ func TestFiltersFromParamsV1(t *testing.T) {
 			},
 		},
 		{
+			name: "wildcard container",
+			qp: map[string]string{
+				"filterContainers": "container-1*",
+			},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Container: "container-123-abc",
+				}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Container: "container-456-def",
+				}),
+			},
+		},
+		{
 			name: "single department",
 			qp: map[string]string{
 				"filterDepartments": "pa-1",
+			},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Labels: map[string]string{
+						"internal-product-umbrella": "pa-1",
+					},
+				}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Labels: map[string]string{
+						"internal-product-umbrella": "ps-N",
+					},
+				}),
+			},
+		},
+		{
+			name: "wildcard department",
+			qp: map[string]string{
+				"filterDepartments": "pa*",
 			},
 			shouldMatch: []kubecost.Allocation{
 				allocGenerator(kubecost.AllocationProperties{
@@ -245,9 +430,59 @@ func TestFiltersFromParamsV1(t *testing.T) {
 			},
 		},
 		{
+			name: "wildcard label",
+			qp: map[string]string{
+				"filterLabels": "app:cost-*",
+			},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Labels: map[string]string{
+						"app": "cost-analyzer",
+					},
+				}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Labels: map[string]string{
+						"app": "foo",
+					},
+				}),
+				allocGenerator(kubecost.AllocationProperties{
+					Labels: map[string]string{
+						"foo": "bar",
+					},
+				}),
+			},
+		},
+		{
 			name: "single annotation",
 			qp: map[string]string{
 				"filterAnnotations": "app:cost-analyzer",
+			},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Annotations: map[string]string{
+						"app": "cost-analyzer",
+					},
+				}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Annotations: map[string]string{
+						"app": "foo",
+					},
+				}),
+				allocGenerator(kubecost.AllocationProperties{
+					Annotations: map[string]string{
+						"foo": "bar",
+					},
+				}),
+			},
+		},
+		{
+			name: "wildcard annotation",
+			qp: map[string]string{
+				"filterAnnotations": "app:cost-*",
 			},
 			shouldMatch: []kubecost.Allocation{
 				allocGenerator(kubecost.AllocationProperties{
@@ -303,6 +538,26 @@ func TestFiltersFromParamsV1(t *testing.T) {
 				allocGenerator(kubecost.AllocationProperties{}),
 				allocGenerator(kubecost.AllocationProperties{
 					Services: []string{"serv2"},
+				}),
+			},
+		},
+		{
+			name: "wildcard service",
+			qp: map[string]string{
+				"filterServices": "serv*",
+			},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Services: []string{"serv1"},
+				}),
+				allocGenerator(kubecost.AllocationProperties{
+					Services: []string{"serv2"},
+				}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{}),
+				allocGenerator(kubecost.AllocationProperties{
+					Services: []string{"foo"},
 				}),
 			},
 		},
