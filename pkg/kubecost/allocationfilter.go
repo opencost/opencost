@@ -137,7 +137,7 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 			valueToCompare = val
 		}
 	default:
-		log.Errorf("Allocation Filter: Unhandled filter field. This is a filter implementation error and requires immediate patching. Field: %d", filter.Field)
+		log.Errorf("Allocation Filter: Unhandled filter field. This is a filter implementation error and requires immediate patching. Field: %s", filter.Field)
 		return false
 	}
 
@@ -170,7 +170,7 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 			return true
 		}
 	default:
-		log.Errorf("Allocation Filter: Unhandled filter op. This is a filter implementation error and requires immediate patching. Op: %d", filter.Op)
+		log.Errorf("Allocation Filter: Unhandled filter op. This is a filter implementation error and requires immediate patching. Op: %s", filter.Op)
 		return false
 	}
 
