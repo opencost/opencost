@@ -24,14 +24,13 @@ import (
 // filtering. This turns all `filterClusters=foo` arguments into the equivalent
 // of `clusterID = "foo" OR clusterName = "foo"`.
 //
-// TODO: Make sure KCM callers provide a label config if possible/
-// necessary
+// TODO: This does not yet support filters with wildcards (e.g.
+// filterNamespaces=kube*)
 func AllocationFilterFromParamsV1(
 	qp httputil.QueryParams,
 	labelConfig *kubecost.LabelConfig,
 	clusterMap clusters.ClusterMap,
 ) kubecost.AllocationFilter {
-	// TODO: wildcard handling
 
 	filter := kubecost.AllocationFilterAnd{
 		Filters: []kubecost.AllocationFilter{},
@@ -83,12 +82,10 @@ func AllocationFilterFromParamsV1(
 	}
 	filter.Filters = append(filter.Filters, clustersOr)
 
-	// generate a filter func for each node filter, and OR the results
 	filter.Filters = append(filter.Filters,
 		filterV1SingleValueFromList(qp.GetList("filterNodes", ","), kubecost.FilterNode),
 	)
 
-	// generate a filter func for each namespace filter, and OR the results
 	filter.Filters = append(filter.Filters,
 		filterV1SingleValueFromList(qp.GetList("filterNamespaces", ","), kubecost.FilterNamespace),
 	)
@@ -174,6 +171,7 @@ func AllocationFilterFromParamsV1(
 		filterV1DoubleValueFromList(qp.GetList("filterLabels", ","), kubecost.FilterLabel),
 	)
 
+	// filterServices= is the only filter that uses the "contains" operator.
 	servicesFilter := kubecost.AllocationFilterOr{
 		Filters: []kubecost.AllocationFilter{},
 	}
@@ -191,9 +189,12 @@ func AllocationFilterFromParamsV1(
 	return filter
 }
 
+// filterV1SingleValueFromList creates an OR of equality filters for a given
+// filter field.
+//
+// The v1 query language (e.g. "filterNamespaces=XYZ,ABC") uses OR within
+// a field (e.g. namespace = XYZ OR namespace = ABC)
 func filterV1SingleValueFromList(rawFilterValues []string, filterField kubecost.FilterField) kubecost.AllocationFilter {
-	// The v1 query language (e.g. "filterNamespaces=XYZ,ABC") uses or within
-	// a field (e.g. namespace = XYZ OR namespace = ABC)
 	filter := kubecost.AllocationFilterOr{
 		Filters: []kubecost.AllocationFilter{},
 	}
@@ -213,12 +214,10 @@ func filterV1SingleValueFromList(rawFilterValues []string, filterField kubecost.
 	return filter
 }
 
-// TODO: comment
-// We don't need the filter op because all filter V1 comparisons are equality
-// We don't need the filter field because it is always a label
+// filterV1LabelMappedFromList is like filterV1SingleValueFromList but is
+// explicitly for a label because "label-mapped" filters (like filterTeams=)
+// are actually label filters with a fixed label key.
 func filterV1LabelMappedFromList(rawFilterValues []string, labelName string) kubecost.AllocationFilter {
-	// The v1 query language (e.g. "filterNamespaces=XYZ,ABC") uses or within
-	// a field (e.g. namespace = XYZ OR namespace = ABC)
 	filter := kubecost.AllocationFilterOr{
 		Filters: []kubecost.AllocationFilter{},
 	}
@@ -239,12 +238,12 @@ func filterV1LabelMappedFromList(rawFilterValues []string, labelName string) kub
 	return filter
 }
 
-// TODO: comment
-// We don't need the filter op because all filter V1 comparisons are equality
+// filterV1DoubleValueFromList creates an OR of key:value equality filters for
+// colon-split filter values.
+//
+// The v1 query language (e.g. "filterLabels=app:foo,l2:bar") uses OR within
+// a field (e.g. label[app] = foo OR label[l2] = bar)
 func filterV1DoubleValueFromList(rawFilterValuesUnsplit []string, filterField kubecost.FilterField) kubecost.AllocationFilter {
-
-	// The v1 query language (e.g. "filterLabels=app:foo,l2:bar") uses OR within
-	// a field (e.g. label[app] = foo OR label[l2] = bar)
 	filter := kubecost.AllocationFilterOr{
 		Filters: []kubecost.AllocationFilter{},
 	}
