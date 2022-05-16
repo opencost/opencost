@@ -382,6 +382,36 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 			expected: false,
 		},
 		{
+			name: `services startswith -> true`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Services: []string{"serv1", "serv2"},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterServices,
+				Op:    FilterStartsWith,
+				Value: "serv",
+			},
+
+			expected: true,
+		},
+		{
+			name: `services startswith -> false`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Services: []string{"foo", "bar"},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterServices,
+				Op:    FilterStartsWith,
+				Value: "serv",
+			},
+
+			expected: false,
+		},
+		{
 			name: `services contains unallocated -> false`,
 			a: &Allocation{
 				Properties: &AllocationProperties{

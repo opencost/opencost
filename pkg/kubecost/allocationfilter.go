@@ -39,10 +39,21 @@ type FilterOp string
 // If you add a FilterOp, MAKE SURE TO UPDATE ALL FILTER IMPLEMENTATIONS! Go
 // does not enforce exhaustive pattern matching on "enum" types.
 const (
-	FilterEquals     FilterOp = "equals"
-	FilterNotEquals           = "notequals"
-	FilterContains            = "contains"
-	FilterStartsWith          = "startswith"
+	// FilterEquals is the equality operator
+	// "kube-system" FilterEquals "kube-system" = true
+	// "kube-syste" FilterEquals "kube-system" = false
+	FilterEquals FilterOp = "equals"
+	// FilterNotEquals is the inequality operator
+	FilterNotEquals = "notequals"
+	// FilterContains is an array/slice membership operator
+	// ["a", "b", "c"] FilterContains "a" = true
+	FilterContains = "contains"
+	// FilterStartsWith matches strings with the given prefix.
+	// "kube-system" StartsWith "kube" = true
+	//
+	// When comparing with a field represented by an array/slice, this is like
+	// applying FilterContains to every element of the slice.
+	FilterStartsWith = "startswith"
 )
 
 // AllocationFilter represents anything that can be used to filter an
@@ -203,13 +214,21 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 		// asking for "__unallocated__" won't have a wildcard and unallocated
 		// properties are the empty string.
 
-		s, ok := valueToCompare.(string)
-		if !ok {
-			log.Warnf("Allocation Filter: invalid 'startswith' call for non-string filter value")
+		switch v := valueToCompare.(type) {
+		case string:
+			return strings.HasPrefix(v, filter.Value)
+		case []string:
+			for _, s := range v {
+				if strings.HasPrefix(s, filter.Value) {
+					return true
+				}
+			}
+			return false
+		default:
+			log.Warnf("Allocation Filter: invalid 'startswith' call for field with unsupported type")
 			return false
 		}
 
-		return strings.HasPrefix(s, filter.Value)
 	default:
 		log.Errorf("Allocation Filter: Unhandled filter op. This is a filter implementation error and requires immediate patching. Op: %s", filter.Op)
 		return false

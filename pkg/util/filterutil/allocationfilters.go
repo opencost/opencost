@@ -210,13 +210,16 @@ func AllocationFilterFromParamsV1(
 	}
 	for _, filterValue := range qp.GetList("filterServices", ",") {
 		// TODO: wildcard support
-		servicesFilter.Filters = append(servicesFilter.Filters,
-			kubecost.AllocationFilterCondition{
-				Field: kubecost.FilterServices,
-				Op:    kubecost.FilterContains,
-				Value: filterValue,
-			},
-		)
+		filterValue, wildcard := parseWildcardEnd(filterValue)
+		subFilter := kubecost.AllocationFilterCondition{
+			Field: kubecost.FilterServices,
+			Op:    kubecost.FilterContains,
+			Value: filterValue,
+		}
+		if wildcard {
+			subFilter.Op = kubecost.FilterStartsWith
+		}
+		servicesFilter.Filters = append(servicesFilter.Filters, subFilter)
 	}
 	filter.Filters = append(filter.Filters, servicesFilter)
 
