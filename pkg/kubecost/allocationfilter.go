@@ -1,6 +1,10 @@
 package kubecost
 
-import "github.com/kubecost/cost-model/pkg/log"
+import (
+	"strings"
+
+	"github.com/kubecost/cost-model/pkg/log"
+)
 
 // FilterField is an enum that represents Allocation-specific fields that can be
 // filtered on (namespace, label, etc.)
@@ -35,9 +39,10 @@ type FilterOp string
 // If you add a FilterOp, MAKE SURE TO UPDATE ALL FILTER IMPLEMENTATIONS! Go
 // does not enforce exhaustive pattern matching on "enum" types.
 const (
-	FilterEquals    FilterOp = "equals"
-	FilterNotEquals          = "notequals"
-	FilterContains           = "contains"
+	FilterEquals     FilterOp = "equals"
+	FilterNotEquals           = "notequals"
+	FilterContains            = "contains"
+	FilterStartsWith          = "startswith"
 )
 
 // AllocationFilter represents anything that can be used to filter an
@@ -189,6 +194,22 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 		} else {
 			log.Warnf("Allocation Filter: invalid 'contains' call for non-list filter value")
 		}
+	case FilterStartsWith:
+		if toCompareMissing {
+			return false
+		}
+
+		// We don't need special __unallocated__ logic here because a query
+		// asking for "__unallocated__" won't have a wildcard and unallocated
+		// properties are the empty string.
+
+		s, ok := valueToCompare.(string)
+		if !ok {
+			log.Warnf("Allocation Filter: invalid 'startswith' call for non-string filter value")
+			return false
+		}
+
+		return strings.HasPrefix(s, filter.Value)
 	default:
 		log.Errorf("Allocation Filter: Unhandled filter op. This is a filter implementation error and requires immediate patching. Op: %s", filter.Op)
 		return false

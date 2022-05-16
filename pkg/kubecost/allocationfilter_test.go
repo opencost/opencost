@@ -28,6 +28,36 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 			expected: true,
 		},
 		{
+			name: "ClusterID StartsWith -> true",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Cluster: "cluster-one",
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterClusterID,
+				Op:    FilterStartsWith,
+				Value: "cluster",
+			},
+
+			expected: true,
+		},
+		{
+			name: "ClusterID StartsWith -> false",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Cluster: "k8s-one",
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterClusterID,
+				Op:    FilterStartsWith,
+				Value: "cluster",
+			},
+
+			expected: false,
+		},
+		{
 			name: "Node Equals -> true",
 			a: &Allocation{
 				Properties: &AllocationProperties{
