@@ -321,6 +321,66 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 
 			expected: true,
 		},
+		{
+			name: `services contains -> true`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Services: []string{"serv1", "serv2"},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterServices,
+				Op:    FilterContains,
+				Value: "serv2",
+			},
+
+			expected: true,
+		},
+		{
+			name: `services contains -> false`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Services: []string{"serv1", "serv2"},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterServices,
+				Op:    FilterContains,
+				Value: "serv3",
+			},
+
+			expected: false,
+		},
+		{
+			name: `services contains unallocated -> false`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Services: []string{"serv1", "serv2"},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterServices,
+				Op:    FilterContains,
+				Value: UnallocatedSuffix,
+			},
+
+			expected: false,
+		},
+		{
+			name: `services contains unallocated -> true`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Services: []string{},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterServices,
+				Op:    FilterContains,
+				Value: UnallocatedSuffix,
+			},
+
+			expected: true,
+		},
 	}
 
 	for _, c := range cases {

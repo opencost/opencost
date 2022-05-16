@@ -24,6 +24,8 @@ const (
 
 	FilterLabel      = "label"
 	FilterAnnotation = "annotation"
+
+	FilterServices = "services"
 )
 
 // FilterOp is an enum that represents operations that can be performed
@@ -35,6 +37,7 @@ type FilterOp string
 const (
 	FilterEquals    FilterOp = "equals"
 	FilterNotEquals          = "notequals"
+	FilterContains           = "contains"
 )
 
 // AllocationFilter represents anything that can be used to filter an
@@ -94,7 +97,8 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 	}
 
 	// The Allocation's value for the field to compare
-	var valueToCompare string
+	// We use an interface{} so this can contain the services []string slice
+	var valueToCompare interface{}
 
 	// toCompareMissing will be true if the value to be compared is missing in
 	// the Allocation. For example, if we're filtering based on the value of
@@ -136,6 +140,8 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 		} else {
 			valueToCompare = val
 		}
+	case FilterServices:
+		valueToCompare = a.Properties.Services
 	default:
 		log.Errorf("Allocation Filter: Unhandled filter field. This is a filter implementation error and requires immediate patching. Field: %s", filter.Field)
 		return false
@@ -168,6 +174,20 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 
 		if valueToCompare != filter.Value {
 			return true
+		}
+	case FilterContains:
+		if stringSlice, ok := valueToCompare.([]string); ok {
+			if len(stringSlice) == 0 {
+				return filter.Value == UnallocatedSuffix
+			}
+
+			for _, s := range stringSlice {
+				if s == filter.Value {
+					return true
+				}
+			}
+		} else {
+			log.Warnf("Allocation Filter: invalid 'contains' call for non-list filter value")
 		}
 	default:
 		log.Errorf("Allocation Filter: Unhandled filter op. This is a filter implementation error and requires immediate patching. Op: %s", filter.Op)
