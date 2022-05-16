@@ -217,7 +217,7 @@ func AllocationFilterFromParamsV1(
 			Value: filterValue,
 		}
 		if wildcard {
-			subFilter.Op = kubecost.FilterStartsWith
+			subFilter.Op = kubecost.FilterContainsPrefix
 		}
 		servicesFilter.Filters = append(servicesFilter.Filters, subFilter)
 	}

@@ -43,17 +43,25 @@ const (
 	// "kube-system" FilterEquals "kube-system" = true
 	// "kube-syste" FilterEquals "kube-system" = false
 	FilterEquals FilterOp = "equals"
+
 	// FilterNotEquals is the inequality operator
 	FilterNotEquals = "notequals"
+
 	// FilterContains is an array/slice membership operator
 	// ["a", "b", "c"] FilterContains "a" = true
 	FilterContains = "contains"
+
 	// FilterStartsWith matches strings with the given prefix.
 	// "kube-system" StartsWith "kube" = true
 	//
 	// When comparing with a field represented by an array/slice, this is like
 	// applying FilterContains to every element of the slice.
 	FilterStartsWith = "startswith"
+
+	// FilterContainsPrefix is like FilterContains, but using StartsWith instead
+	// of Equals.
+	// ["kube-system", "abc123"] ContainsPrefix ["kube"] = true
+	FilterContainsPrefix = "containsprefix"
 )
 
 // AllocationFilter represents anything that can be used to filter an
@@ -214,21 +222,34 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 		// asking for "__unallocated__" won't have a wildcard and unallocated
 		// properties are the empty string.
 
-		switch v := valueToCompare.(type) {
-		case string:
-			return strings.HasPrefix(v, filter.Value)
-		case []string:
-			for _, s := range v {
-				if strings.HasPrefix(s, filter.Value) {
-					return true
-				}
-			}
-			return false
-		default:
+		s, ok := valueToCompare.(string)
+		if !ok {
 			log.Warnf("Allocation Filter: invalid 'startswith' call for field with unsupported type")
 			return false
 		}
+		return strings.HasPrefix(s, filter.Value)
+	case FilterContainsPrefix:
+		if toCompareMissing {
+			return false
+		}
 
+		// We don't need special __unallocated__ logic here because a query
+		// asking for "__unallocated__" won't have a wildcard and unallocated
+		// properties are the empty string.
+
+		values, ok := valueToCompare.([]string)
+		if !ok {
+			log.Warnf("Allocation Filter: invalid '%s' call for field with unsupported type", FilterContainsPrefix)
+			return false
+		}
+
+		for _, s := range values {
+			if strings.HasPrefix(s, filter.Value) {
+				return true
+			}
+		}
+
+		return false
 	default:
 		log.Errorf("Allocation Filter: Unhandled filter op. This is a filter implementation error and requires immediate patching. Op: %s", filter.Op)
 		return false

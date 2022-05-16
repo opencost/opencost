@@ -382,7 +382,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: `services startswith -> true`,
+			name: `services containsprefix -> true`,
 			a: &Allocation{
 				Properties: &AllocationProperties{
 					Services: []string{"serv1", "serv2"},
@@ -390,14 +390,14 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 			},
 			filter: AllocationFilterCondition{
 				Field: FilterServices,
-				Op:    FilterStartsWith,
+				Op:    FilterContainsPrefix,
 				Value: "serv",
 			},
 
 			expected: true,
 		},
 		{
-			name: `services startswith -> false`,
+			name: `services containsprefix -> false`,
 			a: &Allocation{
 				Properties: &AllocationProperties{
 					Services: []string{"foo", "bar"},
@@ -405,7 +405,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 			},
 			filter: AllocationFilterCondition{
 				Field: FilterServices,
-				Op:    FilterStartsWith,
+				Op:    FilterContainsPrefix,
 				Value: "serv",
 			},
 
