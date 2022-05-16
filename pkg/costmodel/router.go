@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/config"
+	"github.com/kubecost/cost-model/pkg/kubeconfig"
 	"github.com/kubecost/cost-model/pkg/metrics"
 	"github.com/kubecost/cost-model/pkg/services"
 	"github.com/kubecost/cost-model/pkg/util/httputil"
@@ -46,8 +47,6 @@ import (
 	"github.com/patrickmn/go-cache"
 
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 var sanitizePolicy = bluemonday.UGCPolicy()
@@ -1442,19 +1441,9 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	log.Infof("Using scrape interval of %f", scrapeInterval.Seconds())
 
 	// Kubernetes API setup
-	var kc *rest.Config
-	if kubeconfig := env.GetKubeConfigPath(); kubeconfig != "" {
-		kc, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
-	} else {
-		kc, err = rest.InClusterConfig()
-	}
-
+	kubeClientset, err := kubeconfig.LoadKubeClient("")
 	if err != nil {
-		panic(err.Error())
-	}
-	kubeClientset, err := kubernetes.NewForConfig(kc)
-	if err != nil {
-		panic(err.Error())
+		log.Fatalf("Failed to build Kubernetes client: %s", err.Error())
 	}
 
 	// Create ConfigFileManager for synchronization of shared configuration

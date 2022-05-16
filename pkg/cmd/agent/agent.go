@@ -12,6 +12,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/costmodel"
 	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
 	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/cost-model/pkg/kubeconfig"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util/watcher"
@@ -23,8 +24,6 @@ import (
 
 	"github.com/rs/cors"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 // AgentOpts contain configuration options that can be passed to the Execute() method
@@ -50,18 +49,7 @@ func newKubernetesClusterCache() (kubernetes.Interface, clustercache.ClusterCach
 	var err error
 
 	// Kubernetes API setup
-	var kc *rest.Config
-	if kubeconfig := env.GetKubeConfigPath(); kubeconfig != "" {
-		kc, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
-	} else {
-		kc, err = rest.InClusterConfig()
-	}
-
-	if err != nil {
-		return nil, nil, err
-	}
-
-	kubeClientset, err := kubernetes.NewForConfig(kc)
+	kubeClientset, err := kubeconfig.LoadKubeClient("")
 	if err != nil {
 		return nil, nil, err
 	}
