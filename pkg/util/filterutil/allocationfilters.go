@@ -3,30 +3,85 @@ package filterutil
 import (
 	"strings"
 
+	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
 	"github.com/kubecost/cost-model/pkg/kubecost"
 	"github.com/kubecost/cost-model/pkg/log"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util/httputil"
 )
 
+// AllocationFilterFromParamsV1 takes a set of HTTP query parameters and
+// converts them to an AllocationFilter, which is a structured in-Go
+// representation of a set of filters.
+//
+// The HTTP query parameters are the "v1" filters attached to the Allocation
+// API: "filterNamespaces=", "filterNodes=", etc.
+//
+// It takes an optional LabelConfig, which if provided enables "label-mapped"
+// filters like "filterDepartments".
+//
+// It takes an optional ClusterMap, which if provided enables cluster name
+// filtering. This turns all `filterClusters=foo` arguments into the equivalent
+// of `clusterID = "foo" OR clusterName = "foo"`.
+//
 // TODO: Make sure KCM callers provide a label config if possible/
 // necessary
-func FiltersFromParamsV1(qp httputil.QueryParams, labelConfig *kubecost.LabelConfig) kubecost.AllocationFilter {
+func AllocationFilterFromParamsV1(
+	qp httputil.QueryParams,
+	labelConfig *kubecost.LabelConfig,
+	clusterMap clusters.ClusterMap,
+) kubecost.AllocationFilter {
 	// TODO: wildcard handling
 
 	filter := kubecost.AllocationFilterAnd{
 		Filters: []kubecost.AllocationFilter{},
 	}
 
-	// TODO: remove comment
-	// The following is adapted from KCM's original pkg/allocation/filters.go
+	// ClusterMap does not provide a cluster name -> cluster ID mapping in the
+	// interface, probably because there could be multiple IDs with the same
+	// name. However, V1 filter logic demands that the parameters to
+	// filterClusters= be checked against both cluster ID AND cluster name.
+	//
+	// To support expected filterClusters= behavior, we construct a mapping
+	// of cluster name -> cluster IDs (could be multiple IDs for the same name)
+	// so that we can create AllocationFilters that use only ClusterIDEquals.
+	//
+	//
+	// AllocationFilter intentionally does not support cluster name filters
+	// because those should be considered presentation-layer only.
+	clusterNameToIDs := map[string][]string{}
+	if clusterMap != nil {
+		cMap := clusterMap.AsMap()
+		for _, info := range cMap {
+			if info == nil {
+				continue
+			}
 
-	filter.Filters = append(filter.Filters,
-		filterV1SingleValueFromList(qp.GetList("filterClusters", ","), kubecost.FilterClusterID),
-	)
-	// TODO: OR by cluster name
-	// Cluster Map doesn't seem to have a name -> ID mapping,
-	// only an ID (from the allocation) -> name mapping
+			if _, ok := clusterNameToIDs[info.Name]; ok {
+				clusterNameToIDs[info.Name] = append(clusterNameToIDs[info.Name], info.ID)
+			} else {
+				clusterNameToIDs[info.Name] = []string{info.ID}
+			}
+		}
+	}
+
+	filterClusters := qp.GetList("filterClusters", ",")
+	clustersOr := kubecost.AllocationFilterOr{
+		Filters: []kubecost.AllocationFilter{},
+	}
+	clustersOr.Filters = append(clustersOr.Filters, filterV1SingleValueFromList(filterClusters, kubecost.FilterClusterID))
+	for _, possibleClusterName := range filterClusters {
+		for _, clusterID := range clusterNameToIDs[possibleClusterName] {
+			clustersOr.Filters = append(clustersOr.Filters,
+				kubecost.AllocationFilterCondition{
+					Field: kubecost.FilterClusterID,
+					Op:    kubecost.FilterEquals,
+					Value: clusterID,
+				},
+			)
+		}
+	}
+	filter.Filters = append(filter.Filters, clustersOr)
 
 	// generate a filter func for each node filter, and OR the results
 	filter.Filters = append(filter.Filters,
@@ -77,7 +132,7 @@ func FiltersFromParamsV1(qp httputil.QueryParams, labelConfig *kubecost.LabelCon
 			}
 			controllersOr.Filters = append(controllersOr.Filters, multiFilter)
 		} else {
-			log.Warningf("illegal filter for controller: %s", rawFilterValue)
+			log.Warnf("illegal filter for controller: %s", rawFilterValue)
 		}
 	}
 	filter.Filters = append(filter.Filters, controllersOr)
@@ -135,8 +190,6 @@ func FiltersFromParamsV1(qp httputil.QueryParams, labelConfig *kubecost.LabelCon
 	return filter
 }
 
-// TODO: comment
-// We don't need the filter op because all filter V1 comparisons are equality
 func filterV1SingleValueFromList(rawFilterValues []string, filterField kubecost.FilterField) kubecost.AllocationFilter {
 	// The v1 query language (e.g. "filterNamespaces=XYZ,ABC") uses or within
 	// a field (e.g. namespace = XYZ OR namespace = ABC)
@@ -150,6 +203,7 @@ func filterV1SingleValueFromList(rawFilterValues []string, filterField kubecost.
 		filter.Filters = append(filter.Filters,
 			kubecost.AllocationFilterCondition{
 				Field: filterField,
+				// All v1 filters are equality comparisons
 				Op:    kubecost.FilterEquals,
 				Value: filterValue,
 			})
@@ -174,6 +228,7 @@ func filterV1LabelMappedFromList(rawFilterValues []string, labelName string) kub
 		filter.Filters = append(filter.Filters,
 			kubecost.AllocationFilterCondition{
 				Field: kubecost.FilterLabel,
+				// All v1 filters are equality comparisons
 				Op:    kubecost.FilterEquals,
 				Key:   labelName,
 				Value: filterValue,
@@ -197,7 +252,7 @@ func filterV1DoubleValueFromList(rawFilterValuesUnsplit []string, filterField ku
 		if unsplit != "" {
 			split := strings.Split(unsplit, ":")
 			if len(split) != 2 {
-				log.Warningf("illegal key/value filter (ignoring): %s", unsplit)
+				log.Warnf("illegal key/value filter (ignoring): %s", unsplit)
 				continue
 			}
 			key := prom.SanitizeLabelName(strings.TrimSpace(split[0]))
@@ -206,6 +261,7 @@ func filterV1DoubleValueFromList(rawFilterValuesUnsplit []string, filterField ku
 			filter.Filters = append(filter.Filters,
 				kubecost.AllocationFilterCondition{
 					Field: filterField,
+					// All v1 filters are equality comparisons
 					Op:    kubecost.FilterEquals,
 					Key:   key,
 					Value: val,

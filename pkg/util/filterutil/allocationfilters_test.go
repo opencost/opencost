@@ -3,9 +3,38 @@ package filterutil
 import (
 	"testing"
 
+	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
 	"github.com/kubecost/cost-model/pkg/kubecost"
 	"github.com/kubecost/cost-model/pkg/util/mapper"
 )
+
+type mockClusterMap struct {
+	m map[string]*clusters.ClusterInfo
+}
+
+func (mcp mockClusterMap) GetClusterIDs() []string {
+	panic("unimplemented")
+}
+
+func (mcp mockClusterMap) AsMap() map[string]*clusters.ClusterInfo {
+	return mcp.m
+}
+
+func (mcp mockClusterMap) InfoFor(clusterID string) *clusters.ClusterInfo {
+	panic("unimplemented")
+}
+
+func (mcp mockClusterMap) NameFor(clusterID string) string {
+	panic("unimplemented")
+}
+func (mcp mockClusterMap) NameIDFor(clusterID string) string {
+	panic("unimplemented")
+}
+func (mcp mockClusterMap) SplitNameID(nameID string) (string, string) {
+	panic("unimplemented")
+}
+
+func (mcp mockClusterMap) StopRefresh() {}
 
 func allocGenerator(props kubecost.AllocationProperties) kubecost.Allocation {
 	a := kubecost.Allocation{
@@ -37,6 +66,22 @@ func TestFiltersFromParamsV1(t *testing.T) {
 			shouldNotMatch: []kubecost.Allocation{
 				allocGenerator(kubecost.AllocationProperties{
 					Cluster: "foo",
+				}),
+			},
+		},
+		{
+			name: "single cluster name",
+			qp: map[string]string{
+				"filterClusters": "cluster ABC",
+			},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Cluster: "mapped-cluster-ID-ABC",
+				}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Cluster: "cluster-one",
 				}),
 			},
 		},
@@ -272,6 +317,25 @@ func TestFiltersFromParamsV1(t *testing.T) {
 				}),
 			},
 		},
+		{
+			name: "cluster name OR cluster ID",
+			qp: map[string]string{
+				"filterClusters": "cluster ABC,cluster-one",
+			},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Cluster: "mapped-cluster-ID-ABC",
+				}),
+				allocGenerator(kubecost.AllocationProperties{
+					Cluster: "cluster-one",
+				}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Cluster: "cluster",
+				}),
+			},
+		},
 	}
 
 	for _, c := range cases {
@@ -287,7 +351,16 @@ func TestFiltersFromParamsV1(t *testing.T) {
 			labelConfig := kubecost.LabelConfig{}
 			labelConfig.DepartmentLabel = "internal-product-umbrella"
 
-			filter := FiltersFromParamsV1(qpMapper, &labelConfig)
+			clustersMap := mockClusterMap{
+				m: map[string]*clusters.ClusterInfo{
+					"mapped-cluster-ID-1": {
+						ID:   "mapped-cluster-ID-ABC",
+						Name: "cluster ABC",
+					},
+				},
+			}
+
+			filter := AllocationFilterFromParamsV1(qpMapper, &labelConfig, clustersMap)
 			for _, alloc := range c.shouldMatch {
 				if !filter.Matches(&alloc) {
 					t.Errorf("should have matched: %s", alloc.Name)
