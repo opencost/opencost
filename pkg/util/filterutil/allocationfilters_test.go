@@ -155,6 +155,26 @@ func TestFiltersFromParamsV1(t *testing.T) {
 			},
 		},
 		{
+			name: "single department",
+			qp: map[string]string{
+				"filterDepartments": "pa-1",
+			},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Labels: map[string]string{
+						"internal-product-umbrella": "pa-1",
+					},
+				}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Labels: map[string]string{
+						"internal-product-umbrella": "ps-N",
+					},
+				}),
+			},
+		},
+		{
 			name: "single label",
 			qp: map[string]string{
 				"filterLabels": "app:cost-analyzer",
@@ -264,7 +284,10 @@ func TestFiltersFromParamsV1(t *testing.T) {
 			}
 			qpMapper := mapper.NewMapper(qpMap)
 
-			filter := FiltersFromParamsV1(qpMapper)
+			labelConfig := kubecost.LabelConfig{}
+			labelConfig.DepartmentLabel = "internal-product-umbrella"
+
+			filter := FiltersFromParamsV1(qpMapper, &labelConfig)
 			for _, alloc := range c.shouldMatch {
 				if !filter.Matches(&alloc) {
 					t.Errorf("should have matched: %s", alloc.Name)

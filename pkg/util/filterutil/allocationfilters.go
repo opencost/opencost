@@ -9,12 +9,9 @@ import (
 	"github.com/kubecost/cost-model/pkg/util/httputil"
 )
 
-func FiltersFromParamsV1(qp httputil.QueryParams) kubecost.AllocationFilter {
-	if qp.Get("filter", "") != "" {
-		// TODO: short-circuit to a query language parser if the filter= param is
-		// present.
-	}
-
+// TODO: Make sure KCM callers provide a label config if possible/
+// necessary
+func FiltersFromParamsV1(qp httputil.QueryParams, labelConfig *kubecost.LabelConfig) kubecost.AllocationFilter {
 	// TODO: wildcard handling
 
 	filter := kubecost.AllocationFilterAnd{
@@ -23,19 +20,6 @@ func FiltersFromParamsV1(qp httputil.QueryParams) kubecost.AllocationFilter {
 
 	// TODO: remove comment
 	// The following is adapted from KCM's original pkg/allocation/filters.go
-
-	// Load Label Config
-	// Pull a LabelConfig from the app configuration, or default if
-	// configuration is unavailable.
-	// labelConfig := kubecost.NewLabelConfig()
-
-	// TODO: label config from analyzer in OSS?
-	// cfg, err := config.GetAnalyzerConfig()
-	// if err != nil {
-	// 	log.Warnf("AnalyzerConfig is nil")
-	// } else {
-	// 	labelConfig = cfg.LabelConfig()
-	// }
 
 	filter.Filters = append(filter.Filters,
 		filterV1SingleValueFromList(qp.GetList("filterClusters", ","), kubecost.FilterClusterID),
@@ -106,66 +90,26 @@ func FiltersFromParamsV1(qp httputil.QueryParams) kubecost.AllocationFilter {
 		filterV1SingleValueFromList(qp.GetList("filterContainers", ","), kubecost.FilterContainer),
 	)
 
-	// TODO: label mapping special things
-	// filterDepartments := qp.GetList("filterDepartments", ",")
-	// if len(filterDepartments) > 0 {
-	// 	subFilter := kubecost.AllocationFilterOr{
-	// 		Filters: []kubecost.AllocationFilter{},
-	// 	}
-
-	// 	for _, filter := range filterDepartments {
-	// 		ffs = append(ffs, GetDepartmentFilterFunc(labelConfig, filter))
-	// 	}
-	// 	filter.Filters = append(filter.Filters, subFilter)
-	// }
-
-	// filterEnvironments := qp.GetList("filterEnvironments", ",")
-	// if len(filterEnvironments) > 0 {
-	// 	subFilter := kubecost.AllocationFilterOr{
-	// 		Filters: []kubecost.AllocationFilter{},
-	// 	}
-
-	// 	for _, filter := range filterEnvironments {
-	// 		ffs = append(ffs, GetEnvironmentFilterFunc(labelConfig, filter))
-	// 	}
-	// 	filter.Filters = append(filter.Filters, subFilter)
-	// }
-
-	// filterOwners := qp.GetList("filterOwners", ",")
-	// if len(filterOwners) > 0 {
-	// 	subFilter := kubecost.AllocationFilterOr{
-	// 		Filters: []kubecost.AllocationFilter{},
-	// 	}
-
-	// 	for _, filter := range filterOwners {
-	// 		ffs = append(ffs, GetOwnerFilterFunc(labelConfig, filter))
-	// 	}
-	// 	filter.Filters = append(filter.Filters, subFilter)
-	// }
-
-	// filterProducts := qp.GetList("filterProducts", ",")
-	// if len(filterProducts) > 0 {
-	// 	subFilter := kubecost.AllocationFilterOr{
-	// 		Filters: []kubecost.AllocationFilter{},
-	// 	}
-
-	// 	for _, filter := range filterProducts {
-	// 		ffs = append(ffs, GetProductFilterFunc(labelConfig, filter))
-	// 	}
-	// 	filter.Filters = append(filter.Filters, subFilter)
-	// }
-
-	// filterTeams := qp.GetList("filterTeams", ",")
-	// if len(filterTeams) > 0 {
-	// 	subFilter := kubecost.AllocationFilterOr{
-	// 		Filters: []kubecost.AllocationFilter{},
-	// 	}
-
-	// 	for _, filter := range filterTeams {
-	// 		ffs = append(ffs, GetTeamFilterFunc(labelConfig, filter))
-	// 	}
-	// 	filter.Filters = append(filter.Filters, subFilter)
-	// }
+	// Label-mapped queries require a label config to be present.
+	if labelConfig != nil {
+		filter.Filters = append(filter.Filters,
+			filterV1LabelMappedFromList(qp.GetList("filterDepartments", ","), labelConfig.DepartmentLabel),
+		)
+		filter.Filters = append(filter.Filters,
+			filterV1LabelMappedFromList(qp.GetList("filterEnvironments", ","), labelConfig.EnvironmentLabel),
+		)
+		filter.Filters = append(filter.Filters,
+			filterV1LabelMappedFromList(qp.GetList("filterOwners", ","), labelConfig.OwnerLabel),
+		)
+		filter.Filters = append(filter.Filters,
+			filterV1LabelMappedFromList(qp.GetList("filterProducts", ","), labelConfig.ProductLabel),
+		)
+		filter.Filters = append(filter.Filters,
+			filterV1LabelMappedFromList(qp.GetList("filterTeams", ","), labelConfig.TeamLabel),
+		)
+	} else {
+		log.Debugf("No label config is available. Not creating filters for label-mapped 'fields'.")
+	}
 
 	filter.Filters = append(filter.Filters,
 		filterV1DoubleValueFromList(qp.GetList("filterAnnotations", ","), kubecost.FilterAnnotation),
@@ -207,6 +151,31 @@ func filterV1SingleValueFromList(rawFilterValues []string, filterField kubecost.
 			kubecost.AllocationFilterCondition{
 				Field: filterField,
 				Op:    kubecost.FilterEquals,
+				Value: filterValue,
+			})
+	}
+
+	return filter
+}
+
+// TODO: comment
+// We don't need the filter op because all filter V1 comparisons are equality
+// We don't need the filter field because it is always a label
+func filterV1LabelMappedFromList(rawFilterValues []string, labelName string) kubecost.AllocationFilter {
+	// The v1 query language (e.g. "filterNamespaces=XYZ,ABC") uses or within
+	// a field (e.g. namespace = XYZ OR namespace = ABC)
+	filter := kubecost.AllocationFilterOr{
+		Filters: []kubecost.AllocationFilter{},
+	}
+
+	for _, filterValue := range rawFilterValues {
+		filterValue = strings.TrimSpace(filterValue)
+
+		filter.Filters = append(filter.Filters,
+			kubecost.AllocationFilterCondition{
+				Field: kubecost.FilterLabel,
+				Op:    kubecost.FilterEquals,
+				Key:   labelName,
 				Value: filterValue,
 			})
 	}
