@@ -174,18 +174,19 @@ func AllocationFilterFromParamsV1(
 		filterV1DoubleValueFromList(qp.GetList("filterLabels", ","), kubecost.FilterLabel),
 	)
 
-	// TODO: filter service condition
-	// filterServices := qp.GetList("filterServices", ",")
-	// if len(filterServices) > 0 {
-	// 	subFilter := kubecost.AllocationFilterOr{
-	// 		Filters: []kubecost.AllocationFilter{},
-	// 	}
-
-	// 	for _, filter := range filterServices {
-	// 		ffs = append(ffs, GetServiceFilterFunc(filter))
-	// 	}
-	// 	filter.Filters = append(filter.Filters, subFilter)
-	// }
+	servicesFilter := kubecost.AllocationFilterOr{
+		Filters: []kubecost.AllocationFilter{},
+	}
+	for _, filterValue := range qp.GetList("filterServices", ",") {
+		servicesFilter.Filters = append(servicesFilter.Filters,
+			kubecost.AllocationFilterCondition{
+				Field: kubecost.FilterServices,
+				Op:    kubecost.FilterContains,
+				Value: filterValue,
+			},
+		)
+	}
+	filter.Filters = append(filter.Filters, servicesFilter)
 
 	return filter
 }

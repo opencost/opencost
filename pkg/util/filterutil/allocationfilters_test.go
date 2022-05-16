@@ -270,6 +270,43 @@ func TestFiltersFromParamsV1(t *testing.T) {
 			},
 		},
 		{
+			name: "single service",
+			qp: map[string]string{
+				"filterServices": "serv1",
+			},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Services: []string{"serv1"},
+				}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{}),
+				allocGenerator(kubecost.AllocationProperties{
+					Services: []string{"serv2"},
+				}),
+			},
+		},
+		{
+			name: "multi service",
+			qp: map[string]string{
+				"filterServices": "serv1,serv3",
+			},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Services: []string{"serv1"},
+				}),
+				allocGenerator(kubecost.AllocationProperties{
+					Services: []string{"serv2", "serv3"},
+				}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{}),
+				allocGenerator(kubecost.AllocationProperties{
+					Services: []string{"serv2"},
+				}),
+			},
+		},
+		{
 			name: "multi: namespaces, labels",
 			qp: map[string]string{
 				"filterNamespaces": "kube-system,kubecost",
