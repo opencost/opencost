@@ -186,6 +186,7 @@ type CustomPricing struct {
 	SharedLabelValues            string `json:"sharedLabelValues"`
 	ShareTenancyCosts            string `json:"shareTenancyCosts"` // TODO clean up configuration so we can use a type other that string (this should be a bool, but the app panics if it's not a string)
 	ReadOnly                     string `json:"readOnly"`
+	EditorAccess                 string `json:"editorAccess"`
 	KubecostToken                string `json:"kubecostToken"`
 	GoogleAnalyticsTag           string `json:"googleAnalyticsTag"`
 	ExcludeProviderID            string `json:"excludeProviderID"`
