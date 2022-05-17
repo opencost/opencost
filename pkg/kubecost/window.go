@@ -456,7 +456,7 @@ func (w Window) Hours() float64 {
 }
 
 func (w Window) IsEmpty() bool {
-	return !w.IsOpen() && w.end.Equal(*w.Start())
+	return w.start == nil && w.end == nil
 }
 
 func (w Window) IsNegative() bool {

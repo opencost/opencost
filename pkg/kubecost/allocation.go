@@ -914,7 +914,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	shouldAggregate := aggregateBy != nil
 	shouldFilter := len(options.FilterFuncs) > 0
 	shouldShare := len(options.SharedHourlyCosts) > 0 || len(options.ShareFuncs) > 0
-	if !shouldAggregate && !shouldFilter && !shouldShare {
+	if !shouldAggregate && !shouldFilter && !shouldShare && options.ShareIdle == ShareNone {
 		// There is nothing for AggregateBy to do, so simply return nil
 		return nil
 	}
