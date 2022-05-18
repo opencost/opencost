@@ -18,7 +18,7 @@ func TestPtrSliceRetry(t *testing.T) {
 
 	var count uint64 = 0
 
-	f := func() (interface{}, error) {
+	f := func() ([]*Obj, error) {
 		c := atomic.AddUint64(&count, 1)
 		fmt.Println("Try:", c)
 
@@ -33,9 +33,8 @@ func TestPtrSliceRetry(t *testing.T) {
 		return nil, fmt.Errorf("Failed: %d", c)
 	}
 
-	result, err := Retry(context.Background(), f, 5, time.Second)
-	objs, ok := result.([]*Obj)
-	if err != nil || !ok {
+	objs, err := Retry(context.Background(), f, 5, time.Second)
+	if err != nil {
 		t.Fatalf("Failed to correctly cast back to slice type")
 	}
 
@@ -48,12 +47,12 @@ func TestSuccessRetry(t *testing.T) {
 
 	var count uint64 = 0
 
-	f := func() (interface{}, error) {
+	f := func() (any, error) {
 		c := atomic.AddUint64(&count, 1)
 		fmt.Println("Try:", c)
 
 		if c == Expected {
-			return struct{}{}, nil
+			return nil, nil
 		}
 
 		return nil, fmt.Errorf("Failed: %d", c)
@@ -72,7 +71,7 @@ func TestFailRetry(t *testing.T) {
 	expectedError := fmt.Sprintf("Failed: %d", Expected)
 	var count uint64 = 0
 
-	f := func() (interface{}, error) {
+	f := func() (any, error) {
 		c := atomic.AddUint64(&count, 1)
 		fmt.Println("Try:", c)
 		return nil, fmt.Errorf("Failed: %d", c)
@@ -95,7 +94,7 @@ func TestCancelRetry(t *testing.T) {
 
 	var count uint64 = 0
 
-	f := func() (interface{}, error) {
+	f := func() (any, error) {
 		c := atomic.AddUint64(&count, 1)
 		fmt.Println("Try:", c)
 		return nil, fmt.Errorf("Failed: %d", c)
