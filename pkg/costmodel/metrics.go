@@ -346,6 +346,8 @@ func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clust
 		EmitKubeStateMetricsV1Only:    env.IsEmitKsmV1MetricsOnly(),
 	})
 
+	metrics.InitKubecostTelemetry(metricsConfig)
+
 	return &CostModelMetricsEmitter{
 		PrometheusClient:              promClient,
 		KubeClusterCache:              clusterCache,
