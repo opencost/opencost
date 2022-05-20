@@ -6,6 +6,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/kubecost/cost-model/pkg/costmodel"
 	"github.com/kubecost/cost-model/pkg/errors"
+	"github.com/kubecost/cost-model/pkg/metrics"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 )
@@ -29,7 +30,8 @@ func Execute(opts *CostModelOpts) error {
 	a.Router.GET("/allocation/summary", a.ComputeAllocationHandlerSummary)
 	rootMux.Handle("/", a.Router)
 	rootMux.Handle("/metrics", promhttp.Handler())
-	handler := cors.AllowAll().Handler(rootMux)
+	telemetryHandler := metrics.ResponseMetricMiddleware(rootMux)
+	handler := cors.AllowAll().Handler(telemetryHandler)
 
 	return http.ListenAndServe(":9003", errors.PanicHandlerMiddleware(handler))
 }

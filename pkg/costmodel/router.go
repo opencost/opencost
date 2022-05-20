@@ -882,23 +882,15 @@ func (a *Accesses) GetPrometheusMetrics(w http.ResponseWriter, _ *http.Request, 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	promMetrics, err := prom.GetPrometheusMetrics(a.PrometheusClient, "")
-	if err != nil {
-		w.Write(WrapData(nil, err))
-		return
-	}
+	promMetrics := prom.GetPrometheusMetrics(a.PrometheusClient, "")
 
 	result := map[string][]*prom.PrometheusDiagnostic{
 		"prometheus": promMetrics,
 	}
 
 	if thanos.IsEnabled() {
-		thanosMetrics, err := prom.GetPrometheusMetrics(a.ThanosClient, thanos.QueryOffset())
-		if err != nil {
-			log.Warnf("Error getting Thanos queue state: %s", err)
-		} else {
-			result["thanos"] = thanosMetrics
-		}
+		thanosMetrics := prom.GetPrometheusMetrics(a.ThanosClient, thanos.QueryOffset())
+		result["thanos"] = thanosMetrics
 	}
 
 	w.Write(WrapData(result, nil))

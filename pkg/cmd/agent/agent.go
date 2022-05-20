@@ -14,6 +14,7 @@ import (
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/kubeconfig"
 	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/cost-model/pkg/metrics"
 	"github.com/kubecost/cost-model/pkg/prom"
 	"github.com/kubecost/cost-model/pkg/util/watcher"
 
@@ -216,7 +217,8 @@ func Execute(opts *AgentOpts) error {
 	rootMux := http.NewServeMux()
 	rootMux.HandleFunc("/healthz", Healthz)
 	rootMux.Handle("/metrics", promhttp.Handler())
-	handler := cors.AllowAll().Handler(rootMux)
+	telemetryHandler := metrics.ResponseMetricMiddleware(rootMux)
+	handler := cors.AllowAll().Handler(telemetryHandler)
 
 	return http.ListenAndServe(fmt.Sprintf(":%d", env.GetKubecostMetricsPort()), handler)
 }

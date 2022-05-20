@@ -14,10 +14,3 @@ func NewPair[T any, U any](first T, second U) Pair[T, U] {
 		Second: second,
 	}
 }
-
-// DefaultValue[T] returns the default value for any generic type. This is helpful for generic
-// types where a type parameter can be a value type or pointer.
-func DefaultValue[T any]() T {
-	var t T
-	return t
-}
