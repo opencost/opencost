@@ -296,11 +296,9 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 		// Apply all remaining RAM to Idle
 		disk.Breakdown.Idle = 1.0 - (disk.Breakdown.System + disk.Breakdown.Other + disk.Breakdown.User)
 
-		// Set provider Id to the name for reconciliation on Azure
-		if fmt.Sprintf("%T", provider) == "*provider.Azure" {
-			if disk.ProviderID == "" {
-				disk.ProviderID = disk.Name
-			}
+		// Set provider Id to the name for reconciliation
+		if disk.ProviderID == "" {
+			disk.ProviderID = disk.Name
 		}
 	}
 
