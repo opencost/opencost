@@ -29,9 +29,6 @@ import (
 type ctxKey int
 
 const (
-	// DirDelim is the delimiter used to model a directory structure in an object store bucket.
-	DirDelim = "/"
-
 	// SSEKMS is the name of the SSE-KMS method for objectstore encryption.
 	SSEKMS = "SSE-KMS"
 
@@ -371,6 +368,11 @@ func (s3 *S3Storage) Write(name string, data []byte) error {
 	}
 
 	var size int64 = int64(len(data))
+
+	// Set partSize to 0 to write files in one go. This prevents chunking of
+	// upload into multiple parts, which requires additional memory for buffering
+	// the sub-parts. To remain consistent with other storage implementations,
+	// we would rather attempt to lower cost fast upload and fast-fail.
 	var partSize uint64 = 0
 
 	r := bytes.NewReader(data)

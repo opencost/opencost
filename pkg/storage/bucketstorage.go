@@ -12,9 +12,9 @@ import (
 type StorageProvider string
 
 const (
-	S3 StorageProvider = "S3"
+	S3  StorageProvider = "S3"
+	GCS StorageProvider = "GCS"
 	// AZURE StorageProvider = "AZURE"
-	// GCS   StorageProvider = "GCS"
 )
 
 // StorageConfig is the configuration type used as the "parent" configuration. It contains a type, which will
@@ -43,8 +43,8 @@ func NewBucketStorage(config []byte) (Storage, error) {
 	switch strings.ToUpper(string(storageConfig.Type)) {
 	case string(S3):
 		storage, err = NewS3Storage(config)
-	//case string(GCS):
-	//	storage, err = NewGCSStorage(config)
+	case string(GCS):
+		storage, err = NewGCSStorage(config)
 	//case string(AZURE):
 	//	storage, err = NewAzureStorage(config)
 	default:

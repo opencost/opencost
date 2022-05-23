@@ -5,6 +5,9 @@ import (
 	"time"
 )
 
+// DirDelim is the delimiter used to model a directory structure in an object store bucket.
+const DirDelim = "/"
+
 // DoesNotExistError is used as a generic error to return when a target path does not
 // exist in storage. Equivalent to os.ErrorNotExist such that it will work with os.IsNotExist(err)
 var DoesNotExistError = os.ErrNotExist
