@@ -5,7 +5,7 @@ package storage
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"strings"
 
 	gcs "cloud.google.com/go/storage"
@@ -77,14 +77,14 @@ func (gs *GCSStorage) Name() string {
 
 // FullPath returns the storage working path combined with the path provided
 func (gs *GCSStorage) FullPath(name string) string {
-	name = gs.trimLeading(name)
+	name = trimLeading(name)
 
 	return name
 }
 
 // Stat returns the StorageStats for the specific path.
 func (gs *GCSStorage) Stat(name string) (*StorageInfo, error) {
-	name = gs.trimLeading(name)
+	name = trimLeading(name)
 	//log.Infof("GCSStorage::Stat(%s)", name)]
 
 	ctx := context.Background()
@@ -97,7 +97,7 @@ func (gs *GCSStorage) Stat(name string) (*StorageInfo, error) {
 	}
 
 	return &StorageInfo{
-		Name:    gs.trimName(attrs.Name),
+		Name:    trimName(attrs.Name),
 		Size:    attrs.Size,
 		ModTime: attrs.Updated,
 	}, nil
@@ -112,7 +112,7 @@ func (gs *GCSStorage) isDoesNotExist(err error) bool {
 // Read uses the relative path of the storage combined with the provided path to
 // read the contents.
 func (gs *GCSStorage) Read(name string) ([]byte, error) {
-	name = gs.trimLeading(name)
+	name = trimLeading(name)
 	log.Infof("GCSStorage::Read(%s)", name)
 
 	ctx := context.Background()
@@ -121,7 +121,7 @@ func (gs *GCSStorage) Read(name string) ([]byte, error) {
 		return nil, err
 	}
 
-	data, err := ioutil.ReadAll(reader)
+	data, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +132,7 @@ func (gs *GCSStorage) Read(name string) ([]byte, error) {
 // Write uses the relative path of the storage combined with the provided path
 // to write a new file or overwrite an existing file.
 func (gs *GCSStorage) Write(name string, data []byte) error {
-	name = gs.trimLeading(name)
+	name = trimLeading(name)
 	log.Infof("GCSStorage::Write(%s)", name)
 
 	ctx := context.Background()
@@ -160,7 +160,7 @@ func (gs *GCSStorage) Write(name string, data []byte) error {
 // Remove uses the relative path of the storage combined with the provided path to
 // remove a file from storage permanently.
 func (gs *GCSStorage) Remove(name string) error {
-	name = gs.trimLeading(name)
+	name = trimLeading(name)
 
 	log.Infof("GCSStorage::Remove(%s)", name)
 	ctx := context.Background()
@@ -171,7 +171,7 @@ func (gs *GCSStorage) Remove(name string) error {
 // Exists uses the relative path of the storage combined with the provided path to
 // determine if the file exists.
 func (gs *GCSStorage) Exists(name string) (bool, error) {
-	name = gs.trimLeading(name)
+	name = trimLeading(name)
 	//log.Infof("GCSStorage::Exists(%s)", name)
 
 	ctx := context.Background()
@@ -189,7 +189,7 @@ func (gs *GCSStorage) Exists(name string) (bool, error) {
 // List uses the relative path of the storage combined with the provided path to return
 // storage information for the files.
 func (gs *GCSStorage) List(path string) ([]*StorageInfo, error) {
-	path = gs.trimLeading(path)
+	path = trimLeading(path)
 
 	log.Infof("GCSStorage::List(%s)", path)
 	ctx := context.Background()
@@ -222,7 +222,7 @@ func (gs *GCSStorage) List(path string) ([]*StorageInfo, error) {
 		}
 
 		stats = append(stats, &StorageInfo{
-			Name:    gs.trimName(attrs.Name),
+			Name:    trimName(attrs.Name),
 			Size:    attrs.Size,
 			ModTime: attrs.Updated,
 		})
