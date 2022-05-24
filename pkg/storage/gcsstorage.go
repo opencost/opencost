@@ -1,7 +1,8 @@
+package storage
+
 // Fork from Thanos GCS Bucket support to reuse configuration options
 // Licensed under the Apache License 2.0.
 // https://github.com/thanos-io/thanos/blob/main/pkg/objstore/gcs/gcs.go
-package storage
 
 import (
 	"context"
@@ -229,27 +230,4 @@ func (gs *GCSStorage) List(path string) ([]*StorageInfo, error) {
 	}
 
 	return stats, nil
-}
-
-// trimLeading removes a leading / from the file name
-func (gs *GCSStorage) trimLeading(file string) string {
-	if len(file) == 0 {
-		return file
-	}
-
-	if file[0] == '/' {
-		return file[1:]
-	}
-	return file
-}
-
-// trimName removes the leading directory prefix
-func (gs *GCSStorage) trimName(file string) string {
-	slashIndex := strings.LastIndex(file, "/")
-	if slashIndex < 0 {
-		return file
-	}
-
-	name := file[slashIndex+1:]
-	return name
 }
