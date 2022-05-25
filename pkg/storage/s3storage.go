@@ -307,6 +307,11 @@ func (s3 *S3Storage) Name() string {
 	return s3.name
 }
 
+// StorageType returns a string identifier for the type of storage used by the implementation.
+func (s3 *S3Storage) StorageType() StorageType {
+	return StorageTypeBucketS3
+}
+
 // validate checks to see the config options are set.
 func validate(conf S3Config) error {
 	if conf.Endpoint == "" {

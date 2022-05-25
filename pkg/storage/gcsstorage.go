@@ -76,6 +76,11 @@ func (gs *GCSStorage) Name() string {
 	return gs.name
 }
 
+// StorageType returns a string identifier for the type of storage used by the implementation.
+func (gs *GCSStorage) StorageType() StorageType {
+	return StorageTypeBucketGCS
+}
+
 // FullPath returns the storage working path combined with the path provided
 func (gs *GCSStorage) FullPath(name string) string {
 	name = trimLeading(name)

@@ -241,6 +241,11 @@ func (as *AzureStorage) Name() string {
 	return as.name
 }
 
+// StorageType returns a string identifier for the type of storage used by the implementation.
+func (as *AzureStorage) StorageType() StorageType {
+	return StorageTypeBucketAzure
+}
+
 // FullPath returns the storage working path combined with the path provided
 func (as *AzureStorage) FullPath(name string) string {
 	name = trimLeading(name)

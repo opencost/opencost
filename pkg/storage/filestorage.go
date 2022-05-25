@@ -21,6 +21,11 @@ func NewFileStorage(baseDir string) Storage {
 	return &FileStorage{baseDir}
 }
 
+// StorageType returns a string identifier for the type of storage used by the implementation.
+func (fs *FileStorage) StorageType() StorageType {
+	return StorageTypeFile
+}
+
 // FullPath returns the storage working path combined with the path provided
 func (fs *FileStorage) FullPath(path string) string {
 	return gopath.Join(fs.baseDir, path)
