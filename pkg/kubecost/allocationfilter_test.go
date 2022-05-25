@@ -28,6 +28,36 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 			expected: true,
 		},
 		{
+			name: "ClusterID StartsWith -> true",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Cluster: "cluster-one",
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterClusterID,
+				Op:    FilterStartsWith,
+				Value: "cluster",
+			},
+
+			expected: true,
+		},
+		{
+			name: "ClusterID StartsWith -> false",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Cluster: "k8s-one",
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterClusterID,
+				Op:    FilterStartsWith,
+				Value: "cluster",
+			},
+
+			expected: false,
+		},
+		{
 			name: "Node Equals -> true",
 			a: &Allocation{
 				Properties: &AllocationProperties{
@@ -347,6 +377,36 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 				Field: FilterServices,
 				Op:    FilterContains,
 				Value: "serv3",
+			},
+
+			expected: false,
+		},
+		{
+			name: `services containsprefix -> true`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Services: []string{"serv1", "serv2"},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterServices,
+				Op:    FilterContainsPrefix,
+				Value: "serv",
+			},
+
+			expected: true,
+		},
+		{
+			name: `services containsprefix -> false`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Services: []string{"foo", "bar"},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterServices,
+				Op:    FilterContainsPrefix,
+				Value: "serv",
 			},
 
 			expected: false,
