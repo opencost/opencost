@@ -33,9 +33,6 @@ func parseWildcardEnd(rawFilterValue string) (string, bool) {
 // It takes an optional ClusterMap, which if provided enables cluster name
 // filtering. This turns all `filterClusters=foo` arguments into the equivalent
 // of `clusterID = "foo" OR clusterName = "foo"`.
-//
-// TODO: This does not yet support filters with wildcards (e.g.
-// filterNamespaces=kube*)
 func AllocationFilterFromParamsV1(
 	qp httputil.QueryParams,
 	labelConfig *kubecost.LabelConfig,
