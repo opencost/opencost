@@ -71,154 +71,168 @@ func AllocationFilterFromParamsV1(
 		}
 	}
 
-	filterClusters := qp.GetList("filterClusters", ",")
-	clustersOr := kubecost.AllocationFilterOr{
-		Filters: []kubecost.AllocationFilter{},
-	}
-	clustersOr.Filters = append(clustersOr.Filters, filterV1SingleValueFromList(filterClusters, kubecost.FilterClusterID))
-	for _, rawFilterValue := range filterClusters {
-		clusterNameFilter, wildcard := parseWildcardEnd(rawFilterValue)
+	// The proliferation of > 0 guards in the function is to avoid constructing
+	// empty filter structs. While it is functionally equivalent to add empty
+	// filter structs (they evaluate to true always) there could be overhead
+	// when calling Matches() repeatedly for no purpose.
 
-		clusterIDsToFilter := []string{}
-		for clusterName := range clusterNameToIDs {
-			if wildcard && strings.HasPrefix(clusterName, clusterNameFilter) {
-				clusterIDsToFilter = append(clusterIDsToFilter, clusterNameToIDs[clusterName]...)
-			} else if !wildcard && clusterName == clusterNameFilter {
-				clusterIDsToFilter = append(clusterIDsToFilter, clusterNameToIDs[clusterName]...)
+	if filterClusters := qp.GetList("filterClusters", ","); len(filterClusters) > 0 {
+		clustersOr := kubecost.AllocationFilterOr{
+			Filters: []kubecost.AllocationFilter{},
+		}
+
+		if idFilters := filterV1SingleValueFromList(filterClusters, kubecost.FilterClusterID); len(idFilters.Filters) > 0 {
+			clustersOr.Filters = append(clustersOr.Filters, idFilters)
+		}
+		for _, rawFilterValue := range filterClusters {
+			clusterNameFilter, wildcard := parseWildcardEnd(rawFilterValue)
+
+			clusterIDsToFilter := []string{}
+			for clusterName := range clusterNameToIDs {
+				if wildcard && strings.HasPrefix(clusterName, clusterNameFilter) {
+					clusterIDsToFilter = append(clusterIDsToFilter, clusterNameToIDs[clusterName]...)
+				} else if !wildcard && clusterName == clusterNameFilter {
+					clusterIDsToFilter = append(clusterIDsToFilter, clusterNameToIDs[clusterName]...)
+				}
+			}
+
+			for _, clusterID := range clusterIDsToFilter {
+				clustersOr.Filters = append(clustersOr.Filters,
+					kubecost.AllocationFilterCondition{
+						Field: kubecost.FilterClusterID,
+						Op:    kubecost.FilterEquals,
+						Value: clusterID,
+					},
+				)
 			}
 		}
-
-		for _, clusterID := range clusterIDsToFilter {
-			clustersOr.Filters = append(clustersOr.Filters,
-				kubecost.AllocationFilterCondition{
-					Field: kubecost.FilterClusterID,
-					Op:    kubecost.FilterEquals,
-					Value: clusterID,
-				},
-			)
-		}
+		filter.Filters = append(filter.Filters, clustersOr)
 	}
-	filter.Filters = append(filter.Filters, clustersOr)
 
-	filter.Filters = append(filter.Filters,
-		filterV1SingleValueFromList(qp.GetList("filterNodes", ","), kubecost.FilterNode),
-	)
+	if raw := qp.GetList("filterNodes", ","); len(raw) > 0 {
+		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.FilterNode))
+	}
 
-	filter.Filters = append(filter.Filters,
-		filterV1SingleValueFromList(qp.GetList("filterNamespaces", ","), kubecost.FilterNamespace),
-	)
+	if raw := qp.GetList("filterNamespaces", ","); len(raw) > 0 {
+		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.FilterNamespace))
+	}
 
-	filter.Filters = append(filter.Filters,
-		filterV1SingleValueFromList(qp.GetList("filterControllerKinds", ","), kubecost.FilterControllerKind),
-	)
+	if raw := qp.GetList("filterControllerKinds", ","); len(raw) > 0 {
+		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.FilterControllerKind))
+	}
 
 	// filterControllers= accepts controllerkind:controllername filters, e.g.
 	// "deployment:kubecost-cost-analyzer"
 	//
 	// Thus, we have to make a custom OR filter for this condition.
-	filterControllers := qp.GetList("filterControllers", ",")
-	controllersOr := kubecost.AllocationFilterOr{
-		Filters: []kubecost.AllocationFilter{},
-	}
-	for _, rawFilterValue := range filterControllers {
-		split := strings.Split(rawFilterValue, ":")
-		if len(split) == 1 {
-			filterValue, wildcard := parseWildcardEnd(split[0])
-			subFilter := kubecost.AllocationFilterCondition{
-				Field: kubecost.FilterControllerName,
-				Op:    kubecost.FilterEquals,
-				Value: filterValue,
-			}
+	if filterControllers := qp.GetList("filterControllers", ","); len(filterControllers) > 0 {
+		controllersOr := kubecost.AllocationFilterOr{
+			Filters: []kubecost.AllocationFilter{},
+		}
+		for _, rawFilterValue := range filterControllers {
+			split := strings.Split(rawFilterValue, ":")
+			if len(split) == 1 {
+				filterValue, wildcard := parseWildcardEnd(split[0])
+				subFilter := kubecost.AllocationFilterCondition{
+					Field: kubecost.FilterControllerName,
+					Op:    kubecost.FilterEquals,
+					Value: filterValue,
+				}
 
-			if wildcard {
-				subFilter.Op = kubecost.FilterStartsWith
-			}
-			controllersOr.Filters = append(controllersOr.Filters, subFilter)
-		} else if len(split) == 2 {
-			kindFilterVal := split[0]
-			nameFilterVal, wildcard := parseWildcardEnd(split[1])
+				if wildcard {
+					subFilter.Op = kubecost.FilterStartsWith
+				}
+				controllersOr.Filters = append(controllersOr.Filters, subFilter)
+			} else if len(split) == 2 {
+				kindFilterVal := split[0]
+				nameFilterVal, wildcard := parseWildcardEnd(split[1])
 
-			kindFilter := kubecost.AllocationFilterCondition{
-				Field: kubecost.FilterControllerKind,
-				Op:    kubecost.FilterEquals,
-				Value: kindFilterVal,
-			}
-			nameFilter := kubecost.AllocationFilterCondition{
-				Field: kubecost.FilterControllerName,
-				Op:    kubecost.FilterEquals,
-				Value: nameFilterVal,
-			}
+				kindFilter := kubecost.AllocationFilterCondition{
+					Field: kubecost.FilterControllerKind,
+					Op:    kubecost.FilterEquals,
+					Value: kindFilterVal,
+				}
+				nameFilter := kubecost.AllocationFilterCondition{
+					Field: kubecost.FilterControllerName,
+					Op:    kubecost.FilterEquals,
+					Value: nameFilterVal,
+				}
 
-			if wildcard {
-				nameFilter.Op = kubecost.FilterStartsWith
-			}
+				if wildcard {
+					nameFilter.Op = kubecost.FilterStartsWith
+				}
 
-			// The controller name AND the controller kind must match
-			multiFilter := kubecost.AllocationFilterAnd{
-				Filters: []kubecost.AllocationFilter{kindFilter, nameFilter},
+				// The controller name AND the controller kind must match
+				multiFilter := kubecost.AllocationFilterAnd{
+					Filters: []kubecost.AllocationFilter{kindFilter, nameFilter},
+				}
+				controllersOr.Filters = append(controllersOr.Filters, multiFilter)
+			} else {
+				log.Warnf("illegal filter for controller: %s", rawFilterValue)
 			}
-			controllersOr.Filters = append(controllersOr.Filters, multiFilter)
-		} else {
-			log.Warnf("illegal filter for controller: %s", rawFilterValue)
+		}
+		if len(controllersOr.Filters) > 0 {
+			filter.Filters = append(filter.Filters, controllersOr)
 		}
 	}
-	filter.Filters = append(filter.Filters, controllersOr)
 
-	filter.Filters = append(filter.Filters,
-		filterV1SingleValueFromList(qp.GetList("filterPods", ","), kubecost.FilterPod),
-	)
+	if raw := qp.GetList("filterPods", ","); len(raw) > 0 {
+		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.FilterPod))
+	}
 
-	filter.Filters = append(filter.Filters,
-		filterV1SingleValueFromList(qp.GetList("filterContainers", ","), kubecost.FilterContainer),
-	)
+	if raw := qp.GetList("filterContainers", ","); len(raw) > 0 {
+		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.FilterContainer))
+	}
 
 	// Label-mapped queries require a label config to be present.
 	if labelConfig != nil {
-		filter.Filters = append(filter.Filters,
-			filterV1LabelMappedFromList(qp.GetList("filterDepartments", ","), labelConfig.DepartmentLabel),
-		)
-		filter.Filters = append(filter.Filters,
-			filterV1LabelMappedFromList(qp.GetList("filterEnvironments", ","), labelConfig.EnvironmentLabel),
-		)
-		filter.Filters = append(filter.Filters,
-			filterV1LabelMappedFromList(qp.GetList("filterOwners", ","), labelConfig.OwnerLabel),
-		)
-		filter.Filters = append(filter.Filters,
-			filterV1LabelMappedFromList(qp.GetList("filterProducts", ","), labelConfig.ProductLabel),
-		)
-		filter.Filters = append(filter.Filters,
-			filterV1LabelMappedFromList(qp.GetList("filterTeams", ","), labelConfig.TeamLabel),
-		)
+		if raw := qp.GetList("filterDepartments", ","); len(raw) > 0 {
+			filter.Filters = append(filter.Filters, filterV1LabelMappedFromList(raw, labelConfig.DepartmentLabel))
+		}
+		if raw := qp.GetList("filterEnvironments", ","); len(raw) > 0 {
+			filter.Filters = append(filter.Filters, filterV1LabelMappedFromList(raw, labelConfig.EnvironmentLabel))
+		}
+		if raw := qp.GetList("filterOwners", ","); len(raw) > 0 {
+			filter.Filters = append(filter.Filters, filterV1LabelMappedFromList(raw, labelConfig.OwnerLabel))
+		}
+		if raw := qp.GetList("filterProducts", ","); len(raw) > 0 {
+			filter.Filters = append(filter.Filters, filterV1LabelMappedFromList(raw, labelConfig.ProductLabel))
+		}
+		if raw := qp.GetList("filterTeams", ","); len(raw) > 0 {
+			filter.Filters = append(filter.Filters, filterV1LabelMappedFromList(raw, labelConfig.TeamLabel))
+		}
 	} else {
 		log.Debugf("No label config is available. Not creating filters for label-mapped 'fields'.")
 	}
 
-	filter.Filters = append(filter.Filters,
-		filterV1DoubleValueFromList(qp.GetList("filterAnnotations", ","), kubecost.FilterAnnotation),
-	)
-
-	filter.Filters = append(filter.Filters,
-		filterV1DoubleValueFromList(qp.GetList("filterLabels", ","), kubecost.FilterLabel),
-	)
-
-	// filterServices= is the only filter that uses the "contains" operator.
-	servicesFilter := kubecost.AllocationFilterOr{
-		Filters: []kubecost.AllocationFilter{},
+	if raw := qp.GetList("filterAnnotations", ","); len(raw) > 0 {
+		filter.Filters = append(filter.Filters, filterV1DoubleValueFromList(raw, kubecost.FilterAnnotation))
 	}
-	for _, filterValue := range qp.GetList("filterServices", ",") {
-		// TODO: wildcard support
-		filterValue, wildcard := parseWildcardEnd(filterValue)
-		subFilter := kubecost.AllocationFilterCondition{
-			Field: kubecost.FilterServices,
-			Op:    kubecost.FilterContains,
-			Value: filterValue,
-		}
-		if wildcard {
-			subFilter.Op = kubecost.FilterContainsPrefix
-		}
-		servicesFilter.Filters = append(servicesFilter.Filters, subFilter)
+
+	if raw := qp.GetList("filterLabels", ","); len(raw) > 0 {
+		filter.Filters = append(filter.Filters, filterV1DoubleValueFromList(raw, kubecost.FilterLabel))
 	}
-	filter.Filters = append(filter.Filters, servicesFilter)
+
+	if filterServices := qp.GetList("filterServices", ","); len(filterServices) > 0 {
+		// filterServices= is the only filter that uses the "contains" operator.
+		servicesFilter := kubecost.AllocationFilterOr{
+			Filters: []kubecost.AllocationFilter{},
+		}
+		for _, filterValue := range filterServices {
+			// TODO: wildcard support
+			filterValue, wildcard := parseWildcardEnd(filterValue)
+			subFilter := kubecost.AllocationFilterCondition{
+				Field: kubecost.FilterServices,
+				Op:    kubecost.FilterContains,
+				Value: filterValue,
+			}
+			if wildcard {
+				subFilter.Op = kubecost.FilterContainsPrefix
+			}
+			servicesFilter.Filters = append(servicesFilter.Filters, subFilter)
+		}
+		filter.Filters = append(filter.Filters, servicesFilter)
+	}
 
 	return filter
 }
@@ -228,7 +242,7 @@ func AllocationFilterFromParamsV1(
 //
 // The v1 query language (e.g. "filterNamespaces=XYZ,ABC") uses OR within
 // a field (e.g. namespace = XYZ OR namespace = ABC)
-func filterV1SingleValueFromList(rawFilterValues []string, filterField kubecost.FilterField) kubecost.AllocationFilter {
+func filterV1SingleValueFromList(rawFilterValues []string, filterField kubecost.FilterField) kubecost.AllocationFilterOr {
 	filter := kubecost.AllocationFilterOr{
 		Filters: []kubecost.AllocationFilter{},
 	}
@@ -257,7 +271,7 @@ func filterV1SingleValueFromList(rawFilterValues []string, filterField kubecost.
 // filterV1LabelMappedFromList is like filterV1SingleValueFromList but is
 // explicitly for a label because "label-mapped" filters (like filterTeams=)
 // are actually label filters with a fixed label key.
-func filterV1LabelMappedFromList(rawFilterValues []string, labelName string) kubecost.AllocationFilter {
+func filterV1LabelMappedFromList(rawFilterValues []string, labelName string) kubecost.AllocationFilterOr {
 	filter := kubecost.AllocationFilterOr{
 		Filters: []kubecost.AllocationFilter{},
 	}
@@ -289,7 +303,7 @@ func filterV1LabelMappedFromList(rawFilterValues []string, labelName string) kub
 //
 // The v1 query language (e.g. "filterLabels=app:foo,l2:bar") uses OR within
 // a field (e.g. label[app] = foo OR label[l2] = bar)
-func filterV1DoubleValueFromList(rawFilterValuesUnsplit []string, filterField kubecost.FilterField) kubecost.AllocationFilter {
+func filterV1DoubleValueFromList(rawFilterValuesUnsplit []string, filterField kubecost.FilterField) kubecost.AllocationFilterOr {
 	filter := kubecost.AllocationFilterOr{
 		Filters: []kubecost.AllocationFilter{},
 	}
