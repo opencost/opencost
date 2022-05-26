@@ -1,6 +1,10 @@
 package storage
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/kubecost/cost-model/pkg/util/json"
+)
 
 /*
  NOTE: This format is to provide monitoring a simple way to identify the storage type with
@@ -19,6 +23,37 @@ const (
 	StorageTypeBucketGCS   StorageType = "bucket|gcs"
 	StorageTypeBucketAzure StorageType = "bucket|azure"
 )
+
+// jsonIR is a json intermediate representation of a StorageType
+type jsonIR struct {
+	BackendType  string `json:"backendType"`
+	ProviderType string `json:"providerType,omitempty"`
+}
+
+// MarshalJSON implements the json.Marshaler interface for encoding a StorageType.
+func (st StorageType) MarshalJSON() ([]byte, error) {
+	return json.Marshal(jsonIR{
+		BackendType:  st.BackendType(),
+		ProviderType: st.ProviderType(),
+	})
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface for decoding a StorageType.
+func (st *StorageType) UnmarshalJSON(data []byte) error {
+	var ir jsonIR
+	err := json.Unmarshal(data, &ir)
+	if err != nil {
+		return err
+	}
+
+	str := ir.BackendType
+	if ir.ProviderType != "" {
+		str += "|" + ir.ProviderType
+	}
+
+	*st = StorageType(str)
+	return nil
+}
 
 // IsFileStorage returns true if the StorageType is a file storage type.
 func (st StorageType) IsFileStorage() bool {
