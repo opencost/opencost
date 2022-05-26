@@ -168,6 +168,22 @@ func ComputeAllocationTotals(as *AllocationSet, prop string) map[string]*Allocat
 	return arts
 }
 
+// AllocationTotalsSet represents totals, summed by both "cluster" and "node"
+// for a given window of time.
+type AllocationTotalsSet struct {
+	Cluster map[string]*AllocationTotals `json:"cluster"`
+	Node    map[string]*AllocationTotals `json:"node"`
+	Window  Window                       `json:"window"`
+}
+
+func NewAllocationTotalsSet(window Window, byCluster, byNode map[string]*AllocationTotals) *AllocationTotalsSet {
+	return &AllocationTotalsSet{
+		Cluster: byCluster,
+		Node:    byNode,
+		Window:  window.Clone(),
+	}
+}
+
 // AssetTotals represents aggregate costs of all Assets for a given
 // cluster or tuple of (cluster, node) between a given start and end time,
 // where the costs are aggregated per-resource. AssetTotals is designed
@@ -464,6 +480,22 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 	return arts
 }
 
+// AssetTotalsSet represents totals, summed by both "cluster" and "node"
+// for a given window of time.
+type AssetTotalsSet struct {
+	Cluster map[string]*AssetTotals `json:"cluster"`
+	Node    map[string]*AssetTotals `json:"node"`
+	Window  Window                  `json:"window"`
+}
+
+func NewAssetTotalsSet(window Window, byCluster, byNode map[string]*AssetTotals) *AssetTotalsSet {
+	return &AssetTotalsSet{
+		Cluster: byCluster,
+		Node:    byNode,
+		Window:  window.Clone(),
+	}
+}
+
 // ComputeIdleCoefficients returns the idle coefficients for CPU, GPU, and RAM
 // (in that order) for the given resource costs and totals.
 func ComputeIdleCoefficients(shareSplit, key string, cpuCost, gpuCost, ramCost float64, allocationTotals map[string]*AllocationTotals) (float64, float64, float64) {
@@ -519,17 +551,17 @@ type AllocationTotalsStore interface {
 
 // UpdateAllocationTotalsStore updates an AllocationTotalsStore
 // by totaling the given AllocationSet and saving the totals.
-func UpdateAllocationTotalsStore(arts AllocationTotalsStore, as *AllocationSet) error {
+func UpdateAllocationTotalsStore(arts AllocationTotalsStore, as *AllocationSet) (*AllocationTotalsSet, error) {
 	if arts == nil {
-		return errors.New("cannot update nil AllocationTotalsStore")
+		return nil, errors.New("cannot update nil AllocationTotalsStore")
 	}
 
 	if as == nil {
-		return errors.New("cannot update AllocationTotalsStore from nil AllocationSet")
+		return nil, errors.New("cannot update AllocationTotalsStore from nil AllocationSet")
 	}
 
 	if as.Window.IsOpen() {
-		return errors.New("cannot update AllocationTotalsStore from AllocationSet with open window")
+		return nil, errors.New("cannot update AllocationTotalsStore from AllocationSet with open window")
 	}
 
 	start := *as.Window.Start()
@@ -543,7 +575,19 @@ func UpdateAllocationTotalsStore(arts AllocationTotalsStore, as *AllocationSet) 
 
 	log.Debugf("ETL: Allocation: updated resource totals for %s", as.Window)
 
-	return nil
+	win := NewClosedWindow(start, end)
+
+	abc := map[string]*AllocationTotals{}
+	for key, val := range artsByCluster {
+		abc[key] = val.Clone()
+	}
+
+	abn := map[string]*AllocationTotals{}
+	for key, val := range artsByNode {
+		abn[key] = val.Clone()
+	}
+
+	return NewAllocationTotalsSet(win, abc, abn), nil
 }
 
 // AssetTotalsStore allows for storing (i.e. setting and getting)
@@ -557,17 +601,17 @@ type AssetTotalsStore interface {
 
 // UpdateAssetTotalsStore updates an AssetTotalsStore
 // by totaling the given AssetSet and saving the totals.
-func UpdateAssetTotalsStore(arts AssetTotalsStore, as *AssetSet) error {
+func UpdateAssetTotalsStore(arts AssetTotalsStore, as *AssetSet) (*AssetTotalsSet, error) {
 	if arts == nil {
-		return errors.New("cannot update nil AssetTotalsStore")
+		return nil, errors.New("cannot update nil AssetTotalsStore")
 	}
 
 	if as == nil {
-		return errors.New("cannot update AssetTotalsStore from nil AssetSet")
+		return nil, errors.New("cannot update AssetTotalsStore from nil AssetSet")
 	}
 
 	if as.Window.IsOpen() {
-		return errors.New("cannot update AssetTotalsStore from AssetSet with open window")
+		return nil, errors.New("cannot update AssetTotalsStore from AssetSet with open window")
 	}
 
 	start := *as.Window.Start()
@@ -581,7 +625,19 @@ func UpdateAssetTotalsStore(arts AssetTotalsStore, as *AssetSet) error {
 
 	log.Debugf("ETL: Asset: updated resource totals for %s", as.Window)
 
-	return nil
+	win := NewClosedWindow(start, end)
+
+	abc := map[string]*AssetTotals{}
+	for key, val := range artsByCluster {
+		abc[key] = val.Clone()
+	}
+
+	abn := map[string]*AssetTotals{}
+	for key, val := range artsByNode {
+		abn[key] = val.Clone()
+	}
+
+	return NewAssetTotalsSet(win, abc, abn), nil
 }
 
 // MemoryTotalsStore is an in-memory cache TotalsStore
