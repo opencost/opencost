@@ -12,9 +12,9 @@ import (
 type StorageProvider string
 
 const (
-	S3 StorageProvider = "S3"
-	// AZURE StorageProvider = "AZURE"
-	// GCS   StorageProvider = "GCS"
+	S3    StorageProvider = "S3"
+	GCS   StorageProvider = "GCS"
+	AZURE StorageProvider = "AZURE"
 )
 
 // StorageConfig is the configuration type used as the "parent" configuration. It contains a type, which will
@@ -43,10 +43,10 @@ func NewBucketStorage(config []byte) (Storage, error) {
 	switch strings.ToUpper(string(storageConfig.Type)) {
 	case string(S3):
 		storage, err = NewS3Storage(config)
-	//case string(GCS):
-	//	storage, err = NewGCSStorage(config)
-	//case string(AZURE):
-	//	storage, err = NewAzureStorage(config)
+	case string(GCS):
+		storage, err = NewGCSStorage(config)
+	case string(AZURE):
+		storage, err = NewAzureStorage(config)
 	default:
 		return nil, errors.Errorf("storage with type %s is not supported", storageConfig.Type)
 	}
@@ -55,4 +55,27 @@ func NewBucketStorage(config []byte) (Storage, error) {
 	}
 
 	return storage, nil
+}
+
+// trimLeading removes a leading / from the file name
+func trimLeading(file string) string {
+	if len(file) == 0 {
+		return file
+	}
+
+	if file[0] == '/' {
+		return file[1:]
+	}
+	return file
+}
+
+// trimName removes the leading directory prefix
+func trimName(file string) string {
+	slashIndex := strings.LastIndex(file, "/")
+	if slashIndex < 0 {
+		return file
+	}
+
+	name := file[slashIndex+1:]
+	return name
 }

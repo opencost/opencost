@@ -1,12 +1,12 @@
+package storage
+
 // Fork from Thanos S3 Bucket support to reuse configuration options
 // Licensed under the Apache License 2.0
 // https://github.com/thanos-io/thanos/blob/main/pkg/objstore/s3/s3.go
-package storage
 
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -29,9 +29,6 @@ import (
 type ctxKey int
 
 const (
-	// DirDelim is the delimiter used to model a directory structure in an object store bucket.
-	DirDelim = "/"
-
 	// SSEKMS is the name of the SSE-KMS method for objectstore encryption.
 	SSEKMS = "SSE-KMS"
 
@@ -49,9 +46,9 @@ const (
 	sseConfigKey = ctxKey(0)
 )
 
-var DefaultConfig = S3Config{
+var defaultS3Config = S3Config{
 	PutUserMetadata: map[string]string{},
-	HTTPConfig: HTTPConfig{
+	HTTPConfig: S3HTTPConfig{
 		IdleConnTimeout:       time.Duration(90 * time.Second),
 		ResponseHeaderTimeout: time.Duration(2 * time.Minute),
 		TLSHandshakeTimeout:   time.Duration(10 * time.Second),
@@ -74,7 +71,7 @@ type S3Config struct {
 	SignatureV2        bool              `yaml:"signature_version2"`
 	SecretKey          string            `yaml:"secret_key"`
 	PutUserMetadata    map[string]string `yaml:"put_user_metadata"`
-	HTTPConfig         HTTPConfig        `yaml:"http_config"`
+	HTTPConfig         S3HTTPConfig      `yaml:"http_config"`
 	TraceConfig        TraceConfig       `yaml:"trace"`
 	ListObjectsVersion string            `yaml:"list_objects_version"`
 	// PartSize used for multipart upload. Only used if uploaded object size is known and larger than configured PartSize.
@@ -98,7 +95,7 @@ type TraceConfig struct {
 }
 
 // HTTPConfig stores the http.Transport configuration for the s3 minio client.
-type HTTPConfig struct {
+type S3HTTPConfig struct {
 	IdleConnTimeout       time.Duration `yaml:"idle_conn_timeout"`
 	ResponseHeaderTimeout time.Duration `yaml:"response_header_timeout"`
 	InsecureSkipVerify    bool          `yaml:"insecure_skip_verify"`
@@ -111,13 +108,24 @@ type HTTPConfig struct {
 
 	// Allow upstream callers to inject a round tripper
 	Transport http.RoundTripper `yaml:"-"`
+
+	TLSConfig TLSConfig `yaml:"tls_config"`
 }
 
 // DefaultTransport - this default transport is based on the Minio
 // DefaultTransport up until the following commit:
 // https://githus3.com/minio/minio-go/commit/008c7aa71fc17e11bf980c209a4f8c4d687fc884
 // The values have since diverged.
-func DefaultTransport(config S3Config) *http.Transport {
+func DefaultS3Transport(config S3Config) (*http.Transport, error) {
+	tlsConfig, err := NewTLSConfig(&config.HTTPConfig.TLSConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	if config.HTTPConfig.InsecureSkipVerify {
+		tlsConfig.InsecureSkipVerify = true
+	}
+
 	return &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
@@ -143,8 +151,8 @@ func DefaultTransport(config S3Config) *http.Transport {
 		// Refer: https://golang.org/src/net/http/transport.go?h=roundTrip#L1843.
 		DisableCompression: true,
 		// #nosec It's up to the user to decide on TLS configs
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: config.HTTPConfig.InsecureSkipVerify},
-	}
+		TLSClientConfig: tlsConfig,
+	}, nil
 }
 
 // S3Storage provides storage via S3
@@ -158,8 +166,8 @@ type S3Storage struct {
 }
 
 // parseConfig unmarshals a buffer into a Config with default HTTPConfig values.
-func parseConfig(conf []byte) (S3Config, error) {
-	config := DefaultConfig
+func parseS3Config(conf []byte) (S3Config, error) {
+	config := defaultS3Config
 	if err := yaml.UnmarshalStrict(conf, &config); err != nil {
 		return S3Config{}, err
 	}
@@ -169,9 +177,7 @@ func parseConfig(conf []byte) (S3Config, error) {
 
 // NewBucket returns a new Bucket using the provided s3 config values.
 func NewS3Storage(conf []byte) (*S3Storage, error) {
-	log.Infof("Creating new S3 Storage...")
-
-	config, err := parseConfig(conf)
+	config, err := parseS3Config(conf)
 	if err != nil {
 		return nil, err
 	}
@@ -182,8 +188,6 @@ func NewS3Storage(conf []byte) (*S3Storage, error) {
 // NewBucketWithConfig returns a new Bucket using the provided s3 config values.
 func NewS3StorageWith(config S3Config) (*S3Storage, error) {
 	var chain []credentials.Provider
-
-	log.Infof("New S3 Storage With Config: %+v", config)
 
 	wrapCredentialsProvider := func(p credentials.Provider) credentials.Provider { return p }
 	if config.SignatureV2 {
@@ -227,7 +231,11 @@ func NewS3StorageWith(config S3Config) (*S3Storage, error) {
 	if config.HTTPConfig.Transport != nil {
 		rt = config.HTTPConfig.Transport
 	} else {
-		rt = DefaultTransport(config)
+		var err error
+		rt, err = DefaultS3Transport(config)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	client, err := minio.New(config.Endpoint, &minio.Options{
@@ -295,6 +303,11 @@ func (s3 *S3Storage) Name() string {
 	return s3.name
 }
 
+// StorageType returns a string identifier for the type of storage used by the implementation.
+func (s3 *S3Storage) StorageType() StorageType {
+	return StorageTypeBucketS3
+}
+
 // validate checks to see the config options are set.
 func validate(conf S3Config) error {
 	if conf.Endpoint == "" {
@@ -324,16 +337,16 @@ func validate(conf S3Config) error {
 
 // FullPath returns the storage working path combined with the path provided
 func (s3 *S3Storage) FullPath(name string) string {
-	name = s3.trimLeading(name)
+	name = trimLeading(name)
 
 	return name
 }
 
 // Get returns a reader for the given object name.
 func (s3 *S3Storage) Read(name string) ([]byte, error) {
-	name = s3.trimLeading(name)
+	name = trimLeading(name)
 
-	log.Infof("S3Storage::Read(%s)", name)
+	log.Debugf("S3Storage::Read(%s)", name)
 	ctx := context.Background()
 
 	return s3.getRange(ctx, name, 0, -1)
@@ -342,8 +355,8 @@ func (s3 *S3Storage) Read(name string) ([]byte, error) {
 
 // Exists checks if the given object exists.
 func (s3 *S3Storage) Exists(name string) (bool, error) {
-	name = s3.trimLeading(name)
-	//log.Infof("S3Storage::Exists(%s)", name)
+	name = trimLeading(name)
+	//log.Debugf("S3Storage::Exists(%s)", name)
 
 	ctx := context.Background()
 
@@ -360,9 +373,9 @@ func (s3 *S3Storage) Exists(name string) (bool, error) {
 
 // Upload the contents of the reader as an object into the bucket.
 func (s3 *S3Storage) Write(name string, data []byte) error {
-	name = s3.trimLeading(name)
+	name = trimLeading(name)
 
-	log.Infof("S3Storage::Write(%s)", name)
+	log.Debugf("S3Storage::Write(%s)", name)
 
 	ctx := context.Background()
 	sse, err := s3.getServerSideEncryption(ctx)
@@ -371,6 +384,11 @@ func (s3 *S3Storage) Write(name string, data []byte) error {
 	}
 
 	var size int64 = int64(len(data))
+
+	// Set partSize to 0 to write files in one go. This prevents chunking of
+	// upload into multiple parts, which requires additional memory for buffering
+	// the sub-parts. To remain consistent with other storage implementations,
+	// we would rather attempt to lower cost fast upload and fast-fail.
 	var partSize uint64 = 0
 
 	r := bytes.NewReader(data)
@@ -389,9 +407,9 @@ func (s3 *S3Storage) Write(name string, data []byte) error {
 
 // Attributes returns information about the specified object.
 func (s3 *S3Storage) Stat(name string) (*StorageInfo, error) {
-	name = s3.trimLeading(name)
+	name = trimLeading(name)
 
-	//log.Infof("S3Storage::Stat(%s)", name)
+	//log.Debugf("S3Storage::Stat(%s)", name)
 	ctx := context.Background()
 
 	objInfo, err := s3.client.StatObject(ctx, s3.name, name, minio.StatObjectOptions{})
@@ -403,7 +421,7 @@ func (s3 *S3Storage) Stat(name string) (*StorageInfo, error) {
 	}
 
 	return &StorageInfo{
-		Name:    s3.trimName(name),
+		Name:    trimName(name),
 		Size:    objInfo.Size,
 		ModTime: objInfo.LastModified,
 	}, nil
@@ -411,18 +429,18 @@ func (s3 *S3Storage) Stat(name string) (*StorageInfo, error) {
 
 // Delete removes the object with the given name.
 func (s3 *S3Storage) Remove(name string) error {
-	name = s3.trimLeading(name)
+	name = trimLeading(name)
 
-	log.Infof("S3Storage::Remove(%s)", name)
+	log.Debugf("S3Storage::Remove(%s)", name)
 	ctx := context.Background()
 
 	return s3.client.RemoveObject(ctx, s3.name, name, minio.RemoveObjectOptions{})
 }
 
 func (s3 *S3Storage) List(path string) ([]*StorageInfo, error) {
-	path = s3.trimLeading(path)
+	path = trimLeading(path)
 
-	log.Infof("S3Storage::List(%s)", path)
+	log.Debugf("S3Storage::List(%s)", path)
 	ctx := context.Background()
 
 	// Ensure the object name actually ends with a dir suffix. Otherwise we'll just iterate the
@@ -453,36 +471,13 @@ func (s3 *S3Storage) List(path string) ([]*StorageInfo, error) {
 		}
 
 		stats = append(stats, &StorageInfo{
-			Name:    s3.trimName(object.Key),
+			Name:    trimName(object.Key),
 			Size:    object.Size,
 			ModTime: object.LastModified,
 		})
 	}
 
 	return stats, nil
-}
-
-// trimLeading removes a leading / from the file name
-func (s3 *S3Storage) trimLeading(file string) string {
-	if len(file) == 0 {
-		return file
-	}
-
-	if file[0] == '/' {
-		return file[1:]
-	}
-	return file
-}
-
-// trimName removes the leading directory prefix
-func (s3 *S3Storage) trimName(file string) string {
-	slashIndex := strings.LastIndex(file, "/")
-	if slashIndex < 0 {
-		return file
-	}
-
-	name := file[slashIndex+1:]
-	return name
 }
 
 // getServerSideEncryption returns the SSE to use.

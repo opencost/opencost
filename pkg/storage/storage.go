@@ -3,7 +3,12 @@ package storage
 import (
 	"os"
 	"time"
+
+	"github.com/pkg/errors"
 )
+
+// DirDelim is the delimiter used to model a directory structure in an object store bucket.
+const DirDelim = "/"
 
 // DoesNotExistError is used as a generic error to return when a target path does not
 // exist in storage. Equivalent to os.ErrorNotExist such that it will work with os.IsNotExist(err)
@@ -18,6 +23,9 @@ type StorageInfo struct {
 
 // Storage provides an API for storing binary data
 type Storage interface {
+	// StorageType returns a string identifier for the type of storage used by the implementation.
+	StorageType() StorageType
+
 	// FullPath returns the storage working path combined with the path provided
 	FullPath(path string) string
 
@@ -43,6 +51,41 @@ type Storage interface {
 	// List uses the relative path of the storage combined with the provided path to return
 	// storage information for the files.
 	List(path string) ([]*StorageInfo, error)
+}
+
+// Validate uses the provided storage implementation to write a test file to the store, followed by a removal.
+func Validate(storage Storage) error {
+	const testPath = "tmp/test.txt"
+	const testContent = "test"
+
+	// attempt to read a path
+	_, err := storage.Exists(testPath)
+	if err != nil {
+		return errors.Wrap(err, "Failed to check if path exists")
+	}
+
+	// attempt to write a path
+	err = storage.Write(testPath, []byte(testContent))
+	if err != nil {
+		return errors.Wrap(err, "Failed to write data to storage")
+	}
+
+	// attempt to read the path
+	data, err := storage.Read(testPath)
+	if err != nil {
+		return errors.Wrap(err, "Failed to read data from storage")
+	}
+	if string(data) != testContent {
+		return errors.New("Failed to read the expected data from storage")
+	}
+
+	// delete the path
+	err = storage.Remove(testPath)
+	if err != nil {
+		return errors.Wrap(err, "Failed to remove data from storage")
+	}
+
+	return nil
 }
 
 // IsNotExist returns true if the error provided from a storage object is DoesNotExist

@@ -5,8 +5,12 @@ replace github.com/golang/lint => golang.org/x/lint v0.0.0-20180702182130-06c868
 require (
 	cloud.google.com/go v0.81.0
 	cloud.google.com/go/bigquery v1.8.0
+	cloud.google.com/go/storage v1.10.0
+	github.com/Azure/azure-pipeline-go v0.2.3
 	github.com/Azure/azure-sdk-for-go v61.6.0+incompatible
+	github.com/Azure/azure-storage-blob-go v0.15.0
 	github.com/Azure/go-autorest/autorest v0.11.27
+	github.com/Azure/go-autorest/autorest/adal v0.9.18
 	github.com/Azure/go-autorest/autorest/azure/auth v0.5.11
 	github.com/aws/aws-sdk-go v1.28.9
 	github.com/aws/aws-sdk-go-v2 v1.13.0
@@ -24,6 +28,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/jszwec/csvutil v1.2.1
 	github.com/julienschmidt/httprouter v1.3.0
+	github.com/kubecost/events v0.0.3
 	github.com/lib/pq v1.2.0
 	github.com/microcosm-cc/bluemonday v1.0.16
 	github.com/minio/minio-go/v7 v7.0.15
@@ -31,6 +36,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.0.0
 	github.com/prometheus/client_model v0.2.0
+	github.com/prometheus/common v0.4.1
 	github.com/rs/cors v1.7.0
 	github.com/rs/zerolog v1.26.1
 	github.com/spf13/cobra v1.2.1
@@ -48,7 +54,6 @@ require (
 
 require (
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
-	github.com/Azure/go-autorest/autorest/adal v0.9.18 // indirect
 	github.com/Azure/go-autorest/autorest/azure/cli v0.4.5 // indirect
 	github.com/Azure/go-autorest/autorest/date v0.3.0 // indirect
 	github.com/Azure/go-autorest/autorest/to v0.4.0 // indirect
@@ -89,8 +94,8 @@ require (
 	github.com/jstemmer/go-junit-report v0.9.1 // indirect
 	github.com/klauspost/compress v1.13.5 // indirect
 	github.com/klauspost/cpuid v1.3.1 // indirect
-	github.com/kubecost/events v0.0.3 // indirect
 	github.com/magiconair/properties v1.8.5 // indirect
+	github.com/mattn/go-ieproxy v0.0.1 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/minio/md5-simd v1.1.0 // indirect
 	github.com/minio/sha256-simd v0.1.1 // indirect
@@ -98,9 +103,7 @@ require (
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
-	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/pelletier/go-toml v1.9.3 // indirect
-	github.com/prometheus/common v0.4.1 // indirect
 	github.com/prometheus/procfs v0.0.2 // indirect
 	github.com/rs/xid v1.3.0 // indirect
 	github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24 // indirect
@@ -125,7 +128,6 @@ require (
 	google.golang.org/genproto v0.0.0-20210602131652-f16073e35f0c // indirect
 	google.golang.org/grpc v1.38.0 // indirect
 	google.golang.org/protobuf v1.26.0 // indirect
-	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	k8s.io/klog/v2 v2.4.0 // indirect
