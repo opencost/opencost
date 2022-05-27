@@ -1189,6 +1189,7 @@ func (gcp *GCP) getReservedInstances() ([]*GCPReservedInstance, error) {
 }
 
 type pvKey struct {
+	ProviderID             string
 	Labels                 map[string]string
 	StorageClass           string
 	StorageClassParameters map[string]string
@@ -1196,7 +1197,7 @@ type pvKey struct {
 }
 
 func (key *pvKey) ID() string {
-	return ""
+	return key.ProviderID
 }
 
 func (key *pvKey) GetStorageClass() string {
@@ -1204,7 +1205,12 @@ func (key *pvKey) GetStorageClass() string {
 }
 
 func (gcp *GCP) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) PVKey {
+	providerID := ""
+	if pv.Spec.GCEPersistentDisk != nil {
+		providerID = pv.Spec.GCEPersistentDisk.PDName
+	}
 	return &pvKey{
+		ProviderID:             providerID,
 		Labels:                 pv.Labels,
 		StorageClass:           pv.Spec.StorageClassName,
 		StorageClassParameters: parameters,
