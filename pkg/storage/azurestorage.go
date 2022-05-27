@@ -556,7 +556,7 @@ func getContainerURL(ctx context.Context, conf AzureConfig) (blob.ContainerURL, 
 
 	p := blob.NewPipeline(credentials, blob.PipelineOptions{
 		Retry:     retryOptions,
-		Telemetry: blob.TelemetryOptions{Value: "Thanos"},
+		Telemetry: blob.TelemetryOptions{Value: "Kubecost"},
 		RequestLog: blob.RequestLogOptions{
 			// Log a warning if an operation takes longer than the specified duration.
 			// (-1=no logging; 0=default 3s threshold)
