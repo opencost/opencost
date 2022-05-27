@@ -109,7 +109,7 @@ type AzureHTTPConfig struct {
 	TLSConfig TLSConfig `yaml:"tls_config"`
 }
 
-// AzureStorage implements the storeage.Storage interface against Azure APIs.
+// AzureStorage implements the storage.Storage interface against Azure APIs.
 type AzureStorage struct {
 	name         string
 	containerURL blob.ContainerURL
