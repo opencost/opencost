@@ -277,7 +277,7 @@ func (b *AzureStorage) Read(name string) ([]byte, error) {
 	name = trimLeading(name)
 	ctx := context.Background()
 
-	log.Infof("AzureStorage::Read(%s)", name)
+	log.Debugf("AzureStorage::Read(%s)", name)
 
 	reader, err := b.getBlobReader(ctx, name, 0, blob.CountToEnd)
 	if err != nil {
@@ -298,7 +298,7 @@ func (b *AzureStorage) Write(name string, data []byte) error {
 	name = trimLeading(name)
 	ctx := context.Background()
 
-	log.Infof("AzureStorage::Write(%s)", name)
+	log.Debugf("AzureStorage::Write(%s)", name)
 
 	blobURL := getBlobURL(name, b.containerURL)
 	r := bytes.NewReader(data)
@@ -318,7 +318,7 @@ func (b *AzureStorage) Write(name string, data []byte) error {
 func (b *AzureStorage) Remove(name string) error {
 	name = trimLeading(name)
 
-	log.Infof("S3Storage::Remove(%s)", name)
+	log.Debugf("AzureStorage::Remove(%s)", name)
 	ctx := context.Background()
 
 	blobURL := getBlobURL(name, b.containerURL)
@@ -350,7 +350,7 @@ func (b *AzureStorage) Exists(name string) (bool, error) {
 func (b *AzureStorage) List(path string) ([]*StorageInfo, error) {
 	path = trimLeading(path)
 
-	log.Infof("S3Storage::List(%s)", path)
+	log.Debugf("AzureStorage::List(%s)", path)
 	ctx := context.Background()
 
 	// Ensure the object name actually ends with a dir suffix. Otherwise we'll just iterate the

@@ -91,7 +91,7 @@ func (gs *GCSStorage) FullPath(name string) string {
 // Stat returns the StorageStats for the specific path.
 func (gs *GCSStorage) Stat(name string) (*StorageInfo, error) {
 	name = trimLeading(name)
-	//log.Infof("GCSStorage::Stat(%s)", name)]
+	//log.Debugf("GCSStorage::Stat(%s)", name)]
 
 	ctx := context.Background()
 	attrs, err := gs.bucket.Object(name).Attrs(ctx)
@@ -119,7 +119,7 @@ func (gs *GCSStorage) isDoesNotExist(err error) bool {
 // read the contents.
 func (gs *GCSStorage) Read(name string) ([]byte, error) {
 	name = trimLeading(name)
-	log.Infof("GCSStorage::Read(%s)", name)
+	log.Debugf("GCSStorage::Read(%s)", name)
 
 	ctx := context.Background()
 	reader, err := gs.bucket.Object(name).NewReader(ctx)
@@ -139,7 +139,7 @@ func (gs *GCSStorage) Read(name string) ([]byte, error) {
 // to write a new file or overwrite an existing file.
 func (gs *GCSStorage) Write(name string, data []byte) error {
 	name = trimLeading(name)
-	log.Infof("GCSStorage::Write(%s)", name)
+	log.Debugf("GCSStorage::Write(%s)", name)
 
 	ctx := context.Background()
 
@@ -168,7 +168,7 @@ func (gs *GCSStorage) Write(name string, data []byte) error {
 func (gs *GCSStorage) Remove(name string) error {
 	name = trimLeading(name)
 
-	log.Infof("GCSStorage::Remove(%s)", name)
+	log.Debugf("GCSStorage::Remove(%s)", name)
 	ctx := context.Background()
 
 	return gs.bucket.Object(name).Delete(ctx)
@@ -178,7 +178,7 @@ func (gs *GCSStorage) Remove(name string) error {
 // determine if the file exists.
 func (gs *GCSStorage) Exists(name string) (bool, error) {
 	name = trimLeading(name)
-	//log.Infof("GCSStorage::Exists(%s)", name)
+	//log.Debugf("GCSStorage::Exists(%s)", name)
 
 	ctx := context.Background()
 	_, err := gs.bucket.Object(name).Attrs(ctx)
@@ -197,7 +197,7 @@ func (gs *GCSStorage) Exists(name string) (bool, error) {
 func (gs *GCSStorage) List(path string) ([]*StorageInfo, error) {
 	path = trimLeading(path)
 
-	log.Infof("GCSStorage::List(%s)", path)
+	log.Debugf("GCSStorage::List(%s)", path)
 	ctx := context.Background()
 
 	// Ensure the object name actually ends with a dir suffix. Otherwise we'll just iterate the

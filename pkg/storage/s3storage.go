@@ -177,8 +177,6 @@ func parseS3Config(conf []byte) (S3Config, error) {
 
 // NewBucket returns a new Bucket using the provided s3 config values.
 func NewS3Storage(conf []byte) (*S3Storage, error) {
-	log.Infof("Creating new S3 Storage...")
-
 	config, err := parseS3Config(conf)
 	if err != nil {
 		return nil, err
@@ -190,8 +188,6 @@ func NewS3Storage(conf []byte) (*S3Storage, error) {
 // NewBucketWithConfig returns a new Bucket using the provided s3 config values.
 func NewS3StorageWith(config S3Config) (*S3Storage, error) {
 	var chain []credentials.Provider
-
-	log.Infof("New S3 Storage With Config: %+v", config)
 
 	wrapCredentialsProvider := func(p credentials.Provider) credentials.Provider { return p }
 	if config.SignatureV2 {
@@ -350,7 +346,7 @@ func (s3 *S3Storage) FullPath(name string) string {
 func (s3 *S3Storage) Read(name string) ([]byte, error) {
 	name = trimLeading(name)
 
-	log.Infof("S3Storage::Read(%s)", name)
+	log.Debugf("S3Storage::Read(%s)", name)
 	ctx := context.Background()
 
 	return s3.getRange(ctx, name, 0, -1)
@@ -360,7 +356,7 @@ func (s3 *S3Storage) Read(name string) ([]byte, error) {
 // Exists checks if the given object exists.
 func (s3 *S3Storage) Exists(name string) (bool, error) {
 	name = trimLeading(name)
-	//log.Infof("S3Storage::Exists(%s)", name)
+	//log.Debugf("S3Storage::Exists(%s)", name)
 
 	ctx := context.Background()
 
@@ -379,7 +375,7 @@ func (s3 *S3Storage) Exists(name string) (bool, error) {
 func (s3 *S3Storage) Write(name string, data []byte) error {
 	name = trimLeading(name)
 
-	log.Infof("S3Storage::Write(%s)", name)
+	log.Debugf("S3Storage::Write(%s)", name)
 
 	ctx := context.Background()
 	sse, err := s3.getServerSideEncryption(ctx)
@@ -413,7 +409,7 @@ func (s3 *S3Storage) Write(name string, data []byte) error {
 func (s3 *S3Storage) Stat(name string) (*StorageInfo, error) {
 	name = trimLeading(name)
 
-	//log.Infof("S3Storage::Stat(%s)", name)
+	//log.Debugf("S3Storage::Stat(%s)", name)
 	ctx := context.Background()
 
 	objInfo, err := s3.client.StatObject(ctx, s3.name, name, minio.StatObjectOptions{})
@@ -435,7 +431,7 @@ func (s3 *S3Storage) Stat(name string) (*StorageInfo, error) {
 func (s3 *S3Storage) Remove(name string) error {
 	name = trimLeading(name)
 
-	log.Infof("S3Storage::Remove(%s)", name)
+	log.Debugf("S3Storage::Remove(%s)", name)
 	ctx := context.Background()
 
 	return s3.client.RemoveObject(ctx, s3.name, name, minio.RemoveObjectOptions{})
@@ -444,7 +440,7 @@ func (s3 *S3Storage) Remove(name string) error {
 func (s3 *S3Storage) List(path string) ([]*StorageInfo, error) {
 	path = trimLeading(path)
 
-	log.Infof("S3Storage::List(%s)", path)
+	log.Debugf("S3Storage::List(%s)", path)
 	ctx := context.Background()
 
 	// Ensure the object name actually ends with a dir suffix. Otherwise we'll just iterate the
