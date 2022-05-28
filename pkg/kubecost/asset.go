@@ -2453,12 +2453,12 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 		opts = &AssetAggregationOptions{}
 	}
 
-	if as.IsEmpty() && len(opts.SharedHourlyCosts) == 0 {
-		return nil
-	}
-
 	as.Lock()
 	defer as.Unlock()
+
+	if len(as.assets) == 0 && len(opts.SharedHourlyCosts) == 0 {
+		return nil
+	}
 
 	aggSet := NewAssetSet(as.Start(), as.End())
 	aggSet.aggregateBy = aggregateBy
@@ -2556,6 +2556,7 @@ func (as *AssetSet) Clone() *AssetSet {
 	}
 }
 
+/*
 // Each invokes the given function for each Asset in the set
 func (as *AssetSet) Each(f func(string, Asset)) {
 	if as == nil {
@@ -2566,10 +2567,29 @@ func (as *AssetSet) Each(f func(string, Asset)) {
 		f(k, a)
 	}
 }
+*/
 
 // End returns the end time of the AssetSet's window
 func (as *AssetSet) End() time.Time {
 	return *as.Window.End()
+}
+
+// Each invokes the given function for each Asset in the set
+func (as *AssetSet) Each(f func(string, Asset)) {
+	if as == nil {
+		return
+	}
+
+	as.RLock()
+	assets := make(map[string]Asset, len(as.assets))
+	for k, v := range as.assets {
+		assets[k] = v
+	}
+	as.RUnlock()
+
+	for k, a := range assets {
+		f(k, a)
+	}
 }
 
 // FindMatch attempts to find a match in the AssetSet for the given Asset on
@@ -2703,13 +2723,13 @@ func (as *AssetSet) Insert(asset Asset) error {
 // IsEmpty returns true if the AssetSet is nil, or if it contains
 // zero assets.
 func (as *AssetSet) IsEmpty() bool {
-	if as == nil || len(as.assets) == 0 {
+	if as == nil {
 		return true
 	}
 
 	as.RLock()
 	defer as.RUnlock()
-	return as.assets == nil || len(as.assets) == 0
+	return len(as.assets) == 0
 }
 
 func (as *AssetSet) Length() int {
@@ -2737,14 +2757,12 @@ func (as *AssetSet) Resolution() time.Duration {
 }
 
 func (as *AssetSet) Set(asset Asset, aggregateBy []string) error {
-	if as.IsEmpty() {
-		as.Lock()
-		as.assets = map[string]Asset{}
-		as.Unlock()
-	}
-
 	as.Lock()
 	defer as.Unlock()
+
+	if len(as.assets) == 0 {
+		as.assets = map[string]Asset{}
+	}
 
 	// Expand the window to match the AssetSet, then set it
 	asset.ExpandWindow(as.Window)
@@ -2907,28 +2925,48 @@ func (asr *AssetSetRange) Append(that *AssetSet) {
 }
 
 // Each invokes the given function for each AssetSet in the range
+/*
 func (asr *AssetSetRange) Each(f func(int, *AssetSet)) {
 	if asr == nil {
 		return
 	}
 
+
 	for i, as := range asr.assets {
+		f(i, as)
+	}
+}
+*/
+
+// Each invokes the given function for each AssetSet in the range
+func (asr *AssetSetRange) Each(f func(int, *AssetSet)) {
+	if asr == nil {
+		return
+	}
+
+	asr.RLock()
+	var assets = make([]*AssetSet, len(asr.assets))
+	copy(assets, asr.assets)
+	asr.RUnlock()
+
+	for i, as := range assets {
 		f(i, as)
 	}
 }
 
 func (asr *AssetSetRange) Get(i int) (*AssetSet, error) {
+	asr.RLock()
+	defer asr.RUnlock()
+
 	if i < 0 || i >= len(asr.assets) {
 		return nil, fmt.Errorf("AssetSetRange: index out of range: %d", i)
 	}
 
-	asr.RLock()
-	defer asr.RUnlock()
 	return asr.assets[i], nil
 }
 
 func (asr *AssetSetRange) Length() int {
-	if asr == nil || asr.assets == nil {
+	if asr == nil {
 		return 0
 	}
 
@@ -2996,9 +3034,10 @@ func (asr *AssetSetRange) InsertRange(that *AssetSetRange) error {
 
 // IsEmpty returns false if AssetSetRange contains a single AssetSet that is not empty
 func (asr *AssetSetRange) IsEmpty() bool {
-	if asr == nil || asr.Length() == 0 {
+	if asr == nil {
 		return true
 	}
+
 	asr.RLock()
 	defer asr.RUnlock()
 	for _, asset := range asr.assets {
@@ -3024,26 +3063,47 @@ type AssetSetRangeResponse struct {
 }
 
 func (asr *AssetSetRange) UTCOffset() time.Duration {
-	if asr.Length() == 0 {
+	if asr == nil {
 		return 0
 	}
 
-	as, err := asr.Get(0)
-	if err != nil {
+	asr.RLock()
+	defer asr.RUnlock()
+
+	if len(asr.assets) == 0 {
 		return 0
 	}
+
+	as := asr.assets[0]
+	if as == nil {
+		return 0
+	}
+
 	return as.UTCOffset()
 }
 
 // Window returns the full window that the AssetSetRange spans, from the
 // start of the first AssetSet to the end of the last one.
 func (asr *AssetSetRange) Window() Window {
-	if asr == nil || asr.Length() == 0 {
+	if asr == nil {
 		return NewWindow(nil, nil)
 	}
 
-	start := asr.assets[0].Start()
-	end := asr.assets[asr.Length()-1].End()
+	asr.RLock()
+	defer asr.RUnlock()
+
+	if len(asr.assets) == 0 {
+		return NewWindow(nil, nil)
+	}
+
+	startAs := asr.assets[0]
+	endAs := asr.assets[len(asr.assets)-1]
+	if startAs == nil || endAs == nil {
+		return NewWindow(nil, nil)
+	}
+
+	start := startAs.Start()
+	end := endAs.End()
 
 	return NewWindow(&start, &end)
 }
@@ -3053,8 +3113,11 @@ func (asr *AssetSetRange) Window() Window {
 func (asr *AssetSetRange) Start() (time.Time, error) {
 	start := time.Time{}
 	firstStartNotSet := true
-	asr.Each(func(i int, as *AssetSet) {
-		as.Each(func(s string, a Asset) {
+
+	asr.RLock()
+	for _, as := range asr.assets {
+		as.RLock()
+		for _, a := range as.assets {
 			if firstStartNotSet {
 				start = a.Start()
 				firstStartNotSet = false
@@ -3062,8 +3125,10 @@ func (asr *AssetSetRange) Start() (time.Time, error) {
 			if a.Start().Before(start) {
 				start = a.Start()
 			}
-		})
-	})
+		}
+		as.RUnlock()
+	}
+	asr.RUnlock()
 
 	if firstStartNotSet {
 		return start, fmt.Errorf("had no data to compute a start from")
@@ -3077,8 +3142,11 @@ func (asr *AssetSetRange) Start() (time.Time, error) {
 func (asr *AssetSetRange) End() (time.Time, error) {
 	end := time.Time{}
 	firstEndNotSet := true
-	asr.Each(func(i int, as *AssetSet) {
-		as.Each(func(s string, a Asset) {
+
+	asr.RLock()
+	for _, as := range asr.assets {
+		as.RLock()
+		for _, a := range as.assets {
 			if firstEndNotSet {
 				end = a.End()
 				firstEndNotSet = false
@@ -3086,8 +3154,10 @@ func (asr *AssetSetRange) End() (time.Time, error) {
 			if a.End().After(end) {
 				end = a.End()
 			}
-		})
-	})
+		}
+		as.RUnlock()
+	}
+	asr.RUnlock()
 
 	if firstEndNotSet {
 		return end, fmt.Errorf("had no data to compute an end from")
@@ -3096,14 +3166,57 @@ func (asr *AssetSetRange) End() (time.Time, error) {
 	return end, nil
 }
 
+// Each iterates over all AssetSets in the AssetSetRange and returns the start and end over
+// the entire range
+func (asr *AssetSetRange) StartAndEnd() (time.Time, time.Time, error) {
+	start := time.Time{}
+	end := time.Time{}
+
+	firstStartNotSet := true
+	firstEndNotSet := true
+
+	asr.RLock()
+	for _, as := range asr.assets {
+		as.RLock()
+		for _, a := range as.assets {
+			if firstStartNotSet {
+				start = a.Start()
+				firstStartNotSet = false
+			}
+			if a.Start().Before(start) {
+				start = a.Start()
+			}
+			if firstEndNotSet {
+				end = a.End()
+				firstEndNotSet = false
+			}
+			if a.End().After(end) {
+				end = a.End()
+			}
+		}
+		as.RUnlock()
+	}
+	asr.RUnlock()
+
+	if firstStartNotSet {
+		return start, end, fmt.Errorf("had no data to compute a start from")
+	}
+
+	if firstEndNotSet {
+		return start, end, fmt.Errorf("had no data to compute an end from")
+	}
+
+	return start, end, nil
+}
+
 // Minutes returns the duration, in minutes, between the earliest start
 // and the latest end of all assets in the AssetSetRange.
 func (asr *AssetSetRange) Minutes() float64 {
-	start, err := asr.Start()
-	if err != nil {
+	if asr == nil {
 		return 0
 	}
-	end, err := asr.End()
+
+	start, end, err := asr.StartAndEnd()
 	if err != nil {
 		return 0
 	}
