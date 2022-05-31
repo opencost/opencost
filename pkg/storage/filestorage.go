@@ -79,9 +79,11 @@ func (fs *FileStorage) Read(path string) ([]byte, error) {
 // Write uses the relative path of the storage combined with the provided path
 // to write a new file or overwrite an existing file.
 func (fs *FileStorage) Write(path string, data []byte) error {
-	f := fs.prepare(path)
-
-	err := ioutil.WriteFile(f, data, os.ModePerm)
+	f, err := fs.prepare(path)
+	if err != nil {
+		return errors.Wrap(err, "Failed to prepare path")
+	}
+	err = ioutil.WriteFile(f, data, os.ModePerm)
 	if err != nil {
 		return errors.Wrap(err, "Failed to write file")
 	}
@@ -115,14 +117,17 @@ func (fs *FileStorage) Exists(path string) (bool, error) {
 
 // prepare checks to see if the directory being written to should be created before writing
 // the file, and then returns the correct full path.
-func (fs *FileStorage) prepare(path string) string {
+func (fs *FileStorage) prepare(path string) (string, error) {
 	f := gopath.Join(fs.baseDir, path)
 	dir := filepath.Dir(f)
 	if _, e := os.Stat(dir); e != nil && os.IsNotExist(e) {
-		os.MkdirAll(dir, os.ModePerm)
+		err := os.MkdirAll(dir, os.ModePerm)
+		if err != nil {
+			return "", err
+		}
 	}
 
-	return f
+	return f, nil
 }
 
 // FilesToStorageInfo maps a []fs.FileInfo to []*storage.StorageInfo
