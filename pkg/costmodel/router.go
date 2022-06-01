@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"path"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -1275,7 +1276,7 @@ func (a *Accesses) AddServiceKey(w http.ResponseWriter, r *http.Request, ps http
 
 	key := r.PostForm.Get("key")
 	k := []byte(key)
-	err := ioutil.WriteFile("/var/configs/key.json", k, 0644)
+	err := ioutil.WriteFile(path.Join(env.GetConfigPathWithDefault("/var/configs/"), "key.json"), k, 0644)
 	if err != nil {
 		fmt.Fprintf(w, "Error writing service key: "+err.Error())
 	}
@@ -1444,10 +1445,12 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		LocalConfigPath:   "/",
 	})
 
+	configPrefix := env.GetConfigPathWithDefault("/var/configs/")
+
 	// Create Kubernetes Cluster Cache + Watchers
 	var k8sCache clustercache.ClusterCache
 	if env.IsClusterCacheFileEnabled() {
-		importLocation := confManager.ConfigFileAt("/var/configs/cluster-cache.json")
+		importLocation := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-cache.json"))
 		k8sCache = clustercache.NewClusterImporter(importLocation)
 	} else {
 		k8sCache = clustercache.NewKubernetesClusterCache(kubeClientset)
@@ -1533,7 +1536,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	// ClusterInfo Provider to provide the cluster map with local and remote cluster data
 	var clusterInfoProvider clusters.ClusterInfoProvider
 	if env.IsClusterInfoFileEnabled() {
-		clusterInfoFile := confManager.ConfigFileAt("/var/configs/cluster-info.json")
+		clusterInfoFile := confManager.ConfigFileAt(path.Join(configPrefix, " cluster-info.json"))
 		clusterInfoProvider = NewConfiguredClusterInfoProvider(clusterInfoFile)
 	} else {
 		clusterInfoProvider = NewLocalClusterInfoProvider(kubeClientset, cloudProvider)
