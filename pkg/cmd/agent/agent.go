@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"path"
 	"time"
 
 	"github.com/kubecost/cost-model/pkg/cloud"
@@ -179,9 +180,11 @@ func Execute(opts *AgentOpts) error {
 
 	clusterCache.SetConfigMapUpdateFunc(watchConfigFunc)
 
+	configPrefix := env.GetConfigPathWithDefault("/var/configs/")
+
 	// Initialize cluster exporting if it's enabled
 	if env.IsExportClusterCacheEnabled() {
-		cacheLocation := confManager.ConfigFileAt("/var/configs/cluster-cache.json")
+		cacheLocation := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-cache.json"))
 		clusterExporter = clustercache.NewClusterExporter(clusterCache, cacheLocation, ClusterExportInterval)
 		clusterExporter.Run()
 	}
@@ -191,7 +194,7 @@ func Execute(opts *AgentOpts) error {
 
 	var clusterInfoProvider clusters.ClusterInfoProvider
 	if env.IsExportClusterInfoEnabled() {
-		clusterInfoConf := confManager.ConfigFileAt("/var/configs/cluster-info.json")
+		clusterInfoConf := confManager.ConfigFileAt(path.Join(configPrefix, " cluster-info.json"))
 		clusterInfoProvider = costmodel.NewClusterInfoWriteOnRequest(localClusterInfo, clusterInfoConf)
 	} else {
 		clusterInfoProvider = localClusterInfo

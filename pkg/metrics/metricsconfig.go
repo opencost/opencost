@@ -5,13 +5,17 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"sync"
 
 	"github.com/kubecost/cost-model/pkg/env"
 	"github.com/kubecost/cost-model/pkg/util/watcher"
 )
 
-var metricsConfigLock = new(sync.Mutex)
+var (
+	metricsConfigLock = new(sync.Mutex)
+	metricsFilePath   = path.Join(env.GetConfigPathWithDefault("/var/configs/"), "metrics.json")
+)
 
 type MetricsConfig struct {
 	DisabledMetrics []string `json:"disabledMetrics"`
@@ -33,7 +37,7 @@ func GetMetricsConfig() (*MetricsConfig, error) {
 	metricsConfigLock.Lock()
 	defer metricsConfigLock.Unlock()
 	mc := &MetricsConfig{}
-	body, err := ioutil.ReadFile("/var/configs/metrics.json")
+	body, err := ioutil.ReadFile(metricsFilePath)
 	if os.IsNotExist(err) {
 
 		return mc, nil
@@ -59,7 +63,7 @@ func UpdateMetricsConfig(mc *MetricsConfig) (*MetricsConfig, error) {
 		return nil, fmt.Errorf("error encoding metrics config struct: %s", err)
 	}
 
-	err = ioutil.WriteFile("/var/configs/metrics.json", mcb, 0644)
+	err = ioutil.WriteFile(metricsFilePath, mcb, 0644)
 	if err != nil {
 		return nil, fmt.Errorf("error writing to metrics config file: %s", err)
 	}

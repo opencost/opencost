@@ -33,12 +33,39 @@ To confirm that the server is running, you can hit [http://localhost:9003/costDa
 
 ## Running locally ##
 
-In order to run cost-model locally, or outside of the runtime of a Kubernetes cluster, you can set the environment variable `KUBECONFIG_PATH`.
+To run locally cd into `cmd/costmodel` and `go run main.go` 
+
+cost-model requires a connection to Prometheus in order to operate so setting the environment variable `PROMETHEUS_SERVER_ENDPOINT` is required. 
+In order to expose Prometheus to cost-model it may be required to port-forward using kubectl to your Prometheus endpoint.
+
+For example:
+```bash
+kubectl port-forward svc/kubecost-prometheus-server 9080:80
+```
+This would expose Prometheus on port 9080 and allow setting the environment variable as so:
+```bash
+PROMETHEUS_SERVER_ENDPOINT="http://127.0.0.1:9080"
+```
+
+If you want to run with a specific kubeconfig the environment variable `KUBECONFIG_PATH` can be used. cost-model will attempt to connect to your Kubernetes cluster in a similar fashion as kubectl so the env is not required. The order of precedence is `KUBECONFIG_PATH` > default kubeconfig file location ($HOME/.kube/config) > in cluster config
 
 Example:
 ```bash
 export KUBECONFIG_PATH=~/.kube/config
 ```
+
+There are two more environement variabes recommended to run locally. These should be set as the default file location used is `/var/` which usually requires more permissions than kubecost actually needs to run. They do not need to match but keeping everything together can help cleanup when no longer needed.
+
+```bash
+ETL_PATH_PREFIX="/my/cool/path/kubecost/var/config" 
+CONFIG_PATH="/my/cool/path/kubecost/var/config"
+```
+
+An example of the full command:
+```bash
+ETL_PATH_PREFIX="/my/cool/path/kubecost/var/config" CONFIG_PATH="/my/cool/path/kubecost/var/config" PROMETHEUS_SERVER_ENDPOINT="http://127.0.0.1:9090" go run main.go
+```
+
 
 ## Running the integration tests ##
 To run these tests:

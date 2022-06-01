@@ -97,8 +97,6 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 // How often spot data is refreshed
 const SpotRefreshDuration = 15 * time.Minute
 
-const defaultConfigPath = "/var/configs/"
-
 var awsRegions = []string{
 	"us-east-2",
 	"us-east-1",
