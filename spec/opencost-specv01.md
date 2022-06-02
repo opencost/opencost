@@ -64,6 +64,7 @@ Cluster Asset Costs can be further segmented into **Resource Allocation Costs** 
 
 
 The following chart shows these relationships:
+
 <img width="796" alt="image4" src="https://user-images.githubusercontent.com/453512/171577990-8f7c9a53-f5b1-4fbc-b2f6-75cd6ea67960.png">
 
 While billing models can differ by environment, below are common examples of segmentation by Allocation, Usage and Overhead Costs.
@@ -93,15 +94,10 @@ Once calculated, these Asset Costs can then be distributed to the tenants that c
   </tr>
 </table>
 
-
 The following chart shows these relationships:
 
 
-## 
-
-
 ![image2](https://user-images.githubusercontent.com/453512/171578591-d58e3e23-8b4a-4b6e-8a40-9fe9fd384032.png)
-
 
 ## Cluster Asset Costs
 
