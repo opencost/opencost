@@ -4,19 +4,20 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"path"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/cloud"
-	"github.com/kubecost/cost-model/pkg/clustercache"
-	"github.com/kubecost/cost-model/pkg/config"
-	"github.com/kubecost/cost-model/pkg/costmodel"
-	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
-	"github.com/kubecost/cost-model/pkg/env"
-	"github.com/kubecost/cost-model/pkg/kubeconfig"
-	"github.com/kubecost/cost-model/pkg/log"
-	"github.com/kubecost/cost-model/pkg/metrics"
-	"github.com/kubecost/cost-model/pkg/prom"
-	"github.com/kubecost/cost-model/pkg/util/watcher"
+	"github.com/kubecost/opencost/pkg/cloud"
+	"github.com/kubecost/opencost/pkg/clustercache"
+	"github.com/kubecost/opencost/pkg/config"
+	"github.com/kubecost/opencost/pkg/costmodel"
+	"github.com/kubecost/opencost/pkg/costmodel/clusters"
+	"github.com/kubecost/opencost/pkg/env"
+	"github.com/kubecost/opencost/pkg/kubeconfig"
+	"github.com/kubecost/opencost/pkg/log"
+	"github.com/kubecost/opencost/pkg/metrics"
+	"github.com/kubecost/opencost/pkg/prom"
+	"github.com/kubecost/opencost/pkg/util/watcher"
 
 	prometheus "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -179,9 +180,11 @@ func Execute(opts *AgentOpts) error {
 
 	clusterCache.SetConfigMapUpdateFunc(watchConfigFunc)
 
+	configPrefix := env.GetConfigPathWithDefault("/var/configs/")
+
 	// Initialize cluster exporting if it's enabled
 	if env.IsExportClusterCacheEnabled() {
-		cacheLocation := confManager.ConfigFileAt("/var/configs/cluster-cache.json")
+		cacheLocation := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-cache.json"))
 		clusterExporter = clustercache.NewClusterExporter(clusterCache, cacheLocation, ClusterExportInterval)
 		clusterExporter.Run()
 	}
@@ -191,7 +194,7 @@ func Execute(opts *AgentOpts) error {
 
 	var clusterInfoProvider clusters.ClusterInfoProvider
 	if env.IsExportClusterInfoEnabled() {
-		clusterInfoConf := confManager.ConfigFileAt("/var/configs/cluster-info.json")
+		clusterInfoConf := confManager.ConfigFileAt(path.Join(configPrefix, " cluster-info.json"))
 		clusterInfoProvider = costmodel.NewClusterInfoWriteOnRequest(localClusterInfo, clusterInfoConf)
 	} else {
 		clusterInfoProvider = localClusterInfo

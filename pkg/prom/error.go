@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/opencost/pkg/log"
 )
 
 // errorType used to check HasError

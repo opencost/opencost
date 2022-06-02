@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/collections"
-	"github.com/kubecost/cost-model/pkg/log"
-	"github.com/kubecost/cost-model/pkg/util/atomic"
-	"github.com/kubecost/cost-model/pkg/util/fileutil"
-	"github.com/kubecost/cost-model/pkg/util/httputil"
+	"github.com/kubecost/opencost/pkg/collections"
+	"github.com/kubecost/opencost/pkg/log"
+	"github.com/kubecost/opencost/pkg/util/atomic"
+	"github.com/kubecost/opencost/pkg/util/fileutil"
+	"github.com/kubecost/opencost/pkg/util/httputil"
 
 	golog "log"
 

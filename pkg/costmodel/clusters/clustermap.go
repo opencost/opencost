@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/log"
-	"github.com/kubecost/cost-model/pkg/prom"
-	"github.com/kubecost/cost-model/pkg/thanos"
-	"github.com/kubecost/cost-model/pkg/util/retry"
+	"github.com/kubecost/opencost/pkg/log"
+	"github.com/kubecost/opencost/pkg/prom"
+	"github.com/kubecost/opencost/pkg/thanos"
+	"github.com/kubecost/opencost/pkg/util/retry"
 
 	prometheus "github.com/prometheus/client_golang/api"
 )

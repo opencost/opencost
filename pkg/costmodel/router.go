@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"path"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -13,13 +14,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/config"
-	"github.com/kubecost/cost-model/pkg/kubeconfig"
-	"github.com/kubecost/cost-model/pkg/metrics"
-	"github.com/kubecost/cost-model/pkg/services"
-	"github.com/kubecost/cost-model/pkg/util/httputil"
-	"github.com/kubecost/cost-model/pkg/util/timeutil"
-	"github.com/kubecost/cost-model/pkg/util/watcher"
+	"github.com/kubecost/opencost/pkg/config"
+	"github.com/kubecost/opencost/pkg/kubeconfig"
+	"github.com/kubecost/opencost/pkg/metrics"
+	"github.com/kubecost/opencost/pkg/services"
+	"github.com/kubecost/opencost/pkg/util/httputil"
+	"github.com/kubecost/opencost/pkg/util/timeutil"
+	"github.com/kubecost/opencost/pkg/util/watcher"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/spf13/viper"
 
@@ -29,16 +30,16 @@ import (
 
 	sentry "github.com/getsentry/sentry-go"
 
-	"github.com/kubecost/cost-model/pkg/cloud"
-	"github.com/kubecost/cost-model/pkg/clustercache"
-	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
-	"github.com/kubecost/cost-model/pkg/env"
-	"github.com/kubecost/cost-model/pkg/errors"
-	"github.com/kubecost/cost-model/pkg/kubecost"
-	"github.com/kubecost/cost-model/pkg/log"
-	"github.com/kubecost/cost-model/pkg/prom"
-	"github.com/kubecost/cost-model/pkg/thanos"
-	"github.com/kubecost/cost-model/pkg/util/json"
+	"github.com/kubecost/opencost/pkg/cloud"
+	"github.com/kubecost/opencost/pkg/clustercache"
+	"github.com/kubecost/opencost/pkg/costmodel/clusters"
+	"github.com/kubecost/opencost/pkg/env"
+	"github.com/kubecost/opencost/pkg/errors"
+	"github.com/kubecost/opencost/pkg/kubecost"
+	"github.com/kubecost/opencost/pkg/log"
+	"github.com/kubecost/opencost/pkg/prom"
+	"github.com/kubecost/opencost/pkg/thanos"
+	"github.com/kubecost/opencost/pkg/util/json"
 	prometheus "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -1275,7 +1276,7 @@ func (a *Accesses) AddServiceKey(w http.ResponseWriter, r *http.Request, ps http
 
 	key := r.PostForm.Get("key")
 	k := []byte(key)
-	err := ioutil.WriteFile("/var/configs/key.json", k, 0644)
+	err := ioutil.WriteFile(path.Join(env.GetConfigPathWithDefault("/var/configs/"), "key.json"), k, 0644)
 	if err != nil {
 		fmt.Fprintf(w, "Error writing service key: "+err.Error())
 	}
@@ -1444,10 +1445,12 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		LocalConfigPath:   "/",
 	})
 
+	configPrefix := env.GetConfigPathWithDefault("/var/configs/")
+
 	// Create Kubernetes Cluster Cache + Watchers
 	var k8sCache clustercache.ClusterCache
 	if env.IsClusterCacheFileEnabled() {
-		importLocation := confManager.ConfigFileAt("/var/configs/cluster-cache.json")
+		importLocation := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-cache.json"))
 		k8sCache = clustercache.NewClusterImporter(importLocation)
 	} else {
 		k8sCache = clustercache.NewKubernetesClusterCache(kubeClientset)
@@ -1533,7 +1536,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	// ClusterInfo Provider to provide the cluster map with local and remote cluster data
 	var clusterInfoProvider clusters.ClusterInfoProvider
 	if env.IsClusterInfoFileEnabled() {
-		clusterInfoFile := confManager.ConfigFileAt("/var/configs/cluster-info.json")
+		clusterInfoFile := confManager.ConfigFileAt(path.Join(configPrefix, " cluster-info.json"))
 		clusterInfoProvider = NewConfiguredClusterInfoProvider(clusterInfoFile)
 	} else {
 		clusterInfoProvider = NewLocalClusterInfoProvider(kubeClientset, cloudProvider)

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/kubecost/cost-model/pkg/env"
-	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/opencost/pkg/env"
+	"github.com/kubecost/opencost/pkg/log"
 	v1 "k8s.io/api/core/v1"
 )
 

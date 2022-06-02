@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/util"
-	"github.com/kubecost/cost-model/pkg/util/httputil"
+	"github.com/kubecost/opencost/pkg/util"
+	"github.com/kubecost/opencost/pkg/util/httputil"
 	prometheus "github.com/prometheus/client_golang/api"
 )
 

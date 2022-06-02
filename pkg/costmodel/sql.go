@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
-	"github.com/kubecost/cost-model/pkg/env"
-	"github.com/kubecost/cost-model/pkg/log"
-	"github.com/kubecost/cost-model/pkg/util"
-	"github.com/kubecost/cost-model/pkg/util/json"
+	costAnalyzerCloud "github.com/kubecost/opencost/pkg/cloud"
+	"github.com/kubecost/opencost/pkg/env"
+	"github.com/kubecost/opencost/pkg/log"
+	"github.com/kubecost/opencost/pkg/util"
+	"github.com/kubecost/opencost/pkg/util/json"
 
 	_ "github.com/lib/pq"
 )

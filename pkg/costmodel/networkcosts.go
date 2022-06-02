@@ -1,11 +1,11 @@
 package costmodel
 
 import (
-	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
-	"github.com/kubecost/cost-model/pkg/env"
-	"github.com/kubecost/cost-model/pkg/log"
-	"github.com/kubecost/cost-model/pkg/prom"
-	"github.com/kubecost/cost-model/pkg/util"
+	costAnalyzerCloud "github.com/kubecost/opencost/pkg/cloud"
+	"github.com/kubecost/opencost/pkg/env"
+	"github.com/kubecost/opencost/pkg/log"
+	"github.com/kubecost/opencost/pkg/prom"
+	"github.com/kubecost/opencost/pkg/util"
 )
 
 // NetworkUsageVNetworkUsageDataector contains the network usage values for egress network traffic

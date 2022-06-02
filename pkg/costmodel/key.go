@@ -3,8 +3,8 @@ package costmodel
 import (
 	"fmt"
 
-	"github.com/kubecost/cost-model/pkg/env"
-	"github.com/kubecost/cost-model/pkg/prom"
+	"github.com/kubecost/opencost/pkg/env"
+	"github.com/kubecost/opencost/pkg/prom"
 )
 
 type containerKey struct {

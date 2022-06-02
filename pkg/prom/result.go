@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kubecost/cost-model/pkg/log"
-	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/opencost/pkg/log"
+	"github.com/kubecost/opencost/pkg/util"
 )
 
 var (

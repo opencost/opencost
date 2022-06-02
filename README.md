@@ -4,11 +4,11 @@
 
 OpenCost models give teams visibility into current and historical Kubernetes spend and resource allocation. These models provide cost transparency in Kubernetes environments that support multiple applications, teams, departments, etc.
 
-OpenCost is developed by [Kubecost](https://kubecost.com).
+OpenCost is developed and [open sourced](https://github.com/kubecost/opencost/issues/1224) by [Kubecost](https://kubecost.com).
 
 ![OpenCost allocation UI](/allocation-drilldown.gif)
 
-To see more on the functionality of OpenCost, as well as the full Kubecost product, please visit the [features page](https://kubecost.com/#features) on our website.
+To see the full functionality of OpenCost, as well as learn more about the full Kubecost product, see [OpenCost features](https://opencost.io) and [Kubecost features](https://kubecost.com/#features).
 
 Here is a summary of features enabled by this cost model:
 

@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	costAnalyzerCloud "github.com/kubecost/cost-model/pkg/cloud"
-	"github.com/kubecost/cost-model/pkg/clustercache"
-	"github.com/kubecost/cost-model/pkg/env"
-	"github.com/kubecost/cost-model/pkg/log"
-	"github.com/kubecost/cost-model/pkg/prom"
-	"github.com/kubecost/cost-model/pkg/util"
+	costAnalyzerCloud "github.com/kubecost/opencost/pkg/cloud"
+	"github.com/kubecost/opencost/pkg/clustercache"
+	"github.com/kubecost/opencost/pkg/env"
+	"github.com/kubecost/opencost/pkg/log"
+	"github.com/kubecost/opencost/pkg/prom"
+	"github.com/kubecost/opencost/pkg/util"
 )
 
 func GetPVInfoLocal(cache clustercache.ClusterCache, defaultClusterID string) (map[string]*PersistentVolumeClaimData, error) {

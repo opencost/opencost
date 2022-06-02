@@ -15,13 +15,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/clustercache"
-	"github.com/kubecost/cost-model/pkg/env"
-	"github.com/kubecost/cost-model/pkg/errors"
-	"github.com/kubecost/cost-model/pkg/log"
-	"github.com/kubecost/cost-model/pkg/util"
-	"github.com/kubecost/cost-model/pkg/util/fileutil"
-	"github.com/kubecost/cost-model/pkg/util/json"
+	"github.com/kubecost/opencost/pkg/clustercache"
+	"github.com/kubecost/opencost/pkg/env"
+	"github.com/kubecost/opencost/pkg/errors"
+	"github.com/kubecost/opencost/pkg/log"
+	"github.com/kubecost/opencost/pkg/util"
+	"github.com/kubecost/opencost/pkg/util/fileutil"
+	"github.com/kubecost/opencost/pkg/util/json"
 
 	awsSDK "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -96,8 +96,6 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 
 // How often spot data is refreshed
 const SpotRefreshDuration = 15 * time.Minute
-
-const defaultConfigPath = "/var/configs/"
 
 var awsRegions = []string{
 	"us-east-2",
