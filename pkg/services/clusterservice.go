@@ -3,8 +3,8 @@ package services
 import (
 	"path"
 
-	"github.com/kubecost/cost-model/pkg/env"
-	"github.com/kubecost/cost-model/pkg/services/clusters"
+	"github.com/kubecost/opencost/pkg/env"
+	"github.com/kubecost/opencost/pkg/services/clusters"
 )
 
 // NewClusterManagerService creates a new HTTPService implementation driving cluster definition management

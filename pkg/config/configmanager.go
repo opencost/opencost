@@ -4,8 +4,8 @@ import (
 	"io/ioutil"
 	"sync"
 
-	"github.com/kubecost/cost-model/pkg/log"
-	"github.com/kubecost/cost-model/pkg/storage"
+	"github.com/kubecost/opencost/pkg/log"
+	"github.com/kubecost/opencost/pkg/storage"
 )
 
 //--------------------------------------------------------------------------

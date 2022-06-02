@@ -3,9 +3,9 @@ package filterutil
 import (
 	"testing"
 
-	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
-	"github.com/kubecost/cost-model/pkg/kubecost"
-	"github.com/kubecost/cost-model/pkg/util/mapper"
+	"github.com/kubecost/opencost/pkg/costmodel/clusters"
+	"github.com/kubecost/opencost/pkg/kubecost"
+	"github.com/kubecost/opencost/pkg/util/mapper"
 )
 
 type mockClusterMap struct {

@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	gcs "cloud.google.com/go/storage"
-	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/opencost/pkg/log"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"

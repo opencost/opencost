@@ -4,7 +4,7 @@ import (
 	"sync"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/opencost/pkg/log"
 )
 
 // HTTPService defines an implementation prototype for an object capable of registering

@@ -11,15 +11,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/opencost/pkg/util"
 
 	"cloud.google.com/go/compute/metadata"
 
-	"github.com/kubecost/cost-model/pkg/clustercache"
-	"github.com/kubecost/cost-model/pkg/config"
-	"github.com/kubecost/cost-model/pkg/env"
-	"github.com/kubecost/cost-model/pkg/log"
-	"github.com/kubecost/cost-model/pkg/util/watcher"
+	"github.com/kubecost/opencost/pkg/clustercache"
+	"github.com/kubecost/opencost/pkg/config"
+	"github.com/kubecost/opencost/pkg/env"
+	"github.com/kubecost/opencost/pkg/log"
+	"github.com/kubecost/opencost/pkg/util/watcher"
 
 	v1 "k8s.io/api/core/v1"
 )

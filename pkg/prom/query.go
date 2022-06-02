@@ -8,11 +8,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/env"
-	"github.com/kubecost/cost-model/pkg/errors"
-	"github.com/kubecost/cost-model/pkg/log"
-	"github.com/kubecost/cost-model/pkg/util/httputil"
-	"github.com/kubecost/cost-model/pkg/util/json"
+	"github.com/kubecost/opencost/pkg/env"
+	"github.com/kubecost/opencost/pkg/errors"
+	"github.com/kubecost/opencost/pkg/log"
+	"github.com/kubecost/opencost/pkg/util/httputil"
+	"github.com/kubecost/opencost/pkg/util/json"
 	prometheus "github.com/prometheus/client_golang/api"
 )
 

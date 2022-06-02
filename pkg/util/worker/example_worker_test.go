@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/util/worker"
+	"github.com/kubecost/opencost/pkg/util/worker"
 )
 
 // slowAddTenToFloat simulates "work" -- it accepts an integer, adds 10, converts it to a float64,

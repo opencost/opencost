@@ -3,7 +3,7 @@ package interval
 import (
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/util/atomic"
+	"github.com/kubecost/opencost/pkg/util/atomic"
 )
 
 // IntervalRunner is an example implementation of AtomicRunState.
