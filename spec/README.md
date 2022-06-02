@@ -1,3 +1,5 @@
+# OpenCost Specification
+
 ![image](https://user-images.githubusercontent.com/22844059/171661393-a234931c-b8b1-4958-8186-f0936e432128.png)
 
 
