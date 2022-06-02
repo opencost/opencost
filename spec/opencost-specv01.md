@@ -1,33 +1,3 @@
-<!-- Output copied to clipboard! -->
-
-<!-----
-
-You have some errors, warnings, or alerts. If you are using reckless mode, turn it off to see inline alerts.
-* ERRORs: 0
-* WARNINGs: 0
-* ALERTS: 3
-
-Conversion time: 1.087 seconds.
-
-
-Using this Markdown file:
-
-1. Paste this output into your source file.
-2. See the notes and action items below regarding this conversion run.
-3. Check the rendered output (headings, lists, code blocks, tables) for proper
-   formatting and use a linkchecker before you publish this page.
-
-Conversion notes:
-
-* Docs to Markdown version 1.0β33
-* Wed Jun 01 2022 14:25:48 GMT-0700 (PDT)
-* Source doc: Untitled document
-* This is a partial selection. Check to make sure intra-doc links work.
-* Tables are currently converted to HTML tables.
-* This document has images: check for >>>>>  gd2md-html alert:  inline image link in generated source and store images to your server. NOTE: Images in exported zip file from Google Docs may not appear in  the same order as they do in your doc. Please check the images!
-
------>
-
 
 <p style="color: red; font-weight: bold">>>>>>  gd2md-html alert:  ERRORs: 0; WARNINGs: 0; ALERTS: 3.</p>
 <ul style="color: red; font-weight: bold"><li>See top comment block for details on ERRORs and WARNINGs. <li>In the converted Markdown or HTML, search for inline alerts that start with >>>>>  gd2md-html alert:  for specific instances that need correction.</ul>
@@ -104,23 +74,11 @@ Cluster Asset Costs can be further segmented into **Resource Allocation Costs** 
 
 
 The following chart shows these relationships:
-
-
-
-<p id="gdcalert1" ><span style="color: red; font-weight: bold">>>>>>  gd2md-html alert: inline image link here (to images/image1.png). Store image on your image server and adjust path/filename/extension if necessary. </span><br>(<a href="#">Back to top</a>)(<a href="#gdcalert2">Next alert</a>)<br><span style="color: red; font-weight: bold">>>>>> </span></p>
-
-
-![alt_text](images/image1.png "image_tooltip")
-
+<img width="796" alt="image4" src="https://user-images.githubusercontent.com/453512/171577990-8f7c9a53-f5b1-4fbc-b2f6-75cd6ea67960.png">
 
 While billing models can differ by environment, below are common examples of segmentation by Allocation, Usage and Overhead Costs.
 
-
-
-<p id="gdcalert2" ><span style="color: red; font-weight: bold">>>>>>  gd2md-html alert: inline image link here (to images/image2.png). Store image on your image server and adjust path/filename/extension if necessary. </span><br>(<a href="#">Back to top</a>)(<a href="#gdcalert3">Next alert</a>)<br><span style="color: red; font-weight: bold">>>>>> </span></p>
-
-
-![alt_text](images/image2.png "image_tooltip")
+<img width="292" alt="image1" src="https://user-images.githubusercontent.com/453512/171578190-d84dc3a7-1d20-4575-9bcc-2a5722de5eea.png">
 
 
 Once calculated, these Asset Costs can then be distributed to the tenants that consume them, where Workload Costs plus Idle Costs equals Asset Costs. **Workload costs** are expenses that can be directly attributed to a set of Kubernetes workloads, e.g. a container, pod, deployment, etc. **Cluster Idle Costs** are the portion of Resource Allocation Costs that are not allocated to any workload[^1].
@@ -152,11 +110,7 @@ The following chart shows these relationships:
 ## 
 
 
-<p id="gdcalert3" ><span style="color: red; font-weight: bold">>>>>>  gd2md-html alert: inline image link here (to images/image3.png). Store image on your image server and adjust path/filename/extension if necessary. </span><br>(<a href="#">Back to top</a>)(<a href="#gdcalert4">Next alert</a>)<br><span style="color: red; font-weight: bold">>>>>> </span></p>
-
-
-![alt_text](images/image3.png "image_tooltip")
-
+![image2](https://user-images.githubusercontent.com/453512/171578591-d58e3e23-8b4a-4b6e-8a40-9fe9fd384032.png)
 
 
 ## 
@@ -332,7 +286,9 @@ Idle Costs can be calculated at both the Asset/Resource level as well as the Wor
 
 
 ## 
-The following chart shows these relationships:    
+The following chart shows these relationships:
+![image3](https://user-images.githubusercontent.com/453512/171579570-055bebe8-cc97-4129-9238-c4bcda8e123c.png)
+
 
 Asset Idle Cost can be calculated by individual assets, groups of assets, cluster(s), and by individual resources, e.g. CPU. Resources that are strictly billed on usage can be viewed to have 100% efficiency but should not be included when measuring idle percentage of a cluster. 
 
