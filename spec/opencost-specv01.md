@@ -1,19 +1,10 @@
-
-<p style="color: red; font-weight: bold">>>>>>  gd2md-html alert:  ERRORs: 0; WARNINGs: 0; ALERTS: 3.</p>
-<ul style="color: red; font-weight: bold"><li>See top comment block for details on ERRORs and WARNINGs. <li>In the converted Markdown or HTML, search for inline alerts that start with >>>>>  gd2md-html alert:  for specific instances that need correction.</ul>
-
-<p style="color: red; font-weight: bold">Links to alert messages:</p><a href="#gdcalert1">alert1</a>
-<a href="#gdcalert2">alert2</a>
-<a href="#gdcalert3">alert3</a>
-
-<p style="color: red; font-weight: bold">>>>>> PLEASE check and correct alert issues and delete this message and the inline alerts.<hr></p>
+# OpenCost Specification
 
 
 The OpenCost Spec is a vendor-neutral specification for measuring and allocating infrastructure and container costs in Kubernetes environments. 
 
 
-## 
-**Introduction** {#introduction}
+## Introduction
 
 
 Kubernetes enables complex deployments of containerized workloads, which are often transient and consume variable amounts of cluster resources. While this enables teams to construct powerful solutions to a broad range of technical problems, it also creates complexities when measuring the resource utilization and costs of workloads and their associated infrastructure within the  dynamics of shared Kubernetes environments. 
@@ -22,8 +13,7 @@ Kubernetes enables complex deployments of containerized workloads, which are oft
 As Kubernetes adoption increases within an organization, these complexities become a business-critical challenge to solve. In this document, we specify a vendor-agnostic methodology for accurately measuring and allocating the costs of a Kubernetes cluster to its hosted tenants. This community resource is maintained by Kubernetes practitioners and we welcome all contributions. 
 
 
-## 
-**Foundational definitions ** {#foundational-definitions}
+## Foundational definitions
 
 **Total Cluster Costs** represent all costs required to operate a Kubernetes cluster. **Cluster Assets Costs** are the portion of these costs that are related to directly observable entities within a cluster; these include expenses from nodes, persistent volumes, attached disks, load balancers, and network ingress/egress costs. From a financial accounting perspective, these are equivalent to the Cost of Goods Sold when measuring product costs. **Cluster Overhead Costs** measure the overhead required to operate all of the Assets of a cluster, e.g. Cluster Management Fees. These are the equivalent to Selling, General and Administrative Expenses (SG&A), or indirect costs, when viewed from a financial accounting perspective.
 
@@ -113,8 +103,7 @@ The following chart shows these relationships:
 ![image2](https://user-images.githubusercontent.com/453512/171578591-d58e3e23-8b4a-4b6e-8a40-9fe9fd384032.png)
 
 
-## 
-**Cluster Asset Costs** {#cluster-asset-costs}
+## Cluster Asset Costs
 
 Cluster Assets are observable entities within a Kubernetes cluster that directly incur costs related to their resources. Asset Costs consist of Resource Allocation Costs and Resource Usage Costs. Every Asset conforming to this specification MUST include at least one cost component with Amount, Unit and Rate attributes as well as a TotalCost value. 
 
@@ -171,11 +160,10 @@ Below are example inputs when measuring asset costs over a designated time windo
     * **Cluster management** **fees: **provider fees typically charged on an hourly basis
     * **Operator fees: **potential DevOps team costs allocated to cluster operations
 
-## 
-**Workload Costs** {#workload-costs}
+## Workload Costs
 
 
-Workloads** **are defined as entities to which Asset Costs are committed. Some resources solely have Usage Costs, but others have Allocation Costs independent of actual usage. Workload Costs should be understood as _max(request, usage)_ when Assets have Resource Allocation Costs, e.g. CPU or GPU. This formula effectively assigns costs that have been directly reserved or allocated by _kube-scheduler_. Workload Costs should be calculated at the lowest level possible, e.g. _container_ level[^2], and then they can be aggregated by any dimension, e.g. pod, deployment, statefulset, label, annotation, namespace, etc.
+Workloads are defined as entities to which Asset Costs are committed. Some resources solely have Usage Costs, but others have Allocation Costs independent of actual usage. Workload Costs should be understood as _max(request, usage)_ when Assets have Resource Allocation Costs, e.g. CPU or GPU. This formula effectively assigns costs that have been directly reserved or allocated by _kube-scheduler_. Workload Costs should be calculated at the lowest level possible, e.g. _container_ level[^2], and then they can be aggregated by any dimension, e.g. pod, deployment, statefulset, label, annotation, namespace, etc.
 
 
 <table>
@@ -225,8 +213,7 @@ Workloads** **are defined as entities to which Asset Costs are committed. Some r
 
 
 
-## 
-**Shared Costs** {#shared-costs}
+## Shared Costs
 
 Shared Workload Costs, Cluster Idle Costs, and Overhead Costs are common examples of costs that organizations can optionally distribute amongst tenants. A common example would be system workload costs, e.g. kube-system pods, that benefit all tenants. Common methods for distributing these costs include the following:
 
@@ -239,8 +226,7 @@ Shared Workload Costs, Cluster Idle Costs, and Overhead Costs are common example
 A full implementation of the spec should support various methods of distributing shared costs. 
 
 
-## 
-**Idle Costs** {#idle-costs}
+## Idle Costs
 
 Idle Costs can be calculated at both the Asset/Resource level as well as the Workload level. Asset Idle Costs represent the cost-weighted difference between Cluster Asset Costs and costs of resources being allocated or consumed. Idle Costs and then Idle Percentage can be calculated as follows:
 
@@ -330,8 +316,7 @@ Workload Idle Costs is a cost-weighted measurement of [requested](https://kubern
 **Pod Labels** - Key / Value pairs which may be used to identify objects that are meaningful to the user. There is no semantic meaning to the core of the system. Labels are typically used where a grouping of multiple namespaces need to be associated with a workload. [More info](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
 
 
-## 
-**Appendix A **
+## Appendix A
 
 Various cloud providers supply an hourly resource cost directly in their user billing model.The OpenCost model recommends utilizing the fully Amortized Net Cost for each resource as an input when this is the case. When explicit RAM, CPU or GPU prices are not provided by a cloud provider, the OpenCost model needs to derive these values. The recommendation is to use a scalable ratio of CPU, GPU, RAM and other price inputs. These default values should be based on the marginal resource rates of the provider by family.
 
@@ -340,12 +325,7 @@ One approach for calculating is to ensure the sum of each component is equal to 
 As an example, you have provisioned a node with 1 GPU, 1 CPU and 1 GB of RAM that costs $35/mo. If your base GPU price is $30, base CPU price is $30, and RAM GB price is $10, based on the average marginal costs across instances in this family class, then these inputs will be normalized to $15 for GPU, $15 for CPU and $5 for RAM so that the sum equals the cost of the node. Note that the price of a GPU, as well as the price of a CPU remain 3x the price of a Gb of RAM.
 
 
-## 
-
-
-
-## 
-**Appendix B**
+## Appendix B
 
 Sampling Kubernetes resources is recommended with the following metrics / datasources:
 
@@ -358,14 +338,12 @@ Sampling Kubernetes resources is recommended with the following metrics / dataso
 * ram_requested – sampled from kube API
 * gpu_requested – sampled from kube API
 
-## 
-**Appendix C**
+## Appendix C
 
 
-Working examples to come! 
+Working examples of OpenCost data to come! 
 
 
-<!-- Footnotes themselves at the bottom. -->
 ## Notes
 
 [^1]:
