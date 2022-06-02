@@ -1,4 +1,4 @@
-![image](https://user-images.githubusercontent.com/298359/171659507-8dd4c49d-f6bd-43de-b0c1-e5ab2d83bd65.png)
+![image](https://user-images.githubusercontent.com/22844059/171661393-a234931c-b8b1-4958-8186-f0936e432128.png)
 
 
 The OpenCost specification describes the vendor-neutral requirements and expectations for implementing OpenCost monitoring for Kubernetes environments.
