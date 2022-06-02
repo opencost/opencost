@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kubecost/cost-model/pkg/costmodel"
+	"github.com/kubecost/opencost/pkg/costmodel"
 )
 
 func TestKeyTupleSplit(t *testing.T) {

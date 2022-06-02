@@ -3,7 +3,7 @@ package kubecost
 import (
 	"strings"
 
-	"github.com/kubecost/cost-model/pkg/log"
+	"github.com/kubecost/opencost/pkg/log"
 )
 
 // FilterField is an enum that represents Allocation-specific fields that can be

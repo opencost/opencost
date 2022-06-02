@@ -3,7 +3,7 @@ package costmodel
 import (
 	"testing"
 
-	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/opencost/pkg/util"
 )
 
 func TestScaleHourlyCostData(t *testing.T) {

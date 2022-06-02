@@ -3,8 +3,8 @@ package test
 import (
 	"testing"
 
-	"github.com/kubecost/cost-model/pkg/prom"
-	"github.com/kubecost/cost-model/pkg/util/json"
+	"github.com/kubecost/opencost/pkg/prom"
+	"github.com/kubecost/opencost/pkg/util/json"
 )
 
 func TestClusterInfoLabels(t *testing.T) {

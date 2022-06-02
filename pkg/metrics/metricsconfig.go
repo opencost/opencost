@@ -8,8 +8,8 @@ import (
 	"path"
 	"sync"
 
-	"github.com/kubecost/cost-model/pkg/env"
-	"github.com/kubecost/cost-model/pkg/util/watcher"
+	"github.com/kubecost/opencost/pkg/env"
+	"github.com/kubecost/opencost/pkg/util/watcher"
 )
 
 var (

@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/util/timeutil"
+	"github.com/kubecost/opencost/pkg/util/timeutil"
 
-	"github.com/kubecost/cost-model/pkg/env"
-	"github.com/kubecost/cost-model/pkg/thanos"
+	"github.com/kubecost/opencost/pkg/env"
+	"github.com/kubecost/opencost/pkg/thanos"
 )
 
 const (
