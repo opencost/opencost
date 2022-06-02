@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/log"
-	"github.com/kubecost/cost-model/pkg/util/timeutil"
+	"github.com/kubecost/opencost/pkg/log"
+	"github.com/kubecost/opencost/pkg/util/timeutil"
 )
 
 const (

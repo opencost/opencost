@@ -57,4 +57,4 @@ package kubecost
 // @bingen:generate:PVAllocation
 // @bingen:end
 
-//go:generate bingen -package=kubecost -version=15 -buffer=github.com/kubecost/cost-model/pkg/util
+//go:generate bingen -package=kubecost -version=15 -buffer=github.com/kubecost/opencost/pkg/util

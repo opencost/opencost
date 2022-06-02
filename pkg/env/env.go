@@ -4,7 +4,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/util/mapper"
+	"github.com/kubecost/opencost/pkg/util/mapper"
 )
 
 //--------------------------------------------------------------------------

@@ -1,10 +1,11 @@
 package mapper
 
 import (
-	"github.com/kubecost/cost-model/pkg/util/timeutil"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kubecost/opencost/pkg/util/timeutil"
 )
 
 //--------------------------------------------------------------------------

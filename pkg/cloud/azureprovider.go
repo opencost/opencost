@@ -13,12 +13,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/clustercache"
-	"github.com/kubecost/cost-model/pkg/env"
-	"github.com/kubecost/cost-model/pkg/log"
-	"github.com/kubecost/cost-model/pkg/util"
-	"github.com/kubecost/cost-model/pkg/util/fileutil"
-	"github.com/kubecost/cost-model/pkg/util/json"
+	"github.com/kubecost/opencost/pkg/clustercache"
+	"github.com/kubecost/opencost/pkg/env"
+	"github.com/kubecost/opencost/pkg/log"
+	"github.com/kubecost/opencost/pkg/util"
+	"github.com/kubecost/opencost/pkg/util/fileutil"
+	"github.com/kubecost/opencost/pkg/util/json"
 
 	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
 	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2016-06-01/subscriptions"
@@ -906,7 +906,7 @@ func (az *Azure) DownloadPricingData() error {
 
 	// There is no easy way of supporting Standard Azure-File, because it's billed per used GB
 	// this will set the price to "0" as a workaround to not spam with `Persistent Volume pricing not found for` error
-	// check https://github.com/kubecost/cost-model/issues/159 for more information (same problem on AWS)
+	// check https://github.com/kubecost/opencost/issues/159 for more information (same problem on AWS)
 	zeroPrice := "0.0"
 	for region := range regions {
 		key := region + "," + AzureFileStandardStorageClass

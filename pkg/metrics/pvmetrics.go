@@ -1,7 +1,7 @@
 package metrics
 
 import (
-	"github.com/kubecost/cost-model/pkg/clustercache"
+	"github.com/kubecost/opencost/pkg/clustercache"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	v1 "k8s.io/api/core/v1"

@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kubecost/cost-model/pkg/util/json"
+	"github.com/kubecost/opencost/pkg/util/json"
 )
 
 var invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)

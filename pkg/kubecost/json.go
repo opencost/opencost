@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/kubecost/cost-model/pkg/util/json"
+	"github.com/kubecost/opencost/pkg/util/json"
 )
 
 // TODO move everything below to a separate package
