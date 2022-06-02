@@ -4,13 +4,11 @@
 
 OpenCost models give teams visibility into current and historical Kubernetes spend and resource allocation. These models provide cost transparency in Kubernetes environments that support multiple applications, teams, departments, etc.
 
-OpenCost is developed and [open sourced](https://github.com/kubecost/opencost/issues/1224) by [Kubecost](https://kubecost.com).
+OpenCost was originally developed and [open sourced](https://github.com/kubecost/opencost/issues/1224) by [Kubecost](https://kubecost.com). This project combines a [specification](/spec/) as well as a Golang implementation of these detailed requirements.
 
 ![OpenCost allocation UI](/allocation-drilldown.gif)
 
-To see the full functionality of OpenCost, as well as learn more about the full Kubecost product, see [OpenCost features](https://opencost.io) and [Kubecost features](https://kubecost.com/#features).
-
-Here is a summary of features enabled by this cost model:
+To see the full functionality of OpenCost you can view [OpenCost features](https://opencost.io). Here is a summary of features enabled:
 
 - Real-time cost allocation by Kubernetes service, deployment, namespace, label, statefulset, daemonset, pod, and container
 - Dynamic asset pricing enabled by integrations with AWS, Azure, and GCP billing APIs
@@ -22,7 +20,7 @@ Here is a summary of features enabled by this cost model:
 
 ## Getting Started
 
-You can deploy OpenCost and/or Kubecost on any Kubernetes 1.8+ cluster in a matter of minutes, if not seconds!
+You can deploy OpenCost on any Kubernetes 1.8+ cluster in a matter of minutes, if not seconds!
 
 Visit the full documentation for [recommended install options](https://docs.kubecost.com/install). Compared to building from source, installing from Helm is faster and includes all necessary dependencies.
 
