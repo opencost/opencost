@@ -141,13 +141,13 @@ Below are example inputs when measuring asset costs over a designated time windo
         * duration = end running- start running [hrs]
         * price = provider defined or custom pricing sheet [$/GB-hr] (see Appendix A for more details)
         * total cost = ram bytes * duration * price [$]
-* **Persistent Volumes	**
+* **Persistent Volumes**
     * Disk Size = avg_over_time(GB) by (pv) [disk GBs]
-    * price = price = provider defined or custom pricing sheet [$/GB-hr] (see Appendix A for more details) typically a function of disk class, IOPS, backup size
+    * Price = provider defined or custom pricing sheet [$/GB-hr] (see Appendix A for more details) typically a function of disk class, IOPS, backup size
     * Persistent storage attached to the pod-level
 * **Attached disks**
     * Disk Size = avg_over_time(GB) by (pv) [disk GBs]
-    * price = price = provider defined or custom pricing sheet [$/GB-hr] (see Appendix A for more details) typically a function of disk class, IOPS, backup size
+    * Price = provider defined or custom pricing sheet [$/GB-hr] (see Appendix A for more details) typically a function of disk class, IOPS, backup size
     * Ephemeral storage used per pod on node
 * **Load balancers**
     * Usage costs
@@ -157,8 +157,8 @@ Below are example inputs when measuring asset costs over a designated time windo
         * rules = # of forwarding rules defined
         * price = average $ per forwarding rule
 * Overhead Costs
-    * **Cluster management** **fees: **provider fees typically charged on an hourly basis
-    * **Operator fees: **potential DevOps team costs allocated to cluster operations
+    * **Cluster management fees:** provider fees typically charged on an hourly basis
+    * **Operator fees:** potential DevOps team costs allocated to cluster operations
 
 ## Workload Costs
 
@@ -243,10 +243,6 @@ Idle Costs can be calculated at both the Asset/Resource level as well as the Wor
    </td>
    <td><strong>Workload Costs )</strong>
    </td>
-   <td>
-   </td>
-   <td>
-   </td>
   </tr>
 </table>
 
@@ -281,12 +277,7 @@ Asset Idle Cost can be calculated by individual assets, groups of assets, cluste
 Workload Idle Costs is a cost-weighted measurement of [requested](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container) resources that are unused. Workload Idle Costs can be calculated on any grouping of Kubernetes workloads, e.g. containers, pods, labels, annotations, namespaces, etc.
 
 
-## 
-
-
-
-## 
-**Glossary** {#glossary}
+## Glossary
 
 
 **Cluster Assets** – Observable entities within a Kubernetes cluster that directly incur costs related to their resources. Examples include nodes, persistent volumes, attached disks, load balancers.
