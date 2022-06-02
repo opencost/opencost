@@ -4,7 +4,7 @@ Thanks for your help improving the project!
 
 ## Getting Help
 
-If you have a question about Kubecost or have encountered problems using it,
+If you have a question about OpenCost or have encountered problems using it,
 you can start by asking a question on [Slack](https://join.slack.com/t/kubecost/shared_invite/enQtNTA2MjQ1NDUyODE5LWFjYzIzNWE4MDkzMmUyZGU4NjkwMzMyMjIyM2E0NGNmYjExZjBiNjk1YzY5ZDI0ZTNhZDg4NjlkMGRkYzFlZTU) or via email at [support@kubecost.com](support@kubecost.com)
 
 ## Workflow
