@@ -52,6 +52,10 @@ const (
 	// ["a", "b", "c"] FilterContains "a" = true
 	FilterContains = "contains"
 
+	// FilterNotContains is an array/slice non-membership operator
+	// ["a", "b", "c"] FilterNotContains "d" = true
+	FilterNotContains = "notcontains"
+
 	// FilterStartsWith matches strings with the given prefix.
 	// "kube-system" StartsWith "kube" = true
 	//
@@ -243,6 +247,26 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 			}
 		} else {
 			log.Warnf("Allocation Filter: invalid 'contains' call for non-list filter value")
+		}
+	case FilterNotContains:
+		if stringSlice, ok := valueToCompare.([]string); ok {
+			// services!:"__unallocated__" should match
+			// len(a.Properties.Services) > 0
+			//
+			// TODO: is this true?
+			if filter.Value == UnallocatedSuffix {
+				return len(stringSlice) > 0
+			}
+
+			for _, s := range stringSlice {
+				if s == filter.Value {
+					return false
+				}
+			}
+
+			return true
+		} else {
+			log.Warnf("Allocation Filter: invalid 'notcontains' call for non-list filter value")
 		}
 	case FilterStartsWith:
 		if toCompareMissing {
