@@ -1,8 +1,8 @@
 package metrics
 
 import (
-	"github.com/kubecost/cost-model/pkg/clustercache"
-	"github.com/kubecost/cost-model/pkg/prom"
+	"github.com/kubecost/opencost/pkg/clustercache"
+	"github.com/kubecost/opencost/pkg/prom"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

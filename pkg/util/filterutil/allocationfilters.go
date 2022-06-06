@@ -3,11 +3,11 @@ package filterutil
 import (
 	"strings"
 
-	"github.com/kubecost/cost-model/pkg/costmodel/clusters"
-	"github.com/kubecost/cost-model/pkg/kubecost"
-	"github.com/kubecost/cost-model/pkg/log"
-	"github.com/kubecost/cost-model/pkg/prom"
-	"github.com/kubecost/cost-model/pkg/util/httputil"
+	"github.com/kubecost/opencost/pkg/costmodel/clusters"
+	"github.com/kubecost/opencost/pkg/kubecost"
+	"github.com/kubecost/opencost/pkg/log"
+	"github.com/kubecost/opencost/pkg/prom"
+	"github.com/kubecost/opencost/pkg/util/httputil"
 )
 
 // parseWildcardEnd checks if the given filter value is wildcarded, meaning

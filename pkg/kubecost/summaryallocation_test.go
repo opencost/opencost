@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/util"
+	"github.com/kubecost/opencost/pkg/util"
 )
 
 func TestSummaryAllocation_Add(t *testing.T) {

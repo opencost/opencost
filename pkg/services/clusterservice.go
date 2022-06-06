@@ -1,6 +1,8 @@
 package services
 
-import "github.com/kubecost/cost-model/pkg/services/clusters"
+import (
+	"github.com/kubecost/opencost/pkg/services/clusters"
+)
 
 // NewClusterManagerService creates a new HTTPService implementation driving cluster definition management
 // for the frontend

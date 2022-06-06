@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/util"
-	"github.com/kubecost/cost-model/pkg/util/json"
+	"github.com/kubecost/opencost/pkg/util"
+	"github.com/kubecost/opencost/pkg/util/json"
 )
 
 func TestAllocation_Add(t *testing.T) {

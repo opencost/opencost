@@ -4,9 +4,9 @@ import (
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/kubecost/cost-model/pkg/costmodel"
-	"github.com/kubecost/cost-model/pkg/errors"
-	"github.com/kubecost/cost-model/pkg/metrics"
+	"github.com/kubecost/opencost/pkg/costmodel"
+	"github.com/kubecost/opencost/pkg/errors"
+	"github.com/kubecost/opencost/pkg/metrics"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 )

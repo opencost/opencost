@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/env"
+	"github.com/kubecost/opencost/pkg/env"
 )
 
 func TestRoundBack(t *testing.T) {

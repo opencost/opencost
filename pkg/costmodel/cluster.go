@@ -5,13 +5,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/kubecost/cost-model/pkg/kubecost"
-	"github.com/kubecost/cost-model/pkg/util/timeutil"
+	"github.com/kubecost/opencost/pkg/kubecost"
+	"github.com/kubecost/opencost/pkg/util/timeutil"
 
-	"github.com/kubecost/cost-model/pkg/cloud"
-	"github.com/kubecost/cost-model/pkg/env"
-	"github.com/kubecost/cost-model/pkg/log"
-	"github.com/kubecost/cost-model/pkg/prom"
+	"github.com/kubecost/opencost/pkg/cloud"
+	"github.com/kubecost/opencost/pkg/env"
+	"github.com/kubecost/opencost/pkg/log"
+	"github.com/kubecost/opencost/pkg/prom"
 
 	prometheus "github.com/prometheus/client_golang/api"
 )

@@ -3,7 +3,7 @@ package storage
 import (
 	"strings"
 
-	"github.com/kubecost/cost-model/pkg/util/json"
+	"github.com/kubecost/opencost/pkg/util/json"
 )
 
 /*
