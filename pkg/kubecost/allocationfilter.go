@@ -1,6 +1,7 @@
 package kubecost
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/kubecost/opencost/pkg/log"
@@ -80,6 +81,8 @@ type AllocationFilter interface {
 	// Matches is the canonical in-Go function for determing if an Allocation
 	// matches a filter.
 	Matches(a *Allocation) bool
+
+	String() string
 }
 
 // AllocationFilterCondition is the lowest-level type of filter. It represents
@@ -100,16 +103,44 @@ type AllocationFilterCondition struct {
 	Value string
 }
 
+func (afc AllocationFilterCondition) String() string {
+	if afc.Key == "" {
+		return fmt.Sprintf(`(%s %s "%s")`, afc.Op, afc.Field, afc.Value)
+	}
+
+	return fmt.Sprintf(`(%s %s[%s] "%s")`, afc.Op, afc.Field, afc.Key, afc.Value)
+}
+
 // AllocationFilterOr is a set of filters that should be evaluated as a logical
 // OR.
 type AllocationFilterOr struct {
 	Filters []AllocationFilter
 }
 
+func (af AllocationFilterOr) String() string {
+	s := "(or"
+	for _, f := range af.Filters {
+		s += fmt.Sprintf(" %s", f)
+	}
+
+	s += ")"
+	return s
+}
+
 // AllocationFilterOr is a set of filters that should be evaluated as a logical
 // AND.
 type AllocationFilterAnd struct {
 	Filters []AllocationFilter
+}
+
+func (af AllocationFilterAnd) String() string {
+	s := "(or"
+	for _, f := range af.Filters {
+		s += fmt.Sprintf(" %s", f)
+	}
+
+	s += ")"
+	return s
 }
 
 func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
