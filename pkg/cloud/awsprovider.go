@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
+	"github.com/kubecost/opencost/pkg/kubecost"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -1306,7 +1307,7 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 	makeStructure := func(clusterName string) (map[string]string, error) {
 		m := make(map[string]string)
 		m["name"] = clusterName
-		m["provider"] = "AWS"
+		m["provider"] = kubecost.AWSProvider
 		m["account"] = c.AthenaProjectID // this value requires configuration but is unavailable else where
 		m["region"] = awsProvider.clusterRegion
 		m["id"] = env.GetClusterID()

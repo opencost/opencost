@@ -570,10 +570,10 @@ func TestNode_MarshalJSON(t *testing.T) {
 }
 
 func TestClusterManagement_Add(t *testing.T) {
-	cm1 := NewClusterManagement("gcp", "cluster1", windows[0])
+	cm1 := NewClusterManagement(GCPProvider, "cluster1", windows[0])
 	cm1.Cost = 9.0
 
-	cm2 := NewClusterManagement("gcp", "cluster1", windows[0])
+	cm2 := NewClusterManagement(GCPProvider, "cluster1", windows[0])
 	cm2.Cost = 4.0
 
 	cm3 := cm1.Add(cm2)
