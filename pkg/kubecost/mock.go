@@ -663,10 +663,10 @@ func GenerateMockAssetSet(start time.Time) *AssetSet {
 	disk4.Cost = 1.5
 	disk4.ByteHours = 100 * gb * hours
 
-	cm1 := NewClusterManagement("gcp", "cluster1", window.Clone())
+	cm1 := NewClusterManagement(GCPProvider, "cluster1", window.Clone())
 	cm1.Cost = 3.0
 
-	cm2 := NewClusterManagement("gcp", "cluster2", window.Clone())
+	cm2 := NewClusterManagement(GCPProvider, "cluster2", window.Clone())
 	cm2.Cost = 0.0
 
 	return NewAssetSet(

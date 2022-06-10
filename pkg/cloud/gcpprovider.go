@@ -3,6 +3,7 @@ package cloud
 import (
 	"context"
 	"fmt"
+	"github.com/kubecost/opencost/pkg/kubecost"
 	"io"
 	"io/ioutil"
 	"math"
@@ -326,7 +327,7 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 
 	m := make(map[string]string)
 	m["name"] = attribute
-	m["provider"] = "GCP"
+	m["provider"] = kubecost.GCPProvider
 	m["project"] = gcp.clusterProjectId
 	m["region"] = gcp.clusterRegion
 	m["provisioner"] = gcp.clusterProvisioner
