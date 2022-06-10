@@ -28,6 +28,13 @@ import (
 // [1] https://docs.google.com/document/d/1HKkp2bv3mnvfQoBZlpHjfZwQ0FzDLOHKpnwV9gQ_KgU/edit?pli=1
 //
 // <filter> ::= <comparison> ('+' <comparison>)*
+//              NOTE: Language can be extended to support ORs between
+//              comparisons by adding a '|' operator in between comparisons,
+//              though precedence will have to be carefully defined and it may
+//              require adding support for ()-enclosed statements to deal with
+//              precedence.
+//              This would allow for queries like:
+//                namespace:"x"|label[app]="foo"
 //
 // <comparison> ::= <filter-key> <filter-op> <filter-value>
 //
