@@ -1,11 +1,11 @@
 package kubecost
 
 import (
-	"sort"
+	"reflect"
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
+	"golang.org/x/exp/slices"
 )
 
 func TestDiff(t *testing.T) {
@@ -90,35 +90,19 @@ func TestDiff(t *testing.T) {
 
 			result := DiffAsset(as1.Clone(), as2.Clone())
 
-			trans := cmp.Transformer("Sort", func(in []Diff[Asset]) []Diff[Asset] {
-				out := append([]Diff[Asset](nil), in...) // Copy input to avoid mutating it
-				sort.Slice(out, func(i, j int) bool {
-					return out[i].Kind < out[j].Kind
-				})
-				return out
+			slices.SortFunc(result, func(a, b Diff[Asset]) bool {
+				return a.Entity.Properties().Name < b.Entity.Properties().Name
 			})
-			diff := cmp.Diff(tc.expected, result, trans) 
 
-			if diff != "" {
-				t.Fatalf(diff)
+			slices.SortFunc(tc.expected, func(a, b Diff[Asset]) bool {
+				return a.Entity.Properties().Name < b.Entity.Properties().Name
+			})
+	
+			if !reflect.DeepEqual(result, tc.expected) {
+				t.Fatalf("expected %+v; got %+v", tc.expected, result)
 			}
 			
 		})
 	}
-	// as1 := NewAssetSet(start, end, 
-	// 	NewNode("node1", "cluster1", "123abc", start, end, window1), 
-	// 	NewNode("node2", "cluster1", "123abc", start, end, window1)
-	// 	NewNode("node3", "cluster1", "123abc", start, end, window1))
-	// as2 := NewAssetSet(start, end, 
-	// 	NewNode("node2", "cluster1", "123abc", start, end, window1),
-	// 	NewNode("node4", "cluster1", "123abc", start, end, window1))
-
-	// t.Logf("testing")
-
-	// result := DiffAsset(as1, as2)
-
-	// for i := range result {
-	// 	t.Logf("%+v", result[i])
-	// }
 
 }

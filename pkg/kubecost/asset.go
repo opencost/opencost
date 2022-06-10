@@ -2846,11 +2846,16 @@ const (
     DiffRemoved = "removed"
 )
 
+// Diff stores an object and a string that denotes whether that object was
+// added or removed from a set of those objects
 type Diff[T any] struct {
 	Entity T
 	Kind DiffKind
 }
 
+// DiffAsset takes two AssetSets and returns a slice of Diffs by checking
+// the keys of each AssetSet. If a key is not found, a Diff is generated
+// and added to the slice.
 func DiffAsset(before, after *AssetSet) []Diff[Asset]{
 	changedItems := []Diff[Asset]{}
 
@@ -2870,26 +2875,6 @@ func DiffAsset(before, after *AssetSet) []Diff[Asset]{
 
 	return changedItems
 }
-
-// func DiffAllocation(before, after *AllocationSet) []Diff[Allocation]{
-// 	changedItems := []Diff[Allocation]{}
-
-// 	for allocationKey1, allocation1 := range before.allocations {
-// 		if _, ok := after.allocations[allocationKey1]; !ok {
-// 			d := Diff[Allocation]{allocation1, removedState}
-// 			changedItems = append(changedItems, d)
-// 		}
-// 	}
-	
-// 	for allocationKey2, allocation2 := range after.allocations {
-// 		if _, ok := before.allocations[allocationKey2]; !ok {
-// 			d := Diff[Allocation]{allocation2, addedState}
-// 			changedItems = append(changedItems, d)
-// 		}
-// 	}
-
-// 	return changedItems
-// }
 
 // AssetSetRange is a thread-safe slice of AssetSets. It is meant to
 // be used such that the AssetSets held are consecutive and coherent with
