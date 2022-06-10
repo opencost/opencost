@@ -93,7 +93,7 @@ func TestDiff(t *testing.T) {
 			trans := cmp.Transformer("Sort", func(in []Diff[Asset]) []Diff[Asset] {
 				out := append([]Diff[Asset](nil), in...) // Copy input to avoid mutating it
 				sort.Slice(out, func(i, j int) bool {
-					return out[i].Kind < out[j].Kind
+					return out[i].Entity.Properties().Name < out[i].Entity.Properties().Name
 				})
 				return out
 			})
@@ -105,20 +105,5 @@ func TestDiff(t *testing.T) {
 			
 		})
 	}
-	// as1 := NewAssetSet(start, end, 
-	// 	NewNode("node1", "cluster1", "123abc", start, end, window1), 
-	// 	NewNode("node2", "cluster1", "123abc", start, end, window1)
-	// 	NewNode("node3", "cluster1", "123abc", start, end, window1))
-	// as2 := NewAssetSet(start, end, 
-	// 	NewNode("node2", "cluster1", "123abc", start, end, window1),
-	// 	NewNode("node4", "cluster1", "123abc", start, end, window1))
-
-	// t.Logf("testing")
-
-	// result := DiffAsset(as1, as2)
-
-	// for i := range result {
-	// 	t.Logf("%+v", result[i])
-	// }
 
 }
