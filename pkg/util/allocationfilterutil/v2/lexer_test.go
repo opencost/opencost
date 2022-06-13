@@ -63,7 +63,18 @@ func TestLexer(t *testing.T) {
 			input:    "app[kubecost]",
 			expected: []token{{kind: identifier, s: "app"}, {kind: keyedAccess, s: "kubecost"}, {kind: eof}},
 		},
-		// TODO: more cases
+		{
+			name:  "whitespace variety",
+			input: "1 2" + string('\n') + `" ` + string('\n') + string('\t') + string('\r') + `a"` + string('\t') + string('\r') + "abc[foo a]" + " ",
+			expected: []token{
+				{kind: identifier, s: "1"},
+				{kind: identifier, s: "2"},
+				{kind: str, s: " " + string('\n') + string('\t') + string('\r') + "a"},
+				{kind: identifier, s: "abc"},
+				{kind: keyedAccess, s: "foo a"},
+				{kind: eof},
+			},
+		},
 	}
 
 	for _, c := range cases {

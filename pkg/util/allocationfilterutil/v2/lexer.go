@@ -178,12 +178,14 @@ func (s *scanner) scanToken() {
 			s.errors = append(s.errors, fmt.Errorf("Position %d: Unexpected '!'", s.nextByte-1))
 		}
 	// strings
-	// TODO: reject whitespace chars
 	case '"':
 		s.string()
 	// keyed access
 	case '[':
 		s.keyedAccess()
+	// Ignore whitespace chars outside of "" and [].
+	case ' ', '\t', '\n', '\r':
+		break
 	default:
 		// identifiers
 		// https://kubernetes.io/docs/concepts/overview/working-with-objects/names/
