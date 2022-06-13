@@ -2838,6 +2838,44 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 	return acc, nil
 }
 
+
+type DiffKind string
+
+const (
+    DiffAdded DiffKind = "added"
+    DiffRemoved = "removed"
+)
+
+// Diff stores an object and a string that denotes whether that object was
+// added or removed from a set of those objects
+type Diff[T any] struct {
+	Entity T
+	Kind DiffKind
+}
+
+// DiffAsset takes two AssetSets and returns a slice of Diffs by checking
+// the keys of each AssetSet. If a key is not found, a Diff is generated
+// and added to the slice.
+func DiffAsset(before, after *AssetSet) []Diff[Asset]{
+	changedItems := []Diff[Asset]{}
+
+	for assetKey1, asset1 := range before.assets {
+		if _, ok := after.assets[assetKey1]; !ok {
+			d := Diff[Asset]{asset1, DiffRemoved}
+			changedItems = append(changedItems, d)
+		}
+	}
+	
+	for assetKey2, asset2 := range after.assets {
+		if _, ok := before.assets[assetKey2]; !ok {
+			d := Diff[Asset]{asset2, DiffAdded}
+			changedItems = append(changedItems, d)
+		}
+	}
+
+	return changedItems
+}
+
 // AssetSetRange is a thread-safe slice of AssetSets. It is meant to
 // be used such that the AssetSets held are consecutive and coherent with
 // respect to using the same aggregation properties, UTC offset, and
