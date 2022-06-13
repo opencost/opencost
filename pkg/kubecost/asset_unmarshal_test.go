@@ -122,7 +122,7 @@ func TestCloud_Unmarshal(t *testing.T) {
 
 func TestClusterManagement_Unmarshal(t *testing.T) {
 
-	cm1 := NewClusterManagement("gcp", "cluster1", unmarshalWindow)
+	cm1 := NewClusterManagement(GCPProvider, "cluster1", unmarshalWindow)
 	cm1.Cost = 9.0
 
 	bytes, _ := json.Marshal(cm1)
@@ -465,7 +465,7 @@ func TestAssetset_Unmarshal(t *testing.T) {
 
 	any := NewAsset(*unmarshalWindow.start, *unmarshalWindow.end, unmarshalWindow)
 	cloud := NewCloud("Compute", "provider1", *unmarshalWindow.start, *unmarshalWindow.end, unmarshalWindow)
-	cm := NewClusterManagement("gcp", "cluster1", unmarshalWindow)
+	cm := NewClusterManagement(GCPProvider, "cluster1", unmarshalWindow)
 	disk := NewDisk("disk1", "cluster1", "disk1", *unmarshalWindow.start, *unmarshalWindow.end, unmarshalWindow)
 	network := NewNetwork("network1", "cluster1", "provider1", *unmarshalWindow.start, *unmarshalWindow.end, unmarshalWindow)
 	node := NewNode("node1", "cluster1", "provider1", *unmarshalWindow.start, *unmarshalWindow.end, unmarshalWindow)

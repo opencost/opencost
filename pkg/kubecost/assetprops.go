@@ -99,6 +99,9 @@ const GCPProvider = "GCP"
 // AzureProvider describes the provider Azure
 const AzureProvider = "Azure"
 
+// CSVProvider describes the provider a CSV
+const CSVProvider = "CSV"
+
 // NilProvider describes unknown provider
 const NilProvider = "-"
 
