@@ -92,6 +92,30 @@ func TestParse(t *testing.T) {
 			},
 		},
 		{
+			input: `node:"node a b c" , "node 12 3"` + string('\n') + "+" + string('\n') + string('\r') + `namespace : "kubecost"`,
+			expected: kubecost.AllocationFilterAnd{[]kubecost.AllocationFilter{
+				kubecost.AllocationFilterOr{[]kubecost.AllocationFilter{
+					kubecost.AllocationFilterCondition{
+						Field: kubecost.FilterNode,
+						Op:    kubecost.FilterEquals,
+						Value: "node a b c",
+					},
+					kubecost.AllocationFilterCondition{
+						Field: kubecost.FilterNode,
+						Op:    kubecost.FilterEquals,
+						Value: "node 12 3",
+					},
+				}},
+				kubecost.AllocationFilterOr{[]kubecost.AllocationFilter{
+					kubecost.AllocationFilterCondition{
+						Field: kubecost.FilterNamespace,
+						Op:    kubecost.FilterEquals,
+						Value: "kubecost",
+					},
+				}},
+			}},
+		},
+		{
 			input: `label[app_abc]:"cost_analyzer"`,
 			expected: kubecost.AllocationFilterAnd{[]kubecost.AllocationFilter{
 				kubecost.AllocationFilterOr{[]kubecost.AllocationFilter{

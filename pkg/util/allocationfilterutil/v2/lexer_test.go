@@ -75,6 +75,21 @@ func TestLexer(t *testing.T) {
 				{kind: eof},
 			},
 		},
+		{
+			name:  "whitespace separated accesses",
+			input: `node : "abc" , "def" ` + string('\r') + string('\n') + string('\t') + `namespace : "123"`,
+			expected: []token{
+				{kind: filterField1, s: "node"},
+				{kind: colon, s: ":"},
+				{kind: str, s: "abc"},
+				{kind: comma, s: ","},
+				{kind: str, s: "def"},
+				{kind: filterField1, s: "namespace"},
+				{kind: colon, s: ":"},
+				{kind: str, s: "123"},
+				{kind: eof},
+			},
+		},
 	}
 
 	for _, c := range cases {
