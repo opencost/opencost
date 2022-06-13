@@ -338,7 +338,7 @@ func TestClusterManagement_BinaryEncoding(t *testing.T) {
 	var bs []byte
 	var err error
 
-	a0 = NewClusterManagement("aws", "cluster1", window)
+	a0 = NewClusterManagement(AWSProvider, "cluster1", window)
 	a0.Cost = 4.003
 	a0.SetAdjustment(-3.23)
 

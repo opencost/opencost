@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/kubecost/opencost/pkg/kubecost"
 	"io"
 	"regexp"
 	"strconv"
@@ -435,7 +436,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 	cp := getClusterProperties(nodes[0])
 
 	switch cp.provider {
-	case "CSV":
+	case kubecost.CSVProvider:
 		log.Infof("Using CSV Provider with CSV at %s", env.GetCSVPath())
 		return &CSVProvider{
 			CSVLocation: env.GetCSVPath(),
@@ -444,7 +445,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 				Config:    NewProviderConfig(config, cp.configFileName),
 			},
 		}, nil
-	case "GCP":
+	case kubecost.GCPProvider:
 		log.Info("metadata reports we are in GCE")
 		if apiKey == "" {
 			return nil, errors.New("Supply a GCP Key to start getting data")
@@ -456,7 +457,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			clusterRegion:    cp.region,
 			clusterProjectId: cp.projectID,
 		}, nil
-	case "AWS":
+	case kubecost.AWSProvider:
 		log.Info("Found ProviderID starting with \"aws\", using AWS Provider")
 		return &AWS{
 			Clientset:            cache,
@@ -465,7 +466,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			clusterAccountId:     cp.accountID,
 			serviceAccountChecks: NewServiceAccountChecks(),
 		}, nil
-	case "AZURE":
+	case kubecost.AzureProvider:
 		log.Info("Found ProviderID starting with \"azure\", using Azure Provider")
 		return &Azure{
 			Clientset:            cache,
@@ -502,19 +503,19 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 		projectID:      "",
 	}
 	if metadata.OnGCE() {
-		cp.provider = "GCP"
+		cp.provider = kubecost.GCPProvider
 		cp.configFileName = "gcp.json"
 		cp.projectID = parseGCPProjectID(providerID)
 	} else if strings.HasPrefix(providerID, "aws") {
-		cp.provider = "AWS"
+		cp.provider = kubecost.AWSProvider
 		cp.configFileName = "aws.json"
 	} else if strings.HasPrefix(providerID, "azure") {
-		cp.provider = "AZURE"
+		cp.provider = kubecost.AzureProvider
 		cp.configFileName = "azure.json"
 		cp.accountID = parseAzureSubscriptionID(providerID)
 	}
 	if env.IsUseCSVProvider() {
-		cp.provider = "CSV"
+		cp.provider = kubecost.CSVProvider
 	}
 
 	return cp
