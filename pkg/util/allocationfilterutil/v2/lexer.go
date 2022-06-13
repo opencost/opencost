@@ -37,8 +37,6 @@ const (
 // These maps serve a dual purpose. (1) to help the lexer identify special
 // strings that should become filterField1/2 instead of identifiers and (2) to
 // help the parser convert tokens into AllocationFilterConditions.
-//
-// TODO: Should the lexer _also_ attach the FilterField to help the parser out?
 var ff1ToKCFilterField = map[string]kubecost.FilterField{
 	"cluster":        kubecost.FilterClusterID,
 	"node":           kubecost.FilterNode,
