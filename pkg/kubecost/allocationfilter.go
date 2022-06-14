@@ -138,7 +138,7 @@ type AllocationFilterAnd struct {
 }
 
 func (af AllocationFilterAnd) String() string {
-	s := "(or"
+	s := "(and"
 	for _, f := range af.Filters {
 		s += fmt.Sprintf(" %s", f)
 	}
