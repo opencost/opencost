@@ -2652,10 +2652,19 @@ func (as *AssetSet) ReconciliationMatch(query Asset) (Asset, bool, error) {
 	return nil, false, fmt.Errorf("Asset not found to match %s", query)
 }
 
+// ReconciliationMatchMap returns a map of the calling AssetSet's Assets, by provider id and category. This data structure
+// allows for reconciliation matching to be done in constant time and prevents duplicate reconciliation.
 func (as *AssetSet) ReconciliationMatchMap() map[string]map[string]Asset {
 	matchMap := make(map[string]map[string]Asset)
 
+	if as == nil {
+		return matchMap
+	}
+
 	for _, asset := range as.assets {
+		if asset == nil {
+			continue
+		}
 		props := asset.Properties()
 		// Ignore cloud assets and assets that cannot be matched when looking for reconciliation matches
 		if props == nil || props.ProviderID == "" || asset.Type() == CloudAssetType {
@@ -2675,7 +2684,7 @@ func (as *AssetSet) ReconciliationMatchMap() map[string]map[string]Asset {
 			} else if duplicateAsset.Adjustment() != 0 && asset.Adjustment() == 0 {
 				matchMap[props.ProviderID][props.Category] = duplicateAsset
 				// otherwise use the one with the higher cost
-			} else if duplicateAsset.TotalCost()-duplicateAsset.Adjustment() < asset.TotalCost()-asset.Adjustment() {
+			} else if duplicateAsset.TotalCost() < asset.TotalCost() {
 				matchMap[props.ProviderID][props.Category] = asset
 			}
 		} else {
@@ -2872,25 +2881,24 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 	return acc, nil
 }
 
-
 type DiffKind string
 
 const (
-    DiffAdded DiffKind = "added"
-    DiffRemoved = "removed"
+	DiffAdded   DiffKind = "added"
+	DiffRemoved          = "removed"
 )
 
 // Diff stores an object and a string that denotes whether that object was
 // added or removed from a set of those objects
 type Diff[T any] struct {
 	Entity T
-	Kind DiffKind
+	Kind   DiffKind
 }
 
 // DiffAsset takes two AssetSets and returns a slice of Diffs by checking
 // the keys of each AssetSet. If a key is not found, a Diff is generated
 // and added to the slice.
-func DiffAsset(before, after *AssetSet) []Diff[Asset]{
+func DiffAsset(before, after *AssetSet) []Diff[Asset] {
 	changedItems := []Diff[Asset]{}
 
 	for assetKey1, asset1 := range before.assets {
@@ -2899,7 +2907,7 @@ func DiffAsset(before, after *AssetSet) []Diff[Asset]{
 			changedItems = append(changedItems, d)
 		}
 	}
-	
+
 	for assetKey2, asset2 := range after.assets {
 		if _, ok := before.assets[assetKey2]; !ok {
 			d := Diff[Asset]{asset2, DiffAdded}
