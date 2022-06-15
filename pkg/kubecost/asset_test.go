@@ -850,6 +850,32 @@ func TestAssetSet_InsertMatchingWindow(t *testing.T) {
 	})
 }
 
+func TestAssetSet_ReconciliationMatchMap(t *testing.T) {
+	endYesterday := time.Now().UTC().Truncate(day)
+	startYesterday := endYesterday.Add(-day)
+
+	as := GenerateMockAssetSet(startYesterday)
+	matchMap := as.ReconciliationMatchMap()
+
+	// Determine the number of assets by provider ID
+	assetCountByProviderId := make(map[string]int, len(matchMap))
+	as.Each(func(key string, a Asset) {
+		if a == nil || a.Properties() == nil || a.Properties().ProviderID == "" {
+			return
+		}
+		if _, ok := assetCountByProviderId[a.Properties().ProviderID]; !ok {
+			assetCountByProviderId[a.Properties().ProviderID] = 0
+		}
+		assetCountByProviderId[a.Properties().ProviderID] += 1
+	})
+
+	for k, count := range assetCountByProviderId {
+		if len(matchMap[k]) != count {
+			t.Errorf("AssetSet.ReconciliationMatchMap: incorrect asset count for provider id: %s", k)
+		}
+	}
+}
+
 func TestAssetSetRange_Accumulate(t *testing.T) {
 	endYesterday := time.Now().UTC().Truncate(day)
 	startYesterday := endYesterday.Add(-day)
