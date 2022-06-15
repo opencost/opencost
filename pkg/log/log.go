@@ -8,6 +8,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
@@ -17,15 +18,33 @@ import (
 // concurrency-safe counter
 var ctr = newCounter()
 
+const (
+	flagFormat       = "log-format"
+	flagLevel        = "log-level"
+	flagDisableColor = "disable-log-color"
+)
+
+// InitLoggingFromFlags maps pflags (e.g. from a cobra command) representing
+// log level, format, and disable color to this logging package's expected
+// format in order to correctly initialize the logger. Passing a nil flag is
+// acceptable and will result in default behavior for that option.
+func InitLoggingFromFlags(level *pflag.Flag, format *pflag.Flag, disableColor *pflag.Flag) {
+	viper.BindPFlag(flagLevel, level)
+	viper.BindPFlag(flagFormat, format)
+	viper.BindPFlag(flagDisableColor, disableColor)
+
+	InitLogging()
+}
+
 func InitLogging() {
 	zerolog.TimeFieldFormat = time.RFC3339Nano
 	// Default to using pretty formatting
-	if strings.ToLower(viper.GetString("log-format")) != "json" {
-		disableColor := viper.GetBool("disable-log-color")
+	if strings.ToLower(viper.GetString(flagFormat)) != "json" {
+		disableColor := viper.GetBool(flagDisableColor)
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339Nano, NoColor: disableColor})
 	}
 
-	level, err := zerolog.ParseLevel(viper.GetString("log-level"))
+	level, err := zerolog.ParseLevel(viper.GetString(flagLevel))
 	if err != nil {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 		log.Warn().Msg("Error parsing log-level, setting level to 'info'")
