@@ -1,6 +1,11 @@
 # Contributing to our project
 
-Thanks for your help improving the project!
+Thanks for your help improving the OpenCost project! There are many ways to contribute to the project, including the following:
+
+* contributing or providing feedback on the [OpenCost Spec](https://github.com/kubecost/opencost/tree/develop/spec)
+* contributing documentation 
+* joining the discussion on Slack or in [OpenCost community discussions](https://drive.google.com/drive/folders/1hXlcyFPePB7t3z6lyVzdxmdfrbzeT1Jz)
+* committing software via the workflow below
 
 ## Getting Help
 
