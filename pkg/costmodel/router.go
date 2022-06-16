@@ -1350,8 +1350,6 @@ func handlePanic(p errors.Panic) bool {
 }
 
 func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses {
-	log.Infof("Starting cost-model (git commit \"%s\")", env.GetAppVersion())
-
 	configWatchers := watcher.NewConfigMapWatchers(additionalConfigWatchers...)
 
 	var err error
