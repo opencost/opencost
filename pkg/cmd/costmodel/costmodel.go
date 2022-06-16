@@ -6,7 +6,9 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/kubecost/opencost/pkg/costmodel"
 	"github.com/kubecost/opencost/pkg/errors"
+	"github.com/kubecost/opencost/pkg/log"
 	"github.com/kubecost/opencost/pkg/metrics"
+	"github.com/kubecost/opencost/pkg/version"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 )
@@ -23,6 +25,7 @@ func Healthz(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 }
 
 func Execute(opts *CostModelOpts) error {
+	log.Infof("Starting cost-model version %s", version.FriendlyVersion())
 	a := costmodel.Initialize()
 
 	rootMux := http.NewServeMux()

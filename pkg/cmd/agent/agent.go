@@ -18,6 +18,7 @@ import (
 	"github.com/kubecost/opencost/pkg/metrics"
 	"github.com/kubecost/opencost/pkg/prom"
 	"github.com/kubecost/opencost/pkg/util/watcher"
+	"github.com/kubecost/opencost/pkg/version"
 
 	prometheus "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -125,7 +126,7 @@ func newPrometheusClient() (prometheus.Client, error) {
 }
 
 func Execute(opts *AgentOpts) error {
-	log.Infof("Starting Kubecost Agent")
+	log.Infof("Starting Kubecost Agent version %s", version.FriendlyVersion())
 
 	configWatchers := watcher.NewConfigMapWatchers()
 

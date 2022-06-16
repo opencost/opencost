@@ -11,6 +11,9 @@ COPY go.sum .
 # golang:latest image does not contain GCC, while the AMD64 version does.
 ARG CGO_ENABLED=0
 
+ARG version=dev
+ARG	commit=HEAD
+
 # Get dependencies - will also be cached if we won't change mod/sum
 RUN go mod download
 # COPY the source code as the last step
@@ -21,7 +24,11 @@ RUN set -e ;\
     go test ./pkg/*;\
     cd cmd/costmodel;\
     GOOS=linux \
-    go build -a -installsuffix cgo -o /go/bin/app
+    go build -a -installsuffix cgo \
+    -ldflags \
+    "-X github.com/kubecost/opencost/pkg/version.Version=${version} \
+     -X github.com/kubecost/opencost/pkg/version.GitCommit=${commit}" \
+    -o /go/bin/app
 
 FROM alpine:latest
 RUN apk add --update --no-cache ca-certificates
