@@ -21,6 +21,7 @@ import (
 	"github.com/kubecost/opencost/pkg/util/httputil"
 	"github.com/kubecost/opencost/pkg/util/timeutil"
 	"github.com/kubecost/opencost/pkg/util/watcher"
+	"github.com/kubecost/opencost/pkg/version"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/spf13/viper"
 
@@ -1156,6 +1157,71 @@ func (a *Accesses) GetInstallNamespace(w http.ResponseWriter, r *http.Request, _
 	w.Write([]byte(ns))
 }
 
+type InstallInfo struct {
+	Containers  []ContainerInfo   `json:"containers"`
+	ClusterInfo map[string]string `json:"clusterInfo"`
+	Version     string            `json:"version"`
+}
+
+type ContainerInfo struct {
+	ContainerName string `json:"containerName"`
+	Image         string `json:"image"`
+	ImageID       string `json:"imageID"`
+	StartTime     string `json:"startTime"`
+	Restarts      int32  `json:"restarts"`
+}
+
+func (a *Accesses) GetInstallInfo(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	pods, err := a.KubeClientSet.CoreV1().Pods(env.GetKubecostNamespace()).List(context.Background(), metav1.ListOptions{
+		LabelSelector: "app=cost-analyzer",
+		FieldSelector: "status.phase=Running",
+		Limit:         1,
+	})
+	if err != nil {
+		writeErrorResponse(w, 500, fmt.Sprintf("Unable to list pods: %s", err.Error()))
+		return
+	}
+
+	info := InstallInfo{
+		ClusterInfo: make(map[string]string),
+		Version:     version.FriendlyVersion(),
+	}
+
+	// If we have zero pods either something is weird with the install since the app selector is not exposed in the helm
+	// chart or more likely we are running locally - in either case Images field will return as null
+	if len(pods.Items) > 0 {
+		for _, pod := range pods.Items {
+			for _, container := range pod.Status.ContainerStatuses {
+				c := ContainerInfo{
+					ContainerName: container.Name,
+					Image:         container.Image,
+					ImageID:       container.ImageID,
+					StartTime:     pod.Status.StartTime.String(),
+					Restarts:      container.RestartCount,
+				}
+				info.Containers = append(info.Containers, c)
+			}
+		}
+	}
+
+	nodes := a.ClusterCache.GetAllNodes()
+	cachePods := a.ClusterCache.GetAllPods()
+
+	info.ClusterInfo["nodeCount"] = strconv.Itoa(len(nodes))
+	info.ClusterInfo["podCount"] = strconv.Itoa(len(cachePods))
+
+	body, err := json.Marshal(info)
+	if err != nil {
+		writeErrorResponse(w, 500, fmt.Sprintf("Error decoding pod: %s", err.Error()))
+		return
+	}
+
+	w.Write(body)
+}
+
 // logsFor pulls the logs for a specific pod, namespace, and container
 func logsFor(c kubernetes.Interface, namespace string, pod string, container string, dur time.Duration, ctx context.Context) (string, error) {
 	since := time.Now().UTC().Add(-dur)
@@ -1654,6 +1720,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	a.Router.GET("/prometheusTargets", a.PrometheusTargets)
 	a.Router.GET("/orphanedPods", a.GetOrphanedPods)
 	a.Router.GET("/installNamespace", a.GetInstallNamespace)
+	a.Router.GET("/installInfo", a.GetInstallInfo)
 	a.Router.GET("/podLogs", a.GetPodLogs)
 	a.Router.POST("/serviceKey", a.AddServiceKey)
 	a.Router.GET("/helmValues", a.GetHelmValues)
@@ -1672,4 +1739,20 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	a.httpServices.RegisterAll(a.Router)
 
 	return a
+}
+
+func writeErrorResponse(w http.ResponseWriter, code int, message string) {
+	out := map[string]string{
+		"message": message,
+	}
+	bytes, err := json.Marshal(out)
+	if err != nil {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(500)
+		fmt.Fprint(w, "unable to marshall json for error")
+		log.Warnf("Failed to marshall JSON for error response: %s", err.Error())
+		return
+	}
+	w.WriteHeader(code)
+	fmt.Fprint(w, string(bytes))
 }
