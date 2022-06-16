@@ -24,19 +24,40 @@ const (
 	flagDisableColor = "disable-log-color"
 )
 
-// InitLoggingFromFlags maps pflags (e.g. from a cobra command) representing
-// log level, format, and disable color to this logging package's expected
-// format in order to correctly initialize the logger. Passing a nil flag is
-// acceptable and will result in default behavior for that option.
-func InitLoggingFromFlags(level *pflag.Flag, format *pflag.Flag, disableColor *pflag.Flag) {
-	viper.BindPFlag(flagLevel, level)
-	viper.BindPFlag(flagFormat, format)
-	viper.BindPFlag(flagDisableColor, disableColor)
+// Options contains settings for logging initialization.
+type Options struct {
+	// DisableLogLevelReportMessage prevents logging initialization from
+	// reporting the log level once complete. This is useful for applications
+	// like CLI tools, where a log message stating "log level is set to X" is
+	// too much noise.
+	//
+	// This defaults to false because most users of logging are services, which
+	// benefit from extra reassurance about the log level.
+	DisableLogLevelReportMessage bool
 
-	InitLogging()
+	// LevelPFlag is an optional flag that will be used as the first source
+	// of truth for the log level.
+	// If set to nil, will not do anything.
+	LevelPFlag *pflag.Flag
+	// FormatPFlag is an optional flag that will be used as the first source
+	// of truth for the log format.
+	// If set to nil, will not do anything.
+	FormatPFlag *pflag.Flag
+	// DisableColorPFlag is an optional flag that will be used as the first
+	// source of truth for whether log colors should be disabled.
+	// If set to nil, will not do anything.
+	DisableColorPFlag *pflag.Flag
 }
 
-func InitLogging() {
+// InitLoggingWithOptions initializes logging with custom behavior. See the
+// options struct for explanations of each option.
+func InitLoggingWithOptions(o Options) {
+	// Bind the flags to our expected viper strings. We drop the error because
+	// we're okay with failing to bind a nil flag and proceeding.
+	viper.BindPFlag(flagLevel, o.LevelPFlag)
+	viper.BindPFlag(flagFormat, o.FormatPFlag)
+	viper.BindPFlag(flagDisableColor, o.DisableColorPFlag)
+
 	zerolog.TimeFieldFormat = time.RFC3339Nano
 	// Default to using pretty formatting
 	if strings.ToLower(viper.GetString(flagFormat)) != "json" {
@@ -51,8 +72,15 @@ func InitLogging() {
 		return
 	}
 	zerolog.SetGlobalLevel(level)
-	log.Log().Msgf("Log level set to %v", level)
 
+	if !o.DisableLogLevelReportMessage {
+		log.Log().Msgf("Log level set to %v", level)
+	}
+}
+
+// InitLogging initializes logging with standard behavior.
+func InitLogging() {
+	InitLoggingWithOptions(Options{})
 }
 
 func Errorf(format string, a ...interface{}) {
