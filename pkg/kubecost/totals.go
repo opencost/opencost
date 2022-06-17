@@ -356,13 +356,12 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 			adjustedCPUCost := discountedCPUCost * adjustmentRate
 			cpuCostAdjustment := adjustedCPUCost - discountedCPUCost
 
-			discountedGPUCost := node.GPUCost * (1.0 - node.Discount)
-			adjustedGPUCost := discountedGPUCost * adjustmentRate
-			gpuCostAdjustment := discountedGPUCost - adjustedGPUCost
-
 			discountedRAMCost := node.RAMCost * (1.0 - node.Discount)
 			adjustedRAMCost := discountedRAMCost * adjustmentRate
 			ramCostAdjustment := adjustedRAMCost - discountedRAMCost
+
+			adjustedGPUCost := node.GPUCost * adjustmentRate
+			gpuCostAdjustment := adjustedGPUCost - node.GPUCost
 
 			if _, ok := arts[key]; !ok {
 				arts[key] = &AssetTotals{
@@ -395,7 +394,7 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 			arts[key].RAMCostAdjustment += ramCostAdjustment
 
 			// TotalGPUCost will be discounted cost + adjustment
-			arts[key].GPUCost += discountedGPUCost
+			arts[key].GPUCost += node.GPUCost
 			arts[key].GPUCostAdjustment += gpuCostAdjustment
 		} else if lb, ok := asset.(*LoadBalancer); ok && prop == AssetClusterProp {
 			// Only record load balancers when prop is Cluster because we
