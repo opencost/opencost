@@ -8,7 +8,6 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
@@ -23,18 +22,6 @@ const (
 	flagLevel        = "log-level"
 	flagDisableColor = "disable-log-color"
 )
-
-// InitLoggingFromFlags maps pflags (e.g. from a cobra command) representing
-// log level, format, and disable color to this logging package's expected
-// format in order to correctly initialize the logger. Passing a nil flag is
-// acceptable and will result in default behavior for that option.
-func InitLoggingFromFlags(level *pflag.Flag, format *pflag.Flag, disableColor *pflag.Flag) {
-	viper.BindPFlag(flagLevel, level)
-	viper.BindPFlag(flagFormat, format)
-	viper.BindPFlag(flagDisableColor, disableColor)
-
-	InitLogging()
-}
 
 func InitLogging() {
 	zerolog.TimeFieldFormat = time.RFC3339Nano
