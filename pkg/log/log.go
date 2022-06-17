@@ -23,7 +23,11 @@ const (
 	flagDisableColor = "disable-log-color"
 )
 
-func InitLogging() {
+// InitLogging sets standard configuration values for logging.
+//
+// If showLogLevelSetMessage is true, will log an unleveled message
+// specifying the log level post-init.
+func InitLogging(showLogLevelSetMessage bool) {
 	zerolog.TimeFieldFormat = time.RFC3339Nano
 	// Default to using pretty formatting
 	if strings.ToLower(viper.GetString(flagFormat)) != "json" {
@@ -38,7 +42,10 @@ func InitLogging() {
 		return
 	}
 	zerolog.SetGlobalLevel(level)
-	log.Log().Msgf("Log level set to %v", level)
+
+	if showLogLevelSetMessage {
+		log.Log().Msgf("Log level set to %v", level)
+	}
 
 }
 

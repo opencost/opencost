@@ -98,7 +98,7 @@ func newCostModelCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Init logging here so cobra/viper has processed the command line args and flags
 			// otherwise only envvars are available during init
-			log.InitLogging()
+			log.InitLogging(true)
 			return costmodel.Execute(opts)
 		},
 	}
@@ -119,7 +119,7 @@ func newAgentCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Init logging here so cobra/viper has processed the command line args and flags
 			// otherwise only envvars are available during init
-			log.InitLogging()
+			log.InitLogging(true)
 			return agent.Execute(opts)
 		},
 	}
