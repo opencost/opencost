@@ -197,7 +197,25 @@ func TestParse(t *testing.T) {
 			}},
 		},
 		{
-			input: `namespace:"kubecost"+label[app]:"cost_analyzer"+annotation[a1]:"b2"+cluster:"cluster-one"+node!:"node-123","node-456"+controllerName:"kubecost-cost-analyzer","kubecost-prometheus-server"+controllerKind!:"daemonset","statefulset","job"+container!:"123-abc_foo"+pod!:"aaaaaaaaaaaaaaaaaaaaaaaaa"+services!:"abc123"`,
+			input: `
+namespace:"kubecost" +
+label[app]:"cost_analyzer" +
+annotation[a1]:"b2" +
+cluster:"cluster-one" +
+node!:
+  "node-123",
+  "node-456" +
+controllerName:
+  "kubecost-cost-analyzer",
+  "kubecost-prometheus-server" +
+controllerKind!:
+  "daemonset",
+  "statefulset",
+  "job" +
+container!:"123-abc_foo" +
+pod!:"aaaaaaaaaaaaaaaaaaaaaaaaa" +
+services!:"abc123"
+`,
 			expected: kubecost.AllocationFilterAnd{[]kubecost.AllocationFilter{
 				kubecost.AllocationFilterOr{[]kubecost.AllocationFilter{
 					kubecost.AllocationFilterCondition{
