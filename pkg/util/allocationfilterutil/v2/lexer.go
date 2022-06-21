@@ -119,6 +119,9 @@ func (s scanner) atEnd() bool {
 
 // advance returns a byte because we only accept ASCII, which has to fit in a
 // byte
+//
+// TODO: If we add unicode support, advance() will probably have to return a
+// rune.
 func (s *scanner) advance() byte {
 	b := s.source[s.nextByte]
 	s.nextByte += 1
@@ -158,9 +161,6 @@ func (s *scanner) peek() byte {
 }
 
 func (s *scanner) scanToken() {
-	// TODO: DON'T ACCEPT NON-ASCII
-	// https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-
 	c := s.advance()
 	switch c {
 	case ':':
@@ -186,25 +186,30 @@ func (s *scanner) scanToken() {
 		break
 	default:
 		// identifiers
-		// https://kubernetes.io/docs/concepts/overview/working-with-objects/names/
-		// We can keep it simple and not _force_ the first character to be a non-number
-		// because we don't need numbers in this language. If we need to extend the
-		// language to support numbers, this has to become just isAlpha() and then
-		// s.identifier() will keep using isAlphanumeric() in its main loop.
 		//
-		// TODO: does this match all character we support for cluster IDs?
+		// We can keep it simple and not _force_ the first character to be a
+		// non-number because we don't need numbers in this language. If we need
+		// to extend the language to support numbers, this has to become just
+		// isAlpha() and then s.identifier() will use isIdentifierChar() in
+		// its main loop.
 		if isIdentifierChar(c) {
 			s.identifier()
 			break
 		}
 
-		// TODO: how to phrase for unicode?
-		// extra handling to check unicode? https://stackoverflow.com/questions/53069040/checking-a-string-contains-only-ascii-characters
+		// TODO: We could return a more exact error message for Unicode chars if
+		// we added extra handling:
+		// https://stackoverflow.com/questions/53069040/checking-a-string-contains-only-ascii-characters
 		s.errors = append(s.errors, fmt.Errorf("unexpected character/byte at position %d. Please avoid Unicode.", s.nextByte-1))
 	}
 }
 
+// isIdentifierChar should match Kubernetes-supported name characters.
+//
 // https://kubernetes.io/docs/concepts/overview/working-with-objects/names/
+//
+// TODO: This may not match all characters we support for cluster IDs (it may be
+// the case that cluster IDs can contain UTF-8 characters).
 func isIdentifierChar(b byte) bool {
 	return (b >= '0' && b <= '9') || // 0-9
 		(b >= 'A' && b <= 'Z') || // A-Z
@@ -259,7 +264,6 @@ func (s *scanner) identifier() {
 	}
 }
 
-// TODO: For the time being, disallow whitespace
 func lexAllocationFilterV2(raw string) ([]token, error) {
 	s := scanner{source: raw}
 	s.scanTokens()
