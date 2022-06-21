@@ -2201,7 +2201,7 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 
 	sasl := []*kubecost.SummaryAllocationSet{}
 	for _, as := range asr.Slice() {
-		sas := kubecost.NewSummaryAllocationSet(as, []kubecost.AllocationMatchFunc{}, []kubecost.AllocationMatchFunc{}, false, false)
+		sas := kubecost.NewSummaryAllocationSet(as, nil, []kubecost.AllocationMatchFunc{}, false, false)
 		sasl = append(sasl, sas)
 	}
 	sasr := kubecost.NewSummaryAllocationSetRange(sasl...)
