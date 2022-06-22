@@ -18,7 +18,6 @@ func allocGenerator(props kubecost.AllocationProperties) kubecost.Allocation {
 }
 
 func TestParse(t *testing.T) {
-	// TODO: unallocated cases
 	cases := []struct {
 		input          string
 		expected       kubecost.AllocationFilter
@@ -310,6 +309,114 @@ services!:"abc123"
 					},
 				}},
 			}},
+		},
+		{
+			input: `namespace:"__unallocated__"`,
+			expected: kubecost.AllocationFilterAnd{[]kubecost.AllocationFilter{
+				kubecost.AllocationFilterOr{[]kubecost.AllocationFilter{
+					kubecost.AllocationFilterCondition{
+						Field: kubecost.FilterNamespace,
+						Op:    kubecost.FilterEquals,
+						Value: kubecost.UnallocatedSuffix,
+					},
+				}},
+			}},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{Namespace: ""}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{Namespace: "kube-system"}),
+			},
+		},
+		{
+			input: `namespace!:"__unallocated__"`,
+			expected: kubecost.AllocationFilterAnd{[]kubecost.AllocationFilter{
+				kubecost.AllocationFilterAnd{[]kubecost.AllocationFilter{
+					kubecost.AllocationFilterCondition{
+						Field: kubecost.FilterNamespace,
+						Op:    kubecost.FilterNotEquals,
+						Value: kubecost.UnallocatedSuffix,
+					},
+				}},
+			}},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{Namespace: "kubecost"}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{Namespace: ""}),
+			},
+		},
+		{
+			input: `controllerKind:"__unallocated__"`,
+			expected: kubecost.AllocationFilterAnd{[]kubecost.AllocationFilter{
+				kubecost.AllocationFilterOr{[]kubecost.AllocationFilter{
+					kubecost.AllocationFilterCondition{
+						Field: kubecost.FilterControllerKind,
+						Op:    kubecost.FilterEquals,
+						Value: kubecost.UnallocatedSuffix,
+					},
+				}},
+			}},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{ControllerKind: ""}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{ControllerKind: "deployment"}),
+			},
+		},
+		{
+			input: `controllerKind!:"__unallocated__"`,
+			expected: kubecost.AllocationFilterAnd{[]kubecost.AllocationFilter{
+				kubecost.AllocationFilterAnd{[]kubecost.AllocationFilter{
+					kubecost.AllocationFilterCondition{
+						Field: kubecost.FilterControllerKind,
+						Op:    kubecost.FilterNotEquals,
+						Value: kubecost.UnallocatedSuffix,
+					},
+				}},
+			}},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{ControllerKind: "deployment"}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{ControllerKind: ""}),
+			},
+		},
+		{
+			input: `services:"__unallocated__"`,
+			expected: kubecost.AllocationFilterAnd{[]kubecost.AllocationFilter{
+				kubecost.AllocationFilterOr{[]kubecost.AllocationFilter{
+					kubecost.AllocationFilterCondition{
+						Field: kubecost.FilterServices,
+						Op:    kubecost.FilterContains,
+						Value: kubecost.UnallocatedSuffix,
+					},
+				}},
+			}},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{Services: []string{}}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{Services: []string{"svc1", "svc2"}}),
+			},
+		},
+		{
+			input: `services!:"__unallocated__"`,
+			expected: kubecost.AllocationFilterAnd{[]kubecost.AllocationFilter{
+				kubecost.AllocationFilterAnd{[]kubecost.AllocationFilter{
+					kubecost.AllocationFilterCondition{
+						Field: kubecost.FilterServices,
+						Op:    kubecost.FilterNotContains,
+						Value: kubecost.UnallocatedSuffix,
+					},
+				}},
+			}},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{Services: []string{"svc1", "svc2"}}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{Services: []string{}}),
+			},
 		},
 	}
 
