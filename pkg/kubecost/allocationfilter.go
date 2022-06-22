@@ -208,12 +208,9 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 
 	switch filter.Op {
 	case FilterEquals:
-		if toCompareMissing {
-			return false
-		}
-
 		// namespace:"__unallocated__" should match a.Properties.Namespace = ""
-		if valueToCompare == "" {
+		// label[app]:"__unallocated__" should match _, ok := Labels[app]; !ok
+		if toCompareMissing || valueToCompare == "" {
 			return filter.Value == UnallocatedSuffix
 		}
 
@@ -221,14 +218,18 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 			return true
 		}
 	case FilterNotEquals:
-		if toCompareMissing {
-			return true
-		}
-
 		// namespace!:"__unallocated__" should match
 		// a.Properties.Namespace != ""
+		// label[app]!:"__unallocated__" should match _, ok := Labels[app]; ok
 		if filter.Value == UnallocatedSuffix {
+			if toCompareMissing {
+				return false
+			}
 			return valueToCompare != ""
+		}
+
+		if toCompareMissing {
+			return true
 		}
 
 		if valueToCompare != filter.Value {

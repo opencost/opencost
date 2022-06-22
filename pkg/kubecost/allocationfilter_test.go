@@ -247,6 +247,78 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 			expected: false,
 		},
 		{
+			name: `label[app]=Unallocated -> label missing -> true`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Labels: map[string]string{
+						"someotherlabel": "someothervalue",
+					},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterLabel,
+				Op:    FilterEquals,
+				Key:   "app",
+				Value: UnallocatedSuffix,
+			},
+
+			expected: true,
+		},
+		{
+			name: `label[app]=Unallocated -> label present -> false`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Labels: map[string]string{
+						"app": "test",
+					},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterLabel,
+				Op:    FilterEquals,
+				Key:   "app",
+				Value: UnallocatedSuffix,
+			},
+
+			expected: false,
+		},
+		{
+			name: `label[app]!=Unallocated -> label missing -> false`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Labels: map[string]string{
+						"someotherlabel": "someothervalue",
+					},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterLabel,
+				Op:    FilterNotEquals,
+				Key:   "app",
+				Value: UnallocatedSuffix,
+			},
+
+			expected: false,
+		},
+		{
+			name: `label[app]!=Unallocated -> label present -> true`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Labels: map[string]string{
+						"app": "test",
+					},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterLabel,
+				Op:    FilterNotEquals,
+				Key:   "app",
+				Value: UnallocatedSuffix,
+			},
+
+			expected: true,
+		},
+		{
 			name: `label[app]!="foo" -> label missing -> true`,
 			a: &Allocation{
 				Properties: &AllocationProperties{

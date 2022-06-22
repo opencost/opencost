@@ -383,6 +383,44 @@ services!:"abc123"
 			},
 		},
 		{
+			input: `label[app]:"__unallocated__"`,
+			expected: kubecost.AllocationFilterAnd{[]kubecost.AllocationFilter{
+				kubecost.AllocationFilterOr{[]kubecost.AllocationFilter{
+					kubecost.AllocationFilterCondition{
+						Field: kubecost.FilterLabel,
+						Key:   "app",
+						Op:    kubecost.FilterEquals,
+						Value: kubecost.UnallocatedSuffix,
+					},
+				}},
+			}},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{Labels: map[string]string{"foo": "bar"}}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{Labels: map[string]string{"app": "test"}}),
+			},
+		},
+		{
+			input: `label[app]!:"__unallocated__"`,
+			expected: kubecost.AllocationFilterAnd{[]kubecost.AllocationFilter{
+				kubecost.AllocationFilterAnd{[]kubecost.AllocationFilter{
+					kubecost.AllocationFilterCondition{
+						Field: kubecost.FilterLabel,
+						Key:   "app",
+						Op:    kubecost.FilterNotEquals,
+						Value: kubecost.UnallocatedSuffix,
+					},
+				}},
+			}},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{Labels: map[string]string{"app": "test"}}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{Labels: map[string]string{"foo": "bar"}}),
+			},
+		},
+		{
 			input: `services:"__unallocated__"`,
 			expected: kubecost.AllocationFilterAnd{[]kubecost.AllocationFilter{
 				kubecost.AllocationFilterOr{[]kubecost.AllocationFilter{
