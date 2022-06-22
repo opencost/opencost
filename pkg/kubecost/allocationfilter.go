@@ -149,7 +149,8 @@ func (af AllocationFilterOr) String() string {
 	return s
 }
 
-func flatten(filters []AllocationFilter) []AllocationFilter {
+// flattened returns a new slice of filters after flattening.
+func flattened(filters []AllocationFilter) []AllocationFilter {
 	var flattenedFilters []AllocationFilter
 	for _, innerFilter := range filters {
 		if innerFilter == nil {
@@ -172,7 +173,7 @@ func flatten(filters []AllocationFilter) []AllocationFilter {
 // - the inner filter if filter contains one filter
 // - an equivalent AllocationFilterOr if filter contains more than one filter
 func (filter AllocationFilterOr) Flattened() AllocationFilter {
-	flattenedFilters := flatten(filter.Filters)
+	flattenedFilters := flattened(filter.Filters)
 	if len(flattenedFilters) == 0 {
 		return nil
 	}
@@ -208,7 +209,7 @@ func (af AllocationFilterAnd) String() string {
 // - the inner filter if filter contains one filter
 // - an equivalent AllocationFilterAnd if filter contains more than one filter
 func (filter AllocationFilterAnd) Flattened() AllocationFilter {
-	flattenedFilters := flatten(filter.Filters)
+	flattenedFilters := flattened(filter.Filters)
 	if len(flattenedFilters) == 0 {
 		return nil
 	}
