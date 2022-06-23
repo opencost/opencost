@@ -102,6 +102,9 @@ const AzureProvider = "Azure"
 // CSVProvider describes the provider a CSV
 const CSVProvider = "CSV"
 
+// ScalewayProvider describes the provider Scaleway
+const ScalewayProvider = "Scaleway"
+
 // NilProvider describes unknown provider
 const NilProvider = "-"
 
@@ -118,6 +121,8 @@ func ParseProvider(str string) string {
 		return GCPProvider
 	case "azure":
 		return AzureProvider
+	case "scaleway", "scw", "kapsule":
+		return ScalewayProvider
 	default:
 		return NilProvider
 	}

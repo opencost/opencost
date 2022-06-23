@@ -4,13 +4,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/kubecost/opencost/pkg/kubecost"
 	"io"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/kubecost/opencost/pkg/kubecost"
 
 	"github.com/kubecost/opencost/pkg/util"
 
@@ -475,6 +476,13 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			clusterAccountId:     cp.accountID,
 			serviceAccountChecks: NewServiceAccountChecks(),
 		}, nil
+	case kubecost.ScalewayProvider:
+		log.Info("Found ProviderID starting with \"scaleway\", using Scaleway Provider")
+		return &Scaleway{
+			Clientset: cache,
+			Config:    NewProviderConfig(config, cp.configFileName),
+		}, nil
+
 	default:
 		log.Info("Unsupported provider, falling back to default")
 		return &CustomProvider{
@@ -513,6 +521,9 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 		cp.provider = kubecost.AzureProvider
 		cp.configFileName = "azure.json"
 		cp.accountID = parseAzureSubscriptionID(providerID)
+	} else if strings.HasPrefix(providerID, "scaleway") {
+		cp.provider = kubecost.ScalewayProvider
+		cp.configFileName = "scaleway.json"
 	}
 	if env.IsUseCSVProvider() {
 		cp.provider = kubecost.CSVProvider
