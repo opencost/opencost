@@ -25,6 +25,7 @@ require (
 	github.com/getsentry/sentry-go v0.6.1
 	github.com/goccy/go-json v0.9.4
 	github.com/google/uuid v1.3.0
+	github.com/hashicorp/go-multierror v1.0.0
 	github.com/json-iterator/go v1.1.12
 	github.com/jszwec/csvutil v1.2.1
 	github.com/julienschmidt/httprouter v1.3.0
@@ -87,6 +88,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.0.5 // indirect
 	github.com/googleapis/gnostic v0.4.1 // indirect
 	github.com/gorilla/css v1.0.0 // indirect
+	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/imdario/mergo v0.3.5 // indirect

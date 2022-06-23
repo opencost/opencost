@@ -1,4 +1,4 @@
-package filterutil
+package allocationfilterutil
 
 import (
 	"strings"
@@ -9,6 +9,13 @@ import (
 	"github.com/kubecost/opencost/pkg/prom"
 	"github.com/kubecost/opencost/pkg/util/httputil"
 )
+
+// ============================================================================
+// This file contains:
+// Parsing (HTTP query params -> AllocationFilter) for V1 of filters
+//
+// e.g. "filterNamespaces=ku&filterControllers=deployment:kc"
+// ============================================================================
 
 // parseWildcardEnd checks if the given filter value is wildcarded, meaning
 // it ends in "*". If it does, it removes the suffix and returns the cleaned

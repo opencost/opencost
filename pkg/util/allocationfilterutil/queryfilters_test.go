@@ -1,4 +1,4 @@
-package filterutil
+package allocationfilterutil
 
 import (
 	"testing"

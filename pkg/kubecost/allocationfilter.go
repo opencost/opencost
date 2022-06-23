@@ -1,6 +1,7 @@
 package kubecost
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/kubecost/opencost/pkg/log"
@@ -51,6 +52,10 @@ const (
 	// ["a", "b", "c"] FilterContains "a" = true
 	FilterContains = "contains"
 
+	// FilterNotContains is an array/slice non-membership operator
+	// ["a", "b", "c"] FilterNotContains "d" = true
+	FilterNotContains = "notcontains"
+
 	// FilterStartsWith matches strings with the given prefix.
 	// "kube-system" StartsWith "kube" = true
 	//
@@ -80,6 +85,8 @@ type AllocationFilter interface {
 	// Matches is the canonical in-Go function for determing if an Allocation
 	// matches a filter.
 	Matches(a *Allocation) bool
+
+	String() string
 }
 
 // AllocationFilterCondition is the lowest-level type of filter. It represents
@@ -100,16 +107,44 @@ type AllocationFilterCondition struct {
 	Value string
 }
 
+func (afc AllocationFilterCondition) String() string {
+	if afc.Key == "" {
+		return fmt.Sprintf(`(%s %s "%s")`, afc.Op, afc.Field, afc.Value)
+	}
+
+	return fmt.Sprintf(`(%s %s[%s] "%s")`, afc.Op, afc.Field, afc.Key, afc.Value)
+}
+
 // AllocationFilterOr is a set of filters that should be evaluated as a logical
 // OR.
 type AllocationFilterOr struct {
 	Filters []AllocationFilter
 }
 
+func (af AllocationFilterOr) String() string {
+	s := "(or"
+	for _, f := range af.Filters {
+		s += fmt.Sprintf(" %s", f)
+	}
+
+	s += ")"
+	return s
+}
+
 // AllocationFilterOr is a set of filters that should be evaluated as a logical
 // AND.
 type AllocationFilterAnd struct {
 	Filters []AllocationFilter
+}
+
+func (af AllocationFilterAnd) String() string {
+	s := "(and"
+	for _, f := range af.Filters {
+		s += fmt.Sprintf(" %s", f)
+	}
+
+	s += ")"
+	return s
 }
 
 func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
@@ -173,12 +208,9 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 
 	switch filter.Op {
 	case FilterEquals:
-		if toCompareMissing {
-			return false
-		}
-
 		// namespace:"__unallocated__" should match a.Properties.Namespace = ""
-		if valueToCompare == "" {
+		// label[app]:"__unallocated__" should match _, ok := Labels[app]; !ok
+		if toCompareMissing || valueToCompare == "" {
 			return filter.Value == UnallocatedSuffix
 		}
 
@@ -186,14 +218,18 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 			return true
 		}
 	case FilterNotEquals:
-		if toCompareMissing {
-			return true
-		}
-
 		// namespace!:"__unallocated__" should match
 		// a.Properties.Namespace != ""
+		// label[app]!:"__unallocated__" should match _, ok := Labels[app]; ok
 		if filter.Value == UnallocatedSuffix {
+			if toCompareMissing {
+				return false
+			}
 			return valueToCompare != ""
+		}
+
+		if toCompareMissing {
+			return true
 		}
 
 		if valueToCompare != filter.Value {
@@ -212,6 +248,26 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 			}
 		} else {
 			log.Warnf("Allocation Filter: invalid 'contains' call for non-list filter value")
+		}
+	case FilterNotContains:
+		if stringSlice, ok := valueToCompare.([]string); ok {
+			// services!:"__unallocated__" should match
+			// len(a.Properties.Services) > 0
+			//
+			// TODO: is this true?
+			if filter.Value == UnallocatedSuffix {
+				return len(stringSlice) > 0
+			}
+
+			for _, s := range stringSlice {
+				if s == filter.Value {
+					return false
+				}
+			}
+
+			return true
+		} else {
+			log.Warnf("Allocation Filter: invalid 'notcontains' call for non-list filter value")
 		}
 	case FilterStartsWith:
 		if toCompareMissing {

@@ -247,6 +247,78 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 			expected: false,
 		},
 		{
+			name: `label[app]=Unallocated -> label missing -> true`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Labels: map[string]string{
+						"someotherlabel": "someothervalue",
+					},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterLabel,
+				Op:    FilterEquals,
+				Key:   "app",
+				Value: UnallocatedSuffix,
+			},
+
+			expected: true,
+		},
+		{
+			name: `label[app]=Unallocated -> label present -> false`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Labels: map[string]string{
+						"app": "test",
+					},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterLabel,
+				Op:    FilterEquals,
+				Key:   "app",
+				Value: UnallocatedSuffix,
+			},
+
+			expected: false,
+		},
+		{
+			name: `label[app]!=Unallocated -> label missing -> false`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Labels: map[string]string{
+						"someotherlabel": "someothervalue",
+					},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterLabel,
+				Op:    FilterNotEquals,
+				Key:   "app",
+				Value: UnallocatedSuffix,
+			},
+
+			expected: false,
+		},
+		{
+			name: `label[app]!=Unallocated -> label present -> true`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Labels: map[string]string{
+						"app": "test",
+					},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterLabel,
+				Op:    FilterNotEquals,
+				Key:   "app",
+				Value: UnallocatedSuffix,
+			},
+
+			expected: true,
+		},
+		{
 			name: `label[app]!="foo" -> label missing -> true`,
 			a: &Allocation{
 				Properties: &AllocationProperties{
@@ -377,6 +449,66 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 				Field: FilterServices,
 				Op:    FilterContains,
 				Value: "serv3",
+			},
+
+			expected: false,
+		},
+		{
+			name: `services notcontains -> true`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Services: []string{"serv1", "serv2"},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterServices,
+				Op:    FilterNotContains,
+				Value: "serv3",
+			},
+
+			expected: true,
+		},
+		{
+			name: `services notcontains -> false`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Services: []string{"serv1", "serv2"},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterServices,
+				Op:    FilterNotContains,
+				Value: "serv2",
+			},
+
+			expected: false,
+		},
+		{
+			name: `services notcontains unallocated -> true`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Services: []string{"serv1", "serv2"},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterServices,
+				Op:    FilterNotContains,
+				Value: UnallocatedSuffix,
+			},
+
+			expected: true,
+		},
+		{
+			name: `services notcontains unallocated -> false`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Services: []string{},
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterServices,
+				Op:    FilterNotContains,
+				Value: UnallocatedSuffix,
 			},
 
 			expected: false,
