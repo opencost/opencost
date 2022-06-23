@@ -86,6 +86,19 @@ type AllocationFilter interface {
 	// matches a filter.
 	Matches(a *Allocation) bool
 
+	// Flattened converts a filter into a minimal form, removing unnecessary
+	// intermediate objects, like single-element or zero-element AND and OR
+	// conditions.
+	//
+	// It returns nil if the filter is filtering nothing.
+	//
+	// Example:
+	// (and (or (namespaceequals "kubecost")) (or)) ->
+	// (namespaceequals "kubecost")
+	//
+	// (and (or)) -> nil
+	Flattened() AllocationFilter
+
 	String() string
 }
 
@@ -115,6 +128,11 @@ func (afc AllocationFilterCondition) String() string {
 	return fmt.Sprintf(`(%s %s[%s] "%s")`, afc.Op, afc.Field, afc.Key, afc.Value)
 }
 
+// Flattened returns itself because you cannot flatten a base condition further
+func (filter AllocationFilterCondition) Flattened() AllocationFilter {
+	return filter
+}
+
 // AllocationFilterOr is a set of filters that should be evaluated as a logical
 // OR.
 type AllocationFilterOr struct {
@@ -131,6 +149,42 @@ func (af AllocationFilterOr) String() string {
 	return s
 }
 
+// flattened returns a new slice of filters after flattening.
+func flattened(filters []AllocationFilter) []AllocationFilter {
+	var flattenedFilters []AllocationFilter
+	for _, innerFilter := range filters {
+		if innerFilter == nil {
+			continue
+		}
+		flattenedInner := innerFilter.Flattened()
+		if flattenedInner != nil {
+			flattenedFilters = append(flattenedFilters, flattenedInner)
+		}
+	}
+
+	return flattenedFilters
+}
+
+// Flattened converts a filter into a minimal form, removing unnecessary
+// intermediate objects
+//
+// Flattened returns:
+// - nil if filter contains no filters
+// - the inner filter if filter contains one filter
+// - an equivalent AllocationFilterOr if filter contains more than one filter
+func (filter AllocationFilterOr) Flattened() AllocationFilter {
+	flattenedFilters := flattened(filter.Filters)
+	if len(flattenedFilters) == 0 {
+		return nil
+	}
+
+	if len(flattenedFilters) == 1 {
+		return flattenedFilters[0]
+	}
+
+	return AllocationFilterOr{Filters: flattenedFilters}
+}
+
 // AllocationFilterOr is a set of filters that should be evaluated as a logical
 // AND.
 type AllocationFilterAnd struct {
@@ -145,6 +199,26 @@ func (af AllocationFilterAnd) String() string {
 
 	s += ")"
 	return s
+}
+
+// Flattened converts a filter into a minimal form, removing unnecessary
+// intermediate objects
+//
+// Flattened returns:
+// - nil if filter contains no filters
+// - the inner filter if filter contains one filter
+// - an equivalent AllocationFilterAnd if filter contains more than one filter
+func (filter AllocationFilterAnd) Flattened() AllocationFilter {
+	flattenedFilters := flattened(filter.Filters)
+	if len(flattenedFilters) == 0 {
+		return nil
+	}
+
+	if len(flattenedFilters) == 1 {
+		return flattenedFilters[0]
+	}
+
+	return AllocationFilterAnd{Filters: flattenedFilters}
 }
 
 func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
