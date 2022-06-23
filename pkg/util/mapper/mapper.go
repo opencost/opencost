@@ -156,25 +156,35 @@ type PrimitiveMap interface {
 //  Go Map Implementation
 //--------------------------------------------------------------------------
 
-// map[string]string adapter
-type goMap struct {
+// GoMap is an implementatino of mapper.Map for map[string]string
+type GoMap struct {
 	m map[string]string
 }
 
 // Get implements mapper.Getter
-func (gm *goMap) Get(key string) string {
+func (gm *GoMap) Get(key string) string {
 	return gm.m[key]
 }
 
 // Set implements mapper.Setter
-func (gm *goMap) Set(key, value string) error {
+func (gm *GoMap) Set(key, value string) error {
 	gm.m[key] = value
 	return nil
 }
 
+// NewGoMap creates a Map from a map[string]string. It copies
+// data out of the argument.
+func NewGoMap(m map[string]string) Map {
+	copied := map[string]string{}
+	for k, v := range m {
+		copied[k] = v
+	}
+	return &GoMap{m: copied}
+}
+
 // NewMap creates a new mapper.Map implementation
 func NewMap() Map {
-	return &goMap{
+	return &GoMap{
 		m: make(map[string]string),
 	}
 }
