@@ -59,6 +59,36 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 			expected: false,
 		},
 		{
+			name: "ClusterID empty StartsWith '' -> true",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Cluster: "",
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterClusterID,
+				Op:    FilterStartsWith,
+				Value: "",
+			},
+
+			expected: true,
+		},
+		{
+			name: "ClusterID nonempty StartsWith '' -> true",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Cluster: "abc",
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterClusterID,
+				Op:    FilterStartsWith,
+				Value: "",
+			},
+
+			expected: true,
+		},
+		{
 			name: "Node Equals -> true",
 			a: &Allocation{
 				Properties: &AllocationProperties{
