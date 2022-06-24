@@ -1,0 +1,163 @@
+{
+	"info": {
+		"_postman_id": "dd0c105b-6592-4646-a3d9-53afdf6abcf2",
+		"name": "opencost",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "costDataModel",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{host}}/costDataModel?window=1d",
+					"host": [
+						"{{host}}"
+					],
+					"path": [
+						"costDataModel"
+					],
+					"query": [
+						{
+							"key": "window",
+							"value": "1d"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "allocaton summary",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{host}}/allocation/summary?aggregate=cluster&accumulate=true&shareIdle=false&external=true&shareTenancyCosts=true&shareCosts=true&shareSplit=weighted&window=1d",
+					"host": [
+						"{{host}}"
+					],
+					"path": [
+						"allocation",
+						"summary"
+					],
+					"query": [
+						{
+							"key": "aggregate",
+							"value": "cluster"
+						},
+						{
+							"key": "accumulate",
+							"value": "true"
+						},
+						{
+							"key": "shareIdle",
+							"value": "false"
+						},
+						{
+							"key": "external",
+							"value": "true"
+						},
+						{
+							"key": "shareTenancyCosts",
+							"value": "true"
+						},
+						{
+							"key": "shareCosts",
+							"value": "true"
+						},
+						{
+							"key": "shareSplit",
+							"value": "weighted"
+						},
+						{
+							"key": "window",
+							"value": "1d"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "allocaton compute",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{host}}/allocation/summary?aggregate=cluster&accumulate=true&shareIdle=false&external=true&shareTenancyCosts=true&shareCosts=true&shareSplit=weighted&window=1d",
+					"host": [
+						"{{host}}"
+					],
+					"path": [
+						"allocation",
+						"summary"
+					],
+					"query": [
+						{
+							"key": "aggregate",
+							"value": "cluster"
+						},
+						{
+							"key": "accumulate",
+							"value": "true"
+						},
+						{
+							"key": "shareIdle",
+							"value": "false"
+						},
+						{
+							"key": "external",
+							"value": "true"
+						},
+						{
+							"key": "shareTenancyCosts",
+							"value": "true"
+						},
+						{
+							"key": "shareCosts",
+							"value": "true"
+						},
+						{
+							"key": "shareSplit",
+							"value": "weighted"
+						},
+						{
+							"key": "window",
+							"value": "1d"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "host",
+			"value": "http://opencost.kubecost.xyz:9003",
+			"type": "default"
+		}
+	]
+}

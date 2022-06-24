@@ -54,3 +54,7 @@ Using the alias, show the total costs of all resources with the label app:
 ```sh
 kcac label --historical -l app --window 5d
 ```
+
+## Postman
+
+A basic collection of queries: [opencost.postman_collection.json](./opencost.postman_collection.json)
