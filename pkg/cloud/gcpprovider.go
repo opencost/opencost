@@ -3,7 +3,6 @@ package cloud
 import (
 	"context"
 	"fmt"
-	"github.com/kubecost/opencost/pkg/kubecost"
 	"io"
 	"io/ioutil"
 	"math"
@@ -13,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/kubecost/opencost/pkg/kubecost"
 
 	"github.com/kubecost/opencost/pkg/clustercache"
 	"github.com/kubecost/opencost/pkg/env"
@@ -1257,7 +1258,7 @@ func (gcp *gcpKey) ID() string {
 func (gcp *gcpKey) GPUType() string {
 	if t, ok := gcp.Labels[GKE_GPU_TAG]; ok {
 		var usageType string
-		if t, ok := gcp.Labels["cloud.google.com/gke-preemptible"]; ok && t == "true" {
+		if isPreemptible(gcp.Labels) {
 			usageType = "preemptible"
 		} else {
 			usageType = "ondemand"
@@ -1310,7 +1311,7 @@ func (gcp *gcpKey) Features() string {
 	region := strings.ToLower(r)
 	var usageType string
 
-	if t, ok := gcp.Labels["cloud.google.com/gke-preemptible"]; ok && t == "true" {
+	if isPreemptible(gcp.Labels) {
 		usageType = "preemptible"
 	} else {
 		usageType = "ondemand"
@@ -1408,4 +1409,14 @@ func parseGCPProjectID(id string) string {
 	}
 	// Return empty string if an account could not be parsed from provided string
 	return ""
+}
+
+func isPreemptible(labels map[string]string) bool {
+	if t, ok := labels["cloud.google.com/gke-preemptible"]; ok && t == "true" {
+		return true
+	} else if t, ok := labels["cloud.google.com/gke-spot"]; ok && t == "true" {
+		// https://cloud.google.com/kubernetes-engine/docs/concepts/spot-vms
+		return true
+	}
+	return false
 }
