@@ -11,7 +11,9 @@ helm install my-prometheus prometheus-community/prometheus --namespace prom --cr
 
 ## OpenCost
 
-1. Set [this environment variable](https://github.com/kubecost/opencost/blob/c211fbc1244a9da9667c7180a9e4c7f988d7978a/kubernetes/deployment.yaml#L33) to the address of your prometheus server
+If providing your own Prometheus, set [this environment variable](https://github.com/kubecost/opencost/blob/c211fbc1244a9da9667c7180a9e4c7f988d7978a/kubernetes/deployment.yaml#L33) to the address of your prometheus server
+
+If you used the command from above, this will install OpenCost on your cluster with no edits:
 
 ```sh
 kubectl create namespace cost-model
