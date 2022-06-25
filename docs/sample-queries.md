@@ -57,4 +57,4 @@ kcac label --historical -l app --window 5d
 
 ## Postman
 
-A basic collection of queries: [opencost.postman_collection.json](./opencost.postman_collection.json)
+A basic collection of OpenCost Postman queries: [opencost.postman_collection.json](./opencost.postman_collection.json)

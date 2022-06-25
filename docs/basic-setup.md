@@ -1,5 +1,9 @@
 # OpenCost Install
 
+Follow the steps below to install OpenCost Open Source.
+
+See this page for all [Kubecost install options](http://docs.kubecost.com/install).
+
 ## Prerequisites
 
 Install Prometheus:
@@ -30,23 +34,22 @@ Or use [kubectl cost](https://github.com/kubecost/kubectl-cost):
 ```sh
 kubectl cost --service-port 9003 --service-name cost-model --kubecost-namespace cost-model --allocation-path /allocation/compute  \
     namespace \
-    --historical \
-    --window 1h 
+    --window 1m \
+    --show-efficiency=true
 ```
 
 Output:
 
-```sh
-+---------+---------------+------------------+-----------------+
-| CLUSTER | NAMESPACE     | TOTAL COST (ALL) | COST EFFICIENCY |
-+---------+---------------+------------------+-----------------+
-|         | prom          |         0.005417 |        0.000000 |
-|         | kube-system   |         0.003743 |        0.057180 |
-|         | cost-model    |         0.000092 |        0.225071 |
-|         | node-exporter |         0.000000 |        0.000000 |
-+---------+---------------+------------------+-----------------+
-| SUMMED  |               |         0.009252 |                 |
-+---------+---------------+------------------+-----------------+
+```
++---------+---------------+--------------------+-----------------+
+| CLUSTER | NAMESPACE     | MONTHLY RATE (ALL) | COST EFFICIENCY |
++---------+---------------+--------------------+-----------------+
+|         | cost-model    |          18.295200 |        0.231010 |
+|         | prom          |          17.992800 |        0.000000 |
+|         | kube-system   |          11.383200 |        0.033410 |
++---------+---------------+--------------------+-----------------+
+| SUMMED  |               |          47.671200 |                 |
++---------+---------------+--------------------+-----------------+
 ```
 
 Other sample queries: [sample-queries.md](./sample-queries.md)
@@ -58,6 +61,8 @@ If you get an error like this, check your prometheus target is correct in the Op
 ```bash
 Error: failed to query allocation API: failed to port forward query: received non-200 status code 500 and data: {"code":500,"status":"","data":null,"message":"Error: error computing allocation for ...
 ```
+
+Negative values for idle: ensure you added the [scrape target](extraScrapeConfigs.yaml) for OpenCost.
 
 ---
 
