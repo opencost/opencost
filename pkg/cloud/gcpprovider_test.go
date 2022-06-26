@@ -66,39 +66,39 @@ func TestParseGCPProjectID(t *testing.T) {
 	}
 }
 
-func TestIsPreemptible(t *testing.T) {
+func TestGetUsageType(t *testing.T) {
 	cases := []struct {
 		input    map[string]string
-		expected bool
+		expected string
 	}{
 		{
 			input: map[string]string{
 				"cloud.google.com/gke-preemptible": "true",
 			},
-			expected: true,
+			expected: "preemptible",
 		},
 		{
 			input: map[string]string{
 				"cloud.google.com/gke-spot": "true",
 			},
-			expected: true,
+			expected: "preemptible",
 		},
 		{
 			input: map[string]string{
 				"someotherlabel": "true",
 			},
-			expected: false,
+			expected: "ondemand",
 		},
 		{
 			input:    map[string]string{},
-			expected: false,
+			expected: "ondemand",
 		},
 	}
 
 	for _, test := range cases {
-		result := isPreemptible(test.input)
+		result := getUsageType(test.input)
 		if result != test.expected {
-			t.Errorf("Input: %v, Expected: %t, Actual: %t", test.input, test.expected, result)
+			t.Errorf("Input: %v, Expected: %s, Actual: %s", test.input, test.expected, result)
 		}
 	}
 }

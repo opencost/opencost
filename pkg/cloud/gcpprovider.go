@@ -1257,12 +1257,7 @@ func (gcp *gcpKey) ID() string {
 
 func (gcp *gcpKey) GPUType() string {
 	if t, ok := gcp.Labels[GKE_GPU_TAG]; ok {
-		var usageType string
-		if isPreemptible(gcp.Labels) {
-			usageType = "preemptible"
-		} else {
-			usageType = "ondemand"
-		}
+		usageType := getUsageType(gcp.Labels)
 		log.Debugf("GPU of type: \"%s\" found", t)
 		return t + "," + usageType
 	}
@@ -1309,13 +1304,7 @@ func (gcp *gcpKey) Features() string {
 
 	r, _ := util.GetRegion(gcp.Labels)
 	region := strings.ToLower(r)
-	var usageType string
-
-	if isPreemptible(gcp.Labels) {
-		usageType = "preemptible"
-	} else {
-		usageType = "ondemand"
-	}
+	usageType := getUsageType(gcp.Labels)
 
 	if _, ok := gcp.Labels[GKE_GPU_TAG]; ok {
 		return region + "," + instanceType + "," + usageType + "," + "gpu"
@@ -1411,12 +1400,12 @@ func parseGCPProjectID(id string) string {
 	return ""
 }
 
-func isPreemptible(labels map[string]string) bool {
+func getUsageType(labels map[string]string) string {
 	if t, ok := labels["cloud.google.com/gke-preemptible"]; ok && t == "true" {
-		return true
+		return "preemptible"
 	} else if t, ok := labels["cloud.google.com/gke-spot"]; ok && t == "true" {
 		// https://cloud.google.com/kubernetes-engine/docs/concepts/spot-vms
-		return true
+		return "preemptible"
 	}
-	return false
+	return "ondemand"
 }
