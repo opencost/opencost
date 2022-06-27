@@ -5,15 +5,7 @@
 Show total cost for all containers for the past 1 hour:
 
 ```sh
-curl -G localhost:9003/allocation/summary -d window=1h
-```
-
-```sh
-curl -G localhost:9003/allocation/compute -d window=1d
-```
-
-```sh
-curl -G localhost:9003/costDataModel -d window=1d -d namespace=prom
+curl -G localhost:9003/allocation/compute -d window=1h
 ```
 
 ## kubectl-cost
@@ -58,3 +50,5 @@ kcac label --historical -l app --window 5d
 ## Postman
 
 A basic collection of OpenCost Postman queries: [opencost.postman_collection.json](./opencost.postman_collection.json)
+
+> Note: Change the hostname in the Collection>Edit>Variables
