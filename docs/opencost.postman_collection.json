@@ -6,7 +6,71 @@
 	},
 	"item": [
 		{
-			"name": "namespace",
+			"name": "namespace costs/day",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{host}}/allocation/summary?aggregate=namespace&window=7d&accumulate=false&step=1d",
+					"host": [
+						"{{host}}"
+					],
+					"path": [
+						"allocation",
+						"summary"
+					],
+					"query": [
+						{
+							"key": "aggregate",
+							"value": "namespace"
+						},
+						{
+							"key": "window",
+							"value": "7d"
+						},
+						{
+							"key": "accumulate",
+							"value": "false"
+						},
+						{
+							"key": "step",
+							"value": "1d"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "cluster total",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{host}}/allocation/summary?aggregate=cluster&window=7d",
+					"host": [
+						"{{host}}"
+					],
+					"path": [
+						"allocation",
+						"summary"
+					],
+					"query": [
+						{
+							"key": "aggregate",
+							"value": "cluster"
+						},
+						{
+							"key": "window",
+							"value": "7d"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "namespace totals",
 			"request": {
 				"method": "GET",
 				"header": [],
@@ -34,12 +98,12 @@
 			"response": []
 		},
 		{
-			"name": "cluster",
+			"name": "pod totals",
 			"request": {
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "{{host}}/allocation/summary?aggregate=namespace&window=7d",
+					"raw": "{{host}}/allocation/summary?aggregate=pod&window=7d",
 					"host": [
 						"{{host}}"
 					],
@@ -50,35 +114,7 @@
 					"query": [
 						{
 							"key": "aggregate",
-							"value": "namespace"
-						},
-						{
-							"key": "window",
-							"value": "7d"
-						}
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "pod",
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "{{host}}/allocation/summary?aggregate=namespace&window=7d",
-					"host": [
-						"{{host}}"
-					],
-					"path": [
-						"allocation",
-						"summary"
-					],
-					"query": [
-						{
-							"key": "aggregate",
-							"value": "namespace"
+							"value": "pod"
 						},
 						{
 							"key": "window",
@@ -113,7 +149,7 @@
 	"variable": [
 		{
 			"key": "host",
-			"value": "http://localhost:9003",
+			"value": "http://opencost.kubecost.xyz:9003",
 			"type": "default"
 		}
 	]
