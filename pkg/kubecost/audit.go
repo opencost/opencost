@@ -37,8 +37,8 @@ func ToAuditType(check string) AuditType {
 		return AuditAssetTotalStore
 	case string(AuditAssetAggStore):
 		return AuditAssetAggStore
-	case string(AuditClusterEquality):
-		return AuditClusterEquality
+	//case string(AuditClusterEquality):
+	//	return AuditClusterEquality
 	case string(AuditAll):
 		return AuditAll
 	default:
@@ -61,13 +61,14 @@ type AuditMissingValue struct {
 	Key         string
 }
 
-// AuditFloatResult structure for holding the results of a failed audit on a float value, Expected should be the Audit generated value
-// while actual is what is contained in the relevant store
+// AuditFloatResult structure for holding the results of a failed audit on a float value, Expected should be the value
+// calculated by the Audit func while Actual is what is contained in the relevant store.
 type AuditFloatResult struct {
 	Expected float64
 	Actual   float64
 }
 
+// Clone returns a deep copy of the caller
 func (afr *AuditFloatResult) Clone() *AuditFloatResult {
 	return &AuditFloatResult{
 		Expected: afr.Expected,
@@ -75,8 +76,8 @@ func (afr *AuditFloatResult) Clone() *AuditFloatResult {
 	}
 }
 
-// AllocationReconciliationAudit records the differences of between compute resource costs between allocations by nodes
-// and node assets keyed on node name and resource
+// AllocationReconciliationAudit records the differences of between compute resources (cpu, ram, gpu) costs between
+// allocations by nodes and node assets keyed on node name and compute resource
 type AllocationReconciliationAudit struct {
 	Status        AuditStatus
 	Description   string
@@ -85,6 +86,7 @@ type AllocationReconciliationAudit struct {
 	MissingValues []*AuditMissingValue
 }
 
+// Clone returns a deep copy of the caller
 func (ara *AllocationReconciliationAudit) Clone() *AllocationReconciliationAudit {
 	if ara == nil {
 		return nil

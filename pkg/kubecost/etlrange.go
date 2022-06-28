@@ -16,6 +16,9 @@ type SetRange[T ETLSet] struct {
 // Append attaches the given ETLSet to the end of the sets slice.
 // currently does not check that the window is correct.
 func (r *SetRange[T]) Append(that T) {
+	if r == nil {
+		return
+	}
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	r.sets = append(r.sets, that)
@@ -34,9 +37,13 @@ func (r *SetRange[T]) Each(f func(int, T)) {
 
 // Get retrieves the given index from the sets slice
 func (r *SetRange[T]) Get(i int) (T, error) {
+	var set T
+	if r == nil {
+		return set, fmt.Errorf("SetRange: Get: is nil")
+	}
 	if i < 0 || i >= len(r.sets) {
-		var set T
-		return set, fmt.Errorf("range: index out of range: %d", i)
+
+		return set, fmt.Errorf("SetRange: Get: index out of range: %d", i)
 	}
 
 	r.lock.RLock()
@@ -73,6 +80,9 @@ func (r *SetRange[T]) IsEmpty() bool {
 
 // MarshalJSON converts SetRange to JSON
 func (r *SetRange[T]) MarshalJSON() ([]byte, error) {
+	if r == nil {
+		return nil, fmt.Errorf("SetRange: MarshalJSON: is nil")
+	}
 	r.lock.RLock()
 	defer r.lock.RUnlock()
 	return json.Marshal(r.sets)
