@@ -455,14 +455,22 @@ func (w Window) Hours() float64 {
 	return w.end.Sub(*w.start).Hours()
 }
 
+//IsEmpty a Window is empty if it does not have a start and an end
 func (w Window) IsEmpty() bool {
-	return !w.IsOpen() && w.end.Equal(*w.Start())
+	return w.start == nil && w.end == nil
 }
 
+//HasDuration a Window has duration if neither start and end are not nil and not equal
+func (w Window) HasDuration() bool {
+	return !w.IsOpen() && !w.end.Equal(*w.Start())
+}
+
+//IsNegative a Window is negative if start and end are not null and end is before start
 func (w Window) IsNegative() bool {
 	return !w.IsOpen() && w.end.Before(*w.Start())
 }
 
+//IsOpen a Window is open if it has a nil start or end
 func (w Window) IsOpen() bool {
 	return w.start == nil || w.end == nil
 }

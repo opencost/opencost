@@ -510,7 +510,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	window := kubecost.NewWindow(&start, &end)
-	if window.IsOpen() || window.IsEmpty() || window.IsNegative() {
+	if window.IsOpen() || !window.HasDuration() || window.IsNegative() {
 		w.Write(WrapDataWithMessage(nil, fmt.Errorf("invalid date range: %s", window), fmt.Sprintf("invalid date range: %s", window)))
 		return
 	}
