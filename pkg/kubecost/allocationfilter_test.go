@@ -615,6 +615,121 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 	}
 }
 
+func Test_AllocationFilterNone_Matches(t *testing.T) {
+	cases := []struct {
+		name string
+		a    *Allocation
+	}{
+		{
+			name: "nil",
+			a:    nil,
+		},
+		{
+			name: "nil properties",
+			a: &Allocation{
+				Properties: nil,
+			},
+		},
+		{
+			name: "empty properties",
+			a: &Allocation{
+				Properties: &AllocationProperties{},
+			},
+		},
+		{
+			name: "ClusterID",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Cluster: "cluster-one",
+				},
+			},
+		},
+		{
+			name: "Node",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Node: "node123",
+				},
+			},
+		},
+		{
+			name: "Namespace",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Namespace: "kube-system",
+				},
+			},
+		},
+		{
+			name: "ControllerKind",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					ControllerKind: "deployment", // We generally store controller kinds as all lowercase
+				},
+			},
+		},
+		{
+			name: "ControllerName",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Controller: "kc-cost-analyzer",
+				},
+			},
+		},
+		{
+			name: "Pod",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Pod: "pod-123 UID-ABC",
+				},
+			},
+		},
+		{
+			name: "Container",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Container: "cost-model",
+				},
+			},
+		},
+		{
+			name: `label`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Labels: map[string]string{
+						"app": "foo",
+					},
+				},
+			},
+		},
+		{
+			name: `annotation`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Annotations: map[string]string{
+						"prom_modified_name": "testing123",
+					},
+				},
+			},
+		},
+		{
+			name: `services`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Services: []string{"serv1", "serv2"},
+				},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		result := AllocationFilterNone{}.Matches(c.a)
+
+		if result {
+			t.Errorf("%s: should have been rejected", c.name)
+		}
+	}
+}
 func Test_AllocationFilterAnd_Matches(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -982,6 +1097,11 @@ func Test_AllocationFilter_Flattened(t *testing.T) {
 					Op:    FilterContains,
 				},
 			}},
+		},
+		{
+			name:     "AllocationFilterNone",
+			input:    AllocationFilterNone{},
+			expected: AllocationFilterNone{},
 		},
 	}
 

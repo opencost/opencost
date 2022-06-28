@@ -417,3 +417,14 @@ func (or AllocationFilterOr) Matches(a *Allocation) bool {
 
 	return false
 }
+
+// AllocationFilterNone is a filter that matches no allocations. This is useful
+// for applications like authorization, where a user/group/role may be disallowed
+// from viewing Allocation data entirely.
+type AllocationFilterNone struct{}
+
+func (afn AllocationFilterNone) String() string { return "(none)" }
+
+func (afn AllocationFilterNone) Flattened() AllocationFilter { return afn }
+
+func (afn AllocationFilterNone) Matches(a *Allocation) bool { return false }
