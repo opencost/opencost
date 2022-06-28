@@ -4,8 +4,8 @@ This is the one YAML file that is the aggregation of the regular deployment file
 
 ## Usage
 
-Please be aware, you will have to change both the `Namespace` and `ClusterRoleBinding` resource if you want to deploy to a namespace other than `cost-model`.
+Please be aware, you will have to change both the `Namespace` and `ClusterRoleBinding` resource if you want to deploy to a namespace other than `opencost`.
 
 ``` sh
-kubectl apply -f exporter.yaml --namespace cost-model
+kubectl apply -f exporter.yaml --namespace opencost
 ```

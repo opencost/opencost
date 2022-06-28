@@ -1,12 +1,12 @@
 kind: Service
 apiVersion: v1
 metadata:
-  name: cost-model
+  name: opencost
 spec:
   selector:
-    app: cost-model
+    app: opencost
   type: ClusterIP
   ports:
-    - name: cost-model
+    - name: opencost
       port: 9003
       targetPort: 9003

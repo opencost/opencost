@@ -2,11 +2,11 @@
 
 ---
 
-# The namespace cost-model will run in
+# The namespace opencost will run in
 apiVersion: v1
 kind: Namespace
 metadata:
-    name: cost-model
+    name: opencost
 
 ---
 
@@ -14,7 +14,7 @@ metadata:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: cost-model
+  name: opencost
 
 ---
 
@@ -23,7 +23,7 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: cost-model 
+  name: opencost
 rules:
   - apiGroups:
       - ''
@@ -89,9 +89,9 @@ rules:
       - get
       - list
       - watch
-  - apiGroups: 
+  - apiGroups:
       - storage.k8s.io
-    resources: 
+    resources:
       - storageclasses
     verbs:
       - get
@@ -104,33 +104,33 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: cost-model
+  name: opencost
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: cost-model
+  name: opencost
 subjects:
   - kind: ServiceAccount
-    name: cost-model
-    namespace: cost-model
+    name: opencost
+    namespace: opencost
 
 ---
 
 # Create a deployment for a single cost model pod
-# 
+#
 # See environment variables if you would like to add a Prometheus for
 # cost model to read from for full functionality.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cost-model
+  name: opencost
   labels:
-    app: cost-model
+    app: opencost
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: cost-model
+      app: opencost
   strategy:
     rollingUpdate:
       maxSurge: 1
@@ -139,13 +139,13 @@ spec:
   template:
     metadata:
       labels:
-        app: cost-model
+        app: opencost
     spec:
       restartPolicy: Always
-      serviceAccountName: cost-model
+      serviceAccountName: opencost
       containers:
-        - image: quay.io/kubecost1/kubecost-cost-model:latest
-          name: cost-model
+        - image: quay.io/kubecost1/kubecost-opencost:latest
+          name: opencost
           resources:
             requests:
               cpu: "10m"
@@ -162,20 +162,20 @@ spec:
 ---
 
 # Expose the cost model with a service
-# 
+#
 # Without a Prometheus endpoint configured in the deployment,
-# only cost-model/metrics will have useful data as it is intended
+# only opencost/metrics will have useful data as it is intended
 # to be used as just an exporter.
 kind: Service
 apiVersion: v1
 metadata:
-  name: cost-model
+  name: opencost
 spec:
   selector:
-    app: cost-model
+    app: opencost
   type: ClusterIP
   ports:
-    - name: cost-model
+    - name: opencost
       port: 9003
       targetPort: 9003
 

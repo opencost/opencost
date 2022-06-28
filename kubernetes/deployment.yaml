@@ -1,14 +1,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cost-model
+  name: opencost
   labels:
-    app: cost-model
+    app: opencost
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: cost-model
+      app: opencost
   strategy:
     rollingUpdate:
       maxSurge: 1
@@ -17,13 +17,13 @@ spec:
   template:
     metadata:
       labels:
-        app: cost-model
+        app: opencost
     spec:
       restartPolicy: Always
-      serviceAccountName: cost-model
+      serviceAccountName: opencost
       containers:
-        - image: quay.io/kubecost1/kubecost-cost-model:latest
-          name: cost-model
+        - image: quay.io/kubecost1/kubecost-cost-model:latest #https://quay.io/repository/kubecost1/kubecost-opencost?tab=tags
+          name: opencost
           resources:
             requests:
               cpu: "10m"
