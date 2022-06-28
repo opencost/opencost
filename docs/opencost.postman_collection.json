@@ -149,7 +149,7 @@
 	"variable": [
 		{
 			"key": "host",
-			"value": "http://opencost.kubecost.xyz:9003",
+			"value": "http://localhost:9003",
 			"type": "default"
 		}
 	]
