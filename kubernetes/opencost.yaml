@@ -1,0 +1,153 @@
+# OpenCost Deployment
+#
+# Set line 145 to your prometheus server endpoint (value: "http://my-prometheus-server.prom.svc")
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: opencost
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opencost
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: opencost
+rules:
+  - apiGroups:
+      - ''
+    resources:
+      - configmaps
+      - deployments
+      - nodes
+      - pods
+      - services
+      - resourcequotas
+      - replicationcontrollers
+      - limitranges
+      - persistentvolumeclaims
+      - persistentvolumes
+      - namespaces
+      - endpoints
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - extensions
+    resources:
+      - daemonsets
+      - deployments
+      - replicasets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - statefulsets
+      - deployments
+      - daemonsets
+      - replicasets
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - batch
+    resources:
+      - cronjobs
+      - jobs
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - autoscaling
+    resources:
+      - horizontalpodautoscalers
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - policy
+    resources:
+      - poddisruptionbudgets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - storage.k8s.io
+    resources:
+      - storageclasses
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: opencost
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: opencost
+subjects:
+  - kind: ServiceAccount
+    name: opencost
+    namespace: opencost
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opencost
+  labels:
+    app: opencost
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opencost
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: opencost
+    spec:
+      restartPolicy: Always
+      serviceAccountName: opencost
+      containers:
+        - image: quay.io/kubecost1/kubecost-cost-model:latest #https://quay.io/repository/kubecost1/kubecost-opencost?tab=tags
+          name: opencost
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "55M"
+          env:
+            - name: PROMETHEUS_SERVER_ENDPOINT
+              value: "http://my-prometheus-server.prom.svc"  #prometheusEndpoint should have the form http://<service-name>.<namespace-name>.svc
+            - name: CLOUD_PROVIDER_API_KEY
+              value: "AIzaSyD29bGxmHAVEOBYtgd8sYM2gM2ekfxQX4U" # The GCP Pricing API requires a key. This is supplied just for evaluation.
+          imagePullPolicy: Always
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: opencost
+spec:
+  selector:
+    app: opencost
+  type: ClusterIP
+  ports:
+    - name: opencost
+      port: 9003
+      targetPort: 9003
