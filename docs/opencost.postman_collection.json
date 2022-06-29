@@ -11,13 +11,13 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "{{host}}/allocation/summary?aggregate=namespace&window=7d&accumulate=false&step=1d",
+					"raw": "{{host}}/allocation/compute?aggregate=namespace&window=1d&accumulate=false&step=1d",
 					"host": [
 						"{{host}}"
 					],
 					"path": [
 						"allocation",
-						"summary"
+						"compute"
 					],
 					"query": [
 						{
@@ -26,7 +26,7 @@
 						},
 						{
 							"key": "window",
-							"value": "7d"
+							"value": "1d"
 						},
 						{
 							"key": "accumulate",
@@ -47,13 +47,13 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "{{host}}/allocation/summary?aggregate=cluster&window=7d",
+					"raw": "{{host}}/allocation/compute?aggregate=cluster&window=lastweek",
 					"host": [
 						"{{host}}"
 					],
 					"path": [
 						"allocation",
-						"summary"
+						"compute"
 					],
 					"query": [
 						{
@@ -62,7 +62,7 @@
 						},
 						{
 							"key": "window",
-							"value": "7d"
+							"value": "lastweek"
 						}
 					]
 				}
@@ -75,13 +75,13 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "{{host}}/allocation/summary?aggregate=namespace&window=7d",
+					"raw": "{{host}}/allocation/compute?aggregate=namespace&window=7d",
 					"host": [
 						"{{host}}"
 					],
 					"path": [
 						"allocation",
-						"summary"
+						"compute"
 					],
 					"query": [
 						{
@@ -103,13 +103,13 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "{{host}}/allocation/summary?aggregate=pod&window=7d",
+					"raw": "{{host}}/allocation/compute?aggregate=pod&window=7d",
 					"host": [
 						"{{host}}"
 					],
 					"path": [
 						"allocation",
-						"summary"
+						"compute"
 					],
 					"query": [
 						{
