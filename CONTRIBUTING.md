@@ -4,13 +4,13 @@ Thanks for your help improving the OpenCost project! There are many ways to cont
 
 * contributing or providing feedback on the [OpenCost Spec](https://github.com/kubecost/opencost/tree/develop/spec)
 * contributing documentation 
-* joining the discussion on Slack or in [OpenCost community discussions](https://drive.google.com/drive/folders/1hXlcyFPePB7t3z6lyVzdxmdfrbzeT1Jz)
+* joining the discussion on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or in the [OpenCost community discussions](https://drive.google.com/drive/folders/1hXlcyFPePB7t3z6lyVzdxmdfrbzeT1Jz) folder
 * committing software via the workflow below
 
 ## Getting Help
 
 If you have a question about OpenCost or have encountered problems using it,
-you can start by asking a question on [Slack](https://join.slack.com/t/kubecost/shared_invite/enQtNTA2MjQ1NDUyODE5LWFjYzIzNWE4MDkzMmUyZGU4NjkwMzMyMjIyM2E0NGNmYjExZjBiNjk1YzY5ZDI0ZTNhZDg4NjlkMGRkYzFlZTU) or via email at [support@kubecost.com](support@kubecost.com)
+you can start by asking a question on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or via email at [support@kubecost.com](support@kubecost.com)
 
 ## Workflow
 
@@ -96,4 +96,4 @@ Please write a commit message with Fixes Issue # if there is an outstanding issu
 
 Please run go fmt on the project directory. Lint can be okay (for example, comments on exported functions are nice but not required on the server).
 
-Please email us (support@kubecost.com) or reach out to us on [Slack](https://join.slack.com/t/kubecost/shared_invite/enQtNTA2MjQ1NDUyODE5LWFjYzIzNWE4MDkzMmUyZGU4NjkwMzMyMjIyM2E0NGNmYjExZjBiNjk1YzY5ZDI0ZTNhZDg4NjlkMGRkYzFlZTU) if you need help or have any questions!
+Please email us [support@kubecost.com](support@kubecost.com) or reach out to us on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel if you need help or have any questions!
