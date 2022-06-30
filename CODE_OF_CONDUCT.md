@@ -1,7 +1,7 @@
 # Contributor Code of Conduct
 
-As contributors and maintainers in the Kubecost community, and in the interest of fostering an open and welcoming community, we pledge to respect all people who contribute through reporting issues, posting feature requests, updating documentation, submitting pull requests or patches, and other activities.
-We are committed to making participation in the Kubecost community a harassment-free experience for everyone.
+As contributors and maintainers in the OpenCost community, and in the interest of fostering an open and welcoming community, we pledge to respect all people who contribute through reporting issues, posting feature requests, updating documentation, submitting pull requests or patches, and other activities.
+We are committed to making participation in the OpenCost community a harassment-free experience for everyone.
 
 # Scope
 
@@ -32,13 +32,13 @@ Project maintainers who do not follow or enforce the Code of Conduct may be perm
 
 # Reporting
 
-For incidents occurring in the Kubecost community, contact the Kubecost Code of Conduct Committee via conduct@kubecost.com. You can expect a response within two business days.
-For other projects, please contact the Kubecost staff via conduct@kubecost.com. You can expect a response within three business days.
+For incidents occurring in the OpenCost community, contact the OpenCost Code of Conduct Committee via conduct@kubecost.com. You can expect a response within two business days.
+For other projects, please contact the OpenCost staff via conduct@kubecost.com. You can expect a response within three business days.
 
 # Enforcement
 
-The Kubecost project's Code of Conduct Committee enforces code of conduct issues. For all other projects, the Kubecost enforces code of conduct issues.
-Both bodies try to resolve incidents without punishment, but may remove people from the project or Kubecost communities at their discretion.
+The OpenCost project's Code of Conduct Committee enforces code of conduct issues. For all other projects, the OpenCost enforces code of conduct issues.
+Both bodies try to resolve incidents without punishment, but may remove people from the project or OpenCost communities at their discretion.
 
 # Acknowledgements
 This Code of Conduct is adapted from the Contributor Covenant (http://contributor-covenant.org), version 2.0 available at http://contributor-covenant.org/version/2/0/code_of_conduct/
