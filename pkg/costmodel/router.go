@@ -1600,7 +1600,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	// ClusterInfo Provider to provide the cluster map with local and remote cluster data
 	var clusterInfoProvider clusters.ClusterInfoProvider
 	if env.IsClusterInfoFileEnabled() {
-		clusterInfoFile := confManager.ConfigFileAt(path.Join(configPrefix, " cluster-info.json"))
+		clusterInfoFile := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-info.json"))
 		clusterInfoProvider = NewConfiguredClusterInfoProvider(clusterInfoFile)
 	} else {
 		clusterInfoProvider = NewLocalClusterInfoProvider(kubeClientset, cloudProvider)
