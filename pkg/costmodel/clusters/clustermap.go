@@ -3,6 +3,7 @@ package clusters
 import (
 	"context"
 	"fmt"
+	"github.com/kubecost/opencost/pkg/env"
 	"strings"
 	"sync"
 	"time"
@@ -19,6 +20,10 @@ const (
 	LoadRetries    int           = 6
 	LoadRetryDelay time.Duration = 10 * time.Second
 )
+
+// prometheus query offset to apply to each non-range query
+// package scope to prevent calling duration parse each use
+var promQueryOffset = env.GetPrometheusQueryOffset()
 
 // ClusterInfo holds attributes of Cluster from metrics pulled from Prometheus
 type ClusterInfo struct {
@@ -138,7 +143,8 @@ func (pcm *PrometheusClusterMap) loadClusters() (map[string]*ClusterInfo, error)
 	// Execute Query
 	tryQuery := func() (interface{}, error) {
 		ctx := prom.NewNamedContext(pcm.client, prom.ClusterMapContextName)
-		r, _, e := ctx.QuerySync(clusterInfoQuery(offset))
+		resCh := ctx.QueryAtTime(clusterInfoQuery(offset), time.Now().Add(-promQueryOffset))
+		r, e := resCh.Await()
 		return r, e
 	}
 
