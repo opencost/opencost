@@ -1881,6 +1881,20 @@ func (a *Accesses) warmAggregateCostModelCache() {
 	}
 }
 
+var (
+	// Convert UTC-RFC3339 pairs to configured UTC offset
+	// e.g. with UTC offset of -0600, 2020-07-01T00:00:00Z becomes
+	// 2020-07-01T06:00:00Z == 2020-07-01T00:00:00-0600
+	// TODO niko/etl fix the frontend because this is confusing if you're
+	// actually asking for UTC time (...Z) and we swap that "Z" out for the
+	// configured UTC offset without asking
+	rfc3339      = `\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ`
+	rfc3339Regex = regexp.MustCompile(fmt.Sprintf(`(%s),(%s)`, rfc3339, rfc3339))
+
+	durRegex     = regexp.MustCompile(`^(\d+)(m|h|d|s)$`)
+	percentRegex = regexp.MustCompile(`(\d+\.*\d*)%`)
+)
+
 // AggregateCostModelHandler handles requests to the aggregated cost model API. See
 // ComputeAggregateCostModel for details.
 func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -1888,15 +1902,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 
 	windowStr := r.URL.Query().Get("window")
 
-	// Convert UTC-RFC3339 pairs to configured UTC offset
-	// e.g. with UTC offset of -0600, 2020-07-01T00:00:00Z becomes
-	// 2020-07-01T06:00:00Z == 2020-07-01T00:00:00-0600
-	// TODO niko/etl fix the frontend because this is confusing if you're
-	// actually asking for UTC time (...Z) and we swap that "Z" out for the
-	// configured UTC offset without asking
-	rfc3339 := `\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ`
-	regex := regexp.MustCompile(fmt.Sprintf(`(%s),(%s)`, rfc3339, rfc3339))
-	match := regex.FindStringSubmatch(windowStr)
+	match := rfc3339Regex.FindStringSubmatch(windowStr)
 	if match != nil {
 		start, _ := time.Parse(time.RFC3339, match[1])
 		start = start.Add(-env.GetParsedUTCOffset()).In(time.UTC)
@@ -1912,7 +1918,6 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	durRegex := regexp.MustCompile(`^(\d+)(m|h|d|s)$`)
 	isDurationStr := durRegex.MatchString(windowStr)
 
 	// legacy offset option should override window offset
@@ -2076,8 +2081,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 				// after the pipeline builds
 				msg := "Data will be available after ETL is built"
 
-				rex := regexp.MustCompile(`(\d+\.*\d*)%`)
-				match := rex.FindStringSubmatch(boundaryErr.Message)
+				match := percentRegex.FindStringSubmatch(boundaryErr.Message)
 				if len(match) > 1 {
 					completionPct, err := strconv.ParseFloat(match[1], 64)
 					if err == nil {

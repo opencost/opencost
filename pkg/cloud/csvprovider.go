@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -240,7 +239,6 @@ func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
 		}
 	}
 	if len(mf) == 2 && mf[0] == "spec" && mf[1] == "providerID" {
-		provIdRx := regexp.MustCompile("aws:///([^/]+)/([^/]+)") // It's of the form aws:///us-east-2a/i-0fea4fd46592d050b and we want i-0fea4fd46592d050b, if it exists
 		for matchNum, group := range provIdRx.FindStringSubmatch(n.Spec.ProviderID) {
 			if matchNum == 2 {
 				return toReturn + group
