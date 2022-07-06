@@ -136,8 +136,12 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 	// minsPerResolution determines accuracy and resource use for the following
 	// queries. Smaller values (higher resolution) result in better accuracy,
 	// but more expensive queries, and vice-a-versa.
-	minsPerResolution := 1
-	resolution := time.Duration(minsPerResolution) * time.Minute
+	resolution := env.GetETLResolution()
+	//Ensuring if ETL_RESOLUTION_SECONDS is less than 60s default it to 1m
+	var minsPerResolution int
+	if minsPerResolution = int(resolution.Minutes()); int(resolution.Minutes()) == 0 {
+		minsPerResolution = 1
+	}
 
 	// hourlyToCumulative is a scaling factor that, when multiplied by an hourly
 	// value, converts it to a cumulative value; i.e.
@@ -388,8 +392,12 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, start, end time.T
 	// minsPerResolution determines accuracy and resource use for the following
 	// queries. Smaller values (higher resolution) result in better accuracy,
 	// but more expensive queries, and vice-a-versa.
-	minsPerResolution := 1
-	resolution := time.Duration(minsPerResolution) * time.Minute
+	resolution := env.GetETLResolution()
+	//Ensuring if ETL_RESOLUTION_SECONDS is less than 60s default it to 1m
+	var minsPerResolution int
+	if minsPerResolution = int(resolution.Minutes()); int(resolution.Minutes()) == 0 {
+		minsPerResolution = 1
+	}
 
 	requiredCtx := prom.NewNamedContext(client, prom.ClusterContextName)
 	optionalCtx := prom.NewNamedContext(client, prom.ClusterOptionalContextName)
@@ -544,7 +552,12 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 	// minsPerResolution determines accuracy and resource use for the following
 	// queries. Smaller values (higher resolution) result in better accuracy,
 	// but more expensive queries, and vice-a-versa.
-	minsPerResolution := 1
+	resolution := env.GetETLResolution()
+	//Ensuring if ETL_RESOLUTION_SECONDS is less than 60s default it to 1m
+	var minsPerResolution int
+	if minsPerResolution = int(resolution.Minutes()); int(resolution.Minutes()) == 0 {
+		minsPerResolution = 1
+	}
 
 	ctx := prom.NewNamedContext(client, prom.ClusterContextName)
 
@@ -670,7 +683,12 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 	// minsPerResolution determines accuracy and resource use for the following
 	// queries. Smaller values (higher resolution) result in better accuracy,
 	// but more expensive queries, and vice-a-versa.
-	minsPerResolution := 5
+	resolution := env.GetETLResolution()
+	//Ensuring if ETL_RESOLUTION_SECONDS is less than 60s default it to 1m
+	var minsPerResolution int
+	if minsPerResolution = int(resolution.Minutes()); int(resolution.Minutes()) < 1 {
+		minsPerResolution = 1
+	}
 
 	// hourlyToCumulative is a scaling factor that, when multiplied by an hourly
 	// value, converts it to a cumulative value; i.e.
