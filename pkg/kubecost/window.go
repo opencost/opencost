@@ -20,6 +20,15 @@ const (
 	hoursPerDay    = 24
 )
 
+var (
+	durationRegex       = regexp.MustCompile(`^(\d+)(m|h|d)$`)
+	durationOffsetRegex = regexp.MustCompile(`^(\d+)(m|h|d) offset (\d+)(m|h|d)$`)
+	offesetRegex        = regexp.MustCompile(`^(\+|-)(\d\d):(\d\d)$`)
+	rfc3339             = `\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ`
+	rfcRegex            = regexp.MustCompile(fmt.Sprintf(`(%s),(%s)`, rfc3339, rfc3339))
+	timestampPairRegex  = regexp.MustCompile(`^(\d+)[,|-](\d+)$`)
+)
+
 // RoundBack rounds the given time back to a multiple of the given resolution
 // in the given time's timezone.
 // e.g. 2020-01-01T12:37:48-0700, 24h = 2020-01-01T00:00:00-0700
@@ -82,8 +91,7 @@ func ParseWindowWithOffsetString(window string, offset string) (Window, error) {
 		return ParseWindowUTC(window)
 	}
 
-	regex := regexp.MustCompile(`^(\+|-)(\d\d):(\d\d)$`)
-	match := regex.FindStringSubmatch(offset)
+	match := offesetRegex.FindStringSubmatch(offset)
 	if match == nil {
 		return Window{}, fmt.Errorf("illegal UTC offset: '%s'; should be of form '-07:00'", offset)
 	}
@@ -215,8 +223,7 @@ func parseWindow(window string, now time.Time) (Window, error) {
 	}
 
 	// Match duration strings; e.g. "45m", "24h", "7d"
-	regex := regexp.MustCompile(`^(\d+)(m|h|d)$`)
-	match := regex.FindStringSubmatch(window)
+	match := durationRegex.FindStringSubmatch(window)
 	if match != nil {
 		dur := time.Minute
 		if match[2] == "h" {
@@ -235,8 +242,7 @@ func parseWindow(window string, now time.Time) (Window, error) {
 	}
 
 	// Match duration strings with offset; e.g. "45m offset 15m", etc.
-	regex = regexp.MustCompile(`^(\d+)(m|h|d) offset (\d+)(m|h|d)$`)
-	match = regex.FindStringSubmatch(window)
+	match = durationOffsetRegex.FindStringSubmatch(window)
 	if match != nil {
 		end := now
 
@@ -268,8 +274,7 @@ func parseWindow(window string, now time.Time) (Window, error) {
 	}
 
 	// Match timestamp pairs, e.g. "1586822400,1586908800" or "1586822400-1586908800"
-	regex = regexp.MustCompile(`^(\d+)[,|-](\d+)$`)
-	match = regex.FindStringSubmatch(window)
+	match = timestampPairRegex.FindStringSubmatch(window)
 	if match != nil {
 		s, _ := strconv.ParseInt(match[1], 10, 64)
 		e, _ := strconv.ParseInt(match[2], 10, 64)
@@ -279,9 +284,7 @@ func parseWindow(window string, now time.Time) (Window, error) {
 	}
 
 	// Match RFC3339 pairs, e.g. "2020-04-01T00:00:00Z,2020-04-03T00:00:00Z"
-	rfc3339 := `\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ`
-	regex = regexp.MustCompile(fmt.Sprintf(`(%s),(%s)`, rfc3339, rfc3339))
-	match = regex.FindStringSubmatch(window)
+	match = rfcRegex.FindStringSubmatch(window)
 	if match != nil {
 		start, _ := time.Parse(time.RFC3339, match[1])
 		end, _ := time.Parse(time.RFC3339, match[2])

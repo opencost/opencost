@@ -324,6 +324,15 @@ func TestParseWindowUTC(t *testing.T) {
 	}
 }
 
+func BenchmarkParseWindowUTC(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		_, err := ParseWindowUTC("2020-04-08T00:00:00Z,2020-04-12T00:00:00Z")
+		if err != nil {
+			b.Fatalf("error running benchmark: %s", err.Error())
+		}
+	}
+}
+
 func TestParseWindowWithOffsetString(t *testing.T) {
 	// ParseWindowWithOffsetString should equal ParseWindowUTC when location == "UTC"
 	// for all window string formats

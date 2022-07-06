@@ -88,6 +88,8 @@ const (
 	ETLReadOnlyMode = "ETL_READ_ONLY"
 )
 
+var offsetRegex = regexp.MustCompile(`^(\+|-)(\d\d):(\d\d)$`)
+
 func IsETLReadOnlyMode() bool {
 	return GetBool(ETLReadOnlyMode, false)
 }
@@ -400,8 +402,7 @@ func GetParsedUTCOffset() time.Duration {
 	offset := time.Duration(0)
 
 	if offsetStr := GetUTCOffset(); offsetStr != "" {
-		regex := regexp.MustCompile(`^(\+|-)(\d\d):(\d\d)$`)
-		match := regex.FindStringSubmatch(offsetStr)
+		match := offsetRegex.FindStringSubmatch(offsetStr)
 		if match == nil {
 			log.Warnf("Illegal UTC offset: %s", offsetStr)
 			return offset

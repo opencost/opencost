@@ -66,6 +66,10 @@ var (
 	mtStandardL, _ = regexp.Compile(`^Standard_L\d+[_v\d]*[_Promo]*$`)
 	mtStandardM, _ = regexp.Compile(`^Standard_M\d+[m|t|l]*s[_v\d]*[_Promo]*$`)
 	mtStandardN, _ = regexp.Compile(`^Standard_N[C|D|V]\d+r?[_v\d]*[_Promo]*$`)
+
+	// azure:///subscriptions/0badafdf-1234-abcd-wxyz-123456789/...
+	//  => 0badafdf-1234-abcd-wxyz-123456789
+	azureSubRegex = regexp.MustCompile("azure:///subscriptions/([^/]*)/*")
 )
 
 // List obtained by installing the Azure CLI tool "az", described here:
@@ -1297,10 +1301,7 @@ func (az *Azure) Regions() []string {
 }
 
 func parseAzureSubscriptionID(id string) string {
-	// azure:///subscriptions/0badafdf-1234-abcd-wxyz-123456789/...
-	//  => 0badafdf-1234-abcd-wxyz-123456789
-	rx := regexp.MustCompile("azure:///subscriptions/([^/]*)/*")
-	match := rx.FindStringSubmatch(id)
+	match := azureSubRegex.FindStringSubmatch(id)
 	if len(match) >= 2 {
 		return match[1]
 	}

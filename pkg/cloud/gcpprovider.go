@@ -69,6 +69,13 @@ var gcpRegions = []string{
 	"us-west4",
 }
 
+var (
+	nvidiaGPURegex = regexp.MustCompile("(Nvidia Tesla [^ ]+) ")
+	// gce://guestbook-12345/...
+	//  => guestbook-12345
+	gceRegex = regexp.MustCompile("gce://([^/]*)/*")
+)
+
 type userAgentTransport struct {
 	userAgent string
 	base      http.RoundTripper
@@ -597,8 +604,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 					}
 				*/
 				var gpuType string
-				provIdRx := regexp.MustCompile("(Nvidia Tesla [^ ]+) ")
-				for matchnum, group := range provIdRx.FindStringSubmatch(product.Description) {
+				for matchnum, group := range nvidiaGPURegex.FindStringSubmatch(product.Description) {
 					if matchnum == 1 {
 						gpuType = strings.ToLower(strings.Join(strings.Split(group, " "), "-"))
 						log.Debug("GPU type found: " + gpuType)
@@ -1391,8 +1397,7 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 func parseGCPProjectID(id string) string {
 	// gce://guestbook-12345/...
 	//  => guestbook-12345
-	rx := regexp.MustCompile("gce://([^/]*)/*")
-	match := rx.FindStringSubmatch(id)
+	match := gceRegex.FindStringSubmatch(id)
 	if len(match) >= 2 {
 		return match[1]
 	}
