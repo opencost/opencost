@@ -1889,6 +1889,9 @@ func (as *AllocationSet) Map() map[string]*Allocation {
 
 // MarshalJSON JSON-encodes the AllocationSet
 func (as *AllocationSet) MarshalJSON() ([]byte, error) {
+	if as == nil {
+		return json.Marshal(map[string]*Allocation{})
+	}
 	as.RLock()
 	defer as.RUnlock()
 	return json.Marshal(as.allocations)
@@ -2224,6 +2227,10 @@ func (asr *AllocationSetRange) Length() int {
 
 // MarshalJSON JSON-encodes the range
 func (asr *AllocationSetRange) MarshalJSON() ([]byte, error) {
+	if asr == nil {
+		return json.Marshal([]*AllocationSet{})
+	}
+
 	asr.RLock()
 	defer asr.RUnlock()
 	return json.Marshal(asr.allocations)
