@@ -81,7 +81,7 @@ func (r *SetRange[T]) IsEmpty() bool {
 // MarshalJSON converts SetRange to JSON
 func (r *SetRange[T]) MarshalJSON() ([]byte, error) {
 	if r == nil {
-		return nil, fmt.Errorf("SetRange: MarshalJSON: is nil")
+		return json.Marshal([]T{})
 	}
 	r.lock.RLock()
 	defer r.lock.RUnlock()

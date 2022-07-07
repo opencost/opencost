@@ -709,6 +709,9 @@ func (sa *SharedAsset) InterfaceToSharedAsset(itf interface{}) error {
 
 // MarshalJSON JSON-encodes the AssetSet
 func (as *AssetSet) MarshalJSON() ([]byte, error) {
+	if as == nil {
+		return json.Marshal(map[string]Asset{})
+	}
 	as.RLock()
 	defer as.RUnlock()
 	return json.Marshal(as.assets)
