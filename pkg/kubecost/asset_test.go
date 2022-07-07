@@ -1424,3 +1424,58 @@ func TestAssetSetRange_Minutes(t *testing.T) {
 		}
 	}
 }
+
+func TestAssetSetRange_MarshalJSON(t *testing.T) {
+
+	tests := []struct {
+		name     string
+		arg      *AssetSetRange
+		expected *AssetSetRange
+	}{
+		{
+			name: "Nil ASR",
+			arg:  nil,
+		},
+		{
+			name: "Nil AS in ASR",
+			arg:  NewAssetSetRange(nil),
+		},
+		{
+			name: "Normal ASR",
+			arg: &AssetSetRange{
+				assets: []*AssetSet{
+					{
+						assets: map[string]Asset{
+							"a": &Any{
+								start: time.Now().UTC().Truncate(day),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+
+		bytes, err := json.Marshal(test.arg)
+		if err != nil {
+			t.Fatalf("ASR Marshal: test %s, unexpected error: %s", test.name, err)
+		}
+
+		var testASR []*AssetSet
+		marshaled := &testASR
+
+		err = json.Unmarshal(bytes, marshaled)
+
+		if err != nil {
+			t.Fatalf("ASR Unmarshal: test %s: unexpected error: %s", test.name, err)
+		}
+
+		if test.arg.Length() != len(testASR) {
+			t.Fatalf("ASR Unmarshal: test %s: length mutated in encoding: expected %d but got %d", test.name, test.arg.Length(), len(testASR))
+		}
+
+		// asset don't unmarshal back from json
+	}
+}
