@@ -3097,6 +3097,9 @@ func (asr *AssetSetRange) IsEmpty() bool {
 }
 
 func (asr *AssetSetRange) MarshalJSON() ([]byte, error) {
+	if asr == nil {
+		return json.Marshal([]*AssetSet{})
+	}
 	asr.RLock()
 	defer asr.RUnlock()
 	return json.Marshal(asr.assets)
