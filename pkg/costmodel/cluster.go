@@ -141,6 +141,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 	var minsPerResolution int
 	if minsPerResolution = int(resolution.Minutes()); int(resolution.Minutes()) == 0 {
 		minsPerResolution = 1
+		log.DedupedWarningf(3, "ClusterDisks(): Configured ETL resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
 	}
 
 	// hourlyToCumulative is a scaling factor that, when multiplied by an hourly
@@ -397,6 +398,7 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, start, end time.T
 	var minsPerResolution int
 	if minsPerResolution = int(resolution.Minutes()); int(resolution.Minutes()) == 0 {
 		minsPerResolution = 1
+		log.DedupedWarningf(3, "ClusterNodes(): Configured ETL resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
 	}
 
 	requiredCtx := prom.NewNamedContext(client, prom.ClusterContextName)
@@ -557,6 +559,7 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 	var minsPerResolution int
 	if minsPerResolution = int(resolution.Minutes()); int(resolution.Minutes()) == 0 {
 		minsPerResolution = 1
+		log.DedupedWarningf(3, "ClusterLoadBalancers(): Configured ETL resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
 	}
 
 	ctx := prom.NewNamedContext(client, prom.ClusterContextName)
@@ -688,6 +691,7 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 	var minsPerResolution int
 	if minsPerResolution = int(resolution.Minutes()); int(resolution.Minutes()) < 1 {
 		minsPerResolution = 1
+		log.DedupedWarningf(3, "ComputeClusterCosts(): Configured ETL resolution (%d seconds) is below the 60 seconds threshold. Overriding with 1 minute.", int(resolution.Seconds()))
 	}
 
 	// hourlyToCumulative is a scaling factor that, when multiplied by an hourly
