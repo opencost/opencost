@@ -62,7 +62,7 @@ Example:
 export KUBECONFIG_PATH=~/.kube/config
 ```
 
-There are two more environement variabes recommended to run locally. These should be set as the default file location used is `/var/` which usually requires more permissions than kubecost actually needs to run. They do not need to match but keeping everything together can help cleanup when no longer needed.
+There are two more environment variables recommended to run locally. These should be set as the default file location used is `/var/` which usually requires more permissions than kubecost actually needs to run. They do not need to match but keeping everything together can help cleanup when no longer needed.
 
 ```bash
 ETL_PATH_PREFIX="/my/cool/path/kubecost/var/config"
@@ -80,7 +80,7 @@ ETL_PATH_PREFIX="/my/cool/path/kubecost/var/config" CONFIG_PATH="/my/cool/path/k
 To run these tests:
 
 - Make sure you have a kubeconfig that can point to your cluster, and have permissions to create/modify a namespace called "test"
-- Connect to your the prometheus kubecost emits to on localhost:9003:
+- Connect to your the Prometheus kubecost emits to on localhost:9003:
   `kubectl port-forward --namespace kubecost service/kubecost-prometheus-server 9003:80`
 - Temporary workaround: Copy the default.json file in this project at cloud/default.json to /models/default.json on the machine your test is running on. TODO: fix this and inject the cloud/default.json path into provider.go.
 - Navigate to cost-model/test
@@ -88,11 +88,11 @@ To run these tests:
 
 ## Certification of Origin
 
-By contributing to this project you certify that your contribution was created in whole or in part by you and that you have the right to submit it under the open source license indicated in the project. In other words, please confirm that you, as a contributor, have the legal right to make the contribution.
+By contributing to this project, you certify that your contribution was created in whole or in part by you and that you have the right to submit it under the open source license indicated in the project. In other words, please confirm that you, as a contributor, have the legal right to make the contribution.
 
 ## Committing
 
-Please write a commit message with Fixes Issue # if there is an outstanding issue that is fixed. It’s okay to submit a PR without a corresponding issue, just please try be detailed in the description about the problem you’re addressing.
+Please write a commit message with Fixes Issue # if there is an outstanding issue that is fixed. It’s okay to submit a PR without a corresponding issue; just please try to be detailed in the description of the problem you’re addressing.
 
 Please run go fmt on the project directory. Lint can be okay (for example, comments on exported functions are nice but not required on the server).
 
