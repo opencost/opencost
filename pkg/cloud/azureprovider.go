@@ -1062,22 +1062,13 @@ func (az *Azure) NetworkPricing() (*Network, error) {
 	}, nil
 }
 
+// LoadBalancerPricing on Azure, LoadBalancer services correspond to public IPs. For now the pricing of LoadBalancer
+// services will be that of a standard static public IP https://azure.microsoft.com/en-us/pricing/details/ip-addresses/.
+// Azure still has load balancers which follow the standard pricing scheme based on rules
+// https://azure.microsoft.com/en-us/pricing/details/load-balancer/, they are created on a per-cluster basis.
 func (azr *Azure) LoadBalancerPricing() (*LoadBalancer, error) {
-	fffrc := 0.025
-	afrc := 0.010
-	lbidc := 0.008
-
-	numForwardingRules := 1.0
-	dataIngressGB := 0.0
-
-	var totalCost float64
-	if numForwardingRules < 5 {
-		totalCost = fffrc*numForwardingRules + lbidc*dataIngressGB
-	} else {
-		totalCost = fffrc*5 + afrc*(numForwardingRules-5) + lbidc*dataIngressGB
-	}
 	return &LoadBalancer{
-		Cost: totalCost,
+		Cost: 0.005,
 	}, nil
 }
 
