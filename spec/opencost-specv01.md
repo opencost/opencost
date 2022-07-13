@@ -213,7 +213,7 @@ The following workload cost aggregations are supported in a complete implementat
 * deployment
 * statefulset
 * job
-* controller
+* controller name
 * controller kind
 * label
 * annotation
