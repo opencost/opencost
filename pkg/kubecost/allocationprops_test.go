@@ -12,7 +12,11 @@ func TestGenerateKey(t *testing.T) {
 		allocationProps *AllocationProperties
 		expected        string
 	}{
+<<<<<<< HEAD
 		"aggregateregate by owner without owner labels": {
+=======
+		"agg by owner with labels": {
+>>>>>>> Recognizes annotations when aggregating by owner
 			aggregate: []string{"owner"},
 			allocationProps: &AllocationProperties{
 				Labels:      map[string]string{"app": "cost-analyzer"},
@@ -20,13 +24,18 @@ func TestGenerateKey(t *testing.T) {
 			},
 			expected: "test owner 123",
 		},
+<<<<<<< HEAD
 		"aggregate by owner without labels": {
+=======
+		"agg by owner without labels": {
+>>>>>>> Recognizes annotations when aggregating by owner
 			aggregate: []string{"owner"},
 			allocationProps: &AllocationProperties{
 				Annotations: map[string]string{"owner": "test owner 123"},
 			},
 			expected: "test owner 123",
 		},
+<<<<<<< HEAD
 		"aggregate by owner with owner label and annotation": {
 			aggregate: []string{"owner"},
 			allocationProps: &AllocationProperties{
@@ -75,6 +84,8 @@ func TestGenerateKey(t *testing.T) {
 			},
 			expected: "product-label/owner-label",
 		},
+=======
+>>>>>>> Recognizes annotations when aggregating by owner
 	}
 
 	for name, tc := range cases {
