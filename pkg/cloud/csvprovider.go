@@ -10,13 +10,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/env"
-	"github.com/kubecost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/util"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/kubecost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/log"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/jszwec/csvutil"

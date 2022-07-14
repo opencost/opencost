@@ -4,7 +4,7 @@ See this page for all [Kubecost install options](http://docs.kubecost.com/instal
 
 If you would like to deploy the cost model (w/o dashboards) directly a pod on your cluster, complete the steps listed below.
 
-1. Set [this environment variable](https://github.com/kubecost/opencost/blob/c211fbc1244a9da9667c7180a9e4c7f988d7978a/kubernetes/deployment.yaml#L33) to the address of your prometheus server
+1. Set [this environment variable](https://github.com/opencost/opencost/blob/c211fbc1244a9da9667c7180a9e4c7f988d7978a/kubernetes/deployment.yaml#L33) to the address of your prometheus server
 2. `kubectl create namespace cost-model`
 3. `kubectl apply -f kubernetes/ --namespace cost-model`
 4. `kubectl port-forward --namespace cost-model service/cost-model 9003`

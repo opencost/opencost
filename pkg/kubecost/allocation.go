@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/log"
-	"github.com/kubecost/opencost/pkg/util"
-	"github.com/kubecost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/util/json"
 )
 
 // TODO Clean-up use of IsEmpty; nil checks should be separated for safety.

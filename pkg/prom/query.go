@@ -8,11 +8,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/env"
-	"github.com/kubecost/opencost/pkg/errors"
-	"github.com/kubecost/opencost/pkg/log"
-	"github.com/kubecost/opencost/pkg/util/httputil"
-	"github.com/kubecost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/errors"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util/httputil"
+	"github.com/opencost/opencost/pkg/util/json"
 	prometheus "github.com/prometheus/client_golang/api"
 )
 
@@ -192,7 +192,7 @@ func (ctx *Context) RawQuery(query string, t time.Time) ([]byte, error) {
 	if t.IsZero() {
 		t = time.Now()
 	}
-	
+
 	q.Set("time", strconv.FormatInt(t.Unix(), 10))
 
 	u.RawQuery = q.Encode()

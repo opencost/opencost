@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/log"
 
 	"k8s.io/apimachinery/pkg/fields"
 	rt "k8s.io/apimachinery/pkg/runtime"

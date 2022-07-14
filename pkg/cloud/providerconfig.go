@@ -8,11 +8,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/kubecost/opencost/pkg/config"
-	"github.com/kubecost/opencost/pkg/env"
-	"github.com/kubecost/opencost/pkg/log"
-	"github.com/kubecost/opencost/pkg/util/json"
 	"github.com/microcosm-cc/bluemonday"
+	"github.com/opencost/opencost/pkg/config"
+	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util/json"
 )
 
 var sanitizePolicy = bluemonday.UGCPolicy()

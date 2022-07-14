@@ -13,11 +13,12 @@ package kubecost
 
 import (
 	"fmt"
-	util "github.com/kubecost/opencost/pkg/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
+
+	util "github.com/opencost/opencost/pkg/util"
 )
 
 const (

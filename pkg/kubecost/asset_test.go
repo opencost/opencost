@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/util"
 )
 
 var start1 = time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)

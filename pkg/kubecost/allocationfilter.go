@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kubecost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/log"
 )
 
 // FilterField is an enum that represents Allocation-specific fields that can be

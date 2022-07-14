@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/cloud"
-	"github.com/kubecost/opencost/pkg/clustercache"
-	"github.com/kubecost/opencost/pkg/config"
-	"github.com/kubecost/opencost/pkg/costmodel"
-	"github.com/kubecost/opencost/pkg/costmodel/clusters"
+	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/clustercache"
+	"github.com/opencost/opencost/pkg/config"
+	"github.com/opencost/opencost/pkg/costmodel"
+	"github.com/opencost/opencost/pkg/costmodel/clusters"
 
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"

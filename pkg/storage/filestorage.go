@@ -7,7 +7,7 @@ import (
 	gopath "path"
 	"path/filepath"
 
-	"github.com/kubecost/opencost/pkg/util/fileutil"
+	"github.com/opencost/opencost/pkg/util/fileutil"
 	"github.com/pkg/errors"
 )
 

@@ -4,7 +4,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/kubecost"
+	"github.com/opencost/opencost/pkg/kubecost"
 )
 
 // IntervalPoint describes a start or end of a window of time
