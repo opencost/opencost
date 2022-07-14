@@ -1225,7 +1225,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 }
 
 // TODO: drop some logs
-func (cm *CostModel) GetLBCost(cp costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.LoadBalancer, error) {
+func (cm *CostModel) GetLBCost(cp costAnalyzerCloud.Provider) (map[serviceKey]*costAnalyzerCloud.LoadBalancer, error) {
 	// for fetching prices from cloud provider
 	// cfg, err := cp.GetConfig()
 	// if err != nil {
@@ -1233,12 +1233,16 @@ func (cm *CostModel) GetLBCost(cp costAnalyzerCloud.Provider) (map[string]*costA
 	// }
 
 	servicesList := cm.Cache.GetAllServices()
-	loadBalancerMap := make(map[string]*costAnalyzerCloud.LoadBalancer)
+	loadBalancerMap := make(map[serviceKey]*costAnalyzerCloud.LoadBalancer)
 
 	for _, service := range servicesList {
 		namespace := service.GetObjectMeta().GetNamespace()
 		name := service.GetObjectMeta().GetName()
-		key := namespace + "," + name // + "," + clusterID?
+		key := serviceKey{
+			Cluster:   env.GetClusterID(),
+			Namespace: namespace,
+			Service:   name,
+		}
 
 		if service.Spec.Type == "LoadBalancer" {
 			loadBalancer, err := cp.LoadBalancerPricing()

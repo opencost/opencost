@@ -572,9 +572,9 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			}
 			for lbKey, lb := range loadBalancers {
 				// TODO: parse (if necessary) and calculate cost associated with loadBalancer based on dynamic cloud prices fetched into each lb struct on GetLBCost() call
-				keyParts := getLabelStringsFromKey(lbKey)
-				namespace := keyParts[0]
-				serviceName := keyParts[1]
+
+				namespace := lbKey.Namespace
+				serviceName := lbKey.Service
 				ingressIP := ""
 				if len(lb.IngressIPAddresses) > 0 {
 					ingressIP = lb.IngressIPAddresses[0] // assumes one ingress IP per load balancer
