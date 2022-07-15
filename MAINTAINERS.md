@@ -13,3 +13,4 @@ Please keep the below list sorted in ascending order.
 | Michael Dresser | @michaelmdresser | Kubecost | <michael@kubecost.com> |
 | Niko Kovacevic | @nikovacevic | Kubecost | <niko@kubecost.com> |
 | Sean Holcomb | @Sean-Holcomb | Kubecost | <Sean@kubecost.com> |
+| Thomas Evans | @teevans | Kubecost | <thomas@kubecost.com> |
