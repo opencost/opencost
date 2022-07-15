@@ -4,11 +4,11 @@ import (
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/kubecost/opencost/pkg/costmodel"
-	"github.com/kubecost/opencost/pkg/errors"
-	"github.com/kubecost/opencost/pkg/log"
-	"github.com/kubecost/opencost/pkg/metrics"
-	"github.com/kubecost/opencost/pkg/version"
+	"github.com/opencost/opencost/pkg/costmodel"
+	"github.com/opencost/opencost/pkg/errors"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/metrics"
+	"github.com/opencost/opencost/pkg/version"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 )

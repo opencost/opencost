@@ -13,12 +13,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/clustercache"
-	"github.com/kubecost/opencost/pkg/env"
-	"github.com/kubecost/opencost/pkg/log"
-	"github.com/kubecost/opencost/pkg/util"
-	"github.com/kubecost/opencost/pkg/util/fileutil"
-	"github.com/kubecost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/clustercache"
+	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/util/fileutil"
+	"github.com/opencost/opencost/pkg/util/json"
 
 	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
 	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2016-06-01/subscriptions"
@@ -66,6 +66,10 @@ var (
 	mtStandardL, _ = regexp.Compile(`^Standard_L\d+[_v\d]*[_Promo]*$`)
 	mtStandardM, _ = regexp.Compile(`^Standard_M\d+[m|t|l]*s[_v\d]*[_Promo]*$`)
 	mtStandardN, _ = regexp.Compile(`^Standard_N[C|D|V]\d+r?[_v\d]*[_Promo]*$`)
+
+	// azure:///subscriptions/0badafdf-1234-abcd-wxyz-123456789/...
+	//  => 0badafdf-1234-abcd-wxyz-123456789
+	azureSubRegex = regexp.MustCompile("azure:///subscriptions/([^/]*)/*")
 )
 
 // List obtained by installing the Azure CLI tool "az", described here:
@@ -906,7 +910,7 @@ func (az *Azure) DownloadPricingData() error {
 
 	// There is no easy way of supporting Standard Azure-File, because it's billed per used GB
 	// this will set the price to "0" as a workaround to not spam with `Persistent Volume pricing not found for` error
-	// check https://github.com/kubecost/opencost/issues/159 for more information (same problem on AWS)
+	// check https://github.com/opencost/opencost/issues/159 for more information (same problem on AWS)
 	zeroPrice := "0.0"
 	for region := range regions {
 		key := region + "," + AzureFileStandardStorageClass
@@ -1062,22 +1066,13 @@ func (az *Azure) NetworkPricing() (*Network, error) {
 	}, nil
 }
 
+// LoadBalancerPricing on Azure, LoadBalancer services correspond to public IPs. For now the pricing of LoadBalancer
+// services will be that of a standard static public IP https://azure.microsoft.com/en-us/pricing/details/ip-addresses/.
+// Azure still has load balancers which follow the standard pricing scheme based on rules
+// https://azure.microsoft.com/en-us/pricing/details/load-balancer/, they are created on a per-cluster basis.
 func (azr *Azure) LoadBalancerPricing() (*LoadBalancer, error) {
-	fffrc := 0.025
-	afrc := 0.010
-	lbidc := 0.008
-
-	numForwardingRules := 1.0
-	dataIngressGB := 0.0
-
-	var totalCost float64
-	if numForwardingRules < 5 {
-		totalCost = fffrc*numForwardingRules + lbidc*dataIngressGB
-	} else {
-		totalCost = fffrc*5 + afrc*(numForwardingRules-5) + lbidc*dataIngressGB
-	}
 	return &LoadBalancer{
-		Cost: totalCost,
+		Cost: 0.005,
 	}, nil
 }
 
@@ -1297,10 +1292,7 @@ func (az *Azure) Regions() []string {
 }
 
 func parseAzureSubscriptionID(id string) string {
-	// azure:///subscriptions/0badafdf-1234-abcd-wxyz-123456789/...
-	//  => 0badafdf-1234-abcd-wxyz-123456789
-	rx := regexp.MustCompile("azure:///subscriptions/([^/]*)/*")
-	match := rx.FindStringSubmatch(id)
+	match := azureSubRegex.FindStringSubmatch(id)
 	if len(match) >= 2 {
 		return match[1]
 	}

@@ -7,8 +7,8 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/kubecost/opencost/pkg/log"
-	"github.com/kubecost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util/json"
 )
 
 // DataEnvelope is a generic wrapper struct for http response data

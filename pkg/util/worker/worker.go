@@ -5,8 +5,8 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/kubecost/opencost/pkg/collections"
-	"github.com/kubecost/opencost/pkg/util/atomic"
+	"github.com/opencost/opencost/pkg/collections"
+	"github.com/opencost/opencost/pkg/util/atomic"
 )
 
 // Worker is a transformation function from input type T to output type U.

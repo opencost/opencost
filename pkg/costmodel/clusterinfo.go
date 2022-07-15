@@ -3,13 +3,13 @@ package costmodel
 import (
 	"fmt"
 
-	cloudProvider "github.com/kubecost/opencost/pkg/cloud"
-	"github.com/kubecost/opencost/pkg/config"
-	"github.com/kubecost/opencost/pkg/costmodel/clusters"
-	"github.com/kubecost/opencost/pkg/env"
-	"github.com/kubecost/opencost/pkg/log"
-	"github.com/kubecost/opencost/pkg/thanos"
-	"github.com/kubecost/opencost/pkg/util/json"
+	cloudProvider "github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/config"
+	"github.com/opencost/opencost/pkg/costmodel/clusters"
+	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/thanos"
+	"github.com/opencost/opencost/pkg/util/json"
 
 	"k8s.io/client-go/kubernetes"
 )

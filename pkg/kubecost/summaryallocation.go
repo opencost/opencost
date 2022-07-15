@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/log"
 )
 
 // SummaryAllocation summarizes an Allocation, keeping only fields necessary

@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/log"
-	"github.com/kubecost/opencost/pkg/util"
-	"github.com/kubecost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/util/json"
 )
 
 // TODO Clean-up use of IsEmpty; nil checks should be separated for safety.
@@ -914,7 +914,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	shouldAggregate := aggregateBy != nil
 	shouldFilter := len(options.FilterFuncs) > 0
 	shouldShare := len(options.SharedHourlyCosts) > 0 || len(options.ShareFuncs) > 0
-	if !shouldAggregate && !shouldFilter && !shouldShare {
+	if !shouldAggregate && !shouldFilter && !shouldShare && options.ShareIdle == ShareNone {
 		// There is nothing for AggregateBy to do, so simply return nil
 		return nil
 	}
@@ -1889,6 +1889,9 @@ func (as *AllocationSet) Map() map[string]*Allocation {
 
 // MarshalJSON JSON-encodes the AllocationSet
 func (as *AllocationSet) MarshalJSON() ([]byte, error) {
+	if as == nil {
+		return json.Marshal(map[string]*Allocation{})
+	}
 	as.RLock()
 	defer as.RUnlock()
 	return json.Marshal(as.allocations)
@@ -2224,6 +2227,10 @@ func (asr *AllocationSetRange) Length() int {
 
 // MarshalJSON JSON-encodes the range
 func (asr *AllocationSetRange) MarshalJSON() ([]byte, error) {
+	if asr == nil {
+		return json.Marshal([]*AllocationSet{})
+	}
+
 	asr.RLock()
 	defer asr.RUnlock()
 	return json.Marshal(asr.allocations)

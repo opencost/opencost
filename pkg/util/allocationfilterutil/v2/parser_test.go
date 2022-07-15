@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/kubecost/opencost/pkg/kubecost"
+	"github.com/opencost/opencost/pkg/kubecost"
 )
 
 func allocGenerator(props kubecost.AllocationProperties) kubecost.Allocation {

@@ -57,4 +57,18 @@ package kubecost
 // @bingen:generate:PVAllocation
 // @bingen:end
 
-//go:generate bingen -package=kubecost -version=15 -buffer=github.com/kubecost/opencost/pkg/util
+// @bingen:set[name=Audit,version=1]
+// @bingen:generate:AllocationReconciliationAudit
+// @bingen:generate:TotalAudit
+// @bingen:generate:AggAudit
+// @bingen:generate:AuditFloatResult
+// @bingen:generate:AuditMissingValue
+// @bingen:generate:AssetReconciliationAudit
+// @bingen:generate:EqualityAudit
+// @bingen:generate:AuditType
+// @bingen:generate:AuditStatus
+// @bingen:generate[stringtable]:AuditSet
+// @bingen:generate:AuditSetRange
+// @bingen:end
+
+//go:generate bingen -package=kubecost -version=15 -buffer=github.com/opencost/opencost/pkg/util

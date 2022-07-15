@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/env"
 )
 
 func TestRoundBack(t *testing.T) {
@@ -321,6 +321,15 @@ func TestParseWindowUTC(t *testing.T) {
 	}
 	if march9to11.Contains(march152020) {
 		t.Fatalf(`expect: window March 9-11 to not contain March 15; actual: %s contains %s`, march9to11, march152020)
+	}
+}
+
+func BenchmarkParseWindowUTC(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		_, err := ParseWindowUTC("2020-04-08T00:00:00Z,2020-04-12T00:00:00Z")
+		if err != nil {
+			b.Fatalf("error running benchmark: %s", err.Error())
+		}
 	}
 }
 

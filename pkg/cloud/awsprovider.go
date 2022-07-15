@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	"github.com/kubecost/opencost/pkg/kubecost"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -16,13 +15,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/clustercache"
-	"github.com/kubecost/opencost/pkg/env"
-	"github.com/kubecost/opencost/pkg/errors"
-	"github.com/kubecost/opencost/pkg/log"
-	"github.com/kubecost/opencost/pkg/util"
-	"github.com/kubecost/opencost/pkg/util/fileutil"
-	"github.com/kubecost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/kubecost"
+
+	"github.com/opencost/opencost/pkg/clustercache"
+	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/errors"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/util/fileutil"
+	"github.com/opencost/opencost/pkg/util/json"
 
 	awsSDK "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -40,14 +41,23 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-const supportedSpotFeedVersion = "1"
-const SpotInfoUpdateType = "spotinfo"
-const AthenaInfoUpdateType = "athenainfo"
-const PreemptibleType = "preemptible"
+const (
+	supportedSpotFeedVersion = "1"
+	SpotInfoUpdateType       = "spotinfo"
+	AthenaInfoUpdateType     = "athenainfo"
+	PreemptibleType          = "preemptible"
 
-const APIPricingSource = "Public API"
-const SpotPricingSource = "Spot Data Feed"
-const ReservedInstancePricingSource = "Savings Plan, Reserved Instance, and Out-Of-Cluster"
+	APIPricingSource              = "Public API"
+	SpotPricingSource             = "Spot Data Feed"
+	ReservedInstancePricingSource = "Savings Plan, Reserved Instance, and Out-Of-Cluster"
+)
+
+var (
+	// It's of the form aws:///us-east-2a/i-0fea4fd46592d050b and we want i-0fea4fd46592d050b, if it exists
+	provIdRx      = regexp.MustCompile("aws:///([^/]+)/([^/]+)")
+	usageTypeRegx = regexp.MustCompile(".*(-|^)(EBS.+)")
+	versionRx     = regexp.MustCompile("^#Version: (\\d+)\\.\\d+$")
+)
 
 func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 
@@ -605,7 +615,6 @@ func (k *awsKey) GPUType() string {
 }
 
 func (k *awsKey) ID() string {
-	provIdRx := regexp.MustCompile("aws:///([^/]+)/([^/]+)") // It's of the form aws:///us-east-2a/i-0fea4fd46592d050b and we want i-0fea4fd46592d050b, if it exists
 	for matchNum, group := range provIdRx.FindStringSubmatch(k.ProviderID) {
 		if matchNum == 2 {
 			return group
@@ -932,7 +941,6 @@ func (aws *AWS) DownloadPricingData() error {
 				} else if strings.Contains(product.Attributes.UsageType, "EBS:Volume") {
 					// UsageTypes may be prefixed with a region code - we're removing this when using
 					// volTypes to keep lookups generic
-					usageTypeRegx := regexp.MustCompile(".*(-|^)(EBS.+)")
 					usageTypeMatch := usageTypeRegx.FindStringSubmatch(product.Attributes.UsageType)
 					usageTypeNoRegion := usageTypeMatch[len(usageTypeMatch)-1]
 					key := locationToRegion[product.Attributes.Location] + "," + usageTypeNoRegion
@@ -1992,7 +2000,6 @@ func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, re
 		keys = append(keys, obj.Key)
 	}
 
-	versionRx := regexp.MustCompile("^#Version: (\\d+)\\.\\d+$")
 	header, err := csvutil.Header(spotInfo{}, "csv")
 	if err != nil {
 		return nil, err

@@ -8,11 +8,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/env"
-	"github.com/kubecost/opencost/pkg/errors"
-	"github.com/kubecost/opencost/pkg/log"
-	"github.com/kubecost/opencost/pkg/util/httputil"
-	"github.com/kubecost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/errors"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util/httputil"
+	"github.com/opencost/opencost/pkg/util/json"
 	prometheus "github.com/prometheus/client_golang/api"
 )
 
@@ -189,18 +189,11 @@ func (ctx *Context) RawQuery(query string, t time.Time) ([]byte, error) {
 	q := u.Query()
 	q.Set("query", query)
 
-	if !t.IsZero() {
-		q.Set("time", strconv.FormatInt(t.Unix(), 10))
-	} else {
-		// for non-range queries, we set the timestamp for the query to time-offset
-		// this is a special use case that's typically only used when our primary
-		// prom db has delayed insertion (thanos, cortex, etc...)
-		if promQueryOffset != 0 && ctx.name != AllocationContextName {
-			q.Set("time", time.Now().Add(-promQueryOffset).UTC().Format(time.RFC3339))
-		} else {
-			q.Set("time", time.Now().UTC().Format(time.RFC3339))
-		}
+	if t.IsZero() {
+		t = time.Now()
 	}
+
+	q.Set("time", strconv.FormatInt(t.Unix(), 10))
 
 	u.RawQuery = q.Encode()
 

@@ -7,16 +7,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/cloud"
-	"github.com/kubecost/opencost/pkg/clustercache"
-	"github.com/kubecost/opencost/pkg/costmodel/clusters"
-	"github.com/kubecost/opencost/pkg/env"
-	"github.com/kubecost/opencost/pkg/errors"
-	"github.com/kubecost/opencost/pkg/log"
-	"github.com/kubecost/opencost/pkg/metrics"
-	"github.com/kubecost/opencost/pkg/prom"
-	"github.com/kubecost/opencost/pkg/util"
-	"github.com/kubecost/opencost/pkg/util/atomic"
+	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/clustercache"
+	"github.com/opencost/opencost/pkg/costmodel/clusters"
+	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/errors"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/metrics"
+	"github.com/opencost/opencost/pkg/prom"
+	"github.com/opencost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/util/atomic"
 
 	promclient "github.com/prometheus/client_golang/api"
 	"github.com/prometheus/client_golang/prometheus"
@@ -534,7 +534,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				const outlierFactor float64 = 30
 				// don't record cpuCost, ramCost, or gpuCost in the case of wild outliers
 				// k8s api sometimes causes cost spikes as described here:
-				// https://github.com/kubecost/opencost/issues/927
+				// https://github.com/opencost/opencost/issues/927
 				if cpuCost < outlierFactor*avgCosts.CpuCostAverage {
 					cmme.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(cpuCost)
 					avgCosts.CpuCostAverage = (avgCosts.CpuCostAverage*avgCosts.NumCpuDataPoints + cpuCost) / (avgCosts.NumCpuDataPoints + 1)
@@ -572,9 +572,9 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 			}
 			for lbKey, lb := range loadBalancers {
 				// TODO: parse (if necessary) and calculate cost associated with loadBalancer based on dynamic cloud prices fetched into each lb struct on GetLBCost() call
-				keyParts := getLabelStringsFromKey(lbKey)
-				namespace := keyParts[0]
-				serviceName := keyParts[1]
+
+				namespace := lbKey.Namespace
+				serviceName := lbKey.Service
 				ingressIP := ""
 				if len(lb.IngressIPAddresses) > 0 {
 					ingressIP = lb.IngressIPAddresses[0] // assumes one ingress IP per load balancer

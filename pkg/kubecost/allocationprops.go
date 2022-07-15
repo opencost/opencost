@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kubecost/opencost/pkg/log"
-	"github.com/kubecost/opencost/pkg/prom"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/prom"
 )
 
 const (

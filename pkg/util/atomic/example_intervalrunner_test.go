@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/util/atomic"
+	"github.com/opencost/opencost/pkg/util/atomic"
 )
 
 // IntervalRunner is an example implementation of AtomicRunState.

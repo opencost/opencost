@@ -3,7 +3,6 @@ package cloud
 import (
 	"context"
 	"fmt"
-	"github.com/kubecost/opencost/pkg/kubecost"
 	"io"
 	"io/ioutil"
 	"math"
@@ -14,13 +13,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/clustercache"
-	"github.com/kubecost/opencost/pkg/env"
-	"github.com/kubecost/opencost/pkg/log"
-	"github.com/kubecost/opencost/pkg/util"
-	"github.com/kubecost/opencost/pkg/util/fileutil"
-	"github.com/kubecost/opencost/pkg/util/json"
-	"github.com/kubecost/opencost/pkg/util/timeutil"
+	"github.com/opencost/opencost/pkg/kubecost"
+
+	"github.com/opencost/opencost/pkg/clustercache"
+	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/util/fileutil"
+	"github.com/opencost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 	"github.com/rs/zerolog"
 
 	"cloud.google.com/go/bigquery"
@@ -67,6 +68,13 @@ var gcpRegions = []string{
 	"us-west3",
 	"us-west4",
 }
+
+var (
+	nvidiaGPURegex = regexp.MustCompile("(Nvidia Tesla [^ ]+) ")
+	// gce://guestbook-12345/...
+	//  => guestbook-12345
+	gceRegex = regexp.MustCompile("gce://([^/]*)/*")
+)
 
 type userAgentTransport struct {
 	userAgent string
@@ -596,8 +604,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 					}
 				*/
 				var gpuType string
-				provIdRx := regexp.MustCompile("(Nvidia Tesla [^ ]+) ")
-				for matchnum, group := range provIdRx.FindStringSubmatch(product.Description) {
+				for matchnum, group := range nvidiaGPURegex.FindStringSubmatch(product.Description) {
 					if matchnum == 1 {
 						gpuType = strings.ToLower(strings.Join(strings.Split(group, " "), "-"))
 						log.Debug("GPU type found: " + gpuType)
@@ -1256,12 +1263,7 @@ func (gcp *gcpKey) ID() string {
 
 func (gcp *gcpKey) GPUType() string {
 	if t, ok := gcp.Labels[GKE_GPU_TAG]; ok {
-		var usageType string
-		if t, ok := gcp.Labels["cloud.google.com/gke-preemptible"]; ok && t == "true" {
-			usageType = "preemptible"
-		} else {
-			usageType = "ondemand"
-		}
+		usageType := getUsageType(gcp.Labels)
 		log.Debugf("GPU of type: \"%s\" found", t)
 		return t + "," + usageType
 	}
@@ -1308,13 +1310,7 @@ func (gcp *gcpKey) Features() string {
 
 	r, _ := util.GetRegion(gcp.Labels)
 	region := strings.ToLower(r)
-	var usageType string
-
-	if t, ok := gcp.Labels["cloud.google.com/gke-preemptible"]; ok && t == "true" {
-		usageType = "preemptible"
-	} else {
-		usageType = "ondemand"
-	}
+	usageType := getUsageType(gcp.Labels)
 
 	if _, ok := gcp.Labels[GKE_GPU_TAG]; ok {
 		return region + "," + instanceType + "," + usageType + "," + "gpu"
@@ -1401,11 +1397,20 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 func parseGCPProjectID(id string) string {
 	// gce://guestbook-12345/...
 	//  => guestbook-12345
-	rx := regexp.MustCompile("gce://([^/]*)/*")
-	match := rx.FindStringSubmatch(id)
+	match := gceRegex.FindStringSubmatch(id)
 	if len(match) >= 2 {
 		return match[1]
 	}
 	// Return empty string if an account could not be parsed from provided string
 	return ""
+}
+
+func getUsageType(labels map[string]string) string {
+	if t, ok := labels["cloud.google.com/gke-preemptible"]; ok && t == "true" {
+		return "preemptible"
+	} else if t, ok := labels["cloud.google.com/gke-spot"]; ok && t == "true" {
+		// https://cloud.google.com/kubernetes-engine/docs/concepts/spot-vms
+		return "preemptible"
+	}
+	return "ondemand"
 }

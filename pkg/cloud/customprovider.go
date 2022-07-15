@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/clustercache"
-	"github.com/kubecost/opencost/pkg/env"
-	"github.com/kubecost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/clustercache"
+	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/util/json"
 
 	v1 "k8s.io/api/core/v1"
 )

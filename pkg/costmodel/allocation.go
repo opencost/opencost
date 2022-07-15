@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/util/timeutil"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 
-	"github.com/kubecost/opencost/pkg/cloud"
-	"github.com/kubecost/opencost/pkg/env"
-	"github.com/kubecost/opencost/pkg/kubecost"
-	"github.com/kubecost/opencost/pkg/log"
-	"github.com/kubecost/opencost/pkg/prom"
+	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/kubecost"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/prom"
 	"k8s.io/apimachinery/pkg/labels"
 )
 
@@ -2489,21 +2489,10 @@ type LB struct {
 
 func getLoadBalancerCosts(resLBCost, resLBActiveMins []*prom.QueryResult, resolution time.Duration) map[serviceKey]*LB {
 	lbMap := make(map[serviceKey]*LB)
-	lbHourlyCosts := make(map[serviceKey]float64)
-	for _, res := range resLBCost {
-		serviceKey, err := resultServiceKey(res, env.GetPromClusterLabel(), "namespace", "service_name")
-		if err != nil {
-			continue
-		}
-		lbHourlyCosts[serviceKey] = res.Values[0].Value
-	}
+
 	for _, res := range resLBActiveMins {
 		serviceKey, err := resultServiceKey(res, env.GetPromClusterLabel(), "namespace", "service_name")
 		if err != nil || len(res.Values) == 0 {
-			continue
-		}
-		if _, ok := lbHourlyCosts[serviceKey]; !ok {
-			log.Warnf("CostModel: failed to find hourly cost for Load Balancer: %v", serviceKey)
 			continue
 		}
 
@@ -2511,12 +2500,25 @@ func getLoadBalancerCosts(resLBCost, resLBActiveMins []*prom.QueryResult, resolu
 		// subtract resolution from start time to cover full time period
 		s = s.Add(-resolution)
 		e := time.Unix(int64(res.Values[len(res.Values)-1].Timestamp), 0)
-		hours := e.Sub(s).Hours()
 
 		lbMap[serviceKey] = &LB{
-			TotalCost: lbHourlyCosts[serviceKey] * hours,
-			Start:     s,
-			End:       e,
+			Start: s,
+			End:   e,
+		}
+	}
+
+	for _, res := range resLBCost {
+		serviceKey, err := resultServiceKey(res, env.GetPromClusterLabel(), "namespace", "service_name")
+		if err != nil {
+			continue
+		}
+		// Apply cost as price-per-hour * hours
+		if lb, ok := lbMap[serviceKey]; ok {
+			lbPricePerHr := res.Values[0].Value
+			hours := lb.End.Sub(lb.Start).Hours()
+			lb.TotalCost += lbPricePerHr * hours
+		} else {
+			log.DedupedWarningf(20, "CostModel: found minutes for key that does not exist: %s", serviceKey)
 		}
 	}
 	return lbMap

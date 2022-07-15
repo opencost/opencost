@@ -1,6 +1,7 @@
 package kubecost
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -56,6 +57,36 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 			},
 
 			expected: false,
+		},
+		{
+			name: "ClusterID empty StartsWith '' -> true",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Cluster: "",
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterClusterID,
+				Op:    FilterStartsWith,
+				Value: "",
+			},
+
+			expected: true,
+		},
+		{
+			name: "ClusterID nonempty StartsWith '' -> true",
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Cluster: "abc",
+				},
+			},
+			filter: AllocationFilterCondition{
+				Field: FilterClusterID,
+				Op:    FilterStartsWith,
+				Value: "",
+			},
+
+			expected: true,
 		},
 		{
 			name: "Node Equals -> true",
@@ -819,5 +850,148 @@ func Test_AllocationFilterOr_Matches(t *testing.T) {
 		if result != c.expected {
 			t.Errorf("%s: expected %t, got %t", c.name, c.expected, result)
 		}
+	}
+}
+
+func Test_AllocationFilter_Flattened(t *testing.T) {
+	cases := []struct {
+		name string
+
+		input    AllocationFilter
+		expected AllocationFilter
+	}{
+		{
+			name: "AllocationFilterCondition",
+			input: AllocationFilterCondition{
+				Field: FilterNamespace,
+				Op:    FilterEquals,
+			},
+			expected: AllocationFilterCondition{
+				Field: FilterNamespace,
+				Op:    FilterEquals,
+			},
+		},
+		{
+			name:     "empty AllocationFilterAnd (nil)",
+			input:    AllocationFilterAnd{},
+			expected: nil,
+		},
+		{
+			name:     "empty AllocationFilterAnd (len 0)",
+			input:    AllocationFilterAnd{Filters: []AllocationFilter{}},
+			expected: nil,
+		},
+		{
+			name:     "empty AllocationFilterOr (nil)",
+			input:    AllocationFilterOr{},
+			expected: nil,
+		},
+		{
+			name:     "empty AllocationFilterOr (len 0)",
+			input:    AllocationFilterOr{Filters: []AllocationFilter{}},
+			expected: nil,
+		},
+		{
+			name: "single-element AllocationFilterAnd",
+			input: AllocationFilterAnd{Filters: []AllocationFilter{
+				AllocationFilterCondition{
+					Field: FilterNamespace,
+					Op:    FilterEquals,
+				},
+			}},
+
+			expected: AllocationFilterCondition{
+				Field: FilterNamespace,
+				Op:    FilterEquals,
+			},
+		},
+		{
+			name: "single-element AllocationFilterOr",
+			input: AllocationFilterOr{Filters: []AllocationFilter{
+				AllocationFilterCondition{
+					Field: FilterNamespace,
+					Op:    FilterEquals,
+				},
+			}},
+
+			expected: AllocationFilterCondition{
+				Field: FilterNamespace,
+				Op:    FilterEquals,
+			},
+		},
+		{
+			name: "multi-element AllocationFilterAnd",
+			input: AllocationFilterAnd{Filters: []AllocationFilter{
+				AllocationFilterCondition{
+					Field: FilterNamespace,
+					Op:    FilterEquals,
+				},
+				AllocationFilterCondition{
+					Field: FilterClusterID,
+					Op:    FilterNotEquals,
+				},
+				AllocationFilterCondition{
+					Field: FilterServices,
+					Op:    FilterContains,
+				},
+			}},
+
+			expected: AllocationFilterAnd{Filters: []AllocationFilter{
+				AllocationFilterCondition{
+					Field: FilterNamespace,
+					Op:    FilterEquals,
+				},
+				AllocationFilterCondition{
+					Field: FilterClusterID,
+					Op:    FilterNotEquals,
+				},
+				AllocationFilterCondition{
+					Field: FilterServices,
+					Op:    FilterContains,
+				},
+			}},
+		},
+		{
+			name: "multi-element AllocationFilterOr",
+			input: AllocationFilterOr{Filters: []AllocationFilter{
+				AllocationFilterCondition{
+					Field: FilterNamespace,
+					Op:    FilterEquals,
+				},
+				AllocationFilterCondition{
+					Field: FilterClusterID,
+					Op:    FilterNotEquals,
+				},
+				AllocationFilterCondition{
+					Field: FilterServices,
+					Op:    FilterContains,
+				},
+			}},
+
+			expected: AllocationFilterOr{Filters: []AllocationFilter{
+				AllocationFilterCondition{
+					Field: FilterNamespace,
+					Op:    FilterEquals,
+				},
+				AllocationFilterCondition{
+					Field: FilterClusterID,
+					Op:    FilterNotEquals,
+				},
+				AllocationFilterCondition{
+					Field: FilterServices,
+					Op:    FilterContains,
+				},
+			}},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			result := c.input.Flattened()
+
+			if !reflect.DeepEqual(result, c.expected) {
+				t.Errorf("Expected: '%s'. Got '%s'.", c.expected, result)
+			}
+		})
 	}
 }

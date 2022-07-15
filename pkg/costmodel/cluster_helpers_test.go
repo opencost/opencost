@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/cloud"
-	"github.com/kubecost/opencost/pkg/config"
-	"github.com/kubecost/opencost/pkg/prom"
-	"github.com/kubecost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/config"
+	"github.com/opencost/opencost/pkg/prom"
+	"github.com/opencost/opencost/pkg/util"
 
 	"github.com/davecgh/go-spew/spew"
 )

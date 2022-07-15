@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/util"
-	"github.com/kubecost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/util/json"
 )
 
 func TestAllocation_Add(t *testing.T) {
@@ -2368,8 +2368,60 @@ func TestAllocationSetRange_InsertRange(t *testing.T) {
 // TODO niko/etl
 // func TestAllocationSetRange_Length(t *testing.T) {}
 
-// TODO niko/etl
-// func TestAllocationSetRange_MarshalJSON(t *testing.T) {}
+func TestAllocationSetRange_MarshalJSON(t *testing.T) {
+
+	tests := []struct {
+		name     string
+		arg      *AllocationSetRange
+		expected *AllocationSetRange
+	}{
+		{
+			name: "Nil ASR",
+			arg:  nil,
+		},
+		{
+			name: "Nil AS in ASR",
+			arg:  NewAllocationSetRange(nil),
+		},
+		{
+			name: "Normal ASR",
+			arg: &AllocationSetRange{
+				allocations: []*AllocationSet{
+					{
+						allocations: map[string]*Allocation{
+							"a": {
+								Start: time.Now().UTC().Truncate(day),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+
+		bytes, err := json.Marshal(test.arg)
+		if err != nil {
+			t.Fatalf("ASR Marshal: test %s, unexpected error: %s", test.name, err)
+		}
+
+		var testASR []*AllocationSet
+		marshaled := &testASR
+
+		err = json.Unmarshal(bytes, marshaled)
+
+		if err != nil {
+			t.Fatalf("ASR Unmarshal: test %s: unexpected error: %s", test.name, err)
+		}
+
+		if test.arg.Length() != len(testASR) {
+			t.Fatalf("ASR Unmarshal: test %s: length mutated in encoding: expected %d but got %d", test.name, test.arg.Length(), len(testASR))
+		}
+
+		// Allocations don't unmarshal back from json
+	}
+}
 
 // TODO niko/etl
 // func TestAllocationSetRange_Slice(t *testing.T) {}

@@ -4,7 +4,7 @@
 
 OpenCost models give teams visibility into current and historical Kubernetes spend and resource allocation. These models provide cost transparency in Kubernetes environments that support multiple applications, teams, departments, etc.
 
-OpenCost was originally developed and [open sourced](https://github.com/kubecost/opencost/issues/1224) by [Kubecost](https://kubecost.com). This project combines a [specification](/spec/) as well as a Golang implementation of these detailed requirements.
+OpenCost was originally developed and [open sourced](https://github.com/opencost/opencost/issues/1224) by [Kubecost](https://kubecost.com). This project combines a [specification](/spec/) as well as a Golang implementation of these detailed requirements.
 
 ![OpenCost allocation UI](/allocation-drilldown.gif)
 
@@ -66,7 +66,7 @@ Resources are allocated based on the time-weighted maximum of resource Requests 
 
 ### _How do I set my AWS Spot estimates for cost allocation?_
 
-Modify [spotCPU](https://github.com/kubecost/opencost/blob/master/configs/default.json#L5) and [spotRAM](https://github.com/kubecost/opencost/blob/master/configs/default.json#L7) in default.json to the level of recent market prices. Allocation will use these prices, but it does not take into account what you are actually charged by AWS. Alternatively, you can provide an AWS key to allow access to the Spot data feed. This will provide accurate Spot price reconciliation.
+Modify [spotCPU](https://github.com/opencost/opencost/blob/master/configs/default.json#L5) and [spotRAM](https://github.com/opencost/opencost/blob/master/configs/default.json#L7) in default.json to the level of recent market prices. Allocation will use these prices, but it does not take into account what you are actually charged by AWS. Alternatively, you can provide an AWS key to allow access to the Spot data feed. This will provide accurate Spot price reconciliation.
 
 ### _Do I need a GCP billing API key?_
 
