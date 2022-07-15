@@ -2,7 +2,7 @@
 
 Thanks for your help improving the OpenCost project! There are many ways to contribute to the project, including the following:
 
-* contributing or providing feedback on the [OpenCost Spec](https://github.com/kubecost/opencost/tree/develop/spec)
+* contributing or providing feedback on the [OpenCost Spec](https://github.com/opencost/opencost/tree/develop/spec)
 * contributing documentation 
 * joining the discussion on Slack or in [OpenCost community discussions](https://drive.google.com/drive/folders/1hXlcyFPePB7t3z6lyVzdxmdfrbzeT1Jz)
 * committing software via the workflow below
@@ -25,8 +25,8 @@ This repository's contribution workflow follows a typical open-source model:
 Follow these steps to build from source and deploy:
 
 1. `docker build --rm -f "Dockerfile" -t <repo>/kubecost-cost-model:<tag> .`
-2. Edit the [pulled image](https://github.com/kubecost/opencost/blob/master/kubernetes/deployment.yaml#L25) in the deployment.yaml to <repo>/kubecost-cost-model:<tag>
-3. Set [this environment variable](https://github.com/kubecost/opencost/blob/master/kubernetes/deployment.yaml#L33) to the address of your prometheus server
+2. Edit the [pulled image](https://github.com/opencost/opencost/blob/master/kubernetes/deployment.yaml#L25) in the deployment.yaml to <repo>/kubecost-cost-model:<tag>
+3. Set [this environment variable](https://github.com/opencost/opencost/blob/master/kubernetes/deployment.yaml#L33) to the address of your prometheus server
 4. `kubectl create namespace cost-model`
 5. `kubectl apply -f kubernetes/ --namespace cost-model`
 6. `kubectl port-forward --namespace cost-model service/cost-model 9003`

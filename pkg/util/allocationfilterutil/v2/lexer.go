@@ -5,7 +5,7 @@ import (
 
 	multierror "github.com/hashicorp/go-multierror"
 
-	"github.com/kubecost/opencost/pkg/kubecost"
+	"github.com/opencost/opencost/pkg/kubecost"
 )
 
 // ============================================================================

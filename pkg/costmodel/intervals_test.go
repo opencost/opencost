@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/kubecost"
+	"github.com/opencost/opencost/pkg/kubecost"
 )
 
 func TestGetIntervalPointsFromWindows(t *testing.T) {

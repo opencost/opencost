@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/log"
-	"github.com/kubecost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util/json"
 )
 
 // UndefinedKey is used in composing Asset group keys if the group does not have that property defined.

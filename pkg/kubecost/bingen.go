@@ -71,4 +71,4 @@ package kubecost
 // @bingen:generate:AuditSetRange
 // @bingen:end
 
-//go:generate bingen -package=kubecost -version=15 -buffer=github.com/kubecost/opencost/pkg/util
+//go:generate bingen -package=kubecost -version=15 -buffer=github.com/opencost/opencost/pkg/util

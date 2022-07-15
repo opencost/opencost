@@ -2,8 +2,9 @@ package kubecost
 
 import (
 	"fmt"
-	"github.com/kubecost/opencost/pkg/util/json"
 	"sync"
+
+	"github.com/opencost/opencost/pkg/util/json"
 )
 
 // SetRange is a generic implementation of the SetRanges that act as containers. It covers the basic functionality that

@@ -3,15 +3,16 @@ package clusters
 import (
 	"context"
 	"fmt"
-	"github.com/kubecost/opencost/pkg/env"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/log"
-	"github.com/kubecost/opencost/pkg/prom"
-	"github.com/kubecost/opencost/pkg/thanos"
-	"github.com/kubecost/opencost/pkg/util/retry"
+	"github.com/opencost/opencost/pkg/env"
+
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/prom"
+	"github.com/opencost/opencost/pkg/thanos"
+	"github.com/opencost/opencost/pkg/util/retry"
 
 	prometheus "github.com/prometheus/client_golang/api"
 )

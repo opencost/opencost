@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/util/interval"
+	"github.com/opencost/opencost/pkg/util/interval"
 	"golang.org/x/sync/singleflight"
 )
 
