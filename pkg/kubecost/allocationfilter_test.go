@@ -838,6 +838,21 @@ func Test_AllocationFilterAnd_Matches(t *testing.T) {
 			}},
 			expected: false,
 		},
+		{
+			name: `(and none) matches nothing`,
+			a: &Allocation{
+				Properties: &AllocationProperties{
+					Namespace: "kube-system",
+					Labels: map[string]string{
+						"app": "bar",
+					},
+				},
+			},
+			filter: AllocationFilterAnd{[]AllocationFilter{
+				AllocationFilterNone{},
+			}},
+			expected: false,
+		},
 	}
 
 	for _, c := range cases {
