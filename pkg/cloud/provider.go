@@ -522,7 +522,7 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 		cp.provider = kubecost.AzureProvider
 		cp.configFileName = "azure.json"
 		cp.accountID = parseAzureSubscriptionID(providerID)
-	} else if strings.HasPrefix(providerID, "scaleway") {
+	} else if strings.HasPrefix(providerID, "scaleway") { // the scaleway provider ID looks like scaleway://instance/<instance_id>
 		cp.provider = kubecost.ScalewayProvider
 		cp.configFileName = "scaleway.json"
 	}

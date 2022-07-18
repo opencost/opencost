@@ -51,6 +51,7 @@ func (c *Scaleway) DownloadPricingData() error {
 
 	c.Pricing = make(map[string]*ScalewayPricing)
 
+	// The endpoint we are trying to hit does not have authentication, but the scw client needs to be created with some default, hence these dummy values (regex parsing ftw)
 	client, err := scw.NewClient(scw.WithAuth("SCWXXXXXXXXXXXXXXXXX", "00000000-0000-0000-0000-000000000000"), scw.WithDefaultProjectID("00000000-0000-0000-0000-000000000000"))
 	if err != nil {
 		return err
@@ -104,7 +105,6 @@ func (c *Scaleway) NodePricing(key Key) (*Node, error) {
 	split := strings.Split(key.Features(), ",")
 	if pricing, ok := c.Pricing[split[0]]; ok {
 		if info, ok := pricing.NodesInfos[split[1]]; ok {
-			log.Infof("Using features:`%s`", key.Features())
 			return &Node{
 				Cost:        fmt.Sprintf("%f", info.HourlyPrice),
 				PricingType: DefaultPrices,
