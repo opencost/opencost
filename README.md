@@ -71,3 +71,5 @@ Modify [spotCPU](https://github.com/opencost/opencost/blob/master/configs/defaul
 ### _Do I need a GCP billing API key?_
 
 We supply a global key with a low limit for evaluation, but you will want to supply your own before moving to production.
+
+Changed by Thomas Evans
