@@ -13,10 +13,14 @@ func TestGenerateKey(t *testing.T) {
 		expected        string
 	}{
 <<<<<<< HEAD
+<<<<<<< HEAD
 		"aggregateregate by owner without owner labels": {
 =======
 		"agg by owner with labels": {
 >>>>>>> Recognizes annotations when aggregating by owner
+=======
+		"aggregate by owner without owner labels": {
+>>>>>>> fixed test case wording
 			aggregate: []string{"owner"},
 			allocationProps: &AllocationProperties{
 				Labels:      map[string]string{"app": "cost-analyzer"},
