@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/log"
 	"github.com/patrickmn/go-cache"
 )
 
@@ -411,7 +411,7 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 
 			arts[key].Count++
 			arts[key].LoadBalancerCost += lb.Cost
-			arts[key].LoadBalancerCost += lb.adjustment
+			arts[key].LoadBalancerCostAdjustment += lb.adjustment
 		} else if cm, ok := asset.(*ClusterManagement); ok && prop == AssetClusterProp {
 			// Only record cluster management when prop is Cluster because we
 			// can't break down ClusterManagement by node.
@@ -426,7 +426,8 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 			}
 
 			arts[key].Count++
-			arts[key].ClusterManagementCost += cm.TotalCost()
+			arts[key].ClusterManagementCost += cm.Cost
+			arts[key].ClusterManagementCostAdjustment += cm.adjustment
 		} else if disk, ok := asset.(*Disk); ok {
 			// Record disks in an intermediate structure, which will be
 			// processed after all assets have been seen.

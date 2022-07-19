@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/log"
-	"github.com/kubecost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util/json"
 )
 
 // UndefinedKey is used in composing Asset group keys if the group does not have that property defined.
@@ -856,6 +856,7 @@ type ClusterManagement struct {
 	labels     AssetLabels
 	properties *AssetProperties
 	window     Window
+	adjustment float64
 	Cost       float64
 }
 
@@ -902,17 +903,17 @@ func (cm *ClusterManagement) SetLabels(props AssetLabels) {
 
 // Adjustment does not apply to ClusterManagement
 func (cm *ClusterManagement) Adjustment() float64 {
-	return 0.0
+	return cm.adjustment
 }
 
 // SetAdjustment does not apply to ClusterManagement
-func (cm *ClusterManagement) SetAdjustment(float64) {
-	return
+func (cm *ClusterManagement) SetAdjustment(adj float64) {
+	cm.adjustment = adj
 }
 
 // TotalCost returns the Asset's total cost
 func (cm *ClusterManagement) TotalCost() float64 {
-	return cm.Cost
+	return cm.Cost + cm.adjustment
 }
 
 // Start returns the Asset's precise start time within the window
@@ -991,6 +992,7 @@ func (cm *ClusterManagement) add(that *ClusterManagement) {
 	cm.window = window
 	cm.SetProperties(props)
 	cm.SetLabels(labels)
+	cm.adjustment += that.adjustment
 	cm.Cost += that.Cost
 }
 
@@ -1000,6 +1002,7 @@ func (cm *ClusterManagement) Clone() Asset {
 		labels:     cm.labels.Clone(),
 		properties: cm.properties.Clone(),
 		window:     cm.window.Clone(),
+		adjustment: cm.adjustment,
 		Cost:       cm.Cost,
 	}
 }
@@ -1019,6 +1022,10 @@ func (cm *ClusterManagement) Equal(a Asset) bool {
 	}
 
 	if !cm.window.Equal(that.window) {
+		return false
+	}
+
+	if cm.adjustment != that.adjustment {
 		return false
 	}
 
@@ -3090,6 +3097,9 @@ func (asr *AssetSetRange) IsEmpty() bool {
 }
 
 func (asr *AssetSetRange) MarshalJSON() ([]byte, error) {
+	if asr == nil {
+		return json.Marshal([]*AssetSet{})
+	}
 	asr.RLock()
 	defer asr.RUnlock()
 	return json.Marshal(asr.assets)

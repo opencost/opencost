@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/kubecost/opencost/pkg/kubecost"
 	"io"
 	"regexp"
 	"strconv"
@@ -12,15 +11,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/kubecost"
+
+	"github.com/opencost/opencost/pkg/util"
 
 	"cloud.google.com/go/compute/metadata"
 
-	"github.com/kubecost/opencost/pkg/clustercache"
-	"github.com/kubecost/opencost/pkg/config"
-	"github.com/kubecost/opencost/pkg/env"
-	"github.com/kubecost/opencost/pkg/log"
-	"github.com/kubecost/opencost/pkg/util/watcher"
+	"github.com/opencost/opencost/pkg/clustercache"
+	"github.com/opencost/opencost/pkg/config"
+	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util/watcher"
 
 	v1 "k8s.io/api/core/v1"
 )
@@ -607,20 +608,27 @@ func GetOrCreateClusterMeta(cluster_id, cluster_name string) (string, string, er
 	return id, name, nil
 }
 
+var (
+	// It's of the form aws:///us-east-2a/i-0fea4fd46592d050b and we want i-0fea4fd46592d050b, if it exists
+	providerAWSRegex = regexp.MustCompile("aws://[^/]*/[^/]*/([^/]+)")
+	// gce://guestbook-227502/us-central1-a/gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
+	//  => gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
+	providerGCERegex = regexp.MustCompile("gce://[^/]*/[^/]*/([^/]+)")
+	// Capture "vol-0fc54c5e83b8d2b76" from "aws://us-east-2a/vol-0fc54c5e83b8d2b76"
+	persistentVolumeAWSRegex = regexp.MustCompile("aws:/[^/]*/[^/]*/([^/]+)")
+	// Capture "ad9d88195b52a47c89b5055120f28c58" from "ad9d88195b52a47c89b5055120f28c58-1037804914.us-east-2.elb.amazonaws.com"
+	loadBalancerAWSRegex = regexp.MustCompile("^([^-]+)-.+amazonaws\\.com$")
+)
+
 // ParseID attempts to parse a ProviderId from a string based on formats from the various providers and
 // returns the string as is if it cannot find a match
 func ParseID(id string) string {
-	// It's of the form aws:///us-east-2a/i-0fea4fd46592d050b and we want i-0fea4fd46592d050b, if it exists
-	rx := regexp.MustCompile("aws://[^/]*/[^/]*/([^/]+)")
-	match := rx.FindStringSubmatch(id)
+	match := providerAWSRegex.FindStringSubmatch(id)
 	if len(match) >= 2 {
 		return match[1]
 	}
 
-	// gce://guestbook-227502/us-central1-a/gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
-	//  => gke-niko-n1-standard-2-wljla-8df8e58a-hfy7
-	rx = regexp.MustCompile("gce://[^/]*/[^/]*/([^/]+)")
-	match = rx.FindStringSubmatch(id)
+	match = providerGCERegex.FindStringSubmatch(id)
 	if len(match) >= 2 {
 		return match[1]
 	}
@@ -632,9 +640,7 @@ func ParseID(id string) string {
 // ParsePVID attempts to parse a PV ProviderId from a string based on formats from the various providers and
 // returns the string as is if it cannot find a match
 func ParsePVID(id string) string {
-	// Capture "vol-0fc54c5e83b8d2b76" from "aws://us-east-2a/vol-0fc54c5e83b8d2b76"
-	rx := regexp.MustCompile("aws:/[^/]*/[^/]*/([^/]+)")
-	match := rx.FindStringSubmatch(id)
+	match := persistentVolumeAWSRegex.FindStringSubmatch(id)
 	if len(match) >= 2 {
 		return match[1]
 	}
@@ -646,8 +652,7 @@ func ParsePVID(id string) string {
 // ParseLBID attempts to parse a LB ProviderId from a string based on formats from the various providers and
 // returns the string as is if it cannot find a match
 func ParseLBID(id string) string {
-	rx := regexp.MustCompile("^([^-]+)-.+amazonaws\\.com$") // Capture "ad9d88195b52a47c89b5055120f28c58" from "ad9d88195b52a47c89b5055120f28c58-1037804914.us-east-2.elb.amazonaws.com"
-	match := rx.FindStringSubmatch(id)
+	match := loadBalancerAWSRegex.FindStringSubmatch(id)
 	if len(match) >= 2 {
 		return match[1]
 	}

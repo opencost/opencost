@@ -14,15 +14,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/config"
-	"github.com/kubecost/opencost/pkg/kubeconfig"
-	"github.com/kubecost/opencost/pkg/metrics"
-	"github.com/kubecost/opencost/pkg/services"
-	"github.com/kubecost/opencost/pkg/util/httputil"
-	"github.com/kubecost/opencost/pkg/util/timeutil"
-	"github.com/kubecost/opencost/pkg/util/watcher"
-	"github.com/kubecost/opencost/pkg/version"
 	"github.com/microcosm-cc/bluemonday"
+	"github.com/opencost/opencost/pkg/config"
+	"github.com/opencost/opencost/pkg/kubeconfig"
+	"github.com/opencost/opencost/pkg/metrics"
+	"github.com/opencost/opencost/pkg/services"
+	"github.com/opencost/opencost/pkg/util/httputil"
+	"github.com/opencost/opencost/pkg/util/timeutil"
+	"github.com/opencost/opencost/pkg/util/watcher"
+	"github.com/opencost/opencost/pkg/version"
 	"github.com/spf13/viper"
 
 	v1 "k8s.io/api/core/v1"
@@ -31,16 +31,16 @@ import (
 
 	sentry "github.com/getsentry/sentry-go"
 
-	"github.com/kubecost/opencost/pkg/cloud"
-	"github.com/kubecost/opencost/pkg/clustercache"
-	"github.com/kubecost/opencost/pkg/costmodel/clusters"
-	"github.com/kubecost/opencost/pkg/env"
-	"github.com/kubecost/opencost/pkg/errors"
-	"github.com/kubecost/opencost/pkg/kubecost"
-	"github.com/kubecost/opencost/pkg/log"
-	"github.com/kubecost/opencost/pkg/prom"
-	"github.com/kubecost/opencost/pkg/thanos"
-	"github.com/kubecost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/clustercache"
+	"github.com/opencost/opencost/pkg/costmodel/clusters"
+	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/errors"
+	"github.com/opencost/opencost/pkg/kubecost"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/prom"
+	"github.com/opencost/opencost/pkg/thanos"
+	"github.com/opencost/opencost/pkg/util/json"
 	prometheus "github.com/prometheus/client_golang/api"
 	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -510,7 +510,7 @@ func (a *Accesses) CostDataModelRange(w http.ResponseWriter, r *http.Request, ps
 	}
 
 	window := kubecost.NewWindow(&start, &end)
-	if window.IsOpen() || window.IsEmpty() || window.IsNegative() {
+	if window.IsOpen() || !window.HasDuration() || window.IsNegative() {
 		w.Write(WrapDataWithMessage(nil, fmt.Errorf("invalid date range: %s", window), fmt.Sprintf("invalid date range: %s", window)))
 		return
 	}
@@ -1600,7 +1600,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	// ClusterInfo Provider to provide the cluster map with local and remote cluster data
 	var clusterInfoProvider clusters.ClusterInfoProvider
 	if env.IsClusterInfoFileEnabled() {
-		clusterInfoFile := confManager.ConfigFileAt(path.Join(configPrefix, " cluster-info.json"))
+		clusterInfoFile := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-info.json"))
 		clusterInfoProvider = NewConfiguredClusterInfoProvider(clusterInfoFile)
 	} else {
 		clusterInfoProvider = NewLocalClusterInfoProvider(kubeClientset, cloudProvider)

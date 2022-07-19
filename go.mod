@@ -1,4 +1,4 @@
-module github.com/kubecost/opencost
+module github.com/opencost/opencost
 
 replace github.com/golang/lint => golang.org/x/lint v0.0.0-20180702182130-06c8688daad7
 
@@ -29,7 +29,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/jszwec/csvutil v1.2.1
 	github.com/julienschmidt/httprouter v1.3.0
-	github.com/kubecost/events v0.0.4
+	github.com/kubecost/events v0.0.6
 	github.com/lib/pq v1.2.0
 	github.com/microcosm-cc/bluemonday v1.0.16
 	github.com/minio/minio-go/v7 v7.0.15

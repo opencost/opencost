@@ -3,10 +3,10 @@ package clustercache
 import (
 	"time"
 
-	"github.com/kubecost/opencost/pkg/config"
-	"github.com/kubecost/opencost/pkg/log"
-	"github.com/kubecost/opencost/pkg/util/atomic"
-	"github.com/kubecost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/config"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util/atomic"
+	"github.com/opencost/opencost/pkg/util/json"
 
 	appsv1 "k8s.io/api/apps/v1"
 	autoscaling "k8s.io/api/autoscaling/v2beta1"

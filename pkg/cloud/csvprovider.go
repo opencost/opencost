@@ -5,19 +5,18 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/env"
-	"github.com/kubecost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/util"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/kubecost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/log"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/jszwec/csvutil"
@@ -240,7 +239,6 @@ func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
 		}
 	}
 	if len(mf) == 2 && mf[0] == "spec" && mf[1] == "providerID" {
-		provIdRx := regexp.MustCompile("aws:///([^/]+)/([^/]+)") // It's of the form aws:///us-east-2a/i-0fea4fd46592d050b and we want i-0fea4fd46592d050b, if it exists
 		for matchNum, group := range provIdRx.FindStringSubmatch(n.Spec.ProviderID) {
 			if matchNum == 2 {
 				return toReturn + group

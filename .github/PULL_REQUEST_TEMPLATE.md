@@ -16,5 +16,5 @@
 ## Does this PR require changes to documentation?
 * 
 
-## Have you labeled this PR and its corresponding Issue as "next release" if it should be part of the next Kubecost release? If not, why not?
+## Have you labeled this PR and its corresponding Issue as "next release" if it should be part of the next Opencost release? If not, why not?
 * 

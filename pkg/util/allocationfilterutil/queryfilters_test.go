@@ -3,9 +3,9 @@ package allocationfilterutil
 import (
 	"testing"
 
-	"github.com/kubecost/opencost/pkg/costmodel/clusters"
-	"github.com/kubecost/opencost/pkg/kubecost"
-	"github.com/kubecost/opencost/pkg/util/mapper"
+	"github.com/opencost/opencost/pkg/costmodel/clusters"
+	"github.com/opencost/opencost/pkg/kubecost"
+	"github.com/opencost/opencost/pkg/util/mapper"
 )
 
 type mockClusterMap struct {

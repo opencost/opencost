@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/util/json"
 )
 
 // Encoding and decoding logic for Asset types
@@ -709,6 +709,9 @@ func (sa *SharedAsset) InterfaceToSharedAsset(itf interface{}) error {
 
 // MarshalJSON JSON-encodes the AssetSet
 func (as *AssetSet) MarshalJSON() ([]byte, error) {
+	if as == nil {
+		return json.Marshal(map[string]Asset{})
+	}
 	as.RLock()
 	defer as.RUnlock()
 	return json.Marshal(as.assets)
