@@ -17,7 +17,7 @@ const (
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
 
 	KubecostNamespaceEnvVar        = "KUBECOST_NAMESPACE"
-	KubecostPodEnvVar              = "KUBECOST_POD"
+	PodNameEnvVar                  = "POD_NAME"
 	ClusterIDEnvVar                = "CLUSTER_ID"
 	ClusterProfileEnvVar           = "CLUSTER_PROFILE"
 	PrometheusServerEndpointEnvVar = "PROMETHEUS_SERVER_ENDPOINT"
@@ -211,10 +211,10 @@ func GetKubecostNamespace() string {
 	return Get(KubecostNamespaceEnvVar, "kubecost")
 }
 
-// GetKubecostPod returns the name of the current running pod. If this environment variable is not set,
+// GetPodName returns the name of the current running pod. If this environment variable is not set,
 // empty string is returned.
-func GetKubecostPod() string {
-	return Get(KubecostPodEnvVar, "")
+func GetPodName() string {
+	return Get(PodNameEnvVar, "")
 }
 
 // GetClusterProfile returns the environment variable value for ClusterProfileEnvVar which
