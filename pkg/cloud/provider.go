@@ -178,6 +178,12 @@ type CustomPricing struct {
 	AzureTenantID                string `json:"azureTenantID"`
 	AzureBillingRegion           string `json:"azureBillingRegion"`
 	AzureOfferDurableID          string `json:"azureOfferDurableID"`
+	AzureStorageSubscriptionID   string `json:"azureStorageSubscriptionID"`
+	AzureStorageAccount          string `json:"azureStorageAccount"`
+	AzureStorageAccessKey        string `json:"azureStorageAccessKey"`
+	AzureStorageContainer        string `json:"azureStorageContainer"`
+	AzureContainerPath           string `json:"azureContainerPath"`
+	AzureCloud                   string `json:"azureCloud"`
 	CurrencyCode                 string `json:"currencyCode"`
 	Discount                     string `json:"discount"`
 	NegotiatedDiscount           string `json:"negotiatedDiscount"`

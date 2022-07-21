@@ -293,8 +293,10 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	}
 
 	// TODO:CLEANUP remove "max batch" idea and clusterStart/End
-	cm.buildPodMap(window, resolution, env.GetETLMaxPrometheusQueryDuration(), podMap, clusterStart, clusterEnd, ingestPodUID, podUIDKeyMap)
-
+	err := cm.buildPodMap(window, resolution, env.GetETLMaxPrometheusQueryDuration(), podMap, clusterStart, clusterEnd, ingestPodUID, podUIDKeyMap)
+	if err != nil {
+		log.Errorf("CostModel.ComputeAllocation: failed to build pod map: %s", err.Error())
+	}
 	// (2) Run and apply remaining queries
 
 	// Query for the duration between start and end
@@ -476,7 +478,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 
 	if ctx.HasErrors() {
 		for _, err := range ctx.Errors() {
-			log.Errorf("CostModel.ComputeAllocation: %s", err)
+			log.Errorf("CostModel.ComputeAllocation: query context error %s", err)
 		}
 
 		return allocSet, ctx.ErrorCollection()
