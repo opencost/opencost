@@ -856,8 +856,8 @@ type ClusterManagement struct {
 	labels     AssetLabels
 	properties *AssetProperties
 	window     Window
-	adjustment float64
 	Cost       float64
+	adjustment float64 // @bingen:field[version=16]
 }
 
 // NewClusterManagement creates and returns a new ClusterManagement instance
