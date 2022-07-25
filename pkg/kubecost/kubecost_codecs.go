@@ -37,7 +37,7 @@ const (
 	DefaultCodecVersion uint8 = 15
 
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
-	AssetsCodecVersion uint8 = 15
+	AssetsCodecVersion uint8 = 16
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
 	AllocationCodecVersion uint8 = 15
@@ -5259,8 +5259,8 @@ func (target *ClusterManagement) MarshalBinaryWithContext(ctx *EncodingContext) 
 	}
 	// --- [end][write][struct](Window) ---
 
-	buff.WriteFloat64(target.adjustment) // write float64
 	buff.WriteFloat64(target.Cost)       // write float64
+	buff.WriteFloat64(target.adjustment) // write float64
 	return nil
 }
 
@@ -5398,18 +5398,18 @@ func (target *ClusterManagement) UnmarshalBinaryWithContext(ctx *DecodingContext
 
 	if uint8(0) /* field version */ <= version {
 		n := buff.ReadFloat64() // read float64
-		target.adjustment = n
-
-	} else {
-		target.adjustment = float64(0) // default
-	}
-
-	if uint8(0) /* field version */ <= version {
-		o := buff.ReadFloat64() // read float64
-		target.Cost = o
+		target.Cost = n
 
 	} else {
 		target.Cost = float64(0) // default
+	}
+
+	if uint8(16) /* field version */ <= version {
+		o := buff.ReadFloat64() // read float64
+		target.adjustment = o
+
+	} else {
+		target.adjustment = float64(0) // default
 	}
 
 	return nil
