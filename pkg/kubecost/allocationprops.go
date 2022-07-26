@@ -317,7 +317,8 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 			}
 		case agg == AllocationDepartmentProp:
 			labels := p.Labels
-			if labels == nil {
+			annotations := p.Annotations
+			if labels == nil && annotations == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
 				labelNames := strings.Split(labelConfig.DepartmentLabel, ",")
@@ -325,6 +326,8 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 					labelName = labelConfig.Sanitize(labelName)
 					if labelValue, ok := labels[labelName]; ok {
 						names = append(names, labelValue)
+					} else if annotationValue, ok := annotations[labelName]; ok {
+						names = append(names, annotationValue)
 					} else {
 						names = append(names, UnallocatedSuffix)
 					}
@@ -332,7 +335,8 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 			}
 		case agg == AllocationEnvironmentProp:
 			labels := p.Labels
-			if labels == nil {
+			annotations := p.Annotations
+			if labels == nil && annotations == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
 				labelNames := strings.Split(labelConfig.EnvironmentLabel, ",")
@@ -340,6 +344,8 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 					labelName = labelConfig.Sanitize(labelName)
 					if labelValue, ok := labels[labelName]; ok {
 						names = append(names, labelValue)
+					} else if annotationValue, ok := annotations[labelName]; ok {
+						names = append(names, annotationValue)
 					} else {
 						names = append(names, UnallocatedSuffix)
 					}
@@ -347,7 +353,8 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 			}
 		case agg == AllocationOwnerProp:
 			labels := p.Labels
-			if labels == nil {
+			annotations := p.Annotations
+			if labels == nil && annotations == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
 				labelNames := strings.Split(labelConfig.OwnerLabel, ",")
@@ -355,6 +362,8 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 					labelName = labelConfig.Sanitize(labelName)
 					if labelValue, ok := labels[labelName]; ok {
 						names = append(names, labelValue)
+					} else if annotationValue, ok := annotations[labelName]; ok {
+						names = append(names, annotationValue)
 					} else {
 						names = append(names, UnallocatedSuffix)
 					}
@@ -362,7 +371,8 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 			}
 		case agg == AllocationProductProp:
 			labels := p.Labels
-			if labels == nil {
+			annotations := p.Annotations
+			if labels == nil && annotations == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
 				labelNames := strings.Split(labelConfig.ProductLabel, ",")
@@ -370,6 +380,8 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 					labelName = labelConfig.Sanitize(labelName)
 					if labelValue, ok := labels[labelName]; ok {
 						names = append(names, labelValue)
+					} else if annotationValue, ok := annotations[labelName]; ok {
+						names = append(names, annotationValue)
 					} else {
 						names = append(names, UnallocatedSuffix)
 					}
@@ -377,7 +389,8 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 			}
 		case agg == AllocationTeamProp:
 			labels := p.Labels
-			if labels == nil {
+			annotations := p.Annotations
+			if labels == nil && annotations == nil {
 				names = append(names, UnallocatedSuffix)
 			} else {
 				labelNames := strings.Split(labelConfig.TeamLabel, ",")
@@ -385,6 +398,8 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 					labelName = labelConfig.Sanitize(labelName)
 					if labelValue, ok := labels[labelName]; ok {
 						names = append(names, labelValue)
+					} else if annotationValue, ok := annotations[labelName]; ok {
+						names = append(names, annotationValue)
 					} else {
 						names = append(names, UnallocatedSuffix)
 					}
