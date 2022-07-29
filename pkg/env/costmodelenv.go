@@ -67,6 +67,7 @@ const (
 	ETLEnabledEnvVar                     = "ETL_ENABLED"
 	ETLMaxPrometheusQueryDurationMinutes = "ETL_MAX_PROMETHEUS_QUERY_DURATION_MINUTES"
 	ETLResolutionSeconds                 = "ETL_RESOLUTION_SECONDS"
+	ETLStoreReadOnlyMode                 = "ETL_STORE_READ_ONLY"
 	LegacyExternalAPIDisabledVar         = "LEGACY_EXTERNAL_API_DISABLED"
 
 	PromClusterIDLabelEnvVar = "PROM_CLUSTER_ID_LABEL"
@@ -99,6 +100,10 @@ func IsETLReadOnlyMode() bool {
 // a subset of kubecost configurations that require sharing via remote storage.
 func GetKubecostConfigBucket() string {
 	return Get(KubecostConfigBucketEnvVar, "")
+}
+
+func IsETLStoreReadOnlyMode() bool {
+	return GetBool(ETLStoreReadOnlyMode, false)
 }
 
 // IsClusterInfoFileEnabled returns true if the cluster info is read from a file or pulled from the local

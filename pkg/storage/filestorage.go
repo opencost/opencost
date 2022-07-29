@@ -18,7 +18,7 @@ type FileStorage struct {
 
 // NewFileStorage returns a new storage API which leverages the file system.
 func NewFileStorage(baseDir string) Storage {
-	return &FileStorage{baseDir}
+	return &AccessStorage{&FileStorage{baseDir}}
 }
 
 // StorageType returns a string identifier for the type of storage used by the implementation.

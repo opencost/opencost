@@ -54,7 +54,7 @@ func NewBucketStorage(config []byte) (Storage, error) {
 		return nil, errors.Wrap(err, fmt.Sprintf("create %s client", storageConfig.Type))
 	}
 
-	return storage, nil
+	return &AccessStorage{storage}, nil
 }
 
 // trimLeading removes a leading / from the file name
@@ -71,6 +71,8 @@ func trimLeading(file string) string {
 
 // trimName removes the leading directory prefix
 func trimName(file string) string {
+	// remove final slash to prevent wiping the whole file name
+	file = strings.TrimSuffix(file, "/")
 	slashIndex := strings.LastIndex(file, "/")
 	if slashIndex < 0 {
 		return file
