@@ -18,6 +18,9 @@ func TestDiff(t *testing.T) {
 	node1b.CPUCost = 20
 	node1Key, _ := key(node1, nil)
 	node2 := NewNode("node2", "cluster1", "123abc", start, end, window1)
+	node2.CPUCost = 100
+	node2b := node2.Clone().(*Node)
+	node2b.CPUCost = 105
 	node2Key, _ := key(node2, nil)
 	node3 := NewNode("node3", "cluster1", "123abc", start, end, window1)
 	node3Key, _ := key(node3, nil)
@@ -31,6 +34,7 @@ func TestDiff(t *testing.T) {
 	cases := map[string]struct {
 		inputAssetsBefore []Asset
 		inputAssetsAfter  []Asset
+		costChangeRatio   float64
 		expected          map[string]Diff[Asset]
 	}{
 		"added node": {
@@ -88,10 +92,17 @@ func TestDiff(t *testing.T) {
 			inputAssetsAfter:  []Asset{disk2, node2},
 			expected:          map[string]Diff[Asset]{disk1Key: {disk1, DiffRemoved}, node1Key: {node1, DiffRemoved}},
 		},
-		"cost change": {
+		"cost change more than 10%": {
 			inputAssetsBefore: []Asset{node1},
 			inputAssetsAfter:  []Asset{node1b},
+			costChangeRatio:   0.1,
 			expected:          map[string]Diff[Asset]{node1Key: {node1, DiffChanged}},
+		},
+		"cost change less than 10%": {
+			inputAssetsBefore: []Asset{node2},
+			inputAssetsAfter:  []Asset{node2b},
+			costChangeRatio:   0.1,
+			expected:          map[string]Diff[Asset]{},
 		},
 	}
 
@@ -101,7 +112,11 @@ func TestDiff(t *testing.T) {
 
 			as2 := NewAssetSet(start, end, tc.inputAssetsAfter...)
 
-			result := DiffAsset(as1.Clone(), as2.Clone())
+			result, err := DiffAsset(as1.Clone(), as2.Clone(), tc.costChangeRatio)
+
+			if err != nil {
+				t.Fatalf("error; got %s", err)
+			}
 
 			if !reflect.DeepEqual(result, tc.expected) {
 				t.Fatalf("expected %+v; got %+v", tc.expected, result)
