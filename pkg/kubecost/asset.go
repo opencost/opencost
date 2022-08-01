@@ -3,6 +3,7 @@ package kubecost
 import (
 	"encoding"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -2906,14 +2907,18 @@ type Diff[T any] struct {
 // DiffAsset takes two AssetSets and returns a map of keys to Diffs by checking
 // the keys of each AssetSet. If a key is not found or is found with a different total cost,
 // a Diff is generated and added to the map.
-func DiffAsset(before, after *AssetSet) map[string]Diff[Asset] {
+func DiffAsset(before, after *AssetSet, ratioCostChange float64) (map[string]Diff[Asset], error) {
+	if ratioCostChange < 0.0 {
+		return nil, fmt.Errorf("Percent cost change cannot be less than 0")
+	}
+
 	changedItems := map[string]Diff[Asset]{}
 
 	for assetKey1, asset1 := range before.assets {
 		if asset2, ok := after.assets[assetKey1]; !ok {
 			d := Diff[Asset]{asset1, DiffRemoved}
 			changedItems[assetKey1] = d
-		} else if asset1.TotalCost() != asset2.TotalCost() {
+		} else if math.Abs(asset1.TotalCost()-asset2.TotalCost()) > ratioCostChange*asset1.TotalCost() { //check if either value exceeds the other by more than pctCostChange
 			d := Diff[Asset]{asset1, DiffChanged}
 			changedItems[assetKey1] = d
 		}
@@ -2926,7 +2931,7 @@ func DiffAsset(before, after *AssetSet) map[string]Diff[Asset] {
 		}
 	}
 
-	return changedItems
+	return changedItems, nil
 }
 
 // AssetSetRange is a thread-safe slice of AssetSets. It is meant to
