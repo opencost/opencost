@@ -615,6 +615,18 @@ func (a *Accesses) UpdateBigQueryInfoConfigs(w http.ResponseWriter, r *http.Requ
 	return
 }
 
+func (a *Accesses) UpdateAzureStorageConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	data, err := a.CloudProvider.UpdateConfig(r.Body, cloud.AzureStorageUpdateType)
+	if err != nil {
+		w.Write(WrapData(data, err))
+		return
+	}
+	w.Write(WrapData(data, err))
+	return
+}
+
 func (a *Accesses) UpdateConfigByKey(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")

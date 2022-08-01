@@ -13,12 +13,11 @@ package kubecost
 
 import (
 	"fmt"
+	util "github.com/opencost/opencost/pkg/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
-
-	util "github.com/opencost/opencost/pkg/util"
 )
 
 const (
@@ -34,17 +33,17 @@ const (
 )
 
 const (
-	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 15
-
-	// AssetsCodecVersion is used for any resources listed in the Assets version set
-	AssetsCodecVersion uint8 = 15
-
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
 	AllocationCodecVersion uint8 = 15
 
 	// AuditCodecVersion is used for any resources listed in the Audit version set
 	AuditCodecVersion uint8 = 1
+
+	// DefaultCodecVersion is used for any resources listed in the Default version set
+	DefaultCodecVersion uint8 = 15
+
+	// AssetsCodecVersion is used for any resources listed in the Assets version set
+	AssetsCodecVersion uint8 = 16
 )
 
 //--------------------------------------------------------------------------
@@ -5260,8 +5259,8 @@ func (target *ClusterManagement) MarshalBinaryWithContext(ctx *EncodingContext) 
 	}
 	// --- [end][write][struct](Window) ---
 
-	buff.WriteFloat64(target.adjustment) // write float64
 	buff.WriteFloat64(target.Cost)       // write float64
+	buff.WriteFloat64(target.adjustment) // write float64
 	return nil
 }
 
@@ -5399,18 +5398,18 @@ func (target *ClusterManagement) UnmarshalBinaryWithContext(ctx *DecodingContext
 
 	if uint8(0) /* field version */ <= version {
 		n := buff.ReadFloat64() // read float64
-		target.adjustment = n
-
-	} else {
-		target.adjustment = float64(0) // default
-	}
-
-	if uint8(0) /* field version */ <= version {
-		o := buff.ReadFloat64() // read float64
-		target.Cost = o
+		target.Cost = n
 
 	} else {
 		target.Cost = float64(0) // default
+	}
+
+	if uint8(16) /* field version */ <= version {
+		o := buff.ReadFloat64() // read float64
+		target.adjustment = o
+
+	} else {
+		target.adjustment = float64(0) // default
 	}
 
 	return nil
