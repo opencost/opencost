@@ -40,32 +40,32 @@ func TestDiff(t *testing.T) {
 		"added node": {
 			inputAssetsBefore: []Asset{node1, node2},
 			inputAssetsAfter:  []Asset{node1, node2, node3},
-			expected:          map[string]Diff[Asset]{node3Key: {node3, DiffAdded}},
+			expected:          map[string]Diff[Asset]{node3Key: {nil, node3, DiffAdded}},
 		},
 		"multiple adds": {
 			inputAssetsBefore: []Asset{node1, node2},
 			inputAssetsAfter:  []Asset{node1, node2, node3, node4},
-			expected:          map[string]Diff[Asset]{node3Key: {node3, DiffAdded}, node4Key: {node4, DiffAdded}},
+			expected:          map[string]Diff[Asset]{node3Key: {nil, node3, DiffAdded}, node4Key: {nil, node4, DiffAdded}},
 		},
 		"removed node": {
 			inputAssetsBefore: []Asset{node1, node2},
 			inputAssetsAfter:  []Asset{node2},
-			expected:          map[string]Diff[Asset]{node1Key: {node1, DiffRemoved}},
+			expected:          map[string]Diff[Asset]{node1Key: {node1, nil, DiffRemoved}},
 		},
 		"multiple removes": {
 			inputAssetsBefore: []Asset{node1, node2, node3},
 			inputAssetsAfter:  []Asset{node2},
-			expected:          map[string]Diff[Asset]{node1Key: {node1, DiffRemoved}, node3Key: {node3, DiffRemoved}},
+			expected:          map[string]Diff[Asset]{node1Key: {node1, nil, DiffRemoved}, node3Key: {node3, nil, DiffRemoved}},
 		},
 		"remove all": {
 			inputAssetsBefore: []Asset{node1, node2},
 			inputAssetsAfter:  []Asset{},
-			expected:          map[string]Diff[Asset]{node1Key: {node1, DiffRemoved}, node2Key: {node2, DiffRemoved}},
+			expected:          map[string]Diff[Asset]{node1Key: {node1, nil, DiffRemoved}, node2Key: {node2, nil, DiffRemoved}},
 		},
 		"add and remove": {
 			inputAssetsBefore: []Asset{node1, node2},
 			inputAssetsAfter:  []Asset{node2, node3},
-			expected:          map[string]Diff[Asset]{node1Key: {node1, DiffRemoved}, node3Key: {node3, DiffAdded}},
+			expected:          map[string]Diff[Asset]{node1Key: {node1, nil, DiffRemoved}, node3Key: {nil, node3, DiffAdded}},
 		},
 		"no change": {
 			inputAssetsBefore: []Asset{node1, node2},
@@ -80,23 +80,23 @@ func TestDiff(t *testing.T) {
 		"disk add": {
 			inputAssetsBefore: []Asset{disk1, node1},
 			inputAssetsAfter:  []Asset{disk1, node1, disk2},
-			expected:          map[string]Diff[Asset]{disk2Key: {disk2, DiffAdded}},
+			expected:          map[string]Diff[Asset]{disk2Key: {nil, disk2, DiffAdded}},
 		},
 		"disk and node add": {
 			inputAssetsBefore: []Asset{disk1, node1},
 			inputAssetsAfter:  []Asset{disk1, node1, disk2, node2},
-			expected:          map[string]Diff[Asset]{disk2Key: {disk2, DiffAdded}, node2Key: {node2, DiffAdded}},
+			expected:          map[string]Diff[Asset]{disk2Key: {nil, disk2, DiffAdded}, node2Key: {nil, node2, DiffAdded}},
 		},
 		"disk and node removed": {
 			inputAssetsBefore: []Asset{disk1, node1, disk2, node2},
 			inputAssetsAfter:  []Asset{disk2, node2},
-			expected:          map[string]Diff[Asset]{disk1Key: {disk1, DiffRemoved}, node1Key: {node1, DiffRemoved}},
+			expected:          map[string]Diff[Asset]{disk1Key: {disk1, nil, DiffRemoved}, node1Key: {node1, nil, DiffRemoved}},
 		},
 		"cost change more than 10%": {
 			inputAssetsBefore: []Asset{node1},
 			inputAssetsAfter:  []Asset{node1b},
 			costChangeRatio:   0.1,
-			expected:          map[string]Diff[Asset]{node1Key: {node1, DiffChanged}},
+			expected:          map[string]Diff[Asset]{node1Key: {node1, node1b, DiffChanged}},
 		},
 		"cost change less than 10%": {
 			inputAssetsBefore: []Asset{node2},
