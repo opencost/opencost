@@ -2900,13 +2900,15 @@ const (
 // Diff stores an object and a string that denotes whether that object was
 // added or removed from a set of those objects
 type Diff[T any] struct {
-	Entity T
+	Before T
+	After  T
 	Kind   DiffKind
 }
 
 // DiffAsset takes two AssetSets and returns a map of keys to Diffs by checking
 // the keys of each AssetSet. If a key is not found or is found with a different total cost,
-// a Diff is generated and added to the map.
+// a Diff is generated and added to the map. A found asset will only be added to the map if the new
+// total cost is greater than ratioCostChange * the old total cost
 func DiffAsset(before, after *AssetSet, ratioCostChange float64) (map[string]Diff[Asset], error) {
 	if ratioCostChange < 0.0 {
 		return nil, fmt.Errorf("Percent cost change cannot be less than 0")
@@ -2916,17 +2918,17 @@ func DiffAsset(before, after *AssetSet, ratioCostChange float64) (map[string]Dif
 
 	for assetKey1, asset1 := range before.assets {
 		if asset2, ok := after.assets[assetKey1]; !ok {
-			d := Diff[Asset]{asset1, DiffRemoved}
+			d := Diff[Asset]{asset1, nil, DiffRemoved}
 			changedItems[assetKey1] = d
 		} else if math.Abs(asset1.TotalCost()-asset2.TotalCost()) > ratioCostChange*asset1.TotalCost() { //check if either value exceeds the other by more than pctCostChange
-			d := Diff[Asset]{asset1, DiffChanged}
+			d := Diff[Asset]{asset1, asset2, DiffChanged}
 			changedItems[assetKey1] = d
 		}
 	}
 
 	for assetKey2, asset2 := range after.assets {
 		if _, ok := before.assets[assetKey2]; !ok {
-			d := Diff[Asset]{asset2, DiffAdded}
+			d := Diff[Asset]{nil, asset2, DiffAdded}
 			changedItems[assetKey2] = d
 		}
 	}
