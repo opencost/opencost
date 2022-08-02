@@ -39,7 +39,7 @@ func (mpc *MockPromClient) URL(ep string, args map[string]string) *url.URL {
 }
 
 // prometheus.Client Do
-func (mpc *MockPromClient) Do(context.Context, *http.Request) (*http.Response, []byte, prometheus.Warnings, error) {
+func (mpc *MockPromClient) Do(context.Context, *http.Request) (*http.Response, []byte, error) {
 	// fake latency
 	time.Sleep(250 * time.Millisecond)
 
@@ -51,7 +51,7 @@ func (mpc *MockPromClient) Do(context.Context, *http.Request) (*http.Response, [
 		mpc.current = 0
 	}
 
-	return rnb.Response, rnb.Body, nil, nil
+	return rnb.Response, rnb.Body, nil
 }
 
 // Creates a new mock prometheus client
@@ -154,7 +154,7 @@ func TestRateLimitedOnceAndSuccess(t *testing.T) {
 	}
 
 	// we just need to execute this  once to see retries in effect
-	res, body, _, err := client.Do(context.Background(), req)
+	res, body, err := client.Do(context.Background(), req)
 
 	if res.StatusCode != 200 {
 		t.Fatalf("200 StatusCode expected. Got: %d", res.StatusCode)
@@ -195,7 +195,7 @@ func TestRateLimitedOnceAndFail(t *testing.T) {
 	}
 
 	// we just need to execute this  once to see retries in effect
-	res, body, _, err := client.Do(context.Background(), req)
+	res, body, err := client.Do(context.Background(), req)
 
 	if res.StatusCode != 400 {
 		t.Fatalf("400 StatusCode expected. Got: %d", res.StatusCode)
@@ -241,7 +241,7 @@ func TestRateLimitedResponses(t *testing.T) {
 	}
 
 	// we just need to execute this  once to see retries in effect
-	_, _, _, err = client.Do(context.Background(), req)
+	_, _, err = client.Do(context.Background(), req)
 
 	if err == nil {
 		t.Fatal("Expected a RateLimitedResponseError. Err was nil.")
@@ -360,7 +360,7 @@ func TestConcurrentRateLimiting(t *testing.T) {
 			}
 
 			// we just need to execute this  once to see retries in effect
-			_, _, _, err = client.Do(context.Background(), req)
+			_, _, err = client.Do(context.Background(), req)
 
 			errs <- err
 		}()

@@ -1113,10 +1113,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 		// If that fails, return an error because something is actually wrong.
 		qNodes := fmt.Sprintf(queryNodes, env.GetPromClusterLabel(), localStorageQuery)
 
-		resultNodes, warnings, err := ctx.QueryRangeSync(qNodes, start, end, window)
-		for _, warning := range warnings {
-			log.Warnf(warning)
-		}
+		resultNodes, err := ctx.QueryRangeSync(qNodes, start, end, window)
 		if err != nil {
 			return nil, err
 		}

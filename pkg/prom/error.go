@@ -91,8 +91,8 @@ type QueryErrorCollector struct {
 
 // Reports an error to the collector. Ignores if the error is nil and the warnings
 // are empty
-func (ec *QueryErrorCollector) Report(query string, warnings []string, requestError error, parseError error) {
-	if requestError == nil && parseError == nil && len(warnings) == 0 {
+func (ec *QueryErrorCollector) Report(query string, requestError error, parseError error) {
+	if requestError == nil && parseError == nil {
 		return
 	}
 
@@ -104,13 +104,6 @@ func (ec *QueryErrorCollector) Report(query string, warnings []string, requestEr
 			Query:      query,
 			Error:      requestError,
 			ParseError: parseError,
-		})
-	}
-
-	if len(warnings) > 0 {
-		ec.warnings = append(ec.warnings, &QueryWarning{
-			Query:    query,
-			Warnings: warnings,
 		})
 	}
 }

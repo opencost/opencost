@@ -146,17 +146,17 @@ func (ctx *Context) ProfileQueryAll(queries ...string) []QueryResultsChan {
 }
 
 func (ctx *Context) QuerySync(query string) ([]*QueryResult, error) {
-	raw, warnings, err := ctx.query(query, time.Now())
+	raw, err := ctx.query(query, time.Now())
 	if err != nil {
-		return nil, warnings, err
+		return nil, err
 	}
 
 	results := NewQueryResults(query, raw)
 	if results.Error != nil {
-		return nil, warnings, results.Error
+		return nil, results.Error
 	}
 
-	return results.Results, warnings, nil
+	return results.Results, nil
 }
 
 // QueryURL returns the URL used to query Prometheus
@@ -170,11 +170,11 @@ func runQuery(query string, ctx *Context, resCh QueryResultsChan, t time.Time, p
 	defer errors.HandlePanic()
 	startQuery := time.Now()
 
-	raw, warnings, requestError := ctx.query(query, t)
+	raw, requestError := ctx.query(query, t)
 	results := NewQueryResults(query, raw)
 
-	// report all warnings, request, and parse errors (nils will be ignored)
-	ctx.errorCollector.Report(query, warnings, requestError, results.Error)
+	// report all request and parse errors (nils will be ignored)
+	ctx.errorCollector.Report(query, requestError, results.Error)
 
 	if profileLabel != "" {
 		log.Profile(startQuery, profileLabel)
@@ -230,31 +230,19 @@ func (ctx *Context) RawQuery(query string, t time.Time) ([]byte, error) {
 	return body, err
 }
 
-func (ctx *Context) query(query string, t time.Time) (interface{}, prometheus.Warnings, error) {
+func (ctx *Context) query(query string, t time.Time) (interface{}, error) {
 	body, err := ctx.RawQuery(query, t)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		return nil, nil, fmt.Errorf("query '%s' caused unmarshal error: %s", query, err)
+		return nil, fmt.Errorf("query '%s' caused unmarshal error: %s", query, err)
 	}
 
-	warnings := warningsFrom(toReturn)
-	for _, w := range warnings {
-		// NoStoreAPIWarning is a warning that we would consider an error. It returns partial data relating only to the
-		// store apis which were reachable. In order to ensure integrity of data across all clusters, we'll need to identify
-		// this warning and convert it to an error.
-		if IsNoStoreAPIWarning(w) {
-			return nil, warnings, CommErrorf("Error: %s, Body: %s, Query: %s", w, body, query)
-		}
-
-		log.Warnf("fetching query '%s': %s", query, w)
-	}
-
-	return toReturn, warnings, nil
+	return toReturn, nil
 }
 
 func (ctx *Context) QueryRange(query string, start, end time.Time, step time.Duration) QueryResultsChan {
@@ -273,18 +261,18 @@ func (ctx *Context) ProfileQueryRange(query string, start, end time.Time, step t
 	return resCh
 }
 
-func (ctx *Context) QueryRangeSync(query string, start, end time.Time, step time.Duration) ([]*QueryResult, prometheus.Warnings, error) {
-	raw, warnings, err := ctx.queryRange(query, start, end, step)
+func (ctx *Context) QueryRangeSync(query string, start, end time.Time, step time.Duration) ([]*QueryResult, error) {
+	raw, err := ctx.queryRange(query, start, end, step)
 	if err != nil {
-		return nil, warnings, err
+		return nil, err
 	}
 
 	results := NewQueryResults(query, raw)
 	if results.Error != nil {
-		return nil, warnings, results.Error
+		return nil, results.Error
 	}
 
-	return results.Results, warnings, nil
+	return results.Results, nil
 }
 
 // QueryRangeURL returns the URL used to query_range Prometheus
@@ -298,11 +286,11 @@ func runQueryRange(query string, start, end time.Time, step time.Duration, ctx *
 	defer errors.HandlePanic()
 	startQuery := time.Now()
 
-	raw, warnings, requestError := ctx.queryRange(query, start, end, step)
+	raw, requestError := ctx.queryRange(query, start, end, step)
 	results := NewQueryResults(query, raw)
 
 	// report all warnings, request, and parse errors (nils will be ignored)
-	ctx.errorCollector.Report(query, warnings, requestError, results.Error)
+	ctx.errorCollector.Report(query, requestError, results.Error)
 
 	if profileLabel != "" {
 		log.Profile(startQuery, profileLabel)
@@ -354,44 +342,17 @@ func (ctx *Context) RawQueryRange(query string, start, end time.Time, step time.
 	return body, err
 }
 
-func (ctx *Context) queryRange(query string, start, end time.Time, step time.Duration) (interface{}, prometheus.Warnings, error) {
+func (ctx *Context) queryRange(query string, start, end time.Time, step time.Duration) (interface{}, error) {
 	body, err := ctx.RawQueryRange(query, start, end, step)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	var toReturn interface{}
 	err = json.Unmarshal(body, &toReturn)
 	if err != nil {
-		return nil, nil, fmt.Errorf("query '%s' caused unmarshal error: %s", query, err)
+		return nil, fmt.Errorf("query '%s' caused unmarshal error: %s", query, err)
 	}
 
-	warnings := warningsFrom(toReturn)
-	for _, w := range warnings {
-		// NoStoreAPIWarning is a warning that we would consider an error. It returns partial data relating only to the
-		// store apis which were reachable. In order to ensure integrity of data across all clusters, we'll need to identify
-		// this warning and convert it to an error.
-		if IsNoStoreAPIWarning(w) {
-			return nil, warnings, CommErrorf("Error: %s, Body: %s, Query: %s", w, body, query)
-		}
-
-		log.Warnf("fetching query '%s': %s", query, w)
-	}
-
-	return toReturn, warnings, nil
-}
-
-// Extracts the warnings from the resulting json if they exist (part of the prometheus response api).
-func warningsFrom(result interface{}) prometheus.Warnings {
-	var warnings prometheus.Warnings
-
-	if resultMap, ok := result.(map[string]interface{}); ok {
-		if warningProp, ok := resultMap["warnings"]; ok {
-			if w, ok := warningProp.([]string); ok {
-				warnings = w
-			}
-		}
-	}
-
-	return warnings
+	return toReturn, nil
 }

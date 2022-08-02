@@ -13,9 +13,9 @@ func newCommError() error {
 func newErrorCollection() error {
 	qc := &QueryErrorCollector{}
 
-	qc.Report("test_query1", nil, NewCommError("Failed to connect"), nil)
-	qc.Report("test_query2", nil, NewCommError("Failed to connect"), errors.New("Parsing error"))
-	qc.Report("test_query3", nil, nil, errors.New("Failed to parse field 'foo'"))
+	qc.Report("test_query1", NewCommError("Failed to connect"), nil)
+	qc.Report("test_query2", NewCommError("Failed to connect"), errors.New("Parsing error"))
+	qc.Report("test_query3", nil, errors.New("Failed to parse field 'foo'"))
 
 	return qc
 }
