@@ -301,15 +301,21 @@ type SummaryAllocationSet struct {
 // required for unfortunate reasons to do with performance and legacy order-of-
 // operations details, as well as the fact that reconciliation has been
 // pushed down to the conversion step between Allocation and SummaryAllocation.
-func NewSummaryAllocationSet(as *AllocationSet, ffs, kfs []AllocationMatchFunc, reconcile, reconcileNetwork bool) *SummaryAllocationSet {
+func NewSummaryAllocationSet(as *AllocationSet, filter AllocationFilter, kfs []AllocationMatchFunc, reconcile, reconcileNetwork bool) *SummaryAllocationSet {
 	if as == nil {
 		return nil
+	}
+
+	// Pre-flatten the filter so we can just check == nil to see if there are
+	// filters.
+	if filter != nil {
+		filter = filter.Flattened()
 	}
 
 	// If we can know the exact size of the map, use it. If filters or sharing
 	// functions are present, we can't know the size, so we make a default map.
 	var sasMap map[string]*SummaryAllocation
-	if len(ffs) == 0 && len(kfs) == 0 {
+	if filter == nil && len(kfs) == 0 {
 		// No filters, so make the map of summary allocations exactly the size
 		// of the origin allocation set.
 		sasMap = make(map[string]*SummaryAllocation, len(as.allocations))
@@ -342,16 +348,8 @@ func NewSummaryAllocationSet(as *AllocationSet, ffs, kfs []AllocationMatchFunc, 
 
 		// If the allocation does not pass any of the given filter functions,
 		// do not insert it into the set.
-		shouldFilter := false
-		for _, ff := range ffs {
-			if !ff(alloc) {
-				shouldFilter = true
-				break
-			}
-		}
-		if shouldFilter {
+		if filter != nil && !filter.Matches(alloc) {
 			continue
-
 		}
 
 		err := sas.Insert(NewSummaryAllocation(alloc, reconcile, reconcileNetwork))
@@ -473,6 +471,12 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 
 	if options.LabelConfig == nil {
 		options.LabelConfig = NewLabelConfig()
+	}
+
+	// Pre-flatten the filter so we can just check == nil to see if there are
+	// filters.
+	if options.Filter != nil {
+		options.Filter = options.Filter.Flattened()
 	}
 
 	// Check if we have any work to do; if not, then early return. If
@@ -672,7 +676,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 	// recorded by idle-key (cluster or node, depending on the IdleByNode
 	// option). Instantiating this map is a signal to record the totals.
 	var allocTotalsAfterFilters map[string]*AllocationTotals
-	if len(resultSet.idleKeys) > 0 && len(options.FilterFuncs) > 0 {
+	if len(resultSet.idleKeys) > 0 && options.Filter != nil {
 		allocTotalsAfterFilters = make(map[string]*AllocationTotals, len(resultSet.idleKeys))
 	}
 
@@ -961,11 +965,9 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		// be filtered or not.
 		// TODO:CLEANUP do something about external cost, this stinks
 		ea := &Allocation{Properties: sa.Properties}
-		for _, ff := range options.FilterFuncs {
-			if !ff(ea) {
-				skip = true
-				break
-			}
+
+		if options.Filter != nil {
+			skip = !options.Filter.Matches(ea)
 		}
 
 		if !skip {
@@ -987,11 +989,8 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		// be filtered or not.
 		// TODO:CLEANUP do something about external cost, this stinks
 		ia := &Allocation{Properties: isa.Properties}
-		for _, ff := range options.FilterFuncs {
-			if !ff(ia) {
-				skip = true
-				break
-			}
+		if options.Filter != nil {
+			skip = !options.Filter.Matches(ia)
 		}
 		if skip {
 			continue

@@ -37,6 +37,7 @@ const (
 	AzureDiskStandardStorageClass    = "standard_hdd"
 	defaultSpotLabel                 = "kubernetes.azure.com/scalesetpriority"
 	defaultSpotLabelValue            = "spot"
+	AzureStorageUpdateType           = "AzureStorage"
 )
 
 var (
@@ -509,18 +510,8 @@ func (ask *AzureServiceKey) IsValid() bool {
 }
 
 // Loads the azure authentication via configuration or a secret set at install time.
-func (az *Azure) getAzureAuth(forceReload bool, cp *CustomPricing) (subscriptionID, clientID, clientSecret, tenantID string) {
-	// 1. Check config values first (set from frontend UI)
-	if cp.AzureSubscriptionID != "" && cp.AzureClientID != "" && cp.AzureClientSecret != "" && cp.AzureTenantID != "" {
-		subscriptionID = cp.AzureSubscriptionID
-		clientID = cp.AzureClientID
-		clientSecret = cp.AzureClientSecret
-		tenantID = cp.AzureTenantID
-
-		return
-	}
-
-	// 2. Check for secret
+func (az *Azure) getAzureRateCardAuth(forceReload bool, cp *CustomPricing) (subscriptionID, clientID, clientSecret, tenantID string) {
+	// 1. Check for secret (secret values will always be used if they are present)
 	s, _ := az.loadAzureAuthSecret(forceReload)
 	if s != nil && s.IsValid() {
 		subscriptionID = s.SubscriptionID
@@ -529,38 +520,62 @@ func (az *Azure) getAzureAuth(forceReload bool, cp *CustomPricing) (subscription
 		tenantID = s.ServiceKey.Tenant
 		return
 	}
+	// 2. Check config values (set though endpoint)
+	if cp.AzureSubscriptionID != "" && cp.AzureClientID != "" && cp.AzureClientSecret != "" && cp.AzureTenantID != "" {
+		subscriptionID = cp.AzureSubscriptionID
+		clientID = cp.AzureClientID
+		clientSecret = cp.AzureClientSecret
+		tenantID = cp.AzureTenantID
+		return
+	}
 
 	// 3. Empty values
 	return "", "", "", ""
 }
 
 // GetAzureStorageConfig retrieves storage config from secret and sets default values
-func (az *Azure) GetAzureStorageConfig(forceReload bool) (*AzureStorageConfig, error) {
-	// retrieve config for default subscription id
-	defaultSubscriptionID := ""
-	config, err := az.GetConfig()
-	if err == nil {
-		defaultSubscriptionID = config.AzureSubscriptionID
+func (az *Azure) GetAzureStorageConfig(forceReload bool, cp *CustomPricing) (*AzureStorageConfig, error) {
+	// default subscription id
+	defaultSubscriptionID := cp.AzureSubscriptionID
+
+	// 1. Check Config for storage set up
+	asc := &AzureStorageConfig{
+		SubscriptionId: cp.AzureStorageSubscriptionID,
+		AccountName:    cp.AzureStorageAccount,
+		AccessKey:      cp.AzureStorageAccessKey,
+		ContainerName:  cp.AzureStorageContainer,
+		ContainerPath:  cp.AzureContainerPath,
+		AzureCloud:     cp.AzureCloud,
 	}
 
-	// 1. Check for secret
-	s, err := az.loadAzureStorageConfig(forceReload)
-	if err != nil {
-		log.Errorf("Error, %s", err.Error())
-	}
-	if s != nil && s.AccessKey != "" && s.AccountName != "" && s.ContainerName != "" {
+	// check for required fields
+	if asc != nil && asc.AccessKey != "" && asc.AccountName != "" && asc.ContainerName != "" && asc.SubscriptionId != "" {
 		az.serviceAccountChecks.set("hasStorage", &ServiceAccountCheck{
 			Message: "Azure Storage Config exists",
 			Status:  true,
 		})
-
-		// To support already configured users, subscriptionID may not be set in secret in which case, the subscriptionID
-		// for the rate card API is used
-		if s.SubscriptionId == "" {
-			s.SubscriptionId = defaultSubscriptionID
-		}
-		return s, nil
+		return asc, nil
 	}
+
+	// 2. Check for secret
+	asc, err := az.loadAzureStorageConfig(forceReload)
+	if err != nil {
+		log.Errorf("Error, %s", err.Error())
+	}
+	// To support already configured users, subscriptionID may not be set in secret in which case, the subscriptionID
+	// for the rate card API is used
+	if asc.SubscriptionId == "" {
+		asc.SubscriptionId = defaultSubscriptionID
+	}
+	// check for required fields
+	if asc != nil && asc.AccessKey != "" && asc.AccountName != "" && asc.ContainerName != "" && asc.SubscriptionId == "" {
+		az.serviceAccountChecks.set("hasStorage", &ServiceAccountCheck{
+			Message: "Azure Storage Config exists",
+			Status:  true,
+		})
+		return asc, nil
+	}
+
 	az.serviceAccountChecks.set("hasStorage", &ServiceAccountCheck{
 		Message: "Azure Storage Config exists",
 		Status:  false,
@@ -744,7 +759,7 @@ func (az *Azure) DownloadPricingData() error {
 	}
 
 	// Load the service provider keys
-	subscriptionID, clientID, clientSecret, tenantID := az.getAzureAuth(true, config)
+	subscriptionID, clientID, clientSecret, tenantID := az.getAzureRateCardAuth(false, config)
 	config.AzureSubscriptionID = subscriptionID
 	config.AzureClientID = clientID
 	config.AzureClientSecret = clientSecret
@@ -1165,27 +1180,42 @@ func (az *Azure) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing,
 }
 
 func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
-	defer az.DownloadPricingData()
-
 	return az.Config.Update(func(c *CustomPricing) error {
-		a := make(map[string]interface{})
-		err := json.NewDecoder(r).Decode(&a)
-		if err != nil {
-			return err
-		}
-		for k, v := range a {
-			kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
-			vstr, ok := v.(string)
-			if ok {
-				err := SetCustomPricingField(c, kUpper, vstr)
-				if err != nil {
-					return err
+		if updateType == AzureStorageUpdateType {
+			asc := &AzureStorageConfig{}
+			err := json.NewDecoder(r).Decode(&asc)
+			if err != nil {
+				return err
+			}
+
+			c.AzureStorageSubscriptionID = asc.SubscriptionId
+			c.AzureStorageAccount = asc.AccountName
+			if asc.AccessKey != "" {
+				c.AzureStorageAccessKey = asc.AccessKey
+			}
+			c.AzureStorageContainer = asc.ContainerName
+			c.AzureContainerPath = asc.ContainerPath
+			c.AzureCloud = asc.AzureCloud
+		} else {
+			defer az.DownloadPricingData()
+			a := make(map[string]interface{})
+			err := json.NewDecoder(r).Decode(&a)
+			if err != nil {
+				return err
+			}
+			for k, v := range a {
+				kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+				vstr, ok := v.(string)
+				if ok {
+					err := SetCustomPricingField(c, kUpper, vstr)
+					if err != nil {
+						return err
+					}
+				} else {
+					return fmt.Errorf("type error while updating config for %s", kUpper)
 				}
-			} else {
-				return fmt.Errorf("type error while updating config for %s", kUpper)
 			}
 		}
-
 		if env.IsRemoteEnabled() {
 			err := UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
 			if err != nil {

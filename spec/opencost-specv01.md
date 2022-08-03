@@ -158,8 +158,7 @@ Below are example inputs when measuring asset costs over a designated time windo
 
 ## Workload Costs
 
-
-Workloads are defined as entities to which Asset Costs are committed. Some resources solely have Usage Costs, but others have Allocation Costs independent of actual usage. Workload Costs should be understood as _max(request, usage)_ when Assets have Resource Allocation Costs, e.g. CPU or GPU. This formula effectively assigns costs that have been directly reserved or allocated by _kube-scheduler_. Workload Costs should be calculated at the lowest level possible, e.g. _container_ level[^2], and then they can be aggregated by any dimension, e.g. pod, deployment, statefulset, label, annotation, namespace, etc.
+Workloads are defined as entities to which Asset Costs are committed. Some resources solely have Usage Costs, but others have Allocation Costs independent of actual usage. Workload Costs should be understood as _max(request, usage)_ when Assets have Resource Allocation Costs, e.g. CPU or GPU. This formula effectively assigns costs that have been directly reserved or allocated by _kube-scheduler_. Workload Costs should be calculated at the lowest level possible, i.e. _container_ level[^2], and then they can be aggregated by any dimension.
 
 
 <table>
@@ -207,7 +206,19 @@ Workloads are defined as entities to which Asset Costs are committed. Some resou
   </tr>
 </table>
 
+The following workload cost aggregations are supported in a complete implementation in the OpenCost Spec: 
 
+* container
+* pod
+* deployment
+* statefulset
+* job
+* controller name
+* controller kind
+* label
+* annotation
+* namespace
+* cluster
 
 ## Shared Costs
 
