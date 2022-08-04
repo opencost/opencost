@@ -78,6 +78,12 @@ func (c *Scaleway) DownloadPricingData() error {
 	return nil
 }
 
+func (c *Scaleway) AllNodePricing() (interface{}, error) {
+	c.DownloadPricingDataLock.RLock()
+	defer c.DownloadPricingDataLock.RUnlock()
+	return c.Pricing, nil
+}
+
 type scalewayKey struct {
 	Labels map[string]string
 }
