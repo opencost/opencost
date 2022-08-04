@@ -60,8 +60,8 @@ func (c *Scaleway) DownloadPricingData() error {
 
 	c.Pricing = make(map[string]*ScalewayPricing)
 
-	// The endpoint we are trying to hit does not have authentication, but the scw client needs to be created with some default, hence these dummy values (regex parsing ftw)
-	client, err := scw.NewClient(scw.WithAuth("SCWXXXXXXXXXXXXXXXXX", "00000000-0000-0000-0000-000000000000"), scw.WithDefaultProjectID("00000000-0000-0000-0000-000000000000"))
+	// The endpoint we are trying to hit does not have authentication
+	client, err := scw.NewClient(scw.WithoutAuth())
 	if err != nil {
 		return err
 	}
@@ -116,6 +116,9 @@ func (k *scalewayKey) ID() string {
 }
 
 func (c *Scaleway) NodePricing(key Key) (*Node, error) {
+	c.DownloadPricingDataLock.RLock()
+	defer c.DownloadPricingDataLock.RUnlock()
+
 	// There is only the zone and the instance ID in the providerID, hence we must use the features
 	split := strings.Split(key.Features(), ",")
 	if pricing, ok := c.Pricing[split[0]]; ok {
@@ -136,7 +139,7 @@ func (c *Scaleway) NodePricing(key Key) (*Node, error) {
 		}
 
 	}
-	return nil, fmt.Errorf("Unable to find Node matching `%s`:`%s`", key.ID(), key.Features())
+	return nil, fmt.Errorf("Unable to find node pricing matching thes features `%s`", key.Features())
 }
 
 func (c *Scaleway) LoadBalancerPricing() (*LoadBalancer, error) {
@@ -196,6 +199,9 @@ func (c *Scaleway) GetPVKey(pv *v1.PersistentVolume, parameters map[string]strin
 }
 
 func (c *Scaleway) PVPricing(pvk PVKey) (*PV, error) {
+	c.DownloadPricingDataLock.RLock()
+	defer c.DownloadPricingDataLock.RUnlock()
+
 	pricing, ok := c.Pricing[pvk.Features()]
 	if !ok {
 		log.Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
