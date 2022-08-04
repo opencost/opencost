@@ -2,17 +2,26 @@ package cloud
 
 import (
 	"fmt"
+	"io"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/opencost/opencost/pkg/clustercache"
+	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/util/json"
 
 	"github.com/opencost/opencost/pkg/log"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/scaleway/scaleway-sdk-go/api/instance/v1"
 	"github.com/scaleway/scaleway-sdk-go/scw"
+)
+
+const (
+	InstanceAPIPricing = "Instance API Pricing"
 )
 
 type ScalewayPricing struct {
@@ -130,6 +139,23 @@ func (c *Scaleway) NodePricing(key Key) (*Node, error) {
 	return nil, fmt.Errorf("Unable to find Node matching `%s`:`%s`", key.ID(), key.Features())
 }
 
+func (c *Scaleway) LoadBalancerPricing() (*LoadBalancer, error) {
+	// Different LB types, lets take the cheaper for now, we can't get the type
+	// without a service specifying the type in the annotations
+	return &LoadBalancer{
+		Cost: 0.014,
+	}, nil
+}
+
+func (c *Scaleway) NetworkPricing() (*Network, error) {
+	// it's free baby!
+	return &Network{
+		ZoneNetworkEgressCost:     0,
+		RegionNetworkEgressCost:   0,
+		InternetNetworkEgressCost: 0,
+	}, nil
+}
+
 func (c *Scaleway) GetKey(l map[string]string, n *v1.Node) Key {
 	return &scalewayKey{
 		Labels: l,
@@ -202,4 +228,115 @@ func (c *Scaleway) Regions() []string {
 		zones = append(zones, zone.String())
 	}
 	return zones
+}
+
+func (*Scaleway) ApplyReservedInstancePricing(map[string]*Node) {}
+
+func (*Scaleway) GetAddresses() ([]byte, error) {
+	return nil, nil
+}
+
+func (*Scaleway) GetDisks() ([]byte, error) {
+	return nil, nil
+}
+
+func (scw *Scaleway) ClusterInfo() (map[string]string, error) {
+	remoteEnabled := env.IsRemoteEnabled()
+
+	m := make(map[string]string)
+	m["name"] = "Scaleway Cluster #1"
+	c, err := scw.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	if c.ClusterName != "" {
+		m["name"] = c.ClusterName
+	}
+	m["provider"] = "Scaleway"
+	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
+	m["id"] = env.GetClusterID()
+	return m, nil
+
+}
+
+func (c *Scaleway) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
+	return c.Config.UpdateFromMap(a)
+}
+
+func (c *Scaleway) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
+	defer c.DownloadPricingData()
+
+	return c.Config.Update(func(c *CustomPricing) error {
+		a := make(map[string]interface{})
+		err := json.NewDecoder(r).Decode(&a)
+		if err != nil {
+			return err
+		}
+		for k, v := range a {
+			kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+			vstr, ok := v.(string)
+			if ok {
+				err := SetCustomPricingField(c, kUpper, vstr)
+				if err != nil {
+					return err
+				}
+			} else {
+				return fmt.Errorf("type error while updating config for %s", kUpper)
+			}
+		}
+
+		if env.IsRemoteEnabled() {
+			err := UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+func (scw *Scaleway) GetConfig() (*CustomPricing, error) {
+	c, err := scw.Config.GetCustomPricingData()
+	if err != nil {
+		return nil, err
+	}
+	if c.Discount == "" {
+		c.Discount = "0%"
+	}
+	if c.NegotiatedDiscount == "" {
+		c.NegotiatedDiscount = "0%"
+	}
+	if c.CurrencyCode == "" {
+		c.CurrencyCode = "EUR"
+	}
+	return c, nil
+}
+
+func (*Scaleway) GetLocalStorageQuery(window, offset time.Duration, rate bool, used bool) string {
+	return ""
+}
+
+func (scw *Scaleway) GetManagementPlatform() (string, error) {
+	nodes := scw.Clientset.GetAllNodes()
+
+	if len(nodes) > 0 {
+		n := nodes[0]
+		if _, ok := n.Labels["k8s.scaleway.com/kapsule"]; ok {
+			return "kapsule", nil
+		}
+		if _, ok := n.Labels["kops.k8s.io/instancegroup"]; ok {
+			return "kops", nil
+		}
+	}
+	return "", nil
+}
+
+func (c *Scaleway) PricingSourceStatus() map[string]*PricingSource {
+	return map[string]*PricingSource{
+		InstanceAPIPricing: &PricingSource{
+			Name:      InstanceAPIPricing,
+			Enabled:   true,
+			Available: true,
+		},
+	}
 }
