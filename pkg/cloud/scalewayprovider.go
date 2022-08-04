@@ -5,10 +5,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/kubecost/opencost/pkg/clustercache"
-	"github.com/kubecost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/clustercache"
+	"github.com/opencost/opencost/pkg/util"
 
-	"github.com/kubecost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/log"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/scaleway/scaleway-sdk-go/api/instance/v1"
