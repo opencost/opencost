@@ -55,6 +55,9 @@ var (
 		"us": "us",
 		"za": "southafrica",
 		"no": "norway",
+		"ch": "switzerland",
+		"de": "germany",
+		"ue": "uae",
 	}
 
 	//mtBasic, _     = regexp.Compile("^BASIC.A\\d+[_Promo]*$")
