@@ -561,19 +561,21 @@ func (az *Azure) GetAzureStorageConfig(forceReload bool, cp *CustomPricing) (*Az
 	asc, err := az.loadAzureStorageConfig(forceReload)
 	if err != nil {
 		log.Errorf("Error, %s", err.Error())
-	}
-	// To support already configured users, subscriptionID may not be set in secret in which case, the subscriptionID
-	// for the rate card API is used
-	if asc.SubscriptionId == "" {
-		asc.SubscriptionId = defaultSubscriptionID
-	}
-	// check for required fields
-	if asc != nil && asc.AccessKey != "" && asc.AccountName != "" && asc.ContainerName != "" && asc.SubscriptionId == "" {
-		az.serviceAccountChecks.set("hasStorage", &ServiceAccountCheck{
-			Message: "Azure Storage Config exists",
-			Status:  true,
-		})
-		return asc, nil
+	} else if asc != nil {
+		// To support already configured users, subscriptionID may not be set in secret in which case, the subscriptionID
+		// for the rate card API is used
+		if asc.SubscriptionId == "" {
+			asc.SubscriptionId = defaultSubscriptionID
+		}
+		// check for required fields
+		if asc.AccessKey != "" && asc.AccountName != "" && asc.ContainerName != "" && asc.SubscriptionId == "" {
+			az.serviceAccountChecks.set("hasStorage", &ServiceAccountCheck{
+				Message: "Azure Storage Config exists",
+				Status:  true,
+			})
+			
+			return asc, nil
+		}
 	}
 
 	az.serviceAccountChecks.set("hasStorage", &ServiceAccountCheck{
