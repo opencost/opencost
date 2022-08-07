@@ -2484,9 +2484,19 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 		sa := NewSharedAsset(name, as.Window.Clone())
 		sa.Cost = hourlyCost * hours
 
-		err := aggSet.Insert(sa)
-		if err != nil {
-			return err
+		// Insert shared asset if it passes all filters
+		insert := true
+		for _, ff := range opts.FilterFuncs {
+			if !ff(sa) {
+				insert = false
+				break
+			}
+		}
+		if insert {
+			err := aggSet.Insert(sa)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
