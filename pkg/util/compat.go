@@ -6,6 +6,16 @@ import (
 
 // See https://kubernetes.io/docs/reference/labels-annotations-taints/
 
+func GetZone(labels map[string]string) (string, bool) {
+	if _, ok := labels[v1.LabelTopologyZone]; ok { // Label as of 1.17
+		return labels[v1.LabelTopologyZone], true
+	} else if _, ok := labels[v1.LabelZoneFailureDomain]; ok { // deprecated label
+		return labels[v1.LabelZoneFailureDomain], true
+	} else {
+		return "", false
+	}
+}
+
 func GetRegion(labels map[string]string) (string, bool) {
 	if _, ok := labels[v1.LabelTopologyRegion]; ok { // Label as of 1.17
 		return labels[v1.LabelTopologyRegion], true
