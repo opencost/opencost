@@ -260,8 +260,9 @@ func (d *Disk) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "byteHours", d.ByteHours, ",")
 	jsonEncodeFloat64(buffer, "bytes", d.Bytes(), ",")
 	jsonEncode(buffer, "breakdown", d.Breakdown, ",")
-	jsonEncodeFloat64(buffer, "adjustment", d.Adjustment, ",")
-	jsonEncodeFloat64(buffer, "totalCost", d.TotalCost(), "")
+	jsonEncodeFloat64(buffer, "adjustment", d.Adjustment(), ",")
+	jsonEncodeFloat64(buffer, "totalCost", d.TotalCost(), ",")
+	jsonEncodeString(buffer, "storageClass", d.StorageClass, "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
@@ -330,6 +331,10 @@ func (d *Disk) InterfaceToDisk(itf interface{}) error {
 	}
 	if ByteHours, err := getTypedVal(fmap["byteHours"]); err == nil {
 		d.ByteHours = ByteHours.(float64)
+	}
+
+	if StorageClass, err := getTypedVal(fmap["storageClass"]); err == nil {
+		d.StorageClass = StorageClass.(string)
 	}
 
 	// d.Local is not marhsaled, and cannot be calculated from marshaled values.

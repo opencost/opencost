@@ -13,12 +13,11 @@ package kubecost
 
 import (
 	"fmt"
+	util "github.com/opencost/opencost/pkg/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
-
-	util "github.com/opencost/opencost/pkg/util"
 )
 
 const (
@@ -34,17 +33,17 @@ const (
 )
 
 const (
-	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 15
-
-	// AssetsCodecVersion is used for any resources listed in the Assets version set
-	AssetsCodecVersion uint8 = 16
-
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
 	AllocationCodecVersion uint8 = 15
 
 	// AuditCodecVersion is used for any resources listed in the Audit version set
 	AuditCodecVersion uint8 = 1
+
+	// DefaultCodecVersion is used for any resources listed in the Default version set
+	DefaultCodecVersion uint8 = 15
+
+	// AssetsCodecVersion is used for any resources listed in the Assets version set
+	AssetsCodecVersion uint8 = 17
 )
 
 //--------------------------------------------------------------------------
@@ -4888,14 +4887,14 @@ func (target *Disk) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 	buff.WriteUInt8(AssetsCodecVersion) // version
 
 	// --- [begin][write][alias](AssetLabels) ---
-	if map[string]string(target.Labels) == nil {
+	if map[string]string(target.labels) == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
 
 		// --- [begin][write][map](map[string]string) ---
-		buff.WriteInt(len(map[string]string(target.Labels))) // map length
-		for v, z := range map[string]string(target.Labels) {
+		buff.WriteInt(len(map[string]string(target.labels))) // map length
+		for v, z := range map[string]string(target.labels) {
 			if ctx.IsStringTable() {
 				a := ctx.Table.AddOrGet(v)
 				buff.WriteInt(a) // write table index
@@ -4914,14 +4913,14 @@ func (target *Disk) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 	}
 	// --- [end][write][alias](AssetLabels) ---
 
-	if target.Properties == nil {
+	if target.properties == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
 
 		// --- [begin][write][struct](AssetProperties) ---
 		buff.WriteInt(0) // [compatibility, unused]
-		errA := target.Properties.MarshalBinaryWithContext(ctx)
+		errA := target.properties.MarshalBinaryWithContext(ctx)
 		if errA != nil {
 			return errA
 		}
@@ -4929,7 +4928,7 @@ func (target *Disk) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 
 	}
 	// --- [begin][write][reference](time.Time) ---
-	c, errB := target.Start.MarshalBinary()
+	c, errB := target.start.MarshalBinary()
 	if errB != nil {
 		return errB
 	}
@@ -4938,7 +4937,7 @@ func (target *Disk) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 	// --- [end][write][reference](time.Time) ---
 
 	// --- [begin][write][reference](time.Time) ---
-	d, errC := target.End.MarshalBinary()
+	d, errC := target.end.MarshalBinary()
 	if errC != nil {
 		return errC
 	}
@@ -4948,13 +4947,13 @@ func (target *Disk) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 
 	// --- [begin][write][struct](Window) ---
 	buff.WriteInt(0) // [compatibility, unused]
-	errD := target.Window.MarshalBinaryWithContext(ctx)
+	errD := target.window.MarshalBinaryWithContext(ctx)
 	if errD != nil {
 		return errD
 	}
 	// --- [end][write][struct](Window) ---
 
-	buff.WriteFloat64(target.Adjustment) // write float64
+	buff.WriteFloat64(target.adjustment) // write float64
 	buff.WriteFloat64(target.Cost)       // write float64
 	buff.WriteFloat64(target.ByteHours)  // write float64
 	buff.WriteFloat64(target.Local)      // write float64
@@ -4971,6 +4970,12 @@ func (target *Disk) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 		}
 		// --- [end][write][struct](Breakdown) ---
 
+	}
+	if ctx.IsStringTable() {
+		e := ctx.Table.AddOrGet(target.StorageClass)
+		buff.WriteInt(e) // write table index
+	} else {
+		buff.WriteString(target.StorageClass) // write string
 	}
 	return nil
 }
@@ -5066,11 +5071,11 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 		// --- [end][read][map](map[string]string) ---
 
 	}
-	target.Labels = AssetLabels(a)
+	target.labels = AssetLabels(a)
 	// --- [end][read][alias](AssetLabels) ---
 
 	if buff.ReadUInt8() == uint8(0) {
-		target.Properties = nil
+		target.properties = nil
 	} else {
 		// --- [begin][read][struct](AssetProperties) ---
 		l := &AssetProperties{}
@@ -5079,7 +5084,7 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 		if errA != nil {
 			return errA
 		}
-		target.Properties = l
+		target.properties = l
 		// --- [end][read][struct](AssetProperties) ---
 
 	}
@@ -5091,7 +5096,7 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 	if errB != nil {
 		return errB
 	}
-	target.Start = *m
+	target.start = *m
 	// --- [end][read][reference](time.Time) ---
 
 	// --- [begin][read][reference](time.Time) ---
@@ -5102,7 +5107,7 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 	if errC != nil {
 		return errC
 	}
-	target.End = *p
+	target.end = *p
 	// --- [end][read][reference](time.Time) ---
 
 	// --- [begin][read][struct](Window) ---
@@ -5112,11 +5117,11 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 	if errD != nil {
 		return errD
 	}
-	target.Window = *s
+	target.window = *s
 	// --- [end][read][struct](Window) ---
 
 	t := buff.ReadFloat64() // read float64
-	target.Adjustment = t
+	target.adjustment = t
 
 	u := buff.ReadFloat64() // read float64
 	target.Cost = u
@@ -5141,6 +5146,22 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 		// --- [end][read][struct](Breakdown) ---
 
 	}
+	// field version check
+	if uint8(17) <= version {
+		var bb string
+		if ctx.IsStringTable() {
+			cc := buff.ReadInt() // read string index
+			bb = ctx.Table[cc]
+		} else {
+			bb = buff.ReadString() // read string
+		}
+		aa := bb
+		target.StorageClass = aa
+
+	} else {
+		target.StorageClass = "" // default
+	}
+
 	return nil
 }
 

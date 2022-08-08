@@ -1053,16 +1053,17 @@ func (cm *ClusterManagement) String() string {
 
 // Disk represents an in-cluster disk Asset
 type Disk struct {
-	Labels     AssetLabels
-	Properties *AssetProperties
-	Start      time.Time
-	End        time.Time
-	Window     Window
-	Adjustment float64
-	Cost       float64
-	ByteHours  float64
-	Local      float64
-	Breakdown  *Breakdown
+	labels       AssetLabels
+	properties   *AssetProperties
+	start        time.Time
+	end          time.Time
+	window       Window
+	adjustment   float64
+	Cost         float64
+	ByteHours    float64
+	Local        float64
+	Breakdown    *Breakdown
+	StorageClass string // @bingen:field[version=17]
 }
 
 // NewDisk creates and returns a new Disk Asset
@@ -1254,21 +1255,26 @@ func (d *Disk) add(that *Disk) {
 	d.Cost += that.Cost
 
 	d.ByteHours += that.ByteHours
+
+	if that.StorageClass != "" && that.StorageClass != "Unknown" {
+		d.StorageClass = that.StorageClass
+	}
 }
 
 // Clone returns a cloned instance of the Asset
 func (d *Disk) Clone() Asset {
 	return &Disk{
-		Properties: d.Properties.Clone(),
-		Labels:     d.Labels.Clone(),
-		Start:      d.Start,
-		End:        d.End,
-		Window:     d.Window.Clone(),
-		Adjustment: d.Adjustment,
-		Cost:       d.Cost,
-		ByteHours:  d.ByteHours,
-		Local:      d.Local,
-		Breakdown:  d.Breakdown.Clone(),
+		properties:   d.properties.Clone(),
+		labels:       d.labels.Clone(),
+		start:        d.start,
+		end:          d.end,
+		window:       d.window.Clone(),
+		adjustment:   d.adjustment,
+		Cost:         d.Cost,
+		ByteHours:    d.ByteHours,
+		Local:        d.Local,
+		Breakdown:    d.Breakdown.Clone(),
+		StorageClass: d.StorageClass,
 	}
 }
 
@@ -1307,6 +1313,9 @@ func (d *Disk) Equal(a Asset) bool {
 		return false
 	}
 	if !d.Breakdown.Equal(that.Breakdown) {
+		return false
+	}
+	if d.StorageClass != that.StorageClass {
 		return false
 	}
 
@@ -2900,7 +2909,6 @@ func (as *AssetSet) Insert(asset Asset) error {
 		as.Assets[k] = newAsset
 		addToConcreteMap(as, k, newAsset)
 	}
-
 	// Expand the window, just to be safe. It's possible that the asset will
 	// be set into the map without expanding it to the AssetSet's window.
 	as.Assets[k].ExpandWindow(as.Window)
