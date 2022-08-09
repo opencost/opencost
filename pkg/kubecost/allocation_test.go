@@ -510,7 +510,7 @@ func assertAllocationSetTotals(t *testing.T, as *AllocationSet, msg string, err 
 }
 
 func assertAllocationTotals(t *testing.T, as *AllocationSet, msg string, exps map[string]float64) {
-	as.Each(func(k string, a *Allocation) {
+	for _, a := range as.Allocations {
 		if exp, ok := exps[a.Name]; ok {
 			if math.Round(a.TotalCost()*100) != math.Round(exp*100) {
 				t.Fatalf("AllocationSet.AggregateBy[%s]: expected total cost %f, actual %f", msg, exp, a.TotalCost())
@@ -518,11 +518,11 @@ func assertAllocationTotals(t *testing.T, as *AllocationSet, msg string, exps ma
 		} else {
 			t.Fatalf("AllocationSet.AggregateBy[%s]: unexpected allocation: %s", msg, a.Name)
 		}
-	})
+	}
 }
 
 func assertAllocationWindow(t *testing.T, as *AllocationSet, msg string, expStart, expEnd time.Time, expMinutes float64) {
-	as.Each(func(k string, a *Allocation) {
+	for _, a := range as.Allocations {
 		if !a.Start.Equal(expStart) {
 			t.Fatalf("AllocationSet.AggregateBy[%s]: expected start %s, actual %s", msg, expStart, a.Start)
 		}
@@ -532,14 +532,14 @@ func assertAllocationWindow(t *testing.T, as *AllocationSet, msg string, expStar
 		if a.Minutes() != expMinutes {
 			t.Fatalf("AllocationSet.AggregateBy[%s]: expected minutes %f, actual %f", msg, expMinutes, a.Minutes())
 		}
-	})
+	}
 }
 
 func printAllocationSet(msg string, as *AllocationSet) {
 	fmt.Printf("--- %s ---\n", msg)
-	as.Each(func(k string, a *Allocation) {
+	for _, a := range as.Allocations {
 		fmt.Printf(" > %s\n", a)
-	})
+	}
 }
 
 func TestAllocationSet_AggregateBy(t *testing.T) {
@@ -1567,21 +1567,21 @@ func TestAllocationSet_insertMatchingWindow(t *testing.T) {
 	}
 
 	as := NewAllocationSet(setStart, setEnd)
-	as.insert(a1)
-	as.insert(a2)
+	as.Insert(a1)
+	as.Insert(a2)
 
 	if as.Length() != 2 {
 		t.Errorf("AS length got %d, expected %d", as.Length(), 2)
 	}
 
-	as.Each(func(k string, a *Allocation) {
+	for _, a := range as.Allocations {
 		if !(*a.Window.Start()).Equal(setStart) {
 			t.Errorf("Allocation %s window start is %s, expected %s", a.Name, *a.Window.Start(), setStart)
 		}
 		if !(*a.Window.End()).Equal(setEnd) {
 			t.Errorf("Allocation %s window end is %s, expected %s", a.Name, *a.Window.End(), setEnd)
 		}
-	})
+	}
 }
 
 // TODO niko/etl
@@ -1704,7 +1704,7 @@ func TestAllocationSetRange_Accumulate(t *testing.T) {
 	if result.TotalCost() != 12.0 {
 		t.Fatalf("accumulating AllocationSetRange: expected total cost 12.0; actual %f", result.TotalCost())
 	}
-	allocMap := result.Map()
+	allocMap := result.Allocations
 	if len(allocMap) != 1 {
 		t.Fatalf("accumulating AllocationSetRange: expected length 1; actual length %d", len(allocMap))
 	}
@@ -1802,7 +1802,7 @@ func TestAllocationSetRange_AccumulateBy_Nils(t *testing.T) {
 
 	for _, c := range nilEmptycases {
 		result, err = c.asr.AccumulateBy(c.resolution)
-		for _, as := range result.allocations {
+		for _, as := range result.Allocations {
 			if !as.IsEmpty() {
 				t.Errorf("accumulating nil AllocationSetRange: expected empty; actual %s; TestId: %s", result, c.testId)
 			}
@@ -1855,7 +1855,7 @@ func TestAllocationSetRange_AccumulateBy_Nils(t *testing.T) {
 			t.Errorf("accumulating AllocationSetRange: expected AllocationSet; actual %s; TestId: %s", result, c.testId)
 		}
 
-		for _, as := range result.allocations {
+		for _, as := range result.Allocations {
 			sumCost += as.TotalCost()
 		}
 
@@ -2024,7 +2024,7 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 			t.Errorf("accumulating AllocationSetRange: expected %v number of allocation sets; actual %v; TestId: %s", c.expectedSets, result.Length(), c.testId)
 		}
 
-		for _, as := range result.allocations {
+		for _, as := range result.Allocations {
 			sumCost += as.TotalCost()
 		}
 		if sumCost != c.expectedCost {
@@ -2046,11 +2046,11 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 	}
 
 	sumCost = 0.0
-	for _, as := range result.allocations {
+	for _, as := range result.Allocations {
 		sumCost += as.TotalCost()
 	}
 
-	allocMap := result.allocations[0].Map()
+	allocMap := result.Allocations[0].Allocations
 	if len(allocMap) != 1 {
 		t.Errorf("accumulating AllocationSetRange: expected length 1; actual length %d", len(allocMap))
 	}
@@ -2164,8 +2164,8 @@ func TestAllocationSetRange_InsertRange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	thisASR.Each(func(i int, as *AllocationSet) {
-		as.Each(func(k string, a *Allocation) {
+	for _, as := range thisASR.Allocations {
+		for k, a := range as.Allocations {
 			if !util.IsApproximately(a.CPUCoreHours, unit.CPUCoreHours) {
 				t.Fatalf("allocation %s: expected %f; got %f", k, unit.CPUCoreHours, a.CPUCoreHours)
 			}
@@ -2199,8 +2199,8 @@ func TestAllocationSetRange_InsertRange(t *testing.T) {
 			if !util.IsApproximately(a.TotalCost(), unit.TotalCost()) {
 				t.Fatalf("allocation %s: expected %f; got %f", k, unit.TotalCost(), a.TotalCost())
 			}
-		})
-	})
+		}
+	}
 
 	// Expect an error calling InsertRange with a range exceeding the receiver
 	err = thisASR.InsertRange(longASR)
@@ -2216,7 +2216,7 @@ func TestAllocationSetRange_InsertRange(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 	yAS, err := thisASR.Get(0)
-	yAS.Each(func(k string, a *Allocation) {
+	for k, a := range yAS.Allocations {
 		if !util.IsApproximately(a.CPUCoreHours, 2*unit.CPUCoreHours) {
 			t.Fatalf("allocation %s: expected %f; got %f", k, unit.CPUCoreHours, a.CPUCoreHours)
 		}
@@ -2251,9 +2251,9 @@ func TestAllocationSetRange_InsertRange(t *testing.T) {
 		if !util.IsApproximately(a.TotalCost(), 2*unit.TotalCost()) {
 			t.Fatalf("allocation %s: expected %f; got %f", k, unit.TotalCost(), a.TotalCost())
 		}
-	})
+	}
 	tAS, err := thisASR.Get(1)
-	tAS.Each(func(k string, a *Allocation) {
+	for k, a := range tAS.Allocations {
 		if !util.IsApproximately(a.CPUCoreHours, unit.CPUCoreHours) {
 			t.Fatalf("allocation %s: expected %f; got %f", k, unit.CPUCoreHours, a.CPUCoreHours)
 		}
@@ -2287,7 +2287,7 @@ func TestAllocationSetRange_InsertRange(t *testing.T) {
 		if !util.IsApproximately(a.TotalCost(), unit.TotalCost()) {
 			t.Fatalf("allocation %s: expected %f; got %f", k, unit.TotalCost(), a.TotalCost())
 		}
-	})
+	}
 }
 
 // TODO niko/etl
@@ -2311,9 +2311,9 @@ func TestAllocationSetRange_MarshalJSON(t *testing.T) {
 		{
 			name: "Normal ASR",
 			arg: &AllocationSetRange{
-				allocations: []*AllocationSet{
+				Allocations: []*AllocationSet{
 					{
-						allocations: map[string]*Allocation{
+						Allocations: map[string]*Allocation{
 							"a": {
 								Start: time.Now().UTC().Truncate(day),
 							},
@@ -2371,9 +2371,9 @@ func TestAllocationSetRange_Start(t *testing.T) {
 		{
 			name: "Single allocation",
 			arg: &AllocationSetRange{
-				allocations: []*AllocationSet{
+				Allocations: []*AllocationSet{
 					{
-						allocations: map[string]*Allocation{
+						Allocations: map[string]*Allocation{
 							"a": {
 								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 							},
@@ -2387,9 +2387,9 @@ func TestAllocationSetRange_Start(t *testing.T) {
 		{
 			name: "Two allocations",
 			arg: &AllocationSetRange{
-				allocations: []*AllocationSet{
+				Allocations: []*AllocationSet{
 					{
-						allocations: map[string]*Allocation{
+						Allocations: map[string]*Allocation{
 							"a": {
 								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 							},
@@ -2406,16 +2406,16 @@ func TestAllocationSetRange_Start(t *testing.T) {
 		{
 			name: "Two AllocationSets",
 			arg: &AllocationSetRange{
-				allocations: []*AllocationSet{
+				Allocations: []*AllocationSet{
 					{
-						allocations: map[string]*Allocation{
+						Allocations: map[string]*Allocation{
 							"a": {
 								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 							},
 						},
 					},
 					{
-						allocations: map[string]*Allocation{
+						Allocations: map[string]*Allocation{
 							"b": {
 								Start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
 							},
@@ -2459,9 +2459,9 @@ func TestAllocationSetRange_End(t *testing.T) {
 		{
 			name: "Single allocation",
 			arg: &AllocationSetRange{
-				allocations: []*AllocationSet{
+				Allocations: []*AllocationSet{
 					{
-						allocations: map[string]*Allocation{
+						Allocations: map[string]*Allocation{
 							"a": {
 								End: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 							},
@@ -2475,9 +2475,9 @@ func TestAllocationSetRange_End(t *testing.T) {
 		{
 			name: "Two allocations",
 			arg: &AllocationSetRange{
-				allocations: []*AllocationSet{
+				Allocations: []*AllocationSet{
 					{
-						allocations: map[string]*Allocation{
+						Allocations: map[string]*Allocation{
 							"a": {
 								End: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 							},
@@ -2494,16 +2494,16 @@ func TestAllocationSetRange_End(t *testing.T) {
 		{
 			name: "Two AllocationSets",
 			arg: &AllocationSetRange{
-				allocations: []*AllocationSet{
+				Allocations: []*AllocationSet{
 					{
-						allocations: map[string]*Allocation{
+						Allocations: map[string]*Allocation{
 							"a": {
 								End: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 							},
 						},
 					},
 					{
-						allocations: map[string]*Allocation{
+						Allocations: map[string]*Allocation{
 							"b": {
 								End: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
 							},
@@ -2546,9 +2546,9 @@ func TestAllocationSetRange_Minutes(t *testing.T) {
 		{
 			name: "Single allocation",
 			arg: &AllocationSetRange{
-				allocations: []*AllocationSet{
+				Allocations: []*AllocationSet{
 					{
-						allocations: map[string]*Allocation{
+						Allocations: map[string]*Allocation{
 							"a": {
 								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 								End:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
@@ -2563,9 +2563,9 @@ func TestAllocationSetRange_Minutes(t *testing.T) {
 		{
 			name: "Two allocations",
 			arg: &AllocationSetRange{
-				allocations: []*AllocationSet{
+				Allocations: []*AllocationSet{
 					{
-						allocations: map[string]*Allocation{
+						Allocations: map[string]*Allocation{
 							"a": {
 								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 								End:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
@@ -2584,9 +2584,9 @@ func TestAllocationSetRange_Minutes(t *testing.T) {
 		{
 			name: "Two AllocationSets",
 			arg: &AllocationSetRange{
-				allocations: []*AllocationSet{
+				Allocations: []*AllocationSet{
 					{
-						allocations: map[string]*Allocation{
+						Allocations: map[string]*Allocation{
 							"a": {
 								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 								End:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
@@ -2594,7 +2594,7 @@ func TestAllocationSetRange_Minutes(t *testing.T) {
 						},
 					},
 					{
-						allocations: map[string]*Allocation{
+						Allocations: map[string]*Allocation{
 							"b": {
 								Start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
 								End:   time.Date(1970, 1, 3, 0, 0, 0, 0, time.UTC),

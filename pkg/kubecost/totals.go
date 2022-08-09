@@ -112,10 +112,10 @@ func (art *AllocationTotals) TotalCost() float64 {
 func ComputeAllocationTotals(as *AllocationSet, prop string) map[string]*AllocationTotals {
 	arts := map[string]*AllocationTotals{}
 
-	as.Each(func(name string, alloc *Allocation) {
+	for _, alloc := range as.Allocations {
 		// Do not count idle or unmounted allocations
 		if alloc.IsIdle() || alloc.IsUnmounted() {
-			return
+			continue
 		}
 
 		// Default to computing totals by Cluster, but allow override to use Node.
@@ -163,7 +163,7 @@ func ComputeAllocationTotals(as *AllocationSet, prop string) map[string]*Allocat
 
 		arts[key].RAMCost += alloc.RAMCost
 		arts[key].RAMCostAdjustment += alloc.RAMCostAdjustment
-	})
+	}
 
 	return arts
 }
@@ -303,139 +303,143 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 	nodeNames := map[string]bool{}
 	disks := map[string]*Disk{}
 
-	as.Each(func(name string, asset Asset) {
-		if node, ok := asset.(*Node); ok {
-			// Default to computing totals by Cluster, but allow override to use Node.
-			key := node.Properties().Cluster
-			if prop == AssetNodeProp {
-				key = fmt.Sprintf("%s/%s", node.Properties().Cluster, node.Properties().Name)
+	for _, node := range as.Nodes {
+		// Default to computing totals by Cluster, but allow override to use Node.
+		key := node.Properties.Cluster
+		if prop == AssetNodeProp {
+			key = fmt.Sprintf("%s/%s", node.Properties.Cluster, node.Properties.Name)
+		}
+
+		// Add node name to list of node names. (These are to be used later
+		// for attached volumes.)
+		nodeNames[fmt.Sprintf("%s/%s", node.Properties.Cluster, node.Properties.Name)] = true
+
+		// adjustmentRate is used to scale resource costs proportionally
+		// by the adjustment. This is necessary because we only get one
+		// adjustment per Node, not one per-resource-per-Node.
+		//
+		// e.g. total cost =  $90 (cost = $100, adjustment = -$10)  => 0.9000 ( 90 / 100)
+		// e.g. total cost = $150 (cost = $450, adjustment = -$300) => 0.3333 (150 / 450)
+		// e.g. total cost = $150 (cost = $100, adjustment = $50)   => 1.5000 (150 / 100)
+		adjustmentRate := 1.0
+		if node.TotalCost()-node.Adjustment == 0 {
+			// If (totalCost - adjustment) is 0.0 then adjustment cancels
+			// the entire node cost and we should make everything 0
+			// without dividing by 0.
+			adjustmentRate = 0.0
+			log.DedupedWarningf(5, "ComputeTotals: node cost adjusted to $0.00 for %s", node.Properties.Name)
+		} else if node.Adjustment != 0.0 {
+			// adjustmentRate is the ratio of cost-with-adjustment (i.e. TotalCost)
+			// to cost-without-adjustment (i.e. TotalCost - Adjustment).
+			adjustmentRate = node.TotalCost() / (node.TotalCost() - node.Adjustment)
+		}
+
+		// 1. Start with raw, measured resource cost
+		// 2. Apply discount to get discounted resource cost
+		// 3. Apply adjustment to get final "adjusted" resource cost
+		// 4. Subtract (3 - 2) to get adjustment in doller-terms
+		// 5. Use (2 + 4) as total cost, so (2) is "cost" and (4) is "adjustment"
+
+		// Example:
+		// - node.CPUCost   = 10.00
+		// - node.Discount  =  0.20  // We assume a 20% discount
+		// - adjustmentRate =  0.75  // CUR says we need to reduce to 75% of our post-discount node cost
+		//
+		// 1. See above
+		// 2. discountedCPUCost = 10.00 * (1.0 - 0.2) =  8.00
+		// 3. adjustedCPUCost   =  8.00 * 0.75        =  6.00  // this is the actual cost according to the CUR
+		// 4. adjustment        =  6.00 - 8.00        = -2.00
+		// 5. totalCost = 6.00, which is the sum of (2) cost = 8.00 and (4) adjustment = -2.00
+
+		discountedCPUCost := node.CPUCost * (1.0 - node.Discount)
+		adjustedCPUCost := discountedCPUCost * adjustmentRate
+		cpuCostAdjustment := adjustedCPUCost - discountedCPUCost
+
+		discountedRAMCost := node.RAMCost * (1.0 - node.Discount)
+		adjustedRAMCost := discountedRAMCost * adjustmentRate
+		ramCostAdjustment := adjustedRAMCost - discountedRAMCost
+
+		adjustedGPUCost := node.GPUCost * adjustmentRate
+		gpuCostAdjustment := adjustedGPUCost - node.GPUCost
+
+		if _, ok := arts[key]; !ok {
+			arts[key] = &AssetTotals{
+				Start:   node.Start,
+				End:     node.End,
+				Cluster: node.Properties.Cluster,
+				Node:    node.Properties.Name,
 			}
+		}
 
-			// Add node name to list of node names. (These are to be used later
-			// for attached volumes.)
-			nodeNames[fmt.Sprintf("%s/%s", node.Properties().Cluster, node.Properties().Name)] = true
+		if arts[key].Start.After(node.Start) {
+			arts[key].Start = node.Start
+		}
+		if arts[key].End.Before(node.End) {
+			arts[key].End = node.End
+		}
 
-			// adjustmentRate is used to scale resource costs proportionally
-			// by the adjustment. This is necessary because we only get one
-			// adjustment per Node, not one per-resource-per-Node.
-			//
-			// e.g. total cost =  $90 (cost = $100, adjustment = -$10)  => 0.9000 ( 90 / 100)
-			// e.g. total cost = $150 (cost = $450, adjustment = -$300) => 0.3333 (150 / 450)
-			// e.g. total cost = $150 (cost = $100, adjustment = $50)   => 1.5000 (150 / 100)
-			adjustmentRate := 1.0
-			if node.TotalCost()-node.Adjustment() == 0 {
-				// If (totalCost - adjustment) is 0.0 then adjustment cancels
-				// the entire node cost and we should make everything 0
-				// without dividing by 0.
-				adjustmentRate = 0.0
-				log.DedupedWarningf(5, "ComputeTotals: node cost adjusted to $0.00 for %s", node.Properties().Name)
-			} else if node.Adjustment() != 0.0 {
-				// adjustmentRate is the ratio of cost-with-adjustment (i.e. TotalCost)
-				// to cost-without-adjustment (i.e. TotalCost - Adjustment).
-				adjustmentRate = node.TotalCost() / (node.TotalCost() - node.Adjustment())
-			}
+		if arts[key].Node != node.Properties.Name {
+			arts[key].Node = ""
+		}
 
-			// 1. Start with raw, measured resource cost
-			// 2. Apply discount to get discounted resource cost
-			// 3. Apply adjustment to get final "adjusted" resource cost
-			// 4. Subtract (3 - 2) to get adjustment in doller-terms
-			// 5. Use (2 + 4) as total cost, so (2) is "cost" and (4) is "adjustment"
+		arts[key].Count++
 
-			// Example:
-			// - node.CPUCost   = 10.00
-			// - node.Discount  =  0.20  // We assume a 20% discount
-			// - adjustmentRate =  0.75  // CUR says we need to reduce to 75% of our post-discount node cost
-			//
-			// 1. See above
-			// 2. discountedCPUCost = 10.00 * (1.0 - 0.2) =  8.00
-			// 3. adjustedCPUCost   =  8.00 * 0.75        =  6.00  // this is the actual cost according to the CUR
-			// 4. adjustment        =  6.00 - 8.00        = -2.00
-			// 5. totalCost = 6.00, which is the sum of (2) cost = 8.00 and (4) adjustment = -2.00
+		// TotalCPUCost will be discounted cost + adjustment
+		arts[key].CPUCost += discountedCPUCost
+		arts[key].CPUCostAdjustment += cpuCostAdjustment
 
-			discountedCPUCost := node.CPUCost * (1.0 - node.Discount)
-			adjustedCPUCost := discountedCPUCost * adjustmentRate
-			cpuCostAdjustment := adjustedCPUCost - discountedCPUCost
+		// TotalRAMCost will be discounted cost + adjustment
+		arts[key].RAMCost += discountedRAMCost
+		arts[key].RAMCostAdjustment += ramCostAdjustment
 
-			discountedRAMCost := node.RAMCost * (1.0 - node.Discount)
-			adjustedRAMCost := discountedRAMCost * adjustmentRate
-			ramCostAdjustment := adjustedRAMCost - discountedRAMCost
+		// TotalGPUCost will be discounted cost + adjustment
+		arts[key].GPUCost += node.GPUCost
+		arts[key].GPUCostAdjustment += gpuCostAdjustment
+	}
 
-			adjustedGPUCost := node.GPUCost * adjustmentRate
-			gpuCostAdjustment := adjustedGPUCost - node.GPUCost
+	// Only record LoadBalancer and ClusterManagement when prop
+	// is cluster. We can't breakdown these types by Node.
+	if prop == AssetClusterProp {
+		for _, lb := range as.LoadBalancers {
+			key := lb.Properties.Cluster
 
 			if _, ok := arts[key]; !ok {
 				arts[key] = &AssetTotals{
-					Start:   node.Start(),
-					End:     node.End(),
-					Cluster: node.Properties().Cluster,
-					Node:    node.Properties().Name,
-				}
-			}
-
-			if arts[key].Start.After(node.Start()) {
-				arts[key].Start = node.Start()
-			}
-			if arts[key].End.Before(node.End()) {
-				arts[key].End = node.End()
-			}
-
-			if arts[key].Node != node.Properties().Name {
-				arts[key].Node = ""
-			}
-
-			arts[key].Count++
-
-			// TotalCPUCost will be discounted cost + adjustment
-			arts[key].CPUCost += discountedCPUCost
-			arts[key].CPUCostAdjustment += cpuCostAdjustment
-
-			// TotalRAMCost will be discounted cost + adjustment
-			arts[key].RAMCost += discountedRAMCost
-			arts[key].RAMCostAdjustment += ramCostAdjustment
-
-			// TotalGPUCost will be discounted cost + adjustment
-			arts[key].GPUCost += node.GPUCost
-			arts[key].GPUCostAdjustment += gpuCostAdjustment
-		} else if lb, ok := asset.(*LoadBalancer); ok && prop == AssetClusterProp {
-			// Only record load balancers when prop is Cluster because we
-			// can't break down LoadBalancer by node.
-			key := lb.Properties().Cluster
-
-			if _, ok := arts[key]; !ok {
-				arts[key] = &AssetTotals{
-					Start:   lb.Start(),
-					End:     lb.End(),
-					Cluster: lb.Properties().Cluster,
+					Start:   lb.Start,
+					End:     lb.End,
+					Cluster: lb.Properties.Cluster,
 				}
 			}
 
 			arts[key].Count++
 			arts[key].LoadBalancerCost += lb.Cost
-			arts[key].LoadBalancerCostAdjustment += lb.adjustment
-		} else if cm, ok := asset.(*ClusterManagement); ok && prop == AssetClusterProp {
-			// Only record cluster management when prop is Cluster because we
-			// can't break down ClusterManagement by node.
-			key := cm.Properties().Cluster
+			arts[key].LoadBalancerCostAdjustment += lb.Adjustment
+		}
+
+		for _, cm := range as.ClusterManagement {
+			key := cm.Properties.Cluster
 
 			if _, ok := arts[key]; !ok {
 				arts[key] = &AssetTotals{
-					Start:   cm.Start(),
-					End:     cm.End(),
-					Cluster: cm.Properties().Cluster,
+					Start:   cm.GetStart(),
+					End:     cm.GetEnd(),
+					Cluster: cm.Properties.Cluster,
 				}
 			}
 
 			arts[key].Count++
 			arts[key].ClusterManagementCost += cm.Cost
-			arts[key].ClusterManagementCostAdjustment += cm.adjustment
-		} else if disk, ok := asset.(*Disk); ok {
-			// Record disks in an intermediate structure, which will be
-			// processed after all assets have been seen.
-			key := fmt.Sprintf("%s/%s", disk.Properties().Cluster, disk.Properties().Name)
-
-			disks[key] = disk
+			arts[key].ClusterManagementCostAdjustment += cm.Adjustment
 		}
-	})
+	}
+
+	// Record disks in an intermediate structure, which will be
+	// processed after all assets have been seen.
+	for _, disk := range as.Disks {
+		key := fmt.Sprintf("%s/%s", disk.Properties.Cluster, disk.Properties.Name)
+
+		disks[key] = disk
+	}
 
 	// Record all disks as either attached volumes or persistent volumes.
 	for name, disk := range disks {
@@ -444,18 +448,18 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 		// reset the key to just the cluster.
 		key := name
 		if prop == AssetClusterProp {
-			key = disk.Properties().Cluster
+			key = disk.Properties.Cluster
 		}
 
 		if _, ok := arts[key]; !ok {
 			arts[key] = &AssetTotals{
-				Start:   disk.Start(),
-				End:     disk.End(),
-				Cluster: disk.Properties().Cluster,
+				Start:   disk.Start,
+				End:     disk.End,
+				Cluster: disk.Properties.Cluster,
 			}
 
 			if prop == AssetNodeProp {
-				arts[key].Node = disk.Properties().Name
+				arts[key].Node = disk.Properties.Name
 			}
 		}
 
@@ -466,14 +470,14 @@ func ComputeAssetTotals(as *AssetSet, prop AssetProperty) map[string]*AssetTotal
 			// TODO can we make a stronger match at the underlying ETL layer?
 			arts[key].Count++
 			arts[key].AttachedVolumeCost += disk.Cost
-			arts[key].AttachedVolumeCostAdjustment += disk.adjustment
+			arts[key].AttachedVolumeCostAdjustment += disk.Adjustment
 		} else if prop == AssetClusterProp {
 			// Here, we're looking at a PersistentVolume because we're not
 			// looking at an AttachedVolume. Only record PersistentVolume data
 			// at the cluster level (i.e. prop == AssetClusterProp).
 			arts[key].Count++
 			arts[key].PersistentVolumeCost += disk.Cost
-			arts[key].PersistentVolumeCostAdjustment += disk.adjustment
+			arts[key].PersistentVolumeCostAdjustment += disk.Adjustment
 		}
 	}
 

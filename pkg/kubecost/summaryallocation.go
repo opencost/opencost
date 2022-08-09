@@ -318,7 +318,7 @@ func NewSummaryAllocationSet(as *AllocationSet, filter AllocationFilter, kfs []A
 	if filter == nil && len(kfs) == 0 {
 		// No filters, so make the map of summary allocations exactly the size
 		// of the origin allocation set.
-		sasMap = make(map[string]*SummaryAllocation, len(as.allocations))
+		sasMap = make(map[string]*SummaryAllocation, len(as.Allocations))
 	} else {
 		// There are filters, so start with a standard map
 		sasMap = make(map[string]*SummaryAllocation)
@@ -329,7 +329,7 @@ func NewSummaryAllocationSet(as *AllocationSet, filter AllocationFilter, kfs []A
 		Window:             as.Window.Clone(),
 	}
 
-	for _, alloc := range as.allocations {
+	for _, alloc := range as.Allocations {
 		// First, detect if the allocation should be kept. If so, mark it as
 		// such, insert it, and continue.
 		shouldKeep := false
@@ -358,11 +358,11 @@ func NewSummaryAllocationSet(as *AllocationSet, filter AllocationFilter, kfs []A
 		}
 	}
 
-	for key := range as.externalKeys {
+	for key := range as.ExternalKeys {
 		sas.externalKeys[key] = true
 	}
 
-	for key := range as.idleKeys {
+	for key := range as.IdleKeys {
 		sas.idleKeys[key] = true
 	}
 
@@ -1313,27 +1313,27 @@ func (sasr *SummaryAllocationSetRange) InsertExternalAllocations(that *Allocatio
 	}
 
 	var err error
-	that.Each(func(j int, thatAS *AllocationSet) {
+	for _, thatAS := range that.Allocations {
 		if thatAS == nil || err != nil {
-			return
+			continue
 		}
 
 		// Find matching AllocationSet in asr
 		i, ok := keys[thatAS.Window.String()]
 		if !ok {
 			err = fmt.Errorf("cannot merge AllocationSet into window that does not exist: %s", thatAS.Window.String())
-			return
+			continue
 		}
 		sas := sasr.SummaryAllocationSets[i]
 
 		// Insert each Allocation from the given set
-		thatAS.Each(func(k string, alloc *Allocation) {
+		for _, alloc := range thatAS.Allocations {
 			externalSA := NewSummaryAllocation(alloc, true, true)
 			// This error will be returned below
 			// TODO:CLEANUP should Each have early-error-return functionality?
 			err = sas.Insert(externalSA)
-		})
-	})
+		}
+	}
 
 	// err might be nil
 	return err

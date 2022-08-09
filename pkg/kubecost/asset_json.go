@@ -16,13 +16,13 @@ import (
 // MarshalJSON implements json.Marshaler
 func (a *Any) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
-	jsonEncode(buffer, "properties", a.Properties(), ",")
-	jsonEncode(buffer, "labels", a.Labels(), ",")
-	jsonEncode(buffer, "window", a.Window(), ",")
-	jsonEncodeString(buffer, "start", a.Start().Format(time.RFC3339), ",")
-	jsonEncodeString(buffer, "end", a.End().Format(time.RFC3339), ",")
+	jsonEncode(buffer, "properties", a.Properties, ",")
+	jsonEncode(buffer, "labels", a.Labels, ",")
+	jsonEncode(buffer, "window", a.Window, ",")
+	jsonEncodeString(buffer, "start", a.Start.Format(time.RFC3339), ",")
+	jsonEncodeString(buffer, "end", a.End.Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", a.Minutes(), ",")
-	jsonEncodeFloat64(buffer, "adjustment", a.Adjustment(), ",")
+	jsonEncodeFloat64(buffer, "adjustment", a.Adjustment, ",")
 	jsonEncodeFloat64(buffer, "totalCost", a.TotalCost(), "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
@@ -70,20 +70,20 @@ func (a *Any) InterfaceToAny(itf interface{}) error {
 		return err
 	}
 
-	a.properties = &properties
-	a.labels = labels
-	a.start = start
-	a.end = end
-	a.window = Window{
+	a.Properties = &properties
+	a.Labels = labels
+	a.Start = start
+	a.End = end
+	a.Window = Window{
 		start: &start,
 		end:   &end,
 	}
 
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
-		a.adjustment = adjustment.(float64)
+		a.Adjustment = adjustment.(float64)
 	}
 	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
-		a.Cost = Cost.(float64) - a.adjustment
+		a.Cost = Cost.(float64) - a.Adjustment
 	}
 
 	return nil
@@ -95,13 +95,13 @@ func (a *Any) InterfaceToAny(itf interface{}) error {
 func (ca *Cloud) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
 	jsonEncodeString(buffer, "type", ca.Type().String(), ",")
-	jsonEncode(buffer, "properties", ca.Properties(), ",")
-	jsonEncode(buffer, "labels", ca.Labels(), ",")
-	jsonEncode(buffer, "window", ca.Window(), ",")
-	jsonEncodeString(buffer, "start", ca.Start().Format(time.RFC3339), ",")
-	jsonEncodeString(buffer, "end", ca.End().Format(time.RFC3339), ",")
+	jsonEncode(buffer, "properties", ca.Properties, ",")
+	jsonEncode(buffer, "labels", ca.Labels, ",")
+	jsonEncode(buffer, "window", ca.Window, ",")
+	jsonEncodeString(buffer, "start", ca.Start.Format(time.RFC3339), ",")
+	jsonEncodeString(buffer, "end", ca.End.Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", ca.Minutes(), ",")
-	jsonEncodeFloat64(buffer, "adjustment", ca.Adjustment(), ",")
+	jsonEncodeFloat64(buffer, "adjustment", ca.Adjustment, ",")
 	jsonEncodeFloat64(buffer, "credit", ca.Credit, ",")
 	jsonEncodeFloat64(buffer, "totalCost", ca.TotalCost(), "")
 	buffer.WriteString("}")
@@ -150,23 +150,23 @@ func (ca *Cloud) InterfaceToCloud(itf interface{}) error {
 		return err
 	}
 
-	ca.properties = &properties
-	ca.labels = labels
-	ca.start = start
-	ca.end = end
-	ca.window = Window{
+	ca.Properties = &properties
+	ca.Labels = labels
+	ca.Start = start
+	ca.End = end
+	ca.Window = Window{
 		start: &start,
 		end:   &end,
 	}
 
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
-		ca.adjustment = adjustment.(float64)
+		ca.Adjustment = adjustment.(float64)
 	}
 	if Credit, err := getTypedVal(fmap["credit"]); err == nil {
 		ca.Credit = Credit.(float64)
 	}
 	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
-		ca.Cost = Cost.(float64) - ca.adjustment - ca.Credit
+		ca.Cost = Cost.(float64) - ca.Adjustment - ca.Credit
 	}
 
 	return nil
@@ -178,11 +178,11 @@ func (ca *Cloud) InterfaceToCloud(itf interface{}) error {
 func (cm *ClusterManagement) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
 	jsonEncodeString(buffer, "type", cm.Type().String(), ",")
-	jsonEncode(buffer, "properties", cm.Properties(), ",")
-	jsonEncode(buffer, "labels", cm.Labels(), ",")
-	jsonEncode(buffer, "window", cm.Window(), ",")
-	jsonEncodeString(buffer, "start", cm.Start().Format(time.RFC3339), ",")
-	jsonEncodeString(buffer, "end", cm.End().Format(time.RFC3339), ",")
+	jsonEncode(buffer, "properties", cm.Properties, ",")
+	jsonEncode(buffer, "labels", cm.Labels, ",")
+	jsonEncode(buffer, "window", cm.Window, ",")
+	jsonEncodeString(buffer, "start", cm.GetStart().Format(time.RFC3339), ",")
+	jsonEncodeString(buffer, "end", cm.GetEnd().Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", cm.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "totalCost", cm.TotalCost(), "")
 	buffer.WriteString("}")
@@ -231,9 +231,9 @@ func (cm *ClusterManagement) InterfaceToClusterManagement(itf interface{}) error
 		return err
 	}
 
-	cm.properties = &properties
-	cm.labels = labels
-	cm.window = Window{
+	cm.Properties = &properties
+	cm.Labels = labels
+	cm.Window = Window{
 		start: &start,
 		end:   &end,
 	}
@@ -251,16 +251,16 @@ func (cm *ClusterManagement) InterfaceToClusterManagement(itf interface{}) error
 func (d *Disk) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
 	jsonEncodeString(buffer, "type", d.Type().String(), ",")
-	jsonEncode(buffer, "properties", d.Properties(), ",")
-	jsonEncode(buffer, "labels", d.Labels(), ",")
-	jsonEncode(buffer, "window", d.Window(), ",")
-	jsonEncodeString(buffer, "start", d.Start().Format(time.RFC3339), ",")
-	jsonEncodeString(buffer, "end", d.End().Format(time.RFC3339), ",")
+	jsonEncode(buffer, "properties", d.Properties, ",")
+	jsonEncode(buffer, "labels", d.Labels, ",")
+	jsonEncode(buffer, "window", d.Window, ",")
+	jsonEncodeString(buffer, "start", d.Start.Format(time.RFC3339), ",")
+	jsonEncodeString(buffer, "end", d.End.Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", d.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "byteHours", d.ByteHours, ",")
 	jsonEncodeFloat64(buffer, "bytes", d.Bytes(), ",")
 	jsonEncode(buffer, "breakdown", d.Breakdown, ",")
-	jsonEncodeFloat64(buffer, "adjustment", d.Adjustment(), ",")
+	jsonEncodeFloat64(buffer, "adjustment", d.Adjustment, ",")
 	jsonEncodeFloat64(buffer, "totalCost", d.TotalCost(), "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
@@ -312,21 +312,21 @@ func (d *Disk) InterfaceToDisk(itf interface{}) error {
 
 	breakdown := toBreakdown(fbreakdown)
 
-	d.properties = &properties
-	d.labels = labels
-	d.start = start
-	d.end = end
-	d.window = Window{
+	d.Properties = &properties
+	d.Labels = labels
+	d.Start = start
+	d.End = end
+	d.Window = Window{
 		start: &start,
 		end:   &end,
 	}
 	d.Breakdown = &breakdown
 
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
-		d.adjustment = adjustment.(float64)
+		d.Adjustment = adjustment.(float64)
 	}
 	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
-		d.Cost = Cost.(float64) - d.adjustment
+		d.Cost = Cost.(float64) - d.Adjustment
 	}
 	if ByteHours, err := getTypedVal(fmap["byteHours"]); err == nil {
 		d.ByteHours = ByteHours.(float64)
@@ -347,13 +347,13 @@ func (d *Disk) InterfaceToDisk(itf interface{}) error {
 func (n *Network) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
 	jsonEncodeString(buffer, "type", n.Type().String(), ",")
-	jsonEncode(buffer, "properties", n.Properties(), ",")
-	jsonEncode(buffer, "labels", n.Labels(), ",")
-	jsonEncode(buffer, "window", n.Window(), ",")
-	jsonEncodeString(buffer, "start", n.Start().Format(time.RFC3339), ",")
-	jsonEncodeString(buffer, "end", n.End().Format(time.RFC3339), ",")
+	jsonEncode(buffer, "properties", n.Properties, ",")
+	jsonEncode(buffer, "labels", n.Labels, ",")
+	jsonEncode(buffer, "window", n.Window, ",")
+	jsonEncodeString(buffer, "start", n.Start.Format(time.RFC3339), ",")
+	jsonEncodeString(buffer, "end", n.End.Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", n.Minutes(), ",")
-	jsonEncodeFloat64(buffer, "adjustment", n.Adjustment(), ",")
+	jsonEncodeFloat64(buffer, "adjustment", n.Adjustment, ",")
 	jsonEncodeFloat64(buffer, "totalCost", n.TotalCost(), "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
@@ -401,20 +401,20 @@ func (n *Network) InterfaceToNetwork(itf interface{}) error {
 		return err
 	}
 
-	n.properties = &properties
-	n.labels = labels
-	n.start = start
-	n.end = end
-	n.window = Window{
+	n.Properties = &properties
+	n.Labels = labels
+	n.Start = start
+	n.End = end
+	n.Window = Window{
 		start: &start,
 		end:   &end,
 	}
 
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
-		n.adjustment = adjustment.(float64)
+		n.Adjustment = adjustment.(float64)
 	}
 	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
-		n.Cost = Cost.(float64) - n.adjustment
+		n.Cost = Cost.(float64) - n.Adjustment
 	}
 
 	return nil
@@ -427,11 +427,11 @@ func (n *Network) InterfaceToNetwork(itf interface{}) error {
 func (n *Node) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
 	jsonEncodeString(buffer, "type", n.Type().String(), ",")
-	jsonEncode(buffer, "properties", n.Properties(), ",")
-	jsonEncode(buffer, "labels", n.Labels(), ",")
-	jsonEncode(buffer, "window", n.Window(), ",")
-	jsonEncodeString(buffer, "start", n.Start().Format(time.RFC3339), ",")
-	jsonEncodeString(buffer, "end", n.End().Format(time.RFC3339), ",")
+	jsonEncode(buffer, "properties", n.Properties, ",")
+	jsonEncode(buffer, "labels", n.Labels, ",")
+	jsonEncode(buffer, "window", n.Window, ",")
+	jsonEncodeString(buffer, "start", n.Start.Format(time.RFC3339), ",")
+	jsonEncodeString(buffer, "end", n.End.Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", n.Minutes(), ",")
 	jsonEncodeString(buffer, "nodeType", n.NodeType, ",")
 	jsonEncodeFloat64(buffer, "cpuCores", n.CPUCores(), ",")
@@ -447,7 +447,7 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "gpuCost", n.GPUCost, ",")
 	jsonEncodeFloat64(buffer, "gpuCount", n.GPUs(), ",")
 	jsonEncodeFloat64(buffer, "ramCost", n.RAMCost, ",")
-	jsonEncodeFloat64(buffer, "adjustment", n.Adjustment(), ",")
+	jsonEncodeFloat64(buffer, "adjustment", n.Adjustment, ",")
 	jsonEncodeFloat64(buffer, "totalCost", n.TotalCost(), "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
@@ -501,11 +501,11 @@ func (n *Node) InterfaceToNode(itf interface{}) error {
 	cpuBreakdown := toBreakdown(fcpuBreakdown)
 	ramBreakdown := toBreakdown(framBreakdown)
 
-	n.properties = &properties
-	n.labels = labels
-	n.start = start
-	n.end = end
-	n.window = Window{
+	n.Properties = &properties
+	n.Labels = labels
+	n.Start = start
+	n.End = end
+	n.Window = Window{
 		start: &start,
 		end:   &end,
 	}
@@ -513,7 +513,7 @@ func (n *Node) InterfaceToNode(itf interface{}) error {
 	n.RAMBreakdown = &ramBreakdown
 
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
-		n.adjustment = adjustment.(float64)
+		n.Adjustment = adjustment.(float64)
 	}
 	if NodeType, err := getTypedVal(fmap["nodeType"]); err == nil {
 		n.NodeType = NodeType.(string)
@@ -555,13 +555,13 @@ func (n *Node) InterfaceToNode(itf interface{}) error {
 func (lb *LoadBalancer) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
 	jsonEncodeString(buffer, "type", lb.Type().String(), ",")
-	jsonEncode(buffer, "properties", lb.Properties(), ",")
-	jsonEncode(buffer, "labels", lb.Labels(), ",")
-	jsonEncode(buffer, "window", lb.Window(), ",")
-	jsonEncodeString(buffer, "start", lb.Start().Format(time.RFC3339), ",")
-	jsonEncodeString(buffer, "end", lb.End().Format(time.RFC3339), ",")
+	jsonEncode(buffer, "properties", lb.Properties, ",")
+	jsonEncode(buffer, "labels", lb.Labels, ",")
+	jsonEncode(buffer, "window", lb.Window, ",")
+	jsonEncodeString(buffer, "start", lb.Start.Format(time.RFC3339), ",")
+	jsonEncodeString(buffer, "end", lb.End.Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", lb.Minutes(), ",")
-	jsonEncodeFloat64(buffer, "adjustment", lb.Adjustment(), ",")
+	jsonEncodeFloat64(buffer, "adjustment", lb.Adjustment, ",")
 	jsonEncodeFloat64(buffer, "totalCost", lb.TotalCost(), "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
@@ -609,20 +609,20 @@ func (lb *LoadBalancer) InterfaceToLoadBalancer(itf interface{}) error {
 		return err
 	}
 
-	lb.properties = &properties
-	lb.labels = labels
-	lb.start = start
-	lb.end = end
-	lb.window = Window{
+	lb.Properties = &properties
+	lb.Labels = labels
+	lb.Start = start
+	lb.End = end
+	lb.Window = Window{
 		start: &start,
 		end:   &end,
 	}
 
 	if adjustment, err := getTypedVal(fmap["adjustment"]); err == nil {
-		lb.adjustment = adjustment.(float64)
+		lb.Adjustment = adjustment.(float64)
 	}
 	if Cost, err := getTypedVal(fmap["totalCost"]); err == nil {
-		lb.Cost = Cost.(float64) - lb.adjustment
+		lb.Cost = Cost.(float64) - lb.Adjustment
 	}
 
 	return nil
@@ -635,13 +635,11 @@ func (lb *LoadBalancer) InterfaceToLoadBalancer(itf interface{}) error {
 func (sa *SharedAsset) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
 	jsonEncodeString(buffer, "type", sa.Type().String(), ",")
-	jsonEncode(buffer, "properties", sa.Properties(), ",")
-	jsonEncode(buffer, "labels", sa.Labels(), ",")
-	jsonEncode(buffer, "properties", sa.Properties(), ",")
-	jsonEncode(buffer, "labels", sa.Labels(), ",")
-	jsonEncode(buffer, "window", sa.Window(), ",")
-	jsonEncodeString(buffer, "start", sa.Start().Format(time.RFC3339), ",")
-	jsonEncodeString(buffer, "end", sa.End().Format(time.RFC3339), ",")
+	jsonEncode(buffer, "properties", sa.Properties, ",")
+	jsonEncode(buffer, "labels", sa.Labels, ",")
+	jsonEncode(buffer, "window", sa.Window, ",")
+	jsonEncodeString(buffer, "start", sa.GetStart().Format(time.RFC3339), ",")
+	jsonEncodeString(buffer, "end", sa.GetEnd().Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", sa.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "totalCost", sa.TotalCost(), "")
 	buffer.WriteString("}")
@@ -690,9 +688,9 @@ func (sa *SharedAsset) InterfaceToSharedAsset(itf interface{}) error {
 		return err
 	}
 
-	sa.properties = &properties
-	sa.labels = labels
-	sa.window = Window{
+	sa.Properties = &properties
+	sa.Labels = labels
+	sa.Window = Window{
 		start: &start,
 		end:   &end,
 	}
@@ -712,9 +710,8 @@ func (as *AssetSet) MarshalJSON() ([]byte, error) {
 	if as == nil {
 		return json.Marshal(map[string]Asset{})
 	}
-	as.RLock()
-	defer as.RUnlock()
-	return json.Marshal(as.assets)
+
+	return json.Marshal(as.Assets)
 }
 
 // AssetSetResponse for unmarshaling of AssetSet.assets into AssetSet
