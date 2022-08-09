@@ -14,6 +14,7 @@ import (
 	"github.com/opencost/opencost/pkg/util/httputil"
 	"github.com/opencost/opencost/pkg/util/json"
 	prometheus "github.com/prometheus/client_golang/api"
+	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 )
 
 const (
@@ -145,7 +146,7 @@ func (ctx *Context) ProfileQueryAll(queries ...string) []QueryResultsChan {
 	return resChs
 }
 
-func (ctx *Context) QuerySync(query string) ([]*QueryResult, prometheus.Warnings, error) {
+func (ctx *Context) QuerySync(query string) ([]*QueryResult, v1.Warnings, error) {
 	raw, warnings, err := ctx.query(query, time.Now())
 	if err != nil {
 		return nil, warnings, err
@@ -211,7 +212,7 @@ func (ctx *Context) RawQuery(query string, t time.Time) ([]byte, error) {
 	// Note that the warnings return value from client.Do() is always nil using this
 	// version of the prometheus client library. We parse the warnings out of the response
 	// body after json decodidng completes.
-	resp, body, _, err := ctx.Client.Do(context.Background(), req)
+	resp, body, err := ctx.Client.Do(context.Background(), req)
 	if err != nil {
 		if resp == nil {
 			return nil, fmt.Errorf("query error: '%s' fetching query '%s'", err.Error(), query)
@@ -230,7 +231,7 @@ func (ctx *Context) RawQuery(query string, t time.Time) ([]byte, error) {
 	return body, err
 }
 
-func (ctx *Context) query(query string, t time.Time) (interface{}, prometheus.Warnings, error) {
+func (ctx *Context) query(query string, t time.Time) (interface{}, v1.Warnings, error) {
 	body, err := ctx.RawQuery(query, t)
 	if err != nil {
 		return nil, nil, err
@@ -273,7 +274,7 @@ func (ctx *Context) ProfileQueryRange(query string, start, end time.Time, step t
 	return resCh
 }
 
-func (ctx *Context) QueryRangeSync(query string, start, end time.Time, step time.Duration) ([]*QueryResult, prometheus.Warnings, error) {
+func (ctx *Context) QueryRangeSync(query string, start, end time.Time, step time.Duration) ([]*QueryResult, v1.Warnings, error) {
 	raw, warnings, err := ctx.queryRange(query, start, end, step)
 	if err != nil {
 		return nil, warnings, err
@@ -335,7 +336,7 @@ func (ctx *Context) RawQueryRange(query string, start, end time.Time, step time.
 	// Note that the warnings return value from client.Do() is always nil using this
 	// version of the prometheus client library. We parse the warnings out of the response
 	// body after json decodidng completes.
-	resp, body, _, err := ctx.Client.Do(context.Background(), req)
+	resp, body, err := ctx.Client.Do(context.Background(), req)
 	if err != nil {
 		if resp == nil {
 			return nil, fmt.Errorf("Error: %s, Body: %s Query: %s", err.Error(), body, query)
@@ -354,7 +355,7 @@ func (ctx *Context) RawQueryRange(query string, start, end time.Time, step time.
 	return body, err
 }
 
-func (ctx *Context) queryRange(query string, start, end time.Time, step time.Duration) (interface{}, prometheus.Warnings, error) {
+func (ctx *Context) queryRange(query string, start, end time.Time, step time.Duration) (interface{}, v1.Warnings, error) {
 	body, err := ctx.RawQueryRange(query, start, end, step)
 	if err != nil {
 		return nil, nil, err
@@ -382,8 +383,8 @@ func (ctx *Context) queryRange(query string, start, end time.Time, step time.Dur
 }
 
 // Extracts the warnings from the resulting json if they exist (part of the prometheus response api).
-func warningsFrom(result interface{}) prometheus.Warnings {
-	var warnings prometheus.Warnings
+func warningsFrom(result interface{}) v1.Warnings {
+	var warnings v1.Warnings
 
 	if resultMap, ok := result.(map[string]interface{}); ok {
 		if warningProp, ok := resultMap["warnings"]; ok {

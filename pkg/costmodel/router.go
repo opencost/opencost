@@ -1097,7 +1097,7 @@ func (a *Accesses) PrometheusRecordingRules(w http.ResponseWriter, r *http.Reque
 		fmt.Fprintf(w, "Error creating Prometheus rule request: "+err.Error())
 	}
 
-	_, body, _, err := a.PrometheusClient.Do(r.Context(), req)
+	_, body, err := a.PrometheusClient.Do(r.Context(), req)
 	if err != nil {
 		fmt.Fprintf(w, "Error making Prometheus rule request: "+err.Error())
 	} else {
@@ -1132,7 +1132,7 @@ func (a *Accesses) PrometheusTargets(w http.ResponseWriter, r *http.Request, _ h
 		fmt.Fprintf(w, "Error creating Prometheus rule request: "+err.Error())
 	}
 
-	_, body, _, err := a.PrometheusClient.Do(r.Context(), req)
+	_, body, err := a.PrometheusClient.Do(r.Context(), req)
 	if err != nil {
 		fmt.Fprintf(w, "Error making Prometheus rule request: "+err.Error())
 	} else {
