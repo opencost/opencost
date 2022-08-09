@@ -15,6 +15,12 @@ import (
 // E.g. if aggregating on Cluster, Assets in the AssetSet where Asset has no cluster will be grouped under key "__undefined__"
 const UndefinedKey = "__undefined__"
 
+// LocalStorageClass is used to assign storage class of local disks.
+const LocalStorageClass = "__local__"
+
+// UnknownStorageClass is used to assign storage class of persistent volume whose information is unable to be traced.
+const UnknownStorageClass = "__unknown__"
+
 // Asset defines an entity within a cluster that has a defined cost over a
 // given period of time.
 type Asset interface {
@@ -1256,7 +1262,7 @@ func (d *Disk) add(that *Disk) {
 
 	d.ByteHours += that.ByteHours
 
-	if that.StorageClass != "" && that.StorageClass != "Unknown" {
+	if that.StorageClass != "" && that.StorageClass != UnknownStorageClass {
 		d.StorageClass = that.StorageClass
 	}
 }

@@ -157,7 +157,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 	queryPVCost := fmt.Sprintf(`avg(avg_over_time(pv_hourly_cost[%s])) by (%s, persistentvolume,provider_id)`, durStr, env.GetPromClusterLabel())
 	queryPVSize := fmt.Sprintf(`avg(avg_over_time(kube_persistentvolume_capacity_bytes[%s])) by (%s, persistentvolume)`, durStr, env.GetPromClusterLabel())
 	queryActiveMins := fmt.Sprintf(`count(pv_hourly_cost) by (%s, persistentvolume)[%s:%dm]`, env.GetPromClusterLabel(), durStr, minsPerResolution)
-	queryPVStorageClass := fmt.Sprintf(`avg(avg_over_time(kube_persistentvolumeclaim_info[%s])) by (%s, volumename, storageclass)`, durStr, env.GetPromClusterLabel())
+	queryPVStorageClass := fmt.Sprintf(`avg(avg_over_time(kubecost_pv_info[%s])) by (%s, persistentvolume, storageclass)`, durStr, env.GetPromClusterLabel())
 
 	queryLocalStorageCost := fmt.Sprintf(`sum_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`, env.GetPromClusterLabel(), durStr, minsPerResolution, hourlyToCumulative, costPerGBHr)
 	queryLocalStorageUsedCost := fmt.Sprintf(`sum_over_time(sum(container_fs_usage_bytes{device!="tmpfs", id="/"}) by (instance, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`, env.GetPromClusterLabel(), durStr, minsPerResolution, hourlyToCumulative, costPerGBHr)
@@ -215,7 +215,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 		diskMap[key].Cost += cost
 
 		//Assigning explicitly the storage class of local storage to local
-		diskMap[key].StorageClass = "Local"
+		diskMap[key].StorageClass = kubecost.LocalStorageClass
 	}
 
 	for _, result := range resLocalStorageUsedCost {
@@ -312,7 +312,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 			cluster = env.GetClusterID()
 		}
 
-		name, _ := result.GetString("volumename")
+		name, _ := result.GetString("persistentvolume")
 
 		key := DiskIdentifier{cluster, name}
 		if _, ok := diskMap[key]; !ok {
@@ -327,7 +327,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 		storageClass, err := result.GetString("storageclass")
 
 		if err != nil {
-			diskMap[key].StorageClass = "Unknown"
+			diskMap[key].StorageClass = kubecost.UnknownStorageClass
 		} else {
 			diskMap[key].StorageClass = storageClass
 		}
@@ -344,7 +344,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 
 		// Explicitly specify unknown storage class for disk whose information is unavailable in prometheus metrics of kube_persistentvolumeclaim_info
 		if disk.StorageClass == "" {
-			disk.StorageClass = "Unknown"
+			disk.StorageClass = kubecost.UnknownStorageClass
 		}
 	}
 
