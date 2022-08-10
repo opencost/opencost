@@ -305,7 +305,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 		diskMap[key].Minutes = mins
 	}
 
-	//Iterating through Persistent Volume given by kube_persistentvolumeclaim_info and assign the storage class if known and unknown if not known.
+	//Iterating through Persistent Volume given by custom metrics kubecost_pv_info and assign the storage class if known and __unknown__ if not populated.
 	for _, result := range resPVStorageClass {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {
@@ -342,7 +342,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 			disk.ProviderID = disk.Name
 		}
 
-		// Explicitly specify unknown storage class for disk whose information is unavailable in prometheus metrics of kube_persistentvolumeclaim_info
+		// Explicitly specify unknown storage class for disk whose information is unavailable in prometheus metrics of kubecost_pv_info
 		if disk.StorageClass == "" {
 			disk.StorageClass = kubecost.UnknownStorageClass
 		}

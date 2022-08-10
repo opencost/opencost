@@ -1069,7 +1069,7 @@ type Disk struct {
 	ByteHours    float64
 	Local        float64
 	Breakdown    *Breakdown
-	StorageClass string // @bingen:field[version=17]
+	StorageClass string // @bingen:field[version=17, default=__unknown__]
 }
 
 // NewDisk creates and returns a new Disk Asset

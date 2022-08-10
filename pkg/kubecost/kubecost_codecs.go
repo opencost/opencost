@@ -5159,7 +5159,7 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 		target.StorageClass = aa
 
 	} else {
-		target.StorageClass = "" // default
+		target.StorageClass = "__unknown__" // default
 	}
 
 	return nil
