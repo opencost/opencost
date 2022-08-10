@@ -1262,7 +1262,7 @@ func (d *Disk) add(that *Disk) {
 
 	d.ByteHours += that.ByteHours
 
-	if that.StorageClass != "" && that.StorageClass != UnknownStorageClass {
+	if that.StorageClass != UnknownStorageClass {
 		d.StorageClass = that.StorageClass
 	}
 }
