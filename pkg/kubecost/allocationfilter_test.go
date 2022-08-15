@@ -1218,12 +1218,12 @@ func Test_AllocationFilter_Equals(t *testing.T) {
 		{
 			left:     AllocationFilterOr{},
 			right:    nil,
-			expected: true,
+			expected: false,
 		},
 		{
 			left:     AllocationFilterOr{Filters: []AllocationFilter{}},
 			right:    nil,
-			expected: true,
+			expected: false,
 		},
 
 		{
@@ -1449,12 +1449,12 @@ func Test_AllocationFilter_Equals(t *testing.T) {
 		{
 			left:     AllocationFilterAnd{},
 			right:    nil,
-			expected: true,
+			expected: false,
 		},
 		{
 			left:     AllocationFilterAnd{Filters: []AllocationFilter{}},
 			right:    nil,
-			expected: true,
+			expected: false,
 		},
 
 		{

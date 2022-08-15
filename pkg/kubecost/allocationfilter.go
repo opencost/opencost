@@ -105,10 +105,6 @@ type AllocationFilter interface {
 	// Equals returns true if the two AllocationFilters are logically
 	// equivalent.
 	Equals(AllocationFilter) bool
-
-	// empty returns true if the filter isn't filtering anything, i.e. the
-	// filter is a no-op.
-	empty() bool
 }
 
 // AllocationFilterCondition is the lowest-level type of filter. It represents
@@ -147,10 +143,6 @@ func (left AllocationFilterCondition) Equals(right AllocationFilter) bool {
 	if rightAFC, ok := right.(AllocationFilterCondition); ok {
 		return left == rightAFC
 	}
-	return false
-}
-
-func (filter AllocationFilterCondition) empty() bool {
 	return false
 }
 
@@ -223,10 +215,7 @@ func (filter AllocationFilterOr) sort() {
 }
 
 func (left AllocationFilterOr) Equals(right AllocationFilter) bool {
-	if left.empty() {
-		return right == nil || right.empty()
-	}
-
+	// The type cast takes care of right == nil as well
 	rightOr, ok := right.(AllocationFilterOr)
 	if !ok {
 		return false
@@ -237,18 +226,6 @@ func (left AllocationFilterOr) Equals(right AllocationFilter) bool {
 	left.sort()
 	rightOr.sort()
 	return left.String() == rightOr.String()
-}
-
-func (filter AllocationFilterOr) empty() bool {
-	for _, inner := range filter.Filters {
-		if inner == nil {
-			continue
-		}
-		if !inner.empty() {
-			return false
-		}
-	}
-	return true
 }
 
 // AllocationFilterOr is a set of filters that should be evaluated as a logical
@@ -304,10 +281,7 @@ func (filter AllocationFilterAnd) sort() {
 }
 
 func (left AllocationFilterAnd) Equals(right AllocationFilter) bool {
-	if left.empty() {
-		return right == nil || right.empty()
-	}
-
+	// The type cast takes care of right == nil as well
 	rightAnd, ok := right.(AllocationFilterAnd)
 	if !ok {
 		return false
@@ -318,18 +292,6 @@ func (left AllocationFilterAnd) Equals(right AllocationFilter) bool {
 	left.sort()
 	rightAnd.sort()
 	return left.String() == rightAnd.String()
-}
-
-func (filter AllocationFilterAnd) empty() bool {
-	for _, inner := range filter.Filters {
-		if inner == nil {
-			continue
-		}
-		if !inner.empty() {
-			return false
-		}
-	}
-	return true
 }
 
 func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
@@ -543,8 +505,4 @@ func (afn AllocationFilterNone) Matches(a *Allocation) bool { return false }
 func (left AllocationFilterNone) Equals(right AllocationFilter) bool {
 	_, ok := right.(AllocationFilterNone)
 	return ok
-}
-
-func (afn AllocationFilterNone) empty() bool {
-	return false
 }
