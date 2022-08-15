@@ -1,6 +1,7 @@
 package kubecost
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -1126,6 +1127,560 @@ func Test_AllocationFilter_Flattened(t *testing.T) {
 
 			if !reflect.DeepEqual(result, c.expected) {
 				t.Errorf("Expected: '%s'. Got '%s'.", c.expected, result)
+			}
+		})
+	}
+}
+
+func Test_AllocationFilter_Equals(t *testing.T) {
+	cases := []struct {
+		left     AllocationFilter
+		right    AllocationFilter
+		expected bool
+	}{
+		// AFC
+		{
+			left:     AllocationFilterCondition{},
+			right:    AllocationFilterCondition{},
+			expected: true,
+		},
+		{
+			left: AllocationFilterCondition{
+				Field: FilterNamespace,
+				Op:    FilterStartsWith,
+				Value: "kubecost-abc",
+			},
+			right: AllocationFilterCondition{
+				Field: FilterNamespace,
+				Op:    FilterStartsWith,
+				Value: "kubecost-abc",
+			},
+			expected: true,
+		},
+		{
+			left: AllocationFilterCondition{
+				Field: FilterLabel,
+				Op:    FilterEquals,
+				Key:   "app",
+				Value: "kubecost-abc",
+			},
+			right: AllocationFilterCondition{
+				Field: FilterLabel,
+				Op:    FilterEquals,
+				Key:   "app",
+				Value: "kubecost-abc",
+			},
+			expected: true,
+		},
+		{
+			left: AllocationFilterCondition{
+				Field: FilterLabel,
+				Op:    FilterEquals,
+				Key:   "app",
+				Value: "kubecost-abc",
+			},
+			right: AllocationFilterCondition{
+				Field: FilterLabel,
+				Op:    FilterEquals,
+				Value: "kubecost-abc",
+			},
+			expected: false,
+		},
+		{
+			left: AllocationFilterCondition{
+				Field: FilterLabel,
+				Op:    FilterEquals,
+				Value: "kubecost-abc",
+			},
+			right: AllocationFilterCondition{
+				Field: FilterLabel,
+				Op:    FilterEquals,
+				Key:   "app",
+				Value: "kubecost-abc",
+			},
+			expected: false,
+		},
+		{
+			left: AllocationFilterCondition{
+				Field: FilterNamespace,
+				Op:    FilterStartsWith,
+				Value: "kubecost-abc",
+			},
+			right: AllocationFilterCondition{
+				Field: FilterNamespace,
+				Op:    FilterStartsWith,
+				Value: "kubecost-abcd",
+			},
+			expected: false,
+		},
+		// OR
+		// EMPTY
+		{
+			left:     AllocationFilterOr{},
+			right:    nil,
+			expected: true,
+		},
+		{
+			left:     AllocationFilterOr{Filters: []AllocationFilter{}},
+			right:    nil,
+			expected: true,
+		},
+
+		{
+			left:     AllocationFilterOr{},
+			right:    AllocationFilterOr{},
+			expected: true,
+		},
+		{
+			left:     AllocationFilterOr{},
+			right:    AllocationFilterOr{Filters: []AllocationFilter{}},
+			expected: true,
+		},
+
+		{
+			left:     AllocationFilterOr{Filters: []AllocationFilter{}},
+			right:    AllocationFilterOr{},
+			expected: true,
+		},
+		{
+			left:     AllocationFilterOr{Filters: []AllocationFilter{}},
+			right:    AllocationFilterOr{Filters: []AllocationFilter{}},
+			expected: true,
+		},
+		// FILLED
+		{
+			left: AllocationFilterOr{Filters: []AllocationFilter{
+				AllocationFilterNone{},
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterStartsWith,
+					Key:   "xyz",
+					Value: "kubecost",
+				},
+				AllocationFilterAnd{
+					Filters: []AllocationFilter{
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns1",
+						},
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns2",
+						},
+					},
+				},
+			}},
+			right: AllocationFilterOr{Filters: []AllocationFilter{
+				AllocationFilterNone{},
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterStartsWith,
+					Key:   "xyz",
+					Value: "kubecost",
+				},
+				AllocationFilterAnd{
+					Filters: []AllocationFilter{
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns1",
+						},
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns2",
+						},
+					},
+				},
+			}},
+			expected: true,
+		},
+		{
+			left: AllocationFilterOr{Filters: []AllocationFilter{
+				AllocationFilterNone{},
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterStartsWith,
+					Key:   "xyz",
+					Value: "kubecost",
+				},
+				AllocationFilterAnd{
+					Filters: []AllocationFilter{
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns1",
+						},
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns2",
+						},
+					},
+				},
+			}},
+			right: AllocationFilterOr{Filters: []AllocationFilter{
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterStartsWith,
+					Key:   "xyz",
+					Value: "kubecost",
+				},
+				AllocationFilterNone{},
+				AllocationFilterAnd{
+					Filters: []AllocationFilter{
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns2",
+						},
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns1",
+						},
+					},
+				},
+			}},
+			expected: true,
+		},
+		{
+			left: AllocationFilterOr{Filters: []AllocationFilter{
+				AllocationFilterNone{},
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterStartsWith,
+					Key:   "xyz",
+					Value: "kubecost",
+				},
+				AllocationFilterAnd{
+					Filters: []AllocationFilter{
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns1",
+						},
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns2",
+						},
+					},
+				},
+			}},
+			right: AllocationFilterOr{Filters: []AllocationFilter{
+				AllocationFilterAnd{
+					Filters: []AllocationFilter{
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns1",
+						},
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns2",
+						},
+					},
+				},
+				AllocationFilterNone{},
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterStartsWith,
+					Key:   "xyz",
+					Value: "kubecost",
+				},
+			}},
+			expected: true,
+		},
+		{
+			left: AllocationFilterOr{Filters: []AllocationFilter{
+				AllocationFilterNone{},
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterStartsWith,
+					Key:   "xyz",
+					Value: "kubecost",
+				},
+				AllocationFilterAnd{
+					Filters: []AllocationFilter{
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns1",
+						},
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns2",
+						},
+					},
+				},
+			}},
+			right: AllocationFilterOr{Filters: []AllocationFilter{
+				AllocationFilterNone{},
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterStartsWith,
+					Key:   "xyz",
+					Value: "kubecost",
+				},
+				AllocationFilterAnd{
+					Filters: []AllocationFilter{
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns3",
+						},
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns2",
+						},
+					},
+				},
+			}},
+			expected: false,
+		},
+		// AND
+		// EMPTY
+		{
+			left:     AllocationFilterAnd{},
+			right:    nil,
+			expected: true,
+		},
+		{
+			left:     AllocationFilterAnd{Filters: []AllocationFilter{}},
+			right:    nil,
+			expected: true,
+		},
+
+		{
+			left:     AllocationFilterAnd{},
+			right:    AllocationFilterAnd{},
+			expected: true,
+		},
+		{
+			left:     AllocationFilterAnd{},
+			right:    AllocationFilterAnd{Filters: []AllocationFilter{}},
+			expected: true,
+		},
+
+		{
+			left:     AllocationFilterAnd{Filters: []AllocationFilter{}},
+			right:    AllocationFilterAnd{},
+			expected: true,
+		},
+		{
+			left:     AllocationFilterAnd{Filters: []AllocationFilter{}},
+			right:    AllocationFilterAnd{Filters: []AllocationFilter{}},
+			expected: true,
+		},
+		// FILLED
+		{
+			left: AllocationFilterAnd{Filters: []AllocationFilter{
+				AllocationFilterNone{},
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterStartsWith,
+					Key:   "xyz",
+					Value: "kubecost",
+				},
+				AllocationFilterOr{
+					Filters: []AllocationFilter{
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns1",
+						},
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns2",
+						},
+					},
+				},
+			}},
+			right: AllocationFilterAnd{Filters: []AllocationFilter{
+				AllocationFilterNone{},
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterStartsWith,
+					Key:   "xyz",
+					Value: "kubecost",
+				},
+				AllocationFilterOr{
+					Filters: []AllocationFilter{
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns1",
+						},
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns2",
+						},
+					},
+				},
+			}},
+			expected: true,
+		},
+		{
+			left: AllocationFilterAnd{Filters: []AllocationFilter{
+				AllocationFilterNone{},
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterStartsWith,
+					Key:   "xyz",
+					Value: "kubecost",
+				},
+				AllocationFilterOr{
+					Filters: []AllocationFilter{
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns1",
+						},
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns2",
+						},
+					},
+				},
+			}},
+			right: AllocationFilterAnd{Filters: []AllocationFilter{
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterStartsWith,
+					Key:   "xyz",
+					Value: "kubecost",
+				},
+				AllocationFilterNone{},
+				AllocationFilterOr{
+					Filters: []AllocationFilter{
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns2",
+						},
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns1",
+						},
+					},
+				},
+			}},
+			expected: true,
+		},
+		{
+			left: AllocationFilterAnd{Filters: []AllocationFilter{
+				AllocationFilterNone{},
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterStartsWith,
+					Key:   "xyz",
+					Value: "kubecost",
+				},
+				AllocationFilterOr{
+					Filters: []AllocationFilter{
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns1",
+						},
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns2",
+						},
+					},
+				},
+			}},
+			right: AllocationFilterAnd{Filters: []AllocationFilter{
+				AllocationFilterOr{
+					Filters: []AllocationFilter{
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns1",
+						},
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns2",
+						},
+					},
+				},
+				AllocationFilterNone{},
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterStartsWith,
+					Key:   "xyz",
+					Value: "kubecost",
+				},
+			}},
+			expected: true,
+		},
+		{
+			left: AllocationFilterAnd{Filters: []AllocationFilter{
+				AllocationFilterNone{},
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterStartsWith,
+					Key:   "xyz",
+					Value: "kubecost",
+				},
+				AllocationFilterOr{
+					Filters: []AllocationFilter{
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns1",
+						},
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns2",
+						},
+					},
+				},
+			}},
+			right: AllocationFilterAnd{Filters: []AllocationFilter{
+				AllocationFilterNone{},
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterStartsWith,
+					Key:   "xyz",
+					Value: "kubecost",
+				},
+				AllocationFilterOr{
+					Filters: []AllocationFilter{
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns3",
+						},
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns2",
+						},
+					},
+				},
+			}},
+			expected: false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(fmt.Sprintf("'%s' = '%s'", c.left, c.right), func(t *testing.T) {
+			if c.left.Equals(c.right) != c.expected {
+				t.Fatalf("Expected: %t", c.expected)
 			}
 		})
 	}
