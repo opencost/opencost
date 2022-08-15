@@ -208,7 +208,7 @@ func (filter AllocationFilterOr) sort() {
 	}
 
 	// While a slight hack, we can rely on the string serialization of the
-	// inner filters.
+	// inner filters to get a sortable representation.
 	sort.SliceStable(filter.Filters, func(i, j int) bool {
 		return filter.Filters[i].String() < filter.Filters[j].String()
 	})
@@ -221,11 +221,19 @@ func (left AllocationFilterOr) Equals(right AllocationFilter) bool {
 		return false
 	}
 
-	// Once sorted, the string representations should be equal. We can sort
-	// because ordering of logical OR statements does not matter.
+	if len(left.Filters) != len(rightOr.Filters) {
+		return false
+	}
+
 	left.sort()
 	rightOr.sort()
-	return left.String() == rightOr.String()
+
+	for i := range left.Filters {
+		if !left.Filters[i].Equals(rightOr.Filters[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 // AllocationFilterOr is a set of filters that should be evaluated as a logical
@@ -287,11 +295,19 @@ func (left AllocationFilterAnd) Equals(right AllocationFilter) bool {
 		return false
 	}
 
-	// Once sorted, the string representations should be equal. We can sort
-	// because ordering of logical AND statements does not matter.
+	if len(left.Filters) != len(rightAnd.Filters) {
+		return false
+	}
+
 	left.sort()
 	rightAnd.sort()
-	return left.String() == rightAnd.String()
+
+	for i := range left.Filters {
+		if !left.Filters[i].Equals(rightAnd.Filters[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 func (filter AllocationFilterCondition) Matches(a *Allocation) bool {

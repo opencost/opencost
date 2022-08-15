@@ -1444,6 +1444,54 @@ func Test_AllocationFilter_Equals(t *testing.T) {
 			}},
 			expected: false,
 		},
+		{
+			left: AllocationFilterOr{Filters: []AllocationFilter{
+				AllocationFilterNone{},
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterStartsWith,
+					Key:   "xyz",
+					Value: "kubecost",
+				},
+				AllocationFilterAnd{
+					Filters: []AllocationFilter{
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns1",
+						},
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns2",
+						},
+					},
+				},
+			}},
+			right: AllocationFilterOr{Filters: []AllocationFilter{
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterStartsWith,
+					Key:   "xyz",
+					Value: "kubecost",
+				},
+				AllocationFilterAnd{
+					Filters: []AllocationFilter{
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns1",
+						},
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns2",
+						},
+					},
+				},
+			}},
+			expected: false,
+		},
 		// AND
 		// EMPTY
 		{
@@ -1664,6 +1712,54 @@ func Test_AllocationFilter_Equals(t *testing.T) {
 							Field: FilterNamespace,
 							Op:    FilterEquals,
 							Value: "ns3",
+						},
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns2",
+						},
+					},
+				},
+			}},
+			expected: false,
+		},
+		{
+			left: AllocationFilterAnd{Filters: []AllocationFilter{
+				AllocationFilterNone{},
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterStartsWith,
+					Key:   "xyz",
+					Value: "kubecost",
+				},
+				AllocationFilterOr{
+					Filters: []AllocationFilter{
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns1",
+						},
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns2",
+						},
+					},
+				},
+			}},
+			right: AllocationFilterAnd{Filters: []AllocationFilter{
+				AllocationFilterCondition{
+					Field: FilterLabel,
+					Op:    FilterStartsWith,
+					Key:   "xyz",
+					Value: "kubecost",
+				},
+				AllocationFilterOr{
+					Filters: []AllocationFilter{
+						AllocationFilterCondition{
+							Field: FilterNamespace,
+							Op:    FilterEquals,
+							Value: "ns1",
 						},
 						AllocationFilterCondition{
 							Field: FilterNamespace,
