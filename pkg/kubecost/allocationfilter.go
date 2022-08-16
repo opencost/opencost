@@ -2,6 +2,7 @@ package kubecost
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/opencost/opencost/pkg/log"
@@ -100,6 +101,10 @@ type AllocationFilter interface {
 	Flattened() AllocationFilter
 
 	String() string
+
+	// Equals returns true if the two AllocationFilters are logically
+	// equivalent.
+	Equals(AllocationFilter) bool
 }
 
 // AllocationFilterCondition is the lowest-level type of filter. It represents
@@ -130,7 +135,15 @@ func (afc AllocationFilterCondition) String() string {
 
 // Flattened returns itself because you cannot flatten a base condition further
 func (filter AllocationFilterCondition) Flattened() AllocationFilter {
+
 	return filter
+}
+
+func (left AllocationFilterCondition) Equals(right AllocationFilter) bool {
+	if rightAFC, ok := right.(AllocationFilterCondition); ok {
+		return left == rightAFC
+	}
+	return false
 }
 
 // AllocationFilterOr is a set of filters that should be evaluated as a logical
@@ -185,6 +198,44 @@ func (filter AllocationFilterOr) Flattened() AllocationFilter {
 	return AllocationFilterOr{Filters: flattenedFilters}
 }
 
+func (filter AllocationFilterOr) sort() {
+	for _, inner := range filter.Filters {
+		if and, ok := inner.(AllocationFilterAnd); ok {
+			and.sort()
+		} else if or, ok := inner.(AllocationFilterOr); ok {
+			or.sort()
+		}
+	}
+
+	// While a slight hack, we can rely on the string serialization of the
+	// inner filters to get a sortable representation.
+	sort.SliceStable(filter.Filters, func(i, j int) bool {
+		return filter.Filters[i].String() < filter.Filters[j].String()
+	})
+}
+
+func (left AllocationFilterOr) Equals(right AllocationFilter) bool {
+	// The type cast takes care of right == nil as well
+	rightOr, ok := right.(AllocationFilterOr)
+	if !ok {
+		return false
+	}
+
+	if len(left.Filters) != len(rightOr.Filters) {
+		return false
+	}
+
+	left.sort()
+	rightOr.sort()
+
+	for i := range left.Filters {
+		if !left.Filters[i].Equals(rightOr.Filters[i]) {
+			return false
+		}
+	}
+	return true
+}
+
 // AllocationFilterOr is a set of filters that should be evaluated as a logical
 // AND.
 type AllocationFilterAnd struct {
@@ -219,6 +270,44 @@ func (filter AllocationFilterAnd) Flattened() AllocationFilter {
 	}
 
 	return AllocationFilterAnd{Filters: flattenedFilters}
+}
+
+func (filter AllocationFilterAnd) sort() {
+	for _, inner := range filter.Filters {
+		if and, ok := inner.(AllocationFilterAnd); ok {
+			and.sort()
+		} else if or, ok := inner.(AllocationFilterOr); ok {
+			or.sort()
+		}
+	}
+
+	// While a slight hack, we can rely on the string serialization of the
+	// inner filters.
+	sort.SliceStable(filter.Filters, func(i, j int) bool {
+		return filter.Filters[i].String() < filter.Filters[j].String()
+	})
+}
+
+func (left AllocationFilterAnd) Equals(right AllocationFilter) bool {
+	// The type cast takes care of right == nil as well
+	rightAnd, ok := right.(AllocationFilterAnd)
+	if !ok {
+		return false
+	}
+
+	if len(left.Filters) != len(rightAnd.Filters) {
+		return false
+	}
+
+	left.sort()
+	rightAnd.sort()
+
+	for i := range left.Filters {
+		if !left.Filters[i].Equals(rightAnd.Filters[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
@@ -428,3 +517,8 @@ func (afn AllocationFilterNone) String() string { return "(none)" }
 func (afn AllocationFilterNone) Flattened() AllocationFilter { return afn }
 
 func (afn AllocationFilterNone) Matches(a *Allocation) bool { return false }
+
+func (left AllocationFilterNone) Equals(right AllocationFilter) bool {
+	_, ok := right.(AllocationFilterNone)
+	return ok
+}
