@@ -1,0 +1,45 @@
+name: needs-follow-up-label
+
+on:
+  issue_comment:
+    types: [created]
+  issues:
+    types: [opened, reopened, closed]
+
+jobs:
+  set-follow-up-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check comment actor org membership
+        id: response
+        run: |
+          echo "::set-output name=MEMBER_RESPONSE::$(curl -I -H 'Accept: application/vnd.github+json' -H 'Authorization: token ${{ github.token }}' 'https://api.github.com/orgs/kubecost/members/${{ github.actor }}')"
+
+      - name: "Check for non-4XX response"
+        id: membership
+        run: |
+          echo '${{ steps.response.outputs.MEMBER_RESPONSE }}' && echo "::set-output name=IS_MEMBER::$(grep 'HTTP/2 [2]' <<< '${{ steps.response.outputs.MEMBER_RESPONSE }}')"
+
+      - name: Apply needs-follow-up label if this is a new or reopened issue by user not in the org
+        if: ${{ steps.membership.outputs.IS_MEMBER == '' && github.event_name == 'issues' && (github.event.action == 'opened' || github.event.action == 'reopened') }}
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          labels: needs-follow-up
+
+      - name: Apply needs-follow-up label if comment by a user not in the org
+        if: ${{ steps.membership.outputs.IS_MEMBER == '' && github.event_name == 'issue_comment' }}
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          labels: needs-follow-up
+
+      - name: Remove needs-follow-up label if the issue has been closed
+        if: ${{ github.event_name == 'issues' && github.event.action == 'closed' }}
+        uses: actions-ecosystem/action-remove-labels@v1
+        with:
+          labels: needs-follow-up
+
+      - name: Remove needs-follow-up label if comment by a user in the org
+        if: ${{ steps.membership.outputs.IS_MEMBER != '' && github.event_name == 'issue_comment' }}
+        uses: actions-ecosystem/action-remove-labels@v1
+        with:
+          labels: needs-follow-up
