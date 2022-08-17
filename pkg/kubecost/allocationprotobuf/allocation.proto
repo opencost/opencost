@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+option go_package = "github.com/opencost/opencost/pkg/kubecost/allocationProtoBuf/allocation";
+
+//option java_multiple_files = true;
+//option java_package = "allocation";
+//option java_outer_classname = "AllocationProto";
+
+package allocation;
+
+// Interface exported by the server.
+service AllocationRouteGuide {
+    // An RPC for allocation.
+    //
+    // Obtains the allocation for a given window span.
+
+    // // A server-to-client  RPC.
+    // //
+    // // Basic Request and Response for Allocation, Test GRPC 
+
+    rpc GetAllocationResponse(AllocationSummaryRequest) returns (Response) {}
+
+    // Obtains the Features available within the given AllocationSummaryRequest.  Results are
+    // streamed rather than returned at once (e.g. in a response message with a
+    // repeated field), as the AllocationSummaryResponse may cover a large area and contain a
+    // huge number of response object.
+    rpc GetAllocationSummary (AllocationSummaryRequest) returns (stream AllocationSet) {}
+}
+
+message AllocationSummaryRequest {
+    Window window = 1;
+}
+
+message Window {
+    string start = 1;
+    string end = 2;
+}
+
+message Response{
+    repeated AllocationSet data =1;
+}
+
+//We really dont need the map per the json response of GET call model/allocation/summary 
+//While creating stream of data sending repeated instead of Map like the  
+message AllocationSet {
+    // map<string, AllocationItem> allocations = 1;
+    repeated AllocationItem allocations = 1;
+    Window window =2;
+}
+
+message AllocationDetail {
+    string key = 1;
+    AllocationItem value = 2;
+}
+
+// To do start and end should be google.protobuf.Timestamp protobuf type
+message AllocationItem {
+    string start = 1;
+    string end = 2;
+    string name = 3;
+    double cpuCoreRequestAverage = 4;
+    double cpuCoreUsageAverage = 5;
+    double cpuCost = 6;
+    double gpuCost = 7;
+    double networkCost = 8;
+    double loadBalancerCost = 9;
+    double pvCost = 10;
+    double ramByteRequestAverage = 11;
+    double ramByteUsageAverage = 12;
+    double ramCost = 13;
+    double sharedCost = 14;
+    double externalCost = 15; 
+}
+
+// Convert to another ProtoBuf Message with google.protobuf.Timestamp type
+// message DataWindow {
+//     string start = 1;
+//     string end = 2;
+// }
