@@ -1,0 +1,147 @@
+syntax = "proto3";
+
+package kubecost.service.allocation.allocationsummary;
+
+option go_package = "github.com/opencost/opencost/pkg/kubecost/service/allocation/allocationsummary";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+// Allocation Summary Interface exported by the gRPC server.
+service AllocationSummary {
+    // An RPC for allocation.
+    //
+    // Obtains the allocation summary for a given window span.
+    
+    // Obtains the AllocationSummarySets satisfy the given AllocationSummaryRequest. Results are
+    // streamed rather than returned at once.
+    rpc GetAllocationSummary (AllocationSummaryRequest) returns (stream AllocationSummaryResponse) {}
+}
+
+// AllocationSummaryRequest is the request send from client with a specify window
+// either absolute window with datetime or relative window with duration
+message AllocationSummaryRequest {
+    Window window =1;
+    repeated string aggregate =2;
+    bool accumulate=4;
+    FilterSelection filter = 5;
+    SharedSelection shared = 6;
+    IdleSelection idle = 7;
+    bool external =8;
+}
+
+// Window represents the window allocation summary is requested
+message Window{
+    oneof window{
+        AbsoluteWindow absWindow=1;
+        RelativeWindow relWindow=2;
+    }
+}
+
+// Absolute Window represents the absolute window with start and end time
+// for 
+message AbsoluteWindow {
+    google.protobuf.Timestamp start = 1;
+    google.protobuf.Timestamp end=2;
+}
+
+//Relative window represents duration for the requested data
+message RelativeWindow {
+    google.protobuf.Duration timeFrame = 1;
+}
+
+// Filter selection represents the filter on the summary data to be returned
+message FilterSelection{
+    repeated string filterClusters=1;
+    repeated string filterNodes = 2;
+    repeated string filterNamespaces = 3; 
+    repeated string filterControllerKinds = 4;
+    repeated string filterController = 5;
+    repeated string filterPods = 6;
+    repeated string filterAnnotations = 7;
+    repeated string filterLabels = 8;
+    repeated string filterServices = 9;
+}
+
+// Different selection of idle from the User Interface 
+enum IdleSelection {
+    IDLE_COST_HIDE = 0;
+    IDLE_COST_SEPERATE = 1;
+    IDLE_COST_SHARE_BY_CLUSTER = 2;
+    IDLE_COST_SHARE_BY_NODE = 3;
+}
+
+// Different shared selection available for the user on the User Interface
+message SharedSelection {
+    bool shareTenancyCosts = 1;
+    string shareNamespaces= 2;
+    string shareLabels = 3;
+    double shareCost = 4;
+    ShareSplit shareSplit = 5;
+}
+
+// Enum for the shared split which can either be weighted or even
+enum ShareSplit {
+    SHARESPLIT_WEIGHTED = 0;
+    SHARESPLIT_EVEN = 1;
+}
+
+// message for the allocationsummary response can either be partial response with each graphdata
+// or complete allocation response having all the details
+message AllocationSummaryResponse {
+    oneof data{
+        AllocationProgressUpdate status_update = 1;
+        CompleteAllocationResponse full_response = 2;
+    }
+}
+
+// message for progress updates
+message AllocationProgressUpdate {
+    float percent_complete = 1;
+    repeated AllocationGraphItem graphItem= 2;
+    double total_cost = 3; 
+}
+ 
+// message for allocation graph item listing the day and repeated entry of each graph data
+message AllocationGraphItem {
+    oneof span{
+        int32 day =1;
+        int32 hour =2;
+    }
+    repeated AllocationData allocationData = 3; 
+}
+
+// message for each day important data of cost and name of each allocation
+message AllocationData {
+    string name = 1;
+    float cost = 2;
+}
+ 
+// message for complete allocation data having repeated allocationSet of summary
+message CompleteAllocationResponse {
+    repeated AllocationSet allocationSet = 2;
+}
+   
+// message for each allocation set consists of allocation items and window the allocation items data belongs to
+message AllocationSet {
+    repeated AllocationItem allocations = 1;
+    Window window =2;
+}
+
+// message for each allocation Item 
+message AllocationItem {
+    Window window =1;
+    string name = 2;
+    double cpuCoreRequestAverage = 3;
+    double cpuCoreUsageAverage = 4;
+    double cpuCost = 5;
+    double gpuCost = 6;
+    double networkCost = 7;
+    double loadBalancerCost = 8;
+    double pvCost = 9;
+    double ramByteRequestAverage = 10;
+    double ramByteUsageAverage = 11;
+    double ramCost = 12;
+    double sharedCost = 13;
+    double externalCost = 14; 
+}
