@@ -38,8 +38,8 @@ func ToAuditType(check string) AuditType {
 		return AuditAssetTotalStore
 	case string(AuditAssetAggStore):
 		return AuditAssetAggStore
-	//case string(AuditClusterEquality):
-	//	return AuditClusterEquality
+	case string(AuditClusterEquality):
+		return AuditClusterEquality
 	case string(AuditAll):
 		return AuditAll
 	default:

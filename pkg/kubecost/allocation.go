@@ -27,7 +27,7 @@ const SharedSuffix = "__shared__"
 // UnallocatedSuffix indicates an unallocated allocation property
 const UnallocatedSuffix = "__unallocated__"
 
-// UnmountedSuffix indicated allocation to an unmounted PV
+// UnmountedSuffix indicated allocation to an unmounted resource (PV or LB)
 const UnmountedSuffix = "__unmounted__"
 
 // ShareWeighted indicates that a shared resource should be shared as a
