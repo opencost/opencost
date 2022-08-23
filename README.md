@@ -34,7 +34,7 @@ Visit the full documentation for [recommended install options](https://www.openc
 
 ## Contributing
 
-We :heart: pull requests! See [`CONTRIBUTING.md`](CONTRIBUTING.md) for information on buiding the project from source
+We :heart: pull requests! See [`CONTRIBUTING.md`](CONTRIBUTING.md) for information on building the project from source
 and contributing changes.
 
 ## Community
