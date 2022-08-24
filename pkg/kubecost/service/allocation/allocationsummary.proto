@@ -13,8 +13,8 @@ service AllocationSummary {
     //
     // Obtains the allocation summary for a given window span.
     
-    // Obtains the AllocationSummarySets satisfy the given AllocationSummaryRequest. Results are
-    // streamed rather than returned at once.
+    // Obtains the AllocationSummarySets satisfy the AllocationSummaryRequest. 
+    // Results are streamed rather than returned at once.
     rpc GetAllocationSummary (AllocationSummaryRequest) returns (stream AllocationSummaryResponse) {}
 }
 
@@ -22,45 +22,50 @@ service AllocationSummary {
 // either absolute window with datetime or relative window with duration
 message AllocationSummaryRequest {
     Window window =1;
-    repeated string aggregate =2;
-    bool accumulate=4;
-    FilterSelection filter = 5;
-    SharedSelection shared = 6;
-    IdleSelection idle = 7;
-    bool external =8;
+    repeated string aggregate = 2;
+    bool accumulate = 3;
+    repeated FilterSelection filter = 4;
+    SharedSelection shared = 5;
+    IdleSelection idle = 6;
+    bool external = 7;
+    int32 max_table_items = 8;
 }
 
-// Window represents the window allocation summary is requested
+// Window represents the window for which allocation summary is requested
 message Window{
     oneof window{
-        AbsoluteWindow absWindow=1;
-        RelativeWindow relWindow=2;
+        AbsoluteWindow abs_window=1;
+        RelativeWindow rel_window=2;
     }
 }
 
 // Absolute Window represents the absolute window with start and end time
-// for 
 message AbsoluteWindow {
     google.protobuf.Timestamp start = 1;
-    google.protobuf.Timestamp end=2;
+    google.protobuf.Timestamp end = 2;
 }
 
-//Relative window represents duration for the requested data
+// Relative window represents duration for the requested data
 message RelativeWindow {
-    google.protobuf.Duration timeFrame = 1;
+    google.protobuf.Duration time_frame = 1;
 }
 
-// Filter selection represents the filter on the summary data to be returned
+// Filter Selection represents the filter on which request is on 
 message FilterSelection{
-    repeated string filterClusters=1;
-    repeated string filterNodes = 2;
-    repeated string filterNamespaces = 3; 
-    repeated string filterControllerKinds = 4;
-    repeated string filterController = 5;
-    repeated string filterPods = 6;
-    repeated string filterAnnotations = 7;
-    repeated string filterLabels = 8;
-    repeated string filterServices = 9;
+    enum FilterType{
+        FILTER_TYPE_UNSPECIFIED = 0;
+        FILTER_TYPE_CLUSTERS = 1;
+        FILTER_TYPE_NODES = 2;
+        FILTER_TYPE_NAMESPACES = 3;
+        FILTER_TYPE_CONTROLLER_KINDS =4;
+        FILTER_TYPE_CONTROLLERS = 5;
+        FILTER_TYPE_PODS = 6;
+        FILTER_TYPE_ANNOTATIONS = 7;
+        FILTER_TYPE_LABELS = 8;
+        FILTER_TYPE_SERVICES = 9;
+    }
+    FilterType type=1;
+    repeated string value = 2;
 }
 
 // Different selection of idle from the User Interface 
@@ -73,11 +78,11 @@ enum IdleSelection {
 
 // Different shared selection available for the user on the User Interface
 message SharedSelection {
-    bool shareTenancyCosts = 1;
-    string shareNamespaces= 2;
-    string shareLabels = 3;
-    double shareCost = 4;
-    ShareSplit shareSplit = 5;
+    bool share_tenancy_costs = 1;
+    string share_namespaces= 2;
+    string share_labels = 3;
+    double share_cost = 4;
+    ShareSplit share_split = 5;
 }
 
 // Enum for the shared split which can either be weighted or even
@@ -90,58 +95,56 @@ enum ShareSplit {
 // or complete allocation response having all the details
 message AllocationSummaryResponse {
     oneof data{
-        AllocationProgressUpdate status_update = 1;
-        CompleteAllocationResponse full_response = 2;
+        AllocationSummaryProgressUpdate status_update = 1;
+        CompleteAllocationSummaryResponse full_response = 2;
     }
 }
 
 // message for progress updates
-message AllocationProgressUpdate {
+message AllocationSummaryProgressUpdate {
     float percent_complete = 1;
-    repeated AllocationGraphItem graphItem= 2;
+    repeated AllocationSummaryGraphItem graph_items= 2;
     double total_cost = 3; 
 }
  
 // message for allocation graph item listing the day and repeated entry of each graph data
-message AllocationGraphItem {
+message AllocationSummaryGraphItem {
     oneof span{
         int32 day =1;
         int32 hour =2;
     }
-    repeated AllocationData allocationData = 3; 
+    repeated AllocationSummaryPerDayData allocation_summary_data = 3; 
 }
 
 // message for each day important data of cost and name of each allocation
-message AllocationData {
+message AllocationSummaryPerDayData {
     string name = 1;
-    float cost = 2;
+    double cost = 2;
 }
  
 // message for complete allocation data having repeated allocationSet of summary
-message CompleteAllocationResponse {
-    repeated AllocationSet allocationSet = 2;
+message CompleteAllocationSummaryResponse {
+    repeated AllocationSummarySet allocation_summary_sets = 2;
 }
    
 // message for each allocation set consists of allocation items and window the allocation items data belongs to
-message AllocationSet {
-    repeated AllocationItem allocations = 1;
+message AllocationSummarySet {
+    repeated SummaryTableItem summary_items = 1;
     Window window =2;
 }
 
-// message for each allocation Item 
-message AllocationItem {
+// message for each allocation summary Item 
+message SummaryTableItem {
     Window window =1;
     string name = 2;
-    double cpuCoreRequestAverage = 3;
-    double cpuCoreUsageAverage = 4;
-    double cpuCost = 5;
-    double gpuCost = 6;
-    double networkCost = 7;
-    double loadBalancerCost = 8;
-    double pvCost = 9;
-    double ramByteRequestAverage = 10;
-    double ramByteUsageAverage = 11;
-    double ramCost = 12;
-    double sharedCost = 13;
-    double externalCost = 14; 
+    double cpu_cost = 3;
+    double gpu_cost = 4;
+    double ram_cost = 5;
+    double pv_cost = 6;
+    double network_cost = 7;
+    double loadBalancer_cost = 8;
+    double shared_cost = 9;
+    double external_cost = 10; 
+    float average_cpu_utilization =11;
+    double total_cost = 12; 
 }

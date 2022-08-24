@@ -22,8 +22,8 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AllocationSummaryClient interface {
-	// Obtains the AllocationSummarySets satisfy the given AllocationSummaryRequest. Results are
-	// streamed rather than returned at once.
+	// Obtains the AllocationSummarySets satisfy the AllocationSummaryRequest.
+	// Results are streamed rather than returned at once.
 	GetAllocationSummary(ctx context.Context, in *AllocationSummaryRequest, opts ...grpc.CallOption) (AllocationSummary_GetAllocationSummaryClient, error)
 }
 
@@ -71,8 +71,8 @@ func (x *allocationSummaryGetAllocationSummaryClient) Recv() (*AllocationSummary
 // All implementations must embed UnimplementedAllocationSummaryServer
 // for forward compatibility
 type AllocationSummaryServer interface {
-	// Obtains the AllocationSummarySets satisfy the given AllocationSummaryRequest. Results are
-	// streamed rather than returned at once.
+	// Obtains the AllocationSummarySets satisfy the AllocationSummaryRequest.
+	// Results are streamed rather than returned at once.
 	GetAllocationSummary(*AllocationSummaryRequest, AllocationSummary_GetAllocationSummaryServer) error
 	mustEmbedUnimplementedAllocationSummaryServer()
 }

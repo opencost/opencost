@@ -27,8 +27,8 @@ const (
 // on the command line, the cost-model is executed by default.
 //
 // This function accepts a costModelCmd parameter to provide support for various cost-model implementations
-// (ie: open source, enterprise). Also added any number of additional commands
-func Execute(costModelCmd *cobra.Command, additionalCommands ...*cobra.Command) error {
+// (ie: open source, enterprise).
+func Execute(costModelCmd *cobra.Command) error {
 	// use the open-source cost-model if a command is not provided
 	if costModelCmd == nil {
 		costModelCmd = newCostModelCommand()
@@ -39,7 +39,7 @@ func Execute(costModelCmd *cobra.Command, additionalCommands ...*cobra.Command) 
 		return err
 	}
 
-	rootCmd := newRootCommand(costModelCmd, additionalCommands)
+	rootCmd := newRootCommand(costModelCmd)
 
 	// in the event that no directive/command is passed, we want to default to using the cost-model command
 	// cobra doesn't provide a way within the API to do this, so we'll prepend the command if it is omitted.
@@ -59,7 +59,7 @@ func Execute(costModelCmd *cobra.Command, additionalCommands ...*cobra.Command) 
 
 // newRootCommand creates a new root command which will act as a sub-command router for the
 // cost-model application
-func newRootCommand(costModelCmd *cobra.Command, additionalCommands []*cobra.Command) *cobra.Command {
+func newRootCommand(costModelCmd *cobra.Command) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          commandRoot,
 		SilenceUsage: true,
@@ -80,12 +80,10 @@ func newRootCommand(costModelCmd *cobra.Command, additionalCommands []*cobra.Com
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 
 	// add the modes of operation
-	defaultCommands := []*cobra.Command{
+	cmd.AddCommand(
 		costModelCmd,
 		newAgentCommand(),
-	}
-
-	cmd.AddCommand(append(defaultCommands, additionalCommands...)...)
+	)
 
 	return cmd
 }
