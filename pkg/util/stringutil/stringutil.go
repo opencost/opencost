@@ -23,10 +23,54 @@ const (
 var alpha = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 var alphanumeric = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 
-// Any strings created at runtime, duplicate or not, are copied, even though by specification,
-// a go string is immutable. This utility allows us to cache runtime strings and retrieve them
-// when we expect heavy duplicates.
-var strings sync.Map
+type stringBank struct {
+	lock sync.Mutex
+	m    map[string]string
+}
+
+func newStringBank() *stringBank {
+	return &stringBank{
+		m: make(map[string]string),
+	}
+}
+
+func (sb *stringBank) LoadOrStore(key, value string) (string, bool) {
+	sb.lock.Lock()
+
+	if v, ok := sb.m[key]; ok {
+		sb.lock.Unlock()
+		return v, ok
+	}
+
+	sb.m[key] = value
+	sb.lock.Unlock()
+	return value, false
+}
+
+func (sb *stringBank) LoadOrStoreFunc(key string, f func() string) (string, bool) {
+	sb.lock.Lock()
+
+	if v, ok := sb.m[key]; ok {
+		sb.lock.Unlock()
+		return v, ok
+	}
+
+	// create the key and value using the func (the key could be deallocated later)
+	value := f()
+	sb.m[value] = value
+	sb.lock.Unlock()
+	return value, false
+}
+
+func (sb *stringBank) Clear() {
+	sb.lock.Lock()
+	sb.m = make(map[string]string)
+	sb.lock.Unlock()
+}
+
+// stringBank is an unbounded string cache that is thread-safe. It is especially useful if
+// storing a large frequency of dynamically allocated duplicate strings.
+var strings = newStringBank() // sync.Map
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
@@ -36,7 +80,18 @@ func init() {
 // the string as the unique instance.
 func Bank(s string) string {
 	ss, _ := strings.LoadOrStore(s, s)
-	return ss.(string)
+	return ss
+}
+
+// BankFunc will use the provided s string to check for an existing allocation of the string. However,
+// if no allocation exists, the f parameter will be used to create the string and store in the bank.
+func BankFunc(s string, f func() string) string {
+	ss, _ := strings.LoadOrStoreFunc(s, f)
+	return ss
+}
+
+func ClearBank() {
+	strings.Clear()
 }
 
 // RandSeq generates a pseudo-random alphabetic string of the given length
@@ -85,7 +140,8 @@ func StringSlicesEqual(left, right []string) bool {
 	// Build maps for each slice that counts each unique instance
 	leftMap := make(map[string]int, len(left))
 	for _, str := range left {
-		count, ok := leftMap[str]; if ok {
+		count, ok := leftMap[str]
+		if ok {
 			leftMap[str] = count + 1
 		} else {
 			leftMap[str] = 1
@@ -93,7 +149,8 @@ func StringSlicesEqual(left, right []string) bool {
 	}
 	rightMap := make(map[string]int, len(right))
 	for _, str := range right {
-		count, ok := rightMap[str]; if ok {
+		count, ok := rightMap[str]
+		if ok {
 			rightMap[str] = count + 1
 		} else {
 			rightMap[str] = 1
