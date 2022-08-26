@@ -3243,7 +3243,7 @@ func (asr *AssetSetRange) TotalCost() float64 {
 
 // This is a helper type. The Asset API returns a json which cannot be natively
 // unmarshaled into any Asset struct. Therefore, this struct IN COMBINATION WITH
-// DESERIALIZATION LOGIC DEFINED IN asset_unmarshal.go can unmarshal a json directly
+// DESERIALIZATION LOGIC DEFINED IN asset_json.go can unmarshal a json directly
 // from an Assets API query
 type AssetAPIResponse struct {
 	Code int                   `json:"code"`
