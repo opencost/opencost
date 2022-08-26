@@ -22,9 +22,11 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AllocationSummaryClient interface {
-	// Obtains the AllocationSummarySets satisfy the AllocationSummaryRequest.
-	// Results are streamed rather than returned at once.
-	GetAllocationSummary(ctx context.Context, in *AllocationSummaryRequest, opts ...grpc.CallOption) (AllocationSummary_GetAllocationSummaryClient, error)
+	// An RPC for allocation Summary.
+	//
+	// Streams the Lists of AllocationSummary that satisfies the requested window,
+	// aggregation on ,filter selection and other parameters passed in the Request.
+	ListAllocationSummary(ctx context.Context, in *AllocationSummaryRequest, opts ...grpc.CallOption) (AllocationSummary_ListAllocationSummaryClient, error)
 }
 
 type allocationSummaryClient struct {
@@ -35,12 +37,12 @@ func NewAllocationSummaryClient(cc grpc.ClientConnInterface) AllocationSummaryCl
 	return &allocationSummaryClient{cc}
 }
 
-func (c *allocationSummaryClient) GetAllocationSummary(ctx context.Context, in *AllocationSummaryRequest, opts ...grpc.CallOption) (AllocationSummary_GetAllocationSummaryClient, error) {
-	stream, err := c.cc.NewStream(ctx, &AllocationSummary_ServiceDesc.Streams[0], "/kubecost.service.allocation.allocationsummary.AllocationSummary/GetAllocationSummary", opts...)
+func (c *allocationSummaryClient) ListAllocationSummary(ctx context.Context, in *AllocationSummaryRequest, opts ...grpc.CallOption) (AllocationSummary_ListAllocationSummaryClient, error) {
+	stream, err := c.cc.NewStream(ctx, &AllocationSummary_ServiceDesc.Streams[0], "/kubecost.service.allocation.allocationsummary.v1.AllocationSummary/ListAllocationSummary", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &allocationSummaryGetAllocationSummaryClient{stream}
+	x := &allocationSummaryListAllocationSummaryClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -50,16 +52,16 @@ func (c *allocationSummaryClient) GetAllocationSummary(ctx context.Context, in *
 	return x, nil
 }
 
-type AllocationSummary_GetAllocationSummaryClient interface {
+type AllocationSummary_ListAllocationSummaryClient interface {
 	Recv() (*AllocationSummaryResponse, error)
 	grpc.ClientStream
 }
 
-type allocationSummaryGetAllocationSummaryClient struct {
+type allocationSummaryListAllocationSummaryClient struct {
 	grpc.ClientStream
 }
 
-func (x *allocationSummaryGetAllocationSummaryClient) Recv() (*AllocationSummaryResponse, error) {
+func (x *allocationSummaryListAllocationSummaryClient) Recv() (*AllocationSummaryResponse, error) {
 	m := new(AllocationSummaryResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -71,9 +73,11 @@ func (x *allocationSummaryGetAllocationSummaryClient) Recv() (*AllocationSummary
 // All implementations must embed UnimplementedAllocationSummaryServer
 // for forward compatibility
 type AllocationSummaryServer interface {
-	// Obtains the AllocationSummarySets satisfy the AllocationSummaryRequest.
-	// Results are streamed rather than returned at once.
-	GetAllocationSummary(*AllocationSummaryRequest, AllocationSummary_GetAllocationSummaryServer) error
+	// An RPC for allocation Summary.
+	//
+	// Streams the Lists of AllocationSummary that satisfies the requested window,
+	// aggregation on ,filter selection and other parameters passed in the Request.
+	ListAllocationSummary(*AllocationSummaryRequest, AllocationSummary_ListAllocationSummaryServer) error
 	mustEmbedUnimplementedAllocationSummaryServer()
 }
 
@@ -81,8 +85,8 @@ type AllocationSummaryServer interface {
 type UnimplementedAllocationSummaryServer struct {
 }
 
-func (UnimplementedAllocationSummaryServer) GetAllocationSummary(*AllocationSummaryRequest, AllocationSummary_GetAllocationSummaryServer) error {
-	return status.Errorf(codes.Unimplemented, "method GetAllocationSummary not implemented")
+func (UnimplementedAllocationSummaryServer) ListAllocationSummary(*AllocationSummaryRequest, AllocationSummary_ListAllocationSummaryServer) error {
+	return status.Errorf(codes.Unimplemented, "method ListAllocationSummary not implemented")
 }
 func (UnimplementedAllocationSummaryServer) mustEmbedUnimplementedAllocationSummaryServer() {}
 
@@ -97,24 +101,24 @@ func RegisterAllocationSummaryServer(s grpc.ServiceRegistrar, srv AllocationSumm
 	s.RegisterService(&AllocationSummary_ServiceDesc, srv)
 }
 
-func _AllocationSummary_GetAllocationSummary_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _AllocationSummary_ListAllocationSummary_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(AllocationSummaryRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(AllocationSummaryServer).GetAllocationSummary(m, &allocationSummaryGetAllocationSummaryServer{stream})
+	return srv.(AllocationSummaryServer).ListAllocationSummary(m, &allocationSummaryListAllocationSummaryServer{stream})
 }
 
-type AllocationSummary_GetAllocationSummaryServer interface {
+type AllocationSummary_ListAllocationSummaryServer interface {
 	Send(*AllocationSummaryResponse) error
 	grpc.ServerStream
 }
 
-type allocationSummaryGetAllocationSummaryServer struct {
+type allocationSummaryListAllocationSummaryServer struct {
 	grpc.ServerStream
 }
 
-func (x *allocationSummaryGetAllocationSummaryServer) Send(m *AllocationSummaryResponse) error {
+func (x *allocationSummaryListAllocationSummaryServer) Send(m *AllocationSummaryResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -122,13 +126,13 @@ func (x *allocationSummaryGetAllocationSummaryServer) Send(m *AllocationSummaryR
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var AllocationSummary_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "kubecost.service.allocation.allocationsummary.AllocationSummary",
+	ServiceName: "kubecost.service.allocation.allocationsummary.v1.AllocationSummary",
 	HandlerType: (*AllocationSummaryServer)(nil),
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "GetAllocationSummary",
-			Handler:       _AllocationSummary_GetAllocationSummary_Handler,
+			StreamName:    "ListAllocationSummary",
+			Handler:       _AllocationSummary_ListAllocationSummary_Handler,
 			ServerStreams: true,
 		},
 	},
