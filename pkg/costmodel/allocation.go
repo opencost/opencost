@@ -689,7 +689,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 						alloc.PVs = kubecost.PVAllocations{}
 					}
 					pvKey := kubecost.PVKey{
-						Cluster: pvc.Cluster,
+						Cluster: pvc.Volume.Cluster,
 						Name:    pvc.Volume.Name,
 					}
 					alloc.PVs[pvKey] = &kubecost.PVAllocation{
@@ -2282,6 +2282,7 @@ func buildPVCMap(window kubecost.Window, pvcMap map[pvcKey]*PVC, pvMap map[pvKey
 
 		pvcMap[pvcKey].Name = name
 		pvcMap[pvcKey].Namespace = namespace
+		pvcMap[pvcKey].Cluster = cluster
 		pvcMap[pvcKey].Volume = pvMap[pvKey]
 		pvcMap[pvcKey].Start = pvcStart
 		pvcMap[pvcKey].End = pvcEnd

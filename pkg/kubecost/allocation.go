@@ -1,7 +1,6 @@
 package kubecost
 
 import (
-	"bytes"
 	"fmt"
 	"sort"
 	"strings"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util"
-	"github.com/opencost/opencost/pkg/util/json"
 )
 
 // TODO Clean-up use of IsEmpty; nil checks should be separated for safety.
@@ -69,7 +67,7 @@ type Allocation struct {
 	NetworkCostAdjustment      float64               `json:"networkCostAdjustment"`
 	LoadBalancerCost           float64               `json:"loadBalancerCost"`
 	LoadBalancerCostAdjustment float64               `json:"loadBalancerCostAdjustment"`
-	PVs                        PVAllocations         `json:"-"`
+	PVs                        PVAllocations         `json:"pvs"`
 	PVCostAdjustment           float64               `json:"pvCostAdjustment"`
 	RAMByteHours               float64               `json:"ramByteHours"`
 	RAMBytesRequestAverage     float64               `json:"ramByteRequestAverage"`
@@ -116,13 +114,12 @@ type RawAllocationOnlyData struct {
 type PVAllocations map[PVKey]*PVAllocation
 
 // Clone creates a deep copy of a PVAllocations
-func (pv *PVAllocations) Clone() PVAllocations {
-	if pv == nil || *pv == nil {
+func (pv PVAllocations) Clone() PVAllocations {
+	if pv == nil {
 		return nil
 	}
-	apv := *pv
-	clonePV := make(map[PVKey]*PVAllocation, len(apv))
-	for k, v := range apv {
+	clonePV := make(map[PVKey]*PVAllocation, len(pv))
+	for k, v := range pv {
 		clonePV[k] = &PVAllocation{
 			ByteHours: v.ByteHours,
 			Cost:      v.Cost,
@@ -132,7 +129,7 @@ func (pv *PVAllocations) Clone() PVAllocations {
 }
 
 // Add adds contents of that to the calling PVAllocations
-func (pv *PVAllocations) Add(that PVAllocations) PVAllocations {
+func (pv PVAllocations) Add(that PVAllocations) PVAllocations {
 	apv := pv.Clone()
 	if that != nil {
 		if apv == nil {
@@ -155,6 +152,21 @@ func (pv *PVAllocations) Add(that PVAllocations) PVAllocations {
 type PVKey struct {
 	Cluster string `json:"cluster"`
 	Name    string `json:"name"`
+}
+
+func (pvk *PVKey) String() string {
+	return fmt.Sprintf("cluster=%s:name=%s", pvk.Cluster, pvk.Name)
+}
+
+// FromString populates PVKey fields from string
+func (pvk *PVKey) FromString(key string) error {
+	splitKey := strings.Split(key, ":")
+	if len(splitKey) != 2 {
+		return fmt.Errorf("PVKey string '%s' has the incorrect format", key)
+	}
+	pvk.Cluster = strings.TrimPrefix(splitKey[0], "cluster=")
+	pvk.Name = strings.TrimPrefix(splitKey[1], "name=")
+	return nil
 }
 
 // PVAllocation contains the byte hour usage
@@ -550,53 +562,6 @@ func (a *Allocation) ResetAdjustments() {
 	a.PVCostAdjustment = 0.0
 	a.NetworkCostAdjustment = 0.0
 	a.LoadBalancerCostAdjustment = 0.0
-}
-
-// MarshalJSON implements json.Marshaler interface
-func (a *Allocation) MarshalJSON() ([]byte, error) {
-	buffer := bytes.NewBufferString("{")
-	jsonEncodeString(buffer, "name", a.Name, ",")
-	jsonEncode(buffer, "properties", a.Properties, ",")
-	jsonEncode(buffer, "window", a.Window, ",")
-	jsonEncodeString(buffer, "start", a.Start.Format(time.RFC3339), ",")
-	jsonEncodeString(buffer, "end", a.End.Format(time.RFC3339), ",")
-	jsonEncodeFloat64(buffer, "minutes", a.Minutes(), ",")
-	jsonEncodeFloat64(buffer, "cpuCores", a.CPUCores(), ",")
-	jsonEncodeFloat64(buffer, "cpuCoreRequestAverage", a.CPUCoreRequestAverage, ",")
-	jsonEncodeFloat64(buffer, "cpuCoreUsageAverage", a.CPUCoreUsageAverage, ",")
-	jsonEncodeFloat64(buffer, "cpuCoreHours", a.CPUCoreHours, ",")
-	jsonEncodeFloat64(buffer, "cpuCost", a.CPUCost, ",")
-	jsonEncodeFloat64(buffer, "cpuCostAdjustment", a.CPUCostAdjustment, ",")
-	jsonEncodeFloat64(buffer, "cpuEfficiency", a.CPUEfficiency(), ",")
-	jsonEncodeFloat64(buffer, "gpuCount", a.GPUs(), ",")
-	jsonEncodeFloat64(buffer, "gpuHours", a.GPUHours, ",")
-	jsonEncodeFloat64(buffer, "gpuCost", a.GPUCost, ",")
-	jsonEncodeFloat64(buffer, "gpuCostAdjustment", a.GPUCostAdjustment, ",")
-	jsonEncodeFloat64(buffer, "networkTransferBytes", a.NetworkTransferBytes, ",")
-	jsonEncodeFloat64(buffer, "networkReceiveBytes", a.NetworkReceiveBytes, ",")
-	jsonEncodeFloat64(buffer, "networkCost", a.NetworkCost, ",")
-	jsonEncodeFloat64(buffer, "networkCostAdjustment", a.NetworkCostAdjustment, ",")
-	jsonEncodeFloat64(buffer, "loadBalancerCost", a.LoadBalancerCost, ",")
-	jsonEncodeFloat64(buffer, "loadBalancerCostAdjustment", a.LoadBalancerCostAdjustment, ",")
-	jsonEncodeFloat64(buffer, "pvBytes", a.PVBytes(), ",")
-	jsonEncodeFloat64(buffer, "pvByteHours", a.PVByteHours(), ",")
-	jsonEncodeFloat64(buffer, "pvCost", a.PVCost(), ",")
-	jsonEncode(buffer, "pvs", a.PVs, ",") // Todo Sean: this does not work properly
-	jsonEncodeFloat64(buffer, "pvCostAdjustment", a.PVCostAdjustment, ",")
-	jsonEncodeFloat64(buffer, "ramBytes", a.RAMBytes(), ",")
-	jsonEncodeFloat64(buffer, "ramByteRequestAverage", a.RAMBytesRequestAverage, ",")
-	jsonEncodeFloat64(buffer, "ramByteUsageAverage", a.RAMBytesUsageAverage, ",")
-	jsonEncodeFloat64(buffer, "ramByteHours", a.RAMByteHours, ",")
-	jsonEncodeFloat64(buffer, "ramCost", a.RAMCost, ",")
-	jsonEncodeFloat64(buffer, "ramCostAdjustment", a.RAMCostAdjustment, ",")
-	jsonEncodeFloat64(buffer, "ramEfficiency", a.RAMEfficiency(), ",")
-	jsonEncodeFloat64(buffer, "sharedCost", a.SharedCost, ",")
-	jsonEncodeFloat64(buffer, "externalCost", a.ExternalCost, ",")
-	jsonEncodeFloat64(buffer, "totalCost", a.TotalCost(), ",")
-	jsonEncodeFloat64(buffer, "totalEfficiency", a.TotalEfficiency(), ",")
-	jsonEncode(buffer, "rawAllocationOnly", a.RawAllocationOnly, "")
-	buffer.WriteString("}")
-	return buffer.Bytes(), nil
 }
 
 // Resolution returns the duration of time covered by the Allocation
@@ -1882,16 +1847,6 @@ func (as *AllocationSet) Map() map[string]*Allocation {
 	return as.Clone().allocations
 }
 
-// MarshalJSON JSON-encodes the AllocationSet
-func (as *AllocationSet) MarshalJSON() ([]byte, error) {
-	if as == nil {
-		return json.Marshal(map[string]*Allocation{})
-	}
-	as.RLock()
-	defer as.RUnlock()
-	return json.Marshal(as.allocations)
-}
-
 // ResetAdjustments sets all cost adjustment fields to zero
 func (as *AllocationSet) ResetAdjustments() {
 	if as == nil {
@@ -2218,17 +2173,6 @@ func (asr *AllocationSetRange) Length() int {
 	asr.RLock()
 	defer asr.RUnlock()
 	return len(asr.allocations)
-}
-
-// MarshalJSON JSON-encodes the range
-func (asr *AllocationSetRange) MarshalJSON() ([]byte, error) {
-	if asr == nil {
-		return json.Marshal([]*AllocationSet{})
-	}
-
-	asr.RLock()
-	defer asr.RUnlock()
-	return json.Marshal(asr.allocations)
 }
 
 // Slice copies the underlying slice of AllocationSets, maintaining order,

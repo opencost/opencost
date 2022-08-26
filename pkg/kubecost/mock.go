@@ -8,7 +8,10 @@ import (
 const gb = 1024 * 1024 * 1024
 const day = 24 * time.Hour
 
-var disk = PVKey{}
+var disk = PVKey{
+	Cluster: "cluster1",
+	Name:    "pv1",
+}
 
 // NewMockUnitAllocation creates an *Allocation with all of its float64 values set to 1 and generic properties if not provided in arg
 func NewMockUnitAllocation(name string, start time.Time, resolution time.Duration, props *AllocationProperties) *Allocation {
