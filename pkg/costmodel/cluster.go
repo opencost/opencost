@@ -7,6 +7,7 @@ import (
 
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/util/timeutil"
+	"golang.org/x/exp/slices"
 
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/env"
@@ -305,6 +306,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 		diskMap[key].Minutes = mins
 	}
 
+	var unTracedDiskLogData []DiskIdentifier
 	//Iterating through Persistent Volume given by custom metrics kubecost_pv_info and assign the storage class if known and __unknown__ if not populated.
 	for _, result := range resPVStorageClass {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
@@ -316,7 +318,9 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 
 		key := DiskIdentifier{cluster, name}
 		if _, ok := diskMap[key]; !ok {
-			log.DedupedWarningf(5, "ClusterDisks: Storage class information for unidentified disk or disk deleted from analysis")
+			if !slices.Contains(unTracedDiskLogData, key) {
+				unTracedDiskLogData = append(unTracedDiskLogData, key)
+			}
 			continue
 		}
 
@@ -331,6 +335,12 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 		} else {
 			diskMap[key].StorageClass = storageClass
 		}
+	}
+
+	// Logging the unidentified disk information outside the loop
+
+	for _, unIdentifiedDisk := range unTracedDiskLogData {
+		log.Warnf("ClusterDisks: Cluster %s has Storage Class information for unidentified disk %s or disk deleted from analysis", unIdentifiedDisk.Cluster, unIdentifiedDisk.Name)
 	}
 
 	for _, disk := range diskMap {
