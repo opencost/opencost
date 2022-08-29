@@ -5,6 +5,8 @@ package kubecost.service.allocation.allocationsummary.v1;
 
 option go_package = "github.com/opencost/opencost/pkg/kubecost/service/allocation/allocationsummary";
 
+import "google/protobuf/timestamp.proto";
+
 // Handles the Allocation Summary Requests.
 service AllocationSummary {
     // An RPC for allocation Summary.
@@ -83,16 +85,6 @@ enum IdleCostsType {
     IDLE_COSTS_TYPE_SHARE_BY_NODE = 4;
 }
 
-// An Enum for chart type to display data selection.
-enum ChartType{
-    CHART_TYPE_UNSPECIFIED = 0;
-    CHART_TYPE_COST = 1;
-    CHART_TYPE_COST_OVER_TIME = 2;
-    CHART_TYPE_EFFICIENCY_OVER_TIME = 3;
-    CHART_TYPE_PROPORTIONAL_COST = 4;
-    CHART_TYPE_COST_TREEMAP = 5;
-}
-
 // An Enum to select the cost metrics for the Allocation Summary.
 enum CostMetricType{
     COST_METRIC_UNSPECIFIED = 0;
@@ -161,23 +153,22 @@ message AllocationSummaryRequest {
     // Window for which the Allocation Summary is requested
     Window window = 1;
 
-    // Maximum table entry requested for the Allocation Summary.
-    int32 max_table_items = 2;
+    // Starting index of the first Allocation Summary Data 
+    int32 result_start_index = 2;
+
+    // Maximum number of results of Allocation Summary Data
+    int32 max_num_results = 3;
+
     
     // Aggregation of Allocation Summary requested on.
     // For example: {"aggregate_by": [9,12]} or 
     // {"aggregate_by": [AGGREGATE_TYPE_NAMESPACE,AGGREGATE_TYPE_POD]}
     // to aggregate on namespace and pod 
-    repeated AggrgateType aggregate_by = 3;
+    repeated AggrgateType aggregate_by = 4;
     
     // Selection of Idle cost on Allocation Summary.
-    IdleCostsType idle_costs = 4;
-    
-    // Selection of Chart to display the Allocation Summary.
-    // For example: {"chart": 2} or  {"chart": CHART_TYPE_COST_OVER_TIME }
-    // to display chart over time for Allocation Summary 
-    ChartType chart = 5;
-    
+    IdleCostsType idle_costs = 5;
+
     // Selection of Cost Metrics on Allocation Summary.
     // For example: {"cost_metrics": 1} or  {"cost_metrics": COST_METRIC_CUMULATIVE_COST }
     // to display Allocation Summary with cumulative cost
@@ -191,6 +182,7 @@ message AllocationSummaryRequest {
     
     // decision to be made for the Shared Resources on Allocation Summary data.
     SharedSelection shared_resources = 9;
+
 }
 
 // message for progress updates during the API call.
@@ -199,113 +191,42 @@ message AllocationSummaryProgressUpdate {
     float percent_complete = 1;
 }
 
-// Message representing Kubernetes resource name to cost.
-// Is used by CostData, CostOverTime and ProportionalResources messages.
-message ResourceNameToCost{
-    // Name of the Kubernetes Resource
-    string name = 1;
+// Message reprenting the time window for which graph items are listed
+// in the visualization.
+message DateRange{
+    // The start of the time range of the collected graph items
+    google.protobuf.Timestamp start = 1;
+
+    // The end of the time range of the collected graph items
+    google.protobuf.Timestamp end = 2;
+}
+
+// Message containing the information about each kubernetes resource 
+// that is used to display in graph visualization.
+message TimeSeriesGraphItem{
     
-    // Corresponding cost of the Kubernetes Resource
-    float cost = 2;
-}
-
-// Message represents the Data for chart selection CHART_TYPE_COST
-message CostData{
-    // This Corresponds to each of the bar graph entry of resource to cost.
-    repeated ResourceNameToCost resources = 1;
-}
-
-// Message representing Kubernetes resource cost over time
-message ResourcesToCostOverTime{
-    // The window representing the data either per hour or per day
-    oneof time_window{
-        int32 day = 1;
-        int32 hour = 2;
-    }
-
-    // Repeated resources to cost data representing the bar graph for that particular time_window
-    repeated ResourceNameToCost resources = 3;
-
-    // Total cost of all the Kubernetes Resource for that day
-    float total_cost = 4;
-}
-
-// Message represents the Data for chart selection CHART_TYPE_COST_OVER_TIME
-message CostOverTimeData{
-    repeated ResourcesToCostOverTime resources_over_time = 1;
-}
-
-// Message representing Kubernetes resource name to Efficiency
-message ResourceNameToEfficiency{
-    // Name of the Kubernetes Resource
-    string name = 1;
-
-    // Efficiency of the Kubernetes Resource
-    float efficiency = 2;
-}
-
-// Message representing Kubernetes resource efficiency over time
-message EfficiencyOfResourcesOverTime{
-    // The window representing the data either per hour or per day
-    oneof time_window{
-        int32 day = 1;
-        int32 hour = 2;
-    }
-
-    // Repeated resources to efficiency data representing the
-    // bar graph for that particular time_window
-    repeated ResourceNameToEfficiency resources = 3;
-
-    // Total Efficiency of all the Kubernetes Resource for that day
-    float total_efficency = 4;
-}
-
-// Message represents the Data for chart selection CHART_TYPE_EFFICIENCY_OVER_TIME
-message EfficiencyOverTimeData{
-    repeated EfficiencyOfResourcesOverTime resources = 1;
-}
-
-// Message representing Kubernetes resource cost and proportionality to other Kubernetes resources
-message ProportionalResources{
-    // Kubernetes Resource to Cost.
-    ResourceNameToCost resource = 1;
-
-    // Percentage proportional to other resources.
-    float proportional_percentage = 2;
-}
-
-// Proportional cost represents the Data for chart selection CHART_TYPE_PROPORTIONAL_COST
-message ProportionalCostData{
-    repeated ProportionalResources resources = 1;
-}
-
-// Message representing Kubernetes resource name to Cost and Efficiency
-message ResourceNameToCostAndEfficiency{
     // Name of the Kubernetes Resource.
     string name = 1;
 
-    // Efficiency of the Kubernetes Resource.
-    float efficiency = 2;
-
     // Cost of the Kubernetes Resource.
-    float cost = 3;
+    float cost = 2;
+
+    // Efficiency of the Kubernetes Resource.
+    float efficiency = 3;
+
 }
 
-// Message represents the Data for chart selection CHART_TYPE_COST_TREEMAP.
-message CostTreeMapData{
-    repeated ResourceNameToCostAndEfficiency resources = 1;
-}
-
-// Resource for the Graph Data to be displayed in the Visualization. This Can
-// be one of the following 5 visualization given by the request param chart.
+// Resource for the Graph Data to be displayed in each Visualization. 
 message GraphData {
-    oneof GraphDataPerVisualization{
-        CostData cost_data = 1;
-        CostOverTimeData cost_over_time_data = 2;
-        EfficiencyOverTimeData efficiency_over_time_data = 3;
-        ProportionalCostData proportional_cost_data = 4;
-        CostTreeMapData cost_treemap_data = 5;
-    }
+    // The Data Range for which the graph data has to be displayed.
+    DateRange date_range = 1;
+
+    // The list of Graph items for for the corresponding Date range.
+    repeated TimeSeriesGraphItem graph_items = 2;
+
+    // The graph will have graph_top_results number of graph_items and an
+    // additional entry that will be aggregate of all the other graph_items
+    int32 graph_top_results = 3;
 }
 
 // message for each allocation summary Item 
@@ -352,7 +273,8 @@ message FinalAllocationSummaryResponse {
     // The Table entry corresponding to Totals in Allocation Summary Table.
     SummaryTableItem total_item = 2;
     
-    // returns the max_table_items requested for the API corresponding to each table item.
+    // returns the result_start_index to max_num_results from that index requested in the
+    // Allocation Summary Request.
     repeated SummaryTableItem each_table_items = 3;
 }
 
