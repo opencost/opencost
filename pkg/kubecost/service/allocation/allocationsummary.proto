@@ -5,8 +5,6 @@ package kubecost.service.allocation.allocationsummary.v1;
 
 option go_package = "github.com/opencost/opencost/pkg/kubecost/service/allocation/allocationsummary";
 
-import "google/protobuf/timestamp.proto";
-
 // Handles the Allocation Summary Requests.
 service AllocationSummary {
     // An RPC for allocation Summary.
@@ -195,16 +193,15 @@ message AllocationSummaryProgressUpdate {
 // in the visualization.
 message DateRange{
     // The start of the time range of the collected graph items
-    google.protobuf.Timestamp start = 1;
+    string start = 1;
 
     // The end of the time range of the collected graph items
-    google.protobuf.Timestamp end = 2;
+    string end = 2;
 }
 
 // Message containing the information about each kubernetes resource 
 // that is used to display in graph visualization.
-message TimeSeriesGraphItem{
-    
+message Resource{
     // Name of the Kubernetes Resource.
     string name = 1;
 
@@ -216,17 +213,24 @@ message TimeSeriesGraphItem{
 
 }
 
-// Resource for the Graph Data to be displayed in each Visualization. 
-message GraphData {
+// Message containing each bar graph entry over a specific Date range.
+message TimeSeriesGraphItem{
     // The Data Range for which the graph data has to be displayed.
     DateRange date_range = 1;
 
-    // The list of Graph items for for the corresponding Date range.
-    repeated TimeSeriesGraphItem graph_items = 2;
+    // represents the top graph_top_results values for the corresponding Data range and
+    // an additional entry that will be aggregate of all the other kubernetes resources.
+    repeated Resource value = 2;
+}
 
-    // The graph will have graph_top_results number of graph_items and an
-    // additional entry that will be aggregate of all the other graph_items
-    int32 graph_top_results = 3;
+// Resource for the Graph Data to be displayed in each Visualization. 
+message GraphData {
+    // The list of Graph items for the requested Allocation Summary Request.
+    repeated TimeSeriesGraphItem graph_items = 1;
+
+    // Represents how many graph items should be shown while hovering each bar graph.
+    // All the other remaining graph items will be aggregate under a keyword others.
+    int32 graph_top_results = 2;
 }
 
 // message for each allocation summary Item 
