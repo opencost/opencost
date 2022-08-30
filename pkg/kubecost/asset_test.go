@@ -31,25 +31,25 @@ func assertAssetSet(t *testing.T, as *AssetSet, msg string, window Window, exps 
 	if !as.Window.Equal(window) {
 		t.Fatalf("AssetSet.AggregateBy[%s]: expected window %s, actual %s", msg, window, as.Window)
 	}
-	as.Each(func(key string, a Asset) {
+	for key, a := range as.Assets {
 		if exp, ok := exps[key]; ok {
 			if math.Round(a.TotalCost()*100) != math.Round(exp*100) {
 				t.Fatalf("AssetSet.AggregateBy[%s]: key %s expected total cost %.2f, actual %.2f", msg, key, exp, a.TotalCost())
 			}
-			if !a.Window().Equal(window) {
-				t.Fatalf("AssetSet.AggregateBy[%s]: key %s expected window %s, actual %s", msg, key, window, a.Window())
+			if !a.GetWindow().Equal(window) {
+				t.Fatalf("AssetSet.AggregateBy[%s]: key %s expected window %s, actual %s", msg, key, window, a.GetWindow())
 			}
 		} else {
 			t.Fatalf("AssetSet.AggregateBy[%s]: unexpected asset: %s", msg, key)
 		}
-	})
+	}
 }
 
 func printAssetSet(msg string, as *AssetSet) {
 	fmt.Printf("--- %s ---\n", msg)
-	as.Each(func(key string, a Asset) {
+	for key, a := range as.Assets {
 		fmt.Printf(" > %s: %s\n", key, a)
-	})
+	}
 }
 
 func TestAny_Add(t *testing.T) {
@@ -77,34 +77,34 @@ func TestAny_Add(t *testing.T) {
 	if any3.TotalCost() != 15.0 {
 		t.Fatalf("Any.Add: expected %f; got %f", 15.0, any3.TotalCost())
 	}
-	if any3.Adjustment() != 2.0 {
-		t.Fatalf("Any.Add: expected %f; got %f", 2.0, any3.Adjustment())
+	if any3.GetAdjustment() != 2.0 {
+		t.Fatalf("Any.Add: expected %f; got %f", 2.0, any3.GetAdjustment())
 	}
-	if any3.Properties().Cluster != "cluster1" {
-		t.Fatalf("Any.Add: expected %s; got %s", "cluster1", any3.Properties().Cluster)
+	if any3.GetProperties().Cluster != "cluster1" {
+		t.Fatalf("Any.Add: expected %s; got %s", "cluster1", any3.GetProperties().Cluster)
 	}
 	if any3.Type() != AnyAssetType {
 		t.Fatalf("Any.Add: expected %s; got %s", AnyAssetType, any3.Type())
 	}
-	if any3.Properties().ProviderID != "" {
-		t.Fatalf("Any.Add: expected %s; got %s", "", any3.Properties().ProviderID)
+	if any3.GetProperties().ProviderID != "" {
+		t.Fatalf("Any.Add: expected %s; got %s", "", any3.GetProperties().ProviderID)
 	}
-	if any3.Properties().Name != "" {
-		t.Fatalf("Any.Add: expected %s; got %s", "", any3.Properties().Name)
+	if any3.GetProperties().Name != "" {
+		t.Fatalf("Any.Add: expected %s; got %s", "", any3.GetProperties().Name)
 	}
 
 	// Check that the original assets are unchanged
 	if any1.TotalCost() != 10.0 {
 		t.Fatalf("Any.Add: expected %f; got %f", 10.0, any1.TotalCost())
 	}
-	if any1.Adjustment() != 1.0 {
-		t.Fatalf("Any.Add: expected %f; got %f", 1.0, any1.Adjustment())
+	if any1.Adjustment != 1.0 {
+		t.Fatalf("Any.Add: expected %f; got %f", 1.0, any1.Adjustment)
 	}
 	if any2.TotalCost() != 5.0 {
 		t.Fatalf("Any.Add: expected %f; got %f", 5.0, any2.TotalCost())
 	}
-	if any2.Adjustment() != 1.0 {
-		t.Fatalf("Any.Add: expected %f; got %f", 1.0, any2.Adjustment())
+	if any2.Adjustment != 1.0 {
+		t.Fatalf("Any.Add: expected %f; got %f", 1.0, any2.Adjustment)
 	}
 }
 
@@ -127,8 +127,8 @@ func TestAny_Clone(t *testing.T) {
 	if any2.TotalCost() != 10.0 {
 		t.Fatalf("Any.Clone: expected %f; got %f", 10.0, any2.TotalCost())
 	}
-	if any2.Adjustment() != 1.0 {
-		t.Fatalf("Any.Clone: expected %f; got %f", 1.0, any2.Adjustment())
+	if any2.GetAdjustment() != 1.0 {
+		t.Fatalf("Any.Clone: expected %f; got %f", 1.0, any2.GetAdjustment())
 	}
 }
 
@@ -194,20 +194,20 @@ func TestDisk_Add(t *testing.T) {
 	if diskT.TotalCost() != 15.0 {
 		t.Fatalf("Disk.Add: expected %f; got %f", 15.0, diskT.TotalCost())
 	}
-	if diskT.Adjustment() != 2.0 {
-		t.Fatalf("Disk.Add: expected %f; got %f", 2.0, diskT.Adjustment())
+	if diskT.Adjustment != 2.0 {
+		t.Fatalf("Disk.Add: expected %f; got %f", 2.0, diskT.Adjustment)
 	}
-	if diskT.Properties().Cluster != "cluster1" {
-		t.Fatalf("Disk.Add: expected %s; got %s", "cluster1", diskT.Properties().Cluster)
+	if diskT.Properties.Cluster != "cluster1" {
+		t.Fatalf("Disk.Add: expected %s; got %s", "cluster1", diskT.Properties.Cluster)
 	}
 	if diskT.Type() != DiskAssetType {
 		t.Fatalf("Disk.Add: expected %s; got %s", AnyAssetType, diskT.Type())
 	}
-	if diskT.Properties().ProviderID != "" {
-		t.Fatalf("Disk.Add: expected %s; got %s", "", diskT.Properties().ProviderID)
+	if diskT.Properties.ProviderID != "" {
+		t.Fatalf("Disk.Add: expected %s; got %s", "", diskT.Properties.ProviderID)
 	}
-	if diskT.Properties().Name != "" {
-		t.Fatalf("Disk.Add: expected %s; got %s", "", diskT.Properties().Name)
+	if diskT.Properties.Name != "" {
+		t.Fatalf("Disk.Add: expected %s; got %s", "", diskT.Properties.Name)
 	}
 	if diskT.Bytes() != 160.0*gb {
 		t.Fatalf("Disk.Add: expected %f; got %f", 160.0*gb, diskT.Bytes())
@@ -220,8 +220,8 @@ func TestDisk_Add(t *testing.T) {
 	if disk1.TotalCost() != 10.0 {
 		t.Fatalf("Disk.Add: expected %f; got %f", 10.0, disk1.TotalCost())
 	}
-	if disk1.Adjustment() != 1.0 {
-		t.Fatalf("Disk.Add: expected %f; got %f", 1.0, disk1.Adjustment())
+	if disk1.Adjustment != 1.0 {
+		t.Fatalf("Disk.Add: expected %f; got %f", 1.0, disk1.Adjustment)
 	}
 	if disk1.Local != 0.0 {
 		t.Fatalf("Disk.Add: expected %f; got %f", 0.0, disk1.Local)
@@ -229,8 +229,8 @@ func TestDisk_Add(t *testing.T) {
 	if disk2.TotalCost() != 5.0 {
 		t.Fatalf("Disk.Add: expected %f; got %f", 5.0, disk2.TotalCost())
 	}
-	if disk2.Adjustment() != 1.0 {
-		t.Fatalf("Disk.Add: expected %f; got %f", 1.0, disk2.Adjustment())
+	if disk2.Adjustment != 1.0 {
+		t.Fatalf("Disk.Add: expected %f; got %f", 1.0, disk2.Adjustment)
 	}
 	if disk2.Local != 1.0 {
 		t.Fatalf("Disk.Add: expected %f; got %f", 1.0, disk2.Local)
@@ -274,20 +274,20 @@ func TestDisk_Add(t *testing.T) {
 	if diskAT.TotalCost() != 20.0 {
 		t.Fatalf("Disk.Add: expected %f; got %f", 20.0, diskAT.TotalCost())
 	}
-	if diskAT.Adjustment() != 2.0 {
-		t.Fatalf("Disk.Add: expected %f; got %f", 2.0, diskAT.Adjustment())
+	if diskAT.Adjustment != 2.0 {
+		t.Fatalf("Disk.Add: expected %f; got %f", 2.0, diskAT.Adjustment)
 	}
-	if diskAT.Properties().Cluster != "cluster1" {
-		t.Fatalf("Disk.Add: expected %s; got %s", "cluster1", diskAT.Properties().Cluster)
+	if diskAT.Properties.Cluster != "cluster1" {
+		t.Fatalf("Disk.Add: expected %s; got %s", "cluster1", diskAT.Properties.Cluster)
 	}
 	if diskAT.Type() != DiskAssetType {
 		t.Fatalf("Disk.Add: expected %s; got %s", AnyAssetType, diskAT.Type())
 	}
-	if diskAT.Properties().ProviderID != "" {
-		t.Fatalf("Disk.Add: expected %s; got %s", "", diskAT.Properties().ProviderID)
+	if diskAT.Properties.ProviderID != "" {
+		t.Fatalf("Disk.Add: expected %s; got %s", "", diskAT.Properties.ProviderID)
 	}
-	if diskAT.Properties().Name != "" {
-		t.Fatalf("Disk.Add: expected %s; got %s", "", diskAT.Properties().Name)
+	if diskAT.Properties.Name != "" {
+		t.Fatalf("Disk.Add: expected %s; got %s", "", diskAT.Properties.Name)
 	}
 	if diskAT.Bytes() != 100.0*gb {
 		t.Fatalf("Disk.Add: expected %f; got %f", 100.0*gb, diskT.Bytes())
@@ -300,8 +300,8 @@ func TestDisk_Add(t *testing.T) {
 	if diskA1.TotalCost() != 10.0 {
 		t.Fatalf("Disk.Add: expected %f; got %f", 10.0, diskA1.TotalCost())
 	}
-	if diskA1.Adjustment() != 1.0 {
-		t.Fatalf("Disk.Add: expected %f; got %f", 1.0, diskA1.Adjustment())
+	if diskA1.Adjustment != 1.0 {
+		t.Fatalf("Disk.Add: expected %f; got %f", 1.0, diskA1.Adjustment)
 	}
 	if diskA1.Local != 0.0 {
 		t.Fatalf("Disk.Add: expected %f; got %f", 0.0, diskA1.Local)
@@ -309,8 +309,8 @@ func TestDisk_Add(t *testing.T) {
 	if diskA2.TotalCost() != 10.0 {
 		t.Fatalf("Disk.Add: expected %f; got %f", 10.0, diskA2.TotalCost())
 	}
-	if diskA2.Adjustment() != 1.0 {
-		t.Fatalf("Disk.Add: expected %f; got %f", 1.0, diskA2.Adjustment())
+	if diskA2.Adjustment != 1.0 {
+		t.Fatalf("Disk.Add: expected %f; got %f", 1.0, diskA2.Adjustment)
 	}
 	if diskA2.Local != 0.0 {
 		t.Fatalf("Disk.Add: expected %f; got %f", 0.0, diskA2.Local)
@@ -333,8 +333,8 @@ func TestDisk_Clone(t *testing.T) {
 	if disk2.TotalCost() != 10.0 {
 		t.Fatalf("Any.Clone: expected %f; got %f", 10.0, disk2.TotalCost())
 	}
-	if disk2.Adjustment() != 1.0 {
-		t.Fatalf("Any.Clone: expected %f; got %f", 1.0, disk2.Adjustment())
+	if disk2.Adjustment != 1.0 {
+		t.Fatalf("Any.Clone: expected %f; got %f", 1.0, disk2.Adjustment)
 	}
 	if disk2.Local != 1.0 {
 		t.Fatalf("Disk.Add: expected %f; got %f", 1.0, disk2.Local)
@@ -412,20 +412,20 @@ func TestNode_Add(t *testing.T) {
 	if !util.IsApproximately(nodeT.TotalCost(), 15.0) {
 		t.Fatalf("Node.Add: expected %f; got %f", 15.0, nodeT.TotalCost())
 	}
-	if nodeT.Adjustment() != 2.6 {
-		t.Fatalf("Node.Add: expected %f; got %f", 2.6, nodeT.Adjustment())
+	if nodeT.Adjustment != 2.6 {
+		t.Fatalf("Node.Add: expected %f; got %f", 2.6, nodeT.Adjustment)
 	}
-	if nodeT.Properties().Cluster != "cluster1" {
-		t.Fatalf("Node.Add: expected %s; got %s", "cluster1", nodeT.Properties().Cluster)
+	if nodeT.Properties.Cluster != "cluster1" {
+		t.Fatalf("Node.Add: expected %s; got %s", "cluster1", nodeT.Properties.Cluster)
 	}
 	if nodeT.Type() != NodeAssetType {
 		t.Fatalf("Node.Add: expected %s; got %s", AnyAssetType, nodeT.Type())
 	}
-	if nodeT.Properties().ProviderID != "" {
-		t.Fatalf("Node.Add: expected %s; got %s", "", nodeT.Properties().ProviderID)
+	if nodeT.Properties.ProviderID != "" {
+		t.Fatalf("Node.Add: expected %s; got %s", "", nodeT.Properties.ProviderID)
 	}
-	if nodeT.Properties().Name != "" {
-		t.Fatalf("Node.Add: expected %s; got %s", "", nodeT.Properties().Name)
+	if nodeT.Properties.Name != "" {
+		t.Fatalf("Node.Add: expected %s; got %s", "", nodeT.Properties.Name)
 	}
 	if nodeT.CPUCores() != 2.0 {
 		t.Fatalf("Node.Add: expected %f; got %f", 2.0, nodeT.CPUCores())
@@ -438,14 +438,14 @@ func TestNode_Add(t *testing.T) {
 	if !util.IsApproximately(node1.TotalCost(), 10.0) {
 		t.Fatalf("Node.Add: expected %f; got %f", 10.0, node1.TotalCost())
 	}
-	if node1.Adjustment() != 1.6 {
-		t.Fatalf("Node.Add: expected %f; got %f", 1.0, node1.Adjustment())
+	if node1.Adjustment != 1.6 {
+		t.Fatalf("Node.Add: expected %f; got %f", 1.0, node1.Adjustment)
 	}
 	if !util.IsApproximately(node2.TotalCost(), 5.0) {
 		t.Fatalf("Node.Add: expected %f; got %f", 5.0, node2.TotalCost())
 	}
-	if node2.Adjustment() != 1.0 {
-		t.Fatalf("Node.Add: expected %f; got %f", 1.0, node2.Adjustment())
+	if node2.Adjustment != 1.0 {
+		t.Fatalf("Node.Add: expected %f; got %f", 1.0, node2.Adjustment)
 	}
 
 	// Check that we don't divide by zero computing Local
@@ -506,20 +506,20 @@ func TestNode_Add(t *testing.T) {
 	if !util.IsApproximately(nodeAT.TotalCost(), 15.0) {
 		t.Fatalf("Node.Add: expected %f; got %f", 15.0, nodeAT.TotalCost())
 	}
-	if nodeAT.Adjustment() != 2.6 {
-		t.Fatalf("Node.Add: expected %f; got %f", 2.6, nodeAT.Adjustment())
+	if nodeAT.Adjustment != 2.6 {
+		t.Fatalf("Node.Add: expected %f; got %f", 2.6, nodeAT.Adjustment)
 	}
-	if nodeAT.Properties().Cluster != "cluster1" {
-		t.Fatalf("Node.Add: expected %s; got %s", "cluster1", nodeAT.Properties().Cluster)
+	if nodeAT.Properties.Cluster != "cluster1" {
+		t.Fatalf("Node.Add: expected %s; got %s", "cluster1", nodeAT.Properties.Cluster)
 	}
 	if nodeAT.Type() != NodeAssetType {
 		t.Fatalf("Node.Add: expected %s; got %s", AnyAssetType, nodeAT.Type())
 	}
-	if nodeAT.Properties().ProviderID != "" {
-		t.Fatalf("Node.Add: expected %s; got %s", "", nodeAT.Properties().ProviderID)
+	if nodeAT.Properties.ProviderID != "" {
+		t.Fatalf("Node.Add: expected %s; got %s", "", nodeAT.Properties.ProviderID)
 	}
-	if nodeAT.Properties().Name != "" {
-		t.Fatalf("Node.Add: expected %s; got %s", "", nodeAT.Properties().Name)
+	if nodeAT.Properties.Name != "" {
+		t.Fatalf("Node.Add: expected %s; got %s", "", nodeAT.Properties.Name)
 	}
 	if nodeAT.CPUCores() != 1.0 {
 		t.Fatalf("Node.Add: expected %f; got %f", 1.0, nodeAT.CPUCores())
@@ -535,14 +535,14 @@ func TestNode_Add(t *testing.T) {
 	if !util.IsApproximately(nodeA1.TotalCost(), 10.0) {
 		t.Fatalf("Node.Add: expected %f; got %f", 10.0, nodeA1.TotalCost())
 	}
-	if nodeA1.Adjustment() != 1.6 {
-		t.Fatalf("Node.Add: expected %f; got %f", 1.0, nodeA1.Adjustment())
+	if nodeA1.Adjustment != 1.6 {
+		t.Fatalf("Node.Add: expected %f; got %f", 1.0, nodeA1.Adjustment)
 	}
 	if !util.IsApproximately(nodeA2.TotalCost(), 5.0) {
 		t.Fatalf("Node.Add: expected %f; got %f", 5.0, nodeA2.TotalCost())
 	}
-	if nodeA2.Adjustment() != 1.0 {
-		t.Fatalf("Node.Add: expected %f; got %f", 1.0, nodeA2.Adjustment())
+	if nodeA2.Adjustment != 1.0 {
+		t.Fatalf("Node.Add: expected %f; got %f", 1.0, nodeA2.Adjustment)
 	}
 }
 
@@ -582,8 +582,8 @@ func TestClusterManagement_Add(t *testing.T) {
 	if cm3.TotalCost() != 13.0 {
 		t.Fatalf("ClusterManagement.Add: expected %f; got %f", 13.0, cm3.TotalCost())
 	}
-	if cm3.Properties().Cluster != "cluster1" {
-		t.Fatalf("ClusterManagement.Add: expected %s; got %s", "cluster1", cm3.Properties().Cluster)
+	if cm3.GetProperties().Cluster != "cluster1" {
+		t.Fatalf("ClusterManagement.Add: expected %s; got %s", "cluster1", cm3.GetProperties().Cluster)
 	}
 	if cm3.Type() != ClusterManagementAssetType {
 		t.Fatalf("ClusterManagement.Add: expected %s; got %s", ClusterManagementAssetType, cm3.Type())
@@ -617,8 +617,8 @@ func TestCloudAny_Add(t *testing.T) {
 	if ca3.TotalCost() != 15.0 {
 		t.Fatalf("Any.Add: expected %f; got %f", 15.0, ca3.TotalCost())
 	}
-	if ca3.Adjustment() != 2.0 {
-		t.Fatalf("Any.Add: expected %f; got %f", 2.0, ca3.Adjustment())
+	if ca3.GetAdjustment() != 2.0 {
+		t.Fatalf("Any.Add: expected %f; got %f", 2.0, ca3.GetAdjustment())
 	}
 	if ca3.Type() != CloudAssetType {
 		t.Fatalf("Any.Add: expected %s; got %s", CloudAssetType, ca3.Type())
@@ -628,14 +628,14 @@ func TestCloudAny_Add(t *testing.T) {
 	if ca1.TotalCost() != 10.0 {
 		t.Fatalf("Any.Add: expected %f; got %f", 10.0, ca1.TotalCost())
 	}
-	if ca1.Adjustment() != 1.0 {
-		t.Fatalf("Any.Add: expected %f; got %f", 1.0, ca1.Adjustment())
+	if ca1.Adjustment != 1.0 {
+		t.Fatalf("Any.Add: expected %f; got %f", 1.0, ca1.Adjustment)
 	}
 	if ca2.TotalCost() != 5.0 {
 		t.Fatalf("Any.Add: expected %f; got %f", 5.0, ca2.TotalCost())
 	}
-	if ca2.Adjustment() != 1.0 {
-		t.Fatalf("Any.Add: expected %f; got %f", 1.0, ca2.Adjustment())
+	if ca2.Adjustment != 1.0 {
+		t.Fatalf("Any.Add: expected %f; got %f", 1.0, ca2.Adjustment)
 	}
 }
 
@@ -824,13 +824,13 @@ func TestAssetSet_InsertMatchingWindow(t *testing.T) {
 	a1.SetProperties(&AssetProperties{
 		Name: "asset-1",
 	})
-	a1.window = NewClosedWindow(a1WindowStart, a1WindowEnd)
+	a1.Window = NewClosedWindow(a1WindowStart, a1WindowEnd)
 
 	a2 := &Disk{}
 	a2.SetProperties(&AssetProperties{
 		Name: "asset-2",
 	})
-	a2.window = NewClosedWindow(a2WindowStart, a2WindowEnd)
+	a2.Window = NewClosedWindow(a2WindowStart, a2WindowEnd)
 
 	as := NewAssetSet(setStart, setEnd)
 	as.Insert(a1)
@@ -840,14 +840,14 @@ func TestAssetSet_InsertMatchingWindow(t *testing.T) {
 		t.Errorf("AS length got %d, expected %d", as.Length(), 2)
 	}
 
-	as.Each(func(k string, a Asset) {
-		if !(*a.Window().Start()).Equal(setStart) {
-			t.Errorf("Asset %s window start is %s, expected %s", a.Properties().Name, *a.Window().Start(), setStart)
+	for _, a := range as.Assets {
+		if !(*a.GetWindow().Start()).Equal(setStart) {
+			t.Errorf("Asset %s window start is %s, expected %s", a.GetProperties().Name, *a.GetWindow().Start(), setStart)
 		}
-		if !(*a.Window().End()).Equal(setEnd) {
-			t.Errorf("Asset %s window end is %s, expected %s", a.Properties().Name, *a.Window().End(), setEnd)
+		if !(*a.GetWindow().End()).Equal(setEnd) {
+			t.Errorf("Asset %s window end is %s, expected %s", a.GetProperties().Name, *a.GetWindow().End(), setEnd)
 		}
-	})
+	}
 }
 
 func TestAssetSet_ReconciliationMatchMap(t *testing.T) {
@@ -859,15 +859,15 @@ func TestAssetSet_ReconciliationMatchMap(t *testing.T) {
 
 	// Determine the number of assets by provider ID
 	assetCountByProviderId := make(map[string]int, len(matchMap))
-	as.Each(func(key string, a Asset) {
-		if a == nil || a.Properties() == nil || a.Properties().ProviderID == "" {
+	for _, a := range as.Assets {
+		if a == nil || a.GetProperties() == nil || a.GetProperties().ProviderID == "" {
 			return
 		}
-		if _, ok := assetCountByProviderId[a.Properties().ProviderID]; !ok {
-			assetCountByProviderId[a.Properties().ProviderID] = 0
+		if _, ok := assetCountByProviderId[a.GetProperties().ProviderID]; !ok {
+			assetCountByProviderId[a.GetProperties().ProviderID] = 0
 		}
-		assetCountByProviderId[a.Properties().ProviderID] += 1
-	})
+		assetCountByProviderId[a.GetProperties().ProviderID] += 1
+	}
 
 	for k, count := range assetCountByProviderId {
 		if len(matchMap[k]) != count {
@@ -1180,11 +1180,11 @@ func TestAssetSetRange_Start(t *testing.T) {
 		{
 			name: "Single asset",
 			arg: &AssetSetRange{
-				assets: []*AssetSet{
-					&AssetSet{
-						assets: map[string]Asset{
+				Assets: []*AssetSet{
+					{
+						Assets: map[string]Asset{
 							"a": &Node{
-								start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 							},
 						},
 					},
@@ -1196,14 +1196,14 @@ func TestAssetSetRange_Start(t *testing.T) {
 		{
 			name: "Two assets",
 			arg: &AssetSetRange{
-				assets: []*AssetSet{
-					&AssetSet{
-						assets: map[string]Asset{
+				Assets: []*AssetSet{
+					{
+						Assets: map[string]Asset{
 							"a": &Node{
-								start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 							},
 							"b": &Node{
-								start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+								Start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
 							},
 						},
 					},
@@ -1215,18 +1215,18 @@ func TestAssetSetRange_Start(t *testing.T) {
 		{
 			name: "Two AssetSets",
 			arg: &AssetSetRange{
-				assets: []*AssetSet{
-					&AssetSet{
-						assets: map[string]Asset{
+				Assets: []*AssetSet{
+					{
+						Assets: map[string]Asset{
 							"a": &Node{
-								start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 							},
 						},
 					},
-					&AssetSet{
-						assets: map[string]Asset{
+					{
+						Assets: map[string]Asset{
 							"b": &Node{
-								start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+								Start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
 							},
 						},
 					},
@@ -1268,11 +1268,11 @@ func TestAssetSetRange_End(t *testing.T) {
 		{
 			name: "Single asset",
 			arg: &AssetSetRange{
-				assets: []*AssetSet{
-					&AssetSet{
-						assets: map[string]Asset{
+				Assets: []*AssetSet{
+					{
+						Assets: map[string]Asset{
 							"a": &Node{
-								end: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+								End: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 							},
 						},
 					},
@@ -1284,14 +1284,14 @@ func TestAssetSetRange_End(t *testing.T) {
 		{
 			name: "Two assets",
 			arg: &AssetSetRange{
-				assets: []*AssetSet{
-					&AssetSet{
-						assets: map[string]Asset{
+				Assets: []*AssetSet{
+					{
+						Assets: map[string]Asset{
 							"a": &Node{
-								end: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+								End: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 							},
 							"b": &Node{
-								end: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+								End: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
 							},
 						},
 					},
@@ -1303,18 +1303,18 @@ func TestAssetSetRange_End(t *testing.T) {
 		{
 			name: "Two AssetSets",
 			arg: &AssetSetRange{
-				assets: []*AssetSet{
-					&AssetSet{
-						assets: map[string]Asset{
+				Assets: []*AssetSet{
+					{
+						Assets: map[string]Asset{
 							"a": &Node{
-								end: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+								End: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
 							},
 						},
 					},
-					&AssetSet{
-						assets: map[string]Asset{
+					{
+						Assets: map[string]Asset{
 							"b": &Node{
-								end: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+								End: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
 							},
 						},
 					},
@@ -1355,12 +1355,12 @@ func TestAssetSetRange_Minutes(t *testing.T) {
 		{
 			name: "Single asset",
 			arg: &AssetSetRange{
-				assets: []*AssetSet{
-					&AssetSet{
-						assets: map[string]Asset{
+				Assets: []*AssetSet{
+					{
+						Assets: map[string]Asset{
 							"a": &Node{
-								start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
-								end:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+								End:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
 							},
 						},
 					},
@@ -1372,16 +1372,16 @@ func TestAssetSetRange_Minutes(t *testing.T) {
 		{
 			name: "Two assets",
 			arg: &AssetSetRange{
-				assets: []*AssetSet{
-					&AssetSet{
-						assets: map[string]Asset{
+				Assets: []*AssetSet{
+					{
+						Assets: map[string]Asset{
 							"a": &Node{
-								start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
-								end:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+								End:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
 							},
 							"b": &Node{
-								start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
-								end:   time.Date(1970, 1, 3, 0, 0, 0, 0, time.UTC),
+								Start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+								End:   time.Date(1970, 1, 3, 0, 0, 0, 0, time.UTC),
 							},
 						},
 					},
@@ -1393,20 +1393,20 @@ func TestAssetSetRange_Minutes(t *testing.T) {
 		{
 			name: "Two AssetSets",
 			arg: &AssetSetRange{
-				assets: []*AssetSet{
-					&AssetSet{
-						assets: map[string]Asset{
+				Assets: []*AssetSet{
+					{
+						Assets: map[string]Asset{
 							"a": &Node{
-								start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
-								end:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+								Start: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+								End:   time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
 							},
 						},
 					},
-					&AssetSet{
-						assets: map[string]Asset{
+					{
+						Assets: map[string]Asset{
 							"b": &Node{
-								start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
-								end:   time.Date(1970, 1, 3, 0, 0, 0, 0, time.UTC),
+								Start: time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC),
+								End:   time.Date(1970, 1, 3, 0, 0, 0, 0, time.UTC),
 							},
 						},
 					},
@@ -1443,11 +1443,11 @@ func TestAssetSetRange_MarshalJSON(t *testing.T) {
 		{
 			name: "Normal ASR",
 			arg: &AssetSetRange{
-				assets: []*AssetSet{
+				Assets: []*AssetSet{
 					{
-						assets: map[string]Asset{
+						Assets: map[string]Asset{
 							"a": &Any{
-								start: time.Now().UTC().Truncate(day),
+								Start: time.Now().UTC().Truncate(day),
 							},
 						},
 					},

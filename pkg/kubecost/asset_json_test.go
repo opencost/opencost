@@ -35,22 +35,22 @@ func TestAny_Unmarshal(t *testing.T) {
 	}
 
 	// Check if all fields in initial Any equal those in Any from unmarshal
-	if !any1.properties.Equal(any2.properties) {
+	if !any1.Properties.Equal(any2.Properties) {
 		t.Fatalf("Any Unmarshal: properties mutated in unmarshal")
 	}
-	if !any1.labels.Equal(any2.labels) {
+	if !any1.Labels.Equal(any2.Labels) {
 		t.Fatalf("Any Unmarshal: labels mutated in unmarshal")
 	}
-	if !any1.window.Equal(any2.window) {
+	if !any1.Window.Equal(any2.Window) {
 		t.Fatalf("Any Unmarshal: window mutated in unmarshal")
 	}
-	if !any1.start.Equal(any2.start) {
+	if !any1.Start.Equal(any2.Start) {
 		t.Fatalf("Any Unmarshal: start mutated in unmarshal")
 	}
-	if !any1.end.Equal(any2.end) {
+	if !any1.End.Equal(any2.End) {
 		t.Fatalf("Any Unmarshal: end mutated in unmarshal")
 	}
-	if any1.adjustment != any2.adjustment {
+	if any1.Adjustment != any2.Adjustment {
 		t.Fatalf("Any Unmarshal: adjustment mutated in unmarshal")
 	}
 	if any1.Cost != any2.Cost {
@@ -88,22 +88,22 @@ func TestCloud_Unmarshal(t *testing.T) {
 	}
 
 	// Check if all fields in initial Cloud equal those in Cloud from unmarshal
-	if !cloud1.properties.Equal(cloud2.properties) {
+	if !cloud1.Properties.Equal(cloud2.Properties) {
 		t.Fatalf("Cloud Unmarshal: properties mutated in unmarshal")
 	}
-	if !cloud1.labels.Equal(cloud2.labels) {
+	if !cloud1.Labels.Equal(cloud2.Labels) {
 		t.Fatalf("Cloud Unmarshal: labels mutated in unmarshal")
 	}
-	if !cloud1.window.Equal(cloud2.window) {
+	if !cloud1.Window.Equal(cloud2.Window) {
 		t.Fatalf("Cloud Unmarshal: window mutated in unmarshal")
 	}
-	if !cloud1.start.Equal(cloud2.start) {
+	if !cloud1.Start.Equal(cloud2.Start) {
 		t.Fatalf("Cloud Unmarshal: start mutated in unmarshal")
 	}
-	if !cloud1.end.Equal(cloud2.end) {
+	if !cloud1.End.Equal(cloud2.End) {
 		t.Fatalf("Cloud Unmarshal: end mutated in unmarshal")
 	}
-	if cloud1.adjustment != cloud2.adjustment {
+	if cloud1.Adjustment != cloud2.Adjustment {
 		t.Fatalf("Cloud Unmarshal: adjustment mutated in unmarshal")
 	}
 	if cloud1.Cost != cloud2.Cost {
@@ -138,13 +138,13 @@ func TestClusterManagement_Unmarshal(t *testing.T) {
 	}
 
 	// Check if all fields in initial ClusterManagement equal those in ClusterManagement from unmarshal
-	if !cm1.properties.Equal(cm2.properties) {
+	if !cm1.Properties.Equal(cm2.Properties) {
 		t.Fatalf("ClusterManagement Unmarshal: properties mutated in unmarshal")
 	}
-	if !cm1.labels.Equal(cm2.labels) {
+	if !cm1.Labels.Equal(cm2.Labels) {
 		t.Fatalf("ClusterManagement Unmarshal: labels mutated in unmarshal")
 	}
-	if !cm1.window.Equal(cm2.window) {
+	if !cm1.Window.Equal(cm2.Window) {
 		t.Fatalf("ClusterManagement Unmarshal: window mutated in unmarshal")
 	}
 	if cm1.Cost != cm2.Cost {
@@ -187,25 +187,25 @@ func TestDisk_Unmarshal(t *testing.T) {
 	}
 
 	// Check if all fields in initial Disk equal those in Disk from unmarshal
-	if !disk1.properties.Equal(disk2.properties) {
+	if !disk1.Properties.Equal(disk2.Properties) {
 		t.Fatalf("Disk Unmarshal: properties mutated in unmarshal")
 	}
-	if !disk1.labels.Equal(disk2.labels) {
+	if !disk1.Labels.Equal(disk2.Labels) {
 		t.Fatalf("Disk Unmarshal: labels mutated in unmarshal")
 	}
-	if !disk1.window.Equal(disk2.window) {
+	if !disk1.Window.Equal(disk2.Window) {
 		t.Fatalf("Disk Unmarshal: window mutated in unmarshal")
 	}
 	if !disk1.Breakdown.Equal(disk2.Breakdown) {
 		t.Fatalf("Disk Unmarshal: Breakdown mutated in unmarshal")
 	}
-	if !disk1.start.Equal(disk2.start) {
+	if !disk1.Start.Equal(disk2.Start) {
 		t.Fatalf("Disk Unmarshal: start mutated in unmarshal")
 	}
-	if !disk1.end.Equal(disk2.end) {
+	if !disk1.End.Equal(disk2.End) {
 		t.Fatalf("Disk Unmarshal: end mutated in unmarshal")
 	}
-	if disk1.adjustment != disk2.adjustment {
+	if disk1.Adjustment != disk2.Adjustment {
 		t.Fatalf("Disk Unmarshal: adjustment mutated in unmarshal")
 	}
 	if disk1.ByteHours != disk2.ByteHours {
@@ -241,22 +241,22 @@ func TestNetwork_Unmarshal(t *testing.T) {
 	}
 
 	// Check if all fields in initial Network equal those in Network from unmarshal
-	if !network1.properties.Equal(network2.properties) {
+	if !network1.Properties.Equal(network2.Properties) {
 		t.Fatalf("Network Unmarshal: properties mutated in unmarshal")
 	}
-	if !network1.labels.Equal(network2.labels) {
+	if !network1.Labels.Equal(network2.Labels) {
 		t.Fatalf("Network Unmarshal: labels mutated in unmarshal")
 	}
-	if !network1.window.Equal(network2.window) {
+	if !network1.Window.Equal(network2.Window) {
 		t.Fatalf("Network Unmarshal: window mutated in unmarshal")
 	}
-	if !network1.start.Equal(network2.start) {
+	if !network1.Start.Equal(network2.Start) {
 		t.Fatalf("Network Unmarshal: start mutated in unmarshal")
 	}
-	if !network1.end.Equal(network2.end) {
+	if !network1.End.Equal(network2.End) {
 		t.Fatalf("Network Unmarshal: end mutated in unmarshal")
 	}
-	if network1.adjustment != network2.adjustment {
+	if network1.Adjustment != network2.Adjustment {
 		t.Fatalf("Network Unmarshal: adjustment mutated in unmarshal")
 	}
 	if network1.Cost != network2.Cost {
@@ -309,13 +309,13 @@ func TestNode_Unmarshal(t *testing.T) {
 	}
 
 	// Check if all fields in initial Node equal those in Node from unmarshal
-	if !node1.properties.Equal(node2.properties) {
+	if !node1.Properties.Equal(node2.Properties) {
 		t.Fatalf("Node Unmarshal: properties mutated in unmarshal")
 	}
-	if !node1.labels.Equal(node2.labels) {
+	if !node1.Labels.Equal(node2.Labels) {
 		t.Fatalf("Node Unmarshal: labels mutated in unmarshal")
 	}
-	if !node1.window.Equal(node2.window) {
+	if !node1.Window.Equal(node2.Window) {
 		t.Fatalf("Node Unmarshal: window mutated in unmarshal")
 	}
 	if !node1.CPUBreakdown.Equal(node2.CPUBreakdown) {
@@ -324,13 +324,13 @@ func TestNode_Unmarshal(t *testing.T) {
 	if !node1.RAMBreakdown.Equal(node2.RAMBreakdown) {
 		t.Fatalf("Node Unmarshal: RAMBreakdown mutated in unmarshal")
 	}
-	if !node1.start.Equal(node2.start) {
+	if !node1.Start.Equal(node2.Start) {
 		t.Fatalf("Node Unmarshal: start mutated in unmarshal")
 	}
-	if !node1.end.Equal(node2.end) {
+	if !node1.End.Equal(node2.End) {
 		t.Fatalf("Node Unmarshal: end mutated in unmarshal")
 	}
-	if node1.adjustment != node2.adjustment {
+	if node1.Adjustment != node2.Adjustment {
 		t.Fatalf("Node Unmarshal: adjustment mutated in unmarshal")
 	}
 	if node1.NodeType != node2.NodeType {
@@ -390,22 +390,22 @@ func TestLoadBalancer_Unmarshal(t *testing.T) {
 	}
 
 	// Check if all fields in initial LoadBalancer equal those in LoadBalancer from unmarshal
-	if !lb1.properties.Equal(lb2.properties) {
+	if !lb1.Properties.Equal(lb2.Properties) {
 		t.Fatalf("LoadBalancer Unmarshal: properties mutated in unmarshal")
 	}
-	if !lb1.labels.Equal(lb2.labels) {
+	if !lb1.Labels.Equal(lb2.Labels) {
 		t.Fatalf("LoadBalancer Unmarshal: labels mutated in unmarshal")
 	}
-	if !lb1.window.Equal(lb2.window) {
+	if !lb1.Window.Equal(lb2.Window) {
 		t.Fatalf("LoadBalancer Unmarshal: window mutated in unmarshal")
 	}
-	if !lb1.start.Equal(lb2.start) {
+	if !lb1.Start.Equal(lb2.Start) {
 		t.Fatalf("LoadBalancer Unmarshal: start mutated in unmarshal")
 	}
-	if !lb1.end.Equal(lb2.end) {
+	if !lb1.End.Equal(lb2.End) {
 		t.Fatalf("LoadBalancer Unmarshal: end mutated in unmarshal")
 	}
-	if lb1.adjustment != lb2.adjustment {
+	if lb1.Adjustment != lb2.Adjustment {
 		t.Fatalf("LoadBalancer Unmarshal: adjustment mutated in unmarshal")
 	}
 	if lb1.Cost != lb2.Cost {
@@ -437,13 +437,13 @@ func TestSharedAsset_Unmarshal(t *testing.T) {
 	}
 
 	// Check if all fields in initial SharedAsset equal those in SharedAsset from unmarshal
-	if !sa1.properties.Equal(sa2.properties) {
+	if !sa1.Properties.Equal(sa2.Properties) {
 		t.Fatalf("SharedAsset Unmarshal: properties mutated in unmarshal")
 	}
-	if !sa1.labels.Equal(sa2.labels) {
+	if !sa1.Labels.Equal(sa2.Labels) {
 		t.Fatalf("SharedAsset Unmarshal: labels mutated in unmarshal")
 	}
-	if !sa1.window.Equal(sa2.window) {
+	if !sa1.Window.Equal(sa2.Window) {
 		t.Fatalf("SharedAsset Unmarshal: window mutated in unmarshal")
 	}
 	if sa1.Cost != sa2.Cost {
@@ -488,7 +488,7 @@ func TestAssetset_Unmarshal(t *testing.T) {
 	}
 
 	// For each asset in unmarshaled AssetSetResponse, check if it is equal to the corresponding AssetSet asset
-	for key, asset := range assetset.assets {
+	for key, asset := range assetset.Assets {
 
 		if unmarshaledAsset, exists := assetUnmarshalResponse.Assets[key]; exists {
 
@@ -500,23 +500,23 @@ func TestAssetset_Unmarshal(t *testing.T) {
 					asset, _ := asset.(*Disk)
 					unmarshaledAsset, _ := unmarshaledAsset.(*Disk)
 
-					if !asset.Labels().Equal(unmarshaledAsset.Labels()) {
+					if !asset.GetLabels().Equal(unmarshaledAsset.Labels) {
 						return false
 					}
-					if !asset.Properties().Equal(unmarshaledAsset.Properties()) {
+					if !asset.Properties.Equal(unmarshaledAsset.Properties) {
 						return false
 					}
 
-					if !asset.Start().Equal(unmarshaledAsset.Start()) {
+					if !asset.GetStart().Equal(unmarshaledAsset.Start) {
 						return false
 					}
-					if !asset.End().Equal(unmarshaledAsset.End()) {
+					if !asset.End.Equal(unmarshaledAsset.End) {
 						return false
 					}
-					if !asset.window.Equal(unmarshaledAsset.window) {
+					if !asset.Window.Equal(unmarshaledAsset.Window) {
 						return false
 					}
-					if asset.adjustment != unmarshaledAsset.adjustment {
+					if asset.Adjustment != unmarshaledAsset.Adjustment {
 						return false
 					}
 					if asset.Cost != unmarshaledAsset.Cost {

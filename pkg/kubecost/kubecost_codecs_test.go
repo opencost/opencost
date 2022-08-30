@@ -51,7 +51,7 @@ func BenchmarkAllocationSetRange_BinaryEncoding(b *testing.B) {
 			b.Fatalf("AllocationSetRange.Binary: expected %s; found %s", asr0.Window(), asr1.Window())
 		}
 
-		asr0.Each(func(i int, as0 *AllocationSet) {
+		for i, as0 := range asr0.Allocations {
 			as1, err := asr1.Get(i)
 			if err != nil {
 				b.Fatalf("AllocationSetRange.Binary: unexpected error: %s", err)
@@ -64,7 +64,7 @@ func BenchmarkAllocationSetRange_BinaryEncoding(b *testing.B) {
 				b.Fatalf("AllocationSetRange.Binary: expected %s; found %s", as0.Window, as1.Window)
 			}
 
-			as0.Each(func(k string, a0 *Allocation) {
+			for k, a0 := range as0.Allocations {
 				a1 := as1.Get(k)
 				if a1 == nil {
 					b.Fatalf("AllocationSetRange.Binary: missing Allocation: %s", a0)
@@ -73,8 +73,8 @@ func BenchmarkAllocationSetRange_BinaryEncoding(b *testing.B) {
 				if !a0.Equal(a1) {
 					b.Fatalf("AllocationSetRange.Binary: unequal Allocations \"%s\": expected %s; found %s", k, a0, a1)
 				}
-			})
-		})
+			}
+		}
 	}
 }
 
@@ -115,7 +115,7 @@ func TestAllocationSetRange_BinaryEncoding(t *testing.T) {
 		t.Fatalf("AllocationSetRange.Binary: expected %s; found %s", asr0.Window(), asr1.Window())
 	}
 
-	asr0.Each(func(i int, as0 *AllocationSet) {
+	for i, as0 := range asr0.Allocations {
 		as1, err := asr1.Get(i)
 		if err != nil {
 			t.Fatalf("AllocationSetRange.Binary: unexpected error: %s", err)
@@ -128,7 +128,7 @@ func TestAllocationSetRange_BinaryEncoding(t *testing.T) {
 			t.Fatalf("AllocationSetRange.Binary: expected %s; found %s", as0.Window, as1.Window)
 		}
 
-		as0.Each(func(k string, a0 *Allocation) {
+		for k, a0 := range as0.Allocations {
 			a1 := as1.Get(k)
 			if a1 == nil {
 				t.Fatalf("AllocationSetRange.Binary: missing Allocation: %s", a0)
@@ -137,10 +137,10 @@ func TestAllocationSetRange_BinaryEncoding(t *testing.T) {
 			// TODO Sean: fix JSON marshaling of PVs
 			a1.PVs = a0.PVs
 			if !a0.Equal(a1) {
-				t.Fatalf("AllocationSetRange.Binary: unequal Allocations \"%s\": expected %s; found %s", k, a0, a1)
+				t.Fatalf("AllocationSetRange.Binary: unequal Allocations \"%s\": expected \"%s\"; found \"%s\"", k, a0, a1)
 			}
-		})
-	})
+		}
+	}
 }
 
 func TestAny_BinaryEncoding(t *testing.T) {
@@ -172,23 +172,23 @@ func TestAny_BinaryEncoding(t *testing.T) {
 		t.Fatalf("Any.Binary: unexpected error: %s", err)
 	}
 
-	if a1.Properties().Name != a0.Properties().Name {
-		t.Fatalf("Any.Binary: expected %s, found %s", a0.Properties().Name, a1.Properties().Name)
+	if a1.Properties.Name != a0.Properties.Name {
+		t.Fatalf("Any.Binary: expected %s, found %s", a0.Properties.Name, a1.Properties.Name)
 	}
-	if a1.Properties().Cluster != a0.Properties().Cluster {
-		t.Fatalf("Any.Binary: expected %s, found %s", a0.Properties().Cluster, a1.Properties().Cluster)
+	if a1.Properties.Cluster != a0.Properties.Cluster {
+		t.Fatalf("Any.Binary: expected %s, found %s", a0.Properties.Cluster, a1.Properties.Cluster)
 	}
-	if a1.Properties().ProviderID != a0.Properties().ProviderID {
-		t.Fatalf("Any.Binary: expected %s, found %s", a0.Properties().ProviderID, a1.Properties().ProviderID)
+	if a1.Properties.ProviderID != a0.Properties.ProviderID {
+		t.Fatalf("Any.Binary: expected %s, found %s", a0.Properties.ProviderID, a1.Properties.ProviderID)
 	}
-	if a1.Adjustment() != a0.Adjustment() {
-		t.Fatalf("Any.Binary: expected %f, found %f", a0.Adjustment(), a1.Adjustment())
+	if a1.Adjustment != a0.Adjustment {
+		t.Fatalf("Any.Binary: expected %f, found %f", a0.Adjustment, a1.Adjustment)
 	}
 	if a1.TotalCost() != a0.TotalCost() {
 		t.Fatalf("Any.Binary: expected %f, found %f", a0.TotalCost(), a1.TotalCost())
 	}
-	if !a1.Window().Equal(a0.Window()) {
-		t.Fatalf("Any.Binary: expected %s, found %s", a0.Window(), a1.Window())
+	if !a1.Window.Equal(a0.Window) {
+		t.Fatalf("Any.Binary: expected %s, found %s", a0.Window, a1.Window)
 	}
 }
 
@@ -237,7 +237,7 @@ func TestAssetSetRange_BinaryEncoding(t *testing.T) {
 		t.Fatalf("AssetSetRange.Binary: expected %s; found %s", asr0.Window(), asr1.Window())
 	}
 
-	asr0.Each(func(i int, as0 *AssetSet) {
+	for i, as0 := range asr0.Assets {
 		as1, err := asr1.Get(i)
 		if err != nil {
 			t.Fatalf("AssetSetRange.Binary: unexpected error: %s", err)
@@ -250,7 +250,7 @@ func TestAssetSetRange_BinaryEncoding(t *testing.T) {
 			t.Fatalf("AssetSetRange.Binary: expected %s; found %s", as0.Window, as1.Window)
 		}
 
-		as0.Each(func(k string, a0 Asset) {
+		for k, a0 := range as0.Assets {
 			a1, ok := as1.Get(k)
 			if !ok {
 				t.Fatalf("AssetSetRange.Binary: missing Asset: %s", a0)
@@ -259,8 +259,8 @@ func TestAssetSetRange_BinaryEncoding(t *testing.T) {
 			if !a0.Equal(a1) {
 				t.Fatalf("AssetSetRange.Binary: unequal Assets \"%s\": expected %s; found %s", k, a0, a1)
 			}
-		})
-	})
+		}
+	}
 }
 
 func TestBreakdown_BinaryEncoding(t *testing.T) {

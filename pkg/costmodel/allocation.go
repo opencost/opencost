@@ -137,8 +137,8 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	errors := []string{}
 	warnings := []string{}
 
-	asr.Each(func(i int, as *kubecost.AllocationSet) {
-		as.Each(func(k string, a *kubecost.Allocation) {
+	for _, as := range asr.Allocations {
+		for k, a := range as.Allocations {
 			if len(a.Properties.Annotations) > 0 {
 				if _, ok := allocationAnnotations[k]; !ok {
 					allocationAnnotations[k] = map[string]string{}
@@ -165,11 +165,11 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 					allocationServices[k][val] = true
 				}
 			}
-		})
+		}
 
 		errors = append(errors, as.Errors...)
 		warnings = append(warnings, as.Warnings...)
-	})
+	}
 
 	// Accumulate to yield the result AllocationSet. After this step, we will
 	// be nearly complete, but without the raw allocation data, which must be
@@ -181,7 +181,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 
 	// Apply the annotations, labels, and services to the post-accumulation
 	// results. (See above for why this is necessary.)
-	result.Each(func(k string, a *kubecost.Allocation) {
+	for k, a := range result.Allocations {
 		if annotations, ok := allocationAnnotations[k]; ok {
 			a.Properties.Annotations = annotations
 		}
@@ -201,15 +201,15 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 		// to match the Window of the AllocationSet, which gets expanded
 		// at the end of this function.
 		a.Window = a.Window.ExpandStart(start).ExpandEnd(end)
-	})
+	}
 
 	// Maintain RAM and CPU max usage values by iterating over the range,
 	// computing maximums on a rolling basis, and setting on the result set.
-	asr.Each(func(i int, as *kubecost.AllocationSet) {
-		as.Each(func(key string, alloc *kubecost.Allocation) {
+	for _, as := range asr.Allocations {
+		for key, alloc := range as.Allocations {
 			resultAlloc := result.Get(key)
 			if resultAlloc == nil {
-				return
+				continue
 			}
 
 			if resultAlloc.RawAllocationOnly == nil {
@@ -222,7 +222,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 				if !alloc.IsUnmounted() {
 					log.DedupedWarningf(10, "ComputeAllocation: raw allocation data missing for %s", key)
 				}
-				return
+				continue
 			}
 
 			if alloc.RawAllocationOnly.CPUCoreUsageMax > resultAlloc.RawAllocationOnly.CPUCoreUsageMax {
@@ -232,8 +232,8 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 			if alloc.RawAllocationOnly.RAMBytesUsageMax > resultAlloc.RawAllocationOnly.RAMBytesUsageMax {
 				resultAlloc.RawAllocationOnly.RAMBytesUsageMax = alloc.RawAllocationOnly.RAMBytesUsageMax
 			}
-		})
-	})
+		}
+	}
 
 	// Expand the window to match the queried time range.
 	result.Window = result.Window.ExpandStart(start).ExpandEnd(end)

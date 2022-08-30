@@ -30,7 +30,7 @@ package kubecost
 // @bingen:generate:AssetLabels
 // @bingen:generate:AssetProperties
 // @bingen:generate:AssetProperty
-// @bingen:generate[stringtable]:AssetSet
+// @bingen:generate[stringtable,preprocess,postprocess]:AssetSet
 // @bingen:generate:AssetSetRange
 // @bingen:generate:Breakdown
 // @bingen:generate:Cloud
