@@ -351,11 +351,6 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 		if disk.ProviderID == "" {
 			disk.ProviderID = disk.Name
 		}
-
-		// Explicitly specify unknown storage class for disk whose information is unavailable in prometheus metrics of kubecost_pv_info
-		if disk.StorageClass == "" {
-			disk.StorageClass = kubecost.UnknownStorageClass
-		}
 	}
 
 	return diskMap, nil

@@ -1069,7 +1069,7 @@ type Disk struct {
 	ByteHours    float64
 	Local        float64
 	Breakdown    *Breakdown
-	StorageClass string // @bingen:field[version=17, default=__unknown__]
+	StorageClass string // @bingen:field[version=17]
 }
 
 // NewDisk creates and returns a new Disk Asset
@@ -1262,9 +1262,9 @@ func (d *Disk) add(that *Disk) {
 
 	d.ByteHours += that.ByteHours
 
-	// If storage class don't match default it to Unknown storage class
+	// If storage class don't match default it to empty storage class
 	if d.StorageClass != that.StorageClass {
-		d.StorageClass = UnknownStorageClass
+		d.StorageClass = ""
 	}
 }
 

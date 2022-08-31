@@ -33,6 +33,9 @@ const (
 )
 
 const (
+	// DefaultCodecVersion is used for any resources listed in the Default version set
+	DefaultCodecVersion uint8 = 15
+
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
 	AssetsCodecVersion uint8 = 17
 
@@ -41,9 +44,6 @@ const (
 
 	// AuditCodecVersion is used for any resources listed in the Audit version set
 	AuditCodecVersion uint8 = 1
-
-	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 15
 )
 
 //--------------------------------------------------------------------------
@@ -5159,7 +5159,7 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 		target.StorageClass = aa
 
 	} else {
-		target.StorageClass = "__unknown__" // default
+		target.StorageClass = "" // default
 	}
 
 	return nil
