@@ -1059,12 +1059,12 @@ func (cm *ClusterManagement) String() string {
 
 // Disk represents an in-cluster disk Asset
 type Disk struct {
-	labels       AssetLabels
-	properties   *AssetProperties
-	start        time.Time
-	end          time.Time
-	window       Window
-	adjustment   float64
+	Labels       AssetLabels
+	Properties   *AssetProperties
+	Start        time.Time
+	End          time.Time
+	Window       Window
+	Adjustment   float64
 	Cost         float64
 	ByteHours    float64
 	Local        float64
@@ -1262,20 +1262,21 @@ func (d *Disk) add(that *Disk) {
 
 	d.ByteHours += that.ByteHours
 
-	if that.StorageClass != UnknownStorageClass {
-		d.StorageClass = that.StorageClass
+	// If storage class don't match default it to Unknown storage class
+	if d.StorageClass != that.StorageClass {
+		d.StorageClass = UnknownStorageClass
 	}
 }
 
 // Clone returns a cloned instance of the Asset
 func (d *Disk) Clone() Asset {
 	return &Disk{
-		properties:   d.properties.Clone(),
-		labels:       d.labels.Clone(),
-		start:        d.start,
-		end:          d.end,
-		window:       d.window.Clone(),
-		adjustment:   d.adjustment,
+		Properties:   d.Properties.Clone(),
+		Labels:       d.Labels.Clone(),
+		Start:        d.Start,
+		End:          d.End,
+		Window:       d.Window.Clone(),
+		Adjustment:   d.Adjustment,
 		Cost:         d.Cost,
 		ByteHours:    d.ByteHours,
 		Local:        d.Local,

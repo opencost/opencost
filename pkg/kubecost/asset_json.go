@@ -260,7 +260,7 @@ func (d *Disk) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "byteHours", d.ByteHours, ",")
 	jsonEncodeFloat64(buffer, "bytes", d.Bytes(), ",")
 	jsonEncode(buffer, "breakdown", d.Breakdown, ",")
-	jsonEncodeFloat64(buffer, "adjustment", d.Adjustment(), ",")
+	jsonEncodeFloat64(buffer, "adjustment", d.Adjustment, ",")
 	jsonEncodeFloat64(buffer, "totalCost", d.TotalCost(), ",")
 	jsonEncodeString(buffer, "storageClass", d.StorageClass, "")
 	buffer.WriteString("}")
