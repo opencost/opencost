@@ -13,12 +13,11 @@ package kubecost
 
 import (
 	"fmt"
+	util "github.com/opencost/opencost/pkg/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
-
-	util "github.com/opencost/opencost/pkg/util"
 )
 
 const (
@@ -38,7 +37,7 @@ const (
 	DefaultCodecVersion uint8 = 15
 
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
-	AssetsCodecVersion uint8 = 16
+	AssetsCodecVersion uint8 = 17
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
 	AllocationCodecVersion uint8 = 15
@@ -4972,6 +4971,12 @@ func (target *Disk) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 		// --- [end][write][struct](Breakdown) ---
 
 	}
+	if ctx.IsStringTable() {
+		e := ctx.Table.AddOrGet(target.StorageClass)
+		buff.WriteInt(e) // write table index
+	} else {
+		buff.WriteString(target.StorageClass) // write string
+	}
 	return nil
 }
 
@@ -5141,6 +5146,22 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 		// --- [end][read][struct](Breakdown) ---
 
 	}
+	// field version check
+	if uint8(17) <= version {
+		var bb string
+		if ctx.IsStringTable() {
+			cc := buff.ReadInt() // read string index
+			bb = ctx.Table[cc]
+		} else {
+			bb = buff.ReadString() // read string
+		}
+		aa := bb
+		target.StorageClass = aa
+
+	} else {
+		target.StorageClass = "" // default
+	}
+
 	return nil
 }
 

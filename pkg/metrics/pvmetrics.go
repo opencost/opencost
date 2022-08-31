@@ -28,6 +28,9 @@ func (kpvcb KubePVCollector) Describe(ch chan<- *prometheus.Desc) {
 	if _, disabled := disabledMetrics["kube_persistentvolume_status_phase"]; !disabled {
 		ch <- prometheus.NewDesc("kube_persistentvolume_status_phase", "The phase indicates if a volume is available, bound to a claim, or released by a claim.", []string{}, nil)
 	}
+	if _, disabled := disabledMetrics["kubecost_pv_info"]; !disabled {
+		ch <- prometheus.NewDesc("kubecost_pv_info", "The pv information", []string{}, nil)
+	}
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
@@ -59,7 +62,12 @@ func (kpvcb KubePVCollector) Collect(ch chan<- prometheus.Metric) {
 		if _, disabled := disabledMetrics["kube_persistentvolume_capacity_bytes"]; !disabled {
 			storage := pv.Spec.Capacity[v1.ResourceStorage]
 			m := newKubePVCapacityBytesMetric("kube_persistentvolume_capacity_bytes", pv.Name, float64(storage.Value()))
+			ch <- m
+		}
 
+		if _, disabled := disabledMetrics["kubecost_pv_info"]; !disabled {
+			storageClass := pv.Spec.StorageClassName
+			m := newKubecostPVInfoMetric("kubecost_pv_info", pv.Name, storageClass, float64(1))
 			ch <- m
 		}
 	}
@@ -161,6 +169,59 @@ func (kpcrr KubePVStatusPhaseMetric) Write(m *dto.Metric) error {
 		{
 			Name:  toStringPtr("phase"),
 			Value: &kpcrr.phase,
+		},
+	}
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  KubecostPVInfoMetric
+//--------------------------------------------------------------------------
+// KubecostPVInfoMetric is a prometheus.Metric
+type KubecostPVInfoMetric struct {
+	fqName       string
+	help         string
+	pv           string
+	storageClass string
+	value        float64
+}
+
+// Creates a new newKubecostPVInfoMetric, implementation of prometheus.Metric
+func newKubecostPVInfoMetric(fqname, pv, storageClass string, value float64) KubecostPVInfoMetric {
+	return KubecostPVInfoMetric{
+		fqName:       fqname,
+		help:         "kubecost_pv_info pv info",
+		pv:           pv,
+		storageClass: storageClass,
+		value:        value,
+	}
+}
+
+// Desc returns the descriptor for the Metric. This method idempotently
+// returns the same descriptor throughout the lifetime of the Metric.
+func (kpvim KubecostPVInfoMetric) Desc() *prometheus.Desc {
+	l := prometheus.Labels{
+		"persistentvolume": kpvim.pv,
+		"storageclass":     kpvim.storageClass,
+	}
+	return prometheus.NewDesc(kpvim.fqName, kpvim.help, []string{}, l)
+}
+
+// Write encodes the Metric into a "Metric" Protocol Buffer data
+// transmission object.
+func (kpvim KubecostPVInfoMetric) Write(m *dto.Metric) error {
+	m.Gauge = &dto.Gauge{
+		Value: &kpvim.value,
+	}
+
+	m.Label = []*dto.LabelPair{
+		{
+			Name:  toStringPtr("persistentvolume"),
+			Value: &kpvim.pv,
+		},
+		{
+			Name:  toStringPtr("storageclass"),
+			Value: &kpvim.storageClass,
 		},
 	}
 	return nil

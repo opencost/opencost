@@ -15,6 +15,12 @@ import (
 // E.g. if aggregating on Cluster, Assets in the AssetSet where Asset has no cluster will be grouped under key "__undefined__"
 const UndefinedKey = "__undefined__"
 
+// LocalStorageClass is used to assign storage class of local disks.
+const LocalStorageClass = "__local__"
+
+// UnknownStorageClass is used to assign storage class of persistent volume whose information is unable to be traced.
+const UnknownStorageClass = "__unknown__"
+
 // Asset defines an entity within a cluster that has a defined cost over a
 // given period of time.
 type Asset interface {
@@ -1053,16 +1059,17 @@ func (cm *ClusterManagement) String() string {
 
 // Disk represents an in-cluster disk Asset
 type Disk struct {
-	Labels     AssetLabels
-	Properties *AssetProperties
-	Start      time.Time
-	End        time.Time
-	Window     Window
-	Adjustment float64
-	Cost       float64
-	ByteHours  float64
-	Local      float64
-	Breakdown  *Breakdown
+	Labels       AssetLabels
+	Properties   *AssetProperties
+	Start        time.Time
+	End          time.Time
+	Window       Window
+	Adjustment   float64
+	Cost         float64
+	ByteHours    float64
+	Local        float64
+	Breakdown    *Breakdown
+	StorageClass string // @bingen:field[version=17]
 }
 
 // NewDisk creates and returns a new Disk Asset
@@ -1254,21 +1261,27 @@ func (d *Disk) add(that *Disk) {
 	d.Cost += that.Cost
 
 	d.ByteHours += that.ByteHours
+
+	// If storage class don't match default it to empty storage class
+	if d.StorageClass != that.StorageClass {
+		d.StorageClass = ""
+	}
 }
 
 // Clone returns a cloned instance of the Asset
 func (d *Disk) Clone() Asset {
 	return &Disk{
-		Properties: d.Properties.Clone(),
-		Labels:     d.Labels.Clone(),
-		Start:      d.Start,
-		End:        d.End,
-		Window:     d.Window.Clone(),
-		Adjustment: d.Adjustment,
-		Cost:       d.Cost,
-		ByteHours:  d.ByteHours,
-		Local:      d.Local,
-		Breakdown:  d.Breakdown.Clone(),
+		Properties:   d.Properties.Clone(),
+		Labels:       d.Labels.Clone(),
+		Start:        d.Start,
+		End:          d.End,
+		Window:       d.Window.Clone(),
+		Adjustment:   d.Adjustment,
+		Cost:         d.Cost,
+		ByteHours:    d.ByteHours,
+		Local:        d.Local,
+		Breakdown:    d.Breakdown.Clone(),
+		StorageClass: d.StorageClass,
 	}
 }
 
@@ -1307,6 +1320,9 @@ func (d *Disk) Equal(a Asset) bool {
 		return false
 	}
 	if !d.Breakdown.Equal(that.Breakdown) {
+		return false
+	}
+	if d.StorageClass != that.StorageClass {
 		return false
 	}
 
@@ -2900,7 +2916,6 @@ func (as *AssetSet) Insert(asset Asset) error {
 		as.Assets[k] = newAsset
 		addToConcreteMap(as, k, newAsset)
 	}
-
 	// Expand the window, just to be safe. It's possible that the asset will
 	// be set into the map without expanding it to the AssetSet's window.
 	as.Assets[k].ExpandWindow(as.Window)
