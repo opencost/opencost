@@ -1,6 +1,7 @@
 package env
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"time"
@@ -61,7 +62,8 @@ const (
 
 	KubeConfigPathEnvVar = "KUBECONFIG_PATH"
 
-	UTCOffsetEnvVar = "UTC_OFFSET"
+	UseCurrentClusterOnlyEnvVar = "USE_CURRENT_CLUSTER_ONLY"
+	UTCOffsetEnvVar             = "UTC_OFFSET"
 
 	CacheWarmingEnabledEnvVar            = "CACHE_WARMING_ENABLED"
 	ETLEnabledEnvVar                     = "ETL_ENABLED"
@@ -227,6 +229,13 @@ func GetClusterProfile() string {
 // configurable identifier used for multi-cluster metric emission.
 func GetClusterID() string {
 	return Get(ClusterIDEnvVar, "")
+}
+
+func GetPromClusterFilter() string {
+	if GetBool(UseCurrentClusterOnlyEnvVar, false) {
+		return fmt.Sprintf("%s=\"%s\"", GetPromClusterLabel(), GetClusterID())
+	}
+	return ""
 }
 
 // GetPrometheusServerEndpoint returns the environment variable value for PrometheusServerEndpointEnvVar which
@@ -474,6 +483,16 @@ func LegacyExternalCostsAPIDisabled() bool {
 // GetPromClusterLabel returns the environemnt variable value for PromClusterIDLabel
 func GetPromClusterLabel() string {
 	return Get(PromClusterIDLabelEnvVar, "cluster_id")
+}
+
+// GetPromPodLabel returns a pod label name
+func GetPromPodLabel() string {
+	return "pod"
+}
+
+// GetPromContainerLabel returns a container label name
+func GetPromContainerLabel() string {
+	return "container"
 }
 
 // IsIngestingPodUID returns the env variable from ingestPodUID, which alters the

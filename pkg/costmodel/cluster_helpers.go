@@ -435,7 +435,7 @@ func buildRAMUserPctMap(resNodeRAMUserPct []*prom.QueryResult) map[nodeIdentifie
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("instance")
+		name, err := result.GetString("node")
 		if err != nil {
 			log.Warnf("ClusterNodes: RAM user percent missing node")
 			continue
@@ -464,7 +464,7 @@ func buildRAMSystemPctMap(resNodeRAMSystemPct []*prom.QueryResult) map[nodeIdent
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("instance")
+		name, err := result.GetString("node")
 		if err != nil {
 			log.Warnf("ClusterNodes: RAM system percent missing node")
 			continue

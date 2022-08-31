@@ -103,12 +103,9 @@ func resultPodKey(res *prom.QueryResult, clusterLabel, namespaceLabel string) (p
 	}
 	key.Namespace = namespace
 
-	pod, err := res.GetString("pod")
-	if pod == "" || err != nil {
-		pod, err = res.GetString("pod_name")
-		if err != nil {
-			return key, err
-		}
+	pod, err := res.GetString(env.GetPromPodLabel())
+	if err != nil {
+		return key, err
 	}
 	key.Pod = pod
 

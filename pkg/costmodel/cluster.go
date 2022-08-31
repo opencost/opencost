@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/pkg/kubecost"
+	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/timeutil"
 	"golang.org/x/exp/slices"
 
@@ -19,26 +20,26 @@ import (
 
 const (
 	queryClusterCores = `sum(
-		avg(avg_over_time(kube_node_status_capacity_cpu_cores[%s] %s)) by (node, %s) * avg(avg_over_time(node_cpu_hourly_cost[%s] %s)) by (node, %s) * 730 +
-		avg(avg_over_time(node_gpu_hourly_cost[%s] %s)) by (node, %s) * 730
-	  ) by (%s)`
+		avg(avg_over_time(kube_node_status_capacity_cpu_cores[<< .duration >>] << .offset >>)) by (node, << .cluster >>) * avg(avg_over_time(node_cpu_hourly_cost[<< .duration >>] << .offset >>)) by (node, << .cluster >>) * 730 +
+		avg(avg_over_time(node_gpu_hourly_cost[<< .duration >>] << .offset >>)) by (node, << .cluster >>) * 730
+	  ) by (<< .cluster >>)`
 
 	queryClusterRAM = `sum(
-		avg(avg_over_time(kube_node_status_capacity_memory_bytes[%s] %s)) by (node, %s) / 1024 / 1024 / 1024 * avg(avg_over_time(node_ram_hourly_cost[%s] %s)) by (node, %s) * 730
-	  ) by (%s)`
+		avg(avg_over_time(kube_node_status_capacity_memory_bytes[<< .duration >>] << .offset >>)) by (node, << .cluster >>) / 1024 / 1024 / 1024 * avg(avg_over_time(node_ram_hourly_cost[<< .duration >>] << .offset >>)) by (node, << .cluster >>) * 730
+	  ) by (<< .cluster >>)`
 
 	queryStorage = `sum(
-		avg(avg_over_time(pv_hourly_cost[%s] %s)) by (persistentvolume, %s) * 730
-		* avg(avg_over_time(kube_persistentvolume_capacity_bytes[%s] %s)) by (persistentvolume, %s) / 1024 / 1024 / 1024
-	  ) by (%s) %s`
+		avg(avg_over_time(pv_hourly_cost[<< .duration >>] << .offset >>)) by (persistentvolume, << .cluster >>) * 730
+		* avg(avg_over_time(kube_persistentvolume_capacity_bytes[<< .duration >>] << .offset >>)) by (persistentvolume, << .cluster >>) / 1024 / 1024 / 1024
+	  ) by (<< .cluster >>) << .query >>`
 
-	queryTotal = `sum(avg(node_total_hourly_cost) by (node, %s)) * 730 +
+	queryTotal = `sum(avg(node_total_hourly_cost) by (node, << .cluster >>)) * 730 +
 	  sum(
-		avg(avg_over_time(pv_hourly_cost[1h])) by (persistentvolume, %s) * 730
-		* avg(avg_over_time(kube_persistentvolume_capacity_bytes[1h])) by (persistentvolume, %s) / 1024 / 1024 / 1024
-	  ) by (%s) %s`
+		avg(avg_over_time(pv_hourly_cost[1h])) by (persistentvolume, << .cluster >>) * 730
+		* avg(avg_over_time(kube_persistentvolume_capacity_bytes[1h])) by (persistentvolume, << .cluster >>) / 1024 / 1024 / 1024
+	  ) by (<< .cluster >>) << .query >>`
 
-	queryNodes = `sum(avg(node_total_hourly_cost) by (node, %s)) * 730 %s`
+	queryNodes = `sum(avg(node_total_hourly_cost) by (node, << .cluster >>)) * 730 << .query >>`
 )
 
 const maxLocalDiskSize = 200 // AWS limits root disks to 100 Gi, and occasional metric errors in filesystem size should not contribute to large costs.
@@ -155,15 +156,26 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 	costPerGBHr := 0.04 / 730.0
 
 	ctx := prom.NewNamedContext(client, prom.ClusterContextName)
-	queryPVCost := fmt.Sprintf(`avg(avg_over_time(pv_hourly_cost[%s])) by (%s, persistentvolume,provider_id)`, durStr, env.GetPromClusterLabel())
-	queryPVSize := fmt.Sprintf(`avg(avg_over_time(kube_persistentvolume_capacity_bytes[%s])) by (%s, persistentvolume)`, durStr, env.GetPromClusterLabel())
-	queryActiveMins := fmt.Sprintf(`count(pv_hourly_cost) by (%s, persistentvolume)[%s:%dm]`, env.GetPromClusterLabel(), durStr, minsPerResolution)
-	queryPVStorageClass := fmt.Sprintf(`avg(avg_over_time(kubecost_pv_info[%s])) by (%s, persistentvolume, storageclass)`, durStr, env.GetPromClusterLabel())
 
-	queryLocalStorageCost := fmt.Sprintf(`sum_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`, env.GetPromClusterLabel(), durStr, minsPerResolution, hourlyToCumulative, costPerGBHr)
-	queryLocalStorageUsedCost := fmt.Sprintf(`sum_over_time(sum(container_fs_usage_bytes{device!="tmpfs", id="/"}) by (instance, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`, env.GetPromClusterLabel(), durStr, minsPerResolution, hourlyToCumulative, costPerGBHr)
-	queryLocalStorageBytes := fmt.Sprintf(`avg_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance, %s)[%s:%dm])`, env.GetPromClusterLabel(), durStr, minsPerResolution)
-	queryLocalActiveMins := fmt.Sprintf(`count(node_total_hourly_cost) by (%s, node)[%s:%dm]`, env.GetPromClusterLabel(), durStr, minsPerResolution)
+	tplBuf := util.NewTemplateBuffer()
+	tplVals := map[string]interface{}{
+		"cluster":    env.GetPromClusterLabel(),
+		"container":  env.GetPromContainerLabel(),
+		"resolution": fmt.Sprintf("%dm", minsPerResolution),
+		"duration":   durStr,
+		"multiplier": hourlyToCumulative * costPerGBHr,
+		"filter":     env.GetPromClusterFilter(),
+	}
+
+	queryPVCost := tplBuf.Render(`avg(avg_over_time(pv_hourly_cost{<< .filter >>}[<< .duration >>])) by (<< .cluster >>,persistentvolume,provider_id)`, tplVals)
+	queryPVSize := tplBuf.Render(`avg(avg_over_time(kube_persistentvolume_capacity_bytes{<< .filter >>}[<< .duration >>])) by (<< .cluster >>, persistentvolume)`, tplVals)
+	queryActiveMins := tplBuf.Render(`count(pv_hourly_cost{<< .filter >>}) by (<< .cluster >>, persistentvolume)[<< .duration >>:<< .resolution >>]`, tplVals)
+  queryPVStorageClass := tplBuf.Render(`avg(avg_over_time(kubecost_pv_info{<< .filter >>}[<< .duration >>])) by (<< .cluster >>, persistentvolume, storageclass)`, tplVals)
+  
+	queryLocalStorageCost := tplBuf.Render(`sum_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/",<< .filter >>}) by (node, << .cluster >>)[<< .duration >><< .resolution >>]) / 1024 / 1024 / 1024 * << .multiplier >>`, tplVals)
+	queryLocalStorageUsedCost := tplBuf.Render(`sum_over_time(sum(container_fs_usage_bytes{device!="tmpfs", id="/", << .filter >>}) by (node, << .cluster >>)[<< .duration >><< .resolution >>]) / 1024 / 1024 / 1024 * << .multiplier >>`, tplVals)
+	queryLocalStorageBytes := tplBuf.Render(`avg_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/", << .filter >>}) by (node, << .cluster >>)[<< .duration >><< .resolution >>])`, tplVals)
+	queryLocalActiveMins := tplBuf.Render(`count(node_total_hourly_cost{<< .filter >>}) by (node, << .cluster >>)[<< .duration >><< .resolution >>]`, tplVals)
 
 	resChPVCost := ctx.QueryAtTime(queryPVCost, t)
 	resChPVSize := ctx.QueryAtTime(queryPVSize, t)
@@ -197,9 +209,9 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("instance")
+		name, err := result.GetString("node")
 		if err != nil {
-			log.Warnf("ClusterDisks: local storage data missing instance")
+			log.Warnf("ClusterDisks: local storage data missing node")
 			continue
 		}
 
@@ -225,9 +237,9 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("instance")
+		name, err := result.GetString("node")
 		if err != nil {
-			log.Warnf("ClusterDisks: local storage usage data missing instance")
+			log.Warnf("ClusterDisks: local storage usage data missing node")
 			continue
 		}
 
@@ -250,9 +262,9 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 			cluster = env.GetClusterID()
 		}
 
-		name, err := result.GetString("instance")
+		name, err := result.GetString("node")
 		if err != nil {
-			log.Warnf("ClusterDisks: local storage data missing instance")
+			log.Warnf("ClusterDisks: local storage data missing node")
 			continue
 		}
 
@@ -281,7 +293,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 
 		name, err := result.GetString("node")
 		if err != nil {
-			log.DedupedWarningf(5, "ClusterDisks: local active mins data missing instance")
+			log.DedupedWarningf(5, "ClusterDisks: local active mins data missing node")
 			continue
 		}
 
@@ -450,18 +462,27 @@ func ClusterNodes(cp cloud.Provider, client prometheus.Client, start, end time.T
 	requiredCtx := prom.NewNamedContext(client, prom.ClusterContextName)
 	optionalCtx := prom.NewNamedContext(client, prom.ClusterOptionalContextName)
 
-	queryNodeCPUHourlyCost := fmt.Sprintf(`avg(avg_over_time(node_cpu_hourly_cost[%s])) by (%s, node, instance_type, provider_id)`, durStr, env.GetPromClusterLabel())
-	queryNodeCPUCores := fmt.Sprintf(`avg(avg_over_time(kube_node_status_capacity_cpu_cores[%s])) by (%s, node)`, durStr, env.GetPromClusterLabel())
-	queryNodeRAMHourlyCost := fmt.Sprintf(`avg(avg_over_time(node_ram_hourly_cost[%s])) by (%s, node, instance_type, provider_id) / 1024 / 1024 / 1024`, durStr, env.GetPromClusterLabel())
-	queryNodeRAMBytes := fmt.Sprintf(`avg(avg_over_time(kube_node_status_capacity_memory_bytes[%s])) by (%s, node)`, durStr, env.GetPromClusterLabel())
-	queryNodeGPUCount := fmt.Sprintf(`avg(avg_over_time(node_gpu_count[%s])) by (%s, node, provider_id)`, durStr, env.GetPromClusterLabel())
-	queryNodeGPUHourlyCost := fmt.Sprintf(`avg(avg_over_time(node_gpu_hourly_cost[%s])) by (%s, node, instance_type, provider_id)`, durStr, env.GetPromClusterLabel())
-	queryNodeCPUModeTotal := fmt.Sprintf(`sum(rate(node_cpu_seconds_total[%s:%dm])) by (kubernetes_node, %s, mode)`, durStr, minsPerResolution, env.GetPromClusterLabel())
-	queryNodeRAMSystemPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace="kube-system"}[%s:%dm])) by (instance, %s) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:%dm])) by (node, %s), "instance", "$1", "node", "(.*)")) by (instance, %s)`, durStr, minsPerResolution, env.GetPromClusterLabel(), durStr, minsPerResolution, env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	queryNodeRAMUserPct := fmt.Sprintf(`sum(sum_over_time(container_memory_working_set_bytes{container_name!="POD",container_name!="",namespace!="kube-system"}[%s:%dm])) by (instance, %s) / avg(label_replace(sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:%dm])) by (node, %s), "instance", "$1", "node", "(.*)")) by (instance, %s)`, durStr, minsPerResolution, env.GetPromClusterLabel(), durStr, minsPerResolution, env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	queryActiveMins := fmt.Sprintf(`avg(node_total_hourly_cost) by (node, %s, provider_id)[%s:%dm]`, env.GetPromClusterLabel(), durStr, minsPerResolution)
-	queryIsSpot := fmt.Sprintf(`avg_over_time(kubecost_node_is_spot[%s:%dm])`, durStr, minsPerResolution)
-	queryLabels := fmt.Sprintf(`count_over_time(kube_node_labels[%s:%dm])`, durStr, minsPerResolution)
+	tplBuf := util.NewTemplateBuffer()
+	tplVals := map[string]interface{}{
+		"cluster":    env.GetPromClusterLabel(),
+		"container":  env.GetPromContainerLabel(),
+		"resolution": fmt.Sprintf("%dm", minsPerResolution),
+		"duration":   durStr,
+		"filter":     env.GetPromClusterFilter(),
+	}
+
+	queryNodeCPUHourlyCost := tplBuf.Render(`avg(avg_over_time(node_cpu_hourly_cost{<< .filter >>}[<< .duration >>])) by (instance_type, provider_id, node, << .cluster >>)`, tplVals)
+	queryNodeCPUCores := tplBuf.Render(`avg(avg_over_time(kube_node_status_capacity_cpu_cores{<< .filter >>}[<< .duration >>])) by (node, << .cluster >>)`, tplVals)
+	queryNodeRAMHourlyCost := tplBuf.Render(`avg(avg_over_time(node_ram_hourly_cost{<< .filter >>}[<< .duration >>])) by (instance_type, provider_id, node, << .cluster >>) / 1024 / 1024 / 1024`, tplVals)
+	queryNodeRAMBytes := tplBuf.Render(`avg(avg_over_time(kube_node_status_capacity_memory_bytes{<< .filter >>}[<< .duration}}])) by (node, << .cluster >>)`, tplVals)
+	queryNodeGPUCount := tplBuf.Render(`avg(avg_over_time(node_gpu_count{<< .filter >>}[<< .duration >>])) by (provider_id, node, << .cluster >>)`, tplVals)
+	queryNodeGPUHourlyCost := tplBuf.Render(`avg(avg_over_time(node_gpu_hourly_cost{<< .filter >>}[<< .duration}}])) by (instance_type, provider_id, node, << .cluster >>)`, tplVals)
+	queryNodeCPUModeTotal := tplBuf.Render(`sum(rate(node_cpu_seconds_total{<< .filter >>}[<< .duration >>:<< .resolution >>])) by (kubernetes_node, node, << .cluster >>)`, tplVals)
+	queryNodeRAMSystemPct := tplBuf.Render(`sum(sum_over_time(container_memory_working_set_bytes{<< .container >>!="POD",<< .container >>!="",namespace="kube-system", << .filter >>}[<< .duration >>:<< .resolution >>])) by (node, << .cluster >>) / avg(sum(sum_over_time(kube_node_status_capacity_memory_bytes{<< .filter >>}[<< .duration >>:<< .resolution >>])) by (node,<< .cluster >>)) by (node, << .cluster >>)`, tplVals)
+	queryNodeRAMUserPct := tplBuf.Render(`sum(sum_over_time(container_memory_working_set_bytes{<< .container >>!="POD",<< .container >>!="",namespace!="kube-system",<< .filter >>}[<< .duration >>:<< .resolution >>])) by (node, << .cluster >>) / avg(sum(sum_over_time(kube_node_status_capacity_memory_bytes{<< .filter >>}[<< .duration >>:<< .resolution >>])) by (node, << .cluster >>)) by (node, << .cluster >>)`, tplVals)
+	queryActiveMins := tplBuf.Render(`avg(node_total_hourly_cost{<< .filter >>}) by (provider_id, node, << .cluster >>)[<< .duration >>:<< .resolution >>]`, tplVals)
+	queryIsSpot := tplBuf.Render(`avg_over_time(kubecost_node_is_spot{<< .filter >>}[<< .duration >>:<< .resolution >>])`, tplVals)
+	queryLabels := tplBuf.Render(`count_over_time(kube_node_labels{<< .filter >>}[<< .duration >>:<< .resolution >>])`, tplVals)
 
 	// Return errors if these fail
 	resChNodeCPUHourlyCost := requiredCtx.QueryAtTime(queryNodeCPUHourlyCost, t)
@@ -610,8 +631,17 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 
 	ctx := prom.NewNamedContext(client, prom.ClusterContextName)
 
-	queryLBCost := fmt.Sprintf(`avg(avg_over_time(kubecost_load_balancer_cost[%s])) by (namespace, service_name, %s, ingress_ip)`, durStr, env.GetPromClusterLabel())
-	queryActiveMins := fmt.Sprintf(`avg(kubecost_load_balancer_cost) by (namespace, service_name, %s, ingress_ip)[%s:%dm]`, env.GetPromClusterLabel(), durStr, minsPerResolution)
+	tplBuf := util.NewTemplateBuffer()
+	tplVals := map[string]interface{}{
+		"cluster":    env.GetPromClusterLabel(),
+		"container":  env.GetPromContainerLabel(),
+		"resolution": fmt.Sprintf("%dm", minsPerResolution),
+		"duration":   durStr,
+		"filter":     env.GetPromClusterFilter(),
+	}
+
+	queryLBCost := tplBuf.Render(`avg(avg_over_time(kubecost_load_balancer_cost{<< .filter >>}[<< .duration >>])) by (namespace, service_name, ingress_ip, << .cluster >>)`, tplVals)
+	queryActiveMins := tplBuf.Render(`avg(kubecost_load_balancer_cost{<< .filter >>}) by (namespace, service_name, ingress_ip, << .cluster >>)[<< .duration >>:<< .resolution >>]`, tplVals)
 
 	resChLBCost := ctx.QueryAtTime(queryLBCost, t)
 	resChActiveMins := ctx.QueryAtTime(queryActiveMins, t)
@@ -746,49 +776,49 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 	hourlyToCumulative := float64(minsPerResolution) * (1.0 / 60.0)
 
 	const fmtQueryDataCount = `
-		count_over_time(sum(kube_node_status_capacity_cpu_cores) by (%s)[%s:%dm]%s) * %d
+		count_over_time(sum(kube_node_status_capacity_cpu_cores{<< .filter >>}) by (<< .cluster  >>)[<< .duration >>:<< .resolution >>]<< .offset >>) * << .multiplier >>
 	`
 
 	const fmtQueryTotalGPU = `
 		sum(
-			sum_over_time(node_gpu_hourly_cost[%s:%dm]%s) * %f
-		) by (%s)
+			sum_over_time(node_gpu_hourly_cost{<< .filter >>}[<< .duration >>:<< .resolution >>]<< .offset >>) * << .multiplier >>
+		) by (<< .cluster >>)
 	`
 
 	const fmtQueryTotalCPU = `
 		sum(
-			sum_over_time(avg(kube_node_status_capacity_cpu_cores) by (node, %s)[%s:%dm]%s) *
-			avg(avg_over_time(node_cpu_hourly_cost[%s:%dm]%s)) by (node, %s) * %f
-		) by (%s)
+			sum_over_time(avg(kube_node_status_capacity_cpu_cores{<< .filter >>}) by (node, << .cluster >>)[<< .duration >>:<< .resolution >>]<< .offset >>) *
+			avg(avg_over_time(node_cpu_hourly_cost{<< .filter >>}[<< .duration >>:<< .resolution >>]<< .offset >>)) by (node, << .cluster >>) * << .multiplier >>
+		) by (<< .cluster >>)
 	`
 
 	const fmtQueryTotalRAM = `
 		sum(
-			sum_over_time(avg(kube_node_status_capacity_memory_bytes) by (node, %s)[%s:%dm]%s) / 1024 / 1024 / 1024 *
-			avg(avg_over_time(node_ram_hourly_cost[%s:%dm]%s)) by (node, %s) * %f
-		) by (%s)
+			sum_over_time(avg(kube_node_status_capacity_memory_bytes{<< .filter >>}) by (node, << .cluster >>)[<< .duration >>:<< .resolution >>]<< .offset >>) / 1024 / 1024 / 1024 *
+			avg(avg_over_time(node_ram_hourly_cost{<< .filter >>}[<< .duration >>:<< .resolution >>]<< .offset >>)) by (node, << .cluster >>) * << .multiplier >>
+		) by (<< .cluster >>)
 	`
 
 	const fmtQueryTotalStorage = `
 		sum(
-			sum_over_time(avg(kube_persistentvolume_capacity_bytes) by (persistentvolume, %s)[%s:%dm]%s) / 1024 / 1024 / 1024 *
-			avg(avg_over_time(pv_hourly_cost[%s:%dm]%s)) by (persistentvolume, %s) * %f
-		) by (%s)
+			sum_over_time(avg(kube_persistentvolume_capacity_bytes{<< .filter >>}) by (persistentvolume, << .cluster >>)[<< .duration >>:<< .resolution >>]<< .offset >>) / 1024 / 1024 / 1024 *
+			avg(avg_over_time(pv_hourly_cost{<< .filter >>}[<< .duration >>:<< .resolution >>]<< .offset >>)) by (persistentvolume, << .cluster >>) * << .multiplier >>
+		) by (<< .cluster >>)
 	`
 
 	const fmtQueryCPUModePct = `
-		sum(rate(node_cpu_seconds_total[%s]%s)) by (%s, mode) / ignoring(mode)
-		group_left sum(rate(node_cpu_seconds_total[%s]%s)) by (%s)
+		sum(rate(node_cpu_seconds_total{<< .filter >>}[<< .duration >>]<< .offset >>)) by (<< .cluster >>, mode) / ignoring(mode)
+		group_left sum(rate(node_cpu_seconds_total{<< .filter >>}[<< .duration >>]<< .offset >>)) by (<< .cluster >>)
 	`
 
 	const fmtQueryRAMSystemPct = `
-		sum(sum_over_time(container_memory_usage_bytes{container_name!="",namespace="kube-system"}[%s:%dm]%s)) by (%s)
-		/ sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:%dm]%s)) by (%s)
+		sum(sum_over_time(container_memory_usage_bytes{<< .container >>!="",namespace="kube-system",<< .filter >>}[<< .duration >>:<< .resolution >>]<< .offset >>)) by (<< .cluster >>)
+		/ sum(sum_over_time(kube_node_status_capacity_memory_bytes{<< .filter >>}[<< .duration >>:<< .resolution >>]<< .offset >>)) by (<< .cluster >>)
 	`
 
 	const fmtQueryRAMUserPct = `
-		sum(sum_over_time(kubecost_cluster_memory_working_set_bytes[%s:%dm]%s)) by (%s)
-		/ sum(sum_over_time(kube_node_status_capacity_memory_bytes[%s:%dm]%s)) by (%s)
+		sum(sum_over_time(kubecost_cluster_memory_working_set_bytes{<< .filter >>}[<< .duration >>:<< .resolution >>]<< .offset >>)) by (<< .cluster >>)
+		/ sum(sum_over_time(kube_node_status_capacity_memory_bytes{<< .filter >>}[<< .duration >>:<< .resolution >>]<< .offset >>)) by (<< .cluster >>)
 	`
 
 	// TODO niko/clustercost metric "kubelet_volume_stats_used_bytes" was deprecated in 1.12, then seems to have come back in 1.17
@@ -804,11 +834,22 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 
 	fmtOffset := timeutil.DurationToPromOffsetString(offset)
 
-	queryDataCount := fmt.Sprintf(fmtQueryDataCount, env.GetPromClusterLabel(), windowStr, minsPerResolution, fmtOffset, minsPerResolution)
-	queryTotalGPU := fmt.Sprintf(fmtQueryTotalGPU, windowStr, minsPerResolution, fmtOffset, hourlyToCumulative, env.GetPromClusterLabel())
-	queryTotalCPU := fmt.Sprintf(fmtQueryTotalCPU, env.GetPromClusterLabel(), windowStr, minsPerResolution, fmtOffset, windowStr, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), hourlyToCumulative, env.GetPromClusterLabel())
-	queryTotalRAM := fmt.Sprintf(fmtQueryTotalRAM, env.GetPromClusterLabel(), windowStr, minsPerResolution, fmtOffset, windowStr, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), hourlyToCumulative, env.GetPromClusterLabel())
-	queryTotalStorage := fmt.Sprintf(fmtQueryTotalStorage, env.GetPromClusterLabel(), windowStr, minsPerResolution, fmtOffset, windowStr, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), hourlyToCumulative, env.GetPromClusterLabel())
+	tplBuf := util.NewTemplateBuffer()
+	tplVals := map[string]interface{}{
+		"cluster":    env.GetPromClusterLabel(),
+		"container":  env.GetPromContainerLabel(),
+		"resolution": fmt.Sprintf("%dm", minsPerResolution),
+		"duration":   windowStr,
+		"offset":     fmtOffset,
+		"multiplier": minsPerResolution,
+		"filter":     env.GetPromClusterFilter(),
+	}
+	queryDataCount := tplBuf.Render(fmtQueryDataCount, tplVals)
+	tplVals["mltiplier"] = hourlyToCumulative
+	queryTotalGPU := tplBuf.Render(fmtQueryTotalGPU, tplVals)
+	queryTotalCPU := tplBuf.Render(fmtQueryTotalCPU, tplVals)
+	queryTotalRAM := tplBuf.Render(fmtQueryTotalRAM, tplVals)
+	queryTotalStorage := tplBuf.Render(fmtQueryTotalStorage, tplVals)
 
 	ctx := prom.NewNamedContext(client, prom.ClusterContextName)
 
@@ -830,9 +871,9 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 	}
 
 	if withBreakdown {
-		queryCPUModePct := fmt.Sprintf(fmtQueryCPUModePct, windowStr, fmtOffset, env.GetPromClusterLabel(), windowStr, fmtOffset, env.GetPromClusterLabel())
-		queryRAMSystemPct := fmt.Sprintf(fmtQueryRAMSystemPct, windowStr, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), windowStr, minsPerResolution, fmtOffset, env.GetPromClusterLabel())
-		queryRAMUserPct := fmt.Sprintf(fmtQueryRAMUserPct, windowStr, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), windowStr, minsPerResolution, fmtOffset, env.GetPromClusterLabel())
+		queryCPUModePct := tplBuf.Render(fmtQueryCPUModePct, tplVals)
+		queryRAMSystemPct := tplBuf.Render(fmtQueryRAMSystemPct, tplVals)
+		queryRAMUserPct := tplBuf.Render(fmtQueryRAMUserPct, tplVals)
 
 		bdResChs := ctx.QueryAll(
 			queryCPUModePct,
@@ -1104,10 +1145,20 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 
 	fmtOffset := timeutil.DurationToPromOffsetString(offset)
 
-	qCores := fmt.Sprintf(queryClusterCores, fmtWindow, fmtOffset, env.GetPromClusterLabel(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	qRAM := fmt.Sprintf(queryClusterRAM, fmtWindow, fmtOffset, env.GetPromClusterLabel(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterLabel())
-	qStorage := fmt.Sprintf(queryStorage, fmtWindow, fmtOffset, env.GetPromClusterLabel(), fmtWindow, fmtOffset, env.GetPromClusterLabel(), env.GetPromClusterLabel(), localStorageQuery)
-	qTotal := fmt.Sprintf(queryTotal, env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), env.GetPromClusterLabel(), localStorageQuery)
+	tplBuf := util.NewTemplateBuffer()
+	tplVals := map[string]interface{}{
+		"cluster":   env.GetPromClusterLabel(),
+		"container": env.GetPromContainerLabel(),
+		"duration":  fmtWindow,
+		"offset":    fmtOffset,
+		"query":     localStorageQuery,
+		"filter":    env.GetPromClusterFilter(),
+	}
+
+	qCores := tplBuf.Render(queryClusterCores, tplVals)
+	qRAM := tplBuf.Render(queryClusterRAM, tplVals)
+	qStorage := tplBuf.Render(queryStorage, tplVals)
+	qTotal := tplBuf.Render(queryTotal, tplVals)
 
 	ctx := prom.NewNamedContext(cli, prom.ClusterContextName)
 	resChClusterCores := ctx.QueryRange(qCores, start, end, window)
@@ -1157,7 +1208,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 		// If clusterTotal query failed, it's likely because there are no PVs, which
 		// causes the qTotal query to return no data. Instead, query only node costs.
 		// If that fails, return an error because something is actually wrong.
-		qNodes := fmt.Sprintf(queryNodes, env.GetPromClusterLabel(), localStorageQuery)
+		qNodes := tplBuf.Render(queryNodes, tplVals)
 
 		resultNodes, warnings, err := ctx.QueryRangeSync(qNodes, start, end, window)
 		for _, warning := range warnings {

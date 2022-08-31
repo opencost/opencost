@@ -159,7 +159,7 @@ func NewContainerMetricsFromPod(pod *v1.Pod, clusterID string) ([]*ContainerMetr
 // instance
 func NewContainerMetricFromPrometheus(metrics map[string]interface{}, defaultClusterID string) (*ContainerMetric, error) {
 	// TODO: Can we use *prom.QueryResult.GetString() here?
-	cName, ok := metrics["container_name"]
+	cName, ok := metrics[env.GetPromContainerLabel()]
 	if !ok {
 		return nil, NoContainerErr
 	}
@@ -167,7 +167,7 @@ func NewContainerMetricFromPrometheus(metrics map[string]interface{}, defaultClu
 	if !ok {
 		return nil, NoContainerNameErr
 	}
-	pName, ok := metrics["pod_name"]
+	pName, ok := metrics[env.GetPromPodLabel()]
 	if !ok {
 		return nil, NoPodErr
 	}

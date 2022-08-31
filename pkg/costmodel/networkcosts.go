@@ -142,7 +142,7 @@ func getNetworkUsage(qrs []*prom.QueryResult, defaultClusterID string) (map[stri
 	ncdmap := make(map[string]*NetworkUsageVector)
 
 	for _, val := range qrs {
-		podName, err := val.GetString("pod_name")
+		podName, err := val.GetString(env.GetPromPodLabel())
 		if err != nil {
 			return nil, err
 		}

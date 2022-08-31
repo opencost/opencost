@@ -6,6 +6,7 @@ import (
 
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util"
 	prometheus "github.com/prometheus/client_golang/api"
 )
 
@@ -44,55 +45,55 @@ const DocumentationBaseURL = "https://github.com/kubecost/docs/blob/master/diagn
 var diagnosticDefinitions map[string]*diagnosticDefinition = map[string]*diagnosticDefinition{
 	CAdvisorDiagnosticMetricID: {
 		ID:          CAdvisorDiagnosticMetricID,
-		QueryFmt:    `absent_over_time(container_cpu_usage_seconds_total[5m] %s)`,
+		QueryFmt:    `absent_over_time(container_cpu_usage_seconds_total{<< .filter >>}[5m] << .offset >>)`,
 		Label:       "cAdvsior metrics available",
 		Description: "Determine if cAdvisor metrics are available during last 5 minutes.",
 		DocLink:     fmt.Sprintf("%s#cadvisor-metrics-available", DocumentationBaseURL),
 	},
 	KSMDiagnosticMetricID: {
 		ID:          KSMDiagnosticMetricID,
-		QueryFmt:    `absent_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte"}[5m] %s)`,
+		QueryFmt:    `absent_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte",<< .filter >>}[5m] << .offset >>)`,
 		Label:       "Kube-state-metrics available",
 		Description: "Determine if metrics from kube-state-metrics are available during last 5 minutes.",
 		DocLink:     fmt.Sprintf("%s#kube-state-metrics-metrics-available", DocumentationBaseURL),
 	},
 	KubecostDiagnosticMetricID: {
 		ID:          KubecostDiagnosticMetricID,
-		QueryFmt:    `absent_over_time(node_cpu_hourly_cost[5m] %s)`,
+		QueryFmt:    `absent_over_time(node_cpu_hourly_cost{<< .filter >>}[5m] << .offset >>)`,
 		Label:       "Kubecost metrics available",
 		Description: "Determine if metrics from Kubecost are available during last 5 minutes.",
 	},
 	NodeExporterDiagnosticMetricID: {
 		ID:          NodeExporterDiagnosticMetricID,
-		QueryFmt:    `absent_over_time(node_cpu_seconds_total[5m] %s)`,
+		QueryFmt:    `absent_over_time(node_cpu_seconds_total{<< .filter >>}[5m] << .offset >>)`,
 		Label:       "Node-exporter metrics available",
 		Description: "Determine if metrics from node-exporter are available during last 5 minutes.",
 		DocLink:     fmt.Sprintf("%s#node-exporter-metrics-available", DocumentationBaseURL),
 	},
 	CAdvisorLabelDiagnosticMetricID: {
 		ID:          CAdvisorLabelDiagnosticMetricID,
-		QueryFmt:    `absent_over_time(container_cpu_usage_seconds_total{container!="",pod!=""}[5m] %s)`,
+		QueryFmt:    `absent_over_time(container_cpu_usage_seconds_total{<< .container >>!="",<< .pod >>!="", << .filter >>}[5m] << .offset >>)`,
 		Label:       "Expected cAdvsior labels available",
 		Description: "Determine if expected cAdvisor labels are present during last 5 minutes.",
 		DocLink:     fmt.Sprintf("%s#cadvisor-metrics-available", DocumentationBaseURL),
 	},
 	KSMVersionDiagnosticMetricID: {
 		ID:          KSMVersionDiagnosticMetricID,
-		QueryFmt:    `absent_over_time(kube_persistentvolume_capacity_bytes[5m] %s)`,
+		QueryFmt:    `absent_over_time(kube_persistentvolume_capacity_bytes{<< .filter >>}[5m] << .offset >>)`,
 		Label:       "Expected kube-state-metrics version found",
 		Description: "Determine if metric in required kube-state-metrics version are present during last 5 minutes.",
 		DocLink:     fmt.Sprintf("%s#expected-kube-state-metrics-version-found", DocumentationBaseURL),
 	},
 	ScrapeIntervalDiagnosticMetricID: {
 		ID:          ScrapeIntervalDiagnosticMetricID,
-		QueryFmt:    `absent_over_time(prometheus_target_interval_length_seconds[5m]  %s)`,
+		QueryFmt:    `absent_over_time(prometheus_target_interval_length_seconds{<< .filter >>}[5m] << .offset >>)`,
 		Label:       "Expected Prometheus self-scrape metrics available",
 		Description: "Determine if prometheus has its own self-scraped metrics during the last 5 minutes.",
 	},
 	CPUThrottlingDiagnosticMetricID: {
 		ID: CPUThrottlingDiagnosticMetricID,
-		QueryFmt: `avg(increase(container_cpu_cfs_throttled_periods_total{container="cost-model"}[10m] %s)) by (container_name, pod_name, namespace)
-	/ avg(increase(container_cpu_cfs_periods_total{container="cost-model"}[10m] %s)) by (container_name, pod_name, namespace) > 0.2`,
+		QueryFmt: `avg(increase(container_cpu_cfs_throttled_periods_total{container="cost-model",<< .filter >>}[10m] << .offset >>)) by (namespace, << .container >>, << .pod >>)
+	/ avg(increase(container_cpu_cfs_periods_total{container="cost-model", << .filter >>}[10m] << .offset >>)) by (namespace, << .container >>, << .pod >>) > 0.2`,
 		Label:       "Kubecost is not CPU throttled",
 		Description: "Kubecost loading slowly? A kubecost component might be CPU throttled",
 	},
@@ -222,18 +223,17 @@ type diagnosticDefinition struct {
 
 // NewDiagnostic creates a new PrometheusDiagnostic instance using the provided definition data.
 func (pdd *diagnosticDefinition) NewDiagnostic(offset string) *PrometheusDiagnostic {
-	// FIXME: Any reasonable way to get the total number of replacements required in the query?
-	// FIXME: All of the other queries require a single offset replace, but CPUThrottle requires two.
-	var query string
-	if pdd.ID == CPUThrottlingDiagnosticMetricID {
-		query = fmt.Sprintf(pdd.QueryFmt, offset, offset)
-	} else {
-		query = fmt.Sprintf(pdd.QueryFmt, offset)
+	tplBuf := util.NewTemplateBuffer()
+	tplVals := map[string]interface{}{
+		"offset":    offset,
+		"pod":       env.GetPromPodLabel(),
+		"container": env.GetPromContainerLabel(),
+		"cluster":   env.GetPromClusterLabel(),
+		"filter":    env.GetPromClusterFilter(),
 	}
-
 	return &PrometheusDiagnostic{
 		ID:          pdd.ID,
-		Query:       query,
+		Query:       tplBuf.Render(pdd.QueryFmt, tplVals),
 		Label:       pdd.Label,
 		Description: pdd.Description,
 		DocLink:     pdd.DocLink,

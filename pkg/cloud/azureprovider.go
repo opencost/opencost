@@ -576,7 +576,7 @@ func (az *Azure) GetAzureStorageConfig(forceReload bool, cp *CustomPricing) (*Az
 				Message: "Azure Storage Config exists",
 				Status:  true,
 			})
-			
+
 			return asc, nil
 		}
 	}
