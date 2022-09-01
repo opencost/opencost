@@ -1,0 +1,156 @@
+{
+	"info": {
+		"_postman_id": "bba454a2-641d-4481-9ccd-0395a6054a20",
+		"name": "opencost",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "namespace costs/day",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{host}}/allocation/compute?aggregate=namespace&window=1d&accumulate=false&step=1d",
+					"host": [
+						"{{host}}"
+					],
+					"path": [
+						"allocation",
+						"compute"
+					],
+					"query": [
+						{
+							"key": "aggregate",
+							"value": "namespace"
+						},
+						{
+							"key": "window",
+							"value": "1d"
+						},
+						{
+							"key": "accumulate",
+							"value": "false"
+						},
+						{
+							"key": "step",
+							"value": "1d"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "cluster total",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{host}}/allocation/compute?aggregate=cluster&window=lastweek",
+					"host": [
+						"{{host}}"
+					],
+					"path": [
+						"allocation",
+						"compute"
+					],
+					"query": [
+						{
+							"key": "aggregate",
+							"value": "cluster"
+						},
+						{
+							"key": "window",
+							"value": "lastweek"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "namespace totals",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{host}}/allocation/compute?aggregate=namespace&window=7d",
+					"host": [
+						"{{host}}"
+					],
+					"path": [
+						"allocation",
+						"compute"
+					],
+					"query": [
+						{
+							"key": "aggregate",
+							"value": "namespace"
+						},
+						{
+							"key": "window",
+							"value": "7d"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "pod totals",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{host}}/allocation/compute?aggregate=pod&window=7d",
+					"host": [
+						"{{host}}"
+					],
+					"path": [
+						"allocation",
+						"compute"
+					],
+					"query": [
+						{
+							"key": "aggregate",
+							"value": "pod"
+						},
+						{
+							"key": "window",
+							"value": "7d"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "host",
+			"value": "http://localhost:9003",
+			"type": "default"
+		}
+	]
+}
