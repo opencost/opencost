@@ -7,9 +7,13 @@ import (
 
 func TestGenerateKey(t *testing.T) {
 
+	customOwnerLabelConfig := NewLabelConfig()
+	customOwnerLabelConfig.OwnerLabel = "example_com_project"
+
 	cases := map[string]struct {
 		aggregate       []string
 		allocationProps *AllocationProperties
+		labelConfig     *LabelConfig
 		expected        string
 	}{
 		"aggregate by owner without owner labels": {
@@ -75,12 +79,25 @@ func TestGenerateKey(t *testing.T) {
 			},
 			expected: "product-label/owner-label",
 		},
+		"user test": {
+			aggregate: []string{"owner"},
+			allocationProps: &AllocationProperties{
+				Labels:      map[string]string{"app_kubernetes_io_name": "x-mongo", "example_com_service_owner": "x", "component": "primary", "controller_revision_hash": "x-mongo-primary-x", "kubernetes_io_metadata_name": "app-microservices", "name": "app-microservices", "statefulset_kubernetes_io_pod_name": "x-mongo-primary-0"},
+				Annotations: map[string]string{"example_com_project": "redacted"},
+			},
+			labelConfig: customOwnerLabelConfig,
+			expected:    "redacted",
+		},
 	}
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 
 			lc := NewLabelConfig()
+
+			if tc.labelConfig != nil {
+				lc = tc.labelConfig
+			}
 
 			result := tc.allocationProps.GenerateKey(tc.aggregate, lc)
 
