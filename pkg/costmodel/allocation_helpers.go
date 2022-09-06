@@ -127,7 +127,7 @@ func applyPodResults(window kubecost.Window, resolution time.Duration, podMap ma
 			cluster = env.GetClusterID()
 		}
 
-		labels, err := res.GetStrings("namespace", "thisPod")
+		labels, err := res.GetStrings("namespace", "pod")
 		if err != nil {
 			log.Warnf("CostModel.ComputeAllocation: minutes query result missing field: %s", err)
 			continue
@@ -173,7 +173,7 @@ func applyPodResults(window kubecost.Window, resolution time.Duration, podMap ma
 		}
 
 		if thisPod, ok := podMap[key]; ok {
-			// thisPod has already been recorded, so update it accordingly
+			// Pod has already been recorded, so update it accordingly
 			if allocStart.Before(thisPod.Start) {
 				thisPod.Start = allocStart
 			}
@@ -181,7 +181,7 @@ func applyPodResults(window kubecost.Window, resolution time.Duration, podMap ma
 				thisPod.End = allocEnd
 			}
 		} else {
-			// thisPod has not been recorded yet, so insert it
+			// pod has not been recorded yet, so insert it
 			podMap[key] = &pod{
 				Window:      window.Clone(),
 				Start:       allocStart,
@@ -1792,7 +1792,7 @@ func buildPodPVCMap(podPVCMap map[podKey][]*pvc, pvMap map[pvKey]*pv, pvcMap map
 				continue
 			}
 
-			if pod, ok := podMap[key]; !ok && len(pod.Allocations) <= 0 {
+			if pod, ok := podMap[key]; !ok || len(pod.Allocations) <= 0 {
 				log.DedupedWarningf(10, "CostModel.ComputeAllocation: pvc %s for missing pod %s", pvcKey, key)
 			}
 			pvc.Mounted = true
