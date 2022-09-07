@@ -2842,8 +2842,8 @@ func (as *AssetSet) ReconciliationMatchMap() map[string]map[string]Asset {
 			continue
 		}
 		props := asset.GetProperties()
-		// Ignore cloud assets and assets that cannot be matched when looking for reconciliation matches
-		if props == nil || props.ProviderID == "" || asset.Type() == CloudAssetType {
+		// Ignore assets that cannot be matched when looking for reconciliation matches
+		if props == nil || props.ProviderID == "" {
 			continue
 		}
 
