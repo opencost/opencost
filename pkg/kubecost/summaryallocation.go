@@ -1170,7 +1170,7 @@ func (sas *SummaryAllocationSet) TotalCost() float64 {
 	return tc
 }
 
-// func to calculate average RAM efficiency over SummaryAllocationSet
+// RAMEfficiency func to calculate average RAM efficiency over SummaryAllocationSet
 func (sas *SummaryAllocationSet) RAMEfficiency() float64 {
 	if sas == nil {
 		return 0.0
@@ -1181,29 +1181,25 @@ func (sas *SummaryAllocationSet) RAMEfficiency() float64 {
 
 	totalRAMBytesUsage := 0.0
 	totalRAMBytesRequest := 0.0
+	totalRAMCost := 0.0
 	for _, sa := range sas.SummaryAllocations {
-		if sa.RAMBytesRequestAverage > 0 {
-			totalRAMBytesUsage += sa.RAMBytesUsageAverage
-			totalRAMBytesRequest += sa.RAMBytesRequestAverage
-		} else {
-			if sa.RAMBytesUsageAverage == 0.0 && sa.RAMCost == 0.0 {
-				totalRAMBytesUsage += 1.0
-				totalRAMBytesRequest += 1.0
-			}
-		}
+		totalRAMBytesUsage += sa.RAMBytesUsageAverage
+		totalRAMBytesRequest += sa.RAMBytesRequestAverage
+		totalRAMCost += sa.RAMCost
 	}
 
-	if totalRAMBytesUsage > 0 {
+	if totalRAMBytesRequest > 0 {
 		return totalRAMBytesUsage / totalRAMBytesRequest
 	}
 
-	if totalRAMBytesUsage == 0.0 || totalRAMBytesRequest == 0.0 {
+	if totalRAMBytesUsage == 0.0 || totalRAMCost == 0.0 {
 		return 0.0
 	}
+
 	return 1.0
 }
 
-// func to calculate average CPU efficiency over SummaryAllocationSet
+// CPUEfficiency func to calculate average CPU efficiency over SummaryAllocationSet
 func (sas *SummaryAllocationSet) CPUEfficiency() float64 {
 	if sas == nil {
 		return 0.0
@@ -1214,29 +1210,25 @@ func (sas *SummaryAllocationSet) CPUEfficiency() float64 {
 
 	totalCPUCoreUsage := 0.0
 	totalCPUCoreRequest := 0.0
+	totalCPUCost := 0.0
 	for _, sa := range sas.SummaryAllocations {
-		if sa.CPUCoreRequestAverage > 0 {
-			totalCPUCoreUsage += sa.CPUCoreUsageAverage
-			totalCPUCoreRequest += sa.CPUCoreRequestAverage
-		} else {
-			if sa.RAMBytesUsageAverage == 0.0 && sa.RAMCost == 0.0 {
-				totalCPUCoreUsage += 1.0
-				totalCPUCoreRequest += 1.0
-			}
-		}
+		totalCPUCoreUsage += sa.CPUCoreUsageAverage
+		totalCPUCoreRequest += sa.CPUCoreRequestAverage
+		totalCPUCost += sa.CPUCost
 	}
 
-	if totalCPUCoreUsage > 0 {
+	if totalCPUCoreRequest > 0 {
 		return totalCPUCoreUsage / totalCPUCoreRequest
 	}
 
-	if totalCPUCoreUsage == 0.0 || totalCPUCoreRequest == 0.0 {
+	if totalCPUCoreUsage == 0.0 || totalCPUCost == 0.0 {
 		return 0.0
 	}
+
 	return 1.0
 }
 
-// func to calculate average Total efficiency over SummaryAllocationSet
+// TotalEfficiency func to calculate average Total efficiency over SummaryAllocationSet
 func (sas *SummaryAllocationSet) TotalEfficiency() float64 {
 	if sas == nil {
 		return 0.0
@@ -1245,24 +1237,22 @@ func (sas *SummaryAllocationSet) TotalEfficiency() float64 {
 	sas.RLock()
 	defer sas.RUnlock()
 
-	tc := 0.0
 	totalRAMCostEff := 0.0
 	totalCPUCostEff := 0.0
 	totalRAMCost := 0.0
 	totalCPUCost := 0.0
 	for _, sa := range sas.SummaryAllocations {
-		if sa.RAMCost+sa.CPUCost > 0 {
-			totalRAMCostEff += sa.RAMEfficiency() * sa.RAMCost
-			totalCPUCostEff += sa.CPUEfficiency() * sa.CPUCost
-			totalRAMCost += sa.RAMCost
-			totalCPUCost += sa.CPUCost
-		}
+		totalRAMCostEff += sa.RAMEfficiency() * sa.RAMCost
+		totalCPUCostEff += sa.CPUEfficiency() * sa.CPUCost
+		totalRAMCost += sa.RAMCost
+		totalCPUCost += sa.CPUCost
 	}
 
 	if totalRAMCost+totalCPUCost > 0 {
 		return (totalRAMCostEff + totalCPUCostEff) / (totalRAMCost + totalCPUCost)
 	}
-	return tc
+
+	return 0.0
 }
 
 // SummaryAllocationSetRange is a thread-safe slice of SummaryAllocationSets.
