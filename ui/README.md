@@ -9,7 +9,7 @@ To manually run an open source demo UI, follow the steps below.
 * `npm >= 7.0.0`
 
 ## Installation & Running
-To run the UI, open a terminal to the `cost-model/ui/` directory (where this README is located) and run
+To run the UI, open a terminal to the `opencost/ui/` directory (where this README is located) and run
 
 ```
 npm install
