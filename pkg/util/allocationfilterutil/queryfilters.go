@@ -282,6 +282,7 @@ func filterV1LabelMappedFromList(rawFilterValues []string, labelName string) kub
 	filter := kubecost.AllocationFilterOr{
 		Filters: []kubecost.AllocationFilter{},
 	}
+	labelName = prom.SanitizeLabelName(labelName)
 
 	for _, filterValue := range rawFilterValues {
 		filterValue = strings.TrimSpace(filterValue)
@@ -322,7 +323,7 @@ func filterV1DoubleValueFromList(rawFilterValuesUnsplit []string, filterField ku
 				log.Warnf("illegal key/value filter (ignoring): %s", unsplit)
 				continue
 			}
-			key := prom.SanitizeLabelName(strings.TrimSpace(split[0]))
+			labelName := prom.SanitizeLabelName(strings.TrimSpace(split[0]))
 			val := strings.TrimSpace(split[1])
 			val, wildcard := parseWildcardEnd(val)
 
@@ -330,7 +331,7 @@ func filterV1DoubleValueFromList(rawFilterValuesUnsplit []string, filterField ku
 				Field: filterField,
 				// All v1 filters are equality comparisons
 				Op:    kubecost.FilterEquals,
-				Key:   key,
+				Key:   labelName,
 				Value: val,
 			}
 
