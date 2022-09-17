@@ -15,6 +15,33 @@ metadata:
   name: opencost
 ---
 
+# nginx configmap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-conf
+data:
+  nginx.conf: |
+    server {
+      listen 9090 default_server;
+      listen [::]:9090 default_server;
+      root /var/www/html;
+      index index.html;
+      server_name _;
+      location / {
+        proxy_pass http://localhost:1234;
+        proxy_set_header Host $host;
+      }
+      location ^~/allocation/ {
+        proxy_pass http://localhost:9003/allocation/;
+        proxy_set_header Host $proxy_host;
+        proxy_set_header  X-Real-IP  $remote_addr;
+        proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-NginX-Proxy true;
+      }
+    }
+---
+
 # Cluster role giving opencost to get, list, watch required recources
 # No write permissions are required
 apiVersion: rbac.authorization.k8s.io/v1
@@ -139,7 +166,27 @@ spec:
     spec:
       restartPolicy: Always
       serviceAccountName: opencost
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: nginx-conf
+            items:
+              - key: nginx.conf
+                path: default
       containers:
+        - image: quay.io/kubecost1/opencost-ui:latest
+          name: opencost-ui
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "55M"
+            limits:
+              cpu: "999m"
+              memory: "1G"
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/sites-available/
+          imagePullPolicy: Always
         - image: quay.io/kubecost1/kubecost-cost-model:latest
           name: opencost
           resources:
@@ -176,4 +223,7 @@ spec:
     - name: opencost
       port: 9003
       targetPort: 9003
+    - name: opencost-ui
+      port: 9090
+      targetPort: 9090
 ---
