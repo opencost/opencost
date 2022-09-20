@@ -24,7 +24,7 @@ package kubecost
 // @bingen:generate:Window
 
 // Asset Version Set: Includes Asset pipeline specific resources
-// @bingen:set[name=Assets,version=17]
+// @bingen:set[name=Assets,version=18]
 // @bingen:generate:Any
 // @bingen:generate:Asset
 // @bingen:generate:AssetLabels

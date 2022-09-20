@@ -1061,17 +1061,22 @@ func (cm *ClusterManagement) String() string {
 
 // Disk represents an in-cluster disk Asset
 type Disk struct {
-	Labels       AssetLabels
-	Properties   *AssetProperties
-	Start        time.Time
-	End          time.Time
-	Window       Window
-	Adjustment   float64
-	Cost         float64
-	ByteHours    float64
-	Local        float64
-	Breakdown    *Breakdown
-	StorageClass string // @bingen:field[version=17]
+	Labels         AssetLabels
+	Properties     *AssetProperties
+	Start          time.Time
+	End            time.Time
+	Window         Window
+	Adjustment     float64
+	Cost           float64
+	ByteHours      float64
+	Local          float64
+	Breakdown      *Breakdown
+	StorageClass   string   // @bingen:field[version=17]
+	ByteHoursUsed  float64  // @bingen:field[version=18]
+	ByteUsageMax   *float64 // @bingen:field[version=18]
+	VolumeName     string   // @bingen:field[version=18]
+	ClaimName      string   // @bingen:field[version=18]
+	ClaimNamespace string   // @bingen:field[version=18]
 }
 
 // NewDisk creates and returns a new Disk Asset
@@ -1263,27 +1268,50 @@ func (d *Disk) add(that *Disk) {
 	d.Cost += that.Cost
 
 	d.ByteHours += that.ByteHours
+	d.ByteHoursUsed += that.ByteHoursUsed
+	d.ByteUsageMax = nil
 
 	// If storage class don't match default it to empty storage class
 	if d.StorageClass != that.StorageClass {
 		d.StorageClass = ""
 	}
+
+	if d.VolumeName != that.VolumeName {
+		d.VolumeName = ""
+	}
+	if d.ClaimName != that.ClaimName {
+		d.ClaimName = ""
+	}
+	if d.ClaimNamespace != that.ClaimNamespace {
+		d.ClaimNamespace = ""
+	}
 }
 
 // Clone returns a cloned instance of the Asset
 func (d *Disk) Clone() Asset {
+	var max *float64
+	if d.ByteUsageMax != nil {
+		copied := *d.ByteUsageMax
+		max = &copied
+	}
+
 	return &Disk{
-		Properties:   d.Properties.Clone(),
-		Labels:       d.Labels.Clone(),
-		Start:        d.Start,
-		End:          d.End,
-		Window:       d.Window.Clone(),
-		Adjustment:   d.Adjustment,
-		Cost:         d.Cost,
-		ByteHours:    d.ByteHours,
-		Local:        d.Local,
-		Breakdown:    d.Breakdown.Clone(),
-		StorageClass: d.StorageClass,
+		Properties:     d.Properties.Clone(),
+		Labels:         d.Labels.Clone(),
+		Start:          d.Start,
+		End:            d.End,
+		Window:         d.Window.Clone(),
+		Adjustment:     d.Adjustment,
+		Cost:           d.Cost,
+		ByteHours:      d.ByteHours,
+		ByteHoursUsed:  d.ByteHoursUsed,
+		ByteUsageMax:   max,
+		Local:          d.Local,
+		Breakdown:      d.Breakdown.Clone(),
+		StorageClass:   d.StorageClass,
+		VolumeName:     d.VolumeName,
+		ClaimName:      d.ClaimName,
+		ClaimNamespace: d.ClaimNamespace,
 	}
 }
 
@@ -1318,6 +1346,18 @@ func (d *Disk) Equal(a Asset) bool {
 	if d.ByteHours != that.ByteHours {
 		return false
 	}
+	if d.ByteHoursUsed != that.ByteHoursUsed {
+		return false
+	}
+	if d.ByteUsageMax != nil && that.ByteUsageMax == nil {
+		return false
+	}
+	if d.ByteUsageMax == nil && that.ByteUsageMax != nil {
+		return false
+	}
+	if (d.ByteUsageMax != nil && that.ByteUsageMax != nil) && *d.ByteUsageMax != *that.ByteUsageMax {
+		return false
+	}
 	if d.Local != that.Local {
 		return false
 	}
@@ -1325,6 +1365,15 @@ func (d *Disk) Equal(a Asset) bool {
 		return false
 	}
 	if d.StorageClass != that.StorageClass {
+		return false
+	}
+	if d.VolumeName != that.VolumeName {
+		return false
+	}
+	if d.ClaimName != that.ClaimName {
+		return false
+	}
+	if d.ClaimNamespace != that.ClaimNamespace {
 		return false
 	}
 

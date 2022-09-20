@@ -164,6 +164,9 @@ func TestDisk_Unmarshal(t *testing.T) {
 
 	disk1 := NewDisk("disk1", "cluster1", "disk1", *unmarshalWindow.start, *unmarshalWindow.end, unmarshalWindow)
 	disk1.ByteHours = 60.0 * gb * hours
+	disk1.ByteHoursUsed = 40.0 * gb * hours
+	max := 50.0 * gb * hours
+	disk1.ByteUsageMax = &max
 	disk1.Cost = 4.0
 	disk1.Local = 1.0
 	disk1.SetAdjustment(1.0)
@@ -210,6 +213,12 @@ func TestDisk_Unmarshal(t *testing.T) {
 	}
 	if disk1.ByteHours != disk2.ByteHours {
 		t.Fatalf("Disk Unmarshal: ByteHours mutated in unmarshal")
+	}
+	if disk1.ByteHoursUsed != disk2.ByteHoursUsed {
+		t.Fatalf("Disk Unmarshal: ByteHoursUsed mutated in unmarshal")
+	}
+	if *disk1.ByteUsageMax != *disk2.ByteUsageMax {
+		t.Fatalf("Disk Unmarshal: ByteUsageMax mutated in unmarshal")
 	}
 	if disk1.Cost != disk2.Cost {
 		t.Fatalf("Disk Unmarshal: cost mutated in unmarshal")
