@@ -26,20 +26,31 @@ const (
 // Execute runs the root command for the application. By default, if no command argument is provided,
 // on the command line, the cost-model is executed by default.
 //
-// This function accepts a costModelCmd parameter to provide support for various cost-model implementations
-// (ie: open source, enterprise).
-func Execute(costModelCmd *cobra.Command) error {
+// This function accepts a costModelCmd and agentCmd parameters to provide support for alternate
+// implementations for cost-model and/or agent. If the passed in costModelCmd and/or agentCmd are nil,
+// then the respective defaults from opencost will be used.
+//
+// Any additional commands passed in will be added to the root command.
+func Execute(costModelCmd *cobra.Command, agentCmd *cobra.Command, cmds ...*cobra.Command) error {
 	// use the open-source cost-model if a command is not provided
 	if costModelCmd == nil {
 		costModelCmd = newCostModelCommand()
 	}
 
-	// validate the command being passed
-	if err := validate(costModelCmd); err != nil {
+	// use the open-source agent if a command is not provided
+	if agentCmd == nil {
+		agentCmd = newAgentCommand()
+	}
+
+	// validate the commands being passed
+	if err := validate(costModelCmd, CommandCostModel); err != nil {
+		return err
+	}
+	if err := validate(agentCmd, CommandAgent); err != nil {
 		return err
 	}
 
-	rootCmd := newRootCommand(costModelCmd)
+	rootCmd := newRootCommand(costModelCmd, agentCmd, cmds...)
 
 	// in the event that no directive/command is passed, we want to default to using the cost-model command
 	// cobra doesn't provide a way within the API to do this, so we'll prepend the command if it is omitted.
@@ -58,8 +69,8 @@ func Execute(costModelCmd *cobra.Command) error {
 }
 
 // newRootCommand creates a new root command which will act as a sub-command router for the
-// cost-model application
-func newRootCommand(costModelCmd *cobra.Command) *cobra.Command {
+// cost-model application.
+func newRootCommand(costModelCmd *cobra.Command, agentCmd *cobra.Command, cmds ...*cobra.Command) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          commandRoot,
 		SilenceUsage: true,
@@ -81,8 +92,10 @@ func newRootCommand(costModelCmd *cobra.Command) *cobra.Command {
 
 	// add the modes of operation
 	cmd.AddCommand(
-		costModelCmd,
-		newAgentCommand(),
+		append([]*cobra.Command{
+			costModelCmd,
+			agentCmd,
+		}, cmds...)...,
 	)
 
 	return cmd
@@ -131,11 +144,10 @@ func newAgentCommand() *cobra.Command {
 	return agentCmd
 }
 
-// validate will check to ensure that the cost model command passed in has a use equal to the
-// CommandCostModel to ensure that the default command matches.
-func validate(costModelCommand *cobra.Command) error {
-	if costModelCommand.Use != CommandCostModel {
-		return fmt.Errorf("Incompatible 'cost-model' command provided to run-time.")
+// validate checks the command's use to see if it matches an expected command name.
+func validate(cmd *cobra.Command, command string) error {
+	if cmd.Use != command {
+		return fmt.Errorf("Incompatible '%s' command provided to run-time.", command)
 	}
 	return nil
 }
