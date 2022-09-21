@@ -607,10 +607,10 @@ func TestSummaryAllocationSet_CPUEfficiency(t *testing.T) {
 
 func TestSummaryAllocationSet_TotalEfficiency(t *testing.T) {
 	// Generating 6 sample summary allocations for testing
-	var sa1, sa2, sa3, sa4, sa5, sa6 *SummaryAllocation
+	var sa1, sa2, sa3, sa4, sa5, sa6, idlesa *SummaryAllocation
 
 	// Generating accumulated summary allocation sets for testing
-	var sas1, sas2, sas3 *SummaryAllocationSet
+	var sas1, sas2, sas3, sas4 *SummaryAllocationSet
 
 	window, _ := ParseWindowUTC("7d")
 
@@ -726,6 +726,20 @@ func TestSummaryAllocationSet_TotalEfficiency(t *testing.T) {
 		RAMCost:                1.0,
 	}
 
+	idlesa = &SummaryAllocation{
+		Name: IdleSuffix,
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container7",
+		},
+		Start:   saStart,
+		End:     saEnd,
+		CPUCost: 1.0,
+		RAMCost: 1.0,
+	}
+
 	testcase1Map := map[string]*SummaryAllocation{
 		"cluster1/namespace1/pod1/container1": sa1,
 		"cluster1/namespace1/pod1/container2": sa2,
@@ -740,6 +754,12 @@ func TestSummaryAllocationSet_TotalEfficiency(t *testing.T) {
 		"cluster1/namespace1/pod1/container6": sa6,
 	}
 
+	testcase4Map := map[string]*SummaryAllocation{
+		"cluster1/namespace1/pod1/container5": sa5,
+		"cluster1/namespace1/pod1/container6": sa6,
+		"cluster1/__idle__":                   idlesa,
+	}
+
 	sas1 = &SummaryAllocationSet{
 		SummaryAllocations: testcase1Map,
 		Window:             window,
@@ -752,6 +772,11 @@ func TestSummaryAllocationSet_TotalEfficiency(t *testing.T) {
 
 	sas3 = &SummaryAllocationSet{
 		SummaryAllocations: testcase3Map,
+		Window:             window,
+	}
+
+	sas4 = &SummaryAllocationSet{
+		SummaryAllocations: testcase4Map,
 		Window:             window,
 	}
 
@@ -774,6 +799,11 @@ func TestSummaryAllocationSet_TotalEfficiency(t *testing.T) {
 			name:               "Check TotalEfficiency over all 4 allocation summaries",
 			testsas:            sas3,
 			expectedEfficiency: 0.30,
+		},
+		{
+			name:               "Check TotalEfficiency with idle cost",
+			testsas:            sas4,
+			expectedEfficiency: 0.20,
 		},
 	}
 

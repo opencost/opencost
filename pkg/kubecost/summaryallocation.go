@@ -170,7 +170,7 @@ func (sa *SummaryAllocation) Clone() *SummaryAllocation {
 // no usage or cost, then efficiency is zero. If there is no request, but there
 // is usage or cost, then efficiency is 100%.
 func (sa *SummaryAllocation) CPUEfficiency() float64 {
-	if sa == nil {
+	if sa == nil || sa.IsIdle() {
 		return 0.0
 	}
 
@@ -245,7 +245,7 @@ func (sa *SummaryAllocation) Minutes() float64 {
 // no usage or cost, then efficiency is zero. If there is no request, but there
 // is usage or cost, then efficiency is 100%.
 func (sa *SummaryAllocation) RAMEfficiency() float64 {
-	if sa == nil {
+	if sa == nil || sa.IsIdle() {
 		return 0.0
 	}
 
@@ -272,7 +272,7 @@ func (sa *SummaryAllocation) TotalCost() float64 {
 // TotalEfficiency is the cost-weighted average of CPU and RAM efficiency. If
 // there is no cost at all, then efficiency is zero.
 func (sa *SummaryAllocation) TotalEfficiency() float64 {
-	if sa == nil {
+	if sa == nil || sa.IsIdle() {
 		return 0.0
 	}
 
