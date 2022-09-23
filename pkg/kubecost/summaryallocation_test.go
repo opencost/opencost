@@ -210,3 +210,610 @@ func TestSummaryAllocation_Add(t *testing.T) {
 		}
 	})
 }
+
+func TestSummaryAllocationSet_RAMEfficiency(t *testing.T) {
+	// Generating 6 sample summary allocations for testing
+	var sa1, sa2, sa3, sa4, sa5, sa6 *SummaryAllocation
+
+	// Generating accumulated summary allocation sets for testing
+	var sas1, sas2, sas3, sas4, sas5 *SummaryAllocationSet
+
+	window, _ := ParseWindowUTC("7d")
+
+	saStart := *window.Start()
+
+	saEnd := *window.End()
+
+	sa1 = &SummaryAllocation{
+		Name: "cluster1/namespace1/pod1/container1",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container1",
+		},
+		Start:                  saStart,
+		End:                    saEnd,
+		RAMBytesRequestAverage: 50.0 * 1024.0 * 1024.0,
+		RAMBytesUsageAverage:   10.0 * 1024.0 * 1024.0,
+		RAMCost:                0.05,
+	}
+
+	sa2 = &SummaryAllocation{
+		Name: "cluster1/namespace1/pod1/container2",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container2",
+		},
+		Start:                  saStart,
+		End:                    saEnd,
+		RAMBytesRequestAverage: 50.0 * 1024.0 * 1024.0,
+		RAMBytesUsageAverage:   15.0 * 1024.0 * 1024.0,
+		RAMCost:                0.10,
+	}
+
+	sa3 = &SummaryAllocation{
+		Name: "cluster1/namespace1/pod1/container3",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container3",
+		},
+		Start:                  saStart,
+		End:                    saEnd,
+		RAMBytesRequestAverage: 0.0,
+		RAMBytesUsageAverage:   10.0 * 1024.0 * 1024.0,
+		RAMCost:                0.0,
+	}
+
+	sa4 = &SummaryAllocation{
+		Name: "cluster1/namespace1/pod1/container4",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container4",
+		},
+		Start:                  saStart,
+		End:                    saEnd,
+		RAMBytesRequestAverage: 0.0,
+		RAMBytesUsageAverage:   10.0 * 1024.0 * 1024.0,
+		RAMCost:                0.0,
+	}
+
+	sa5 = &SummaryAllocation{
+		Name: "cluster1/namespace1/pod1/container4",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container5",
+		},
+		Start:                  saStart,
+		End:                    saEnd,
+		RAMBytesRequestAverage: 0.0,
+		RAMBytesUsageAverage:   10.0 * 1024.0 * 1024.0,
+		RAMCost:                0.10,
+	}
+
+	sa6 = &SummaryAllocation{
+		Name: "cluster1/namespace1/pod1/container4",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container6",
+		},
+		Start:                  saStart,
+		End:                    saEnd,
+		RAMBytesRequestAverage: 0.0,
+		RAMBytesUsageAverage:   10.0 * 1024.0 * 1024.0,
+		RAMCost:                0.10,
+	}
+
+	testcase1Map := map[string]*SummaryAllocation{
+		"cluster1/namespace1/pod1/container1": sa1,
+		"cluster1/namespace1/pod1/container2": sa2,
+	}
+
+	testcase2Map := map[string]*SummaryAllocation{
+		"cluster1/namespace1/pod1/container3": sa3,
+		"cluster1/namespace1/pod1/container4": sa4,
+	}
+
+	testcase3Map := map[string]*SummaryAllocation{
+		"cluster1/namespace1/pod1/container5": sa5,
+		"cluster1/namespace1/pod1/container6": sa6,
+	}
+
+	testcase4Map := map[string]*SummaryAllocation{}
+
+	testcase5Map := map[string]*SummaryAllocation{
+		"cluster1/namespace1/pod1/container1": sa1,
+		"cluster1/namespace1/pod1/container2": sa2,
+		"cluster1/namespace1/pod1/container3": sa3,
+		"cluster1/namespace1/pod1/container4": sa4,
+		"cluster1/namespace1/pod1/container5": sa5,
+		"cluster1/namespace1/pod1/container6": sa6,
+	}
+
+	sas1 = &SummaryAllocationSet{
+		SummaryAllocations: testcase1Map,
+		Window:             window,
+	}
+
+	sas2 = &SummaryAllocationSet{
+		SummaryAllocations: testcase2Map,
+		Window:             window,
+	}
+
+	sas3 = &SummaryAllocationSet{
+		SummaryAllocations: testcase3Map,
+		Window:             window,
+	}
+
+	sas4 = &SummaryAllocationSet{
+		SummaryAllocations: testcase4Map,
+		Window:             window,
+	}
+
+	sas5 = &SummaryAllocationSet{
+		SummaryAllocations: testcase5Map,
+		Window:             window,
+	}
+
+	cases := []struct {
+		name               string
+		testsas            *SummaryAllocationSet
+		expectedEfficiency float64
+	}{
+		{
+			name:               "Check RAMEfficiency when totalRAMBytesRequest over allocation summary set is greater than 0",
+			testsas:            sas1,
+			expectedEfficiency: 0.25,
+		},
+		{
+			name:               "Check RAMEfficiency when totalRAMBytesRequest is 0 and totalRAMCost or totalRAMBytesUsage equal to 0",
+			testsas:            sas2,
+			expectedEfficiency: 0.0,
+		},
+		{
+			name:               "Check RAMEfficiency when totalRAMBytesRequest is 0 and totalRAMCost or totalRAMBytesUsage is not 0",
+			testsas:            sas3,
+			expectedEfficiency: 1.0,
+		},
+		{
+			name:               "Check RAMEfficiency when allocation summary set is empty",
+			testsas:            sas4,
+			expectedEfficiency: 0.0,
+		},
+		{
+			name:               "Check RAMEfficiency over combination of all allocation summaries",
+			testsas:            sas5,
+			expectedEfficiency: 0.65,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			returnEfficiency := c.testsas.RAMEfficiency()
+			if !util.IsApproximately(c.expectedEfficiency, returnEfficiency) {
+				t.Errorf("Case %s failed: Expected RAM Efficiency %.2f but got RAM Efficiency of as %.2f", c.name, c.expectedEfficiency, returnEfficiency)
+				t.Fail()
+			}
+		})
+	}
+}
+
+func TestSummaryAllocationSet_CPUEfficiency(t *testing.T) {
+	// Generating 6 sample summary allocations for testing
+	var sa1, sa2, sa3, sa4, sa5, sa6 *SummaryAllocation
+
+	// Generating accumulated summary allocation sets for testing
+	var sas1, sas2, sas3, sas4, sas5 *SummaryAllocationSet
+
+	window, _ := ParseWindowUTC("7d")
+
+	saStart := *window.Start()
+
+	saEnd := *window.End()
+
+	sa1 = &SummaryAllocation{
+		Name: "cluster1/namespace1/pod1/container1",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container1",
+		},
+		Start:                 saStart,
+		End:                   saEnd,
+		CPUCoreRequestAverage: 0.5,
+		CPUCoreUsageAverage:   0.1,
+		CPUCost:               0.2,
+	}
+
+	sa2 = &SummaryAllocation{
+		Name: "cluster1/namespace1/pod1/container2",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container2",
+		},
+		Start:                 saStart,
+		End:                   saEnd,
+		CPUCoreRequestAverage: 0.5,
+		CPUCoreUsageAverage:   0.2,
+		CPUCost:               0.2,
+	}
+
+	sa3 = &SummaryAllocation{
+		Name: "cluster1/namespace1/pod1/container3",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container3",
+		},
+		Start:                 saStart,
+		End:                   saEnd,
+		CPUCoreRequestAverage: 0.0,
+		CPUCoreUsageAverage:   0.0,
+		CPUCost:               1.0,
+	}
+
+	sa4 = &SummaryAllocation{
+		Name: "cluster1/namespace1/pod1/container4",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container4",
+		},
+		Start:                 saStart,
+		End:                   saEnd,
+		CPUCoreRequestAverage: 0.0,
+		CPUCoreUsageAverage:   0.0,
+		CPUCost:               2.0,
+	}
+
+	sa5 = &SummaryAllocation{
+		Name: "cluster1/namespace1/pod1/container4",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container5",
+		},
+		Start:                 saStart,
+		End:                   saEnd,
+		CPUCoreRequestAverage: 0.0,
+		CPUCoreUsageAverage:   0.1,
+		CPUCost:               0.2,
+	}
+
+	sa6 = &SummaryAllocation{
+		Name: "cluster1/namespace1/pod1/container4",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container6",
+		},
+		Start:                 saStart,
+		End:                   saEnd,
+		CPUCoreRequestAverage: 0.0,
+		CPUCoreUsageAverage:   0.1,
+		CPUCost:               0.2,
+	}
+
+	testcase1Map := map[string]*SummaryAllocation{
+		"cluster1/namespace1/pod1/container1": sa1,
+		"cluster1/namespace1/pod1/container2": sa2,
+	}
+
+	testcase2Map := map[string]*SummaryAllocation{
+		"cluster1/namespace1/pod1/container3": sa3,
+		"cluster1/namespace1/pod1/container4": sa4,
+	}
+
+	testcase3Map := map[string]*SummaryAllocation{
+		"cluster1/namespace1/pod1/container5": sa5,
+		"cluster1/namespace1/pod1/container6": sa6,
+	}
+
+	testcase4Map := map[string]*SummaryAllocation{}
+
+	testcase5Map := map[string]*SummaryAllocation{
+		"cluster1/namespace1/pod1/container1": sa1,
+		"cluster1/namespace1/pod1/container2": sa2,
+		"cluster1/namespace1/pod1/container3": sa3,
+		"cluster1/namespace1/pod1/container4": sa4,
+		"cluster1/namespace1/pod1/container5": sa5,
+		"cluster1/namespace1/pod1/container6": sa6,
+	}
+
+	sas1 = &SummaryAllocationSet{
+		SummaryAllocations: testcase1Map,
+		Window:             window,
+	}
+
+	sas2 = &SummaryAllocationSet{
+		SummaryAllocations: testcase2Map,
+		Window:             window,
+	}
+
+	sas3 = &SummaryAllocationSet{
+		SummaryAllocations: testcase3Map,
+		Window:             window,
+	}
+
+	sas4 = &SummaryAllocationSet{
+		SummaryAllocations: testcase4Map,
+		Window:             window,
+	}
+
+	sas5 = &SummaryAllocationSet{
+		SummaryAllocations: testcase5Map,
+		Window:             window,
+	}
+
+	cases := []struct {
+		name               string
+		testsas            *SummaryAllocationSet
+		expectedEfficiency float64
+	}{
+		{
+			name:               "Check CPUEfficiency when totalCPUCoreRequest is greater than 0 over allocation summary set",
+			testsas:            sas1,
+			expectedEfficiency: 0.30,
+		},
+		{
+			name:               "Check CPUEfficiency when totalCPUCoreRequest is 0 and totalCPUCost or totalCPUCoreUsage equal to 0",
+			testsas:            sas2,
+			expectedEfficiency: 0.0,
+		},
+		{
+			name:               "Check CPUEfficiency when totalCPUCoreRequest is 0 and totalCPUCost or totalCPUCoreUsage is not 0",
+			testsas:            sas3,
+			expectedEfficiency: 1.0,
+		},
+		{
+			name:               "Check CPUEfficiency when allocation summary set is empty",
+			testsas:            sas4,
+			expectedEfficiency: 0.0,
+		},
+		{
+			name:               "Check CPUEfficiency over combination of all allocation summaries",
+			testsas:            sas5,
+			expectedEfficiency: 0.50,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			returnEfficiency := c.testsas.CPUEfficiency()
+			if !util.IsApproximately(c.expectedEfficiency, returnEfficiency) {
+				t.Errorf("Case %s failed: Expected CPU Efficiency %.2f but got CPU Efficiency of as %.2f", c.name, c.expectedEfficiency, returnEfficiency)
+				t.Fail()
+			}
+		})
+	}
+}
+
+func TestSummaryAllocationSet_TotalEfficiency(t *testing.T) {
+	// Generating 6 sample summary allocations for testing
+	var sa1, sa2, sa3, sa4, sa5, sa6, idlesa *SummaryAllocation
+
+	// Generating accumulated summary allocation sets for testing
+	var sas1, sas2, sas3, sas4 *SummaryAllocationSet
+
+	window, _ := ParseWindowUTC("7d")
+
+	saStart := *window.Start()
+
+	saEnd := *window.End()
+
+	sa1 = &SummaryAllocation{
+		Name: "cluster1/namespace1/pod1/container1",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container1",
+		},
+		Start:                  saStart,
+		End:                    saEnd,
+		CPUCoreRequestAverage:  0.5,
+		CPUCoreUsageAverage:    0.1,
+		CPUCost:                0.0,
+		RAMBytesRequestAverage: 0.0,
+		RAMBytesUsageAverage:   10.0 * 1024.0 * 1024.0,
+		RAMCost:                0.0,
+	}
+
+	sa2 = &SummaryAllocation{
+		Name: "cluster1/namespace1/pod1/container2",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container2",
+		},
+		Start:                  saStart,
+		End:                    saEnd,
+		CPUCoreRequestAverage:  0.5,
+		CPUCoreUsageAverage:    0.2,
+		CPUCost:                0.0,
+		RAMBytesRequestAverage: 0.0,
+		RAMBytesUsageAverage:   10.0 * 1024.0 * 1024.0,
+		RAMCost:                0.0,
+	}
+
+	sa3 = &SummaryAllocation{
+		Name: "cluster1/namespace1/pod1/container3",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container3",
+		},
+		Start:                  saStart,
+		End:                    saEnd,
+		CPUCoreRequestAverage:  0.5,
+		CPUCoreUsageAverage:    0.2,
+		CPUCost:                1.0,
+		RAMBytesRequestAverage: 50.0 * 1024.0 * 1024.0,
+		RAMBytesUsageAverage:   10.0 * 1024.0 * 1024.0,
+		RAMCost:                1.0,
+	}
+
+	sa4 = &SummaryAllocation{
+		Name: "cluster1/namespace1/pod1/container4",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container4",
+		},
+		Start:                  saStart,
+		End:                    saEnd,
+		CPUCoreRequestAverage:  0.5,
+		CPUCoreUsageAverage:    0.1,
+		CPUCost:                1.0,
+		RAMBytesRequestAverage: 50.0 * 1024.0 * 1024.0,
+		RAMBytesUsageAverage:   20.0 * 1024.0 * 1024.0,
+		RAMCost:                1.0,
+	}
+
+	sa5 = &SummaryAllocation{
+		Name: "cluster1/namespace1/pod1/container4",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container5",
+		},
+		Start:                  saStart,
+		End:                    saEnd,
+		CPUCoreRequestAverage:  0.5,
+		CPUCoreUsageAverage:    0.1,
+		CPUCost:                1.0,
+		RAMBytesRequestAverage: 50.0 * 1024.0 * 1024.0,
+		RAMBytesUsageAverage:   10.0 * 1024.0 * 1024.0,
+		RAMCost:                1.0,
+	}
+
+	sa6 = &SummaryAllocation{
+		Name: "cluster1/namespace1/pod1/container4",
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container6",
+		},
+		Start:                  saStart,
+		End:                    saEnd,
+		CPUCoreRequestAverage:  0.5,
+		CPUCoreUsageAverage:    0.2,
+		CPUCost:                1.0,
+		RAMBytesRequestAverage: 50.0 * 1024.0 * 1024.0,
+		RAMBytesUsageAverage:   20.0 * 1024.0 * 1024.0,
+		RAMCost:                1.0,
+	}
+
+	idlesa = &SummaryAllocation{
+		Name: IdleSuffix,
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container7",
+		},
+		Start:   saStart,
+		End:     saEnd,
+		CPUCost: 1.0,
+		RAMCost: 1.0,
+	}
+
+	testcase1Map := map[string]*SummaryAllocation{
+		"cluster1/namespace1/pod1/container1": sa1,
+		"cluster1/namespace1/pod1/container2": sa2,
+	}
+
+	testcase2Map := map[string]*SummaryAllocation{}
+
+	testcase3Map := map[string]*SummaryAllocation{
+		"cluster1/namespace1/pod1/container3": sa3,
+		"cluster1/namespace1/pod1/container4": sa4,
+		"cluster1/namespace1/pod1/container5": sa5,
+		"cluster1/namespace1/pod1/container6": sa6,
+	}
+
+	testcase4Map := map[string]*SummaryAllocation{
+		"cluster1/namespace1/pod1/container5": sa5,
+		"cluster1/namespace1/pod1/container6": sa6,
+		"cluster1/__idle__":                   idlesa,
+	}
+
+	sas1 = &SummaryAllocationSet{
+		SummaryAllocations: testcase1Map,
+		Window:             window,
+	}
+
+	sas2 = &SummaryAllocationSet{
+		SummaryAllocations: testcase2Map,
+		Window:             window,
+	}
+
+	sas3 = &SummaryAllocationSet{
+		SummaryAllocations: testcase3Map,
+		Window:             window,
+	}
+
+	sas4 = &SummaryAllocationSet{
+		SummaryAllocations: testcase4Map,
+		Window:             window,
+	}
+
+	cases := []struct {
+		name               string
+		testsas            *SummaryAllocationSet
+		expectedEfficiency float64
+	}{
+		{
+			name:               "When TotalEfficiency when sum of TotalRAMCost and TotalCPUCost is 0",
+			testsas:            sas1,
+			expectedEfficiency: 0.0,
+		},
+		{
+			name:               "Check TotalEfficiency when allocation summary set is empty",
+			testsas:            sas2,
+			expectedEfficiency: 0.0,
+		},
+		{
+			name:               "Check TotalEfficiency over all 4 allocation summaries",
+			testsas:            sas3,
+			expectedEfficiency: 0.30,
+		},
+		{
+			name:               "Check TotalEfficiency with idle cost",
+			testsas:            sas4,
+			expectedEfficiency: 0.20,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			returnEfficiency := c.testsas.TotalEfficiency()
+			if !util.IsApproximately(c.expectedEfficiency, returnEfficiency) {
+				t.Errorf("Case %s failed: Expected Total Efficiency %.2f but got Total Efficiency of as %.2f", c.name, c.expectedEfficiency, returnEfficiency)
+				t.Fail()
+			}
+		})
+	}
+}
