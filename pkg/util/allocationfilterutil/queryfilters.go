@@ -7,7 +7,7 @@ import (
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/prom"
-	"github.com/opencost/opencost/pkg/util/httputil"
+	"github.com/opencost/opencost/pkg/util/mapper"
 )
 
 // ============================================================================
@@ -41,7 +41,7 @@ func parseWildcardEnd(rawFilterValue string) (string, bool) {
 // filtering. This turns all `filterClusters=foo` arguments into the equivalent
 // of `clusterID = "foo" OR clusterName = "foo"`.
 func AllocationFilterFromParamsV1(
-	qp httputil.QueryParams,
+	qp mapper.PrimitiveMapReader,
 	labelConfig *kubecost.LabelConfig,
 	clusterMap clusters.ClusterMap,
 ) kubecost.AllocationFilter {
