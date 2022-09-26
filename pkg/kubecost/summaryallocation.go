@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kubecost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
 )
 
@@ -1306,6 +1307,35 @@ func (sasr *SummaryAllocationSetRange) Accumulate() (*SummaryAllocationSet, erro
 	defer sasr.RUnlock()
 
 	for _, sas := range sasr.SummaryAllocationSets {
+		result, err = result.Add(sas)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return result, nil
+}
+
+// AccumulateImmutable clones the first available SummaryAllocationSet to use as the data structure to
+// accumulate the remaining data. This leaves the original SummaryAllocationSetRange intact.
+func (sasr *SummaryAllocationSetRange) AccumulateImmutable() (*SummaryAllocationSet, error) {
+	var result *kubecost.SummaryAllocationSet
+	var err error
+
+	// NOTE: Accessing locks externally is a dangerous game, but in this
+	// NOTE: case, this is less invasive than adding a bunch of throw-away
+	// NOTE: code to the SummaryAllocationSet object.
+	sasr.RLock()
+	defer sasr.RUnlock()
+
+	for _, sas := range sasr.SummaryAllocationSets {
+		// we want to clone the first summary allocation set, then just Add the others
+		// to the clone. We will eventually use the clone to create the set range.
+		if result == nil {
+			result = sas.Clone()
+			continue
+		}
+
 		result, err = result.Add(sas)
 		if err != nil {
 			return nil, err

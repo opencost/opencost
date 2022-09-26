@@ -93,7 +93,8 @@ type Allocation struct {
 // A2 Using 2 CPU      ----      -----      ----
 // A3 Using 1 CPU         ---       --
 // _______________________________________________
-//                   Time ---->
+//
+//	Time ---->
 //
 // The logical maximum CPU usage is 5, but this cannot be calculated iteratively,
 // which is how we calculate aggregations and accumulations of Allocations currently.
@@ -1979,6 +1980,27 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 	var err error
 
 	for _, as := range asr.Allocations {
+		allocSet, err = allocSet.accumulate(as)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return allocSet, nil
+}
+
+// AccumulateImmutable clones the first available AllocationSet to use as the data structure to
+// accumulate the remaining data. This leaves the original AllocationSetRange intact.
+func (asr *AllocationSetRange) AccumulateImmutable() (*AllocationSet, error) {
+	var allocSet *AllocationSet
+	var err error
+
+	for _, as := range asr.Allocations {
+		if allocSet == nil {
+			allocSet = as.Clone()
+			continue
+		}
+
 		allocSet, err = allocSet.accumulate(as)
 		if err != nil {
 			return nil, err
