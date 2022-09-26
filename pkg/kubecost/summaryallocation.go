@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kubecost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
 )
 
@@ -1319,7 +1318,7 @@ func (sasr *SummaryAllocationSetRange) Accumulate() (*SummaryAllocationSet, erro
 // AccumulateImmutable clones the first available SummaryAllocationSet to use as the data structure to
 // accumulate the remaining data. This leaves the original SummaryAllocationSetRange intact.
 func (sasr *SummaryAllocationSetRange) AccumulateImmutable() (*SummaryAllocationSet, error) {
-	var result *kubecost.SummaryAllocationSet
+	var result *SummaryAllocationSet
 	var err error
 
 	// NOTE: Accessing locks externally is a dangerous game, but in this
