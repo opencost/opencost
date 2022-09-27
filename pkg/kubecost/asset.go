@@ -3127,9 +3127,9 @@ func (asr *AssetSetRange) Accumulate() (*AssetSet, error) {
 	return assetSet, nil
 }
 
-// AccumulateImmutable clones the first available AssetSet to use as the data structure to
+// NewAccumulation clones the first available AssetSet to use as the data structure to
 // accumulate the remaining data. This leaves the original AssetSetRange intact.
-func (asr *AssetSetRange) AccumulateImmutable() (*AssetSet, error) {
+func (asr *AssetSetRange) NewAccumulation() (*AssetSet, error) {
 	var assetSet *AssetSet
 	var err error
 
@@ -3139,7 +3139,14 @@ func (asr *AssetSetRange) AccumulateImmutable() (*AssetSet, error) {
 			continue
 		}
 
-		assetSet, err = assetSet.accumulate(as)
+		// copy if non-nil
+		var assetSetCopy *AssetSet = nil
+		if as != nil {
+			assetSetCopy = as.Clone()
+		}
+
+		// nil is acceptable to pass to accumulate
+		assetSet, err = assetSet.accumulate(assetSetCopy)
 		if err != nil {
 			return nil, err
 		}

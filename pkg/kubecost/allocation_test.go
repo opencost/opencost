@@ -1614,6 +1614,47 @@ func TestAllocationSet_insertMatchingWindow(t *testing.T) {
 // TODO niko/etl
 //func TestNewAllocationSetRange(t *testing.T) {}
 
+func TestAllocationSetRange_AccumulateRepeat(t *testing.T) {
+	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
+	yesterday := time.Now().UTC().Truncate(day).Add(-day)
+	today := time.Now().UTC().Truncate(day)
+	tomorrow := time.Now().UTC().Truncate(day).Add(day)
+
+	a := GenerateMockAllocationSet(ago2d)
+	b := GenerateMockAllocationSet(yesterday)
+	c := GenerateMockAllocationSet(today)
+	d := GenerateMockAllocationSet(tomorrow)
+
+	asr := NewAllocationSetRange(a, b, c, d)
+
+	// Take Total Cost
+	totalCost := asr.TotalCost()
+
+	// NewAccumulation does not mutate
+	result, err := asr.NewAccumulation()
+	if err != nil {
+		t.Fatal(err)
+	}
+	asr2 := NewAllocationSetRange(result)
+
+	// Ensure Costs Match
+	if totalCost != asr2.TotalCost() {
+		t.Fatalf("Accumulated Total Cost does not match original Total Cost")
+	}
+
+	// Next NewAccumulation() call should prove that there is no mutation of inner data
+	result, err = asr.NewAccumulation()
+	if err != nil {
+		t.Fatal(err)
+	}
+	asr3 := NewAllocationSetRange(result)
+
+	// Costs _should_ be incorrect
+	if totalCost != asr3.TotalCost() {
+		t.Fatalf("Accumulated Total Cost does not match original Total Cost. %f != %f", totalCost, asr3.TotalCost())
+	}
+}
+
 func TestAllocationSetRange_Accumulate(t *testing.T) {
 	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
 	yesterday := time.Now().UTC().Truncate(day).Add(-day)

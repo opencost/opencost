@@ -1315,15 +1315,12 @@ func (sasr *SummaryAllocationSetRange) Accumulate() (*SummaryAllocationSet, erro
 	return result, nil
 }
 
-// AccumulateImmutable clones the first available SummaryAllocationSet to use as the data structure to
+// NewAccumulation clones the first available SummaryAllocationSet to use as the data structure to
 // accumulate the remaining data. This leaves the original SummaryAllocationSetRange intact.
-func (sasr *SummaryAllocationSetRange) AccumulateImmutable() (*SummaryAllocationSet, error) {
+func (sasr *SummaryAllocationSetRange) NewAccumulation() (*SummaryAllocationSet, error) {
 	var result *SummaryAllocationSet
 	var err error
 
-	// NOTE: Accessing locks externally is a dangerous game, but in this
-	// NOTE: case, this is less invasive than adding a bunch of throw-away
-	// NOTE: code to the SummaryAllocationSet object.
 	sasr.RLock()
 	defer sasr.RUnlock()
 
@@ -1335,7 +1332,14 @@ func (sasr *SummaryAllocationSetRange) AccumulateImmutable() (*SummaryAllocation
 			continue
 		}
 
-		result, err = result.Add(sas)
+		// Copy if sas is non-nil
+		var sasCopy *SummaryAllocationSet = nil
+		if sas != nil {
+			sasCopy = sas.Clone()
+		}
+
+		// nil is ok to pass into Add
+		result, err = result.Add(sasCopy)
 		if err != nil {
 			return nil, err
 		}
