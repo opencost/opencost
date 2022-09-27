@@ -1649,7 +1649,8 @@ func TestAllocationSetRange_AccumulateRepeat(t *testing.T) {
 	}
 	asr3 := NewAllocationSetRange(result)
 
-	// Costs _should_ be incorrect
+	// Costs should be correct, as multiple calls to NewAccumulation() should not alter
+	// the internals of the AllocationSetRange
 	if totalCost != asr3.TotalCost() {
 		t.Fatalf("Accumulated Total Cost does not match original Total Cost. %f != %f", totalCost, asr3.TotalCost())
 	}
