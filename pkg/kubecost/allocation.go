@@ -93,7 +93,8 @@ type Allocation struct {
 // A2 Using 2 CPU      ----      -----      ----
 // A3 Using 1 CPU         ---       --
 // _______________________________________________
-//                   Time ---->
+//
+//	Time ---->
 //
 // The logical maximum CPU usage is 5, but this cannot be calculated iteratively,
 // which is how we calculate aggregations and accumulations of Allocations currently.
@@ -1980,6 +1981,36 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 
 	for _, as := range asr.Allocations {
 		allocSet, err = allocSet.accumulate(as)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return allocSet, nil
+}
+
+// NewAccumulation clones the first available AllocationSet to use as the data structure to
+// accumulate the remaining data. This leaves the original AllocationSetRange intact.
+func (asr *AllocationSetRange) NewAccumulation() (*AllocationSet, error) {
+	// NOTE: Adding this API for consistency across SummaryAllocation and Assets, but this
+	// NOTE: implementation is almost identical to regular Accumulate(). The accumulate() method
+	// NOTE: for Allocation returns Clone() of the input, which is required for AccumulateBy
+	// NOTE: support (unit tests are great for verifying this information).
+	var allocSet *AllocationSet
+	var err error
+
+	for _, as := range asr.Allocations {
+		if allocSet == nil {
+			allocSet = as.Clone()
+			continue
+		}
+
+		var allocSetCopy *AllocationSet = nil
+		if as != nil {
+			allocSetCopy = as.Clone()
+		}
+
+		allocSet, err = allocSet.accumulate(allocSetCopy)
 		if err != nil {
 			return nil, err
 		}
