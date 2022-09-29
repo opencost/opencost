@@ -237,6 +237,11 @@ func (pva *PVAllocation) Equal(that *PVAllocation) bool {
 		util.IsApproximately(pva.Cost, that.Cost)
 }
 
+// GetWindow returns the window of the struct
+func (a *Allocation) GetWindow() Window {
+	return a.Window
+}
+
 // AllocationMatchFunc is a function that can be used to match Allocations by
 // returning true for any given Allocation if a condition is met.
 type AllocationMatchFunc func(*Allocation) bool
