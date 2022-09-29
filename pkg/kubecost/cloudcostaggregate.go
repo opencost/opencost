@@ -49,11 +49,9 @@ func (ccap CloudCostAggregateProperties) Key(prop string) string {
 	case CloudCostServiceProp:
 		return ccap.Service
 	case CloudCostLabelProp:
-		// TODO:cloudcost will we need the LabelName here?... can move it down from the Set
 		return ccap.LabelValue
 	}
 
-	// TODO:cloudcost error?
 	return ""
 }
 

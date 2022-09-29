@@ -177,8 +177,7 @@ func (ccis *CloudCostItemSet) Filter(filters filter.Filter[*CloudCostItem]) *Clo
 
 	for _, cci := range ccis.CloudCostItems {
 		if filters.Matches(cci) {
-			// TODO:cloudcost ideally... this would be a Clone, but performance?
-			result.Insert(cci)
+			result.Insert(cci.Clone())
 		}
 	}
 
@@ -204,7 +203,6 @@ func (ccis *CloudCostItemSet) Insert(that *CloudCostItem) error {
 		ccis.CloudCostItems[that.Key()] = that.Clone()
 	} else {
 		ccis.CloudCostItems[that.Key()].add(that)
-		//return fmt.Errorf("cannot re-insert %s", that.Key())
 	}
 
 	return nil
@@ -355,7 +353,6 @@ func LoadCloudCostItemSets(itemStart time.Time, itemEnd time.Time, properties Cl
 	}
 }
 
-// TODO:cloudcost bingen for time.Duration
 type CloudCostItemSetRange struct {
 	CloudCostItemSets []*CloudCostItemSet `json:"sets"`
 	Window            Window              `json:"window"`
