@@ -13,12 +13,11 @@ package kubecost
 
 import (
 	"fmt"
+	util "github.com/opencost/opencost/pkg/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
-
-	util "github.com/opencost/opencost/pkg/util"
 )
 
 const (
@@ -34,17 +33,23 @@ const (
 )
 
 const (
+	// AssetsCodecVersion is used for any resources listed in the Assets version set
+	AssetsCodecVersion uint8 = 18
+
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
 	AllocationCodecVersion uint8 = 15
 
 	// AuditCodecVersion is used for any resources listed in the Audit version set
 	AuditCodecVersion uint8 = 1
 
-	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 15
+	// CloudCostAggregateCodecVersion is used for any resources listed in the CloudCostAggregate version set
+	CloudCostAggregateCodecVersion uint8 = 1
 
-	// AssetsCodecVersion is used for any resources listed in the Assets version set
-	AssetsCodecVersion uint8 = 18
+	// CloudCostItemCodecVersion is used for any resources listed in the CloudCostItem version set
+	CloudCostItemCodecVersion uint8 = 1
+
+	// DefaultCodecVersion is used for any resources listed in the Default version set
+	DefaultCodecVersion uint8 = 17
 )
 
 //--------------------------------------------------------------------------
@@ -71,7 +76,17 @@ var typeMap map[string]reflect.Type = map[string]reflect.Type{
 	"AuditSetRange":                 reflect.TypeOf((*AuditSetRange)(nil)).Elem(),
 	"Breakdown":                     reflect.TypeOf((*Breakdown)(nil)).Elem(),
 	"Cloud":                         reflect.TypeOf((*Cloud)(nil)).Elem(),
+	"CloudCostAggregate":            reflect.TypeOf((*CloudCostAggregate)(nil)).Elem(),
+	"CloudCostAggregateProperties":  reflect.TypeOf((*CloudCostAggregateProperties)(nil)).Elem(),
+	"CloudCostAggregateSet":         reflect.TypeOf((*CloudCostAggregateSet)(nil)).Elem(),
+	"CloudCostAggregateSetRange":    reflect.TypeOf((*CloudCostAggregateSetRange)(nil)).Elem(),
+	"CloudCostItem":                 reflect.TypeOf((*CloudCostItem)(nil)).Elem(),
+	"CloudCostItemProperties":       reflect.TypeOf((*CloudCostItemProperties)(nil)).Elem(),
+	"CloudCostItemSet":              reflect.TypeOf((*CloudCostItemSet)(nil)).Elem(),
+	"CloudCostItemSetRange":         reflect.TypeOf((*CloudCostItemSetRange)(nil)).Elem(),
 	"ClusterManagement":             reflect.TypeOf((*ClusterManagement)(nil)).Elem(),
+	"Coverage":                      reflect.TypeOf((*Coverage)(nil)).Elem(),
+	"CoverageSet":                   reflect.TypeOf((*CoverageSet)(nil)).Elem(),
 	"Disk":                          reflect.TypeOf((*Disk)(nil)).Elem(),
 	"EqualityAudit":                 reflect.TypeOf((*EqualityAudit)(nil)).Elem(),
 	"LoadBalancer":                  reflect.TypeOf((*LoadBalancer)(nil)).Elem(),
@@ -4621,6 +4636,1517 @@ func (target *Cloud) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error
 }
 
 //--------------------------------------------------------------------------
+//  CloudCostAggregate
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this CloudCostAggregate instance
+// into a byte array
+func (target *CloudCostAggregate) MarshalBinary() (data []byte, err error) {
+	ctx := &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  nil,
+	}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	encBytes := ctx.Buffer.Bytes()
+	return encBytes, nil
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this CloudCostAggregate instance
+// into a byte array leveraging a predefined context.
+func (target *CloudCostAggregate) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(CloudCostAggregateCodecVersion) // version
+
+	// --- [begin][write][struct](CloudCostAggregateProperties) ---
+	buff.WriteInt(0) // [compatibility, unused]
+	errA := target.Properties.MarshalBinaryWithContext(ctx)
+	if errA != nil {
+		return errA
+	}
+	// --- [end][write][struct](CloudCostAggregateProperties) ---
+
+	buff.WriteFloat64(target.KubernetesPercent) // write float64
+	buff.WriteFloat64(target.Cost)              // write float64
+	buff.WriteFloat64(target.Credit)            // write float64
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the CloudCostAggregate type
+func (target *CloudCostAggregate) UnmarshalBinary(data []byte) error {
+	var table []string
+	buff := util.NewBufferFromBytes(data)
+
+	// string table header validation
+	if isBinaryTag(data, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the CloudCostAggregate type
+func (target *CloudCostAggregate) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > CloudCostAggregateCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling CloudCostAggregate. Expected %d or less, got %d", CloudCostAggregateCodecVersion, version)
+	}
+
+	// --- [begin][read][struct](CloudCostAggregateProperties) ---
+	a := &CloudCostAggregateProperties{}
+	buff.ReadInt() // [compatibility, unused]
+	errA := a.UnmarshalBinaryWithContext(ctx)
+	if errA != nil {
+		return errA
+	}
+	target.Properties = *a
+	// --- [end][read][struct](CloudCostAggregateProperties) ---
+
+	b := buff.ReadFloat64() // read float64
+	target.KubernetesPercent = b
+
+	c := buff.ReadFloat64() // read float64
+	target.Cost = c
+
+	d := buff.ReadFloat64() // read float64
+	target.Credit = d
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  CloudCostAggregateProperties
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this CloudCostAggregateProperties instance
+// into a byte array
+func (target *CloudCostAggregateProperties) MarshalBinary() (data []byte, err error) {
+	ctx := &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  nil,
+	}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	encBytes := ctx.Buffer.Bytes()
+	return encBytes, nil
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this CloudCostAggregateProperties instance
+// into a byte array leveraging a predefined context.
+func (target *CloudCostAggregateProperties) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(CloudCostAggregateCodecVersion) // version
+
+	if ctx.IsStringTable() {
+		a := ctx.Table.AddOrGet(target.Provider)
+		buff.WriteInt(a) // write table index
+	} else {
+		buff.WriteString(target.Provider) // write string
+	}
+	if ctx.IsStringTable() {
+		b := ctx.Table.AddOrGet(target.Account)
+		buff.WriteInt(b) // write table index
+	} else {
+		buff.WriteString(target.Account) // write string
+	}
+	if ctx.IsStringTable() {
+		c := ctx.Table.AddOrGet(target.Project)
+		buff.WriteInt(c) // write table index
+	} else {
+		buff.WriteString(target.Project) // write string
+	}
+	if ctx.IsStringTable() {
+		d := ctx.Table.AddOrGet(target.Service)
+		buff.WriteInt(d) // write table index
+	} else {
+		buff.WriteString(target.Service) // write string
+	}
+	if ctx.IsStringTable() {
+		e := ctx.Table.AddOrGet(target.LabelValue)
+		buff.WriteInt(e) // write table index
+	} else {
+		buff.WriteString(target.LabelValue) // write string
+	}
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the CloudCostAggregateProperties type
+func (target *CloudCostAggregateProperties) UnmarshalBinary(data []byte) error {
+	var table []string
+	buff := util.NewBufferFromBytes(data)
+
+	// string table header validation
+	if isBinaryTag(data, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the CloudCostAggregateProperties type
+func (target *CloudCostAggregateProperties) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > CloudCostAggregateCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling CloudCostAggregateProperties. Expected %d or less, got %d", CloudCostAggregateCodecVersion, version)
+	}
+
+	var b string
+	if ctx.IsStringTable() {
+		c := buff.ReadInt() // read string index
+		b = ctx.Table[c]
+	} else {
+		b = buff.ReadString() // read string
+	}
+	a := b
+	target.Provider = a
+
+	var e string
+	if ctx.IsStringTable() {
+		f := buff.ReadInt() // read string index
+		e = ctx.Table[f]
+	} else {
+		e = buff.ReadString() // read string
+	}
+	d := e
+	target.Account = d
+
+	var h string
+	if ctx.IsStringTable() {
+		k := buff.ReadInt() // read string index
+		h = ctx.Table[k]
+	} else {
+		h = buff.ReadString() // read string
+	}
+	g := h
+	target.Project = g
+
+	var m string
+	if ctx.IsStringTable() {
+		n := buff.ReadInt() // read string index
+		m = ctx.Table[n]
+	} else {
+		m = buff.ReadString() // read string
+	}
+	l := m
+	target.Service = l
+
+	var p string
+	if ctx.IsStringTable() {
+		q := buff.ReadInt() // read string index
+		p = ctx.Table[q]
+	} else {
+		p = buff.ReadString() // read string
+	}
+	o := p
+	target.LabelValue = o
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  CloudCostAggregateSet
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this CloudCostAggregateSet instance
+// into a byte array
+func (target *CloudCostAggregateSet) MarshalBinary() (data []byte, err error) {
+	ctx := &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  NewStringTable(),
+	}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	encBytes := ctx.Buffer.Bytes()
+	sTableBytes := ctx.Table.ToBytes()
+	merged := appendBytes(sTableBytes, encBytes)
+	return merged, nil
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this CloudCostAggregateSet instance
+// into a byte array leveraging a predefined context.
+func (target *CloudCostAggregateSet) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(CloudCostAggregateCodecVersion) // version
+
+	if target.CloudCostAggregates == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]*CloudCostAggregate) ---
+		buff.WriteInt(len(target.CloudCostAggregates)) // map length
+		for v, z := range target.CloudCostAggregates {
+			if ctx.IsStringTable() {
+				a := ctx.Table.AddOrGet(v)
+				buff.WriteInt(a) // write table index
+			} else {
+				buff.WriteString(v) // write string
+			}
+			if z == nil {
+				buff.WriteUInt8(uint8(0)) // write nil byte
+			} else {
+				buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+				// --- [begin][write][struct](CloudCostAggregate) ---
+				buff.WriteInt(0) // [compatibility, unused]
+				errA := z.MarshalBinaryWithContext(ctx)
+				if errA != nil {
+					return errA
+				}
+				// --- [end][write][struct](CloudCostAggregate) ---
+
+			}
+		}
+		// --- [end][write][map](map[string]*CloudCostAggregate) ---
+
+	}
+	if ctx.IsStringTable() {
+		b := ctx.Table.AddOrGet(target.AggregationProperty)
+		buff.WriteInt(b) // write table index
+	} else {
+		buff.WriteString(target.AggregationProperty) // write string
+	}
+	if ctx.IsStringTable() {
+		c := ctx.Table.AddOrGet(target.Integration)
+		buff.WriteInt(c) // write table index
+	} else {
+		buff.WriteString(target.Integration) // write string
+	}
+	if ctx.IsStringTable() {
+		d := ctx.Table.AddOrGet(target.LabelName)
+		buff.WriteInt(d) // write table index
+	} else {
+		buff.WriteString(target.LabelName) // write string
+	}
+	// --- [begin][write][struct](Window) ---
+	buff.WriteInt(0) // [compatibility, unused]
+	errB := target.Window.MarshalBinaryWithContext(ctx)
+	if errB != nil {
+		return errB
+	}
+	// --- [end][write][struct](Window) ---
+
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the CloudCostAggregateSet type
+func (target *CloudCostAggregateSet) UnmarshalBinary(data []byte) error {
+	var table []string
+	buff := util.NewBufferFromBytes(data)
+
+	// string table header validation
+	if isBinaryTag(data, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the CloudCostAggregateSet type
+func (target *CloudCostAggregateSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > CloudCostAggregateCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling CloudCostAggregateSet. Expected %d or less, got %d", CloudCostAggregateCodecVersion, version)
+	}
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.CloudCostAggregates = nil
+	} else {
+		// --- [begin][read][map](map[string]*CloudCostAggregate) ---
+		b := buff.ReadInt() // map len
+		a := make(map[string]*CloudCostAggregate, b)
+		for i := 0; i < b; i++ {
+			var v string
+			var d string
+			if ctx.IsStringTable() {
+				e := buff.ReadInt() // read string index
+				d = ctx.Table[e]
+			} else {
+				d = buff.ReadString() // read string
+			}
+			c := d
+			v = c
+
+			var z *CloudCostAggregate
+			if buff.ReadUInt8() == uint8(0) {
+				z = nil
+			} else {
+				// --- [begin][read][struct](CloudCostAggregate) ---
+				f := &CloudCostAggregate{}
+				buff.ReadInt() // [compatibility, unused]
+				errA := f.UnmarshalBinaryWithContext(ctx)
+				if errA != nil {
+					return errA
+				}
+				z = f
+				// --- [end][read][struct](CloudCostAggregate) ---
+
+			}
+			a[v] = z
+		}
+		target.CloudCostAggregates = a
+		// --- [end][read][map](map[string]*CloudCostAggregate) ---
+
+	}
+	var h string
+	if ctx.IsStringTable() {
+		k := buff.ReadInt() // read string index
+		h = ctx.Table[k]
+	} else {
+		h = buff.ReadString() // read string
+	}
+	g := h
+	target.AggregationProperty = g
+
+	var m string
+	if ctx.IsStringTable() {
+		n := buff.ReadInt() // read string index
+		m = ctx.Table[n]
+	} else {
+		m = buff.ReadString() // read string
+	}
+	l := m
+	target.Integration = l
+
+	var p string
+	if ctx.IsStringTable() {
+		q := buff.ReadInt() // read string index
+		p = ctx.Table[q]
+	} else {
+		p = buff.ReadString() // read string
+	}
+	o := p
+	target.LabelName = o
+
+	// --- [begin][read][struct](Window) ---
+	r := &Window{}
+	buff.ReadInt() // [compatibility, unused]
+	errB := r.UnmarshalBinaryWithContext(ctx)
+	if errB != nil {
+		return errB
+	}
+	target.Window = *r
+	// --- [end][read][struct](Window) ---
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  CloudCostAggregateSetRange
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this CloudCostAggregateSetRange instance
+// into a byte array
+func (target *CloudCostAggregateSetRange) MarshalBinary() (data []byte, err error) {
+	ctx := &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  nil,
+	}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	encBytes := ctx.Buffer.Bytes()
+	return encBytes, nil
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this CloudCostAggregateSetRange instance
+// into a byte array leveraging a predefined context.
+func (target *CloudCostAggregateSetRange) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(CloudCostAggregateCodecVersion) // version
+
+	if target.CloudCostAggregateSets == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][slice]([]*CloudCostAggregateSet) ---
+		buff.WriteInt(len(target.CloudCostAggregateSets)) // array length
+		for i := 0; i < len(target.CloudCostAggregateSets); i++ {
+			if target.CloudCostAggregateSets[i] == nil {
+				buff.WriteUInt8(uint8(0)) // write nil byte
+			} else {
+				buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+				// --- [begin][write][struct](CloudCostAggregateSet) ---
+				buff.WriteInt(0) // [compatibility, unused]
+				errA := target.CloudCostAggregateSets[i].MarshalBinaryWithContext(ctx)
+				if errA != nil {
+					return errA
+				}
+				// --- [end][write][struct](CloudCostAggregateSet) ---
+
+			}
+		}
+		// --- [end][write][slice]([]*CloudCostAggregateSet) ---
+
+	}
+	// --- [begin][write][struct](Window) ---
+	buff.WriteInt(0) // [compatibility, unused]
+	errB := target.Window.MarshalBinaryWithContext(ctx)
+	if errB != nil {
+		return errB
+	}
+	// --- [end][write][struct](Window) ---
+
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the CloudCostAggregateSetRange type
+func (target *CloudCostAggregateSetRange) UnmarshalBinary(data []byte) error {
+	var table []string
+	buff := util.NewBufferFromBytes(data)
+
+	// string table header validation
+	if isBinaryTag(data, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the CloudCostAggregateSetRange type
+func (target *CloudCostAggregateSetRange) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > CloudCostAggregateCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling CloudCostAggregateSetRange. Expected %d or less, got %d", CloudCostAggregateCodecVersion, version)
+	}
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.CloudCostAggregateSets = nil
+	} else {
+		// --- [begin][read][slice]([]*CloudCostAggregateSet) ---
+		b := buff.ReadInt() // array len
+		a := make([]*CloudCostAggregateSet, b)
+		for i := 0; i < b; i++ {
+			var c *CloudCostAggregateSet
+			if buff.ReadUInt8() == uint8(0) {
+				c = nil
+			} else {
+				// --- [begin][read][struct](CloudCostAggregateSet) ---
+				d := &CloudCostAggregateSet{}
+				buff.ReadInt() // [compatibility, unused]
+				errA := d.UnmarshalBinaryWithContext(ctx)
+				if errA != nil {
+					return errA
+				}
+				c = d
+				// --- [end][read][struct](CloudCostAggregateSet) ---
+
+			}
+			a[i] = c
+		}
+		target.CloudCostAggregateSets = a
+		// --- [end][read][slice]([]*CloudCostAggregateSet) ---
+
+	}
+	// --- [begin][read][struct](Window) ---
+	e := &Window{}
+	buff.ReadInt() // [compatibility, unused]
+	errB := e.UnmarshalBinaryWithContext(ctx)
+	if errB != nil {
+		return errB
+	}
+	target.Window = *e
+	// --- [end][read][struct](Window) ---
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  CloudCostItem
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this CloudCostItem instance
+// into a byte array
+func (target *CloudCostItem) MarshalBinary() (data []byte, err error) {
+	ctx := &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  nil,
+	}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	encBytes := ctx.Buffer.Bytes()
+	return encBytes, nil
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this CloudCostItem instance
+// into a byte array leveraging a predefined context.
+func (target *CloudCostItem) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(CloudCostItemCodecVersion) // version
+
+	// --- [begin][write][struct](CloudCostItemProperties) ---
+	buff.WriteInt(0) // [compatibility, unused]
+	errA := target.Properties.MarshalBinaryWithContext(ctx)
+	if errA != nil {
+		return errA
+	}
+	// --- [end][write][struct](CloudCostItemProperties) ---
+
+	buff.WriteBool(target.IsKubernetes) // write bool
+	// --- [begin][write][struct](Window) ---
+	buff.WriteInt(0) // [compatibility, unused]
+	errB := target.Window.MarshalBinaryWithContext(ctx)
+	if errB != nil {
+		return errB
+	}
+	// --- [end][write][struct](Window) ---
+
+	buff.WriteFloat64(target.Cost)   // write float64
+	buff.WriteFloat64(target.Credit) // write float64
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the CloudCostItem type
+func (target *CloudCostItem) UnmarshalBinary(data []byte) error {
+	var table []string
+	buff := util.NewBufferFromBytes(data)
+
+	// string table header validation
+	if isBinaryTag(data, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the CloudCostItem type
+func (target *CloudCostItem) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > CloudCostItemCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling CloudCostItem. Expected %d or less, got %d", CloudCostItemCodecVersion, version)
+	}
+
+	// --- [begin][read][struct](CloudCostItemProperties) ---
+	a := &CloudCostItemProperties{}
+	buff.ReadInt() // [compatibility, unused]
+	errA := a.UnmarshalBinaryWithContext(ctx)
+	if errA != nil {
+		return errA
+	}
+	target.Properties = *a
+	// --- [end][read][struct](CloudCostItemProperties) ---
+
+	b := buff.ReadBool() // read bool
+	target.IsKubernetes = b
+
+	// --- [begin][read][struct](Window) ---
+	c := &Window{}
+	buff.ReadInt() // [compatibility, unused]
+	errB := c.UnmarshalBinaryWithContext(ctx)
+	if errB != nil {
+		return errB
+	}
+	target.Window = *c
+	// --- [end][read][struct](Window) ---
+
+	d := buff.ReadFloat64() // read float64
+	target.Cost = d
+
+	e := buff.ReadFloat64() // read float64
+	target.Credit = e
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  CloudCostItemProperties
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this CloudCostItemProperties instance
+// into a byte array
+func (target *CloudCostItemProperties) MarshalBinary() (data []byte, err error) {
+	ctx := &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  nil,
+	}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	encBytes := ctx.Buffer.Bytes()
+	return encBytes, nil
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this CloudCostItemProperties instance
+// into a byte array leveraging a predefined context.
+func (target *CloudCostItemProperties) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(CloudCostItemCodecVersion) // version
+
+	if ctx.IsStringTable() {
+		a := ctx.Table.AddOrGet(target.ProviderID)
+		buff.WriteInt(a) // write table index
+	} else {
+		buff.WriteString(target.ProviderID) // write string
+	}
+	if ctx.IsStringTable() {
+		b := ctx.Table.AddOrGet(target.Provider)
+		buff.WriteInt(b) // write table index
+	} else {
+		buff.WriteString(target.Provider) // write string
+	}
+	if ctx.IsStringTable() {
+		c := ctx.Table.AddOrGet(target.Account)
+		buff.WriteInt(c) // write table index
+	} else {
+		buff.WriteString(target.Account) // write string
+	}
+	if ctx.IsStringTable() {
+		d := ctx.Table.AddOrGet(target.Project)
+		buff.WriteInt(d) // write table index
+	} else {
+		buff.WriteString(target.Project) // write string
+	}
+	if ctx.IsStringTable() {
+		e := ctx.Table.AddOrGet(target.Service)
+		buff.WriteInt(e) // write table index
+	} else {
+		buff.WriteString(target.Service) // write string
+	}
+	if ctx.IsStringTable() {
+		f := ctx.Table.AddOrGet(target.Category)
+		buff.WriteInt(f) // write table index
+	} else {
+		buff.WriteString(target.Category) // write string
+	}
+	// --- [begin][write][alias](CloudCostItemLabels) ---
+	if map[string]string(target.Labels) == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]string) ---
+		buff.WriteInt(len(map[string]string(target.Labels))) // map length
+		for v, z := range map[string]string(target.Labels) {
+			if ctx.IsStringTable() {
+				g := ctx.Table.AddOrGet(v)
+				buff.WriteInt(g) // write table index
+			} else {
+				buff.WriteString(v) // write string
+			}
+			if ctx.IsStringTable() {
+				h := ctx.Table.AddOrGet(z)
+				buff.WriteInt(h) // write table index
+			} else {
+				buff.WriteString(z) // write string
+			}
+		}
+		// --- [end][write][map](map[string]string) ---
+
+	}
+	// --- [end][write][alias](CloudCostItemLabels) ---
+
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the CloudCostItemProperties type
+func (target *CloudCostItemProperties) UnmarshalBinary(data []byte) error {
+	var table []string
+	buff := util.NewBufferFromBytes(data)
+
+	// string table header validation
+	if isBinaryTag(data, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the CloudCostItemProperties type
+func (target *CloudCostItemProperties) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > CloudCostItemCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling CloudCostItemProperties. Expected %d or less, got %d", CloudCostItemCodecVersion, version)
+	}
+
+	var b string
+	if ctx.IsStringTable() {
+		c := buff.ReadInt() // read string index
+		b = ctx.Table[c]
+	} else {
+		b = buff.ReadString() // read string
+	}
+	a := b
+	target.ProviderID = a
+
+	var e string
+	if ctx.IsStringTable() {
+		f := buff.ReadInt() // read string index
+		e = ctx.Table[f]
+	} else {
+		e = buff.ReadString() // read string
+	}
+	d := e
+	target.Provider = d
+
+	var h string
+	if ctx.IsStringTable() {
+		k := buff.ReadInt() // read string index
+		h = ctx.Table[k]
+	} else {
+		h = buff.ReadString() // read string
+	}
+	g := h
+	target.Account = g
+
+	var m string
+	if ctx.IsStringTable() {
+		n := buff.ReadInt() // read string index
+		m = ctx.Table[n]
+	} else {
+		m = buff.ReadString() // read string
+	}
+	l := m
+	target.Project = l
+
+	var p string
+	if ctx.IsStringTable() {
+		q := buff.ReadInt() // read string index
+		p = ctx.Table[q]
+	} else {
+		p = buff.ReadString() // read string
+	}
+	o := p
+	target.Service = o
+
+	var s string
+	if ctx.IsStringTable() {
+		t := buff.ReadInt() // read string index
+		s = ctx.Table[t]
+	} else {
+		s = buff.ReadString() // read string
+	}
+	r := s
+	target.Category = r
+
+	// --- [begin][read][alias](CloudCostItemLabels) ---
+	var u map[string]string
+	if buff.ReadUInt8() == uint8(0) {
+		u = nil
+	} else {
+		// --- [begin][read][map](map[string]string) ---
+		x := buff.ReadInt() // map len
+		w := make(map[string]string, x)
+		for i := 0; i < x; i++ {
+			var v string
+			var aa string
+			if ctx.IsStringTable() {
+				bb := buff.ReadInt() // read string index
+				aa = ctx.Table[bb]
+			} else {
+				aa = buff.ReadString() // read string
+			}
+			y := aa
+			v = y
+
+			var z string
+			var dd string
+			if ctx.IsStringTable() {
+				ee := buff.ReadInt() // read string index
+				dd = ctx.Table[ee]
+			} else {
+				dd = buff.ReadString() // read string
+			}
+			cc := dd
+			z = cc
+
+			w[v] = z
+		}
+		u = w
+		// --- [end][read][map](map[string]string) ---
+
+	}
+	target.Labels = CloudCostItemLabels(u)
+	// --- [end][read][alias](CloudCostItemLabels) ---
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  CloudCostItemSet
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this CloudCostItemSet instance
+// into a byte array
+func (target *CloudCostItemSet) MarshalBinary() (data []byte, err error) {
+	ctx := &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  NewStringTable(),
+	}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	encBytes := ctx.Buffer.Bytes()
+	sTableBytes := ctx.Table.ToBytes()
+	merged := appendBytes(sTableBytes, encBytes)
+	return merged, nil
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this CloudCostItemSet instance
+// into a byte array leveraging a predefined context.
+func (target *CloudCostItemSet) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(CloudCostItemCodecVersion) // version
+
+	if target.CloudCostItems == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]*CloudCostItem) ---
+		buff.WriteInt(len(target.CloudCostItems)) // map length
+		for v, z := range target.CloudCostItems {
+			if ctx.IsStringTable() {
+				a := ctx.Table.AddOrGet(v)
+				buff.WriteInt(a) // write table index
+			} else {
+				buff.WriteString(v) // write string
+			}
+			if z == nil {
+				buff.WriteUInt8(uint8(0)) // write nil byte
+			} else {
+				buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+				// --- [begin][write][struct](CloudCostItem) ---
+				buff.WriteInt(0) // [compatibility, unused]
+				errA := z.MarshalBinaryWithContext(ctx)
+				if errA != nil {
+					return errA
+				}
+				// --- [end][write][struct](CloudCostItem) ---
+
+			}
+		}
+		// --- [end][write][map](map[string]*CloudCostItem) ---
+
+	}
+	// --- [begin][write][struct](Window) ---
+	buff.WriteInt(0) // [compatibility, unused]
+	errB := target.Window.MarshalBinaryWithContext(ctx)
+	if errB != nil {
+		return errB
+	}
+	// --- [end][write][struct](Window) ---
+
+	if ctx.IsStringTable() {
+		b := ctx.Table.AddOrGet(target.Integration)
+		buff.WriteInt(b) // write table index
+	} else {
+		buff.WriteString(target.Integration) // write string
+	}
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the CloudCostItemSet type
+func (target *CloudCostItemSet) UnmarshalBinary(data []byte) error {
+	var table []string
+	buff := util.NewBufferFromBytes(data)
+
+	// string table header validation
+	if isBinaryTag(data, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the CloudCostItemSet type
+func (target *CloudCostItemSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > CloudCostItemCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling CloudCostItemSet. Expected %d or less, got %d", CloudCostItemCodecVersion, version)
+	}
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.CloudCostItems = nil
+	} else {
+		// --- [begin][read][map](map[string]*CloudCostItem) ---
+		b := buff.ReadInt() // map len
+		a := make(map[string]*CloudCostItem, b)
+		for i := 0; i < b; i++ {
+			var v string
+			var d string
+			if ctx.IsStringTable() {
+				e := buff.ReadInt() // read string index
+				d = ctx.Table[e]
+			} else {
+				d = buff.ReadString() // read string
+			}
+			c := d
+			v = c
+
+			var z *CloudCostItem
+			if buff.ReadUInt8() == uint8(0) {
+				z = nil
+			} else {
+				// --- [begin][read][struct](CloudCostItem) ---
+				f := &CloudCostItem{}
+				buff.ReadInt() // [compatibility, unused]
+				errA := f.UnmarshalBinaryWithContext(ctx)
+				if errA != nil {
+					return errA
+				}
+				z = f
+				// --- [end][read][struct](CloudCostItem) ---
+
+			}
+			a[v] = z
+		}
+		target.CloudCostItems = a
+		// --- [end][read][map](map[string]*CloudCostItem) ---
+
+	}
+	// --- [begin][read][struct](Window) ---
+	g := &Window{}
+	buff.ReadInt() // [compatibility, unused]
+	errB := g.UnmarshalBinaryWithContext(ctx)
+	if errB != nil {
+		return errB
+	}
+	target.Window = *g
+	// --- [end][read][struct](Window) ---
+
+	var k string
+	if ctx.IsStringTable() {
+		l := buff.ReadInt() // read string index
+		k = ctx.Table[l]
+	} else {
+		k = buff.ReadString() // read string
+	}
+	h := k
+	target.Integration = h
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  CloudCostItemSetRange
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this CloudCostItemSetRange instance
+// into a byte array
+func (target *CloudCostItemSetRange) MarshalBinary() (data []byte, err error) {
+	ctx := &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  nil,
+	}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	encBytes := ctx.Buffer.Bytes()
+	return encBytes, nil
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this CloudCostItemSetRange instance
+// into a byte array leveraging a predefined context.
+func (target *CloudCostItemSetRange) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(CloudCostItemCodecVersion) // version
+
+	if target.CloudCostItemSets == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][slice]([]*CloudCostItemSet) ---
+		buff.WriteInt(len(target.CloudCostItemSets)) // array length
+		for i := 0; i < len(target.CloudCostItemSets); i++ {
+			if target.CloudCostItemSets[i] == nil {
+				buff.WriteUInt8(uint8(0)) // write nil byte
+			} else {
+				buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+				// --- [begin][write][struct](CloudCostItemSet) ---
+				buff.WriteInt(0) // [compatibility, unused]
+				errA := target.CloudCostItemSets[i].MarshalBinaryWithContext(ctx)
+				if errA != nil {
+					return errA
+				}
+				// --- [end][write][struct](CloudCostItemSet) ---
+
+			}
+		}
+		// --- [end][write][slice]([]*CloudCostItemSet) ---
+
+	}
+	// --- [begin][write][struct](Window) ---
+	buff.WriteInt(0) // [compatibility, unused]
+	errB := target.Window.MarshalBinaryWithContext(ctx)
+	if errB != nil {
+		return errB
+	}
+	// --- [end][write][struct](Window) ---
+
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the CloudCostItemSetRange type
+func (target *CloudCostItemSetRange) UnmarshalBinary(data []byte) error {
+	var table []string
+	buff := util.NewBufferFromBytes(data)
+
+	// string table header validation
+	if isBinaryTag(data, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the CloudCostItemSetRange type
+func (target *CloudCostItemSetRange) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > CloudCostItemCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling CloudCostItemSetRange. Expected %d or less, got %d", CloudCostItemCodecVersion, version)
+	}
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.CloudCostItemSets = nil
+	} else {
+		// --- [begin][read][slice]([]*CloudCostItemSet) ---
+		b := buff.ReadInt() // array len
+		a := make([]*CloudCostItemSet, b)
+		for i := 0; i < b; i++ {
+			var c *CloudCostItemSet
+			if buff.ReadUInt8() == uint8(0) {
+				c = nil
+			} else {
+				// --- [begin][read][struct](CloudCostItemSet) ---
+				d := &CloudCostItemSet{}
+				buff.ReadInt() // [compatibility, unused]
+				errA := d.UnmarshalBinaryWithContext(ctx)
+				if errA != nil {
+					return errA
+				}
+				c = d
+				// --- [end][read][struct](CloudCostItemSet) ---
+
+			}
+			a[i] = c
+		}
+		target.CloudCostItemSets = a
+		// --- [end][read][slice]([]*CloudCostItemSet) ---
+
+	}
+	// --- [begin][read][struct](Window) ---
+	e := &Window{}
+	buff.ReadInt() // [compatibility, unused]
+	errB := e.UnmarshalBinaryWithContext(ctx)
+	if errB != nil {
+		return errB
+	}
+	target.Window = *e
+	// --- [end][read][struct](Window) ---
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
 //  ClusterManagement
 //--------------------------------------------------------------------------
 
@@ -4844,6 +6370,437 @@ func (target *ClusterManagement) UnmarshalBinaryWithContext(ctx *DecodingContext
 		target.Adjustment = float64(0) // default
 	}
 
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  Coverage
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this Coverage instance
+// into a byte array
+func (target *Coverage) MarshalBinary() (data []byte, err error) {
+	ctx := &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  nil,
+	}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	encBytes := ctx.Buffer.Bytes()
+	return encBytes, nil
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this Coverage instance
+// into a byte array leveraging a predefined context.
+func (target *Coverage) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(DefaultCodecVersion) // version
+
+	// --- [begin][write][struct](Window) ---
+	buff.WriteInt(0) // [compatibility, unused]
+	errA := target.Window.MarshalBinaryWithContext(ctx)
+	if errA != nil {
+		return errA
+	}
+	// --- [end][write][struct](Window) ---
+
+	if ctx.IsStringTable() {
+		a := ctx.Table.AddOrGet(target.Type)
+		buff.WriteInt(a) // write table index
+	} else {
+		buff.WriteString(target.Type) // write string
+	}
+	buff.WriteInt(target.Count) // write int
+	// --- [begin][write][reference](time.Time) ---
+	b, errB := target.Updated.MarshalBinary()
+	if errB != nil {
+		return errB
+	}
+	buff.WriteInt(len(b))
+	buff.WriteBytes(b)
+	// --- [end][write][reference](time.Time) ---
+
+	if target.Errors == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][slice]([]string) ---
+		buff.WriteInt(len(target.Errors)) // array length
+		for i := 0; i < len(target.Errors); i++ {
+			if ctx.IsStringTable() {
+				c := ctx.Table.AddOrGet(target.Errors[i])
+				buff.WriteInt(c) // write table index
+			} else {
+				buff.WriteString(target.Errors[i]) // write string
+			}
+		}
+		// --- [end][write][slice]([]string) ---
+
+	}
+	if target.Warnings == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][slice]([]string) ---
+		buff.WriteInt(len(target.Warnings)) // array length
+		for j := 0; j < len(target.Warnings); j++ {
+			if ctx.IsStringTable() {
+				d := ctx.Table.AddOrGet(target.Warnings[j])
+				buff.WriteInt(d) // write table index
+			} else {
+				buff.WriteString(target.Warnings[j]) // write string
+			}
+		}
+		// --- [end][write][slice]([]string) ---
+
+	}
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the Coverage type
+func (target *Coverage) UnmarshalBinary(data []byte) error {
+	var table []string
+	buff := util.NewBufferFromBytes(data)
+
+	// string table header validation
+	if isBinaryTag(data, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the Coverage type
+func (target *Coverage) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling Coverage. Expected %d or less, got %d", DefaultCodecVersion, version)
+	}
+
+	// --- [begin][read][struct](Window) ---
+	a := &Window{}
+	buff.ReadInt() // [compatibility, unused]
+	errA := a.UnmarshalBinaryWithContext(ctx)
+	if errA != nil {
+		return errA
+	}
+	target.Window = *a
+	// --- [end][read][struct](Window) ---
+
+	var c string
+	if ctx.IsStringTable() {
+		d := buff.ReadInt() // read string index
+		c = ctx.Table[d]
+	} else {
+		c = buff.ReadString() // read string
+	}
+	b := c
+	target.Type = b
+
+	e := buff.ReadInt() // read int
+	target.Count = e
+
+	// --- [begin][read][reference](time.Time) ---
+	f := &time.Time{}
+	g := buff.ReadInt()    // byte array length
+	h := buff.ReadBytes(g) // byte array
+	errB := f.UnmarshalBinary(h)
+	if errB != nil {
+		return errB
+	}
+	target.Updated = *f
+	// --- [end][read][reference](time.Time) ---
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.Errors = nil
+	} else {
+		// --- [begin][read][slice]([]string) ---
+		l := buff.ReadInt() // array len
+		k := make([]string, l)
+		for i := 0; i < l; i++ {
+			var m string
+			var o string
+			if ctx.IsStringTable() {
+				p := buff.ReadInt() // read string index
+				o = ctx.Table[p]
+			} else {
+				o = buff.ReadString() // read string
+			}
+			n := o
+			m = n
+
+			k[i] = m
+		}
+		target.Errors = k
+		// --- [end][read][slice]([]string) ---
+
+	}
+	if buff.ReadUInt8() == uint8(0) {
+		target.Warnings = nil
+	} else {
+		// --- [begin][read][slice]([]string) ---
+		r := buff.ReadInt() // array len
+		q := make([]string, r)
+		for j := 0; j < r; j++ {
+			var s string
+			var u string
+			if ctx.IsStringTable() {
+				w := buff.ReadInt() // read string index
+				u = ctx.Table[w]
+			} else {
+				u = buff.ReadString() // read string
+			}
+			t := u
+			s = t
+
+			q[j] = s
+		}
+		target.Warnings = q
+		// --- [end][read][slice]([]string) ---
+
+	}
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  CoverageSet
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this CoverageSet instance
+// into a byte array
+func (target *CoverageSet) MarshalBinary() (data []byte, err error) {
+	ctx := &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  nil,
+	}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	encBytes := ctx.Buffer.Bytes()
+	return encBytes, nil
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this CoverageSet instance
+// into a byte array leveraging a predefined context.
+func (target *CoverageSet) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(DefaultCodecVersion) // version
+
+	// --- [begin][write][struct](Window) ---
+	buff.WriteInt(0) // [compatibility, unused]
+	errA := target.Window.MarshalBinaryWithContext(ctx)
+	if errA != nil {
+		return errA
+	}
+	// --- [end][write][struct](Window) ---
+
+	if target.Items == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]*Coverage) ---
+		buff.WriteInt(len(target.Items)) // map length
+		for v, z := range target.Items {
+			if ctx.IsStringTable() {
+				a := ctx.Table.AddOrGet(v)
+				buff.WriteInt(a) // write table index
+			} else {
+				buff.WriteString(v) // write string
+			}
+			if z == nil {
+				buff.WriteUInt8(uint8(0)) // write nil byte
+			} else {
+				buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+				// --- [begin][write][struct](Coverage) ---
+				buff.WriteInt(0) // [compatibility, unused]
+				errB := z.MarshalBinaryWithContext(ctx)
+				if errB != nil {
+					return errB
+				}
+				// --- [end][write][struct](Coverage) ---
+
+			}
+		}
+		// --- [end][write][map](map[string]*Coverage) ---
+
+	}
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the CoverageSet type
+func (target *CoverageSet) UnmarshalBinary(data []byte) error {
+	var table []string
+	buff := util.NewBufferFromBytes(data)
+
+	// string table header validation
+	if isBinaryTag(data, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the CoverageSet type
+func (target *CoverageSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > DefaultCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling CoverageSet. Expected %d or less, got %d", DefaultCodecVersion, version)
+	}
+
+	// --- [begin][read][struct](Window) ---
+	a := &Window{}
+	buff.ReadInt() // [compatibility, unused]
+	errA := a.UnmarshalBinaryWithContext(ctx)
+	if errA != nil {
+		return errA
+	}
+	target.Window = *a
+	// --- [end][read][struct](Window) ---
+
+	if buff.ReadUInt8() == uint8(0) {
+		target.Items = nil
+	} else {
+		// --- [begin][read][map](map[string]*Coverage) ---
+		c := buff.ReadInt() // map len
+		b := make(map[string]*Coverage, c)
+		for i := 0; i < c; i++ {
+			var v string
+			var e string
+			if ctx.IsStringTable() {
+				f := buff.ReadInt() // read string index
+				e = ctx.Table[f]
+			} else {
+				e = buff.ReadString() // read string
+			}
+			d := e
+			v = d
+
+			var z *Coverage
+			if buff.ReadUInt8() == uint8(0) {
+				z = nil
+			} else {
+				// --- [begin][read][struct](Coverage) ---
+				g := &Coverage{}
+				buff.ReadInt() // [compatibility, unused]
+				errB := g.UnmarshalBinaryWithContext(ctx)
+				if errB != nil {
+					return errB
+				}
+				z = g
+				// --- [end][read][struct](Coverage) ---
+
+			}
+			b[v] = z
+		}
+		target.Items = b
+		// --- [end][read][map](map[string]*Coverage) ---
+
+	}
 	return nil
 }
 
