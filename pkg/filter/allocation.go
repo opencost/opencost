@@ -38,7 +38,7 @@ const (
 // label, etc.).
 type AllocationCondition struct {
 	Field AllocationField
-	Op    Operation
+	Op    StringOperation
 
 	// Key is for filters that require key-value pairs, like labels or
 	// annotations.
@@ -64,7 +64,7 @@ func (ac AllocationCondition) Flattened() Filter[*kubecost.Allocation] {
 	return ac
 }
 
-func (ac AllocationCondition) Equals(that Filter[*kubecost.Allocation]) bool {
+func (ac AllocationCondition) equals(that Filter[*kubecost.Allocation]) bool {
 	if thatAC, ok := that.(AllocationCondition); ok {
 		return ac == thatAC
 	}
@@ -131,7 +131,7 @@ func (ac AllocationCondition) Matches(alloc *kubecost.Allocation) bool {
 	}
 
 	switch ac.Op {
-	case FilterEquals:
+	case StringEquals:
 		// namespace:"__unallocated__" should match a.Properties.Namespace = ""
 		// label[app]:"__unallocated__" should match _, ok := Labels[app]; !ok
 		if toCompareMissing || valueToCompare == "" {
@@ -141,25 +141,7 @@ func (ac AllocationCondition) Matches(alloc *kubecost.Allocation) bool {
 		if valueToCompare == ac.Value {
 			return true
 		}
-	case FilterNotEquals:
-		// namespace!:"__unallocated__" should match
-		// a.Properties.Namespace != ""
-		// label[app]!:"__unallocated__" should match _, ok := Labels[app]; ok
-		if ac.Value == kubecost.UnallocatedSuffix {
-			if toCompareMissing {
-				return false
-			}
-			return valueToCompare != ""
-		}
-
-		if toCompareMissing {
-			return true
-		}
-
-		if valueToCompare != ac.Value {
-			return true
-		}
-	case FilterContains:
+	case StringSliceContains:
 		if stringSlice, ok := valueToCompare.([]string); ok {
 			if len(stringSlice) == 0 {
 				return ac.Value == kubecost.UnallocatedSuffix
@@ -173,27 +155,7 @@ func (ac AllocationCondition) Matches(alloc *kubecost.Allocation) bool {
 		} else {
 			log.Warnf("Allocation Filter: invalid 'contains' call for non-list filter value")
 		}
-	case FilterNotContains:
-		if stringSlice, ok := valueToCompare.([]string); ok {
-			// services!:"__unallocated__" should match
-			// len(a.Properties.Services) > 0
-			//
-			// TODO: is this true?
-			if ac.Value == kubecost.UnallocatedSuffix {
-				return len(stringSlice) > 0
-			}
-
-			for _, s := range stringSlice {
-				if s == ac.Value {
-					return false
-				}
-			}
-
-			return true
-		} else {
-			log.Warnf("Allocation Filter: invalid 'notcontains' call for non-list filter value")
-		}
-	case FilterStartsWith:
+	case StringStartsWith:
 		if toCompareMissing {
 			return false
 		}
@@ -208,7 +170,7 @@ func (ac AllocationCondition) Matches(alloc *kubecost.Allocation) bool {
 			return false
 		}
 		return strings.HasPrefix(s, ac.Value)
-	case FilterContainsPrefix:
+	case StringContainsPrefix:
 		if toCompareMissing {
 			return false
 		}
@@ -219,7 +181,7 @@ func (ac AllocationCondition) Matches(alloc *kubecost.Allocation) bool {
 
 		values, ok := valueToCompare.([]string)
 		if !ok {
-			log.Warnf("Allocation Filter: invalid '%s' call for field with unsupported type", FilterContainsPrefix)
+			log.Warnf("Allocation Filter: invalid '%s' call for field with unsupported type", StringContainsPrefix)
 			return false
 		}
 
