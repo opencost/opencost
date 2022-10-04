@@ -32,7 +32,7 @@ func Test_WindowContains_Matches(t *testing.T) {
 			windowed: newWindowedImpl(&one, &two),
 			filter: WindowCondition[*windowedImpl]{
 				Window: kubecost.NewWindow(&noon, &three),
-				Op:     WindowOpContains,
+				Op:     WindowContains,
 			},
 
 			expected: true,
@@ -41,7 +41,7 @@ func Test_WindowContains_Matches(t *testing.T) {
 			windowed: newWindowedImpl(&one, &two),
 			filter: WindowCondition[*windowedImpl]{
 				Window: kubecost.NewWindow(&one, &two),
-				Op:     WindowOpContains,
+				Op:     WindowContains,
 			},
 
 			expected: true,
@@ -50,7 +50,7 @@ func Test_WindowContains_Matches(t *testing.T) {
 			windowed: newWindowedImpl(&one, &three),
 			filter: WindowCondition[*windowedImpl]{
 				Window: kubecost.NewWindow(&noon, &two),
-				Op:     WindowOpContains,
+				Op:     WindowContains,
 			},
 
 			expected: false,
@@ -59,7 +59,7 @@ func Test_WindowContains_Matches(t *testing.T) {
 			windowed: newWindowedImpl(&noon, &two),
 			filter: WindowCondition[*windowedImpl]{
 				Window: kubecost.NewWindow(&one, &three),
-				Op:     WindowOpContains,
+				Op:     WindowContains,
 			},
 
 			expected: false,
@@ -68,7 +68,7 @@ func Test_WindowContains_Matches(t *testing.T) {
 			windowed: newWindowedImpl(&one, &two),
 			filter: WindowCondition[*windowedImpl]{
 				Window: kubecost.NewWindow(&noon, &one),
-				Op:     WindowOpContains,
+				Op:     WindowContains,
 			},
 
 			expected: false,
@@ -77,7 +77,7 @@ func Test_WindowContains_Matches(t *testing.T) {
 			windowed: newWindowedImpl(&noon, &one),
 			filter: WindowCondition[*windowedImpl]{
 				Window: kubecost.NewWindow(&one, &two),
-				Op:     WindowOpContains,
+				Op:     WindowContains,
 			},
 
 			expected: false,
@@ -86,7 +86,7 @@ func Test_WindowContains_Matches(t *testing.T) {
 			windowed: newWindowedImpl(&noon, &one),
 			filter: WindowCondition[*windowedImpl]{
 				Window: kubecost.NewWindow(&two, &three),
-				Op:     WindowOpContains,
+				Op:     WindowContains,
 			},
 
 			expected: false,
@@ -95,7 +95,7 @@ func Test_WindowContains_Matches(t *testing.T) {
 			windowed: newWindowedImpl(&two, &three),
 			filter: WindowCondition[*windowedImpl]{
 				Window: kubecost.NewWindow(&noon, &one),
-				Op:     WindowOpContains,
+				Op:     WindowContains,
 			},
 
 			expected: false,

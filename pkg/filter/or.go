@@ -2,16 +2,13 @@ package filter
 
 import (
 	"fmt"
+	"sort"
 )
 
 // Or is a set of filters that should be evaluated as a logical
 // OR.
 type Or[T any] struct {
 	Filters []Filter[T]
-}
-
-func (o Or[T]) GetFilters() []Filter[T] {
-	return o.Filters
 }
 
 func (o Or[T]) String() string {
@@ -28,23 +25,59 @@ func (o Or[T]) String() string {
 // intermediate objects
 //
 // Flattened returns:
-// - nil if filter contains no filters
+// - AllCut if filter contains no filters
+// - AllPass if filter contains AllPass
 // - the inner filter if filter contains one filter
 // - an equivalent AllocationOr if filter contains more than one filter
 func (o Or[T]) Flattened() Filter[T] {
-	flattenedFilters := flattenGroup[T](o)
+	var flattenedFilters []Filter[T]
+	for _, innerFilter := range o.Filters {
+		flattenedInner := innerFilter.Flattened()
+
+		// Ignore AllCut in Or
+		if flattenedInner.equals(AllCut[T]{}) {
+			continue
+		}
+
+		// AllPass means the entire Or is AllPass
+		if flattenedInner.equals(AllPass[T]{}) {
+			return AllPass[T]{}
+		}
+
+		flattenedFilters = append(flattenedFilters, flattenedInner)
+	}
+
+	// Remove duplicates
+	flattenedFilters = removeDuplicates(flattenedFilters)
+
+	// Check for negations, if they exist And becomes AllPass
+	if checkForNegations(flattenedFilters) {
+		return AllPass[T]{}
+	}
+
+	// Empty Or is an AllPass
 	if len(flattenedFilters) == 0 {
-		return nil
+		return AllPass[T]{}
 	}
 
 	if len(flattenedFilters) == 1 {
 		return flattenedFilters[0]
 	}
 
+	// If more than half of the children are Not filters, Or should have DeMorgans rule applied to it
+	if percentNot(flattenedFilters) >= 0.5 {
+		return Not[T]{And[T]{negateFilters(flattenedFilters)}}
+	}
+
+	// Sort after other operations in case, order is changed
+	sort.SliceStable(flattenedFilters, func(i, j int) bool {
+		return flattenedFilters[i].String() < flattenedFilters[j].String()
+	})
+
 	return Or[T]{Filters: flattenedFilters}
 }
 
-func (o Or[T]) Equals(that Filter[T]) bool {
+func (o Or[T]) equals(that Filter[T]) bool {
 	// The type cast takes care of that == nil as well
 	thatOr, ok := that.(Or[T])
 	if !ok {
@@ -55,11 +88,8 @@ func (o Or[T]) Equals(that Filter[T]) bool {
 		return false
 	}
 
-	sortGroup[T](o)
-	sortGroup[T](thatOr)
-
 	for i := range o.Filters {
-		if !o.Filters[i].Equals(thatOr.Filters[i]) {
+		if !o.Filters[i].equals(thatOr.Filters[i]) {
 			return false
 		}
 	}
