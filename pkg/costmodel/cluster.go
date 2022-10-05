@@ -169,6 +169,8 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 	queryPVCInfo := fmt.Sprintf(`avg(avg_over_time(kube_persistentvolumeclaim_info[%s])) by (%s, volumename, persistentvolumeclaim, namespace)`, durStr, env.GetPromClusterLabel())
 	queryLocalStorageCost := fmt.Sprintf(`sum_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`, env.GetPromClusterLabel(), durStr, minsPerResolution, hourlyToCumulative, costPerGBHr)
 	queryLocalStorageUsedCost := fmt.Sprintf(`sum_over_time(sum(container_fs_usage_bytes{device!="tmpfs", id="/"}) by (instance, %s)[%s:%dm]) / 1024 / 1024 / 1024 * %f * %f`, env.GetPromClusterLabel(), durStr, minsPerResolution, hourlyToCumulative, costPerGBHr)
+	queryLocalStorageUsedAvg := fmt.Sprintf(`avg(avg_over_time(container_fs_usage_bytes{device!="tmpfs", id="/"}[%s])) by (instance, %s)`, durStr, env.GetPromClusterLabel())
+	queryLocalStorageUsedMax := fmt.Sprintf(`max(max_over_time(container_fs_usage_bytes{device!="tmpfs", id="/"}[%s])) by (instance, %s)`, durStr, env.GetPromClusterLabel())
 	queryLocalStorageBytes := fmt.Sprintf(`avg_over_time(sum(container_fs_limit_bytes{device!="tmpfs", id="/"}) by (instance, %s)[%s:%dm])`, env.GetPromClusterLabel(), durStr, minsPerResolution)
 	queryLocalActiveMins := fmt.Sprintf(`count(node_total_hourly_cost) by (%s, node)[%s:%dm]`, env.GetPromClusterLabel(), durStr, minsPerResolution)
 
@@ -181,6 +183,8 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 	resChPVCInfo := ctx.QueryAtTime(queryPVCInfo, t)
 	resChLocalStorageCost := ctx.QueryAtTime(queryLocalStorageCost, t)
 	resChLocalStorageUsedCost := ctx.QueryAtTime(queryLocalStorageUsedCost, t)
+	resChLocalStoreageUsedAvg := ctx.QueryAtTime(queryLocalStorageUsedAvg, t)
+	resChLocalStoreageUsedMax := ctx.QueryAtTime(queryLocalStorageUsedMax, t)
 	resChLocalStorageBytes := ctx.QueryAtTime(queryLocalStorageBytes, t)
 	resChLocalActiveMins := ctx.QueryAtTime(queryLocalActiveMins, t)
 
@@ -193,6 +197,8 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 	resPVCInfo, _ := resChPVCInfo.Await()
 	resLocalStorageCost, _ := resChLocalStorageCost.Await()
 	resLocalStorageUsedCost, _ := resChLocalStorageUsedCost.Await()
+	resLocalStorageUsedAvg, _ := resChLocalStoreageUsedAvg.Await()
+	resLocalStorageUsedMax, _ := resChLocalStoreageUsedMax.Await()
 	resLocalStorageBytes, _ := resChLocalStorageBytes.Await()
 	resLocalActiveMins, _ := resChLocalActiveMins.Await()
 
@@ -291,6 +297,56 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 			}
 		}
 		diskMap[key].Breakdown.System = cost / diskMap[key].Cost
+	}
+
+	for _, result := range resLocalStorageUsedAvg {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("instance")
+		if err != nil {
+			log.Warnf("ClusterDisks: local storage data missing instance")
+			continue
+		}
+
+		bytesAvg := result.Values[0].Value
+		key := DiskIdentifier{cluster, name}
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+				Local:     true,
+			}
+		}
+		diskMap[key].BytesUsedAvg = bytesAvg
+	}
+
+	for _, result := range resLocalStorageUsedMax {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("instance")
+		if err != nil {
+			log.Warnf("ClusterDisks: local storage data missing instance")
+			continue
+		}
+
+		bytesMax := result.Values[0].Value
+		key := DiskIdentifier{cluster, name}
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+				Local:     true,
+			}
+		}
+		diskMap[key].BytesUsedMax = bytesMax
 	}
 
 	for _, result := range resLocalStorageBytes {

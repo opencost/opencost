@@ -229,6 +229,38 @@ func TestDisk_Unmarshal(t *testing.T) {
 	// it is also ignored in this test; be aware that this means a resulting Disk from an
 	// unmarshal is therefore NOT equal to the originally marshaled Disk.
 
+	disk3 := NewDisk("disk3", "cluster1", "disk3", *unmarshalWindow.start, *unmarshalWindow.end, unmarshalWindow)
+
+	disk3.ByteHours = 60.0 * gb * hours
+	disk3.ByteHoursUsed = 40.0 * gb * hours
+	disk3.ByteUsageMax = nil
+	disk3.Cost = 4.0
+	disk3.Local = 1.0
+	disk3.SetAdjustment(1.0)
+	disk3.Breakdown = &Breakdown{
+		Idle:   0.1,
+		System: 0.2,
+		User:   0.3,
+		Other:  0.4,
+	}
+
+	bytes, _ = json.Marshal(disk3)
+
+	var testdisk2 Disk
+	disk4 := &testdisk2
+
+	err = json.Unmarshal(bytes, disk4)
+
+	// Check if unmarshal was successful
+	if err != nil {
+		t.Fatalf("Disk Unmarshal: unexpected error: %s", err)
+	}
+
+	// Check that both disks have nil max usage
+	if disk3.ByteUsageMax != disk4.ByteUsageMax {
+		t.Fatalf("Disk Unmarshal: ByteUsageMax mutated in unmarshal")
+	}
+
 }
 
 func TestNetwork_Unmarshal(t *testing.T) {
