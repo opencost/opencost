@@ -1633,6 +1633,82 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 	return a.Properties.GenerateKey(aggregateBy, labelConfig)
 }
 
+func (a *Allocation) StringProperty(property string) (string, error) {
+	switch property {
+	case AllocationClusterProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.Cluster, nil
+	case AllocationNodeProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.Node, nil
+	case AllocationContainerProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.Container, nil
+	case AllocationControllerProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.Controller, nil
+	case AllocationControllerKindProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.ControllerKind, nil
+	case AllocationNamespaceProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.Namespace, nil
+	case AllocationPodProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.Pod, nil
+	case AllocationProviderIDProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.ProviderID, nil
+	default:
+		return "", fmt.Errorf("Allocation: StringProperty: invalid property name: %s", property)
+	}
+}
+
+func (a *Allocation) StringSliceProperty(property string) ([]string, error) {
+	switch property {
+	case AllocationServiceProp:
+		if a.Properties == nil {
+			return nil, nil
+		}
+		return a.Properties.Services, nil
+	default:
+		return nil, fmt.Errorf("Allocation: StringSliceProperty: invalid property name: %s", property)
+	}
+}
+
+func (a *Allocation) StringMapProperty(property string) (map[string]string, error) {
+	switch property {
+	case AllocationLabelProp:
+		if a.Properties == nil {
+			return nil, nil
+		}
+		return a.Properties.Labels, nil
+	case AllocationAnnotationProp:
+		if a.Properties == nil {
+			return nil, nil
+		}
+		return a.Properties.Annotations, nil
+	default:
+		return nil, fmt.Errorf("Allocation: StringMapProperty: invalid property name: %s", property)
+	}
+}
+
 // Clone returns a new AllocationSet with a deep copy of the given
 // AllocationSet's allocations.
 func (as *AllocationSet) Clone() *AllocationSet {
