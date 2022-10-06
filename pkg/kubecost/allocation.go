@@ -1840,6 +1840,11 @@ func (as *AllocationSet) Resolution() time.Duration {
 	return as.Window.Duration()
 }
 
+// GetWindow returns the AllocationSet's window
+func (as *AllocationSet) GetWindow() Window {
+	return as.Window
+}
+
 // Set uses the given Allocation to overwrite the existing entry in the
 // AllocationSet under the Allocation's name.
 func (as *AllocationSet) Set(alloc *Allocation) error {
