@@ -3000,6 +3000,10 @@ func (as *AssetSet) Length() int {
 	return len(as.Assets)
 }
 
+func (as *AssetSet) GetWindow() Window {
+	return as.Window
+}
+
 // Resolution returns the AssetSet's window duration
 func (as *AssetSet) Resolution() time.Duration {
 	return as.Window.Duration()
