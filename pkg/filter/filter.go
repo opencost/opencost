@@ -1,34 +1,5 @@
 package filter
 
-// StringOperation is an enum that represents operations that can be performed
-// when filtering (equality, inequality, etc.)
-type StringOperation string
-
-// If you add a FilterOp, MAKE SURE TO UPDATE ALL FILTER IMPLEMENTATIONS! Go
-// does not enforce exhaustive pattern matching on "enum" types.
-const (
-	// StringEquals is the equality operator
-	// "kube-system" FilterEquals "kube-system" = true
-	// "kube-syste" FilterEquals "kube-system" = false
-	StringEquals StringOperation = "stringequals"
-
-	// StringSliceContains is an array/slice membership operator
-	// ["a", "b", "c"] FilterContains "a" = true
-	StringSliceContains = "stringslicecontains"
-
-	// StringStartsWith matches strings with the given prefix.
-	// "kube-system" StartsWith "kube" = true
-	//
-	// When comparing with a field represented by an array/slice, this is like
-	// applying FilterContains to every element of the slice.
-	StringStartsWith = "stringstartswith"
-
-	// StringContainsPrefix is like FilterContains, but using StartsWith instead
-	// of Equals.
-	// ["kube-system", "abc123"] ContainsPrefix ["kube"] = true
-	StringContainsPrefix = "containsprefix"
-)
-
 // Filter represents anything that can be used to filter an
 // Allocation.
 //
