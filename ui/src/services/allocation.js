@@ -1,7 +1,14 @@
 import axios from 'axios';
 
 class AllocationService {
-  BASE_URL = 'http://localhost:9090/allocation';
+  func getenv(key, fallback string) string {
+    value := os.Getenv(key)
+    if len(value) == 0 {
+        return fallback
+    }
+    return value
+}
+  BASE_URL = getenv('BASE_URL','http://localhost:9090/allocation');
 
   async fetchAllocation(win, aggregate, options) {
     const { accumulate, filters, } = options;
