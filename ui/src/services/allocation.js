@@ -2,11 +2,11 @@ import axios from 'axios';
 
 
 func getenv(key, fallback string) string {
-    value := os.Getenv(key)
+    value := os.Getenv(key);
     if len(value) == 0 {
-        return fallback
+        return fallback;
     }
-    return value
+    return value;
 }
 
 class AllocationService {
