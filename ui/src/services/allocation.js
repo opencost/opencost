@@ -1,7 +1,4 @@
 import axios from 'axios';
-import { useLocation } from 'react-router';
-
-const env = process.env;
 
 class AllocationService {
   BASE_URL = process.env.BASE_URL || 'http://localhost:9090/allocation';
