@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-
 	"github.com/opencost/opencost/pkg/kubecost"
 
 	"github.com/opencost/opencost/pkg/util"
