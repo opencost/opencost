@@ -18,11 +18,11 @@ npm install
 This will install required depndencies and build tools. To launch the UI, run
 
 ```
-BASE_URL=<kubecost-url> npx parcel src/index.html
+npx parcel src/index.html
 ```
 
 This will launch a development server, serving the UI at `http://localhost:1234` and targeting the data for an instance of
-OpenCost running at `<kubecost-url>`. To access an arbitrary OpenCost install, you can use
+OpenCost running at `http://localhost:9090`. To access an arbitrary OpenCost install, you can use
 
 ```
 kubectl port-forward deployment/opencost-cost-analyzer 9090
