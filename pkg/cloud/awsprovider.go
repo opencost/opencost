@@ -306,12 +306,14 @@ const HourlyRateCodeCn = ".Q7UJUT2CE6"
 // name and the EC2 API.
 var volTypes = map[string]string{
 	"EBS:VolumeUsage.gp2":    "gp2",
+	"EBS:VolumeUsage.gp3":    "gp3",
 	"EBS:VolumeUsage":        "standard",
 	"EBS:VolumeUsage.sc1":    "sc1",
 	"EBS:VolumeP-IOPS.piops": "io1",
 	"EBS:VolumeUsage.st1":    "st1",
 	"EBS:VolumeUsage.piops":  "io1",
 	"gp2":                    "EBS:VolumeUsage.gp2",
+	"gp3":                    "EBS:VolumeUsage.gp3",
 	"standard":               "EBS:VolumeUsage",
 	"sc1":                    "EBS:VolumeUsage.sc1",
 	"io1":                    "EBS:VolumeUsage.piops",
