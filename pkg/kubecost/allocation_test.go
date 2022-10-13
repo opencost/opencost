@@ -2657,3 +2657,114 @@ func TestAllocationSetRange_Minutes(t *testing.T) {
 		}
 	}
 }
+
+func TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate(t *testing.T) {
+
+	today := time.Now().Round(day)
+	start := today.AddDate(0, 0, -4)
+
+	var allocationSets []*AllocationSet
+
+	for i := 0; i < 4; i++ {
+		allocationSets = append(allocationSets, GenerateMockAllocationSet(start))
+		start = start.AddDate(0, 0, 1)
+	}
+
+	asr := NewAllocationSetRange()
+	for _, as := range allocationSets {
+		asr.Append(as.Clone())
+	}
+
+	expected, err := asr.Accumulate()
+	if err != nil {
+		t.Errorf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: AllocationSetRange.Accumulate() returned an error\n")
+	}
+
+	var got *AllocationSet
+
+	for i := 0; i < len(allocationSets)-1; i++ {
+		got, err = allocationSets[i].Clone().accumulate(allocationSets[i+1])
+		if err != nil {
+			t.Errorf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: allocationSets[%d].accumulate returned an error\n", i-1)
+		}
+	}
+
+	got, err = allocationSets[0].Clone().accumulate(allocationSets[1].Clone())
+	if err != nil {
+		t.Errorf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: allocationSets[0].accumulate(1) returned an error\n")
+	}
+
+	for i := 2; i < len(allocationSets); i++ {
+		got, err = got.accumulate(allocationSets[i].Clone())
+		if err != nil {
+			t.Errorf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: got.accumulate(allocationSets[%d]) returned an error\n", i-1)
+		}
+	}
+
+	// compare the got and expected Allocation sets, ensure that they match
+	if len(got.Allocations) != len(expected.Allocations) {
+		t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: length of got.Allocations does not match length of expected.Allocations\n")
+	}
+	for key, a := range got.Allocations {
+		if _, ok := expected.Allocations[key]; !ok {
+			t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: got.Allocations[%s] not found in expected.Allocations\n", key)
+		}
+
+		if !a.Equal(expected.Allocations[key]) {
+			t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: got.Allocations[%s] did not match expected.Allocations[%[1]s]", key)
+		}
+	}
+
+	if len(got.ExternalKeys) != len(expected.ExternalKeys) {
+		t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: length of got.ExternalKeys does not match length of expected.ExternalKeys\n")
+	}
+
+	if len(got.IdleKeys) != len(expected.IdleKeys) {
+		t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: length of got.IdleKeys does not match length of expected.IdleKeys\n")
+	}
+
+	if got.FromSource != expected.FromSource {
+		t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: FromSource: got:%s, expected:%s\n", got.FromSource, expected.FromSource)
+	}
+
+	if !got.Window.Start().UTC().Equal(expected.Window.Start().UTC()) {
+		t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: Window.start: got:%s, expected:%s\n", got.Window.Start(), expected.Window.Start())
+	}
+	if !got.Window.End().UTC().Equal(expected.Window.End().UTC()) {
+		t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: Window.end: got:%s, expected:%s\n", got.Window.End(), expected.Window.End())
+	}
+
+	if got.Warnings != nil {
+		t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: got.Warnings is not nil")
+	}
+	if expected.Warnings != nil {
+		t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: expected.Warnings is not nil")
+	}
+
+	if got.Errors != nil {
+		t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: got.Errors is not nil")
+	}
+
+	if expected.Errors != nil {
+		t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: expected.Errors is not nil")
+	}
+
+	// Since the mock allocation sets have distinct ranges - we can compare the allocations in the allocation set back to the generated mocks to ensure no unexpected mutations
+	for key, allocation := range got.Allocations {
+		sum, err := allocationSets[0].Allocations[key].Add(allocationSets[1].Allocations[key])
+		if err != nil {
+			t.Errorf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: adding source allocations 0 and 1 errored for key: %s\n", key)
+		}
+
+		for i := 2; i < len(allocationSets); i++ {
+			sum, err = sum.Add(allocationSets[i].Allocations[key])
+			if err != nil {
+				t.Errorf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: adding source allocation %d errored for key:%s\n", i, key)
+			}
+		}
+
+		if !allocation.Equal(sum) {
+			t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: got: %v for allocation, expected: %v\n", allocation, sum)
+		}
+	}
+}
