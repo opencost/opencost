@@ -1914,7 +1914,7 @@ func (as *AllocationSet) UTCOffset() time.Duration {
 	return time.Duration(zone) * time.Second
 }
 
-func (as *AllocationSet) accumulate(that *AllocationSet) (*AllocationSet, error) {
+func (as *AllocationSet) Accumulate(that *AllocationSet) (*AllocationSet, error) {
 	if as.IsEmpty() {
 		return that.Clone(), nil
 	}
@@ -1985,7 +1985,7 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 	var err error
 
 	for _, as := range asr.Allocations {
-		allocSet, err = allocSet.accumulate(as)
+		allocSet, err = allocSet.Accumulate(as)
 		if err != nil {
 			return nil, err
 		}
@@ -1995,10 +1995,10 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 }
 
 // NewAccumulation clones the first available AllocationSet to use as the data structure to
-// accumulate the remaining data. This leaves the original AllocationSetRange intact.
+// Accumulate the remaining data. This leaves the original AllocationSetRange intact.
 func (asr *AllocationSetRange) NewAccumulation() (*AllocationSet, error) {
 	// NOTE: Adding this API for consistency across SummaryAllocation and Assets, but this
-	// NOTE: implementation is almost identical to regular Accumulate(). The accumulate() method
+	// NOTE: implementation is almost identical to regular Accumulate(). The Accumulate() method
 	// NOTE: for Allocation returns Clone() of the input, which is required for AccumulateBy
 	// NOTE: support (unit tests are great for verifying this information).
 	var allocSet *AllocationSet
@@ -2015,7 +2015,7 @@ func (asr *AllocationSetRange) NewAccumulation() (*AllocationSet, error) {
 			allocSetCopy = as.Clone()
 		}
 
-		allocSet, err = allocSet.accumulate(allocSetCopy)
+		allocSet, err = allocSet.Accumulate(allocSetCopy)
 		if err != nil {
 			return nil, err
 		}
@@ -2025,7 +2025,7 @@ func (asr *AllocationSetRange) NewAccumulation() (*AllocationSet, error) {
 }
 
 // AccumulateBy sums AllocationSets based on the resolution given. The resolution given is subject to the scale used for the AllocationSets.
-// Resolutions not evenly divisible by the AllocationSetRange window durations accumulate sets until a sum greater than or equal to the resolution is met,
+// Resolutions not evenly divisible by the AllocationSetRange window durations Accumulate sets until a sum greater than or equal to the resolution is met,
 // at which point AccumulateBy will start summing from 0 until the requested resolution is met again.
 // If the requested resolution is smaller than the window of an AllocationSet then the resolution will default to the duration of a set.
 // Resolutions larger than the duration of the entire AllocationSetRange will default to the duration of the range.
@@ -2035,7 +2035,7 @@ func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*Allocati
 	var err error
 
 	for i, as := range asr.Allocations {
-		allocSet, err = allocSet.accumulate(as)
+		allocSet, err = allocSet.Accumulate(as)
 		if err != nil {
 			return nil, err
 		}
