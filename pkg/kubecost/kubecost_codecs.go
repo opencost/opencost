@@ -13,11 +13,12 @@ package kubecost
 
 import (
 	"fmt"
-	util "github.com/opencost/opencost/pkg/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
+
+	util "github.com/opencost/opencost/pkg/util"
 )
 
 const (
@@ -33,17 +34,17 @@ const (
 )
 
 const (
-	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 15
-
-	// AssetsCodecVersion is used for any resources listed in the Assets version set
-	AssetsCodecVersion uint8 = 17
-
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
 	AllocationCodecVersion uint8 = 15
 
 	// AuditCodecVersion is used for any resources listed in the Audit version set
 	AuditCodecVersion uint8 = 1
+
+	// DefaultCodecVersion is used for any resources listed in the Default version set
+	DefaultCodecVersion uint8 = 15
+
+	// AssetsCodecVersion is used for any resources listed in the Assets version set
+	AssetsCodecVersion uint8 = 18
 )
 
 //--------------------------------------------------------------------------
@@ -4977,6 +4978,32 @@ func (target *Disk) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 	} else {
 		buff.WriteString(target.StorageClass) // write string
 	}
+	buff.WriteFloat64(target.ByteHoursUsed) // write float64
+	if target.ByteUsageMax == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.ByteUsageMax) // write float64
+	}
+	if ctx.IsStringTable() {
+		f := ctx.Table.AddOrGet(target.VolumeName)
+		buff.WriteInt(f) // write table index
+	} else {
+		buff.WriteString(target.VolumeName) // write string
+	}
+	if ctx.IsStringTable() {
+		g := ctx.Table.AddOrGet(target.ClaimName)
+		buff.WriteInt(g) // write table index
+	} else {
+		buff.WriteString(target.ClaimName) // write string
+	}
+	if ctx.IsStringTable() {
+		h := ctx.Table.AddOrGet(target.ClaimNamespace)
+		buff.WriteInt(h) // write table index
+	} else {
+		buff.WriteString(target.ClaimNamespace) // write string
+	}
 	return nil
 }
 
@@ -5160,6 +5187,77 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 
 	} else {
 		target.StorageClass = "" // default
+	}
+
+	// field version check
+	if uint8(18) <= version {
+		dd := buff.ReadFloat64() // read float64
+		target.ByteHoursUsed = dd
+
+	} else {
+		target.ByteHoursUsed = float64(0) // default
+	}
+
+	// field version check
+	if uint8(18) <= version {
+		if buff.ReadUInt8() == uint8(0) {
+			target.ByteUsageMax = nil
+		} else {
+			ee := buff.ReadFloat64() // read float64
+			target.ByteUsageMax = &ee
+
+		}
+	} else {
+		target.ByteUsageMax = nil
+
+	}
+
+	// field version check
+	if uint8(18) <= version {
+		var gg string
+		if ctx.IsStringTable() {
+			hh := buff.ReadInt() // read string index
+			gg = ctx.Table[hh]
+		} else {
+			gg = buff.ReadString() // read string
+		}
+		ff := gg
+		target.VolumeName = ff
+
+	} else {
+		target.VolumeName = "" // default
+	}
+
+	// field version check
+	if uint8(18) <= version {
+		var ll string
+		if ctx.IsStringTable() {
+			mm := buff.ReadInt() // read string index
+			ll = ctx.Table[mm]
+		} else {
+			ll = buff.ReadString() // read string
+		}
+		kk := ll
+		target.ClaimName = kk
+
+	} else {
+		target.ClaimName = "" // default
+	}
+
+	// field version check
+	if uint8(18) <= version {
+		var oo string
+		if ctx.IsStringTable() {
+			pp := buff.ReadInt() // read string index
+			oo = ctx.Table[pp]
+		} else {
+			oo = buff.ReadString() // read string
+		}
+		nn := oo
+		target.ClaimNamespace = nn
+
+	} else {
+		target.ClaimNamespace = "" // default
 	}
 
 	return nil

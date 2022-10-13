@@ -1315,6 +1315,39 @@ func (sasr *SummaryAllocationSetRange) Accumulate() (*SummaryAllocationSet, erro
 	return result, nil
 }
 
+// NewAccumulation clones the first available SummaryAllocationSet to use as the data structure to
+// accumulate the remaining data. This leaves the original SummaryAllocationSetRange intact.
+func (sasr *SummaryAllocationSetRange) NewAccumulation() (*SummaryAllocationSet, error) {
+	var result *SummaryAllocationSet
+	var err error
+
+	sasr.RLock()
+	defer sasr.RUnlock()
+
+	for _, sas := range sasr.SummaryAllocationSets {
+		// we want to clone the first summary allocation set, then just Add the others
+		// to the clone. We will eventually use the clone to create the set range.
+		if result == nil {
+			result = sas.Clone()
+			continue
+		}
+
+		// Copy if sas is non-nil
+		var sasCopy *SummaryAllocationSet = nil
+		if sas != nil {
+			sasCopy = sas.Clone()
+		}
+
+		// nil is ok to pass into Add
+		result, err = result.Add(sasCopy)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return result, nil
+}
+
 // AggregateBy aggregates each AllocationSet in the range by the given
 // properties and options.
 func (sasr *SummaryAllocationSetRange) AggregateBy(aggregateBy []string, options *AllocationAggregationOptions) error {

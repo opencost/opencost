@@ -68,63 +68,65 @@ type Asset interface {
 // to Asset label. For example, consider this asset:
 //
 // CURRENT: Asset ETL stores its data ALREADY MAPPED from label to k8s concept. This isn't ideal-- see the TOOD.
-//   Cloud {
-// 	   TotalCost: 10.00,
-// 	   Labels{
-//       "kubernetes_namespace":"monitoring",
-// 	     "env":"prod"
-// 	   }
-//   }
+//
+//	  Cloud {
+//		   TotalCost: 10.00,
+//		   Labels{
+//	      "kubernetes_namespace":"monitoring",
+//		     "env":"prod"
+//		   }
+//	  }
 //
 // Given the following parameters, we expect to return:
 //
-//   1) single-prop full match
-//   aggregateBy = ["namespace"]
-//   => Allocation{Name: "monitoring", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//  1. single-prop full match
+//     aggregateBy = ["namespace"]
+//     => Allocation{Name: "monitoring", ExternalCost: 10.00, TotalCost: 10.00}, nil
 //
-//   2) multi-prop full match
-//   aggregateBy = ["namespace", "label:env"]
-//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
-//   => Allocation{Name: "monitoring/env=prod", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//  2. multi-prop full match
+//     aggregateBy = ["namespace", "label:env"]
+//     allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//     => Allocation{Name: "monitoring/env=prod", ExternalCost: 10.00, TotalCost: 10.00}, nil
 //
-//   3) multi-prop partial match
-//   aggregateBy = ["namespace", "label:foo"]
-//   => Allocation{Name: "monitoring/__unallocated__", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//  3. multi-prop partial match
+//     aggregateBy = ["namespace", "label:foo"]
+//     => Allocation{Name: "monitoring/__unallocated__", ExternalCost: 10.00, TotalCost: 10.00}, nil
 //
-//   4) no match
-//   aggregateBy = ["cluster"]
-//   => nil, err
+//  4. no match
+//     aggregateBy = ["cluster"]
+//     => nil, err
 //
 // TODO:
-//   Cloud {
-// 	   TotalCost: 10.00,
-// 	   Labels{
-//       "kubernetes_namespace":"monitoring",
-// 	     "env":"prod"
-// 	   }
-//   }
+//
+//	  Cloud {
+//		   TotalCost: 10.00,
+//		   Labels{
+//	      "kubernetes_namespace":"monitoring",
+//		     "env":"prod"
+//		   }
+//	  }
 //
 // Given the following parameters, we expect to return:
 //
-//   1) single-prop full match
-//   aggregateBy = ["namespace"]
-//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
-//   => Allocation{Name: "monitoring", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//  1. single-prop full match
+//     aggregateBy = ["namespace"]
+//     allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//     => Allocation{Name: "monitoring", ExternalCost: 10.00, TotalCost: 10.00}, nil
 //
-//   2) multi-prop full match
-//   aggregateBy = ["namespace", "label:env"]
-//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
-//   => Allocation{Name: "monitoring/env=prod", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//  2. multi-prop full match
+//     aggregateBy = ["namespace", "label:env"]
+//     allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//     => Allocation{Name: "monitoring/env=prod", ExternalCost: 10.00, TotalCost: 10.00}, nil
 //
-//   3) multi-prop partial match
-//   aggregateBy = ["namespace", "label:foo"]
-//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
-//   => Allocation{Name: "monitoring/__unallocated__", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//  3. multi-prop partial match
+//     aggregateBy = ["namespace", "label:foo"]
+//     allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//     => Allocation{Name: "monitoring/__unallocated__", ExternalCost: 10.00, TotalCost: 10.00}, nil
 //
-//   4) no match
-//   aggregateBy = ["cluster"]
-//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
-//   => nil, err
+//  4. no match
+//     aggregateBy = ["cluster"]
+//     allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//     => nil, err
 //
 // (See asset_test.go for assertions of these examples and more.)
 func AssetToExternalAllocation(asset Asset, aggregateBy []string, labelConfig *LabelConfig) (*Allocation, error) {
@@ -1059,17 +1061,22 @@ func (cm *ClusterManagement) String() string {
 
 // Disk represents an in-cluster disk Asset
 type Disk struct {
-	Labels       AssetLabels
-	Properties   *AssetProperties
-	Start        time.Time
-	End          time.Time
-	Window       Window
-	Adjustment   float64
-	Cost         float64
-	ByteHours    float64
-	Local        float64
-	Breakdown    *Breakdown
-	StorageClass string // @bingen:field[version=17]
+	Labels         AssetLabels
+	Properties     *AssetProperties
+	Start          time.Time
+	End            time.Time
+	Window         Window
+	Adjustment     float64
+	Cost           float64
+	ByteHours      float64
+	Local          float64
+	Breakdown      *Breakdown
+	StorageClass   string   // @bingen:field[version=17]
+	ByteHoursUsed  float64  // @bingen:field[version=18]
+	ByteUsageMax   *float64 // @bingen:field[version=18]
+	VolumeName     string   // @bingen:field[version=18]
+	ClaimName      string   // @bingen:field[version=18]
+	ClaimNamespace string   // @bingen:field[version=18]
 }
 
 // NewDisk creates and returns a new Disk Asset
@@ -1261,27 +1268,50 @@ func (d *Disk) add(that *Disk) {
 	d.Cost += that.Cost
 
 	d.ByteHours += that.ByteHours
+	d.ByteHoursUsed += that.ByteHoursUsed
+	d.ByteUsageMax = nil
 
 	// If storage class don't match default it to empty storage class
 	if d.StorageClass != that.StorageClass {
 		d.StorageClass = ""
 	}
+
+	if d.VolumeName != that.VolumeName {
+		d.VolumeName = ""
+	}
+	if d.ClaimName != that.ClaimName {
+		d.ClaimName = ""
+	}
+	if d.ClaimNamespace != that.ClaimNamespace {
+		d.ClaimNamespace = ""
+	}
 }
 
 // Clone returns a cloned instance of the Asset
 func (d *Disk) Clone() Asset {
+	var max *float64
+	if d.ByteUsageMax != nil {
+		copied := *d.ByteUsageMax
+		max = &copied
+	}
+
 	return &Disk{
-		Properties:   d.Properties.Clone(),
-		Labels:       d.Labels.Clone(),
-		Start:        d.Start,
-		End:          d.End,
-		Window:       d.Window.Clone(),
-		Adjustment:   d.Adjustment,
-		Cost:         d.Cost,
-		ByteHours:    d.ByteHours,
-		Local:        d.Local,
-		Breakdown:    d.Breakdown.Clone(),
-		StorageClass: d.StorageClass,
+		Properties:     d.Properties.Clone(),
+		Labels:         d.Labels.Clone(),
+		Start:          d.Start,
+		End:            d.End,
+		Window:         d.Window.Clone(),
+		Adjustment:     d.Adjustment,
+		Cost:           d.Cost,
+		ByteHours:      d.ByteHours,
+		ByteHoursUsed:  d.ByteHoursUsed,
+		ByteUsageMax:   max,
+		Local:          d.Local,
+		Breakdown:      d.Breakdown.Clone(),
+		StorageClass:   d.StorageClass,
+		VolumeName:     d.VolumeName,
+		ClaimName:      d.ClaimName,
+		ClaimNamespace: d.ClaimNamespace,
 	}
 }
 
@@ -1316,6 +1346,18 @@ func (d *Disk) Equal(a Asset) bool {
 	if d.ByteHours != that.ByteHours {
 		return false
 	}
+	if d.ByteHoursUsed != that.ByteHoursUsed {
+		return false
+	}
+	if d.ByteUsageMax != nil && that.ByteUsageMax == nil {
+		return false
+	}
+	if d.ByteUsageMax == nil && that.ByteUsageMax != nil {
+		return false
+	}
+	if (d.ByteUsageMax != nil && that.ByteUsageMax != nil) && *d.ByteUsageMax != *that.ByteUsageMax {
+		return false
+	}
 	if d.Local != that.Local {
 		return false
 	}
@@ -1323,6 +1365,15 @@ func (d *Disk) Equal(a Asset) bool {
 		return false
 	}
 	if d.StorageClass != that.StorageClass {
+		return false
+	}
+	if d.VolumeName != that.VolumeName {
+		return false
+	}
+	if d.ClaimName != that.ClaimName {
+		return false
+	}
+	if d.ClaimNamespace != that.ClaimNamespace {
 		return false
 	}
 
@@ -1339,11 +1390,14 @@ func (d *Disk) String() string {
 // hours running; e.g. the sum of a 100GiB disk running for the first 10 hours
 // and a 30GiB disk running for the last 20 hours of the same 24-hour window
 // would produce:
-//   (100*10 + 30*20) / 24 = 66.667GiB
+//
+//	(100*10 + 30*20) / 24 = 66.667GiB
+//
 // However, any number of disks running for the full span of a window will
 // report the actual number of bytes of the static disk; e.g. the above
 // scenario for one entire 24-hour window:
-//   (100*24 + 30*24) / 24 = (100 + 30) = 130GiB
+//
+//	(100*24 + 30*24) / 24 = (100 + 30) = 130GiB
 func (d *Disk) Bytes() float64 {
 	// [b*hr]*([min/hr]*[1/min]) = [b*hr]/[hr] = b
 	return d.ByteHours * (60.0 / d.Minutes())
@@ -1993,11 +2047,14 @@ func (n *Node) IsPreemptible() bool {
 // hours running; e.g. the sum of a 4-core node running for the first 10 hours
 // and a 3-core node running for the last 20 hours of the same 24-hour window
 // would produce:
-//   (4*10 + 3*20) / 24 = 4.167 cores
+//
+//	(4*10 + 3*20) / 24 = 4.167 cores
+//
 // However, any number of cores running for the full span of a window will
 // report the actual number of cores of the static node; e.g. the above
 // scenario for one entire 24-hour window:
-//   (4*24 + 3*24) / 24 = (4 + 3) = 7 cores
+//
+//	(4*24 + 3*24) / 24 = (4 + 3) = 7 cores
 func (n *Node) CPUCores() float64 {
 	// [core*hr]*([min/hr]*[1/min]) = [core*hr]/[hr] = core
 	return n.CPUCoreHours * (60.0 / n.Minutes())
@@ -2008,11 +2065,14 @@ func (n *Node) CPUCores() float64 {
 // hours running; e.g. the sum of a 12GiB-RAM node running for the first 10 hours
 // and a 16GiB-RAM node running for the last 20 hours of the same 24-hour window
 // would produce:
-//   (12*10 + 16*20) / 24 = 18.333GiB RAM
+//
+//	(12*10 + 16*20) / 24 = 18.333GiB RAM
+//
 // However, any number of bytes running for the full span of a window will
 // report the actual number of bytes of the static node; e.g. the above
 // scenario for one entire 24-hour window:
-//   (12*24 + 16*24) / 24 = (12 + 16) = 28GiB RAM
+//
+//	(12*24 + 16*24) / 24 = (12 + 16) = 28GiB RAM
 func (n *Node) RAMBytes() float64 {
 	// [b*hr]*([min/hr]*[1/min]) = [b*hr]/[hr] = b
 	return n.RAMByteHours * (60.0 / n.Minutes())
@@ -2023,11 +2083,14 @@ func (n *Node) RAMBytes() float64 {
 // hours running; e.g. the sum of a 2 gpu node running for the first 10 hours
 // and a 1 gpu node running for the last 20 hours of the same 24-hour window
 // would produce:
-//   (2*10 + 1*20) / 24 = 1.667 GPUs
+//
+//	(2*10 + 1*20) / 24 = 1.667 GPUs
+//
 // However, any number of GPUs running for the full span of a window will
 // report the actual number of GPUs of the static node; e.g. the above
 // scenario for one entire 24-hour window:
-//   (2*24 + 1*24) / 24 = (2 + 1) = 3 GPUs
+//
+//	(2*24 + 1*24) / 24 = (2 + 1) = 3 GPUs
 func (n *Node) GPUs() float64 {
 	// [b*hr]*([min/hr]*[1/min]) = [b*hr]/[hr] = b
 	return n.GPUHours * (60.0 / n.Minutes())
@@ -2937,6 +3000,10 @@ func (as *AssetSet) Length() int {
 	return len(as.Assets)
 }
 
+func (as *AssetSet) GetWindow() Window {
+	return as.Window
+}
+
 // Resolution returns the AssetSet's window duration
 func (as *AssetSet) Resolution() time.Duration {
 	return as.Window.Duration()
@@ -3105,6 +3172,34 @@ func (asr *AssetSetRange) Accumulate() (*AssetSet, error) {
 
 	for _, as := range asr.Assets {
 		assetSet, err = assetSet.accumulate(as)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return assetSet, nil
+}
+
+// NewAccumulation clones the first available AssetSet to use as the data structure to
+// accumulate the remaining data. This leaves the original AssetSetRange intact.
+func (asr *AssetSetRange) NewAccumulation() (*AssetSet, error) {
+	var assetSet *AssetSet
+	var err error
+
+	for _, as := range asr.Assets {
+		if assetSet == nil {
+			assetSet = as.Clone()
+			continue
+		}
+
+		// copy if non-nil
+		var assetSetCopy *AssetSet = nil
+		if as != nil {
+			assetSetCopy = as.Clone()
+		}
+
+		// nil is acceptable to pass to accumulate
+		assetSet, err = assetSet.accumulate(assetSetCopy)
 		if err != nil {
 			return nil, err
 		}
