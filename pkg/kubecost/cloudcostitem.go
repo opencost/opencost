@@ -13,9 +13,9 @@ type CloudCostProperties struct {
 	Labels     CloudCostLabels `json:"labels,omitempty"`
 }
 
-// CloudCost represents a CUR line item, identifying a cloud resource and
+// CloudCostItem represents a CUR line item, identifying a cloud resource and
 // its cost over some period of time.
-type CloudCost struct {
+type CloudCostItem struct {
 	Name         string
 	Properties   CloudCostProperties
 	IsKubernetes bool
@@ -25,8 +25,27 @@ type CloudCost struct {
 	Credit       float64
 }
 
-type CloudCostSet struct {
-	CloudCosts map[string]*CloudCostAggregate
-	Window     Window
-	TotalCost  float64
+type CloudCostItemSet struct {
+	CloudCostItems map[string]*CloudCostItem
+	Window         Window
+}
+
+func (ccis *CloudCostItemSet) Clone() *CloudCostItemSet {
+	// TODO
+	return nil
+}
+
+func (ccis *CloudCostItemSet) IsEmpty() bool {
+	// TODO
+	return true
+}
+
+func (ccis *CloudCostItemSet) GetWindow() Window {
+	return ccis.Window
+}
+
+type CloudCostItemSetRange struct {
+	CloudCostItemSets []*CloudCostItemSet
+	Step              time.Duration
+	Window            Window
 }
