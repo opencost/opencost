@@ -1,4 +1,7 @@
+# Jetbrains project files
 .idea
+*.iml
+
 ui/.cache
 ui/dist
 ui/node_modules/
