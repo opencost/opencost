@@ -278,8 +278,8 @@ func parseWindow(window string, now time.Time) (Window, error) {
 	if match != nil {
 		s, _ := strconv.ParseInt(match[1], 10, 64)
 		e, _ := strconv.ParseInt(match[2], 10, 64)
-		start := time.Unix(s, 0)
-		end := time.Unix(e, 0)
+		start := time.Unix(s, 0).UTC()
+		end := time.Unix(e, 0).UTC()
 		return NewWindow(&start, &end), nil
 	}
 
