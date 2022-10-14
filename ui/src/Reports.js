@@ -154,6 +154,12 @@ const ReportsPage = () => {
       if (resp.data && resp.data.length > 0) {
         const allocationRange = resp.data
         for (const i in allocationRange) {
+          // update cluster aggregations to use clusterName/clusterId names
+	  if (aggregateBy == 'cluster') {
+            for (const k in allocationRange[i]) {
+              allocationRange[i][k].name = 'cluster-one';
+            }
+          }
           allocationRange[i] = sortBy(allocationRange[i], a => a.totalCost)
         }
         setAllocationData(allocationRange)
