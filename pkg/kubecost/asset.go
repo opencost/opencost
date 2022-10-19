@@ -1076,7 +1076,7 @@ type Disk struct {
 	Local          float64
 	Breakdown      *Breakdown
 	StorageClass   string   // @bingen:field[version=17]
-	ByteHoursUsed  float64  // @bingen:field[version=18]
+	ByteHoursUsed  *float64 // @bingen:field[version=18]
 	ByteUsageMax   *float64 // @bingen:field[version=18]
 	VolumeName     string   // @bingen:field[version=18]
 	ClaimName      string   // @bingen:field[version=18]
@@ -1272,7 +1272,21 @@ func (d *Disk) add(that *Disk) {
 	d.Cost += that.Cost
 
 	d.ByteHours += that.ByteHours
-	d.ByteHoursUsed += that.ByteHoursUsed
+
+	if d.ByteHoursUsed == nil && that.ByteHoursUsed != nil {
+		copy := *that.ByteHoursUsed
+		d.ByteHoursUsed = &copy
+	} else if d.ByteHoursUsed != nil && that.ByteHoursUsed == nil {
+		// do nothing
+	} else if d.ByteHoursUsed != nil && that.ByteHoursUsed != nil {
+		sum := *d.ByteHoursUsed
+		sum += *that.ByteHoursUsed
+		d.ByteHoursUsed = &sum
+	}
+
+	// We have to nil out the max because we don't know if we're
+	// aggregating across time our properties. See RawAllocationOnly on
+	// Allocation for further reference.
 	d.ByteUsageMax = nil
 
 	// If storage class don't match default it to empty storage class

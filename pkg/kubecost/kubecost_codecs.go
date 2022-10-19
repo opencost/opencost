@@ -4978,7 +4978,13 @@ func (target *Disk) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 	} else {
 		buff.WriteString(target.StorageClass) // write string
 	}
-	buff.WriteFloat64(target.ByteHoursUsed) // write float64
+	if target.ByteHoursUsed == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteFloat64(*target.ByteHoursUsed) // write float64
+	}
 	if target.ByteUsageMax == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
@@ -5191,11 +5197,16 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 
 	// field version check
 	if uint8(18) <= version {
-		dd := buff.ReadFloat64() // read float64
-		target.ByteHoursUsed = dd
+		if buff.ReadUInt8() == uint8(0) {
+			target.ByteHoursUsed = nil
+		} else {
+			dd := buff.ReadFloat64() // read float64
+			target.ByteHoursUsed = &dd
 
+		}
 	} else {
-		target.ByteHoursUsed = float64(0) // default
+		target.ByteHoursUsed = nil
+
 	}
 
 	// field version check
