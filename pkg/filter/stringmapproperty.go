@@ -2,10 +2,12 @@ package filter
 
 import (
 	"fmt"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/log"
 	"strings"
+
+	"github.com/opencost/opencost/pkg/log"
 )
+
+const unallocatedSuffix = "__unallocated__"
 
 type StringMapPropertied interface {
 	StringMapProperty(string) (map[string]string, error)
@@ -68,7 +70,7 @@ func (smp StringMapProperty[T]) Matches(that T) bool {
 		// namespace:"__unallocated__" should match a.Properties.Namespace = ""
 		// label[app]:"__unallocated__" should match _, ok := Labels[app]; !ok
 		if !keyIsPresent || valueToCompare == "" {
-			return smp.Value == kubecost.UnallocatedSuffix
+			return smp.Value == unallocatedSuffix
 		}
 
 		if valueToCompare == smp.Value {

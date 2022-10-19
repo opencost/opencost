@@ -13,12 +13,11 @@ package kubecost
 
 import (
 	"fmt"
+	util "github.com/opencost/opencost/pkg/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
-
-	util "github.com/opencost/opencost/pkg/util"
 )
 
 const (
@@ -5251,20 +5250,11 @@ func (target *CloudCostAggregateSetRange) MarshalBinaryWithContext(ctx *Encoding
 		// --- [end][write][slice]([]*CloudCostAggregateSet) ---
 
 	}
-	// --- [begin][write][reference](time.Duration) ---
-	a, errB := target.Step.MarshalBinary()
-	if errB != nil {
-		return errB
-	}
-	buff.WriteInt(len(a))
-	buff.WriteBytes(a)
-	// --- [end][write][reference](time.Duration) ---
-
 	// --- [begin][write][struct](Window) ---
 	buff.WriteInt(0) // [compatibility, unused]
-	errC := target.Window.MarshalBinaryWithContext(ctx)
-	if errC != nil {
-		return errC
+	errB := target.Window.MarshalBinaryWithContext(ctx)
+	if errB != nil {
+		return errB
 	}
 	// --- [end][write][struct](Window) ---
 
@@ -5353,25 +5343,14 @@ func (target *CloudCostAggregateSetRange) UnmarshalBinaryWithContext(ctx *Decodi
 		// --- [end][read][slice]([]*CloudCostAggregateSet) ---
 
 	}
-	// --- [begin][read][reference](time.Duration) ---
-	e := &time.Duration{}
-	f := buff.ReadInt()    // byte array length
-	g := buff.ReadBytes(f) // byte array
-	errB := e.UnmarshalBinary(g)
+	// --- [begin][read][struct](Window) ---
+	e := &Window{}
+	buff.ReadInt() // [compatibility, unused]
+	errB := e.UnmarshalBinaryWithContext(ctx)
 	if errB != nil {
 		return errB
 	}
-	target.Step = *e
-	// --- [end][read][reference](time.Duration) ---
-
-	// --- [begin][read][struct](Window) ---
-	h := &Window{}
-	buff.ReadInt() // [compatibility, unused]
-	errC := h.UnmarshalBinaryWithContext(ctx)
-	if errC != nil {
-		return errC
-	}
-	target.Window = *h
+	target.Window = *e
 	// --- [end][read][struct](Window) ---
 
 	return nil
@@ -5601,14 +5580,32 @@ func (target *CloudCostItemProperties) MarshalBinaryWithContext(ctx *EncodingCon
 	} else {
 		buff.WriteString(target.Category) // write string
 	}
-	// --- [begin][write][reference](CloudCostLabels) ---
-	g, errA := target.Labels.MarshalBinary()
-	if errA != nil {
-		return errA
+	// --- [begin][write][alias](CloudCostItemLabels) ---
+	if map[string]string(target.Labels) == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]string) ---
+		buff.WriteInt(len(map[string]string(target.Labels))) // map length
+		for v, z := range map[string]string(target.Labels) {
+			if ctx.IsStringTable() {
+				g := ctx.Table.AddOrGet(v)
+				buff.WriteInt(g) // write table index
+			} else {
+				buff.WriteString(v) // write string
+			}
+			if ctx.IsStringTable() {
+				h := ctx.Table.AddOrGet(z)
+				buff.WriteInt(h) // write table index
+			} else {
+				buff.WriteString(z) // write string
+			}
+		}
+		// --- [end][write][map](map[string]string) ---
+
 	}
-	buff.WriteInt(len(g))
-	buff.WriteBytes(g)
-	// --- [end][write][reference](CloudCostLabels) ---
+	// --- [end][write][alias](CloudCostItemLabels) ---
 
 	return nil
 }
@@ -5727,16 +5724,45 @@ func (target *CloudCostItemProperties) UnmarshalBinaryWithContext(ctx *DecodingC
 	r := s
 	target.Category = r
 
-	// --- [begin][read][reference](CloudCostLabels) ---
-	u := &CloudCostLabels{}
-	w := buff.ReadInt()    // byte array length
-	x := buff.ReadBytes(w) // byte array
-	errA := u.UnmarshalBinary(x)
-	if errA != nil {
-		return errA
+	// --- [begin][read][alias](CloudCostItemLabels) ---
+	var u map[string]string
+	if buff.ReadUInt8() == uint8(0) {
+		u = nil
+	} else {
+		// --- [begin][read][map](map[string]string) ---
+		x := buff.ReadInt() // map len
+		w := make(map[string]string, x)
+		for i := 0; i < x; i++ {
+			var v string
+			var aa string
+			if ctx.IsStringTable() {
+				bb := buff.ReadInt() // read string index
+				aa = ctx.Table[bb]
+			} else {
+				aa = buff.ReadString() // read string
+			}
+			y := aa
+			v = y
+
+			var z string
+			var dd string
+			if ctx.IsStringTable() {
+				ee := buff.ReadInt() // read string index
+				dd = ctx.Table[ee]
+			} else {
+				dd = buff.ReadString() // read string
+			}
+			cc := dd
+			z = cc
+
+			w[v] = z
+		}
+		u = w
+		// --- [end][read][map](map[string]string) ---
+
 	}
-	target.Labels = *u
-	// --- [end][read][reference](CloudCostLabels) ---
+	target.Labels = CloudCostItemLabels(u)
+	// --- [end][read][alias](CloudCostItemLabels) ---
 
 	return nil
 }
@@ -5823,6 +5849,12 @@ func (target *CloudCostItemSet) MarshalBinaryWithContext(ctx *EncodingContext) (
 	}
 	// --- [end][write][struct](Window) ---
 
+	if ctx.IsStringTable() {
+		b := ctx.Table.AddOrGet(target.Integration)
+		buff.WriteInt(b) // write table index
+	} else {
+		buff.WriteString(target.Integration) // write string
+	}
 	return nil
 }
 
@@ -5929,6 +5961,16 @@ func (target *CloudCostItemSet) UnmarshalBinaryWithContext(ctx *DecodingContext)
 	target.Window = *g
 	// --- [end][read][struct](Window) ---
 
+	var k string
+	if ctx.IsStringTable() {
+		l := buff.ReadInt() // read string index
+		k = ctx.Table[l]
+	} else {
+		k = buff.ReadString() // read string
+	}
+	h := k
+	target.Integration = h
+
 	return nil
 }
 
@@ -5998,20 +6040,11 @@ func (target *CloudCostItemSetRange) MarshalBinaryWithContext(ctx *EncodingConte
 		// --- [end][write][slice]([]*CloudCostItemSet) ---
 
 	}
-	// --- [begin][write][reference](time.Duration) ---
-	a, errB := target.Step.MarshalBinary()
-	if errB != nil {
-		return errB
-	}
-	buff.WriteInt(len(a))
-	buff.WriteBytes(a)
-	// --- [end][write][reference](time.Duration) ---
-
 	// --- [begin][write][struct](Window) ---
 	buff.WriteInt(0) // [compatibility, unused]
-	errC := target.Window.MarshalBinaryWithContext(ctx)
-	if errC != nil {
-		return errC
+	errB := target.Window.MarshalBinaryWithContext(ctx)
+	if errB != nil {
+		return errB
 	}
 	// --- [end][write][struct](Window) ---
 
@@ -6100,25 +6133,14 @@ func (target *CloudCostItemSetRange) UnmarshalBinaryWithContext(ctx *DecodingCon
 		// --- [end][read][slice]([]*CloudCostItemSet) ---
 
 	}
-	// --- [begin][read][reference](time.Duration) ---
-	e := &time.Duration{}
-	f := buff.ReadInt()    // byte array length
-	g := buff.ReadBytes(f) // byte array
-	errB := e.UnmarshalBinary(g)
+	// --- [begin][read][struct](Window) ---
+	e := &Window{}
+	buff.ReadInt() // [compatibility, unused]
+	errB := e.UnmarshalBinaryWithContext(ctx)
 	if errB != nil {
 		return errB
 	}
-	target.Step = *e
-	// --- [end][read][reference](time.Duration) ---
-
-	// --- [begin][read][struct](Window) ---
-	h := &Window{}
-	buff.ReadInt() // [compatibility, unused]
-	errC := h.UnmarshalBinaryWithContext(ctx)
-	if errC != nil {
-		return errC
-	}
-	target.Window = *h
+	target.Window = *e
 	// --- [end][read][struct](Window) ---
 
 	return nil

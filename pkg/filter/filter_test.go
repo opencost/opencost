@@ -1,9 +1,10 @@
-package filter
+package filter_test
 
 import (
-	"github.com/opencost/opencost/pkg/kubecost"
 	"reflect"
 	"testing"
+
+	"github.com/opencost/opencost/pkg/kubecost"
 )
 
 func Test_String_Matches(t *testing.T) {

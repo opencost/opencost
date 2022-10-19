@@ -4,30 +4,47 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/opencost/opencost/pkg/filter"
 	"github.com/opencost/opencost/pkg/log"
 )
 
 // CloudCostAggregateProperties unique property set for CloudCostAggregate within a window
 type CloudCostAggregateProperties struct {
-	Provider   string
-	Account    string
-	Project    string
-	Service    string
-	LabelValue string
+	Provider   string `json:"provider"`
+	Account    string `json:"account"`
+	Project    string `json:"project"`
+	Service    string `json:"service"`
+	LabelValue string `json:"labelValue"`
+}
+
+// TODO:cloudcost
+func (ccap CloudCostAggregateProperties) Key() string {
+	return fmt.Sprintf("%s/%s/%s/%s/%s", ccap.Provider, ccap.Account, ccap.Project, ccap.Service, ccap.LabelValue)
 }
 
 // CloudCostAggregate represents an aggregation of Billing Integration data on the properties listed
 type CloudCostAggregate struct {
-	Properties        CloudCostAggregateProperties
-	KubernetesPercent float64
-	Window            Window
-	Cost              float64
-	Credit            float64
+	Properties        CloudCostAggregateProperties `json:"properties"`
+	KubernetesPercent float64                      `json:"kubernetesPercent"`
+	Window            Window                       `json:"window"`
+	Cost              float64                      `json:"cost"`
+	Credit            float64                      `json:"credit"`
+}
+
+func (cca *CloudCostAggregate) Clone() *CloudCostAggregate {
+	return &CloudCostAggregate{
+		Properties:        cca.Properties,
+		KubernetesPercent: cca.KubernetesPercent,
+		Window:            cca.Window.Clone(),
+		Cost:              cca.Cost,
+		Credit:            cca.Credit,
+	}
 }
 
 func (cca *CloudCostAggregate) Key() string {
-	return "" // todo
+	return cca.Properties.Key()
 }
+
 func (cca *CloudCostAggregate) add(that *CloudCostAggregate) {
 	if cca == nil {
 		log.Warnf("cannot add too nil CloudCostItem")
@@ -57,11 +74,10 @@ type CloudCostAggregateSet struct {
 	Window              Window
 }
 
-func NewCloudCostAggregateSet(start, end time.Time, integration string, labelName string, cloudCostAggregates ...*CloudCostAggregate) *CloudCostAggregateSet {
+func NewCloudCostAggregateSet(start, end time.Time, cloudCostAggregates ...*CloudCostAggregate) *CloudCostAggregateSet {
 	ccas := &CloudCostAggregateSet{
-		Window:      NewWindow(&start, &end),
-		Integration: integration,
-		LabelName:   labelName,
+		CloudCostAggregates: map[string]*CloudCostAggregate{},
+		Window:              NewWindow(&start, &end),
 	}
 
 	for _, cca := range cloudCostAggregates {
@@ -69,6 +85,27 @@ func NewCloudCostAggregateSet(start, end time.Time, integration string, labelNam
 	}
 
 	return ccas
+}
+
+func (ccas *CloudCostAggregateSet) Filter(filters filter.Filter[*CloudCostAggregate]) *CloudCostAggregateSet {
+	if ccas == nil {
+		return nil
+	}
+
+	if filters == nil {
+		return ccas.Clone()
+	}
+
+	result := NewCloudCostAggregateSet(*ccas.Window.start, *ccas.Window.end)
+
+	for _, cca := range ccas.CloudCostAggregates {
+		if filters.Matches(cca) {
+			// TODO:cloudcost ideally... this would be a Clone, but performance?
+			result.Insert(cca)
+		}
+	}
+
+	return result
 }
 
 func (ccas *CloudCostAggregateSet) Insert(that *CloudCostAggregate) error {
@@ -92,21 +129,73 @@ func (ccas *CloudCostAggregateSet) Insert(that *CloudCostAggregate) error {
 }
 
 func (ccas *CloudCostAggregateSet) Clone() *CloudCostAggregateSet {
-	// TODO
-	return nil
+	aggs := make(map[string]*CloudCostAggregate, len(ccas.CloudCostAggregates))
+	for k, v := range ccas.CloudCostAggregates {
+		aggs[k] = v.Clone()
+	}
+
+	return &CloudCostAggregateSet{
+		CloudCostAggregates: aggs,
+		Integration:         ccas.Integration,
+		LabelName:           ccas.LabelName,
+		Window:              ccas.Window.Clone(),
+	}
 }
 
 func (ccas *CloudCostAggregateSet) IsEmpty() bool {
-	// TODO
-	return true
+	if ccas == nil {
+		return true
+	}
+
+	if len(ccas.CloudCostAggregates) == 0 {
+		return true
+	}
+
+	return false
 }
 
 func (ccas *CloudCostAggregateSet) GetWindow() Window {
 	return ccas.Window
 }
 
-func GetCloudCostAggregateSets(start time.Time, end time.Time, window time.Duration, integration string, labelName string) ([]*CloudCostAggregateSet, error) {
-	windows, err := GetWindows(start, end, window)
+func (ccas *CloudCostAggregateSet) Merge(that *CloudCostAggregateSet) (*CloudCostAggregateSet, error) {
+	if ccas == nil || that == nil {
+		return nil, fmt.Errorf("cannot merge nil CloudCostAggregateSets")
+	}
+
+	if that.IsEmpty() {
+		return ccas.Clone(), nil
+	}
+
+	if !ccas.Window.Equal(that.Window) {
+		return nil, fmt.Errorf("cannot merge CloudCostAggregateSets with different windows")
+	}
+
+	if ccas.LabelName != that.LabelName {
+		fmt.Println("!!!")
+		fmt.Println(ccas.LabelName)
+		fmt.Println(that.LabelName)
+
+		return nil, fmt.Errorf("cannot merge CloudCostAggregateSets with different label names")
+	}
+
+	start, end := *ccas.Window.Start(), *ccas.Window.End()
+	result := NewCloudCostAggregateSet(start, end)
+	result.LabelName = ccas.LabelName
+
+	for _, cca := range ccas.CloudCostAggregates {
+		result.Insert(cca)
+	}
+
+	for _, cca := range that.CloudCostAggregates {
+		result.Insert(cca)
+	}
+
+	return result, nil
+}
+
+func GetCloudCostAggregateSets(start, end time.Time, windowDuration time.Duration, integration string, labelName string) ([]*CloudCostAggregateSet, error) {
+	windows, err := GetWindows(start, end, windowDuration)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +203,10 @@ func GetCloudCostAggregateSets(start time.Time, end time.Time, window time.Durat
 	// Build slice of CloudCostAggregateSet to cover the range
 	CloudCostAggregateSets := []*CloudCostAggregateSet{}
 	for _, w := range windows {
-		CloudCostAggregateSets = append(CloudCostAggregateSets, NewCloudCostAggregateSet(*w.Start(), *w.End(), integration, labelName))
+		ccas := NewCloudCostAggregateSet(*w.Start(), *w.End())
+		ccas.Integration = integration
+		ccas.LabelName = labelName
+		CloudCostAggregateSets = append(CloudCostAggregateSets, ccas)
 	}
 	return CloudCostAggregateSets, nil
 }
@@ -184,8 +276,9 @@ func LoadCloudCostAggregateSets(itemStart time.Time, itemEnd time.Time, properti
 	}
 }
 
+// TODO:cloudcost bingen for time.Duration
 type CloudCostAggregateSetRange struct {
 	CloudCostAggregateSets []*CloudCostAggregateSet
-	Step                   time.Duration
-	Window                 Window
+	// Step                   time.Duration
+	Window Window
 }

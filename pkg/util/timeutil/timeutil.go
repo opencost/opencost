@@ -34,6 +34,9 @@ const (
 
 	// DaysPerMonth expresses the amount of days in a month
 	DaysPerMonth = 30.42
+
+	// Day expresses 24 hours
+	Day = time.Hour * 24.0
 )
 
 // DurationString converts a duration to a Prometheus-compatible string in
