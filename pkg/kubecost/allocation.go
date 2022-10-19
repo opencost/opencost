@@ -1893,7 +1893,7 @@ func (as *AllocationSet) IsEmpty() bool {
 		return true
 	}
 
-	return as.Allocations == nil || len(as.Allocations) == 0
+	return false
 }
 
 // Length returns the number of Allocations in the set

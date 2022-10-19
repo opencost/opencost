@@ -2,9 +2,9 @@ package filter
 
 import (
 	"fmt"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/log"
 	"strings"
+
+	"github.com/opencost/opencost/pkg/log"
 )
 
 // StringPropertied is used to validate the name of a property field and return its value
@@ -73,7 +73,7 @@ func (sp StringProperty[T]) Matches(that T) bool {
 	case StringEquals:
 		// namespace:"__unallocated__" should match a.Properties.Namespace = ""
 		if thatString == "" {
-			return sp.Value == kubecost.UnallocatedSuffix
+			return sp.Value == unallocatedSuffix
 		}
 
 		if thatString == sp.Value {
