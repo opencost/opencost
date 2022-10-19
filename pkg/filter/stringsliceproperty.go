@@ -2,9 +2,9 @@ package filter
 
 import (
 	"fmt"
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/log"
 	"strings"
+
+	"github.com/opencost/opencost/pkg/log"
 )
 
 type StringSlicePropertied interface {
@@ -64,7 +64,7 @@ func (ssp StringSliceProperty[T]) Matches(that T) bool {
 
 	case StringSliceContains:
 		if len(thatSlice) == 0 {
-			return ssp.Value == kubecost.UnallocatedSuffix
+			return ssp.Value == unallocatedSuffix
 		}
 
 		for _, s := range thatSlice {

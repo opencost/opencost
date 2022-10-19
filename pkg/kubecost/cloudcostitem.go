@@ -4,20 +4,41 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/opencost/opencost/pkg/filter"
 	"github.com/opencost/opencost/pkg/log"
 )
 
-type CloudCostLabels map[string]string
+type CloudCostItemLabels map[string]string
+
+func (ccil CloudCostItemLabels) Clone() CloudCostItemLabels {
+	result := make(map[string]string, len(ccil))
+	for k, v := range ccil {
+		result[k] = v
+	}
+	return result
+}
 
 // TODO:cloudcost Category?
 type CloudCostItemProperties struct {
-	ProviderID string          `json:"providerID,omitempty"`
-	Provider   string          `json:"provider,omitempty"`
-	Account    string          `json:"account,omitempty"`
-	Project    string          `json:"project,omitempty"`
-	Service    string          `json:"service,omitempty"`
-	Category   string          `json:"category,omitempty"`
-	Labels     CloudCostLabels `json:"labels,omitempty"`
+	ProviderID string              `json:"providerID,omitempty"`
+	Provider   string              `json:"provider,omitempty"`
+	Account    string              `json:"account,omitempty"`
+	Project    string              `json:"project,omitempty"`
+	Service    string              `json:"service,omitempty"`
+	Category   string              `json:"category,omitempty"`
+	Labels     CloudCostItemLabels `json:"labels,omitempty"`
+}
+
+func (ccip CloudCostItemProperties) Clone() CloudCostItemProperties {
+	return CloudCostItemProperties{
+		ProviderID: ccip.ProviderID,
+		Provider:   ccip.Provider,
+		Account:    ccip.Account,
+		Project:    ccip.Project,
+		Service:    ccip.Service,
+		Category:   ccip.Category,
+		Labels:     ccip.Labels.Clone(),
+	}
 }
 
 // TODO:cloudcost
@@ -35,14 +56,24 @@ type CloudCostItem struct {
 	Credit       float64
 }
 
+func (cci *CloudCostItem) Clone() *CloudCostItem {
+	return &CloudCostItem{
+		Properties:   cci.Properties.Clone(),
+		IsKubernetes: cci.IsKubernetes,
+		Window:       cci.Window.Clone(),
+		Cost:         cci.Cost,
+		Credit:       cci.Credit,
+	}
+}
+
 func (cci *CloudCostItem) Key() string {
-	// TODO:cloudcost
 	return cci.Properties.Key()
 }
 
 type CloudCostItemSet struct {
 	CloudCostItems map[string]*CloudCostItem
 	Window         Window
+	Integration    string
 }
 
 // NewAssetSet instantiates a new AssetSet and, optionally, inserts
@@ -58,6 +89,27 @@ func NewCloudCostItemSet(start, end time.Time, cloudCostItems ...*CloudCostItem)
 	}
 
 	return ccis
+}
+
+func (ccis *CloudCostItemSet) Filter(filters filter.Filter[*CloudCostItem]) *CloudCostItemSet {
+	if ccis == nil {
+		return nil
+	}
+
+	if filters == nil {
+		return ccis.Clone()
+	}
+
+	result := NewCloudCostItemSet(*ccis.Window.start, *ccis.Window.end)
+
+	for _, cci := range ccis.CloudCostItems {
+		if filters.Matches(cci) {
+			// TODO:cloudcost ideally... this would be a Clone, but performance?
+			result.Insert(cci)
+		}
+	}
+
+	return result
 }
 
 func (ccis *CloudCostItemSet) Insert(that *CloudCostItem) error {
@@ -82,17 +134,47 @@ func (ccis *CloudCostItemSet) Insert(that *CloudCostItem) error {
 }
 
 func (ccis *CloudCostItemSet) Clone() *CloudCostItemSet {
-	// TODO
+	// TODO:cloudcost
 	return nil
 }
 
 func (ccis *CloudCostItemSet) IsEmpty() bool {
-	// TODO
-	return true
+	if ccis == nil {
+		return true
+	}
+
+	if len(ccis.CloudCostItems) == 0 {
+		return true
+	}
+
+	return false
 }
 
 func (ccis *CloudCostItemSet) GetWindow() Window {
 	return ccis.Window
+}
+
+func (ccas *CloudCostItemSet) Merge(that *CloudCostItemSet) (*CloudCostItemSet, error) {
+	if ccas == nil || that == nil {
+		return nil, fmt.Errorf("cannot merge nil CloudCostItemSets")
+	}
+
+	if !ccas.Window.Equal(that.Window) {
+		return nil, fmt.Errorf("cannot merge CloudCostItemSets with different windows")
+	}
+
+	start, end := *ccas.Window.Start(), *ccas.Window.End()
+	result := NewCloudCostItemSet(start, end)
+
+	for _, cca := range ccas.CloudCostItems {
+		result.Insert(cca)
+	}
+
+	for _, cca := range that.CloudCostItems {
+		result.Insert(cca)
+	}
+
+	return result, nil
 }
 
 // GetCloudCostItemSets
@@ -175,8 +257,9 @@ func LoadCloudCostItemSets(itemStart time.Time, itemEnd time.Time, properties Cl
 	}
 }
 
+// TODO:cloudcost bingen for time.Duration
 type CloudCostItemSetRange struct {
 	CloudCostItemSets []*CloudCostItemSet
-	Step              time.Duration
-	Window            Window
+	// Step              time.Duration
+	Window Window
 }
