@@ -523,9 +523,23 @@ func (az *Azure) getAzureRateCardAuth(forceReload bool, cp *CustomPricing) (subs
 		tenantID = s.ServiceKey.Tenant
 		return
 	}
+	// 2. Check config values (set though endpoint)
+	if cp.AzureSubscriptionID != "" && cp.AzureClientID != "" && cp.AzureClientSecret != "" && cp.AzureTenantID != "" {
+		subscriptionID = cp.AzureSubscriptionID
+		clientID = cp.AzureClientID
+		clientSecret = cp.AzureClientSecret
+		tenantID = cp.AzureTenantID
+		return
+	}
+	// 3. Check if AzureSubscriptionID is set in config (set though endpoint)
+	// MSI credentials will be attempted if the subscription ID is set, but clientID, clientSecret and tenantID are not
+	if cp.AzureSubscriptionID != "" {
+		subscriptionID = cp.AzureSubscriptionID
+		return
+	}
+	// 4. Empty values
+	return "", "", "", ""
 
-	// 2. Return config values if not returned by Secret (set though endpoint)
-	return cp.AzureSubscriptionID, cp.AzureClientID, cp.AzureClientSecret, cp.AzureTenantID
 }
 
 // GetAzureStorageConfig retrieves storage config from secret and sets default values
