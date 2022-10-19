@@ -5477,14 +5477,14 @@ func (target *CloudCostItem) MarshalBinaryWithContext(ctx *EncodingContext) (err
 	} else {
 		buff.WriteString(target.Name) // write string
 	}
-	// --- [begin][write][reference](CloudCostProperties) ---
+	// --- [begin][write][reference](CloudCostItemProperties) ---
 	b, errA := target.Properties.MarshalBinary()
 	if errA != nil {
 		return errA
 	}
 	buff.WriteInt(len(b))
 	buff.WriteBytes(b)
-	// --- [end][write][reference](CloudCostProperties) ---
+	// --- [end][write][reference](CloudCostItemProperties) ---
 
 	buff.WriteBool(target.IsKubernetes) // write bool
 	// --- [begin][write][reference](time.Time) ---
@@ -5574,8 +5574,8 @@ func (target *CloudCostItem) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	a := b
 	target.Name = a
 
-	// --- [begin][read][reference](CloudCostProperties) ---
-	d := &CloudCostProperties{}
+	// --- [begin][read][reference](CloudCostItemProperties) ---
+	d := &CloudCostItemProperties{}
 	e := buff.ReadInt()    // byte array length
 	f := buff.ReadBytes(e) // byte array
 	errA := d.UnmarshalBinary(f)
@@ -5583,7 +5583,7 @@ func (target *CloudCostItem) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 		return errA
 	}
 	target.Properties = *d
-	// --- [end][read][reference](CloudCostProperties) ---
+	// --- [end][read][reference](CloudCostItemProperties) ---
 
 	g := buff.ReadBool() // read bool
 	target.IsKubernetes = g

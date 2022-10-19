@@ -689,6 +689,43 @@ func (w Window) DurationOffsetStrings() (string, string) {
 	return timeutil.DurationOffsetStrings(dur, off)
 }
 
+// GetWindows returns a slice of Window with equal size between the given start and end. If windowSize does not evenly
+// divide the period between start and end, the last window is not added
+func GetWindows(start time.Time, end time.Time, windowSize time.Duration) ([]Window, error) {
+	// Ensure the range is evenly divisible into windows of the given duration
+	dur := end.Sub(start)
+	if int(dur.Minutes())%int(windowSize.Minutes()) != 0 {
+		return nil, fmt.Errorf("range not divisible by window: [%s, %s] by %s", start, end, windowSize)
+	}
+
+	// Ensure timezones match
+	_, sz := start.Zone()
+	_, ez := end.Zone()
+	if sz != ez {
+		return nil, fmt.Errorf("range has mismatched timezones: %s, %s", start, end)
+	}
+	if sz != int(env.GetParsedUTCOffset().Seconds()) {
+		return nil, fmt.Errorf("range timezone doesn't match configured timezone: expected %s; found %ds", env.GetParsedUTCOffset(), sz)
+	}
+
+	// TODO Ensure that times repesent valid start/end of windows
+	// e.g. we could pass the first tests and still have 24hr blocks in the
+	// right timezone, but which start/end at 3PM or something like that.
+
+	// Build array of windows to cover the CloudCostItemSetRange
+	windows := []Window{}
+	s, e := start, start.Add(windowSize)
+	for !e.After(end) {
+		ws := s
+		we := e
+		windows = append(windows, NewWindow(&ws, &we))
+
+		s = s.Add(windowSize)
+		e = e.Add(windowSize)
+	}
+	return windows, nil
+}
+
 type BoundaryError struct {
 	Requested Window
 	Supported Window
