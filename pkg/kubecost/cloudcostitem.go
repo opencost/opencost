@@ -18,6 +18,22 @@ func (ccil CloudCostItemLabels) Clone() CloudCostItemLabels {
 	return result
 }
 
+func (ccil CloudCostItemLabels) Equal(that CloudCostItemLabels) bool {
+	if len(ccil) != len(that) {
+		return false
+	}
+
+	// Maps are of equal length, so if all keys are in both maps, we don't
+	// have to check the keys of the other map.
+	for k, v := range ccil {
+		if tv, ok := that[k]; !ok || v != tv {
+			return false
+		}
+	}
+
+	return true
+}
+
 // TODO:cloudcost Category?
 type CloudCostItemProperties struct {
 	ProviderID string              `json:"providerID,omitempty"`
@@ -27,6 +43,16 @@ type CloudCostItemProperties struct {
 	Service    string              `json:"service,omitempty"`
 	Category   string              `json:"category,omitempty"`
 	Labels     CloudCostItemLabels `json:"labels,omitempty"`
+}
+
+func (ccip CloudCostItemProperties) Equal(that CloudCostItemProperties) bool {
+	return ccip.ProviderID == that.ProviderID &&
+		ccip.Provider == that.Provider &&
+		ccip.Account == that.Account &&
+		ccip.Project == that.Project &&
+		ccip.Service == that.Service &&
+		ccip.Category == that.Category &&
+		ccip.Labels.Equal(that.Labels)
 }
 
 func (ccip CloudCostItemProperties) Clone() CloudCostItemProperties {
@@ -66,6 +92,18 @@ func (cci *CloudCostItem) Clone() *CloudCostItem {
 	}
 }
 
+func (cci *CloudCostItem) Equal(that *CloudCostItem) bool {
+	if that == nil {
+		return false
+	}
+
+	return cci.Properties.Equal(that.Properties) &&
+		cci.IsKubernetes == that.IsKubernetes &&
+		cci.Window.Equal(that.Window) &&
+		cci.Cost == that.Cost &&
+		cci.Credit == that.Credit
+}
+
 func (cci *CloudCostItem) Key() string {
 	return cci.Properties.Key()
 }
@@ -89,6 +127,32 @@ func NewCloudCostItemSet(start, end time.Time, cloudCostItems ...*CloudCostItem)
 	}
 
 	return ccis
+}
+
+func (ccis *CloudCostItemSet) Equal(that *CloudCostItemSet) bool {
+	if ccis.Integration != that.Integration {
+		return false
+	}
+
+	if !ccis.Window.Equal(that.Window) {
+		return false
+	}
+
+	if len(ccis.CloudCostItems) != len(that.CloudCostItems) {
+		return false
+	}
+
+	for k, cci := range ccis.CloudCostItems {
+		tcci, ok := that.CloudCostItems[k]
+		if !ok {
+			return false
+		}
+		if !cci.Equal(tcci) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (ccis *CloudCostItemSet) Filter(filters filter.Filter[*CloudCostItem]) *CloudCostItemSet {
@@ -134,8 +198,16 @@ func (ccis *CloudCostItemSet) Insert(that *CloudCostItem) error {
 }
 
 func (ccis *CloudCostItemSet) Clone() *CloudCostItemSet {
-	// TODO:cloudcost
-	return nil
+	items := make(map[string]*CloudCostItem, len(ccis.CloudCostItems))
+	for k, v := range ccis.CloudCostItems {
+		items[k] = v.Clone()
+	}
+
+	return &CloudCostItemSet{
+		CloudCostItems: items,
+		Integration:    ccis.Integration,
+		Window:         ccis.Window.Clone(),
+	}
 }
 
 func (ccis *CloudCostItemSet) IsEmpty() bool {
@@ -154,24 +226,28 @@ func (ccis *CloudCostItemSet) GetWindow() Window {
 	return ccis.Window
 }
 
-func (ccas *CloudCostItemSet) Merge(that *CloudCostItemSet) (*CloudCostItemSet, error) {
-	if ccas == nil || that == nil {
+func (ccis *CloudCostItemSet) Merge(that *CloudCostItemSet) (*CloudCostItemSet, error) {
+	if ccis == nil {
 		return nil, fmt.Errorf("cannot merge nil CloudCostItemSets")
 	}
 
-	if !ccas.Window.Equal(that.Window) {
+	if that.IsEmpty() {
+		return ccis.Clone(), nil
+	}
+
+	if !ccis.Window.Equal(that.Window) {
 		return nil, fmt.Errorf("cannot merge CloudCostItemSets with different windows")
 	}
 
-	start, end := *ccas.Window.Start(), *ccas.Window.End()
+	start, end := *ccis.Window.Start(), *ccis.Window.End()
 	result := NewCloudCostItemSet(start, end)
 
-	for _, cca := range ccas.CloudCostItems {
-		result.Insert(cca)
+	for _, cci := range ccis.CloudCostItems {
+		result.Insert(cci)
 	}
 
-	for _, cca := range that.CloudCostItems {
-		result.Insert(cca)
+	for _, cci := range that.CloudCostItems {
+		result.Insert(cci)
 	}
 
 	return result, nil

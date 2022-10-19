@@ -17,6 +17,14 @@ type CloudCostAggregateProperties struct {
 	LabelValue string `json:"labelValue"`
 }
 
+func (ccap CloudCostAggregateProperties) Equal(that CloudCostAggregateProperties) bool {
+	return ccap.Provider == that.Provider &&
+		ccap.Account == that.Account &&
+		ccap.Project == that.Project &&
+		ccap.Service == that.Service &&
+		ccap.LabelValue == that.LabelValue
+}
+
 // TODO:cloudcost
 func (ccap CloudCostAggregateProperties) Key() string {
 	return fmt.Sprintf("%s/%s/%s/%s/%s", ccap.Provider, ccap.Account, ccap.Project, ccap.Service, ccap.LabelValue)
@@ -39,6 +47,17 @@ func (cca *CloudCostAggregate) Clone() *CloudCostAggregate {
 		Cost:              cca.Cost,
 		Credit:            cca.Credit,
 	}
+}
+
+func (cca *CloudCostAggregate) Equal(that *CloudCostAggregate) bool {
+	if that == nil {
+		return false
+	}
+
+	return cca.Cost == that.Cost &&
+		cca.Credit == that.Credit &&
+		cca.Window.Equal(that.Window) &&
+		cca.Properties.Equal(that.Properties)
 }
 
 func (cca *CloudCostAggregate) Key() string {
@@ -142,6 +161,36 @@ func (ccas *CloudCostAggregateSet) Clone() *CloudCostAggregateSet {
 	}
 }
 
+func (ccas *CloudCostAggregateSet) Equal(that *CloudCostAggregateSet) bool {
+	if ccas.Integration != that.Integration {
+		return false
+	}
+
+	if ccas.LabelName != that.LabelName {
+		return false
+	}
+
+	if !ccas.Window.Equal(that.Window) {
+		return false
+	}
+
+	if len(ccas.CloudCostAggregates) != len(that.CloudCostAggregates) {
+		return false
+	}
+
+	for k, cca := range ccas.CloudCostAggregates {
+		tcca, ok := that.CloudCostAggregates[k]
+		if !ok {
+			return false
+		}
+		if !cca.Equal(tcca) {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (ccas *CloudCostAggregateSet) IsEmpty() bool {
 	if ccas == nil {
 		return true
@@ -172,10 +221,6 @@ func (ccas *CloudCostAggregateSet) Merge(that *CloudCostAggregateSet) (*CloudCos
 	}
 
 	if ccas.LabelName != that.LabelName {
-		fmt.Println("!!!")
-		fmt.Println(ccas.LabelName)
-		fmt.Println(that.LabelName)
-
 		return nil, fmt.Errorf("cannot merge CloudCostAggregateSets with different label names")
 	}
 

@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/opencost/opencost/pkg/filter"
 	"github.com/opencost/opencost/pkg/kubecost"
 )
 
@@ -11,7 +12,7 @@ func Test_String_Matches(t *testing.T) {
 	cases := []struct {
 		name   string
 		a      *kubecost.Allocation
-		filter Filter[*kubecost.Allocation]
+		filter filter.Filter[*kubecost.Allocation]
 
 		expected bool
 	}{
@@ -22,9 +23,9 @@ func Test_String_Matches(t *testing.T) {
 					Cluster: "cluster-one",
 				},
 			},
-			filter: StringProperty[*kubecost.Allocation]{
+			filter: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationClusterProp,
-				Op:    StringEquals,
+				Op:    filter.StringEquals,
 				Value: "cluster-one",
 			},
 
@@ -37,9 +38,9 @@ func Test_String_Matches(t *testing.T) {
 					Cluster: "cluster-one",
 				},
 			},
-			filter: StringProperty[*kubecost.Allocation]{
+			filter: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationClusterProp,
-				Op:    StringStartsWith,
+				Op:    filter.StringStartsWith,
 				Value: "cluster",
 			},
 
@@ -52,9 +53,9 @@ func Test_String_Matches(t *testing.T) {
 					Cluster: "k8s-one",
 				},
 			},
-			filter: StringProperty[*kubecost.Allocation]{
+			filter: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationClusterProp,
-				Op:    StringStartsWith,
+				Op:    filter.StringStartsWith,
 				Value: "cluster",
 			},
 
@@ -67,9 +68,9 @@ func Test_String_Matches(t *testing.T) {
 					Cluster: "",
 				},
 			},
-			filter: StringProperty[*kubecost.Allocation]{
+			filter: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationClusterProp,
-				Op:    StringStartsWith,
+				Op:    filter.StringStartsWith,
 				Value: "",
 			},
 
@@ -82,9 +83,9 @@ func Test_String_Matches(t *testing.T) {
 					Cluster: "abc",
 				},
 			},
-			filter: StringProperty[*kubecost.Allocation]{
+			filter: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationClusterProp,
-				Op:    StringStartsWith,
+				Op:    filter.StringStartsWith,
 				Value: "",
 			},
 
@@ -97,9 +98,9 @@ func Test_String_Matches(t *testing.T) {
 					Node: "node123",
 				},
 			},
-			filter: StringProperty[*kubecost.Allocation]{
+			filter: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationNodeProp,
-				Op:    StringEquals,
+				Op:    filter.StringEquals,
 				Value: "node123",
 			},
 
@@ -112,9 +113,9 @@ func Test_String_Matches(t *testing.T) {
 					Namespace: "",
 				},
 			},
-			filter: StringProperty[*kubecost.Allocation]{
+			filter: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationNamespaceProp,
-				Op:    StringEquals,
+				Op:    filter.StringEquals,
 				Value: kubecost.UnallocatedSuffix,
 			},
 
@@ -127,9 +128,9 @@ func Test_String_Matches(t *testing.T) {
 					ControllerKind: "deployment", // We generally store controller kinds as all lowercase
 				},
 			},
-			filter: StringProperty[*kubecost.Allocation]{
+			filter: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationControllerKindProp,
-				Op:    StringEquals,
+				Op:    filter.StringEquals,
 				Value: "deployment",
 			},
 
@@ -142,9 +143,9 @@ func Test_String_Matches(t *testing.T) {
 					Controller: "kc-cost-analyzer",
 				},
 			},
-			filter: StringProperty[*kubecost.Allocation]{
+			filter: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationControllerProp,
-				Op:    StringEquals,
+				Op:    filter.StringEquals,
 				Value: "kc-cost-analyzer",
 			},
 
@@ -157,9 +158,9 @@ func Test_String_Matches(t *testing.T) {
 					Pod: "pod-123 UID-ABC",
 				},
 			},
-			filter: StringProperty[*kubecost.Allocation]{
+			filter: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationPodProp,
-				Op:    StringEquals,
+				Op:    filter.StringEquals,
 				Value: "pod-123 UID-ABC",
 			},
 
@@ -172,9 +173,9 @@ func Test_String_Matches(t *testing.T) {
 					Container: "cost-model",
 				},
 			},
-			filter: StringProperty[*kubecost.Allocation]{
+			filter: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationContainerProp,
-				Op:    StringEquals,
+				Op:    filter.StringEquals,
 				Value: "cost-model",
 			},
 
@@ -187,9 +188,9 @@ func Test_String_Matches(t *testing.T) {
 					Namespace: "",
 				},
 			},
-			filter: StringProperty[*kubecost.Allocation]{
+			filter: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationNamespaceProp,
-				Op:    StringEquals,
+				Op:    filter.StringEquals,
 				Value: kubecost.UnallocatedSuffix,
 			},
 
@@ -210,7 +211,7 @@ func Test_StringSlice_Matches(t *testing.T) {
 	cases := []struct {
 		name   string
 		a      *kubecost.Allocation
-		filter Filter[*kubecost.Allocation]
+		filter filter.Filter[*kubecost.Allocation]
 
 		expected bool
 	}{
@@ -221,9 +222,9 @@ func Test_StringSlice_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter: StringSliceProperty[*kubecost.Allocation]{
+			filter: filter.StringSliceProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationServiceProp,
-				Op:    StringSliceContains,
+				Op:    filter.StringSliceContains,
 				Value: "serv2",
 			},
 
@@ -236,9 +237,9 @@ func Test_StringSlice_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter: StringSliceProperty[*kubecost.Allocation]{
+			filter: filter.StringSliceProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationServiceProp,
-				Op:    StringSliceContains,
+				Op:    filter.StringSliceContains,
 				Value: "serv3",
 			},
 
@@ -251,9 +252,9 @@ func Test_StringSlice_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter: StringSliceProperty[*kubecost.Allocation]{
+			filter: filter.StringSliceProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationServiceProp,
-				Op:    StringSliceContains,
+				Op:    filter.StringSliceContains,
 				Value: kubecost.UnallocatedSuffix,
 			},
 
@@ -266,9 +267,9 @@ func Test_StringSlice_Matches(t *testing.T) {
 					Services: []string{},
 				},
 			},
-			filter: StringSliceProperty[*kubecost.Allocation]{
+			filter: filter.StringSliceProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationServiceProp,
-				Op:    StringSliceContains,
+				Op:    filter.StringSliceContains,
 				Value: kubecost.UnallocatedSuffix,
 			},
 
@@ -289,7 +290,7 @@ func Test_StringMap_Matches(t *testing.T) {
 	cases := []struct {
 		name   string
 		a      *kubecost.Allocation
-		filter Filter[*kubecost.Allocation]
+		filter filter.Filter[*kubecost.Allocation]
 
 		expected bool
 	}{
@@ -302,9 +303,9 @@ func Test_StringMap_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: StringMapProperty[*kubecost.Allocation]{
+			filter: filter.StringMapProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationLabelProp,
-				Op:    StringMapEquals,
+				Op:    filter.StringMapEquals,
 				Key:   "app",
 				Value: "foo",
 			},
@@ -320,9 +321,9 @@ func Test_StringMap_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: StringMapProperty[*kubecost.Allocation]{
+			filter: filter.StringMapProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationLabelProp,
-				Op:    StringMapEquals,
+				Op:    filter.StringMapEquals,
 				Key:   "app",
 				Value: "foo",
 			},
@@ -338,9 +339,9 @@ func Test_StringMap_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: StringMapProperty[*kubecost.Allocation]{
+			filter: filter.StringMapProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationLabelProp,
-				Op:    StringMapEquals,
+				Op:    filter.StringMapEquals,
 				Key:   "app",
 				Value: "foo",
 			},
@@ -356,9 +357,9 @@ func Test_StringMap_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: StringMapProperty[*kubecost.Allocation]{
+			filter: filter.StringMapProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationLabelProp,
-				Op:    StringMapEquals,
+				Op:    filter.StringMapEquals,
 				Key:   "app",
 				Value: kubecost.UnallocatedSuffix,
 			},
@@ -374,9 +375,9 @@ func Test_StringMap_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: StringMapProperty[*kubecost.Allocation]{
+			filter: filter.StringMapProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationLabelProp,
-				Op:    StringMapEquals,
+				Op:    filter.StringMapEquals,
 				Key:   "app",
 				Value: kubecost.UnallocatedSuffix,
 			},
@@ -392,9 +393,9 @@ func Test_StringMap_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: StringMapProperty[*kubecost.Allocation]{
+			filter: filter.StringMapProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationAnnotationProp,
-				Op:    StringMapEquals,
+				Op:    filter.StringMapEquals,
 				Key:   "prom_modified_name",
 				Value: "testing123",
 			},
@@ -410,9 +411,9 @@ func Test_StringMap_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: StringMapProperty[*kubecost.Allocation]{
+			filter: filter.StringMapProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationAnnotationProp,
-				Op:    StringMapEquals,
+				Op:    filter.StringMapEquals,
 				Key:   "app",
 				Value: "foo",
 			},
@@ -428,9 +429,9 @@ func Test_StringMap_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: StringMapProperty[*kubecost.Allocation]{
+			filter: filter.StringMapProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationAnnotationProp,
-				Op:    StringMapEquals,
+				Op:    filter.StringMapEquals,
 				Key:   "app",
 				Value: "foo",
 			},
@@ -452,7 +453,7 @@ func Test_Not_Matches(t *testing.T) {
 	cases := []struct {
 		name   string
 		a      *kubecost.Allocation
-		filter Filter[*kubecost.Allocation]
+		filter filter.Filter[*kubecost.Allocation]
 
 		expected bool
 	}{
@@ -463,10 +464,10 @@ func Test_Not_Matches(t *testing.T) {
 					Namespace: "kube-system",
 				},
 			},
-			filter: Not[*kubecost.Allocation]{
-				Filter: StringProperty[*kubecost.Allocation]{
+			filter: filter.Not[*kubecost.Allocation]{
+				Filter: filter.StringProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationNamespaceProp,
-					Op:    StringEquals,
+					Op:    filter.StringEquals,
 					Value: "kube-system",
 				},
 			},
@@ -480,10 +481,10 @@ func Test_Not_Matches(t *testing.T) {
 					Namespace: "kube-system",
 				},
 			},
-			filter: Not[*kubecost.Allocation]{
-				Filter: StringProperty[*kubecost.Allocation]{
+			filter: filter.Not[*kubecost.Allocation]{
+				Filter: filter.StringProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationNamespaceProp,
-					Op:    StringEquals,
+					Op:    filter.StringEquals,
 					Value: kubecost.UnallocatedSuffix,
 				},
 			},
@@ -496,10 +497,10 @@ func Test_Not_Matches(t *testing.T) {
 					Namespace: "",
 				},
 			},
-			filter: Not[*kubecost.Allocation]{
-				Filter: StringProperty[*kubecost.Allocation]{
+			filter: filter.Not[*kubecost.Allocation]{
+				Filter: filter.StringProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationNamespaceProp,
-					Op:    StringEquals,
+					Op:    filter.StringEquals,
 					Value: kubecost.UnallocatedSuffix,
 				},
 			},
@@ -516,10 +517,10 @@ func Test_Not_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: Not[*kubecost.Allocation]{
-				Filter: StringMapProperty[*kubecost.Allocation]{
+			filter: filter.Not[*kubecost.Allocation]{
+				Filter: filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringMapEquals,
+					Op:    filter.StringMapEquals,
 					Key:   "app",
 					Value: kubecost.UnallocatedSuffix,
 				},
@@ -535,10 +536,10 @@ func Test_Not_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: Not[*kubecost.Allocation]{
-				Filter: StringMapProperty[*kubecost.Allocation]{
+			filter: filter.Not[*kubecost.Allocation]{
+				Filter: filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringMapEquals,
+					Op:    filter.StringMapEquals,
 					Key:   "app",
 					Value: kubecost.UnallocatedSuffix,
 				},
@@ -554,10 +555,10 @@ func Test_Not_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: Not[*kubecost.Allocation]{
-				Filter: StringMapProperty[*kubecost.Allocation]{
+			filter: filter.Not[*kubecost.Allocation]{
+				Filter: filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringMapEquals,
+					Op:    filter.StringMapEquals,
 					Key:   "app",
 					Value: "foo",
 				},
@@ -574,9 +575,9 @@ func Test_Not_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: StringMapProperty[*kubecost.Allocation]{
+			filter: filter.StringMapProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationAnnotationProp,
-				Op:    StringMapEquals,
+				Op:    filter.StringMapEquals,
 				Key:   "prom_modified_name",
 				Value: "testing123",
 			},
@@ -592,9 +593,9 @@ func Test_Not_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: StringMapProperty[*kubecost.Allocation]{
+			filter: filter.StringMapProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationAnnotationProp,
-				Op:    StringMapEquals,
+				Op:    filter.StringMapEquals,
 				Key:   "app",
 				Value: "foo",
 			},
@@ -610,9 +611,9 @@ func Test_Not_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: StringMapProperty[*kubecost.Allocation]{
+			filter: filter.StringMapProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationAnnotationProp,
-				Op:    StringMapEquals,
+				Op:    filter.StringMapEquals,
 				Key:   "app",
 				Value: "foo",
 			},
@@ -628,10 +629,10 @@ func Test_Not_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: Not[*kubecost.Allocation]{
-				Filter: StringMapProperty[*kubecost.Allocation]{
+			filter: filter.Not[*kubecost.Allocation]{
+				Filter: filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationAnnotationProp,
-					Op:    StringMapEquals,
+					Op:    filter.StringMapEquals,
 					Key:   "app",
 					Value: "foo",
 				},
@@ -646,9 +647,9 @@ func Test_Not_Matches(t *testing.T) {
 					Namespace: "",
 				},
 			},
-			filter: StringProperty[*kubecost.Allocation]{
+			filter: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationNamespaceProp,
-				Op:    StringEquals,
+				Op:    filter.StringEquals,
 				Value: kubecost.UnallocatedSuffix,
 			},
 
@@ -661,9 +662,9 @@ func Test_Not_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter: StringSliceProperty[*kubecost.Allocation]{
+			filter: filter.StringSliceProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationServiceProp,
-				Op:    StringSliceContains,
+				Op:    filter.StringSliceContains,
 				Value: "serv2",
 			},
 
@@ -676,9 +677,9 @@ func Test_Not_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter: StringSliceProperty[*kubecost.Allocation]{
+			filter: filter.StringSliceProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationServiceProp,
-				Op:    StringSliceContains,
+				Op:    filter.StringSliceContains,
 				Value: "serv3",
 			},
 
@@ -691,10 +692,10 @@ func Test_Not_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter: Not[*kubecost.Allocation]{
-				Filter: StringSliceProperty[*kubecost.Allocation]{
+			filter: filter.Not[*kubecost.Allocation]{
+				Filter: filter.StringSliceProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationServiceProp,
-					Op:    StringSliceContains,
+					Op:    filter.StringSliceContains,
 					Value: "serv3",
 				},
 			},
@@ -707,10 +708,10 @@ func Test_Not_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter: Not[*kubecost.Allocation]{
-				Filter: StringSliceProperty[*kubecost.Allocation]{
+			filter: filter.Not[*kubecost.Allocation]{
+				Filter: filter.StringSliceProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationServiceProp,
-					Op:    StringSliceContains,
+					Op:    filter.StringSliceContains,
 					Value: "serv2",
 				},
 			},
@@ -724,10 +725,10 @@ func Test_Not_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter: Not[*kubecost.Allocation]{
-				Filter: StringSliceProperty[*kubecost.Allocation]{
+			filter: filter.Not[*kubecost.Allocation]{
+				Filter: filter.StringSliceProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationServiceProp,
-					Op:    StringSliceContains,
+					Op:    filter.StringSliceContains,
 					Value: kubecost.UnallocatedSuffix,
 				},
 			},
@@ -741,10 +742,10 @@ func Test_Not_Matches(t *testing.T) {
 					Services: []string{},
 				},
 			},
-			filter: Not[*kubecost.Allocation]{
-				Filter: StringSliceProperty[*kubecost.Allocation]{
+			filter: filter.Not[*kubecost.Allocation]{
+				Filter: filter.StringSliceProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationServiceProp,
-					Op:    StringSliceContains,
+					Op:    filter.StringSliceContains,
 					Value: kubecost.UnallocatedSuffix,
 				},
 			},
@@ -758,9 +759,9 @@ func Test_Not_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter: StringSliceProperty[*kubecost.Allocation]{
+			filter: filter.StringSliceProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationServiceProp,
-				Op:    StringSliceContainsPrefix,
+				Op:    filter.StringSliceContainsPrefix,
 				Value: "serv",
 			},
 
@@ -773,9 +774,9 @@ func Test_Not_Matches(t *testing.T) {
 					Services: []string{"foo", "bar"},
 				},
 			},
-			filter: StringSliceProperty[*kubecost.Allocation]{
+			filter: filter.StringSliceProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationServiceProp,
-				Op:    StringSliceContainsPrefix,
+				Op:    filter.StringSliceContainsPrefix,
 				Value: "serv",
 			},
 
@@ -788,9 +789,9 @@ func Test_Not_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter: StringSliceProperty[*kubecost.Allocation]{
+			filter: filter.StringSliceProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationServiceProp,
-				Op:    StringSliceContains,
+				Op:    filter.StringSliceContains,
 				Value: kubecost.UnallocatedSuffix,
 			},
 
@@ -803,9 +804,9 @@ func Test_Not_Matches(t *testing.T) {
 					Services: []string{},
 				},
 			},
-			filter: StringSliceProperty[*kubecost.Allocation]{
+			filter: filter.StringSliceProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationServiceProp,
-				Op:    StringSliceContains,
+				Op:    filter.StringSliceContains,
 				Value: kubecost.UnallocatedSuffix,
 			},
 
@@ -930,7 +931,7 @@ func Test_None_Matches(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		result := AllCut[*kubecost.Allocation]{}.Matches(c.a)
+		result := filter.AllCut[*kubecost.Allocation]{}.Matches(c.a)
 
 		if result {
 			t.Errorf("%s: should have been rejected", c.name)
@@ -942,7 +943,7 @@ func Test_And_Matches(t *testing.T) {
 	cases := []struct {
 		name   string
 		a      *kubecost.Allocation
-		filter Filter[*kubecost.Allocation]
+		filter filter.Filter[*kubecost.Allocation]
 
 		expected bool
 	}{
@@ -956,16 +957,16 @@ func Test_And_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: And[*kubecost.Allocation]{[]Filter[*kubecost.Allocation]{
-				StringMapProperty[*kubecost.Allocation]{
+			filter: filter.And[*kubecost.Allocation]{[]filter.Filter[*kubecost.Allocation]{
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringMapEquals,
+					Op:    filter.StringMapEquals,
 					Key:   "app",
 					Value: "foo",
 				},
-				StringProperty[*kubecost.Allocation]{
+				filter.StringProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationNamespaceProp,
-					Op:    StringEquals,
+					Op:    filter.StringEquals,
 					Value: "kubecost",
 				},
 			}},
@@ -981,16 +982,16 @@ func Test_And_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: And[*kubecost.Allocation]{[]Filter[*kubecost.Allocation]{
-				StringMapProperty[*kubecost.Allocation]{
+			filter: filter.And[*kubecost.Allocation]{[]filter.Filter[*kubecost.Allocation]{
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringMapEquals,
+					Op:    filter.StringMapEquals,
 					Key:   "app",
 					Value: "foo",
 				},
-				StringProperty[*kubecost.Allocation]{
+				filter.StringProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationNamespaceProp,
-					Op:    StringEquals,
+					Op:    filter.StringEquals,
 					Value: "kubecost",
 				},
 			}},
@@ -1006,16 +1007,16 @@ func Test_And_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: And[*kubecost.Allocation]{[]Filter[*kubecost.Allocation]{
-				StringMapProperty[*kubecost.Allocation]{
+			filter: filter.And[*kubecost.Allocation]{[]filter.Filter[*kubecost.Allocation]{
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringMapEquals,
+					Op:    filter.StringMapEquals,
 					Key:   "app",
 					Value: "foo",
 				},
-				StringProperty[*kubecost.Allocation]{
+				filter.StringProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationNamespaceProp,
-					Op:    StringEquals,
+					Op:    filter.StringEquals,
 					Value: "kubecost",
 				},
 			}},
@@ -1031,16 +1032,16 @@ func Test_And_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: And[*kubecost.Allocation]{[]Filter[*kubecost.Allocation]{
-				StringMapProperty[*kubecost.Allocation]{
+			filter: filter.And[*kubecost.Allocation]{[]filter.Filter[*kubecost.Allocation]{
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringMapEquals,
+					Op:    filter.StringMapEquals,
 					Key:   "app",
 					Value: "foo",
 				},
-				StringProperty[*kubecost.Allocation]{
+				filter.StringProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationNamespaceProp,
-					Op:    StringEquals,
+					Op:    filter.StringEquals,
 					Value: "kubecost",
 				},
 			}},
@@ -1056,8 +1057,8 @@ func Test_And_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: And[*kubecost.Allocation]{[]Filter[*kubecost.Allocation]{
-				AllCut[*kubecost.Allocation]{},
+			filter: filter.And[*kubecost.Allocation]{[]filter.Filter[*kubecost.Allocation]{
+				filter.AllCut[*kubecost.Allocation]{},
 			}},
 			expected: false,
 		},
@@ -1076,7 +1077,7 @@ func Test_Or_Matches(t *testing.T) {
 	cases := []struct {
 		name   string
 		a      *kubecost.Allocation
-		filter Filter[*kubecost.Allocation]
+		filter filter.Filter[*kubecost.Allocation]
 
 		expected bool
 	}{
@@ -1090,16 +1091,16 @@ func Test_Or_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: Or[*kubecost.Allocation]{[]Filter[*kubecost.Allocation]{
-				StringMapProperty[*kubecost.Allocation]{
+			filter: filter.Or[*kubecost.Allocation]{[]filter.Filter[*kubecost.Allocation]{
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringMapEquals,
+					Op:    filter.StringMapEquals,
 					Key:   "app",
 					Value: "foo",
 				},
-				StringProperty[*kubecost.Allocation]{
+				filter.StringProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationNamespaceProp,
-					Op:    StringEquals,
+					Op:    filter.StringEquals,
 					Value: "kubecost",
 				},
 			}},
@@ -1115,16 +1116,16 @@ func Test_Or_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: Or[*kubecost.Allocation]{[]Filter[*kubecost.Allocation]{
-				StringMapProperty[*kubecost.Allocation]{
+			filter: filter.Or[*kubecost.Allocation]{[]filter.Filter[*kubecost.Allocation]{
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringMapEquals,
+					Op:    filter.StringMapEquals,
 					Key:   "app",
 					Value: "foo",
 				},
-				StringProperty[*kubecost.Allocation]{
+				filter.StringProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationNamespaceProp,
-					Op:    StringEquals,
+					Op:    filter.StringEquals,
 					Value: "kubecost",
 				},
 			}},
@@ -1140,16 +1141,16 @@ func Test_Or_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: Or[*kubecost.Allocation]{[]Filter[*kubecost.Allocation]{
-				StringMapProperty[*kubecost.Allocation]{
+			filter: filter.Or[*kubecost.Allocation]{[]filter.Filter[*kubecost.Allocation]{
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringMapEquals,
+					Op:    filter.StringMapEquals,
 					Key:   "app",
 					Value: "foo",
 				},
-				StringProperty[*kubecost.Allocation]{
+				filter.StringProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationNamespaceProp,
-					Op:    StringEquals,
+					Op:    filter.StringEquals,
 					Value: "kubecost",
 				},
 			}},
@@ -1165,16 +1166,16 @@ func Test_Or_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: Or[*kubecost.Allocation]{[]Filter[*kubecost.Allocation]{
-				StringMapProperty[*kubecost.Allocation]{
+			filter: filter.Or[*kubecost.Allocation]{[]filter.Filter[*kubecost.Allocation]{
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringMapEquals,
+					Op:    filter.StringMapEquals,
 					Key:   "app",
 					Value: "foo",
 				},
-				StringProperty[*kubecost.Allocation]{
+				filter.StringProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationNamespaceProp,
-					Op:    StringEquals,
+					Op:    filter.StringEquals,
 					Value: "kubecost",
 				},
 			}},
@@ -1195,144 +1196,144 @@ func Test_Filter_Flattened(t *testing.T) {
 	cases := []struct {
 		name string
 
-		input    Filter[*kubecost.Allocation]
-		expected Filter[*kubecost.Allocation]
+		input    filter.Filter[*kubecost.Allocation]
+		expected filter.Filter[*kubecost.Allocation]
 	}{
 		{
-			name: "StringProperty[*kubecost.Allocation]",
-			input: StringProperty[*kubecost.Allocation]{
+			name: "filter.StringProperty[*kubecost.Allocation]",
+			input: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationNamespaceProp,
-				Op:    StringEquals,
+				Op:    filter.StringEquals,
 			},
-			expected: StringProperty[*kubecost.Allocation]{
+			expected: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationNamespaceProp,
-				Op:    StringEquals,
-			},
-		},
-		{
-			name:     "empty And[*kubecost.Allocation] (nil)",
-			input:    And[*kubecost.Allocation]{},
-			expected: AllPass[*kubecost.Allocation]{},
-		},
-		{
-			name:     "empty And[*kubecost.Allocation] (len 0)",
-			input:    And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{}},
-			expected: AllPass[*kubecost.Allocation]{},
-		},
-		{
-			name:     "empty Or[*kubecost.Allocation] (nil)",
-			input:    Or[*kubecost.Allocation]{},
-			expected: AllPass[*kubecost.Allocation]{},
-		},
-		{
-			name:     "empty Or[*kubecost.Allocation] (len 0)",
-			input:    Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{}},
-			expected: AllPass[*kubecost.Allocation]{},
-		},
-		{
-			name: "single-element And[*kubecost.Allocation]",
-			input: And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				StringProperty[*kubecost.Allocation]{
-					Field: kubecost.AllocationNamespaceProp,
-					Op:    StringEquals,
-				},
-			}},
-
-			expected: StringProperty[*kubecost.Allocation]{
-				Field: kubecost.AllocationNamespaceProp,
-				Op:    StringEquals,
+				Op:    filter.StringEquals,
 			},
 		},
 		{
-			name: "single-element Or[*kubecost.Allocation]",
-			input: Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				StringProperty[*kubecost.Allocation]{
+			name:     "empty filter.And[*kubecost.Allocation] (nil)",
+			input:    filter.And[*kubecost.Allocation]{},
+			expected: filter.AllPass[*kubecost.Allocation]{},
+		},
+		{
+			name:     "empty filter.And[*kubecost.Allocation] (len 0)",
+			input:    filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{}},
+			expected: filter.AllPass[*kubecost.Allocation]{},
+		},
+		{
+			name:     "empty filter.Or[*kubecost.Allocation] (nil)",
+			input:    filter.Or[*kubecost.Allocation]{},
+			expected: filter.AllPass[*kubecost.Allocation]{},
+		},
+		{
+			name:     "empty filter.Or[*kubecost.Allocation] (len 0)",
+			input:    filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{}},
+			expected: filter.AllPass[*kubecost.Allocation]{},
+		},
+		{
+			name: "single-element filter.And[*kubecost.Allocation]",
+			input: filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.StringProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationNamespaceProp,
-					Op:    StringEquals,
+					Op:    filter.StringEquals,
 				},
 			}},
 
-			expected: StringProperty[*kubecost.Allocation]{
+			expected: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationNamespaceProp,
-				Op:    StringEquals,
+				Op:    filter.StringEquals,
 			},
 		},
 		{
-			name: "multi-element And[*kubecost.Allocation]",
-			input: And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				StringProperty[*kubecost.Allocation]{
+			name: "single-element filter.Or[*kubecost.Allocation]",
+			input: filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.StringProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationNamespaceProp,
-					Op:    StringEquals,
-				},
-				Not[*kubecost.Allocation]{
-					Filter: StringProperty[*kubecost.Allocation]{
-						Field: kubecost.AllocationClusterProp,
-						Op:    StringEquals,
-					},
-				},
-				StringSliceProperty[*kubecost.Allocation]{
-					Field: kubecost.AllocationServiceProp,
-					Op:    StringSliceContains,
+					Op:    filter.StringEquals,
 				},
 			}},
 
-			expected: And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				Not[*kubecost.Allocation]{
-					Filter: StringProperty[*kubecost.Allocation]{
+			expected: filter.StringProperty[*kubecost.Allocation]{
+				Field: kubecost.AllocationNamespaceProp,
+				Op:    filter.StringEquals,
+			},
+		},
+		{
+			name: "multi-element filter.And[*kubecost.Allocation]",
+			input: filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.StringProperty[*kubecost.Allocation]{
+					Field: kubecost.AllocationNamespaceProp,
+					Op:    filter.StringEquals,
+				},
+				filter.Not[*kubecost.Allocation]{
+					Filter: filter.StringProperty[*kubecost.Allocation]{
 						Field: kubecost.AllocationClusterProp,
-						Op:    StringEquals,
+						Op:    filter.StringEquals,
 					},
 				},
-				StringProperty[*kubecost.Allocation]{
-					Field: kubecost.AllocationNamespaceProp,
-					Op:    StringEquals,
-				},
-				StringSliceProperty[*kubecost.Allocation]{
+				filter.StringSliceProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationServiceProp,
-					Op:    StringSliceContains,
+					Op:    filter.StringSliceContains,
+				},
+			}},
+
+			expected: filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.Not[*kubecost.Allocation]{
+					Filter: filter.StringProperty[*kubecost.Allocation]{
+						Field: kubecost.AllocationClusterProp,
+						Op:    filter.StringEquals,
+					},
+				},
+				filter.StringProperty[*kubecost.Allocation]{
+					Field: kubecost.AllocationNamespaceProp,
+					Op:    filter.StringEquals,
+				},
+				filter.StringSliceProperty[*kubecost.Allocation]{
+					Field: kubecost.AllocationServiceProp,
+					Op:    filter.StringSliceContains,
 				},
 			}},
 		},
 		{
-			name: "multi-element Or[*kubecost.Allocation]",
-			input: Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				StringProperty[*kubecost.Allocation]{
+			name: "multi-element filter.Or[*kubecost.Allocation]",
+			input: filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.StringProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationNamespaceProp,
-					Op:    StringEquals,
+					Op:    filter.StringEquals,
 				},
-				Not[*kubecost.Allocation]{
-					Filter: StringProperty[*kubecost.Allocation]{
+				filter.Not[*kubecost.Allocation]{
+					Filter: filter.StringProperty[*kubecost.Allocation]{
 						Field: kubecost.AllocationClusterProp,
-						Op:    StringEquals,
+						Op:    filter.StringEquals,
 					},
 				},
-				StringSliceProperty[*kubecost.Allocation]{
+				filter.StringSliceProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationServiceProp,
-					Op:    StringSliceContains,
+					Op:    filter.StringSliceContains,
 				},
 			}},
 
-			expected: Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				Not[*kubecost.Allocation]{
-					Filter: StringProperty[*kubecost.Allocation]{
+			expected: filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.Not[*kubecost.Allocation]{
+					Filter: filter.StringProperty[*kubecost.Allocation]{
 						Field: kubecost.AllocationClusterProp,
-						Op:    StringEquals,
+						Op:    filter.StringEquals,
 					},
 				},
-				StringProperty[*kubecost.Allocation]{
+				filter.StringProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationNamespaceProp,
-					Op:    StringEquals,
+					Op:    filter.StringEquals,
 				},
-				StringSliceProperty[*kubecost.Allocation]{
+				filter.StringSliceProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationServiceProp,
-					Op:    StringSliceContains,
+					Op:    filter.StringSliceContains,
 				},
 			}},
 		},
 		{
-			name:     "AllCut[*kubecost.Allocation]",
-			input:    AllCut[*kubecost.Allocation]{},
-			expected: AllCut[*kubecost.Allocation]{},
+			name:     "filter.AllCut[*kubecost.Allocation]",
+			input:    filter.AllCut[*kubecost.Allocation]{},
+			expected: filter.AllCut[*kubecost.Allocation]{},
 		},
 	}
 
@@ -1349,81 +1350,81 @@ func Test_Filter_Flattened(t *testing.T) {
 
 func Test_Filter_Equals(t *testing.T) {
 	cases := map[string]struct {
-		left     Filter[*kubecost.Allocation]
-		right    Filter[*kubecost.Allocation]
+		left     filter.Filter[*kubecost.Allocation]
+		right    filter.Filter[*kubecost.Allocation]
 		expected bool
 	}{
 		// AC
 		"AC1": {
-			left:     StringProperty[*kubecost.Allocation]{},
-			right:    StringProperty[*kubecost.Allocation]{},
+			left:     filter.StringProperty[*kubecost.Allocation]{},
+			right:    filter.StringProperty[*kubecost.Allocation]{},
 			expected: true,
 		},
 		"AC2": {
-			left: StringProperty[*kubecost.Allocation]{
+			left: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationNamespaceProp,
-				Op:    StringStartsWith,
+				Op:    filter.StringStartsWith,
 				Value: "kubecost-abc",
 			},
-			right: StringProperty[*kubecost.Allocation]{
+			right: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationNamespaceProp,
-				Op:    StringStartsWith,
+				Op:    filter.StringStartsWith,
 				Value: "kubecost-abc",
 			},
 			expected: true,
 		},
 		"AC3": {
-			left: StringMapProperty[*kubecost.Allocation]{
+			left: filter.StringMapProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationLabelProp,
-				Op:    StringMapEquals,
+				Op:    filter.StringMapEquals,
 				Key:   "app",
 				Value: "kubecost-abc",
 			},
-			right: StringMapProperty[*kubecost.Allocation]{
+			right: filter.StringMapProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationLabelProp,
-				Op:    StringMapEquals,
+				Op:    filter.StringMapEquals,
 				Key:   "app",
 				Value: "kubecost-abc",
 			},
 			expected: true,
 		},
 		"AC4": {
-			left: StringMapProperty[*kubecost.Allocation]{
+			left: filter.StringMapProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationLabelProp,
-				Op:    StringMapEquals,
+				Op:    filter.StringMapEquals,
 				Key:   "app",
 				Value: "kubecost-abc",
 			},
-			right: StringProperty[*kubecost.Allocation]{
+			right: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationLabelProp,
-				Op:    StringMapEquals,
+				Op:    filter.StringMapEquals,
 				Value: "kubecost-abc",
 			},
 			expected: false,
 		},
 		"AC5": {
-			left: StringMapProperty[*kubecost.Allocation]{
+			left: filter.StringMapProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationLabelProp,
-				Op:    StringMapEquals,
+				Op:    filter.StringMapEquals,
 				Value: "kubecost-abc",
 			},
-			right: StringMapProperty[*kubecost.Allocation]{
+			right: filter.StringMapProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationLabelProp,
-				Op:    StringMapEquals,
+				Op:    filter.StringMapEquals,
 				Key:   "app",
 				Value: "kubecost-abc",
 			},
 			expected: false,
 		},
 		"AC6": {
-			left: StringProperty[*kubecost.Allocation]{
+			left: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationNamespaceProp,
-				Op:    StringStartsWith,
+				Op:    filter.StringStartsWith,
 				Value: "kubecost-abc",
 			},
-			right: StringProperty[*kubecost.Allocation]{
+			right: filter.StringProperty[*kubecost.Allocation]{
 				Field: kubecost.AllocationNamespaceProp,
-				Op:    StringStartsWith,
+				Op:    filter.StringStartsWith,
 				Value: "kubecost-abcd",
 			},
 			expected: false,
@@ -1431,80 +1432,80 @@ func Test_Filter_Equals(t *testing.T) {
 		// OR
 		// EMPTY
 		"OrEmpty1": {
-			left:     Or[*kubecost.Allocation]{},
-			right:    AllPass[*kubecost.Allocation]{},
+			left:     filter.Or[*kubecost.Allocation]{},
+			right:    filter.AllPass[*kubecost.Allocation]{},
 			expected: true,
 		},
 		"OrEmpty2": {
-			left:     Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{}},
-			right:    AllPass[*kubecost.Allocation]{},
+			left:     filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{}},
+			right:    filter.AllPass[*kubecost.Allocation]{},
 			expected: true,
 		},
 
 		"OrEmpty3": {
-			left:     Or[*kubecost.Allocation]{},
-			right:    Or[*kubecost.Allocation]{},
+			left:     filter.Or[*kubecost.Allocation]{},
+			right:    filter.Or[*kubecost.Allocation]{},
 			expected: true,
 		},
 		"OrEmpty4": {
-			left:     Or[*kubecost.Allocation]{},
-			right:    Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{}},
+			left:     filter.Or[*kubecost.Allocation]{},
+			right:    filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{}},
 			expected: true,
 		},
 
 		"OrEmpty5": {
-			left:     Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{}},
-			right:    Or[*kubecost.Allocation]{},
+			left:     filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{}},
+			right:    filter.Or[*kubecost.Allocation]{},
 			expected: true,
 		},
 		"OrEmpty6": {
-			left:     Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{}},
-			right:    Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{}},
+			left:     filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{}},
+			right:    filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{}},
 			expected: true,
 		},
 		// FILLED
 		"OrFilled1": {
-			left: Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				AllCut[*kubecost.Allocation]{},
-				StringMapProperty[*kubecost.Allocation]{
+			left: filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.AllCut[*kubecost.Allocation]{},
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				And[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.And[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns1",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
 				},
 			}},
-			right: Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				AllCut[*kubecost.Allocation]{},
-				StringMapProperty[*kubecost.Allocation]{
+			right: filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.AllCut[*kubecost.Allocation]{},
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				And[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.And[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns1",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
@@ -1513,47 +1514,47 @@ func Test_Filter_Equals(t *testing.T) {
 			expected: true,
 		},
 		"OrFilled2": {
-			left: Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				AllCut[*kubecost.Allocation]{},
-				StringMapProperty[*kubecost.Allocation]{
+			left: filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.AllCut[*kubecost.Allocation]{},
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				And[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.And[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns1",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
 				},
 			}},
-			right: Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				StringMapProperty[*kubecost.Allocation]{
+			right: filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				AllCut[*kubecost.Allocation]{},
-				And[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.AllCut[*kubecost.Allocation]{},
+				filter.And[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns1",
 						},
 					},
@@ -1562,48 +1563,48 @@ func Test_Filter_Equals(t *testing.T) {
 			expected: true,
 		},
 		"OrFilled3": {
-			left: Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				AllCut[*kubecost.Allocation]{},
-				StringMapProperty[*kubecost.Allocation]{
+			left: filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.AllCut[*kubecost.Allocation]{},
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				And[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.And[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns1",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
 				},
 			}},
-			right: Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				And[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+			right: filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.And[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns1",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
 				},
-				AllCut[*kubecost.Allocation]{},
-				StringMapProperty[*kubecost.Allocation]{
+				filter.AllCut[*kubecost.Allocation]{},
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
@@ -1611,47 +1612,47 @@ func Test_Filter_Equals(t *testing.T) {
 			expected: true,
 		},
 		"OrFilled4": {
-			left: Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				AllCut[*kubecost.Allocation]{},
-				StringMapProperty[*kubecost.Allocation]{
+			left: filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.AllCut[*kubecost.Allocation]{},
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				And[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.And[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns1",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
 				},
 			}},
-			right: Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				AllCut[*kubecost.Allocation]{},
-				StringMapProperty[*kubecost.Allocation]{
+			right: filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.AllCut[*kubecost.Allocation]{},
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				And[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.And[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns3",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
@@ -1660,45 +1661,45 @@ func Test_Filter_Equals(t *testing.T) {
 			expected: false,
 		},
 		"OrFilled5": {
-			left: Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				StringMapProperty[*kubecost.Allocation]{
+			left: filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				And[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.And[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns1",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
 				},
 			}},
-			right: Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				StringMapProperty[*kubecost.Allocation]{
+			right: filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				And[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.And[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns3",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
@@ -1707,46 +1708,46 @@ func Test_Filter_Equals(t *testing.T) {
 			expected: false,
 		},
 		"OrFilled6": {
-			left: Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				AllCut[*kubecost.Allocation]{},
-				StringMapProperty[*kubecost.Allocation]{
+			left: filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.AllCut[*kubecost.Allocation]{},
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				And[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.And[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns1",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
 				},
 			}},
-			right: Or[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				StringMapProperty[*kubecost.Allocation]{
+			right: filter.Or[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				And[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.And[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns1",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
@@ -1757,80 +1758,80 @@ func Test_Filter_Equals(t *testing.T) {
 		// AND
 		// EMPTY
 		"AndEmpty1": {
-			left:     And[*kubecost.Allocation]{},
-			right:    AllPass[*kubecost.Allocation]{},
+			left:     filter.And[*kubecost.Allocation]{},
+			right:    filter.AllPass[*kubecost.Allocation]{},
 			expected: true,
 		},
 		"AndEmpty2": {
-			left:     And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{}},
-			right:    AllPass[*kubecost.Allocation]{},
+			left:     filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{}},
+			right:    filter.AllPass[*kubecost.Allocation]{},
 			expected: true,
 		},
 
 		"AndEmpty3": {
-			left:     And[*kubecost.Allocation]{},
-			right:    And[*kubecost.Allocation]{},
+			left:     filter.And[*kubecost.Allocation]{},
+			right:    filter.And[*kubecost.Allocation]{},
 			expected: true,
 		},
 		"AndEmpty4": {
-			left:     And[*kubecost.Allocation]{},
-			right:    And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{}},
+			left:     filter.And[*kubecost.Allocation]{},
+			right:    filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{}},
 			expected: true,
 		},
 
 		"AndEmpty5": {
-			left:     And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{}},
-			right:    And[*kubecost.Allocation]{},
+			left:     filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{}},
+			right:    filter.And[*kubecost.Allocation]{},
 			expected: true,
 		},
 		"AndEmpty6": {
-			left:     And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{}},
-			right:    And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{}},
+			left:     filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{}},
+			right:    filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{}},
 			expected: true,
 		},
 		// FILLED
 		"AndFilled1": {
-			left: And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				AllCut[*kubecost.Allocation]{},
-				StringMapProperty[*kubecost.Allocation]{
+			left: filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.AllCut[*kubecost.Allocation]{},
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				Or[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.Or[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns1",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
 				},
 			}},
-			right: And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				AllCut[*kubecost.Allocation]{},
-				StringMapProperty[*kubecost.Allocation]{
+			right: filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.AllCut[*kubecost.Allocation]{},
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				Or[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.Or[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns1",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
@@ -1839,47 +1840,47 @@ func Test_Filter_Equals(t *testing.T) {
 			expected: true,
 		},
 		"AndFilled2": {
-			left: And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				AllCut[*kubecost.Allocation]{},
-				StringMapProperty[*kubecost.Allocation]{
+			left: filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.AllCut[*kubecost.Allocation]{},
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				Or[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.Or[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns1",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
 				},
 			}},
-			right: And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				StringMapProperty[*kubecost.Allocation]{
+			right: filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				AllCut[*kubecost.Allocation]{},
-				Or[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.AllCut[*kubecost.Allocation]{},
+				filter.Or[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns1",
 						},
 					},
@@ -1888,48 +1889,48 @@ func Test_Filter_Equals(t *testing.T) {
 			expected: true,
 		},
 		"AndFilled3": {
-			left: And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				AllCut[*kubecost.Allocation]{},
-				StringMapProperty[*kubecost.Allocation]{
+			left: filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.AllCut[*kubecost.Allocation]{},
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				Or[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.Or[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns1",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
 				},
 			}},
-			right: And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				Or[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+			right: filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.Or[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns1",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
 				},
-				AllCut[*kubecost.Allocation]{},
-				StringMapProperty[*kubecost.Allocation]{
+				filter.AllCut[*kubecost.Allocation]{},
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
@@ -1937,47 +1938,47 @@ func Test_Filter_Equals(t *testing.T) {
 			expected: true,
 		},
 		"AndFilled4": {
-			left: And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				AllCut[*kubecost.Allocation]{},
-				StringMapProperty[*kubecost.Allocation]{
+			left: filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.AllCut[*kubecost.Allocation]{},
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				Or[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.Or[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns1",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
 				},
 			}},
-			right: And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				AllCut[*kubecost.Allocation]{},
-				StringMapProperty[*kubecost.Allocation]{
+			right: filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.AllCut[*kubecost.Allocation]{},
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				Or[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.Or[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns3",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
@@ -1986,45 +1987,45 @@ func Test_Filter_Equals(t *testing.T) {
 			expected: true,
 		},
 		"AndFilled5": {
-			left: And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				StringMapProperty[*kubecost.Allocation]{
+			left: filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				Or[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.Or[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns1",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
 				},
 			}},
-			right: And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				StringMapProperty[*kubecost.Allocation]{
+			right: filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				Or[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.Or[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns3",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
@@ -2033,46 +2034,46 @@ func Test_Filter_Equals(t *testing.T) {
 			expected: false,
 		},
 		"AndFilled6": {
-			left: And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				AllCut[*kubecost.Allocation]{},
-				StringMapProperty[*kubecost.Allocation]{
+			left: filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.AllCut[*kubecost.Allocation]{},
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				Or[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.Or[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns1",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
 				},
 			}},
-			right: And[*kubecost.Allocation]{Filters: []Filter[*kubecost.Allocation]{
-				StringMapProperty[*kubecost.Allocation]{
+			right: filter.And[*kubecost.Allocation]{Filters: []filter.Filter[*kubecost.Allocation]{
+				filter.StringMapProperty[*kubecost.Allocation]{
 					Field: kubecost.AllocationLabelProp,
-					Op:    StringStartsWith,
+					Op:    filter.StringStartsWith,
 					Key:   "xyz",
 					Value: "kubecost",
 				},
-				Or[*kubecost.Allocation]{
-					Filters: []Filter[*kubecost.Allocation]{
-						StringProperty[*kubecost.Allocation]{
+				filter.Or[*kubecost.Allocation]{
+					Filters: []filter.Filter[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns1",
 						},
-						StringProperty[*kubecost.Allocation]{
+						filter.StringProperty[*kubecost.Allocation]{
 							Field: kubecost.AllocationNamespaceProp,
-							Op:    StringEquals,
+							Op:    filter.StringEquals,
 							Value: "ns2",
 						},
 					},
@@ -2084,7 +2085,7 @@ func Test_Filter_Equals(t *testing.T) {
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			if Equals(c.left, c.right) != c.expected {
+			if filter.Equals(c.left, c.right) != c.expected {
 				t.Fatalf("'%s' = '%s' \nExpected: %t", c.left, c.right, c.expected)
 			}
 		})
