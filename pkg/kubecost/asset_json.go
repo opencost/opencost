@@ -259,7 +259,11 @@ func (d *Disk) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "minutes", d.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "byteHours", d.ByteHours, ",")
 	jsonEncodeFloat64(buffer, "bytes", d.Bytes(), ",")
-	jsonEncodeFloat64(buffer, "byteHoursUsed", d.ByteHoursUsed, ",")
+	if d.ByteHoursUsed == nil {
+		jsonEncode(buffer, "byteHoursUsed", nil, ",")
+	} else {
+		jsonEncodeFloat64(buffer, "byteHoursUsed", *d.ByteHoursUsed, ",")
+	}
 	if d.ByteUsageMax == nil {
 		jsonEncode(buffer, "byteUsageMax", nil, ",")
 	} else {
@@ -342,7 +346,12 @@ func (d *Disk) InterfaceToDisk(itf interface{}) error {
 		d.ByteHours = ByteHours.(float64)
 	}
 	if ByteHoursUsed, err := getTypedVal(fmap["byteHoursUsed"]); err == nil {
-		d.ByteHoursUsed = ByteHoursUsed.(float64)
+		if ByteHoursUsed == nil {
+			d.ByteHoursUsed = nil
+		} else {
+			byteHours := ByteHoursUsed.(float64)
+			d.ByteHoursUsed = &byteHours
+		}
 	}
 	if ByteUsageMax, err := getTypedVal(fmap["byteUsageMax"]); err == nil {
 		if ByteUsageMax == nil {

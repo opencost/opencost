@@ -116,13 +116,24 @@ type Disk struct {
 	ClaimNamespace string
 	Cost           float64
 	Bytes          float64
-	BytesUsedAvg   float64
-	BytesUsedMax   float64
-	Local          bool
-	Start          time.Time
-	End            time.Time
-	Minutes        float64
-	Breakdown      *ClusterCostsBreakdown
+
+	// These two fields may not be available at all times because they rely on
+	// a new set of metrics that may or may not be available. Thus, they must
+	// be nilable to represent the complete absence of the data.
+	//
+	// In other words, nilability here let's us distinguish between
+	// "metric is not available" and "metric is available but is 0".
+	//
+	// They end in "Ptr" to distinguish from an earlier version in order to
+	// ensure that all usages are checked for nil.
+	BytesUsedAvgPtr *float64
+	BytesUsedMaxPtr *float64
+
+	Local     bool
+	Start     time.Time
+	End       time.Time
+	Minutes   float64
+	Breakdown *ClusterCostsBreakdown
 }
 
 type DiskIdentifier struct {
@@ -321,7 +332,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 				Local:     true,
 			}
 		}
-		diskMap[key].BytesUsedAvg = bytesAvg
+		diskMap[key].BytesUsedAvgPtr = &bytesAvg
 	}
 
 	for _, result := range resLocalStorageUsedMax {
@@ -346,7 +357,7 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 				Local:     true,
 			}
 		}
-		diskMap[key].BytesUsedMax = bytesMax
+		diskMap[key].BytesUsedMaxPtr = &bytesMax
 	}
 
 	for _, result := range resLocalStorageBytes {
@@ -1456,7 +1467,7 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 				Breakdown: &ClusterCostsBreakdown{},
 			}
 		}
-		diskMap[key].BytesUsedAvg = usage
+		diskMap[key].BytesUsedAvgPtr = &usage
 	}
 
 	for _, result := range resPVUsedMax {
@@ -1517,6 +1528,6 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 				Breakdown: &ClusterCostsBreakdown{},
 			}
 		}
-		diskMap[key].BytesUsedMax = usage
+		diskMap[key].BytesUsedMaxPtr = &usage
 	}
 }
