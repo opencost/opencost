@@ -2,8 +2,9 @@ package kubecost
 
 import (
 	"fmt"
-	"github.com/opencost/opencost/pkg/log"
 	"time"
+
+	"github.com/opencost/opencost/pkg/log"
 )
 
 // CloudCostAggregateProperties unique property set for CloudCostAggregate within a window
@@ -33,27 +34,18 @@ func (cca *CloudCostAggregate) add(that *CloudCostAggregate) {
 		return
 	}
 
-	// Normalize k8s percentages
+	// Compute KubernetesPercent for sum
+	cca.KubernetesPercent = 0.0
 	sumCost := cca.Cost + that.Cost
-	thisK8sCost := cca.Cost * cca.KubernetesPercent
-	thisK8sPercent := 0.0
-	if thisK8sCost != 0 {
-		thisK8sPercent = thisK8sCost / sumCost
+	if sumCost > 0.0 {
+		thisK8sCost := cca.Cost * cca.KubernetesPercent
+		thatK8sCost := that.Cost * that.KubernetesPercent
+		cca.KubernetesPercent = (thisK8sCost + thatK8sCost) / sumCost
 	}
-	thatK8sCost := that.Cost * that.KubernetesPercent
-	thatK8sPercent := 0.0
-	if thatK8sCost != 0 {
-		thatK8sPercent = thatK8sCost / sumCost
-	}
-	cca.KubernetesPercent = thisK8sPercent + thatK8sPercent
 
 	cca.Cost = sumCost
 	cca.Credit += that.Credit
 	cca.Window = cca.Window.Expand(that.Window)
-}
-
-func (cca *CloudCostAggregate) kubecostCost(that *CloudCostAggregate) {
-
 }
 
 // TODO Integration here or on Properties?
@@ -69,10 +61,13 @@ func NewCloudCostAggregateSet(start, end time.Time, integration string, labelNam
 	ccas := &CloudCostAggregateSet{
 		Window:      NewWindow(&start, &end),
 		Integration: integration,
-		LabelName:   labelName}
+		LabelName:   labelName,
+	}
+
 	for _, cca := range cloudCostAggregates {
 		ccas.Insert(cca)
 	}
+
 	return ccas
 }
 

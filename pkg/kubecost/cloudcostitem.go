@@ -2,12 +2,14 @@ package kubecost
 
 import (
 	"fmt"
-	"github.com/opencost/opencost/pkg/log"
 	"time"
+
+	"github.com/opencost/opencost/pkg/log"
 )
 
 type CloudCostLabels map[string]string
 
+// TODO:cloudcost Category?
 type CloudCostItemProperties struct {
 	ProviderID string          `json:"providerID,omitempty"`
 	Provider   string          `json:"provider,omitempty"`
@@ -16,6 +18,11 @@ type CloudCostItemProperties struct {
 	Service    string          `json:"service,omitempty"`
 	Category   string          `json:"category,omitempty"`
 	Labels     CloudCostLabels `json:"labels,omitempty"`
+}
+
+// TODO:cloudcost
+func (ccip CloudCostItemProperties) Key() string {
+	return fmt.Sprintf("%s/%s/%s/%s/%s/%s", ccip.Provider, ccip.Account, ccip.Project, ccip.Category, ccip.Service, ccip.ProviderID)
 }
 
 // CloudCostItem represents a CUR line item, identifying a cloud resource and
@@ -29,18 +36,8 @@ type CloudCostItem struct {
 }
 
 func (cci *CloudCostItem) Key() string {
-	return "" // todo
-}
-
-func (cci *CloudCostItem) add(that *CloudCostItem) {
-	if cci == nil {
-		log.Warnf("cannot add too nil CloudCostItem")
-		return
-	}
-
-	cci.Cost += that.Cost
-	cci.Credit += that.Credit
-	cci.Window = cci.Window.Expand(that.Window)
+	// TODO:cloudcost
+	return cci.Properties.Key()
 }
 
 type CloudCostItemSet struct {
@@ -77,7 +74,8 @@ func (ccis *CloudCostItemSet) Insert(that *CloudCostItem) error {
 	if _, ok := ccis.CloudCostItems[that.Key()]; !ok {
 		ccis.CloudCostItems[that.Key()] = that
 	} else {
-		ccis.CloudCostItems[that.Key()].add(that)
+		// ccis.CloudCostItems[that.Key()].add(that)
+		return fmt.Errorf("cannot re-insert %s", that.Key())
 	}
 
 	return nil
