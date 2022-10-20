@@ -121,7 +121,7 @@ type Disk struct {
 	// a new set of metrics that may or may not be available. Thus, they must
 	// be nilable to represent the complete absence of the data.
 	//
-	// In other words, nilability here let's us distinguish between
+	// In other words, nilability here lets us distinguish between
 	// "metric is not available" and "metric is available but is 0".
 	//
 	// They end in "Ptr" to distinguish from an earlier version in order to
