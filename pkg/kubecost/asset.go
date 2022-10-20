@@ -1312,6 +1312,11 @@ func (d *Disk) Clone() Asset {
 		copied := *d.ByteUsageMax
 		max = &copied
 	}
+	var byteHoursUsed *float64
+	if d.ByteHoursUsed != nil {
+		copied := *d.ByteHoursUsed
+		byteHoursUsed = &copied
+	}
 
 	return &Disk{
 		Properties:     d.Properties.Clone(),
@@ -1322,7 +1327,7 @@ func (d *Disk) Clone() Asset {
 		Adjustment:     d.Adjustment,
 		Cost:           d.Cost,
 		ByteHours:      d.ByteHours,
-		ByteHoursUsed:  d.ByteHoursUsed,
+		ByteHoursUsed:  byteHoursUsed,
 		ByteUsageMax:   max,
 		Local:          d.Local,
 		Breakdown:      d.Breakdown.Clone(),
@@ -1364,7 +1369,13 @@ func (d *Disk) Equal(a Asset) bool {
 	if d.ByteHours != that.ByteHours {
 		return false
 	}
-	if d.ByteHoursUsed != that.ByteHoursUsed {
+	if d.ByteHoursUsed != nil && that.ByteHoursUsed == nil {
+		return false
+	}
+	if d.ByteHoursUsed == nil && that.ByteHoursUsed != nil {
+		return false
+	}
+	if (d.ByteHoursUsed != nil && that.ByteHoursUsed != nil) && *d.ByteHoursUsed != *that.ByteHoursUsed {
 		return false
 	}
 	if d.ByteUsageMax != nil && that.ByteUsageMax == nil {
