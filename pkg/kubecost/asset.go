@@ -320,6 +320,10 @@ func key(a Asset, aggregateBy []string) (string, error) {
 	return buffer.String(), nil
 }
 
+func GetAssetKey(a Asset, aggregateBy []string) (string, error) {
+	return key(a, aggregateBy)
+}
+
 func toString(a Asset) string {
 	return fmt.Sprintf("%s{%s}%s=%.2f", a.Type().String(), a.GetProperties(), a.GetWindow(), a.TotalCost())
 }

@@ -271,6 +271,28 @@ func (b *AzureStorage) Stat(name string) (*StorageInfo, error) {
 	}, nil
 }
 
+func (b *AzureStorage) StatDirectories(name string) (*StorageInfo, error) {
+	name = trimLeading(name)
+	ctx := context.Background()
+
+	blobURL := getBlobURL(name, b.containerURL)
+	props, err := blobURL.GetProperties(ctx, blob.BlobAccessConditions{}, blob.ClientProvidedKeyOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	if trimName(name) == "" {
+		return &StorageInfo{
+			Name:    trimName(name),
+			Size:    props.ContentLength(),
+			ModTime: props.LastModified(),
+		}, nil
+	} else {
+		return nil, fmt.Errorf("non-directory in dir")
+	}
+
+}
+
 // Read uses the relative path of the storage combined with the provided path to
 // read the contents.
 func (b *AzureStorage) Read(name string) ([]byte, error) {
@@ -397,6 +419,71 @@ func (b *AzureStorage) List(path string) ([]*StorageInfo, error) {
 			defer wg.Done()
 
 			stat, err := b.Stat(n)
+			if err != nil {
+				log.Errorf("Error statting blob %s: %s", n, err)
+			} else {
+				lock.Lock()
+				stats = append(stats, stat)
+				lock.Unlock()
+			}
+		}(names[i])
+	}
+
+	wg.Wait()
+
+	return stats, nil
+}
+
+func (b *AzureStorage) ListDirectories(path string) ([]*StorageInfo, error) {
+	path = trimLeading(path)
+
+	log.Debugf("AzureStorage::List(%s)", path)
+	ctx := context.Background()
+
+	// Ensure the object name actually ends with a dir suffix. Otherwise we'll just iterate the
+	// object itself as one prefix item.
+	if path != "" {
+		path = strings.TrimSuffix(path, DirDelim) + DirDelim
+	}
+
+	marker := blob.Marker{}
+	listOptions := blob.ListBlobsSegmentOptions{Prefix: path}
+
+	var names []string
+	for i := 1; ; i++ {
+		var blobItems []blob.BlobItemInternal
+
+		list, err := b.containerURL.ListBlobsHierarchySegment(ctx, marker, DirDelim, listOptions)
+		if err != nil {
+			return nil, errors.Wrapf(err, "cannot list hierarchy blobs with prefix %s (iteration #%d)", path, i)
+		}
+
+		marker = list.NextMarker
+		blobItems = list.Segment.BlobItems
+
+		for _, blob := range blobItems {
+			names = append(names, blob.Name)
+		}
+
+		// Continue iterating if we are not done.
+		if !marker.NotDone() {
+			break
+		}
+
+		log.Debugf("Requesting next iteration of listing blobs. Entries: %d, iteration: %d", len(names), i)
+	}
+
+	// get the storage information for each blob (really unfortunate we have to do this)
+	var lock sync.Mutex
+	var stats []*StorageInfo
+	var wg sync.WaitGroup
+	wg.Add(len(names))
+
+	for i := 0; i < len(names); i++ {
+		go func(n string) {
+			defer wg.Done()
+
+			stat, err := b.StatDirectories(n)
 			if err != nil {
 				log.Errorf("Error statting blob %s: %s", n, err)
 			} else {

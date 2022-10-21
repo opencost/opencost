@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"fmt"
 	gofs "io/fs"
 	"io/ioutil"
 	"os"
@@ -58,6 +59,10 @@ func (fs *FileStorage) List(path string) ([]*StorageInfo, error) {
 	}
 
 	return FilesToStorageInfo(files), nil
+}
+
+func (fs *FileStorage) ListDirectories(path string) ([]*StorageInfo, error) {
+	return []*StorageInfo{}, fmt.Errorf("ListDirectories not supported for filestorage")
 }
 
 // Read uses the relative path of the storage combined with the provided path to
