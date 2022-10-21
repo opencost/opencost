@@ -113,6 +113,19 @@ type AllocationLabels map[string]string
 // attributed to an Allocation
 type AllocationAnnotations map[string]string
 
+func (p *AllocationProperties) ShallowCloneWithProperties() *AllocationProperties {
+	clone := &AllocationProperties{}
+	clone.Cluster = p.Cluster
+	clone.Node = p.Node
+	clone.Container = p.Container
+	clone.Controller = p.Controller
+	clone.ControllerKind = p.ControllerKind
+	clone.Namespace = p.Namespace
+	clone.Pod = p.Pod
+	clone.ProviderID = p.ProviderID
+	return clone
+}
+
 func (p *AllocationProperties) Clone() *AllocationProperties {
 	if p == nil {
 		return nil

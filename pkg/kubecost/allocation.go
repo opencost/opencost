@@ -260,6 +260,43 @@ func (a *Allocation) Add(that *Allocation) (*Allocation, error) {
 	return agg, nil
 }
 
+func (a *Allocation) ShallowCloneWithProperties() *Allocation {
+	if a == nil {
+		return nil
+	}
+	return &Allocation{
+		Name:                       a.Name,
+		Properties:                 a.Properties.ShallowCloneWithProperties(),
+		Window:                     a.Window.Clone(),
+		Start:                      a.Start,
+		End:                        a.End,
+		CPUCoreHours:               a.CPUCoreHours,
+		CPUCoreRequestAverage:      a.CPUCoreRequestAverage,
+		CPUCoreUsageAverage:        a.CPUCoreUsageAverage,
+		CPUCost:                    a.CPUCost,
+		CPUCostAdjustment:          a.CPUCostAdjustment,
+		GPUHours:                   a.GPUHours,
+		GPUCost:                    a.GPUCost,
+		GPUCostAdjustment:          a.GPUCostAdjustment,
+		NetworkTransferBytes:       a.NetworkTransferBytes,
+		NetworkReceiveBytes:        a.NetworkReceiveBytes,
+		NetworkCost:                a.NetworkCost,
+		NetworkCostAdjustment:      a.NetworkCostAdjustment,
+		LoadBalancerCost:           a.LoadBalancerCost,
+		LoadBalancerCostAdjustment: a.LoadBalancerCostAdjustment,
+		PVs:                        a.PVs.Clone(),
+		PVCostAdjustment:           a.PVCostAdjustment,
+		RAMByteHours:               a.RAMByteHours,
+		RAMBytesRequestAverage:     a.RAMBytesRequestAverage,
+		RAMBytesUsageAverage:       a.RAMBytesUsageAverage,
+		RAMCost:                    a.RAMCost,
+		RAMCostAdjustment:          a.RAMCostAdjustment,
+		SharedCost:                 a.SharedCost,
+		ExternalCost:               a.ExternalCost,
+		RawAllocationOnly:          a.RawAllocationOnly.Clone(),
+	}
+}
+
 // Clone returns a deep copy of the given Allocation
 func (a *Allocation) Clone() *Allocation {
 	if a == nil {
@@ -1626,6 +1663,53 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 	}
 
 	return a.Properties.GenerateKey(aggregateBy, labelConfig)
+}
+
+func (as *AllocationSet) ShallowCloneWithProperties() *AllocationSet {
+	if as == nil {
+		return nil
+	}
+
+	allocs := make(map[string]*Allocation, len(as.Allocations))
+	for k, v := range as.Allocations {
+		allocs[k] = v.ShallowCloneWithProperties()
+	}
+
+	externalKeys := make(map[string]bool, len(as.ExternalKeys))
+	for k, v := range as.ExternalKeys {
+		externalKeys[k] = v
+	}
+
+	idleKeys := make(map[string]bool, len(as.IdleKeys))
+	for k, v := range as.IdleKeys {
+		idleKeys[k] = v
+	}
+
+	var errors []string
+	var warnings []string
+
+	if as.Errors != nil {
+		errors = make([]string, len(as.Errors))
+		copy(errors, as.Errors)
+	} else {
+		errors = nil
+	}
+
+	if as.Warnings != nil {
+		warnings := make([]string, len(as.Warnings))
+		copy(warnings, as.Warnings)
+	} else {
+		warnings = nil
+	}
+
+	return &AllocationSet{
+		Allocations:  allocs,
+		ExternalKeys: externalKeys,
+		IdleKeys:     idleKeys,
+		Window:       as.Window.Clone(),
+		Errors:       errors,
+		Warnings:     warnings,
+	}
 }
 
 // Clone returns a new AllocationSet with a deep copy of the given
