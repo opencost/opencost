@@ -7,7 +7,7 @@ import (
 	"github.com/opencost/opencost/pkg/log"
 
 	appsv1 "k8s.io/api/apps/v1"
-	autoscaling "k8s.io/api/autoscaling/v2beta1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/policy/v1beta1"
@@ -62,7 +62,7 @@ type ClusterCache interface {
 	GetAllJobs() []*batchv1.Job
 
 	// GetAllHorizontalPodAutoscalers returns all cached horizontal pod autoscalers
-	GetAllHorizontalPodAutoscalers() []*autoscaling.HorizontalPodAutoscaler
+	GetAllHorizontalPodAutoscalers() []*autoscalingv2.HorizontalPodAutoscaler
 
 	// GetAllPodDisruptionBudgets returns all cached pod disruption budgets
 	GetAllPodDisruptionBudgets() []*v1beta1.PodDisruptionBudget
@@ -107,7 +107,7 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 	appsRestClient := client.AppsV1().RESTClient()
 	storageRestClient := client.StorageV1().RESTClient()
 	batchClient := client.BatchV1().RESTClient()
-	autoscalingClient := client.AutoscalingV2beta1().RESTClient()
+	autoscalingClient := client.AutoscalingV2().RESTClient()
 	pdbClient := client.PolicyV1beta1().RESTClient()
 
 	kubecostNamespace := env.GetKubecostNamespace()
@@ -128,7 +128,7 @@ func NewKubernetesClusterCache(client kubernetes.Interface) ClusterCache {
 		pvcWatch:                   NewCachingWatcher(coreRestClient, "persistentvolumeclaims", &v1.PersistentVolumeClaim{}, "", fields.Everything()),
 		storageClassWatch:          NewCachingWatcher(storageRestClient, "storageclasses", &stv1.StorageClass{}, "", fields.Everything()),
 		jobsWatch:                  NewCachingWatcher(batchClient, "jobs", &batchv1.Job{}, "", fields.Everything()),
-		hpaWatch:                   NewCachingWatcher(autoscalingClient, "horizontalpodautoscalers", &autoscaling.HorizontalPodAutoscaler{}, "", fields.Everything()),
+		hpaWatch:                   NewCachingWatcher(autoscalingClient, "horizontalpodautoscalers", &autoscalingv2.HorizontalPodAutoscaler{}, "", fields.Everything()),
 		pdbWatch:                   NewCachingWatcher(pdbClient, "poddisruptionbudgets", &v1beta1.PodDisruptionBudget{}, "", fields.Everything()),
 		replicationControllerWatch: NewCachingWatcher(coreRestClient, "replicationcontrollers", &v1.ReplicationController{}, "", fields.Everything()),
 	}
@@ -309,11 +309,11 @@ func (kcc *KubernetesClusterCache) GetAllJobs() []*batchv1.Job {
 	return jobs
 }
 
-func (kcc *KubernetesClusterCache) GetAllHorizontalPodAutoscalers() []*autoscaling.HorizontalPodAutoscaler {
-	var hpas []*autoscaling.HorizontalPodAutoscaler
+func (kcc *KubernetesClusterCache) GetAllHorizontalPodAutoscalers() []*autoscalingv2.HorizontalPodAutoscaler {
+	var hpas []*autoscalingv2.HorizontalPodAutoscaler
 	items := kcc.hpaWatch.GetAll()
 	for _, hpa := range items {
-		hpas = append(hpas, hpa.(*autoscaling.HorizontalPodAutoscaler))
+		hpas = append(hpas, hpa.(*autoscalingv2.HorizontalPodAutoscaler))
 	}
 	return hpas
 }

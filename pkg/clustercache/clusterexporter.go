@@ -9,7 +9,7 @@ import (
 	"github.com/opencost/opencost/pkg/util/json"
 
 	appsv1 "k8s.io/api/apps/v1"
-	autoscaling "k8s.io/api/autoscaling/v2beta1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/policy/v1beta1"
@@ -18,21 +18,21 @@ import (
 
 // clusterEncoding is used to represent the cluster objects in the encoded states.
 type clusterEncoding struct {
-	Namespaces               []*v1.Namespace                        `json:"namespaces,omitempty"`
-	Nodes                    []*v1.Node                             `json:"nodes,omitempty"`
-	Pods                     []*v1.Pod                              `json:"pods,omitempty"`
-	Services                 []*v1.Service                          `json:"services,omitempty"`
-	DaemonSets               []*appsv1.DaemonSet                    `json:"daemonSets,omitempty"`
-	Deployments              []*appsv1.Deployment                   `json:"deployments,omitempty"`
-	StatefulSets             []*appsv1.StatefulSet                  `json:"statefulSets,omitempty"`
-	ReplicaSets              []*appsv1.ReplicaSet                   `json:"replicaSets,omitempty"`
-	PersistentVolumes        []*v1.PersistentVolume                 `json:"persistentVolumes,omitempty"`
-	PersistentVolumeClaims   []*v1.PersistentVolumeClaim            `json:"persistentVolumeClaims,omitempty"`
-	StorageClasses           []*stv1.StorageClass                   `json:"storageClasses,omitempty"`
-	Jobs                     []*batchv1.Job                         `json:"jobs,omitempty"`
-	HorizontalPodAutoscalers []*autoscaling.HorizontalPodAutoscaler `json:"horizontalPodAutoscalers,omitempty"`
-	PodDisruptionBudgets     []*v1beta1.PodDisruptionBudget         `json:"podDisruptionBudgets,omitEmpty"`
-	ReplicationControllers   []*v1.ReplicationController            `json:"replicationController,omitEmpty"`
+	Namespaces               []*v1.Namespace                          `json:"namespaces,omitempty"`
+	Nodes                    []*v1.Node                               `json:"nodes,omitempty"`
+	Pods                     []*v1.Pod                                `json:"pods,omitempty"`
+	Services                 []*v1.Service                            `json:"services,omitempty"`
+	DaemonSets               []*appsv1.DaemonSet                      `json:"daemonSets,omitempty"`
+	Deployments              []*appsv1.Deployment                     `json:"deployments,omitempty"`
+	StatefulSets             []*appsv1.StatefulSet                    `json:"statefulSets,omitempty"`
+	ReplicaSets              []*appsv1.ReplicaSet                     `json:"replicaSets,omitempty"`
+	PersistentVolumes        []*v1.PersistentVolume                   `json:"persistentVolumes,omitempty"`
+	PersistentVolumeClaims   []*v1.PersistentVolumeClaim              `json:"persistentVolumeClaims,omitempty"`
+	StorageClasses           []*stv1.StorageClass                     `json:"storageClasses,omitempty"`
+	Jobs                     []*batchv1.Job                           `json:"jobs,omitempty"`
+	HorizontalPodAutoscalers []*autoscalingv2.HorizontalPodAutoscaler `json:"horizontalPodAutoscalers,omitempty"`
+	PodDisruptionBudgets     []*v1beta1.PodDisruptionBudget           `json:"podDisruptionBudgets,omitEmpty"`
+	ReplicationControllers   []*v1.ReplicationController              `json:"replicationController,omitEmpty"`
 }
 
 // ClusterExporter manages and runs an file export process which dumps the local kubernetes cluster to a target location.
