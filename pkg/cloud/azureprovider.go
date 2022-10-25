@@ -42,6 +42,8 @@ const (
 	AzureStorageUpdateType           = "AzureStorage"
 )
 
+var toTitle = cases.Title(language.Und, cases.NoLower)
+
 var (
 	regionCodeMappings = map[string]string{
 		"ap": "asia",
@@ -1226,7 +1228,7 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 
 			for k, v := range a {
 				// Just so we consistently supply / receive the same values, uppercase the first letter.
-				kUpper := cases.Title(language.Und, cases.NoLower).String(k)
+				kUpper := toTitle.String(k)
 				vstr, ok := v.(string)
 				if ok {
 					err := SetCustomPricingField(c, kUpper, vstr)
