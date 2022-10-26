@@ -7,7 +7,6 @@ import (
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util/json"
 	appsv1 "k8s.io/api/apps/v1"
-	autoscaling "k8s.io/api/autoscaling/v2beta1"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/policy/v1beta1"
@@ -266,21 +265,6 @@ func (ci *ClusterImporter) GetAllJobs() []*batchv1.Job {
 	jobs := ci.data.Jobs
 	cloneList := make([]*batchv1.Job, 0, len(jobs))
 	for _, v := range jobs {
-		cloneList = append(cloneList, v.DeepCopy())
-	}
-	return cloneList
-}
-
-// GetAllHorizontalPodAutoscalers() returns all cached horizontal pod autoscalers
-func (ci *ClusterImporter) GetAllHorizontalPodAutoscalers() []*autoscaling.HorizontalPodAutoscaler {
-	ci.dataLock.Lock()
-	defer ci.dataLock.Unlock()
-
-	// Deep copy here to avoid callers from corrupting the cache
-	// This also mimics the behavior of the default cluster cache impl.
-	hpas := ci.data.HorizontalPodAutoscalers
-	cloneList := make([]*autoscaling.HorizontalPodAutoscaler, 0, len(hpas))
-	for _, v := range hpas {
 		cloneList = append(cloneList, v.DeepCopy())
 	}
 	return cloneList
