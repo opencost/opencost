@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"fmt"
 	gofs "io/fs"
 	"io/ioutil"
 	"os"
@@ -62,7 +61,15 @@ func (fs *FileStorage) List(path string) ([]*StorageInfo, error) {
 }
 
 func (fs *FileStorage) ListDirectories(path string) ([]*StorageInfo, error) {
-	return []*StorageInfo{}, fmt.Errorf("ListDirectories not supported for filestorage")
+	p := gopath.Join(fs.baseDir, path)
+
+	// Read files in the backup path
+	files, err := ioutil.ReadDir(p)
+	if err != nil {
+		return nil, err
+	}
+
+	return DirFilesToStorageInfo(files, path), nil
 }
 
 // Read uses the relative path of the storage combined with the provided path to
@@ -151,4 +158,20 @@ func FileToStorageInfo(fileInfo gofs.FileInfo) *StorageInfo {
 		Size:    fileInfo.Size(),
 		ModTime: fileInfo.ModTime(),
 	}
+}
+
+// DirFilesToStorageInfo maps a []fs.FileInfo to []*storage.StorageInfo
+// but only returning StorageInfo for directories
+func DirFilesToStorageInfo(fileInfo []gofs.FileInfo, path string) []*StorageInfo {
+	var stats []*StorageInfo
+	for _, info := range fileInfo {
+		if info.IsDir() {
+			stats = append(stats, &StorageInfo{
+				Name:    filepath.Join(path, info.Name()),
+				Size:    info.Size(),
+				ModTime: info.ModTime(),
+			})
+		}
+	}
+	return stats
 }
