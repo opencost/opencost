@@ -194,19 +194,19 @@ func AllocationFilterFromParamsV1(
 	// Label-mapped queries require a label config to be present.
 	if labelConfig != nil {
 		if raw := qp.GetList("filterDepartments", ","); len(raw) > 0 {
-			filter.Filters = append(filter.Filters, filterV1LabelMappedFromList(raw, labelConfig.DepartmentLabel))
+			filter.Filters = append(filter.Filters, filterV1LabelAliasMappedFromList(raw, labelConfig.DepartmentLabel))
 		}
 		if raw := qp.GetList("filterEnvironments", ","); len(raw) > 0 {
-			filter.Filters = append(filter.Filters, filterV1LabelMappedFromList(raw, labelConfig.EnvironmentLabel))
+			filter.Filters = append(filter.Filters, filterV1LabelAliasMappedFromList(raw, labelConfig.EnvironmentLabel))
 		}
 		if raw := qp.GetList("filterOwners", ","); len(raw) > 0 {
-			filter.Filters = append(filter.Filters, filterV1LabelMappedFromList(raw, labelConfig.OwnerLabel))
+			filter.Filters = append(filter.Filters, filterV1LabelAliasMappedFromList(raw, labelConfig.OwnerLabel))
 		}
 		if raw := qp.GetList("filterProducts", ","); len(raw) > 0 {
-			filter.Filters = append(filter.Filters, filterV1LabelMappedFromList(raw, labelConfig.ProductLabel))
+			filter.Filters = append(filter.Filters, filterV1LabelAliasMappedFromList(raw, labelConfig.ProductLabel))
 		}
 		if raw := qp.GetList("filterTeams", ","); len(raw) > 0 {
-			filter.Filters = append(filter.Filters, filterV1LabelMappedFromList(raw, labelConfig.TeamLabel))
+			filter.Filters = append(filter.Filters, filterV1LabelAliasMappedFromList(raw, labelConfig.TeamLabel))
 		}
 	} else {
 		log.Debugf("No label config is available. Not creating filters for label-mapped 'fields'.")
@@ -275,10 +275,10 @@ func filterV1SingleValueFromList(rawFilterValues []string, filterField kubecost.
 	return filter
 }
 
-// filterV1LabelMappedFromList is like filterV1SingleValueFromList but is
-// explicitly for a label because "label-mapped" filters (like filterTeams=)
+// filterV1LabelAliasMappedFromList is like filterV1SingleValueFromList but is
+// explicitly for labels and annotations because "label-mapped" filters (like filterTeams=)
 // are actually label filters with a fixed label key.
-func filterV1LabelMappedFromList(rawFilterValues []string, labelName string) kubecost.AllocationFilterOr {
+func filterV1LabelAliasMappedFromList(rawFilterValues []string, labelName string) kubecost.AllocationFilterOr {
 	filter := kubecost.AllocationFilterOr{
 		Filters: []kubecost.AllocationFilter{},
 	}
@@ -289,7 +289,7 @@ func filterV1LabelMappedFromList(rawFilterValues []string, labelName string) kub
 		filterValue, wildcard := parseWildcardEnd(filterValue)
 
 		subFilter := kubecost.AllocationFilterCondition{
-			Field: kubecost.FilterLabel,
+			Field: kubecost.FilterAlias,
 			// All v1 filters are equality comparisons
 			Op:    kubecost.FilterEquals,
 			Key:   labelName,

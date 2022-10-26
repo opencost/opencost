@@ -628,6 +628,58 @@ func TestFiltersFromParamsV1(t *testing.T) {
 				}),
 			},
 		},
+		{
+			name: "single owner",
+			qp: map[string]string{
+				"filterOwners": "nick",
+			},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Labels: kubecost.AllocationLabels{
+						"testowner": "nick",
+					},
+				}),
+				allocGenerator(kubecost.AllocationProperties{
+					Annotations: kubecost.AllocationAnnotations{
+						"testowner": "nick",
+					},
+				}),
+				allocGenerator(kubecost.AllocationProperties{
+					Labels: kubecost.AllocationLabels{
+						"testowner": "nick",
+					},
+					Annotations: kubecost.AllocationAnnotations{
+						"dontpick": "notnick",
+					},
+				}),
+				allocGenerator(kubecost.AllocationProperties{
+					Labels: kubecost.AllocationLabels{
+						"dontpick": "notnick",
+					},
+					Annotations: kubecost.AllocationAnnotations{
+						"testowner": "nick",
+					},
+				}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Labels: kubecost.AllocationLabels{
+						"dontpick": "notnick",
+					},
+					Annotations: kubecost.AllocationAnnotations{
+						"dontpick": "notnick",
+					},
+				}),
+				allocGenerator(kubecost.AllocationProperties{
+					Labels: kubecost.AllocationLabels{
+						"testowner": "notnick",
+					},
+					Annotations: kubecost.AllocationAnnotations{
+						"testowner": "nick",
+					},
+				}),
+			},
+		},
 	}
 
 	for _, c := range cases {
@@ -642,6 +694,7 @@ func TestFiltersFromParamsV1(t *testing.T) {
 
 			labelConfig := kubecost.LabelConfig{}
 			labelConfig.DepartmentLabel = "internal-product-umbrella"
+			labelConfig.OwnerLabel = "testowner"
 
 			clustersMap := mockClusterMap{
 				m: map[string]*clusters.ClusterInfo{
