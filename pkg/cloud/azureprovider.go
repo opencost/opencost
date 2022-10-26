@@ -581,7 +581,7 @@ func (az *Azure) GetAzureStorageConfig(forceReload bool, cp *CustomPricing) (*Az
 			asc.SubscriptionId = defaultSubscriptionID
 		}
 		// check for required fields
-		if asc.AccessKey != "" && asc.AccountName != "" && asc.ContainerName != "" && asc.SubscriptionId == "" {
+		if asc.AccessKey != "" && asc.AccountName != "" && asc.ContainerName != "" && asc.SubscriptionId != "" {
 			az.serviceAccountChecks.set("hasStorage", &ServiceAccountCheck{
 				Message: "Azure Storage Config exists",
 				Status:  true,
