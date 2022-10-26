@@ -51,6 +51,11 @@ type Storage interface {
 	// List uses the relative path of the storage combined with the provided path to return
 	// storage information for the files.
 	List(path string) ([]*StorageInfo, error)
+
+	// ListDirectories uses the relative path of the storage combined with the provided path
+	// to return storage information for only directories contained along the path. This
+	// functions as List, but returns storage information for only directories.
+	ListDirectories(path string) ([]*StorageInfo, error)
 }
 
 // Validate uses the provided storage implementation to write a test file to the store, followed by a removal.
