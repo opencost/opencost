@@ -236,3 +236,50 @@ func (gs *GCSStorage) List(path string) ([]*StorageInfo, error) {
 
 	return stats, nil
 }
+
+func (gs *GCSStorage) ListDirectories(path string) ([]*StorageInfo, error) {
+	path = trimLeading(path)
+
+	log.Debugf("GCSStorage::List(%s)", path)
+	ctx := context.Background()
+
+	// Ensure the object name actually ends with a dir suffix. Otherwise we'll just iterate the
+	// object itself as one prefix item.
+	if path != "" {
+		path = strings.TrimSuffix(path, DirDelim) + DirDelim
+	}
+
+	it := gs.bucket.Objects(ctx, &gcs.Query{
+		Prefix:    path,
+		Delimiter: DirDelim,
+	})
+
+	// iterate over the objects at the path, collect storage info
+	var stats []*StorageInfo
+	for {
+		attrs, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, errors.Wrap(err, "list gcs objects")
+		}
+
+		// ignore the root path directory
+		if attrs.Name == path {
+			continue
+		}
+
+		// If trim removes the entire name, it's a directory, ergo we list it
+		if trimName(attrs.Name) == "" {
+			stats = append(stats, &StorageInfo{
+				Name:    attrs.Name,
+				Size:    attrs.Size,
+				ModTime: attrs.Updated,
+			})
+		}
+
+	}
+
+	return stats, nil
+}

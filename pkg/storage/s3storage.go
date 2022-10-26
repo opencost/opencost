@@ -168,7 +168,7 @@ type S3Storage struct {
 // parseConfig unmarshals a buffer into a Config with default HTTPConfig values.
 func parseS3Config(conf []byte) (S3Config, error) {
 	config := defaultS3Config
-	if err := yaml.UnmarshalStrict(conf, &config); err != nil {
+	if err := yaml.Unmarshal(conf, &config); err != nil {
 		return S3Config{}, err
 	}
 
@@ -475,6 +475,51 @@ func (s3 *S3Storage) List(path string) ([]*StorageInfo, error) {
 			Size:    object.Size,
 			ModTime: object.LastModified,
 		})
+	}
+
+	return stats, nil
+}
+
+func (s3 *S3Storage) ListDirectories(path string) ([]*StorageInfo, error) {
+	path = trimLeading(path)
+
+	log.Debugf("S3Storage::List(%s)", path)
+	ctx := context.Background()
+
+	if path != "" {
+		path = strings.TrimSuffix(path, DirDelim) + DirDelim
+	}
+
+	opts := minio.ListObjectsOptions{
+		Prefix:    path,
+		Recursive: false,
+		UseV1:     s3.listObjectsV1,
+	}
+
+	var stats []*StorageInfo
+	for object := range s3.client.ListObjects(ctx, s3.name, opts) {
+
+		if object.Err != nil {
+			return nil, object.Err
+		}
+
+		if object.Key == "" {
+			continue
+		}
+
+		if object.Key == path {
+			continue
+		}
+
+		// If trim removes the entire name, it's a directory, ergo we list it
+		if trimName(object.Key) == "" {
+			stats = append(stats, &StorageInfo{
+				Name:    object.Key,
+				Size:    object.Size,
+				ModTime: object.LastModified,
+			})
+		}
+
 	}
 
 	return stats, nil
