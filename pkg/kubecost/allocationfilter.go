@@ -30,6 +30,7 @@ const (
 
 	FilterLabel      = "label"
 	FilterAnnotation = "annotation"
+	FilterAlias      = "alias"
 
 	FilterServices = "services"
 )
@@ -361,6 +362,15 @@ func (filter AllocationFilterCondition) Matches(a *Allocation) bool {
 			toCompareMissing = true
 		} else {
 			valueToCompare = val
+		}
+	case FilterAlias:
+		var ok bool
+		valueToCompare, ok = a.Properties.Labels[filter.Key]
+		if !ok {
+			valueToCompare, ok = a.Properties.Annotations[filter.Key]
+			if !ok {
+				toCompareMissing = true
+			}
 		}
 	case FilterServices:
 		valueToCompare = a.Properties.Services
