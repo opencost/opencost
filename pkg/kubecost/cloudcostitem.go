@@ -108,6 +108,17 @@ func (cci *CloudCostItem) Key() string {
 	return cci.Properties.Key()
 }
 
+func (cci *CloudCostItem) add(that *CloudCostItem) {
+	if cci == nil {
+		log.Warnf("cannot add too nil CloudCostItem")
+		return
+	}
+
+	cci.Cost += that.Cost
+	cci.Credit += that.Credit
+	cci.Window = cci.Window.Expand(that.Window)
+}
+
 type CloudCostItemSet struct {
 	CloudCostItems map[string]*CloudCostItem
 	Window         Window
@@ -181,6 +192,10 @@ func (ccis *CloudCostItemSet) Insert(that *CloudCostItem) error {
 		return fmt.Errorf("cannot insert into nil CloudCostItemSet")
 	}
 
+	if that == nil {
+		return fmt.Errorf("cannot insert nil CloudCostItem into CloudCostItemSet")
+	}
+
 	if ccis.CloudCostItems == nil {
 		ccis.CloudCostItems = map[string]*CloudCostItem{}
 	}
@@ -188,10 +203,10 @@ func (ccis *CloudCostItemSet) Insert(that *CloudCostItem) error {
 	// Add the given CloudCostItem to the existing entry, if there is one;
 	// otherwise just set directly into allocations
 	if _, ok := ccis.CloudCostItems[that.Key()]; !ok {
-		ccis.CloudCostItems[that.Key()] = that
+		ccis.CloudCostItems[that.Key()] = that.Clone()
 	} else {
-		// ccis.CloudCostItems[that.Key()].add(that)
-		return fmt.Errorf("cannot re-insert %s", that.Key())
+		ccis.CloudCostItems[that.Key()].add(that)
+		//return fmt.Errorf("cannot re-insert %s", that.Key())
 	}
 
 	return nil
@@ -254,7 +269,7 @@ func (ccis *CloudCostItemSet) Merge(that *CloudCostItemSet) (*CloudCostItemSet, 
 }
 
 // GetCloudCostItemSets
-func GetCloudCostItemSets(start time.Time, end time.Time, window time.Duration) ([]*CloudCostItemSet, error) {
+func GetCloudCostItemSets(start time.Time, end time.Time, window time.Duration, integration string) ([]*CloudCostItemSet, error) {
 	windows, err := GetWindows(start, end, window)
 	if err != nil {
 		return nil, err
@@ -263,7 +278,9 @@ func GetCloudCostItemSets(start time.Time, end time.Time, window time.Duration) 
 	// Build slice of CloudCostItemSet to cover the range
 	CloudCostItemSets := []*CloudCostItemSet{}
 	for _, w := range windows {
-		CloudCostItemSets = append(CloudCostItemSets, NewCloudCostItemSet(*w.Start(), *w.End()))
+		ccis := NewCloudCostItemSet(*w.Start(), *w.End())
+		ccis.Integration = integration
+		CloudCostItemSets = append(CloudCostItemSets, ccis)
 	}
 	return CloudCostItemSets, nil
 }
@@ -328,7 +345,7 @@ func LoadCloudCostItemSets(itemStart time.Time, itemEnd time.Time, properties Cl
 		}
 		err := ccis.Insert(cci)
 		if err != nil {
-			log.Errorf("LoadCloudCostItemSets: failed to load CloudCostItem with key %s and window %s", cci.Key(), window.String())
+			log.Errorf("LoadCloudCostItemSets: failed to load CloudCostItem with key %s and window %s: %s", cci.Key(), window.String(), err.Error())
 		}
 	}
 }
