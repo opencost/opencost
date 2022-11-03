@@ -8,7 +8,7 @@ type AllPass[T any] struct{}
 
 func (n AllPass[T]) String() string { return "(AllPass)" }
 
-func (n AllPass[T]) Matches(T) bool { return false }
+func (n AllPass[T]) Matches(T) bool { return true }
 
 func (n AllPass[T]) Flattened() Filter[T] { return n }
 

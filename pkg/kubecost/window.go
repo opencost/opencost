@@ -458,22 +458,22 @@ func (w Window) Hours() float64 {
 	return w.end.Sub(*w.start).Hours()
 }
 
-//IsEmpty a Window is empty if it does not have a start and an end
+// IsEmpty a Window is empty if it does not have a start and an end
 func (w Window) IsEmpty() bool {
 	return w.start == nil && w.end == nil
 }
 
-//HasDuration a Window has duration if neither start and end are not nil and not equal
+// HasDuration a Window has duration if neither start and end are not nil and not equal
 func (w Window) HasDuration() bool {
 	return !w.IsOpen() && !w.end.Equal(*w.Start())
 }
 
-//IsNegative a Window is negative if start and end are not null and end is before start
+// IsNegative a Window is negative if start and end are not null and end is before start
 func (w Window) IsNegative() bool {
 	return !w.IsOpen() && w.end.Before(*w.Start())
 }
 
-//IsOpen a Window is open if it has a nil start or end
+// IsOpen a Window is open if it has a nil start or end
 func (w Window) IsOpen() bool {
 	return w.start == nil || w.end == nil
 }
@@ -698,6 +698,11 @@ func GetWindows(start time.Time, end time.Time, windowSize time.Duration) ([]Win
 		return nil, fmt.Errorf("range not divisible by window: [%s, %s] by %s", start, end, windowSize)
 	}
 
+	// Ensure that provided times are multiples of the provided windowSize (e.g. midnight for daily windows, on the hour for hourly windows)
+	if start != start.Truncate(windowSize) {
+		return nil, fmt.Errorf("provided times are not divisible by provided window: [%s, %s] by %s", start, end, windowSize)
+	}
+
 	// Ensure timezones match
 	_, sz := start.Zone()
 	_, ez := end.Zone()
@@ -707,10 +712,6 @@ func GetWindows(start time.Time, end time.Time, windowSize time.Duration) ([]Win
 	if sz != int(env.GetParsedUTCOffset().Seconds()) {
 		return nil, fmt.Errorf("range timezone doesn't match configured timezone: expected %s; found %ds", env.GetParsedUTCOffset(), sz)
 	}
-
-	// TODO Ensure that times repesent valid start/end of windows
-	// e.g. we could pass the first tests and still have 24hr blocks in the
-	// right timezone, but which start/end at 3PM or something like that.
 
 	// Build array of windows to cover the CloudCostItemSetRange
 	windows := []Window{}
