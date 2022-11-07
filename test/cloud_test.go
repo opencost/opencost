@@ -16,6 +16,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 const (
@@ -123,6 +124,51 @@ func TestPVPriceFromCSV(t *testing.T) {
 
 }
 
+func TestNodePriceFromCSVWithGPU(t *testing.T) {
+	providerIDWant := "providerid"
+	nameWant := "gke-standard-cluster-1-pool-1-91dc432d-cg69"
+	labelFooWant := "labelfoo"
+	wantGPU := "2"
+
+	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		LocalConfigPath: "./",
+	})
+
+	n := &v1.Node{}
+	n.Spec.ProviderID = providerIDWant
+	n.Name = nameWant
+	n.Labels = make(map[string]string)
+	n.Labels["foo"] = labelFooWant
+	n.Labels["nvidia.com/gpu_type"] = "Quadro_RTX_4000"
+	n.Status.Capacity = v1.ResourceList{"nvidia.com/gpu": *resource.NewScaledQuantity(2, 0)}
+	wantPrice := "1.633700"
+
+	c := &cloud.CSVProvider{
+		CSVLocation: "../configs/pricing_schema.csv",
+		CustomProvider: &cloud.CustomProvider{
+			Config: cloud.NewProviderConfig(confMan, "../configs/default.json"),
+		},
+	}
+
+	c.DownloadPricingData()
+	k := c.GetKey(n.Labels, n)
+	resN, err := c.NodePricing(k)
+	if err != nil {
+		t.Errorf("Error in NodePricing: %s", err.Error())
+	} else {
+		gotGPU := resN.GPU
+		gotPrice := resN.Cost
+		if gotGPU != wantGPU {
+			t.Errorf("Wanted gpu count '%s' got gpu count '%s'", wantGPU, gotGPU)
+		}
+		if gotPrice != wantPrice {
+			t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+		}
+
+	}
+
+}
+
 func TestNodePriceFromCSV(t *testing.T) {
 	providerIDWant := "providerid"
 	nameWant := "gke-standard-cluster-1-pool-1-91dc432d-cg69"
@@ -138,7 +184,7 @@ func TestNodePriceFromCSV(t *testing.T) {
 	n.Labels = make(map[string]string)
 	n.Labels["foo"] = labelFooWant
 
-	wantPrice := "0.1337"
+	wantPrice := "0.133700"
 
 	c := &cloud.CSVProvider{
 		CSVLocation: "../configs/pricing_schema.csv",
@@ -198,7 +244,7 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	n.Labels = make(map[string]string)
 	n.Labels["foo"] = labelFooWant
 	n.Labels[v1.LabelZoneRegion] = "regionone"
-	wantPrice := "0.1337"
+	wantPrice := "0.133700"
 
 	n2 := &v1.Node{}
 	n2.Spec.ProviderID = providerIDWant
@@ -206,7 +252,7 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	n2.Labels = make(map[string]string)
 	n2.Labels["foo"] = labelFooWant
 	n2.Labels[v1.LabelZoneRegion] = "regiontwo"
-	wantPrice2 := "0.1338"
+	wantPrice2 := "0.133800"
 
 	n3 := &v1.Node{}
 	n3.Spec.ProviderID = providerIDWant
