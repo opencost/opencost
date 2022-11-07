@@ -258,8 +258,17 @@ func (ctx *Context) query(query string, t time.Time) (interface{}, v1.Warnings, 
 	return toReturn, warnings, nil
 }
 
+// isRequestStepAligned will check if the start and end times are aligned with the step
+func (ctx *Context) isRequestStepAligned(start, end time.Time, step time.Duration) bool {
+	return start.Unix()%step.Milliseconds() == 0 && end.Unix()%step.Milliseconds() == 0
+}
+
 func (ctx *Context) QueryRange(query string, start, end time.Time, step time.Duration) QueryResultsChan {
 	resCh := make(QueryResultsChan)
+
+	if !ctx.isRequestStepAligned(start, end, step) {
+		start, end = ctx.alignWindow(start, end, step)
+	}
 
 	go runQueryRange(query, start, end, step, ctx, resCh, "")
 
@@ -357,6 +366,7 @@ func (ctx *Context) RawQueryRange(query string, start, end time.Time, step time.
 
 func (ctx *Context) queryRange(query string, start, end time.Time, step time.Duration) (interface{}, v1.Warnings, error) {
 	body, err := ctx.RawQueryRange(query, start, end, step)
+
 	if err != nil {
 		return nil, nil, err
 	}
@@ -380,6 +390,12 @@ func (ctx *Context) queryRange(query string, start, end time.Time, step time.Dur
 	}
 
 	return toReturn, warnings, nil
+}
+
+func (ctx *Context) alignWindow(start time.Time, end time.Time, step time.Duration) (time.Time, time.Time) {
+	alignedStart := (start.Unix() / step.Milliseconds()) * start.Unix()
+	alignedEnd := (end.Unix() / step.Milliseconds()) * end.Unix()
+	return time.UnixMilli(alignedStart), time.UnixMilli(alignedEnd)
 }
 
 // Extracts the warnings from the resulting json if they exist (part of the prometheus response api).
