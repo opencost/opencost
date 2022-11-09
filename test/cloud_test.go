@@ -143,6 +143,15 @@ func TestNodePriceFromCSVWithGPU(t *testing.T) {
 	n.Status.Capacity = v1.ResourceList{"nvidia.com/gpu": *resource.NewScaledQuantity(2, 0)}
 	wantPrice := "1.633700"
 
+	n2 := &v1.Node{}
+	n2.Spec.ProviderID = providerIDWant
+	n2.Name = nameWant
+	n2.Labels = make(map[string]string)
+	n2.Labels["foo"] = labelFooWant
+	n2.Labels["gpu.nvidia.com/class"] = "Quadro_RTX_4001"
+	n2.Status.Capacity = v1.ResourceList{"nvidia.com/gpu": *resource.NewScaledQuantity(2, 0)}
+	wantPrice2 := "1.733700"
+
 	c := &cloud.CSVProvider{
 		CSVLocation: "../configs/pricing_schema.csv",
 		CustomProvider: &cloud.CustomProvider{
@@ -163,6 +172,22 @@ func TestNodePriceFromCSVWithGPU(t *testing.T) {
 		}
 		if gotPrice != wantPrice {
 			t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+		}
+
+	}
+
+	k2 := c.GetKey(n2.Labels, n2)
+	resN2, err := c.NodePricing(k2)
+	if err != nil {
+		t.Errorf("Error in NodePricing: %s", err.Error())
+	} else {
+		gotGPU := resN2.GPU
+		gotPrice := resN2.Cost
+		if gotGPU != wantGPU {
+			t.Errorf("Wanted gpu count '%s' got gpu count '%s'", wantGPU, gotGPU)
+		}
+		if gotPrice != wantPrice2 {
+			t.Errorf("Wanted price '%s' got price '%s'", wantPrice2, gotPrice)
 		}
 
 	}
