@@ -34,7 +34,7 @@ type CSVProvider struct {
 	PricingPV               map[string]*price
 	PVMapField              string
 	GPUClassPricing         map[string]*price
-	GPUMapField             string
+	GPUMapFields            []string
 	UsesRegion              bool
 	DownloadPricingDataLock sync.RWMutex
 }
@@ -62,6 +62,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 	nodeclasscount := make(map[string]float64)
 	pvpricing := make(map[string]*price)
 	gpupricing := make(map[string]*price)
+	c.GPUMapFields = make([]string, 0, 1)
 	header, err := csvutil.Header(price{}, "csv")
 	if err != nil {
 		return err
@@ -171,7 +172,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 			c.NodeMapField = p.InstanceIDField
 		} else if p.AssetClass == "gpu" {
 			gpupricing[key] = &p
-			c.GPUMapField = strings.ToLower(p.InstanceIDField)
+			c.GPUMapFields = append(c.GPUMapFields, strings.ToLower(p.InstanceIDField))
 		} else {
 			log.Infof("Unrecognized asset class %s, defaulting to node", p.AssetClass)
 			pricing[key] = &p
@@ -193,7 +194,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 type csvKey struct {
 	Labels     map[string]string
 	ProviderID string
-	GPULabel   string
+	GPULabel   []string
 	GPU        int64
 }
 
@@ -210,8 +211,10 @@ func (k *csvKey) GPUCount() int {
 }
 
 func (k *csvKey) GPUType() string {
-	if val, ok := k.Labels[k.GPULabel]; ok {
-		return val
+	for _, label := range k.GPULabel {
+		if val, ok := k.Labels[label]; ok {
+			return val
+		}
 	}
 	return ""
 }
@@ -346,7 +349,7 @@ func (c *CSVProvider) GetKey(l map[string]string, n *v1.Node) Key {
 	return &csvKey{
 		ProviderID: id,
 		Labels:     l,
-		GPULabel:   c.GPUMapField,
+		GPULabel:   c.GPUMapFields,
 		GPU:        gpuCount,
 	}
 }
