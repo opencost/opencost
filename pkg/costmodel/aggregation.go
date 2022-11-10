@@ -1037,7 +1037,7 @@ func DefaultAggregateQueryOpts() *AggregateQueryOpts {
 		AllocateIdle:          false,
 		IncludeTimeSeries:     true,
 		IncludeEfficiency:     true,
-		DisableCache:          false,
+		DisableCache:          env.IsCacheDisabled(),
 		ClearCache:            false,
 		NoCache:               false,
 		NoExpireCache:         false,
