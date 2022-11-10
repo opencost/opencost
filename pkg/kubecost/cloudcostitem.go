@@ -110,7 +110,7 @@ func (cci *CloudCostItem) Key() string {
 
 func (cci *CloudCostItem) add(that *CloudCostItem) {
 	if cci == nil {
-		log.Warnf("cannot add too nil CloudCostItem")
+		log.Warnf("cannot add to nil CloudCostItem")
 		return
 	}
 
@@ -352,7 +352,6 @@ func LoadCloudCostItemSets(itemStart time.Time, itemEnd time.Time, properties Cl
 
 // TODO:cloudcost bingen for time.Duration
 type CloudCostItemSetRange struct {
-	CloudCostItemSets []*CloudCostItemSet
-	// Step              time.Duration
-	Window Window
+	CloudCostItemSets []*CloudCostItemSet `json:"sets"`
+	Window            Window              `json:"window"`
 }

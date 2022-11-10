@@ -33,15 +33,6 @@ const (
 )
 
 const (
-	// CloudCostAggregateCodecVersion is used for any resources listed in the CloudCostAggregate version set
-	CloudCostAggregateCodecVersion uint8 = 1
-
-	// CloudCostItemCodecVersion is used for any resources listed in the CloudCostItem version set
-	CloudCostItemCodecVersion uint8 = 1
-
-	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 16
-
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
 	AssetsCodecVersion uint8 = 18
 
@@ -50,6 +41,15 @@ const (
 
 	// AuditCodecVersion is used for any resources listed in the Audit version set
 	AuditCodecVersion uint8 = 1
+
+	// CloudCostAggregateCodecVersion is used for any resources listed in the CloudCostAggregate version set
+	CloudCostAggregateCodecVersion uint8 = 1
+
+	// CloudCostItemCodecVersion is used for any resources listed in the CloudCostItem version set
+	CloudCostItemCodecVersion uint8 = 1
+
+	// DefaultCodecVersion is used for any resources listed in the Default version set
+	DefaultCodecVersion uint8 = 16
 )
 
 //--------------------------------------------------------------------------
@@ -4682,16 +4682,8 @@ func (target *CloudCostAggregate) MarshalBinaryWithContext(ctx *EncodingContext)
 	// --- [end][write][struct](CloudCostAggregateProperties) ---
 
 	buff.WriteFloat64(target.KubernetesPercent) // write float64
-	// --- [begin][write][struct](Window) ---
-	buff.WriteInt(0) // [compatibility, unused]
-	errB := target.Window.MarshalBinaryWithContext(ctx)
-	if errB != nil {
-		return errB
-	}
-	// --- [end][write][struct](Window) ---
-
-	buff.WriteFloat64(target.Cost)   // write float64
-	buff.WriteFloat64(target.Credit) // write float64
+	buff.WriteFloat64(target.Cost)              // write float64
+	buff.WriteFloat64(target.Credit)            // write float64
 	return nil
 }
 
@@ -4762,21 +4754,11 @@ func (target *CloudCostAggregate) UnmarshalBinaryWithContext(ctx *DecodingContex
 	b := buff.ReadFloat64() // read float64
 	target.KubernetesPercent = b
 
-	// --- [begin][read][struct](Window) ---
-	c := &Window{}
-	buff.ReadInt() // [compatibility, unused]
-	errB := c.UnmarshalBinaryWithContext(ctx)
-	if errB != nil {
-		return errB
-	}
-	target.Window = *c
-	// --- [end][read][struct](Window) ---
+	c := buff.ReadFloat64() // read float64
+	target.Cost = c
 
 	d := buff.ReadFloat64() // read float64
-	target.Cost = d
-
-	e := buff.ReadFloat64() // read float64
-	target.Credit = e
+	target.Credit = d
 
 	return nil
 }
@@ -5036,14 +5018,20 @@ func (target *CloudCostAggregateSet) MarshalBinaryWithContext(ctx *EncodingConte
 
 	}
 	if ctx.IsStringTable() {
-		b := ctx.Table.AddOrGet(target.Integration)
+		b := ctx.Table.AddOrGet(target.AggregationProperty)
 		buff.WriteInt(b) // write table index
+	} else {
+		buff.WriteString(target.AggregationProperty) // write string
+	}
+	if ctx.IsStringTable() {
+		c := ctx.Table.AddOrGet(target.Integration)
+		buff.WriteInt(c) // write table index
 	} else {
 		buff.WriteString(target.Integration) // write string
 	}
 	if ctx.IsStringTable() {
-		c := ctx.Table.AddOrGet(target.LabelName)
-		buff.WriteInt(c) // write table index
+		d := ctx.Table.AddOrGet(target.LabelName)
+		buff.WriteInt(d) // write table index
 	} else {
 		buff.WriteString(target.LabelName) // write string
 	}
@@ -5159,7 +5147,7 @@ func (target *CloudCostAggregateSet) UnmarshalBinaryWithContext(ctx *DecodingCon
 		h = buff.ReadString() // read string
 	}
 	g := h
-	target.Integration = g
+	target.AggregationProperty = g
 
 	var m string
 	if ctx.IsStringTable() {
@@ -5169,16 +5157,26 @@ func (target *CloudCostAggregateSet) UnmarshalBinaryWithContext(ctx *DecodingCon
 		m = buff.ReadString() // read string
 	}
 	l := m
-	target.LabelName = l
+	target.Integration = l
+
+	var p string
+	if ctx.IsStringTable() {
+		q := buff.ReadInt() // read string index
+		p = ctx.Table[q]
+	} else {
+		p = buff.ReadString() // read string
+	}
+	o := p
+	target.LabelName = o
 
 	// --- [begin][read][struct](Window) ---
-	o := &Window{}
+	r := &Window{}
 	buff.ReadInt() // [compatibility, unused]
-	errB := o.UnmarshalBinaryWithContext(ctx)
+	errB := r.UnmarshalBinaryWithContext(ctx)
 	if errB != nil {
 		return errB
 	}
-	target.Window = *o
+	target.Window = *r
 	// --- [end][read][struct](Window) ---
 
 	return nil
