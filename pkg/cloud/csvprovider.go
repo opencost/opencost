@@ -34,7 +34,7 @@ type CSVProvider struct {
 	PricingPV               map[string]*price
 	PVMapField              string
 	GPUClassPricing         map[string]*price
-	GPUMapFields            []string
+	GPUMapFields            []string // Fields in a node's labels that represent the GPU class.
 	UsesRegion              bool
 	DownloadPricingDataLock sync.RWMutex
 }
@@ -257,11 +257,18 @@ func (c *CSVProvider) NodePricing(key Key) (*Node, error) {
 			node.GPU = strconv.Itoa(count)
 			hourly := 0.0
 			if p, ok := c.GPUClassPricing[t]; ok {
-				hourly, _ = strconv.ParseFloat(p.MarketPriceHourly, 64)
+				var err error
+				hourly, err = strconv.ParseFloat(p.MarketPriceHourly, 64)
+				if err != nil {
+					log.Errorf("Unable to parse %s as float", p.MarketPriceHourly)
+				}
 			}
 			totalCost := hourly * float64(count)
 			node.GPUCost = fmt.Sprintf("%f", totalCost)
-			nc, _ := strconv.ParseFloat(node.Cost, 64)
+			nc, err := strconv.ParseFloat(node.Cost, 64)
+			if err != nil {
+				log.Errorf("Unable to parse %s as float", node.Cost)
+			}
 			node.Cost = fmt.Sprintf("%f", nc+totalCost)
 		}
 		return node, nil
@@ -417,3 +424,4 @@ func (c *CSVProvider) CombinedDiscountForNode(instanceType string, isPreemptible
 func (c *CSVProvider) Regions() []string {
 	return []string{}
 }
+
