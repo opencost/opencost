@@ -2,6 +2,11 @@ package costmodel
 
 import (
 	"fmt"
+	"math"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/kubecost"
@@ -9,10 +14,6 @@ import (
 	"github.com/opencost/opencost/pkg/prom"
 	"github.com/opencost/opencost/pkg/util/timeutil"
 	"k8s.io/apimachinery/pkg/labels"
-	"math"
-	"strconv"
-	"strings"
-	"time"
 )
 
 // This is a bit of a hack to work around garbage data from cadvisor
@@ -2055,7 +2056,7 @@ func calculateStartEndFromIsRunning(result *prom.QueryResult, resolution time.Du
 		// "start").
 		// TODO:CLEANUP revisit query methodology to figure out why this is
 		// happening on occasion
-		if start.Before(*window.Start()) {
+		if start.Before(*window.Start()) || start.After(*window.End()) {
 			start = *window.Start()
 		}
 	}
@@ -2083,7 +2084,7 @@ func calculateStartEndFromIsRunning(result *prom.QueryResult, resolution time.Du
 		// "end").
 		// TODO:CLEANUP revisit query methodology to figure out why this is
 		// happening on occasion
-		if end.After(*window.End()) {
+		if end.Before(*window.Start()) || end.After(*window.End()) {
 			end = *window.End()
 		}
 	}
