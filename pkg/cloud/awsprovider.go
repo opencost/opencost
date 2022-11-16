@@ -612,6 +612,10 @@ type awsKey struct {
 	ProviderID     string
 }
 
+func (k *awsKey) GPUCount() int {
+	return 0
+}
+
 func (k *awsKey) GPUType() string {
 	return ""
 }
