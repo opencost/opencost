@@ -32,7 +32,7 @@ const (
 	CSVPathEnvVar                  = "CSV_PATH"
 	ConfigPathEnvVar               = "CONFIG_PATH"
 	CloudProviderAPIKeyEnvVar      = "CLOUD_PROVIDER_API_KEY"
-	DisableCache                   = "DISABLE_CACHE"
+	DisableAggregateCostModelCache = "DISABLE_AGGREGATE_COST_MODEL_CACHE"
 
 	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
 	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
@@ -240,10 +240,10 @@ func GetInsecureSkipVerify() bool {
 	return GetBool(InsecureSkipVerify, false)
 }
 
-// IsCacheDisabled returns the environment variable value for DisableCache which
+// IsAggregateCostModelCacheDisabled returns the environment variable value for DisableAggregateCostModelCache which
 // will inform the aggregator on whether to load cached data. Defaults to false
-func IsCacheDisabled() bool {
-	return GetBool(DisableCache, false)
+func IsAggregateCostModelCacheDisabled() bool {
+	return GetBool(DisableAggregateCostModelCache, false)
 }
 
 // IsRemoteEnabled returns the environment variable value for RemoteEnabledEnvVar which represents whether

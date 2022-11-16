@@ -1012,38 +1012,38 @@ func compressVectorSeries(vs []*util.Vector, resolutionHours float64) []*util.Ve
 }
 
 type AggregateQueryOpts struct {
-	Rate                  string
-	Filters               map[string]string
-	SharedResources       *SharedResourceInfo
-	ShareSplit            string
-	AllocateIdle          bool
-	IncludeTimeSeries     bool
-	IncludeEfficiency     bool
-	DisableCache          bool
-	ClearCache            bool
-	NoCache               bool
-	NoExpireCache         bool
-	RemoteEnabled         bool
-	DisableSharedOverhead bool
-	UseETLAdapter         bool
+	Rate                           string
+	Filters                        map[string]string
+	SharedResources                *SharedResourceInfo
+	ShareSplit                     string
+	AllocateIdle                   bool
+	IncludeTimeSeries              bool
+	IncludeEfficiency              bool
+	DisableAggregateCostModelCache bool
+	ClearCache                     bool
+	NoCache                        bool
+	NoExpireCache                  bool
+	RemoteEnabled                  bool
+	DisableSharedOverhead          bool
+	UseETLAdapter                  bool
 }
 
 func DefaultAggregateQueryOpts() *AggregateQueryOpts {
 	return &AggregateQueryOpts{
-		Rate:                  "",
-		Filters:               map[string]string{},
-		SharedResources:       nil,
-		ShareSplit:            SplitTypeWeighted,
-		AllocateIdle:          false,
-		IncludeTimeSeries:     true,
-		IncludeEfficiency:     true,
-		DisableCache:          env.IsCacheDisabled(),
-		ClearCache:            false,
-		NoCache:               false,
-		NoExpireCache:         false,
-		RemoteEnabled:         env.IsRemoteEnabled(),
-		DisableSharedOverhead: false,
-		UseETLAdapter:         false,
+		Rate:                           "",
+		Filters:                        map[string]string{},
+		SharedResources:                nil,
+		ShareSplit:                     SplitTypeWeighted,
+		AllocateIdle:                   false,
+		IncludeTimeSeries:              true,
+		IncludeEfficiency:              true,
+		DisableAggregateCostModelCache: env.IsAggregateCostModelCacheDisabled(),
+		ClearCache:                     false,
+		NoCache:                        false,
+		NoExpireCache:                  false,
+		RemoteEnabled:                  env.IsRemoteEnabled(),
+		DisableSharedOverhead:          false,
+		UseETLAdapter:                  false,
 	}
 }
 
@@ -1095,7 +1095,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 	allocateIdle := opts.AllocateIdle
 	includeTimeSeries := opts.IncludeTimeSeries
 	includeEfficiency := opts.IncludeEfficiency
-	disableCache := opts.DisableCache
+	disableAggregateCostModelCache := opts.DisableAggregateCostModelCache
 	clearCache := opts.ClearCache
 	noCache := opts.NoCache
 	noExpireCache := opts.NoExpireCache
@@ -1377,7 +1377,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 	cacheMessage := fmt.Sprintf("ComputeAggregateCostModel: L1 cache miss: %s L2 cache miss: %s", aggKey, key)
 
 	// check the cache for aggregated response; if cache is hit and not disabled, return response
-	if value, found := a.AggregateCache.Get(aggKey); found && !disableCache && !noCache {
+	if value, found := a.AggregateCache.Get(aggKey); found && !disableAggregateCostModelCache && !noCache {
 		result, ok := value.(map[string]*Aggregation)
 		if !ok {
 			// disable cache and recompute if type cast fails
@@ -1393,14 +1393,14 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 		window.Set(&start, window.End())
 	} else {
 		// don't cache requests for durations of less than one hour
-		disableCache = true
+		disableAggregateCostModelCache = true
 	}
 
 	// attempt to retrieve cost data from cache
 	var costData map[string]*CostData
 	var err error
 	cacheData, found := a.CostDataCache.Get(key)
-	if found && !disableCache && !noCache {
+	if found && !disableAggregateCostModelCache && !noCache {
 		ok := false
 		costData, ok = cacheData.(map[string]*CostData)
 		cacheMessage = fmt.Sprintf("ComputeAggregateCostModel: L1 cache miss: %s, L2 cost data cache hit: %s", aggKey, key)
@@ -1408,7 +1408,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 			log.Errorf("ComputeAggregateCostModel: caching error: failed to cast cost data to struct: %s", key)
 		}
 	} else {
-		log.Infof("ComputeAggregateCostModel: missed cache: %s (found %t, disableCache %t, noCache %t)", key, found, disableCache, noCache)
+		log.Infof("ComputeAggregateCostModel: missed cache: %s (found %t, disableAggregateCostModelCache %t, noCache %t)", key, found, disableAggregateCostModelCache, noCache)
 
 		costData, err = a.Model.ComputeCostDataRange(promClient, a.CloudProvider, window, resolution, "", "", remoteEnabled)
 		if err != nil {
@@ -1761,7 +1761,7 @@ func (a *Accesses) warmAggregateCostModelCache() {
 		aggOpts.Filters = map[string]string{}
 		aggOpts.IncludeTimeSeries = false
 		aggOpts.IncludeEfficiency = true
-		aggOpts.DisableCache = true
+		aggOpts.DisableAggregateCostModelCache = true
 		aggOpts.ClearCache = false
 		aggOpts.NoCache = false
 		aggOpts.NoExpireCache = false
@@ -1990,7 +1990,7 @@ func (a *Accesses) AggregateCostModelHandler(w http.ResponseWriter, r *http.Requ
 	// TODO niko/caching rename "recomputeCache"
 	// disableCache, if set to "true", tells this function to recompute and
 	// cache the requested data
-	opts.DisableCache = r.URL.Query().Get("disableCache") == "true"
+	opts.DisableAggregateCostModelCache = r.URL.Query().Get("disableCache") == "true"
 
 	// clearCache, if set to "true", tells this function to flush the cache,
 	// then recompute and cache the requested data

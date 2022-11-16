@@ -16,17 +16,17 @@ func TestIsCacheDisabled(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "Ensure the value is false when DISABLE_CACHE is set to valse",
+			name: "Ensure the value is false when DISABLE_AGGREGATE_COST_MODEL_CACHE is set to false",
 			want: false,
 			pre: func() {
-				os.Setenv("DISABLE_CACHE", "false")
+				os.Setenv("DISABLE_AGGREGATE_COST_MODEL_CACHE", "false")
 			},
 		},
 		{
-			name: "Ensure the value is false when DISABLE_CACHE is set to valse",
+			name: "Ensure the value is true when DISABLE_AGGREGATE_COST_MODEL_CACHE is set to true",
 			want: true,
 			pre: func() {
-				os.Setenv("DISABLE_CACHE", "true")
+				os.Setenv("DISABLE_AGGREGATE_COST_MODEL_CACHE", "true")
 			},
 		},
 	}
@@ -35,8 +35,8 @@ func TestIsCacheDisabled(t *testing.T) {
 			tt.pre()
 		}
 		t.Run(tt.name, func(t *testing.T) {
-			if got := IsCacheDisabled(); got != tt.want {
-				t.Errorf("IsCacheDisabled() = %v, want %v", got, tt.want)
+			if got := IsAggregateCostModelCacheDisabled(); got != tt.want {
+				t.Errorf("IsAggregateCostModelCacheDisabled() = %v, want %v", got, tt.want)
 			}
 		})
 	}
