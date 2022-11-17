@@ -1,6 +1,7 @@
 package kubecost
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -8,13 +9,23 @@ import (
 	"github.com/opencost/opencost/pkg/log"
 )
 
+const (
+	CloudCostAccountProp  string = "account"
+	CloudCostProjectProp  string = "project"
+	CloudCostProviderProp string = "provider"
+	CloudCostServiceProp  string = "service"
+	CloudCostLabelProp    string = "label"
+)
+
+// TODO:cloudcost aggregation properties as consts? "", "provider", "account", etc.
+
 // CloudCostAggregateProperties unique property set for CloudCostAggregate within a window
 type CloudCostAggregateProperties struct {
 	Provider   string `json:"provider"`
 	Account    string `json:"account"`
 	Project    string `json:"project"`
 	Service    string `json:"service"`
-	LabelValue string `json:"labelValue"`
+	LabelValue string `json:"label"`
 }
 
 func (ccap CloudCostAggregateProperties) Equal(that CloudCostAggregateProperties) bool {
@@ -25,16 +36,34 @@ func (ccap CloudCostAggregateProperties) Equal(that CloudCostAggregateProperties
 		ccap.LabelValue == that.LabelValue
 }
 
-// TODO:cloudcost
-func (ccap CloudCostAggregateProperties) Key() string {
-	return fmt.Sprintf("%s/%s/%s/%s/%s", ccap.Provider, ccap.Account, ccap.Project, ccap.Service, ccap.LabelValue)
+func (ccap CloudCostAggregateProperties) Key(prop string) string {
+	if prop == "" {
+		return fmt.Sprintf("%s/%s/%s/%s/%s", ccap.Provider, ccap.Account, ccap.Project, ccap.Service, ccap.LabelValue)
+	}
+
+	switch prop {
+	case CloudCostProviderProp:
+		return ccap.Provider
+	case CloudCostAccountProp:
+		return ccap.Account
+	case CloudCostProjectProp:
+		return ccap.Project
+	case CloudCostServiceProp:
+		return ccap.Service
+	case CloudCostLabelProp:
+		// TODO:cloudcost will we need the LabelName here?... can move it down from the Set
+		return ccap.LabelValue
+	}
+
+	// TODO:cloudcost error?
+	return ""
 }
 
 // CloudCostAggregate represents an aggregation of Billing Integration data on the properties listed
+// TODO:cloudcost do we need Window here?
 type CloudCostAggregate struct {
 	Properties        CloudCostAggregateProperties `json:"properties"`
 	KubernetesPercent float64                      `json:"kubernetesPercent"`
-	Window            Window                       `json:"window"`
 	Cost              float64                      `json:"cost"`
 	Credit            float64                      `json:"credit"`
 }
@@ -43,7 +72,6 @@ func (cca *CloudCostAggregate) Clone() *CloudCostAggregate {
 	return &CloudCostAggregate{
 		Properties:        cca.Properties,
 		KubernetesPercent: cca.KubernetesPercent,
-		Window:            cca.Window.Clone(),
 		Cost:              cca.Cost,
 		Credit:            cca.Credit,
 	}
@@ -56,41 +84,60 @@ func (cca *CloudCostAggregate) Equal(that *CloudCostAggregate) bool {
 
 	return cca.Cost == that.Cost &&
 		cca.Credit == that.Credit &&
-		cca.Window.Equal(that.Window) &&
 		cca.Properties.Equal(that.Properties)
 }
 
-func (cca *CloudCostAggregate) Key() string {
-	return cca.Properties.Key()
+func (cca *CloudCostAggregate) Key(prop string) string {
+	return cca.Properties.Key(prop)
+}
+
+func (cca *CloudCostAggregate) StringProperty(prop string) (string, error) {
+	if cca == nil {
+		return "", nil
+	}
+
+	switch prop {
+	case CloudCostAccountProp:
+		return cca.Properties.Account, nil
+	case CloudCostProjectProp:
+		return cca.Properties.Project, nil
+	case CloudCostProviderProp:
+		return cca.Properties.Provider, nil
+	case CloudCostServiceProp:
+		return cca.Properties.Service, nil
+	case CloudCostLabelProp:
+		return cca.Properties.LabelValue, nil
+	default:
+		return "", fmt.Errorf("invalid property name: %s", prop)
+	}
 }
 
 func (cca *CloudCostAggregate) add(that *CloudCostAggregate) {
 	if cca == nil {
-		log.Warnf("cannot add too nil CloudCostItem")
+		log.Warnf("cannot add to nil CloudCostAggregate")
 		return
 	}
 
 	// Compute KubernetesPercent for sum
-	cca.KubernetesPercent = 0.0
+	k8sPct := 0.0
 	sumCost := cca.Cost + that.Cost
 	if sumCost > 0.0 {
 		thisK8sCost := cca.Cost * cca.KubernetesPercent
 		thatK8sCost := that.Cost * that.KubernetesPercent
-		cca.KubernetesPercent = (thisK8sCost + thatK8sCost) / sumCost
+		k8sPct = (thisK8sCost + thatK8sCost) / sumCost
 	}
 
 	cca.Cost = sumCost
 	cca.Credit += that.Credit
-	cca.Window = cca.Window.Expand(that.Window)
+	cca.KubernetesPercent = k8sPct
 }
 
-// TODO Integration here or on Properties?
-// TODO LabelName here or on Properties?
 type CloudCostAggregateSet struct {
-	CloudCostAggregates map[string]*CloudCostAggregate
-	Integration         string
-	LabelName           string
-	Window              Window
+	CloudCostAggregates map[string]*CloudCostAggregate `json:"items"`
+	AggregationProperty string                         `json:"-"`
+	Integration         string                         `json:"-"`
+	LabelName           string                         `json:"labelName,omitempty"`
+	Window              Window                         `json:"window"`
 }
 
 func NewCloudCostAggregateSet(start, end time.Time, cloudCostAggregates ...*CloudCostAggregate) *CloudCostAggregateSet {
@@ -100,10 +147,38 @@ func NewCloudCostAggregateSet(start, end time.Time, cloudCostAggregates ...*Clou
 	}
 
 	for _, cca := range cloudCostAggregates {
-		ccas.Insert(cca)
+		ccas.insertByProperty(cca, "")
 	}
 
 	return ccas
+}
+
+func (ccas *CloudCostAggregateSet) Aggregate(prop string) (*CloudCostAggregateSet, error) {
+	if ccas == nil {
+		return nil, errors.New("cannot aggregate a nil CloudCostAggregateSet")
+	}
+
+	if ccas.Window.IsOpen() {
+		return nil, fmt.Errorf("cannot aggregate a CloudCostAggregateSet with an open window: %s", ccas.Window)
+	}
+
+	// Create a new result set, with the given aggregation property
+	result := NewCloudCostAggregateSet(*ccas.Window.Start(), *ccas.Window.End())
+	result.AggregationProperty = prop
+	result.LabelName = ccas.LabelName
+	result.Integration = ccas.Integration
+
+	// Insert clones of each item in the set, keyed by the given property.
+	// The underlying insert logic will add binned items together.
+	for name, cca := range ccas.CloudCostAggregates {
+		ccaClone := cca.Clone()
+		err := result.insertByProperty(ccaClone, prop)
+		if err != nil {
+			return nil, fmt.Errorf("error aggregating %s by %s: %s", name, prop, err)
+		}
+	}
+
+	return result, nil
 }
 
 func (ccas *CloudCostAggregateSet) Filter(filters filter.Filter[*CloudCostAggregate]) *CloudCostAggregateSet {
@@ -111,23 +186,35 @@ func (ccas *CloudCostAggregateSet) Filter(filters filter.Filter[*CloudCostAggreg
 		return nil
 	}
 
-	if filters == nil {
-		return ccas.Clone()
-	}
-
-	result := NewCloudCostAggregateSet(*ccas.Window.start, *ccas.Window.end)
-
-	for _, cca := range ccas.CloudCostAggregates {
-		if filters.Matches(cca) {
-			// TODO:cloudcost ideally... this would be a Clone, but performance?
-			result.Insert(cca)
-		}
-	}
+	result := ccas.Clone()
+	result.filter(filters)
 
 	return result
 }
 
+func (ccas *CloudCostAggregateSet) filter(filters filter.Filter[*CloudCostAggregate]) {
+	if ccas == nil {
+		return
+	}
+
+	if filters == nil {
+		return
+	}
+
+	for name, cca := range ccas.CloudCostAggregates {
+		if !filters.Matches(cca) {
+			delete(ccas.CloudCostAggregates, name)
+		}
+	}
+}
+
 func (ccas *CloudCostAggregateSet) Insert(that *CloudCostAggregate) error {
+	// Publicly, only allow Inserting as a basic operation (i.e. without causing
+	// an aggregation on a property).
+	return ccas.insertByProperty(that, "")
+}
+
+func (ccas *CloudCostAggregateSet) insertByProperty(that *CloudCostAggregate, prop string) error {
 	if ccas == nil {
 		return fmt.Errorf("cannot insert into nil CloudCostAggregateSet")
 	}
@@ -138,10 +225,10 @@ func (ccas *CloudCostAggregateSet) Insert(that *CloudCostAggregate) error {
 
 	// Add the given CloudCostAggregate to the existing entry, if there is one;
 	// otherwise just set directly into allocations
-	if _, ok := ccas.CloudCostAggregates[that.Key()]; !ok {
-		ccas.CloudCostAggregates[that.Key()] = that
+	if _, ok := ccas.CloudCostAggregates[that.Key(prop)]; !ok {
+		ccas.CloudCostAggregates[that.Key(prop)] = that
 	} else {
-		ccas.CloudCostAggregates[that.Key()].add(that)
+		ccas.CloudCostAggregates[that.Key(prop)].add(that)
 	}
 
 	return nil
@@ -221,7 +308,7 @@ func (ccas *CloudCostAggregateSet) Merge(that *CloudCostAggregateSet) (*CloudCos
 	}
 
 	if ccas.LabelName != that.LabelName {
-		return nil, fmt.Errorf("cannot merge CloudCostAggregateSets with different label names")
+		return nil, fmt.Errorf("cannot merge CloudCostAggregateSets with different label names: '%s' != '%s'", ccas.LabelName, that.LabelName)
 	}
 
 	start, end := *ccas.Window.Start(), *ccas.Window.End()
@@ -229,11 +316,11 @@ func (ccas *CloudCostAggregateSet) Merge(that *CloudCostAggregateSet) (*CloudCos
 	result.LabelName = ccas.LabelName
 
 	for _, cca := range ccas.CloudCostAggregates {
-		result.Insert(cca)
+		result.insertByProperty(cca, "")
 	}
 
 	for _, cca := range that.CloudCostAggregates {
-		result.Insert(cca)
+		result.insertByProperty(cca, "")
 	}
 
 	return result, nil
@@ -309,21 +396,41 @@ func LoadCloudCostAggregateSets(itemStart time.Time, itemEnd time.Time, properti
 		// Insert an CloudCostAggregate with that cost into the CloudCostAggregateSet at the given index
 		cca := &CloudCostAggregate{
 			Properties:        properties,
-			Window:            window.Clone(),
 			KubernetesPercent: K8sPercent * pct,
 			Cost:              cost * pct,
 			Credit:            credit * pct,
 		}
-		err := ccas.Insert(cca)
+		err := ccas.insertByProperty(cca, "")
 		if err != nil {
-			log.Errorf("LoadCloudCostAggregateSets: failed to load CloudCostAggregate with key %s and window %s", cca.Key(), window.String())
+			log.Errorf("LoadCloudCostAggregateSets: failed to load CloudCostAggregate with key %s and window %s", cca.Key(""), window.String())
 		}
 	}
 }
 
-// TODO:cloudcost bingen for time.Duration
 type CloudCostAggregateSetRange struct {
-	CloudCostAggregateSets []*CloudCostAggregateSet
-	// Step                   time.Duration
-	Window Window
+	CloudCostAggregateSets []*CloudCostAggregateSet `json:"sets"`
+	Window                 Window                   `json:"window"`
+}
+
+func (ccasr *CloudCostAggregateSetRange) Accumulate() (*CloudCostAggregateSet, error) {
+	if ccasr == nil {
+		return nil, errors.New("cannot accumulate a nil CloudCostAggregateSetRange")
+	}
+
+	if ccasr.Window.IsOpen() {
+		return nil, fmt.Errorf("cannot accumulate a CloudCostAggregateSetRange with an open window: %s", ccasr.Window)
+	}
+
+	result := NewCloudCostAggregateSet(*ccasr.Window.Start(), *ccasr.Window.End())
+
+	for i, ccas := range ccasr.CloudCostAggregateSets {
+		for name, cca := range ccas.CloudCostAggregates {
+			err := result.insertByProperty(cca.Clone(), ccas.AggregationProperty)
+			if err != nil {
+				return nil, fmt.Errorf("error accumulating CloudCostAggregateSetRange[%s][%s]: %s", i, name, err)
+			}
+		}
+	}
+
+	return result, nil
 }
