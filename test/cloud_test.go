@@ -2,8 +2,10 @@ package test
 
 import (
 	"fmt"
+	"golang.org/x/exp/slices"
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -560,4 +562,407 @@ func TestNodePriceFromCSVByClass(t *testing.T) {
 		t.Errorf("CSV provider should return nil on missing node, instead returned %+v", resN2)
 	}
 
+}
+
+var awsDefaultRegions = []string{
+	"us-east-2",
+	"us-east-1",
+	"us-west-1",
+	"us-west-2",
+	"ap-east-1",
+	"ap-south-1",
+	"ap-northeast-3",
+	"ap-northeast-2",
+	"ap-southeast-1",
+	"ap-southeast-2",
+	"ap-northeast-1",
+	"ap-southeast-3",
+	"ca-central-1",
+	"cn-north-1",
+	"cn-northwest-1",
+	"eu-central-1",
+	"eu-west-1",
+	"eu-west-2",
+	"eu-west-3",
+	"eu-north-1",
+	"eu-south-1",
+	"me-south-1",
+	"sa-east-1",
+	"af-south-1",
+	"us-gov-east-1",
+	"us-gov-west-1",
+}
+
+func TestAwsRegions_ErrorReadingConfigFile(t *testing.T) {
+	configDir := writeModel(t, "aws.json", `BAD JSON`)
+	configFileManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{LocalConfigPath: configDir})
+
+	node := &v1.Node{}
+	node.Spec.ProviderID = "aws"
+
+	awsProvider, err := cloud.NewProvider(NewFakeNodeCache([]*v1.Node{node}), "fake", configFileManager)
+
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	actualRegions := awsProvider.Regions()
+	if !slices.Equal(actualRegions, awsDefaultRegions) {
+		t.Errorf("Expected regions: %v; Actual regions: %v", awsDefaultRegions, actualRegions)
+	}
+}
+
+func TestAwsRegions_RegionsNotSetInConfigFile(t *testing.T) {
+	configDir := writeModel(t, "aws.json", `{}`)
+	configFileManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{LocalConfigPath: configDir})
+
+	node := &v1.Node{}
+	node.Spec.ProviderID = "aws"
+
+	awsProvider, err := cloud.NewProvider(NewFakeNodeCache([]*v1.Node{node}), "fake", configFileManager)
+
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	actualRegions := awsProvider.Regions()
+	if !slices.Equal(actualRegions, awsDefaultRegions) {
+		t.Errorf("Expected regions: %v; Actual regions: %v", awsDefaultRegions, actualRegions)
+	}
+}
+
+func TestAwsRegions_RegionsSetInConfigFile(t *testing.T) {
+	configDir := writeModel(t, "aws.json", `{"regions": ["us-east-1", "totally-fake"]}`)
+	configFileManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{LocalConfigPath: configDir})
+
+	node := &v1.Node{}
+	node.Spec.ProviderID = "aws"
+
+	awsProvider, err := cloud.NewProvider(NewFakeNodeCache([]*v1.Node{node}), "fake", configFileManager)
+
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	expectedRegions := []string{"us-east-1", "totally-fake"}
+	actualRegions := awsProvider.Regions()
+	if !slices.Equal(actualRegions, expectedRegions) {
+		t.Errorf("Expected regions: %v; Actual regions: %v", expectedRegions, actualRegions)
+	}
+}
+
+var azureDefaultRegions = []string{
+	"eastus",
+	"eastus2",
+	"southcentralus",
+	"westus2",
+	"westus3",
+	"australiaeast",
+	"southeastasia",
+	"northeurope",
+	"swedencentral",
+	"uksouth",
+	"westeurope",
+	"centralus",
+	"northcentralus",
+	"westus",
+	"southafricanorth",
+	"centralindia",
+	"eastasia",
+	"japaneast",
+	"jioindiawest",
+	"koreacentral",
+	"canadacentral",
+	"francecentral",
+	"germanywestcentral",
+	"norwayeast",
+	"switzerlandnorth",
+	"uaenorth",
+	"brazilsouth",
+	"centralusstage",
+	"eastusstage",
+	"eastus2stage",
+	"northcentralusstage",
+	"southcentralusstage",
+	"westusstage",
+	"westus2stage",
+	"asia",
+	"asiapacific",
+	"australia",
+	"brazil",
+	"canada",
+	"europe",
+	"france",
+	"germany",
+	"global",
+	"india",
+	"japan",
+	"korea",
+	"norway",
+	"southafrica",
+	"switzerland",
+	"uae",
+	"uk",
+	"unitedstates",
+	"eastasiastage",
+	"southeastasiastage",
+	"centraluseuap",
+	"eastus2euap",
+	"westcentralus",
+	"southafricawest",
+	"australiacentral",
+	"australiacentral2",
+	"australiasoutheast",
+	"japanwest",
+	"jioindiacentral",
+	"koreasouth",
+	"southindia",
+	"westindia",
+	"canadaeast",
+	"francesouth",
+	"germanynorth",
+	"norwaywest",
+	"switzerlandwest",
+	"ukwest",
+	"uaecentral",
+	"brazilsoutheast",
+	"usgovarizona",
+	"usgoviowa",
+	"usgovvirginia",
+	"usgovtexas",
+}
+
+func TestAzureRegions_ErrorReadingConfigFile(t *testing.T) {
+	configDir := writeModel(t, "azure.json", `BAD JSON`)
+	configFileManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{LocalConfigPath: configDir})
+
+	node := &v1.Node{}
+	node.Spec.ProviderID = "azure"
+
+	azureProvider, err := cloud.NewProvider(NewFakeNodeCache([]*v1.Node{node}), "fake", configFileManager)
+
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	actualRegions := azureProvider.Regions()
+	if !slices.Equal(actualRegions, azureDefaultRegions) {
+		t.Errorf("Expected regions: %v; Actual regions: %v", azureDefaultRegions, actualRegions)
+	}
+}
+
+func TestAzureRegions_RegionsNotSetInConfigFile(t *testing.T) {
+	configDir := writeModel(t, "azure.json", `{}`)
+	configFileManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{LocalConfigPath: configDir})
+
+	node := &v1.Node{}
+	node.Spec.ProviderID = "azure"
+
+	azureProvider, err := cloud.NewProvider(NewFakeNodeCache([]*v1.Node{node}), "fake", configFileManager)
+
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	actualRegions := azureProvider.Regions()
+	if !slices.Equal(actualRegions, azureDefaultRegions) {
+		t.Errorf("Expected regions: %v; Actual regions: %v", azureDefaultRegions, actualRegions)
+	}
+}
+
+func TestAzureRegions_RegionsSetInConfigFile(t *testing.T) {
+	configDir := writeModel(t, "azure.json", `{"regions": ["uksouth", "totallyfake"]}`)
+	configFileManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{LocalConfigPath: configDir})
+
+	node := &v1.Node{}
+	node.Spec.ProviderID = "azure"
+
+	azureProvider, err := cloud.NewProvider(NewFakeNodeCache([]*v1.Node{node}), "fake", configFileManager)
+
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	expectedRegions := []string{"uksouth", "totallyfake"}
+	actualRegions := azureProvider.Regions()
+	if !slices.Equal(actualRegions, expectedRegions) {
+		t.Errorf("Expected regions: %v; Actual regions: %v", expectedRegions, actualRegions)
+	}
+}
+
+var gcpDefaultRegions = []string{
+	"asia-east1",
+	"asia-east2",
+	"asia-northeast1",
+	"asia-northeast2",
+	"asia-northeast3",
+	"asia-south1",
+	"asia-south2",
+	"asia-southeast1",
+	"asia-southeast2",
+	"australia-southeast1",
+	"australia-southeast2",
+	"europe-central2",
+	"europe-north1",
+	"europe-west1",
+	"europe-west2",
+	"europe-west3",
+	"europe-west4",
+	"europe-west6",
+	"northamerica-northeast1",
+	"northamerica-northeast2",
+	"southamerica-east1",
+	"us-central1",
+	"us-east1",
+	"us-east4",
+	"us-west1",
+	"us-west2",
+	"us-west3",
+	"us-west4",
+}
+
+func TestGcpRegions_ErrorReadingConfigFile(t *testing.T) {
+	configDir := writeModel(t, "gcp.json", `BAD JSON`)
+	configFileManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{LocalConfigPath: configDir})
+
+	node := &v1.Node{}
+	node.Spec.ProviderID = "gce"
+
+	gcpProvider, err := cloud.NewProvider(NewFakeNodeCache([]*v1.Node{node}), "fake", configFileManager)
+
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	actualRegions := gcpProvider.Regions()
+	if !slices.Equal(actualRegions, gcpDefaultRegions) {
+		t.Errorf("Expected regions: %v; Actual regions: %v", gcpDefaultRegions, actualRegions)
+	}
+}
+
+func TestGcpRegions_RegionsNotSetInConfigFile(t *testing.T) {
+	configDir := writeModel(t, "gcp.json", `{}`)
+	configFileManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{LocalConfigPath: configDir})
+
+	node := &v1.Node{}
+	node.Spec.ProviderID = "gce"
+
+	gcpProvider, err := cloud.NewProvider(NewFakeNodeCache([]*v1.Node{node}), "fake", configFileManager)
+
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	actualRegions := gcpProvider.Regions()
+	if !slices.Equal(actualRegions, gcpDefaultRegions) {
+		t.Errorf("Expected regions: %v; Actual regions: %v", gcpDefaultRegions, actualRegions)
+	}
+}
+
+func TestGcpRegions_RegionsSetInConfigFile(t *testing.T) {
+	configDir := writeModel(t, "gcp.json", `{"regions": ["europe-west6", "totally-fake"]}`)
+	configFileManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{LocalConfigPath: configDir})
+
+	node := &v1.Node{}
+	node.Spec.ProviderID = "gce"
+
+	gcpProvider, err := cloud.NewProvider(NewFakeNodeCache([]*v1.Node{node}), "fake", configFileManager)
+
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	expectedRegions := []string{"europe-west6", "totally-fake"}
+	actualRegions := gcpProvider.Regions()
+	if !slices.Equal(actualRegions, expectedRegions) {
+		t.Errorf("Expected regions: %v; Actual regions: %v", expectedRegions, actualRegions)
+	}
+}
+
+var scalewayDefaultRegions = []string{
+	"fr-par-1",
+	"fr-par-2",
+	"fr-par-3",
+	"nl-ams-1",
+	"nl-ams-2",
+	"pl-waw-1",
+}
+
+func TestScalewayRegions_ErrorReadingConfigFile(t *testing.T) {
+	configDir := writeModel(t, "scaleway.json", `BAD JSON`)
+	configFileManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{LocalConfigPath: configDir})
+
+	node := &v1.Node{}
+	node.Spec.ProviderID = "scaleway"
+
+	scalewayProvider, err := cloud.NewProvider(NewFakeNodeCache([]*v1.Node{node}), "fake", configFileManager)
+
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	actualRegions := scalewayProvider.Regions()
+	if !slices.Equal(actualRegions, scalewayDefaultRegions) {
+		t.Errorf("Expected regions: %v; Actual regions: %v", scalewayDefaultRegions, actualRegions)
+	}
+}
+
+func TestScalewayRegions_RegionsNotSetInConfigFile(t *testing.T) {
+	configDir := writeModel(t, "scaleway.json", `{}`)
+	configFileManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{LocalConfigPath: configDir})
+
+	node := &v1.Node{}
+	node.Spec.ProviderID = "scaleway"
+
+	scalewayProvider, err := cloud.NewProvider(NewFakeNodeCache([]*v1.Node{node}), "fake", configFileManager)
+
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	actualRegions := scalewayProvider.Regions()
+	if !slices.Equal(actualRegions, scalewayDefaultRegions) {
+		t.Errorf("Expected regions: %v; Actual regions: %v", scalewayDefaultRegions, actualRegions)
+	}
+}
+
+func TestScalewayRegions_RegionsSetInConfigFile(t *testing.T) {
+	configDir := writeModel(t, "scaleway.json", `{"regions": ["fr-par-3", "totally-fake"]}`)
+	configFileManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{LocalConfigPath: configDir})
+
+	node := &v1.Node{}
+	node.Spec.ProviderID = "scaleway"
+
+	scalewayProvider, err := cloud.NewProvider(NewFakeNodeCache([]*v1.Node{node}), "fake", configFileManager)
+
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	expectedRegions := []string{"fr-par-3", "totally-fake"}
+	actualRegions := scalewayProvider.Regions()
+	if !slices.Equal(actualRegions, expectedRegions) {
+		t.Errorf("Expected regions: %v; Actual regions: %v", expectedRegions, actualRegions)
+	}
+}
+
+func writeModel(t *testing.T, filename string, json string) (configDir string) {
+	configDir = t.TempDir()
+	modelsDir := filepath.Join(configDir, "models")
+	configFile := filepath.Join(modelsDir, filename)
+
+	var err error
+
+	err = os.Mkdir(modelsDir, 0o775)
+	if err != nil {
+		t.Fatalf("Failed to create directory %s: %v", modelsDir, err)
+	}
+
+	err = os.WriteFile(configFile, []byte(json), 0o664)
+
+	if err != nil {
+		t.Fatalf("Failed to write file %s: %v", configFile, err)
+	}
+
+	return
 }

@@ -38,7 +38,7 @@ const BigqueryUpdateType = "bigqueryupdate"
 // List obtained by installing the `gcloud` CLI tool,
 // logging into gcp account, and running command
 // `gcloud compute regions list`
-var gcpRegions = []string{
+var gcpDefaultRegions = []string{
 	"asia-east1",
 	"asia-east2",
 	"asia-northeast1",
@@ -1381,7 +1381,18 @@ func (gcp *GCP) CombinedDiscountForNode(instanceType string, isPreemptible bool,
 }
 
 func (gcp *GCP) Regions() []string {
-	return gcpRegions
+	cfg, err := gcp.GetConfig()
+	if err != nil {
+		log.Warnf("Falling back to hardcoded default GCP regions; failed to load config: %v", err)
+		return gcpDefaultRegions
+	}
+
+	if len(cfg.Regions) == 0 {
+		log.Info("Falling back to hardcoded default GCP regions; no regions specified in config")
+		return gcpDefaultRegions
+	}
+
+	return cfg.Regions
 }
 
 func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible bool) float64 {

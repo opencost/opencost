@@ -108,7 +108,7 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 // How often spot data is refreshed
 const SpotRefreshDuration = 15 * time.Minute
 
-var awsRegions = []string{
+var awsDefaultRegions = []string{
 	"us-east-2",
 	"us-east-1",
 	"us-west-1",
@@ -1451,6 +1451,8 @@ func (aws *AWS) getAddressesForRegion(ctx context.Context, region string) (*ec2.
 func (aws *AWS) GetAddresses() ([]byte, error) {
 	aws.ConfigureAuth() // load authentication data into env vars
 
+	awsRegions := aws.Regions()
+
 	addressCh := make(chan *ec2.DescribeAddressesOutput, len(awsRegions))
 	errorCh := make(chan error, len(awsRegions))
 
@@ -1533,6 +1535,8 @@ func (aws *AWS) getDisksForRegion(ctx context.Context, region string, maxResults
 // GetDisks returns the AWS disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
 func (aws *AWS) GetDisks() ([]byte, error) {
 	aws.ConfigureAuth() // load authentication data into env vars
+
+	awsRegions := aws.Regions()
 
 	volumeCh := make(chan *ec2.DescribeVolumesOutput, len(awsRegions))
 	errorCh := make(chan error, len(awsRegions))
@@ -2112,7 +2116,17 @@ func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool,
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
 }
 
-// Regions returns a predefined list of AWS regions
 func (aws *AWS) Regions() []string {
-	return awsRegions
+	cfg, err := aws.GetConfig()
+	if err != nil {
+		log.Warnf("Falling back to hardcoded default AWS regions; failed to load config: %v", err)
+		return awsDefaultRegions
+	}
+
+	if len(cfg.Regions) == 0 {
+		log.Info("Falling back to hardcoded default AWS regions; no regions specified in config")
+		return awsDefaultRegions
+	}
+
+	return cfg.Regions
 }

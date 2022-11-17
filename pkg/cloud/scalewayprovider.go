@@ -24,6 +24,8 @@ const (
 	InstanceAPIPricing = "Instance API Pricing"
 )
 
+var scalewayDefaultRegions = scalewayAllRegionNames()
+
 type ScalewayPricing struct {
 	NodesInfos map[string]*instance.ServerType
 	PVCost     float64
@@ -231,13 +233,28 @@ func (c *Scaleway) CombinedDiscountForNode(instanceType string, isPreemptible bo
 	return 1.0 - ((1.0 - defaultDiscount) * (1.0 - negotiatedDiscount))
 }
 
-func (c *Scaleway) Regions() []string {
+func scalewayAllRegionNames() []string {
 	// These are zones but hey, its 2022
 	zones := []string{}
 	for _, zone := range scw.AllZones {
 		zones = append(zones, zone.String())
 	}
 	return zones
+}
+
+func (c *Scaleway) Regions() []string {
+	cfg, err := c.GetConfig()
+	if err != nil {
+		log.Warnf("Falling back to hardcoded default Scaleway regions (zones); failed to load config: %v", err)
+		return scalewayDefaultRegions
+	}
+
+	if len(cfg.Regions) == 0 {
+		log.Info("Falling back to hardcoded default Scaleway regions (zones); no regions specified in config")
+		return scalewayDefaultRegions
+	}
+
+	return cfg.Regions
 }
 
 func (*Scaleway) ApplyReservedInstancePricing(map[string]*Node) {}

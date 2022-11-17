@@ -83,7 +83,7 @@ var (
 // List obtained by installing the Azure CLI tool "az", described here:
 // https://docs.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt
 // logging into an Azure account, and running command `az account list-locations`
-var azureRegions = []string{
+var azureDefaultRegions = []string{
 	"eastus",
 	"eastus2",
 	"southcentralus",
@@ -1348,7 +1348,18 @@ func (az *Azure) CombinedDiscountForNode(instanceType string, isPreemptible bool
 }
 
 func (az *Azure) Regions() []string {
-	return azureRegions
+	cfg, err := az.GetConfig()
+	if err != nil {
+		log.Warnf("Falling back to hardcoded default Azure regions; failed to load config: %v", err)
+		return azureDefaultRegions
+	}
+
+	if len(cfg.Regions) == 0 {
+		log.Info("Falling back to hardcoded default Azure regions; no regions specified in config")
+		return azureDefaultRegions
+	}
+
+	return cfg.Regions
 }
 
 func parseAzureSubscriptionID(id string) string {

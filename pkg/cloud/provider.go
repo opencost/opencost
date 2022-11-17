@@ -138,67 +138,68 @@ type OutOfClusterAllocation struct {
 }
 
 type CustomPricing struct {
-	Provider                     string `json:"provider"`
-	Description                  string `json:"description"`
-	CPU                          string `json:"CPU"`
-	SpotCPU                      string `json:"spotCPU"`
-	RAM                          string `json:"RAM"`
-	SpotRAM                      string `json:"spotRAM"`
-	GPU                          string `json:"GPU"`
-	SpotGPU                      string `json:"spotGPU"`
-	Storage                      string `json:"storage"`
-	ZoneNetworkEgress            string `json:"zoneNetworkEgress"`
-	RegionNetworkEgress          string `json:"regionNetworkEgress"`
-	InternetNetworkEgress        string `json:"internetNetworkEgress"`
-	FirstFiveForwardingRulesCost string `json:"firstFiveForwardingRulesCost"`
-	AdditionalForwardingRuleCost string `json:"additionalForwardingRuleCost"`
-	LBIngressDataCost            string `json:"LBIngressDataCost"`
-	SpotLabel                    string `json:"spotLabel,omitempty"`
-	SpotLabelValue               string `json:"spotLabelValue,omitempty"`
-	GpuLabel                     string `json:"gpuLabel,omitempty"`
-	GpuLabelValue                string `json:"gpuLabelValue,omitempty"`
-	ServiceKeyName               string `json:"awsServiceKeyName,omitempty"`
-	ServiceKeySecret             string `json:"awsServiceKeySecret,omitempty"`
-	SpotDataRegion               string `json:"awsSpotDataRegion,omitempty"`
-	SpotDataBucket               string `json:"awsSpotDataBucket,omitempty"`
-	SpotDataPrefix               string `json:"awsSpotDataPrefix,omitempty"`
-	ProjectID                    string `json:"projectID,omitempty"`
-	AthenaProjectID              string `json:"athenaProjectID,omitempty"`
-	AthenaBucketName             string `json:"athenaBucketName"`
-	AthenaRegion                 string `json:"athenaRegion"`
-	AthenaDatabase               string `json:"athenaDatabase"`
-	AthenaTable                  string `json:"athenaTable"`
-	AthenaWorkgroup              string `json:"athenaWorkgroup"`
-	MasterPayerARN               string `json:"masterPayerARN"`
-	BillingDataDataset           string `json:"billingDataDataset,omitempty"`
-	CustomPricesEnabled          string `json:"customPricesEnabled"`
-	DefaultIdle                  string `json:"defaultIdle"`
-	AzureSubscriptionID          string `json:"azureSubscriptionID"`
-	AzureClientID                string `json:"azureClientID"`
-	AzureClientSecret            string `json:"azureClientSecret"`
-	AzureTenantID                string `json:"azureTenantID"`
-	AzureBillingRegion           string `json:"azureBillingRegion"`
-	AzureOfferDurableID          string `json:"azureOfferDurableID"`
-	AzureStorageSubscriptionID   string `json:"azureStorageSubscriptionID"`
-	AzureStorageAccount          string `json:"azureStorageAccount"`
-	AzureStorageAccessKey        string `json:"azureStorageAccessKey"`
-	AzureStorageContainer        string `json:"azureStorageContainer"`
-	AzureContainerPath           string `json:"azureContainerPath"`
-	AzureCloud                   string `json:"azureCloud"`
-	CurrencyCode                 string `json:"currencyCode"`
-	Discount                     string `json:"discount"`
-	NegotiatedDiscount           string `json:"negotiatedDiscount"`
-	SharedOverhead               string `json:"sharedOverhead"`
-	ClusterName                  string `json:"clusterName"`
-	SharedNamespaces             string `json:"sharedNamespaces"`
-	SharedLabelNames             string `json:"sharedLabelNames"`
-	SharedLabelValues            string `json:"sharedLabelValues"`
-	ShareTenancyCosts            string `json:"shareTenancyCosts"` // TODO clean up configuration so we can use a type other that string (this should be a bool, but the app panics if it's not a string)
-	ReadOnly                     string `json:"readOnly"`
-	EditorAccess                 string `json:"editorAccess"`
-	KubecostToken                string `json:"kubecostToken"`
-	GoogleAnalyticsTag           string `json:"googleAnalyticsTag"`
-	ExcludeProviderID            string `json:"excludeProviderID"`
+	Provider                     string   `json:"provider"`
+	Description                  string   `json:"description"`
+	CPU                          string   `json:"CPU"`
+	SpotCPU                      string   `json:"spotCPU"`
+	RAM                          string   `json:"RAM"`
+	SpotRAM                      string   `json:"spotRAM"`
+	GPU                          string   `json:"GPU"`
+	SpotGPU                      string   `json:"spotGPU"`
+	Storage                      string   `json:"storage"`
+	ZoneNetworkEgress            string   `json:"zoneNetworkEgress"`
+	RegionNetworkEgress          string   `json:"regionNetworkEgress"`
+	InternetNetworkEgress        string   `json:"internetNetworkEgress"`
+	FirstFiveForwardingRulesCost string   `json:"firstFiveForwardingRulesCost"`
+	AdditionalForwardingRuleCost string   `json:"additionalForwardingRuleCost"`
+	LBIngressDataCost            string   `json:"LBIngressDataCost"`
+	SpotLabel                    string   `json:"spotLabel,omitempty"`
+	SpotLabelValue               string   `json:"spotLabelValue,omitempty"`
+	GpuLabel                     string   `json:"gpuLabel,omitempty"`
+	GpuLabelValue                string   `json:"gpuLabelValue,omitempty"`
+	ServiceKeyName               string   `json:"awsServiceKeyName,omitempty"`
+	ServiceKeySecret             string   `json:"awsServiceKeySecret,omitempty"`
+	SpotDataRegion               string   `json:"awsSpotDataRegion,omitempty"`
+	SpotDataBucket               string   `json:"awsSpotDataBucket,omitempty"`
+	SpotDataPrefix               string   `json:"awsSpotDataPrefix,omitempty"`
+	ProjectID                    string   `json:"projectID,omitempty"`
+	AthenaProjectID              string   `json:"athenaProjectID,omitempty"`
+	AthenaBucketName             string   `json:"athenaBucketName"`
+	AthenaRegion                 string   `json:"athenaRegion"`
+	AthenaDatabase               string   `json:"athenaDatabase"`
+	AthenaTable                  string   `json:"athenaTable"`
+	AthenaWorkgroup              string   `json:"athenaWorkgroup"`
+	MasterPayerARN               string   `json:"masterPayerARN"`
+	BillingDataDataset           string   `json:"billingDataDataset,omitempty"`
+	CustomPricesEnabled          string   `json:"customPricesEnabled"`
+	DefaultIdle                  string   `json:"defaultIdle"`
+	AzureSubscriptionID          string   `json:"azureSubscriptionID"`
+	AzureClientID                string   `json:"azureClientID"`
+	AzureClientSecret            string   `json:"azureClientSecret"`
+	AzureTenantID                string   `json:"azureTenantID"`
+	AzureBillingRegion           string   `json:"azureBillingRegion"`
+	AzureOfferDurableID          string   `json:"azureOfferDurableID"`
+	AzureStorageSubscriptionID   string   `json:"azureStorageSubscriptionID"`
+	AzureStorageAccount          string   `json:"azureStorageAccount"`
+	AzureStorageAccessKey        string   `json:"azureStorageAccessKey"`
+	AzureStorageContainer        string   `json:"azureStorageContainer"`
+	AzureContainerPath           string   `json:"azureContainerPath"`
+	AzureCloud                   string   `json:"azureCloud"`
+	CurrencyCode                 string   `json:"currencyCode"`
+	Discount                     string   `json:"discount"`
+	NegotiatedDiscount           string   `json:"negotiatedDiscount"`
+	SharedOverhead               string   `json:"sharedOverhead"`
+	ClusterName                  string   `json:"clusterName"`
+	SharedNamespaces             string   `json:"sharedNamespaces"`
+	SharedLabelNames             string   `json:"sharedLabelNames"`
+	SharedLabelValues            string   `json:"sharedLabelValues"`
+	ShareTenancyCosts            string   `json:"shareTenancyCosts"` // TODO clean up configuration so we can use a type other that string (this should be a bool, but the app panics if it's not a string)
+	ReadOnly                     string   `json:"readOnly"`
+	EditorAccess                 string   `json:"editorAccess"`
+	KubecostToken                string   `json:"kubecostToken"`
+	GoogleAnalyticsTag           string   `json:"googleAnalyticsTag"`
+	ExcludeProviderID            string   `json:"excludeProviderID"`
+	Regions                      []string `json:"regions"`
 }
 
 // GetSharedOverheadCostPerMonth parses and returns a float64 representation
@@ -517,7 +518,7 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 		accountID:      "",
 		projectID:      "",
 	}
-	if metadata.OnGCE() {
+	if metadata.OnGCE() || strings.HasPrefix(providerID, "gce") {
 		cp.provider = kubecost.GCPProvider
 		cp.configFileName = "gcp.json"
 		cp.projectID = parseGCPProjectID(providerID)
