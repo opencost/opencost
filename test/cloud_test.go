@@ -376,7 +376,7 @@ type FakeClusterMap struct {
 }
 
 func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
-	os.Setenv("CONFIG_PATH", "../config")
+	t.Setenv("CONFIG_PATH", "../config")
 	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
 		LocalConfigPath: "./",
 	})
@@ -409,7 +409,7 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 }
 
 func TestSourceMatchesFromCSV(t *testing.T) {
-	os.Setenv("CONFIG_PATH", "../configs")
+	t.Setenv("CONFIG_PATH", "../configs")
 
 	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
 		LocalConfigPath: "./",
