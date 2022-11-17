@@ -1,0 +1,12 @@
+{
+    "provider": "Aliyun",
+    "description": "Aliyun Json have to figure out what the contents need to look like. Defaulting it to AWS json for now",
+    "aliyunServiceKeyName": "ABC",
+    "aliyunServiceKeySecret": "XYZ",
+    "CPU": "0.031611",
+    "spotCPU": "0.006655",
+    "RAM": "0.004237",
+    "GPU": "0.95",
+    "spotRAM": "0.000892",
+    "storage": "0.00005479452"
+}

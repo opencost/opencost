@@ -16,6 +16,9 @@ const (
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
 
+	AliyunAccessKeyIDEnvVar     = "ALIYUN_ACCESS_KEY_ID"
+	AliyunAccessKeySecretEnvVar = "ALIYUN_SECRET_ACCESS_KEY"
+
 	KubecostNamespaceEnvVar        = "KUBECOST_NAMESPACE"
 	PodNameEnvVar                  = "POD_NAME"
 	ClusterIDEnvVar                = "CLUSTER_ID"
@@ -203,6 +206,18 @@ func GetAWSAccessKeySecret() string {
 // an AWS specific cluster identifier.
 func GetAWSClusterID() string {
 	return Get(AWSClusterIDEnvVar, "")
+}
+
+// GetAliyunAccessKeyID returns the environment variable value for AliyunAccessKeyIDEnvVar which represents
+// the Aliyun access key for authentication
+func GetAliyunAccessKeyID() string {
+	return Get(AliyunAccessKeyIDEnvVar, "")
+}
+
+// GetAliyunAccessKeySecret returns the environment variable value for AliyunAccessKeySecretEnvVar which represents
+// the Aliyun access key secret for authentication
+func GetAliyunAccessKeySecret() string {
+	return Get(AliyunAccessKeySecretEnvVar, "")
 }
 
 // GetKubecostNamespace returns the environment variable value for KubecostNamespaceEnvVar which
