@@ -22,6 +22,8 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
 	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
 	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2016-06-01/subscriptions"
 	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2018-05-01/resources"
@@ -1165,8 +1167,33 @@ func (*Azure) GetAddresses() ([]byte, error) {
 	return nil, nil
 }
 
-func (*Azure) GetDisks() ([]byte, error) {
-	return nil, nil
+func (az *Azure) GetDisks() ([]byte, error) {
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to obtain a credential: %v", err)
+	}
+
+	config, err := az.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get config: %v", err)
+	}
+	ctx := context.TODO()
+	client, err := armcompute.NewDisksClient(config.AzureSubscriptionID, cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create client: %v", err)
+	}
+
+	var disks []*armcompute.Disk
+	pager := client.NewListPager(nil)
+	for pager.More() {
+		nextResult, err := pager.NextPage(ctx)
+		if err != nil {
+			log.Fatalf("failed to advance page: %v", err)
+		}
+		disks = append(disks, nextResult.Value...)
+	}
+
+	return json.Marshal(disks)
 }
 
 func (az *Azure) ClusterInfo() (map[string]string, error) {
