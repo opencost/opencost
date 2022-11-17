@@ -593,6 +593,10 @@ func (aliyunNodeKey *AliyunNodeKey) GPUType() string {
 	return ""
 }
 
+func (aliyunNodeKey *AliyunNodeKey) GPUCount() int {
+	return 0
+}
+
 // Get's the key for the k8s node input
 func (aliyun *Aliyun) GetKey(mapValue map[string]string, node *v1.Node) Key {
 	//Mostly parse the Node object and get the ProviderID, region, InstanceType, OSType and OptimizedKeyword(In if block)
