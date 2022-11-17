@@ -2,6 +2,11 @@ package costmodel
 
 import (
 	"fmt"
+	"math"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/kubecost"
@@ -9,10 +14,6 @@ import (
 	"github.com/opencost/opencost/pkg/prom"
 	"github.com/opencost/opencost/pkg/util/timeutil"
 	"k8s.io/apimachinery/pkg/labels"
-	"math"
-	"strconv"
-	"strings"
-	"time"
 )
 
 // This is a bit of a hack to work around garbage data from cadvisor
@@ -1794,7 +1795,9 @@ func buildPodPVCMap(podPVCMap map[podKey][]*pvc, pvMap map[pvKey]*pv, pvcMap map
 
 			if pod, ok := podMap[key]; !ok || len(pod.Allocations) <= 0 {
 				log.DedupedWarningf(10, "CostModel.ComputeAllocation: pvc %s for missing pod %s", pvcKey, key)
+				continue
 			}
+
 			pvc.Mounted = true
 
 			podPVCMap[key] = append(podPVCMap[key], pvc)
