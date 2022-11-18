@@ -118,7 +118,8 @@ type PV struct {
 type Key interface {
 	ID() string       // ID represents an exact match
 	Features() string // Features are a comma separated string of node metadata that could match pricing
-	GPUType() string  // GPUType returns "" if no GPU exists, but the name of the GPU otherwise
+	GPUType() string  // GPUType returns "" if no GPU exists or GPUs, but the name of the GPU otherwise
+	GPUCount() int    // GPUCount returns 0 if no GPU exists or GPUs, but the number of attached GPUs otherwise
 }
 
 type PVKey interface {
