@@ -104,6 +104,10 @@ func (k *scalewayKey) Features() string {
 	return zone + "," + instanceType
 }
 
+func (k *scalewayKey) GPUCount() int {
+	return 0
+}
+
 func (k *scalewayKey) GPUType() string {
 	instanceType, _ := util.GetInstanceType(k.Labels)
 	if strings.HasPrefix(instanceType, "RENDER") || strings.HasPrefix(instanceType, "GPU") {

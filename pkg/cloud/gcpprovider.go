@@ -1261,6 +1261,10 @@ func (gcp *gcpKey) ID() string {
 	return ""
 }
 
+func (k *gcpKey) GPUCount() int {
+	return 0
+}
+
 func (gcp *gcpKey) GPUType() string {
 	if t, ok := gcp.Labels[GKE_GPU_TAG]; ok {
 		usageType := getUsageType(gcp.Labels)
