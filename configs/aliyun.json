@@ -1,6 +1,6 @@
 {
     "provider": "Aliyun",
-    "description": "Aliyun Json have to figure out what the contents need to look like. Defaulting it to AWS json for now",
+    "description": "Default prices used to compute allocation between RAM and CPU. Aliyun pricing API data still used for total node cost.",
     "aliyunServiceKeyName": "ABC",
     "aliyunServiceKeySecret": "XYZ",
     "CPU": "0.031611",

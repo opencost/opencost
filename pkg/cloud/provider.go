@@ -543,8 +543,6 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 		cp.provider = kubecost.ScalewayProvider
 		cp.configFileName = "scaleway.json"
 	} else if strings.Contains(node.Status.NodeInfo.KubeletVersion, "aliyun") { // provider ID is not prefix with any distinct keyword like other providers
-		// TO-DO: Check for Nil conditions
-		log.Infof("I assgined the cp provider and json")
 		cp.provider = kubecost.AliyunProvider
 		cp.configFileName = "aliyun.json"
 	}

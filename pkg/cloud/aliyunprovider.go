@@ -159,10 +159,14 @@ type AliyunPVAttributes struct {
 // TO-DO: Open question Subscription would be either Monthly or Yearly, Firstly Data retrieval/population
 // TO-DO:  need to be tested from describe price API, but how would you calculate hourly price, is it PRICE_YEARLY/HOURS_IN_THE_YEAR?
 type AliyunPricingDetails struct {
-	HourlyPrice  float32 `json:"hourlyPrice"`  // Represents hourly price for the given Aliyun Product
-	PriceUnit    string  `json:"priceUnit"`    // Represents the unit in which Alibaba Product is billed can be Hour, Month or Year based on the billingMethod
-	TradePrice   float32 `json:"tradePrice"`   // Original Price used to acquire the Alibaba Product
-	CurrencyCode string  `json:"currencyCode"` // Represents the currency unit of the
+	// Represents hourly price for the given Aliyun Product.
+	HourlyPrice float32 `json:"hourlyPrice"`
+	// Represents the unit in which Alibaba Product is billed can be Hour, Month or Year based on the billingMethod.
+	PriceUnit string `json:"priceUnit"`
+	// Original Price paid to acquire the Alibaba Product.
+	TradePrice float32 `json:"tradePrice"`
+	// Represents the currency unit of the price for billing Alibaba Product.
+	CurrencyCode string `json:"currencyCode"`
 }
 
 func NewAliyunPricingDetails(hourlyPrice float32, priceUnit string, tradePrice float32, currencyCode string) *AliyunPricingDetails {
@@ -198,30 +202,38 @@ type AliyunPricing struct {
 
 // Aliyun's Provider struct
 type Aliyun struct {
-	Pricing                 map[string]*AliyunPricing // Data to store Aliyun(Alibaba cloud) pricing struct
-	DownloadPricingDataLock sync.RWMutex              // Lock Needed to provide thread safe
+	// Data to store Aliyun(Alibaba cloud) pricing struct, key in the map represents exact match to
+	// node.features() or pv.features for easy lookup
+	Pricing map[string]*AliyunPricing
+	// Lock Needed to provide thread safe
+	DownloadPricingDataLock sync.RWMutex
 	Clientset               clustercache.ClusterCache
 	Config                  *ProviderConfig
-	serviceAccountChecks    *ServiceAccountChecks
-	clusterAccountId        string
-	clusterRegion           string
-	loadedAccessKey         bool                             // Check if Aliyun is authenticated
-	accessKey               *credentials.AccessKeyCredential // Aliyun Access key used specifically in signer interface used to sign API calls
-	clients                 map[string]*sdk.Client           // Map of regionID to sdk.client to call API for that region
 	*CustomProvider
+
+	// TO-DO: These needs to be decided if either exported or unexported.
+	serviceAccountChecks *ServiceAccountChecks
+	clusterAccountId     string
+	clusterRegion        string
+
+	// The following fields are unexported because of avoiding any leak of secrets of these keys.
+	// Aliyun Access key used specifically in signer interface used to sign API calls
+	accessKey *credentials.AccessKeyCredential
+	// Map of regionID to sdk.client to call API for that region
+	clients map[string]*sdk.Client
 }
 
 // GetAliyunAccessKey return the Access Key used to interact with the Alibaba cloud, if not set it
 // set it first by looking at env variables else load it from secret files.
 // <IMPORTANT>Ask in PR what is the exact purpose of so many functions to set the key in AWS providers, am i missing something here!!!!!
 func (aliyun *Aliyun) GetAliyunAccessKey() (*credentials.AccessKeyCredential, error) {
-	if aliyun.loadedAccessKey {
+	if aliyun.accessKeyisLoaded() {
 		return aliyun.accessKey, nil
 	}
 
 	config, err := aliyun.GetConfig()
 	if err != nil {
-		return nil, fmt.Errorf("Error getting the default config for aliyun provider: %s", err.Error())
+		return nil, fmt.Errorf("error getting the default config for aliyun provider: %w", err)
 	}
 
 	//Look for service key values in env if not present in config via helm chart once changes are done
@@ -236,7 +248,7 @@ func (aliyun *Aliyun) GetAliyunAccessKey() (*credentials.AccessKeyCredential, er
 		log.Debugf("missing service key values for Aliyun cloud integration attempting to use service account integration")
 		err := aliyun.loadAliyunAuthSecretAndSetEnv(true)
 		if err != nil {
-			return nil, fmt.Errorf("unable to set the aliyun key/secret from config file")
+			return nil, fmt.Errorf("unable to set the aliyun key/secret from config file %w", err)
 		}
 		// set custom pricing keys too
 		config.AliyunServiceKeyName = env.GetAliyunAccessKeyID()
@@ -248,7 +260,6 @@ func (aliyun *Aliyun) GetAliyunAccessKey() (*credentials.AccessKeyCredential, er
 	}
 
 	aliyun.accessKey = &credentials.AccessKeyCredential{AccessKeyId: env.GetAliyunAccessKeyID(), AccessKeySecret: env.GetAliyunAccessKeySecret()}
-	aliyun.loadedAccessKey = true
 
 	return aliyun.accessKey, nil
 }
@@ -260,11 +271,10 @@ func (aliyun *Aliyun) DownloadPricingData() error {
 	var aak *credentials.AccessKeyCredential
 	var err error
 
-	if !aliyun.loadedAccessKey {
+	if !aliyun.accessKeyisLoaded() {
 		aak, err = aliyun.GetAliyunAccessKey()
 		if err != nil {
-			log.Errorf("Unable to get the access key information")
-			return fmt.Errorf("unable to get the access key information")
+			return fmt.Errorf("unable to get the access key information: %w", err)
 		}
 	} else {
 		aak = aliyun.accessKey
@@ -272,12 +282,10 @@ func (aliyun *Aliyun) DownloadPricingData() error {
 
 	c, err := aliyun.Config.GetCustomPricingData()
 	if err != nil {
-		log.Errorf("Error downloading default pricing data: %s", err.Error())
-		return fmt.Errorf("error downloading default pricing data: %s", err.Error())
+		return fmt.Errorf("error downloading default pricing data: %w", err)
 	}
 
-	// // Get the nodes in Aliyun provider, Once alibaba cloud is setup
-	// // and populate data from the node object to resemble the data in hardcodeNodes
+	// Get all the nodes from Aliyun cluster.
 	nodeList := aliyun.Clientset.GetAllNodes()
 
 	var client *sdk.Client
@@ -293,14 +301,14 @@ func (aliyun *Aliyun) DownloadPricingData() error {
 		slimK8sNode := generateSlimK8sNodeFromV1Node(node)
 		lookupKey, err = determineKeyForPricing(slimK8sNode)
 		if _, ok := aliyun.Pricing[lookupKey]; ok {
-			log.Infof("Pricing information for node with same features %s already exists hence skipping", lookupKey)
+			log.Debugf("Pricing information for node with same features %s already exists hence skipping", lookupKey)
 			continue
 		}
-		// TO-DO: Check if Node pricing already available , skip it if available
+
 		if client, ok = aliyun.clients[slimK8sNode.RegionID]; !ok {
 			client, err = sdk.NewClientWithAccessKey(slimK8sNode.RegionID, aak.AccessKeyId, aak.AccessKeySecret)
 			if err != nil {
-				return fmt.Errorf("access key provided does not have access to location %s", slimK8sNode.RegionID)
+				return fmt.Errorf("unable to initiate aliyun sdk client for region %s : %w", slimK8sNode.RegionID, err)
 			}
 			aliyun.clients[slimK8sNode.RegionID] = client
 		}
@@ -308,7 +316,7 @@ func (aliyun *Aliyun) DownloadPricingData() error {
 		pricingObj, err = processDescribePriceAndCreateAliyunPricing(client, slimK8sNode, signer, c)
 
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create pricing information for node with type %s with error: %w", slimK8sNode.InstanceType, err)
 		}
 		aliyun.Pricing[lookupKey] = pricingObj
 	}
@@ -375,11 +383,11 @@ func (aliyun *Aliyun) NodePricing(key Key) (*Node, error) {
 
 	pricing, ok := aliyun.Pricing[keyFeature]
 	if !ok {
-		log.Infof("Node pricing information not found for node with feature: %s", keyFeature)
+		log.Warnf("Node pricing information not found for node with feature: %s", keyFeature)
 		return &Node{}, nil
 	}
 
-	log.Infof("returing the node price for the node with feature: %s", keyFeature)
+	log.Debugf("returning the node price for the node with feature: %s", keyFeature)
 	return pricing.Node, nil
 }
 
@@ -393,11 +401,11 @@ func (aliyun *Aliyun) PVPricing(pvk PVKey) (*PV, error) {
 	pricing, ok := aliyun.Pricing[keyFeature]
 
 	if !ok {
-		log.Infof("Persistent Volume pricing not found for PV with feature: %s", keyFeature)
+		log.Warnf("Persistent Volume pricing not found for PV with feature: %s", keyFeature)
 		return &PV{}, nil
 	}
 
-	log.Infof("returing the PV price for the node with feature: %s", keyFeature)
+	log.Debugf("returning the PV price for the node with feature: %s", keyFeature)
 	return pricing.PV, nil
 }
 
@@ -439,35 +447,35 @@ func (aliyun *Aliyun) GetConfig() (*CustomPricing, error) {
 // we don't expect the secret to change. If it does, however, we can force reload using
 // the input parameter.
 func (aliyun *Aliyun) loadAliyunAuthSecretAndSetEnv(force bool) error {
-	if !force && aliyun.loadedAccessKey {
+	if !force && aliyun.accessKeyisLoaded() {
 		return nil
 	}
 
 	exists, err := fileutil.FileExists(authSecretPath)
 	if !exists || err != nil {
-		return fmt.Errorf("Failed to locate service account file: %s", authSecretPath)
+		return fmt.Errorf("failed to locate service account file: %s with err: %w", authSecretPath, err)
 	}
 
 	result, err := ioutil.ReadFile(authSecretPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read service account file: %s with err: %w", authSecretPath, err)
 	}
 
 	var ak *AliyunAccessKey
 	err = json.Unmarshal(result, &ak)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshall access key id and access key secret with err: %w", err)
 	}
 
 	err = env.Set(env.AliyunAccessKeyIDEnvVar, ak.AccessKeyID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to set environment variable: %s with err: %w", env.AliyunAccessKeyIDEnvVar, err)
 	}
 	err = env.Set(env.AliyunAccessKeySecretEnvVar, ak.SecretAccessKey)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to set environment variable: %s with err: %w", env.AliyunAccessKeySecretEnvVar, err)
 	}
-	aliyun.loadedAccessKey = true
+
 	aliyun.accessKey = &credentials.AccessKeyCredential{
 		AccessKeyId:     ak.AccessKeyID,
 		AccessKeySecret: ak.SecretAccessKey,
@@ -485,7 +493,7 @@ func (aliyun *Aliyun) ClusterInfo() (map[string]string, error) {
 
 	c, err := aliyun.GetConfig()
 	if err != nil {
-		log.Errorf("Error opening config: %s", err.Error())
+		return nil, fmt.Errorf("failed to getConfig with err: %w", err)
 	}
 
 	var clusterName string
@@ -493,9 +501,9 @@ func (aliyun *Aliyun) ClusterInfo() (map[string]string, error) {
 		clusterName = c.ClusterName
 	}
 
-	// Use a default name if none has been set until this point
+	// Set it to environment clusterID if not set at this point
 	if clusterName == "" {
-		clusterName = "Aliyun Cluster #1"
+		clusterName = env.GetClusterID()
 	}
 
 	m := make(map[string]string)
@@ -560,6 +568,10 @@ func (aliyun *Aliyun) ClusterManagementPricing() (string, float64, error) {
 // Will look at this in Next PR if needed
 func (aliyun *Aliyun) CombinedDiscountForNode(string, bool, float64, float64) float64 {
 	return 0.0
+}
+
+func (aliyun *Aliyun) accessKeyisLoaded() bool {
+	return aliyun.accessKey != nil
 }
 
 type AliyunNodeKey struct {
@@ -675,13 +687,15 @@ func createDescribePriceACSRequest(i interface{}) (*requests.CommonRequest, erro
 		request.TransToAcsRequest()
 		return request, nil
 	default:
-		return nil, fmt.Errorf("unsupported ECS type for DescribePrice at this time")
+		return nil, fmt.Errorf("unsupported ECS type (%T) for DescribePrice at this time", i)
 	}
 }
 
 // determineKeyForPricing generate a unique key from SlimK8sNode object that is construct from v1.Node object.
-// This function is
 func determineKeyForPricing(i interface{}) (string, error) {
+	if i == nil {
+		return "", fmt.Errorf("nil component passed to determine key")
+	}
 	switch i.(type) {
 	case *SlimK8sNode:
 		node := i.(*SlimK8sNode)
@@ -697,11 +711,11 @@ func determineKeyForPricing(i interface{}) (string, error) {
 		keyLookup := stringutil.DeleteEmptyStringsFromArray([]string{disk.RegionID, disk.DiskCategory, disk.DiskType, disk.PerformanceLevel})
 		return strings.Join(keyLookup, "::"), nil
 	default:
-		return "", fmt.Errorf("unsupported ECS pricing component at this time")
+		return "", fmt.Errorf("unsupported ECS type (%T) at this time", i)
 	}
 }
 
-// Below structs represents the structs to unmarshal json response of Aliyun's API DescribePrice
+// Below structs are used to unmarshal json response of Aliyun's API DescribePrice
 type Price struct {
 	OriginalPrice             float32 `json:"OriginalPrice"`
 	ReservedInstanceHourPrice float32 `json:"ReservedInstanceHourPrice"`
@@ -722,17 +736,17 @@ type DescribePriceResponse struct {
 func processDescribePriceAndCreateAliyunPricing(client *sdk.Client, i interface{}, signer *signers.AccessKeySigner, custom *CustomPricing) (pricing *AliyunPricing, err error) {
 	pricing = &AliyunPricing{}
 	var response DescribePriceResponse
-	log.Infof("type is %v", i)
+	if i == nil {
+		return nil, fmt.Errorf("nil component passed to process the pricing information")
+	}
 	switch i.(type) {
 	case *SlimK8sNode:
 		node := i.(*SlimK8sNode)
 		req, err := createDescribePriceACSRequest(node)
-		log.Debugf("Request is : %v", req)
 		if err != nil {
 			return nil, err
 		}
 		resp, err := client.ProcessCommonRequestWithSigner(req, signer)
-		log.Infof("value is %s", resp.GetHttpContentString())
 		pricing.NodeAttributes = NewAliyunNodeAttributes(node)
 		if err != nil || resp.GetHttpStatus() != 200 {
 			// Can be defaulted to some value here?
@@ -741,7 +755,7 @@ func processDescribePriceAndCreateAliyunPricing(client *sdk.Client, i interface{
 			// This is where population of Pricing happens
 			err = json.Unmarshal(resp.GetHttpContentBytes(), &response)
 			if err != nil {
-				return nil, fmt.Errorf("unable to unmarshall json response to custom struct, possible change in json response of DescribePrice")
+				return nil, fmt.Errorf("unable to unmarshall json response to custom struct with err: %w", err)
 			}
 			// TO-DO : Ask in PR How to get the defaults is it equal to AWS/GCP defaults? And what needs to be returned
 			pricing.Node = &Node{
@@ -766,7 +780,7 @@ func processDescribePriceAndCreateAliyunPricing(client *sdk.Client, i interface{
 			// This is where population of Pricing happens
 			err = json.Unmarshal(resp.GetHttpContentBytes(), &response)
 			if err != nil {
-				return nil, fmt.Errorf("unable to unmarshall json response to custom struct, possible change in json response of DescribePrice")
+				return nil, fmt.Errorf("unable to unmarshall json response to custom struct with err: %w", err)
 			}
 			pricing.PVAttributes = &AliyunPVAttributes{}
 			pricing.PV = &PV{
@@ -775,7 +789,7 @@ func processDescribePriceAndCreateAliyunPricing(client *sdk.Client, i interface{
 
 		}
 	default:
-		return nil, fmt.Errorf("unsupported ECS pricing component at this time")
+		return nil, fmt.Errorf("unsupported ECS Pricing component of type (%T) at this time", i)
 	}
 
 	return pricing, nil
@@ -798,6 +812,7 @@ func getInstanceFamilyFromType(instanceType string) string {
 	return splitinstanceType[1]
 }
 
+// function geenerates SlimK8sNode from v1.Node for better passing slimmed struct between functions
 func generateSlimK8sNodeFromV1Node(node *v1.Node) *SlimK8sNode {
 	var regionID, osType, instanceType, providerID, priceUnit, instanceFamily string
 	var memorySizeInKiB string // TO-DO: try to convert it into float
@@ -816,7 +831,7 @@ func generateSlimK8sNodeFromV1Node(node *v1.Node) *SlimK8sNode {
 	}
 
 	instanceFamily = getInstanceFamilyFromType(instanceType)
-	memorySizeInKiB = fmt.Sprintf("%v", node.Status.Capacity.Memory())
+	memorySizeInKiB = fmt.Sprintf("%s", node.Status.Capacity.Memory())
 	providerID = node.Spec.ProviderID // Aliyun provider doesnt follow convention of prefix with cloud provider name
 
 	// Looking at current Instance offering , all of the Instances seem to be I/O optimized - https://www.alibabacloud.com/help/en/elastic-compute-service/latest/instance-family

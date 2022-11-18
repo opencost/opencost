@@ -7,7 +7,6 @@ import (
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/credentials"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/signers"
-	"github.com/opencost/opencost/pkg/log"
 	v1 "k8s.io/api/core/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 )
@@ -121,6 +120,11 @@ func TestProcessDescribePriceAndCreateAliyunPricing(t *testing.T) {
 			},
 			expectedError: nil,
 		},
+		{
+			name:          "test for a nil information",
+			testNode:      nil,
+			expectedError: fmt.Errorf("unsupported ECS pricing component at this time"),
+		},
 	}
 	custom := &CustomPricing{}
 	for _, c := range cases {
@@ -214,7 +218,13 @@ func TestDetermineKeyForPricing(t *testing.T) {
 				name: "test struct",
 			},
 			expectedKey:   "",
-			expectedError: fmt.Errorf("unsupported ECS type for DescribePrice at this time"),
+			expectedError: fmt.Errorf("unsupported ECS type randomK8sStruct for DescribePrice at this time"),
+		},
+		{
+			name:          "test for nil check",
+			testVar:       nil,
+			expectedKey:   "",
+			expectedError: fmt.Errorf("unsupported ECS type randomK8sStruct for DescribePrice at this time"),
 		},
 	}
 	for _, c := range cases {
@@ -261,7 +271,6 @@ func TestGenerateSlimK8sNodeFromV1Node(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			returnSlimK8sNode := generateSlimK8sNodeFromV1Node(c.testNode)
-			log.Infof("value is %v", returnSlimK8sNode)
 			if returnSlimK8sNode.InstanceType != c.expectedSlimNode.InstanceType {
 				t.Fatalf("unexpected conversion in function generateSlimK8sNodeFromV1Node expected InstanceType: %s , recieved Instance Type: %s", c.expectedSlimNode.InstanceType, returnSlimK8sNode.InstanceType)
 			}
