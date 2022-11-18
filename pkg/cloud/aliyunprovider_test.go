@@ -28,11 +28,11 @@ func TestCreateDescribePriceACSRequest(t *testing.T) {
 	}
 }
 
-func TestProcessDescribePriceAndCreateAliyunPricing(t *testing.T) {
+func TestProcessDescribePriceAndCreateAlibabaPricing(t *testing.T) {
 	// Skipping this test case since it exposes secret but a good test case to verify when
 	// supporting a new family of instances, steps to perform are
-	// STEP 1: Comment the t.Skip() line and then replace XXX_KEY_ID with the aliyun key id of your account and XXX_SECRET_ID with aliyun secret of your account.
-	// STEP 2: Once you verify describePrice is working and no change needed in processDescribePriceAndCreateAliyunPricing, you can go ahead and revert the step 1 changes.
+	// STEP 1: Comment the t.Skip() line and then replace XXX_KEY_ID with the alibaba key id of your account and XXX_SECRET_ID with alibaba cloud secret of your account.
+	// STEP 2: Once you verify describePrice is working and no change needed in processDescribePriceAndCreateAlibabaPricing, you can go ahead and revert the step 1 changes.
 
 	// This test case was use to test all general puprose instances
 
@@ -129,7 +129,7 @@ func TestProcessDescribePriceAndCreateAliyunPricing(t *testing.T) {
 	custom := &CustomPricing{}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			pricingObj, err := processDescribePriceAndCreateAliyunPricing(client, c.testNode, signer, custom)
+			pricingObj, err := processDescribePriceAndCreateAlibabaPricing(client, c.testNode, signer, custom)
 			if err != nil && c.expectedError == nil {
 				t.Fatalf("Case name %s: got an error %s", c.name, err)
 			}
@@ -153,14 +153,14 @@ func TestGetInstanceFamilyFromType(t *testing.T) {
 			expectedInstanceFamily: "sn2ne",
 		},
 		{
-			name:                   "test if random word gives you ALIYUN_UNKNOWN_INSTANCE_FAMILY_TYPE value ",
+			name:                   "test if random word gives you ALIBABA_UNKNOWN_INSTANCE_FAMILY_TYPE value ",
 			instanceType:           "random.value",
-			expectedInstanceFamily: ALIYUN_UNKNOWN_INSTANCE_FAMILY_TYPE,
+			expectedInstanceFamily: ALIBABA_UNKNOWN_INSTANCE_FAMILY_TYPE,
 		},
 		{
-			name:                   "test if random instance family gives you ALIYUN_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE value ",
+			name:                   "test if random instance family gives you ALIBABA_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE value ",
 			instanceType:           "ecs.g7e.2xlarge",
-			expectedInstanceFamily: ALIYUN_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE,
+			expectedInstanceFamily: ALIBABA_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE,
 		},
 	}
 
@@ -185,7 +185,7 @@ func TestDetermineKeyForPricing(t *testing.T) {
 		expectedError error
 	}{
 		{
-			name: "test when all RegionID, InstanceType, OSType & ALIYUN_OPTIMIZE_KEYWORD words are used to key",
+			name: "test when all RegionID, InstanceType, OSType & ALIBABA_OPTIMIZE_KEYWORD words are used to key",
 			testVar: &SlimK8sNode{
 				InstanceType:       "ecs.sn2.large",
 				RegionID:           "cn-hangzhou",

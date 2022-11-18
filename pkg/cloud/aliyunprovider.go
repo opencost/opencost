@@ -24,28 +24,28 @@ import (
 )
 
 const (
-	ALIYUN_ECS_PRODUCT_CODE                   = "ecs"
-	ALIYUN_ECS_VERSION                        = "2014-05-26"
-	ALIYUN_ECS_DOMAIN                         = "ecs.aliyuncs.com"
-	ALIYUN_DESCRIBE_PRICE_API_ACTION          = "DescribePrice"
-	ALIYUN_INSTANCE_RESOURCE_TYPE             = "instance"
-	ALIYUN_DISK_RESOURCE_TYPE                 = "disk"
-	ALIYUN_PAY_AS_YOU_GO_BILLING              = "Pay-As-You-Go"
-	ALIYUN_SUBSCRIPTION_BILLING               = "Subscription"
-	ALIYUN_PREEMPTIBLE_BILLING                = "Preemptible"
-	ALIYUN_OPTIMIZE_KEYWORD                   = "optimize"
-	ALIYUN_NON_OPTIMIZE_KEYWORD               = "nonoptimize"
-	ALIYUN_HOUR_PRICE_UNIT                    = "Hour"
-	ALIYUN_MONTH_PRICE_UNIT                   = "Month"
-	ALIYUN_YEAR_PRICE_UNIT                    = "Year"
-	ALIYUN_UNKNOWN_INSTANCE_FAMILY_TYPE       = "unknown"
-	ALIYUN_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE = "unsupported"
-	ALIYUN_ENHANCED_GENERAL_PURPOSE_TYPE      = "g6e"
-	ALIYUN_SYSTEMDISK_CLOUD_ESSD_CATEGORY     = "cloud_essd"
+	ALIBABA_ECS_PRODUCT_CODE                   = "ecs"
+	ALIBABA_ECS_VERSION                        = "2014-05-26"
+	ALIBABA_ECS_DOMAIN                         = "ecs.aliyuncs.com"
+	ALIBABA_DESCRIBE_PRICE_API_ACTION          = "DescribePrice"
+	ALIBABA_INSTANCE_RESOURCE_TYPE             = "instance"
+	ALIBABA_DISK_RESOURCE_TYPE                 = "disk"
+	ALIBABA_PAY_AS_YOU_GO_BILLING              = "Pay-As-You-Go"
+	ALIBABA_SUBSCRIPTION_BILLING               = "Subscription"
+	ALIBABA_PREEMPTIBLE_BILLING                = "Preemptible"
+	ALIBABA_OPTIMIZE_KEYWORD                   = "optimize"
+	ALIBABA_NON_OPTIMIZE_KEYWORD               = "nonoptimize"
+	ALIBABA_HOUR_PRICE_UNIT                    = "Hour"
+	ALIBABA_MONTH_PRICE_UNIT                   = "Month"
+	ALIBABA_YEAR_PRICE_UNIT                    = "Year"
+	ALIBABA_UNKNOWN_INSTANCE_FAMILY_TYPE       = "unknown"
+	ALIBABA_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE = "unsupported"
+	ALIBABA_ENHANCED_GENERAL_PURPOSE_TYPE      = "g6e"
+	ALIBABA_SYSTEMDISK_CLOUD_ESSD_CATEGORY     = "cloud_essd"
 )
 
 // Why predefined and dependency on code? Can be converted to API call - https://www.alibabacloud.com/help/en/elastic-compute-service/latest/regions-describeregions
-var aliyunRegions = []string{
+var alibabaRegions = []string{
 	"cn-qingdao",
 	"cn-beijing",
 	"cn-zhangjiakou",
@@ -76,7 +76,7 @@ var aliyunRegions = []string{
 
 // To-Do: Convert to API call - https://www.alibabacloud.com/help/en/elastic-compute-service/latest/describeinstancetypefamilies
 // Also first pass only completely tested pricing API for General pupose instances families.
-var aliyunInstanceFamilies = []string{
+var alibabaInstanceFamilies = []string{
 	"g6e",
 	"g6",
 	"g5",
@@ -84,10 +84,10 @@ var aliyunInstanceFamilies = []string{
 	"sn2ne",
 }
 
-// AliyunAccessKey holds Aliyun credentials parsing from the service-key.json file.
-type AliyunAccessKey struct {
-	AccessKeyID     string `json:"aliyun_access_key_id"`
-	SecretAccessKey string `json:"aliyun_secret_access_key"`
+// AlibabaAccessKey holds Alibaba credentials parsing from the service-key.json file.
+type AlibabaAccessKey struct {
+	AccessKeyID     string `json:"alibaba_access_key_id"`
+	SecretAccessKey string `json:"alibaba_secret_access_key"`
 }
 
 // TO-DO: Slim Version of k8s disk assigned to a node, To be used if price adjustment need to happen with local disk information passed to describePrice.
@@ -126,18 +126,18 @@ func NewSlimK8sNode(instanceType, regionID, priceUnit, memorySizeInKiB, osType, 
 	}
 }
 
-// AliyunNodeAttributes represents metadata about the product used to map to a node.
+// AlibabaNodeAttributes represents metadata about the product used to map to a node.
 // Basic Attributes needed atleast to get the key, Some attributes from k8s Node response
 // be populated directly into *Node object.
-type AliyunNodeAttributes struct {
+type AlibabaNodeAttributes struct {
 	InstanceType    string `json:"instanceType"`
 	MemorySizeInKiB string `json:"memorySizeInKiB"`
 	IsIoOptimized   bool   `json:"isIoOptimized"`
 	OSType          string `json:"osType"`
 }
 
-func NewAliyunNodeAttributes(node *SlimK8sNode) *AliyunNodeAttributes {
-	return &AliyunNodeAttributes{
+func NewAlibabaNodeAttributes(node *SlimK8sNode) *AlibabaNodeAttributes {
+	return &AlibabaNodeAttributes{
 		InstanceType:    node.InstanceType,
 		MemorySizeInKiB: node.MemorySizeInKiB,
 		IsIoOptimized:   node.IsIoOptimized,
@@ -145,10 +145,11 @@ func NewAliyunNodeAttributes(node *SlimK8sNode) *AliyunNodeAttributes {
 	}
 }
 
-// AliyunDiskAttributes represents metadata about the product used to map to a PV.
+// AlibabaPVAttributes represents metadata about the product used to map to a PV.
 // Basic Attributes needed atleast to get the keys, Some attributes from k8s Node response
 // be populated directly into *PV object.
-type AliyunPVAttributes struct {
+// TO_DO: In next PR improve this
+type AlibabaPVAttributes struct {
 	DiskType         int32  `json:"diskType"`
 	DiskCategory     string `json:"diskCategory"`
 	PerformanceLevel string `json:"performanceLevel"`
@@ -158,8 +159,8 @@ type AliyunPVAttributes struct {
 // TO-DO: Subscription and Premptible support, need to find how to distinguish node into these categories]
 // TO-DO: Open question Subscription would be either Monthly or Yearly, Firstly Data retrieval/population
 // TO-DO:  need to be tested from describe price API, but how would you calculate hourly price, is it PRICE_YEARLY/HOURS_IN_THE_YEAR?
-type AliyunPricingDetails struct {
-	// Represents hourly price for the given Aliyun Product.
+type AlibabaPricingDetails struct {
+	// Represents hourly price for the given Alibaba cloud Product.
 	HourlyPrice float32 `json:"hourlyPrice"`
 	// Represents the unit in which Alibaba Product is billed can be Hour, Month or Year based on the billingMethod.
 	PriceUnit string `json:"priceUnit"`
@@ -169,8 +170,8 @@ type AliyunPricingDetails struct {
 	CurrencyCode string `json:"currencyCode"`
 }
 
-func NewAliyunPricingDetails(hourlyPrice float32, priceUnit string, tradePrice float32, currencyCode string) *AliyunPricingDetails {
-	return &AliyunPricingDetails{
+func NewAlibabaPricingDetails(hourlyPrice float32, priceUnit string, tradePrice float32, currencyCode string) *AlibabaPricingDetails {
+	return &AlibabaPricingDetails{
 		HourlyPrice:  hourlyPrice,
 		PriceUnit:    priceUnit,
 		TradePrice:   tradePrice,
@@ -178,33 +179,33 @@ func NewAliyunPricingDetails(hourlyPrice float32, priceUnit string, tradePrice f
 	}
 }
 
-// AliyunPricingTerms can have three types of supported billing method Pay-As-You-Go, Subscription and Premptible
-type AliyunPricingTerms struct {
-	BillingMethod  string                `json:"billingMethod"`
-	PricingDetails *AliyunPricingDetails `json:"pricingDetails"`
+// AlibabaPricingTerms can have three types of supported billing method Pay-As-You-Go, Subscription and Premptible
+type AlibabaPricingTerms struct {
+	BillingMethod  string                 `json:"billingMethod"`
+	PricingDetails *AlibabaPricingDetails `json:"pricingDetails"`
 }
 
-func NewAliyunPricingTerms(billingMethod string, pricingDetails *AliyunPricingDetails) *AliyunPricingTerms {
-	return &AliyunPricingTerms{
+func NewAlibabaPricingTerms(billingMethod string, pricingDetails *AlibabaPricingDetails) *AlibabaPricingTerms {
+	return &AlibabaPricingTerms{
 		BillingMethod:  billingMethod,
 		PricingDetails: pricingDetails,
 	}
 }
 
 // Alibaba Pricing struct carry the Attributes and pricing information for Node or PV
-type AliyunPricing struct {
-	NodeAttributes *AliyunNodeAttributes
-	PVAttributes   *AliyunPVAttributes
-	PricingTerms   *AliyunPricingTerms
+type AlibabaPricing struct {
+	NodeAttributes *AlibabaNodeAttributes
+	PVAttributes   *AlibabaPVAttributes
+	PricingTerms   *AlibabaPricingTerms
 	Node           *Node
 	PV             *PV
 }
 
-// Aliyun's Provider struct
-type Aliyun struct {
-	// Data to store Aliyun(Alibaba cloud) pricing struct, key in the map represents exact match to
+// Alibaba cloud's Provider struct
+type Alibaba struct {
+	// Data to store Alibaba cloud's pricing struct, key in the map represents exact match to
 	// node.features() or pv.features for easy lookup
-	Pricing map[string]*AliyunPricing
+	Pricing map[string]*AlibabaPricing
 	// Lock Needed to provide thread safe
 	DownloadPricingDataLock sync.RWMutex
 	Clientset               clustercache.ClusterCache
@@ -217,114 +218,114 @@ type Aliyun struct {
 	clusterRegion        string
 
 	// The following fields are unexported because of avoiding any leak of secrets of these keys.
-	// Aliyun Access key used specifically in signer interface used to sign API calls
+	// Alibaba Access key used specifically in signer interface used to sign API calls
 	accessKey *credentials.AccessKeyCredential
 	// Map of regionID to sdk.client to call API for that region
 	clients map[string]*sdk.Client
 }
 
-// GetAliyunAccessKey return the Access Key used to interact with the Alibaba cloud, if not set it
+// GetAlibabaAccessKey return the Access Key used to interact with the Alibaba cloud, if not set it
 // set it first by looking at env variables else load it from secret files.
 // <IMPORTANT>Ask in PR what is the exact purpose of so many functions to set the key in AWS providers, am i missing something here!!!!!
-func (aliyun *Aliyun) GetAliyunAccessKey() (*credentials.AccessKeyCredential, error) {
-	if aliyun.accessKeyisLoaded() {
-		return aliyun.accessKey, nil
+func (alibaba *Alibaba) GetAlibabaAccessKey() (*credentials.AccessKeyCredential, error) {
+	if alibaba.accessKeyisLoaded() {
+		return alibaba.accessKey, nil
 	}
 
-	config, err := aliyun.GetConfig()
+	config, err := alibaba.GetConfig()
 	if err != nil {
-		return nil, fmt.Errorf("error getting the default config for aliyun provider: %w", err)
+		return nil, fmt.Errorf("error getting the default config for Alibaba Cloud provider: %w", err)
 	}
 
 	//Look for service key values in env if not present in config via helm chart once changes are done
-	if config.AliyunServiceKeyName == "" {
-		config.AliyunServiceKeyName = env.GetAliyunAccessKeyID()
+	if config.AlibabaServiceKeyName == "" {
+		config.AlibabaServiceKeyName = env.GetAlibabaAccessKeyID()
 	}
-	if config.AliyunServiceKeySecret == "" {
-		config.AliyunServiceKeySecret = env.GetAliyunAccessKeySecret()
+	if config.AlibabaServiceKeySecret == "" {
+		config.AlibabaServiceKeySecret = env.GetAlibabaAccessKeySecret()
 	}
 
-	if config.AliyunServiceKeyName == "" && config.AliyunServiceKeySecret == "" {
-		log.Debugf("missing service key values for Aliyun cloud integration attempting to use service account integration")
-		err := aliyun.loadAliyunAuthSecretAndSetEnv(true)
+	if config.AlibabaServiceKeyName == "" && config.AlibabaServiceKeySecret == "" {
+		log.Debugf("missing service key values for Alibaba cloud integration attempting to use service account integration")
+		err := alibaba.loadAlibabaAuthSecretAndSetEnv(true)
 		if err != nil {
-			return nil, fmt.Errorf("unable to set the aliyun key/secret from config file %w", err)
+			return nil, fmt.Errorf("unable to set the Alibaba Cloud key/secret from config file %w", err)
 		}
 		// set custom pricing keys too
-		config.AliyunServiceKeyName = env.GetAliyunAccessKeyID()
-		config.AliyunServiceKeySecret = env.GetAliyunAccessKeySecret()
+		config.AlibabaServiceKeyName = env.GetAlibabaAccessKeyID()
+		config.AlibabaServiceKeySecret = env.GetAlibabaAccessKeySecret()
 	}
 
-	if config.AliyunServiceKeyName == "" && config.AliyunServiceKeySecret == "" {
+	if config.AlibabaServiceKeyName == "" && config.AlibabaServiceKeySecret == "" {
 		return nil, fmt.Errorf("failed to get the access key for the current alibaba account")
 	}
 
-	aliyun.accessKey = &credentials.AccessKeyCredential{AccessKeyId: env.GetAliyunAccessKeyID(), AccessKeySecret: env.GetAliyunAccessKeySecret()}
+	alibaba.accessKey = &credentials.AccessKeyCredential{AccessKeyId: env.GetAlibabaAccessKeyID(), AccessKeySecret: env.GetAlibabaAccessKeySecret()}
 
-	return aliyun.accessKey, nil
+	return alibaba.accessKey, nil
 }
 
-func (aliyun *Aliyun) DownloadPricingData() error {
-	aliyun.DownloadPricingDataLock.Lock()
-	defer aliyun.DownloadPricingDataLock.Unlock()
+func (alibaba *Alibaba) DownloadPricingData() error {
+	alibaba.DownloadPricingDataLock.Lock()
+	defer alibaba.DownloadPricingDataLock.Unlock()
 
 	var aak *credentials.AccessKeyCredential
 	var err error
 
-	if !aliyun.accessKeyisLoaded() {
-		aak, err = aliyun.GetAliyunAccessKey()
+	if !alibaba.accessKeyisLoaded() {
+		aak, err = alibaba.GetAlibabaAccessKey()
 		if err != nil {
 			return fmt.Errorf("unable to get the access key information: %w", err)
 		}
 	} else {
-		aak = aliyun.accessKey
+		aak = alibaba.accessKey
 	}
 
-	c, err := aliyun.Config.GetCustomPricingData()
+	c, err := alibaba.Config.GetCustomPricingData()
 	if err != nil {
 		return fmt.Errorf("error downloading default pricing data: %w", err)
 	}
 
-	// Get all the nodes from Aliyun cluster.
-	nodeList := aliyun.Clientset.GetAllNodes()
+	// Get all the nodes from Alibaba cluster.
+	nodeList := alibaba.Clientset.GetAllNodes()
 
 	var client *sdk.Client
 	var signer *signers.AccessKeySigner
 	var ok bool
-	var pricingObj *AliyunPricing
+	var pricingObj *AlibabaPricing
 	var lookupKey string
-	aliyun.clients = make(map[string]*sdk.Client)
-	aliyun.Pricing = make(map[string]*AliyunPricing)
+	alibaba.clients = make(map[string]*sdk.Client)
+	alibaba.Pricing = make(map[string]*AlibabaPricing)
 
 	// TO-DO: Add disk price adjustment by parsing the local disk information and putting it as a param in describe Price function.
 	for _, node := range nodeList {
 		slimK8sNode := generateSlimK8sNodeFromV1Node(node)
 		lookupKey, err = determineKeyForPricing(slimK8sNode)
-		if _, ok := aliyun.Pricing[lookupKey]; ok {
+		if _, ok := alibaba.Pricing[lookupKey]; ok {
 			log.Debugf("Pricing information for node with same features %s already exists hence skipping", lookupKey)
 			continue
 		}
 
-		if client, ok = aliyun.clients[slimK8sNode.RegionID]; !ok {
+		if client, ok = alibaba.clients[slimK8sNode.RegionID]; !ok {
 			client, err = sdk.NewClientWithAccessKey(slimK8sNode.RegionID, aak.AccessKeyId, aak.AccessKeySecret)
 			if err != nil {
-				return fmt.Errorf("unable to initiate aliyun sdk client for region %s : %w", slimK8sNode.RegionID, err)
+				return fmt.Errorf("unable to initiate alibaba cloud sdk client for region %s : %w", slimK8sNode.RegionID, err)
 			}
-			aliyun.clients[slimK8sNode.RegionID] = client
+			alibaba.clients[slimK8sNode.RegionID] = client
 		}
 		signer = signers.NewAccessKeySigner(aak)
-		pricingObj, err = processDescribePriceAndCreateAliyunPricing(client, slimK8sNode, signer, c)
+		pricingObj, err = processDescribePriceAndCreateAlibabaPricing(client, slimK8sNode, signer, c)
 
 		if err != nil {
 			return fmt.Errorf("failed to create pricing information for node with type %s with error: %w", slimK8sNode.InstanceType, err)
 		}
-		aliyun.Pricing[lookupKey] = pricingObj
+		alibaba.Pricing[lookupKey] = pricingObj
 	}
 
 	// TO-DO: PV pricing
-	// //get pvList ultimately from aliyun cloud provider and resemble data from the pvtype to
+	// //get pvList ultimately from Alibaba cloud provider and resemble data from the pvtype to
 	// // Hardcodedk8sNodeDiskStruct
-	// pvList := aliyun.Clientset.GetAllPersistentVolumes()
+	// pvList := alibaba.Clientset.GetAllPersistentVolumes()
 
 	// pvList := []*Hardcodedk8sNodeDiskStruct{}
 	// pvList = append(pvList, &Hardcodedk8sNodeDiskStruct{
@@ -346,42 +347,42 @@ func (aliyun *Aliyun) DownloadPricingData() error {
 	// })
 
 	// for _, pv := range pvList {
-	// 	if client, ok = aliyun.clients[pv.RegionID]; !ok {
+	// 	if client, ok = alibaba.clients[pv.RegionID]; !ok {
 	// 		client, err = sdk.NewClientWithAccessKey(pv.RegionID, aak.AccessKeyId, aak.AccessKeySecret)
 	// 		if err != nil {
 	// 			return fmt.Errorf("access key provided does not have access to location %s", pv.RegionID)
 	// 		}
-	// 		aliyun.clients[pv.RegionID] = client
+	// 		alibaba.clients[pv.RegionID] = client
 	// 	}
 	// 	signer = signers.NewAccessKeySigner(aak)
-	// 	pricingObj, err = processDescribePriceAndCreateAliyunPricing(client, pv, signer)
+	// 	pricingObj, err = processDescribePriceAndCreateAlibabaPricing(client, pv, signer)
 	// 	lookupKey, err = determineKeyForPricing(pv)
 	// 	if err != nil {
 	// 		return err
 	// 	}
-	// 	aliyun.Pricing[lookupKey] = pricingObj
+	// 	alibaba.Pricing[lookupKey] = pricingObj
 	// }
-	// log.Infof("Length of pricing is %d", len(aliyun.Pricing))
-	// log.Infof("random value is %v", aliyun.Pricing[lookupKey])
+	// log.Infof("Length of pricing is %d", len(alibaba.Pricing))
+	// log.Infof("random value is %v", alibaba.Pricing[lookupKey])
 	return nil
 }
 
 // AllNodePricing returns all the billing data for nodes and pvs
-func (aliyun *Aliyun) AllNodePricing() (interface{}, error) {
-	aliyun.DownloadPricingDataLock.RLock()
-	defer aliyun.DownloadPricingDataLock.RUnlock()
-	return aliyun.Pricing, nil
+func (alibaba *Alibaba) AllNodePricing() (interface{}, error) {
+	alibaba.DownloadPricingDataLock.RLock()
+	defer alibaba.DownloadPricingDataLock.RUnlock()
+	return alibaba.Pricing, nil
 }
 
 // NodePricing gives a specific node for the key
-func (aliyun *Aliyun) NodePricing(key Key) (*Node, error) {
-	aliyun.DownloadPricingDataLock.RLock()
-	defer aliyun.DownloadPricingDataLock.RUnlock()
+func (alibaba *Alibaba) NodePricing(key Key) (*Node, error) {
+	alibaba.DownloadPricingDataLock.RLock()
+	defer alibaba.DownloadPricingDataLock.RUnlock()
 
 	// Get node features for the key
 	keyFeature := key.Features()
 
-	pricing, ok := aliyun.Pricing[keyFeature]
+	pricing, ok := alibaba.Pricing[keyFeature]
 	if !ok {
 		log.Warnf("Node pricing information not found for node with feature: %s", keyFeature)
 		return &Node{}, nil
@@ -392,13 +393,13 @@ func (aliyun *Aliyun) NodePricing(key Key) (*Node, error) {
 }
 
 // PVPricing gives a specific PV price for the PVkey
-func (aliyun *Aliyun) PVPricing(pvk PVKey) (*PV, error) {
-	aliyun.DownloadPricingDataLock.RLock()
-	defer aliyun.DownloadPricingDataLock.RUnlock()
+func (alibaba *Alibaba) PVPricing(pvk PVKey) (*PV, error) {
+	alibaba.DownloadPricingDataLock.RLock()
+	defer alibaba.DownloadPricingDataLock.RUnlock()
 
 	keyFeature := pvk.Features()
 
-	pricing, ok := aliyun.Pricing[keyFeature]
+	pricing, ok := alibaba.Pricing[keyFeature]
 
 	if !ok {
 		log.Warnf("Persistent Volume pricing not found for PV with feature: %s", keyFeature)
@@ -409,8 +410,8 @@ func (aliyun *Aliyun) PVPricing(pvk PVKey) (*PV, error) {
 	return pricing.PV, nil
 }
 
-// Stubbed NetworkPricing for Aliyun. Will look at this in Next PR
-func (aliyun *Aliyun) NetworkPricing() (*Network, error) {
+// Stubbed NetworkPricing for Alibaba Cloud. Will look at this in Next PR
+func (alibaba *Alibaba) NetworkPricing() (*Network, error) {
 	return &Network{
 		ZoneNetworkEgressCost:     0.0,
 		RegionNetworkEgressCost:   0.0,
@@ -418,15 +419,15 @@ func (aliyun *Aliyun) NetworkPricing() (*Network, error) {
 	}, nil
 }
 
-// Stubbed LoadBalancerPricing for Aliyun. Will look at this in Next PR
-func (aliyun *Aliyun) LoadBalancerPricing() (*LoadBalancer, error) {
+// Stubbed LoadBalancerPricing for Alibaba Cloud. Will look at this in Next PR
+func (alibaba *Alibaba) LoadBalancerPricing() (*LoadBalancer, error) {
 	return &LoadBalancer{
 		Cost: 0.0,
 	}, nil
 }
 
-func (aliyun *Aliyun) GetConfig() (*CustomPricing, error) {
-	c, err := aliyun.Config.GetCustomPricingData()
+func (alibaba *Alibaba) GetConfig() (*CustomPricing, error) {
+	c, err := alibaba.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
 	}
@@ -446,8 +447,8 @@ func (aliyun *Aliyun) GetConfig() (*CustomPricing, error) {
 // Load once and cache the result (even on failure). This is an install time secret, so
 // we don't expect the secret to change. If it does, however, we can force reload using
 // the input parameter.
-func (aliyun *Aliyun) loadAliyunAuthSecretAndSetEnv(force bool) error {
-	if !force && aliyun.accessKeyisLoaded() {
+func (alibaba *Alibaba) loadAlibabaAuthSecretAndSetEnv(force bool) error {
+	if !force && alibaba.accessKeyisLoaded() {
 		return nil
 	}
 
@@ -461,22 +462,22 @@ func (aliyun *Aliyun) loadAliyunAuthSecretAndSetEnv(force bool) error {
 		return fmt.Errorf("failed to read service account file: %s with err: %w", authSecretPath, err)
 	}
 
-	var ak *AliyunAccessKey
+	var ak *AlibabaAccessKey
 	err = json.Unmarshal(result, &ak)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshall access key id and access key secret with err: %w", err)
 	}
 
-	err = env.Set(env.AliyunAccessKeyIDEnvVar, ak.AccessKeyID)
+	err = env.Set(env.AlibabaAccessKeyIDEnvVar, ak.AccessKeyID)
 	if err != nil {
-		return fmt.Errorf("failed to set environment variable: %s with err: %w", env.AliyunAccessKeyIDEnvVar, err)
+		return fmt.Errorf("failed to set environment variable: %s with err: %w", env.AlibabaAccessKeyIDEnvVar, err)
 	}
-	err = env.Set(env.AliyunAccessKeySecretEnvVar, ak.SecretAccessKey)
+	err = env.Set(env.AlibabaAccessKeySecretEnvVar, ak.SecretAccessKey)
 	if err != nil {
-		return fmt.Errorf("failed to set environment variable: %s with err: %w", env.AliyunAccessKeySecretEnvVar, err)
+		return fmt.Errorf("failed to set environment variable: %s with err: %w", env.AlibabaAccessKeySecretEnvVar, err)
 	}
 
-	aliyun.accessKey = &credentials.AccessKeyCredential{
+	alibaba.accessKey = &credentials.AccessKeyCredential{
 		AccessKeyId:     ak.AccessKeyID,
 		AccessKeySecret: ak.SecretAccessKey,
 	}
@@ -484,14 +485,14 @@ func (aliyun *Aliyun) loadAliyunAuthSecretAndSetEnv(force bool) error {
 }
 
 // Regions returns a current supported list of Alibaba regions
-func (aliyun *Aliyun) Regions() []string {
-	return aliyunRegions
+func (alibaba *Alibaba) Regions() []string {
+	return alibabaRegions
 }
 
-// ClusterInfo returns information about ALiyun cluster, as provided by metadata. TO-DO: Look at this function closely at next PR iteration
-func (aliyun *Aliyun) ClusterInfo() (map[string]string, error) {
+// ClusterInfo returns information about Alibaba Cloud cluster, as provided by metadata. TO-DO: Look at this function closely at next PR iteration
+func (alibaba *Alibaba) ClusterInfo() (map[string]string, error) {
 
-	c, err := aliyun.GetConfig()
+	c, err := alibaba.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to getConfig with err: %w", err)
 	}
@@ -508,73 +509,73 @@ func (aliyun *Aliyun) ClusterInfo() (map[string]string, error) {
 
 	m := make(map[string]string)
 	m["name"] = clusterName
-	m["provider"] = kubecost.AliyunProvider
-	m["project"] = aliyun.clusterAccountId
-	m["region"] = aliyun.clusterRegion
+	m["provider"] = kubecost.AlibabaProvider
+	m["project"] = alibaba.clusterAccountId
+	m["region"] = alibaba.clusterRegion
 	m["id"] = env.GetClusterID()
 	return m, nil
 }
 
 // Will look at this in Next PR if needed
-func (aliyun *Aliyun) GetAddresses() ([]byte, error) {
+func (alibaba *Alibaba) GetAddresses() ([]byte, error) {
 	return nil, nil
 }
 
 // Will look at this in Next PR if needed
-func (aliyun *Aliyun) GetDisks() ([]byte, error) {
+func (alibaba *Alibaba) GetDisks() ([]byte, error) {
 	return nil, nil
 }
 
 // Will look at this in Next PR if needed
-func (aliyun *Aliyun) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
+func (alibaba *Alibaba) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
 	return nil, nil
 }
 
 // Will look at this in Next PR if needed
-func (aliyun *Aliyun) UpdateConfigFromConfigMap(cm map[string]string) (*CustomPricing, error) {
+func (alibaba *Alibaba) UpdateConfigFromConfigMap(cm map[string]string) (*CustomPricing, error) {
 	return nil, nil
 }
 
 // Will look at this in Next PR if needed
-func (aliyun *Aliyun) GetManagementPlatform() (string, error) {
+func (alibaba *Alibaba) GetManagementPlatform() (string, error) {
 	return "", nil
 }
 
 // Will look at this in Next PR if needed
-func (aliyun *Aliyun) GetLocalStorageQuery(window, offset time.Duration, rate bool, used bool) string {
+func (alibaba *Alibaba) GetLocalStorageQuery(window, offset time.Duration, rate bool, used bool) string {
 	return ""
 }
 
 // Will look at this in Next PR if needed
-func (aliyun *Aliyun) ApplyReservedInstancePricing(nodes map[string]*Node) {
+func (alibaba *Alibaba) ApplyReservedInstancePricing(nodes map[string]*Node) {
 
 }
 
 // Will look at this in Next PR if needed
-func (aliyun *Aliyun) ServiceAccountStatus() *ServiceAccountStatus {
+func (alibaba *Alibaba) ServiceAccountStatus() *ServiceAccountStatus {
 	return &ServiceAccountStatus{}
 }
 
 // Will look at this in Next PR if needed
-func (aliyun *Aliyun) PricingSourceStatus() map[string]*PricingSource {
+func (alibaba *Alibaba) PricingSourceStatus() map[string]*PricingSource {
 	return map[string]*PricingSource{}
 }
 
 // Will look at this in Next PR if needed
-func (aliyun *Aliyun) ClusterManagementPricing() (string, float64, error) {
+func (alibaba *Alibaba) ClusterManagementPricing() (string, float64, error) {
 	return "", 0.0, nil
 }
 
 // Will look at this in Next PR if needed
-func (aliyun *Aliyun) CombinedDiscountForNode(string, bool, float64, float64) float64 {
+func (alibaba *Alibaba) CombinedDiscountForNode(string, bool, float64, float64) float64 {
 	return 0.0
 }
 
-func (aliyun *Aliyun) accessKeyisLoaded() bool {
-	return aliyun.accessKey != nil
+func (alibaba *Alibaba) accessKeyisLoaded() bool {
+	return alibaba.accessKey != nil
 }
 
-type AliyunNodeKey struct {
+type AlibabaNodeKey struct {
 	ProviderID       string
 	RegionID         string
 	InstanceType     string
@@ -582,8 +583,8 @@ type AliyunNodeKey struct {
 	OptimizedKeyword string //If IsIoOptimized key will have optimize if not unoptimized the key for the node
 }
 
-func NewAliyunNodeKey(node *SlimK8sNode, optimizedKeyword string) *AliyunNodeKey {
-	return &AliyunNodeKey{
+func NewAlibabaNodeKey(node *SlimK8sNode, optimizedKeyword string) *AlibabaNodeKey {
+	return &AlibabaNodeKey{
 		ProviderID:       node.ProviderID,
 		RegionID:         node.RegionID,
 		InstanceType:     node.InstanceType,
@@ -592,39 +593,39 @@ func NewAliyunNodeKey(node *SlimK8sNode, optimizedKeyword string) *AliyunNodeKey
 	}
 }
 
-func (aliyunNodeKey *AliyunNodeKey) ID() string {
-	return aliyunNodeKey.ProviderID
+func (alibabaNodeKey *AlibabaNodeKey) ID() string {
+	return alibabaNodeKey.ProviderID
 }
 
-func (aliyunNodeKey *AliyunNodeKey) Features() string {
-	keyLookup := stringutil.DeleteEmptyStringsFromArray([]string{aliyunNodeKey.RegionID, aliyunNodeKey.InstanceType, aliyunNodeKey.OSType, aliyunNodeKey.OptimizedKeyword})
+func (alibabaNodeKey *AlibabaNodeKey) Features() string {
+	keyLookup := stringutil.DeleteEmptyStringsFromArray([]string{alibabaNodeKey.RegionID, alibabaNodeKey.InstanceType, alibabaNodeKey.OSType, alibabaNodeKey.OptimizedKeyword})
 	return strings.Join(keyLookup, "::")
 }
 
-func (aliyunNodeKey *AliyunNodeKey) GPUType() string {
+func (alibabaNodeKey *AlibabaNodeKey) GPUType() string {
 	return ""
 }
 
-func (aliyunNodeKey *AliyunNodeKey) GPUCount() int {
+func (alibabaNodeKey *AlibabaNodeKey) GPUCount() int {
 	return 0
 }
 
 // Get's the key for the k8s node input
-func (aliyun *Aliyun) GetKey(mapValue map[string]string, node *v1.Node) Key {
+func (alibaba *Alibaba) GetKey(mapValue map[string]string, node *v1.Node) Key {
 	//Mostly parse the Node object and get the ProviderID, region, InstanceType, OSType and OptimizedKeyword(In if block)
 	// Currently just hardcoding a Node but eventually need to Node object
 	slimK8sNode := generateSlimK8sNodeFromV1Node(node)
 
 	optimizedKeyword := ""
 	if slimK8sNode.IsIoOptimized {
-		optimizedKeyword = ALIYUN_OPTIMIZE_KEYWORD
+		optimizedKeyword = ALIBABA_OPTIMIZE_KEYWORD
 	} else {
-		optimizedKeyword = ALIYUN_NON_OPTIMIZE_KEYWORD
+		optimizedKeyword = ALIBABA_NON_OPTIMIZE_KEYWORD
 	}
-	return NewAliyunNodeKey(slimK8sNode, optimizedKeyword)
+	return NewAlibabaNodeKey(slimK8sNode, optimizedKeyword)
 }
 
-type AliyunPVKey struct {
+type AlibabaPVKey struct {
 	ProviderID       string
 	RegionID         string
 	DiskType         string
@@ -633,54 +634,54 @@ type AliyunPVKey struct {
 	StorageClassName string
 }
 
-func (aliyunPVKey *AliyunPVKey) Features() string {
-	keyLookup := stringutil.DeleteEmptyStringsFromArray([]string{aliyunPVKey.RegionID, aliyunPVKey.DiskType, aliyunPVKey.DiskCategory, aliyunPVKey.PerformaceLevel})
+func (alibabaPVKey *AlibabaPVKey) Features() string {
+	keyLookup := stringutil.DeleteEmptyStringsFromArray([]string{alibabaPVKey.RegionID, alibabaPVKey.DiskType, alibabaPVKey.DiskCategory, alibabaPVKey.PerformaceLevel})
 	return strings.Join(keyLookup, "::")
 }
 
-func (aliyunPVKey *AliyunPVKey) ID() string {
-	return aliyunPVKey.ProviderID
+func (alibabaPVKey *AlibabaPVKey) ID() string {
+	return alibabaPVKey.ProviderID
 }
 
 // Get storage class information for PV.
-func (aliyunPVKey *AliyunPVKey) GetStorageClass() string {
-	return aliyunPVKey.StorageClassName
+func (alibabaPVKey *AlibabaPVKey) GetStorageClass() string {
+	return alibabaPVKey.StorageClassName
 }
 
-// Helper functions for aliyunprovider.go
+// Helper functions for alibabaprovider.go
 
 // createDescribePriceACSRequest creates the HTTP GET request for the required resources' Price information,
 // When supporting subscription and Premptible resources this HTTP call needs to be modified with PriceUnit information
 // When supporting different new type of instances like Compute Optimized, Memory Optimized etc make sure you add the instance type
-// in unit test and check if it works or not to create the ack request and processDescribePriceAndCreateAliyunPricing function
+// in unit test and check if it works or not to create the ack request and processDescribePriceAndCreateAlibabaPricing function
 // else more paramters need to be pulled from kubernetes node response or gather infromation from elsewhere and function modified.
 // TO-DO: Add disk adjustments to the node , Test it out!
 func createDescribePriceACSRequest(i interface{}) (*requests.CommonRequest, error) {
 	request := requests.NewCommonRequest()
 	request.Method = requests.GET
-	request.Product = ALIYUN_ECS_PRODUCT_CODE
-	request.Domain = ALIYUN_ECS_DOMAIN
-	request.Version = ALIYUN_ECS_VERSION
+	request.Product = ALIBABA_ECS_PRODUCT_CODE
+	request.Domain = ALIBABA_ECS_DOMAIN
+	request.Version = ALIBABA_ECS_VERSION
 	request.Scheme = requests.HTTPS
-	request.ApiName = ALIYUN_DESCRIBE_PRICE_API_ACTION
+	request.ApiName = ALIBABA_DESCRIBE_PRICE_API_ACTION
 	switch i.(type) {
 	case *SlimK8sNode:
 		node := i.(*SlimK8sNode)
 		request.QueryParams["RegionId"] = node.RegionID
-		request.QueryParams["ResourceType"] = ALIYUN_INSTANCE_RESOURCE_TYPE
+		request.QueryParams["ResourceType"] = ALIBABA_INSTANCE_RESOURCE_TYPE
 		request.QueryParams["InstanceType"] = node.InstanceType
 		request.QueryParams["PriceUnit"] = node.PriceUnit
 		// For Enhanced General Purpose Type g6e SystemDisk.Category param doesn't default right,
 		// need it to be specifically assigned to "cloud_ssd" otherwise there's errors
-		if node.InstanceTypeFamily == ALIYUN_ENHANCED_GENERAL_PURPOSE_TYPE {
-			request.QueryParams["SystemDisk.Category"] = ALIYUN_SYSTEMDISK_CLOUD_ESSD_CATEGORY
+		if node.InstanceTypeFamily == ALIBABA_ENHANCED_GENERAL_PURPOSE_TYPE {
+			request.QueryParams["SystemDisk.Category"] = ALIBABA_SYSTEMDISK_CLOUD_ESSD_CATEGORY
 		}
 		request.TransToAcsRequest()
 		return request, nil
 	case *SlimK8sDisk:
 		disk := i.(*SlimK8sDisk)
 		request.QueryParams["RegionId"] = disk.RegionID
-		request.QueryParams["ResourceType"] = ALIYUN_DISK_RESOURCE_TYPE
+		request.QueryParams["ResourceType"] = ALIBABA_DISK_RESOURCE_TYPE
 		request.QueryParams["DataDisk.1.Category"] = disk.DiskCategory
 		request.QueryParams["DataDisk.1.Size"] = fmt.Sprintf("%d", disk.SizeInGiB)
 		request.QueryParams["PriceUnit"] = disk.PriceUnit
@@ -700,10 +701,10 @@ func determineKeyForPricing(i interface{}) (string, error) {
 	case *SlimK8sNode:
 		node := i.(*SlimK8sNode)
 		if node.IsIoOptimized {
-			keyLookup := stringutil.DeleteEmptyStringsFromArray([]string{node.RegionID, node.InstanceType, node.OSType, ALIYUN_OPTIMIZE_KEYWORD})
+			keyLookup := stringutil.DeleteEmptyStringsFromArray([]string{node.RegionID, node.InstanceType, node.OSType, ALIBABA_OPTIMIZE_KEYWORD})
 			return strings.Join(keyLookup, "::"), nil
 		} else {
-			keyLookup := stringutil.DeleteEmptyStringsFromArray([]string{node.RegionID, node.InstanceType, node.OSType, ALIYUN_NON_OPTIMIZE_KEYWORD})
+			keyLookup := stringutil.DeleteEmptyStringsFromArray([]string{node.RegionID, node.InstanceType, node.OSType, ALIBABA_NON_OPTIMIZE_KEYWORD})
 			return strings.Join(keyLookup, "::"), nil
 		}
 	case *SlimK8sDisk:
@@ -715,7 +716,7 @@ func determineKeyForPricing(i interface{}) (string, error) {
 	}
 }
 
-// Below structs are used to unmarshal json response of Aliyun's API DescribePrice
+// Below structs are used to unmarshal json response of Alibaba cloud's API DescribePrice
 type Price struct {
 	OriginalPrice             float32 `json:"OriginalPrice"`
 	ReservedInstanceHourPrice float32 `json:"ReservedInstanceHourPrice"`
@@ -732,9 +733,9 @@ type DescribePriceResponse struct {
 	PriceInfo PriceInfo `json:"PriceInfo"`
 }
 
-// processDescribePriceAndCreateAliyunPricing processes the DescribePrice API and generates the pricing information for alibaba node resource.
-func processDescribePriceAndCreateAliyunPricing(client *sdk.Client, i interface{}, signer *signers.AccessKeySigner, custom *CustomPricing) (pricing *AliyunPricing, err error) {
-	pricing = &AliyunPricing{}
+// processDescribePriceAndCreateAlibabaPricing processes the DescribePrice API and generates the pricing information for alibaba node resource.
+func processDescribePriceAndCreateAlibabaPricing(client *sdk.Client, i interface{}, signer *signers.AccessKeySigner, custom *CustomPricing) (pricing *AlibabaPricing, err error) {
+	pricing = &AlibabaPricing{}
 	var response DescribePriceResponse
 	if i == nil {
 		return nil, fmt.Errorf("nil component passed to process the pricing information")
@@ -747,7 +748,7 @@ func processDescribePriceAndCreateAliyunPricing(client *sdk.Client, i interface{
 			return nil, err
 		}
 		resp, err := client.ProcessCommonRequestWithSigner(req, signer)
-		pricing.NodeAttributes = NewAliyunNodeAttributes(node)
+		pricing.NodeAttributes = NewAlibabaNodeAttributes(node)
 		if err != nil || resp.GetHttpStatus() != 200 {
 			// Can be defaulted to some value here?
 			return nil, fmt.Errorf("unable to fetch information for node with InstanceType: %v", node.InstanceType)
@@ -765,7 +766,7 @@ func processDescribePriceAndCreateAliyunPricing(client *sdk.Client, i interface{
 				BaseGPUPrice: custom.GPU,
 			}
 			// TO-DO : Currently with Pay-As-You-go Offering TradePrice = HourlyPrice , When support happens to other type HourlyPrice Need to be determined.
-			pricing.PricingTerms = NewAliyunPricingTerms(ALIYUN_PAY_AS_YOU_GO_BILLING, NewAliyunPricingDetails(response.PriceInfo.Price.TradePrice, ALIYUN_HOUR_PRICE_UNIT, response.PriceInfo.Price.TradePrice, response.PriceInfo.Price.Currency))
+			pricing.PricingTerms = NewAlibabaPricingTerms(ALIBABA_PAY_AS_YOU_GO_BILLING, NewAlibabaPricingDetails(response.PriceInfo.Price.TradePrice, ALIBABA_HOUR_PRICE_UNIT, response.PriceInfo.Price.TradePrice, response.PriceInfo.Price.Currency))
 		}
 	case *SlimK8sDisk:
 		disk := i.(*SlimK8sDisk)
@@ -782,7 +783,7 @@ func processDescribePriceAndCreateAliyunPricing(client *sdk.Client, i interface{
 			if err != nil {
 				return nil, fmt.Errorf("unable to unmarshall json response to custom struct with err: %w", err)
 			}
-			pricing.PVAttributes = &AliyunPVAttributes{}
+			pricing.PVAttributes = &AlibabaPVAttributes{}
 			pricing.PV = &PV{
 				Cost: fmt.Sprintf("%f", response.PriceInfo.Price.TradePrice),
 			}
@@ -803,11 +804,11 @@ func getInstanceFamilyFromType(instanceType string) string {
 	splitinstanceType := strings.Split(instanceType, ".")
 	if len(splitinstanceType) != 3 {
 		log.Warnf("unable to find the family of the instance type %s, returning it's family type unknown", instanceType)
-		return ALIYUN_UNKNOWN_INSTANCE_FAMILY_TYPE
+		return ALIBABA_UNKNOWN_INSTANCE_FAMILY_TYPE
 	}
-	if !slices.Contains(aliyunInstanceFamilies, splitinstanceType[1]) {
+	if !slices.Contains(alibabaInstanceFamilies, splitinstanceType[1]) {
 		log.Warnf("currently the instance family type %s is not valid or not tested completely for pricing API", instanceType)
-		return ALIYUN_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE
+		return ALIBABA_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE
 	}
 	return splitinstanceType[1]
 }
@@ -832,12 +833,12 @@ func generateSlimK8sNodeFromV1Node(node *v1.Node) *SlimK8sNode {
 
 	instanceFamily = getInstanceFamilyFromType(instanceType)
 	memorySizeInKiB = fmt.Sprintf("%s", node.Status.Capacity.Memory())
-	providerID = node.Spec.ProviderID // Aliyun provider doesnt follow convention of prefix with cloud provider name
+	providerID = node.Spec.ProviderID // Alibaba Cloud provider doesnt follow convention of prefix with cloud provider name
 
 	// Looking at current Instance offering , all of the Instances seem to be I/O optimized - https://www.alibabacloud.com/help/en/elastic-compute-service/latest/instance-family
 	// Basic price Json has it as part of the key so defaulting to true.
 	IsIoOptimized = true
-	priceUnit = ALIYUN_HOUR_PRICE_UNIT
+	priceUnit = ALIBABA_HOUR_PRICE_UNIT
 
 	return NewSlimK8sNode(instanceType, regionID, priceUnit, memorySizeInKiB, osType, providerID, instanceFamily, IsIoOptimized)
 }

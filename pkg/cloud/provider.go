@@ -159,8 +159,8 @@ type CustomPricing struct {
 	GpuLabelValue                string `json:"gpuLabelValue,omitempty"`
 	ServiceKeyName               string `json:"awsServiceKeyName,omitempty"`
 	ServiceKeySecret             string `json:"awsServiceKeySecret,omitempty"`
-	AliyunServiceKeyName         string `json:"aliyunServiceKeyName,omitempty"`
-	AliyunServiceKeySecret       string `json:"aliyunServiceKeySecret,omitempty"`
+	AlibabaServiceKeyName        string `json:"alibabaServiceKeyName,omitempty"`
+	AlibabaServiceKeySecret      string `json:"alibabaServiceKeySecret,omitempty"`
 	SpotDataRegion               string `json:"awsSpotDataRegion,omitempty"`
 	SpotDataBucket               string `json:"awsSpotDataBucket,omitempty"`
 	SpotDataPrefix               string `json:"awsSpotDataPrefix,omitempty"`
@@ -485,9 +485,9 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			clusterAccountId:     cp.accountID,
 			serviceAccountChecks: NewServiceAccountChecks(),
 		}, nil
-	case kubecost.AliyunProvider:
-		log.Info("Found ProviderID starting with \"aliyun\", using Aliyun(Alibaba Cloud) Provider")
-		return &Aliyun{
+	case kubecost.AlibabaProvider:
+		log.Info("Found ProviderID starting with \"alibaba\", using Alibaba Cloud Provider")
+		return &Alibaba{
 			Clientset:            cache,
 			Config:               NewProviderConfig(config, cp.configFileName),
 			clusterRegion:        cp.region,
@@ -543,8 +543,8 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 		cp.provider = kubecost.ScalewayProvider
 		cp.configFileName = "scaleway.json"
 	} else if strings.Contains(node.Status.NodeInfo.KubeletVersion, "aliyun") { // provider ID is not prefix with any distinct keyword like other providers
-		cp.provider = kubecost.AliyunProvider
-		cp.configFileName = "aliyun.json"
+		cp.provider = kubecost.AlibabaProvider
+		cp.configFileName = "alibaba.json"
 	}
 	if env.IsUseCSVProvider() {
 		cp.provider = kubecost.CSVProvider
