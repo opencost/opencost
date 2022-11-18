@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -218,13 +218,13 @@ func (*GCP) loadGCPAuthSecret() {
 		return
 	}
 
-	result, err := ioutil.ReadFile(authSecretPath)
+	result, err := os.ReadFile(authSecretPath)
 	if err != nil {
 		log.Warnf("Failed to load auth secret, or was not mounted: %s", err.Error())
 		return
 	}
 
-	err = ioutil.WriteFile(keyPath, result, 0644)
+	err = os.WriteFile(keyPath, result, 0644)
 	if err != nil {
 		log.Warnf("Failed to copy auth secret to %s: %s", keyPath, err.Error())
 	}
@@ -255,7 +255,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 				path := env.GetConfigPathWithDefault("/models/")
 
 				keyPath := path + "key.json"
-				err = ioutil.WriteFile(keyPath, j, 0644)
+				err = os.WriteFile(keyPath, j, 0644)
 				if err != nil {
 					return err
 				}

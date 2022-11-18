@@ -47,6 +47,7 @@ require (
 	golang.org/x/exp v0.0.0-20220609121020-a51bd0440498
 	golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
+	golang.org/x/text v0.4.0
 	google.golang.org/api v0.44.0
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.20.4
@@ -125,7 +126,6 @@ require (
 	golang.org/x/net v0.1.0 // indirect
 	golang.org/x/sys v0.1.0 // indirect
 	golang.org/x/term v0.1.0 // indirect
-	golang.org/x/text v0.4.0 // indirect
 	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e // indirect
 	golang.org/x/tools v0.1.12 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
