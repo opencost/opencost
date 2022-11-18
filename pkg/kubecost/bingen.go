@@ -22,6 +22,8 @@ package kubecost
 
 // Default Version Set (uses -version flag passed) includes shared resources
 // @bingen:generate:Window
+// @bingen:generate:Coverage
+// @bingen:generate:CoverageSet
 
 // Asset Version Set: Includes Asset pipeline specific resources
 // @bingen:set[name=Assets,version=18]
@@ -87,4 +89,4 @@ package kubecost
 // @bingen:generate:CloudCostItemLabels
 // @bingen:end
 
-//go:generate bingen -package=kubecost -version=16 -buffer=github.com/opencost/opencost/pkg/util
+//go:generate bingen -package=kubecost -version=17 -buffer=github.com/opencost/opencost/pkg/util

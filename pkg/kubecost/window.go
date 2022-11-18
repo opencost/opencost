@@ -727,6 +727,36 @@ func GetWindows(start time.Time, end time.Time, windowSize time.Duration) ([]Win
 	return windows, nil
 }
 
+// GetWindows breaks up a window into an array of windows with a max size of queryWindow
+func GetWindowsForQueryWindow(start time.Time, end time.Time, queryWindow time.Duration) ([]Window, error) {
+	// Ensure timezones match
+	_, sz := start.Zone()
+	_, ez := end.Zone()
+	if sz != ez {
+		return nil, fmt.Errorf("range has mismatched timezones: %s, %s", start, end)
+	}
+	if sz != int(env.GetParsedUTCOffset().Seconds()) {
+		return nil, fmt.Errorf("range timezone doesn't match configured timezone: expected %s; found %ds", env.GetParsedUTCOffset(), sz)
+	}
+
+	// Build array of windows to cover the CloudCostItemSetRange
+	windows := []Window{}
+	s, e := start, start.Add(queryWindow)
+	for s.Before(end) {
+		ws := s
+		we := e
+		windows = append(windows, NewWindow(&ws, &we))
+
+		s = s.Add(queryWindow)
+		e = e.Add(queryWindow)
+		if e.After(end) {
+			e = end
+		}
+	}
+
+	return windows, nil
+}
+
 type BoundaryError struct {
 	Requested Window
 	Supported Window

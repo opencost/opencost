@@ -237,6 +237,13 @@ func (ccis *CloudCostItemSet) IsEmpty() bool {
 	return false
 }
 
+func (ccis *CloudCostItemSet) Length() int {
+	if ccis == nil {
+		return 0
+	}
+	return len(ccis.CloudCostItems)
+}
+
 func (ccis *CloudCostItemSet) GetWindow() Window {
 	return ccis.Window
 }
