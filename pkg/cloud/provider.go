@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -21,6 +22,7 @@ import (
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util/httputil"
 	"github.com/opencost/opencost/pkg/util/watcher"
 
 	v1 "k8s.io/api/core/v1"
@@ -465,6 +467,9 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			Config:           NewProviderConfig(config, cp.configFileName),
 			clusterRegion:    cp.region,
 			clusterProjectId: cp.projectID,
+			metadataClient: metadata.NewClient(&http.Client{
+				Transport: httputil.NewUserAgentTransport("kubecost", http.DefaultTransport),
+			}),
 		}, nil
 	case kubecost.AWSProvider:
 		log.Info("Found ProviderID starting with \"aws\", using AWS Provider")

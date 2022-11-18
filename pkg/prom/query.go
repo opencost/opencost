@@ -95,7 +95,7 @@ func (ctx *Context) Query(query string) QueryResultsChan {
 	return resCh
 }
 
-// QueryWithTime returns a QueryResultsChan, then runs the given query at the
+// QueryAtTime returns a QueryResultsChan, then runs the given query at the
 // given time (see time parameter here: https://prometheus.io/docs/prometheus/latest/querying/api/#instant-queries)
 // and sends the results on the provided channel. Receiver is responsible for
 // closing the channel, preferably using the Read method.
