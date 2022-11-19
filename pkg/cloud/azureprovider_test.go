@@ -1,7 +1,6 @@
 package cloud
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -34,30 +33,4 @@ func TestParseAzureSubscriptionID(t *testing.T) {
 			t.Errorf("Input: %s, Expected: %s, Actual: %s", test.input, test.expected, result)
 		}
 	}
-}
-
-func TestGetDisks(t *testing.T) {
-
-	azure := &Azure{
-		Config: &ProviderConfig{
-			customPricing: &CustomPricing{
-				AzureSubscriptionID: "0bd50fdf-c923-4e1e-850c-196dd3dcc5d3", //!Dont publish this
-			},
-		},
-	}
-
-	// cases := map[string]struct {
-	// 	x string
-	// }{
-	// 	"test": {
-	// 		x: "hi",
-	// 	},
-	// }
-
-	result, err := azure.GetDisks()
-	if err != nil {
-		fmt.Printf("%s", err)
-	}
-	fmt.Printf("%v", result)
-
 }

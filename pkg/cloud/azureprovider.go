@@ -22,8 +22,7 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
+	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-11-01/compute"
 	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
 	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2016-06-01/subscriptions"
 	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2018-05-01/resources"
@@ -519,7 +518,7 @@ func (ask *AzureServiceKey) IsValid() bool {
 }
 
 // Loads the azure authentication via configuration or a secret set at install time.
-func (az *Azure) getAzureRateCardAuth(forceReload bool, cp *CustomPricing) (subscriptionID, clientID, clientSecret, tenantID string) {
+func (az *Azure) getAzureAuth(forceReload bool, cp *CustomPricing) (subscriptionID, clientID, clientSecret, tenantID string) {
 	// 1. Check for secret (secret values will always be used if they are present)
 	s, _ := az.loadAzureAuthSecret(forceReload)
 	if s != nil && s.IsValid() {
@@ -776,7 +775,7 @@ func (az *Azure) DownloadPricingData() error {
 	}
 
 	// Load the service provider keys
-	subscriptionID, clientID, clientSecret, tenantID := az.getAzureRateCardAuth(false, config)
+	subscriptionID, clientID, clientSecret, tenantID := az.getAzureAuth(false, config)
 	config.AzureSubscriptionID = subscriptionID
 	config.AzureClientID = clientID
 	config.AzureClientSecret = clientSecret
@@ -1168,29 +1167,72 @@ func (*Azure) GetAddresses() ([]byte, error) {
 }
 
 func (az *Azure) GetDisks() ([]byte, error) {
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to obtain a credential: %v", err)
-	}
+	//TODO: do I need this
+	az.DownloadPricingDataLock.Lock()
+	defer az.DownloadPricingDataLock.Unlock()
 
 	config, err := az.GetConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get config: %v", err)
+		return nil, err
 	}
-	ctx := context.TODO()
-	client, err := armcompute.NewDisksClient(config.AzureSubscriptionID, cred, nil)
+
+	// Load the service provider keys
+	subscriptionID, clientID, clientSecret, tenantID := az.getAzureAuth(false, config)
+	config.AzureSubscriptionID = subscriptionID
+	config.AzureClientID = clientID
+	config.AzureClientSecret = clientSecret
+	config.AzureTenantID = tenantID
+
+	var authorizer autorest.Authorizer
+
+	azureEnv := determineCloudByRegion(az.clusterRegion)
+
+	if config.AzureClientID != "" && config.AzureClientSecret != "" && config.AzureTenantID != "" {
+		credentialsConfig := NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID, azureEnv)
+		a, err := credentialsConfig.Authorizer()
+		if err != nil {
+			az.RateCardPricingError = err
+			return nil, err
+		}
+		authorizer = a
+	}
+
+	if authorizer == nil {
+		a, err := auth.NewAuthorizerFromEnvironment()
+		authorizer = a
+		if err != nil {
+			a, err := auth.NewAuthorizerFromFile(azureEnv.ResourceManagerEndpoint)
+			if err != nil {
+				az.RateCardPricingError = err
+				return nil, err
+			}
+			authorizer = a
+		}
+	}
+	client := compute.NewDisksClient(config.AzureSubscriptionID)
+	client.Authorizer = authorizer
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client: %v", err)
 	}
 
-	var disks []*armcompute.Disk
-	pager := client.NewListPager(nil)
-	for pager.More() {
-		nextResult, err := pager.NextPage(ctx)
-		if err != nil {
-			log.Fatalf("failed to advance page: %v", err)
+	ctx := context.TODO()
+
+	var disks []*compute.Disk
+
+	diskPage, err := client.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting disks: %v", err)
+	}
+
+	for diskPage.NotDone() {
+		for _, d := range diskPage.Values() {
+			d := d
+			disks = append(disks, &d)
 		}
-		disks = append(disks, nextResult.Value...)
+		err := diskPage.Next()
+		if err != nil {
+			return nil, fmt.Errorf("error getting next page: %v", err)
+		}
 	}
 
 	return json.Marshal(disks)
