@@ -164,3 +164,13 @@ func StringSlicesEqual(left, right []string) bool {
 	}
 	return true
 }
+
+// DeleteEmptyStringsFromArray removes the empty strings from an array.
+func DeleteEmptyStringsFromArray(input []string) (output []string) {
+	for _, str := range input {
+		if str != "" {
+			output = append(output, str)
+		}
+	}
+	return
+}

@@ -99,6 +99,9 @@ const GCPProvider = "GCP"
 // AzureProvider describes the provider Azure
 const AzureProvider = "Azure"
 
+// AlibabaProvider describes the provider for Alibaba Cloud
+const AlibabaProvider = "Alibaba"
+
 // CSVProvider describes the provider a CSV
 const CSVProvider = "CSV"
 

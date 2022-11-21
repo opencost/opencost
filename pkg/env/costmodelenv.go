@@ -16,6 +16,9 @@ const (
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
 
+	AlibabaAccessKeyIDEnvVar     = "ALIBABA_ACCESS_KEY_ID"
+	AlibabaAccessKeySecretEnvVar = "ALIBABA_SECRET_ACCESS_KEY"
+
 	KubecostNamespaceEnvVar        = "KUBECOST_NAMESPACE"
 	PodNameEnvVar                  = "POD_NAME"
 	ClusterIDEnvVar                = "CLUSTER_ID"
@@ -204,6 +207,18 @@ func GetAWSAccessKeySecret() string {
 // an AWS specific cluster identifier.
 func GetAWSClusterID() string {
 	return Get(AWSClusterIDEnvVar, "")
+}
+
+// GetAlibabaAccessKeyID returns the environment variable value for AlibabaAccessKeyIDEnvVar which represents
+// the Alibaba access key for authentication
+func GetAlibabaAccessKeyID() string {
+	return Get(AlibabaAccessKeyIDEnvVar, "")
+}
+
+// GetAlibabaAccessKeySecret returns the environment variable value for AlibabaAccessKeySecretEnvVar which represents
+// the Alibaba access key secret for authentication
+func GetAlibabaAccessKeySecret() string {
+	return Get(AlibabaAccessKeySecretEnvVar, "")
 }
 
 // GetKubecostNamespace returns the environment variable value for KubecostNamespaceEnvVar which
