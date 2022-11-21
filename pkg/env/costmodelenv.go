@@ -15,6 +15,7 @@ const (
 	AWSAccessKeyIDEnvVar     = "AWS_ACCESS_KEY_ID"
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
+	AWSPricingURL            = "AWS_PRICING_URL"
 
 	KubecostNamespaceEnvVar        = "KUBECOST_NAMESPACE"
 	PodNameEnvVar                  = "POD_NAME"
@@ -204,6 +205,11 @@ func GetAWSAccessKeySecret() string {
 // an AWS specific cluster identifier.
 func GetAWSClusterID() string {
 	return Get(AWSClusterIDEnvVar, "")
+}
+
+// GetAWSPricingURL returns an optional alternative URL to fetch AWS pricing data from; for use in airgapped environments
+func GetAWSPricingURL() string {
+	return Get(AWSPricingURL, "")
 }
 
 // GetKubecostNamespace returns the environment variable value for KubecostNamespaceEnvVar which
