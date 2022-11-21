@@ -41,7 +41,9 @@ const (
 	ALIBABA_UNKNOWN_INSTANCE_FAMILY_TYPE       = "unknown"
 	ALIBABA_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE = "unsupported"
 	ALIBABA_ENHANCED_GENERAL_PURPOSE_TYPE      = "g6e"
-	ALIBABA_SYSTEMDISK_CLOUD_ESSD_CATEGORY     = "cloud_essd"
+	ALIBABA_DISK_CLOUD_ESSD_CATEGORY           = "cloud_essd"
+	ALIBABA_PV_DISK_CATEGORY                   = "system"
+	ALIBABA_LOCAL_DISK_CATEGORY                = "data"
 )
 
 // Why predefined and dependency on code? Can be converted to API call - https://www.alibabacloud.com/help/en/elastic-compute-service/latest/regions-describeregions
@@ -90,15 +92,27 @@ type AlibabaAccessKey struct {
 	SecretAccessKey string `json:"alibaba_secret_access_key"`
 }
 
-// TO-DO: Slim Version of k8s disk assigned to a node, To be used if price adjustment need to happen with local disk information passed to describePrice.
+// Slim Version of k8s disk assigned to a node or PV, To be used if price adjustment need to happen with local disk information passed to describePrice.
 type SlimK8sDisk struct {
 	DiskType         string
 	RegionID         string
+	PriceUnit        string
+	SizeInGiB        int
 	DiskCategory     string
 	PerformanceLevel string
-	PriceUnit        string
-	SizeInGiB        int32
 	ProviderID       string
+}
+
+func NewSlimK8sDisk(diskType, regionID, priceUnit, diskCategory, performanceLevel, providerID string, sizeInGiB int) *SlimK8sDisk {
+	return &SlimK8sDisk{
+		DiskType:         diskType,
+		RegionID:         regionID,
+		PriceUnit:        priceUnit,
+		SizeInGiB:        sizeInGiB,
+		DiskCategory:     diskCategory,
+		PerformanceLevel: performanceLevel,
+		ProviderID:       providerID,
+	}
 }
 
 // Slim version of a k8s v1.node just to pass along the object of this struct instead of constant getting the labels from within v1.Node & unit testing.
@@ -347,6 +361,7 @@ func (alibaba *Alibaba) DownloadPricingData() error {
 	// })
 
 	// for _, pv := range pvList {
+	// 	slimK8sNode := generateSlimK8sDiskFromV1PV(pv)
 	// 	if client, ok = alibaba.clients[pv.RegionID]; !ok {
 	// 		client, err = sdk.NewClientWithAccessKey(pv.RegionID, aak.AccessKeyId, aak.AccessKeySecret)
 	// 		if err != nil {
@@ -389,7 +404,13 @@ func (alibaba *Alibaba) NodePricing(key Key) (*Node, error) {
 	}
 
 	log.Debugf("returning the node price for the node with feature: %s", keyFeature)
-	return pricing.Node, nil
+	// adjust the price of the node with local disk informatio
+	additionalLocalDiskPrice := applyAlibabaLocalDiskAdjustment(map[string]string{})
+
+	returnNode := pricing.Node
+	log.Debugf("Current Node price is %s and additionalPrice is: %f", returnNode.Cost, additionalLocalDiskPrice)
+	returnNode.adjustCost(additionalLocalDiskPrice)
+	return returnNode, nil
 }
 
 // PVPricing gives a specific PV price for the PVkey
@@ -581,15 +602,19 @@ type AlibabaNodeKey struct {
 	InstanceType     string
 	OSType           string
 	OptimizedKeyword string //If IsIoOptimized key will have optimize if not unoptimized the key for the node
+	LocalNodeDisks   map[string]string
 }
 
 func NewAlibabaNodeKey(node *SlimK8sNode, optimizedKeyword string) *AlibabaNodeKey {
+	//TO-DO: populate local disk via API
+	localNodeDisks := map[string]string{}
 	return &AlibabaNodeKey{
 		ProviderID:       node.ProviderID,
 		RegionID:         node.RegionID,
 		InstanceType:     node.InstanceType,
 		OSType:           node.OSType,
 		OptimizedKeyword: optimizedKeyword,
+		LocalNodeDisks:   localNodeDisks,
 	}
 }
 
@@ -608,6 +633,10 @@ func (alibabaNodeKey *AlibabaNodeKey) GPUType() string {
 
 func (alibabaNodeKey *AlibabaNodeKey) GPUCount() int {
 	return 0
+}
+
+func (alibabaNodeKey *AlibabaNodeKey) GetLocalDisks() map[string]string {
+	return alibabaNodeKey.LocalNodeDisks
 }
 
 // Get's the key for the k8s node input
@@ -674,7 +703,7 @@ func createDescribePriceACSRequest(i interface{}) (*requests.CommonRequest, erro
 		// For Enhanced General Purpose Type g6e SystemDisk.Category param doesn't default right,
 		// need it to be specifically assigned to "cloud_ssd" otherwise there's errors
 		if node.InstanceTypeFamily == ALIBABA_ENHANCED_GENERAL_PURPOSE_TYPE {
-			request.QueryParams["SystemDisk.Category"] = ALIBABA_SYSTEMDISK_CLOUD_ESSD_CATEGORY
+			request.QueryParams["SystemDisk.Category"] = ALIBABA_DISK_CLOUD_ESSD_CATEGORY
 		}
 		request.TransToAcsRequest()
 		return request, nil
@@ -841,4 +870,14 @@ func generateSlimK8sNodeFromV1Node(node *v1.Node) *SlimK8sNode {
 	priceUnit = ALIBABA_HOUR_PRICE_UNIT
 
 	return NewSlimK8sNode(instanceType, regionID, priceUnit, memorySizeInKiB, osType, providerID, instanceFamily, IsIoOptimized)
+}
+
+func generateSlimK8sDiskFromV1PV(pv v1.PersistentVolume) *SlimK8sDisk {
+
+}
+
+// applyAlibabaLocalDiskAdjustment will adjust the return node price with the loal disks that are attached
+// to a specific node.
+func applyAlibabaLocalDiskAdjustment(listOfDisks map[string]string) float32 {
+	return 0.0
 }
