@@ -76,16 +76,6 @@ var (
 	gceRegex = regexp.MustCompile("gce://([^/]*)/*")
 )
 
-type userAgentTransport struct {
-	userAgent string
-	base      http.RoundTripper
-}
-
-func (t userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header.Set("User-Agent", t.userAgent)
-	return t.base.RoundTrip(req)
-}
-
 // GCP implements a provider interface for GCP
 type GCP struct {
 	Pricing                 map[string]*GCPPricing
@@ -99,6 +89,7 @@ type GCP struct {
 	Config                  *ProviderConfig
 	ServiceKeyProvided      bool
 	ValidPricingKeys        map[string]bool
+	metadataClient          *metadata.Client
 	clusterManagementPrice  float64
 	clusterProjectId        string
 	clusterRegion           string
@@ -310,12 +301,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	remoteEnabled := env.IsRemoteEnabled()
 
-	metadataClient := metadata.NewClient(&http.Client{Transport: userAgentTransport{
-		userAgent: "kubecost",
-		base:      http.DefaultTransport,
-	}})
-
-	attribute, err := metadataClient.InstanceAttributeValue("cluster-name")
+	attribute, err := gcp.metadataClient.InstanceAttributeValue("cluster-name")
 	if err != nil {
 		log.Infof("Error loading metadata cluster-name: %s", err.Error())
 	}
@@ -348,13 +334,8 @@ func (gcp *GCP) ClusterManagementPricing() (string, float64, error) {
 	return gcp.clusterProvisioner, gcp.clusterManagementPrice, nil
 }
 
-func (*GCP) GetAddresses() ([]byte, error) {
-	// metadata API setup
-	metadataClient := metadata.NewClient(&http.Client{Transport: userAgentTransport{
-		userAgent: "kubecost",
-		base:      http.DefaultTransport,
-	}})
-	projID, err := metadataClient.ProjectID()
+func (gcp *GCP) GetAddresses() ([]byte, error) {
+	projID, err := gcp.metadataClient.ProjectID()
 	if err != nil {
 		return nil, err
 	}
@@ -377,13 +358,8 @@ func (*GCP) GetAddresses() ([]byte, error) {
 }
 
 // GetDisks returns the GCP disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
-func (*GCP) GetDisks() ([]byte, error) {
-	// metadata API setup
-	metadataClient := metadata.NewClient(&http.Client{Transport: userAgentTransport{
-		userAgent: "kubecost",
-		base:      http.DefaultTransport,
-	}})
-	projID, err := metadataClient.ProjectID()
+func (gcp *GCP) GetDisks() ([]byte, error) {
+	projID, err := gcp.metadataClient.ProjectID()
 	if err != nil {
 		return nil, err
 	}

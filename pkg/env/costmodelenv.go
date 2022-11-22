@@ -16,6 +16,9 @@ const (
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
 
+	AlibabaAccessKeyIDEnvVar     = "ALIBABA_ACCESS_KEY_ID"
+	AlibabaAccessKeySecretEnvVar = "ALIBABA_SECRET_ACCESS_KEY"
+
 	KubecostNamespaceEnvVar        = "KUBECOST_NAMESPACE"
 	PodNameEnvVar                  = "POD_NAME"
 	ClusterIDEnvVar                = "CLUSTER_ID"
@@ -32,6 +35,7 @@ const (
 	CSVPathEnvVar                  = "CSV_PATH"
 	ConfigPathEnvVar               = "CONFIG_PATH"
 	CloudProviderAPIKeyEnvVar      = "CLOUD_PROVIDER_API_KEY"
+	DisableAggregateCostModelCache = "DISABLE_AGGREGATE_COST_MODEL_CACHE"
 
 	EmitPodAnnotationsMetricEnvVar       = "EMIT_POD_ANNOTATIONS_METRIC"
 	EmitNamespaceAnnotationsMetricEnvVar = "EMIT_NAMESPACE_ANNOTATIONS_METRIC"
@@ -205,6 +209,18 @@ func GetAWSClusterID() string {
 	return Get(AWSClusterIDEnvVar, "")
 }
 
+// GetAlibabaAccessKeyID returns the environment variable value for AlibabaAccessKeyIDEnvVar which represents
+// the Alibaba access key for authentication
+func GetAlibabaAccessKeyID() string {
+	return Get(AlibabaAccessKeyIDEnvVar, "")
+}
+
+// GetAlibabaAccessKeySecret returns the environment variable value for AlibabaAccessKeySecretEnvVar which represents
+// the Alibaba access key secret for authentication
+func GetAlibabaAccessKeySecret() string {
+	return Get(AlibabaAccessKeySecretEnvVar, "")
+}
+
 // GetKubecostNamespace returns the environment variable value for KubecostNamespaceEnvVar which
 // represents the namespace the cost model exists in.
 func GetKubecostNamespace() string {
@@ -237,6 +253,12 @@ func GetPrometheusServerEndpoint() string {
 
 func GetInsecureSkipVerify() bool {
 	return GetBool(InsecureSkipVerify, false)
+}
+
+// IsAggregateCostModelCacheDisabled returns the environment variable value for DisableAggregateCostModelCache which
+// will inform the aggregator on whether to load cached data. Defaults to false
+func IsAggregateCostModelCacheDisabled() bool {
+	return GetBool(DisableAggregateCostModelCache, false)
 }
 
 // IsRemoteEnabled returns the environment variable value for RemoteEnabledEnvVar which represents whether
