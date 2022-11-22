@@ -420,6 +420,10 @@ func (k *azureKey) Features() string {
 	return fmt.Sprintf("%s,%s,%s", region, instance, usageType)
 }
 
+func (k *azureKey) GPUCount() int {
+	return 0
+}
+
 // GPUType returns value of GPULabel if present
 func (k *azureKey) GPUType() string {
 	if t, ok := k.Labels[k.GPULabel]; ok {
