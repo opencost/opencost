@@ -120,6 +120,10 @@ func (*CustomProvider) GetDisks() ([]byte, error) {
 	return nil, nil
 }
 
+func (*CustomProvider) GetOrphanedResources() ([]OrphanedResource, error) {
+	return nil, nil
+}
+
 func (cp *CustomProvider) AllNodePricing() (interface{}, error) {
 	cp.DownloadPricingDataLock.RLock()
 	defer cp.DownloadPricingDataLock.RUnlock()

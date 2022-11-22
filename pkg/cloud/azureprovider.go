@@ -1167,6 +1167,16 @@ func (*Azure) GetAddresses() ([]byte, error) {
 }
 
 func (az *Azure) GetDisks() ([]byte, error) {
+
+	disks, err := az.authAndGetDisks()
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(disks)
+}
+
+func (az *Azure) authAndGetDisks() ([]*compute.Disk, error) {
 	//TODO: do I need this
 	az.DownloadPricingDataLock.Lock()
 	defer az.DownloadPricingDataLock.Unlock()
@@ -1235,7 +1245,34 @@ func (az *Azure) GetDisks() ([]byte, error) {
 		}
 	}
 
-	return json.Marshal(disks)
+	return disks, nil
+}
+
+func (az *Azure) GetOrphanedResources() ([]OrphanedResource, error) {
+
+	disks, err := az.authAndGetDisks()
+	if err != nil {
+		return nil, err
+	}
+
+	var orphanedResources []OrphanedResource
+
+	for _, d := range disks {
+		if d.DiskState == "Unattached" || d.DiskState == "Reserved" || d.DiskState == "Attached" {
+			or := OrphanedResource{
+				Kind:   "disk",
+				Region: *d.Location,
+				Description: map[string]string{
+					"disk state":   string(d.DiskState),
+					"time created": d.TimeCreated.String(),
+				},
+				Size: d.DiskSizeGB,
+			}
+			orphanedResources = append(orphanedResources, or)
+		}
+	}
+
+	return orphanedResources, nil
 }
 
 func (az *Azure) ClusterInfo() (map[string]string, error) {

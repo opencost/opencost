@@ -406,6 +406,10 @@ func (*GCP) GetDisks() ([]byte, error) {
 
 }
 
+func (*GCP) GetOrphanedResources() ([]OrphanedResource, error) {
+	return nil, nil
+}
+
 // GCPPricing represents GCP pricing data for a SKU
 type GCPPricing struct {
 	Name                string           `json:"name"`

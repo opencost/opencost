@@ -246,6 +246,10 @@ func (*Scaleway) GetDisks() ([]byte, error) {
 	return nil, nil
 }
 
+func (*Scaleway) GetOrphanedResources() ([]OrphanedResource, error) {
+	return nil, nil
+}
+
 func (scw *Scaleway) ClusterInfo() (map[string]string, error) {
 	remoteEnabled := env.IsRemoteEnabled()
 

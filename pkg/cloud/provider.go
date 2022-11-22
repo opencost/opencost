@@ -102,6 +102,14 @@ type Network struct {
 	InternetNetworkEgressCost float64
 }
 
+type OrphanedResource struct {
+	Kind        string
+	Region      string
+	Description map[string]string
+	Size        *int32
+	Address     string
+}
+
 // PV is the interface by which the provider and cost model communicate PV prices.
 // The provider will best-effort try to fill out this struct.
 type PV struct {
@@ -294,6 +302,7 @@ type Provider interface {
 	ClusterInfo() (map[string]string, error)
 	GetAddresses() ([]byte, error)
 	GetDisks() ([]byte, error)
+	GetOrphanedResources() ([]OrphanedResource, error)
 	NodePricing(Key) (*Node, error)
 	PVPricing(PVKey) (*PV, error)
 	NetworkPricing() (*Network, error)           // TODO: add key interface arg for dynamic price fetching

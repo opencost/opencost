@@ -1601,6 +1601,10 @@ func (aws *AWS) GetDisks() ([]byte, error) {
 	})
 }
 
+func (*AWS) GetOrphanedResources() ([]OrphanedResource, error) {
+	return nil, nil
+}
+
 // QueryAthenaPaginated executes athena query and processes results.
 func (aws *AWS) QueryAthenaPaginated(ctx context.Context, query string, fn func(*athena.GetQueryResultsOutput) bool) error {
 	awsAthenaInfo, err := aws.GetAWSAthenaInfo()
