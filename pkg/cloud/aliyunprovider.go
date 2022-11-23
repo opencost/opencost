@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -28,6 +29,7 @@ const (
 	ALIBABA_ECS_VERSION                        = "2014-05-26"
 	ALIBABA_ECS_DOMAIN                         = "ecs.aliyuncs.com"
 	ALIBABA_DESCRIBE_PRICE_API_ACTION          = "DescribePrice"
+	ALIBABA_DESCRIBE_DISK_API_ACTION           = "DescribeDisks"
 	ALIBABA_INSTANCE_RESOURCE_TYPE             = "instance"
 	ALIBABA_DISK_RESOURCE_TYPE                 = "disk"
 	ALIBABA_PAY_AS_YOU_GO_BILLING              = "Pay-As-You-Go"
@@ -42,8 +44,13 @@ const (
 	ALIBABA_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE = "unsupported"
 	ALIBABA_ENHANCED_GENERAL_PURPOSE_TYPE      = "g6e"
 	ALIBABA_DISK_CLOUD_ESSD_CATEGORY           = "cloud_essd"
-	ALIBABA_PV_DISK_CATEGORY                   = "system"
-	ALIBABA_LOCAL_DISK_CATEGORY                = "data"
+	ALIBABA_DISK_CLOUD_CATEGORY                = "cloud"
+	ALIBABA_DATA_DISK_CATEGORY                 = "data"
+	ALIBABA_SYSTEM_DISK_CATEGORY               = "system"
+	ALIBABA_DATA_DISK_PREFIX                   = "DataDisk"
+	ALIBABA_PV_CLOUD_DISK_TYPE                 = "CloudDisk"
+	ALIBABA_PV_NAS_TYPE                        = "NAS"
+	ALIBABA_PV_OSS_TYPE                        = "OSS"
 )
 
 // Why predefined and dependency on code? Can be converted to API call - https://www.alibabacloud.com/help/en/elastic-compute-service/latest/regions-describeregions
@@ -97,13 +104,14 @@ type SlimK8sDisk struct {
 	DiskType         string
 	RegionID         string
 	PriceUnit        string
-	SizeInGiB        int
+	SizeInGiB        string
 	DiskCategory     string
 	PerformanceLevel string
 	ProviderID       string
+	StorageClass     string
 }
 
-func NewSlimK8sDisk(diskType, regionID, priceUnit, diskCategory, performanceLevel, providerID string, sizeInGiB int) *SlimK8sDisk {
+func NewSlimK8sDisk(diskType, regionID, priceUnit, diskCategory, performanceLevel, providerID, storageClass, sizeInGiB string) *SlimK8sDisk {
 	return &SlimK8sDisk{
 		DiskType:         diskType,
 		RegionID:         regionID,
@@ -112,6 +120,7 @@ func NewSlimK8sDisk(diskType, regionID, priceUnit, diskCategory, performanceLeve
 		DiskCategory:     diskCategory,
 		PerformanceLevel: performanceLevel,
 		ProviderID:       providerID,
+		StorageClass:     storageClass,
 	}
 }
 
@@ -140,7 +149,7 @@ func NewSlimK8sNode(instanceType, regionID, priceUnit, memorySizeInKiB, osType, 
 	}
 }
 
-// AlibabaNodeAttributes represents metadata about the product used to map to a node.
+// AlibabaNodeAttributes represents metadata about the product pricing information used to map to a node.
 // Basic Attributes needed atleast to get the key, Some attributes from k8s Node response
 // be populated directly into *Node object.
 type AlibabaNodeAttributes struct {
@@ -159,14 +168,34 @@ func NewAlibabaNodeAttributes(node *SlimK8sNode) *AlibabaNodeAttributes {
 	}
 }
 
-// AlibabaPVAttributes represents metadata about the product used to map to a PV.
-// Basic Attributes needed atleast to get the keys, Some attributes from k8s Node response
+// AlibabaPVAttributes represents metadata about the product pricing information used to map to a PV.
+// Basic Attributes needed atleast to get the keys.Some attributes from k8s PV response
 // be populated directly into *PV object.
-// TO_DO: In next PR improve this
 type AlibabaPVAttributes struct {
-	DiskType         int32  `json:"diskType"`
-	DiskCategory     string `json:"diskCategory"`
-	PerformanceLevel string `json:"performanceLevel"`
+	// PVType can be Cloud Disk, NetWork Attached Storage(NAS) or Object Storage Service (OSS).
+	// Represents the way the PV was attached
+	PVType string `json:"pvType"`
+	// PVSubType represent the sub category of PVType. This is Data in case of Cloud Disk.
+	PVSubType string `json:"pvSubType"`
+	// Example for PVCategory with cloudDisk PVType are cloud, cloud_efficiency, cloud_ssd,
+	// ephemeral_ssd and cloud_essd. If not present returns empty.
+	PVCategory string `json:"pvCategory"`
+	// Example for PerformanceLevel with cloudDisk PVType are PL0,PL1,PL2 &PL3. If not present returns empty.
+	PVPerformanceLevel string `json:"performanceLevel"`
+	// The Size of the PV in terms of GiB
+	SizeInGiB string `json:"sizeInGiB"`
+}
+
+// TO-Do: next iteration of Alibaba provider support NetWork Attached Storage(NAS) and Object Storage Service (OSS type PVs).
+// Currently defaulting to cloudDisk with provision to add work in future.
+func NewAlibabaPVAttributes(disk *SlimK8sDisk) *AlibabaPVAttributes {
+	return &AlibabaPVAttributes{
+		PVType:             ALIBABA_PV_CLOUD_DISK_TYPE,
+		PVSubType:          disk.DiskType,
+		PVCategory:         disk.DiskCategory,
+		PVPerformanceLevel: disk.PerformanceLevel,
+		SizeInGiB:          disk.SizeInGiB,
+	}
 }
 
 // Stage 1 support will be Pay-As-You-Go with HourlyPrice equal to TradePrice with PriceUnit as Hour
@@ -279,6 +308,7 @@ func (alibaba *Alibaba) GetAlibabaAccessKey() (*credentials.AccessKeyCredential,
 	return alibaba.accessKey, nil
 }
 
+// DownloadPricingData satisfies the provider interface and downloads the price for node and PVs.
 func (alibaba *Alibaba) DownloadPricingData() error {
 	alibaba.DownloadPricingDataLock.Lock()
 	defer alibaba.DownloadPricingDataLock.Unlock()
@@ -306,13 +336,13 @@ func (alibaba *Alibaba) DownloadPricingData() error {
 	var client *sdk.Client
 	var signer *signers.AccessKeySigner
 	var ok bool
-	var pricingObj *AlibabaPricing
 	var lookupKey string
 	alibaba.clients = make(map[string]*sdk.Client)
 	alibaba.Pricing = make(map[string]*AlibabaPricing)
 
 	// TO-DO: Add disk price adjustment by parsing the local disk information and putting it as a param in describe Price function.
 	for _, node := range nodeList {
+		pricingObj := &AlibabaPricing{}
 		slimK8sNode := generateSlimK8sNodeFromV1Node(node)
 		lookupKey, err = determineKeyForPricing(slimK8sNode)
 		if _, ok := alibaba.Pricing[lookupKey]; ok {
@@ -336,49 +366,47 @@ func (alibaba *Alibaba) DownloadPricingData() error {
 		alibaba.Pricing[lookupKey] = pricingObj
 	}
 
-	// TO-DO: PV pricing
-	// //get pvList ultimately from Alibaba cloud provider and resemble data from the pvtype to
-	// // Hardcodedk8sNodeDiskStruct
-	// pvList := alibaba.Clientset.GetAllPersistentVolumes()
+	// set the first occurance of region from the node
+	i := 0
+	for alibaba.clusterRegion == "" && i < len(nodeList) {
+		regionID, ok := nodeList[i].Labels["topology.kubernetes.io/region"]
+		if ok {
+			alibaba.clusterRegion = regionID
+		} else {
+			i += 1
+		}
+	}
 
-	// pvList := []*Hardcodedk8sNodeDiskStruct{}
-	// pvList = append(pvList, &Hardcodedk8sNodeDiskStruct{
-	// 	DiskType:         "data",
-	// 	DiskCategory:     "cloud",
-	// 	PerformanceLevel: "",
-	// 	RegionID:         "cn-hangzhou",
-	// 	PriceUnit:        "Hour",
-	// 	SizeInGiB:        60,
-	// 	ProviderID:       "Ali-XXX-pv-01",
-	// }, &Hardcodedk8sNodeDiskStruct{
-	// 	DiskType:         "data",
-	// 	DiskCategory:     "cloud",
-	// 	PerformanceLevel: "P1",
-	// 	RegionID:         "cn-hangzhou",
-	// 	PriceUnit:        "Hour",
-	// 	SizeInGiB:        40,
-	// 	ProviderID:       "Ali-XXX-pv-01",
-	// })
+	// PV pricing for only Cloud Disk for now.
+	// TO-DO: Support both NAS(Network Attached storage) and OSS(Object Storage Service) type PVs
 
-	// for _, pv := range pvList {
-	// 	slimK8sNode := generateSlimK8sDiskFromV1PV(pv)
-	// 	if client, ok = alibaba.clients[pv.RegionID]; !ok {
-	// 		client, err = sdk.NewClientWithAccessKey(pv.RegionID, aak.AccessKeyId, aak.AccessKeySecret)
-	// 		if err != nil {
-	// 			return fmt.Errorf("access key provided does not have access to location %s", pv.RegionID)
-	// 		}
-	// 		alibaba.clients[pv.RegionID] = client
-	// 	}
-	// 	signer = signers.NewAccessKeySigner(aak)
-	// 	pricingObj, err = processDescribePriceAndCreateAlibabaPricing(client, pv, signer)
-	// 	lookupKey, err = determineKeyForPricing(pv)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	alibaba.Pricing[lookupKey] = pricingObj
-	// }
-	// log.Infof("Length of pricing is %d", len(alibaba.Pricing))
-	// log.Infof("random value is %v", alibaba.Pricing[lookupKey])
+	pvList := alibaba.Clientset.GetAllPersistentVolumes()
+
+	for _, pv := range pvList {
+		pricingObj := &AlibabaPricing{}
+		// Note for PR: Region ID defaulted to first occurance of node region for now, need to know the implication here!
+		// Can Pvs be in seperate Region than the Cluster? Is there ever a Multi Region k8s cluster?
+		slimK8sDisk := generateSlimK8sDiskFromV1PV(pv, alibaba.clusterRegion)
+		lookupKey, err = determineKeyForPricing(slimK8sDisk)
+		if _, ok := alibaba.Pricing[lookupKey]; ok {
+			log.Debugf("Pricing information for pv with same features %s already exists hence skipping", lookupKey)
+			continue
+		}
+		if client, ok = alibaba.clients[slimK8sDisk.RegionID]; !ok {
+			client, err = sdk.NewClientWithAccessKey(slimK8sDisk.RegionID, aak.AccessKeyId, aak.AccessKeySecret)
+			if err != nil {
+				return fmt.Errorf("unable to initiate alibaba cloud sdk client for region %s : %w", slimK8sDisk.RegionID, err)
+			}
+			alibaba.clients[slimK8sDisk.RegionID] = client
+		}
+		signer = signers.NewAccessKeySigner(aak)
+		pricingObj, err = processDescribePriceAndCreateAlibabaPricing(client, slimK8sDisk, signer, c)
+		if err != nil {
+			return fmt.Errorf("failed to create pricing information for pv with category %s with error: %w", slimK8sDisk.DiskCategory, err)
+		}
+		alibaba.Pricing[lookupKey] = pricingObj
+	}
+
 	return nil
 }
 
@@ -389,7 +417,7 @@ func (alibaba *Alibaba) AllNodePricing() (interface{}, error) {
 	return alibaba.Pricing, nil
 }
 
-// NodePricing gives a specific node for the key
+// NodePricing gives a specific node pricing information given by the key
 func (alibaba *Alibaba) NodePricing(key Key) (*Node, error) {
 	alibaba.DownloadPricingDataLock.RLock()
 	defer alibaba.DownloadPricingDataLock.RUnlock()
@@ -404,12 +432,8 @@ func (alibaba *Alibaba) NodePricing(key Key) (*Node, error) {
 	}
 
 	log.Debugf("returning the node price for the node with feature: %s", keyFeature)
-	// adjust the price of the node with local disk informatio
-	additionalLocalDiskPrice := applyAlibabaLocalDiskAdjustment(map[string]string{})
-
 	returnNode := pricing.Node
-	log.Debugf("Current Node price is %s and additionalPrice is: %f", returnNode.Cost, additionalLocalDiskPrice)
-	returnNode.adjustCost(additionalLocalDiskPrice)
+
 	return returnNode, nil
 }
 
@@ -602,19 +626,15 @@ type AlibabaNodeKey struct {
 	InstanceType     string
 	OSType           string
 	OptimizedKeyword string //If IsIoOptimized key will have optimize if not unoptimized the key for the node
-	LocalNodeDisks   map[string]string
 }
 
 func NewAlibabaNodeKey(node *SlimK8sNode, optimizedKeyword string) *AlibabaNodeKey {
-	//TO-DO: populate local disk via API
-	localNodeDisks := map[string]string{}
 	return &AlibabaNodeKey{
 		ProviderID:       node.ProviderID,
 		RegionID:         node.RegionID,
 		InstanceType:     node.InstanceType,
 		OSType:           node.OSType,
 		OptimizedKeyword: optimizedKeyword,
-		LocalNodeDisks:   localNodeDisks,
 	}
 }
 
@@ -635,10 +655,6 @@ func (alibabaNodeKey *AlibabaNodeKey) GPUCount() int {
 	return 0
 }
 
-func (alibabaNodeKey *AlibabaNodeKey) GetLocalDisks() map[string]string {
-	return alibabaNodeKey.LocalNodeDisks
-}
-
 // Get's the key for the k8s node input
 func (alibaba *Alibaba) GetKey(mapValue map[string]string, node *v1.Node) Key {
 	//Mostly parse the Node object and get the ProviderID, region, InstanceType, OSType and OptimizedKeyword(In if block)
@@ -655,16 +671,37 @@ func (alibaba *Alibaba) GetKey(mapValue map[string]string, node *v1.Node) Key {
 }
 
 type AlibabaPVKey struct {
-	ProviderID       string
-	RegionID         string
-	DiskType         string
-	DiskCategory     string
-	PerformaceLevel  string
-	StorageClassName string
+	ProviderID        string
+	RegionID          string
+	PVType            string
+	PVSubType         string
+	PVCategory        string
+	PVPerformaceLevel string
+	StorageClassName  string
+	SizeInGiB         string
+}
+
+func (alibaba *Alibaba) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) PVKey {
+	regionID := defaultRegion
+	// If default Region is not passed default it to cluster region ID.
+	if defaultRegion == "" {
+		regionID = alibaba.clusterRegion
+	}
+	slimK8sDisk := generateSlimK8sDiskFromV1PV(pv, defaultRegion)
+	return &AlibabaPVKey{
+		ProviderID:        slimK8sDisk.ProviderID,
+		RegionID:          regionID,
+		PVType:            ALIBABA_PV_CLOUD_DISK_TYPE,
+		PVSubType:         slimK8sDisk.DiskType,
+		PVCategory:        slimK8sDisk.DiskCategory,
+		PVPerformaceLevel: slimK8sDisk.PerformanceLevel,
+		StorageClassName:  pv.Spec.StorageClassName,
+		SizeInGiB:         slimK8sDisk.SizeInGiB,
+	}
 }
 
 func (alibabaPVKey *AlibabaPVKey) Features() string {
-	keyLookup := stringutil.DeleteEmptyStringsFromArray([]string{alibabaPVKey.RegionID, alibabaPVKey.DiskType, alibabaPVKey.DiskCategory, alibabaPVKey.PerformaceLevel})
+	keyLookup := stringutil.DeleteEmptyStringsFromArray([]string{alibabaPVKey.RegionID, alibabaPVKey.PVSubType, alibabaPVKey.PVCategory, alibabaPVKey.PVPerformaceLevel, alibabaPVKey.SizeInGiB})
 	return strings.Join(keyLookup, "::")
 }
 
@@ -710,10 +747,14 @@ func createDescribePriceACSRequest(i interface{}) (*requests.CommonRequest, erro
 	case *SlimK8sDisk:
 		disk := i.(*SlimK8sDisk)
 		request.QueryParams["RegionId"] = disk.RegionID
-		request.QueryParams["ResourceType"] = ALIBABA_DISK_RESOURCE_TYPE
-		request.QueryParams["DataDisk.1.Category"] = disk.DiskCategory
-		request.QueryParams["DataDisk.1.Size"] = fmt.Sprintf("%d", disk.SizeInGiB)
 		request.QueryParams["PriceUnit"] = disk.PriceUnit
+		request.QueryParams["ResourceType"] = ALIBABA_DISK_RESOURCE_TYPE
+		request.QueryParams[fmt.Sprintf("%s.%d.Size", ALIBABA_DATA_DISK_PREFIX, 1)] = disk.SizeInGiB
+		request.QueryParams[fmt.Sprintf("%s.%d.Category", ALIBABA_DATA_DISK_PREFIX, 1)] = disk.DiskCategory
+		// Performance level defaults to PL1 if not present in volume attribute.
+		if disk.PerformanceLevel != "" {
+			request.QueryParams[fmt.Sprintf("%s.%d.PerformanceLevel", ALIBABA_DATA_DISK_PREFIX, 1)] = disk.PerformanceLevel
+		}
 		request.TransToAcsRequest()
 		return request, nil
 	default:
@@ -721,7 +762,8 @@ func createDescribePriceACSRequest(i interface{}) (*requests.CommonRequest, erro
 	}
 }
 
-// determineKeyForPricing generate a unique key from SlimK8sNode object that is construct from v1.Node object.
+// determineKeyForPricing generate a unique key from SlimK8sNode object that is constructed from v1.Node object and
+// SlimK8sDisk that is constructed from v1.PersistentVolume.
 func determineKeyForPricing(i interface{}) (string, error) {
 	if i == nil {
 		return "", fmt.Errorf("nil component passed to determine key")
@@ -738,7 +780,7 @@ func determineKeyForPricing(i interface{}) (string, error) {
 		}
 	case *SlimK8sDisk:
 		disk := i.(*SlimK8sDisk)
-		keyLookup := stringutil.DeleteEmptyStringsFromArray([]string{disk.RegionID, disk.DiskCategory, disk.DiskType, disk.PerformanceLevel})
+		keyLookup := stringutil.DeleteEmptyStringsFromArray([]string{disk.RegionID, disk.DiskType, disk.DiskCategory, disk.PerformanceLevel, disk.SizeInGiB})
 		return strings.Join(keyLookup, "::"), nil
 	default:
 		return "", fmt.Errorf("unsupported ECS type (%T) at this time", i)
@@ -762,10 +804,11 @@ type DescribePriceResponse struct {
 	PriceInfo PriceInfo `json:"PriceInfo"`
 }
 
-// processDescribePriceAndCreateAlibabaPricing processes the DescribePrice API and generates the pricing information for alibaba node resource.
+// processDescribePriceAndCreateAlibabaPricing processes the DescribePrice API and generates the pricing information for alibaba node resource and alibaba pv resource that's backed by cloud disk.
 func processDescribePriceAndCreateAlibabaPricing(client *sdk.Client, i interface{}, signer *signers.AccessKeySigner, custom *CustomPricing) (pricing *AlibabaPricing, err error) {
 	pricing = &AlibabaPricing{}
 	var response DescribePriceResponse
+
 	if i == nil {
 		return nil, fmt.Errorf("nil component passed to process the pricing information")
 	}
@@ -804,19 +847,20 @@ func processDescribePriceAndCreateAlibabaPricing(client *sdk.Client, i interface
 			return nil, err
 		}
 		resp, err := client.ProcessCommonRequestWithSigner(req, signer)
-		if err != nil {
-			return nil, fmt.Errorf("unable to fetch information for disk with DiskType: %v", disk.DiskType)
+		if err != nil || resp.GetHttpStatus() != 200 {
+			return nil, fmt.Errorf("unable to fetch information for disk with DiskType: %v with err: %w", disk.DiskCategory, err)
 		} else {
 			// This is where population of Pricing happens
 			err = json.Unmarshal(resp.GetHttpContentBytes(), &response)
 			if err != nil {
 				return nil, fmt.Errorf("unable to unmarshall json response to custom struct with err: %w", err)
 			}
-			pricing.PVAttributes = &AlibabaPVAttributes{}
+			pricing.PVAttributes = NewAlibabaPVAttributes(disk)
 			pricing.PV = &PV{
 				Cost: fmt.Sprintf("%f", response.PriceInfo.Price.TradePrice),
 			}
-
+			// TO-DO : Disk has support for Hour and Month but pricing API is failing for month for disk(Research why?) and same challenge as node pricing no prepaid/postpaid distinction in v1.PersistentVolume object have to look at APIs for th information.
+			pricing.PricingTerms = NewAlibabaPricingTerms(ALIBABA_PAY_AS_YOU_GO_BILLING, NewAlibabaPricingDetails(response.PriceInfo.Price.TradePrice, ALIBABA_HOUR_PRICE_UNIT, response.PriceInfo.Price.TradePrice, response.PriceInfo.Price.Currency))
 		}
 	default:
 		return nil, fmt.Errorf("unsupported ECS Pricing component of type (%T) at this time", i)
@@ -842,7 +886,7 @@ func getInstanceFamilyFromType(instanceType string) string {
 	return splitinstanceType[1]
 }
 
-// function geenerates SlimK8sNode from v1.Node for better passing slimmed struct between functions
+// generateSlimK8sNodeFromV1Node generates SlimK8sNode struct from v1.Node to fetch pricing information.
 func generateSlimK8sNodeFromV1Node(node *v1.Node) *SlimK8sNode {
 	var regionID, osType, instanceType, providerID, priceUnit, instanceFamily string
 	var memorySizeInKiB string // TO-DO: try to convert it into float
@@ -872,12 +916,60 @@ func generateSlimK8sNodeFromV1Node(node *v1.Node) *SlimK8sNode {
 	return NewSlimK8sNode(instanceType, regionID, priceUnit, memorySizeInKiB, osType, providerID, instanceFamily, IsIoOptimized)
 }
 
-func generateSlimK8sDiskFromV1PV(pv v1.PersistentVolume) *SlimK8sDisk {
+// generateSlimK8sDiskFromV1PV function generates SlimK8sDisk from v1.PersistentVolume and DescribeDisk API(If required) of alibaba
+// to generate slim disk type that can be used to fetch pricing information.
+func generateSlimK8sDiskFromV1PV(pv *v1.PersistentVolume, regionID string) *SlimK8sDisk {
+	//Regular expression to get the GiB storage size for the API call
+	sizeRegEx := regexp.MustCompile("(.*?)Gi")
 
-}
+	// All PVs are data disks while local disk are categorized as system disk
+	diskType := ALIBABA_DATA_DISK_CATEGORY
 
-// applyAlibabaLocalDiskAdjustment will adjust the return node price with the loal disks that are attached
-// to a specific node.
-func applyAlibabaLocalDiskAdjustment(listOfDisks map[string]string) float32 {
-	return 0.0
+	//TO-DO: Disk supports month and hour prices , defaulting to hour
+	priceUnit := ALIBABA_HOUR_PRICE_UNIT
+
+	sizeQuantity := fmt.Sprintf("%s", pv.Spec.Capacity.Storage())
+
+	res := sizeRegEx.FindAllStringSubmatch(sizeQuantity, 1)
+
+	// This is the default value used for the DescribePrice DataDisk size, if any error occured defaulting it to 2000GiB's price
+	sizeInGiB := "2000"
+	if len(res) != 0 {
+		sizeInGiB = res[0][1]
+	}
+
+	providerID := ""
+	if pv.Spec.CSI != nil {
+		providerID = pv.Spec.CSI.VolumeHandle
+	} else {
+		providerID = pv.Name // Looks like pv name is same as providerID in Alibaba k8s cluster
+	}
+
+	// Performance level being empty string gets defaulted in describePrice to PL1.
+	performanceLevel := ""
+	diskCategory := ""
+	if pv.Spec.CSI != nil {
+		if val, ok := pv.Spec.CSI.VolumeAttributes["performanceLevel"]; ok {
+			performanceLevel = val
+		}
+		if val, ok := pv.Spec.CSI.VolumeAttributes["type"]; ok {
+			diskCategory = val
+		}
+	}
+
+	// Highly unlikely that label "csi.alibabacloud.com/disktype" doesn't exist but if occured default to cloud (most basic disk type)
+	if diskCategory == "" {
+		diskCategory = ALIBABA_DISK_CLOUD_CATEGORY
+	}
+
+	return &SlimK8sDisk{
+		DiskType:         diskType,
+		RegionID:         regionID,
+		PriceUnit:        priceUnit,
+		SizeInGiB:        sizeInGiB,
+		DiskCategory:     diskCategory,
+		PerformanceLevel: performanceLevel,
+		ProviderID:       providerID,
+		StorageClass:     pv.Spec.StorageClassName,
+	}
 }

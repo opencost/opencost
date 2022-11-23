@@ -84,16 +84,6 @@ func (n *Node) IsSpot() bool {
 	}
 }
 
-// adjustCost adjust the cost of the Node, predominantly used in adjusting the cost with localDisk adjustment.
-// currently restricting to scope cloud package to be used in aliyunProvider.go can be made exported.
-func (n *Node) adjustCost(additionalPrice float32) {
-	currCost, err := strconv.ParseFloat(n.Cost, 32)
-	if err != nil {
-		log.Warnf("Skipping adjust node price with providerID %s ")
-	}
-	n.Cost = fmt.Sprintf("%f", float32(currCost)+additionalPrice)
-}
-
 // LoadBalancer is the interface by which the provider and cost model communicate LoadBalancer prices.
 // The provider will best-effort try to fill out this struct.
 type LoadBalancer struct {
