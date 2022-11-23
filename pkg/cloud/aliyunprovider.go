@@ -153,10 +153,14 @@ func NewSlimK8sNode(instanceType, regionID, priceUnit, memorySizeInKiB, osType, 
 // Basic Attributes needed atleast to get the key, Some attributes from k8s Node response
 // be populated directly into *Node object.
 type AlibabaNodeAttributes struct {
-	InstanceType    string `json:"instanceType"`
+	// InstanceType represents the type of instance.
+	InstanceType string `json:"instanceType"`
+	// MemorySizeInKiB represents the size of memory of instance.
 	MemorySizeInKiB string `json:"memorySizeInKiB"`
-	IsIoOptimized   bool   `json:"isIoOptimized"`
-	OSType          string `json:"osType"`
+	// IsIoOptimized represents the if instance is I/O optimized.
+	IsIoOptimized bool `json:"isIoOptimized"`
+	// OSType represents the OS installed in the Instance.
+	OSType string `json:"osType"`
 }
 
 func NewAlibabaNodeAttributes(node *SlimK8sNode) *AlibabaNodeAttributes {
@@ -410,14 +414,14 @@ func (alibaba *Alibaba) DownloadPricingData() error {
 	return nil
 }
 
-// AllNodePricing returns all the billing data for nodes and pvs
+// AllNodePricing returns all the pricing data for all nodes and pvs
 func (alibaba *Alibaba) AllNodePricing() (interface{}, error) {
 	alibaba.DownloadPricingDataLock.RLock()
 	defer alibaba.DownloadPricingDataLock.RUnlock()
 	return alibaba.Pricing, nil
 }
 
-// NodePricing gives a specific node pricing information given by the key
+// NodePricing gives pricing information of a specific node given by the key
 func (alibaba *Alibaba) NodePricing(key Key) (*Node, error) {
 	alibaba.DownloadPricingDataLock.RLock()
 	defer alibaba.DownloadPricingDataLock.RUnlock()
@@ -437,7 +441,7 @@ func (alibaba *Alibaba) NodePricing(key Key) (*Node, error) {
 	return returnNode, nil
 }
 
-// PVPricing gives a specific PV price for the PVkey
+// PVPricing gives a pricing information of a specific PV gien by PVkey
 func (alibaba *Alibaba) PVPricing(pvk PVKey) (*PV, error) {
 	alibaba.DownloadPricingDataLock.RLock()
 	defer alibaba.DownloadPricingDataLock.RUnlock()
@@ -957,19 +961,10 @@ func generateSlimK8sDiskFromV1PV(pv *v1.PersistentVolume, regionID string) *Slim
 		}
 	}
 
-	// Highly unlikely that label "csi.alibabacloud.com/disktype" doesn't exist but if occured default to cloud (most basic disk type)
+	// Highly unlikely that label pv.Spec.CSI.VolumeAttributes["type"] doesn't exist but if occured default to cloud (most basic disk type)
 	if diskCategory == "" {
 		diskCategory = ALIBABA_DISK_CLOUD_CATEGORY
 	}
 
-	return &SlimK8sDisk{
-		DiskType:         diskType,
-		RegionID:         regionID,
-		PriceUnit:        priceUnit,
-		SizeInGiB:        sizeInGiB,
-		DiskCategory:     diskCategory,
-		PerformanceLevel: performanceLevel,
-		ProviderID:       providerID,
-		StorageClass:     pv.Spec.StorageClassName,
-	}
+	return NewSlimK8sDisk(diskType, regionID, priceUnit, diskCategory, performanceLevel, providerID, pv.Spec.StorageClassName, sizeInGiB)
 }
