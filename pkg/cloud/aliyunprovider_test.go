@@ -475,3 +475,40 @@ func TestGenerateSlimK8sDiskFromV1PV(t *testing.T) {
 		})
 	}
 }
+
+func TestGetNumericalValueFromResourceQuantity(t *testing.T) {
+	cases := []struct {
+		name                 string
+		inputResourceQuanity string
+		expectedValue        string
+	}{
+		{
+			name:                 "positive scenario: when inputResourceQuantity is 10Gi",
+			inputResourceQuanity: "10Gi",
+			expectedValue:        "10",
+		},
+		{
+			name:                 "negative scenario: when inputResourceQuantity is Gi",
+			inputResourceQuanity: "Gi",
+			expectedValue:        ALIBABA_DEFAULT_DATADISK_SIZE,
+		},
+		{
+			name:                 "negative scenario: when inputResourceQuantity is 10",
+			inputResourceQuanity: "10",
+			expectedValue:        ALIBABA_DEFAULT_DATADISK_SIZE,
+		},
+		{
+			name:                 "negative scenario: when inputResourceQuantity is empty string",
+			inputResourceQuanity: "",
+			expectedValue:        ALIBABA_DEFAULT_DATADISK_SIZE,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			returnValue := getNumericalValueFromResourceQuantity(c.inputResourceQuanity)
+			if c.expectedValue != returnValue {
+				t.Fatalf("Case name %s: getNumericalValueFromResourceQuantity recieved %s but expected %s", c.name, returnValue, c.expectedValue)
+			}
+		})
+	}
+}

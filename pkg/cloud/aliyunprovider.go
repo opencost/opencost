@@ -51,6 +51,12 @@ const (
 	ALIBABA_PV_CLOUD_DISK_TYPE                 = "CloudDisk"
 	ALIBABA_PV_NAS_TYPE                        = "NAS"
 	ALIBABA_PV_OSS_TYPE                        = "OSS"
+	ALIBABA_DEFAULT_DATADISK_SIZE              = "2000"
+)
+
+var (
+	// Regular expression to get the numerical value of PV suffix with GiB from *v1.PersistentVolume.
+	sizeRegEx = regexp.MustCompile("(.*?)Gi")
 )
 
 // Why predefined and dependency on code? Can be converted to API call - https://www.alibabacloud.com/help/en/elastic-compute-service/latest/regions-describeregions
@@ -371,13 +377,12 @@ func (alibaba *Alibaba) DownloadPricingData() error {
 	}
 
 	// set the first occurance of region from the node
-	i := 0
-	for alibaba.clusterRegion == "" && i < len(nodeList) {
-		regionID, ok := nodeList[i].Labels["topology.kubernetes.io/region"]
-		if ok {
-			alibaba.clusterRegion = regionID
-		} else {
-			i += 1
+	if alibaba.clusterRegion == "" {
+		for _, node := range nodeList {
+			if regionID, ok := node.Labels["topology.kubernetes.io/region"]; ok {
+				alibaba.clusterRegion = regionID
+				break
+			}
 		}
 	}
 
@@ -920,11 +925,25 @@ func generateSlimK8sNodeFromV1Node(node *v1.Node) *SlimK8sNode {
 	return NewSlimK8sNode(instanceType, regionID, priceUnit, memorySizeInKiB, osType, providerID, instanceFamily, IsIoOptimized)
 }
 
+// getNumericalValueFromResourceQuantity returns the numericalValue of the resourceQuantity
+// An example is: 20Gi returns to 20. If any error occurs it returns the default value used in describePrice API which is 2000.
+func getNumericalValueFromResourceQuantity(quantity string) (value string) {
+	defer func() {
+		if err := recover(); err != nil {
+			value = ALIBABA_DEFAULT_DATADISK_SIZE
+		}
+		if value == "" {
+			value = ALIBABA_DEFAULT_DATADISK_SIZE
+		}
+	}()
+	res := sizeRegEx.FindAllStringSubmatch(quantity, 1)
+	value = res[0][1]
+	return
+}
+
 // generateSlimK8sDiskFromV1PV function generates SlimK8sDisk from v1.PersistentVolume and DescribeDisk API(If required) of alibaba
 // to generate slim disk type that can be used to fetch pricing information.
 func generateSlimK8sDiskFromV1PV(pv *v1.PersistentVolume, regionID string) *SlimK8sDisk {
-	//Regular expression to get the GiB storage size for the API call
-	sizeRegEx := regexp.MustCompile("(.*?)Gi")
 
 	// All PVs are data disks while local disk are categorized as system disk
 	diskType := ALIBABA_DATA_DISK_CATEGORY
@@ -934,13 +953,9 @@ func generateSlimK8sDiskFromV1PV(pv *v1.PersistentVolume, regionID string) *Slim
 
 	sizeQuantity := fmt.Sprintf("%s", pv.Spec.Capacity.Storage())
 
-	res := sizeRegEx.FindAllStringSubmatch(sizeQuantity, 1)
+	// res := sizeRegEx.FindAllStringSubmatch(sizeQuantity, 1)
 
-	// This is the default value used for the DescribePrice DataDisk size, if any error occured defaulting it to 2000GiB's price
-	sizeInGiB := "2000"
-	if len(res) != 0 {
-		sizeInGiB = res[0][1]
-	}
+	sizeInGiB := getNumericalValueFromResourceQuantity(sizeQuantity)
 
 	providerID := ""
 	if pv.Spec.CSI != nil {
