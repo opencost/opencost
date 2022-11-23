@@ -7,8 +7,8 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -1418,7 +1418,7 @@ func (aws *AWS) loadAWSAuthSecret(force bool) (*AWSAccessKey, error) {
 		return nil, fmt.Errorf("Failed to locate service account file: %s", authSecretPath)
 	}
 
-	result, err := ioutil.ReadFile(authSecretPath)
+	result, err := os.ReadFile(authSecretPath)
 	if err != nil {
 		return nil, err
 	}

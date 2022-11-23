@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -275,7 +275,7 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 
 	pricingPayload := AzureRetailPricing{}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("Error getting response: %v", err)
 	}
@@ -617,7 +617,7 @@ func (az *Azure) loadAzureAuthSecret(force bool) (*AzureServiceKey, error) {
 		return nil, fmt.Errorf("Failed to locate service account file: %s", authSecretPath)
 	}
 
-	result, err := ioutil.ReadFile(authSecretPath)
+	result, err := os.ReadFile(authSecretPath)
 	if err != nil {
 		return nil, err
 	}
@@ -646,7 +646,7 @@ func (az *Azure) loadAzureStorageConfig(force bool) (*AzureStorageConfig, error)
 		return nil, fmt.Errorf("Failed to locate azure storage config file: %s", storageConfigSecretPath)
 	}
 
-	result, err := ioutil.ReadFile(storageConfigSecretPath)
+	result, err := os.ReadFile(storageConfigSecretPath)
 	if err != nil {
 		return nil, err
 	}
