@@ -290,6 +290,13 @@ func (ccas *CloudCostAggregateSet) IsEmpty() bool {
 	return false
 }
 
+func (ccas *CloudCostAggregateSet) Length() int {
+	if ccas == nil {
+		return 0
+	}
+	return len(ccas.CloudCostAggregates)
+}
+
 func (ccas *CloudCostAggregateSet) GetWindow() Window {
 	return ccas.Window
 }
@@ -423,11 +430,11 @@ func (ccasr *CloudCostAggregateSetRange) Accumulate() (*CloudCostAggregateSet, e
 
 	result := NewCloudCostAggregateSet(*ccasr.Window.Start(), *ccasr.Window.End())
 
-	for i, ccas := range ccasr.CloudCostAggregateSets {
+	for _, ccas := range ccasr.CloudCostAggregateSets {
 		for name, cca := range ccas.CloudCostAggregates {
 			err := result.insertByProperty(cca.Clone(), ccas.AggregationProperty)
 			if err != nil {
-				return nil, fmt.Errorf("error accumulating CloudCostAggregateSetRange[%s][%s]: %s", i, name, err)
+				return nil, fmt.Errorf("error accumulating CloudCostAggregateSetRange[%s][%s]: %s", ccas.Window.String(), name, err)
 			}
 		}
 	}
