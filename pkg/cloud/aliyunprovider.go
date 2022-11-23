@@ -526,6 +526,10 @@ func (alibaba *Alibaba) GetDisks() ([]byte, error) {
 	return nil, nil
 }
 
+func (alibaba *Alibaba) GetOrphanedResources() ([]OrphanedResource, error) {
+	return nil, nil
+}
+
 // Will look at this in Next PR if needed
 func (alibaba *Alibaba) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
 	return nil, nil
