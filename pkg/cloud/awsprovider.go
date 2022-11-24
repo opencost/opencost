@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -19,7 +20,7 @@ import (
 
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/errors"
+	errs "github.com/opencost/opencost/pkg/errors"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/fileutil"
@@ -855,7 +856,7 @@ func (aws *AWS) DownloadPricingData() error {
 			log.Errorf("Failed to lookup reserved instance data: %s", err.Error())
 		} else { // If we make one successful run, check on new reservation data every hour
 			go func() {
-				defer errors.HandlePanic()
+				defer errs.HandlePanic()
 				aws.RIDataRunning = true
 
 				for {
@@ -875,7 +876,7 @@ func (aws *AWS) DownloadPricingData() error {
 			log.Errorf("Failed to lookup savings plan data: %s", err.Error())
 		} else {
 			go func() {
-				defer errors.HandlePanic()
+				defer errs.HandlePanic()
 				aws.SavingsPlanDataRunning = true
 				for {
 					log.Infof("Savings Plan watcher running... next update in 1h")
@@ -1052,7 +1053,7 @@ func (aws *AWS) DownloadPricingData() error {
 		aws.SpotRefreshRunning = true
 
 		go func() {
-			defer errors.HandlePanic()
+			defer errs.HandlePanic()
 
 			for {
 				log.Infof("Spot Pricing Refresh scheduled in %.2f minutes.", SpotRefreshDuration.Minutes())
@@ -1463,7 +1464,7 @@ func (aws *AWS) GetAddresses() ([]byte, error) {
 		// respective channels
 		go func(region string) {
 			defer wg.Done()
-			defer errors.HandlePanic()
+			defer errs.HandlePanic()
 
 			// Query for first page of volume results
 			resp, err := aws.getAddressesForRegion(context.TODO(), region)
@@ -1477,7 +1478,7 @@ func (aws *AWS) GetAddresses() ([]byte, error) {
 
 	// Close the result channels after everything has been sent
 	go func() {
-		defer errors.HandlePanic()
+		defer errs.HandlePanic()
 
 		wg.Wait()
 		close(errorCh)
@@ -1546,7 +1547,7 @@ func (aws *AWS) GetDisks() ([]byte, error) {
 		// respective channels
 		go func(region string) {
 			defer wg.Done()
-			defer errors.HandlePanic()
+			defer errs.HandlePanic()
 
 			// Query for first page of volume results
 			resp, err := aws.getDisksForRegion(context.TODO(), region, 1000, nil)
@@ -1571,7 +1572,7 @@ func (aws *AWS) GetDisks() ([]byte, error) {
 
 	// Close the result channels after everything has been sent
 	go func() {
-		defer errors.HandlePanic()
+		defer errs.HandlePanic()
 
 		wg.Wait()
 		close(errorCh)
@@ -1606,7 +1607,7 @@ func (aws *AWS) GetDisks() ([]byte, error) {
 }
 
 func (*AWS) GetOrphanedResources() ([]OrphanedResource, error) {
-	return nil, nil
+	return nil, errors.New("not implemented")
 }
 
 // QueryAthenaPaginated executes athena query and processes results.

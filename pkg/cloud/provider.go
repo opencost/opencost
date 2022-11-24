@@ -108,9 +108,9 @@ type OrphanedResource struct {
 	Kind        string            `json:"resourceKind"`
 	Region      string            `json:"region"`
 	Description map[string]string `json:"description"`
-	Size        *int32            `json:"diskSizeInGB, omitempty"`
-	Address     string            `json:"ipAddress, omitempty"`
-	MonthlyCost float64           `json:"monthlyCost"`
+	Size        *int32            `json:"diskSizeInGB,omitempty"`
+	Address     string            `json:"ipAddress,omitempty"`
+	MonthlyCost *float64          `json:"monthlyCost"`
 }
 
 // PV is the interface by which the provider and cost model communicate PV prices.

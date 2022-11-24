@@ -41,6 +41,8 @@ const (
 	defaultSpotLabel                 = "kubernetes.azure.com/scalesetpriority"
 	defaultSpotLabelValue            = "spot"
 	AzureStorageUpdateType           = "AzureStorage"
+
+	hoursPerMonth = 730
 )
 
 var toTitle = cases.Title(language.Und, cases.NoLower)
@@ -1171,7 +1173,7 @@ func (*Azure) GetAddresses() ([]byte, error) {
 }
 
 func (az *Azure) GetDisks() ([]byte, error) {
-	disks, err := az.authAndGetDisks()
+	disks, err := az.getDisks()
 	if err != nil {
 		return nil, err
 	}
@@ -1179,11 +1181,7 @@ func (az *Azure) GetDisks() ([]byte, error) {
 	return json.Marshal(disks)
 }
 
-func (az *Azure) authAndGetDisks() ([]*compute.Disk, error) {
-	//TODO: do I need this, probably not
-	az.DownloadPricingDataLock.Lock()
-	defer az.DownloadPricingDataLock.Unlock()
-
+func (az *Azure) getDisks() ([]*compute.Disk, error) {
 	config, err := az.GetConfig()
 	if err != nil {
 		return nil, err
@@ -1224,9 +1222,6 @@ func (az *Azure) authAndGetDisks() ([]*compute.Disk, error) {
 	}
 	client := compute.NewDisksClient(config.AzureSubscriptionID)
 	client.Authorizer = authorizer
-	if err != nil {
-		return nil, fmt.Errorf("failed to create client: %v", err)
-	}
 
 	ctx := context.TODO()
 
@@ -1257,8 +1252,13 @@ func isDiskOrphaned(disk *compute.Disk) bool {
 }
 
 func (az *Azure) GetOrphanedResources() ([]OrphanedResource, error) {
+	disks, err := az.getDisks()
+	if err != nil {
+		return nil, err
+	}
 
-	disks, err := az.authAndGetDisks()
+	//! running this is very slow, there is probably a better way to get costs
+	err = az.DownloadPricingData()
 	if err != nil {
 		return nil, err
 	}
@@ -1267,6 +1267,11 @@ func (az *Azure) GetOrphanedResources() ([]OrphanedResource, error) {
 
 	for _, d := range disks {
 		if isDiskOrphaned(d) {
+			cost, err := az.findCostForDisk(d)
+			if err != nil {
+				return nil, fmt.Errorf("error finding cost: %s", err)
+			}
+
 			or := OrphanedResource{
 				Kind:   "disk",
 				Region: *d.Location,
@@ -1275,13 +1280,34 @@ func (az *Azure) GetOrphanedResources() ([]OrphanedResource, error) {
 					"time created": d.TimeCreated.String(),
 				},
 				Size:        d.DiskSizeGB,
-				MonthlyCost: 5.00, //!not implemented
+				MonthlyCost: cost,
 			}
 			orphanedResources = append(orphanedResources, or)
 		}
 	}
 
 	return orphanedResources, nil
+}
+
+func (az *Azure) findCostForDisk(d *compute.Disk) (*float64, error) {
+	storageClass := string(d.Sku.Name)
+	if strings.EqualFold(storageClass, "Premium_LRS") {
+		storageClass = AzureDiskPremiumSSDStorageClass
+	} else if strings.EqualFold(storageClass, "StandardSSD_LRS") {
+		storageClass = AzureDiskStandardSSDStorageClass
+	} else if strings.EqualFold(storageClass, "Standard_LRS") {
+		storageClass = AzureDiskStandardStorageClass
+	}
+
+	key := *d.Location + "," + storageClass
+
+	diskCost, err := strconv.ParseFloat(az.Pricing[key].PV.Cost, 64)
+	if err != nil {
+		return nil, fmt.Errorf("error converting to float: %s", err)
+	}
+	cost := diskCost * hoursPerMonth * float64(*d.DiskSizeGB)
+
+	return &cost, nil
 }
 
 func (az *Azure) ClusterInfo() (map[string]string, error) {

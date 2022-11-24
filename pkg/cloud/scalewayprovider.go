@@ -1,6 +1,7 @@
 package cloud
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -251,7 +252,7 @@ func (*Scaleway) GetDisks() ([]byte, error) {
 }
 
 func (*Scaleway) GetOrphanedResources() ([]OrphanedResource, error) {
-	return nil, nil
+	return nil, errors.New("not implemented")
 }
 
 func (scw *Scaleway) ClusterInfo() (map[string]string, error) {
