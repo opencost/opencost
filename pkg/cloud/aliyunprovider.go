@@ -52,6 +52,8 @@ const (
 	ALIBABA_PV_NAS_TYPE                        = "NAS"
 	ALIBABA_PV_OSS_TYPE                        = "OSS"
 	ALIBABA_DEFAULT_DATADISK_SIZE              = "2000"
+	ALIBABA_DISK_TOPOLOGY_REGION_LABEL         = "topology.diskplugin.csi.alibabacloud.com/region"
+	ALIBABA_DISK_TOPOLOGY_ZONE_LABEL           = "topology.diskplugin.csi.alibabacloud.com/zone"
 )
 
 var (
@@ -392,10 +394,12 @@ func (alibaba *Alibaba) DownloadPricingData() error {
 	pvList := alibaba.Clientset.GetAllPersistentVolumes()
 
 	for _, pv := range pvList {
+		pvRegion := determinePVRegion(pv)
+		if pvRegion == "" {
+			pvRegion = alibaba.clusterRegion
+		}
 		pricingObj := &AlibabaPricing{}
-		// Note for PR: Region ID defaulted to first occurance of node region for now, need to know the implication here!
-		// Can Pvs be in seperate Region than the Cluster? Is there ever a Multi Region k8s cluster?
-		slimK8sDisk := generateSlimK8sDiskFromV1PV(pv, alibaba.clusterRegion)
+		slimK8sDisk := generateSlimK8sDiskFromV1PV(pv, pvRegion)
 		lookupKey, err = determineKeyForPricing(slimK8sDisk)
 		if _, ok := alibaba.Pricing[lookupKey]; ok {
 			log.Debugf("Pricing information for pv with same features %s already exists hence skipping", lookupKey)
@@ -446,7 +450,7 @@ func (alibaba *Alibaba) NodePricing(key Key) (*Node, error) {
 	return returnNode, nil
 }
 
-// PVPricing gives a pricing information of a specific PV gien by PVkey
+// PVPricing gives a pricing information of a specific PV given by PVkey
 func (alibaba *Alibaba) PVPricing(pvk PVKey) (*PV, error) {
 	alibaba.DownloadPricingDataLock.RLock()
 	defer alibaba.DownloadPricingDataLock.RUnlock()
@@ -928,7 +932,9 @@ func generateSlimK8sNodeFromV1Node(node *v1.Node) *SlimK8sNode {
 // getNumericalValueFromResourceQuantity returns the numericalValue of the resourceQuantity
 // An example is: 20Gi returns to 20. If any error occurs it returns the default value used in describePrice API which is 2000.
 func getNumericalValueFromResourceQuantity(quantity string) (value string) {
+	// defaulting when any panic or empty string occurs.
 	defer func() {
+		log.Debugf("unable to determine the size of the PV so defaulting the size to %s", ALIBABA_DEFAULT_DATADISK_SIZE)
 		if err := recover(); err != nil {
 			value = ALIBABA_DEFAULT_DATADISK_SIZE
 		}
@@ -982,4 +988,63 @@ func generateSlimK8sDiskFromV1PV(pv *v1.PersistentVolume, regionID string) *Slim
 	}
 
 	return NewSlimK8sDisk(diskType, regionID, priceUnit, diskCategory, performanceLevel, providerID, pv.Spec.StorageClassName, sizeInGiB)
+}
+
+// determinePVRegion determines associated region for a particular PV based on the following priority, which can be changed and any other path to determine region can be added!
+// if topology.diskplugin.csi.alibabacloud.com/region label/annotation is passed during PV creation return that as the PV region.
+// if topology.diskplugin.csi.alibabacloud.com/zone label/annotation is passed during PV creation determine the region based on this pv label.
+// if neither of the above label/annotation is present check node affinity for the zone affinity and determine the region based on this zone.
+// if nether of the above yields a region , return empty string to default it to cluster region.
+func determinePVRegion(pv *v1.PersistentVolume) string {
+	// if "topology.diskplugin.csi.alibabacloud.com/region" is present as a label or annotation return that as the PV region
+	if val, ok := pv.Labels[ALIBABA_DISK_TOPOLOGY_REGION_LABEL]; ok {
+		log.Debugf("determinePVRegion returned a region value of: %s through label: %s for PV name: %s", val, ALIBABA_DISK_TOPOLOGY_REGION_LABEL, pv.Name)
+		return val
+	}
+	if val, ok := pv.Annotations[ALIBABA_DISK_TOPOLOGY_REGION_LABEL]; ok {
+		log.Debugf("determinePVRegion returned a region value of: %s through annotation: %s for PV name: %s", val, ALIBABA_DISK_TOPOLOGY_REGION_LABEL, pv.Name)
+		return val
+	}
+
+	// if "topology.diskplugin.csi.alibabacloud.com/zone" is present as a label or annotation set it as the PV zone before looking at node affinity to determine the region PV belongs too
+	var pvZone string
+
+	if val, ok := pv.Labels[ALIBABA_DISK_TOPOLOGY_ZONE_LABEL]; ok {
+		log.Debugf("determinePVRegion will set zone value to: %s through label: %s for PV name: %s", val, ALIBABA_DISK_TOPOLOGY_ZONE_LABEL, pv.Name)
+		pvZone = val
+	}
+
+	if pvZone == "" {
+		if val, ok := pv.Annotations[ALIBABA_DISK_TOPOLOGY_ZONE_LABEL]; ok {
+			log.Debugf("determinePVRegion will set zone value to: %s through annotation: %s for PV name: %s", val, ALIBABA_DISK_TOPOLOGY_ZONE_LABEL, pv.Name)
+			pvZone = val
+		}
+	}
+
+	if pvZone == "" {
+		// zone and regionID labels are optional in Alibaba PV creation, while UI creation put's a zone associated with PV assign the region of
+		// pv based on this information if available. If pv is provision via yaml and the block is missing default it to clusterRegion.
+		if pv.Spec.NodeAffinity != nil {
+			nodeAffinity := pv.Spec.NodeAffinity
+			if nodeAffinity.Required != nil && nodeAffinity.Required.NodeSelectorTerms != nil {
+				for _, nodeSelectorTerm := range nodeAffinity.Required.NodeSelectorTerms {
+					matchExpression := nodeSelectorTerm.MatchExpressions
+					for _, nodeSelectorRequirement := range matchExpression {
+						if nodeSelectorRequirement.Key == ALIBABA_DISK_TOPOLOGY_ZONE_LABEL {
+							log.Debugf("determinePVRegion will set zone value to: %s through node affinity label: %s for PV name: %s", nodeSelectorRequirement.Values[0], ALIBABA_DISK_TOPOLOGY_ZONE_LABEL, pv.Name)
+							pvZone = nodeSelectorRequirement.Values[0]
+						}
+					}
+				}
+			}
+		}
+	}
+
+	for _, region := range alibabaRegions {
+		if strings.Contains(pvZone, region) {
+			log.Debugf("determinePVRegion determined region of %s through zone affiliation of the PV %s\n", region, pvZone)
+			return region
+		}
+	}
+	return ""
 }

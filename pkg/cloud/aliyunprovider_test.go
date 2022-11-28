@@ -512,3 +512,82 @@ func TestGetNumericalValueFromResourceQuantity(t *testing.T) {
 		})
 	}
 }
+
+func TestDeterminePVRegion(t *testing.T) {
+	genericNodeAffinityTestStruct := v1.NodeSelectorTerm{
+		MatchExpressions: []v1.NodeSelectorRequirement{
+			{
+				Key:      "topology.diskplugin.csi.alibabacloud.com/zone",
+				Operator: v1.NodeSelectorOpIn,
+				Values:   []string{"us-east-1a"},
+			},
+		},
+		MatchFields: []v1.NodeSelectorRequirement{},
+	}
+
+	// testPV1 contains the Label with region information as well as node affinity in spec
+	testPV1 := &v1.PersistentVolume{}
+	testPV1.Name = "testPV1"
+	testPV1.Labels = make(map[string]string)
+	testPV1.Labels[ALIBABA_DISK_TOPOLOGY_REGION_LABEL] = "us-east-1"
+	testPV1.Spec.NodeAffinity = &v1.VolumeNodeAffinity{
+		Required: &v1.NodeSelector{
+			NodeSelectorTerms: []v1.NodeSelectorTerm{genericNodeAffinityTestStruct},
+		},
+	}
+
+	// testPV2 contains the only zone label
+	testPV2 := &v1.PersistentVolume{}
+	testPV2.Name = "testPV2"
+	testPV2.Labels = make(map[string]string)
+	testPV2.Labels[ALIBABA_DISK_TOPOLOGY_ZONE_LABEL] = "us-east-1a"
+
+	// testPV3 contains only node affinity in spec
+	testPV3 := &v1.PersistentVolume{}
+	testPV3.Name = "testPV3"
+	testPV3.Spec.NodeAffinity = &v1.VolumeNodeAffinity{
+		Required: &v1.NodeSelector{
+			NodeSelectorTerms: []v1.NodeSelectorTerm{genericNodeAffinityTestStruct},
+		},
+	}
+
+	// testPV4 contains no label/annotation or any node affinity
+	testPV4 := &v1.PersistentVolume{}
+	testPV4.Name = "testPV4"
+
+	cases := []struct {
+		name           string
+		inputPV        *v1.PersistentVolume
+		expectedRegion string
+	}{
+		{
+			name:           "When Region label topology.diskplugin.csi.alibabacloud.com/region is present along with node affinity details",
+			inputPV:        testPV1,
+			expectedRegion: "us-east-1",
+		},
+		{
+			name:           "When zone label topology.diskplugin.csi.alibabacloud.com/zone is present function has to determine region",
+			inputPV:        testPV2,
+			expectedRegion: "us-east-1",
+		},
+		{
+			name:           "When only node affinity detail is present function has to determine the region",
+			inputPV:        testPV3,
+			expectedRegion: "us-east-1",
+		},
+		{
+			name:           "When no region/zone information is present function returns empty to default to cluster region",
+			inputPV:        testPV4,
+			expectedRegion: "",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			returnRegion := determinePVRegion(c.inputPV)
+			if c.expectedRegion != returnRegion {
+				t.Fatalf("Case name %s: determinePVRegion recieved region :%s but expected region: %s", c.name, returnRegion, c.expectedRegion)
+			}
+		})
+	}
+
+}
