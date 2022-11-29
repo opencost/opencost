@@ -1257,19 +1257,13 @@ func (az *Azure) GetOrphanedResources() ([]OrphanedResource, error) {
 		return nil, err
 	}
 
-	//! running this is very slow, there is probably a better way to get costs
-	err = az.DownloadPricingData()
-	if err != nil {
-		return nil, err
-	}
-
 	var orphanedResources []OrphanedResource
 
 	for _, d := range disks {
 		if isDiskOrphaned(d) {
 			cost, err := az.findCostForDisk(d)
 			if err != nil {
-				return nil, fmt.Errorf("error finding cost: %s", err)
+				return nil, err
 			}
 
 			or := OrphanedResource{
