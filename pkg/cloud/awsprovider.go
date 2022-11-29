@@ -7,8 +7,8 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -612,6 +612,10 @@ type awsKey struct {
 	ProviderID     string
 }
 
+func (k *awsKey) GPUCount() int {
+	return 0
+}
+
 func (k *awsKey) GPUType() string {
 	return ""
 }
@@ -761,6 +765,10 @@ func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, e
 	}
 
 	pricingURL += "index.json"
+
+	if env.GetAWSPricingURL() != "" { // Allow override of pricing URL
+		pricingURL = env.GetAWSPricingURL()
+	}
 
 	log.Infof("starting download of \"%s\", which is quite large ...", pricingURL)
 	resp, err := http.Get(pricingURL)
@@ -1414,7 +1422,7 @@ func (aws *AWS) loadAWSAuthSecret(force bool) (*AWSAccessKey, error) {
 		return nil, fmt.Errorf("Failed to locate service account file: %s", authSecretPath)
 	}
 
-	result, err := ioutil.ReadFile(authSecretPath)
+	result, err := os.ReadFile(authSecretPath)
 	if err != nil {
 		return nil, err
 	}

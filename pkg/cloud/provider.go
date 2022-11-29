@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -21,6 +22,7 @@ import (
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util/httputil"
 	"github.com/opencost/opencost/pkg/util/watcher"
 
 	v1 "k8s.io/api/core/v1"
@@ -118,7 +120,8 @@ type PV struct {
 type Key interface {
 	ID() string       // ID represents an exact match
 	Features() string // Features are a comma separated string of node metadata that could match pricing
-	GPUType() string  // GPUType returns "" if no GPU exists, but the name of the GPU otherwise
+	GPUType() string  // GPUType returns "" if no GPU exists or GPUs, but the name of the GPU otherwise
+	GPUCount() int    // GPUCount returns 0 if no GPU exists or GPUs, but the number of attached GPUs otherwise
 }
 
 type PVKey interface {
@@ -158,6 +161,8 @@ type CustomPricing struct {
 	GpuLabelValue                string `json:"gpuLabelValue,omitempty"`
 	ServiceKeyName               string `json:"awsServiceKeyName,omitempty"`
 	ServiceKeySecret             string `json:"awsServiceKeySecret,omitempty"`
+	AlibabaServiceKeyName        string `json:"alibabaServiceKeyName,omitempty"`
+	AlibabaServiceKeySecret      string `json:"alibabaServiceKeySecret,omitempty"`
 	SpotDataRegion               string `json:"awsSpotDataRegion,omitempty"`
 	SpotDataBucket               string `json:"awsSpotDataBucket,omitempty"`
 	SpotDataPrefix               string `json:"awsSpotDataPrefix,omitempty"`
@@ -463,6 +468,9 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			Config:           NewProviderConfig(config, cp.configFileName),
 			clusterRegion:    cp.region,
 			clusterProjectId: cp.projectID,
+			metadataClient: metadata.NewClient(&http.Client{
+				Transport: httputil.NewUserAgentTransport("kubecost", http.DefaultTransport),
+			}),
 		}, nil
 	case kubecost.AWSProvider:
 		log.Info("Found ProviderID starting with \"aws\", using AWS Provider")
@@ -476,6 +484,15 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 	case kubecost.AzureProvider:
 		log.Info("Found ProviderID starting with \"azure\", using Azure Provider")
 		return &Azure{
+			Clientset:            cache,
+			Config:               NewProviderConfig(config, cp.configFileName),
+			clusterRegion:        cp.region,
+			clusterAccountId:     cp.accountID,
+			serviceAccountChecks: NewServiceAccountChecks(),
+		}, nil
+	case kubecost.AlibabaProvider:
+		log.Info("Found ProviderID starting with \"alibaba\", using Alibaba Cloud Provider")
+		return &Alibaba{
 			Clientset:            cache,
 			Config:               NewProviderConfig(config, cp.configFileName),
 			clusterRegion:        cp.region,
@@ -530,6 +547,9 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 	} else if strings.HasPrefix(providerID, "scaleway") { // the scaleway provider ID looks like scaleway://instance/<instance_id>
 		cp.provider = kubecost.ScalewayProvider
 		cp.configFileName = "scaleway.json"
+	} else if strings.Contains(node.Status.NodeInfo.KubeletVersion, "aliyun") { // provider ID is not prefix with any distinct keyword like other providers
+		cp.provider = kubecost.AlibabaProvider
+		cp.configFileName = "alibaba.json"
 	}
 	if env.IsUseCSVProvider() {
 		cp.provider = kubecost.CSVProvider

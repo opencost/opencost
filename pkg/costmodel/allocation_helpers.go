@@ -1795,7 +1795,9 @@ func buildPodPVCMap(podPVCMap map[podKey][]*pvc, pvMap map[pvKey]*pv, pvcMap map
 
 			if pod, ok := podMap[key]; !ok || len(pod.Allocations) <= 0 {
 				log.DedupedWarningf(10, "CostModel.ComputeAllocation: pvc %s for missing pod %s", pvcKey, key)
+				continue
 			}
+
 			pvc.Mounted = true
 
 			podPVCMap[key] = append(podPVCMap[key], pvc)
@@ -1860,7 +1862,8 @@ func applyPVCsToPods(window kubecost.Window, podMap map[podKey]*pod, podPVCMap m
 			// If pod does not exist or the pod does not have any allocations
 			// get unmounted pod for cluster
 			if !ok2 || len(pod.Allocations) == 0 {
-				pod = getUnmountedPodForCluster(window, podMap, pvc.Cluster)
+				// Get namespace unmounted pod, as pvc will have a namespace
+				pod = getUnmountedPodForNamespace(window, podMap, pvc.Cluster, pvc.Namespace)
 			}
 			for _, alloc := range pod.Allocations {
 				s, e := pod.Start, pod.End
@@ -1910,6 +1913,8 @@ func applyUnmountedPVs(window kubecost.Window, podMap map[podKey]*pod, pvMap map
 		}
 
 		if !mounted {
+
+			// a pv without a pvc will not have a namespace, so get the cluster unmounted pod
 			pod := getUnmountedPodForCluster(window, podMap, pv.Cluster)
 
 			// Calculate pv Cost
@@ -1936,7 +1941,9 @@ func applyUnmountedPVs(window kubecost.Window, podMap map[podKey]*pod, pvMap map
 func applyUnmountedPVCs(window kubecost.Window, podMap map[podKey]*pod, pvcMap map[pvcKey]*pvc) {
 	for _, pvc := range pvcMap {
 		if !pvc.Mounted && pvc.Volume != nil {
-			pod := getUnmountedPodForCluster(window, podMap, pvc.Cluster)
+
+			// Get namespace unmounted pod, as pvc will have a namespace
+			pod := getUnmountedPodForNamespace(window, podMap, pvc.Cluster, pvc.Namespace)
 
 			// Calculate pv Cost
 
@@ -1972,6 +1979,37 @@ func getUnmountedPodForCluster(window kubecost.Window, podMap map[podKey]*pod, c
 	node := ""
 
 	thisPodKey := getUnmountedPodKey(cluster)
+	// Initialize pod and container if they do not already exist
+	thisPod, ok := podMap[thisPodKey]
+	if !ok {
+		thisPod = &pod{
+			Window:      window.Clone(),
+			Start:       *window.Start(),
+			End:         *window.End(),
+			Key:         thisPodKey,
+			Allocations: map[string]*kubecost.Allocation{},
+		}
+
+		thisPod.appendContainer(container)
+		thisPod.Allocations[container].Properties.Cluster = cluster
+		thisPod.Allocations[container].Properties.Node = node
+		thisPod.Allocations[container].Properties.Namespace = namespace
+		thisPod.Allocations[container].Properties.Pod = podName
+		thisPod.Allocations[container].Properties.Container = container
+
+		podMap[thisPodKey] = thisPod
+	}
+	return thisPod
+}
+
+// getUnmountedPodForNamespace is as getUnmountedPodForCluster, but keys allocation property pod/namespace field off namespace
+// This creates or adds allocations to an unmounted pod in the specified namespace, rather than in __unmounted__
+func getUnmountedPodForNamespace(window kubecost.Window, podMap map[podKey]*pod, cluster string, namespace string) *pod {
+	container := kubecost.UnmountedSuffix
+	podName := fmt.Sprintf("%s-unmounted-pvcs", namespace)
+	node := ""
+
+	thisPodKey := newPodKey(cluster, namespace, podName)
 	// Initialize pod and container if they do not already exist
 	thisPod, ok := podMap[thisPodKey]
 	if !ok {

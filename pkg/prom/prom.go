@@ -16,11 +16,14 @@ import (
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util/fileutil"
 	"github.com/opencost/opencost/pkg/util/httputil"
+	"github.com/opencost/opencost/pkg/version"
 
 	golog "log"
 
 	prometheus "github.com/prometheus/client_golang/api"
 )
+
+var UserAgent = fmt.Sprintf("Opencost/%s", version.Version)
 
 //--------------------------------------------------------------------------
 //  QueryParamsDecorator
@@ -355,19 +358,20 @@ type PrometheusClientConfig struct {
 // NewPrometheusClient creates a new rate limited client which limits by outbound concurrent requests.
 func NewPrometheusClient(address string, config *PrometheusClientConfig) (prometheus.Client, error) {
 	// may be necessary for long prometheus queries
-	pc := prometheus.Config{
-		Address: address,
-		RoundTripper: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			DialContext: (&net.Dialer{
-				Timeout:   config.Timeout,
-				KeepAlive: config.KeepAlive,
-			}).DialContext,
-			TLSHandshakeTimeout: config.TLSHandshakeTimeout,
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: config.TLSInsecureSkipVerify,
-			},
+	rt := httputil.NewUserAgentTransport(UserAgent, &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   config.Timeout,
+			KeepAlive: config.KeepAlive,
+		}).DialContext,
+		TLSHandshakeTimeout: config.TLSHandshakeTimeout,
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: config.TLSInsecureSkipVerify,
 		},
+	})
+	pc := prometheus.Config{
+		Address:      address,
+		RoundTripper: rt,
 	}
 
 	client, err := prometheus.NewClient(pc)

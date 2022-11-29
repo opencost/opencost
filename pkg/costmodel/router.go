@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"os"
 	"path"
 	"reflect"
 	"regexp"
@@ -1251,7 +1252,7 @@ func logsFor(c kubernetes.Interface, namespace string, pod string, container str
 		return "", err
 	}
 
-	podLogs, err := ioutil.ReadAll(reader)
+	podLogs, err := io.ReadAll(reader)
 	if err != nil {
 		return "", err
 	}
@@ -1354,7 +1355,7 @@ func (a *Accesses) AddServiceKey(w http.ResponseWriter, r *http.Request, ps http
 
 	key := r.PostForm.Get("key")
 	k := []byte(key)
-	err := ioutil.WriteFile(path.Join(env.GetConfigPathWithDefault("/var/configs/"), "key.json"), k, 0644)
+	err := os.WriteFile(path.Join(env.GetConfigPathWithDefault("/var/configs/"), "key.json"), k, 0644)
 	if err != nil {
 		fmt.Fprintf(w, "Error writing service key: "+err.Error())
 	}

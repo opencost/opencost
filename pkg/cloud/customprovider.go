@@ -277,6 +277,10 @@ func (*CustomProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]s
 	}
 }
 
+func (k *customProviderKey) GPUCount() int {
+	return 0
+}
+
 func (cpk *customProviderKey) GPUType() string {
 	if t, ok := cpk.Labels[cpk.GPULabel]; ok {
 		return t

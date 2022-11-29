@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,6 +19,8 @@ import (
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/fileutil"
 	"github.com/opencost/opencost/pkg/util/json"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
 	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2016-06-01/subscriptions"
@@ -39,6 +41,8 @@ const (
 	defaultSpotLabelValue            = "spot"
 	AzureStorageUpdateType           = "AzureStorage"
 )
+
+var toTitle = cases.Title(language.Und, cases.NoLower)
 
 var (
 	regionCodeMappings = map[string]string{
@@ -271,7 +275,7 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 
 	pricingPayload := AzureRetailPricing{}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("Error getting response: %v", err)
 	}
@@ -355,7 +359,7 @@ type AzureRetailPricing struct {
 	Count              int                            `json:"Count"`
 }
 
-//AzureRetailPricingAttributes struct for unmarshalling Azure Retail pricing api JSON response
+// AzureRetailPricingAttributes struct for unmarshalling Azure Retail pricing api JSON response
 type AzureRetailPricingAttributes struct {
 	CurrencyCode         string     `json:"currencyCode"`
 	TierMinimumUnits     float32    `json:"tierMinimumUnits"`
@@ -413,6 +417,10 @@ func (k *azureKey) Features() string {
 	instance, _ := util.GetInstanceType(k.Labels)
 	usageType := "ondemand"
 	return fmt.Sprintf("%s,%s,%s", region, instance, usageType)
+}
+
+func (k *azureKey) GPUCount() int {
+	return 0
 }
 
 // GPUType returns value of GPULabel if present
@@ -577,7 +585,7 @@ func (az *Azure) GetAzureStorageConfig(forceReload bool, cp *CustomPricing) (*Az
 			asc.SubscriptionId = defaultSubscriptionID
 		}
 		// check for required fields
-		if asc.AccessKey != "" && asc.AccountName != "" && asc.ContainerName != "" && asc.SubscriptionId == "" {
+		if asc.AccessKey != "" && asc.AccountName != "" && asc.ContainerName != "" && asc.SubscriptionId != "" {
 			az.serviceAccountChecks.set("hasStorage", &ServiceAccountCheck{
 				Message: "Azure Storage Config exists",
 				Status:  true,
@@ -609,7 +617,7 @@ func (az *Azure) loadAzureAuthSecret(force bool) (*AzureServiceKey, error) {
 		return nil, fmt.Errorf("Failed to locate service account file: %s", authSecretPath)
 	}
 
-	result, err := ioutil.ReadFile(authSecretPath)
+	result, err := os.ReadFile(authSecretPath)
 	if err != nil {
 		return nil, err
 	}
@@ -638,7 +646,7 @@ func (az *Azure) loadAzureStorageConfig(force bool) (*AzureStorageConfig, error)
 		return nil, fmt.Errorf("Failed to locate azure storage config file: %s", storageConfigSecretPath)
 	}
 
-	result, err := ioutil.ReadFile(storageConfigSecretPath)
+	result, err := os.ReadFile(storageConfigSecretPath)
 	if err != nil {
 		return nil, err
 	}
@@ -1196,7 +1204,7 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 			asc := &AzureStorageConfig{}
 			err := json.NewDecoder(r).Decode(&asc)
 			if err != nil {
-				return err
+				return fmt.Errorf("error decoding AzureStorageConfig: %s", err)
 			}
 
 			c.AzureStorageSubscriptionID = asc.SubscriptionId
@@ -1208,35 +1216,46 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 			c.AzureContainerPath = asc.ContainerPath
 			c.AzureCloud = asc.AzureCloud
 		} else {
-			defer az.DownloadPricingData()
+			// This will block if not in a goroutine. It calls GetConfig(), which
+			// in turn calls GetCustomPricingData, which acquires the same lock
+			// that is acquired by az.Config.Update, which is the function to
+			// which this function gets passed, and subsequently called. Booo.
+			defer func() {
+				go az.DownloadPricingData()
+			}()
+
 			a := make(map[string]interface{})
 			err := json.NewDecoder(r).Decode(&a)
 			if err != nil {
-				return err
+				return fmt.Errorf("error decoding AzureStorageConfig: %s", err)
 			}
+
 			for k, v := range a {
-				kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+				// Just so we consistently supply / receive the same values, uppercase the first letter.
+				kUpper := toTitle.String(k)
 				vstr, ok := v.(string)
 				if ok {
 					err := SetCustomPricingField(c, kUpper, vstr)
 					if err != nil {
-						return err
+						return fmt.Errorf("error setting custom pricing field on AzureStorageConfig: %s", err)
 					}
 				} else {
 					return fmt.Errorf("type error while updating config for %s", kUpper)
 				}
 			}
 		}
+
 		if env.IsRemoteEnabled() {
 			err := UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
 			if err != nil {
-				return err
+				return fmt.Errorf("error updating cluster metadata: %s", err)
 			}
 		}
 
 		return nil
 	})
 }
+
 func (az *Azure) GetConfig() (*CustomPricing, error) {
 	c, err := az.Config.GetCustomPricingData()
 	if err != nil {
