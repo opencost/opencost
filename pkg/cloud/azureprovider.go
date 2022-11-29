@@ -19,6 +19,7 @@ import (
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/fileutil"
 	"github.com/opencost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
@@ -41,8 +42,6 @@ const (
 	defaultSpotLabel                 = "kubernetes.azure.com/scalesetpriority"
 	defaultSpotLabelValue            = "spot"
 	AzureStorageUpdateType           = "AzureStorage"
-
-	hoursPerMonth = 730
 )
 
 var toTitle = cases.Title(language.Und, cases.NoLower)
@@ -524,7 +523,7 @@ func (ask *AzureServiceKey) IsValid() bool {
 }
 
 // Loads the azure authentication via configuration or a secret set at install time.
-func (az *Azure) getAzureAuth(forceReload bool, cp *CustomPricing) (subscriptionID, clientID, clientSecret, tenantID string) {
+func (az *Azure) getAzureRateCardAuth(forceReload bool, cp *CustomPricing) (subscriptionID, clientID, clientSecret, tenantID string) {
 	// 1. Check for secret (secret values will always be used if they are present)
 	s, _ := az.loadAzureAuthSecret(forceReload)
 	if s != nil && s.IsValid() {
@@ -781,7 +780,7 @@ func (az *Azure) DownloadPricingData() error {
 	}
 
 	// Load the service provider keys
-	subscriptionID, clientID, clientSecret, tenantID := az.getAzureAuth(false, config)
+	subscriptionID, clientID, clientSecret, tenantID := az.getAzureRateCardAuth(false, config)
 	config.AzureSubscriptionID = subscriptionID
 	config.AzureClientID = clientID
 	config.AzureClientSecret = clientSecret
@@ -1188,7 +1187,7 @@ func (az *Azure) getDisks() ([]*compute.Disk, error) {
 	}
 
 	// Load the service provider keys
-	subscriptionID, clientID, clientSecret, tenantID := az.getAzureAuth(false, config)
+	subscriptionID, clientID, clientSecret, tenantID := az.getAzureRateCardAuth(false, config)
 	config.AzureSubscriptionID = subscriptionID
 	config.AzureClientID = clientID
 	config.AzureClientSecret = clientSecret
@@ -1274,7 +1273,7 @@ func (az *Azure) GetOrphanedResources() ([]OrphanedResource, error) {
 					"time created": d.TimeCreated.String(),
 				},
 				Size:        d.DiskSizeGB,
-				MonthlyCost: cost,
+				MonthlyCost: &cost,
 			}
 			orphanedResources = append(orphanedResources, or)
 		}
@@ -1283,7 +1282,10 @@ func (az *Azure) GetOrphanedResources() ([]OrphanedResource, error) {
 	return orphanedResources, nil
 }
 
-func (az *Azure) findCostForDisk(d *compute.Disk) (*float64, error) {
+func (az *Azure) findCostForDisk(d *compute.Disk) (float64, error) {
+	if d == nil {
+		return 0.0, fmt.Errorf("disk is empty")
+	}
 	storageClass := string(d.Sku.Name)
 	if strings.EqualFold(storageClass, "Premium_LRS") {
 		storageClass = AzureDiskPremiumSSDStorageClass
@@ -1295,13 +1297,13 @@ func (az *Azure) findCostForDisk(d *compute.Disk) (*float64, error) {
 
 	key := *d.Location + "," + storageClass
 
-	diskCost, err := strconv.ParseFloat(az.Pricing[key].PV.Cost, 64)
+	diskPricePerGBHour, err := strconv.ParseFloat(az.Pricing[key].PV.Cost, 64)
 	if err != nil {
-		return nil, fmt.Errorf("error converting to float: %s", err)
+		return 0.0, fmt.Errorf("error converting to float: %s", err)
 	}
-	cost := diskCost * hoursPerMonth * float64(*d.DiskSizeGB)
+	cost := diskPricePerGBHour * timeutil.HoursPerMonth * float64(*d.DiskSizeGB)
 
-	return &cost, nil
+	return cost, nil
 }
 
 func (az *Azure) ClusterInfo() (map[string]string, error) {
