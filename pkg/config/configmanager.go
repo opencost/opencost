@@ -1,7 +1,7 @@
 package config
 
 import (
-	"io/ioutil"
+	"os"
 	"sync"
 
 	"github.com/opencost/opencost/pkg/log"
@@ -59,7 +59,7 @@ func NewConfigFileManager(opts *ConfigFileManagerOpts) *ConfigFileManager {
 
 	var configStore storage.Storage
 	if opts.IsBucketStorageEnabled() {
-		bucketConfig, err := ioutil.ReadFile(opts.BucketStoreConfig)
+		bucketConfig, err := os.ReadFile(opts.BucketStoreConfig)
 		if err != nil {
 			log.Warnf("Failed to initialize config bucket storage: %s", err)
 		} else {

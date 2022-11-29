@@ -17,6 +17,9 @@ const (
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
 	AWSPricingURL            = "AWS_PRICING_URL"
 
+	AlibabaAccessKeyIDEnvVar     = "ALIBABA_ACCESS_KEY_ID"
+	AlibabaAccessKeySecretEnvVar = "ALIBABA_SECRET_ACCESS_KEY"
+
 	KubecostNamespaceEnvVar        = "KUBECOST_NAMESPACE"
 	PodNameEnvVar                  = "POD_NAME"
 	ClusterIDEnvVar                = "CLUSTER_ID"
@@ -210,6 +213,18 @@ func GetAWSClusterID() string {
 // GetAWSPricingURL returns an optional alternative URL to fetch AWS pricing data from; for use in airgapped environments
 func GetAWSPricingURL() string {
 	return Get(AWSPricingURL, "")
+}
+
+// GetAlibabaAccessKeyID returns the environment variable value for AlibabaAccessKeyIDEnvVar which represents
+// the Alibaba access key for authentication
+func GetAlibabaAccessKeyID() string {
+	return Get(AlibabaAccessKeyIDEnvVar, "")
+}
+
+// GetAlibabaAccessKeySecret returns the environment variable value for AlibabaAccessKeySecretEnvVar which represents
+// the Alibaba access key secret for authentication
+func GetAlibabaAccessKeySecret() string {
+	return Get(AlibabaAccessKeySecretEnvVar, "")
 }
 
 // GetKubecostNamespace returns the environment variable value for KubecostNamespaceEnvVar which

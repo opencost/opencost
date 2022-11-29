@@ -3,7 +3,6 @@ package metrics
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"sync"
@@ -37,7 +36,7 @@ func GetMetricsConfig() (*MetricsConfig, error) {
 	metricsConfigLock.Lock()
 	defer metricsConfigLock.Unlock()
 	mc := &MetricsConfig{}
-	body, err := ioutil.ReadFile(metricsFilePath)
+	body, err := os.ReadFile(metricsFilePath)
 	if os.IsNotExist(err) {
 
 		return mc, nil
@@ -63,7 +62,7 @@ func UpdateMetricsConfig(mc *MetricsConfig) (*MetricsConfig, error) {
 		return nil, fmt.Errorf("error encoding metrics config struct: %s", err)
 	}
 
-	err = ioutil.WriteFile(metricsFilePath, mcb, 0644)
+	err = os.WriteFile(metricsFilePath, mcb, 0644)
 	if err != nil {
 		return nil, fmt.Errorf("error writing to metrics config file: %s", err)
 	}
