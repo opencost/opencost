@@ -3,7 +3,7 @@ package clusters
 import (
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/google/uuid"
@@ -97,7 +97,7 @@ func NewConfiguredClusterManager(storage ClusterStorage, config string) *Cluster
 		return clusterManager
 	}
 
-	data, err := ioutil.ReadFile(config)
+	data, err := os.ReadFile(config)
 	if err != nil {
 		return clusterManager
 	}
@@ -223,7 +223,7 @@ func fromSecret(secretName string) (string, error) {
 		return "", fmt.Errorf("Failed to locate secret: %s", file)
 	}
 
-	data, err := ioutil.ReadFile(file)
+	data, err := os.ReadFile(file)
 	if err != nil {
 		return "", fmt.Errorf("Failed to load secret: %s", file)
 	}

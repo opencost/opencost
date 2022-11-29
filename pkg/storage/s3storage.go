@@ -7,9 +7,10 @@ package storage
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -264,7 +265,7 @@ func NewS3StorageWith(config S3Config) (*S3Storage, error) {
 			}
 
 		case SSEC:
-			key, err := ioutil.ReadFile(config.SSEConfig.EncryptionKey)
+			key, err := os.ReadFile(config.SSEConfig.EncryptionKey)
 			if err != nil {
 				return nil, err
 			}
@@ -582,7 +583,7 @@ func (s3 *S3Storage) getRange(ctx context.Context, name string, off, length int6
 		return nil, errors.Wrap(err, "Read from S3 failed")
 	}
 
-	return ioutil.ReadAll(r)
+	return io.ReadAll(r)
 }
 
 // awsAuth retrieves credentials from the aws-sdk-go.
