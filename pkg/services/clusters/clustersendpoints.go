@@ -2,7 +2,7 @@ package clusters
 
 import (
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
@@ -50,7 +50,7 @@ func (cme *ClusterManagerHTTPService) GetAllClusters(w http.ResponseWriter, r *h
 func (cme *ClusterManagerHTTPService) PutCluster(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 
-	data, err := ioutil.ReadAll(r.Body)
+	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.Write(wrapData(nil, err))
 		return

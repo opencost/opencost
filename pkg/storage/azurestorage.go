@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -563,7 +562,7 @@ func (b *AzureStorage) getBlobReader(ctx context.Context, name string, offset, l
 		return nil, errors.Wrapf(err, "cannot download blob, address: %s", blobURL.BlobURL)
 	}
 
-	return ioutil.NopCloser(bytes.NewReader(destBuffer)), nil
+	return io.NopCloser(bytes.NewReader(destBuffer)), nil
 }
 
 func getAzureStorageCredentials(conf AzureConfig) (blob.Credential, error) {
