@@ -766,6 +766,10 @@ func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, e
 
 	pricingURL += "index.json"
 
+	if env.GetAWSPricingURL() != "" { // Allow override of pricing URL
+		pricingURL = env.GetAWSPricingURL()
+	}
+
 	log.Infof("starting download of \"%s\", which is quite large ...", pricingURL)
 	resp, err := http.Get(pricingURL)
 	if err != nil {
