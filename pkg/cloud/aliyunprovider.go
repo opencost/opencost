@@ -1,6 +1,7 @@
 package cloud
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -582,6 +583,10 @@ func (alibaba *Alibaba) GetAddresses() ([]byte, error) {
 // Will look at this in Next PR if needed
 func (alibaba *Alibaba) GetDisks() ([]byte, error) {
 	return nil, nil
+}
+
+func (alibaba *Alibaba) GetOrphanedResources() ([]OrphanedResource, error) {
+	return nil, errors.New("not implemented")
 }
 
 // Will look at this in Next PR if needed

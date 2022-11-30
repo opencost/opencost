@@ -1,6 +1,7 @@
 package cloud
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -118,6 +119,10 @@ func (*CustomProvider) GetAddresses() ([]byte, error) {
 
 func (*CustomProvider) GetDisks() ([]byte, error) {
 	return nil, nil
+}
+
+func (*CustomProvider) GetOrphanedResources() ([]OrphanedResource, error) {
+	return nil, errors.New("not implemented")
 }
 
 func (cp *CustomProvider) AllNodePricing() (interface{}, error) {

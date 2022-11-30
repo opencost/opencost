@@ -2,6 +2,7 @@ package cloud
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -380,6 +381,10 @@ func (gcp *GCP) GetDisks() ([]byte, error) {
 	}
 	return json.Marshal(res)
 
+}
+
+func (*GCP) GetOrphanedResources() ([]OrphanedResource, error) {
+	return nil, errors.New("not implemented")
 }
 
 // GCPPricing represents GCP pricing data for a SKU
