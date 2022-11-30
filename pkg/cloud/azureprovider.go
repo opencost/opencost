@@ -1269,8 +1269,8 @@ func (az *Azure) GetOrphanedResources() ([]OrphanedResource, error) {
 				Kind:   "disk",
 				Region: *d.Location,
 				Description: map[string]string{
-					"disk state":   string(d.DiskState),
-					"time created": d.TimeCreated.String(),
+					"diskState":   string(d.DiskState),
+					"timeCreated": d.TimeCreated.String(),
 				},
 				Size:        d.DiskSizeGB,
 				MonthlyCost: &cost,
