@@ -1,6 +1,7 @@
 package cloud
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -593,7 +594,10 @@ func (alibaba *Alibaba) GetDisks() ([]byte, error) {
 	return nil, nil
 }
 
-// Currently only supports when updateType is empty string
+func (alibaba *Alibaba) GetOrphanedResources() ([]OrphanedResource, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (alibaba *Alibaba) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
 	return alibaba.Config.Update(func(c *CustomPricing) error {
 		if updateType != "" {
