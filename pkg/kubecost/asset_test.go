@@ -786,7 +786,7 @@ func TestAssetSet_FindMatch(t *testing.T) {
 	// Assert success of a simple match of Type and ProviderID
 	as = GenerateMockAssetSet(startYesterday)
 	query = NewNode("", "", "gcp-node3", s, e, w)
-	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)})
+	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)}, nil)
 	if err != nil {
 		t.Fatalf("AssetSet.FindMatch: unexpected error: %s", err)
 	}
@@ -794,7 +794,7 @@ func TestAssetSet_FindMatch(t *testing.T) {
 	// Assert error of a simple non-match of Type and ProviderID
 	as = GenerateMockAssetSet(startYesterday)
 	query = NewNode("", "", "aws-node3", s, e, w)
-	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)})
+	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)}, nil)
 	if err == nil {
 		t.Fatalf("AssetSet.FindMatch: expected error (no match); found %s", match)
 	}
@@ -802,7 +802,7 @@ func TestAssetSet_FindMatch(t *testing.T) {
 	// Assert error of matching ProviderID, but not Type
 	as = GenerateMockAssetSet(startYesterday)
 	query = NewCloud(ComputeCategory, "gcp-node3", s, e, w)
-	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)})
+	match, err = as.FindMatch(query, []string{string(AssetTypeProp), string(AssetProviderIDProp)}, nil)
 	if err == nil {
 		t.Fatalf("AssetSet.FindMatch: expected error (no match); found %s", match)
 	}
@@ -833,8 +833,8 @@ func TestAssetSet_InsertMatchingWindow(t *testing.T) {
 	a2.Window = NewClosedWindow(a2WindowStart, a2WindowEnd)
 
 	as := NewAssetSet(setStart, setEnd)
-	as.Insert(a1)
-	as.Insert(a2)
+	as.Insert(a1, nil)
+	as.Insert(a2, nil)
 
 	if as.Length() != 2 {
 		t.Errorf("AS length got %d, expected %d", as.Length(), 2)
