@@ -852,7 +852,7 @@ func (aws *AWS) DownloadPricingData() error {
 		pvkeys[key.Features()] = key
 	}
 
-	// RIDataRunning establishes the existance of the goroutine. Since it's possible we
+	// RIDataRunning establishes the existence of the goroutine. Since it's possible we
 	// run multiple downloads, we don't want to create multiple go routines if one already exists
 	if !aws.RIDataRunning {
 		err = aws.GetReservationDataFromAthena() // Block until one run has completed.
