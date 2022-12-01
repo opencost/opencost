@@ -108,7 +108,7 @@ type AlibabaAccessKey struct {
 	SecretAccessKey string `json:"alibaba_secret_access_key"`
 }
 
-// Slim Version of k8s disk assigned to a node or PV, To be used if price adjustment need to happen with local disk information passed to describePrice.
+// Slim Version of k8s disk assigned to a node or PV.
 type SlimK8sDisk struct {
 	DiskType         string
 	RegionID         string
@@ -148,20 +148,19 @@ type SlimK8sNode struct {
 
 func NewSlimK8sNode(instanceType, regionID, priceUnit, memorySizeInKiB, osType, providerID, instanceTypeFamily string, isIOOptimized bool, systemDiskInfo *SlimK8sDisk) *SlimK8sNode {
 	return &SlimK8sNode{
-		InstanceType:    instanceType,
-		RegionID:        regionID,
-		PriceUnit:       priceUnit,
-		MemorySizeInKiB: memorySizeInKiB,
-		IsIoOptimized:   isIOOptimized,
-		OSType:          osType,
-		SystemDisk:      systemDiskInfo,
-		ProviderID:      providerID,
-
+		InstanceType:       instanceType,
+		RegionID:           regionID,
+		PriceUnit:          priceUnit,
+		MemorySizeInKiB:    memorySizeInKiB,
+		IsIoOptimized:      isIOOptimized,
+		OSType:             osType,
+		SystemDisk:         systemDiskInfo,
+		ProviderID:         providerID,
 		InstanceTypeFamily: instanceTypeFamily,
 	}
 }
 
-// AlibabaNodeAttributes represents metadata about the product pricing information used to map to a node.
+// AlibabaNodeAttributes represents metadata about the Node in it's pricing information.
 // Basic Attributes needed atleast to get the key, Some attributes from k8s Node response
 // be populated directly into *Node object.
 type AlibabaNodeAttributes struct {
@@ -173,19 +172,28 @@ type AlibabaNodeAttributes struct {
 	IsIoOptimized bool `json:"isIoOptimized"`
 	// OSType represents the OS installed in the Instance.
 	OSType string `json:"osType"`
+	// SystemDiskCategory represents the exact category of the system disk attached to the node.
+	SystemDiskCategory string `json:"systemDiskCategory"`
+	// SystemDiskSizeInGiB represents the size of the system disk attached to the node.
+	SystemDiskSizeInGiB string `json:"systemDiskSizeInGiB"`
+	// SystemDiskPerformanceLevel represents the performance level of the system disk attached to the node.
+	SystemDiskPerformanceLevel string `json:"systemPerformanceLevel"`
 }
 
 func NewAlibabaNodeAttributes(node *SlimK8sNode) *AlibabaNodeAttributes {
 	return &AlibabaNodeAttributes{
-		InstanceType:    node.InstanceType,
-		MemorySizeInKiB: node.MemorySizeInKiB,
-		IsIoOptimized:   node.IsIoOptimized,
-		OSType:          node.OSType,
+		InstanceType:               node.InstanceType,
+		MemorySizeInKiB:            node.MemorySizeInKiB,
+		IsIoOptimized:              node.IsIoOptimized,
+		OSType:                     node.OSType,
+		SystemDiskCategory:         node.SystemDisk.DiskCategory,
+		SystemDiskSizeInGiB:        node.SystemDisk.SizeInGiB,
+		SystemDiskPerformanceLevel: node.SystemDisk.PerformanceLevel,
 	}
 }
 
-// AlibabaPVAttributes represents metadata about the product pricing information used to map to a PV.
-// Basic Attributes needed atleast to get the keys.Some attributes from k8s PV response
+// AlibabaPVAttributes represents metadata the PV in it's pricing information.
+// Basic Attributes needed atleast to get the keys. Some attributes from k8s PV response
 // be populated directly into *PV object.
 type AlibabaPVAttributes struct {
 	// PVType can be Cloud Disk, NetWork Attached Storage(NAS) or Object Storage Service (OSS).
@@ -215,9 +223,9 @@ func NewAlibabaPVAttributes(disk *SlimK8sDisk) *AlibabaPVAttributes {
 }
 
 // Stage 1 support will be Pay-As-You-Go with HourlyPrice equal to TradePrice with PriceUnit as Hour
-// TO-DO: Subscription and Premptible support, need to find how to distinguish node into these categories]
-// TO-DO: Open question Subscription would be either Monthly or Yearly, Firstly Data retrieval/population
-// TO-DO:  need to be tested from describe price API, but how would you calculate hourly price, is it PRICE_YEARLY/HOURS_IN_THE_YEAR?
+// TO-DO: Subscription and Premptible support, Information can be gathered from describing instance for subscription type
+// and spotprice can be gather from DescribeSpotPriceHistory API.
+// TO-DO: how would you calculate hourly price for subscription type, is it PRICE_YEARLY/HOURS_IN_THE_YEAR|MONTH?
 type AlibabaPricingDetails struct {
 	// Represents hourly price for the given Alibaba cloud Product.
 	HourlyPrice float32 `json:"hourlyPrice"`
@@ -271,21 +279,18 @@ type Alibaba struct {
 	Config                  *ProviderConfig
 	*CustomProvider
 
-	// TO-DO: These needs to be decided if either exported or unexported.
+	// The following fields are unexported because of avoiding any leak of secrets of these keys.
+	// Alibaba Access key used specifically in signer interface used to sign API calls
 	serviceAccountChecks *ServiceAccountChecks
 	clusterAccountId     string
 	clusterRegion        string
-
-	// The following fields are unexported because of avoiding any leak of secrets of these keys.
-	// Alibaba Access key used specifically in signer interface used to sign API calls
-	accessKey *credentials.AccessKeyCredential
+	accessKey            *credentials.AccessKeyCredential
 	// Map of regionID to sdk.client to call API for that region
 	clients map[string]*sdk.Client
 }
 
 // GetAlibabaAccessKey return the Access Key used to interact with the Alibaba cloud, if not set it
 // set it first by looking at env variables else load it from secret files.
-// <IMPORTANT>Ask in PR what is the exact purpose of so many functions to set the key in AWS providers, am i missing something here!!!!!
 func (alibaba *Alibaba) GetAlibabaAccessKey() (*credentials.AccessKeyCredential, error) {
 	if alibaba.accessKeyisLoaded() {
 		return alibaba.accessKey, nil
@@ -296,7 +301,6 @@ func (alibaba *Alibaba) GetAlibabaAccessKey() (*credentials.AccessKeyCredential,
 		return nil, fmt.Errorf("error getting the default config for Alibaba Cloud provider: %w", err)
 	}
 
-	//Look for service key values in env if not present in config via helm chart once changes are done
 	if config.AlibabaServiceKeyName == "" {
 		config.AlibabaServiceKeyName = env.GetAlibabaAccessKeyID()
 	}
@@ -310,7 +314,6 @@ func (alibaba *Alibaba) GetAlibabaAccessKey() (*credentials.AccessKeyCredential,
 		if err != nil {
 			return nil, fmt.Errorf("unable to set the Alibaba Cloud key/secret from config file %w", err)
 		}
-		// set custom pricing keys too
 		config.AlibabaServiceKeyName = env.GetAlibabaAccessKeyID()
 		config.AlibabaServiceKeySecret = env.GetAlibabaAccessKeySecret()
 	}
@@ -324,7 +327,7 @@ func (alibaba *Alibaba) GetAlibabaAccessKey() (*credentials.AccessKeyCredential,
 	return alibaba.accessKey, nil
 }
 
-// DownloadPricingData satisfies the provider interface and downloads the price for node and PVs.
+// DownloadPricingData satisfies the provider interface and downloads the prices for Node instances and PVs.
 func (alibaba *Alibaba) DownloadPricingData() error {
 	alibaba.DownloadPricingDataLock.Lock()
 	defer alibaba.DownloadPricingDataLock.Unlock()
@@ -557,7 +560,7 @@ func (alibaba *Alibaba) Regions() []string {
 	return alibabaRegions
 }
 
-// ClusterInfo returns information about Alibaba Cloud cluster, as provided by metadata. TO-DO: Look at this function closely at next PR iteration
+// ClusterInfo returns information about Alibaba Cloud cluster, as provided by metadata.
 func (alibaba *Alibaba) ClusterInfo() (map[string]string, error) {
 
 	c, err := alibaba.GetConfig()
@@ -720,8 +723,6 @@ func (alibabaNodeKey *AlibabaNodeKey) GPUCount() int {
 
 // Get's the key for the k8s node input
 func (alibaba *Alibaba) GetKey(mapValue map[string]string, node *v1.Node) Key {
-	//Mostly parse the Node object and get the ProviderID, region, InstanceType, OSType and OptimizedKeyword(In if block)
-	// Currently just hardcoding a Node but eventually need to Node object
 	slimK8sNode := generateSlimK8sNodeFromV1Node(node)
 
 	var aak *credentials.AccessKeyCredential
@@ -826,7 +827,6 @@ func (alibabaPVKey *AlibabaPVKey) GetStorageClass() string {
 // When supporting different new type of instances like Compute Optimized, Memory Optimized etc make sure you add the instance type
 // in unit test and check if it works or not to create the ack request and processDescribePriceAndCreateAlibabaPricing function
 // else more paramters need to be pulled from kubernetes node response or gather infromation from elsewhere and function modified.
-// TO-DO: Add disk adjustments to the node , Test it out!
 func createDescribePriceACSRequest(i interface{}) (*requests.CommonRequest, error) {
 	request := requests.NewCommonRequest()
 	request.Method = requests.GET
@@ -1013,7 +1013,6 @@ func processDescribePriceAndCreateAlibabaPricing(client *sdk.Client, i interface
 // This function is to get the InstanceFamily from the InstanceType , convention followed in
 // instance type is ecs.[FamilyName].[DifferentSize], it gets the familyName , if it is unable to get it
 // it lists the instance family name as Unknown.
-// TO-DO: might need predefined list of instance types.
 func getInstanceFamilyFromType(instanceType string) string {
 	splitinstanceType := strings.Split(instanceType, ".")
 	if len(splitinstanceType) != 3 {
@@ -1071,7 +1070,7 @@ func getSystemDiskInfoOfANode(instanceID, regionID string, client *sdk.Client, s
 		return
 	}
 	req, err := createDescribeDisksACSRequest(instanceID, regionID, ALIBABA_SYSTEM_DISK_CATEGORY)
-	// if any error ours return an empty disk to not
+	// if any error occurs return an empty disk to not impact default pricing.
 	if err != nil {
 		log.Warnf("Unable to create Describe Disk Request with err: %v for node with InstanceID: %s, hence defaulting it to an empty system disk to pass through to defaults", err, instanceID)
 		return
@@ -1089,7 +1088,7 @@ func getSystemDiskInfoOfANode(instanceID, regionID string, client *sdk.Client, s
 			return
 		}
 		// Every instance should only have one system disk per Alibaba Cloud documentation https://www.alibabacloud.com/help/en/elastic-compute-service/latest/block-storage-overview-disks,
-		// if TotalCount is not 1 just return empty
+		// if TotalCount is not 1 just return empty and let it not impact default pricing.
 		if response.TotalCount != 1 {
 			log.Warnf("Total count of system disk for node with InstanceID: %s is not 1, hence defaulting it to an empty system disk to pass through to defaults", instanceID)
 			return
@@ -1100,7 +1099,7 @@ func getSystemDiskInfoOfANode(instanceID, regionID string, client *sdk.Client, s
 	}
 }
 
-// generateSlimK8sNodeFromV1Node generates SlimK8sNode struct from v1.Node to fetch pricing information and call alibaba API to get the system disk and size associated with the node.
+// generateSlimK8sNodeFromV1Node generates SlimK8sNode struct from v1.Node to fetch pricing information and call alibaba API.
 func generateSlimK8sNodeFromV1Node(node *v1.Node) *SlimK8sNode {
 	var regionID, osType, instanceType, providerID, priceUnit, instanceFamily string
 	var memorySizeInKiB string // TO-DO: try to convert it into float
@@ -1149,8 +1148,8 @@ func getNumericalValueFromResourceQuantity(quantity string) (value string) {
 	return
 }
 
-// generateSlimK8sDiskFromV1PV function generates SlimK8sDisk from v1.PersistentVolume and DescribeDisk API(If required) of alibaba
-// to generate slim disk type that can be used to fetch pricing information.
+// generateSlimK8sDiskFromV1PV function generates SlimK8sDisk from v1.PersistentVolume
+// to generate slim disk type that can be used to fetch pricing information for Data disk type.
 func generateSlimK8sDiskFromV1PV(pv *v1.PersistentVolume, regionID string) *SlimK8sDisk {
 
 	// All PVs are data disks while local disk are categorized as system disk
@@ -1224,8 +1223,8 @@ func determinePVRegion(pv *v1.PersistentVolume) string {
 	}
 
 	if pvZone == "" {
-		// zone and regionID labels are optional in Alibaba PV creation, while UI creation put's a zone associated with PV assign the region of
-		// pv based on this information if available. If pv is provision via yaml and the block is missing default it to clusterRegion.
+		// zone and regionID labels are optional in Alibaba PV creation, while PV through UI creation put's a zone PV is associated with and the region
+		// can be determined from this information. If pv is provision via yaml and the block is missing that's the only time it gets defaulted to clusteRegion.
 		if pv.Spec.NodeAffinity != nil {
 			nodeAffinity := pv.Spec.NodeAffinity
 			if nodeAffinity.Required != nil && nodeAffinity.Required.NodeSelectorTerms != nil {
