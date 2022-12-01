@@ -160,7 +160,7 @@ func NewSlimK8sNode(instanceType, regionID, priceUnit, memorySizeInKiB, osType, 
 	}
 }
 
-// AlibabaNodeAttributes represents metadata about the Node in it's pricing information.
+// AlibabaNodeAttributes represents metadata about the Node in its pricing information.
 // Basic Attributes needed atleast to get the key, Some attributes from k8s Node response
 // be populated directly into *Node object.
 type AlibabaNodeAttributes struct {
@@ -181,18 +181,27 @@ type AlibabaNodeAttributes struct {
 }
 
 func NewAlibabaNodeAttributes(node *SlimK8sNode) *AlibabaNodeAttributes {
+	if node == nil {
+		return nil
+	}
+	var diskCategory, sizeInGiB, performanceLevel string
+	if node.SystemDisk != nil {
+		diskCategory = node.SystemDisk.DiskCategory
+		sizeInGiB = node.SystemDisk.SizeInGiB
+		performanceLevel = node.SystemDisk.PerformanceLevel
+	}
 	return &AlibabaNodeAttributes{
 		InstanceType:               node.InstanceType,
 		MemorySizeInKiB:            node.MemorySizeInKiB,
 		IsIoOptimized:              node.IsIoOptimized,
 		OSType:                     node.OSType,
-		SystemDiskCategory:         node.SystemDisk.DiskCategory,
-		SystemDiskSizeInGiB:        node.SystemDisk.SizeInGiB,
-		SystemDiskPerformanceLevel: node.SystemDisk.PerformanceLevel,
+		SystemDiskCategory:         diskCategory,
+		SystemDiskSizeInGiB:        sizeInGiB,
+		SystemDiskPerformanceLevel: performanceLevel,
 	}
 }
 
-// AlibabaPVAttributes represents metadata the PV in it's pricing information.
+// AlibabaPVAttributes represents metadata the PV in its pricing information.
 // Basic Attributes needed atleast to get the keys. Some attributes from k8s PV response
 // be populated directly into *PV object.
 type AlibabaPVAttributes struct {
@@ -213,6 +222,9 @@ type AlibabaPVAttributes struct {
 // TO-Do: next iteration of Alibaba provider support NetWork Attached Storage(NAS) and Object Storage Service (OSS type PVs).
 // Currently defaulting to cloudDisk with provision to add work in future.
 func NewAlibabaPVAttributes(disk *SlimK8sDisk) *AlibabaPVAttributes {
+	if disk == nil {
+		return nil
+	}
 	return &AlibabaPVAttributes{
 		PVType:             ALIBABA_PV_CLOUD_DISK_TYPE,
 		PVSubType:          disk.DiskType,
@@ -684,18 +696,25 @@ type AlibabaNodeKey struct {
 	RegionID                   string
 	InstanceType               string
 	OSType                     string
-	OptimizedKeyword           string //If IsIoOptimized is true use the word optimize in the Node key and if it's not optimized use the word nonoptimize
+	OptimizedKeyword           string //If IsIoOptimized is true use the word optimize in the Node key and if its not optimized use the word nonoptimize
 	SystemDiskCategory         string
 	SystemDiskSizeInGiB        string
 	SystemDiskPerformanceLevel string
 }
 
 func NewAlibabaNodeKey(node *SlimK8sNode, optimizedKeyword, systemDiskCategory, systemDiskSizeInGiB, systemDiskPerfromanceLevel string) *AlibabaNodeKey {
+	var providerID, regionID, instanceType, osType string
+	if node != nil {
+		providerID = node.ProviderID
+		regionID = node.RegionID
+		instanceType = node.InstanceType
+		osType = node.OSType
+	}
 	return &AlibabaNodeKey{
-		ProviderID:                 node.ProviderID,
-		RegionID:                   node.RegionID,
-		InstanceType:               node.InstanceType,
-		OSType:                     node.OSType,
+		ProviderID:                 providerID,
+		RegionID:                   regionID,
+		InstanceType:               instanceType,
+		OSType:                     osType,
 		OptimizedKeyword:           optimizedKeyword,
 		SystemDiskCategory:         systemDiskCategory,
 		SystemDiskSizeInGiB:        systemDiskSizeInGiB,
@@ -1016,7 +1035,7 @@ func processDescribePriceAndCreateAlibabaPricing(client *sdk.Client, i interface
 func getInstanceFamilyFromType(instanceType string) string {
 	splitinstanceType := strings.Split(instanceType, ".")
 	if len(splitinstanceType) != 3 {
-		log.Warnf("unable to find the family of the instance type %s, returning it's family type unknown", instanceType)
+		log.Warnf("unable to find the family of the instance type %s, returning its family type unknown", instanceType)
 		return ALIBABA_UNKNOWN_INSTANCE_FAMILY_TYPE
 	}
 	if !slices.Contains(alibabaInstanceFamilies, splitinstanceType[1]) {
@@ -1027,7 +1046,7 @@ func getInstanceFamilyFromType(instanceType string) string {
 }
 
 // getInstanceIDFromProviderID returns the instance ID associated with the Node. A *v1.Node providerID in Alibaba cloud
-// is of <REGION-ID>.<INSTANCE-ID>. This function returns the Instance ID for the given ProviderID. if it's unable to interpret
+// is of <REGION-ID>.<INSTANCE-ID>. This function returns the Instance ID for the given ProviderID. if its unable to interpret
 // it defaults to empty string.
 func getInstanceIDFromProviderID(providerID string) string {
 	if providerID == "" {
@@ -1093,6 +1112,17 @@ func getSystemDiskInfoOfANode(instanceID, regionID string, client *sdk.Client, s
 			log.Warnf("Total count of system disk for node with InstanceID: %s is not 1, hence defaulting it to an empty system disk to pass through to defaults", instanceID)
 			return
 		}
+
+		if response.Disks == nil {
+			log.Warnf("Disks information missing for node with InstanceID: %s, hence defaulting it to an empty system disk to pass through to defaults", instanceID)
+			return
+		}
+
+		if len(response.Disks.Disk) < 1 {
+			log.Warnf("Total number of system disk for node with InstanceID: %s is less than 1, hence defaulting it to an empty system disk to pass through to defaults", instanceID)
+			return
+		}
+
 		// TO-DO: When supporting Subscription type disk, you can leverge the disk.DiskChargeType here to map it to subscription type.
 		systemDisk := response.Disks.Disk[0]
 		return NewSlimK8sDisk(systemDisk.Type, systemDisk.RegionId, ALIBABA_HOUR_PRICE_UNIT, systemDisk.Category, systemDisk.PerformanceLevel, systemDisk.DiskId, "", fmt.Sprintf("%d", systemDisk.Size))
@@ -1224,7 +1254,7 @@ func determinePVRegion(pv *v1.PersistentVolume) string {
 
 	if pvZone == "" {
 		// zone and regionID labels are optional in Alibaba PV creation, while PV through UI creation put's a zone PV is associated with and the region
-		// can be determined from this information. If pv is provision via yaml and the block is missing that's the only time it gets defaulted to clusteRegion.
+		// can be determined from this information. If pv is provision via yaml and the block is missing that's the only time it gets defaulted to clusterRegion.
 		if pv.Spec.NodeAffinity != nil {
 			nodeAffinity := pv.Spec.NodeAffinity
 			if nodeAffinity.Required != nil && nodeAffinity.Required.NodeSelectorTerms != nil {
