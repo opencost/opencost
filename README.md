@@ -12,7 +12,7 @@ To see the full functionality of OpenCost you can view [OpenCost features](https
 
 - Real-time cost allocation by Kubernetes cluster, node, namespace, controller kind, controller, service, or pod
 - Dynamic onDemand asset pricing enabled by integrations with AWS, Azure, and GCP billing APIs
-- Supports on-prem k8s clusters with custom pricing sheets
+- Supports on-prem k8s clusters with custom CSV pricing
 - Allocation for in-cluster resources like CPU, GPU, memory, and persistent volumes.
 - Easily export pricing data to Prometheus with /metrics endpoint ([learn more](PROMETHEUS.md))
 - Free and open source distribution (Apache2 license)
