@@ -213,10 +213,10 @@ func TestSummaryAllocation_Add(t *testing.T) {
 
 func TestSummaryAllocationSet_RAMEfficiency(t *testing.T) {
 	// Generating 6 sample summary allocations for testing
-	var sa1, sa2, sa3, sa4, sa5, sa6 *SummaryAllocation
+	var sa1, sa2, sa3, sa4, sa5, sa6, idlesa *SummaryAllocation
 
 	// Generating accumulated summary allocation sets for testing
-	var sas1, sas2, sas3, sas4, sas5 *SummaryAllocationSet
+	var sas1, sas2, sas3, sas4, sas5, sas6 *SummaryAllocationSet
 
 	window, _ := ParseWindowUTC("7d")
 
@@ -314,6 +314,20 @@ func TestSummaryAllocationSet_RAMEfficiency(t *testing.T) {
 		RAMCost:                0.10,
 	}
 
+	idlesa = &SummaryAllocation{
+		Name: IdleSuffix,
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container7",
+		},
+		Start:   saStart,
+		End:     saEnd,
+		CPUCost: 1.0,
+		RAMCost: 1.0,
+	}
+
 	testcase1Map := map[string]*SummaryAllocation{
 		"cluster1/namespace1/pod1/container1": sa1,
 		"cluster1/namespace1/pod1/container2": sa2,
@@ -340,6 +354,12 @@ func TestSummaryAllocationSet_RAMEfficiency(t *testing.T) {
 		"cluster1/namespace1/pod1/container6": sa6,
 	}
 
+	testcase6Map := map[string]*SummaryAllocation{
+		"cluster1/namespace1/pod1/container1": sa1,
+		"cluster1/namespace1/pod1/container2": sa2,
+		"cluster1/__idle__":                   idlesa,
+	}
+
 	sas1 = &SummaryAllocationSet{
 		SummaryAllocations: testcase1Map,
 		Window:             window,
@@ -362,6 +382,11 @@ func TestSummaryAllocationSet_RAMEfficiency(t *testing.T) {
 
 	sas5 = &SummaryAllocationSet{
 		SummaryAllocations: testcase5Map,
+		Window:             window,
+	}
+
+	sas6 = &SummaryAllocationSet{
+		SummaryAllocations: testcase6Map,
 		Window:             window,
 	}
 
@@ -395,6 +420,11 @@ func TestSummaryAllocationSet_RAMEfficiency(t *testing.T) {
 			testsas:            sas5,
 			expectedEfficiency: 0.65,
 		},
+		{
+			name:               "Check RAMEfficiency in presense of n idle allocation",
+			testsas:            sas6,
+			expectedEfficiency: 0.25,
+		},
 	}
 
 	for _, c := range cases {
@@ -410,10 +440,10 @@ func TestSummaryAllocationSet_RAMEfficiency(t *testing.T) {
 
 func TestSummaryAllocationSet_CPUEfficiency(t *testing.T) {
 	// Generating 6 sample summary allocations for testing
-	var sa1, sa2, sa3, sa4, sa5, sa6 *SummaryAllocation
+	var sa1, sa2, sa3, sa4, sa5, sa6, idlesa *SummaryAllocation
 
 	// Generating accumulated summary allocation sets for testing
-	var sas1, sas2, sas3, sas4, sas5 *SummaryAllocationSet
+	var sas1, sas2, sas3, sas4, sas5, sas6 *SummaryAllocationSet
 
 	window, _ := ParseWindowUTC("7d")
 
@@ -511,6 +541,20 @@ func TestSummaryAllocationSet_CPUEfficiency(t *testing.T) {
 		CPUCost:               0.2,
 	}
 
+	idlesa = &SummaryAllocation{
+		Name: IdleSuffix,
+		Properties: &AllocationProperties{
+			Cluster:   "cluster1",
+			Namespace: "namespace1",
+			Pod:       "pod1",
+			Container: "container7",
+		},
+		Start:   saStart,
+		End:     saEnd,
+		CPUCost: 1.0,
+		RAMCost: 1.0,
+	}
+
 	testcase1Map := map[string]*SummaryAllocation{
 		"cluster1/namespace1/pod1/container1": sa1,
 		"cluster1/namespace1/pod1/container2": sa2,
@@ -537,6 +581,12 @@ func TestSummaryAllocationSet_CPUEfficiency(t *testing.T) {
 		"cluster1/namespace1/pod1/container6": sa6,
 	}
 
+	testcase6Map := map[string]*SummaryAllocation{
+		"cluster1/namespace1/pod1/container1": sa1,
+		"cluster1/namespace1/pod1/container2": sa2,
+		"cluster1/__idle__":                   idlesa,
+	}
+
 	sas1 = &SummaryAllocationSet{
 		SummaryAllocations: testcase1Map,
 		Window:             window,
@@ -559,6 +609,11 @@ func TestSummaryAllocationSet_CPUEfficiency(t *testing.T) {
 
 	sas5 = &SummaryAllocationSet{
 		SummaryAllocations: testcase5Map,
+		Window:             window,
+	}
+
+	sas6 = &SummaryAllocationSet{
+		SummaryAllocations: testcase6Map,
 		Window:             window,
 	}
 
@@ -591,6 +646,11 @@ func TestSummaryAllocationSet_CPUEfficiency(t *testing.T) {
 			name:               "Check CPUEfficiency over combination of all allocation summaries",
 			testsas:            sas5,
 			expectedEfficiency: 0.50,
+		},
+		{
+			name:               "Check CPUEfficiency in presence of idle allocation",
+			testsas:            sas6,
+			expectedEfficiency: 0.30,
 		},
 	}
 
@@ -803,7 +863,7 @@ func TestSummaryAllocationSet_TotalEfficiency(t *testing.T) {
 		{
 			name:               "Check TotalEfficiency with idle cost",
 			testsas:            sas4,
-			expectedEfficiency: 0.20,
+			expectedEfficiency: 0.30,
 		},
 	}
 
