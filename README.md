@@ -10,7 +10,7 @@ OpenCost was originally developed and open sourced by [Kubecost](https://kubecos
 
 To see the full functionality of OpenCost you can view [OpenCost features](https://opencost.io). Here is a summary of features enabled:
 
-- Real-time cost aggregation by Kubernetes cluster, node, namespace, controller kind, controller, service, or pod
+- Real-time cost allocation by Kubernetes cluster, node, namespace, controller kind, controller, service, or pod
 - Dynamic onDemand asset pricing enabled by integrations with AWS, Azure, and GCP billing APIs
 - Supports on-prem k8s clusters with custom pricing sheets
 - Allocation for in-cluster resources like CPU, GPU, memory, and persistent volumes.
