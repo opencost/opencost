@@ -3,6 +3,7 @@ package cloud
 import (
 	"context"
 	"fmt"
+	"github.com/opencost/opencost/pkg/kubecost"
 	"io"
 	"net/http"
 	"net/url"
@@ -1328,7 +1329,7 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 	if c.ClusterName != "" {
 		m["name"] = c.ClusterName
 	}
-	m["provider"] = "Azure"
+	m["provider"] = kubecost.AzureProvider
 	m["account"] = az.clusterAccountId
 	m["region"] = az.clusterRegion
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
