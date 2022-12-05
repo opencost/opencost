@@ -1183,6 +1183,9 @@ func (sas *SummaryAllocationSet) RAMEfficiency() float64 {
 	totalRAMBytesRequest := 0.0
 	totalRAMCost := 0.0
 	for _, sa := range sas.SummaryAllocations {
+		if sa.IsIdle() {
+			continue
+		}
 		totalRAMBytesUsage += sa.RAMBytesUsageAverage
 		totalRAMBytesRequest += sa.RAMBytesRequestAverage
 		totalRAMCost += sa.RAMCost
@@ -1212,6 +1215,9 @@ func (sas *SummaryAllocationSet) CPUEfficiency() float64 {
 	totalCPUCoreRequest := 0.0
 	totalCPUCost := 0.0
 	for _, sa := range sas.SummaryAllocations {
+		if sa.IsIdle() {
+			continue
+		}
 		totalCPUCoreUsage += sa.CPUCoreUsageAverage
 		totalCPUCoreRequest += sa.CPUCoreRequestAverage
 		totalCPUCost += sa.CPUCost
@@ -1237,19 +1243,18 @@ func (sas *SummaryAllocationSet) TotalEfficiency() float64 {
 	sas.RLock()
 	defer sas.RUnlock()
 
-	totalRAMCostEff := 0.0
-	totalCPUCostEff := 0.0
 	totalRAMCost := 0.0
 	totalCPUCost := 0.0
 	for _, sa := range sas.SummaryAllocations {
-		totalRAMCostEff += sa.RAMEfficiency() * sa.RAMCost
-		totalCPUCostEff += sa.CPUEfficiency() * sa.CPUCost
+		if sa.IsIdle() {
+			continue
+		}
 		totalRAMCost += sa.RAMCost
 		totalCPUCost += sa.CPUCost
 	}
 
 	if totalRAMCost+totalCPUCost > 0 {
-		return (totalRAMCostEff + totalCPUCostEff) / (totalRAMCost + totalCPUCost)
+		return (totalRAMCost*sas.RAMEfficiency() + totalCPUCost*sas.CPUEfficiency()) / (totalRAMCost + totalCPUCost)
 	}
 
 	return 0.0
