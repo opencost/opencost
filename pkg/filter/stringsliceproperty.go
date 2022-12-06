@@ -39,19 +39,6 @@ func (ssp StringSliceProperty[T]) String() string {
 	return fmt.Sprintf(`(%s %s "%s")`, ssp.Op, ssp.Field, ssp.Value)
 }
 
-// Flattened returns itself because you cannot flatten a base condition further
-func (ssp StringSliceProperty[T]) Flattened() Filter[T] {
-	return ssp
-}
-
-func (ssp StringSliceProperty[T]) equals(that Filter[T]) bool {
-	if thatAC, ok := that.(StringSliceProperty[T]); ok {
-		return ssp == thatAC
-	}
-
-	return false
-}
-
 func (ssp StringSliceProperty[T]) Matches(that T) bool {
 
 	thatSlice, err := that.StringSliceProperty(ssp.Field)

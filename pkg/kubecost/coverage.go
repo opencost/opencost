@@ -29,13 +29,23 @@ func (c *Coverage) IsEmpty() bool {
 }
 
 func (c *Coverage) Clone() *Coverage {
+	var errors []string
+	if len(c.Errors) > 0 {
+		errors = make([]string, len(c.Errors))
+		copy(errors, c.Errors)
+	}
+	var warnings []string
+	if len(c.Warnings) > 0 {
+		warnings = make([]string, len(c.Warnings))
+		copy(warnings, c.Warnings)
+	}
 	return &Coverage{
 		Window:   c.Window.Clone(),
 		Type:     c.Type,
 		Count:    c.Count,
 		Updated:  c.Updated,
-		Errors:   append(c.Errors),
-		Warnings: append(c.Warnings),
+		Errors:   errors,
+		Warnings: warnings,
 	}
 }
 

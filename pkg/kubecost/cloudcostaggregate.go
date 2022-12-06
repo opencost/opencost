@@ -56,6 +56,11 @@ func (ccap CloudCostAggregateProperties) Key(prop string) string {
 }
 
 // CloudCostAggregate represents an aggregation of Billing Integration data on the properties listed
+// - KubernetesPercent is the percent of the CloudCostAggregates cost which was from an item which could be identified
+//   as coming from a kubernetes resources.
+// - Cost is the sum of the cost of each item in the CloudCostAggregate
+// - Credit is the sum of credits applied to each item in the CloudCostAggregate
+
 type CloudCostAggregate struct {
 	Properties        CloudCostAggregateProperties `json:"properties"`
 	KubernetesPercent float64                      `json:"kubernetesPercent"`
@@ -350,50 +355,11 @@ func GetCloudCostAggregateSets(start, end time.Time, windowDuration time.Duratio
 // CUR which may be the identical except for the pricing model used (default, RI or savings plan)
 // are accumulated here so that the resulting CloudCostAggregate with the 1d window has the correct price for the entire day.
 func LoadCloudCostAggregateSets(itemStart time.Time, itemEnd time.Time, properties CloudCostAggregateProperties, K8sPercent, cost, credit float64, CloudCostAggregateSets []*CloudCostAggregateSet) {
-	totalMins := itemEnd.Sub(itemStart).Minutes()
 	// Disperse cost of the current item across one or more CloudCostAggregates in
 	// across each relevant CloudCostAggregateSet. Stop when the end of the current
 	// block reaches the item's end time or the end of the range.
 	for _, ccas := range CloudCostAggregateSets {
-		// Determine pct of total cost attributable to this window by
-		// determining the start/end of the overlap with the current
-		// window, which will be negative if there is no overlap. If
-		// there is positive overlap, compare it with the total mins.
-		//
-		// e.g. here are the two possible scenarios as simplidied
-		// 10m windows with dashes representing item's time running:
-		//
-		// 1. item falls entirely within one CloudCostAggregateSet window
-		//    |     ---- |          |          |
-		//    totalMins = 4.0
-		//    pct := 4.0 / 4.0 = 1.0 for window 1
-		//    pct := 0.0 / 4.0 = 0.0 for window 2
-		//    pct := 0.0 / 4.0 = 0.0 for window 3
-		//
-		// 2. item overlaps multiple CloudCostAggregateSet windows
-		//    |      ----|----------|--        |
-		//    totalMins = 16.0
-		//    pct :=  4.0 / 16.0 = 0.250 for window 1
-		//    pct := 10.0 / 16.0 = 0.625 for window 2
-		//    pct :=  2.0 / 16.0 = 0.125 for window 3
-		window := ccas.Window
-
-		s := itemStart
-		if s.Before(*window.Start()) {
-			s = *window.Start()
-		}
-
-		e := itemEnd
-		if e.After(*window.End()) {
-			e = *window.End()
-		}
-
-		mins := e.Sub(s).Minutes()
-		if mins <= 0.0 {
-			continue
-		}
-
-		pct := mins / totalMins
+		pct := ccas.GetWindow().GetPercentInWindow(itemStart, itemEnd)
 
 		// Insert an CloudCostAggregate with that cost into the CloudCostAggregateSet at the given index
 		cca := &CloudCostAggregate{
@@ -404,7 +370,7 @@ func LoadCloudCostAggregateSets(itemStart time.Time, itemEnd time.Time, properti
 		}
 		err := ccas.insertByProperty(cca, "")
 		if err != nil {
-			log.Errorf("LoadCloudCostAggregateSets: failed to load CloudCostAggregate with key %s and window %s", cca.Key(""), window.String())
+			log.Errorf("LoadCloudCostAggregateSets: failed to load CloudCostAggregate with key %s and window %s", cca.Key(""), ccas.GetWindow().String())
 		}
 	}
 }

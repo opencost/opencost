@@ -28,7 +28,7 @@ const (
 )
 
 // StringMapProperty is the lowest-level type of filter. It represents
-// a filter operation (equality, inequality, etc.) on a property that contains a string slice
+// a filter operation (equality, inequality, etc.) on a property that contains a string map
 type StringMapProperty[T StringMapPropertied] struct {
 	Field string
 	Op    StringMapOperation
@@ -38,19 +38,6 @@ type StringMapProperty[T StringMapPropertied] struct {
 
 func (smp StringMapProperty[T]) String() string {
 	return fmt.Sprintf(`(%s %s[%s] "%s")`, smp.Op, smp.Field, smp.Key, smp.Value)
-}
-
-// Flattened returns itself because you cannot flatten a base condition further
-func (smp StringMapProperty[T]) Flattened() Filter[T] {
-	return smp
-}
-
-func (smp StringMapProperty[T]) equals(that Filter[T]) bool {
-	if thatAC, ok := that.(StringMapProperty[T]); ok {
-		return smp == thatAC
-	}
-
-	return false
 }
 
 func (smp StringMapProperty[T]) Matches(that T) bool {
