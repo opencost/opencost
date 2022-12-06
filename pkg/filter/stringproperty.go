@@ -33,9 +33,9 @@ const (
 	StringStartsWith = "stringstartswith"
 )
 
-// AllocationCondition is the lowest-level type of filter. It represents
-// the a filter operation (equality, inequality, etc.) on a field (namespace,
-// label, etc.).
+// StringProperty is the lowest-level type of filter. It represents
+// a filter operation (equality, inequality, etc.) on a field with a string value (namespace,
+// node, pod, etc.).
 type StringProperty[T StringPropertied] struct {
 	Field string
 	Op    StringOperation
@@ -47,18 +47,6 @@ type StringProperty[T StringPropertied] struct {
 
 func (sp StringProperty[T]) String() string {
 	return fmt.Sprintf(`(%s %s "%s")`, sp.Op, sp.Field, sp.Value)
-}
-
-// Flattened returns itself because you cannot flatten a base condition further
-func (sp StringProperty[T]) Flattened() Filter[T] {
-	return sp
-}
-
-func (sp StringProperty[T]) equals(that Filter[T]) bool {
-	if thatAC, ok := that.(StringProperty[T]); ok {
-		return sp == thatAC
-	}
-	return false
 }
 
 func (sp StringProperty[T]) Matches(that T) bool {

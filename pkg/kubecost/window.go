@@ -689,6 +689,50 @@ func (w Window) DurationOffsetStrings() (string, string) {
 	return timeutil.DurationOffsetStrings(dur, off)
 }
 
+// GetPercentInWindow Determine pct of item time contained the window.
+// determined by the overlap of the start/end with the given
+// window, which will be negative if there is no overlap. If
+// there is positive overlap, compare it with the total mins.
+//
+// e.g. here are the two possible scenarios as simplidied
+// 10m windows with dashes representing item's time running:
+//
+//  1. item falls entirely within one CloudCostItemSet window
+//     |     ---- |          |          |
+//     totalMins = 4.0
+//     pct := 4.0 / 4.0 = 1.0 for window 1
+//     pct := 0.0 / 4.0 = 0.0 for window 2
+//     pct := 0.0 / 4.0 = 0.0 for window 3
+//
+//  2. item overlaps multiple CloudCostItemSet windows
+//     |      ----|----------|--        |
+//     totalMins = 16.0
+//     pct :=  4.0 / 16.0 = 0.250 for window 1
+//     pct := 10.0 / 16.0 = 0.625 for window 2
+//     pct :=  2.0 / 16.0 = 0.125 for window 3
+func (w Window) GetPercentInWindow(itemStart time.Time, itemEnd time.Time) float64 {
+
+	s := itemStart
+	if s.Before(*w.Start()) {
+		s = *w.Start()
+	}
+
+	e := itemEnd
+	if e.After(*w.End()) {
+		e = *w.End()
+	}
+
+	mins := e.Sub(s).Minutes()
+	if mins <= 0.0 {
+		return 0.0
+	}
+
+	totalMins := itemEnd.Sub(itemStart).Minutes()
+
+	pct := mins / totalMins
+	return pct
+}
+
 // GetWindows returns a slice of Window with equal size between the given start and end. If windowSize does not evenly
 // divide the period between start and end, the last window is not added
 func GetWindows(start time.Time, end time.Time, windowSize time.Duration) ([]Window, error) {
@@ -727,7 +771,7 @@ func GetWindows(start time.Time, end time.Time, windowSize time.Duration) ([]Win
 	return windows, nil
 }
 
-// GetWindows breaks up a window into an array of windows with a max size of queryWindow
+// GetWindowsForQueryWindow breaks up a window into an array of windows with a max size of queryWindow
 func GetWindowsForQueryWindow(start time.Time, end time.Time, queryWindow time.Duration) ([]Window, error) {
 	// Ensure timezones match
 	_, sz := start.Zone()
