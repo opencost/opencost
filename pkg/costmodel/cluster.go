@@ -227,17 +227,17 @@ func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end 
 
 		volumeName, err := result.GetString("volumename")
 		if err != nil {
-			log.Warnf("ClusterDisks: pv claim data missing volumename")
+			log.Debugf("ClusterDisks: pv claim data missing volumename")
 			continue
 		}
 		claimName, err := result.GetString("persistentvolumeclaim")
 		if err != nil {
-			log.Warnf("ClusterDisks: pv claim data missing persistentvolumeclaim")
+			log.Debugf("ClusterDisks: pv claim data missing persistentvolumeclaim")
 			continue
 		}
 		claimNamespace, err := result.GetString("namespace")
 		if err != nil {
-			log.Warnf("ClusterDisks: pv claim data missing namespace")
+			log.Debugf("ClusterDisks: pv claim data missing namespace")
 			continue
 		}
 
@@ -1417,12 +1417,12 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 
 		claimName, err := result.GetString("persistentvolumeclaim")
 		if err != nil {
-			log.Warnf("ClusterDisks: pv usage data missing persistentvolumeclaim")
+			log.Debugf("ClusterDisks: pv usage data missing persistentvolumeclaim")
 			continue
 		}
 		claimNamespace, err := result.GetString("namespace")
 		if err != nil {
-			log.Warnf("ClusterDisks: pv usage data missing namespace")
+			log.Debugf("ClusterDisks: pv usage data missing namespace")
 			continue
 		}
 
@@ -1437,17 +1437,17 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 
 			thatVolumeName, err := thatRes.GetString("volumename")
 			if err != nil {
-				log.Warnf("ClusterDisks: pv claim data missing volumename")
+				log.Debugf("ClusterDisks: pv claim data missing volumename")
 				continue
 			}
 			thatClaimName, err := thatRes.GetString("persistentvolumeclaim")
 			if err != nil {
-				log.Warnf("ClusterDisks: pv claim data missing persistentvolumeclaim")
+				log.Debugf("ClusterDisks: pv claim data missing persistentvolumeclaim")
 				continue
 			}
 			thatClaimNamespace, err := thatRes.GetString("namespace")
 			if err != nil {
-				log.Warnf("ClusterDisks: pv claim data missing namespace")
+				log.Debugf("ClusterDisks: pv claim data missing namespace")
 				continue
 			}
 
@@ -1478,12 +1478,12 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 
 		claimName, err := result.GetString("persistentvolumeclaim")
 		if err != nil {
-			log.Warnf("ClusterDisks: pv usage data missing persistentvolumeclaim")
+			log.Debugf("ClusterDisks: pv usage data missing persistentvolumeclaim")
 			continue
 		}
 		claimNamespace, err := result.GetString("namespace")
 		if err != nil {
-			log.Warnf("ClusterDisks: pv usage data missing namespace")
+			log.Debugf("ClusterDisks: pv usage data missing namespace")
 			continue
 		}
 
@@ -1498,17 +1498,17 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 
 			thatVolumeName, err := thatRes.GetString("volumename")
 			if err != nil {
-				log.Warnf("ClusterDisks: pv claim data missing volumename")
+				log.Debugf("ClusterDisks: pv claim data missing volumename")
 				continue
 			}
 			thatClaimName, err := thatRes.GetString("persistentvolumeclaim")
 			if err != nil {
-				log.Warnf("ClusterDisks: pv claim data missing persistentvolumeclaim")
+				log.Debugf("ClusterDisks: pv claim data missing persistentvolumeclaim")
 				continue
 			}
 			thatClaimNamespace, err := thatRes.GetString("namespace")
 			if err != nil {
-				log.Warnf("ClusterDisks: pv claim data missing namespace")
+				log.Debugf("ClusterDisks: pv claim data missing namespace")
 				continue
 			}
 
