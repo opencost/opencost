@@ -41,6 +41,21 @@ const (
 
 	// AssetTypeProp describes the type of the Asset
 	AssetTypeProp AssetProperty = "type"
+
+	// AssetDepartmentProp describes the department of the Asset
+	AssetDepartmentProp AssetProperty = "department"
+
+	// AssetEnvironmentProp describes the environment of the Asset
+	AssetEnvironmentProp AssetProperty = "environment"
+
+	// AssetOwnerProp describes the owner of the Asset
+	AssetOwnerProp AssetProperty = "owner"
+
+	// AssetProductProp describes the product of the Asset
+	AssetProductProp AssetProperty = "product"
+
+	// AssetTeamProp describes the team of the Asset
+	AssetTeamProp AssetProperty = "team"
 )
 
 // ParseAssetProperty attempts to parse a string into an AssetProperty
@@ -64,6 +79,16 @@ func ParseAssetProperty(text string) (AssetProperty, error) {
 		return AssetServiceProp, nil
 	case "type":
 		return AssetTypeProp, nil
+	case "department":
+		return AssetDepartmentProp, nil
+	case "environment":
+		return AssetEnvironmentProp, nil
+	case "owner":
+		return AssetOwnerProp, nil
+	case "product":
+		return AssetProductProp, nil
+	case "team":
+		return AssetTeamProp, nil
 	}
 	return AssetNilProp, fmt.Errorf("invalid asset property: %s", text)
 }

@@ -1,7 +1,7 @@
-# Kubecost Open Source UI
+# OpenCost UI
 The preferred install path for Kubecost is via Helm chart, and is explained [here](http://docs.kubecost.com/install)
 
-To manually run an open source demo UI, follow the steps below.
+To manually run the OpenCost UI, follow the steps below.
 
 ## Requirements
 
@@ -15,7 +15,7 @@ To run the UI, open a terminal to the `opencost/ui/` directory (where this READM
 npm install
 ```
 
-This will install required depndencies and build tools. To launch the UI, run
+This will install required dependencies and build tools. To launch the UI, run
 
 ```
 npx parcel src/index.html
