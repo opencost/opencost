@@ -421,7 +421,7 @@ func TestSummaryAllocationSet_RAMEfficiency(t *testing.T) {
 			expectedEfficiency: 0.65,
 		},
 		{
-			name:               "Check RAMEfficiency in presense of n idle allocation",
+			name:               "Check RAMEfficiency in presense of an idle allocation",
 			testsas:            sas6,
 			expectedEfficiency: 0.25,
 		},
@@ -648,7 +648,7 @@ func TestSummaryAllocationSet_CPUEfficiency(t *testing.T) {
 			expectedEfficiency: 0.50,
 		},
 		{
-			name:               "Check CPUEfficiency in presence of idle allocation",
+			name:               "Check CPUEfficiency in presence of an idle allocation",
 			testsas:            sas6,
 			expectedEfficiency: 0.30,
 		},
