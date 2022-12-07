@@ -43,7 +43,6 @@ const (
 	ALIBABA_YEAR_PRICE_UNIT                    = "Year"
 	ALIBABA_UNKNOWN_INSTANCE_FAMILY_TYPE       = "unknown"
 	ALIBABA_NOT_SUPPORTED_INSTANCE_FAMILY_TYPE = "unsupported"
-	ALIBABA_ENHANCED_GENERAL_PURPOSE_TYPE      = "g6e"
 	ALIBABA_DISK_CLOUD_ESSD_CATEGORY           = "cloud_essd"
 	ALIBABA_DISK_CLOUD_CATEGORY                = "cloud"
 	ALIBABA_DATA_DISK_CATEGORY                 = "data"
@@ -61,6 +60,9 @@ var (
 	// Regular expression to get the numerical value of PV suffix with GiB from *v1.PersistentVolume.
 	sizeRegEx = regexp.MustCompile("(.*?)Gi")
 )
+
+// Variable to keep track of instance families that fail in DescribePrice API due improper defaulting of systemDisk if the information is not available
+var alibabaDefaultToCloudEssd = []string{"g6e", "r6e", "r7", "g7", "g7a", "r7a"}
 
 // Why predefined and dependency on code? Can be converted to API call - https://www.alibabacloud.com/help/en/elastic-compute-service/latest/regions-describeregions
 var alibabaRegions = []string{
@@ -93,13 +95,27 @@ var alibabaRegions = []string{
 }
 
 // To-Do: Convert to API call - https://www.alibabacloud.com/help/en/elastic-compute-service/latest/describeinstancetypefamilies
-// Also first pass only completely tested pricing API for General pupose instances families.
+// Also first pass only completely tested pricing API for General pupose instances families & memory optimized instance families
 var alibabaInstanceFamilies = []string{
+	"g7",
+	"g7a",
 	"g6e",
 	"g6",
 	"g5",
 	"sn2",
 	"sn2ne",
+	"r7",
+	"r7a",
+	"r6e",
+	"r6a",
+	"r6",
+	"r5",
+	"se1",
+	"se1ne",
+	"re6",
+	"re6p",
+	"re4",
+	"se1",
 }
 
 // AlibabaAccessKey holds Alibaba credentials parsing from the service-key.json file.
@@ -873,9 +889,9 @@ func createDescribePriceACSRequest(i interface{}) (*requests.CommonRequest, erro
 				request.QueryParams["SystemDisk.PerformanceLevel"] = node.SystemDisk.PerformanceLevel
 			}
 		} else {
-			// For Enhanced General Purpose Type g6e SystemDisk.Category param doesn't default right,
-			// need it to be specifically assigned to "cloud_ssd" otherwise there's errors
-			if node.InstanceTypeFamily == ALIBABA_ENHANCED_GENERAL_PURPOSE_TYPE {
+			// When System Disk information is not available for instance family g6e, r7 and r6e the defaults in
+			// DescribePrice dont default rightly to cloud_essd for these instances.
+			if slices.Contains(alibabaDefaultToCloudEssd, node.InstanceTypeFamily) {
 				request.QueryParams["SystemDisk.Category"] = ALIBABA_DISK_CLOUD_ESSD_CATEGORY
 			}
 		}
