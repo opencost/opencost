@@ -33,6 +33,9 @@ const (
 )
 
 const (
+	// DefaultCodecVersion is used for any resources listed in the Default version set
+	DefaultCodecVersion uint8 = 17
+
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
 	AssetsCodecVersion uint8 = 18
 
@@ -47,9 +50,6 @@ const (
 
 	// CloudCostItemCodecVersion is used for any resources listed in the CloudCostItem version set
 	CloudCostItemCodecVersion uint8 = 1
-
-	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 17
 )
 
 //--------------------------------------------------------------------------
@@ -5019,11 +5019,23 @@ func (target *CloudCostAggregateSet) MarshalBinaryWithContext(ctx *EncodingConte
 		// --- [end][write][map](map[string]*CloudCostAggregate) ---
 
 	}
-	if ctx.IsStringTable() {
-		b := ctx.Table.AddOrGet(target.AggregationProperty)
-		buff.WriteInt(b) // write table index
+	if target.AggregationProperties == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
-		buff.WriteString(target.AggregationProperty) // write string
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][slice]([]string) ---
+		buff.WriteInt(len(target.AggregationProperties)) // array length
+		for i := 0; i < len(target.AggregationProperties); i++ {
+			if ctx.IsStringTable() {
+				b := ctx.Table.AddOrGet(target.AggregationProperties[i])
+				buff.WriteInt(b) // write table index
+			} else {
+				buff.WriteString(target.AggregationProperties[i]) // write string
+			}
+		}
+		// --- [end][write][slice]([]string) ---
+
 	}
 	if ctx.IsStringTable() {
 		c := ctx.Table.AddOrGet(target.Integration)
@@ -5141,26 +5153,30 @@ func (target *CloudCostAggregateSet) UnmarshalBinaryWithContext(ctx *DecodingCon
 		// --- [end][read][map](map[string]*CloudCostAggregate) ---
 
 	}
-	var h string
-	if ctx.IsStringTable() {
-		k := buff.ReadInt() // read string index
-		h = ctx.Table[k]
+	if buff.ReadUInt8() == uint8(0) {
+		target.AggregationProperties = nil
 	} else {
-		h = buff.ReadString() // read string
-	}
-	g := h
-	target.AggregationProperty = g
+		// --- [begin][read][slice]([]string) ---
+		h := buff.ReadInt() // array len
+		g := make([]string, h)
+		for j := 0; j < h; j++ {
+			var k string
+			var m string
+			if ctx.IsStringTable() {
+				n := buff.ReadInt() // read string index
+				m = ctx.Table[n]
+			} else {
+				m = buff.ReadString() // read string
+			}
+			l := m
+			k = l
 
-	var m string
-	if ctx.IsStringTable() {
-		n := buff.ReadInt() // read string index
-		m = ctx.Table[n]
-	} else {
-		m = buff.ReadString() // read string
-	}
-	l := m
-	target.Integration = l
+			g[j] = k
+		}
+		target.AggregationProperties = g
+		// --- [end][read][slice]([]string) ---
 
+	}
 	var p string
 	if ctx.IsStringTable() {
 		q := buff.ReadInt() // read string index
@@ -5169,16 +5185,26 @@ func (target *CloudCostAggregateSet) UnmarshalBinaryWithContext(ctx *DecodingCon
 		p = buff.ReadString() // read string
 	}
 	o := p
-	target.LabelName = o
+	target.Integration = o
+
+	var s string
+	if ctx.IsStringTable() {
+		t := buff.ReadInt() // read string index
+		s = ctx.Table[t]
+	} else {
+		s = buff.ReadString() // read string
+	}
+	r := s
+	target.LabelName = r
 
 	// --- [begin][read][struct](Window) ---
-	r := &Window{}
+	u := &Window{}
 	buff.ReadInt() // [compatibility, unused]
-	errB := r.UnmarshalBinaryWithContext(ctx)
+	errB := u.UnmarshalBinaryWithContext(ctx)
 	if errB != nil {
 		return errB
 	}
-	target.Window = *r
+	target.Window = *u
 	// --- [end][read][struct](Window) ---
 
 	return nil
