@@ -481,8 +481,8 @@ func (alibaba *Alibaba) NodePricing(key Key) (*Node, error) {
 
 	pricing, ok := alibaba.Pricing[keyFeature]
 	if !ok {
-		log.Warnf("Node pricing information not found for node with feature: %s", keyFeature)
-		return &Node{}, nil
+		log.Errorf("Node pricing information not found for node with feature: %s", keyFeature)
+		return nil, fmt.Errorf("Node pricing information not found for node with feature: %s letting it use default values", keyFeature)
 	}
 
 	log.Debugf("returning the node price for the node with feature: %s", keyFeature)
@@ -501,8 +501,8 @@ func (alibaba *Alibaba) PVPricing(pvk PVKey) (*PV, error) {
 	pricing, ok := alibaba.Pricing[keyFeature]
 
 	if !ok {
-		log.Warnf("Persistent Volume pricing not found for PV with feature: %s", keyFeature)
-		return &PV{}, nil
+		log.Errorf("Persistent Volume pricing not found for PV with feature: %s", keyFeature)
+		return nil, fmt.Errorf("Persistent Volume pricing not found for PV with feature: %s letting it use default values", keyFeature)
 	}
 
 	log.Debugf("returning the PV price for the node with feature: %s", keyFeature)
@@ -762,30 +762,9 @@ func (alibaba *Alibaba) GetKey(mapValue map[string]string, node *v1.Node) Key {
 
 	var aak *credentials.AccessKeyCredential
 	var err error
-	var skipSystemDiskRetrieval, ok bool
+	var ok bool
 	var client *sdk.Client
 	var signer *signers.AccessKeySigner
-
-	if !alibaba.accessKeyisLoaded() {
-		aak, err = alibaba.GetAlibabaAccessKey()
-		if err != nil {
-			log.Warnf("unable to set the signer for node with providerID %s to retrieve the key skipping SystemDisk Retrieval with err: %v", slimK8sNode.ProviderID, err)
-			skipSystemDiskRetrieval = true
-		}
-	} else {
-		aak = alibaba.accessKey
-	}
-
-	signer = signers.NewAccessKeySigner(aak)
-
-	if client, ok = alibaba.clients[slimK8sNode.RegionID]; !ok {
-		client, err = sdk.NewClientWithAccessKey(slimK8sNode.RegionID, aak.AccessKeyId, aak.AccessKeySecret)
-		if err != nil {
-			log.Warnf("unable to set the client  for node with providerID %s to retrieve the key skipping SystemDisk Retrieval with err: %v", slimK8sNode.ProviderID, err)
-			skipSystemDiskRetrieval = true
-		}
-		alibaba.clients[slimK8sNode.RegionID] = client
-	}
 
 	optimizedKeyword := ""
 	if slimK8sNode.IsIoOptimized {
@@ -796,8 +775,30 @@ func (alibaba *Alibaba) GetKey(mapValue map[string]string, node *v1.Node) Key {
 
 	var diskCategory, diskSizeInGiB, diskPerformanceLevel string
 
-	if skipSystemDiskRetrieval {
+	if !alibaba.accessKeyisLoaded() {
+		aak, err = alibaba.GetAlibabaAccessKey()
+		if err != nil {
+			log.Warnf("unable to set the signer for node with providerID %s to retrieve the key skipping SystemDisk Retrieval with err: %v", slimK8sNode.ProviderID, err)
+			return NewAlibabaNodeKey(slimK8sNode, optimizedKeyword, diskCategory, diskSizeInGiB, diskPerformanceLevel)
+		}
+	} else {
+		aak = alibaba.accessKey
+	}
+
+	signer = signers.NewAccessKeySigner(aak)
+
+	if aak == nil {
+		log.Warnf("unable to retrieve the Alibaba API keys for node with providerID %s hence skipping SystemDisk Retrieval", slimK8sNode.ProviderID)
 		return NewAlibabaNodeKey(slimK8sNode, optimizedKeyword, diskCategory, diskSizeInGiB, diskPerformanceLevel)
+	}
+
+	if client, ok = alibaba.clients[slimK8sNode.RegionID]; !ok {
+		client, err = sdk.NewClientWithAccessKey(slimK8sNode.RegionID, aak.AccessKeyId, aak.AccessKeySecret)
+		if err != nil {
+			log.Warnf("unable to set the client  for node with providerID %s to retrieve the key skipping SystemDisk Retrieval with err: %v", slimK8sNode.ProviderID, err)
+			return NewAlibabaNodeKey(slimK8sNode, optimizedKeyword, diskCategory, diskSizeInGiB, diskPerformanceLevel)
+		}
+		alibaba.clients[slimK8sNode.RegionID] = client
 	}
 
 	instanceID := getInstanceIDFromProviderID(slimK8sNode.ProviderID)
