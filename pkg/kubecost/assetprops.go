@@ -130,6 +130,9 @@ const AlibabaProvider = "Alibaba"
 // CSVProvider describes the provider a CSV
 const CSVProvider = "CSV"
 
+// CustomProvider describes a custom provider
+const CustomProvider = "custom"
+
 // ScalewayProvider describes the provider Scaleway
 const ScalewayProvider = "Scaleway"
 
