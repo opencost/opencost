@@ -3,7 +3,6 @@ package cloud
 import (
 	"context"
 	"fmt"
-	"github.com/opencost/opencost/pkg/kubecost"
 	"io"
 	"net/http"
 	"net/url"
@@ -13,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/opencost/opencost/pkg/kubecost"
 
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
@@ -1266,14 +1267,25 @@ func (az *Azure) GetOrphanedResources() ([]OrphanedResource, error) {
 				return nil, err
 			}
 
+			diskName := ""
+			if d.Name != nil {
+				diskName = *d.Name
+			}
+
+			diskRegion := ""
+			if d.Location != nil {
+				diskRegion = *d.Location
+			}
+
 			or := OrphanedResource{
 				Kind:   "disk",
-				Region: *d.Location,
+				Region: diskRegion,
 				Description: map[string]string{
 					"diskState":   string(d.DiskState),
 					"timeCreated": d.TimeCreated.String(),
 				},
 				Size:        d.DiskSizeGB,
+				DiskName:    diskName,
 				MonthlyCost: &cost,
 			}
 			orphanedResources = append(orphanedResources, or)
