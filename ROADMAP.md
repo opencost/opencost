@@ -10,4 +10,4 @@ __2022 roadmap__
 * More robust API documentation
 * Expose carbon emission ratings
 
-Please contact us at team@kubecost.com if you're interest in more detail. 
+Please contact us at opencost@kubecost.com if you're interest in more detail.

@@ -8,7 +8,10 @@ import (
 const gb = 1024 * 1024 * 1024
 const day = 24 * time.Hour
 
-var disk = PVKey{}
+var disk = PVKey{
+	Cluster: "cluster1",
+	Name:    "pv1",
+}
 
 // NewMockUnitAllocation creates an *Allocation with all of its float64 values set to 1 and generic properties if not provided in arg
 func NewMockUnitAllocation(name string, start time.Time, resolution time.Duration, props *AllocationProperties) *Allocation {
@@ -328,7 +331,7 @@ func GenerateMockAllocationSetWithAssetProperties(start time.Time) *AllocationSe
 		Cluster: "cluster2",
 		Name:    "disk2",
 	}
-	for _, a := range as.allocations {
+	for _, a := range as.Allocations {
 		// add reconcilable pvs to pod-mno
 		if a.Properties.Pod == "pod-mno" {
 			a.PVs = a.PVs.Add(PVAllocations{
@@ -398,7 +401,7 @@ func GenerateMockAssetSets(start, end time.Time) []*AssetSet {
 	cluster1Nodes.CPUCost = 55.0
 	cluster1Nodes.RAMCost = 44.0
 	cluster1Nodes.GPUCost = 11.0
-	cluster1Nodes.adjustment = -10.00
+	cluster1Nodes.Adjustment = -10.00
 	cluster1Nodes.CPUCoreHours = 8
 	cluster1Nodes.RAMByteHours = 6
 	cluster1Nodes.GPUHours = 24
@@ -430,12 +433,12 @@ func GenerateMockAssetSets(start, end time.Time) []*AssetSet {
 	// Add PVs
 	cluster2Disk1 := NewDisk("disk1", "cluster2", "disk1", start, end, NewWindow(&start, &end))
 	cluster2Disk1.Cost = 5.0
-	cluster2Disk1.adjustment = 1.0
+	cluster2Disk1.Adjustment = 1.0
 	cluster2Disk1.ByteHours = 5 * gb
 
 	cluster2Disk2 := NewDisk("disk2", "cluster2", "disk2", start, end, NewWindow(&start, &end))
 	cluster2Disk2.Cost = 10.0
-	cluster2Disk2.adjustment = 3.0
+	cluster2Disk2.Adjustment = 3.0
 	cluster2Disk2.ByteHours = 10 * gb
 
 	cluster2Node1Disk := NewDisk("node1", "cluster2", "node1", start, end, NewWindow(&start, &end))
@@ -514,7 +517,7 @@ func GenerateMockAssetSets(start, end time.Time) []*AssetSet {
 	cluster1Nodes.CPUCost = 5.0
 	cluster1Nodes.RAMCost = 4.0
 	cluster1Nodes.GPUCost = 1.0
-	cluster1Nodes.adjustment = 90.00
+	cluster1Nodes.Adjustment = 90.00
 	cluster1Nodes.CPUCoreHours = 8
 	cluster1Nodes.RAMByteHours = 6
 	cluster1Nodes.GPUHours = 24
@@ -546,12 +549,12 @@ func GenerateMockAssetSets(start, end time.Time) []*AssetSet {
 	// Add PVs
 	cluster2Disk1 = NewDisk("disk1", "cluster2", "disk1", start, end, NewWindow(&start, &end))
 	cluster2Disk1.Cost = 5.0
-	cluster2Disk1.adjustment = 1.0
+	cluster2Disk1.Adjustment = 1.0
 	cluster2Disk1.ByteHours = 5 * gb
 
 	cluster2Disk2 = NewDisk("disk2", "cluster2", "disk2", start, end, NewWindow(&start, &end))
 	cluster2Disk2.Cost = 12.0
-	cluster2Disk2.adjustment = 4.0
+	cluster2Disk2.Adjustment = 4.0
 	cluster2Disk2.ByteHours = 20 * gb
 
 	assetSet2 := NewAssetSet(start, end, cluster1Nodes, cluster2Node1, cluster2Node2, cluster2Node3, cluster2Disk1,

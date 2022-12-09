@@ -61,10 +61,10 @@ func getIntervalPointsFromWindows(windows map[podKey]kubecost.Window) IntervalPo
 
 	var intervals IntervalPoints
 
-	for podKey, podInterval := range windows {
+	for podKey, podWindow := range windows {
 
-		start := NewIntervalPoint(*podInterval.Start(), "start", podKey)
-		end := NewIntervalPoint(*podInterval.End(), "end", podKey)
+		start := NewIntervalPoint(*podWindow.Start(), "start", podKey)
+		end := NewIntervalPoint(*podWindow.End(), "end", podKey)
 
 		intervals = append(intervals, []IntervalPoint{start, end}...)
 
@@ -79,43 +79,49 @@ func getIntervalPointsFromWindows(windows map[podKey]kubecost.Window) IntervalPo
 // getPVCCostCoefficients gets a coefficient which represents the scale
 // factor that each PVC in a pvcIntervalMap and corresponding slice of
 // IntervalPoints intervals uses to calculate a cost for that PVC's PV.
-func getPVCCostCoefficients(intervals IntervalPoints, pvcIntervalMap map[podKey]kubecost.Window) map[podKey][]CoefficientComponent {
-
+func getPVCCostCoefficients(intervals IntervalPoints, thisPVC *pvc) map[podKey][]CoefficientComponent {
+	// pvcCostCoefficientMap has a format such that the individual coefficient
+	// components are preserved for testing purposes.
 	pvcCostCoefficientMap := make(map[podKey][]CoefficientComponent)
 
-	// pvcCostCoefficientMap is mutated in this function. The format is
-	// such that the individual coefficient components are preserved for
-	// testing purposes.
+	pvcWindow := kubecost.NewWindow(&thisPVC.Start, &thisPVC.End)
 
-	activeKeys := map[podKey]struct{}{
-		intervals[0].Key: struct{}{},
-	}
+	unmountedKey := getUnmountedPodKey(thisPVC.Cluster)
+
+	var void struct{}
+	activeKeys := map[podKey]struct{}{}
+
+	currentTime := thisPVC.Start
 
 	// For each interval i.e. for any time a pod-PVC relation ends or starts...
-	for i := 1; i < len(intervals); i++ {
-
-		// intervals will always have at least two IntervalPoints (one start/end)
-		point := intervals[i]
-		prevPoint := intervals[i-1]
-
+	for _, point := range intervals {
 		// If the current point happens at a later time than the previous point
-		if !point.Time.Equal(prevPoint.Time) {
+		if !point.Time.Equal(currentTime) {
 			for key := range activeKeys {
-				if pvcIntervalMap[key].Duration().Minutes() != 0 {
-					pvcCostCoefficientMap[key] = append(
-						pvcCostCoefficientMap[key],
-						CoefficientComponent{
-							Time:       point.Time.Sub(prevPoint.Time).Minutes() / pvcIntervalMap[key].Duration().Minutes(),
-							Proportion: 1.0 / float64(len(activeKeys)),
-						},
-					)
-				}
+				pvcCostCoefficientMap[key] = append(
+					pvcCostCoefficientMap[key],
+					CoefficientComponent{
+						Time:       point.Time.Sub(currentTime).Minutes() / pvcWindow.Duration().Minutes(),
+						Proportion: 1.0 / float64(len(activeKeys)),
+					},
+				)
+
+			}
+			// If there are no active keys attribute all cost to the unmounted pv
+			if len(activeKeys) == 0 {
+				pvcCostCoefficientMap[unmountedKey] = append(
+					pvcCostCoefficientMap[unmountedKey],
+					CoefficientComponent{
+						Time:       point.Time.Sub(currentTime).Minutes() / pvcWindow.Duration().Minutes(),
+						Proportion: 1.0,
+					},
+				)
 			}
 		}
 
 		// If the point was a start, increment and track
 		if point.PointType == "start" {
-			activeKeys[point.Key] = struct{}{}
+			activeKeys[point.Key] = void
 		}
 
 		// If the point was an end, decrement and stop tracking
@@ -123,6 +129,18 @@ func getPVCCostCoefficients(intervals IntervalPoints, pvcIntervalMap map[podKey]
 			delete(activeKeys, point.Key)
 		}
 
+		currentTime = point.Time
+	}
+
+	// If all pod intervals end before the end of the PVC attribute the remaining cost to unmounted
+	if currentTime.Before(thisPVC.End) {
+		pvcCostCoefficientMap[unmountedKey] = append(
+			pvcCostCoefficientMap[unmountedKey],
+			CoefficientComponent{
+				Time:       thisPVC.End.Sub(currentTime).Minutes() / pvcWindow.Duration().Minutes(),
+				Proportion: 1.0,
+			},
+		)
 	}
 
 	return pvcCostCoefficientMap

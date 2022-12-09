@@ -4,14 +4,16 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/opencost/opencost/pkg/kubecost"
 
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
@@ -19,7 +21,11 @@ import (
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/fileutil"
 	"github.com/opencost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/util/timeutil"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
+	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-11-01/compute"
 	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
 	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2016-06-01/subscriptions"
 	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2018-05-01/resources"
@@ -39,6 +45,8 @@ const (
 	defaultSpotLabelValue            = "spot"
 	AzureStorageUpdateType           = "AzureStorage"
 )
+
+var toTitle = cases.Title(language.Und, cases.NoLower)
 
 var (
 	regionCodeMappings = map[string]string{
@@ -271,7 +279,7 @@ func getRetailPrice(region string, skuName string, currencyCode string, spot boo
 
 	pricingPayload := AzureRetailPricing{}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("Error getting response: %v", err)
 	}
@@ -355,7 +363,7 @@ type AzureRetailPricing struct {
 	Count              int                            `json:"Count"`
 }
 
-//AzureRetailPricingAttributes struct for unmarshalling Azure Retail pricing api JSON response
+// AzureRetailPricingAttributes struct for unmarshalling Azure Retail pricing api JSON response
 type AzureRetailPricingAttributes struct {
 	CurrencyCode         string     `json:"currencyCode"`
 	TierMinimumUnits     float32    `json:"tierMinimumUnits"`
@@ -413,6 +421,10 @@ func (k *azureKey) Features() string {
 	instance, _ := util.GetInstanceType(k.Labels)
 	usageType := "ondemand"
 	return fmt.Sprintf("%s,%s,%s", region, instance, usageType)
+}
+
+func (k *azureKey) GPUCount() int {
+	return 0
 }
 
 // GPUType returns value of GPULabel if present
@@ -531,9 +543,15 @@ func (az *Azure) getAzureRateCardAuth(forceReload bool, cp *CustomPricing) (subs
 		tenantID = cp.AzureTenantID
 		return
 	}
-
-	// 3. Empty values
+	// 3. Check if AzureSubscriptionID is set in config (set though endpoint)
+	// MSI credentials will be attempted if the subscription ID is set, but clientID, clientSecret and tenantID are not
+	if cp.AzureSubscriptionID != "" {
+		subscriptionID = cp.AzureSubscriptionID
+		return
+	}
+	// 4. Empty values
 	return "", "", "", ""
+
 }
 
 // GetAzureStorageConfig retrieves storage config from secret and sets default values
@@ -571,12 +589,12 @@ func (az *Azure) GetAzureStorageConfig(forceReload bool, cp *CustomPricing) (*Az
 			asc.SubscriptionId = defaultSubscriptionID
 		}
 		// check for required fields
-		if asc.AccessKey != "" && asc.AccountName != "" && asc.ContainerName != "" && asc.SubscriptionId == "" {
+		if asc.AccessKey != "" && asc.AccountName != "" && asc.ContainerName != "" && asc.SubscriptionId != "" {
 			az.serviceAccountChecks.set("hasStorage", &ServiceAccountCheck{
 				Message: "Azure Storage Config exists",
 				Status:  true,
 			})
-			
+
 			return asc, nil
 		}
 	}
@@ -603,7 +621,7 @@ func (az *Azure) loadAzureAuthSecret(force bool) (*AzureServiceKey, error) {
 		return nil, fmt.Errorf("Failed to locate service account file: %s", authSecretPath)
 	}
 
-	result, err := ioutil.ReadFile(authSecretPath)
+	result, err := os.ReadFile(authSecretPath)
 	if err != nil {
 		return nil, err
 	}
@@ -632,7 +650,7 @@ func (az *Azure) loadAzureStorageConfig(force bool) (*AzureStorageConfig, error)
 		return nil, fmt.Errorf("Failed to locate azure storage config file: %s", storageConfigSecretPath)
 	}
 
-	result, err := ioutil.ReadFile(storageConfigSecretPath)
+	result, err := os.ReadFile(storageConfigSecretPath)
 	if err != nil {
 		return nil, err
 	}
@@ -1155,8 +1173,150 @@ func (*Azure) GetAddresses() ([]byte, error) {
 	return nil, nil
 }
 
-func (*Azure) GetDisks() ([]byte, error) {
-	return nil, nil
+func (az *Azure) GetDisks() ([]byte, error) {
+	disks, err := az.getDisks()
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(disks)
+}
+
+func (az *Azure) getDisks() ([]*compute.Disk, error) {
+	config, err := az.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	// Load the service provider keys
+	subscriptionID, clientID, clientSecret, tenantID := az.getAzureRateCardAuth(false, config)
+	config.AzureSubscriptionID = subscriptionID
+	config.AzureClientID = clientID
+	config.AzureClientSecret = clientSecret
+	config.AzureTenantID = tenantID
+
+	var authorizer autorest.Authorizer
+
+	azureEnv := determineCloudByRegion(az.clusterRegion)
+
+	if config.AzureClientID != "" && config.AzureClientSecret != "" && config.AzureTenantID != "" {
+		credentialsConfig := NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID, azureEnv)
+		a, err := credentialsConfig.Authorizer()
+		if err != nil {
+			az.RateCardPricingError = err
+			return nil, err
+		}
+		authorizer = a
+	}
+
+	if authorizer == nil {
+		a, err := auth.NewAuthorizerFromEnvironment()
+		authorizer = a
+		if err != nil {
+			a, err := auth.NewAuthorizerFromFile(azureEnv.ResourceManagerEndpoint)
+			if err != nil {
+				az.RateCardPricingError = err
+				return nil, err
+			}
+			authorizer = a
+		}
+	}
+	client := compute.NewDisksClient(config.AzureSubscriptionID)
+	client.Authorizer = authorizer
+
+	ctx := context.TODO()
+
+	var disks []*compute.Disk
+
+	diskPage, err := client.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting disks: %v", err)
+	}
+
+	for diskPage.NotDone() {
+		for _, d := range diskPage.Values() {
+			d := d
+			disks = append(disks, &d)
+		}
+		err := diskPage.Next()
+		if err != nil {
+			return nil, fmt.Errorf("error getting next page: %v", err)
+		}
+	}
+
+	return disks, nil
+}
+
+func isDiskOrphaned(disk *compute.Disk) bool {
+	//TODO: needs better algorithm
+	return disk.DiskState == "Unattached" || disk.DiskState == "Reserved"
+}
+
+func (az *Azure) GetOrphanedResources() ([]OrphanedResource, error) {
+	disks, err := az.getDisks()
+	if err != nil {
+		return nil, err
+	}
+
+	var orphanedResources []OrphanedResource
+
+	for _, d := range disks {
+		if isDiskOrphaned(d) {
+			cost, err := az.findCostForDisk(d)
+			if err != nil {
+				return nil, err
+			}
+
+			diskName := ""
+			if d.Name != nil {
+				diskName = *d.Name
+			}
+
+			diskRegion := ""
+			if d.Location != nil {
+				diskRegion = *d.Location
+			}
+
+			or := OrphanedResource{
+				Kind:   "disk",
+				Region: diskRegion,
+				Description: map[string]string{
+					"diskState":   string(d.DiskState),
+					"timeCreated": d.TimeCreated.String(),
+				},
+				Size:        d.DiskSizeGB,
+				DiskName:    diskName,
+				MonthlyCost: &cost,
+			}
+			orphanedResources = append(orphanedResources, or)
+		}
+	}
+
+	return orphanedResources, nil
+}
+
+func (az *Azure) findCostForDisk(d *compute.Disk) (float64, error) {
+	if d == nil {
+		return 0.0, fmt.Errorf("disk is empty")
+	}
+	storageClass := string(d.Sku.Name)
+	if strings.EqualFold(storageClass, "Premium_LRS") {
+		storageClass = AzureDiskPremiumSSDStorageClass
+	} else if strings.EqualFold(storageClass, "StandardSSD_LRS") {
+		storageClass = AzureDiskStandardSSDStorageClass
+	} else if strings.EqualFold(storageClass, "Standard_LRS") {
+		storageClass = AzureDiskStandardStorageClass
+	}
+
+	key := *d.Location + "," + storageClass
+
+	diskPricePerGBHour, err := strconv.ParseFloat(az.Pricing[key].PV.Cost, 64)
+	if err != nil {
+		return 0.0, fmt.Errorf("error converting to float: %s", err)
+	}
+	cost := diskPricePerGBHour * timeutil.HoursPerMonth * float64(*d.DiskSizeGB)
+
+	return cost, nil
 }
 
 func (az *Azure) ClusterInfo() (map[string]string, error) {
@@ -1171,7 +1331,7 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 	if c.ClusterName != "" {
 		m["name"] = c.ClusterName
 	}
-	m["provider"] = "Azure"
+	m["provider"] = kubecost.AzureProvider
 	m["account"] = az.clusterAccountId
 	m["region"] = az.clusterRegion
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
@@ -1190,7 +1350,7 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 			asc := &AzureStorageConfig{}
 			err := json.NewDecoder(r).Decode(&asc)
 			if err != nil {
-				return err
+				return fmt.Errorf("error decoding AzureStorageConfig: %s", err)
 			}
 
 			c.AzureStorageSubscriptionID = asc.SubscriptionId
@@ -1202,35 +1362,46 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 			c.AzureContainerPath = asc.ContainerPath
 			c.AzureCloud = asc.AzureCloud
 		} else {
-			defer az.DownloadPricingData()
+			// This will block if not in a goroutine. It calls GetConfig(), which
+			// in turn calls GetCustomPricingData, which acquires the same lock
+			// that is acquired by az.Config.Update, which is the function to
+			// which this function gets passed, and subsequently called. Booo.
+			defer func() {
+				go az.DownloadPricingData()
+			}()
+
 			a := make(map[string]interface{})
 			err := json.NewDecoder(r).Decode(&a)
 			if err != nil {
-				return err
+				return fmt.Errorf("error decoding AzureStorageConfig: %s", err)
 			}
+
 			for k, v := range a {
-				kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+				// Just so we consistently supply / receive the same values, uppercase the first letter.
+				kUpper := toTitle.String(k)
 				vstr, ok := v.(string)
 				if ok {
 					err := SetCustomPricingField(c, kUpper, vstr)
 					if err != nil {
-						return err
+						return fmt.Errorf("error setting custom pricing field on AzureStorageConfig: %s", err)
 					}
 				} else {
 					return fmt.Errorf("type error while updating config for %s", kUpper)
 				}
 			}
 		}
+
 		if env.IsRemoteEnabled() {
 			err := UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
 			if err != nil {
-				return err
+				return fmt.Errorf("error updating cluster metadata: %s", err)
 			}
 		}
 
 		return nil
 	})
 }
+
 func (az *Azure) GetConfig() (*CustomPricing, error) {
 	c, err := az.Config.GetCustomPricingData()
 	if err != nil {

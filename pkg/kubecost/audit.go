@@ -1,9 +1,10 @@
 package kubecost
 
 import (
-	"golang.org/x/exp/slices"
 	"sync"
 	"time"
+
+	"golang.org/x/exp/slices"
 )
 
 // AuditType the types of Audits, each of which should be contained in an AuditSet
@@ -37,8 +38,8 @@ func ToAuditType(check string) AuditType {
 		return AuditAssetTotalStore
 	case string(AuditAssetAggStore):
 		return AuditAssetAggStore
-	//case string(AuditClusterEquality):
-	//	return AuditClusterEquality
+	case string(AuditClusterEquality):
+		return AuditClusterEquality
 	case string(AuditAll):
 		return AuditAll
 	default:
@@ -235,7 +236,6 @@ func (ea *EqualityAudit) Clone() *EqualityAudit {
 
 // AuditCoverage tracks coverage of each audit type
 type AuditCoverage struct {
-	sync.RWMutex
 	AllocationReconciliation Window `json:"allocationReconciliation"`
 	AllocationAgg            Window `json:"allocationAgg"`
 	AllocationTotal          Window `json:"allocationTotal"`

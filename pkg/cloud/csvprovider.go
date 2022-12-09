@@ -33,6 +33,8 @@ type CSVProvider struct {
 	NodeMapField            string
 	PricingPV               map[string]*price
 	PVMapField              string
+	GPUClassPricing         map[string]*price
+	GPUMapFields            []string // Fields in a node's labels that represent the GPU class.
 	UsesRegion              bool
 	DownloadPricingDataLock sync.RWMutex
 }
@@ -59,6 +61,8 @@ func (c *CSVProvider) DownloadPricingData() error {
 	nodeclasspricing := make(map[string]float64)
 	nodeclasscount := make(map[string]float64)
 	pvpricing := make(map[string]*price)
+	gpupricing := make(map[string]*price)
+	c.GPUMapFields = make([]string, 0, 1)
 	header, err := csvutil.Header(price{}, "csv")
 	if err != nil {
 		return err
@@ -87,6 +91,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 			c.NodeClassPricing = nodeclasspricing
 			c.NodeClassCount = nodeclasscount
 			c.PricingPV = pvpricing
+			c.GPUClassPricing = gpupricing
 			return fmt.Errorf("Invalid s3 URI: %s", c.CSVLocation)
 		}
 	} else {
@@ -98,6 +103,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 		c.NodeClassPricing = nodeclasspricing
 		c.NodeClassCount = nodeclasscount
 		c.PricingPV = pvpricing
+		c.GPUClassPricing = gpupricing
 		return nil
 	}
 	csvReader := csv.NewReader(csvr)
@@ -110,6 +116,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 		c.NodeClassPricing = nodeclasspricing
 		c.NodeClassCount = nodeclasscount
 		c.PricingPV = pvpricing
+		c.GPUClassPricing = gpupricing
 		return err
 	}
 	for {
@@ -163,6 +170,9 @@ func (c *CSVProvider) DownloadPricingData() error {
 			}
 
 			c.NodeMapField = p.InstanceIDField
+		} else if p.AssetClass == "gpu" {
+			gpupricing[key] = &p
+			c.GPUMapFields = append(c.GPUMapFields, strings.ToLower(p.InstanceIDField))
 		} else {
 			log.Infof("Unrecognized asset class %s, defaulting to node", p.AssetClass)
 			pricing[key] = &p
@@ -174,6 +184,7 @@ func (c *CSVProvider) DownloadPricingData() error {
 		c.NodeClassPricing = nodeclasspricing
 		c.NodeClassCount = nodeclasscount
 		c.PricingPV = pvpricing
+		c.GPUClassPricing = gpupricing
 	} else {
 		log.DedupedWarningf(5, "No data received from csv at %s", c.CSVLocation)
 	}
@@ -183,6 +194,8 @@ func (c *CSVProvider) DownloadPricingData() error {
 type csvKey struct {
 	Labels     map[string]string
 	ProviderID string
+	GPULabel   []string
+	GPU        int64
 }
 
 func (k *csvKey) Features() string {
@@ -192,7 +205,17 @@ func (k *csvKey) Features() string {
 
 	return region + "," + instanceType + "," + class
 }
+
+func (k *csvKey) GPUCount() int {
+	return int(k.GPU)
+}
+
 func (k *csvKey) GPUType() string {
+	for _, label := range k.GPULabel {
+		if val, ok := k.Labels[label]; ok {
+			return val
+		}
+	}
 	return ""
 }
 func (k *csvKey) ID() string {
@@ -202,30 +225,56 @@ func (k *csvKey) ID() string {
 func (c *CSVProvider) NodePricing(key Key) (*Node, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
+	var node *Node
 	if p, ok := c.Pricing[key.ID()]; ok {
-		return &Node{
+		node = &Node{
 			Cost:        p.MarketPriceHourly,
 			PricingType: CsvExact,
-		}, nil
+		}
 	}
 	s := strings.Split(key.ID(), ",") // Try without a region to be sure
 	if len(s) == 2 {
 		if p, ok := c.Pricing[s[1]]; ok {
-			return &Node{
+			node = &Node{
 				Cost:        p.MarketPriceHourly,
 				PricingType: CsvExact,
-			}, nil
+			}
 		}
 	}
 	classKey := key.Features() // Use node attributes to try and do a class match
 	if cost, ok := c.NodeClassPricing[classKey]; ok {
 		log.Infof("Unable to find provider ID `%s`, using features:`%s`", key.ID(), key.Features())
-		return &Node{
+		node = &Node{
 			Cost:        fmt.Sprintf("%f", cost),
 			PricingType: CsvClass,
-		}, nil
+		}
 	}
-	return nil, fmt.Errorf("Unable to find Node matching `%s`:`%s`", key.ID(), key.Features())
+
+	if node != nil {
+		if t := key.GPUType(); t != "" {
+			t = strings.ToLower(t)
+			count := key.GPUCount()
+			node.GPU = strconv.Itoa(count)
+			hourly := 0.0
+			if p, ok := c.GPUClassPricing[t]; ok {
+				var err error
+				hourly, err = strconv.ParseFloat(p.MarketPriceHourly, 64)
+				if err != nil {
+					log.Errorf("Unable to parse %s as float", p.MarketPriceHourly)
+				}
+			}
+			totalCost := hourly * float64(count)
+			node.GPUCost = fmt.Sprintf("%f", totalCost)
+			nc, err := strconv.ParseFloat(node.Cost, 64)
+			if err != nil {
+				log.Errorf("Unable to parse %s as float", node.Cost)
+			}
+			node.Cost = fmt.Sprintf("%f", nc+totalCost)
+		}
+		return node, nil
+	} else {
+		return nil, fmt.Errorf("Unable to find Node matching `%s`:`%s`", key.ID(), key.Features())
+	}
 }
 
 func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
@@ -299,9 +348,16 @@ func PVValueFromMapField(m string, n *v1.PersistentVolume) string {
 
 func (c *CSVProvider) GetKey(l map[string]string, n *v1.Node) Key {
 	id := NodeValueFromMapField(c.NodeMapField, n, c.UsesRegion)
+	var gpuCount int64
+	gpuCount = 0
+	if gpuc, ok := n.Status.Capacity["nvidia.com/gpu"]; ok { // TODO: support non-nvidia GPUs
+		gpuCount = gpuc.Value()
+	}
 	return &csvKey{
 		ProviderID: id,
 		Labels:     l,
+		GPULabel:   c.GPUMapFields,
+		GPU:        gpuCount,
 	}
 }
 
@@ -368,3 +424,4 @@ func (c *CSVProvider) CombinedDiscountForNode(instanceType string, isPreemptible
 func (c *CSVProvider) Regions() []string {
 	return []string{}
 }
+

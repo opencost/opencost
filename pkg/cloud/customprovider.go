@@ -1,7 +1,9 @@
 package cloud
 
 import (
+	"errors"
 	"fmt"
+	"github.com/opencost/opencost/pkg/kubecost"
 	"io"
 	"strconv"
 	"strings"
@@ -107,7 +109,7 @@ func (cp *CustomProvider) ClusterInfo() (map[string]string, error) {
 	if conf.ClusterName != "" {
 		m["name"] = conf.ClusterName
 	}
-	m["provider"] = "custom"
+	m["provider"] = kubecost.CustomProvider
 	m["id"] = env.GetClusterID()
 	return m, nil
 }
@@ -118,6 +120,10 @@ func (*CustomProvider) GetAddresses() ([]byte, error) {
 
 func (*CustomProvider) GetDisks() ([]byte, error) {
 	return nil, nil
+}
+
+func (*CustomProvider) GetOrphanedResources() ([]OrphanedResource, error) {
+	return nil, errors.New("not implemented")
 }
 
 func (cp *CustomProvider) AllNodePricing() (interface{}, error) {
@@ -275,6 +281,10 @@ func (*CustomProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]s
 		StorageClassParameters: parameters,
 		DefaultRegion:          defaultRegion,
 	}
+}
+
+func (k *customProviderKey) GPUCount() int {
+	return 0
 }
 
 func (cpk *customProviderKey) GPUType() string {

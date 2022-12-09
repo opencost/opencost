@@ -388,15 +388,20 @@ func intDataSize(data interface{}) int {
 
 // Conversion from byte slice to string
 func bytesToString(b []byte) string {
-	// The following commented code will map an existing byte slice's underlying array
-	// to a string. The purpose is to avoid new allocation of a string from an existing
-	// byte array. This is a solid optimization to save total allocations, but effectively
-	// pins the string's existence to the underlying byte array. This can prevent GC of the
-	// bytes in a few cases, and we should just return a newly allocated string to allow
-	// future optimization.
-	//return *(*string)(unsafe.Pointer(&b))
+	// This code will take the passed byte slice and cast it in-place into a string. By doing
+	// this, we are pinning the byte slice's underlying array in memory, preventing it from
+	// being garbage collected while the string is still in use. If we are using the Bank()
+	// functionality to cache new strings, we risk keeping the pinned array alive. To avoid this,
+	// we will use the BankFunc() call which uses the casted string to check for existance of a
+	// cached string. If it exists, then we drop the pinned reference immediately and use the
+	// cached string. If it does _not_ exist, then we use the passed func() string to allocate a new
+	// string and cache it. This will prevent us from allocating throw-away strings just to
+	// check our cache.
+	pinned := *(*string)(unsafe.Pointer(&b))
 
-	return stringutil.Bank(string(b))
+	return stringutil.BankFunc(pinned, func() string {
+		return string(b)
+	})
 }
 
 // Direct string to byte conversion that doesn't allocate.

@@ -23,9 +23,10 @@ const useStyles = makeStyles({
 const Header = (props) => {
   const classes = useStyles()
   const { title, breadcrumbs } = props
-  
+
   return (
     <div className={classes.root}>
+      <img src={ require('../images/logo.png') } alt="OpenCost" />
       <div className={classes.context}>
         {title && <Typography variant="h4" className={classes.title}>{props.title}</Typography>}
         {breadcrumbs && breadcrumbs.length > 0 && (

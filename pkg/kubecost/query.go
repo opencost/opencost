@@ -67,6 +67,7 @@ type AssetQueryOptions struct {
 	IncludeCloud            bool
 	SharedHourlyCosts       map[string]float64
 	Step                    time.Duration
+	LabelConfig             *LabelConfig
 }
 
 // CloudUsageQueryOptions define optional parameters for querying a Store
@@ -76,6 +77,7 @@ type CloudUsageQueryOptions struct {
 	Compute      bool
 	FilterFuncs  []CloudUsageMatchFunc
 	FilterValues CloudUsageFilter
+	LabelConfig  *LabelConfig
 }
 
 type CloudUsageFilter struct {

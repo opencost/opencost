@@ -22,15 +22,17 @@ package kubecost
 
 // Default Version Set (uses -version flag passed) includes shared resources
 // @bingen:generate:Window
+// @bingen:generate:Coverage
+// @bingen:generate:CoverageSet
 
 // Asset Version Set: Includes Asset pipeline specific resources
-// @bingen:set[name=Assets,version=16]
+// @bingen:set[name=Assets,version=18]
 // @bingen:generate:Any
 // @bingen:generate:Asset
 // @bingen:generate:AssetLabels
 // @bingen:generate:AssetProperties
 // @bingen:generate:AssetProperty
-// @bingen:generate[stringtable]:AssetSet
+// @bingen:generate[stringtable,preprocess,postprocess]:AssetSet
 // @bingen:generate:AssetSetRange
 // @bingen:generate:Breakdown
 // @bingen:generate:Cloud
@@ -71,4 +73,20 @@ package kubecost
 // @bingen:generate:AuditSetRange
 // @bingen:end
 
-//go:generate bingen -package=kubecost -version=15 -buffer=github.com/opencost/opencost/pkg/util
+// @bingen:set[name=CloudCostAggregate,version=1]
+// @bingen:generate:CloudCostAggregate
+// @bingen:generate[stringtable]:CloudCostAggregateSet
+// @bingen:generate:CloudCostAggregateSetRange
+// @bingen:generate:CloudCostAggregateProperties
+// @bingen:generate:CloudCostAggregateLabels
+// @bingen:end
+
+// @bingen:set[name=CloudCostItem,version=1]
+// @bingen:generate:CloudCostItem
+// @bingen:generate[stringtable]:CloudCostItemSet
+// @bingen:generate:CloudCostItemSetRange
+// @bingen:generate:CloudCostItemProperties
+// @bingen:generate:CloudCostItemLabels
+// @bingen:end
+
+//go:generate bingen -package=kubecost -version=17 -buffer=github.com/opencost/opencost/pkg/util

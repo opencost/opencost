@@ -3,14 +3,15 @@
 Thanks for your help improving the OpenCost project! There are many ways to contribute to the project, including the following:
 
 * contributing or providing feedback on the [OpenCost Spec](https://github.com/opencost/opencost/tree/develop/spec)
-* contributing documentation 
-* joining the discussion on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or in the [OpenCost community discussions](https://drive.google.com/drive/folders/1hXlcyFPePB7t3z6lyVzdxmdfrbzeT1Jz) folder
+* contributing documentation here or to the [OpenCost website](https://github.com/kubecost/opencost-website)
+* joining the discussion in the [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel
+* participating in the fortnightly [OpenCost Working Group](https://calendar.google.com/calendar/u/0/embed?src=c_c0f7q56e5eeod3j89bb320fvjg@group.calendar.google.com&ctz=America/Los_Angeles) meetings ([notes here](https://drive.google.com/drive/folders/1hXlcyFPePB7t3z6lyVzdxmdfrbzeT1Jz))
 * committing software via the workflow below
 
 ## Getting Help
 
 If you have a question about OpenCost or have encountered problems using it,
-you can start by asking a question on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or via email at [support@kubecost.com](support@kubecost.com)
+you can start by asking a question on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or via email at [opencost@kubecost.com](opencost@kubecost.com)
 
 ## Workflow
 
@@ -96,4 +97,4 @@ Please write a commit message with Fixes Issue # if there is an outstanding issu
 
 Please run go fmt on the project directory. Lint can be okay (for example, comments on exported functions are nice but not required on the server).
 
-Please email us [support@kubecost.com](support@kubecost.com) or reach out to us on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel if you need help or have any questions!
+Please email us [opencost@kubecost.com](opencost@kubecost.com) or reach out to us on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel if you need help or have any questions!

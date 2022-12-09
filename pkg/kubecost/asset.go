@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/opencost/opencost/pkg/log"
@@ -16,6 +15,12 @@ import (
 // E.g. if aggregating on Cluster, Assets in the AssetSet where Asset has no cluster will be grouped under key "__undefined__"
 const UndefinedKey = "__undefined__"
 
+// LocalStorageClass is used to assign storage class of local disks.
+const LocalStorageClass = "__local__"
+
+// UnknownStorageClass is used to assign storage class of persistent volume whose information is unable to be traced.
+const UnknownStorageClass = "__unknown__"
+
 // Asset defines an entity within a cluster that has a defined cost over a
 // given period of time.
 type Asset interface {
@@ -23,25 +28,26 @@ type Asset interface {
 	// be defined by the underlying type implementing the interface.
 	Type() AssetType
 
-	// Properties are a map of predefined traits, which may or may not exist,
+	// GetProperties are a map of predefined traits, which may or may not exist,
 	// but must conform to the AssetProperty schema
-	Properties() *AssetProperties
+	GetProperties() *AssetProperties
 	SetProperties(*AssetProperties)
 
-	// Labels are a map of undefined string-to-string values
-	Labels() AssetLabels
+	// GetLabels are a map of undefined string-to-string values
+	GetLabels() AssetLabels
 	SetLabels(AssetLabels)
 
 	// Monetary values
-	Adjustment() float64
+	GetAdjustment() float64
 	SetAdjustment(float64)
 	TotalCost() float64
 
 	// Temporal values
-	Start() time.Time
-	End() time.Time
+	GetStart() time.Time
+	GetEnd() time.Time
 	SetStartEnd(time.Time, time.Time)
-	Window() Window
+	GetWindow() Window
+	SetWindow(Window)
 	ExpandWindow(Window)
 	Minutes() float64
 
@@ -58,67 +64,69 @@ type Asset interface {
 }
 
 // AssetToExternalAllocation converts the given asset to an Allocation, given
-// the properties to use to aggregate, and the mapping from Allocation property
+// the Properties to use to aggregate, and the mapping from Allocation property
 // to Asset label. For example, consider this asset:
 //
 // CURRENT: Asset ETL stores its data ALREADY MAPPED from label to k8s concept. This isn't ideal-- see the TOOD.
-//   Cloud {
-// 	   TotalCost: 10.00,
-// 	   Labels{
-//       "kubernetes_namespace":"monitoring",
-// 	     "env":"prod"
-// 	   }
-//   }
+//
+//	  Cloud {
+//		   TotalCost: 10.00,
+//		   Labels{
+//	      "kubernetes_namespace":"monitoring",
+//		     "env":"prod"
+//		   }
+//	  }
 //
 // Given the following parameters, we expect to return:
 //
-//   1) single-prop full match
-//   aggregateBy = ["namespace"]
-//   => Allocation{Name: "monitoring", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//  1. single-prop full match
+//     aggregateBy = ["namespace"]
+//     => Allocation{Name: "monitoring", ExternalCost: 10.00, TotalCost: 10.00}, nil
 //
-//   2) multi-prop full match
-//   aggregateBy = ["namespace", "label:env"]
-//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
-//   => Allocation{Name: "monitoring/env=prod", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//  2. multi-prop full match
+//     aggregateBy = ["namespace", "label:env"]
+//     allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//     => Allocation{Name: "monitoring/env=prod", ExternalCost: 10.00, TotalCost: 10.00}, nil
 //
-//   3) multi-prop partial match
-//   aggregateBy = ["namespace", "label:foo"]
-//   => Allocation{Name: "monitoring/__unallocated__", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//  3. multi-prop partial match
+//     aggregateBy = ["namespace", "label:foo"]
+//     => Allocation{Name: "monitoring/__unallocated__", ExternalCost: 10.00, TotalCost: 10.00}, nil
 //
-//   4) no match
-//   aggregateBy = ["cluster"]
-//   => nil, err
+//  4. no match
+//     aggregateBy = ["cluster"]
+//     => nil, err
 //
 // TODO:
-//   Cloud {
-// 	   TotalCost: 10.00,
-// 	   Labels{
-//       "kubernetes_namespace":"monitoring",
-// 	     "env":"prod"
-// 	   }
-//   }
+//
+//	  Cloud {
+//		   TotalCost: 10.00,
+//		   Labels{
+//	      "kubernetes_namespace":"monitoring",
+//		     "env":"prod"
+//		   }
+//	  }
 //
 // Given the following parameters, we expect to return:
 //
-//   1) single-prop full match
-//   aggregateBy = ["namespace"]
-//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
-//   => Allocation{Name: "monitoring", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//  1. single-prop full match
+//     aggregateBy = ["namespace"]
+//     allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//     => Allocation{Name: "monitoring", ExternalCost: 10.00, TotalCost: 10.00}, nil
 //
-//   2) multi-prop full match
-//   aggregateBy = ["namespace", "label:env"]
-//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
-//   => Allocation{Name: "monitoring/env=prod", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//  2. multi-prop full match
+//     aggregateBy = ["namespace", "label:env"]
+//     allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//     => Allocation{Name: "monitoring/env=prod", ExternalCost: 10.00, TotalCost: 10.00}, nil
 //
-//   3) multi-prop partial match
-//   aggregateBy = ["namespace", "label:foo"]
-//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
-//   => Allocation{Name: "monitoring/__unallocated__", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//  3. multi-prop partial match
+//     aggregateBy = ["namespace", "label:foo"]
+//     allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//     => Allocation{Name: "monitoring/__unallocated__", ExternalCost: 10.00, TotalCost: 10.00}, nil
 //
-//   4) no match
-//   aggregateBy = ["cluster"]
-//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
-//   => nil, err
+//  4. no match
+//     aggregateBy = ["cluster"]
+//     allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//     => nil, err
 //
 // (See asset_test.go for assertions of these examples and more.)
 func AssetToExternalAllocation(asset Asset, aggregateBy []string, labelConfig *LabelConfig) (*Allocation, error) {
@@ -154,7 +162,7 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, labelConfig *L
 	// and the asset has label "kubens":"kubecost", then file the asset as an
 	// external cost under "kubecost").
 	for _, aggBy := range aggregateBy {
-		name := labelConfig.GetExternalAllocationName(asset.Labels(), aggBy)
+		name := labelConfig.GetExternalAllocationName(asset.GetLabels(), aggBy)
 
 		if name == "" {
 			// No matching label has been defined in the cost-analyzer label config
@@ -232,9 +240,9 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, labelConfig *L
 	return &Allocation{
 		Name:         strings.Join(names, "/"),
 		Properties:   &props,
-		Window:       asset.Window().Clone(),
-		Start:        asset.Start(),
-		End:          asset.End(),
+		Window:       asset.GetWindow().Clone(),
+		Start:        asset.GetStart(),
+		End:          asset.GetEnd(),
 		ExternalCost: asset.TotalCost(),
 	}, nil
 }
@@ -246,8 +254,12 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, labelConfig *L
 // values will key by only those values.
 // Valid values of `aggregateBy` elements are strings which are an `AssetProperty`, and strings prefixed
 // with `"label:"`.
-func key(a Asset, aggregateBy []string) (string, error) {
+func key(a Asset, aggregateBy []string, labelConfig *LabelConfig) (string, error) {
 	var buffer strings.Builder
+
+	if labelConfig == nil {
+		labelConfig = NewLabelConfig()
+	}
 
 	if aggregateBy == nil {
 		aggregateBy = []string{
@@ -267,26 +279,36 @@ func key(a Asset, aggregateBy []string) (string, error) {
 		key := ""
 		switch true {
 		case s == string(AssetProviderProp):
-			key = a.Properties().Provider
+			key = a.GetProperties().Provider
 		case s == string(AssetAccountProp):
-			key = a.Properties().Account
+			key = a.GetProperties().Account
 		case s == string(AssetProjectProp):
-			key = a.Properties().Project
+			key = a.GetProperties().Project
 		case s == string(AssetClusterProp):
-			key = a.Properties().Cluster
+			key = a.GetProperties().Cluster
 		case s == string(AssetCategoryProp):
-			key = a.Properties().Category
+			key = a.GetProperties().Category
 		case s == string(AssetTypeProp):
 			key = a.Type().String()
 		case s == string(AssetServiceProp):
-			key = a.Properties().Service
+			key = a.GetProperties().Service
 		case s == string(AssetProviderIDProp):
-			key = a.Properties().ProviderID
+			key = a.GetProperties().ProviderID
 		case s == string(AssetNameProp):
-			key = a.Properties().Name
+			key = a.GetProperties().Name
+		case s == string(AssetDepartmentProp):
+			key = getKeyFromLabelConfig(a, labelConfig, labelConfig.DepartmentExternalLabel)
+		case s == string(AssetEnvironmentProp):
+			key = getKeyFromLabelConfig(a, labelConfig, labelConfig.EnvironmentExternalLabel)
+		case s == string(AssetOwnerProp):
+			key = getKeyFromLabelConfig(a, labelConfig, labelConfig.OwnerExternalLabel)
+		case s == string(AssetProductProp):
+			key = getKeyFromLabelConfig(a, labelConfig, labelConfig.ProductExternalLabel)
+		case s == string(AssetTeamProp):
+			key = getKeyFromLabelConfig(a, labelConfig, labelConfig.TeamExternalLabel)
 		case strings.HasPrefix(s, "label:"):
 			if labelKey := strings.TrimPrefix(s, "label:"); labelKey != "" {
-				labelVal := a.Labels()[labelKey]
+				labelVal := a.GetLabels()[labelKey]
 				if labelVal == "" {
 					key = "__undefined__"
 				} else {
@@ -312,8 +334,30 @@ func key(a Asset, aggregateBy []string) (string, error) {
 	return buffer.String(), nil
 }
 
+func getKeyFromLabelConfig(a Asset, labelConfig *LabelConfig, label string) string {
+	labels := a.GetLabels()
+	if labels == nil {
+		return UnallocatedSuffix
+	} else {
+		key := UnallocatedSuffix
+		labelNames := strings.Split(label, ",")
+		for _, labelName := range labelNames {
+			name := labelConfig.Sanitize(labelName)
+			if labelValue, ok := labels[name]; ok {
+				key = labelValue
+				break
+			}
+		}
+		return key
+	}
+}
+
+func GetAssetKey(a Asset, aggregateBy []string) (string, error) {
+	return key(a, aggregateBy, nil)
+}
+
 func toString(a Asset) string {
-	return fmt.Sprintf("%s{%s}%s=%.2f", a.Type().String(), a.Properties(), a.Window(), a.TotalCost())
+	return fmt.Sprintf("%s{%s}%s=%.2f", a.Type().String(), a.GetProperties(), a.GetWindow(), a.TotalCost())
 }
 
 // AssetLabels is a schema-free mapping of key/value pairs that can be
@@ -447,23 +491,23 @@ func (at AssetType) String() string {
 // Any is the most general Asset, which is usually created as a result of
 // adding two Assets of different types.
 type Any struct {
-	labels     AssetLabels
-	properties *AssetProperties
-	start      time.Time
-	end        time.Time
-	window     Window
-	adjustment float64
+	Labels     AssetLabels
+	Properties *AssetProperties
+	Start      time.Time
+	End        time.Time
+	Window     Window
+	Adjustment float64
 	Cost       float64
 }
 
 // NewAsset creates a new Any-type Asset for the given period of time
 func NewAsset(start, end time.Time, window Window) *Any {
 	return &Any{
-		labels:     AssetLabels{},
-		properties: &AssetProperties{},
-		start:      start,
-		end:        end,
-		window:     window.Clone(),
+		Labels:     AssetLabels{},
+		Properties: &AssetProperties{},
+		Start:      start,
+		End:        end,
+		Window:     window.Clone(),
 	}
 }
 
@@ -472,106 +516,110 @@ func (a *Any) Type() AssetType {
 	return AnyAssetType
 }
 
-// Properties returns the Asset's properties
-func (a *Any) Properties() *AssetProperties {
-	return a.properties
+// Properties returns the Asset's Properties
+func (a *Any) GetProperties() *AssetProperties {
+	return a.Properties
 }
 
-// SetProperties sets the Asset's properties
+// SetProperties sets the Asset's Properties
 func (a *Any) SetProperties(props *AssetProperties) {
-	a.properties = props
+	a.Properties = props
 }
 
 // Labels returns the Asset's labels
-func (a *Any) Labels() AssetLabels {
-	return a.labels
+func (a *Any) GetLabels() AssetLabels {
+	return a.Labels
 }
 
 // SetLabels sets the Asset's labels
 func (a *Any) SetLabels(labels AssetLabels) {
-	a.labels = labels
+	a.Labels = labels
 }
 
 // Adjustment returns the Asset's cost adjustment
-func (a *Any) Adjustment() float64 {
-	return a.adjustment
+func (a *Any) GetAdjustment() float64 {
+	return a.Adjustment
 }
 
 // SetAdjustment sets the Asset's cost adjustment
 func (a *Any) SetAdjustment(adj float64) {
-	a.adjustment = adj
+	a.Adjustment = adj
 }
 
 // TotalCost returns the Asset's TotalCost
 func (a *Any) TotalCost() float64 {
-	return a.Cost + a.adjustment
+	return a.Cost + a.Adjustment
 }
 
 // Start returns the Asset's start time within the window
-func (a *Any) Start() time.Time {
-	return a.start
+func (a *Any) GetStart() time.Time {
+	return a.Start
 }
 
 // End returns the Asset's end time within the window
-func (a *Any) End() time.Time {
-	return a.end
+func (a *Any) GetEnd() time.Time {
+	return a.End
 }
 
 // Minutes returns the number of minutes the Asset was active within the window
 func (a *Any) Minutes() float64 {
-	return a.End().Sub(a.Start()).Minutes()
+	return a.End.Sub(a.Start).Minutes()
 }
 
 // Window returns the Asset's window
-func (a *Any) Window() Window {
-	return a.window
+func (a *Any) GetWindow() Window {
+	return a.Window
+}
+
+func (a *Any) SetWindow(window Window) {
+	a.Window = window
 }
 
 // ExpandWindow expands the Asset's window by the given window
 func (a *Any) ExpandWindow(window Window) {
-	a.window = a.window.Expand(window)
+	a.Window = a.Window.Expand(window)
 }
 
 // SetStartEnd sets the Asset's Start and End fields
 func (a *Any) SetStartEnd(start, end time.Time) {
-	if a.Window().Contains(start) {
-		a.start = start
+	if a.Window.Contains(start) {
+		a.Start = start
 	} else {
-		log.Warnf("Any.SetStartEnd: start %s not in %s", start, a.Window())
+		log.Warnf("Any.SetStartEnd: start %s not in %s", start, a.Window)
 	}
 
-	if a.Window().Contains(end) {
-		a.end = end
+	if a.Window.Contains(end) {
+		a.End = end
 	} else {
-		log.Warnf("Any.SetStartEnd: end %s not in %s", end, a.Window())
+		log.Warnf("Any.SetStartEnd: end %s not in %s", end, a.Window)
 	}
 }
 
 // Add sums the Asset with the given Asset to produce a new Asset, maintaining
-// as much relevant information as possible (i.e. type, properties, labels).
+// as much relevant information as possible (i.e. type, Properties, labels).
 func (a *Any) Add(that Asset) Asset {
 	this := a.Clone().(*Any)
 
-	props := a.Properties().Merge(that.Properties())
-	labels := a.Labels().Merge(that.Labels())
+	props := a.Properties.Merge(that.GetProperties())
+	labels := a.Labels.Merge(that.GetLabels())
 
-	start := a.Start()
-	if that.Start().Before(start) {
-		start = that.Start()
+	start := a.Start
+	if that.GetStart().Before(start) {
+		start = that.GetStart()
 	}
-	end := a.End()
-	if that.End().After(end) {
-		end = that.End()
+	end := a.End
+	if that.GetEnd().After(end) {
+		end = that.GetEnd()
 	}
-	window := a.Window().Expand(that.Window())
+	window := a.Window.Expand(that.GetWindow())
 
-	this.start = start
-	this.end = end
-	this.window = window
+	this.Start = start
+	this.End = end
+	this.Window = window
 	this.SetProperties(props)
 	this.SetLabels(labels)
-	this.adjustment += that.Adjustment()
-	this.Cost += (that.TotalCost() - that.Adjustment())
+	this.Adjustment += that.GetAdjustment()
+	this.Cost += (that.TotalCost() - that.GetAdjustment())
 
 	return this
 }
@@ -579,12 +627,12 @@ func (a *Any) Add(that Asset) Asset {
 // Clone returns a cloned instance of the Asset
 func (a *Any) Clone() Asset {
 	return &Any{
-		labels:     a.labels.Clone(),
-		properties: a.properties.Clone(),
-		start:      a.start,
-		end:        a.end,
-		window:     a.window.Clone(),
-		adjustment: a.adjustment,
+		Labels:     a.Labels.Clone(),
+		Properties: a.Properties.Clone(),
+		Start:      a.Start,
+		End:        a.End,
+		Window:     a.Window.Clone(),
+		Adjustment: a.Adjustment,
 		Cost:       a.Cost,
 	}
 }
@@ -596,20 +644,20 @@ func (a *Any) Equal(that Asset) bool {
 		return false
 	}
 
-	if !a.Labels().Equal(that.Labels()) {
+	if !a.Labels.Equal(t.Labels) {
 		return false
 	}
-	if !a.Properties().Equal(that.Properties()) {
+	if !a.Properties.Equal(t.Properties) {
 		return false
 	}
 
-	if !a.start.Equal(t.start) {
+	if !a.Start.Equal(t.Start) {
 		return false
 	}
-	if !a.end.Equal(t.end) {
+	if !a.End.Equal(t.End) {
 		return false
 	}
-	if !a.window.Equal(t.window) {
+	if !a.Window.Equal(t.Window) {
 		return false
 	}
 
@@ -627,12 +675,12 @@ func (a *Any) String() string {
 
 // Cloud describes a cloud asset
 type Cloud struct {
-	labels     AssetLabels
-	properties *AssetProperties
-	start      time.Time
-	end        time.Time
-	window     Window
-	adjustment float64
+	Labels     AssetLabels
+	Properties *AssetProperties
+	Start      time.Time
+	End        time.Time
+	Window     Window
+	Adjustment float64
 	Cost       float64
 	Credit     float64 // Credit is a negative value representing dollars credited back to a given line-item
 }
@@ -645,11 +693,11 @@ func NewCloud(category, providerID string, start, end time.Time, window Window) 
 	}
 
 	return &Cloud{
-		labels:     AssetLabels{},
-		properties: properties,
-		start:      start,
-		end:        end,
-		window:     window.Clone(),
+		Labels:     AssetLabels{},
+		Properties: properties,
+		Start:      start,
+		End:        end,
+		Window:     window.Clone(),
 	}
 }
 
@@ -659,82 +707,86 @@ func (ca *Cloud) Type() AssetType {
 }
 
 // Properties returns the AssetProperties
-func (ca *Cloud) Properties() *AssetProperties {
-	return ca.properties
+func (ca *Cloud) GetProperties() *AssetProperties {
+	return ca.Properties
 }
 
-// SetProperties sets the Asset's properties
+// SetProperties sets the Asset's Properties
 func (ca *Cloud) SetProperties(props *AssetProperties) {
-	ca.properties = props
+	ca.Properties = props
 }
 
 // Labels returns the AssetLabels
-func (ca *Cloud) Labels() AssetLabels {
-	return ca.labels
+func (ca *Cloud) GetLabels() AssetLabels {
+	return ca.Labels
 }
 
 // SetLabels sets the Asset's labels
 func (ca *Cloud) SetLabels(labels AssetLabels) {
-	ca.labels = labels
+	ca.Labels = labels
 }
 
 // Adjustment returns the Asset's adjustment value
-func (ca *Cloud) Adjustment() float64 {
-	return ca.adjustment
+func (ca *Cloud) GetAdjustment() float64 {
+	return ca.Adjustment
 }
 
 // SetAdjustment sets the Asset's adjustment value
 func (ca *Cloud) SetAdjustment(adj float64) {
-	ca.adjustment = adj
+	ca.Adjustment = adj
 }
 
 // TotalCost returns the Asset's total cost
 func (ca *Cloud) TotalCost() float64 {
-	return ca.Cost + ca.adjustment + ca.Credit
+	return ca.Cost + ca.Adjustment + ca.Credit
 }
 
 // Start returns the Asset's precise start time within the window
-func (ca *Cloud) Start() time.Time {
-	return ca.start
+func (ca *Cloud) GetStart() time.Time {
+	return ca.Start
 }
 
 // End returns the Asset's precise end time within the window
-func (ca *Cloud) End() time.Time {
-	return ca.end
+func (ca *Cloud) GetEnd() time.Time {
+	return ca.End
 }
 
 // Minutes returns the number of Minutes the Asset ran
 func (ca *Cloud) Minutes() float64 {
-	return ca.End().Sub(ca.Start()).Minutes()
+	return ca.End.Sub(ca.Start).Minutes()
 }
 
 // Window returns the window within which the Asset ran
-func (ca *Cloud) Window() Window {
-	return ca.window
+func (ca *Cloud) GetWindow() Window {
+	return ca.Window
+}
+
+func (ca *Cloud) SetWindow(window Window) {
+	ca.Window = window
 }
 
 // ExpandWindow expands the Asset's window by the given window
 func (ca *Cloud) ExpandWindow(window Window) {
-	ca.window = ca.window.Expand(window)
+	ca.Window = ca.Window.Expand(window)
 }
 
 // SetStartEnd sets the Asset's Start and End fields
 func (ca *Cloud) SetStartEnd(start, end time.Time) {
-	if ca.Window().Contains(start) {
-		ca.start = start
+	if ca.Window.Contains(start) {
+		ca.Start = start
 	} else {
-		log.Warnf("Cloud.SetStartEnd: start %s not in %s", start, ca.Window())
+		log.Warnf("Cloud.SetStartEnd: start %s not in %s", start, ca.Window)
 	}
 
-	if ca.Window().Contains(end) {
-		ca.end = end
+	if ca.Window.Contains(end) {
+		ca.End = end
 	} else {
-		log.Warnf("Cloud.SetStartEnd: end %s not in %s", end, ca.Window())
+		log.Warnf("Cloud.SetStartEnd: end %s not in %s", end, ca.Window)
 	}
 }
 
 // Add sums the Asset with the given Asset to produce a new Asset, maintaining
-// as much relevant information as possible (i.e. type, properties, labels).
+// as much relevant information as possible (i.e. type, Properties, labels).
 func (ca *Cloud) Add(a Asset) Asset {
 	// Cloud + Cloud = Cloud
 	if that, ok := a.(*Cloud); ok {
@@ -743,25 +795,25 @@ func (ca *Cloud) Add(a Asset) Asset {
 		return this
 	}
 
-	props := ca.Properties().Merge(a.Properties())
-	labels := ca.Labels().Merge(a.Labels())
+	props := ca.Properties.Merge(a.GetProperties())
+	labels := ca.Labels.Merge(a.GetLabels())
 
-	start := ca.Start()
-	if a.Start().Before(start) {
-		start = a.Start()
+	start := ca.Start
+	if a.GetStart().Before(start) {
+		start = a.GetStart()
 	}
-	end := ca.End()
-	if a.End().After(end) {
-		end = a.End()
+	end := ca.End
+	if a.GetEnd().After(end) {
+		end = a.GetEnd()
 	}
-	window := ca.Window().Expand(a.Window())
+	window := ca.Window.Expand(a.GetWindow())
 
 	// Cloud + !Cloud = Any
 	any := NewAsset(start, end, window)
 	any.SetProperties(props)
 	any.SetLabels(labels)
-	any.adjustment = ca.Adjustment() + a.Adjustment()
-	any.Cost = (ca.TotalCost() - ca.Adjustment()) + (a.TotalCost() - a.Adjustment())
+	any.Adjustment = ca.Adjustment + a.GetAdjustment()
+	any.Cost = (ca.TotalCost() - ca.Adjustment) + (a.TotalCost() - a.GetAdjustment())
 
 	return any
 }
@@ -772,25 +824,25 @@ func (ca *Cloud) add(that *Cloud) {
 		return
 	}
 
-	props := ca.Properties().Merge(that.Properties())
-	labels := ca.Labels().Merge(that.Labels())
+	props := ca.Properties.Merge(that.Properties)
+	labels := ca.Labels.Merge(that.Labels)
 
-	start := ca.Start()
-	if that.Start().Before(start) {
-		start = that.Start()
+	start := ca.Start
+	if that.Start.Before(start) {
+		start = that.Start
 	}
-	end := ca.End()
-	if that.End().After(end) {
-		end = that.End()
+	end := ca.End
+	if that.End.After(end) {
+		end = that.End
 	}
-	window := ca.Window().Expand(that.Window())
+	window := ca.Window.Expand(that.Window)
 
-	ca.start = start
-	ca.end = end
-	ca.window = window
+	ca.Start = start
+	ca.End = end
+	ca.Window = window
 	ca.SetProperties(props)
 	ca.SetLabels(labels)
-	ca.adjustment += that.adjustment
+	ca.Adjustment += that.Adjustment
 	ca.Cost += that.Cost
 	ca.Credit += that.Credit
 }
@@ -798,12 +850,12 @@ func (ca *Cloud) add(that *Cloud) {
 // Clone returns a cloned instance of the Asset
 func (ca *Cloud) Clone() Asset {
 	return &Cloud{
-		labels:     ca.labels.Clone(),
-		properties: ca.properties.Clone(),
-		start:      ca.start,
-		end:        ca.end,
-		window:     ca.window.Clone(),
-		adjustment: ca.adjustment,
+		Labels:     ca.Labels.Clone(),
+		Properties: ca.Properties.Clone(),
+		Start:      ca.Start,
+		End:        ca.End,
+		Window:     ca.Window.Clone(),
+		Adjustment: ca.Adjustment,
 		Cost:       ca.Cost,
 		Credit:     ca.Credit,
 	}
@@ -816,27 +868,24 @@ func (ca *Cloud) Equal(a Asset) bool {
 		return false
 	}
 
-	if !ca.Labels().Equal(that.Labels()) {
+	if !ca.Labels.Equal(that.Labels) {
 		return false
 	}
-	if !ca.Properties().Equal(that.Properties()) {
+	if !ca.Properties.Equal(that.Properties) {
 		return false
 	}
-
-	if !ca.start.Equal(that.start) {
+	if !ca.Start.Equal(that.Start) {
 		return false
 	}
-	if !ca.end.Equal(that.end) {
+	if !ca.End.Equal(that.End) {
 		return false
 	}
-	if !ca.window.Equal(that.window) {
+	if !ca.Window.Equal(that.Window) {
 		return false
 	}
-
-	if ca.adjustment != that.adjustment {
+	if ca.Adjustment != that.Adjustment {
 		return false
 	}
-
 	if ca.Cost != that.Cost {
 		return false
 	}
@@ -854,11 +903,11 @@ func (ca *Cloud) String() string {
 
 // ClusterManagement describes a provider's cluster management fee
 type ClusterManagement struct {
-	labels     AssetLabels
-	properties *AssetProperties
-	window     Window
+	Labels     AssetLabels
+	Properties *AssetProperties
+	Window     Window
 	Cost       float64
-	adjustment float64 // @bingen:field[version=16]
+	Adjustment float64 // @bingen:field[version=16]
 }
 
 // NewClusterManagement creates and returns a new ClusterManagement instance
@@ -871,9 +920,9 @@ func NewClusterManagement(provider, cluster string, window Window) *ClusterManag
 	}
 
 	return &ClusterManagement{
-		labels:     AssetLabels{},
-		properties: properties,
-		window:     window.Clone(),
+		Labels:     AssetLabels{},
+		Properties: properties,
+		Window:     window.Clone(),
 	}
 }
 
@@ -882,64 +931,68 @@ func (cm *ClusterManagement) Type() AssetType {
 	return ClusterManagementAssetType
 }
 
-// Properties returns the Asset's properties
-func (cm *ClusterManagement) Properties() *AssetProperties {
-	return cm.properties
+// Properties returns the Asset's Properties
+func (cm *ClusterManagement) GetProperties() *AssetProperties {
+	return cm.Properties
 }
 
-// SetProperties sets the Asset's properties
+// SetProperties sets the Asset's Properties
 func (cm *ClusterManagement) SetProperties(props *AssetProperties) {
-	cm.properties = props
+	cm.Properties = props
 }
 
 // Labels returns the Asset's labels
-func (cm *ClusterManagement) Labels() AssetLabels {
-	return cm.labels
+func (cm *ClusterManagement) GetLabels() AssetLabels {
+	return cm.Labels
 }
 
-// SetLabels sets the Asset's properties
+// SetLabels sets the Asset's Properties
 func (cm *ClusterManagement) SetLabels(props AssetLabels) {
-	cm.labels = props
+	cm.Labels = props
 }
 
 // Adjustment does not apply to ClusterManagement
-func (cm *ClusterManagement) Adjustment() float64 {
-	return cm.adjustment
+func (cm *ClusterManagement) GetAdjustment() float64 {
+	return cm.Adjustment
 }
 
 // SetAdjustment does not apply to ClusterManagement
 func (cm *ClusterManagement) SetAdjustment(adj float64) {
-	cm.adjustment = adj
+	cm.Adjustment = adj
 }
 
 // TotalCost returns the Asset's total cost
 func (cm *ClusterManagement) TotalCost() float64 {
-	return cm.Cost + cm.adjustment
+	return cm.Cost + cm.Adjustment
 }
 
 // Start returns the Asset's precise start time within the window
-func (cm *ClusterManagement) Start() time.Time {
-	return *cm.window.Start()
+func (cm *ClusterManagement) GetStart() time.Time {
+	return *cm.Window.Start()
 }
 
 // End returns the Asset's precise end time within the window
-func (cm *ClusterManagement) End() time.Time {
-	return *cm.window.End()
+func (cm *ClusterManagement) GetEnd() time.Time {
+	return *cm.Window.End()
 }
 
 // Minutes returns the number of minutes the Asset ran
 func (cm *ClusterManagement) Minutes() float64 {
-	return cm.Window().Minutes()
+	return cm.Window.Minutes()
 }
 
 // Window return the Asset's window
-func (cm *ClusterManagement) Window() Window {
-	return cm.window
+func (cm *ClusterManagement) GetWindow() Window {
+	return cm.Window
+}
+
+func (cm *ClusterManagement) SetWindow(window Window) {
+	cm.Window = window
 }
 
 // ExpandWindow expands the Asset's window by the given window
 func (cm *ClusterManagement) ExpandWindow(window Window) {
-	cm.window = cm.window.Expand(window)
+	cm.Window = cm.Window.Expand(window)
 }
 
 // SetStartEnd sets the Asset's Start and End fields (not applicable here)
@@ -948,7 +1001,7 @@ func (cm *ClusterManagement) SetStartEnd(start, end time.Time) {
 }
 
 // Add sums the Asset with the given Asset to produce a new Asset, maintaining
-// as much relevant information as possible (i.e. type, properties, labels).
+// as much relevant information as possible (i.e. type, Properties, labels).
 func (cm *ClusterManagement) Add(a Asset) Asset {
 	// ClusterManagement + ClusterManagement = ClusterManagement
 	if that, ok := a.(*ClusterManagement); ok {
@@ -957,25 +1010,25 @@ func (cm *ClusterManagement) Add(a Asset) Asset {
 		return this
 	}
 
-	props := cm.Properties().Merge(a.Properties())
-	labels := cm.Labels().Merge(a.Labels())
+	props := cm.Properties.Merge(a.GetProperties())
+	labels := cm.Labels.Merge(a.GetLabels())
 
-	start := cm.Start()
-	if a.Start().Before(start) {
-		start = a.Start()
+	start := cm.GetStart()
+	if a.GetStart().Before(start) {
+		start = a.GetStart()
 	}
-	end := cm.End()
-	if a.End().After(end) {
-		end = a.End()
+	end := cm.GetEnd()
+	if a.GetEnd().After(end) {
+		end = a.GetEnd()
 	}
-	window := cm.Window().Expand(a.Window())
+	window := cm.Window.Expand(a.GetWindow())
 
 	// ClusterManagement + !ClusterManagement = Any
 	any := NewAsset(start, end, window)
 	any.SetProperties(props)
 	any.SetLabels(labels)
-	any.adjustment = cm.Adjustment() + a.Adjustment()
-	any.Cost = (cm.TotalCost() - cm.Adjustment()) + (a.TotalCost() - a.Adjustment())
+	any.Adjustment = cm.Adjustment + a.GetAdjustment()
+	any.Cost = (cm.TotalCost() - cm.Adjustment) + (a.TotalCost() - a.GetAdjustment())
 
 	return any
 }
@@ -986,24 +1039,24 @@ func (cm *ClusterManagement) add(that *ClusterManagement) {
 		return
 	}
 
-	props := cm.Properties().Merge(that.Properties())
-	labels := cm.Labels().Merge(that.Labels())
-	window := cm.Window().Expand(that.Window())
+	props := cm.Properties.Merge(that.Properties)
+	labels := cm.Labels.Merge(that.Labels)
+	window := cm.Window.Expand(that.Window)
 
-	cm.window = window
+	cm.Window = window
 	cm.SetProperties(props)
 	cm.SetLabels(labels)
-	cm.adjustment += that.adjustment
+	cm.Adjustment += that.Adjustment
 	cm.Cost += that.Cost
 }
 
 // Clone returns a cloned instance of the Asset
 func (cm *ClusterManagement) Clone() Asset {
 	return &ClusterManagement{
-		labels:     cm.labels.Clone(),
-		properties: cm.properties.Clone(),
-		window:     cm.window.Clone(),
-		adjustment: cm.adjustment,
+		Labels:     cm.Labels.Clone(),
+		Properties: cm.Properties.Clone(),
+		Window:     cm.Window.Clone(),
+		Adjustment: cm.Adjustment,
 		Cost:       cm.Cost,
 	}
 }
@@ -1015,18 +1068,18 @@ func (cm *ClusterManagement) Equal(a Asset) bool {
 		return false
 	}
 
-	if !cm.Labels().Equal(that.Labels()) {
+	if !cm.Labels.Equal(that.Labels) {
 		return false
 	}
-	if !cm.Properties().Equal(that.Properties()) {
-		return false
-	}
-
-	if !cm.window.Equal(that.window) {
+	if !cm.Properties.Equal(that.Properties) {
 		return false
 	}
 
-	if cm.adjustment != that.adjustment {
+	if !cm.Window.Equal(that.Window) {
+		return false
+	}
+
+	if cm.Adjustment != that.Adjustment {
 		return false
 	}
 
@@ -1044,16 +1097,22 @@ func (cm *ClusterManagement) String() string {
 
 // Disk represents an in-cluster disk Asset
 type Disk struct {
-	labels     AssetLabels
-	properties *AssetProperties
-	start      time.Time
-	end        time.Time
-	window     Window
-	adjustment float64
-	Cost       float64
-	ByteHours  float64
-	Local      float64
-	Breakdown  *Breakdown
+	Labels         AssetLabels
+	Properties     *AssetProperties
+	Start          time.Time
+	End            time.Time
+	Window         Window
+	Adjustment     float64
+	Cost           float64
+	ByteHours      float64
+	Local          float64
+	Breakdown      *Breakdown
+	StorageClass   string   // @bingen:field[version=17]
+	ByteHoursUsed  *float64 // @bingen:field[version=18]
+	ByteUsageMax   *float64 // @bingen:field[version=18]
+	VolumeName     string   // @bingen:field[version=18]
+	ClaimName      string   // @bingen:field[version=18]
+	ClaimNamespace string   // @bingen:field[version=18]
 }
 
 // NewDisk creates and returns a new Disk Asset
@@ -1067,11 +1126,11 @@ func NewDisk(name, cluster, providerID string, start, end time.Time, window Wind
 	}
 
 	return &Disk{
-		labels:     AssetLabels{},
-		properties: properties,
-		start:      start,
-		end:        end,
-		window:     window,
+		Labels:     AssetLabels{},
+		Properties: properties,
+		Start:      start,
+		End:        end,
+		Window:     window,
 		Breakdown:  &Breakdown{},
 	}
 }
@@ -1081,55 +1140,55 @@ func (d *Disk) Type() AssetType {
 	return DiskAssetType
 }
 
-// Properties returns the Asset's properties
-func (d *Disk) Properties() *AssetProperties {
-	return d.properties
+// Properties returns the Asset's Properties
+func (d *Disk) GetProperties() *AssetProperties {
+	return d.Properties
 }
 
-// SetProperties sets the Asset's properties
+// SetProperties sets the Asset's Properties
 func (d *Disk) SetProperties(props *AssetProperties) {
-	d.properties = props
+	d.Properties = props
 }
 
 // Labels returns the Asset's labels
-func (d *Disk) Labels() AssetLabels {
-	return d.labels
+func (d *Disk) GetLabels() AssetLabels {
+	return d.Labels
 }
 
 // SetLabels sets the Asset's labels
 func (d *Disk) SetLabels(labels AssetLabels) {
-	d.labels = labels
+	d.Labels = labels
 }
 
 // Adjustment returns the Asset's cost adjustment
-func (d *Disk) Adjustment() float64 {
-	return d.adjustment
+func (d *Disk) GetAdjustment() float64 {
+	return d.Adjustment
 }
 
 // SetAdjustment sets the Asset's cost adjustment
 func (d *Disk) SetAdjustment(adj float64) {
-	d.adjustment = adj
+	d.Adjustment = adj
 }
 
 // TotalCost returns the Asset's total cost
 func (d *Disk) TotalCost() float64 {
-	return d.Cost + d.adjustment
+	return d.Cost + d.Adjustment
 }
 
 // Start returns the precise start time of the Asset within the window
-func (d *Disk) Start() time.Time {
-	return d.start
+func (d *Disk) GetStart() time.Time {
+	return d.Start
 }
 
 // End returns the precise start time of the Asset within the window
-func (d *Disk) End() time.Time {
-	return d.end
+func (d *Disk) GetEnd() time.Time {
+	return d.End
 }
 
 // Minutes returns the number of minutes the Asset ran
 func (d *Disk) Minutes() float64 {
-	diskMins := d.end.Sub(d.start).Minutes()
-	windowMins := d.window.Minutes()
+	diskMins := d.End.Sub(d.Start).Minutes()
+	windowMins := d.Window.Minutes()
 
 	if diskMins > windowMins {
 		log.Warnf("Asset ETL: Disk.Minutes exceeds window: %.2f > %.2f", diskMins, windowMins)
@@ -1144,32 +1203,36 @@ func (d *Disk) Minutes() float64 {
 }
 
 // Window returns the window within which the Asset
-func (d *Disk) Window() Window {
-	return d.window
+func (d *Disk) GetWindow() Window {
+	return d.Window
+}
+
+func (d *Disk) SetWindow(window Window) {
+	d.Window = window
 }
 
 // ExpandWindow expands the Asset's window by the given window
 func (d *Disk) ExpandWindow(window Window) {
-	d.window = d.window.Expand(window)
+	d.Window = d.Window.Expand(window)
 }
 
 // SetStartEnd sets the Asset's Start and End fields
 func (d *Disk) SetStartEnd(start, end time.Time) {
-	if d.Window().Contains(start) {
-		d.start = start
+	if d.Window.Contains(start) {
+		d.Start = start
 	} else {
-		log.Warnf("Disk.SetStartEnd: start %s not in %s", start, d.Window())
+		log.Warnf("Disk.SetStartEnd: start %s not in %s", start, d.Window)
 	}
 
-	if d.Window().Contains(end) {
-		d.end = end
+	if d.Window.Contains(end) {
+		d.End = end
 	} else {
-		log.Warnf("Disk.SetStartEnd: end %s not in %s", end, d.Window())
+		log.Warnf("Disk.SetStartEnd: end %s not in %s", end, d.Window)
 	}
 }
 
 // Add sums the Asset with the given Asset to produce a new Asset, maintaining
-// as much relevant information as possible (i.e. type, properties, labels).
+// as much relevant information as possible (i.e. type, Properties, labels).
 func (d *Disk) Add(a Asset) Asset {
 	// Disk + Disk = Disk
 	if that, ok := a.(*Disk); ok {
@@ -1178,25 +1241,25 @@ func (d *Disk) Add(a Asset) Asset {
 		return this
 	}
 
-	props := d.Properties().Merge(a.Properties())
-	labels := d.Labels().Merge(a.Labels())
+	props := d.Properties.Merge(a.GetProperties())
+	labels := d.Labels.Merge(a.GetLabels())
 
-	start := d.Start()
-	if a.Start().Before(start) {
-		start = a.Start()
+	start := d.Start
+	if a.GetStart().Before(start) {
+		start = a.GetStart()
 	}
-	end := d.End()
-	if a.End().After(end) {
-		end = a.End()
+	end := d.End
+	if a.GetEnd().After(end) {
+		end = a.GetEnd()
 	}
-	window := d.Window().Expand(a.Window())
+	window := d.Window.Expand(a.GetWindow())
 
 	// Disk + !Disk = Any
 	any := NewAsset(start, end, window)
 	any.SetProperties(props)
 	any.SetLabels(labels)
-	any.adjustment = d.Adjustment() + a.Adjustment()
-	any.Cost = (d.TotalCost() - d.Adjustment()) + (a.TotalCost() - a.Adjustment())
+	any.Adjustment = d.Adjustment + a.GetAdjustment()
+	any.Cost = (d.TotalCost() - d.Adjustment) + (a.TotalCost() - a.GetAdjustment())
 
 	return any
 }
@@ -1207,23 +1270,23 @@ func (d *Disk) add(that *Disk) {
 		return
 	}
 
-	props := d.Properties().Merge(that.Properties())
-	labels := d.Labels().Merge(that.Labels())
+	props := d.Properties.Merge(that.Properties)
+	labels := d.Labels.Merge(that.Labels)
 	d.SetProperties(props)
 	d.SetLabels(labels)
 
-	start := d.Start()
-	if that.Start().Before(start) {
-		start = that.Start()
+	start := d.Start
+	if that.Start.Before(start) {
+		start = that.Start
 	}
-	end := d.End()
-	if that.End().After(end) {
-		end = that.End()
+	end := d.End
+	if that.End.After(end) {
+		end = that.End
 	}
-	window := d.Window().Expand(that.Window())
-	d.start = start
-	d.end = end
-	d.window = window
+	window := d.Window.Expand(that.Window)
+	d.Start = start
+	d.End = end
+	d.Window = window
 
 	totalCost := d.Cost + that.Cost
 	if totalCost > 0.0 {
@@ -1237,25 +1300,73 @@ func (d *Disk) add(that *Disk) {
 		d.Local = (d.Local + that.Local) / 2.0
 	}
 
-	d.adjustment += that.adjustment
+	d.Adjustment += that.Adjustment
 	d.Cost += that.Cost
 
 	d.ByteHours += that.ByteHours
+
+	if d.ByteHoursUsed == nil && that.ByteHoursUsed != nil {
+		copy := *that.ByteHoursUsed
+		d.ByteHoursUsed = &copy
+	} else if d.ByteHoursUsed != nil && that.ByteHoursUsed == nil {
+		// do nothing
+	} else if d.ByteHoursUsed != nil && that.ByteHoursUsed != nil {
+		sum := *d.ByteHoursUsed
+		sum += *that.ByteHoursUsed
+		d.ByteHoursUsed = &sum
+	}
+
+	// We have to nil out the max because we don't know if we're
+	// aggregating across time our properties. See RawAllocationOnly on
+	// Allocation for further reference.
+	d.ByteUsageMax = nil
+
+	// If storage class don't match default it to empty storage class
+	if d.StorageClass != that.StorageClass {
+		d.StorageClass = ""
+	}
+
+	if d.VolumeName != that.VolumeName {
+		d.VolumeName = ""
+	}
+	if d.ClaimName != that.ClaimName {
+		d.ClaimName = ""
+	}
+	if d.ClaimNamespace != that.ClaimNamespace {
+		d.ClaimNamespace = ""
+	}
 }
 
 // Clone returns a cloned instance of the Asset
 func (d *Disk) Clone() Asset {
+	var max *float64
+	if d.ByteUsageMax != nil {
+		copied := *d.ByteUsageMax
+		max = &copied
+	}
+	var byteHoursUsed *float64
+	if d.ByteHoursUsed != nil {
+		copied := *d.ByteHoursUsed
+		byteHoursUsed = &copied
+	}
+
 	return &Disk{
-		properties: d.properties.Clone(),
-		labels:     d.labels.Clone(),
-		start:      d.start,
-		end:        d.end,
-		window:     d.window.Clone(),
-		adjustment: d.adjustment,
-		Cost:       d.Cost,
-		ByteHours:  d.ByteHours,
-		Local:      d.Local,
-		Breakdown:  d.Breakdown.Clone(),
+		Properties:     d.Properties.Clone(),
+		Labels:         d.Labels.Clone(),
+		Start:          d.Start,
+		End:            d.End,
+		Window:         d.Window.Clone(),
+		Adjustment:     d.Adjustment,
+		Cost:           d.Cost,
+		ByteHours:      d.ByteHours,
+		ByteHoursUsed:  byteHoursUsed,
+		ByteUsageMax:   max,
+		Local:          d.Local,
+		Breakdown:      d.Breakdown.Clone(),
+		StorageClass:   d.StorageClass,
+		VolumeName:     d.VolumeName,
+		ClaimName:      d.ClaimName,
+		ClaimNamespace: d.ClaimNamespace,
 	}
 }
 
@@ -1266,37 +1377,64 @@ func (d *Disk) Equal(a Asset) bool {
 		return false
 	}
 
-	if !d.Labels().Equal(that.Labels()) {
+	if !d.Labels.Equal(that.Labels) {
 		return false
 	}
-	if !d.Properties().Equal(that.Properties()) {
+	if !d.Properties.Equal(that.Properties) {
 		return false
 	}
-
-	if !d.Start().Equal(that.Start()) {
+	if !d.Start.Equal(that.Start) {
 		return false
 	}
-	if !d.End().Equal(that.End()) {
+	if !d.End.Equal(that.End) {
 		return false
 	}
-	if !d.window.Equal(that.window) {
+	if !d.Window.Equal(that.Window) {
 		return false
 	}
-
-	if d.adjustment != that.adjustment {
+	if d.Adjustment != that.Adjustment {
 		return false
 	}
 	if d.Cost != that.Cost {
 		return false
 	}
-
 	if d.ByteHours != that.ByteHours {
+		return false
+	}
+	if d.ByteHoursUsed != nil && that.ByteHoursUsed == nil {
+		return false
+	}
+	if d.ByteHoursUsed == nil && that.ByteHoursUsed != nil {
+		return false
+	}
+	if (d.ByteHoursUsed != nil && that.ByteHoursUsed != nil) && *d.ByteHoursUsed != *that.ByteHoursUsed {
+		return false
+	}
+	if d.ByteUsageMax != nil && that.ByteUsageMax == nil {
+		return false
+	}
+	if d.ByteUsageMax == nil && that.ByteUsageMax != nil {
+		return false
+	}
+	if (d.ByteUsageMax != nil && that.ByteUsageMax != nil) && *d.ByteUsageMax != *that.ByteUsageMax {
 		return false
 	}
 	if d.Local != that.Local {
 		return false
 	}
 	if !d.Breakdown.Equal(that.Breakdown) {
+		return false
+	}
+	if d.StorageClass != that.StorageClass {
+		return false
+	}
+	if d.VolumeName != that.VolumeName {
+		return false
+	}
+	if d.ClaimName != that.ClaimName {
+		return false
+	}
+	if d.ClaimNamespace != that.ClaimNamespace {
 		return false
 	}
 
@@ -1313,11 +1451,14 @@ func (d *Disk) String() string {
 // hours running; e.g. the sum of a 100GiB disk running for the first 10 hours
 // and a 30GiB disk running for the last 20 hours of the same 24-hour window
 // would produce:
-//   (100*10 + 30*20) / 24 = 66.667GiB
+//
+//	(100*10 + 30*20) / 24 = 66.667GiB
+//
 // However, any number of disks running for the full span of a window will
 // report the actual number of bytes of the static disk; e.g. the above
 // scenario for one entire 24-hour window:
-//   (100*24 + 30*24) / 24 = (100 + 30) = 130GiB
+//
+//	(100*24 + 30*24) / 24 = (100 + 30) = 130GiB
 func (d *Disk) Bytes() float64 {
 	// [b*hr]*([min/hr]*[1/min]) = [b*hr]/[hr] = b
 	return d.ByteHours * (60.0 / d.Minutes())
@@ -1369,12 +1510,12 @@ func (b *Breakdown) Equal(that *Breakdown) bool {
 
 // Network is an Asset representing a single node's network costs
 type Network struct {
-	properties *AssetProperties
-	labels     AssetLabels
-	start      time.Time
-	end        time.Time
-	window     Window
-	adjustment float64
+	Properties *AssetProperties
+	Labels     AssetLabels
+	Start      time.Time
+	End        time.Time
+	Window     Window
+	Adjustment float64
 	Cost       float64
 }
 
@@ -1389,11 +1530,11 @@ func NewNetwork(name, cluster, providerID string, start, end time.Time, window W
 	}
 
 	return &Network{
-		properties: properties,
-		labels:     AssetLabels{},
-		start:      start,
-		end:        end,
-		window:     window.Clone(),
+		Properties: properties,
+		Labels:     AssetLabels{},
+		Start:      start,
+		End:        end,
+		Window:     window.Clone(),
 	}
 }
 
@@ -1402,55 +1543,55 @@ func (n *Network) Type() AssetType {
 	return NetworkAssetType
 }
 
-// Properties returns the Asset's properties
-func (n *Network) Properties() *AssetProperties {
-	return n.properties
+// Properties returns the Asset's Properties
+func (n *Network) GetProperties() *AssetProperties {
+	return n.Properties
 }
 
-// SetProperties sets the Asset's properties
+// SetProperties sets the Asset's Properties
 func (n *Network) SetProperties(props *AssetProperties) {
-	n.properties = props
+	n.Properties = props
 }
 
 // Labels returns the Asset's labels
-func (n *Network) Labels() AssetLabels {
-	return n.labels
+func (n *Network) GetLabels() AssetLabels {
+	return n.Labels
 }
 
 // SetLabels sets the Asset's labels
 func (n *Network) SetLabels(labels AssetLabels) {
-	n.labels = labels
+	n.Labels = labels
 }
 
 // Adjustment returns the Asset's cost adjustment
-func (n *Network) Adjustment() float64 {
-	return n.adjustment
+func (n *Network) GetAdjustment() float64 {
+	return n.Adjustment
 }
 
 // SetAdjustment sets the Asset's cost adjustment
 func (n *Network) SetAdjustment(adj float64) {
-	n.adjustment = adj
+	n.Adjustment = adj
 }
 
 // TotalCost returns the Asset's total cost
 func (n *Network) TotalCost() float64 {
-	return n.Cost + n.adjustment
+	return n.Cost + n.Adjustment
 }
 
 // Start returns the precise start time of the Asset within the window
-func (n *Network) Start() time.Time {
-	return n.start
+func (n *Network) GetStart() time.Time {
+	return n.Start
 }
 
 // End returns the precise end time of the Asset within the window
-func (n *Network) End() time.Time {
-	return n.end
+func (n *Network) GetEnd() time.Time {
+	return n.End
 }
 
 // Minutes returns the number of minutes the Asset ran within the window
 func (n *Network) Minutes() float64 {
-	netMins := n.end.Sub(n.start).Minutes()
-	windowMins := n.window.Minutes()
+	netMins := n.End.Sub(n.Start).Minutes()
+	windowMins := n.Window.Minutes()
 
 	if netMins > windowMins {
 		log.Warnf("Asset ETL: Network.Minutes exceeds window: %.2f > %.2f", netMins, windowMins)
@@ -1465,32 +1606,36 @@ func (n *Network) Minutes() float64 {
 }
 
 // Window returns the window within which the Asset ran
-func (n *Network) Window() Window {
-	return n.window
+func (n *Network) GetWindow() Window {
+	return n.Window
+}
+
+func (n *Network) SetWindow(window Window) {
+	n.Window = window
 }
 
 // ExpandWindow expands the Asset's window by the given window
 func (n *Network) ExpandWindow(window Window) {
-	n.window = n.window.Expand(window)
+	n.Window = n.Window.Expand(window)
 }
 
 // SetStartEnd sets the Asset's Start and End fields
 func (n *Network) SetStartEnd(start, end time.Time) {
-	if n.Window().Contains(start) {
-		n.start = start
+	if n.Window.Contains(start) {
+		n.Start = start
 	} else {
-		log.Warnf("Disk.SetStartEnd: start %s not in %s", start, n.Window())
+		log.Warnf("Disk.SetStartEnd: start %s not in %s", start, n.Window)
 	}
 
-	if n.Window().Contains(end) {
-		n.end = end
+	if n.Window.Contains(end) {
+		n.End = end
 	} else {
-		log.Warnf("Disk.SetStartEnd: end %s not in %s", end, n.Window())
+		log.Warnf("Disk.SetStartEnd: end %s not in %s", end, n.Window)
 	}
 }
 
 // Add sums the Asset with the given Asset to produce a new Asset, maintaining
-// as much relevant information as possible (i.e. type, properties, labels).
+// as much relevant information as possible (i.e. type, Properties, labels).
 func (n *Network) Add(a Asset) Asset {
 	// Network + Network = Network
 	if that, ok := a.(*Network); ok {
@@ -1499,25 +1644,25 @@ func (n *Network) Add(a Asset) Asset {
 		return this
 	}
 
-	props := n.Properties().Merge(a.Properties())
-	labels := n.Labels().Merge(a.Labels())
+	props := n.Properties.Merge(a.GetProperties())
+	labels := n.Labels.Merge(a.GetLabels())
 
-	start := n.Start()
-	if a.Start().Before(start) {
-		start = a.Start()
+	start := n.Start
+	if a.GetStart().Before(start) {
+		start = a.GetStart()
 	}
-	end := n.End()
-	if a.End().After(end) {
-		end = a.End()
+	end := n.End
+	if a.GetEnd().After(end) {
+		end = a.GetEnd()
 	}
-	window := n.Window().Expand(a.Window())
+	window := n.Window.Expand(a.GetWindow())
 
 	// Network + !Network = Any
 	any := NewAsset(start, end, window)
 	any.SetProperties(props)
 	any.SetLabels(labels)
-	any.adjustment = n.Adjustment() + a.Adjustment()
-	any.Cost = (n.TotalCost() - n.Adjustment()) + (a.TotalCost() - a.Adjustment())
+	any.Adjustment = n.Adjustment + a.GetAdjustment()
+	any.Cost = (n.TotalCost() - n.Adjustment) + (a.TotalCost() - a.GetAdjustment())
 
 	return any
 }
@@ -1528,26 +1673,26 @@ func (n *Network) add(that *Network) {
 		return
 	}
 
-	props := n.Properties().Merge(that.Properties())
-	labels := n.Labels().Merge(that.Labels())
+	props := n.Properties.Merge(that.Properties)
+	labels := n.Labels.Merge(that.Labels)
 	n.SetProperties(props)
 	n.SetLabels(labels)
 
-	start := n.Start()
-	if that.Start().Before(start) {
-		start = that.Start()
+	start := n.Start
+	if that.Start.Before(start) {
+		start = that.Start
 	}
-	end := n.End()
-	if that.End().After(end) {
-		end = that.End()
+	end := n.End
+	if that.End.After(end) {
+		end = that.End
 	}
-	window := n.Window().Expand(that.Window())
-	n.start = start
-	n.end = end
-	n.window = window
+	window := n.Window.Expand(that.Window)
+	n.Start = start
+	n.End = end
+	n.Window = window
 
 	n.Cost += that.Cost
-	n.adjustment += that.adjustment
+	n.Adjustment += that.Adjustment
 }
 
 // Clone returns a deep copy of the given Network
@@ -1557,12 +1702,12 @@ func (n *Network) Clone() Asset {
 	}
 
 	return &Network{
-		properties: n.properties.Clone(),
-		labels:     n.labels.Clone(),
-		start:      n.start,
-		end:        n.end,
-		window:     n.window.Clone(),
-		adjustment: n.adjustment,
+		Properties: n.Properties.Clone(),
+		Labels:     n.Labels.Clone(),
+		Start:      n.Start,
+		End:        n.End,
+		Window:     n.Window.Clone(),
+		Adjustment: n.Adjustment,
 		Cost:       n.Cost,
 	}
 }
@@ -1574,24 +1719,24 @@ func (n *Network) Equal(a Asset) bool {
 		return false
 	}
 
-	if !n.Labels().Equal(that.Labels()) {
+	if !n.Labels.Equal(that.Labels) {
 		return false
 	}
-	if !n.Properties().Equal(that.Properties()) {
-		return false
-	}
-
-	if !n.Start().Equal(that.Start()) {
-		return false
-	}
-	if !n.End().Equal(that.End()) {
-		return false
-	}
-	if !n.window.Equal(that.window) {
+	if !n.Properties.Equal(that.Properties) {
 		return false
 	}
 
-	if n.adjustment != that.adjustment {
+	if !n.Start.Equal(that.Start) {
+		return false
+	}
+	if !n.End.Equal(that.End) {
+		return false
+	}
+	if !n.Window.Equal(that.Window) {
+		return false
+	}
+
+	if n.Adjustment != that.Adjustment {
 		return false
 	}
 	if n.Cost != that.Cost {
@@ -1608,12 +1753,12 @@ func (n *Network) String() string {
 
 // Node is an Asset representing a single node in a cluster
 type Node struct {
-	properties   *AssetProperties
-	labels       AssetLabels
-	start        time.Time
-	end          time.Time
-	window       Window
-	adjustment   float64
+	Properties   *AssetProperties
+	Labels       AssetLabels
+	Start        time.Time
+	End          time.Time
+	Window       Window
+	Adjustment   float64
 	NodeType     string
 	CPUCoreHours float64
 	RAMByteHours float64
@@ -1639,11 +1784,11 @@ func NewNode(name, cluster, providerID string, start, end time.Time, window Wind
 	}
 
 	return &Node{
-		properties:   properties,
-		labels:       AssetLabels{},
-		start:        start,
-		end:          end,
-		window:       window.Clone(),
+		Properties:   properties,
+		Labels:       AssetLabels{},
+		Start:        start,
+		End:          end,
+		Window:       window.Clone(),
 		CPUBreakdown: &Breakdown{},
 		RAMBreakdown: &Breakdown{},
 	}
@@ -1654,55 +1799,55 @@ func (n *Node) Type() AssetType {
 	return NodeAssetType
 }
 
-// Properties returns the Asset's properties
-func (n *Node) Properties() *AssetProperties {
-	return n.properties
+// Properties returns the Asset's Properties
+func (n *Node) GetProperties() *AssetProperties {
+	return n.Properties
 }
 
-// SetProperties sets the Asset's properties
+// SetProperties sets the Asset's Properties
 func (n *Node) SetProperties(props *AssetProperties) {
-	n.properties = props
+	n.Properties = props
 }
 
 // Labels returns the Asset's labels
-func (n *Node) Labels() AssetLabels {
-	return n.labels
+func (n *Node) GetLabels() AssetLabels {
+	return n.Labels
 }
 
 // SetLabels sets the Asset's labels
 func (n *Node) SetLabels(labels AssetLabels) {
-	n.labels = labels
+	n.Labels = labels
 }
 
 // Adjustment returns the Asset's cost adjustment
-func (n *Node) Adjustment() float64 {
-	return n.adjustment
+func (n *Node) GetAdjustment() float64 {
+	return n.Adjustment
 }
 
 // SetAdjustment sets the Asset's cost adjustment
 func (n *Node) SetAdjustment(adj float64) {
-	n.adjustment = adj
+	n.Adjustment = adj
 }
 
 // TotalCost returns the Asset's total cost
 func (n *Node) TotalCost() float64 {
-	return ((n.CPUCost + n.RAMCost) * (1.0 - n.Discount)) + n.GPUCost + n.adjustment
+	return ((n.CPUCost + n.RAMCost) * (1.0 - n.Discount)) + n.GPUCost + n.Adjustment
 }
 
 // Start returns the precise start time of the Asset within the window
-func (n *Node) Start() time.Time {
-	return n.start
+func (n *Node) GetStart() time.Time {
+	return n.Start
 }
 
 // End returns the precise end time of the Asset within the window
-func (n *Node) End() time.Time {
-	return n.end
+func (n *Node) GetEnd() time.Time {
+	return n.End
 }
 
 // Minutes returns the number of minutes the Asset ran within the window
 func (n *Node) Minutes() float64 {
-	nodeMins := n.end.Sub(n.start).Minutes()
-	windowMins := n.window.Minutes()
+	nodeMins := n.End.Sub(n.Start).Minutes()
+	windowMins := n.Window.Minutes()
 
 	if nodeMins > windowMins {
 		log.Warnf("Asset ETL: Node.Minutes exceeds window: %.2f > %.2f", nodeMins, windowMins)
@@ -1717,32 +1862,36 @@ func (n *Node) Minutes() float64 {
 }
 
 // Window returns the window within which the Asset ran
-func (n *Node) Window() Window {
-	return n.window
+func (n *Node) GetWindow() Window {
+	return n.Window
+}
+
+func (n *Node) SetWindow(window Window) {
+	n.Window = window
 }
 
 // ExpandWindow expands the Asset's window by the given window
 func (n *Node) ExpandWindow(window Window) {
-	n.window = n.window.Expand(window)
+	n.Window = n.Window.Expand(window)
 }
 
 // SetStartEnd sets the Asset's Start and End fields
 func (n *Node) SetStartEnd(start, end time.Time) {
-	if n.Window().Contains(start) {
-		n.start = start
+	if n.Window.Contains(start) {
+		n.Start = start
 	} else {
-		log.Warnf("Disk.SetStartEnd: start %s not in %s", start, n.Window())
+		log.Warnf("Disk.SetStartEnd: start %s not in %s", start, n.Window)
 	}
 
-	if n.Window().Contains(end) {
-		n.end = end
+	if n.Window.Contains(end) {
+		n.End = end
 	} else {
-		log.Warnf("Disk.SetStartEnd: end %s not in %s", end, n.Window())
+		log.Warnf("Disk.SetStartEnd: end %s not in %s", end, n.Window)
 	}
 }
 
 // Add sums the Asset with the given Asset to produce a new Asset, maintaining
-// as much relevant information as possible (i.e. type, properties, labels).
+// as much relevant information as possible (i.e. type, Properties, labels).
 func (n *Node) Add(a Asset) Asset {
 	// Node + Node = Node
 	if that, ok := a.(*Node); ok {
@@ -1751,25 +1900,25 @@ func (n *Node) Add(a Asset) Asset {
 		return this
 	}
 
-	props := n.Properties().Merge(a.Properties())
-	labels := n.Labels().Merge(a.Labels())
+	props := n.Properties.Merge(a.GetProperties())
+	labels := n.Labels.Merge(a.GetLabels())
 
-	start := n.Start()
-	if a.Start().Before(start) {
-		start = a.Start()
+	start := n.Start
+	if a.GetStart().Before(start) {
+		start = a.GetStart()
 	}
-	end := n.End()
-	if a.End().After(end) {
-		end = a.End()
+	end := n.End
+	if a.GetEnd().After(end) {
+		end = a.GetEnd()
 	}
-	window := n.Window().Expand(a.Window())
+	window := n.Window.Expand(a.GetWindow())
 
 	// Node + !Node = Any
 	any := NewAsset(start, end, window)
 	any.SetProperties(props)
 	any.SetLabels(labels)
-	any.adjustment = n.Adjustment() + a.Adjustment()
-	any.Cost = (n.TotalCost() - n.Adjustment()) + (a.TotalCost() - a.Adjustment())
+	any.Adjustment = n.Adjustment + a.GetAdjustment()
+	any.Cost = (n.TotalCost() - n.Adjustment) + (a.TotalCost() - a.GetAdjustment())
 
 	return any
 }
@@ -1780,8 +1929,8 @@ func (n *Node) add(that *Node) {
 		return
 	}
 
-	props := n.Properties().Merge(that.Properties())
-	labels := n.Labels().Merge(that.Labels())
+	props := n.Properties.Merge(that.Properties)
+	labels := n.Labels.Merge(that.Labels)
 	n.SetProperties(props)
 	n.SetLabels(labels)
 
@@ -1789,18 +1938,18 @@ func (n *Node) add(that *Node) {
 		n.NodeType = ""
 	}
 
-	start := n.Start()
-	if that.Start().Before(start) {
-		start = that.Start()
+	start := n.Start
+	if that.Start.Before(start) {
+		start = that.Start
 	}
-	end := n.End()
-	if that.End().After(end) {
-		end = that.End()
+	end := n.End
+	if that.End.After(end) {
+		end = that.End
 	}
-	window := n.Window().Expand(that.Window())
-	n.start = start
-	n.end = end
-	n.window = window
+	window := n.Window.Expand(that.Window)
+	n.Start = start
+	n.End = end
+	n.Window = window
 
 	// Order of operations for node costs is:
 	//   Discount(CPU + RAM) + GPU + Adjustment
@@ -1818,8 +1967,8 @@ func (n *Node) add(that *Node) {
 		n.Discount = (n.Discount + that.Discount) / 2.0
 	}
 
-	nNoAdj := n.TotalCost() - n.Adjustment()
-	thatNoAdj := that.TotalCost() - that.Adjustment()
+	nNoAdj := n.TotalCost() - n.Adjustment
+	thatNoAdj := that.TotalCost() - that.Adjustment
 	if (nNoAdj + thatNoAdj) > 0 {
 		n.Preemptible = (nNoAdj*n.Preemptible + thatNoAdj*that.Preemptible) / (nNoAdj + thatNoAdj)
 	} else {
@@ -1849,7 +1998,7 @@ func (n *Node) add(that *Node) {
 	n.CPUCost += that.CPUCost
 	n.GPUCost += that.GPUCost
 	n.RAMCost += that.RAMCost
-	n.adjustment += that.adjustment
+	n.Adjustment += that.Adjustment
 }
 
 // Clone returns a deep copy of the given Node
@@ -1859,12 +2008,12 @@ func (n *Node) Clone() Asset {
 	}
 
 	return &Node{
-		properties:   n.properties.Clone(),
-		labels:       n.labels.Clone(),
-		start:        n.start,
-		end:          n.end,
-		window:       n.window.Clone(),
-		adjustment:   n.adjustment,
+		Properties:   n.Properties.Clone(),
+		Labels:       n.Labels.Clone(),
+		Start:        n.Start,
+		End:          n.End,
+		Window:       n.Window.Clone(),
+		Adjustment:   n.Adjustment,
 		NodeType:     n.NodeType,
 		CPUCoreHours: n.CPUCoreHours,
 		RAMByteHours: n.RAMByteHours,
@@ -1887,27 +2036,24 @@ func (n *Node) Equal(a Asset) bool {
 		return false
 	}
 
-	if !n.Labels().Equal(that.Labels()) {
+	if !n.Labels.Equal(that.Labels) {
 		return false
 	}
-	if !n.Properties().Equal(that.Properties()) {
+	if !n.Properties.Equal(that.Properties) {
 		return false
 	}
-
-	if !n.Start().Equal(that.Start()) {
+	if !n.Start.Equal(that.Start) {
 		return false
 	}
-	if !n.End().Equal(that.End()) {
+	if !n.End.Equal(that.End) {
 		return false
 	}
-	if !n.window.Equal(that.window) {
+	if !n.Window.Equal(that.Window) {
 		return false
 	}
-
-	if n.adjustment != that.adjustment {
+	if n.Adjustment != that.Adjustment {
 		return false
 	}
-
 	if n.NodeType != that.NodeType {
 		return false
 	}
@@ -1962,11 +2108,14 @@ func (n *Node) IsPreemptible() bool {
 // hours running; e.g. the sum of a 4-core node running for the first 10 hours
 // and a 3-core node running for the last 20 hours of the same 24-hour window
 // would produce:
-//   (4*10 + 3*20) / 24 = 4.167 cores
+//
+//	(4*10 + 3*20) / 24 = 4.167 cores
+//
 // However, any number of cores running for the full span of a window will
 // report the actual number of cores of the static node; e.g. the above
 // scenario for one entire 24-hour window:
-//   (4*24 + 3*24) / 24 = (4 + 3) = 7 cores
+//
+//	(4*24 + 3*24) / 24 = (4 + 3) = 7 cores
 func (n *Node) CPUCores() float64 {
 	// [core*hr]*([min/hr]*[1/min]) = [core*hr]/[hr] = core
 	return n.CPUCoreHours * (60.0 / n.Minutes())
@@ -1977,11 +2126,14 @@ func (n *Node) CPUCores() float64 {
 // hours running; e.g. the sum of a 12GiB-RAM node running for the first 10 hours
 // and a 16GiB-RAM node running for the last 20 hours of the same 24-hour window
 // would produce:
-//   (12*10 + 16*20) / 24 = 18.333GiB RAM
+//
+//	(12*10 + 16*20) / 24 = 18.333GiB RAM
+//
 // However, any number of bytes running for the full span of a window will
 // report the actual number of bytes of the static node; e.g. the above
 // scenario for one entire 24-hour window:
-//   (12*24 + 16*24) / 24 = (12 + 16) = 28GiB RAM
+//
+//	(12*24 + 16*24) / 24 = (12 + 16) = 28GiB RAM
 func (n *Node) RAMBytes() float64 {
 	// [b*hr]*([min/hr]*[1/min]) = [b*hr]/[hr] = b
 	return n.RAMByteHours * (60.0 / n.Minutes())
@@ -1992,11 +2144,14 @@ func (n *Node) RAMBytes() float64 {
 // hours running; e.g. the sum of a 2 gpu node running for the first 10 hours
 // and a 1 gpu node running for the last 20 hours of the same 24-hour window
 // would produce:
-//   (2*10 + 1*20) / 24 = 1.667 GPUs
+//
+//	(2*10 + 1*20) / 24 = 1.667 GPUs
+//
 // However, any number of GPUs running for the full span of a window will
 // report the actual number of GPUs of the static node; e.g. the above
 // scenario for one entire 24-hour window:
-//   (2*24 + 1*24) / 24 = (2 + 1) = 3 GPUs
+//
+//	(2*24 + 1*24) / 24 = (2 + 1) = 3 GPUs
 func (n *Node) GPUs() float64 {
 	// [b*hr]*([min/hr]*[1/min]) = [b*hr]/[hr] = b
 	return n.GPUHours * (60.0 / n.Minutes())
@@ -2005,12 +2160,12 @@ func (n *Node) GPUs() float64 {
 // LoadBalancer is an Asset representing a single load balancer in a cluster
 // TODO: add GB of ingress processed, numForwardingRules once we start recording those to prometheus metric
 type LoadBalancer struct {
-	properties *AssetProperties
-	labels     AssetLabels
-	start      time.Time
-	end        time.Time
-	window     Window
-	adjustment float64
+	Properties *AssetProperties
+	Labels     AssetLabels
+	Start      time.Time
+	End        time.Time
+	Window     Window
+	Adjustment float64
 	Cost       float64
 }
 
@@ -2025,11 +2180,11 @@ func NewLoadBalancer(name, cluster, providerID string, start, end time.Time, win
 	}
 
 	return &LoadBalancer{
-		properties: properties,
-		labels:     AssetLabels{},
-		start:      start,
-		end:        end,
-		window:     window,
+		Properties: properties,
+		Labels:     AssetLabels{},
+		Start:      start,
+		End:        end,
+		Window:     window,
 	}
 }
 
@@ -2038,83 +2193,87 @@ func (lb *LoadBalancer) Type() AssetType {
 	return LoadBalancerAssetType
 }
 
-// Properties returns the Asset's properties
-func (lb *LoadBalancer) Properties() *AssetProperties {
-	return lb.properties
+// Properties returns the Asset's Properties
+func (lb *LoadBalancer) GetProperties() *AssetProperties {
+	return lb.Properties
 }
 
-// SetProperties sets the Asset's properties
+// SetProperties sets the Asset's Properties
 func (lb *LoadBalancer) SetProperties(props *AssetProperties) {
-	lb.properties = props
+	lb.Properties = props
 }
 
 // Labels returns the Asset's labels
-func (lb *LoadBalancer) Labels() AssetLabels {
-	return lb.labels
+func (lb *LoadBalancer) GetLabels() AssetLabels {
+	return lb.Labels
 }
 
 // SetLabels sets the Asset's labels
 func (lb *LoadBalancer) SetLabels(labels AssetLabels) {
-	lb.labels = labels
+	lb.Labels = labels
 }
 
 // Adjustment returns the Asset's cost adjustment
-func (lb *LoadBalancer) Adjustment() float64 {
-	return lb.adjustment
+func (lb *LoadBalancer) GetAdjustment() float64 {
+	return lb.Adjustment
 }
 
 // SetAdjustment sets the Asset's cost adjustment
 func (lb *LoadBalancer) SetAdjustment(adj float64) {
-	lb.adjustment = adj
+	lb.Adjustment = adj
 }
 
 // TotalCost returns the total cost of the Asset
 func (lb *LoadBalancer) TotalCost() float64 {
-	return lb.Cost + lb.adjustment
+	return lb.Cost + lb.Adjustment
 }
 
 // Start returns the preceise start point of the Asset within the window
-func (lb *LoadBalancer) Start() time.Time {
-	return lb.start
+func (lb *LoadBalancer) GetStart() time.Time {
+	return lb.Start
 }
 
 // End returns the preceise end point of the Asset within the window
-func (lb *LoadBalancer) End() time.Time {
-	return lb.end
+func (lb *LoadBalancer) GetEnd() time.Time {
+	return lb.End
 }
 
 // Minutes returns the number of minutes the Asset ran within the window
 func (lb *LoadBalancer) Minutes() float64 {
-	return lb.end.Sub(lb.start).Minutes()
+	return lb.End.Sub(lb.Start).Minutes()
 }
 
 // Window returns the window within which the Asset ran
-func (lb *LoadBalancer) Window() Window {
-	return lb.window
+func (lb *LoadBalancer) GetWindow() Window {
+	return lb.Window
+}
+
+func (lb *LoadBalancer) SetWindow(window Window) {
+	lb.Window = window
 }
 
 // ExpandWindow expands the Asset's window by the given window
 func (lb *LoadBalancer) ExpandWindow(w Window) {
-	lb.window = lb.window.Expand(w)
+	lb.Window = lb.Window.Expand(w)
 }
 
 // SetStartEnd sets the Asset's Start and End fields
 func (lb *LoadBalancer) SetStartEnd(start, end time.Time) {
-	if lb.Window().Contains(start) {
-		lb.start = start
+	if lb.Window.Contains(start) {
+		lb.Start = start
 	} else {
-		log.Warnf("Disk.SetStartEnd: start %s not in %s", start, lb.Window())
+		log.Warnf("Disk.SetStartEnd: start %s not in %s", start, lb.Window)
 	}
 
-	if lb.Window().Contains(end) {
-		lb.end = end
+	if lb.Window.Contains(end) {
+		lb.End = end
 	} else {
-		log.Warnf("Disk.SetStartEnd: end %s not in %s", end, lb.Window())
+		log.Warnf("Disk.SetStartEnd: end %s not in %s", end, lb.Window)
 	}
 }
 
 // Add sums the Asset with the given Asset to produce a new Asset, maintaining
-// as much relevant information as possible (i.e. type, properties, labels).
+// as much relevant information as possible (i.e. type, Properties, labels).
 func (lb *LoadBalancer) Add(a Asset) Asset {
 	// LoadBalancer + LoadBalancer = LoadBalancer
 	if that, ok := a.(*LoadBalancer); ok {
@@ -2123,25 +2282,25 @@ func (lb *LoadBalancer) Add(a Asset) Asset {
 		return this
 	}
 
-	props := lb.Properties().Merge(a.Properties())
-	labels := lb.Labels().Merge(a.Labels())
+	props := lb.GetProperties().Merge(a.GetProperties())
+	labels := lb.Labels.Merge(a.GetLabels())
 
-	start := lb.Start()
-	if a.Start().Before(start) {
-		start = a.Start()
+	start := lb.Start
+	if a.GetStart().Before(start) {
+		start = a.GetStart()
 	}
-	end := lb.End()
-	if a.End().After(end) {
-		end = a.End()
+	end := lb.End
+	if a.GetEnd().After(end) {
+		end = a.GetEnd()
 	}
-	window := lb.Window().Expand(a.Window())
+	window := lb.Window.Expand(a.GetWindow())
 
 	// LoadBalancer + !LoadBalancer = Any
 	any := NewAsset(start, end, window)
 	any.SetProperties(props)
 	any.SetLabels(labels)
-	any.adjustment = lb.Adjustment() + a.Adjustment()
-	any.Cost = (lb.TotalCost() - lb.Adjustment()) + (a.TotalCost() - a.Adjustment())
+	any.Adjustment = lb.Adjustment + a.GetAdjustment()
+	any.Cost = (lb.TotalCost() - lb.Adjustment) + (a.TotalCost() - a.GetAdjustment())
 
 	return any
 }
@@ -2152,37 +2311,37 @@ func (lb *LoadBalancer) add(that *LoadBalancer) {
 		return
 	}
 
-	props := lb.Properties().Merge(that.Properties())
-	labels := lb.Labels().Merge(that.Labels())
+	props := lb.Properties.Merge(that.GetProperties())
+	labels := lb.Labels.Merge(that.GetLabels())
 	lb.SetProperties(props)
 	lb.SetLabels(labels)
 
-	start := lb.Start()
-	if that.Start().Before(start) {
-		start = that.Start()
+	start := lb.Start
+	if that.Start.Before(start) {
+		start = that.Start
 	}
-	end := lb.End()
-	if that.End().After(end) {
-		end = that.End()
+	end := lb.End
+	if that.End.After(end) {
+		end = that.End
 	}
-	window := lb.Window().Expand(that.Window())
-	lb.start = start
-	lb.end = end
-	lb.window = window
+	window := lb.Window.Expand(that.Window)
+	lb.Start = start
+	lb.End = end
+	lb.Window = window
 
 	lb.Cost += that.Cost
-	lb.adjustment += that.adjustment
+	lb.Adjustment += that.Adjustment
 }
 
 // Clone returns a cloned instance of the given Asset
 func (lb *LoadBalancer) Clone() Asset {
 	return &LoadBalancer{
-		properties: lb.properties.Clone(),
-		labels:     lb.labels.Clone(),
-		start:      lb.start,
-		end:        lb.end,
-		window:     lb.window.Clone(),
-		adjustment: lb.adjustment,
+		Properties: lb.Properties.Clone(),
+		Labels:     lb.Labels.Clone(),
+		Start:      lb.Start,
+		End:        lb.End,
+		Window:     lb.Window.Clone(),
+		Adjustment: lb.Adjustment,
 		Cost:       lb.Cost,
 	}
 }
@@ -2194,24 +2353,22 @@ func (lb *LoadBalancer) Equal(a Asset) bool {
 		return false
 	}
 
-	if !lb.Labels().Equal(that.Labels()) {
+	if !lb.Labels.Equal(that.Labels) {
 		return false
 	}
-	if !lb.Properties().Equal(that.Properties()) {
+	if !lb.Properties.Equal(that.Properties) {
 		return false
 	}
-
-	if !lb.Start().Equal(that.Start()) {
+	if !lb.Start.Equal(that.Start) {
 		return false
 	}
-	if !lb.End().Equal(that.End()) {
+	if !lb.End.Equal(that.End) {
 		return false
 	}
-	if !lb.window.Equal(that.window) {
+	if !lb.Window.Equal(that.Window) {
 		return false
 	}
-
-	if lb.adjustment != that.adjustment {
+	if lb.Adjustment != that.Adjustment {
 		return false
 	}
 	if lb.Cost != that.Cost {
@@ -2228,9 +2385,9 @@ func (lb *LoadBalancer) String() string {
 
 // SharedAsset is an Asset representing a shared cost
 type SharedAsset struct {
-	properties *AssetProperties
-	labels     AssetLabels
-	window     Window
+	Properties *AssetProperties
+	Labels     AssetLabels
+	Window     Window
 	Cost       float64
 }
 
@@ -2243,9 +2400,9 @@ func NewSharedAsset(name string, window Window) *SharedAsset {
 	}
 
 	return &SharedAsset{
-		properties: properties,
-		labels:     AssetLabels{},
-		window:     window.Clone(),
+		Properties: properties,
+		Labels:     AssetLabels{},
+		Window:     window.Clone(),
 	}
 }
 
@@ -2254,28 +2411,28 @@ func (sa *SharedAsset) Type() AssetType {
 	return SharedAssetType
 }
 
-// Properties returns the Asset's properties
-func (sa *SharedAsset) Properties() *AssetProperties {
-	return sa.properties
+// Properties returns the Asset's Properties
+func (sa *SharedAsset) GetProperties() *AssetProperties {
+	return sa.Properties
 }
 
-// SetProperties sets the Asset's properties
+// SetProperties sets the Asset's Properties
 func (sa *SharedAsset) SetProperties(props *AssetProperties) {
-	sa.properties = props
+	sa.Properties = props
 }
 
 // Labels returns the Asset's labels
-func (sa *SharedAsset) Labels() AssetLabels {
-	return sa.labels
+func (sa *SharedAsset) GetLabels() AssetLabels {
+	return sa.Labels
 }
 
 // SetLabels sets the Asset's labels
 func (sa *SharedAsset) SetLabels(labels AssetLabels) {
-	sa.labels = labels
+	sa.Labels = labels
 }
 
 // Adjustment is not relevant to SharedAsset, but required to implement Asset
-func (sa *SharedAsset) Adjustment() float64 {
+func (sa *SharedAsset) GetAdjustment() float64 {
 	return 0.0
 }
 
@@ -2290,28 +2447,32 @@ func (sa *SharedAsset) TotalCost() float64 {
 }
 
 // Start returns the start time of the Asset
-func (sa *SharedAsset) Start() time.Time {
-	return *sa.window.start
+func (sa *SharedAsset) GetStart() time.Time {
+	return *sa.Window.start
 }
 
 // End returns the end time of the Asset
-func (sa *SharedAsset) End() time.Time {
-	return *sa.window.end
+func (sa *SharedAsset) GetEnd() time.Time {
+	return *sa.Window.end
 }
 
 // Minutes returns the number of minutes the SharedAsset ran within the window
 func (sa *SharedAsset) Minutes() float64 {
-	return sa.window.Minutes()
+	return sa.Window.Minutes()
 }
 
 // Window returns the window within the SharedAsset ran
-func (sa *SharedAsset) Window() Window {
-	return sa.window
+func (sa *SharedAsset) GetWindow() Window {
+	return sa.Window
+}
+
+func (sa *SharedAsset) SetWindow(window Window) {
+	sa.Window = window
 }
 
 // ExpandWindow expands the Asset's window
 func (sa *SharedAsset) ExpandWindow(w Window) {
-	sa.window = sa.window.Expand(w)
+	sa.Window = sa.Window.Expand(w)
 }
 
 // SetStartEnd sets the Asset's Start and End fields (not applicable here)
@@ -2320,7 +2481,7 @@ func (sa *SharedAsset) SetStartEnd(start, end time.Time) {
 }
 
 // Add sums the Asset with the given Asset to produce a new Asset, maintaining
-// as much relevant information as possible (i.e. type, properties, labels).
+// as much relevant information as possible (i.e. type, Properties, labels).
 func (sa *SharedAsset) Add(a Asset) Asset {
 	// SharedAsset + SharedAsset = SharedAsset
 	if that, ok := a.(*SharedAsset); ok {
@@ -2329,25 +2490,25 @@ func (sa *SharedAsset) Add(a Asset) Asset {
 		return this
 	}
 
-	props := sa.Properties().Merge(a.Properties())
-	labels := sa.Labels().Merge(a.Labels())
+	props := sa.Properties.Merge(a.GetProperties())
+	labels := sa.Labels.Merge(a.GetLabels())
 
-	start := sa.Start()
-	if a.Start().Before(start) {
-		start = a.Start()
+	start := sa.GetStart()
+	if a.GetStart().Before(start) {
+		start = a.GetStart()
 	}
-	end := sa.End()
-	if a.End().After(end) {
-		end = a.End()
+	end := sa.GetEnd()
+	if a.GetEnd().After(end) {
+		end = a.GetEnd()
 	}
-	window := sa.Window().Expand(a.Window())
+	window := sa.Window.Expand(a.GetWindow())
 
 	// SharedAsset + !SharedAsset = Any
 	any := NewAsset(start, end, window)
 	any.SetProperties(props)
 	any.SetLabels(labels)
-	any.adjustment = sa.Adjustment() + a.Adjustment()
-	any.Cost = (sa.TotalCost() - sa.Adjustment()) + (a.TotalCost() - a.Adjustment())
+	any.Adjustment = sa.GetAdjustment() + a.GetAdjustment()
+	any.Cost = (sa.TotalCost() - sa.GetAdjustment()) + (a.TotalCost() - a.GetAdjustment())
 
 	return any
 }
@@ -2358,13 +2519,13 @@ func (sa *SharedAsset) add(that *SharedAsset) {
 		return
 	}
 
-	props := sa.Properties().Merge(that.Properties())
-	labels := sa.Labels().Merge(that.Labels())
+	props := sa.Properties.Merge(that.GetProperties())
+	labels := sa.Labels.Merge(that.GetLabels())
 	sa.SetProperties(props)
 	sa.SetLabels(labels)
 
-	window := sa.Window().Expand(that.Window())
-	sa.window = window
+	window := sa.Window.Expand(that.Window)
+	sa.Window = window
 
 	sa.Cost += that.Cost
 }
@@ -2376,9 +2537,9 @@ func (sa *SharedAsset) Clone() Asset {
 	}
 
 	return &SharedAsset{
-		properties: sa.properties.Clone(),
-		labels:     sa.labels.Clone(),
-		window:     sa.window.Clone(),
+		Properties: sa.Properties.Clone(),
+		Labels:     sa.Labels.Clone(),
+		Window:     sa.Window.Clone(),
 		Cost:       sa.Cost,
 	}
 }
@@ -2390,23 +2551,15 @@ func (sa *SharedAsset) Equal(a Asset) bool {
 		return false
 	}
 
-	if !sa.Labels().Equal(that.Labels()) {
+	if !sa.Labels.Equal(that.Labels) {
 		return false
 	}
-	if !sa.Properties().Equal(that.Properties()) {
+	if !sa.Properties.Equal(that.Properties) {
 		return false
 	}
-
-	if !sa.Start().Equal(that.Start()) {
+	if !sa.Window.Equal(that.Window) {
 		return false
 	}
-	if !sa.End().Equal(that.End()) {
-		return false
-	}
-	if !sa.window.Equal(that.window) {
-		return false
-	}
-
 	if sa.Cost != that.Cost {
 		return false
 	}
@@ -2429,25 +2582,132 @@ type AssetSetResponse struct {
 // AssetSet stores a set of Assets, each with a unique name, that share
 // a window. An AssetSet is mutable, so treat it like a threadsafe map.
 type AssetSet struct {
-	sync.RWMutex
-	aggregateBy []string
-	assets      map[string]Asset
-	FromSource  string // stores the name of the source used to compute the data
-	Window      Window
-	Warnings    []string
-	Errors      []string
+	AggregationKeys   []string
+	Assets            map[string]Asset
+	Any               map[string]*Any               //@bingen:field[ignore]
+	Cloud             map[string]*Cloud             //@bingen:field[ignore]
+	ClusterManagement map[string]*ClusterManagement //@bingen:field[ignore]
+	Disks             map[string]*Disk              //@bingen:field[ignore]
+	Network           map[string]*Network           //@bingen:field[ignore]
+	Nodes             map[string]*Node              //@bingen:field[ignore]
+	LoadBalancers     map[string]*LoadBalancer      //@bingen:field[ignore]
+	SharedAssets      map[string]*SharedAsset       //@bingen:field[ignore]
+	FromSource        string                        // stores the name of the source used to compute the data
+	Window            Window
+	Warnings          []string
+	Errors            []string
+}
+
+// This methid is executed before marshalling the AssetSet binary.
+func preProcessAssetSet(assetSet *AssetSet) {
+	length := len(assetSet.Any) + len(assetSet.Cloud) + len(assetSet.ClusterManagement) + len(assetSet.Disks) +
+		len(assetSet.Network) + len(assetSet.Nodes) + len(assetSet.LoadBalancers) + len(assetSet.SharedAssets)
+
+	if length != len(assetSet.Assets) {
+		log.Warnf("AssetSet concrete Asset maps are out of sync with AssetSet.Assets map.")
+	}
+}
+
+// This method is executed after unmarshalling the AssetSet binary.
+func postProcessAssetSet(assetSet *AssetSet) {
+	for key, as := range assetSet.Assets {
+		addToConcreteMap(assetSet, key, as)
+	}
+}
+
+// addToConcreteMap adds the Asset to the correct concrete map in the AssetSet. This is used
+// in the postProcessAssetSet method as well as AssetSet.Insert().
+func addToConcreteMap(assetSet *AssetSet, key string, as Asset) {
+	switch asset := as.(type) {
+	case *Any:
+		if assetSet.Any == nil {
+			assetSet.Any = make(map[string]*Any)
+		}
+		assetSet.Any[key] = asset
+
+	case *Cloud:
+		if assetSet.Cloud == nil {
+			assetSet.Cloud = make(map[string]*Cloud)
+		}
+		assetSet.Cloud[key] = asset
+
+	case *ClusterManagement:
+		if assetSet.ClusterManagement == nil {
+			assetSet.ClusterManagement = make(map[string]*ClusterManagement)
+		}
+		assetSet.ClusterManagement[key] = asset
+
+	case *Disk:
+		if assetSet.Disks == nil {
+			assetSet.Disks = make(map[string]*Disk)
+		}
+		assetSet.Disks[key] = asset
+
+	case *Network:
+		if assetSet.Network == nil {
+			assetSet.Network = make(map[string]*Network)
+		}
+		assetSet.Network[key] = asset
+
+	case *Node:
+		if assetSet.Nodes == nil {
+			assetSet.Nodes = make(map[string]*Node)
+		}
+		assetSet.Nodes[key] = asset
+
+	case *LoadBalancer:
+		if assetSet.LoadBalancers == nil {
+			assetSet.LoadBalancers = make(map[string]*LoadBalancer)
+		}
+		assetSet.LoadBalancers[key] = asset
+
+	case *SharedAsset:
+		if assetSet.SharedAssets == nil {
+			assetSet.SharedAssets = make(map[string]*SharedAsset)
+		}
+		assetSet.SharedAssets[key] = asset
+	}
+}
+
+// removeFromConcreteMap will remove an Asset from the AssetSet's concrete type mapping for the Asset and key.
+func removeFromConcreteMap(assetSet *AssetSet, key string, as Asset) {
+	switch as.(type) {
+	case *Any:
+		delete(assetSet.Any, key)
+
+	case *Cloud:
+		delete(assetSet.Cloud, key)
+
+	case *ClusterManagement:
+		delete(assetSet.ClusterManagement, key)
+
+	case *Disk:
+		delete(assetSet.Disks, key)
+
+	case *Network:
+		delete(assetSet.Network, key)
+
+	case *Node:
+		delete(assetSet.Nodes, key)
+
+	case *LoadBalancer:
+		delete(assetSet.LoadBalancers, key)
+
+	case *SharedAsset:
+		delete(assetSet.SharedAssets, key)
+	}
 }
 
 // NewAssetSet instantiates a new AssetSet and, optionally, inserts
 // the given list of Assets
 func NewAssetSet(start, end time.Time, assets ...Asset) *AssetSet {
 	as := &AssetSet{
-		assets: map[string]Asset{},
+		Assets: map[string]Asset{},
 		Window: NewWindow(&start, &end),
 	}
 
 	for _, a := range assets {
-		as.Insert(a)
+		as.Insert(a, nil)
 	}
 
 	return as
@@ -2465,11 +2725,8 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 		return nil
 	}
 
-	as.Lock()
-	defer as.Unlock()
-
 	aggSet := NewAssetSet(as.Start(), as.End())
-	aggSet.aggregateBy = aggregateBy
+	aggSet.AggregationKeys = aggregateBy
 
 	// Compute hours of the given AssetSet, and if it ends in the future,
 	// adjust the hours accordingly
@@ -2493,7 +2750,7 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 			}
 		}
 		if insert {
-			err := aggSet.Insert(sa)
+			err := aggSet.Insert(sa, opts.LabelConfig)
 			if err != nil {
 				return err
 			}
@@ -2502,25 +2759,25 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 
 	// Delete the Assets that don't pass each filter
 	for _, ff := range opts.FilterFuncs {
-		for key, asset := range as.assets {
+		for key, asset := range as.Assets {
 			if !ff(asset) {
-				delete(as.assets, key)
+				delete(as.Assets, key)
 			}
 		}
 	}
 
 	// Insert each asset into the new set, which will be keyed by the `aggregateBy`
 	// on aggSet, resulting in aggregation.
-	for _, asset := range as.assets {
-		err := aggSet.Insert(asset)
+	for _, asset := range as.Assets {
+		err := aggSet.Insert(asset, opts.LabelConfig)
 		if err != nil {
 			return err
 		}
 	}
 
 	// Assign the aggregated values back to the original set
-	as.assets = aggSet.assets
-	as.aggregateBy = aggregateBy
+	as.Assets = aggSet.Assets
+	as.AggregationKeys = aggregateBy
 
 	return nil
 }
@@ -2532,17 +2789,9 @@ func (as *AssetSet) Clone() *AssetSet {
 		return nil
 	}
 
-	as.RLock()
-	defer as.RUnlock()
-
 	var aggregateBy []string
-	if as.aggregateBy != nil {
-		aggregateBy = append([]string{}, as.aggregateBy...)
-	}
-
-	assets := make(map[string]Asset, len(as.assets))
-	for k, v := range as.assets {
-		assets[k] = v.Clone()
+	if as.AggregationKeys != nil {
+		aggregateBy = append(aggregateBy, as.AggregationKeys...)
 	}
 
 	s := as.Start()
@@ -2565,24 +2814,63 @@ func (as *AssetSet) Clone() *AssetSet {
 		warnings = nil
 	}
 
-	return &AssetSet{
-		Window:      NewWindow(&s, &e),
-		aggregateBy: aggregateBy,
-		assets:      assets,
-		Errors:      errors,
-		Warnings:    warnings,
+	var anyMap map[string]*Any
+	if as.Any != nil {
+		anyMap = make(map[string]*Any, len(as.Any))
 	}
-}
+	var cloudMap map[string]*Cloud
+	if as.Cloud != nil {
+		cloudMap = make(map[string]*Cloud, len(as.Cloud))
+	}
+	var clusterManagementMap map[string]*ClusterManagement
+	if as.ClusterManagement != nil {
+		clusterManagementMap = make(map[string]*ClusterManagement, len(as.ClusterManagement))
+	}
+	var disksMap map[string]*Disk
+	if as.Disks != nil {
+		disksMap = make(map[string]*Disk, len(as.Disks))
+	}
+	var networkMap map[string]*Network
+	if as.Network != nil {
+		networkMap = make(map[string]*Network, len(as.Network))
+	}
+	var nodesMap map[string]*Node
+	if as.Nodes != nil {
+		nodesMap = make(map[string]*Node, len(as.Nodes))
+	}
+	var loadBalancersMap map[string]*LoadBalancer
+	if as.LoadBalancers != nil {
+		loadBalancersMap = make(map[string]*LoadBalancer, len(as.LoadBalancers))
+	}
 
-// Each invokes the given function for each Asset in the set
-func (as *AssetSet) Each(f func(string, Asset)) {
-	if as == nil {
-		return
+	var sharedAssetsMap map[string]*SharedAsset
+	if as.SharedAssets != nil {
+		sharedAssetsMap = make(map[string]*SharedAsset, len(as.SharedAssets))
 	}
 
-	for k, a := range as.assets {
-		f(k, a)
+	assetSet := &AssetSet{
+		Window:            NewWindow(&s, &e),
+		AggregationKeys:   aggregateBy,
+		Assets:            make(map[string]Asset, len(as.Assets)),
+		Any:               anyMap,
+		Cloud:             cloudMap,
+		ClusterManagement: clusterManagementMap,
+		Disks:             disksMap,
+		Network:           networkMap,
+		Nodes:             nodesMap,
+		LoadBalancers:     loadBalancersMap,
+		SharedAssets:      sharedAssetsMap,
+		Errors:            errors,
+		Warnings:          warnings,
 	}
+
+	for k, v := range as.Assets {
+		newAsset := v.Clone()
+		assetSet.Assets[k] = newAsset
+		addToConcreteMap(assetSet, k, newAsset)
+	}
+
+	return assetSet
 }
 
 // End returns the end time of the AssetSet's window
@@ -2591,18 +2879,15 @@ func (as *AssetSet) End() time.Time {
 }
 
 // FindMatch attempts to find a match in the AssetSet for the given Asset on
-// the provided properties and labels. If a match is not found, FindMatch
+// the provided Properties and labels. If a match is not found, FindMatch
 // returns nil and a Not Found error.
-func (as *AssetSet) FindMatch(query Asset, aggregateBy []string) (Asset, error) {
-	as.RLock()
-	defer as.RUnlock()
-
-	matchKey, err := key(query, aggregateBy)
+func (as *AssetSet) FindMatch(query Asset, aggregateBy []string, labelConfig *LabelConfig) (Asset, error) {
+	matchKey, err := key(query, aggregateBy, labelConfig)
 	if err != nil {
 		return nil, err
 	}
-	for _, asset := range as.assets {
-		if k, err := key(asset, aggregateBy); err != nil {
+	for _, asset := range as.Assets {
+		if k, err := key(asset, aggregateBy, labelConfig); err != nil {
 			return nil, err
 		} else if k == matchKey {
 			return asset, nil
@@ -2618,14 +2903,11 @@ func (as *AssetSet) FindMatch(query Asset, aggregateBy []string) (Asset, error) 
 // (ProviderID). If that match is found, it returns the Asset with the intent
 // to insert the associated Cloud cost.
 func (as *AssetSet) ReconciliationMatch(query Asset) (Asset, bool, error) {
-	as.RLock()
-	defer as.RUnlock()
-
 	// Full match means matching on (Category, ProviderID)
 	fullMatchProps := []string{string(AssetCategoryProp), string(AssetProviderIDProp)}
-	fullMatchKey, err := key(query, fullMatchProps)
+	fullMatchKey, err := key(query, fullMatchProps, nil)
 
-	// This should never happen because we are using enumerated properties,
+	// This should never happen because we are using enumerated Properties,
 	// but the check is here in case that changes
 	if err != nil {
 		return nil, false, err
@@ -2633,27 +2915,27 @@ func (as *AssetSet) ReconciliationMatch(query Asset) (Asset, bool, error) {
 
 	// Partial match means matching only on (ProviderID)
 	providerIDMatchProps := []string{string(AssetProviderIDProp)}
-	providerIDMatchKey, err := key(query, providerIDMatchProps)
+	providerIDMatchKey, err := key(query, providerIDMatchProps, nil)
 
-	// This should never happen because we are using enumerated properties,
+	// This should never happen because we are using enumerated Properties,
 	// but the check is here in case that changes
 	if err != nil {
 		return nil, false, err
 	}
 
 	var providerIDMatch Asset
-	for _, asset := range as.assets {
+	for _, asset := range as.Assets {
 		// Ignore cloud assets when looking for reconciliation matches
 		if asset.Type() == CloudAssetType {
 			continue
 		}
-		if k, err := key(asset, fullMatchProps); err != nil {
+		if k, err := key(asset, fullMatchProps, nil); err != nil {
 			return nil, false, err
 		} else if k == fullMatchKey {
 			log.DedupedInfof(10, "Asset ETL: Reconciliation[rcnw]: ReconcileRange Match: %s", fullMatchKey)
 			return asset, true, nil
 		}
-		if k, err := key(asset, providerIDMatchProps); err != nil {
+		if k, err := key(asset, providerIDMatchProps, nil); err != nil {
 			return nil, false, err
 		} else if k == providerIDMatchKey {
 			// Found a partial match. Save it until after all other options
@@ -2679,13 +2961,13 @@ func (as *AssetSet) ReconciliationMatchMap() map[string]map[string]Asset {
 		return matchMap
 	}
 
-	for _, asset := range as.assets {
+	for _, asset := range as.Assets {
 		if asset == nil {
 			continue
 		}
-		props := asset.Properties()
-		// Ignore cloud assets and assets that cannot be matched when looking for reconciliation matches
-		if props == nil || props.ProviderID == "" || asset.Type() == CloudAssetType {
+		props := asset.GetProperties()
+		// Ignore assets that cannot be matched when looking for reconciliation matches
+		if props == nil || props.ProviderID == "" {
 			continue
 		}
 
@@ -2697,9 +2979,9 @@ func (as *AssetSet) ReconciliationMatchMap() map[string]map[string]Asset {
 		if duplicateAsset, ok := matchMap[props.ProviderID][props.Category]; ok {
 			log.DedupedWarningf(5, "duplicate asset found when reconciling for %s", props.ProviderID)
 			// if one asset already has adjustment use that one
-			if duplicateAsset.Adjustment() == 0 && asset.Adjustment() != 0 {
+			if duplicateAsset.GetAdjustment() == 0 && asset.GetAdjustment() != 0 {
 				matchMap[props.ProviderID][props.Category] = asset
-			} else if duplicateAsset.Adjustment() != 0 && asset.Adjustment() == 0 {
+			} else if duplicateAsset.GetAdjustment() != 0 && asset.GetAdjustment() == 0 {
 				matchMap[props.ProviderID][props.Category] = duplicateAsset
 				// otherwise use the one with the higher cost
 			} else if duplicateAsset.TotalCost() < asset.TotalCost() {
@@ -2716,47 +2998,53 @@ func (as *AssetSet) ReconciliationMatchMap() map[string]map[string]Asset {
 // Get returns the Asset in the AssetSet at the given key, or nil and false
 // if no Asset exists for the given key
 func (as *AssetSet) Get(key string) (Asset, bool) {
-	as.RLock()
-	defer as.RUnlock()
-
-	if a, ok := as.assets[key]; ok {
+	if a, ok := as.Assets[key]; ok {
 		return a, true
 	}
 	return nil, false
 }
 
 // Insert inserts the given Asset into the AssetSet, using the AssetSet's
-// configured properties to determine the key under which the Asset will
+// configured Properties to determine the key under which the Asset will
 // be inserted.
-func (as *AssetSet) Insert(asset Asset) error {
+func (as *AssetSet) Insert(asset Asset, labelConfig *LabelConfig) error {
 	if as == nil {
 		return fmt.Errorf("cannot Insert into nil AssetSet")
 	}
 
-	as.Lock()
-	defer as.Unlock()
-
-	if as.assets == nil {
-		as.assets = map[string]Asset{}
+	if as.Assets == nil {
+		as.Assets = map[string]Asset{}
 	}
 
+	// need a label config
+
 	// Determine key into which to Insert the Asset.
-	k, err := key(asset, as.aggregateBy)
+	k, err := key(asset, as.AggregationKeys, labelConfig)
 	if err != nil {
 		return err
 	}
 
 	// Add the given Asset to the existing entry, if there is one;
 	// otherwise just set directly into assets
-	if _, ok := as.assets[k]; !ok {
-		as.assets[k] = asset
-	} else {
-		as.assets[k] = as.assets[k].Add(asset)
-	}
+	if _, ok := as.Assets[k]; !ok {
+		as.Assets[k] = asset
 
+		// insert the asset into it's type specific map as well
+		addToConcreteMap(as, k, asset)
+	} else {
+		// possibly creates a new asset type, so we need to update the
+		// concrete type mappings
+		newAsset := as.Assets[k].Add(asset)
+		removeFromConcreteMap(as, k, as.Assets[k])
+
+		// overwrite the existing asset with the new one, and re-add the new
+		// asset to the concrete type mappings
+		as.Assets[k] = newAsset
+		addToConcreteMap(as, k, newAsset)
+	}
 	// Expand the window, just to be safe. It's possible that the asset will
 	// be set into the map without expanding it to the AssetSet's window.
-	as.assets[k].ExpandWindow(as.Window)
+	as.Assets[k].ExpandWindow(as.Window)
 
 	return nil
 }
@@ -2764,13 +3052,7 @@ func (as *AssetSet) Insert(asset Asset) error {
 // IsEmpty returns true if the AssetSet is nil, or if it contains
 // zero assets.
 func (as *AssetSet) IsEmpty() bool {
-	if as == nil || len(as.assets) == 0 {
-		return true
-	}
-
-	as.RLock()
-	defer as.RUnlock()
-	return as.assets == nil || len(as.assets) == 0
+	return as == nil || len(as.Assets) == 0
 }
 
 func (as *AssetSet) Length() int {
@@ -2778,18 +3060,11 @@ func (as *AssetSet) Length() int {
 		return 0
 	}
 
-	as.RLock()
-	defer as.RUnlock()
-	return len(as.assets)
+	return len(as.Assets)
 }
 
-// Map clones and returns a map of the AssetSet's Assets
-func (as *AssetSet) Map() map[string]Asset {
-	if as.IsEmpty() {
-		return map[string]Asset{}
-	}
-
-	return as.Clone().assets
+func (as *AssetSet) GetWindow() Window {
+	return as.Window
 }
 
 // Resolution returns the AssetSet's window duration
@@ -2797,23 +3072,21 @@ func (as *AssetSet) Resolution() time.Duration {
 	return as.Window.Duration()
 }
 
-func (as *AssetSet) Set(asset Asset, aggregateBy []string) error {
+func (as *AssetSet) Set(asset Asset, aggregateBy []string, labelConfig *LabelConfig) error {
 	if as.IsEmpty() {
-		as.Lock()
-		as.assets = map[string]Asset{}
-		as.Unlock()
+		as.Assets = map[string]Asset{}
 	}
-
-	as.Lock()
-	defer as.Unlock()
 
 	// Expand the window to match the AssetSet, then set it
 	asset.ExpandWindow(as.Window)
-	k, err := key(asset, aggregateBy)
+	k, err := key(asset, aggregateBy, labelConfig)
 	if err != nil {
 		return err
 	}
-	as.assets[k] = asset
+
+	as.Assets[k] = asset
+	addToConcreteMap(as, k, asset)
+
 	return nil
 }
 
@@ -2824,10 +3097,7 @@ func (as *AssetSet) Start() time.Time {
 func (as *AssetSet) TotalCost() float64 {
 	tc := 0.0
 
-	as.Lock()
-	defer as.Unlock()
-
-	for _, a := range as.assets {
+	for _, a := range as.Assets {
 		tc += a.TotalCost()
 	}
 
@@ -2851,9 +3121,9 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 	// In the case of an AssetSetRange with empty entries, we may end up with
 	// an incoming `as` without an `aggregateBy`, even though we are tring to
 	// aggregate here. This handles that case by assigning the correct `aggregateBy`.
-	if !sameContents(as.aggregateBy, that.aggregateBy) {
-		if len(as.aggregateBy) == 0 {
-			as.aggregateBy = that.aggregateBy
+	if !sameContents(as.AggregationKeys, that.AggregationKeys) {
+		if len(as.AggregationKeys) == 0 {
+			as.AggregationKeys = that.AggregationKeys
 		}
 	}
 
@@ -2874,23 +3144,17 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 	}
 
 	acc := NewAssetSet(start, end)
-	acc.aggregateBy = as.aggregateBy
+	acc.AggregationKeys = as.AggregationKeys
 
-	as.RLock()
-	defer as.RUnlock()
-
-	that.RLock()
-	defer that.RUnlock()
-
-	for _, asset := range as.assets {
-		err := acc.Insert(asset)
+	for _, asset := range as.Assets {
+		err := acc.Insert(asset, nil)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	for _, asset := range that.assets {
-		err := acc.Insert(asset)
+	for _, asset := range that.Assets {
+		err := acc.Insert(asset, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -2926,8 +3190,8 @@ func DiffAsset(before, after *AssetSet, ratioCostChange float64) (map[string]Dif
 
 	changedItems := map[string]Diff[Asset]{}
 
-	for assetKey1, asset1 := range before.assets {
-		if asset2, ok := after.assets[assetKey1]; !ok {
+	for assetKey1, asset1 := range before.Assets {
+		if asset2, ok := after.Assets[assetKey1]; !ok {
 			d := Diff[Asset]{asset1, nil, DiffRemoved}
 			changedItems[assetKey1] = d
 		} else if math.Abs(asset1.TotalCost()-asset2.TotalCost()) > ratioCostChange*asset1.TotalCost() { //check if either value exceeds the other by more than pctCostChange
@@ -2936,8 +3200,8 @@ func DiffAsset(before, after *AssetSet, ratioCostChange float64) (map[string]Dif
 		}
 	}
 
-	for assetKey2, asset2 := range after.assets {
-		if _, ok := before.assets[assetKey2]; !ok {
+	for assetKey2, asset2 := range after.Assets {
+		if _, ok := before.Assets[assetKey2]; !ok {
 			d := Diff[Asset]{nil, asset2, DiffAdded}
 			changedItems[assetKey2] = d
 		}
@@ -2948,11 +3212,10 @@ func DiffAsset(before, after *AssetSet, ratioCostChange float64) (map[string]Dif
 
 // AssetSetRange is a thread-safe slice of AssetSets. It is meant to
 // be used such that the AssetSets held are consecutive and coherent with
-// respect to using the same aggregation properties, UTC offset, and
+// respect to using the same aggregation Properties, UTC offset, and
 // resolution. However these rules are not necessarily enforced, so use wisely.
 type AssetSetRange struct {
-	sync.RWMutex
-	assets    []*AssetSet
+	Assets    []*AssetSet
 	FromStore string // stores the name of the store used to retrieve the data
 }
 
@@ -2960,7 +3223,7 @@ type AssetSetRange struct {
 // AssetSets in the order provided.
 func NewAssetSetRange(assets ...*AssetSet) *AssetSetRange {
 	return &AssetSetRange{
-		assets: assets,
+		Assets: assets,
 	}
 }
 
@@ -2970,11 +3233,36 @@ func (asr *AssetSetRange) Accumulate() (*AssetSet, error) {
 	var assetSet *AssetSet
 	var err error
 
-	asr.RLock()
-	defer asr.RUnlock()
-
-	for _, as := range asr.assets {
+	for _, as := range asr.Assets {
 		assetSet, err = assetSet.accumulate(as)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return assetSet, nil
+}
+
+// NewAccumulation clones the first available AssetSet to use as the data structure to
+// accumulate the remaining data. This leaves the original AssetSetRange intact.
+func (asr *AssetSetRange) NewAccumulation() (*AssetSet, error) {
+	var assetSet *AssetSet
+	var err error
+
+	for _, as := range asr.Assets {
+		if assetSet == nil {
+			assetSet = as.Clone()
+			continue
+		}
+
+		// copy if non-nil
+		var assetSetCopy *AssetSet = nil
+		if as != nil {
+			assetSetCopy = as.Clone()
+		}
+
+		// nil is acceptable to pass to accumulate
+		assetSet, err = assetSet.accumulate(assetSetCopy)
 		if err != nil {
 			return nil, err
 		}
@@ -2986,63 +3274,46 @@ func (asr *AssetSetRange) Accumulate() (*AssetSet, error) {
 type AssetAggregationOptions struct {
 	SharedHourlyCosts map[string]float64
 	FilterFuncs       []AssetMatchFunc
+	LabelConfig       *LabelConfig
 }
 
 func (asr *AssetSetRange) AggregateBy(aggregateBy []string, opts *AssetAggregationOptions) error {
-	aggRange := &AssetSetRange{assets: []*AssetSet{}}
+	aggRange := &AssetSetRange{Assets: []*AssetSet{}}
 
-	asr.Lock()
-	defer asr.Unlock()
-
-	for _, as := range asr.assets {
+	for _, as := range asr.Assets {
 		err := as.AggregateBy(aggregateBy, opts)
 		if err != nil {
 			return err
 		}
 
-		aggRange.assets = append(aggRange.assets, as)
+		aggRange.Assets = append(aggRange.Assets, as)
 	}
 
-	asr.assets = aggRange.assets
+	asr.Assets = aggRange.Assets
 
 	return nil
 }
 
 func (asr *AssetSetRange) Append(that *AssetSet) {
-	asr.Lock()
-	defer asr.Unlock()
-	asr.assets = append(asr.assets, that)
+	asr.Assets = append(asr.Assets, that)
 }
 
-// Each invokes the given function for each AssetSet in the range
-func (asr *AssetSetRange) Each(f func(int, *AssetSet)) {
-	if asr == nil {
-		return
-	}
-
-	for i, as := range asr.assets {
-		f(i, as)
-	}
-}
-
+// Get provides bounds checked access into the AssetSetRange's AssetSets.
 func (asr *AssetSetRange) Get(i int) (*AssetSet, error) {
-	if i < 0 || i >= len(asr.assets) {
+	if i < 0 || i >= len(asr.Assets) {
 		return nil, fmt.Errorf("AssetSetRange: index out of range: %d", i)
 	}
 
-	asr.RLock()
-	defer asr.RUnlock()
-	return asr.assets[i], nil
+	return asr.Assets[i], nil
 }
 
+// Length returns the total number of AssetSets in the range.
 func (asr *AssetSetRange) Length() int {
-	if asr == nil || asr.assets == nil {
+	if asr == nil {
 		return 0
 	}
 
-	asr.RLock()
-	defer asr.RUnlock()
-	return len(asr.assets)
+	return len(asr.Assets)
 }
 
 // InsertRange merges the given AssetSetRange into the receiving one by
@@ -3058,12 +3329,12 @@ func (asr *AssetSetRange) InsertRange(that *AssetSetRange) error {
 
 	// keys maps window to index in asr
 	keys := map[string]int{}
-	asr.Each(func(i int, as *AssetSet) {
+	for i, as := range asr.Assets {
 		if as == nil {
-			return
+			continue
 		}
 		keys[as.Window.String()] = i
-	})
+	}
 
 	// Nothing to merge, so simply return
 	if len(keys) == 0 {
@@ -3071,32 +3342,32 @@ func (asr *AssetSetRange) InsertRange(that *AssetSetRange) error {
 	}
 
 	var err error
-	that.Each(func(j int, thatAS *AssetSet) {
+	for _, thatAS := range that.Assets {
 		if thatAS == nil || err != nil {
-			return
+			continue
 		}
 
 		// Find matching AssetSet in asr
 		i, ok := keys[thatAS.Window.String()]
 		if !ok {
 			err = fmt.Errorf("cannot merge AssetSet into window that does not exist: %s", thatAS.Window.String())
-			return
+			continue
 		}
 		as, err := asr.Get(i)
 		if err != nil {
 			err = fmt.Errorf("AssetSetRange index does not exist: %d", i)
-			return
+			continue
 		}
 
 		// Insert each Asset from the given set
-		thatAS.Each(func(k string, asset Asset) {
-			err = as.Insert(asset)
+		for _, asset := range thatAS.Assets {
+			err = as.Insert(asset, nil)
 			if err != nil {
 				err = fmt.Errorf("error inserting asset: %s", err)
-				return
+				continue
 			}
-		})
-	})
+		}
+	}
 
 	// err might be nil
 	return err
@@ -3107,13 +3378,13 @@ func (asr *AssetSetRange) IsEmpty() bool {
 	if asr == nil || asr.Length() == 0 {
 		return true
 	}
-	asr.RLock()
-	defer asr.RUnlock()
-	for _, asset := range asr.assets {
+
+	for _, asset := range asr.Assets {
 		if !asset.IsEmpty() {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -3121,9 +3392,8 @@ func (asr *AssetSetRange) MarshalJSON() ([]byte, error) {
 	if asr == nil {
 		return json.Marshal([]*AssetSet{})
 	}
-	asr.RLock()
-	defer asr.RUnlock()
-	return json.Marshal(asr.assets)
+
+	return json.Marshal(asr.Assets)
 }
 
 // As with AssetSet, AssetSetRange does not serialize all its fields,
@@ -3153,8 +3423,8 @@ func (asr *AssetSetRange) Window() Window {
 		return NewWindow(nil, nil)
 	}
 
-	start := asr.assets[0].Start()
-	end := asr.assets[asr.Length()-1].End()
+	start := asr.Assets[0].Start()
+	end := asr.Assets[asr.Length()-1].End()
 
 	return NewWindow(&start, &end)
 }
@@ -3163,18 +3433,22 @@ func (asr *AssetSetRange) Window() Window {
 // It returns an error if there are no assets
 func (asr *AssetSetRange) Start() (time.Time, error) {
 	start := time.Time{}
+	if asr == nil {
+		return start, fmt.Errorf("had no data to compute a start from")
+	}
+
 	firstStartNotSet := true
-	asr.Each(func(i int, as *AssetSet) {
-		as.Each(func(s string, a Asset) {
+	for _, as := range asr.Assets {
+		for _, a := range as.Assets {
 			if firstStartNotSet {
-				start = a.Start()
+				start = a.GetStart()
 				firstStartNotSet = false
 			}
-			if a.Start().Before(start) {
-				start = a.Start()
+			if a.GetStart().Before(start) {
+				start = a.GetStart()
 			}
-		})
-	})
+		}
+	}
 
 	if firstStartNotSet {
 		return start, fmt.Errorf("had no data to compute a start from")
@@ -3187,18 +3461,22 @@ func (asr *AssetSetRange) Start() (time.Time, error) {
 // It returns an error if there are no assets.
 func (asr *AssetSetRange) End() (time.Time, error) {
 	end := time.Time{}
+	if asr == nil {
+		return end, fmt.Errorf("had no data to compute an end from")
+	}
+
 	firstEndNotSet := true
-	asr.Each(func(i int, as *AssetSet) {
-		as.Each(func(s string, a Asset) {
+	for _, as := range asr.Assets {
+		for _, a := range as.Assets {
 			if firstEndNotSet {
-				end = a.End()
+				end = a.GetEnd()
 				firstEndNotSet = false
 			}
-			if a.End().After(end) {
-				end = a.End()
+			if a.GetEnd().After(end) {
+				end = a.GetEnd()
 			}
-		})
-	})
+		}
+	}
 
 	if firstEndNotSet {
 		return end, fmt.Errorf("had no data to compute an end from")
@@ -3207,14 +3485,57 @@ func (asr *AssetSetRange) End() (time.Time, error) {
 	return end, nil
 }
 
+// Each iterates over all AssetSets in the AssetSetRange and returns the start and end over
+// the entire range
+func (asr *AssetSetRange) StartAndEnd() (time.Time, time.Time, error) {
+	start := time.Time{}
+	end := time.Time{}
+
+	if asr == nil {
+		return start, end, fmt.Errorf("had no data to compute a start and end from")
+	}
+
+	firstStartNotSet := true
+	firstEndNotSet := true
+
+	for _, as := range asr.Assets {
+		for _, a := range as.Assets {
+			if firstStartNotSet {
+				start = a.GetStart()
+				firstStartNotSet = false
+			}
+			if a.GetStart().Before(start) {
+				start = a.GetStart()
+			}
+			if firstEndNotSet {
+				end = a.GetEnd()
+				firstEndNotSet = false
+			}
+			if a.GetEnd().After(end) {
+				end = a.GetEnd()
+			}
+		}
+	}
+
+	if firstStartNotSet {
+		return start, end, fmt.Errorf("had no data to compute a start from")
+	}
+
+	if firstEndNotSet {
+		return start, end, fmt.Errorf("had no data to compute an end from")
+	}
+
+	return start, end, nil
+}
+
 // Minutes returns the duration, in minutes, between the earliest start
 // and the latest end of all assets in the AssetSetRange.
 func (asr *AssetSetRange) Minutes() float64 {
-	start, err := asr.Start()
-	if err != nil {
+	if asr == nil {
 		return 0
 	}
-	end, err := asr.End()
+
+	start, end, err := asr.StartAndEnd()
 	if err != nil {
 		return 0
 	}
@@ -3230,11 +3551,8 @@ func (asr *AssetSetRange) TotalCost() float64 {
 		return 0.0
 	}
 
-	asr.RLock()
-	defer asr.RUnlock()
-
 	tc := 0.0
-	for _, as := range asr.assets {
+	for _, as := range asr.Assets {
 		tc += as.TotalCost()
 	}
 
@@ -3243,7 +3561,7 @@ func (asr *AssetSetRange) TotalCost() float64 {
 
 // This is a helper type. The Asset API returns a json which cannot be natively
 // unmarshaled into any Asset struct. Therefore, this struct IN COMBINATION WITH
-// DESERIALIZATION LOGIC DEFINED IN asset_unmarshal.go can unmarshal a json directly
+// DESERIALIZATION LOGIC DEFINED IN asset_json.go can unmarshal a json directly
 // from an Assets API query
 type AssetAPIResponse struct {
 	Code int                   `json:"code"`

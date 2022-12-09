@@ -1,16 +1,13 @@
 package kubecost
 
 import (
-	"bytes"
 	"fmt"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util"
-	"github.com/opencost/opencost/pkg/util/json"
 )
 
 // TODO Clean-up use of IsEmpty; nil checks should be separated for safety.
@@ -30,7 +27,7 @@ const SharedSuffix = "__shared__"
 // UnallocatedSuffix indicates an unallocated allocation property
 const UnallocatedSuffix = "__unallocated__"
 
-// UnmountedSuffix indicated allocation to an unmounted PV
+// UnmountedSuffix indicated allocation to an unmounted resource (PV or LB)
 const UnmountedSuffix = "__unmounted__"
 
 // ShareWeighted indicates that a shared resource should be shared as a
@@ -69,7 +66,7 @@ type Allocation struct {
 	NetworkCostAdjustment      float64               `json:"networkCostAdjustment"`
 	LoadBalancerCost           float64               `json:"loadBalancerCost"`
 	LoadBalancerCostAdjustment float64               `json:"loadBalancerCostAdjustment"`
-	PVs                        PVAllocations         `json:"-"`
+	PVs                        PVAllocations         `json:"pvs"`
 	PVCostAdjustment           float64               `json:"pvCostAdjustment"`
 	RAMByteHours               float64               `json:"ramByteHours"`
 	RAMBytesRequestAverage     float64               `json:"ramByteRequestAverage"`
@@ -96,7 +93,8 @@ type Allocation struct {
 // A2 Using 2 CPU      ----      -----      ----
 // A3 Using 1 CPU         ---       --
 // _______________________________________________
-//                   Time ---->
+//
+//	Time ---->
 //
 // The logical maximum CPU usage is 5, but this cannot be calculated iteratively,
 // which is how we calculate aggregations and accumulations of Allocations currently.
@@ -111,18 +109,41 @@ type RawAllocationOnlyData struct {
 	RAMBytesUsageMax float64 `json:"ramByteUsageMax"`
 }
 
+// Clone returns a deep copy of the given RawAllocationOnlyData
+func (r *RawAllocationOnlyData) Clone() *RawAllocationOnlyData {
+	if r == nil {
+		return nil
+	}
+
+	return &RawAllocationOnlyData{
+		CPUCoreUsageMax:  r.CPUCoreUsageMax,
+		RAMBytesUsageMax: r.RAMBytesUsageMax,
+	}
+}
+
+// Equal returns true if the RawAllocationOnlyData is approximately equal
+func (r *RawAllocationOnlyData) Equal(that *RawAllocationOnlyData) bool {
+	if r == nil && that == nil {
+		return true
+	}
+	if r == nil || that == nil {
+		return false
+	}
+	return util.IsApproximately(r.CPUCoreUsageMax, that.CPUCoreUsageMax) &&
+		util.IsApproximately(r.RAMBytesUsageMax, that.RAMBytesUsageMax)
+}
+
 // PVAllocations is a map of Disk Asset Identifiers to the
 // usage of them by an Allocation as recorded in a PVAllocation
 type PVAllocations map[PVKey]*PVAllocation
 
 // Clone creates a deep copy of a PVAllocations
-func (pv *PVAllocations) Clone() PVAllocations {
-	if pv == nil || *pv == nil {
+func (pv PVAllocations) Clone() PVAllocations {
+	if pv == nil {
 		return nil
 	}
-	apv := *pv
-	clonePV := make(map[PVKey]*PVAllocation, len(apv))
-	for k, v := range apv {
+	clonePV := make(map[PVKey]*PVAllocation, len(pv))
+	for k, v := range pv {
 		clonePV[k] = &PVAllocation{
 			ByteHours: v.ByteHours,
 			Cost:      v.Cost,
@@ -132,7 +153,7 @@ func (pv *PVAllocations) Clone() PVAllocations {
 }
 
 // Add adds contents of that to the calling PVAllocations
-func (pv *PVAllocations) Add(that PVAllocations) PVAllocations {
+func (pv PVAllocations) Add(that PVAllocations) PVAllocations {
 	apv := pv.Clone()
 	if that != nil {
 		if apv == nil {
@@ -151,10 +172,49 @@ func (pv *PVAllocations) Add(that PVAllocations) PVAllocations {
 	return apv
 }
 
+// Equal returns true if the two PVAllocations are equal in length and contain the same keys
+// and values.
+func (this PVAllocations) Equal(that PVAllocations) bool {
+	if this == nil && that == nil {
+		return true
+	}
+	if this == nil || that == nil {
+		return false
+	}
+
+	if len(this) != len(that) {
+		return false
+	}
+
+	for k, pv := range this {
+		tv, ok := that[k]
+		if !ok || !pv.Equal(tv) {
+			return false
+		}
+	}
+
+	return true
+}
+
 // PVKey for identifying Disk type assets
 type PVKey struct {
 	Cluster string `json:"cluster"`
 	Name    string `json:"name"`
+}
+
+func (pvk *PVKey) String() string {
+	return fmt.Sprintf("cluster=%s:name=%s", pvk.Cluster, pvk.Name)
+}
+
+// FromString populates PVKey fields from string
+func (pvk *PVKey) FromString(key string) error {
+	splitKey := strings.Split(key, ":")
+	if len(splitKey) != 2 {
+		return fmt.Errorf("PVKey string '%s' has the incorrect format", key)
+	}
+	pvk.Cluster = strings.TrimPrefix(splitKey[0], "cluster=")
+	pvk.Name = strings.TrimPrefix(splitKey[1], "name=")
+	return nil
 }
 
 // PVAllocation contains the byte hour usage
@@ -162,6 +222,24 @@ type PVKey struct {
 type PVAllocation struct {
 	ByteHours float64 `json:"byteHours"`
 	Cost      float64 `json:"cost"`
+}
+
+// Equal returns true if the two PVAllocation instances contain approximately the same
+// values.
+func (pva *PVAllocation) Equal(that *PVAllocation) bool {
+	if pva == nil && that == nil {
+		return true
+	}
+	if pva == nil || that == nil {
+		return false
+	}
+	return util.IsApproximately(pva.ByteHours, that.ByteHours) &&
+		util.IsApproximately(pva.Cost, that.Cost)
+}
+
+// GetWindow returns the window of the struct
+func (a *Allocation) GetWindow() Window {
+	return a.Window
 }
 
 // AllocationMatchFunc is a function that can be used to match Allocations by
@@ -223,18 +301,6 @@ func (a *Allocation) Clone() *Allocation {
 		SharedCost:                 a.SharedCost,
 		ExternalCost:               a.ExternalCost,
 		RawAllocationOnly:          a.RawAllocationOnly.Clone(),
-	}
-}
-
-// Clone returns a deep copy of the given RawAllocationOnlyData
-func (r *RawAllocationOnlyData) Clone() *RawAllocationOnlyData {
-	if r == nil {
-		return nil
-	}
-
-	return &RawAllocationOnlyData{
-		CPUCoreUsageMax:  r.CPUCoreUsageMax,
-		RAMBytesUsageMax: r.RAMBytesUsageMax,
 	}
 }
 
@@ -317,34 +383,14 @@ func (a *Allocation) Equal(that *Allocation) bool {
 		return false
 	}
 
-	if a.RawAllocationOnly == nil && that.RawAllocationOnly != nil {
-		return false
-	}
-	if a.RawAllocationOnly != nil && that.RawAllocationOnly == nil {
+	if !a.RawAllocationOnly.Equal(that.RawAllocationOnly) {
 		return false
 	}
 
-	if a.RawAllocationOnly != nil && that.RawAllocationOnly != nil {
-		if !util.IsApproximately(a.RawAllocationOnly.CPUCoreUsageMax, that.RawAllocationOnly.CPUCoreUsageMax) {
-			return false
-		}
-		if !util.IsApproximately(a.RawAllocationOnly.RAMBytesUsageMax, that.RawAllocationOnly.RAMBytesUsageMax) {
-			return false
-		}
-	}
-
-	aPVs := a.PVs
-	thatPVs := that.PVs
-	if len(aPVs) == len(thatPVs) {
-		for k, pv := range aPVs {
-			tv, ok := thatPVs[k]
-			if !ok || *tv != *pv {
-				return false
-			}
-		}
-	} else {
+	if !a.PVs.Equal(that.PVs) {
 		return false
 	}
+
 	return true
 }
 
@@ -552,53 +598,6 @@ func (a *Allocation) ResetAdjustments() {
 	a.LoadBalancerCostAdjustment = 0.0
 }
 
-// MarshalJSON implements json.Marshaler interface
-func (a *Allocation) MarshalJSON() ([]byte, error) {
-	buffer := bytes.NewBufferString("{")
-	jsonEncodeString(buffer, "name", a.Name, ",")
-	jsonEncode(buffer, "properties", a.Properties, ",")
-	jsonEncode(buffer, "window", a.Window, ",")
-	jsonEncodeString(buffer, "start", a.Start.Format(time.RFC3339), ",")
-	jsonEncodeString(buffer, "end", a.End.Format(time.RFC3339), ",")
-	jsonEncodeFloat64(buffer, "minutes", a.Minutes(), ",")
-	jsonEncodeFloat64(buffer, "cpuCores", a.CPUCores(), ",")
-	jsonEncodeFloat64(buffer, "cpuCoreRequestAverage", a.CPUCoreRequestAverage, ",")
-	jsonEncodeFloat64(buffer, "cpuCoreUsageAverage", a.CPUCoreUsageAverage, ",")
-	jsonEncodeFloat64(buffer, "cpuCoreHours", a.CPUCoreHours, ",")
-	jsonEncodeFloat64(buffer, "cpuCost", a.CPUCost, ",")
-	jsonEncodeFloat64(buffer, "cpuCostAdjustment", a.CPUCostAdjustment, ",")
-	jsonEncodeFloat64(buffer, "cpuEfficiency", a.CPUEfficiency(), ",")
-	jsonEncodeFloat64(buffer, "gpuCount", a.GPUs(), ",")
-	jsonEncodeFloat64(buffer, "gpuHours", a.GPUHours, ",")
-	jsonEncodeFloat64(buffer, "gpuCost", a.GPUCost, ",")
-	jsonEncodeFloat64(buffer, "gpuCostAdjustment", a.GPUCostAdjustment, ",")
-	jsonEncodeFloat64(buffer, "networkTransferBytes", a.NetworkTransferBytes, ",")
-	jsonEncodeFloat64(buffer, "networkReceiveBytes", a.NetworkReceiveBytes, ",")
-	jsonEncodeFloat64(buffer, "networkCost", a.NetworkCost, ",")
-	jsonEncodeFloat64(buffer, "networkCostAdjustment", a.NetworkCostAdjustment, ",")
-	jsonEncodeFloat64(buffer, "loadBalancerCost", a.LoadBalancerCost, ",")
-	jsonEncodeFloat64(buffer, "loadBalancerCostAdjustment", a.LoadBalancerCostAdjustment, ",")
-	jsonEncodeFloat64(buffer, "pvBytes", a.PVBytes(), ",")
-	jsonEncodeFloat64(buffer, "pvByteHours", a.PVByteHours(), ",")
-	jsonEncodeFloat64(buffer, "pvCost", a.PVCost(), ",")
-	jsonEncode(buffer, "pvs", a.PVs, ",") // Todo Sean: this does not work properly
-	jsonEncodeFloat64(buffer, "pvCostAdjustment", a.PVCostAdjustment, ",")
-	jsonEncodeFloat64(buffer, "ramBytes", a.RAMBytes(), ",")
-	jsonEncodeFloat64(buffer, "ramByteRequestAverage", a.RAMBytesRequestAverage, ",")
-	jsonEncodeFloat64(buffer, "ramByteUsageAverage", a.RAMBytesUsageAverage, ",")
-	jsonEncodeFloat64(buffer, "ramByteHours", a.RAMByteHours, ",")
-	jsonEncodeFloat64(buffer, "ramCost", a.RAMCost, ",")
-	jsonEncodeFloat64(buffer, "ramCostAdjustment", a.RAMCostAdjustment, ",")
-	jsonEncodeFloat64(buffer, "ramEfficiency", a.RAMEfficiency(), ",")
-	jsonEncodeFloat64(buffer, "sharedCost", a.SharedCost, ",")
-	jsonEncodeFloat64(buffer, "externalCost", a.ExternalCost, ",")
-	jsonEncodeFloat64(buffer, "totalCost", a.TotalCost(), ",")
-	jsonEncodeFloat64(buffer, "totalEfficiency", a.TotalEfficiency(), ",")
-	jsonEncode(buffer, "rawAllocationOnly", a.RawAllocationOnly, "")
-	buffer.WriteString("}")
-	return buffer.Bytes(), nil
-}
-
 // Resolution returns the duration of time covered by the Allocation
 func (a *Allocation) Resolution() time.Duration {
 	return a.End.Sub(a.Start)
@@ -795,10 +794,9 @@ func (a *Allocation) add(that *Allocation) {
 // AllocationSet stores a set of Allocations, each with a unique name, that share
 // a window. An AllocationSet is mutable, so treat it like a threadsafe map.
 type AllocationSet struct {
-	sync.RWMutex
-	allocations  map[string]*Allocation
-	externalKeys map[string]bool
-	idleKeys     map[string]bool
+	Allocations  map[string]*Allocation
+	ExternalKeys map[string]bool
+	IdleKeys     map[string]bool
 	FromSource   string // stores the name of the source used to compute the data
 	Window       Window
 	Warnings     []string
@@ -809,9 +807,9 @@ type AllocationSet struct {
 // the given list of Allocations
 func NewAllocationSet(start, end time.Time, allocs ...*Allocation) *AllocationSet {
 	as := &AllocationSet{
-		allocations:  map[string]*Allocation{},
-		externalKeys: map[string]bool{},
-		idleKeys:     map[string]bool{},
+		Allocations:  map[string]*Allocation{},
+		ExternalKeys: map[string]bool{},
+		IdleKeys:     map[string]bool{},
 		Window:       NewWindow(&start, &end),
 	}
 
@@ -947,19 +945,16 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		Window: as.Window.Clone(),
 	}
 
-	as.Lock()
-	defer as.Unlock()
-
 	// (1) Loop and find all of the external, idle, and shared allocations. Add
 	// them to their respective sets, removing them from the set of allocations
 	// to aggregate.
-	for _, alloc := range as.allocations {
+	for _, alloc := range as.Allocations {
 		// External allocations get aggregated post-hoc (see step 6) and do
 		// not necessarily contain complete sets of properties, so they are
 		// moved to a separate AllocationSet.
 		if alloc.IsExternal() {
-			delete(as.externalKeys, alloc.Name)
-			delete(as.allocations, alloc.Name)
+			delete(as.ExternalKeys, alloc.Name)
+			delete(as.Allocations, alloc.Name)
 			externalSet.Insert(alloc)
 			continue
 		}
@@ -968,8 +963,8 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		// shared later on. If they are not to be shared, then add them to the
 		// aggSet like any other allocation.
 		if alloc.IsIdle() {
-			delete(as.idleKeys, alloc.Name)
-			delete(as.allocations, alloc.Name)
+			delete(as.IdleKeys, alloc.Name)
+			delete(as.Allocations, alloc.Name)
 
 			if options.ShareIdle == ShareEven || options.ShareIdle == ShareWeighted {
 				idleSet.Insert(alloc)
@@ -985,8 +980,8 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		// true for the allocation, then move it to shareSet.
 		for _, sf := range options.ShareFuncs {
 			if sf(alloc) {
-				delete(as.idleKeys, alloc.Name)
-				delete(as.allocations, alloc.Name)
+				delete(as.IdleKeys, alloc.Name)
+				delete(as.Allocations, alloc.Name)
 				shareSet.Insert(alloc)
 				break
 			}
@@ -995,11 +990,11 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 
 	// It's possible that no more un-shared, non-idle, non-external allocations
 	// remain at this point. This always results in an emptySet, so return early.
-	if len(as.allocations) == 0 {
+	if len(as.Allocations) == 0 {
 		emptySet := &AllocationSet{
 			Window: as.Window.Clone(),
 		}
-		as.allocations = emptySet.allocations
+		as.Allocations = emptySet.Allocations
 		return nil
 	}
 
@@ -1113,7 +1108,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	}
 
 	// (3-5) Filter, distribute idle cost, and aggregate (in that order)
-	for _, alloc := range as.allocations {
+	for _, alloc := range as.Allocations {
 		idleId, err := alloc.getIdleId(options)
 		if err != nil {
 			log.DedupedWarningf(3, "AllocationSet.AggregateBy: missing idleId for allocation: %s", alloc.Name)
@@ -1146,7 +1141,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		// will be empty and we won't enter this block.
 		if idleSet.Length() > 0 {
 			// Distribute idle allocations by coefficient per-idleId, per-allocation
-			for _, idleAlloc := range idleSet.allocations {
+			for _, idleAlloc := range idleSet.Allocations {
 				// Only share idle if the idleId matches; i.e. the allocation
 				// is from the same idleId as the idle costs
 				iaidleId, err := idleAlloc.getIdleId(options)
@@ -1200,13 +1195,13 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// that idle allocation, if it exists, to the respective shared allocations
 	// before sharing with the aggregated allocations.
 	if idleSet.Length() > 0 && shareSet.Length() > 0 {
-		for _, alloc := range shareSet.allocations {
+		for _, alloc := range shareSet.Allocations {
 			idleId, err := alloc.getIdleId(options)
 			if err != nil {
 				log.DedupedWarningf(3, "AllocationSet.AggregateBy: missing idleId for allocation: %s", alloc.Name)
 			}
 			// Distribute idle allocations by coefficient per-idleId, per-allocation
-			for _, idleAlloc := range idleSet.allocations {
+			for _, idleAlloc := range idleSet.Allocations {
 				// Only share idle if the idleId matches; i.e. the allocation
 				// is from the same idleId as the idle costs
 				iaidleId, _ := idleAlloc.getIdleId(options)
@@ -1267,8 +1262,8 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 
 	// (7) If we have both un-shared idle allocations and idle filtration
 	// coefficients then apply those. See step (2b) for an example.
-	if len(aggSet.idleKeys) > 0 && groupingIdleFiltrationCoeffs != nil {
-		for idleKey := range aggSet.idleKeys {
+	if len(aggSet.IdleKeys) > 0 && groupingIdleFiltrationCoeffs != nil {
+		for idleKey := range aggSet.IdleKeys {
 			idleAlloc := aggSet.Get(idleKey)
 			iaidleId, err := idleAlloc.getIdleId(options)
 			if err != nil {
@@ -1289,8 +1284,8 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 
 	// (8) Distribute shared allocations according to the share coefficients.
 	if shareSet.Length() > 0 {
-		for _, alloc := range aggSet.allocations {
-			for _, sharedAlloc := range shareSet.allocations {
+		for _, alloc := range aggSet.Allocations {
+			for _, sharedAlloc := range shareSet.Allocations {
 				if _, ok := shareCoefficients[alloc.Name]; !ok {
 					if !alloc.IsIdle() && !alloc.IsUnmounted() {
 						log.Warnf("AllocationSet.AggregateBy: error getting share coefficienct for '%s'", alloc.Name)
@@ -1307,7 +1302,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// not be possible for every external allocation, but attempt to find an
 	// exact key match, given each external allocation's proerties, and
 	// aggregate if an exact match is found.
-	for _, alloc := range externalSet.allocations {
+	for _, alloc := range externalSet.Allocations {
 		skip := false
 		if options.Filter != nil {
 			skip = !options.Filter.Matches(alloc)
@@ -1340,7 +1335,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// __idle__ $0      $12     $0
 	// kubecost $12     $0      $7
 	if idleSet.Length() > 0 {
-		for _, idleAlloc := range idleSet.allocations {
+		for _, idleAlloc := range idleSet.Allocations {
 			// if the idle does not apply to the non-filtered values, skip it
 			skip := false
 			if options.Filter != nil {
@@ -1441,7 +1436,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// recommendation that we rewrite this function soon. Too difficult.
 	// - Niko
 
-	as.allocations = aggSet.allocations
+	as.Allocations = aggSet.Allocations
 
 	return nil
 }
@@ -1458,7 +1453,7 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 	shareType := options.ShareSplit
 
 	// Record allocation values first, then normalize by totals to get percentages
-	for _, alloc := range as.allocations {
+	for _, alloc := range as.Allocations {
 		if alloc.IsIdle() {
 			// Skip idle allocations in coefficient calculation
 			continue
@@ -1524,7 +1519,7 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 	totals := map[string]map[string]float64{}
 
 	// Record allocation values first, then normalize by totals to get percentages
-	for _, alloc := range as.allocations {
+	for _, alloc := range as.Allocations {
 		if alloc.IsIdle() {
 			// Skip idle allocations in coefficient calculation
 			continue
@@ -1560,7 +1555,7 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 	}
 
 	// Do the same for shared allocations
-	for _, alloc := range shareSet.allocations {
+	for _, alloc := range shareSet.Allocations {
 		if alloc.IsIdle() {
 			// Skip idle allocations in coefficient calculation
 			continue
@@ -1638,6 +1633,82 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 	return a.Properties.GenerateKey(aggregateBy, labelConfig)
 }
 
+func (a *Allocation) StringProperty(property string) (string, error) {
+	switch property {
+	case AllocationClusterProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.Cluster, nil
+	case AllocationNodeProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.Node, nil
+	case AllocationContainerProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.Container, nil
+	case AllocationControllerProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.Controller, nil
+	case AllocationControllerKindProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.ControllerKind, nil
+	case AllocationNamespaceProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.Namespace, nil
+	case AllocationPodProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.Pod, nil
+	case AllocationProviderIDProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.ProviderID, nil
+	default:
+		return "", fmt.Errorf("Allocation: StringProperty: invalid property name: %s", property)
+	}
+}
+
+func (a *Allocation) StringSliceProperty(property string) ([]string, error) {
+	switch property {
+	case AllocationServiceProp:
+		if a.Properties == nil {
+			return nil, nil
+		}
+		return a.Properties.Services, nil
+	default:
+		return nil, fmt.Errorf("Allocation: StringSliceProperty: invalid property name: %s", property)
+	}
+}
+
+func (a *Allocation) StringMapProperty(property string) (map[string]string, error) {
+	switch property {
+	case AllocationLabelProp:
+		if a.Properties == nil {
+			return nil, nil
+		}
+		return a.Properties.Labels, nil
+	case AllocationAnnotationProp:
+		if a.Properties == nil {
+			return nil, nil
+		}
+		return a.Properties.Annotations, nil
+	default:
+		return nil, fmt.Errorf("Allocation: StringMapProperty: invalid property name: %s", property)
+	}
+}
+
 // Clone returns a new AllocationSet with a deep copy of the given
 // AllocationSet's allocations.
 func (as *AllocationSet) Clone() *AllocationSet {
@@ -1645,21 +1716,18 @@ func (as *AllocationSet) Clone() *AllocationSet {
 		return nil
 	}
 
-	as.RLock()
-	defer as.RUnlock()
-
-	allocs := make(map[string]*Allocation, len(as.allocations))
-	for k, v := range as.allocations {
+	allocs := make(map[string]*Allocation, len(as.Allocations))
+	for k, v := range as.Allocations {
 		allocs[k] = v.Clone()
 	}
 
-	externalKeys := make(map[string]bool, len(as.externalKeys))
-	for k, v := range as.externalKeys {
+	externalKeys := make(map[string]bool, len(as.ExternalKeys))
+	for k, v := range as.ExternalKeys {
 		externalKeys[k] = v
 	}
 
-	idleKeys := make(map[string]bool, len(as.idleKeys))
-	for k, v := range as.idleKeys {
+	idleKeys := make(map[string]bool, len(as.IdleKeys))
+	for k, v := range as.IdleKeys {
 		idleKeys[k] = v
 	}
 
@@ -1681,9 +1749,9 @@ func (as *AllocationSet) Clone() *AllocationSet {
 	}
 
 	return &AllocationSet{
-		allocations:  allocs,
-		externalKeys: externalKeys,
-		idleKeys:     idleKeys,
+		Allocations:  allocs,
+		ExternalKeys: externalKeys,
+		IdleKeys:     idleKeys,
 		Window:       as.Window.Clone(),
 		Errors:       errors,
 		Warnings:     warnings,
@@ -1696,22 +1764,9 @@ func (as *AllocationSet) Delete(name string) {
 		return
 	}
 
-	as.Lock()
-	defer as.Unlock()
-	delete(as.externalKeys, name)
-	delete(as.idleKeys, name)
-	delete(as.allocations, name)
-}
-
-// Each invokes the given function for each Allocation in the set
-func (as *AllocationSet) Each(f func(string, *Allocation)) {
-	if as == nil {
-		return
-	}
-
-	for k, a := range as.allocations {
-		f(k, a)
-	}
+	delete(as.ExternalKeys, name)
+	delete(as.IdleKeys, name)
+	delete(as.Allocations, name)
 }
 
 // End returns the End time of the AllocationSet window
@@ -1721,7 +1776,7 @@ func (as *AllocationSet) End() time.Time {
 		return time.Unix(0, 0)
 	}
 	if as.Window.End() == nil {
-		log.Warnf("AllocationSet: AllocationSet with illegal window: End is nil; len(as.allocations)=%d", len(as.allocations))
+		log.Warnf("AllocationSet: AllocationSet with illegal window: End is nil; len(as.allocations)=%d", len(as.Allocations))
 		return time.Unix(0, 0)
 	}
 	return *as.Window.End()
@@ -1729,10 +1784,7 @@ func (as *AllocationSet) End() time.Time {
 
 // Get returns the Allocation at the given key in the AllocationSet
 func (as *AllocationSet) Get(key string) *Allocation {
-	as.RLock()
-	defer as.RUnlock()
-
-	if alloc, ok := as.allocations[key]; ok {
+	if alloc, ok := as.Allocations[key]; ok {
 		return alloc
 	}
 
@@ -1748,11 +1800,8 @@ func (as *AllocationSet) ExternalAllocations() map[string]*Allocation {
 		return externals
 	}
 
-	as.RLock()
-	defer as.RUnlock()
-
-	for key := range as.externalKeys {
-		if alloc, ok := as.allocations[key]; ok {
+	for key := range as.ExternalKeys {
+		if alloc, ok := as.Allocations[key]; ok {
 			externals[key] = alloc.Clone()
 		}
 	}
@@ -1766,11 +1815,8 @@ func (as *AllocationSet) ExternalCost() float64 {
 		return 0.0
 	}
 
-	as.RLock()
-	defer as.RUnlock()
-
 	externalCost := 0.0
-	for _, alloc := range as.allocations {
+	for _, alloc := range as.Allocations {
 		externalCost += alloc.ExternalCost
 	}
 
@@ -1786,11 +1832,8 @@ func (as *AllocationSet) IdleAllocations() map[string]*Allocation {
 		return idles
 	}
 
-	as.RLock()
-	defer as.RUnlock()
-
-	for key := range as.idleKeys {
-		if alloc, ok := as.allocations[key]; ok {
+	for key := range as.IdleKeys {
+		if alloc, ok := as.Allocations[key]; ok {
 			idles[key] = alloc.Clone()
 		}
 	}
@@ -1802,50 +1845,43 @@ func (as *AllocationSet) IdleAllocations() map[string]*Allocation {
 // but only if the Allocation is valid, i.e. matches the AllocationSet's window. If
 // there is no existing entry, one is created. Nil error response indicates success.
 func (as *AllocationSet) Insert(that *Allocation) error {
-	return as.insert(that)
-}
-
-func (as *AllocationSet) insert(that *Allocation) error {
 	if as == nil {
 		return fmt.Errorf("cannot insert into nil AllocationSet")
 	}
 
-	as.Lock()
-	defer as.Unlock()
-
-	if as.allocations == nil {
-		as.allocations = map[string]*Allocation{}
+	if as.Allocations == nil {
+		as.Allocations = map[string]*Allocation{}
 	}
 
-	if as.externalKeys == nil {
-		as.externalKeys = map[string]bool{}
+	if as.ExternalKeys == nil {
+		as.ExternalKeys = map[string]bool{}
 	}
 
-	if as.idleKeys == nil {
-		as.idleKeys = map[string]bool{}
+	if as.IdleKeys == nil {
+		as.IdleKeys = map[string]bool{}
 	}
 
 	// Add the given Allocation to the existing entry, if there is one;
 	// otherwise just set directly into allocations
-	if _, ok := as.allocations[that.Name]; !ok {
-		as.allocations[that.Name] = that
+	if _, ok := as.Allocations[that.Name]; !ok {
+		as.Allocations[that.Name] = that
 	} else {
-		as.allocations[that.Name].add(that)
+		as.Allocations[that.Name].add(that)
 	}
 
 	// If the given Allocation is an external one, record that
 	if that.IsExternal() {
-		as.externalKeys[that.Name] = true
+		as.ExternalKeys[that.Name] = true
 	}
 
 	// If the given Allocation is an idle one, record that
 	if that.IsIdle() {
-		as.idleKeys[that.Name] = true
+		as.IdleKeys[that.Name] = true
 	}
 
 	// Expand the window, just to be safe. It's possible that the Allocation will
 	// be set into the map without expanding it to the AllocationSet's window.
-	as.allocations[that.Name].Window = as.allocations[that.Name].Window.Expand(as.Window)
+	as.Allocations[that.Name].Window = as.Allocations[that.Name].Window.Expand(as.Window)
 
 	return nil
 }
@@ -1853,13 +1889,11 @@ func (as *AllocationSet) insert(that *Allocation) error {
 // IsEmpty returns true if the AllocationSet is nil, or if it contains
 // zero allocations.
 func (as *AllocationSet) IsEmpty() bool {
-	if as == nil || len(as.allocations) == 0 {
+	if as == nil || len(as.Allocations) == 0 {
 		return true
 	}
 
-	as.RLock()
-	defer as.RUnlock()
-	return as.allocations == nil || len(as.allocations) == 0
+	return false
 }
 
 // Length returns the number of Allocations in the set
@@ -1868,28 +1902,7 @@ func (as *AllocationSet) Length() int {
 		return 0
 	}
 
-	as.RLock()
-	defer as.RUnlock()
-	return len(as.allocations)
-}
-
-// Map clones and returns a map of the AllocationSet's Allocations
-func (as *AllocationSet) Map() map[string]*Allocation {
-	if as.IsEmpty() {
-		return map[string]*Allocation{}
-	}
-
-	return as.Clone().allocations
-}
-
-// MarshalJSON JSON-encodes the AllocationSet
-func (as *AllocationSet) MarshalJSON() ([]byte, error) {
-	if as == nil {
-		return json.Marshal(map[string]*Allocation{})
-	}
-	as.RLock()
-	defer as.RUnlock()
-	return json.Marshal(as.allocations)
+	return len(as.Allocations)
 }
 
 // ResetAdjustments sets all cost adjustment fields to zero
@@ -1898,14 +1911,7 @@ func (as *AllocationSet) ResetAdjustments() {
 		return
 	}
 
-	as.Lock()
-	defer as.Unlock()
-
-	as.resetAdjustments()
-}
-
-func (as *AllocationSet) resetAdjustments() {
-	for _, a := range as.allocations {
+	for _, a := range as.Allocations {
 		a.ResetAdjustments()
 	}
 }
@@ -1915,30 +1921,30 @@ func (as *AllocationSet) Resolution() time.Duration {
 	return as.Window.Duration()
 }
 
+// GetWindow returns the AllocationSet's window
+func (as *AllocationSet) GetWindow() Window {
+	return as.Window
+}
+
 // Set uses the given Allocation to overwrite the existing entry in the
 // AllocationSet under the Allocation's name.
 func (as *AllocationSet) Set(alloc *Allocation) error {
 	if as.IsEmpty() {
-		as.Lock()
-		as.allocations = map[string]*Allocation{}
-		as.externalKeys = map[string]bool{}
-		as.idleKeys = map[string]bool{}
-		as.Unlock()
+		as.Allocations = map[string]*Allocation{}
+		as.ExternalKeys = map[string]bool{}
+		as.IdleKeys = map[string]bool{}
 	}
 
-	as.Lock()
-	defer as.Unlock()
-
-	as.allocations[alloc.Name] = alloc
+	as.Allocations[alloc.Name] = alloc
 
 	// If the given Allocation is an external one, record that
 	if alloc.IsExternal() {
-		as.externalKeys[alloc.Name] = true
+		as.ExternalKeys[alloc.Name] = true
 	}
 
 	// If the given Allocation is an idle one, record that
 	if alloc.IsIdle() {
-		as.idleKeys[alloc.Name] = true
+		as.IdleKeys[alloc.Name] = true
 	}
 
 	return nil
@@ -1951,7 +1957,7 @@ func (as *AllocationSet) Start() time.Time {
 		return time.Unix(0, 0)
 	}
 	if as.Window.Start() == nil {
-		log.Warnf("AllocationSet: AllocationSet with illegal window: Start is nil; len(as.allocations)=%d", len(as.allocations))
+		log.Warnf("AllocationSet: AllocationSet with illegal window: Start is nil; len(as.allocations)=%d", len(as.Allocations))
 		return time.Unix(0, 0)
 	}
 	return *as.Window.Start()
@@ -1962,8 +1968,12 @@ func (as *AllocationSet) String() string {
 	if as == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("AllocationSet{length: %d; window: %s; totalCost: %.2f}",
-		as.Length(), as.Window, as.TotalCost())
+
+	return fmt.Sprintf(
+		"AllocationSet{length: %d; window: %s; totalCost: %.2f}",
+		as.Length(),
+		as.Window,
+		as.TotalCost())
 }
 
 // TotalCost returns the sum of all TotalCosts of the allocations contained
@@ -1972,11 +1982,8 @@ func (as *AllocationSet) TotalCost() float64 {
 		return 0.0
 	}
 
-	as.RLock()
-	defer as.RUnlock()
-
 	tc := 0.0
-	for _, a := range as.allocations {
+	for _, a := range as.Allocations {
 		tc += a.TotalCost()
 	}
 	return tc
@@ -1988,7 +1995,7 @@ func (as *AllocationSet) UTCOffset() time.Duration {
 	return time.Duration(zone) * time.Second
 }
 
-func (as *AllocationSet) accumulate(that *AllocationSet) (*AllocationSet, error) {
+func (as *AllocationSet) Accumulate(that *AllocationSet) (*AllocationSet, error) {
 	if as.IsEmpty() {
 		return that.Clone(), nil
 	}
@@ -2009,21 +2016,15 @@ func (as *AllocationSet) accumulate(that *AllocationSet) (*AllocationSet, error)
 
 	acc := NewAllocationSet(start, end)
 
-	as.RLock()
-	defer as.RUnlock()
-
-	that.RLock()
-	defer that.RUnlock()
-
-	for _, alloc := range as.allocations {
-		err := acc.insert(alloc)
+	for _, alloc := range as.Allocations {
+		err := acc.Insert(alloc)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	for _, alloc := range that.allocations {
-		err := acc.insert(alloc)
+	for _, alloc := range that.Allocations {
+		err := acc.Insert(alloc)
 		if err != nil {
 			return nil, err
 		}
@@ -2037,8 +2038,7 @@ func (as *AllocationSet) accumulate(that *AllocationSet) (*AllocationSet, error)
 // respect to using the same aggregation properties, UTC offset, and
 // resolution. However these rules are not necessarily enforced, so use wisely.
 type AllocationSetRange struct {
-	sync.RWMutex
-	allocations []*AllocationSet
+	Allocations []*AllocationSet
 	FromStore   string // stores the name of the store used to retrieve the data
 }
 
@@ -2046,8 +2046,17 @@ type AllocationSetRange struct {
 // AllocationSets in the order provided.
 func NewAllocationSetRange(allocs ...*AllocationSet) *AllocationSetRange {
 	return &AllocationSetRange{
-		allocations: allocs,
+		Allocations: allocs,
 	}
+}
+
+// Get safely retrieves the AllocationSet at the given index of the range.
+func (asr *AllocationSetRange) Get(i int) (*AllocationSet, error) {
+	if i < 0 || i >= len(asr.Allocations) {
+		return nil, fmt.Errorf("AllocationSetRange: index out of range: %d", i)
+	}
+
+	return asr.Allocations[i], nil
 }
 
 // Accumulate sums each AllocationSet in the given range, returning a single cumulative
@@ -2056,11 +2065,38 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 	var allocSet *AllocationSet
 	var err error
 
-	asr.RLock()
-	defer asr.RUnlock()
+	for _, as := range asr.Allocations {
+		allocSet, err = allocSet.Accumulate(as)
+		if err != nil {
+			return nil, err
+		}
+	}
 
-	for _, as := range asr.allocations {
-		allocSet, err = allocSet.accumulate(as)
+	return allocSet, nil
+}
+
+// NewAccumulation clones the first available AllocationSet to use as the data structure to
+// Accumulate the remaining data. This leaves the original AllocationSetRange intact.
+func (asr *AllocationSetRange) NewAccumulation() (*AllocationSet, error) {
+	// NOTE: Adding this API for consistency across SummaryAllocation and Assets, but this
+	// NOTE: implementation is almost identical to regular Accumulate(). The Accumulate() method
+	// NOTE: for Allocation returns Clone() of the input, which is required for AccumulateBy
+	// NOTE: support (unit tests are great for verifying this information).
+	var allocSet *AllocationSet
+	var err error
+
+	for _, as := range asr.Allocations {
+		if allocSet == nil {
+			allocSet = as.Clone()
+			continue
+		}
+
+		var allocSetCopy *AllocationSet = nil
+		if as != nil {
+			allocSetCopy = as.Clone()
+		}
+
+		allocSet, err = allocSet.Accumulate(allocSetCopy)
 		if err != nil {
 			return nil, err
 		}
@@ -2070,7 +2106,7 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 }
 
 // AccumulateBy sums AllocationSets based on the resolution given. The resolution given is subject to the scale used for the AllocationSets.
-// Resolutions not evenly divisible by the AllocationSetRange window durations accumulate sets until a sum greater than or equal to the resolution is met,
+// Resolutions not evenly divisible by the AllocationSetRange window durations Accumulate sets until a sum greater than or equal to the resolution is met,
 // at which point AccumulateBy will start summing from 0 until the requested resolution is met again.
 // If the requested resolution is smaller than the window of an AllocationSet then the resolution will default to the duration of a set.
 // Resolutions larger than the duration of the entire AllocationSetRange will default to the duration of the range.
@@ -2079,10 +2115,8 @@ func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*Allocati
 	var allocSet *AllocationSet
 	var err error
 
-	asr.Lock()
-	defer asr.Unlock()
-	for i, as := range asr.allocations {
-		allocSet, err = allocSet.accumulate(as)
+	for i, as := range asr.Allocations {
+		allocSet, err = allocSet.Accumulate(as)
 		if err != nil {
 			return nil, err
 		}
@@ -2091,8 +2125,8 @@ func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*Allocati
 
 			// check if end of asr to sum the final set
 			// If total asr accumulated sum <= resolution return 1 accumulated set
-			if allocSet.Window.Duration() >= resolution || i == len(asr.allocations)-1 {
-				allocSetRange.allocations = append(allocSetRange.allocations, allocSet)
+			if allocSet.Window.Duration() >= resolution || i == len(asr.Allocations)-1 {
+				allocSetRange.Allocations = append(allocSetRange.Allocations, allocSet)
 				allocSet = NewAllocationSet(time.Time{}, time.Time{})
 			}
 		}
@@ -2104,20 +2138,17 @@ func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*Allocati
 // AggregateBy aggregates each AllocationSet in the range by the given
 // properties and options.
 func (asr *AllocationSetRange) AggregateBy(aggregateBy []string, options *AllocationAggregationOptions) error {
-	aggRange := &AllocationSetRange{allocations: []*AllocationSet{}}
+	aggRange := &AllocationSetRange{Allocations: []*AllocationSet{}}
 
-	asr.Lock()
-	defer asr.Unlock()
-
-	for _, as := range asr.allocations {
+	for _, as := range asr.Allocations {
 		err := as.AggregateBy(aggregateBy, options)
 		if err != nil {
 			return err
 		}
-		aggRange.allocations = append(aggRange.allocations, as)
+		aggRange.Allocations = append(aggRange.Allocations, as)
 	}
 
-	asr.allocations = aggRange.allocations
+	asr.Allocations = aggRange.Allocations
 
 	return nil
 }
@@ -2125,31 +2156,7 @@ func (asr *AllocationSetRange) AggregateBy(aggregateBy []string, options *Alloca
 // Append appends the given AllocationSet to the end of the range. It does not
 // validate whether or not that violates window continuity.
 func (asr *AllocationSetRange) Append(that *AllocationSet) {
-	asr.Lock()
-	defer asr.Unlock()
-	asr.allocations = append(asr.allocations, that)
-}
-
-// Each invokes the given function for each AllocationSet in the range
-func (asr *AllocationSetRange) Each(f func(int, *AllocationSet)) {
-	if asr == nil {
-		return
-	}
-
-	for i, as := range asr.allocations {
-		f(i, as)
-	}
-}
-
-// Get retrieves the AllocationSet at the given index of the range.
-func (asr *AllocationSetRange) Get(i int) (*AllocationSet, error) {
-	if i < 0 || i >= len(asr.allocations) {
-		return nil, fmt.Errorf("AllocationSetRange: index out of range: %d", i)
-	}
-
-	asr.RLock()
-	defer asr.RUnlock()
-	return asr.allocations[i], nil
+	asr.Allocations = append(asr.Allocations, that)
 }
 
 // InsertRange merges the given AllocationSetRange into the receiving one by
@@ -2163,14 +2170,19 @@ func (asr *AllocationSetRange) InsertRange(that *AllocationSetRange) error {
 		return fmt.Errorf("cannot insert range into nil AllocationSetRange")
 	}
 
+	// Providing an empty or nil set range is a no-op
+	if that == nil {
+		return nil
+	}
+
 	// keys maps window to index in asr
 	keys := map[string]int{}
-	asr.Each(func(i int, as *AllocationSet) {
+	for i, as := range asr.Allocations {
 		if as == nil {
-			return
+			continue
 		}
 		keys[as.Window.String()] = i
-	})
+	}
 
 	// Nothing to merge, so simply return
 	if len(keys) == 0 {
@@ -2178,32 +2190,33 @@ func (asr *AllocationSetRange) InsertRange(that *AllocationSetRange) error {
 	}
 
 	var err error
-	that.Each(func(j int, thatAS *AllocationSet) {
+	for _, thatAS := range that.Allocations {
 		if thatAS == nil || err != nil {
-			return
+			continue
 		}
 
 		// Find matching AllocationSet in asr
 		i, ok := keys[thatAS.Window.String()]
 		if !ok {
 			err = fmt.Errorf("cannot merge AllocationSet into window that does not exist: %s", thatAS.Window.String())
-			return
+			continue
 		}
+
 		as, err := asr.Get(i)
 		if err != nil {
 			err = fmt.Errorf("AllocationSetRange index does not exist: %d", i)
-			return
+			continue
 		}
 
 		// Insert each Allocation from the given set
-		thatAS.Each(func(k string, alloc *Allocation) {
+		for _, alloc := range thatAS.Allocations {
 			err = as.Insert(alloc)
 			if err != nil {
 				err = fmt.Errorf("error inserting allocation: %s", err)
-				return
+				continue
 			}
-		})
-	})
+		}
+	}
 
 	// err might be nil
 	return err
@@ -2211,37 +2224,22 @@ func (asr *AllocationSetRange) InsertRange(that *AllocationSetRange) error {
 
 // Length returns the length of the range, which is zero if nil
 func (asr *AllocationSetRange) Length() int {
-	if asr == nil || asr.allocations == nil {
+	if asr == nil || asr.Allocations == nil {
 		return 0
 	}
 
-	asr.RLock()
-	defer asr.RUnlock()
-	return len(asr.allocations)
-}
-
-// MarshalJSON JSON-encodes the range
-func (asr *AllocationSetRange) MarshalJSON() ([]byte, error) {
-	if asr == nil {
-		return json.Marshal([]*AllocationSet{})
-	}
-
-	asr.RLock()
-	defer asr.RUnlock()
-	return json.Marshal(asr.allocations)
+	return len(asr.Allocations)
 }
 
 // Slice copies the underlying slice of AllocationSets, maintaining order,
 // and returns the copied slice.
 func (asr *AllocationSetRange) Slice() []*AllocationSet {
-	if asr == nil || asr.allocations == nil {
+	if asr == nil || asr.Allocations == nil {
 		return nil
 	}
 
-	asr.RLock()
-	defer asr.RUnlock()
 	copy := []*AllocationSet{}
-	for _, as := range asr.allocations {
+	for _, as := range asr.Allocations {
 		copy = append(copy, as.Clone())
 	}
 	return copy
@@ -2277,8 +2275,8 @@ func (asr *AllocationSetRange) Window() Window {
 		return NewWindow(nil, nil)
 	}
 
-	start := asr.allocations[0].Start()
-	end := asr.allocations[asr.Length()-1].End()
+	start := asr.Allocations[0].Start()
+	end := asr.Allocations[asr.Length()-1].End()
 
 	return NewWindow(&start, &end)
 }
@@ -2287,9 +2285,13 @@ func (asr *AllocationSetRange) Window() Window {
 // It returns an error if there are no allocations.
 func (asr *AllocationSetRange) Start() (time.Time, error) {
 	start := time.Time{}
+	if asr == nil {
+		return start, fmt.Errorf("had no data to compute a start from")
+	}
+
 	firstStartNotSet := true
-	asr.Each(func(i int, as *AllocationSet) {
-		as.Each(func(s string, a *Allocation) {
+	for _, as := range asr.Allocations {
+		for _, a := range as.Allocations {
 			if firstStartNotSet {
 				start = a.Start
 				firstStartNotSet = false
@@ -2297,8 +2299,8 @@ func (asr *AllocationSetRange) Start() (time.Time, error) {
 			if a.Start.Before(start) {
 				start = a.Start
 			}
-		})
-	})
+		}
+	}
 
 	if firstStartNotSet {
 		return start, fmt.Errorf("had no data to compute a start from")
@@ -2311,9 +2313,13 @@ func (asr *AllocationSetRange) Start() (time.Time, error) {
 // It returns an error if there are no allocations.
 func (asr *AllocationSetRange) End() (time.Time, error) {
 	end := time.Time{}
+	if asr == nil {
+		return end, fmt.Errorf("had no data to compute an end from")
+	}
+
 	firstEndNotSet := true
-	asr.Each(func(i int, as *AllocationSet) {
-		as.Each(func(s string, a *Allocation) {
+	for _, as := range asr.Allocations {
+		for _, a := range as.Allocations {
 			if firstEndNotSet {
 				end = a.End
 				firstEndNotSet = false
@@ -2321,8 +2327,8 @@ func (asr *AllocationSetRange) End() (time.Time, error) {
 			if a.End.After(end) {
 				end = a.End
 			}
-		})
-	})
+		}
+	}
 
 	if firstEndNotSet {
 		return end, fmt.Errorf("had no data to compute an end from")
@@ -2331,17 +2337,61 @@ func (asr *AllocationSetRange) End() (time.Time, error) {
 	return end, nil
 }
 
+// StartAndEnd iterates over all AssetSets in the AssetSetRange and returns the earliest start and
+// latest end over the entire range
+func (asr *AllocationSetRange) StartAndEnd() (time.Time, time.Time, error) {
+	start := time.Time{}
+	end := time.Time{}
+
+	if asr == nil {
+		return start, end, fmt.Errorf("had no data to compute a start and end from")
+	}
+
+	firstStartNotSet := true
+	firstEndNotSet := true
+
+	for _, as := range asr.Allocations {
+		for _, a := range as.Allocations {
+			if firstStartNotSet {
+				start = a.Start
+				firstStartNotSet = false
+			}
+			if a.Start.Before(start) {
+				start = a.Start
+			}
+			if firstEndNotSet {
+				end = a.End
+				firstEndNotSet = false
+			}
+			if a.End.After(end) {
+				end = a.End
+			}
+		}
+	}
+
+	if firstStartNotSet {
+		return start, end, fmt.Errorf("had no data to compute a start from")
+	}
+
+	if firstEndNotSet {
+		return start, end, fmt.Errorf("had no data to compute an end from")
+	}
+
+	return start, end, nil
+}
+
 // Minutes returns the duration, in minutes, between the earliest start
-// and the latest end of all allocations in the AllocationSetRange.
+// and the latest end of all assets in the AllocationSetRange.
 func (asr *AllocationSetRange) Minutes() float64 {
-	start, err := asr.Start()
+	if asr == nil {
+		return 0
+	}
+
+	start, end, err := asr.StartAndEnd()
 	if err != nil {
 		return 0
 	}
-	end, err := asr.End()
-	if err != nil {
-		return 0
-	}
+
 	duration := end.Sub(start)
 
 	return duration.Minutes()
@@ -2349,15 +2399,12 @@ func (asr *AllocationSetRange) Minutes() float64 {
 
 // TotalCost returns the sum of all TotalCosts of the allocations contained
 func (asr *AllocationSetRange) TotalCost() float64 {
-	if asr == nil || len(asr.allocations) == 0 {
+	if asr == nil || len(asr.Allocations) == 0 {
 		return 0.0
 	}
 
-	asr.RLock()
-	defer asr.RUnlock()
-
 	tc := 0.0
-	for _, as := range asr.allocations {
+	for _, as := range asr.Allocations {
 		tc += as.TotalCost()
 	}
 	return tc
