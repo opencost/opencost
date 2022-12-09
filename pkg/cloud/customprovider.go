@@ -3,6 +3,7 @@ package cloud
 import (
 	"errors"
 	"fmt"
+	"github.com/opencost/opencost/pkg/kubecost"
 	"io"
 	"strconv"
 	"strings"
@@ -108,7 +109,7 @@ func (cp *CustomProvider) ClusterInfo() (map[string]string, error) {
 	if conf.ClusterName != "" {
 		m["name"] = conf.ClusterName
 	}
-	m["provider"] = "custom"
+	m["provider"] = kubecost.CustomProvider
 	m["id"] = env.GetClusterID()
 	return m, nil
 }
