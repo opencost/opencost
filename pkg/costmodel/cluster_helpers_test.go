@@ -1,6 +1,8 @@
 package costmodel
 
 import (
+	"github.com/davecgh/go-spew/spew"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 	"reflect"
 	"testing"
 	"time"
@@ -9,8 +11,6 @@ import (
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/prom"
 	"github.com/opencost/opencost/pkg/util"
-
-	"github.com/davecgh/go-spew/spew"
 )
 
 func TestMergeTypeMaps(t *testing.T) {
@@ -133,7 +133,7 @@ func TestMergeTypeMaps(t *testing.T) {
 	}
 }
 
-func TestBuildNodeMap(t *testing.T) {
+func TestBuildNodeMapFromMaps(t *testing.T) {
 	cases := []struct {
 		name                 string
 		cpuCostMap           map[NodeIdentifier]float64
@@ -860,6 +860,588 @@ func TestBuildGPUCostMap(t *testing.T) {
 			result, _ := buildGPUCostMap(testCase.promResult, testCase.countMap, testProvider, testPreemptible)
 			if !reflect.DeepEqual(result, testCase.expected) {
 				t.Errorf("buildGPUCostMap case %s failed. Got %+v but expected %+v", testCase.name, result, testCase.expected)
+			}
+		})
+	}
+}
+
+func TestBuildGPUCountMap(t *testing.T) {
+	testCases := map[string]struct {
+		promResult []*prom.QueryResult
+		expected   map[NodeIdentifier]float64
+	}{
+		"one valid metric": {
+			promResult: []*prom.QueryResult{
+				{
+					Metric: map[string]interface{}{
+						"cluster_id":  "cluster1",
+						"node":        "node1",
+						"provider_id": "provider1",
+					},
+					Values: []*util.Vector{
+						{
+							Value: 1,
+						},
+					},
+				},
+			},
+			expected: map[NodeIdentifier]float64{
+				NodeIdentifier{Cluster: "cluster1", Name: "node1", ProviderID: "provider1"}: 1,
+			},
+		},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			actual := buildGPUCountMap(testCase.promResult)
+			if !reflect.DeepEqual(actual, testCase.expected) {
+				t.Errorf("buildGPUCountMap case %s failed. Got %+v but expected %+v", name, actual, testCase.expected)
+			}
+		})
+	}
+}
+
+func TestBuildCPUCoresMap(t *testing.T) {
+	testCases := map[string]struct {
+		promResult []*prom.QueryResult
+		expected   map[nodeIdentifierNoProviderID]float64
+	}{
+		"one valid metric": {
+			promResult: []*prom.QueryResult{
+				{
+					Metric: map[string]interface{}{
+						"cluster_id": "cluster1",
+						"node":       "node1",
+					},
+					Values: []*util.Vector{
+						{
+							Value: 1,
+						},
+					},
+				},
+			},
+			expected: map[nodeIdentifierNoProviderID]float64{
+				nodeIdentifierNoProviderID{Cluster: "cluster1", Name: "node1"}: 1,
+			},
+		},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			actual := buildCPUCoresMap(testCase.promResult)
+			if !reflect.DeepEqual(actual, testCase.expected) {
+				t.Errorf("buildCPUCoresMap case %s failed. Got %+v but expected %+v", name, actual, testCase.expected)
+			}
+		})
+	}
+}
+
+func TestBuildRAMBytesMap(t *testing.T) {
+	testCases := map[string]struct {
+		promResult []*prom.QueryResult
+		expected   map[nodeIdentifierNoProviderID]float64
+	}{
+		"one valid metric": {
+			promResult: []*prom.QueryResult{
+				{
+					Metric: map[string]interface{}{
+						"cluster_id": "cluster1",
+						"node":       "node1",
+					},
+					Values: []*util.Vector{
+						{
+							Value: 1024,
+						},
+					},
+				},
+			},
+			expected: map[nodeIdentifierNoProviderID]float64{
+				nodeIdentifierNoProviderID{Cluster: "cluster1", Name: "node1"}: 1024,
+			},
+		},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			actual := buildRAMBytesMap(testCase.promResult)
+			if !reflect.DeepEqual(actual, testCase.expected) {
+				t.Errorf("buildRAMBytesMap case %s failed. Got %+v but expected %+v", name, actual, testCase.expected)
+			}
+		})
+	}
+}
+
+func TestBuildCPUCostMap(t *testing.T) {
+	cases := []struct {
+		name       string
+		promResult []*prom.QueryResult
+		expected   map[NodeIdentifier]float64
+	}{
+		{
+			name: "All Zeros",
+			promResult: []*prom.QueryResult{
+				{
+					Metric: map[string]interface{}{
+						"cluster_id":    "cluster1",
+						"node":          "node1",
+						"instance_type": "type1",
+						"provider_id":   "provider1",
+					},
+					Values: []*util.Vector{
+						&util.Vector{
+							Timestamp: 0,
+							Value:     0,
+						},
+					},
+				},
+			},
+			expected: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 0,
+			},
+		},
+		{
+			name: "Zero Node Count",
+			promResult: []*prom.QueryResult{
+				{
+					Metric: map[string]interface{}{
+						"cluster_id":    "cluster1",
+						"node":          "node1",
+						"instance_type": "type1",
+						"provider_id":   "provider1",
+					},
+					Values: []*util.Vector{
+						&util.Vector{
+							Timestamp: 0,
+							Value:     2,
+						},
+					},
+				},
+			},
+			expected: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 2,
+			},
+		},
+		{
+			name: "Missing Node Count",
+			promResult: []*prom.QueryResult{
+				{
+					Metric: map[string]interface{}{
+						"cluster_id":    "cluster1",
+						"node":          "node1",
+						"instance_type": "type1",
+						"provider_id":   "provider1",
+					},
+					Values: []*util.Vector{
+						&util.Vector{
+							Timestamp: 0,
+							Value:     2,
+						},
+					},
+				},
+			},
+			expected: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 2,
+			},
+		},
+		{
+			name: "missing cost data",
+			promResult: []*prom.QueryResult{
+				{},
+			},
+			expected: map[NodeIdentifier]float64{},
+		},
+		{
+			name: "All values present",
+			promResult: []*prom.QueryResult{
+				{
+					Metric: map[string]interface{}{
+						"cluster_id":    "cluster1",
+						"node":          "node1",
+						"instance_type": "type1",
+						"provider_id":   "provider1",
+					},
+					Values: []*util.Vector{
+						&util.Vector{
+							Timestamp: 0,
+							Value:     4,
+						},
+					},
+				},
+			},
+			expected: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 4,
+			},
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			testProvider := &cloud.CustomProvider{
+				Config: cloud.NewProviderConfig(config.NewConfigFileManager(nil), "fakeFile"),
+			}
+			testPreemptible := make(map[NodeIdentifier]bool)
+			result, _ := buildCPUCostMap(testCase.promResult, testProvider, testPreemptible)
+			if !reflect.DeepEqual(result, testCase.expected) {
+				t.Errorf("buildCPUCostMap case %s failed. Got %+v but expected %+v", testCase.name, result, testCase.expected)
+			}
+		})
+	}
+}
+
+func TestBuildRAMCostMap(t *testing.T) {
+	cases := []struct {
+		name       string
+		promResult []*prom.QueryResult
+		expected   map[NodeIdentifier]float64
+	}{
+		{
+			name: "All Zeros",
+			promResult: []*prom.QueryResult{
+				{
+					Metric: map[string]interface{}{
+						"cluster_id":    "cluster1",
+						"node":          "node1",
+						"instance_type": "type1",
+						"provider_id":   "provider1",
+					},
+					Values: []*util.Vector{
+						&util.Vector{
+							Timestamp: 0,
+							Value:     0,
+						},
+					},
+				},
+			},
+			expected: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 0,
+			},
+		},
+		{
+			name: "Zero Node Count",
+			promResult: []*prom.QueryResult{
+				{
+					Metric: map[string]interface{}{
+						"cluster_id":    "cluster1",
+						"node":          "node1",
+						"instance_type": "type1",
+						"provider_id":   "provider1",
+					},
+					Values: []*util.Vector{
+						&util.Vector{
+							Timestamp: 0,
+							Value:     2,
+						},
+					},
+				},
+			},
+			expected: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 2,
+			},
+		},
+		{
+			name: "Missing Node Count",
+			promResult: []*prom.QueryResult{
+				{
+					Metric: map[string]interface{}{
+						"cluster_id":    "cluster1",
+						"node":          "node1",
+						"instance_type": "type1",
+						"provider_id":   "provider1",
+					},
+					Values: []*util.Vector{
+						&util.Vector{
+							Timestamp: 0,
+							Value:     2,
+						},
+					},
+				},
+			},
+			expected: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 2,
+			},
+		},
+		{
+			name: "missing cost data",
+			promResult: []*prom.QueryResult{
+				{},
+			},
+			expected: map[NodeIdentifier]float64{},
+		},
+		{
+			name: "All values present",
+			promResult: []*prom.QueryResult{
+				{
+					Metric: map[string]interface{}{
+						"cluster_id":    "cluster1",
+						"node":          "node1",
+						"instance_type": "type1",
+						"provider_id":   "provider1",
+					},
+					Values: []*util.Vector{
+						&util.Vector{
+							Timestamp: 0,
+							Value:     4,
+						},
+					},
+				},
+			},
+			expected: map[NodeIdentifier]float64{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: 4,
+			},
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			testProvider := &cloud.CustomProvider{
+				Config: cloud.NewProviderConfig(config.NewConfigFileManager(nil), "fakeFile"),
+			}
+			testPreemptible := make(map[NodeIdentifier]bool)
+			result, _ := buildRAMCostMap(testCase.promResult, testProvider, testPreemptible)
+			if !reflect.DeepEqual(result, testCase.expected) {
+				t.Errorf("buildRAMCostMap case %s failed. Got %+v but expected %+v", testCase.name, result, testCase.expected)
+			}
+		})
+	}
+}
+
+type promResultSetName string
+
+const (
+	AllZeros           promResultSetName = "All Zeros"
+	ZeroResourceCounts                   = "Zero Resource Counts"
+	MissingCosts                         = "Missing Cost Data"
+	AllValuesPresent                     = "All values present"
+)
+
+type promResultSet struct {
+	cpuCost  []*prom.QueryResult
+	ramCost  []*prom.QueryResult
+	gpuCost  []*prom.QueryResult
+	cpuCores []*prom.QueryResult
+	ramBytes []*prom.QueryResult
+	gpuCount []*prom.QueryResult
+}
+
+func (prs *promResultSet) populatePromResultSet(ni NodeIdentifier, cpuCost, ramCost, gpuCost, cpuCores, ramBytes, gpuCount, timestamp float64, instanceType string) {
+	costLabels := map[string]interface{}{
+		"cluster_id":    ni.Cluster,
+		"node":          ni.Name,
+		"instance_type": instanceType,
+		"provider_id":   ni.ProviderID,
+	}
+
+	NodeID := map[string]interface{}{
+		"cluster_id":  ni.Cluster,
+		"node":        ni.Name,
+		"provider_id": ni.ProviderID,
+	}
+
+	NodeIDNoProv := map[string]interface{}{
+		"cluster_id": ni.Cluster,
+		"node":       ni.Name,
+	}
+
+	prs.cpuCost = append(prs.cpuCost, getPromCostResult(costLabels, cpuCost, timestamp))
+	prs.gpuCost = append(prs.gpuCost, getPromCostResult(costLabels, gpuCost, timestamp))
+	prs.ramCost = append(prs.ramCost, getPromCostResult(costLabels, ramCost, timestamp))
+	prs.cpuCores = append(prs.cpuCores, getPromCostResult(NodeIDNoProv, cpuCores, timestamp))
+	prs.ramBytes = append(prs.ramBytes, getPromCostResult(NodeIDNoProv, ramBytes, timestamp))
+	prs.gpuCount = append(prs.gpuCount, getPromCostResult(NodeID, gpuCount, timestamp))
+}
+
+func generatePromResultsSets() map[promResultSetName]promResultSet {
+	resultSet := map[promResultSetName]promResultSet{}
+
+	ni := NodeIdentifier{
+		Cluster:    "cluster1",
+		Name:       "node1",
+		ProviderID: "provider1",
+	}
+
+	allZero := promResultSet{}
+	allZero.populatePromResultSet(ni, 0, 0, 0, 0, 0, 0, 0, "type1")
+	resultSet[AllZeros] = allZero
+
+	zeroResource := promResultSet{}
+	zeroResource.populatePromResultSet(ni, 1, 1, 2, 0, 0, 0, 0, "type1")
+	resultSet[ZeroResourceCounts] = zeroResource
+
+	missingCosts := promResultSet{}
+	missingCosts.populatePromResultSet(ni, 0, 0, 0, 1, 1024, 1, 0, "type1")
+	resultSet[MissingCosts] = missingCosts
+
+	allValues := promResultSet{}
+	allValues.populatePromResultSet(ni, 1, 1, 2, 1, 1024, 1, 0, "type1")
+	resultSet[AllValuesPresent] = allValues
+
+	return resultSet
+}
+
+func getPromCostResult(labels map[string]interface{}, cost, timestamp float64) *prom.QueryResult {
+	return &prom.QueryResult{
+		Metric: labels,
+		Values: []*util.Vector{
+			{
+				Timestamp: timestamp,
+				Value:     cost,
+			},
+		},
+	}
+}
+
+func TestBuildNodeMap(t *testing.T) {
+	cases := []struct {
+		name     promResultSetName
+		expected map[NodeIdentifier]*Node
+	}{
+		{
+			name: AllZeros,
+			expected: map[NodeIdentifier]*Node{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: {
+					Cluster:      "cluster1",
+					Name:         "node1",
+					ProviderID:   "provider1",
+					CPUCost:      0,
+					CPUCores:     0,
+					GPUCost:      0,
+					GPUCount:     0,
+					RAMCost:      0,
+					RAMBytes:     0,
+					Discount:     0,
+					CPUBreakdown: &ClusterCostsBreakdown{},
+					RAMBreakdown: &ClusterCostsBreakdown{},
+				},
+			},
+		},
+		{
+			name: ZeroResourceCounts,
+			expected: map[NodeIdentifier]*Node{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: {
+					Cluster:      "cluster1",
+					Name:         "node1",
+					ProviderID:   "provider1",
+					CPUCost:      1,
+					CPUCores:     0,
+					GPUCost:      0,
+					GPUCount:     0,
+					RAMCost:      1,
+					RAMBytes:     0,
+					Discount:     0,
+					CPUBreakdown: &ClusterCostsBreakdown{},
+					RAMBreakdown: &ClusterCostsBreakdown{},
+				},
+			},
+		},
+		{
+			name: MissingCosts,
+			expected: map[NodeIdentifier]*Node{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: {
+					Cluster:      "cluster1",
+					Name:         "node1",
+					ProviderID:   "provider1",
+					CPUCost:      0,
+					CPUCores:     1,
+					GPUCost:      0,
+					GPUCount:     1,
+					RAMCost:      0,
+					RAMBytes:     1024,
+					Discount:     0,
+					CPUBreakdown: &ClusterCostsBreakdown{},
+					RAMBreakdown: &ClusterCostsBreakdown{},
+				},
+			},
+		},
+		{
+			name: AllValuesPresent,
+			expected: map[NodeIdentifier]*Node{
+				NodeIdentifier{
+					Cluster:    "cluster1",
+					Name:       "node1",
+					ProviderID: "provider1",
+				}: {
+					Cluster:      "cluster1",
+					Name:         "node1",
+					ProviderID:   "provider1",
+					CPUCost:      1,
+					CPUCores:     1,
+					GPUCost:      2,
+					GPUCount:     1,
+					RAMCost:      1,
+					RAMBytes:     1024,
+					Discount:     0,
+					CPUBreakdown: &ClusterCostsBreakdown{},
+					RAMBreakdown: &ClusterCostsBreakdown{},
+				},
+			},
+		},
+	}
+
+	promResultSets := generatePromResultsSets()
+
+	for _, testCase := range cases {
+		prs := promResultSets[testCase.name]
+		t.Run(string(testCase.name), func(t *testing.T) {
+			testProvider := &cloud.CustomProvider{
+				Config: cloud.NewProviderConfig(config.NewConfigFileManager(nil), "fakeFile"),
+			}
+			testPreemptible := make(map[NodeIdentifier]bool)
+
+			cpuCoresMap := buildCPUCoresMap(prs.cpuCores)
+			ramBytesMap := buildRAMBytesMap(prs.ramBytes)
+			gpuCountMap := buildGPUCountMap(prs.gpuCount)
+
+			cpuMap, _ := buildCPUCostMap(prs.cpuCost, testProvider, testPreemptible)
+			ramMap, _ := buildRAMCostMap(prs.ramCost, testProvider, testPreemptible)
+			gpuMap, _ := buildGPUCostMap(prs.gpuCost, gpuCountMap, testProvider, testPreemptible)
+
+			nodeMap := buildNodeMap(cpuMap, ramMap, gpuMap, gpuCountMap, cpuCoresMap, ramBytesMap, nil, nil, nil, nil, nil, nil, nil, timeutil.Day)
+			if !reflect.DeepEqual(nodeMap, testCase.expected) {
+				t.Errorf("buildGPUCostMap case %s failed. Got %+v but expected %+v", testCase.name, nodeMap, testCase.expected)
 			}
 		})
 	}
