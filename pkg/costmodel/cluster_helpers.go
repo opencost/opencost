@@ -1,6 +1,7 @@
 package costmodel
 
 import (
+	"github.com/opencost/opencost/pkg/util/cloudutil"
 	"strconv"
 	"time"
 
@@ -755,7 +756,7 @@ func buildNodeMap(
 
 		if cores, ok := cpuCoresMap[clusterAndNameID]; ok {
 			nodePtr.CPUCores = cores
-			if v, ok := partialCPUMap[nodePtr.NodeType]; ok {
+			if v, ok := cloudutil.PartialCPUMap[nodePtr.NodeType]; ok {
 				if cores > 0 {
 					nodePtr.CPUCores = v
 					adjustmentFactor := v / cores
@@ -786,4 +787,238 @@ func buildNodeMap(
 	}
 
 	return nodeMap
+}
+
+func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo []*prom.QueryResult, cp cloud.Provider) {
+	for _, result := range resActiveMins {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("persistentvolume")
+		if err != nil {
+			log.Warnf("ClusterDisks: active mins missing pv name")
+			continue
+		}
+
+		if len(result.Values) == 0 {
+			continue
+		}
+
+		key := DiskIdentifier{cluster, name}
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+			}
+		}
+		s := time.Unix(int64(result.Values[0].Timestamp), 0)
+		e := time.Unix(int64(result.Values[len(result.Values)-1].Timestamp), 0)
+		mins := e.Sub(s).Minutes()
+
+		// TODO niko/assets if mins >= threshold, interpolate for missing data?
+
+		diskMap[key].End = e
+		diskMap[key].Start = s
+		diskMap[key].Minutes = mins
+	}
+
+	for _, result := range resPVSize {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("persistentvolume")
+		if err != nil {
+			log.Warnf("ClusterDisks: PV size data missing persistentvolume")
+			continue
+		}
+
+		// TODO niko/assets storage class
+
+		bytes := result.Values[0].Value
+		key := DiskIdentifier{cluster, name}
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+			}
+		}
+		diskMap[key].Bytes = bytes
+	}
+
+	customPricingEnabled := cloud.CustomPricesEnabled(cp)
+	customPricingConfig, err := cp.GetConfig()
+	if err != nil {
+		log.Warnf("ClusterDisks: failed to load custom pricing: %s", err)
+	}
+
+	for _, result := range resPVCost {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		name, err := result.GetString("persistentvolume")
+		if err != nil {
+			log.Warnf("ClusterDisks: PV cost data missing persistentvolume")
+			continue
+		}
+
+		// TODO niko/assets storage class
+
+		var cost float64
+		if customPricingEnabled && customPricingConfig != nil {
+			customPVCostStr := customPricingConfig.Storage
+
+			customPVCost, err := strconv.ParseFloat(customPVCostStr, 64)
+			if err != nil {
+				log.Warnf("ClusterDisks: error parsing custom PV price: %s", customPVCostStr)
+			}
+
+			cost = customPVCost
+		} else {
+			cost = result.Values[0].Value
+		}
+
+		key := DiskIdentifier{cluster, name}
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      name,
+				Breakdown: &ClusterCostsBreakdown{},
+			}
+		}
+		diskMap[key].Cost = cost * (diskMap[key].Bytes / 1024 / 1024 / 1024) * (diskMap[key].Minutes / 60)
+		providerID, _ := result.GetString("provider_id") // just put the providerID set up here, it's the simplest query.
+		if providerID != "" {
+			diskMap[key].ProviderID = cloud.ParsePVID(providerID)
+		}
+	}
+
+	for _, result := range resPVUsedAvg {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		claimName, err := result.GetString("persistentvolumeclaim")
+		if err != nil {
+			log.Debugf("ClusterDisks: pv usage data missing persistentvolumeclaim")
+			continue
+		}
+		claimNamespace, err := result.GetString("namespace")
+		if err != nil {
+			log.Debugf("ClusterDisks: pv usage data missing namespace")
+			continue
+		}
+
+		var volumeName string
+
+		for _, thatRes := range resPVCInfo {
+
+			thatCluster, err := thatRes.GetString(env.GetPromClusterLabel())
+			if err != nil {
+				thatCluster = env.GetClusterID()
+			}
+
+			thatVolumeName, err := thatRes.GetString("volumename")
+			if err != nil {
+				log.Debugf("ClusterDisks: pv claim data missing volumename")
+				continue
+			}
+			thatClaimName, err := thatRes.GetString("persistentvolumeclaim")
+			if err != nil {
+				log.Debugf("ClusterDisks: pv claim data missing persistentvolumeclaim")
+				continue
+			}
+			thatClaimNamespace, err := thatRes.GetString("namespace")
+			if err != nil {
+				log.Debugf("ClusterDisks: pv claim data missing namespace")
+				continue
+			}
+
+			if cluster == thatCluster && claimName == thatClaimName && claimNamespace == thatClaimNamespace {
+				volumeName = thatVolumeName
+			}
+		}
+
+		usage := result.Values[0].Value
+
+		key := DiskIdentifier{cluster, volumeName}
+
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      volumeName,
+				Breakdown: &ClusterCostsBreakdown{},
+			}
+		}
+		diskMap[key].BytesUsedAvgPtr = &usage
+	}
+
+	for _, result := range resPVUsedMax {
+		cluster, err := result.GetString(env.GetPromClusterLabel())
+		if err != nil {
+			cluster = env.GetClusterID()
+		}
+
+		claimName, err := result.GetString("persistentvolumeclaim")
+		if err != nil {
+			log.Debugf("ClusterDisks: pv usage data missing persistentvolumeclaim")
+			continue
+		}
+		claimNamespace, err := result.GetString("namespace")
+		if err != nil {
+			log.Debugf("ClusterDisks: pv usage data missing namespace")
+			continue
+		}
+
+		var volumeName string
+
+		for _, thatRes := range resPVCInfo {
+
+			thatCluster, err := thatRes.GetString(env.GetPromClusterLabel())
+			if err != nil {
+				thatCluster = env.GetClusterID()
+			}
+
+			thatVolumeName, err := thatRes.GetString("volumename")
+			if err != nil {
+				log.Debugf("ClusterDisks: pv claim data missing volumename")
+				continue
+			}
+			thatClaimName, err := thatRes.GetString("persistentvolumeclaim")
+			if err != nil {
+				log.Debugf("ClusterDisks: pv claim data missing persistentvolumeclaim")
+				continue
+			}
+			thatClaimNamespace, err := thatRes.GetString("namespace")
+			if err != nil {
+				log.Debugf("ClusterDisks: pv claim data missing namespace")
+				continue
+			}
+
+			if cluster == thatCluster && claimName == thatClaimName && claimNamespace == thatClaimNamespace {
+				volumeName = thatVolumeName
+			}
+		}
+
+		usage := result.Values[0].Value
+
+		key := DiskIdentifier{cluster, volumeName}
+
+		if _, ok := diskMap[key]; !ok {
+			diskMap[key] = &Disk{
+				Cluster:   cluster,
+				Name:      volumeName,
+				Breakdown: &ClusterCostsBreakdown{},
+			}
+		}
+		diskMap[key].BytesUsedMaxPtr = &usage
+	}
 }

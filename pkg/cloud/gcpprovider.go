@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/opencost/opencost/pkg/util/cloudutil"
 	"io"
 	"math"
 	"net/http"
@@ -572,18 +573,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "E2 INSTANCE") {
 					instanceType = "e2"
 				}
-				partialCPUMap := make(map[string]float64)
-				partialCPUMap["e2micro"] = 0.25
-				partialCPUMap["e2small"] = 0.5
-				partialCPUMap["e2medium"] = 1
-				/*
-					var partialCPU float64
-					if strings.ToLower(instanceType) == "f1micro" {
-						partialCPU = 0.2
-					} else if strings.ToLower(instanceType) == "g1small" {
-						partialCPU = 0.5
-					}
-				*/
+
 				var gpuType string
 				for matchnum, group := range nvidiaGPURegex.FindStringSubmatch(product.Description) {
 					if matchnum == 1 {
@@ -674,7 +664,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 									product.Node = &Node{
 										RAMCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
-									partialCPU, pcok := partialCPUMap[instanceType]
+									partialCPU, pcok := cloudutil.PartialCPUMap[instanceType]
 									if pcok {
 										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
 									}
@@ -690,7 +680,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 									product.Node = &Node{
 										RAMCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
-									partialCPU, pcok := partialCPUMap[instanceType]
+									partialCPU, pcok := cloudutil.PartialCPUMap[instanceType]
 									if pcok {
 										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
 									}
@@ -706,7 +696,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 									product.Node = &Node{
 										VCPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
-									partialCPU, pcok := partialCPUMap[instanceType]
+									partialCPU, pcok := cloudutil.PartialCPUMap[instanceType]
 									if pcok {
 										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
 									}
@@ -720,7 +710,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 									product.Node = &Node{
 										VCPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
-									partialCPU, pcok := partialCPUMap[instanceType]
+									partialCPU, pcok := cloudutil.PartialCPUMap[instanceType]
 									if pcok {
 										product.Node.VCPU = fmt.Sprintf("%f", partialCPU)
 									}

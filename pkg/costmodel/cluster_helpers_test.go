@@ -2,6 +2,7 @@ package costmodel
 
 import (
 	"github.com/davecgh/go-spew/spew"
+	"github.com/opencost/opencost/pkg/util/cloudutil"
 	"github.com/opencost/opencost/pkg/util/timeutil"
 	"reflect"
 	"testing"
@@ -591,8 +592,8 @@ func TestBuildNodeMapFromMaps(t *testing.T) {
 					Name:         "node1",
 					ProviderID:   "prov_node1",
 					NodeType:     "e2-micro",
-					CPUCost:      0.048 * (partialCPUMap["e2-micro"] / 6.0), // adjustmentFactor is (v / GKE cores)
-					CPUCores:     partialCPUMap["e2-micro"],
+					CPUCost:      0.048 * (cloudutil.PartialCPUMap["e2-micro"] / 6.0), // adjustmentFactor is (v / GKE cores)
+					CPUCores:     cloudutil.PartialCPUMap["e2-micro"],
 					CPUBreakdown: &ClusterCostsBreakdown{},
 					RAMBreakdown: &ClusterCostsBreakdown{},
 				},
@@ -629,8 +630,8 @@ func TestBuildNodeMapFromMaps(t *testing.T) {
 					Name:         "node1",
 					ProviderID:   "prov_node1",
 					NodeType:     "e2-small",
-					CPUCost:      0.048 * (partialCPUMap["e2-small"] / 6.0), // adjustmentFactor is (v / GKE cores)
-					CPUCores:     partialCPUMap["e2-small"],
+					CPUCost:      0.048 * (cloudutil.PartialCPUMap["e2-small"] / 6.0), // adjustmentFactor is (v / GKE cores)
+					CPUCores:     cloudutil.PartialCPUMap["e2-small"],
 					CPUBreakdown: &ClusterCostsBreakdown{},
 					RAMBreakdown: &ClusterCostsBreakdown{},
 				},
@@ -667,8 +668,8 @@ func TestBuildNodeMapFromMaps(t *testing.T) {
 					Name:         "node1",
 					ProviderID:   "prov_node1",
 					NodeType:     "e2-medium",
-					CPUCost:      0.048 * (partialCPUMap["e2-medium"] / 6.0), // adjustmentFactor is (v / GKE cores)
-					CPUCores:     partialCPUMap["e2-medium"],
+					CPUCost:      0.048 * (cloudutil.PartialCPUMap["e2-medium"] / 6.0), // adjustmentFactor is (v / GKE cores)
+					CPUCores:     cloudutil.PartialCPUMap["e2-medium"],
 					CPUBreakdown: &ClusterCostsBreakdown{},
 					RAMBreakdown: &ClusterCostsBreakdown{},
 				},
