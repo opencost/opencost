@@ -689,6 +689,118 @@ func (w Window) DurationOffsetStrings() (string, string) {
 	return timeutil.DurationOffsetStrings(dur, off)
 }
 
+// GetPercentInWindow Determine pct of item time contained the window.
+// determined by the overlap of the start/end with the given
+// window, which will be negative if there is no overlap. If
+// there is positive overlap, compare it with the total mins.
+//
+// e.g. here are the two possible scenarios as simplidied
+// 10m windows with dashes representing item's time running:
+//
+//  1. item falls entirely within one CloudCostItemSet window
+//     |     ---- |          |          |
+//     totalMins = 4.0
+//     pct := 4.0 / 4.0 = 1.0 for window 1
+//     pct := 0.0 / 4.0 = 0.0 for window 2
+//     pct := 0.0 / 4.0 = 0.0 for window 3
+//
+//  2. item overlaps multiple CloudCostItemSet windows
+//     |      ----|----------|--        |
+//     totalMins = 16.0
+//     pct :=  4.0 / 16.0 = 0.250 for window 1
+//     pct := 10.0 / 16.0 = 0.625 for window 2
+//     pct :=  2.0 / 16.0 = 0.125 for window 3
+func (w Window) GetPercentInWindow(itemStart time.Time, itemEnd time.Time) float64 {
+
+	s := itemStart
+	if s.Before(*w.Start()) {
+		s = *w.Start()
+	}
+
+	e := itemEnd
+	if e.After(*w.End()) {
+		e = *w.End()
+	}
+
+	mins := e.Sub(s).Minutes()
+	if mins <= 0.0 {
+		return 0.0
+	}
+
+	totalMins := itemEnd.Sub(itemStart).Minutes()
+
+	pct := mins / totalMins
+	return pct
+}
+
+// GetWindows returns a slice of Window with equal size between the given start and end. If windowSize does not evenly
+// divide the period between start and end, the last window is not added
+func GetWindows(start time.Time, end time.Time, windowSize time.Duration) ([]Window, error) {
+	// Ensure the range is evenly divisible into windows of the given duration
+	dur := end.Sub(start)
+	if int(dur.Minutes())%int(windowSize.Minutes()) != 0 {
+		return nil, fmt.Errorf("range not divisible by window: [%s, %s] by %s", start, end, windowSize)
+	}
+
+	// Ensure that provided times are multiples of the provided windowSize (e.g. midnight for daily windows, on the hour for hourly windows)
+	if start != start.Truncate(windowSize) {
+		return nil, fmt.Errorf("provided times are not divisible by provided window: [%s, %s] by %s", start, end, windowSize)
+	}
+
+	// Ensure timezones match
+	_, sz := start.Zone()
+	_, ez := end.Zone()
+	if sz != ez {
+		return nil, fmt.Errorf("range has mismatched timezones: %s, %s", start, end)
+	}
+	if sz != int(env.GetParsedUTCOffset().Seconds()) {
+		return nil, fmt.Errorf("range timezone doesn't match configured timezone: expected %s; found %ds", env.GetParsedUTCOffset(), sz)
+	}
+
+	// Build array of windows to cover the CloudCostItemSetRange
+	windows := []Window{}
+	s, e := start, start.Add(windowSize)
+	for !e.After(end) {
+		ws := s
+		we := e
+		windows = append(windows, NewWindow(&ws, &we))
+
+		s = s.Add(windowSize)
+		e = e.Add(windowSize)
+	}
+	return windows, nil
+}
+
+// GetWindowsForQueryWindow breaks up a window into an array of windows with a max size of queryWindow
+func GetWindowsForQueryWindow(start time.Time, end time.Time, queryWindow time.Duration) ([]Window, error) {
+	// Ensure timezones match
+	_, sz := start.Zone()
+	_, ez := end.Zone()
+	if sz != ez {
+		return nil, fmt.Errorf("range has mismatched timezones: %s, %s", start, end)
+	}
+	if sz != int(env.GetParsedUTCOffset().Seconds()) {
+		return nil, fmt.Errorf("range timezone doesn't match configured timezone: expected %s; found %ds", env.GetParsedUTCOffset(), sz)
+	}
+
+	// Build array of windows to cover the CloudCostItemSetRange
+	windows := []Window{}
+	s, e := start, start.Add(queryWindow)
+	for s.Before(end) {
+		ws := s
+		we := e
+		windows = append(windows, NewWindow(&ws, &we))
+
+		s = s.Add(queryWindow)
+		e = e.Add(queryWindow)
+		if e.After(end) {
+			e = end
+		}
+	}
+
+	return windows, nil
+}
+
 type BoundaryError struct {
 	Requested Window
 	Supported Window

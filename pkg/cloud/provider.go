@@ -109,6 +109,7 @@ type OrphanedResource struct {
 	Region      string            `json:"region"`
 	Description map[string]string `json:"description"`
 	Size        *int32            `json:"diskSizeInGB,omitempty"`
+	DiskName    string            `json:"diskName,omitempty"`
 	Address     string            `json:"ipAddress,omitempty"`
 	MonthlyCost *float64          `json:"monthlyCost"`
 }
