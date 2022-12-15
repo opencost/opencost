@@ -11,11 +11,14 @@ import TableRow from '@material-ui/core/TableRow'
 import TableSortLabel from '@material-ui/core/TableSortLabel'
 import Typography from '@material-ui/core/Typography'
 import AllocationChart from './AllocationChart';
-import { toCurrency } from '../util';
+import {calculateAsCloud, toCurrency} from '../util';
 
 const useStyles = makeStyles({
   noResults: {
     padding: 24,
+  },
+  noWrap: {
+    whiteSpace: 'nowrap',
   },
 })
 
@@ -146,6 +149,7 @@ const AllocationReport = ({ allocationData, cumulativeData, totalData, currency 
               let isUnallocated = row.name.indexOf("__unallocated__") >= 0
               let isUnmounted = row.name.indexOf("Unmounted PVs") >= 0
 
+
               // Replace "efficiency" with Inf if there is usage w/o request
               let efficiency = round(row.totalEfficiency*100, 1)
               if (row.totalEfficiency == 1.0 && row.cpuReqCoreHrs == 0 && row.ramReqByteHrs == 0) {
@@ -157,7 +161,13 @@ const AllocationReport = ({ allocationData, cumulativeData, totalData, currency 
                 return (
                   <TableRow key={key}>
                     <TableCell align="left">{row.name}</TableCell>
-                    <TableCell align="right">{toCurrency(row.cpuCost, currency)}</TableCell>
+                    <TableCell align="right">
+                      {toCurrency(row.cpuCost, currency)}
+
+                      <Typography  className={classes.noWrap}> Azure : {toCurrency((row.cpuCoreHours* 0.03900), currency)} </Typography>
+                      <div> GCP : {toCurrency(calculateAsCloud(row.cpuCoreHours, 0.03900), currency)} </div>
+
+                    </TableCell>
                     <TableCell align="right">{toCurrency(row.ramCost, currency)}</TableCell>
                     <TableCell align="right">{toCurrency(row.pvCost, currency)}</TableCell>
                     {isIdle ? (
@@ -173,7 +183,11 @@ const AllocationReport = ({ allocationData, cumulativeData, totalData, currency 
               return (
                 <TableRow key={key}>
                   <TableCell align="left">{row.name}</TableCell>
-                  <TableCell align="right">{toCurrency(row.cpuCost, currency)}</TableCell>
+                  <TableCell align="right"><Typography  className={classes.noWrap}> AWS: {toCurrency(row.cpuCost, currency)} </Typography>
+
+                    <Typography  className={classes.noWrap}> Azure : {toCurrency((row.cpuCoreHours* 0.03900), currency)} </Typography>
+                    <div style={{'whiteSpace':'nowrap'}}> GCP : {toCurrency(calculateAsCloud(row.cpuCoreHours, 0.031611), currency)} </div>
+                  </TableCell>
                   <TableCell align="right">{toCurrency(row.ramCost, currency)}</TableCell>
                   <TableCell align="right">{toCurrency(row.pvCost, currency)}</TableCell>
                   <TableCell align="right">{efficiency}%</TableCell>

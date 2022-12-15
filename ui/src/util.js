@@ -8,10 +8,15 @@ export function rangeToCumulative(allocationSetRange, aggregateBy) {
   }
 
   const result = {}
-
+  let i=0;
+  let j=0;
+  let k=0 ;
   forEach(allocationSetRange, (allocSet) => {
+    i++
     forEach(allocSet, (alloc) => {
+      j++;
       if (result[alloc.name] === undefined) {
+        console.log("a =i",k++, alloc.name,  result[alloc.name])
         const hrs = get(alloc, 'minutes', 0) / 60.0
 
         result[alloc.name] = {
@@ -32,11 +37,15 @@ export function rangeToCumulative(allocationSetRange, aggregateBy) {
           cpuEfficiency: get(alloc, 'cpuEfficiency', 0),
           ramEfficiency: get(alloc, 'ramEfficiency', 0),
           totalEfficiency: get(alloc, 'totalEfficiency', 0),
+          ramByteHours: get(alloc,'ramByteHours',0),
+          cpuCoreHours: get(alloc,'cpuCoreHours',0),
+          gpuHours: get(alloc,'gpuHours',0),
         }
       } else {
         const hrs = get(alloc, 'minutes', 0) / 60.0
 
         result[alloc.name].cpuCost += get(alloc, 'cpuCost', 0)
+        //console.log(result[alloc.name].name+" cpus cost"+ get(alloc, 'cpuCost', 0)," i "+ i +" j "+j)
         result[alloc.name].gpuCost += get(alloc, 'gpuCost', 0)
         result[alloc.name].ramCost += get(alloc, 'ramCost', 0)
         result[alloc.name].pvCost += get(alloc, 'pvCost', 0)
@@ -48,10 +57,14 @@ export function rangeToCumulative(allocationSetRange, aggregateBy) {
         result[alloc.name].cpuReqCoreHrs += get(alloc, 'cpuCoreRequestAverage', 0) * hrs
         result[alloc.name].ramUseByteHrs += get(alloc, 'ramByteUsageAverage', 0) * hrs
         result[alloc.name].ramReqByteHrs += get(alloc, 'ramByteRequestAverage', 0) * hrs
+        result[alloc.name].ramByteHours += get(alloc,'ramByteHours',0)
+        result[alloc.name].cpuCoreHours += get(alloc,'cpuCoreHours',0)
+        result[alloc.name].gpuHours += get(alloc,'gpuHours',0)
       }
     })
   })
-
+  console.log(k)
+console.log(i*j)
   // If the range is of length > 1 (i.e. it is not just a single set) then
   // compute efficiency for each result after accumulating.
   if (allocationSetRange.length > 1) {
@@ -88,7 +101,7 @@ export function rangeToCumulative(allocationSetRange, aggregateBy) {
       result[name].totalEfficiency = totalEfficiency
     })
   }
-
+  console.log(result)
   return result
 }
 
@@ -260,7 +273,13 @@ export function bytesToString(bytes) {
 
 const currencyLocale = "en-US"
 
-export function toCurrency(amount, currency, precision) {
+export function calculateAsCloud(amount, multiplier){
+  console.log("amount" , amount)
+  console.log(amount*multiplier)
+    return amount*multiplier;
+}
+
+export function toCurrency(amount, currency, precision, multiplier) {
   if (typeof amount !== "number") {
     console.warn(`Tried to convert "${amount}" to currency, but it is not a number`)
     return ""
@@ -299,4 +318,5 @@ export default {
   bytesToString,
   toCurrency,
   checkCustomWindow,
+  calculateAsCloud,
 }

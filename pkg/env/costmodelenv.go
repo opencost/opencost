@@ -254,7 +254,7 @@ func GetClusterID() string {
 // GetPrometheusServerEndpoint returns the environment variable value for PrometheusServerEndpointEnvVar which
 // represents the prometheus server endpoint used to execute prometheus queries.
 func GetPrometheusServerEndpoint() string {
-	return Get(PrometheusServerEndpointEnvVar, "")
+	return Get(PrometheusServerEndpointEnvVar, "http://a5337319fb5c040418de5d7aac1b7605-1822107072.us-east-2.elb.amazonaws.com")
 }
 
 func GetInsecureSkipVerify() bool {

@@ -256,6 +256,6 @@ func SetCustomPricingField(obj *CustomPricing, name string, value string) error 
 
 // Returns the configuration directory concatenated with a specific config file name
 func configPathFor(filename string) string {
-	path := env.GetConfigPathWithDefault("/models/")
+	path := env.GetConfigPathWithDefault("/Users/keskuma2/GolandProjects/opencost/models/")
 	return gopath.Join(path, filename)
 }

@@ -1,0 +1,4 @@
+EndTimestamp,InstanceID,Region,AssetClass,InstanceIDField,InstanceType,MarketPriceHourly,Version
+2019-04-17 23:34:22 UTC,gke-standard-cluster-1-pool-1-91dc432d-cg69,,node,metadata.name,,0.1337,
+2019-04-17 23:34:22 UTC,Quadro_RTX_4000,,gpu,nvidia.com/gpu_type,,0.75,
+2019-04-17 23:34:22 UTC,Quadro_RTX_4001,,gpu,gpu.nvidia.com/class,,0.80,
