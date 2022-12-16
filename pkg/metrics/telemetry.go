@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"fmt"
+	"github.com/opencost/opencost/pkg/version"
 	"sync"
 
 	"github.com/kubecost/events"
@@ -17,6 +18,7 @@ var (
 	requestsCount *prometheus.CounterVec
 	responseTime  *prometheus.HistogramVec
 	responseSize  *prometheus.SummaryVec
+	buildInfo     *prometheus.GaugeVec
 )
 
 // InitKubecostTelemetry registers kubecost application telemetry.
@@ -25,6 +27,13 @@ func InitKubecostTelemetry(config *MetricsConfig) {
 
 	once.Do(func() {
 		// register prometheus metrics
+		buildInfo = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "opencost_build_info",
+			Help: "opencost_build_info Build information",
+		}, []string{"version"})
+
+		buildInfo.WithLabelValues(version.FriendlyVersion()).Set(1.0)
+
 		requestsCount = prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "kubecost_http_requests_total",
 			Help: "kubecost_http_requests_total Total number of HTTP requests",
@@ -42,7 +51,7 @@ func InitKubecostTelemetry(config *MetricsConfig) {
 			Help: "kubecost_http_response_size_bytes Response size in bytes",
 		}, []string{"handler", "method", "code"})
 
-		prometheus.MustRegister(requestsCount, responseTime, responseSize)
+		prometheus.MustRegister(requestsCount, responseTime, responseSize, buildInfo)
 
 		// register event listeners
 		dispatcher = events.GlobalDispatcherFor[HttpHandlerMetricEvent]()
