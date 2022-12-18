@@ -1,1 +1,1 @@
-<https://www.opencost.io/docs/>
+Available at <https://www.opencost.io/docs/prometheus>

@@ -2,7 +2,6 @@ package storage
 
 import (
 	gofs "io/fs"
-	"io/ioutil"
 	"os"
 	gopath "path"
 	"path/filepath"
@@ -52,12 +51,40 @@ func (fs *FileStorage) List(path string) ([]*StorageInfo, error) {
 	p := gopath.Join(fs.baseDir, path)
 
 	// Read files in the backup path
-	files, err := ioutil.ReadDir(p)
+	entries, err := os.ReadDir(p)
 	if err != nil {
 		return nil, err
 	}
+	files := make([]gofs.FileInfo, 0, len(entries))
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, info)
+	}
 
 	return FilesToStorageInfo(files), nil
+}
+
+func (fs *FileStorage) ListDirectories(path string) ([]*StorageInfo, error) {
+	p := gopath.Join(fs.baseDir, path)
+
+	// Read files in the backup path
+	entries, err := os.ReadDir(p)
+	if err != nil {
+		return nil, err
+	}
+	files := make([]gofs.FileInfo, 0, len(entries))
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, info)
+	}
+
+	return DirFilesToStorageInfo(files, path), nil
 }
 
 // Read uses the relative path of the storage combined with the provided path to
@@ -65,7 +92,7 @@ func (fs *FileStorage) List(path string) ([]*StorageInfo, error) {
 func (fs *FileStorage) Read(path string) ([]byte, error) {
 	f := gopath.Join(fs.baseDir, path)
 
-	b, err := ioutil.ReadFile(f)
+	b, err := os.ReadFile(f)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, DoesNotExistError
@@ -83,7 +110,7 @@ func (fs *FileStorage) Write(path string, data []byte) error {
 	if err != nil {
 		return errors.Wrap(err, "Failed to prepare path")
 	}
-	err = ioutil.WriteFile(f, data, os.ModePerm)
+	err = os.WriteFile(f, data, os.ModePerm)
 	if err != nil {
 		return errors.Wrap(err, "Failed to write file")
 	}
@@ -146,4 +173,20 @@ func FileToStorageInfo(fileInfo gofs.FileInfo) *StorageInfo {
 		Size:    fileInfo.Size(),
 		ModTime: fileInfo.ModTime(),
 	}
+}
+
+// DirFilesToStorageInfo maps a []fs.FileInfo to []*storage.StorageInfo
+// but only returning StorageInfo for directories
+func DirFilesToStorageInfo(fileInfo []gofs.FileInfo, path string) []*StorageInfo {
+	var stats []*StorageInfo
+	for _, info := range fileInfo {
+		if info.IsDir() {
+			stats = append(stats, &StorageInfo{
+				Name:    filepath.Join(path, info.Name()),
+				Size:    info.Size(),
+				ModTime: info.ModTime(),
+			})
+		}
+	}
+	return stats
 }

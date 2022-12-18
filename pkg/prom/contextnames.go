@@ -24,4 +24,8 @@ const (
 
 	// DiagnosticContextName is the name we assign queries that check the state of the prometheus connection
 	DiagnosticContextName = "diagnostic"
+
+	// ContainerStatsContextName is the name we assign queries that build
+	// container stats aggregations.
+	ContainerStatsContextName = "container-stats"
 )

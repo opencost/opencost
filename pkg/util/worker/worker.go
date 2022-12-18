@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"runtime"
 	"sync"
+	"sync/atomic"
 
 	"github.com/opencost/opencost/pkg/collections"
-	"github.com/opencost/opencost/pkg/util/atomic"
 )
 
 // Worker is a transformation function from input type T to output type U.
@@ -46,7 +46,7 @@ type queuedWorkerPool[T any, U any] struct {
 	queue      collections.BlockingQueue[entry[T, U]]
 	work       Worker[T, U]
 	workers    int
-	isShutdown *atomic.AtomicBool
+	isShutdown atomic.Bool
 }
 
 // ordered is a WorkGroup implementation which enforces ordering based on when
@@ -62,10 +62,9 @@ type ordered[T any, U any] struct {
 // func used to transform inputs to outputs.
 func NewWorkerPool[T any, U any](workers int, work Worker[T, U]) WorkerPool[T, U] {
 	owq := &queuedWorkerPool[T, U]{
-		workers:    workers,
-		work:       work,
-		queue:      collections.NewBlockingQueue[entry[T, U]](),
-		isShutdown: atomic.NewAtomicBool(false),
+		workers: workers,
+		work:    work,
+		queue:   collections.NewBlockingQueue[entry[T, U]](),
 	}
 
 	// startup the designated workers
@@ -80,7 +79,7 @@ func NewWorkerPool[T any, U any](workers int, work Worker[T, U]) WorkerPool[T, U
 // to get the results. An error is returned if the pool is shutdown, or is in the process
 // of shutting down.
 func (wq *queuedWorkerPool[T, U]) Run(input T, onComplete chan<- U) error {
-	if wq.isShutdown.Get() {
+	if wq.isShutdown.Load() {
 		return fmt.Errorf("WorkerPoolShutdown")
 	}
 
@@ -95,7 +94,7 @@ func (wq *queuedWorkerPool[T, U]) Run(input T, onComplete chan<- U) error {
 
 // Shutdown stops all of the workers (if running).
 func (wq *queuedWorkerPool[T, U]) Shutdown() {
-	if !wq.isShutdown.CompareAndSet(false, true) {
+	if !wq.isShutdown.CompareAndSwap(false, true) {
 		return
 	}
 

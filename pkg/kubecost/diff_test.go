@@ -16,20 +16,20 @@ func TestDiff(t *testing.T) {
 	node1.CPUCost = 10
 	node1b := node1.Clone().(*Node)
 	node1b.CPUCost = 20
-	node1Key, _ := key(node1, nil)
+	node1Key, _ := key(node1, nil, nil)
 	node2 := NewNode("node2", "cluster1", "123abc", start, end, window1)
 	node2.CPUCost = 100
 	node2b := node2.Clone().(*Node)
 	node2b.CPUCost = 105
-	node2Key, _ := key(node2, nil)
+	node2Key, _ := key(node2, nil, nil)
 	node3 := NewNode("node3", "cluster1", "123abc", start, end, window1)
-	node3Key, _ := key(node3, nil)
+	node3Key, _ := key(node3, nil, nil)
 	node4 := NewNode("node4", "cluster1", "123abc", start, end, window1)
-	node4Key, _ := key(node4, nil)
+	node4Key, _ := key(node4, nil, nil)
 	disk1 := NewDisk("disk1", "cluster1", "123abc", start, end, window1)
-	disk1Key, _ := key(disk1, nil)
+	disk1Key, _ := key(disk1, nil, nil)
 	disk2 := NewDisk("disk2", "cluster1", "123abc", start, end, window1)
-	disk2Key, _ := key(disk2, nil)
+	disk2Key, _ := key(disk2, nil, nil)
 
 	cases := map[string]struct {
 		inputAssetsBefore []Asset

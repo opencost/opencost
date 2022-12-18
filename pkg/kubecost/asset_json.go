@@ -259,10 +259,23 @@ func (d *Disk) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "minutes", d.Minutes(), ",")
 	jsonEncodeFloat64(buffer, "byteHours", d.ByteHours, ",")
 	jsonEncodeFloat64(buffer, "bytes", d.Bytes(), ",")
+	if d.ByteHoursUsed == nil {
+		jsonEncode(buffer, "byteHoursUsed", nil, ",")
+	} else {
+		jsonEncodeFloat64(buffer, "byteHoursUsed", *d.ByteHoursUsed, ",")
+	}
+	if d.ByteUsageMax == nil {
+		jsonEncode(buffer, "byteUsageMax", nil, ",")
+	} else {
+		jsonEncodeFloat64(buffer, "byteUsageMax", *d.ByteUsageMax, ",")
+	}
 	jsonEncode(buffer, "breakdown", d.Breakdown, ",")
 	jsonEncodeFloat64(buffer, "adjustment", d.Adjustment, ",")
 	jsonEncodeFloat64(buffer, "totalCost", d.TotalCost(), ",")
-	jsonEncodeString(buffer, "storageClass", d.StorageClass, "")
+	jsonEncodeString(buffer, "storageClass", d.StorageClass, ",")
+	jsonEncodeString(buffer, "volumeName", d.VolumeName, ",")
+	jsonEncodeString(buffer, "claimName", d.ClaimName, ",")
+	jsonEncodeString(buffer, "claimNamespace", d.ClaimNamespace, "")
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
@@ -332,9 +345,34 @@ func (d *Disk) InterfaceToDisk(itf interface{}) error {
 	if ByteHours, err := getTypedVal(fmap["byteHours"]); err == nil {
 		d.ByteHours = ByteHours.(float64)
 	}
+	if ByteHoursUsed, err := getTypedVal(fmap["byteHoursUsed"]); err == nil {
+		if ByteHoursUsed == nil {
+			d.ByteHoursUsed = nil
+		} else {
+			byteHours := ByteHoursUsed.(float64)
+			d.ByteHoursUsed = &byteHours
+		}
+	}
+	if ByteUsageMax, err := getTypedVal(fmap["byteUsageMax"]); err == nil {
+		if ByteUsageMax == nil {
+			d.ByteUsageMax = nil
+		} else {
+			max := ByteUsageMax.(float64)
+			d.ByteUsageMax = &max
+		}
+	}
 
 	if StorageClass, err := getTypedVal(fmap["storageClass"]); err == nil {
 		d.StorageClass = StorageClass.(string)
+	}
+	if VolumeName, err := getTypedVal(fmap["volumeName"]); err == nil {
+		d.VolumeName = VolumeName.(string)
+	}
+	if ClaimName, err := getTypedVal(fmap["claimName"]); err == nil {
+		d.ClaimName = ClaimName.(string)
+	}
+	if ClaimNamespace, err := getTypedVal(fmap["claimNamespace"]); err == nil {
+		d.ClaimNamespace = ClaimNamespace.(string)
 	}
 
 	// d.Local is not marhsaled, and cannot be calculated from marshaled values.

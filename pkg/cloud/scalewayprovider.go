@@ -1,7 +1,9 @@
 package cloud
 
 import (
+	"errors"
 	"fmt"
+	"github.com/opencost/opencost/pkg/kubecost"
 	"io"
 	"strconv"
 	"strings"
@@ -102,6 +104,10 @@ func (k *scalewayKey) Features() string {
 	zone, _ := util.GetZone(k.Labels)
 
 	return zone + "," + instanceType
+}
+
+func (k *scalewayKey) GPUCount() int {
+	return 0
 }
 
 func (k *scalewayKey) GPUType() string {
@@ -246,6 +252,10 @@ func (*Scaleway) GetDisks() ([]byte, error) {
 	return nil, nil
 }
 
+func (*Scaleway) GetOrphanedResources() ([]OrphanedResource, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (scw *Scaleway) ClusterInfo() (map[string]string, error) {
 	remoteEnabled := env.IsRemoteEnabled()
 
@@ -258,7 +268,7 @@ func (scw *Scaleway) ClusterInfo() (map[string]string, error) {
 	if c.ClusterName != "" {
 		m["name"] = c.ClusterName
 	}
-	m["provider"] = "Scaleway"
+	m["provider"] = kubecost.ScalewayProvider
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	m["id"] = env.GetClusterID()
 	return m, nil

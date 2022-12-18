@@ -5,10 +5,11 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,7 +20,7 @@ import (
 
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/errors"
+	errs "github.com/opencost/opencost/pkg/errors"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/fileutil"
@@ -306,12 +307,14 @@ const HourlyRateCodeCn = ".Q7UJUT2CE6"
 // name and the EC2 API.
 var volTypes = map[string]string{
 	"EBS:VolumeUsage.gp2":    "gp2",
+	"EBS:VolumeUsage.gp3":    "gp3",
 	"EBS:VolumeUsage":        "standard",
 	"EBS:VolumeUsage.sc1":    "sc1",
 	"EBS:VolumeP-IOPS.piops": "io1",
 	"EBS:VolumeUsage.st1":    "st1",
 	"EBS:VolumeUsage.piops":  "io1",
 	"gp2":                    "EBS:VolumeUsage.gp2",
+	"gp3":                    "EBS:VolumeUsage.gp3",
 	"standard":               "EBS:VolumeUsage",
 	"sc1":                    "EBS:VolumeUsage.sc1",
 	"io1":                    "EBS:VolumeUsage.piops",
@@ -610,6 +613,10 @@ type awsKey struct {
 	ProviderID     string
 }
 
+func (k *awsKey) GPUCount() int {
+	return 0
+}
+
 func (k *awsKey) GPUType() string {
 	return ""
 }
@@ -760,6 +767,10 @@ func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, e
 
 	pricingURL += "index.json"
 
+	if env.GetAWSPricingURL() != "" { // Allow override of pricing URL
+		pricingURL = env.GetAWSPricingURL()
+	}
+
 	log.Infof("starting download of \"%s\", which is quite large ...", pricingURL)
 	resp, err := http.Get(pricingURL)
 	if err != nil {
@@ -841,7 +852,7 @@ func (aws *AWS) DownloadPricingData() error {
 		pvkeys[key.Features()] = key
 	}
 
-	// RIDataRunning establishes the existance of the goroutine. Since it's possible we
+	// RIDataRunning establishes the existence of the goroutine. Since it's possible we
 	// run multiple downloads, we don't want to create multiple go routines if one already exists
 	if !aws.RIDataRunning {
 		err = aws.GetReservationDataFromAthena() // Block until one run has completed.
@@ -849,7 +860,7 @@ func (aws *AWS) DownloadPricingData() error {
 			log.Errorf("Failed to lookup reserved instance data: %s", err.Error())
 		} else { // If we make one successful run, check on new reservation data every hour
 			go func() {
-				defer errors.HandlePanic()
+				defer errs.HandlePanic()
 				aws.RIDataRunning = true
 
 				for {
@@ -869,7 +880,7 @@ func (aws *AWS) DownloadPricingData() error {
 			log.Errorf("Failed to lookup savings plan data: %s", err.Error())
 		} else {
 			go func() {
-				defer errors.HandlePanic()
+				defer errs.HandlePanic()
 				aws.SavingsPlanDataRunning = true
 				for {
 					log.Infof("Savings Plan watcher running... next update in 1h")
@@ -1046,7 +1057,7 @@ func (aws *AWS) DownloadPricingData() error {
 		aws.SpotRefreshRunning = true
 
 		go func() {
-			defer errors.HandlePanic()
+			defer errs.HandlePanic()
 
 			for {
 				log.Infof("Spot Pricing Refresh scheduled in %.2f minutes.", SpotRefreshDuration.Minutes())
@@ -1412,7 +1423,7 @@ func (aws *AWS) loadAWSAuthSecret(force bool) (*AWSAccessKey, error) {
 		return nil, fmt.Errorf("Failed to locate service account file: %s", authSecretPath)
 	}
 
-	result, err := ioutil.ReadFile(authSecretPath)
+	result, err := os.ReadFile(authSecretPath)
 	if err != nil {
 		return nil, err
 	}
@@ -1457,7 +1468,7 @@ func (aws *AWS) GetAddresses() ([]byte, error) {
 		// respective channels
 		go func(region string) {
 			defer wg.Done()
-			defer errors.HandlePanic()
+			defer errs.HandlePanic()
 
 			// Query for first page of volume results
 			resp, err := aws.getAddressesForRegion(context.TODO(), region)
@@ -1471,7 +1482,7 @@ func (aws *AWS) GetAddresses() ([]byte, error) {
 
 	// Close the result channels after everything has been sent
 	go func() {
-		defer errors.HandlePanic()
+		defer errs.HandlePanic()
 
 		wg.Wait()
 		close(errorCh)
@@ -1540,7 +1551,7 @@ func (aws *AWS) GetDisks() ([]byte, error) {
 		// respective channels
 		go func(region string) {
 			defer wg.Done()
-			defer errors.HandlePanic()
+			defer errs.HandlePanic()
 
 			// Query for first page of volume results
 			resp, err := aws.getDisksForRegion(context.TODO(), region, 1000, nil)
@@ -1565,7 +1576,7 @@ func (aws *AWS) GetDisks() ([]byte, error) {
 
 	// Close the result channels after everything has been sent
 	go func() {
-		defer errors.HandlePanic()
+		defer errs.HandlePanic()
 
 		wg.Wait()
 		close(errorCh)
@@ -1597,6 +1608,10 @@ func (aws *AWS) GetDisks() ([]byte, error) {
 	return json.Marshal(map[string][]*ec2Types.Volume{
 		"Volumes": volumes,
 	})
+}
+
+func (*AWS) GetOrphanedResources() ([]OrphanedResource, error) {
+	return nil, errors.New("not implemented")
 }
 
 // QueryAthenaPaginated executes athena query and processes results.

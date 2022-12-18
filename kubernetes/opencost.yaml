@@ -151,11 +151,21 @@ spec:
               memory: "1G"
           env:
             - name: PROMETHEUS_SERVER_ENDPOINT
-              value: "http://my-prometheus-server.prom.svc" # The endpoint should have the form http://<service-name>.<namespace-name>.svc
+              value: "http://my-prometheus-server.prometheus.svc" # The endpoint should have the form http://<service-name>.<namespace-name>.svc
             - name: CLOUD_PROVIDER_API_KEY
               value: "AIzaSyD29bGxmHAVEOBYtgd8sYM2gM2ekfxQX4U" # The GCP Pricing API requires a key. This is supplied just for evaluation.
             - name: CLUSTER_ID
               value: "cluster-one" # Default cluster ID to use if cluster_id is not set in Prometheus metrics.
+          imagePullPolicy: Always
+        - image: quay.io/kubecost1/opencost-ui:latest
+          name: opencost-ui
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "55M"
+            limits:
+              cpu: "999m"
+              memory: "1G"
           imagePullPolicy: Always
 ---
 
@@ -176,4 +186,7 @@ spec:
     - name: opencost
       port: 9003
       targetPort: 9003
+    - name: opencost-ui
+      port: 9090
+      targetPort: 9090
 ---

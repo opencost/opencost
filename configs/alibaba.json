@@ -1,0 +1,12 @@
+{
+    "provider": "Alibaba",
+    "description": "Default prices used to compute allocation between RAM and CPU. Alibaba Cloud pricing API data still used for total node cost.",
+    "alibabaServiceKeyName": "ABC",
+    "alibabaServiceKeySecret": "XYZ",
+    "CPU": "0.031611",
+    "spotCPU": "0.006655",
+    "RAM": "0.004237",
+    "GPU": "0.95",
+    "spotRAM": "0.000892",
+    "storage": "0.00005479452"
+}

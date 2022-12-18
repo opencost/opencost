@@ -170,7 +170,7 @@ func (sa *SummaryAllocation) Clone() *SummaryAllocation {
 // no usage or cost, then efficiency is zero. If there is no request, but there
 // is usage or cost, then efficiency is 100%.
 func (sa *SummaryAllocation) CPUEfficiency() float64 {
-	if sa == nil {
+	if sa == nil || sa.IsIdle() {
 		return 0.0
 	}
 
@@ -245,7 +245,7 @@ func (sa *SummaryAllocation) Minutes() float64 {
 // no usage or cost, then efficiency is zero. If there is no request, but there
 // is usage or cost, then efficiency is 100%.
 func (sa *SummaryAllocation) RAMEfficiency() float64 {
-	if sa == nil {
+	if sa == nil || sa.IsIdle() {
 		return 0.0
 	}
 
@@ -272,7 +272,7 @@ func (sa *SummaryAllocation) TotalCost() float64 {
 // TotalEfficiency is the cost-weighted average of CPU and RAM efficiency. If
 // there is no cost at all, then efficiency is zero.
 func (sa *SummaryAllocation) TotalEfficiency() float64 {
-	if sa == nil {
+	if sa == nil || sa.IsIdle() {
 		return 0.0
 	}
 
@@ -1170,6 +1170,96 @@ func (sas *SummaryAllocationSet) TotalCost() float64 {
 	return tc
 }
 
+// RAMEfficiency func to calculate average RAM efficiency over SummaryAllocationSet
+func (sas *SummaryAllocationSet) RAMEfficiency() float64 {
+	if sas == nil {
+		return 0.0
+	}
+
+	sas.RLock()
+	defer sas.RUnlock()
+
+	totalRAMBytesMinutesUsage := 0.0
+	totalRAMBytesMinutesRequest := 0.0
+	totalRAMCost := 0.0
+	for _, sa := range sas.SummaryAllocations {
+		if sa.IsIdle() {
+			continue
+		}
+		totalRAMBytesMinutesUsage += sa.RAMBytesUsageAverage * sa.Minutes()
+		totalRAMBytesMinutesRequest += sa.RAMBytesRequestAverage * sa.Minutes()
+		totalRAMCost += sa.RAMCost
+	}
+
+	if totalRAMBytesMinutesRequest > 0 {
+		return totalRAMBytesMinutesUsage / totalRAMBytesMinutesRequest
+	}
+
+	if totalRAMBytesMinutesUsage == 0.0 || totalRAMCost == 0.0 {
+		return 0.0
+	}
+
+	return 1.0
+}
+
+// CPUEfficiency func to calculate average CPU efficiency over SummaryAllocationSet
+func (sas *SummaryAllocationSet) CPUEfficiency() float64 {
+	if sas == nil {
+		return 0.0
+	}
+
+	sas.RLock()
+	defer sas.RUnlock()
+
+	totalCPUCoreMinutesUsage := 0.0
+	totalCPUCoreMinutesRequest := 0.0
+	totalCPUCost := 0.0
+	for _, sa := range sas.SummaryAllocations {
+		if sa.IsIdle() {
+			continue
+		}
+		totalCPUCoreMinutesUsage += sa.CPUCoreUsageAverage * sa.Minutes()
+		totalCPUCoreMinutesRequest += sa.CPUCoreRequestAverage * sa.Minutes()
+		totalCPUCost += sa.CPUCost
+	}
+
+	if totalCPUCoreMinutesRequest > 0 {
+		return totalCPUCoreMinutesUsage / totalCPUCoreMinutesRequest
+	}
+
+	if totalCPUCoreMinutesUsage == 0.0 || totalCPUCost == 0.0 {
+		return 0.0
+	}
+
+	return 1.0
+}
+
+// TotalEfficiency func to calculate average Total efficiency over SummaryAllocationSet
+func (sas *SummaryAllocationSet) TotalEfficiency() float64 {
+	if sas == nil {
+		return 0.0
+	}
+
+	sas.RLock()
+	defer sas.RUnlock()
+
+	totalRAMCost := 0.0
+	totalCPUCost := 0.0
+	for _, sa := range sas.SummaryAllocations {
+		if sa.IsIdle() {
+			continue
+		}
+		totalRAMCost += sa.RAMCost
+		totalCPUCost += sa.CPUCost
+	}
+
+	if totalRAMCost+totalCPUCost > 0 {
+		return (totalRAMCost*sas.RAMEfficiency() + totalCPUCost*sas.CPUEfficiency()) / (totalRAMCost + totalCPUCost)
+	}
+
+	return 0.0
+}
+
 // SummaryAllocationSetRange is a thread-safe slice of SummaryAllocationSets.
 type SummaryAllocationSetRange struct {
 	sync.RWMutex
@@ -1222,6 +1312,39 @@ func (sasr *SummaryAllocationSetRange) Accumulate() (*SummaryAllocationSet, erro
 
 	for _, sas := range sasr.SummaryAllocationSets {
 		result, err = result.Add(sas)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return result, nil
+}
+
+// NewAccumulation clones the first available SummaryAllocationSet to use as the data structure to
+// accumulate the remaining data. This leaves the original SummaryAllocationSetRange intact.
+func (sasr *SummaryAllocationSetRange) NewAccumulation() (*SummaryAllocationSet, error) {
+	var result *SummaryAllocationSet
+	var err error
+
+	sasr.RLock()
+	defer sasr.RUnlock()
+
+	for _, sas := range sasr.SummaryAllocationSets {
+		// we want to clone the first summary allocation set, then just Add the others
+		// to the clone. We will eventually use the clone to create the set range.
+		if result == nil {
+			result = sas.Clone()
+			continue
+		}
+
+		// Copy if sas is non-nil
+		var sasCopy *SummaryAllocationSet = nil
+		if sas != nil {
+			sasCopy = sas.Clone()
+		}
+
+		// nil is ok to pass into Add
+		result, err = result.Add(sasCopy)
 		if err != nil {
 			return nil, err
 		}

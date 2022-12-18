@@ -68,63 +68,65 @@ type Asset interface {
 // to Asset label. For example, consider this asset:
 //
 // CURRENT: Asset ETL stores its data ALREADY MAPPED from label to k8s concept. This isn't ideal-- see the TOOD.
-//   Cloud {
-// 	   TotalCost: 10.00,
-// 	   Labels{
-//       "kubernetes_namespace":"monitoring",
-// 	     "env":"prod"
-// 	   }
-//   }
+//
+//	  Cloud {
+//		   TotalCost: 10.00,
+//		   Labels{
+//	      "kubernetes_namespace":"monitoring",
+//		     "env":"prod"
+//		   }
+//	  }
 //
 // Given the following parameters, we expect to return:
 //
-//   1) single-prop full match
-//   aggregateBy = ["namespace"]
-//   => Allocation{Name: "monitoring", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//  1. single-prop full match
+//     aggregateBy = ["namespace"]
+//     => Allocation{Name: "monitoring", ExternalCost: 10.00, TotalCost: 10.00}, nil
 //
-//   2) multi-prop full match
-//   aggregateBy = ["namespace", "label:env"]
-//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
-//   => Allocation{Name: "monitoring/env=prod", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//  2. multi-prop full match
+//     aggregateBy = ["namespace", "label:env"]
+//     allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//     => Allocation{Name: "monitoring/env=prod", ExternalCost: 10.00, TotalCost: 10.00}, nil
 //
-//   3) multi-prop partial match
-//   aggregateBy = ["namespace", "label:foo"]
-//   => Allocation{Name: "monitoring/__unallocated__", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//  3. multi-prop partial match
+//     aggregateBy = ["namespace", "label:foo"]
+//     => Allocation{Name: "monitoring/__unallocated__", ExternalCost: 10.00, TotalCost: 10.00}, nil
 //
-//   4) no match
-//   aggregateBy = ["cluster"]
-//   => nil, err
+//  4. no match
+//     aggregateBy = ["cluster"]
+//     => nil, err
 //
 // TODO:
-//   Cloud {
-// 	   TotalCost: 10.00,
-// 	   Labels{
-//       "kubernetes_namespace":"monitoring",
-// 	     "env":"prod"
-// 	   }
-//   }
+//
+//	  Cloud {
+//		   TotalCost: 10.00,
+//		   Labels{
+//	      "kubernetes_namespace":"monitoring",
+//		     "env":"prod"
+//		   }
+//	  }
 //
 // Given the following parameters, we expect to return:
 //
-//   1) single-prop full match
-//   aggregateBy = ["namespace"]
-//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
-//   => Allocation{Name: "monitoring", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//  1. single-prop full match
+//     aggregateBy = ["namespace"]
+//     allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//     => Allocation{Name: "monitoring", ExternalCost: 10.00, TotalCost: 10.00}, nil
 //
-//   2) multi-prop full match
-//   aggregateBy = ["namespace", "label:env"]
-//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
-//   => Allocation{Name: "monitoring/env=prod", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//  2. multi-prop full match
+//     aggregateBy = ["namespace", "label:env"]
+//     allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//     => Allocation{Name: "monitoring/env=prod", ExternalCost: 10.00, TotalCost: 10.00}, nil
 //
-//   3) multi-prop partial match
-//   aggregateBy = ["namespace", "label:foo"]
-//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
-//   => Allocation{Name: "monitoring/__unallocated__", ExternalCost: 10.00, TotalCost: 10.00}, nil
+//  3. multi-prop partial match
+//     aggregateBy = ["namespace", "label:foo"]
+//     allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//     => Allocation{Name: "monitoring/__unallocated__", ExternalCost: 10.00, TotalCost: 10.00}, nil
 //
-//   4) no match
-//   aggregateBy = ["cluster"]
-//   allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
-//   => nil, err
+//  4. no match
+//     aggregateBy = ["cluster"]
+//     allocationPropertyLabels = {"namespace":"kubernetes_namespace"}
+//     => nil, err
 //
 // (See asset_test.go for assertions of these examples and more.)
 func AssetToExternalAllocation(asset Asset, aggregateBy []string, labelConfig *LabelConfig) (*Allocation, error) {
@@ -252,8 +254,12 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, labelConfig *L
 // values will key by only those values.
 // Valid values of `aggregateBy` elements are strings which are an `AssetProperty`, and strings prefixed
 // with `"label:"`.
-func key(a Asset, aggregateBy []string) (string, error) {
+func key(a Asset, aggregateBy []string, labelConfig *LabelConfig) (string, error) {
 	var buffer strings.Builder
+
+	if labelConfig == nil {
+		labelConfig = NewLabelConfig()
+	}
 
 	if aggregateBy == nil {
 		aggregateBy = []string{
@@ -290,6 +296,16 @@ func key(a Asset, aggregateBy []string) (string, error) {
 			key = a.GetProperties().ProviderID
 		case s == string(AssetNameProp):
 			key = a.GetProperties().Name
+		case s == string(AssetDepartmentProp):
+			key = getKeyFromLabelConfig(a, labelConfig, labelConfig.DepartmentExternalLabel)
+		case s == string(AssetEnvironmentProp):
+			key = getKeyFromLabelConfig(a, labelConfig, labelConfig.EnvironmentExternalLabel)
+		case s == string(AssetOwnerProp):
+			key = getKeyFromLabelConfig(a, labelConfig, labelConfig.OwnerExternalLabel)
+		case s == string(AssetProductProp):
+			key = getKeyFromLabelConfig(a, labelConfig, labelConfig.ProductExternalLabel)
+		case s == string(AssetTeamProp):
+			key = getKeyFromLabelConfig(a, labelConfig, labelConfig.TeamExternalLabel)
 		case strings.HasPrefix(s, "label:"):
 			if labelKey := strings.TrimPrefix(s, "label:"); labelKey != "" {
 				labelVal := a.GetLabels()[labelKey]
@@ -316,6 +332,28 @@ func key(a Asset, aggregateBy []string) (string, error) {
 		}
 	}
 	return buffer.String(), nil
+}
+
+func getKeyFromLabelConfig(a Asset, labelConfig *LabelConfig, label string) string {
+	labels := a.GetLabels()
+	if labels == nil {
+		return UnallocatedSuffix
+	} else {
+		key := UnallocatedSuffix
+		labelNames := strings.Split(label, ",")
+		for _, labelName := range labelNames {
+			name := labelConfig.Sanitize(labelName)
+			if labelValue, ok := labels[name]; ok {
+				key = labelValue
+				break
+			}
+		}
+		return key
+	}
+}
+
+func GetAssetKey(a Asset, aggregateBy []string) (string, error) {
+	return key(a, aggregateBy, nil)
 }
 
 func toString(a Asset) string {
@@ -1059,17 +1097,22 @@ func (cm *ClusterManagement) String() string {
 
 // Disk represents an in-cluster disk Asset
 type Disk struct {
-	Labels       AssetLabels
-	Properties   *AssetProperties
-	Start        time.Time
-	End          time.Time
-	Window       Window
-	Adjustment   float64
-	Cost         float64
-	ByteHours    float64
-	Local        float64
-	Breakdown    *Breakdown
-	StorageClass string // @bingen:field[version=17]
+	Labels         AssetLabels
+	Properties     *AssetProperties
+	Start          time.Time
+	End            time.Time
+	Window         Window
+	Adjustment     float64
+	Cost           float64
+	ByteHours      float64
+	Local          float64
+	Breakdown      *Breakdown
+	StorageClass   string   // @bingen:field[version=17]
+	ByteHoursUsed  *float64 // @bingen:field[version=18]
+	ByteUsageMax   *float64 // @bingen:field[version=18]
+	VolumeName     string   // @bingen:field[version=18]
+	ClaimName      string   // @bingen:field[version=18]
+	ClaimNamespace string   // @bingen:field[version=18]
 }
 
 // NewDisk creates and returns a new Disk Asset
@@ -1262,26 +1305,68 @@ func (d *Disk) add(that *Disk) {
 
 	d.ByteHours += that.ByteHours
 
+	if d.ByteHoursUsed == nil && that.ByteHoursUsed != nil {
+		copy := *that.ByteHoursUsed
+		d.ByteHoursUsed = &copy
+	} else if d.ByteHoursUsed != nil && that.ByteHoursUsed == nil {
+		// do nothing
+	} else if d.ByteHoursUsed != nil && that.ByteHoursUsed != nil {
+		sum := *d.ByteHoursUsed
+		sum += *that.ByteHoursUsed
+		d.ByteHoursUsed = &sum
+	}
+
+	// We have to nil out the max because we don't know if we're
+	// aggregating across time our properties. See RawAllocationOnly on
+	// Allocation for further reference.
+	d.ByteUsageMax = nil
+
 	// If storage class don't match default it to empty storage class
 	if d.StorageClass != that.StorageClass {
 		d.StorageClass = ""
+	}
+
+	if d.VolumeName != that.VolumeName {
+		d.VolumeName = ""
+	}
+	if d.ClaimName != that.ClaimName {
+		d.ClaimName = ""
+	}
+	if d.ClaimNamespace != that.ClaimNamespace {
+		d.ClaimNamespace = ""
 	}
 }
 
 // Clone returns a cloned instance of the Asset
 func (d *Disk) Clone() Asset {
+	var max *float64
+	if d.ByteUsageMax != nil {
+		copied := *d.ByteUsageMax
+		max = &copied
+	}
+	var byteHoursUsed *float64
+	if d.ByteHoursUsed != nil {
+		copied := *d.ByteHoursUsed
+		byteHoursUsed = &copied
+	}
+
 	return &Disk{
-		Properties:   d.Properties.Clone(),
-		Labels:       d.Labels.Clone(),
-		Start:        d.Start,
-		End:          d.End,
-		Window:       d.Window.Clone(),
-		Adjustment:   d.Adjustment,
-		Cost:         d.Cost,
-		ByteHours:    d.ByteHours,
-		Local:        d.Local,
-		Breakdown:    d.Breakdown.Clone(),
-		StorageClass: d.StorageClass,
+		Properties:     d.Properties.Clone(),
+		Labels:         d.Labels.Clone(),
+		Start:          d.Start,
+		End:            d.End,
+		Window:         d.Window.Clone(),
+		Adjustment:     d.Adjustment,
+		Cost:           d.Cost,
+		ByteHours:      d.ByteHours,
+		ByteHoursUsed:  byteHoursUsed,
+		ByteUsageMax:   max,
+		Local:          d.Local,
+		Breakdown:      d.Breakdown.Clone(),
+		StorageClass:   d.StorageClass,
+		VolumeName:     d.VolumeName,
+		ClaimName:      d.ClaimName,
+		ClaimNamespace: d.ClaimNamespace,
 	}
 }
 
@@ -1316,6 +1401,24 @@ func (d *Disk) Equal(a Asset) bool {
 	if d.ByteHours != that.ByteHours {
 		return false
 	}
+	if d.ByteHoursUsed != nil && that.ByteHoursUsed == nil {
+		return false
+	}
+	if d.ByteHoursUsed == nil && that.ByteHoursUsed != nil {
+		return false
+	}
+	if (d.ByteHoursUsed != nil && that.ByteHoursUsed != nil) && *d.ByteHoursUsed != *that.ByteHoursUsed {
+		return false
+	}
+	if d.ByteUsageMax != nil && that.ByteUsageMax == nil {
+		return false
+	}
+	if d.ByteUsageMax == nil && that.ByteUsageMax != nil {
+		return false
+	}
+	if (d.ByteUsageMax != nil && that.ByteUsageMax != nil) && *d.ByteUsageMax != *that.ByteUsageMax {
+		return false
+	}
 	if d.Local != that.Local {
 		return false
 	}
@@ -1323,6 +1426,15 @@ func (d *Disk) Equal(a Asset) bool {
 		return false
 	}
 	if d.StorageClass != that.StorageClass {
+		return false
+	}
+	if d.VolumeName != that.VolumeName {
+		return false
+	}
+	if d.ClaimName != that.ClaimName {
+		return false
+	}
+	if d.ClaimNamespace != that.ClaimNamespace {
 		return false
 	}
 
@@ -1339,11 +1451,14 @@ func (d *Disk) String() string {
 // hours running; e.g. the sum of a 100GiB disk running for the first 10 hours
 // and a 30GiB disk running for the last 20 hours of the same 24-hour window
 // would produce:
-//   (100*10 + 30*20) / 24 = 66.667GiB
+//
+//	(100*10 + 30*20) / 24 = 66.667GiB
+//
 // However, any number of disks running for the full span of a window will
 // report the actual number of bytes of the static disk; e.g. the above
 // scenario for one entire 24-hour window:
-//   (100*24 + 30*24) / 24 = (100 + 30) = 130GiB
+//
+//	(100*24 + 30*24) / 24 = (100 + 30) = 130GiB
 func (d *Disk) Bytes() float64 {
 	// [b*hr]*([min/hr]*[1/min]) = [b*hr]/[hr] = b
 	return d.ByteHours * (60.0 / d.Minutes())
@@ -1993,11 +2108,14 @@ func (n *Node) IsPreemptible() bool {
 // hours running; e.g. the sum of a 4-core node running for the first 10 hours
 // and a 3-core node running for the last 20 hours of the same 24-hour window
 // would produce:
-//   (4*10 + 3*20) / 24 = 4.167 cores
+//
+//	(4*10 + 3*20) / 24 = 4.167 cores
+//
 // However, any number of cores running for the full span of a window will
 // report the actual number of cores of the static node; e.g. the above
 // scenario for one entire 24-hour window:
-//   (4*24 + 3*24) / 24 = (4 + 3) = 7 cores
+//
+//	(4*24 + 3*24) / 24 = (4 + 3) = 7 cores
 func (n *Node) CPUCores() float64 {
 	// [core*hr]*([min/hr]*[1/min]) = [core*hr]/[hr] = core
 	return n.CPUCoreHours * (60.0 / n.Minutes())
@@ -2008,11 +2126,14 @@ func (n *Node) CPUCores() float64 {
 // hours running; e.g. the sum of a 12GiB-RAM node running for the first 10 hours
 // and a 16GiB-RAM node running for the last 20 hours of the same 24-hour window
 // would produce:
-//   (12*10 + 16*20) / 24 = 18.333GiB RAM
+//
+//	(12*10 + 16*20) / 24 = 18.333GiB RAM
+//
 // However, any number of bytes running for the full span of a window will
 // report the actual number of bytes of the static node; e.g. the above
 // scenario for one entire 24-hour window:
-//   (12*24 + 16*24) / 24 = (12 + 16) = 28GiB RAM
+//
+//	(12*24 + 16*24) / 24 = (12 + 16) = 28GiB RAM
 func (n *Node) RAMBytes() float64 {
 	// [b*hr]*([min/hr]*[1/min]) = [b*hr]/[hr] = b
 	return n.RAMByteHours * (60.0 / n.Minutes())
@@ -2023,11 +2144,14 @@ func (n *Node) RAMBytes() float64 {
 // hours running; e.g. the sum of a 2 gpu node running for the first 10 hours
 // and a 1 gpu node running for the last 20 hours of the same 24-hour window
 // would produce:
-//   (2*10 + 1*20) / 24 = 1.667 GPUs
+//
+//	(2*10 + 1*20) / 24 = 1.667 GPUs
+//
 // However, any number of GPUs running for the full span of a window will
 // report the actual number of GPUs of the static node; e.g. the above
 // scenario for one entire 24-hour window:
-//   (2*24 + 1*24) / 24 = (2 + 1) = 3 GPUs
+//
+//	(2*24 + 1*24) / 24 = (2 + 1) = 3 GPUs
 func (n *Node) GPUs() float64 {
 	// [b*hr]*([min/hr]*[1/min]) = [b*hr]/[hr] = b
 	return n.GPUHours * (60.0 / n.Minutes())
@@ -2583,7 +2707,7 @@ func NewAssetSet(start, end time.Time, assets ...Asset) *AssetSet {
 	}
 
 	for _, a := range assets {
-		as.Insert(a)
+		as.Insert(a, nil)
 	}
 
 	return as
@@ -2626,7 +2750,7 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 			}
 		}
 		if insert {
-			err := aggSet.Insert(sa)
+			err := aggSet.Insert(sa, opts.LabelConfig)
 			if err != nil {
 				return err
 			}
@@ -2645,7 +2769,7 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 	// Insert each asset into the new set, which will be keyed by the `aggregateBy`
 	// on aggSet, resulting in aggregation.
 	for _, asset := range as.Assets {
-		err := aggSet.Insert(asset)
+		err := aggSet.Insert(asset, opts.LabelConfig)
 		if err != nil {
 			return err
 		}
@@ -2757,13 +2881,13 @@ func (as *AssetSet) End() time.Time {
 // FindMatch attempts to find a match in the AssetSet for the given Asset on
 // the provided Properties and labels. If a match is not found, FindMatch
 // returns nil and a Not Found error.
-func (as *AssetSet) FindMatch(query Asset, aggregateBy []string) (Asset, error) {
-	matchKey, err := key(query, aggregateBy)
+func (as *AssetSet) FindMatch(query Asset, aggregateBy []string, labelConfig *LabelConfig) (Asset, error) {
+	matchKey, err := key(query, aggregateBy, labelConfig)
 	if err != nil {
 		return nil, err
 	}
 	for _, asset := range as.Assets {
-		if k, err := key(asset, aggregateBy); err != nil {
+		if k, err := key(asset, aggregateBy, labelConfig); err != nil {
 			return nil, err
 		} else if k == matchKey {
 			return asset, nil
@@ -2781,7 +2905,7 @@ func (as *AssetSet) FindMatch(query Asset, aggregateBy []string) (Asset, error) 
 func (as *AssetSet) ReconciliationMatch(query Asset) (Asset, bool, error) {
 	// Full match means matching on (Category, ProviderID)
 	fullMatchProps := []string{string(AssetCategoryProp), string(AssetProviderIDProp)}
-	fullMatchKey, err := key(query, fullMatchProps)
+	fullMatchKey, err := key(query, fullMatchProps, nil)
 
 	// This should never happen because we are using enumerated Properties,
 	// but the check is here in case that changes
@@ -2791,7 +2915,7 @@ func (as *AssetSet) ReconciliationMatch(query Asset) (Asset, bool, error) {
 
 	// Partial match means matching only on (ProviderID)
 	providerIDMatchProps := []string{string(AssetProviderIDProp)}
-	providerIDMatchKey, err := key(query, providerIDMatchProps)
+	providerIDMatchKey, err := key(query, providerIDMatchProps, nil)
 
 	// This should never happen because we are using enumerated Properties,
 	// but the check is here in case that changes
@@ -2805,13 +2929,13 @@ func (as *AssetSet) ReconciliationMatch(query Asset) (Asset, bool, error) {
 		if asset.Type() == CloudAssetType {
 			continue
 		}
-		if k, err := key(asset, fullMatchProps); err != nil {
+		if k, err := key(asset, fullMatchProps, nil); err != nil {
 			return nil, false, err
 		} else if k == fullMatchKey {
 			log.DedupedInfof(10, "Asset ETL: Reconciliation[rcnw]: ReconcileRange Match: %s", fullMatchKey)
 			return asset, true, nil
 		}
-		if k, err := key(asset, providerIDMatchProps); err != nil {
+		if k, err := key(asset, providerIDMatchProps, nil); err != nil {
 			return nil, false, err
 		} else if k == providerIDMatchKey {
 			// Found a partial match. Save it until after all other options
@@ -2842,8 +2966,8 @@ func (as *AssetSet) ReconciliationMatchMap() map[string]map[string]Asset {
 			continue
 		}
 		props := asset.GetProperties()
-		// Ignore cloud assets and assets that cannot be matched when looking for reconciliation matches
-		if props == nil || props.ProviderID == "" || asset.Type() == CloudAssetType {
+		// Ignore assets that cannot be matched when looking for reconciliation matches
+		if props == nil || props.ProviderID == "" {
 			continue
 		}
 
@@ -2883,7 +3007,7 @@ func (as *AssetSet) Get(key string) (Asset, bool) {
 // Insert inserts the given Asset into the AssetSet, using the AssetSet's
 // configured Properties to determine the key under which the Asset will
 // be inserted.
-func (as *AssetSet) Insert(asset Asset) error {
+func (as *AssetSet) Insert(asset Asset, labelConfig *LabelConfig) error {
 	if as == nil {
 		return fmt.Errorf("cannot Insert into nil AssetSet")
 	}
@@ -2892,8 +3016,10 @@ func (as *AssetSet) Insert(asset Asset) error {
 		as.Assets = map[string]Asset{}
 	}
 
+	// need a label config
+
 	// Determine key into which to Insert the Asset.
-	k, err := key(asset, as.AggregationKeys)
+	k, err := key(asset, as.AggregationKeys, labelConfig)
 	if err != nil {
 		return err
 	}
@@ -2937,19 +3063,23 @@ func (as *AssetSet) Length() int {
 	return len(as.Assets)
 }
 
+func (as *AssetSet) GetWindow() Window {
+	return as.Window
+}
+
 // Resolution returns the AssetSet's window duration
 func (as *AssetSet) Resolution() time.Duration {
 	return as.Window.Duration()
 }
 
-func (as *AssetSet) Set(asset Asset, aggregateBy []string) error {
+func (as *AssetSet) Set(asset Asset, aggregateBy []string, labelConfig *LabelConfig) error {
 	if as.IsEmpty() {
 		as.Assets = map[string]Asset{}
 	}
 
 	// Expand the window to match the AssetSet, then set it
 	asset.ExpandWindow(as.Window)
-	k, err := key(asset, aggregateBy)
+	k, err := key(asset, aggregateBy, labelConfig)
 	if err != nil {
 		return err
 	}
@@ -3017,14 +3147,14 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 	acc.AggregationKeys = as.AggregationKeys
 
 	for _, asset := range as.Assets {
-		err := acc.Insert(asset)
+		err := acc.Insert(asset, nil)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	for _, asset := range that.Assets {
-		err := acc.Insert(asset)
+		err := acc.Insert(asset, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -3113,9 +3243,38 @@ func (asr *AssetSetRange) Accumulate() (*AssetSet, error) {
 	return assetSet, nil
 }
 
+// NewAccumulation clones the first available AssetSet to use as the data structure to
+// accumulate the remaining data. This leaves the original AssetSetRange intact.
+func (asr *AssetSetRange) NewAccumulation() (*AssetSet, error) {
+	var assetSet *AssetSet
+	var err error
+
+	for _, as := range asr.Assets {
+		if assetSet == nil {
+			assetSet = as.Clone()
+			continue
+		}
+
+		// copy if non-nil
+		var assetSetCopy *AssetSet = nil
+		if as != nil {
+			assetSetCopy = as.Clone()
+		}
+
+		// nil is acceptable to pass to accumulate
+		assetSet, err = assetSet.accumulate(assetSetCopy)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return assetSet, nil
+}
+
 type AssetAggregationOptions struct {
 	SharedHourlyCosts map[string]float64
 	FilterFuncs       []AssetMatchFunc
+	LabelConfig       *LabelConfig
 }
 
 func (asr *AssetSetRange) AggregateBy(aggregateBy []string, opts *AssetAggregationOptions) error {
@@ -3202,7 +3361,7 @@ func (asr *AssetSetRange) InsertRange(that *AssetSetRange) error {
 
 		// Insert each Asset from the given set
 		for _, asset := range thatAS.Assets {
-			err = as.Insert(asset)
+			err = as.Insert(asset, nil)
 			if err != nil {
 				err = fmt.Errorf("error inserting asset: %s", err)
 				continue

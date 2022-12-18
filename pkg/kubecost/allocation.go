@@ -27,7 +27,7 @@ const SharedSuffix = "__shared__"
 // UnallocatedSuffix indicates an unallocated allocation property
 const UnallocatedSuffix = "__unallocated__"
 
-// UnmountedSuffix indicated allocation to an unmounted PV
+// UnmountedSuffix indicated allocation to an unmounted resource (PV or LB)
 const UnmountedSuffix = "__unmounted__"
 
 // ShareWeighted indicates that a shared resource should be shared as a
@@ -93,7 +93,8 @@ type Allocation struct {
 // A2 Using 2 CPU      ----      -----      ----
 // A3 Using 1 CPU         ---       --
 // _______________________________________________
-//                   Time ---->
+//
+//	Time ---->
 //
 // The logical maximum CPU usage is 5, but this cannot be calculated iteratively,
 // which is how we calculate aggregations and accumulations of Allocations currently.
@@ -234,6 +235,11 @@ func (pva *PVAllocation) Equal(that *PVAllocation) bool {
 	}
 	return util.IsApproximately(pva.ByteHours, that.ByteHours) &&
 		util.IsApproximately(pva.Cost, that.Cost)
+}
+
+// GetWindow returns the window of the struct
+func (a *Allocation) GetWindow() Window {
+	return a.Window
 }
 
 // AllocationMatchFunc is a function that can be used to match Allocations by
@@ -1627,6 +1633,82 @@ func (a *Allocation) generateKey(aggregateBy []string, labelConfig *LabelConfig)
 	return a.Properties.GenerateKey(aggregateBy, labelConfig)
 }
 
+func (a *Allocation) StringProperty(property string) (string, error) {
+	switch property {
+	case AllocationClusterProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.Cluster, nil
+	case AllocationNodeProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.Node, nil
+	case AllocationContainerProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.Container, nil
+	case AllocationControllerProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.Controller, nil
+	case AllocationControllerKindProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.ControllerKind, nil
+	case AllocationNamespaceProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.Namespace, nil
+	case AllocationPodProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.Pod, nil
+	case AllocationProviderIDProp:
+		if a.Properties == nil {
+			return "", nil
+		}
+		return a.Properties.ProviderID, nil
+	default:
+		return "", fmt.Errorf("Allocation: StringProperty: invalid property name: %s", property)
+	}
+}
+
+func (a *Allocation) StringSliceProperty(property string) ([]string, error) {
+	switch property {
+	case AllocationServiceProp:
+		if a.Properties == nil {
+			return nil, nil
+		}
+		return a.Properties.Services, nil
+	default:
+		return nil, fmt.Errorf("Allocation: StringSliceProperty: invalid property name: %s", property)
+	}
+}
+
+func (a *Allocation) StringMapProperty(property string) (map[string]string, error) {
+	switch property {
+	case AllocationLabelProp:
+		if a.Properties == nil {
+			return nil, nil
+		}
+		return a.Properties.Labels, nil
+	case AllocationAnnotationProp:
+		if a.Properties == nil {
+			return nil, nil
+		}
+		return a.Properties.Annotations, nil
+	default:
+		return nil, fmt.Errorf("Allocation: StringMapProperty: invalid property name: %s", property)
+	}
+}
+
 // Clone returns a new AllocationSet with a deep copy of the given
 // AllocationSet's allocations.
 func (as *AllocationSet) Clone() *AllocationSet {
@@ -1811,7 +1893,7 @@ func (as *AllocationSet) IsEmpty() bool {
 		return true
 	}
 
-	return as.Allocations == nil || len(as.Allocations) == 0
+	return false
 }
 
 // Length returns the number of Allocations in the set
@@ -1837,6 +1919,11 @@ func (as *AllocationSet) ResetAdjustments() {
 // Resolution returns the AllocationSet's window duration
 func (as *AllocationSet) Resolution() time.Duration {
 	return as.Window.Duration()
+}
+
+// GetWindow returns the AllocationSet's window
+func (as *AllocationSet) GetWindow() Window {
+	return as.Window
 }
 
 // Set uses the given Allocation to overwrite the existing entry in the
@@ -1908,7 +1995,7 @@ func (as *AllocationSet) UTCOffset() time.Duration {
 	return time.Duration(zone) * time.Second
 }
 
-func (as *AllocationSet) accumulate(that *AllocationSet) (*AllocationSet, error) {
+func (as *AllocationSet) Accumulate(that *AllocationSet) (*AllocationSet, error) {
 	if as.IsEmpty() {
 		return that.Clone(), nil
 	}
@@ -1979,7 +2066,37 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 	var err error
 
 	for _, as := range asr.Allocations {
-		allocSet, err = allocSet.accumulate(as)
+		allocSet, err = allocSet.Accumulate(as)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return allocSet, nil
+}
+
+// NewAccumulation clones the first available AllocationSet to use as the data structure to
+// Accumulate the remaining data. This leaves the original AllocationSetRange intact.
+func (asr *AllocationSetRange) NewAccumulation() (*AllocationSet, error) {
+	// NOTE: Adding this API for consistency across SummaryAllocation and Assets, but this
+	// NOTE: implementation is almost identical to regular Accumulate(). The Accumulate() method
+	// NOTE: for Allocation returns Clone() of the input, which is required for AccumulateBy
+	// NOTE: support (unit tests are great for verifying this information).
+	var allocSet *AllocationSet
+	var err error
+
+	for _, as := range asr.Allocations {
+		if allocSet == nil {
+			allocSet = as.Clone()
+			continue
+		}
+
+		var allocSetCopy *AllocationSet = nil
+		if as != nil {
+			allocSetCopy = as.Clone()
+		}
+
+		allocSet, err = allocSet.Accumulate(allocSetCopy)
 		if err != nil {
 			return nil, err
 		}
@@ -1989,7 +2106,7 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 }
 
 // AccumulateBy sums AllocationSets based on the resolution given. The resolution given is subject to the scale used for the AllocationSets.
-// Resolutions not evenly divisible by the AllocationSetRange window durations accumulate sets until a sum greater than or equal to the resolution is met,
+// Resolutions not evenly divisible by the AllocationSetRange window durations Accumulate sets until a sum greater than or equal to the resolution is met,
 // at which point AccumulateBy will start summing from 0 until the requested resolution is met again.
 // If the requested resolution is smaller than the window of an AllocationSet then the resolution will default to the duration of a set.
 // Resolutions larger than the duration of the entire AllocationSetRange will default to the duration of the range.
@@ -1999,7 +2116,7 @@ func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*Allocati
 	var err error
 
 	for i, as := range asr.Allocations {
-		allocSet, err = allocSet.accumulate(as)
+		allocSet, err = allocSet.Accumulate(as)
 		if err != nil {
 			return nil, err
 		}

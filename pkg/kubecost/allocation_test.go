@@ -1614,6 +1614,48 @@ func TestAllocationSet_insertMatchingWindow(t *testing.T) {
 // TODO niko/etl
 //func TestNewAllocationSetRange(t *testing.T) {}
 
+func TestAllocationSetRange_AccumulateRepeat(t *testing.T) {
+	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
+	yesterday := time.Now().UTC().Truncate(day).Add(-day)
+	today := time.Now().UTC().Truncate(day)
+	tomorrow := time.Now().UTC().Truncate(day).Add(day)
+
+	a := GenerateMockAllocationSet(ago2d)
+	b := GenerateMockAllocationSet(yesterday)
+	c := GenerateMockAllocationSet(today)
+	d := GenerateMockAllocationSet(tomorrow)
+
+	asr := NewAllocationSetRange(a, b, c, d)
+
+	// Take Total Cost
+	totalCost := asr.TotalCost()
+
+	// NewAccumulation does not mutate
+	result, err := asr.NewAccumulation()
+	if err != nil {
+		t.Fatal(err)
+	}
+	asr2 := NewAllocationSetRange(result)
+
+	// Ensure Costs Match
+	if totalCost != asr2.TotalCost() {
+		t.Fatalf("Accumulated Total Cost does not match original Total Cost")
+	}
+
+	// Next NewAccumulation() call should prove that there is no mutation of inner data
+	result, err = asr.NewAccumulation()
+	if err != nil {
+		t.Fatal(err)
+	}
+	asr3 := NewAllocationSetRange(result)
+
+	// Costs should be correct, as multiple calls to NewAccumulation() should not alter
+	// the internals of the AllocationSetRange
+	if totalCost != asr3.TotalCost() {
+		t.Fatalf("Accumulated Total Cost does not match original Total Cost. %f != %f", totalCost, asr3.TotalCost())
+	}
+}
+
 func TestAllocationSetRange_Accumulate(t *testing.T) {
 	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
 	yesterday := time.Now().UTC().Truncate(day).Add(-day)
@@ -2612,6 +2654,81 @@ func TestAllocationSetRange_Minutes(t *testing.T) {
 		result := test.arg.Minutes()
 		if result != test.expected {
 			t.Errorf("%s: expected %f but got %f", test.name, test.expected, result)
+		}
+	}
+}
+
+func TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate(t *testing.T) {
+
+	today := time.Now().Round(day)
+	start := today.AddDate(0, 0, -4)
+
+	var allocationSets []*AllocationSet
+
+	for i := 0; i < 4; i++ {
+		allocationSets = append(allocationSets, GenerateMockAllocationSet(start))
+		start = start.AddDate(0, 0, 1)
+	}
+
+	var originalAllocationSets []*AllocationSet
+
+	for _, as := range allocationSets {
+		originalAllocationSets = append(originalAllocationSets, as.Clone())
+	}
+
+	asr := NewAllocationSetRange()
+	for _, as := range allocationSets {
+		asr.Append(as.Clone())
+	}
+
+	expected, err := asr.Accumulate()
+	if err != nil {
+		t.Errorf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: AllocationSetRange.Accumulate() returned an error\n")
+	}
+
+	var got *AllocationSet
+
+	for i := 0; i < len(allocationSets); i++ {
+		got, err = got.Accumulate(allocationSets[i])
+		if err != nil {
+			t.Errorf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: got.Accumulate(allocationSets[%d]) returned an error\n", i)
+		}
+	}
+
+	// compare the got and expected Allocation sets, ensure that they match
+	if len(got.Allocations) != len(expected.Allocations) {
+		t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: length of got.Allocations does not match length of expected.Allocations\n")
+	}
+	for key, a := range got.Allocations {
+		if _, ok := expected.Allocations[key]; !ok {
+			t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: got.Allocations[%s] not found in expected.Allocations\n", key)
+		}
+
+		if !a.Equal(expected.Allocations[key]) {
+			t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: got.Allocations[%s] did not match expected.Allocations[%[1]s]", key)
+		}
+	}
+
+	if len(got.ExternalKeys) != len(expected.ExternalKeys) {
+		t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: length of got.ExternalKeys does not match length of expected.ExternalKeys\n")
+	}
+
+	if len(got.IdleKeys) != len(expected.IdleKeys) {
+		t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: length of got.IdleKeys does not match length of expected.IdleKeys\n")
+	}
+
+	if !got.Window.Start().UTC().Equal(expected.Window.Start().UTC()) {
+		t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: Window.start: got:%s, expected:%s\n", got.Window.Start(), expected.Window.Start())
+	}
+	if !got.Window.End().UTC().Equal(expected.Window.End().UTC()) {
+		t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: Window.end: got:%s, expected:%s\n", got.Window.End(), expected.Window.End())
+	}
+
+	for i := range allocationSets {
+		for key, allocation := range allocationSets[i].Allocations {
+			if !allocation.Equal(originalAllocationSets[i].Allocations[key]) {
+				t.Fatalf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: allocationSet has been mutated in Accumulate; allocationSet: %d, allocation: %s\n", i, key)
+			}
 		}
 	}
 }

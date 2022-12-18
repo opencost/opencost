@@ -9,18 +9,21 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/opencost/opencost/pkg/collections"
 	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/util/atomic"
 	"github.com/opencost/opencost/pkg/util/fileutil"
 	"github.com/opencost/opencost/pkg/util/httputil"
+	"github.com/opencost/opencost/pkg/version"
 
 	golog "log"
 
 	prometheus "github.com/prometheus/client_golang/api"
 )
+
+var UserAgent = fmt.Sprintf("Opencost/%s", version.Version)
 
 //--------------------------------------------------------------------------
 //  QueryParamsDecorator
@@ -117,7 +120,7 @@ type RateLimitedPrometheusClient struct {
 	queue          collections.BlockingQueue[*workRequest]
 	decorator      QueryParamsDecorator
 	rateLimitRetry *RateLimitRetryOpts
-	outbound       *atomic.AtomicInt32
+	outbound       atomic.Int32
 	fileLogger     *golog.Logger
 }
 
@@ -140,7 +143,6 @@ func NewRateLimitedClient(
 	queryLogFile string) (prometheus.Client, error) {
 
 	queue := collections.NewBlockingQueue[*workRequest]()
-	outbound := atomic.NewAtomicInt32(0)
 
 	var logger *golog.Logger
 	if queryLogFile != "" {
@@ -172,7 +174,6 @@ func NewRateLimitedClient(
 		queue:          queue,
 		decorator:      decorator,
 		rateLimitRetry: rateLimitRetryOpts,
-		outbound:       outbound,
 		auth:           auth,
 		fileLogger:     logger,
 	}
@@ -199,7 +200,7 @@ func (rlpc *RateLimitedPrometheusClient) TotalQueuedRequests() int {
 // TotalOutboundRequests returns the total number of concurrent outbound requests, which have been
 // sent to the server and are awaiting response.
 func (rlpc *RateLimitedPrometheusClient) TotalOutboundRequests() int {
-	return int(rlpc.outbound.Get())
+	return int(rlpc.outbound.Load())
 }
 
 // Passthrough to the prometheus client API
@@ -254,7 +255,7 @@ func (rlpc *RateLimitedPrometheusClient) worker() {
 		timeInQueue := time.Since(we.start)
 
 		// Increment outbound counter
-		rlpc.outbound.Increment()
+		rlpc.outbound.Add(1)
 
 		// Execute Request
 		roundTripStart := time.Now()
@@ -298,7 +299,7 @@ func (rlpc *RateLimitedPrometheusClient) worker() {
 		}
 
 		// Decrement outbound counter
-		rlpc.outbound.Decrement()
+		rlpc.outbound.Add(-1)
 		LogQueryRequest(rlpc.fileLogger, req, timeInQueue, time.Since(roundTripStart))
 
 		// Pass back response data over channel to caller
@@ -357,19 +358,20 @@ type PrometheusClientConfig struct {
 // NewPrometheusClient creates a new rate limited client which limits by outbound concurrent requests.
 func NewPrometheusClient(address string, config *PrometheusClientConfig) (prometheus.Client, error) {
 	// may be necessary for long prometheus queries
-	pc := prometheus.Config{
-		Address: address,
-		RoundTripper: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			DialContext: (&net.Dialer{
-				Timeout:   config.Timeout,
-				KeepAlive: config.KeepAlive,
-			}).DialContext,
-			TLSHandshakeTimeout: config.TLSHandshakeTimeout,
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: config.TLSInsecureSkipVerify,
-			},
+	rt := httputil.NewUserAgentTransport(UserAgent, &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   config.Timeout,
+			KeepAlive: config.KeepAlive,
+		}).DialContext,
+		TLSHandshakeTimeout: config.TLSHandshakeTimeout,
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: config.TLSInsecureSkipVerify,
 		},
+	})
+	pc := prometheus.Config{
+		Address:      address,
+		RoundTripper: rt,
 	}
 
 	client, err := prometheus.NewClient(pc)
