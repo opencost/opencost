@@ -7,6 +7,7 @@ Thanks for your help improving the OpenCost project! There are many ways to cont
 * joining the discussion in the [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel
 * participating in the fortnightly [OpenCost Working Group](https://calendar.google.com/calendar/u/0/embed?src=c_c0f7q56e5eeod3j89bb320fvjg@group.calendar.google.com&ctz=America/Los_Angeles) meetings ([notes here](https://drive.google.com/drive/folders/1hXlcyFPePB7t3z6lyVzdxmdfrbzeT1Jz))
 * committing software via the workflow below
+* keep up with community events using our [Calendar](https://calendar.google.com/calendar/u/0/embed?src=c_c0f7q56e5eeod3j89bb320fvjg@group.calendar.google.com&ctz=America/Los_Angeles)
 
 ## Getting Help
 
