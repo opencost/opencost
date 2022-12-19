@@ -254,8 +254,12 @@ func AssetToExternalAllocation(asset Asset, aggregateBy []string, labelConfig *L
 // values will key by only those values.
 // Valid values of `aggregateBy` elements are strings which are an `AssetProperty`, and strings prefixed
 // with `"label:"`.
-func key(a Asset, aggregateBy []string) (string, error) {
+func key(a Asset, aggregateBy []string, labelConfig *LabelConfig) (string, error) {
 	var buffer strings.Builder
+
+	if labelConfig == nil {
+		labelConfig = NewLabelConfig()
+	}
 
 	if aggregateBy == nil {
 		aggregateBy = []string{
@@ -292,6 +296,16 @@ func key(a Asset, aggregateBy []string) (string, error) {
 			key = a.GetProperties().ProviderID
 		case s == string(AssetNameProp):
 			key = a.GetProperties().Name
+		case s == string(AssetDepartmentProp):
+			key = getKeyFromLabelConfig(a, labelConfig, labelConfig.DepartmentExternalLabel)
+		case s == string(AssetEnvironmentProp):
+			key = getKeyFromLabelConfig(a, labelConfig, labelConfig.EnvironmentExternalLabel)
+		case s == string(AssetOwnerProp):
+			key = getKeyFromLabelConfig(a, labelConfig, labelConfig.OwnerExternalLabel)
+		case s == string(AssetProductProp):
+			key = getKeyFromLabelConfig(a, labelConfig, labelConfig.ProductExternalLabel)
+		case s == string(AssetTeamProp):
+			key = getKeyFromLabelConfig(a, labelConfig, labelConfig.TeamExternalLabel)
 		case strings.HasPrefix(s, "label:"):
 			if labelKey := strings.TrimPrefix(s, "label:"); labelKey != "" {
 				labelVal := a.GetLabels()[labelKey]
@@ -320,8 +334,26 @@ func key(a Asset, aggregateBy []string) (string, error) {
 	return buffer.String(), nil
 }
 
+func getKeyFromLabelConfig(a Asset, labelConfig *LabelConfig, label string) string {
+	labels := a.GetLabels()
+	if labels == nil {
+		return UnallocatedSuffix
+	} else {
+		key := UnallocatedSuffix
+		labelNames := strings.Split(label, ",")
+		for _, labelName := range labelNames {
+			name := labelConfig.Sanitize(labelName)
+			if labelValue, ok := labels[name]; ok {
+				key = labelValue
+				break
+			}
+		}
+		return key
+	}
+}
+
 func GetAssetKey(a Asset, aggregateBy []string) (string, error) {
-	return key(a, aggregateBy)
+	return key(a, aggregateBy, nil)
 }
 
 func toString(a Asset) string {
@@ -2675,7 +2707,7 @@ func NewAssetSet(start, end time.Time, assets ...Asset) *AssetSet {
 	}
 
 	for _, a := range assets {
-		as.Insert(a)
+		as.Insert(a, nil)
 	}
 
 	return as
@@ -2718,7 +2750,7 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 			}
 		}
 		if insert {
-			err := aggSet.Insert(sa)
+			err := aggSet.Insert(sa, opts.LabelConfig)
 			if err != nil {
 				return err
 			}
@@ -2737,7 +2769,7 @@ func (as *AssetSet) AggregateBy(aggregateBy []string, opts *AssetAggregationOpti
 	// Insert each asset into the new set, which will be keyed by the `aggregateBy`
 	// on aggSet, resulting in aggregation.
 	for _, asset := range as.Assets {
-		err := aggSet.Insert(asset)
+		err := aggSet.Insert(asset, opts.LabelConfig)
 		if err != nil {
 			return err
 		}
@@ -2849,13 +2881,13 @@ func (as *AssetSet) End() time.Time {
 // FindMatch attempts to find a match in the AssetSet for the given Asset on
 // the provided Properties and labels. If a match is not found, FindMatch
 // returns nil and a Not Found error.
-func (as *AssetSet) FindMatch(query Asset, aggregateBy []string) (Asset, error) {
-	matchKey, err := key(query, aggregateBy)
+func (as *AssetSet) FindMatch(query Asset, aggregateBy []string, labelConfig *LabelConfig) (Asset, error) {
+	matchKey, err := key(query, aggregateBy, labelConfig)
 	if err != nil {
 		return nil, err
 	}
 	for _, asset := range as.Assets {
-		if k, err := key(asset, aggregateBy); err != nil {
+		if k, err := key(asset, aggregateBy, labelConfig); err != nil {
 			return nil, err
 		} else if k == matchKey {
 			return asset, nil
@@ -2873,7 +2905,7 @@ func (as *AssetSet) FindMatch(query Asset, aggregateBy []string) (Asset, error) 
 func (as *AssetSet) ReconciliationMatch(query Asset) (Asset, bool, error) {
 	// Full match means matching on (Category, ProviderID)
 	fullMatchProps := []string{string(AssetCategoryProp), string(AssetProviderIDProp)}
-	fullMatchKey, err := key(query, fullMatchProps)
+	fullMatchKey, err := key(query, fullMatchProps, nil)
 
 	// This should never happen because we are using enumerated Properties,
 	// but the check is here in case that changes
@@ -2883,7 +2915,7 @@ func (as *AssetSet) ReconciliationMatch(query Asset) (Asset, bool, error) {
 
 	// Partial match means matching only on (ProviderID)
 	providerIDMatchProps := []string{string(AssetProviderIDProp)}
-	providerIDMatchKey, err := key(query, providerIDMatchProps)
+	providerIDMatchKey, err := key(query, providerIDMatchProps, nil)
 
 	// This should never happen because we are using enumerated Properties,
 	// but the check is here in case that changes
@@ -2897,13 +2929,13 @@ func (as *AssetSet) ReconciliationMatch(query Asset) (Asset, bool, error) {
 		if asset.Type() == CloudAssetType {
 			continue
 		}
-		if k, err := key(asset, fullMatchProps); err != nil {
+		if k, err := key(asset, fullMatchProps, nil); err != nil {
 			return nil, false, err
 		} else if k == fullMatchKey {
 			log.DedupedInfof(10, "Asset ETL: Reconciliation[rcnw]: ReconcileRange Match: %s", fullMatchKey)
 			return asset, true, nil
 		}
-		if k, err := key(asset, providerIDMatchProps); err != nil {
+		if k, err := key(asset, providerIDMatchProps, nil); err != nil {
 			return nil, false, err
 		} else if k == providerIDMatchKey {
 			// Found a partial match. Save it until after all other options
@@ -2975,7 +3007,7 @@ func (as *AssetSet) Get(key string) (Asset, bool) {
 // Insert inserts the given Asset into the AssetSet, using the AssetSet's
 // configured Properties to determine the key under which the Asset will
 // be inserted.
-func (as *AssetSet) Insert(asset Asset) error {
+func (as *AssetSet) Insert(asset Asset, labelConfig *LabelConfig) error {
 	if as == nil {
 		return fmt.Errorf("cannot Insert into nil AssetSet")
 	}
@@ -2984,8 +3016,10 @@ func (as *AssetSet) Insert(asset Asset) error {
 		as.Assets = map[string]Asset{}
 	}
 
+	// need a label config
+
 	// Determine key into which to Insert the Asset.
-	k, err := key(asset, as.AggregationKeys)
+	k, err := key(asset, as.AggregationKeys, labelConfig)
 	if err != nil {
 		return err
 	}
@@ -3038,14 +3072,14 @@ func (as *AssetSet) Resolution() time.Duration {
 	return as.Window.Duration()
 }
 
-func (as *AssetSet) Set(asset Asset, aggregateBy []string) error {
+func (as *AssetSet) Set(asset Asset, aggregateBy []string, labelConfig *LabelConfig) error {
 	if as.IsEmpty() {
 		as.Assets = map[string]Asset{}
 	}
 
 	// Expand the window to match the AssetSet, then set it
 	asset.ExpandWindow(as.Window)
-	k, err := key(asset, aggregateBy)
+	k, err := key(asset, aggregateBy, labelConfig)
 	if err != nil {
 		return err
 	}
@@ -3113,14 +3147,14 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 	acc.AggregationKeys = as.AggregationKeys
 
 	for _, asset := range as.Assets {
-		err := acc.Insert(asset)
+		err := acc.Insert(asset, nil)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	for _, asset := range that.Assets {
-		err := acc.Insert(asset)
+		err := acc.Insert(asset, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -3240,6 +3274,7 @@ func (asr *AssetSetRange) NewAccumulation() (*AssetSet, error) {
 type AssetAggregationOptions struct {
 	SharedHourlyCosts map[string]float64
 	FilterFuncs       []AssetMatchFunc
+	LabelConfig       *LabelConfig
 }
 
 func (asr *AssetSetRange) AggregateBy(aggregateBy []string, opts *AssetAggregationOptions) error {
@@ -3326,7 +3361,7 @@ func (asr *AssetSetRange) InsertRange(that *AssetSetRange) error {
 
 		// Insert each Asset from the given set
 		for _, asset := range thatAS.Assets {
-			err = as.Insert(asset)
+			err = as.Insert(asset, nil)
 			if err != nil {
 				err = fmt.Errorf("error inserting asset: %s", err)
 				continue
