@@ -2,7 +2,7 @@ package metrics
 
 import (
 	"fmt"
-	"github.com/opencost/opencost/pkg/build"
+	"github.com/opencost/opencost/pkg/version"
 	"sync"
 
 	"github.com/kubecost/events"
@@ -32,9 +32,7 @@ func InitKubecostTelemetry(config *MetricsConfig) {
 			Help: "opencost_build_info Build information",
 		}, []string{"version", "revision"})
 
-		buildVersion := build.GetVersion()
-
-		buildInfo.WithLabelValues(buildVersion.Version, buildVersion.Revision).Set(1.0)
+		buildInfo.WithLabelValues(version.Version, version.GitCommit)
 
 		requestsCount = prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "kubecost_http_requests_total",
