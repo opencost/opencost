@@ -38,7 +38,7 @@ type ClusterInfoCollector struct {
 // collected by this Collector.
 func (cic ClusterInfoCollector) Describe(ch chan<- *prometheus.Desc) {
 	disabledMetrics := cic.metricsConfig.GetDisabledMetricsMap()
-	if _, disabled := disabledMetrics["kube_pod_annotations"]; disabled {
+	if _, disabled := disabledMetrics["kubecost_cluster_info"]; disabled {
 		return
 	}
 
@@ -49,7 +49,7 @@ func (cic ClusterInfoCollector) Describe(ch chan<- *prometheus.Desc) {
 // Collect is called by the Prometheus registry when collecting metrics.
 func (cic ClusterInfoCollector) Collect(ch chan<- prometheus.Metric) {
 	disabledMetrics := cic.metricsConfig.GetDisabledMetricsMap()
-	if _, disabled := disabledMetrics["kube_pod_annotations"]; disabled {
+	if _, disabled := disabledMetrics["kubecost_cluster_info"]; disabled {
 		return
 	}
 

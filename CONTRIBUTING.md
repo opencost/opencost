@@ -7,6 +7,7 @@ Thanks for your help improving the OpenCost project! There are many ways to cont
 * joining the discussion in the [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel
 * participating in the fortnightly [OpenCost Working Group](https://calendar.google.com/calendar/u/0/embed?src=c_c0f7q56e5eeod3j89bb320fvjg@group.calendar.google.com&ctz=America/Los_Angeles) meetings ([notes here](https://drive.google.com/drive/folders/1hXlcyFPePB7t3z6lyVzdxmdfrbzeT1Jz))
 * committing software via the workflow below
+* keep up with community events using our [Calendar](https://calendar.google.com/calendar/u/0/embed?src=c_c0f7q56e5eeod3j89bb320fvjg@group.calendar.google.com&ctz=America/Los_Angeles)
 
 ## Getting Help
 
@@ -55,12 +56,12 @@ This would expose Prometheus on port 9080 and allow setting the environment vari
 PROMETHEUS_SERVER_ENDPOINT="http://127.0.0.1:9080"
 ```
 
-If you want to run with a specific kubeconfig the environment variable `KUBECONFIG_PATH` can be used. cost-model will attempt to connect to your Kubernetes cluster in a similar fashion as kubectl so the env is not required. The order of precedence is `KUBECONFIG_PATH` > default kubeconfig file location ($HOME/.kube/config) > in cluster config
+If you want to run with a specific kubeconfig the environment variable `KUBECONFIG` can be used. cost-model will attempt to connect to your Kubernetes cluster in a similar fashion as kubectl so the env is not required. The order of precedence is `KUBECONFIG` > default kubeconfig file location ($HOME/.kube/config) > in cluster config
 
 Example:
 
 ```bash
-export KUBECONFIG_PATH=~/.kube/config
+export KUBECONFIG=~/.kube/config
 ```
 
 There are two more environment variables recommended to run locally. These should be set as the default file location used is `/var/` which usually requires more permissions than kubecost actually needs to run. They do not need to match but keeping everything together can help cleanup when no longer needed.
