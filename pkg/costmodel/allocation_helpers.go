@@ -1499,6 +1499,30 @@ func (cm *CostModel) applyNodesToPod(podMap map[podKey]*pod, nodeMap map[nodeKey
 
 			node := cm.getNodePricing(nodeMap, thisNodeKey)
 			alloc.Properties.ProviderID = node.ProviderID
+			if alloc.CPUCoreHours < 0 || alloc.CPUCoreHours > 200000 {
+				log.Warnf("CLAMPING CPU CORE HOURS TO 0 FROM NEGATIVE")
+				alloc.CPUCoreHours = 0
+			}
+			if alloc.RAMByteHours < 0 || (alloc.RAMByteHours/1024/1024/1024) > 750 {
+				log.Warnf("CLAMPING RAM BYTE HOURS TO 0 FROM NEGATIVE")
+				alloc.RAMByteHours = 0
+			}
+			if alloc.GPUHours < 0 {
+				log.Warnf("CLAMPING GPU CORE HOURS TO 0 FROM NEGATIVE")
+				alloc.GPUHours = 0
+			}
+			if node.CostPerCPUHr < 0 {
+				log.Warnf("CLAMPING CPU COST TO 0 FROM NEGATIVE")
+				node.CostPerCPUHr = 0
+			}
+			if node.CostPerRAMGiBHr < 0 {
+				log.Warnf("CLAMPING RAM COST TO 0 FROM NEGATIVE")
+				node.CostPerRAMGiBHr = 0
+			}
+			if node.CostPerGPUHr < 0 {
+				log.Warnf("CLAMPING GPU COST TO 0 FROM NEGATIVE")
+				node.CostPerGPUHr = 0
+			}
 			alloc.CPUCost = alloc.CPUCoreHours * node.CostPerCPUHr
 			alloc.RAMCost = (alloc.RAMByteHours / 1024 / 1024 / 1024) * node.CostPerRAMGiBHr
 			alloc.GPUCost = alloc.GPUHours * node.CostPerGPUHr
