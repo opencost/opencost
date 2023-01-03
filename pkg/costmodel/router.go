@@ -1398,6 +1398,47 @@ func (a *Accesses) Status(w http.ResponseWriter, r *http.Request, _ httprouter.P
 	}
 }
 
+type LogLevelRequestResponse struct {
+	Level string `json:"level"`
+}
+
+func (a *Accesses) GetLogLevel(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	level := log.GetLogLevel()
+	llrr := LogLevelRequestResponse{
+		Level: level,
+	}
+
+	body, err := json.Marshal(llrr)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("unable to retrive log level"), http.StatusInternalServerError)
+		return
+	}
+	_, err = w.Write(body)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("unable to write response: %s", body), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (a *Accesses) SetLogLevel(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	params := LogLevelRequestResponse{}
+	err := json.NewDecoder(r.Body).Decode(&params)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("unable to decode request body, error: %s", err), http.StatusBadRequest)
+		return
+	}
+
+	err = log.SetLogLevel(params.Level)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("level must be a valid log level according to zerolog; level given: %s, error: %s", params.Level, err), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 // captures the panic event in sentry
 func capturePanicEvent(err string, stack string) {
 	msg := fmt.Sprintf("Panic: %s\nStackTrace: %s\n", err, stack)
@@ -1748,6 +1789,9 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	// diagnostics
 	a.Router.GET("/diagnostics/requestQueue", a.GetPrometheusQueueState)
 	a.Router.GET("/diagnostics/prometheusMetrics", a.GetPrometheusMetrics)
+
+	a.Router.GET("/logs/level", a.GetLogLevel)
+	a.Router.POST("/logs/level", a.SetLogLevel)
 
 	a.httpServices.RegisterAll(a.Router)
 
