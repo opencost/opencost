@@ -13,6 +13,7 @@ import (
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/prom"
 	"github.com/opencost/opencost/pkg/util/timeutil"
+	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/labels"
 )
 
@@ -709,7 +710,7 @@ func applyNetworkTotals(podMap map[podKey]*pod, resNetworkTransferBytes []*prom.
 	}
 }
 
-func applyNetworkAllocation(podMap map[podKey]*pod, resNetworkGiB []*prom.QueryResult, resNetworkCostPerGiB []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey) {
+func applyNetworkAllocation(podMap map[podKey]*pod, resNetworkGiB []*prom.QueryResult, resNetworkCostPerGiB []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey, networkCostSubType string) {
 	costPerGiBByCluster := map[string]float64{}
 
 	for _, res := range resNetworkCostPerGiB {
@@ -721,6 +722,7 @@ func applyNetworkAllocation(podMap map[podKey]*pod, resNetworkGiB []*prom.QueryR
 		costPerGiBByCluster[cluster] = res.Values[0].Value
 	}
 
+	unknownNetworkTypes := []string{}
 	for _, res := range resNetworkGiB {
 		podKey, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace")
 		if err != nil {
@@ -749,9 +751,25 @@ func applyNetworkAllocation(podMap map[podKey]*pod, resNetworkGiB []*prom.QueryR
 			for _, alloc := range thisPod.Allocations {
 				gib := res.Values[0].Value / float64(len(thisPod.Allocations))
 				costPerGiB := costPerGiBByCluster[podKey.Cluster]
-				alloc.NetworkCost = gib * costPerGiB / float64(len(pods))
+				currentNetworkSubCost := gib * costPerGiB / float64(len(pods))
+				switch networkCostSubType {
+				case networkZoneCost:
+					alloc.NetworkZoneCost = currentNetworkSubCost
+				case networkRegionCost:
+					alloc.NetworkRegionCost = currentNetworkSubCost
+				case networkInternetCost:
+					alloc.NetworkInternetCost = currentNetworkSubCost
+				default:
+					if !slices.Contains(unknownNetworkTypes, networkCostSubType) {
+						unknownNetworkTypes = append(unknownNetworkTypes, networkCostSubType)
+					}
+				}
+				alloc.NetworkCost += currentNetworkSubCost
 			}
 		}
+	}
+	if len(unknownNetworkTypes) > 0 {
+		log.Warnf("CostModel.applyNetworkAllocation: unknown network subtype(s) passed to the function: %s", strings.Join(unknownNetworkTypes, ", "))
 	}
 }
 

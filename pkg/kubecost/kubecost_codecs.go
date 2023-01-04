@@ -40,7 +40,7 @@ const (
 	AssetsCodecVersion uint8 = 18
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
-	AllocationCodecVersion uint8 = 15
+	AllocationCodecVersion uint8 = 16
 
 	// AuditCodecVersion is used for any resources listed in the Audit version set
 	AuditCodecVersion uint8 = 1
@@ -700,6 +700,9 @@ func (target *Allocation) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 	buff.WriteFloat64(target.NetworkTransferBytes)       // write float64
 	buff.WriteFloat64(target.NetworkReceiveBytes)        // write float64
 	buff.WriteFloat64(target.NetworkCost)                // write float64
+	buff.WriteFloat64(target.NetworkZoneCost)            // write float64
+	buff.WriteFloat64(target.NetworkRegionCost)          // write float64
+	buff.WriteFloat64(target.NetworkInternetCost)        // write float64
 	buff.WriteFloat64(target.NetworkCostAdjustment)      // write float64
 	buff.WriteFloat64(target.LoadBalancerCost)           // write float64
 	buff.WriteFloat64(target.LoadBalancerCostAdjustment) // write float64
@@ -908,32 +911,59 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 	y := buff.ReadFloat64() // read float64
 	target.NetworkCost = y
 
-	aa := buff.ReadFloat64() // read float64
-	target.NetworkCostAdjustment = aa
+	// field version check
+	if uint8(16) <= version {
+		aa := buff.ReadFloat64() // read float64
+		target.NetworkZoneCost = aa
 
-	bb := buff.ReadFloat64() // read float64
-	target.LoadBalancerCost = bb
+	} else {
+		target.NetworkZoneCost = float64(0) // default
+	}
 
-	cc := buff.ReadFloat64() // read float64
-	target.LoadBalancerCostAdjustment = cc
+	// field version check
+	if uint8(16) <= version {
+		bb := buff.ReadFloat64() // read float64
+		target.NetworkRegionCost = bb
+
+	} else {
+		target.NetworkRegionCost = float64(0) // default
+	}
+
+	// field version check
+	if uint8(16) <= version {
+		cc := buff.ReadFloat64() // read float64
+		target.NetworkInternetCost = cc
+
+	} else {
+		target.NetworkInternetCost = float64(0) // default
+	}
+
+	dd := buff.ReadFloat64() // read float64
+	target.NetworkCostAdjustment = dd
+
+	ee := buff.ReadFloat64() // read float64
+	target.LoadBalancerCost = ee
+
+	ff := buff.ReadFloat64() // read float64
+	target.LoadBalancerCostAdjustment = ff
 
 	// --- [begin][read][alias](PVAllocations) ---
-	var dd map[PVKey]*PVAllocation
+	var gg map[PVKey]*PVAllocation
 	if buff.ReadUInt8() == uint8(0) {
-		dd = nil
+		gg = nil
 	} else {
 		// --- [begin][read][map](map[PVKey]*PVAllocation) ---
-		ff := buff.ReadInt() // map len
-		ee := make(map[PVKey]*PVAllocation, ff)
-		for i := 0; i < ff; i++ {
+		kk := buff.ReadInt() // map len
+		hh := make(map[PVKey]*PVAllocation, kk)
+		for i := 0; i < kk; i++ {
 			// --- [begin][read][struct](PVKey) ---
-			gg := &PVKey{}
+			ll := &PVKey{}
 			buff.ReadInt() // [compatibility, unused]
-			errE := gg.UnmarshalBinaryWithContext(ctx)
+			errE := ll.UnmarshalBinaryWithContext(ctx)
 			if errE != nil {
 				return errE
 			}
-			v := *gg
+			v := *ll
 			// --- [end][read][struct](PVKey) ---
 
 			var z *PVAllocation
@@ -941,60 +971,60 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 				z = nil
 			} else {
 				// --- [begin][read][struct](PVAllocation) ---
-				hh := &PVAllocation{}
+				mm := &PVAllocation{}
 				buff.ReadInt() // [compatibility, unused]
-				errF := hh.UnmarshalBinaryWithContext(ctx)
+				errF := mm.UnmarshalBinaryWithContext(ctx)
 				if errF != nil {
 					return errF
 				}
-				z = hh
+				z = mm
 				// --- [end][read][struct](PVAllocation) ---
 
 			}
-			ee[v] = z
+			hh[v] = z
 		}
-		dd = ee
+		gg = hh
 		// --- [end][read][map](map[PVKey]*PVAllocation) ---
 
 	}
-	target.PVs = PVAllocations(dd)
+	target.PVs = PVAllocations(gg)
 	// --- [end][read][alias](PVAllocations) ---
 
-	kk := buff.ReadFloat64() // read float64
-	target.PVCostAdjustment = kk
-
-	ll := buff.ReadFloat64() // read float64
-	target.RAMByteHours = ll
-
-	mm := buff.ReadFloat64() // read float64
-	target.RAMBytesRequestAverage = mm
-
 	nn := buff.ReadFloat64() // read float64
-	target.RAMBytesUsageAverage = nn
+	target.PVCostAdjustment = nn
 
 	oo := buff.ReadFloat64() // read float64
-	target.RAMCost = oo
+	target.RAMByteHours = oo
 
 	pp := buff.ReadFloat64() // read float64
-	target.RAMCostAdjustment = pp
+	target.RAMBytesRequestAverage = pp
 
 	qq := buff.ReadFloat64() // read float64
-	target.SharedCost = qq
+	target.RAMBytesUsageAverage = qq
 
 	rr := buff.ReadFloat64() // read float64
-	target.ExternalCost = rr
+	target.RAMCost = rr
+
+	ss := buff.ReadFloat64() // read float64
+	target.RAMCostAdjustment = ss
+
+	tt := buff.ReadFloat64() // read float64
+	target.SharedCost = tt
+
+	uu := buff.ReadFloat64() // read float64
+	target.ExternalCost = uu
 
 	if buff.ReadUInt8() == uint8(0) {
 		target.RawAllocationOnly = nil
 	} else {
 		// --- [begin][read][struct](RawAllocationOnlyData) ---
-		ss := &RawAllocationOnlyData{}
+		ww := &RawAllocationOnlyData{}
 		buff.ReadInt() // [compatibility, unused]
-		errG := ss.UnmarshalBinaryWithContext(ctx)
+		errG := ww.UnmarshalBinaryWithContext(ctx)
 		if errG != nil {
 			return errG
 		}
-		target.RawAllocationOnly = ss
+		target.RawAllocationOnly = ww
 		// --- [end][read][struct](RawAllocationOnlyData) ---
 
 	}
