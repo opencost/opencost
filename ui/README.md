@@ -5,8 +5,8 @@ To manually run the OpenCost UI, follow the steps below.
 
 ## Requirements
 
-* `nodejs >= 12.0.0`
-* `npm >= 7.0.0`
+* `nodejs >= 18.3.0`
+* `npm >= 8.11.0`
 
 ## Installation & Running
 To run the UI, open a terminal to the `opencost/ui/` directory (where this README is located) and run
