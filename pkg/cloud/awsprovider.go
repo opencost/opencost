@@ -5,7 +5,6 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/csv"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,6 +24,7 @@ import (
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/fileutil"
 	"github.com/opencost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 
 	awsSDK "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -1452,8 +1452,7 @@ func (aws *AWS) getAddressesForRegion(ctx context.Context, region string) (*ec2.
 	return cli.DescribeAddresses(ctx, &ec2.DescribeAddressesInput{})
 }
 
-// GetAddresses retrieves EC2 addresses
-func (aws *AWS) GetAddresses() ([]byte, error) {
+func (aws *AWS) getAllAddresses() ([]*ec2Types.Address, error) {
 	aws.ConfigureAuth() // load authentication data into env vars
 
 	addressCh := make(chan *ec2.DescribeAddressesOutput, len(awsRegions))
@@ -1509,12 +1508,30 @@ func (aws *AWS) GetAddresses() ([]byte, error) {
 		return nil, fmt.Errorf("%d error(s) retrieving addresses: %v", len(errs), errs)
 	}
 
+	return addresses, nil
+}
+
+// GetAddresses retrieves EC2 addresses
+func (aws *AWS) GetAddresses() ([]byte, error) {
+	addresses, err := aws.getAllAddresses()
+	if err != nil {
+		return nil, err
+	}
+
 	// Format the response this way to match the JSON-encoded formatting of a single response
 	// from DescribeAddresss, so that consumers can always expect AWS disk responses to have
 	// a "Addresss" key at the top level.
 	return json.Marshal(map[string][]*ec2Types.Address{
 		"Addresses": addresses,
 	})
+}
+
+func (aws *AWS) isAddressOrphaned(address *ec2Types.Address) bool {
+	if address.AssociationId != nil {
+		return false
+	}
+
+	return true
 }
 
 func (aws *AWS) getDisksForRegion(ctx context.Context, region string, maxResults int32, nextToken *string) (*ec2.DescribeVolumesOutput, error) {
@@ -1535,8 +1552,7 @@ func (aws *AWS) getDisksForRegion(ctx context.Context, region string, maxResults
 	})
 }
 
-// GetDisks returns the AWS disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
-func (aws *AWS) GetDisks() ([]byte, error) {
+func (aws *AWS) getAllDisks() ([]*ec2Types.Volume, error) {
 	aws.ConfigureAuth() // load authentication data into env vars
 
 	volumeCh := make(chan *ec2.DescribeVolumesOutput, len(awsRegions))
@@ -1602,6 +1618,16 @@ func (aws *AWS) GetDisks() ([]byte, error) {
 		return nil, fmt.Errorf("%d error(s) retrieving volumes: %v", len(errs), errs)
 	}
 
+	return volumes, nil
+}
+
+// GetDisks returns the AWS disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
+func (aws *AWS) GetDisks() ([]byte, error) {
+	volumes, err := aws.getAllDisks()
+	if err != nil {
+		return nil, err
+	}
+
 	// Format the response this way to match the JSON-encoded formatting of a single response
 	// from DescribeVolumes, so that consumers can always expect AWS disk responses to have
 	// a "Volumes" key at the top level.
@@ -1610,8 +1636,87 @@ func (aws *AWS) GetDisks() ([]byte, error) {
 	})
 }
 
-func (*AWS) GetOrphanedResources() ([]OrphanedResource, error) {
-	return nil, errors.New("not implemented")
+func (aws *AWS) isDiskOrphaned(vol *ec2Types.Volume) bool {
+	// Do not consider volume orphaned if in use
+	if vol.State == "in-use" {
+		return false
+	}
+
+	// Do not consider volume orphaned if volume is attached to any attachments
+	if len(vol.Attachments) != 0 {
+		for _, attachment := range vol.Attachments {
+			if attachment.State == "attached" {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func (aws *AWS) GetOrphanedResources() ([]OrphanedResource, error) {
+	volumes, err := aws.getAllDisks()
+	if err != nil {
+		return nil, err
+	}
+
+	addresses, err := aws.getAllAddresses()
+	if err != nil {
+		return nil, err
+	}
+
+	var orphanedResources []OrphanedResource
+
+	for _, volume := range volumes {
+		if aws.isDiskOrphaned(volume) {
+			cost := aws.findCostForDisk(volume)
+
+			var volumeSize int64
+			volumeSize = -1
+			if volume.Size != nil {
+				volumeSize = int64(*volume.Size)
+			}
+
+			or := OrphanedResource{
+				Kind:        "disk",
+				Region:      *volume.AvailabilityZone,
+				Size:        &volumeSize,
+				DiskName:    *volume.VolumeId,
+				MonthlyCost: &cost,
+			}
+
+			orphanedResources = append(orphanedResources, or)
+		}
+	}
+
+	for _, address := range addresses {
+		if aws.isAddressOrphaned(address) {
+			cost := timeutil.HoursPerMonth * 0.005
+
+			or := OrphanedResource{
+				Kind:        "address",
+				Address:     *address.PublicIp,
+				MonthlyCost: &cost,
+			}
+
+			orphanedResources = append(orphanedResources, or)
+		}
+	}
+	return orphanedResources, nil
+}
+
+func (aws *AWS) findCostForDisk(disk *ec2Types.Volume) float64 {
+	//todo: use AWS pricing
+	price := 0.04
+	if strings.Contains(string(disk.VolumeType), "ssd") {
+		price = 0.17
+	}
+	if strings.Contains(string(disk.VolumeType), "gp2") {
+		price = 0.1
+	}
+
+	cost := price * float64(*disk.Size)
+	return cost
 }
 
 // QueryAthenaPaginated executes athena query and processes results.

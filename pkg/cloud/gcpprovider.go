@@ -2,7 +2,6 @@ package cloud
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -335,7 +334,7 @@ func (gcp *GCP) ClusterManagementPricing() (string, float64, error) {
 	return gcp.clusterProvisioner, gcp.clusterManagementPrice, nil
 }
 
-func (gcp *GCP) GetAddresses() ([]byte, error) {
+func (gcp *GCP) getAllAddresses() (*compute.AddressAggregatedList, error) {
 	projID, err := gcp.metadataClient.ProjectID()
 	if err != nil {
 		return nil, err
@@ -355,11 +354,28 @@ func (gcp *GCP) GetAddresses() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	return res, nil
+}
+
+func (gcp *GCP) GetAddresses() ([]byte, error) {
+	res, err := gcp.getAllAddresses()
+	if err != nil {
+		return nil, err
+	}
+
 	return json.Marshal(res)
 }
 
-// GetDisks returns the GCP disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
-func (gcp *GCP) GetDisks() ([]byte, error) {
+func (gcp *GCP) isAddressOrphaned(address *compute.Address) bool {
+	// Do not consider address orphaned if it has more than 0 users
+	if len(address.Users) > 0 {
+		return false
+	}
+
+	return true
+}
+
+func (gcp *GCP) getAllDisks() (*compute.DiskAggregatedList, error) {
 	projID, err := gcp.metadataClient.ProjectID()
 	if err != nil {
 		return nil, err
@@ -379,12 +395,109 @@ func (gcp *GCP) GetDisks() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(res)
 
+	return res, nil
 }
 
-func (*GCP) GetOrphanedResources() ([]OrphanedResource, error) {
-	return nil, errors.New("not implemented")
+// GetDisks returns the GCP disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
+func (gcp *GCP) GetDisks() ([]byte, error) {
+	res, err := gcp.getAllDisks()
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(res)
+}
+
+func (gcp *GCP) isDiskOrphaned(disk *compute.Disk) bool {
+	// Do not consider disk orphaned if it has more than 0 users
+	if len(disk.Users) > 0 {
+		return false
+	}
+
+	// Do not consider disk orphaned if it was used within the last hour
+	threshold := time.Now().Add(time.Duration(-1) * time.Hour)
+	lastUsed, _ := time.Parse(time.RFC3339, disk.LastDetachTimestamp)
+	if threshold.Before(lastUsed) {
+		return false
+	}
+	return true
+}
+
+func (gcp *GCP) GetOrphanedResources() ([]OrphanedResource, error) {
+	disks, err := gcp.getAllDisks()
+	if err != nil {
+		return nil, err
+	}
+
+	addresses, err := gcp.getAllAddresses()
+	if err != nil {
+		return nil, err
+	}
+
+	var orphanedResources []OrphanedResource
+
+	for _, diskList := range disks.Items {
+		if len(diskList.Disks) == 0 {
+			continue
+		}
+
+		for _, disk := range diskList.Disks {
+			if gcp.isDiskOrphaned(disk) {
+				cost := gcp.findCostForDisk(disk)
+
+				or := OrphanedResource{
+					Kind:        "disk",
+					Region:      disk.Zone,
+					Description: map[string]string{},
+					Size:        &disk.SizeGb,
+					DiskName:    disk.Name,
+					MonthlyCost: &cost,
+				}
+				orphanedResources = append(orphanedResources, or)
+			}
+		}
+	}
+
+	for _, addressList := range addresses.Items {
+		if len(addressList.Addresses) == 0 {
+			continue
+		}
+
+		for _, address := range addressList.Addresses {
+			if gcp.isAddressOrphaned(address) {
+				//todo: use GCP pricing
+				cost := 0.01 * timeutil.HoursPerMonth
+
+				or := OrphanedResource{
+					Kind:   "address",
+					Region: address.Region,
+					Description: map[string]string{
+						"type": address.AddressType,
+					},
+					Address:     address.Address,
+					MonthlyCost: &cost,
+				}
+				orphanedResources = append(orphanedResources, or)
+			}
+		}
+	}
+
+	return orphanedResources, nil
+}
+
+func (gcp *GCP) findCostForDisk(disk *compute.Disk) float64 {
+	//todo: use GCP pricing
+	price := 0.04
+	if strings.Contains(disk.Type, "ssd") {
+		price = 0.17
+	}
+	if strings.Contains(disk.Type, "gp2") {
+		price = 0.1
+	}
+
+	cost := price * float64(disk.SizeGb)
+	return cost
 }
 
 // GCPPricing represents GCP pricing data for a SKU
