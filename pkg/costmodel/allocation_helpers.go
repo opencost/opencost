@@ -709,7 +709,7 @@ func applyNetworkTotals(podMap map[podKey]*pod, resNetworkTransferBytes []*prom.
 	}
 }
 
-func applyNetworkAllocation(podMap map[podKey]*pod, resNetworkGiB []*prom.QueryResult, resNetworkCostPerGiB []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey) {
+func applyNetworkAllocation(podMap map[podKey]*pod, resNetworkGiB []*prom.QueryResult, resNetworkCostPerGiB []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey, networkCostSubType string) {
 	costPerGiBByCluster := map[string]float64{}
 
 	for _, res := range resNetworkCostPerGiB {
@@ -749,7 +749,18 @@ func applyNetworkAllocation(podMap map[podKey]*pod, resNetworkGiB []*prom.QueryR
 			for _, alloc := range thisPod.Allocations {
 				gib := res.Values[0].Value / float64(len(thisPod.Allocations))
 				costPerGiB := costPerGiBByCluster[podKey.Cluster]
-				alloc.NetworkCost = gib * costPerGiB / float64(len(pods))
+				currentNetworkSubCost := gib * costPerGiB / float64(len(pods))
+				switch networkCostSubType {
+				case networkCrossZoneCost:
+					alloc.NetworkCrossZoneCost = currentNetworkSubCost
+				case networkCrossRegionCost:
+					alloc.NetworkCrossRegionCost = currentNetworkSubCost
+				case networkInternetCost:
+					alloc.NetworkInternetCost = currentNetworkSubCost
+				default:
+					log.Warnf("CostModel.applyNetworkAllocation: unknown network subtype passed to the function: %s", networkCostSubType)
+				}
+				alloc.NetworkCost += currentNetworkSubCost
 			}
 		}
 	}
