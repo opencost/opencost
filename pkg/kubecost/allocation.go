@@ -63,9 +63,9 @@ type Allocation struct {
 	NetworkTransferBytes       float64               `json:"networkTransferBytes"`
 	NetworkReceiveBytes        float64               `json:"networkReceiveBytes"`
 	NetworkCost                float64               `json:"networkCost"`
-	NetworkZoneCost            float64               `json:"networkZoneCost"`     // @bingen:field[version=16]
-	NetworkRegionCost          float64               `json:"networkRegionCost"`   // @bingen:field[version=16]
-	NetworkInternetCost        float64               `json:"networkInternetCost"` // @bingen:field[version=16]
+	NetworkCrossZoneCost       float64               `json:"networkCrossZoneCost"`   // @bingen:field[version=16]
+	NetworkCrossRegionCost     float64               `json:"networkCrossRegionCost"` // @bingen:field[version=16]
+	NetworkInternetCost        float64               `json:"networkInternetCost"`    // @bingen:field[version=16]
 	NetworkCostAdjustment      float64               `json:"networkCostAdjustment"`
 	LoadBalancerCost           float64               `json:"loadBalancerCost"`
 	LoadBalancerCostAdjustment float64               `json:"loadBalancerCostAdjustment"`
@@ -291,8 +291,8 @@ func (a *Allocation) Clone() *Allocation {
 		NetworkTransferBytes:       a.NetworkTransferBytes,
 		NetworkReceiveBytes:        a.NetworkReceiveBytes,
 		NetworkCost:                a.NetworkCost,
-		NetworkZoneCost:            a.NetworkZoneCost,
-		NetworkRegionCost:          a.NetworkRegionCost,
+		NetworkCrossZoneCost:       a.NetworkCrossZoneCost,
+		NetworkCrossRegionCost:     a.NetworkCrossRegionCost,
 		NetworkInternetCost:        a.NetworkInternetCost,
 		NetworkCostAdjustment:      a.NetworkCostAdjustment,
 		LoadBalancerCost:           a.LoadBalancerCost,
@@ -361,10 +361,10 @@ func (a *Allocation) Equal(that *Allocation) bool {
 	if !util.IsApproximately(a.NetworkCost, that.NetworkCost) {
 		return false
 	}
-	if !util.IsApproximately(a.NetworkZoneCost, that.NetworkZoneCost) {
+	if !util.IsApproximately(a.NetworkCrossZoneCost, that.NetworkCrossZoneCost) {
 		return false
 	}
-	if !util.IsApproximately(a.NetworkRegionCost, that.NetworkRegionCost) {
+	if !util.IsApproximately(a.NetworkCrossRegionCost, that.NetworkCrossRegionCost) {
 		return false
 	}
 	if !util.IsApproximately(a.NetworkInternetCost, that.NetworkInternetCost) {
@@ -786,8 +786,8 @@ func (a *Allocation) add(that *Allocation) {
 	a.GPUCost += that.GPUCost
 	a.RAMCost += that.RAMCost
 	a.NetworkCost += that.NetworkCost
-	a.NetworkZoneCost += that.NetworkZoneCost
-	a.NetworkRegionCost += that.NetworkRegionCost
+	a.NetworkCrossZoneCost += that.NetworkCrossZoneCost
+	a.NetworkCrossRegionCost += that.NetworkCrossRegionCost
 	a.NetworkInternetCost += that.NetworkInternetCost
 	a.LoadBalancerCost += that.LoadBalancerCost
 	a.SharedCost += that.SharedCost

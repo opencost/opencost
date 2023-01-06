@@ -60,9 +60,9 @@ const (
 
 // Constants for Network Cost Subtype
 const (
-	networkZoneCost     = "NetworkZoneCost"
-	networkRegionCost   = "NetworkRegionCost"
-	networkInternetCost = "NetworkInternetCost"
+	networkCrossZoneCost   = "NetworkCrossZoneCost"
+	networkCrossRegionCost = "NetworkCrossRegionCost"
+	networkInternetCost    = "NetworkInternetCost"
 )
 
 // CanCompute should return true if CostModel can act as a valid source for the
@@ -500,8 +500,8 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	applyRAMBytesUsedMax(podMap, resRAMUsageMax, podUIDKeyMap)
 	applyGPUsAllocated(podMap, resGPUsRequested, resGPUsAllocated, podUIDKeyMap)
 	applyNetworkTotals(podMap, resNetTransferBytes, resNetReceiveBytes, podUIDKeyMap)
-	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZoneCostPerGiB, podUIDKeyMap, networkZoneCost)
-	applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionCostPerGiB, podUIDKeyMap, networkRegionCost)
+	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZoneCostPerGiB, podUIDKeyMap, networkCrossZoneCost)
+	applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionCostPerGiB, podUIDKeyMap, networkCrossRegionCost)
 	applyNetworkAllocation(podMap, resNetInternetGiB, resNetInternetCostPerGiB, podUIDKeyMap, networkInternetCost)
 
 	// In the case that a two pods with the same name had different containers,

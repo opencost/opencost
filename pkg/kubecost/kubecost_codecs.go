@@ -700,8 +700,8 @@ func (target *Allocation) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 	buff.WriteFloat64(target.NetworkTransferBytes)       // write float64
 	buff.WriteFloat64(target.NetworkReceiveBytes)        // write float64
 	buff.WriteFloat64(target.NetworkCost)                // write float64
-	buff.WriteFloat64(target.NetworkZoneCost)            // write float64
-	buff.WriteFloat64(target.NetworkRegionCost)          // write float64
+	buff.WriteFloat64(target.NetworkCrossZoneCost)       // write float64
+	buff.WriteFloat64(target.NetworkCrossRegionCost)     // write float64
 	buff.WriteFloat64(target.NetworkInternetCost)        // write float64
 	buff.WriteFloat64(target.NetworkCostAdjustment)      // write float64
 	buff.WriteFloat64(target.LoadBalancerCost)           // write float64
@@ -914,19 +914,19 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 	// field version check
 	if uint8(16) <= version {
 		aa := buff.ReadFloat64() // read float64
-		target.NetworkZoneCost = aa
+		target.NetworkCrossZoneCost = aa
 
 	} else {
-		target.NetworkZoneCost = float64(0) // default
+		target.NetworkCrossZoneCost = float64(0) // default
 	}
 
 	// field version check
 	if uint8(16) <= version {
 		bb := buff.ReadFloat64() // read float64
-		target.NetworkRegionCost = bb
+		target.NetworkCrossRegionCost = bb
 
 	} else {
-		target.NetworkRegionCost = float64(0) // default
+		target.NetworkCrossRegionCost = float64(0) // default
 	}
 
 	// field version check

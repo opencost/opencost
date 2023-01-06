@@ -13,7 +13,6 @@ import (
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/prom"
 	"github.com/opencost/opencost/pkg/util/timeutil"
-	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/labels"
 )
 
@@ -722,7 +721,6 @@ func applyNetworkAllocation(podMap map[podKey]*pod, resNetworkGiB []*prom.QueryR
 		costPerGiBByCluster[cluster] = res.Values[0].Value
 	}
 
-	unknownNetworkTypes := []string{}
 	for _, res := range resNetworkGiB {
 		podKey, err := resultPodKey(res, env.GetPromClusterLabel(), "namespace")
 		if err != nil {
@@ -753,23 +751,18 @@ func applyNetworkAllocation(podMap map[podKey]*pod, resNetworkGiB []*prom.QueryR
 				costPerGiB := costPerGiBByCluster[podKey.Cluster]
 				currentNetworkSubCost := gib * costPerGiB / float64(len(pods))
 				switch networkCostSubType {
-				case networkZoneCost:
-					alloc.NetworkZoneCost = currentNetworkSubCost
-				case networkRegionCost:
-					alloc.NetworkRegionCost = currentNetworkSubCost
+				case networkCrossZoneCost:
+					alloc.NetworkCrossZoneCost = currentNetworkSubCost
+				case networkCrossRegionCost:
+					alloc.NetworkCrossRegionCost = currentNetworkSubCost
 				case networkInternetCost:
 					alloc.NetworkInternetCost = currentNetworkSubCost
 				default:
-					if !slices.Contains(unknownNetworkTypes, networkCostSubType) {
-						unknownNetworkTypes = append(unknownNetworkTypes, networkCostSubType)
-					}
+					log.Warnf("CostModel.applyNetworkAllocation: unknown network subtype passed to the function: %s", networkCostSubType)
 				}
 				alloc.NetworkCost += currentNetworkSubCost
 			}
 		}
-	}
-	if len(unknownNetworkTypes) > 0 {
-		log.Warnf("CostModel.applyNetworkAllocation: unknown network subtype(s) passed to the function: %s", strings.Join(unknownNetworkTypes, ", "))
 	}
 }
 
