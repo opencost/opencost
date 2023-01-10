@@ -339,31 +339,23 @@ func (gcp *GCP) getAllAddresses() (*compute.AddressAggregatedList, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Warnf("[NICK] - projId: %s", projID)
-
-	log.Warnf("[NICK] - getting all adds")
 
 	client, err := google.DefaultClient(oauth2.NoContext,
 		"https://www.googleapis.com/auth/compute.readonly")
 	if err != nil {
 		return nil, err
 	}
-	log.Warnf("[NICK] - got adds client")
 
 	svc, err := compute.New(client)
 	if err != nil {
 		return nil, err
 	}
-	log.Warnf("[NICK] - adds compute")
 
 	res, err := svc.Addresses.AggregatedList(projID).Do()
-	log.Warnf("[NICK] - got adds result")
 
 	if err != nil {
 		return nil, err
 	}
-
-	log.Warnf("[NICK] - returning adds")
 
 	return res, nil
 }
@@ -387,31 +379,23 @@ func (gcp *GCP) getAllDisks() (*compute.DiskAggregatedList, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Warnf("[NICK] - projId: %s", projID)
-
-	log.Warnf("[NICK] - getting all disks")
 
 	client, err := google.DefaultClient(oauth2.NoContext,
 		"https://www.googleapis.com/auth/compute.readonly")
 	if err != nil {
 		return nil, err
 	}
-	log.Warnf("[NICK] - got disks client")
 
 	svc, err := compute.New(client)
 	if err != nil {
 		return nil, err
 	}
-	log.Warnf("[NICK] - disks compute")
 
 	res, err := svc.Disks.AggregatedList(projID).Do()
-	log.Warnf("[NICK] - got disks result")
 
 	if err != nil {
 		return nil, err
 	}
-
-	log.Warnf("[NICK] - returning disks")
 
 	return res, nil
 }
@@ -515,25 +499,29 @@ func (gcp *GCP) GetOrphanedResources() ([]OrphanedResource, error) {
 }
 
 func (gcp *GCP) findCostForDisk(disk *compute.Disk) (*float64, error) {
-	//todo: use GCP pricing
-	// price := 0.04
-	// if strings.Contains(disk.Type, "ssd") {
-	// 	price = 0.17
-	// }
-	// if strings.Contains(disk.Type, "gp2") {
-	// 	price = 0.1
-	// }
-
-	key := disk.Region + "," + disk.Type
-	log.Warnf("[NICK] - key: %s", key)
-
-	priceStr := gcp.Pricing[key].PV.Cost
-	price, err := strconv.ParseFloat(priceStr, 64)
-	if err != nil {
-		return nil, err
+	//todo: use GCP pricing struct
+	price := 0.04
+	if strings.Contains(disk.Type, "ssd") {
+		price = 0.17
 	}
+	if strings.Contains(disk.Type, "gp2") {
+		price = 0.1
+	}
+	cost := price * float64(disk.SizeGb)
 
-	cost := price * timeutil.HoursPerMonth * float64(disk.SizeGb)
+	// This isn't much use but I (Nick) think its could be going down the
+	// right path. Disk region isnt returning anything (and if it did its
+	// a url, same with type). Currently the only region stored in the
+	// Pricing struct is uscentral-1, so that would need to be fixed
+	// key := disk.Region + "," + disk.Type
+
+	// priceStr := gcp.Pricing[key].PV.Cost
+	// price, err := strconv.ParseFloat(priceStr, 64)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// cost := price * timeutil.HoursPerMonth * float64(disk.SizeGb)
 	return &cost, nil
 }
 
