@@ -49,6 +49,22 @@ func InitLogging(showLogLevelSetMessage bool) {
 
 }
 
+func GetLogLevel() string {
+	return zerolog.GlobalLevel().String()
+}
+
+func SetLogLevel(l string) error {
+
+	level, err := zerolog.ParseLevel(l)
+	if err != nil {
+		return err
+	}
+
+	zerolog.SetGlobalLevel(level)
+	log.Info().Msg(fmt.Sprintf("log level set to %s.", l))
+	return nil
+}
+
 func Errorf(format string, a ...interface{}) {
 	log.Error().Msgf(format, a...)
 }

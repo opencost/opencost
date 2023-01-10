@@ -63,6 +63,9 @@ type Allocation struct {
 	NetworkTransferBytes       float64               `json:"networkTransferBytes"`
 	NetworkReceiveBytes        float64               `json:"networkReceiveBytes"`
 	NetworkCost                float64               `json:"networkCost"`
+	NetworkCrossZoneCost       float64               `json:"networkCrossZoneCost"`   // @bingen:field[version=16]
+	NetworkCrossRegionCost     float64               `json:"networkCrossRegionCost"` // @bingen:field[version=16]
+	NetworkInternetCost        float64               `json:"networkInternetCost"`    // @bingen:field[version=16]
 	NetworkCostAdjustment      float64               `json:"networkCostAdjustment"`
 	LoadBalancerCost           float64               `json:"loadBalancerCost"`
 	LoadBalancerCostAdjustment float64               `json:"loadBalancerCostAdjustment"`
@@ -288,6 +291,9 @@ func (a *Allocation) Clone() *Allocation {
 		NetworkTransferBytes:       a.NetworkTransferBytes,
 		NetworkReceiveBytes:        a.NetworkReceiveBytes,
 		NetworkCost:                a.NetworkCost,
+		NetworkCrossZoneCost:       a.NetworkCrossZoneCost,
+		NetworkCrossRegionCost:     a.NetworkCrossRegionCost,
+		NetworkInternetCost:        a.NetworkInternetCost,
 		NetworkCostAdjustment:      a.NetworkCostAdjustment,
 		LoadBalancerCost:           a.LoadBalancerCost,
 		LoadBalancerCostAdjustment: a.LoadBalancerCostAdjustment,
@@ -353,6 +359,15 @@ func (a *Allocation) Equal(that *Allocation) bool {
 		return false
 	}
 	if !util.IsApproximately(a.NetworkCost, that.NetworkCost) {
+		return false
+	}
+	if !util.IsApproximately(a.NetworkCrossZoneCost, that.NetworkCrossZoneCost) {
+		return false
+	}
+	if !util.IsApproximately(a.NetworkCrossRegionCost, that.NetworkCrossRegionCost) {
+		return false
+	}
+	if !util.IsApproximately(a.NetworkInternetCost, that.NetworkInternetCost) {
 		return false
 	}
 	if !util.IsApproximately(a.NetworkCostAdjustment, that.NetworkCostAdjustment) {
@@ -771,6 +786,9 @@ func (a *Allocation) add(that *Allocation) {
 	a.GPUCost += that.GPUCost
 	a.RAMCost += that.RAMCost
 	a.NetworkCost += that.NetworkCost
+	a.NetworkCrossZoneCost += that.NetworkCrossZoneCost
+	a.NetworkCrossRegionCost += that.NetworkCrossRegionCost
+	a.NetworkInternetCost += that.NetworkInternetCost
 	a.LoadBalancerCost += that.LoadBalancerCost
 	a.SharedCost += that.SharedCost
 	a.ExternalCost += that.ExternalCost
