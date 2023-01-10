@@ -638,7 +638,7 @@ func (k *awsKey) Features() string {
 	region, _ := util.GetRegion(k.Labels)
 
 	key := region + "," + instanceType + "," + operatingSystem
-	usageType := PreemptibleType
+	usageType := k.getUsageType(k.Labels)
 	spotKey := key + "," + usageType
 	if l, ok := k.Labels["lifecycle"]; ok && l == "EC2Spot" {
 		return spotKey
@@ -646,7 +646,17 @@ func (k *awsKey) Features() string {
 	if l, ok := k.Labels[k.SpotLabelName]; ok && l == k.SpotLabelValue {
 		return spotKey
 	}
+	if usageType == PreemptibleType {
+		return spotKey
+	}
 	return key
+}
+
+func (k *awsKey) getUsageType(labels map[string]string) string {
+	if _, ok := labels["eks.amazonaws.com/capacityType"]; ok && labels["eks.amazonaws.com/capacityType"] == "SPOT" {
+		return PreemptibleType
+	}
+	return ""
 }
 
 func (aws *AWS) PVPricing(pvk PVKey) (*PV, error) {
@@ -816,6 +826,7 @@ func (aws *AWS) DownloadPricingData() error {
 
 	inputkeys := make(map[string]bool)
 	for _, n := range nodeList {
+
 		if _, ok := n.Labels["eks.amazonaws.com/nodegroup"]; ok {
 			aws.clusterManagementPrice = 0.10
 			aws.clusterProvisioner = "EKS"
