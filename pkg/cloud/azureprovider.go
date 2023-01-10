@@ -1278,7 +1278,6 @@ func (az *Azure) GetOrphanedResources() ([]OrphanedResource, error) {
 			}
 
 			var diskSize int64
-			diskSize = -1
 			if d.DiskSizeGB != nil {
 				diskSize = int64(*d.DiskSizeGB)
 			}

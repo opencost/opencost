@@ -339,21 +339,32 @@ func (gcp *GCP) getAllAddresses() (*compute.AddressAggregatedList, error) {
 	if err != nil {
 		return nil, err
 	}
+	log.Warnf("[NICK] - projId: %s", projID)
+
+	log.Warnf("[NICK] - getting all adds")
 
 	client, err := google.DefaultClient(oauth2.NoContext,
 		"https://www.googleapis.com/auth/compute.readonly")
 	if err != nil {
 		return nil, err
 	}
+	log.Warnf("[NICK] - got adds client")
+
 	svc, err := compute.New(client)
 	if err != nil {
 		return nil, err
 	}
+	log.Warnf("[NICK] - adds compute")
+
 	res, err := svc.Addresses.AggregatedList(projID).Do()
+	log.Warnf("[NICK] - got adds result")
 
 	if err != nil {
 		return nil, err
 	}
+
+	log.Warnf("[NICK] - returning adds")
+
 	return res, nil
 }
 
@@ -367,12 +378,8 @@ func (gcp *GCP) GetAddresses() ([]byte, error) {
 }
 
 func (gcp *GCP) isAddressOrphaned(address *compute.Address) bool {
-	// Do not consider address orphaned if it has more than 0 users
-	if len(address.Users) > 0 {
-		return false
-	}
-
-	return true
+	// Consider address orphaned if it has 0 users
+	return len(address.Users) == 0
 }
 
 func (gcp *GCP) getAllDisks() (*compute.DiskAggregatedList, error) {
@@ -380,21 +387,31 @@ func (gcp *GCP) getAllDisks() (*compute.DiskAggregatedList, error) {
 	if err != nil {
 		return nil, err
 	}
+	log.Warnf("[NICK] - projId: %s", projID)
+
+	log.Warnf("[NICK] - getting all disks")
 
 	client, err := google.DefaultClient(oauth2.NoContext,
 		"https://www.googleapis.com/auth/compute.readonly")
 	if err != nil {
 		return nil, err
 	}
+	log.Warnf("[NICK] - got disks client")
+
 	svc, err := compute.New(client)
 	if err != nil {
 		return nil, err
 	}
+	log.Warnf("[NICK] - disks compute")
+
 	res, err := svc.Disks.AggregatedList(projID).Do()
+	log.Warnf("[NICK] - got disks result")
 
 	if err != nil {
 		return nil, err
 	}
+
+	log.Warnf("[NICK] - returning disks")
 
 	return res, nil
 }
@@ -409,19 +426,23 @@ func (gcp *GCP) GetDisks() ([]byte, error) {
 	return json.Marshal(res)
 }
 
-func (gcp *GCP) isDiskOrphaned(disk *compute.Disk) bool {
+func (gcp *GCP) isDiskOrphaned(disk *compute.Disk) (bool, error) {
 	// Do not consider disk orphaned if it has more than 0 users
 	if len(disk.Users) > 0 {
-		return false
+		return false, nil
 	}
 
 	// Do not consider disk orphaned if it was used within the last hour
 	threshold := time.Now().Add(time.Duration(-1) * time.Hour)
-	lastUsed, _ := time.Parse(time.RFC3339, disk.LastDetachTimestamp)
-	if threshold.Before(lastUsed) {
-		return false
+	lastUsed, err := time.Parse(time.RFC3339, disk.LastDetachTimestamp)
+	if err != nil {
+		// This can return false since errors are checked before the bool
+		return false, fmt.Errorf("error parsing time: %s", err)
 	}
-	return true
+	if threshold.Before(lastUsed) {
+		return false, nil
+	}
+	return true, nil
 }
 
 func (gcp *GCP) GetOrphanedResources() ([]OrphanedResource, error) {
@@ -443,8 +464,15 @@ func (gcp *GCP) GetOrphanedResources() ([]OrphanedResource, error) {
 		}
 
 		for _, disk := range diskList.Disks {
-			if gcp.isDiskOrphaned(disk) {
-				cost := gcp.findCostForDisk(disk)
+			isOrphaned, err := gcp.isDiskOrphaned(disk)
+			if err != nil {
+				return nil, err
+			}
+			if isOrphaned {
+				cost, err := gcp.findCostForDisk(disk)
+				if err != nil {
+					return nil, err
+				}
 
 				or := OrphanedResource{
 					Kind:        "disk",
@@ -452,7 +480,7 @@ func (gcp *GCP) GetOrphanedResources() ([]OrphanedResource, error) {
 					Description: map[string]string{},
 					Size:        &disk.SizeGb,
 					DiskName:    disk.Name,
-					MonthlyCost: &cost,
+					MonthlyCost: cost,
 				}
 				orphanedResources = append(orphanedResources, or)
 			}
@@ -486,18 +514,27 @@ func (gcp *GCP) GetOrphanedResources() ([]OrphanedResource, error) {
 	return orphanedResources, nil
 }
 
-func (gcp *GCP) findCostForDisk(disk *compute.Disk) float64 {
+func (gcp *GCP) findCostForDisk(disk *compute.Disk) (*float64, error) {
 	//todo: use GCP pricing
-	price := 0.04
-	if strings.Contains(disk.Type, "ssd") {
-		price = 0.17
-	}
-	if strings.Contains(disk.Type, "gp2") {
-		price = 0.1
+	// price := 0.04
+	// if strings.Contains(disk.Type, "ssd") {
+	// 	price = 0.17
+	// }
+	// if strings.Contains(disk.Type, "gp2") {
+	// 	price = 0.1
+	// }
+
+	key := disk.Region + "," + disk.Type
+	log.Warnf("[NICK] - key: %s", key)
+
+	priceStr := gcp.Pricing[key].PV.Cost
+	price, err := strconv.ParseFloat(priceStr, 64)
+	if err != nil {
+		return nil, err
 	}
 
-	cost := price * float64(disk.SizeGb)
-	return cost
+	cost := price * timeutil.HoursPerMonth * float64(disk.SizeGb)
+	return &cost, nil
 }
 
 // GCPPricing represents GCP pricing data for a SKU

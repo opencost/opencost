@@ -51,6 +51,9 @@ const (
 	APIPricingSource              = "Public API"
 	SpotPricingSource             = "Spot Data Feed"
 	ReservedInstancePricingSource = "Savings Plan, Reserved Instance, and Out-Of-Cluster"
+
+	InUseState    = "in-use"
+	AttachedState = "attached"
 )
 
 var (
@@ -1638,14 +1641,14 @@ func (aws *AWS) GetDisks() ([]byte, error) {
 
 func (aws *AWS) isDiskOrphaned(vol *ec2Types.Volume) bool {
 	// Do not consider volume orphaned if in use
-	if vol.State == "in-use" {
+	if vol.State == InUseState {
 		return false
 	}
 
 	// Do not consider volume orphaned if volume is attached to any attachments
 	if len(vol.Attachments) != 0 {
 		for _, attachment := range vol.Attachments {
-			if attachment.State == "attached" {
+			if attachment.State == AttachedState {
 				return false
 			}
 		}
@@ -1669,10 +1672,12 @@ func (aws *AWS) GetOrphanedResources() ([]OrphanedResource, error) {
 
 	for _, volume := range volumes {
 		if aws.isDiskOrphaned(volume) {
-			cost := aws.findCostForDisk(volume)
+			cost, err := aws.findCostForDisk(volume)
+			if err != nil {
+				return nil, err
+			}
 
 			var volumeSize int64
-			volumeSize = -1
 			if volume.Size != nil {
 				volumeSize = int64(*volume.Size)
 			}
@@ -1682,7 +1687,7 @@ func (aws *AWS) GetOrphanedResources() ([]OrphanedResource, error) {
 				Region:      *volume.AvailabilityZone,
 				Size:        &volumeSize,
 				DiskName:    *volume.VolumeId,
-				MonthlyCost: &cost,
+				MonthlyCost: cost,
 			}
 
 			orphanedResources = append(orphanedResources, or)
@@ -1705,18 +1710,37 @@ func (aws *AWS) GetOrphanedResources() ([]OrphanedResource, error) {
 	return orphanedResources, nil
 }
 
-func (aws *AWS) findCostForDisk(disk *ec2Types.Volume) float64 {
+func (aws *AWS) findCostForDisk(disk *ec2Types.Volume) (*float64, error) {
 	//todo: use AWS pricing
-	price := 0.04
-	if strings.Contains(string(disk.VolumeType), "ssd") {
-		price = 0.17
+	// price := 0.04
+	// if strings.Contains(string(disk.VolumeType), "ssd") {
+	// 	price = 0.17
+	// }
+	// if strings.Contains(string(disk.VolumeType), "gp2") {
+	// 	price = 0.1
+	// }
+	// cost := price * float64(*disk.Size)
+	// return &cost, nil
+	if disk.AvailabilityZone == nil {
+		return nil, fmt.Errorf("nil region")
 	}
-	if strings.Contains(string(disk.VolumeType), "gp2") {
-		price = 0.1
+	if disk.Size == nil {
+		return nil, fmt.Errorf("nil disk size")
 	}
 
-	cost := price * float64(*disk.Size)
-	return cost
+	class := volTypes[string(disk.VolumeType)]
+
+	key := "us-east-2" + "," + class
+
+	priceStr := aws.Pricing[key].PV.Cost
+
+	price, err := strconv.ParseFloat(priceStr, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	cost := price * timeutil.HoursPerMonth * float64(*disk.Size)
+	return &cost, nil
 }
 
 // QueryAthenaPaginated executes athena query and processes results.
