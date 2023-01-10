@@ -54,6 +54,8 @@ const (
 
 	InUseState    = "in-use"
 	AttachedState = "attached"
+
+	AWSHourlyPublicIPCost = 0.005
 )
 
 var (
@@ -1696,7 +1698,7 @@ func (aws *AWS) GetOrphanedResources() ([]OrphanedResource, error) {
 
 	for _, address := range addresses {
 		if aws.isAddressOrphaned(address) {
-			cost := timeutil.HoursPerMonth * 0.005
+			cost := AWSHourlyPublicIPCost * timeutil.HoursPerMonth
 
 			or := OrphanedResource{
 				Kind:        "address",
@@ -1711,16 +1713,7 @@ func (aws *AWS) GetOrphanedResources() ([]OrphanedResource, error) {
 }
 
 func (aws *AWS) findCostForDisk(disk *ec2Types.Volume) (*float64, error) {
-	//todo: use AWS pricing
-	// price := 0.04
-	// if strings.Contains(string(disk.VolumeType), "ssd") {
-	// 	price = 0.17
-	// }
-	// if strings.Contains(string(disk.VolumeType), "gp2") {
-	// 	price = 0.1
-	// }
-	// cost := price * float64(*disk.Size)
-	// return &cost, nil
+	//todo: use AWS pricing from all regions
 	if disk.AvailabilityZone == nil {
 		return nil, fmt.Errorf("nil region")
 	}

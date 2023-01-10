@@ -35,6 +35,14 @@ import (
 const GKE_GPU_TAG = "cloud.google.com/gke-accelerator"
 const BigqueryUpdateType = "bigqueryupdate"
 
+const (
+	GCPHourlyPublicIPCost = 0.01
+
+	GCPMonthlyBasicDiskCost = 0.04
+	GCPMonthlySSDDiskCost   = 0.17
+	GCPMonthlyGP2DiskCost   = 0.1
+)
+
 // List obtained by installing the `gcloud` CLI tool,
 // logging into gcp account, and running command
 // `gcloud compute regions list`
@@ -479,7 +487,7 @@ func (gcp *GCP) GetOrphanedResources() ([]OrphanedResource, error) {
 		for _, address := range addressList.Addresses {
 			if gcp.isAddressOrphaned(address) {
 				//todo: use GCP pricing
-				cost := 0.01 * timeutil.HoursPerMonth
+				cost := GCPHourlyPublicIPCost * timeutil.HoursPerMonth
 
 				or := OrphanedResource{
 					Kind:   "address",
@@ -500,12 +508,12 @@ func (gcp *GCP) GetOrphanedResources() ([]OrphanedResource, error) {
 
 func (gcp *GCP) findCostForDisk(disk *compute.Disk) (*float64, error) {
 	//todo: use GCP pricing struct
-	price := 0.04
+	price := GCPMonthlyBasicDiskCost
 	if strings.Contains(disk.Type, "ssd") {
-		price = 0.17
+		price = GCPMonthlySSDDiskCost
 	}
 	if strings.Contains(disk.Type, "gp2") {
-		price = 0.1
+		price = GCPMonthlyGP2DiskCost
 	}
 	cost := price * float64(disk.SizeGb)
 
