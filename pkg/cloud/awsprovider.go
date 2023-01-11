@@ -636,6 +636,9 @@ func (k *awsKey) ID() string {
 	return ""
 }
 
+// Features will return a comma seperated list of features for the given node
+// If the node has a spot label, it will be included in the list
+// Otherwise, the list include instance type, operating system, and the region
 func (k *awsKey) Features() string {
 
 	instanceType, _ := util.GetInstanceType(k.Labels)
@@ -657,8 +660,12 @@ func (k *awsKey) Features() string {
 	return key
 }
 
+// getUsageType returns the usage type of the instance
+// If the instance is a spot instance, it will return PreemptibleType
+// Otherwise returns an empty string
 func (k *awsKey) getUsageType(labels map[string]string) string {
-	if _, ok := labels["eks.amazonaws.com/capacityType"]; ok && labels["eks.amazonaws.com/capacityType"] == "SPOT" {
+	if label, ok := labels["eks.amazonaws.com/capacityType"]; ok && label == "SPOT" {
+		// We currently write out spot instances as "preemptible" in the pricing data, so these need to match
 		return PreemptibleType
 	}
 	return ""
