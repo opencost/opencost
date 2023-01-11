@@ -426,13 +426,15 @@ func (gcp *GCP) isDiskOrphaned(disk *compute.Disk) (bool, error) {
 
 	// Do not consider disk orphaned if it was used within the last hour
 	threshold := time.Now().Add(time.Duration(-1) * time.Hour)
-	lastUsed, err := time.Parse(time.RFC3339, disk.LastDetachTimestamp)
-	if err != nil {
-		// This can return false since errors are checked before the bool
-		return false, fmt.Errorf("error parsing time: %s", err)
-	}
-	if threshold.Before(lastUsed) {
-		return false, nil
+	if disk.LastDetachTimestamp != "" {
+		lastUsed, err := time.Parse(time.RFC3339, disk.LastDetachTimestamp)
+		if err != nil {
+			// This can return false since errors are checked before the bool
+			return false, fmt.Errorf("error parsing time: %s", err)
+		}
+		if threshold.Before(lastUsed) {
+			return false, nil
+		}
 	}
 	return true, nil
 }
