@@ -55,7 +55,9 @@ const (
 	InUseState    = "in-use"
 	AttachedState = "attached"
 
-	AWSHourlyPublicIPCost = 0.005
+	AWSHourlyPublicIPCost    = 0.005
+	EKSCapacityTypeLabel     = "eks.amazonaws.com/capacityType"
+	EKSCapacitySpotTypeValue = "SPOT"
 )
 
 var (
@@ -664,7 +666,7 @@ func (k *awsKey) Features() string {
 // If the instance is a spot instance, it will return PreemptibleType
 // Otherwise returns an empty string
 func (k *awsKey) getUsageType(labels map[string]string) string {
-	if label, ok := labels["eks.amazonaws.com/capacityType"]; ok && label == "SPOT" {
+	if label, ok := labels[EKSCapacityTypeLabel]; ok && label == EKSCapacitySpotTypeValue {
 		// We currently write out spot instances as "preemptible" in the pricing data, so these need to match
 		return PreemptibleType
 	}
