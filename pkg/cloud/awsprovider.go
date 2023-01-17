@@ -55,7 +55,9 @@ const (
 	InUseState    = "in-use"
 	AttachedState = "attached"
 
-	AWSHourlyPublicIPCost = 0.005
+	AWSHourlyPublicIPCost    = 0.005
+	EKSCapacityTypeLabel     = "eks.amazonaws.com/capacityType"
+	EKSCapacitySpotTypeValue = "SPOT"
 )
 
 var (
@@ -636,6 +638,9 @@ func (k *awsKey) ID() string {
 	return ""
 }
 
+// Features will return a comma seperated list of features for the given node
+// If the node has a spot label, it will be included in the list
+// Otherwise, the list include instance type, operating system, and the region
 func (k *awsKey) Features() string {
 
 	instanceType, _ := util.GetInstanceType(k.Labels)
@@ -643,7 +648,7 @@ func (k *awsKey) Features() string {
 	region, _ := util.GetRegion(k.Labels)
 
 	key := region + "," + instanceType + "," + operatingSystem
-	usageType := PreemptibleType
+	usageType := k.getUsageType(k.Labels)
 	spotKey := key + "," + usageType
 	if l, ok := k.Labels["lifecycle"]; ok && l == "EC2Spot" {
 		return spotKey
@@ -651,7 +656,21 @@ func (k *awsKey) Features() string {
 	if l, ok := k.Labels[k.SpotLabelName]; ok && l == k.SpotLabelValue {
 		return spotKey
 	}
+	if usageType == PreemptibleType {
+		return spotKey
+	}
 	return key
+}
+
+// getUsageType returns the usage type of the instance
+// If the instance is a spot instance, it will return PreemptibleType
+// Otherwise returns an empty string
+func (k *awsKey) getUsageType(labels map[string]string) string {
+	if label, ok := labels[EKSCapacityTypeLabel]; ok && label == EKSCapacitySpotTypeValue {
+		// We currently write out spot instances as "preemptible" in the pricing data, so these need to match
+		return PreemptibleType
+	}
+	return ""
 }
 
 func (aws *AWS) PVPricing(pvk PVKey) (*PV, error) {
@@ -821,6 +840,7 @@ func (aws *AWS) DownloadPricingData() error {
 
 	inputkeys := make(map[string]bool)
 	for _, n := range nodeList {
+
 		if _, ok := n.Labels["eks.amazonaws.com/nodegroup"]; ok {
 			aws.clusterManagementPrice = 0.10
 			aws.clusterProvisioner = "EKS"
