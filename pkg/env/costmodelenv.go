@@ -488,7 +488,7 @@ func GetETLResolution() time.Duration {
 	secs := time.Duration(GetInt64(ETLResolutionSeconds, 300))
 	return secs * time.Second
 }
- 
+
 func LegacyExternalCostsAPIDisabled() bool {
 	return GetBool(LegacyExternalAPIDisabledVar, false)
 }
