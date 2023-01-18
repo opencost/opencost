@@ -478,9 +478,19 @@ func GetETLMaxPrometheusQueryDuration() time.Duration {
 	mins := time.Duration(GetInt64(ETLMaxPrometheusQueryDurationMinutes, int64(dayMins)))
 	return mins * time.Minute
 }
-
+ 
 func LegacyExternalCostsAPIDisabled() bool {
 	return GetBool(LegacyExternalAPIDisabledVar, false)
+}
+
+// GetETLResolution determines the resolution of ETL queries. The smaller the
+// duration, the higher the resolution; the higher the resolution, the more
+// accurate the query results, but the more computationally expensive.
+func GetETLResolution() time.Duration {
+	// Use the configured ETL resolution, or default to
+	// 5m (i.e. 300s)
+	secs := time.Duration(GetInt64(ETLResolutionSeconds, 300))
+	return secs * time.Second
 }
 
 // GetPromClusterLabel returns the environemnt variable value for PromClusterIDLabel
