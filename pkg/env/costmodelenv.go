@@ -477,6 +477,7 @@ func GetETLMaxPrometheusQueryDuration() time.Duration {
 	dayMins := 60 * 24
 	mins := time.Duration(GetInt64(ETLMaxPrometheusQueryDurationMinutes, int64(dayMins)))
 	return mins * time.Minute
+}
 
 // GetETLResolution determines the resolution of ETL queries. The smaller the
 // duration, the higher the resolution; the higher the resolution, the more
@@ -486,8 +487,6 @@ func GetETLResolution() time.Duration {
 	// 5m (i.e. 300s)
 	secs := time.Duration(GetInt64(ETLResolutionSeconds, 300))
 	return secs * time.Second
-}
-
 }
  
 func LegacyExternalCostsAPIDisabled() bool {
