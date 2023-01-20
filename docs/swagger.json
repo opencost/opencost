@@ -7,13 +7,13 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "0.1",
+    "version": "0.1"
   },
   "servers": [
     {
     "url": "http://localhost:9003",
     "description": "kubectl port-forward --namespace opencost service/opencost 9003"
-  },
+  }
   ],
   "paths": {
     "/allocation/compute": {
@@ -108,7 +108,7 @@
             "container": {
               "summary": "Aggregates by the containers present in the cluster",
               "value": "container"
-            },
+            }
           }
         },
           {
@@ -133,7 +133,7 @@
             "1d": {
               "summary": "Daily steps over the duration of the window (ie. `lastweek` or `month`",
               "value": "1d"
-            },
+            }
           }
         },
           {
@@ -154,14 +154,13 @@
             "30m": {
               "summary": "Less accurate, faster query. Not recommended for short-lived workloads.",
               "value": "30m"
-            },
+            }
           }
-        },
-
+        }
         ],
         "responses": {
           "200": {
-            "description": "Auto generated using Swagger Inspector",
+            "description": "Success with `window` of `2d` and `aggregate` by `namespace`",
             "content": {
               "application/json": {
                 "schema": {
@@ -169,7 +168,7 @@
                 },
                 "examples": {
                   "0": {
-                    "value": "{\"code\":200,\"status\":\"success\",\"data\":[{\"__unallocated__\":{\"name\":\"__unallocated__\",\"properties\":{\"cluster\":\"cluster-one\"},\"window\":{\"start\":\"2023-01-19T00:00:00Z\",\"end\":\"2023-01-20T00:00:00Z\"},\"start\":\"2023-01-19T00:00:00Z\",\"end\":\"2023-01-19T06:16:00Z\",\"minutes\":376.000000,\"cpuCores\":0.450000,\"cpuCoreRequestAverage\":0.450000,\"cpuCoreUsageAverage\":0.002906,\"cpuCoreHours\":2.820000,\"cpuCost\":0.053402,\"cpuCostAdjustment\":0.000000,\"cpuEfficiency\":0.006458,\"gpuCount\":0.000000,\"gpuHours\":0.000000,\"gpuCost\":0.000000,\"gpuCostAdjustment\":0.000000,\"networkTransferBytes\":0.000000,\"networkReceiveBytes\":0.000000,\"networkCost\":0.000000,\"networkCostAdjustment\":0.000000,\"loadBalancerCost\":0.000000,\"loadBalancerCostAdjustment\":0.000000,\"pvBytes\":0.000000,\"pvByteHours\":0.000000,\"pvCost\":0.000000,\"pvs\":null,\"pvCostAdjustment\":0.000000,\"ramBytes\":146800640.000000,\"ramByteRequestAverage\":146800640.000000,\"ramByteUsageAverage\":167022404.312668,\"ramByteHours\":919950677.333333,\"ramCost\":0.002174,\"ramCostAdjustment\":0.000000,\"ramEfficiency\":1.137750,\"sharedCost\":0.000000,\"externalCost\":0.000000,\"totalCost\":0.055577,\"totalEfficiency\":0.050720,\"rawAllocationOnly\":null},\"app=opencost\":{\"name\":\"app=opencost\",\"properties\":{\"cluster\":\"cluster-one\",\"node\":\"ip-192-168-20-42.ap-southeast-2.compute.internal\",\"controller\":\"opencost\",\"controllerKind\":\"deployment\",\"namespace\":\"opencost\",\"pod\":\"opencost-75dc7dcc49-xdx5t\",\"providerID\":\"i-064548f89b9d35c11\"},\"window\":{\"start\":\"2023-01-19T00:00:00Z\",\"end\":\"2023-01-20T00:00:00Z\"},\"start\":\"2023-01-19T00:00:00Z\",\"end\":\"2023-01-19T06:16:00Z\",\"minutes\":376.000000,\"cpuCores\":0.020000,\"cpuCoreRequestAverage\":0.020000,\"cpuCoreUsageAverage\":0.000535,\"cpuCoreHours\":0.125333,\"cpuCost\":0.002373,\"cpuCostAdjustment\":0.000000,\"cpuEfficiency\":0.026742,\"gpuCount\":0.000000,\"gpuHours\":0.000000,\"gpuCost\":0.000000,\"gpuCostAdjustment\":0.000000,\"networkTransferBytes\":0.000000,\"networkReceiveBytes\":0.000000,\"networkCost\":0.000000,\"networkCostAdjustment\":0.000000,\"loadBalancerCost\":0.000000,\"loadBalancerCostAdjustment\":0.000000,\"pvBytes\":0.000000,\"pvByteHours\":0.000000,\"pvCost\":0.000000,\"pvs\":null,\"pvCostAdjustment\":0.000000,\"ramBytes\":110000000.000000,\"ramByteRequestAverage\":110000000.000000,\"ramByteUsageAverage\":35962990.404313,\"ramByteHours\":689333333.333333,\"ramCost\":0.001629,\"ramCostAdjustment\":0.000000,\"ramEfficiency\":0.326936,\"sharedCost\":0.000000,\"externalCost\":0.000000,\"totalCost\":0.004003,\"totalEfficiency\":0.148938,\"rawAllocationOnly\":null},\"app=prometheus\":{\"name\":\"app=prometheus\",\"properties\":{\"cluster\":\"cluster-one\",\"node\":\"ip-192-168-94-25.ap-southeast-2.compute.internal\",\"controller\":\"my-prometheus-server\",\"controllerKind\":\"deployment\",\"namespace\":\"prometheus\",\"pod\":\"my-prometheus-server-57787bd6bf-f9lkd\",\"providerID\":\"i-06555520a3af0b7f2\"},\"window\":{\"start\":\"2023-01-19T00:00:00Z\",\"end\":\"2023-01-20T00:00:00Z\"},\"start\":\"2023-01-19T00:00:00Z\",\"end\":\"2023-01-19T06:16:00Z\",\"minutes\":376.000000,\"cpuCores\":0.000000,\"cpuCoreRequestAverage\":0.000000,\"cpuCoreUsageAverage\":0.001790,\"cpuCoreHours\":0.000000,\"cpuCost\":0.000000,\"cpuCostAdjustment\":0.000000,\"cpuEfficiency\":0.000000,\"gpuCount\":0.000000,\"gpuHours\":0.000000,\"gpuCost\":0.000000,\"gpuCostAdjustment\":0.000000,\"networkTransferBytes\":0.000000,\"networkReceiveBytes\":0.000000,\"networkCost\":0.000000,\"networkCostAdjustment\":0.000000,\"loadBalancerCost\":0.000000,\"loadBalancerCostAdjustment\":0.000000,\"pvBytes\":0.000000,\"pvByteHours\":0.000000,\"pvCost\":0.000000,\"pvs\":null,\"pvCostAdjustment\":0.000000,\"ramBytes\":0.000000,\"ramByteRequestAverage\":0.000000,\"ramByteUsageAverage\":241884819.665768,\"ramByteHours\":0.000000,\"ramCost\":0.000000,\"ramCostAdjustment\":0.000000,\"ramEfficiency\":0.000000,\"sharedCost\":0.000000,\"externalCost\":0.000000,\"totalCost\":0.000000,\"totalEfficiency\":0.000000,\"rawAllocationOnly\":null}}]}"
+                    "value": "{\"code\":200,\"status\":\"success\",\"data\":[{\"kube-system\":{\"name\":\"kube-system\",\"properties\":{\"cluster\":\"cluster-one\",\"namespace\":\"kube-system\"},\"window\":{\"start\":\"2023-01-18T11:38:45Z\",\"end\":\"2023-01-20T11:38:45Z\"},\"start\":\"2023-01-18T11:38:45Z\",\"end\":\"2023-01-20T11:38:00Z\",\"minutes\":2879.235705,\"cpuCores\":0.449881,\"cpuCoreRequestAverage\":0.449881,\"cpuCoreUsageAverage\":0.009417,\"cpuCoreHours\":21.588536,\"cpuCost\":0.408822,\"cpuCostAdjustment\":0.000000,\"cpuEfficiency\":0.020932,\"gpuCount\":0.000000,\"gpuHours\":0.000000,\"gpuCost\":0.000000,\"gpuCostAdjustment\":0.000000,\"networkTransferBytes\":0.000000,\"networkReceiveBytes\":0.000000,\"networkCost\":0.000000,\"networkCostAdjustment\":0.000000,\"loadBalancerCost\":0.000000,\"loadBalancerCostAdjustment\":0.000000,\"pvBytes\":0.000000,\"pvByteHours\":0.000000,\"pvCost\":0.000000,\"pvs\":null,\"pvCostAdjustment\":0.000000,\"ramBytes\":146761671.651553,\"ramByteRequestAverage\":146761671.651553,\"ramByteUsageAverage\":125495250.508328,\"ramByteHours\":7042690751.326794,\"ramCost\":0.016647,\"ramCostAdjustment\":0.000000,\"ramEfficiency\":0.855096,\"sharedCost\":0.000000,\"externalCost\":0.000000,\"totalCost\":0.425469,\"totalEfficiency\":0.053569,\"rawAllocationOnly\":null},\"opencost\":{\"name\":\"opencost\",\"properties\":{\"cluster\":\"cluster-one\",\"node\":\"ip-192-168-20-42.ap-southeast-2.compute.internal\",\"controller\":\"opencost\",\"controllerKind\":\"deployment\",\"namespace\":\"opencost\",\"pod\":\"opencost-75dc7dcc49-xdx5t\",\"providerID\":\"i-064548f89b9d35c11\"},\"window\":{\"start\":\"2023-01-18T11:38:45Z\",\"end\":\"2023-01-20T11:38:45Z\"},\"start\":\"2023-01-18T11:38:45Z\",\"end\":\"2023-01-20T11:38:00Z\",\"minutes\":2879.235705,\"cpuCores\":0.019995,\"cpuCoreRequestAverage\":0.019995,\"cpuCoreUsageAverage\":0.001821,\"cpuCoreHours\":0.959490,\"cpuCost\":0.018170,\"cpuCostAdjustment\":0.000000,\"cpuEfficiency\":0.091055,\"gpuCount\":0.000000,\"gpuHours\":0.000000,\"gpuCost\":0.000000,\"gpuCostAdjustment\":0.000000,\"networkTransferBytes\":0.000000,\"networkReceiveBytes\":0.000000,\"networkCost\":0.000000,\"networkCostAdjustment\":0.000000,\"loadBalancerCost\":0.000000,\"loadBalancerCostAdjustment\":0.000000,\"pvBytes\":0.000000,\"pvByteHours\":0.000000,\"pvCost\":0.000000,\"pvs\":null,\"pvCostAdjustment\":0.000000,\"ramBytes\":109970800.411162,\"ramByteRequestAverage\":109970800.411162,\"ramByteUsageAverage\":35525920.971352,\"ramByteHours\":5277197583.375299,\"ramCost\":0.012474,\"ramCostAdjustment\":0.000000,\"ramEfficiency\":0.323049,\"sharedCost\":0.000000,\"externalCost\":0.000000,\"totalCost\":0.030644,\"totalEfficiency\":0.185490,\"rawAllocationOnly\":null},\"prometheus\":{\"name\":\"prometheus\",\"properties\":{\"cluster\":\"cluster-one\",\"namespace\":\"prometheus\"},\"window\":{\"start\":\"2023-01-18T11:38:45Z\",\"end\":\"2023-01-20T11:38:45Z\"},\"start\":\"2023-01-18T11:38:45Z\",\"end\":\"2023-01-20T11:38:00Z\",\"minutes\":2879.235705,\"cpuCores\":0.000000,\"cpuCoreRequestAverage\":0.000000,\"cpuCoreUsageAverage\":0.007793,\"cpuCoreHours\":0.000000,\"cpuCost\":0.000000,\"cpuCostAdjustment\":0.000000,\"cpuEfficiency\":0.000000,\"gpuCount\":0.000000,\"gpuHours\":0.000000,\"gpuCost\":0.000000,\"gpuCostAdjustment\":0.000000,\"networkTransferBytes\":0.000000,\"networkReceiveBytes\":0.000000,\"networkCost\":0.000000,\"networkCostAdjustment\":0.000000,\"loadBalancerCost\":0.000000,\"loadBalancerCostAdjustment\":0.000000,\"pvBytes\":0.000000,\"pvByteHours\":0.000000,\"pvCost\":0.000000,\"pvs\":null,\"pvCostAdjustment\":0.000000,\"ramBytes\":0.000000,\"ramByteRequestAverage\":0.000000,\"ramByteUsageAverage\":287770105.329488,\"ramByteHours\":0.000000,\"ramCost\":0.000000,\"ramCostAdjustment\":0.000000,\"ramEfficiency\":0.000000,\"sharedCost\":0.000000,\"externalCost\":0.000000,\"totalCost\":0.000000,\"totalEfficiency\":0.000000,\"rawAllocationOnly\":null}}]}"
                   }
                 }
               }
@@ -192,7 +191,7 @@
             "items": {
               "type": "object",
               "properties": {
-                "app=prometheus": {
+                "opencost": {
                   "type": "object",
                   "properties": {
                     "cpuCoreHours": {
@@ -344,7 +343,7 @@
                     }
                   }
                 },
-                "app=opencost": {
+                "kube-system": {
                   "type": "object",
                   "properties": {
                     "cpuCoreHours": {
@@ -468,22 +467,7 @@
                         "cluster": {
                           "type": "string"
                         },
-                        "node": {
-                          "type": "string"
-                        },
-                        "controller": {
-                          "type": "string"
-                        },
-                        "pod": {
-                          "type": "string"
-                        },
-                        "providerID": {
-                          "type": "string"
-                        },
                         "namespace": {
-                          "type": "string"
-                        },
-                        "controllerKind": {
                           "type": "string"
                         }
                       }
@@ -496,7 +480,7 @@
                     }
                   }
                 },
-                "__unallocated__": {
+                "prometheus": {
                   "type": "object",
                   "properties": {
                     "cpuCoreHours": {
@@ -618,6 +602,9 @@
                       "type": "object",
                       "properties": {
                         "cluster": {
+                          "type": "string"
+                        },
+                        "namespace": {
                           "type": "string"
                         }
                       }
