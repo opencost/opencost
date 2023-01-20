@@ -69,14 +69,48 @@
           {
           "name": "aggregate",
           "in": "query",
+          "description": "Field by which to aggregate the results. Accepts: `cluster`, `namespace`, `controllerKind`, `controller`, `service`, `label:<name>`, and `annotation:<name>`. Also accepts comma-separated lists for multi-aggregation, like `namespace,label:app`.",
           "required": false,
           "style": "form",
           "explode": true,
           "schema": {
             "type": "string"
           },
-          "example": "label%3Aapp"
-        }
+          "examples": {
+            "cluster": {
+              "summary": "Aggregates by the cluster.",
+              "value": "cluster"
+            },
+            "node": {
+              "summary": "Aggregates by the compute nodes in the cluster.",
+              "value": "node"
+            },
+            "namespace": {
+              "summary": "Aggregates by the namespaces in the cluster.",
+              "value": "namespace"
+            },
+            "controllerKind": {
+              "summary": "Aggregates by the kinds of controllers present in the cluster.",
+              "value": "controllerKind"
+            },
+            "controller": {
+              "summary": "Aggregates by the individual controllers within the cluster.",
+              "value": "controller"
+            },
+            "service": {
+              "summary": "Aggregates by the services within the cluster.",
+              "value": "service"
+            },
+            "pod": {
+              "summary": "Aggregates by the individual pods within the cluster",
+              "value": "pod"
+            },
+            "container": {
+              "summary": "Aggregates by the containers present in the cluster",
+              "value": "container"
+            },
+          }
+        },
         ],
         "responses": {
           "200": {
