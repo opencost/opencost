@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/opencost/opencost/pkg/metrics"
 
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
@@ -66,17 +66,8 @@ var (
 	provIdRx      = regexp.MustCompile("aws:///([^/]+)/([^/]+)")
 	usageTypeRegx = regexp.MustCompile(".*(-|^)(EBS.+)")
 	versionRx     = regexp.MustCompile("^#Version: (\\d+)\\.\\d+$")
-
-	savingsPlanFetchStatus prometheus.Gauge
 )
 
-func init() {
-	savingsPlanFetchStatus = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "opencost_aws_savings_plan_fetch_status",
-		Help: "opencost_aws_savings_plan_fetch_status is 1 if savings plan data was fetched 0 if there was an error",
-	})
-	prometheus.MustRegister(savingsPlanFetchStatus)
-}
 func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 
 	sources := make(map[string]*PricingSource)
@@ -912,10 +903,10 @@ func (aws *AWS) DownloadPricingData() error {
 	if !aws.SavingsPlanDataRunning {
 		err = aws.GetSavingsPlanDataFromAthena()
 		if err != nil {
-			savingsPlanFetchStatus.Set(0)
+			metrics.AwsSavingsPlanFetchStatus.Set(0)
 			log.Errorf("Failed to lookup savings plan data: %s", err.Error())
 		} else {
-			savingsPlanFetchStatus.Set(1)
+			metrics.AwsSavingsPlanFetchStatus.Set(1)
 			go func() {
 				defer errs.HandlePanic()
 				aws.SavingsPlanDataRunning = true
@@ -925,9 +916,9 @@ func (aws *AWS) DownloadPricingData() error {
 					err := aws.GetSavingsPlanDataFromAthena()
 					if err != nil {
 						log.Infof("Error updating Savings Plan data: %s", err.Error())
-						savingsPlanFetchStatus.Set(0)
+						metrics.AwsSavingsPlanFetchStatus.Set(0)
 					} else {
-						savingsPlanFetchStatus.Set(1)
+						metrics.AwsSavingsPlanFetchStatus.Set(1)
 					}
 				}
 			}()
