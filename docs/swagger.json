@@ -112,6 +112,31 @@
           }
         },
           {
+          "name": "step",
+          "in": "query",
+          "description": "Duration of a single allocation set. If unspecified, this defaults to the window, so that you receive exactly one set for the entire window. If specified, it works chronologically backward, querying in durations of step until the full window is covered. Default is `window`",
+          "required": false,
+          "style": "form",
+          "explode": true,
+          "schema": {
+            "type": "string"
+          },
+          "examples": {
+            "30m": {
+              "summary": "30 minute steps over the duration of the window.",
+              "value": "30m"
+            },
+            "2h": {
+              "summary": "2 hour steps over the duration of the window",
+              "value": "2h"
+            },
+            "1d": {
+              "summary": "Daily steps over the duration of the window (ie. `lastweek` or `month`",
+              "value": "1d"
+            },
+          }
+        },
+          {
           "name": "resolution",
           "in": "query",
           "description": "Duration to use as resolution in Prometheus queries. Smaller values (i.e. higher resolutions) will provide better accuracy, but worse performance (i.e. slower query time, higher memory use). Larger values (i.e. lower resolutions) will perform better, but at the expense of lower accuracy for short-running workloads. Default is `1m`",
@@ -127,7 +152,7 @@
               "value": "1m"
             },
             "30m": {
-              "summary": "Less accurate, faster query. Not recommended for short-lived workloads ",
+              "summary": "Less accurate, faster query. Not recommended for short-lived workloads.",
               "value": "30m"
             },
           }
