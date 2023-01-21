@@ -1282,13 +1282,15 @@ func (az *Azure) GetOrphanedResources() ([]OrphanedResource, error) {
 				diskSize = int64(*d.DiskSizeGB)
 			}
 
+			desc := map[string]string{}
+			for k, v := range d.Tags {
+				desc[k] = *v
+			}
+
 			or := OrphanedResource{
-				Kind:   "disk",
-				Region: diskRegion,
-				Description: map[string]string{
-					"diskState":   string(d.DiskState),
-					"timeCreated": d.TimeCreated.String(),
-				},
+				Kind:        "disk",
+				Region:      diskRegion,
+				Description: desc,
 				Size:        &diskSize,
 				DiskName:    diskName,
 				MonthlyCost: &cost,
