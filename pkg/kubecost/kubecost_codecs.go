@@ -33,9 +33,6 @@ const (
 )
 
 const (
-	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 17
-
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
 	AssetsCodecVersion uint8 = 18
 
@@ -50,6 +47,9 @@ const (
 
 	// CloudCostItemCodecVersion is used for any resources listed in the CloudCostItem version set
 	CloudCostItemCodecVersion uint8 = 1
+
+	// DefaultCodecVersion is used for any resources listed in the Default version set
+	DefaultCodecVersion uint8 = 17
 )
 
 //--------------------------------------------------------------------------
@@ -4715,7 +4715,7 @@ func (target *CloudCostAggregate) MarshalBinaryWithContext(ctx *EncodingContext)
 
 	buff.WriteFloat64(target.KubernetesPercent) // write float64
 	buff.WriteFloat64(target.Cost)              // write float64
-	buff.WriteFloat64(target.Credit)            // write float64
+	buff.WriteFloat64(target.NetCost)           // write float64
 	return nil
 }
 
@@ -4790,7 +4790,7 @@ func (target *CloudCostAggregate) UnmarshalBinaryWithContext(ctx *DecodingContex
 	target.Cost = c
 
 	d := buff.ReadFloat64() // read float64
-	target.Credit = d
+	target.NetCost = d
 
 	return nil
 }
@@ -4842,16 +4842,16 @@ func (target *CloudCostAggregateProperties) MarshalBinaryWithContext(ctx *Encodi
 		buff.WriteString(target.Provider) // write string
 	}
 	if ctx.IsStringTable() {
-		b := ctx.Table.AddOrGet(target.Account)
+		b := ctx.Table.AddOrGet(target.WorkGroupID)
 		buff.WriteInt(b) // write table index
 	} else {
-		buff.WriteString(target.Account) // write string
+		buff.WriteString(target.WorkGroupID) // write string
 	}
 	if ctx.IsStringTable() {
-		c := ctx.Table.AddOrGet(target.Project)
+		c := ctx.Table.AddOrGet(target.BillingID)
 		buff.WriteInt(c) // write table index
 	} else {
-		buff.WriteString(target.Project) // write string
+		buff.WriteString(target.BillingID) // write string
 	}
 	if ctx.IsStringTable() {
 		d := ctx.Table.AddOrGet(target.Service)
@@ -4940,7 +4940,7 @@ func (target *CloudCostAggregateProperties) UnmarshalBinaryWithContext(ctx *Deco
 		e = buff.ReadString() // read string
 	}
 	d := e
-	target.Account = d
+	target.WorkGroupID = d
 
 	var h string
 	if ctx.IsStringTable() {
@@ -4950,7 +4950,7 @@ func (target *CloudCostAggregateProperties) UnmarshalBinaryWithContext(ctx *Deco
 		h = buff.ReadString() // read string
 	}
 	g := h
-	target.Project = g
+	target.BillingID = g
 
 	var m string
 	if ctx.IsStringTable() {
@@ -5469,8 +5469,8 @@ func (target *CloudCostItem) MarshalBinaryWithContext(ctx *EncodingContext) (err
 	}
 	// --- [end][write][struct](Window) ---
 
-	buff.WriteFloat64(target.Cost)   // write float64
-	buff.WriteFloat64(target.Credit) // write float64
+	buff.WriteFloat64(target.Cost)    // write float64
+	buff.WriteFloat64(target.NetCost) // write float64
 	return nil
 }
 
@@ -5555,7 +5555,7 @@ func (target *CloudCostItem) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	target.Cost = d
 
 	e := buff.ReadFloat64() // read float64
-	target.Credit = e
+	target.NetCost = e
 
 	return nil
 }
@@ -5613,16 +5613,16 @@ func (target *CloudCostItemProperties) MarshalBinaryWithContext(ctx *EncodingCon
 		buff.WriteString(target.Provider) // write string
 	}
 	if ctx.IsStringTable() {
-		c := ctx.Table.AddOrGet(target.Account)
+		c := ctx.Table.AddOrGet(target.WorkGroupID)
 		buff.WriteInt(c) // write table index
 	} else {
-		buff.WriteString(target.Account) // write string
+		buff.WriteString(target.WorkGroupID) // write string
 	}
 	if ctx.IsStringTable() {
-		d := ctx.Table.AddOrGet(target.Project)
+		d := ctx.Table.AddOrGet(target.BillingID)
 		buff.WriteInt(d) // write table index
 	} else {
-		buff.WriteString(target.Project) // write string
+		buff.WriteString(target.BillingID) // write string
 	}
 	if ctx.IsStringTable() {
 		e := ctx.Table.AddOrGet(target.Service)
@@ -5748,7 +5748,7 @@ func (target *CloudCostItemProperties) UnmarshalBinaryWithContext(ctx *DecodingC
 		h = buff.ReadString() // read string
 	}
 	g := h
-	target.Account = g
+	target.WorkGroupID = g
 
 	var m string
 	if ctx.IsStringTable() {
@@ -5758,7 +5758,7 @@ func (target *CloudCostItemProperties) UnmarshalBinaryWithContext(ctx *DecodingC
 		m = buff.ReadString() // read string
 	}
 	l := m
-	target.Project = l
+	target.BillingID = l
 
 	var p string
 	if ctx.IsStringTable() {

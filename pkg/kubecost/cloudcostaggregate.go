@@ -11,33 +11,33 @@ import (
 )
 
 const (
-	CloudCostAccountProp  string = "account"
-	CloudCostProjectProp  string = "project"
-	CloudCostProviderProp string = "provider"
-	CloudCostServiceProp  string = "service"
-	CloudCostLabelProp    string = "label"
+	CloudCostBillingIDProp   string = "billingID"
+	CloudCostWorkGroupIDProp string = "workGroupID"
+	CloudCostProviderProp    string = "provider"
+	CloudCostServiceProp     string = "service"
+	CloudCostLabelProp       string = "label"
 )
 
 // CloudCostAggregateProperties unique property set for CloudCostAggregate within a window
 type CloudCostAggregateProperties struct {
-	Provider   string `json:"provider"`
-	Account    string `json:"account"`
-	Project    string `json:"project"`
-	Service    string `json:"service"`
-	LabelValue string `json:"label"`
+	Provider    string `json:"provider"`
+	WorkGroupID string `json:"workGroupID"`
+	BillingID   string `json:"billingID"`
+	Service     string `json:"service"`
+	LabelValue  string `json:"label"`
 }
 
 func (ccap CloudCostAggregateProperties) Equal(that CloudCostAggregateProperties) bool {
 	return ccap.Provider == that.Provider &&
-		ccap.Account == that.Account &&
-		ccap.Project == that.Project &&
+		ccap.WorkGroupID == that.WorkGroupID &&
+		ccap.BillingID == that.BillingID &&
 		ccap.Service == that.Service &&
 		ccap.LabelValue == that.LabelValue
 }
 
 func (ccap CloudCostAggregateProperties) Key(props []string) string {
 	if len(props) == 0 {
-		return fmt.Sprintf("%s/%s/%s/%s/%s", ccap.Provider, ccap.Account, ccap.Project, ccap.Service, ccap.LabelValue)
+		return fmt.Sprintf("%s/%s/%s/%s/%s", ccap.Provider, ccap.BillingID, ccap.WorkGroupID, ccap.Service, ccap.LabelValue)
 	}
 
 	keys := make([]string, len(props))
@@ -49,13 +49,13 @@ func (ccap CloudCostAggregateProperties) Key(props []string) string {
 			if ccap.Provider != "" {
 				key = ccap.Provider
 			}
-		case CloudCostAccountProp:
-			if ccap.Account != "" {
-				key = ccap.Account
+		case CloudCostBillingIDProp:
+			if ccap.BillingID != "" {
+				key = ccap.BillingID
 			}
-		case CloudCostProjectProp:
-			if ccap.Project != "" {
-				key = ccap.Project
+		case CloudCostWorkGroupIDProp:
+			if ccap.WorkGroupID != "" {
+				key = ccap.WorkGroupID
 			}
 		case CloudCostServiceProp:
 			if ccap.Service != "" {
@@ -83,7 +83,7 @@ type CloudCostAggregate struct {
 	Properties        CloudCostAggregateProperties `json:"properties"`
 	KubernetesPercent float64                      `json:"kubernetesPercent"`
 	Cost              float64                      `json:"cost"`
-	Credit            float64                      `json:"credit"`
+	NetCost           float64                      `json:"netCost"`
 }
 
 func (cca *CloudCostAggregate) Clone() *CloudCostAggregate {
@@ -91,7 +91,7 @@ func (cca *CloudCostAggregate) Clone() *CloudCostAggregate {
 		Properties:        cca.Properties,
 		KubernetesPercent: cca.KubernetesPercent,
 		Cost:              cca.Cost,
-		Credit:            cca.Credit,
+		NetCost:           cca.NetCost,
 	}
 }
 
@@ -101,7 +101,7 @@ func (cca *CloudCostAggregate) Equal(that *CloudCostAggregate) bool {
 	}
 
 	return cca.Cost == that.Cost &&
-		cca.Credit == that.Credit &&
+		cca.NetCost == that.NetCost &&
 		cca.Properties.Equal(that.Properties)
 }
 
@@ -115,10 +115,10 @@ func (cca *CloudCostAggregate) StringProperty(prop string) (string, error) {
 	}
 
 	switch prop {
-	case CloudCostAccountProp:
-		return cca.Properties.Account, nil
-	case CloudCostProjectProp:
-		return cca.Properties.Project, nil
+	case CloudCostBillingIDProp:
+		return cca.Properties.BillingID, nil
+	case CloudCostWorkGroupIDProp:
+		return cca.Properties.WorkGroupID, nil
 	case CloudCostProviderProp:
 		return cca.Properties.Provider, nil
 	case CloudCostServiceProp:
@@ -146,7 +146,7 @@ func (cca *CloudCostAggregate) add(that *CloudCostAggregate) {
 	}
 
 	cca.Cost = sumCost
-	cca.Credit += that.Credit
+	cca.NetCost += that.NetCost
 	cca.KubernetesPercent = k8sPct
 }
 
@@ -372,7 +372,7 @@ func GetCloudCostAggregateSets(start, end time.Time, windowDuration time.Duratio
 // that the input windows do not have to match the one day frame of the Athena queries. CloudCostAggregates being generated from a
 // CUR which may be the identical except for the pricing model used (default, RI or savings plan)
 // are accumulated here so that the resulting CloudCostAggregate with the 1d window has the correct price for the entire day.
-func LoadCloudCostAggregateSets(itemStart time.Time, itemEnd time.Time, properties CloudCostAggregateProperties, K8sPercent, cost, credit float64, CloudCostAggregateSets []*CloudCostAggregateSet) {
+func LoadCloudCostAggregateSets(itemStart time.Time, itemEnd time.Time, properties CloudCostAggregateProperties, K8sPercent, cost, netCost float64, CloudCostAggregateSets []*CloudCostAggregateSet) {
 	// Disperse cost of the current item across one or more CloudCostAggregates in
 	// across each relevant CloudCostAggregateSet. Stop when the end of the current
 	// block reaches the item's end time or the end of the range.
@@ -384,7 +384,7 @@ func LoadCloudCostAggregateSets(itemStart time.Time, itemEnd time.Time, properti
 			Properties:        properties,
 			KubernetesPercent: K8sPercent * pct,
 			Cost:              cost * pct,
-			Credit:            credit * pct,
+			NetCost:           netCost * pct,
 		}
 		err := ccas.insertByProperty(cca, nil)
 		if err != nil {
