@@ -472,7 +472,7 @@ func (gcp *GCP) GetOrphanedResources() ([]OrphanedResource, error) {
 				// deconstruct it back into a map[string]string to match the OR struct
 				desc := map[string]string{}
 				if err := json.Unmarshal([]byte(disk.Description), &desc); err != nil {
-					return nil, err
+					return nil, fmt.Errorf("error converting string to map: %s", err)
 				}
 
 				or := OrphanedResource{

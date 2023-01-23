@@ -1706,7 +1706,10 @@ func (aws *AWS) GetOrphanedResources() ([]OrphanedResource, error) {
 			}
 
 			// This is turning us-east-1a into us-east-1
-			zone := *volume.AvailabilityZone
+			var zone string
+			if volume.AvailabilityZone != nil {
+				zone = *volume.AvailabilityZone
+			}
 			var region, url string
 			region = regionRx.FindString(zone)
 			if region != "" {
@@ -1734,6 +1737,12 @@ func (aws *AWS) GetOrphanedResources() ([]OrphanedResource, error) {
 
 			desc := map[string]string{}
 			for _, tag := range address.Tags {
+				if tag.Key == nil {
+					continue
+				}
+				if tag.Value == nil {
+					continue
+				}
 				desc[*tag.Key] = *tag.Value
 			}
 
