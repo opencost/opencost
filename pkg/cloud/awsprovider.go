@@ -55,7 +55,9 @@ const (
 	InUseState    = "in-use"
 	AttachedState = "attached"
 
-	AWSHourlyPublicIPCost = 0.005
+	AWSHourlyPublicIPCost    = 0.005
+	EKSCapacityTypeLabel     = "eks.amazonaws.com/capacityType"
+	EKSCapacitySpotTypeValue = "SPOT"
 )
 
 var (
@@ -63,6 +65,7 @@ var (
 	provIdRx      = regexp.MustCompile("aws:///([^/]+)/([^/]+)")
 	usageTypeRegx = regexp.MustCompile(".*(-|^)(EBS.+)")
 	versionRx     = regexp.MustCompile("^#Version: (\\d+)\\.\\d+$")
+	regionRx      = regexp.MustCompile("([a-z]+-[a-z]+-[0-9])")
 )
 
 func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
@@ -636,6 +639,9 @@ func (k *awsKey) ID() string {
 	return ""
 }
 
+// Features will return a comma seperated list of features for the given node
+// If the node has a spot label, it will be included in the list
+// Otherwise, the list include instance type, operating system, and the region
 func (k *awsKey) Features() string {
 
 	instanceType, _ := util.GetInstanceType(k.Labels)
@@ -643,7 +649,7 @@ func (k *awsKey) Features() string {
 	region, _ := util.GetRegion(k.Labels)
 
 	key := region + "," + instanceType + "," + operatingSystem
-	usageType := PreemptibleType
+	usageType := k.getUsageType(k.Labels)
 	spotKey := key + "," + usageType
 	if l, ok := k.Labels["lifecycle"]; ok && l == "EC2Spot" {
 		return spotKey
@@ -651,7 +657,21 @@ func (k *awsKey) Features() string {
 	if l, ok := k.Labels[k.SpotLabelName]; ok && l == k.SpotLabelValue {
 		return spotKey
 	}
+	if usageType == PreemptibleType {
+		return spotKey
+	}
 	return key
+}
+
+// getUsageType returns the usage type of the instance
+// If the instance is a spot instance, it will return PreemptibleType
+// Otherwise returns an empty string
+func (k *awsKey) getUsageType(labels map[string]string) string {
+	if label, ok := labels[EKSCapacityTypeLabel]; ok && label == EKSCapacitySpotTypeValue {
+		// We currently write out spot instances as "preemptible" in the pricing data, so these need to match
+		return PreemptibleType
+	}
+	return ""
 }
 
 func (aws *AWS) PVPricing(pvk PVKey) (*PV, error) {
@@ -821,6 +841,7 @@ func (aws *AWS) DownloadPricingData() error {
 
 	inputkeys := make(map[string]bool)
 	for _, n := range nodeList {
+
 		if _, ok := n.Labels["eks.amazonaws.com/nodegroup"]; ok {
 			aws.clusterManagementPrice = 0.10
 			aws.clusterProvisioner = "EKS"
@@ -1684,11 +1705,25 @@ func (aws *AWS) GetOrphanedResources() ([]OrphanedResource, error) {
 				volumeSize = int64(*volume.Size)
 			}
 
+			// This is turning us-east-1a into us-east-1
+			var zone string
+			if volume.AvailabilityZone != nil {
+				zone = *volume.AvailabilityZone
+			}
+			var region, url string
+			region = regionRx.FindString(zone)
+			if region != "" {
+				url = "https://console.aws.amazon.com/ec2/home?region=" + region + "#Volumes:sort=desc:createTime"
+			} else {
+				url = "https://console.aws.amazon.com/ec2/home?#Volumes:sort=desc:createTime"
+			}
+
 			or := OrphanedResource{
 				Kind:        "disk",
-				Region:      *volume.AvailabilityZone,
+				Region:      zone,
 				Size:        &volumeSize,
 				DiskName:    *volume.VolumeId,
+				Url:         url,
 				MonthlyCost: cost,
 			}
 
@@ -1700,9 +1735,23 @@ func (aws *AWS) GetOrphanedResources() ([]OrphanedResource, error) {
 		if aws.isAddressOrphaned(address) {
 			cost := AWSHourlyPublicIPCost * timeutil.HoursPerMonth
 
+			desc := map[string]string{}
+			for _, tag := range address.Tags {
+				if tag.Key == nil {
+					continue
+				}
+				if tag.Value == nil {
+					desc[*tag.Key] = ""
+				} else {
+					desc[*tag.Key] = *tag.Value
+				}
+			}
+
 			or := OrphanedResource{
 				Kind:        "address",
 				Address:     *address.PublicIp,
+				Description: desc,
+				Url:         "http://console.aws.amazon.com/ec2/home?#Addresses",
 				MonthlyCost: &cost,
 			}
 

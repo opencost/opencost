@@ -283,6 +283,14 @@ Asset Idle Cost can be calculated by individual assets, groups of assets, cluste
 
 Workload Idle Costs is a cost-weighted measurement of [requested](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container) resources that are unused. Workload Idle Costs can be calculated on any grouping of Kubernetes workloads, e.g. containers, pods, labels, annotations, namespaces, etc.
 
+## Pod States
+
+The state of a pod will affect the ability to assign costs and whether a resource is considered allocated. The OpenCost model does not account for resources allocated to pods with `ImagePullBackOff`.
+
+| State | Cost Allocation | Status |
+|---|---|---|
+| Running | Max (Usage, request) | Implemented |
+| ImagePullBackOff | Request | Currently no charge |
 
 ## Glossary
 

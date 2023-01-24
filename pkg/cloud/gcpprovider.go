@@ -468,12 +468,20 @@ func (gcp *GCP) GetOrphanedResources() ([]OrphanedResource, error) {
 					return nil, err
 				}
 
+				// GCP gives us description as a string formatted as a map[string]string, so we need to
+				// deconstruct it back into a map[string]string to match the OR struct
+				desc := map[string]string{}
+				if err := json.Unmarshal([]byte(disk.Description), &desc); err != nil {
+					return nil, fmt.Errorf("error converting string to map: %s", err)
+				}
+
 				or := OrphanedResource{
 					Kind:        "disk",
 					Region:      disk.Zone,
-					Description: map[string]string{},
+					Description: desc,
 					Size:        &disk.SizeGb,
 					DiskName:    disk.Name,
+					Url:         disk.SelfLink,
 					MonthlyCost: cost,
 				}
 				orphanedResources = append(orphanedResources, or)
@@ -498,6 +506,7 @@ func (gcp *GCP) GetOrphanedResources() ([]OrphanedResource, error) {
 						"type": address.AddressType,
 					},
 					Address:     address.Address,
+					Url:         address.SelfLink,
 					MonthlyCost: &cost,
 				}
 				orphanedResources = append(orphanedResources, or)
