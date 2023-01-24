@@ -1285,9 +1285,10 @@ func (az *Azure) GetOrphanedResources() ([]OrphanedResource, error) {
 			desc := map[string]string{}
 			for k, v := range d.Tags {
 				if v == nil {
-					continue
+					desc[k] = ""
+				} else {
+					desc[k] = *v
 				}
-				desc[k] = *v
 			}
 
 			or := OrphanedResource{

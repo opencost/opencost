@@ -1741,9 +1741,10 @@ func (aws *AWS) GetOrphanedResources() ([]OrphanedResource, error) {
 					continue
 				}
 				if tag.Value == nil {
-					continue
+					desc[*tag.Key] = ""
+				} else {
+					desc[*tag.Key] = *tag.Value
 				}
-				desc[*tag.Key] = *tag.Value
 			}
 
 			or := OrphanedResource{
