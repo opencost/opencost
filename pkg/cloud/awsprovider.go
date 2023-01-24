@@ -65,6 +65,7 @@ var (
 	provIdRx      = regexp.MustCompile("aws:///([^/]+)/([^/]+)")
 	usageTypeRegx = regexp.MustCompile(".*(-|^)(EBS.+)")
 	versionRx     = regexp.MustCompile("^#Version: (\\d+)\\.\\d+$")
+	regionRx      = regexp.MustCompile("([a-z]+-[a-z]+-[0-9])")
 )
 
 func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
@@ -1704,11 +1705,25 @@ func (aws *AWS) GetOrphanedResources() ([]OrphanedResource, error) {
 				volumeSize = int64(*volume.Size)
 			}
 
+			// This is turning us-east-1a into us-east-1
+			var zone string
+			if volume.AvailabilityZone != nil {
+				zone = *volume.AvailabilityZone
+			}
+			var region, url string
+			region = regionRx.FindString(zone)
+			if region != "" {
+				url = "https://console.aws.amazon.com/ec2/home?region=" + region + "#Volumes:sort=desc:createTime"
+			} else {
+				url = "https://console.aws.amazon.com/ec2/home?#Volumes:sort=desc:createTime"
+			}
+
 			or := OrphanedResource{
 				Kind:        "disk",
-				Region:      *volume.AvailabilityZone,
+				Region:      zone,
 				Size:        &volumeSize,
 				DiskName:    *volume.VolumeId,
+				Url:         url,
 				MonthlyCost: cost,
 			}
 
@@ -1720,9 +1735,23 @@ func (aws *AWS) GetOrphanedResources() ([]OrphanedResource, error) {
 		if aws.isAddressOrphaned(address) {
 			cost := AWSHourlyPublicIPCost * timeutil.HoursPerMonth
 
+			desc := map[string]string{}
+			for _, tag := range address.Tags {
+				if tag.Key == nil {
+					continue
+				}
+				if tag.Value == nil {
+					desc[*tag.Key] = ""
+				} else {
+					desc[*tag.Key] = *tag.Value
+				}
+			}
+
 			or := OrphanedResource{
 				Kind:        "address",
 				Address:     *address.PublicIp,
+				Description: desc,
+				Url:         "http://console.aws.amazon.com/ec2/home?#Addresses",
 				MonthlyCost: &cost,
 			}
 
