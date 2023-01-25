@@ -310,7 +310,7 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 			} else {
 				annotationName := labelConfig.Sanitize(strings.TrimPrefix(agg, "annotation:"))
 				if annotationValue, ok := annotations[annotationName]; ok {
-					names = append(names, fmt.Sprintf("%s=%s", annotationName, annotationValue))
+					names = append(names, fmt.Sprintf("%s", annotationValue))
 				} else {
 					names = append(names, UnallocatedSuffix)
 				}
