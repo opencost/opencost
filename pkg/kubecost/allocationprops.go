@@ -298,7 +298,7 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 			} else {
 				labelName := labelConfig.Sanitize(strings.TrimPrefix(agg, "label:"))
 				if labelValue, ok := labels[labelName]; ok {
-					names = append(names, fmt.Sprintf("%s=%s", labelName, labelValue))
+					names = append(names, fmt.Sprintf("%s", labelValue))
 				} else {
 					names = append(names, UnallocatedSuffix)
 				}
