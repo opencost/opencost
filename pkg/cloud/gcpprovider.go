@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -475,9 +476,15 @@ func (gcp *GCP) GetOrphanedResources() ([]OrphanedResource, error) {
 					return nil, fmt.Errorf("error converting string to map: %s", err)
 				}
 
+				// Converts https://www.googleapis.com/compute/v1/projects/xxxxx/zones/us-central1-c to us-central1-c
+				zone := path.Base(disk.Zone)
+				if zone == "." {
+					zone = ""
+				}
+
 				or := OrphanedResource{
 					Kind:        "disk",
-					Region:      disk.Zone,
+					Region:      zone,
 					Description: desc,
 					Size:        &disk.SizeGb,
 					DiskName:    disk.Name,
@@ -499,9 +506,15 @@ func (gcp *GCP) GetOrphanedResources() ([]OrphanedResource, error) {
 				//todo: use GCP pricing
 				cost := GCPHourlyPublicIPCost * timeutil.HoursPerMonth
 
+				// Converts https://www.googleapis.com/compute/v1/projects/xxxxx/regions/us-central1 to us-central1
+				region := path.Base(address.Region)
+				if region == "." {
+					region = ""
+				}
+
 				or := OrphanedResource{
 					Kind:   "address",
-					Region: address.Region,
+					Region: region,
 					Description: map[string]string{
 						"type": address.AddressType,
 					},
