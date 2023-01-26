@@ -73,7 +73,7 @@ package kubecost
 // @bingen:generate:AuditSetRange
 // @bingen:end
 
-// @bingen:set[name=CloudCostAggregate,version=1]
+// @bingen:set[name=CloudCostAggregate,version=2]
 // @bingen:generate:CloudCostAggregate
 // @bingen:generate[stringtable]:CloudCostAggregateSet
 // @bingen:generate:CloudCostAggregateSetRange
@@ -81,7 +81,7 @@ package kubecost
 // @bingen:generate:CloudCostAggregateLabels
 // @bingen:end
 
-// @bingen:set[name=CloudCostItem,version=1]
+// @bingen:set[name=CloudCostItem,version=2]
 // @bingen:generate:CloudCostItem
 // @bingen:generate[stringtable]:CloudCostItemSet
 // @bingen:generate:CloudCostItemSetRange

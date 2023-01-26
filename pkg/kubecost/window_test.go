@@ -915,7 +915,8 @@ func TestWindow_GetPercentInWindow(t *testing.T) {
 	}
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			if actual := tc.window.GetPercentInWindow(tc.itemStart, tc.itemEnd); actual != tc.expected {
+			thatWindow := NewWindow(&tc.itemStart, &tc.itemEnd)
+			if actual := tc.window.GetPercentInWindow(thatWindow); actual != tc.expected {
 				t.Errorf("GetPercentInWindow() = %v, want %v", actual, tc.expected)
 			}
 		})
