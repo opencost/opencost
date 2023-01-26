@@ -5,7 +5,6 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/csv"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,6 +24,7 @@ import (
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/fileutil"
 	"github.com/opencost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 
 	awsSDK "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -51,6 +51,13 @@ const (
 	APIPricingSource              = "Public API"
 	SpotPricingSource             = "Spot Data Feed"
 	ReservedInstancePricingSource = "Savings Plan, Reserved Instance, and Out-Of-Cluster"
+
+	InUseState    = "in-use"
+	AttachedState = "attached"
+
+	AWSHourlyPublicIPCost    = 0.005
+	EKSCapacityTypeLabel     = "eks.amazonaws.com/capacityType"
+	EKSCapacitySpotTypeValue = "SPOT"
 )
 
 var (
@@ -58,6 +65,7 @@ var (
 	provIdRx      = regexp.MustCompile("aws:///([^/]+)/([^/]+)")
 	usageTypeRegx = regexp.MustCompile(".*(-|^)(EBS.+)")
 	versionRx     = regexp.MustCompile("^#Version: (\\d+)\\.\\d+$")
+	regionRx      = regexp.MustCompile("([a-z]+-[a-z]+-[0-9])")
 )
 
 func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
@@ -631,6 +639,9 @@ func (k *awsKey) ID() string {
 	return ""
 }
 
+// Features will return a comma seperated list of features for the given node
+// If the node has a spot label, it will be included in the list
+// Otherwise, the list include instance type, operating system, and the region
 func (k *awsKey) Features() string {
 
 	instanceType, _ := util.GetInstanceType(k.Labels)
@@ -638,7 +649,7 @@ func (k *awsKey) Features() string {
 	region, _ := util.GetRegion(k.Labels)
 
 	key := region + "," + instanceType + "," + operatingSystem
-	usageType := PreemptibleType
+	usageType := k.getUsageType(k.Labels)
 	spotKey := key + "," + usageType
 	if l, ok := k.Labels["lifecycle"]; ok && l == "EC2Spot" {
 		return spotKey
@@ -646,7 +657,21 @@ func (k *awsKey) Features() string {
 	if l, ok := k.Labels[k.SpotLabelName]; ok && l == k.SpotLabelValue {
 		return spotKey
 	}
+	if usageType == PreemptibleType {
+		return spotKey
+	}
 	return key
+}
+
+// getUsageType returns the usage type of the instance
+// If the instance is a spot instance, it will return PreemptibleType
+// Otherwise returns an empty string
+func (k *awsKey) getUsageType(labels map[string]string) string {
+	if label, ok := labels[EKSCapacityTypeLabel]; ok && label == EKSCapacitySpotTypeValue {
+		// We currently write out spot instances as "preemptible" in the pricing data, so these need to match
+		return PreemptibleType
+	}
+	return ""
 }
 
 func (aws *AWS) PVPricing(pvk PVKey) (*PV, error) {
@@ -816,6 +841,7 @@ func (aws *AWS) DownloadPricingData() error {
 
 	inputkeys := make(map[string]bool)
 	for _, n := range nodeList {
+
 		if _, ok := n.Labels["eks.amazonaws.com/nodegroup"]; ok {
 			aws.clusterManagementPrice = 0.10
 			aws.clusterProvisioner = "EKS"
@@ -1452,8 +1478,7 @@ func (aws *AWS) getAddressesForRegion(ctx context.Context, region string) (*ec2.
 	return cli.DescribeAddresses(ctx, &ec2.DescribeAddressesInput{})
 }
 
-// GetAddresses retrieves EC2 addresses
-func (aws *AWS) GetAddresses() ([]byte, error) {
+func (aws *AWS) getAllAddresses() ([]*ec2Types.Address, error) {
 	aws.ConfigureAuth() // load authentication data into env vars
 
 	addressCh := make(chan *ec2.DescribeAddressesOutput, len(awsRegions))
@@ -1509,12 +1534,30 @@ func (aws *AWS) GetAddresses() ([]byte, error) {
 		return nil, fmt.Errorf("%d error(s) retrieving addresses: %v", len(errs), errs)
 	}
 
+	return addresses, nil
+}
+
+// GetAddresses retrieves EC2 addresses
+func (aws *AWS) GetAddresses() ([]byte, error) {
+	addresses, err := aws.getAllAddresses()
+	if err != nil {
+		return nil, err
+	}
+
 	// Format the response this way to match the JSON-encoded formatting of a single response
 	// from DescribeAddresss, so that consumers can always expect AWS disk responses to have
 	// a "Addresss" key at the top level.
 	return json.Marshal(map[string][]*ec2Types.Address{
 		"Addresses": addresses,
 	})
+}
+
+func (aws *AWS) isAddressOrphaned(address *ec2Types.Address) bool {
+	if address.AssociationId != nil {
+		return false
+	}
+
+	return true
 }
 
 func (aws *AWS) getDisksForRegion(ctx context.Context, region string, maxResults int32, nextToken *string) (*ec2.DescribeVolumesOutput, error) {
@@ -1535,8 +1578,7 @@ func (aws *AWS) getDisksForRegion(ctx context.Context, region string, maxResults
 	})
 }
 
-// GetDisks returns the AWS disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
-func (aws *AWS) GetDisks() ([]byte, error) {
+func (aws *AWS) getAllDisks() ([]*ec2Types.Volume, error) {
 	aws.ConfigureAuth() // load authentication data into env vars
 
 	volumeCh := make(chan *ec2.DescribeVolumesOutput, len(awsRegions))
@@ -1602,6 +1644,16 @@ func (aws *AWS) GetDisks() ([]byte, error) {
 		return nil, fmt.Errorf("%d error(s) retrieving volumes: %v", len(errs), errs)
 	}
 
+	return volumes, nil
+}
+
+// GetDisks returns the AWS disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
+func (aws *AWS) GetDisks() ([]byte, error) {
+	volumes, err := aws.getAllDisks()
+	if err != nil {
+		return nil, err
+	}
+
 	// Format the response this way to match the JSON-encoded formatting of a single response
 	// from DescribeVolumes, so that consumers can always expect AWS disk responses to have
 	// a "Volumes" key at the top level.
@@ -1610,8 +1662,127 @@ func (aws *AWS) GetDisks() ([]byte, error) {
 	})
 }
 
-func (*AWS) GetOrphanedResources() ([]OrphanedResource, error) {
-	return nil, errors.New("not implemented")
+func (aws *AWS) isDiskOrphaned(vol *ec2Types.Volume) bool {
+	// Do not consider volume orphaned if in use
+	if vol.State == InUseState {
+		return false
+	}
+
+	// Do not consider volume orphaned if volume is attached to any attachments
+	if len(vol.Attachments) != 0 {
+		for _, attachment := range vol.Attachments {
+			if attachment.State == AttachedState {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func (aws *AWS) GetOrphanedResources() ([]OrphanedResource, error) {
+	volumes, err := aws.getAllDisks()
+	if err != nil {
+		return nil, err
+	}
+
+	addresses, err := aws.getAllAddresses()
+	if err != nil {
+		return nil, err
+	}
+
+	var orphanedResources []OrphanedResource
+
+	for _, volume := range volumes {
+		if aws.isDiskOrphaned(volume) {
+			cost, err := aws.findCostForDisk(volume)
+			if err != nil {
+				return nil, err
+			}
+
+			var volumeSize int64
+			if volume.Size != nil {
+				volumeSize = int64(*volume.Size)
+			}
+
+			// This is turning us-east-1a into us-east-1
+			var zone string
+			if volume.AvailabilityZone != nil {
+				zone = *volume.AvailabilityZone
+			}
+			var region, url string
+			region = regionRx.FindString(zone)
+			if region != "" {
+				url = "https://console.aws.amazon.com/ec2/home?region=" + region + "#Volumes:sort=desc:createTime"
+			} else {
+				url = "https://console.aws.amazon.com/ec2/home?#Volumes:sort=desc:createTime"
+			}
+
+			or := OrphanedResource{
+				Kind:        "disk",
+				Region:      zone,
+				Size:        &volumeSize,
+				DiskName:    *volume.VolumeId,
+				Url:         url,
+				MonthlyCost: cost,
+			}
+
+			orphanedResources = append(orphanedResources, or)
+		}
+	}
+
+	for _, address := range addresses {
+		if aws.isAddressOrphaned(address) {
+			cost := AWSHourlyPublicIPCost * timeutil.HoursPerMonth
+
+			desc := map[string]string{}
+			for _, tag := range address.Tags {
+				if tag.Key == nil {
+					continue
+				}
+				if tag.Value == nil {
+					desc[*tag.Key] = ""
+				} else {
+					desc[*tag.Key] = *tag.Value
+				}
+			}
+
+			or := OrphanedResource{
+				Kind:        "address",
+				Address:     *address.PublicIp,
+				Description: desc,
+				Url:         "http://console.aws.amazon.com/ec2/home?#Addresses",
+				MonthlyCost: &cost,
+			}
+
+			orphanedResources = append(orphanedResources, or)
+		}
+	}
+	return orphanedResources, nil
+}
+
+func (aws *AWS) findCostForDisk(disk *ec2Types.Volume) (*float64, error) {
+	//todo: use AWS pricing from all regions
+	if disk.AvailabilityZone == nil {
+		return nil, fmt.Errorf("nil region")
+	}
+	if disk.Size == nil {
+		return nil, fmt.Errorf("nil disk size")
+	}
+
+	class := volTypes[string(disk.VolumeType)]
+
+	key := "us-east-2" + "," + class
+
+	priceStr := aws.Pricing[key].PV.Cost
+
+	price, err := strconv.ParseFloat(priceStr, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	cost := price * timeutil.HoursPerMonth * float64(*disk.Size)
+	return &cost, nil
 }
 
 // QueryAthenaPaginated executes athena query and processes results.

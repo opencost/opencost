@@ -1247,7 +1247,7 @@ func (az *Azure) getDisks() ([]*compute.Disk, error) {
 	return disks, nil
 }
 
-func isDiskOrphaned(disk *compute.Disk) bool {
+func (az *Azure) isDiskOrphaned(disk *compute.Disk) bool {
 	//TODO: needs better algorithm
 	return disk.DiskState == "Unattached" || disk.DiskState == "Reserved"
 }
@@ -1261,7 +1261,7 @@ func (az *Azure) GetOrphanedResources() ([]OrphanedResource, error) {
 	var orphanedResources []OrphanedResource
 
 	for _, d := range disks {
-		if isDiskOrphaned(d) {
+		if az.isDiskOrphaned(d) {
 			cost, err := az.findCostForDisk(d)
 			if err != nil {
 				return nil, err
@@ -1277,14 +1277,25 @@ func (az *Azure) GetOrphanedResources() ([]OrphanedResource, error) {
 				diskRegion = *d.Location
 			}
 
+			var diskSize int64
+			if d.DiskSizeGB != nil {
+				diskSize = int64(*d.DiskSizeGB)
+			}
+
+			desc := map[string]string{}
+			for k, v := range d.Tags {
+				if v == nil {
+					desc[k] = ""
+				} else {
+					desc[k] = *v
+				}
+			}
+
 			or := OrphanedResource{
-				Kind:   "disk",
-				Region: diskRegion,
-				Description: map[string]string{
-					"diskState":   string(d.DiskState),
-					"timeCreated": d.TimeCreated.String(),
-				},
-				Size:        d.DiskSizeGB,
+				Kind:        "disk",
+				Region:      diskRegion,
+				Description: desc,
+				Size:        &diskSize,
 				DiskName:    diskName,
 				MonthlyCost: &cost,
 			}

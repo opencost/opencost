@@ -2,12 +2,12 @@ package cloud
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"math"
 	"net/http"
 	"os"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -35,6 +35,14 @@ import (
 
 const GKE_GPU_TAG = "cloud.google.com/gke-accelerator"
 const BigqueryUpdateType = "bigqueryupdate"
+
+const (
+	GCPHourlyPublicIPCost = 0.01
+
+	GCPMonthlyBasicDiskCost = 0.04
+	GCPMonthlySSDDiskCost   = 0.17
+	GCPMonthlyGP2DiskCost   = 0.1
+)
 
 // List obtained by installing the `gcloud` CLI tool,
 // logging into gcp account, and running command
@@ -335,7 +343,7 @@ func (gcp *GCP) ClusterManagementPricing() (string, float64, error) {
 	return gcp.clusterProvisioner, gcp.clusterManagementPrice, nil
 }
 
-func (gcp *GCP) GetAddresses() ([]byte, error) {
+func (gcp *GCP) getAllAddresses() (*compute.AddressAggregatedList, error) {
 	projID, err := gcp.metadataClient.ProjectID()
 	if err != nil {
 		return nil, err
@@ -346,20 +354,36 @@ func (gcp *GCP) GetAddresses() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	svc, err := compute.New(client)
 	if err != nil {
 		return nil, err
 	}
+
 	res, err := svc.Addresses.AggregatedList(projID).Do()
 
 	if err != nil {
 		return nil, err
 	}
+
+	return res, nil
+}
+
+func (gcp *GCP) GetAddresses() ([]byte, error) {
+	res, err := gcp.getAllAddresses()
+	if err != nil {
+		return nil, err
+	}
+
 	return json.Marshal(res)
 }
 
-// GetDisks returns the GCP disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
-func (gcp *GCP) GetDisks() ([]byte, error) {
+func (gcp *GCP) isAddressOrphaned(address *compute.Address) bool {
+	// Consider address orphaned if it has 0 users
+	return len(address.Users) == 0
+}
+
+func (gcp *GCP) getAllDisks() (*compute.DiskAggregatedList, error) {
 	projID, err := gcp.metadataClient.ProjectID()
 	if err != nil {
 		return nil, err
@@ -370,21 +394,167 @@ func (gcp *GCP) GetDisks() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	svc, err := compute.New(client)
 	if err != nil {
 		return nil, err
 	}
+
 	res, err := svc.Disks.AggregatedList(projID).Do()
 
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(res)
 
+	return res, nil
 }
 
-func (*GCP) GetOrphanedResources() ([]OrphanedResource, error) {
-	return nil, errors.New("not implemented")
+// GetDisks returns the GCP disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
+func (gcp *GCP) GetDisks() ([]byte, error) {
+	res, err := gcp.getAllDisks()
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(res)
+}
+
+func (gcp *GCP) isDiskOrphaned(disk *compute.Disk) (bool, error) {
+	// Do not consider disk orphaned if it has more than 0 users
+	if len(disk.Users) > 0 {
+		return false, nil
+	}
+
+	// Do not consider disk orphaned if it was used within the last hour
+	threshold := time.Now().Add(time.Duration(-1) * time.Hour)
+	if disk.LastDetachTimestamp != "" {
+		lastUsed, err := time.Parse(time.RFC3339, disk.LastDetachTimestamp)
+		if err != nil {
+			// This can return false since errors are checked before the bool
+			return false, fmt.Errorf("error parsing time: %s", err)
+		}
+		if threshold.Before(lastUsed) {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func (gcp *GCP) GetOrphanedResources() ([]OrphanedResource, error) {
+	disks, err := gcp.getAllDisks()
+	if err != nil {
+		return nil, err
+	}
+
+	addresses, err := gcp.getAllAddresses()
+	if err != nil {
+		return nil, err
+	}
+
+	var orphanedResources []OrphanedResource
+
+	for _, diskList := range disks.Items {
+		if len(diskList.Disks) == 0 {
+			continue
+		}
+
+		for _, disk := range diskList.Disks {
+			isOrphaned, err := gcp.isDiskOrphaned(disk)
+			if err != nil {
+				return nil, err
+			}
+			if isOrphaned {
+				cost, err := gcp.findCostForDisk(disk)
+				if err != nil {
+					return nil, err
+				}
+
+				// GCP gives us description as a string formatted as a map[string]string, so we need to
+				// deconstruct it back into a map[string]string to match the OR struct
+				desc := map[string]string{}
+				if err := json.Unmarshal([]byte(disk.Description), &desc); err != nil {
+					return nil, fmt.Errorf("error converting string to map: %s", err)
+				}
+
+				// Converts https://www.googleapis.com/compute/v1/projects/xxxxx/zones/us-central1-c to us-central1-c
+				zone := path.Base(disk.Zone)
+				if zone == "." {
+					zone = ""
+				}
+
+				or := OrphanedResource{
+					Kind:        "disk",
+					Region:      zone,
+					Description: desc,
+					Size:        &disk.SizeGb,
+					DiskName:    disk.Name,
+					Url:         disk.SelfLink,
+					MonthlyCost: cost,
+				}
+				orphanedResources = append(orphanedResources, or)
+			}
+		}
+	}
+
+	for _, addressList := range addresses.Items {
+		if len(addressList.Addresses) == 0 {
+			continue
+		}
+
+		for _, address := range addressList.Addresses {
+			if gcp.isAddressOrphaned(address) {
+				//todo: use GCP pricing
+				cost := GCPHourlyPublicIPCost * timeutil.HoursPerMonth
+
+				// Converts https://www.googleapis.com/compute/v1/projects/xxxxx/regions/us-central1 to us-central1
+				region := path.Base(address.Region)
+				if region == "." {
+					region = ""
+				}
+
+				or := OrphanedResource{
+					Kind:   "address",
+					Region: region,
+					Description: map[string]string{
+						"type": address.AddressType,
+					},
+					Address:     address.Address,
+					Url:         address.SelfLink,
+					MonthlyCost: &cost,
+				}
+				orphanedResources = append(orphanedResources, or)
+			}
+		}
+	}
+
+	return orphanedResources, nil
+}
+
+func (gcp *GCP) findCostForDisk(disk *compute.Disk) (*float64, error) {
+	//todo: use GCP pricing struct
+	price := GCPMonthlyBasicDiskCost
+	if strings.Contains(disk.Type, "ssd") {
+		price = GCPMonthlySSDDiskCost
+	}
+	if strings.Contains(disk.Type, "gp2") {
+		price = GCPMonthlyGP2DiskCost
+	}
+	cost := price * float64(disk.SizeGb)
+
+	// This isn't much use but I (Nick) think its could be going down the
+	// right path. Disk region isnt returning anything (and if it did its
+	// a url, same with type). Currently the only region stored in the
+	// Pricing struct is uscentral-1, so that would need to be fixed
+	// key := disk.Region + "," + disk.Type
+
+	// priceStr := gcp.Pricing[key].PV.Cost
+	// price, err := strconv.ParseFloat(priceStr, 64)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// cost := price * timeutil.HoursPerMonth * float64(disk.SizeGb)
+	return &cost, nil
 }
 
 // GCPPricing represents GCP pricing data for a SKU

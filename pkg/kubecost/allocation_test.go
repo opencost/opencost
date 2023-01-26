@@ -413,8 +413,8 @@ func TestAllocationSet_generateKey(t *testing.T) {
 	}
 
 	key = alloc.generateKey(props, nil)
-	if key != "cluster1//app=app1" {
-		t.Fatalf("generateKey: expected \"cluster1//app=app1\"; actual \"%s\"", key)
+	if key != "cluster1//app1" {
+		t.Fatalf("generateKey: expected \"cluster1//app1\"; actual \"%s\"", key)
 	}
 
 	alloc.Properties = &AllocationProperties{
@@ -426,8 +426,8 @@ func TestAllocationSet_generateKey(t *testing.T) {
 		},
 	}
 	key = alloc.generateKey(props, nil)
-	if key != "cluster1/namespace1/app=app1" {
-		t.Fatalf("generateKey: expected \"cluster1/namespace1/app=app1\"; actual \"%s\"", key)
+	if key != "cluster1/namespace1/app1" {
+		t.Fatalf("generateKey: expected \"cluster1/namespace1/app1\"; actual \"%s\"", key)
 	}
 
 	props = []string{
@@ -552,15 +552,15 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	//     idle:                                  20.00   5.00  15.00   0.00   0.00   0.00   0.00
 	//     namespace1:
 	//       pod1:
-	//         container1: [app=app1, env=env1]   16.00   1.00  11.00   1.00   1.00   1.00   1.00
+	//         container1: [app1, env1]   16.00   1.00  11.00   1.00   1.00   1.00   1.00
 	//       pod-abc: (deployment1)
 	//         container2:                         6.00   1.00   1.00   1.00   1.00   1.00   1.00
 	//       pod-def: (deployment1)
 	//         container3:                         6.00   1.00   1.00   1.00   1.00   1.00   1.00
 	//     namespace2:
 	//       pod-ghi: (deployment2)
-	//         container4: [app=app2, env=env2]    6.00   1.00   1.00   1.00   1.00   1.00   1.00
-	//         container5: [app=app2, env=env2]    6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//         container4: [app2, env2]    6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//         container5: [app2, env2]    6.00   1.00   1.00   1.00   1.00   1.00   1.00
 	//       pod-jkl: (daemonset1)
 	//         container6: {service1}              6.00   1.00   1.00   1.00   1.00   1.00   1.00
 	// +-----------------------------------------+------+------+------+------+------+------+------+
@@ -570,16 +570,16 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	//     idle:                                  10.00   5.00   5.00   0.00   0.00   0.00   0.00
 	//     namespace2:
 	//       pod-mno: (deployment2)
-	//         container4: [app=app2]              6.00   1.00   1.00   1.00   1.00   1.00   1.00
-	//         container5: [app=app2]              6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//         container4: [app2]              6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//         container5: [app2]              6.00   1.00   1.00   1.00   1.00   1.00   1.00
 	//       pod-pqr: (daemonset1)
 	//         container6: {service1}              6.00   1.00   1.00   1.00   1.00   1.00   1.00
 	//     namespace3:
 	//       pod-stu: (deployment3)
-	//         container7: an[team=team1]          6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//         container7: an[team1]          6.00   1.00   1.00   1.00   1.00   1.00   1.00
 	//       pod-vwx: (statefulset1)
-	//         container8: an[team=team2]          6.00   1.00   1.00   1.00   1.00   1.00   1.00
-	//         container9: an[team=team1]          6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//         container8: an[team2]          6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//         container9: an[team1]          6.00   1.00   1.00   1.00   1.00   1.00   1.00
 	// +----------------------------------------+------+------+------+------+------+------+------+
 	//   cluster2 subtotal                        46.00  11.00  11.00   6.00   6.00   6.00   6.00
 	// +----------------------------------------+------+------+------+------+------+------+------+
@@ -843,8 +843,8 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			numResults: numLabelApps + numIdle + numUnallocated,
 			totalCost:  activeTotalCost + idleTotalCost,
 			results: map[string]float64{
-				"app=app1":        16.00,
-				"app=app2":        24.00,
+				"app1":            16.00,
+				"app2":            24.00,
 				IdleSuffix:        30.00,
 				UnallocatedSuffix: 42.00,
 			},
@@ -878,8 +878,8 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			numResults: 2 + numIdle + numUnallocated,
 			totalCost:  activeTotalCost + idleTotalCost,
 			results: map[string]float64{
-				"team=team1":      12.00,
-				"team=team2":      6.00,
+				"team1":           12.00,
+				"team2":           6.00,
 				IdleSuffix:        30.00,
 				UnallocatedSuffix: 64.00,
 			},
@@ -933,10 +933,10 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			totalCost:  activeTotalCost + idleTotalCost,
 			// sets should be {idle, unallocated, app1/env1, app2/env2, app2/unallocated}
 			results: map[string]float64{
-				"app=app1/env=env1":                         16.00,
-				"app=app2/env=env2":                         12.00,
-				"app=app2/" + UnallocatedSuffix:             12.00,
-				IdleSuffix:                                  30.00,
+				"app1/env1":                 16.00,
+				"app2/env2":                 12.00,
+				"app2/" + UnallocatedSuffix: 12.00,
+				IdleSuffix:                  30.00,
 				UnallocatedSuffix + "/" + UnallocatedSuffix: 42.00,
 			},
 			windowStart: startYesterday,
@@ -951,11 +951,11 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			numResults: 6,
 			totalCost:  activeTotalCost + idleTotalCost,
 			results: map[string]float64{
-				"cluster1/app=app2/env=env2": 12.00,
-				"__idle__":                   30.00,
-				"cluster1/app=app1/env=env1": 16.00,
+				"cluster1/app2/env2": 12.00,
+				"__idle__":           30.00,
+				"cluster1/app1/env1": 16.00,
 				"cluster1/" + UnallocatedSuffix + "/" + UnallocatedSuffix: 18.00,
-				"cluster2/app=app2/" + UnallocatedSuffix:                  12.00,
+				"cluster2/app2/" + UnallocatedSuffix:                      12.00,
 				"cluster2/" + UnallocatedSuffix + "/" + UnallocatedSuffix: 24.00,
 			},
 			windowStart: startYesterday,
@@ -971,12 +971,12 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			totalCost:  activeTotalCost + idleTotalCost,
 			results: map[string]float64{
 				"pod-jkl/" + UnallocatedSuffix: 6.00,
-				"pod-stu/team=team1":           6.00,
+				"pod-stu/team1":                6.00,
 				"pod-abc/" + UnallocatedSuffix: 6.00,
 				"pod-pqr/" + UnallocatedSuffix: 6.00,
 				"pod-def/" + UnallocatedSuffix: 6.00,
-				"pod-vwx/team=team1":           6.00,
-				"pod-vwx/team=team2":           6.00,
+				"pod-vwx/team1":                6.00,
+				"pod-vwx/team2":                6.00,
 				"pod1/" + UnallocatedSuffix:    16.00,
 				"pod-mno/" + UnallocatedSuffix: 12.00,
 				"pod-ghi/" + UnallocatedSuffix: 12.00,
