@@ -54,9 +54,6 @@ func (kpmc KubePodLabelsCollector) Describe(ch chan<- *prometheus.Desc) {
 	if _, disabled := disabledMetrics["kube_pod_labels"]; !disabled {
 		ch <- prometheus.NewDesc("kube_pod_labels", "All labels for each pod prefixed with label_", []string{}, nil)
 	}
-	if _, disabled := disabledMetrics["kube_pod_owner"]; !disabled {
-		ch <- prometheus.NewDesc("kube_pod_owner", "Information about the Pod's owner", []string{}, nil)
-	}
 }
 
 // Collect is called by the Prometheus registry when collecting metrics.
@@ -75,11 +72,5 @@ func (kpmc KubePodLabelsCollector) Collect(ch chan<- prometheus.Metric) {
 			ch <- newKubePodLabelsMetric("kube_pod_labels", podNS, podName, podUID, labelNames, labelValues)
 		}
 
-		// Owner References
-		if _, disabled := disabledMetrics["kube_pod_owner"]; !disabled {
-			for _, owner := range pod.OwnerReferences {
-				ch <- newKubePodOwnerMetric("kube_pod_owner", podNS, podName, owner.Name, owner.Kind, owner.Controller != nil)
-			}
-		}
 	}
 }
