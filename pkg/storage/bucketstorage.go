@@ -22,6 +22,7 @@ const (
 type StorageConfig struct {
 	Type   StorageProvider `yaml:"type"`
 	Config interface{}     `yaml:"config"`
+	Prefix string          `yaml:"prefix"`
 }
 
 // NewBucketStorage initializes and returns new Storage implementation leveraging the storage provider
@@ -52,6 +53,10 @@ func NewBucketStorage(config []byte) (Storage, error) {
 	}
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("create %s client", storageConfig.Type))
+	}
+
+	if storageConfig.Prefix != "" {
+		return NewPrefixedBucketStorage(storage, storageConfig.Prefix)
 	}
 
 	return storage, nil
