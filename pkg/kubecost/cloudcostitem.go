@@ -80,6 +80,17 @@ type CloudCostItem struct {
 	NetCost      float64
 }
 
+// NewCloudCostItem instantiates a new CloudCostItem asset
+func NewCloudCostItem(start, end time.Time, cciProperties CloudCostItemProperties, isKubernetes bool, cost, credit float64) CloudCostItem {
+	return CloudCostItem{
+		Properties:   cciProperties,
+		IsKubernetes: isKubernetes,
+		Window:       NewWindow(&start, &end),
+		Cost:         cost,
+		Credit:       credit,
+	}
+}
+
 func (cci *CloudCostItem) Clone() *CloudCostItem {
 	return &CloudCostItem{
 		Properties:   cci.Properties.Clone(),

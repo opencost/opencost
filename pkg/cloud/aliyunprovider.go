@@ -118,6 +118,22 @@ var alibabaInstanceFamilies = []string{
 	"se1",
 }
 
+// AlibabaInfo contains configuration for Alibaba's CUR integration
+type AlibabaInfo struct {
+	AlibabaClusterRegion    string `json:"clusterRegion"`
+	AlibabaServiceKeyName   string `json:"serviceKeyName"`
+	AlibabaServiceKeySecret string `json:"serviceKeySecret"`
+	AlibabaAccountID        string `json:"accountID"`
+}
+
+// IsEmpty returns true if all fields in config are empty, false if not.
+func (ai *AlibabaInfo) IsEmpty() bool {
+	return ai.AlibabaClusterRegion == "" &&
+		ai.AlibabaServiceKeyName == "" &&
+		ai.AlibabaServiceKeySecret == "" &&
+		ai.AlibabaAccountID == ""
+}
+
 // AlibabaAccessKey holds Alibaba credentials parsing from the service-key.json file.
 type AlibabaAccessKey struct {
 	AccessKeyID     string `json:"alibaba_access_key_id"`
@@ -353,6 +369,25 @@ func (alibaba *Alibaba) GetAlibabaAccessKey() (*credentials.AccessKeyCredential,
 	alibaba.accessKey = &credentials.AccessKeyCredential{AccessKeyId: env.GetAlibabaAccessKeyID(), AccessKeySecret: env.GetAlibabaAccessKeySecret()}
 
 	return alibaba.accessKey, nil
+}
+
+func (alibaba *Alibaba) GetAlibabaCloudInfo() (*AlibabaInfo, error) {
+	config, err := alibaba.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve AlibabaCloudInfo %s", err)
+	}
+
+	aak, err := alibaba.GetAlibabaAccessKey()
+	if err != nil {
+		return nil, err
+	}
+
+	return &AlibabaInfo{
+		AlibabaClusterRegion:    config.AlibabaClusterRegion,
+		AlibabaServiceKeyName:   aak.AccessKeyId,
+		AlibabaServiceKeySecret: aak.AccessKeySecret,
+		AlibabaAccountID:        config.ProjectID,
+	}, nil
 }
 
 // DownloadPricingData satisfies the provider interface and downloads the prices for Node instances and PVs.
