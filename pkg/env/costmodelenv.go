@@ -92,6 +92,9 @@ const (
 	IngestPodUIDEnvVar = "INGEST_POD_UID"
 
 	ETLReadOnlyMode = "ETL_READ_ONLY"
+
+	AllocationNodeLabelsEnabled     = "ALLOCATION_NODE_LABELS_ENABLED"
+	AllocationNodeLabelsIncludeList = "ALLOCATION_NODE_LABELS_INCLUDE_LIST"
 )
 
 var offsetRegex = regexp.MustCompile(`^(\+|-)(\d\d):(\d\d)$`)
@@ -502,4 +505,33 @@ func GetPromClusterLabel() string {
 // contents of podKeys in Allocation
 func IsIngestingPodUID() bool {
 	return GetBool(IngestPodUIDEnvVar, false)
+}
+
+func GetAllocationNodeLabelsEnabled() bool {
+	return GetBool(AllocationNodeLabelsEnabled, true)
+}
+
+var defaultAllocationNodeLabelsIncludeList []string = []string{
+	"cloud.google.com/gke-nodepool",
+	"eks.amazonaws.com/nodegroup",
+	"kubernetes.azure.com/agentpool",
+	"node.kubernetes.io/instance-type",
+	"topology.kubernetes.io/region",
+	"topology.kubernetes.io/zone",
+}
+
+func GetAllocationNodeLabelsIncludeList() []string {
+	// If node labels are not enabled, return an empty list.
+	if !GetAllocationNodeLabelsEnabled() {
+		return []string{}
+	}
+
+	list := GetList(AllocationNodeLabelsIncludeList, ",")
+
+	// If node labels are enabled, but the white list is empty, use defaults.
+	if len(list) == 0 {
+		return defaultAllocationNodeLabelsIncludeList
+	}
+
+	return list
 }
