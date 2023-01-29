@@ -3,6 +3,7 @@ package kubecost
 import (
 	"bytes"
 	"fmt"
+	"github.com/opencost/opencost/pkg/log"
 	"math"
 	"regexp"
 	"strconv"
@@ -710,14 +711,18 @@ func (w Window) DurationOffsetStrings() (string, string) {
 //     pct :=  4.0 / 16.0 = 0.250 for window 1
 //     pct := 10.0 / 16.0 = 0.625 for window 2
 //     pct :=  2.0 / 16.0 = 0.125 for window 3
-func (w Window) GetPercentInWindow(itemStart time.Time, itemEnd time.Time) float64 {
+func (w Window) GetPercentInWindow(that Window) float64 {
+	if that.IsOpen() {
+		log.Errorf("Window: GetPercentInWindow: invalid window %s", that.String())
+		return 0
+	}
 
-	s := itemStart
+	s := *that.Start()
 	if s.Before(*w.Start()) {
 		s = *w.Start()
 	}
 
-	e := itemEnd
+	e := *that.End()
 	if e.After(*w.End()) {
 		e = *w.End()
 	}
@@ -727,7 +732,7 @@ func (w Window) GetPercentInWindow(itemStart time.Time, itemEnd time.Time) float
 		return 0.0
 	}
 
-	totalMins := itemEnd.Sub(itemStart).Minutes()
+	totalMins := that.Duration().Minutes()
 
 	pct := mins / totalMins
 	return pct
