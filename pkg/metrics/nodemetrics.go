@@ -139,6 +139,105 @@ func (nsac KubeNodeCollector) Collect(ch chan<- prometheus.Metric) {
 }
 
 //--------------------------------------------------------------------------
+//  KubeNodeCollectorV1Only
+//--------------------------------------------------------------------------
+
+// KubeNodeCollectorV1Only is a prometheus collector that generates node sourced metrics for ksm v1 only.
+type KubeNodeCollectorV1Only struct {
+	KubeClusterCache clustercache.ClusterCache
+	metricsConfig    MetricsConfig
+}
+
+// Describe sends the super-set of all possible descriptors of metrics
+// collected by this Collector.
+func (nsacv KubeNodeCollectorV1Only) Describe(ch chan<- *prometheus.Desc) {
+	disabledMetrics := nsacv.metricsConfig.GetDisabledMetricsMap()
+
+	if _, disabled := disabledMetrics["kube_node_status_capacity"]; !disabled {
+		ch <- prometheus.NewDesc("kube_node_status_capacity", "Node resource capacity.", []string{}, nil)
+	}
+	if _, disabled := disabledMetrics["kube_node_status_capacity_memory_bytes"]; !disabled {
+		ch <- prometheus.NewDesc("kube_node_status_capacity_memory_bytes", "node capacity memory bytes", []string{}, nil)
+	}
+	if _, disabled := disabledMetrics["kube_node_status_capacity_cpu_cores"]; !disabled {
+		ch <- prometheus.NewDesc("kube_node_status_capacity_cpu_cores", "node capacity cpu cores", []string{}, nil)
+	}
+	if _, disabled := disabledMetrics["kube_node_status_allocatable"]; !disabled {
+		ch <- prometheus.NewDesc("kube_node_status_allocatable", "The allocatable for different resources of a node that are available for scheduling.", []string{}, nil)
+	}
+	if _, disabled := disabledMetrics["kube_node_status_allocatable_cpu_cores"]; !disabled {
+		ch <- prometheus.NewDesc("kube_node_status_allocatable_cpu_cores", "The allocatable cpu cores.", []string{}, nil)
+	}
+	if _, disabled := disabledMetrics["kube_node_status_allocatable_memory_bytes"]; !disabled {
+		ch <- prometheus.NewDesc("kube_node_status_allocatable_memory_bytes", "The allocatable memory in bytes.", []string{}, nil)
+	}
+}
+
+// Collect is called by the Prometheus registry when collecting metrics.
+func (nsacv KubeNodeCollectorV1Only) Collect(ch chan<- prometheus.Metric) {
+	nodes := nsacv.KubeClusterCache.GetAllNodes()
+	disabledMetrics := nsacv.metricsConfig.GetDisabledMetricsMap()
+
+	for _, node := range nodes {
+		nodeName := node.GetName()
+
+		// Node Capacity
+		for resourceName, quantity := range node.Status.Capacity {
+			resource, unit, value := toResourceUnitValue(resourceName, quantity)
+
+			// failed to parse the resource type
+			if resource == "" {
+				log.DedupedWarningf(5, "Failed to parse resource units and quantity for resource: %s", resourceName)
+				continue
+			}
+
+			// KSM v1 Emission
+			if _, disabled := disabledMetrics["kube_node_status_capacity_cpu_cores"]; !disabled {
+				if resource == "cpu" {
+					ch <- newKubeNodeStatusCapacityCPUCoresMetric("kube_node_status_capacity_cpu_cores", nodeName, value)
+
+				}
+			}
+			if _, disabled := disabledMetrics["kube_node_status_capacity_memory_bytes"]; !disabled {
+				if resource == "memory" {
+					ch <- newKubeNodeStatusCapacityMemoryBytesMetric("kube_node_status_capacity_memory_bytes", nodeName, value)
+				}
+			}
+
+			if _, disabled := disabledMetrics["kube_node_status_capacity"]; !disabled {
+				ch <- newKubeNodeStatusCapacityMetric("kube_node_status_capacity", nodeName, resource, unit, value)
+			}
+		}
+
+		// Node Allocatable Resources
+		for resourceName, quantity := range node.Status.Allocatable {
+			resource, unit, value := toResourceUnitValue(resourceName, quantity)
+
+			// failed to parse the resource type
+			if resource == "" {
+				log.DedupedWarningf(5, "Failed to parse resource units and quantity for resource: %s", resourceName)
+				continue
+			}
+
+			// KSM v1 Emission
+			if _, disabled := disabledMetrics["kube_node_status_allocatable_cpu_cores"]; !disabled {
+				if resource == "cpu" {
+					ch <- newKubeNodeStatusAllocatableCPUCoresMetric("kube_node_status_allocatable_cpu_cores", nodeName, value)
+				}
+			}
+			if _, disabled := disabledMetrics["kube_node_status_allocatable_memory_bytes"]; !disabled {
+				if resource == "memory" {
+					ch <- newKubeNodeStatusAllocatableMemoryBytesMetric("kube_node_status_allocatable_memory_bytes", nodeName, value)
+				}
+			}
+			if _, disabled := disabledMetrics["kube_node_status_allocatable"]; !disabled {
+				ch <- newKubeNodeStatusAllocatableMetric("kube_node_status_allocatable", nodeName, resource, unit, value)
+			}
+		}
+	}
+}
+
+//--------------------------------------------------------------------------
 //  KubeNodeStatusCapacityMetric
 //--------------------------------------------------------------------------
 

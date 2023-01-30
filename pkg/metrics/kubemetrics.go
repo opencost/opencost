@@ -108,15 +108,7 @@ func InitKubeMetrics(clusterCache clustercache.ClusterCache, metricsConfig *Metr
 				metricsConfig:    *metricsConfig,
 			})
 		} else if opts.EmitKubeStateMetricsV1Only {
-			prometheus.MustRegister(KubeNodeCollector{
-				KubeClusterCache: clusterCache,
-				metricsConfig:    *metricsConfig,
-			})
-			prometheus.MustRegister(KubeNamespaceCollector{
-				KubeClusterCache: clusterCache,
-				metricsConfig:    *metricsConfig,
-			})
-			prometheus.MustRegister(KubePodLabelsCollector{
+			prometheus.MustRegister(KubeNodeCollectorV1Only{
 				KubeClusterCache: clusterCache,
 				metricsConfig:    *metricsConfig,
 			})
