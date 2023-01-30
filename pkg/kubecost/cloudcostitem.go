@@ -35,20 +35,20 @@ func (ccil CloudCostItemLabels) Equal(that CloudCostItemLabels) bool {
 }
 
 type CloudCostItemProperties struct {
-	ProviderID string              `json:"providerID,omitempty"`
-	Provider   string              `json:"provider,omitempty"`
-	Account    string              `json:"account,omitempty"`
-	Project    string              `json:"project,omitempty"`
-	Service    string              `json:"service,omitempty"`
-	Category   string              `json:"category,omitempty"`
-	Labels     CloudCostItemLabels `json:"labels,omitempty"`
+	ProviderID  string              `json:"providerID,omitempty"`
+	Provider    string              `json:"provider,omitempty"`
+	WorkGroupID string              `json:"workGroupID,omitempty"`
+	BillingID   string              `json:"billingID,omitempty"`
+	Service     string              `json:"service,omitempty"`
+	Category    string              `json:"category,omitempty"`
+	Labels      CloudCostItemLabels `json:"labels,omitempty"`
 }
 
 func (ccip CloudCostItemProperties) Equal(that CloudCostItemProperties) bool {
 	return ccip.ProviderID == that.ProviderID &&
 		ccip.Provider == that.Provider &&
-		ccip.Account == that.Account &&
-		ccip.Project == that.Project &&
+		ccip.WorkGroupID == that.WorkGroupID &&
+		ccip.BillingID == that.BillingID &&
 		ccip.Service == that.Service &&
 		ccip.Category == that.Category &&
 		ccip.Labels.Equal(that.Labels)
@@ -56,18 +56,18 @@ func (ccip CloudCostItemProperties) Equal(that CloudCostItemProperties) bool {
 
 func (ccip CloudCostItemProperties) Clone() CloudCostItemProperties {
 	return CloudCostItemProperties{
-		ProviderID: ccip.ProviderID,
-		Provider:   ccip.Provider,
-		Account:    ccip.Account,
-		Project:    ccip.Project,
-		Service:    ccip.Service,
-		Category:   ccip.Category,
-		Labels:     ccip.Labels.Clone(),
+		ProviderID:  ccip.ProviderID,
+		Provider:    ccip.Provider,
+		WorkGroupID: ccip.WorkGroupID,
+		BillingID:   ccip.BillingID,
+		Service:     ccip.Service,
+		Category:    ccip.Category,
+		Labels:      ccip.Labels.Clone(),
 	}
 }
 
 func (ccip CloudCostItemProperties) Key() string {
-	return fmt.Sprintf("%s/%s/%s/%s/%s/%s", ccip.Provider, ccip.Account, ccip.Project, ccip.Category, ccip.Service, ccip.ProviderID)
+	return fmt.Sprintf("%s/%s/%s/%s/%s/%s", ccip.Provider, ccip.BillingID, ccip.WorkGroupID, ccip.Category, ccip.Service, ccip.ProviderID)
 }
 
 // CloudCostItem represents a CUR line item, identifying a cloud resource and
@@ -77,7 +77,7 @@ type CloudCostItem struct {
 	IsKubernetes bool
 	Window       Window
 	Cost         float64
-	Credit       float64
+	NetCost      float64
 }
 
 func (cci *CloudCostItem) Clone() *CloudCostItem {
@@ -86,7 +86,7 @@ func (cci *CloudCostItem) Clone() *CloudCostItem {
 		IsKubernetes: cci.IsKubernetes,
 		Window:       cci.Window.Clone(),
 		Cost:         cci.Cost,
-		Credit:       cci.Credit,
+		NetCost:      cci.NetCost,
 	}
 }
 
@@ -99,7 +99,7 @@ func (cci *CloudCostItem) Equal(that *CloudCostItem) bool {
 		cci.IsKubernetes == that.IsKubernetes &&
 		cci.Window.Equal(that.Window) &&
 		cci.Cost == that.Cost &&
-		cci.Credit == that.Credit
+		cci.NetCost == that.NetCost
 }
 
 func (cci *CloudCostItem) Key() string {
@@ -113,7 +113,7 @@ func (cci *CloudCostItem) add(that *CloudCostItem) {
 	}
 
 	cci.Cost += that.Cost
-	cci.Credit += that.Credit
+	cci.NetCost += that.NetCost
 	cci.Window = cci.Window.Expand(that.Window)
 }
 
@@ -271,51 +271,90 @@ func (ccis *CloudCostItemSet) Merge(that *CloudCostItemSet) (*CloudCostItemSet, 
 	return result, nil
 }
 
-// GetCloudCostItemSets
-func GetCloudCostItemSets(start time.Time, end time.Time, window time.Duration, integration string) ([]*CloudCostItemSet, error) {
+type CloudCostItemSetRange struct {
+	CloudCostItemSets []*CloudCostItemSet `json:"sets"`
+	Window            Window              `json:"window"`
+}
+
+// NewCloudCostItemSetRange create a CloudCostItemSetRange containing CloudCostItemSets with windows of equal duration
+// the duration between start and end must be divisible by the window duration argument
+func NewCloudCostItemSetRange(start time.Time, end time.Time, window time.Duration, integration string) (*CloudCostItemSetRange, error) {
 	windows, err := GetWindows(start, end, window)
 	if err != nil {
 		return nil, err
 	}
 
 	// Build slice of CloudCostItemSet to cover the range
-	CloudCostItemSets := []*CloudCostItemSet{}
-	for _, w := range windows {
+	cloudCostItemSets := make([]*CloudCostItemSet, len(windows))
+	for i, w := range windows {
 		ccis := NewCloudCostItemSet(*w.Start(), *w.End())
 		ccis.Integration = integration
-		CloudCostItemSets = append(CloudCostItemSets, ccis)
+		cloudCostItemSets[i] = ccis
 	}
-	return CloudCostItemSets, nil
+	return &CloudCostItemSetRange{
+		Window:            NewWindow(&start, &end),
+		CloudCostItemSets: cloudCostItemSets,
+	}, nil
 }
 
-// LoadCloudCostItemSets creates and loads CloudCostItems into provided CloudCostItemSets. This method makes it so
-// that the input windows do not have to match the one day frame of the Athena queries. CloudCostItems being generated from a
-// CUR which may be the identical except for the pricing model used (default, RI or savings plan)
-// are accumulated here so that the resulting CloudCostItem with the 1d window has the correct price for the entire day.
-func LoadCloudCostItemSets(itemStart time.Time, itemEnd time.Time, properties CloudCostItemProperties, isK8s bool, cost, credit float64, CloudCostItemSets []*CloudCostItemSet) {
+func (ccisr *CloudCostItemSetRange) Clone() *CloudCostItemSetRange {
+	ccisSlice := make([]*CloudCostItemSet, len(ccisr.CloudCostItemSets))
+	for i, ccis := range ccisr.CloudCostItemSets {
+		ccisSlice[i] = ccis.Clone()
+	}
+	return &CloudCostItemSetRange{
+		Window:            ccisr.Window.Clone(),
+		CloudCostItemSets: ccisSlice,
+	}
+}
 
-	// Disperse cost of the current item across one or more CloudCostItems in
+// LoadCloudCostItem loads CloudCostItems into existing CloudCostItemSets of the CloudCostItemSetRange.
+// This function service to aggregate and distribute costs over predefined windows
+// are accumulated here so that the resulting CloudCostItem with the 1d window has the correct price for the entire day.
+// If all or a portion of the window of the CloudCostItem is outside of the windows of the existing CloudCostItemSets,
+// that portion of the CloudCostItem's cost will not be inserted
+func (ccisr *CloudCostItemSetRange) LoadCloudCostItem(cloudCostItem *CloudCostItem) {
+	window := cloudCostItem.Window
+	if window.IsOpen() {
+		log.Errorf("CloudCostItemSetRange: LoadCloudCostItem: invalid window %s", window.String())
+		return
+	}
+
+	totalPct := 0.0
+
+	// Distribute cost of the current item across one or more CloudCostItems in
 	// across each relevant CloudCostItemSet. Stop when the end of the current
 	// block reaches the item's end time or the end of the range.
-	for _, ccis := range CloudCostItemSets {
-		pct := ccis.GetWindow().GetPercentInWindow(itemStart, itemEnd)
+	for _, ccis := range ccisr.CloudCostItemSets {
+		setWindow := ccis.Window
 
-		// Insert an CloudCostItem with that cost into the CloudCostItemSet at the given index
-		cci := &CloudCostItem{
-			Properties:   properties,
-			IsKubernetes: isK8s,
-			Window:       ccis.GetWindow(),
-			Cost:         cost * pct,
-			Credit:       credit * pct,
+		// get percent of item window contained in set window
+		pct := setWindow.GetPercentInWindow(window)
+		if pct == 0 {
+			continue
 		}
+
+		cci := cloudCostItem
+		// If the current set Window only contains a portion of the CloudCostItem Window, insert costs relative to that portion
+		if pct < 1.0 {
+			cci = &CloudCostItem{
+				Properties:   cloudCostItem.Properties,
+				IsKubernetes: cloudCostItem.IsKubernetes,
+				Window:       window.Contract(setWindow),
+				Cost:         cloudCostItem.Cost * pct,
+				NetCost:      cloudCostItem.NetCost * pct,
+			}
+		}
+
 		err := ccis.Insert(cci)
 		if err != nil {
-			log.Errorf("LoadCloudCostItemSets: failed to load CloudCostItem with key %s and window %s: %s", cci.Key(), ccis.GetWindow().String(), err.Error())
+			log.Errorf("CloudCostItemSetRange: LoadCloudCostItem: failed to load CloudCostItem with key %s and window %s: %s", cci.Key(), ccis.GetWindow().String(), err.Error())
+		}
+
+		// If all cost has been inserted then finish
+		totalPct += pct
+		if totalPct >= 1.0 {
+			return
 		}
 	}
-}
-
-type CloudCostItemSetRange struct {
-	CloudCostItemSets []*CloudCostItemSet `json:"sets"`
-	Window            Window              `json:"window"`
 }

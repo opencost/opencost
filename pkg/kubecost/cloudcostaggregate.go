@@ -11,33 +11,33 @@ import (
 )
 
 const (
-	CloudCostAccountProp  string = "account"
-	CloudCostProjectProp  string = "project"
-	CloudCostProviderProp string = "provider"
-	CloudCostServiceProp  string = "service"
-	CloudCostLabelProp    string = "label"
+	CloudCostBillingIDProp   string = "billingID"
+	CloudCostWorkGroupIDProp string = "workGroupID"
+	CloudCostProviderProp    string = "provider"
+	CloudCostServiceProp     string = "service"
+	CloudCostLabelProp       string = "label"
 )
 
 // CloudCostAggregateProperties unique property set for CloudCostAggregate within a window
 type CloudCostAggregateProperties struct {
-	Provider   string `json:"provider"`
-	Account    string `json:"account"`
-	Project    string `json:"project"`
-	Service    string `json:"service"`
-	LabelValue string `json:"label"`
+	Provider    string `json:"provider"`
+	WorkGroupID string `json:"workGroupID"`
+	BillingID   string `json:"billingID"`
+	Service     string `json:"service"`
+	LabelValue  string `json:"label"`
 }
 
 func (ccap CloudCostAggregateProperties) Equal(that CloudCostAggregateProperties) bool {
 	return ccap.Provider == that.Provider &&
-		ccap.Account == that.Account &&
-		ccap.Project == that.Project &&
+		ccap.WorkGroupID == that.WorkGroupID &&
+		ccap.BillingID == that.BillingID &&
 		ccap.Service == that.Service &&
 		ccap.LabelValue == that.LabelValue
 }
 
 func (ccap CloudCostAggregateProperties) Key(props []string) string {
 	if len(props) == 0 {
-		return fmt.Sprintf("%s/%s/%s/%s/%s", ccap.Provider, ccap.Account, ccap.Project, ccap.Service, ccap.LabelValue)
+		return fmt.Sprintf("%s/%s/%s/%s/%s", ccap.Provider, ccap.BillingID, ccap.WorkGroupID, ccap.Service, ccap.LabelValue)
 	}
 
 	keys := make([]string, len(props))
@@ -49,13 +49,13 @@ func (ccap CloudCostAggregateProperties) Key(props []string) string {
 			if ccap.Provider != "" {
 				key = ccap.Provider
 			}
-		case CloudCostAccountProp:
-			if ccap.Account != "" {
-				key = ccap.Account
+		case CloudCostBillingIDProp:
+			if ccap.BillingID != "" {
+				key = ccap.BillingID
 			}
-		case CloudCostProjectProp:
-			if ccap.Project != "" {
-				key = ccap.Project
+		case CloudCostWorkGroupIDProp:
+			if ccap.WorkGroupID != "" {
+				key = ccap.WorkGroupID
 			}
 		case CloudCostServiceProp:
 			if ccap.Service != "" {
@@ -83,7 +83,7 @@ type CloudCostAggregate struct {
 	Properties        CloudCostAggregateProperties `json:"properties"`
 	KubernetesPercent float64                      `json:"kubernetesPercent"`
 	Cost              float64                      `json:"cost"`
-	Credit            float64                      `json:"credit"`
+	NetCost           float64                      `json:"netCost"`
 }
 
 func (cca *CloudCostAggregate) Clone() *CloudCostAggregate {
@@ -91,7 +91,7 @@ func (cca *CloudCostAggregate) Clone() *CloudCostAggregate {
 		Properties:        cca.Properties,
 		KubernetesPercent: cca.KubernetesPercent,
 		Cost:              cca.Cost,
-		Credit:            cca.Credit,
+		NetCost:           cca.NetCost,
 	}
 }
 
@@ -101,7 +101,7 @@ func (cca *CloudCostAggregate) Equal(that *CloudCostAggregate) bool {
 	}
 
 	return cca.Cost == that.Cost &&
-		cca.Credit == that.Credit &&
+		cca.NetCost == that.NetCost &&
 		cca.Properties.Equal(that.Properties)
 }
 
@@ -115,10 +115,10 @@ func (cca *CloudCostAggregate) StringProperty(prop string) (string, error) {
 	}
 
 	switch prop {
-	case CloudCostAccountProp:
-		return cca.Properties.Account, nil
-	case CloudCostProjectProp:
-		return cca.Properties.Project, nil
+	case CloudCostBillingIDProp:
+		return cca.Properties.BillingID, nil
+	case CloudCostWorkGroupIDProp:
+		return cca.Properties.WorkGroupID, nil
 	case CloudCostProviderProp:
 		return cca.Properties.Provider, nil
 	case CloudCostServiceProp:
@@ -146,12 +146,12 @@ func (cca *CloudCostAggregate) add(that *CloudCostAggregate) {
 	}
 
 	cca.Cost = sumCost
-	cca.Credit += that.Credit
+	cca.NetCost += that.NetCost
 	cca.KubernetesPercent = k8sPct
 }
 
 type CloudCostAggregateSet struct {
-	CloudCostAggregates   map[string]*CloudCostAggregate `json:"items"`
+	CloudCostAggregates   map[string]*CloudCostAggregate `json:"aggregates"`
 	AggregationProperties []string                       `json:"-"`
 	Integration           string                         `json:"-"`
 	LabelName             string                         `json:"labelName,omitempty"`
@@ -351,51 +351,94 @@ func (ccas *CloudCostAggregateSet) Merge(that *CloudCostAggregateSet) (*CloudCos
 	return result, nil
 }
 
-func GetCloudCostAggregateSets(start, end time.Time, windowDuration time.Duration, integration string, labelName string) ([]*CloudCostAggregateSet, error) {
-	windows, err := GetWindows(start, end, windowDuration)
+type CloudCostAggregateSetRange struct {
+	CloudCostAggregateSets []*CloudCostAggregateSet `json:"sets"`
+	Window                 Window                   `json:"window"`
+}
+
+// NewCloudCostAggregateSetRange create a CloudCostAggregateSetRange containing CloudCostItemSets with windows of equal duration
+// the duration between start and end must be divisible by the window duration argument
+func NewCloudCostAggregateSetRange(start, end time.Time, window time.Duration, integration string, labelName string) (*CloudCostAggregateSetRange, error) {
+	windows, err := GetWindows(start, end, window)
 	if err != nil {
 		return nil, err
 	}
 
 	// Build slice of CloudCostAggregateSet to cover the range
-	CloudCostAggregateSets := []*CloudCostAggregateSet{}
-	for _, w := range windows {
+	cloudCostAggregateSets := make([]*CloudCostAggregateSet, len(windows))
+	for i, w := range windows {
 		ccas := NewCloudCostAggregateSet(*w.Start(), *w.End())
 		ccas.Integration = integration
 		ccas.LabelName = labelName
-		CloudCostAggregateSets = append(CloudCostAggregateSets, ccas)
+		cloudCostAggregateSets[i] = ccas
 	}
-	return CloudCostAggregateSets, nil
+	return &CloudCostAggregateSetRange{
+		Window:                 NewWindow(&start, &end),
+		CloudCostAggregateSets: cloudCostAggregateSets,
+	}, nil
 }
 
-// LoadCloudCostAggregateSets creates and loads CloudCostAggregates into provided CloudCostAggregateSets. This method makes it so
-// that the input windows do not have to match the one day frame of the Athena queries. CloudCostAggregates being generated from a
-// CUR which may be the identical except for the pricing model used (default, RI or savings plan)
-// are accumulated here so that the resulting CloudCostAggregate with the 1d window has the correct price for the entire day.
-func LoadCloudCostAggregateSets(itemStart time.Time, itemEnd time.Time, properties CloudCostAggregateProperties, K8sPercent, cost, credit float64, CloudCostAggregateSets []*CloudCostAggregateSet) {
-	// Disperse cost of the current item across one or more CloudCostAggregates in
+// LoadCloudCostAggregate loads CloudCostAggregates into existing CloudCostAggregateSets of the CloudCostAggregateSetRange.
+// This function service to aggregate and distribute costs over predefined windows
+// If all or a portion of the window of the CloudCostAggregate is outside of the windows of the existing CloudCostAggregateSets,
+// that portion of the CloudCostAggregate's cost will not be inserted
+func (ccasr *CloudCostAggregateSetRange) LoadCloudCostAggregate(window Window, cloudCostAggregate *CloudCostAggregate) {
+	if window.IsOpen() {
+		log.Errorf("CloudCostItemSetRange: LoadCloudCostItem: invalid window %s", window.String())
+		return
+	}
+
+	totalPct := 0.0
+
+	// Distribute cost of the current item across one or more CloudCostAggregates in
 	// across each relevant CloudCostAggregateSet. Stop when the end of the current
 	// block reaches the item's end time or the end of the range.
-	for _, ccas := range CloudCostAggregateSets {
-		pct := ccas.GetWindow().GetPercentInWindow(itemStart, itemEnd)
-
-		// Insert an CloudCostAggregate with that cost into the CloudCostAggregateSet at the given index
-		cca := &CloudCostAggregate{
-			Properties:        properties,
-			KubernetesPercent: K8sPercent * pct,
-			Cost:              cost * pct,
-			Credit:            credit * pct,
+	for _, ccas := range ccasr.CloudCostAggregateSets {
+		pct := ccas.GetWindow().GetPercentInWindow(window)
+		if pct == 0 {
+			continue
+		}
+		cca := cloudCostAggregate
+		// If the current set Window only contains a portion of the CloudCostItem Window, insert costs relative to that portion
+		if pct < 1.0 {
+			cca = &CloudCostAggregate{
+				Properties:        cloudCostAggregate.Properties,
+				KubernetesPercent: cloudCostAggregate.KubernetesPercent * pct,
+				Cost:              cloudCostAggregate.Cost * pct,
+				NetCost:           cloudCostAggregate.NetCost * pct,
+			}
 		}
 		err := ccas.insertByProperty(cca, nil)
 		if err != nil {
 			log.Errorf("LoadCloudCostAggregateSets: failed to load CloudCostAggregate with key %s and window %s", cca.Key(nil), ccas.GetWindow().String())
 		}
+
+		// If all cost has been inserted then finish
+		totalPct += pct
+		if totalPct >= 1.0 {
+			return
+		}
 	}
 }
 
-type CloudCostAggregateSetRange struct {
-	CloudCostAggregateSets []*CloudCostAggregateSet `json:"sets"`
-	Window                 Window                   `json:"window"`
+func (ccasr *CloudCostAggregateSetRange) Clone() *CloudCostAggregateSetRange {
+	ccasSlice := make([]*CloudCostAggregateSet, len(ccasr.CloudCostAggregateSets))
+	for i, ccas := range ccasr.CloudCostAggregateSets {
+		ccasSlice[i] = ccas.Clone()
+	}
+	return &CloudCostAggregateSetRange{
+		Window:                 ccasr.Window.Clone(),
+		CloudCostAggregateSets: ccasSlice,
+	}
+}
+
+func (ccasr *CloudCostAggregateSetRange) IsEmpty() bool {
+	for _, ccas := range ccasr.CloudCostAggregateSets {
+		if !ccas.IsEmpty() {
+			return false
+		}
+	}
+	return true
 }
 
 func (ccasr *CloudCostAggregateSetRange) Accumulate() (*CloudCostAggregateSet, error) {

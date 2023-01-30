@@ -244,6 +244,7 @@ func applyCPUCoresAllocated(podMap map[podKey]*pod, resCPUCoresAllocated []*prom
 				continue
 			}
 			thisPod.Allocations[container].Properties.Node = node
+			thisPod.Node = node
 		}
 	}
 }
@@ -301,6 +302,7 @@ func applyCPUCoresRequested(podMap map[podKey]*pod, resCPUCoresRequested []*prom
 				continue
 			}
 			thisPod.Allocations[container].Properties.Node = node
+			thisPod.Node = node
 		}
 	}
 }
@@ -449,6 +451,7 @@ func applyRAMBytesAllocated(podMap map[podKey]*pod, resRAMBytesAllocated []*prom
 				continue
 			}
 			thisPod.Allocations[container].Properties.Node = node
+			thisPod.Node = node
 		}
 	}
 }
@@ -503,6 +506,7 @@ func applyRAMBytesRequested(podMap map[podKey]*pod, resRAMBytesRequested []*prom
 				continue
 			}
 			pod.Allocations[container].Properties.Node = node
+			pod.Node = node
 		}
 	}
 }
@@ -766,6 +770,42 @@ func applyNetworkAllocation(podMap map[podKey]*pod, resNetworkGiB []*prom.QueryR
 	}
 }
 
+func resToNodeLabels(resNodeLabels []*prom.QueryResult) map[nodeKey]map[string]string {
+	nodeLabels := map[nodeKey]map[string]string{}
+
+	for _, res := range resNodeLabels {
+		nodeKey, err := resultNodeKey(res, env.GetPromClusterLabel(), "node")
+		if err != nil {
+			continue
+		}
+
+		if _, ok := nodeLabels[nodeKey]; !ok {
+			nodeLabels[nodeKey] = map[string]string{}
+		}
+
+		for _, rawK := range env.GetAllocationNodeLabelsIncludeList() {
+			labels := res.GetLabels()
+
+			// Sanitize the given label name to match Prometheus formatting
+			// e.g. topology.kubernetes.io/zone => topology_kubernetes_io_zone
+			k := prom.SanitizeLabelName(rawK)
+			if v, ok := labels[k]; ok {
+				nodeLabels[nodeKey][k] = v
+				continue
+			}
+
+			// Try with the "label_" prefix, if not found
+			// e.g. topology_kubernetes_io_zone => label_topology_kubernetes_io_zone
+			k = fmt.Sprintf("label_%s", k)
+			if v, ok := labels[k]; ok {
+				nodeLabels[nodeKey][k] = v
+			}
+		}
+	}
+
+	return nodeLabels
+}
+
 func resToNamespaceLabels(resNamespaceLabels []*prom.QueryResult) map[namespaceKey]map[string]string {
 	namespaceLabels := map[namespaceKey]map[string]string{}
 
@@ -878,21 +918,34 @@ func resToPodAnnotations(resPodAnnotations []*prom.QueryResult, podUIDKeyMap map
 	return podAnnotations
 }
 
-func applyLabels(podMap map[podKey]*pod, namespaceLabels map[namespaceKey]map[string]string, podLabels map[podKey]map[string]string) {
+func applyLabels(podMap map[podKey]*pod, nodeLabels map[nodeKey]map[string]string, namespaceLabels map[namespaceKey]map[string]string, podLabels map[podKey]map[string]string) {
 	for podKey, pod := range podMap {
 		for _, alloc := range pod.Allocations {
 			allocLabels := alloc.Properties.Labels
 			if allocLabels == nil {
 				allocLabels = make(map[string]string)
 			}
-			// Apply namespace labels first, then pod labels so that pod labels
-			// overwrite namespace labels.
-			nsKey := podKey.namespaceKey // newNamespaceKey(podKey.Cluster, podKey.Namespace)
+
+			// Apply node labels first, then namespace labels, then pod labels
+			// so that pod labels overwrite namespace labels, which overwrite
+			// node labels.
+
+			if nodeLabels != nil {
+				nodeKey := newNodeKey(pod.Key.Cluster, pod.Node)
+				if labels, ok := nodeLabels[nodeKey]; ok {
+					for k, v := range labels {
+						allocLabels[k] = v
+					}
+				}
+			}
+
+			nsKey := podKey.namespaceKey
 			if labels, ok := namespaceLabels[nsKey]; ok {
 				for k, v := range labels {
 					allocLabels[k] = v
 				}
 			}
+
 			if labels, ok := podLabels[podKey]; ok {
 				for k, v := range labels {
 					allocLabels[k] = v
@@ -2008,6 +2061,8 @@ func getUnmountedPodForCluster(window kubecost.Window, podMap map[podKey]*pod, c
 		thisPod.Allocations[container].Properties.Pod = podName
 		thisPod.Allocations[container].Properties.Container = container
 
+		thisPod.Node = node
+
 		podMap[thisPodKey] = thisPod
 	}
 	return thisPod
@@ -2038,6 +2093,8 @@ func getUnmountedPodForNamespace(window kubecost.Window, podMap map[podKey]*pod,
 		thisPod.Allocations[container].Properties.Namespace = namespace
 		thisPod.Allocations[container].Properties.Pod = podName
 		thisPod.Allocations[container].Properties.Container = container
+
+		thisPod.Node = node
 
 		podMap[thisPodKey] = thisPod
 	}

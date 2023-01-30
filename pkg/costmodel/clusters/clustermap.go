@@ -22,6 +22,25 @@ const (
 	LoadRetryDelay time.Duration = 10 * time.Second
 )
 
+// The following constants are used as keys into the cluster info map data structure
+const (
+	ClusterInfoIdKey               = "id"
+	ClusterInfoNameKey             = "name"
+	ClusterInfoProviderKey         = "provider"
+	ClusterInfoProjectKey          = "project"
+	ClusterInfoAccountKey          = "account"
+	ClusterInfoRegionKey           = "region"
+	ClusterInfoProvisionerKey      = "provisioner"
+	ClusterInfoProfileKey          = "clusterProfile"
+	ClusterInfoLogCollectionKey    = "logCollection"
+	ClusterInfoProductAnalyticsKey = "productAnalytics"
+	ClusterInfoErrorReportingKey   = "errorReporting"
+	ClusterInfoValuesReportingKey  = "valuesReporting"
+	ClusterInfoThanosEnabledKey    = "thanosEnabled"
+	ClusterInfoThanosOffsetKey     = "thanosOffset"
+	ClusterInfoVersionKey          = "version"
+)
+
 // prometheus query offset to apply to each non-range query
 // package scope to prevent calling duration parse each use
 var promQueryOffset = env.GetPrometheusQueryOffset()
@@ -73,12 +92,6 @@ type ClusterMap interface {
 	// NameIDFor returns an identifier in the format "<clusterName>/<clusterID>" if the cluster has an
 	// assigned name. Otherwise, just the clusterID is returned.
 	NameIDFor(clusterID string) string
-
-	// SplitNameID splits the nameID back into a separate id and name field
-	SplitNameID(nameID string) (id string, name string)
-
-	// StopRefresh stops the automatic internal map refresh
-	StopRefresh()
 }
 
 // ClusterInfoProvider is a contract which is capable of performing cluster info lookups.
@@ -89,7 +102,7 @@ type ClusterInfoProvider interface {
 
 // ClusterMap keeps records of all known cost-model clusters.
 type PrometheusClusterMap struct {
-	lock        *sync.RWMutex
+	lock        sync.RWMutex
 	client      prometheus.Client
 	clusters    map[string]*ClusterInfo
 	clusterInfo ClusterInfoProvider
@@ -101,7 +114,6 @@ func NewClusterMap(client prometheus.Client, cip ClusterInfoProvider, refresh ti
 	stop := make(chan struct{})
 
 	cm := &PrometheusClusterMap{
-		lock:        new(sync.RWMutex),
 		client:      client,
 		clusters:    make(map[string]*ClusterInfo),
 		clusterInfo: cip,
@@ -233,61 +245,12 @@ func (pcm *PrometheusClusterMap) loadClusters() (map[string]*ClusterInfo, error)
 func (pcm *PrometheusClusterMap) getLocalClusterInfo() (*ClusterInfo, error) {
 	info := pcm.clusterInfo.GetClusterInfo()
 
-	var id string
-	var name string
-
-	if i, ok := info["id"]; ok {
-		id = i
-	} else {
-		return nil, fmt.Errorf("Local Cluster Info Missing ID")
-	}
-	if n, ok := info["name"]; ok {
-		name = n
-	} else {
-		return nil, fmt.Errorf("Local Cluster Info Missing Name")
+	clusterInfo, err := MapToClusterInfo(info)
+	if err != nil {
+		return nil, fmt.Errorf("Parsing Local Cluster Info Failed: %s", err)
 	}
 
-	var clusterProfile string
-	var provider string
-	var account string
-	var project string
-	var region string
-	var provisioner string
-
-	if cp, ok := info["clusterProfile"]; ok {
-		clusterProfile = cp
-	}
-
-	if pvdr, ok := info["provider"]; ok {
-		provider = pvdr
-	}
-
-	if acct, ok := info["account"]; ok {
-		account = acct
-	}
-
-	if proj, ok := info["project"]; ok {
-		project = proj
-	}
-
-	if reg, ok := info["region"]; ok {
-		region = reg
-	}
-
-	if pvsr, ok := info["provisioner"]; ok {
-		provisioner = pvsr
-	}
-
-	return &ClusterInfo{
-		ID:          id,
-		Name:        name,
-		Profile:     clusterProfile,
-		Provider:    provider,
-		Account:     account,
-		Project:     project,
-		Region:      region,
-		Provisioner: provisioner,
-	}, nil
+	return clusterInfo, nil
 }
 
 // refreshClusters loads the clusters and updates the internal map
@@ -371,7 +334,8 @@ func (pcm *PrometheusClusterMap) NameIDFor(clusterID string) string {
 	return clusterID
 }
 
-func (pcm *PrometheusClusterMap) SplitNameID(nameID string) (id string, name string) {
+// SplitNameID is a helper method that removes the common split format and returns
+func SplitNameID(nameID string) (id string, name string) {
 	if !strings.Contains(nameID, "/") {
 		id = nameID
 		name = ""
@@ -390,4 +354,64 @@ func (pcm *PrometheusClusterMap) StopRefresh() {
 		close(pcm.stop)
 		pcm.stop = nil
 	}
+}
+
+// MapToClusterInfo returns a ClusterInfo using parsed data from a string map. If
+// parsing the map fails for id and/or name, an error is returned.
+func MapToClusterInfo(info map[string]string) (*ClusterInfo, error) {
+	var id string
+	var name string
+
+	if i, ok := info[ClusterInfoIdKey]; ok {
+		id = i
+	} else {
+		return nil, fmt.Errorf("Cluster Info Missing ID")
+	}
+	if n, ok := info[ClusterInfoNameKey]; ok {
+		name = n
+	} else {
+		name = id
+	}
+
+	var clusterProfile string
+	var provider string
+	var account string
+	var project string
+	var region string
+	var provisioner string
+
+	if cp, ok := info[ClusterInfoProfileKey]; ok {
+		clusterProfile = cp
+	}
+
+	if pvdr, ok := info[ClusterInfoProviderKey]; ok {
+		provider = pvdr
+	}
+
+	if acct, ok := info[ClusterInfoAccountKey]; ok {
+		account = acct
+	}
+
+	if proj, ok := info[ClusterInfoProjectKey]; ok {
+		project = proj
+	}
+
+	if reg, ok := info[ClusterInfoRegionKey]; ok {
+		region = reg
+	}
+
+	if pvsr, ok := info[ClusterInfoProvisionerKey]; ok {
+		provisioner = pvsr
+	}
+
+	return &ClusterInfo{
+		ID:          id,
+		Name:        name,
+		Profile:     clusterProfile,
+		Provider:    provider,
+		Account:     account,
+		Project:     project,
+		Region:      region,
+		Provisioner: provisioner,
+	}, nil
 }
