@@ -1044,7 +1044,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 		if newCnode.GPU != "" && newCnode.GPUCost == "" {
 			// We couldn't find a gpu cost, so fix cpu and ram, then accordingly
-			log.Debugf("GPU without cost found for %s, calculating...", cp.GetKey(nodeLabels, n).Features())
+			log.Infof("GPU without cost found for %s, calculating...", cp.GetKey(nodeLabels, n).Features())
 
 			defaultCPU, err := strconv.ParseFloat(cfg.CPU, 64)
 			if err != nil {
@@ -1180,6 +1180,14 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 				if err != nil {
 					log.Warnf("Could not parse total node price")
 					return nil, err
+				}
+				if newCnode.GPUCost != "" {
+					gpuPrice, err := strconv.ParseFloat(newCnode.GPUCost, 64)
+					if err != nil {
+						log.Warnf("Could not parse node gpu price")
+						return nil, err
+					}
+					nodePrice = nodePrice - gpuPrice // remove the gpuPrice from the total, we're just costing out RAM and CPU.
 				}
 			} else {
 				nodePrice, err = strconv.ParseFloat(newCnode.VCPUCost, 64) // all the price was allocated to the CPU

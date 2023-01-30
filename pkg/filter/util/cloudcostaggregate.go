@@ -17,12 +17,12 @@ func CloudCostAggregateFilterFromParams(pmr mapper.PrimitiveMapReader) filter.Fi
 		Filters: []filter.Filter[*kubecost.CloudCostAggregate]{},
 	}
 
-	if raw := pmr.GetList("filterAccounts", ","); len(raw) > 0 {
-		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.CloudCostAccountProp))
+	if raw := pmr.GetList("filterBillingIDs", ","); len(raw) > 0 {
+		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.CloudCostBillingIDProp))
 	}
 
-	if raw := pmr.GetList("filterProjects", ","); len(raw) > 0 {
-		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.CloudCostProjectProp))
+	if raw := pmr.GetList("filterWorkGroupIDs", ","); len(raw) > 0 {
+		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.CloudCostWorkGroupIDProp))
 	}
 
 	if raw := pmr.GetList("filterProviders", ","); len(raw) > 0 {
