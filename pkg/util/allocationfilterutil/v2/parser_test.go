@@ -43,6 +43,66 @@ func TestParse(t *testing.T) {
 			},
 		},
 		{
+			input: `cluster:"cluster-one"+namespace:"kubecost"+controllerKind:"daemonset"+controllerName:"kubecost-network-costs"+container:"kubecost-network-costs"`,
+			expected: kubecost.AllocationFilterAnd{[]kubecost.AllocationFilter{
+				kubecost.AllocationFilterOr{[]kubecost.AllocationFilter{
+					kubecost.AllocationFilterCondition{
+						Field: kubecost.FilterClusterID,
+						Op:    kubecost.FilterEquals,
+						Value: "cluster-one",
+					},
+				}},
+				kubecost.AllocationFilterOr{[]kubecost.AllocationFilter{
+					kubecost.AllocationFilterCondition{
+						Field: kubecost.FilterNamespace,
+						Op:    kubecost.FilterEquals,
+						Value: "kubecost",
+					},
+				}},
+				kubecost.AllocationFilterOr{[]kubecost.AllocationFilter{
+					kubecost.AllocationFilterCondition{
+						Field: kubecost.FilterControllerKind,
+						Op:    kubecost.FilterEquals,
+						Value: "daemonset",
+					},
+				}},
+				kubecost.AllocationFilterOr{[]kubecost.AllocationFilter{
+					kubecost.AllocationFilterCondition{
+						Field: kubecost.FilterControllerName,
+						Op:    kubecost.FilterEquals,
+						Value: "kubecost-network-costs",
+					},
+				}},
+				kubecost.AllocationFilterOr{[]kubecost.AllocationFilter{
+					kubecost.AllocationFilterCondition{
+						Field: kubecost.FilterContainer,
+						Op:    kubecost.FilterEquals,
+						Value: "kubecost-network-costs",
+					},
+				}},
+			}},
+			shouldMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Cluster:        "cluster-one",
+					Namespace:      "kubecost",
+					ControllerKind: "daemonset",
+					Controller:     "kubecost-network-costs",
+					Pod:            "kubecost-network-costs-abc123",
+					Container:      "kubecost-network-costs",
+				}),
+			},
+			shouldNotMatch: []kubecost.Allocation{
+				allocGenerator(kubecost.AllocationProperties{
+					Cluster:        "cluster-one",
+					Namespace:      "default",
+					ControllerKind: "deployment",
+					Controller:     "workload-abc",
+					Pod:            "workload-abc-123abc",
+					Container:      "abc",
+				}),
+			},
+		},
+		{
 			input: `namespace!:"kubecost","kube-system"`,
 			expected: kubecost.AllocationFilterAnd{[]kubecost.AllocationFilter{
 				kubecost.AllocationFilterAnd{[]kubecost.AllocationFilter{
