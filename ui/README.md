@@ -1,5 +1,5 @@
 # OpenCost UI
-The preferred install path for Kubecost is via Helm chart, and is explained [here](http://docs.kubecost.com/install)
+The preferred install path for OpenCost is via Helm chart, and is available explained [here](http://github.com/opencost/opencost-helm-chart)
 
 To manually run the OpenCost UI, follow the steps below.
 
