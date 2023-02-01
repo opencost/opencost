@@ -174,6 +174,7 @@ type CustomPricing struct {
 	ServiceKeySecret             string `json:"awsServiceKeySecret,omitempty"`
 	AlibabaServiceKeyName        string `json:"alibabaServiceKeyName,omitempty"`
 	AlibabaServiceKeySecret      string `json:"alibabaServiceKeySecret,omitempty"`
+	AlibabaClusterRegion         string `json:"alibabaClusterRegion,omitempty"`
 	SpotDataRegion               string `json:"awsSpotDataRegion,omitempty"`
 	SpotDataBucket               string `json:"awsSpotDataBucket,omitempty"`
 	SpotDataPrefix               string `json:"awsSpotDataPrefix,omitempty"`
