@@ -1,9 +1,10 @@
 package kubecost
 
 import (
-	"github.com/opencost/opencost/pkg/util/timeutil"
 	"testing"
 	"time"
+
+	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
 var ccaProperties1 = CloudCostAggregateProperties{
@@ -12,6 +13,104 @@ var ccaProperties1 = CloudCostAggregateProperties{
 	BillingID:   "billing1",
 	Service:     "service1",
 	LabelValue:  "labelValue1",
+}
+
+func TestCloudCostAggregatePropertiesIntersection(t *testing.T) {
+	testCases := map[string]struct {
+		baseCCAP     CloudCostAggregateProperties
+		intCCAP      CloudCostAggregateProperties
+		expectedCCAP CloudCostAggregateProperties
+	}{
+		"When properties match between both CloudCostAggregateProperties": {
+			baseCCAP: CloudCostAggregateProperties{
+				Provider:    "CustomProvider",
+				WorkGroupID: "WorkGroupID1",
+				BillingID:   "BillingID1",
+				Service:     "Service1",
+				LabelValue:  "Label1",
+			},
+			intCCAP: CloudCostAggregateProperties{
+				Provider:    "CustomProvider",
+				WorkGroupID: "WorkGroupID1",
+				BillingID:   "BillingID1",
+				Service:     "Service1",
+				LabelValue:  "Label1",
+			},
+			expectedCCAP: CloudCostAggregateProperties{
+				Provider:    "CustomProvider",
+				WorkGroupID: "WorkGroupID1",
+				BillingID:   "BillingID1",
+				Service:     "Service1",
+				LabelValue:  "Label1",
+			},
+		},
+		"When one of the properties differ in the two CloudCostAggregateProperties": {
+			baseCCAP: CloudCostAggregateProperties{
+				Provider:    "CustomProvider",
+				WorkGroupID: "WorkGroupID1",
+				BillingID:   "BillingID1",
+				Service:     "Service1",
+				LabelValue:  "Label1",
+			},
+			intCCAP: CloudCostAggregateProperties{
+				Provider:    "CustomProvider",
+				WorkGroupID: "WorkGroupID1",
+				BillingID:   "BillingID1",
+				Service:     "Service2",
+				LabelValue:  "Label1",
+			},
+			expectedCCAP: CloudCostAggregateProperties{
+				Provider:    "CustomProvider",
+				WorkGroupID: "WorkGroupID1",
+				BillingID:   "BillingID1",
+				Service:     "",
+				LabelValue:  "Label1",
+			},
+		},
+		"When two of the properties differ in the two CloudCostAggregateProperties": {
+			baseCCAP: CloudCostAggregateProperties{
+				Provider:    "CustomProvider",
+				WorkGroupID: "WorkGroupID1",
+				BillingID:   "BillingID1",
+				Service:     "Service1",
+				LabelValue:  "Label1",
+			},
+			intCCAP: CloudCostAggregateProperties{
+				Provider:    "CustomProvider",
+				WorkGroupID: "WorkGroupID2",
+				BillingID:   "BillingID1",
+				Service:     "Service2",
+				LabelValue:  "Label1",
+			},
+			expectedCCAP: CloudCostAggregateProperties{
+				Provider:    "CustomProvider",
+				WorkGroupID: "",
+				BillingID:   "BillingID1",
+				Service:     "",
+				LabelValue:  "Label1",
+			},
+		},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			actualCCAP := tc.baseCCAP.Intersection(tc.intCCAP)
+			if actualCCAP.Provider != tc.expectedCCAP.Provider {
+				t.Errorf("Case %s: Provider properties dont match with expected CloudCostAggregateProperties: %v actual %v", name, tc.expectedCCAP, actualCCAP)
+			}
+			if actualCCAP.WorkGroupID != tc.expectedCCAP.WorkGroupID {
+				t.Errorf("Case %s: WorkGroupID properties dont match with expected CloudCostAggregateProperties: %v actual %v", name, tc.expectedCCAP, actualCCAP)
+			}
+			if actualCCAP.BillingID != tc.expectedCCAP.BillingID {
+				t.Errorf("Case %s: BillingID properties dont match with expected CloudCostAggregateProperties: %v actual %v", name, tc.expectedCCAP, actualCCAP)
+			}
+			if actualCCAP.Service != tc.expectedCCAP.Service {
+				t.Errorf("Case %s: Service properties dont match with expected CloudCostAggregateProperties: %v actual %v", name, tc.expectedCCAP, actualCCAP)
+			}
+			if actualCCAP.LabelValue != tc.expectedCCAP.LabelValue {
+				t.Errorf("Case %s: LabelValue properties dont match with expected CloudCostAggregateProperties: %v actual %v", name, tc.expectedCCAP, actualCCAP)
+			}
+		})
+	}
 }
 
 // TestCloudCostAggregate_LoadCloudCostAggregate checks that loaded CloudCostAggregates end up in the correct set in the
@@ -240,9 +339,9 @@ func TestCloudCostAggregate_LoadCloudCostAggregate(t *testing.T) {
 					},
 				},
 				{
-					Integration: "integration",
-					LabelName:   "label",
-					Window:      dayWindows[2],
+					Integration:         "integration",
+					LabelName:           "label",
+					Window:              dayWindows[2],
 					CloudCostAggregates: map[string]*CloudCostAggregate{},
 				},
 			},
