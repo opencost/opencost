@@ -55,11 +55,9 @@ const (
 	InUseState    = "in-use"
 	AttachedState = "attached"
 
-	AWSHourlyPublicIPCost          = 0.005
-	EKSCapacityTypeLabel           = "eks.amazonaws.com/capacityType"
-	EKSCapacitySpotTypeValue       = "SPOT"
-	KarpenterCapacityTypeLabel     = "karpenter.sh/capacity-type"
-	KarpenterCapacitySpotTypeValue = "spot"
+	AWSHourlyPublicIPCost    = 0.005
+	EKSCapacityTypeLabel     = "eks.amazonaws.com/capacityType"
+	EKSCapacitySpotTypeValue = "SPOT"
 )
 
 var (
