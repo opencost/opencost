@@ -1,4 +1,4 @@
-FROM node:18.3.0 as builder
+FROM node:18.13.0 as builder
 ADD package*.json /opt/ui/
 WORKDIR /opt/ui
 RUN npm install
