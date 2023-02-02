@@ -35,6 +35,33 @@ func (ccap CloudCostAggregateProperties) Equal(that CloudCostAggregateProperties
 		ccap.LabelValue == that.LabelValue
 }
 
+// Intersection ensure the values of two CloudCostAggregateProperties are maintain only if they are equal
+func (ccap CloudCostAggregateProperties) Intersection(that CloudCostAggregateProperties) CloudCostAggregateProperties {
+	if ccap.Equal(that) {
+		return ccap
+	}
+	intersectionCCAP := CloudCostAggregateProperties{}
+	if ccap == intersectionCCAP || that == intersectionCCAP {
+		return intersectionCCAP
+	}
+
+	if ccap.Provider == that.Provider {
+		intersectionCCAP.Provider = ccap.Provider
+	}
+	if ccap.WorkGroupID == that.WorkGroupID {
+		intersectionCCAP.WorkGroupID = ccap.WorkGroupID
+	}
+	if ccap.BillingID == that.BillingID {
+		intersectionCCAP.BillingID = ccap.BillingID
+	}
+	if ccap.Service == that.Service {
+		intersectionCCAP.Service = ccap.Service
+	}
+	if ccap.LabelValue == that.LabelValue {
+		intersectionCCAP.LabelValue = ccap.LabelValue
+	}
+	return intersectionCCAP
+}
 func (ccap CloudCostAggregateProperties) Key(props []string) string {
 	if len(props) == 0 {
 		return fmt.Sprintf("%s/%s/%s/%s/%s", ccap.Provider, ccap.BillingID, ccap.WorkGroupID, ccap.Service, ccap.LabelValue)
@@ -86,6 +113,15 @@ type CloudCostAggregate struct {
 	NetCost           float64                      `json:"netCost"`
 }
 
+func NewCloudCostAggregate(properties CloudCostAggregateProperties, kubernetesPercent, cost, netCost float64) *CloudCostAggregate {
+	return &CloudCostAggregate{
+		Properties:        properties,
+		KubernetesPercent: kubernetesPercent,
+		Cost:              cost,
+		NetCost:           netCost,
+	}
+}
+
 func (cca *CloudCostAggregate) Clone() *CloudCostAggregate {
 	return &CloudCostAggregate{
 		Properties:        cca.Properties,
@@ -135,6 +171,9 @@ func (cca *CloudCostAggregate) add(that *CloudCostAggregate) {
 		log.Warnf("cannot add to nil CloudCostAggregate")
 		return
 	}
+
+	// Preserve string properties of cloud cost aggregates that are matching between the two CloudCostAggregate
+	cca.Properties = cca.Properties.Intersection(that.Properties)
 
 	// Compute KubernetesPercent for sum
 	k8sPct := 0.0

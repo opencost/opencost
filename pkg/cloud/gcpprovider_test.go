@@ -73,13 +73,19 @@ func TestGetUsageType(t *testing.T) {
 	}{
 		{
 			input: map[string]string{
-				"cloud.google.com/gke-preemptible": "true",
+				GKEPreemptibleLabel: "true",
 			},
 			expected: "preemptible",
 		},
 		{
 			input: map[string]string{
-				"cloud.google.com/gke-spot": "true",
+				GKESpotLabel: "true",
+			},
+			expected: "preemptible",
+		},
+		{
+			input: map[string]string{
+				KarpenterCapacityTypeLabel: KarpenterCapacitySpotTypeValue,
 			},
 			expected: "preemptible",
 		},

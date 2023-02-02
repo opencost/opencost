@@ -42,6 +42,9 @@ const (
 	GCPMonthlyBasicDiskCost = 0.04
 	GCPMonthlySSDDiskCost   = 0.17
 	GCPMonthlyGP2DiskCost   = 0.1
+
+	GKEPreemptibleLabel = "cloud.google.com/gke-preemptible"
+	GKESpotLabel        = "cloud.google.com/gke-spot"
 )
 
 // List obtained by installing the `gcloud` CLI tool,
@@ -472,8 +475,10 @@ func (gcp *GCP) GetOrphanedResources() ([]OrphanedResource, error) {
 				// GCP gives us description as a string formatted as a map[string]string, so we need to
 				// deconstruct it back into a map[string]string to match the OR struct
 				desc := map[string]string{}
-				if err := json.Unmarshal([]byte(disk.Description), &desc); err != nil {
-					return nil, fmt.Errorf("error converting string to map: %s", err)
+				if disk.Description != "" {
+					if err := json.Unmarshal([]byte(disk.Description), &desc); err != nil {
+						return nil, fmt.Errorf("error converting string to map: %s", err)
+					}
 				}
 
 				// Converts https://www.googleapis.com/compute/v1/projects/xxxxx/zones/us-central1-c to us-central1-c
@@ -1561,10 +1566,12 @@ func parseGCPProjectID(id string) string {
 }
 
 func getUsageType(labels map[string]string) string {
-	if t, ok := labels["cloud.google.com/gke-preemptible"]; ok && t == "true" {
+	if t, ok := labels[GKEPreemptibleLabel]; ok && t == "true" {
 		return "preemptible"
-	} else if t, ok := labels["cloud.google.com/gke-spot"]; ok && t == "true" {
+	} else if t, ok := labels[GKESpotLabel]; ok && t == "true" {
 		// https://cloud.google.com/kubernetes-engine/docs/concepts/spot-vms
+		return "preemptible"
+	} else if t, ok := labels[KarpenterCapacityTypeLabel]; ok && t == KarpenterCapacitySpotTypeValue {
 		return "preemptible"
 	}
 	return "ondemand"
