@@ -852,6 +852,22 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			windowEnd:   endYesterday,
 			expMinutes:  1440.0,
 		},
+		"1h-with-/": {
+			start:      start,
+			aggBy:      []string{"label:app/app"},
+			aggOpts:    nil,
+			numResults: numLabelApps + numIdle + numUnallocated,
+			totalCost:  activeTotalCost + idleTotalCost,
+			results: map[string]float64{
+				"app1":            16.00,
+				"app2":            24.00,
+				IdleSuffix:        30.00,
+				UnallocatedSuffix: 42.00,
+			},
+			windowStart: startYesterday,
+			windowEnd:   endYesterday,
+			expMinutes:  1440.0,
+		},
 		// 1i AggregationProperties=(deployment)
 		"1i": {
 			start:      start,
@@ -882,6 +898,23 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 				"team2":           6.00,
 				IdleSuffix:        30.00,
 				UnallocatedSuffix: 64.00,
+			},
+			windowStart: startYesterday,
+			windowEnd:   endYesterday,
+			expMinutes:  1440.0,
+		},
+		// 1j AggregationProperties=(Annotation:team/tags)
+		"1j-json-and-/": {
+			start:      start,
+			aggBy:      []string{"annotation:team/tags"},
+			aggOpts:    nil,
+			numResults: 2 + numIdle + numUnallocated,
+			totalCost:  activeTotalCost + idleTotalCost,
+			results: map[string]float64{
+				"{\"team\":\"team1\"}": 12.00,
+				"{\"team\":\"team2\"}": 6.00,
+				IdleSuffix:             30.00,
+				UnallocatedSuffix:      64.00,
 			},
 			windowStart: startYesterday,
 			windowEnd:   endYesterday,

@@ -293,16 +293,16 @@ func GenerateMockAllocationSet(start time.Time) *AllocationSet {
 
 	// Labels
 
-	a1111.Properties.Labels = map[string]string{"app": "app1", "env": "env1"}
-	a12ghi4.Properties.Labels = map[string]string{"app": "app2", "env": "env2"}
-	a12ghi5.Properties.Labels = map[string]string{"app": "app2", "env": "env2"}
-	a22mno4.Properties.Labels = map[string]string{"app": "app2"}
-	a22mno5.Properties.Labels = map[string]string{"app": "app2"}
+	a1111.Properties.Labels = map[string]string{"app": "app1", "env": "env1", "app/app": "app1"}
+	a12ghi4.Properties.Labels = map[string]string{"app": "app2", "env": "env2", "app/app": "app2"}
+	a12ghi5.Properties.Labels = map[string]string{"app": "app2", "env": "env2", "app/app": "app2"}
+	a22mno4.Properties.Labels = map[string]string{"app": "app2", "app/app": "app2"}
+	a22mno5.Properties.Labels = map[string]string{"app": "app2", "app/app": "app2"}
 
 	//Annotations
-	a23stu7.Properties.Annotations = map[string]string{"team": "team1"}
-	a23vwx8.Properties.Annotations = map[string]string{"team": "team2"}
-	a23vwx9.Properties.Annotations = map[string]string{"team": "team1"}
+	a23stu7.Properties.Annotations = map[string]string{"team": "team1", "team/tags": "{\"team\":\"team1\"}"}
+	a23vwx8.Properties.Annotations = map[string]string{"team": "team2", "team/tags": "{\"team\":\"team2\"}"}
+	a23vwx9.Properties.Annotations = map[string]string{"team": "team1", "team/tags": "{\"team\":\"team1\"}"}
 
 	// Services
 	a12jkl6.Properties.Services = []string{"service1"}
@@ -568,30 +568,44 @@ func GenerateMockAssetSets(start, end time.Time) []*AssetSet {
 //
 // | Asset                        | Cost |  Adj |
 // +------------------------------+------+------+
-//   cluster1:
-//     node1:                        6.00   1.00
-//     node2:                        4.00   1.50
-//     node3:                        7.00  -0.50
-//     disk1:                        2.50   0.00
-//     disk2:                        1.50   0.00
-//     clusterManagement1:           3.00   0.00
+//
+//	cluster1:
+//	  node1:                        6.00   1.00
+//	  node2:                        4.00   1.50
+//	  node3:                        7.00  -0.50
+//	  disk1:                        2.50   0.00
+//	  disk2:                        1.50   0.00
+//	  clusterManagement1:           3.00   0.00
+//
 // +------------------------------+------+------+
-//   cluster1 subtotal              24.00   2.00
+//
+//	cluster1 subtotal              24.00   2.00
+//
 // +------------------------------+------+------+
-//   cluster2:
-//     node4:                       12.00  -1.00
-//     disk3:                        2.50   0.00
-//     disk4:                        1.50   0.00
-//     clusterManagement2:           0.00   0.00
+//
+//	cluster2:
+//	  node4:                       12.00  -1.00
+//	  disk3:                        2.50   0.00
+//	  disk4:                        1.50   0.00
+//	  clusterManagement2:           0.00   0.00
+//
 // +------------------------------+------+------+
-//   cluster2 subtotal              16.00  -1.00
+//
+//	cluster2 subtotal              16.00  -1.00
+//
 // +------------------------------+------+------+
-//   cluster3:
-//     node5:                       17.00   2.00
+//
+//	cluster3:
+//	  node5:                       17.00   2.00
+//
 // +------------------------------+------+------+
-//   cluster3 subtotal              17.00   2.00
+//
+//	cluster3 subtotal              17.00   2.00
+//
 // +------------------------------+------+------+
-//   total                          57.00   3.00
+//
+//	total                          57.00   3.00
+//
 // +------------------------------+------+------+
 func GenerateMockAssetSet(start time.Time) *AssetSet {
 	end := start.Add(day)
