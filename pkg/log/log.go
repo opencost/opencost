@@ -3,7 +3,6 @@ package log
 import (
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -30,7 +29,7 @@ const (
 func InitLogging(showLogLevelSetMessage bool) {
 	zerolog.TimeFieldFormat = time.RFC3339Nano
 	// Default to using pretty formatting
-	if strings.ToLower(viper.GetString(flagFormat)) != "json" {
+	if viper.GetString(flagFormat) != "json" {
 		disableColor := viper.GetBool(flagDisableColor)
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339Nano, NoColor: disableColor})
 	}

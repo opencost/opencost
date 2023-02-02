@@ -71,7 +71,7 @@ func newRootCommand(costModelCmd *cobra.Command, cmds ...*cobra.Command) *cobra.
 
 	// Add our persistent flags, these are global and available anywhere
 	cmd.PersistentFlags().String("log-level", "info", "Set the log level")
-	cmd.PersistentFlags().String("log-format", "pretty", "Set the log format - Can be either 'JSON' or 'pretty'")
+	cmd.PersistentFlags().String("log-format", "pretty", "Set the log format - Can be either 'json' or 'pretty'")
 	cmd.PersistentFlags().Bool("disable-log-color", false, "Disable coloring of log output")
 
 	viper.BindPFlag("log-level", cmd.PersistentFlags().Lookup("log-level"))
