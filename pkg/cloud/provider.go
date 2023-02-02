@@ -32,6 +32,9 @@ const authSecretPath = "/var/secrets/service-key.json"
 const storageConfigSecretPath = "/var/azure-storage-config/azure-storage-config.json"
 const defaultShareTenancyCost = "true"
 
+const KarpenterCapacityTypeLabel = "karpenter.sh/capacity-type"
+const KarpenterCapacitySpotTypeValue = "spot"
+
 var createTableStatements = []string{
 	`CREATE TABLE IF NOT EXISTS names (
 		cluster_id VARCHAR(255) NOT NULL,

@@ -25,7 +25,7 @@ func Test_awsKey_getUsageType(t *testing.T) {
 			want: "",
 		},
 		{
-			name: "label with a capacityType set to empty string should return empty string",
+			name: "EKS label with a capacityType set to empty string should return empty string",
 			args: args{
 				labels: map[string]string{
 					EKSCapacityTypeLabel: "",
@@ -34,7 +34,7 @@ func Test_awsKey_getUsageType(t *testing.T) {
 			want: "",
 		},
 		{
-			name: "label with capacityType set to a random value should return empty string",
+			name: "EKS label with capacityType set to a random value should return empty string",
 			args: args{
 				labels: map[string]string{
 					EKSCapacityTypeLabel: "TEST_ME",
@@ -43,10 +43,37 @@ func Test_awsKey_getUsageType(t *testing.T) {
 			want: "",
 		},
 		{
-			name: "label with capacityType set to spot should return spot",
+			name: "EKS label with capacityType set to spot should return spot",
 			args: args{
 				labels: map[string]string{
 					EKSCapacityTypeLabel: EKSCapacitySpotTypeValue,
+				},
+			},
+			want: PreemptibleType,
+		},
+		{
+			name: "Karpenter label with a capacityType set to empty string should return empty string",
+			args: args{
+				labels: map[string]string{
+					KarpenterCapacityTypeLabel: "",
+				},
+			},
+			want: "",
+		},
+		{
+			name: "Karpenter label with capacityType set to a random value should return empty string",
+			args: args{
+				labels: map[string]string{
+					KarpenterCapacityTypeLabel: "TEST_ME",
+				},
+			},
+			want: "",
+		},
+		{
+			name: "Karpenter label with capacityType set to spot should return spot",
+			args: args{
+				labels: map[string]string{
+					KarpenterCapacityTypeLabel: KarpenterCapacitySpotTypeValue,
 				},
 			},
 			want: PreemptibleType,
