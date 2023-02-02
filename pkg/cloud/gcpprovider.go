@@ -472,8 +472,10 @@ func (gcp *GCP) GetOrphanedResources() ([]OrphanedResource, error) {
 				// GCP gives us description as a string formatted as a map[string]string, so we need to
 				// deconstruct it back into a map[string]string to match the OR struct
 				desc := map[string]string{}
-				if err := json.Unmarshal([]byte(disk.Description), &desc); err != nil {
-					return nil, fmt.Errorf("error converting string to map: %s", err)
+				if disk.Description != "" {
+					if err := json.Unmarshal([]byte(disk.Description), &desc); err != nil {
+						return nil, fmt.Errorf("error converting string to map: %s", err)
+					}
 				}
 
 				// Converts https://www.googleapis.com/compute/v1/projects/xxxxx/zones/us-central1-c to us-central1-c
