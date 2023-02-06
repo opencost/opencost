@@ -25,6 +25,10 @@ func TestParseGCPInstanceTypeLabel(t *testing.T) {
 			input:    "custom-n1-standard-2",
 			expected: "custom",
 		},
+		{
+			input:    "n2d-highmem-8",
+			expected: "n2dstandard",
+		},
 	}
 
 	for _, test := range cases {
