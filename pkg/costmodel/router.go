@@ -413,7 +413,7 @@ func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httpr
 	offset := r.URL.Query().Get("offset")
 
 	if window == "" {
-		w.Write(WrapData(nil, fmt.Errorf("missing window arguement")))
+		w.Write(WrapData(nil, fmt.Errorf("missing window argument")))
 		return
 	}
 	windowDur, err := timeutil.ParseDuration(window)
