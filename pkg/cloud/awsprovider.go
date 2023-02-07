@@ -591,7 +591,7 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 				return err
 			}
 			for k, v := range a {
-				kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+				kUpper := toTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
 				vstr, ok := v.(string)
 				if ok {
 					err := SetCustomPricingField(c, kUpper, vstr)

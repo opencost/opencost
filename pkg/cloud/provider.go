@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"io"
 	"net/http"
 	"regexp"
@@ -34,6 +36,8 @@ const defaultShareTenancyCost = "true"
 
 const KarpenterCapacityTypeLabel = "karpenter.sh/capacity-type"
 const KarpenterCapacitySpotTypeValue = "spot"
+
+var toTitle = cases.Title(language.Und, cases.NoLower)
 
 var createTableStatements = []string{
 	`CREATE TABLE IF NOT EXISTS names (

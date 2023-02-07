@@ -5,7 +5,6 @@ import (
 	gopath "path"
 	"reflect"
 	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/microcosm-cc/bluemonday"
@@ -191,7 +190,7 @@ func (pc *ProviderConfig) UpdateFromMap(a map[string]string) (*CustomPricing, er
 	return pc.Update(func(c *CustomPricing) error {
 		for k, v := range a {
 			// Just so we consistently supply / receive the same values, uppercase the first letter.
-			kUpper := strings.Title(k)
+			kUpper := toTitle.String(k)
 			if kUpper == "CPU" || kUpper == "SpotCPU" || kUpper == "RAM" || kUpper == "SpotRAM" || kUpper == "GPU" || kUpper == "Storage" {
 				val, err := strconv.ParseFloat(v, 64)
 				if err != nil {
