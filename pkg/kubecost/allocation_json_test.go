@@ -2,6 +2,8 @@ package kubecost
 
 import (
 	"encoding/json"
+	"github.com/opencost/opencost/pkg/util/mathutil"
+	"math"
 	"testing"
 	"time"
 )
@@ -151,4 +153,66 @@ func TestPVAllocations_MarshalJSON(t *testing.T) {
 		})
 	}
 
+}
+
+func TestFormatFloat64ForResponse(t *testing.T) {
+	type formatTestCase struct {
+		name          string
+		input         float64
+		expectedNil   bool
+		expectedValue float64
+	}
+	testCases := []formatTestCase{
+		{
+			name:          "zero",
+			input:         0.0,
+			expectedNil:   false,
+			expectedValue: 0.0,
+		},
+		{
+			name:          "round to zero",
+			input:         0.000000001,
+			expectedNil:   false,
+			expectedValue: 0,
+		},
+		{
+			name:          "valid value, no rounding",
+			input:         14.123456,
+			expectedNil:   false,
+			expectedValue: 14.123456,
+		},
+		{
+			name:          "valid value, with rounding",
+			input:         14.1234567,
+			expectedNil:   false,
+			expectedValue: 14.123457,
+		},
+		{
+			name:        "NaN is nil",
+			input:       math.NaN(),
+			expectedNil: true,
+		},
+		{
+			name:        "infinite is nil",
+			input:       math.Inf(1),
+			expectedNil: true,
+		},
+		{
+			name:        "negative infinite is nil",
+			input:       math.Inf(-1),
+			expectedNil: true,
+		},
+	}
+	for _, tc := range testCases {
+		result := formatFloat64ForResponse(tc.input)
+		if result == nil && tc.expectedNil == false {
+			t.Fatalf("test case: %s: expected a value %f, got nil instead", tc.name, tc.expectedValue)
+		}
+		if result != nil && tc.expectedNil == true {
+			t.Fatalf("test case: %s: expected nil, got value %f instead", tc.name, *result)
+		}
+		if result != nil && !mathutil.Approximately(*result, tc.expectedValue) {
+			t.Fatalf("test case: %s: expected %f, got %f", tc.name, tc.expectedValue, *result)
+		}
+	}
 }
