@@ -1,59 +1,130 @@
 package kubecost
 
 import (
-	"bytes"
-	"encoding/json"
+	"fmt"
+	"github.com/opencost/opencost/pkg/util/json"
+	"math"
 	"time"
 )
 
+// AllocationJSON  exists because there are expected JSON response fields
+// that are calculated values from methods on an annotation
+type AllocationJSON struct {
+	Name                       string                 `json:"name"`
+	Properties                 *AllocationProperties  `json:"properties"`
+	Window                     Window                 `json:"window"`
+	Start                      string                 `json:"start"`
+	End                        string                 `json:"end"`
+	Minutes                    *float64               `json:"minutes"`
+	CPUCores                   *float64               `json:"cpuCores"`
+	CPUCoreRequestAverage      *float64               `json:"cpuCoreRequestAverage"`
+	CPUCoreUsageAverage        *float64               `json:"cpuCoreUsageAverage"`
+	CPUCoreHours               *float64               `json:"cpuCoreHours"`
+	CPUCost                    *float64               `json:"cpuCost"`
+	CPUCostAdjustment          *float64               `json:"cpuCostAdjustment"`
+	CPUEfficiency              *float64               `json:"cpuEfficiency"`
+	GPUCount                   *float64               `json:"gpuCount"`
+	GPUHours                   *float64               `json:"gpuHours"`
+	GPUCost                    *float64               `json:"gpuCost"`
+	GPUCostAdjustment          *float64               `json:"gpuCostAdjustment"`
+	NetworkTransferBytes       *float64               `json:"networkTransferBytes"`
+	NetworkReceiveBytes        *float64               `json:"networkReceiveBytes"`
+	NetworkCost                *float64               `json:"networkCost"`
+	NetworkCrossZoneCost       *float64               `json:"networkCrossZoneCost"`
+	NetworkCrossRegionCost     *float64               `json:"networkCrossRegionCost"`
+	NetworkInternetCost        *float64               `json:"networkInternetCost"`
+	NetworkCostAdjustment      *float64               `json:"networkCostAdjustment"`
+	LoadBalancerCost           *float64               `json:"loadBalancerCost"`
+	LoadBalancerCostAdjustment *float64               `json:"loadBalancerCostAdjustment"`
+	PVBytes                    *float64               `json:"pvBytes"`
+	PVByteHours                *float64               `json:"pvByteHours"`
+	PVCost                     *float64               `json:"pvCost"`
+	PVs                        PVAllocations          `json:"pvs"`
+	PVCostAdjustment           *float64               `json:"pvCostAdjustment"`
+	RAMBytes                   *float64               `json:"ramBytes"`
+	RAMByteRequestAverage      *float64               `json:"ramByteRequestAverage"`
+	RAMByteUsageAverage        *float64               `json:"ramByteUsageAverage"`
+	RAMByteHours               *float64               `json:"ramByteHours"`
+	RAMCost                    *float64               `json:"ramCost"`
+	RAMCostAdjustment          *float64               `json:"ramCostAdjustment"`
+	RAMEfficiency              *float64               `json:"ramEfficiency"`
+	ExternalCost               *float64               `json:"externalCost"`
+	SharedCost                 *float64               `json:"sharedCost"`
+	TotalCost                  *float64               `json:"totalCost"`
+	TotalEfficiency            *float64               `json:"totalEfficiency"`
+	RawAllocationOnly          *RawAllocationOnlyData `json:"rawAllocationOnly"`
+}
+
+func (aj *AllocationJSON) BuildFromAllocation(a *Allocation) {
+	if aj == nil {
+		return
+	}
+	aj.Name = a.Name
+	aj.Properties = a.Properties
+	aj.Window = a.Window
+	aj.Start = a.Start.Format(time.RFC3339)
+	aj.End = a.End.Format(time.RFC3339)
+	aj.Minutes = formatFloat64ForResponse(a.Minutes())
+	aj.CPUCores = formatFloat64ForResponse(a.CPUCores())
+	aj.CPUCoreRequestAverage = formatFloat64ForResponse(a.CPUCoreRequestAverage)
+	aj.CPUCoreUsageAverage = formatFloat64ForResponse(a.CPUCoreUsageAverage)
+	aj.CPUCoreHours = formatFloat64ForResponse(a.CPUCoreHours)
+	aj.CPUCost = formatFloat64ForResponse(a.CPUCost)
+	aj.CPUCostAdjustment = formatFloat64ForResponse(a.CPUCostAdjustment)
+	aj.CPUEfficiency = formatFloat64ForResponse(a.CPUEfficiency())
+	aj.GPUCount = formatFloat64ForResponse(a.GPUs())
+	aj.GPUHours = formatFloat64ForResponse(a.GPUHours)
+	aj.GPUCost = formatFloat64ForResponse(a.GPUCost)
+	aj.GPUCostAdjustment = formatFloat64ForResponse(a.GPUCostAdjustment)
+	aj.NetworkTransferBytes = formatFloat64ForResponse(a.NetworkTransferBytes)
+	aj.NetworkReceiveBytes = formatFloat64ForResponse(a.NetworkReceiveBytes)
+	aj.NetworkCost = formatFloat64ForResponse(a.NetworkCost)
+	aj.NetworkCrossZoneCost = formatFloat64ForResponse(a.NetworkCrossZoneCost)
+	aj.NetworkCrossRegionCost = formatFloat64ForResponse(a.NetworkCrossRegionCost)
+	aj.NetworkInternetCost = formatFloat64ForResponse(a.NetworkInternetCost)
+	aj.NetworkCostAdjustment = formatFloat64ForResponse(a.NetworkCostAdjustment)
+	aj.LoadBalancerCost = formatFloat64ForResponse(a.LoadBalancerCost)
+	aj.LoadBalancerCostAdjustment = formatFloat64ForResponse(a.LoadBalancerCostAdjustment)
+	aj.PVBytes = formatFloat64ForResponse(a.PVBytes())
+	aj.PVByteHours = formatFloat64ForResponse(a.PVByteHours())
+	aj.PVCost = formatFloat64ForResponse(a.PVCost())
+	aj.PVs = a.PVs
+	aj.PVCostAdjustment = formatFloat64ForResponse(a.PVCostAdjustment)
+	aj.RAMBytes = formatFloat64ForResponse(a.RAMBytes())
+	aj.RAMByteRequestAverage = formatFloat64ForResponse(a.RAMBytesRequestAverage)
+	aj.RAMByteUsageAverage = formatFloat64ForResponse(a.RAMBytesUsageAverage)
+	aj.RAMByteHours = formatFloat64ForResponse(a.RAMByteHours)
+	aj.RAMCost = formatFloat64ForResponse(a.RAMCost)
+	aj.RAMCostAdjustment = formatFloat64ForResponse(a.RAMCostAdjustment)
+	aj.RAMEfficiency = formatFloat64ForResponse(a.RAMEfficiency())
+	aj.SharedCost = formatFloat64ForResponse(a.SharedCost)
+	aj.ExternalCost = formatFloat64ForResponse(a.ExternalCost)
+	aj.TotalCost = formatFloat64ForResponse(a.TotalCost())
+	aj.TotalEfficiency = formatFloat64ForResponse(a.TotalEfficiency())
+	aj.RawAllocationOnly = a.RawAllocationOnly
+}
+
+// formatFloat64ForResponse - take an existing float64, round it to 6 decimal places and return is possible, or return nil if invalid
+func formatFloat64ForResponse(f float64) *float64 {
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		return nil
+	}
+
+	// 6 digits of precision is the maximum the API should return
+	result := math.Round(f*100000) / 100000.0
+	return &result
+}
+
 // MarshalJSON implements json.Marshaler interface
 func (a *Allocation) MarshalJSON() ([]byte, error) {
-	buffer := bytes.NewBufferString("{")
-	jsonEncodeString(buffer, "name", a.Name, ",")
-	jsonEncode(buffer, "properties", a.Properties, ",")
-	jsonEncode(buffer, "window", a.Window, ",")
-	jsonEncodeString(buffer, "start", a.Start.Format(time.RFC3339), ",")
-	jsonEncodeString(buffer, "end", a.End.Format(time.RFC3339), ",")
-	jsonEncodeFloat64(buffer, "minutes", a.Minutes(), ",")
-	jsonEncodeFloat64(buffer, "cpuCores", a.CPUCores(), ",")
-	jsonEncodeFloat64(buffer, "cpuCoreRequestAverage", a.CPUCoreRequestAverage, ",")
-	jsonEncodeFloat64(buffer, "cpuCoreUsageAverage", a.CPUCoreUsageAverage, ",")
-	jsonEncodeFloat64(buffer, "cpuCoreHours", a.CPUCoreHours, ",")
-	jsonEncodeFloat64(buffer, "cpuCost", a.CPUCost, ",")
-	jsonEncodeFloat64(buffer, "cpuCostAdjustment", a.CPUCostAdjustment, ",")
-	jsonEncodeFloat64(buffer, "cpuEfficiency", a.CPUEfficiency(), ",")
-	jsonEncodeFloat64(buffer, "gpuCount", a.GPUs(), ",")
-	jsonEncodeFloat64(buffer, "gpuHours", a.GPUHours, ",")
-	jsonEncodeFloat64(buffer, "gpuCost", a.GPUCost, ",")
-	jsonEncodeFloat64(buffer, "gpuCostAdjustment", a.GPUCostAdjustment, ",")
-	jsonEncodeFloat64(buffer, "networkTransferBytes", a.NetworkTransferBytes, ",")
-	jsonEncodeFloat64(buffer, "networkReceiveBytes", a.NetworkReceiveBytes, ",")
-	jsonEncodeFloat64(buffer, "networkCost", a.NetworkCost, ",")
-	jsonEncodeFloat64(buffer, "networkCrossZoneCost", a.NetworkCrossZoneCost, ",")
-	jsonEncodeFloat64(buffer, "networkCrossRegionCost", a.NetworkCrossRegionCost, ",")
-	jsonEncodeFloat64(buffer, "networkInternetCost", a.NetworkInternetCost, ",")
-	jsonEncodeFloat64(buffer, "networkCostAdjustment", a.NetworkCostAdjustment, ",")
-	jsonEncodeFloat64(buffer, "loadBalancerCost", a.LoadBalancerCost, ",")
-	jsonEncodeFloat64(buffer, "loadBalancerCostAdjustment", a.LoadBalancerCostAdjustment, ",")
-	jsonEncodeFloat64(buffer, "pvBytes", a.PVBytes(), ",")
-	jsonEncodeFloat64(buffer, "pvByteHours", a.PVByteHours(), ",")
-	jsonEncodeFloat64(buffer, "pvCost", a.PVCost(), ",")
-	jsonEncode(buffer, "pvs", a.PVs, ",")
-	jsonEncodeFloat64(buffer, "pvCostAdjustment", a.PVCostAdjustment, ",")
-	jsonEncodeFloat64(buffer, "ramBytes", a.RAMBytes(), ",")
-	jsonEncodeFloat64(buffer, "ramByteRequestAverage", a.RAMBytesRequestAverage, ",")
-	jsonEncodeFloat64(buffer, "ramByteUsageAverage", a.RAMBytesUsageAverage, ",")
-	jsonEncodeFloat64(buffer, "ramByteHours", a.RAMByteHours, ",")
-	jsonEncodeFloat64(buffer, "ramCost", a.RAMCost, ",")
-	jsonEncodeFloat64(buffer, "ramCostAdjustment", a.RAMCostAdjustment, ",")
-	jsonEncodeFloat64(buffer, "ramEfficiency", a.RAMEfficiency(), ",")
-	jsonEncodeFloat64(buffer, "sharedCost", a.SharedCost, ",")
-	jsonEncodeFloat64(buffer, "externalCost", a.ExternalCost, ",")
-	jsonEncodeFloat64(buffer, "totalCost", a.TotalCost(), ",")
-	jsonEncodeFloat64(buffer, "totalEfficiency", a.TotalEfficiency(), ",")
-	jsonEncode(buffer, "rawAllocationOnly", a.RawAllocationOnly, "")
-	buffer.WriteString("}")
-	return buffer.Bytes(), nil
+
+	aj := &AllocationJSON{}
+	aj.BuildFromAllocation(a)
+	buffer, err := json.Marshal(aj)
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal allocation %s to JSON: %s", aj.Name, err)
+	}
+	return buffer, nil
 }
 
 // UnmarshalJSON prevent nil pointer on PVAllocations
