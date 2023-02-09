@@ -1,31 +1,22 @@
 # OpenCost UI
-The preferred install path for OpenCost is via Helm chart, and is available explained [here](http://github.com/opencost/opencost-helm-chart)
 
-To manually run the OpenCost UI, follow the steps below.
+## Installing
 
-## Requirements
-
-* `nodejs >= 18.3.0`
-* `npm >= 8.11.0`
-
-## Installation & Running
-To run the UI, open a terminal to the `opencost/ui/` directory (where this README is located) and run
+See https://www.opencost.io/docs/install for the full instructions.
 
 ```
-npm install
+helm install my-prometheus --repo https://prometheus-community.github.io/helm-charts prometheus \
+  --namespace prometheus --create-namespace \
+  --set pushgateway.enabled=false \
+  --set alertmanager.enabled=false \
+  -f https://raw.githubusercontent.com/opencost/opencost/develop/kubernetes/prometheus/extraScrapeConfigs.yaml
+
+kubectl apply --namespace opencost -f https://raw.githubusercontent.com/opencost/opencost/develop/kubernetes/opencost.yaml
 ```
 
-This will install required dependencies and build tools. To launch the UI, run
+## Using
 
+After following the installation instructions, access the UI by port forwarding:
 ```
-npx parcel src/index.html
+kubectl port-forward --namespace opencost service/opencost 9090
 ```
-
-This will launch a development server, serving the UI at `http://localhost:1234` and targeting the data for an instance of
-OpenCost running at `http://localhost:9090`. To access an arbitrary OpenCost install, you can use
-
-```
-kubectl port-forward deployment/opencost 9090:9003
-```
-
-for your choice of namespace and cloud context.

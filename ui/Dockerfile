@@ -3,7 +3,7 @@ ADD package*.json /opt/ui/
 WORKDIR /opt/ui
 RUN npm install
 ADD src /opt/ui/src
-ENV BASE_URL=/allocation
+ENV BASE_URL=/model
 RUN npx parcel build src/index.html
 
 FROM nginx:alpine
