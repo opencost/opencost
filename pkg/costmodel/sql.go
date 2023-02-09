@@ -95,10 +95,10 @@ func CostDataRangeFromSQL(field string, value string, window string, start strin
 	address := env.GetSQLAddress()
 	connStr := fmt.Sprintf("postgres://postgres:%s@%s:5432?sslmode=disable", pw, address)
 	db, err := sql.Open("postgres", connStr)
-	defer db.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer db.Close()
 	nodes, err := getNodeCosts(db)
 	if err != nil {
 		return nil, err
