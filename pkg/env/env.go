@@ -14,6 +14,11 @@ import (
 // envMap contains Getter and Setter implementations for environment variables
 type envMap struct{}
 
+func (em *envMap) Has(key string) bool {
+	_, ok := os.LookupEnv(key)
+	return ok
+}
+
 // Get returns the value for the provided environment variable
 func (em *envMap) Get(key string) string {
 	return os.Getenv(key)
