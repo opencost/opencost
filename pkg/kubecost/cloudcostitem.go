@@ -73,11 +73,11 @@ func (ccip CloudCostItemProperties) Key() string {
 // CloudCostItem represents a CUR line item, identifying a cloud resource and
 // its cost over some period of time.
 type CloudCostItem struct {
-	Properties   CloudCostItemProperties
-	IsKubernetes bool
-	Window       Window
-	Cost         float64
-	NetCost      float64
+	Properties   CloudCostItemProperties `json:"properties"`
+	IsKubernetes bool                    `json:"isKubernetes"`
+	Window       Window                  `json:"window"`
+	Cost         float64                 `json:"cost"`
+	NetCost      float64                 `json:"netCost"`
 }
 
 // NewCloudCostItem instantiates a new CloudCostItem asset
@@ -129,9 +129,9 @@ func (cci *CloudCostItem) add(that *CloudCostItem) {
 }
 
 type CloudCostItemSet struct {
-	CloudCostItems map[string]*CloudCostItem
-	Window         Window
-	Integration    string
+	CloudCostItems map[string]*CloudCostItem `json:"items"`
+	Window         Window                    `json:"window"`
+	Integration    string                    `json:"-"`
 }
 
 // NewAssetSet instantiates a new AssetSet and, optionally, inserts
