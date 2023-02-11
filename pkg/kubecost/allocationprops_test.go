@@ -107,3 +107,80 @@ func TestGenerateKey(t *testing.T) {
 		})
 	}
 }
+
+func TestAllocationPropsIntersection(t *testing.T) {
+	cases := []struct {
+		name                     string
+		leftProps                *AllocationProperties
+		rightProps               *AllocationProperties
+		expectedIntersectedProps *AllocationProperties
+	}{
+		{
+			name:                     "nil props should work #1",
+			leftProps:                nil,
+			rightProps:               nil,
+			expectedIntersectedProps: nil,
+		},
+		{
+			name: "basic information should work #1",
+			leftProps: &AllocationProperties{
+				Cluster:    "foo",
+				Node:       "bar",
+				Container:  "baz",
+				Controller: "bak",
+			},
+			rightProps: &AllocationProperties{
+				Cluster:    "foo",
+				Node:       "bar",
+				Container:  "baz",
+				Controller: "bal",
+			},
+			expectedIntersectedProps: &AllocationProperties{
+				Cluster:   "foo",
+				Node:      "bar",
+				Container: "baz",
+			},
+		},
+		{
+			name: "labels/annotations intersection should work #1",
+			leftProps: &AllocationProperties{
+				Labels: map[string]string{
+					"foo1": "bar1",
+					"foo2": "bar2",
+					"foo3": "foo3",
+				},
+				Annotations: map[string]string{
+					"foo1": "bar1",
+					"foo2": "bar2",
+					"foo3": "foo3",
+				},
+			},
+			rightProps: &AllocationProperties{
+				Labels: map[string]string{
+					"foo1": "bar1",
+					"foo2": "bar_wrong",
+				},
+				Annotations: map[string]string{
+					"foo1": "bar1",
+					"foo2": "bar_wrong",
+				},
+			},
+			expectedIntersectedProps: &AllocationProperties{
+				Labels: map[string]string{
+					"foo1": "bar1",
+				},
+				Annotations: map[string]string{
+					"foo1": "bar1",
+				},
+			},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			actual := c.leftProps.Intersection(c.rightProps)
+			if !actual.Equal(c.expectedIntersectedProps) {
+				t.Errorf("expected %#v, but received %#v", c.expectedIntersectedProps, actual)
+			}
+		})
+	}
+}

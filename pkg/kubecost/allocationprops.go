@@ -148,7 +148,9 @@ func (p *AllocationProperties) Clone() *AllocationProperties {
 }
 
 func (p *AllocationProperties) Equal(that *AllocationProperties) bool {
-	if p == nil || that == nil {
+	if p == nil && that == nil {
+		return true
+	} else if p == nil || that == nil {
 		return false
 	}
 
@@ -422,7 +424,10 @@ func (p *AllocationProperties) Intersection(that *AllocationProperties) *Allocat
 	if p == nil || that == nil {
 		return nil
 	}
-	intersectionProps := &AllocationProperties{}
+	intersectionProps := &AllocationProperties{
+		Labels:      make(map[string]string),
+		Annotations: make(map[string]string),
+	}
 	if p.Cluster == that.Cluster {
 		intersectionProps.Cluster = p.Cluster
 	}
@@ -446,6 +451,16 @@ func (p *AllocationProperties) Intersection(that *AllocationProperties) *Allocat
 	}
 	if p.ProviderID == that.ProviderID {
 		intersectionProps.ProviderID = p.ProviderID
+	}
+	for k1, v1 := range p.Labels {
+		if that.Labels[k1] == v1 {
+			intersectionProps.Labels[k1] = v1
+		}
+	}
+	for k1, v1 := range p.Annotations {
+		if that.Annotations[k1] == v1 {
+			intersectionProps.Annotations[k1] = v1
+		}
 	}
 	return intersectionProps
 }
