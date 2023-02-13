@@ -24,23 +24,23 @@ var (
 
 // writeReportingFlags writes the reporting flags to the cluster info map
 func writeReportingFlags(clusterInfo map[string]string) {
-	clusterInfo["logCollection"] = fmt.Sprintf("%t", logCollectionEnabled)
-	clusterInfo["productAnalytics"] = fmt.Sprintf("%t", productAnalyticsEnabled)
-	clusterInfo["errorReporting"] = fmt.Sprintf("%t", errorReportingEnabled)
-	clusterInfo["valuesReporting"] = fmt.Sprintf("%t", valuesReportingEnabled)
+	clusterInfo[clusters.ClusterInfoLogCollectionKey] = fmt.Sprintf("%t", logCollectionEnabled)
+	clusterInfo[clusters.ClusterInfoProductAnalyticsKey] = fmt.Sprintf("%t", productAnalyticsEnabled)
+	clusterInfo[clusters.ClusterInfoErrorReportingKey] = fmt.Sprintf("%t", errorReportingEnabled)
+	clusterInfo[clusters.ClusterInfoValuesReportingKey] = fmt.Sprintf("%t", valuesReportingEnabled)
 }
 
 // writeClusterProfile writes the data associated with the cluster profile
 func writeClusterProfile(clusterInfo map[string]string) {
-	clusterInfo["clusterProfile"] = clusterProfile
+	clusterInfo[clusters.ClusterInfoProfileKey] = clusterProfile
 }
 
 // writeThanosFlags includes the configured thanos flags on the cluster info
 func writeThanosFlags(clusterInfo map[string]string) {
 	// Include Thanos Offset Duration if Applicable
-	clusterInfo["thanosEnabled"] = fmt.Sprintf("%t", thanos.IsEnabled())
+	clusterInfo[clusters.ClusterInfoThanosEnabledKey] = fmt.Sprintf("%t", thanos.IsEnabled())
 	if thanos.IsEnabled() {
-		clusterInfo["thanosOffset"] = thanos.Offset()
+		clusterInfo[clusters.ClusterInfoThanosOffsetKey] = thanos.Offset()
 	}
 }
 
@@ -65,7 +65,7 @@ func (dlcip *localClusterInfoProvider) GetClusterInfo() map[string]string {
 		if err != nil {
 			log.Infof("Could not get k8s version info: %s", err.Error())
 		} else if v != nil {
-			data["version"] = v.Major + "." + v.Minor
+			data[clusters.ClusterInfoVersionKey] = v.Major + "." + v.Minor
 		}
 	} else {
 		log.Infof("Could not get k8s version info: %s", err.Error())

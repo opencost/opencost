@@ -14,3 +14,4 @@ Please keep the below list sorted in ascending order.
 | Niko Kovacevic | @nikovacevic | Kubecost | <niko@kubecost.com> |
 | Sean Holcomb | @Sean-Holcomb | Kubecost | <Sean@kubecost.com> |
 | Thomas Evans | @teevans | Kubecost | <thomas@kubecost.com> |
+| Matt Ray | @mattray | Kubecost | <mattray@kubecost.com> |

@@ -2231,7 +2231,7 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// resolution.
 	resolution := qp.GetDuration("resolution", env.GetETLResolution())
 
-	// Aggregation is a required comma-separated list of fields by which to
+	// Aggregation is an optional comma-separated list of fields by which to
 	// aggregate results. Some fields allow a sub-field, which is distinguished
 	// with a colon; e.g. "label:app".
 	// Examples: "namespace", "namespace,label:app"

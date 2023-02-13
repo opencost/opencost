@@ -43,6 +43,7 @@ const (
 	queryFmtNetInternetCostPerGiB    = `avg(avg_over_time(kubecost_network_internet_egress_cost{}[%s])) by (%s)`
 	queryFmtNetReceiveBytes          = `sum(increase(container_network_receive_bytes_total{pod!="", container="POD"}[%s])) by (pod_name, pod, namespace, %s)`
 	queryFmtNetTransferBytes         = `sum(increase(container_network_transmit_bytes_total{pod!="", container="POD"}[%s])) by (pod_name, pod, namespace, %s)`
+	queryFmtNodeLabels               = `avg_over_time(kube_node_labels[%s])`
 	queryFmtNamespaceLabels          = `avg_over_time(kube_namespace_labels[%s])`
 	queryFmtNamespaceAnnotations     = `avg_over_time(kube_namespace_annotations[%s])`
 	queryFmtPodLabels                = `avg_over_time(kube_pod_labels[%s])`
@@ -393,6 +394,12 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	queryNetInternetCostPerGiB := fmt.Sprintf(queryFmtNetInternetCostPerGiB, durStr, env.GetPromClusterLabel())
 	resChNetInternetCostPerGiB := ctx.QueryAtTime(queryNetInternetCostPerGiB, end)
 
+	var resChNodeLabels prom.QueryResultsChan
+	if env.GetAllocationNodeLabelsEnabled() {
+		queryNodeLabels := fmt.Sprintf(queryFmtNodeLabels, durStr)
+		resChNodeLabels = ctx.QueryAtTime(queryNodeLabels, end)
+	}
+
 	queryNamespaceLabels := fmt.Sprintf(queryFmtNamespaceLabels, durStr)
 	resChNamespaceLabels := ctx.QueryAtTime(queryNamespaceLabels, end)
 
@@ -465,6 +472,12 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	resNetInternetGiB, _ := resChNetInternetGiB.Await()
 	resNetInternetCostPerGiB, _ := resChNetInternetCostPerGiB.Await()
 
+	var resNodeLabels []*prom.QueryResult
+	if env.GetAllocationNodeLabelsEnabled() {
+		if env.GetAllocationNodeLabelsEnabled() {
+			resNodeLabels, _ = resChNodeLabels.Await()
+		}
+	}
 	resNamespaceLabels, _ := resChNamespaceLabels.Await()
 	resNamespaceAnnotations, _ := resChNamespaceAnnotations.Await()
 	resPodLabels, _ := resChPodLabels.Await()
@@ -512,11 +525,18 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	// Other than that case, Allocations should be associated with pods by the
 	// above functions.
 
+	// At this point, we expect "Node" to be set by one of the above functions
+	// (e.g. applyCPUCoresAllocated, etc.) -- otherwise, node labels will fail
+	// to correctly apply to the pods.
+	var nodeLabels map[nodeKey]map[string]string
+	if env.GetAllocationNodeLabelsEnabled() {
+		nodeLabels = resToNodeLabels(resNodeLabels)
+	}
 	namespaceLabels := resToNamespaceLabels(resNamespaceLabels)
 	podLabels := resToPodLabels(resPodLabels, podUIDKeyMap, ingestPodUID)
 	namespaceAnnotations := resToNamespaceAnnotations(resNamespaceAnnotations)
 	podAnnotations := resToPodAnnotations(resPodAnnotations, podUIDKeyMap, ingestPodUID)
-	applyLabels(podMap, namespaceLabels, podLabels)
+	applyLabels(podMap, nodeLabels, namespaceLabels, podLabels)
 	applyAnnotations(podMap, namespaceAnnotations, podAnnotations)
 
 	podDeploymentMap := labelsToPodControllerMap(podLabels, resToDeploymentLabels(resDeploymentLabels))
