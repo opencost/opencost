@@ -19,6 +19,7 @@ const (
 
 	AlibabaAccessKeyIDEnvVar     = "ALIBABA_ACCESS_KEY_ID"
 	AlibabaAccessKeySecretEnvVar = "ALIBABA_SECRET_ACCESS_KEY"
+	AlibabaDisableEnvVar         = "ALIBABA_PROVIDER_DISABLE"
 
 	KubecostNamespaceEnvVar        = "KUBECOST_NAMESPACE"
 	PodNameEnvVar                  = "POD_NAME"
@@ -228,6 +229,12 @@ func GetAlibabaAccessKeyID() string {
 // the Alibaba access key secret for authentication
 func GetAlibabaAccessKeySecret() string {
 	return Get(AlibabaAccessKeySecretEnvVar, "")
+}
+
+// IsAlibabaProviderDisabled returns whether Alibaba Cloud provider is explicitly disabled. This is used to opt-out
+// from the provider implementation.
+func IsAlibabaProviderDisabled() bool {
+	return GetBool(AlibabaDisableEnvVar, false)
 }
 
 // GetKubecostNamespace returns the environment variable value for KubecostNamespaceEnvVar which
@@ -511,7 +518,7 @@ func GetAllocationNodeLabelsEnabled() bool {
 	return GetBool(AllocationNodeLabelsEnabled, true)
 }
 
-var defaultAllocationNodeLabelsIncludeList []string = []string{
+var defaultAllocationNodeLabelsIncludeList = []string{
 	"cloud.google.com/gke-nodepool",
 	"eks.amazonaws.com/nodegroup",
 	"kubernetes.azure.com/agentpool",

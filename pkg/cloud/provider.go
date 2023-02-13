@@ -563,7 +563,7 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 	} else if strings.HasPrefix(providerID, "scaleway") { // the scaleway provider ID looks like scaleway://instance/<instance_id>
 		cp.provider = kubecost.ScalewayProvider
 		cp.configFileName = "scaleway.json"
-	} else if strings.Contains(node.Status.NodeInfo.KubeletVersion, "aliyun") { // provider ID is not prefix with any distinct keyword like other providers
+	} else if !env.IsAlibabaProviderDisabled() && strings.Contains(node.Status.NodeInfo.KubeletVersion, "aliyun") { // provider ID is not prefix with any distinct keyword like other providers
 		cp.provider = kubecost.AlibabaProvider
 		cp.configFileName = "alibaba.json"
 	}
