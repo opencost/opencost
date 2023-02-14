@@ -7,7 +7,7 @@ func Approximately(exp, act float64) bool {
 }
 
 func ApproximatelyPct(exp, act, pct float64) bool {
-	delta := (exp * pct)
+	delta := exp * pct
 	if delta < 0.00001 {
 		delta = 0.00001
 	}

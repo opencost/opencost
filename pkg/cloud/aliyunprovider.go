@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -591,7 +591,7 @@ func (alibaba *Alibaba) loadAlibabaAuthSecretAndSetEnv(force bool) error {
 		return fmt.Errorf("failed to locate service account file: %s with err: %w", authSecretPath, err)
 	}
 
-	result, err := ioutil.ReadFile(authSecretPath)
+	result, err := os.ReadFile(authSecretPath)
 	if err != nil {
 		return fmt.Errorf("failed to read service account file: %s with err: %w", authSecretPath, err)
 	}
@@ -676,7 +676,7 @@ func (alibaba *Alibaba) UpdateConfig(r io.Reader, updateType string) (*CustomPri
 				return err
 			}
 			for k, v := range a {
-				kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+				kUpper := toTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
 				vstr, ok := v.(string)
 				if ok {
 					err := SetCustomPricingField(c, kUpper, vstr)

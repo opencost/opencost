@@ -6,7 +6,6 @@ import (
 	"github.com/opencost/opencost/pkg/kubecost"
 	"io"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -77,7 +76,7 @@ func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomP
 	// Update Config
 	c, err := cp.Config.Update(func(c *CustomPricing) error {
 		for k, v := range a {
-			kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+			kUpper := toTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
 			vstr, ok := v.(string)
 			if ok {
 				err := SetCustomPricingField(c, kUpper, vstr)
