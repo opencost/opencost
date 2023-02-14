@@ -619,6 +619,9 @@ func GetClusterMeta(cluster_id string) (string, string, error) {
 	address := env.GetSQLAddress()
 	connStr := fmt.Sprintf("postgres://postgres:%s@%s:5432?sslmode=disable", pw, address)
 	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return "", "", err
+	}
 	defer db.Close()
 	query := `SELECT cluster_id, cluster_name
 	FROM names
