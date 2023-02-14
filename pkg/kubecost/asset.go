@@ -3249,6 +3249,14 @@ func (asr *AssetSetRange) NewAccumulation() (*AssetSet, error) {
 	var assetSet *AssetSet
 	var err error
 
+	if asr == nil {
+		return nil, fmt.Errorf("nil AssetSetRange in accumulation")
+	}
+
+	if len(asr.Assets) == 0 {
+		return nil, fmt.Errorf("AssetSetRange has empty AssetSet in accumulation")
+	}
+
 	for _, as := range asr.Assets {
 		if assetSet == nil {
 			assetSet = as.Clone()
