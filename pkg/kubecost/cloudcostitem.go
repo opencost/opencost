@@ -70,6 +70,10 @@ func (ccip CloudCostItemProperties) Key() string {
 	return fmt.Sprintf("%s/%s/%s/%s/%s/%s", ccip.Provider, ccip.BillingID, ccip.WorkGroupID, ccip.Category, ccip.Service, ccip.ProviderID)
 }
 
+func (ccip CloudCostItemProperties) MonitoringKey() string {
+	return fmt.Sprintf("%s/%s/%s", ccip.Provider, ccip.WorkGroupID, ccip.ProviderID)
+}
+
 // CloudCostItem represents a CUR line item, identifying a cloud resource and
 // its cost over some period of time.
 type CloudCostItem struct {
@@ -128,6 +132,10 @@ func (cci *CloudCostItem) add(that *CloudCostItem) {
 	cci.Window = cci.Window.Expand(that.Window)
 }
 
+func (cci *CloudCostItem) MonitoringKey() string {
+	return cci.Properties.MonitoringKey()
+}
+
 type CloudCostItemSet struct {
 	CloudCostItems map[string]*CloudCostItem `json:"items"`
 	Window         Window                    `json:"window"`
@@ -147,6 +155,42 @@ func NewCloudCostItemSet(start, end time.Time, cloudCostItems ...*CloudCostItem)
 	}
 
 	return ccis
+}
+
+func (ccis *CloudCostItemSet) Accumulate(that *CloudCostItemSet) (*CloudCostItemSet, error) {
+	if ccis.IsEmpty() {
+		return that.Clone(), nil
+	}
+
+	if that.IsEmpty() {
+		return ccis.Clone(), nil
+	}
+	// Set start, end to min(start), max(end)
+	start := ccis.Window.Start()
+	end := ccis.Window.End()
+	if that.Window.Start().Before(*start) {
+		start = that.Window.Start()
+	}
+	if that.Window.End().After(*end) {
+		end = that.Window.End()
+	}
+
+	acc := NewCloudCostItemSet(*start, *end)
+
+	for _, cci := range ccis.CloudCostItems {
+		err := acc.Insert(cci)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	for _, cci := range that.CloudCostItems {
+		err := acc.Insert(cci)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return acc, nil
 }
 
 func (ccis *CloudCostItemSet) Equal(that *CloudCostItemSet) bool {
@@ -317,6 +361,22 @@ func (ccisr *CloudCostItemSetRange) Clone() *CloudCostItemSetRange {
 		Window:            ccisr.Window.Clone(),
 		CloudCostItemSets: ccisSlice,
 	}
+}
+
+// Accumulate sums each CloudCostItemSet in the given range, returning a single cumulative
+// CloudCostItemSet for the entire range.
+func (ccisr *CloudCostItemSetRange) Accumulate() (*CloudCostItemSet, error) {
+	var cloudCostItemSet *CloudCostItemSet
+	var err error
+
+	for _, ccis := range ccisr.CloudCostItemSets {
+		cloudCostItemSet, err = cloudCostItemSet.Accumulate(ccis)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return cloudCostItemSet, nil
 }
 
 // LoadCloudCostItem loads CloudCostItems into existing CloudCostItemSets of the CloudCostItemSetRange.
