@@ -584,7 +584,7 @@ func (w Window) Minutes() float64 {
 // 	return true
 // }
 
-func (w Window) Set(start, end *time.Time) {
+func (w *Window) Set(start, end *time.Time) {
 	w.start = start
 	w.end = end
 }

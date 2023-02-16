@@ -15,16 +15,6 @@ import (
 
 	"github.com/opencost/opencost/pkg/kubecost"
 
-	"github.com/opencost/opencost/pkg/clustercache"
-	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/util"
-	"github.com/opencost/opencost/pkg/util/fileutil"
-	"github.com/opencost/opencost/pkg/util/json"
-	"github.com/opencost/opencost/pkg/util/timeutil"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
-
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-11-01/compute"
 	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
 	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2016-06-01/subscriptions"
@@ -32,6 +22,13 @@ import (
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
+	"github.com/opencost/opencost/pkg/clustercache"
+	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/util/fileutil"
+	"github.com/opencost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -45,8 +42,6 @@ const (
 	defaultSpotLabelValue            = "spot"
 	AzureStorageUpdateType           = "AzureStorage"
 )
-
-var toTitle = cases.Title(language.Und, cases.NoLower)
 
 var (
 	regionCodeMappings = map[string]string{
@@ -1238,7 +1233,7 @@ func (az *Azure) getDisks() ([]*compute.Disk, error) {
 			d := d
 			disks = append(disks, &d)
 		}
-		err := diskPage.Next()
+		err := diskPage.NextWithContext(context.Background())
 		if err != nil {
 			return nil, fmt.Errorf("error getting next page: %v", err)
 		}
