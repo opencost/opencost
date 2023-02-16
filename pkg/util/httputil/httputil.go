@@ -46,6 +46,7 @@ type QueryParams interface {
 	// qp.InvalidKeys([]string{"window", "aggregate", "filterClusters"}) ->
 	//   "filterClsuters"
 	//
+	// If qp contains no keys, then this should always return an empty slice/nil
 	InvalidKeys(possibleValidKeys []string) (invalidKeys []string)
 }
 
@@ -66,8 +67,10 @@ func NewQueryParams(values url.Values) QueryParams {
 	}
 }
 
-// TODO: How to handle "cache buster" params?
-// InvalidKeys(expectedKeys []string) (invalid []string)
+// InvalidKeys performs a set difference: Params keys - possible valid keys.
+//
+// For now, dealing with cache busting parameters should be the handler's
+// responsibility.
 func (qpm *queryParamsMap) InvalidKeys(possibleValidKeys []string) []string {
 	validMap := map[string]struct{}{}
 	for _, validKey := range possibleValidKeys {
