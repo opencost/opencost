@@ -3179,18 +3179,17 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 	return acc, nil
 }
 
-func (as *AssetSet) MonitoredPropsOfCloudCostItem(cci *CloudCostItem) (time.Time, string, string) {
+func (as *AssetSet) MonitoredNodeForCloudCostItem(cci *CloudCostItem) *Node {
 	for _, node := range as.Nodes {
 		if node.MonitoringKey() == cci.MonitoringKey() {
 			props := node.GetProperties()
 			if props == nil {
 				continue
 			}
-			// To-DO: No match between cluster ID and Node here?
-			return node.End, props.Cluster, ""
+			return node
 		}
 	}
-	return time.Time{}, "", ""
+	return nil
 }
 
 type DiffKind string
