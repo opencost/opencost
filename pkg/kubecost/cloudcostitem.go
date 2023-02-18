@@ -2,10 +2,20 @@ package kubecost
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/opencost/opencost/pkg/filter"
 	"github.com/opencost/opencost/pkg/log"
+)
+
+// These contain some labels that can be used on Cloud cost
+// item to get the corresponding cluster its associated.
+const (
+	AWSMatchLabel1     = "eks_cluster_name"
+	AWSMatchLabel2     = "alpha_eksctl_io_cluster_name"
+	AlibabaMatchLabel1 = "ack.aliyun.com"
+	GCPMatchLabel1     = "goog-k8s-cluster-name"
 )
 
 type CloudCostItemLabels map[string]string
@@ -134,6 +144,84 @@ func (cci *CloudCostItem) add(that *CloudCostItem) {
 
 func (cci *CloudCostItem) MonitoringKey() string {
 	return cci.Properties.MonitoringKey()
+}
+
+// Ony use compute resources to get Cluster names
+func (cci *CloudCostItem) GetCluster() string {
+	switch provider := cci.Properties.Provider; provider {
+	case AWSProvider:
+		return cci.GetAWSCluster()
+	case AzureProvider:
+		return cci.GetAzureCluster()
+	case GCPProvider:
+		return cci.GetGCPCluster()
+	case AlibabaProvider:
+		return cci.GetAlibabaCluster()
+	default:
+		log.Warnf("unsupported CloudCostItem found for a provider: %s", provider)
+		return ""
+	}
+}
+
+// Add any new ways of finding GCP cluster from Cloud cost Item
+func (cci *CloudCostItem) GetGCPCluster() string {
+	// currently from Cloud cost compute unable to get cluster name so returning empty
+	return ""
+}
+
+// Add any new ways of finding AWS cluster from Cloud cost Item
+func (cci *CloudCostItem) GetAWSCluster() string {
+	if cci == nil {
+		return ""
+	}
+
+	// This flag should be removed with filters in the compute query
+	if cci.Properties.Provider != AWSProvider || cci.Properties.Category != ComputeCategory {
+		return ""
+	}
+	// cn be either of these two labels to distinguish cluster name for a given providerID
+	if val, ok := cci.Properties.Labels[AWSMatchLabel1]; ok {
+		return val
+	}
+	if val, ok := cci.Properties.Labels[AWSMatchLabel2]; ok {
+		return val
+	}
+	return ""
+}
+
+// Add any new ways of finding Azure cluster from Cloud cost Item
+func (cci *CloudCostItem) GetAzureCluster() string {
+	if cci == nil {
+		return ""
+	}
+
+	// This flag should be removed with filters in the compute query
+	if cci.Properties.Provider != AzureProvider || cci.Properties.Category != ComputeCategory {
+		return ""
+	}
+
+	providerIDSplit := strings.Split(cci.Properties.ProviderID, "/")
+	// ensure this is actually returnable before return
+	if len(providerIDSplit) < 6 {
+		return ""
+	}
+	return strings.Split(cci.Properties.ProviderID, "/")[6]
+}
+
+// Add any new ways of finding Alibaba cluster from Cloud cost Item
+func (cci *CloudCostItem) GetAlibabaCluster() string {
+	if cci == nil {
+		return ""
+	}
+
+	// This flag should be removed with filters in the compute query
+	if cci.Properties.Provider != AlibabaProvider || cci.Properties.Category != ComputeCategory {
+		return ""
+	}
+	if val, ok := cci.Properties.Labels[AlibabaMatchLabel1]; ok {
+		return val
+	}
+	return ""
 }
 
 type CloudCostItemSet struct {
