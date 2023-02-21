@@ -1448,6 +1448,8 @@ func parseGCPInstanceTypeLabel(it string) string {
 			instanceType = "n2standard"
 		} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
 			instanceType = "e2standard"
+		} else if instanceType == "n2dhighmem" || instanceType == "n2dhighcpu" {
+			instanceType = "n2dstandard"
 		} else if strings.HasPrefix(instanceType, "custom") {
 			instanceType = "custom" // The suffix of custom does not matter
 		}
