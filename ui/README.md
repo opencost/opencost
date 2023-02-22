@@ -20,3 +20,31 @@ After following the installation instructions, access the UI by port forwarding:
 ```
 kubectl port-forward --namespace opencost service/opencost 9090
 ```
+
+## Running Locally
+
+The UI can be run locally using the `make` command.
+
+```sh
+$ make serve
+BASE_URL="/model" npx parcel serve src/index.html
+Server running at http://localhost:1234
+✨ Built in 1.04s
+```
+
+And can have a custom URL backend prefix.
+
+```sh
+$ make serve BASE_URL=test
+BASE_URL=test npx parcel serve src/index.html
+Server running at http://localhost:1234
+✨ Built in 746ms
+```
+
+In addition, similar behavior can be replicated with the docker container:
+
+```sh
+$ docker run -e BASE_URL_OVERRIDE=test -p 9091:9090 -d opencost-ui:latest
+$ curl localhost:9091
+<html gibberish> 
+```

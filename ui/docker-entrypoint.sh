@@ -9,4 +9,5 @@ else
     sed -i "s^{PLACEHOLDER_BASE_URL}^$BASE_URL^g" /var/www/*.js
 fi
 
-exec "$@"
+# Run the parent (nginx) container's entrypoint script
+exec /docker-entrypoint.sh "$@"
