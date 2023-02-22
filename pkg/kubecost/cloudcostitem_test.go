@@ -1,9 +1,10 @@
 package kubecost
 
 import (
-	"github.com/opencost/opencost/pkg/util/timeutil"
 	"testing"
 	"time"
+
+	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
 var cciProperties1 = CloudCostItemProperties{
@@ -253,4 +254,167 @@ func TestCloudCostItem_LoadCloudCostItem(t *testing.T) {
 		})
 	}
 
+}
+
+func TestGetAWSClusterFromCCI(t *testing.T) {
+	awsCCIWithLabeleksClusterName, eksClusterName := GenerateAWSMockCCIAndPID(1, 1, AWSMatchLabel1, ComputeCategory)
+	awsCCIWithLabeleksCtlClusterName, eksCtlClusterName := GenerateAWSMockCCIAndPID(2, 2, AWSMatchLabel2, ComputeCategory)
+	awsCCIWithLabelWithRandomLabel, _ := GenerateAWSMockCCIAndPID(1, 1, "randomLabel", ComputeCategory)
+	awsCCINetworkCategory, _ := GenerateAWSMockCCIAndPID(1, 1, AWSMatchLabel1, NetworkCategory)
+	alibabaCCI, _ := GenerateAlibabaMockCCIAndPID(4, 4, AlibabaMatchLabel1, ComputeCategory)
+	testCases := map[string]struct {
+		testcci  *CloudCostItem
+		expected string
+	}{
+		"cluster in label eks_cluster_name": {
+			testcci:  awsCCIWithLabeleksClusterName,
+			expected: eksClusterName,
+		},
+		"cluster in label alpha_eksctl_io_cluster_name": {
+			testcci:  awsCCIWithLabeleksCtlClusterName,
+			expected: eksCtlClusterName,
+		},
+		"cluster name in random label either not eks_cluster_name or eks_cluster_name": {
+			testcci:  awsCCIWithLabelWithRandomLabel,
+			expected: "",
+		},
+		"Not a AWS provider": {
+			testcci:  alibabaCCI,
+			expected: "",
+		},
+		"Not a compute resource": {
+			testcci:  awsCCINetworkCategory,
+			expected: "",
+		},
+	}
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			actual := testCase.testcci.GetAWSCluster()
+			if actual != testCase.expected {
+				t.Errorf("incorrect result: Actual: '%s', Expected: '%s", actual, testCase.expected)
+			}
+		})
+	}
+}
+
+func TestGetAzureClusterFromCCI(t *testing.T) {
+	testCases := map[string]struct {
+		testcci  *CloudCostItem
+		expected string
+	}{
+		"cluster in ProviderID complete": {
+			testcci: &CloudCostItem{
+				IsKubernetes: true,
+				Window:       Window{},
+				Properties: CloudCostItemProperties{
+					Labels: map[string]string{
+						"randomLabel": "value1",
+					},
+					Provider:   AzureProvider,
+					Category:   ComputeCategory,
+					ProviderID: "azure:///subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/resourceGroups/mc_dev_dev-1_eastus/providers/Microsoft.Compute/virtualMachineScaleSets/aks-devsysz1-24570986-vmss/virtualMachines/0",
+				},
+			},
+			expected: "mc_dev_dev-1_eastus",
+		},
+		"cluster in ProviderID complete but missing some values": {
+			testcci: &CloudCostItem{
+				IsKubernetes: true,
+				Window:       Window{},
+				Properties: CloudCostItemProperties{
+					Labels: map[string]string{
+						"randomLabel": "value1",
+					},
+					Provider:   AzureProvider,
+					Category:   ComputeCategory,
+					ProviderID: "azure:///subscriptions//resourceGroups/mc_dev_dev-1_eastus/providers/Microsoft.Compute/virtualMachineScaleSets/aks-devsysz1-XXXXX-vmss/virtualMachines/0",
+				},
+			},
+			expected: "mc_dev_dev-1_eastus",
+		},
+		"Not having enough split content in providerID": {
+			testcci: &CloudCostItem{
+				IsKubernetes: true,
+				Window:       Window{},
+				Properties: CloudCostItemProperties{
+					Labels: map[string]string{
+						"randomLabel": "value1",
+					},
+					Provider:   AzureProvider,
+					Category:   ComputeCategory,
+					ProviderID: "test1",
+				},
+			},
+			expected: "",
+		},
+		"Not a Azure provider": {
+			testcci: &CloudCostItem{
+				IsKubernetes: true,
+				Window:       Window{},
+				Properties: CloudCostItemProperties{
+					Labels: map[string]string{
+						"randomLabel": "value1",
+					},
+					Provider:   AWSProvider,
+					Category:   ComputeCategory,
+					ProviderID: "test1",
+				},
+			},
+			expected: "",
+		},
+		"Not a compute resource": {
+			testcci: &CloudCostItem{
+				IsKubernetes: true,
+				Window:       Window{},
+				Properties: CloudCostItemProperties{
+					Labels: map[string]string{
+						"randomLabel": "value1",
+					},
+					Provider:   AzureProvider,
+					Category:   StorageCategory,
+					ProviderID: "pvc-xyz",
+				},
+			},
+			expected: "",
+		},
+	}
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			actual := testCase.testcci.GetAzureCluster()
+			if actual != testCase.expected {
+				t.Errorf("incorrect result: Actual: '%s', Expected: '%s", actual, testCase.expected)
+			}
+		})
+	}
+}
+
+func TestGetAlibabaClusterFromCCI(t *testing.T) {
+	alibabaCCIWithACKAliyunCom, clusterName1 := GenerateAlibabaMockCCIAndPID(4, 4, AlibabaMatchLabel1, ComputeCategory)
+	awsCCI, _ := GenerateAWSMockCCIAndPID(1, 1, AWSMatchLabel1, ComputeCategory)
+	alibabaCCINetworkCategory, clusterName1 := GenerateAlibabaMockCCIAndPID(4, 4, AlibabaMatchLabel1, NetworkCategory)
+	testCases := map[string]struct {
+		testcci  *CloudCostItem
+		expected string
+	}{
+		"cluster in label ack.aliyun.com": {
+			testcci:  alibabaCCIWithACKAliyunCom,
+			expected: clusterName1,
+		},
+		"Not a Alibaba provider": {
+			testcci:  awsCCI,
+			expected: "",
+		},
+		"Not a compute resource": {
+			testcci:  alibabaCCINetworkCategory,
+			expected: "",
+		},
+	}
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			actual := testCase.testcci.GetAlibabaCluster()
+			if actual != testCase.expected {
+				t.Errorf("incorrect result: Actual: '%s', Expected: '%s", actual, testCase.expected)
+			}
+		})
+	}
 }

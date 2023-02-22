@@ -2,10 +2,20 @@ package kubecost
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/opencost/opencost/pkg/filter"
 	"github.com/opencost/opencost/pkg/log"
+)
+
+// These contain some labels that can be used on Cloud cost
+// item to get the corresponding cluster its associated.
+const (
+	AWSMatchLabel1     = "eks_cluster_name"
+	AWSMatchLabel2     = "alpha_eksctl_io_cluster_name"
+	AlibabaMatchLabel1 = "ack.aliyun.com"
+	GCPMatchLabel1     = "goog-k8s-cluster-name"
 )
 
 type CloudCostItemLabels map[string]string
@@ -70,6 +80,10 @@ func (ccip CloudCostItemProperties) Key() string {
 	return fmt.Sprintf("%s/%s/%s/%s/%s/%s", ccip.Provider, ccip.BillingID, ccip.WorkGroupID, ccip.Category, ccip.Service, ccip.ProviderID)
 }
 
+func (ccip CloudCostItemProperties) MonitoringKey() string {
+	return fmt.Sprintf("%s/%s/%s", ccip.Provider, ccip.WorkGroupID, ccip.ProviderID)
+}
+
 // CloudCostItem represents a CUR line item, identifying a cloud resource and
 // its cost over some period of time.
 type CloudCostItem struct {
@@ -128,6 +142,88 @@ func (cci *CloudCostItem) add(that *CloudCostItem) {
 	cci.Window = cci.Window.Expand(that.Window)
 }
 
+func (cci *CloudCostItem) MonitoringKey() string {
+	return cci.Properties.MonitoringKey()
+}
+
+// Ony use compute resources to get Cluster names
+func (cci *CloudCostItem) GetCluster() string {
+	switch provider := cci.Properties.Provider; provider {
+	case AWSProvider:
+		return cci.GetAWSCluster()
+	case AzureProvider:
+		return cci.GetAzureCluster()
+	case GCPProvider:
+		return cci.GetGCPCluster()
+	case AlibabaProvider:
+		return cci.GetAlibabaCluster()
+	default:
+		log.Warnf("unsupported CloudCostItem found for a provider: %s", provider)
+		return ""
+	}
+}
+
+// Add any new ways of finding GCP cluster from Cloud cost Item
+func (cci *CloudCostItem) GetGCPCluster() string {
+	// currently from Cloud cost compute unable to get cluster name so returning empty
+	return ""
+}
+
+// Add any new ways of finding AWS cluster from Cloud cost Item
+func (cci *CloudCostItem) GetAWSCluster() string {
+	if cci == nil {
+		return ""
+	}
+
+	// This flag should be removed with filters in the compute query
+	if cci.Properties.Provider != AWSProvider || cci.Properties.Category != ComputeCategory {
+		return ""
+	}
+	// cn be either of these two labels to distinguish cluster name for a given providerID
+	if val, ok := cci.Properties.Labels[AWSMatchLabel1]; ok {
+		return val
+	}
+	if val, ok := cci.Properties.Labels[AWSMatchLabel2]; ok {
+		return val
+	}
+	return ""
+}
+
+// Add any new ways of finding Azure cluster from Cloud cost Item
+func (cci *CloudCostItem) GetAzureCluster() string {
+	if cci == nil {
+		return ""
+	}
+
+	// This flag should be removed with filters in the compute query
+	if cci.Properties.Provider != AzureProvider || cci.Properties.Category != ComputeCategory {
+		return ""
+	}
+
+	providerIDSplit := strings.Split(cci.Properties.ProviderID, "/")
+	// ensure this is actually returnable before return
+	if len(providerIDSplit) < 6 {
+		return ""
+	}
+	return strings.Split(cci.Properties.ProviderID, "/")[6]
+}
+
+// Add any new ways of finding Alibaba cluster from Cloud cost Item
+func (cci *CloudCostItem) GetAlibabaCluster() string {
+	if cci == nil {
+		return ""
+	}
+
+	// This flag should be removed with filters in the compute query
+	if cci.Properties.Provider != AlibabaProvider || cci.Properties.Category != ComputeCategory {
+		return ""
+	}
+	if val, ok := cci.Properties.Labels[AlibabaMatchLabel1]; ok {
+		return val
+	}
+	return ""
+}
+
 type CloudCostItemSet struct {
 	CloudCostItems map[string]*CloudCostItem `json:"items"`
 	Window         Window                    `json:"window"`
@@ -147,6 +243,42 @@ func NewCloudCostItemSet(start, end time.Time, cloudCostItems ...*CloudCostItem)
 	}
 
 	return ccis
+}
+
+func (ccis *CloudCostItemSet) Accumulate(that *CloudCostItemSet) (*CloudCostItemSet, error) {
+	if ccis.IsEmpty() {
+		return that.Clone(), nil
+	}
+
+	if that.IsEmpty() {
+		return ccis.Clone(), nil
+	}
+	// Set start, end to min(start), max(end)
+	start := ccis.Window.Start()
+	end := ccis.Window.End()
+	if that.Window.Start().Before(*start) {
+		start = that.Window.Start()
+	}
+	if that.Window.End().After(*end) {
+		end = that.Window.End()
+	}
+
+	acc := NewCloudCostItemSet(*start, *end)
+
+	for _, cci := range ccis.CloudCostItems {
+		err := acc.Insert(cci)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	for _, cci := range that.CloudCostItems {
+		err := acc.Insert(cci)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return acc, nil
 }
 
 func (ccis *CloudCostItemSet) Equal(that *CloudCostItemSet) bool {
@@ -317,6 +449,22 @@ func (ccisr *CloudCostItemSetRange) Clone() *CloudCostItemSetRange {
 		Window:            ccisr.Window.Clone(),
 		CloudCostItemSets: ccisSlice,
 	}
+}
+
+// Accumulate sums each CloudCostItemSet in the given range, returning a single cumulative
+// CloudCostItemSet for the entire range.
+func (ccisr *CloudCostItemSetRange) Accumulate() (*CloudCostItemSet, error) {
+	var cloudCostItemSet *CloudCostItemSet
+	var err error
+
+	for _, ccis := range ccisr.CloudCostItemSets {
+		cloudCostItemSet, err = cloudCostItemSet.Accumulate(ccis)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return cloudCostItemSet, nil
 }
 
 // LoadCloudCostItem loads CloudCostItems into existing CloudCostItemSets of the CloudCostItemSetRange.

@@ -2157,6 +2157,22 @@ func (n *Node) GPUs() float64 {
 	return n.GPUHours * (60.0 / n.Minutes())
 }
 
+func (n *Node) MonitoringKey() string {
+	nodeProps := n.GetProperties()
+	if nodeProps == nil {
+		return ""
+	}
+	//TO-DO: For Alibaba investigate why cloudCost ProviderID doesnt match Kubecost ProviderID via Kubernetes API
+	if nodeProps.Provider == AlibabaProvider {
+		aliProviderID := strings.Split(nodeProps.ProviderID, ".")
+		if len(aliProviderID) != 2 {
+			return ""
+		}
+		return nodeProps.Provider + "/" + nodeProps.Account + "/" + aliProviderID[1]
+	}
+	return nodeProps.Provider + "/" + nodeProps.Account + "/" + nodeProps.ProviderID
+}
+
 // LoadBalancer is an Asset representing a single load balancer in a cluster
 // TODO: add GB of ingress processed, numForwardingRules once we start recording those to prometheus metric
 type LoadBalancer struct {
@@ -3161,6 +3177,19 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 	}
 
 	return acc, nil
+}
+
+func (as *AssetSet) MonitoredNodeForCloudCostItem(cci *CloudCostItem) *Node {
+	for _, node := range as.Nodes {
+		if node.MonitoringKey() == cci.MonitoringKey() {
+			props := node.GetProperties()
+			if props == nil {
+				continue
+			}
+			return node
+		}
+	}
+	return nil
 }
 
 type DiffKind string
