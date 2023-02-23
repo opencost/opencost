@@ -48,3 +48,11 @@ $ docker run -e BASE_URL_OVERRIDE=test -p 9091:9090 -d opencost-ui:latest
 $ curl localhost:9091
 <html gibberish> 
 ```
+
+## Overriding the Base API URL
+
+For some use cases such as the case of [Opencost deployed behind an ingress controller](https://github.com/opencost/opencost/issues/1677), it is useful to override the `BASE_URL` variable responsible for requests sent from the UI to the API.  This means that instead of sending requests to `<domain>/model/allocation/compute/etc`, requests can be sent to `<domain>/{BASE_URL_OVERRIDE}/allocation/compute/etc`.  To do this, supply the environment variable `BASE_URL_OVERRIDE` to the docker image.
+
+```sh
+$ docker run -p 9091:9090 -e BASE_URL_OVERRIDE=anything -d opencost-ui:latest
+```
