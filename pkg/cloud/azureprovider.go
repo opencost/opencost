@@ -404,6 +404,11 @@ type Azure struct {
 	azureStorageConfig             *AzureStorageConfig
 }
 
+func (az *Azure) PricingSourceSummary() (interface{}, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 type azureKey struct {
 	Labels        map[string]string
 	GPULabel      string

@@ -338,6 +338,7 @@ type Provider interface {
 	ClusterManagementPricing() (string, float64, error)
 	CombinedDiscountForNode(string, bool, float64, float64) float64
 	Regions() []string
+	PricingSourceSummary() (interface{}, error)
 }
 
 // ClusterName returns the name defined in cluster info, defaulting to the

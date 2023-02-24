@@ -33,6 +33,11 @@ type CustomProvider struct {
 	Config                  *ProviderConfig
 }
 
+func (cp *CustomProvider) PricingSourceSummary() (interface{}, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 type customProviderKey struct {
 	SpotLabel      string
 	SpotLabelValue string
