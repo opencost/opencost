@@ -405,8 +405,7 @@ type Azure struct {
 }
 
 func (az *Azure) PricingSourceSummary() (interface{}, error) {
-	//TODO implement me
-	panic("implement me")
+	return az.Pricing, nil
 }
 
 type azureKey struct {

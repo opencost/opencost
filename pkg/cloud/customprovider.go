@@ -34,8 +34,7 @@ type CustomProvider struct {
 }
 
 func (cp *CustomProvider) PricingSourceSummary() (interface{}, error) {
-	//TODO implement me
-	panic("implement me")
+	return cp.Pricing, nil
 }
 
 type customProviderKey struct {

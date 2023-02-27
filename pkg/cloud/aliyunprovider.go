@@ -1331,3 +1331,7 @@ func determinePVRegion(pv *v1.PersistentVolume) string {
 	}
 	return ""
 }
+
+func (a *Alibaba) PricingSourceSummary() (interface{}, error) {
+	return a.Pricing, nil
+}

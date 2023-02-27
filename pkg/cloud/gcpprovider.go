@@ -28,7 +28,7 @@ import (
 	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/oauth2/google"
-	compute "google.golang.org/api/compute/v1"
+	"google.golang.org/api/compute/v1"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -1576,4 +1576,8 @@ func getUsageType(labels map[string]string) string {
 		return "preemptible"
 	}
 	return "ondemand"
+}
+
+func (gcp *GCP) PricingSourceSummary() (interface{}, error) {
+	return gcp.Pricing, nil
 }
