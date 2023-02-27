@@ -1022,13 +1022,13 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 		if ok {
 			gpuCount := q.Value()
 			if gpuCount != 0 {
-				newCnode.GPU = fmt.Sprintf("%d", q.Value())
+				newCnode.GPU = fmt.Sprintf("%d", gpuCount)
 				gpuc = float64(gpuCount)
 			}
 		} else if g, ok := n.Status.Capacity["k8s.amazonaws.com/vgpu"]; ok {
 			gpuCount := g.Value()
 			if gpuCount != 0 {
-				newCnode.GPU = fmt.Sprintf("%d", int(float64(q.Value())/vgpuCoeff))
+				newCnode.GPU = fmt.Sprintf("%d", int(float64(gpuCount)/vgpuCoeff))
 				gpuc = float64(gpuCount) / vgpuCoeff
 			}
 		} else {

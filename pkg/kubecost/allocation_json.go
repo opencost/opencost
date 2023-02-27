@@ -62,9 +62,9 @@ func (aj *AllocationJSON) BuildFromAllocation(a *Allocation) {
 	aj.Name = a.Name
 	aj.Properties = a.Properties
 	aj.Window = a.Window
-	aj.Start = a.Start.Format(time.RFC3339)
-	aj.End = a.End.Format(time.RFC3339)
-	aj.Minutes = formatFloat64ForResponse(a.Minutes())
+	aj.Start = a.Start.UTC().Format(time.RFC3339)
+	aj.End = a.End.UTC().Format(time.RFC3339)
+  aj.Minutes = formatFloat64ForResponse(a.Minutes())
 	aj.CPUCores = formatFloat64ForResponse(a.CPUCores())
 	aj.CPUCoreRequestAverage = formatFloat64ForResponse(a.CPUCoreRequestAverage)
 	aj.CPUCoreUsageAverage = formatFloat64ForResponse(a.CPUCoreUsageAverage)

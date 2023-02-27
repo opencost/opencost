@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"io"
 	"net/http"
 	"regexp"
@@ -34,6 +36,8 @@ const defaultShareTenancyCost = "true"
 
 const KarpenterCapacityTypeLabel = "karpenter.sh/capacity-type"
 const KarpenterCapacitySpotTypeValue = "spot"
+
+var toTitle = cases.Title(language.Und, cases.NoLower)
 
 var createTableStatements = []string{
 	`CREATE TABLE IF NOT EXISTS names (
@@ -619,6 +623,9 @@ func GetClusterMeta(cluster_id string) (string, string, error) {
 	address := env.GetSQLAddress()
 	connStr := fmt.Sprintf("postgres://postgres:%s@%s:5432?sslmode=disable", pw, address)
 	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return "", "", err
+	}
 	defer db.Close()
 	query := `SELECT cluster_id, cluster_name
 	FROM names

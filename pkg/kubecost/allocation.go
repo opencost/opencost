@@ -2103,6 +2103,14 @@ func (asr *AllocationSetRange) NewAccumulation() (*AllocationSet, error) {
 	var allocSet *AllocationSet
 	var err error
 
+	if asr == nil {
+		return nil, fmt.Errorf("nil AllocationSetRange in accumulation")
+	}
+
+	if len(asr.Allocations) == 0 {
+		return nil, fmt.Errorf("AllocationSetRange has empty AssetSet in accumulation")
+	}
+
 	for _, as := range asr.Allocations {
 		if allocSet == nil {
 			allocSet = as.Clone()

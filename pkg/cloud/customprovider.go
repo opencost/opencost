@@ -3,15 +3,15 @@ package cloud
 import (
 	"errors"
 	"fmt"
-	"github.com/opencost/opencost/pkg/kubecost"
 	"io"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/kubecost"
+	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util/json"
 
 	v1 "k8s.io/api/core/v1"
@@ -77,7 +77,7 @@ func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*CustomP
 	// Update Config
 	c, err := cp.Config.Update(func(c *CustomPricing) error {
 		for k, v := range a {
-			kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+			kUpper := toTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
 			vstr, ok := v.(string)
 			if ok {
 				err := SetCustomPricingField(c, kUpper, vstr)
@@ -140,6 +140,8 @@ func (cp *CustomProvider) NodePricing(key Key) (*Node, error) {
 	k := key.Features()
 	var gpuCount string
 	if _, ok := cp.Pricing[k]; !ok {
+		// Default is saying that there is no pricing info for the cluster and we should fall back to the defualt values.
+		// An interesting case is if the default values weren't loaded.
 		k = "default"
 	}
 	if key.GPUType() != "" {
@@ -147,10 +149,22 @@ func (cp *CustomProvider) NodePricing(key Key) (*Node, error) {
 		gpuCount = "1" // TODO: support more than one gpu.
 	}
 
+	var cpuCost, ramCost, gpuCost string
+	if pricing, ok := cp.Pricing[k]; !ok {
+		log.Warnf("No pricing found for key=%s, setting values to 0", k)
+		cpuCost = "0.0"
+		ramCost = "0.0"
+		gpuCost = "0.0"
+	} else {
+		cpuCost = pricing.CPU
+		ramCost = pricing.RAM
+		gpuCost = pricing.GPU
+	}
+
 	return &Node{
-		VCPUCost: cp.Pricing[k].CPU,
-		RAMCost:  cp.Pricing[k].RAM,
-		GPUCost:  cp.Pricing[k].GPU,
+		VCPUCost: cpuCost,
+		RAMCost:  ramCost,
+		GPUCost:  gpuCost,
 		GPU:      gpuCount,
 	}, nil
 }

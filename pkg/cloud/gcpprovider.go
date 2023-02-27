@@ -27,7 +27,6 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/compute/metadata"
-	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
 	v1 "k8s.io/api/core/v1"
@@ -285,7 +284,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 				return err
 			}
 			for k, v := range a {
-				kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+				kUpper := toTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
 				vstr, ok := v.(string)
 				if ok {
 					err := SetCustomPricingField(c, kUpper, vstr)
@@ -352,7 +351,7 @@ func (gcp *GCP) getAllAddresses() (*compute.AddressAggregatedList, error) {
 		return nil, err
 	}
 
-	client, err := google.DefaultClient(oauth2.NoContext,
+	client, err := google.DefaultClient(context.TODO(),
 		"https://www.googleapis.com/auth/compute.readonly")
 	if err != nil {
 		return nil, err
@@ -392,7 +391,7 @@ func (gcp *GCP) getAllDisks() (*compute.DiskAggregatedList, error) {
 		return nil, err
 	}
 
-	client, err := google.DefaultClient(oauth2.NoContext,
+	client, err := google.DefaultClient(context.TODO(),
 		"https://www.googleapis.com/auth/compute.readonly")
 	if err != nil {
 		return nil, err
@@ -1449,6 +1448,8 @@ func parseGCPInstanceTypeLabel(it string) string {
 			instanceType = "n2standard"
 		} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
 			instanceType = "e2standard"
+		} else if instanceType == "n2dhighmem" || instanceType == "n2dhighcpu" {
+			instanceType = "n2dstandard"
 		} else if strings.HasPrefix(instanceType, "custom") {
 			instanceType = "custom" // The suffix of custom does not matter
 		}
