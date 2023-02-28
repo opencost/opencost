@@ -254,12 +254,6 @@ const (
 func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
 	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, window, offset, window, offset, env.GetPromClusterLabel())
 	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, window, offset, env.GetPromClusterLabel())
-
-	fmt.Println("---------- THOMAS START ----------")
-	fmt.Println(queryRAMUsage)
-	fmt.Println(queryCPUUsage)
-	fmt.Println("---------- THOMAS END ----------")
-
 	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, window, "", env.GetPromClusterLabel())
 	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, window, "", env.GetPromClusterLabel())
 	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, window, "", env.GetPromClusterLabel())
