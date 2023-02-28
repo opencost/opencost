@@ -185,7 +185,7 @@ const (
 			label_replace(
 				label_replace(
 					rate(
-						container_cpu_usage_seconds_total{container!="",container!="POD",instance!=""}[%s] %s
+						container_cpu_usage_seconds_total{container!="", container!="POD", instance!=""}[%s] %s
 					), "node", "$1", "instance", "(.+)"
 				), "container_name", "$1", "container", "(.+)"
 			), "pod_name", "$1", "pod", "(.+)"
