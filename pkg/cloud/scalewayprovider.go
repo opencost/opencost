@@ -38,6 +38,9 @@ type Scaleway struct {
 	DownloadPricingDataLock sync.RWMutex
 }
 
+// PricingSourceSummary returns the pricing source summary for the provider.
+// The summary represents what was _parsed_ from the pricing source, not
+// everything that was _available_ in the pricing source.
 func (c *Scaleway) PricingSourceSummary() interface{} {
 	return c.Pricing
 }

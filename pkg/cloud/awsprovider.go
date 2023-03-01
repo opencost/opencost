@@ -2300,7 +2300,9 @@ func (aws *AWS) Regions() []string {
 	return awsRegions
 }
 
-// PricingSourceSummary returns the Pricing field from the AWS struct.
+// PricingSourceSummary returns the pricing source summary for the provider.
+// The summary represents what was _parsed_ from the pricing source, not
+// everything that was _available_ in the pricing source.
 func (aws *AWS) PricingSourceSummary() interface{} {
 	// encode the pricing source summary as a JSON string
 	return aws.Pricing
