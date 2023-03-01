@@ -3410,6 +3410,28 @@ func (asr *AssetSetRange) InsertRange(that *AssetSetRange) error {
 	return err
 }
 
+func (asr *AssetSetRange) GetWarnings() []string {
+	warnings := []string{}
+
+	for _, as := range asr.Assets {
+		if len(as.Warnings) > 0 {
+			warnings = append(warnings, as.Warnings...)
+		}
+	}
+
+	return warnings
+}
+
+func (asr *AssetSetRange) HasWarnings() bool {
+	for _, as := range asr.Assets {
+		if len(as.Warnings) > 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
 // IsEmpty returns false if AssetSetRange contains a single AssetSet that is not empty
 func (asr *AssetSetRange) IsEmpty() bool {
 	if asr == nil || asr.Length() == 0 {
