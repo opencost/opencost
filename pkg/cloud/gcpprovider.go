@@ -1578,6 +1578,6 @@ func getUsageType(labels map[string]string) string {
 	return "ondemand"
 }
 
-func (gcp *GCP) PricingSourceSummary() (interface{}, error) {
-	return gcp.Pricing, nil
+func (gcp *GCP) PricingSourceSummary() interface{} {
+	return gcp.Pricing
 }

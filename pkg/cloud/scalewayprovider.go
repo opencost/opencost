@@ -38,9 +38,8 @@ type Scaleway struct {
 	DownloadPricingDataLock sync.RWMutex
 }
 
-func (c *Scaleway) PricingSourceSummary() (interface{}, error) {
-	//TODO implement me
-	panic("implement me")
+func (c *Scaleway) PricingSourceSummary() interface{} {
+	return c.Pricing
 }
 
 func (c *Scaleway) DownloadPricingData() error {

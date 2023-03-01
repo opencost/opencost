@@ -696,11 +696,7 @@ func (a *Accesses) GetPricingSourceSummary(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	data, err := a.CloudProvider.PricingSourceSummary()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(WrapData(nil, err))
-	}
+	data := a.CloudProvider.PricingSourceSummary()
 	w.Write(WrapData(data, nil))
 }
 

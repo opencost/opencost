@@ -34,8 +34,8 @@ type CustomProvider struct {
 	Config                  *ProviderConfig
 }
 
-func (cp *CustomProvider) PricingSourceSummary() (interface{}, error) {
-	return cp.Pricing, nil
+func (cp *CustomProvider) PricingSourceSummary() interface{} {
+	return cp.Pricing
 }
 
 type customProviderKey struct {

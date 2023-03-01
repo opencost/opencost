@@ -404,8 +404,8 @@ type Azure struct {
 	azureStorageConfig             *AzureStorageConfig
 }
 
-func (az *Azure) PricingSourceSummary() (interface{}, error) {
-	return az.Pricing, nil
+func (az *Azure) PricingSourceSummary() interface{} {
+	return az.Pricing
 }
 
 type azureKey struct {
