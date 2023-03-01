@@ -37,7 +37,7 @@ and contributing changes.
 
 ## Community
 
-If you need any support or have any questions on contributing to the project, you can reach us on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel or via email at [opencost@kubecost.com](opencost@kubecost.com).
+If you need any support or have any questions on contributing to the project, you can reach us on [CNCF Slack](https://slack.cncf.io/) in the [#opencost](https://cloud-native.slack.com/archives/C03D56FPD4G) channel, email at [opencost@kubecost.com](opencost@kubecost.com), or attend the [OpenCost Working Group meetings](https://bit.ly/opencost-meeting) from the [Community Calendar](https://bit.ly/opencost-calendar).
 
 ## FAQ
 
