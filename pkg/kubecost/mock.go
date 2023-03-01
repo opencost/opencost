@@ -744,3 +744,62 @@ func GenerateGCPMockCCIAndPID(mockProviderIDInt int, mockCloudIDInt int, labelKe
 		},
 	}, ""
 }
+
+// NewMockUnitSummaryAllocation creates an *SummaryAllocation with all of its float64 values set to 1 and generic properties if not provided in arg
+func NewMockUnitSummaryAllocation(name string, start time.Time, resolution time.Duration, props *AllocationProperties) *SummaryAllocation {
+	if name == "" {
+		name = "cluster1/namespace1/pod1/container1"
+	}
+
+	properties := &AllocationProperties{}
+	if props == nil {
+		properties.Cluster = "cluster1"
+		properties.Node = "node1"
+		properties.Namespace = "namespace1"
+		properties.ControllerKind = "deployment"
+		properties.Controller = "deployment1"
+		properties.Pod = "pod1"
+		properties.Container = "container1"
+	} else {
+		properties = props
+	}
+
+	end := start.Add(resolution)
+
+	alloc := &SummaryAllocation{
+		Name:                   name,
+		Properties:             properties,
+		Start:                  start,
+		End:                    end,
+		CPUCost:                1,
+		CPUCoreRequestAverage:  1,
+		CPUCoreUsageAverage:    1,
+		GPUCost:                1,
+		NetworkCost:            1,
+		LoadBalancerCost:       1,
+		RAMCost:                1,
+		RAMBytesRequestAverage: 1,
+		RAMBytesUsageAverage:   1,
+	}
+
+	// If idle allocation, remove non-idle costs, but maintain total cost
+	if alloc.IsIdle() {
+		alloc.NetworkCost = 0.0
+		alloc.LoadBalancerCost = 0.0
+		alloc.CPUCost += 1.0
+		alloc.RAMCost += 1.0
+	}
+
+	return alloc
+}
+
+// NewMockUnitSummaryAllocationSet creates an *SummaryAllocationSet
+func NewMockUnitSummaryAllocationSet(start time.Time, resolution time.Duration) *SummaryAllocationSet {
+
+	end := start.Add(resolution)
+	sas := &SummaryAllocationSet{
+		Window: NewWindow(&start, &end),
+	}
+
+	return sas
+}
