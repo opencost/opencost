@@ -81,7 +81,7 @@ func (ccip CloudCostItemProperties) Key() string {
 }
 
 func (ccip CloudCostItemProperties) MonitoringKey() string {
-	return fmt.Sprintf("%s/%s/%s", ccip.Provider, ccip.WorkGroupID, ccip.ProviderID)
+	return fmt.Sprintf("%s/%s", ccip.Provider, ccip.ProviderID)
 }
 
 // CloudCostItem represents a CUR line item, identifying a cloud resource and
