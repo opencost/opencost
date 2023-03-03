@@ -158,14 +158,22 @@ type OutOfClusterAllocation struct {
 }
 
 type CustomPricing struct {
-	Provider                     string `json:"provider"`
-	Description                  string `json:"description"`
-	CPU                          string `json:"CPU"`
-	SpotCPU                      string `json:"spotCPU"`
-	RAM                          string `json:"RAM"`
-	SpotRAM                      string `json:"spotRAM"`
-	GPU                          string `json:"GPU"`
-	SpotGPU                      string `json:"spotGPU"`
+	Provider    string `json:"provider"`
+	Description string `json:"description"`
+	// CPU a string-encoded float describing cost per core-hour of CPU.
+	CPU string `json:"CPU"`
+	// CPU a string-encoded float describing cost per core-hour of CPU for spot
+	// nodes.
+	SpotCPU string `json:"spotCPU"`
+	// RAM a string-encoded float describing cost per GiB-hour of RAM/memory.
+	RAM string `json:"RAM"`
+	// SpotRAM a string-encoded float describing cost per GiB-hour of RAM/memory
+	// for spot nodes.
+	SpotRAM string `json:"spotRAM"`
+	GPU     string `json:"GPU"`
+	SpotGPU string `json:"spotGPU"`
+	// Storage is a string-encoded float describing cost per GB-hour of storage
+	// (e.g. PV, disk) resources.
 	Storage                      string `json:"storage"`
 	ZoneNetworkEgress            string `json:"zoneNetworkEgress"`
 	RegionNetworkEgress          string `json:"regionNetworkEgress"`
