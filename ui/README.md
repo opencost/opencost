@@ -23,26 +23,27 @@ kubectl port-forward --namespace opencost service/opencost 9090
 
 ## Running Locally
 
-The UI can be run locally using the `npm run` command.
+The UI can be run locally using the `npm run serve` command.
 
 ```sh
 $ npm run serve
 > kubecost-ui-open@0.0.1 serve
-> BASE_URL=${BASE_URL:=/model} npx parcel serve src/index.html
+> npx parcel serve src/index.html
 
 Server running at http://localhost:1234
-✨ Built in 76ms
+✨ Built in 1.96s
 ```
 
 And can have a custom URL backend prefix.
 
 ```sh
-$ BASE_URL=test npm run serve
+BASE_URL=http://localhost:9090/test npm run serve
+
 > kubecost-ui-open@0.0.1 serve
-> BASE_URL=${BASE_URL:=/model} npx parcel serve src/index.html
+> npx parcel serve src/index.html
 
 Server running at http://localhost:1234
-✨ Built in 804ms
+✨ Built in 772ms
 ```
 
 In addition, similar behavior can be replicated with the docker container:
