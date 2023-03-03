@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "description": "Open source UI for Kubecost",
   "scripts": {
+    "build": "BASE_URL=${BASE_URL:=/model} npx parcel build src/index.html && echo \"built with BASE_URL $BASE_URL\"",
+    "serve": "BASE_URL=${BASE_URL:=/model} npx parcel serve src/index.html",
+    "clean": "rm -rf dist/*",
     "test": "echo \"Error: no test specified\" && exit 1",
     "preinstall": "npx npm-force-resolutions"
   },
