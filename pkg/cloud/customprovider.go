@@ -34,6 +34,13 @@ type CustomProvider struct {
 	Config                  *ProviderConfig
 }
 
+// PricingSourceSummary returns the pricing source summary for the provider.
+// The summary represents what was _parsed_ from the pricing source, not what
+// was returned from the relevant API.
+func (cp *CustomProvider) PricingSourceSummary() interface{} {
+	return cp.Pricing
+}
+
 type customProviderKey struct {
 	SpotLabel      string
 	SpotLabelValue string
