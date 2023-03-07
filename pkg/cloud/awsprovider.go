@@ -114,7 +114,7 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 
 }
 
-// How often spot data is refreshed
+// SpotRefreshDuration represents how much time must pass before we refresh
 const SpotRefreshDuration = 15 * time.Minute
 
 var awsRegions = []string{
@@ -2298,4 +2298,12 @@ func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool,
 // Regions returns a predefined list of AWS regions
 func (aws *AWS) Regions() []string {
 	return awsRegions
+}
+
+// PricingSourceSummary returns the pricing source summary for the provider.
+// The summary represents what was _parsed_ from the pricing source, not
+// everything that was _available_ in the pricing source.
+func (aws *AWS) PricingSourceSummary() interface{} {
+	// encode the pricing source summary as a JSON string
+	return aws.Pricing
 }
