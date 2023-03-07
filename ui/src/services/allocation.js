@@ -4,7 +4,7 @@ class AllocationService {
   BASE_URL = process.env.BASE_URL || '{PLACEHOLDER_BASE_URL}';
 
   async fetchAllocation(win, aggregate, options) {
-    if (this.BASE_URL === '{PLACEHOLDER_BASE_URL}') {
+    if (this.BASE_URL.includes('PLACEHOLDER_BASE_URL')) {
       this.BASE_URL = `http://localhost:9090/model`
     }
     
