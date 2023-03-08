@@ -3,12 +3,13 @@ package cloud
 import (
 	"errors"
 	"fmt"
-	"github.com/opencost/opencost/pkg/kubecost"
 	"io"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/opencost/opencost/pkg/kubecost"
 
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
@@ -241,6 +242,14 @@ func (c *Scaleway) CombinedDiscountForNode(instanceType string, isPreemptible bo
 }
 
 func (c *Scaleway) Regions() []string {
+
+	regionOverrides := env.GetRegionOverrideList()
+
+	if len(regionOverrides) > 0 {
+		log.Debugf("Overriding Scaleway regions with configured region list: %+v", regionOverrides)
+		return regionOverrides
+	}
+
 	// These are zones but hey, its 2022
 	zones := []string{}
 	for _, zone := range scw.AllZones {
