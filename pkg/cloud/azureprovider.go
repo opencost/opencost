@@ -1507,6 +1507,14 @@ func (az *Azure) CombinedDiscountForNode(instanceType string, isPreemptible bool
 }
 
 func (az *Azure) Regions() []string {
+
+	regionOverrides := env.GetRegionOverrideList()
+
+	if len(regionOverrides) > 0 {
+		log.Debugf("Overriding Azure regions with configured region list: %+v", regionOverrides)
+		return regionOverrides
+	}
+
 	return azureRegions
 }
 
