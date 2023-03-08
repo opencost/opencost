@@ -692,6 +692,14 @@ func (a *Accesses) GetPricingSourceCounts(w http.ResponseWriter, _ *http.Request
 	w.Write(WrapData(a.Model.GetPricingSourceCounts()))
 }
 
+func (a *Accesses) GetPricingSourceSummary(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	data := a.CloudProvider.PricingSourceSummary()
+	w.Write(WrapData(data, nil))
+}
+
 func (a *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -1757,6 +1765,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	a.Router.GET("/clusterInfoMap", a.GetClusterInfoMap)
 	a.Router.GET("/serviceAccountStatus", a.GetServiceAccountStatus)
 	a.Router.GET("/pricingSourceStatus", a.GetPricingSourceStatus)
+	a.Router.GET("/pricingSourceSummary", a.GetPricingSourceSummary)
 	a.Router.GET("/pricingSourceCounts", a.GetPricingSourceCounts)
 
 	// endpoints migrated from server

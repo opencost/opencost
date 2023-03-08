@@ -346,6 +346,7 @@ type Provider interface {
 	ClusterManagementPricing() (string, float64, error)
 	CombinedDiscountForNode(string, bool, float64, float64) float64
 	Regions() []string
+	PricingSourceSummary() interface{}
 }
 
 // ClusterName returns the name defined in cluster info, defaulting to the
@@ -486,7 +487,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			},
 		}, nil
 	case kubecost.GCPProvider:
-		log.Info("metadata reports we are in GCE")
+		log.Info("Found ProviderID starting with \"gce\", using GCP Provider")
 		if apiKey == "" {
 			return nil, errors.New("Supply a GCP Key to start getting data")
 		}
@@ -561,7 +562,8 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 		accountID:      "",
 		projectID:      "",
 	}
-	if metadata.OnGCE() {
+	// The second conditional is mainly if you're running opencost outside of GCE, say in a local environment.
+	if metadata.OnGCE() || strings.HasPrefix(providerID, "gce") {
 		cp.provider = kubecost.GCPProvider
 		cp.configFileName = "gcp.json"
 		cp.projectID = parseGCPProjectID(providerID)
