@@ -114,7 +114,7 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 
 }
 
-// How often spot data is refreshed
+// SpotRefreshDuration represents how much time must pass before we refresh
 const SpotRefreshDuration = 15 * time.Minute
 
 var awsRegions = []string{
@@ -1484,14 +1484,16 @@ func (aws *AWS) getAddressesForRegion(ctx context.Context, region string) (*ec2.
 func (aws *AWS) getAllAddresses() ([]*ec2Types.Address, error) {
 	aws.ConfigureAuth() // load authentication data into env vars
 
-	addressCh := make(chan *ec2.DescribeAddressesOutput, len(awsRegions))
-	errorCh := make(chan error, len(awsRegions))
+	regions := aws.Regions()
+
+	addressCh := make(chan *ec2.DescribeAddressesOutput, len(regions))
+	errorCh := make(chan error, len(regions))
 
 	var wg sync.WaitGroup
-	wg.Add(len(awsRegions))
+	wg.Add(len(regions))
 
 	// Get volumes from each AWS region
-	for _, r := range awsRegions {
+	for _, r := range regions {
 		// Fetch IP address response and send results and errors to their
 		// respective channels
 		go func(region string) {
@@ -1584,14 +1586,16 @@ func (aws *AWS) getDisksForRegion(ctx context.Context, region string, maxResults
 func (aws *AWS) getAllDisks() ([]*ec2Types.Volume, error) {
 	aws.ConfigureAuth() // load authentication data into env vars
 
-	volumeCh := make(chan *ec2.DescribeVolumesOutput, len(awsRegions))
-	errorCh := make(chan error, len(awsRegions))
+	regions := aws.Regions()
+
+	volumeCh := make(chan *ec2.DescribeVolumesOutput, len(regions))
+	errorCh := make(chan error, len(regions))
 
 	var wg sync.WaitGroup
-	wg.Add(len(awsRegions))
+	wg.Add(len(regions))
 
 	// Get volumes from each AWS region
-	for _, r := range awsRegions {
+	for _, r := range regions {
 		// Fetch volume response and send results and errors to their
 		// respective channels
 		go func(region string) {
@@ -2297,5 +2301,21 @@ func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool,
 
 // Regions returns a predefined list of AWS regions
 func (aws *AWS) Regions() []string {
+
+	regionOverrides := env.GetRegionOverrideList()
+
+	if len(regionOverrides) > 0 {
+		log.Debugf("Overriding AWS regions with configured region list: %+v", regionOverrides)
+		return regionOverrides
+	}
+
 	return awsRegions
+}
+
+// PricingSourceSummary returns the pricing source summary for the provider.
+// The summary represents what was _parsed_ from the pricing source, not
+// everything that was _available_ in the pricing source.
+func (aws *AWS) PricingSourceSummary() interface{} {
+	// encode the pricing source summary as a JSON string
+	return aws.Pricing
 }

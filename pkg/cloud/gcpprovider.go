@@ -28,7 +28,7 @@ import (
 	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/oauth2/google"
-	compute "google.golang.org/api/compute/v1"
+	"google.golang.org/api/compute/v1"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -1538,6 +1538,14 @@ func (gcp *GCP) CombinedDiscountForNode(instanceType string, isPreemptible bool,
 }
 
 func (gcp *GCP) Regions() []string {
+
+	regionOverrides := env.GetRegionOverrideList()
+
+	if len(regionOverrides) > 0 {
+		log.Debugf("Overriding GCP regions with configured region list: %+v", regionOverrides)
+		return regionOverrides
+	}
+
 	return gcpRegions
 }
 
@@ -1576,4 +1584,11 @@ func getUsageType(labels map[string]string) string {
 		return "preemptible"
 	}
 	return "ondemand"
+}
+
+// PricingSourceSummary returns the pricing source summary for the provider.
+// The summary represents what was _parsed_ from the pricing source, not
+// everything that was _available_ in the pricing source.
+func (gcp *GCP) PricingSourceSummary() interface{} {
+	return gcp.Pricing
 }

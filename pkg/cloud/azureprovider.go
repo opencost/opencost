@@ -404,6 +404,13 @@ type Azure struct {
 	azureStorageConfig             *AzureStorageConfig
 }
 
+// PricingSourceSummary returns the pricing source summary for the provider.
+// The summary represents what was _parsed_ from the pricing source, not
+// everything that was _available_ in the pricing source.
+func (az *Azure) PricingSourceSummary() interface{} {
+	return az.Pricing
+}
+
 type azureKey struct {
 	Labels        map[string]string
 	GPULabel      string
@@ -1500,6 +1507,14 @@ func (az *Azure) CombinedDiscountForNode(instanceType string, isPreemptible bool
 }
 
 func (az *Azure) Regions() []string {
+
+	regionOverrides := env.GetRegionOverrideList()
+
+	if len(regionOverrides) > 0 {
+		log.Debugf("Overriding Azure regions with configured region list: %+v", regionOverrides)
+		return regionOverrides
+	}
+
 	return azureRegions
 }
 

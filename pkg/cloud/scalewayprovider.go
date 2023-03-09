@@ -3,12 +3,13 @@ package cloud
 import (
 	"errors"
 	"fmt"
-	"github.com/opencost/opencost/pkg/kubecost"
 	"io"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/opencost/opencost/pkg/kubecost"
 
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
@@ -36,6 +37,13 @@ type Scaleway struct {
 	Config                  *ProviderConfig
 	Pricing                 map[string]*ScalewayPricing
 	DownloadPricingDataLock sync.RWMutex
+}
+
+// PricingSourceSummary returns the pricing source summary for the provider.
+// The summary represents what was _parsed_ from the pricing source, not
+// everything that was _available_ in the pricing source.
+func (c *Scaleway) PricingSourceSummary() interface{} {
+	return c.Pricing
 }
 
 func (c *Scaleway) DownloadPricingData() error {
@@ -234,6 +242,14 @@ func (c *Scaleway) CombinedDiscountForNode(instanceType string, isPreemptible bo
 }
 
 func (c *Scaleway) Regions() []string {
+
+	regionOverrides := env.GetRegionOverrideList()
+
+	if len(regionOverrides) > 0 {
+		log.Debugf("Overriding Scaleway regions with configured region list: %+v", regionOverrides)
+		return regionOverrides
+	}
+
 	// These are zones but hey, its 2022
 	zones := []string{}
 	for _, zone := range scw.AllZones {

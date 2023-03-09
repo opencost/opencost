@@ -1,11 +1,14 @@
 package kubecost
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/opencost/opencost/pkg/util/timeutil"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 
 	"github.com/opencost/opencost/pkg/env"
 )
@@ -1142,6 +1145,47 @@ func TestWindow_GetWindowsForQueryWindow(t *testing.T) {
 				if !actualWindow.Equal(expectedWindow) {
 					t.Errorf("GetWindowsForQueryWindow() window at index %d were not equal expected: %s, actual %s", i, expectedWindow.String(), actualWindow)
 				}
+			}
+		})
+	}
+}
+
+func TestMarshalUnmarshal(t *testing.T) {
+	t1 := time.Date(2023, 03, 11, 01, 29, 15, 0, time.UTC)
+	t2 := t1.Add(8 * time.Minute)
+	cases := []struct {
+		w Window
+	}{
+		{
+			w: NewClosedWindow(t1, t2),
+		},
+		{
+			w: NewWindow(&t1, nil),
+		},
+		{
+			w: NewWindow(nil, &t2),
+		},
+		{
+			w: NewWindow(nil, nil),
+		},
+	}
+
+	for _, c := range cases {
+		name := c.w.String()
+		t.Run(name, func(t *testing.T) {
+			marshaled, err := json.Marshal(c.w)
+			if err != nil {
+				t.Fatalf("marshaling: %s", err)
+			}
+
+			var unmarshaledW Window
+			err = json.Unmarshal(marshaled, &unmarshaledW)
+			if err != nil {
+				t.Fatalf("unmarshaling: %s", err)
+			}
+
+			if diff := cmp.Diff(c.w, unmarshaledW); len(diff) > 0 {
+				t.Errorf(diff)
 			}
 		})
 	}

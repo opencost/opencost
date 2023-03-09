@@ -1107,12 +1107,15 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 					log.Errorf("Could not parse total node price")
 					return nil, err
 				}
-			} else {
+			} else if newCnode.VCPUCost != "" {
 				nodePrice, err = strconv.ParseFloat(newCnode.VCPUCost, 64) // all the price was allocated to the CPU
 				if err != nil {
 					log.Errorf("Could not parse node vcpu price")
 					return nil, err
 				}
+			} else { // add case to use default pricing model when API data fails.
+				log.Debugf("No node price or CPUprice found, falling back to default")
+				nodePrice = defaultCPU*cpu + defaultRAM*ram + gpuc*defaultGPU
 			}
 			if math.IsNaN(nodePrice) {
 				log.Warnf("nodePrice parsed as NaN. Setting to 0.")
@@ -1189,12 +1192,15 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 					}
 					nodePrice = nodePrice - gpuPrice // remove the gpuPrice from the total, we're just costing out RAM and CPU.
 				}
-			} else {
+			} else if newCnode.VCPUCost != "" {
 				nodePrice, err = strconv.ParseFloat(newCnode.VCPUCost, 64) // all the price was allocated to the CPU
 				if err != nil {
 					log.Warnf("Could not parse node vcpu price")
 					return nil, err
 				}
+			} else { // add case to use default pricing model when API data fails.
+				log.Debugf("No node price or CPUprice found, falling back to default")
+				nodePrice = defaultCPU*cpu + defaultRAM*ram
 			}
 			if math.IsNaN(nodePrice) {
 				log.Warnf("nodePrice parsed as NaN. Setting to 0.")
