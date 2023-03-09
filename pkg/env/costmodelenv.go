@@ -95,6 +95,8 @@ const (
 
 	AllocationNodeLabelsEnabled     = "ALLOCATION_NODE_LABELS_ENABLED"
 	AllocationNodeLabelsIncludeList = "ALLOCATION_NODE_LABELS_INCLUDE_LIST"
+
+	regionOverrideList = "REGION_OVERRIDE_LIST"
 )
 
 var offsetRegex = regexp.MustCompile(`^(\+|-)(\d\d):(\d\d)$`)
@@ -534,4 +536,14 @@ func GetAllocationNodeLabelsIncludeList() []string {
 	}
 
 	return list
+}
+
+func GetRegionOverrideList() []string {
+	regionList := GetList(regionOverrideList, ",")
+
+	if regionList == nil {
+		return []string{}
+	}
+
+	return regionList
 }
