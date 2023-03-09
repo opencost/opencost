@@ -922,8 +922,10 @@ func applyLabels(podMap map[podKey]*pod, nodeLabels map[nodeKey]map[string]strin
 	for podKey, pod := range podMap {
 		for _, alloc := range pod.Allocations {
 			allocLabels := alloc.Properties.Labels
+			allocNamespaceLabels := alloc.Properties.NamespaceLabels
 			if allocLabels == nil {
 				allocLabels = make(map[string]string)
+				allocNamespaceLabels = make(map[string]string)
 			}
 
 			// Apply node labels first, then namespace labels, then pod labels
@@ -943,6 +945,7 @@ func applyLabels(podMap map[podKey]*pod, nodeLabels map[nodeKey]map[string]strin
 			if labels, ok := namespaceLabels[nsKey]; ok {
 				for k, v := range labels {
 					allocLabels[k] = v
+					allocNamespaceLabels[k] = v
 				}
 			}
 
@@ -953,6 +956,7 @@ func applyLabels(podMap map[podKey]*pod, nodeLabels map[nodeKey]map[string]strin
 			}
 
 			alloc.Properties.Labels = allocLabels
+			alloc.Properties.NamespaceLabels = allocNamespaceLabels
 		}
 	}
 }

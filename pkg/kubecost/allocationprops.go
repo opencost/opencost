@@ -92,17 +92,18 @@ func ParseProperty(text string) (string, error) {
 
 // AllocationProperties describes a set of Kubernetes objects.
 type AllocationProperties struct {
-	Cluster        string                `json:"cluster,omitempty"`
-	Node           string                `json:"node,omitempty"`
-	Container      string                `json:"container,omitempty"`
-	Controller     string                `json:"controller,omitempty"`
-	ControllerKind string                `json:"controllerKind,omitempty"`
-	Namespace      string                `json:"namespace,omitempty"`
-	Pod            string                `json:"pod,omitempty"`
-	Services       []string              `json:"services,omitempty"`
-	ProviderID     string                `json:"providerID,omitempty"`
-	Labels         AllocationLabels      `json:"labels,omitempty"`
-	Annotations    AllocationAnnotations `json:"annotations,omitempty"`
+	Cluster         string                `json:"cluster,omitempty"`
+	Node            string                `json:"node,omitempty"`
+	Container       string                `json:"container,omitempty"`
+	Controller      string                `json:"controller,omitempty"`
+	ControllerKind  string                `json:"controllerKind,omitempty"`
+	Namespace       string                `json:"namespace,omitempty"`
+	Pod             string                `json:"pod,omitempty"`
+	Services        []string              `json:"services,omitempty"`
+	ProviderID      string                `json:"providerID,omitempty"`
+	Labels          AllocationLabels      `json:"labels,omitempty"`
+	NamespaceLabels AllocationLabels      `json:"labels,omitempty"`
+	Annotations     AllocationAnnotations `json:"annotations,omitempty"`
 }
 
 // AllocationLabels is a schema-free mapping of key/value pairs that can be
