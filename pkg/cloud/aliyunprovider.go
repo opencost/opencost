@@ -620,6 +620,14 @@ func (alibaba *Alibaba) loadAlibabaAuthSecretAndSetEnv(force bool) error {
 
 // Regions returns a current supported list of Alibaba regions
 func (alibaba *Alibaba) Regions() []string {
+
+	regionOverrides := env.GetRegionOverrideList()
+
+	if len(regionOverrides) > 0 {
+		log.Debugf("Overriding Alibaba regions with configured region list: %+v", regionOverrides)
+		return regionOverrides
+	}
+
 	return alibabaRegions
 }
 
@@ -1323,7 +1331,14 @@ func determinePVRegion(pv *v1.PersistentVolume) string {
 		}
 	}
 
-	for _, region := range alibabaRegions {
+	regionOverrides := env.GetRegionOverrideList()
+	regions := alibabaRegions
+
+	if len(regionOverrides) > 0 {
+		regions = regionOverrides
+	}
+
+	for _, region := range regions {
 		if strings.Contains(pvZone, region) {
 			log.Debugf("determinePVRegion determined region of %s through zone affiliation of the PV %s\n", region, pvZone)
 			return region
