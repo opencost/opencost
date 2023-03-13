@@ -12,9 +12,11 @@ import (
 //  Contracts
 //--------------------------------------------------------------------------
 
-// Getter is an interface that retrieves a string value for a string key
+// Getter is an interface that retrieves a string value for a string key and
+// can check for the existence of a string key.
 type Getter interface {
 	Get(key string) string
+	Has(key string) bool
 }
 
 // Setter is an interface that sets the value of a string key to a string value.
@@ -32,6 +34,9 @@ type Map interface {
 // PrimitiveMapReader is an implementation contract for an object capable
 // of reading primitive values from a util.Map
 type PrimitiveMapReader interface {
+	// Has checks if the map contains the given key.
+	Has(key string) bool
+
 	// Get parses an string from the map key parameter. If the value
 	// is empty, the defaultValue parameter is returned.
 	Get(key string, defaultValue string) string
@@ -161,6 +166,12 @@ type GoMap struct {
 	m map[string]string
 }
 
+// Has implements mapper.Haser
+func (gm *GoMap) Has(key string) bool {
+	_, ok := gm.m[key]
+	return ok
+}
+
 // Get implements mapper.Getter
 func (gm *GoMap) Get(key string) string {
 	return gm.m[key]
@@ -234,6 +245,10 @@ func NewCompositionMapper(getter Getter, setter Setter) PrimitiveMap {
 		readOnlyMapper:  &readOnlyMapper{getter},
 		writeOnlyMapper: &writeOnlyMapper{setter},
 	}
+}
+
+func (rom *readOnlyMapper) Has(key string) bool {
+	return rom.getter.Has(key)
 }
 
 // Get parses an string from the read-only mapper key parameter. If the value
