@@ -9,31 +9,82 @@ import (
 	"github.com/opencost/opencost/pkg/prom"
 )
 
+// AllocationProperty represents a specific property on an allocation, which
+// provides utility for extracting custom property metadata.
+type AllocationProperty string
+
+// IsLabel returns true if the allocation property has a label prefix
+func (apt *AllocationProperty) IsLabel() bool {
+	return strings.HasPrefix(string(*apt), "label:")
+}
+
+// GetLabel returns the label string associated with the label property if it exists.
+// Otherwise, empty string is returned.
+func (apt *AllocationProperty) GetLabel() string {
+	if apt.IsLabel() {
+		return strings.TrimSpace(strings.TrimPrefix(string(*apt), "label:"))
+	}
+	return ""
+}
+
+// IsAnnotation returns true if the allocation property has an annotation prefix
+func (apt *AllocationProperty) IsAnnotation() bool {
+	return strings.HasPrefix(string(*apt), "annotation:")
+}
+
+// GetAnnotation returns the annotation string associated with the property if it exists.
+// Otherwise, empty string is returned.
+func (apt *AllocationProperty) GetAnnotation() string {
+	if apt.IsAnnotation() {
+		return strings.TrimSpace(strings.TrimPrefix(string(*apt), "annotation:"))
+	}
+	return ""
+}
+
 const (
-	AllocationNilProp            string = ""
-	AllocationClusterProp        string = "cluster"
-	AllocationNodeProp           string = "node"
-	AllocationContainerProp      string = "container"
-	AllocationControllerProp     string = "controller"
-	AllocationControllerKindProp string = "controllerKind"
-	AllocationNamespaceProp      string = "namespace"
-	AllocationPodProp            string = "pod"
-	AllocationProviderIDProp     string = "providerID"
-	AllocationServiceProp        string = "service"
-	AllocationLabelProp          string = "label"
-	AllocationAnnotationProp     string = "annotation"
-	AllocationDeploymentProp     string = "deployment"
-	AllocationStatefulSetProp    string = "statefulset"
-	AllocationDaemonSetProp      string = "daemonset"
-	AllocationJobProp            string = "job"
-	AllocationDepartmentProp     string = "department"
-	AllocationEnvironmentProp    string = "environment"
-	AllocationOwnerProp          string = "owner"
-	AllocationProductProp        string = "product"
-	AllocationTeamProp           string = "team"
+	AllocationNilProp            AllocationProperty = ""
+	AllocationClusterProp                           = "cluster"
+	AllocationNodeProp                              = "node"
+	AllocationContainerProp                         = "container"
+	AllocationControllerProp                        = "controller"
+	AllocationControllerKindProp                    = "controllerKind"
+	AllocationNamespaceProp                         = "namespace"
+	AllocationPodProp                               = "pod"
+	AllocationProviderIDProp                        = "providerID"
+	AllocationServiceProp                           = "service"
+	AllocationLabelProp                             = "label"
+	AllocationAnnotationProp                        = "annotation"
+	AllocationDeploymentProp                        = "deployment"
+	AllocationStatefulSetProp                       = "statefulset"
+	AllocationDaemonSetProp                         = "daemonset"
+	AllocationJobProp                               = "job"
+	AllocationDepartmentProp                        = "department"
+	AllocationEnvironmentProp                       = "environment"
+	AllocationOwnerProp                             = "owner"
+	AllocationProductProp                           = "product"
+	AllocationTeamProp                              = "team"
 )
 
-func ParseProperty(text string) (string, error) {
+func ParseProperties(props []string) ([]AllocationProperty, error) {
+	properties := []AllocationProperty{}
+	added := make(map[AllocationProperty]struct{})
+
+	for _, prop := range props {
+		property, err := ParseProperty(prop)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to parse property: %w", err)
+		}
+
+		if _, ok := added[property]; !ok {
+			added[property] = struct{}{}
+			properties = append(properties, property)
+		}
+	}
+
+	return properties, nil
+}
+
+func ParseProperty(text string) (AllocationProperty, error) {
 	switch strings.TrimSpace(strings.ToLower(text)) {
 	case "cluster":
 		return AllocationClusterProp, nil
@@ -79,12 +130,12 @@ func ParseProperty(text string) (string, error) {
 
 	if strings.HasPrefix(text, "label:") {
 		label := prom.SanitizeLabelName(strings.TrimSpace(strings.TrimPrefix(text, "label:")))
-		return fmt.Sprintf("label:%s", label), nil
+		return AllocationProperty(fmt.Sprintf("label:%s", label)), nil
 	}
 
 	if strings.HasPrefix(text, "annotation:") {
 		annotation := prom.SanitizeLabelName(strings.TrimSpace(strings.TrimPrefix(text, "annotation:")))
-		return fmt.Sprintf("annotation:%s", annotation), nil
+		return AllocationProperty(fmt.Sprintf("annotation:%s", annotation)), nil
 	}
 
 	return AllocationNilProp, fmt.Errorf("invalid allocation property: %s", text)
