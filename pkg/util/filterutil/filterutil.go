@@ -14,6 +14,51 @@ import (
 	"github.com/opencost/opencost/pkg/filter/ast"
 )
 
+const (
+	ParamFilterClusters        = "filterClusters"
+	ParamFilterNodes           = "filterNodes"
+	ParamFilterNamespaces      = "filterNamespaces"
+	ParamFilterControllerKinds = "filterControllerKinds"
+	ParamFilterControllers     = "filterControllers"
+	ParamFilterPods            = "filterPods"
+	ParamFilterContainers      = "filterContainers"
+
+	ParamFilterDepartments  = "filterDepartments"
+	ParamFilterEnvironments = "filterEnvironments"
+	ParamFilterOwners       = "filterOwners"
+	ParamFilterProducts     = "filterProducts"
+	ParamFilterTeams        = "filterTeams"
+
+	ParamFilterAnnotations = "filterAnnotations"
+	ParamFilterLabels      = "filterLabels"
+	ParamFilterServices    = "filterServices"
+)
+
+// AllHTTPParamKeys returns all HTTP GET parameters used for v1 filters. It is
+// intended to help validate HTTP queries in handlers to help avoid e.g.
+// spelling errors.
+func AllHTTPParamKeys() []string {
+	return []string{
+		ParamFilterClusters,
+		ParamFilterNodes,
+		ParamFilterNamespaces,
+		ParamFilterControllerKinds,
+		ParamFilterControllers,
+		ParamFilterPods,
+		ParamFilterContainers,
+
+		ParamFilterDepartments,
+		ParamFilterEnvironments,
+		ParamFilterOwners,
+		ParamFilterProducts,
+		ParamFilterTeams,
+
+		ParamFilterAnnotations,
+		ParamFilterLabels,
+		ParamFilterServices,
+	}
+}
+
 func CloudCostAggregateFilterFromParams(pmr mapper.PrimitiveMapReader) filter.Filter {
 	/*
 		filter := filter.And[*kubecost.CloudCostAggregate]{
@@ -102,7 +147,7 @@ func AllocationFilterFromParamsV1(
 	// filter structs (they evaluate to true always) there could be overhead
 	// when calling Matches() repeatedly for no purpose.
 
-	if filterClusters := qp.GetList("filterClusters", ","); len(filterClusters) > 0 {
+	if filterClusters := qp.GetList(ParamFilterClusters, ","); len(filterClusters) > 0 {
 		var ops []ast.FilterNode
 
 		// filter my cluster identifier
@@ -136,15 +181,15 @@ func AllocationFilterFromParamsV1(
 		filterOps = push(filterOps, clustersOp)
 	}
 
-	if raw := qp.GetList("filterNodes", ","); len(raw) > 0 {
+	if raw := qp.GetList(ParamFilterNodes, ","); len(raw) > 0 {
 		filterOps = push(filterOps, filterV1SingleValueFromList(raw, allocationfilter.AllocationFieldNode))
 	}
 
-	if raw := qp.GetList("filterNamespaces", ","); len(raw) > 0 {
+	if raw := qp.GetList(ParamFilterNamespaces, ","); len(raw) > 0 {
 		filterOps = push(filterOps, filterV1SingleValueFromList(raw, allocationfilter.AllocationFieldNamespace))
 	}
 
-	if raw := qp.GetList("filterControllerKinds", ","); len(raw) > 0 {
+	if raw := qp.GetList(ParamFilterControllerKinds, ","); len(raw) > 0 {
 		filterOps = push(filterOps, filterV1SingleValueFromList(raw, allocationfilter.AllocationFieldControllerKind))
 	}
 
@@ -152,7 +197,7 @@ func AllocationFilterFromParamsV1(
 	// "deployment:kubecost-cost-analyzer"
 	//
 	// Thus, we have to make a custom OR filter for this condition.
-	if filterControllers := qp.GetList("filterControllers", ","); len(filterControllers) > 0 {
+	if filterControllers := qp.GetList(ParamFilterControllers, ","); len(filterControllers) > 0 {
 		var ops []ast.FilterNode
 
 		for _, rawFilterValue := range filterControllers {
@@ -184,44 +229,44 @@ func AllocationFilterFromParamsV1(
 		filterOps = push(filterOps, controllersOp)
 	}
 
-	if raw := qp.GetList("filterPods", ","); len(raw) > 0 {
+	if raw := qp.GetList(ParamFilterPods, ","); len(raw) > 0 {
 		filterOps = push(filterOps, filterV1SingleValueFromList(raw, allocationfilter.AllocationFieldPod))
 	}
 
-	if raw := qp.GetList("filterContainers", ","); len(raw) > 0 {
+	if raw := qp.GetList(ParamFilterContainers, ","); len(raw) > 0 {
 		filterOps = push(filterOps, filterV1SingleValueFromList(raw, allocationfilter.AllocationFieldContainer))
 	}
 
 	// Label-mapped queries require a label config to be present.
 	if labelConfig != nil {
-		if raw := qp.GetList("filterDepartments", ","); len(raw) > 0 {
+		if raw := qp.GetList(ParamFilterDepartments, ","); len(raw) > 0 {
 			filterOps = push(filterOps, filterV1LabelAliasMappedFromList(raw, labelConfig.DepartmentLabel))
 		}
-		if raw := qp.GetList("filterEnvironments", ","); len(raw) > 0 {
+		if raw := qp.GetList(ParamFilterEnvironments, ","); len(raw) > 0 {
 			filterOps = push(filterOps, filterV1LabelAliasMappedFromList(raw, labelConfig.EnvironmentLabel))
 		}
-		if raw := qp.GetList("filterOwners", ","); len(raw) > 0 {
+		if raw := qp.GetList(ParamFilterOwners, ","); len(raw) > 0 {
 			filterOps = push(filterOps, filterV1LabelAliasMappedFromList(raw, labelConfig.OwnerLabel))
 		}
-		if raw := qp.GetList("filterProducts", ","); len(raw) > 0 {
+		if raw := qp.GetList(ParamFilterProducts, ","); len(raw) > 0 {
 			filterOps = push(filterOps, filterV1LabelAliasMappedFromList(raw, labelConfig.ProductLabel))
 		}
-		if raw := qp.GetList("filterTeams", ","); len(raw) > 0 {
+		if raw := qp.GetList(ParamFilterTeams, ","); len(raw) > 0 {
 			filterOps = push(filterOps, filterV1LabelAliasMappedFromList(raw, labelConfig.TeamLabel))
 		}
 	} else {
 		log.Debugf("No label config is available. Not creating filters for label-mapped 'fields'.")
 	}
 
-	if raw := qp.GetList("filterAnnotations", ","); len(raw) > 0 {
+	if raw := qp.GetList(ParamFilterAnnotations, ","); len(raw) > 0 {
 		filterOps = push(filterOps, filterV1DoubleValueFromList(raw, allocationfilter.AllocationFieldAnnotation))
 	}
 
-	if raw := qp.GetList("filterLabels", ","); len(raw) > 0 {
+	if raw := qp.GetList(ParamFilterLabels, ","); len(raw) > 0 {
 		filterOps = push(filterOps, filterV1DoubleValueFromList(raw, allocationfilter.AllocationFieldLabel))
 	}
 
-	if filterServices := qp.GetList("filterServices", ","); len(filterServices) > 0 {
+	if filterServices := qp.GetList(ParamFilterServices, ","); len(filterServices) > 0 {
 		var ops []ast.FilterNode
 
 		// filterServices= is the only filter that uses the "contains" operator.
