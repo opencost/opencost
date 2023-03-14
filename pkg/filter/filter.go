@@ -1,20 +1,7 @@
 package filter
 
-// Filter represents anything that can be used to filter given generic type T.
-//
-// Implement this interface with caution. While it is generic, it
-// is intended to be introspectable so query handlers can perform various
-// optimizations. These optimizations include:
-// - Routing a query to the most optimal cache
-// - Querying backing data stores efficiently (e.g. translation to SQL)
-//
-// Custom implementations of this interface outside of this package should not
-// expect to receive these benefits. Passing a custom implementation to a
-// handler may in errors.
-type Filter[T any] interface {
-	String() string
+import "github.com/opencost/opencost/pkg/filter/ast"
 
-	// Matches is the canonical in-Go function for determining if T
-	// matches a filter.
-	Matches(T) bool
-}
+// Filter is just the root node of an AST. There are various compiler implementations
+// available to create data source specific filtering from the AST.
+type Filter = ast.FilterNode

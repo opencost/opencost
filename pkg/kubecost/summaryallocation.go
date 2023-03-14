@@ -301,15 +301,9 @@ type SummaryAllocationSet struct {
 // required for unfortunate reasons to do with performance and legacy order-of-
 // operations details, as well as the fact that reconciliation has been
 // pushed down to the conversion step between Allocation and SummaryAllocation.
-func NewSummaryAllocationSet(as *AllocationSet, filter AllocationFilter, kfs []AllocationMatchFunc, reconcile, reconcileNetwork bool) *SummaryAllocationSet {
+func NewSummaryAllocationSet(as *AllocationSet, filter AllocationMatcher, kfs []AllocationMatchFunc, reconcile, reconcileNetwork bool) *SummaryAllocationSet {
 	if as == nil {
 		return nil
-	}
-
-	// Pre-flatten the filter so we can just check == nil to see if there are
-	// filters.
-	if filter != nil {
-		filter = filter.Flattened()
 	}
 
 	// If we can know the exact size of the map, use it. If filters or sharing
@@ -471,12 +465,6 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 
 	if options.LabelConfig == nil {
 		options.LabelConfig = NewLabelConfig()
-	}
-
-	// Pre-flatten the filter so we can just check == nil to see if there are
-	// filters.
-	if options.Filter != nil {
-		options.Filter = options.Filter.Flattened()
 	}
 
 	// Check if we have any work to do; if not, then early return. If

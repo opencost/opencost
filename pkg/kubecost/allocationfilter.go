@@ -1,12 +1,6 @@
 package kubecost
 
-import (
-	"fmt"
-	"sort"
-	"strings"
-
-	"github.com/opencost/opencost/pkg/log"
-)
+/*
 
 // FilterField is an enum that represents Allocation-specific fields that can be
 // filtered on (namespace, label, etc.)
@@ -532,3 +526,4 @@ func (left AllocationFilterNone) Equals(right AllocationFilter) bool {
 	_, ok := right.(AllocationFilterNone)
 	return ok
 }
+*/

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opencost/opencost/pkg/filter"
+	"github.com/opencost/opencost/pkg/filter/matcher"
 	"github.com/opencost/opencost/pkg/log"
 )
 
@@ -238,7 +238,7 @@ func (ccas *CloudCostAggregateSet) Aggregate(props []string) (*CloudCostAggregat
 	return result, nil
 }
 
-func (ccas *CloudCostAggregateSet) Filter(filters filter.Filter[*CloudCostAggregate]) *CloudCostAggregateSet {
+func (ccas *CloudCostAggregateSet) Filter(filters matcher.Matcher[*CloudCostAggregate]) *CloudCostAggregateSet {
 	if ccas == nil {
 		return nil
 	}
@@ -249,7 +249,7 @@ func (ccas *CloudCostAggregateSet) Filter(filters filter.Filter[*CloudCostAggreg
 	return result
 }
 
-func (ccas *CloudCostAggregateSet) filter(filters filter.Filter[*CloudCostAggregate]) {
+func (ccas *CloudCostAggregateSet) filter(filters matcher.Matcher[*CloudCostAggregate]) {
 	if ccas == nil {
 		return
 	}

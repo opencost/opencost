@@ -1,5 +1,6 @@
 package allocationfilterutil
 
+/*
 import (
 	"strings"
 
@@ -390,3 +391,4 @@ func filterV1DoubleValueFromList(rawFilterValuesUnsplit []string, filterField ku
 
 	return filter
 }
+*/

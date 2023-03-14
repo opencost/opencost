@@ -3,7 +3,7 @@ package kubecost
 import (
 	"time"
 
-	"github.com/opencost/opencost/pkg/filter"
+	"github.com/opencost/opencost/pkg/filter/matcher"
 )
 
 // Coverage This is a placeholder struct which can be replaced by a more specific implementation later
@@ -97,7 +97,7 @@ func (cs *CoverageSet) Insert(coverage *Coverage) {
 	cs.Items[coverage.Key()] = coverage
 }
 
-func (cs *CoverageSet) Filter(filters filter.Filter[*Coverage]) *CoverageSet {
+func (cs *CoverageSet) Filter(filters matcher.Matcher[*Coverage]) *CoverageSet {
 	if cs == nil {
 		return nil
 	}

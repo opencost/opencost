@@ -6,9 +6,27 @@ import (
 	"testing"
 	"time"
 
+	allocfilter "github.com/opencost/opencost/pkg/filter/allocation"
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/json"
 )
+
+var filterParser = allocfilter.NewAllocationParser()
+var matcherCompiler = NewAllocationMatchCompiler()
+
+// useful for creating filters on the fly when testing. panics
+// on parse or compile errors!
+func mustCompileFilter(s string) AllocationMatcher {
+	filter, err := filterParser.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	m, err := matcherCompiler.Compile(filter)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
 
 func TestAllocation_Add(t *testing.T) {
 	var nilAlloc *Allocation
@@ -1111,11 +1129,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationClusterProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter: AllocationFilterCondition{
-					Field: FilterClusterID,
-					Op:    FilterEquals,
-					Value: "cluster1",
-				},
+				Filter:    mustCompileFilter(`cluster:"cluster1"`),
 				ShareIdle: ShareNone,
 			},
 			numResults: 1 + numIdle,
@@ -1133,7 +1147,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationClusterProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter:    AllocationFilterCondition{Field: FilterClusterID, Op: FilterEquals, Value: "cluster1"},
+				Filter:    mustCompileFilter(`cluster:"cluster1"`),
 				ShareIdle: ShareWeighted,
 			},
 			numResults: 1,
@@ -1150,7 +1164,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter:    AllocationFilterCondition{Field: FilterClusterID, Op: FilterEquals, Value: "cluster1"},
+				Filter:    mustCompileFilter(`cluster:"cluster1"`),
 				ShareIdle: ShareNone,
 			},
 			numResults: 2 + numIdle,
@@ -1169,7 +1183,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationClusterProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter:    AllocationFilterCondition{Field: FilterNamespace, Op: FilterEquals, Value: "namespace2"},
+				Filter:    mustCompileFilter(`namespace:"namespace2"`),
 				ShareIdle: ShareNone,
 			},
 			numResults: numClusters + numIdle,
@@ -1212,7 +1226,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter:    AllocationFilterCondition{Field: FilterNamespace, Op: FilterEquals, Value: "namespace2"},
+				Filter:    mustCompileFilter(`namespace:"namespace2"`),
 				ShareIdle: ShareWeighted,
 			},
 			numResults: 1,
@@ -1237,7 +1251,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter:            AllocationFilterCondition{Field: FilterNamespace, Op: FilterEquals, Value: "namespace2"},
+				Filter:            mustCompileFilter(`namespace:"namespace2"`),
 				SharedHourlyCosts: map[string]float64{"total": sharedOverheadHourlyCost},
 				ShareSplit:        ShareWeighted,
 			},
@@ -1256,7 +1270,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter:     AllocationFilterCondition{Field: FilterNamespace, Op: FilterEquals, Value: "namespace2"},
+				Filter:     mustCompileFilter(`namespace:"namespace2"`),
 				ShareFuncs: []AllocationMatchFunc{isNamespace("namespace1")},
 				ShareSplit: ShareWeighted,
 			},
@@ -1275,7 +1289,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter:     AllocationFilterCondition{Field: FilterNamespace, Op: FilterEquals, Value: "namespace2"},
+				Filter:     mustCompileFilter(`namespace:"namespace2"`),
 				ShareFuncs: []AllocationMatchFunc{isNamespace("namespace1")},
 				ShareSplit: ShareWeighted,
 				ShareIdle:  ShareWeighted,
@@ -1381,7 +1395,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter:     AllocationFilterCondition{Field: FilterNamespace, Op: FilterEquals, Value: "namespace2"},
+				Filter:     mustCompileFilter(`namespace:"namespace2"`),
 				ShareFuncs: []AllocationMatchFunc{isNamespace("namespace1")},
 				ShareSplit: ShareWeighted,
 				ShareIdle:  ShareWeighted,
@@ -1427,7 +1441,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter:            AllocationFilterCondition{Field: FilterNamespace, Op: FilterEquals, Value: "namespace2"},
+				Filter:            mustCompileFilter(`namespace:"namespace2"`),
 				ShareSplit:        ShareWeighted,
 				ShareIdle:         ShareWeighted,
 				SharedHourlyCosts: map[string]float64{"total": sharedOverheadHourlyCost},
@@ -1493,7 +1507,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				Filter:     AllocationFilterCondition{Field: FilterNamespace, Op: FilterEquals, Value: "namespace2"},
+				Filter:     mustCompileFilter(`namespace:"namespace2"`),
 				ShareIdle:  ShareWeighted,
 				IdleByNode: true,
 			},

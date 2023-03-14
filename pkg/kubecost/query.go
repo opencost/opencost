@@ -39,7 +39,7 @@ type AllocationQueryOptions struct {
 	AggregateBy             []string
 	Compute                 bool
 	DisableAggregatedStores bool
-	Filter                  AllocationFilter
+	Filter                  AllocationMatcher
 	IdleByNode              bool
 	IncludeExternal         bool
 	IncludeIdle             bool

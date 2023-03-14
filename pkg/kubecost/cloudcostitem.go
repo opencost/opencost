@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opencost/opencost/pkg/filter"
+	"github.com/opencost/opencost/pkg/filter/matcher"
 	"github.com/opencost/opencost/pkg/log"
 )
 
@@ -307,7 +307,7 @@ func (ccis *CloudCostItemSet) Equal(that *CloudCostItemSet) bool {
 	return true
 }
 
-func (ccis *CloudCostItemSet) Filter(filters filter.Filter[*CloudCostItem]) *CloudCostItemSet {
+func (ccis *CloudCostItemSet) Filter(filters matcher.Matcher[*CloudCostItem]) *CloudCostItemSet {
 	if ccis == nil {
 		return nil
 	}

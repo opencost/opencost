@@ -846,7 +846,7 @@ func NewAllocationSet(start, end time.Time, allocs ...*Allocation) *AllocationSe
 // simple flag for sharing idle resources.
 type AllocationAggregationOptions struct {
 	AllocationTotalsStore AllocationTotalsStore
-	Filter                AllocationFilter
+	Filter                AllocationMatcher
 	IdleByNode            bool
 	LabelConfig           *LabelConfig
 	MergeUnallocated      bool
@@ -920,12 +920,6 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// idleFiltrationCoefficients relies on this being explicitly set
 	if options.ShareIdle != ShareWeighted {
 		options.ShareIdle = ShareNone
-	}
-
-	// Pre-flatten the filter so we can just check == nil to see if there are
-	// filters.
-	if options.Filter != nil {
-		options.Filter = options.Filter.Flattened()
 	}
 
 	var allocatedTotalsMap map[string]map[string]float64

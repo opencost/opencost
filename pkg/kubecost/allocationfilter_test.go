@@ -1,8 +1,6 @@
 package kubecost
 
 import (
-	"fmt"
-	"reflect"
 	"testing"
 )
 
@@ -10,7 +8,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 	cases := []struct {
 		name   string
 		a      *Allocation
-		filter AllocationFilter
+		filter AllocationMatcher
 
 		expected bool
 	}{
@@ -21,12 +19,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Cluster: "cluster-one",
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterClusterID,
-				Op:    FilterEquals,
-				Value: "cluster-one",
-			},
-
+			filter:   mustCompileFilter(`cluster:"cluster-one"`),
 			expected: true,
 		},
 		{
@@ -36,12 +29,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Cluster: "cluster-one",
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterClusterID,
-				Op:    FilterStartsWith,
-				Value: "cluster",
-			},
-
+			filter:   mustCompileFilter(`cluster<~:"cluster"`),
 			expected: true,
 		},
 		{
@@ -51,12 +39,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Cluster: "k8s-one",
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterClusterID,
-				Op:    FilterStartsWith,
-				Value: "cluster",
-			},
-
+			filter:   mustCompileFilter(`cluster<~:"cluster"`),
 			expected: false,
 		},
 		{
@@ -66,12 +49,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Cluster: "",
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterClusterID,
-				Op:    FilterStartsWith,
-				Value: "",
-			},
-
+			filter:   mustCompileFilter(`cluster<~:""`),
 			expected: true,
 		},
 		{
@@ -81,12 +59,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Cluster: "abc",
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterClusterID,
-				Op:    FilterStartsWith,
-				Value: "",
-			},
-
+			filter:   mustCompileFilter(`cluster<~:""`),
 			expected: true,
 		},
 		{
@@ -96,12 +69,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Node: "node123",
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterNode,
-				Op:    FilterEquals,
-				Value: "node123",
-			},
-
+			filter:   mustCompileFilter(`node:"node123"`),
 			expected: true,
 		},
 		{
@@ -111,12 +79,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Namespace: "kube-system",
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterNamespace,
-				Op:    FilterNotEquals,
-				Value: "kube-system",
-			},
-
+			filter:   mustCompileFilter(`namespace!:"kube-system"`),
 			expected: false,
 		},
 		{
@@ -126,12 +89,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Namespace: "kube-system",
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterNamespace,
-				Op:    FilterNotEquals,
-				Value: UnallocatedSuffix,
-			},
-
+			filter:   mustCompileFilter(`namespace!:"__unallocated__"`),
 			expected: true,
 		},
 		{
@@ -141,12 +99,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Namespace: "",
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterNamespace,
-				Op:    FilterNotEquals,
-				Value: UnallocatedSuffix,
-			},
-
+			filter:   mustCompileFilter(`namespace!:"__unallocated__"`),
 			expected: false,
 		},
 		{
@@ -156,12 +109,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Namespace: "",
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterNamespace,
-				Op:    FilterEquals,
-				Value: UnallocatedSuffix,
-			},
-
+			filter:   mustCompileFilter(`namespace:"__unallocated__"`),
 			expected: true,
 		},
 		{
@@ -171,12 +119,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					ControllerKind: "deployment", // We generally store controller kinds as all lowercase
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterControllerKind,
-				Op:    FilterEquals,
-				Value: "deployment",
-			},
-
+			filter:   mustCompileFilter(`controllerKind:"deployment"`),
 			expected: true,
 		},
 		{
@@ -186,12 +129,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Controller: "kc-cost-analyzer",
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterControllerName,
-				Op:    FilterEquals,
-				Value: "kc-cost-analyzer",
-			},
-
+			filter:   mustCompileFilter(`controllerName:"kc-cost-analyzer"`),
 			expected: true,
 		},
 		{
@@ -201,12 +139,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Pod: "pod-123 UID-ABC",
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterPod,
-				Op:    FilterEquals,
-				Value: "pod-123 UID-ABC",
-			},
-
+			filter:   mustCompileFilter(`pod:"pod-123 UID-ABC"`),
 			expected: true,
 		},
 		{
@@ -216,12 +149,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Container: "cost-model",
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterContainer,
-				Op:    FilterEquals,
-				Value: "cost-model",
-			},
-
+			filter:   mustCompileFilter(`container:"cost-model"`),
 			expected: true,
 		},
 		{
@@ -233,13 +161,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterLabel,
-				Op:    FilterEquals,
-				Key:   "app",
-				Value: "foo",
-			},
-
+			filter:   mustCompileFilter(`label[app]:"foo"`),
 			expected: true,
 		},
 		{
@@ -251,13 +173,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterLabel,
-				Op:    FilterEquals,
-				Key:   "app",
-				Value: "foo",
-			},
-
+			filter:   mustCompileFilter(`label[app]:"foo"`),
 			expected: false,
 		},
 		{
@@ -269,13 +185,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterLabel,
-				Op:    FilterEquals,
-				Key:   "app",
-				Value: "foo",
-			},
-
+			filter:   mustCompileFilter(`label[app]:"foo"`),
 			expected: false,
 		},
 		{
@@ -287,13 +197,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterLabel,
-				Op:    FilterEquals,
-				Key:   "app",
-				Value: UnallocatedSuffix,
-			},
-
+			filter:   mustCompileFilter(`label!~:"app"`),
 			expected: true,
 		},
 		{
@@ -305,13 +209,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterLabel,
-				Op:    FilterEquals,
-				Key:   "app",
-				Value: UnallocatedSuffix,
-			},
-
+			filter:   mustCompileFilter(`label!~:"app"`),
 			expected: false,
 		},
 		{
@@ -323,13 +221,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterLabel,
-				Op:    FilterNotEquals,
-				Key:   "app",
-				Value: UnallocatedSuffix,
-			},
-
+			filter:   mustCompileFilter(`label~:"app"`),
 			expected: false,
 		},
 		{
@@ -341,13 +233,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterLabel,
-				Op:    FilterNotEquals,
-				Key:   "app",
-				Value: UnallocatedSuffix,
-			},
-
+			filter:   mustCompileFilter(`label~:"app"`),
 			expected: true,
 		},
 		{
@@ -359,13 +245,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterLabel,
-				Op:    FilterNotEquals,
-				Key:   "app",
-				Value: "foo",
-			},
-
+			filter:   mustCompileFilter(`label[app]!:"foo"`),
 			expected: true,
 		},
 		{
@@ -377,13 +257,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterAnnotation,
-				Op:    FilterEquals,
-				Key:   "prom_modified_name",
-				Value: "testing123",
-			},
-
+			filter:   mustCompileFilter(`annotation[prom_modified_name]:"testing123"`),
 			expected: true,
 		},
 		{
@@ -395,13 +269,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterAnnotation,
-				Op:    FilterEquals,
-				Key:   "app",
-				Value: "foo",
-			},
-
+			filter:   mustCompileFilter(`annotation[app]:"foo"`),
 			expected: false,
 		},
 		{
@@ -413,13 +281,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterAnnotation,
-				Op:    FilterEquals,
-				Key:   "app",
-				Value: "foo",
-			},
-
+			filter:   mustCompileFilter(`annotation[app]:"foo"`),
 			expected: false,
 		},
 		{
@@ -431,13 +293,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterAnnotation,
-				Op:    FilterNotEquals,
-				Key:   "app",
-				Value: "foo",
-			},
-
+			filter:   mustCompileFilter(`annotation[app]!:"foo"`),
 			expected: true,
 		},
 		{
@@ -447,12 +303,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Namespace: "",
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterNamespace,
-				Op:    FilterEquals,
-				Value: UnallocatedSuffix,
-			},
-
+			filter:   mustCompileFilter(`namespace:"__unallocated__"`),
 			expected: true,
 		},
 		{
@@ -462,12 +313,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterServices,
-				Op:    FilterContains,
-				Value: "serv2",
-			},
-
+			filter:   mustCompileFilter(`services~:"serv2"`),
 			expected: true,
 		},
 		{
@@ -477,12 +323,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterServices,
-				Op:    FilterContains,
-				Value: "serv3",
-			},
-
+			filter:   mustCompileFilter(`services~:"serv3"`),
 			expected: false,
 		},
 		{
@@ -492,12 +333,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterServices,
-				Op:    FilterNotContains,
-				Value: "serv3",
-			},
-
+			filter:   mustCompileFilter(`services!~:"serv3"`),
 			expected: true,
 		},
 		{
@@ -507,12 +343,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterServices,
-				Op:    FilterNotContains,
-				Value: "serv2",
-			},
-
+			filter:   mustCompileFilter(`services!~:"serv2"`),
 			expected: false,
 		},
 		{
@@ -522,12 +353,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterServices,
-				Op:    FilterNotContains,
-				Value: UnallocatedSuffix,
-			},
-
+			filter:   mustCompileFilter(`services!~:"__unallocated__"`),
 			expected: true,
 		},
 		{
@@ -537,12 +363,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Services: []string{},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterServices,
-				Op:    FilterNotContains,
-				Value: UnallocatedSuffix,
-			},
-
+			filter:   mustCompileFilter(`services!~:"__unallocated__"`),
 			expected: false,
 		},
 		{
@@ -552,12 +373,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterServices,
-				Op:    FilterContainsPrefix,
-				Value: "serv",
-			},
-
+			filter:   mustCompileFilter(`services<~:"serv"`),
 			expected: true,
 		},
 		{
@@ -567,12 +383,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Services: []string{"foo", "bar"},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterServices,
-				Op:    FilterContainsPrefix,
-				Value: "serv",
-			},
-
+			filter:   mustCompileFilter(`services<~:"serv"`),
 			expected: false,
 		},
 		{
@@ -582,12 +393,7 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Services: []string{"serv1", "serv2"},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterServices,
-				Op:    FilterContains,
-				Value: UnallocatedSuffix,
-			},
-
+			filter:   mustCompileFilter(`services~:"__unallocated__"`),
 			expected: false,
 		},
 		{
@@ -597,25 +403,23 @@ func Test_AllocationFilterCondition_Matches(t *testing.T) {
 					Services: []string{},
 				},
 			},
-			filter: AllocationFilterCondition{
-				Field: FilterServices,
-				Op:    FilterContains,
-				Value: UnallocatedSuffix,
-			},
-
+			filter:   mustCompileFilter(`services~:"__unallocated__"`),
 			expected: true,
 		},
 	}
 
 	for _, c := range cases {
-		result := c.filter.Matches(c.a)
+		t.Run(c.name, func(t *testing.T) {
+			result := c.filter.Matches(c.a)
 
-		if result != c.expected {
-			t.Errorf("%s: expected %t, got %t", c.name, c.expected, result)
-		}
+			if result != c.expected {
+				t.Errorf("%s: expected %t, got %t", c.name, c.expected, result)
+			}
+		})
 	}
 }
 
+/*
 func Test_AllocationFilterNone_Matches(t *testing.T) {
 	cases := []struct {
 		name string
@@ -731,11 +535,13 @@ func Test_AllocationFilterNone_Matches(t *testing.T) {
 		}
 	}
 }
+*/
+
 func Test_AllocationFilterAnd_Matches(t *testing.T) {
 	cases := []struct {
 		name   string
 		a      *Allocation
-		filter AllocationFilter
+		filter AllocationMatcher
 
 		expected bool
 	}{
@@ -749,19 +555,7 @@ func Test_AllocationFilterAnd_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: AllocationFilterAnd{[]AllocationFilter{
-				AllocationFilterCondition{
-					Field: FilterLabel,
-					Op:    FilterEquals,
-					Key:   "app",
-					Value: "foo",
-				},
-				AllocationFilterCondition{
-					Field: FilterNamespace,
-					Op:    FilterEquals,
-					Value: "kubecost",
-				},
-			}},
+			filter:   mustCompileFilter(`label[app]:"foo" + namespace:"kubecost"`),
 			expected: true,
 		},
 		{
@@ -774,19 +568,7 @@ func Test_AllocationFilterAnd_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: AllocationFilterAnd{[]AllocationFilter{
-				AllocationFilterCondition{
-					Field: FilterLabel,
-					Op:    FilterEquals,
-					Key:   "app",
-					Value: "foo",
-				},
-				AllocationFilterCondition{
-					Field: FilterNamespace,
-					Op:    FilterEquals,
-					Value: "kubecost",
-				},
-			}},
+			filter:   mustCompileFilter(`label[app]:"foo" + namespace:"kubecost"`),
 			expected: false,
 		},
 		{
@@ -799,19 +581,7 @@ func Test_AllocationFilterAnd_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: AllocationFilterAnd{[]AllocationFilter{
-				AllocationFilterCondition{
-					Field: FilterLabel,
-					Op:    FilterEquals,
-					Key:   "app",
-					Value: "foo",
-				},
-				AllocationFilterCondition{
-					Field: FilterNamespace,
-					Op:    FilterEquals,
-					Value: "kubecost",
-				},
-			}},
+			filter:   mustCompileFilter(`label[app]:"foo" + namespace:"kubecost"`),
 			expected: false,
 		},
 		{
@@ -824,44 +594,36 @@ func Test_AllocationFilterAnd_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: AllocationFilterAnd{[]AllocationFilter{
-				AllocationFilterCondition{
-					Field: FilterLabel,
-					Op:    FilterEquals,
-					Key:   "app",
-					Value: "foo",
-				},
-				AllocationFilterCondition{
-					Field: FilterNamespace,
-					Op:    FilterEquals,
-					Value: "kubecost",
-				},
-			}},
+			filter:   mustCompileFilter(`label[app]:"foo" + namespace:"kubecost"`),
 			expected: false,
 		},
-		{
-			name: `(and none) matches nothing`,
-			a: &Allocation{
-				Properties: &AllocationProperties{
-					Namespace: "kube-system",
-					Labels: map[string]string{
-						"app": "bar",
+		/*
+			{
+				name: `(and none) matches nothing`,
+				a: &Allocation{
+					Properties: &AllocationProperties{
+						Namespace: "kube-system",
+						Labels: map[string]string{
+							"app": "bar",
+						},
 					},
 				},
+				filter: AllocationFilterAnd{[]AllocationFilter{
+					AllocationFilterNone{},
+				}},
+				expected: false,
 			},
-			filter: AllocationFilterAnd{[]AllocationFilter{
-				AllocationFilterNone{},
-			}},
-			expected: false,
-		},
+		*/
 	}
 
 	for _, c := range cases {
-		result := c.filter.Matches(c.a)
+		t.Run(c.name, func(t *testing.T) {
+			result := c.filter.Matches(c.a)
 
-		if result != c.expected {
-			t.Errorf("%s: expected %t, got %t", c.name, c.expected, result)
-		}
+			if result != c.expected {
+				t.Errorf("%s: expected %t, got %t", c.name, c.expected, result)
+			}
+		})
 	}
 }
 
@@ -869,7 +631,7 @@ func Test_AllocationFilterOr_Matches(t *testing.T) {
 	cases := []struct {
 		name   string
 		a      *Allocation
-		filter AllocationFilter
+		filter AllocationMatcher
 
 		expected bool
 	}{
@@ -883,19 +645,7 @@ func Test_AllocationFilterOr_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: AllocationFilterOr{[]AllocationFilter{
-				AllocationFilterCondition{
-					Field: FilterLabel,
-					Op:    FilterEquals,
-					Key:   "app",
-					Value: "foo",
-				},
-				AllocationFilterCondition{
-					Field: FilterNamespace,
-					Op:    FilterEquals,
-					Value: "kubecost",
-				},
-			}},
+			filter:   mustCompileFilter(`label[app]:"foo" | namespace:"kubecost"`),
 			expected: true,
 		},
 		{
@@ -908,19 +658,7 @@ func Test_AllocationFilterOr_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: AllocationFilterOr{[]AllocationFilter{
-				AllocationFilterCondition{
-					Field: FilterLabel,
-					Op:    FilterEquals,
-					Key:   "app",
-					Value: "foo",
-				},
-				AllocationFilterCondition{
-					Field: FilterNamespace,
-					Op:    FilterEquals,
-					Value: "kubecost",
-				},
-			}},
+			filter:   mustCompileFilter(`label[app]:"foo" | namespace:"kubecost"`),
 			expected: true,
 		},
 		{
@@ -933,19 +671,7 @@ func Test_AllocationFilterOr_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: AllocationFilterOr{[]AllocationFilter{
-				AllocationFilterCondition{
-					Field: FilterLabel,
-					Op:    FilterEquals,
-					Key:   "app",
-					Value: "foo",
-				},
-				AllocationFilterCondition{
-					Field: FilterNamespace,
-					Op:    FilterEquals,
-					Value: "kubecost",
-				},
-			}},
+			filter:   mustCompileFilter(`label[app]:"foo" | namespace:"kubecost"`),
 			expected: true,
 		},
 		{
@@ -958,19 +684,7 @@ func Test_AllocationFilterOr_Matches(t *testing.T) {
 					},
 				},
 			},
-			filter: AllocationFilterOr{[]AllocationFilter{
-				AllocationFilterCondition{
-					Field: FilterLabel,
-					Op:    FilterEquals,
-					Key:   "app",
-					Value: "foo",
-				},
-				AllocationFilterCondition{
-					Field: FilterNamespace,
-					Op:    FilterEquals,
-					Value: "kubecost",
-				},
-			}},
+			filter:   mustCompileFilter(`label[app]:"foo" | namespace:"kubecost"`),
 			expected: false,
 		},
 	}
@@ -984,6 +698,7 @@ func Test_AllocationFilterOr_Matches(t *testing.T) {
 	}
 }
 
+/*
 func Test_AllocationFilter_Flattened(t *testing.T) {
 	cases := []struct {
 		name string
@@ -1781,3 +1496,4 @@ func Test_AllocationFilter_Equals(t *testing.T) {
 		})
 	}
 }
+*/
