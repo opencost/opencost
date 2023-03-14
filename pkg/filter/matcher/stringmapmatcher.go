@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/opencost/opencost/pkg/filter/ast"
+	"github.com/opencost/opencost/pkg/log"
 )
 
 // StringMapMatcherFactory leverages a single MapFieldMapper[T] to generate instances of
@@ -46,7 +47,7 @@ func (smm *StringMapMatcher[T]) String() string {
 func (smm *StringMapMatcher[T]) Matches(that T) bool {
 	thatMap, err := smm.fieldMapper(that, smm.Identifier)
 	if err != nil {
-		//log.Errorf("Filter: StringMapMatcher: could not retrieve field %s: %s", smp.Field, err.Error())
+		log.Errorf("Filter: StringMapMatcher: could not retrieve field %s: %s", smm.Identifier.String(), err.Error())
 		return false
 	}
 
@@ -72,7 +73,7 @@ func (smm *StringMapMatcher[T]) Matches(that T) bool {
 		return false
 
 	default:
-		//log.Errorf("Filter: StringMapMatcher: Unhandled matcher op. This is a filter implementation error and requires immediate patching. Op: %s", smp.Op)
+		log.Errorf("Filter: StringMapMatcher: Unhandled matcher op. This is a filter implementation error and requires immediate patching. Op: %s", smm.Op)
 		return false
 	}
 }

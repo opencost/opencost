@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/opencost/opencost/pkg/filter/ast"
+	"github.com/opencost/opencost/pkg/log"
 )
 
 // StringMatcherFactory leverages a single StringFieldMapper[T] to generate instances of
@@ -48,7 +49,7 @@ func (sm *StringMatcher[T]) String() string {
 func (sm *StringMatcher[T]) Matches(that T) bool {
 	thatString, err := sm.fieldMapper(that, sm.Identifier)
 	if err != nil {
-		//log.Errorf("Filter: StringProperty: could not retrieve field %s: %s", sp.Field, err.Error())
+		log.Errorf("Filter: StringMatcher: could not retrieve field %s: %s", sm.Identifier.String(), err.Error())
 		return false
 	}
 
@@ -66,7 +67,7 @@ func (sm *StringMatcher[T]) Matches(that T) bool {
 		return strings.HasSuffix(thatString, sm.Value)
 
 	default:
-		//log.Errorf("Filter: StringProperty: Unhandled filter op. This is a filter implementation error and requires immediate patching. Op: %s", sp.Op)
+		log.Errorf("Filter: StringMatcher: Unhandled filter op. This is a filter implementation error and requires immediate patching. Op: %s", sm.Op)
 		return false
 	}
 }
