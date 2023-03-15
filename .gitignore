@@ -2,7 +2,6 @@
 .idea
 *.iml
 
-ui/.parcel-cache
 ui/.cache
 ui/dist
 ui/node_modules/
