@@ -11,6 +11,7 @@ import (
 
 // used to apply a title to pipeline
 var titleCaser cases.Caser = cases.Title(language.Und, cases.NoLower)
+var lowerCaser cases.Caser = cases.Lower(language.Und)
 
 // TraversalState represents the state of the current leaf node in a traversal
 // of the filter  Any grouping ops will include an Enter on their first
@@ -89,6 +90,26 @@ func ToPreOrderString(node FilterNode) string {
 	return sb.String()
 }
 
+// ToPreOrderShortString runs a PreOrderTraversal and generates a condensed tree structure string
+// format for the provided tree root.
+func ToPreOrderShortString(node FilterNode) string {
+	var sb strings.Builder
+
+	printNode := func(n FilterNode, action TraversalState) {
+		if action == TraversalStateEnter {
+			sb.WriteString(ShortOpStringFor(n, action))
+		} else if action == TraversalStateExit {
+			sb.WriteString(ShortOpStringFor(n, action))
+		} else {
+			sb.WriteString(ShortOpStringFor(n, action))
+		}
+	}
+
+	PreOrderTraversal(node, printNode)
+
+	return sb.String()
+}
+
 // OpStringFor returns a string for the provided leaf node, traversal state, and current
 // depth.
 func OpStringFor(node FilterNode, traversalState TraversalState, depth int) string {
@@ -106,7 +127,7 @@ func OpStringFor(node FilterNode, traversalState TraversalState, depth int) stri
 
 	switch n := node.(type) {
 	case *VoidOp:
-		open += "Empty }\n"
+		open += ")"
 	case *EqualOp:
 		open += fmt.Sprintf("Left: %s, Right: %s }\n", n.Left.String(), n.Right)
 	case *ContainsOp:
@@ -120,6 +141,54 @@ func OpStringFor(node FilterNode, traversalState TraversalState, depth int) stri
 	}
 
 	return open
+}
+
+// ShortOpStringFor returns a condensed string for the provided leaf node, traversal state, and current
+// depth.
+func ShortOpStringFor(node FilterNode, traversalState TraversalState) string {
+	if traversalState == TraversalStateExit {
+		return ")"
+	}
+
+	if traversalState == TraversalStateEnter {
+		return lowerCaser.String(string(node.Op())) + "("
+	}
+
+	open := lowerCaser.String(string(node.Op())) + "("
+
+	switch n := node.(type) {
+	case *VoidOp:
+		open += ")"
+	case *EqualOp:
+		open += fmt.Sprintf("%s,%s)", condenseIdent(n.Left), n.Right)
+	case *ContainsOp:
+		open += fmt.Sprintf("%s,%s)", condenseIdent(n.Left), n.Right)
+	case *ContainsPrefixOp:
+		open += fmt.Sprintf("%s,%s)", condenseIdent(n.Left), n.Right)
+	case *ContainsSuffixOp:
+		open += fmt.Sprintf("%s,%s)", condenseIdent(n.Left), n.Right)
+	default:
+		open += ")"
+	}
+
+	return open
+}
+
+// condenses an identifier string
+func condenseIdent(ident Identifier) string {
+	s := condense(ident.Field.Name)
+	if ident.Key != "" {
+		s += "[" + ident.Key + "]"
+	}
+	return s
+}
+
+func condense(s string) string {
+	lc := lowerCaser.String(s)
+	if len(lc) > 2 {
+		return lc[:2]
+	}
+	return lc
 }
 
 // Clone deep copies and returns the AST parameter.
