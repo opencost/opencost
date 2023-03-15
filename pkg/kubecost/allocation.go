@@ -2079,7 +2079,7 @@ func (asr *AllocationSetRange) Get(i int) (*AllocationSet, error) {
 
 // Accumulate sums each AllocationSet in the given range, returning a single cumulative
 // AllocationSet for the entire range.
-func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
+func (asr *AllocationSetRange) accumulate() (*AllocationSet, error) {
 	var allocSet *AllocationSet
 	var err error
 
@@ -2093,12 +2093,12 @@ func (asr *AllocationSetRange) Accumulate() (*AllocationSet, error) {
 	return allocSet, nil
 }
 
-// NewAccumulation clones the first available AllocationSet to use as the data structure to
+// newAccumulation clones the first available AllocationSet to use as the data structure to
 // Accumulate the remaining data. This leaves the original AllocationSetRange intact.
-func (asr *AllocationSetRange) NewAccumulation() (*AllocationSet, error) {
+func (asr *AllocationSetRange) newAccumulation() (*AllocationSet, error) {
 	// NOTE: Adding this API for consistency across SummaryAllocation and Assets, but this
 	// NOTE: implementation is almost identical to regular Accumulate(). The Accumulate() method
-	// NOTE: for Allocation returns Clone() of the input, which is required for AccumulateBy
+	// NOTE: for Allocation returns Clone() of the input, which is required for Accumulate
 	// NOTE: support (unit tests are great for verifying this information).
 	var allocSet *AllocationSet
 	var err error
@@ -2131,34 +2131,159 @@ func (asr *AllocationSetRange) NewAccumulation() (*AllocationSet, error) {
 	return allocSet, nil
 }
 
-// AccumulateBy sums AllocationSets based on the resolution given. The resolution given is subject to the scale used for the AllocationSets.
-// Resolutions not evenly divisible by the AllocationSetRange window durations Accumulate sets until a sum greater than or equal to the resolution is met,
-// at which point AccumulateBy will start summing from 0 until the requested resolution is met again.
-// If the requested resolution is smaller than the window of an AllocationSet then the resolution will default to the duration of a set.
-// Resolutions larger than the duration of the entire AllocationSetRange will default to the duration of the range.
-func (asr *AllocationSetRange) AccumulateBy(resolution time.Duration) (*AllocationSetRange, error) {
-	allocSetRange := NewAllocationSetRange()
-	var allocSet *AllocationSet
-	var err error
-
-	for i, as := range asr.Allocations {
-		allocSet, err = allocSet.Accumulate(as)
-		if err != nil {
-			return nil, err
-		}
-
-		if allocSet != nil {
-
-			// check if end of asr to sum the final set
-			// If total asr accumulated sum <= resolution return 1 accumulated set
-			if allocSet.Window.Duration() >= resolution || i == len(asr.Allocations)-1 {
-				allocSetRange.Allocations = append(allocSetRange.Allocations, allocSet)
-				allocSet = NewAllocationSet(time.Time{}, time.Time{})
-			}
-		}
+// Accumulate sums AllocationSets based on the AccumulateOption (calendar week or calendar month).
+// The accumulated set is determined by the start of the window of the allocation set.
+func (asr *AllocationSetRange) Accumulate(accumulateBy AccumulateOption) (*AllocationSetRange, error) {
+	switch accumulateBy {
+	case AccumulateOptionNone:
+		return asr.accumulateByNone()
+	case AccumulateOptionAll:
+		return asr.accumulateByAll()
+	case AccumulateOptionHour:
+		return asr.accumulateByHour()
+	case AccumulateOptionDay:
+		return asr.accumulateByDay()
+	case AccumulateOptionWeek:
+		return asr.accumulateByWeek()
+	case AccumulateOptionMonth:
+		return asr.accumulateByMonth()
+	default:
+		// ideally, this should never happen
+		return nil, fmt.Errorf("unexpected error, invalid accumulateByType: %s", accumulateBy)
 	}
 
-	return allocSetRange, nil
+}
+
+func (asr *AllocationSetRange) accumulateByAll() (*AllocationSetRange, error) {
+	var err error
+	var as *AllocationSet
+	as, err = asr.newAccumulation()
+	if err != nil {
+		return nil, fmt.Errorf("error accumulating all:%s", err)
+	}
+
+	accumulated := NewAllocationSetRange(as)
+	return accumulated, nil
+}
+
+func (asr *AllocationSetRange) accumulateByNone() (*AllocationSetRange, error) {
+	return asr.Clone(), nil
+}
+func (asr *AllocationSetRange) accumulateByHour() (*AllocationSetRange, error) {
+	// ensure that the summary allocation sets have a 1-hour window, if a set exists
+	if len(asr.Allocations) > 0 && asr.Allocations[0].Window.Duration() != time.Hour {
+		return nil, fmt.Errorf("window duration must equal 1 hour; got:%s", asr.Allocations[0].Window.Duration())
+	}
+
+	return asr.Clone(), nil
+}
+
+func (asr *AllocationSetRange) accumulateByDay() (*AllocationSetRange, error) {
+	// if the allocation set window is 1-day, just return the existing allocation set range
+	if len(asr.Allocations) > 0 && asr.Allocations[0].Window.Duration() == time.Hour*24 {
+		return asr, nil
+	}
+
+	var toAccumulate *AllocationSetRange
+	result := NewAllocationSetRange()
+	for i, as := range asr.Allocations {
+
+		if as.Window.Duration() != time.Hour {
+			return nil, fmt.Errorf("window duration must equal 1 hour; got:%s", as.Window.Duration())
+		}
+
+		hour := as.Window.Start().Hour()
+
+		if toAccumulate == nil {
+			toAccumulate = NewAllocationSetRange()
+			as = as.Clone()
+		}
+
+		toAccumulate.Append(as)
+		asAccumulated, err := toAccumulate.accumulate()
+		if err != nil {
+			return nil, fmt.Errorf("error accumulating result: %s", err)
+		}
+		toAccumulate = NewAllocationSetRange(asAccumulated)
+
+		if hour == 23 || i == len(asr.Allocations)-1 {
+			if length := len(toAccumulate.Allocations); length != 1 {
+				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
+			}
+			result.Append(toAccumulate.Allocations[0])
+			toAccumulate = nil
+		}
+	}
+	return result, nil
+}
+
+func (asr *AllocationSetRange) accumulateByMonth() (*AllocationSetRange, error) {
+	var toAccumulate *AllocationSetRange
+	result := NewAllocationSetRange()
+	for i, as := range asr.Allocations {
+		if as.Window.Duration() != time.Hour*24 {
+			return nil, fmt.Errorf("window duration must equal 24 hours; got:%s", as.Window.Duration())
+		}
+
+		_, month, _ := as.Window.Start().Date()
+		_, nextDayMonth, _ := as.Window.Start().Add(time.Hour * 24).Date()
+
+		if toAccumulate == nil {
+			toAccumulate = NewAllocationSetRange()
+			as = as.Clone()
+		}
+
+		toAccumulate.Append(as)
+		asAccumulated, err := toAccumulate.accumulate()
+		if err != nil {
+			return nil, fmt.Errorf("error accumulating result: %s", err)
+		}
+		toAccumulate = NewAllocationSetRange(asAccumulated)
+
+		// either the month has ended, or there are no more allocation sets
+		if month != nextDayMonth || i == len(asr.Allocations)-1 {
+			if length := len(toAccumulate.Allocations); length != 1 {
+				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
+			}
+			result.Append(toAccumulate.Allocations[0])
+			toAccumulate = nil
+		}
+	}
+	return result, nil
+}
+
+func (asr *AllocationSetRange) accumulateByWeek() (*AllocationSetRange, error) {
+	var toAccumulate *AllocationSetRange
+	result := NewAllocationSetRange()
+	for i, as := range asr.Allocations {
+		if as.Window.Duration() != time.Hour*24 {
+			return nil, fmt.Errorf("window duration must equal 24 hours; got:%s", as.Window.Duration())
+		}
+
+		dayOfWeek := as.Window.Start().Weekday()
+
+		if toAccumulate == nil {
+			toAccumulate = NewAllocationSetRange()
+			as = as.Clone()
+		}
+
+		toAccumulate.Append(as)
+		asAccumulated, err := toAccumulate.accumulate()
+		if err != nil {
+			return nil, fmt.Errorf("error accumulating result: %s", err)
+		}
+		toAccumulate = NewAllocationSetRange(asAccumulated)
+
+		// current assumption is the week always ends on Saturday, or there are no more allocation sets
+		if dayOfWeek == time.Saturday || i == len(asr.Allocations)-1 {
+			if length := len(toAccumulate.Allocations); length != 1 {
+				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
+			}
+			result.Append(toAccumulate.Allocations[0])
+			toAccumulate = nil
+		}
+	}
+	return result, nil
 }
 
 // AggregateBy aggregates each AllocationSet in the range by the given
@@ -2434,4 +2559,17 @@ func (asr *AllocationSetRange) TotalCost() float64 {
 		tc += as.TotalCost()
 	}
 	return tc
+}
+
+// Clone returns a new AllocationSetRange cloned from the existing ASR
+func (asr *AllocationSetRange) Clone() *AllocationSetRange {
+	sasrClone := NewAllocationSetRange()
+	sasrClone.FromStore = asr.FromStore
+
+	for _, as := range asr.Allocations {
+		asClone := as.Clone()
+		sasrClone.Append(asClone)
+	}
+
+	return sasrClone
 }
