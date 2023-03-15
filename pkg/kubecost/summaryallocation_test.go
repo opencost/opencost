@@ -877,3 +877,252 @@ func TestSummaryAllocationSet_TotalEfficiency(t *testing.T) {
 		})
 	}
 }
+
+func TestSummaryAllocationSetRange_AccumulateBy_None(t *testing.T) {
+	ago4d := time.Now().UTC().Truncate(day).Add(-4 * day)
+	ago3d := time.Now().UTC().Truncate(day).Add(-3 * day)
+	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
+	yesterday := time.Now().UTC().Truncate(day).Add(-day)
+	today := time.Now().UTC().Truncate(day)
+
+	ago4dSAS := NewMockUnitSummaryAllocationSet(ago4d, day)
+	ago4dSAS.Insert(NewMockUnitSummaryAllocation("4", ago4d, day, nil))
+	ago3dSAS := NewMockUnitSummaryAllocationSet(ago3d, day)
+	ago3dSAS.Insert(NewMockUnitSummaryAllocation("a", ago3d, day, nil))
+	ago2dSAS := NewMockUnitSummaryAllocationSet(ago2d, day)
+	ago2dSAS.Insert(NewMockUnitSummaryAllocation("", ago2d, day, nil))
+	yesterdaySAS := NewMockUnitSummaryAllocationSet(yesterday, day)
+	yesterdaySAS.Insert(NewMockUnitSummaryAllocation("", yesterday, day, nil))
+	todaySAS := NewMockUnitSummaryAllocationSet(today, day)
+	todaySAS.Insert(NewMockUnitSummaryAllocation("", today, day, nil))
+
+	asr := NewSummaryAllocationSetRange(ago4dSAS, ago3dSAS, ago2dSAS, yesterdaySAS, todaySAS)
+	asr, err := asr.Accumulate(AccumulateOptionNone)
+	if err != nil {
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
+	}
+
+	if len(asr.SummaryAllocationSets) != 5 {
+		t.Fatalf("expected 5 allocation sets, got:%d", len(asr.SummaryAllocationSets))
+	}
+}
+
+func TestSummaryAllocationSetRange_AccumulateBy_All(t *testing.T) {
+	ago4d := time.Now().UTC().Truncate(day).Add(-4 * day)
+	ago3d := time.Now().UTC().Truncate(day).Add(-3 * day)
+	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
+	yesterday := time.Now().UTC().Truncate(day).Add(-day)
+	today := time.Now().UTC().Truncate(day)
+
+	ago4dSAS := NewMockUnitSummaryAllocationSet(ago4d, day)
+	ago4dSAS.Insert(NewMockUnitSummaryAllocation("4", ago4d, day, nil))
+	ago3dSAS := NewMockUnitSummaryAllocationSet(ago3d, day)
+	ago3dSAS.Insert(NewMockUnitSummaryAllocation("a", ago3d, day, nil))
+	ago2dSAS := NewMockUnitSummaryAllocationSet(ago2d, day)
+	ago2dSAS.Insert(NewMockUnitSummaryAllocation("", ago2d, day, nil))
+	yesterdaySAS := NewMockUnitSummaryAllocationSet(yesterday, day)
+	yesterdaySAS.Insert(NewMockUnitSummaryAllocation("", yesterday, day, nil))
+	todaySAS := NewMockUnitSummaryAllocationSet(today, day)
+	todaySAS.Insert(NewMockUnitSummaryAllocation("", today, day, nil))
+
+	asr := NewSummaryAllocationSetRange(ago4dSAS, ago3dSAS, ago2dSAS, yesterdaySAS, todaySAS)
+	asr, err := asr.Accumulate(AccumulateOptionAll)
+	if err != nil {
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
+	}
+
+	if len(asr.SummaryAllocationSets) != 1 {
+		t.Fatalf("expected 1 allocation set, got:%d", len(asr.SummaryAllocationSets))
+	}
+
+	allocMap := asr.SummaryAllocationSets[0].SummaryAllocations
+	alloc := allocMap["cluster1/namespace1/pod1/container1"]
+	if alloc.Minutes() != 4320.0 {
+		t.Errorf("accumulating AllocationSetRange: expected %f minutes; actual %f", 4320.0, alloc.Minutes())
+	}
+}
+
+func TestSummaryAllocationSetRange_AccumulateBy_Hour(t *testing.T) {
+	ago4h := time.Now().UTC().Truncate(time.Hour).Add(-4 * time.Hour)
+	ago3h := time.Now().UTC().Truncate(time.Hour).Add(-3 * time.Hour)
+	ago2h := time.Now().UTC().Truncate(time.Hour).Add(-2 * time.Hour)
+	ago1h := time.Now().UTC().Truncate(time.Hour).Add(-time.Hour)
+	currentHour := time.Now().UTC().Truncate(time.Hour)
+
+	ago4hAS := NewMockUnitSummaryAllocationSet(ago4h, time.Hour)
+	ago4hAS.Insert(NewMockUnitSummaryAllocation("4", ago4h, time.Hour, nil))
+	ago3hAS := NewMockUnitSummaryAllocationSet(ago3h, time.Hour)
+	ago3hAS.Insert(NewMockUnitSummaryAllocation("a", ago3h, time.Hour, nil))
+	ago2hAS := NewMockUnitSummaryAllocationSet(ago2h, time.Hour)
+	ago2hAS.Insert(NewMockUnitSummaryAllocation("", ago2h, time.Hour, nil))
+	ago1hAS := NewMockUnitSummaryAllocationSet(ago1h, time.Hour)
+	ago1hAS.Insert(NewMockUnitSummaryAllocation("", ago1h, time.Hour, nil))
+	currentHourAS := NewMockUnitSummaryAllocationSet(currentHour, time.Hour)
+	currentHourAS.Insert(NewMockUnitSummaryAllocation("", currentHour, time.Hour, nil))
+
+	asr := NewSummaryAllocationSetRange(ago4hAS, ago3hAS, ago2hAS, ago1hAS, currentHourAS)
+	asr, err := asr.Accumulate(AccumulateOptionHour)
+	if err != nil {
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
+	}
+
+	if len(asr.SummaryAllocationSets) != 5 {
+		t.Fatalf("expected 5 allocation sets, got:%d", len(asr.SummaryAllocationSets))
+	}
+
+	allocMap := asr.SummaryAllocationSets[0].SummaryAllocations
+	alloc := allocMap["4"]
+	if alloc.Minutes() != 60.0 {
+		t.Errorf("accumulating AllocationSetRange: expected %f minutes; actual %f", 60.0, alloc.Minutes())
+	}
+}
+
+func TestSummaryAllocationSetRange_AccumulateBy_Day_From_Day(t *testing.T) {
+	ago4d := time.Now().UTC().Truncate(day).Add(-4 * day)
+	ago3d := time.Now().UTC().Truncate(day).Add(-3 * day)
+	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
+	yesterday := time.Now().UTC().Truncate(day).Add(-day)
+	today := time.Now().UTC().Truncate(day)
+
+	ago4dSAS := NewMockUnitSummaryAllocationSet(ago4d, day)
+	ago4dSAS.Insert(NewMockUnitSummaryAllocation("4", ago4d, day, nil))
+	ago3dSAS := NewMockUnitSummaryAllocationSet(ago3d, day)
+	ago3dSAS.Insert(NewMockUnitSummaryAllocation("a", ago3d, day, nil))
+	ago2dSAS := NewMockUnitSummaryAllocationSet(ago2d, day)
+	ago2dSAS.Insert(NewMockUnitSummaryAllocation("", ago2d, day, nil))
+	yesterdaySAS := NewMockUnitSummaryAllocationSet(yesterday, day)
+	yesterdaySAS.Insert(NewMockUnitSummaryAllocation("", yesterday, day, nil))
+	todaySAS := NewMockUnitSummaryAllocationSet(today, day)
+	todaySAS.Insert(NewMockUnitSummaryAllocation("", today, day, nil))
+
+	asr := NewSummaryAllocationSetRange(ago4dSAS, ago3dSAS, ago2dSAS, yesterdaySAS, todaySAS)
+	asr, err := asr.Accumulate(AccumulateOptionNone)
+	if err != nil {
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
+	}
+
+	if len(asr.SummaryAllocationSets) != 5 {
+		t.Fatalf("expected 5 allocation sets, got:%d", len(asr.SummaryAllocationSets))
+	}
+	allocMap := asr.SummaryAllocationSets[0].SummaryAllocations
+	alloc := allocMap["4"]
+	if alloc.Minutes() != 1440.0 {
+		t.Errorf("accumulating AllocationSetRange: expected %f minutes; actual %f", 1440.0, alloc.Minutes())
+	}
+}
+
+func TestSummaryAllocationSetRange_AccumulateBy_Day_From_Hours(t *testing.T) {
+	ago4h := time.Now().UTC().Truncate(time.Hour).Add(-4 * time.Hour)
+	ago3h := time.Now().UTC().Truncate(time.Hour).Add(-3 * time.Hour)
+	ago2h := time.Now().UTC().Truncate(time.Hour).Add(-2 * time.Hour)
+	ago1h := time.Now().UTC().Truncate(time.Hour).Add(-time.Hour)
+	currentHour := time.Now().UTC().Truncate(time.Hour)
+
+	ago4hAS := NewMockUnitSummaryAllocationSet(ago4h, time.Hour)
+	ago4hAS.Insert(NewMockUnitSummaryAllocation("", ago4h, time.Hour, nil))
+	ago3hAS := NewMockUnitSummaryAllocationSet(ago3h, time.Hour)
+	ago3hAS.Insert(NewMockUnitSummaryAllocation("", ago3h, time.Hour, nil))
+	ago2hAS := NewMockUnitSummaryAllocationSet(ago2h, time.Hour)
+	ago2hAS.Insert(NewMockUnitSummaryAllocation("", ago2h, time.Hour, nil))
+	ago1hAS := NewMockUnitSummaryAllocationSet(ago1h, time.Hour)
+	ago1hAS.Insert(NewMockUnitSummaryAllocation("", ago1h, time.Hour, nil))
+	currentHourAS := NewMockUnitSummaryAllocationSet(currentHour, time.Hour)
+	currentHourAS.Insert(NewMockUnitSummaryAllocation("", currentHour, time.Hour, nil))
+
+	asr := NewSummaryAllocationSetRange(ago4hAS, ago3hAS, ago2hAS, ago1hAS, currentHourAS)
+	asr, err := asr.Accumulate(AccumulateOptionDay)
+	if err != nil {
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
+	}
+
+	if len(asr.SummaryAllocationSets) != 1 && len(asr.SummaryAllocationSets) != 2 {
+		t.Fatalf("expected 1 allocation set, got:%d", len(asr.SummaryAllocationSets))
+	}
+
+	allocMap := asr.SummaryAllocationSets[0].SummaryAllocations
+	alloc := allocMap["cluster1/namespace1/pod1/container1"]
+	if alloc.Minutes() > 300.0 {
+		t.Errorf("accumulating AllocationSetRange: expected %f or less minutes; actual %f", 300.0, alloc.Minutes())
+	}
+}
+
+func TestSummaryAllocationSetRange_AccumulateBy_Week(t *testing.T) {
+	ago9d := time.Now().UTC().Truncate(day).Add(-9 * day)
+	ago8d := time.Now().UTC().Truncate(day).Add(-8 * day)
+	ago7d := time.Now().UTC().Truncate(day).Add(-7 * day)
+	ago6d := time.Now().UTC().Truncate(day).Add(-6 * day)
+	ago5d := time.Now().UTC().Truncate(day).Add(-5 * day)
+	ago4d := time.Now().UTC().Truncate(day).Add(-4 * day)
+	ago3d := time.Now().UTC().Truncate(day).Add(-3 * day)
+	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
+	yesterday := time.Now().UTC().Truncate(day).Add(-day)
+	today := time.Now().UTC().Truncate(day)
+
+	ago9dAS := NewMockUnitSummaryAllocationSet(ago9d, day)
+	ago9dAS.Insert(NewMockUnitSummaryAllocation("4", ago9d, day, nil))
+	ago8dAS := NewMockUnitSummaryAllocationSet(ago8d, day)
+	ago8dAS.Insert(NewMockUnitSummaryAllocation("4", ago8d, day, nil))
+	ago7dAS := NewMockUnitSummaryAllocationSet(ago7d, day)
+	ago7dAS.Insert(NewMockUnitSummaryAllocation("4", ago7d, day, nil))
+	ago6dAS := NewMockUnitSummaryAllocationSet(ago6d, day)
+	ago6dAS.Insert(NewMockUnitSummaryAllocation("4", ago6d, day, nil))
+	ago5dAS := NewMockUnitSummaryAllocationSet(ago5d, day)
+	ago5dAS.Insert(NewMockUnitSummaryAllocation("4", ago5d, day, nil))
+	ago4dAS := NewMockUnitSummaryAllocationSet(ago4d, day)
+	ago4dAS.Insert(NewMockUnitSummaryAllocation("4", ago4d, day, nil))
+	ago3dAS := NewMockUnitSummaryAllocationSet(ago3d, day)
+	ago3dAS.Insert(NewMockUnitSummaryAllocation("4", ago3d, day, nil))
+	ago2dAS := NewMockUnitSummaryAllocationSet(ago2d, day)
+	ago2dAS.Insert(NewMockUnitSummaryAllocation("4", ago2d, day, nil))
+	yesterdayAS := NewMockUnitSummaryAllocationSet(yesterday, day)
+	yesterdayAS.Insert(NewMockUnitSummaryAllocation("", yesterday, day, nil))
+	todayAS := NewMockUnitSummaryAllocationSet(today, day)
+	todayAS.Insert(NewMockUnitSummaryAllocation("4", today, day, nil))
+
+	asr := NewSummaryAllocationSetRange(ago9dAS, ago8dAS, ago7dAS, ago6dAS, ago5dAS, ago4dAS, ago3dAS, ago2dAS, yesterdayAS, todayAS)
+	asr, err := asr.Accumulate(AccumulateOptionWeek)
+	if err != nil {
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
+	}
+
+	if len(asr.SummaryAllocationSets) != 2 && len(asr.SummaryAllocationSets) != 3 {
+		t.Fatalf("expected 2 allocation sets, got:%d", len(asr.SummaryAllocationSets))
+	}
+
+	for _, as := range asr.SummaryAllocationSets {
+		if as.Window.Duration() < time.Hour*24 || as.Window.Duration() > time.Hour*24*7 {
+			t.Fatalf("expected window duration to be between 1 and 7 days, got:%s", as.Window.Duration().String())
+		}
+	}
+}
+
+func TestSummaryAllocationSetRange_AccumulateBy_Month(t *testing.T) {
+	prevMonth1stDay := time.Date(2020, 01, 29, 0, 0, 0, 0, time.UTC)
+	prevMonth2ndDay := time.Date(2020, 01, 30, 0, 0, 0, 0, time.UTC)
+	prevMonth3ndDay := time.Date(2020, 01, 31, 0, 0, 0, 0, time.UTC)
+	nextMonth1stDay := time.Date(2020, 02, 01, 0, 0, 0, 0, time.UTC)
+
+	prev1AS := NewMockUnitSummaryAllocationSet(prevMonth1stDay, day)
+	prev1AS.Insert(NewMockUnitSummaryAllocation("", prevMonth1stDay, day, nil))
+	prev2AS := NewMockUnitSummaryAllocationSet(prevMonth2ndDay, day)
+	prev2AS.Insert(NewMockUnitSummaryAllocation("", prevMonth2ndDay, day, nil))
+	prev3AS := NewMockUnitSummaryAllocationSet(prevMonth3ndDay, day)
+	prev3AS.Insert(NewMockUnitSummaryAllocation("", prevMonth3ndDay, day, nil))
+	nextAS := NewMockUnitSummaryAllocationSet(nextMonth1stDay, day)
+	nextAS.Insert(NewMockUnitSummaryAllocation("", nextMonth1stDay, day, nil))
+	asr := NewSummaryAllocationSetRange(prev1AS, prev2AS, prev3AS, nextAS)
+	asr, err := asr.Accumulate(AccumulateOptionMonth)
+	if err != nil {
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
+	}
+
+	if len(asr.SummaryAllocationSets) != 2 {
+		t.Fatalf("expected 2 allocation sets, got:%d", len(asr.SummaryAllocationSets))
+	}
+
+	for _, as := range asr.SummaryAllocationSets {
+		if as.Window.Duration() < time.Hour*24 || as.Window.Duration() > time.Hour*24*31 {
+			t.Fatalf("expected window duration to be between 1 and 7 days, got:%s", as.Window.Duration().String())
+		}
+	}
+}

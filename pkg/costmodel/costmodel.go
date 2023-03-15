@@ -152,10 +152,22 @@ const (
 	) by (namespace,container_name,pod_name,node,%s)`
 	queryRAMUsageStr = `sort_desc(
 		avg(
-			label_replace(count_over_time(container_memory_working_set_bytes{container_name!="",container_name!="POD", instance!=""}[%s] %s), "node", "$1", "instance","(.+)")
+			label_replace(
+				label_replace(
+					label_replace(
+						count_over_time(container_memory_working_set_bytes{container!="", container!="POD", instance!=""}[%s] %s), "node", "$1", "instance", "(.+)"
+					), "container_name", "$1", "container", "(.+)"
+				), "pod_name", "$1", "pod", "(.+)"
+			)
 			*
-			label_replace(avg_over_time(container_memory_working_set_bytes{container_name!="",container_name!="POD", instance!=""}[%s] %s), "node", "$1", "instance","(.+)")
-		) by (namespace,container_name,pod_name,node,%s)
+			label_replace(
+				label_replace(
+					label_replace(
+						avg_over_time(container_memory_working_set_bytes{container!="", container!="POD", instance!=""}[%s] %s), "node", "$1", "instance", "(.+)"
+					), "container_name", "$1", "container", "(.+)"
+				), "pod_name", "$1", "pod", "(.+)"
+			)
+		) by (namespace, container_name, pod_name, node, %s)
 	)`
 	queryCPURequestsStr = `avg(
 		label_replace(
@@ -170,11 +182,15 @@ const (
 	) by (namespace,container_name,pod_name,node,%s)`
 	queryCPUUsageStr = `avg(
 		label_replace(
-		rate(
-			container_cpu_usage_seconds_total{container_name!="",container_name!="POD",instance!=""}[%s] %s
-		) , "node", "$1", "instance", "(.+)"
+			label_replace(
+				label_replace(
+					rate(
+						container_cpu_usage_seconds_total{container!="", container!="POD", instance!=""}[%s] %s
+					), "node", "$1", "instance", "(.+)"
+				), "container_name", "$1", "container", "(.+)"
+			), "pod_name", "$1", "pod", "(.+)"
 		)
-	) by (namespace,container_name,pod_name,node,%s)`
+	) by (namespace, container_name, pod_name, node, %s)`
 	queryGPURequestsStr = `avg(
 		label_replace(
 			label_replace(
