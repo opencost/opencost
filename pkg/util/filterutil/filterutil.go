@@ -8,11 +8,38 @@ import (
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/prom"
 	"github.com/opencost/opencost/pkg/util/mapper"
+	"github.com/opencost/opencost/pkg/util/typeutil"
 
 	"github.com/opencost/opencost/pkg/filter"
 	allocationfilter "github.com/opencost/opencost/pkg/filter/allocation"
 	"github.com/opencost/opencost/pkg/filter/ast"
+	cloudfilter "github.com/opencost/opencost/pkg/filter/cloud"
 )
+
+// This is somewhat of a fancy solution, but allows us to "register" DefaultFieldByName funcs
+// funcs by Field type.
+var defaultFieldByType = map[string]any{
+	typeutil.TypeOf[cloudfilter.CloudAggregationField](): cloudfilter.DefaultFieldByName,
+	typeutil.TypeOf[allocationfilter.AllocationField]():  allocationfilter.DefaultFieldByName,
+}
+
+// DefaultFieldByName looks up a specific T field instance by name and returns the default
+// ast.Field value for that type.
+func DefaultFieldByName[T ~string](field T) *ast.Field {
+	lookup, ok := defaultFieldByType[typeutil.TypeOf[T]()]
+	if !ok {
+		log.Errorf("Failed to get default field lookup for: %s", typeutil.TypeOf[T]())
+		return nil
+	}
+
+	defaultLookup, ok := lookup.(func(T) *ast.Field)
+	if !ok {
+		log.Errorf("Failed to cast default field lookup for: %s", typeutil.TypeOf[T]())
+		return nil
+	}
+
+	return defaultLookup(field)
+}
 
 const (
 	ParamFilterClusters        = "filterClusters"
@@ -59,38 +86,37 @@ func AllHTTPParamKeys() []string {
 	}
 }
 
+// CloudCostAggregateFilterFromParams creates a filter AST from the provided query parameter
+// map for CloudCostAggregate.
 func CloudCostAggregateFilterFromParams(pmr mapper.PrimitiveMapReader) filter.Filter {
-	/*
-		filter := filter.And[*kubecost.CloudCostAggregate]{
-			Filters: []filter.Filter[*kubecost.CloudCostAggregate]{},
-		}
+	var filterOps []ast.FilterNode
 
-		if raw := pmr.GetList("filterBillingIDs", ","); len(raw) > 0 {
-			filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.CloudCostBillingIDProp))
-		}
+	if raw := pmr.GetList("filterBillingIDs", ","); len(raw) > 0 {
+		filterOps = append(filterOps, filterV1SingleValueFromList(raw, cloudfilter.CloudAggregationFieldBilling))
+	}
 
-		if raw := pmr.GetList("filterWorkGroupIDs", ","); len(raw) > 0 {
-			filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.CloudCostWorkGroupIDProp))
-		}
+	if raw := pmr.GetList("filterWorkGroupIDs", ","); len(raw) > 0 {
+		filterOps = append(filterOps, filterV1SingleValueFromList(raw, cloudfilter.CloudAggregationFieldWorkGroup))
+	}
 
-		if raw := pmr.GetList("filterProviders", ","); len(raw) > 0 {
-			filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.CloudCostProviderProp))
-		}
+	if raw := pmr.GetList("filterProviders", ","); len(raw) > 0 {
+		filterOps = append(filterOps, filterV1SingleValueFromList(raw, cloudfilter.CloudAggregationFieldProvider))
+	}
 
-		if raw := pmr.GetList("filterServices", ","); len(raw) > 0 {
-			filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.CloudCostServiceProp))
-		}
+	if raw := pmr.GetList("filterServices", ","); len(raw) > 0 {
+		filterOps = append(filterOps, filterV1SingleValueFromList(raw, cloudfilter.CloudAggregationFieldService))
+	}
 
-		if raw := pmr.GetList("filterLabelValues", ","); len(raw) > 0 {
-			filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.CloudCostLabelProp))
-		}
+	if raw := pmr.GetList("filterLabelValues", ","); len(raw) > 0 {
+		filterOps = append(filterOps, filterV1SingleValueFromList(raw, cloudfilter.CloudAggregationFieldLabel))
+	}
 
-		if len(filter.Filters) == 0 {
-			return nil
-		}
-	*/
+	andFilter := opsToAnd(filterOps)
+	if andFilter == nil {
+		return &ast.VoidOp{} // no filter
+	}
 
-	return &ast.VoidOp{}
+	return andFilter
 }
 
 // AllocationFilterFromParamsV1 takes a set of HTTP query parameters and
@@ -295,7 +321,7 @@ func AllocationFilterFromParamsV1(
 //
 // The v1 query language (e.g. "filterNamespaces=XYZ,ABC") uses OR within
 // a field (e.g. namespace = XYZ OR namespace = ABC)
-func filterV1SingleValueFromList(rawFilterValues []string, filterField allocationfilter.AllocationField) ast.FilterNode {
+func filterV1SingleValueFromList[T ~string](rawFilterValues []string, filterField T) ast.FilterNode {
 	var ops []ast.FilterNode
 
 	for _, filterValue := range rawFilterValues {
@@ -320,7 +346,7 @@ func filterV1LabelAliasMappedFromList(rawFilterValues []string, labelName string
 		filterValue = strings.TrimSpace(filterValue)
 		filterValue, wildcard := parseWildcardEnd(filterValue)
 
-		subFilter := toAliasOp(labelName, filterValue, wildcard)
+		subFilter := toAllocationAliasOp(labelName, filterValue, wildcard)
 
 		ops = append(ops, subFilter)
 	}
@@ -408,9 +434,9 @@ func opsToAnd(ops []ast.FilterNode) ast.FilterNode {
 	}
 }
 
-func toEqualOp(field allocationfilter.AllocationField, key string, value string, wildcard bool) ast.FilterNode {
+func toEqualOp[T ~string](field T, key string, value string, wildcard bool) ast.FilterNode {
 	left := ast.Identifier{
-		Field: allocationfilter.DefaultFieldByName(field),
+		Field: DefaultFieldByName(field),
 		Key:   key,
 	}
 	right := value
@@ -428,9 +454,9 @@ func toEqualOp(field allocationfilter.AllocationField, key string, value string,
 	}
 }
 
-func toContainsOp(field allocationfilter.AllocationField, key string, value string, wildcard bool) ast.FilterNode {
+func toContainsOp[T ~string](field T, key string, value string, wildcard bool) ast.FilterNode {
 	left := ast.Identifier{
-		Field: allocationfilter.DefaultFieldByName(field),
+		Field: DefaultFieldByName(field),
 		Key:   key,
 	}
 	right := value
@@ -448,7 +474,7 @@ func toContainsOp(field allocationfilter.AllocationField, key string, value stri
 	}
 }
 
-func toAliasOp(labelName string, filterValue string, wildcard bool) *ast.OrOp {
+func toAllocationAliasOp(labelName string, filterValue string, wildcard bool) *ast.OrOp {
 	// labels.Contains(labelName)
 	labelContainsKey := &ast.ContainsOp{
 		Left: ast.Identifier{

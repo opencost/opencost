@@ -4,20 +4,21 @@ package allocation
 // filtered on (namespace, label, etc.)
 type AllocationField string
 
-// If you add a AllocationFilterField, MAKE SURE TO UPDATE ALL FILTER IMPLEMENTATIONS! Go
+// If you add a AllocationFilterField, make sure to update field maps to return the correct
+// Allocation value
 // does not enforce exhaustive pattern matching on "enum" types.
 const (
 	AllocationFieldClusterID      AllocationField = "cluster"
-	AllocationFieldNode                           = "node"
-	AllocationFieldNamespace                      = "namespace"
-	AllocationFieldControllerKind                 = "controllerKind"
-	AllocationFieldControllerName                 = "controllerName"
-	AllocationFieldPod                            = "pod"
-	AllocationFieldContainer                      = "container"
-	AllocationFieldProvider                       = "provider"
-	AllocationFieldServices                       = "services"
-	AllocationFieldLabel                          = "label"
-	AllocationFieldAnnotation                     = "annotation"
+	AllocationFieldNode           AllocationField = "node"
+	AllocationFieldNamespace      AllocationField = "namespace"
+	AllocationFieldControllerKind AllocationField = "controllerKind"
+	AllocationFieldControllerName AllocationField = "controllerName"
+	AllocationFieldPod            AllocationField = "pod"
+	AllocationFieldContainer      AllocationField = "container"
+	AllocationFieldProvider       AllocationField = "provider"
+	AllocationFieldServices       AllocationField = "services"
+	AllocationFieldLabel          AllocationField = "label"
+	AllocationFieldAnnotation     AllocationField = "annotation"
 )
 
 // AllocationAlias represents an alias field type for allocations.
@@ -29,8 +30,8 @@ type AllocationAlias string
 
 const (
 	AllocationAliasDepartment  AllocationAlias = "department"
-	AllocationAliasEnvironment                 = "environment"
-	AllocationAliasOwner                       = "owner"
-	AllocationAliasProduct                     = "product"
-	AllocationAliasTeam                        = "team"
+	AllocationAliasEnvironment AllocationAlias = "environment"
+	AllocationAliasOwner       AllocationAlias = "owner"
+	AllocationAliasProduct     AllocationAlias = "product"
+	AllocationAliasTeam        AllocationAlias = "team"
 )
