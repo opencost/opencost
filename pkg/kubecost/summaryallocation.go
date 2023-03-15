@@ -1303,7 +1303,7 @@ func NewSummaryAllocationSetRange(sass ...*SummaryAllocationSet) *SummaryAllocat
 
 // Accumulate sums each AllocationSet in the given range, returning a single cumulative
 // AllocationSet for the entire range.
-func (sasr *SummaryAllocationSetRange) Accumulate() (*SummaryAllocationSet, error) {
+func (sasr *SummaryAllocationSetRange) accumulate() (*SummaryAllocationSet, error) {
 	var result *SummaryAllocationSet
 	var err error
 
@@ -1320,9 +1320,9 @@ func (sasr *SummaryAllocationSetRange) Accumulate() (*SummaryAllocationSet, erro
 	return result, nil
 }
 
-// NewAccumulation clones the first available SummaryAllocationSet to use as the data structure to
+// newAccumulation clones the first available SummaryAllocationSet to use as the data structure to
 // accumulate the remaining data. This leaves the original SummaryAllocationSetRange intact.
-func (sasr *SummaryAllocationSetRange) NewAccumulation() (*SummaryAllocationSet, error) {
+func (sasr *SummaryAllocationSetRange) newAccumulation() (*SummaryAllocationSet, error) {
 	var result *SummaryAllocationSet
 	var err error
 
@@ -1374,9 +1374,6 @@ func (sasr *SummaryAllocationSetRange) AggregateBy(aggregateBy []string, options
 // Append appends the given AllocationSet to the end of the range. It does not
 // validate whether or not that violates window continuity.
 func (sasr *SummaryAllocationSetRange) Append(sas *SummaryAllocationSet) error {
-	if sasr.Step != 0 && sas.Window.Duration() != sasr.Step {
-		return fmt.Errorf("cannot append set with duration %s to range of step %s", sas.Window.Duration(), sasr.Step)
-	}
 
 	sasr.Lock()
 	defer sasr.Unlock()
@@ -1492,4 +1489,202 @@ func (sasr *SummaryAllocationSetRange) Print(verbose bool) {
 			}
 		}
 	}
+}
+
+func (sasr *SummaryAllocationSetRange) Accumulate(accumulateBy AccumulateOption) (*SummaryAllocationSetRange, error) {
+	switch accumulateBy {
+	case AccumulateOptionNone:
+		return sasr.accumulateByNone()
+	case AccumulateOptionAll:
+		return sasr.accumulateByAll()
+	case AccumulateOptionHour:
+		return sasr.accumulateByHour()
+	case AccumulateOptionDay:
+		return sasr.accumulateByDay()
+	case AccumulateOptionWeek:
+		return sasr.accumulateByWeek()
+	case AccumulateOptionMonth:
+		return sasr.accumulateByMonth()
+	default:
+		// this should never happen
+		return nil, fmt.Errorf("unexpected error, invalid accumulateByType: %s", accumulateBy)
+	}
+}
+
+func (sasr *SummaryAllocationSetRange) accumulateByNone() (*SummaryAllocationSetRange, error) {
+	result, err := sasr.clone()
+	return result, err
+}
+
+func (sasr *SummaryAllocationSetRange) accumulateByAll() (*SummaryAllocationSetRange, error) {
+	var err error
+	var result *SummaryAllocationSet
+	result, err = sasr.newAccumulation()
+
+	if err != nil {
+		return nil, fmt.Errorf("error running accumulate: %s", err)
+	}
+	accumulated := NewSummaryAllocationSetRange(result)
+	return accumulated, nil
+}
+
+func (sasr *SummaryAllocationSetRange) accumulateByHour() (*SummaryAllocationSetRange, error) {
+	// ensure that the summary allocation sets have a 1-hour window, if a set exists
+	if len(sasr.SummaryAllocationSets) > 0 && sasr.SummaryAllocationSets[0].Window.Duration() != time.Hour {
+		return nil, fmt.Errorf("window duration must equal 1 hour; got:%s", sasr.SummaryAllocationSets[0].Window.Duration())
+	}
+
+	result, err := sasr.clone()
+	return result, err
+}
+
+func (sasr *SummaryAllocationSetRange) accumulateByDay() (*SummaryAllocationSetRange, error) {
+	// if the summary allocation set window is 1-day, just return the existing summary allocation set range
+	if len(sasr.SummaryAllocationSets) > 0 && sasr.SummaryAllocationSets[0].Window.Duration() == time.Hour*24 {
+		return sasr, nil
+	}
+
+	var toAccumulate *SummaryAllocationSetRange
+	result := NewSummaryAllocationSetRange()
+	for i, as := range sasr.SummaryAllocationSets {
+
+		if as.Window.Duration() != time.Hour {
+			return nil, fmt.Errorf("window duration must equal 1 hour; got:%s", as.Window.Duration())
+		}
+
+		hour := as.Window.Start().Hour()
+
+		if toAccumulate == nil {
+			toAccumulate = NewSummaryAllocationSetRange()
+			as = as.Clone()
+		}
+
+		err := toAccumulate.Append(as)
+		if err != nil {
+			return nil, fmt.Errorf("error building accumulation: %s", err)
+		}
+		sas, err := toAccumulate.accumulate()
+		if err != nil {
+			return nil, fmt.Errorf("error accumulating result: %s", err)
+		}
+		toAccumulate = NewSummaryAllocationSetRange(sas)
+
+		if hour == 23 || i == len(sasr.SummaryAllocationSets)-1 {
+			if length := len(toAccumulate.SummaryAllocationSets); length != 1 {
+				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
+			}
+			err = result.Append(toAccumulate.SummaryAllocationSets[0])
+			if err != nil {
+				return nil, fmt.Errorf("error building result accumulation: %s", err)
+			}
+			toAccumulate = nil
+		}
+	}
+	return result, nil
+}
+
+func (sasr *SummaryAllocationSetRange) accumulateByMonth() (*SummaryAllocationSetRange, error) {
+	var toAccumulate *SummaryAllocationSetRange
+	result := NewSummaryAllocationSetRange()
+	for i, as := range sasr.SummaryAllocationSets {
+
+		if as.Window.Duration() != time.Hour*24 {
+			return nil, fmt.Errorf("window duration must equal 24 hours; got:%s", as.Window.Duration())
+		}
+
+		_, month, _ := as.Window.Start().Date()
+		_, nextDayMonth, _ := as.Window.Start().Add(time.Hour * 24).Date()
+
+		if toAccumulate == nil {
+			toAccumulate = NewSummaryAllocationSetRange()
+			as = as.Clone()
+		}
+
+		err := toAccumulate.Append(as)
+		if err != nil {
+			return nil, fmt.Errorf("error building monthly accumulation: %s", err)
+		}
+
+		sas, err := toAccumulate.accumulate()
+		if err != nil {
+			return nil, fmt.Errorf("error building monthly accumulation: %s", err)
+		}
+
+		toAccumulate = NewSummaryAllocationSetRange(sas)
+
+		// either the month has ended, or there are no more summary allocation sets
+		if month != nextDayMonth || i == len(sasr.SummaryAllocationSets)-1 {
+			if length := len(toAccumulate.SummaryAllocationSets); length != 1 {
+				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
+			}
+			err = result.Append(toAccumulate.SummaryAllocationSets[0])
+			if err != nil {
+				return nil, fmt.Errorf("error building result accumulation: %s", err)
+			}
+			toAccumulate = nil
+		}
+	}
+	return result, nil
+}
+
+func (sasr *SummaryAllocationSetRange) accumulateByWeek() (*SummaryAllocationSetRange, error) {
+	var toAccumulate *SummaryAllocationSetRange
+	result := NewSummaryAllocationSetRange()
+	for i, as := range sasr.SummaryAllocationSets {
+		if as.Window.Duration() != time.Hour*24 {
+			return nil, fmt.Errorf("window duration must equal 24 hours; got:%s", as.Window.Duration())
+		}
+
+		dayOfWeek := as.Window.Start().Weekday()
+
+		if toAccumulate == nil {
+			toAccumulate = NewSummaryAllocationSetRange()
+			as = as.Clone()
+		}
+
+		err := toAccumulate.Append(as)
+		if err != nil {
+			return nil, fmt.Errorf("error building accumulation: %s", err)
+		}
+		sas, err := toAccumulate.accumulate()
+		if err != nil {
+			return nil, fmt.Errorf("error accumulating result: %s", err)
+		}
+		toAccumulate = NewSummaryAllocationSetRange(sas)
+
+		// current assumption is the week always ends on Saturday, or when there are no more summary allocation sets
+		if dayOfWeek == time.Saturday || i == len(sasr.SummaryAllocationSets)-1 {
+			if length := len(toAccumulate.SummaryAllocationSets); length != 1 {
+				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
+			}
+			err = result.Append(toAccumulate.SummaryAllocationSets[0])
+			if err != nil {
+				return nil, fmt.Errorf("error building result accumulation: %s", err)
+			}
+			toAccumulate = nil
+		}
+	}
+	return result, nil
+}
+
+// clone returns a new SummaryAllocationSetRange cloned from the existing SASR
+func (sasr *SummaryAllocationSetRange) clone() (*SummaryAllocationSetRange, error) {
+	sasrSource := NewSummaryAllocationSetRange()
+	sasrSource.Window = sasr.Window.Clone()
+	sasrSource.Step = sasr.Step
+	sasrSource.Message = sasr.Message
+
+	for _, sas := range sasr.SummaryAllocationSets {
+		var sasClone *SummaryAllocationSet = nil
+		if sas != nil {
+			sasClone = sas.Clone()
+		}
+
+		err := sasrSource.Append(sasClone)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return sasrSource, nil
+
 }
