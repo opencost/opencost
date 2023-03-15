@@ -12,13 +12,6 @@ import (
 
 // The grammar is approximately as follows:
 //
-// Original design doc [1] contains first grammar. This is a slight modification
-// of that grammar to help guide the implementation of the parser.
-//
-// [1] https://docs.google.com/document/d/1HKkp2bv3mnvfQoBZlpHjfZwQ0FzDLOHKpnwV9gQ_KgU/edit?pli=1
-//
-// Second phase of filter language to include or('|') operation, and
-//
 // <filter>         ::= <filter-element> (<group-op> <filter-element>)*
 // <filter-element> ::= <comparison> | <group-filter>
 // <group-filter>   ::= '(' <filter> ')'
