@@ -15,11 +15,11 @@
     "awsServiceKeyName": "AKIXXX",
     "awsServiceKeySecret": "",
     "awsSpotDataRegion":"us-east-2",
-    "awsSpotDataBucket": "my-test-bucket",
+    "awsSpotDataBucket": "x",
     "awsSpotDataPrefix": "spotdata",
-    "athenaBucketName": "s3://my-athena-bucket",
+    "athenaBucketName": "s3://x",
     "athenaRegion": "us-east-1",
-    "athenaDatabase": "my_athenacur_db",
-    "athenaTable": "athena_test",
+    "athenaDatabase": "",
+    "athenaTable": "",
     "projectID": "12345"
 }
