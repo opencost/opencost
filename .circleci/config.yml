@@ -7,7 +7,7 @@ jobs:
       - run: |
           TAG=0.1.$CIRCLE_BUILD_NUM
           docker login -u $DOCKER_USER -p $DOCKER_PASS
-          docker buildx build \
+          docker buildx build . \
             -t ajaytripathy/kubecost-cost-model:$TAG \
             -t ajaytripathy/kubecost-cost-model:latest \
             --platform linux/amd64,linux/arm64 \
