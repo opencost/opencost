@@ -17,27 +17,75 @@ import (
 //  QueryParams
 //--------------------------------------------------------------------------
 
-type QueryParams = mapper.PrimitiveMap
+// valuesPrimitiveMap implements mapper.PrimitiveMap so we can build extra
+// functionality into the QueryParams interface.
+type valuesPrimitiveMap struct {
+	url.Values
+}
 
-// queryParamsMap is mapper.Map adapter for url.Values
+func (values valuesPrimitiveMap) Has(key string) bool {
+	return values.Values.Has(key)
+}
+func (values valuesPrimitiveMap) Get(key string) string {
+	return values.Values.Get(key)
+}
+func (values valuesPrimitiveMap) Set(key, value string) error {
+	values.Values.Set(key, value)
+	return nil
+}
+
+// QueryParams provides basic map access to URL values as well as providing
+// helpful additional functionality for validation.
+type QueryParams interface {
+	mapper.PrimitiveMap
+
+	// InvalidKeys returns the set of param keys which are not present in the
+	// possible valid set. It is a set subtraction: present - valid = invalid
+	//
+	// Example usage to catch a typo:
+	// qp.InvalidKeys([]string{"window", "aggregate", "filterClusters"}) ->
+	//   "filterClsuters"
+	//
+	// If qp contains no keys, then this should always return an empty slice/nil
+	InvalidKeys(possibleValidKeys []string) (invalidKeys []string)
+}
+
+// queryParamsMap implements the QueryParams interface on top of
+// valuesPrimitiveMap.
 type queryParamsMap struct {
 	values url.Values
-}
-
-// mapper.Getter implementation
-func (qpm *queryParamsMap) Get(key string) string {
-	return qpm.values.Get(key)
-}
-
-// mapper.Setter implementation
-func (qpm *queryParamsMap) Set(key, value string) error {
-	qpm.values.Set(key, value)
-	return nil
+	mapper.PrimitiveMap
 }
 
 // NewQueryParams creates a primitive map using the request query parameters
 func NewQueryParams(values url.Values) QueryParams {
-	return mapper.NewMapper(&queryParamsMap{values})
+	vpm := valuesPrimitiveMap{values}
+
+	return &queryParamsMap{
+		values:       values,
+		PrimitiveMap: mapper.NewMapper(vpm),
+	}
+}
+
+// InvalidKeys performs a set difference: Params keys - possible valid keys.
+//
+// For now, dealing with cache busting parameters should be the handler's
+// responsibility.
+func (qpm *queryParamsMap) InvalidKeys(possibleValidKeys []string) []string {
+	validMap := map[string]struct{}{}
+	for _, validKey := range possibleValidKeys {
+		validMap[validKey] = struct{}{}
+	}
+
+	var invalidKeys []string
+
+	for key := range qpm.values {
+		if _, ok := validMap[key]; !ok {
+			invalidKeys = append(invalidKeys, key)
+		}
+	}
+
+	return invalidKeys
 }
 
 //--------------------------------------------------------------------------

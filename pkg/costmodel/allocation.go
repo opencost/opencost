@@ -174,10 +174,17 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	// Accumulate to yield the result AllocationSet. After this step, we will
 	// be nearly complete, but without the raw allocation data, which must be
 	// recomputed.
-	result, err := asr.Accumulate()
+	resultASR, err := asr.Accumulate(kubecost.AccumulateOptionAll)
 	if err != nil {
 		return kubecost.NewAllocationSet(start, end), fmt.Errorf("error accumulating data for %s: %s", kubecost.NewClosedWindow(s, e), err)
 	}
+	if resultASR != nil && len(resultASR.Allocations) == 0 {
+		return kubecost.NewAllocationSet(start, end), nil
+	}
+	if length := len(resultASR.Allocations); length != 1 {
+		return kubecost.NewAllocationSet(start, end), fmt.Errorf("expected 1 accumulated allocation set, found %d sets", length)
+	}
+	result := resultASR.Allocations[0]
 
 	// Apply the annotations, labels, and services to the post-accumulation
 	// results. (See above for why this is necessary.)

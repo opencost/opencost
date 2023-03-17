@@ -1538,6 +1538,14 @@ func (gcp *GCP) CombinedDiscountForNode(instanceType string, isPreemptible bool,
 }
 
 func (gcp *GCP) Regions() []string {
+
+	regionOverrides := env.GetRegionOverrideList()
+
+	if len(regionOverrides) > 0 {
+		log.Debugf("Overriding GCP regions with configured region list: %+v", regionOverrides)
+		return regionOverrides
+	}
+
 	return gcpRegions
 }
 
