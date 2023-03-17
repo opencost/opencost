@@ -3256,9 +3256,166 @@ func NewAssetSetRange(assets ...*AssetSet) *AssetSetRange {
 	}
 }
 
+func (asr *AssetSetRange) Accumulate(accumulateBy AccumulateOption) (*AssetSetRange, error) {
+	switch accumulateBy {
+	case AccumulateOptionNone:
+		return asr.accumulateByNone()
+	case AccumulateOptionAll:
+		return asr.accumulateByAll()
+	case AccumulateOptionHour:
+		return asr.accumulateByHour()
+	case AccumulateOptionDay:
+		return asr.accumulateByDay()
+	case AccumulateOptionWeek:
+		return asr.accumulateByWeek()
+	case AccumulateOptionMonth:
+		return asr.accumulateByMonth()
+	default:
+		// ideally, this should never happen
+		return nil, fmt.Errorf("unexpected error, invalid accumulateByType: %s", accumulateBy)
+	}
+}
+
+func (asr *AssetSetRange) accumulateByNone() (*AssetSetRange, error) {
+	return asr.clone(), nil
+}
+
+func (asr *AssetSetRange) accumulateByAll() (*AssetSetRange, error) {
+	var err error
+	var as *AssetSet
+	as, err = asr.newAccumulation()
+	if err != nil {
+		return nil, fmt.Errorf("error accumulating all:%s", err)
+	}
+
+	accumulated := NewAssetSetRange(as)
+	return accumulated, nil
+}
+
+func (asr *AssetSetRange) accumulateByHour() (*AssetSetRange, error) {
+	// ensure that the asset sets have a 1-hour window, if a set exists
+	if len(asr.Assets) > 0 && asr.Assets[0].Window.Duration() != time.Hour {
+		return nil, fmt.Errorf("window duration must equal 1 hour; got:%s", asr.Assets[0].Window.Duration())
+	}
+
+	return asr.clone(), nil
+}
+
+func (asr *AssetSetRange) accumulateByDay() (*AssetSetRange, error) {
+	// if the asset set window is 1-day, just return the existing asset set range
+	if len(asr.Assets) > 0 && asr.Assets[0].Window.Duration() == time.Hour*24 {
+		return asr, nil
+	}
+
+	var toAccumulate *AssetSetRange
+	result := NewAssetSetRange()
+	for i, as := range asr.Assets {
+
+		if as.Window.Duration() != time.Hour {
+			return nil, fmt.Errorf("window duration must equal 1 hour; got:%s", as.Window.Duration())
+		}
+
+		hour := as.Window.Start().Hour()
+
+		if toAccumulate == nil {
+			toAccumulate = NewAssetSetRange()
+			as = as.Clone()
+		}
+
+		toAccumulate.Append(as)
+		asAccumulated, err := toAccumulate.accumulate()
+		if err != nil {
+			return nil, fmt.Errorf("error accumulating result: %s", err)
+		}
+		toAccumulate = NewAssetSetRange(asAccumulated)
+
+		if hour == 23 || i == len(asr.Assets)-1 {
+			if length := len(toAccumulate.Assets); length != 1 {
+				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
+			}
+			result.Append(toAccumulate.Assets[0])
+			toAccumulate = nil
+		}
+	}
+	return result, nil
+}
+
+func (asr *AssetSetRange) accumulateByMonth() (*AssetSetRange, error) {
+	var toAccumulate *AssetSetRange
+	result := NewAssetSetRange()
+	for i, as := range asr.Assets {
+		if as.Window.Duration() != time.Hour*24 {
+			return nil, fmt.Errorf("window duration must equal 24 hours; got:%s", as.Window.Duration())
+		}
+
+		_, month, _ := as.Window.Start().Date()
+		_, nextDayMonth, _ := as.Window.Start().Add(time.Hour * 24).Date()
+
+		if toAccumulate == nil {
+			toAccumulate = NewAssetSetRange()
+			as = as.Clone()
+		}
+
+		toAccumulate.Append(as)
+		asAccumulated, err := toAccumulate.accumulate()
+		if err != nil {
+			return nil, fmt.Errorf("error accumulating result: %s", err)
+		}
+		toAccumulate = NewAssetSetRange(asAccumulated)
+
+		// either the month has ended, or there are no more asset sets
+		if month != nextDayMonth || i == len(asr.Assets)-1 {
+			if length := len(toAccumulate.Assets); length != 1 {
+				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
+			}
+			result.Append(toAccumulate.Assets[0])
+			toAccumulate = nil
+		}
+	}
+	return result, nil
+}
+
+func (asr *AssetSetRange) accumulateByWeek() (*AssetSetRange, error) {
+	var toAccumulate *AssetSetRange
+	result := NewAssetSetRange()
+	for i, as := range asr.Assets {
+		if as.Window.Duration() != time.Hour*24 {
+			return nil, fmt.Errorf("window duration must equal 24 hours; got:%s", as.Window.Duration())
+		}
+
+		dayOfWeek := as.Window.Start().Weekday()
+
+		if toAccumulate == nil {
+			toAccumulate = NewAssetSetRange()
+			as = as.Clone()
+		}
+
+		toAccumulate.Append(as)
+		asAccumulated, err := toAccumulate.accumulate()
+		if err != nil {
+			return nil, fmt.Errorf("error accumulating result: %s", err)
+		}
+		toAccumulate = NewAssetSetRange(asAccumulated)
+
+		// current assumption is the week always ends on Saturday, or there are no more asset sets
+		if dayOfWeek == time.Saturday || i == len(asr.Assets)-1 {
+			if length := len(toAccumulate.Assets); length != 1 {
+				return nil, fmt.Errorf("failed accumulation, detected %d sets instead of 1", length)
+			}
+			result.Append(toAccumulate.Assets[0])
+			toAccumulate = nil
+		}
+	}
+	return result, nil
+}
+
+func (asr *AssetSetRange) AccumulateToAssetSet() (*AssetSet, error) {
+	return asr.accumulate()
+}
+
 // Accumulate sums each AssetSet in the given range, returning a single cumulative
 // AssetSet for the entire range.
-func (asr *AssetSetRange) Accumulate() (*AssetSet, error) {
+func (asr *AssetSetRange) accumulate() (*AssetSet, error) {
 	var assetSet *AssetSet
 	var err error
 
@@ -3274,7 +3431,7 @@ func (asr *AssetSetRange) Accumulate() (*AssetSet, error) {
 
 // NewAccumulation clones the first available AssetSet to use as the data structure to
 // accumulate the remaining data. This leaves the original AssetSetRange intact.
-func (asr *AssetSetRange) NewAccumulation() (*AssetSet, error) {
+func (asr *AssetSetRange) newAccumulation() (*AssetSet, error) {
 	var assetSet *AssetSet
 	var err error
 
@@ -3616,6 +3773,17 @@ func (asr *AssetSetRange) TotalCost() float64 {
 	}
 
 	return tc
+}
+
+func (asr *AssetSetRange) clone() *AssetSetRange {
+	asrClone := NewAssetSetRange()
+	asrClone.FromStore = asr.FromStore
+	for _, as := range asr.Assets {
+		asClone := as.Clone()
+		asrClone.Append(asClone)
+	}
+
+	return asrClone
 }
 
 // This is a helper type. The Asset API returns a json which cannot be natively
