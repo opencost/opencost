@@ -99,6 +99,8 @@ const (
 	regionOverrideList = "REGION_OVERRIDE_LIST"
 )
 
+const DefaultConfigMountPath = "/var/configs"
+
 var offsetRegex = regexp.MustCompile(`^(\+|-)(\d\d):(\d\d)$`)
 
 func IsETLReadOnlyMode() bool {
@@ -314,10 +316,10 @@ func GetCSVPath() string {
 	return Get(CSVPathEnvVar, "")
 }
 
-// GetConfigPath returns the environment variable value for ConfigPathEnvVar which represents the cost
-// model configuration path
-func GetConfigPath() string {
-	return Get(ConfigPathEnvVar, "")
+// GetCostAnalyzerVolumeMountPath is an alias of GetConfigPath, which returns the mount path for the
+// Cost Analyzer volume, which stores configs, persistent data, etc.
+func GetCostAnalyzerVolumeMountPath() string {
+	return GetConfigPathWithDefault(DefaultConfigMountPath)
 }
 
 // GetConfigPath returns the environment variable value for ConfigPathEnvVar which represents the cost
