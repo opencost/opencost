@@ -1893,7 +1893,7 @@ func TestAllocationSetRange_AccumulateBy_Hour(t *testing.T) {
 	currentHourAS.Set(NewMockUnitAllocation("", currentHour, time.Hour, nil))
 
 	asr := NewAllocationSetRange(ago4hAS, ago3hAS, ago2hAS, ago1hAS, currentHourAS)
-	asr, err := asr.Accumulate(AccumulateOptionNone)
+	asr, err := asr.Accumulate(AccumulateOptionHour)
 	if err != nil {
 		t.Fatalf("unexpected error calling accumulateBy: %s", err)
 	}
@@ -2048,8 +2048,7 @@ func TestAllocationSetRange_AccumulateBy_Month(t *testing.T) {
 
 	nextAS := NewAllocationSet(nextMonth1stDay, nextMonth2ndDay)
 	nextAS.Set(NewMockUnitAllocation("", nextMonth1stDay, day, nil))
-	// check there are two allocation sets
-	// check the windows are one month or less
+
 	asr := NewAllocationSetRange(prev1AS, prev2AS, prev3AS, nextAS)
 	asr, err := asr.Accumulate(AccumulateOptionMonth)
 	if err != nil {
