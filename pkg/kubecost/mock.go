@@ -608,8 +608,8 @@ func GenerateMockAssetSets(start, end time.Time) []*AssetSet {
 //	total                          57.00   3.00
 //
 // +------------------------------+------+------+
-func GenerateMockAssetSet(start time.Time) *AssetSet {
-	end := start.Add(day)
+func GenerateMockAssetSet(start time.Time, duration time.Duration) *AssetSet {
+	end := start.Add(duration)
 	window := NewWindow(&start, &end)
 
 	hours := window.Duration().Hours()
