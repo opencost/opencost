@@ -221,6 +221,7 @@ type CustomPricing struct {
 	NegotiatedDiscount           string `json:"negotiatedDiscount"`
 	SharedOverhead               string `json:"sharedOverhead"`
 	ClusterName                  string `json:"clusterName"`
+	ClusterAccountID             string `json:"clusterAccount,omitempty"`
 	SharedNamespaces             string `json:"sharedNamespaces"`
 	SharedLabelNames             string `json:"sharedLabelNames"`
 	SharedLabelValues            string `json:"sharedLabelValues"`
@@ -475,6 +476,11 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 	}
 
 	cp := getClusterProperties(nodes[0])
+	providerConfig := NewProviderConfig(config, cp.configFileName)
+	// If ClusterAccount is set apply it to the cluster properties
+	if providerConfig.customPricing != nil && providerConfig.customPricing.ClusterAccountID != "" {
+		cp.accountID = providerConfig.customPricing.ClusterAccountID
+	}
 
 	switch cp.provider {
 	case kubecost.CSVProvider:
@@ -482,8 +488,10 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 		return &CSVProvider{
 			CSVLocation: env.GetCSVPath(),
 			CustomProvider: &CustomProvider{
-				Clientset: cache,
-				Config:    NewProviderConfig(config, cp.configFileName),
+				Clientset:        cache,
+				clusterRegion:    cp.region,
+				clusterAccountID: cp.accountID,
+				Config:           NewProviderConfig(config, cp.configFileName),
 			},
 		}, nil
 	case kubecost.GCPProvider:
@@ -496,7 +504,8 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			APIKey:           apiKey,
 			Config:           NewProviderConfig(config, cp.configFileName),
 			clusterRegion:    cp.region,
-			clusterProjectId: cp.projectID,
+			clusterAccountID: cp.accountID,
+			clusterProjectID: cp.projectID,
 			metadataClient: metadata.NewClient(&http.Client{
 				Transport: httputil.NewUserAgentTransport("kubecost", http.DefaultTransport),
 			}),
@@ -507,7 +516,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			Clientset:            cache,
 			Config:               NewProviderConfig(config, cp.configFileName),
 			clusterRegion:        cp.region,
-			clusterAccountId:     cp.accountID,
+			clusterAccountID:     cp.accountID,
 			serviceAccountChecks: NewServiceAccountChecks(),
 		}, nil
 	case kubecost.AzureProvider:
@@ -516,7 +525,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			Clientset:            cache,
 			Config:               NewProviderConfig(config, cp.configFileName),
 			clusterRegion:        cp.region,
-			clusterAccountId:     cp.accountID,
+			clusterAccountID:     cp.accountID,
 			serviceAccountChecks: NewServiceAccountChecks(),
 		}, nil
 	case kubecost.AlibabaProvider:
@@ -531,15 +540,19 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 	case kubecost.ScalewayProvider:
 		log.Info("Found ProviderID starting with \"scaleway\", using Scaleway Provider")
 		return &Scaleway{
-			Clientset: cache,
-			Config:    NewProviderConfig(config, cp.configFileName),
+			Clientset:        cache,
+			clusterRegion:    cp.region,
+			clusterAccountID: cp.accountID,
+			Config:           NewProviderConfig(config, cp.configFileName),
 		}, nil
 
 	default:
 		log.Info("Unsupported provider, falling back to default")
 		return &CustomProvider{
-			Clientset: cache,
-			Config:    NewProviderConfig(config, cp.configFileName),
+			Clientset:        cache,
+			clusterRegion:    cp.region,
+			clusterAccountID: cp.accountID,
+			Config:           NewProviderConfig(config, cp.configFileName),
 		}, nil
 	}
 }
