@@ -1681,7 +1681,7 @@ func TestAssetSetRange_AccumulateBy_Month(t *testing.T) {
 
 	for _, as := range asr.Assets {
 		if as.Window.Duration() < time.Hour*24 || as.Window.Duration() > time.Hour*24*31 {
-			t.Fatalf("expected window duration to be between 1 and 7 days, got:%s", as.Window.Duration().String())
+			t.Fatalf("expected window duration to be between 1 and 31 days, got:%s", as.Window.Duration().String())
 		}
 	}
 }
