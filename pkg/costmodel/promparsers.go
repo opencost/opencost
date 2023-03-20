@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/log"
@@ -138,8 +138,8 @@ func GetPVAllocationMetrics(qrs []*prom.QueryResult, defaultClusterID string) (m
 	return toReturn, nil
 }
 
-func GetPVCostMetrics(qrs []*prom.QueryResult, defaultClusterID string) (map[string]*costAnalyzerCloud.PV, error) {
-	toReturn := make(map[string]*costAnalyzerCloud.PV)
+func GetPVCostMetrics(qrs []*prom.QueryResult, defaultClusterID string) (map[string]*models.PV, error) {
+	toReturn := make(map[string]*models.PV)
 
 	for _, val := range qrs {
 		clusterID, err := val.GetString(env.GetPromClusterLabel())
@@ -153,7 +153,7 @@ func GetPVCostMetrics(qrs []*prom.QueryResult, defaultClusterID string) (map[str
 		}
 
 		key := fmt.Sprintf("%s,%s", volumeName, clusterID)
-		toReturn[key] = &costAnalyzerCloud.PV{
+		toReturn[key] = &models.PV{
 			Cost: fmt.Sprintf("%f", val.Values[0].Value),
 		}
 	}

@@ -22,6 +22,7 @@ import (
 	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/gcp"
+	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/kubeconfig"
 	"github.com/opencost/opencost/pkg/metrics"
@@ -1622,7 +1623,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		if err != nil {
 			log.Infof("Error saving cluster id %s", err.Error())
 		}
-		_, _, err = cloud.GetOrCreateClusterMeta(info["id"], info["name"])
+		_, _, err = utils.GetOrCreateClusterMeta(info["id"], info["name"])
 		if err != nil {
 			log.Infof("Unable to set cluster id '%s' for cluster '%s', %s", info["id"], info["name"], err.Error())
 		}

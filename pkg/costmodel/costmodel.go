@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/env"
@@ -80,7 +81,7 @@ type CostData struct {
 	Name            string                       `json:"name,omitempty"`
 	PodName         string                       `json:"podName,omitempty"`
 	NodeName        string                       `json:"nodeName,omitempty"`
-	NodeData        *costAnalyzerCloud.Node      `json:"node,omitempty"`
+	NodeData        *models.Node                 `json:"node,omitempty"`
 	Namespace       string                       `json:"namespace,omitempty"`
 	Deployments     []string                     `json:"deployments,omitempty"`
 	Services        []string                     `json:"services,omitempty"`
@@ -398,7 +399,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 			currentContainers[c.Key()] = *pod
 		}
 	}
-	missingNodes := make(map[string]*costAnalyzerCloud.Node)
+	missingNodes := make(map[string]*models.Node)
 	missingContainers := make(map[string]*CostData)
 	for key := range containers {
 		if _, ok := containerNameCost[key]; ok {
@@ -436,7 +437,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 			}
 
 			nodeName := pod.Spec.NodeName
-			var nodeData *costAnalyzerCloud.Node
+			var nodeData *models.Node
 			if _, ok := nodes[nodeName]; ok {
 				nodeData = nodes[nodeName]
 			}
@@ -626,7 +627,7 @@ func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyze
 				if n, ok := missingNodes[c.NodeName]; ok {
 					node = n
 				} else {
-					node = &costAnalyzerCloud.Node{}
+					node = &models.Node{}
 					missingNodes[c.NodeName] = node
 				}
 			}
@@ -764,7 +765,7 @@ func findDeletedPodInfo(cli prometheusClient.Client, missingContainers map[strin
 	return nil
 }
 
-func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*costAnalyzerCloud.Node, window, offset string) error {
+func findDeletedNodeInfo(cli prometheusClient.Client, missingNodes map[string]*models.Node, window, offset string) error {
 	if len(missingNodes) > 0 {
 		defer measureTime(time.Now(), profileThreshold, "Finding Deleted Node Info")
 
@@ -880,7 +881,7 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 	}
 
 	pvs := cache.GetAllPersistentVolumes()
-	pvMap := make(map[string]*cloud.PV)
+	pvMap := make(map[string]*models.PV)
 	for _, pv := range pvs {
 		parameters, ok := storageClassMap[pv.Spec.StorageClassName]
 		if !ok {
@@ -893,7 +894,7 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 			region = defaultRegion
 		}
 
-		cacPv := &cloud.PV{
+		cacPv := &models.PV{
 			Class:      pv.Spec.StorageClassName,
 			Region:     region,
 			Parameters: parameters,
@@ -910,7 +911,7 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 			pvc.Volume = vol
 		} else {
 			log.Debugf("PV not found, using default")
-			pvc.Volume = &cloud.PV{
+			pvc.Volume = &models.PV{
 				Cost: cfg.Storage,
 			}
 		}
@@ -919,7 +920,7 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 	return nil
 }
 
-func GetPVCost(pv *costAnalyzerCloud.PV, kpv *v1.PersistentVolume, cp costAnalyzerCloud.Provider, defaultRegion string) error {
+func GetPVCost(pv *models.PV, kpv *v1.PersistentVolume, cp costAnalyzerCloud.Provider, defaultRegion string) error {
 	cfg, err := cp.GetConfig()
 	if err != nil {
 		return err
@@ -947,14 +948,14 @@ func (cm *CostModel) GetPricingSourceCounts() (*costAnalyzerCloud.PricingMatchMe
 	}
 }
 
-func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*costAnalyzerCloud.Node, error) {
+func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*models.Node, error) {
 	cfg, err := cp.GetConfig()
 	if err != nil {
 		return nil, err
 	}
 
 	nodeList := cm.Cache.GetAllNodes()
-	nodes := make(map[string]*costAnalyzerCloud.Node)
+	nodes := make(map[string]*models.Node)
 
 	vgpuCount, err := getAllocatableVGPUs(cm.Cache)
 	vgpuCoeff := 10.0
@@ -964,7 +965,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 	pmd := &costAnalyzerCloud.PricingMatchMetadata{
 		TotalNodes:        0,
-		PricingTypeCounts: make(map[costAnalyzerCloud.PricingType]int),
+		PricingTypeCounts: make(map[models.PricingType]int),
 	}
 	for _, n := range nodeList {
 		name := n.GetObjectMeta().GetName()
@@ -980,7 +981,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 				nodes[name] = cnode
 				continue
 			} else {
-				cnode = &costAnalyzerCloud.Node{
+				cnode = &models.Node{
 					VCPUCost: cfg.CPU,
 					RAMCost:  cfg.RAM,
 				}
@@ -1256,7 +1257,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 }
 
 // TODO: drop some logs
-func (cm *CostModel) GetLBCost(cp costAnalyzerCloud.Provider) (map[serviceKey]*costAnalyzerCloud.LoadBalancer, error) {
+func (cm *CostModel) GetLBCost(cp costAnalyzerCloud.Provider) (map[serviceKey]*models.LoadBalancer, error) {
 	// for fetching prices from cloud provider
 	// cfg, err := cp.GetConfig()
 	// if err != nil {
@@ -1264,7 +1265,7 @@ func (cm *CostModel) GetLBCost(cp costAnalyzerCloud.Provider) (map[serviceKey]*c
 	// }
 
 	servicesList := cm.Cache.GetAllServices()
-	loadBalancerMap := make(map[serviceKey]*costAnalyzerCloud.LoadBalancer)
+	loadBalancerMap := make(map[serviceKey]*models.LoadBalancer)
 
 	for _, service := range servicesList {
 		namespace := service.GetObjectMeta().GetNamespace()
@@ -1914,7 +1915,7 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 	applyAllocationToRequests(RAMAllocMap, RAMReqMap)
 	applyAllocationToRequests(CPUAllocMap, CPUReqMap)
 
-	missingNodes := make(map[string]*costAnalyzerCloud.Node)
+	missingNodes := make(map[string]*models.Node)
 	missingContainers := make(map[string]*CostData)
 	for key := range containers {
 		if _, ok := containerNameCost[key]; ok {
@@ -1957,11 +1958,11 @@ func (cm *CostModel) costDataRange(cli prometheusClient.Client, cp costAnalyzerC
 			GPUReqV = []*util.Vector{}
 		}
 
-		var node *costAnalyzerCloud.Node
+		var node *models.Node
 		if n, ok := missingNodes[c.NodeName]; ok {
 			node = n
 		} else {
-			node = &costAnalyzerCloud.Node{}
+			node = &models.Node{}
 			missingNodes[c.NodeName] = node
 		}
 
@@ -2153,7 +2154,7 @@ func applyAllocationToRequests(allocationMap map[string][]*util.Vector, requestM
 	}
 }
 
-func addMetricPVData(pvAllocationMap map[string][]*PersistentVolumeClaimData, pvCostMap map[string]*costAnalyzerCloud.PV, cp costAnalyzerCloud.Provider) {
+func addMetricPVData(pvAllocationMap map[string][]*PersistentVolumeClaimData, pvCostMap map[string]*models.PV, cp costAnalyzerCloud.Provider) {
 	cfg, err := cp.GetConfig()
 	if err != nil {
 		log.Errorf("Failed to get provider config while adding pv metrics data.")
@@ -2166,7 +2167,7 @@ func addMetricPVData(pvAllocationMap map[string][]*PersistentVolumeClaimData, pv
 
 			pvCost, ok := pvCostMap[costKey]
 			if !ok {
-				pvcData.Volume = &costAnalyzerCloud.PV{
+				pvcData.Volume = &models.PV{
 					Cost: cfg.Storage,
 				}
 				continue
@@ -2271,14 +2272,14 @@ func getAllocatableVGPUs(cache clustercache.ClusterCache) (float64, error) {
 }
 
 type PersistentVolumeClaimData struct {
-	Class        string                `json:"class"`
-	Claim        string                `json:"claim"`
-	Namespace    string                `json:"namespace"`
-	ClusterID    string                `json:"clusterId"`
-	TimesClaimed int                   `json:"timesClaimed"`
-	VolumeName   string                `json:"volumeName"`
-	Volume       *costAnalyzerCloud.PV `json:"persistentVolume"`
-	Values       []*util.Vector        `json:"values"`
+	Class        string         `json:"class"`
+	Claim        string         `json:"claim"`
+	Namespace    string         `json:"namespace"`
+	ClusterID    string         `json:"clusterId"`
+	TimesClaimed int            `json:"timesClaimed"`
+	VolumeName   string         `json:"volumeName"`
+	Volume       *models.PV     `json:"persistentVolume"`
+	Values       []*util.Vector `json:"values"`
 }
 
 func measureTime(start time.Time, threshold time.Duration, name string) {

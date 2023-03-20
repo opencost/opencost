@@ -128,7 +128,7 @@ func InitKubeMetrics(clusterCache clustercache.ClusterCache, metricsConfig *Metr
 //  Kube Metric Helpers
 //--------------------------------------------------------------------------
 
-// getPersistentVolumeClaimClass returns StorageClassName. If no storage class was
+// getPersistentVolumeClaimClass returns StorageClass. If no storage class was
 // requested, it returns "".
 func getPersistentVolumeClaimClass(claim *v1.PersistentVolumeClaim) string {
 	// Use beta annotation first

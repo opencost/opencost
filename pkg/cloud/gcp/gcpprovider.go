@@ -14,9 +14,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/cloud/aws"
-	"github.com/opencost/opencost/pkg/cloud/custom"
+	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloud/provider"
+	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/util/httputil"
 
@@ -102,7 +103,7 @@ type GCP struct {
 	BillingDataDataset      string
 	DownloadPricingDataLock sync.RWMutex
 	ReservedInstances       []*GCPReservedInstance
-	Config                  *cloud.ProviderConfig
+	Config                  *provider.ProviderConfig
 	ServiceKeyProvided      bool
 	ValidPricingKeys        map[string]bool
 	metadataClient          *metadata.Client
@@ -110,10 +111,9 @@ type GCP struct {
 	clusterProjectId        string
 	clusterRegion           string
 	clusterProvisioner      string
-	*custom.CustomProvider
 }
 
-func New(cache clustercache.ClusterCache, apiKey string, config *cloud.ProviderConfig, region string, projectID string) (*GCP, error) {
+func New(cache clustercache.ClusterCache, apiKey string, config *provider.ProviderConfig, region string, projectID string) (*GCP, error) {
 	return &GCP{
 		Clientset:        cache,
 		APIKey:           apiKey,
@@ -170,7 +170,7 @@ func (gcp *GCP) GetLocalStorageQuery(window, offset time.Duration, rate bool, us
 	return fmt.Sprintf(fmtQuery, baseMetric, fmtWindow, fmtOffset, env.GetPromClusterLabel(), localStorageCost)
 }
 
-func (gcp *GCP) GetConfig() (*cloud.CustomPricing, error) {
+func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
 	c, err := gcp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
@@ -185,7 +185,7 @@ func (gcp *GCP) GetConfig() (*cloud.CustomPricing, error) {
 		c.CurrencyCode = "USD"
 	}
 	if c.ShareTenancyCosts == "" {
-		c.ShareTenancyCosts = cloud.DefaultShareTenancyCost
+		c.ShareTenancyCosts = provider.DefaultShareTenancyCost
 	}
 	return c, nil
 }
@@ -227,7 +227,7 @@ func (*GCP) loadGCPAuthSecret() {
 		return
 	}
 
-	exists, err := fileutil.FileExists(cloud.AuthSecretPath)
+	exists, err := fileutil.FileExists(provider.AuthSecretPath)
 	if !exists || err != nil {
 		errMessage := "Secret does not exist"
 		if err != nil {
@@ -238,7 +238,7 @@ func (*GCP) loadGCPAuthSecret() {
 		return
 	}
 
-	result, err := os.ReadFile(cloud.AuthSecretPath)
+	result, err := os.ReadFile(provider.AuthSecretPath)
 	if err != nil {
 		log.Warnf("Failed to load auth secret, or was not mounted: %s", err.Error())
 		return
@@ -250,12 +250,12 @@ func (*GCP) loadGCPAuthSecret() {
 	}
 }
 
-func (gcp *GCP) UpdateConfigFromConfigMap(a map[string]string) (*cloud.CustomPricing, error) {
+func (gcp *GCP) UpdateConfigFromConfigMap(a map[string]string) (*models.CustomPricing, error) {
 	return gcp.Config.UpdateFromMap(a)
 }
 
-func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*cloud.CustomPricing, error) {
-	return gcp.Config.Update(func(c *cloud.CustomPricing) error {
+func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*models.CustomPricing, error) {
+	return gcp.Config.Update(func(c *models.CustomPricing) error {
 		if updateType == BigqueryUpdateType {
 			a := BigQueryConfig{}
 			err := json.NewDecoder(r).Decode(&a)
@@ -302,10 +302,10 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*cloud.CustomPrici
 				return err
 			}
 			for k, v := range a {
-				kUpper := cloud.ToTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+				kUpper := utils.ToTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
 				vstr, ok := v.(string)
 				if ok {
-					err := cloud.SetCustomPricingField(c, kUpper, vstr)
+					err := provider.SetCustomPricingField(c, kUpper, vstr)
 					if err != nil {
 						return err
 					}
@@ -316,7 +316,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*cloud.CustomPrici
 		}
 
 		if env.IsRemoteEnabled() {
-			err := cloud.UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
+			err := utils.UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return err
 			}
@@ -460,7 +460,7 @@ func (gcp *GCP) isDiskOrphaned(disk *compute.Disk) (bool, error) {
 	return true, nil
 }
 
-func (gcp *GCP) GetOrphanedResources() ([]cloud.OrphanedResource, error) {
+func (gcp *GCP) GetOrphanedResources() ([]models.OrphanedResource, error) {
 	disks, err := gcp.getAllDisks()
 	if err != nil {
 		return nil, err
@@ -471,7 +471,7 @@ func (gcp *GCP) GetOrphanedResources() ([]cloud.OrphanedResource, error) {
 		return nil, err
 	}
 
-	var orphanedResources []cloud.OrphanedResource
+	var orphanedResources []models.OrphanedResource
 
 	for _, diskList := range disks.Items {
 		if len(diskList.Disks) == 0 {
@@ -504,7 +504,7 @@ func (gcp *GCP) GetOrphanedResources() ([]cloud.OrphanedResource, error) {
 					zone = ""
 				}
 
-				or := cloud.OrphanedResource{
+				or := models.OrphanedResource{
 					Kind:        "disk",
 					Region:      zone,
 					Description: desc,
@@ -534,7 +534,7 @@ func (gcp *GCP) GetOrphanedResources() ([]cloud.OrphanedResource, error) {
 					region = ""
 				}
 
-				or := cloud.OrphanedResource{
+				or := models.OrphanedResource{
 					Kind:   "address",
 					Region: region,
 					Description: map[string]string{
@@ -588,8 +588,8 @@ type GCPPricing struct {
 	ServiceRegions      []string         `json:"serviceRegions"`
 	PricingInfo         []*PricingInfo   `json:"pricingInfo"`
 	ServiceProviderName string           `json:"serviceProviderName"`
-	Node                *cloud.Node      `json:"node"`
-	PV                  *cloud.PV        `json:"pv"`
+	Node                *models.Node     `json:"node"`
+	PV                  *models.PV       `json:"pv"`
 }
 
 // PricingInfo contains metadata about a cost.
@@ -631,7 +631,7 @@ type GCPResourceInfo struct {
 	UsageType          string `json:"usageType"`
 }
 
-func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]cloud.Key, pvKeys map[string]cloud.PVKey) (map[string]*GCPPricing, string, error) {
+func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys map[string]models.PVKey) (map[string]*GCPPricing, string, error) {
 	gcpPricingList := make(map[string]*GCPPricing)
 	var nextPageToken string
 	dec := json.NewDecoder(r)
@@ -671,7 +671,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]cloud.Key, pvKeys ma
 						region := sr
 						candidateKey := region + "," + "ssd"
 						if _, ok := pvKeys[candidateKey]; ok {
-							product.PV = &cloud.PV{
+							product.PV = &models.PV{
 								Cost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 							}
 							gcpPricingList[candidateKey] = product
@@ -693,7 +693,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]cloud.Key, pvKeys ma
 						region := sr
 						candidateKey := region + "," + "ssd" + "," + "regional"
 						if _, ok := pvKeys[candidateKey]; ok {
-							product.PV = &cloud.PV{
+							product.PV = &models.PV{
 								Cost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 							}
 							gcpPricingList[candidateKey] = product
@@ -714,7 +714,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]cloud.Key, pvKeys ma
 						region := sr
 						candidateKey := region + "," + "pdstandard"
 						if _, ok := pvKeys[candidateKey]; ok {
-							product.PV = &cloud.PV{
+							product.PV = &models.PV{
 								Cost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 							}
 							gcpPricingList[candidateKey] = product
@@ -735,7 +735,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]cloud.Key, pvKeys ma
 						region := sr
 						candidateKey := region + "," + "pdstandard" + "," + "regional"
 						if _, ok := pvKeys[candidateKey]; ok {
-							product.PV = &cloud.PV{
+							product.PV = &models.PV{
 								Cost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 							}
 							gcpPricingList[candidateKey] = product
@@ -829,7 +829,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]cloud.Key, pvKeys ma
 										pl.Node.GPUCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 										pl.Node.GPU = "1"
 									} else {
-										product.Node = &cloud.Node{
+										product.Node = &models.Node{
 											GPUName: gpuType,
 											GPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 											GPU:     "1",
@@ -863,7 +863,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]cloud.Key, pvKeys ma
 									gcpPricingList[candidateKey].Node.RAMCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 								} else {
 									product = &GCPPricing{}
-									product.Node = &cloud.Node{
+									product.Node = &models.Node{
 										RAMCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
 									partialCPU, pcok := partialCPUMap[instanceType]
@@ -879,7 +879,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]cloud.Key, pvKeys ma
 								} else {
 									log.Infof("Adding RAM %f for %s", hourlyPrice, candidateKeyGPU)
 									product = &GCPPricing{}
-									product.Node = &cloud.Node{
+									product.Node = &models.Node{
 										RAMCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
 									partialCPU, pcok := partialCPUMap[instanceType]
@@ -895,7 +895,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]cloud.Key, pvKeys ma
 									gcpPricingList[candidateKey].Node.VCPUCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 								} else {
 									product = &GCPPricing{}
-									product.Node = &cloud.Node{
+									product.Node = &models.Node{
 										VCPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
 									partialCPU, pcok := partialCPUMap[instanceType]
@@ -909,7 +909,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]cloud.Key, pvKeys ma
 									gcpPricingList[candidateKeyGPU].Node.VCPUCost = strconv.FormatFloat(hourlyPrice, 'f', -1, 64)
 								} else {
 									product = &GCPPricing{}
-									product.Node = &cloud.Node{
+									product.Node = &models.Node{
 										VCPUCost: strconv.FormatFloat(hourlyPrice, 'f', -1, 64),
 									}
 									partialCPU, pcok := partialCPUMap[instanceType]
@@ -942,7 +942,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]cloud.Key, pvKeys ma
 	return gcpPricingList, nextPageToken, nil
 }
 
-func (gcp *GCP) parsePages(inputKeys map[string]cloud.Key, pvKeys map[string]cloud.PVKey) (map[string]*GCPPricing, error) {
+func (gcp *GCP) parsePages(inputKeys map[string]models.Key, pvKeys map[string]models.PVKey) (map[string]*GCPPricing, error) {
 	var pages []map[string]*GCPPricing
 	c, err := gcp.GetConfig()
 	if err != nil {
@@ -1027,7 +1027,7 @@ func (gcp *GCP) DownloadPricingData() error {
 	gcp.BillingDataDataset = c.BillingDataDataset
 
 	nodeList := gcp.Clientset.GetAllNodes()
-	inputkeys := make(map[string]cloud.Key)
+	inputkeys := make(map[string]models.Key)
 
 	defaultRegion := "" // Sometimes, PVs may be missing the region label. In that case assume that they are in the same region as the nodes
 	for _, n := range nodeList {
@@ -1056,7 +1056,7 @@ func (gcp *GCP) DownloadPricingData() error {
 		}
 	}
 
-	pvkeys := make(map[string]cloud.PVKey)
+	pvkeys := make(map[string]models.PVKey)
 	for _, pv := range pvList {
 		params, ok := storageClassMap[pv.Spec.StorageClassName]
 		if !ok {
@@ -1090,19 +1090,19 @@ func (gcp *GCP) DownloadPricingData() error {
 	return nil
 }
 
-func (gcp *GCP) PVPricing(pvk cloud.PVKey) (*cloud.PV, error) {
+func (gcp *GCP) PVPricing(pvk models.PVKey) (*models.PV, error) {
 	gcp.DownloadPricingDataLock.RLock()
 	defer gcp.DownloadPricingDataLock.RUnlock()
 	pricing, ok := gcp.Pricing[pvk.Features()]
 	if !ok {
 		log.Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
-		return &cloud.PV{}, nil
+		return &models.PV{}, nil
 	}
 	return pricing.PV, nil
 }
 
 // Stubbed NetworkPricing for GCP. Pull directly from gcp.json for now
-func (gcp *GCP) NetworkPricing() (*cloud.Network, error) {
+func (gcp *GCP) NetworkPricing() (*models.Network, error) {
 	cpricing, err := gcp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
@@ -1120,14 +1120,14 @@ func (gcp *GCP) NetworkPricing() (*cloud.Network, error) {
 		return nil, err
 	}
 
-	return &cloud.Network{
+	return &models.Network{
 		ZoneNetworkEgressCost:     znec,
 		RegionNetworkEgressCost:   rnec,
 		InternetNetworkEgressCost: inec,
 	}, nil
 }
 
-func (gcp *GCP) LoadBalancerPricing() (*cloud.LoadBalancer, error) {
+func (gcp *GCP) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	fffrc := 0.025
 	afrc := 0.010
 	lbidc := 0.008
@@ -1141,7 +1141,7 @@ func (gcp *GCP) LoadBalancerPricing() (*cloud.LoadBalancer, error) {
 	} else {
 		totalCost = fffrc*5 + afrc*(numForwardingRules-5) + lbidc*dataIngressGB
 	}
-	return &cloud.LoadBalancer{
+	return &models.LoadBalancer{
 		Cost: totalCost,
 	}, nil
 }
@@ -1201,7 +1201,7 @@ var gcpReservedInstancePlans map[string]*GCPReservedInstancePlan = map[string]*G
 	},
 }
 
-func (gcp *GCP) ApplyReservedInstancePricing(nodes map[string]*cloud.Node) {
+func (gcp *GCP) ApplyReservedInstancePricing(nodes map[string]*models.Node) {
 	numReserved := len(gcp.ReservedInstances)
 
 	// Early return if no reserved instance data loaded
@@ -1259,7 +1259,7 @@ func (gcp *GCP) ApplyReservedInstancePricing(nodes map[string]*cloud.Node) {
 			continue
 		}
 
-		node.Reserved = &cloud.ReservedInstanceData{
+		node.Reserved = &models.ReservedInstanceData{
 			ReservedCPU: 0,
 			ReservedRAM: 0,
 		}
@@ -1375,6 +1375,7 @@ type pvKey struct {
 	StorageClass           string
 	StorageClassParameters map[string]string
 	DefaultRegion          string
+	TestingThisOut         string
 }
 
 func (key *pvKey) ID() string {
@@ -1385,7 +1386,7 @@ func (key *pvKey) GetStorageClass() string {
 	return key.StorageClass
 }
 
-func (gcp *GCP) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) cloud.PVKey {
+func (gcp *GCP) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
 	providerID := ""
 	if pv.Spec.GCEPersistentDisk != nil {
 		providerID = pv.Spec.GCEPersistentDisk.PDName
@@ -1424,7 +1425,7 @@ type gcpKey struct {
 	Labels map[string]string
 }
 
-func (gcp *GCP) GetKey(labels map[string]string, n *v1.Node) cloud.Key {
+func (gcp *GCP) GetKey(labels map[string]string, n *v1.Node) models.Key {
 	return &gcpKey{
 		Labels: labels,
 	}
@@ -1505,13 +1506,13 @@ func (gcp *GCP) AllNodePricing() (interface{}, error) {
 	return gcp.Pricing, nil
 }
 
-func (gcp *GCP) getPricing(key cloud.Key) (*GCPPricing, bool) {
+func (gcp *GCP) getPricing(key models.Key) (*GCPPricing, bool) {
 	gcp.DownloadPricingDataLock.RLock()
 	defer gcp.DownloadPricingDataLock.RUnlock()
 	n, ok := gcp.Pricing[key.Features()]
 	return n, ok
 }
-func (gcp *GCP) isValidPricingKey(key cloud.Key) bool {
+func (gcp *GCP) isValidPricingKey(key models.Key) bool {
 	gcp.DownloadPricingDataLock.RLock()
 	defer gcp.DownloadPricingDataLock.RUnlock()
 	_, ok := gcp.ValidPricingKeys[key.Features()]
@@ -1519,7 +1520,7 @@ func (gcp *GCP) isValidPricingKey(key cloud.Key) bool {
 }
 
 // NodePricing returns GCP pricing data for a single node
-func (gcp *GCP) NodePricing(key cloud.Key) (*cloud.Node, error) {
+func (gcp *GCP) NodePricing(key models.Key) (*models.Node, error) {
 	if n, ok := gcp.getPricing(key); ok {
 		log.Debugf("Returning pricing for node %s: %+v from SKU %s", key, n.Node, n.Name)
 		n.Node.BaseCPUPrice = gcp.BaseCPUPrice
@@ -1540,14 +1541,14 @@ func (gcp *GCP) NodePricing(key cloud.Key) (*cloud.Node, error) {
 	return nil, fmt.Errorf("Warning: no pricing data found for %s", key)
 }
 
-func (gcp *GCP) ServiceAccountStatus() *cloud.ServiceAccountStatus {
-	return &cloud.ServiceAccountStatus{
-		Checks: []*cloud.ServiceAccountCheck{},
+func (gcp *GCP) ServiceAccountStatus() *models.ServiceAccountStatus {
+	return &models.ServiceAccountStatus{
+		Checks: []*models.ServiceAccountCheck{},
 	}
 }
 
-func (gcp *GCP) PricingSourceStatus() map[string]*cloud.PricingSource {
-	return make(map[string]*cloud.PricingSource)
+func (gcp *GCP) PricingSourceStatus() map[string]*models.PricingSource {
+	return make(map[string]*models.PricingSource)
 }
 
 func (gcp *GCP) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
@@ -1598,7 +1599,7 @@ func getUsageType(labels map[string]string) string {
 	} else if t, ok := labels[GKESpotLabel]; ok && t == "true" {
 		// https://cloud.google.com/kubernetes-engine/docs/concepts/spot-vms
 		return "preemptible"
-	} else if t, ok := labels[cloud.KarpenterCapacityTypeLabel]; ok && t == cloud.KarpenterCapacitySpotTypeValue {
+	} else if t, ok := labels[aws.KarpenterCapacityTypeLabel]; ok && t == aws.KarpenterCapacitySpotTypeValue {
 		return "preemptible"
 	}
 	return "ondemand"

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/util/httputil"
 	"github.com/opencost/opencost/pkg/util/timeutil"
 
@@ -712,7 +713,7 @@ func getDiscounts(costDatum *CostData, cpuCost float64, ramCost float64, discoun
 	return blendedCPUDiscount, blendedRAMDiscount
 }
 
-func parseVectorPricing(cfg *cloud.CustomPricing, costDatum *CostData, cpuCostStr, ramCostStr, gpuCostStr, pvCostStr string) (float64, float64, float64, float64, bool) {
+func parseVectorPricing(cfg *models.CustomPricing, costDatum *CostData, cpuCostStr, ramCostStr, gpuCostStr, pvCostStr string) (float64, float64, float64, float64, bool) {
 	usesCustom := false
 	cpuCost, err := strconv.ParseFloat(cpuCostStr, 64)
 	if err != nil || math.IsNaN(cpuCost) || math.IsInf(cpuCost, 0) || cpuCost == 0 {

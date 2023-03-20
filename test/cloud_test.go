@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/cloud/csv"
 	"github.com/opencost/opencost/pkg/cloud/custom"
+	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/costmodel"
@@ -109,7 +109,7 @@ func TestPVPriceFromCSV(t *testing.T) {
 	c := &csv.CSVProvider{
 		CSVLocation: "../configs/pricing_schema_pv.csv",
 		CustomProvider: &custom.CustomProvider{
-			Config: cloud.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
 		},
 	}
 	c.DownloadPricingData()
@@ -157,7 +157,7 @@ func TestNodePriceFromCSVWithGPU(t *testing.T) {
 	c := &csv.CSVProvider{
 		CSVLocation: "../configs/pricing_schema.csv",
 		CustomProvider: &custom.CustomProvider{
-			Config: cloud.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
 		},
 	}
 
@@ -216,7 +216,7 @@ func TestNodePriceFromCSV(t *testing.T) {
 	c := &csv.CSVProvider{
 		CSVLocation: "../configs/pricing_schema.csv",
 		CustomProvider: &custom.CustomProvider{
-			Config: cloud.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
 		},
 	}
 	c.DownloadPricingData()
@@ -246,7 +246,7 @@ func TestNodePriceFromCSV(t *testing.T) {
 	c2 := &csv.CSVProvider{
 		CSVLocation: "../configs/fake.csv",
 		CustomProvider: &custom.CustomProvider{
-			Config: cloud.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
 		},
 	}
 	k3 := c.GetKey(n.Labels, n)
@@ -292,7 +292,7 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	c := &csv.CSVProvider{
 		CSVLocation: "../configs/pricing_schema_region.csv",
 		CustomProvider: &custom.CustomProvider{
-			Config: cloud.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
 		},
 	}
 	c.DownloadPricingData()
@@ -342,7 +342,7 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	c2 := &csv.CSVProvider{
 		CSVLocation: "../configs/fake.csv",
 		CustomProvider: &custom.CustomProvider{
-			Config: cloud.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
 		},
 	}
 	k5 := c.GetKey(n.Labels, n)
@@ -384,7 +384,7 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 	c := &csv.CSVProvider{
 		CSVLocation: "../configs/pricing_schema_case.csv",
 		CustomProvider: &custom.CustomProvider{
-			Config: cloud.NewProviderConfig(confMan, "invalid.json"),
+			Config: provider.NewProviderConfig(confMan, "invalid.json"),
 		},
 	}
 	c.DownloadPricingData()
@@ -418,7 +418,7 @@ func TestSourceMatchesFromCSV(t *testing.T) {
 	c := &csv.CSVProvider{
 		CSVLocation: "../configs/pricing_schema_case.csv",
 		CustomProvider: &custom.CustomProvider{
-			Config: cloud.NewProviderConfig(confMan, "/default.json"),
+			Config: provider.NewProviderConfig(confMan, "/default.json"),
 		},
 	}
 	c.DownloadPricingData()
@@ -497,7 +497,7 @@ func TestNodePriceFromCSVWithCase(t *testing.T) {
 	c := &csv.CSVProvider{
 		CSVLocation: "../configs/pricing_schema_case.csv",
 		CustomProvider: &custom.CustomProvider{
-			Config: cloud.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
 		},
 	}
 
@@ -531,7 +531,7 @@ func TestNodePriceFromCSVByClass(t *testing.T) {
 	c := &csv.CSVProvider{
 		CSVLocation: "../configs/pricing_schema_case.csv",
 		CustomProvider: &custom.CustomProvider{
-			Config: cloud.NewProviderConfig(confMan, "../configs/default.json"),
+			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
 		},
 	}
 

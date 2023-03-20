@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/env"
@@ -652,7 +653,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				} else {
 					region = defaultRegion
 				}
-				cacPv := &cloud.PV{
+				cacPv := &models.PV{
 					Class:      pv.Spec.StorageClassName,
 					Region:     region,
 					Parameters: parameters,

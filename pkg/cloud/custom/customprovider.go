@@ -8,12 +8,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud"
-	"github.com/opencost/opencost/pkg/cloud/aws"
+	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloud/provider"
+	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/json"
 
 	v1 "k8s.io/api/core/v1"
@@ -33,7 +35,7 @@ type CustomProvider struct {
 	GPULabel                string
 	GPULabelValue           string
 	DownloadPricingDataLock sync.RWMutex
-	Config                  *cloud.ProviderConfig
+	Config                  *provider.ProviderConfig
 }
 
 // PricingSourceSummary returns the pricing source summary for the provider.
@@ -59,7 +61,7 @@ func (*CustomProvider) GetLocalStorageQuery(window, offset time.Duration, rate b
 	return ""
 }
 
-func (cp *CustomProvider) GetConfig() (*cloud.CustomPricing, error) {
+func (cp *CustomProvider) GetConfig() (*models.CustomPricing, error) {
 	return cp.Config.GetCustomPricingData()
 }
 
@@ -67,15 +69,15 @@ func (*CustomProvider) GetManagementPlatform() (string, error) {
 	return "", nil
 }
 
-func (*CustomProvider) ApplyReservedInstancePricing(nodes map[string]*cloud.Node) {
+func (*CustomProvider) ApplyReservedInstancePricing(nodes map[string]*models.Node) {
 
 }
 
-func (cp *CustomProvider) UpdateConfigFromConfigMap(a map[string]string) (*cloud.CustomPricing, error) {
+func (cp *CustomProvider) UpdateConfigFromConfigMap(a map[string]string) (*models.CustomPricing, error) {
 	return cp.Config.UpdateFromMap(a)
 }
 
-func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*cloud.CustomPricing, error) {
+func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*models.CustomPricing, error) {
 	// Parse config updates from reader
 	a := make(map[string]interface{})
 	err := json.NewDecoder(r).Decode(&a)
@@ -84,12 +86,12 @@ func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*cloud.C
 	}
 
 	// Update Config
-	c, err := cp.Config.Update(func(c *cloud.CustomPricing) error {
+	c, err := cp.Config.Update(func(c *models.CustomPricing) error {
 		for k, v := range a {
-			kUpper := cloud.toTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+			kUpper := utils.ToTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
 			vstr, ok := v.(string)
 			if ok {
-				err := cloud.SetCustomPricingField(c, kUpper, vstr)
+				err := provider.SetCustomPricingField(c, kUpper, vstr)
 				if err != nil {
 					return err
 				}
@@ -131,7 +133,7 @@ func (*CustomProvider) GetDisks() ([]byte, error) {
 	return nil, nil
 }
 
-func (*CustomProvider) GetOrphanedResources() ([]cloud.OrphanedResource, error) {
+func (*CustomProvider) GetOrphanedResources() ([]models.OrphanedResource, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -142,7 +144,7 @@ func (cp *CustomProvider) AllNodePricing() (interface{}, error) {
 	return cp.Pricing, nil
 }
 
-func (cp *CustomProvider) NodePricing(key cloud.Key) (*cloud.Node, error) {
+func (cp *CustomProvider) NodePricing(key models.Key) (*models.Node, error) {
 	cp.DownloadPricingDataLock.RLock()
 	defer cp.DownloadPricingDataLock.RUnlock()
 
@@ -170,7 +172,7 @@ func (cp *CustomProvider) NodePricing(key cloud.Key) (*cloud.Node, error) {
 		gpuCost = pricing.GPU
 	}
 
-	return &cloud.Node{
+	return &models.Node{
 		VCPUCost: cpuCost,
 		RAMCost:  ramCost,
 		GPUCost:  gpuCost,
@@ -210,7 +212,7 @@ func (cp *CustomProvider) DownloadPricingData() error {
 	return nil
 }
 
-func (cp *CustomProvider) GetKey(labels map[string]string, n *v1.Node) cloud.Key {
+func (cp *CustomProvider) GetKey(labels map[string]string, n *v1.Node) models.Key {
 	return &customProviderKey{
 		SpotLabel:      cp.SpotLabel,
 		SpotLabelValue: cp.SpotLabelValue,
@@ -223,7 +225,7 @@ func (cp *CustomProvider) GetKey(labels map[string]string, n *v1.Node) cloud.Key
 // ExternalAllocations represents tagged assets outside the scope of kubernetes.
 // "start" and "end" are dates of the format YYYY-MM-DD
 // "aggregator" is the tag used to determine how to allocate those assets, ie namespace, pod, etc.
-func (*CustomProvider) ExternalAllocations(start string, end string, aggregator []string, filterType string, filterValue string, crossCluster bool) ([]*cloud.OutOfClusterAllocation, error) {
+func (*CustomProvider) ExternalAllocations(start string, end string, aggregator []string, filterType string, filterValue string, crossCluster bool) ([]*models.OutOfClusterAllocation, error) {
 	return nil, nil // TODO: transform the QuerySQL lines into the new OutOfClusterAllocation Struct
 }
 
@@ -231,17 +233,17 @@ func (*CustomProvider) QuerySQL(query string) ([]byte, error) {
 	return nil, nil
 }
 
-func (cp *CustomProvider) PVPricing(pvk cloud.PVKey) (*cloud.PV, error) {
+func (cp *CustomProvider) PVPricing(pvk models.PVKey) (*models.PV, error) {
 	cpricing, err := cp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
 	}
-	return &cloud.PV{
+	return &models.PV{
 		Cost: cpricing.Storage,
 	}, nil
 }
 
-func (cp *CustomProvider) NetworkPricing() (*cloud.Network, error) {
+func (cp *CustomProvider) NetworkPricing() (*models.Network, error) {
 	cpricing, err := cp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
@@ -259,14 +261,14 @@ func (cp *CustomProvider) NetworkPricing() (*cloud.Network, error) {
 		return nil, err
 	}
 
-	return &cloud.Network{
+	return &models.Network{
 		ZoneNetworkEgressCost:     znec,
 		RegionNetworkEgressCost:   rnec,
 		InternetNetworkEgressCost: inec,
 	}, nil
 }
 
-func (cp *CustomProvider) LoadBalancerPricing() (*cloud.LoadBalancer, error) {
+func (cp *CustomProvider) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	cpricing, err := cp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
@@ -292,13 +294,45 @@ func (cp *CustomProvider) LoadBalancerPricing() (*cloud.LoadBalancer, error) {
 	} else {
 		totalCost = fffrc*5 + afrc*(numForwardingRules-5) + lbidc*dataIngressGB
 	}
-	return &cloud.LoadBalancer{
+	return &models.LoadBalancer{
 		Cost: totalCost,
 	}, nil
 }
 
-func (*CustomProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) cloud.PVKey {
-	return &aws.awsPVKey{
+type CustomPVKey struct {
+	Labels                 map[string]string
+	StorageClassName       string
+	StorageClassParameters map[string]string
+	DefaultRegion          string
+	ProviderID             string
+	Name                   string
+}
+
+func (cpk *CustomPVKey) ID() string {
+	return cpk.ProviderID
+}
+
+func (cpk *CustomPVKey) GetStorageClass() string {
+	return cpk.StorageClassName
+}
+
+func (key *CustomPVKey) Features() string {
+	storageClass := key.StorageClassParameters["type"]
+	if storageClass == "standard" {
+		storageClass = "gp2"
+	}
+	// Storage class names are generally EBS volume types (gp2)
+	// Keys in Pricing are based on UsageTypes (EBS:VolumeType.gp2)
+	// Converts between the 2
+	region, ok := util.GetRegion(key.Labels)
+	if !ok {
+		region = key.DefaultRegion
+	}
+	return region
+}
+
+func (*CustomProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
+	return &CustomPVKey{
 		Labels:                 pv.Labels,
 		StorageClassName:       pv.Spec.StorageClassName,
 		StorageClassParameters: parameters,
@@ -328,14 +362,14 @@ func (cpk *customProviderKey) Features() string {
 	return "default" // TODO: multiple custom pricing support.
 }
 
-func (cp *CustomProvider) ServiceAccountStatus() *cloud.ServiceAccountStatus {
-	return &cloud.ServiceAccountStatus{
-		Checks: []*cloud.ServiceAccountCheck{},
+func (cp *CustomProvider) ServiceAccountStatus() *models.ServiceAccountStatus {
+	return &models.ServiceAccountStatus{
+		Checks: []*models.ServiceAccountCheck{},
 	}
 }
 
-func (cp *CustomProvider) PricingSourceStatus() map[string]*cloud.PricingSource {
-	return make(map[string]*cloud.PricingSource)
+func (cp *CustomProvider) PricingSourceStatus() map[string]*models.PricingSource {
+	return make(map[string]*models.PricingSource)
 }
 
 func (cp *CustomProvider) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {

@@ -17,8 +17,9 @@ import (
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/opencost/opencost/pkg/cloud"
-	"github.com/opencost/opencost/pkg/cloud/custom"
+	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloud/provider"
+	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/kubecost"
@@ -311,8 +312,8 @@ type AlibabaPricing struct {
 	NodeAttributes *AlibabaNodeAttributes
 	PVAttributes   *AlibabaPVAttributes
 	PricingTerms   *AlibabaPricingTerms
-	Node           *cloud.Node
-	PV             *cloud.PV
+	Node           *models.Node
+	PV             *models.PV
 }
 
 // Alibaba cloud's Provider struct
@@ -323,12 +324,11 @@ type Alibaba struct {
 	// Lock Needed to provide thread safe
 	DownloadPricingDataLock sync.RWMutex
 	Clientset               clustercache.ClusterCache
-	Config                  *cloud.ProviderConfig
-	*custom.CustomProvider
+	Config                  *provider.ProviderConfig
 
 	// The following fields are unexported because of avoiding any leak of secrets of these keys.
 	// Alibaba Access key used specifically in signer interface used to sign API calls
-	serviceAccountChecks *cloud.ServiceAccountChecks
+	serviceAccountChecks *models.ServiceAccountChecks
 	clusterAccountId     string
 	clusterRegion        string
 	accessKey            *credentials.AccessKeyCredential
@@ -336,7 +336,7 @@ type Alibaba struct {
 	clients map[string]*sdk.Client
 }
 
-func New(cache clustercache.ClusterCache, config *cloud.ProviderConfig, region string, accountID string, serviceAccountChecks *cloud.ServiceAccountChecks) (*Alibaba, error) {
+func New(cache clustercache.ClusterCache, config *provider.ProviderConfig, region string, accountID string, serviceAccountChecks *models.ServiceAccountChecks) (*Alibaba, error) {
 	return &Alibaba{
 		Clientset:            cache,
 		Config:               config,
@@ -520,7 +520,7 @@ func (alibaba *Alibaba) AllNodePricing() (interface{}, error) {
 }
 
 // NodePricing gives pricing information of a specific node given by the key
-func (alibaba *Alibaba) NodePricing(key cloud.Key) (*cloud.Node, error) {
+func (alibaba *Alibaba) NodePricing(key models.Key) (*models.Node, error) {
 	alibaba.DownloadPricingDataLock.RLock()
 	defer alibaba.DownloadPricingDataLock.RUnlock()
 
@@ -540,7 +540,7 @@ func (alibaba *Alibaba) NodePricing(key cloud.Key) (*cloud.Node, error) {
 }
 
 // PVPricing gives a pricing information of a specific PV given by PVkey
-func (alibaba *Alibaba) PVPricing(pvk cloud.PVKey) (*cloud.PV, error) {
+func (alibaba *Alibaba) PVPricing(pvk models.PVKey) (*models.PV, error) {
 	alibaba.DownloadPricingDataLock.RLock()
 	defer alibaba.DownloadPricingDataLock.RUnlock()
 
@@ -558,8 +558,8 @@ func (alibaba *Alibaba) PVPricing(pvk cloud.PVKey) (*cloud.PV, error) {
 }
 
 // Stubbed NetworkPricing for Alibaba Cloud. Will look at this in Next PR
-func (alibaba *Alibaba) NetworkPricing() (*cloud.Network, error) {
-	return &cloud.Network{
+func (alibaba *Alibaba) NetworkPricing() (*models.Network, error) {
+	return &models.Network{
 		ZoneNetworkEgressCost:     0.0,
 		RegionNetworkEgressCost:   0.0,
 		InternetNetworkEgressCost: 0.0,
@@ -567,13 +567,13 @@ func (alibaba *Alibaba) NetworkPricing() (*cloud.Network, error) {
 }
 
 // Stubbed LoadBalancerPricing for Alibaba Cloud. Will look at this in Next PR
-func (alibaba *Alibaba) LoadBalancerPricing() (*cloud.LoadBalancer, error) {
-	return &cloud.LoadBalancer{
+func (alibaba *Alibaba) LoadBalancerPricing() (*models.LoadBalancer, error) {
+	return &models.LoadBalancer{
 		Cost: 0.0,
 	}, nil
 }
 
-func (alibaba *Alibaba) GetConfig() (*cloud.CustomPricing, error) {
+func (alibaba *Alibaba) GetConfig() (*models.CustomPricing, error) {
 	c, err := alibaba.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
@@ -585,7 +585,7 @@ func (alibaba *Alibaba) GetConfig() (*cloud.CustomPricing, error) {
 		c.NegotiatedDiscount = "0%"
 	}
 	if c.ShareTenancyCosts == "" {
-		c.ShareTenancyCosts = cloud.DefaultShareTenancyCost
+		c.ShareTenancyCosts = provider.DefaultShareTenancyCost
 	}
 
 	return c, nil
@@ -599,14 +599,14 @@ func (alibaba *Alibaba) loadAlibabaAuthSecretAndSetEnv(force bool) error {
 		return nil
 	}
 
-	exists, err := fileutil.FileExists(cloud.AuthSecretPath)
+	exists, err := fileutil.FileExists(provider.AuthSecretPath)
 	if !exists || err != nil {
-		return fmt.Errorf("failed to locate service account file: %s with err: %w", cloud.AuthSecretPath, err)
+		return fmt.Errorf("failed to locate service account file: %s with err: %w", provider.AuthSecretPath, err)
 	}
 
-	result, err := os.ReadFile(cloud.AuthSecretPath)
+	result, err := os.ReadFile(provider.AuthSecretPath)
 	if err != nil {
-		return fmt.Errorf("failed to read service account file: %s with err: %w", cloud.AuthSecretPath, err)
+		return fmt.Errorf("failed to read service account file: %s with err: %w", provider.AuthSecretPath, err)
 	}
 
 	var ak *AlibabaAccessKey
@@ -681,12 +681,12 @@ func (alibaba *Alibaba) GetDisks() ([]byte, error) {
 	return nil, nil
 }
 
-func (alibaba *Alibaba) GetOrphanedResources() ([]cloud.OrphanedResource, error) {
+func (alibaba *Alibaba) GetOrphanedResources() ([]models.OrphanedResource, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (alibaba *Alibaba) UpdateConfig(r io.Reader, updateType string) (*cloud.CustomPricing, error) {
-	return alibaba.Config.Update(func(c *cloud.CustomPricing) error {
+func (alibaba *Alibaba) UpdateConfig(r io.Reader, updateType string) (*models.CustomPricing, error) {
+	return alibaba.Config.Update(func(c *models.CustomPricing) error {
 		if updateType != "" {
 			return fmt.Errorf("UpdateConfig for Alibaba Provider doesn't support updateType %s at this time", updateType)
 
@@ -697,10 +697,10 @@ func (alibaba *Alibaba) UpdateConfig(r io.Reader, updateType string) (*cloud.Cus
 				return err
 			}
 			for k, v := range a {
-				kUpper := cloud.ToTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+				kUpper := utils.ToTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
 				vstr, ok := v.(string)
 				if ok {
-					err := cloud.SetCustomPricingField(c, kUpper, vstr)
+					err := provider.SetCustomPricingField(c, kUpper, vstr)
 					if err != nil {
 						return err
 					}
@@ -711,7 +711,7 @@ func (alibaba *Alibaba) UpdateConfig(r io.Reader, updateType string) (*cloud.Cus
 		}
 
 		if env.IsRemoteEnabled() {
-			err := cloud.UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
+			err := utils.UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return err
 			}
@@ -720,7 +720,7 @@ func (alibaba *Alibaba) UpdateConfig(r io.Reader, updateType string) (*cloud.Cus
 	})
 }
 
-func (alibaba *Alibaba) UpdateConfigFromConfigMap(cm map[string]string) (*cloud.CustomPricing, error) {
+func (alibaba *Alibaba) UpdateConfigFromConfigMap(cm map[string]string) (*models.CustomPricing, error) {
 	return alibaba.Config.UpdateFromMap(cm)
 }
 
@@ -735,18 +735,18 @@ func (alibaba *Alibaba) GetLocalStorageQuery(window, offset time.Duration, rate 
 }
 
 // Will look at this in Next PR if needed
-func (alibaba *Alibaba) ApplyReservedInstancePricing(nodes map[string]*cloud.Node) {
+func (alibaba *Alibaba) ApplyReservedInstancePricing(nodes map[string]*models.Node) {
 
 }
 
 // Will look at this in Next PR if needed
-func (alibaba *Alibaba) ServiceAccountStatus() *cloud.ServiceAccountStatus {
-	return &cloud.ServiceAccountStatus{}
+func (alibaba *Alibaba) ServiceAccountStatus() *models.ServiceAccountStatus {
+	return &models.ServiceAccountStatus{}
 }
 
 // Will look at this in Next PR if needed
-func (alibaba *Alibaba) PricingSourceStatus() map[string]*cloud.PricingSource {
-	return map[string]*cloud.PricingSource{}
+func (alibaba *Alibaba) PricingSourceStatus() map[string]*models.PricingSource {
+	return map[string]*models.PricingSource{}
 }
 
 // Will look at this in Next PR if needed
@@ -813,7 +813,7 @@ func (alibabaNodeKey *AlibabaNodeKey) GPUCount() int {
 }
 
 // Get's the key for the k8s node input
-func (alibaba *Alibaba) GetKey(mapValue map[string]string, node *v1.Node) cloud.Key {
+func (alibaba *Alibaba) GetKey(mapValue map[string]string, node *v1.Node) models.Key {
 	slimK8sNode := generateSlimK8sNodeFromV1Node(node)
 
 	var aak *credentials.AccessKeyCredential
@@ -868,48 +868,50 @@ func (alibaba *Alibaba) GetKey(mapValue map[string]string, node *v1.Node) cloud.
 	return NewAlibabaNodeKey(slimK8sNode, optimizedKeyword, diskCategory, diskSizeInGiB, diskPerformanceLevel)
 }
 
-type AlibabaPVKey struct {
-	ProviderID        string
-	RegionID          string
-	PVType            string
-	PVSubType         string
-	PVCategory        string
-	PVPerformaceLevel string
-	StorageClassName  string
-	SizeInGiB         string
+type pvKey struct {
+	ProviderID             string
+	Labels                 map[string]string
+	StorageClass           string
+	StorageClassParameters map[string]string
+	DefaultRegion          string
+	PVType                 string
+	PVSubType              string
+	PVCategory             string
+	PVPerformaceLevel      string
+	SizeInGiB              string
 }
 
-func (alibaba *Alibaba) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) cloud.PVKey {
+func (alibaba *Alibaba) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
 	regionID := defaultRegion
 	// If default Region is not passed default it to cluster region ID.
 	if defaultRegion == "" {
 		regionID = alibaba.clusterRegion
 	}
 	slimK8sDisk := generateSlimK8sDiskFromV1PV(pv, defaultRegion)
-	return &AlibabaPVKey{
+	return &pvKey{
 		ProviderID:        slimK8sDisk.ProviderID,
-		RegionID:          regionID,
+		DefaultRegion:     regionID,
 		PVType:            ALIBABA_PV_CLOUD_DISK_TYPE,
 		PVSubType:         slimK8sDisk.DiskType,
 		PVCategory:        slimK8sDisk.DiskCategory,
 		PVPerformaceLevel: slimK8sDisk.PerformanceLevel,
-		StorageClassName:  pv.Spec.StorageClassName,
+		StorageClass:      pv.Spec.StorageClassName,
 		SizeInGiB:         slimK8sDisk.SizeInGiB,
 	}
 }
 
-func (alibabaPVKey *AlibabaPVKey) Features() string {
-	keyLookup := stringutil.DeleteEmptyStringsFromArray([]string{alibabaPVKey.RegionID, alibabaPVKey.PVSubType, alibabaPVKey.PVCategory, alibabaPVKey.PVPerformaceLevel, alibabaPVKey.SizeInGiB})
+func (alibabaPVKey *pvKey) Features() string {
+	keyLookup := stringutil.DeleteEmptyStringsFromArray([]string{alibabaPVKey.DefaultRegion, alibabaPVKey.PVSubType, alibabaPVKey.PVCategory, alibabaPVKey.PVPerformaceLevel, alibabaPVKey.SizeInGiB})
 	return strings.Join(keyLookup, "::")
 }
 
-func (alibabaPVKey *AlibabaPVKey) ID() string {
+func (alibabaPVKey *pvKey) ID() string {
 	return alibabaPVKey.ProviderID
 }
 
 // Get storage class information for PV.
-func (alibabaPVKey *AlibabaPVKey) GetStorageClass() string {
-	return alibabaPVKey.StorageClassName
+func (alibabaPVKey *pvKey) GetStorageClass() string {
+	return alibabaPVKey.StorageClass
 }
 
 // Helper functions for alibabaprovider.go
@@ -1038,7 +1040,7 @@ type DescribePriceResponse struct {
 }
 
 // processDescribePriceAndCreateAlibabaPricing processes the DescribePrice API and generates the pricing information for alibaba node resource and alibaba pv resource that's backed by cloud disk.
-func processDescribePriceAndCreateAlibabaPricing(client *sdk.Client, i interface{}, signer *signers.AccessKeySigner, custom *cloud.CustomPricing) (pricing *AlibabaPricing, err error) {
+func processDescribePriceAndCreateAlibabaPricing(client *sdk.Client, i interface{}, signer *signers.AccessKeySigner, custom *models.CustomPricing) (pricing *AlibabaPricing, err error) {
 	pricing = &AlibabaPricing{}
 	var response DescribePriceResponse
 
@@ -1064,7 +1066,7 @@ func processDescribePriceAndCreateAlibabaPricing(client *sdk.Client, i interface
 				return nil, fmt.Errorf("unable to unmarshall json response to custom struct with err: %w", err)
 			}
 			// TO-DO : Ask in PR How to get the defaults is it equal to AWS/GCP defaults? And what needs to be returned
-			pricing.Node = &cloud.Node{
+			pricing.Node = &models.Node{
 				Cost:         fmt.Sprintf("%f", response.PriceInfo.Price.TradePrice),
 				BaseCPUPrice: custom.CPU,
 				BaseRAMPrice: custom.RAM,
@@ -1089,7 +1091,7 @@ func processDescribePriceAndCreateAlibabaPricing(client *sdk.Client, i interface
 				return nil, fmt.Errorf("unable to unmarshall json response to custom struct with err: %w", err)
 			}
 			pricing.PVAttributes = NewAlibabaPVAttributes(disk)
-			pricing.PV = &cloud.PV{
+			pricing.PV = &models.PV{
 				Cost: fmt.Sprintf("%f", response.PriceInfo.Price.TradePrice),
 			}
 			// TO-DO : Disk has support for Hour and Month but pricing API is failing for month for disk(Research why?) and same challenge as node pricing no prepaid/postpaid distinction in v1.PersistentVolume object have to look at APIs for th information.
@@ -1209,7 +1211,7 @@ func generateSlimK8sNodeFromV1Node(node *v1.Node) *SlimK8sNode {
 	var ok, IsIoOptimized bool
 	if regionID, ok = node.Labels["topology.kubernetes.io/region"]; !ok {
 		// HIGHLY UNLIKELY THAT THIS LABEL WONT BE THERE.
-		log.Debugf("No RegionID label for the node: %s", node.Name)
+		log.Debugf("No DefaultRegion label for the node: %s", node.Name)
 	}
 	if osType, ok = node.Labels["beta.kubernetes.io/os"]; !ok {
 		// HIGHLY UNLIKELY THAT THIS LABEL WONT BE THERE.

@@ -3,7 +3,7 @@ package gcp
 import (
 	"testing"
 
-	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/aws"
 )
 
 func TestParseGCPInstanceTypeLabel(t *testing.T) {
@@ -91,7 +91,7 @@ func TestGetUsageType(t *testing.T) {
 		},
 		{
 			input: map[string]string{
-				cloud.KarpenterCapacityTypeLabel: cloud.KarpenterCapacitySpotTypeValue,
+				aws.KarpenterCapacityTypeLabel: aws.KarpenterCapacitySpotTypeValue,
 			},
 			expected: "preemptible",
 		},

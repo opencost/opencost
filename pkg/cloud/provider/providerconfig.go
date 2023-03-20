@@ -1,4 +1,4 @@
-package cloud
+package provider
 
 import (
 	"fmt"
@@ -9,10 +9,18 @@ import (
 
 	"github.com/microcosm-cc/bluemonday"
 
+	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util/json"
+)
+
+const (
+	DefaultPrices           models.PricingType = "defaultPrices"
+	DefaultShareTenancyCost                    = "true"
+	AuthSecretPath                             = "/var/secrets/service-key.json"
 )
 
 var sanitizePolicy = bluemonday.UGCPolicy()
@@ -23,7 +31,7 @@ type ProviderConfig struct {
 	lock            *sync.Mutex
 	configManager   *config.ConfigFileManager
 	configFile      *config.ConfigFile
-	customPricing   *CustomPricing
+	customPricing   *models.CustomPricing
 	watcherHandleID config.HandlerID
 }
 
@@ -56,7 +64,7 @@ func (pc *ProviderConfig) onConfigFileUpdated(changeType config.ChangeType, data
 		pc.lock.Lock()
 		defer pc.lock.Unlock()
 
-		customPricing := new(CustomPricing)
+		customPricing := new(models.CustomPricing)
 		err := json.Unmarshal(data, customPricing)
 		if err != nil {
 			log.Infof("Could not decode Custom Pricing file at path %s. Using default.", pc.configFile.Path())
@@ -76,7 +84,7 @@ func (pc *ProviderConfig) onConfigFileUpdated(changeType config.ChangeType, data
 
 // Non-ThreadSafe logic to load the config file if a cache does not exist. Flag to write
 // the default config if the config file doesn't exist.
-func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*CustomPricing, error) {
+func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*models.CustomPricing, error) {
 	if pc.customPricing != nil {
 		return pc.customPricing, nil
 	}
@@ -118,7 +126,7 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*CustomPricing, err
 		return DefaultPricing(), err
 	}
 
-	var customPricing CustomPricing
+	var customPricing models.CustomPricing
 	err = json.Unmarshal(byteValue, &customPricing)
 	if err != nil {
 		log.Infof("Could not decode Custom Pricing file at path %s", pc.configFile.Path())
@@ -138,7 +146,7 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*CustomPricing, err
 }
 
 // ThreadSafe method for retrieving the custom pricing config.
-func (pc *ProviderConfig) GetCustomPricingData() (*CustomPricing, error) {
+func (pc *ProviderConfig) GetCustomPricingData() (*models.CustomPricing, error) {
 	pc.lock.Lock()
 	defer pc.lock.Unlock()
 
@@ -154,7 +162,7 @@ func (pc *ProviderConfig) ConfigFileManager() *config.ConfigFileManager {
 
 // Allows a call to manually update the configuration while maintaining proper thread-safety
 // for read/write methods.
-func (pc *ProviderConfig) Update(updateFunc func(*CustomPricing) error) (*CustomPricing, error) {
+func (pc *ProviderConfig) Update(updateFunc func(*models.CustomPricing) error) (*models.CustomPricing, error) {
 	pc.lock.Lock()
 	defer pc.lock.Unlock()
 
@@ -186,12 +194,12 @@ func (pc *ProviderConfig) Update(updateFunc func(*CustomPricing) error) (*Custom
 }
 
 // ThreadSafe update of the config using a string map
-func (pc *ProviderConfig) UpdateFromMap(a map[string]string) (*CustomPricing, error) {
+func (pc *ProviderConfig) UpdateFromMap(a map[string]string) (*models.CustomPricing, error) {
 	// Run our Update() method using SetCustomPricingField logic
-	return pc.Update(func(c *CustomPricing) error {
+	return pc.Update(func(c *models.CustomPricing) error {
 		for k, v := range a {
 			// Just so we consistently supply / receive the same values, uppercase the first letter.
-			kUpper := ToTitle.String(k)
+			kUpper := utils.ToTitle.String(k)
 			if kUpper == "CPU" || kUpper == "SpotCPU" || kUpper == "RAM" || kUpper == "SpotRAM" || kUpper == "GPU" || kUpper == "Storage" {
 				val, err := strconv.ParseFloat(v, 64)
 				if err != nil {
@@ -211,9 +219,9 @@ func (pc *ProviderConfig) UpdateFromMap(a map[string]string) (*CustomPricing, er
 }
 
 // DefaultPricing should be returned so we can do computation even if no file is supplied.
-func DefaultPricing() *CustomPricing {
+func DefaultPricing() *models.CustomPricing {
 	// https://cloud.google.com/compute/all-pricing
-	return &CustomPricing{
+	return &models.CustomPricing{
 		Provider:    "base",
 		Description: "Default prices based on GCP us-central1",
 
@@ -245,7 +253,7 @@ func DefaultPricing() *CustomPricing {
 	}
 }
 
-func SetCustomPricingField(obj *CustomPricing, name string, value string) error {
+func SetCustomPricingField(obj *models.CustomPricing, name string, value string) error {
 
 	structValue := reflect.ValueOf(obj).Elem()
 	structFieldValue := structValue.FieldByName(name)

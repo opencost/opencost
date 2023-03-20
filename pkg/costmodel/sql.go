@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util"
@@ -14,8 +14,8 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func getPVCosts(db *sql.DB) (map[string]*costAnalyzerCloud.PV, error) {
-	pvs := make(map[string]*costAnalyzerCloud.PV)
+func getPVCosts(db *sql.DB) (map[string]*models.PV, error) {
+	pvs := make(map[string]*models.PV)
 	query := `SELECT name, avg(value),labels->>'volumename' AS volumename, labels->>'cluster_id' AS clusterid
 	FROM metrics
 	WHERE (name='pv_hourly_cost')  AND value != 'NaN' AND value != 0
@@ -35,16 +35,16 @@ func getPVCosts(db *sql.DB) (map[string]*costAnalyzerCloud.PV, error) {
 		if err := rows.Scan(&name, &avg, &volumename, &clusterid); err != nil {
 			return nil, err
 		}
-		pvs[volumename] = &costAnalyzerCloud.PV{
+		pvs[volumename] = &models.PV{
 			Cost: fmt.Sprintf("%f", avg),
 		}
 	}
 	return pvs, nil
 }
 
-func getNodeCosts(db *sql.DB) (map[string]*costAnalyzerCloud.Node, error) {
+func getNodeCosts(db *sql.DB) (map[string]*models.Node, error) {
 
-	nodes := make(map[string]*costAnalyzerCloud.Node)
+	nodes := make(map[string]*models.Node)
 
 	query := `SELECT name, avg(value),labels->>'instance' AS instance, labels->>'cluster_id' AS clusterid
 	FROM metrics
@@ -74,7 +74,7 @@ func getNodeCosts(db *sql.DB) (map[string]*costAnalyzerCloud.Node, error) {
 				data.GPUCost = fmt.Sprintf("%f", avg)
 			}
 		} else {
-			nodes[instance] = &costAnalyzerCloud.Node{}
+			nodes[instance] = &models.Node{}
 			data := nodes[instance]
 			if name == "node_cpu_hourly_cost" {
 				data.VCPUCost = fmt.Sprintf("%f", avg)

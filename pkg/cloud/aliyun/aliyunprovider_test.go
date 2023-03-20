@@ -10,7 +10,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/models"
 )
 
 func TestCreateDescribePriceACSRequest(t *testing.T) {
@@ -410,7 +410,7 @@ func TestProcessDescribePriceAndCreateAlibabaPricing(t *testing.T) {
 			expectedError: nil,
 		},
 	}
-	custom := &cloud.CustomPricing{}
+	custom := &models.CustomPricing{}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			pricingObj, err := processDescribePriceAndCreateAlibabaPricing(client, c.teststruct, signer, custom)
@@ -471,7 +471,7 @@ func TestDetermineKeyForPricing(t *testing.T) {
 		expectedError error
 	}{
 		{
-			name: "test when all RegionID, InstanceType, OSType & ALIBABA_OPTIMIZE_KEYWORD words are used in Node key",
+			name: "test when all DefaultRegion, InstanceType, OSType & ALIBABA_OPTIMIZE_KEYWORD words are used in Node key",
 			testVar: &SlimK8sNode{
 				InstanceType:       "ecs.sn2.large",
 				RegionID:           "cn-hangzhou",
@@ -562,7 +562,7 @@ func TestDetermineKeyForPricing(t *testing.T) {
 			expectedError: fmt.Errorf("unsupported ECS type randomK8sStruct for DescribePrice at this time"),
 		},
 		{
-			name: "test when all RegionID, InstanceType, OSType & ALIBABA_OPTIMIZE_KEYWORD words are used to key",
+			name: "test when all DefaultRegion, InstanceType, OSType & ALIBABA_OPTIMIZE_KEYWORD words are used to key",
 			testVar: &SlimK8sDisk{
 				DiskType:     "data",
 				RegionID:     "cn-hangzhou",
@@ -639,7 +639,7 @@ func TestGenerateSlimK8sNodeFromV1Node(t *testing.T) {
 				t.Fatalf("unexpected conversion in function generateSlimK8sNodeFromV1Node expected InstanceType: %s , recieved InstanceType: %s", c.expectedSlimNode.InstanceType, returnSlimK8sNode.InstanceType)
 			}
 			if returnSlimK8sNode.RegionID != c.expectedSlimNode.RegionID {
-				t.Fatalf("unexpected conversion in function generateSlimK8sNodeFromV1Node expected RegionID: %s , recieved RegionID: %s", c.expectedSlimNode.RegionID, returnSlimK8sNode.RegionID)
+				t.Fatalf("unexpected conversion in function generateSlimK8sNodeFromV1Node expected DefaultRegion: %s , recieved DefaultRegion: %s", c.expectedSlimNode.RegionID, returnSlimK8sNode.RegionID)
 			}
 			if returnSlimK8sNode.PriceUnit != c.expectedSlimNode.PriceUnit {
 				t.Fatalf("unexpected conversion in function generateSlimK8sNodeFromV1Node expected PriceUnit: %s , recieved PriceUnit: %s", c.expectedSlimNode.PriceUnit, returnSlimK8sNode.PriceUnit)
@@ -699,7 +699,7 @@ func TestGenerateSlimK8sDiskFromV1PV(t *testing.T) {
 				t.Fatalf("unexpected conversion in function generateSlimK8sDiskFromV1PV expected DiskType: %s , recieved DiskType: %s", c.expectedSlimDisk.DiskType, returnSlimK8sDisk.DiskType)
 			}
 			if returnSlimK8sDisk.RegionID != c.expectedSlimDisk.RegionID {
-				t.Fatalf("unexpected conversion in function generateSlimK8sDiskFromV1PV expected RegionID: %s , recieved RegionID Type: %s", c.expectedSlimDisk.RegionID, returnSlimK8sDisk.RegionID)
+				t.Fatalf("unexpected conversion in function generateSlimK8sDiskFromV1PV expected DefaultRegion: %s , recieved DefaultRegion Type: %s", c.expectedSlimDisk.RegionID, returnSlimK8sDisk.RegionID)
 			}
 			if returnSlimK8sDisk.PriceUnit != c.expectedSlimDisk.PriceUnit {
 				t.Fatalf("unexpected conversion in function generateSlimK8sDiskFromV1PV expected PriceUnit: %s , recieved PriceUnit Type: %s", c.expectedSlimDisk.PriceUnit, returnSlimK8sDisk.PriceUnit)

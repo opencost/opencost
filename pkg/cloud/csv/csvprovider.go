@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud"
-	aws2 "github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/custom"
+	custom2 "github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/util"
 
@@ -226,31 +226,31 @@ func (k *csvKey) ID() string {
 	return k.ProviderID
 }
 
-func (c *CSVProvider) NodePricing(key cloud.Key) (*cloud.Node, error) {
+func (c *CSVProvider) NodePricing(key custom2.Key) (*custom2.Node, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
-	var node *cloud.Node
+	var node *custom2.Node
 	if p, ok := c.Pricing[key.ID()]; ok {
-		node = &cloud.Node{
+		node = &custom2.Node{
 			Cost:        p.MarketPriceHourly,
-			PricingType: cloud.CsvExact,
+			PricingType: custom2.CsvExact,
 		}
 	}
 	s := strings.Split(key.ID(), ",") // Try without a region to be sure
 	if len(s) == 2 {
 		if p, ok := c.Pricing[s[1]]; ok {
-			node = &cloud.Node{
+			node = &custom2.Node{
 				Cost:        p.MarketPriceHourly,
-				PricingType: cloud.CsvExact,
+				PricingType: custom2.CsvExact,
 			}
 		}
 	}
 	classKey := key.Features() // Use node attributes to try and do a class match
 	if cost, ok := c.NodeClassPricing[classKey]; ok {
 		log.Infof("Unable to find provider ID `%s`, using features:`%s`", key.ID(), key.Features())
-		node = &cloud.Node{
+		node = &custom2.Node{
 			Cost:        fmt.Sprintf("%f", cost),
-			PricingType: cloud.CsvClass,
+			PricingType: custom2.CsvClass,
 		}
 	}
 
@@ -292,7 +292,7 @@ func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
 		}
 	}
 	if len(mf) == 2 && mf[0] == "spec" && mf[1] == "providerID" {
-		for matchNum, group := range aws2.provIdRx.FindStringSubmatch(n.Spec.ProviderID) {
+		for matchNum, group := range utils.AWSProviderIDRegex.FindStringSubmatch(n.Spec.ProviderID) {
 			if matchNum == 2 {
 				return toReturn + group
 			}
@@ -350,7 +350,7 @@ func PVValueFromMapField(m string, n *v1.PersistentVolume) string {
 	}
 }
 
-func (c *CSVProvider) GetKey(l map[string]string, n *v1.Node) cloud.Key {
+func (c *CSVProvider) GetKey(l map[string]string, n *v1.Node) custom2.Key {
 	id := NodeValueFromMapField(c.NodeMapField, n, c.UsesRegion)
 	var gpuCount int64
 	gpuCount = 0
@@ -386,7 +386,7 @@ func (key *csvPVKey) Features() string {
 	return key.ProviderID
 }
 
-func (c *CSVProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) cloud.PVKey {
+func (c *CSVProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) custom2.PVKey {
 	id := PVValueFromMapField(c.PVMapField, pv)
 	return &csvPVKey{
 		Labels:                 pv.Labels,
@@ -398,22 +398,22 @@ func (c *CSVProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]st
 	}
 }
 
-func (c *CSVProvider) PVPricing(pvk cloud.PVKey) (*cloud.PV, error) {
+func (c *CSVProvider) PVPricing(pvk custom2.PVKey) (*custom2.PV, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
 	pricing, ok := c.PricingPV[pvk.Features()]
 	if !ok {
 		log.Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
-		return &cloud.PV{}, nil
+		return &custom2.PV{}, nil
 	}
-	return &cloud.PV{
+	return &custom2.PV{
 		Cost: pricing.MarketPriceHourly,
 	}, nil
 }
 
-func (c *CSVProvider) ServiceAccountStatus() *cloud.ServiceAccountStatus {
-	return &cloud.ServiceAccountStatus{
-		Checks: []*cloud.ServiceAccountCheck{},
+func (c *CSVProvider) ServiceAccountStatus() *custom2.ServiceAccountStatus {
+	return &custom2.ServiceAccountStatus{
+		Checks: []*custom2.ServiceAccountCheck{},
 	}
 }
 
