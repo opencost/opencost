@@ -8,6 +8,12 @@ import (
 	"strings"
 	"time"
 
+	prometheus "github.com/prometheus/client_golang/api"
+	prometheusClient "github.com/prometheus/client_golang/api"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+
 	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/costmodel/clusters"
@@ -16,11 +22,6 @@ import (
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/prom"
 	"github.com/opencost/opencost/pkg/util"
-	prometheus "github.com/prometheus/client_golang/api"
-	prometheusClient "github.com/prometheus/client_golang/api"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 
 	"golang.org/x/sync/singleflight"
 )
@@ -879,7 +880,7 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 	}
 
 	pvs := cache.GetAllPersistentVolumes()
-	pvMap := make(map[string]*costAnalyzerCloud.PV)
+	pvMap := make(map[string]*cloud.PV)
 	for _, pv := range pvs {
 		parameters, ok := storageClassMap[pv.Spec.StorageClassName]
 		if !ok {
@@ -892,7 +893,7 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 			region = defaultRegion
 		}
 
-		cacPv := &costAnalyzerCloud.PV{
+		cacPv := &cloud.PV{
 			Class:      pv.Spec.StorageClassName,
 			Region:     region,
 			Parameters: parameters,
@@ -909,7 +910,7 @@ func addPVData(cache clustercache.ClusterCache, pvClaimMapping map[string]*Persi
 			pvc.Volume = vol
 		} else {
 			log.Debugf("PV not found, using default")
-			pvc.Volume = &costAnalyzerCloud.PV{
+			pvc.Volume = &cloud.PV{
 				Cost: cfg.Storage,
 			}
 		}

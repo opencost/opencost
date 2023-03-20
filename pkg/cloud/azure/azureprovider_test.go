@@ -1,4 +1,4 @@
-package cloud
+package azure
 
 import (
 	"testing"
@@ -28,7 +28,7 @@ func TestParseAzureSubscriptionID(t *testing.T) {
 	}
 
 	for _, test := range cases {
-		result := parseAzureSubscriptionID(test.input)
+		result := ParseAzureSubscriptionID(test.input)
 		if result != test.expected {
 			t.Errorf("Input: %s, Expected: %s, Actual: %s", test.input, test.expected, result)
 		}

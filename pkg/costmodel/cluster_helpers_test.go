@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/custom"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/prom"
 	"github.com/opencost/opencost/pkg/util"
@@ -853,7 +854,7 @@ func TestBuildGPUCostMap(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			testProvider := &cloud.CustomProvider{
+			testProvider := &custom.CustomProvider{
 				Config: cloud.NewProviderConfig(config.NewConfigFileManager(nil), "fakeFile"),
 			}
 			testPreemptible := make(map[NodeIdentifier]bool)
@@ -1042,7 +1043,7 @@ func TestAssetCustompricing(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			testProvider := &cloud.CustomProvider{
+			testProvider := &custom.CustomProvider{
 				Config: cloud.NewProviderConfig(config.NewConfigFileManager(nil), ""),
 			}
 			testProvider.UpdateConfigFromConfigMap(testCase.customPricingMap)

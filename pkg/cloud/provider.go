@@ -4,16 +4,23 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 	"io"
-	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
+	"github.com/opencost/opencost/pkg/cloud/aliyun"
+	"github.com/opencost/opencost/pkg/cloud/aws"
+	"github.com/opencost/opencost/pkg/cloud/azure"
+	"github.com/opencost/opencost/pkg/cloud/csv"
+	"github.com/opencost/opencost/pkg/cloud/custom"
+	"github.com/opencost/opencost/pkg/cloud/gcp"
+	"github.com/opencost/opencost/pkg/cloud/scaleway"
 	"github.com/opencost/opencost/pkg/kubecost"
 
 	"github.com/opencost/opencost/pkg/util"
@@ -24,20 +31,18 @@ import (
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/util/httputil"
 	"github.com/opencost/opencost/pkg/util/watcher"
 
 	v1 "k8s.io/api/core/v1"
 )
 
-const authSecretPath = "/var/secrets/service-key.json"
-const storageConfigSecretPath = "/var/azure-storage-config/azure-storage-config.json"
-const defaultShareTenancyCost = "true"
+const AuthSecretPath = "/var/secrets/service-key.json"
+const DefaultShareTenancyCost = "true"
 
 const KarpenterCapacityTypeLabel = "karpenter.sh/capacity-type"
 const KarpenterCapacitySpotTypeValue = "spot"
 
-var toTitle = cases.Title(language.Und, cases.NoLower)
+var ToTitle = cases.Title(language.Und, cases.NoLower)
 
 var createTableStatements = []string{
 	`CREATE TABLE IF NOT EXISTS names (
@@ -268,14 +273,14 @@ func NewServiceAccountChecks() *ServiceAccountChecks {
 	}
 }
 
-func (sac *ServiceAccountChecks) set(key string, check *ServiceAccountCheck) {
+func (sac *ServiceAccountChecks) Set(key string, check *ServiceAccountCheck) {
 	sac.Lock()
 	defer sac.Unlock()
 	sac.serviceAccountChecks[key] = check
 }
 
-// getStatus extracts ServiceAccountCheck objects into a slice and returns them in a ServiceAccountStatus
-func (sac *ServiceAccountChecks) getStatus() *ServiceAccountStatus {
+// GetStatus extracts ServiceAccountCheck objects into a slice and returns them in a ServiceAccountStatus
+func (sac *ServiceAccountChecks) GetStatus() *ServiceAccountStatus {
 	sac.Lock()
 	defer sac.Unlock()
 	checks := []*ServiceAccountCheck{}
@@ -421,7 +426,7 @@ func SharedNamespaces(p Provider) []string {
 	return namespaces
 }
 
-// SharedLabel returns the configured set of shared labels as a parallel tuple of keys to values; e.g.
+// SharedLabel returns the configured Set of shared labels as a parallel tuple of keys to values; e.g.
 // for app:kubecost,type:staging this returns (["app", "type"], ["kubecost", "staging"]) in order to
 // match the signature of the NewSharedResourceInfo
 func SharedLabels(p Provider) ([]string, []string) {
@@ -468,7 +473,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 	nodes := cache.GetAllNodes()
 	if len(nodes) == 0 {
 		log.Infof("Could not locate any nodes for cluster.") // valid in ETL readonly mode
-		return &CustomProvider{
+		return &custom.CustomProvider{
 			Clientset: cache,
 			Config:    NewProviderConfig(config, "default.json"),
 		}, nil
@@ -479,9 +484,9 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 	switch cp.provider {
 	case kubecost.CSVProvider:
 		log.Infof("Using CSV Provider with CSV at %s", env.GetCSVPath())
-		return &CSVProvider{
+		return &csv.CSVProvider{
 			CSVLocation: env.GetCSVPath(),
-			CustomProvider: &CustomProvider{
+			CustomProvider: &custom.CustomProvider{
 				Clientset: cache,
 				Config:    NewProviderConfig(config, cp.configFileName),
 			},
@@ -489,55 +494,29 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 	case kubecost.GCPProvider:
 		log.Info("Found ProviderID starting with \"gce\", using GCP Provider")
 		if apiKey == "" {
-			return nil, errors.New("Supply a GCP Key to start getting data")
+			return nil, errors.New("supply a GCP Key to start getting data")
 		}
-		return &GCP{
-			Clientset:        cache,
-			APIKey:           apiKey,
-			Config:           NewProviderConfig(config, cp.configFileName),
-			clusterRegion:    cp.region,
-			clusterProjectId: cp.projectID,
-			metadataClient: metadata.NewClient(&http.Client{
-				Transport: httputil.NewUserAgentTransport("kubecost", http.DefaultTransport),
-			}),
-		}, nil
+
+		return gcp.New(cache, apiKey, NewProviderConfig(config, cp.configFileName), cp.region, cp.projectID)
 	case kubecost.AWSProvider:
 		log.Info("Found ProviderID starting with \"aws\", using AWS Provider")
-		return &AWS{
-			Clientset:            cache,
-			Config:               NewProviderConfig(config, cp.configFileName),
-			clusterRegion:        cp.region,
-			clusterAccountId:     cp.accountID,
-			serviceAccountChecks: NewServiceAccountChecks(),
-		}, nil
+		return aws.New(cache, NewProviderConfig(config, cp.configFileName), cp.region, cp.accountID, NewServiceAccountChecks())
 	case kubecost.AzureProvider:
 		log.Info("Found ProviderID starting with \"azure\", using Azure Provider")
-		return &Azure{
-			Clientset:            cache,
-			Config:               NewProviderConfig(config, cp.configFileName),
-			clusterRegion:        cp.region,
-			clusterAccountId:     cp.accountID,
-			serviceAccountChecks: NewServiceAccountChecks(),
-		}, nil
+		return azure.New(cache, NewProviderConfig(config, cp.configFileName), cp.region, cp.accountID, NewServiceAccountChecks())
 	case kubecost.AlibabaProvider:
 		log.Info("Found ProviderID starting with \"alibaba\", using Alibaba Cloud Provider")
-		return &Alibaba{
-			Clientset:            cache,
-			Config:               NewProviderConfig(config, cp.configFileName),
-			clusterRegion:        cp.region,
-			clusterAccountId:     cp.accountID,
-			serviceAccountChecks: NewServiceAccountChecks(),
-		}, nil
+		return aliyun.New(cache, NewProviderConfig(config, cp.configFileName), cp.region, cp.accountID, NewServiceAccountChecks())
 	case kubecost.ScalewayProvider:
 		log.Info("Found ProviderID starting with \"scaleway\", using Scaleway Provider")
-		return &Scaleway{
+		return &scaleway.Scaleway{
 			Clientset: cache,
 			Config:    NewProviderConfig(config, cp.configFileName),
 		}, nil
 
 	default:
 		log.Info("Unsupported provider, falling back to default")
-		return &CustomProvider{
+		return &custom.CustomProvider{
 			Clientset: cache,
 			Config:    NewProviderConfig(config, cp.configFileName),
 		}, nil
@@ -566,14 +545,14 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 	if metadata.OnGCE() || strings.HasPrefix(providerID, "gce") {
 		cp.provider = kubecost.GCPProvider
 		cp.configFileName = "gcp.json"
-		cp.projectID = parseGCPProjectID(providerID)
+		cp.projectID = gcp.ParseGCPProjectID(providerID)
 	} else if strings.HasPrefix(providerID, "aws") {
 		cp.provider = kubecost.AWSProvider
 		cp.configFileName = "aws.json"
 	} else if strings.HasPrefix(providerID, "azure") {
 		cp.provider = kubecost.AzureProvider
 		cp.configFileName = "azure.json"
-		cp.accountID = parseAzureSubscriptionID(providerID)
+		cp.accountID = azure.ParseAzureSubscriptionID(providerID)
 	} else if strings.HasPrefix(providerID, "scaleway") { // the scaleway provider ID looks like scaleway://instance/<instance_id>
 		cp.provider = kubecost.ScalewayProvider
 		cp.configFileName = "scaleway.json"

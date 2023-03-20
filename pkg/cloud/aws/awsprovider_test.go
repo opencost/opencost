@@ -1,6 +1,10 @@
-package cloud
+package aws
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/opencost/opencost/pkg/cloud"
+)
 
 func Test_awsKey_getUsageType(t *testing.T) {
 	type fields struct {
@@ -55,7 +59,7 @@ func Test_awsKey_getUsageType(t *testing.T) {
 			name: "Karpenter label with a capacityType set to empty string should return empty string",
 			args: args{
 				labels: map[string]string{
-					KarpenterCapacityTypeLabel: "",
+					cloud.KarpenterCapacityTypeLabel: "",
 				},
 			},
 			want: "",
@@ -64,7 +68,7 @@ func Test_awsKey_getUsageType(t *testing.T) {
 			name: "Karpenter label with capacityType set to a random value should return empty string",
 			args: args{
 				labels: map[string]string{
-					KarpenterCapacityTypeLabel: "TEST_ME",
+					cloud.KarpenterCapacityTypeLabel: "TEST_ME",
 				},
 			},
 			want: "",
@@ -73,7 +77,7 @@ func Test_awsKey_getUsageType(t *testing.T) {
 			name: "Karpenter label with capacityType set to spot should return spot",
 			args: args{
 				labels: map[string]string{
-					KarpenterCapacityTypeLabel: KarpenterCapacitySpotTypeValue,
+					cloud.KarpenterCapacityTypeLabel: cloud.KarpenterCapacitySpotTypeValue,
 				},
 			},
 			want: PreemptibleType,

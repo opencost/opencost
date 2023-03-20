@@ -1,4 +1,4 @@
-package cloud
+package aws
 
 import (
 	"bytes"
@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/custom"
 	"github.com/opencost/opencost/pkg/kubecost"
 
 	"github.com/opencost/opencost/pkg/clustercache"
@@ -68,11 +70,11 @@ var (
 	regionRx      = regexp.MustCompile("([a-z]+-[a-z]+-[0-9])")
 )
 
-func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
+func (aws *AWS) PricingSourceStatus() map[string]*cloud.PricingSource {
 
-	sources := make(map[string]*PricingSource)
+	sources := make(map[string]*cloud.PricingSource)
 
-	sps := &PricingSource{
+	sps := &cloud.PricingSource{
 		Name:    SpotPricingSource,
 		Enabled: true,
 	}
@@ -96,7 +98,7 @@ func (aws *AWS) PricingSourceStatus() map[string]*PricingSource {
 	}
 	sources[SpotPricingSource] = sps
 
-	rps := &PricingSource{
+	rps := &cloud.PricingSource{
 		Name:    ReservedInstancePricingSource,
 		Enabled: true,
 	}
@@ -176,13 +178,23 @@ type AWS struct {
 	SpotDataPrefix              string
 	ProjectID                   string
 	DownloadPricingDataLock     sync.RWMutex
-	Config                      *ProviderConfig
-	serviceAccountChecks        *ServiceAccountChecks
+	Config                      *cloud.ProviderConfig
+	serviceAccountChecks        *cloud.ServiceAccountChecks
 	clusterManagementPrice      float64
 	clusterAccountId            string
 	clusterRegion               string
 	clusterProvisioner          string
-	*CustomProvider
+	*custom.CustomProvider
+}
+
+func New(cache clustercache.ClusterCache, config *cloud.ProviderConfig, region string, accountID string, serviceAccountChecks *cloud.ServiceAccountChecks) (*AWS, error) {
+	return &AWS{
+		Clientset:            cache,
+		Config:               config,
+		clusterRegion:        region,
+		clusterAccountId:     accountID,
+		serviceAccountChecks: serviceAccountChecks,
+	}, nil
 }
 
 // AWSAccessKey holds AWS credentials and fulfils the awsV2.CredentialsProvider interface
@@ -293,7 +305,7 @@ type AWSProductTerms struct {
 	Storage  string        `json:"storage"`
 	VCpu     string        `json:"vcpu"`
 	GPU      string        `json:"gpu"` // GPU represents the number of GPU on the instance
-	PV       *PV           `json:"pv"`
+	PV       *cloud.PV     `json:"pv"`
 }
 
 // ClusterIdEnvVar is the environment variable in which one can manually set the ClusterId
@@ -473,7 +485,7 @@ func (aws *AWS) GetManagementPlatform() (string, error) {
 	return "", nil
 }
 
-func (aws *AWS) GetConfig() (*CustomPricing, error) {
+func (aws *AWS) GetConfig() (*cloud.CustomPricing, error) {
 	c, err := aws.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
@@ -485,7 +497,7 @@ func (aws *AWS) GetConfig() (*CustomPricing, error) {
 		c.NegotiatedDiscount = "0%"
 	}
 	if c.ShareTenancyCosts == "" {
-		c.ShareTenancyCosts = defaultShareTenancyCost
+		c.ShareTenancyCosts = cloud.DefaultShareTenancyCost
 	}
 
 	return c, nil
@@ -541,12 +553,12 @@ func (aws *AWS) GetAWSAthenaInfo() (*AwsAthenaInfo, error) {
 	}, nil
 }
 
-func (aws *AWS) UpdateConfigFromConfigMap(cm map[string]string) (*CustomPricing, error) {
+func (aws *AWS) UpdateConfigFromConfigMap(cm map[string]string) (*cloud.CustomPricing, error) {
 	return aws.Config.UpdateFromMap(cm)
 }
 
-func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
-	return aws.Config.Update(func(c *CustomPricing) error {
+func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*cloud.CustomPricing, error) {
+	return aws.Config.Update(func(c *cloud.CustomPricing) error {
 		if updateType == SpotInfoUpdateType {
 			asfi := AwsSpotFeedInfo{}
 			err := json.NewDecoder(r).Decode(&asfi)
@@ -591,10 +603,10 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 				return err
 			}
 			for k, v := range a {
-				kUpper := toTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+				kUpper := cloud.ToTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
 				vstr, ok := v.(string)
 				if ok {
-					err := SetCustomPricingField(c, kUpper, vstr)
+					err := cloud.SetCustomPricingField(c, kUpper, vstr)
 					if err != nil {
 						return err
 					}
@@ -605,7 +617,7 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 		}
 
 		if env.IsRemoteEnabled() {
-			err := UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
+			err := cloud.UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return err
 			}
@@ -671,17 +683,17 @@ func (k *awsKey) getUsageType(labels map[string]string) string {
 		// We currently write out spot instances as "preemptible" in the pricing data, so these need to match
 		return PreemptibleType
 	}
-	if kLabel, ok := labels[KarpenterCapacityTypeLabel]; ok && kLabel == KarpenterCapacitySpotTypeValue {
+	if kLabel, ok := labels[cloud.KarpenterCapacityTypeLabel]; ok && kLabel == cloud.KarpenterCapacitySpotTypeValue {
 		return PreemptibleType
 	}
 	return ""
 }
 
-func (aws *AWS) PVPricing(pvk PVKey) (*PV, error) {
+func (aws *AWS) PVPricing(pvk cloud.PVKey) (*cloud.PV, error) {
 	pricing, ok := aws.Pricing[pvk.Features()]
 	if !ok {
 		log.Debugf("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
-		return &PV{}, nil
+		return &cloud.PV{}, nil
 	}
 	return pricing.PV, nil
 }
@@ -695,7 +707,7 @@ type awsPVKey struct {
 	ProviderID             string
 }
 
-func (aws *AWS) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) PVKey {
+func (aws *AWS) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) cloud.PVKey {
 	providerID := ""
 	if pv.Spec.AWSElasticBlockStore != nil {
 		providerID = pv.Spec.AWSElasticBlockStore.VolumeID
@@ -740,7 +752,7 @@ func (key *awsPVKey) Features() string {
 }
 
 // GetKey maps node labels to information needed to retrieve pricing data
-func (aws *AWS) GetKey(labels map[string]string, n *v1.Node) Key {
+func (aws *AWS) GetKey(labels map[string]string, n *v1.Node) cloud.Key {
 	return &awsKey{
 		SpotLabelName:  aws.SpotLabelName,
 		SpotLabelValue: aws.SpotLabelValue,
@@ -870,7 +882,7 @@ func (aws *AWS) DownloadPricingData() error {
 		}
 	}
 
-	pvkeys := make(map[string]PVKey)
+	pvkeys := make(map[string]cloud.PVKey)
 	for _, pv := range pvList {
 		params, ok := storageClassMap[pv.Spec.StorageClassName]
 		if !ok {
@@ -985,7 +997,7 @@ func (aws *AWS) DownloadPricingData() error {
 					usageTypeNoRegion := usageTypeMatch[len(usageTypeMatch)-1]
 					key := locationToRegion[product.Attributes.Location] + "," + usageTypeNoRegion
 					spotKey := key + ",preemptible"
-					pv := &PV{
+					pv := &cloud.PV{
 						Class:  volTypes[usageTypeNoRegion],
 						Region: locationToRegion[product.Attributes.Location],
 					}
@@ -1127,7 +1139,7 @@ func (aws *AWS) refreshSpotPricing(force bool) {
 }
 
 // Stubbed NetworkPricing for AWS. Pull directly from aws.json for now
-func (aws *AWS) NetworkPricing() (*Network, error) {
+func (aws *AWS) NetworkPricing() (*cloud.Network, error) {
 	cpricing, err := aws.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
@@ -1145,14 +1157,14 @@ func (aws *AWS) NetworkPricing() (*Network, error) {
 		return nil, err
 	}
 
-	return &Network{
+	return &cloud.Network{
 		ZoneNetworkEgressCost:     znec,
 		RegionNetworkEgressCost:   rnec,
 		InternetNetworkEgressCost: inec,
 	}, nil
 }
 
-func (aws *AWS) LoadBalancerPricing() (*LoadBalancer, error) {
+func (aws *AWS) LoadBalancerPricing() (*cloud.LoadBalancer, error) {
 	fffrc := 0.025
 	afrc := 0.010
 	lbidc := 0.008
@@ -1166,7 +1178,7 @@ func (aws *AWS) LoadBalancerPricing() (*LoadBalancer, error) {
 	} else {
 		totalCost = fffrc*5 + afrc*(numForwardingRules-5) + lbidc*dataIngressGB
 	}
-	return &LoadBalancer{
+	return &cloud.LoadBalancer{
 		Cost: totalCost,
 	}, nil
 }
@@ -1202,7 +1214,7 @@ func (aws *AWS) savingsPlanPricing(instanceID string) (*SavingsPlanData, bool) {
 	return data, ok
 }
 
-func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*Node, error) {
+func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k cloud.Key) (*cloud.Node, error) {
 	key := k.Features()
 
 	if spotInfo, ok := aws.spotPricing(k.ID()); ok {
@@ -1214,7 +1226,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 		} else {
 			log.Infof("Spot data for node %s is missing", k.ID())
 		}
-		return &Node{
+		return &cloud.Node{
 			Cost:         spotcost,
 			VCPU:         terms.VCpu,
 			RAM:          terms.Memory,
@@ -1227,7 +1239,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 		}, nil
 	} else if aws.isPreemptible(key) { // Preemptible but we don't have any data in the pricing report.
 		log.DedupedWarningf(5, "Node %s marked preemptible but we have no data in spot feed", k.ID())
-		return &Node{
+		return &cloud.Node{
 			VCPU:         terms.VCpu,
 			VCPUCost:     aws.BaseSpotCPUPrice,
 			RAM:          terms.Memory,
@@ -1240,7 +1252,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 		}, nil
 	} else if sp, ok := aws.savingsPlanPricing(k.ID()); ok {
 		strCost := fmt.Sprintf("%f", sp.EffectiveCost)
-		return &Node{
+		return &cloud.Node{
 			Cost:         strCost,
 			VCPU:         terms.VCpu,
 			RAM:          terms.Memory,
@@ -1254,7 +1266,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 
 	} else if ri, ok := aws.reservedInstancePricing(k.ID()); ok {
 		strCost := fmt.Sprintf("%f", ri.EffectiveCost)
-		return &Node{
+		return &cloud.Node{
 			Cost:         strCost,
 			VCPU:         terms.VCpu,
 			RAM:          terms.Memory,
@@ -1281,7 +1293,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 		}
 	}
 
-	return &Node{
+	return &cloud.Node{
 		Cost:         cost,
 		VCPU:         terms.VCpu,
 		RAM:          terms.Memory,
@@ -1295,7 +1307,7 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 }
 
 // NodePricing takes in a key from GetKey and returns a Node object for use in building the cost model.
-func (aws *AWS) NodePricing(k Key) (*Node, error) {
+func (aws *AWS) NodePricing(k cloud.Key) (*cloud.Node, error) {
 	aws.DownloadPricingDataLock.RLock()
 	defer aws.DownloadPricingDataLock.RUnlock()
 
@@ -1313,7 +1325,7 @@ func (aws *AWS) NodePricing(k Key) (*Node, error) {
 		err := aws.DownloadPricingData()
 		aws.DownloadPricingDataLock.RLock()
 		if err != nil {
-			return &Node{
+			return &cloud.Node{
 				Cost:             aws.BaseCPUPrice,
 				BaseCPUPrice:     aws.BaseCPUPrice,
 				BaseRAMPrice:     aws.BaseRAMPrice,
@@ -1324,7 +1336,7 @@ func (aws *AWS) NodePricing(k Key) (*Node, error) {
 		}
 		terms, termsOk := aws.Pricing[key]
 		if !termsOk {
-			return &Node{
+			return &cloud.Node{
 				Cost:             aws.BaseCPUPrice,
 				BaseCPUPrice:     aws.BaseCPUPrice,
 				BaseRAMPrice:     aws.BaseRAMPrice,
@@ -1386,7 +1398,7 @@ func (aws *AWS) ConfigureAuth() error {
 }
 
 // updates the authentication to the latest values (via config or secret)
-func (aws *AWS) ConfigureAuthWith(config *CustomPricing) error {
+func (aws *AWS) ConfigureAuthWith(config *cloud.CustomPricing) error {
 	accessKeyID, accessKeySecret := aws.getAWSAuth(false, config)
 	if accessKeyID != "" && accessKeySecret != "" { // credentials may exist on the actual AWS node-- if so, use those. If not, override with the service key
 		err := env.Set(env.AWSAccessKeyIDEnvVar, accessKeyID)
@@ -1402,11 +1414,11 @@ func (aws *AWS) ConfigureAuthWith(config *CustomPricing) error {
 }
 
 // Gets the aws key id and secret
-func (aws *AWS) getAWSAuth(forceReload bool, cp *CustomPricing) (string, string) {
+func (aws *AWS) getAWSAuth(forceReload bool, cp *cloud.CustomPricing) (string, string) {
 
 	// 1. Check config values first (set from frontend UI)
 	if cp.ServiceKeyName != "" && cp.ServiceKeySecret != "" {
-		aws.serviceAccountChecks.set("hasKey", &ServiceAccountCheck{
+		aws.serviceAccountChecks.Set("hasKey", &cloud.ServiceAccountCheck{
 			Message: "AWS ServiceKey exists",
 			Status:  true,
 		})
@@ -1416,7 +1428,7 @@ func (aws *AWS) getAWSAuth(forceReload bool, cp *CustomPricing) (string, string)
 	// 2. Check for secret
 	s, _ := aws.loadAWSAuthSecret(forceReload)
 	if s != nil && s.AccessKeyID != "" && s.SecretAccessKey != "" {
-		aws.serviceAccountChecks.set("hasKey", &ServiceAccountCheck{
+		aws.serviceAccountChecks.Set("hasKey", &cloud.ServiceAccountCheck{
 			Message: "AWS ServiceKey exists",
 			Status:  true,
 		})
@@ -1425,12 +1437,12 @@ func (aws *AWS) getAWSAuth(forceReload bool, cp *CustomPricing) (string, string)
 
 	// 3. Fall back to env vars
 	if env.GetAWSAccessKeyID() == "" || env.GetAWSAccessKeyID() == "" {
-		aws.serviceAccountChecks.set("hasKey", &ServiceAccountCheck{
+		aws.serviceAccountChecks.Set("hasKey", &cloud.ServiceAccountCheck{
 			Message: "AWS ServiceKey exists",
 			Status:  false,
 		})
 	} else {
-		aws.serviceAccountChecks.set("hasKey", &ServiceAccountCheck{
+		aws.serviceAccountChecks.Set("hasKey", &cloud.ServiceAccountCheck{
 			Message: "AWS ServiceKey exists",
 			Status:  true,
 		})
@@ -1447,12 +1459,12 @@ func (aws *AWS) loadAWSAuthSecret(force bool) (*AWSAccessKey, error) {
 	}
 	loadedAWSSecret = true
 
-	exists, err := fileutil.FileExists(authSecretPath)
+	exists, err := fileutil.FileExists(cloud.AuthSecretPath)
 	if !exists || err != nil {
-		return nil, fmt.Errorf("Failed to locate service account file: %s", authSecretPath)
+		return nil, fmt.Errorf("Failed to locate service account file: %s", cloud.AuthSecretPath)
 	}
 
-	result, err := os.ReadFile(authSecretPath)
+	result, err := os.ReadFile(cloud.AuthSecretPath)
 	if err != nil {
 		return nil, err
 	}
@@ -1687,7 +1699,7 @@ func (aws *AWS) isDiskOrphaned(vol *ec2Types.Volume) bool {
 	return true
 }
 
-func (aws *AWS) GetOrphanedResources() ([]OrphanedResource, error) {
+func (aws *AWS) GetOrphanedResources() ([]cloud.OrphanedResource, error) {
 	volumes, err := aws.getAllDisks()
 	if err != nil {
 		return nil, err
@@ -1698,7 +1710,7 @@ func (aws *AWS) GetOrphanedResources() ([]OrphanedResource, error) {
 		return nil, err
 	}
 
-	var orphanedResources []OrphanedResource
+	var orphanedResources []cloud.OrphanedResource
 
 	for _, volume := range volumes {
 		if aws.isDiskOrphaned(volume) {
@@ -1725,7 +1737,7 @@ func (aws *AWS) GetOrphanedResources() ([]OrphanedResource, error) {
 				url = "https://console.aws.amazon.com/ec2/home?#Volumes:sort=desc:createTime"
 			}
 
-			or := OrphanedResource{
+			or := cloud.OrphanedResource{
 				Kind:        "disk",
 				Region:      zone,
 				Size:        &volumeSize,
@@ -1754,7 +1766,7 @@ func (aws *AWS) GetOrphanedResources() ([]OrphanedResource, error) {
 				}
 			}
 
-			or := OrphanedResource{
+			or := cloud.OrphanedResource{
 				Kind:        "address",
 				Address:     *address.PublicIp,
 				Description: desc,
@@ -2157,14 +2169,14 @@ func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, re
 	}
 	lso, err := cli.ListObjects(context.TODO(), ls)
 	if err != nil {
-		aws.serviceAccountChecks.set("bucketList", &ServiceAccountCheck{
+		aws.serviceAccountChecks.Set("bucketList", &cloud.ServiceAccountCheck{
 			Message:        "Bucket List Permissions Available",
 			Status:         false,
 			AdditionalInfo: err.Error(),
 		})
 		return nil, err
 	} else {
-		aws.serviceAccountChecks.set("bucketList", &ServiceAccountCheck{
+		aws.serviceAccountChecks.Set("bucketList", &cloud.ServiceAccountCheck{
 			Message: "Bucket List Permissions Available",
 			Status:  true,
 		})
@@ -2209,14 +2221,14 @@ func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, re
 		buf := manager.NewWriteAtBuffer([]byte{})
 		_, err := downloader.Download(context.TODO(), buf, getObj)
 		if err != nil {
-			aws.serviceAccountChecks.set("objectList", &ServiceAccountCheck{
+			aws.serviceAccountChecks.Set("objectList", &cloud.ServiceAccountCheck{
 				Message:        "Object Get Permissions Available",
 				Status:         false,
 				AdditionalInfo: err.Error(),
 			})
 			return nil, err
 		} else {
-			aws.serviceAccountChecks.set("objectList", &ServiceAccountCheck{
+			aws.serviceAccountChecks.Set("objectList", &cloud.ServiceAccountCheck{
 				Message: "Object Get Permissions Available",
 				Status:  true,
 			})
@@ -2287,12 +2299,12 @@ func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, re
 }
 
 // ApplyReservedInstancePricing TODO
-func (aws *AWS) ApplyReservedInstancePricing(nodes map[string]*Node) {
+func (aws *AWS) ApplyReservedInstancePricing(nodes map[string]*cloud.Node) {
 
 }
 
-func (aws *AWS) ServiceAccountStatus() *ServiceAccountStatus {
-	return aws.serviceAccountChecks.getStatus()
+func (aws *AWS) ServiceAccountStatus() *cloud.ServiceAccountStatus {
+	return aws.serviceAccountChecks.GetStatus()
 }
 
 func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {

@@ -10,11 +10,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/util/httputil"
 	"github.com/opencost/opencost/pkg/util/timeutil"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/patrickmn/go-cache"
+	prometheusClient "github.com/prometheus/client_golang/api"
+
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/errors"
 	"github.com/opencost/opencost/pkg/kubecost"
@@ -23,8 +26,6 @@ import (
 	"github.com/opencost/opencost/pkg/thanos"
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/json"
-	"github.com/patrickmn/go-cache"
-	prometheusClient "github.com/prometheus/client_golang/api"
 )
 
 const (
@@ -1076,7 +1077,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 		if durMins%60 != 0 || durMins < 3*60 { // not divisible by 1h or less than 3h
 			resolution = time.Minute
 		}
-	} else {                    // greater than 1d
+	} else { // greater than 1d
 		if durMins >= 7*24*60 { // greater than (or equal to) 7 days
 			resolution = 24.0 * time.Hour
 		} else if durMins >= 2*24*60 { // greater than (or equal to) 2 days

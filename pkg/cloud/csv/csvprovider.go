@@ -1,4 +1,4 @@
-package cloud
+package csv
 
 import (
 	"encoding/csv"
@@ -10,14 +10,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencost/opencost/pkg/cloud"
+	aws2 "github.com/opencost/opencost/pkg/cloud/aws"
+	"github.com/opencost/opencost/pkg/cloud/custom"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/util"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/opencost/opencost/pkg/log"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/opencost/opencost/pkg/log"
 
 	"github.com/jszwec/csvutil"
 )
@@ -25,7 +29,7 @@ import (
 const refreshMinutes = 60
 
 type CSVProvider struct {
-	*CustomProvider
+	*custom.CustomProvider
 	CSVLocation             string
 	Pricing                 map[string]*price
 	NodeClassPricing        map[string]float64
@@ -222,31 +226,31 @@ func (k *csvKey) ID() string {
 	return k.ProviderID
 }
 
-func (c *CSVProvider) NodePricing(key Key) (*Node, error) {
+func (c *CSVProvider) NodePricing(key cloud.Key) (*cloud.Node, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
-	var node *Node
+	var node *cloud.Node
 	if p, ok := c.Pricing[key.ID()]; ok {
-		node = &Node{
+		node = &cloud.Node{
 			Cost:        p.MarketPriceHourly,
-			PricingType: CsvExact,
+			PricingType: cloud.CsvExact,
 		}
 	}
 	s := strings.Split(key.ID(), ",") // Try without a region to be sure
 	if len(s) == 2 {
 		if p, ok := c.Pricing[s[1]]; ok {
-			node = &Node{
+			node = &cloud.Node{
 				Cost:        p.MarketPriceHourly,
-				PricingType: CsvExact,
+				PricingType: cloud.CsvExact,
 			}
 		}
 	}
 	classKey := key.Features() // Use node attributes to try and do a class match
 	if cost, ok := c.NodeClassPricing[classKey]; ok {
 		log.Infof("Unable to find provider ID `%s`, using features:`%s`", key.ID(), key.Features())
-		node = &Node{
+		node = &cloud.Node{
 			Cost:        fmt.Sprintf("%f", cost),
-			PricingType: CsvClass,
+			PricingType: cloud.CsvClass,
 		}
 	}
 
@@ -288,7 +292,7 @@ func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
 		}
 	}
 	if len(mf) == 2 && mf[0] == "spec" && mf[1] == "providerID" {
-		for matchNum, group := range provIdRx.FindStringSubmatch(n.Spec.ProviderID) {
+		for matchNum, group := range aws2.provIdRx.FindStringSubmatch(n.Spec.ProviderID) {
 			if matchNum == 2 {
 				return toReturn + group
 			}
@@ -346,7 +350,7 @@ func PVValueFromMapField(m string, n *v1.PersistentVolume) string {
 	}
 }
 
-func (c *CSVProvider) GetKey(l map[string]string, n *v1.Node) Key {
+func (c *CSVProvider) GetKey(l map[string]string, n *v1.Node) cloud.Key {
 	id := NodeValueFromMapField(c.NodeMapField, n, c.UsesRegion)
 	var gpuCount int64
 	gpuCount = 0
@@ -382,7 +386,7 @@ func (key *csvPVKey) Features() string {
 	return key.ProviderID
 }
 
-func (c *CSVProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) PVKey {
+func (c *CSVProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) cloud.PVKey {
 	id := PVValueFromMapField(c.PVMapField, pv)
 	return &csvPVKey{
 		Labels:                 pv.Labels,
@@ -394,22 +398,22 @@ func (c *CSVProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]st
 	}
 }
 
-func (c *CSVProvider) PVPricing(pvk PVKey) (*PV, error) {
+func (c *CSVProvider) PVPricing(pvk cloud.PVKey) (*cloud.PV, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
 	pricing, ok := c.PricingPV[pvk.Features()]
 	if !ok {
 		log.Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
-		return &PV{}, nil
+		return &cloud.PV{}, nil
 	}
-	return &PV{
+	return &cloud.PV{
 		Cost: pricing.MarketPriceHourly,
 	}, nil
 }
 
-func (c *CSVProvider) ServiceAccountStatus() *ServiceAccountStatus {
-	return &ServiceAccountStatus{
-		Checks: []*ServiceAccountCheck{},
+func (c *CSVProvider) ServiceAccountStatus() *cloud.ServiceAccountStatus {
+	return &cloud.ServiceAccountStatus{
+		Checks: []*cloud.ServiceAccountCheck{},
 	}
 }
 

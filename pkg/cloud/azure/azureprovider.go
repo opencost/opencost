@@ -1,4 +1,4 @@
-package cloud
+package azure
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/kubecost"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-11-01/compute"
@@ -22,6 +23,8 @@ import (
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/log"
@@ -29,7 +32,6 @@ import (
 	"github.com/opencost/opencost/pkg/util/fileutil"
 	"github.com/opencost/opencost/pkg/util/json"
 	"github.com/opencost/opencost/pkg/util/timeutil"
-	v1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -41,6 +43,7 @@ const (
 	defaultSpotLabel                 = "kubernetes.azure.com/scalesetpriority"
 	defaultSpotLabelValue            = "spot"
 	AzureStorageUpdateType           = "AzureStorage"
+	StorageConfigSecretPath          = "/var/azure-storage-config/azure-storage-config.json"
 )
 
 var (
@@ -385,16 +388,16 @@ type AzureRetailPricingAttributes struct {
 
 // AzurePricing either contains a Node or PV
 type AzurePricing struct {
-	Node *Node
-	PV   *PV
+	Node *cloud.Node
+	PV   *cloud.PV
 }
 
 type Azure struct {
 	Pricing                        map[string]*AzurePricing
 	DownloadPricingDataLock        sync.RWMutex
 	Clientset                      clustercache.ClusterCache
-	Config                         *ProviderConfig
-	serviceAccountChecks           *ServiceAccountChecks
+	Config                         *cloud.ProviderConfig
+	serviceAccountChecks           *cloud.ServiceAccountChecks
 	RateCardPricingError           error
 	clusterAccountId               string
 	clusterRegion                  string
@@ -402,6 +405,16 @@ type Azure struct {
 	azureSecret                    *AzureServiceKey
 	loadedAzureStorageConfigSecret bool
 	azureStorageConfig             *AzureStorageConfig
+}
+
+func New(cache clustercache.ClusterCache, config *cloud.ProviderConfig, region string, accountID string, serviceAccountChecks *cloud.ServiceAccountChecks) (*Azure, error) {
+	return &Azure{
+		Clientset:            cache,
+		Config:               config,
+		clusterRegion:        region,
+		clusterAccountId:     accountID,
+		serviceAccountChecks: serviceAccountChecks,
+	}, nil
 }
 
 // PricingSourceSummary returns the pricing source summary for the provider.
@@ -527,7 +540,7 @@ func (ask *AzureServiceKey) IsValid() bool {
 }
 
 // Loads the azure authentication via configuration or a secret set at install time.
-func (az *Azure) getAzureRateCardAuth(forceReload bool, cp *CustomPricing) (subscriptionID, clientID, clientSecret, tenantID string) {
+func (az *Azure) getAzureRateCardAuth(forceReload bool, cp *cloud.CustomPricing) (subscriptionID, clientID, clientSecret, tenantID string) {
 	// 1. Check for secret (secret values will always be used if they are present)
 	s, _ := az.loadAzureAuthSecret(forceReload)
 	if s != nil && s.IsValid() {
@@ -557,7 +570,7 @@ func (az *Azure) getAzureRateCardAuth(forceReload bool, cp *CustomPricing) (subs
 }
 
 // GetAzureStorageConfig retrieves storage config from secret and sets default values
-func (az *Azure) GetAzureStorageConfig(forceReload bool, cp *CustomPricing) (*AzureStorageConfig, error) {
+func (az *Azure) GetAzureStorageConfig(forceReload bool, cp *cloud.CustomPricing) (*AzureStorageConfig, error) {
 	// default subscription id
 	defaultSubscriptionID := cp.AzureSubscriptionID
 
@@ -573,7 +586,7 @@ func (az *Azure) GetAzureStorageConfig(forceReload bool, cp *CustomPricing) (*Az
 
 	// check for required fields
 	if asc != nil && asc.AccessKey != "" && asc.AccountName != "" && asc.ContainerName != "" && asc.SubscriptionId != "" {
-		az.serviceAccountChecks.set("hasStorage", &ServiceAccountCheck{
+		az.serviceAccountChecks.Set("hasStorage", &cloud.ServiceAccountCheck{
 			Message: "Azure Storage Config exists",
 			Status:  true,
 		})
@@ -592,7 +605,7 @@ func (az *Azure) GetAzureStorageConfig(forceReload bool, cp *CustomPricing) (*Az
 		}
 		// check for required fields
 		if asc.AccessKey != "" && asc.AccountName != "" && asc.ContainerName != "" && asc.SubscriptionId != "" {
-			az.serviceAccountChecks.set("hasStorage", &ServiceAccountCheck{
+			az.serviceAccountChecks.Set("hasStorage", &cloud.ServiceAccountCheck{
 				Message: "Azure Storage Config exists",
 				Status:  true,
 			})
@@ -601,7 +614,7 @@ func (az *Azure) GetAzureStorageConfig(forceReload bool, cp *CustomPricing) (*Az
 		}
 	}
 
-	az.serviceAccountChecks.set("hasStorage", &ServiceAccountCheck{
+	az.serviceAccountChecks.Set("hasStorage", &cloud.ServiceAccountCheck{
 		Message: "Azure Storage Config exists",
 		Status:  false,
 	})
@@ -618,12 +631,12 @@ func (az *Azure) loadAzureAuthSecret(force bool) (*AzureServiceKey, error) {
 	}
 	az.loadedAzureSecret = true
 
-	exists, err := fileutil.FileExists(authSecretPath)
+	exists, err := fileutil.FileExists(cloud.AuthSecretPath)
 	if !exists || err != nil {
-		return nil, fmt.Errorf("Failed to locate service account file: %s", authSecretPath)
+		return nil, fmt.Errorf("Failed to locate service account file: %s", cloud.AuthSecretPath)
 	}
 
-	result, err := os.ReadFile(authSecretPath)
+	result, err := os.ReadFile(cloud.AuthSecretPath)
 	if err != nil {
 		return nil, err
 	}
@@ -647,12 +660,12 @@ func (az *Azure) loadAzureStorageConfig(force bool) (*AzureStorageConfig, error)
 	}
 	az.loadedAzureStorageConfigSecret = true
 
-	exists, err := fileutil.FileExists(storageConfigSecretPath)
+	exists, err := fileutil.FileExists(StorageConfigSecretPath)
 	if !exists || err != nil {
-		return nil, fmt.Errorf("Failed to locate azure storage config file: %s", storageConfigSecretPath)
+		return nil, fmt.Errorf("failed to locate azure storage config file: %s", StorageConfigSecretPath)
 	}
 
-	result, err := os.ReadFile(storageConfigSecretPath)
+	result, err := os.ReadFile(StorageConfigSecretPath)
 	if err != nil {
 		return nil, err
 	}
@@ -667,7 +680,7 @@ func (az *Azure) loadAzureStorageConfig(force bool) (*AzureStorageConfig, error)
 	return &asc, nil
 }
 
-func (az *Azure) GetKey(labels map[string]string, n *v1.Node) Key {
+func (az *Azure) GetKey(labels map[string]string, n *v1.Node) cloud.Key {
 	cfg, err := az.GetConfig()
 	if err != nil {
 		log.Infof("Error loading azure custom pricing information")
@@ -889,7 +902,7 @@ func (az *Azure) DownloadPricingData() error {
 						key := region + "," + storageClass
 						log.Debugf("Adding PV.Key: %s, Cost: %s", key, priceStr)
 						allPrices[key] = &AzurePricing{
-							PV: &PV{
+							PV: &cloud.PV{
 								Cost:   priceStr,
 								Region: region,
 							},
@@ -937,7 +950,7 @@ func (az *Azure) DownloadPricingData() error {
 					key := fmt.Sprintf("%s,%s,%s", region, instanceType, usageType)
 
 					allPrices[key] = &AzurePricing{
-						Node: &Node{
+						Node: &cloud.Node{
 							Cost:         priceStr,
 							BaseCPUPrice: baseCPUPrice,
 							UsageType:    usageType,
@@ -956,7 +969,7 @@ func (az *Azure) DownloadPricingData() error {
 		key := region + "," + AzureFileStandardStorageClass
 		log.Debugf("Adding PV.Key: %s, Cost: %s", key, zeroPrice)
 		allPrices[key] = &AzurePricing{
-			PV: &PV{
+			PV: &cloud.PV{
 				Cost:   zeroPrice,
 				Region: region,
 			},
@@ -1007,7 +1020,7 @@ func (az *Azure) AllNodePricing() (interface{}, error) {
 }
 
 // NodePricing returns Azure pricing data for a single node
-func (az *Azure) NodePricing(key Key) (*Node, error) {
+func (az *Azure) NodePricing(key cloud.Key) (*cloud.Node, error) {
 	az.DownloadPricingDataLock.RLock()
 	defer az.DownloadPricingDataLock.RUnlock()
 
@@ -1038,7 +1051,7 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 			if azKey.isValidGPUNode() {
 				gpu = "1"
 			}
-			spotNode := &Node{
+			spotNode := &cloud.Node{
 				Cost:      spotCost,
 				UsageType: "spot",
 				GPU:       gpu,
@@ -1065,7 +1078,7 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 		return nil, fmt.Errorf("No default pricing data available")
 	}
 	if azKey.isValidGPUNode() {
-		return &Node{
+		return &cloud.Node{
 			VCPUCost:         c.CPU,
 			RAMCost:          c.RAM,
 			UsesBaseCPUPrice: true,
@@ -1073,7 +1086,7 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 			GPU:              azKey.GetGPUCount(),
 		}, nil
 	}
-	return &Node{
+	return &cloud.Node{
 		VCPUCost:         c.CPU,
 		RAMCost:          c.RAM,
 		UsesBaseCPUPrice: true,
@@ -1081,7 +1094,7 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 }
 
 // Stubbed NetworkPricing for Azure. Pull directly from azure.json for now
-func (az *Azure) NetworkPricing() (*Network, error) {
+func (az *Azure) NetworkPricing() (*cloud.Network, error) {
 	cpricing, err := az.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
@@ -1099,7 +1112,7 @@ func (az *Azure) NetworkPricing() (*Network, error) {
 		return nil, err
 	}
 
-	return &Network{
+	return &cloud.Network{
 		ZoneNetworkEgressCost:     znec,
 		RegionNetworkEgressCost:   rnec,
 		InternetNetworkEgressCost: inec,
@@ -1110,8 +1123,8 @@ func (az *Azure) NetworkPricing() (*Network, error) {
 // services will be that of a standard static public IP https://azure.microsoft.com/en-us/pricing/details/ip-addresses/.
 // Azure still has load balancers which follow the standard pricing scheme based on rules
 // https://azure.microsoft.com/en-us/pricing/details/load-balancer/, they are created on a per-cluster basis.
-func (azr *Azure) LoadBalancerPricing() (*LoadBalancer, error) {
-	return &LoadBalancer{
+func (azr *Azure) LoadBalancerPricing() (*cloud.LoadBalancer, error) {
+	return &cloud.LoadBalancer{
 		Cost: 0.005,
 	}, nil
 }
@@ -1124,7 +1137,7 @@ type azurePvKey struct {
 	ProviderId             string
 }
 
-func (az *Azure) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) PVKey {
+func (az *Azure) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) cloud.PVKey {
 	providerID := ""
 	if pv.Spec.AzureDisk != nil {
 		providerID = pv.Spec.AzureDisk.DiskName
@@ -1254,13 +1267,13 @@ func (az *Azure) isDiskOrphaned(disk *compute.Disk) bool {
 	return disk.DiskState == "Unattached" || disk.DiskState == "Reserved"
 }
 
-func (az *Azure) GetOrphanedResources() ([]OrphanedResource, error) {
+func (az *Azure) GetOrphanedResources() ([]cloud.OrphanedResource, error) {
 	disks, err := az.getDisks()
 	if err != nil {
 		return nil, err
 	}
 
-	var orphanedResources []OrphanedResource
+	var orphanedResources []cloud.OrphanedResource
 
 	for _, d := range disks {
 		if az.isDiskOrphaned(d) {
@@ -1293,7 +1306,7 @@ func (az *Azure) GetOrphanedResources() ([]OrphanedResource, error) {
 				}
 			}
 
-			or := OrphanedResource{
+			or := cloud.OrphanedResource{
 				Kind:        "disk",
 				Region:      diskRegion,
 				Description: desc,
@@ -1353,12 +1366,12 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 
 }
 
-func (az *Azure) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
+func (az *Azure) UpdateConfigFromConfigMap(a map[string]string) (*cloud.CustomPricing, error) {
 	return az.Config.UpdateFromMap(a)
 }
 
-func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
-	return az.Config.Update(func(c *CustomPricing) error {
+func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*cloud.CustomPricing, error) {
+	return az.Config.Update(func(c *cloud.CustomPricing) error {
 		if updateType == AzureStorageUpdateType {
 			asc := &AzureStorageConfig{}
 			err := json.NewDecoder(r).Decode(&asc)
@@ -1391,10 +1404,10 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 
 			for k, v := range a {
 				// Just so we consistently supply / receive the same values, uppercase the first letter.
-				kUpper := toTitle.String(k)
+				kUpper := cloud.ToTitle.String(k)
 				vstr, ok := v.(string)
 				if ok {
-					err := SetCustomPricingField(c, kUpper, vstr)
+					err := cloud.SetCustomPricingField(c, kUpper, vstr)
 					if err != nil {
 						return fmt.Errorf("error setting custom pricing field on AzureStorageConfig: %s", err)
 					}
@@ -1405,7 +1418,7 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 		}
 
 		if env.IsRemoteEnabled() {
-			err := UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
+			err := cloud.UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return fmt.Errorf("error updating cluster metadata: %s", err)
 			}
@@ -1415,7 +1428,7 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, e
 	})
 }
 
-func (az *Azure) GetConfig() (*CustomPricing, error) {
+func (az *Azure) GetConfig() (*cloud.CustomPricing, error) {
 	c, err := az.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
@@ -1437,7 +1450,7 @@ func (az *Azure) GetConfig() (*CustomPricing, error) {
 		c.AzureOfferDurableID = "MS-AZR-0003p"
 	}
 	if c.ShareTenancyCosts == "" {
-		c.ShareTenancyCosts = defaultShareTenancyCost
+		c.ShareTenancyCosts = cloud.DefaultShareTenancyCost
 	}
 	if c.SpotLabel == "" {
 		c.SpotLabel = defaultSpotLabel
@@ -1448,18 +1461,18 @@ func (az *Azure) GetConfig() (*CustomPricing, error) {
 	return c, nil
 }
 
-func (az *Azure) ApplyReservedInstancePricing(nodes map[string]*Node) {
+func (az *Azure) ApplyReservedInstancePricing(nodes map[string]*cloud.Node) {
 
 }
 
-func (az *Azure) PVPricing(pvk PVKey) (*PV, error) {
+func (az *Azure) PVPricing(pvk cloud.PVKey) (*cloud.PV, error) {
 	az.DownloadPricingDataLock.RLock()
 	defer az.DownloadPricingDataLock.RUnlock()
 
 	pricing, ok := az.Pricing[pvk.Features()]
 	if !ok {
 		log.Debugf("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
-		return &PV{}, nil
+		return &cloud.PV{}, nil
 	}
 	return pricing.PV, nil
 }
@@ -1468,20 +1481,20 @@ func (az *Azure) GetLocalStorageQuery(window, offset time.Duration, rate bool, u
 	return ""
 }
 
-func (az *Azure) ServiceAccountStatus() *ServiceAccountStatus {
-	return az.serviceAccountChecks.getStatus()
+func (az *Azure) ServiceAccountStatus() *cloud.ServiceAccountStatus {
+	return az.serviceAccountChecks.GetStatus()
 }
 
 const rateCardPricingSource = "Rate Card API"
 
 // PricingSourceStatus returns the status of the rate card api
-func (az *Azure) PricingSourceStatus() map[string]*PricingSource {
-	sources := make(map[string]*PricingSource)
+func (az *Azure) PricingSourceStatus() map[string]*cloud.PricingSource {
+	sources := make(map[string]*cloud.PricingSource)
 	errMsg := ""
 	if az.RateCardPricingError != nil {
 		errMsg = az.RateCardPricingError.Error()
 	}
-	rcps := &PricingSource{
+	rcps := &cloud.PricingSource{
 		Name:    rateCardPricingSource,
 		Enabled: true,
 		Error:   errMsg,
@@ -1518,7 +1531,7 @@ func (az *Azure) Regions() []string {
 	return azureRegions
 }
 
-func parseAzureSubscriptionID(id string) string {
+func ParseAzureSubscriptionID(id string) string {
 	match := azureSubRegex.FindStringSubmatch(id)
 	if len(match) >= 2 {
 		return match[1]

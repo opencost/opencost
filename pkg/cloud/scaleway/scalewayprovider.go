@@ -1,4 +1,4 @@
-package cloud
+package scaleway
 
 import (
 	"errors"
@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/kubecost"
 
 	"github.com/opencost/opencost/pkg/clustercache"
@@ -16,8 +17,9 @@ import (
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/json"
 
-	"github.com/opencost/opencost/pkg/log"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/opencost/opencost/pkg/log"
 
 	"github.com/scaleway/scaleway-sdk-go/api/instance/v1"
 	"github.com/scaleway/scaleway-sdk-go/scw"
@@ -34,7 +36,7 @@ type ScalewayPricing struct {
 
 type Scaleway struct {
 	Clientset               clustercache.ClusterCache
-	Config                  *ProviderConfig
+	Config                  *cloud.ProviderConfig
 	Pricing                 map[string]*ScalewayPricing
 	DownloadPricingDataLock sync.RWMutex
 }
@@ -129,7 +131,7 @@ func (k *scalewayKey) ID() string {
 	return ""
 }
 
-func (c *Scaleway) NodePricing(key Key) (*Node, error) {
+func (c *Scaleway) NodePricing(key cloud.Key) (*cloud.Node, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
 
@@ -137,9 +139,9 @@ func (c *Scaleway) NodePricing(key Key) (*Node, error) {
 	split := strings.Split(key.Features(), ",")
 	if pricing, ok := c.Pricing[split[0]]; ok {
 		if info, ok := pricing.NodesInfos[split[1]]; ok {
-			return &Node{
+			return &cloud.Node{
 				Cost:        fmt.Sprintf("%f", info.HourlyPrice),
-				PricingType: DefaultPrices,
+				PricingType: cloud.DefaultPrices,
 				VCPU:        fmt.Sprintf("%d", info.Ncpus),
 				RAM:         fmt.Sprintf("%d", info.RAM),
 				// This is tricky, as instances can have local volumes or not
@@ -156,24 +158,24 @@ func (c *Scaleway) NodePricing(key Key) (*Node, error) {
 	return nil, fmt.Errorf("Unable to find node pricing matching thes features `%s`", key.Features())
 }
 
-func (c *Scaleway) LoadBalancerPricing() (*LoadBalancer, error) {
+func (c *Scaleway) LoadBalancerPricing() (*cloud.LoadBalancer, error) {
 	// Different LB types, lets take the cheaper for now, we can't get the type
 	// without a service specifying the type in the annotations
-	return &LoadBalancer{
+	return &cloud.LoadBalancer{
 		Cost: 0.014,
 	}, nil
 }
 
-func (c *Scaleway) NetworkPricing() (*Network, error) {
+func (c *Scaleway) NetworkPricing() (*cloud.Network, error) {
 	// it's free baby!
-	return &Network{
+	return &cloud.Network{
 		ZoneNetworkEgressCost:     0,
 		RegionNetworkEgressCost:   0,
 		InternetNetworkEgressCost: 0,
 	}, nil
 }
 
-func (c *Scaleway) GetKey(l map[string]string, n *v1.Node) Key {
+func (c *Scaleway) GetKey(l map[string]string, n *v1.Node) cloud.Key {
 	return &scalewayKey{
 		Labels: l,
 	}
@@ -200,7 +202,7 @@ func (key *scalewayPVKey) Features() string {
 	return key.Zone
 }
 
-func (c *Scaleway) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) PVKey {
+func (c *Scaleway) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) cloud.PVKey {
 	// the csi volume handle is the form <az>/<volume-id>
 	zone := strings.Split(pv.Spec.CSI.VolumeHandle, "/")[0]
 	return &scalewayPVKey{
@@ -212,24 +214,24 @@ func (c *Scaleway) GetPVKey(pv *v1.PersistentVolume, parameters map[string]strin
 	}
 }
 
-func (c *Scaleway) PVPricing(pvk PVKey) (*PV, error) {
+func (c *Scaleway) PVPricing(pvk cloud.PVKey) (*cloud.PV, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
 
 	pricing, ok := c.Pricing[pvk.Features()]
 	if !ok {
 		log.Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
-		return &PV{}, nil
+		return &cloud.PV{}, nil
 	}
-	return &PV{
+	return &cloud.PV{
 		Cost:  fmt.Sprintf("%f", pricing.PVCost),
 		Class: pvk.GetStorageClass(),
 	}, nil
 }
 
-func (c *Scaleway) ServiceAccountStatus() *ServiceAccountStatus {
-	return &ServiceAccountStatus{
-		Checks: []*ServiceAccountCheck{},
+func (c *Scaleway) ServiceAccountStatus() *cloud.ServiceAccountStatus {
+	return &cloud.ServiceAccountStatus{
+		Checks: []*cloud.ServiceAccountCheck{},
 	}
 }
 
@@ -258,7 +260,7 @@ func (c *Scaleway) Regions() []string {
 	return zones
 }
 
-func (*Scaleway) ApplyReservedInstancePricing(map[string]*Node) {}
+func (*Scaleway) ApplyReservedInstancePricing(map[string]*cloud.Node) {}
 
 func (*Scaleway) GetAddresses() ([]byte, error) {
 	return nil, nil
@@ -268,7 +270,7 @@ func (*Scaleway) GetDisks() ([]byte, error) {
 	return nil, nil
 }
 
-func (*Scaleway) GetOrphanedResources() ([]OrphanedResource, error) {
+func (*Scaleway) GetOrphanedResources() ([]cloud.OrphanedResource, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -291,24 +293,24 @@ func (scw *Scaleway) ClusterInfo() (map[string]string, error) {
 
 }
 
-func (c *Scaleway) UpdateConfigFromConfigMap(a map[string]string) (*CustomPricing, error) {
+func (c *Scaleway) UpdateConfigFromConfigMap(a map[string]string) (*cloud.CustomPricing, error) {
 	return c.Config.UpdateFromMap(a)
 }
 
-func (c *Scaleway) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, error) {
+func (c *Scaleway) UpdateConfig(r io.Reader, updateType string) (*cloud.CustomPricing, error) {
 	defer c.DownloadPricingData()
 
-	return c.Config.Update(func(c *CustomPricing) error {
+	return c.Config.Update(func(c *cloud.CustomPricing) error {
 		a := make(map[string]interface{})
 		err := json.NewDecoder(r).Decode(&a)
 		if err != nil {
 			return err
 		}
 		for k, v := range a {
-			kUpper := toTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+			kUpper := cloud.toTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
 			vstr, ok := v.(string)
 			if ok {
-				err := SetCustomPricingField(c, kUpper, vstr)
+				err := cloud.SetCustomPricingField(c, kUpper, vstr)
 				if err != nil {
 					return err
 				}
@@ -318,7 +320,7 @@ func (c *Scaleway) UpdateConfig(r io.Reader, updateType string) (*CustomPricing,
 		}
 
 		if env.IsRemoteEnabled() {
-			err := UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
+			err := cloud.UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return err
 			}
@@ -327,7 +329,7 @@ func (c *Scaleway) UpdateConfig(r io.Reader, updateType string) (*CustomPricing,
 		return nil
 	})
 }
-func (scw *Scaleway) GetConfig() (*CustomPricing, error) {
+func (scw *Scaleway) GetConfig() (*cloud.CustomPricing, error) {
 	c, err := scw.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
@@ -363,9 +365,9 @@ func (scw *Scaleway) GetManagementPlatform() (string, error) {
 	return "", nil
 }
 
-func (c *Scaleway) PricingSourceStatus() map[string]*PricingSource {
-	return map[string]*PricingSource{
-		InstanceAPIPricing: &PricingSource{
+func (c *Scaleway) PricingSourceStatus() map[string]*cloud.PricingSource {
+	return map[string]*cloud.PricingSource{
+		InstanceAPIPricing: &cloud.PricingSource{
 			Name:      InstanceAPIPricing,
 			Enabled:   true,
 			Available: true,

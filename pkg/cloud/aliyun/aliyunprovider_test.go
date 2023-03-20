@@ -1,4 +1,4 @@
-package cloud
+package aliyun
 
 import (
 	"fmt"
@@ -8,7 +8,9 @@ import (
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/credentials"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/signers"
 	v1 "k8s.io/api/core/v1"
-	resource "k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/opencost/opencost/pkg/cloud"
 )
 
 func TestCreateDescribePriceACSRequest(t *testing.T) {
@@ -408,7 +410,7 @@ func TestProcessDescribePriceAndCreateAlibabaPricing(t *testing.T) {
 			expectedError: nil,
 		},
 	}
-	custom := &CustomPricing{}
+	custom := &cloud.CustomPricing{}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			pricingObj, err := processDescribePriceAndCreateAlibabaPricing(client, c.teststruct, signer, custom)

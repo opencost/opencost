@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/csv"
+	"github.com/opencost/opencost/pkg/cloud/custom"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/costmodel"
@@ -34,7 +36,7 @@ func TestRegionValueFromMapField(t *testing.T) {
 	n.Spec.ProviderID = "azure:///subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/resourceGroups/MC_test_test_eastus/providers/Microsoft.Compute/virtualMachines/aks-agentpool-20139558-0"
 	n.Labels = make(map[string]string)
 	n.Labels[v1.LabelZoneRegion] = wantRegion
-	got := cloud.NodeValueFromMapField(providerIDMap, n, true)
+	got := csv.NodeValueFromMapField(providerIDMap, n, true)
 	if got != providerIDWant {
 		t.Errorf("Assert on '%s' want '%s' got '%s'", providerIDMap, providerIDWant, got)
 	}
@@ -44,7 +46,7 @@ func TestTransformedValueFromMapField(t *testing.T) {
 	providerIDWant := "i-05445591e0d182d42"
 	n := &v1.Node{}
 	n.Spec.ProviderID = "aws:///us-east-1a/i-05445591e0d182d42"
-	got := cloud.NodeValueFromMapField(providerIDMap, n, false)
+	got := csv.NodeValueFromMapField(providerIDMap, n, false)
 	if got != providerIDWant {
 		t.Errorf("Assert on '%s' want '%s' got '%s'", providerIDMap, providerIDWant, got)
 	}
@@ -52,7 +54,7 @@ func TestTransformedValueFromMapField(t *testing.T) {
 	providerIDWant2 := strings.ToLower("/subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/resourceGroups/MC_test_test_eastus/providers/Microsoft.Compute/virtualMachines/aks-agentpool-20139558-0")
 	n2 := &v1.Node{}
 	n2.Spec.ProviderID = "azure:///subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/resourceGroups/MC_test_test_eastus/providers/Microsoft.Compute/virtualMachines/aks-agentpool-20139558-0"
-	got2 := cloud.NodeValueFromMapField(providerIDMap, n2, false)
+	got2 := csv.NodeValueFromMapField(providerIDMap, n2, false)
 	if got2 != providerIDWant2 {
 		t.Errorf("Assert on '%s' want '%s' got '%s'", providerIDMap, providerIDWant2, got2)
 	}
@@ -60,7 +62,7 @@ func TestTransformedValueFromMapField(t *testing.T) {
 	providerIDWant3 := strings.ToLower("/subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/resourceGroups/mc_testspot_testspot_eastus/providers/Microsoft.Compute/virtualMachineScaleSets/aks-nodepool1-19213364-vmss/virtualMachines/0")
 	n3 := &v1.Node{}
 	n3.Spec.ProviderID = "azure:///subscriptions/0bd50fdf-c923-4e1e-850c-196dd3dcc5d3/resourceGroups/mc_testspot_testspot_eastus/providers/Microsoft.Compute/virtualMachineScaleSets/aks-nodepool1-19213364-vmss/virtualMachines/0"
-	got3 := cloud.NodeValueFromMapField(providerIDMap, n3, false)
+	got3 := csv.NodeValueFromMapField(providerIDMap, n3, false)
 	if got3 != providerIDWant3 {
 		t.Errorf("Assert on '%s' want '%s' got '%s'", providerIDMap, providerIDWant3, got3)
 	}
@@ -77,17 +79,17 @@ func TestNodeValueFromMapField(t *testing.T) {
 	n.Labels = make(map[string]string)
 	n.Labels["foo"] = labelFooWant
 
-	got := cloud.NodeValueFromMapField(providerIDMap, n, false)
+	got := csv.NodeValueFromMapField(providerIDMap, n, false)
 	if got != providerIDWant {
 		t.Errorf("Assert on '%s' want '%s' got '%s'", providerIDMap, providerIDWant, got)
 	}
 
-	got = cloud.NodeValueFromMapField(nameMap, n, false)
+	got = csv.NodeValueFromMapField(nameMap, n, false)
 	if got != nameWant {
 		t.Errorf("Assert on '%s' want '%s' got '%s'", nameMap, nameWant, got)
 	}
 
-	got = cloud.NodeValueFromMapField(labelMapFoo, n, false)
+	got = csv.NodeValueFromMapField(labelMapFoo, n, false)
 	if got != labelFooWant {
 		t.Errorf("Assert on '%s' want '%s' got '%s'", labelMapFoo, labelFooWant, got)
 	}
@@ -104,9 +106,9 @@ func TestPVPriceFromCSV(t *testing.T) {
 	})
 
 	wantPrice := "0.1337"
-	c := &cloud.CSVProvider{
+	c := &csv.CSVProvider{
 		CSVLocation: "../configs/pricing_schema_pv.csv",
-		CustomProvider: &cloud.CustomProvider{
+		CustomProvider: &custom.CustomProvider{
 			Config: cloud.NewProviderConfig(confMan, "../configs/default.json"),
 		},
 	}
@@ -152,9 +154,9 @@ func TestNodePriceFromCSVWithGPU(t *testing.T) {
 	n2.Status.Capacity = v1.ResourceList{"nvidia.com/gpu": *resource.NewScaledQuantity(2, 0)}
 	wantPrice2 := "1.733700"
 
-	c := &cloud.CSVProvider{
+	c := &csv.CSVProvider{
 		CSVLocation: "../configs/pricing_schema.csv",
-		CustomProvider: &cloud.CustomProvider{
+		CustomProvider: &custom.CustomProvider{
 			Config: cloud.NewProviderConfig(confMan, "../configs/default.json"),
 		},
 	}
@@ -211,9 +213,9 @@ func TestNodePriceFromCSV(t *testing.T) {
 
 	wantPrice := "0.133700"
 
-	c := &cloud.CSVProvider{
+	c := &csv.CSVProvider{
 		CSVLocation: "../configs/pricing_schema.csv",
-		CustomProvider: &cloud.CustomProvider{
+		CustomProvider: &custom.CustomProvider{
 			Config: cloud.NewProviderConfig(confMan, "../configs/default.json"),
 		},
 	}
@@ -241,9 +243,9 @@ func TestNodePriceFromCSV(t *testing.T) {
 		t.Errorf("CSV provider should return nil on missing node")
 	}
 
-	c2 := &cloud.CSVProvider{
+	c2 := &csv.CSVProvider{
 		CSVLocation: "../configs/fake.csv",
-		CustomProvider: &cloud.CustomProvider{
+		CustomProvider: &custom.CustomProvider{
 			Config: cloud.NewProviderConfig(confMan, "../configs/default.json"),
 		},
 	}
@@ -287,9 +289,9 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	n3.Labels[v1.LabelZoneRegion] = "fakeregion"
 	wantPrice3 := "0.1339"
 
-	c := &cloud.CSVProvider{
+	c := &csv.CSVProvider{
 		CSVLocation: "../configs/pricing_schema_region.csv",
-		CustomProvider: &cloud.CustomProvider{
+		CustomProvider: &custom.CustomProvider{
 			Config: cloud.NewProviderConfig(confMan, "../configs/default.json"),
 		},
 	}
@@ -337,9 +339,9 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 		t.Errorf("CSV provider should return nil on missing node, instead returned %+v", resN4)
 	}
 
-	c2 := &cloud.CSVProvider{
+	c2 := &csv.CSVProvider{
 		CSVLocation: "../configs/fake.csv",
-		CustomProvider: &cloud.CustomProvider{
+		CustomProvider: &custom.CustomProvider{
 			Config: cloud.NewProviderConfig(confMan, "../configs/default.json"),
 		},
 	}
@@ -379,9 +381,9 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 		LocalConfigPath: "./",
 	})
 
-	c := &cloud.CSVProvider{
+	c := &csv.CSVProvider{
 		CSVLocation: "../configs/pricing_schema_case.csv",
-		CustomProvider: &cloud.CustomProvider{
+		CustomProvider: &custom.CustomProvider{
 			Config: cloud.NewProviderConfig(confMan, "invalid.json"),
 		},
 	}
@@ -413,9 +415,9 @@ func TestSourceMatchesFromCSV(t *testing.T) {
 		LocalConfigPath: "./",
 	})
 
-	c := &cloud.CSVProvider{
+	c := &csv.CSVProvider{
 		CSVLocation: "../configs/pricing_schema_case.csv",
-		CustomProvider: &cloud.CustomProvider{
+		CustomProvider: &custom.CustomProvider{
 			Config: cloud.NewProviderConfig(confMan, "/default.json"),
 		},
 	}
@@ -492,9 +494,9 @@ func TestNodePriceFromCSVWithCase(t *testing.T) {
 		LocalConfigPath: "./",
 	})
 
-	c := &cloud.CSVProvider{
+	c := &csv.CSVProvider{
 		CSVLocation: "../configs/pricing_schema_case.csv",
-		CustomProvider: &cloud.CustomProvider{
+		CustomProvider: &custom.CustomProvider{
 			Config: cloud.NewProviderConfig(confMan, "../configs/default.json"),
 		},
 	}
@@ -526,9 +528,9 @@ func TestNodePriceFromCSVByClass(t *testing.T) {
 		LocalConfigPath: "./",
 	})
 
-	c := &cloud.CSVProvider{
+	c := &csv.CSVProvider{
 		CSVLocation: "../configs/pricing_schema_case.csv",
-		CustomProvider: &cloud.CustomProvider{
+		CustomProvider: &custom.CustomProvider{
 			Config: cloud.NewProviderConfig(confMan, "../configs/default.json"),
 		},
 	}

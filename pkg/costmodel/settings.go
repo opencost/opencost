@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/patrickmn/go-cache"
+
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/log"
-	"github.com/patrickmn/go-cache"
 )
 
 // InitializeSettingsPubSub sets up the pub/sub mechanisms and kicks of

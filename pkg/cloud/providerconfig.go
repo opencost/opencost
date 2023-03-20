@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/microcosm-cc/bluemonday"
+
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/log"
@@ -64,11 +65,11 @@ func (pc *ProviderConfig) onConfigFileUpdated(changeType config.ChangeType, data
 
 		pc.customPricing = customPricing
 		if pc.customPricing.SpotGPU == "" {
-			pc.customPricing.SpotGPU = DefaultPricing().SpotGPU // Migration for users without this value set by default.
+			pc.customPricing.SpotGPU = DefaultPricing().SpotGPU // Migration for users without this value Set by default.
 		}
 
 		if pc.customPricing.ShareTenancyCosts == "" {
-			pc.customPricing.ShareTenancyCosts = defaultShareTenancyCost
+			pc.customPricing.ShareTenancyCosts = DefaultShareTenancyCost
 		}
 	}
 }
@@ -126,11 +127,11 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*CustomPricing, err
 
 	pc.customPricing = &customPricing
 	if pc.customPricing.SpotGPU == "" {
-		pc.customPricing.SpotGPU = DefaultPricing().SpotGPU // Migration for users without this value set by default.
+		pc.customPricing.SpotGPU = DefaultPricing().SpotGPU // Migration for users without this value Set by default.
 	}
 
 	if pc.customPricing.ShareTenancyCosts == "" {
-		pc.customPricing.ShareTenancyCosts = defaultShareTenancyCost
+		pc.customPricing.ShareTenancyCosts = DefaultShareTenancyCost
 	}
 
 	return pc.customPricing, nil
@@ -157,7 +158,7 @@ func (pc *ProviderConfig) Update(updateFunc func(*CustomPricing) error) (*Custom
 	pc.lock.Lock()
 	defer pc.lock.Unlock()
 
-	// Load Config, set flag to _not_ write if failure to find file.
+	// Load Config, Set flag to _not_ write if failure to find file.
 	// We're about to write the updated values, so we don't want to double write.
 	c, _ := pc.loadConfig(false)
 
@@ -190,7 +191,7 @@ func (pc *ProviderConfig) UpdateFromMap(a map[string]string) (*CustomPricing, er
 	return pc.Update(func(c *CustomPricing) error {
 		for k, v := range a {
 			// Just so we consistently supply / receive the same values, uppercase the first letter.
-			kUpper := toTitle.String(k)
+			kUpper := ToTitle.String(k)
 			if kUpper == "CPU" || kUpper == "SpotCPU" || kUpper == "RAM" || kUpper == "SpotRAM" || kUpper == "GPU" || kUpper == "Storage" {
 				val, err := strconv.ParseFloat(v, 64)
 				if err != nil {
@@ -254,7 +255,7 @@ func SetCustomPricingField(obj *CustomPricing, name string, value string) error 
 	}
 
 	if !structFieldValue.CanSet() {
-		return fmt.Errorf("Cannot set %s field value", name)
+		return fmt.Errorf("Cannot Set %s field value", name)
 	}
 
 	structFieldType := structFieldValue.Type()

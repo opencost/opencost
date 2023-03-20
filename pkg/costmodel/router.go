@@ -16,6 +16,12 @@ import (
 	"time"
 
 	"github.com/microcosm-cc/bluemonday"
+	"github.com/spf13/viper"
+
+	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/aws"
+	"github.com/opencost/opencost/pkg/cloud/azure"
+	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/kubeconfig"
 	"github.com/opencost/opencost/pkg/metrics"
@@ -24,15 +30,18 @@ import (
 	"github.com/opencost/opencost/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/util/watcher"
 	"github.com/opencost/opencost/pkg/version"
-	"github.com/spf13/viper"
 
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/julienschmidt/httprouter"
 
-	sentry "github.com/getsentry/sentry-go"
+	"github.com/getsentry/sentry-go"
 
-	"github.com/opencost/opencost/pkg/cloud"
+	prometheus "github.com/prometheus/client_golang/api"
+	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/env"
@@ -42,10 +51,6 @@ import (
 	"github.com/opencost/opencost/pkg/prom"
 	"github.com/opencost/opencost/pkg/thanos"
 	"github.com/opencost/opencost/pkg/util/json"
-	prometheus "github.com/prometheus/client_golang/api"
-	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
-	appsv1 "k8s.io/api/apps/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/patrickmn/go-cache"
 
@@ -579,7 +584,7 @@ func (a *Accesses) GetConfigs(w http.ResponseWriter, r *http.Request, ps httprou
 func (a *Accesses) UpdateSpotInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := a.CloudProvider.UpdateConfig(r.Body, cloud.SpotInfoUpdateType)
+	data, err := a.CloudProvider.UpdateConfig(r.Body, aws.SpotInfoUpdateType)
 	if err != nil {
 		w.Write(WrapData(data, err))
 		return
@@ -595,7 +600,7 @@ func (a *Accesses) UpdateSpotInfoConfigs(w http.ResponseWriter, r *http.Request,
 func (a *Accesses) UpdateAthenaInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := a.CloudProvider.UpdateConfig(r.Body, cloud.AthenaInfoUpdateType)
+	data, err := a.CloudProvider.UpdateConfig(r.Body, aws.AthenaInfoUpdateType)
 	if err != nil {
 		w.Write(WrapData(data, err))
 		return
@@ -607,7 +612,7 @@ func (a *Accesses) UpdateAthenaInfoConfigs(w http.ResponseWriter, r *http.Reques
 func (a *Accesses) UpdateBigQueryInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := a.CloudProvider.UpdateConfig(r.Body, cloud.BigqueryUpdateType)
+	data, err := a.CloudProvider.UpdateConfig(r.Body, gcp.BigqueryUpdateType)
 	if err != nil {
 		w.Write(WrapData(data, err))
 		return
@@ -619,7 +624,7 @@ func (a *Accesses) UpdateBigQueryInfoConfigs(w http.ResponseWriter, r *http.Requ
 func (a *Accesses) UpdateAzureStorageConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := a.CloudProvider.UpdateConfig(r.Body, cloud.AzureStorageUpdateType)
+	data, err := a.CloudProvider.UpdateConfig(r.Body, azure.AzureStorageUpdateType)
 	if err != nil {
 		w.Write(WrapData(data, err))
 		return
