@@ -92,17 +92,19 @@ func ParseProperty(text string) (string, error) {
 
 // AllocationProperties describes a set of Kubernetes objects.
 type AllocationProperties struct {
-	Cluster        string                `json:"cluster,omitempty"`
-	Node           string                `json:"node,omitempty"`
-	Container      string                `json:"container,omitempty"`
-	Controller     string                `json:"controller,omitempty"`
-	ControllerKind string                `json:"controllerKind,omitempty"`
-	Namespace      string                `json:"namespace,omitempty"`
-	Pod            string                `json:"pod,omitempty"`
-	Services       []string              `json:"services,omitempty"`
-	ProviderID     string                `json:"providerID,omitempty"`
-	Labels         AllocationLabels      `json:"labels,omitempty"`
-	Annotations    AllocationAnnotations `json:"annotations,omitempty"`
+	Cluster              string                `json:"cluster,omitempty"`
+	Node                 string                `json:"node,omitempty"`
+	Container            string                `json:"container,omitempty"`
+	Controller           string                `json:"controller,omitempty"`
+	ControllerKind       string                `json:"controllerKind,omitempty"`
+	Namespace            string                `json:"namespace,omitempty"`
+	NamespaceLabels      AllocationLabels      `json:"namespaceLabels,omitempty"`
+	NamespaceAnnotations AllocationAnnotations `json:"namespaceAnnotations,omitempty"`
+	Pod                  string                `json:"pod,omitempty"`
+	Services             []string              `json:"services,omitempty"`
+	ProviderID           string                `json:"providerID,omitempty"`
+	Labels               AllocationLabels      `json:"labels,omitempty"`
+	Annotations          AllocationAnnotations `json:"annotations,omitempty"`
 }
 
 // AllocationLabels is a schema-free mapping of key/value pairs that can be
@@ -138,11 +140,23 @@ func (p *AllocationProperties) Clone() *AllocationProperties {
 	}
 	clone.Labels = labels
 
+	nsLabels := make(map[string]string, len(p.NamespaceLabels))
+	for k, v := range p.NamespaceLabels {
+		nsLabels[k] = v
+	}
+	clone.NamespaceLabels = nsLabels
+
 	annotations := make(map[string]string, len(p.Annotations))
 	for k, v := range p.Annotations {
 		annotations[k] = v
 	}
 	clone.Annotations = annotations
+
+	nsAnnotations := make(map[string]string, len(p.NamespaceAnnotations))
+	for k, v := range p.NamespaceAnnotations {
+		nsAnnotations[k] = v
+	}
+	clone.NamespaceAnnotations = nsAnnotations
 
 	return clone
 }
@@ -197,11 +211,37 @@ func (p *AllocationProperties) Equal(that *AllocationProperties) bool {
 		return false
 	}
 
+	pNamespaceLabels := p.NamespaceLabels
+	thatNamespaceLabels := that.NamespaceLabels
+	if len(pNamespaceLabels) == len(thatNamespaceLabels) {
+		for k, pv := range pNamespaceLabels {
+			tv, ok := thatNamespaceLabels[k]
+			if !ok || tv != pv {
+				return false
+			}
+		}
+	} else {
+		return false
+	}
+
 	pAnnotations := p.Annotations
 	thatAnnotations := that.Annotations
 	if len(pAnnotations) == len(thatAnnotations) {
 		for k, pv := range pAnnotations {
 			tv, ok := thatAnnotations[k]
+			if !ok || tv != pv {
+				return false
+			}
+		}
+	} else {
+		return false
+	}
+
+	pNamespaceAnnotations := p.NamespaceAnnotations
+	thatNamespaceAnnotations := that.NamespaceAnnotations
+	if len(pNamespaceAnnotations) == len(thatNamespaceAnnotations) {
+		for k, pv := range pNamespaceAnnotations {
+			tv, ok := thatNamespaceAnnotations[k]
 			if !ok || tv != pv {
 				return false
 			}
@@ -499,11 +539,23 @@ func (p *AllocationProperties) String() string {
 	}
 	strs = append(strs, fmt.Sprintf("Labels:{%s}", strings.Join(labelStrs, ",")))
 
+	var nsLabelStrs []string
+	for k, prop := range p.NamespaceLabels {
+		nsLabelStrs = append(nsLabelStrs, fmt.Sprintf("%s:%s", k, prop))
+	}
+	strs = append(strs, fmt.Sprintf("NamespaceLabels:{%s}", strings.Join(nsLabelStrs, ",")))
+
 	var annotationStrs []string
 	for k, prop := range p.Annotations {
 		annotationStrs = append(annotationStrs, fmt.Sprintf("%s:%s", k, prop))
 	}
 	strs = append(strs, fmt.Sprintf("Annotations:{%s}", strings.Join(annotationStrs, ",")))
+
+	var nsAnnotationStrs []string
+	for k, prop := range p.NamespaceAnnotations {
+		nsAnnotationStrs = append(nsAnnotationStrs, fmt.Sprintf("%s:%s", k, prop))
+	}
+	strs = append(strs, fmt.Sprintf("NamespaceAnnotations:{%s}", strings.Join(nsAnnotationStrs, ",")))
 
 	return fmt.Sprintf("{%s}", strings.Join(strs, "; "))
 }
