@@ -4,8 +4,6 @@
 package costmodel
 
 import (
-	"context"
-	"os"
 	"sync"
 )
 
@@ -19,14 +17,14 @@ var _ CloudStorage = &CloudStorageMock{}
 //
 //		// make and configure a mocked CloudStorage
 //		mockedCloudStorage := &CloudStorageMock{
-//			FileDownloadFunc: func(ctx context.Context, path string) (*os.File, error) {
-//				panic("mock out the FileDownload method")
+//			ExistsFunc: func(name string) (bool, error) {
+//				panic("mock out the Exists method")
 //			},
-//			FileExistsFunc: func(ctx context.Context, path string) (bool, error) {
-//				panic("mock out the FileExists method")
+//			ReadFunc: func(name string) ([]byte, error) {
+//				panic("mock out the Read method")
 //			},
-//			FileReplaceFunc: func(ctx context.Context, f *os.File, path string) error {
-//				panic("mock out the FileReplace method")
+//			WriteFunc: func(name string, data []byte) error {
+//				panic("mock out the Write method")
 //			},
 //		}
 //
@@ -35,154 +33,136 @@ var _ CloudStorage = &CloudStorageMock{}
 //
 //	}
 type CloudStorageMock struct {
-	// FileDownloadFunc mocks the FileDownload method.
-	FileDownloadFunc func(ctx context.Context, path string) (*os.File, error)
+	// ExistsFunc mocks the Exists method.
+	ExistsFunc func(name string) (bool, error)
 
-	// FileExistsFunc mocks the FileExists method.
-	FileExistsFunc func(ctx context.Context, path string) (bool, error)
+	// ReadFunc mocks the Read method.
+	ReadFunc func(name string) ([]byte, error)
 
-	// FileReplaceFunc mocks the FileReplace method.
-	FileReplaceFunc func(ctx context.Context, f *os.File, path string) error
+	// WriteFunc mocks the Write method.
+	WriteFunc func(name string, data []byte) error
 
 	// calls tracks calls to the methods.
 	calls struct {
-		// FileDownload holds details about calls to the FileDownload method.
-		FileDownload []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// Path is the path argument value.
-			Path string
+		// Exists holds details about calls to the Exists method.
+		Exists []struct {
+			// Name is the name argument value.
+			Name string
 		}
-		// FileExists holds details about calls to the FileExists method.
-		FileExists []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// Path is the path argument value.
-			Path string
+		// Read holds details about calls to the Read method.
+		Read []struct {
+			// Name is the name argument value.
+			Name string
 		}
-		// FileReplace holds details about calls to the FileReplace method.
-		FileReplace []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// F is the f argument value.
-			F *os.File
-			// Path is the path argument value.
-			Path string
+		// Write holds details about calls to the Write method.
+		Write []struct {
+			// Name is the name argument value.
+			Name string
+			// Data is the data argument value.
+			Data []byte
 		}
 	}
-	lockFileDownload sync.RWMutex
-	lockFileExists   sync.RWMutex
-	lockFileReplace  sync.RWMutex
+	lockExists sync.RWMutex
+	lockRead   sync.RWMutex
+	lockWrite  sync.RWMutex
 }
 
-// FileDownload calls FileDownloadFunc.
-func (mock *CloudStorageMock) FileDownload(ctx context.Context, path string) (*os.File, error) {
-	if mock.FileDownloadFunc == nil {
-		panic("CloudStorageMock.FileDownloadFunc: method is nil but CloudStorage.FileDownload was just called")
+// Exists calls ExistsFunc.
+func (mock *CloudStorageMock) Exists(name string) (bool, error) {
+	if mock.ExistsFunc == nil {
+		panic("CloudStorageMock.ExistsFunc: method is nil but CloudStorage.Exists was just called")
 	}
 	callInfo := struct {
-		Ctx  context.Context
-		Path string
+		Name string
 	}{
-		Ctx:  ctx,
-		Path: path,
+		Name: name,
 	}
-	mock.lockFileDownload.Lock()
-	mock.calls.FileDownload = append(mock.calls.FileDownload, callInfo)
-	mock.lockFileDownload.Unlock()
-	return mock.FileDownloadFunc(ctx, path)
+	mock.lockExists.Lock()
+	mock.calls.Exists = append(mock.calls.Exists, callInfo)
+	mock.lockExists.Unlock()
+	return mock.ExistsFunc(name)
 }
 
-// FileDownloadCalls gets all the calls that were made to FileDownload.
+// ExistsCalls gets all the calls that were made to Exists.
 // Check the length with:
 //
-//	len(mockedCloudStorage.FileDownloadCalls())
-func (mock *CloudStorageMock) FileDownloadCalls() []struct {
-	Ctx  context.Context
-	Path string
+//	len(mockedCloudStorage.ExistsCalls())
+func (mock *CloudStorageMock) ExistsCalls() []struct {
+	Name string
 } {
 	var calls []struct {
-		Ctx  context.Context
-		Path string
+		Name string
 	}
-	mock.lockFileDownload.RLock()
-	calls = mock.calls.FileDownload
-	mock.lockFileDownload.RUnlock()
+	mock.lockExists.RLock()
+	calls = mock.calls.Exists
+	mock.lockExists.RUnlock()
 	return calls
 }
 
-// FileExists calls FileExistsFunc.
-func (mock *CloudStorageMock) FileExists(ctx context.Context, path string) (bool, error) {
-	if mock.FileExistsFunc == nil {
-		panic("CloudStorageMock.FileExistsFunc: method is nil but CloudStorage.FileExists was just called")
+// Read calls ReadFunc.
+func (mock *CloudStorageMock) Read(name string) ([]byte, error) {
+	if mock.ReadFunc == nil {
+		panic("CloudStorageMock.ReadFunc: method is nil but CloudStorage.Read was just called")
 	}
 	callInfo := struct {
-		Ctx  context.Context
-		Path string
+		Name string
 	}{
-		Ctx:  ctx,
-		Path: path,
+		Name: name,
 	}
-	mock.lockFileExists.Lock()
-	mock.calls.FileExists = append(mock.calls.FileExists, callInfo)
-	mock.lockFileExists.Unlock()
-	return mock.FileExistsFunc(ctx, path)
+	mock.lockRead.Lock()
+	mock.calls.Read = append(mock.calls.Read, callInfo)
+	mock.lockRead.Unlock()
+	return mock.ReadFunc(name)
 }
 
-// FileExistsCalls gets all the calls that were made to FileExists.
+// ReadCalls gets all the calls that were made to Read.
 // Check the length with:
 //
-//	len(mockedCloudStorage.FileExistsCalls())
-func (mock *CloudStorageMock) FileExistsCalls() []struct {
-	Ctx  context.Context
-	Path string
+//	len(mockedCloudStorage.ReadCalls())
+func (mock *CloudStorageMock) ReadCalls() []struct {
+	Name string
 } {
 	var calls []struct {
-		Ctx  context.Context
-		Path string
+		Name string
 	}
-	mock.lockFileExists.RLock()
-	calls = mock.calls.FileExists
-	mock.lockFileExists.RUnlock()
+	mock.lockRead.RLock()
+	calls = mock.calls.Read
+	mock.lockRead.RUnlock()
 	return calls
 }
 
-// FileReplace calls FileReplaceFunc.
-func (mock *CloudStorageMock) FileReplace(ctx context.Context, f *os.File, path string) error {
-	if mock.FileReplaceFunc == nil {
-		panic("CloudStorageMock.FileReplaceFunc: method is nil but CloudStorage.FileReplace was just called")
+// Write calls WriteFunc.
+func (mock *CloudStorageMock) Write(name string, data []byte) error {
+	if mock.WriteFunc == nil {
+		panic("CloudStorageMock.WriteFunc: method is nil but CloudStorage.Write was just called")
 	}
 	callInfo := struct {
-		Ctx  context.Context
-		F    *os.File
-		Path string
+		Name string
+		Data []byte
 	}{
-		Ctx:  ctx,
-		F:    f,
-		Path: path,
+		Name: name,
+		Data: data,
 	}
-	mock.lockFileReplace.Lock()
-	mock.calls.FileReplace = append(mock.calls.FileReplace, callInfo)
-	mock.lockFileReplace.Unlock()
-	return mock.FileReplaceFunc(ctx, f, path)
+	mock.lockWrite.Lock()
+	mock.calls.Write = append(mock.calls.Write, callInfo)
+	mock.lockWrite.Unlock()
+	return mock.WriteFunc(name, data)
 }
 
-// FileReplaceCalls gets all the calls that were made to FileReplace.
+// WriteCalls gets all the calls that were made to Write.
 // Check the length with:
 //
-//	len(mockedCloudStorage.FileReplaceCalls())
-func (mock *CloudStorageMock) FileReplaceCalls() []struct {
-	Ctx  context.Context
-	F    *os.File
-	Path string
+//	len(mockedCloudStorage.WriteCalls())
+func (mock *CloudStorageMock) WriteCalls() []struct {
+	Name string
+	Data []byte
 } {
 	var calls []struct {
-		Ctx  context.Context
-		F    *os.File
-		Path string
+		Name string
+		Data []byte
 	}
-	mock.lockFileReplace.RLock()
-	calls = mock.calls.FileReplace
-	mock.lockFileReplace.RUnlock()
+	mock.lockWrite.RLock()
+	calls = mock.calls.Write
+	mock.lockWrite.RUnlock()
 	return calls
 }

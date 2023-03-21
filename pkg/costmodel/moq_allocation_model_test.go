@@ -4,7 +4,6 @@
 package costmodel
 
 import (
-	"context"
 	"github.com/opencost/opencost/pkg/kubecost"
 	"sync"
 	"time"
@@ -23,7 +22,7 @@ var _ AllocationModel = &AllocationModelMock{}
 //			ComputeAllocationFunc: func(start time.Time, end time.Time, resolution time.Duration) (*kubecost.AllocationSet, error) {
 //				panic("mock out the ComputeAllocation method")
 //			},
-//			DateRangeFunc: func(ctx context.Context) (time.Time, time.Time, error) {
+//			DateRangeFunc: func() (time.Time, time.Time, error) {
 //				panic("mock out the DateRange method")
 //			},
 //		}
@@ -37,7 +36,7 @@ type AllocationModelMock struct {
 	ComputeAllocationFunc func(start time.Time, end time.Time, resolution time.Duration) (*kubecost.AllocationSet, error)
 
 	// DateRangeFunc mocks the DateRange method.
-	DateRangeFunc func(ctx context.Context) (time.Time, time.Time, error)
+	DateRangeFunc func() (time.Time, time.Time, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -52,8 +51,6 @@ type AllocationModelMock struct {
 		}
 		// DateRange holds details about calls to the DateRange method.
 		DateRange []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
 		}
 	}
 	lockComputeAllocation sync.RWMutex
@@ -101,19 +98,16 @@ func (mock *AllocationModelMock) ComputeAllocationCalls() []struct {
 }
 
 // DateRange calls DateRangeFunc.
-func (mock *AllocationModelMock) DateRange(ctx context.Context) (time.Time, time.Time, error) {
+func (mock *AllocationModelMock) DateRange() (time.Time, time.Time, error) {
 	if mock.DateRangeFunc == nil {
 		panic("AllocationModelMock.DateRangeFunc: method is nil but AllocationModel.DateRange was just called")
 	}
 	callInfo := struct {
-		Ctx context.Context
-	}{
-		Ctx: ctx,
-	}
+	}{}
 	mock.lockDateRange.Lock()
 	mock.calls.DateRange = append(mock.calls.DateRange, callInfo)
 	mock.lockDateRange.Unlock()
-	return mock.DateRangeFunc(ctx)
+	return mock.DateRangeFunc()
 }
 
 // DateRangeCalls gets all the calls that were made to DateRange.
@@ -121,10 +115,8 @@ func (mock *AllocationModelMock) DateRange(ctx context.Context) (time.Time, time
 //
 //	len(mockedAllocationModel.DateRangeCalls())
 func (mock *AllocationModelMock) DateRangeCalls() []struct {
-	Ctx context.Context
 } {
 	var calls []struct {
-		Ctx context.Context
 	}
 	mock.lockDateRange.RLock()
 	calls = mock.calls.DateRange
