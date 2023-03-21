@@ -36,6 +36,8 @@ type Scaleway struct {
 	Clientset               clustercache.ClusterCache
 	Config                  *ProviderConfig
 	Pricing                 map[string]*ScalewayPricing
+	clusterRegion           string
+	clusterAccountID        string
 	DownloadPricingDataLock sync.RWMutex
 }
 
@@ -285,6 +287,8 @@ func (scw *Scaleway) ClusterInfo() (map[string]string, error) {
 		m["name"] = c.ClusterName
 	}
 	m["provider"] = kubecost.ScalewayProvider
+	m["region"] = scw.clusterRegion
+	m["account"] = scw.clusterAccountID
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	m["id"] = env.GetClusterID()
 	return m, nil

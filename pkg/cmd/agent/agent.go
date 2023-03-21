@@ -181,7 +181,7 @@ func Execute(opts *AgentOpts) error {
 
 	clusterCache.SetConfigMapUpdateFunc(watchConfigFunc)
 
-	configPrefix := env.GetConfigPathWithDefault("/var/configs/")
+	configPrefix := env.GetConfigPathWithDefault(env.DefaultConfigMountPath)
 
 	// Initialize cluster exporting if it's enabled
 	if env.IsExportClusterCacheEnabled() {

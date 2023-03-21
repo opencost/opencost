@@ -396,7 +396,7 @@ type Azure struct {
 	Config                         *ProviderConfig
 	serviceAccountChecks           *ServiceAccountChecks
 	RateCardPricingError           error
-	clusterAccountId               string
+	clusterAccountID               string
 	clusterRegion                  string
 	loadedAzureSecret              bool
 	azureSecret                    *AzureServiceKey
@@ -1345,7 +1345,7 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 		m["name"] = c.ClusterName
 	}
 	m["provider"] = kubecost.AzureProvider
-	m["account"] = az.clusterAccountId
+	m["account"] = az.clusterAccountID
 	m["region"] = az.clusterRegion
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	m["id"] = env.GetClusterID()

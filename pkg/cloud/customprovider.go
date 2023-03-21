@@ -30,6 +30,8 @@ type CustomProvider struct {
 	SpotLabelValue          string
 	GPULabel                string
 	GPULabelValue           string
+	clusterRegion           string
+	clusterAccountID        string
 	DownloadPricingDataLock sync.RWMutex
 	Config                  *ProviderConfig
 }
@@ -117,6 +119,8 @@ func (cp *CustomProvider) ClusterInfo() (map[string]string, error) {
 		m["name"] = conf.ClusterName
 	}
 	m["provider"] = kubecost.CustomProvider
+	m["region"] = cp.clusterRegion
+	m["account"] = cp.clusterAccountID
 	m["id"] = env.GetClusterID()
 	return m, nil
 }
