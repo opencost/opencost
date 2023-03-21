@@ -39,6 +39,7 @@ func UpdateCSVWorker(ctx context.Context, storage CloudStorage, model Allocation
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(nextRunAt.Sub(time.Now())):
+			log.Infof("Updating CSV file: %s", path)
 			err := UpdateCSV(ctx, storage, model, path)
 			if err != nil {
 				// it's background worker, log error and carry on, maybe next time it will work
@@ -68,10 +69,16 @@ type csvExporter struct {
 }
 
 // Update updates CSV file in cloud storage with new allocation data
+// TODO: currently everything is processed in memory, it might be a problem for large clusters
+// it's possible to switch to temporary files, but it will require upgrading all storage provider to work with files
 func (e *csvExporter) Update(ctx context.Context) error {
 	allocationDates, err := e.availableAllocationDates()
 	if err != nil {
 		return err
+	}
+
+	if len(allocationDates) == 0 {
+		return errors.New("no data to export from prometheus")
 	}
 
 	exist, err := e.Storage.Exists(e.FilePath)
@@ -108,6 +115,11 @@ func (e *csvExporter) Update(ctx context.Context) error {
 			delete(allocationDates, date)
 		}
 
+		if len(allocationDates) == 0 {
+			log.Info("export file in cloud storage already contain data for all dates, skipping update")
+			return nil
+		}
+
 		dateExport, err := e.allocationsToCSV(ctx, mapTimeToSlice(allocationDates))
 		if err != nil {
 			return err
@@ -123,6 +135,8 @@ func (e *csvExporter) Update(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	log.Infof("Updated CSV file %s", e.FilePath)
 
 	return nil
 }
@@ -143,7 +157,7 @@ func (e *csvExporter) availableAllocationDates() (map[time.Time]struct{}, error)
 		dates[date] = struct{}{}
 	}
 	if len(dates) == 0 {
-		return nil, errors.New("no allocation data available")
+		return nil, errNoData
 	}
 	return dates, nil
 }
@@ -165,6 +179,8 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 	// TODO: confirm columns we want to export
 	err := csvWriter.Write([]string{
 		"Date",
+		"Namespace",
+		"Kind",
 		"Name",
 		"CPUCoreUsageAverage",
 		"CPUCoreRequestAverage",
@@ -191,6 +207,7 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 			return err
 		}
 		log.Infof("fetched %d records for %s", len(data.Allocations), date.Format("2006-01-02"))
+		// TODO: does it need to be aggregated by namespace+controller first?
 		for _, alloc := range data.Allocations {
 			if err := ctx.Err(); err != nil {
 				return err
@@ -198,7 +215,9 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 
 			err := csvWriter.Write([]string{
 				date.Format("2006-01-02"),
-				alloc.Name,
+				alloc.Properties.Namespace,
+				alloc.Properties.ControllerKind,
+				alloc.Properties.Controller,
 				fmtFloat(alloc.CPUCoreUsageAverage),
 				fmtFloat(alloc.CPUCoreRequestAverage),
 				fmtFloat(alloc.CPUTotalCost()),
@@ -248,7 +267,7 @@ func (e *csvExporter) loadDates(csvFile []byte) (map[time.Time]struct{}, error) 
 	dates := make(map[time.Time]struct{})
 	for {
 		row, err := csvReader.Read()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {

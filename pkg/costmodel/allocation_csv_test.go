@@ -114,6 +114,28 @@ func Test_UpdateCSV(t *testing.T) {
 `, string(storage.WriteCalls()[0].Data))
 	})
 
+	t.Run("data already present in export file, export should be skipped", func(t *testing.T) {
+		storage := &CloudStorageMock{
+			ExistsFunc: func(name string) (bool, error) {
+				return true, nil
+			},
+			ReadFunc: func(name string) ([]byte, error) {
+				return []byte(`Date,Name,CPUCoreUsageAverage,CPUCoreRequestAverage,CPUCost,RAMBytesUsageAverage,RAMBytesRequestAverage,RAMCost
+2021-01-01,test,0.1,0.2,0.3,0.4,0.5,0.6
+`), nil
+			},
+		}
+		model := &AllocationModelMock{
+			DateRangeFunc: func() (time.Time, time.Time, error) {
+				return time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2021, 1, 2, 0, 0, 0, 0, time.UTC), nil
+			},
+		}
+		err := UpdateCSV(context.TODO(), storage, model, "/test.csv")
+		require.NoError(t, err)
+		assert.Len(t, storage.WriteCalls(), 0)
+		assert.Len(t, model.ComputeAllocationCalls(), 0)
+	})
+
 	t.Run("allocation data is empty", func(t *testing.T) {
 		model := &AllocationModelMock{
 			ComputeAllocationFunc: func(start time.Time, end time.Time, resolution time.Duration) (*kubecost.AllocationSet, error) {

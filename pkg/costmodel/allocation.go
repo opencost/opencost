@@ -59,8 +59,8 @@ const (
 	queryFmtReplicaSetsWithoutOwners = `avg(avg_over_time(kube_replicaset_owner{owner_kind="<none>", owner_name="<none>"}[%s])) by (replicaset, namespace, %s)`
 	queryFmtLBCostPerHr              = `avg(avg_over_time(kubecost_load_balancer_cost[%s])) by (namespace, service_name, %s)`
 	queryFmtLBActiveMins             = `count(kubecost_load_balancer_cost) by (namespace, service_name, %s)[%s:%s]`
-	queryFmtOldestSample             = `max_over_time(timestamp(up{job="opencost"})[%s:%s])`
-	queryFmtNewestSample             = `min_over_time(timestamp(up{job="opencost"})[%s:%s])`
+	queryFmtOldestSample             = `min_over_time(timestamp(up{job="opencost"})[%s:%s])`
+	queryFmtNewestSample             = `max_over_time(timestamp(up{job="opencost"})[%s:%s])`
 )
 
 // Constants for Network Cost Subtype
@@ -266,13 +266,13 @@ func (cm *CostModel) DateRange() (time.Time, time.Time, error) {
 	if err != nil {
 		return time.Time{}, time.Time{}, errors.Wrap(err, "querying oldest sample")
 	}
-	oldest := time.Unix(int64(resOldest[0].Values[0].Timestamp), 0)
+	oldest := time.Unix(int64(resOldest[0].Values[0].Value), 0)
 
 	resNewest, _, err := ctx.QuerySync(fmt.Sprintf(queryFmtNewestSample, "90d", "1h"))
 	if err != nil {
 		return time.Time{}, time.Time{}, errors.Wrap(err, "querying oldest sample")
 	}
-	newest := time.Unix(int64(resNewest[0].Values[0].Timestamp), 0)
+	newest := time.Unix(int64(resNewest[0].Values[0].Value), 0)
 
 	return oldest, newest, nil
 }
