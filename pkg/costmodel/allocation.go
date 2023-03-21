@@ -620,7 +620,6 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 			// point due to it missing from queryMinutes) then insert.
 			alloc.Name = fmt.Sprintf("%s/%s/%s/%s/%s", cluster, nodeName, namespace, podName, container)
 			allocSet.Set(alloc)
-			//log.Warnf("alloc props: %v", alloc.Properties)
 		}
 	}
 
