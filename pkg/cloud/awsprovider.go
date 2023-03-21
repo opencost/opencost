@@ -179,8 +179,8 @@ type AWS struct {
 	Config                      *ProviderConfig
 	serviceAccountChecks        *ServiceAccountChecks
 	clusterManagementPrice      float64
-	clusterAccountId            string
 	clusterRegion               string
+	clusterAccountID            string
 	clusterProvisioner          string
 	*CustomProvider
 }
@@ -1342,38 +1342,41 @@ func (aws *AWS) NodePricing(k Key) (*Node, error) {
 
 // ClusterInfo returns an object that represents the cluster. TODO: actually return the name of the cluster. Blocked on cluster federation.
 func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
-	defaultClusterName := "AWS Cluster #1"
+
 	c, err := awsProvider.GetConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	remoteEnabled := env.IsRemoteEnabled()
-
-	makeStructure := func(clusterName string) (map[string]string, error) {
-		m := make(map[string]string)
-		m["name"] = clusterName
-		m["provider"] = kubecost.AWSProvider
-		m["account"] = c.AthenaProjectID // this value requires configuration but is unavailable else where
-		m["region"] = awsProvider.clusterRegion
-		m["id"] = env.GetClusterID()
-		m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
-		m["provisioner"] = awsProvider.clusterProvisioner
-		return m, nil
+	// Determine cluster name
+	clusterName := c.ClusterName
+	if clusterName == "" {
+		awsClusterID := env.GetAWSClusterID()
+		if awsClusterID != "" {
+			log.Infof("Returning \"%s\" as ClusterName", awsClusterID)
+			clusterName = awsClusterID
+		} else {
+			log.Infof("Unable to sniff out cluster ID, perhaps set $%s to force one", env.AWSClusterIDEnvVar)
+			clusterName = "AWS Cluster #1"
+		}
 	}
 
-	if c.ClusterName != "" {
-		return makeStructure(c.ClusterName)
+	// this value requires configuration but is unavailable else where
+	clusterAccountID := c.ClusterAccountID
+	// Use AthenaProjectID if Cluster Account is not set to support older configs
+	if clusterAccountID == "" {
+		clusterAccountID = c.AthenaProjectID
 	}
 
-	maybeClusterId := env.GetAWSClusterID()
-	if len(maybeClusterId) != 0 {
-		log.Infof("Returning \"%s\" as ClusterName", maybeClusterId)
-		return makeStructure(maybeClusterId)
-	}
-
-	log.Infof("Unable to sniff out cluster ID, perhaps set $%s to force one", env.AWSClusterIDEnvVar)
-	return makeStructure(defaultClusterName)
+	m := make(map[string]string)
+	m["name"] = clusterName
+	m["provider"] = kubecost.AWSProvider
+	m["account"] = clusterAccountID
+	m["region"] = awsProvider.clusterRegion
+	m["id"] = env.GetClusterID()
+	m["remoteReadEnabled"] = strconv.FormatBool(env.IsRemoteEnabled())
+	m["provisioner"] = awsProvider.clusterProvisioner
+	return m, nil
 }
 
 // updates the authentication to the latest values (via config or secret)

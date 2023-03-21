@@ -102,8 +102,9 @@ type GCP struct {
 	ValidPricingKeys        map[string]bool
 	metadataClient          *metadata.Client
 	clusterManagementPrice  float64
-	clusterProjectId        string
 	clusterRegion           string
+	clusterAccountID        string
+	clusterProjectID        string
 	clusterProvisioner      string
 	*CustomProvider
 }
@@ -333,8 +334,9 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	m := make(map[string]string)
 	m["name"] = attribute
 	m["provider"] = kubecost.GCPProvider
-	m["project"] = gcp.clusterProjectId
 	m["region"] = gcp.clusterRegion
+	m["account"] = gcp.clusterAccountID
+	m["project"] = gcp.clusterProjectID
 	m["provisioner"] = gcp.clusterProvisioner
 	m["id"] = env.GetClusterID()
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
