@@ -34,7 +34,6 @@ func Test_UpdateCSV(t *testing.T) {
 						"test": {
 							Start:                  time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC), // required for GPU metrics
 							End:                    time.Date(2021, 1, 2, 0, 0, 0, 0, time.UTC),
-							Name:                   "test",
 							CPUCoreUsageAverage:    0.1,
 							CPUCoreRequestAverage:  0.2,
 							CPUCost:                0.3,
@@ -53,6 +52,13 @@ func Test_UpdateCSV(t *testing.T) {
 									Cost:      2.0,
 								},
 							}, // 2 PVBytes, 2 PVCost
+							Properties: &kubecost.AllocationProperties{
+								Namespace:      "test-namespace",
+								Controller:     "test-controller-name",
+								ControllerKind: "test-controller-kind",
+								Pod:            "test-pod",
+								Container:      "test-container",
+							},
 						},
 					},
 				}, nil
@@ -65,8 +71,8 @@ func Test_UpdateCSV(t *testing.T) {
 		assert.Len(t, model.ComputeAllocationCalls(), 1)
 		assert.Equal(t, time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC), model.ComputeAllocationCalls()[0].Start)
 		assert.Equal(t, time.Date(2021, 1, 2, 0, 0, 0, 0, time.UTC), model.ComputeAllocationCalls()[0].End)
-		assert.Equal(t, `Date,Name,CPUCoreUsageAverage,CPUCoreRequestAverage,CPUCost,RAMBytesUsageAverage,RAMBytesRequestAverage,RAMCost,GPUs,GPUCost,NetworkCost,PVBytes,PVCost,TotalCost
-2021-01-01,test,0.1,0.2,0.3,0.4,0.5,0.6,2,0.8,0.9,2,2,4.6000000000000005
+		assert.Equal(t, `Date,Namespace,ControllerKind,ControllerName,Pod,Container,CPUCoreUsageAverage,CPUCoreRequestAverage,CPUCost,RAMBytesUsageAverage,RAMBytesRequestAverage,RAMCost,GPUs,GPUCost,NetworkCost,PVBytes,PVCost,TotalCost
+2021-01-01,test-namespace,test-controller-kind,test-controller-name,test-pod,test-container,0.1,0.2,0.3,0.4,0.5,0.6,2,0.8,0.9,2,2,4.6000000000000005
 `, string(storage.WriteCalls()[0].Data))
 	})
 
@@ -76,8 +82,8 @@ func Test_UpdateCSV(t *testing.T) {
 				return true, nil
 			},
 			ReadFunc: func(name string) ([]byte, error) {
-				return []byte(`Date,Name,CPUCoreUsageAverage,CPUCoreRequestAverage,CPUCost,RAMBytesUsageAverage,RAMBytesRequestAverage,RAMCost
-2021-01-01,test,0.1,0.2,0.3,0.4,0.5,0.6
+				return []byte(`Date,Namespace,CPUCoreUsageAverage,CPUCoreRequestAverage,CPUCost,RAMBytesUsageAverage,RAMBytesRequestAverage,RAMCost
+2021-01-01,test-namespace,0.1,0.2,0.3,0.4,0.5,0.6
 `), nil
 			},
 			WriteFunc: func(name string, data []byte) error {
@@ -92,7 +98,9 @@ func Test_UpdateCSV(t *testing.T) {
 				return &kubecost.AllocationSet{
 					Allocations: map[string]*kubecost.Allocation{
 						"test": {
-							Name:    "test",
+							Properties: &kubecost.AllocationProperties{
+								Namespace: "test-namespace",
+							},
 							CPUCost: 1,
 						},
 					},
@@ -108,9 +116,9 @@ func Test_UpdateCSV(t *testing.T) {
 		// 2021-01-01 is already in the export file, so we only compute for 2021-01-02
 		assert.Equal(t, time.Date(2021, 1, 2, 0, 0, 0, 0, time.UTC), model.ComputeAllocationCalls()[0].Start)
 		assert.Equal(t, time.Date(2021, 1, 3, 0, 0, 0, 0, time.UTC), model.ComputeAllocationCalls()[0].End)
-		assert.Equal(t, `Date,Name,CPUCoreUsageAverage,CPUCoreRequestAverage,CPUCost,RAMBytesUsageAverage,RAMBytesRequestAverage,RAMCost,GPUs,GPUCost,NetworkCost,PVBytes,PVCost,TotalCost
-2021-01-01,test,0.1,0.2,0.3,0.4,0.5,0.6,,,,,,
-2021-01-02,test,0,0,1,0,0,0,0,0,0,0,0,1
+		assert.Equal(t, `Date,Namespace,CPUCoreUsageAverage,CPUCoreRequestAverage,CPUCost,RAMBytesUsageAverage,RAMBytesRequestAverage,RAMCost,ControllerKind,ControllerName,Pod,Container,GPUs,GPUCost,NetworkCost,PVBytes,PVCost,TotalCost
+2021-01-01,test-namespace,0.1,0.2,0.3,0.4,0.5,0.6,,,,,,,,,,
+2021-01-02,test-namespace,0,0,1,0,0,0,,,,,0,0,0,0,0,1
 `, string(storage.WriteCalls()[0].Data))
 	})
 
