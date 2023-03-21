@@ -180,8 +180,10 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 	err := csvWriter.Write([]string{
 		"Date",
 		"Namespace",
-		"Kind",
-		"Name",
+		"ControllerKind",
+		"ControllerName",
+		"Pod",
+		"Container",
 		"CPUCoreUsageAverage",
 		"CPUCoreRequestAverage",
 		"CPUCost",
@@ -207,7 +209,8 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 			return err
 		}
 		log.Infof("fetched %d records for %s", len(data.Allocations), date.Format("2006-01-02"))
-		// TODO: does it need to be aggregated by namespace+controller first?
+		// TODO: does it need to be aggregated by namespace+controller?
+		// container-level information can be too noisy for most users
 		for _, alloc := range data.Allocations {
 			if err := ctx.Err(); err != nil {
 				return err
@@ -218,6 +221,8 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 				alloc.Properties.Namespace,
 				alloc.Properties.ControllerKind,
 				alloc.Properties.Controller,
+				alloc.Properties.Pod,
+				alloc.Properties.Container,
 				fmtFloat(alloc.CPUCoreUsageAverage),
 				fmtFloat(alloc.CPUCoreRequestAverage),
 				fmtFloat(alloc.CPUTotalCost()),
