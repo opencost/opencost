@@ -45,10 +45,10 @@ func UpdateCSVWorker(ctx context.Context, storage CloudStorage, model Allocation
 				// it's background worker, log error and carry on, maybe next time it will work
 				log.Errorf("Error updating CSV: %s", err)
 			}
-			now := time.Now()
+			now := time.Now().UTC()
 			// next launch is at 00:10 UTC tomorrow
 			// extra 10 minutes is to let prometheus to collect all the data for the previous day
-			nextRunAt = time.Date(now.Year(), now.Month(), now.Day(), 0, 10, 0, 0, time.UTC).AddDate(0, 0, 1)
+			nextRunAt = time.Date(now.Year(), now.Month(), now.Day(), 0, 10, 0, 0, now.Location()).AddDate(0, 0, 1)
 		}
 	}
 }
