@@ -184,17 +184,21 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 		"ControllerName",
 		"Pod",
 		"Container",
+
 		"CPUCoreUsageAverage",
 		"CPUCoreRequestAverage",
-		"CPUCost",
 		"RAMBytesUsageAverage",
 		"RAMBytesRequestAverage",
-		"RAMCost",
+		"NetworkReceiveBytes",
+		"NetworkTransferBytes",
 		"GPUs",
-		"GPUCost",
-		"NetworkCost",
 		"PVBytes",
+
+		"CPUCost",
+		"RAMCost",
+		"NetworkCost",
 		"PVCost",
+		"GPUCost",
 		"TotalCost",
 	})
 	if err != nil {
@@ -216,6 +220,8 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 				return err
 			}
 
+			log.Infof("%f", alloc.TotalCost())
+
 			err := csvWriter.Write([]string{
 				date.Format("2006-01-02"),
 				alloc.Properties.Namespace,
@@ -223,17 +229,21 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 				alloc.Properties.Controller,
 				alloc.Properties.Pod,
 				alloc.Properties.Container,
+
 				fmtFloat(alloc.CPUCoreUsageAverage),
 				fmtFloat(alloc.CPUCoreRequestAverage),
-				fmtFloat(alloc.CPUTotalCost()),
 				fmtFloat(alloc.RAMBytesUsageAverage),
 				fmtFloat(alloc.RAMBytesRequestAverage),
-				fmtFloat(alloc.RAMTotalCost()),
+				fmtFloat(alloc.NetworkReceiveBytes),
+				fmtFloat(alloc.NetworkTransferBytes),
 				fmtFloat(alloc.GPUs()),
-				fmtFloat(alloc.GPUCost),
-				fmtFloat(alloc.NetworkTotalCost()),
 				fmtFloat(alloc.PVBytes()),
+
+				fmtFloat(alloc.CPUTotalCost()),
+				fmtFloat(alloc.RAMTotalCost()),
+				fmtFloat(alloc.NetworkTotalCost()),
 				fmtFloat(alloc.PVCost()),
+				fmtFloat(alloc.GPUCost),
 				fmtFloat(alloc.TotalCost()),
 			})
 			if err != nil {
