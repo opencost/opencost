@@ -10,8 +10,6 @@ import (
 )
 
 const (
-	AppVersionEnvVar = "APP_VERSION"
-
 	AWSAccessKeyIDEnvVar     = "AWS_ACCESS_KEY_ID"
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
@@ -169,12 +167,6 @@ func GetPricingConfigmapName() string {
 
 func GetMetricsConfigmapName() string {
 	return Get(MetricsConfigmapName, "metrics-config")
-}
-
-// GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
-// the AWS access key for authentication
-func GetAppVersion() string {
-	return Get(AppVersionEnvVar, "1.91.0-rc.0")
 }
 
 // IsEmitNamespaceAnnotationsMetric returns true if cost-model is configured to emit the kube_namespace_annotations metric
