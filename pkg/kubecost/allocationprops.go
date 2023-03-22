@@ -480,6 +480,12 @@ func (p *AllocationProperties) Intersection(that *AllocationProperties) *Allocat
 	}
 	if p.Namespace == that.Namespace {
 		intersectionProps.Namespace = p.Namespace
+
+		// CORE-140: In the case that the namespace is the same, also copy over the namespaceLabels and annotations
+		// Note - assume that if the namespace is the same on both, then namespace label/annotation sets
+		// will be the same, so just pick one set to copy over
+		intersectionProps.NamespaceLabels = copyStringMap(p.NamespaceLabels)
+		intersectionProps.NamespaceAnnotations = copyStringMap(that.NamespaceAnnotations)
 	}
 	if p.Pod == that.Pod {
 		intersectionProps.Pod = p.Pod
@@ -487,7 +493,17 @@ func (p *AllocationProperties) Intersection(that *AllocationProperties) *Allocat
 	if p.ProviderID == that.ProviderID {
 		intersectionProps.ProviderID = p.ProviderID
 	}
+
 	return intersectionProps
+}
+
+func copyStringMap(original map[string]string) map[string]string {
+	copy := make(map[string]string)
+	for key, value := range original {
+		copy[key] = value
+	}
+
+	return copy
 }
 
 func (p *AllocationProperties) String() string {
