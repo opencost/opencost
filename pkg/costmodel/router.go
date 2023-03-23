@@ -1482,7 +1482,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 
 	var err error
 	if errorReportingEnabled {
-		err = sentry.Init(sentry.ClientOptions{Release: env.GetAppVersion()})
+		err = sentry.Init(sentry.ClientOptions{Release: version.FriendlyVersion()})
 		if err != nil {
 			log.Infof("Failed to initialize sentry for error reporting")
 		} else {
