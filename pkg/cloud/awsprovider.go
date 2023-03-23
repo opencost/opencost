@@ -257,6 +257,7 @@ type AWSPricingTerms struct {
 // AWSOfferTerm is a sku extension used to pay for the node.
 type AWSOfferTerm struct {
 	Sku             string                  `json:"sku"`
+	OfferTermCode   string                  `json:"offerTermCode"`
 	PriceDimensions map[string]*AWSRateCode `json:"priceDimensions"`
 }
 
@@ -299,16 +300,20 @@ type AWSProductTerms struct {
 // ClusterIdEnvVar is the environment variable in which one can manually set the ClusterId
 const ClusterIdEnvVar = "AWS_CLUSTER_ID"
 
-// OnDemandRateCode is appended to an node sku
-const OnDemandRateCode = ".JRTCKXETXF"
-const OnDemandRateCodeCn = ".99YE2YK9UR"
+// OnDemandRateCodes is are sets of identifiers for offerTermCodes matching 'On Demand' rates
+var OnDemandRateCodes = map[string]struct{}{
+	"JRTCKXETXF": {},
+}
 
-// ReservedRateCode is appended to a node sku
-const ReservedRateCode = ".38NPMPTW36"
+var OnDemandRateCodesCn = map[string]struct{}{
+	"99YE2YK9UR": {},
+	"5Y9WH78GDR": {},
+	"KW44MY7SZN": {},
+}
 
 // HourlyRateCode is appended to a node sku
-const HourlyRateCode = ".6YS6EN2CT7"
-const HourlyRateCodeCn = ".Q7UJUT2CE6"
+const HourlyRateCode = "6YS6EN2CT7"
+const HourlyRateCodeCn = "Q7UJUT2CE6"
 
 // volTypes are used to map between AWS UsageTypes and
 // EBS volume types, as they would appear in K8s storage class
@@ -1024,7 +1029,8 @@ func (aws *AWS) DownloadPricingData() error {
 					if err != nil {
 						return err
 					}
-					skuOnDemand, err := dec.Token()
+					// SKUOndemand
+					_, err = dec.Token()
 					if err != nil {
 						return err
 					}
@@ -1040,10 +1046,10 @@ func (aws *AWS) DownloadPricingData() error {
 						aws.Pricing[key].OnDemand = offerTerm
 						aws.Pricing[spotKey].OnDemand = offerTerm
 						var cost string
-						if sku.(string)+OnDemandRateCode == skuOnDemand {
-							cost = offerTerm.PriceDimensions[sku.(string)+OnDemandRateCode+HourlyRateCode].PricePerUnit.USD
-						} else if sku.(string)+OnDemandRateCodeCn == skuOnDemand {
-							cost = offerTerm.PriceDimensions[sku.(string)+OnDemandRateCodeCn+HourlyRateCodeCn].PricePerUnit.CNY
+						if _, isMatch := OnDemandRateCodes[offerTerm.OfferTermCode]; isMatch {
+							cost = offerTerm.PriceDimensions[strings.Join([]string{sku.(string), offerTerm.OfferTermCode, HourlyRateCode}, ".")].PricePerUnit.USD
+						} else if _, isMatch := OnDemandRateCodesCn[offerTerm.OfferTermCode]; isMatch {
+							cost = offerTerm.PriceDimensions[strings.Join([]string{sku.(string), offerTerm.OfferTermCode, HourlyRateCodeCn}, ".")].PricePerUnit.CNY
 						}
 						if strings.Contains(key, "EBS:VolumeP-IOPS.piops") {
 							// If the specific UsageType is the per IO cost used on io1 volumes
@@ -1268,12 +1274,12 @@ func (aws *AWS) createNode(terms *AWSProductTerms, usageType string, k Key) (*No
 
 	}
 	var cost string
-	c, ok := terms.OnDemand.PriceDimensions[terms.Sku+OnDemandRateCode+HourlyRateCode]
+	c, ok := terms.OnDemand.PriceDimensions[strings.Join([]string{terms.Sku, terms.OnDemand.OfferTermCode, HourlyRateCode}, ".")]
 	if ok {
 		cost = c.PricePerUnit.USD
 	} else {
 		// Check for Chinese pricing before throwing error
-		c, ok = terms.OnDemand.PriceDimensions[terms.Sku+OnDemandRateCodeCn+HourlyRateCodeCn]
+		c, ok = terms.OnDemand.PriceDimensions[strings.Join([]string{terms.Sku, terms.OnDemand.OfferTermCode, HourlyRateCodeCn}, ".")]
 		if ok {
 			cost = c.PricePerUnit.CNY
 		} else {
