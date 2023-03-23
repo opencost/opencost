@@ -1110,11 +1110,14 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		}
 	}
 
+	log.Infof("[PARCS] idleSet.Length(): %d", idleSet.Length())
+	log.Infof("[PARCS] idleCoefficients: nil:%t len:%d", idleCoefficients == nil, len(idleCoefficients))
+
 	// (2b) If proportional asset resource costs are to be included, derive them
 	// from idle coefficients and add them to the allocations.
 	if options.IncludeProportionalAssetResourceCosts {
 		if idleCoefficients == nil {
-			return fmt.Errorf("cannot include proportional resource costs")
+			return fmt.Errorf("cannot include proportional resource costs because idle coefficients are nil")
 		}
 
 		for _, alloc := range as.Allocations {
