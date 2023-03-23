@@ -40,8 +40,9 @@ const (
 	queryFmtNetRegionCostPerGiB      = `avg(avg_over_time(kubecost_network_region_egress_cost{%s}[%s])) by (%s)`
 	queryFmtNetInternetGiB           = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
 	queryFmtNetInternetCostPerGiB    = `avg(avg_over_time(kubecost_network_internet_egress_cost{%s}[%s])) by (%s)`
-	queryFmtNetReceiveBytes          = `sum(increase(container_network_receive_bytes_total{pod!="", container="POD", %s}[%s])) by (pod_name, pod, namespace, %s)`
-	queryFmtNetTransferBytes         = `sum(increase(container_network_transmit_bytes_total{pod!="", container="POD", %s}[%s])) by (pod_name, pod, namespace, %s)`
+	queryFmtNetReceiveBytes          = `sum(increase(container_network_receive_bytes_total{pod!="", %s}[%s])) by (pod_name, pod, namespace, %s)`
+	queryFmtNetTransferBytes         = `sum(increase(container_network_transmit_bytes_total{pod!="", %s}[%s])) by (pod_name, pod, namespace, %s)`
+	queryFmtNodeLabels               = `avg_over_time(kube_node_labels{%s}[%s])`
 	queryFmtNamespaceLabels          = `avg_over_time(kube_namespace_labels{%s}[%s])`
 	queryFmtNamespaceAnnotations     = `avg_over_time(kube_namespace_annotations{%s}[%s])`
 	queryFmtPodLabels                = `avg_over_time(kube_pod_labels{%s}[%s])`
@@ -68,7 +69,7 @@ const (
         //
         // If changing the name of the recording rule, make sure to update the
         // corresponding diagnostic query to avoid confusion.
-        queryFmtCPUUsageMaxRecordingRule = `max(max_over_time(kubecost_container_cpu_usage_irate{}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+        queryFmtCPUUsageMaxRecordingRule = `max(max_over_time(kubecost_container_cpu_usage_irate{%s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
         // This is the subquery equivalent of the above recording rule query. It is
         // more expensive, but does not require the recording rule. It should be
         // used as a fallback query if the recording rule data does not exist.
@@ -79,7 +80,7 @@ const (
         // the resolution, to make sure the irate always has two points to query
         // in case the Prom scrape duration has been reduced to be equal to the
         // ETL resolution.
-        queryFmtCPUUsageMaxSubquery = `max(max_over_time(irate(container_cpu_usage_seconds_total{container_name!="POD", container_name!=""}[%s])[%s:%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+        queryFmtCPUUsageMaxSubquery = `max(max_over_time(irate(container_cpu_usage_seconds_total{container_name!="POD", container_name!="", %s}[%s])[%s:%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
 )
 
 // Constants for Network Cost Subtype
@@ -399,7 +400,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 		// in case the Prom scrape duration has been reduced to be equal to the
 		// resolution.
 		doubleResStr := timeutil.DurationString(2 * resolution)
-		queryCPUUsageMax = fmt.Sprintf(queryFmtCPUUsageMaxSubquery, doubleResStr, durStr, resStr, env.GetPromClusterLabel())
+		queryCPUUsageMax = fmt.Sprintf(queryFmtCPUUsageMaxSubquery, env.GetPromClusterFilter(), doubleResStr, durStr, resStr, env.GetPromClusterLabel())
 		resChCPUUsageMax = ctx.QueryAtTime(queryCPUUsageMax, end)
 		resCPUUsageMax, _ = resChCPUUsageMax.Await()
 
