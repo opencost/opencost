@@ -88,6 +88,12 @@ func TestRoundBack(t *testing.T) {
 	if !tb.Equal(time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("RoundBack: expected 2020-01-01T00:00:00Z; actual %s", tb)
 	}
+
+	to = time.Date(2020, time.January, 1, 23, 59, 0, 0, time.UTC)
+	tb = RoundBack(to, timeutil.Week)
+	if !tb.Equal(time.Date(2019, time.December, 29, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("RoundForward: expected 2019-12-29T00:00:00Z; actual %s", tb)
+	}
 }
 
 func TestRoundForward(t *testing.T) {
@@ -164,6 +170,12 @@ func TestRoundForward(t *testing.T) {
 	tb = RoundForward(to, 24*time.Hour)
 	if !tb.Equal(time.Date(2020, time.January, 2, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("RoundForward: expected 2020-01-02T00:00:00Z; actual %s", tb)
+	}
+
+	to = time.Date(2020, time.January, 1, 23, 59, 0, 0, time.UTC)
+	tb = RoundForward(to, timeutil.Week)
+	if !tb.Equal(time.Date(2020, time.January, 5, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("RoundForward: expected 2020-01-05T00:00:00Z; actual %s", tb)
 	}
 }
 
