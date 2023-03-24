@@ -64,7 +64,7 @@ var (
 	// It's of the form aws:///us-east-2a/i-0fea4fd46592d050b and we want i-0fea4fd46592d050b, if it exists
 	provIdRx      = regexp.MustCompile("aws:///([^/]+)/([^/]+)")
 	usageTypeRegx = regexp.MustCompile(".*(-|^)(EBS.+)")
-	versionRx     = regexp.MustCompile("^#Version: (\\d+)\\.\\d+$")
+	versionRx     = regexp.MustCompile(`^#Version: (\\d+)\\.\\d+$`)
 	regionRx      = regexp.MustCompile("([a-z]+-[a-z]+-[0-9])")
 )
 
@@ -362,34 +362,6 @@ var locationToRegion = map[string]string{
 	"Africa (Cape Town)":        "af-south-1",
 	"AWS GovCloud (US-East)":    "us-gov-east-1",
 	"AWS GovCloud (US-West)":    "us-gov-west-1",
-}
-
-var regionToBillingRegionCode = map[string]string{
-	"us-east-2":      "USE2",
-	"us-east-1":      "",
-	"us-west-1":      "USW1",
-	"us-west-2":      "USW2",
-	"ap-east-1":      "APE1",
-	"ap-south-1":     "APS3",
-	"ap-northeast-3": "APN3",
-	"ap-northeast-2": "APN2",
-	"ap-southeast-1": "APS1",
-	"ap-southeast-2": "APS2",
-	"ap-northeast-1": "APN1",
-	"ap-southeast-3": "APS4",
-	"ca-central-1":   "CAN1",
-	"cn-north-1":     "",
-	"cn-northwest-1": "",
-	"eu-central-1":   "EUC1",
-	"eu-west-1":      "EU",
-	"eu-west-2":      "EUW2",
-	"eu-west-3":      "EUW3",
-	"eu-north-1":     "EUN1",
-	"eu-south-1":     "EUS1",
-	"sa-east-1":      "SAE1",
-	"af-south-1":     "AFS1",
-	"us-gov-east-1":  "UGE1",
-	"us-gov-west-1":  "UGW1",
 }
 
 var loadedAWSSecret bool = false
@@ -928,19 +900,75 @@ func (aws *AWS) DownloadPricingData() error {
 		}
 	}
 
-	aws.Pricing = make(map[string]*AWSProductTerms)
 	aws.ValidPricingKeys = make(map[string]bool)
-	skusToKeys := make(map[string]string)
 
 	resp, pricingURL, err := aws.getRegionPricing(nodeList)
 	if err != nil {
 		return err
 	}
+	aws.populatePricing(resp, inputkeys)
+	log.Infof("Finished downloading \"%s\"", pricingURL)
+
+	if !aws.SpotRefreshEnabled() {
+		return nil
+	}
+
+	// Always run spot pricing refresh when performing download
+	aws.refreshSpotPricing(true)
+
+	// Only start a single refresh goroutine
+	if !aws.SpotRefreshRunning {
+		aws.SpotRefreshRunning = true
+
+		go func() {
+			defer errs.HandlePanic()
+
+			for {
+				log.Infof("Spot Pricing Refresh scheduled in %.2f minutes.", SpotRefreshDuration.Minutes())
+				time.Sleep(SpotRefreshDuration)
+
+				// Reoccurring refresh checks update times
+				aws.refreshSpotPricing(false)
+			}
+		}()
+	}
+
+	return nil
+}
+
+func (aws *AWS) refreshSpotPricing(force bool) {
+	aws.SpotPricingLock.Lock()
+	defer aws.SpotPricingLock.Unlock()
+
+	now := time.Now().UTC()
+	updateTime := now.Add(-SpotRefreshDuration)
+
+	// Return if there was an update time set and an hour hasn't elapsed
+	if !force && aws.SpotPricingUpdatedAt != nil && aws.SpotPricingUpdatedAt.After(updateTime) {
+		return
+	}
+
+	sp, err := aws.parseSpotData(aws.SpotDataBucket, aws.SpotDataPrefix, aws.ProjectID, aws.SpotDataRegion)
+	if err != nil {
+		log.Warnf("Skipping AWS spot data download: %s", err.Error())
+		aws.SpotPricingError = err
+		return
+	}
+	aws.SpotPricingError = nil
+
+	// update time last updated
+	aws.SpotPricingUpdatedAt = &now
+	aws.SpotPricingByInstanceID = sp
+}
+
+func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) error {
+	aws.Pricing = make(map[string]*AWSProductTerms)
+	skusToKeys := make(map[string]string)
 	dec := json.NewDecoder(resp.Body)
 	for {
 		t, err := dec.Token()
 		if err == io.EOF {
-			log.Infof("done loading \"%s\"\n", pricingURL)
+			log.Infof("done loading \"%s\"\n", resp.Request.URL.String())
 			break
 		} else if err != nil {
 			log.Errorf("error parsing response json %v", resp.Body)
@@ -960,7 +988,7 @@ func (aws *AWS) DownloadPricingData() error {
 
 				err = dec.Decode(&product)
 				if err != nil {
-					log.Errorf("Error parsing response from \"%s\": %v", pricingURL, err.Error())
+					log.Errorf("Error parsing response from \"%s\": %v", resp.Request.URL.String(), err.Error())
 					break
 				}
 
@@ -1078,58 +1106,7 @@ func (aws *AWS) DownloadPricingData() error {
 			}
 		}
 	}
-	log.Infof("Finished downloading \"%s\"", pricingURL)
-
-	if !aws.SpotRefreshEnabled() {
-		return nil
-	}
-
-	// Always run spot pricing refresh when performing download
-	aws.refreshSpotPricing(true)
-
-	// Only start a single refresh goroutine
-	if !aws.SpotRefreshRunning {
-		aws.SpotRefreshRunning = true
-
-		go func() {
-			defer errs.HandlePanic()
-
-			for {
-				log.Infof("Spot Pricing Refresh scheduled in %.2f minutes.", SpotRefreshDuration.Minutes())
-				time.Sleep(SpotRefreshDuration)
-
-				// Reoccurring refresh checks update times
-				aws.refreshSpotPricing(false)
-			}
-		}()
-	}
-
 	return nil
-}
-
-func (aws *AWS) refreshSpotPricing(force bool) {
-	aws.SpotPricingLock.Lock()
-	defer aws.SpotPricingLock.Unlock()
-
-	now := time.Now().UTC()
-	updateTime := now.Add(-SpotRefreshDuration)
-
-	// Return if there was an update time set and an hour hasn't elapsed
-	if !force && aws.SpotPricingUpdatedAt != nil && aws.SpotPricingUpdatedAt.After(updateTime) {
-		return
-	}
-
-	sp, err := aws.parseSpotData(aws.SpotDataBucket, aws.SpotDataPrefix, aws.ProjectID, aws.SpotDataRegion)
-	if err != nil {
-		log.Warnf("Skipping AWS spot data download: %s", err.Error())
-		aws.SpotPricingError = err
-		return
-	}
-	aws.SpotPricingError = nil
-
-	// update time last updated
-	aws.SpotPricingUpdatedAt = &now
-	aws.SpotPricingByInstanceID = sp
 }
 
 // Stubbed NetworkPricing for AWS. Pull directly from aws.json for now
@@ -1433,7 +1410,7 @@ func (aws *AWS) getAWSAuth(forceReload bool, cp *CustomPricing) (string, string)
 	}
 
 	// 3. Fall back to env vars
-	if env.GetAWSAccessKeyID() == "" || env.GetAWSAccessKeyID() == "" {
+	if env.GetAWSAccessKeyID() == "" || env.GetAWSAccessKeySecret() == "" {
 		aws.serviceAccountChecks.set("hasKey", &ServiceAccountCheck{
 			Message: "AWS ServiceKey exists",
 			Status:  false,
