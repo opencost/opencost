@@ -34,6 +34,10 @@ var (
 // in the given time's timezone.
 // e.g. 2020-01-01T12:37:48-0700, 24h = 2020-01-01T00:00:00-0700
 func RoundBack(t time.Time, resolution time.Duration) time.Time {
+	// if the duration is a week - roll back to the following Sunday
+	if resolution == timeutil.Week {
+		return timeutil.RoundToStartOfWeek(t)
+	}
 	_, offSec := t.Zone()
 	return t.Add(time.Duration(offSec) * time.Second).Truncate(resolution).Add(-time.Duration(offSec) * time.Second)
 }
@@ -42,6 +46,11 @@ func RoundBack(t time.Time, resolution time.Duration) time.Time {
 // in the given time's timezone.
 // e.g. 2020-01-01T12:37:48-0700, 24h = 2020-01-02T00:00:00-0700
 func RoundForward(t time.Time, resolution time.Duration) time.Time {
+	// if the duration is a week - roll forward to the following Sunday
+	if resolution == timeutil.Week {
+		return timeutil.RoundToStartOfFollowingWeek(t)
+	}
+
 	back := RoundBack(t, resolution)
 	if back.Equal(t) {
 		// The given time is exactly a multiple of the given resolution
@@ -233,6 +242,9 @@ func parseWindow(window string, now time.Time) (Window, error) {
 		if match[2] == "d" {
 			dur = 24 * time.Hour
 		}
+		if match[2] == "w" {
+			dur = timeutil.Week
+		}
 
 		num, _ := strconv.ParseInt(match[1], 10, 64)
 
@@ -254,6 +266,9 @@ func parseWindow(window string, now time.Time) (Window, error) {
 		if match[4] == "d" {
 			offUnit = 24 * time.Hour
 		}
+		if match[4] == "w" {
+			offUnit = 24 * timeutil.Week
+		}
 
 		offNum, _ := strconv.ParseInt(match[3], 10, 64)
 
@@ -265,6 +280,9 @@ func parseWindow(window string, now time.Time) (Window, error) {
 		}
 		if match[2] == "d" {
 			durUnit = 24 * time.Hour
+		}
+		if match[2] == "w" {
+			durUnit = timeutil.Week
 		}
 
 		durNum, _ := strconv.ParseInt(match[1], 10, 64)
