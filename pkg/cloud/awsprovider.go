@@ -906,7 +906,10 @@ func (aws *AWS) DownloadPricingData() error {
 	if err != nil {
 		return err
 	}
-	aws.populatePricing(resp, inputkeys)
+	err = aws.populatePricing(resp, inputkeys)
+	if err != nil {
+		return err
+	}
 	log.Infof("Finished downloading \"%s\"", pricingURL)
 
 	if !aws.SpotRefreshEnabled() {
@@ -934,31 +937,6 @@ func (aws *AWS) DownloadPricingData() error {
 	}
 
 	return nil
-}
-
-func (aws *AWS) refreshSpotPricing(force bool) {
-	aws.SpotPricingLock.Lock()
-	defer aws.SpotPricingLock.Unlock()
-
-	now := time.Now().UTC()
-	updateTime := now.Add(-SpotRefreshDuration)
-
-	// Return if there was an update time set and an hour hasn't elapsed
-	if !force && aws.SpotPricingUpdatedAt != nil && aws.SpotPricingUpdatedAt.After(updateTime) {
-		return
-	}
-
-	sp, err := aws.parseSpotData(aws.SpotDataBucket, aws.SpotDataPrefix, aws.ProjectID, aws.SpotDataRegion)
-	if err != nil {
-		log.Warnf("Skipping AWS spot data download: %s", err.Error())
-		aws.SpotPricingError = err
-		return
-	}
-	aws.SpotPricingError = nil
-
-	// update time last updated
-	aws.SpotPricingUpdatedAt = &now
-	aws.SpotPricingByInstanceID = sp
 }
 
 func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) error {
@@ -1107,6 +1085,31 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 		}
 	}
 	return nil
+}
+
+func (aws *AWS) refreshSpotPricing(force bool) {
+	aws.SpotPricingLock.Lock()
+	defer aws.SpotPricingLock.Unlock()
+
+	now := time.Now().UTC()
+	updateTime := now.Add(-SpotRefreshDuration)
+
+	// Return if there was an update time set and an hour hasn't elapsed
+	if !force && aws.SpotPricingUpdatedAt != nil && aws.SpotPricingUpdatedAt.After(updateTime) {
+		return
+	}
+
+	sp, err := aws.parseSpotData(aws.SpotDataBucket, aws.SpotDataPrefix, aws.ProjectID, aws.SpotDataRegion)
+	if err != nil {
+		log.Warnf("Skipping AWS spot data download: %s", err.Error())
+		aws.SpotPricingError = err
+		return
+	}
+	aws.SpotPricingError = nil
+
+	// update time last updated
+	aws.SpotPricingUpdatedAt = &now
+	aws.SpotPricingByInstanceID = sp
 }
 
 // Stubbed NetworkPricing for AWS. Pull directly from aws.json for now
