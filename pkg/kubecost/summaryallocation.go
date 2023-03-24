@@ -186,6 +186,74 @@ func (sa *SummaryAllocation) CPUEfficiency() float64 {
 	return 1.0
 }
 
+func (sa *SummaryAllocation) Equal(that *SummaryAllocation) bool {
+	if sa == nil || that == nil {
+		return false
+	}
+
+	if sa.Name != that.Name {
+		return false
+	}
+
+	if sa.Start != that.Start {
+		return false
+	}
+
+	if sa.End != that.End {
+		return false
+	}
+
+	if sa.CPUCoreRequestAverage != that.CPUCoreRequestAverage {
+		return false
+	}
+
+	if sa.CPUCoreUsageAverage != that.CPUCoreUsageAverage {
+		return false
+	}
+
+	if sa.CPUCost != that.CPUCost {
+		return false
+	}
+
+	if sa.GPUCost != that.GPUCost {
+		return false
+	}
+
+	if sa.NetworkCost != that.NetworkCost {
+		return false
+	}
+
+	if sa.LoadBalancerCost != that.LoadBalancerCost {
+		return false
+	}
+
+	if sa.PVCost != that.PVCost {
+		return false
+	}
+
+	if sa.RAMBytesRequestAverage != that.RAMBytesRequestAverage {
+		return false
+	}
+
+	if sa.RAMBytesUsageAverage != that.RAMBytesUsageAverage {
+		return false
+	}
+
+	if sa.RAMCost != that.RAMCost {
+		return false
+	}
+
+	if sa.SharedCost != that.SharedCost {
+		return false
+	}
+
+	if sa.ExternalCost != that.ExternalCost {
+		return false
+	}
+
+	return true
+}
+
 func (sa *SummaryAllocation) generateKey(aggregateBy []string, labelConfig *LabelConfig) string {
 	if sa == nil {
 		return ""
@@ -1082,6 +1150,36 @@ func (sas *SummaryAllocationSet) Each(f func(string, *SummaryAllocation)) {
 	for k, a := range sas.SummaryAllocations {
 		f(k, a)
 	}
+}
+
+func (sas *SummaryAllocationSet) Equal(that *SummaryAllocationSet) bool {
+	if sas == nil || that == nil {
+		return false
+	}
+
+	sas.RLock()
+	defer sas.RUnlock()
+
+	if !sas.Window.Equal(that.Window) {
+		return false
+	}
+
+	if len(sas.SummaryAllocations) != len(that.SummaryAllocations) {
+		return false
+	}
+
+	for name, sa := range sas.SummaryAllocations {
+		thatSA, ok := that.SummaryAllocations[name]
+		if !ok {
+			return false
+		}
+
+		if !sa.Equal(thatSA) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // IdleAllocations returns a map of the idle allocations in the AllocationSet.
