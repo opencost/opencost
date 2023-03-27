@@ -638,6 +638,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 				if err != nil {
 					return nil, "", err
 				}
+
 				usageType := strings.ToLower(product.Category.UsageType)
 				instanceType := strings.ToLower(product.Category.ResourceGroup)
 
@@ -741,6 +742,10 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 					}
 				}
 
+				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "A2 INSTANCE") {
+					instanceType = "a2"
+				}
+
 				if (instanceType == "ram" || instanceType == "cpu") && strings.Contains(strings.ToUpper(product.Description), "COMPUTE OPTIMIZED") {
 					instanceType = "c2standard"
 				}
@@ -774,13 +779,17 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 				}
 
 				for _, region := range product.ServiceRegions {
-					if instanceType == "e2" { // this needs to be done to handle a partial cpu mapping
+					switch instanceType {
+					case "e2":
 						candidateKeys = append(candidateKeys, region+","+"e2micro"+","+usageType)
 						candidateKeys = append(candidateKeys, region+","+"e2small"+","+usageType)
 						candidateKeys = append(candidateKeys, region+","+"e2medium"+","+usageType)
 						candidateKeys = append(candidateKeys, region+","+"e2standard"+","+usageType)
 						candidateKeys = append(candidateKeys, region+","+"e2custom"+","+usageType)
-					} else {
+					case "a2":
+						candidateKeys = append(candidateKeys, region+","+"a2highgpu"+","+usageType)
+						candidateKeys = append(candidateKeys, region+","+"a2megagpu"+","+usageType)
+					default:
 						candidateKey := region + "," + instanceType + "," + usageType
 						candidateKeys = append(candidateKeys, candidateKey)
 					}
@@ -795,12 +804,28 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 					if gpuType != "" {
 						lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
 						var nanos float64
+						var unitsBaseCurrency int
 						if lastRateIndex > -1 && len(product.PricingInfo) > 0 {
 							nanos = product.PricingInfo[0].PricingExpression.TieredRates[lastRateIndex].UnitPrice.Nanos
+							unitsBaseCurrency, err = strconv.Atoi(product.PricingInfo[0].PricingExpression.TieredRates[lastRateIndex].UnitPrice.Units)
+							if err != nil {
+								return nil, "", err
+							}
 						} else {
 							continue
 						}
-						hourlyPrice := nanos * math.Pow10(-9)
+
+						// as per https://cloud.google.com/billing/v1/how-tos/catalog-api
+						// the hourly price is the whole currency price + the fractional currency price
+						hourlyPrice := (nanos * math.Pow10(-9)) + float64(unitsBaseCurrency)
+
+						// GPUs with an hourly price of 0 are reserved versions of GPUs
+						// (E.g., SKU "2013-37B4-22EA")
+						// and are excluded from cost computations
+						if hourlyPrice < 0.001 {
+							log.Infof("Excluding reserved GPU SKU #%s", product.SKUID)
+							continue
+						}
 
 						for k, key := range inputKeys {
 							if key.GPUType() == gpuType+","+usageType {
@@ -830,12 +855,20 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 						if ok || ok2 {
 							lastRateIndex := len(product.PricingInfo[0].PricingExpression.TieredRates) - 1
 							var nanos float64
+							var unitsBaseCurrency int
 							if lastRateIndex > -1 && len(product.PricingInfo) > 0 {
 								nanos = product.PricingInfo[0].PricingExpression.TieredRates[lastRateIndex].UnitPrice.Nanos
+								unitsBaseCurrency, err = strconv.Atoi(product.PricingInfo[0].PricingExpression.TieredRates[lastRateIndex].UnitPrice.Units)
+								if err != nil {
+									return nil, "", err
+								}
 							} else {
 								continue
 							}
-							hourlyPrice := nanos * math.Pow10(-9)
+
+							// as per https://cloud.google.com/billing/v1/how-tos/catalog-api
+							// the hourly price is the whole currency price + the fractional currency price
+							hourlyPrice := (nanos * math.Pow10(-9)) + +float64(unitsBaseCurrency)
 
 							if hourlyPrice == 0 {
 								continue
