@@ -41,8 +41,9 @@ const (
 	queryFmtNetRegionCostPerGiB      = `avg(avg_over_time(kubecost_network_region_egress_cost{}[%s])) by (%s)`
 	queryFmtNetInternetGiB           = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
 	queryFmtNetInternetCostPerGiB    = `avg(avg_over_time(kubecost_network_internet_egress_cost{}[%s])) by (%s)`
-	queryFmtNetReceiveBytes          = `sum(increase(container_network_receive_bytes_total{pod!="", container="POD"}[%s])) by (pod_name, pod, namespace, %s)`
-	queryFmtNetTransferBytes         = `sum(increase(container_network_transmit_bytes_total{pod!="", container="POD"}[%s])) by (pod_name, pod, namespace, %s)`
+	queryFmtNetReceiveBytes          = `sum(increase(container_network_receive_bytes_total{pod!=""}[%s])) by (pod_name, pod, namespace, %s)`
+	queryFmtNetTransferBytes         = `sum(increase(container_network_transmit_bytes_total{pod!=""}[%s])) by (pod_name, pod, namespace, %s)`
+	queryFmtNodeLabels               = `avg_over_time(kube_node_labels[%s])`
 	queryFmtNamespaceLabels          = `avg_over_time(kube_namespace_labels[%s])`
 	queryFmtNamespaceAnnotations     = `avg_over_time(kube_namespace_annotations[%s])`
 	queryFmtPodLabels                = `avg_over_time(kube_pod_labels[%s])`
@@ -56,6 +57,13 @@ const (
 	queryFmtReplicaSetsWithoutOwners = `avg(avg_over_time(kube_replicaset_owner{owner_kind="<none>", owner_name="<none>"}[%s])) by (replicaset, namespace, %s)`
 	queryFmtLBCostPerHr              = `avg(avg_over_time(kubecost_load_balancer_cost[%s])) by (namespace, service_name, %s)`
 	queryFmtLBActiveMins             = `count(kubecost_load_balancer_cost) by (namespace, service_name, %s)[%s:%s]`
+)
+
+// Constants for Network Cost Subtype
+const (
+	networkCrossZoneCost   = "NetworkCrossZoneCost"
+	networkCrossRegionCost = "NetworkCrossRegionCost"
+	networkInternetCost    = "NetworkInternetCost"
 )
 
 // CanCompute should return true if CostModel can act as a valid source for the
@@ -166,10 +174,17 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	// Accumulate to yield the result AllocationSet. After this step, we will
 	// be nearly complete, but without the raw allocation data, which must be
 	// recomputed.
-	result, err := asr.Accumulate()
+	resultASR, err := asr.Accumulate(kubecost.AccumulateOptionAll)
 	if err != nil {
 		return kubecost.NewAllocationSet(start, end), fmt.Errorf("error accumulating data for %s: %s", kubecost.NewClosedWindow(s, e), err)
 	}
+	if resultASR != nil && len(resultASR.Allocations) == 0 {
+		return kubecost.NewAllocationSet(start, end), nil
+	}
+	if length := len(resultASR.Allocations); length != 1 {
+		return kubecost.NewAllocationSet(start, end), fmt.Errorf("expected 1 accumulated allocation set, found %d sets", length)
+	}
+	result := resultASR.Allocations[0]
 
 	// Apply the annotations, labels, and services to the post-accumulation
 	// results. (See above for why this is necessary.)
@@ -386,6 +401,12 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	queryNetInternetCostPerGiB := fmt.Sprintf(queryFmtNetInternetCostPerGiB, durStr, env.GetPromClusterLabel())
 	resChNetInternetCostPerGiB := ctx.QueryAtTime(queryNetInternetCostPerGiB, end)
 
+	var resChNodeLabels prom.QueryResultsChan
+	if env.GetAllocationNodeLabelsEnabled() {
+		queryNodeLabels := fmt.Sprintf(queryFmtNodeLabels, durStr)
+		resChNodeLabels = ctx.QueryAtTime(queryNodeLabels, end)
+	}
+
 	queryNamespaceLabels := fmt.Sprintf(queryFmtNamespaceLabels, durStr)
 	resChNamespaceLabels := ctx.QueryAtTime(queryNamespaceLabels, end)
 
@@ -458,6 +479,12 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	resNetInternetGiB, _ := resChNetInternetGiB.Await()
 	resNetInternetCostPerGiB, _ := resChNetInternetCostPerGiB.Await()
 
+	var resNodeLabels []*prom.QueryResult
+	if env.GetAllocationNodeLabelsEnabled() {
+		if env.GetAllocationNodeLabelsEnabled() {
+			resNodeLabels, _ = resChNodeLabels.Await()
+		}
+	}
 	resNamespaceLabels, _ := resChNamespaceLabels.Await()
 	resNamespaceAnnotations, _ := resChNamespaceAnnotations.Await()
 	resPodLabels, _ := resChPodLabels.Await()
@@ -493,9 +520,9 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	applyRAMBytesUsedMax(podMap, resRAMUsageMax, podUIDKeyMap)
 	applyGPUsAllocated(podMap, resGPUsRequested, resGPUsAllocated, podUIDKeyMap)
 	applyNetworkTotals(podMap, resNetTransferBytes, resNetReceiveBytes, podUIDKeyMap)
-	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZoneCostPerGiB, podUIDKeyMap)
-	applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionCostPerGiB, podUIDKeyMap)
-	applyNetworkAllocation(podMap, resNetInternetGiB, resNetInternetCostPerGiB, podUIDKeyMap)
+	applyNetworkAllocation(podMap, resNetZoneGiB, resNetZoneCostPerGiB, podUIDKeyMap, networkCrossZoneCost)
+	applyNetworkAllocation(podMap, resNetRegionGiB, resNetRegionCostPerGiB, podUIDKeyMap, networkCrossRegionCost)
+	applyNetworkAllocation(podMap, resNetInternetGiB, resNetInternetCostPerGiB, podUIDKeyMap, networkInternetCost)
 
 	// In the case that a two pods with the same name had different containers,
 	// we will double-count the containers. There is no way to associate each
@@ -505,11 +532,18 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	// Other than that case, Allocations should be associated with pods by the
 	// above functions.
 
+	// At this point, we expect "Node" to be set by one of the above functions
+	// (e.g. applyCPUCoresAllocated, etc.) -- otherwise, node labels will fail
+	// to correctly apply to the pods.
+	var nodeLabels map[nodeKey]map[string]string
+	if env.GetAllocationNodeLabelsEnabled() {
+		nodeLabels = resToNodeLabels(resNodeLabels)
+	}
 	namespaceLabels := resToNamespaceLabels(resNamespaceLabels)
 	podLabels := resToPodLabels(resPodLabels, podUIDKeyMap, ingestPodUID)
 	namespaceAnnotations := resToNamespaceAnnotations(resNamespaceAnnotations)
 	podAnnotations := resToPodAnnotations(resPodAnnotations, podUIDKeyMap, ingestPodUID)
-	applyLabels(podMap, namespaceLabels, podLabels)
+	applyLabels(podMap, nodeLabels, namespaceLabels, podLabels)
 	applyAnnotations(podMap, namespaceAnnotations, podAnnotations)
 
 	podDeploymentMap := labelsToPodControllerMap(podLabels, resToDeploymentLabels(resDeploymentLabels))

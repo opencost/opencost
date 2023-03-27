@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencost/opencost/pkg/kubecost"
+
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/util"
@@ -34,7 +36,16 @@ type Scaleway struct {
 	Clientset               clustercache.ClusterCache
 	Config                  *ProviderConfig
 	Pricing                 map[string]*ScalewayPricing
+	clusterRegion           string
+	clusterAccountID        string
 	DownloadPricingDataLock sync.RWMutex
+}
+
+// PricingSourceSummary returns the pricing source summary for the provider.
+// The summary represents what was _parsed_ from the pricing source, not
+// everything that was _available_ in the pricing source.
+func (c *Scaleway) PricingSourceSummary() interface{} {
+	return c.Pricing
 }
 
 func (c *Scaleway) DownloadPricingData() error {
@@ -233,6 +244,14 @@ func (c *Scaleway) CombinedDiscountForNode(instanceType string, isPreemptible bo
 }
 
 func (c *Scaleway) Regions() []string {
+
+	regionOverrides := env.GetRegionOverrideList()
+
+	if len(regionOverrides) > 0 {
+		log.Debugf("Overriding Scaleway regions with configured region list: %+v", regionOverrides)
+		return regionOverrides
+	}
+
 	// These are zones but hey, its 2022
 	zones := []string{}
 	for _, zone := range scw.AllZones {
@@ -267,7 +286,9 @@ func (scw *Scaleway) ClusterInfo() (map[string]string, error) {
 	if c.ClusterName != "" {
 		m["name"] = c.ClusterName
 	}
-	m["provider"] = "Scaleway"
+	m["provider"] = kubecost.ScalewayProvider
+	m["region"] = scw.clusterRegion
+	m["account"] = scw.clusterAccountID
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	m["id"] = env.GetClusterID()
 	return m, nil
@@ -288,7 +309,7 @@ func (c *Scaleway) UpdateConfig(r io.Reader, updateType string) (*CustomPricing,
 			return err
 		}
 		for k, v := range a {
-			kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+			kUpper := toTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
 			vstr, ok := v.(string)
 			if ok {
 				err := SetCustomPricingField(c, kUpper, vstr)

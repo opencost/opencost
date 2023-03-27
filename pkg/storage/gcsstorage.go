@@ -270,10 +270,11 @@ func (gs *GCSStorage) ListDirectories(path string) ([]*StorageInfo, error) {
 			continue
 		}
 
-		// If trim removes the entire name, it's a directory, ergo we list it
-		if trimName(attrs.Name) == "" {
+		// We filter directories using DirDelim, so a nameless entry is a dir
+		// See gcs.ObjectAttrs Prefix property
+		if attrs.Name == "" {
 			stats = append(stats, &StorageInfo{
-				Name:    attrs.Name,
+				Name:    attrs.Prefix,
 				Size:    attrs.Size,
 				ModTime: attrs.Updated,
 			})

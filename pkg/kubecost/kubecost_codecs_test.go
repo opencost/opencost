@@ -212,9 +212,9 @@ func TestAssetSetRange_BinaryEncoding(t *testing.T) {
 	var err error
 
 	asr0 = NewAssetSetRange(
-		GenerateMockAssetSet(startD0),
-		GenerateMockAssetSet(startD1),
-		GenerateMockAssetSet(startD2),
+		GenerateMockAssetSet(startD0, day),
+		GenerateMockAssetSet(startD1, day),
+		GenerateMockAssetSet(startD2, day),
 	)
 
 	bs, err = asr0.MarshalBinary()

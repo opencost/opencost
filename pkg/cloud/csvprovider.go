@@ -425,3 +425,6 @@ func (c *CSVProvider) Regions() []string {
 	return []string{}
 }
 
+func (c *CSVProvider) PricingSourceSummary() interface{} {
+	return c.Pricing
+}

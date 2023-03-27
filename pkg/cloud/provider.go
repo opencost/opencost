@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"io"
 	"net/http"
 	"regexp"
@@ -31,6 +33,11 @@ import (
 const authSecretPath = "/var/secrets/service-key.json"
 const storageConfigSecretPath = "/var/azure-storage-config/azure-storage-config.json"
 const defaultShareTenancyCost = "true"
+
+const KarpenterCapacityTypeLabel = "karpenter.sh/capacity-type"
+const KarpenterCapacitySpotTypeValue = "spot"
+
+var toTitle = cases.Title(language.Und, cases.NoLower)
 
 var createTableStatements = []string{
 	`CREATE TABLE IF NOT EXISTS names (
@@ -108,7 +115,9 @@ type OrphanedResource struct {
 	Kind        string            `json:"resourceKind"`
 	Region      string            `json:"region"`
 	Description map[string]string `json:"description"`
-	Size        *int32            `json:"diskSizeInGB,omitempty"`
+	Size        *int64            `json:"diskSizeInGB,omitempty"`
+	DiskName    string            `json:"diskName,omitempty"`
+	Url         string            `json:"url"`
 	Address     string            `json:"ipAddress,omitempty"`
 	MonthlyCost *float64          `json:"monthlyCost"`
 }
@@ -149,14 +158,22 @@ type OutOfClusterAllocation struct {
 }
 
 type CustomPricing struct {
-	Provider                     string `json:"provider"`
-	Description                  string `json:"description"`
-	CPU                          string `json:"CPU"`
-	SpotCPU                      string `json:"spotCPU"`
-	RAM                          string `json:"RAM"`
-	SpotRAM                      string `json:"spotRAM"`
-	GPU                          string `json:"GPU"`
-	SpotGPU                      string `json:"spotGPU"`
+	Provider    string `json:"provider"`
+	Description string `json:"description"`
+	// CPU a string-encoded float describing cost per core-hour of CPU.
+	CPU string `json:"CPU"`
+	// CPU a string-encoded float describing cost per core-hour of CPU for spot
+	// nodes.
+	SpotCPU string `json:"spotCPU"`
+	// RAM a string-encoded float describing cost per GiB-hour of RAM/memory.
+	RAM string `json:"RAM"`
+	// SpotRAM a string-encoded float describing cost per GiB-hour of RAM/memory
+	// for spot nodes.
+	SpotRAM string `json:"spotRAM"`
+	GPU     string `json:"GPU"`
+	SpotGPU string `json:"spotGPU"`
+	// Storage is a string-encoded float describing cost per GB-hour of storage
+	// (e.g. PV, disk) resources.
 	Storage                      string `json:"storage"`
 	ZoneNetworkEgress            string `json:"zoneNetworkEgress"`
 	RegionNetworkEgress          string `json:"regionNetworkEgress"`
@@ -172,6 +189,7 @@ type CustomPricing struct {
 	ServiceKeySecret             string `json:"awsServiceKeySecret,omitempty"`
 	AlibabaServiceKeyName        string `json:"alibabaServiceKeyName,omitempty"`
 	AlibabaServiceKeySecret      string `json:"alibabaServiceKeySecret,omitempty"`
+	AlibabaClusterRegion         string `json:"alibabaClusterRegion,omitempty"`
 	SpotDataRegion               string `json:"awsSpotDataRegion,omitempty"`
 	SpotDataBucket               string `json:"awsSpotDataBucket,omitempty"`
 	SpotDataPrefix               string `json:"awsSpotDataPrefix,omitempty"`
@@ -203,6 +221,7 @@ type CustomPricing struct {
 	NegotiatedDiscount           string `json:"negotiatedDiscount"`
 	SharedOverhead               string `json:"sharedOverhead"`
 	ClusterName                  string `json:"clusterName"`
+	ClusterAccountID             string `json:"clusterAccount,omitempty"`
 	SharedNamespaces             string `json:"sharedNamespaces"`
 	SharedLabelNames             string `json:"sharedLabelNames"`
 	SharedLabelValues            string `json:"sharedLabelValues"`
@@ -328,6 +347,7 @@ type Provider interface {
 	ClusterManagementPricing() (string, float64, error)
 	CombinedDiscountForNode(string, bool, float64, float64) float64
 	Regions() []string
+	PricingSourceSummary() interface{}
 }
 
 // ClusterName returns the name defined in cluster info, defaulting to the
@@ -456,6 +476,11 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 	}
 
 	cp := getClusterProperties(nodes[0])
+	providerConfig := NewProviderConfig(config, cp.configFileName)
+	// If ClusterAccount is set apply it to the cluster properties
+	if providerConfig.customPricing != nil && providerConfig.customPricing.ClusterAccountID != "" {
+		cp.accountID = providerConfig.customPricing.ClusterAccountID
+	}
 
 	switch cp.provider {
 	case kubecost.CSVProvider:
@@ -463,12 +488,14 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 		return &CSVProvider{
 			CSVLocation: env.GetCSVPath(),
 			CustomProvider: &CustomProvider{
-				Clientset: cache,
-				Config:    NewProviderConfig(config, cp.configFileName),
+				Clientset:        cache,
+				clusterRegion:    cp.region,
+				clusterAccountID: cp.accountID,
+				Config:           NewProviderConfig(config, cp.configFileName),
 			},
 		}, nil
 	case kubecost.GCPProvider:
-		log.Info("metadata reports we are in GCE")
+		log.Info("Found ProviderID starting with \"gce\", using GCP Provider")
 		if apiKey == "" {
 			return nil, errors.New("Supply a GCP Key to start getting data")
 		}
@@ -477,7 +504,8 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			APIKey:           apiKey,
 			Config:           NewProviderConfig(config, cp.configFileName),
 			clusterRegion:    cp.region,
-			clusterProjectId: cp.projectID,
+			clusterAccountID: cp.accountID,
+			clusterProjectID: cp.projectID,
 			metadataClient: metadata.NewClient(&http.Client{
 				Transport: httputil.NewUserAgentTransport("kubecost", http.DefaultTransport),
 			}),
@@ -488,7 +516,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			Clientset:            cache,
 			Config:               NewProviderConfig(config, cp.configFileName),
 			clusterRegion:        cp.region,
-			clusterAccountId:     cp.accountID,
+			clusterAccountID:     cp.accountID,
 			serviceAccountChecks: NewServiceAccountChecks(),
 		}, nil
 	case kubecost.AzureProvider:
@@ -497,7 +525,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			Clientset:            cache,
 			Config:               NewProviderConfig(config, cp.configFileName),
 			clusterRegion:        cp.region,
-			clusterAccountId:     cp.accountID,
+			clusterAccountID:     cp.accountID,
 			serviceAccountChecks: NewServiceAccountChecks(),
 		}, nil
 	case kubecost.AlibabaProvider:
@@ -512,15 +540,19 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 	case kubecost.ScalewayProvider:
 		log.Info("Found ProviderID starting with \"scaleway\", using Scaleway Provider")
 		return &Scaleway{
-			Clientset: cache,
-			Config:    NewProviderConfig(config, cp.configFileName),
+			Clientset:        cache,
+			clusterRegion:    cp.region,
+			clusterAccountID: cp.accountID,
+			Config:           NewProviderConfig(config, cp.configFileName),
 		}, nil
 
 	default:
 		log.Info("Unsupported provider, falling back to default")
 		return &CustomProvider{
-			Clientset: cache,
-			Config:    NewProviderConfig(config, cp.configFileName),
+			Clientset:        cache,
+			clusterRegion:    cp.region,
+			clusterAccountID: cp.accountID,
+			Config:           NewProviderConfig(config, cp.configFileName),
 		}, nil
 	}
 }
@@ -543,7 +575,8 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 		accountID:      "",
 		projectID:      "",
 	}
-	if metadata.OnGCE() {
+	// The second conditional is mainly if you're running opencost outside of GCE, say in a local environment.
+	if metadata.OnGCE() || strings.HasPrefix(providerID, "gce") {
 		cp.provider = kubecost.GCPProvider
 		cp.configFileName = "gcp.json"
 		cp.projectID = parseGCPProjectID(providerID)
@@ -613,6 +646,9 @@ func GetClusterMeta(cluster_id string) (string, string, error) {
 	address := env.GetSQLAddress()
 	connStr := fmt.Sprintf("postgres://postgres:%s@%s:5432?sslmode=disable", pw, address)
 	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return "", "", err
+	}
 	defer db.Close()
 	query := `SELECT cluster_id, cluster_name
 	FROM names

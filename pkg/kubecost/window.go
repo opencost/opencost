@@ -2,16 +2,17 @@ package kubecost
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"math"
 	"regexp"
 	"strconv"
 	"time"
 
-	"github.com/opencost/opencost/pkg/util/timeutil"
-
 	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/thanos"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
 const (
@@ -33,6 +34,10 @@ var (
 // in the given time's timezone.
 // e.g. 2020-01-01T12:37:48-0700, 24h = 2020-01-01T00:00:00-0700
 func RoundBack(t time.Time, resolution time.Duration) time.Time {
+	// if the duration is a week - roll back to the following Sunday
+	if resolution == timeutil.Week {
+		return timeutil.RoundToStartOfWeek(t)
+	}
 	_, offSec := t.Zone()
 	return t.Add(time.Duration(offSec) * time.Second).Truncate(resolution).Add(-time.Duration(offSec) * time.Second)
 }
@@ -41,6 +46,11 @@ func RoundBack(t time.Time, resolution time.Duration) time.Time {
 // in the given time's timezone.
 // e.g. 2020-01-01T12:37:48-0700, 24h = 2020-01-02T00:00:00-0700
 func RoundForward(t time.Time, resolution time.Duration) time.Time {
+	// if the duration is a week - roll forward to the following Sunday
+	if resolution == timeutil.Week {
+		return timeutil.RoundToStartOfFollowingWeek(t)
+	}
+
 	back := RoundBack(t, resolution)
 	if back.Equal(t) {
 		// The given time is exactly a multiple of the given resolution
@@ -232,6 +242,9 @@ func parseWindow(window string, now time.Time) (Window, error) {
 		if match[2] == "d" {
 			dur = 24 * time.Hour
 		}
+		if match[2] == "w" {
+			dur = timeutil.Week
+		}
 
 		num, _ := strconv.ParseInt(match[1], 10, 64)
 
@@ -253,6 +266,9 @@ func parseWindow(window string, now time.Time) (Window, error) {
 		if match[4] == "d" {
 			offUnit = 24 * time.Hour
 		}
+		if match[4] == "w" {
+			offUnit = 24 * timeutil.Week
+		}
 
 		offNum, _ := strconv.ParseInt(match[3], 10, 64)
 
@@ -264,6 +280,9 @@ func parseWindow(window string, now time.Time) (Window, error) {
 		}
 		if match[2] == "d" {
 			durUnit = 24 * time.Hour
+		}
+		if match[2] == "w" {
+			durUnit = timeutil.Week
 		}
 
 		durNum, _ := strconv.ParseInt(match[1], 10, 64)
@@ -458,27 +477,26 @@ func (w Window) Hours() float64 {
 	return w.end.Sub(*w.start).Hours()
 }
 
-//IsEmpty a Window is empty if it does not have a start and an end
+// IsEmpty a Window is empty if it does not have a start and an end
 func (w Window) IsEmpty() bool {
 	return w.start == nil && w.end == nil
 }
 
-//HasDuration a Window has duration if neither start and end are not nil and not equal
+// HasDuration a Window has duration if neither start and end are not nil and not equal
 func (w Window) HasDuration() bool {
 	return !w.IsOpen() && !w.end.Equal(*w.Start())
 }
 
-//IsNegative a Window is negative if start and end are not null and end is before start
+// IsNegative a Window is negative if start and end are not null and end is before start
 func (w Window) IsNegative() bool {
 	return !w.IsOpen() && w.end.Before(*w.Start())
 }
 
-//IsOpen a Window is open if it has a nil start or end
+// IsOpen a Window is open if it has a nil start or end
 func (w Window) IsOpen() bool {
 	return w.start == nil || w.end == nil
 }
 
-// TODO:CLEANUP make this unmarshalable (make Start and End public)
 func (w Window) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
 	if w.start != nil {
@@ -493,6 +511,42 @@ func (w Window) MarshalJSON() ([]byte, error) {
 	}
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
+}
+
+func (w *Window) UnmarshalJSON(bs []byte) error {
+	// Due to the behavior of our custom MarshalJSON, we unmarshal as strings
+	// and then manually handle the weird quoted "null" case.
+	type PubWindow struct {
+		Start string `json:"start"`
+		End   string `json:"end"`
+	}
+	var pw PubWindow
+	err := json.Unmarshal(bs, &pw)
+	if err != nil {
+		return fmt.Errorf("half unmarshal: %w", err)
+	}
+
+	var start *time.Time
+	var end *time.Time
+
+	if pw.Start != "null" {
+		t, err := time.Parse(time.RFC3339, pw.Start)
+		if err != nil {
+			return fmt.Errorf("parsing start as RFC3339: %w", err)
+		}
+		start = &t
+	}
+	if pw.End != "null" {
+		t, err := time.Parse(time.RFC3339, pw.End)
+		if err != nil {
+			return fmt.Errorf("parsing end as RFC3339: %w", err)
+		}
+		end = &t
+	}
+
+	w.start = start
+	w.end = end
+	return nil
 }
 
 func (w Window) Minutes() float64 {
@@ -583,7 +637,7 @@ func (w Window) Minutes() float64 {
 // 	return true
 // }
 
-func (w Window) Set(start, end *time.Time) {
+func (w *Window) Set(start, end *time.Time) {
 	w.start = start
 	w.end = end
 }
@@ -687,6 +741,122 @@ func (w Window) DurationOffsetStrings() (string, string) {
 	}
 
 	return timeutil.DurationOffsetStrings(dur, off)
+}
+
+// GetPercentInWindow Determine pct of item time contained the window.
+// determined by the overlap of the start/end with the given
+// window, which will be negative if there is no overlap. If
+// there is positive overlap, compare it with the total mins.
+//
+// e.g. here are the two possible scenarios as simplidied
+// 10m windows with dashes representing item's time running:
+//
+//  1. item falls entirely within one CloudCostItemSet window
+//     |     ---- |          |          |
+//     totalMins = 4.0
+//     pct := 4.0 / 4.0 = 1.0 for window 1
+//     pct := 0.0 / 4.0 = 0.0 for window 2
+//     pct := 0.0 / 4.0 = 0.0 for window 3
+//
+//  2. item overlaps multiple CloudCostItemSet windows
+//     |      ----|----------|--        |
+//     totalMins = 16.0
+//     pct :=  4.0 / 16.0 = 0.250 for window 1
+//     pct := 10.0 / 16.0 = 0.625 for window 2
+//     pct :=  2.0 / 16.0 = 0.125 for window 3
+func (w Window) GetPercentInWindow(that Window) float64 {
+	if that.IsOpen() {
+		log.Errorf("Window: GetPercentInWindow: invalid window %s", that.String())
+		return 0
+	}
+
+	s := *that.Start()
+	if s.Before(*w.Start()) {
+		s = *w.Start()
+	}
+
+	e := *that.End()
+	if e.After(*w.End()) {
+		e = *w.End()
+	}
+
+	mins := e.Sub(s).Minutes()
+	if mins <= 0.0 {
+		return 0.0
+	}
+
+	totalMins := that.Duration().Minutes()
+
+	pct := mins / totalMins
+	return pct
+}
+
+// GetWindows returns a slice of Window with equal size between the given start and end. If windowSize does not evenly
+// divide the period between start and end, the last window is not added
+func GetWindows(start time.Time, end time.Time, windowSize time.Duration) ([]Window, error) {
+	// Ensure the range is evenly divisible into windows of the given duration
+	dur := end.Sub(start)
+	if int(dur.Minutes())%int(windowSize.Minutes()) != 0 {
+		return nil, fmt.Errorf("range not divisible by window: [%s, %s] by %s", start, end, windowSize)
+	}
+
+	// Ensure that provided times are multiples of the provided windowSize (e.g. midnight for daily windows, on the hour for hourly windows)
+	if start != start.Truncate(windowSize) {
+		return nil, fmt.Errorf("provided times are not divisible by provided window: [%s, %s] by %s", start, end, windowSize)
+	}
+
+	// Ensure timezones match
+	_, sz := start.Zone()
+	_, ez := end.Zone()
+	if sz != ez {
+		return nil, fmt.Errorf("range has mismatched timezones: %s, %s", start, end)
+	}
+	if sz != int(env.GetParsedUTCOffset().Seconds()) {
+		return nil, fmt.Errorf("range timezone doesn't match configured timezone: expected %s; found %ds", env.GetParsedUTCOffset(), sz)
+	}
+
+	// Build array of windows to cover the CloudCostItemSetRange
+	windows := []Window{}
+	s, e := start, start.Add(windowSize)
+	for !e.After(end) {
+		ws := s
+		we := e
+		windows = append(windows, NewWindow(&ws, &we))
+
+		s = s.Add(windowSize)
+		e = e.Add(windowSize)
+	}
+	return windows, nil
+}
+
+// GetWindowsForQueryWindow breaks up a window into an array of windows with a max size of queryWindow
+func GetWindowsForQueryWindow(start time.Time, end time.Time, queryWindow time.Duration) ([]Window, error) {
+	// Ensure timezones match
+	_, sz := start.Zone()
+	_, ez := end.Zone()
+	if sz != ez {
+		return nil, fmt.Errorf("range has mismatched timezones: %s, %s", start, end)
+	}
+	if sz != int(env.GetParsedUTCOffset().Seconds()) {
+		return nil, fmt.Errorf("range timezone doesn't match configured timezone: expected %s; found %ds", env.GetParsedUTCOffset(), sz)
+	}
+
+	// Build array of windows to cover the CloudCostItemSetRange
+	windows := []Window{}
+	s, e := start, start.Add(queryWindow)
+	for s.Before(end) {
+		ws := s
+		we := e
+		windows = append(windows, NewWindow(&ws, &we))
+
+		s = s.Add(queryWindow)
+		e = e.Add(queryWindow)
+		if e.After(end) {
+			e = end
+		}
+	}
+
+	return windows, nil
 }
 
 type BoundaryError struct {

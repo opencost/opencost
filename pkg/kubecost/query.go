@@ -34,8 +34,7 @@ type CloudUsageQuerier interface {
 
 // AllocationQueryOptions defines optional parameters for querying an Allocation Store
 type AllocationQueryOptions struct {
-	Accumulate              bool
-	AccumulateBy            time.Duration
+	Accumulate              AccumulateOption
 	AggregateBy             []string
 	Compute                 bool
 	DisableAggregatedStores bool
@@ -56,6 +55,17 @@ type AllocationQueryOptions struct {
 	Step                    time.Duration
 }
 
+type AccumulateOption string
+
+const (
+	AccumulateOptionNone  AccumulateOption = ""
+	AccumulateOptionAll   AccumulateOption = "all"
+	AccumulateOptionHour  AccumulateOption = "hour"
+	AccumulateOptionDay   AccumulateOption = "day"
+	AccumulateOptionWeek  AccumulateOption = "week"
+	AccumulateOptionMonth AccumulateOption = "month"
+)
+
 // AssetQueryOptions defines optional parameters for querying an Asset Store
 type AssetQueryOptions struct {
 	Accumulate              bool
@@ -67,6 +77,7 @@ type AssetQueryOptions struct {
 	IncludeCloud            bool
 	SharedHourlyCosts       map[string]float64
 	Step                    time.Duration
+	LabelConfig             *LabelConfig
 }
 
 // CloudUsageQueryOptions define optional parameters for querying a Store
@@ -76,6 +87,7 @@ type CloudUsageQueryOptions struct {
 	Compute      bool
 	FilterFuncs  []CloudUsageMatchFunc
 	FilterValues CloudUsageFilter
+	LabelConfig  *LabelConfig
 }
 
 type CloudUsageFilter struct {

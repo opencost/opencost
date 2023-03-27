@@ -33,10 +33,10 @@ RUN set -e ;\
 FROM alpine:latest
 RUN apk add --update --no-cache ca-certificates
 COPY --from=build-env /go/bin/app /go/bin/app
-ADD ./configs/default.json /models/default.json
-ADD ./configs/azure.json /models/azure.json
-ADD ./configs/aws.json /models/aws.json
-ADD ./configs/gcp.json /models/gcp.json
-ADD ./configs/alibaba.json /models/alibaba.json
+ADD --chmod=644 ./configs/default.json /models/default.json
+ADD --chmod=644 ./configs/azure.json /models/azure.json
+ADD --chmod=644 ./configs/aws.json /models/aws.json
+ADD --chmod=644 ./configs/gcp.json /models/gcp.json
+ADD --chmod=644 ./configs/alibaba.json /models/alibaba.json
 USER 1001
 ENTRYPOINT ["/go/bin/app"]

@@ -2,8 +2,9 @@ package costmodel
 
 import (
 	"fmt"
-	"github.com/opencost/opencost/pkg/kubecost"
 	"time"
+
+	"github.com/opencost/opencost/pkg/kubecost"
 )
 
 // pod describes a running pod's start and end time within a Window and
@@ -13,6 +14,7 @@ type pod struct {
 	Start       time.Time
 	End         time.Time
 	Key         podKey
+	Node        string
 	Allocations map[string]*kubecost.Allocation
 }
 

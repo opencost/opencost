@@ -2,12 +2,12 @@ package cloud
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"math"
 	"net/http"
 	"os"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -27,14 +27,24 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/compute/metadata"
-	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	compute "google.golang.org/api/compute/v1"
+	"google.golang.org/api/compute/v1"
 	v1 "k8s.io/api/core/v1"
 )
 
 const GKE_GPU_TAG = "cloud.google.com/gke-accelerator"
 const BigqueryUpdateType = "bigqueryupdate"
+
+const (
+	GCPHourlyPublicIPCost = 0.01
+
+	GCPMonthlyBasicDiskCost = 0.04
+	GCPMonthlySSDDiskCost   = 0.17
+	GCPMonthlyGP2DiskCost   = 0.1
+
+	GKEPreemptibleLabel = "cloud.google.com/gke-preemptible"
+	GKESpotLabel        = "cloud.google.com/gke-spot"
+)
 
 // List obtained by installing the `gcloud` CLI tool,
 // logging into gcp account, and running command
@@ -92,8 +102,9 @@ type GCP struct {
 	ValidPricingKeys        map[string]bool
 	metadataClient          *metadata.Client
 	clusterManagementPrice  float64
-	clusterProjectId        string
 	clusterRegion           string
+	clusterAccountID        string
+	clusterProjectID        string
 	clusterProvisioner      string
 	*CustomProvider
 }
@@ -274,7 +285,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*CustomPricing, er
 				return err
 			}
 			for k, v := range a {
-				kUpper := strings.Title(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+				kUpper := toTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
 				vstr, ok := v.(string)
 				if ok {
 					err := SetCustomPricingField(c, kUpper, vstr)
@@ -323,8 +334,9 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	m := make(map[string]string)
 	m["name"] = attribute
 	m["provider"] = kubecost.GCPProvider
-	m["project"] = gcp.clusterProjectId
 	m["region"] = gcp.clusterRegion
+	m["account"] = gcp.clusterAccountID
+	m["project"] = gcp.clusterProjectID
 	m["provisioner"] = gcp.clusterProvisioner
 	m["id"] = env.GetClusterID()
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
@@ -335,56 +347,220 @@ func (gcp *GCP) ClusterManagementPricing() (string, float64, error) {
 	return gcp.clusterProvisioner, gcp.clusterManagementPrice, nil
 }
 
-func (gcp *GCP) GetAddresses() ([]byte, error) {
+func (gcp *GCP) getAllAddresses() (*compute.AddressAggregatedList, error) {
 	projID, err := gcp.metadataClient.ProjectID()
 	if err != nil {
 		return nil, err
 	}
 
-	client, err := google.DefaultClient(oauth2.NoContext,
+	client, err := google.DefaultClient(context.TODO(),
 		"https://www.googleapis.com/auth/compute.readonly")
 	if err != nil {
 		return nil, err
 	}
+
 	svc, err := compute.New(client)
 	if err != nil {
 		return nil, err
 	}
+
 	res, err := svc.Addresses.AggregatedList(projID).Do()
 
 	if err != nil {
 		return nil, err
 	}
+
+	return res, nil
+}
+
+func (gcp *GCP) GetAddresses() ([]byte, error) {
+	res, err := gcp.getAllAddresses()
+	if err != nil {
+		return nil, err
+	}
+
 	return json.Marshal(res)
 }
 
-// GetDisks returns the GCP disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
-func (gcp *GCP) GetDisks() ([]byte, error) {
+func (gcp *GCP) isAddressOrphaned(address *compute.Address) bool {
+	// Consider address orphaned if it has 0 users
+	return len(address.Users) == 0
+}
+
+func (gcp *GCP) getAllDisks() (*compute.DiskAggregatedList, error) {
 	projID, err := gcp.metadataClient.ProjectID()
 	if err != nil {
 		return nil, err
 	}
 
-	client, err := google.DefaultClient(oauth2.NoContext,
+	client, err := google.DefaultClient(context.TODO(),
 		"https://www.googleapis.com/auth/compute.readonly")
 	if err != nil {
 		return nil, err
 	}
+
 	svc, err := compute.New(client)
 	if err != nil {
 		return nil, err
 	}
+
 	res, err := svc.Disks.AggregatedList(projID).Do()
 
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(res)
 
+	return res, nil
 }
 
-func (*GCP) GetOrphanedResources() ([]OrphanedResource, error) {
-	return nil, errors.New("not implemented")
+// GetDisks returns the GCP disks backing PVs. Useful because sometimes k8s will not clean up PVs correctly. Requires a json config in /var/configs with key region.
+func (gcp *GCP) GetDisks() ([]byte, error) {
+	res, err := gcp.getAllDisks()
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(res)
+}
+
+func (gcp *GCP) isDiskOrphaned(disk *compute.Disk) (bool, error) {
+	// Do not consider disk orphaned if it has more than 0 users
+	if len(disk.Users) > 0 {
+		return false, nil
+	}
+
+	// Do not consider disk orphaned if it was used within the last hour
+	threshold := time.Now().Add(time.Duration(-1) * time.Hour)
+	if disk.LastDetachTimestamp != "" {
+		lastUsed, err := time.Parse(time.RFC3339, disk.LastDetachTimestamp)
+		if err != nil {
+			// This can return false since errors are checked before the bool
+			return false, fmt.Errorf("error parsing time: %s", err)
+		}
+		if threshold.Before(lastUsed) {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func (gcp *GCP) GetOrphanedResources() ([]OrphanedResource, error) {
+	disks, err := gcp.getAllDisks()
+	if err != nil {
+		return nil, err
+	}
+
+	addresses, err := gcp.getAllAddresses()
+	if err != nil {
+		return nil, err
+	}
+
+	var orphanedResources []OrphanedResource
+
+	for _, diskList := range disks.Items {
+		if len(diskList.Disks) == 0 {
+			continue
+		}
+
+		for _, disk := range diskList.Disks {
+			isOrphaned, err := gcp.isDiskOrphaned(disk)
+			if err != nil {
+				return nil, err
+			}
+			if isOrphaned {
+				cost, err := gcp.findCostForDisk(disk)
+				if err != nil {
+					return nil, err
+				}
+
+				// GCP gives us description as a string formatted as a map[string]string, so we need to
+				// deconstruct it back into a map[string]string to match the OR struct
+				desc := map[string]string{}
+				if disk.Description != "" {
+					if err := json.Unmarshal([]byte(disk.Description), &desc); err != nil {
+						return nil, fmt.Errorf("error converting string to map: %s", err)
+					}
+				}
+
+				// Converts https://www.googleapis.com/compute/v1/projects/xxxxx/zones/us-central1-c to us-central1-c
+				zone := path.Base(disk.Zone)
+				if zone == "." {
+					zone = ""
+				}
+
+				or := OrphanedResource{
+					Kind:        "disk",
+					Region:      zone,
+					Description: desc,
+					Size:        &disk.SizeGb,
+					DiskName:    disk.Name,
+					Url:         disk.SelfLink,
+					MonthlyCost: cost,
+				}
+				orphanedResources = append(orphanedResources, or)
+			}
+		}
+	}
+
+	for _, addressList := range addresses.Items {
+		if len(addressList.Addresses) == 0 {
+			continue
+		}
+
+		for _, address := range addressList.Addresses {
+			if gcp.isAddressOrphaned(address) {
+				//todo: use GCP pricing
+				cost := GCPHourlyPublicIPCost * timeutil.HoursPerMonth
+
+				// Converts https://www.googleapis.com/compute/v1/projects/xxxxx/regions/us-central1 to us-central1
+				region := path.Base(address.Region)
+				if region == "." {
+					region = ""
+				}
+
+				or := OrphanedResource{
+					Kind:   "address",
+					Region: region,
+					Description: map[string]string{
+						"type": address.AddressType,
+					},
+					Address:     address.Address,
+					Url:         address.SelfLink,
+					MonthlyCost: &cost,
+				}
+				orphanedResources = append(orphanedResources, or)
+			}
+		}
+	}
+
+	return orphanedResources, nil
+}
+
+func (gcp *GCP) findCostForDisk(disk *compute.Disk) (*float64, error) {
+	//todo: use GCP pricing struct
+	price := GCPMonthlyBasicDiskCost
+	if strings.Contains(disk.Type, "ssd") {
+		price = GCPMonthlySSDDiskCost
+	}
+	if strings.Contains(disk.Type, "gp2") {
+		price = GCPMonthlyGP2DiskCost
+	}
+	cost := price * float64(disk.SizeGb)
+
+	// This isn't much use but I (Nick) think its could be going down the
+	// right path. Disk region isnt returning anything (and if it did its
+	// a url, same with type). Currently the only region stored in the
+	// Pricing struct is uscentral-1, so that would need to be fixed
+	// key := disk.Region + "," + disk.Type
+
+	// priceStr := gcp.Pricing[key].PV.Cost
+	// price, err := strconv.ParseFloat(priceStr, 64)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// cost := price * timeutil.HoursPerMonth * float64(disk.SizeGb)
+	return &cost, nil
 }
 
 // GCPPricing represents GCP pricing data for a SKU
@@ -1274,6 +1450,8 @@ func parseGCPInstanceTypeLabel(it string) string {
 			instanceType = "n2standard"
 		} else if instanceType == "e2highmem" || instanceType == "e2highcpu" {
 			instanceType = "e2standard"
+		} else if instanceType == "n2dhighmem" || instanceType == "n2dhighcpu" {
+			instanceType = "n2dstandard"
 		} else if strings.HasPrefix(instanceType, "custom") {
 			instanceType = "custom" // The suffix of custom does not matter
 		}
@@ -1362,6 +1540,14 @@ func (gcp *GCP) CombinedDiscountForNode(instanceType string, isPreemptible bool,
 }
 
 func (gcp *GCP) Regions() []string {
+
+	regionOverrides := env.GetRegionOverrideList()
+
+	if len(regionOverrides) > 0 {
+		log.Debugf("Overriding GCP regions with configured region list: %+v", regionOverrides)
+		return regionOverrides
+	}
+
 	return gcpRegions
 }
 
@@ -1391,11 +1577,20 @@ func parseGCPProjectID(id string) string {
 }
 
 func getUsageType(labels map[string]string) string {
-	if t, ok := labels["cloud.google.com/gke-preemptible"]; ok && t == "true" {
+	if t, ok := labels[GKEPreemptibleLabel]; ok && t == "true" {
 		return "preemptible"
-	} else if t, ok := labels["cloud.google.com/gke-spot"]; ok && t == "true" {
+	} else if t, ok := labels[GKESpotLabel]; ok && t == "true" {
 		// https://cloud.google.com/kubernetes-engine/docs/concepts/spot-vms
+		return "preemptible"
+	} else if t, ok := labels[KarpenterCapacityTypeLabel]; ok && t == KarpenterCapacitySpotTypeValue {
 		return "preemptible"
 	}
 	return "ondemand"
+}
+
+// PricingSourceSummary returns the pricing source summary for the provider.
+// The summary represents what was _parsed_ from the pricing source, not
+// everything that was _available_ in the pricing source.
+func (gcp *GCP) PricingSourceSummary() interface{} {
+	return gcp.Pricing
 }

@@ -5,7 +5,6 @@ import (
 	gopath "path"
 	"reflect"
 	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/microcosm-cc/bluemonday"
@@ -191,7 +190,7 @@ func (pc *ProviderConfig) UpdateFromMap(a map[string]string) (*CustomPricing, er
 	return pc.Update(func(c *CustomPricing) error {
 		for k, v := range a {
 			// Just so we consistently supply / receive the same values, uppercase the first letter.
-			kUpper := strings.Title(k)
+			kUpper := toTitle.String(k)
 			if kUpper == "CPU" || kUpper == "SpotCPU" || kUpper == "RAM" || kUpper == "SpotRAM" || kUpper == "GPU" || kUpper == "Storage" {
 				val, err := strconv.ParseFloat(v, 64)
 				if err != nil {
@@ -212,16 +211,31 @@ func (pc *ProviderConfig) UpdateFromMap(a map[string]string) (*CustomPricing, er
 
 // DefaultPricing should be returned so we can do computation even if no file is supplied.
 func DefaultPricing() *CustomPricing {
+	// https://cloud.google.com/compute/all-pricing
 	return &CustomPricing{
-		Provider:              "base",
-		Description:           "Default prices based on GCP us-central1",
-		CPU:                   "0.031611",
-		SpotCPU:               "0.006655",
-		RAM:                   "0.004237",
-		SpotRAM:               "0.000892",
-		GPU:                   "0.95",
-		SpotGPU:               "0.308",
-		Storage:               "0.00005479452",
+		Provider:    "base",
+		Description: "Default prices based on GCP us-central1",
+
+		// E2 machine types in GCP us-central1 (Iowa)
+		CPU:     "0.021811", // per vCPU hour
+		SpotCPU: "0.006543", // per vCPU hour
+		RAM:     "0.002923", // per G(i?)B hour
+		SpotRAM: "0.000877", // per G(i?)B hour
+
+		// There are many GPU types. This serves as a reasonably-appropriate
+		// estimate within a broad range (0.35 up to 3.93)
+		GPU: "0.95", // per GPU hour
+		// Same story as above.
+		SpotGPU: "0.308", // per GPU hour
+
+		// This is the "Standard provision space" pricing in the "Disk pricing"
+		// table.
+		//
+		// (($.04 / month) per G(i?)B) *
+		//   month/730 hours =
+		//     0.00005479452054794521
+		Storage: "0.00005479452",
+
 		ZoneNetworkEgress:     "0.01",
 		RegionNetworkEgress:   "0.01",
 		InternetNetworkEgress: "0.12",

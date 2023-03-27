@@ -1,7 +1,7 @@
 # <https://www.opencost.io/docs/>
 ---
 
-# The namespace opencost will run in
+# The namespace OpenCost will run in
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -16,7 +16,7 @@ metadata:
   namespace: opencost
 ---
 
-# Cluster role giving opencost to get, list, watch required recources
+# Cluster role giving OpenCost to get, list, watch required resources
 # No write permissions are required
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -161,13 +161,23 @@ spec:
             - name: CLUSTER_ID
               value: "cluster-one" # Default cluster ID to use if cluster_id is not set in Prometheus metrics.
           imagePullPolicy: Always
+        - image: quay.io/kubecost1/opencost-ui:latest
+          name: opencost-ui
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "55M"
+            limits:
+              cpu: "999m"
+              memory: "1G"
+          imagePullPolicy: Always
 ---
 
 # Expose the cost model with a service
 #
 # Without a Prometheus endpoint configured in the deployment,
 # only opencost/metrics will have useful data as it is intended
-# to be used as just an exporter.
+# to be used as only an exporter.
 kind: Service
 apiVersion: v1
 metadata:
@@ -181,4 +191,7 @@ spec:
     - name: opencost
       port: 9003
       targetPort: 9003
+    - name: opencost-ui
+      port: 9090
+      targetPort: 9090
 ---

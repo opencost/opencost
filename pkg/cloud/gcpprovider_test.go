@@ -25,6 +25,10 @@ func TestParseGCPInstanceTypeLabel(t *testing.T) {
 			input:    "custom-n1-standard-2",
 			expected: "custom",
 		},
+		{
+			input:    "n2d-highmem-8",
+			expected: "n2dstandard",
+		},
 	}
 
 	for _, test := range cases {
@@ -73,13 +77,19 @@ func TestGetUsageType(t *testing.T) {
 	}{
 		{
 			input: map[string]string{
-				"cloud.google.com/gke-preemptible": "true",
+				GKEPreemptibleLabel: "true",
 			},
 			expected: "preemptible",
 		},
 		{
 			input: map[string]string{
-				"cloud.google.com/gke-spot": "true",
+				GKESpotLabel: "true",
+			},
+			expected: "preemptible",
+		},
+		{
+			input: map[string]string{
+				KarpenterCapacityTypeLabel: KarpenterCapacitySpotTypeValue,
 			},
 			expected: "preemptible",
 		},

@@ -2,6 +2,7 @@ package kubecost
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -568,33 +569,47 @@ func GenerateMockAssetSets(start, end time.Time) []*AssetSet {
 //
 // | Asset                        | Cost |  Adj |
 // +------------------------------+------+------+
-//   cluster1:
-//     node1:                        6.00   1.00
-//     node2:                        4.00   1.50
-//     node3:                        7.00  -0.50
-//     disk1:                        2.50   0.00
-//     disk2:                        1.50   0.00
-//     clusterManagement1:           3.00   0.00
+//
+//	cluster1:
+//	  node1:                        6.00   1.00
+//	  node2:                        4.00   1.50
+//	  node3:                        7.00  -0.50
+//	  disk1:                        2.50   0.00
+//	  disk2:                        1.50   0.00
+//	  clusterManagement1:           3.00   0.00
+//
 // +------------------------------+------+------+
-//   cluster1 subtotal              24.00   2.00
+//
+//	cluster1 subtotal              24.00   2.00
+//
 // +------------------------------+------+------+
-//   cluster2:
-//     node4:                       12.00  -1.00
-//     disk3:                        2.50   0.00
-//     disk4:                        1.50   0.00
-//     clusterManagement2:           0.00   0.00
+//
+//	cluster2:
+//	  node4:                       12.00  -1.00
+//	  disk3:                        2.50   0.00
+//	  disk4:                        1.50   0.00
+//	  clusterManagement2:           0.00   0.00
+//
 // +------------------------------+------+------+
-//   cluster2 subtotal              16.00  -1.00
+//
+//	cluster2 subtotal              16.00  -1.00
+//
 // +------------------------------+------+------+
-//   cluster3:
-//     node5:                       17.00   2.00
+//
+//	cluster3:
+//	  node5:                       17.00   2.00
+//
 // +------------------------------+------+------+
-//   cluster3 subtotal              17.00   2.00
+//
+//	cluster3 subtotal              17.00   2.00
+//
 // +------------------------------+------+------+
-//   total                          57.00   3.00
+//
+//	total                          57.00   3.00
+//
 // +------------------------------+------+------+
-func GenerateMockAssetSet(start time.Time) *AssetSet {
-	end := start.Add(day)
+func GenerateMockAssetSet(start time.Time, duration time.Duration) *AssetSet {
+	end := start.Add(duration)
 	window := NewWindow(&start, &end)
 
 	hours := window.Duration().Hours()
@@ -681,4 +696,110 @@ func GenerateMockAssetSet(start time.Time) *AssetSet {
 		// cluster 3
 		node5,
 	)
+}
+
+func GenerateKubecostNodeAndPID(mockProviderIDInt int, provider string, mockClusterID int, setEndTime time.Time) (*Node, string) {
+	providerID := "PID" + strconv.FormatInt(int64(mockProviderIDInt), 10)
+	return &Node{
+		Properties: &AssetProperties{
+			Provider:   provider,
+			ProviderID: providerID,
+			Cluster:    "cluster" + strconv.FormatInt(int64(mockClusterID), 10),
+		},
+		End: setEndTime,
+	}, providerID
+}
+func GenerateAWSMockCCIAndPID(mockProviderIDInt int, mockCloudIDInt int, labelKey string, resourceCategory string) (*CloudCostItem, string) {
+	return &CloudCostItem{
+		Properties: CloudCostItemProperties{
+			ProviderID: "PID" + strconv.FormatInt(int64(mockProviderIDInt), 10),
+			Provider:   AWSProvider,
+			Category:   resourceCategory,
+			Labels: map[string]string{
+				labelKey: "cluster" + strconv.FormatInt(int64(mockCloudIDInt), 10),
+			},
+		},
+	}, "cluster" + strconv.FormatInt(int64(mockCloudIDInt), 10)
+}
+
+func GenerateAlibabaMockCCIAndPID(mockProviderIDInt int, mockCloudIDInt int, labelKey string, resourceCategory string) (*CloudCostItem, string) {
+	return &CloudCostItem{
+		Properties: CloudCostItemProperties{
+			ProviderID: "PID" + strconv.FormatInt(int64(mockProviderIDInt), 10),
+			Provider:   AlibabaProvider,
+			Category:   resourceCategory,
+			Labels: map[string]string{
+				labelKey: "cluster" + strconv.FormatInt(int64(mockCloudIDInt), 10),
+			},
+		},
+	}, "cluster" + strconv.FormatInt(int64(mockCloudIDInt), 10)
+}
+
+func GenerateGCPMockCCIAndPID(mockProviderIDInt int, mockCloudIDInt int, labelKey string, resourceCategory string) (*CloudCostItem, string) {
+	return &CloudCostItem{
+		Properties: CloudCostItemProperties{
+			ProviderID: "PID" + strconv.FormatInt(int64(mockProviderIDInt), 10),
+			Provider:   GCPProvider,
+			Category:   resourceCategory,
+		},
+	}, ""
+}
+
+// NewMockUnitSummaryAllocation creates an *SummaryAllocation with all of its float64 values set to 1 and generic properties if not provided in arg
+func NewMockUnitSummaryAllocation(name string, start time.Time, resolution time.Duration, props *AllocationProperties) *SummaryAllocation {
+	if name == "" {
+		name = "cluster1/namespace1/pod1/container1"
+	}
+
+	properties := &AllocationProperties{}
+	if props == nil {
+		properties.Cluster = "cluster1"
+		properties.Node = "node1"
+		properties.Namespace = "namespace1"
+		properties.ControllerKind = "deployment"
+		properties.Controller = "deployment1"
+		properties.Pod = "pod1"
+		properties.Container = "container1"
+	} else {
+		properties = props
+	}
+
+	end := start.Add(resolution)
+
+	alloc := &SummaryAllocation{
+		Name:                   name,
+		Properties:             properties,
+		Start:                  start,
+		End:                    end,
+		CPUCost:                1,
+		CPUCoreRequestAverage:  1,
+		CPUCoreUsageAverage:    1,
+		GPUCost:                1,
+		NetworkCost:            1,
+		LoadBalancerCost:       1,
+		RAMCost:                1,
+		RAMBytesRequestAverage: 1,
+		RAMBytesUsageAverage:   1,
+	}
+
+	// If idle allocation, remove non-idle costs, but maintain total cost
+	if alloc.IsIdle() {
+		alloc.NetworkCost = 0.0
+		alloc.LoadBalancerCost = 0.0
+		alloc.CPUCost += 1.0
+		alloc.RAMCost += 1.0
+	}
+
+	return alloc
+}
+
+// NewMockUnitSummaryAllocationSet creates an *SummaryAllocationSet
+func NewMockUnitSummaryAllocationSet(start time.Time, resolution time.Duration) *SummaryAllocationSet {
+
+	end := start.Add(resolution)
+	sas := &SummaryAllocationSet{
+		Window: NewWindow(&start, &end),
+	}
+
+	return sas
 }

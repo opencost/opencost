@@ -1,0 +1,630 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "OpenCost API",
+    "description": "The OpenCost API provides real-time and historical reporting of Kubernetes cloud costs.",
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
+    },
+    "version": "0.1"
+  },
+  "servers": [
+    {
+    "url": "http://localhost:9003",
+    "description": "kubectl port-forward --namespace opencost service/opencost 9003"
+  }
+  ],
+  "paths": {
+    "/allocation/compute": {
+      "get": {
+        "summary": "query for costs and resources allocated to Kubernetes workloads",
+        "description": "The standard OpenCost API query for costs and resources allocated to Kubernetes workloads. You may specify the `window` date range, the Kubernetes primitive to `aggregate` on, the `step` for the duration of returned sets, and the `resolution` for the duration to use for Prometheus queries.",
+        "parameters": [
+          {
+          "name": "window",
+          "in": "query",
+          "description": "Duration of time over which to query. Accepts: words like `today`, `week`, `month`, `yesterday`, `lastweek`, `lastmonth`; durations like `30m`, `12h`, `7d`; [RFC3339](https://www.rfc-editor.org/rfc/rfc3339) date pairs like `2021-01-02T15:04:05Z,2021-02-02T15:04:05Z`; Unix timestamps like `1578002645,1580681045`.",
+          "required": true,
+          "style": "form",
+          "explode": true,
+          "schema": {
+            "type": "string"
+          },
+          "examples": {
+            "today": {
+              "summary": "The current day",
+              "value": "today"
+            },
+            "month": {
+              "summary": "The month-to-date",
+              "value": "month"
+            },
+            "lastweek": {
+              "summary": "The previous week",
+              "value": "lastweek"
+            },
+            "30m": {
+              "summary": "The last 30 minutes",
+              "value": "30m"
+            },
+            "12h": {
+              "summary": "The last 12 hours",
+              "value": "12h"
+            },
+            "7d": {
+              "summary": "The previous 7 days",
+              "value": "7d"
+            },
+            "range": {
+              "summary": "A custom RFC3339 date range",
+              "value": "2023-01-18T10:30:00Z,2023-01-19T10:30:00Z"
+            },
+            "unix": {
+              "summary": "A custom Unix timestamp range",
+              "value": "1674073869,1674193869"
+            }
+          }
+        },
+          {
+          "name": "aggregate",
+          "in": "query",
+          "description": "Field by which to aggregate the results. Accepts: `cluster`, `node`, `namespace`, `controllerKind`, `controller`, `service`, `pod`, `container`, `label:<name>`, and `annotation:<name>`. Also accepts comma-separated lists for multi-aggregation, like `namespace,label:app`.",
+          "required": false,
+          "style": "form",
+          "explode": true,
+          "schema": {
+            "type": "string"
+          },
+          "examples": {
+            "cluster": {
+              "summary": "Aggregates by the cluster.",
+              "value": "cluster"
+            },
+            "node": {
+              "summary": "Aggregates by the compute nodes in the cluster.",
+              "value": "node"
+            },
+            "namespace": {
+              "summary": "Aggregates by the namespaces in the cluster.",
+              "value": "namespace"
+            },
+            "controllerKind": {
+              "summary": "Aggregates by the kinds of controllers present in the cluster.",
+              "value": "controllerKind"
+            },
+            "controller": {
+              "summary": "Aggregates by the individual controllers within the cluster.",
+              "value": "controller"
+            },
+            "service": {
+              "summary": "Aggregates by the services within the cluster.",
+              "value": "service"
+            },
+            "pod": {
+              "summary": "Aggregates by the individual pods within the cluster",
+              "value": "pod"
+            },
+            "container": {
+              "summary": "Aggregates by the containers present in the cluster",
+              "value": "container"
+            }
+          }
+        },
+          {
+          "name": "step",
+          "in": "query",
+          "description": "Duration of a single allocation set. If unspecified, this defaults to the window, so that you receive exactly one set for the entire window. If specified, it works chronologically backward, querying in durations of step until the full window is covered. Default is `window`",
+          "required": false,
+          "style": "form",
+          "explode": true,
+          "schema": {
+            "type": "string"
+          },
+          "examples": {
+            "30m": {
+              "summary": "30 minute steps over the duration of the window.",
+              "value": "30m"
+            },
+            "2h": {
+              "summary": "2 hour steps over the duration of the window",
+              "value": "2h"
+            },
+            "1d": {
+              "summary": "Daily steps over the duration of the window (ie. `lastweek` or `month`",
+              "value": "1d"
+            }
+          }
+        },
+          {
+          "name": "resolution",
+          "in": "query",
+          "description": "Duration to use as resolution in Prometheus queries. Smaller values (i.e. higher resolutions) will provide better accuracy, but worse performance (i.e. slower query time, higher memory use). Larger values (i.e. lower resolutions) will perform better, but at the expense of lower accuracy for short-running workloads. Default is `1m`",
+          "required": false,
+          "style": "form",
+          "explode": true,
+          "schema": {
+            "type": "string"
+          },
+          "examples": {
+            "1m": {
+              "summary": "Highly accurate, slower query.",
+              "value": "1m"
+            },
+            "30m": {
+              "summary": "Less accurate, faster query. Not recommended for short-lived workloads.",
+              "value": "30m"
+            }
+          }
+        }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success with `window` of `2d` and `aggregate` by `namespace`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/inline_response_200"
+                },
+                "examples": {
+                  "0": {
+                    "value": "{\"code\":200,\"status\":\"success\",\"data\":[{\"kube-system\":{\"name\":\"kube-system\",\"properties\":{\"cluster\":\"cluster-one\",\"namespace\":\"kube-system\"},\"window\":{\"start\":\"2023-01-18T11:38:45Z\",\"end\":\"2023-01-20T11:38:45Z\"},\"start\":\"2023-01-18T11:38:45Z\",\"end\":\"2023-01-20T11:38:00Z\",\"minutes\":2879.235705,\"cpuCores\":0.449881,\"cpuCoreRequestAverage\":0.449881,\"cpuCoreUsageAverage\":0.009417,\"cpuCoreHours\":21.588536,\"cpuCost\":0.408822,\"cpuCostAdjustment\":0.000000,\"cpuEfficiency\":0.020932,\"gpuCount\":0.000000,\"gpuHours\":0.000000,\"gpuCost\":0.000000,\"gpuCostAdjustment\":0.000000,\"networkTransferBytes\":0.000000,\"networkReceiveBytes\":0.000000,\"networkCost\":0.000000,\"networkCostAdjustment\":0.000000,\"loadBalancerCost\":0.000000,\"loadBalancerCostAdjustment\":0.000000,\"pvBytes\":0.000000,\"pvByteHours\":0.000000,\"pvCost\":0.000000,\"pvs\":null,\"pvCostAdjustment\":0.000000,\"ramBytes\":146761671.651553,\"ramByteRequestAverage\":146761671.651553,\"ramByteUsageAverage\":125495250.508328,\"ramByteHours\":7042690751.326794,\"ramCost\":0.016647,\"ramCostAdjustment\":0.000000,\"ramEfficiency\":0.855096,\"sharedCost\":0.000000,\"externalCost\":0.000000,\"totalCost\":0.425469,\"totalEfficiency\":0.053569,\"rawAllocationOnly\":null},\"opencost\":{\"name\":\"opencost\",\"properties\":{\"cluster\":\"cluster-one\",\"node\":\"ip-192-168-20-42.ap-southeast-2.compute.internal\",\"controller\":\"opencost\",\"controllerKind\":\"deployment\",\"namespace\":\"opencost\",\"pod\":\"opencost-75dc7dcc49-xdx5t\",\"providerID\":\"i-064548f89b9d35c11\"},\"window\":{\"start\":\"2023-01-18T11:38:45Z\",\"end\":\"2023-01-20T11:38:45Z\"},\"start\":\"2023-01-18T11:38:45Z\",\"end\":\"2023-01-20T11:38:00Z\",\"minutes\":2879.235705,\"cpuCores\":0.019995,\"cpuCoreRequestAverage\":0.019995,\"cpuCoreUsageAverage\":0.001821,\"cpuCoreHours\":0.959490,\"cpuCost\":0.018170,\"cpuCostAdjustment\":0.000000,\"cpuEfficiency\":0.091055,\"gpuCount\":0.000000,\"gpuHours\":0.000000,\"gpuCost\":0.000000,\"gpuCostAdjustment\":0.000000,\"networkTransferBytes\":0.000000,\"networkReceiveBytes\":0.000000,\"networkCost\":0.000000,\"networkCostAdjustment\":0.000000,\"loadBalancerCost\":0.000000,\"loadBalancerCostAdjustment\":0.000000,\"pvBytes\":0.000000,\"pvByteHours\":0.000000,\"pvCost\":0.000000,\"pvs\":null,\"pvCostAdjustment\":0.000000,\"ramBytes\":109970800.411162,\"ramByteRequestAverage\":109970800.411162,\"ramByteUsageAverage\":35525920.971352,\"ramByteHours\":5277197583.375299,\"ramCost\":0.012474,\"ramCostAdjustment\":0.000000,\"ramEfficiency\":0.323049,\"sharedCost\":0.000000,\"externalCost\":0.000000,\"totalCost\":0.030644,\"totalEfficiency\":0.185490,\"rawAllocationOnly\":null},\"prometheus\":{\"name\":\"prometheus\",\"properties\":{\"cluster\":\"cluster-one\",\"namespace\":\"prometheus\"},\"window\":{\"start\":\"2023-01-18T11:38:45Z\",\"end\":\"2023-01-20T11:38:45Z\"},\"start\":\"2023-01-18T11:38:45Z\",\"end\":\"2023-01-20T11:38:00Z\",\"minutes\":2879.235705,\"cpuCores\":0.000000,\"cpuCoreRequestAverage\":0.000000,\"cpuCoreUsageAverage\":0.007793,\"cpuCoreHours\":0.000000,\"cpuCost\":0.000000,\"cpuCostAdjustment\":0.000000,\"cpuEfficiency\":0.000000,\"gpuCount\":0.000000,\"gpuHours\":0.000000,\"gpuCost\":0.000000,\"gpuCostAdjustment\":0.000000,\"networkTransferBytes\":0.000000,\"networkReceiveBytes\":0.000000,\"networkCost\":0.000000,\"networkCostAdjustment\":0.000000,\"loadBalancerCost\":0.000000,\"loadBalancerCostAdjustment\":0.000000,\"pvBytes\":0.000000,\"pvByteHours\":0.000000,\"pvCost\":0.000000,\"pvs\":null,\"pvCostAdjustment\":0.000000,\"ramBytes\":0.000000,\"ramByteRequestAverage\":0.000000,\"ramByteUsageAverage\":287770105.329488,\"ramByteHours\":0.000000,\"ramCost\":0.000000,\"ramCostAdjustment\":0.000000,\"ramEfficiency\":0.000000,\"sharedCost\":0.000000,\"externalCost\":0.000000,\"totalCost\":0.000000,\"totalEfficiency\":0.000000,\"rawAllocationOnly\":null}}]}"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "inline_response_200": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "opencost": {
+                  "type": "object",
+                  "properties": {
+                    "cpuCoreHours": {
+                      "type": "number"
+                    },
+                    "gpuCostAdjustment": {
+                      "type": "number"
+                    },
+                    "ramEfficiency": {
+                      "type": "number"
+                    },
+                    "loadBalancerCost": {
+                      "type": "number"
+                    },
+                    "gpuCost": {
+                      "type": "number"
+                    },
+                    "networkTransferBytes": {
+                      "type": "number"
+                    },
+                    "sharedCost": {
+                      "type": "number"
+                    },
+                    "pvCost": {
+                      "type": "number"
+                    },
+                    "totalEfficiency": {
+                      "type": "number"
+                    },
+                    "ramCostAdjustment": {
+                      "type": "number"
+                    },
+                    "pvByteHours": {
+                      "type": "number"
+                    },
+                    "networkCost": {
+                      "type": "number"
+                    },
+                    "ramByteUsageAverage": {
+                      "type": "number"
+                    },
+                    "end": {
+                      "type": "string"
+                    },
+                    "ramByteHours": {
+                      "type": "number"
+                    },
+                    "cpuCoreUsageAverage": {
+                      "type": "number"
+                    },
+                    "gpuCount": {
+                      "type": "number"
+                    },
+                    "cpuCostAdjustment": {
+                      "type": "number"
+                    },
+                    "externalCost": {
+                      "type": "number"
+                    },
+                    "minutes": {
+                      "type": "number"
+                    },
+                    "gpuHours": {
+                      "type": "number"
+                    },
+                    "loadBalancerCostAdjustment": {
+                      "type": "number"
+                    },
+                    "pvCostAdjustment": {
+                      "type": "number"
+                    },
+                    "ramCost": {
+                      "type": "number"
+                    },
+                    "start": {
+                      "type": "string"
+                    },
+                    "pvs": {},
+                    "cpuCost": {
+                      "type": "number"
+                    },
+                    "ramBytes": {
+                      "type": "number"
+                    },
+                    "networkCostAdjustment": {
+                      "type": "number"
+                    },
+                    "cpuCores": {
+                      "type": "number"
+                    },
+                    "pvBytes": {
+                      "type": "number"
+                    },
+                    "cpuEfficiency": {
+                      "type": "number"
+                    },
+                    "rawAllocationOnly": {},
+                    "name": {
+                      "type": "string"
+                    },
+                    "cpuCoreRequestAverage": {
+                      "type": "number"
+                    },
+                    "networkReceiveBytes": {
+                      "type": "number"
+                    },
+                    "window": {
+                      "type": "object",
+                      "properties": {
+                        "start": {
+                          "type": "string"
+                        },
+                        "end": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "properties": {
+                      "type": "object",
+                      "properties": {
+                        "cluster": {
+                          "type": "string"
+                        },
+                        "node": {
+                          "type": "string"
+                        },
+                        "controller": {
+                          "type": "string"
+                        },
+                        "pod": {
+                          "type": "string"
+                        },
+                        "providerID": {
+                          "type": "string"
+                        },
+                        "namespace": {
+                          "type": "string"
+                        },
+                        "controllerKind": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "totalCost": {
+                      "type": "number"
+                    },
+                    "ramByteRequestAverage": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "kube-system": {
+                  "type": "object",
+                  "properties": {
+                    "cpuCoreHours": {
+                      "type": "number"
+                    },
+                    "gpuCostAdjustment": {
+                      "type": "number"
+                    },
+                    "ramEfficiency": {
+                      "type": "number"
+                    },
+                    "loadBalancerCost": {
+                      "type": "number"
+                    },
+                    "gpuCost": {
+                      "type": "number"
+                    },
+                    "networkTransferBytes": {
+                      "type": "number"
+                    },
+                    "sharedCost": {
+                      "type": "number"
+                    },
+                    "pvCost": {
+                      "type": "number"
+                    },
+                    "totalEfficiency": {
+                      "type": "number"
+                    },
+                    "ramCostAdjustment": {
+                      "type": "number"
+                    },
+                    "pvByteHours": {
+                      "type": "number"
+                    },
+                    "networkCost": {
+                      "type": "number"
+                    },
+                    "ramByteUsageAverage": {
+                      "type": "number"
+                    },
+                    "end": {
+                      "type": "string"
+                    },
+                    "ramByteHours": {
+                      "type": "number"
+                    },
+                    "cpuCoreUsageAverage": {
+                      "type": "number"
+                    },
+                    "gpuCount": {
+                      "type": "number"
+                    },
+                    "cpuCostAdjustment": {
+                      "type": "number"
+                    },
+                    "externalCost": {
+                      "type": "number"
+                    },
+                    "minutes": {
+                      "type": "number"
+                    },
+                    "gpuHours": {
+                      "type": "number"
+                    },
+                    "loadBalancerCostAdjustment": {
+                      "type": "number"
+                    },
+                    "pvCostAdjustment": {
+                      "type": "number"
+                    },
+                    "ramCost": {
+                      "type": "number"
+                    },
+                    "start": {
+                      "type": "string"
+                    },
+                    "pvs": {},
+                    "cpuCost": {
+                      "type": "number"
+                    },
+                    "ramBytes": {
+                      "type": "number"
+                    },
+                    "networkCostAdjustment": {
+                      "type": "number"
+                    },
+                    "cpuCores": {
+                      "type": "number"
+                    },
+                    "pvBytes": {
+                      "type": "number"
+                    },
+                    "cpuEfficiency": {
+                      "type": "number"
+                    },
+                    "rawAllocationOnly": {},
+                    "name": {
+                      "type": "string"
+                    },
+                    "cpuCoreRequestAverage": {
+                      "type": "number"
+                    },
+                    "networkReceiveBytes": {
+                      "type": "number"
+                    },
+                    "window": {
+                      "type": "object",
+                      "properties": {
+                        "start": {
+                          "type": "string"
+                        },
+                        "end": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "properties": {
+                      "type": "object",
+                      "properties": {
+                        "cluster": {
+                          "type": "string"
+                        },
+                        "namespace": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "totalCost": {
+                      "type": "number"
+                    },
+                    "ramByteRequestAverage": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "prometheus": {
+                  "type": "object",
+                  "properties": {
+                    "cpuCoreHours": {
+                      "type": "number"
+                    },
+                    "gpuCostAdjustment": {
+                      "type": "number"
+                    },
+                    "ramEfficiency": {
+                      "type": "number"
+                    },
+                    "loadBalancerCost": {
+                      "type": "number"
+                    },
+                    "gpuCost": {
+                      "type": "number"
+                    },
+                    "networkTransferBytes": {
+                      "type": "number"
+                    },
+                    "sharedCost": {
+                      "type": "number"
+                    },
+                    "pvCost": {
+                      "type": "number"
+                    },
+                    "totalEfficiency": {
+                      "type": "number"
+                    },
+                    "ramCostAdjustment": {
+                      "type": "number"
+                    },
+                    "pvByteHours": {
+                      "type": "number"
+                    },
+                    "networkCost": {
+                      "type": "number"
+                    },
+                    "ramByteUsageAverage": {
+                      "type": "number"
+                    },
+                    "end": {
+                      "type": "string"
+                    },
+                    "ramByteHours": {
+                      "type": "number"
+                    },
+                    "cpuCoreUsageAverage": {
+                      "type": "number"
+                    },
+                    "gpuCount": {
+                      "type": "number"
+                    },
+                    "cpuCostAdjustment": {
+                      "type": "number"
+                    },
+                    "externalCost": {
+                      "type": "number"
+                    },
+                    "minutes": {
+                      "type": "number"
+                    },
+                    "gpuHours": {
+                      "type": "number"
+                    },
+                    "loadBalancerCostAdjustment": {
+                      "type": "number"
+                    },
+                    "pvCostAdjustment": {
+                      "type": "number"
+                    },
+                    "ramCost": {
+                      "type": "number"
+                    },
+                    "start": {
+                      "type": "string"
+                    },
+                    "pvs": {},
+                    "cpuCost": {
+                      "type": "number"
+                    },
+                    "ramBytes": {
+                      "type": "number"
+                    },
+                    "networkCostAdjustment": {
+                      "type": "number"
+                    },
+                    "cpuCores": {
+                      "type": "number"
+                    },
+                    "pvBytes": {
+                      "type": "number"
+                    },
+                    "cpuEfficiency": {
+                      "type": "number"
+                    },
+                    "rawAllocationOnly": {},
+                    "name": {
+                      "type": "string"
+                    },
+                    "cpuCoreRequestAverage": {
+                      "type": "number"
+                    },
+                    "networkReceiveBytes": {
+                      "type": "number"
+                    },
+                    "window": {
+                      "type": "object",
+                      "properties": {
+                        "start": {
+                          "type": "string"
+                        },
+                        "end": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "properties": {
+                      "type": "object",
+                      "properties": {
+                        "cluster": {
+                          "type": "string"
+                        },
+                        "namespace": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "totalCost": {
+                      "type": "number"
+                    },
+                    "ramByteRequestAverage": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

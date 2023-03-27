@@ -10,8 +10,6 @@ import (
 )
 
 const (
-	AppVersionEnvVar = "APP_VERSION"
-
 	AWSAccessKeyIDEnvVar     = "AWS_ACCESS_KEY_ID"
 	AWSAccessKeySecretEnvVar = "AWS_SECRET_ACCESS_KEY"
 	AWSClusterIDEnvVar       = "AWS_CLUSTER_ID"
@@ -92,7 +90,14 @@ const (
 	IngestPodUIDEnvVar = "INGEST_POD_UID"
 
 	ETLReadOnlyMode = "ETL_READ_ONLY"
+
+	AllocationNodeLabelsEnabled     = "ALLOCATION_NODE_LABELS_ENABLED"
+	AllocationNodeLabelsIncludeList = "ALLOCATION_NODE_LABELS_INCLUDE_LIST"
+
+	regionOverrideList = "REGION_OVERRIDE_LIST"
 )
+
+const DefaultConfigMountPath = "/var/configs"
 
 var offsetRegex = regexp.MustCompile(`^(\+|-)(\d\d):(\d\d)$`)
 
@@ -162,12 +167,6 @@ func GetPricingConfigmapName() string {
 
 func GetMetricsConfigmapName() string {
 	return Get(MetricsConfigmapName, "metrics-config")
-}
-
-// GetAWSAccessKeyID returns the environment variable value for AWSAccessKeyIDEnvVar which represents
-// the AWS access key for authentication
-func GetAppVersion() string {
-	return Get(AppVersionEnvVar, "1.91.0-rc.0")
 }
 
 // IsEmitNamespaceAnnotationsMetric returns true if cost-model is configured to emit the kube_namespace_annotations metric
@@ -309,10 +308,10 @@ func GetCSVPath() string {
 	return Get(CSVPathEnvVar, "")
 }
 
-// GetConfigPath returns the environment variable value for ConfigPathEnvVar which represents the cost
-// model configuration path
-func GetConfigPath() string {
-	return Get(ConfigPathEnvVar, "")
+// GetCostAnalyzerVolumeMountPath is an alias of GetConfigPath, which returns the mount path for the
+// Cost Analyzer volume, which stores configs, persistent data, etc.
+func GetCostAnalyzerVolumeMountPath() string {
+	return GetConfigPathWithDefault(DefaultConfigMountPath)
 }
 
 // GetConfigPath returns the environment variable value for ConfigPathEnvVar which represents the cost
@@ -481,15 +480,9 @@ func GetETLMaxPrometheusQueryDuration() time.Duration {
 
 // GetETLResolution determines the resolution of ETL queries. The smaller the
 // duration, the higher the resolution; the higher the resolution, the more
-// accurate the query results, but the more computationally expensive. This
-// value is always 1m for Prometheus, but is configurable for Thanos.
+// accurate the query results, but the more computationally expensive.
 func GetETLResolution() time.Duration {
-	// If Thanos is not enabled, hard-code to 1m resolution
-	if !IsThanosEnabled() {
-		return 60 * time.Second
-	}
-
-	// Thanos is enabled, so use the configured ETL resolution, or default to
+	// Use the configured ETL resolution, or default to
 	// 5m (i.e. 300s)
 	secs := time.Duration(GetInt64(ETLResolutionSeconds, 300))
 	return secs * time.Second
@@ -508,4 +501,43 @@ func GetPromClusterLabel() string {
 // contents of podKeys in Allocation
 func IsIngestingPodUID() bool {
 	return GetBool(IngestPodUIDEnvVar, false)
+}
+
+func GetAllocationNodeLabelsEnabled() bool {
+	return GetBool(AllocationNodeLabelsEnabled, true)
+}
+
+var defaultAllocationNodeLabelsIncludeList []string = []string{
+	"cloud.google.com/gke-nodepool",
+	"eks.amazonaws.com/nodegroup",
+	"kubernetes.azure.com/agentpool",
+	"node.kubernetes.io/instance-type",
+	"topology.kubernetes.io/region",
+	"topology.kubernetes.io/zone",
+}
+
+func GetAllocationNodeLabelsIncludeList() []string {
+	// If node labels are not enabled, return an empty list.
+	if !GetAllocationNodeLabelsEnabled() {
+		return []string{}
+	}
+
+	list := GetList(AllocationNodeLabelsIncludeList, ",")
+
+	// If node labels are enabled, but the white list is empty, use defaults.
+	if len(list) == 0 {
+		return defaultAllocationNodeLabelsIncludeList
+	}
+
+	return list
+}
+
+func GetRegionOverrideList() []string {
+	regionList := GetList(regionOverrideList, ",")
+
+	if regionList == nil {
+		return []string{}
+	}
+
+	return regionList
 }

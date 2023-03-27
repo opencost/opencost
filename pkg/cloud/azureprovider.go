@@ -13,15 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opencost/opencost/pkg/clustercache"
-	"github.com/opencost/opencost/pkg/env"
-	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/util"
-	"github.com/opencost/opencost/pkg/util/fileutil"
-	"github.com/opencost/opencost/pkg/util/json"
-	"github.com/opencost/opencost/pkg/util/timeutil"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
+	"github.com/opencost/opencost/pkg/kubecost"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-11-01/compute"
 	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
@@ -30,6 +22,13 @@ import (
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
+	"github.com/opencost/opencost/pkg/clustercache"
+	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/util/fileutil"
+	"github.com/opencost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -43,8 +42,6 @@ const (
 	defaultSpotLabelValue            = "spot"
 	AzureStorageUpdateType           = "AzureStorage"
 )
-
-var toTitle = cases.Title(language.Und, cases.NoLower)
 
 var (
 	regionCodeMappings = map[string]string{
@@ -399,12 +396,19 @@ type Azure struct {
 	Config                         *ProviderConfig
 	serviceAccountChecks           *ServiceAccountChecks
 	RateCardPricingError           error
-	clusterAccountId               string
+	clusterAccountID               string
 	clusterRegion                  string
 	loadedAzureSecret              bool
 	azureSecret                    *AzureServiceKey
 	loadedAzureStorageConfigSecret bool
 	azureStorageConfig             *AzureStorageConfig
+}
+
+// PricingSourceSummary returns the pricing source summary for the provider.
+// The summary represents what was _parsed_ from the pricing source, not
+// everything that was _available_ in the pricing source.
+func (az *Azure) PricingSourceSummary() interface{} {
+	return az.Pricing
 }
 
 type azureKey struct {
@@ -1236,7 +1240,7 @@ func (az *Azure) getDisks() ([]*compute.Disk, error) {
 			d := d
 			disks = append(disks, &d)
 		}
-		err := diskPage.Next()
+		err := diskPage.NextWithContext(context.Background())
 		if err != nil {
 			return nil, fmt.Errorf("error getting next page: %v", err)
 		}
@@ -1245,7 +1249,7 @@ func (az *Azure) getDisks() ([]*compute.Disk, error) {
 	return disks, nil
 }
 
-func isDiskOrphaned(disk *compute.Disk) bool {
+func (az *Azure) isDiskOrphaned(disk *compute.Disk) bool {
 	//TODO: needs better algorithm
 	return disk.DiskState == "Unattached" || disk.DiskState == "Reserved"
 }
@@ -1259,20 +1263,42 @@ func (az *Azure) GetOrphanedResources() ([]OrphanedResource, error) {
 	var orphanedResources []OrphanedResource
 
 	for _, d := range disks {
-		if isDiskOrphaned(d) {
+		if az.isDiskOrphaned(d) {
 			cost, err := az.findCostForDisk(d)
 			if err != nil {
 				return nil, err
 			}
 
+			diskName := ""
+			if d.Name != nil {
+				diskName = *d.Name
+			}
+
+			diskRegion := ""
+			if d.Location != nil {
+				diskRegion = *d.Location
+			}
+
+			var diskSize int64
+			if d.DiskSizeGB != nil {
+				diskSize = int64(*d.DiskSizeGB)
+			}
+
+			desc := map[string]string{}
+			for k, v := range d.Tags {
+				if v == nil {
+					desc[k] = ""
+				} else {
+					desc[k] = *v
+				}
+			}
+
 			or := OrphanedResource{
-				Kind:   "disk",
-				Region: *d.Location,
-				Description: map[string]string{
-					"diskState":   string(d.DiskState),
-					"timeCreated": d.TimeCreated.String(),
-				},
-				Size:        d.DiskSizeGB,
+				Kind:        "disk",
+				Region:      diskRegion,
+				Description: desc,
+				Size:        &diskSize,
+				DiskName:    diskName,
 				MonthlyCost: &cost,
 			}
 			orphanedResources = append(orphanedResources, or)
@@ -1318,8 +1344,8 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 	if c.ClusterName != "" {
 		m["name"] = c.ClusterName
 	}
-	m["provider"] = "Azure"
-	m["account"] = az.clusterAccountId
+	m["provider"] = kubecost.AzureProvider
+	m["account"] = az.clusterAccountID
 	m["region"] = az.clusterRegion
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	m["id"] = env.GetClusterID()
@@ -1481,6 +1507,14 @@ func (az *Azure) CombinedDiscountForNode(instanceType string, isPreemptible bool
 }
 
 func (az *Azure) Regions() []string {
+
+	regionOverrides := env.GetRegionOverrideList()
+
+	if len(regionOverrides) > 0 {
+		log.Debugf("Overriding Azure regions with configured region list: %+v", regionOverrides)
+		return regionOverrides
+	}
+
 	return azureRegions
 }
 

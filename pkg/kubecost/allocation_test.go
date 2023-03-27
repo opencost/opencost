@@ -413,8 +413,8 @@ func TestAllocationSet_generateKey(t *testing.T) {
 	}
 
 	key = alloc.generateKey(props, nil)
-	if key != "cluster1//app=app1" {
-		t.Fatalf("generateKey: expected \"cluster1//app=app1\"; actual \"%s\"", key)
+	if key != "cluster1//app1" {
+		t.Fatalf("generateKey: expected \"cluster1//app1\"; actual \"%s\"", key)
 	}
 
 	alloc.Properties = &AllocationProperties{
@@ -426,8 +426,8 @@ func TestAllocationSet_generateKey(t *testing.T) {
 		},
 	}
 	key = alloc.generateKey(props, nil)
-	if key != "cluster1/namespace1/app=app1" {
-		t.Fatalf("generateKey: expected \"cluster1/namespace1/app=app1\"; actual \"%s\"", key)
+	if key != "cluster1/namespace1/app1" {
+		t.Fatalf("generateKey: expected \"cluster1/namespace1/app1\"; actual \"%s\"", key)
 	}
 
 	props = []string{
@@ -552,15 +552,15 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	//     idle:                                  20.00   5.00  15.00   0.00   0.00   0.00   0.00
 	//     namespace1:
 	//       pod1:
-	//         container1: [app=app1, env=env1]   16.00   1.00  11.00   1.00   1.00   1.00   1.00
+	//         container1: [app1, env1]   16.00   1.00  11.00   1.00   1.00   1.00   1.00
 	//       pod-abc: (deployment1)
 	//         container2:                         6.00   1.00   1.00   1.00   1.00   1.00   1.00
 	//       pod-def: (deployment1)
 	//         container3:                         6.00   1.00   1.00   1.00   1.00   1.00   1.00
 	//     namespace2:
 	//       pod-ghi: (deployment2)
-	//         container4: [app=app2, env=env2]    6.00   1.00   1.00   1.00   1.00   1.00   1.00
-	//         container5: [app=app2, env=env2]    6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//         container4: [app2, env2]    6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//         container5: [app2, env2]    6.00   1.00   1.00   1.00   1.00   1.00   1.00
 	//       pod-jkl: (daemonset1)
 	//         container6: {service1}              6.00   1.00   1.00   1.00   1.00   1.00   1.00
 	// +-----------------------------------------+------+------+------+------+------+------+------+
@@ -570,16 +570,16 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	//     idle:                                  10.00   5.00   5.00   0.00   0.00   0.00   0.00
 	//     namespace2:
 	//       pod-mno: (deployment2)
-	//         container4: [app=app2]              6.00   1.00   1.00   1.00   1.00   1.00   1.00
-	//         container5: [app=app2]              6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//         container4: [app2]              6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//         container5: [app2]              6.00   1.00   1.00   1.00   1.00   1.00   1.00
 	//       pod-pqr: (daemonset1)
 	//         container6: {service1}              6.00   1.00   1.00   1.00   1.00   1.00   1.00
 	//     namespace3:
 	//       pod-stu: (deployment3)
-	//         container7: an[team=team1]          6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//         container7: an[team1]          6.00   1.00   1.00   1.00   1.00   1.00   1.00
 	//       pod-vwx: (statefulset1)
-	//         container8: an[team=team2]          6.00   1.00   1.00   1.00   1.00   1.00   1.00
-	//         container9: an[team=team1]          6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//         container8: an[team2]          6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//         container9: an[team1]          6.00   1.00   1.00   1.00   1.00   1.00   1.00
 	// +----------------------------------------+------+------+------+------+------+------+------+
 	//   cluster2 subtotal                        46.00  11.00  11.00   6.00   6.00   6.00   6.00
 	// +----------------------------------------+------+------+------+------+------+------+------+
@@ -843,8 +843,8 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			numResults: numLabelApps + numIdle + numUnallocated,
 			totalCost:  activeTotalCost + idleTotalCost,
 			results: map[string]float64{
-				"app=app1":        16.00,
-				"app=app2":        24.00,
+				"app1":            16.00,
+				"app2":            24.00,
 				IdleSuffix:        30.00,
 				UnallocatedSuffix: 42.00,
 			},
@@ -878,8 +878,8 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			numResults: 2 + numIdle + numUnallocated,
 			totalCost:  activeTotalCost + idleTotalCost,
 			results: map[string]float64{
-				"team=team1":      12.00,
-				"team=team2":      6.00,
+				"team1":           12.00,
+				"team2":           6.00,
 				IdleSuffix:        30.00,
 				UnallocatedSuffix: 64.00,
 			},
@@ -933,10 +933,10 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			totalCost:  activeTotalCost + idleTotalCost,
 			// sets should be {idle, unallocated, app1/env1, app2/env2, app2/unallocated}
 			results: map[string]float64{
-				"app=app1/env=env1":                         16.00,
-				"app=app2/env=env2":                         12.00,
-				"app=app2/" + UnallocatedSuffix:             12.00,
-				IdleSuffix:                                  30.00,
+				"app1/env1":                 16.00,
+				"app2/env2":                 12.00,
+				"app2/" + UnallocatedSuffix: 12.00,
+				IdleSuffix:                  30.00,
 				UnallocatedSuffix + "/" + UnallocatedSuffix: 42.00,
 			},
 			windowStart: startYesterday,
@@ -951,11 +951,11 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			numResults: 6,
 			totalCost:  activeTotalCost + idleTotalCost,
 			results: map[string]float64{
-				"cluster1/app=app2/env=env2": 12.00,
-				"__idle__":                   30.00,
-				"cluster1/app=app1/env=env1": 16.00,
+				"cluster1/app2/env2": 12.00,
+				"__idle__":           30.00,
+				"cluster1/app1/env1": 16.00,
 				"cluster1/" + UnallocatedSuffix + "/" + UnallocatedSuffix: 18.00,
-				"cluster2/app=app2/" + UnallocatedSuffix:                  12.00,
+				"cluster2/app2/" + UnallocatedSuffix:                      12.00,
 				"cluster2/" + UnallocatedSuffix + "/" + UnallocatedSuffix: 24.00,
 			},
 			windowStart: startYesterday,
@@ -971,12 +971,12 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			totalCost:  activeTotalCost + idleTotalCost,
 			results: map[string]float64{
 				"pod-jkl/" + UnallocatedSuffix: 6.00,
-				"pod-stu/team=team1":           6.00,
+				"pod-stu/team1":                6.00,
 				"pod-abc/" + UnallocatedSuffix: 6.00,
 				"pod-pqr/" + UnallocatedSuffix: 6.00,
 				"pod-def/" + UnallocatedSuffix: 6.00,
-				"pod-vwx/team=team1":           6.00,
-				"pod-vwx/team=team2":           6.00,
+				"pod-vwx/team1":                6.00,
+				"pod-vwx/team2":                6.00,
 				"pod1/" + UnallocatedSuffix:    16.00,
 				"pod-mno/" + UnallocatedSuffix: 12.00,
 				"pod-ghi/" + UnallocatedSuffix: 12.00,
@@ -1631,7 +1631,7 @@ func TestAllocationSetRange_AccumulateRepeat(t *testing.T) {
 	totalCost := asr.TotalCost()
 
 	// NewAccumulation does not mutate
-	result, err := asr.NewAccumulation()
+	result, err := asr.newAccumulation()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1643,7 +1643,7 @@ func TestAllocationSetRange_AccumulateRepeat(t *testing.T) {
 	}
 
 	// Next NewAccumulation() call should prove that there is no mutation of inner data
-	result, err = asr.NewAccumulation()
+	result, err = asr.newAccumulation()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1663,7 +1663,7 @@ func TestAllocationSetRange_Accumulate(t *testing.T) {
 	tomorrow := time.Now().UTC().Truncate(day).Add(day)
 
 	// Accumulating any combination of nil and/or empty set should result in empty set
-	result, err := NewAllocationSetRange(nil).Accumulate()
+	result, err := NewAllocationSetRange(nil).accumulate()
 	if err != nil {
 		t.Fatalf("unexpected error accumulating nil AllocationSetRange: %s", err)
 	}
@@ -1671,7 +1671,7 @@ func TestAllocationSetRange_Accumulate(t *testing.T) {
 		t.Fatalf("accumulating nil AllocationSetRange: expected empty; actual %s", result)
 	}
 
-	result, err = NewAllocationSetRange(nil, nil).Accumulate()
+	result, err = NewAllocationSetRange(nil, nil).accumulate()
 	if err != nil {
 		t.Fatalf("unexpected error accumulating nil AllocationSetRange: %s", err)
 	}
@@ -1679,7 +1679,7 @@ func TestAllocationSetRange_Accumulate(t *testing.T) {
 		t.Fatalf("accumulating nil AllocationSetRange: expected empty; actual %s", result)
 	}
 
-	result, err = NewAllocationSetRange(NewAllocationSet(yesterday, today)).Accumulate()
+	result, err = NewAllocationSetRange(NewAllocationSet(yesterday, today)).accumulate()
 	if err != nil {
 		t.Fatalf("unexpected error accumulating nil AllocationSetRange: %s", err)
 	}
@@ -1687,7 +1687,7 @@ func TestAllocationSetRange_Accumulate(t *testing.T) {
 		t.Fatalf("accumulating nil AllocationSetRange: expected empty; actual %s", result)
 	}
 
-	result, err = NewAllocationSetRange(nil, NewAllocationSet(ago2d, yesterday), nil, NewAllocationSet(today, tomorrow), nil).Accumulate()
+	result, err = NewAllocationSetRange(nil, NewAllocationSet(ago2d, yesterday), nil, NewAllocationSet(today, tomorrow), nil).accumulate()
 	if err != nil {
 		t.Fatalf("unexpected error accumulating nil AllocationSetRange: %s", err)
 	}
@@ -1702,7 +1702,7 @@ func TestAllocationSetRange_Accumulate(t *testing.T) {
 	yesterdayAS.Set(NewMockUnitAllocation("", yesterday, day, nil))
 
 	// Accumulate non-nil with nil should result in copy of non-nil, regardless of order
-	result, err = NewAllocationSetRange(nil, todayAS).Accumulate()
+	result, err = NewAllocationSetRange(nil, todayAS).accumulate()
 	if err != nil {
 		t.Fatalf("unexpected error accumulating AllocationSetRange of length 1: %s", err)
 	}
@@ -1713,7 +1713,7 @@ func TestAllocationSetRange_Accumulate(t *testing.T) {
 		t.Fatalf("accumulating AllocationSetRange: expected total cost 6.0; actual %f", result.TotalCost())
 	}
 
-	result, err = NewAllocationSetRange(todayAS, nil).Accumulate()
+	result, err = NewAllocationSetRange(todayAS, nil).accumulate()
 	if err != nil {
 		t.Fatalf("unexpected error accumulating AllocationSetRange of length 1: %s", err)
 	}
@@ -1724,7 +1724,7 @@ func TestAllocationSetRange_Accumulate(t *testing.T) {
 		t.Fatalf("accumulating AllocationSetRange: expected total cost 6.0; actual %f", result.TotalCost())
 	}
 
-	result, err = NewAllocationSetRange(nil, todayAS, nil).Accumulate()
+	result, err = NewAllocationSetRange(nil, todayAS, nil).accumulate()
 	if err != nil {
 		t.Fatalf("unexpected error accumulating AllocationSetRange of length 1: %s", err)
 	}
@@ -1736,7 +1736,7 @@ func TestAllocationSetRange_Accumulate(t *testing.T) {
 	}
 
 	// Accumulate two non-nil should result in sum of both with appropriate start, end
-	result, err = NewAllocationSetRange(yesterdayAS, todayAS).Accumulate()
+	result, err = NewAllocationSetRange(yesterdayAS, todayAS).accumulate()
 	if err != nil {
 		t.Fatalf("unexpected error accumulating AllocationSetRange of length 1: %s", err)
 	}
@@ -1806,115 +1806,8 @@ func TestAllocationSetRange_Accumulate(t *testing.T) {
 		t.Fatalf("accumulating AllocationSetRange: expected %f minutes; actual %f", 2880.0, alloc.Minutes())
 	}
 }
-func TestAllocationSetRange_AccumulateBy_Nils(t *testing.T) {
-	var err error
-	var result *AllocationSetRange
 
-	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
-	yesterday := time.Now().UTC().Truncate(day).Add(-day)
-	today := time.Now().UTC().Truncate(day)
-	tomorrow := time.Now().UTC().Truncate(day).Add(day)
-
-	// Test nil & empty sets
-	nilEmptycases := []struct {
-		asr        *AllocationSetRange
-		resolution time.Duration
-
-		testId string
-	}{
-		{
-			asr:        NewAllocationSetRange(nil),
-			resolution: time.Hour * 24 * 2,
-
-			testId: "AccumulateBy_Nils Empty Test 1",
-		},
-		{
-			asr:        NewAllocationSetRange(nil, nil),
-			resolution: time.Hour * 1,
-
-			testId: "AccumulateBy_Nils Empty Test 2",
-		},
-		{
-			asr:        NewAllocationSetRange(nil, NewAllocationSet(ago2d, yesterday), nil, NewAllocationSet(today, tomorrow)),
-			resolution: time.Hour * 24 * 7,
-
-			testId: "AccumulateBy_Nils Empty Test 3",
-		},
-	}
-
-	for _, c := range nilEmptycases {
-		result, err = c.asr.AccumulateBy(c.resolution)
-		for _, as := range result.Allocations {
-			if !as.IsEmpty() {
-				t.Errorf("accumulating nil AllocationSetRange: expected empty; actual %s; TestId: %s", result, c.testId)
-			}
-		}
-	}
-	if err != nil {
-		t.Errorf("unexpected error accumulating nil AllocationSetRange: %s", err)
-	}
-
-	yesterdayAS := NewAllocationSet(yesterday, today)
-	yesterdayAS.Set(NewMockUnitAllocation("a", yesterday, day, nil))
-	todayAS := NewAllocationSet(today, tomorrow)
-	todayAS.Set(NewMockUnitAllocation("b", today, day, nil))
-
-	nilAndNonEmptyCases := []struct {
-		asr        *AllocationSetRange
-		resolution time.Duration
-
-		expected float64
-		testId   string
-	}{
-		{
-			asr:        NewAllocationSetRange(nil, todayAS),
-			resolution: time.Hour * 2,
-
-			expected: 6.0,
-			testId:   "AccumulateBy_Nils NonEmpty Test 1",
-		},
-		{
-			asr:        NewAllocationSetRange(todayAS, nil),
-			resolution: time.Hour * 24,
-
-			expected: 6.0,
-			testId:   "AccumulateBy_Nils NonEmpty Test 2",
-		},
-		{
-			asr:        NewAllocationSetRange(yesterdayAS, nil, todayAS, nil),
-			resolution: time.Hour * 24 * 2,
-
-			expected: 12.0,
-			testId:   "AccumulateBy_Nils NonEmpty Test 3",
-		},
-	}
-
-	for _, c := range nilAndNonEmptyCases {
-		result, err = c.asr.AccumulateBy(c.resolution)
-		sumCost := 0.0
-
-		if result == nil {
-			t.Errorf("accumulating AllocationSetRange: expected AllocationSet; actual %s; TestId: %s", result, c.testId)
-		}
-
-		for _, as := range result.Allocations {
-			sumCost += as.TotalCost()
-		}
-
-		if sumCost != c.expected {
-			t.Errorf("accumulating AllocationSetRange: expected total cost %f; actual %f; TestId: %s", c.expected, sumCost, c.testId)
-		}
-	}
-
-	if err != nil {
-		t.Errorf("unexpected error accumulating nil AllocationSetRange: %s", err)
-	}
-}
-
-func TestAllocationSetRange_AccumulateBy(t *testing.T) {
-	var err error
-	var result *AllocationSetRange
-
+func TestAllocationSetRange_AccumulateBy_None(t *testing.T) {
 	ago4d := time.Now().UTC().Truncate(day).Add(-4 * day)
 	ago3d := time.Now().UTC().Truncate(day).Add(-3 * day)
 	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
@@ -1933,223 +1826,243 @@ func TestAllocationSetRange_AccumulateBy(t *testing.T) {
 	todayAS := NewAllocationSet(today, tomorrow)
 	todayAS.Set(NewMockUnitAllocation("", today, day, nil))
 
-	yesterHour := time.Now().UTC().Truncate(time.Hour).Add(-1 * time.Hour)
+	asr := NewAllocationSetRange(ago4dAS, ago3dAS, ago2dAS, yesterdayAS, todayAS)
+	asr, err := asr.Accumulate(AccumulateOptionNone)
+	if err != nil {
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
+	}
+
+	if len(asr.Allocations) != 5 {
+		t.Fatalf("expected 5 allocation sets, got:%d", len(asr.Allocations))
+	}
+}
+
+func TestAllocationSetRange_AccumulateBy_All(t *testing.T) {
+	ago4d := time.Now().UTC().Truncate(day).Add(-4 * day)
+	ago3d := time.Now().UTC().Truncate(day).Add(-3 * day)
+	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
+	yesterday := time.Now().UTC().Truncate(day).Add(-day)
+	today := time.Now().UTC().Truncate(day)
+	tomorrow := time.Now().UTC().Truncate(day).Add(day)
+
+	ago4dAS := NewAllocationSet(ago4d, ago3d)
+	ago4dAS.Set(NewMockUnitAllocation("4", ago4d, day, nil))
+	ago3dAS := NewAllocationSet(ago3d, ago2d)
+	ago3dAS.Set(NewMockUnitAllocation("a", ago3d, day, nil))
+	ago2dAS := NewAllocationSet(ago2d, yesterday)
+	ago2dAS.Set(NewMockUnitAllocation("", ago2d, day, nil))
+	yesterdayAS := NewAllocationSet(yesterday, today)
+	yesterdayAS.Set(NewMockUnitAllocation("", yesterday, day, nil))
+	todayAS := NewAllocationSet(today, tomorrow)
+	todayAS.Set(NewMockUnitAllocation("", today, day, nil))
+
+	asr := NewAllocationSetRange(ago4dAS, ago3dAS, ago2dAS, yesterdayAS, todayAS)
+	asr, err := asr.Accumulate(AccumulateOptionAll)
+	if err != nil {
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
+	}
+
+	if len(asr.Allocations) != 1 {
+		t.Fatalf("expected 1 allocation set, got:%d", len(asr.Allocations))
+	}
+
+	allocMap := asr.Allocations[0].Allocations
+	alloc := allocMap["cluster1/namespace1/pod1/container1"]
+	if alloc.Minutes() != 4320.0 {
+		t.Errorf("accumulating AllocationSetRange: expected %f minutes; actual %f", 4320.0, alloc.Minutes())
+	}
+}
+
+func TestAllocationSetRange_AccumulateBy_Hour(t *testing.T) {
+	ago4h := time.Now().UTC().Truncate(time.Hour).Add(-4 * time.Hour)
+	ago3h := time.Now().UTC().Truncate(time.Hour).Add(-3 * time.Hour)
+	ago2h := time.Now().UTC().Truncate(time.Hour).Add(-2 * time.Hour)
+	ago1h := time.Now().UTC().Truncate(time.Hour).Add(-time.Hour)
 	currentHour := time.Now().UTC().Truncate(time.Hour)
 	nextHour := time.Now().UTC().Truncate(time.Hour).Add(time.Hour)
 
-	yesterHourAS := NewAllocationSet(yesterHour, currentHour)
-	yesterHourAS.Set(NewMockUnitAllocation("123", yesterHour, time.Hour, nil))
+	ago4hAS := NewAllocationSet(ago4h, ago3h)
+	ago4hAS.Set(NewMockUnitAllocation("4", ago4h, time.Hour, nil))
+	ago3hAS := NewAllocationSet(ago3h, ago2h)
+	ago3hAS.Set(NewMockUnitAllocation("a", ago3h, time.Hour, nil))
+	ago2hAS := NewAllocationSet(ago2h, ago1h)
+	ago2hAS.Set(NewMockUnitAllocation("", ago2h, time.Hour, nil))
+	ago1hAS := NewAllocationSet(ago1h, currentHour)
+	ago1hAS.Set(NewMockUnitAllocation("", ago1h, time.Hour, nil))
 	currentHourAS := NewAllocationSet(currentHour, nextHour)
-	currentHourAS.Set(NewMockUnitAllocation("456", currentHour, time.Hour, nil))
+	currentHourAS.Set(NewMockUnitAllocation("", currentHour, time.Hour, nil))
 
-	sumCost := 0.0
-
-	// Test nil & empty sets
-	cases := []struct {
-		asr        *AllocationSetRange
-		resolution time.Duration
-
-		expectedCost float64
-		expectedSets int
-
-		testId string
-	}{
-		{
-			asr:        NewAllocationSetRange(yesterdayAS, todayAS),
-			resolution: time.Hour * 24 * 2,
-
-			expectedCost: 12.0,
-			expectedSets: 1,
-
-			testId: "AccumulateBy Test 1",
-		},
-		{
-			asr:        NewAllocationSetRange(ago3dAS, ago2dAS),
-			resolution: time.Hour * 24,
-
-			expectedCost: 12.0,
-			expectedSets: 2,
-
-			testId: "AccumulateBy Test 2",
-		},
-		{
-			asr:        NewAllocationSetRange(ago2dAS, yesterdayAS, todayAS),
-			resolution: time.Hour * 13,
-
-			expectedCost: 18.0,
-			expectedSets: 3,
-
-			testId: "AccumulateBy Test 3",
-		},
-		{
-			asr:        NewAllocationSetRange(ago2dAS, yesterdayAS, todayAS),
-			resolution: time.Hour * 24 * 7,
-
-			expectedCost: 18.0,
-			expectedSets: 1,
-
-			testId: "AccumulateBy Test 4",
-		},
-		{
-			asr:        NewAllocationSetRange(yesterHourAS, currentHourAS),
-			resolution: time.Hour * 2,
-
-			//Due to how mock Allocation Sets are generated, hourly sets are still 6.0 cost per set
-			expectedCost: 12.0,
-			expectedSets: 1,
-
-			testId: "AccumulateBy Test 5",
-		},
-		{
-			asr:        NewAllocationSetRange(yesterHourAS, currentHourAS),
-			resolution: time.Hour,
-
-			expectedCost: 12.0,
-			expectedSets: 2,
-
-			testId: "AccumulateBy Test 6",
-		},
-		{
-			asr:        NewAllocationSetRange(yesterHourAS, currentHourAS),
-			resolution: time.Minute * 11,
-
-			expectedCost: 12.0,
-			expectedSets: 2,
-
-			testId: "AccumulateBy Test 7",
-		},
-		{
-			asr:        NewAllocationSetRange(yesterHourAS, currentHourAS),
-			resolution: time.Hour * 3,
-
-			expectedCost: 12.0,
-			expectedSets: 1,
-
-			testId: "AccumulateBy Test 8",
-		},
-		{
-			asr:        NewAllocationSetRange(ago2dAS, yesterdayAS, todayAS),
-			resolution: time.Hour * 24 * 2,
-
-			expectedCost: 18.0,
-			expectedSets: 2,
-
-			testId: "AccumulateBy Test 9",
-		},
-		{
-			asr:        NewAllocationSetRange(ago3dAS, ago2dAS, yesterdayAS, todayAS),
-			resolution: time.Hour * 25,
-
-			expectedCost: 24.0,
-			expectedSets: 2,
-
-			testId: "AccumulateBy Test 10",
-		},
-		{
-			asr:        NewAllocationSetRange(ago4dAS, ago3dAS, ago2dAS, yesterdayAS, todayAS),
-			resolution: time.Hour * 72,
-
-			expectedCost: 30.0,
-			expectedSets: 2,
-
-			testId: "AccumulateBy Test 11",
-		},
-	}
-
-	for _, c := range cases {
-		result, err = c.asr.AccumulateBy(c.resolution)
-		sumCost := 0.0
-		if result == nil {
-			t.Errorf("accumulating AllocationSetRange: expected AllocationSet; actual %s; TestId: %s", result, c.testId)
-		}
-		if result.Length() != c.expectedSets {
-			t.Errorf("accumulating AllocationSetRange: expected %v number of allocation sets; actual %v; TestId: %s", c.expectedSets, result.Length(), c.testId)
-		}
-
-		for _, as := range result.Allocations {
-			sumCost += as.TotalCost()
-		}
-		if sumCost != c.expectedCost {
-			t.Errorf("accumulating AllocationSetRange: expected total cost %f; actual %f; TestId: %s", c.expectedCost, sumCost, c.testId)
-		}
-	}
-
+	asr := NewAllocationSetRange(ago4hAS, ago3hAS, ago2hAS, ago1hAS, currentHourAS)
+	asr, err := asr.Accumulate(AccumulateOptionHour)
 	if err != nil {
-		t.Errorf("unexpected error accumulating nil AllocationSetRange: %s", err)
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
 	}
 
-	// // Accumulate three non-nil should result in sum of both with appropriate start, end
-	result, err = NewAllocationSetRange(ago2dAS, yesterdayAS, todayAS).AccumulateBy(time.Hour * 24 * 2)
+	if len(asr.Allocations) != 5 {
+		t.Fatalf("expected 5 allocation sets, got:%d", len(asr.Allocations))
+	}
+
+	allocMap := asr.Allocations[0].Allocations
+	alloc := allocMap["4"]
+	if alloc.Minutes() != 60.0 {
+		t.Errorf("accumulating AllocationSetRange: expected %f minutes; actual %f", 60.0, alloc.Minutes())
+	}
+}
+
+func TestAllocationSetRange_AccumulateBy_Day_From_Day(t *testing.T) {
+	ago4d := time.Now().UTC().Truncate(day).Add(-4 * day)
+	ago3d := time.Now().UTC().Truncate(day).Add(-3 * day)
+	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
+	yesterday := time.Now().UTC().Truncate(day).Add(-day)
+	today := time.Now().UTC().Truncate(day)
+	tomorrow := time.Now().UTC().Truncate(day).Add(day)
+
+	ago4dAS := NewAllocationSet(ago4d, ago3d)
+	ago4dAS.Set(NewMockUnitAllocation("4", ago4d, day, nil))
+	ago3dAS := NewAllocationSet(ago3d, ago2d)
+	ago3dAS.Set(NewMockUnitAllocation("a", ago3d, day, nil))
+	ago2dAS := NewAllocationSet(ago2d, yesterday)
+	ago2dAS.Set(NewMockUnitAllocation("", ago2d, day, nil))
+	yesterdayAS := NewAllocationSet(yesterday, today)
+	yesterdayAS.Set(NewMockUnitAllocation("", yesterday, day, nil))
+	todayAS := NewAllocationSet(today, tomorrow)
+	todayAS.Set(NewMockUnitAllocation("", today, day, nil))
+
+	asr := NewAllocationSetRange(ago4dAS, ago3dAS, ago2dAS, yesterdayAS, todayAS)
+	asr, err := asr.Accumulate(AccumulateOptionDay)
 	if err != nil {
-		t.Errorf("unexpected error accumulating AllocationSetRange of length 1: %s", err)
-	}
-	if result == nil {
-		t.Errorf("accumulating AllocationSetRange: expected AllocationSet; actual %s", result)
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
 	}
 
-	sumCost = 0.0
-	for _, as := range result.Allocations {
-		sumCost += as.TotalCost()
+	if len(asr.Allocations) != 5 {
+		t.Fatalf("expected 5 allocation sets, got:%d", len(asr.Allocations))
+	}
+	allocMap := asr.Allocations[0].Allocations
+	alloc := allocMap["4"]
+	if alloc.Minutes() != 1440.0 {
+		t.Errorf("accumulating AllocationSetRange: expected %f minutes; actual %f", 1440.0, alloc.Minutes())
+	}
+}
+
+func TestAllocationSetRange_AccumulateBy_Day_From_Hours(t *testing.T) {
+	ago4h := time.Now().UTC().Truncate(time.Hour).Add(-4 * time.Hour)
+	ago3h := time.Now().UTC().Truncate(time.Hour).Add(-3 * time.Hour)
+	ago2h := time.Now().UTC().Truncate(time.Hour).Add(-2 * time.Hour)
+	ago1h := time.Now().UTC().Truncate(time.Hour).Add(-time.Hour)
+	currentHour := time.Now().UTC().Truncate(time.Hour)
+	nextHour := time.Now().UTC().Truncate(time.Hour).Add(time.Hour)
+
+	ago4hAS := NewAllocationSet(ago4h, ago3h)
+	ago4hAS.Set(NewMockUnitAllocation("", ago4h, time.Hour, nil))
+	ago3hAS := NewAllocationSet(ago3h, ago2h)
+	ago3hAS.Set(NewMockUnitAllocation("", ago3h, time.Hour, nil))
+	ago2hAS := NewAllocationSet(ago2h, ago1h)
+	ago2hAS.Set(NewMockUnitAllocation("", ago2h, time.Hour, nil))
+	ago1hAS := NewAllocationSet(ago1h, currentHour)
+	ago1hAS.Set(NewMockUnitAllocation("", ago1h, time.Hour, nil))
+	currentHourAS := NewAllocationSet(currentHour, nextHour)
+	currentHourAS.Set(NewMockUnitAllocation("", currentHour, time.Hour, nil))
+
+	asr := NewAllocationSetRange(ago4hAS, ago3hAS, ago2hAS, ago1hAS, currentHourAS)
+	asr, err := asr.Accumulate(AccumulateOptionDay)
+	if err != nil {
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
 	}
 
-	allocMap := result.Allocations[0].Allocations
-	if len(allocMap) != 1 {
-		t.Errorf("accumulating AllocationSetRange: expected length 1; actual length %d", len(allocMap))
+	if len(asr.Allocations) != 1 && len(asr.Allocations) != 2 {
+		t.Fatalf("expected 1 allocation set, got:%d", len(asr.Allocations))
 	}
+
+	allocMap := asr.Allocations[0].Allocations
 	alloc := allocMap["cluster1/namespace1/pod1/container1"]
-	if alloc == nil {
-		t.Fatalf("accumulating AllocationSetRange: expected allocation 'cluster1/namespace1/pod1/container1'")
+	if alloc.Minutes() > 300.0 {
+		t.Errorf("accumulating AllocationSetRange: expected %f or less minutes; actual %f", 300.0, alloc.Minutes())
 	}
-	if alloc.CPUCoreHours != 2.0 {
-		t.Errorf("accumulating AllocationSetRange: expected 2.0; actual %f", sumCost)
+}
+
+func TestAllocationSetRange_AccumulateBy_Week(t *testing.T) {
+	ago9d := time.Now().UTC().Truncate(day).Add(-9 * day)
+	ago8d := time.Now().UTC().Truncate(day).Add(-8 * day)
+	ago7d := time.Now().UTC().Truncate(day).Add(-7 * day)
+	ago6d := time.Now().UTC().Truncate(day).Add(-6 * day)
+	ago5d := time.Now().UTC().Truncate(day).Add(-5 * day)
+	ago4d := time.Now().UTC().Truncate(day).Add(-4 * day)
+	ago3d := time.Now().UTC().Truncate(day).Add(-3 * day)
+	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
+	yesterday := time.Now().UTC().Truncate(day).Add(-day)
+	today := time.Now().UTC().Truncate(day)
+	tomorrow := time.Now().UTC().Truncate(day).Add(day)
+
+	ago9dAS := NewAllocationSet(ago9d, ago8d)
+	ago9dAS.Set(NewMockUnitAllocation("4", ago9d, day, nil))
+	ago8dAS := NewAllocationSet(ago8d, ago7d)
+	ago8dAS.Set(NewMockUnitAllocation("4", ago8d, day, nil))
+	ago7dAS := NewAllocationSet(ago7d, ago6d)
+	ago7dAS.Set(NewMockUnitAllocation("4", ago7d, day, nil))
+	ago6dAS := NewAllocationSet(ago6d, ago5d)
+	ago6dAS.Set(NewMockUnitAllocation("4", ago6d, day, nil))
+	ago5dAS := NewAllocationSet(ago5d, ago4d)
+	ago5dAS.Set(NewMockUnitAllocation("4", ago5d, day, nil))
+	ago4dAS := NewAllocationSet(ago4d, ago3d)
+	ago4dAS.Set(NewMockUnitAllocation("4", ago4d, day, nil))
+	ago3dAS := NewAllocationSet(ago3d, ago2d)
+	ago3dAS.Set(NewMockUnitAllocation("a", ago3d, day, nil))
+	ago2dAS := NewAllocationSet(ago2d, yesterday)
+	ago2dAS.Set(NewMockUnitAllocation("", ago2d, day, nil))
+	yesterdayAS := NewAllocationSet(yesterday, today)
+	yesterdayAS.Set(NewMockUnitAllocation("", yesterday, day, nil))
+	todayAS := NewAllocationSet(today, tomorrow)
+	todayAS.Set(NewMockUnitAllocation("", today, day, nil))
+
+	asr := NewAllocationSetRange(ago9dAS, ago8dAS, ago7dAS, ago6dAS, ago5dAS, ago4dAS, ago3dAS, ago2dAS, yesterdayAS, todayAS)
+	asr, err := asr.Accumulate(AccumulateOptionWeek)
+	if err != nil {
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
 	}
-	if alloc.CPUCost != 2.0 {
-		t.Errorf("accumulating AllocationSetRange: expected 2.0; actual %f", alloc.CPUCost)
+
+	if len(asr.Allocations) != 2 && len(asr.Allocations) != 3 {
+		t.Fatalf("expected 2 or 3 allocation sets, got:%d", len(asr.Allocations))
 	}
-	if alloc.CPUEfficiency() != 1.0 {
-		t.Errorf("accumulating AllocationSetRange: expected 1.0; actual %f", alloc.CPUEfficiency())
+
+	for _, as := range asr.Allocations {
+		if as.Window.Duration() < time.Hour*24 || as.Window.Duration() > time.Hour*24*7 {
+			t.Fatalf("expected window duration to be between 1 and 7 days, got:%s", as.Window.Duration().String())
+		}
 	}
-	if alloc.GPUHours != 2.0 {
-		t.Errorf("accumulating AllocationSetRange: expected 2.0; actual %f", alloc.GPUHours)
+}
+
+func TestAllocationSetRange_AccumulateBy_Month(t *testing.T) {
+	prevMonth1stDay := time.Date(2020, 01, 29, 0, 0, 0, 0, time.UTC)
+	prevMonth2ndDay := time.Date(2020, 01, 30, 0, 0, 0, 0, time.UTC)
+	prevMonth3ndDay := time.Date(2020, 01, 31, 0, 0, 0, 0, time.UTC)
+	nextMonth1stDay := time.Date(2020, 02, 01, 0, 0, 0, 0, time.UTC)
+	nextMonth2ndDay := time.Date(2020, 02, 02, 0, 0, 0, 0, time.UTC)
+
+	prev1AS := NewAllocationSet(prevMonth1stDay, prevMonth2ndDay)
+	prev1AS.Set(NewMockUnitAllocation("", prevMonth1stDay, day, nil))
+	prev2AS := NewAllocationSet(prevMonth2ndDay, prevMonth3ndDay)
+	prev2AS.Set(NewMockUnitAllocation("", prevMonth2ndDay, day, nil))
+
+	prev3AS := NewAllocationSet(prevMonth3ndDay, nextMonth1stDay)
+	prev3AS.Set(NewMockUnitAllocation("", prevMonth3ndDay, day, nil))
+
+	nextAS := NewAllocationSet(nextMonth1stDay, nextMonth2ndDay)
+	nextAS.Set(NewMockUnitAllocation("", nextMonth1stDay, day, nil))
+
+	asr := NewAllocationSetRange(prev1AS, prev2AS, prev3AS, nextAS)
+	asr, err := asr.Accumulate(AccumulateOptionMonth)
+	if err != nil {
+		t.Fatalf("unexpected error calling accumulateBy: %s", err)
 	}
-	if alloc.GPUCost != 2.0 {
-		t.Errorf("accumulating AllocationSetRange: expected 2.0; actual %f", alloc.GPUCost)
+
+	if len(asr.Allocations) != 2 {
+		t.Fatalf("expected 2 allocation sets, got:%d", len(asr.Allocations))
 	}
-	if alloc.NetworkCost != 2.0 {
-		t.Errorf("accumulating AllocationSetRange: expected 2.0; actual %f", alloc.NetworkCost)
-	}
-	if alloc.LoadBalancerCost != 2.0 {
-		t.Errorf("accumulating AllocationSetRange: expected 2.0; actual %f", alloc.LoadBalancerCost)
-	}
-	if alloc.PVByteHours() != 2.0 {
-		t.Errorf("accumulating AllocationSetRange: expected 2.0; actual %f", alloc.PVByteHours())
-	}
-	if alloc.PVCost() != 2.0 {
-		t.Errorf("accumulating AllocationSetRange: expected 2.0; actual %f", alloc.PVCost())
-	}
-	if alloc.RAMByteHours != 2.0 {
-		t.Errorf("accumulating AllocationSetRange: expected 2.0; actual %f", alloc.RAMByteHours)
-	}
-	if alloc.RAMCost != 2.0 {
-		t.Errorf("accumulating AllocationSetRange: expected 2.0; actual %f", alloc.RAMCost)
-	}
-	if alloc.RAMEfficiency() != 1.0 {
-		t.Errorf("accumulating AllocationSetRange: expected 1.0; actual %f", alloc.RAMEfficiency())
-	}
-	if alloc.TotalCost() != 12.0 {
-		t.Errorf("accumulating AllocationSetRange: expected 12.0; actual %f", alloc.TotalCost())
-	}
-	if alloc.TotalEfficiency() != 1.0 {
-		t.Errorf("accumulating AllocationSetRange: expected 1.0; actual %f", alloc.TotalEfficiency())
-	}
-	if !alloc.Start.Equal(ago2d) {
-		t.Errorf("accumulating AllocationSetRange: expected to start %s; actual %s", ago2d, alloc.Start)
-	}
-	if !alloc.End.Equal(today) {
-		t.Errorf("accumulating AllocationSetRange: expected to end %s; actual %s", today, alloc.End)
-	}
-	if alloc.Minutes() != 2880.0 {
-		t.Errorf("accumulating AllocationSetRange: expected %f minutes; actual %f", 2880.0, alloc.Minutes())
+
+	for _, as := range asr.Allocations {
+		if as.Window.Duration() < time.Hour*24 || as.Window.Duration() > time.Hour*24*31 {
+			t.Fatalf("expected window duration to be between 1 and 7 days, got:%s", as.Window.Duration().String())
+		}
 	}
 }
 
@@ -2681,7 +2594,7 @@ func TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate(t *testin
 		asr.Append(as.Clone())
 	}
 
-	expected, err := asr.Accumulate()
+	expected, err := asr.accumulate()
 	if err != nil {
 		t.Errorf("TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate: AllocationSetRange.Accumulate() returned an error\n")
 	}

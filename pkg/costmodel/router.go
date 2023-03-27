@@ -413,7 +413,7 @@ func (a *Accesses) ClusterCosts(w http.ResponseWriter, r *http.Request, ps httpr
 	offset := r.URL.Query().Get("offset")
 
 	if window == "" {
-		w.Write(WrapData(nil, fmt.Errorf("missing window arguement")))
+		w.Write(WrapData(nil, fmt.Errorf("missing window argument")))
 		return
 	}
 	windowDur, err := timeutil.ParseDuration(window)
@@ -462,7 +462,7 @@ func (a *Accesses) ClusterCostsOverTime(w http.ResponseWriter, r *http.Request, 
 	offset := r.URL.Query().Get("offset")
 
 	if window == "" {
-		w.Write(WrapData(nil, fmt.Errorf("missing window arguement")))
+		w.Write(WrapData(nil, fmt.Errorf("missing window argument")))
 		return
 	}
 	windowDur, err := timeutil.ParseDuration(window)
@@ -690,6 +690,14 @@ func (a *Accesses) GetPricingSourceCounts(w http.ResponseWriter, _ *http.Request
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	w.Write(WrapData(a.Model.GetPricingSourceCounts()))
+}
+
+func (a *Accesses) GetPricingSourceSummary(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	data := a.CloudProvider.PricingSourceSummary()
+	w.Write(WrapData(data, nil))
 }
 
 func (a *Accesses) GetPrometheusMetadata(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
@@ -1355,7 +1363,7 @@ func (a *Accesses) AddServiceKey(w http.ResponseWriter, r *http.Request, ps http
 
 	key := r.PostForm.Get("key")
 	k := []byte(key)
-	err := os.WriteFile(path.Join(env.GetConfigPathWithDefault("/var/configs/"), "key.json"), k, 0644)
+	err := os.WriteFile(path.Join(env.GetConfigPathWithDefault(env.DefaultConfigMountPath), "key.json"), k, 0644)
 	if err != nil {
 		fmt.Fprintf(w, "Error writing service key: "+err.Error())
 	}
@@ -1398,6 +1406,47 @@ func (a *Accesses) Status(w http.ResponseWriter, r *http.Request, _ httprouter.P
 	}
 }
 
+type LogLevelRequestResponse struct {
+	Level string `json:"level"`
+}
+
+func (a *Accesses) GetLogLevel(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	level := log.GetLogLevel()
+	llrr := LogLevelRequestResponse{
+		Level: level,
+	}
+
+	body, err := json.Marshal(llrr)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("unable to retrive log level"), http.StatusInternalServerError)
+		return
+	}
+	_, err = w.Write(body)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("unable to write response: %s", body), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (a *Accesses) SetLogLevel(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	params := LogLevelRequestResponse{}
+	err := json.NewDecoder(r.Body).Decode(&params)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("unable to decode request body, error: %s", err), http.StatusBadRequest)
+		return
+	}
+
+	err = log.SetLogLevel(params.Level)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("level must be a valid log level according to zerolog; level given: %s, error: %s", params.Level, err), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 // captures the panic event in sentry
 func capturePanicEvent(err string, stack string) {
 	msg := fmt.Sprintf("Panic: %s\nStackTrace: %s\n", err, stack)
@@ -1433,7 +1482,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 
 	var err error
 	if errorReportingEnabled {
-		err = sentry.Init(sentry.ClientOptions{Release: env.GetAppVersion()})
+		err = sentry.Init(sentry.ClientOptions{Release: version.FriendlyVersion()})
 		if err != nil {
 			log.Infof("Failed to initialize sentry for error reporting")
 		} else {
@@ -1716,6 +1765,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	a.Router.GET("/clusterInfoMap", a.GetClusterInfoMap)
 	a.Router.GET("/serviceAccountStatus", a.GetServiceAccountStatus)
 	a.Router.GET("/pricingSourceStatus", a.GetPricingSourceStatus)
+	a.Router.GET("/pricingSourceSummary", a.GetPricingSourceSummary)
 	a.Router.GET("/pricingSourceCounts", a.GetPricingSourceCounts)
 
 	// endpoints migrated from server
@@ -1748,6 +1798,9 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	// diagnostics
 	a.Router.GET("/diagnostics/requestQueue", a.GetPrometheusQueueState)
 	a.Router.GET("/diagnostics/prometheusMetrics", a.GetPrometheusMetrics)
+
+	a.Router.GET("/logs/level", a.GetLogLevel)
+	a.Router.POST("/logs/level", a.SetLogLevel)
 
 	a.httpServices.RegisterAll(a.Router)
 

@@ -152,10 +152,22 @@ const (
 	) by (namespace,container_name,pod_name,node,%s)`
 	queryRAMUsageStr = `sort_desc(
 		avg(
-			label_replace(count_over_time(container_memory_working_set_bytes{container_name!="",container_name!="POD", instance!=""}[%s] %s), "node", "$1", "instance","(.+)")
+			label_replace(
+				label_replace(
+					label_replace(
+						count_over_time(container_memory_working_set_bytes{container!="", container!="POD", instance!=""}[%s] %s), "node", "$1", "instance", "(.+)"
+					), "container_name", "$1", "container", "(.+)"
+				), "pod_name", "$1", "pod", "(.+)"
+			)
 			*
-			label_replace(avg_over_time(container_memory_working_set_bytes{container_name!="",container_name!="POD", instance!=""}[%s] %s), "node", "$1", "instance","(.+)")
-		) by (namespace,container_name,pod_name,node,%s)
+			label_replace(
+				label_replace(
+					label_replace(
+						avg_over_time(container_memory_working_set_bytes{container!="", container!="POD", instance!=""}[%s] %s), "node", "$1", "instance", "(.+)"
+					), "container_name", "$1", "container", "(.+)"
+				), "pod_name", "$1", "pod", "(.+)"
+			)
+		) by (namespace, container_name, pod_name, node, %s)
 	)`
 	queryCPURequestsStr = `avg(
 		label_replace(
@@ -170,11 +182,15 @@ const (
 	) by (namespace,container_name,pod_name,node,%s)`
 	queryCPUUsageStr = `avg(
 		label_replace(
-		rate(
-			container_cpu_usage_seconds_total{container_name!="",container_name!="POD",instance!=""}[%s] %s
-		) , "node", "$1", "instance", "(.+)"
+			label_replace(
+				label_replace(
+					rate(
+						container_cpu_usage_seconds_total{container!="", container!="POD", instance!=""}[%s] %s
+					), "node", "$1", "instance", "(.+)"
+				), "container_name", "$1", "container", "(.+)"
+			), "pod_name", "$1", "pod", "(.+)"
 		)
-	) by (namespace,container_name,pod_name,node,%s)`
+	) by (namespace, container_name, pod_name, node, %s)`
 	queryGPURequestsStr = `avg(
 		label_replace(
 			label_replace(
@@ -1022,13 +1038,13 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 		if ok {
 			gpuCount := q.Value()
 			if gpuCount != 0 {
-				newCnode.GPU = fmt.Sprintf("%d", q.Value())
+				newCnode.GPU = fmt.Sprintf("%d", gpuCount)
 				gpuc = float64(gpuCount)
 			}
 		} else if g, ok := n.Status.Capacity["k8s.amazonaws.com/vgpu"]; ok {
 			gpuCount := g.Value()
 			if gpuCount != 0 {
-				newCnode.GPU = fmt.Sprintf("%d", int(float64(q.Value())/vgpuCoeff))
+				newCnode.GPU = fmt.Sprintf("%d", int(float64(gpuCount)/vgpuCoeff))
 				gpuc = float64(gpuCount) / vgpuCoeff
 			}
 		} else {
@@ -1044,7 +1060,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 
 		if newCnode.GPU != "" && newCnode.GPUCost == "" {
 			// We couldn't find a gpu cost, so fix cpu and ram, then accordingly
-			log.Debugf("GPU without cost found for %s, calculating...", cp.GetKey(nodeLabels, n).Features())
+			log.Infof("GPU without cost found for %s, calculating...", cp.GetKey(nodeLabels, n).Features())
 
 			defaultCPU, err := strconv.ParseFloat(cfg.CPU, 64)
 			if err != nil {
@@ -1107,12 +1123,15 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 					log.Errorf("Could not parse total node price")
 					return nil, err
 				}
-			} else {
+			} else if newCnode.VCPUCost != "" {
 				nodePrice, err = strconv.ParseFloat(newCnode.VCPUCost, 64) // all the price was allocated to the CPU
 				if err != nil {
 					log.Errorf("Could not parse node vcpu price")
 					return nil, err
 				}
+			} else { // add case to use default pricing model when API data fails.
+				log.Debugf("No node price or CPUprice found, falling back to default")
+				nodePrice = defaultCPU*cpu + defaultRAM*ram + gpuc*defaultGPU
 			}
 			if math.IsNaN(nodePrice) {
 				log.Warnf("nodePrice parsed as NaN. Setting to 0.")
@@ -1181,12 +1200,23 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 					log.Warnf("Could not parse total node price")
 					return nil, err
 				}
-			} else {
+				if newCnode.GPUCost != "" {
+					gpuPrice, err := strconv.ParseFloat(newCnode.GPUCost, 64)
+					if err != nil {
+						log.Warnf("Could not parse node gpu price")
+						return nil, err
+					}
+					nodePrice = nodePrice - gpuPrice // remove the gpuPrice from the total, we're just costing out RAM and CPU.
+				}
+			} else if newCnode.VCPUCost != "" {
 				nodePrice, err = strconv.ParseFloat(newCnode.VCPUCost, 64) // all the price was allocated to the CPU
 				if err != nil {
 					log.Warnf("Could not parse node vcpu price")
 					return nil, err
 				}
+			} else { // add case to use default pricing model when API data fails.
+				log.Debugf("No node price or CPUprice found, falling back to default")
+				nodePrice = defaultCPU*cpu + defaultRAM*ram
 			}
 			if math.IsNaN(nodePrice) {
 				log.Warnf("nodePrice parsed as NaN. Setting to 0.")

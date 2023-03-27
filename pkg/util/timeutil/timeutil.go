@@ -34,6 +34,11 @@ const (
 
 	// DaysPerMonth expresses the amount of days in a month
 	DaysPerMonth = 30.42
+
+	// Day expresses 24 hours
+	Day = time.Hour * 24.0
+
+	Week = Day * 7.0
 )
 
 // DurationString converts a duration to a Prometheus-compatible string in
@@ -257,6 +262,20 @@ func FormatDurationStringDaysToHours(param string) (string, error) {
 	}
 
 	return param, nil
+}
+
+// RoundToStartOfWeek creates a new time.Time for the preceding Monday 00:00 UTC
+func RoundToStartOfWeek(t time.Time) time.Time {
+	date := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+	daysFromMonday := int(date.Weekday())
+	return date.Add(-1 * time.Duration(daysFromMonday) * Day)
+}
+
+// RoundToStartOfFollowingWeek creates a new time.Time for the following Monday 00:00 UTC
+func RoundToStartOfFollowingWeek(t time.Time) time.Time {
+	date := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+	daysFromSunday := 7 - int(date.Weekday())
+	return date.Add(time.Duration(daysFromSunday) * Day)
 }
 
 // JobTicker is a ticker used to synchronize the next run of a repeating

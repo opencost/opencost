@@ -2,9 +2,9 @@ package costmodel
 
 import (
 	"fmt"
-	"github.com/opencost/opencost/pkg/kubecost"
 
 	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/prom"
 )
 

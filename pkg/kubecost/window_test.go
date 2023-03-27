@@ -1,10 +1,14 @@
 package kubecost
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 
 	"github.com/opencost/opencost/pkg/env"
 )
@@ -84,6 +88,12 @@ func TestRoundBack(t *testing.T) {
 	if !tb.Equal(time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("RoundBack: expected 2020-01-01T00:00:00Z; actual %s", tb)
 	}
+
+	to = time.Date(2020, time.January, 1, 23, 59, 0, 0, time.UTC)
+	tb = RoundBack(to, timeutil.Week)
+	if !tb.Equal(time.Date(2019, time.December, 29, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("RoundForward: expected 2019-12-29T00:00:00Z; actual %s", tb)
+	}
 }
 
 func TestRoundForward(t *testing.T) {
@@ -160,6 +170,12 @@ func TestRoundForward(t *testing.T) {
 	tb = RoundForward(to, 24*time.Hour)
 	if !tb.Equal(time.Date(2020, time.January, 2, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("RoundForward: expected 2020-01-02T00:00:00Z; actual %s", tb)
+	}
+
+	to = time.Date(2020, time.January, 1, 23, 59, 0, 0, time.UTC)
+	tb = RoundForward(to, timeutil.Week)
+	if !tb.Equal(time.Date(2020, time.January, 5, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("RoundForward: expected 2020-01-05T00:00:00Z; actual %s", tb)
 	}
 }
 
@@ -845,3 +861,344 @@ func TestWindow_Expand(t *testing.T) {
 
 // TODO
 // func TestWindow_String(t *testing.T) {}
+
+func TestWindow_GetPercentInWindow(t *testing.T) {
+	dayStart := time.Date(2022, 12, 6, 0, 0, 0, 0, time.UTC)
+	dayEnd := dayStart.Add(timeutil.Day)
+	window := NewClosedWindow(dayStart, dayEnd)
+
+	testcases := map[string]struct {
+		window    Window
+		itemStart time.Time
+		itemEnd   time.Time
+		expected  float64
+	}{
+		"matching start/matching end": {
+			window:    window,
+			itemStart: dayStart,
+			itemEnd:   dayEnd,
+			expected:  1.0,
+		},
+		"matching start/contained end": {
+			window:    window,
+			itemStart: dayStart,
+			itemEnd:   dayEnd.Add(-time.Hour * 6),
+			expected:  1.0,
+		},
+		"contained start/matching end": {
+			window:    window,
+			itemStart: dayStart.Add(time.Hour * 6),
+			itemEnd:   dayEnd,
+			expected:  1.0,
+		},
+		"contained start/contained end": {
+			window:    window,
+			itemStart: dayStart.Add(time.Hour * 6),
+			itemEnd:   dayEnd.Add(-time.Hour * 6),
+			expected:  1.0,
+		},
+		"before start/contained end": {
+			window:    window,
+			itemStart: dayStart.Add(-time.Hour * 12),
+			itemEnd:   dayEnd.Add(-time.Hour * 12),
+			expected:  0.5,
+		},
+		"before start/before end": {
+			window:    window,
+			itemStart: dayStart.Add(-time.Hour * 24),
+			itemEnd:   dayEnd.Add(-time.Hour * 24),
+			expected:  0.0,
+		},
+		"contained start/after end": {
+			window:    window,
+			itemStart: dayStart.Add(time.Hour * 12),
+			itemEnd:   dayEnd.Add(time.Hour * 12),
+			expected:  0.5,
+		},
+		"after start/after end": {
+			window:    window,
+			itemStart: dayStart.Add(time.Hour * 24),
+			itemEnd:   dayEnd.Add(time.Hour * 24),
+			expected:  0.0,
+		},
+		"before start/after end": {
+			window:    window,
+			itemStart: dayStart.Add(-time.Hour * 12),
+			itemEnd:   dayEnd.Add(time.Hour * 12),
+			expected:  0.5,
+		},
+	}
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			thatWindow := NewWindow(&tc.itemStart, &tc.itemEnd)
+			if actual := tc.window.GetPercentInWindow(thatWindow); actual != tc.expected {
+				t.Errorf("GetPercentInWindow() = %v, want %v", actual, tc.expected)
+			}
+		})
+	}
+}
+
+func TestWindow_GetWindows(t *testing.T) {
+	dayStart := time.Date(2022, 12, 6, 0, 0, 0, 0, time.UTC)
+	dayEnd := dayStart.Add(timeutil.Day)
+	loc, _ := time.LoadLocation("America/Vancouver")
+	testCases := map[string]struct {
+		start       time.Time
+		end         time.Time
+		windowSize  time.Duration
+		expected    []Window
+		expectedErr bool
+	}{
+		"mismatching tz": {
+			start:       dayStart,
+			end:         dayEnd.In(loc),
+			windowSize:  time.Hour,
+			expected:    nil,
+			expectedErr: true,
+		},
+		"hour windows over 1 hours": {
+			start:      dayStart,
+			end:        dayStart.Add(time.Hour),
+			windowSize: time.Hour,
+			expected: []Window{
+				NewClosedWindow(dayStart, dayStart.Add(time.Hour)),
+			},
+			expectedErr: false,
+		},
+		"hour windows over 3 hours": {
+			start:      dayStart,
+			end:        dayStart.Add(time.Hour * 3),
+			windowSize: time.Hour,
+			expected: []Window{
+				NewClosedWindow(dayStart, dayStart.Add(time.Hour)),
+				NewClosedWindow(dayStart.Add(time.Hour), dayStart.Add(time.Hour*2)),
+				NewClosedWindow(dayStart.Add(time.Hour*2), dayStart.Add(time.Hour*3)),
+			},
+			expectedErr: false,
+		},
+		"hour windows off hour grid": {
+			start:       dayStart.Add(time.Minute),
+			end:         dayEnd.Add(time.Minute),
+			windowSize:  time.Hour,
+			expected:    nil,
+			expectedErr: true,
+		},
+		"hour windows range not divisible by hour": {
+			start:       dayStart,
+			end:         dayStart.Add(time.Minute * 90),
+			windowSize:  time.Hour,
+			expected:    nil,
+			expectedErr: true,
+		},
+		"day windows over 1 day": {
+			start:      dayStart,
+			end:        dayEnd,
+			windowSize: timeutil.Day,
+			expected: []Window{
+				NewClosedWindow(dayStart, dayEnd),
+			},
+			expectedErr: false,
+		},
+		"day windows over 3 days": {
+			start:      dayStart,
+			end:        dayStart.Add(timeutil.Day * 3),
+			windowSize: timeutil.Day,
+			expected: []Window{
+				NewClosedWindow(dayStart, dayStart.Add(timeutil.Day)),
+				NewClosedWindow(dayStart.Add(timeutil.Day), dayStart.Add(timeutil.Day*2)),
+				NewClosedWindow(dayStart.Add(timeutil.Day*2), dayStart.Add(timeutil.Day*3)),
+			},
+			expectedErr: false,
+		},
+		"day windows off day grid": {
+			start:       dayStart.Add(time.Hour),
+			end:         dayEnd.Add(time.Hour),
+			windowSize:  timeutil.Day,
+			expected:    nil,
+			expectedErr: true,
+		},
+		"day windows range not divisible by day": {
+			start:       dayStart,
+			end:         dayEnd.Add(time.Hour),
+			windowSize:  timeutil.Day,
+			expected:    nil,
+			expectedErr: true,
+		},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			actual, err := GetWindows(tc.start, tc.end, tc.windowSize)
+			if (err != nil) != tc.expectedErr {
+				t.Errorf("GetWindows() error = %v, expectedErr %v", err, tc.expectedErr)
+				return
+			}
+			if len(tc.expected) != len(actual) {
+				t.Errorf("GetWindows() []window has incorrect length expected: %d, actual: %d", len(tc.expected), len(actual))
+			}
+			for i, actualWindow := range actual {
+				expectedWindow := tc.expected[i]
+				if !actualWindow.Equal(expectedWindow) {
+					t.Errorf("GetWindow() window at index %d were not equal expected: %s, actual %s", i, expectedWindow.String(), actualWindow)
+				}
+			}
+		})
+	}
+}
+
+func TestWindow_GetWindowsForQueryWindow(t *testing.T) {
+	dayStart := time.Date(2022, 12, 6, 0, 0, 0, 0, time.UTC)
+	dayEnd := dayStart.Add(timeutil.Day)
+	loc, _ := time.LoadLocation("America/Vancouver")
+	testCases := map[string]struct {
+		start       time.Time
+		end         time.Time
+		windowSize  time.Duration
+		expected    []Window
+		expectedErr bool
+	}{
+		"mismatching tz": {
+			start:       dayStart,
+			end:         dayEnd.In(loc),
+			windowSize:  time.Hour,
+			expected:    nil,
+			expectedErr: true,
+		},
+		"hour windows over 1 hours": {
+			start:      dayStart,
+			end:        dayStart.Add(time.Hour),
+			windowSize: time.Hour,
+			expected: []Window{
+				NewClosedWindow(dayStart, dayStart.Add(time.Hour)),
+			},
+			expectedErr: false,
+		},
+		"hour windows over 3 hours": {
+			start:      dayStart,
+			end:        dayStart.Add(time.Hour * 3),
+			windowSize: time.Hour,
+			expected: []Window{
+				NewClosedWindow(dayStart, dayStart.Add(time.Hour)),
+				NewClosedWindow(dayStart.Add(time.Hour), dayStart.Add(time.Hour*2)),
+				NewClosedWindow(dayStart.Add(time.Hour*2), dayStart.Add(time.Hour*3)),
+			},
+			expectedErr: false,
+		},
+		"hour windows off hour grid": {
+			start:      dayStart.Add(time.Minute),
+			end:        dayStart.Add(time.Minute * 61),
+			windowSize: time.Hour,
+			expected: []Window{
+				NewClosedWindow(dayStart.Add(time.Minute), dayStart.Add(time.Minute*61)),
+			},
+			expectedErr: false,
+		},
+		"hour windows range not divisible by hour": {
+			start:      dayStart,
+			end:        dayStart.Add(time.Minute * 90),
+			windowSize: time.Hour,
+			expected: []Window{
+				NewClosedWindow(dayStart, dayStart.Add(time.Hour)),
+				NewClosedWindow(dayStart.Add(time.Hour), dayStart.Add(time.Minute*90)),
+			},
+			expectedErr: false,
+		},
+		"day windows over 1 day": {
+			start:      dayStart,
+			end:        dayEnd,
+			windowSize: timeutil.Day,
+			expected: []Window{
+				NewClosedWindow(dayStart, dayEnd),
+			},
+			expectedErr: false,
+		},
+		"day windows over 3 days": {
+			start:      dayStart,
+			end:        dayStart.Add(timeutil.Day * 3),
+			windowSize: timeutil.Day,
+			expected: []Window{
+				NewClosedWindow(dayStart, dayStart.Add(timeutil.Day)),
+				NewClosedWindow(dayStart.Add(timeutil.Day), dayStart.Add(timeutil.Day*2)),
+				NewClosedWindow(dayStart.Add(timeutil.Day*2), dayStart.Add(timeutil.Day*3)),
+			},
+			expectedErr: false,
+		},
+		"day windows off day grid": {
+			start:      dayStart.Add(time.Hour),
+			end:        dayEnd.Add(time.Hour),
+			windowSize: timeutil.Day,
+			expected: []Window{
+				NewClosedWindow(dayStart.Add(time.Hour), dayEnd.Add(time.Hour)),
+			},
+			expectedErr: false,
+		},
+		"day windows range not divisible by day": {
+			start:      dayStart,
+			end:        dayEnd.Add(time.Hour),
+			windowSize: timeutil.Day,
+			expected: []Window{
+				NewClosedWindow(dayStart, dayEnd),
+				NewClosedWindow(dayEnd, dayEnd.Add(time.Hour)),
+			},
+			expectedErr: false,
+		},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			actual, err := GetWindowsForQueryWindow(tc.start, tc.end, tc.windowSize)
+			if (err != nil) != tc.expectedErr {
+				t.Errorf("GetWindowsForQueryWindow() error = %v, expectedErr %v", err, tc.expectedErr)
+				return
+			}
+			if len(tc.expected) != len(actual) {
+				t.Errorf("GetWindowsForQueryWindow() []window has incorrect length expected: %d, actual: %d", len(tc.expected), len(actual))
+			}
+			for i, actualWindow := range actual {
+				expectedWindow := tc.expected[i]
+				if !actualWindow.Equal(expectedWindow) {
+					t.Errorf("GetWindowsForQueryWindow() window at index %d were not equal expected: %s, actual %s", i, expectedWindow.String(), actualWindow)
+				}
+			}
+		})
+	}
+}
+
+func TestMarshalUnmarshal(t *testing.T) {
+	t1 := time.Date(2023, 03, 11, 01, 29, 15, 0, time.UTC)
+	t2 := t1.Add(8 * time.Minute)
+	cases := []struct {
+		w Window
+	}{
+		{
+			w: NewClosedWindow(t1, t2),
+		},
+		{
+			w: NewWindow(&t1, nil),
+		},
+		{
+			w: NewWindow(nil, &t2),
+		},
+		{
+			w: NewWindow(nil, nil),
+		},
+	}
+
+	for _, c := range cases {
+		name := c.w.String()
+		t.Run(name, func(t *testing.T) {
+			marshaled, err := json.Marshal(c.w)
+			if err != nil {
+				t.Fatalf("marshaling: %s", err)
+			}
+
+			var unmarshaledW Window
+			err = json.Unmarshal(marshaled, &unmarshaledW)
+			if err != nil {
+				t.Fatalf("unmarshaling: %s", err)
+			}
+
+			if diff := cmp.Diff(c.w, unmarshaledW); len(diff) > 0 {
+				t.Errorf(diff)
+			}
+		})
+	}
+}

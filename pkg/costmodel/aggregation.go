@@ -1076,7 +1076,7 @@ func (a *Accesses) ComputeAggregateCostModel(promClient prometheusClient.Client,
 		if durMins%60 != 0 || durMins < 3*60 { // not divisible by 1h or less than 3h
 			resolution = time.Minute
 		}
-	} else { // greater than 1d
+	} else {                    // greater than 1d
 		if durMins >= 7*24*60 { // greater than (or equal to) 7 days
 			resolution = 24.0 * time.Hour
 		} else if durMins >= 2*24*60 { // greater than (or equal to) 2 days
@@ -2191,12 +2191,11 @@ func (a *Accesses) ComputeAllocationHandlerSummary(w http.ResponseWriter, r *htt
 
 	// Accumulate, if requested
 	if accumulate {
-		as, err := asr.Accumulate()
+		asr, err = asr.Accumulate(kubecost.AccumulateOptionAll)
 		if err != nil {
 			WriteError(w, InternalServerError(err.Error()))
 			return
 		}
-		asr = kubecost.NewAllocationSetRange(as)
 	}
 
 	sasl := []*kubecost.SummaryAllocationSet{}
@@ -2231,7 +2230,7 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// resolution.
 	resolution := qp.GetDuration("resolution", env.GetETLResolution())
 
-	// Aggregation is a required comma-separated list of fields by which to
+	// Aggregation is an optional comma-separated list of fields by which to
 	// aggregate results. Some fields allow a sub-field, which is distinguished
 	// with a colon; e.g. "label:app".
 	// Examples: "namespace", "namespace,label:app"
@@ -2244,10 +2243,15 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// sums each Set in the Range, producing one Set.
 	accumulate := qp.GetBool("accumulate", false)
 
-	// AccumulateBy is an optional parameter that accumulates an AllocationSetRange
+	// Accumulate is an optional parameter that accumulates an AllocationSetRange
 	// by the resolution of the given time duration.
 	// Defaults to 0. If a value is not passed then the parameter is not used.
-	accumulateBy := qp.GetDuration("accumulateBy", 0)
+	accumulateBy := kubecost.AccumulateOption(qp.Get("accumulateBy", ""))
+
+	// if accumulateBy is not explicitly set, and accumulate is true, ensure result is accumulated
+	if accumulateBy == kubecost.AccumulateOptionNone && accumulate {
+		accumulateBy = kubecost.AccumulateOptionAll
+	}
 
 	// Query for AllocationSets in increments of the given step duration,
 	// appending each to the AllocationSetRange.
@@ -2277,19 +2281,13 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Accumulate, if requested
-	if accumulateBy != 0 {
-		asr, err = asr.AccumulateBy(accumulateBy)
-		if err != nil {
-			WriteError(w, InternalServerError(err.Error()))
-			return
-		}
-	} else if accumulate {
-		as, err := asr.Accumulate()
-		if err != nil {
-			WriteError(w, InternalServerError(err.Error()))
-			return
-		}
-		asr = kubecost.NewAllocationSetRange(as)
+	if accumulateBy != kubecost.AccumulateOptionNone {
+		asr, err = asr.Accumulate(accumulateBy)
+	}
+
+	if err != nil {
+		WriteError(w, InternalServerError(err.Error()))
+		return
 	}
 
 	w.Write(WrapData(asr, nil))
