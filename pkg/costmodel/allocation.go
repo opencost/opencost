@@ -22,7 +22,6 @@ const (
 	queryFmtCPUCoresAllocated        = `avg(avg_over_time(container_cpu_allocation{container!="", container!="POD", node!=""}[%s])) by (container, pod, namespace, node, %s)`
 	queryFmtCPURequests              = `avg(avg_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="", container!="POD", node!=""}[%s])) by (container, pod, namespace, node, %s)`
 	queryFmtCPUUsageAvg              = `avg(rate(container_cpu_usage_seconds_total{container!="", container_name!="POD", container!="POD"}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
-	queryFmtCPUUsageMax              = `max(max_over_time(kubecost_container_cpu_usage_irate{}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
 	queryFmtGPUsRequested            = `avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s])) by (container, pod, namespace, node, %s)`
 	queryFmtGPUsAllocated            = `avg(avg_over_time(container_gpu_allocation{container!="", container!="POD", node!=""}[%s])) by (container, pod, namespace, node, %s)`
 	queryFmtNodeCostPerCPUHr         = `avg(avg_over_time(node_cpu_hourly_cost[%s])) by (node, %s, instance_type, provider_id)`
@@ -57,6 +56,25 @@ const (
 	queryFmtReplicaSetsWithoutOwners = `avg(avg_over_time(kube_replicaset_owner{owner_kind="<none>", owner_name="<none>"}[%s])) by (replicaset, namespace, %s)`
 	queryFmtLBCostPerHr              = `avg(avg_over_time(kubecost_load_balancer_cost[%s])) by (namespace, service_name, %s)`
 	queryFmtLBActiveMins             = `count(kubecost_load_balancer_cost) by (namespace, service_name, %s)[%s:%s]`
+
+	// Because we use container_cpu_usage_seconds_total to calculate CPU usage
+	// at any given "instant" of time, we need to use an irate or rate. To then
+	// calculate a max (or any aggregation) we have to perform an aggregation
+	// query on top of an instant-by-instant maximum. Prometheus supports this
+	// type of query with a "subquery" [1], however it is reportedly expensive
+	// to make such a query. By default, Kubecost's Prometheus config includes
+	// a recording rule that keeps track of the instant-by-instant irate for CPU
+	// usage. The metric in this query is created by that recording rule.
+	//
+	// [1] https://prometheus.io/blog/2019/01/28/subquery-support/
+	//
+	// If changing the name of the recording rule, make sure to update the
+	// corresponding diagnostic query to avoid confusion.
+	queryFmtCPUUsageMaxRecordingRule = `max(max_over_time(kubecost_container_cpu_usage_irate{}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+	// This is the subquery equivalent of the above recording rule query. It is
+	// more expensive, but does not require the recording rule. It should be
+	// used as a fallback query if the recording rule data does not exist.
+	queryFmtCPUUsageMaxSubquery = `max(max_over_time(irate(container_cpu_usage_seconds_total{container_name!="POD", container_name!=""}[5m])[%s:1m])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
 )
 
 // Constants for Network Cost Subtype
@@ -338,8 +356,21 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	queryCPUUsageAvg := fmt.Sprintf(queryFmtCPUUsageAvg, durStr, env.GetPromClusterLabel())
 	resChCPUUsageAvg := ctx.QueryAtTime(queryCPUUsageAvg, end)
 
-	queryCPUUsageMax := fmt.Sprintf(queryFmtCPUUsageMax, durStr, env.GetPromClusterLabel())
+	queryCPUUsageMax := fmt.Sprintf(queryFmtCPUUsageMaxRecordingRule, durStr, env.GetPromClusterLabel())
 	resChCPUUsageMax := ctx.QueryAtTime(queryCPUUsageMax, end)
+	resCPUUsageMax, _ := resChCPUUsageMax.Await()
+	// If the recording rule has no data, try to fall back to the subquery.
+	if len(resCPUUsageMax) == 0 {
+		queryCPUUsageMax = fmt.Sprintf(queryFmtCPUUsageMaxSubquery, durStr, env.GetPromClusterLabel())
+		resChCPUUsageMax = ctx.QueryAtTime(queryCPUUsageMax, end)
+		resCPUUsageMax, _ = resChCPUUsageMax.Await()
+
+		// This avoids logspam if there is no data for either metric (e.g. if
+		// the Prometheus didn't exist in the queried window of time).
+		if len(resCPUUsageMax) > 0 {
+			log.Debugf("CPU usage recording rule query returned an empty result when queried at %s over %s. Fell back to subquery. Consider setting up Kubecost CPU usage recording role to reduce query load on Prometheus; subqueries are expensive.", end.String(), durStr)
+		}
+	}
 
 	queryGPUsRequested := fmt.Sprintf(queryFmtGPUsRequested, durStr, env.GetPromClusterLabel())
 	resChGPUsRequested := ctx.QueryAtTime(queryGPUsRequested, end)
@@ -449,7 +480,6 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	resCPUCoresAllocated, _ := resChCPUCoresAllocated.Await()
 	resCPURequests, _ := resChCPURequests.Await()
 	resCPUUsageAvg, _ := resChCPUUsageAvg.Await()
-	resCPUUsageMax, _ := resChCPUUsageMax.Await()
 	resRAMBytesAllocated, _ := resChRAMBytesAllocated.Await()
 	resRAMRequests, _ := resChRAMRequests.Await()
 	resRAMUsageAvg, _ := resChRAMUsageAvg.Await()
