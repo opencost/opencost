@@ -3,13 +3,13 @@ package costmodel
 import (
 	"context"
 	"encoding/csv"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"sort"
 	"strconv"
 	"time"
-
-	"github.com/pkg/errors"
 
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
@@ -248,12 +248,12 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 func (e *csvExporter) loadDates(csvFile *os.File) (map[time.Time]struct{}, error) {
 	_, err := csvFile.Seek(0, io.SeekStart)
 	if err != nil {
-		return nil, errors.Wrap(err, "seeking to the beginning of csv file")
+		return nil, fmt.Errorf("seeking to the beginning of csv file: %w", err)
 	}
 	csvReader := csv.NewReader(csvFile)
 	header, err := csvReader.Read()
 	if err != nil {
-		return nil, errors.Wrap(err, "reading csv header")
+		return nil, fmt.Errorf("reading csv header: %w", err)
 	}
 	dateColIndex := 0
 	for i, col := range header {
@@ -269,11 +269,11 @@ func (e *csvExporter) loadDates(csvFile *os.File) (map[time.Time]struct{}, error
 			break
 		}
 		if err != nil {
-			return nil, errors.Wrap(err, "reading csv row")
+			return nil, fmt.Errorf("reading csv row: %w", err)
 		}
 		date, err := time.Parse("2006-01-02", row[dateColIndex])
 		if err != nil {
-			return nil, errors.Wrap(err, "parsing date")
+			return nil, fmt.Errorf("parsing date: %w", err)
 		}
 		dates[date] = struct{}{}
 	}
@@ -292,7 +292,7 @@ func mergeCSV(input []*os.File, output *os.File) error {
 	for _, file := range input {
 		_, err = file.Seek(0, io.SeekStart)
 		if err != nil {
-			return errors.Wrap(err, "seeking to the beginning of csv file")
+			return fmt.Errorf("seeking to the beginning of csv file: %w", err)
 		}
 		csvReader := csv.NewReader(file)
 		header, err := csvReader.Read()
@@ -301,7 +301,7 @@ func mergeCSV(input []*os.File, output *os.File) error {
 			continue
 		}
 		if err != nil {
-			return errors.Wrap(err, "reading header of csv file")
+			return fmt.Errorf("reading header of csv file: %w", err)
 		}
 		headers = append(headers, header)
 		csvReaders = append(csvReaders, csvReader)
@@ -311,7 +311,7 @@ func mergeCSV(input []*os.File, output *os.File) error {
 	csvWriter := csv.NewWriter(output)
 	err = csvWriter.Write(mergeHeaders(headers))
 	if err != nil {
-		return errors.Wrap(err, "writing header to csv file")
+		return fmt.Errorf("writing header to csv file: %w", err)
 	}
 
 	for csvIndex, csvReader := range csvReaders {
@@ -321,7 +321,7 @@ func mergeCSV(input []*os.File, output *os.File) error {
 				break
 			}
 			if err != nil {
-				return errors.Wrap(err, "reading csv file line")
+				return fmt.Errorf("reading csv file line: %w", err)
 			}
 
 			outputLine := make([]string, len(header))
@@ -334,14 +334,14 @@ func mergeCSV(input []*os.File, output *os.File) error {
 			}
 			err = csvWriter.Write(outputLine)
 			if err != nil {
-				return errors.Wrap(err, "writing line to csv file")
+				return fmt.Errorf("writing line to csv file: %w", err)
 			}
 		}
 
 	}
 	csvWriter.Flush()
 	if csvWriter.Error() != nil {
-		return errors.Wrapf(csvWriter.Error(), "flushing csv file")
+		return fmt.Errorf("flushing csv file: %w", csvWriter.Error())
 	}
 
 	return nil
