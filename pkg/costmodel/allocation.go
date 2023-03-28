@@ -57,7 +57,7 @@ const (
 	queryFmtReplicaSetsWithoutOwners = `avg(avg_over_time(kube_replicaset_owner{owner_kind="<none>", owner_name="<none>"}[%s])) by (replicaset, namespace, %s)`
 	queryFmtLBCostPerHr              = `avg(avg_over_time(kubecost_load_balancer_cost[%s])) by (namespace, service_name, %s)`
 	queryFmtLBActiveMins             = `count(kubecost_load_balancer_cost) by (namespace, service_name, %s)[%s:%s]`
-	queryFmtOldestSample             = `max_over_time(timestamp(group(node_cpu_hourly_cost))[%s:%s])`
+	queryFmtOldestSample             = `min_over_time(timestamp(group(node_cpu_hourly_cost))[%s:%s])`
 	queryFmtNewestSample             = `max_over_time(timestamp(group(node_cpu_hourly_cost))[%s:%s])`
 )
 
