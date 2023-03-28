@@ -868,7 +868,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 
 							// as per https://cloud.google.com/billing/v1/how-tos/catalog-api
 							// the hourly price is the whole currency price + the fractional currency price
-							hourlyPrice := (nanos * math.Pow10(-9)) + +float64(unitsBaseCurrency)
+							hourlyPrice := (nanos * math.Pow10(-9)) + float64(unitsBaseCurrency)
 
 							if hourlyPrice == 0 {
 								continue
