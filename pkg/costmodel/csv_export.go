@@ -1,10 +1,10 @@
 package costmodel
 
 import (
-	"bytes"
 	"context"
 	"encoding/csv"
 	"io"
+	"os"
 	"sort"
 	"strconv"
 	"time"
@@ -13,13 +13,8 @@ import (
 
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/storagev2"
 )
-
-type CloudStorage interface {
-	Write(name string, data []byte) error
-	Read(name string) ([]byte, error)
-	Exists(name string) (bool, error)
-}
 
 type AllocationModel interface {
 	ComputeAllocation(start, end time.Time, resolution time.Duration) (*kubecost.AllocationSet, error)
@@ -28,44 +23,17 @@ type AllocationModel interface {
 
 var errNoData = errors.New("no data")
 
-// UpdateCSVWorker launches a worker that updates CSV file in cloud storage with allocation data
-// It updates data immediately on launch and then runs every day at 00:10 UTC
-// It expected to run a goroutine
-func UpdateCSVWorker(ctx context.Context, storage CloudStorage, model AllocationModel, path string) error {
-	// perform first update immediately
-	nextRunAt := time.Now()
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(nextRunAt.Sub(time.Now())):
-			log.Infof("Updating CSV file: %s", path)
-			err := UpdateCSV(ctx, storage, model, path)
-			if err != nil {
-				// it's background worker, log error and carry on, maybe next time it will work
-				log.Errorf("Error updating CSV: %s", err)
-			}
-			now := time.Now().UTC()
-			// next launch is at 00:10 UTC tomorrow
-			// extra 10 minutes is to let prometheus to collect all the data for the previous day
-			nextRunAt = time.Date(now.Year(), now.Month(), now.Day(), 0, 10, 0, 0, now.Location()).AddDate(0, 0, 1)
-		}
-	}
-}
-
-func UpdateCSV(ctx context.Context, storage CloudStorage, model AllocationModel, path string) error {
+func UpdateCSV(ctx context.Context, fileManager storagev2.FileManager, model AllocationModel) error {
 	exporter := &csvExporter{
-		Storage:  storage,
-		Model:    model,
-		FilePath: path,
+		FileManager: fileManager,
+		Model:       model,
 	}
 	return exporter.Update(ctx)
 }
 
 type csvExporter struct {
-	Storage  CloudStorage
-	Model    AllocationModel
-	FilePath string
+	FileManager storagev2.FileManager
+	Model       AllocationModel
 }
 
 // Update updates CSV file in cloud storage with new allocation data
@@ -81,17 +49,31 @@ func (e *csvExporter) Update(ctx context.Context) error {
 		return errors.New("no data to export from prometheus")
 	}
 
-	exist, err := e.Storage.Exists(e.FilePath)
+	previousExportTmp, err := os.CreateTemp("", "export-*.csv")
 	if err != nil {
 		return err
 	}
+	defer closeAndDelete(previousExportTmp)
+	err = e.FileManager.Download(ctx, previousExportTmp)
+	var exist bool
+	if err != nil {
+		if !errors.Is(err, storagev2.ErrNotFound) {
+			return err
+		}
+		exist = false
+	} else {
+		exist = true
+	}
 
-	var result []byte
-
+	resultTmp, err := os.CreateTemp("", "export-*.csv")
+	if err != nil {
+		return err
+	}
+	defer closeAndDelete(resultTmp)
 	// cloud storage doesn't have an existing file
 	// dump all the data exist to the file
 	if !exist {
-		result, err = e.allocationsToCSV(ctx, mapTimeToSlice(allocationDates))
+		err := e.writeCSVToWriter(ctx, resultTmp, mapTimeToSlice(allocationDates))
 		if err != nil {
 			return err
 		}
@@ -101,12 +83,7 @@ func (e *csvExporter) Update(ctx context.Context) error {
 	// scan through it and ignore all dates that are already in the file
 	// avoid modifying existing data or producing duplicates
 	if exist {
-		previousExport, err := e.Storage.Read(e.FilePath)
-		if err != nil {
-			return err
-		}
-
-		csvDates, err := e.loadDates(previousExport)
+		csvDates, err := e.loadDates(previousExportTmp)
 		if err != nil {
 			return err
 		}
@@ -120,23 +97,34 @@ func (e *csvExporter) Update(ctx context.Context) error {
 			return nil
 		}
 
-		dateExport, err := e.allocationsToCSV(ctx, mapTimeToSlice(allocationDates))
+		newExportTmp, err := os.CreateTemp("", "new-export-*.csv")
+		if err != nil {
+			return err
+		}
+		defer closeAndDelete(newExportTmp)
+
+		err = e.writeCSVToWriter(ctx, newExportTmp, mapTimeToSlice(allocationDates))
 		if err != nil {
 			return err
 		}
 
-		result, err = mergeCSV([][]byte{previousExport, dateExport})
+		err = mergeCSV([]*os.File{previousExportTmp, newExportTmp}, resultTmp)
 		if err != nil {
 			return err
 		}
 	}
 
-	err = e.Storage.Write(e.FilePath, result)
+	_, err = resultTmp.Seek(0, io.SeekStart)
 	if err != nil {
 		return err
 	}
 
-	log.Infof("Updated CSV file %s", e.FilePath)
+	err = e.FileManager.Upload(ctx, resultTmp)
+	if err != nil {
+		return err
+	}
+
+	log.Info("CSV export updated")
 
 	return nil
 }
@@ -160,15 +148,6 @@ func (e *csvExporter) availableAllocationDates() (map[time.Time]struct{}, error)
 		return nil, errNoData
 	}
 	return dates, nil
-}
-
-func (e *csvExporter) allocationsToCSV(ctx context.Context, dates []time.Time) ([]byte, error) {
-	buf := new(bytes.Buffer)
-	err := e.writeCSVToWriter(ctx, buf, dates)
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
 }
 
 func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates []time.Time) error {
@@ -266,8 +245,12 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 }
 
 // loadDate scans through CSV export file and extract all dates from "Date" column
-func (e *csvExporter) loadDates(csvFile []byte) (map[time.Time]struct{}, error) {
-	csvReader := csv.NewReader(bytes.NewReader(csvFile))
+func (e *csvExporter) loadDates(csvFile *os.File) (map[time.Time]struct{}, error) {
+	_, err := csvFile.Seek(0, io.SeekStart)
+	if err != nil {
+		return nil, errors.Wrap(err, "seeking to the beginning of csv file")
+	}
+	csvReader := csv.NewReader(csvFile)
 	header, err := csvReader.Read()
 	if err != nil {
 		return nil, errors.Wrap(err, "reading csv header")
@@ -300,32 +283,35 @@ func (e *csvExporter) loadDates(csvFile []byte) (map[time.Time]struct{}, error) 
 // mergeCSV merges multiple csv files into one.
 // Files may have different headers, but the result will have a header that is a union of all headers.
 // The main goal here is to allow changing CSV format without breaking or loosing existing data.
-func mergeCSV(files [][]byte) ([]byte, error) {
+func mergeCSV(input []*os.File, output *os.File) error {
 	var err error
-	headers := make([][]string, 0, len(files))
-	csvReaders := make([]*csv.Reader, 0, len(files))
+	headers := make([][]string, 0, len(input))
+	csvReaders := make([]*csv.Reader, 0, len(input))
 
 	// first, get information about the result header
-	for _, file := range files {
-		csvReader := csv.NewReader(bytes.NewReader(file))
+	for _, file := range input {
+		_, err = file.Seek(0, io.SeekStart)
+		if err != nil {
+			return errors.Wrap(err, "seeking to the beginning of csv file")
+		}
+		csvReader := csv.NewReader(file)
 		header, err := csvReader.Read()
 		if errors.Is(err, io.EOF) {
 			// ignore empty files
 			continue
 		}
 		if err != nil {
-			return nil, errors.Wrap(err, "reading header of csv file")
+			return errors.Wrap(err, "reading header of csv file")
 		}
 		headers = append(headers, header)
 		csvReaders = append(csvReaders, csvReader)
 	}
 
 	mapping, header := combineHeaders(headers)
-	output := new(bytes.Buffer)
 	csvWriter := csv.NewWriter(output)
 	err = csvWriter.Write(mergeHeaders(headers))
 	if err != nil {
-		return nil, errors.Wrap(err, "writing header to csv file")
+		return errors.Wrap(err, "writing header to csv file")
 	}
 
 	for csvIndex, csvReader := range csvReaders {
@@ -335,7 +321,7 @@ func mergeCSV(files [][]byte) ([]byte, error) {
 				break
 			}
 			if err != nil {
-				return nil, errors.Wrap(err, "reading csv file line")
+				return errors.Wrap(err, "reading csv file line")
 			}
 
 			outputLine := make([]string, len(header))
@@ -348,17 +334,17 @@ func mergeCSV(files [][]byte) ([]byte, error) {
 			}
 			err = csvWriter.Write(outputLine)
 			if err != nil {
-				return nil, errors.Wrap(err, "writing line to csv file")
+				return errors.Wrap(err, "writing line to csv file")
 			}
 		}
 
 	}
 	csvWriter.Flush()
 	if csvWriter.Error() != nil {
-		return nil, errors.Wrapf(csvWriter.Error(), "flushing csv file")
+		return errors.Wrapf(csvWriter.Error(), "flushing csv file")
 	}
 
-	return output.Bytes(), nil
+	return nil
 }
 
 func combineHeaders(headers [][]string) ([]map[int]int, []string) {
@@ -417,4 +403,13 @@ func mapTimeToSlice(data map[time.Time]struct{}) []time.Time {
 		return result[i].Before(result[j])
 	})
 	return result
+}
+
+func closeAndDelete(f *os.File) {
+	if err := f.Close(); err != nil {
+		log.Errorf("error closing file: %v", err)
+	}
+	if err := os.Remove(f.Name()); err != nil {
+		log.Errorf("error deleting file: %v", err)
+	}
 }

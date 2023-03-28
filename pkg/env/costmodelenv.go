@@ -95,6 +95,8 @@ const (
 	AllocationNodeLabelsIncludeList = "ALLOCATION_NODE_LABELS_INCLUDE_LIST"
 
 	regionOverrideList = "REGION_OVERRIDE_LIST"
+
+	ExportCSVFile = "EXPORT_CSV_FILE"
 )
 
 const DefaultConfigMountPath = "/var/configs"

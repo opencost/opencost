@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/opencost/opencost/pkg/kubecost"
+	"github.com/opencost/opencost/pkg/storagev2"
 )
 
 //go:generate moq -out moq_cloud_storage_test.go . CloudStorage:CloudStorageMock
@@ -16,14 +17,7 @@ import (
 
 func Test_UpdateCSV(t *testing.T) {
 	t.Run("previous data doesn't exist, upload new data", func(t *testing.T) {
-		storage := &CloudStorageMock{
-			ExistsFunc: func(path string) (bool, error) {
-				return false, nil
-			},
-			WriteFunc: func(name string, data []byte) error {
-				return nil
-			},
-		}
+		storage := &storagev2.InMemoryFile{}
 		model := &AllocationModelMock{
 			DateRangeFunc: func() (time.Time, time.Time, error) {
 				return time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2021, 1, 2, 0, 0, 0, 0, time.UTC), nil
@@ -66,31 +60,22 @@ func Test_UpdateCSV(t *testing.T) {
 				}, nil
 			},
 		}
-		err := UpdateCSV(context.TODO(), storage, model, "/test.csv")
+		err := UpdateCSV(context.TODO(), storage, model)
 		require.NoError(t, err)
 		// uploaded a single file with the data
-		assert.Len(t, storage.WriteCalls(), 1)
 		assert.Len(t, model.ComputeAllocationCalls(), 1)
 		assert.Equal(t, time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC), model.ComputeAllocationCalls()[0].Start)
 		assert.Equal(t, time.Date(2021, 1, 2, 0, 0, 0, 0, time.UTC), model.ComputeAllocationCalls()[0].End)
 		assert.Equal(t, `Date,Namespace,ControllerKind,ControllerName,Pod,Container,CPUCoreUsageAverage,CPUCoreRequestAverage,RAMBytesUsageAverage,RAMBytesRequestAverage,NetworkReceiveBytes,NetworkTransferBytes,GPUs,PVBytes,CPUCost,RAMCost,NetworkCost,PVCost,GPUCost,TotalCost
 2021-01-01,test-namespace,test-controller-kind,test-controller-name,test-pod,test-container,0.1,0.2,0.4,0.5,11,10,2,2,0.3,0.6,0.9,2,0.8,4.6000000000000005
-`, string(storage.WriteCalls()[0].Data))
+`, string(storage.Data))
 	})
 
 	t.Run("merge new data with previous data (with different CSV structure)", func(t *testing.T) {
-		storage := &CloudStorageMock{
-			ExistsFunc: func(name string) (bool, error) {
-				return true, nil
-			},
-			ReadFunc: func(name string) ([]byte, error) {
-				return []byte(`Date,Namespace,CPUCoreUsageAverage,CPUCoreRequestAverage,CPUCost,RAMBytesUsageAverage,RAMBytesRequestAverage,RAMCost
+		storage := &storagev2.InMemoryFile{
+			Data: []byte(`Date,Namespace,CPUCoreUsageAverage,CPUCoreRequestAverage,CPUCost,RAMBytesUsageAverage,RAMBytesRequestAverage,RAMCost
 2021-01-01,test-namespace,0.1,0.2,0.3,0.4,0.5,0.6
-`), nil
-			},
-			WriteFunc: func(name string, data []byte) error {
-				return nil
-			},
+`),
 		}
 		model := &AllocationModelMock{
 			DateRangeFunc: func() (time.Time, time.Time, error) {
@@ -109,10 +94,9 @@ func Test_UpdateCSV(t *testing.T) {
 				}, nil
 			},
 		}
-		err := UpdateCSV(context.TODO(), storage, model, "/test.csv")
+		err := UpdateCSV(context.TODO(), storage, model)
 		require.NoError(t, err)
 		// uploaded a single file with the data
-		assert.Len(t, storage.WriteCalls(), 1)
 		assert.Len(t, model.ComputeAllocationCalls(), 1)
 		assert.Len(t, model.ComputeAllocationCalls(), 1)
 		// 2021-01-01 is already in the export file, so we only compute for 2021-01-02
@@ -121,28 +105,24 @@ func Test_UpdateCSV(t *testing.T) {
 		assert.Equal(t, `Date,Namespace,CPUCoreUsageAverage,CPUCoreRequestAverage,CPUCost,RAMBytesUsageAverage,RAMBytesRequestAverage,RAMCost,ControllerKind,ControllerName,Pod,Container,NetworkReceiveBytes,NetworkTransferBytes,GPUs,PVBytes,NetworkCost,PVCost,GPUCost,TotalCost
 2021-01-01,test-namespace,0.1,0.2,0.3,0.4,0.5,0.6,,,,,,,,,,,,
 2021-01-02,test-namespace,0,0,1,0,0,0,,,,,0,0,0,0,0,0,0,1
-`, string(storage.WriteCalls()[0].Data))
+`, string(storage.Data))
 	})
 
 	t.Run("data already present in export file, export should be skipped", func(t *testing.T) {
-		storage := &CloudStorageMock{
-			ExistsFunc: func(name string) (bool, error) {
-				return true, nil
-			},
-			ReadFunc: func(name string) ([]byte, error) {
-				return []byte(`Date,Name,CPUCoreUsageAverage,CPUCoreRequestAverage,CPUCost,RAMBytesUsageAverage,RAMBytesRequestAverage,RAMCost
+		data := `Date,Name,CPUCoreUsageAverage,CPUCoreRequestAverage,CPUCost,RAMBytesUsageAverage,RAMBytesRequestAverage,RAMCost
 2021-01-01,test,0.1,0.2,0.3,0.4,0.5,0.6
-`), nil
-			},
+`
+		storage := &storagev2.InMemoryFile{
+			Data: []byte(data),
 		}
 		model := &AllocationModelMock{
 			DateRangeFunc: func() (time.Time, time.Time, error) {
 				return time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2021, 1, 2, 0, 0, 0, 0, time.UTC), nil
 			},
 		}
-		err := UpdateCSV(context.TODO(), storage, model, "/test.csv")
+		err := UpdateCSV(context.TODO(), storage, model)
 		require.NoError(t, err)
-		assert.Len(t, storage.WriteCalls(), 0)
+		assert.Equal(t, string(storage.Data), data)
 		assert.Len(t, model.ComputeAllocationCalls(), 0)
 	})
 
@@ -157,12 +137,8 @@ func Test_UpdateCSV(t *testing.T) {
 				return time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2021, 1, 3, 0, 0, 0, 0, time.UTC), nil
 			},
 		}
-		storage := &CloudStorageMock{
-			ExistsFunc: func(name string) (bool, error) {
-				return false, nil
-			},
-		}
-		err := UpdateCSV(context.TODO(), storage, model, "/test.csv")
+		storage := &storagev2.InMemoryFile{}
+		err := UpdateCSV(context.TODO(), storage, model)
 		require.Equal(t, err, errNoData)
 	})
 }
