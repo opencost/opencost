@@ -1216,7 +1216,7 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 				}
 			} else { // add case to use default pricing model when API data fails.
 				log.Debugf("No node price or CPUprice found, falling back to default")
-				nodePrice = defaultCPU*cpu + defaultRAM*ram
+				nodePrice = defaultCPU*cpu + defaultRAM*ramGB
 			}
 			if math.IsNaN(nodePrice) {
 				log.Warnf("nodePrice parsed as NaN. Setting to 0.")
