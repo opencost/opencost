@@ -1,10 +1,8 @@
 package config
 
 import (
-	"os"
 	"sync"
 
-	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/storage"
 )
 
@@ -47,7 +45,7 @@ func DefaultConfigFileManagerOpts() *ConfigFileManagerOpts {
 // config files.
 type ConfigFileManager struct {
 	lock  *sync.Mutex
-	store storage.Storage
+	store *storage.FileStorage
 	files map[string]*ConfigFile
 }
 
@@ -57,26 +55,9 @@ func NewConfigFileManager(opts *ConfigFileManagerOpts) *ConfigFileManager {
 		opts = DefaultConfigFileManagerOpts()
 	}
 
-	var configStore storage.Storage
-	if opts.IsBucketStorageEnabled() {
-		bucketConfig, err := os.ReadFile(opts.BucketStoreConfig)
-		if err != nil {
-			log.Warnf("Failed to initialize config bucket storage: %s", err)
-		} else {
-			bucketStore, err := storage.NewBucketStorage(bucketConfig)
-			if err != nil {
-				log.Warnf("Failed to create config bucket storage: %s", err)
-			} else {
-				configStore = bucketStore
-			}
-		}
-	} else {
-		configStore = storage.NewFileStorage(opts.LocalConfigPath)
-	}
-
 	return &ConfigFileManager{
 		lock:  new(sync.Mutex),
-		store: configStore,
+		store: storage.NewFileStorage(opts.LocalConfigPath),
 		files: make(map[string]*ConfigFile),
 	}
 }

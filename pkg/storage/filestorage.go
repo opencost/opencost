@@ -1,13 +1,13 @@
 package storage
 
 import (
+	"fmt"
 	gofs "io/fs"
 	"os"
 	gopath "path"
 	"path/filepath"
 
 	"github.com/opencost/opencost/pkg/util/fileutil"
-	"github.com/pkg/errors"
 )
 
 // FileStorage leverages the file system to write data to disk.
@@ -16,13 +16,8 @@ type FileStorage struct {
 }
 
 // NewFileStorage returns a new storage API which leverages the file system.
-func NewFileStorage(baseDir string) Storage {
+func NewFileStorage(baseDir string) *FileStorage {
 	return &FileStorage{baseDir}
-}
-
-// StorageType returns a string identifier for the type of storage used by the implementation.
-func (fs *FileStorage) StorageType() StorageType {
-	return StorageTypeFile
 }
 
 // FullPath returns the storage working path combined with the path provided
@@ -39,52 +34,10 @@ func (fs *FileStorage) Stat(path string) (*StorageInfo, error) {
 			return nil, DoesNotExistError
 		}
 
-		return nil, errors.Wrap(err, "Failed to stat file")
+		return nil, fmt.Errorf("Failed to stat file: %w", err)
 	}
 
 	return FileToStorageInfo(st), nil
-}
-
-// List uses the relative path of the storage combined with the provided path to return
-// storage information for the files.
-func (fs *FileStorage) List(path string) ([]*StorageInfo, error) {
-	p := gopath.Join(fs.baseDir, path)
-
-	// Read files in the backup path
-	entries, err := os.ReadDir(p)
-	if err != nil {
-		return nil, err
-	}
-	files := make([]gofs.FileInfo, 0, len(entries))
-	for _, entry := range entries {
-		info, err := entry.Info()
-		if err != nil {
-			return nil, err
-		}
-		files = append(files, info)
-	}
-
-	return FilesToStorageInfo(files), nil
-}
-
-func (fs *FileStorage) ListDirectories(path string) ([]*StorageInfo, error) {
-	p := gopath.Join(fs.baseDir, path)
-
-	// Read files in the backup path
-	entries, err := os.ReadDir(p)
-	if err != nil {
-		return nil, err
-	}
-	files := make([]gofs.FileInfo, 0, len(entries))
-	for _, entry := range entries {
-		info, err := entry.Info()
-		if err != nil {
-			return nil, err
-		}
-		files = append(files, info)
-	}
-
-	return DirFilesToStorageInfo(files, path), nil
 }
 
 // Read uses the relative path of the storage combined with the provided path to
@@ -97,7 +50,7 @@ func (fs *FileStorage) Read(path string) ([]byte, error) {
 		if os.IsNotExist(err) {
 			return nil, DoesNotExistError
 		}
-		return nil, errors.Wrap(err, "Failed to read file")
+		return nil, fmt.Errorf("Failed to read file: %w", err)
 	}
 
 	return b, nil
@@ -108,11 +61,11 @@ func (fs *FileStorage) Read(path string) ([]byte, error) {
 func (fs *FileStorage) Write(path string, data []byte) error {
 	f, err := fs.prepare(path)
 	if err != nil {
-		return errors.Wrap(err, "Failed to prepare path")
+		return fmt.Errorf("Failed to prepare path: %w", err)
 	}
 	err = os.WriteFile(f, data, os.ModePerm)
 	if err != nil {
-		return errors.Wrap(err, "Failed to write file")
+		return fmt.Errorf("Failed to write file: %w", err)
 	}
 
 	return nil
@@ -129,7 +82,7 @@ func (fs *FileStorage) Remove(path string) error {
 			return DoesNotExistError
 		}
 
-		return errors.Wrap(err, "Failed to remove file")
+		return fmt.Errorf("Failed to remove file: %w", err)
 	}
 
 	return nil
@@ -157,15 +110,6 @@ func (fs *FileStorage) prepare(path string) (string, error) {
 	return f, nil
 }
 
-// FilesToStorageInfo maps a []fs.FileInfo to []*storage.StorageInfo
-func FilesToStorageInfo(fileInfo []gofs.FileInfo) []*StorageInfo {
-	var stats []*StorageInfo
-	for _, info := range fileInfo {
-		stats = append(stats, FileToStorageInfo(info))
-	}
-	return stats
-}
-
 // FileToStorageInfo maps a fs.FileInfo to *storage.StorageInfo
 func FileToStorageInfo(fileInfo gofs.FileInfo) *StorageInfo {
 	return &StorageInfo{
@@ -173,20 +117,4 @@ func FileToStorageInfo(fileInfo gofs.FileInfo) *StorageInfo {
 		Size:    fileInfo.Size(),
 		ModTime: fileInfo.ModTime(),
 	}
-}
-
-// DirFilesToStorageInfo maps a []fs.FileInfo to []*storage.StorageInfo
-// but only returning StorageInfo for directories
-func DirFilesToStorageInfo(fileInfo []gofs.FileInfo, path string) []*StorageInfo {
-	var stats []*StorageInfo
-	for _, info := range fileInfo {
-		if info.IsDir() {
-			stats = append(stats, &StorageInfo{
-				Name:    filepath.Join(path, info.Name()),
-				Size:    info.Size(),
-				ModTime: info.ModTime(),
-			})
-		}
-	}
-	return stats
 }

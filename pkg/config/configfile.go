@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/storage"
 	"github.com/opencost/opencost/pkg/util/atomic"
@@ -53,7 +54,7 @@ var NoBackingStore error = errors.New("Backing storage does not exist.")
 // ConfigFile is representation of a configuration file that can be written to, read, and watched
 // for updates
 type ConfigFile struct {
-	store      storage.Storage
+	store      *storage.FileStorage
 	file       string
 	dataLock   *sync.Mutex
 	data       []byte
@@ -65,7 +66,7 @@ type ConfigFile struct {
 
 // NewConfigFile creates a new ConfigFile instance using a specific storage.Storage and path relative
 // to the storage.
-func NewConfigFile(store storage.Storage, file string) *ConfigFile {
+func NewConfigFile(store *storage.FileStorage, file string) *ConfigFile {
 	return &ConfigFile{
 		store:     store,
 		file:      file,
