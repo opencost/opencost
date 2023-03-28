@@ -1355,9 +1355,10 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 		if awsClusterID != "" {
 			log.Infof("Returning \"%s\" as ClusterName", awsClusterID)
 			clusterName = awsClusterID
+			log.Warnf("Warning - %s will be deprecated in a future release. Use %f instead", env.AWSClusterIDEnvVar, env.ClusterIDEnvVar)
 		} else {
-			log.Infof("Unable to sniff out cluster ID, perhaps set $%s to force one", env.AWSClusterIDEnvVar)
-			clusterName = "AWS Cluster #1"
+			clusterName = env.GetClusterID()
+			log.Infof("Setting cluster name to %s from %s ", clusterName, env.ClusterIDEnvVar)
 		}
 	}
 
