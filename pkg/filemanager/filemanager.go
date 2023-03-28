@@ -43,7 +43,7 @@ func NewFileManager(path string) (FileManager, error) {
 	case strings.Contains(path, "blob.core.windows.net"):
 		return NewAzureBlobFile(path)
 	default:
-		return NewSystemFile(path)
+		return NewSystemFile(path), nil
 	}
 }
 
@@ -180,12 +180,8 @@ func (g *GCSStorageFile) Upload(ctx context.Context, f *os.File) error {
 	return w.Close()
 }
 
-func NewSystemFile(path string) (*SystemFile, error) {
-	// validate path
-	//if !fs.ValidPath(path) {
-	//	return nil, fmt.Errorf("invalid path: %s", path)
-	//}
-	return &SystemFile{path: path}, nil
+func NewSystemFile(path string) *SystemFile {
+	return &SystemFile{path: path}
 }
 
 type SystemFile struct {
