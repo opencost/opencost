@@ -1,11 +1,10 @@
-package storagev2
+package filemanager
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"net/url"
 	"os"
 	"strings"
@@ -82,8 +81,6 @@ type S3File struct {
 	key      string
 }
 
-// NewS3File creates a new S3File from a path.
-// Example of path: s3://bucket-name/path/to/file.csv
 func NewS3File(path string) (*S3File, error) {
 	u, err := url.Parse(path)
 	if err != nil {
@@ -185,9 +182,9 @@ func (g *GCSStorageFile) Upload(ctx context.Context, f *os.File) error {
 
 func NewSystemFile(path string) (*SystemFile, error) {
 	// validate path
-	if !fs.ValidPath(path) {
-		return nil, fmt.Errorf("invalid path: %s", path)
-	}
+	//if !fs.ValidPath(path) {
+	//	return nil, fmt.Errorf("invalid path: %s", path)
+	//}
 	return &SystemFile{path: path}, nil
 }
 
@@ -209,7 +206,14 @@ func (s *SystemFile) Download(ctx context.Context, f *os.File) error {
 }
 
 func (s *SystemFile) Upload(ctx context.Context, f *os.File) error {
-	tmpF, err := os.CreateTemp("opencost", "upload-*")
+	_, err := f.Seek(0, io.SeekStart)
+	if err != nil {
+		return err
+	}
+	tmpF, err := os.CreateTemp("", "opencost-upload-*")
+	if err != nil {
+		return err
+	}
 	defer os.Remove(tmpF.Name())
 	defer tmpF.Close()
 	_, err = io.Copy(tmpF, f)

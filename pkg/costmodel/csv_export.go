@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/opencost/opencost/pkg/filemanager"
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/storagev2"
 )
 
 type AllocationModel interface {
@@ -23,7 +23,7 @@ type AllocationModel interface {
 
 var errNoData = errors.New("no data")
 
-func UpdateCSV(ctx context.Context, fileManager storagev2.FileManager, model AllocationModel) error {
+func UpdateCSV(ctx context.Context, fileManager filemanager.FileManager, model AllocationModel) error {
 	exporter := &csvExporter{
 		FileManager: fileManager,
 		Model:       model,
@@ -32,7 +32,7 @@ func UpdateCSV(ctx context.Context, fileManager storagev2.FileManager, model All
 }
 
 type csvExporter struct {
-	FileManager storagev2.FileManager
+	FileManager filemanager.FileManager
 	Model       AllocationModel
 }
 
@@ -47,13 +47,13 @@ func (e *csvExporter) Update(ctx context.Context) error {
 		return errors.New("no data to export from prometheus")
 	}
 
-	resultTmp, err := os.CreateTemp("opencost", "export-*.csv")
+	resultTmp, err := os.CreateTemp("", "opencost-export-*.csv")
 	if err != nil {
 		return err
 	}
 	defer closeAndDelete(resultTmp)
 
-	previousExportTmp, err := os.CreateTemp("opencost", "previous-export-*.csv")
+	previousExportTmp, err := os.CreateTemp("", "opencost-previous-export-*.csv")
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,7 @@ func (e *csvExporter) Update(ctx context.Context) error {
 
 	err = e.FileManager.Download(ctx, previousExportTmp)
 	switch {
-	case errors.Is(err, storagev2.ErrNotFound):
+	case errors.Is(err, filemanager.ErrNotFound):
 		// there is no previous file, so we need to create it
 		err := e.writeCSVToWriter(ctx, resultTmp, mapTimeToSlice(allocationDates))
 		if err != nil {
@@ -110,7 +110,7 @@ func (e *csvExporter) updateExportCSV(ctx context.Context, previousExportTmp *os
 		return nil
 	}
 
-	newExportTmp, err := os.CreateTemp("opencost", "new-export-*.csv")
+	newExportTmp, err := os.CreateTemp("", "opencost-new-export-*.csv")
 	if err != nil {
 		return err
 	}

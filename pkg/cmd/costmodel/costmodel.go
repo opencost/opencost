@@ -13,9 +13,9 @@ import (
 	"github.com/opencost/opencost/pkg/costmodel"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/errors"
+	"github.com/opencost/opencost/pkg/filemanager"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/metrics"
-	"github.com/opencost/opencost/pkg/storagev2"
 	"github.com/opencost/opencost/pkg/version"
 )
 
@@ -56,7 +56,7 @@ func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) {
 		return
 	}
 
-	fm, err := storagev2.NewFileManager(exportPath)
+	fm, err := filemanager.NewFileManager(exportPath)
 	if err != nil {
 		log.Errorf("could not start CSV exporter", err)
 		return

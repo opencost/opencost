@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/opencost/opencost/pkg/filemanager"
 	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/storagev2"
 )
 
 //go:generate moq -out moq_cloud_storage_test.go . CloudStorage:CloudStorageMock
@@ -17,7 +17,7 @@ import (
 
 func Test_UpdateCSV(t *testing.T) {
 	t.Run("previous data doesn't exist, upload new data", func(t *testing.T) {
-		storage := &storagev2.InMemoryFile{}
+		storage := &filemanager.InMemoryFile{}
 		model := &AllocationModelMock{
 			DateRangeFunc: func() (time.Time, time.Time, error) {
 				return time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2021, 1, 2, 0, 0, 0, 0, time.UTC), nil
@@ -72,7 +72,7 @@ func Test_UpdateCSV(t *testing.T) {
 	})
 
 	t.Run("merge new data with previous data (with different CSV structure)", func(t *testing.T) {
-		storage := &storagev2.InMemoryFile{
+		storage := &filemanager.InMemoryFile{
 			Data: []byte(`Date,Namespace,CPUCoreUsageAverage,CPUCoreRequestAverage,CPUCost,RAMBytesUsageAverage,RAMBytesRequestAverage,RAMCost
 2021-01-01,test-namespace,0.1,0.2,0.3,0.4,0.5,0.6
 `),
@@ -112,7 +112,7 @@ func Test_UpdateCSV(t *testing.T) {
 		data := `Date,Name,CPUCoreUsageAverage,CPUCoreRequestAverage,CPUCost,RAMBytesUsageAverage,RAMBytesRequestAverage,RAMCost
 2021-01-01,test,0.1,0.2,0.3,0.4,0.5,0.6
 `
-		storage := &storagev2.InMemoryFile{
+		storage := &filemanager.InMemoryFile{
 			Data: []byte(data),
 		}
 		model := &AllocationModelMock{
@@ -137,7 +137,7 @@ func Test_UpdateCSV(t *testing.T) {
 				return time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2021, 1, 3, 0, 0, 0, 0, time.UTC), nil
 			},
 		}
-		storage := &storagev2.InMemoryFile{}
+		storage := &filemanager.InMemoryFile{}
 		err := UpdateCSV(context.TODO(), storage, model)
 		require.Equal(t, err, errNoData)
 	})
