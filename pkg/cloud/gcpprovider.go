@@ -809,7 +809,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 							nanos = product.PricingInfo[0].PricingExpression.TieredRates[lastRateIndex].UnitPrice.Nanos
 							unitsBaseCurrency, err = strconv.Atoi(product.PricingInfo[0].PricingExpression.TieredRates[lastRateIndex].UnitPrice.Units)
 							if err != nil {
-								return nil, "", err
+								return nil, "", fmt.Errorf("error parsing base unit price for gpu: %w", err)
 							}
 						} else {
 							continue
@@ -822,7 +822,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 						// GPUs with an hourly price of 0 are reserved versions of GPUs
 						// (E.g., SKU "2013-37B4-22EA")
 						// and are excluded from cost computations
-						if hourlyPrice < 0.001 {
+						if hourlyPrice == 0 {
 							log.Infof("Excluding reserved GPU SKU #%s", product.SKUID)
 							continue
 						}
@@ -860,7 +860,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]Key, pvKeys map[stri
 								nanos = product.PricingInfo[0].PricingExpression.TieredRates[lastRateIndex].UnitPrice.Nanos
 								unitsBaseCurrency, err = strconv.Atoi(product.PricingInfo[0].PricingExpression.TieredRates[lastRateIndex].UnitPrice.Units)
 								if err != nil {
-									return nil, "", err
+									return nil, "", fmt.Errorf("error parsing base unit price for instance: %w", err)
 								}
 							} else {
 								continue
