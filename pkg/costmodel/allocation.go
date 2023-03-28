@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"github.com/opencost/opencost/pkg/util/timeutil"
 
 	"github.com/opencost/opencost/pkg/env"
@@ -264,13 +262,13 @@ func (cm *CostModel) DateRange() (time.Time, time.Time, error) {
 
 	resOldest, _, err := ctx.QuerySync(fmt.Sprintf(queryFmtOldestSample, "90d", "1h"))
 	if err != nil {
-		return time.Time{}, time.Time{}, errors.Wrap(err, "querying oldest sample")
+		return time.Time{}, time.Time{}, fmt.Errorf("querying oldest sample: %w", err)
 	}
 	oldest := time.Unix(int64(resOldest[0].Values[0].Value), 0)
 
 	resNewest, _, err := ctx.QuerySync(fmt.Sprintf(queryFmtNewestSample, "90d", "1h"))
 	if err != nil {
-		return time.Time{}, time.Time{}, errors.Wrap(err, "querying oldest sample")
+		return time.Time{}, time.Time{}, fmt.Errorf("querying oldest sample: %w", err)
 	}
 	newest := time.Unix(int64(resNewest[0].Values[0].Value), 0)
 
