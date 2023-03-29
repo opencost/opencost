@@ -2367,8 +2367,8 @@ func computeIdleAllocations(allocSet *kubecost.AllocationSet, assetSet *kubecost
 		allocTotals = kubecost.ComputeAllocationTotals(allocSet, kubecost.AllocationNodeProp)
 		assetTotals = kubecost.ComputeAssetTotals(assetSet, kubecost.AssetNodeProp)
 	} else {
-		allocTotals = kubecost.ComputeAllocationTotals(allocSet, kubecost.AllocationNodeProp)
-		assetTotals = kubecost.ComputeAssetTotals(assetSet, kubecost.AssetNodeProp)
+		allocTotals = kubecost.ComputeAllocationTotals(allocSet, kubecost.AllocationClusterProp)
+		assetTotals = kubecost.ComputeAssetTotals(assetSet, kubecost.AssetClusterProp)
 	}
 
 	start, end := *allocSet.Window.Start(), *allocSet.Window.End()
