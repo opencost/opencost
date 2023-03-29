@@ -29,4 +29,5 @@ jobs:
         with:
           context: ${{ matrix.location }}/
           file: ${{ matrix.location }}/Dockerfile
+          platforms: linux/amd64,linux/arm64
           push: false
