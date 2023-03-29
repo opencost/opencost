@@ -74,7 +74,14 @@ const (
 	// This is the subquery equivalent of the above recording rule query. It is
 	// more expensive, but does not require the recording rule. It should be
 	// used as a fallback query if the recording rule data does not exist.
-	queryFmtCPUUsageMaxSubquery = `max(max_over_time(irate(container_cpu_usage_seconds_total{container_name!="POD", container_name!=""}[5m])[%s:1m])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+	//
+	// The parameter after the colon [:<thisone>] in the subquery affects the
+	// resolution of the subquery.
+	// The parameter after the metric ...{}[<thisone>] should be set to 2x
+	// the resolution, to make sure the irate always has two points to query
+	// in case the Prom scrape duration has been reduced to be equal to the
+	// ETL resolution.
+	queryFmtCPUUsageMaxSubquery = `max(max_over_time(irate(container_cpu_usage_seconds_total{container_name!="POD", container_name!=""}[%s])[%s:%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
 )
 
 // Constants for Network Cost Subtype
@@ -361,7 +368,12 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	resCPUUsageMax, _ := resChCPUUsageMax.Await()
 	// If the recording rule has no data, try to fall back to the subquery.
 	if len(resCPUUsageMax) == 0 {
-		queryCPUUsageMax = fmt.Sprintf(queryFmtCPUUsageMaxSubquery, durStr, env.GetPromClusterLabel())
+		// The parameter after the metric ...{}[<thisone>] should be set to 2x
+		// the resolution, to make sure the irate always has two points to query
+		// in case the Prom scrape duration has been reduced to be equal to the
+		// resolution.
+		doubleResStr := timeutil.DurationString(2 * resolution)
+		queryCPUUsageMax = fmt.Sprintf(queryFmtCPUUsageMaxSubquery, doubleResStr, durStr, resStr, env.GetPromClusterLabel())
 		resChCPUUsageMax = ctx.QueryAtTime(queryCPUUsageMax, end)
 		resCPUUsageMax, _ = resChCPUUsageMax.Await()
 
