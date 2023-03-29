@@ -246,39 +246,53 @@ func (pva *PVAllocation) Equal(that *PVAllocation) bool {
 }
 
 type ProportionalAssetResourceCost struct {
-	ProportionalAssetResourceCostKey
+	Cluster       string  `json:"cluster"`
+	Node          string  `json:"node,omitempty"`
+	ProviderID    string  `json:"providerID,omitempty"`
 	CPUPercentage float64 `json:"cpuPercentage"`
 	GPUPercentage float64 `json:"gpuPercentage"`
 	RAMPercentage float64 `json:"ramPercentage"`
 }
 
-func (parc ProportionalAssetResourceCost) Key() ProportionalAssetResourceCostKey {
-	return parc.ProportionalAssetResourceCostKey
+func (parc ProportionalAssetResourceCost) Key(insertByNode bool) string {
+	if insertByNode {
+		return parc.Cluster + "," + parc.Node
+	} else {
+		return parc.Cluster
+	}
+
 }
 
-type ProportionalAssetResourceCostKey struct {
-	Cluster string `json:"cluster"`
-	Node    string `json:"node"`
-}
+type ProportionalAssetResourceCosts map[string]ProportionalAssetResourceCost
 
-type ProportionalAssetResourceCosts map[ProportionalAssetResourceCostKey]ProportionalAssetResourceCost
-
-func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourceCost) {
-	if curr, ok := parcs[parc.Key()]; ok {
-		parcs[parc.Key()] = ProportionalAssetResourceCost{
-			ProportionalAssetResourceCostKey: parc.Key(),
-			CPUPercentage:                    curr.CPUPercentage + parc.CPUPercentage,
-			GPUPercentage:                    curr.GPUPercentage + parc.GPUPercentage,
-			RAMPercentage:                    curr.RAMPercentage + parc.RAMPercentage,
+func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourceCost, insertByNode bool) {
+	if !insertByNode {
+		parc.Node = ""
+		parc.ProviderID = ""
+	}
+	if curr, ok := parcs[parc.Key(insertByNode)]; ok {
+		parcs[parc.Key(insertByNode)] = ProportionalAssetResourceCost{
+			Node:          curr.Node,
+			Cluster:       curr.Cluster,
+			ProviderID:    curr.ProviderID,
+			CPUPercentage: curr.CPUPercentage + parc.CPUPercentage,
+			GPUPercentage: curr.GPUPercentage + parc.GPUPercentage,
+			RAMPercentage: curr.RAMPercentage + parc.RAMPercentage,
 		}
 	} else {
-		parcs[parc.Key()] = parc
+		parcs[parc.Key(insertByNode)] = parc
 	}
 }
 
 func (parcs ProportionalAssetResourceCosts) Add(that ProportionalAssetResourceCosts) {
+
 	for _, parc := range that {
-		parcs.Insert(parc)
+		// if node field is empty, we know this is a cluster level PARC aggregation
+		insertByNode := true
+		if parc.Node == "" {
+			insertByNode = false
+		}
+		parcs.Insert(parc, insertByNode)
 	}
 }
 
@@ -1010,6 +1024,12 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		Window: as.Window.Clone(),
 	}
 
+	// parcSet is used to compute proportionalAssetResourceCosts
+	// for surfacing in the API
+	parcSet := &AllocationSet{
+		Window: as.Window.Clone(),
+	}
+
 	// shareSet will be shared among aggSet after initial aggregation
 	// is complete
 	shareSet := &AllocationSet{
@@ -1041,6 +1061,12 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 				idleSet.Insert(alloc)
 			} else {
 				aggSet.Insert(alloc)
+			}
+
+			// build a parallel set of allocations to only be used
+			// for computing PARCs
+			if options.IncludeProportionalAssetResourceCosts {
+				parcSet.Insert(alloc.Clone())
 			}
 
 			continue
@@ -1110,14 +1136,23 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		}
 	}
 
+	var parcCoefficients map[string]map[string]map[string]float64
+	if parcSet.Length() > 0 {
+		parcCoefficients, allocatedTotalsMap, err = computeIdleCoeffs(options, as, shareSet)
+		if err != nil {
+			log.Warnf("AllocationSet.AggregateBy: compute parc idle coeff: %s", err)
+			return fmt.Errorf("error computing parc coefficients: %s", err)
+		}
+	}
+
 	log.Infof("[PARCS] idleSet.Length(): %d", idleSet.Length())
-	log.Infof("[PARCS] idleCoefficients: nil:%t len:%d", idleCoefficients == nil, len(idleCoefficients))
+	log.Infof("[PARCS] parcCoefficients: nil:%t len:%d", parcCoefficients == nil, len(parcCoefficients))
 
 	// (2b) If proportional asset resource costs are to be included, derive them
 	// from idle coefficients and add them to the allocations.
 	if options.IncludeProportionalAssetResourceCosts {
-		if idleCoefficients == nil {
-			return fmt.Errorf("cannot include proportional resource costs because idle coefficients are nil")
+		if parcCoefficients == nil {
+			return fmt.Errorf("cannot include proportional resource costs because parc coefficients are nil")
 		}
 
 		for _, alloc := range as.Allocations {
@@ -1127,12 +1162,12 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 
 			// Attempt to derive proportional asset resource costs from idle
 			// coefficients, and insert them into the set if successful.
-			parc, err := deriveProportionalAssetResourceCostsFromIdleCoefficients(idleCoefficients, alloc, options)
+			parc, err := deriveProportionalAssetResourceCostsFromIdleCoefficients(parcCoefficients, alloc, options)
 			if err != nil {
 				log.Debugf("AggregateBy: failed to derive proportional asset resource costs from idle coefficients for %s: %s", alloc.Name, err)
 				continue
 			}
-			alloc.ProportionalAssetResourceCosts.Insert(parc)
+			alloc.ProportionalAssetResourceCosts.Insert(parc, options.IdleByNode)
 		}
 	}
 
@@ -1720,16 +1755,13 @@ func deriveProportionalAssetResourceCostsFromIdleCoefficients(idleCoeffs map[str
 	gpuPct := idleCoeffs[idleId][allocation.Name]["gpu"]
 	ramPct := idleCoeffs[idleId][allocation.Name]["ram"]
 
-	key := ProportionalAssetResourceCostKey{
-		Cluster: allocation.Properties.Cluster,
-		Node:    allocation.Properties.Node,
-	}
-
 	return ProportionalAssetResourceCost{
-		ProportionalAssetResourceCostKey: key,
-		CPUPercentage:                    cpuPct,
-		GPUPercentage:                    gpuPct,
-		RAMPercentage:                    ramPct,
+		Cluster:       allocation.Properties.Cluster,
+		Node:          allocation.Properties.Node,
+		ProviderID:    allocation.Properties.ProviderID,
+		CPUPercentage: cpuPct,
+		GPUPercentage: gpuPct,
+		RAMPercentage: ramPct,
 	}, nil
 }
 

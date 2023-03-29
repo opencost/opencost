@@ -2343,6 +2343,7 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 	// Set aggregation options and aggregate
 	opts := &kubecost.AllocationAggregationOptions{
 		IncludeProportionalAssetResourceCosts: includeProportionalAssetResourceCosts,
+		IdleByNode:                            idleByNode,
 	}
 
 	// Aggregate
