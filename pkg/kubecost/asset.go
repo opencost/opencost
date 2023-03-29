@@ -9,6 +9,7 @@ import (
 
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
 // UndefinedKey is used in composing Asset group keys if the group does not have that property defined.
@@ -3376,6 +3377,10 @@ func (asr *AssetSetRange) accumulateByMonth() (*AssetSetRange, error) {
 }
 
 func (asr *AssetSetRange) accumulateByWeek() (*AssetSetRange, error) {
+	if len(asr.Assets) > 0 && asr.Assets[0].Window.Duration() == timeutil.Week {
+		return asr, nil
+	}
+
 	var toAccumulate *AssetSetRange
 	result := NewAssetSetRange()
 	for i, as := range asr.Assets {
