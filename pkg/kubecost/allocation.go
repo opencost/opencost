@@ -1136,21 +1136,17 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		}
 	}
 
-	var parcCoefficients map[string]map[string]map[string]float64
-	if parcSet.Length() > 0 {
-		parcCoefficients, allocatedTotalsMap, err = computeIdleCoeffs(options, as, shareSet)
-		if err != nil {
-			log.Warnf("AllocationSet.AggregateBy: compute parc idle coeff: %s", err)
-			return fmt.Errorf("error computing parc coefficients: %s", err)
-		}
-	}
-
-	log.Infof("[PARCS] idleSet.Length(): %d", idleSet.Length())
-	log.Infof("[PARCS] parcCoefficients: nil:%t len:%d", parcCoefficients == nil, len(parcCoefficients))
-
 	// (2b) If proportional asset resource costs are to be included, derive them
 	// from idle coefficients and add them to the allocations.
 	if options.IncludeProportionalAssetResourceCosts {
+		var parcCoefficients map[string]map[string]map[string]float64
+		if parcSet.Length() > 0 {
+			parcCoefficients, allocatedTotalsMap, err = computeIdleCoeffs(options, as, shareSet)
+			if err != nil {
+				log.Warnf("AllocationSet.AggregateBy: compute parc idle coeff: %s", err)
+				return fmt.Errorf("error computing parc coefficients: %s", err)
+			}
+		}
 		if parcCoefficients == nil {
 			return fmt.Errorf("cannot include proportional resource costs because parc coefficients are nil")
 		}
