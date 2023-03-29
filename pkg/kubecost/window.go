@@ -22,8 +22,8 @@ const (
 )
 
 var (
-	durationRegex       = regexp.MustCompile(`^(\d+)(m|h|d)$`)
-	durationOffsetRegex = regexp.MustCompile(`^(\d+)(m|h|d) offset (\d+)(m|h|d)$`)
+	durationRegex       = regexp.MustCompile(`^(\d+)(m|h|d|w)$`)
+	durationOffsetRegex = regexp.MustCompile(`^(\d+)(m|h|d|w) offset (\d+)(m|h|d|w)$`)
 	offesetRegex        = regexp.MustCompile(`^(\+|-)(\d\d):(\d\d)$`)
 	rfc3339             = `\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ`
 	rfcRegex            = regexp.MustCompile(fmt.Sprintf(`(%s),(%s)`, rfc3339, rfc3339))
@@ -46,11 +46,6 @@ func RoundBack(t time.Time, resolution time.Duration) time.Time {
 // in the given time's timezone.
 // e.g. 2020-01-01T12:37:48-0700, 24h = 2020-01-02T00:00:00-0700
 func RoundForward(t time.Time, resolution time.Duration) time.Time {
-	// if the duration is a week - roll forward to the following Sunday
-	if resolution == timeutil.Week {
-		return timeutil.RoundToStartOfFollowingWeek(t)
-	}
-
 	back := RoundBack(t, resolution)
 	if back.Equal(t) {
 		// The given time is exactly a multiple of the given resolution

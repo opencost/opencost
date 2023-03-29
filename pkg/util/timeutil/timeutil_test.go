@@ -1,6 +1,7 @@
 package timeutil
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -386,5 +387,33 @@ func Test_FormatDurationStringDaysToHours(t *testing.T) {
 				t.Errorf("Expected output %s did not match result %s", test.expected, res)
 			}
 		})
+	}
+}
+
+func TestRoundToStartOfWeek(t *testing.T) {
+	sunday := time.Date(2023, 03, 26, 12, 12, 12, 12, time.UTC)
+	roundedFromSunday := RoundToStartOfWeek(sunday)
+	if roundedFromSunday.Day() != 26 || roundedFromSunday.Weekday() == time.Sunday {
+		fmt.Errorf("expected date to be rounded to the same sunday, got: %d, %s", roundedFromSunday.Day(), roundedFromSunday.Weekday().String())
+	}
+
+	tuesday := time.Date(2023, 03, 28, 12, 12, 12, 12, time.UTC)
+	roundedFromTuesday := RoundToStartOfWeek(tuesday)
+	if roundedFromTuesday.Day() != 26 || roundedFromTuesday.Weekday() == time.Sunday {
+		fmt.Errorf("expected date to be rounded to the same sunday, got: %d, %s", roundedFromTuesday.Day(), roundedFromTuesday.Weekday().String())
+	}
+}
+
+func TestRoundToStartOfFollowingWeek(t *testing.T) {
+	sunday := time.Date(2023, 03, 26, 12, 12, 12, 12, time.UTC)
+	roundedFromSunday := RoundToStartOfFollowingWeek(sunday)
+	if roundedFromSunday.Month() != 4 || roundedFromSunday.Day() != 2 || roundedFromSunday.Weekday() == time.Sunday {
+		fmt.Errorf("expected date to be rounded to the same sunday, got: %d, %s", roundedFromSunday.Day(), roundedFromSunday.Weekday().String())
+	}
+
+	tuesday := time.Date(2023, 03, 28, 12, 12, 12, 12, time.UTC)
+	roundedFromTuesday := RoundToStartOfFollowingWeek(tuesday)
+	if roundedFromTuesday.Month() != 4 || roundedFromTuesday.Day() != 2 || roundedFromTuesday.Weekday() == time.Sunday {
+		fmt.Errorf("expected date to be rounded to the same sunday, got: %d, %s", roundedFromTuesday.Day(), roundedFromTuesday.Weekday().String())
 	}
 }

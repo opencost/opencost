@@ -8,6 +8,7 @@ import (
 
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
 // TODO Clean-up use of IsEmpty; nil checks should be separated for safety.
@@ -2253,6 +2254,10 @@ func (asr *AllocationSetRange) accumulateByMonth() (*AllocationSetRange, error) 
 }
 
 func (asr *AllocationSetRange) accumulateByWeek() (*AllocationSetRange, error) {
+	if len(asr.Allocations) > 0 && asr.Allocations[0].Window.Duration() == timeutil.Week {
+		return asr, nil
+	}
+
 	var toAccumulate *AllocationSetRange
 	result := NewAllocationSetRange()
 	for i, as := range asr.Allocations {
