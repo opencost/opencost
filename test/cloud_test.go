@@ -99,9 +99,7 @@ func TestPVPriceFromCSV(t *testing.T) {
 	pv := &v1.PersistentVolume{}
 	pv.Name = nameWant
 
-	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
-		LocalConfigPath: "./",
-	})
+	confMan := config.NewConfigFileManager()
 
 	wantPrice := "0.1337"
 	c := &cloud.CSVProvider{
@@ -130,9 +128,7 @@ func TestNodePriceFromCSVWithGPU(t *testing.T) {
 	labelFooWant := "labelfoo"
 	wantGPU := "2"
 
-	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
-		LocalConfigPath: "./",
-	})
+	confMan := config.NewConfigFileManager()
 
 	n := &v1.Node{}
 	n.Spec.ProviderID = providerIDWant
@@ -199,9 +195,7 @@ func TestNodePriceFromCSV(t *testing.T) {
 	nameWant := "gke-standard-cluster-1-pool-1-91dc432d-cg69"
 	labelFooWant := "labelfoo"
 
-	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
-		LocalConfigPath: "./",
-	})
+	confMan := config.NewConfigFileManager()
 
 	n := &v1.Node{}
 	n.Spec.ProviderID = providerIDWant
@@ -259,9 +253,7 @@ func TestNodePriceFromCSVWithRegion(t *testing.T) {
 	nameWant := "foo"
 	labelFooWant := "labelfoo"
 
-	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
-		LocalConfigPath: "./",
-	})
+	confMan := config.NewConfigFileManager()
 
 	n := &v1.Node{}
 	n.Spec.ProviderID = providerIDWant
@@ -375,9 +367,7 @@ type FakeClusterMap struct {
 
 func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 	os.Setenv("CONFIG_PATH", "../config")
-	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
-		LocalConfigPath: "./",
-	})
+	confMan := config.NewConfigFileManager()
 
 	c := &cloud.CSVProvider{
 		CSVLocation: "../configs/pricing_schema_case.csv",
@@ -409,9 +399,7 @@ func TestNodePriceFromCSVWithBadConfig(t *testing.T) {
 func TestSourceMatchesFromCSV(t *testing.T) {
 	os.Setenv("CONFIG_PATH", "../configs")
 
-	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
-		LocalConfigPath: "./",
-	})
+	confMan := config.NewConfigFileManager()
 
 	c := &cloud.CSVProvider{
 		CSVLocation: "../configs/pricing_schema_case.csv",
@@ -488,9 +476,7 @@ func TestNodePriceFromCSVWithCase(t *testing.T) {
 	n.Labels[v1.LabelZoneRegion] = "eastus2"
 	wantPrice := "0.13370357"
 
-	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
-		LocalConfigPath: "./",
-	})
+	confMan := config.NewConfigFileManager()
 
 	c := &cloud.CSVProvider{
 		CSVLocation: "../configs/pricing_schema_case.csv",
@@ -522,9 +508,7 @@ func TestNodePriceFromCSVByClass(t *testing.T) {
 	wantpricefloat := 0.13370357
 	wantPrice := fmt.Sprintf("%f", (math.Round(wantpricefloat*1000000) / 1000000))
 
-	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
-		LocalConfigPath: "./",
-	})
+	confMan := config.NewConfigFileManager()
 
 	c := &cloud.CSVProvider{
 		CSVLocation: "../configs/pricing_schema_case.csv",

@@ -2,40 +2,7 @@ package config
 
 import (
 	"sync"
-
-	"github.com/opencost/opencost/pkg/storage"
 )
-
-//--------------------------------------------------------------------------
-//  ConfigFileManagerOpts
-//--------------------------------------------------------------------------
-
-// ConfigFileManagerOpts describes how to configure the ConfigFileManager for
-// serving configuration files
-type ConfigFileManagerOpts struct {
-	// BucketStoreConfig is the local file location for the configuration used to
-	// write and read configuration data to/from the bucket. The format of this
-	// configuration file should be compatible with storage.NewBucketStorage
-	BucketStoreConfig string
-
-	// LocalConfigPath provides a backup location for storing the configuration
-	// files
-	LocalConfigPath string
-}
-
-// IsBucketStorageEnabled returns true if bucket storage is enabled.
-func (cfmo *ConfigFileManagerOpts) IsBucketStorageEnabled() bool {
-	return cfmo.BucketStoreConfig != ""
-}
-
-// DefaultConfigFileManagerOpts returns the default configuration options for the
-// config file manager
-func DefaultConfigFileManagerOpts() *ConfigFileManagerOpts {
-	return &ConfigFileManagerOpts{
-		BucketStoreConfig: "",
-		LocalConfigPath:   "/",
-	}
-}
 
 //--------------------------------------------------------------------------
 //  ConfigFileManager
@@ -45,19 +12,13 @@ func DefaultConfigFileManagerOpts() *ConfigFileManagerOpts {
 // config files.
 type ConfigFileManager struct {
 	lock  *sync.Mutex
-	store *storage.FileStorage
 	files map[string]*ConfigFile
 }
 
 // NewConfigFileManager creates a new backing storage and configuration file manager
-func NewConfigFileManager(opts *ConfigFileManagerOpts) *ConfigFileManager {
-	if opts == nil {
-		opts = DefaultConfigFileManagerOpts()
-	}
-
+func NewConfigFileManager() *ConfigFileManager {
 	return &ConfigFileManager{
 		lock:  new(sync.Mutex),
-		store: storage.NewFileStorage(opts.LocalConfigPath),
 		files: make(map[string]*ConfigFile),
 	}
 }
@@ -73,7 +34,7 @@ func (cfm *ConfigFileManager) ConfigFileAt(path string) *ConfigFile {
 		return cf
 	}
 
-	cf := NewConfigFile(cfm.store, path)
+	cf := NewConfigFile(path)
 	cfm.files[path] = cf
 	return cf
 }

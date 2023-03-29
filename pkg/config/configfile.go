@@ -1,8 +1,10 @@
 package config
 
 import (
-	"errors"
+	"fmt"
+	gofs "io/fs"
 	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 	"time"
@@ -10,8 +12,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/opencost/opencost/pkg/log"
-	"github.com/opencost/opencost/pkg/storage"
 	"github.com/opencost/opencost/pkg/util/atomic"
+	"github.com/opencost/opencost/pkg/util/fileutil"
 )
 
 // HandlerID is a unique identifier assigned to a provided ConfigChangedHandler. This is used to remove a handler
@@ -48,13 +50,9 @@ type ConfigChangedHandler func(ChangeType, []byte)
 // DefaultHandlerPriority is used as the priority for any handlers added via AddChangeHandler
 const DefaultHandlerPriority int = 1000
 
-// NoBackingStore error is used when the config file's backing storage is missing
-var NoBackingStore error = errors.New("Backing storage does not exist.")
-
 // ConfigFile is representation of a configuration file that can be written to, read, and watched
 // for updates
 type ConfigFile struct {
-	store      *storage.FileStorage
 	file       string
 	dataLock   *sync.Mutex
 	data       []byte
@@ -66,9 +64,8 @@ type ConfigFile struct {
 
 // NewConfigFile creates a new ConfigFile instance using a specific storage.Storage and path relative
 // to the storage.
-func NewConfigFile(store *storage.FileStorage, file string) *ConfigFile {
+func NewConfigFile(file string) *ConfigFile {
 	return &ConfigFile{
-		store:     store,
 		file:      file,
 		dataLock:  new(sync.Mutex),
 		data:      nil,
@@ -76,29 +73,37 @@ func NewConfigFile(store *storage.FileStorage, file string) *ConfigFile {
 	}
 }
 
-// Path returns the fully qualified path of the config file.
-func (cf *ConfigFile) Path() string {
-	if cf.store == nil {
-		return cf.file
-	}
-
-	return cf.store.FullPath(cf.file)
-}
-
 // Write will write the binary data to the file.
 func (cf *ConfigFile) Write(data []byte) error {
-	if cf.store == nil {
-		return NoBackingStore
+	err := cf.prepare(cf.file)
+	if err != nil {
+		return fmt.Errorf("failed to prepare path: %w", err)
+	}
+	err = os.WriteFile(cf.file, data, os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+	if err != nil {
+		return err
+	}
+	// update cache on successful write
+	cf.dataLock.Lock()
+	cf.data = data
+	cf.dataLock.Unlock()
+	return nil
+}
+
+// prepare checks to see if the directory being written to should be created before writing
+func (cf *ConfigFile) prepare(path string) error {
+	dir := filepath.Dir(path)
+	if _, e := os.Stat(dir); e != nil && os.IsNotExist(e) {
+		err := os.MkdirAll(dir, os.ModePerm)
+		if err != nil {
+			return err
+		}
 	}
 
-	e := cf.store.Write(cf.file, data)
-	// update cache on successful write
-	if e == nil {
-		cf.dataLock.Lock()
-		cf.data = data
-		cf.dataLock.Unlock()
-	}
-	return e
+	return nil
 }
 
 // Read will read the binary data from the file and return it. If an error is returned,
@@ -109,10 +114,6 @@ func (cf *ConfigFile) Read() ([]byte, error) {
 
 // internalRead is used to allow a forced override of data cache to refresh data
 func (cf *ConfigFile) internalRead(force bool) ([]byte, error) {
-	if cf.store == nil {
-		return nil, NoBackingStore
-	}
-
 	cf.dataLock.Lock()
 	defer cf.dataLock.Unlock()
 	if !force {
@@ -121,48 +122,61 @@ func (cf *ConfigFile) internalRead(force bool) ([]byte, error) {
 		}
 	}
 
-	d, e := cf.store.Read(cf.file)
-	if e != nil {
-		return nil, e
+	d, err := os.ReadFile(cf.file)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to read file: %w", err)
 	}
 	cf.data = d
 	return cf.data, nil
 }
 
+// FileToStorageInfo maps a fs.FileInfo to *storage.StorageInfo
+func FileToStorageInfo(fileInfo gofs.FileInfo) *StorageInfo {
+	return &StorageInfo{
+		Name:    fileInfo.Name(),
+		Size:    fileInfo.Size(),
+		ModTime: fileInfo.ModTime(),
+	}
+}
+
+// StorageInfo is a data object containing basic information about the path in storage.
+type StorageInfo struct {
+	Name    string    // base name of the file
+	Size    int64     // length in bytes for regular files
+	ModTime time.Time // modification time
+}
+
 // Stat returns the StorageStats for the file.
-func (cf *ConfigFile) Stat() (*storage.StorageInfo, error) {
-	if cf.store == nil {
-		return nil, NoBackingStore
+func (cf *ConfigFile) Stat() (*StorageInfo, error) {
+	st, err := os.Stat(cf.file)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to stat file: %w", err)
 	}
 
-	return cf.store.Stat(cf.file)
+	return FileToStorageInfo(st), nil
 }
 
 // Exists returns true if the file exist. If an error other than a NotExist error is returned,
 // the result will be false with the provided error.
 func (cf *ConfigFile) Exists() (bool, error) {
-	if cf.store == nil {
-		return false, NoBackingStore
-	}
-
-	return cf.store.Exists(cf.file)
+	return fileutil.FileExists(cf.file)
 }
 
 // Delete removes the file from storage permanently.
 func (cf *ConfigFile) Delete() error {
-	if cf.store == nil {
-		return NoBackingStore
+	err := os.Remove(cf.file)
+	if err != nil {
+		return err
 	}
 
-	e := cf.store.Remove(cf.file)
+	cf.dataLock.Lock()
+	cf.data = nil
+	cf.dataLock.Unlock()
+	return nil
+}
 
-	// on removal, clear data cache
-	if e == nil {
-		cf.dataLock.Lock()
-		cf.data = nil
-		cf.dataLock.Unlock()
-	}
-	return e
+func (cf *ConfigFile) Path() string {
+	return cf.file
 }
 
 // Refresh allows external callers to force reload the config file from internal storage. This is

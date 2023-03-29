@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/microcosm-cc/bluemonday"
+	"github.com/spf13/viper"
+
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/kubeconfig"
 	"github.com/opencost/opencost/pkg/metrics"
@@ -24,13 +26,17 @@ import (
 	"github.com/opencost/opencost/pkg/util/timeutil"
 	"github.com/opencost/opencost/pkg/util/watcher"
 	"github.com/opencost/opencost/pkg/version"
-	"github.com/spf13/viper"
 
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/julienschmidt/httprouter"
 
 	sentry "github.com/getsentry/sentry-go"
+
+	prometheus "github.com/prometheus/client_golang/api"
+	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/clustercache"
@@ -42,10 +48,6 @@ import (
 	"github.com/opencost/opencost/pkg/prom"
 	"github.com/opencost/opencost/pkg/thanos"
 	"github.com/opencost/opencost/pkg/util/json"
-	prometheus "github.com/prometheus/client_golang/api"
-	prometheusAPI "github.com/prometheus/client_golang/api/prometheus/v1"
-	appsv1 "k8s.io/api/apps/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/patrickmn/go-cache"
 
@@ -1566,10 +1568,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	}
 
 	// Create ConfigFileManager for synchronization of shared configuration
-	confManager := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
-		BucketStoreConfig: env.GetKubecostConfigBucket(),
-		LocalConfigPath:   "/",
-	})
+	confManager := config.NewConfigFileManager()
 
 	configPrefix := env.GetConfigPathWithDefault("/var/configs/")
 
