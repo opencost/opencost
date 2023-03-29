@@ -4,8 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 	"io"
 	"net/http"
 	"regexp"
@@ -14,6 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/opencost/opencost/pkg/kubecost"
 
 	"github.com/opencost/opencost/pkg/util"
@@ -21,7 +22,6 @@ import (
 	"cloud.google.com/go/compute/metadata"
 
 	"github.com/opencost/opencost/pkg/clustercache"
-	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util/httputil"
@@ -465,18 +465,18 @@ func ShareTenancyCosts(p Provider) bool {
 }
 
 // NewProvider looks at the nodespec or provider metadata server to decide which provider to instantiate.
-func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.ConfigFileManager) (Provider, error) {
+func NewProvider(cache clustercache.ClusterCache, apiKey string) (Provider, error) {
 	nodes := cache.GetAllNodes()
 	if len(nodes) == 0 {
 		log.Infof("Could not locate any nodes for cluster.") // valid in ETL readonly mode
 		return &CustomProvider{
 			Clientset: cache,
-			Config:    NewProviderConfig(config, "default.json"),
+			Config:    NewProviderConfig("default.json"),
 		}, nil
 	}
 
 	cp := getClusterProperties(nodes[0])
-	providerConfig := NewProviderConfig(config, cp.configFileName)
+	providerConfig := NewProviderConfig(cp.configFileName)
 	// If ClusterAccount is set apply it to the cluster properties
 	if providerConfig.customPricing != nil && providerConfig.customPricing.ClusterAccountID != "" {
 		cp.accountID = providerConfig.customPricing.ClusterAccountID
@@ -491,7 +491,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 				Clientset:        cache,
 				clusterRegion:    cp.region,
 				clusterAccountID: cp.accountID,
-				Config:           NewProviderConfig(config, cp.configFileName),
+				Config:           NewProviderConfig(cp.configFileName),
 			},
 		}, nil
 	case kubecost.GCPProvider:
@@ -502,7 +502,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 		return &GCP{
 			Clientset:        cache,
 			APIKey:           apiKey,
-			Config:           NewProviderConfig(config, cp.configFileName),
+			Config:           NewProviderConfig(cp.configFileName),
 			clusterRegion:    cp.region,
 			clusterAccountID: cp.accountID,
 			clusterProjectID: cp.projectID,
@@ -514,7 +514,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 		log.Info("Found ProviderID starting with \"aws\", using AWS Provider")
 		return &AWS{
 			Clientset:            cache,
-			Config:               NewProviderConfig(config, cp.configFileName),
+			Config:               NewProviderConfig(cp.configFileName),
 			clusterRegion:        cp.region,
 			clusterAccountID:     cp.accountID,
 			serviceAccountChecks: NewServiceAccountChecks(),
@@ -523,7 +523,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 		log.Info("Found ProviderID starting with \"azure\", using Azure Provider")
 		return &Azure{
 			Clientset:            cache,
-			Config:               NewProviderConfig(config, cp.configFileName),
+			Config:               NewProviderConfig(cp.configFileName),
 			clusterRegion:        cp.region,
 			clusterAccountID:     cp.accountID,
 			serviceAccountChecks: NewServiceAccountChecks(),
@@ -532,7 +532,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 		log.Info("Found ProviderID starting with \"alibaba\", using Alibaba Cloud Provider")
 		return &Alibaba{
 			Clientset:            cache,
-			Config:               NewProviderConfig(config, cp.configFileName),
+			Config:               NewProviderConfig(cp.configFileName),
 			clusterRegion:        cp.region,
 			clusterAccountId:     cp.accountID,
 			serviceAccountChecks: NewServiceAccountChecks(),
@@ -543,7 +543,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			Clientset:        cache,
 			clusterRegion:    cp.region,
 			clusterAccountID: cp.accountID,
-			Config:           NewProviderConfig(config, cp.configFileName),
+			Config:           NewProviderConfig(cp.configFileName),
 		}, nil
 
 	default:
@@ -552,7 +552,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			Clientset:        cache,
 			clusterRegion:    cp.region,
 			clusterAccountID: cp.accountID,
-			Config:           NewProviderConfig(config, cp.configFileName),
+			Config:           NewProviderConfig(cp.configFileName),
 		}, nil
 	}
 }

@@ -86,7 +86,6 @@ type Accesses struct {
 	ClusterCache        clustercache.ClusterCache
 	ClusterMap          clusters.ClusterMap
 	CloudProvider       cloud.Provider
-	ConfigFileManager   *config.ConfigFileManager
 	ClusterInfoProvider clusters.ClusterInfoProvider
 	Model               *CostModel
 	MetricsEmitter      *CostModelMetricsEmitter
@@ -1567,15 +1566,12 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		log.Fatalf("Failed to build Kubernetes client: %s", err.Error())
 	}
 
-	// Create ConfigFileManager for synchronization of shared configuration
-	confManager := config.NewConfigFileManager()
-
 	configPrefix := env.GetConfigPathWithDefault("/var/configs/")
 
 	// Create Kubernetes Cluster Cache + Watchers
 	var k8sCache clustercache.ClusterCache
 	if env.IsClusterCacheFileEnabled() {
-		importLocation := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-cache.json"))
+		importLocation := config.NewConfigFile(path.Join(configPrefix, "cluster-cache.json"))
 		k8sCache = clustercache.NewClusterImporter(importLocation)
 	} else {
 		k8sCache = clustercache.NewKubernetesClusterCache(kubeClientset)
@@ -1583,7 +1579,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	k8sCache.Run()
 
 	cloudProviderKey := env.GetCloudProviderAPIKey()
-	cloudProvider, err := cloud.NewProvider(k8sCache, cloudProviderKey, confManager)
+	cloudProvider, err := cloud.NewProvider(k8sCache, cloudProviderKey)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -1661,7 +1657,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	// ClusterInfo Provider to provide the cluster map with local and remote cluster data
 	var clusterInfoProvider clusters.ClusterInfoProvider
 	if env.IsClusterInfoFileEnabled() {
-		clusterInfoFile := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-info.json"))
+		clusterInfoFile := config.NewConfigFile(path.Join(configPrefix, "cluster-info.json"))
 		clusterInfoProvider = NewConfiguredClusterInfoProvider(clusterInfoFile)
 	} else {
 		clusterInfoProvider = NewLocalClusterInfoProvider(kubeClientset, cloudProvider)
@@ -1711,7 +1707,6 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		ClusterCache:        k8sCache,
 		ClusterMap:          clusterMap,
 		CloudProvider:       cloudProvider,
-		ConfigFileManager:   confManager,
 		ClusterInfoProvider: clusterInfoProvider,
 		Model:               costModel,
 		MetricsEmitter:      metricsEmitter,

@@ -150,11 +150,8 @@ func Execute(opts *AgentOpts) error {
 		panic(err.Error())
 	}
 
-	// Create ConfigFileManager for synchronization of shared configuration
-	confManager := config.NewConfigFileManager()
-
 	cloudProviderKey := env.GetCloudProviderAPIKey()
-	cloudProvider, err := cloud.NewProvider(clusterCache, cloudProviderKey, confManager)
+	cloudProvider, err := cloud.NewProvider(clusterCache, cloudProviderKey)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -182,7 +179,7 @@ func Execute(opts *AgentOpts) error {
 
 	// Initialize cluster exporting if it's enabled
 	if env.IsExportClusterCacheEnabled() {
-		cacheLocation := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-cache.json"))
+		cacheLocation := config.NewConfigFile(path.Join(configPrefix, "cluster-cache.json"))
 		clusterExporter = clustercache.NewClusterExporter(clusterCache, cacheLocation, ClusterExportInterval)
 		clusterExporter.Run()
 	}
@@ -192,7 +189,7 @@ func Execute(opts *AgentOpts) error {
 
 	var clusterInfoProvider clusters.ClusterInfoProvider
 	if env.IsExportClusterInfoEnabled() {
-		clusterInfoConf := confManager.ConfigFileAt(path.Join(configPrefix, "cluster-info.json"))
+		clusterInfoConf := config.NewConfigFile(path.Join(configPrefix, "cluster-info.json"))
 		clusterInfoProvider = costmodel.NewClusterInfoWriteOnRequest(localClusterInfo, clusterInfoConf)
 	} else {
 		clusterInfoProvider = localClusterInfo

@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/microcosm-cc/bluemonday"
+
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/log"
@@ -20,18 +21,16 @@ var sanitizePolicy = bluemonday.UGCPolicy()
 // implementations
 type ProviderConfig struct {
 	lock            *sync.Mutex
-	configManager   *config.ConfigFileManager
 	configFile      *config.ConfigFile
 	customPricing   *CustomPricing
 	watcherHandleID config.HandlerID
 }
 
 // NewProviderConfig creates a new ConfigFile and returns the ProviderConfig
-func NewProviderConfig(configManager *config.ConfigFileManager, fileName string) *ProviderConfig {
-	configFile := configManager.ConfigFileAt(configPathFor(fileName))
+func NewProviderConfig(fileName string) *ProviderConfig {
+	configFile := config.NewConfigFile(configPathFor(fileName))
 	pc := &ProviderConfig{
 		lock:          new(sync.Mutex),
-		configManager: configManager,
 		configFile:    configFile,
 		customPricing: nil,
 	}
@@ -142,13 +141,6 @@ func (pc *ProviderConfig) GetCustomPricingData() (*CustomPricing, error) {
 	defer pc.lock.Unlock()
 
 	return pc.loadConfig(true)
-}
-
-// ConfigFileManager returns the ConfigFileManager instance used to manage the CustomPricing
-// configuration. In the event of a multi-provider setup, this instance should be used to
-// configure any other configuration providers.
-func (pc *ProviderConfig) ConfigFileManager() *config.ConfigFileManager {
-	return pc.configManager
 }
 
 // Allows a call to manually update the configuration while maintaining proper thread-safety
