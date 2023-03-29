@@ -2252,7 +2252,12 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 
 	asr, err := a.Model.QueryAllocation(window, resolution, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts)
 	if err != nil {
-		WriteError(w, InternalServerError(err.Error()))
+		if strings.Contains(strings.ToLower(err.Error()), "bad request") {
+			WriteError(w, BadRequest(err.Error()))
+		} else {
+			WriteError(w, InternalServerError(err.Error()))
+		}
+
 		return
 	}
 

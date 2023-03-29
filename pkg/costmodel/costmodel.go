@@ -1,6 +1,7 @@
 package costmodel
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -2302,7 +2303,9 @@ func (cm *CostModel) QueryAllocation(window kubecost.Window, resolution, step ti
 
 	// Idle is required for proportional asset costs
 	if includeProportionalAssetResourceCosts {
-		includeIdle = true
+		if !includeIdle {
+			return nil, errors.New("bad request - includeIdle must be set true if includeProportionalAssetResourceCosts is true")
+		}
 	}
 
 	// Begin with empty response
