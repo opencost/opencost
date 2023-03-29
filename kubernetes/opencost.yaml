@@ -1,7 +1,7 @@
 # <https://www.opencost.io/docs/>
 ---
 
-# The namespace opencost will run in
+# The namespace OpenCost will run in
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -15,7 +15,7 @@ metadata:
   name: opencost
 ---
 
-# Cluster role giving opencost to get, list, watch required recources
+# Cluster role giving OpenCost to get, list, watch required resources
 # No write permissions are required
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -173,7 +173,7 @@ spec:
 #
 # Without a Prometheus endpoint configured in the deployment,
 # only opencost/metrics will have useful data as it is intended
-# to be used as just an exporter.
+# to be used as only an exporter.
 kind: Service
 apiVersion: v1
 metadata:

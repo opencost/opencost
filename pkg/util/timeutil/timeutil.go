@@ -37,6 +37,8 @@ const (
 
 	// Day expresses 24 hours
 	Day = time.Hour * 24.0
+
+	Week = Day * 7.0
 )
 
 // DurationString converts a duration to a Prometheus-compatible string in
@@ -110,7 +112,8 @@ var unitMap = map[string]int64{
 	"s":  int64(time.Second),
 	"m":  int64(time.Minute),
 	"h":  int64(time.Hour),
-	"d":  int64(time.Hour * 24),
+	"d":  int64(Day),
+	"w":  int64(Week),
 }
 
 // goParseDuration is time.ParseDuration lifted from the go std library and enhanced with the ability to
@@ -260,6 +263,20 @@ func FormatDurationStringDaysToHours(param string) (string, error) {
 	}
 
 	return param, nil
+}
+
+// RoundToStartOfWeek creates a new time.Time for the preceding Sunday 00:00 UTC
+func RoundToStartOfWeek(t time.Time) time.Time {
+	date := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+	daysFromSunday := int(date.Weekday())
+	return date.Add(-1 * time.Duration(daysFromSunday) * Day)
+}
+
+// RoundToStartOfFollowingWeek creates a new time.Time for the following Sunday 00:00 UTC
+func RoundToStartOfFollowingWeek(t time.Time) time.Time {
+	date := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+	daysFromSunday := 7 - int(date.Weekday())
+	return date.Add(time.Duration(daysFromSunday) * Day)
 }
 
 // JobTicker is a ticker used to synchronize the next run of a repeating

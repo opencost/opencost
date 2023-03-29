@@ -22,8 +22,8 @@ const (
 )
 
 var (
-	durationRegex       = regexp.MustCompile(`^(\d+)(m|h|d)$`)
-	durationOffsetRegex = regexp.MustCompile(`^(\d+)(m|h|d) offset (\d+)(m|h|d)$`)
+	durationRegex       = regexp.MustCompile(`^(\d+)(m|h|d|w)$`)
+	durationOffsetRegex = regexp.MustCompile(`^(\d+)(m|h|d|w) offset (\d+)(m|h|d|w)$`)
 	offesetRegex        = regexp.MustCompile(`^(\+|-)(\d\d):(\d\d)$`)
 	rfc3339             = `\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ`
 	rfcRegex            = regexp.MustCompile(fmt.Sprintf(`(%s),(%s)`, rfc3339, rfc3339))
@@ -34,6 +34,10 @@ var (
 // in the given time's timezone.
 // e.g. 2020-01-01T12:37:48-0700, 24h = 2020-01-01T00:00:00-0700
 func RoundBack(t time.Time, resolution time.Duration) time.Time {
+	// if the duration is a week - roll back to the following Sunday
+	if resolution == timeutil.Week {
+		return timeutil.RoundToStartOfWeek(t)
+	}
 	_, offSec := t.Zone()
 	return t.Add(time.Duration(offSec) * time.Second).Truncate(resolution).Add(-time.Duration(offSec) * time.Second)
 }
@@ -233,6 +237,9 @@ func parseWindow(window string, now time.Time) (Window, error) {
 		if match[2] == "d" {
 			dur = 24 * time.Hour
 		}
+		if match[2] == "w" {
+			dur = timeutil.Week
+		}
 
 		num, _ := strconv.ParseInt(match[1], 10, 64)
 
@@ -254,6 +261,9 @@ func parseWindow(window string, now time.Time) (Window, error) {
 		if match[4] == "d" {
 			offUnit = 24 * time.Hour
 		}
+		if match[4] == "w" {
+			offUnit = 24 * timeutil.Week
+		}
 
 		offNum, _ := strconv.ParseInt(match[3], 10, 64)
 
@@ -265,6 +275,9 @@ func parseWindow(window string, now time.Time) (Window, error) {
 		}
 		if match[2] == "d" {
 			durUnit = 24 * time.Hour
+		}
+		if match[2] == "w" {
+			durUnit = timeutil.Week
 		}
 
 		durNum, _ := strconv.ParseInt(match[1], 10, 64)

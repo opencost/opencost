@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
 // SummaryAllocation summarizes an Allocation, keeping only fields necessary
@@ -1628,6 +1629,10 @@ func (sasr *SummaryAllocationSetRange) accumulateByMonth() (*SummaryAllocationSe
 }
 
 func (sasr *SummaryAllocationSetRange) accumulateByWeek() (*SummaryAllocationSetRange, error) {
+	if len(sasr.SummaryAllocationSets) > 0 && sasr.SummaryAllocationSets[0].Window.Duration() == timeutil.Week {
+		return sasr, nil
+	}
+
 	var toAccumulate *SummaryAllocationSetRange
 	result := NewSummaryAllocationSetRange()
 	for i, as := range sasr.SummaryAllocationSets {
