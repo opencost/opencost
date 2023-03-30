@@ -921,6 +921,7 @@ type AllocationAggregationOptions struct {
 	ShareSplit                            string
 	SharedHourlyCosts                     map[string]float64
 	SplitIdle                             bool
+	IncludeNamespaceLabels                bool
 }
 
 // AggregateBy aggregates the Allocations in the given AllocationSet by the given
