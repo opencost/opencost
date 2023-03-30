@@ -440,6 +440,9 @@ func (p *AllocationProperties) Intersection(that *AllocationProperties) *Allocat
 	}
 	if p.Namespace == that.Namespace {
 		intersectionProps.Namespace = p.Namespace
+
+		intersectionProps.Annotations = mapIntersection(p.Annotations, that.Annotations)
+		intersectionProps.Labels = mapIntersection(p.Labels, that.Labels)
 	}
 	if p.Pod == that.Pod {
 		intersectionProps.Pod = p.Pod
@@ -448,6 +451,20 @@ func (p *AllocationProperties) Intersection(that *AllocationProperties) *Allocat
 		intersectionProps.ProviderID = p.ProviderID
 	}
 	return intersectionProps
+}
+
+func mapIntersection(map1, map2 map[string]string) map[string]string {
+	result := make(map[string]string)
+	for key, value := range map1 {
+		if value2, ok := map2[key]; ok {
+			if value2 == value {
+				result[key] = value
+			}
+		}
+
+	}
+
+	return result
 }
 
 func (p *AllocationProperties) String() string {
