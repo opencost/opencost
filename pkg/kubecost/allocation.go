@@ -921,7 +921,7 @@ type AllocationAggregationOptions struct {
 	ShareSplit                            string
 	SharedHourlyCosts                     map[string]float64
 	SplitIdle                             bool
-	IncludeNamespaceLabels                bool
+	IncludeAggregatedMetadata             bool
 }
 
 // AggregateBy aggregates the Allocations in the given AllocationSet by the given
@@ -1042,6 +1042,12 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// them to their respective sets, removing them from the set of allocations
 	// to aggregate.
 	for _, alloc := range as.Allocations {
+		// if the user does not want any aggregated labels/annotations returned
+		// set the
+		if !options.IncludeAggregatedMetadata {
+			alloc.Properties.Annotations = nil
+			alloc.Properties.Labels = nil
+		}
 		// External allocations get aggregated post-hoc (see step 6) and do
 		// not necessarily contain complete sets of properties, so they are
 		// moved to a separate AllocationSet.
