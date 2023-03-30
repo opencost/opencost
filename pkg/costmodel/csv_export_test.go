@@ -121,7 +121,7 @@ func Test_UpdateCSV(t *testing.T) {
 			},
 		}
 		err := UpdateCSV(context.TODO(), storage, model)
-		require.NoError(t, err)
+		require.Equal(t, err, errNoData)
 		assert.Equal(t, string(storage.Data), data)
 		assert.Len(t, model.ComputeAllocationCalls(), 0)
 	})

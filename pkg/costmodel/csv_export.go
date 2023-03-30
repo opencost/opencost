@@ -96,18 +96,18 @@ func (e *csvExporter) Update(ctx context.Context) error {
 }
 
 func (e *csvExporter) updateExportCSV(ctx context.Context, previousExportTmp *os.File, allocationDates map[time.Time]struct{}, result *os.File) error {
-	csvDates, err := e.loadDates(previousExportTmp)
+	previousDates, err := e.loadDates(previousExportTmp)
 	if err != nil {
 		return err
 	}
 
-	for date := range csvDates {
+	for date := range previousDates {
 		delete(allocationDates, date)
 	}
 
 	if len(allocationDates) == 0 {
 		log.Info("export file in cloud storage already contain data for all dates, skipping update")
-		return nil
+		return errNoData
 	}
 
 	newExportTmp, err := os.CreateTemp("", "opencost-new-export-*.csv")
