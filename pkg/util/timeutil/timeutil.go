@@ -453,3 +453,19 @@ func leadingInt(s string) (x int64, rem string, err error) {
 	}
 	return x, s[i:], nil
 }
+
+// EarlierOf returns the second time passed in if both are equal
+func EarlierOf(timeOne, timeTwo time.Time) time.Time {
+	if timeOne.Before(timeTwo) {
+		return timeOne
+	}
+	return timeTwo
+}
+
+// LaterOf returns the second time passed in if both are equal
+func LaterOf(timeOne, timeTwo time.Time) time.Time {
+	if timeOne.After(timeTwo) {
+		return timeOne
+	}
+	return timeTwo
+}
