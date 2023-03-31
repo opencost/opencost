@@ -439,10 +439,20 @@ func (p *AllocationProperties) Intersection(that *AllocationProperties) *Allocat
 		intersectionProps.ControllerKind = p.ControllerKind
 	}
 	if p.Namespace == that.Namespace {
-		intersectionProps.Namespace = p.Namespace
 
-		intersectionProps.Annotations = mapIntersection(p.Annotations, that.Annotations)
-		intersectionProps.Labels = mapIntersection(p.Labels, that.Labels)
+		// ignore the incoming labels from unallocated or unmounted special case pods
+		intersectionProps.Namespace = p.Namespace
+		if p.Container == UnmountedSuffix || p.Container == UnallocatedSuffix {
+			intersectionProps.Annotations = that.Annotations
+			intersectionProps.Labels = that.Labels
+		} else if that.Container == UnmountedSuffix || that.Container == UnallocatedSuffix {
+			intersectionProps.Annotations = p.Annotations
+			intersectionProps.Labels = p.Labels
+		} else {
+			intersectionProps.Annotations = mapIntersection(p.Annotations, that.Annotations)
+			intersectionProps.Labels = mapIntersection(p.Labels, that.Labels)
+		}
+
 	}
 	if p.Pod == that.Pod {
 		intersectionProps.Pod = p.Pod
