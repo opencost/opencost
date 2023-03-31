@@ -7,7 +7,9 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"cloud.google.com/go/storage"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -202,11 +204,17 @@ func (s *SystemFile) Download(ctx context.Context, f *os.File) error {
 }
 
 func (s *SystemFile) Upload(ctx context.Context, f *os.File) error {
+	// we want to avoid truncating the file if the upload fails
+	// so want to write to a temp file and then rename it
+	// to the final destination
+	// temp file should be in the same directory as the final destination
+	// to avoid "invalid cross-device link" errors when attempting to rename the file
 	_, err := f.Seek(0, io.SeekStart)
 	if err != nil {
 		return err
 	}
-	tmpF, err := os.CreateTemp("", "opencost-upload-*")
+	tmpFilePath := filepath.Join(filepath.Dir(s.path), fmt.Sprintf(".tmp-%d", time.Now().UnixNano()))
+	tmpF, err := os.Create(tmpFilePath)
 	if err != nil {
 		return err
 	}
@@ -216,7 +224,6 @@ func (s *SystemFile) Upload(ctx context.Context, f *os.File) error {
 	if err != nil {
 		return err
 	}
-	// avoid file corruption on interrupt
 	err = os.Rename(tmpF.Name(), s.path)
 	if err != nil {
 		return err
