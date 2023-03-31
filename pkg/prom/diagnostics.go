@@ -36,6 +36,10 @@ const (
 	// CPUThrottlingDiagnosticMetricID is the identifier for the metric used to determine if CPU throttling is being applied to the
 	// cost-model container.
 	CPUThrottlingDiagnosticMetricID = "cpuThrottling"
+
+	// KubecostRecordingRuleCPUUsageID is the identifier for the query used to
+	// determine of the CPU usage recording rule is set up correctly.
+	KubecostRecordingRuleCPUUsageID = "kubecostRecordingRuleCPUUsage"
 )
 
 const DocumentationBaseURL = "https://github.com/kubecost/docs/blob/master/diagnostics.md"
@@ -95,6 +99,13 @@ var diagnosticDefinitions map[string]*diagnosticDefinition = map[string]*diagnos
 	/ avg(increase(container_cpu_cfs_periods_total{container="cost-model"}[10m] %s)) by (container_name, pod_name, namespace) > 0.2`,
 		Label:       "Kubecost is not CPU throttled",
 		Description: "Kubecost loading slowly? A kubecost component might be CPU throttled",
+	},
+	KubecostRecordingRuleCPUUsageID: {
+		ID:          KubecostRecordingRuleCPUUsageID,
+		QueryFmt:    `absent_over_time(kubecost_container_cpu_usage_irate[5m] %s)`,
+		Label:       "Kubecost's CPU usage recording rule is set up",
+		Description: "If the 'kubecost_container_cpu_usage_irate' recording rule is not set up, Allocation pipeline build may put pressure on your Prometheus due to the use of a subquery.",
+		DocLink:     "https://docs.kubecost.com/install-and-configure/install/custom-prom",
 	},
 }
 
