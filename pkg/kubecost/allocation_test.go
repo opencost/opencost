@@ -3,6 +3,7 @@ package kubecost
 import (
 	"fmt"
 	"math"
+	"reflect"
 	"testing"
 	"time"
 
@@ -509,6 +510,19 @@ func assertAllocationSetTotals(t *testing.T, as *AllocationSet, msg string, err 
 	}
 }
 
+func assertParcResults(t *testing.T, as *AllocationSet, msg string, exps map[string]ProportionalAssetResourceCosts) {
+	for allocKey, a := range as.Allocations {
+		for key, actualParc := range a.ProportionalAssetResourceCosts {
+			expectedParcs := exps[allocKey]
+
+			if !reflect.DeepEqual(expectedParcs[key], actualParc) {
+				t.Fatalf("actual PARC %v did not match expected PARC %v", actualParc, expectedParcs[key])
+			}
+		}
+
+	}
+}
+
 func assertAllocationTotals(t *testing.T, as *AllocationSet, msg string, exps map[string]float64) {
 	for _, a := range as.Allocations {
 		if exp, ok := exps[a.Name]; ok {
@@ -690,15 +704,16 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 
 	// Tests:
 	cases := map[string]struct {
-		start       time.Time
-		aggBy       []string
-		aggOpts     *AllocationAggregationOptions
-		numResults  int
-		totalCost   float64
-		results     map[string]float64
-		windowStart time.Time
-		windowEnd   time.Time
-		expMinutes  float64
+		start               time.Time
+		aggBy               []string
+		aggOpts             *AllocationAggregationOptions
+		numResults          int
+		totalCost           float64
+		results             map[string]float64
+		windowStart         time.Time
+		windowEnd           time.Time
+		expMinutes          float64
+		expectedParcResults map[string]ProportionalAssetResourceCosts
 	}{
 		// 1  Single-aggregation
 
@@ -1042,8 +1057,9 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				ShareFuncs: []AllocationMatchFunc{isNamespace3},
-				ShareSplit: ShareWeighted,
+				ShareFuncs:                            []AllocationMatchFunc{isNamespace3},
+				ShareSplit:                            ShareWeighted,
+				IncludeProportionalAssetResourceCosts: true,
 			},
 			numResults: numNamespaces,
 			totalCost:  activeTotalCost + idleTotalCost,
@@ -1055,6 +1071,36 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			windowStart: startYesterday,
 			windowEnd:   endYesterday,
 			expMinutes:  1440.0,
+			expectedParcResults: map[string]ProportionalAssetResourceCosts{
+				"namespace1": ProportionalAssetResourceCosts{
+					"cluster1": ProportionalAssetResourceCost{
+						Cluster:       "cluster1",
+						Node:          "",
+						ProviderID:    "",
+						CPUPercentage: 0.5,
+						GPUPercentage: 0.5,
+						RAMPercentage: 0.8125,
+					},
+				},
+				"namespace2": ProportionalAssetResourceCosts{
+					"cluster1": ProportionalAssetResourceCost{
+						Cluster:       "cluster1",
+						Node:          "",
+						ProviderID:    "",
+						CPUPercentage: 0.5,
+						GPUPercentage: 0.5,
+						RAMPercentage: 0.1875,
+					},
+					"cluster2": ProportionalAssetResourceCost{
+						Cluster:       "cluster2",
+						Node:          "",
+						ProviderID:    "",
+						CPUPercentage: 0.5,
+						GPUPercentage: 0.5,
+						RAMPercentage: 0.5,
+					},
+				},
+			},
 		},
 		// 4c Share label ShareEven
 		// namespace1: 17.3333 = 28.00 - 16.00 + 16.00*(1.0/3.0)
@@ -1446,7 +1492,8 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			start: start,
 			aggBy: []string{AllocationNamespaceProp},
 			aggOpts: &AllocationAggregationOptions{
-				IdleByNode: true,
+				IdleByNode:                            true,
+				IncludeProportionalAssetResourceCosts: true,
 			},
 			numResults: numNamespaces + numIdle,
 			totalCost:  activeTotalCost + idleTotalCost,
@@ -1459,6 +1506,70 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			windowStart: startYesterday,
 			windowEnd:   endYesterday,
 			expMinutes:  1440.0,
+			expectedParcResults: map[string]ProportionalAssetResourceCosts{
+				"namespace1": {
+					"cluster1,c1nodes": ProportionalAssetResourceCost{
+						Cluster:       "cluster1",
+						Node:          "c1nodes",
+						ProviderID:    "c1nodes",
+						CPUPercentage: 0.5,
+						GPUPercentage: 0.5,
+						RAMPercentage: 0.8125,
+					},
+					"cluster2,node2": ProportionalAssetResourceCost{
+						Cluster:       "cluster2",
+						Node:          "node2",
+						ProviderID:    "node2",
+						CPUPercentage: 0.5,
+						GPUPercentage: 0.5,
+						RAMPercentage: 0.5,
+					},
+				},
+				"namespace2": {
+					"cluster1,c1nodes": ProportionalAssetResourceCost{
+						Cluster:       "cluster1",
+						Node:          "c1nodes",
+						ProviderID:    "c1nodes",
+						CPUPercentage: 0.5,
+						GPUPercentage: 0.5,
+						RAMPercentage: 0.1875,
+					},
+					"cluster2,node1": ProportionalAssetResourceCost{
+						Cluster:       "cluster2",
+						Node:          "node1",
+						ProviderID:    "node1",
+						CPUPercentage: 1,
+						GPUPercentage: 1,
+						RAMPercentage: 1,
+					},
+					"cluster2,node2": ProportionalAssetResourceCost{
+						Cluster:       "cluster2",
+						Node:          "node2",
+						ProviderID:    "node2",
+						CPUPercentage: 0.5,
+						GPUPercentage: 0.5,
+						RAMPercentage: 0.5,
+					},
+				},
+				"namespace3": {
+					"cluster2,node3": ProportionalAssetResourceCost{
+						Cluster:       "cluster2",
+						Node:          "node3",
+						ProviderID:    "node3",
+						CPUPercentage: 1,
+						GPUPercentage: 1,
+						RAMPercentage: 1,
+					},
+					"cluster2,node2": ProportionalAssetResourceCost{
+						Cluster:       "cluster2",
+						Node:          "node2",
+						ProviderID:    "node2",
+						CPUPercentage: 0.5,
+						GPUPercentage: 0.5,
+						RAMPercentage: 0.5,
+					},
+				},
+			},
 		},
 		// 6k Split Idle, Idle by Node
 		"6k": {
@@ -1524,6 +1635,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			err = as.AggregateBy(testcase.aggBy, testcase.aggOpts)
 			assertAllocationSetTotals(t, as, name, err, testcase.numResults, testcase.totalCost)
 			assertAllocationTotals(t, as, name, testcase.results)
+			assertParcResults(t, as, name, testcase.expectedParcResults)
 			assertAllocationWindow(t, as, name, testcase.windowStart, testcase.windowEnd, testcase.expMinutes)
 		})
 	}

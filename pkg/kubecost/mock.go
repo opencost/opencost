@@ -63,6 +63,7 @@ func NewMockUnitAllocation(name string, start time.Time, resolution time.Duratio
 			CPUCoreUsageMax:  1,
 			RAMBytesUsageMax: 1,
 		},
+		ProportionalAssetResourceCosts: nil,
 	}
 
 	// If idle allocation, remove non-idle costs, but maintain total cost

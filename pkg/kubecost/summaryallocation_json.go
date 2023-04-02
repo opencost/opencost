@@ -1,8 +1,9 @@
 package kubecost
 
 import (
-	"math"
 	"time"
+
+	"github.com/opencost/opencost/pkg/util/formatutil"
 )
 
 // SummaryAllocationResponse is a sanitized version of SummaryAllocation, which
@@ -36,27 +37,19 @@ func (sa *SummaryAllocation) ToResponse() *SummaryAllocationResponse {
 		Name:                   sa.Name,
 		Start:                  sa.Start,
 		End:                    sa.End,
-		CPUCoreRequestAverage:  float64ToResponse(sa.CPUCoreRequestAverage),
-		CPUCoreUsageAverage:    float64ToResponse(sa.CPUCoreUsageAverage),
-		CPUCost:                float64ToResponse(sa.CPUCost),
-		GPUCost:                float64ToResponse(sa.GPUCost),
-		NetworkCost:            float64ToResponse(sa.NetworkCost),
-		LoadBalancerCost:       float64ToResponse(sa.LoadBalancerCost),
-		PVCost:                 float64ToResponse(sa.PVCost),
-		RAMBytesRequestAverage: float64ToResponse(sa.RAMBytesRequestAverage),
-		RAMBytesUsageAverage:   float64ToResponse(sa.RAMBytesUsageAverage),
-		RAMCost:                float64ToResponse(sa.RAMCost),
-		SharedCost:             float64ToResponse(sa.SharedCost),
-		ExternalCost:           float64ToResponse(sa.ExternalCost),
+		CPUCoreRequestAverage:  formatutil.Float64ToResponse(sa.CPUCoreRequestAverage),
+		CPUCoreUsageAverage:    formatutil.Float64ToResponse(sa.CPUCoreUsageAverage),
+		CPUCost:                formatutil.Float64ToResponse(sa.CPUCost),
+		GPUCost:                formatutil.Float64ToResponse(sa.GPUCost),
+		NetworkCost:            formatutil.Float64ToResponse(sa.NetworkCost),
+		LoadBalancerCost:       formatutil.Float64ToResponse(sa.LoadBalancerCost),
+		PVCost:                 formatutil.Float64ToResponse(sa.PVCost),
+		RAMBytesRequestAverage: formatutil.Float64ToResponse(sa.RAMBytesRequestAverage),
+		RAMBytesUsageAverage:   formatutil.Float64ToResponse(sa.RAMBytesUsageAverage),
+		RAMCost:                formatutil.Float64ToResponse(sa.RAMCost),
+		SharedCost:             formatutil.Float64ToResponse(sa.SharedCost),
+		ExternalCost:           formatutil.Float64ToResponse(sa.ExternalCost),
 	}
-}
-
-func float64ToResponse(f float64) *float64 {
-	if math.IsNaN(f) || math.IsInf(f, 0) {
-		return nil
-	}
-
-	return &f
 }
 
 // SummaryAllocationSetResponse is a sanitized version of SummaryAllocationSet,
