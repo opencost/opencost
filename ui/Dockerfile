@@ -14,4 +14,5 @@ ENV BASE_URL=/model
 
 COPY ./docker-entrypoint.sh /usr/local/bin/
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+USER 1001
 CMD ["nginx", "-g", "daemon off;"]
