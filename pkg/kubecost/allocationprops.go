@@ -92,17 +92,18 @@ func ParseProperty(text string) (string, error) {
 
 // AllocationProperties describes a set of Kubernetes objects.
 type AllocationProperties struct {
-	Cluster        string                `json:"cluster,omitempty"`
-	Node           string                `json:"node,omitempty"`
-	Container      string                `json:"container,omitempty"`
-	Controller     string                `json:"controller,omitempty"`
-	ControllerKind string                `json:"controllerKind,omitempty"`
-	Namespace      string                `json:"namespace,omitempty"`
-	Pod            string                `json:"pod,omitempty"`
-	Services       []string              `json:"services,omitempty"`
-	ProviderID     string                `json:"providerID,omitempty"`
-	Labels         AllocationLabels      `json:"labels,omitempty"`
-	Annotations    AllocationAnnotations `json:"annotations,omitempty"`
+	Cluster            string                `json:"cluster,omitempty"`
+	Node               string                `json:"node,omitempty"`
+	Container          string                `json:"container,omitempty"`
+	Controller         string                `json:"controller,omitempty"`
+	ControllerKind     string                `json:"controllerKind,omitempty"`
+	Namespace          string                `json:"namespace,omitempty"`
+	Pod                string                `json:"pod,omitempty"`
+	Services           []string              `json:"services,omitempty"`
+	ProviderID         string                `json:"providerID,omitempty"`
+	Labels             AllocationLabels      `json:"labels,omitempty"`
+	Annotations        AllocationAnnotations `json:"annotations,omitempty"`
+	AggregatedMetadata bool                  `json:"-"`
 }
 
 // AllocationLabels is a schema-free mapping of key/value pairs that can be
@@ -440,19 +441,21 @@ func (p *AllocationProperties) Intersection(that *AllocationProperties) *Allocat
 	}
 	if p.Namespace == that.Namespace {
 
-		// ignore the incoming labels from unallocated or unmounted special case pods
 		intersectionProps.Namespace = p.Namespace
-		if p.Container == UnmountedSuffix || p.Container == UnallocatedSuffix {
-			intersectionProps.Annotations = that.Annotations
-			intersectionProps.Labels = that.Labels
-		} else if that.Container == UnmountedSuffix || that.Container == UnallocatedSuffix {
-			intersectionProps.Annotations = p.Annotations
-			intersectionProps.Labels = p.Labels
-		} else {
-			intersectionProps.Annotations = mapIntersection(p.Annotations, that.Annotations)
-			intersectionProps.Labels = mapIntersection(p.Labels, that.Labels)
+		// ignore the incoming labels from unallocated or unmounted special case pods
+		if p.AggregatedMetadata || that.AggregatedMetadata {
+			intersectionProps.AggregatedMetadata = true
+			if p.Container == UnmountedSuffix || p.Container == UnallocatedSuffix {
+				intersectionProps.Annotations = that.Annotations
+				intersectionProps.Labels = that.Labels
+			} else if that.Container == UnmountedSuffix || that.Container == UnallocatedSuffix {
+				intersectionProps.Annotations = p.Annotations
+				intersectionProps.Labels = p.Labels
+			} else {
+				intersectionProps.Annotations = mapIntersection(p.Annotations, that.Annotations)
+				intersectionProps.Labels = mapIntersection(p.Labels, that.Labels)
+			}
 		}
-
 	}
 	if p.Pod == that.Pod {
 		intersectionProps.Pod = p.Pod
