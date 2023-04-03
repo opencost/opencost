@@ -1334,6 +1334,7 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 		return nil, err
 	}
 
+	const defaultClusterName = "AWS Cluster #1"
 	// Determine cluster name
 	clusterName := c.ClusterName
 	if clusterName == "" {
@@ -1341,10 +1342,15 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 		if awsClusterID != "" {
 			log.Infof("Returning \"%s\" as ClusterName", awsClusterID)
 			clusterName = awsClusterID
+			log.Warnf("Warning - %s will be deprecated in a future release. Use %s instead", env.AWSClusterIDEnvVar, env.ClusterIDEnvVar)
+		} else if clusterName = env.GetClusterID(); clusterName != "" {
+			log.Infof("Setting cluster name to %s from %s ", clusterName, env.ClusterIDEnvVar)
 		} else {
-			log.Infof("Unable to sniff out cluster ID, perhaps set $%s to force one", env.AWSClusterIDEnvVar)
-			clusterName = "AWS Cluster #1"
+			clusterName = defaultClusterName
+			log.Warnf("Unable to detect cluster name - using default of %s", defaultClusterName)
+			log.Warnf("Please set cluster name through configmap or via %s env var", env.ClusterIDEnvVar)
 		}
+
 	}
 
 	// this value requires configuration but is unavailable else where
