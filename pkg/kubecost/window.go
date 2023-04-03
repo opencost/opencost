@@ -796,7 +796,7 @@ func GetWindows(start time.Time, end time.Time, windowSize time.Duration) ([]Win
 	}
 
 	// Ensure that provided times are multiples of the provided windowSize (e.g. midnight for daily windows, on the hour for hourly windows)
-	if start != start.Truncate(windowSize) {
+	if start != RoundBack(start, windowSize) {
 		return nil, fmt.Errorf("provided times are not divisible by provided window: [%s, %s] by %s", start, end, windowSize)
 	}
 
