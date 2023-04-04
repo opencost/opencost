@@ -91,6 +91,12 @@ func (cm *CostModel) ComputeAssets(start, end time.Time) (*kubecost.AssetSet, er
 	}
 
 	for _, n := range nodeMap {
+		// check label, to see if node from fargate, if so ignore.
+		if n.Labels != nil {
+			if value, ok := n.Labels["label_eks_amazonaws_com_compute_type"]; ok && value == "fargate" {
+				continue
+			}
+		}
 		s := n.Start
 		if s.Before(start) || s.After(end) {
 			log.Debugf("CostModel.ComputeAssets: node '%s' start outside window: %s not in [%s, %s]", n.Name, s.Format("2006-01-02T15:04:05"), start.Format("2006-01-02T15:04:05"), end.Format("2006-01-02T15:04:05"))
