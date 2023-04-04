@@ -43,7 +43,7 @@ func (cm *CostModel) ComputeAssets(start, end time.Time) (*kubecost.AssetSet, er
 		hours := e.Sub(s).Hours()
 
 		disk := kubecost.NewDisk(d.Name, d.Cluster, d.ProviderID, s, e, kubecost.NewWindow(&start, &end))
-		cm.propertiesFromCluster(disk.Properties)
+		cm.PropertiesFromCluster(disk.Properties)
 		disk.Cost = d.Cost
 		disk.ByteHours = d.Bytes * hours
 		if d.BytesUsedAvgPtr != nil {
@@ -85,7 +85,7 @@ func (cm *CostModel) ComputeAssets(start, end time.Time) (*kubecost.AssetSet, er
 		}
 
 		loadBalancer := kubecost.NewLoadBalancer(lb.Name, lb.Cluster, lb.ProviderID, s, e, kubecost.NewWindow(&start, &end))
-		cm.propertiesFromCluster(loadBalancer.Properties)
+		cm.PropertiesFromCluster(loadBalancer.Properties)
 		loadBalancer.Cost = lb.Cost
 		assetSet.Insert(loadBalancer, nil)
 	}
@@ -106,7 +106,7 @@ func (cm *CostModel) ComputeAssets(start, end time.Time) (*kubecost.AssetSet, er
 		hours := e.Sub(s).Hours()
 
 		node := kubecost.NewNode(n.Name, n.Cluster, n.ProviderID, s, e, kubecost.NewWindow(&start, &end))
-		cm.propertiesFromCluster(node.Properties)
+		cm.PropertiesFromCluster(node.Properties)
 		node.NodeType = n.NodeType
 		node.CPUCoreHours = n.CPUCores * hours
 		node.RAMByteHours = n.RAMBytes * hours
@@ -151,7 +151,7 @@ func (cm *CostModel) ClusterNodes(start, end time.Time) (map[NodeIdentifier]*Nod
 }
 
 // propertiesFromCluster populates static cluster properties to individual asset properties
-func (cm *CostModel) propertiesFromCluster(props *kubecost.AssetProperties) {
+func (cm *CostModel) PropertiesFromCluster(props *kubecost.AssetProperties) {
 	// If properties does not have cluster value, do nothing
 	if props.Cluster == "" {
 		return
@@ -160,7 +160,7 @@ func (cm *CostModel) propertiesFromCluster(props *kubecost.AssetProperties) {
 	clusterMap := cm.ClusterMap.AsMap()
 	ci, ok := clusterMap[props.Cluster]
 	if !ok {
-		log.Debugf("CostMode.propertiesFromCluster: cluster '%s' was not found in ClusterMap", props.Cluster)
+		log.Debugf("CostMode.PropertiesFromCluster: cluster '%s' was not found in ClusterMap", props.Cluster)
 		return
 	}
 
