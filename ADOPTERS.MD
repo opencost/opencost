@@ -6,8 +6,9 @@ If you would like to be included in this table, please submit a PR to this file 
 
 ## Adopters
 
-| Organization                      | Product/Project Name                                                   | Status                   | More Information                                                     |
-| --------------------------------- | ---------------------------------------------------------------------- | ------------------------ | -------------------------------------------------------------------- |
-| Kubecost                          | Kubecost Free/Business/Enterprise                                      | Production               | <https://kubecost.com>                                               |
-
+| Organization                               | Product/Project Name              | Status     | More Information       |
+| ------------------------------------------ | --------------------------------- | ---------- | ---------------------- |
+| Kubecost                                   | Kubecost Free/Business/Enterprise | Production | <https://kubecost.com> |
+| CloudAdmin                                 | *                                 | Production | |
+| National Information Solutions Cooperative | *                                 | Production | <https://nisc.coop> |
 `*` organization that is an end user of OpenCost and not a vendor/reseller
