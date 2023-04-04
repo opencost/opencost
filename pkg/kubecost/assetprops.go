@@ -3,6 +3,8 @@ package kubecost
 import (
 	"fmt"
 	"strings"
+
+	"github.com/opencost/opencost/pkg/prom"
 )
 
 // AssetProperty is a kind of property belonging to an Asset
@@ -42,6 +44,9 @@ const (
 	// AssetTypeProp describes the type of the Asset
 	AssetTypeProp AssetProperty = "type"
 
+	// AssetLabelProp describes a single label within an Asset.
+	AssetLabelProp AssetProperty = "label"
+
 	// AssetDepartmentProp describes the department of the Asset
 	AssetDepartmentProp AssetProperty = "department"
 
@@ -57,6 +62,34 @@ const (
 	// AssetTeamProp describes the team of the Asset
 	AssetTeamProp AssetProperty = "team"
 )
+
+// IsLabel returns true if the allocation property has a label prefix
+func (apt *AssetProperty) IsLabel() bool {
+	return strings.HasPrefix(string(*apt), "label:")
+}
+
+// GetLabel returns the label string associated with the label property if it exists.
+// Otherwise, empty string is returned.
+func (apt *AssetProperty) GetLabel() string {
+	if apt.IsLabel() {
+		return strings.TrimSpace(strings.TrimPrefix(string(*apt), "label:"))
+	}
+	return ""
+}
+
+func ParseAssetProperties(values []string) ([]AssetProperty, error) {
+	props := []AssetProperty{}
+
+	for _, value := range values {
+		p, err := ParseAssetProperty(value)
+		if err != nil {
+			return nil, err
+		}
+		props = append(props, p)
+	}
+
+	return props, nil
+}
 
 // ParseAssetProperty attempts to parse a string into an AssetProperty
 func ParseAssetProperty(text string) (AssetProperty, error) {
@@ -90,6 +123,12 @@ func ParseAssetProperty(text string) (AssetProperty, error) {
 	case "team":
 		return AssetTeamProp, nil
 	}
+
+	if strings.HasPrefix(text, "label:") {
+		label := prom.SanitizeLabelName(strings.TrimSpace(strings.TrimPrefix(text, "label:")))
+		return AssetProperty(fmt.Sprintf("label:%s", label)), nil
+	}
+
 	return AssetNilProp, fmt.Errorf("invalid asset property: %s", text)
 }
 
