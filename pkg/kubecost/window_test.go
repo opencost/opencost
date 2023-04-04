@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+
 	"github.com/opencost/opencost/pkg/util/timeutil"
 
 	"github.com/opencost/opencost/pkg/env"
@@ -173,6 +174,18 @@ func TestRoundForward(t *testing.T) {
 	}
 
 	to = time.Date(2020, time.January, 1, 23, 59, 0, 0, time.UTC)
+	tb = RoundForward(to, timeutil.Week)
+	if !tb.Equal(time.Date(2020, time.January, 5, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("RoundForward: expected 2020-01-05T00:00:00Z; actual %s", tb)
+	}
+
+	to = time.Date(2020, time.January, 5, 23, 59, 0, 0, time.UTC)
+	tb = RoundForward(to, timeutil.Week)
+	if !tb.Equal(time.Date(2020, time.January, 12, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("RoundForward: expected 2020-01-05T00:00:00Z; actual %s", tb)
+	}
+
+	to = time.Date(2020, time.January, 5, 0, 0, 0, 0, time.UTC)
 	tb = RoundForward(to, timeutil.Week)
 	if !tb.Equal(time.Date(2020, time.January, 5, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("RoundForward: expected 2020-01-05T00:00:00Z; actual %s", tb)

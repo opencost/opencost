@@ -112,7 +112,8 @@ var unitMap = map[string]int64{
 	"s":  int64(time.Second),
 	"m":  int64(time.Minute),
 	"h":  int64(time.Hour),
-	"d":  int64(time.Hour * 24),
+	"d":  int64(Day),
+	"w":  int64(Week),
 }
 
 // goParseDuration is time.ParseDuration lifted from the go std library and enhanced with the ability to
@@ -264,14 +265,14 @@ func FormatDurationStringDaysToHours(param string) (string, error) {
 	return param, nil
 }
 
-// RoundToStartOfWeek creates a new time.Time for the preceding Monday 00:00 UTC
+// RoundToStartOfWeek creates a new time.Time for the preceding Sunday 00:00 UTC
 func RoundToStartOfWeek(t time.Time) time.Time {
 	date := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
-	daysFromMonday := int(date.Weekday())
-	return date.Add(-1 * time.Duration(daysFromMonday) * Day)
+	daysFromSunday := int(date.Weekday())
+	return date.Add(-1 * time.Duration(daysFromSunday) * Day)
 }
 
-// RoundToStartOfFollowingWeek creates a new time.Time for the following Monday 00:00 UTC
+// RoundToStartOfFollowingWeek creates a new time.Time for the following Sunday 00:00 UTC
 func RoundToStartOfFollowingWeek(t time.Time) time.Time {
 	date := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 	daysFromSunday := 7 - int(date.Weekday())
@@ -451,4 +452,20 @@ func leadingInt(s string) (x int64, rem string, err error) {
 		}
 	}
 	return x, s[i:], nil
+}
+
+// EarlierOf returns the second time passed in if both are equal
+func EarlierOf(timeOne, timeTwo time.Time) time.Time {
+	if timeOne.Before(timeTwo) {
+		return timeOne
+	}
+	return timeTwo
+}
+
+// LaterOf returns the second time passed in if both are equal
+func LaterOf(timeOne, timeTwo time.Time) time.Time {
+	if timeOne.After(timeTwo) {
+		return timeOne
+	}
+	return timeTwo
 }
