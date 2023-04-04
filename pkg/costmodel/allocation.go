@@ -56,6 +56,9 @@ const (
 	queryFmtReplicaSetsWithoutOwners = `avg(avg_over_time(kube_replicaset_owner{owner_kind="<none>", owner_name="<none>"}[%s])) by (replicaset, namespace, %s)`
 	queryFmtLBCostPerHr              = `avg(avg_over_time(kubecost_load_balancer_cost[%s])) by (namespace, service_name, %s)`
 	queryFmtLBActiveMins             = `count(kubecost_load_balancer_cost) by (namespace, service_name, %s)[%s:%s]`
+	queryFmtOldestSample             = `min_over_time(timestamp(group(node_cpu_hourly_cost))[%s:%s])`
+	queryFmtNewestSample             = `max_over_time(timestamp(group(node_cpu_hourly_cost))[%s:%s])`
+
 
 	// Because we use container_cpu_usage_seconds_total to calculate CPU usage
 	// at any given "instant" of time, we need to use an irate or rate. To then
@@ -109,6 +112,7 @@ func (cm *CostModel) Name() string {
 // for the window defined by the given start and end times. The Allocations
 // returned are unaggregated (i.e. down to the container level).
 func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Duration) (*kubecost.AllocationSet, error) {
+
 	// If the duration is short enough, compute the AllocationSet directly
 	if end.Sub(start) <= cm.MaxPrometheusQueryDuration {
 		return cm.computeAllocation(start, end, resolution)
@@ -275,6 +279,26 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 	result.Warnings = warnings
 
 	return result, nil
+}
+
+// DateRange checks the data (up to 90 days in the past), and returns the oldest and newest sample timestamp from opencost scraping metric
+// it supposed to be a good indicator of available allocation data
+func (cm *CostModel) DateRange() (time.Time, time.Time, error) {
+	ctx := prom.NewNamedContext(cm.PrometheusClient, prom.AllocationContextName)
+
+	resOldest, _, err := ctx.QuerySync(fmt.Sprintf(queryFmtOldestSample, "90d", "1h"))
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("querying oldest sample: %w", err)
+	}
+	oldest := time.Unix(int64(resOldest[0].Values[0].Value), 0)
+
+	resNewest, _, err := ctx.QuerySync(fmt.Sprintf(queryFmtNewestSample, "90d", "1h"))
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("querying oldest sample: %w", err)
+	}
+	newest := time.Unix(int64(resNewest[0].Values[0].Value), 0)
+
+	return oldest, newest, nil
 }
 
 func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Duration) (*kubecost.AllocationSet, error) {
