@@ -40,6 +40,18 @@ const (
 	// KubecostRecordingRuleCPUUsageID is the identifier for the query used to
 	// determine of the CPU usage recording rule is set up correctly.
 	KubecostRecordingRuleCPUUsageID = "kubecostRecordingRuleCPUUsage"
+
+	// CAdvisorWorkingSetBytesMetricID is the identifier for the query used to determine
+	// if cAdvisor working set bytes data is being scraped
+	CAdvisorWorkingSetBytesMetricID = "cadvisorWorkingSetBytesMetric"
+
+	// KSMCPUCapacityMetricID is the identifier for the query used to determine if
+	// KSM CPU capacity data is being scraped
+	KSMCPUCapacityMetricID = "ksmCpuCapacityMetric"
+
+	// KSMAllocatableCPUCoresMetricID is the identifier for the query used to determine
+	// if KSM allocatable CPU core data is being scraped
+	KSMAllocatableCPUCoresMetricID = "ksmAllocatableCpuCoresMetric"
 )
 
 const DocumentationBaseURL = "https://github.com/kubecost/docs/blob/master/diagnostics.md"
@@ -106,6 +118,24 @@ var diagnosticDefinitions map[string]*diagnosticDefinition = map[string]*diagnos
 		Label:       "Kubecost's CPU usage recording rule is set up",
 		Description: "If the 'kubecost_container_cpu_usage_irate' recording rule is not set up, Allocation pipeline build may put pressure on your Prometheus due to the use of a subquery.",
 		DocLink:     "https://docs.kubecost.com/install-and-configure/install/custom-prom",
+	},
+	CAdvisorWorkingSetBytesMetricID: {
+		ID:          CAdvisorWorkingSetBytesMetricID,
+		QueryFmt:    `absent_over_time(container_memory_working_set_bytes{container="cost-model", container!="POD", instance!=""}[5m] %s)`,
+		Label:       "cAdvsior working set bytes metrics available",
+		Description: "Determine if cAdvisor working set bytes metrics are available during last 5 minutes.",
+	},
+	KSMCPUCapacityMetricID: {
+		ID:          KSMCPUCapacityMetricID,
+		QueryFmt:    `avg_over_time(kube_node_status_capacity_cpu_cores[5m] %s) == 0`,
+		Label:       "KSM had CPU capacity during the last 5 minutes",
+		Description: "Determine if KSM had CPU capacity during the last 5 minutes",
+	},
+	KSMAllocatableCPUCoresMetricID: {
+		ID:          KSMAllocatableCPUCoresMetricID,
+		QueryFmt:    `avg_over_time(kube_node_status_allocatable_cpu_cores[5m] %s) == 0`,
+		Label:       "KSM had allocatable CPU cores during the last 5 minutes",
+		Description: "Determine if KSM had allocatable CPU cores during the last 5 minutes",
 	},
 }
 
