@@ -127,13 +127,13 @@ var diagnosticDefinitions map[string]*diagnosticDefinition = map[string]*diagnos
 	},
 	KSMCPUCapacityMetricID: {
 		ID:          KSMCPUCapacityMetricID,
-		QueryFmt:    `avg_over_time(kube_node_status_capacity_cpu_cores[5m] %s) == 0`,
+		QueryFmt:    `absent_over_time(kube_node_status_capacity_cpu_cores[5m] %s)`,
 		Label:       "KSM had CPU capacity during the last 5 minutes",
 		Description: "Determine if KSM had CPU capacity during the last 5 minutes",
 	},
 	KSMAllocatableCPUCoresMetricID: {
 		ID:          KSMAllocatableCPUCoresMetricID,
-		QueryFmt:    `avg_over_time(kube_node_status_allocatable_cpu_cores[5m] %s) == 0`,
+		QueryFmt:    `absent_over_time(kube_node_status_allocatable_cpu_cores[5m] %s)`,
 		Label:       "KSM had allocatable CPU cores during the last 5 minutes",
 		Description: "Determine if KSM had allocatable CPU cores during the last 5 minutes",
 	},
