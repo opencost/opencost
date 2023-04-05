@@ -1,7 +1,9 @@
 package cloud
 
 import (
+	"bufio"
 	"context"
+	"encoding/csv"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,8 +15,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opencost/opencost/pkg/kubecost"
-
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-11-01/compute"
 	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
 	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2016-06-01/subscriptions"
@@ -22,13 +24,17 @@ import (
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
+
+	pricesheet "github.com/opencost/opencost/pkg/cloud/azurepricesheet"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/fileutil"
 	"github.com/opencost/opencost/pkg/util/json"
 	"github.com/opencost/opencost/pkg/util/timeutil"
+
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -396,6 +402,7 @@ type Azure struct {
 	Config                         *ProviderConfig
 	serviceAccountChecks           *ServiceAccountChecks
 	RateCardPricingError           error
+	PricesheetDataError            error
 	clusterAccountID               string
 	clusterRegion                  string
 	loadedAzureSecret              bool
@@ -514,6 +521,7 @@ type AzureAppKey struct {
 // Azure service key for a specific subscription
 type AzureServiceKey struct {
 	SubscriptionID string       `json:"subscriptionId"`
+	BillingAccount string       `json:"billingAccount"`
 	ServiceKey     *AzureAppKey `json:"serviceKey"`
 }
 
@@ -527,11 +535,12 @@ func (ask *AzureServiceKey) IsValid() bool {
 }
 
 // Loads the azure authentication via configuration or a secret set at install time.
-func (az *Azure) getAzureRateCardAuth(forceReload bool, cp *CustomPricing) (subscriptionID, clientID, clientSecret, tenantID string) {
+func (az *Azure) getAzureRateCardAuth(forceReload bool, cp *CustomPricing) (subscriptionID, billingAccount, clientID, clientSecret, tenantID string) {
 	// 1. Check for secret (secret values will always be used if they are present)
 	s, _ := az.loadAzureAuthSecret(forceReload)
 	if s != nil && s.IsValid() {
 		subscriptionID = s.SubscriptionID
+		billingAccount = s.BillingAccount
 		clientID = s.ServiceKey.AppID
 		clientSecret = s.ServiceKey.Password
 		tenantID = s.ServiceKey.Tenant
@@ -540,6 +549,7 @@ func (az *Azure) getAzureRateCardAuth(forceReload bool, cp *CustomPricing) (subs
 	// 2. Check config values (set though endpoint)
 	if cp.AzureSubscriptionID != "" && cp.AzureClientID != "" && cp.AzureClientSecret != "" && cp.AzureTenantID != "" {
 		subscriptionID = cp.AzureSubscriptionID
+		billingAccount = cp.AzureBillingAccount
 		clientID = cp.AzureClientID
 		clientSecret = cp.AzureClientSecret
 		tenantID = cp.AzureTenantID
@@ -552,7 +562,7 @@ func (az *Azure) getAzureRateCardAuth(forceReload bool, cp *CustomPricing) (subs
 		return
 	}
 	// 4. Empty values
-	return "", "", "", ""
+	return "", "", "", "", ""
 
 }
 
@@ -784,8 +794,9 @@ func (az *Azure) DownloadPricingData() error {
 	}
 
 	// Load the service provider keys
-	subscriptionID, clientID, clientSecret, tenantID := az.getAzureRateCardAuth(false, config)
+	subscriptionID, billingAccount, clientID, clientSecret, tenantID := az.getAzureRateCardAuth(false, config)
 	config.AzureSubscriptionID = subscriptionID
+	config.AzureBillingAccount = billingAccount
 	config.AzureClientID = clientID
 	config.AzureClientSecret = clientSecret
 	config.AzureTenantID = tenantID
@@ -847,104 +858,13 @@ func (az *Azure) DownloadPricingData() error {
 	allPrices := make(map[string]*AzurePricing)
 
 	for _, v := range *result.Meters {
-		meterName := *v.MeterName
-		meterRegion := *v.MeterRegion
-		meterCategory := *v.MeterCategory
-		meterSubCategory := *v.MeterSubCategory
-
-		region, err := toRegionID(meterRegion, regions)
+		pricings, err := convertMeterToPricings(v, regions, baseCPUPrice)
 		if err != nil {
+			log.Warnf("converting meter to pricings: %s", err.Error())
 			continue
 		}
-
-		if !strings.Contains(meterSubCategory, "Windows") {
-
-			if strings.Contains(meterCategory, "Storage") {
-				if strings.Contains(meterSubCategory, "HDD") || strings.Contains(meterSubCategory, "SSD") || strings.Contains(meterSubCategory, "Premium Files") {
-					var storageClass string = ""
-					if strings.Contains(meterName, "P4 ") {
-						storageClass = AzureDiskPremiumSSDStorageClass
-					} else if strings.Contains(meterName, "E4 ") {
-						storageClass = AzureDiskStandardSSDStorageClass
-					} else if strings.Contains(meterName, "S4 ") {
-						storageClass = AzureDiskStandardStorageClass
-					} else if strings.Contains(meterName, "LRS Provisioned") {
-						storageClass = AzureFilePremiumStorageClass
-					}
-
-					if storageClass != "" {
-						var priceInUsd float64
-
-						if len(v.MeterRates) < 1 {
-							log.Warnf("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *v.MeterSubCategory, "region": region})
-							continue
-						}
-						for _, rate := range v.MeterRates {
-							priceInUsd += *rate
-						}
-						// rate is in disk per month, resolve price per hour, then GB per hour
-						pricePerHour := priceInUsd / 730.0 / 32.0
-						priceStr := fmt.Sprintf("%f", pricePerHour)
-
-						key := region + "," + storageClass
-						log.Debugf("Adding PV.Key: %s, Cost: %s", key, priceStr)
-						allPrices[key] = &AzurePricing{
-							PV: &PV{
-								Cost:   priceStr,
-								Region: region,
-							},
-						}
-					}
-				}
-			}
-
-			if strings.Contains(meterCategory, "Virtual Machines") {
-
-				usageType := ""
-				if !strings.Contains(meterName, "Low Priority") {
-					usageType = "ondemand"
-				} else {
-					usageType = "preemptible"
-				}
-
-				var instanceTypes []string
-				name := strings.TrimSuffix(meterName, " Low Priority")
-				instanceType := strings.Split(name, "/")
-				for _, it := range instanceType {
-					if strings.Contains(meterSubCategory, "Promo") {
-						it = it + " Promo"
-					}
-					instanceTypes = append(instanceTypes, strings.Replace(it, " ", "_", 1))
-				}
-
-				instanceTypes = transformMachineType(meterSubCategory, instanceTypes)
-				if strings.Contains(name, "Expired") {
-					instanceTypes = []string{}
-				}
-
-				var priceInUsd float64
-
-				if len(v.MeterRates) < 1 {
-					log.Warnf("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *v.MeterSubCategory, "region": region})
-					continue
-				}
-				for _, rate := range v.MeterRates {
-					priceInUsd += *rate
-				}
-				priceStr := fmt.Sprintf("%f", priceInUsd)
-				for _, instanceType := range instanceTypes {
-
-					key := fmt.Sprintf("%s,%s,%s", region, instanceType, usageType)
-
-					allPrices[key] = &AzurePricing{
-						Node: &Node{
-							Cost:         priceStr,
-							BaseCPUPrice: baseCPUPrice,
-							UsageType:    usageType,
-						},
-					}
-				}
-			}
+		for key, pricing := range pricings {
+			allPrices[key] = pricing
 		}
 	}
 
@@ -965,7 +885,349 @@ func (az *Azure) DownloadPricingData() error {
 
 	az.Pricing = allPrices
 	az.RateCardPricingError = nil
+
+	// If we've got a billing account set, kick off downloading the custom pricing data.
+	if config.AzureBillingAccount != "" {
+		downloader := pricesheetDownloader{
+			tenantID:       config.AzureTenantID,
+			clientID:       config.AzureClientID,
+			clientSecret:   config.AzureClientSecret,
+			billingAccount: config.AzureBillingAccount,
+			offerID:        config.AzureOfferDurableID,
+			regions:        regions,
+			baseCPUPrice:   baseCPUPrice,
+		}
+		// The price sheet can take 5 minutes to generate, so we don't
+		// want to hang onto the lock while we're waiting for it.
+		go func() {
+			ctx := context.Background()
+			allPrices, err := downloader.run(ctx)
+
+			az.DownloadPricingDataLock.Lock()
+			defer az.DownloadPricingDataLock.Unlock()
+			if err != nil {
+				log.Errorf("Error downloading Azure price sheet: %s", err)
+				az.PricesheetDataError = err
+				return
+			}
+			az.Pricing = allPrices
+			az.PricesheetDataError = nil
+		}()
+	}
+
 	return nil
+}
+
+func convertMeterToPricings(info commerce.MeterInfo, regions map[string]string, baseCPUPrice string) (map[string]*AzurePricing, error) {
+	meterName := *info.MeterName
+	meterRegion := *info.MeterRegion
+	meterCategory := *info.MeterCategory
+	meterSubCategory := *info.MeterSubCategory
+
+	region, err := toRegionID(meterRegion, regions)
+	if err != nil {
+		return nil, err
+	}
+
+	if strings.Contains(meterSubCategory, "Windows") {
+		// This meter doesn't correspond to any pricings.
+		return nil, nil
+	}
+
+	if strings.Contains(meterCategory, "Storage") {
+		if strings.Contains(meterSubCategory, "HDD") || strings.Contains(meterSubCategory, "SSD") || strings.Contains(meterSubCategory, "Premium Files") {
+			var storageClass string = ""
+			if strings.Contains(meterName, "P4 ") {
+				storageClass = AzureDiskPremiumSSDStorageClass
+			} else if strings.Contains(meterName, "E4 ") {
+				storageClass = AzureDiskStandardSSDStorageClass
+			} else if strings.Contains(meterName, "S4 ") {
+				storageClass = AzureDiskStandardStorageClass
+			} else if strings.Contains(meterName, "LRS Provisioned") {
+				storageClass = AzureFilePremiumStorageClass
+			}
+
+			if storageClass != "" {
+				var priceInUsd float64
+
+				if len(info.MeterRates) < 1 {
+					return nil, fmt.Errorf("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *info.MeterSubCategory, "region": region})
+				}
+				for _, rate := range info.MeterRates {
+					priceInUsd += *rate
+				}
+				// rate is in disk per month, resolve price per hour, then GB per hour
+				pricePerHour := priceInUsd / 730.0 / 32.0
+				priceStr := fmt.Sprintf("%f", pricePerHour)
+
+				key := region + "," + storageClass
+				log.Debugf("Adding PV.Key: %s, Cost: %s", key, priceStr)
+				return map[string]*AzurePricing{
+					key: &AzurePricing{
+						PV: &PV{
+							Cost:   priceStr,
+							Region: region,
+						},
+					},
+				}, nil
+			}
+		}
+	}
+
+	if !strings.Contains(meterCategory, "Virtual Machines") {
+		return nil, nil
+	}
+
+	usageType := ""
+	if !strings.Contains(meterName, "Low Priority") {
+		usageType = "ondemand"
+	} else {
+		usageType = "preemptible"
+	}
+
+	var instanceTypes []string
+	name := strings.TrimSuffix(meterName, " Low Priority")
+	instanceType := strings.Split(name, "/")
+	for _, it := range instanceType {
+		if strings.Contains(meterSubCategory, "Promo") {
+			it = it + " Promo"
+		}
+		instanceTypes = append(instanceTypes, strings.Replace(it, " ", "_", 1))
+	}
+
+	instanceTypes = transformMachineType(meterSubCategory, instanceTypes)
+	if strings.Contains(name, "Expired") {
+		instanceTypes = []string{}
+	}
+
+	var priceInUsd float64
+
+	if len(info.MeterRates) < 1 {
+		return nil, fmt.Errorf("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *info.MeterSubCategory, "region": region})
+	}
+	for _, rate := range info.MeterRates {
+		priceInUsd += *rate
+	}
+	priceStr := fmt.Sprintf("%f", priceInUsd)
+	results := make(map[string]*AzurePricing)
+	for _, instanceType := range instanceTypes {
+
+		key := fmt.Sprintf("%s,%s,%s", region, instanceType, usageType)
+		pricing := &AzurePricing{
+			Node: &Node{
+				Cost:         priceStr,
+				BaseCPUPrice: baseCPUPrice,
+				UsageType:    usageType,
+			},
+		}
+		results[key] = pricing
+	}
+	return results, nil
+
+}
+
+type pricesheetDownloader struct {
+	tenantID       string
+	clientID       string
+	clientSecret   string
+	billingAccount string
+	offerID        string
+	regions        map[string]string
+	baseCPUPrice   string
+}
+
+func (d *pricesheetDownloader) run(ctx context.Context) (map[string]*AzurePricing, error) {
+	url, err := d.getPricesheetDownloadURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting download URL: %w", err)
+	}
+	data, err := d.saveData(ctx, url, "pricesheet")
+	if err != nil {
+		return nil, fmt.Errorf("saving pricesheet from %q: %w", url, err)
+	}
+	defer data.Close()
+
+	prices, err := d.readPricesheet(ctx, data)
+	if err != nil {
+		return nil, fmt.Errorf("reading pricesheet: %w", err)
+	}
+	return prices, nil
+}
+
+func (d *pricesheetDownloader) getPricesheetDownloadURL(ctx context.Context) (string, error) {
+	cred, err := azidentity.NewClientSecretCredential(d.tenantID, d.clientID, d.clientSecret, nil)
+	if err != nil {
+		return "", fmt.Errorf("creating credential: %w", err)
+	}
+	client, err := pricesheet.NewClient(d.billingAccount, cred, nil)
+	if err != nil {
+		return "", fmt.Errorf("creating pricesheet client: %w", err)
+	}
+	poller, err := client.BeginDownloadByBillingPeriod(ctx, currentBillingPeriod())
+	if err != nil {
+		return "", fmt.Errorf("beginning pricesheet download: %w", err)
+	}
+	resp, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: 30 * time.Second,
+	})
+	if err != nil {
+		return "", fmt.Errorf("polling for pricesheet: %w", err)
+	}
+	return resp.Properties.DownloadURL, nil
+}
+
+func (d pricesheetDownloader) saveData(ctx context.Context, url, tempName string) (io.ReadCloser, error) {
+	// Download file from URL in response.
+	out, err := os.CreateTemp("", tempName)
+	if err != nil {
+		return nil, fmt.Errorf("creating %s temp file: %w", tempName, err)
+	}
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("downloading: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected HTTP status %d", resp.StatusCode)
+	}
+
+	if _, err := io.Copy(out, resp.Body); err != nil {
+		return nil, fmt.Errorf("reading response: %w", err)
+	}
+
+	_, err = out.Seek(0, io.SeekStart)
+	if err != nil {
+		return nil, fmt.Errorf("seeking to start of file: %w", err)
+	}
+
+	return out, nil
+}
+
+func (d *pricesheetDownloader) readPricesheet(ctx context.Context, data io.Reader) (map[string]*AzurePricing, error) {
+	// Avoid double-buffering.
+	buf, ok := (data).(*bufio.Reader)
+	if !ok {
+		buf = bufio.NewReader(data)
+	}
+	reader := csv.NewReader(buf)
+	reader.ReuseRecord = true
+
+	// Skip the two header rows.
+	for i := 0; i < 2; i++ {
+		_, err := reader.Read()
+		if err != nil {
+			return nil, fmt.Errorf("skipping row %d: %w", i, err)
+		}
+	}
+
+	header, err := reader.Read()
+	if err != nil {
+		return nil, fmt.Errorf("reading header: %w", err)
+	}
+	if err := checkPricesheetHeader(header); err != nil {
+		return nil, err
+	}
+
+	results := make(map[string]*AzurePricing)
+	lines := 2
+	for {
+		row, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		lines++
+		if err != nil {
+			return nil, fmt.Errorf("reading line %d: %w", lines, err)
+		}
+
+		// Skip savings plan - we should be reporting based on the
+		// consumption price because we don't know whether the user is
+		// using a savings plan or over their threshold.
+		if row[pricesheetPriceType] == "Savings Plan" || row[pricesheetOfferID] != d.offerID {
+			continue
+		}
+
+		// TODO: Creating a meter info for each record will cause a
+		// lot of GC churn - is it worth reusing one meter info instead?
+		meterInfo, err := makeMeterInfo(row)
+		if err != nil {
+			log.Warnf("making meter info (line %d): %v", lines, err)
+			continue
+		}
+
+		pricings, err := convertMeterToPricings(meterInfo, d.regions, d.baseCPUPrice)
+		if err != nil {
+			log.Warnf("converting meter to pricings (line %d): %v", lines, err)
+			continue
+		}
+		for key, pricing := range pricings {
+			results[key] = pricing
+		}
+	}
+
+	return results, nil
+}
+
+func checkPricesheetHeader(header []string) error {
+	for name, col := range pricesheetCols {
+		if !strings.EqualFold(header[col], name) {
+			return fmt.Errorf("unexpected header %q, expected %q", header[col], name)
+		}
+	}
+	return nil
+}
+
+func makeMeterInfo(row []string) (commerce.MeterInfo, error) {
+	price, err := strconv.ParseFloat(row[pricesheetUnitPrice], 64)
+	if err != nil {
+		return commerce.MeterInfo{}, fmt.Errorf("parsing unit price: %w", err)
+	}
+	// TODO: normalize units - some meters are for 1 hour or 1
+	// GB/Month, others are for 10 or 100.
+	return commerce.MeterInfo{
+		MeterName:        ptr(row[pricesheetMeterName]),
+		MeterCategory:    ptr(row[pricesheetMeterCategory]),
+		MeterSubCategory: ptr(row[pricesheetMeterSubCategory]),
+		Unit:             ptr(row[pricesheetUnit]),
+		MeterRegion:      ptr(row[pricesheetMeterRegion]),
+		MeterRates:       map[string]*float64{"0": &price},
+	}, nil
+}
+
+var pricesheetCols = map[string]int{
+	"Meter ID":           pricesheetMeterID,
+	"Meter name":         pricesheetMeterName,
+	"Meter category":     pricesheetMeterCategory,
+	"Meter sub-category": pricesheetMeterSubCategory,
+	"Meter region":       pricesheetMeterRegion,
+	"Unit":               pricesheetUnit,
+	"Unit price":         pricesheetUnitPrice,
+	"Currency code":      pricesheetCurrencyCode,
+	"Offer Id":           pricesheetOfferID,
+	"Price type":         pricesheetPriceType,
+}
+
+const (
+	pricesheetMeterID          = 0
+	pricesheetMeterName        = 1
+	pricesheetMeterCategory    = 2
+	pricesheetMeterSubCategory = 3
+	pricesheetMeterRegion      = 4
+	pricesheetUnit             = 5
+	pricesheetUnitPrice        = 8
+	pricesheetCurrencyCode     = 9
+	pricesheetOfferID          = 11
+	pricesheetPriceType        = 13
+)
+
+func currentBillingPeriod() string {
+	return time.Now().Format("200601")
+}
+
+func ptr[T any](v T) *T {
+	return &v
 }
 
 // determineCloudByRegion uses region name to pick the correct Cloud Environment for the azure provider to use
@@ -1191,7 +1453,7 @@ func (az *Azure) getDisks() ([]*compute.Disk, error) {
 	}
 
 	// Load the service provider keys
-	subscriptionID, clientID, clientSecret, tenantID := az.getAzureRateCardAuth(false, config)
+	subscriptionID, _, clientID, clientSecret, tenantID := az.getAzureRateCardAuth(false, config)
 	config.AzureSubscriptionID = subscriptionID
 	config.AzureClientID = clientID
 	config.AzureClientSecret = clientSecret
