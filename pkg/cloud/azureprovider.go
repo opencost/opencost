@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -1138,6 +1139,8 @@ func (d *pricesheetDownloader) readPricesheet(ctx context.Context, data io.Reade
 		return nil, err
 	}
 
+	units := make(map[string]bool)
+
 	results := make(map[string]*AzurePricing)
 	lines := 2
 	for {
@@ -1170,10 +1173,29 @@ func (d *pricesheetDownloader) readPricesheet(ctx context.Context, data io.Reade
 			log.Warnf("converting meter to pricings (line %d): %v", lines, err)
 			continue
 		}
+
+		if pricings != nil {
+			units[*meterInfo.Unit] = true
+		}
+
+		// TODO: add pricings for AzureFileStandardStorageClass
+
 		for key, pricing := range pricings {
 			results[key] = pricing
 		}
 	}
+
+	if len(results) == 0 {
+		return nil, fmt.Errorf("no matching pricing from pricesheet")
+	}
+
+	// This is temporary, gathering info while adding unit normalisation.
+	allUnits := make([]string, 0, len(units))
+	for unit := range units {
+		allUnits = append(allUnits, unit)
+	}
+	sort.Strings(allUnits)
+	log.Infof("all units in pricesheet: %s", strings.Join(allUnits, ", "))
 
 	return results, nil
 }
@@ -1704,7 +1726,11 @@ func (az *Azure) GetConfig() (*CustomPricing, error) {
 	}
 	// Default to pay-as-you-go Durable offer id
 	if c.AzureOfferDurableID == "" {
-		c.AzureOfferDurableID = "MS-AZR-0003p"
+		c.AzureOfferDurableID = "MS-AZR-0017P"
+		// TODO: what should this be? How can I override it for
+		// testing - the default value below doesn't appear in the
+		// downloaded pricesheet.
+		// c.AzureOfferDurableID = "MS-AZR-0003p"
 	}
 	if c.ShareTenancyCosts == "" {
 		c.ShareTenancyCosts = defaultShareTenancyCost
