@@ -61,7 +61,7 @@ var diagnosticDefinitions map[string]*diagnosticDefinition = map[string]*diagnos
 	CAdvisorDiagnosticMetricID: {
 		ID:          CAdvisorDiagnosticMetricID,
 		QueryFmt:    `absent_over_time(container_cpu_usage_seconds_total[5m] %s)`,
-		Label:       "cAdvsior metrics available",
+		Label:       "cAdvisor metrics available",
 		Description: "Determine if cAdvisor metrics are available during last 5 minutes.",
 		DocLink:     fmt.Sprintf("%s#cadvisor-metrics-available", DocumentationBaseURL),
 	},
@@ -88,7 +88,7 @@ var diagnosticDefinitions map[string]*diagnosticDefinition = map[string]*diagnos
 	CAdvisorLabelDiagnosticMetricID: {
 		ID:          CAdvisorLabelDiagnosticMetricID,
 		QueryFmt:    `absent_over_time(container_cpu_usage_seconds_total{container!="",pod!=""}[5m] %s)`,
-		Label:       "Expected cAdvsior labels available",
+		Label:       "Expected cAdvisor labels available",
 		Description: "Determine if expected cAdvisor labels are present during last 5 minutes.",
 		DocLink:     fmt.Sprintf("%s#cadvisor-metrics-available", DocumentationBaseURL),
 	},
@@ -122,7 +122,7 @@ var diagnosticDefinitions map[string]*diagnosticDefinition = map[string]*diagnos
 	CAdvisorWorkingSetBytesMetricID: {
 		ID:          CAdvisorWorkingSetBytesMetricID,
 		QueryFmt:    `absent_over_time(container_memory_working_set_bytes{container="cost-model", container!="POD", instance!=""}[5m] %s)`,
-		Label:       "cAdvsior working set bytes metrics available",
+		Label:       "cAdvisor working set bytes metrics available",
 		Description: "Determine if cAdvisor working set bytes metrics are available during last 5 minutes.",
 	},
 	KSMCPUCapacityMetricID: {
