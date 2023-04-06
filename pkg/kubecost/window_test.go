@@ -242,7 +242,8 @@ func TestParseWindowUTC(t *testing.T) {
 
 	// this test fails periodically if execution is so fast that time.Now() during the condition
 	// check is the same as the end of the current month time computed by ParseWindowUTC
-	if !month.End().Before(time.Now().UTC().Add(time.Nanosecond * 1)) {
+	// so we add one nanosecond to sure time.Now() is later than when invoked earlier
+	if !month.End().Before(time.Now().UTC().Add(time.Nanosecond)) {
 		t.Fatalf(`expect: window "month" to end before now; actual: %s ends after %s`, month, time.Now().UTC())
 	}
 
