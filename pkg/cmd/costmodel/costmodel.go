@@ -58,7 +58,7 @@ func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) {
 
 	fm, err := filemanager.NewFileManager(exportPath)
 	if err != nil {
-		log.Errorf("could not start CSV exporter", err)
+		log.Errorf("could not start CSV exporter: %v", err)
 		return
 	}
 	go func() {
