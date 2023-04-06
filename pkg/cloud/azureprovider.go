@@ -1115,16 +1115,20 @@ func (d *pricesheetDownloader) readPricesheet(ctx context.Context, data io.Reade
 	if !ok {
 		buf = bufio.NewReader(data)
 	}
-	reader := csv.NewReader(buf)
-	reader.ReuseRecord = true
 
-	// Skip the two header rows.
+	// The CSV file starts with two lines before the header without
+	// commas (so different numbers of fields as far as the CSV parser
+	// is concerned). Skip them before making the CSV reader so we
+	// still get the benefit of the row length checks after the
+	// header.
 	for i := 0; i < 2; i++ {
-		_, err := reader.Read()
+		_, err := buf.ReadBytes('\n')
 		if err != nil {
-			return nil, fmt.Errorf("skipping row %d: %w", i, err)
+			return nil, fmt.Errorf("skipping preamble line %d: %w", i, err)
 		}
 	}
+	reader := csv.NewReader(buf)
+	reader.ReuseRecord = true
 
 	header, err := reader.Read()
 	if err != nil {
