@@ -334,7 +334,7 @@ func toRegionID(meterRegion string, regions map[string]string) (string, error) {
 			return regionID, nil
 		}
 	}
-	return "", fmt.Errorf("Couldn't find region")
+	return "", fmt.Errorf("Couldn't find region %q", meterRegion)
 }
 
 // azure has very inconsistent naming standards between display names from the rate card api and display names from the regions api
@@ -926,7 +926,8 @@ func convertMeterToPricings(info commerce.MeterInfo, regions map[string]string, 
 
 	region, err := toRegionID(meterRegion, regions)
 	if err != nil {
-		return nil, err
+		// Skip this meter if we don't recognize the region.
+		return nil, nil
 	}
 
 	if strings.Contains(meterSubCategory, "Windows") {
