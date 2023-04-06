@@ -239,7 +239,10 @@ func TestParseWindowUTC(t *testing.T) {
 	if month.Duration().Hours() > hoursThisMonth || month.Duration().Hours() < (hoursThisMonth-24.0) {
 		t.Fatalf(`expect: window "month" to have approximately %f hours; actual: %f hours`, hoursThisMonth, month.Duration().Hours())
 	}
-	if !month.End().Before(time.Now().UTC()) {
+
+	// this test fails periodically if execution is so fast that time.Now() during the condition
+	// check is the same as the end of the current month time computed by ParseWindowUTC
+	if !month.End().Before(time.Now().UTC().Add(time.Nanosecond * 1)) {
 		t.Fatalf(`expect: window "month" to end before now; actual: %s ends after %s`, month, time.Now().UTC())
 	}
 
