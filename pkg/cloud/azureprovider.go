@@ -1038,10 +1038,12 @@ type pricesheetDownloader struct {
 }
 
 func (d *pricesheetDownloader) run(ctx context.Context) (map[string]*AzurePricing, error) {
+	log.Infof("requesting pricesheet download link")
 	url, err := d.getPricesheetDownloadURL(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getting download URL: %w", err)
 	}
+	log.Infof("downloading pricesheet from %q", url)
 	data, err := d.saveData(ctx, url, "pricesheet")
 	if err != nil {
 		return nil, fmt.Errorf("saving pricesheet from %q: %w", url, err)
@@ -1052,6 +1054,7 @@ func (d *pricesheetDownloader) run(ctx context.Context) (map[string]*AzurePricin
 	if err != nil {
 		return nil, fmt.Errorf("reading pricesheet: %w", err)
 	}
+	log.Infof("loaded %d pricings from pricesheet", len(prices))
 	return prices, nil
 }
 
