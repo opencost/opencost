@@ -58,6 +58,7 @@ const (
 	AWSHourlyPublicIPCost    = 0.005
 	EKSCapacityTypeLabel     = "eks.amazonaws.com/capacityType"
 	EKSCapacitySpotTypeValue = "SPOT"
+	EKSNodepoolLabel         = "eks.amazonaws.com/nodegroup"
 )
 
 var (
@@ -2313,4 +2314,16 @@ func (aws *AWS) Regions() []string {
 func (aws *AWS) PricingSourceSummary() interface{} {
 	// encode the pricing source summary as a JSON string
 	return aws.Pricing
+}
+
+func (aws *AWS) GetNodePoolName(labels map[string]string) string {
+	sanitizedLabel := regexp.MustCompile(`[^a-zA-Z0-9 ]+`).ReplaceAllString(EKSNodepoolLabel, "_")
+
+	if poolName, found := labels[fmt.Sprintf("label_%s", sanitizedLabel)]; found {
+		return poolName
+	} else {
+		log.Warnf("unable to derive node pool name from node labels")
+		return ""
+	}
+
 }

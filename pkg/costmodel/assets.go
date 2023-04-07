@@ -132,6 +132,7 @@ func (cm *CostModel) ComputeAssets(start, end time.Time) (*kubecost.AssetSet, er
 			node.Preemptible = 1.0
 		}
 		node.SetLabels(kubecost.AssetLabels(n.Labels))
+		node.Pool = cm.Provider.GetNodePoolName(n.Labels)
 		assetSet.Insert(node, nil)
 	}
 

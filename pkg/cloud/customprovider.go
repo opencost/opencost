@@ -43,6 +43,11 @@ func (cp *CustomProvider) PricingSourceSummary() interface{} {
 	return cp.Pricing
 }
 
+func (cp *CustomProvider) GetNodePoolName(labels map[string]string) string {
+	log.Warnf("node pool name not supported for this provider")
+	return ""
+}
+
 type customProviderKey struct {
 	SpotLabel      string
 	SpotLabelValue string

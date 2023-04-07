@@ -4,8 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 	"io"
 	"net/http"
 	"regexp"
@@ -13,6 +11,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/opencost/opencost/pkg/kubecost"
 
@@ -348,6 +349,7 @@ type Provider interface {
 	CombinedDiscountForNode(string, bool, float64, float64) float64
 	Regions() []string
 	PricingSourceSummary() interface{}
+	GetNodePoolName(map[string]string) string
 }
 
 // ClusterName returns the name defined in cluster info, defaulting to the

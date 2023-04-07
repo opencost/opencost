@@ -428,3 +428,8 @@ func (c *CSVProvider) Regions() []string {
 func (c *CSVProvider) PricingSourceSummary() interface{} {
 	return c.Pricing
 }
+
+func (c *CSVProvider) GetNodePoolName(labels map[string]string) string {
+	log.Warnf("unable to derive node pool name from node labels")
+	return ""
+}

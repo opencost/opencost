@@ -1353,3 +1353,8 @@ func determinePVRegion(pv *v1.PersistentVolume) string {
 func (a *Alibaba) PricingSourceSummary() interface{} {
 	return a.Pricing
 }
+
+func (a *Alibaba) GetNodePoolName(labels map[string]string) string {
+	log.Warnf("node pool name not supported for this provider")
+	return ""
+}

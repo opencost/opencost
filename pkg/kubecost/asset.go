@@ -1772,6 +1772,7 @@ type Node struct {
 	RAMCost      float64
 	Discount     float64
 	Preemptible  float64
+	Pool         string
 }
 
 // NewNode creates and returns a new Node Asset
