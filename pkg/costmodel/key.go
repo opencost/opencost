@@ -246,7 +246,7 @@ func resultReplicaSetKey(res *prom.QueryResult, clusterLabel, namespaceLabel, co
 // resultReplicaSetRolloutKey creates a controllerKey for a Job.
 // (See resultControllerKey for more.)
 func resultReplicaSetRolloutKey(res *prom.QueryResult, clusterLabel, namespaceLabel, controllerLabel string) (controllerKey, error) {
-	return resultControllerKey("Rollout", res, clusterLabel, namespaceLabel, controllerLabel)
+	return resultControllerKey("rollout", res, clusterLabel, namespaceLabel, controllerLabel)
 }
 
 type serviceKey struct {
