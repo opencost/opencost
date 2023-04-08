@@ -22,7 +22,7 @@ The OpenCost project has enabled [Private vulnerability reporting](https://docs.
 
 ### Kubecost Bug Bounty
 
-Kubecost offers a Bug Bounty program that pays $250 USD for unique accepted security bug reports submitted to vulnerability-report@kubecost.com.
+Kubecost offers a Bug Bounty program that pays $250 USD for unique, not previously disclosed publicly available CVEs, and accepted security bug reports submitted to vulnerability-report@kubecost.com.
 
 ## Disclosure policy
 
