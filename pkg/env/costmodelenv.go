@@ -500,7 +500,7 @@ func GetPromClusterLabel() string {
 
 // GetPromFilterLabel returns the environment variable value for PromFilterLabel
 func GetPromFilterLabel() string {
-	return Get(PromFilterLabelEnvVar, "")
+	return Get(PromFilterLabelEnvVar, "job=~\".*\"")
 }
 
 // IsIngestingPodUID returns the env variable from ingestPodUID, which alters the
