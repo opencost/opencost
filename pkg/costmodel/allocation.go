@@ -13,74 +13,78 @@ import (
 )
 
 const (
-	queryFmtPods                     = `avg(kube_pod_container_status_running{%s}) by (pod, namespace, %s)[%s:%s]`
-	queryFmtPodsUID                  = `avg(kube_pod_container_status_running{%s}) by (pod, namespace, uid, %s)[%s:%s]`
-	queryFmtRAMBytesAllocated        = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s, provider_id)`
-	queryFmtRAMRequests              = `avg(avg_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
-	queryFmtRAMUsageAvg              = `avg(avg_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD", %s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
-	queryFmtRAMUsageMax              = `max(max_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD", %s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
-	queryFmtCPUCoresAllocated        = `avg(avg_over_time(container_cpu_allocation{container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
-	queryFmtCPURequests              = `avg(avg_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
-	queryFmtCPUUsageAvg              = `avg(rate(container_cpu_usage_seconds_total{container!="", container_name!="POD", container!="POD", %s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
-	queryFmtGPUsRequested            = `avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
-	queryFmtGPUsAllocated            = `avg(avg_over_time(container_gpu_allocation{container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
-	queryFmtNodeCostPerCPUHr         = `avg(avg_over_time(node_cpu_hourly_cost{%s}[%s])) by (node, %s, instance_type, provider_id)`
-	queryFmtNodeCostPerRAMGiBHr      = `avg(avg_over_time(node_ram_hourly_cost{%s}[%s])) by (node, %s, instance_type, provider_id)`
-	queryFmtNodeCostPerGPUHr         = `avg(avg_over_time(node_gpu_hourly_cost{%s}[%s])) by (node, %s, instance_type, provider_id)`
-	queryFmtNodeIsSpot               = `avg_over_time(kubecost_node_is_spot{%s}[%s])`
-	queryFmtPVCInfo                  = `avg(kube_persistentvolumeclaim_info{volumename != "", %s}) by (persistentvolumeclaim, storageclass, volumename, namespace, %s)[%s:%s]`
-	queryFmtPodPVCAllocation         = `avg(avg_over_time(pod_pvc_allocation{%s}[%s])) by (persistentvolume, persistentvolumeclaim, pod, namespace, %s)`
-	queryFmtPVCBytesRequested        = `avg(avg_over_time(kube_persistentvolumeclaim_resource_requests_storage_bytes{%s}[%s])) by (persistentvolumeclaim, namespace, %s)`
-	queryFmtPVActiveMins             = `count(kube_persistentvolume_capacity_bytes{%s}) by (persistentvolume, %s)[%s:%s]`
-	queryFmtPVBytes                  = `avg(avg_over_time(kube_persistentvolume_capacity_bytes{%s}[%s])) by (persistentvolume, %s)`
-	queryFmtPVCostPerGiBHour         = `avg(avg_over_time(pv_hourly_cost{%s}[%s])) by (volumename, %s)`
-	queryFmtNetZoneGiB               = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
-	queryFmtNetZoneCostPerGiB        = `avg(avg_over_time(kubecost_network_zone_egress_cost{%s}[%s])) by (%s)`
-	queryFmtNetRegionGiB             = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
-	queryFmtNetRegionCostPerGiB      = `avg(avg_over_time(kubecost_network_region_egress_cost{%s}[%s])) by (%s)`
-	queryFmtNetInternetGiB           = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
-	queryFmtNetInternetCostPerGiB    = `avg(avg_over_time(kubecost_network_internet_egress_cost{%s}[%s])) by (%s)`
-	queryFmtNetReceiveBytes          = `sum(increase(container_network_receive_bytes_total{pod!="", %s}[%s])) by (pod_name, pod, namespace, %s)`
-	queryFmtNetTransferBytes         = `sum(increase(container_network_transmit_bytes_total{pod!="", %s}[%s])) by (pod_name, pod, namespace, %s)`
-	queryFmtNodeLabels               = `avg_over_time(kube_node_labels{%s}[%s])`
-	queryFmtNamespaceLabels          = `avg_over_time(kube_namespace_labels{%s}[%s])`
-	queryFmtNamespaceAnnotations     = `avg_over_time(kube_namespace_annotations{%s}[%s])`
-	queryFmtPodLabels                = `avg_over_time(kube_pod_labels{%s}[%s])`
-	queryFmtPodAnnotations           = `avg_over_time(kube_pod_annotations{%s}[%s])`
-	queryFmtServiceLabels            = `avg_over_time(service_selector_labels{%s}[%s])`
-	queryFmtDeploymentLabels         = `avg_over_time(deployment_match_labels{%s}[%s])`
-	queryFmtStatefulSetLabels        = `avg_over_time(statefulSet_match_labels{%s}[%s])`
-	queryFmtDaemonSetLabels          = `sum(avg_over_time(kube_pod_owner{owner_kind="DaemonSet", %s}[%s])) by (pod, owner_name, namespace, %s)`
-	queryFmtJobLabels                = `sum(avg_over_time(kube_pod_owner{owner_kind="Job", %s}[%s])) by (pod, owner_name, namespace ,%s)`
-	queryFmtPodsWithReplicaSetOwner  = `sum(avg_over_time(kube_pod_owner{owner_kind="ReplicaSet", %s}[%s])) by (pod, owner_name, namespace ,%s)`
-	queryFmtReplicaSetsWithoutOwners = `avg(avg_over_time(kube_replicaset_owner{owner_kind="<none>", owner_name="<none>", %s}[%s])) by (replicaset, namespace, %s)`
-	queryFmtLBCostPerHr              = `avg(avg_over_time(kubecost_load_balancer_cost{%s}[%s])) by (namespace, service_name, %s)`
-	queryFmtLBActiveMins             = `count(kubecost_load_balancer_cost{%s}) by (namespace, service_name, %s)[%s:%s]`
+	queryFmtPods                        = `avg(kube_pod_container_status_running{%s}) by (pod, namespace, %s)[%s:%s]`
+	queryFmtPodsUID                     = `avg(kube_pod_container_status_running{%s}) by (pod, namespace, uid, %s)[%s:%s]`
+	queryFmtRAMBytesAllocated           = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s, provider_id)`
+	queryFmtRAMRequests                 = `avg(avg_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
+	queryFmtRAMUsageAvg                 = `avg(avg_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD", %s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+	queryFmtRAMUsageMax                 = `max(max_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD", %s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+	queryFmtCPUCoresAllocated           = `avg(avg_over_time(container_cpu_allocation{container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
+	queryFmtCPURequests                 = `avg(avg_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
+	queryFmtCPUUsageAvg                 = `avg(rate(container_cpu_usage_seconds_total{container!="", container_name!="POD", container!="POD", %s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+	queryFmtGPUsRequested               = `avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
+	queryFmtGPUsAllocated               = `avg(avg_over_time(container_gpu_allocation{container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
+	queryFmtNodeCostPerCPUHr            = `avg(avg_over_time(node_cpu_hourly_cost{%s}[%s])) by (node, %s, instance_type, provider_id)`
+	queryFmtNodeCostPerRAMGiBHr         = `avg(avg_over_time(node_ram_hourly_cost{%s}[%s])) by (node, %s, instance_type, provider_id)`
+	queryFmtNodeCostPerGPUHr            = `avg(avg_over_time(node_gpu_hourly_cost{%s}[%s])) by (node, %s, instance_type, provider_id)`
+	queryFmtNodeIsSpot                  = `avg_over_time(kubecost_node_is_spot{%s}[%s])`
+	queryFmtPVCInfo                     = `avg(kube_persistentvolumeclaim_info{volumename != "", %s}) by (persistentvolumeclaim, storageclass, volumename, namespace, %s)[%s:%s]`
+	queryFmtPodPVCAllocation            = `avg(avg_over_time(pod_pvc_allocation{%s}[%s])) by (persistentvolume, persistentvolumeclaim, pod, namespace, %s)`
+	queryFmtPVCBytesRequested           = `avg(avg_over_time(kube_persistentvolumeclaim_resource_requests_storage_bytes{%s}[%s])) by (persistentvolumeclaim, namespace, %s)`
+	queryFmtPVActiveMins                = `count(kube_persistentvolume_capacity_bytes{%s}) by (persistentvolume, %s)[%s:%s]`
+	queryFmtPVBytes                     = `avg(avg_over_time(kube_persistentvolume_capacity_bytes{%s}[%s])) by (persistentvolume, %s)`
+	queryFmtPVCostPerGiBHour            = `avg(avg_over_time(pv_hourly_cost{%s}[%s])) by (volumename, %s)`
+	queryFmtNetZoneGiB                  = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
+	queryFmtNetZoneCostPerGiB           = `avg(avg_over_time(kubecost_network_zone_egress_cost{%s}[%s])) by (%s)`
+	queryFmtNetRegionGiB                = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
+	queryFmtNetRegionCostPerGiB         = `avg(avg_over_time(kubecost_network_region_egress_cost{%s}[%s])) by (%s)`
+	queryFmtNetInternetGiB              = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
+	queryFmtNetInternetCostPerGiB       = `avg(avg_over_time(kubecost_network_internet_egress_cost{%s}[%s])) by (%s)`
+	queryFmtNetReceiveBytes             = `sum(increase(container_network_receive_bytes_total{pod!="", container="POD", %s}[%s])) by (pod_name, pod, namespace, %s)`
+	queryFmtNetTransferBytes            = `sum(increase(container_network_transmit_bytes_total{pod!="", container="POD", %s}[%s])) by (pod_name, pod, namespace, %s)`
+	queryFmtNodeLabels                  = `avg_over_time(kube_node_labels{%s}[%s])`
+	queryFmtNamespaceLabels             = `avg_over_time(kube_namespace_labels{%s}[%s])`
+	queryFmtNamespaceAnnotations        = `avg_over_time(kube_namespace_annotations{%s}[%s])`
+	queryFmtPodLabels                   = `avg_over_time(kube_pod_labels{%s}[%s])`
+	queryFmtPodAnnotations              = `avg_over_time(kube_pod_annotations{%s}[%s])`
+	queryFmtServiceLabels               = `avg_over_time(service_selector_labels{%s}[%s])`
+	queryFmtDeploymentLabels            = `avg_over_time(deployment_match_labels{%s}[%s])`
+	queryFmtStatefulSetLabels           = `avg_over_time(statefulSet_match_labels{%s}[%s])`
+	queryFmtDaemonSetLabels             = `sum(avg_over_time(kube_pod_owner{owner_kind="DaemonSet", %s}[%s])) by (pod, owner_name, namespace, %s)`
+	queryFmtJobLabels                   = `sum(avg_over_time(kube_pod_owner{owner_kind="Job", %s}[%s])) by (pod, owner_name, namespace ,%s)`
+	queryFmtPodsWithReplicaSetOwner     = `sum(avg_over_time(kube_pod_owner{owner_kind="ReplicaSet", %s}[%s])) by (pod, owner_name, namespace ,%s)`
+	queryFmtReplicaSetsWithoutOwners    = `avg(avg_over_time(kube_replicaset_owner{owner_kind="<none>", owner_name="<none>", %s}[%s])) by (replicaset, namespace, %s)`
+	queryFmtReplicaSetsWithRolloutOwner = `avg(avg_over_time(kube_replicaset_owner{owner_kind="Rollout", %s}[%s])) by (replicaset, namespace, owner_kind, owner_name, %s)`
+	queryFmtLBCostPerHr                 = `avg(avg_over_time(kubecost_load_balancer_cost{%s}[%s])) by (namespace, service_name, %s)`
+	queryFmtLBActiveMins                = `count(kubecost_load_balancer_cost{%s}) by (namespace, service_name, %s)[%s:%s]`
+	queryFmtOldestSample                = `min_over_time(timestamp(group(node_cpu_hourly_cost{%s}))[%s:%s])`
+	queryFmtNewestSample                = `max_over_time(timestamp(group(node_cpu_hourly_cost{%s}))[%s:%s])`
+
 	// Because we use container_cpu_usage_seconds_total to calculate CPU usage
-        // at any given "instant" of time, we need to use an irate or rate. To then
-        // calculate a max (or any aggregation) we have to perform an aggregation
-        // query on top of an instant-by-instant maximum. Prometheus supports this
-        // type of query with a "subquery" [1], however it is reportedly expensive
-        // to make such a query. By default, Kubecost's Prometheus config includes
-        // a recording rule that keeps track of the instant-by-instant irate for CPU
-        // usage. The metric in this query is created by that recording rule.
-        //
-        // [1] https://prometheus.io/blog/2019/01/28/subquery-support/
-        //
-        // If changing the name of the recording rule, make sure to update the
-        // corresponding diagnostic query to avoid confusion.
-        queryFmtCPUUsageMaxRecordingRule = `max(max_over_time(kubecost_container_cpu_usage_irate{%s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
-        // This is the subquery equivalent of the above recording rule query. It is
-        // more expensive, but does not require the recording rule. It should be
-        // used as a fallback query if the recording rule data does not exist.
-        //
-        // The parameter after the colon [:<thisone>] in the subquery affects the
-        // resolution of the subquery.
-        // The parameter after the metric ...{}[<thisone>] should be set to 2x
-        // the resolution, to make sure the irate always has two points to query
-        // in case the Prom scrape duration has been reduced to be equal to the
-        // ETL resolution.
-        queryFmtCPUUsageMaxSubquery = `max(max_over_time(irate(container_cpu_usage_seconds_total{container_name!="POD", container_name!="", %s}[%s])[%s:%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+	// at any given "instant" of time, we need to use an irate or rate. To then
+	// calculate a max (or any aggregation) we have to perform an aggregation
+	// query on top of an instant-by-instant maximum. Prometheus supports this
+	// type of query with a "subquery" [1], however it is reportedly expensive
+	// to make such a query. By default, Kubecost's Prometheus config includes
+	// a recording rule that keeps track of the instant-by-instant irate for CPU
+	// usage. The metric in this query is created by that recording rule.
+	//
+	// [1] https://prometheus.io/blog/2019/01/28/subquery-support/
+	//
+	// If changing the name of the recording rule, make sure to update the
+	// corresponding diagnostic query to avoid confusion.
+	queryFmtCPUUsageMaxRecordingRule = `max(max_over_time(kubecost_container_cpu_usage_irate{%s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+	// This is the subquery equivalent of the above recording rule query. It is
+	// more expensive, but does not require the recording rule. It should be
+	// used as a fallback query if the recording rule data does not exist.
+	//
+	// The parameter after the colon [:<thisone>] in the subquery affects the
+	// resolution of the subquery.
+	// The parameter after the metric ...{}[<thisone>] should be set to 2x
+	// the resolution, to make sure the irate always has two points to query
+	// in case the Prom scrape duration has been reduced to be equal to the
+	// ETL resolution.
+	queryFmtCPUUsageMaxSubquery = `max(max_over_time(irate(container_cpu_usage_seconds_total{container_name!="POD", container_name!="", %s}[%s])[%s:%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
 )
 
 // Constants for Network Cost Subtype
