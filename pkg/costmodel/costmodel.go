@@ -252,12 +252,12 @@ const (
 )
 
 func (cm *CostModel) ComputeCostData(cli prometheusClient.Client, cp costAnalyzerCloud.Provider, window string, offset string, filterNamespace string) (map[string]*CostData, error) {
-	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, window, offset, window, offset, env.GetPromClusterLabel())
-	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, window, offset, env.GetPromClusterLabel())
-	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, window, "", env.GetPromClusterLabel())
-	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, window, "", env.GetPromClusterLabel())
-	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, window, "", env.GetPromClusterLabel())
-	queryNormalization := fmt.Sprintf(normalizationStr, window, offset)
+	queryRAMUsage := fmt.Sprintf(queryRAMUsageStr, env.GetPromFilterLabel(), window, offset, env.GetPromFilterLabel(), window, offset, env.GetPromClusterLabel())
+	queryCPUUsage := fmt.Sprintf(queryCPUUsageStr, env.GetPromFilterLabel(), window, offset, env.GetPromClusterLabel())
+	queryNetZoneRequests := fmt.Sprintf(queryZoneNetworkUsage, env.GetPromFilterLabel(), window, "", env.GetPromClusterLabel())
+	queryNetRegionRequests := fmt.Sprintf(queryRegionNetworkUsage, env.GetPromFilterLabel(), window, "", env.GetPromClusterLabel())
+	queryNetInternetRequests := fmt.Sprintf(queryInternetNetworkUsage, env.GetPromFilterLabel(), window, "", env.GetPromClusterLabel())
+	queryNormalization := fmt.Sprintf(normalizationStr, env.GetPromFilterLabel(), window, offset)
 
 	// Cluster ID is specific to the source cluster
 	clusterID := env.GetClusterID()

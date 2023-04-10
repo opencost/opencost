@@ -1273,7 +1273,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 		// If clusterTotal query failed, it's likely because there are no PVs, which
 		// causes the qTotal query to return no data. Instead, query only node costs.
 		// If that fails, return an error because something is actually wrong.
-		qNodes := fmt.Sprintf(queryNodes, env.GetPromClusterLabel(), localStorageQuery)
+		qNodes := fmt.Sprintf(queryNodes, env.GetPromFilterLabel(), env.GetPromClusterLabel(), localStorageQuery)
 
 		resultNodes, warnings, err := ctx.QueryRangeSync(qNodes, start, end, window)
 		for _, warning := range warnings {
