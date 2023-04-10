@@ -13,50 +13,50 @@ import (
 )
 
 const (
-	queryFmtPods                     = `avg(kube_pod_container_status_running{}) by (pod, namespace, %s)[%s:%s]`
-	queryFmtPodsUID                  = `avg(kube_pod_container_status_running{}) by (pod, namespace, uid, %s)[%s:%s]`
-	queryFmtRAMBytesAllocated        = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!=""}[%s])) by (container, pod, namespace, node, %s, provider_id)`
-	queryFmtRAMRequests              = `avg(avg_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="", container!="POD", node!=""}[%s])) by (container, pod, namespace, node, %s)`
-	queryFmtRAMUsageAvg              = `avg(avg_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD"}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
-	queryFmtRAMUsageMax              = `max(max_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD"}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
-	queryFmtCPUCoresAllocated        = `avg(avg_over_time(container_cpu_allocation{container!="", container!="POD", node!=""}[%s])) by (container, pod, namespace, node, %s)`
-	queryFmtCPURequests              = `avg(avg_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="", container!="POD", node!=""}[%s])) by (container, pod, namespace, node, %s)`
-	queryFmtCPUUsageAvg              = `avg(rate(container_cpu_usage_seconds_total{container!="", container_name!="POD", container!="POD"}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
-	queryFmtCPUUsageMax              = `max(rate(container_cpu_usage_seconds_total{container!="", container_name!="POD", container!="POD"}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
-	queryFmtGPUsRequested            = `avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!=""}[%s])) by (container, pod, namespace, node, %s)`
-	queryFmtGPUsAllocated            = `avg(avg_over_time(container_gpu_allocation{container!="", container!="POD", node!=""}[%s])) by (container, pod, namespace, node, %s)`
-	queryFmtNodeCostPerCPUHr         = `avg(avg_over_time(node_cpu_hourly_cost[%s])) by (node, %s, instance_type, provider_id)`
-	queryFmtNodeCostPerRAMGiBHr      = `avg(avg_over_time(node_ram_hourly_cost[%s])) by (node, %s, instance_type, provider_id)`
-	queryFmtNodeCostPerGPUHr         = `avg(avg_over_time(node_gpu_hourly_cost[%s])) by (node, %s, instance_type, provider_id)`
-	queryFmtNodeIsSpot               = `avg_over_time(kubecost_node_is_spot[%s])`
-	queryFmtPVCInfo                  = `avg(kube_persistentvolumeclaim_info{volumename != ""}) by (persistentvolumeclaim, storageclass, volumename, namespace, %s)[%s:%s]`
-	queryFmtPodPVCAllocation         = `avg(avg_over_time(pod_pvc_allocation[%s])) by (persistentvolume, persistentvolumeclaim, pod, namespace, %s)`
-	queryFmtPVCBytesRequested        = `avg(avg_over_time(kube_persistentvolumeclaim_resource_requests_storage_bytes{}[%s])) by (persistentvolumeclaim, namespace, %s)`
-	queryFmtPVActiveMins             = `count(kube_persistentvolume_capacity_bytes) by (persistentvolume, %s)[%s:%s]`
-	queryFmtPVBytes                  = `avg(avg_over_time(kube_persistentvolume_capacity_bytes[%s])) by (persistentvolume, %s)`
-	queryFmtPVCostPerGiBHour         = `avg(avg_over_time(pv_hourly_cost[%s])) by (volumename, %s)`
-	queryFmtNetZoneGiB               = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true"}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
-	queryFmtNetZoneCostPerGiB        = `avg(avg_over_time(kubecost_network_zone_egress_cost{}[%s])) by (%s)`
-	queryFmtNetRegionGiB             = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false"}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
-	queryFmtNetRegionCostPerGiB      = `avg(avg_over_time(kubecost_network_region_egress_cost{}[%s])) by (%s)`
-	queryFmtNetInternetGiB           = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
-	queryFmtNetInternetCostPerGiB    = `avg(avg_over_time(kubecost_network_internet_egress_cost{}[%s])) by (%s)`
-	queryFmtNetReceiveBytes          = `sum(increase(container_network_receive_bytes_total{pod!=""}[%s])) by (pod_name, pod, namespace, %s)`
-	queryFmtNetTransferBytes         = `sum(increase(container_network_transmit_bytes_total{pod!=""}[%s])) by (pod_name, pod, namespace, %s)`
-	queryFmtNodeLabels               = `avg_over_time(kube_node_labels[%s])`
-	queryFmtNamespaceLabels          = `avg_over_time(kube_namespace_labels[%s])`
-	queryFmtNamespaceAnnotations     = `avg_over_time(kube_namespace_annotations[%s])`
-	queryFmtPodLabels                = `avg_over_time(kube_pod_labels[%s])`
-	queryFmtPodAnnotations           = `avg_over_time(kube_pod_annotations[%s])`
-	queryFmtServiceLabels            = `avg_over_time(service_selector_labels[%s])`
-	queryFmtDeploymentLabels         = `avg_over_time(deployment_match_labels[%s])`
-	queryFmtStatefulSetLabels        = `avg_over_time(statefulSet_match_labels[%s])`
-	queryFmtDaemonSetLabels          = `sum(avg_over_time(kube_pod_owner{owner_kind="DaemonSet"}[%s])) by (pod, owner_name, namespace, %s)`
-	queryFmtJobLabels                = `sum(avg_over_time(kube_pod_owner{owner_kind="Job"}[%s])) by (pod, owner_name, namespace ,%s)`
-	queryFmtPodsWithReplicaSetOwner  = `sum(avg_over_time(kube_pod_owner{owner_kind="ReplicaSet"}[%s])) by (pod, owner_name, namespace ,%s)`
-	queryFmtReplicaSetsWithoutOwners = `avg(avg_over_time(kube_replicaset_owner{owner_kind="<none>", owner_name="<none>"}[%s])) by (replicaset, namespace, %s)`
-	queryFmtLBCostPerHr              = `avg(avg_over_time(kubecost_load_balancer_cost[%s])) by (namespace, service_name, %s)`
-	queryFmtLBActiveMins             = `count(kubecost_load_balancer_cost) by (namespace, service_name, %s)[%s:%s]`
+	queryFmtPods                     = `avg(kube_pod_container_status_running{%s}) by (pod, namespace, %s)[%s:%s]`
+	queryFmtPodsUID                  = `avg(kube_pod_container_status_running{%s}) by (pod, namespace, uid, %s)[%s:%s]`
+	queryFmtRAMBytesAllocated        = `avg(avg_over_time(container_memory_allocation_bytes{container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s, provider_id)`
+	queryFmtRAMRequests              = `avg(avg_over_time(kube_pod_container_resource_requests{resource="memory", unit="byte", container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
+	queryFmtRAMUsageAvg              = `avg(avg_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD", %s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+	queryFmtRAMUsageMax              = `max(max_over_time(container_memory_working_set_bytes{container!="", container_name!="POD", container!="POD", %s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+	queryFmtCPUCoresAllocated        = `avg(avg_over_time(container_cpu_allocation{container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
+	queryFmtCPURequests              = `avg(avg_over_time(kube_pod_container_resource_requests{resource="cpu", unit="core", container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
+	queryFmtCPUUsageAvg              = `avg(rate(container_cpu_usage_seconds_total{container!="", container_name!="POD", container!="POD", %s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+	queryFmtCPUUsageMax              = `max(rate(container_cpu_usage_seconds_total{container!="", container_name!="POD", container!="POD", %s}[%s])) by (container_name, container, pod_name, pod, namespace, instance, %s)`
+	queryFmtGPUsRequested            = `avg(avg_over_time(kube_pod_container_resource_requests{resource="nvidia_com_gpu", container!="",container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
+	queryFmtGPUsAllocated            = `avg(avg_over_time(container_gpu_allocation{container!="", container!="POD", node!="", %s}[%s])) by (container, pod, namespace, node, %s)`
+	queryFmtNodeCostPerCPUHr         = `avg(avg_over_time(node_cpu_hourly_cost{%s}[%s])) by (node, %s, instance_type, provider_id)`
+	queryFmtNodeCostPerRAMGiBHr      = `avg(avg_over_time(node_ram_hourly_cost{%s}[%s])) by (node, %s, instance_type, provider_id)`
+	queryFmtNodeCostPerGPUHr         = `avg(avg_over_time(node_gpu_hourly_cost{%s}[%s])) by (node, %s, instance_type, provider_id)`
+	queryFmtNodeIsSpot               = `avg_over_time(kubecost_node_is_spot{%s}[%s])`
+	queryFmtPVCInfo                  = `avg(kube_persistentvolumeclaim_info{volumename != "", %s}) by (persistentvolumeclaim, storageclass, volumename, namespace, %s)[%s:%s]`
+	queryFmtPodPVCAllocation         = `avg(avg_over_time(pod_pvc_allocation{%s}[%s])) by (persistentvolume, persistentvolumeclaim, pod, namespace, %s)`
+	queryFmtPVCBytesRequested        = `avg(avg_over_time(kube_persistentvolumeclaim_resource_requests_storage_bytes{%s}[%s])) by (persistentvolumeclaim, namespace, %s)`
+	queryFmtPVActiveMins             = `count(kube_persistentvolume_capacity_bytes{%s}) by (persistentvolume, %s)[%s:%s]`
+	queryFmtPVBytes                  = `avg(avg_over_time(kube_persistentvolume_capacity_bytes{%s}[%s])) by (persistentvolume, %s)`
+	queryFmtPVCostPerGiBHour         = `avg(avg_over_time(pv_hourly_cost{%s}[%s])) by (volumename, %s)`
+	queryFmtNetZoneGiB               = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="true", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
+	queryFmtNetZoneCostPerGiB        = `avg(avg_over_time(kubecost_network_zone_egress_cost{%s}[%s])) by (%s)`
+	queryFmtNetRegionGiB             = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="false", sameZone="false", sameRegion="false", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
+	queryFmtNetRegionCostPerGiB      = `avg(avg_over_time(kubecost_network_region_egress_cost{%s}[%s])) by (%s)`
+	queryFmtNetInternetGiB           = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true", %s}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
+	queryFmtNetInternetCostPerGiB    = `avg(avg_over_time(kubecost_network_internet_egress_cost{%s}[%s])) by (%s)`
+	queryFmtNetReceiveBytes          = `sum(increase(container_network_receive_bytes_total{pod!="", %s}[%s])) by (pod_name, pod, namespace, %s)`
+	queryFmtNetTransferBytes         = `sum(increase(container_network_transmit_bytes_total{pod!="", %s}[%s])) by (pod_name, pod, namespace, %s)`
+	queryFmtNodeLabels               = `avg_over_time(kube_node_labels{%s}[%s])`
+	queryFmtNamespaceLabels          = `avg_over_time(kube_namespace_labels{%s}[%s])`
+	queryFmtNamespaceAnnotations     = `avg_over_time(kube_namespace_annotations{%s}[%s])`
+	queryFmtPodLabels                = `avg_over_time(kube_pod_labels{%s}[%s])`
+	queryFmtPodAnnotations           = `avg_over_time(kube_pod_annotations{%s}[%s])`
+	queryFmtServiceLabels            = `avg_over_time(service_selector_labels{%s}[%s])`
+	queryFmtDeploymentLabels         = `avg_over_time(deployment_match_labels{%s}[%s])`
+	queryFmtStatefulSetLabels        = `avg_over_time(statefulSet_match_labels{%s}[%s])`
+	queryFmtDaemonSetLabels          = `sum(avg_over_time(kube_pod_owner{owner_kind="DaemonSet", %s}[%s])) by (pod, owner_name, namespace, %s)`
+	queryFmtJobLabels                = `sum(avg_over_time(kube_pod_owner{owner_kind="Job", %s}[%s])) by (pod, owner_name, namespace ,%s)`
+	queryFmtPodsWithReplicaSetOwner  = `sum(avg_over_time(kube_pod_owner{owner_kind="ReplicaSet", %s}[%s])) by (pod, owner_name, namespace ,%s)`
+	queryFmtReplicaSetsWithoutOwners = `avg(avg_over_time(kube_replicaset_owner{owner_kind="<none>", owner_name="<none>", %s}[%s])) by (replicaset, namespace, %s)`
+	queryFmtLBCostPerHr              = `avg(avg_over_time(kubecost_load_balancer_cost{%s}[%s])) by (namespace, service_name, %s)`
+	queryFmtLBActiveMins             = `count(kubecost_load_balancer_cost{%s}) by (namespace, service_name, %s)[%s:%s]`
 )
 
 // Constants for Network Cost Subtype
@@ -317,133 +317,133 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 
 	ctx := prom.NewNamedContext(cm.PrometheusClient, prom.AllocationContextName)
 
-	queryRAMBytesAllocated := fmt.Sprintf(queryFmtRAMBytesAllocated, durStr, env.GetPromClusterLabel())
+	queryRAMBytesAllocated := fmt.Sprintf(queryFmtRAMBytesAllocated, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChRAMBytesAllocated := ctx.QueryAtTime(queryRAMBytesAllocated, end)
 
-	queryRAMRequests := fmt.Sprintf(queryFmtRAMRequests, durStr, env.GetPromClusterLabel())
+	queryRAMRequests := fmt.Sprintf(queryFmtRAMRequests, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChRAMRequests := ctx.QueryAtTime(queryRAMRequests, end)
 
-	queryRAMUsageAvg := fmt.Sprintf(queryFmtRAMUsageAvg, durStr, env.GetPromClusterLabel())
+	queryRAMUsageAvg := fmt.Sprintf(queryFmtRAMUsageAvg, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChRAMUsageAvg := ctx.QueryAtTime(queryRAMUsageAvg, end)
 
-	queryRAMUsageMax := fmt.Sprintf(queryFmtRAMUsageMax, durStr, env.GetPromClusterLabel())
+	queryRAMUsageMax := fmt.Sprintf(queryFmtRAMUsageMax, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChRAMUsageMax := ctx.QueryAtTime(queryRAMUsageMax, end)
 
-	queryCPUCoresAllocated := fmt.Sprintf(queryFmtCPUCoresAllocated, durStr, env.GetPromClusterLabel())
+	queryCPUCoresAllocated := fmt.Sprintf(queryFmtCPUCoresAllocated, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChCPUCoresAllocated := ctx.QueryAtTime(queryCPUCoresAllocated, end)
 
-	queryCPURequests := fmt.Sprintf(queryFmtCPURequests, durStr, env.GetPromClusterLabel())
+	queryCPURequests := fmt.Sprintf(queryFmtCPURequests, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChCPURequests := ctx.QueryAtTime(queryCPURequests, end)
 
-	queryCPUUsageAvg := fmt.Sprintf(queryFmtCPUUsageAvg, durStr, env.GetPromClusterLabel())
+	queryCPUUsageAvg := fmt.Sprintf(queryFmtCPUUsageAvg, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChCPUUsageAvg := ctx.QueryAtTime(queryCPUUsageAvg, end)
 
-	queryCPUUsageMax := fmt.Sprintf(queryFmtCPUUsageMax, durStr, env.GetPromClusterLabel())
+	queryCPUUsageMax := fmt.Sprintf(queryFmtCPUUsageMax, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChCPUUsageMax := ctx.QueryAtTime(queryCPUUsageMax, end)
 
-	queryGPUsRequested := fmt.Sprintf(queryFmtGPUsRequested, durStr, env.GetPromClusterLabel())
+	queryGPUsRequested := fmt.Sprintf(queryFmtGPUsRequested, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChGPUsRequested := ctx.QueryAtTime(queryGPUsRequested, end)
 
-	queryGPUsAllocated := fmt.Sprintf(queryFmtGPUsAllocated, durStr, env.GetPromClusterLabel())
+	queryGPUsAllocated := fmt.Sprintf(queryFmtGPUsAllocated, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChGPUsAllocated := ctx.QueryAtTime(queryGPUsAllocated, end)
 
-	queryNodeCostPerCPUHr := fmt.Sprintf(queryFmtNodeCostPerCPUHr, durStr, env.GetPromClusterLabel())
+	queryNodeCostPerCPUHr := fmt.Sprintf(queryFmtNodeCostPerCPUHr, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChNodeCostPerCPUHr := ctx.QueryAtTime(queryNodeCostPerCPUHr, end)
 
-	queryNodeCostPerRAMGiBHr := fmt.Sprintf(queryFmtNodeCostPerRAMGiBHr, durStr, env.GetPromClusterLabel())
+	queryNodeCostPerRAMGiBHr := fmt.Sprintf(queryFmtNodeCostPerRAMGiBHr, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChNodeCostPerRAMGiBHr := ctx.QueryAtTime(queryNodeCostPerRAMGiBHr, end)
 
-	queryNodeCostPerGPUHr := fmt.Sprintf(queryFmtNodeCostPerGPUHr, durStr, env.GetPromClusterLabel())
+	queryNodeCostPerGPUHr := fmt.Sprintf(queryFmtNodeCostPerGPUHr, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChNodeCostPerGPUHr := ctx.QueryAtTime(queryNodeCostPerGPUHr, end)
 
-	queryNodeIsSpot := fmt.Sprintf(queryFmtNodeIsSpot, durStr)
+	queryNodeIsSpot := fmt.Sprintf(queryFmtNodeIsSpot, env.GetPromFilterLabel(), durStr)
 	resChNodeIsSpot := ctx.QueryAtTime(queryNodeIsSpot, end)
 
-	queryPVCInfo := fmt.Sprintf(queryFmtPVCInfo, env.GetPromClusterLabel(), durStr, resStr)
+	queryPVCInfo := fmt.Sprintf(queryFmtPVCInfo, env.GetPromFilterLabel(), env.GetPromClusterLabel(), durStr, resStr)
 	resChPVCInfo := ctx.QueryAtTime(queryPVCInfo, end)
 
-	queryPodPVCAllocation := fmt.Sprintf(queryFmtPodPVCAllocation, durStr, env.GetPromClusterLabel())
+	queryPodPVCAllocation := fmt.Sprintf(queryFmtPodPVCAllocation, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChPodPVCAllocation := ctx.QueryAtTime(queryPodPVCAllocation, end)
 
-	queryPVCBytesRequested := fmt.Sprintf(queryFmtPVCBytesRequested, durStr, env.GetPromClusterLabel())
+	queryPVCBytesRequested := fmt.Sprintf(queryFmtPVCBytesRequested, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChPVCBytesRequested := ctx.QueryAtTime(queryPVCBytesRequested, end)
 
-	queryPVActiveMins := fmt.Sprintf(queryFmtPVActiveMins, env.GetPromClusterLabel(), durStr, resStr)
+	queryPVActiveMins := fmt.Sprintf(queryFmtPVActiveMins, env.GetPromFilterLabel(), env.GetPromClusterLabel(), durStr, resStr)
 	resChPVActiveMins := ctx.QueryAtTime(queryPVActiveMins, end)
 
-	queryPVBytes := fmt.Sprintf(queryFmtPVBytes, durStr, env.GetPromClusterLabel())
+	queryPVBytes := fmt.Sprintf(queryFmtPVBytes, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChPVBytes := ctx.QueryAtTime(queryPVBytes, end)
 
-	queryPVCostPerGiBHour := fmt.Sprintf(queryFmtPVCostPerGiBHour, durStr, env.GetPromClusterLabel())
+	queryPVCostPerGiBHour := fmt.Sprintf(queryFmtPVCostPerGiBHour, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChPVCostPerGiBHour := ctx.QueryAtTime(queryPVCostPerGiBHour, end)
 
-	queryNetTransferBytes := fmt.Sprintf(queryFmtNetTransferBytes, durStr, env.GetPromClusterLabel())
+	queryNetTransferBytes := fmt.Sprintf(queryFmtNetTransferBytes, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChNetTransferBytes := ctx.QueryAtTime(queryNetTransferBytes, end)
 
-	queryNetReceiveBytes := fmt.Sprintf(queryFmtNetReceiveBytes, durStr, env.GetPromClusterLabel())
+	queryNetReceiveBytes := fmt.Sprintf(queryFmtNetReceiveBytes, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChNetReceiveBytes := ctx.QueryAtTime(queryNetReceiveBytes, end)
 
-	queryNetZoneGiB := fmt.Sprintf(queryFmtNetZoneGiB, durStr, env.GetPromClusterLabel())
+	queryNetZoneGiB := fmt.Sprintf(queryFmtNetZoneGiB, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChNetZoneGiB := ctx.QueryAtTime(queryNetZoneGiB, end)
 
-	queryNetZoneCostPerGiB := fmt.Sprintf(queryFmtNetZoneCostPerGiB, durStr, env.GetPromClusterLabel())
+	queryNetZoneCostPerGiB := fmt.Sprintf(queryFmtNetZoneCostPerGiB, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChNetZoneCostPerGiB := ctx.QueryAtTime(queryNetZoneCostPerGiB, end)
 
-	queryNetRegionGiB := fmt.Sprintf(queryFmtNetRegionGiB, durStr, env.GetPromClusterLabel())
+	queryNetRegionGiB := fmt.Sprintf(queryFmtNetRegionGiB, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChNetRegionGiB := ctx.QueryAtTime(queryNetRegionGiB, end)
 
-	queryNetRegionCostPerGiB := fmt.Sprintf(queryFmtNetRegionCostPerGiB, durStr, env.GetPromClusterLabel())
+	queryNetRegionCostPerGiB := fmt.Sprintf(queryFmtNetRegionCostPerGiB, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChNetRegionCostPerGiB := ctx.QueryAtTime(queryNetRegionCostPerGiB, end)
 
-	queryNetInternetGiB := fmt.Sprintf(queryFmtNetInternetGiB, durStr, env.GetPromClusterLabel())
+	queryNetInternetGiB := fmt.Sprintf(queryFmtNetInternetGiB, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChNetInternetGiB := ctx.QueryAtTime(queryNetInternetGiB, end)
 
-	queryNetInternetCostPerGiB := fmt.Sprintf(queryFmtNetInternetCostPerGiB, durStr, env.GetPromClusterLabel())
+	queryNetInternetCostPerGiB := fmt.Sprintf(queryFmtNetInternetCostPerGiB, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChNetInternetCostPerGiB := ctx.QueryAtTime(queryNetInternetCostPerGiB, end)
 
 	var resChNodeLabels prom.QueryResultsChan
 	if env.GetAllocationNodeLabelsEnabled() {
-		queryNodeLabels := fmt.Sprintf(queryFmtNodeLabels, durStr)
+		queryNodeLabels := fmt.Sprintf(queryFmtNodeLabels, env.GetPromFilterLabel(), durStr)
 		resChNodeLabels = ctx.QueryAtTime(queryNodeLabels, end)
 	}
 
-	queryNamespaceLabels := fmt.Sprintf(queryFmtNamespaceLabels, durStr)
+	queryNamespaceLabels := fmt.Sprintf(queryFmtNamespaceLabels, env.GetPromFilterLabel(), durStr)
 	resChNamespaceLabels := ctx.QueryAtTime(queryNamespaceLabels, end)
 
-	queryNamespaceAnnotations := fmt.Sprintf(queryFmtNamespaceAnnotations, durStr)
+	queryNamespaceAnnotations := fmt.Sprintf(queryFmtNamespaceAnnotations, env.GetPromFilterLabel(), durStr)
 	resChNamespaceAnnotations := ctx.QueryAtTime(queryNamespaceAnnotations, end)
 
-	queryPodLabels := fmt.Sprintf(queryFmtPodLabels, durStr)
+	queryPodLabels := fmt.Sprintf(queryFmtPodLabels, env.GetPromFilterLabel(), durStr)
 	resChPodLabels := ctx.QueryAtTime(queryPodLabels, end)
 
-	queryPodAnnotations := fmt.Sprintf(queryFmtPodAnnotations, durStr)
+	queryPodAnnotations := fmt.Sprintf(queryFmtPodAnnotations, env.GetPromFilterLabel(), durStr)
 	resChPodAnnotations := ctx.QueryAtTime(queryPodAnnotations, end)
 
-	queryServiceLabels := fmt.Sprintf(queryFmtServiceLabels, durStr)
+	queryServiceLabels := fmt.Sprintf(queryFmtServiceLabels, env.GetPromFilterLabel(), durStr)
 	resChServiceLabels := ctx.QueryAtTime(queryServiceLabels, end)
 
-	queryDeploymentLabels := fmt.Sprintf(queryFmtDeploymentLabels, durStr)
+	queryDeploymentLabels := fmt.Sprintf(queryFmtDeploymentLabels, env.GetPromFilterLabel(), durStr)
 	resChDeploymentLabels := ctx.QueryAtTime(queryDeploymentLabels, end)
 
-	queryStatefulSetLabels := fmt.Sprintf(queryFmtStatefulSetLabels, durStr)
+	queryStatefulSetLabels := fmt.Sprintf(queryFmtStatefulSetLabels, env.GetPromFilterLabel(), durStr)
 	resChStatefulSetLabels := ctx.QueryAtTime(queryStatefulSetLabels, end)
 
-	queryDaemonSetLabels := fmt.Sprintf(queryFmtDaemonSetLabels, durStr, env.GetPromClusterLabel())
+	queryDaemonSetLabels := fmt.Sprintf(queryFmtDaemonSetLabels, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChDaemonSetLabels := ctx.QueryAtTime(queryDaemonSetLabels, end)
 
-	queryPodsWithReplicaSetOwner := fmt.Sprintf(queryFmtPodsWithReplicaSetOwner, durStr, env.GetPromClusterLabel())
+	queryPodsWithReplicaSetOwner := fmt.Sprintf(queryFmtPodsWithReplicaSetOwner, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChPodsWithReplicaSetOwner := ctx.QueryAtTime(queryPodsWithReplicaSetOwner, end)
 
-	queryReplicaSetsWithoutOwners := fmt.Sprintf(queryFmtReplicaSetsWithoutOwners, durStr, env.GetPromClusterLabel())
+	queryReplicaSetsWithoutOwners := fmt.Sprintf(queryFmtReplicaSetsWithoutOwners, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChReplicaSetsWithoutOwners := ctx.QueryAtTime(queryReplicaSetsWithoutOwners, end)
 
-	queryJobLabels := fmt.Sprintf(queryFmtJobLabels, durStr, env.GetPromClusterLabel())
+	queryJobLabels := fmt.Sprintf(queryFmtJobLabels, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChJobLabels := ctx.QueryAtTime(queryJobLabels, end)
 
-	queryLBCostPerHr := fmt.Sprintf(queryFmtLBCostPerHr, durStr, env.GetPromClusterLabel())
+	queryLBCostPerHr := fmt.Sprintf(queryFmtLBCostPerHr, env.GetPromFilterLabel(), durStr, env.GetPromClusterLabel())
 	resChLBCostPerHr := ctx.QueryAtTime(queryLBCostPerHr, end)
 
-	queryLBActiveMins := fmt.Sprintf(queryFmtLBActiveMins, env.GetPromClusterLabel(), durStr, resStr)
+	queryLBActiveMins := fmt.Sprintf(queryFmtLBActiveMins, env.GetPromFilterLabel(), env.GetPromClusterLabel(), durStr, resStr)
 	resChLBActiveMins := ctx.QueryAtTime(queryLBActiveMins, end)
 
 	resCPUCoresAllocated, _ := resChCPUCoresAllocated.Await()
