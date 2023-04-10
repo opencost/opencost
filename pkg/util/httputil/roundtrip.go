@@ -1,17 +1,20 @@
 package httputil
 
-import "net/http"
+import (
+	"net/http"
+)
 
 type userAgentTransport struct {
+	http.RoundTripper
+
 	userAgent string
-	base      http.RoundTripper
 }
 
 // NewUserAgentTransport creates a RoundTripper that attaches the configured user agent.
 func NewUserAgentTransport(userAgent string, base http.RoundTripper) http.RoundTripper {
 	return &userAgentTransport{
-		userAgent: userAgent,
-		base:      base,
+		RoundTripper: base,
+		userAgent:    userAgent,
 	}
 }
 
@@ -27,5 +30,5 @@ func (t userAgentTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	r2.Header.Set("User-Agent", t.userAgent)
 	r = r2
-	return t.base.RoundTrip(r)
+	return t.RoundTripper.RoundTrip(r)
 }
