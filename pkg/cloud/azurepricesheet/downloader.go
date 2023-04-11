@@ -29,7 +29,7 @@ type Downloader[T any] struct {
 	ConvertMeterInfo func(info commerce.MeterInfo) (map[string]*T, error)
 }
 
-func (d *Downloader[T]) Run(ctx context.Context) (map[string]*T, error) {
+func (d *Downloader[T]) GetPricing(ctx context.Context) (map[string]*T, error) {
 	log.Infof("requesting pricesheet download link")
 	url, err := d.getPricesheetDownloadURL(ctx)
 	if err != nil {

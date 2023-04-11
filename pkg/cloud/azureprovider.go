@@ -889,7 +889,7 @@ func (az *Azure) DownloadPricingData() error {
 		// want to hang onto the lock while we're waiting for it.
 		go func() {
 			ctx := context.Background()
-			allPrices, err := downloader.Run(ctx)
+			allPrices, err := downloader.GetPricing(ctx)
 
 			az.DownloadPricingDataLock.Lock()
 			defer az.DownloadPricingDataLock.Unlock()
