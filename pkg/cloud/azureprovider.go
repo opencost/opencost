@@ -397,8 +397,9 @@ type Azure struct {
 	Clientset                      clustercache.ClusterCache
 	Config                         *ProviderConfig
 	serviceAccountChecks           *ServiceAccountChecks
-	RateCardPricingError           error
-	PricesheetDataError            error
+	pricingSource                  string
+	rateCardPricingError           error
+	priceSheetPricingError         error
 	clusterAccountID               string
 	clusterRegion                  string
 	loadedAzureSecret              bool
@@ -782,7 +783,7 @@ func (az *Azure) DownloadPricingData() error {
 
 	config, err := az.GetConfig()
 	if err != nil {
-		az.RateCardPricingError = err
+		az.rateCardPricingError = err
 		return err
 	}
 
@@ -810,7 +811,7 @@ func (az *Azure) DownloadPricingData() error {
 		credentialsConfig := NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID, azureEnv)
 		a, err := credentialsConfig.Authorizer()
 		if err != nil {
-			az.RateCardPricingError = err
+			az.rateCardPricingError = err
 			return err
 		}
 		authorizer = a
@@ -822,7 +823,7 @@ func (az *Azure) DownloadPricingData() error {
 		if err != nil {
 			a, err := auth.NewAuthorizerFromFile(azureEnv.ResourceManagerEndpoint)
 			if err != nil {
-				az.RateCardPricingError = err
+				az.rateCardPricingError = err
 				return err
 			}
 			authorizer = a
@@ -844,14 +845,14 @@ func (az *Azure) DownloadPricingData() error {
 	result, err := rcClient.Get(context.TODO(), rateCardFilter)
 	if err != nil {
 		log.Warnf("Error in pricing download query from API")
-		az.RateCardPricingError = err
+		az.rateCardPricingError = err
 		return err
 	}
 
 	regions, err := getRegions("compute", sClient, providersClient, config.AzureSubscriptionID)
 	if err != nil {
 		log.Warnf("Error in pricing download regions from API")
-		az.RateCardPricingError = err
+		az.rateCardPricingError = err
 		return err
 	}
 
@@ -871,7 +872,8 @@ func (az *Azure) DownloadPricingData() error {
 	addAzureFilePricing(allPrices, regions)
 
 	az.Pricing = allPrices
-	az.RateCardPricingError = nil
+	az.pricingSource = rateCardPricingSource
+	az.rateCardPricingError = nil
 
 	// If we've got a billing account set, kick off downloading the custom pricing data.
 	if config.AzureBillingAccount != "" {
@@ -895,12 +897,13 @@ func (az *Azure) DownloadPricingData() error {
 			defer az.DownloadPricingDataLock.Unlock()
 			if err != nil {
 				log.Errorf("Error downloading Azure price sheet: %s", err)
-				az.PricesheetDataError = err
+				az.priceSheetPricingError = err
 				return
 			}
 			addAzureFilePricing(allPrices, regions)
 			az.Pricing = allPrices
-			az.PricesheetDataError = nil
+			az.pricingSource = priceSheetPricingSource
+			az.priceSheetPricingError = nil
 		}()
 	}
 
@@ -1270,7 +1273,7 @@ func (az *Azure) getDisks() ([]*compute.Disk, error) {
 		credentialsConfig := NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID, azureEnv)
 		a, err := credentialsConfig.Authorizer()
 		if err != nil {
-			az.RateCardPricingError = err
+			az.rateCardPricingError = err
 			return nil, err
 		}
 		authorizer = a
@@ -1282,7 +1285,7 @@ func (az *Azure) getDisks() ([]*compute.Disk, error) {
 		if err != nil {
 			a, err := auth.NewAuthorizerFromFile(azureEnv.ResourceManagerEndpoint)
 			if err != nil {
-				az.RateCardPricingError = err
+				az.rateCardPricingError = err
 				return nil, err
 			}
 			authorizer = a
@@ -1537,18 +1540,23 @@ func (az *Azure) ServiceAccountStatus() *ServiceAccountStatus {
 	return az.serviceAccountChecks.getStatus()
 }
 
-const rateCardPricingSource = "Rate Card API"
+const (
+	rateCardPricingSource   = "Rate Card API"
+	priceSheetPricingSource = "Price Sheet API"
+)
 
 // PricingSourceStatus returns the status of the rate card api
 func (az *Azure) PricingSourceStatus() map[string]*PricingSource {
+	az.DownloadPricingDataLock.Lock()
+	defer az.DownloadPricingDataLock.Unlock()
 	sources := make(map[string]*PricingSource)
 	errMsg := ""
-	if az.RateCardPricingError != nil {
-		errMsg = az.RateCardPricingError.Error()
+	if az.rateCardPricingError != nil {
+		errMsg = az.rateCardPricingError.Error()
 	}
 	rcps := &PricingSource{
 		Name:    rateCardPricingSource,
-		Enabled: true,
+		Enabled: az.pricingSource == rateCardPricingSource,
 		Error:   errMsg,
 	}
 	if rcps.Error != "" {
@@ -1559,7 +1567,29 @@ func (az *Azure) PricingSourceStatus() map[string]*PricingSource {
 	} else {
 		rcps.Available = true
 	}
+
+	errMsg = ""
+	if az.priceSheetPricingError != nil {
+		errMsg = az.priceSheetPricingError.Error()
+	}
+	psps := &PricingSource{
+		Name:    priceSheetPricingSource,
+		Enabled: az.pricingSource == priceSheetPricingSource,
+		Error:   errMsg,
+	}
+	if psps.Error != "" {
+		psps.Available = false
+	} else if len(az.Pricing) == 0 {
+		psps.Error = "No Pricing Data Available"
+		psps.Available = false
+	} else if env.GetAzureBillingAccount() == "" {
+		psps.Error = "No Azure Billing Account ID"
+		psps.Available = false
+	} else {
+		psps.Available = true
+	}
 	sources[rateCardPricingSource] = rcps
+	sources[priceSheetPricingSource] = psps
 	return sources
 }
 
