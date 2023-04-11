@@ -863,21 +863,7 @@ func (az *Azure) DownloadPricingData() error {
 			allPrices[key] = pricing
 		}
 	}
-
-	// There is no easy way of supporting Standard Azure-File, because it's billed per used GB
-	// this will set the price to "0" as a workaround to not spam with `Persistent Volume pricing not found for` error
-	// check https://github.com/opencost/opencost/issues/159 for more information (same problem on AWS)
-	zeroPrice := "0.0"
-	for region := range regions {
-		key := region + "," + AzureFileStandardStorageClass
-		log.Debugf("Adding PV.Key: %s, Cost: %s", key, zeroPrice)
-		allPrices[key] = &AzurePricing{
-			PV: &PV{
-				Cost:   zeroPrice,
-				Region: region,
-			},
-		}
-	}
+	addAzureFilePricing(allPrices, regions)
 
 	az.Pricing = allPrices
 	az.RateCardPricingError = nil
@@ -907,6 +893,7 @@ func (az *Azure) DownloadPricingData() error {
 				az.PricesheetDataError = err
 				return
 			}
+			addAzureFilePricing(allPrices, regions)
 			az.Pricing = allPrices
 			az.PricesheetDataError = nil
 		}()
@@ -1022,6 +1009,23 @@ func convertMeterToPricings(info commerce.MeterInfo, regions map[string]string, 
 	}
 	return results, nil
 
+}
+
+func addAzureFilePricing(prices map[string]*AzurePricing, regions map[string]string) {
+	// There is no easy way of supporting Standard Azure-File, because it's billed per used GB
+	// this will set the price to "0" as a workaround to not spam with `Persistent Volume pricing not found for` error
+	// check https://github.com/opencost/opencost/issues/159 for more information (same problem on AWS)
+	zeroPrice := "0.0"
+	for region := range regions {
+		key := region + "," + AzureFileStandardStorageClass
+		log.Debugf("Adding PV.Key: %s, Cost: %s", key, zeroPrice)
+		prices[key] = &AzurePricing{
+			PV: &PV{
+				Cost:   zeroPrice,
+				Region: region,
+			},
+		}
+	}
 }
 
 // determineCloudByRegion uses region name to pick the correct Cloud Environment for the azure provider to use
