@@ -1016,6 +1016,8 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 		return nil, fmt.Errorf("azure: NodePricing: key is of type %T", key)
 	}
 	config, _ := az.GetConfig()
+
+	// Spot Node
 	if slv, ok := azKey.Labels[config.SpotLabel]; ok && slv == config.SpotLabelValue && config.SpotLabel != "" && config.SpotLabelValue != "" {
 		features := strings.Split(azKey.Features(), ",")
 		region := features[0]
@@ -1064,6 +1066,8 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 	if err != nil {
 		return nil, fmt.Errorf("No default pricing data available")
 	}
+
+	// GPU Node
 	if azKey.isValidGPUNode() {
 		return &Node{
 			VCPUCost:         c.CPU,
@@ -1073,6 +1077,22 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 			GPU:              azKey.GetGPUCount(),
 		}, nil
 	}
+
+	// TODO: The Node Struct needs to return a floating point encoded as a string
+	// TODO: Rerun this with "AZURE_AUTH_LOCATION" so OpenCost can download pricing data.
+	// TODO: More comments on why we can zero out prices for the serverless node
+	// TODO: Cleanup logging within this function
+
+	// Serverless Node
+	if azKey.Labels["kubernetes.io/hostname"] == "virtual-node-aci-linux" {
+		return &Node{
+			VCPUCost:         "0",
+			RAMCost:          "0",
+			UsesBaseCPUPrice: true,
+		}, nil
+	}
+
+	// Regular Node
 	return &Node{
 		VCPUCost:         c.CPU,
 		RAMCost:          c.RAM,
