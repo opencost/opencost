@@ -54,6 +54,10 @@ func Test_UpdateCSV(t *testing.T) {
 								ControllerKind: "test-controller-kind",
 								Pod:            "test-pod",
 								Container:      "test-container",
+								Labels: map[string]string{
+									"test-label1": "test-value1",
+									"test-label2": "test-value2",
+								},
 							},
 						},
 					},
@@ -66,8 +70,8 @@ func Test_UpdateCSV(t *testing.T) {
 		assert.Len(t, model.ComputeAllocationCalls(), 1)
 		assert.Equal(t, time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC), model.ComputeAllocationCalls()[0].Start)
 		assert.Equal(t, time.Date(2021, 1, 2, 0, 0, 0, 0, time.UTC), model.ComputeAllocationCalls()[0].End)
-		assert.Equal(t, `Date,Namespace,ControllerKind,ControllerName,Pod,Container,CPUCoreUsageAverage,CPUCoreRequestAverage,RAMBytesUsageAverage,RAMBytesRequestAverage,NetworkReceiveBytes,NetworkTransferBytes,GPUs,PVBytes,CPUCost,RAMCost,NetworkCost,PVCost,GPUCost,TotalCost
-2021-01-01,test-namespace,test-controller-kind,test-controller-name,test-pod,test-container,0.1,0.2,0.4,0.5,11,10,2,2,0.3,0.6,0.9,2,0.8,4.6000000000000005
+		assert.Equal(t, `Date,Namespace,ControllerKind,ControllerName,Pod,Container,Labels,CPUCoreUsageAverage,CPUCoreRequestAverage,RAMBytesUsageAverage,RAMBytesRequestAverage,NetworkReceiveBytes,NetworkTransferBytes,GPUs,PVBytes,CPUCost,RAMCost,NetworkCost,PVCost,GPUCost,TotalCost
+2021-01-01,test-namespace,test-controller-kind,test-controller-name,test-pod,test-container,"{""test-label1"":""test-value1"",""test-label2"":""test-value2""}",0.1,0.2,0.4,0.5,11,10,2,2,0.3,0.6,0.9,2,0.8,4.6000000000000005
 `, string(storage.Data))
 	})
 
@@ -102,9 +106,9 @@ func Test_UpdateCSV(t *testing.T) {
 		// 2021-01-01 is already in the export file, so we only compute for 2021-01-02
 		assert.Equal(t, time.Date(2021, 1, 2, 0, 0, 0, 0, time.UTC), model.ComputeAllocationCalls()[0].Start)
 		assert.Equal(t, time.Date(2021, 1, 3, 0, 0, 0, 0, time.UTC), model.ComputeAllocationCalls()[0].End)
-		assert.Equal(t, `Date,Namespace,CPUCoreUsageAverage,CPUCoreRequestAverage,CPUCost,RAMBytesUsageAverage,RAMBytesRequestAverage,RAMCost,ControllerKind,ControllerName,Pod,Container,NetworkReceiveBytes,NetworkTransferBytes,GPUs,PVBytes,NetworkCost,PVCost,GPUCost,TotalCost
-2021-01-01,test-namespace,0.1,0.2,0.3,0.4,0.5,0.6,,,,,,,,,,,,
-2021-01-02,test-namespace,0,0,1,0,0,0,,,,,0,0,0,0,0,0,0,1
+		assert.Equal(t, `Date,Namespace,CPUCoreUsageAverage,CPUCoreRequestAverage,CPUCost,RAMBytesUsageAverage,RAMBytesRequestAverage,RAMCost,ControllerKind,ControllerName,Pod,Container,Labels,NetworkReceiveBytes,NetworkTransferBytes,GPUs,PVBytes,NetworkCost,PVCost,GPUCost,TotalCost
+2021-01-01,test-namespace,0.1,0.2,0.3,0.4,0.5,0.6,,,,,,,,,,,,,
+2021-01-02,test-namespace,0,0,1,0,0,0,,,,,,0,0,0,0,0,0,0,1
 `, string(storage.Data))
 	})
 

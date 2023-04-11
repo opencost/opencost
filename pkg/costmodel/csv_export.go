@@ -3,6 +3,7 @@ package costmodel
 import (
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -161,6 +162,7 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 		"ControllerName",
 		"Pod",
 		"Container",
+		"Labels",
 
 		"CPUCoreUsageAverage",
 		"CPUCoreRequestAverage",
@@ -204,6 +206,7 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 				alloc.Properties.Controller,
 				alloc.Properties.Pod,
 				alloc.Properties.Container,
+				fmtLabelsCSV(alloc.Properties.Labels),
 
 				fmtFloat(alloc.CPUCoreUsageAverage),
 				fmtFloat(alloc.CPUCoreRequestAverage),
@@ -238,6 +241,19 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 	}
 	log.Infof("exported %d lines", lines)
 	return nil
+}
+
+func fmtLabelsCSV(labels map[string]string) string {
+	if len(labels) == 0 {
+		return ""
+	}
+
+	data, err := json.Marshal(labels)
+	if err != nil {
+		log.Errorf("failed to marshal labels: %s", err)
+		return ""
+	}
+	return string(data)
 }
 
 // loadDate scans through CSV export file and extract all dates from "Date" column
