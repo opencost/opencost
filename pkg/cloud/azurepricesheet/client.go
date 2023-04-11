@@ -3,9 +3,9 @@ package azurepricesheet
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -35,7 +35,7 @@ type PriceSheetClient struct {
 }
 
 // NewClient creates a new instance of PriceSheetClient with the specified values.
-// subscriptionID - Azure Subscription ID.
+// billingAccountId - Azure Billing Account ID.
 // credential - used to authorize requests. Usually a credential from azidentity.
 // options - pass nil to accept the default values.
 func NewClient(billingAccountID string, credential azcore.TokenCredential, options *arm.ClientOptions) (*PriceSheetClient, error) {
@@ -58,6 +58,11 @@ func NewClient(billingAccountID string, credential azcore.TokenCredential, optio
 	return client, nil
 }
 
+// BeginDownloadByBillingPeriod - requests a pricesheet for a specific billing period `yyyymm`.
+// Returns a Poller that will provide the download URL when the pricesheet is ready.
+// If the operation fails it returns an *azcore.ResponseError type.
+// Generated from API version 2022-06-01
+// billingPeriodName - Billing Period Name `yyyymm`.
 func (client *PriceSheetClient) BeginDownloadByBillingPeriod(ctx context.Context, billingPeriodName string) (*runtime.Poller[PriceSheetClientDownloadResponse], error) {
 	resp, err := client.downloadByBillingPeriodOperation(ctx, billingPeriodName)
 	if err != nil {
@@ -80,13 +85,6 @@ type PriceSheetClientDownloadProperties struct {
 	ValidTill   string `json:"validTill"`
 }
 
-// GetByBillingPeriod - Get the price sheet for a scope by subscriptionId and billing period. Price sheet is available via
-// this API only for May 1, 2014 or later.
-// If the operation fails it returns an *azcore.ResponseError type.
-// Generated from API version 2021-10-01
-// billingPeriodName - Billing Period Name.
-// options - PriceSheetClientGetByBillingPeriodOptions contains the optional parameters for the PriceSheetClient.GetByBillingPeriod
-// method.
 func (client *PriceSheetClient) downloadByBillingPeriodOperation(ctx context.Context, billingPeriodName string) (*http.Response, error) {
 	req, err := client.downloadByBillingPeriodCreateRequest(ctx, billingPeriodName)
 	if err != nil {
@@ -102,17 +100,17 @@ func (client *PriceSheetClient) downloadByBillingPeriodOperation(ctx context.Con
 	return resp, nil
 }
 
-// getByBillingPeriodCreateRequest creates the GetByBillingPeriod request.
+const downloadByBillingPeriodTemplate = "/providers/Microsoft.Billing/billingAccounts/%s/billingPeriods/%s/providers/Microsoft.Consumption/pricesheets/download"
+
+// downloadByBillingPeriodCreateRequest creates the DownloadByBillingPeriod request.
 func (client *PriceSheetClient) downloadByBillingPeriodCreateRequest(ctx context.Context, billingPeriodName string) (*policy.Request, error) {
-	urlPath := "/providers/Microsoft.Billing/billingAccounts/{billingAccountID}/billingPeriods/{billingPeriodName}/providers/Microsoft.Consumption/pricesheets/download"
 	if client.billingAccountID == "" {
 		return nil, errors.New("parameter client.billingAccountID cannot be empty")
 	}
-	urlPath = strings.ReplaceAll(urlPath, "{billingAccountID}", url.PathEscape(client.billingAccountID))
 	if billingPeriodName == "" {
 		return nil, errors.New("parameter billingPeriodName cannot be empty")
 	}
-	urlPath = strings.ReplaceAll(urlPath, "{billingPeriodName}", url.PathEscape(billingPeriodName))
+	urlPath := fmt.Sprintf(downloadByBillingPeriodTemplate, url.PathEscape(client.billingAccountID), url.PathEscape(billingPeriodName))
 	req, err := runtime.NewRequest(ctx, http.MethodGet, runtime.JoinPaths(client.host, urlPath))
 	if err != nil {
 		return nil, err
