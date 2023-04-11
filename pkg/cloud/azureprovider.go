@@ -517,7 +517,6 @@ type AzureAppKey struct {
 // Azure service key for a specific subscription
 type AzureServiceKey struct {
 	SubscriptionID string       `json:"subscriptionId"`
-	BillingAccount string       `json:"billingAccount"`
 	ServiceKey     *AzureAppKey `json:"serviceKey"`
 }
 
@@ -531,12 +530,11 @@ func (ask *AzureServiceKey) IsValid() bool {
 }
 
 // Loads the azure authentication via configuration or a secret set at install time.
-func (az *Azure) getAzureRateCardAuth(forceReload bool, cp *CustomPricing) (subscriptionID, billingAccount, clientID, clientSecret, tenantID string) {
+func (az *Azure) getAzureRateCardAuth(forceReload bool, cp *CustomPricing) (subscriptionID, clientID, clientSecret, tenantID string) {
 	// 1. Check for secret (secret values will always be used if they are present)
 	s, _ := az.loadAzureAuthSecret(forceReload)
 	if s != nil && s.IsValid() {
 		subscriptionID = s.SubscriptionID
-		billingAccount = s.BillingAccount
 		clientID = s.ServiceKey.AppID
 		clientSecret = s.ServiceKey.Password
 		tenantID = s.ServiceKey.Tenant
@@ -545,7 +543,6 @@ func (az *Azure) getAzureRateCardAuth(forceReload bool, cp *CustomPricing) (subs
 	// 2. Check config values (set though endpoint)
 	if cp.AzureSubscriptionID != "" && cp.AzureClientID != "" && cp.AzureClientSecret != "" && cp.AzureTenantID != "" {
 		subscriptionID = cp.AzureSubscriptionID
-		billingAccount = cp.AzureBillingAccount
 		clientID = cp.AzureClientID
 		clientSecret = cp.AzureClientSecret
 		tenantID = cp.AzureTenantID
@@ -558,7 +555,7 @@ func (az *Azure) getAzureRateCardAuth(forceReload bool, cp *CustomPricing) (subs
 		return
 	}
 	// 4. Empty values
-	return "", "", "", "", ""
+	return "", "", "", ""
 
 }
 
@@ -789,10 +786,18 @@ func (az *Azure) DownloadPricingData() error {
 		return err
 	}
 
+	envBillingAccount := env.GetAzureBillingAccount()
+	if envBillingAccount != "" {
+		config.AzureBillingAccount = envBillingAccount
+	}
+	envOfferID := env.GetAzureOfferID()
+	if envOfferID != "" {
+		config.AzureOfferDurableID = envOfferID
+	}
+
 	// Load the service provider keys
-	subscriptionID, billingAccount, clientID, clientSecret, tenantID := az.getAzureRateCardAuth(false, config)
+	subscriptionID, clientID, clientSecret, tenantID := az.getAzureRateCardAuth(false, config)
 	config.AzureSubscriptionID = subscriptionID
-	config.AzureBillingAccount = billingAccount
 	config.AzureClientID = clientID
 	config.AzureClientSecret = clientSecret
 	config.AzureTenantID = tenantID
@@ -1251,7 +1256,7 @@ func (az *Azure) getDisks() ([]*compute.Disk, error) {
 	}
 
 	// Load the service provider keys
-	subscriptionID, _, clientID, clientSecret, tenantID := az.getAzureRateCardAuth(false, config)
+	subscriptionID, clientID, clientSecret, tenantID := az.getAzureRateCardAuth(false, config)
 	config.AzureSubscriptionID = subscriptionID
 	config.AzureClientID = clientID
 	config.AzureClientSecret = clientSecret
@@ -1494,11 +1499,7 @@ func (az *Azure) GetConfig() (*CustomPricing, error) {
 	}
 	// Default to pay-as-you-go Durable offer id
 	if c.AzureOfferDurableID == "" {
-		c.AzureOfferDurableID = "MS-AZR-0017P"
-		// TODO: what should this be? How can I override it for
-		// testing - the default value below doesn't appear in the
-		// downloaded pricesheet.
-		// c.AzureOfferDurableID = "MS-AZR-0003p"
+		c.AzureOfferDurableID = "MS-AZR-0003p"
 	}
 	if c.ShareTenancyCosts == "" {
 		c.ShareTenancyCosts = defaultShareTenancyCost
