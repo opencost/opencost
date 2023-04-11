@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -31,8 +30,6 @@ import (
 const (
 	azureDefaultEndpoint = "blob.core.windows.net"
 )
-
-var errorCodeRegex = regexp.MustCompile(`X-Ms-Error-Code:\D*\[(\w+)\]`)
 
 // Set default retry values to default Azure values. 0 = use Default Azure.
 var defaultAzureConfig = AzureConfig{
@@ -332,12 +329,13 @@ func (b *AzureStorage) Remove(name string) error {
 func (b *AzureStorage) Exists(name string) (bool, error) {
 	name = trimLeading(name)
 	ctx := context.Background()
-
 	blobURL := getBlobURL(name, b.containerURL)
 	if _, err := blobURL.GetProperties(ctx, blob.BlobAccessConditions{}, blob.ClientProvidedKeyOptions{}); err != nil {
-		if b.isObjNotFoundErr(err) {
+		var se blob.StorageError
+		if errors.As(err, &se) && se.ServiceCode() == blob.ServiceCodeBlobNotFound {
 			return false, nil
 		}
+
 		return false, errors.Wrapf(err, "cannot get properties for Azure blob, address: %s", name)
 	}
 
@@ -454,20 +452,6 @@ func (b *AzureStorage) ListDirectories(path string) ([]*StorageInfo, error) {
 	}
 
 	return stats, nil
-}
-
-// IsObjNotFoundErr returns true if error means that object is not found. Relevant to Get operations.
-func (b *AzureStorage) isObjNotFoundErr(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	errorCode := parseError(err.Error())
-	if errorCode == "InvalidUri" || errorCode == "BlobNotFound" {
-		return true
-	}
-
-	return false
 }
 
 func (b *AzureStorage) getBlobReader(ctx context.Context, name string, offset, length int64) (io.ReadCloser, error) {
@@ -680,12 +664,4 @@ func createContainer(ctx context.Context, conf AzureConfig) (blob.ContainerURL, 
 
 func getBlobURL(blobName string, c blob.ContainerURL) blob.BlockBlobURL {
 	return c.NewBlockBlobURL(blobName)
-}
-
-func parseError(errorCode string) string {
-	match := errorCodeRegex.FindStringSubmatch(errorCode)
-	if len(match) == 2 {
-		return match[1]
-	}
-	return errorCode
 }
