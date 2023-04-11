@@ -197,8 +197,6 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 				return err
 			}
 
-			log.Infof("%f", alloc.TotalCost())
-
 			err := csvWriter.Write([]string{
 				date.Format("2006-01-02"),
 				alloc.Properties.Namespace,
