@@ -207,7 +207,7 @@ func getRegions(service string, subscriptionsClient subscriptions.Client, provid
 						if loc, ok := allLocations[displName]; ok {
 							supLocations[loc] = displName
 						} else {
-							log.Warnf("unsupported cloud region %s", loc)
+							log.Warnf("unsupported cloud region %q", loc)
 						}
 					}
 					break
@@ -225,7 +225,7 @@ func getRegions(service string, subscriptionsClient subscriptions.Client, provid
 						if loc, ok := allLocations[displName]; ok {
 							supLocations[loc] = displName
 						} else {
-							log.Warnf("unsupported cloud region %s", loc)
+							log.Warnf("unsupported cloud region %q", loc)
 						}
 					}
 					break
