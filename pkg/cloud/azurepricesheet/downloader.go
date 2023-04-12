@@ -180,7 +180,8 @@ func (d *Downloader[T]) readPricesheet(ctx context.Context, data io.Reader) (map
 		return nil, fmt.Errorf("no matching pricing from pricesheet")
 	}
 
-	// This is temporary, gathering info while adding unit normalisation.
+	// Keep track of units seen so we can detect if there are any that
+	// need handling.
 	allUnits := make([]string, 0, len(units))
 	for unit := range units {
 		allUnits = append(allUnits, unit)
@@ -205,15 +206,14 @@ func makeMeterInfo(row []string) (commerce.MeterInfo, error) {
 	if err != nil {
 		return commerce.MeterInfo{}, fmt.Errorf("parsing unit price: %w", err)
 	}
-	// TODO: normalize units - some meters are for 1 hour or 1
-	// GB/Month, others are for 10 or 100.
+	newPrice, unit := normalisePrice(price, row[pricesheetUnit])
 	return commerce.MeterInfo{
 		MeterName:        ptr(row[pricesheetMeterName]),
 		MeterCategory:    ptr(row[pricesheetMeterCategory]),
 		MeterSubCategory: ptr(row[pricesheetMeterSubCategory]),
-		Unit:             ptr(row[pricesheetUnit]),
+		Unit:             &unit,
 		MeterRegion:      ptr(row[pricesheetMeterRegion]),
-		MeterRates:       map[string]*float64{"0": &price},
+		MeterRates:       map[string]*float64{"0": &newPrice},
 	}, nil
 }
 
@@ -249,4 +249,35 @@ func currentBillingPeriod() string {
 
 func ptr[T any](v T) *T {
 	return &v
+}
+
+// conversions lists all the units seen from the price sheet for
+// prices we're interested in with factors to the corresponding units
+// in the rate card.
+var conversions = map[string]struct {
+	divisor float64
+	unit    string
+}{
+	"1 /Month":       {divisor: 1, unit: "1 /Month"},
+	"1 Hour":         {divisor: 1, unit: "1 Hour"},
+	"1 PiB/Hour":     {divisor: 1_000_000, unit: "1 GiB/Hour"},
+	"10 /Month":      {divisor: 10, unit: "1 /Month"},
+	"10 Hours":       {divisor: 10, unit: "1 Hour"},
+	"100 /Month":     {divisor: 100, unit: "1 /Month"},
+	"100 GB/Month":   {divisor: 100, unit: "1 GB/Month"},
+	"100 Hours":      {divisor: 100, unit: "1 Hour"},
+	"100 TiB/Hour":   {divisor: 100_000, unit: "1 GiB/Hour"},
+	"1000 Hours":     {divisor: 1000, unit: "1 Hour"},
+	"10000 Hours":    {divisor: 10_000, unit: "1 Hour"},
+	"100000 /Hour":   {divisor: 100_000, unit: "1 /Hour"},
+	"1000000 /Hour":  {divisor: 1_000_000, unit: "1 /Hour"},
+	"10000000 /Hour": {divisor: 10_000_000, unit: "1 /Hour"},
+}
+
+func normalisePrice(price float64, unit string) (float64, string) {
+	if conv, ok := conversions[unit]; ok {
+		return price / conv.divisor, conv.unit
+	}
+
+	return price, unit
 }
