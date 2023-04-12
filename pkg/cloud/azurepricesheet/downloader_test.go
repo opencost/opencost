@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDownloader_readPricesheet(t *testing.T) {
+func TestDownloader(t *testing.T) {
 	d := Downloader[fakePricing]{
 		TenantID:         "test-tenant-id",
 		ClientID:         "test-client-id",
@@ -19,61 +19,48 @@ func TestDownloader_readPricesheet(t *testing.T) {
 		OfferID:          "my-offer-id",
 		ConvertMeterInfo: convertMeter,
 	}
-	results, err := d.readPricesheet(context.Background(), strings.NewReader(pricesheetData))
-	require.NoError(t, err)
 
-	// Units and prices are normalised.
-	// Info for saving plans and other offers is skipped.
-	expected := map[string]*fakePricing{
-		"DC96as_v4": {price: "10.505", unit: "1 Hour"},
-		"DC2as_v4":  {price: "0.219", unit: "1 Hour"},
-		"VM1":       {price: "1.0", unit: "1 Hour"},
-		"VM2":       {price: "2.0", unit: "1 Hour"},
-	}
-	require.Equal(t, expected, results)
-}
+	t.Run("read prices", func(t *testing.T) {
+		results, err := d.readPricesheet(context.Background(), strings.NewReader(pricesheetData))
+		require.NoError(t, err)
 
-func TestDownloader_badHeader(t *testing.T) {
-	d := Downloader[fakePricing]{
-		TenantID:         "test-tenant-id",
-		ClientID:         "test-client-id",
-		ClientSecret:     "test-client-secret",
-		BillingAccount:   "test-billing-account",
-		OfferID:          "my-offer-id",
-		ConvertMeterInfo: convertMeter,
-	}
-	data := "\n\nMeter ID,Meter name,Meter category,Something else,,,,,,,,,,,,,,\n"
-	_, err := d.readPricesheet(context.Background(), strings.NewReader(data))
-	require.ErrorContains(t, err, `unexpected header at col 3 "Something else", expected "Meter sub-category"`)
-}
+		// Units and prices are normalised.
+		// Info for saving plans and other offers is skipped.
+		expected := map[string]*fakePricing{
+			"DC96as_v4": {price: "10.505", unit: "1 Hour"},
+			"DC2as_v4":  {price: "0.219", unit: "1 Hour"},
+			"VM1":       {price: "1.0", unit: "1 Hour"},
+			"VM2":       {price: "2.0", unit: "1 Hour"},
+		}
+		require.Equal(t, expected, results)
+	})
 
-func TestDownloader_shortHeader(t *testing.T) {
-	d := Downloader[fakePricing]{
-		TenantID:         "test-tenant-id",
-		ClientID:         "test-client-id",
-		ClientSecret:     "test-client-secret",
-		BillingAccount:   "test-billing-account",
-		OfferID:          "my-offer-id",
-		ConvertMeterInfo: convertMeter,
-	}
-	data := "\n\nMeter ID, Meter name, Meter category, Meter sub-category\n"
-	_, err := d.readPricesheet(context.Background(), strings.NewReader(data))
-	require.ErrorContains(t, err, "too few header columns: got 4, expected 14")
-}
+	t.Run("bad header", func(t *testing.T) {
+		data := "\n\nMeter ID,Meter name,Meter category,Something else,,,,,,,,,,,,,,\n"
+		_, err := d.readPricesheet(context.Background(), strings.NewReader(data))
+		require.ErrorContains(t, err, `unexpected header at col 3 "Something else", expected "Meter sub-category"`)
+	})
 
-func TestDownloader_noMatchingPrices(t *testing.T) {
-	d := Downloader[fakePricing]{
-		TenantID:       "test-tenant-id",
-		ClientID:       "test-client-id",
-		ClientSecret:   "test-client-secret",
-		BillingAccount: "test-billing-account",
-		OfferID:        "my-offer-id",
-		ConvertMeterInfo: func(commerce.MeterInfo) (map[string]*fakePricing, error) {
-			return nil, nil
-		},
-	}
-	_, err := d.readPricesheet(context.Background(), strings.NewReader(pricesheetData))
-	require.ErrorContains(t, err, "no matching pricing from price sheet")
+	t.Run("short header", func(t *testing.T) {
+		data := "\n\nMeter ID, Meter name, Meter category, Meter sub-category\n"
+		_, err := d.readPricesheet(context.Background(), strings.NewReader(data))
+		require.ErrorContains(t, err, "too few header columns: got 4, expected 14")
+	})
+
+	t.Run("no matching prices", func(t *testing.T) {
+		d := Downloader[fakePricing]{
+			TenantID:       "test-tenant-id",
+			ClientID:       "test-client-id",
+			ClientSecret:   "test-client-secret",
+			BillingAccount: "test-billing-account",
+			OfferID:        "my-offer-id",
+			ConvertMeterInfo: func(commerce.MeterInfo) (map[string]*fakePricing, error) {
+				return nil, nil
+			},
+		}
+		_, err := d.readPricesheet(context.Background(), strings.NewReader(pricesheetData))
+		require.ErrorContains(t, err, "no matching pricing from price sheet")
+	})
 }
 
 func convertMeter(info commerce.MeterInfo) (map[string]*fakePricing, error) {
