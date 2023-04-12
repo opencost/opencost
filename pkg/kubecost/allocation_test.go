@@ -7,9 +7,62 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/json"
 )
+
+func TestAccumulateBug(t *testing.T) {
+	ago9d := time.Now().UTC().Truncate(day).Add(-9 * day)
+	ago8d := time.Now().UTC().Truncate(day).Add(-8 * day)
+	ago7d := time.Now().UTC().Truncate(day).Add(-7 * day)
+	ago6d := time.Now().UTC().Truncate(day).Add(-6 * day)
+	ago5d := time.Now().UTC().Truncate(day).Add(-5 * day)
+	ago4d := time.Now().UTC().Truncate(day).Add(-4 * day)
+	ago3d := time.Now().UTC().Truncate(day).Add(-3 * day)
+	ago2d := time.Now().UTC().Truncate(day).Add(-2 * day)
+	yesterday := time.Now().UTC().Truncate(day).Add(-day)
+	today := time.Now().UTC().Truncate(day)
+	tomorrow := time.Now().UTC().Truncate(day).Add(day)
+
+	ago9dAS := NewAllocationSet(ago9d, ago8d)
+	ago9dAS.Set(NewMockUnitAllocation("4", ago9d, day, nil))
+	ago8dAS := NewAllocationSet(ago8d, ago7d)
+	ago8dAS.Set(NewMockUnitAllocation("4", ago8d, day, nil))
+	ago7dAS := NewAllocationSet(ago7d, ago6d)
+	ago7dAS.Set(NewMockUnitAllocation("4", ago7d, day, nil))
+	ago6dAS := NewAllocationSet(ago6d, ago5d)
+	ago6dAS.Set(NewMockUnitAllocation("4", ago6d, day, nil))
+	ago5dAS := NewAllocationSet(ago5d, ago4d)
+	ago5dAS.Set(NewMockUnitAllocation("4", ago5d, day, nil))
+	ago4dAS := NewAllocationSet(ago4d, ago3d)
+	ago4dAS.Set(NewMockUnitAllocation("4", ago4d, day, nil))
+	ago3dAS := NewAllocationSet(ago3d, ago2d)
+	ago3dAS.Set(NewMockUnitAllocation("a", ago3d, day, nil))
+	ago2dAS := NewAllocationSet(ago2d, yesterday)
+	ago2dAS.Set(NewMockUnitAllocation("", ago2d, day, nil))
+	yesterdayAS := NewAllocationSet(yesterday, today)
+	yesterdayAS.Set(NewMockUnitAllocation("", yesterday, day, nil))
+	todayAS := NewAllocationSet(today, tomorrow)
+	todayAS.Set(NewMockUnitAllocation("", today, day, nil))
+
+	baseSetRange := NewAllocationSetRange(ago9dAS, ago8dAS, ago7dAS, ago6dAS, ago5dAS, ago4dAS, ago3dAS, ago2dAS, yesterdayAS, todayAS)
+	bsr := baseSetRange.Clone()
+
+	t.Logf("Bsr vs baseSet: %t\n", cmp.Equal(bsr, baseSetRange))
+
+	_, err := baseSetRange.Accumulate(AccumulateOptionAll)
+	if err != nil {
+		t.Fatalf("Accumulate failed: %s", err)
+	}
+
+	_, err = baseSetRange.Accumulate(AccumulateOptionAll)
+	if err != nil {
+		t.Fatalf("Accumulate failed: %s", err)
+	}
+
+	t.Logf("Bsr vs baseSet: %t\n", cmp.Equal(bsr, baseSetRange))
+}
 
 func TestAllocation_Add(t *testing.T) {
 	var nilAlloc *Allocation
@@ -1072,7 +1125,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			windowEnd:   endYesterday,
 			expMinutes:  1440.0,
 			expectedParcResults: map[string]ProportionalAssetResourceCosts{
-				"namespace1": ProportionalAssetResourceCosts{
+				"namespace1": {
 					"cluster1": ProportionalAssetResourceCost{
 						Cluster:       "cluster1",
 						Node:          "",
@@ -1082,7 +1135,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						RAMPercentage: 0.8125,
 					},
 				},
-				"namespace2": ProportionalAssetResourceCosts{
+				"namespace2": {
 					"cluster1": ProportionalAssetResourceCost{
 						Cluster:       "cluster1",
 						Node:          "",
