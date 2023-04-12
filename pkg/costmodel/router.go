@@ -1405,12 +1405,12 @@ func (a *Accesses) Status(w http.ResponseWriter, r *http.Request, _ httprouter.P
 	promServer := env.GetPrometheusServerEndpoint()
 
 	api := prometheusAPI.NewAPI(a.PrometheusClient)
-	result, err := api.Buildinfo(r.Context())
+	result, err := api.Config(r.Context())
 	if err != nil {
 		fmt.Fprintf(w, "Using Prometheus at "+promServer+". Error: "+err.Error())
 	} else {
 
-		fmt.Fprintf(w, "Using Prometheus at "+promServer+". PrometheusConfig: "+result.Version)
+		fmt.Fprintf(w, "Using Prometheus at "+promServer+". PrometheusConfig: "+result.YAML)
 	}
 }
 
@@ -1552,11 +1552,11 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	}
 
 	api := prometheusAPI.NewAPI(promCli)
-	_, err = api.Buildinfo(context.Background())
+	_, err = api.Config(context.Background())
 	if err != nil {
-		log.Infof("Failed to get prometheus build info at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
+		log.Infof("No valid prometheus config file at %s. Error: %s . Troubleshooting help available at: %s. Ignore if using cortex/thanos here.", address, err.Error(), prom.PrometheusTroubleshootingURL)
 	} else {
-		log.Infof("Retrieved a prometheus build info from: %s", address)
+		log.Infof("Retrieved a prometheus config file from: %s", address)
 	}
 
 	// Lookup scrape interval for kubecost job, update if found
