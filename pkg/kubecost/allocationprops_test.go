@@ -76,7 +76,7 @@ func TestAllocationPropsIntersection(t *testing.T) {
 		"intersection, with labels/annotations, special case container": {
 			allocationProps1: &AllocationProperties{
 				AggregatedMetadata: false,
-				Container:          UnallocatedSuffix,
+				Container:          UnmountedSuffix,
 				Namespace:          "ns1",
 				Labels:             map[string]string{},
 				Annotations:        map[string]string{},
