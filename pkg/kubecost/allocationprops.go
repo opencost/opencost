@@ -92,18 +92,20 @@ func ParseProperty(text string) (string, error) {
 
 // AllocationProperties describes a set of Kubernetes objects.
 type AllocationProperties struct {
-	Cluster            string                `json:"cluster,omitempty"`
-	Node               string                `json:"node,omitempty"`
-	Container          string                `json:"container,omitempty"`
-	Controller         string                `json:"controller,omitempty"`
-	ControllerKind     string                `json:"controllerKind,omitempty"`
-	Namespace          string                `json:"namespace,omitempty"`
-	Pod                string                `json:"pod,omitempty"`
-	Services           []string              `json:"services,omitempty"`
-	ProviderID         string                `json:"providerID,omitempty"`
-	Labels             AllocationLabels      `json:"labels,omitempty"`
-	Annotations        AllocationAnnotations `json:"annotations,omitempty"`
-	AggregatedMetadata bool                  `json:"-"`
+	Cluster        string                `json:"cluster,omitempty"`
+	Node           string                `json:"node,omitempty"`
+	Container      string                `json:"container,omitempty"`
+	Controller     string                `json:"controller,omitempty"`
+	ControllerKind string                `json:"controllerKind,omitempty"`
+	Namespace      string                `json:"namespace,omitempty"`
+	Pod            string                `json:"pod,omitempty"`
+	Services       []string              `json:"services,omitempty"`
+	ProviderID     string                `json:"providerID,omitempty"`
+	Labels         AllocationLabels      `json:"labels,omitempty"`
+	Annotations    AllocationAnnotations `json:"annotations,omitempty"`
+	// When set to true, maintain the intersection of all labels + annotations
+	// in the aggregated AllocationProperties object
+	AggregatedMetadata bool `json:"-"`
 }
 
 // AllocationLabels is a schema-free mapping of key/value pairs that can be
@@ -445,6 +447,15 @@ func (p *AllocationProperties) Intersection(that *AllocationProperties) *Allocat
 		// ignore the incoming labels from unallocated or unmounted special case pods
 		if p.AggregatedMetadata || that.AggregatedMetadata {
 			intersectionProps.AggregatedMetadata = true
+
+			// When aggregating by metadata, we maintain the intersection of the labels/annotations
+			// of the two AllocationProperties objects being intersected here.
+			// Special case unallocated/unmounted Allocations never have any labels or annotations.
+			// As a result, they have the effect of always clearing out the intersection,
+			// regardless if all the other actual allocations/etc have them.
+			// This logic is designed to effectively ignore the unmounted/unallocated objects
+			// and just copy over the labels from the other object - we only take the intersection
+			// of 'legitimate' allocations.
 			if p.Container == UnmountedSuffix || p.Container == UnallocatedSuffix {
 				intersectionProps.Annotations = that.Annotations
 				intersectionProps.Labels = that.Labels
