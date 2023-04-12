@@ -1072,7 +1072,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			windowEnd:   endYesterday,
 			expMinutes:  1440.0,
 			expectedParcResults: map[string]ProportionalAssetResourceCosts{
-				"namespace1": {
+				"namespace1": ProportionalAssetResourceCosts{
 					"cluster1": ProportionalAssetResourceCost{
 						Cluster:       "cluster1",
 						Node:          "",
@@ -1082,7 +1082,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						RAMPercentage: 0.8125,
 					},
 				},
-				"namespace2": {
+				"namespace2": ProportionalAssetResourceCosts{
 					"cluster1": ProportionalAssetResourceCost{
 						Cluster:       "cluster1",
 						Node:          "",
