@@ -169,15 +169,13 @@ func (d *Downloader[T]) readPricesheet(ctx context.Context, data io.Reader) (map
 			units[*meterInfo.Unit] = true
 		}
 
-		// TODO: add pricings for AzureFileStandardStorageClass
-
 		for key, pricing := range pricings {
 			results[key] = pricing
 		}
 	}
 
 	if len(results) == 0 {
-		return nil, fmt.Errorf("no matching pricing from pricesheet")
+		return nil, fmt.Errorf("no matching pricing from price sheet")
 	}
 
 	// Keep track of units seen so we can detect if there are any that
@@ -193,9 +191,12 @@ func (d *Downloader[T]) readPricesheet(ctx context.Context, data io.Reader) (map
 }
 
 func checkPricesheetHeader(header []string) error {
-	for name, col := range pricesheetCols {
+	if len(header) < len(pricesheetCols) {
+		return fmt.Errorf("too few header columns: got %d, expected %d", len(header), len(pricesheetCols))
+	}
+	for col, name := range pricesheetCols {
 		if !strings.EqualFold(header[col], name) {
-			return fmt.Errorf("unexpected header %q, expected %q", header[col], name)
+			return fmt.Errorf("unexpected header at col %d %q, expected %q", col, header[col], name)
 		}
 	}
 	return nil
@@ -217,17 +218,21 @@ func makeMeterInfo(row []string) (commerce.MeterInfo, error) {
 	}, nil
 }
 
-var pricesheetCols = map[string]int{
-	"Meter ID":           pricesheetMeterID,
-	"Meter name":         pricesheetMeterName,
-	"Meter category":     pricesheetMeterCategory,
-	"Meter sub-category": pricesheetMeterSubCategory,
-	"Meter region":       pricesheetMeterRegion,
-	"Unit":               pricesheetUnit,
-	"Unit price":         pricesheetUnitPrice,
-	"Currency code":      pricesheetCurrencyCode,
-	"Offer Id":           pricesheetOfferID,
-	"Price type":         pricesheetPriceType,
+var pricesheetCols = []string{
+	"Meter ID",
+	"Meter name",
+	"Meter category",
+	"Meter sub-category",
+	"Meter region",
+	"Unit",
+	"Unit of measure",
+	"Part number",
+	"Unit price",
+	"Currency code",
+	"Included quantity",
+	"Offer Id",
+	"Term",
+	"Price type",
 }
 
 const (
