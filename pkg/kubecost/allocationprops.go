@@ -456,10 +456,10 @@ func (p *AllocationProperties) Intersection(that *AllocationProperties) *Allocat
 			// This logic is designed to effectively ignore the unmounted/unallocated objects
 			// and just copy over the labels from the other object - we only take the intersection
 			// of 'legitimate' allocations.
-			if p.Container == UnmountedSuffix || p.Container == UnallocatedSuffix {
+			if p.Container == UnmountedSuffix {
 				intersectionProps.Annotations = that.Annotations
 				intersectionProps.Labels = that.Labels
-			} else if that.Container == UnmountedSuffix || that.Container == UnallocatedSuffix {
+			} else if that.Container == UnmountedSuffix {
 				intersectionProps.Annotations = p.Annotations
 				intersectionProps.Labels = p.Labels
 			} else {
