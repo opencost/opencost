@@ -98,7 +98,19 @@ func (d Downloader[T]) saveData(ctx context.Context, url, tempName string) (io.R
 		return nil, fmt.Errorf("seeking to start of file: %w", err)
 	}
 
-	return out, nil
+	return &removeOnClose{File: out}, nil
+}
+
+type removeOnClose struct {
+	*os.File
+}
+
+func (r *removeOnClose) Close() error {
+	err := r.File.Close()
+	if err != nil {
+		return err
+	}
+	return os.Remove(r.Name())
 }
 
 func (d *Downloader[T]) readPricesheet(ctx context.Context, data io.Reader) (map[string]*T, error) {
