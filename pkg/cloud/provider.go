@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -508,9 +509,16 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			clusterRegion:    cp.region,
 			clusterAccountID: cp.accountID,
 			clusterProjectID: cp.projectID,
-			metadataClient: metadata.NewClient(&http.Client{
-				Transport: httputil.NewUserAgentTransport("kubecost", http.DefaultTransport),
-			}),
+			metadataClient: metadata.NewClient(
+				&http.Client{
+					Transport: httputil.NewUserAgentTransport("kubecost", &http.Transport{
+						Dial: (&net.Dialer{
+							Timeout:   2 * time.Second,
+							KeepAlive: 30 * time.Second,
+						}).Dial,
+					}),
+					Timeout: 5 * time.Second,
+				}),
 		}, nil
 	case kubecost.AWSProvider:
 		log.Info("Found ProviderID starting with \"aws\", using AWS Provider")
