@@ -1010,6 +1010,11 @@ func (az *Azure) AllNodePricing() (interface{}, error) {
 func (az *Azure) NodePricing(key Key) (*Node, error) {
 	az.DownloadPricingDataLock.RLock()
 	defer az.DownloadPricingDataLock.RUnlock()
+	pricingDataExists := true
+	if az.Pricing == nil {
+		pricingDataExists = false
+		log.DedupedWarningf(1, "Unable to download Azure pricing data")
+	}
 
 	azKey, ok := key.(*azureKey)
 	if !ok {
@@ -1031,7 +1036,6 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 			return n.Node, nil
 		}
 		log.Infof("[Info] found spot instance, trying to get retail price for %s: %s, ", spotFeatures, azKey)
-
 		spotCost, err := getRetailPrice(region, instance, config.CurrencyCode, true)
 		if err != nil {
 			log.DedupedWarningf(5, "failed to retrieve spot retail pricing")
@@ -1045,23 +1049,25 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 				UsageType: "spot",
 				GPU:       gpu,
 			}
-
 			az.addPricing(spotFeatures, &AzurePricing{
 				Node: spotNode,
 			})
-
 			return spotNode, nil
 		}
 	}
 
-	if n, ok := az.Pricing[azKey.Features()]; ok {
-		log.Debugf("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
-		if azKey.isValidGPUNode() {
-			n.Node.GPU = azKey.GetGPUCount()
+	// Use the downloaded pricing data if possible. Otherwise, use default
+	// configured pricing data.
+	if pricingDataExists {
+		if n, ok := az.Pricing[azKey.Features()]; ok {
+			log.Debugf("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
+			if azKey.isValidGPUNode() {
+				n.Node.GPU = azKey.GetGPUCount()
+			}
+			return n.Node, nil
 		}
-		return n.Node, nil
+		log.DedupedWarningf(5, "No pricing data found for node %s from key %s", azKey, azKey.Features())
 	}
-	log.Warnf("no pricing data found for %s: %s", azKey.Features(), azKey)
 	c, err := az.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("No default pricing data available")
@@ -1078,17 +1084,13 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 		}, nil
 	}
 
-	// TODO: The Node Struct needs to return a floating point encoded as a string
-	// TODO: Rerun this with "AZURE_AUTH_LOCATION" so OpenCost can download pricing data.
-	// TODO: More comments on why we can zero out prices for the serverless node
-	// TODO: Cleanup logging within this function
-
-	// Serverless Node
+	// Serverless Node. This is an Azure Container Instance, and no pods can be
+	// scheduled to this node. Azure does not charge for this node. Set costs to
+	// zero.
 	if azKey.Labels["kubernetes.io/hostname"] == "virtual-node-aci-linux" {
 		return &Node{
-			VCPUCost:         "0",
-			RAMCost:          "0",
-			UsesBaseCPUPrice: true,
+			VCPUCost: "0",
+			RAMCost:  "0",
 		}, nil
 	}
 
