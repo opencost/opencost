@@ -5,7 +5,7 @@ replace github.com/golang/lint => golang.org/x/lint v0.0.0-20180702182130-06c868
 require (
 	cloud.google.com/go/bigquery v1.48.0
 	cloud.google.com/go/compute/metadata v0.2.3
-	cloud.google.com/go/storage v1.28.1
+	cloud.google.com/go/storage v1.30.1
 	github.com/Azure/azure-pipeline-go v0.2.3
 	github.com/Azure/azure-sdk-for-go v65.0.0+incompatible
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.4.1-0.20230323231529-14c481f239ec
