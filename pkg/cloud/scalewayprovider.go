@@ -47,8 +47,7 @@ type Scaleway struct {
 func (c *Scaleway) PricingSourceSummary() interface{} {
 	return c.Pricing
 }
-func (c *Scaleway) GetNodePoolName(labels map[string]string) string {
-	log.Warnf("node pool name not supported for this provider")
+func (c *Scaleway) GetNodePoolLabel() string {
 	return ""
 }
 func (c *Scaleway) DownloadPricingData() error {

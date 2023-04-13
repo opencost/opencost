@@ -1354,7 +1354,7 @@ func (a *Alibaba) PricingSourceSummary() interface{} {
 	return a.Pricing
 }
 
-func (a *Alibaba) GetNodePoolName(labels map[string]string) string {
-	log.Warnf("node pool name not supported for this provider")
+func (a *Alibaba) GetNodePoolLabel() string {
+
 	return ""
 }

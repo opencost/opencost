@@ -2316,14 +2316,6 @@ func (aws *AWS) PricingSourceSummary() interface{} {
 	return aws.Pricing
 }
 
-func (aws *AWS) GetNodePoolName(labels map[string]string) string {
-	sanitizedLabel := regexp.MustCompile(`[^a-zA-Z0-9 ]+`).ReplaceAllString(EKSNodepoolLabel, "_")
-
-	if poolName, found := labels[fmt.Sprintf("label_%s", sanitizedLabel)]; found {
-		return poolName
-	} else {
-		log.Warnf("unable to derive node pool name from node labels")
-		return ""
-	}
-
+func (aws *AWS) GetNodePoolLabel() string {
+	return EKSNodepoolLabel
 }

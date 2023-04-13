@@ -350,7 +350,7 @@ type Provider interface {
 	CombinedDiscountForNode(string, bool, float64, float64) float64
 	Regions() []string
 	PricingSourceSummary() interface{}
-	GetNodePoolName(map[string]string) string
+	GetNodePoolLabel() string
 }
 
 // ClusterName returns the name defined in cluster info, defaulting to the
@@ -367,6 +367,22 @@ func ClusterName(p Provider) string {
 	}
 
 	return name
+}
+
+func GetNodePoolName(p Provider, labels map[string]string) string {
+	providerLabel := p.GetNodePoolLabel()
+	if providerLabel == "" {
+		log.Warnf("node pool name not supported for this provider")
+		return ""
+	}
+	sanitizedLabel := regexp.MustCompile(`[^a-zA-Z0-9 ]+`).ReplaceAllString(providerLabel, "_")
+	if poolName, found := labels[fmt.Sprintf("label_%s", sanitizedLabel)]; found {
+		return poolName
+	} else {
+		log.Warnf("unable to derive node pool name from node labels")
+		return ""
+	}
+
 }
 
 // CustomPricesEnabled returns the boolean equivalent of the cloup provider's custom prices flag,

@@ -412,15 +412,8 @@ func (az *Azure) PricingSourceSummary() interface{} {
 	return az.Pricing
 }
 
-func (az *Azure) GetNodePoolName(labels map[string]string) string {
-	sanitizedLabel := regexp.MustCompile(`[^a-zA-Z0-9 ]+`).ReplaceAllString(AKSNodepoolLabel, "_")
-
-	if poolName, found := labels[fmt.Sprintf("label_%s", sanitizedLabel)]; found {
-		return poolName
-	} else {
-		log.Warnf("unable to derive node pool name from node labels")
-		return ""
-	}
+func (az *Azure) GetNodePoolLabel() string {
+	return AKSNodepoolLabel
 }
 
 type azureKey struct {
