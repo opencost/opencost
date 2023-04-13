@@ -679,7 +679,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 			delete(sas.idleKeys, sa.Name)
 			delete(sas.SummaryAllocations, sa.Name)
 
-			if options.ShareIdle == ShareEven || options.ShareIdle == ShareWeighted {
+			if options.ShareIdle == "true" {
 				idleSet.Insert(sa)
 			} else {
 				resultSet.Insert(sa)
@@ -842,7 +842,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 					key = fmt.Sprintf("%s/%s", idle.Properties.Cluster, idle.Properties.Node)
 				}
 
-				cpuCoeff, gpuCoeff, ramCoeff := ComputeIdleCoefficients(options.ShareIdle, key, sa.CPUCost, sa.GPUCost, sa.RAMCost, allocTotals)
+				cpuCoeff, gpuCoeff, ramCoeff := ComputeIdleCoefficients(options.ShareSplit, key, sa.CPUCost, sa.GPUCost, sa.RAMCost, allocTotals)
 
 				sa.CPUCost += idle.CPUCost * cpuCoeff
 				sa.GPUCost += idle.GPUCost * gpuCoeff
@@ -907,7 +907,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 					key = idle.Properties.Cluster
 				}
 
-				cpuCoeff, gpuCoeff, ramCoeff := ComputeIdleCoefficients(options.ShareIdle, key, sa.CPUCost, sa.GPUCost, sa.RAMCost, allocTotals)
+				cpuCoeff, gpuCoeff, ramCoeff := ComputeIdleCoefficients(options.ShareSplit, key, sa.CPUCost, sa.GPUCost, sa.RAMCost, allocTotals)
 
 				sa.CPUCost += idle.CPUCost * cpuCoeff
 				sa.GPUCost += idle.GPUCost * gpuCoeff
