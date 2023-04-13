@@ -1411,19 +1411,19 @@ func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerCPUHr
 
 		node, err := res.GetString("node")
 		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node CPU cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node CPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
 		}
 
 		instanceType, err := res.GetString("instance_type")
 		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node CPU cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node CPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
 		}
 
 		providerID, err := res.GetString("provider_id")
 		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node CPU cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node CPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
 		}
 
@@ -1449,19 +1449,19 @@ func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerRA
 
 		node, err := res.GetString("node")
 		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node RAM cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node RAM cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
 		}
 
 		instanceType, err := res.GetString("instance_type")
 		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node RAM cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node RAM cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
 		}
 
 		providerID, err := res.GetString("provider_id")
 		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node RAM cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node RAM cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
 		}
 
@@ -1487,19 +1487,19 @@ func applyNodeCostPerGPUHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerGPUHr
 
 		node, err := res.GetString("node")
 		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node GPU cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node GPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
 		}
 
 		instanceType, err := res.GetString("instance_type")
 		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node GPU cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node GPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
 		}
 
 		providerID, err := res.GetString("provider_id")
 		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node GPU cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node GPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
 		}
 
@@ -1531,7 +1531,7 @@ func applyNodeSpot(nodeMap map[nodeKey]*nodePricing, resNodeIsSpot []*prom.Query
 
 		key := newNodeKey(cluster, node)
 		if _, ok := nodeMap[key]; !ok {
-			log.Warnf("CostModel.ComputeAllocation: Node spot  query result for missing node: %s", key)
+			log.Warnf("CostModel.ComputeAllocation: Node spot query result for missing node: %s", key)
 			continue
 		}
 
