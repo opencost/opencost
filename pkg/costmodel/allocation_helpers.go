@@ -1156,13 +1156,16 @@ func resToPodJobMap(resJobLabels []*prom.QueryResult, podUIDKeyMap map[podKey][]
 	return jobLabels
 }
 
-func resToPodReplicaSetMap(resPodsWithReplicaSetOwner []*prom.QueryResult, resReplicaSetsWithoutOwners []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey, ingestPodUID bool) map[podKey]controllerKey {
+func resToPodReplicaSetMap(resPodsWithReplicaSetOwner []*prom.QueryResult, resReplicaSetsWithoutOwners []*prom.QueryResult, resReplicaSetsWithRolloutOwner []*prom.QueryResult, podUIDKeyMap map[podKey][]podKey, ingestPodUID bool) map[podKey]controllerKey {
 	// Build out set of ReplicaSets that have no owners, themselves, such that
 	// the ReplicaSet should be used as the owner of the Pods it controls.
 	// (This should exclude, for example, ReplicaSets that are controlled by
 	// Deployments, in which case the Deployment should be the pod's owner.)
+	// Additionally, add to this set of ReplicaSets those ReplicaSets that
+	// are owned by a Rollout
 	replicaSets := map[controllerKey]struct{}{}
 
+	// Create unowned ReplicaSet controller keys
 	for _, res := range resReplicaSetsWithoutOwners {
 		controllerKey, err := resultReplicaSetKey(res, env.GetPromClusterLabel(), "namespace", "replicaset")
 		if err != nil {
@@ -1172,17 +1175,34 @@ func resToPodReplicaSetMap(resPodsWithReplicaSetOwner []*prom.QueryResult, resRe
 		replicaSets[controllerKey] = struct{}{}
 	}
 
-	// Create the mapping of Pods to ReplicaSets, ignoring any ReplicaSets that
-	// to not appear in the set of uncontrolled ReplicaSets above.
-	podToReplicaSet := map[podKey]controllerKey{}
-
-	for _, res := range resPodsWithReplicaSetOwner {
-		controllerKey, err := resultReplicaSetKey(res, env.GetPromClusterLabel(), "namespace", "owner_name")
+	// Create Rollout-owned ReplicaSet controller keys
+	for _, res := range resReplicaSetsWithRolloutOwner {
+		controllerKey, err := resultReplicaSetRolloutKey(res, env.GetPromClusterLabel(), "namespace", "replicaset")
 		if err != nil {
 			continue
 		}
-		if _, ok := replicaSets[controllerKey]; !ok {
+
+		replicaSets[controllerKey] = struct{}{}
+	}
+
+	// Create the mapping of Pods to ReplicaSets, ignoring any ReplicaSets that
+	// do not appear in the set of unowned/Rollout-owned ReplicaSets above.
+	podToReplicaSet := map[podKey]controllerKey{}
+
+	for _, res := range resPodsWithReplicaSetOwner {
+		// First, check if this pod is owned by an unowned ReplicaSet
+		controllerKey, err := resultReplicaSetKey(res, env.GetPromClusterLabel(), "namespace", "owner_name")
+		if err != nil {
 			continue
+		} else if _, ok := replicaSets[controllerKey]; !ok {
+			// If the pod is not owned by an unowned ReplicaSet, check if
+			// it's owned by a Rollout-owned ReplicaSet
+			controllerKey, err = resultReplicaSetRolloutKey(res, env.GetPromClusterLabel(), "namespace", "owner_name")
+			if err != nil {
+				continue
+			} else if _, ok := replicaSets[controllerKey]; !ok {
+				continue
+			}
 		}
 
 		pod, err := res.GetString("pod")
@@ -1196,18 +1216,14 @@ func resToPodReplicaSetMap(resPodsWithReplicaSetOwner []*prom.QueryResult, resRe
 
 		if ingestPodUID {
 			if uidKeys, ok := podUIDKeyMap[key]; ok {
-
 				keys = append(keys, uidKeys...)
-
 			}
 		} else {
 			keys = []podKey{key}
 		}
 
 		for _, key := range keys {
-
 			podToReplicaSet[key] = controllerKey
-
 		}
 	}
 
