@@ -128,6 +128,8 @@ var (
 	cpuAllocGv                 *prometheus.GaugeVec
 	gpuAllocGv                 *prometheus.GaugeVec
 	pvAllocGv                  *prometheus.GaugeVec
+	ramIdleGv                  *prometheus.GaugeVec
+	cpuIdleGv                  *prometheus.GaugeVec
 	networkZoneEgressCostG     prometheus.Gauge
 	networkRegionEgressCostG   prometheus.Gauge
 	networkInternetEgressCostG prometheus.Gauge
@@ -232,6 +234,22 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 			toRegisterGV = append(toRegisterGV, pvAllocGv)
 		}
 
+		ramIdleGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "container_ram_idle",
+			Help: "container_ram_idle Ratio of idle RAM of containers",
+		}, []string{"namespace", "pod", "container", "instance", "node"})
+		if _, disabled := disabledMetrics["container_ram_idle"]; !disabled {
+			toRegisterGV = append(toRegisterGV, ramIdleGv)
+		}
+
+		cpuIdleGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "container_cpu_idle",
+			Help: "container_cpu_idle Ratio of CPU of containers",
+		}, []string{"namespace", "pod", "container", "instance", "node"})
+		if _, disabled := disabledMetrics["container_cpu_idle"]; !disabled {
+			toRegisterGV = append(toRegisterGV, cpuIdleGv)
+		}
+
 		networkZoneEgressCostG = prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "kubecost_network_zone_egress_cost",
 			Help: "kubecost_network_zone_egress_cost Total cost per GB egress across zones",
@@ -312,6 +330,8 @@ type CostModelMetricsEmitter struct {
 	RAMAllocationRecorder         *prometheus.GaugeVec
 	CPUAllocationRecorder         *prometheus.GaugeVec
 	GPUAllocationRecorder         *prometheus.GaugeVec
+	CPUIdleRecorder               *prometheus.GaugeVec
+	RAMIdleRecorder               *prometheus.GaugeVec
 	ClusterManagementCostRecorder *prometheus.GaugeVec
 	LBCostRecorder                *prometheus.GaugeVec
 	NetworkZoneEgressRecorder     prometheus.Gauge
@@ -364,6 +384,8 @@ func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clust
 		CPUAllocationRecorder:         cpuAllocGv,
 		GPUAllocationRecorder:         gpuAllocGv,
 		PVAllocationRecorder:          pvAllocGv,
+		RAMIdleRecorder:               ramIdleGv,
+		CPUIdleRecorder:               cpuIdleGv,
 		NetworkZoneEgressRecorder:     networkZoneEgressCostG,
 		NetworkRegionEgressRecorder:   networkRegionEgressCostG,
 		NetworkInternetEgressRecorder: networkInternetEgressCostG,
@@ -607,10 +629,39 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				}
 
 				if len(costs.RAMAllocation) > 0 {
-					cmme.RAMAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.RAMAllocation[0].Value)
+					allocation := costs.RAMAllocation[0].Value
+					cmme.RAMAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(allocation)
+
+					if allocation > 0 {
+						usage := 0.0
+						if len(costs.RAMUsed) > 0 {
+							usage = costs.RAMUsed[0].Value
+						}
+						idle := (allocation - usage) / allocation
+						if idle < 0 {
+							idle = 0
+						}
+
+						cmme.RAMIdleRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(idle)
+					}
 				}
+
 				if len(costs.CPUAllocation) > 0 {
-					cmme.CPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(costs.CPUAllocation[0].Value)
+					allocation := costs.CPUAllocation[0].Value
+					cmme.CPUAllocationRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(allocation)
+
+					if allocation > 0 {
+						usage := 0.0
+						if len(costs.CPUUsed) > 0 {
+							usage = costs.CPUUsed[0].Value
+						}
+						idle := (allocation - usage) / allocation
+						if idle < 0 {
+							idle = 0
+						}
+
+						cmme.CPUIdleRecorder.WithLabelValues(namespace, podName, containerName, nodeName, nodeName).Set(idle)
+					}
 				}
 				if len(costs.GPUReq) > 0 {
 					// allocation here is set to the request because shared GPU usage not yet supported.
@@ -730,7 +781,9 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				if !seen {
 					labels := getLabelStringsFromKey(labelString)
 					cmme.RAMAllocationRecorder.DeleteLabelValues(labels...)
+					cmme.RAMIdleRecorder.DeleteLabelValues(labels...)
 					cmme.CPUAllocationRecorder.DeleteLabelValues(labels...)
+					cmme.CPUIdleRecorder.DeleteLabelValues(labels...)
 					cmme.GPUAllocationRecorder.DeleteLabelValues(labels...)
 					delete(containerSeen, labelString)
 				} else {
