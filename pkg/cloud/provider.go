@@ -4,15 +4,17 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 	"io"
+	"net"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/opencost/opencost/pkg/kubecost"
 
@@ -209,6 +211,7 @@ type CustomPricing struct {
 	AzureClientSecret            string `json:"azureClientSecret"`
 	AzureTenantID                string `json:"azureTenantID"`
 	AzureBillingRegion           string `json:"azureBillingRegion"`
+	AzureBillingAccount          string `json:"azureBillingAccount"`
 	AzureOfferDurableID          string `json:"azureOfferDurableID"`
 	AzureStorageSubscriptionID   string `json:"azureStorageSubscriptionID"`
 	AzureStorageAccount          string `json:"azureStorageAccount"`
@@ -506,9 +509,16 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			clusterRegion:    cp.region,
 			clusterAccountID: cp.accountID,
 			clusterProjectID: cp.projectID,
-			metadataClient: metadata.NewClient(&http.Client{
-				Transport: httputil.NewUserAgentTransport("kubecost", http.DefaultTransport),
-			}),
+			metadataClient: metadata.NewClient(
+				&http.Client{
+					Transport: httputil.NewUserAgentTransport("kubecost", &http.Transport{
+						Dial: (&net.Dialer{
+							Timeout:   2 * time.Second,
+							KeepAlive: 30 * time.Second,
+						}).Dial,
+					}),
+					Timeout: 5 * time.Second,
+				}),
 		}, nil
 	case kubecost.AWSProvider:
 		log.Info("Found ProviderID starting with \"aws\", using AWS Provider")
