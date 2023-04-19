@@ -33,6 +33,7 @@ import (
 	sentry "github.com/getsentry/sentry-go"
 
 	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/types"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/env"
@@ -83,7 +84,7 @@ type Accesses struct {
 	KubeClientSet       kubernetes.Interface
 	ClusterCache        clustercache.ClusterCache
 	ClusterMap          clusters.ClusterMap
-	CloudProvider       cloud.Provider
+	CloudProvider       types.Provider
 	ConfigFileManager   *config.ConfigFileManager
 	ClusterInfoProvider clusters.ClusterInfoProvider
 	Model               *CostModel

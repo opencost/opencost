@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
+	"github.com/opencost/opencost/pkg/cloud/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -71,7 +72,7 @@ func TestConvertMeterToPricings(t *testing.T) {
 
 		expected := map[string]*AzurePricing{
 			"useast,premium_ssd": {
-				PV: &PV{Cost: "0.085616", Region: "useast"},
+				PV: &types.PV{Cost: "0.085616", Region: "useast"},
 			},
 		}
 		require.Equal(t, expected, results)
@@ -84,10 +85,10 @@ func TestConvertMeterToPricings(t *testing.T) {
 
 		expected := map[string]*AzurePricing{
 			"japanwest,Standard_E96a_v4,preemptible": {
-				Node: &Node{Cost: "10.000000", BaseCPUPrice: "0.30000", UsageType: "preemptible"},
+				Node: &types.Node{Cost: "10.000000", BaseCPUPrice: "0.30000", UsageType: "preemptible"},
 			},
 			"japanwest,Standard_E96as_v4,preemptible": {
-				Node: &Node{Cost: "10.000000", BaseCPUPrice: "0.30000", UsageType: "preemptible"},
+				Node: &types.Node{Cost: "10.000000", BaseCPUPrice: "0.30000", UsageType: "preemptible"},
 			},
 		}
 		require.Equal(t, expected, results)

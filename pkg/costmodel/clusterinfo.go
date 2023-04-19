@@ -3,7 +3,7 @@ package costmodel
 import (
 	"fmt"
 
-	cloudProvider "github.com/opencost/opencost/pkg/cloud"
+	cloudProvider "github.com/opencost/opencost/pkg/cloud/types"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/env"

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencost/opencost/pkg/cloud/types"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/util"
 
@@ -222,31 +223,31 @@ func (k *csvKey) ID() string {
 	return k.ProviderID
 }
 
-func (c *CSVProvider) NodePricing(key Key) (*Node, error) {
+func (c *CSVProvider) NodePricing(key types.Key) (*types.Node, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
-	var node *Node
+	var node *types.Node
 	if p, ok := c.Pricing[key.ID()]; ok {
-		node = &Node{
+		node = &types.Node{
 			Cost:        p.MarketPriceHourly,
-			PricingType: CsvExact,
+			PricingType: types.CsvExact,
 		}
 	}
 	s := strings.Split(key.ID(), ",") // Try without a region to be sure
 	if len(s) == 2 {
 		if p, ok := c.Pricing[s[1]]; ok {
-			node = &Node{
+			node = &types.Node{
 				Cost:        p.MarketPriceHourly,
-				PricingType: CsvExact,
+				PricingType: types.CsvExact,
 			}
 		}
 	}
 	classKey := key.Features() // Use node attributes to try and do a class match
 	if cost, ok := c.NodeClassPricing[classKey]; ok {
 		log.Infof("Unable to find provider ID `%s`, using features:`%s`", key.ID(), key.Features())
-		node = &Node{
+		node = &types.Node{
 			Cost:        fmt.Sprintf("%f", cost),
-			PricingType: CsvClass,
+			PricingType: types.CsvClass,
 		}
 	}
 
@@ -346,7 +347,7 @@ func PVValueFromMapField(m string, n *v1.PersistentVolume) string {
 	}
 }
 
-func (c *CSVProvider) GetKey(l map[string]string, n *v1.Node) Key {
+func (c *CSVProvider) GetKey(l map[string]string, n *v1.Node) types.Key {
 	id := NodeValueFromMapField(c.NodeMapField, n, c.UsesRegion)
 	var gpuCount int64
 	gpuCount = 0
@@ -382,7 +383,7 @@ func (key *csvPVKey) Features() string {
 	return key.ProviderID
 }
 
-func (c *CSVProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) PVKey {
+func (c *CSVProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) types.PVKey {
 	id := PVValueFromMapField(c.PVMapField, pv)
 	return &csvPVKey{
 		Labels:                 pv.Labels,
@@ -394,22 +395,22 @@ func (c *CSVProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]st
 	}
 }
 
-func (c *CSVProvider) PVPricing(pvk PVKey) (*PV, error) {
+func (c *CSVProvider) PVPricing(pvk types.PVKey) (*types.PV, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
 	pricing, ok := c.PricingPV[pvk.Features()]
 	if !ok {
 		log.Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
-		return &PV{}, nil
+		return &types.PV{}, nil
 	}
-	return &PV{
+	return &types.PV{
 		Cost: pricing.MarketPriceHourly,
 	}, nil
 }
 
-func (c *CSVProvider) ServiceAccountStatus() *ServiceAccountStatus {
-	return &ServiceAccountStatus{
-		Checks: []*ServiceAccountCheck{},
+func (c *CSVProvider) ServiceAccountStatus() *types.ServiceAccountStatus {
+	return &types.ServiceAccountStatus{
+		Checks: []*types.ServiceAccountCheck{},
 	}
 }
 

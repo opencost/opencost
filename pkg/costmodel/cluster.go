@@ -5,16 +5,16 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/opencost/opencost/pkg/kubecost"
-	"github.com/opencost/opencost/pkg/util/timeutil"
+	prometheus "github.com/prometheus/client_golang/api"
 	"golang.org/x/exp/slices"
 
 	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/types"
 	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/prom"
-
-	prometheus "github.com/prometheus/client_golang/api"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
 const (
@@ -141,7 +141,7 @@ type DiskIdentifier struct {
 	Name    string
 }
 
-func ClusterDisks(client prometheus.Client, provider cloud.Provider, start, end time.Time) (map[DiskIdentifier]*Disk, error) {
+func ClusterDisks(client prometheus.Client, provider types.Provider, start, end time.Time) (map[DiskIdentifier]*Disk, error) {
 	// Query for the duration between start and end
 	durStr := timeutil.DurationString(end.Sub(start))
 	if durStr == "" {
@@ -542,7 +542,7 @@ func costTimesMinute(activeDataMap map[NodeIdentifier]activeData, costMap map[No
 	}
 }
 
-func ClusterNodes(cp cloud.Provider, client prometheus.Client, start, end time.Time) (map[NodeIdentifier]*Node, error) {
+func ClusterNodes(cp types.Provider, client prometheus.Client, start, end time.Time) (map[NodeIdentifier]*Node, error) {
 	// Query for the duration between start and end
 	durStr := timeutil.DurationString(end.Sub(start))
 	if durStr == "" {
@@ -833,7 +833,7 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 }
 
 // ComputeClusterCosts gives the cumulative and monthly-rate cluster costs over a window of time for all clusters.
-func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.Provider, window, offset time.Duration, withBreakdown bool) (map[string]*ClusterCosts, error) {
+func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider types.Provider, window, offset time.Duration, withBreakdown bool) (map[string]*ClusterCosts, error) {
 	if window < 10*time.Minute {
 		return nil, fmt.Errorf("minimum window of 10m required; got %s", window)
 	}
@@ -1192,7 +1192,7 @@ func resultToTotals(qrs []*prom.QueryResult) ([][]string, error) {
 }
 
 // ClusterCostsOverTime gives the full cluster costs over time
-func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startString, endString string, window, offset time.Duration) (*Totals, error) {
+func ClusterCostsOverTime(cli prometheus.Client, provider types.Provider, startString, endString string, window, offset time.Duration) (*Totals, error) {
 	localStorageQuery := provider.GetLocalStorageQuery(window, offset, true, false)
 	if localStorageQuery != "" {
 		localStorageQuery = fmt.Sprintf("+ %s", localStorageQuery)
@@ -1298,7 +1298,7 @@ func ClusterCostsOverTime(cli prometheus.Client, provider cloud.Provider, startS
 	}, nil
 }
 
-func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo []*prom.QueryResult, cp cloud.Provider) {
+func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActiveMins, resPVSize, resPVCost, resPVUsedAvg, resPVUsedMax, resPVCInfo []*prom.QueryResult, cp types.Provider) {
 	for _, result := range resActiveMins {
 		cluster, err := result.GetString(env.GetPromClusterLabel())
 		if err != nil {

@@ -10,11 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opencost/opencost/pkg/util/httputil"
-	"github.com/opencost/opencost/pkg/util/timeutil"
-
 	"github.com/julienschmidt/httprouter"
+	"github.com/patrickmn/go-cache"
+	prometheusClient "github.com/prometheus/client_golang/api"
+
 	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/types"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/errors"
 	"github.com/opencost/opencost/pkg/kubecost"
@@ -22,9 +23,9 @@ import (
 	"github.com/opencost/opencost/pkg/prom"
 	"github.com/opencost/opencost/pkg/thanos"
 	"github.com/opencost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/util/httputil"
 	"github.com/opencost/opencost/pkg/util/json"
-	"github.com/patrickmn/go-cache"
-	prometheusClient "github.com/prometheus/client_golang/api"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
 const (
@@ -181,7 +182,7 @@ func NewSharedResourceInfo(shareResources bool, sharedNamespaces []string, label
 	return sr
 }
 
-func GetTotalContainerCost(costData map[string]*CostData, rate string, cp cloud.Provider, discount float64, customDiscount float64, idleCoefficients map[string]float64) float64 {
+func GetTotalContainerCost(costData map[string]*CostData, rate string, cp types.Provider, discount float64, customDiscount float64, idleCoefficients map[string]float64) float64 {
 	totalContainerCost := 0.0
 	for _, costDatum := range costData {
 		clusterID := costDatum.ClusterID
@@ -197,7 +198,7 @@ func GetTotalContainerCost(costData map[string]*CostData, rate string, cp cloud.
 	return totalContainerCost
 }
 
-func (a *Accesses) ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.Client, cp cloud.Provider, discount float64, customDiscount float64, window, offset time.Duration) (map[string]float64, error) {
+func (a *Accesses) ComputeIdleCoefficient(costData map[string]*CostData, cli prometheusClient.Client, cp types.Provider, discount float64, customDiscount float64, window, offset time.Duration) (map[string]float64, error) {
 	coefficients := make(map[string]float64)
 
 	profileName := "ComputeIdleCoefficient: ComputeClusterCosts"
@@ -287,7 +288,7 @@ func clampAverage(requestsAvg float64, usedAverage float64, allocationAvg float6
 // AggregateCostData aggregates raw cost data by field; e.g. namespace, cluster, service, or label. In the case of label, callers
 // must pass a slice of subfields indicating the labels by which to group. Provider is used to define custom resource pricing.
 // See AggregationOptions for optional parameters.
-func AggregateCostData(costData map[string]*CostData, field string, subfields []string, cp cloud.Provider, opts *AggregationOptions) map[string]*Aggregation {
+func AggregateCostData(costData map[string]*CostData, field string, subfields []string, cp types.Provider, opts *AggregationOptions) map[string]*Aggregation {
 	discount := opts.Discount
 	customDiscount := opts.CustomDiscount
 	idleCoefficients := opts.IdleCoefficients
@@ -584,7 +585,7 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 	return aggregations
 }
 
-func aggregateDatum(cp cloud.Provider, aggregations map[string]*Aggregation, costDatum *CostData, field string, subfields []string, rate string, key string, discount float64, customDiscount float64, idleCoefficient float64, includeProperties bool) {
+func aggregateDatum(cp types.Provider, aggregations map[string]*Aggregation, costDatum *CostData, field string, subfields []string, rate string, key string, discount float64, customDiscount float64, idleCoefficient float64, includeProperties bool) {
 	// add new entry to aggregation results if a new key is encountered
 	if _, ok := aggregations[key]; !ok {
 		agg := &Aggregation{
@@ -617,7 +618,7 @@ func aggregateDatum(cp cloud.Provider, aggregations map[string]*Aggregation, cos
 	mergeVectors(cp, costDatum, aggregations[key], rate, discount, customDiscount, idleCoefficient)
 }
 
-func mergeVectors(cp cloud.Provider, costDatum *CostData, aggregation *Aggregation, rate string, discount float64, customDiscount float64, idleCoefficient float64) {
+func mergeVectors(cp types.Provider, costDatum *CostData, aggregation *Aggregation, rate string, discount float64, customDiscount float64, idleCoefficient float64) {
 	aggregation.CPUAllocationVectors = addVectors(costDatum.CPUAllocation, aggregation.CPUAllocationVectors)
 	aggregation.CPURequestedVectors = addVectors(costDatum.CPUReq, aggregation.CPURequestedVectors)
 	aggregation.CPUUsedVectors = addVectors(costDatum.CPUUsed, aggregation.CPUUsedVectors)
@@ -711,7 +712,7 @@ func getDiscounts(costDatum *CostData, cpuCost float64, ramCost float64, discoun
 	return blendedCPUDiscount, blendedRAMDiscount
 }
 
-func parseVectorPricing(cfg *cloud.CustomPricing, costDatum *CostData, cpuCostStr, ramCostStr, gpuCostStr, pvCostStr string) (float64, float64, float64, float64, bool) {
+func parseVectorPricing(cfg *types.CustomPricing, costDatum *CostData, cpuCostStr, ramCostStr, gpuCostStr, pvCostStr string) (float64, float64, float64, float64, bool) {
 	usesCustom := false
 	cpuCost, err := strconv.ParseFloat(cpuCostStr, 64)
 	if err != nil || math.IsNaN(cpuCost) || math.IsInf(cpuCost, 0) || cpuCost == 0 {
@@ -746,7 +747,7 @@ func parseVectorPricing(cfg *cloud.CustomPricing, costDatum *CostData, cpuCostSt
 	return cpuCost, ramCost, gpuCost, pvCost, usesCustom
 }
 
-func getPriceVectors(cp cloud.Provider, costDatum *CostData, rate string, discount float64, customDiscount float64, idleCoefficient float64) ([]*util.Vector, []*util.Vector, []*util.Vector, [][]*util.Vector, []*util.Vector) {
+func getPriceVectors(cp types.Provider, costDatum *CostData, rate string, discount float64, customDiscount float64, idleCoefficient float64) ([]*util.Vector, []*util.Vector, []*util.Vector, [][]*util.Vector, []*util.Vector) {
 
 	var cpuCost float64
 	var ramCost float64
