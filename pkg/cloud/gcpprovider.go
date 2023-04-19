@@ -169,7 +169,7 @@ func (gcp *GCP) GetConfig() (*types.CustomPricing, error) {
 		c.CurrencyCode = "USD"
 	}
 	if c.ShareTenancyCosts == "" {
-		c.ShareTenancyCosts = defaultShareTenancyCost
+		c.ShareTenancyCosts = types.DefaultShareTenancyCost
 	}
 	return c, nil
 }
@@ -211,7 +211,7 @@ func (*GCP) loadGCPAuthSecret() {
 		return
 	}
 
-	exists, err := fileutil.FileExists(authSecretPath)
+	exists, err := fileutil.FileExists(types.AuthSecretPath)
 	if !exists || err != nil {
 		errMessage := "Secret does not exist"
 		if err != nil {
@@ -222,7 +222,7 @@ func (*GCP) loadGCPAuthSecret() {
 		return
 	}
 
-	result, err := os.ReadFile(authSecretPath)
+	result, err := os.ReadFile(types.AuthSecretPath)
 	if err != nil {
 		log.Warnf("Failed to load auth secret, or was not mounted: %s", err.Error())
 		return
@@ -286,7 +286,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*types.CustomPrici
 				return err
 			}
 			for k, v := range a {
-				kUpper := toTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+				kUpper := types.ToTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
 				vstr, ok := v.(string)
 				if ok {
 					err := types.SetCustomPricingField(c, kUpper, vstr)
@@ -300,7 +300,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*types.CustomPrici
 		}
 
 		if env.IsRemoteEnabled() {
-			err := UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
+			err := types.UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return err
 			}

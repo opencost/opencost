@@ -310,7 +310,7 @@ func (c *Scaleway) UpdateConfig(r io.Reader, updateType string) (*types.CustomPr
 			return err
 		}
 		for k, v := range a {
-			kUpper := toTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+			kUpper := types.ToTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
 			vstr, ok := v.(string)
 			if ok {
 				err := types.SetCustomPricingField(c, kUpper, vstr)
@@ -323,7 +323,7 @@ func (c *Scaleway) UpdateConfig(r io.Reader, updateType string) (*types.CustomPr
 		}
 
 		if env.IsRemoteEnabled() {
-			err := UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
+			err := types.UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return err
 			}

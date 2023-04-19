@@ -1,4 +1,4 @@
-package azurepricesheet
+package azure
 
 import (
 	"context"

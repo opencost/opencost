@@ -87,7 +87,7 @@ func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*types.C
 	// Update Config
 	c, err := cp.Config.Update(func(c *types.CustomPricing) error {
 		for k, v := range a {
-			kUpper := toTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+			kUpper := types.ToTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
 			vstr, ok := v.(string)
 			if ok {
 				err := types.SetCustomPricingField(c, kUpper, vstr)

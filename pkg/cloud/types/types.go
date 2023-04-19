@@ -10,12 +10,24 @@ import (
 	"time"
 
 	"github.com/microcosm-cc/bluemonday"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/log"
 )
 
-var sanitizePolicy = bluemonday.UGCPolicy()
+var (
+	sanitizePolicy = bluemonday.UGCPolicy()
+	ToTitle        = cases.Title(language.Und, cases.NoLower)
+)
+
+const (
+	AuthSecretPath          = "/var/secrets/service-key.json"
+	StorageConfigSecretPath = "/var/azure-storage-config/azure-storage-config.json"
+	DefaultShareTenancyCost = "true"
+)
 
 // ReservedInstanceData keeps record of resources on a node should be
 // priced at reserved rates
@@ -344,4 +356,12 @@ type Provider interface {
 	CombinedDiscountForNode(string, bool, float64, float64) float64
 	Regions() []string
 	PricingSourceSummary() interface{}
+}
+
+// ProviderConfig describes config storage common to all providers.
+type ProviderConfig interface {
+	ConfigFileManager() *config.ConfigFileManager
+	GetCustomPricingData() (*CustomPricing, error)
+	Update(func(*CustomPricing) error) (*CustomPricing, error)
+	UpdateFromMap(map[string]string) (*CustomPricing, error)
 }

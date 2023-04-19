@@ -1,11 +1,12 @@
-package cloud
+package azure
 
 import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
-	"github.com/opencost/opencost/pkg/cloud/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/opencost/opencost/pkg/cloud/types"
 )
 
 func TestParseAzureSubscriptionID(t *testing.T) {
@@ -32,7 +33,7 @@ func TestParseAzureSubscriptionID(t *testing.T) {
 	}
 
 	for _, test := range cases {
-		result := parseAzureSubscriptionID(test.input)
+		result := ParseAzureSubscriptionID(test.input)
 		if result != test.expected {
 			t.Errorf("Input: %s, Expected: %s, Actual: %s", test.input, test.expected, result)
 		}

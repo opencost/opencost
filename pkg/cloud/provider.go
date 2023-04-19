@@ -1,18 +1,14 @@
 package cloud
 
 import (
-	"database/sql"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
 
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
-
+	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/types"
 	"github.com/opencost/opencost/pkg/kubecost"
 
@@ -30,22 +26,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-const authSecretPath = "/var/secrets/service-key.json"
-const storageConfigSecretPath = "/var/azure-storage-config/azure-storage-config.json"
-const defaultShareTenancyCost = "true"
-
 const KarpenterCapacityTypeLabel = "karpenter.sh/capacity-type"
 const KarpenterCapacitySpotTypeValue = "spot"
-
-var toTitle = cases.Title(language.Und, cases.NoLower)
-
-var createTableStatements = []string{
-	`CREATE TABLE IF NOT EXISTS names (
-		cluster_id VARCHAR(255) NOT NULL,
-		cluster_name VARCHAR(255) NULL,
-		PRIMARY KEY (cluster_id)
-	);`,
-}
 
 // ClusterName returns the name defined in cluster info, defaulting to the
 // CLUSTER_ID environment variable
@@ -225,12 +207,12 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 		}, nil
 	case kubecost.AzureProvider:
 		log.Info("Found ProviderID starting with \"azure\", using Azure Provider")
-		return &Azure{
+		return &azure.Azure{
 			Clientset:            cache,
 			Config:               NewProviderConfig(config, cp.configFileName),
-			clusterRegion:        cp.region,
-			clusterAccountID:     cp.accountID,
-			serviceAccountChecks: types.NewServiceAccountChecks(),
+			ClusterRegion:        cp.region,
+			ClusterAccountID:     cp.accountID,
+			ServiceAccountChecks: types.NewServiceAccountChecks(),
 		}, nil
 	case kubecost.AlibabaProvider:
 		log.Info("Found ProviderID starting with \"alibaba\", using Alibaba Cloud Provider")
@@ -290,7 +272,7 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 	} else if strings.HasPrefix(providerID, "azure") {
 		cp.provider = kubecost.AzureProvider
 		cp.configFileName = "azure.json"
-		cp.accountID = parseAzureSubscriptionID(providerID)
+		cp.accountID = azure.ParseAzureSubscriptionID(providerID)
 	} else if strings.HasPrefix(providerID, "scaleway") { // the scaleway provider ID looks like scaleway://instance/<instance_id>
 		cp.provider = kubecost.ScalewayProvider
 		cp.configFileName = "scaleway.json"
@@ -303,95 +285,6 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 	}
 
 	return cp
-}
-
-func UpdateClusterMeta(cluster_id, cluster_name string) error {
-	pw := env.GetRemotePW()
-	address := env.GetSQLAddress()
-	connStr := fmt.Sprintf("postgres://postgres:%s@%s:5432?sslmode=disable", pw, address)
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	updateStmt := `UPDATE names SET cluster_name = $1 WHERE cluster_id = $2;`
-	_, err = db.Exec(updateStmt, cluster_name, cluster_id)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func CreateClusterMeta(cluster_id, cluster_name string) error {
-	pw := env.GetRemotePW()
-	address := env.GetSQLAddress()
-	connStr := fmt.Sprintf("postgres://postgres:%s@%s:5432?sslmode=disable", pw, address)
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	for _, stmt := range createTableStatements {
-		_, err := db.Exec(stmt)
-		if err != nil {
-			return err
-		}
-	}
-	insertStmt := `INSERT INTO names (cluster_id, cluster_name) VALUES ($1, $2);`
-	_, err = db.Exec(insertStmt, cluster_id, cluster_name)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func GetClusterMeta(cluster_id string) (string, string, error) {
-	pw := env.GetRemotePW()
-	address := env.GetSQLAddress()
-	connStr := fmt.Sprintf("postgres://postgres:%s@%s:5432?sslmode=disable", pw, address)
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		return "", "", err
-	}
-	defer db.Close()
-	query := `SELECT cluster_id, cluster_name
-	FROM names
-	WHERE cluster_id = ?`
-
-	rows, err := db.Query(query, cluster_id)
-	if err != nil {
-		return "", "", err
-	}
-	defer rows.Close()
-	var (
-		sql_cluster_id string
-		cluster_name   string
-	)
-	for rows.Next() {
-		if err := rows.Scan(&sql_cluster_id, &cluster_name); err != nil {
-			return "", "", err
-		}
-	}
-
-	return sql_cluster_id, cluster_name, nil
-}
-
-func GetOrCreateClusterMeta(cluster_id, cluster_name string) (string, string, error) {
-	id, name, err := GetClusterMeta(cluster_id)
-	if err != nil {
-		err := CreateClusterMeta(cluster_id, cluster_name)
-		if err != nil {
-			return "", "", err
-		}
-	}
-	if id == "" {
-		err := CreateClusterMeta(cluster_id, cluster_name)
-		if err != nil {
-			return "", "", err
-		}
-	}
-
-	return id, name, nil
 }
 
 var (

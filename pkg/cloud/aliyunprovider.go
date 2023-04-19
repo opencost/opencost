@@ -604,7 +604,7 @@ func (alibaba *Alibaba) GetConfig() (*types.CustomPricing, error) {
 		c.NegotiatedDiscount = "0%"
 	}
 	if c.ShareTenancyCosts == "" {
-		c.ShareTenancyCosts = defaultShareTenancyCost
+		c.ShareTenancyCosts = types.DefaultShareTenancyCost
 	}
 
 	return c, nil
@@ -618,14 +618,14 @@ func (alibaba *Alibaba) loadAlibabaAuthSecretAndSetEnv(force bool) error {
 		return nil
 	}
 
-	exists, err := fileutil.FileExists(authSecretPath)
+	exists, err := fileutil.FileExists(types.AuthSecretPath)
 	if !exists || err != nil {
-		return fmt.Errorf("failed to locate service account file: %s with err: %w", authSecretPath, err)
+		return fmt.Errorf("failed to locate service account file: %s with err: %w", types.AuthSecretPath, err)
 	}
 
-	result, err := os.ReadFile(authSecretPath)
+	result, err := os.ReadFile(types.AuthSecretPath)
 	if err != nil {
-		return fmt.Errorf("failed to read service account file: %s with err: %w", authSecretPath, err)
+		return fmt.Errorf("failed to read service account file: %s with err: %w", types.AuthSecretPath, err)
 	}
 
 	var ak *AlibabaAccessKey
@@ -716,7 +716,7 @@ func (alibaba *Alibaba) UpdateConfig(r io.Reader, updateType string) (*types.Cus
 				return err
 			}
 			for k, v := range a {
-				kUpper := toTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+				kUpper := types.ToTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
 				vstr, ok := v.(string)
 				if ok {
 					err := types.SetCustomPricingField(c, kUpper, vstr)
@@ -730,7 +730,7 @@ func (alibaba *Alibaba) UpdateConfig(r io.Reader, updateType string) (*types.Cus
 		}
 
 		if env.IsRemoteEnabled() {
-			err := UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
+			err := types.UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return err
 			}

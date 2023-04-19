@@ -69,7 +69,7 @@ func (pc *ProviderConfig) onConfigFileUpdated(changeType config.ChangeType, data
 		}
 
 		if pc.customPricing.ShareTenancyCosts == "" {
-			pc.customPricing.ShareTenancyCosts = defaultShareTenancyCost
+			pc.customPricing.ShareTenancyCosts = types.DefaultShareTenancyCost
 		}
 	}
 }
@@ -140,7 +140,7 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*types.CustomPricin
 	}
 
 	if pc.customPricing.ShareTenancyCosts == "" {
-		pc.customPricing.ShareTenancyCosts = defaultShareTenancyCost
+		pc.customPricing.ShareTenancyCosts = types.DefaultShareTenancyCost
 	}
 
 	return pc.customPricing, nil
@@ -200,7 +200,7 @@ func (pc *ProviderConfig) UpdateFromMap(a map[string]string) (*types.CustomPrici
 	return pc.Update(func(c *types.CustomPricing) error {
 		for k, v := range a {
 			// Just so we consistently supply / receive the same values, uppercase the first letter.
-			kUpper := toTitle.String(k)
+			kUpper := types.ToTitle.String(k)
 			if kUpper == "CPU" || kUpper == "SpotCPU" || kUpper == "RAM" || kUpper == "SpotRAM" || kUpper == "GPU" || kUpper == "Storage" {
 				val, err := strconv.ParseFloat(v, 64)
 				if err != nil {

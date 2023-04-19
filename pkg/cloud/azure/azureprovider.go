@@ -1,4 +1,4 @@
-package cloud
+package azure
 
 import (
 	"context"
@@ -21,7 +21,6 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 
-	pricesheet "github.com/opencost/opencost/pkg/cloud/azurepricesheet"
 	"github.com/opencost/opencost/pkg/cloud/types"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
@@ -393,16 +392,17 @@ type AzurePricing struct {
 }
 
 type Azure struct {
-	Pricing                        map[string]*AzurePricing
-	DownloadPricingDataLock        sync.RWMutex
-	Clientset                      clustercache.ClusterCache
-	Config                         *ProviderConfig
-	serviceAccountChecks           *types.ServiceAccountChecks
+	Pricing                 map[string]*AzurePricing
+	DownloadPricingDataLock sync.RWMutex
+	Clientset               clustercache.ClusterCache
+	Config                  types.ProviderConfig
+	ServiceAccountChecks    *types.ServiceAccountChecks
+	ClusterAccountID        string
+	ClusterRegion           string
+
 	pricingSource                  string
 	rateCardPricingError           error
 	priceSheetPricingError         error
-	clusterAccountID               string
-	clusterRegion                  string
 	loadedAzureSecret              bool
 	azureSecret                    *AzureServiceKey
 	loadedAzureStorageConfigSecret bool
@@ -578,7 +578,7 @@ func (az *Azure) GetAzureStorageConfig(forceReload bool, cp *types.CustomPricing
 
 	// check for required fields
 	if asc != nil && asc.AccessKey != "" && asc.AccountName != "" && asc.ContainerName != "" && asc.SubscriptionId != "" {
-		az.serviceAccountChecks.Set("hasStorage", &types.ServiceAccountCheck{
+		az.ServiceAccountChecks.Set("hasStorage", &types.ServiceAccountCheck{
 			Message: "Azure Storage Config exists",
 			Status:  true,
 		})
@@ -597,7 +597,7 @@ func (az *Azure) GetAzureStorageConfig(forceReload bool, cp *types.CustomPricing
 		}
 		// check for required fields
 		if asc.AccessKey != "" && asc.AccountName != "" && asc.ContainerName != "" && asc.SubscriptionId != "" {
-			az.serviceAccountChecks.Set("hasStorage", &types.ServiceAccountCheck{
+			az.ServiceAccountChecks.Set("hasStorage", &types.ServiceAccountCheck{
 				Message: "Azure Storage Config exists",
 				Status:  true,
 			})
@@ -606,7 +606,7 @@ func (az *Azure) GetAzureStorageConfig(forceReload bool, cp *types.CustomPricing
 		}
 	}
 
-	az.serviceAccountChecks.Set("hasStorage", &types.ServiceAccountCheck{
+	az.ServiceAccountChecks.Set("hasStorage", &types.ServiceAccountCheck{
 		Message: "Azure Storage Config exists",
 		Status:  false,
 	})
@@ -623,12 +623,12 @@ func (az *Azure) loadAzureAuthSecret(force bool) (*AzureServiceKey, error) {
 	}
 	az.loadedAzureSecret = true
 
-	exists, err := fileutil.FileExists(authSecretPath)
+	exists, err := fileutil.FileExists(types.AuthSecretPath)
 	if !exists || err != nil {
-		return nil, fmt.Errorf("Failed to locate service account file: %s", authSecretPath)
+		return nil, fmt.Errorf("Failed to locate service account file: %s", types.AuthSecretPath)
 	}
 
-	result, err := os.ReadFile(authSecretPath)
+	result, err := os.ReadFile(types.AuthSecretPath)
 	if err != nil {
 		return nil, err
 	}
@@ -652,12 +652,12 @@ func (az *Azure) loadAzureStorageConfig(force bool) (*AzureStorageConfig, error)
 	}
 	az.loadedAzureStorageConfigSecret = true
 
-	exists, err := fileutil.FileExists(storageConfigSecretPath)
+	exists, err := fileutil.FileExists(types.StorageConfigSecretPath)
 	if !exists || err != nil {
-		return nil, fmt.Errorf("Failed to locate azure storage config file: %s", storageConfigSecretPath)
+		return nil, fmt.Errorf("Failed to locate azure storage config file: %s", types.StorageConfigSecretPath)
 	}
 
-	result, err := os.ReadFile(storageConfigSecretPath)
+	result, err := os.ReadFile(types.StorageConfigSecretPath)
 	if err != nil {
 		return nil, err
 	}
@@ -806,7 +806,7 @@ func (az *Azure) DownloadPricingData() error {
 
 	var authorizer autorest.Authorizer
 
-	azureEnv := determineCloudByRegion(az.clusterRegion)
+	azureEnv := determineCloudByRegion(az.ClusterRegion)
 
 	if config.AzureClientID != "" && config.AzureClientSecret != "" && config.AzureTenantID != "" {
 		credentialsConfig := NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID, azureEnv)
@@ -878,7 +878,7 @@ func (az *Azure) DownloadPricingData() error {
 
 	// If we've got a billing account set, kick off downloading the custom pricing data.
 	if config.AzureBillingAccount != "" {
-		downloader := pricesheet.Downloader[AzurePricing]{
+		downloader := Downloader[AzurePricing]{
 			TenantID:       config.AzureTenantID,
 			ClientID:       config.AzureClientID,
 			ClientSecret:   config.AzureClientSecret,
@@ -1290,7 +1290,7 @@ func (az *Azure) getDisks() ([]*compute.Disk, error) {
 
 	var authorizer autorest.Authorizer
 
-	azureEnv := determineCloudByRegion(az.clusterRegion)
+	azureEnv := determineCloudByRegion(az.ClusterRegion)
 
 	if config.AzureClientID != "" && config.AzureClientSecret != "" && config.AzureTenantID != "" {
 		credentialsConfig := NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID, azureEnv)
@@ -1436,8 +1436,8 @@ func (az *Azure) ClusterInfo() (map[string]string, error) {
 		m["name"] = c.ClusterName
 	}
 	m["provider"] = kubecost.AzureProvider
-	m["account"] = az.clusterAccountID
-	m["region"] = az.clusterRegion
+	m["account"] = az.ClusterAccountID
+	m["region"] = az.ClusterRegion
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
 	m["id"] = env.GetClusterID()
 	return m, nil
@@ -1482,7 +1482,7 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*types.CustomPric
 
 			for k, v := range a {
 				// Just so we consistently supply / receive the same values, uppercase the first letter.
-				kUpper := toTitle.String(k)
+				kUpper := types.ToTitle.String(k)
 				vstr, ok := v.(string)
 				if ok {
 					err := types.SetCustomPricingField(c, kUpper, vstr)
@@ -1496,7 +1496,7 @@ func (az *Azure) UpdateConfig(r io.Reader, updateType string) (*types.CustomPric
 		}
 
 		if env.IsRemoteEnabled() {
-			err := UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
+			err := types.UpdateClusterMeta(env.GetClusterID(), c.ClusterName)
 			if err != nil {
 				return fmt.Errorf("error updating cluster metadata: %s", err)
 			}
@@ -1528,7 +1528,7 @@ func (az *Azure) GetConfig() (*types.CustomPricing, error) {
 		c.AzureOfferDurableID = "MS-AZR-0003p"
 	}
 	if c.ShareTenancyCosts == "" {
-		c.ShareTenancyCosts = defaultShareTenancyCost
+		c.ShareTenancyCosts = types.DefaultShareTenancyCost
 	}
 	if c.SpotLabel == "" {
 		c.SpotLabel = defaultSpotLabel
@@ -1560,7 +1560,7 @@ func (az *Azure) GetLocalStorageQuery(window, offset time.Duration, rate bool, u
 }
 
 func (az *Azure) ServiceAccountStatus() *types.ServiceAccountStatus {
-	return az.serviceAccountChecks.GetStatus()
+	return az.ServiceAccountChecks.GetStatus()
 }
 
 const (
@@ -1636,7 +1636,7 @@ func (az *Azure) Regions() []string {
 	return azureRegions
 }
 
-func parseAzureSubscriptionID(id string) string {
+func ParseAzureSubscriptionID(id string) string {
 	match := azureSubRegex.FindStringSubmatch(id)
 	if len(match) >= 2 {
 		return match[1]
