@@ -20,18 +20,18 @@ import (
 	"github.com/opencost/opencost/pkg/log"
 )
 
-type Downloader[T any] struct {
+type PriceSheetDownloader struct {
 	TenantID         string
 	ClientID         string
 	ClientSecret     string
 	BillingAccount   string
 	OfferID          string
-	ConvertMeterInfo func(info commerce.MeterInfo) (map[string]*T, error)
+	ConvertMeterInfo func(info commerce.MeterInfo) (map[string]*AzurePricing, error)
 }
 
-func (d *Downloader[T]) GetPricing(ctx context.Context) (map[string]*T, error) {
+func (d *PriceSheetDownloader) GetPricing(ctx context.Context) (map[string]*AzurePricing, error) {
 	log.Infof("requesting pricesheet download link")
-	url, err := d.getPricesheetDownloadURL(ctx)
+	url, err := d.getDownloadURL(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getting download URL: %w", err)
 	}
@@ -50,12 +50,12 @@ func (d *Downloader[T]) GetPricing(ctx context.Context) (map[string]*T, error) {
 	return prices, nil
 }
 
-func (d *Downloader[T]) getPricesheetDownloadURL(ctx context.Context) (string, error) {
+func (d *PriceSheetDownloader) getDownloadURL(ctx context.Context) (string, error) {
 	cred, err := azidentity.NewClientSecretCredential(d.TenantID, d.ClientID, d.ClientSecret, nil)
 	if err != nil {
 		return "", fmt.Errorf("creating credential: %w", err)
 	}
-	client, err := NewClient(d.BillingAccount, cred, nil)
+	client, err := NewPriceSheetClient(d.BillingAccount, cred, nil)
 	if err != nil {
 		return "", fmt.Errorf("creating pricesheet client: %w", err)
 	}
@@ -72,7 +72,7 @@ func (d *Downloader[T]) getPricesheetDownloadURL(ctx context.Context) (string, e
 	return resp.Properties.DownloadURL, nil
 }
 
-func (d Downloader[T]) saveData(ctx context.Context, url, tempName string) (io.ReadCloser, error) {
+func (d PriceSheetDownloader) saveData(ctx context.Context, url, tempName string) (io.ReadCloser, error) {
 	// Download file from URL in response.
 	out, err := os.CreateTemp("", tempName)
 	if err != nil {
@@ -113,7 +113,7 @@ func (r *removeOnClose) Close() error {
 	return os.Remove(r.Name())
 }
 
-func (d *Downloader[T]) readPricesheet(ctx context.Context, data io.Reader) (map[string]*T, error) {
+func (d *PriceSheetDownloader) readPricesheet(ctx context.Context, data io.Reader) (map[string]*AzurePricing, error) {
 	// Avoid double-buffering.
 	buf, ok := (data).(*bufio.Reader)
 	if !ok {
@@ -144,7 +144,7 @@ func (d *Downloader[T]) readPricesheet(ctx context.Context, data io.Reader) (map
 
 	units := make(map[string]bool)
 
-	results := make(map[string]*T)
+	results := make(map[string]*AzurePricing)
 	lines := 2
 	for {
 		row, err := reader.Read()

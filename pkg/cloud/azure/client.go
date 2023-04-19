@@ -34,11 +34,11 @@ type PriceSheetClient struct {
 	pl               runtime.Pipeline
 }
 
-// NewClient creates a new instance of PriceSheetClient with the specified values.
+// NewPriceSheetClient creates a new instance of PriceSheetClient with the specified values.
 // billingAccountId - Azure Billing Account ID.
 // credential - used to authorize requests. Usually a credential from azidentity.
 // options - pass nil to accept the default values.
-func NewClient(billingAccountID string, credential azcore.TokenCredential, options *arm.ClientOptions) (*PriceSheetClient, error) {
+func NewPriceSheetClient(billingAccountID string, credential azcore.TokenCredential, options *arm.ClientOptions) (*PriceSheetClient, error) {
 	if options == nil {
 		options = &arm.ClientOptions{}
 	}

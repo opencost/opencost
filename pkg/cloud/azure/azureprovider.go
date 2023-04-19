@@ -878,7 +878,7 @@ func (az *Azure) DownloadPricingData() error {
 
 	// If we've got a billing account set, kick off downloading the custom pricing data.
 	if config.AzureBillingAccount != "" {
-		downloader := Downloader[AzurePricing]{
+		downloader := PriceSheetDownloader{
 			TenantID:       config.AzureTenantID,
 			ClientID:       config.AzureClientID,
 			ClientSecret:   config.AzureClientSecret,
