@@ -1761,9 +1761,15 @@ func deriveProportionalAssetResourceCostsFromIdleCoefficients(idleCoeffs map[str
 
 	// compute how much each component (cpu, gpu, ram) contributes to the overall price
 	totalCost := totals[idleId]["ram"] + totals[idleId]["gpu"] + totals[idleId]["cpu"]
-	ramFraction := totals[idleId]["ram"] / totalCost
-	cpuFraction := totals[idleId]["cpu"] / totalCost
-	gpuFraction := totals[idleId]["gpu"] / totalCost
+
+	var ramFraction, cpuFraction, gpuFraction float64
+
+	// only compute fraction if totalCost is nonzero, otherwise returns in NaN
+	if totalCost > 0 {
+		ramFraction = totals[idleId]["ram"] / totalCost
+		cpuFraction = totals[idleId]["cpu"] / totalCost
+		gpuFraction = totals[idleId]["gpu"] / totalCost
+	}
 
 	// compute the resource usage percentage based on the weighted fractions
 	resourcePercentage := (ramPct * ramFraction) + (cpuPct * cpuFraction) + (gpuPct * gpuFraction)
