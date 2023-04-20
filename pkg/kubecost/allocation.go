@@ -247,12 +247,13 @@ func (pva *PVAllocation) Equal(that *PVAllocation) bool {
 }
 
 type ProportionalAssetResourceCost struct {
-	Cluster       string  `json:"cluster"`
-	Node          string  `json:"node,omitempty"`
-	ProviderID    string  `json:"providerID,omitempty"`
-	CPUPercentage float64 `json:"cpuPercentage"`
-	GPUPercentage float64 `json:"gpuPercentage"`
-	RAMPercentage float64 `json:"ramPercentage"`
+	Cluster            string  `json:"cluster"`
+	Node               string  `json:"node,omitempty"`
+	ProviderID         string  `json:"providerID,omitempty"`
+	CPUPercentage      float64 `json:"cpuPercentage"`
+	GPUPercentage      float64 `json:"gpuPercentage"`
+	RAMPercentage      float64 `json:"ramPercentage"`
+	ResourcePercentage float64 `json:"resourcePercentage"`
 }
 
 func (parc ProportionalAssetResourceCost) Key(insertByNode bool) string {
@@ -273,12 +274,13 @@ func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourc
 	}
 	if curr, ok := parcs[parc.Key(insertByNode)]; ok {
 		parcs[parc.Key(insertByNode)] = ProportionalAssetResourceCost{
-			Node:          curr.Node,
-			Cluster:       curr.Cluster,
-			ProviderID:    curr.ProviderID,
-			CPUPercentage: curr.CPUPercentage + parc.CPUPercentage,
-			GPUPercentage: curr.GPUPercentage + parc.GPUPercentage,
-			RAMPercentage: curr.RAMPercentage + parc.RAMPercentage,
+			Node:               curr.Node,
+			Cluster:            curr.Cluster,
+			ProviderID:         curr.ProviderID,
+			CPUPercentage:      curr.CPUPercentage + parc.CPUPercentage,
+			GPUPercentage:      curr.GPUPercentage + parc.GPUPercentage,
+			RAMPercentage:      curr.RAMPercentage + parc.RAMPercentage,
+			ResourcePercentage: curr.ResourcePercentage + parc.ResourcePercentage,
 		}
 	} else {
 		parcs[parc.Key(insertByNode)] = parc
@@ -1164,7 +1166,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 
 			// Attempt to derive proportional asset resource costs from idle
 			// coefficients, and insert them into the set if successful.
-			parc, err := deriveProportionalAssetResourceCostsFromIdleCoefficients(parcCoefficients, alloc, options)
+			parc, err := deriveProportionalAssetResourceCostsFromIdleCoefficients(parcCoefficients, allocatedTotalsMap, alloc, options)
 			if err != nil {
 				log.Debugf("AggregateBy: failed to derive proportional asset resource costs from idle coefficients for %s: %s", alloc.Name, err)
 				continue
@@ -1739,7 +1741,7 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 	return coeffs, totals, nil
 }
 
-func deriveProportionalAssetResourceCostsFromIdleCoefficients(idleCoeffs map[string]map[string]map[string]float64, allocation *Allocation, options *AllocationAggregationOptions) (ProportionalAssetResourceCost, error) {
+func deriveProportionalAssetResourceCostsFromIdleCoefficients(idleCoeffs map[string]map[string]map[string]float64, totals map[string]map[string]float64, allocation *Allocation, options *AllocationAggregationOptions) (ProportionalAssetResourceCost, error) {
 	idleId, err := allocation.getIdleId(options)
 	if err != nil {
 		return ProportionalAssetResourceCost{}, fmt.Errorf("failed to get idle ID for allocation %s", allocation.Name)
@@ -1757,13 +1759,23 @@ func deriveProportionalAssetResourceCostsFromIdleCoefficients(idleCoeffs map[str
 	gpuPct := idleCoeffs[idleId][allocation.Name]["gpu"]
 	ramPct := idleCoeffs[idleId][allocation.Name]["ram"]
 
+	// compute how much each component (cpu, gpu, ram) contributes to the overall price
+	totalCost := totals[idleId]["ram"] + totals[idleId]["gpu"] + totals[idleId]["cpu"]
+	ramFraction := totals[idleId]["ram"] / totalCost
+	cpuFraction := totals[idleId]["cpu"] / totalCost
+	gpuFraction := totals[idleId]["gpu"] / totalCost
+
+	// compute the resource usage percentage based on the weighted fractions
+	resourcePercentage := (ramPct * ramFraction) + (cpuPct * cpuFraction) + (gpuPct * gpuFraction)
+
 	return ProportionalAssetResourceCost{
-		Cluster:       allocation.Properties.Cluster,
-		Node:          allocation.Properties.Node,
-		ProviderID:    allocation.Properties.ProviderID,
-		CPUPercentage: cpuPct,
-		GPUPercentage: gpuPct,
-		RAMPercentage: ramPct,
+		Cluster:            allocation.Properties.Cluster,
+		Node:               allocation.Properties.Node,
+		ProviderID:         allocation.Properties.ProviderID,
+		CPUPercentage:      cpuPct,
+		GPUPercentage:      gpuPct,
+		RAMPercentage:      ramPct,
+		ResourcePercentage: resourcePercentage,
 	}, nil
 }
 
