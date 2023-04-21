@@ -5,7 +5,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util/json"
 )
 
