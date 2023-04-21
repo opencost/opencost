@@ -2,6 +2,12 @@
 
 package costmodel
 
+import (
+	"time"
+
+	"github.com/opencost/opencost/pkg/prom"
+)
+
 // These implementations are placeholders to allow conditional compilation of
 // incubating features to be enabled specifically without introducing conflicts
 // with the existing codebase. Since go only supports file scoped conditional
