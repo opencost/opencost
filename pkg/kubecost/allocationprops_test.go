@@ -5,6 +5,110 @@ import (
 	"testing"
 )
 
+func TestAllocationPropsIntersection(t *testing.T) {
+	cases := map[string]struct {
+		allocationProps1 *AllocationProperties
+		allocationProps2 *AllocationProperties
+		expected         *AllocationProperties
+	}{
+		"intersection two allocation properties with empty labels/annotations": {
+			allocationProps1: &AllocationProperties{
+				Labels:      map[string]string{},
+				Annotations: map[string]string{},
+			},
+			allocationProps2: &AllocationProperties{
+				Labels:      map[string]string{},
+				Annotations: map[string]string{},
+			},
+			expected: &AllocationProperties{
+				Labels:      nil,
+				Annotations: nil,
+			},
+		},
+		"nil intersection": {
+			allocationProps1: nil,
+			allocationProps2: nil,
+			expected:         nil,
+		},
+		"intersection, with labels/annotations, no aggregated metdata": {
+			allocationProps1: &AllocationProperties{
+				AggregatedMetadata: false,
+				Node:               "node1",
+				Labels:             map[string]string{"key1": "val1"},
+				Annotations:        map[string]string{"key2": "val2"},
+			},
+			allocationProps2: &AllocationProperties{
+				AggregatedMetadata: false,
+				Node:               "node1",
+				Labels:             map[string]string{"key3": "val3"},
+				Annotations:        map[string]string{"key4": "val4"},
+			},
+			expected: &AllocationProperties{
+				AggregatedMetadata: false,
+				Node:               "node1",
+				Labels:             nil,
+				Annotations:        nil,
+			},
+		},
+		"intersection, with labels/annotations, with aggregated metdata": {
+			allocationProps1: &AllocationProperties{
+				AggregatedMetadata: false,
+				ControllerKind:     "controller1",
+				Namespace:          "ns1",
+				Labels:             map[string]string{"key1": "val1"},
+				Annotations:        map[string]string{"key2": "val2"},
+			},
+			allocationProps2: &AllocationProperties{
+				AggregatedMetadata: true,
+				ControllerKind:     "controller2",
+				Namespace:          "ns1",
+				Labels:             map[string]string{"key1": "val1"},
+				Annotations:        map[string]string{"key2": "val2"},
+			},
+			expected: &AllocationProperties{
+				AggregatedMetadata: true,
+				Namespace:          "ns1",
+				ControllerKind:     "",
+				Labels:             map[string]string{"key1": "val1"},
+				Annotations:        map[string]string{"key2": "val2"},
+			},
+		},
+		"intersection, with labels/annotations, special case container": {
+			allocationProps1: &AllocationProperties{
+				AggregatedMetadata: false,
+				Container:          UnmountedSuffix,
+				Namespace:          "ns1",
+				Labels:             map[string]string{},
+				Annotations:        map[string]string{},
+			},
+			allocationProps2: &AllocationProperties{
+				AggregatedMetadata: true,
+				Container:          "container3",
+				Namespace:          "ns1",
+				Labels:             map[string]string{"key1": "val1"},
+				Annotations:        map[string]string{"key2": "val2"},
+			},
+			expected: &AllocationProperties{
+				AggregatedMetadata: true,
+				Namespace:          "ns1",
+				ControllerKind:     "",
+				Labels:             map[string]string{"key1": "val1"},
+				Annotations:        map[string]string{"key2": "val2"},
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+
+			actual := tc.allocationProps1.Intersection(tc.allocationProps2)
+
+			if !reflect.DeepEqual(actual, tc.expected) {
+				t.Fatalf("test case %s: expected %+v; got %+v", name, tc.expected, actual)
+			}
+		})
+	}
+}
 func TestGenerateKey(t *testing.T) {
 
 	customOwnerLabelConfig := NewLabelConfig()
