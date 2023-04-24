@@ -1078,12 +1078,19 @@ func (az *Azure) AllNodePricing() (interface{}, error) {
 func (az *Azure) NodePricing(key Key) (*Node, error) {
 	az.DownloadPricingDataLock.RLock()
 	defer az.DownloadPricingDataLock.RUnlock()
+	pricingDataExists := true
+	if az.Pricing == nil {
+		pricingDataExists = false
+		log.DedupedWarningf(1, "Unable to download Azure pricing data")
+	}
 
 	azKey, ok := key.(*azureKey)
 	if !ok {
 		return nil, fmt.Errorf("azure: NodePricing: key is of type %T", key)
 	}
 	config, _ := az.GetConfig()
+
+	// Spot Node
 	if slv, ok := azKey.Labels[config.SpotLabel]; ok && slv == config.SpotLabelValue && config.SpotLabel != "" && config.SpotLabelValue != "" {
 		features := strings.Split(azKey.Features(), ",")
 		region := features[0]
@@ -1097,7 +1104,6 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 			return n.Node, nil
 		}
 		log.Infof("[Info] found spot instance, trying to get retail price for %s: %s, ", spotFeatures, azKey)
-
 		spotCost, err := getRetailPrice(region, instance, config.CurrencyCode, true)
 		if err != nil {
 			log.DedupedWarningf(5, "failed to retrieve spot retail pricing")
@@ -1111,27 +1117,31 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 				UsageType: "spot",
 				GPU:       gpu,
 			}
-
 			az.addPricing(spotFeatures, &AzurePricing{
 				Node: spotNode,
 			})
-
 			return spotNode, nil
 		}
 	}
 
-	if n, ok := az.Pricing[azKey.Features()]; ok {
-		log.Debugf("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
-		if azKey.isValidGPUNode() {
-			n.Node.GPU = azKey.GetGPUCount()
+	// Use the downloaded pricing data if possible. Otherwise, use default
+	// configured pricing data.
+	if pricingDataExists {
+		if n, ok := az.Pricing[azKey.Features()]; ok {
+			log.Debugf("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
+			if azKey.isValidGPUNode() {
+				n.Node.GPU = azKey.GetGPUCount()
+			}
+			return n.Node, nil
 		}
-		return n.Node, nil
+		log.DedupedWarningf(5, "No pricing data found for node %s from key %s", azKey, azKey.Features())
 	}
-	log.Warnf("no pricing data found for %s: %s", azKey.Features(), azKey)
 	c, err := az.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("No default pricing data available")
 	}
+
+	// GPU Node
 	if azKey.isValidGPUNode() {
 		return &Node{
 			VCPUCost:         c.CPU,
@@ -1141,6 +1151,18 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 			GPU:              azKey.GetGPUCount(),
 		}, nil
 	}
+
+	// Serverless Node. This is an Azure Container Instance, and no pods can be
+	// scheduled to this node. Azure does not charge for this node. Set costs to
+	// zero.
+	if azKey.Labels["kubernetes.io/hostname"] == "virtual-node-aci-linux" {
+		return &Node{
+			VCPUCost: "0",
+			RAMCost:  "0",
+		}, nil
+	}
+
+	// Regular Node
 	return &Node{
 		VCPUCost:         c.CPU,
 		RAMCost:          c.RAM,
