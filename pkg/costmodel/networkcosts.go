@@ -1,7 +1,7 @@
 package costmodel
 
 import (
-	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/types"
+	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/prom"

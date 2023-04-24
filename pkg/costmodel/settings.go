@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud/types"
+	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/patrickmn/go-cache"
 )
@@ -87,7 +87,7 @@ func (a *Accesses) customPricingHasChanged() bool {
 
 	// describe parameters by which we determine whether or not custom
 	// pricing settings have changed
-	encodeCustomPricing := func(cp *types.CustomPricing) string {
+	encodeCustomPricing := func(cp *models.CustomPricing) string {
 		return fmt.Sprintf("%s:%s:%s:%s:%s:%s:%s:%s:%s", cp.CustomPricesEnabled, cp.CPU, cp.SpotCPU,
 			cp.RAM, cp.SpotRAM, cp.GPU, cp.Storage, cp.CurrencyCode, cp.SharedOverhead)
 	}
@@ -127,7 +127,7 @@ func (a *Accesses) discountHasChanged() bool {
 
 	// describe parameters by which we determine whether or not custom
 	// pricing settings have changed
-	encodeDiscount := func(cp *types.CustomPricing) string {
+	encodeDiscount := func(cp *models.CustomPricing) string {
 		return fmt.Sprintf("%s:%s", cp.Discount, cp.NegotiatedDiscount)
 	}
 

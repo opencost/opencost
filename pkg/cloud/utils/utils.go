@@ -1,11 +1,16 @@
-package types
+package utils
 
 import (
 	"database/sql"
 	"fmt"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/opencost/opencost/pkg/env"
 )
+
+var ToTitle = cases.Title(language.Und, cases.NoLower)
 
 var createTableStatements = []string{
 	`CREATE TABLE IF NOT EXISTS names (

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud/types"
+	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/util"
 
@@ -223,31 +223,31 @@ func (k *csvKey) ID() string {
 	return k.ProviderID
 }
 
-func (c *CSVProvider) NodePricing(key types.Key) (*types.Node, error) {
+func (c *CSVProvider) NodePricing(key models.Key) (*models.Node, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
-	var node *types.Node
+	var node *models.Node
 	if p, ok := c.Pricing[key.ID()]; ok {
-		node = &types.Node{
+		node = &models.Node{
 			Cost:        p.MarketPriceHourly,
-			PricingType: types.CsvExact,
+			PricingType: models.CsvExact,
 		}
 	}
 	s := strings.Split(key.ID(), ",") // Try without a region to be sure
 	if len(s) == 2 {
 		if p, ok := c.Pricing[s[1]]; ok {
-			node = &types.Node{
+			node = &models.Node{
 				Cost:        p.MarketPriceHourly,
-				PricingType: types.CsvExact,
+				PricingType: models.CsvExact,
 			}
 		}
 	}
 	classKey := key.Features() // Use node attributes to try and do a class match
 	if cost, ok := c.NodeClassPricing[classKey]; ok {
 		log.Infof("Unable to find provider ID `%s`, using features:`%s`", key.ID(), key.Features())
-		node = &types.Node{
+		node = &models.Node{
 			Cost:        fmt.Sprintf("%f", cost),
-			PricingType: types.CsvClass,
+			PricingType: models.CsvClass,
 		}
 	}
 
@@ -347,7 +347,7 @@ func PVValueFromMapField(m string, n *v1.PersistentVolume) string {
 	}
 }
 
-func (c *CSVProvider) GetKey(l map[string]string, n *v1.Node) types.Key {
+func (c *CSVProvider) GetKey(l map[string]string, n *v1.Node) models.Key {
 	id := NodeValueFromMapField(c.NodeMapField, n, c.UsesRegion)
 	var gpuCount int64
 	gpuCount = 0
@@ -383,7 +383,7 @@ func (key *csvPVKey) Features() string {
 	return key.ProviderID
 }
 
-func (c *CSVProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) types.PVKey {
+func (c *CSVProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
 	id := PVValueFromMapField(c.PVMapField, pv)
 	return &csvPVKey{
 		Labels:                 pv.Labels,
@@ -395,22 +395,22 @@ func (c *CSVProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]st
 	}
 }
 
-func (c *CSVProvider) PVPricing(pvk types.PVKey) (*types.PV, error) {
+func (c *CSVProvider) PVPricing(pvk models.PVKey) (*models.PV, error) {
 	c.DownloadPricingDataLock.RLock()
 	defer c.DownloadPricingDataLock.RUnlock()
 	pricing, ok := c.PricingPV[pvk.Features()]
 	if !ok {
 		log.Infof("Persistent Volume pricing not found for %s: %s", pvk.GetStorageClass(), pvk.Features())
-		return &types.PV{}, nil
+		return &models.PV{}, nil
 	}
-	return &types.PV{
+	return &models.PV{
 		Cost: pricing.MarketPriceHourly,
 	}, nil
 }
 
-func (c *CSVProvider) ServiceAccountStatus() *types.ServiceAccountStatus {
-	return &types.ServiceAccountStatus{
-		Checks: []*types.ServiceAccountCheck{},
+func (c *CSVProvider) ServiceAccountStatus() *models.ServiceAccountStatus {
+	return &models.ServiceAccountStatus{
+		Checks: []*models.ServiceAccountCheck{},
 	}
 }
 

@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/opencost/opencost/pkg/cloud/types"
+	"github.com/opencost/opencost/pkg/cloud/models"
 )
 
 func Test_awsKey_getUsageType(t *testing.T) {
@@ -335,7 +335,7 @@ func Test_populate_pricing(t *testing.T) {
 				},
 			},
 		},
-		PV: &types.PV{
+		PV: &models.PV{
 			Cost:       "0.00010958904109589041",
 			CostPerIO:  "",
 			Class:      "gp3",
@@ -474,7 +474,7 @@ func Test_populate_pricing(t *testing.T) {
 				},
 			},
 		},
-		PV: &types.PV{
+		PV: &models.PV{
 			Cost:       "0.0007276712328767123",
 			CostPerIO:  "",
 			Class:      "gp3",

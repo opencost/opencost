@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/profiles/2020-09-01/commerce/mgmt/commerce"
-	"github.com/opencost/opencost/pkg/cloud/types"
+	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,10 +28,10 @@ func TestDownloader(t *testing.T) {
 		// Units and prices are normalised.
 		// Info for saving plans and other offers is skipped.
 		expected := map[string]*AzurePricing{
-			"DC96as_v4 1 Hour": {Node: &types.Node{Cost: "10.505"}},
-			"DC2as_v4 1 Hour":  {Node: &types.Node{Cost: "0.219"}},
-			"VM1 1 Hour":       {Node: &types.Node{Cost: "1.0"}},
-			"VM2 1 Hour":       {Node: &types.Node{Cost: "2.0"}},
+			"DC96as_v4 1 Hour": {Node: &models.Node{Cost: "10.505"}},
+			"DC2as_v4 1 Hour":  {Node: &models.Node{Cost: "0.219"}},
+			"VM1 1 Hour":       {Node: &models.Node{Cost: "1.0"}},
+			"VM2 1 Hour":       {Node: &models.Node{Cost: "2.0"}},
 		}
 		require.Equal(t, expected, results)
 	})
@@ -70,15 +70,15 @@ func convertMeter(info commerce.MeterInfo) (map[string]*AzurePricing, error) {
 		return nil, nil
 	case "multiple-prices":
 		return map[string]*AzurePricing{
-			"VM1 1 Hour": {Node: &types.Node{Cost: "1.0"}},
-			"VM2 1 Hour": {Node: &types.Node{Cost: "2.0"}},
+			"VM1 1 Hour": {Node: &models.Node{Cost: "1.0"}},
+			"VM2 1 Hour": {Node: &models.Node{Cost: "2.0"}},
 		}, nil
 	case "error":
 		return nil, fmt.Errorf("there was an error handling this row!")
 	default:
 		return map[string]*AzurePricing{
 			*info.MeterName + " " + *info.Unit: {
-				Node: &types.Node{Cost: fmt.Sprintf("%0.3f", *info.MeterRates["0"])},
+				Node: &models.Node{Cost: fmt.Sprintf("%0.3f", *info.MeterRates["0"])},
 			},
 		}, nil
 	}

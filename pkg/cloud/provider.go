@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/pkg/cloud/azure"
-	"github.com/opencost/opencost/pkg/cloud/types"
+	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/kubecost"
 
 	"github.com/opencost/opencost/pkg/util"
@@ -31,7 +31,7 @@ const KarpenterCapacitySpotTypeValue = "spot"
 
 // ClusterName returns the name defined in cluster info, defaulting to the
 // CLUSTER_ID environment variable
-func ClusterName(p types.Provider) string {
+func ClusterName(p models.Provider) string {
 	info, err := p.ClusterInfo()
 	if err != nil {
 		return env.GetClusterID()
@@ -47,7 +47,7 @@ func ClusterName(p types.Provider) string {
 
 // CustomPricesEnabled returns the boolean equivalent of the cloup provider's custom prices flag,
 // indicating whether or not the cluster is using custom pricing.
-func CustomPricesEnabled(p types.Provider) bool {
+func CustomPricesEnabled(p models.Provider) bool {
 	config, err := p.GetConfig()
 	if err != nil {
 		return false
@@ -62,7 +62,7 @@ func CustomPricesEnabled(p types.Provider) bool {
 
 // ConfigWatcherFor returns a new ConfigWatcher instance which watches changes to the "pricing-configs"
 // configmap
-func ConfigWatcherFor(p types.Provider) *watcher.ConfigMapWatcher {
+func ConfigWatcherFor(p models.Provider) *watcher.ConfigMapWatcher {
 	return &watcher.ConfigMapWatcher{
 		ConfigMapName: env.GetPricingConfigmapName(),
 		WatchFunc: func(name string, data map[string]string) error {
@@ -73,7 +73,7 @@ func ConfigWatcherFor(p types.Provider) *watcher.ConfigMapWatcher {
 }
 
 // AllocateIdleByDefault returns true if the application settings specify to allocate idle by default
-func AllocateIdleByDefault(p types.Provider) bool {
+func AllocateIdleByDefault(p models.Provider) bool {
 	config, err := p.GetConfig()
 	if err != nil {
 		return false
@@ -83,7 +83,7 @@ func AllocateIdleByDefault(p types.Provider) bool {
 }
 
 // SharedNamespace returns a list of names of shared namespaces, as defined in the application settings
-func SharedNamespaces(p types.Provider) []string {
+func SharedNamespaces(p models.Provider) []string {
 	namespaces := []string{}
 
 	config, err := p.GetConfig()
@@ -104,7 +104,7 @@ func SharedNamespaces(p types.Provider) []string {
 // SharedLabel returns the configured set of shared labels as a parallel tuple of keys to values; e.g.
 // for app:kubecost,type:staging this returns (["app", "type"], ["kubecost", "staging"]) in order to
 // match the signature of the NewSharedResourceInfo
-func SharedLabels(p types.Provider) ([]string, []string) {
+func SharedLabels(p models.Provider) ([]string, []string) {
 	names := []string{}
 	values := []string{}
 
@@ -134,7 +134,7 @@ func SharedLabels(p types.Provider) ([]string, []string) {
 
 // ShareTenancyCosts returns true if the application settings specify to share
 // tenancy costs by default.
-func ShareTenancyCosts(p types.Provider) bool {
+func ShareTenancyCosts(p models.Provider) bool {
 	config, err := p.GetConfig()
 	if err != nil {
 		return false
@@ -144,7 +144,7 @@ func ShareTenancyCosts(p types.Provider) bool {
 }
 
 // NewProvider looks at the nodespec or provider metadata server to decide which provider to instantiate.
-func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.ConfigFileManager) (types.Provider, error) {
+func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.ConfigFileManager) (models.Provider, error) {
 	nodes := cache.GetAllNodes()
 	if len(nodes) == 0 {
 		log.Infof("Could not locate any nodes for cluster.") // valid in ETL readonly mode
@@ -203,7 +203,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			Config:               NewProviderConfig(config, cp.configFileName),
 			clusterRegion:        cp.region,
 			clusterAccountID:     cp.accountID,
-			serviceAccountChecks: types.NewServiceAccountChecks(),
+			serviceAccountChecks: models.NewServiceAccountChecks(),
 		}, nil
 	case kubecost.AzureProvider:
 		log.Info("Found ProviderID starting with \"azure\", using Azure Provider")
@@ -212,7 +212,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			Config:               NewProviderConfig(config, cp.configFileName),
 			ClusterRegion:        cp.region,
 			ClusterAccountID:     cp.accountID,
-			ServiceAccountChecks: types.NewServiceAccountChecks(),
+			ServiceAccountChecks: models.NewServiceAccountChecks(),
 		}, nil
 	case kubecost.AlibabaProvider:
 		log.Info("Found ProviderID starting with \"alibaba\", using Alibaba Cloud Provider")
@@ -221,7 +221,7 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			Config:               NewProviderConfig(config, cp.configFileName),
 			clusterRegion:        cp.region,
 			clusterAccountId:     cp.accountID,
-			serviceAccountChecks: types.NewServiceAccountChecks(),
+			serviceAccountChecks: models.NewServiceAccountChecks(),
 		}, nil
 	case kubecost.ScalewayProvider:
 		log.Info("Found ProviderID starting with \"scaleway\", using Scaleway Provider")

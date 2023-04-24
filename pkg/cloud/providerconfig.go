@@ -8,7 +8,8 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/opencost/opencost/pkg/cloud/types"
+	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/log"
@@ -23,7 +24,7 @@ type ProviderConfig struct {
 	lock            *sync.Mutex
 	configManager   *config.ConfigFileManager
 	configFile      *config.ConfigFile
-	customPricing   *types.CustomPricing
+	customPricing   *models.CustomPricing
 	watcherHandleID config.HandlerID
 }
 
@@ -56,7 +57,7 @@ func (pc *ProviderConfig) onConfigFileUpdated(changeType config.ChangeType, data
 		pc.lock.Lock()
 		defer pc.lock.Unlock()
 
-		customPricing := new(types.CustomPricing)
+		customPricing := new(models.CustomPricing)
 		err := json.Unmarshal(data, customPricing)
 		if err != nil {
 			log.Infof("Could not decode Custom Pricing file at path %s. Using default.", pc.configFile.Path())
@@ -69,14 +70,14 @@ func (pc *ProviderConfig) onConfigFileUpdated(changeType config.ChangeType, data
 		}
 
 		if pc.customPricing.ShareTenancyCosts == "" {
-			pc.customPricing.ShareTenancyCosts = types.DefaultShareTenancyCost
+			pc.customPricing.ShareTenancyCosts = models.DefaultShareTenancyCost
 		}
 	}
 }
 
 // Non-ThreadSafe logic to load the config file if a cache does not exist. Flag to write
 // the default config if the config file doesn't exist.
-func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*types.CustomPricing, error) {
+func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*models.CustomPricing, error) {
 	if pc.customPricing != nil {
 		return pc.customPricing, nil
 	}
@@ -127,7 +128,7 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*types.CustomPricin
 		return DefaultPricing(), err
 	}
 
-	var customPricing types.CustomPricing
+	var customPricing models.CustomPricing
 	err = json.Unmarshal(byteValue, &customPricing)
 	if err != nil {
 		log.Infof("Could not decode Custom Pricing file at path %s", pc.configFile.Path())
@@ -140,14 +141,14 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*types.CustomPricin
 	}
 
 	if pc.customPricing.ShareTenancyCosts == "" {
-		pc.customPricing.ShareTenancyCosts = types.DefaultShareTenancyCost
+		pc.customPricing.ShareTenancyCosts = models.DefaultShareTenancyCost
 	}
 
 	return pc.customPricing, nil
 }
 
 // ThreadSafe method for retrieving the custom pricing config.
-func (pc *ProviderConfig) GetCustomPricingData() (*types.CustomPricing, error) {
+func (pc *ProviderConfig) GetCustomPricingData() (*models.CustomPricing, error) {
 	pc.lock.Lock()
 	defer pc.lock.Unlock()
 
@@ -163,7 +164,7 @@ func (pc *ProviderConfig) ConfigFileManager() *config.ConfigFileManager {
 
 // Allows a call to manually update the configuration while maintaining proper thread-safety
 // for read/write methods.
-func (pc *ProviderConfig) Update(updateFunc func(*types.CustomPricing) error) (*types.CustomPricing, error) {
+func (pc *ProviderConfig) Update(updateFunc func(*models.CustomPricing) error) (*models.CustomPricing, error) {
 	pc.lock.Lock()
 	defer pc.lock.Unlock()
 
@@ -195,12 +196,12 @@ func (pc *ProviderConfig) Update(updateFunc func(*types.CustomPricing) error) (*
 }
 
 // ThreadSafe update of the config using a string map
-func (pc *ProviderConfig) UpdateFromMap(a map[string]string) (*types.CustomPricing, error) {
+func (pc *ProviderConfig) UpdateFromMap(a map[string]string) (*models.CustomPricing, error) {
 	// Run our Update() method using SetCustomPricingField logic
-	return pc.Update(func(c *types.CustomPricing) error {
+	return pc.Update(func(c *models.CustomPricing) error {
 		for k, v := range a {
 			// Just so we consistently supply / receive the same values, uppercase the first letter.
-			kUpper := types.ToTitle.String(k)
+			kUpper := utils.ToTitle.String(k)
 			if kUpper == "CPU" || kUpper == "SpotCPU" || kUpper == "RAM" || kUpper == "SpotRAM" || kUpper == "GPU" || kUpper == "Storage" {
 				val, err := strconv.ParseFloat(v, 64)
 				if err != nil {
@@ -209,7 +210,7 @@ func (pc *ProviderConfig) UpdateFromMap(a map[string]string) (*types.CustomPrici
 				v = fmt.Sprintf("%f", val/730)
 			}
 
-			err := types.SetCustomPricingField(c, kUpper, v)
+			err := models.SetCustomPricingField(c, kUpper, v)
 			if err != nil {
 				return err
 			}
@@ -220,9 +221,9 @@ func (pc *ProviderConfig) UpdateFromMap(a map[string]string) (*types.CustomPrici
 }
 
 // DefaultPricing should be returned so we can do computation even if no file is supplied.
-func DefaultPricing() *types.CustomPricing {
+func DefaultPricing() *models.CustomPricing {
 	// https://cloud.google.com/compute/all-pricing
-	return &types.CustomPricing{
+	return &models.CustomPricing{
 		Provider:    "base",
 		Description: "Default prices based on GCP us-central1",
 
@@ -268,23 +269,23 @@ func filenameInConfigPath(fqfn string) string {
 
 // ReturnPricingFromConfigs is a safe function to return pricing from configs of opensource to the closed source
 // before defaulting it with the above function DefaultPricing
-func ReturnPricingFromConfigs(filename string) (*types.CustomPricing, error) {
+func ReturnPricingFromConfigs(filename string) (*models.CustomPricing, error) {
 	if _, err := os.Stat(closedSourceConfigMount); os.IsNotExist(err) {
-		return &types.CustomPricing{}, fmt.Errorf("ReturnPricingFromConfigs: %s likely running in provider config in opencost itself with err: %v", closedSourceConfigMount, err)
+		return &models.CustomPricing{}, fmt.Errorf("ReturnPricingFromConfigs: %s likely running in provider config in opencost itself with err: %v", closedSourceConfigMount, err)
 	}
 	providerConfigFile := gopath.Join(closedSourceConfigMount, filename)
 	if _, err := os.Stat(providerConfigFile); err != nil {
-		return &types.CustomPricing{}, fmt.Errorf("ReturnPricingFromConfigs: unable to find file %s with err: %v", providerConfigFile, err)
+		return &models.CustomPricing{}, fmt.Errorf("ReturnPricingFromConfigs: unable to find file %s with err: %v", providerConfigFile, err)
 	}
 	configFile, err := ioutil.ReadFile(providerConfigFile)
 	if err != nil {
-		return &types.CustomPricing{}, fmt.Errorf("ReturnPricingFromConfigs: unable to open file %s with err: %v", providerConfigFile, err)
+		return &models.CustomPricing{}, fmt.Errorf("ReturnPricingFromConfigs: unable to open file %s with err: %v", providerConfigFile, err)
 	}
 
-	defaultPricing := &types.CustomPricing{}
+	defaultPricing := &models.CustomPricing{}
 	err = json.Unmarshal(configFile, defaultPricing)
 	if err != nil {
-		return &types.CustomPricing{}, fmt.Errorf("ReturnPricingFromConfigs: unable to open file %s with err: %v", providerConfigFile, err)
+		return &models.CustomPricing{}, fmt.Errorf("ReturnPricingFromConfigs: unable to open file %s with err: %v", providerConfigFile, err)
 	}
 	return defaultPricing, nil
 }

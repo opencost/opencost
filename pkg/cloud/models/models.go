@@ -1,4 +1,4 @@
-package types
+package models
 
 import (
 	"fmt"
@@ -6,12 +6,9 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/microcosm-cc/bluemonday"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/opencost/opencost/pkg/config"
@@ -20,7 +17,6 @@ import (
 
 var (
 	sanitizePolicy = bluemonday.UGCPolicy()
-	ToTitle        = cases.Title(language.Und, cases.NoLower)
 )
 
 const (
@@ -71,26 +67,6 @@ func (n *Node) IsSpot() bool {
 	} else {
 		return false
 	}
-}
-
-// LoadBalancer is the interface by which the provider and cost model communicate LoadBalancer prices.
-// The provider will best-effort try to fill out this struct.
-type LoadBalancer struct {
-	IngressIPAddresses []string `json:"IngressIPAddresses"`
-	Cost               float64  `json:"hourlyCost"`
-}
-
-// TODO: used for dynamic cloud provider price fetching.
-// determine what identifies a load balancer in the json returned from the cloud provider pricing API call
-// type LBKey interface {
-// }
-
-// Network is the interface by which the provider and cost model communicate network egress prices.
-// The provider will best-effort try to fill out this struct.
-type Network struct {
-	ZoneNetworkEgressCost     float64
-	RegionNetworkEgressCost   float64
-	InternetNetworkEgressCost float64
 }
 
 type OrphanedResource struct {
@@ -258,48 +234,6 @@ func SetCustomPricingField(obj *CustomPricing, name string, value string) error 
 
 	structFieldValue.Set(val)
 	return nil
-}
-
-type ServiceAccountStatus struct {
-	Checks []*ServiceAccountCheck `json:"checks"`
-}
-
-// ServiceAccountChecks is a thread safe map for holding ServiceAccountCheck objects
-type ServiceAccountChecks struct {
-	sync.RWMutex
-	serviceAccountChecks map[string]*ServiceAccountCheck
-}
-
-// NewServiceAccountChecks initialize ServiceAccountChecks
-func NewServiceAccountChecks() *ServiceAccountChecks {
-	return &ServiceAccountChecks{
-		serviceAccountChecks: make(map[string]*ServiceAccountCheck),
-	}
-}
-
-func (sac *ServiceAccountChecks) Set(key string, check *ServiceAccountCheck) {
-	sac.Lock()
-	defer sac.Unlock()
-	sac.serviceAccountChecks[key] = check
-}
-
-// getStatus extracts ServiceAccountCheck objects into a slice and returns them in a ServiceAccountStatus
-func (sac *ServiceAccountChecks) GetStatus() *ServiceAccountStatus {
-	sac.Lock()
-	defer sac.Unlock()
-	checks := []*ServiceAccountCheck{}
-	for _, v := range sac.serviceAccountChecks {
-		checks = append(checks, v)
-	}
-	return &ServiceAccountStatus{
-		Checks: checks,
-	}
-}
-
-type ServiceAccountCheck struct {
-	Message        string `json:"message"`
-	Status         bool   `json:"status"`
-	AdditionalInfo string `json:"additionalInfo"`
 }
 
 type PricingSources struct {

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/types"
+	costAnalyzerCloud "github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/env"

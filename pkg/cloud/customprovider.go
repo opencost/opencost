@@ -8,7 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud/types"
+	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/kubecost"
@@ -60,7 +61,7 @@ func (*CustomProvider) GetLocalStorageQuery(window, offset time.Duration, rate b
 	return ""
 }
 
-func (cp *CustomProvider) GetConfig() (*types.CustomPricing, error) {
+func (cp *CustomProvider) GetConfig() (*models.CustomPricing, error) {
 	return cp.Config.GetCustomPricingData()
 }
 
@@ -68,15 +69,15 @@ func (*CustomProvider) GetManagementPlatform() (string, error) {
 	return "", nil
 }
 
-func (*CustomProvider) ApplyReservedInstancePricing(nodes map[string]*types.Node) {
+func (*CustomProvider) ApplyReservedInstancePricing(nodes map[string]*models.Node) {
 
 }
 
-func (cp *CustomProvider) UpdateConfigFromConfigMap(a map[string]string) (*types.CustomPricing, error) {
+func (cp *CustomProvider) UpdateConfigFromConfigMap(a map[string]string) (*models.CustomPricing, error) {
 	return cp.Config.UpdateFromMap(a)
 }
 
-func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*types.CustomPricing, error) {
+func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*models.CustomPricing, error) {
 	// Parse config updates from reader
 	a := make(map[string]interface{})
 	err := json.NewDecoder(r).Decode(&a)
@@ -85,12 +86,12 @@ func (cp *CustomProvider) UpdateConfig(r io.Reader, updateType string) (*types.C
 	}
 
 	// Update Config
-	c, err := cp.Config.Update(func(c *types.CustomPricing) error {
+	c, err := cp.Config.Update(func(c *models.CustomPricing) error {
 		for k, v := range a {
-			kUpper := types.ToTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
+			kUpper := utils.ToTitle.String(k) // Just so we consistently supply / receive the same values, uppercase the first letter.
 			vstr, ok := v.(string)
 			if ok {
-				err := types.SetCustomPricingField(c, kUpper, vstr)
+				err := models.SetCustomPricingField(c, kUpper, vstr)
 				if err != nil {
 					return err
 				}
@@ -134,7 +135,7 @@ func (*CustomProvider) GetDisks() ([]byte, error) {
 	return nil, nil
 }
 
-func (*CustomProvider) GetOrphanedResources() ([]types.OrphanedResource, error) {
+func (*CustomProvider) GetOrphanedResources() ([]models.OrphanedResource, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -145,7 +146,7 @@ func (cp *CustomProvider) AllNodePricing() (interface{}, error) {
 	return cp.Pricing, nil
 }
 
-func (cp *CustomProvider) NodePricing(key types.Key) (*types.Node, error) {
+func (cp *CustomProvider) NodePricing(key models.Key) (*models.Node, error) {
 	cp.DownloadPricingDataLock.RLock()
 	defer cp.DownloadPricingDataLock.RUnlock()
 
@@ -173,7 +174,7 @@ func (cp *CustomProvider) NodePricing(key types.Key) (*types.Node, error) {
 		gpuCost = pricing.GPU
 	}
 
-	return &types.Node{
+	return &models.Node{
 		VCPUCost: cpuCost,
 		RAMCost:  ramCost,
 		GPUCost:  gpuCost,
@@ -213,7 +214,7 @@ func (cp *CustomProvider) DownloadPricingData() error {
 	return nil
 }
 
-func (cp *CustomProvider) GetKey(labels map[string]string, n *v1.Node) types.Key {
+func (cp *CustomProvider) GetKey(labels map[string]string, n *v1.Node) models.Key {
 	return &customProviderKey{
 		SpotLabel:      cp.SpotLabel,
 		SpotLabelValue: cp.SpotLabelValue,
@@ -226,7 +227,7 @@ func (cp *CustomProvider) GetKey(labels map[string]string, n *v1.Node) types.Key
 // ExternalAllocations represents tagged assets outside the scope of kubernetes.
 // "start" and "end" are dates of the format YYYY-MM-DD
 // "aggregator" is the tag used to determine how to allocate those assets, ie namespace, pod, etc.
-func (*CustomProvider) ExternalAllocations(start string, end string, aggregator []string, filterType string, filterValue string, crossCluster bool) ([]*types.OutOfClusterAllocation, error) {
+func (*CustomProvider) ExternalAllocations(start string, end string, aggregator []string, filterType string, filterValue string, crossCluster bool) ([]*models.OutOfClusterAllocation, error) {
 	return nil, nil // TODO: transform the QuerySQL lines into the new OutOfClusterAllocation Struct
 }
 
@@ -234,17 +235,17 @@ func (*CustomProvider) QuerySQL(query string) ([]byte, error) {
 	return nil, nil
 }
 
-func (cp *CustomProvider) PVPricing(pvk types.PVKey) (*types.PV, error) {
+func (cp *CustomProvider) PVPricing(pvk models.PVKey) (*models.PV, error) {
 	cpricing, err := cp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
 	}
-	return &types.PV{
+	return &models.PV{
 		Cost: cpricing.Storage,
 	}, nil
 }
 
-func (cp *CustomProvider) NetworkPricing() (*types.Network, error) {
+func (cp *CustomProvider) NetworkPricing() (*models.Network, error) {
 	cpricing, err := cp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
@@ -262,14 +263,14 @@ func (cp *CustomProvider) NetworkPricing() (*types.Network, error) {
 		return nil, err
 	}
 
-	return &types.Network{
+	return &models.Network{
 		ZoneNetworkEgressCost:     znec,
 		RegionNetworkEgressCost:   rnec,
 		InternetNetworkEgressCost: inec,
 	}, nil
 }
 
-func (cp *CustomProvider) LoadBalancerPricing() (*types.LoadBalancer, error) {
+func (cp *CustomProvider) LoadBalancerPricing() (*models.LoadBalancer, error) {
 	cpricing, err := cp.Config.GetCustomPricingData()
 	if err != nil {
 		return nil, err
@@ -295,12 +296,12 @@ func (cp *CustomProvider) LoadBalancerPricing() (*types.LoadBalancer, error) {
 	} else {
 		totalCost = fffrc*5 + afrc*(numForwardingRules-5) + lbidc*dataIngressGB
 	}
-	return &types.LoadBalancer{
+	return &models.LoadBalancer{
 		Cost: totalCost,
 	}, nil
 }
 
-func (*CustomProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) types.PVKey {
+func (*CustomProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
 	return &awsPVKey{
 		Labels:                 pv.Labels,
 		StorageClassName:       pv.Spec.StorageClassName,
@@ -331,14 +332,14 @@ func (cpk *customProviderKey) Features() string {
 	return "default" // TODO: multiple custom pricing support.
 }
 
-func (cp *CustomProvider) ServiceAccountStatus() *types.ServiceAccountStatus {
-	return &types.ServiceAccountStatus{
-		Checks: []*types.ServiceAccountCheck{},
+func (cp *CustomProvider) ServiceAccountStatus() *models.ServiceAccountStatus {
+	return &models.ServiceAccountStatus{
+		Checks: []*models.ServiceAccountCheck{},
 	}
 }
 
-func (cp *CustomProvider) PricingSourceStatus() map[string]*types.PricingSource {
-	return make(map[string]*types.PricingSource)
+func (cp *CustomProvider) PricingSourceStatus() map[string]*models.PricingSource {
+	return make(map[string]*models.PricingSource)
 }
 
 func (cp *CustomProvider) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
