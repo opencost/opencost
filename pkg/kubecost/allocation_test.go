@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/json"
 )
@@ -2766,4 +2768,68 @@ func TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate(t *testin
 			}
 		}
 	}
+}
+
+func Test_AggregateBy(t *testing.T) {
+	end := time.Now().UTC().Truncate(day)
+	start := end.Add(-day)
+
+	normalProps := &AllocationProperties{
+		Cluster:        "kc-demo-stage",
+		Container:      "nginx-plus-nginx-ingress",
+		Controller:     "nginx-plus-nginx-ingress",
+		ControllerKind: "deployment",
+		Namespace:      "nginx-plus",
+		Pod:            "nginx-plus-nginx-ingress-123a4b5678-ab12c",
+		Services: []string{
+			"nginx-plus-nginx-ingress",
+		},
+	}
+
+	weirdProps := &AllocationProperties{
+		Cluster:   "kc-demo-stage",
+		Container: UnmountedSuffix,
+		Namespace: UnmountedSuffix,
+		Pod:       UnmountedSuffix,
+		Services: []string{
+			"nginx-plus-nginx-ingress",
+			"ingress-nginx-controller",
+			"pacman",
+		},
+	}
+
+	idle := NewMockUnitAllocation(fmt.Sprintf("kc-demo-stage/%s", IdleSuffix), start, day, &AllocationProperties{
+		Cluster: "kc-demo-stage",
+	})
+	one := NewMockUnitAllocation("kc-demo-stage//__unmounted__/__unmounted__/__unmounted__", start, day, weirdProps)
+	two := NewMockUnitAllocation("kc-demo-stage/gke-kc-demo-stage-pool-2-70aa2479-k41y/nginx-plus/nginx-plus-nginx-ingress-676f9b6674-nv78q/nginx-plus-nginx-ingress", start, day, normalProps)
+	four := NewMockUnitAllocation("kc-demo-stage/gke-kc-demo-stage-pool-2-70aa2479-k41y/nginx-plus/nginx-plus-nginx-ingress-676f9b6674-nv78q/nginx-plus-nginx-ingress", start, day, normalProps)
+	three := NewMockUnitAllocation("kc-demo-stage/gke-kc-demo-stage-pool-2-70aa2479-k41y/nginx-plus/nginx-plus-nginx-ingress-676f9b6674-nv78q/nginx-plus-nginx-ingress", start, day, normalProps)
+
+	set := NewAllocationSet(start, start.Add(day), one, two, three, four)
+
+	set.Insert(idle)
+
+	set.AggregateBy([]string{AllocationServiceProp}, &AllocationAggregationOptions{
+		Filter: AllocationFilterCondition{Field: FilterServices, Op: FilterEquals, Value: "nginx-plus-nginx-ingress"},
+	})
+
+	for _, alloc := range set.Allocations {
+		if strings.Contains(UnmountedSuffix, alloc.Name) {
+			props := alloc.Properties
+			if props.Cluster == UnmountedSuffix {
+				t.Fatalf("cluster unmounted")
+			} else if props.Container == UnmountedSuffix {
+				t.Fatalf("container unmounted")
+			} else if props.Namespace == UnmountedSuffix {
+				t.Fatalf("namespace unmounted")
+			} else if props.Pod == UnmountedSuffix {
+				t.Fatalf("pod unmounted")
+			} else if props.Controller == UnmountedSuffix {
+				t.Fatalf("controller unmounted")
+			}
+		}
+	}
+
+	fmt.Printf("%s", spew.Sdump(set.Allocations))
 }
