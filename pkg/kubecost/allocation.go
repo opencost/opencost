@@ -247,13 +247,13 @@ func (pva *PVAllocation) Equal(that *PVAllocation) bool {
 }
 
 type ProportionalAssetResourceCost struct {
-	Cluster            string  `json:"cluster"`
-	Node               string  `json:"node,omitempty"`
-	ProviderID         string  `json:"providerID,omitempty"`
-	CPUPercentage      float64 `json:"cpuPercentage"`
-	GPUPercentage      float64 `json:"gpuPercentage"`
-	RAMPercentage      float64 `json:"ramPercentage"`
-	ResourcePercentage float64 `json:"resourcePercentage"`
+	Cluster                    string  `json:"cluster"`
+	Node                       string  `json:"node,omitempty"`
+	ProviderID                 string  `json:"providerID,omitempty"`
+	CPUPercentage              float64 `json:"cpuPercentage"`
+	GPUPercentage              float64 `json:"gpuPercentage"`
+	RAMPercentage              float64 `json:"ramPercentage"`
+	NodeResourceCostPercentage float64 `json:"nodeResourceCostPercentage"`
 }
 
 func (parc ProportionalAssetResourceCost) Key(insertByNode bool) string {
@@ -274,13 +274,13 @@ func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourc
 	}
 	if curr, ok := parcs[parc.Key(insertByNode)]; ok {
 		parcs[parc.Key(insertByNode)] = ProportionalAssetResourceCost{
-			Node:               curr.Node,
-			Cluster:            curr.Cluster,
-			ProviderID:         curr.ProviderID,
-			CPUPercentage:      curr.CPUPercentage + parc.CPUPercentage,
-			GPUPercentage:      curr.GPUPercentage + parc.GPUPercentage,
-			RAMPercentage:      curr.RAMPercentage + parc.RAMPercentage,
-			ResourcePercentage: curr.ResourcePercentage + parc.ResourcePercentage,
+			Node:                       curr.Node,
+			Cluster:                    curr.Cluster,
+			ProviderID:                 curr.ProviderID,
+			CPUPercentage:              curr.CPUPercentage + parc.CPUPercentage,
+			GPUPercentage:              curr.GPUPercentage + parc.GPUPercentage,
+			RAMPercentage:              curr.RAMPercentage + parc.RAMPercentage,
+			NodeResourceCostPercentage: curr.NodeResourceCostPercentage + parc.NodeResourceCostPercentage,
 		}
 	} else {
 		parcs[parc.Key(insertByNode)] = parc
@@ -1772,16 +1772,16 @@ func deriveProportionalAssetResourceCostsFromIdleCoefficients(idleCoeffs map[str
 	}
 
 	// compute the resource usage percentage based on the weighted fractions
-	resourcePercentage := (ramPct * ramFraction) + (cpuPct * cpuFraction) + (gpuPct * gpuFraction)
+	nodeResourceCostPercentage := (ramPct * ramFraction) + (cpuPct * cpuFraction) + (gpuPct * gpuFraction)
 
 	return ProportionalAssetResourceCost{
-		Cluster:            allocation.Properties.Cluster,
-		Node:               allocation.Properties.Node,
-		ProviderID:         allocation.Properties.ProviderID,
-		CPUPercentage:      cpuPct,
-		GPUPercentage:      gpuPct,
-		RAMPercentage:      ramPct,
-		ResourcePercentage: resourcePercentage,
+		Cluster:                    allocation.Properties.Cluster,
+		Node:                       allocation.Properties.Node,
+		ProviderID:                 allocation.Properties.ProviderID,
+		CPUPercentage:              cpuPct,
+		GPUPercentage:              gpuPct,
+		RAMPercentage:              ramPct,
+		NodeResourceCostPercentage: nodeResourceCostPercentage,
 	}, nil
 }
 
