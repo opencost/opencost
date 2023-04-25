@@ -35,14 +35,17 @@ import (
 )
 
 const (
-	AzureFilePremiumStorageClass     = "premium_smb"
-	AzureFileStandardStorageClass    = "standard_smb"
-	AzureDiskPremiumSSDStorageClass  = "premium_ssd"
-	AzureDiskStandardSSDStorageClass = "standard_ssd"
-	AzureDiskStandardStorageClass    = "standard_hdd"
-	defaultSpotLabel                 = "kubernetes.azure.com/scalesetpriority"
-	defaultSpotLabelValue            = "spot"
-	AzureStorageUpdateType           = "AzureStorage"
+	AzureFilePremiumStorageClass        = "premium_smb"
+	AzureFileStandardStorageClass       = "standard_smb"
+	AzureDiskPremiumSSDStorageClass     = "Premium_LRS"
+	AzureDiskPremiumSSDZRSStorageClass  = "Premium_ZRS"
+	AzureDiskStandardSSDStorageClass    = "StandardSSD_LRS"
+	AzureDiskStandardSSDZRSStorageClass = "StandardSSD_ZRS"
+	AzureDiskStandardStorageClass       = "Standard_LRS"
+	AzureDiskUltraSSDLRSStorageClass    = "UltraSSD_LRS"
+	defaultSpotLabel                    = "kubernetes.azure.com/scalesetpriority"
+	defaultSpotLabelValue               = "spot"
+	AzureStorageUpdateType              = "AzureStorage"
 )
 
 var (
@@ -936,6 +939,10 @@ func convertMeterToPricings(info commerce.MeterInfo, regions map[string]string, 
 				storageClass = AzureDiskStandardSSDStorageClass
 			} else if strings.Contains(meterName, "S4 ") {
 				storageClass = AzureDiskStandardStorageClass
+			} else if strings.Contains(meterName, "ZRS ") && strings.Contains(meterSubCategory, "Standard SSD") {
+				storageClass = AzureDiskStandardSSDZRSStorageClass
+			} else if strings.Contains(meterName, "ZRS ") && strings.Contains(meterSubCategory, "Premium SSD") {
+				storageClass = AzureDiskPremiumSSDZRSStorageClass
 			} else if strings.Contains(meterName, "LRS Provisioned") {
 				storageClass = AzureFilePremiumStorageClass
 			}
@@ -985,7 +992,7 @@ func convertMeterToPricings(info commerce.MeterInfo, regions map[string]string, 
 		if strings.Contains(meterSubCategory, "Promo") {
 			it = it + " Promo"
 		}
-		instanceTypes = append(instanceTypes, strings.Replace(it, " ", "_", 1))
+		instanceTypes = append(instanceTypes, strings.Replace(it, " ", "_", -1))
 	}
 
 	instanceTypes = transformMachineType(meterSubCategory, instanceTypes)
@@ -1239,6 +1246,9 @@ func (key *azurePvKey) GetStorageClass() string {
 func (key *azurePvKey) Features() string {
 	storageClass := key.StorageClassParameters["storageaccounttype"]
 	storageSKU := key.StorageClassParameters["skuName"]
+	if storageSKU == "" {
+		storageSKU = key.StorageClassParameters["skuname"]
+	}
 	if storageClass != "" {
 		if strings.EqualFold(storageClass, "Premium_LRS") {
 			storageClass = AzureDiskPremiumSSDStorageClass
@@ -1246,12 +1256,18 @@ func (key *azurePvKey) Features() string {
 			storageClass = AzureDiskStandardSSDStorageClass
 		} else if strings.EqualFold(storageClass, "Standard_LRS") {
 			storageClass = AzureDiskStandardStorageClass
+		} else if strings.EqualFold(storageClass, "StandardSSD_ZRS") {
+			storageClass = AzureDiskStandardSSDZRSStorageClass
+		} else if strings.EqualFold(storageClass, "PremiumSSD_ZRS") {
+			storageClass = AzureDiskPremiumSSDZRSStorageClass
 		}
 	} else {
 		if strings.EqualFold(storageSKU, "Premium_LRS") {
 			storageClass = AzureFilePremiumStorageClass
 		} else if strings.EqualFold(storageSKU, "Standard_LRS") {
 			storageClass = AzureFileStandardStorageClass
+		} else if strings.EqualFold(storageSKU, "StandardSSD_LRS") {
+			storageClass = AzureDiskStandardSSDStorageClass
 		}
 	}
 	if region, ok := util.GetRegion(key.Labels); ok {
