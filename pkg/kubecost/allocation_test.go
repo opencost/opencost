@@ -1080,7 +1080,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						CPUPercentage:      0.5,
 						GPUPercentage:      0.5,
 						RAMPercentage:      0.8125,
-						ResourcePercentage: 0.6785714285714285,
+						NodeResourceCostPercentage: 0.6785714285714285,
 					},
 				},
 				"namespace2": ProportionalAssetResourceCosts{
@@ -1091,7 +1091,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						CPUPercentage:      0.5,
 						GPUPercentage:      0.5,
 						RAMPercentage:      0.1875,
-						ResourcePercentage: 0.3214285714285714,
+						NodeResourceCostPercentage: 0.3214285714285714,
 					},
 					"cluster2": ProportionalAssetResourceCost{
 						Cluster:            "cluster2",
@@ -1100,7 +1100,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						CPUPercentage:      0.5,
 						GPUPercentage:      0.5,
 						RAMPercentage:      0.5,
-						ResourcePercentage: 0.5,
+						NodeResourceCostPercentage: 0.5,
 					},
 				},
 			},
@@ -1518,7 +1518,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						CPUPercentage:      0.5,
 						GPUPercentage:      0.5,
 						RAMPercentage:      0.8125,
-						ResourcePercentage: 0.6785714285714285,
+						NodeResourceCostPercentage: 0.6785714285714285,
 					},
 					"cluster2,node2": ProportionalAssetResourceCost{
 						Cluster:            "cluster2",
@@ -1527,7 +1527,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						CPUPercentage:      0.5,
 						GPUPercentage:      0.5,
 						RAMPercentage:      0.5,
-						ResourcePercentage: 0.5,
+						NodeResourceCostPercentage: 0.5,
 					},
 				},
 				"namespace2": {
@@ -1538,7 +1538,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						CPUPercentage:      0.5,
 						GPUPercentage:      0.5,
 						RAMPercentage:      0.1875,
-						ResourcePercentage: 0.3214285714285714,
+						NodeResourceCostPercentage: 0.3214285714285714,
 					},
 					"cluster2,node1": ProportionalAssetResourceCost{
 						Cluster:            "cluster2",
@@ -1547,7 +1547,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						CPUPercentage:      1,
 						GPUPercentage:      1,
 						RAMPercentage:      1,
-						ResourcePercentage: 1,
+						NodeResourceCostPercentage: 1,
 					},
 					"cluster2,node2": ProportionalAssetResourceCost{
 						Cluster:            "cluster2",
@@ -1556,7 +1556,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						CPUPercentage:      0.5,
 						GPUPercentage:      0.5,
 						RAMPercentage:      0.5,
-						ResourcePercentage: 0.5,
+						NodeResourceCostPercentage: 0.5,
 					},
 				},
 				"namespace3": {
@@ -1567,7 +1567,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						CPUPercentage:      1,
 						GPUPercentage:      1,
 						RAMPercentage:      1,
-						ResourcePercentage: 1,
+						NodeResourceCostPercentage: 1,
 					},
 					"cluster2,node2": ProportionalAssetResourceCost{
 						Cluster:            "cluster2",
@@ -1576,7 +1576,7 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						CPUPercentage:      0.5,
 						GPUPercentage:      0.5,
 						RAMPercentage:      0.5,
-						ResourcePercentage: 0.5,
+						NodeResourceCostPercentage: 0.5,
 					},
 				},
 			},
