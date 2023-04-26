@@ -290,11 +290,17 @@ func (cm *CostModel) DateRange() (time.Time, time.Time, error) {
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("querying oldest sample: %w", err)
 	}
+	if len(resOldest) == 0 || len(resOldest[0].Values) == 0 {
+		return time.Time{}, time.Time{}, fmt.Errorf("querying oldest sample: no results")
+	}
 	oldest := time.Unix(int64(resOldest[0].Values[0].Value), 0)
 
 	resNewest, _, err := ctx.QuerySync(fmt.Sprintf(queryFmtNewestSample, "90d", "1h"))
 	if err != nil {
-		return time.Time{}, time.Time{}, fmt.Errorf("querying oldest sample: %w", err)
+		return time.Time{}, time.Time{}, fmt.Errorf("querying newest sample: %w", err)
+	}
+	if len(resNewest) == 0 || len(resNewest[0].Values) == 0 {
+		return time.Time{}, time.Time{}, fmt.Errorf("querying newest sample: no results")
 	}
 	newest := time.Unix(int64(resNewest[0].Values[0].Value), 0)
 

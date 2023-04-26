@@ -49,7 +49,6 @@ func Execute(opts *CostModelOpts) error {
 }
 
 func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) {
-	// TODO: there should be a better way to load the configuration
 	exportPath := os.Getenv(env.ExportCSVFile)
 	if exportPath == "" {
 		log.Infof("%s is not set, skipping CSV exporter", env.ExportCSVFile)
@@ -62,6 +61,13 @@ func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) {
 		return
 	}
 	go func() {
+		// panic in a goroutine will crash the application. Log it and carry on.
+		defer func() {
+			if r := recover(); r != nil {
+				log.Errorf("panic in CSV Export Worker, stopping: %v", r)
+			}
+		}()
+
 		log.Info("Starting CSV exporter worker...")
 
 		// perform first update immediately
