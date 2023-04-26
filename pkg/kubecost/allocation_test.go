@@ -2770,12 +2770,12 @@ func TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate(t *testin
 	}
 }
 
-func Test_AggregateBy(t *testing.T) {
+func Test_AggregateByService_UnmountedLBs(t *testing.T) {
 	end := time.Now().UTC().Truncate(day)
 	start := end.Add(-day)
 
 	normalProps := &AllocationProperties{
-		Cluster:        "kc-demo-stage",
+		Cluster:        "cluster-one",
 		Container:      "nginx-plus-nginx-ingress",
 		Controller:     "nginx-plus-nginx-ingress",
 		ControllerKind: "deployment",
@@ -2788,8 +2788,8 @@ func Test_AggregateBy(t *testing.T) {
 		},
 	}
 
-	weirdProps := &AllocationProperties{
-		Cluster:    "kc-demo-stage",
+	problematicProps := &AllocationProperties{
+		Cluster:    "cluster-one",
 		Container:  UnmountedSuffix,
 		Namespace:  UnmountedSuffix,
 		Pod:        UnmountedSuffix,
@@ -2802,19 +2802,21 @@ func Test_AggregateBy(t *testing.T) {
 		},
 	}
 
-	idle := NewMockUnitAllocation(fmt.Sprintf("kc-demo-stage/%s", IdleSuffix), start, day, &AllocationProperties{
-		Cluster: "kc-demo-stage",
+	idle := NewMockUnitAllocation(fmt.Sprintf("cluster-one/%s", IdleSuffix), start, day, &AllocationProperties{
+		Cluster: "cluster-one",
 	})
-	one := NewMockUnitAllocation("kc-demo-stage//__unmounted__/__unmounted__/__unmounted__", start, day, weirdProps)
-	two := NewMockUnitAllocation("kc-demo-stage//nginx-plus/nginx-plus-nginx-ingress-123a4b5678-ab12c/nginx-plus-nginx-ingress", start, day, normalProps)
-	three := NewMockUnitAllocation("kc-demo-stage//nginx-plus/nginx-plus-nginx-ingress-123a4b5678-ab12c/nginx-plus-nginx-ingress", start, day, normalProps)
-	four := NewMockUnitAllocation("kc-demo-stage//nginx-plus/nginx-plus-nginx-ingress-123a4b5678-ab12c/nginx-plus-nginx-ingress", start, day, normalProps)
+	// this allocation is the main point of the test; an unmounted LB that has services
+	problematicAllocation := NewMockUnitAllocation("cluster-one//__unmounted__/__unmounted__/__unmounted__", start, day, problematicProps)
 
-	one.ExternalCost = 2.35
+	two := NewMockUnitAllocation("cluster-one//nginx-plus/nginx-plus-nginx-ingress-123a4b5678-ab12c/nginx-plus-nginx-ingress", start, day, normalProps)
+	three := NewMockUnitAllocation("cluster-one//nginx-plus/nginx-plus-nginx-ingress-123a4b5678-ab12c/nginx-plus-nginx-ingress", start, day, normalProps)
+	four := NewMockUnitAllocation("cluster-one//nginx-plus/nginx-plus-nginx-ingress-123a4b5678-ab12c/nginx-plus-nginx-ingress", start, day, normalProps)
+
+	problematicAllocation.ExternalCost = 2.35
 	two.ExternalCost = 1.35
 	three.ExternalCost = 2.60
 	four.ExternalCost = 4.30
-	set := NewAllocationSet(start, start.Add(day), one, two, three, four)
+	set := NewAllocationSet(start, start.Add(day), problematicAllocation, two, three, four)
 
 	set.Insert(idle)
 
@@ -2844,5 +2846,5 @@ func Test_AggregateBy(t *testing.T) {
 	}
 
 	spew.Config.DisableMethods = true
-	fmt.Printf("%s", spew.Sdump(set.Allocations))
+	t.Logf("%s", spew.Sdump(set.Allocations))
 }

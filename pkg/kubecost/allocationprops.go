@@ -288,9 +288,11 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 				// Indicate that allocation has no services
 				names = append(names, UnallocatedSuffix)
 			} else {
-				// sometimes load balancers will retain their services when unmounted
-				// so if we have an unmounted pod, make sure the key shows unmounted
-				if p.Pod == UnmountedSuffix {
+				// Unmounted load balancers lead to __unmounted__ Allocations whose
+				// services field is populated. If we don't have a special case, the
+				// __unmounted__ Allocation will be transformed into a regular Allocation,
+				// causing issues with AggregateBy and drilldown
+				if p.Pod == UnmountedSuffix || p.Namespace == UnmountedSuffix || p.Container == UnmountedSuffix {
 					names = append(names, UnmountedSuffix)
 				} else {
 					// This just uses the first service
