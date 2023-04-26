@@ -73,20 +73,13 @@ package kubecost
 // @bingen:generate:AuditSetRange
 // @bingen:end
 
-// @bingen:set[name=CloudCostAggregate,version=2]
-// @bingen:generate:CloudCostAggregate
-// @bingen:generate[stringtable]:CloudCostAggregateSet
-// @bingen:generate:CloudCostAggregateSetRange
-// @bingen:generate:CloudCostAggregateProperties
-// @bingen:generate:CloudCostAggregateLabels
-// @bingen:end
-
-// @bingen:set[name=CloudCostItem,version=2]
-// @bingen:generate:CloudCostItem
-// @bingen:generate[stringtable]:CloudCostItemSet
-// @bingen:generate:CloudCostItemSetRange
-// @bingen:generate:CloudCostItemProperties
-// @bingen:generate:CloudCostItemLabels
+// @bingen:set[name=CloudCost,version=1]
+// @bingen:generate:CloudCost
+// @bingen:generate:CostMetric
+// @bingen:generate[stringtable]:CloudCostSet
+// @bingen:generate:CloudCostSetRange
+// @bingen:generate:CloudCostProperties
+// @bingen:generate:CloudCostLabels
 // @bingen:end
 
 //go:generate bingen -package=kubecost -version=17 -buffer=github.com/opencost/opencost/pkg/util
