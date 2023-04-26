@@ -288,11 +288,17 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 				// Indicate that allocation has no services
 				names = append(names, UnallocatedSuffix)
 			} else {
+				// sometimes load balancers will retain their services when unmounted
+				// so if we have an unmounted pod, make sure the key shows unmounted
+				// if p.Pod == UnmountedSuffix {
+				// 	names = append(names, UnmountedSuffix)
+				// } else {
 				// This just uses the first service
 				for _, service := range services {
 					names = append(names, service)
 					break
 				}
+				// }
 			}
 		case strings.HasPrefix(agg, "label:"):
 			labels := p.Labels
