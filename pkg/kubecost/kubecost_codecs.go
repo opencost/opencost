@@ -33,6 +33,9 @@ const (
 )
 
 const (
+	// DefaultCodecVersion is used for any resources listed in the Default version set
+	DefaultCodecVersion uint8 = 17
+
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
 	AssetsCodecVersion uint8 = 18
 
@@ -42,14 +45,8 @@ const (
 	// AuditCodecVersion is used for any resources listed in the Audit version set
 	AuditCodecVersion uint8 = 1
 
-	// CloudCostAggregateCodecVersion is used for any resources listed in the CloudCostAggregate version set
-	CloudCostAggregateCodecVersion uint8 = 2
-
-	// CloudCostItemCodecVersion is used for any resources listed in the CloudCostItem version set
-	CloudCostItemCodecVersion uint8 = 2
-
-	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 17
+	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
+	CloudCostCodecVersion uint8 = 1
 )
 
 //--------------------------------------------------------------------------
@@ -76,15 +73,12 @@ var typeMap map[string]reflect.Type = map[string]reflect.Type{
 	"AuditSetRange":                 reflect.TypeOf((*AuditSetRange)(nil)).Elem(),
 	"Breakdown":                     reflect.TypeOf((*Breakdown)(nil)).Elem(),
 	"Cloud":                         reflect.TypeOf((*Cloud)(nil)).Elem(),
-	"CloudCostAggregate":            reflect.TypeOf((*CloudCostAggregate)(nil)).Elem(),
-	"CloudCostAggregateProperties":  reflect.TypeOf((*CloudCostAggregateProperties)(nil)).Elem(),
-	"CloudCostAggregateSet":         reflect.TypeOf((*CloudCostAggregateSet)(nil)).Elem(),
-	"CloudCostAggregateSetRange":    reflect.TypeOf((*CloudCostAggregateSetRange)(nil)).Elem(),
-	"CloudCostItem":                 reflect.TypeOf((*CloudCostItem)(nil)).Elem(),
-	"CloudCostItemProperties":       reflect.TypeOf((*CloudCostItemProperties)(nil)).Elem(),
-	"CloudCostItemSet":              reflect.TypeOf((*CloudCostItemSet)(nil)).Elem(),
-	"CloudCostItemSetRange":         reflect.TypeOf((*CloudCostItemSetRange)(nil)).Elem(),
+	"CloudCost":                     reflect.TypeOf((*CloudCost)(nil)).Elem(),
+	"CloudCostProperties":           reflect.TypeOf((*CloudCostProperties)(nil)).Elem(),
+	"CloudCostSet":                  reflect.TypeOf((*CloudCostSet)(nil)).Elem(),
+	"CloudCostSetRange":             reflect.TypeOf((*CloudCostSetRange)(nil)).Elem(),
 	"ClusterManagement":             reflect.TypeOf((*ClusterManagement)(nil)).Elem(),
+	"CostMetric":                    reflect.TypeOf((*CostMetric)(nil)).Elem(),
 	"Coverage":                      reflect.TypeOf((*Coverage)(nil)).Elem(),
 	"CoverageSet":                   reflect.TypeOf((*CoverageSet)(nil)).Elem(),
 	"Disk":                          reflect.TypeOf((*Disk)(nil)).Elem(),
@@ -4666,12 +4660,12 @@ func (target *Cloud) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error
 }
 
 //--------------------------------------------------------------------------
-//  CloudCostAggregate
+//  CloudCost
 //--------------------------------------------------------------------------
 
-// MarshalBinary serializes the internal properties of this CloudCostAggregate instance
+// MarshalBinary serializes the internal properties of this CloudCost instance
 // into a byte array
-func (target *CloudCostAggregate) MarshalBinary() (data []byte, err error) {
+func (target *CloudCost) MarshalBinary() (data []byte, err error) {
 	ctx := &EncodingContext{
 		Buffer: util.NewBuffer(),
 		Table:  nil,
@@ -4686,9 +4680,9 @@ func (target *CloudCostAggregate) MarshalBinary() (data []byte, err error) {
 	return encBytes, nil
 }
 
-// MarshalBinaryWithContext serializes the internal properties of this CloudCostAggregate instance
+// MarshalBinaryWithContext serializes the internal properties of this CloudCost instance
 // into a byte array leveraging a predefined context.
-func (target *CloudCostAggregate) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+func (target *CloudCost) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 	// panics are recovered and propagated as errors
 	defer func() {
 		if r := recover(); r != nil {
@@ -4703,607 +4697,20 @@ func (target *CloudCostAggregate) MarshalBinaryWithContext(ctx *EncodingContext)
 	}()
 
 	buff := ctx.Buffer
-	buff.WriteUInt8(CloudCostAggregateCodecVersion) // version
+	buff.WriteUInt8(CloudCostCodecVersion) // version
 
-	// --- [begin][write][struct](CloudCostAggregateProperties) ---
-	buff.WriteInt(0) // [compatibility, unused]
-	errA := target.Properties.MarshalBinaryWithContext(ctx)
-	if errA != nil {
-		return errA
-	}
-	// --- [end][write][struct](CloudCostAggregateProperties) ---
-
-	buff.WriteFloat64(target.KubernetesPercent) // write float64
-	buff.WriteFloat64(target.Cost)              // write float64
-	buff.WriteFloat64(target.NetCost)           // write float64
-	return nil
-}
-
-// UnmarshalBinary uses the data passed byte array to set all the internal properties of
-// the CloudCostAggregate type
-func (target *CloudCostAggregate) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
-	}
-
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
-// the CloudCostAggregate type
-func (target *CloudCostAggregate) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	version := buff.ReadUInt8()
-
-	if version > CloudCostAggregateCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling CloudCostAggregate. Expected %d or less, got %d", CloudCostAggregateCodecVersion, version)
-	}
-
-	// --- [begin][read][struct](CloudCostAggregateProperties) ---
-	a := &CloudCostAggregateProperties{}
-	buff.ReadInt() // [compatibility, unused]
-	errA := a.UnmarshalBinaryWithContext(ctx)
-	if errA != nil {
-		return errA
-	}
-	target.Properties = *a
-	// --- [end][read][struct](CloudCostAggregateProperties) ---
-
-	b := buff.ReadFloat64() // read float64
-	target.KubernetesPercent = b
-
-	c := buff.ReadFloat64() // read float64
-	target.Cost = c
-
-	d := buff.ReadFloat64() // read float64
-	target.NetCost = d
-
-	return nil
-}
-
-//--------------------------------------------------------------------------
-//  CloudCostAggregateProperties
-//--------------------------------------------------------------------------
-
-// MarshalBinary serializes the internal properties of this CloudCostAggregateProperties instance
-// into a byte array
-func (target *CloudCostAggregateProperties) MarshalBinary() (data []byte, err error) {
-	ctx := &EncodingContext{
-		Buffer: util.NewBuffer(),
-		Table:  nil,
-	}
-
-	e := target.MarshalBinaryWithContext(ctx)
-	if e != nil {
-		return nil, e
-	}
-
-	encBytes := ctx.Buffer.Bytes()
-	return encBytes, nil
-}
-
-// MarshalBinaryWithContext serializes the internal properties of this CloudCostAggregateProperties instance
-// into a byte array leveraging a predefined context.
-func (target *CloudCostAggregateProperties) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	buff.WriteUInt8(CloudCostAggregateCodecVersion) // version
-
-	if ctx.IsStringTable() {
-		a := ctx.Table.AddOrGet(target.Provider)
-		buff.WriteInt(a) // write table index
-	} else {
-		buff.WriteString(target.Provider) // write string
-	}
-	if ctx.IsStringTable() {
-		b := ctx.Table.AddOrGet(target.WorkGroupID)
-		buff.WriteInt(b) // write table index
-	} else {
-		buff.WriteString(target.WorkGroupID) // write string
-	}
-	if ctx.IsStringTable() {
-		c := ctx.Table.AddOrGet(target.BillingID)
-		buff.WriteInt(c) // write table index
-	} else {
-		buff.WriteString(target.BillingID) // write string
-	}
-	if ctx.IsStringTable() {
-		d := ctx.Table.AddOrGet(target.Service)
-		buff.WriteInt(d) // write table index
-	} else {
-		buff.WriteString(target.Service) // write string
-	}
-	if ctx.IsStringTable() {
-		e := ctx.Table.AddOrGet(target.LabelValue)
-		buff.WriteInt(e) // write table index
-	} else {
-		buff.WriteString(target.LabelValue) // write string
-	}
-	return nil
-}
-
-// UnmarshalBinary uses the data passed byte array to set all the internal properties of
-// the CloudCostAggregateProperties type
-func (target *CloudCostAggregateProperties) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
-	}
-
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
-// the CloudCostAggregateProperties type
-func (target *CloudCostAggregateProperties) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	version := buff.ReadUInt8()
-
-	if version > CloudCostAggregateCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling CloudCostAggregateProperties. Expected %d or less, got %d", CloudCostAggregateCodecVersion, version)
-	}
-
-	var b string
-	if ctx.IsStringTable() {
-		c := buff.ReadInt() // read string index
-		b = ctx.Table[c]
-	} else {
-		b = buff.ReadString() // read string
-	}
-	a := b
-	target.Provider = a
-
-	var e string
-	if ctx.IsStringTable() {
-		f := buff.ReadInt() // read string index
-		e = ctx.Table[f]
-	} else {
-		e = buff.ReadString() // read string
-	}
-	d := e
-	target.WorkGroupID = d
-
-	var h string
-	if ctx.IsStringTable() {
-		k := buff.ReadInt() // read string index
-		h = ctx.Table[k]
-	} else {
-		h = buff.ReadString() // read string
-	}
-	g := h
-	target.BillingID = g
-
-	var m string
-	if ctx.IsStringTable() {
-		n := buff.ReadInt() // read string index
-		m = ctx.Table[n]
-	} else {
-		m = buff.ReadString() // read string
-	}
-	l := m
-	target.Service = l
-
-	var p string
-	if ctx.IsStringTable() {
-		q := buff.ReadInt() // read string index
-		p = ctx.Table[q]
-	} else {
-		p = buff.ReadString() // read string
-	}
-	o := p
-	target.LabelValue = o
-
-	return nil
-}
-
-//--------------------------------------------------------------------------
-//  CloudCostAggregateSet
-//--------------------------------------------------------------------------
-
-// MarshalBinary serializes the internal properties of this CloudCostAggregateSet instance
-// into a byte array
-func (target *CloudCostAggregateSet) MarshalBinary() (data []byte, err error) {
-	ctx := &EncodingContext{
-		Buffer: util.NewBuffer(),
-		Table:  NewStringTable(),
-	}
-
-	e := target.MarshalBinaryWithContext(ctx)
-	if e != nil {
-		return nil, e
-	}
-
-	encBytes := ctx.Buffer.Bytes()
-	sTableBytes := ctx.Table.ToBytes()
-	merged := appendBytes(sTableBytes, encBytes)
-	return merged, nil
-}
-
-// MarshalBinaryWithContext serializes the internal properties of this CloudCostAggregateSet instance
-// into a byte array leveraging a predefined context.
-func (target *CloudCostAggregateSet) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	buff.WriteUInt8(CloudCostAggregateCodecVersion) // version
-
-	if target.CloudCostAggregates == nil {
+	if target.Properties == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
 
-		// --- [begin][write][map](map[string]*CloudCostAggregate) ---
-		buff.WriteInt(len(target.CloudCostAggregates)) // map length
-		for v, z := range target.CloudCostAggregates {
-			if ctx.IsStringTable() {
-				a := ctx.Table.AddOrGet(v)
-				buff.WriteInt(a) // write table index
-			} else {
-				buff.WriteString(v) // write string
-			}
-			if z == nil {
-				buff.WriteUInt8(uint8(0)) // write nil byte
-			} else {
-				buff.WriteUInt8(uint8(1)) // write non-nil byte
-
-				// --- [begin][write][struct](CloudCostAggregate) ---
-				buff.WriteInt(0) // [compatibility, unused]
-				errA := z.MarshalBinaryWithContext(ctx)
-				if errA != nil {
-					return errA
-				}
-				// --- [end][write][struct](CloudCostAggregate) ---
-
-			}
+		// --- [begin][write][struct](CloudCostProperties) ---
+		buff.WriteInt(0) // [compatibility, unused]
+		errA := target.Properties.MarshalBinaryWithContext(ctx)
+		if errA != nil {
+			return errA
 		}
-		// --- [end][write][map](map[string]*CloudCostAggregate) ---
-
-	}
-	if target.AggregationProperties == nil {
-		buff.WriteUInt8(uint8(0)) // write nil byte
-	} else {
-		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
-		// --- [begin][write][slice]([]string) ---
-		buff.WriteInt(len(target.AggregationProperties)) // array length
-		for i := 0; i < len(target.AggregationProperties); i++ {
-			if ctx.IsStringTable() {
-				b := ctx.Table.AddOrGet(target.AggregationProperties[i])
-				buff.WriteInt(b) // write table index
-			} else {
-				buff.WriteString(target.AggregationProperties[i]) // write string
-			}
-		}
-		// --- [end][write][slice]([]string) ---
-
-	}
-	if ctx.IsStringTable() {
-		c := ctx.Table.AddOrGet(target.Integration)
-		buff.WriteInt(c) // write table index
-	} else {
-		buff.WriteString(target.Integration) // write string
-	}
-	if ctx.IsStringTable() {
-		d := ctx.Table.AddOrGet(target.LabelName)
-		buff.WriteInt(d) // write table index
-	} else {
-		buff.WriteString(target.LabelName) // write string
-	}
-	// --- [begin][write][struct](Window) ---
-	buff.WriteInt(0) // [compatibility, unused]
-	errB := target.Window.MarshalBinaryWithContext(ctx)
-	if errB != nil {
-		return errB
-	}
-	// --- [end][write][struct](Window) ---
-
-	return nil
-}
-
-// UnmarshalBinary uses the data passed byte array to set all the internal properties of
-// the CloudCostAggregateSet type
-func (target *CloudCostAggregateSet) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
-	}
-
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
-// the CloudCostAggregateSet type
-func (target *CloudCostAggregateSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	version := buff.ReadUInt8()
-
-	if version > CloudCostAggregateCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling CloudCostAggregateSet. Expected %d or less, got %d", CloudCostAggregateCodecVersion, version)
-	}
-
-	if buff.ReadUInt8() == uint8(0) {
-		target.CloudCostAggregates = nil
-	} else {
-		// --- [begin][read][map](map[string]*CloudCostAggregate) ---
-		b := buff.ReadInt() // map len
-		a := make(map[string]*CloudCostAggregate, b)
-		for i := 0; i < b; i++ {
-			var v string
-			var d string
-			if ctx.IsStringTable() {
-				e := buff.ReadInt() // read string index
-				d = ctx.Table[e]
-			} else {
-				d = buff.ReadString() // read string
-			}
-			c := d
-			v = c
-
-			var z *CloudCostAggregate
-			if buff.ReadUInt8() == uint8(0) {
-				z = nil
-			} else {
-				// --- [begin][read][struct](CloudCostAggregate) ---
-				f := &CloudCostAggregate{}
-				buff.ReadInt() // [compatibility, unused]
-				errA := f.UnmarshalBinaryWithContext(ctx)
-				if errA != nil {
-					return errA
-				}
-				z = f
-				// --- [end][read][struct](CloudCostAggregate) ---
-
-			}
-			a[v] = z
-		}
-		target.CloudCostAggregates = a
-		// --- [end][read][map](map[string]*CloudCostAggregate) ---
-
-	}
-	if buff.ReadUInt8() == uint8(0) {
-		target.AggregationProperties = nil
-	} else {
-		// --- [begin][read][slice]([]string) ---
-		h := buff.ReadInt() // array len
-		g := make([]string, h)
-		for j := 0; j < h; j++ {
-			var k string
-			var m string
-			if ctx.IsStringTable() {
-				n := buff.ReadInt() // read string index
-				m = ctx.Table[n]
-			} else {
-				m = buff.ReadString() // read string
-			}
-			l := m
-			k = l
-
-			g[j] = k
-		}
-		target.AggregationProperties = g
-		// --- [end][read][slice]([]string) ---
-
-	}
-	var p string
-	if ctx.IsStringTable() {
-		q := buff.ReadInt() // read string index
-		p = ctx.Table[q]
-	} else {
-		p = buff.ReadString() // read string
-	}
-	o := p
-	target.Integration = o
-
-	var s string
-	if ctx.IsStringTable() {
-		t := buff.ReadInt() // read string index
-		s = ctx.Table[t]
-	} else {
-		s = buff.ReadString() // read string
-	}
-	r := s
-	target.LabelName = r
-
-	// --- [begin][read][struct](Window) ---
-	u := &Window{}
-	buff.ReadInt() // [compatibility, unused]
-	errB := u.UnmarshalBinaryWithContext(ctx)
-	if errB != nil {
-		return errB
-	}
-	target.Window = *u
-	// --- [end][read][struct](Window) ---
-
-	return nil
-}
-
-//--------------------------------------------------------------------------
-//  CloudCostAggregateSetRange
-//--------------------------------------------------------------------------
-
-// MarshalBinary serializes the internal properties of this CloudCostAggregateSetRange instance
-// into a byte array
-func (target *CloudCostAggregateSetRange) MarshalBinary() (data []byte, err error) {
-	ctx := &EncodingContext{
-		Buffer: util.NewBuffer(),
-		Table:  nil,
-	}
-
-	e := target.MarshalBinaryWithContext(ctx)
-	if e != nil {
-		return nil, e
-	}
-
-	encBytes := ctx.Buffer.Bytes()
-	return encBytes, nil
-}
-
-// MarshalBinaryWithContext serializes the internal properties of this CloudCostAggregateSetRange instance
-// into a byte array leveraging a predefined context.
-func (target *CloudCostAggregateSetRange) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	buff.WriteUInt8(CloudCostAggregateCodecVersion) // version
-
-	if target.CloudCostAggregateSets == nil {
-		buff.WriteUInt8(uint8(0)) // write nil byte
-	} else {
-		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
-		// --- [begin][write][slice]([]*CloudCostAggregateSet) ---
-		buff.WriteInt(len(target.CloudCostAggregateSets)) // array length
-		for i := 0; i < len(target.CloudCostAggregateSets); i++ {
-			if target.CloudCostAggregateSets[i] == nil {
-				buff.WriteUInt8(uint8(0)) // write nil byte
-			} else {
-				buff.WriteUInt8(uint8(1)) // write non-nil byte
-
-				// --- [begin][write][struct](CloudCostAggregateSet) ---
-				buff.WriteInt(0) // [compatibility, unused]
-				errA := target.CloudCostAggregateSets[i].MarshalBinaryWithContext(ctx)
-				if errA != nil {
-					return errA
-				}
-				// --- [end][write][struct](CloudCostAggregateSet) ---
-
-			}
-		}
-		// --- [end][write][slice]([]*CloudCostAggregateSet) ---
+		// --- [end][write][struct](CloudCostProperties) ---
 
 	}
 	// --- [begin][write][struct](Window) ---
@@ -5314,12 +4721,44 @@ func (target *CloudCostAggregateSetRange) MarshalBinaryWithContext(ctx *Encoding
 	}
 	// --- [end][write][struct](Window) ---
 
+	// --- [begin][write][struct](CostMetric) ---
+	buff.WriteInt(0) // [compatibility, unused]
+	errC := target.ListCost.MarshalBinaryWithContext(ctx)
+	if errC != nil {
+		return errC
+	}
+	// --- [end][write][struct](CostMetric) ---
+
+	// --- [begin][write][struct](CostMetric) ---
+	buff.WriteInt(0) // [compatibility, unused]
+	errD := target.NetCost.MarshalBinaryWithContext(ctx)
+	if errD != nil {
+		return errD
+	}
+	// --- [end][write][struct](CostMetric) ---
+
+	// --- [begin][write][struct](CostMetric) ---
+	buff.WriteInt(0) // [compatibility, unused]
+	errE := target.AmortizedNetCost.MarshalBinaryWithContext(ctx)
+	if errE != nil {
+		return errE
+	}
+	// --- [end][write][struct](CostMetric) ---
+
+	// --- [begin][write][struct](CostMetric) ---
+	buff.WriteInt(0) // [compatibility, unused]
+	errF := target.InvoicedCost.MarshalBinaryWithContext(ctx)
+	if errF != nil {
+		return errF
+	}
+	// --- [end][write][struct](CostMetric) ---
+
 	return nil
 }
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
-// the CloudCostAggregateSetRange type
-func (target *CloudCostAggregateSetRange) UnmarshalBinary(data []byte) error {
+// the CloudCost type
+func (target *CloudCost) UnmarshalBinary(data []byte) error {
 	var table []string
 	buff := util.NewBufferFromBytes(data)
 
@@ -5349,8 +4788,8 @@ func (target *CloudCostAggregateSetRange) UnmarshalBinary(data []byte) error {
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
-// the CloudCostAggregateSetRange type
-func (target *CloudCostAggregateSetRange) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+// the CloudCost type
+func (target *CloudCost) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
 	// panics are recovered and propagated as errors
 	defer func() {
 		if r := recover(); r != nil {
@@ -5367,58 +4806,84 @@ func (target *CloudCostAggregateSetRange) UnmarshalBinaryWithContext(ctx *Decodi
 	buff := ctx.Buffer
 	version := buff.ReadUInt8()
 
-	if version > CloudCostAggregateCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling CloudCostAggregateSetRange. Expected %d or less, got %d", CloudCostAggregateCodecVersion, version)
+	if version > CloudCostCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling CloudCost. Expected %d or less, got %d", CloudCostCodecVersion, version)
 	}
 
 	if buff.ReadUInt8() == uint8(0) {
-		target.CloudCostAggregateSets = nil
+		target.Properties = nil
 	} else {
-		// --- [begin][read][slice]([]*CloudCostAggregateSet) ---
-		b := buff.ReadInt() // array len
-		a := make([]*CloudCostAggregateSet, b)
-		for i := 0; i < b; i++ {
-			var c *CloudCostAggregateSet
-			if buff.ReadUInt8() == uint8(0) {
-				c = nil
-			} else {
-				// --- [begin][read][struct](CloudCostAggregateSet) ---
-				d := &CloudCostAggregateSet{}
-				buff.ReadInt() // [compatibility, unused]
-				errA := d.UnmarshalBinaryWithContext(ctx)
-				if errA != nil {
-					return errA
-				}
-				c = d
-				// --- [end][read][struct](CloudCostAggregateSet) ---
-
-			}
-			a[i] = c
+		// --- [begin][read][struct](CloudCostProperties) ---
+		a := &CloudCostProperties{}
+		buff.ReadInt() // [compatibility, unused]
+		errA := a.UnmarshalBinaryWithContext(ctx)
+		if errA != nil {
+			return errA
 		}
-		target.CloudCostAggregateSets = a
-		// --- [end][read][slice]([]*CloudCostAggregateSet) ---
+		target.Properties = a
+		// --- [end][read][struct](CloudCostProperties) ---
 
 	}
 	// --- [begin][read][struct](Window) ---
-	e := &Window{}
+	b := &Window{}
 	buff.ReadInt() // [compatibility, unused]
-	errB := e.UnmarshalBinaryWithContext(ctx)
+	errB := b.UnmarshalBinaryWithContext(ctx)
 	if errB != nil {
 		return errB
 	}
-	target.Window = *e
+	target.Window = *b
 	// --- [end][read][struct](Window) ---
+
+	// --- [begin][read][struct](CostMetric) ---
+	c := &CostMetric{}
+	buff.ReadInt() // [compatibility, unused]
+	errC := c.UnmarshalBinaryWithContext(ctx)
+	if errC != nil {
+		return errC
+	}
+	target.ListCost = *c
+	// --- [end][read][struct](CostMetric) ---
+
+	// --- [begin][read][struct](CostMetric) ---
+	d := &CostMetric{}
+	buff.ReadInt() // [compatibility, unused]
+	errD := d.UnmarshalBinaryWithContext(ctx)
+	if errD != nil {
+		return errD
+	}
+	target.NetCost = *d
+	// --- [end][read][struct](CostMetric) ---
+
+	// --- [begin][read][struct](CostMetric) ---
+	e := &CostMetric{}
+	buff.ReadInt() // [compatibility, unused]
+	errE := e.UnmarshalBinaryWithContext(ctx)
+	if errE != nil {
+		return errE
+	}
+	target.AmortizedNetCost = *e
+	// --- [end][read][struct](CostMetric) ---
+
+	// --- [begin][read][struct](CostMetric) ---
+	f := &CostMetric{}
+	buff.ReadInt() // [compatibility, unused]
+	errF := f.UnmarshalBinaryWithContext(ctx)
+	if errF != nil {
+		return errF
+	}
+	target.InvoicedCost = *f
+	// --- [end][read][struct](CostMetric) ---
 
 	return nil
 }
 
 //--------------------------------------------------------------------------
-//  CloudCostItem
+//  CloudCostProperties
 //--------------------------------------------------------------------------
 
-// MarshalBinary serializes the internal properties of this CloudCostItem instance
+// MarshalBinary serializes the internal properties of this CloudCostProperties instance
 // into a byte array
-func (target *CloudCostItem) MarshalBinary() (data []byte, err error) {
+func (target *CloudCostProperties) MarshalBinary() (data []byte, err error) {
 	ctx := &EncodingContext{
 		Buffer: util.NewBuffer(),
 		Table:  nil,
@@ -5433,9 +4898,9 @@ func (target *CloudCostItem) MarshalBinary() (data []byte, err error) {
 	return encBytes, nil
 }
 
-// MarshalBinaryWithContext serializes the internal properties of this CloudCostItem instance
+// MarshalBinaryWithContext serializes the internal properties of this CloudCostProperties instance
 // into a byte array leveraging a predefined context.
-func (target *CloudCostItem) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+func (target *CloudCostProperties) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 	// panics are recovered and propagated as errors
 	defer func() {
 		if r := recover(); r != nil {
@@ -5450,155 +4915,7 @@ func (target *CloudCostItem) MarshalBinaryWithContext(ctx *EncodingContext) (err
 	}()
 
 	buff := ctx.Buffer
-	buff.WriteUInt8(CloudCostItemCodecVersion) // version
-
-	// --- [begin][write][struct](CloudCostItemProperties) ---
-	buff.WriteInt(0) // [compatibility, unused]
-	errA := target.Properties.MarshalBinaryWithContext(ctx)
-	if errA != nil {
-		return errA
-	}
-	// --- [end][write][struct](CloudCostItemProperties) ---
-
-	buff.WriteBool(target.IsKubernetes) // write bool
-	// --- [begin][write][struct](Window) ---
-	buff.WriteInt(0) // [compatibility, unused]
-	errB := target.Window.MarshalBinaryWithContext(ctx)
-	if errB != nil {
-		return errB
-	}
-	// --- [end][write][struct](Window) ---
-
-	buff.WriteFloat64(target.Cost)    // write float64
-	buff.WriteFloat64(target.NetCost) // write float64
-	return nil
-}
-
-// UnmarshalBinary uses the data passed byte array to set all the internal properties of
-// the CloudCostItem type
-func (target *CloudCostItem) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
-	}
-
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
-// the CloudCostItem type
-func (target *CloudCostItem) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	version := buff.ReadUInt8()
-
-	if version > CloudCostItemCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling CloudCostItem. Expected %d or less, got %d", CloudCostItemCodecVersion, version)
-	}
-
-	// --- [begin][read][struct](CloudCostItemProperties) ---
-	a := &CloudCostItemProperties{}
-	buff.ReadInt() // [compatibility, unused]
-	errA := a.UnmarshalBinaryWithContext(ctx)
-	if errA != nil {
-		return errA
-	}
-	target.Properties = *a
-	// --- [end][read][struct](CloudCostItemProperties) ---
-
-	b := buff.ReadBool() // read bool
-	target.IsKubernetes = b
-
-	// --- [begin][read][struct](Window) ---
-	c := &Window{}
-	buff.ReadInt() // [compatibility, unused]
-	errB := c.UnmarshalBinaryWithContext(ctx)
-	if errB != nil {
-		return errB
-	}
-	target.Window = *c
-	// --- [end][read][struct](Window) ---
-
-	d := buff.ReadFloat64() // read float64
-	target.Cost = d
-
-	e := buff.ReadFloat64() // read float64
-	target.NetCost = e
-
-	return nil
-}
-
-//--------------------------------------------------------------------------
-//  CloudCostItemProperties
-//--------------------------------------------------------------------------
-
-// MarshalBinary serializes the internal properties of this CloudCostItemProperties instance
-// into a byte array
-func (target *CloudCostItemProperties) MarshalBinary() (data []byte, err error) {
-	ctx := &EncodingContext{
-		Buffer: util.NewBuffer(),
-		Table:  nil,
-	}
-
-	e := target.MarshalBinaryWithContext(ctx)
-	if e != nil {
-		return nil, e
-	}
-
-	encBytes := ctx.Buffer.Bytes()
-	return encBytes, nil
-}
-
-// MarshalBinaryWithContext serializes the internal properties of this CloudCostItemProperties instance
-// into a byte array leveraging a predefined context.
-func (target *CloudCostItemProperties) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	buff.WriteUInt8(CloudCostItemCodecVersion) // version
+	buff.WriteUInt8(CloudCostCodecVersion) // version
 
 	if ctx.IsStringTable() {
 		a := ctx.Table.AddOrGet(target.ProviderID)
@@ -5613,16 +4930,16 @@ func (target *CloudCostItemProperties) MarshalBinaryWithContext(ctx *EncodingCon
 		buff.WriteString(target.Provider) // write string
 	}
 	if ctx.IsStringTable() {
-		c := ctx.Table.AddOrGet(target.WorkGroupID)
+		c := ctx.Table.AddOrGet(target.AccountID)
 		buff.WriteInt(c) // write table index
 	} else {
-		buff.WriteString(target.WorkGroupID) // write string
+		buff.WriteString(target.AccountID) // write string
 	}
 	if ctx.IsStringTable() {
-		d := ctx.Table.AddOrGet(target.BillingID)
+		d := ctx.Table.AddOrGet(target.InvoiceEntityID)
 		buff.WriteInt(d) // write table index
 	} else {
-		buff.WriteString(target.BillingID) // write string
+		buff.WriteString(target.InvoiceEntityID) // write string
 	}
 	if ctx.IsStringTable() {
 		e := ctx.Table.AddOrGet(target.Service)
@@ -5636,7 +4953,7 @@ func (target *CloudCostItemProperties) MarshalBinaryWithContext(ctx *EncodingCon
 	} else {
 		buff.WriteString(target.Category) // write string
 	}
-	// --- [begin][write][alias](CloudCostItemLabels) ---
+	// --- [begin][write][alias](CloudCostLabels) ---
 	if map[string]string(target.Labels) == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
@@ -5661,14 +4978,14 @@ func (target *CloudCostItemProperties) MarshalBinaryWithContext(ctx *EncodingCon
 		// --- [end][write][map](map[string]string) ---
 
 	}
-	// --- [end][write][alias](CloudCostItemLabels) ---
+	// --- [end][write][alias](CloudCostLabels) ---
 
 	return nil
 }
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
-// the CloudCostItemProperties type
-func (target *CloudCostItemProperties) UnmarshalBinary(data []byte) error {
+// the CloudCostProperties type
+func (target *CloudCostProperties) UnmarshalBinary(data []byte) error {
 	var table []string
 	buff := util.NewBufferFromBytes(data)
 
@@ -5698,8 +5015,8 @@ func (target *CloudCostItemProperties) UnmarshalBinary(data []byte) error {
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
-// the CloudCostItemProperties type
-func (target *CloudCostItemProperties) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+// the CloudCostProperties type
+func (target *CloudCostProperties) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
 	// panics are recovered and propagated as errors
 	defer func() {
 		if r := recover(); r != nil {
@@ -5716,8 +5033,8 @@ func (target *CloudCostItemProperties) UnmarshalBinaryWithContext(ctx *DecodingC
 	buff := ctx.Buffer
 	version := buff.ReadUInt8()
 
-	if version > CloudCostItemCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling CloudCostItemProperties. Expected %d or less, got %d", CloudCostItemCodecVersion, version)
+	if version > CloudCostCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling CloudCostProperties. Expected %d or less, got %d", CloudCostCodecVersion, version)
 	}
 
 	var b string
@@ -5748,7 +5065,7 @@ func (target *CloudCostItemProperties) UnmarshalBinaryWithContext(ctx *DecodingC
 		h = buff.ReadString() // read string
 	}
 	g := h
-	target.WorkGroupID = g
+	target.AccountID = g
 
 	var m string
 	if ctx.IsStringTable() {
@@ -5758,7 +5075,7 @@ func (target *CloudCostItemProperties) UnmarshalBinaryWithContext(ctx *DecodingC
 		m = buff.ReadString() // read string
 	}
 	l := m
-	target.BillingID = l
+	target.InvoiceEntityID = l
 
 	var p string
 	if ctx.IsStringTable() {
@@ -5780,7 +5097,7 @@ func (target *CloudCostItemProperties) UnmarshalBinaryWithContext(ctx *DecodingC
 	r := s
 	target.Category = r
 
-	// --- [begin][read][alias](CloudCostItemLabels) ---
+	// --- [begin][read][alias](CloudCostLabels) ---
 	var u map[string]string
 	if buff.ReadUInt8() == uint8(0) {
 		u = nil
@@ -5817,19 +5134,19 @@ func (target *CloudCostItemProperties) UnmarshalBinaryWithContext(ctx *DecodingC
 		// --- [end][read][map](map[string]string) ---
 
 	}
-	target.Labels = CloudCostItemLabels(u)
-	// --- [end][read][alias](CloudCostItemLabels) ---
+	target.Labels = CloudCostLabels(u)
+	// --- [end][read][alias](CloudCostLabels) ---
 
 	return nil
 }
 
 //--------------------------------------------------------------------------
-//  CloudCostItemSet
+//  CloudCostSet
 //--------------------------------------------------------------------------
 
-// MarshalBinary serializes the internal properties of this CloudCostItemSet instance
+// MarshalBinary serializes the internal properties of this CloudCostSet instance
 // into a byte array
-func (target *CloudCostItemSet) MarshalBinary() (data []byte, err error) {
+func (target *CloudCostSet) MarshalBinary() (data []byte, err error) {
 	ctx := &EncodingContext{
 		Buffer: util.NewBuffer(),
 		Table:  NewStringTable(),
@@ -5846,9 +5163,9 @@ func (target *CloudCostItemSet) MarshalBinary() (data []byte, err error) {
 	return merged, nil
 }
 
-// MarshalBinaryWithContext serializes the internal properties of this CloudCostItemSet instance
+// MarshalBinaryWithContext serializes the internal properties of this CloudCostSet instance
 // into a byte array leveraging a predefined context.
-func (target *CloudCostItemSet) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+func (target *CloudCostSet) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 	// panics are recovered and propagated as errors
 	defer func() {
 		if r := recover(); r != nil {
@@ -5863,16 +5180,16 @@ func (target *CloudCostItemSet) MarshalBinaryWithContext(ctx *EncodingContext) (
 	}()
 
 	buff := ctx.Buffer
-	buff.WriteUInt8(CloudCostItemCodecVersion) // version
+	buff.WriteUInt8(CloudCostCodecVersion) // version
 
-	if target.CloudCostItems == nil {
+	if target.CloudCosts == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
 
-		// --- [begin][write][map](map[string]*CloudCostItem) ---
-		buff.WriteInt(len(target.CloudCostItems)) // map length
-		for v, z := range target.CloudCostItems {
+		// --- [begin][write][map](map[string]*CloudCost) ---
+		buff.WriteInt(len(target.CloudCosts)) // map length
+		for v, z := range target.CloudCosts {
 			if ctx.IsStringTable() {
 				a := ctx.Table.AddOrGet(v)
 				buff.WriteInt(a) // write table index
@@ -5884,17 +5201,17 @@ func (target *CloudCostItemSet) MarshalBinaryWithContext(ctx *EncodingContext) (
 			} else {
 				buff.WriteUInt8(uint8(1)) // write non-nil byte
 
-				// --- [begin][write][struct](CloudCostItem) ---
+				// --- [begin][write][struct](CloudCost) ---
 				buff.WriteInt(0) // [compatibility, unused]
 				errA := z.MarshalBinaryWithContext(ctx)
 				if errA != nil {
 					return errA
 				}
-				// --- [end][write][struct](CloudCostItem) ---
+				// --- [end][write][struct](CloudCost) ---
 
 			}
 		}
-		// --- [end][write][map](map[string]*CloudCostItem) ---
+		// --- [end][write][map](map[string]*CloudCost) ---
 
 	}
 	// --- [begin][write][struct](Window) ---
@@ -5911,12 +5228,30 @@ func (target *CloudCostItemSet) MarshalBinaryWithContext(ctx *EncodingContext) (
 	} else {
 		buff.WriteString(target.Integration) // write string
 	}
+	if target.AggregationProperties == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][slice]([]string) ---
+		buff.WriteInt(len(target.AggregationProperties)) // array length
+		for i := 0; i < len(target.AggregationProperties); i++ {
+			if ctx.IsStringTable() {
+				c := ctx.Table.AddOrGet(target.AggregationProperties[i])
+				buff.WriteInt(c) // write table index
+			} else {
+				buff.WriteString(target.AggregationProperties[i]) // write string
+			}
+		}
+		// --- [end][write][slice]([]string) ---
+
+	}
 	return nil
 }
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
-// the CloudCostItemSet type
-func (target *CloudCostItemSet) UnmarshalBinary(data []byte) error {
+// the CloudCostSet type
+func (target *CloudCostSet) UnmarshalBinary(data []byte) error {
 	var table []string
 	buff := util.NewBufferFromBytes(data)
 
@@ -5946,8 +5281,8 @@ func (target *CloudCostItemSet) UnmarshalBinary(data []byte) error {
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
-// the CloudCostItemSet type
-func (target *CloudCostItemSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+// the CloudCostSet type
+func (target *CloudCostSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
 	// panics are recovered and propagated as errors
 	defer func() {
 		if r := recover(); r != nil {
@@ -5964,16 +5299,16 @@ func (target *CloudCostItemSet) UnmarshalBinaryWithContext(ctx *DecodingContext)
 	buff := ctx.Buffer
 	version := buff.ReadUInt8()
 
-	if version > CloudCostItemCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling CloudCostItemSet. Expected %d or less, got %d", CloudCostItemCodecVersion, version)
+	if version > CloudCostCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling CloudCostSet. Expected %d or less, got %d", CloudCostCodecVersion, version)
 	}
 
 	if buff.ReadUInt8() == uint8(0) {
-		target.CloudCostItems = nil
+		target.CloudCosts = nil
 	} else {
-		// --- [begin][read][map](map[string]*CloudCostItem) ---
+		// --- [begin][read][map](map[string]*CloudCost) ---
 		b := buff.ReadInt() // map len
-		a := make(map[string]*CloudCostItem, b)
+		a := make(map[string]*CloudCost, b)
 		for i := 0; i < b; i++ {
 			var v string
 			var d string
@@ -5986,25 +5321,25 @@ func (target *CloudCostItemSet) UnmarshalBinaryWithContext(ctx *DecodingContext)
 			c := d
 			v = c
 
-			var z *CloudCostItem
+			var z *CloudCost
 			if buff.ReadUInt8() == uint8(0) {
 				z = nil
 			} else {
-				// --- [begin][read][struct](CloudCostItem) ---
-				f := &CloudCostItem{}
+				// --- [begin][read][struct](CloudCost) ---
+				f := &CloudCost{}
 				buff.ReadInt() // [compatibility, unused]
 				errA := f.UnmarshalBinaryWithContext(ctx)
 				if errA != nil {
 					return errA
 				}
 				z = f
-				// --- [end][read][struct](CloudCostItem) ---
+				// --- [end][read][struct](CloudCost) ---
 
 			}
 			a[v] = z
 		}
-		target.CloudCostItems = a
-		// --- [end][read][map](map[string]*CloudCostItem) ---
+		target.CloudCosts = a
+		// --- [end][read][map](map[string]*CloudCost) ---
 
 	}
 	// --- [begin][read][struct](Window) ---
@@ -6027,16 +5362,40 @@ func (target *CloudCostItemSet) UnmarshalBinaryWithContext(ctx *DecodingContext)
 	h := k
 	target.Integration = h
 
+	if buff.ReadUInt8() == uint8(0) {
+		target.AggregationProperties = nil
+	} else {
+		// --- [begin][read][slice]([]string) ---
+		n := buff.ReadInt() // array len
+		m := make([]string, n)
+		for j := 0; j < n; j++ {
+			var o string
+			var q string
+			if ctx.IsStringTable() {
+				r := buff.ReadInt() // read string index
+				q = ctx.Table[r]
+			} else {
+				q = buff.ReadString() // read string
+			}
+			p := q
+			o = p
+
+			m[j] = o
+		}
+		target.AggregationProperties = m
+		// --- [end][read][slice]([]string) ---
+
+	}
 	return nil
 }
 
 //--------------------------------------------------------------------------
-//  CloudCostItemSetRange
+//  CloudCostSetRange
 //--------------------------------------------------------------------------
 
-// MarshalBinary serializes the internal properties of this CloudCostItemSetRange instance
+// MarshalBinary serializes the internal properties of this CloudCostSetRange instance
 // into a byte array
-func (target *CloudCostItemSetRange) MarshalBinary() (data []byte, err error) {
+func (target *CloudCostSetRange) MarshalBinary() (data []byte, err error) {
 	ctx := &EncodingContext{
 		Buffer: util.NewBuffer(),
 		Table:  nil,
@@ -6051,9 +5410,9 @@ func (target *CloudCostItemSetRange) MarshalBinary() (data []byte, err error) {
 	return encBytes, nil
 }
 
-// MarshalBinaryWithContext serializes the internal properties of this CloudCostItemSetRange instance
+// MarshalBinaryWithContext serializes the internal properties of this CloudCostSetRange instance
 // into a byte array leveraging a predefined context.
-func (target *CloudCostItemSetRange) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+func (target *CloudCostSetRange) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 	// panics are recovered and propagated as errors
 	defer func() {
 		if r := recover(); r != nil {
@@ -6068,32 +5427,32 @@ func (target *CloudCostItemSetRange) MarshalBinaryWithContext(ctx *EncodingConte
 	}()
 
 	buff := ctx.Buffer
-	buff.WriteUInt8(CloudCostItemCodecVersion) // version
+	buff.WriteUInt8(CloudCostCodecVersion) // version
 
-	if target.CloudCostItemSets == nil {
+	if target.CloudCostSets == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
 
-		// --- [begin][write][slice]([]*CloudCostItemSet) ---
-		buff.WriteInt(len(target.CloudCostItemSets)) // array length
-		for i := 0; i < len(target.CloudCostItemSets); i++ {
-			if target.CloudCostItemSets[i] == nil {
+		// --- [begin][write][slice]([]*CloudCostSet) ---
+		buff.WriteInt(len(target.CloudCostSets)) // array length
+		for i := 0; i < len(target.CloudCostSets); i++ {
+			if target.CloudCostSets[i] == nil {
 				buff.WriteUInt8(uint8(0)) // write nil byte
 			} else {
 				buff.WriteUInt8(uint8(1)) // write non-nil byte
 
-				// --- [begin][write][struct](CloudCostItemSet) ---
+				// --- [begin][write][struct](CloudCostSet) ---
 				buff.WriteInt(0) // [compatibility, unused]
-				errA := target.CloudCostItemSets[i].MarshalBinaryWithContext(ctx)
+				errA := target.CloudCostSets[i].MarshalBinaryWithContext(ctx)
 				if errA != nil {
 					return errA
 				}
-				// --- [end][write][struct](CloudCostItemSet) ---
+				// --- [end][write][struct](CloudCostSet) ---
 
 			}
 		}
-		// --- [end][write][slice]([]*CloudCostItemSet) ---
+		// --- [end][write][slice]([]*CloudCostSet) ---
 
 	}
 	// --- [begin][write][struct](Window) ---
@@ -6108,8 +5467,8 @@ func (target *CloudCostItemSetRange) MarshalBinaryWithContext(ctx *EncodingConte
 }
 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
-// the CloudCostItemSetRange type
-func (target *CloudCostItemSetRange) UnmarshalBinary(data []byte) error {
+// the CloudCostSetRange type
+func (target *CloudCostSetRange) UnmarshalBinary(data []byte) error {
 	var table []string
 	buff := util.NewBufferFromBytes(data)
 
@@ -6139,8 +5498,8 @@ func (target *CloudCostItemSetRange) UnmarshalBinary(data []byte) error {
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
-// the CloudCostItemSetRange type
-func (target *CloudCostItemSetRange) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+// the CloudCostSetRange type
+func (target *CloudCostSetRange) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
 	// panics are recovered and propagated as errors
 	defer func() {
 		if r := recover(); r != nil {
@@ -6157,36 +5516,36 @@ func (target *CloudCostItemSetRange) UnmarshalBinaryWithContext(ctx *DecodingCon
 	buff := ctx.Buffer
 	version := buff.ReadUInt8()
 
-	if version > CloudCostItemCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling CloudCostItemSetRange. Expected %d or less, got %d", CloudCostItemCodecVersion, version)
+	if version > CloudCostCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling CloudCostSetRange. Expected %d or less, got %d", CloudCostCodecVersion, version)
 	}
 
 	if buff.ReadUInt8() == uint8(0) {
-		target.CloudCostItemSets = nil
+		target.CloudCostSets = nil
 	} else {
-		// --- [begin][read][slice]([]*CloudCostItemSet) ---
+		// --- [begin][read][slice]([]*CloudCostSet) ---
 		b := buff.ReadInt() // array len
-		a := make([]*CloudCostItemSet, b)
+		a := make([]*CloudCostSet, b)
 		for i := 0; i < b; i++ {
-			var c *CloudCostItemSet
+			var c *CloudCostSet
 			if buff.ReadUInt8() == uint8(0) {
 				c = nil
 			} else {
-				// --- [begin][read][struct](CloudCostItemSet) ---
-				d := &CloudCostItemSet{}
+				// --- [begin][read][struct](CloudCostSet) ---
+				d := &CloudCostSet{}
 				buff.ReadInt() // [compatibility, unused]
 				errA := d.UnmarshalBinaryWithContext(ctx)
 				if errA != nil {
 					return errA
 				}
 				c = d
-				// --- [end][read][struct](CloudCostItemSet) ---
+				// --- [end][read][struct](CloudCostSet) ---
 
 			}
 			a[i] = c
 		}
-		target.CloudCostItemSets = a
-		// --- [end][read][slice]([]*CloudCostItemSet) ---
+		target.CloudCostSets = a
+		// --- [end][read][slice]([]*CloudCostSet) ---
 
 	}
 	// --- [begin][read][struct](Window) ---
@@ -6425,6 +5784,114 @@ func (target *ClusterManagement) UnmarshalBinaryWithContext(ctx *DecodingContext
 	} else {
 		target.Adjustment = float64(0) // default
 	}
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  CostMetric
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this CostMetric instance
+// into a byte array
+func (target *CostMetric) MarshalBinary() (data []byte, err error) {
+	ctx := &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  nil,
+	}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	encBytes := ctx.Buffer.Bytes()
+	return encBytes, nil
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this CostMetric instance
+// into a byte array leveraging a predefined context.
+func (target *CostMetric) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(CloudCostCodecVersion) // version
+
+	buff.WriteFloat64(target.Cost)              // write float64
+	buff.WriteFloat64(target.KubernetesPercent) // write float64
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the CostMetric type
+func (target *CostMetric) UnmarshalBinary(data []byte) error {
+	var table []string
+	buff := util.NewBufferFromBytes(data)
+
+	// string table header validation
+	if isBinaryTag(data, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the CostMetric type
+func (target *CostMetric) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > CloudCostCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling CostMetric. Expected %d or less, got %d", CloudCostCodecVersion, version)
+	}
+
+	a := buff.ReadFloat64() // read float64
+	target.Cost = a
+
+	b := buff.ReadFloat64() // read float64
+	target.KubernetesPercent = b
 
 	return nil
 }

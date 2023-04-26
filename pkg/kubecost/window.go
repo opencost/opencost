@@ -746,14 +746,14 @@ func (w Window) DurationOffsetStrings() (string, string) {
 // e.g. here are the two possible scenarios as simplidied
 // 10m windows with dashes representing item's time running:
 //
-//  1. item falls entirely within one CloudCostItemSet window
+//  1. item falls entirely within one CloudCostSet window
 //     |     ---- |          |          |
 //     totalMins = 4.0
 //     pct := 4.0 / 4.0 = 1.0 for window 1
 //     pct := 0.0 / 4.0 = 0.0 for window 2
 //     pct := 0.0 / 4.0 = 0.0 for window 3
 //
-//  2. item overlaps multiple CloudCostItemSet windows
+//  2. item overlaps multiple CloudCostSet windows
 //     |      ----|----------|--        |
 //     totalMins = 16.0
 //     pct :=  4.0 / 16.0 = 0.250 for window 1
@@ -810,7 +810,7 @@ func GetWindows(start time.Time, end time.Time, windowSize time.Duration) ([]Win
 		return nil, fmt.Errorf("range timezone doesn't match configured timezone: expected %s; found %ds", env.GetParsedUTCOffset(), sz)
 	}
 
-	// Build array of windows to cover the CloudCostItemSetRange
+	// Build array of windows to cover the CloudCostSetRange
 	windows := []Window{}
 	s, e := start, start.Add(windowSize)
 	for !e.After(end) {
@@ -836,7 +836,7 @@ func GetWindowsForQueryWindow(start time.Time, end time.Time, queryWindow time.D
 		return nil, fmt.Errorf("range timezone doesn't match configured timezone: expected %s; found %ds", env.GetParsedUTCOffset(), sz)
 	}
 
-	// Build array of windows to cover the CloudCostItemSetRange
+	// Build array of windows to cover the CloudCostSetRange
 	windows := []Window{}
 	s, e := start, start.Add(queryWindow)
 	for s.Before(end) {
