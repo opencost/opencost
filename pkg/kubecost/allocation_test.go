@@ -2771,16 +2771,20 @@ func Test_AggregateBy(t *testing.T) {
 		ControllerKind: "deployment",
 		Namespace:      "nginx-plus",
 		Pod:            "nginx-plus-nginx-ingress-123a4b5678-ab12c",
+		ProviderID:     "test",
+		Node:           "testnode",
 		Services: []string{
 			"nginx-plus-nginx-ingress",
 		},
 	}
 
 	weirdProps := &AllocationProperties{
-		Cluster:   "kc-demo-stage",
-		Container: UnmountedSuffix,
-		Namespace: UnmountedSuffix,
-		Pod:       UnmountedSuffix,
+		Cluster:    "kc-demo-stage",
+		Container:  UnmountedSuffix,
+		Namespace:  UnmountedSuffix,
+		Pod:        UnmountedSuffix,
+		ProviderID: "test",
+		Node:       "testnode",
 		Services: []string{
 			"nginx-plus-nginx-ingress",
 			"ingress-nginx-controller",
@@ -2792,34 +2796,43 @@ func Test_AggregateBy(t *testing.T) {
 		Cluster: "kc-demo-stage",
 	})
 	one := NewMockUnitAllocation("kc-demo-stage//__unmounted__/__unmounted__/__unmounted__", start, day, weirdProps)
-	two := NewMockUnitAllocation("kc-demo-stage/gke-kc-demo-stage-pool-2-70aa2479-k41y/nginx-plus/nginx-plus-nginx-ingress-676f9b6674-nv78q/nginx-plus-nginx-ingress", start, day, normalProps)
-	four := NewMockUnitAllocation("kc-demo-stage/gke-kc-demo-stage-pool-2-70aa2479-k41y/nginx-plus/nginx-plus-nginx-ingress-676f9b6674-nv78q/nginx-plus-nginx-ingress", start, day, normalProps)
-	three := NewMockUnitAllocation("kc-demo-stage/gke-kc-demo-stage-pool-2-70aa2479-k41y/nginx-plus/nginx-plus-nginx-ingress-676f9b6674-nv78q/nginx-plus-nginx-ingress", start, day, normalProps)
+	two := NewMockUnitAllocation("kc-demo-stage//nginx-plus/nginx-plus-nginx-ingress-123a4b5678-ab12c/nginx-plus-nginx-ingress", start, day, normalProps)
+	three := NewMockUnitAllocation("kc-demo-stage//nginx-plus/nginx-plus-nginx-ingress-123a4b5678-ab12c/nginx-plus-nginx-ingress", start, day, normalProps)
+	four := NewMockUnitAllocation("kc-demo-stage//nginx-plus/nginx-plus-nginx-ingress-123a4b5678-ab12c/nginx-plus-nginx-ingress", start, day, normalProps)
 
+	one.ExternalCost = 2.35
+	two.ExternalCost = 1.35
+	three.ExternalCost = 2.60
+	four.ExternalCost = 4.30
 	set := NewAllocationSet(start, start.Add(day), one, two, three, four)
 
 	set.Insert(idle)
 
 	set.AggregateBy([]string{AllocationServiceProp}, &AllocationAggregationOptions{
-		Filter: AllocationFilterCondition{Field: FilterServices, Op: FilterEquals, Value: "nginx-plus-nginx-ingress"},
+		Filter: AllocationFilterCondition{Field: FilterServices, Op: FilterContains, Value: "nginx-plus-nginx-ingress"},
 	})
 
 	for _, alloc := range set.Allocations {
-		if strings.Contains(UnmountedSuffix, alloc.Name) {
+		if !strings.Contains(UnmountedSuffix, alloc.Name) {
 			props := alloc.Properties
 			if props.Cluster == UnmountedSuffix {
-				t.Fatalf("cluster unmounted")
-			} else if props.Container == UnmountedSuffix {
-				t.Fatalf("container unmounted")
-			} else if props.Namespace == UnmountedSuffix {
-				t.Fatalf("namespace unmounted")
-			} else if props.Pod == UnmountedSuffix {
-				t.Fatalf("pod unmounted")
-			} else if props.Controller == UnmountedSuffix {
-				t.Fatalf("controller unmounted")
+				t.Error("cluster unmounted")
+			}
+			if props.Container == UnmountedSuffix {
+				t.Error("container unmounted")
+			}
+			if props.Namespace == UnmountedSuffix {
+				t.Error("namespace unmounted")
+			}
+			if props.Pod == UnmountedSuffix {
+				t.Error("pod unmounted")
+			}
+			if props.Controller == UnmountedSuffix {
+				t.Error("controller unmounted")
 			}
 		}
 	}
 
+	spew.Config.DisableMethods = true
 	fmt.Printf("%s", spew.Sdump(set.Allocations))
 }
