@@ -86,7 +86,7 @@ type Allocation struct {
 	// allocation as a percentage of the per-resource total cost of the
 	// asset on which the allocation was run. It is optionally computed
 	// and appended to an Allocation, and so by default is is nil.
-	ProportionalAssetResourceCosts ProportionalAssetResourceCosts `json:"proportionalAssetResourceCosts"`
+	ProportionalAssetResourceCosts ProportionalAssetResourceCosts `json:"proportionalAssetResourceCosts"` //@bingen:field[ignore]
 }
 
 // RawAllocationOnlyData is information that only belong in "raw" Allocations,
