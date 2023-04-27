@@ -61,13 +61,6 @@ func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) {
 		return
 	}
 	go func() {
-		// panic in a goroutine will crash the application. Log it and carry on.
-		defer func() {
-			if r := recover(); r != nil {
-				log.Errorf("panic in CSV Export Worker, stopping: %v", r)
-			}
-		}()
-
 		log.Info("Starting CSV exporter worker...")
 
 		// perform first update immediately
