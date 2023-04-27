@@ -1835,6 +1835,10 @@ func (n *Node) TotalCost() float64 {
 	return ((n.CPUCost + n.RAMCost) * (1.0 - n.Discount)) + n.GPUCost + n.Adjustment
 }
 
+func (n *Node) UndiscountedCost() float64 {
+	return n.CPUCost + n.RAMCost + n.GPUCost + n.Adjustment
+}
+
 // Start returns the precise start time of the Asset within the window
 func (n *Node) GetStart() time.Time {
 	return n.Start
