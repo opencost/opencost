@@ -893,8 +893,8 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 	`
 
 	const fmtQueryCPUModePct = `
-		sum(rate(node_cpu_seconds_total[%s]%s)) by (%s, mode) / ignoring(mode)
-		group_left sum(rate(node_cpu_seconds_total[%s]%s)) by (%s)
+		sum(rate(node_cpu_seconds_total%s[%s]%s)) by (%s, mode) / ignoring(mode)
+		group_left sum(rate(node_cpu_seconds_total%s[%s]%s)) by (%s)
 	`
 
 	const fmtQueryRAMSystemPct = `
@@ -946,7 +946,8 @@ func (a *Accesses) ComputeClusterCosts(client prometheus.Client, provider cloud.
 	}
 
 	if withBreakdown {
-		queryCPUModePct := fmt.Sprintf(fmtQueryCPUModePct, windowStr, fmtOffset, env.GetPromClusterLabel(), windowStr, fmtOffset, env.GetPromClusterLabel())
+		cpuModeSelector := fmt.Sprintf(`{%s=~".+"}`, env.GetPromClusterLabel())
+		queryCPUModePct := fmt.Sprintf(fmtQueryCPUModePct, cpuModeSelector, windowStr, fmtOffset, env.GetPromClusterLabel(), cpuModeSelector, windowStr, fmtOffset, env.GetPromClusterLabel())
 		queryRAMSystemPct := fmt.Sprintf(fmtQueryRAMSystemPct, windowStr, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), windowStr, minsPerResolution, fmtOffset, env.GetPromClusterLabel())
 		queryRAMUserPct := fmt.Sprintf(fmtQueryRAMUserPct, windowStr, minsPerResolution, fmtOffset, env.GetPromClusterLabel(), windowStr, minsPerResolution, fmtOffset, env.GetPromClusterLabel())
 
