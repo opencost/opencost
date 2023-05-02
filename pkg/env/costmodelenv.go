@@ -76,6 +76,7 @@ const (
 	LegacyExternalAPIDisabledVar         = "LEGACY_EXTERNAL_API_DISABLED"
 
 	PromClusterIDLabelEnvVar = "PROM_CLUSTER_ID_LABEL"
+	PromFilterLabelEnvVar    = "PROM_Filter_LABEL"
 
 	PricingConfigmapName  = "PRICING_CONFIGMAP_NAME"
 	MetricsConfigmapName  = "METRICS_CONFIGMAP_NAME"
@@ -512,9 +513,15 @@ func LegacyExternalCostsAPIDisabled() bool {
 	return GetBool(LegacyExternalAPIDisabledVar, false)
 }
 
-// GetPromClusterLabel returns the environemnt variable value for PromClusterIDLabel
+// GetPromClusterLabel returns the environment variable value for PromClusterIDLabel
 func GetPromClusterLabel() string {
 	return Get(PromClusterIDLabelEnvVar, "cluster_id")
+}
+
+// GetPromFilterLabel returns the environment variable value for PromFilterLabel
+// allow to add custom label in the query
+func GetPromFilterLabel() string {
+	return Get(PromFilterLabelEnvVar, "job=~\".*\"")
 }
 
 // IsIngestingPodUID returns the env variable from ingestPodUID, which alters the
