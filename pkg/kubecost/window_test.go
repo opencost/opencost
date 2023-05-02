@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+
 	"github.com/opencost/opencost/pkg/util/timeutil"
 
 	"github.com/opencost/opencost/pkg/env"
@@ -177,6 +178,18 @@ func TestRoundForward(t *testing.T) {
 	if !tb.Equal(time.Date(2020, time.January, 5, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("RoundForward: expected 2020-01-05T00:00:00Z; actual %s", tb)
 	}
+
+	to = time.Date(2020, time.January, 5, 23, 59, 0, 0, time.UTC)
+	tb = RoundForward(to, timeutil.Week)
+	if !tb.Equal(time.Date(2020, time.January, 12, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("RoundForward: expected 2020-01-05T00:00:00Z; actual %s", tb)
+	}
+
+	to = time.Date(2020, time.January, 5, 0, 0, 0, 0, time.UTC)
+	tb = RoundForward(to, timeutil.Week)
+	if !tb.Equal(time.Date(2020, time.January, 5, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("RoundForward: expected 2020-01-05T00:00:00Z; actual %s", tb)
+	}
 }
 
 func TestParseWindowUTC(t *testing.T) {
@@ -226,7 +239,11 @@ func TestParseWindowUTC(t *testing.T) {
 	if month.Duration().Hours() > hoursThisMonth || month.Duration().Hours() < (hoursThisMonth-24.0) {
 		t.Fatalf(`expect: window "month" to have approximately %f hours; actual: %f hours`, hoursThisMonth, month.Duration().Hours())
 	}
-	if !month.End().Before(time.Now().UTC()) {
+
+	// this test fails periodically if execution is so fast that time.Now() during the condition
+	// check is the same as the end of the current month time computed by ParseWindowUTC
+	// so we add one nanosecond to sure time.Now() is later than when invoked earlier
+	if !month.End().Before(time.Now().UTC().Add(time.Nanosecond)) {
 		t.Fatalf(`expect: window "month" to end before now; actual: %s ends after %s`, month, time.Now().UTC())
 	}
 

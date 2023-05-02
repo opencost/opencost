@@ -22,8 +22,8 @@ const (
 )
 
 var (
-	durationRegex       = regexp.MustCompile(`^(\d+)(m|h|d)$`)
-	durationOffsetRegex = regexp.MustCompile(`^(\d+)(m|h|d) offset (\d+)(m|h|d)$`)
+	durationRegex       = regexp.MustCompile(`^(\d+)(m|h|d|w)$`)
+	durationOffsetRegex = regexp.MustCompile(`^(\d+)(m|h|d|w) offset (\d+)(m|h|d|w)$`)
 	offesetRegex        = regexp.MustCompile(`^(\+|-)(\d\d):(\d\d)$`)
 	rfc3339             = `\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ`
 	rfcRegex            = regexp.MustCompile(fmt.Sprintf(`(%s),(%s)`, rfc3339, rfc3339))
@@ -46,11 +46,6 @@ func RoundBack(t time.Time, resolution time.Duration) time.Time {
 // in the given time's timezone.
 // e.g. 2020-01-01T12:37:48-0700, 24h = 2020-01-02T00:00:00-0700
 func RoundForward(t time.Time, resolution time.Duration) time.Time {
-	// if the duration is a week - roll forward to the following Sunday
-	if resolution == timeutil.Week {
-		return timeutil.RoundToStartOfFollowingWeek(t)
-	}
-
 	back := RoundBack(t, resolution)
 	if back.Equal(t) {
 		// The given time is exactly a multiple of the given resolution
@@ -751,14 +746,14 @@ func (w Window) DurationOffsetStrings() (string, string) {
 // e.g. here are the two possible scenarios as simplidied
 // 10m windows with dashes representing item's time running:
 //
-//  1. item falls entirely within one CloudCostItemSet window
+//  1. item falls entirely within one CloudCostSet window
 //     |     ---- |          |          |
 //     totalMins = 4.0
 //     pct := 4.0 / 4.0 = 1.0 for window 1
 //     pct := 0.0 / 4.0 = 0.0 for window 2
 //     pct := 0.0 / 4.0 = 0.0 for window 3
 //
-//  2. item overlaps multiple CloudCostItemSet windows
+//  2. item overlaps multiple CloudCostSet windows
 //     |      ----|----------|--        |
 //     totalMins = 16.0
 //     pct :=  4.0 / 16.0 = 0.250 for window 1
@@ -801,7 +796,7 @@ func GetWindows(start time.Time, end time.Time, windowSize time.Duration) ([]Win
 	}
 
 	// Ensure that provided times are multiples of the provided windowSize (e.g. midnight for daily windows, on the hour for hourly windows)
-	if start != start.Truncate(windowSize) {
+	if start != RoundBack(start, windowSize) {
 		return nil, fmt.Errorf("provided times are not divisible by provided window: [%s, %s] by %s", start, end, windowSize)
 	}
 
@@ -815,7 +810,7 @@ func GetWindows(start time.Time, end time.Time, windowSize time.Duration) ([]Win
 		return nil, fmt.Errorf("range timezone doesn't match configured timezone: expected %s; found %ds", env.GetParsedUTCOffset(), sz)
 	}
 
-	// Build array of windows to cover the CloudCostItemSetRange
+	// Build array of windows to cover the CloudCostSetRange
 	windows := []Window{}
 	s, e := start, start.Add(windowSize)
 	for !e.After(end) {
@@ -841,7 +836,7 @@ func GetWindowsForQueryWindow(start time.Time, end time.Time, queryWindow time.D
 		return nil, fmt.Errorf("range timezone doesn't match configured timezone: expected %s; found %ds", env.GetParsedUTCOffset(), sz)
 	}
 
-	// Build array of windows to cover the CloudCostItemSetRange
+	// Build array of windows to cover the CloudCostSetRange
 	windows := []Window{}
 	s, e := start, start.Add(queryWindow)
 	for s.Before(end) {

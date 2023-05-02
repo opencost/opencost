@@ -2,7 +2,6 @@ package kubecost
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 )
 
@@ -63,6 +62,7 @@ func NewMockUnitAllocation(name string, start time.Time, resolution time.Duratio
 			CPUCoreUsageMax:  1,
 			RAMBytesUsageMax: 1,
 		},
+		ProportionalAssetResourceCosts: nil,
 	}
 
 	// If idle allocation, remove non-idle costs, but maintain total cost
@@ -696,53 +696,6 @@ func GenerateMockAssetSet(start time.Time, duration time.Duration) *AssetSet {
 		// cluster 3
 		node5,
 	)
-}
-
-func GenerateKubecostNodeAndPID(mockProviderIDInt int, provider string, mockClusterID int, setEndTime time.Time) (*Node, string) {
-	providerID := "PID" + strconv.FormatInt(int64(mockProviderIDInt), 10)
-	return &Node{
-		Properties: &AssetProperties{
-			Provider:   provider,
-			ProviderID: providerID,
-			Cluster:    "cluster" + strconv.FormatInt(int64(mockClusterID), 10),
-		},
-		End: setEndTime,
-	}, providerID
-}
-func GenerateAWSMockCCIAndPID(mockProviderIDInt int, mockCloudIDInt int, labelKey string, resourceCategory string) (*CloudCostItem, string) {
-	return &CloudCostItem{
-		Properties: CloudCostItemProperties{
-			ProviderID: "PID" + strconv.FormatInt(int64(mockProviderIDInt), 10),
-			Provider:   AWSProvider,
-			Category:   resourceCategory,
-			Labels: map[string]string{
-				labelKey: "cluster" + strconv.FormatInt(int64(mockCloudIDInt), 10),
-			},
-		},
-	}, "cluster" + strconv.FormatInt(int64(mockCloudIDInt), 10)
-}
-
-func GenerateAlibabaMockCCIAndPID(mockProviderIDInt int, mockCloudIDInt int, labelKey string, resourceCategory string) (*CloudCostItem, string) {
-	return &CloudCostItem{
-		Properties: CloudCostItemProperties{
-			ProviderID: "PID" + strconv.FormatInt(int64(mockProviderIDInt), 10),
-			Provider:   AlibabaProvider,
-			Category:   resourceCategory,
-			Labels: map[string]string{
-				labelKey: "cluster" + strconv.FormatInt(int64(mockCloudIDInt), 10),
-			},
-		},
-	}, "cluster" + strconv.FormatInt(int64(mockCloudIDInt), 10)
-}
-
-func GenerateGCPMockCCIAndPID(mockProviderIDInt int, mockCloudIDInt int, labelKey string, resourceCategory string) (*CloudCostItem, string) {
-	return &CloudCostItem{
-		Properties: CloudCostItemProperties{
-			ProviderID: "PID" + strconv.FormatInt(int64(mockProviderIDInt), 10),
-			Provider:   GCPProvider,
-			Category:   resourceCategory,
-		},
-	}, ""
 }
 
 // NewMockUnitSummaryAllocation creates an *SummaryAllocation with all of its float64 values set to 1 and generic properties if not provided in arg

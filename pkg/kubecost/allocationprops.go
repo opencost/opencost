@@ -103,6 +103,9 @@ type AllocationProperties struct {
 	ProviderID     string                `json:"providerID,omitempty"`
 	Labels         AllocationLabels      `json:"labels,omitempty"`
 	Annotations    AllocationAnnotations `json:"annotations,omitempty"`
+	// When set to true, maintain the intersection of all labels + annotations
+	// in the aggregated AllocationProperties object
+	AggregatedMetadata bool `json:"-"`
 }
 
 // AllocationLabels is a schema-free mapping of key/value pairs that can be
@@ -285,10 +288,18 @@ func (p *AllocationProperties) GenerateKey(aggregateBy []string, labelConfig *La
 				// Indicate that allocation has no services
 				names = append(names, UnallocatedSuffix)
 			} else {
-				// This just uses the first service
-				for _, service := range services {
-					names = append(names, service)
-					break
+				// Unmounted load balancers lead to __unmounted__ Allocations whose
+				// services field is populated. If we don't have a special case, the
+				// __unmounted__ Allocation will be transformed into a regular Allocation,
+				// causing issues with AggregateBy and drilldown
+				if p.Pod == UnmountedSuffix || p.Namespace == UnmountedSuffix || p.Container == UnmountedSuffix {
+					names = append(names, UnmountedSuffix)
+				} else {
+					// This just uses the first service
+					for _, service := range services {
+						names = append(names, service)
+						break
+					}
 				}
 			}
 		case strings.HasPrefix(agg, "label:"):
@@ -439,7 +450,31 @@ func (p *AllocationProperties) Intersection(that *AllocationProperties) *Allocat
 		intersectionProps.ControllerKind = p.ControllerKind
 	}
 	if p.Namespace == that.Namespace {
+
 		intersectionProps.Namespace = p.Namespace
+		// ignore the incoming labels from unallocated or unmounted special case pods
+		if p.AggregatedMetadata || that.AggregatedMetadata {
+			intersectionProps.AggregatedMetadata = true
+
+			// When aggregating by metadata, we maintain the intersection of the labels/annotations
+			// of the two AllocationProperties objects being intersected here.
+			// Special case unallocated/unmounted Allocations never have any labels or annotations.
+			// As a result, they have the effect of always clearing out the intersection,
+			// regardless if all the other actual allocations/etc have them.
+			// This logic is designed to effectively ignore the unmounted/unallocated objects
+			// and just copy over the labels from the other object - we only take the intersection
+			// of 'legitimate' allocations.
+			if p.Container == UnmountedSuffix {
+				intersectionProps.Annotations = that.Annotations
+				intersectionProps.Labels = that.Labels
+			} else if that.Container == UnmountedSuffix {
+				intersectionProps.Annotations = p.Annotations
+				intersectionProps.Labels = p.Labels
+			} else {
+				intersectionProps.Annotations = mapIntersection(p.Annotations, that.Annotations)
+				intersectionProps.Labels = mapIntersection(p.Labels, that.Labels)
+			}
+		}
 	}
 	if p.Pod == that.Pod {
 		intersectionProps.Pod = p.Pod
@@ -448,6 +483,20 @@ func (p *AllocationProperties) Intersection(that *AllocationProperties) *Allocat
 		intersectionProps.ProviderID = p.ProviderID
 	}
 	return intersectionProps
+}
+
+func mapIntersection(map1, map2 map[string]string) map[string]string {
+	result := make(map[string]string)
+	for key, value := range map1 {
+		if value2, ok := map2[key]; ok {
+			if value2 == value {
+				result[key] = value
+			}
+		}
+
+	}
+
+	return result
 }
 
 func (p *AllocationProperties) String() string {

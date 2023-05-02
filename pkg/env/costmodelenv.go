@@ -18,6 +18,9 @@ const (
 	AlibabaAccessKeyIDEnvVar     = "ALIBABA_ACCESS_KEY_ID"
 	AlibabaAccessKeySecretEnvVar = "ALIBABA_SECRET_ACCESS_KEY"
 
+	AzureOfferIDEnvVar        = "AZURE_OFFER_ID"
+	AzureBillingAccountEnvVar = "AZURE_BILLING_ACCOUNT"
+
 	KubecostNamespaceEnvVar        = "KUBECOST_NAMESPACE"
 	PodNameEnvVar                  = "POD_NAME"
 	ClusterIDEnvVar                = "CLUSTER_ID"
@@ -96,6 +99,8 @@ const (
 	AllocationNodeLabelsIncludeList = "ALLOCATION_NODE_LABELS_INCLUDE_LIST"
 
 	regionOverrideList = "REGION_OVERRIDE_LIST"
+
+	ExportCSVFile = "EXPORT_CSV_FILE"
 )
 
 const DefaultConfigMountPath = "/var/configs"
@@ -225,6 +230,21 @@ func GetAlibabaAccessKeyID() string {
 // the Alibaba access key secret for authentication
 func GetAlibabaAccessKeySecret() string {
 	return Get(AlibabaAccessKeySecretEnvVar, "")
+}
+
+// GetAzureOfferID returns the environment variable value for AzureOfferIDEnvVar which represents
+// the Azure offer ID for determining prices.
+func GetAzureOfferID() string {
+	return Get(AzureOfferIDEnvVar, "")
+}
+
+// GetAzureBillingAccount returns the environment variable value for
+// AzureBillingAccountEnvVar which represents the Azure billing
+// account for determining prices. If this is specified
+// customer-specific prices will be downloaded from the consumption
+// price sheet API.
+func GetAzureBillingAccount() string {
+	return Get(AzureBillingAccountEnvVar, "")
 }
 
 // GetKubecostNamespace returns the environment variable value for KubecostNamespaceEnvVar which

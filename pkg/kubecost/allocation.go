@@ -8,6 +8,7 @@ import (
 
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
 // TODO Clean-up use of IsEmpty; nil checks should be separated for safety.
@@ -81,6 +82,11 @@ type Allocation struct {
 	// RawAllocationOnly is a pointer so if it is not present it will be
 	// marshalled as null rather than as an object with Go default values.
 	RawAllocationOnly *RawAllocationOnlyData `json:"rawAllocationOnly"`
+	// ProportionalAssetResourceCost represents the per-resource costs of the
+	// allocation as a percentage of the per-resource total cost of the
+	// asset on which the allocation was run. It is optionally computed
+	// and appended to an Allocation, and so by default is is nil.
+	ProportionalAssetResourceCosts ProportionalAssetResourceCosts `json:"proportionalAssetResourceCosts"` //@bingen:field[ignore]
 }
 
 // RawAllocationOnlyData is information that only belong in "raw" Allocations,
@@ -238,6 +244,59 @@ func (pva *PVAllocation) Equal(that *PVAllocation) bool {
 	}
 	return util.IsApproximately(pva.ByteHours, that.ByteHours) &&
 		util.IsApproximately(pva.Cost, that.Cost)
+}
+
+type ProportionalAssetResourceCost struct {
+	Cluster                    string  `json:"cluster"`
+	Node                       string  `json:"node,omitempty"`
+	ProviderID                 string  `json:"providerID,omitempty"`
+	CPUPercentage              float64 `json:"cpuPercentage"`
+	GPUPercentage              float64 `json:"gpuPercentage"`
+	RAMPercentage              float64 `json:"ramPercentage"`
+	NodeResourceCostPercentage float64 `json:"nodeResourceCostPercentage"`
+}
+
+func (parc ProportionalAssetResourceCost) Key(insertByNode bool) string {
+	if insertByNode {
+		return parc.Cluster + "," + parc.Node
+	} else {
+		return parc.Cluster
+	}
+
+}
+
+type ProportionalAssetResourceCosts map[string]ProportionalAssetResourceCost
+
+func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourceCost, insertByNode bool) {
+	if !insertByNode {
+		parc.Node = ""
+		parc.ProviderID = ""
+	}
+	if curr, ok := parcs[parc.Key(insertByNode)]; ok {
+		parcs[parc.Key(insertByNode)] = ProportionalAssetResourceCost{
+			Node:                       curr.Node,
+			Cluster:                    curr.Cluster,
+			ProviderID:                 curr.ProviderID,
+			CPUPercentage:              curr.CPUPercentage + parc.CPUPercentage,
+			GPUPercentage:              curr.GPUPercentage + parc.GPUPercentage,
+			RAMPercentage:              curr.RAMPercentage + parc.RAMPercentage,
+			NodeResourceCostPercentage: curr.NodeResourceCostPercentage + parc.NodeResourceCostPercentage,
+		}
+	} else {
+		parcs[parc.Key(insertByNode)] = parc
+	}
+}
+
+func (parcs ProportionalAssetResourceCosts) Add(that ProportionalAssetResourceCosts) {
+
+	for _, parc := range that {
+		// if node field is empty, we know this is a cluster level PARC aggregation
+		insertByNode := true
+		if parc.Node == "" {
+			insertByNode = false
+		}
+		parcs.Insert(parc, insertByNode)
+	}
 }
 
 // GetWindow returns the window of the struct
@@ -714,6 +773,12 @@ func (a *Allocation) add(that *Allocation) {
 	// Preserve string properties that are matching between the two allocations
 	a.Properties = a.Properties.Intersection(that.Properties)
 
+	// If both Allocations have ProportionalAssetResourceCosts, then
+	// add those from the given Allocation into the receiver.
+	if a.ProportionalAssetResourceCosts != nil && that.ProportionalAssetResourceCosts != nil {
+		a.ProportionalAssetResourceCosts.Add(that.ProportionalAssetResourceCosts)
+	}
+
 	// Overwrite regular intersection logic for the controller name property in the
 	// case that the Allocation keys are the same but the controllers are not.
 	if leftKey == rightKey &&
@@ -845,18 +910,20 @@ func NewAllocationSet(start, end time.Time, allocs ...*Allocation) *AllocationSe
 // succeeds, the allocation is marked as a shared resource. ShareIdle is a
 // simple flag for sharing idle resources.
 type AllocationAggregationOptions struct {
-	AllocationTotalsStore AllocationTotalsStore
-	Filter                AllocationFilter
-	IdleByNode            bool
-	LabelConfig           *LabelConfig
-	MergeUnallocated      bool
-	Reconcile             bool
-	ReconcileNetwork      bool
-	ShareFuncs            []AllocationMatchFunc
-	ShareIdle             string
-	ShareSplit            string
-	SharedHourlyCosts     map[string]float64
-	SplitIdle             bool
+	AllocationTotalsStore                 AllocationTotalsStore
+	Filter                                AllocationFilter
+	IdleByNode                            bool
+	IncludeProportionalAssetResourceCosts bool
+	LabelConfig                           *LabelConfig
+	MergeUnallocated                      bool
+	Reconcile                             bool
+	ReconcileNetwork                      bool
+	ShareFuncs                            []AllocationMatchFunc
+	ShareIdle                             string
+	ShareSplit                            string
+	SharedHourlyCosts                     map[string]float64
+	SplitIdle                             bool
+	IncludeAggregatedMetadata             bool
 }
 
 // AggregateBy aggregates the Allocations in the given AllocationSet by the given
@@ -869,14 +936,18 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	//     Also, create the aggSet into which the results will be aggregated.
 	//
 	//  2. Compute sharing coefficients for idle and shared resources
-	//     a) if idle allocation is to be shared, compute idle coefficients
-	//     b) if idle allocation is NOT shared, but filters are present, compute
+	//     a) if idle allocation is to be shared, or if proportional asset
+	//        resource costs are to be included, then compute idle coefficients
+	//        (proportional asset resource costs are derived from idle coefficients)
+	//     b) if proportional asset costs are to be included, derive them from
+	//        idle coefficients and add them to the allocations.
+	//     c) if idle allocation is NOT shared, but filters are present, compute
 	//        idle filtration coefficients for the purpose of only returning the
 	//        portion of idle allocation that would have been shared with the
 	//        unfiltered results. (See unit tests 5.a,b,c)
-	//     c) generate shared allocation for them given shared overhead, which
+	//     d) generate shared allocation for them given shared overhead, which
 	//        must happen after (2a) and (2b)
-	//     d) if there are shared resources, compute share coefficients
+	//     e) if there are shared resources, compute share coefficients
 	//
 	//  3. Drop any allocation that fails any of the filters
 	//
@@ -936,7 +1007,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	shouldAggregate := aggregateBy != nil
 	shouldFilter := options.Filter != nil
 	shouldShare := len(options.SharedHourlyCosts) > 0 || len(options.ShareFuncs) > 0
-	if !shouldAggregate && !shouldFilter && !shouldShare && options.ShareIdle == ShareNone {
+	if !shouldAggregate && !shouldFilter && !shouldShare && options.ShareIdle == ShareNone && !options.IncludeProportionalAssetResourceCosts {
 		// There is nothing for AggregateBy to do, so simply return nil
 		return nil
 	}
@@ -957,6 +1028,12 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		Window: as.Window.Clone(),
 	}
 
+	// parcSet is used to compute proportionalAssetResourceCosts
+	// for surfacing in the API
+	parcSet := &AllocationSet{
+		Window: as.Window.Clone(),
+	}
+
 	// shareSet will be shared among aggSet after initial aggregation
 	// is complete
 	shareSet := &AllocationSet{
@@ -967,6 +1044,10 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// them to their respective sets, removing them from the set of allocations
 	// to aggregate.
 	for _, alloc := range as.Allocations {
+		// if the user does not want any aggregated labels/annotations returned
+		// set the properties accordingly
+		alloc.Properties.AggregatedMetadata = options.IncludeAggregatedMetadata
+
 		// External allocations get aggregated post-hoc (see step 6) and do
 		// not necessarily contain complete sets of properties, so they are
 		// moved to a separate AllocationSet.
@@ -988,6 +1069,12 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 				idleSet.Insert(alloc)
 			} else {
 				aggSet.Insert(alloc)
+			}
+
+			// build a parallel set of allocations to only be used
+			// for computing PARCs
+			if options.IncludeProportionalAssetResourceCosts {
+				parcSet.Insert(alloc.Clone())
 			}
 
 			continue
@@ -1057,7 +1144,38 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		}
 	}
 
-	// (2b) If idle costs are not to be shared, but there are filters, then we
+	// (2b) If proportional asset resource costs are to be included, derive them
+	// from idle coefficients and add them to the allocations.
+	if options.IncludeProportionalAssetResourceCosts {
+		var parcCoefficients map[string]map[string]map[string]float64
+		if parcSet.Length() > 0 {
+			parcCoefficients, allocatedTotalsMap, err = computeIdleCoeffs(options, as, shareSet)
+			if err != nil {
+				log.Warnf("AllocationSet.AggregateBy: compute parc idle coeff: %s", err)
+				return fmt.Errorf("error computing parc coefficients: %s", err)
+			}
+		}
+		if parcCoefficients == nil {
+			return fmt.Errorf("cannot include proportional resource costs because parc coefficients are nil")
+		}
+
+		for _, alloc := range as.Allocations {
+			// Create an empty set of proportional asset resource costs,
+			// regardless of whether or not we're successful in deriving them.
+			alloc.ProportionalAssetResourceCosts = ProportionalAssetResourceCosts{}
+
+			// Attempt to derive proportional asset resource costs from idle
+			// coefficients, and insert them into the set if successful.
+			parc, err := deriveProportionalAssetResourceCostsFromIdleCoefficients(parcCoefficients, allocatedTotalsMap, alloc, options)
+			if err != nil {
+				log.Debugf("AggregateBy: failed to derive proportional asset resource costs from idle coefficients for %s: %s", alloc.Name, err)
+				continue
+			}
+			alloc.ProportionalAssetResourceCosts.Insert(parc, options.IdleByNode)
+		}
+	}
+
+	// (2c) If idle costs are not to be shared, but there are filters, then we
 	// need to track the amount of each idle allocation to "filter" in order to
 	// maintain parity with the results when idle is shared. That is, we want
 	// to return only the idle costs that would have been shared with the given
@@ -1089,7 +1207,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		}
 	}
 
-	// (2c) Convert SharedHourlyCosts to Allocations in the shareSet. This must
+	// (2d) Convert SharedHourlyCosts to Allocations in the shareSet. This must
 	// come after idle coefficients are computed so that allocations generated
 	// by shared overhead do not skew the idle coefficient computation.
 	for name, cost := range options.SharedHourlyCosts {
@@ -1114,7 +1232,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		}
 	}
 
-	// (2d) Compute share coefficients for shared resources. These are computed
+	// (2e) Compute share coefficients for shared resources. These are computed
 	// after idle coefficients, and are computed for the aggregated allocations
 	// of the main allocation set. See above for details and an example.
 	var shareCoefficients map[string]float64
@@ -1621,6 +1739,50 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 	}
 
 	return coeffs, totals, nil
+}
+
+func deriveProportionalAssetResourceCostsFromIdleCoefficients(idleCoeffs map[string]map[string]map[string]float64, totals map[string]map[string]float64, allocation *Allocation, options *AllocationAggregationOptions) (ProportionalAssetResourceCost, error) {
+	idleId, err := allocation.getIdleId(options)
+	if err != nil {
+		return ProportionalAssetResourceCost{}, fmt.Errorf("failed to get idle ID for allocation %s", allocation.Name)
+	}
+
+	if _, ok := idleCoeffs[idleId]; !ok {
+		return ProportionalAssetResourceCost{}, fmt.Errorf("failed to find idle coeffs for idle ID %s", idleId)
+	}
+
+	if _, ok := idleCoeffs[idleId][allocation.Name]; !ok {
+		return ProportionalAssetResourceCost{}, fmt.Errorf("failed to find idle coeffs for allocation %s", allocation.Name)
+	}
+
+	cpuPct := idleCoeffs[idleId][allocation.Name]["cpu"]
+	gpuPct := idleCoeffs[idleId][allocation.Name]["gpu"]
+	ramPct := idleCoeffs[idleId][allocation.Name]["ram"]
+
+	// compute how much each component (cpu, gpu, ram) contributes to the overall price
+	totalCost := totals[idleId]["ram"] + totals[idleId]["gpu"] + totals[idleId]["cpu"]
+
+	var ramFraction, cpuFraction, gpuFraction float64
+
+	// only compute fraction if totalCost is nonzero, otherwise returns in NaN
+	if totalCost > 0 {
+		ramFraction = totals[idleId]["ram"] / totalCost
+		cpuFraction = totals[idleId]["cpu"] / totalCost
+		gpuFraction = totals[idleId]["gpu"] / totalCost
+	}
+
+	// compute the resource usage percentage based on the weighted fractions
+	nodeResourceCostPercentage := (ramPct * ramFraction) + (cpuPct * cpuFraction) + (gpuPct * gpuFraction)
+
+	return ProportionalAssetResourceCost{
+		Cluster:                    allocation.Properties.Cluster,
+		Node:                       allocation.Properties.Node,
+		ProviderID:                 allocation.Properties.ProviderID,
+		CPUPercentage:              cpuPct,
+		GPUPercentage:              gpuPct,
+		RAMPercentage:              ramPct,
+		NodeResourceCostPercentage: nodeResourceCostPercentage,
+	}, nil
 }
 
 // getIdleId returns the providerId or cluster of an Allocation depending on the IdleByNode
@@ -2253,6 +2415,10 @@ func (asr *AllocationSetRange) accumulateByMonth() (*AllocationSetRange, error) 
 }
 
 func (asr *AllocationSetRange) accumulateByWeek() (*AllocationSetRange, error) {
+	if len(asr.Allocations) > 0 && asr.Allocations[0].Window.Duration() == timeutil.Week {
+		return asr, nil
+	}
+
 	var toAccumulate *AllocationSetRange
 	result := NewAllocationSetRange()
 	for i, as := range asr.Allocations {

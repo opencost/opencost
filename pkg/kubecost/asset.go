@@ -9,6 +9,7 @@ import (
 
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
 // UndefinedKey is used in composing Asset group keys if the group does not have that property defined.
@@ -2157,22 +2158,6 @@ func (n *Node) GPUs() float64 {
 	return n.GPUHours * (60.0 / n.Minutes())
 }
 
-func (n *Node) MonitoringKey() string {
-	nodeProps := n.GetProperties()
-	if nodeProps == nil {
-		return ""
-	}
-	//TO-DO: For Alibaba investigate why cloudCost ProviderID doesnt match Kubecost ProviderID via Kubernetes API
-	if nodeProps.Provider == AlibabaProvider {
-		aliProviderID := strings.Split(nodeProps.ProviderID, ".")
-		if len(aliProviderID) != 2 {
-			return ""
-		}
-		return nodeProps.Provider + "/" + aliProviderID[1]
-	}
-	return nodeProps.Provider + "/" + nodeProps.ProviderID
-}
-
 // LoadBalancer is an Asset representing a single load balancer in a cluster
 // TODO: add GB of ingress processed, numForwardingRules once we start recording those to prometheus metric
 type LoadBalancer struct {
@@ -3179,19 +3164,6 @@ func (as *AssetSet) accumulate(that *AssetSet) (*AssetSet, error) {
 	return acc, nil
 }
 
-func (as *AssetSet) MonitoredNodeForCloudCostItem(cci *CloudCostItem) *Node {
-	for _, node := range as.Nodes {
-		if node.MonitoringKey() == cci.MonitoringKey() {
-			props := node.GetProperties()
-			if props == nil {
-				continue
-			}
-			return node
-		}
-	}
-	return nil
-}
-
 type DiffKind string
 
 const (
@@ -3376,6 +3348,10 @@ func (asr *AssetSetRange) accumulateByMonth() (*AssetSetRange, error) {
 }
 
 func (asr *AssetSetRange) accumulateByWeek() (*AssetSetRange, error) {
+	if len(asr.Assets) > 0 && asr.Assets[0].Window.Duration() == timeutil.Week {
+		return asr, nil
+	}
+
 	var toAccumulate *AssetSetRange
 	result := NewAssetSetRange()
 	for i, as := range asr.Assets {
