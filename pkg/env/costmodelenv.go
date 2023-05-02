@@ -519,6 +519,7 @@ func GetPromClusterLabel() string {
 }
 
 // GetPromFilterLabel returns the environment variable value for PromFilterLabel
+// allow to add custom label in the query
 func GetPromFilterLabel() string {
 	return Get(PromFilterLabelEnvVar, "job=~\".*\"")
 }
