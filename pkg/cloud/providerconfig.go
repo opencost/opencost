@@ -2,6 +2,8 @@ package cloud
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 	gopath "path"
 	"reflect"
 	"strconv"
@@ -13,6 +15,8 @@ import (
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util/json"
 )
+
+const closedSourceConfigMount = "models/"
 
 var sanitizePolicy = bluemonday.UGCPolicy()
 
@@ -91,6 +95,15 @@ func (pc *ProviderConfig) loadConfig(writeIfNotExists bool) (*CustomPricing, err
 	if !exists {
 		log.Infof("Could not find Custom Pricing file at path '%s'", pc.configFile.Path())
 		pc.customPricing = DefaultPricing()
+		// If config file is not present use the contents from mount models/ as pricing data
+		// in closed source rather than from from  DefaultPricing as first source of truth.
+		// since most images will already have a mount, to avail this facility user needs to delete the
+		// config file manually from configpath else default pricing still holds good.
+		fileName := filenameInConfigPath(pc.configFile.Path())
+		defaultPricing, err := ReturnPricingFromConfigs(fileName)
+		if err == nil {
+			pc.customPricing = defaultPricing
+		}
 
 		// Only write the file if flag enabled
 		if writeIfNotExists {
@@ -272,4 +285,33 @@ func SetCustomPricingField(obj *CustomPricing, name string, value string) error 
 func configPathFor(filename string) string {
 	path := env.GetConfigPathWithDefault("/models/")
 	return gopath.Join(path, filename)
+}
+
+// Gives the config file name in a full qualified file name
+func filenameInConfigPath(fqfn string) string {
+	_, fileName := gopath.Split(fqfn)
+	return fileName
+}
+
+// ReturnPricingFromConfigs is a safe function to return pricing from configs of opensource to the closed source
+// before defaulting it with the above function DefaultPricing
+func ReturnPricingFromConfigs(filename string) (*CustomPricing, error) {
+	if _, err := os.Stat(closedSourceConfigMount); os.IsNotExist(err) {
+		return &CustomPricing{}, fmt.Errorf("ReturnPricingFromConfigs: %s likely running in provider config in opencost itself with err: %v", closedSourceConfigMount, err)
+	}
+	providerConfigFile := gopath.Join(closedSourceConfigMount, filename)
+	if _, err := os.Stat(providerConfigFile); err != nil {
+		return &CustomPricing{}, fmt.Errorf("ReturnPricingFromConfigs: unable to find file %s with err: %v", providerConfigFile, err)
+	}
+	configFile, err := ioutil.ReadFile(providerConfigFile)
+	if err != nil {
+		return &CustomPricing{}, fmt.Errorf("ReturnPricingFromConfigs: unable to open file %s with err: %v", providerConfigFile, err)
+	}
+
+	defaultPricing := &CustomPricing{}
+	err = json.Unmarshal(configFile, defaultPricing)
+	if err != nil {
+		return &CustomPricing{}, fmt.Errorf("ReturnPricingFromConfigs: unable to open file %s with err: %v", providerConfigFile, err)
+	}
+	return defaultPricing, nil
 }
