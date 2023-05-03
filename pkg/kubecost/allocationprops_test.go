@@ -21,8 +21,10 @@ func TestAllocationPropsIntersection(t *testing.T) {
 				Annotations: map[string]string{},
 			},
 			expected: &AllocationProperties{
-				Labels:      nil,
-				Annotations: nil,
+				Labels:               nil,
+				Annotations:          nil,
+				NamespaceLabels:      map[string]string{},
+				NamespaceAnnotations: map[string]string{},
 			},
 		},
 		"nil intersection": {
@@ -30,7 +32,7 @@ func TestAllocationPropsIntersection(t *testing.T) {
 			allocationProps2: nil,
 			expected:         nil,
 		},
-		"intersection, with labels/annotations, no aggregated metdata": {
+		"intersection, with labels/annotations": {
 			allocationProps1: &AllocationProperties{
 				Node:        "node1",
 				Labels:      map[string]string{"key1": "val1"},
@@ -42,12 +44,14 @@ func TestAllocationPropsIntersection(t *testing.T) {
 				Annotations: map[string]string{"key4": "val4"},
 			},
 			expected: &AllocationProperties{
-				Node:        "node1",
-				Labels:      nil,
-				Annotations: nil,
+				Node:                 "node1",
+				Labels:               nil,
+				Annotations:          nil,
+				NamespaceLabels:      map[string]string{},
+				NamespaceAnnotations: map[string]string{},
 			},
 		},
-		"intersection, with labels/annotations, with aggregated metdata": {
+		"intersection, with labels/annotations, same vales": {
 			allocationProps1: &AllocationProperties{
 				ControllerKind: "controller1",
 				Namespace:      "ns1",
@@ -61,10 +65,12 @@ func TestAllocationPropsIntersection(t *testing.T) {
 				Annotations:    map[string]string{"key2": "val2"},
 			},
 			expected: &AllocationProperties{
-				Namespace:      "ns1",
-				ControllerKind: "",
-				Labels:         map[string]string{"key1": "val1"},
-				Annotations:    map[string]string{"key2": "val2"},
+				Namespace:            "ns1",
+				ControllerKind:       "",
+				Labels:               nil,
+				Annotations:          nil,
+				NamespaceLabels:      map[string]string{},
+				NamespaceAnnotations: map[string]string{},
 			},
 		},
 		"intersection, with labels/annotations, special case container": {
@@ -81,10 +87,12 @@ func TestAllocationPropsIntersection(t *testing.T) {
 				Annotations: map[string]string{"key2": "val2"},
 			},
 			expected: &AllocationProperties{
-				Namespace:      "ns1",
-				ControllerKind: "",
-				Labels:         map[string]string{"key1": "val1"},
-				Annotations:    map[string]string{"key2": "val2"},
+				Namespace:            "ns1",
+				ControllerKind:       "",
+				Labels:               nil,
+				Annotations:          nil,
+				NamespaceLabels:      map[string]string{},
+				NamespaceAnnotations: map[string]string{},
 			},
 		},
 		"test services are nulled when intersecting": {
@@ -104,10 +112,12 @@ func TestAllocationPropsIntersection(t *testing.T) {
 				Annotations: map[string]string{"key2": "val2"},
 			},
 			expected: &AllocationProperties{
-				Namespace:      "ns1",
-				ControllerKind: "",
-				Labels:         map[string]string{"key1": "val1"},
-				Annotations:    map[string]string{"key2": "val2"},
+				Namespace:            "ns1",
+				ControllerKind:       "",
+				Labels:               nil,
+				Annotations:          nil,
+				NamespaceLabels:      map[string]string{},
+				NamespaceAnnotations: map[string]string{},
 			},
 		},
 	}
