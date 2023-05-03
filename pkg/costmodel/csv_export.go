@@ -24,10 +24,12 @@ type AllocationModel interface {
 
 var errNoData = errors.New("no data")
 
-func UpdateCSV(ctx context.Context, fileManager filemanager.FileManager, model AllocationModel) error {
+func UpdateCSV(ctx context.Context, fileManager filemanager.FileManager, model AllocationModel, labelsAll bool, labels []string) error {
 	exporter := &csvExporter{
 		FileManager: fileManager,
 		Model:       model,
+		LabelsAll:   labelsAll,
+		Labels:      labels,
 	}
 	return exporter.Update(ctx)
 }
@@ -35,6 +37,8 @@ func UpdateCSV(ctx context.Context, fileManager filemanager.FileManager, model A
 type csvExporter struct {
 	FileManager filemanager.FileManager
 	Model       AllocationModel
+	Labels      []string // If not empty, create a column for each label prefixed with "Label_"
+	LabelsAll   bool     // if true, export all labels to a "Labels" column in JSON format
 }
 
 // Update updates CSV file in cloud storage with new allocation data
@@ -154,36 +158,173 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 	fmtFloat := func(f float64) string {
 		return strconv.FormatFloat(f, 'f', -1, 64)
 	}
-	csvWriter := csv.NewWriter(w)
-	err := csvWriter.Write([]string{
-		"Date",
-		"Namespace",
-		"ControllerKind",
-		"ControllerName",
-		"Pod",
-		"Container",
-		"Labels",
 
-		"CPUCoreUsageAverage",
-		"CPUCoreRequestAverage",
-		"RAMBytesUsageAverage",
-		"RAMBytesRequestAverage",
-		"NetworkReceiveBytes",
-		"NetworkTransferBytes",
-		"GPUs",
-		"PVBytes",
-
-		"CPUCost",
-		"RAMCost",
-		"NetworkCost",
-		"PVCost",
-		"GPUCost",
-		"TotalCost",
-	})
-	if err != nil {
-		return err
+	type rowData struct {
+		date  time.Time
+		alloc *kubecost.Allocation
 	}
+
+	type columnDef struct {
+		column string
+		value  func(data rowData) string
+	}
+
+	csvDef := []columnDef{
+		{
+			column: "Date",
+			value: func(data rowData) string {
+				return data.date.Format("2006-01-02")
+			},
+		},
+		{
+			column: "Namespace",
+			value: func(data rowData) string {
+				return data.alloc.Properties.Namespace
+			},
+		},
+		{
+			column: "ControllerKind",
+			value: func(data rowData) string {
+				return data.alloc.Properties.ControllerKind
+			},
+		},
+		{
+			column: "ControllerName",
+			value: func(data rowData) string {
+				return data.alloc.Properties.Controller
+			},
+		},
+		{
+			column: "Pod",
+			value: func(data rowData) string {
+				return data.alloc.Properties.Pod
+			},
+		},
+		{
+			column: "Container",
+			value: func(data rowData) string {
+				return data.alloc.Properties.Container
+			},
+		},
+		{
+			column: "CPUCoreUsageAverage",
+			value: func(data rowData) string {
+				return fmtFloat(data.alloc.CPUCoreUsageAverage)
+			},
+		},
+		{
+			column: "CPUCoreRequestAverage",
+			value: func(data rowData) string {
+				return fmtFloat(data.alloc.CPUCoreRequestAverage)
+			},
+		},
+		{
+			column: "RAMBytesUsageAverage",
+			value: func(data rowData) string {
+				return fmtFloat(data.alloc.RAMBytesUsageAverage)
+			},
+		},
+		{
+			column: "RAMBytesRequestAverage",
+			value: func(data rowData) string {
+				return fmtFloat(data.alloc.RAMBytesRequestAverage)
+			},
+		},
+		{
+			column: "NetworkReceiveBytes",
+			value: func(data rowData) string {
+				return fmtFloat(data.alloc.NetworkReceiveBytes)
+			},
+		},
+		{
+			column: "NetworkTransferBytes",
+			value: func(data rowData) string {
+				return fmtFloat(data.alloc.NetworkTransferBytes)
+			},
+		},
+		{
+			column: "GPUs",
+			value: func(data rowData) string {
+				return fmtFloat(data.alloc.GPUs())
+			},
+		},
+		{
+			column: "PVBytes",
+			value: func(data rowData) string {
+				return fmtFloat(data.alloc.PVBytes())
+			},
+		},
+		{
+			column: "CPUCost",
+			value: func(data rowData) string {
+				return fmtFloat(data.alloc.CPUTotalCost())
+			},
+		},
+		{
+			column: "RAMCost",
+			value: func(data rowData) string {
+				return fmtFloat(data.alloc.RAMTotalCost())
+			},
+		},
+		{
+			column: "NetworkCost",
+			value: func(data rowData) string {
+				return fmtFloat(data.alloc.NetworkTotalCost())
+			},
+		},
+		{
+			column: "PVCost",
+			value: func(data rowData) string {
+				return fmtFloat(data.alloc.PVTotalCost())
+			},
+		},
+		{
+			column: "GPUCost",
+			value: func(data rowData) string {
+				return fmtFloat(data.alloc.GPUTotalCost())
+			},
+		},
+		{
+			column: "TotalCost",
+			value: func(data rowData) string {
+				return fmtFloat(data.alloc.TotalCost())
+			},
+		},
+	}
+	if e.LabelsAll {
+		csvDef = append(csvDef, columnDef{
+			column: "Labels",
+			value: func(data rowData) string {
+				return fmtLabelsCSV(data.alloc.Properties.Labels)
+			},
+		})
+	}
+	for i := range e.Labels {
+		label := e.Labels[i] // it's important to copy the label name, otherwise all closures will reference the same label
+		csvDef = append(csvDef, columnDef{
+			column: "Label_" + label,
+			value: func(data rowData) string {
+				value, _ := data.alloc.Properties.Labels[label]
+				return value
+			},
+		})
+	}
+	csvDef = append(csvDef)
+
+	header := make([]string, 0, len(csvDef))
+	for _, def := range csvDef {
+		header = append(header, def.column)
+	}
+
+	csvWriter := csv.NewWriter(w)
 	lines := 0
+	err := csvWriter.Write(header)
+	if err != nil {
+		return fmt.Errorf("failed to write header: %w", err)
+	}
+
+	log.Infof("writing CSV with header: %v", header)
+
 	for _, date := range dates {
 		start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
 		end := start.AddDate(0, 0, 1)
@@ -196,35 +337,15 @@ func (e *csvExporter) writeCSVToWriter(ctx context.Context, w io.Writer, dates [
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-
-			err := csvWriter.Write([]string{
-				date.Format("2006-01-02"),
-				alloc.Properties.Namespace,
-				alloc.Properties.ControllerKind,
-				alloc.Properties.Controller,
-				alloc.Properties.Pod,
-				alloc.Properties.Container,
-				fmtLabelsCSV(alloc.Properties.Labels),
-
-				fmtFloat(alloc.CPUCoreUsageAverage),
-				fmtFloat(alloc.CPUCoreRequestAverage),
-				fmtFloat(alloc.RAMBytesUsageAverage),
-				fmtFloat(alloc.RAMBytesRequestAverage),
-				fmtFloat(alloc.NetworkReceiveBytes),
-				fmtFloat(alloc.NetworkTransferBytes),
-				fmtFloat(alloc.GPUs()),
-				fmtFloat(alloc.PVBytes()),
-
-				fmtFloat(alloc.CPUTotalCost()),
-				fmtFloat(alloc.RAMTotalCost()),
-				fmtFloat(alloc.NetworkTotalCost()),
-				fmtFloat(alloc.PVCost()),
-				fmtFloat(alloc.GPUCost),
-				fmtFloat(alloc.TotalCost()),
-			})
-			if err != nil {
-				return err
+			row := make([]string, 0, len(csvDef))
+			for _, def := range csvDef {
+				row = append(row, def.value(rowData{date: date, alloc: alloc}))
 			}
+			err := csvWriter.Write(row)
+			if err != nil {
+				return fmt.Errorf("failed to write csv row: %w", err)
+			}
+
 			lines++
 		}
 	}

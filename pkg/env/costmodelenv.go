@@ -96,7 +96,9 @@ const (
 
 	regionOverrideList = "REGION_OVERRIDE_LIST"
 
-	ExportCSVFile = "EXPORT_CSV_FILE"
+	ExportCSVFile       = "EXPORT_CSV_FILE"
+	ExportCSVLabelsList = "EXPORT_CSV_LABELS_LIST"
+	ExportCSVLabelsAll  = "EXPORT_CSV_LABELS_ALL"
 )
 
 const DefaultConfigMountPath = "/var/configs"
@@ -105,6 +107,18 @@ var offsetRegex = regexp.MustCompile(`^(\+|-)(\d\d):(\d\d)$`)
 
 func IsETLReadOnlyMode() bool {
 	return GetBool(ETLReadOnlyMode, false)
+}
+
+func GetExportCSVFile() string {
+	return Get(ExportCSVFile, "")
+}
+
+func GetExportCSVLabelsAll() bool {
+	return GetBool(ExportCSVLabelsAll, false)
+}
+
+func GetExportCSVLabelsList() []string {
+	return GetList(ExportCSVLabelsList, ",")
 }
 
 // GetKubecostConfigBucket returns a file location for a mounted bucket configuration which is used to store

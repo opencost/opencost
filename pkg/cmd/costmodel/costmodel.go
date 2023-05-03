@@ -2,8 +2,8 @@ package costmodel
 
 import (
 	"context"
+	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
@@ -34,7 +34,10 @@ func Execute(opts *CostModelOpts) error {
 	log.Infof("Starting cost-model version %s", version.FriendlyVersion())
 	a := costmodel.Initialize()
 
-	StartExportWorker(context.Background(), a.Model)
+	err := StartExportWorker(context.Background(), a.Model)
+	if err != nil {
+		log.Errorf("couldn't start CSV export worker: %v", err)
+	}
 
 	rootMux := http.NewServeMux()
 	a.Router.GET("/healthz", Healthz)
@@ -48,18 +51,15 @@ func Execute(opts *CostModelOpts) error {
 	return http.ListenAndServe(":9003", errors.PanicHandlerMiddleware(handler))
 }
 
-func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) {
+func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) error {
 	// TODO: there should be a better way to load the configuration
-	exportPath := os.Getenv(env.ExportCSVFile)
+	exportPath := env.GetExportCSVFile()
 	if exportPath == "" {
-		log.Infof("%s is not set, skipping CSV exporter", env.ExportCSVFile)
-		return
+		return fmt.Errorf("%s is not set, skipping CSV exporter", env.ExportCSVFile)
 	}
-
 	fm, err := filemanager.NewFileManager(exportPath)
 	if err != nil {
-		log.Errorf("could not start CSV exporter: %v", err)
-		return
+		return fmt.Errorf("could not create file manager: %v", err)
 	}
 	go func() {
 		log.Info("Starting CSV exporter worker...")
@@ -71,7 +71,7 @@ func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) {
 			case <-ctx.Done():
 				return
 			case <-time.After(nextRunAt.Sub(time.Now())):
-				err := costmodel.UpdateCSV(ctx, fm, model)
+				err := costmodel.UpdateCSV(ctx, fm, model, env.GetExportCSVLabelsAll(), env.GetExportCSVLabelsList())
 				if err != nil {
 					// it's background worker, log error and carry on, maybe next time it will work
 					log.Errorf("Error updating CSV: %s", err)
@@ -83,4 +83,5 @@ func StartExportWorker(ctx context.Context, model costmodel.AllocationModel) {
 			}
 		}
 	}()
+	return nil
 }
