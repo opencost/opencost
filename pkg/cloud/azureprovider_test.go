@@ -70,7 +70,7 @@ func TestConvertMeterToPricings(t *testing.T) {
 		require.NoError(t, err)
 
 		expected := map[string]*AzurePricing{
-			"useast,premium_ssd": {
+			"useast,Premium_LRS": {
 				PV: &PV{Cost: "0.085616", Region: "useast"},
 			},
 		}
