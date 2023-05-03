@@ -103,8 +103,8 @@ type AllocationProperties struct {
 	ProviderID           string                `json:"providerID,omitempty"`
 	Labels               AllocationLabels      `json:"labels,omitempty"`
 	Annotations          AllocationAnnotations `json:"annotations,omitempty"`
-	NamespaceLabels      AllocationLabels      `json:"namespaceLabels,omitempty"`
-	NamespaceAnnotations AllocationAnnotations `json:"namespaceAnnotations,omitempty"`
+	NamespaceLabels      AllocationLabels      `json:"namespaceLabels,omitempty"`      // @bingen:field[version=17]
+	NamespaceAnnotations AllocationAnnotations `json:"namespaceAnnotations,omitempty"` // @bingen:field[version=17]
 }
 
 // AllocationLabels is a schema-free mapping of key/value pairs that can be
