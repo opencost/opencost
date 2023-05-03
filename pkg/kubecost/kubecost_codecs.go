@@ -13,11 +13,12 @@ package kubecost
 
 import (
 	"fmt"
-	util "github.com/opencost/opencost/pkg/util"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
+
+	util "github.com/opencost/opencost/pkg/util"
 )
 
 const (
@@ -1185,6 +1186,60 @@ func (target *AllocationProperties) MarshalBinaryWithContext(ctx *EncodingContex
 	}
 	// --- [end][write][alias](AllocationAnnotations) ---
 
+	// --- [begin][write][alias](AllocationNamespaceAnnotations) ---
+	if map[string]string(target.NamespaceAnnotations) == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]string) ---
+		buff.WriteInt(len(map[string]string(target.NamespaceAnnotations))) // map length
+		for vv, zz := range map[string]string(target.NamespaceAnnotations) {
+			if ctx.IsStringTable() {
+				n := ctx.Table.AddOrGet(vv)
+				buff.WriteInt(n) // write table index
+			} else {
+				buff.WriteString(vv) // write string
+			}
+			if ctx.IsStringTable() {
+				o := ctx.Table.AddOrGet(zz)
+				buff.WriteInt(o) // write table index
+			} else {
+				buff.WriteString(zz) // write string
+			}
+		}
+		// --- [end][write][map](map[string]string) ---
+
+	}
+	// --- [end][write][alias](AllocationNamespaceAnnotations) ---
+
+	// --- [begin][write][alias](AllocationNamespaceLabels) ---
+	if map[string]string(target.NamespaceLabels) == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]string) ---
+		buff.WriteInt(len(map[string]string(target.NamespaceLabels))) // map length
+		for v, z := range map[string]string(target.NamespaceLabels) {
+			if ctx.IsStringTable() {
+				l := ctx.Table.AddOrGet(v)
+				buff.WriteInt(l) // write table index
+			} else {
+				buff.WriteString(v) // write string
+			}
+			if ctx.IsStringTable() {
+				m := ctx.Table.AddOrGet(z)
+				buff.WriteInt(m) // write table index
+			} else {
+				buff.WriteString(z) // write string
+			}
+		}
+		// --- [end][write][map](map[string]string) ---
+
+	}
+	// --- [end][write][alias](AllocationNamespaceLabels) ---
+
 	return nil
 }
 
@@ -1426,6 +1481,85 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 	target.Annotations = AllocationAnnotations(tt)
 	// --- [end][read][alias](AllocationAnnotations) ---
 
+	// --- [begin][read][alias](AllocationNamespaceAnnotations) ---
+	var na map[string]string
+	if buff.ReadUInt8() == uint8(0) {
+		na = nil
+	} else {
+		// --- [begin][read][map](map[string]string) ---
+		ww := buff.ReadInt() // map len
+		uu := make(map[string]string, ww)
+		for ii := 0; ii < ww; ii++ {
+			var vv string
+			var yy string
+			if ctx.IsStringTable() {
+				aaa := buff.ReadInt() // read string index
+				yy = ctx.Table[aaa]
+			} else {
+				yy = buff.ReadString() // read string
+			}
+			xx := yy
+			vv = xx
+
+			var zz string
+			var ccc string
+			if ctx.IsStringTable() {
+				ddd := buff.ReadInt() // read string index
+				ccc = ctx.Table[ddd]
+			} else {
+				ccc = buff.ReadString() // read string
+			}
+			bbb := ccc
+			zz = bbb
+
+			uu[vv] = zz
+		}
+		na = uu
+		// --- [end][read][map](map[string]string) ---
+
+	}
+	target.NamespaceAnnotations = AllocationAnnotations(na)
+	// --- [end][read][alias](AllocationAnnotations) ---
+
+	// --- [begin][read][alias](AllocationNamespaceLabels) ---
+	var nl map[string]string
+	if buff.ReadUInt8() == uint8(0) {
+		nl = nil
+	} else {
+		// --- [begin][read][map](map[string]string) ---
+		mm := buff.ReadInt() // map len
+		ll := make(map[string]string, mm)
+		for j := 0; j < mm; j++ {
+			var v string
+			var oo string
+			if ctx.IsStringTable() {
+				pp := buff.ReadInt() // read string index
+				oo = ctx.Table[pp]
+			} else {
+				oo = buff.ReadString() // read string
+			}
+			nn := oo
+			v = nn
+
+			var z string
+			var rr string
+			if ctx.IsStringTable() {
+				ss := buff.ReadInt() // read string index
+				rr = ctx.Table[ss]
+			} else {
+				rr = buff.ReadString() // read string
+			}
+			qq := rr
+			z = qq
+
+			ll[v] = z
+		}
+		nl = ll
+		// --- [end][read][map](map[string]string) ---
+
+	}
+	target.NamespaceLabels = AllocationLabels(nl)
+	// --- [end][read][alias](AllocationNamespaceLabels) ---
 	return nil
 }
 

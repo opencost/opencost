@@ -92,20 +92,19 @@ func ParseProperty(text string) (string, error) {
 
 // AllocationProperties describes a set of Kubernetes objects.
 type AllocationProperties struct {
-	Cluster        string                `json:"cluster,omitempty"`
-	Node           string                `json:"node,omitempty"`
-	Container      string                `json:"container,omitempty"`
-	Controller     string                `json:"controller,omitempty"`
-	ControllerKind string                `json:"controllerKind,omitempty"`
-	Namespace      string                `json:"namespace,omitempty"`
-	Pod            string                `json:"pod,omitempty"`
-	Services       []string              `json:"services,omitempty"`
-	ProviderID     string                `json:"providerID,omitempty"`
-	Labels         AllocationLabels      `json:"labels,omitempty"`
-	Annotations    AllocationAnnotations `json:"annotations,omitempty"`
-	// When set to true, maintain the intersection of all labels + annotations
-	// in the aggregated AllocationProperties object
-	AggregatedMetadata bool `json:"-"`
+	Cluster              string                `json:"cluster,omitempty"`
+	Node                 string                `json:"node,omitempty"`
+	Container            string                `json:"container,omitempty"`
+	Controller           string                `json:"controller,omitempty"`
+	ControllerKind       string                `json:"controllerKind,omitempty"`
+	Namespace            string                `json:"namespace,omitempty"`
+	Pod                  string                `json:"pod,omitempty"`
+	Services             []string              `json:"services,omitempty"`
+	ProviderID           string                `json:"providerID,omitempty"`
+	Labels               AllocationLabels      `json:"labels,omitempty"`
+	Annotations          AllocationAnnotations `json:"annotations,omitempty"`
+	NamespaceLabels      AllocationLabels      `json:"namespaceLabels,omitempty"`
+	NamespaceAnnotations AllocationAnnotations `json:"namespaceAnnotations,omitempty"`
 }
 
 // AllocationLabels is a schema-free mapping of key/value pairs that can be
@@ -141,11 +140,23 @@ func (p *AllocationProperties) Clone() *AllocationProperties {
 	}
 	clone.Labels = labels
 
+	nsLabels := make(map[string]string, len(p.NamespaceLabels))
+	for k, v := range p.NamespaceLabels {
+		nsLabels[k] = v
+	}
+	clone.NamespaceLabels = nsLabels
+
 	annotations := make(map[string]string, len(p.Annotations))
 	for k, v := range p.Annotations {
 		annotations[k] = v
 	}
 	clone.Annotations = annotations
+
+	nsAnnotations := make(map[string]string, len(p.NamespaceAnnotations))
+	for k, v := range p.NamespaceAnnotations {
+		nsAnnotations[k] = v
+	}
+	clone.NamespaceAnnotations = nsAnnotations
 
 	return clone
 }
@@ -200,11 +211,37 @@ func (p *AllocationProperties) Equal(that *AllocationProperties) bool {
 		return false
 	}
 
+	pNamespaceLabels := p.NamespaceLabels
+	thatNamespaceLabels := that.NamespaceLabels
+	if len(pNamespaceLabels) == len(thatNamespaceLabels) {
+		for k, pv := range pNamespaceLabels {
+			tv, ok := thatNamespaceLabels[k]
+			if !ok || tv != pv {
+				return false
+			}
+		}
+	} else {
+		return false
+	}
+
 	pAnnotations := p.Annotations
 	thatAnnotations := that.Annotations
 	if len(pAnnotations) == len(thatAnnotations) {
 		for k, pv := range pAnnotations {
 			tv, ok := thatAnnotations[k]
+			if !ok || tv != pv {
+				return false
+			}
+		}
+	} else {
+		return false
+	}
+
+	pNamespaceAnnotations := p.NamespaceAnnotations
+	thatNamespaceAnnotations := that.NamespaceAnnotations
+	if len(pNamespaceAnnotations) == len(thatNamespaceAnnotations) {
+		for k, pv := range pNamespaceAnnotations {
+			tv, ok := thatNamespaceAnnotations[k]
 			if !ok || tv != pv {
 				return false
 			}
@@ -452,51 +489,38 @@ func (p *AllocationProperties) Intersection(that *AllocationProperties) *Allocat
 	if p.Namespace == that.Namespace {
 
 		intersectionProps.Namespace = p.Namespace
-		// ignore the incoming labels from unallocated or unmounted special case pods
-		if p.AggregatedMetadata || that.AggregatedMetadata {
-			intersectionProps.AggregatedMetadata = true
 
-			// When aggregating by metadata, we maintain the intersection of the labels/annotations
-			// of the two AllocationProperties objects being intersected here.
-			// Special case unallocated/unmounted Allocations never have any labels or annotations.
-			// As a result, they have the effect of always clearing out the intersection,
-			// regardless if all the other actual allocations/etc have them.
+		// CORE-140: In the case that the namespace is the same, also copy over the namespaceLabels and annotations
+		// Note - assume that if the namespace is the same on both, then namespace label/annotation sets
+		// will be the same, so just carry one set over
+		if p.Container == UnmountedSuffix {
 			// This logic is designed to effectively ignore the unmounted/unallocated objects
-			// and just copy over the labels from the other object - we only take the intersection
-			// of 'legitimate' allocations.
-			if p.Container == UnmountedSuffix {
-				intersectionProps.Annotations = that.Annotations
-				intersectionProps.Labels = that.Labels
-			} else if that.Container == UnmountedSuffix {
-				intersectionProps.Annotations = p.Annotations
-				intersectionProps.Labels = p.Labels
-			} else {
-				intersectionProps.Annotations = mapIntersection(p.Annotations, that.Annotations)
-				intersectionProps.Labels = mapIntersection(p.Labels, that.Labels)
-			}
+			// and just copy over the labels from the other, 'legitimate' allocation.
+			intersectionProps.NamespaceLabels = copyStringMap(that.NamespaceLabels)
+			intersectionProps.NamespaceAnnotations = copyStringMap(that.NamespaceAnnotations)
+		} else {
+			intersectionProps.NamespaceLabels = copyStringMap(p.NamespaceLabels)
+			intersectionProps.NamespaceAnnotations = copyStringMap(p.NamespaceAnnotations)
 		}
 	}
+
 	if p.Pod == that.Pod {
 		intersectionProps.Pod = p.Pod
 	}
 	if p.ProviderID == that.ProviderID {
 		intersectionProps.ProviderID = p.ProviderID
 	}
+
 	return intersectionProps
 }
 
-func mapIntersection(map1, map2 map[string]string) map[string]string {
-	result := make(map[string]string)
-	for key, value := range map1 {
-		if value2, ok := map2[key]; ok {
-			if value2 == value {
-				result[key] = value
-			}
-		}
-
+func copyStringMap(original map[string]string) map[string]string {
+	copy := make(map[string]string)
+	for key, value := range original {
+		copy[key] = value
 	}
 
-	return result
+	return copy
 }
 
 func (p *AllocationProperties) String() string {
@@ -548,11 +572,23 @@ func (p *AllocationProperties) String() string {
 	}
 	strs = append(strs, fmt.Sprintf("Labels:{%s}", strings.Join(labelStrs, ",")))
 
+	var nsLabelStrs []string
+	for k, prop := range p.NamespaceLabels {
+		nsLabelStrs = append(nsLabelStrs, fmt.Sprintf("%s:%s", k, prop))
+	}
+	strs = append(strs, fmt.Sprintf("NamespaceLabels:{%s}", strings.Join(nsLabelStrs, ",")))
+
 	var annotationStrs []string
 	for k, prop := range p.Annotations {
 		annotationStrs = append(annotationStrs, fmt.Sprintf("%s:%s", k, prop))
 	}
 	strs = append(strs, fmt.Sprintf("Annotations:{%s}", strings.Join(annotationStrs, ",")))
+
+	var nsAnnotationStrs []string
+	for k, prop := range p.NamespaceAnnotations {
+		nsAnnotationStrs = append(nsAnnotationStrs, fmt.Sprintf("%s:%s", k, prop))
+	}
+	strs = append(strs, fmt.Sprintf("NamespaceAnnotations:{%s}", strings.Join(nsAnnotationStrs, ",")))
 
 	return fmt.Sprintf("{%s}", strings.Join(strs, "; "))
 }
