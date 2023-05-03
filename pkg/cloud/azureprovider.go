@@ -13,8 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opencost/opencost/pkg/kubecost"
-
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-11-01/compute"
 	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
 	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2016-06-01/subscriptions"
@@ -22,13 +20,17 @@ import (
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
+
+	pricesheet "github.com/opencost/opencost/pkg/cloud/azurepricesheet"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/env"
+	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/fileutil"
 	"github.com/opencost/opencost/pkg/util/json"
 	"github.com/opencost/opencost/pkg/util/timeutil"
+
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -205,7 +207,7 @@ func getRegions(service string, subscriptionsClient subscriptions.Client, provid
 						if loc, ok := allLocations[displName]; ok {
 							supLocations[loc] = displName
 						} else {
-							log.Warnf("unsupported cloud region %s", loc)
+							log.Warnf("unsupported cloud region %q", loc)
 						}
 					}
 					break
@@ -223,7 +225,7 @@ func getRegions(service string, subscriptionsClient subscriptions.Client, provid
 						if loc, ok := allLocations[displName]; ok {
 							supLocations[loc] = displName
 						} else {
-							log.Warnf("unsupported cloud region %s", loc)
+							log.Warnf("unsupported cloud region %q", loc)
 						}
 					}
 					break
@@ -328,7 +330,7 @@ func toRegionID(meterRegion string, regions map[string]string) (string, error) {
 			return regionID, nil
 		}
 	}
-	return "", fmt.Errorf("Couldn't find region")
+	return "", fmt.Errorf("Couldn't find region %q", meterRegion)
 }
 
 // azure has very inconsistent naming standards between display names from the rate card api and display names from the regions api
@@ -395,7 +397,9 @@ type Azure struct {
 	Clientset                      clustercache.ClusterCache
 	Config                         *ProviderConfig
 	serviceAccountChecks           *ServiceAccountChecks
-	RateCardPricingError           error
+	pricingSource                  string
+	rateCardPricingError           error
+	priceSheetPricingError         error
 	clusterAccountID               string
 	clusterRegion                  string
 	loadedAzureSecret              bool
@@ -779,8 +783,17 @@ func (az *Azure) DownloadPricingData() error {
 
 	config, err := az.GetConfig()
 	if err != nil {
-		az.RateCardPricingError = err
+		az.rateCardPricingError = err
 		return err
+	}
+
+	envBillingAccount := env.GetAzureBillingAccount()
+	if envBillingAccount != "" {
+		config.AzureBillingAccount = envBillingAccount
+	}
+	envOfferID := env.GetAzureOfferID()
+	if envOfferID != "" {
+		config.AzureOfferDurableID = envOfferID
 	}
 
 	// Load the service provider keys
@@ -798,7 +811,7 @@ func (az *Azure) DownloadPricingData() error {
 		credentialsConfig := NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID, azureEnv)
 		a, err := credentialsConfig.Authorizer()
 		if err != nil {
-			az.RateCardPricingError = err
+			az.rateCardPricingError = err
 			return err
 		}
 		authorizer = a
@@ -810,7 +823,7 @@ func (az *Azure) DownloadPricingData() error {
 		if err != nil {
 			a, err := auth.NewAuthorizerFromFile(azureEnv.ResourceManagerEndpoint)
 			if err != nil {
-				az.RateCardPricingError = err
+				az.rateCardPricingError = err
 				return err
 			}
 			authorizer = a
@@ -832,14 +845,14 @@ func (az *Azure) DownloadPricingData() error {
 	result, err := rcClient.Get(context.TODO(), rateCardFilter)
 	if err != nil {
 		log.Warnf("Error in pricing download query from API")
-		az.RateCardPricingError = err
+		az.rateCardPricingError = err
 		return err
 	}
 
 	regions, err := getRegions("compute", sClient, providersClient, config.AzureSubscriptionID)
 	if err != nil {
 		log.Warnf("Error in pricing download regions from API")
-		az.RateCardPricingError = err
+		az.rateCardPricingError = err
 		return err
 	}
 
@@ -847,107 +860,166 @@ func (az *Azure) DownloadPricingData() error {
 	allPrices := make(map[string]*AzurePricing)
 
 	for _, v := range *result.Meters {
-		meterName := *v.MeterName
-		meterRegion := *v.MeterRegion
-		meterCategory := *v.MeterCategory
-		meterSubCategory := *v.MeterSubCategory
-
-		region, err := toRegionID(meterRegion, regions)
+		pricings, err := convertMeterToPricings(v, regions, baseCPUPrice)
 		if err != nil {
+			log.Warnf("converting meter to pricings: %s", err.Error())
 			continue
 		}
+		for key, pricing := range pricings {
+			allPrices[key] = pricing
+		}
+	}
+	addAzureFilePricing(allPrices, regions)
 
-		if !strings.Contains(meterSubCategory, "Windows") {
+	az.Pricing = allPrices
+	az.pricingSource = rateCardPricingSource
+	az.rateCardPricingError = nil
 
-			if strings.Contains(meterCategory, "Storage") {
-				if strings.Contains(meterSubCategory, "HDD") || strings.Contains(meterSubCategory, "SSD") || strings.Contains(meterSubCategory, "Premium Files") {
-					var storageClass string = ""
-					if strings.Contains(meterName, "P4 ") {
-						storageClass = AzureDiskPremiumSSDStorageClass
-					} else if strings.Contains(meterName, "E4 ") {
-						storageClass = AzureDiskStandardSSDStorageClass
-					} else if strings.Contains(meterName, "S4 ") {
-						storageClass = AzureDiskStandardStorageClass
-					} else if strings.Contains(meterName, "LRS Provisioned") {
-						storageClass = AzureFilePremiumStorageClass
-					}
+	// If we've got a billing account set, kick off downloading the custom pricing data.
+	if config.AzureBillingAccount != "" {
+		downloader := pricesheet.Downloader[AzurePricing]{
+			TenantID:       config.AzureTenantID,
+			ClientID:       config.AzureClientID,
+			ClientSecret:   config.AzureClientSecret,
+			BillingAccount: config.AzureBillingAccount,
+			OfferID:        config.AzureOfferDurableID,
+			ConvertMeterInfo: func(meterInfo commerce.MeterInfo) (map[string]*AzurePricing, error) {
+				return convertMeterToPricings(meterInfo, regions, baseCPUPrice)
+			},
+		}
+		// The price sheet can take 5 minutes to generate, so we don't
+		// want to hang onto the lock while we're waiting for it.
+		go func() {
+			ctx := context.Background()
+			allPrices, err := downloader.GetPricing(ctx)
 
-					if storageClass != "" {
-						var priceInUsd float64
+			az.DownloadPricingDataLock.Lock()
+			defer az.DownloadPricingDataLock.Unlock()
+			if err != nil {
+				log.Errorf("Error downloading Azure price sheet: %s", err)
+				az.priceSheetPricingError = err
+				return
+			}
+			addAzureFilePricing(allPrices, regions)
+			az.Pricing = allPrices
+			az.pricingSource = priceSheetPricingSource
+			az.priceSheetPricingError = nil
+		}()
+	}
 
-						if len(v.MeterRates) < 1 {
-							log.Warnf("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *v.MeterSubCategory, "region": region})
-							continue
-						}
-						for _, rate := range v.MeterRates {
-							priceInUsd += *rate
-						}
-						// rate is in disk per month, resolve price per hour, then GB per hour
-						pricePerHour := priceInUsd / 730.0 / 32.0
-						priceStr := fmt.Sprintf("%f", pricePerHour)
+	return nil
+}
 
-						key := region + "," + storageClass
-						log.Debugf("Adding PV.Key: %s, Cost: %s", key, priceStr)
-						allPrices[key] = &AzurePricing{
-							PV: &PV{
-								Cost:   priceStr,
-								Region: region,
-							},
-						}
-					}
-				}
+func convertMeterToPricings(info commerce.MeterInfo, regions map[string]string, baseCPUPrice string) (map[string]*AzurePricing, error) {
+	meterName := *info.MeterName
+	meterRegion := *info.MeterRegion
+	meterCategory := *info.MeterCategory
+	meterSubCategory := *info.MeterSubCategory
+
+	region, err := toRegionID(meterRegion, regions)
+	if err != nil {
+		// Skip this meter if we don't recognize the region.
+		return nil, nil
+	}
+
+	if strings.Contains(meterSubCategory, "Windows") {
+		// This meter doesn't correspond to any pricings.
+		return nil, nil
+	}
+
+	if strings.Contains(meterCategory, "Storage") {
+		if strings.Contains(meterSubCategory, "HDD") || strings.Contains(meterSubCategory, "SSD") || strings.Contains(meterSubCategory, "Premium Files") {
+			var storageClass string = ""
+			if strings.Contains(meterName, "P4 ") {
+				storageClass = AzureDiskPremiumSSDStorageClass
+			} else if strings.Contains(meterName, "E4 ") {
+				storageClass = AzureDiskStandardSSDStorageClass
+			} else if strings.Contains(meterName, "S4 ") {
+				storageClass = AzureDiskStandardStorageClass
+			} else if strings.Contains(meterName, "LRS Provisioned") {
+				storageClass = AzureFilePremiumStorageClass
 			}
 
-			if strings.Contains(meterCategory, "Virtual Machines") {
-
-				usageType := ""
-				if !strings.Contains(meterName, "Low Priority") {
-					usageType = "ondemand"
-				} else {
-					usageType = "preemptible"
-				}
-
-				var instanceTypes []string
-				name := strings.TrimSuffix(meterName, " Low Priority")
-				instanceType := strings.Split(name, "/")
-				for _, it := range instanceType {
-					if strings.Contains(meterSubCategory, "Promo") {
-						it = it + " Promo"
-					}
-					instanceTypes = append(instanceTypes, strings.Replace(it, " ", "_", 1))
-				}
-
-				instanceTypes = transformMachineType(meterSubCategory, instanceTypes)
-				if strings.Contains(name, "Expired") {
-					instanceTypes = []string{}
-				}
-
+			if storageClass != "" {
 				var priceInUsd float64
 
-				if len(v.MeterRates) < 1 {
-					log.Warnf("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *v.MeterSubCategory, "region": region})
-					continue
+				if len(info.MeterRates) < 1 {
+					return nil, fmt.Errorf("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *info.MeterSubCategory, "region": region})
 				}
-				for _, rate := range v.MeterRates {
+				for _, rate := range info.MeterRates {
 					priceInUsd += *rate
 				}
-				priceStr := fmt.Sprintf("%f", priceInUsd)
-				for _, instanceType := range instanceTypes {
+				// rate is in disk per month, resolve price per hour, then GB per hour
+				pricePerHour := priceInUsd / 730.0 / 32.0
+				priceStr := fmt.Sprintf("%f", pricePerHour)
 
-					key := fmt.Sprintf("%s,%s,%s", region, instanceType, usageType)
-
-					allPrices[key] = &AzurePricing{
-						Node: &Node{
-							Cost:         priceStr,
-							BaseCPUPrice: baseCPUPrice,
-							UsageType:    usageType,
+				key := region + "," + storageClass
+				log.Debugf("Adding PV.Key: %s, Cost: %s", key, priceStr)
+				return map[string]*AzurePricing{
+					key: {
+						PV: &PV{
+							Cost:   priceStr,
+							Region: region,
 						},
-					}
-				}
+					},
+				}, nil
 			}
 		}
 	}
 
+	if !strings.Contains(meterCategory, "Virtual Machines") {
+		return nil, nil
+	}
+
+	usageType := ""
+	if !strings.Contains(meterName, "Low Priority") {
+		usageType = "ondemand"
+	} else {
+		usageType = "preemptible"
+	}
+
+	var instanceTypes []string
+	name := strings.TrimSuffix(meterName, " Low Priority")
+	instanceType := strings.Split(name, "/")
+	for _, it := range instanceType {
+		if strings.Contains(meterSubCategory, "Promo") {
+			it = it + " Promo"
+		}
+		instanceTypes = append(instanceTypes, strings.Replace(it, " ", "_", 1))
+	}
+
+	instanceTypes = transformMachineType(meterSubCategory, instanceTypes)
+	if strings.Contains(name, "Expired") {
+		instanceTypes = []string{}
+	}
+
+	var priceInUsd float64
+
+	if len(info.MeterRates) < 1 {
+		return nil, fmt.Errorf("missing rate info %+v", map[string]interface{}{"MeterSubCategory": *info.MeterSubCategory, "region": region})
+	}
+	for _, rate := range info.MeterRates {
+		priceInUsd += *rate
+	}
+	priceStr := fmt.Sprintf("%f", priceInUsd)
+	results := make(map[string]*AzurePricing)
+	for _, instanceType := range instanceTypes {
+
+		key := fmt.Sprintf("%s,%s,%s", region, instanceType, usageType)
+		pricing := &AzurePricing{
+			Node: &Node{
+				Cost:         priceStr,
+				BaseCPUPrice: baseCPUPrice,
+				UsageType:    usageType,
+			},
+		}
+		results[key] = pricing
+	}
+	return results, nil
+
+}
+
+func addAzureFilePricing(prices map[string]*AzurePricing, regions map[string]string) {
 	// There is no easy way of supporting Standard Azure-File, because it's billed per used GB
 	// this will set the price to "0" as a workaround to not spam with `Persistent Volume pricing not found for` error
 	// check https://github.com/opencost/opencost/issues/159 for more information (same problem on AWS)
@@ -955,17 +1027,13 @@ func (az *Azure) DownloadPricingData() error {
 	for region := range regions {
 		key := region + "," + AzureFileStandardStorageClass
 		log.Debugf("Adding PV.Key: %s, Cost: %s", key, zeroPrice)
-		allPrices[key] = &AzurePricing{
+		prices[key] = &AzurePricing{
 			PV: &PV{
 				Cost:   zeroPrice,
 				Region: region,
 			},
 		}
 	}
-
-	az.Pricing = allPrices
-	az.RateCardPricingError = nil
-	return nil
 }
 
 // determineCloudByRegion uses region name to pick the correct Cloud Environment for the azure provider to use
@@ -1010,12 +1078,19 @@ func (az *Azure) AllNodePricing() (interface{}, error) {
 func (az *Azure) NodePricing(key Key) (*Node, error) {
 	az.DownloadPricingDataLock.RLock()
 	defer az.DownloadPricingDataLock.RUnlock()
+	pricingDataExists := true
+	if az.Pricing == nil {
+		pricingDataExists = false
+		log.DedupedWarningf(1, "Unable to download Azure pricing data")
+	}
 
 	azKey, ok := key.(*azureKey)
 	if !ok {
 		return nil, fmt.Errorf("azure: NodePricing: key is of type %T", key)
 	}
 	config, _ := az.GetConfig()
+
+	// Spot Node
 	if slv, ok := azKey.Labels[config.SpotLabel]; ok && slv == config.SpotLabelValue && config.SpotLabel != "" && config.SpotLabelValue != "" {
 		features := strings.Split(azKey.Features(), ",")
 		region := features[0]
@@ -1029,7 +1104,6 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 			return n.Node, nil
 		}
 		log.Infof("[Info] found spot instance, trying to get retail price for %s: %s, ", spotFeatures, azKey)
-
 		spotCost, err := getRetailPrice(region, instance, config.CurrencyCode, true)
 		if err != nil {
 			log.DedupedWarningf(5, "failed to retrieve spot retail pricing")
@@ -1043,27 +1117,31 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 				UsageType: "spot",
 				GPU:       gpu,
 			}
-
 			az.addPricing(spotFeatures, &AzurePricing{
 				Node: spotNode,
 			})
-
 			return spotNode, nil
 		}
 	}
 
-	if n, ok := az.Pricing[azKey.Features()]; ok {
-		log.Debugf("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
-		if azKey.isValidGPUNode() {
-			n.Node.GPU = azKey.GetGPUCount()
+	// Use the downloaded pricing data if possible. Otherwise, use default
+	// configured pricing data.
+	if pricingDataExists {
+		if n, ok := az.Pricing[azKey.Features()]; ok {
+			log.Debugf("Returning pricing for node %s: %+v from key %s", azKey, n, azKey.Features())
+			if azKey.isValidGPUNode() {
+				n.Node.GPU = azKey.GetGPUCount()
+			}
+			return n.Node, nil
 		}
-		return n.Node, nil
+		log.DedupedWarningf(5, "No pricing data found for node %s from key %s", azKey, azKey.Features())
 	}
-	log.Warnf("no pricing data found for %s: %s", azKey.Features(), azKey)
 	c, err := az.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("No default pricing data available")
 	}
+
+	// GPU Node
 	if azKey.isValidGPUNode() {
 		return &Node{
 			VCPUCost:         c.CPU,
@@ -1073,6 +1151,18 @@ func (az *Azure) NodePricing(key Key) (*Node, error) {
 			GPU:              azKey.GetGPUCount(),
 		}, nil
 	}
+
+	// Serverless Node. This is an Azure Container Instance, and no pods can be
+	// scheduled to this node. Azure does not charge for this node. Set costs to
+	// zero.
+	if azKey.Labels["kubernetes.io/hostname"] == "virtual-node-aci-linux" {
+		return &Node{
+			VCPUCost: "0",
+			RAMCost:  "0",
+		}, nil
+	}
+
+	// Regular Node
 	return &Node{
 		VCPUCost:         c.CPU,
 		RAMCost:          c.RAM,
@@ -1205,7 +1295,7 @@ func (az *Azure) getDisks() ([]*compute.Disk, error) {
 		credentialsConfig := NewClientCredentialsConfig(config.AzureClientID, config.AzureClientSecret, config.AzureTenantID, azureEnv)
 		a, err := credentialsConfig.Authorizer()
 		if err != nil {
-			az.RateCardPricingError = err
+			az.rateCardPricingError = err
 			return nil, err
 		}
 		authorizer = a
@@ -1217,7 +1307,7 @@ func (az *Azure) getDisks() ([]*compute.Disk, error) {
 		if err != nil {
 			a, err := auth.NewAuthorizerFromFile(azureEnv.ResourceManagerEndpoint)
 			if err != nil {
-				az.RateCardPricingError = err
+				az.rateCardPricingError = err
 				return nil, err
 			}
 			authorizer = a
@@ -1472,18 +1562,23 @@ func (az *Azure) ServiceAccountStatus() *ServiceAccountStatus {
 	return az.serviceAccountChecks.getStatus()
 }
 
-const rateCardPricingSource = "Rate Card API"
+const (
+	rateCardPricingSource   = "Rate Card API"
+	priceSheetPricingSource = "Price Sheet API"
+)
 
 // PricingSourceStatus returns the status of the rate card api
 func (az *Azure) PricingSourceStatus() map[string]*PricingSource {
+	az.DownloadPricingDataLock.Lock()
+	defer az.DownloadPricingDataLock.Unlock()
 	sources := make(map[string]*PricingSource)
 	errMsg := ""
-	if az.RateCardPricingError != nil {
-		errMsg = az.RateCardPricingError.Error()
+	if az.rateCardPricingError != nil {
+		errMsg = az.rateCardPricingError.Error()
 	}
 	rcps := &PricingSource{
 		Name:    rateCardPricingSource,
-		Enabled: true,
+		Enabled: az.pricingSource == rateCardPricingSource,
 		Error:   errMsg,
 	}
 	if rcps.Error != "" {
@@ -1494,7 +1589,29 @@ func (az *Azure) PricingSourceStatus() map[string]*PricingSource {
 	} else {
 		rcps.Available = true
 	}
+
+	errMsg = ""
+	if az.priceSheetPricingError != nil {
+		errMsg = az.priceSheetPricingError.Error()
+	}
+	psps := &PricingSource{
+		Name:    priceSheetPricingSource,
+		Enabled: az.pricingSource == priceSheetPricingSource,
+		Error:   errMsg,
+	}
+	if psps.Error != "" {
+		psps.Available = false
+	} else if len(az.Pricing) == 0 {
+		psps.Error = "No Pricing Data Available"
+		psps.Available = false
+	} else if env.GetAzureBillingAccount() == "" {
+		psps.Error = "No Azure Billing Account ID"
+		psps.Available = false
+	} else {
+		psps.Available = true
+	}
 	sources[rateCardPricingSource] = rcps
+	sources[priceSheetPricingSource] = psps
 	return sources
 }
 

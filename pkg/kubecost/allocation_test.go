@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/json"
 )
@@ -1074,30 +1076,33 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			expectedParcResults: map[string]ProportionalAssetResourceCosts{
 				"namespace1": ProportionalAssetResourceCosts{
 					"cluster1": ProportionalAssetResourceCost{
-						Cluster:       "cluster1",
-						Node:          "",
-						ProviderID:    "",
-						CPUPercentage: 0.5,
-						GPUPercentage: 0.5,
-						RAMPercentage: 0.8125,
+						Cluster:                    "cluster1",
+						Node:                       "",
+						ProviderID:                 "",
+						CPUPercentage:              0.5,
+						GPUPercentage:              0.5,
+						RAMPercentage:              0.8125,
+						NodeResourceCostPercentage: 0.6785714285714285,
 					},
 				},
 				"namespace2": ProportionalAssetResourceCosts{
 					"cluster1": ProportionalAssetResourceCost{
-						Cluster:       "cluster1",
-						Node:          "",
-						ProviderID:    "",
-						CPUPercentage: 0.5,
-						GPUPercentage: 0.5,
-						RAMPercentage: 0.1875,
+						Cluster:                    "cluster1",
+						Node:                       "",
+						ProviderID:                 "",
+						CPUPercentage:              0.5,
+						GPUPercentage:              0.5,
+						RAMPercentage:              0.1875,
+						NodeResourceCostPercentage: 0.3214285714285714,
 					},
 					"cluster2": ProportionalAssetResourceCost{
-						Cluster:       "cluster2",
-						Node:          "",
-						ProviderID:    "",
-						CPUPercentage: 0.5,
-						GPUPercentage: 0.5,
-						RAMPercentage: 0.5,
+						Cluster:                    "cluster2",
+						Node:                       "",
+						ProviderID:                 "",
+						CPUPercentage:              0.5,
+						GPUPercentage:              0.5,
+						RAMPercentage:              0.5,
+						NodeResourceCostPercentage: 0.5,
 					},
 				},
 			},
@@ -1509,64 +1514,71 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			expectedParcResults: map[string]ProportionalAssetResourceCosts{
 				"namespace1": {
 					"cluster1,c1nodes": ProportionalAssetResourceCost{
-						Cluster:       "cluster1",
-						Node:          "c1nodes",
-						ProviderID:    "c1nodes",
-						CPUPercentage: 0.5,
-						GPUPercentage: 0.5,
-						RAMPercentage: 0.8125,
+						Cluster:                    "cluster1",
+						Node:                       "c1nodes",
+						ProviderID:                 "c1nodes",
+						CPUPercentage:              0.5,
+						GPUPercentage:              0.5,
+						RAMPercentage:              0.8125,
+						NodeResourceCostPercentage: 0.6785714285714285,
 					},
 					"cluster2,node2": ProportionalAssetResourceCost{
-						Cluster:       "cluster2",
-						Node:          "node2",
-						ProviderID:    "node2",
-						CPUPercentage: 0.5,
-						GPUPercentage: 0.5,
-						RAMPercentage: 0.5,
+						Cluster:                    "cluster2",
+						Node:                       "node2",
+						ProviderID:                 "node2",
+						CPUPercentage:              0.5,
+						GPUPercentage:              0.5,
+						RAMPercentage:              0.5,
+						NodeResourceCostPercentage: 0.5,
 					},
 				},
 				"namespace2": {
 					"cluster1,c1nodes": ProportionalAssetResourceCost{
-						Cluster:       "cluster1",
-						Node:          "c1nodes",
-						ProviderID:    "c1nodes",
-						CPUPercentage: 0.5,
-						GPUPercentage: 0.5,
-						RAMPercentage: 0.1875,
+						Cluster:                    "cluster1",
+						Node:                       "c1nodes",
+						ProviderID:                 "c1nodes",
+						CPUPercentage:              0.5,
+						GPUPercentage:              0.5,
+						RAMPercentage:              0.1875,
+						NodeResourceCostPercentage: 0.3214285714285714,
 					},
 					"cluster2,node1": ProportionalAssetResourceCost{
-						Cluster:       "cluster2",
-						Node:          "node1",
-						ProviderID:    "node1",
-						CPUPercentage: 1,
-						GPUPercentage: 1,
-						RAMPercentage: 1,
+						Cluster:                    "cluster2",
+						Node:                       "node1",
+						ProviderID:                 "node1",
+						CPUPercentage:              1,
+						GPUPercentage:              1,
+						RAMPercentage:              1,
+						NodeResourceCostPercentage: 1,
 					},
 					"cluster2,node2": ProportionalAssetResourceCost{
-						Cluster:       "cluster2",
-						Node:          "node2",
-						ProviderID:    "node2",
-						CPUPercentage: 0.5,
-						GPUPercentage: 0.5,
-						RAMPercentage: 0.5,
+						Cluster:                    "cluster2",
+						Node:                       "node2",
+						ProviderID:                 "node2",
+						CPUPercentage:              0.5,
+						GPUPercentage:              0.5,
+						RAMPercentage:              0.5,
+						NodeResourceCostPercentage: 0.5,
 					},
 				},
 				"namespace3": {
 					"cluster2,node3": ProportionalAssetResourceCost{
-						Cluster:       "cluster2",
-						Node:          "node3",
-						ProviderID:    "node3",
-						CPUPercentage: 1,
-						GPUPercentage: 1,
-						RAMPercentage: 1,
+						Cluster:                    "cluster2",
+						Node:                       "node3",
+						ProviderID:                 "node3",
+						CPUPercentage:              1,
+						GPUPercentage:              1,
+						RAMPercentage:              1,
+						NodeResourceCostPercentage: 1,
 					},
 					"cluster2,node2": ProportionalAssetResourceCost{
-						Cluster:       "cluster2",
-						Node:          "node2",
-						ProviderID:    "node2",
-						CPUPercentage: 0.5,
-						GPUPercentage: 0.5,
-						RAMPercentage: 0.5,
+						Cluster:                    "cluster2",
+						Node:                       "node2",
+						ProviderID:                 "node2",
+						CPUPercentage:              0.5,
+						GPUPercentage:              0.5,
+						RAMPercentage:              0.5,
+						NodeResourceCostPercentage: 0.5,
 					},
 				},
 			},
@@ -2756,4 +2768,83 @@ func TestAllocationSet_Accumulate_Equals_AllocationSetRange_Accumulate(t *testin
 			}
 		}
 	}
+}
+
+func Test_AggregateByService_UnmountedLBs(t *testing.T) {
+	end := time.Now().UTC().Truncate(day)
+	start := end.Add(-day)
+
+	normalProps := &AllocationProperties{
+		Cluster:        "cluster-one",
+		Container:      "nginx-plus-nginx-ingress",
+		Controller:     "nginx-plus-nginx-ingress",
+		ControllerKind: "deployment",
+		Namespace:      "nginx-plus",
+		Pod:            "nginx-plus-nginx-ingress-123a4b5678-ab12c",
+		ProviderID:     "test",
+		Node:           "testnode",
+		Services: []string{
+			"nginx-plus-nginx-ingress",
+		},
+	}
+
+	problematicProps := &AllocationProperties{
+		Cluster:    "cluster-one",
+		Container:  UnmountedSuffix,
+		Namespace:  UnmountedSuffix,
+		Pod:        UnmountedSuffix,
+		ProviderID: "test",
+		Node:       "testnode",
+		Services: []string{
+			"nginx-plus-nginx-ingress",
+			"ingress-nginx-controller",
+			"pacman",
+		},
+	}
+
+	idle := NewMockUnitAllocation(fmt.Sprintf("cluster-one/%s", IdleSuffix), start, day, &AllocationProperties{
+		Cluster: "cluster-one",
+	})
+	// this allocation is the main point of the test; an unmounted LB that has services
+	problematicAllocation := NewMockUnitAllocation("cluster-one//__unmounted__/__unmounted__/__unmounted__", start, day, problematicProps)
+
+	two := NewMockUnitAllocation("cluster-one//nginx-plus/nginx-plus-nginx-ingress-123a4b5678-ab12c/nginx-plus-nginx-ingress", start, day, normalProps)
+	three := NewMockUnitAllocation("cluster-one//nginx-plus/nginx-plus-nginx-ingress-123a4b5678-ab12c/nginx-plus-nginx-ingress", start, day, normalProps)
+	four := NewMockUnitAllocation("cluster-one//nginx-plus/nginx-plus-nginx-ingress-123a4b5678-ab12c/nginx-plus-nginx-ingress", start, day, normalProps)
+
+	problematicAllocation.ExternalCost = 2.35
+	two.ExternalCost = 1.35
+	three.ExternalCost = 2.60
+	four.ExternalCost = 4.30
+	set := NewAllocationSet(start, start.Add(day), problematicAllocation, two, three, four)
+
+	set.Insert(idle)
+
+	set.AggregateBy([]string{AllocationServiceProp}, &AllocationAggregationOptions{
+		Filter: AllocationFilterCondition{Field: FilterServices, Op: FilterContains, Value: "nginx-plus-nginx-ingress"},
+	})
+
+	for _, alloc := range set.Allocations {
+		if !strings.Contains(UnmountedSuffix, alloc.Name) {
+			props := alloc.Properties
+			if props.Cluster == UnmountedSuffix {
+				t.Error("cluster unmounted")
+			}
+			if props.Container == UnmountedSuffix {
+				t.Error("container unmounted")
+			}
+			if props.Namespace == UnmountedSuffix {
+				t.Error("namespace unmounted")
+			}
+			if props.Pod == UnmountedSuffix {
+				t.Error("pod unmounted")
+			}
+			if props.Controller == UnmountedSuffix {
+				t.Error("controller unmounted")
+			}
+		}
+	}
+
+	spew.Config.DisableMethods = true
+	t.Logf("%s", spew.Sdump(set.Allocations))
 }

@@ -40,8 +40,8 @@ const (
 	queryFmtNetRegionCostPerGiB         = `avg(avg_over_time(kubecost_network_region_egress_cost{}[%s])) by (%s)`
 	queryFmtNetInternetGiB              = `sum(increase(kubecost_pod_network_egress_bytes_total{internet="true"}[%s])) by (pod_name, namespace, %s) / 1024 / 1024 / 1024`
 	queryFmtNetInternetCostPerGiB       = `avg(avg_over_time(kubecost_network_internet_egress_cost{}[%s])) by (%s)`
-	queryFmtNetReceiveBytes             = `sum(increase(container_network_receive_bytes_total{pod!="", container="POD"}[%s])) by (pod_name, pod, namespace, %s)`
-	queryFmtNetTransferBytes            = `sum(increase(container_network_transmit_bytes_total{pod!="", container="POD"}[%s])) by (pod_name, pod, namespace, %s)`
+	queryFmtNetReceiveBytes             = `sum(increase(container_network_receive_bytes_total{pod!=""}[%s])) by (pod_name, pod, namespace, %s)`
+	queryFmtNetTransferBytes            = `sum(increase(container_network_transmit_bytes_total{pod!=""}[%s])) by (pod_name, pod, namespace, %s)`
 	queryFmtNodeLabels                  = `avg_over_time(kube_node_labels[%s])`
 	queryFmtNamespaceLabels             = `avg_over_time(kube_namespace_labels[%s])`
 	queryFmtNamespaceAnnotations        = `avg_over_time(kube_namespace_annotations[%s])`
@@ -59,7 +59,6 @@ const (
 	queryFmtLBActiveMins                = `count(kubecost_load_balancer_cost) by (namespace, service_name, %s)[%s:%s]`
 	queryFmtOldestSample                = `min_over_time(timestamp(group(node_cpu_hourly_cost))[%s:%s])`
 	queryFmtNewestSample                = `max_over_time(timestamp(group(node_cpu_hourly_cost))[%s:%s])`
-
 
 	// Because we use container_cpu_usage_seconds_total to calculate CPU usage
 	// at any given "instant" of time, we need to use an irate or rate. To then
@@ -291,11 +290,17 @@ func (cm *CostModel) DateRange() (time.Time, time.Time, error) {
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("querying oldest sample: %w", err)
 	}
+	if len(resOldest) == 0 || len(resOldest[0].Values) == 0 {
+		return time.Time{}, time.Time{}, fmt.Errorf("querying oldest sample: no results")
+	}
 	oldest := time.Unix(int64(resOldest[0].Values[0].Value), 0)
 
 	resNewest, _, err := ctx.QuerySync(fmt.Sprintf(queryFmtNewestSample, "90d", "1h"))
 	if err != nil {
-		return time.Time{}, time.Time{}, fmt.Errorf("querying oldest sample: %w", err)
+		return time.Time{}, time.Time{}, fmt.Errorf("querying newest sample: %w", err)
+	}
+	if len(resNewest) == 0 || len(resNewest[0].Values) == 0 {
+		return time.Time{}, time.Time{}, fmt.Errorf("querying newest sample: no results")
 	}
 	newest := time.Unix(int64(resNewest[0].Values[0].Value), 0)
 

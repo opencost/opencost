@@ -278,11 +278,14 @@ func WrapData(data interface{}, err error) []byte {
 			Data:    data,
 		})
 	} else {
-		resp, _ = json.Marshal(&Response{
+		resp, err = json.Marshal(&Response{
 			Code:   http.StatusOK,
 			Status: "success",
 			Data:   data,
 		})
+		if err != nil {
+			log.Errorf("error marshaling response json: %s", err.Error())
+		}
 	}
 
 	return resp
