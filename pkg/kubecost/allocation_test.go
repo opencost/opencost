@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/json"
 )
@@ -516,12 +517,27 @@ func assertParcResults(t *testing.T, as *AllocationSet, msg string, exps map[str
 	for allocKey, a := range as.Allocations {
 		for key, actualParc := range a.ProportionalAssetResourceCosts {
 			expectedParcs := exps[allocKey]
-
+			sortParcsComponent(actualParc.RAMComponents)
+			sortParcsComponent(actualParc.CPUComponents)
+			sortParcsComponent(actualParc.GPUComponents)
 			if !reflect.DeepEqual(expectedParcs[key], actualParc) {
 				t.Fatalf("actual PARC %v did not match expected PARC %v", actualParc, expectedParcs[key])
 			}
 		}
 
+	}
+}
+
+func sortParcsComponent(parcs []ParcsComponent) {
+	var n = len(parcs)
+	for i := 1; i < n; i++ {
+		j := i
+		for j > 0 {
+			if parcs[j-1].UsageProportion > parcs[j].UsageProportion {
+				parcs[j-1], parcs[j] = parcs[j], parcs[j-1]
+			}
+			j = j - 1
+		}
 	}
 }
 
@@ -1074,35 +1090,161 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			windowEnd:   endYesterday,
 			expMinutes:  1440.0,
 			expectedParcResults: map[string]ProportionalAssetResourceCosts{
-				"namespace1": ProportionalAssetResourceCosts{
+				"namespace1": {
 					"cluster1": ProportionalAssetResourceCost{
-						Cluster:            "cluster1",
-						Node:               "",
-						ProviderID:         "",
-						CPUPercentage:      0.5,
-						GPUPercentage:      0.5,
-						RAMPercentage:      0.8125,
+						Cluster:                    "cluster1",
+						Node:                       "",
+						ProviderID:                 "",
+						CPUPercentage:              0.5,
+						GPUPercentage:              0.5,
+						RAMPercentage:              0.8125,
 						NodeResourceCostPercentage: 0.6785714285714285,
+						GPUComponents: []ParcsComponent{
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+						},
+						CPUComponents: []ParcsComponent{
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+						},
+						RAMComponents: []ParcsComponent{
+							{
+								TotalCost:       16,
+								UsageProportion: 0.0625,
+							},
+							{
+								TotalCost:       16,
+								UsageProportion: 0.0625,
+							},
+							{
+								TotalCost:       16,
+								UsageProportion: 0.6875,
+							},
+						},
 					},
 				},
-				"namespace2": ProportionalAssetResourceCosts{
+				"namespace2": {
 					"cluster1": ProportionalAssetResourceCost{
-						Cluster:            "cluster1",
-						Node:               "",
-						ProviderID:         "",
-						CPUPercentage:      0.5,
-						GPUPercentage:      0.5,
-						RAMPercentage:      0.1875,
+						Cluster:                    "cluster1",
+						Node:                       "",
+						ProviderID:                 "",
+						CPUPercentage:              0.5,
+						GPUPercentage:              0.5,
+						RAMPercentage:              0.1875,
 						NodeResourceCostPercentage: 0.3214285714285714,
+						GPUComponents: []ParcsComponent{
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+						},
+						CPUComponents: []ParcsComponent{
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+						},
+						RAMComponents: []ParcsComponent{
+							{
+								TotalCost:       16,
+								UsageProportion: 0.0625,
+							},
+							{
+								TotalCost:       16,
+								UsageProportion: 0.0625,
+							},
+							{
+								TotalCost:       16,
+								UsageProportion: 0.0625,
+							},
+						},
 					},
 					"cluster2": ProportionalAssetResourceCost{
-						Cluster:            "cluster2",
-						Node:               "",
-						ProviderID:         "",
-						CPUPercentage:      0.5,
-						GPUPercentage:      0.5,
-						RAMPercentage:      0.5,
+						Cluster:                    "cluster2",
+						Node:                       "",
+						ProviderID:                 "",
+						CPUPercentage:              0.5,
+						GPUPercentage:              0.5,
+						RAMPercentage:              0.5,
 						NodeResourceCostPercentage: 0.5,
+						GPUComponents: []ParcsComponent{
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+						},
+						CPUComponents: []ParcsComponent{
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+						},
+						RAMComponents: []ParcsComponent{
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+						},
 					},
 				},
 			},
@@ -1514,71 +1656,251 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			expectedParcResults: map[string]ProportionalAssetResourceCosts{
 				"namespace1": {
 					"cluster1,c1nodes": ProportionalAssetResourceCost{
-						Cluster:            "cluster1",
-						Node:               "c1nodes",
-						ProviderID:         "c1nodes",
-						CPUPercentage:      0.5,
-						GPUPercentage:      0.5,
-						RAMPercentage:      0.8125,
+						Cluster:                    "cluster1",
+						Node:                       "c1nodes",
+						ProviderID:                 "c1nodes",
+						CPUPercentage:              0.5,
+						GPUPercentage:              0.5,
+						RAMPercentage:              0.8125,
 						NodeResourceCostPercentage: 0.6785714285714285,
+						GPUComponents: []ParcsComponent{
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+						},
+						CPUComponents: []ParcsComponent{
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+						},
+						RAMComponents: []ParcsComponent{
+							{
+								TotalCost:       16,
+								UsageProportion: 0.0625,
+							},
+							{
+								TotalCost:       16,
+								UsageProportion: 0.0625,
+							},
+							{
+								TotalCost:       16,
+								UsageProportion: 0.6875,
+							},
+						},
 					},
 					"cluster2,node2": ProportionalAssetResourceCost{
-						Cluster:            "cluster2",
-						Node:               "node2",
-						ProviderID:         "node2",
-						CPUPercentage:      0.5,
-						GPUPercentage:      0.5,
-						RAMPercentage:      0.5,
+						Cluster:                    "cluster2",
+						Node:                       "node2",
+						ProviderID:                 "node2",
+						CPUPercentage:              0.5,
+						GPUPercentage:              0.5,
+						RAMPercentage:              0.5,
 						NodeResourceCostPercentage: 0.5,
 					},
 				},
 				"namespace2": {
 					"cluster1,c1nodes": ProportionalAssetResourceCost{
-						Cluster:            "cluster1",
-						Node:               "c1nodes",
-						ProviderID:         "c1nodes",
-						CPUPercentage:      0.5,
-						GPUPercentage:      0.5,
-						RAMPercentage:      0.1875,
+						Cluster:                    "cluster1",
+						Node:                       "c1nodes",
+						ProviderID:                 "c1nodes",
+						CPUPercentage:              0.5,
+						GPUPercentage:              0.5,
+						RAMPercentage:              0.1875,
 						NodeResourceCostPercentage: 0.3214285714285714,
+						GPUComponents: []ParcsComponent{
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+						},
+						CPUComponents: []ParcsComponent{
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+							{
+								TotalCost:       6,
+								UsageProportion: 0.16666666666666666,
+							},
+						},
+						RAMComponents: []ParcsComponent{
+							{
+								TotalCost:       16,
+								UsageProportion: 0.0625,
+							},
+							{
+								TotalCost:       16,
+								UsageProportion: 0.0625,
+							},
+							{
+								TotalCost:       16,
+								UsageProportion: 0.0625,
+							},
+						},
 					},
 					"cluster2,node1": ProportionalAssetResourceCost{
-						Cluster:            "cluster2",
-						Node:               "node1",
-						ProviderID:         "node1",
-						CPUPercentage:      1,
-						GPUPercentage:      1,
-						RAMPercentage:      1,
+						Cluster:                    "cluster2",
+						Node:                       "node1",
+						ProviderID:                 "node1",
+						CPUPercentage:              1,
+						GPUPercentage:              1,
+						RAMPercentage:              1,
 						NodeResourceCostPercentage: 1,
+						GPUComponents: []ParcsComponent{
+							{
+								TotalCost:       2,
+								UsageProportion: 0.5,
+							},
+							{
+								TotalCost:       2,
+								UsageProportion: 0.5,
+							},
+						},
+						CPUComponents: []ParcsComponent{
+							{
+								TotalCost:       2,
+								UsageProportion: 0.5,
+							},
+							{
+								TotalCost:       2,
+								UsageProportion: 0.5,
+							},
+						},
+						RAMComponents: []ParcsComponent{
+							{
+								TotalCost:       2,
+								UsageProportion: 0.5,
+							},
+							{
+								TotalCost:       2,
+								UsageProportion: 0.5,
+							},
+						},
 					},
 					"cluster2,node2": ProportionalAssetResourceCost{
-						Cluster:            "cluster2",
-						Node:               "node2",
-						ProviderID:         "node2",
-						CPUPercentage:      0.5,
-						GPUPercentage:      0.5,
-						RAMPercentage:      0.5,
+						Cluster:                    "cluster2",
+						Node:                       "node2",
+						ProviderID:                 "node2",
+						CPUPercentage:              0.5,
+						GPUPercentage:              0.5,
+						RAMPercentage:              0.5,
 						NodeResourceCostPercentage: 0.5,
+						GPUComponents: []ParcsComponent{
+							{
+								TotalCost:       2,
+								UsageProportion: 0.5,
+							},
+						},
+						CPUComponents: []ParcsComponent{
+							{
+								TotalCost:       2,
+								UsageProportion: 0.5,
+							},
+						},
+						RAMComponents: []ParcsComponent{
+							{
+								TotalCost:       2,
+								UsageProportion: 0.5,
+							},
+						},
 					},
 				},
 				"namespace3": {
 					"cluster2,node3": ProportionalAssetResourceCost{
-						Cluster:            "cluster2",
-						Node:               "node3",
-						ProviderID:         "node3",
-						CPUPercentage:      1,
-						GPUPercentage:      1,
-						RAMPercentage:      1,
+						Cluster:                    "cluster2",
+						Node:                       "node3",
+						ProviderID:                 "node3",
+						CPUPercentage:              1,
+						GPUPercentage:              1,
+						RAMPercentage:              1,
 						NodeResourceCostPercentage: 1,
+						GPUComponents: []ParcsComponent{
+							{
+								TotalCost:       2,
+								UsageProportion: 0.5,
+							},
+							{
+								TotalCost:       2,
+								UsageProportion: 0.5,
+							},
+						},
+						CPUComponents: []ParcsComponent{
+							{
+								TotalCost:       2,
+								UsageProportion: 0.5,
+							},
+							{
+								TotalCost:       2,
+								UsageProportion: 0.5,
+							},
+						},
+						RAMComponents: []ParcsComponent{
+							{
+								TotalCost:       2,
+								UsageProportion: 0.5,
+							},
+							{
+								TotalCost:       2,
+								UsageProportion: 0.5,
+							},
+						},
 					},
 					"cluster2,node2": ProportionalAssetResourceCost{
-						Cluster:            "cluster2",
-						Node:               "node2",
-						ProviderID:         "node2",
-						CPUPercentage:      0.5,
-						GPUPercentage:      0.5,
-						RAMPercentage:      0.5,
+						Cluster:                    "cluster2",
+						Node:                       "node2",
+						ProviderID:                 "node2",
+						CPUPercentage:              0.5,
+						GPUPercentage:              0.5,
+						RAMPercentage:              0.5,
 						NodeResourceCostPercentage: 0.5,
+						GPUComponents: []ParcsComponent{
+							{
+								TotalCost:       2,
+								UsageProportion: 0.5,
+							},
+						},
+						CPUComponents: []ParcsComponent{
+							{
+								TotalCost:       2,
+								UsageProportion: 0.5,
+							},
+						},
+						RAMComponents: []ParcsComponent{
+							{
+								TotalCost:       2,
+								UsageProportion: 0.5,
+							},
+						},
 					},
 				},
 			},
@@ -1704,6 +2026,327 @@ func TestAllocationSet_insertMatchingWindow(t *testing.T) {
 		}
 		if !(*a.Window.End()).Equal(setEnd) {
 			t.Errorf("Allocation %s window end is %s, expected %s", a.Name, *a.Window.End(), setEnd)
+		}
+	}
+}
+
+// This tests PARC accumulation. Assuming Node cost is $1 per core per hour
+// From https://github.com/opencost/opencost/pull/1867#discussion_r1174109388:
+// Over the span of hour 1:
+
+//     Pod 1 runs for 30 minutes, consuming 1 CPU while alive. PARC: 12.5% (0.5 core-hours / 4 available core-hours)
+//     Pod 2 runs for 1 hour, consuming 2 CPU while alive. PARC: 50% (2 core-hours)
+//     Pod 3 runs for 1 hour, consuming 1 CPU while alive. PARC: 25% (1 core-hour)
+
+// Over the span of hour 2:
+
+//     Pod 1 does not run. PARC: 0% (0 core-hours / 4 available core-hours)
+//     Pod 2 runs for 30 minutes, consuming 2 CPU while active. PARC: 25% (1 core-hour)
+//     Pod 3 runs for 1 hour, consuming 1 CPU while active. PARC: 25% (1 core-hour)
+
+// Over the span of hour 3:
+
+//     Pod 1 does not run. PARC: 0% (0 core-hours / 4 available)
+//     Pod 2 runs for 30 minutes, consuming 3 CPU while active. PARC: 37.5% (1.5 core-hours)
+//     Pod 3 runs for 1 hour, consuming 1 CPU while active. PARC: 25% (1 core-hour)
+
+// We expect the following accumulated PARC:
+
+//     Pod 1: (0.5 + 0 + 0) core-hours used / (4 + 4 + 4) core-hours available = 0.5/12 = 4.16%
+//     Pod 2: (2 + 1 + 1.5) / (4 + 4 + 4) = 4.5/12 = 37.5%
+//     Pod 3: (1 + 1 + 1) / (4 + 4 + 4) = 3/12 = 25%
+
+func TestParcInsert(t *testing.T) {
+	pod1_hour1 := ProportionalAssetResourceCost{
+		Cluster:                    "cluster1",
+		Node:                       "node1",
+		ProviderID:                 "i-1234",
+		CPUPercentage:              0.125,
+		GPUPercentage:              0,
+		RAMPercentage:              0,
+		NodeResourceCostPercentage: 0,
+		CPUComponents: []ParcsComponent{
+			{
+				TotalCost:       4,
+				UsageProportion: 0.125,
+			},
+		},
+		GPUComponents: []ParcsComponent{
+			{
+				TotalCost:       0,
+				UsageProportion: 0.0,
+			},
+		},
+		RAMComponents: []ParcsComponent{
+			{
+				TotalCost:       0,
+				UsageProportion: 0.0,
+			},
+		},
+	}
+
+	pod1_hour2 := ProportionalAssetResourceCost{
+		Cluster:                    "cluster1",
+		Node:                       "node1",
+		ProviderID:                 "i-1234",
+		CPUPercentage:              0.0,
+		GPUPercentage:              0,
+		RAMPercentage:              0,
+		NodeResourceCostPercentage: 0,
+		CPUComponents: []ParcsComponent{
+			{
+				TotalCost:       4,
+				UsageProportion: 0.0,
+			},
+		},
+		GPUComponents: []ParcsComponent{
+			{
+				TotalCost:       0,
+				UsageProportion: 0.0,
+			},
+		},
+		RAMComponents: []ParcsComponent{
+			{
+				TotalCost:       0,
+				UsageProportion: 0.0,
+			},
+		},
+	}
+
+	pod1_hour3 := ProportionalAssetResourceCost{
+		Cluster:                    "cluster1",
+		Node:                       "node1",
+		ProviderID:                 "i-1234",
+		CPUPercentage:              0.0,
+		GPUPercentage:              0,
+		RAMPercentage:              0,
+		NodeResourceCostPercentage: 0,
+		CPUComponents: []ParcsComponent{
+			{
+				TotalCost:       4,
+				UsageProportion: 0.0,
+			},
+		},
+		GPUComponents: []ParcsComponent{
+			{
+				TotalCost:       0,
+				UsageProportion: 0.0,
+			},
+		},
+		RAMComponents: []ParcsComponent{
+			{
+				TotalCost:       0,
+				UsageProportion: 0.0,
+			},
+		},
+	}
+
+	pod2_hour1 := ProportionalAssetResourceCost{
+		Cluster:                    "cluster1",
+		Node:                       "node2",
+		ProviderID:                 "i-1234",
+		CPUPercentage:              0.0,
+		GPUPercentage:              0,
+		RAMPercentage:              0,
+		NodeResourceCostPercentage: 0,
+		CPUComponents: []ParcsComponent{
+			{
+				TotalCost:       4,
+				UsageProportion: 0.5,
+			},
+		},
+		GPUComponents: []ParcsComponent{
+			{
+				TotalCost:       0,
+				UsageProportion: 0.0,
+			},
+		},
+		RAMComponents: []ParcsComponent{
+			{
+				TotalCost:       0,
+				UsageProportion: 0.0,
+			},
+		},
+	}
+
+	pod2_hour2 := ProportionalAssetResourceCost{
+		Cluster:                    "cluster1",
+		Node:                       "node2",
+		ProviderID:                 "i-1234",
+		CPUPercentage:              0.0,
+		GPUPercentage:              0,
+		RAMPercentage:              0,
+		NodeResourceCostPercentage: 0,
+		CPUComponents: []ParcsComponent{
+			{
+				TotalCost:       4,
+				UsageProportion: 0.25,
+			},
+		},
+		GPUComponents: []ParcsComponent{
+			{
+				TotalCost:       0,
+				UsageProportion: 0.0,
+			},
+		},
+		RAMComponents: []ParcsComponent{
+			{
+				TotalCost:       0,
+				UsageProportion: 0.0,
+			},
+		},
+	}
+
+	pod2_hour3 := ProportionalAssetResourceCost{
+		Cluster:                    "cluster1",
+		Node:                       "node2",
+		ProviderID:                 "i-1234",
+		CPUPercentage:              0.0,
+		GPUPercentage:              0,
+		RAMPercentage:              0,
+		NodeResourceCostPercentage: 0,
+		CPUComponents: []ParcsComponent{
+			{
+				TotalCost:       4,
+				UsageProportion: 0.375,
+			},
+		},
+		GPUComponents: []ParcsComponent{
+			{
+				TotalCost:       0,
+				UsageProportion: 0.0,
+			},
+		},
+		RAMComponents: []ParcsComponent{
+			{
+				TotalCost:       0,
+				UsageProportion: 0.0,
+			},
+		},
+	}
+
+	pod3_hour1 := ProportionalAssetResourceCost{
+		Cluster:                    "cluster1",
+		Node:                       "node3",
+		ProviderID:                 "i-1234",
+		CPUPercentage:              0.0,
+		GPUPercentage:              0,
+		RAMPercentage:              0,
+		NodeResourceCostPercentage: 0,
+		CPUComponents: []ParcsComponent{
+			{
+				TotalCost:       4,
+				UsageProportion: 0.25,
+			},
+		},
+		GPUComponents: []ParcsComponent{
+			{
+				TotalCost:       0,
+				UsageProportion: 0.0,
+			},
+		},
+		RAMComponents: []ParcsComponent{
+			{
+				TotalCost:       0,
+				UsageProportion: 0.0,
+			},
+		},
+	}
+
+	pod3_hour2 := ProportionalAssetResourceCost{
+		Cluster:                    "cluster1",
+		Node:                       "node3",
+		ProviderID:                 "i-1234",
+		CPUPercentage:              0.0,
+		GPUPercentage:              0,
+		RAMPercentage:              0,
+		NodeResourceCostPercentage: 0,
+		CPUComponents: []ParcsComponent{
+			{
+				TotalCost:       4,
+				UsageProportion: 0.25,
+			},
+		},
+		GPUComponents: []ParcsComponent{
+			{
+				TotalCost:       0,
+				UsageProportion: 0.0,
+			},
+		},
+		RAMComponents: []ParcsComponent{
+			{
+				TotalCost:       0,
+				UsageProportion: 0.0,
+			},
+		},
+	}
+
+	pod3_hour3 := ProportionalAssetResourceCost{
+		Cluster:                    "cluster1",
+		Node:                       "node3",
+		ProviderID:                 "i-1234",
+		CPUPercentage:              0.0,
+		GPUPercentage:              0,
+		RAMPercentage:              0,
+		NodeResourceCostPercentage: 0,
+		CPUComponents: []ParcsComponent{
+			{
+				TotalCost:       4,
+				UsageProportion: 0.25,
+			},
+		},
+		GPUComponents: []ParcsComponent{
+			{
+				TotalCost:       0,
+				UsageProportion: 0.0,
+			},
+		},
+		RAMComponents: []ParcsComponent{
+			{
+				TotalCost:       0,
+				UsageProportion: 0.0,
+			},
+		},
+	}
+
+	parcs := ProportionalAssetResourceCosts{}
+	parcs.Insert(pod1_hour1, true, true)
+	parcs.Insert(pod1_hour2, true, true)
+	parcs.Insert(pod1_hour3, true, true)
+	parcs.Insert(pod2_hour1, true, true)
+	parcs.Insert(pod2_hour2, true, true)
+	parcs.Insert(pod2_hour3, true, true)
+	parcs.Insert(pod3_hour1, true, true)
+	parcs.Insert(pod3_hour2, true, true)
+	parcs.Insert(pod3_hour3, true, true)
+	log.Debug("added all parcs")
+
+	expectedParcs := ProportionalAssetResourceCosts{
+		"cluster1,node1": ProportionalAssetResourceCost{
+			CPUPercentage:              0.041666666666666664,
+			NodeResourceCostPercentage: 0.041666666666666664,
+		},
+		"cluster1,node2": ProportionalAssetResourceCost{
+			CPUPercentage:              0.375,
+			NodeResourceCostPercentage: 0.375,
+		},
+		"cluster1,node3": ProportionalAssetResourceCost{
+			CPUPercentage:              0.25,
+			NodeResourceCostPercentage: 0.25,
+		},
+	}
+
+	for key, expectedParc := range expectedParcs {
+		actualParc, ok := parcs[key]
+		if !ok {
+			t.Fatalf("did not find expected PARC: %s", key)
+		}
+
+		if actualParc.CPUPercentage != expectedParc.CPUPercentage {
+			t.Fatalf("actual parc cpu percentage: %f did not match expected: %f", actualParc.CPUPercentage, expectedParc.CPUPercentage)
+		}
+		if actualParc.NodeResourceCostPercentage != expectedParc.NodeResourceCostPercentage {
+			t.Fatalf("actual parc node percentage: %f did not match expected: %f", actualParc.NodeResourceCostPercentage, expectedParc.NodeResourceCostPercentage)
 		}
 	}
 }
