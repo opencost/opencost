@@ -37,7 +37,7 @@ const (
 	DefaultCodecVersion uint8 = 17
 
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
-	AssetsCodecVersion uint8 = 18
+	AssetsCodecVersion uint8 = 19
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
 	AllocationCodecVersion uint8 = 16
@@ -1185,6 +1185,7 @@ func (target *AllocationProperties) MarshalBinaryWithContext(ctx *EncodingContex
 	}
 	// --- [end][write][alias](AllocationAnnotations) ---
 
+	buff.WriteBool(target.AggregatedMetadata) // write bool
 	return nil
 }
 
@@ -1425,6 +1426,9 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 	}
 	target.Annotations = AllocationAnnotations(tt)
 	// --- [end][read][alias](AllocationAnnotations) ---
+
+	eee := buff.ReadBool() // read bool
+	target.AggregatedMetadata = eee
 
 	return nil
 }
@@ -7712,6 +7716,12 @@ func (target *Node) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 	buff.WriteFloat64(target.RAMCost)     // write float64
 	buff.WriteFloat64(target.Discount)    // write float64
 	buff.WriteFloat64(target.Preemptible) // write float64
+	if ctx.IsStringTable() {
+		f := ctx.Table.AddOrGet(target.Pool)
+		buff.WriteInt(f) // write table index
+	} else {
+		buff.WriteString(target.Pool) // write string
+	}
 	return nil
 }
 
@@ -7922,6 +7932,22 @@ func (target *Node) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 
 	ll := buff.ReadFloat64() // read float64
 	target.Preemptible = ll
+
+	// field version check
+	if uint8(19) <= version {
+		var nn string
+		if ctx.IsStringTable() {
+			oo := buff.ReadInt() // read string index
+			nn = ctx.Table[oo]
+		} else {
+			nn = buff.ReadString() // read string
+		}
+		mm := nn
+		target.Pool = mm
+
+	} else {
+		target.Pool = "" // default
+	}
 
 	return nil
 }
