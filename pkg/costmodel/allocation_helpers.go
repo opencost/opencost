@@ -1411,19 +1411,19 @@ func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerCPUHr
 
 		node, err := res.GetString("node")
 		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node CPU cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node CPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
 		}
 
 		instanceType, err := res.GetString("instance_type")
 		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node CPU cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node CPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
 		}
 
 		providerID, err := res.GetString("provider_id")
 		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node CPU cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node CPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
 		}
 
@@ -1449,19 +1449,19 @@ func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerRA
 
 		node, err := res.GetString("node")
 		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node RAM cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node RAM cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
 		}
 
 		instanceType, err := res.GetString("instance_type")
 		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node RAM cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node RAM cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
 		}
 
 		providerID, err := res.GetString("provider_id")
 		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node RAM cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node RAM cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
 		}
 
@@ -1487,19 +1487,19 @@ func applyNodeCostPerGPUHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerGPUHr
 
 		node, err := res.GetString("node")
 		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node GPU cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node GPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
 		}
 
 		instanceType, err := res.GetString("instance_type")
 		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node GPU cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node GPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
 		}
 
 		providerID, err := res.GetString("provider_id")
 		if err != nil {
-			log.Warnf("CostModel.ComputeAllocation: Node GPU cost query result missing field: %s", err)
+			log.Warnf("CostModel.ComputeAllocation: Node GPU cost query result missing field: \"%s\" for node \"%s\"", err, node)
 			continue
 		}
 
@@ -1531,7 +1531,7 @@ func applyNodeSpot(nodeMap map[nodeKey]*nodePricing, resNodeIsSpot []*prom.Query
 
 		key := newNodeKey(cluster, node)
 		if _, ok := nodeMap[key]; !ok {
-			log.Warnf("CostModel.ComputeAllocation: Node spot  query result for missing node: %s", key)
+			log.Warnf("CostModel.ComputeAllocation: Node spot query result for missing node: %s", key)
 			continue
 		}
 
@@ -1588,7 +1588,7 @@ func (cm *CostModel) applyNodesToPod(podMap map[podKey]*pod, nodeMap map[nodeKey
 
 // getCustomNodePricing converts the CostModel's configured custom pricing
 // values into a nodePricing instance.
-func (cm *CostModel) getCustomNodePricing(spot bool) *nodePricing {
+func (cm *CostModel) getCustomNodePricing(spot bool, providerID string) *nodePricing {
 	customPricingConfig, err := cm.Provider.GetConfig()
 	if err != nil {
 		return nil
@@ -1603,7 +1603,10 @@ func (cm *CostModel) getCustomNodePricing(spot bool) *nodePricing {
 		ramCostStr = customPricingConfig.SpotRAM
 	}
 
-	node := &nodePricing{Source: "custom"}
+	node := &nodePricing{
+		Source:     "custom",
+		ProviderID: providerID,
+	}
 
 	costPerCPUHr, err := strconv.ParseFloat(cpuCostStr, 64)
 	if err != nil {
@@ -1639,7 +1642,7 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*nodePricing, nodeKey no
 		if nodeKey.Node != "" {
 			log.DedupedWarningf(5, "CostModel: failed to find node for %s", nodeKey)
 		}
-		return cm.getCustomNodePricing(false)
+		return cm.getCustomNodePricing(false, "")
 	}
 
 	// If custom pricing is enabled and can be retrieved, override detected
@@ -1649,7 +1652,7 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*nodePricing, nodeKey no
 		log.Warnf("CostModel: failed to load custom pricing: %s", err)
 	}
 	if cloud.CustomPricesEnabled(cm.Provider) && customPricingConfig != nil {
-		return cm.getCustomNodePricing(node.Preemptible)
+		return cm.getCustomNodePricing(node.Preemptible, node.ProviderID)
 	}
 
 	node.Source = "prometheus"

@@ -96,6 +96,32 @@ func TestAllocationPropsIntersection(t *testing.T) {
 				Annotations:        map[string]string{"key2": "val2"},
 			},
 		},
+		"test services are nulled when intersecting": {
+			allocationProps1: &AllocationProperties{
+				AggregatedMetadata: false,
+				Container:          UnmountedSuffix,
+				Namespace:          "ns1",
+				Services: []string{
+					"cool",
+				},
+				Labels:      map[string]string{},
+				Annotations: map[string]string{},
+			},
+			allocationProps2: &AllocationProperties{
+				AggregatedMetadata: true,
+				Container:          "container3",
+				Namespace:          "ns1",
+				Labels:             map[string]string{"key1": "val1"},
+				Annotations:        map[string]string{"key2": "val2"},
+			},
+			expected: &AllocationProperties{
+				AggregatedMetadata: true,
+				Namespace:          "ns1",
+				ControllerKind:     "",
+				Labels:             map[string]string{"key1": "val1"},
+				Annotations:        map[string]string{"key2": "val2"},
+			},
+		},
 	}
 
 	for name, tc := range cases {

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -366,7 +367,10 @@ func (alibaba *Alibaba) GetAlibabaAccessKey() (*credentials.AccessKeyCredential,
 		return nil, fmt.Errorf("failed to get the access key for the current alibaba account")
 	}
 
-	alibaba.accessKey = &credentials.AccessKeyCredential{AccessKeyId: env.GetAlibabaAccessKeyID(), AccessKeySecret: env.GetAlibabaAccessKeySecret()}
+	// At this point either user is using the alibaba key and secret from secret passed in helm config if not he will use the secret that is passed in custom pricing
+	// There's no check at this time for if the custom pricing key and secret is valid and that's on the user else there will be errors recorded.
+	// Key and secret passed in config will supersede key and secret passed while installing Closed source helm chart.
+	alibaba.accessKey = &credentials.AccessKeyCredential{AccessKeyId: config.AlibabaServiceKeyName, AccessKeySecret: config.AlibabaServiceKeySecret}
 
 	return alibaba.accessKey, nil
 }
@@ -544,19 +548,46 @@ func (alibaba *Alibaba) PVPricing(pvk PVKey) (*PV, error) {
 	return pricing.PV, nil
 }
 
-// Stubbed NetworkPricing for Alibaba Cloud. Will look at this in Next PR
+// Inter zone and Inter region network cost are defaulted based on https://www.alibabacloud.com/help/en/cloud-data-transmission/latest/cross-region-data-transfers
+// Internet cost is default based on https://www.alibabacloud.com/help/en/elastic-compute-service/latest/public-bandwidth to $0.123
 func (alibaba *Alibaba) NetworkPricing() (*Network, error) {
+	cpricing, err := alibaba.Config.GetCustomPricingData()
+	if err != nil {
+		return nil, err
+	}
+	znec, err := strconv.ParseFloat(cpricing.ZoneNetworkEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+	rnec, err := strconv.ParseFloat(cpricing.RegionNetworkEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+	inec, err := strconv.ParseFloat(cpricing.InternetNetworkEgress, 64)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Network{
-		ZoneNetworkEgressCost:     0.0,
-		RegionNetworkEgressCost:   0.0,
-		InternetNetworkEgressCost: 0.0,
+		ZoneNetworkEgressCost:     znec,
+		RegionNetworkEgressCost:   rnec,
+		InternetNetworkEgressCost: inec,
 	}, nil
 }
 
-// Stubbed LoadBalancerPricing for Alibaba Cloud. Will look at this in Next PR
+// Alibaba loadbalancer has three different types https://www.alibabacloud.com/product/server-load-balancer,
+// defaulted price to classic load balancer https://www.alibabacloud.com/help/en/server-load-balancer/latest/pay-as-you-go.
 func (alibaba *Alibaba) LoadBalancerPricing() (*LoadBalancer, error) {
+	cpricing, err := alibaba.Config.GetCustomPricingData()
+	if err != nil {
+		return nil, err
+	}
+	lbPricing, err := strconv.ParseFloat(cpricing.DefaultLBPrice, 64)
+	if err != nil {
+		return nil, err
+	}
 	return &LoadBalancer{
-		Cost: 0.0,
+		Cost: lbPricing,
 	}, nil
 }
 
@@ -747,7 +778,16 @@ func (alibaba *Alibaba) CombinedDiscountForNode(string, bool, float64, float64) 
 }
 
 func (alibaba *Alibaba) accessKeyisLoaded() bool {
-	return alibaba.accessKey != nil
+	if alibaba.accessKey == nil {
+		return false
+	}
+	if alibaba.accessKey.AccessKeyId == "" {
+		return false
+	}
+	if alibaba.accessKey.AccessKeySecret == "" {
+		return false
+	}
+	return true
 }
 
 type AlibabaNodeKey struct {
