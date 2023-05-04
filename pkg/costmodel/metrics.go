@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/env"
@@ -136,7 +136,7 @@ var (
 )
 
 // initCostModelMetrics uses a sync.Once to ensure that these metrics are only created once
-func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud.Provider, clusterInfo clusters.ClusterInfoProvider, metricsConfig *metrics.MetricsConfig) {
+func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider models.Provider, clusterInfo clusters.ClusterInfoProvider, metricsConfig *metrics.MetricsConfig) {
 
 	disabledMetrics := metricsConfig.GetDisabledMetricsMap()
 	var toRegisterGV []*prometheus.GaugeVec
@@ -297,7 +297,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider cloud
 type CostModelMetricsEmitter struct {
 	PrometheusClient promclient.Client
 	KubeClusterCache clustercache.ClusterCache
-	CloudProvider    cloud.Provider
+	CloudProvider    models.Provider
 	Model            *CostModel
 
 	// Metrics
@@ -323,7 +323,7 @@ type CostModelMetricsEmitter struct {
 }
 
 // NewCostModelMetricsEmitter creates a new cost-model metrics emitter. Use Start() to begin metric emission.
-func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clustercache.ClusterCache, provider cloud.Provider, clusterInfo clusters.ClusterInfoProvider, model *CostModel) *CostModelMetricsEmitter {
+func NewCostModelMetricsEmitter(promClient promclient.Client, clusterCache clustercache.ClusterCache, provider models.Provider, clusterInfo clusters.ClusterInfoProvider, model *CostModel) *CostModelMetricsEmitter {
 
 	// Get metric configurations, if any
 	metricsConfig, err := metrics.GetMetricsConfig()
@@ -652,7 +652,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				} else {
 					region = defaultRegion
 				}
-				cacPv := &cloud.PV{
+				cacPv := &models.PV{
 					Class:      pv.Spec.StorageClassName,
 					Region:     region,
 					Parameters: parameters,
