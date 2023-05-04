@@ -44,6 +44,8 @@ func NewFileManager(path string) (FileManager, error) {
 		return NewGCSStorageFile(path)
 	case strings.Contains(path, "blob.core.windows.net"):
 		return NewAzureBlobFile(path)
+	case path == "":
+		return nil, errors.New("empty path")
 	default:
 		return NewSystemFile(path), nil
 	}
