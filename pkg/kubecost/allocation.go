@@ -246,16 +246,62 @@ func (pva *PVAllocation) Equal(that *PVAllocation) bool {
 		util.IsApproximately(pva.Cost, that.Cost)
 }
 
-type ProportionalAssetResourceCost struct {
-	Cluster                    string  `json:"cluster"`
-	Node                       string  `json:"node,omitempty"`
-	ProviderID                 string  `json:"providerID,omitempty"`
-	CPUPercentage              float64 `json:"cpuPercentage"`
-	GPUPercentage              float64 `json:"gpuPercentage"`
-	RAMPercentage              float64 `json:"ramPercentage"`
-	NodeResourceCostPercentage float64 `json:"nodeResourceCostPercentage"`
+// used to compute the average of 2 PARCs. A PARC is a dimensonless
+// percentage that loses information needed when finding an average
+// to that end, we track the percentage and resource usage of the
+// component used to make the parc, to allow us to average two PARCs
+type ParcsComponent struct {
+	TotalCost       float64
+	UsageProportion float64
 }
 
+func (p *ParcsComponent) Clone() ParcsComponent {
+	return ParcsComponent{
+		TotalCost:       p.TotalCost,
+		UsageProportion: p.UsageProportion,
+	}
+}
+
+type ProportionalAssetResourceCost struct {
+	Cluster                    string           `json:"cluster"`
+	Node                       string           `json:"node,omitempty"`
+	ProviderID                 string           `json:"providerID,omitempty"`
+	CPUPercentage              float64          `json:"cpuPercentage"`
+	GPUPercentage              float64          `json:"gpuPercentage"`
+	RAMPercentage              float64          `json:"ramPercentage"`
+	NodeResourceCostPercentage float64          `json:"nodeResourceCostPercentage"`
+	GPUComponents              []ParcsComponent `json:"-"`
+	CPUComponents              []ParcsComponent `json:"-"`
+	RAMComponents              []ParcsComponent `json:"-"`
+}
+
+func (parc ProportionalAssetResourceCost) Clone() ProportionalAssetResourceCost {
+	gpuComps := []ParcsComponent{}
+	cpuComps := []ParcsComponent{}
+	ramComps := []ParcsComponent{}
+
+	for _, gpuComp := range parc.GPUComponents {
+		gpuComps = append(gpuComps, gpuComp.Clone())
+	}
+	for _, cpuComp := range parc.CPUComponents {
+		cpuComps = append(cpuComps, cpuComp.Clone())
+	}
+	for _, ramComp := range parc.RAMComponents {
+		ramComps = append(ramComps, ramComp.Clone())
+	}
+	return ProportionalAssetResourceCost{
+		Cluster:                    parc.Cluster,
+		Node:                       parc.Node,
+		ProviderID:                 parc.ProviderID,
+		CPUPercentage:              parc.CPUPercentage,
+		GPUPercentage:              parc.GPUPercentage,
+		RAMPercentage:              parc.RAMPercentage,
+		NodeResourceCostPercentage: parc.NodeResourceCostPercentage,
+		RAMComponents:              ramComps,
+		CPUComponents:              cpuComps,
+		GPUComponents:              gpuComps,
+	}
+}
 func (parc ProportionalAssetResourceCost) Key(insertByNode bool) string {
 	if insertByNode {
 		return parc.Cluster + "," + parc.Node
@@ -267,27 +313,103 @@ func (parc ProportionalAssetResourceCost) Key(insertByNode bool) string {
 
 type ProportionalAssetResourceCosts map[string]ProportionalAssetResourceCost
 
-func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourceCost, insertByNode bool) {
+func (parcs ProportionalAssetResourceCosts) Clone() ProportionalAssetResourceCosts {
+	cloned := ProportionalAssetResourceCosts{}
+
+	for key, parc := range parcs {
+		cloned[key] = parc.Clone()
+	}
+	return cloned
+}
+
+func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourceCost, insertByNode, isAccumulation bool) {
 	if !insertByNode {
 		parc.Node = ""
 		parc.ProviderID = ""
 	}
 	if curr, ok := parcs[parc.Key(insertByNode)]; ok {
-		parcs[parc.Key(insertByNode)] = ProportionalAssetResourceCost{
+
+		CPUPercentage := curr.CPUPercentage + parc.CPUPercentage
+		GPUPercentage := curr.GPUPercentage + parc.GPUPercentage
+		RAMPercentage := curr.RAMPercentage + parc.RAMPercentage
+
+		toInsert := ProportionalAssetResourceCost{
 			Node:                       curr.Node,
 			Cluster:                    curr.Cluster,
 			ProviderID:                 curr.ProviderID,
-			CPUPercentage:              curr.CPUPercentage + parc.CPUPercentage,
-			GPUPercentage:              curr.GPUPercentage + parc.GPUPercentage,
-			RAMPercentage:              curr.RAMPercentage + parc.RAMPercentage,
+			CPUPercentage:              CPUPercentage,
+			GPUPercentage:              GPUPercentage,
+			RAMPercentage:              RAMPercentage,
 			NodeResourceCostPercentage: curr.NodeResourceCostPercentage + parc.NodeResourceCostPercentage,
+			CPUComponents:              append(curr.CPUComponents, parc.CPUComponents...),
+			GPUComponents:              append(curr.GPUComponents, parc.GPUComponents...),
+			RAMComponents:              append(curr.RAMComponents, parc.RAMComponents...),
 		}
+
+		if isAccumulation {
+			// when accumulating, use the usage hours to perform a weighted average
+			toInsert.CPUPercentage = weightedParcComponentsAverage(toInsert.CPUComponents)
+			toInsert.GPUPercentage = weightedParcComponentsAverage(toInsert.GPUComponents)
+			toInsert.RAMPercentage = weightedParcComponentsAverage(toInsert.RAMComponents)
+			toInsert.NodeResourceCostPercentage = weightedNodeTotalCostAverage(toInsert.CPUComponents, toInsert.GPUComponents, toInsert.RAMComponents)
+		}
+
+		parcs[parc.Key(insertByNode)] = toInsert
 	} else {
 		parcs[parc.Key(insertByNode)] = parc
 	}
 }
 
-func (parcs ProportionalAssetResourceCosts) Add(that ProportionalAssetResourceCosts) {
+func weightedNodeTotalCostAverage(cpuComponents, gpuComponents, ramComponents []ParcsComponent) float64 {
+
+	totalRamCost := 0.0
+	for _, ramComponent := range ramComponents {
+		totalRamCost += ramComponent.TotalCost
+	}
+
+	totalCPUCost := 0.0
+	for _, cpuComponent := range cpuComponents {
+		totalCPUCost += cpuComponent.TotalCost
+	}
+
+	totalGPUCost := 0.0
+	for _, gpuComponent := range gpuComponents {
+		totalGPUCost += gpuComponent.TotalCost
+	}
+
+	totalCost := totalCPUCost + totalGPUCost + totalRamCost
+
+	var ramFraction, cpuFraction, gpuFraction float64
+
+	// only compute fraction if totalCost is nonzero, otherwise returns in NaN
+	if totalCost > 0 {
+		ramFraction = totalRamCost / totalCost
+		cpuFraction = totalCPUCost / totalCost
+		gpuFraction = totalGPUCost / totalCost
+	}
+
+	// compute the resource usage percentage based on the weighted fractions
+	nodeResourceCostPercentage := (weightedParcComponentsAverage(ramComponents) * ramFraction) + (weightedParcComponentsAverage(cpuComponents) * cpuFraction) + (weightedParcComponentsAverage(gpuComponents) * gpuFraction)
+
+	return nodeResourceCostPercentage
+}
+func weightedParcComponentsAverage(components []ParcsComponent) float64 {
+	totalResourceCosts := 0.0
+	costOfResource := 0.0
+	for _, component := range components {
+		totalResourceCosts += component.TotalCost
+
+		costOfResource += component.TotalCost * component.UsageProportion
+
+	}
+
+	if totalResourceCosts <= 0 {
+		return 0
+	}
+	return costOfResource / totalResourceCosts
+}
+
+func (parcs ProportionalAssetResourceCosts) Add(that ProportionalAssetResourceCosts, isAccumulation bool) {
 
 	for _, parc := range that {
 		// if node field is empty, we know this is a cluster level PARC aggregation
@@ -295,7 +417,7 @@ func (parcs ProportionalAssetResourceCosts) Add(that ProportionalAssetResourceCo
 		if parc.Node == "" {
 			insertByNode = false
 		}
-		parcs.Insert(parc, insertByNode)
+		parcs.Insert(parc, insertByNode, isAccumulation)
 	}
 }
 
@@ -334,38 +456,39 @@ func (a *Allocation) Clone() *Allocation {
 	}
 
 	return &Allocation{
-		Name:                       a.Name,
-		Properties:                 a.Properties.Clone(),
-		Window:                     a.Window.Clone(),
-		Start:                      a.Start,
-		End:                        a.End,
-		CPUCoreHours:               a.CPUCoreHours,
-		CPUCoreRequestAverage:      a.CPUCoreRequestAverage,
-		CPUCoreUsageAverage:        a.CPUCoreUsageAverage,
-		CPUCost:                    a.CPUCost,
-		CPUCostAdjustment:          a.CPUCostAdjustment,
-		GPUHours:                   a.GPUHours,
-		GPUCost:                    a.GPUCost,
-		GPUCostAdjustment:          a.GPUCostAdjustment,
-		NetworkTransferBytes:       a.NetworkTransferBytes,
-		NetworkReceiveBytes:        a.NetworkReceiveBytes,
-		NetworkCost:                a.NetworkCost,
-		NetworkCrossZoneCost:       a.NetworkCrossZoneCost,
-		NetworkCrossRegionCost:     a.NetworkCrossRegionCost,
-		NetworkInternetCost:        a.NetworkInternetCost,
-		NetworkCostAdjustment:      a.NetworkCostAdjustment,
-		LoadBalancerCost:           a.LoadBalancerCost,
-		LoadBalancerCostAdjustment: a.LoadBalancerCostAdjustment,
-		PVs:                        a.PVs.Clone(),
-		PVCostAdjustment:           a.PVCostAdjustment,
-		RAMByteHours:               a.RAMByteHours,
-		RAMBytesRequestAverage:     a.RAMBytesRequestAverage,
-		RAMBytesUsageAverage:       a.RAMBytesUsageAverage,
-		RAMCost:                    a.RAMCost,
-		RAMCostAdjustment:          a.RAMCostAdjustment,
-		SharedCost:                 a.SharedCost,
-		ExternalCost:               a.ExternalCost,
-		RawAllocationOnly:          a.RawAllocationOnly.Clone(),
+		Name:                           a.Name,
+		Properties:                     a.Properties.Clone(),
+		Window:                         a.Window.Clone(),
+		Start:                          a.Start,
+		End:                            a.End,
+		CPUCoreHours:                   a.CPUCoreHours,
+		CPUCoreRequestAverage:          a.CPUCoreRequestAverage,
+		CPUCoreUsageAverage:            a.CPUCoreUsageAverage,
+		CPUCost:                        a.CPUCost,
+		CPUCostAdjustment:              a.CPUCostAdjustment,
+		GPUHours:                       a.GPUHours,
+		GPUCost:                        a.GPUCost,
+		GPUCostAdjustment:              a.GPUCostAdjustment,
+		NetworkTransferBytes:           a.NetworkTransferBytes,
+		NetworkReceiveBytes:            a.NetworkReceiveBytes,
+		NetworkCost:                    a.NetworkCost,
+		NetworkCrossZoneCost:           a.NetworkCrossZoneCost,
+		NetworkCrossRegionCost:         a.NetworkCrossRegionCost,
+		NetworkInternetCost:            a.NetworkInternetCost,
+		NetworkCostAdjustment:          a.NetworkCostAdjustment,
+		LoadBalancerCost:               a.LoadBalancerCost,
+		LoadBalancerCostAdjustment:     a.LoadBalancerCostAdjustment,
+		PVs:                            a.PVs.Clone(),
+		PVCostAdjustment:               a.PVCostAdjustment,
+		RAMByteHours:                   a.RAMByteHours,
+		RAMBytesRequestAverage:         a.RAMBytesRequestAverage,
+		RAMBytesUsageAverage:           a.RAMBytesUsageAverage,
+		RAMCost:                        a.RAMCost,
+		RAMCostAdjustment:              a.RAMCostAdjustment,
+		SharedCost:                     a.SharedCost,
+		ExternalCost:                   a.ExternalCost,
+		RawAllocationOnly:              a.RawAllocationOnly.Clone(),
+		ProportionalAssetResourceCosts: a.ProportionalAssetResourceCosts.Clone(),
 	}
 }
 
@@ -757,6 +880,10 @@ func (a *Allocation) String() string {
 }
 
 func (a *Allocation) add(that *Allocation) {
+	a.addWithAccum(that, false)
+}
+
+func (a *Allocation) addWithAccum(that *Allocation, isAccumulation bool) {
 	if a == nil {
 		log.Warnf("Allocation.AggregateBy: trying to add a nil receiver")
 		return
@@ -775,8 +902,15 @@ func (a *Allocation) add(that *Allocation) {
 
 	// If both Allocations have ProportionalAssetResourceCosts, then
 	// add those from the given Allocation into the receiver.
-	if a.ProportionalAssetResourceCosts != nil && that.ProportionalAssetResourceCosts != nil {
-		a.ProportionalAssetResourceCosts.Add(that.ProportionalAssetResourceCosts)
+	if a.ProportionalAssetResourceCosts != nil || that.ProportionalAssetResourceCosts != nil {
+		// init empty PARCs if either operand has nil PARCs
+		if a.ProportionalAssetResourceCosts == nil {
+			a.ProportionalAssetResourceCosts = ProportionalAssetResourceCosts{}
+		}
+		if that.ProportionalAssetResourceCosts == nil {
+			that.ProportionalAssetResourceCosts = ProportionalAssetResourceCosts{}
+		}
+		a.ProportionalAssetResourceCosts.Add(that.ProportionalAssetResourceCosts, isAccumulation)
 	}
 
 	// Overwrite regular intersection logic for the controller name property in the
@@ -1171,7 +1305,8 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 				log.Debugf("AggregateBy: failed to derive proportional asset resource costs from idle coefficients for %s: %s", alloc.Name, err)
 				continue
 			}
-			alloc.ProportionalAssetResourceCosts.Insert(parc, options.IdleByNode)
+
+			alloc.ProportionalAssetResourceCosts.Insert(parc, options.IdleByNode, false)
 		}
 	}
 
@@ -1774,7 +1909,7 @@ func deriveProportionalAssetResourceCostsFromIdleCoefficients(idleCoeffs map[str
 	// compute the resource usage percentage based on the weighted fractions
 	nodeResourceCostPercentage := (ramPct * ramFraction) + (cpuPct * cpuFraction) + (gpuPct * gpuFraction)
 
-	return ProportionalAssetResourceCost{
+	parc := ProportionalAssetResourceCost{
 		Cluster:                    allocation.Properties.Cluster,
 		Node:                       allocation.Properties.Node,
 		ProviderID:                 allocation.Properties.ProviderID,
@@ -1782,7 +1917,27 @@ func deriveProportionalAssetResourceCostsFromIdleCoefficients(idleCoeffs map[str
 		GPUPercentage:              gpuPct,
 		RAMPercentage:              ramPct,
 		NodeResourceCostPercentage: nodeResourceCostPercentage,
-	}, nil
+	}
+
+	parc.CPUComponents = []ParcsComponent{
+		{
+			TotalCost:       totals[idleId]["cpu"],
+			UsageProportion: idleCoeffs[idleId][allocation.Name]["cpu"],
+		},
+	}
+	parc.GPUComponents = []ParcsComponent{
+		{
+			TotalCost:       totals[idleId]["gpu"],
+			UsageProportion: idleCoeffs[idleId][allocation.Name]["gpu"],
+		},
+	}
+	parc.RAMComponents = []ParcsComponent{
+		{
+			TotalCost:       totals[idleId]["ram"],
+			UsageProportion: idleCoeffs[idleId][allocation.Name]["ram"],
+		},
+	}
+	return parc, nil
 }
 
 // getIdleId returns the providerId or cluster of an Allocation depending on the IdleByNode
@@ -2025,6 +2180,10 @@ func (as *AllocationSet) IdleAllocations() map[string]*Allocation {
 // but only if the Allocation is valid, i.e. matches the AllocationSet's window. If
 // there is no existing entry, one is created. Nil error response indicates success.
 func (as *AllocationSet) Insert(that *Allocation) error {
+	return as.InsertWithAccum(that, false)
+}
+
+func (as *AllocationSet) InsertWithAccum(that *Allocation, isAccumulation bool) error {
 	if as == nil {
 		return fmt.Errorf("cannot insert into nil AllocationSet")
 	}
@@ -2046,7 +2205,7 @@ func (as *AllocationSet) Insert(that *Allocation) error {
 	if _, ok := as.Allocations[that.Name]; !ok {
 		as.Allocations[that.Name] = that
 	} else {
-		as.Allocations[that.Name].add(that)
+		as.Allocations[that.Name].addWithAccum(that, isAccumulation)
 	}
 
 	// If the given Allocation is an external one, record that
@@ -2197,14 +2356,14 @@ func (as *AllocationSet) Accumulate(that *AllocationSet) (*AllocationSet, error)
 	acc := NewAllocationSet(start, end)
 
 	for _, alloc := range as.Allocations {
-		err := acc.Insert(alloc)
+		err := acc.InsertWithAccum(alloc, true)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	for _, alloc := range that.Allocations {
-		err := acc.Insert(alloc)
+		err := acc.InsertWithAccum(alloc, true)
 		if err != nil {
 			return nil, err
 		}

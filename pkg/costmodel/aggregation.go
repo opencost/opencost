@@ -2241,6 +2241,19 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 
 	// IncludeIdle, if true, uses Asset data to incorporate Idle Allocation
 	includeIdle := qp.GetBool("includeIdle", false)
+	// Accumulate is an optional parameter, defaulting to false, which if true
+	// sums each Set in the Range, producing one Set.
+	accumulate := qp.GetBool("accumulate", false)
+
+	// Accumulate is an optional parameter that accumulates an AllocationSetRange
+	// by the resolution of the given time duration.
+	// Defaults to 0. If a value is not passed then the parameter is not used.
+	accumulateBy := kubecost.AccumulateOption(qp.Get("accumulateBy", ""))
+
+	// if accumulateBy is not explicitly set, and accumulate is true, ensure result is accumulated
+	if accumulateBy == kubecost.AccumulateOptionNone && accumulate {
+		accumulateBy = kubecost.AccumulateOptionAll
+	}
 
 	// IdleByNode, if true, computes idle allocations at the node level.
 	// Otherwise it is computed at the cluster level. (Not relevant if idle
@@ -2262,6 +2275,15 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 		}
 
 		return
+	}
+
+	// Accumulate, if requested
+	if accumulateBy != kubecost.AccumulateOptionNone {
+		asr, err = asr.Accumulate(accumulateBy)
+		if err != nil {
+			WriteError(w, InternalServerError(err.Error()))
+			return
+		}
 	}
 
 	w.Write(WrapData(asr, nil))
