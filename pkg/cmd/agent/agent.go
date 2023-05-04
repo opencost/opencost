@@ -164,6 +164,8 @@ func Execute(opts *AgentOpts) error {
 
 	// Append the pricing config watcher
 	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))
+	configWatchers.AddWatcher(metrics.GetMetricsConfigWatcher())
+
 	watchConfigFunc := configWatchers.ToWatchFunc()
 	watchedConfigs := configWatchers.GetWatchedConfigs()
 
