@@ -212,17 +212,3 @@ type lbCost struct {
 	Start     time.Time
 	End       time.Time
 }
-
-// NodePricing describes the resource costs associated with a given node, as
-// well as the source of the information (e.g. prometheus, custom)
-type nodePricing struct {
-	Name            string
-	NodeType        string
-	ProviderID      string
-	Preemptible     bool
-	CostPerCPUHr    float64
-	CostPerRAMGiBHr float64
-	CostPerGPUHr    float64
-	Discount        float64
-	Source          string
-}
