@@ -105,7 +105,7 @@ type AllocationProperties struct {
 	Annotations    AllocationAnnotations `json:"annotations,omitempty"`
 	// When set to true, maintain the intersection of all labels + annotations
 	// in the aggregated AllocationProperties object
-	AggregatedMetadata bool `json:"-"`
+	AggregatedMetadata bool `json:"-"` //@bingen:field[ignore]
 }
 
 // AllocationLabels is a schema-free mapping of key/value pairs that can be
