@@ -20,9 +20,11 @@ var (
 )
 
 const (
-	AuthSecretPath          = "/var/secrets/service-key.json"
-	StorageConfigSecretPath = "/var/azure-storage-config/azure-storage-config.json"
-	DefaultShareTenancyCost = "true"
+	AuthSecretPath                 = "/var/secrets/service-key.json"
+	StorageConfigSecretPath        = "/var/azure-storage-config/azure-storage-config.json"
+	DefaultShareTenancyCost        = "true"
+	KarpenterCapacityTypeLabel     = "karpenter.sh/capacity-type"
+	KarpenterCapacitySpotTypeValue = "spot"
 )
 
 // ReservedInstanceData keeps record of resources on a node should be
@@ -299,7 +301,3 @@ type ProviderConfig interface {
 	Update(func(*CustomPricing) error) (*CustomPricing, error)
 	UpdateFromMap(map[string]string) (*CustomPricing, error)
 }
-
-const KarpenterCapacityTypeLabel = "karpenter.sh/capacity-type"
-
-const KarpenterCapacitySpotTypeValue = "spot"
