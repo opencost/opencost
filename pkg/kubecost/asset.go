@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud"
-	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util/json"
 	"github.com/opencost/opencost/pkg/util/timeutil"
@@ -1775,7 +1773,6 @@ type Node struct {
 	RAMCost      float64
 	Discount     float64
 	Preemptible  float64
-	Pool         string // @bingen:field[version=19]
 }
 
 // NewNode creates and returns a new Node Asset
@@ -3801,11 +3798,11 @@ func GetNodePoolName(provider string, labels map[string]string) string {
 
 	switch provider {
 	case AzureProvider:
-		return getPoolNameHelper(azure.AKSNodepoolLabel, labels)
+		return getPoolNameHelper(AKSNodepoolLabel, labels)
 	case AWSProvider:
-		return getPoolNameHelper(cloud.EKSNodepoolLabel, labels)
+		return getPoolNameHelper(EKSNodepoolLabel, labels)
 	case GCPProvider:
-		return getPoolNameHelper(cloud.GKENodePoolLabel, labels)
+		return getPoolNameHelper(GKENodePoolLabel, labels)
 	default:
 		log.Warnf("node pool name not supported for this provider")
 		return ""

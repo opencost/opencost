@@ -478,7 +478,7 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "minutes", n.Minutes(), ",")
 	jsonEncodeString(buffer, "nodeType", n.NodeType, ",")
 	if poolName := GetNodePoolName(n.Properties.Provider, n.Labels); poolName != "" {
-		jsonEncodeString(buffer, "pool", n.Pool, ",")
+		jsonEncodeString(buffer, "pool", poolName, ",")
 	}
 	jsonEncodeFloat64(buffer, "cpuCores", n.CPUCores(), ",")
 	jsonEncodeFloat64(buffer, "ramBytes", n.RAMBytes(), ",")
@@ -564,9 +564,7 @@ func (n *Node) InterfaceToNode(itf interface{}) error {
 	if NodeType, err := getTypedVal(fmap["nodeType"]); err == nil {
 		n.NodeType = NodeType.(string)
 	}
-	if nodePool, err := getTypedVal(fmap["pool"]); err == nil {
-		n.Pool = nodePool.(string)
-	}
+	
 	if CPUCoreHours, err := getTypedVal(fmap["cpuCoreHours"]); err == nil {
 		n.CPUCoreHours = CPUCoreHours.(float64)
 	}

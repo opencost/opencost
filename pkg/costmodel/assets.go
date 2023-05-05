@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
 )

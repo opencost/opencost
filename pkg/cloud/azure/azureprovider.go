@@ -42,7 +42,6 @@ const (
 	AzureDiskStandardSSDStorageClass = "standard_ssd"
 	AzureDiskStandardStorageClass    = "standard_hdd"
 	defaultSpotLabel                 = "kubernetes.azure.com/scalesetpriority"
-	AKSNodepoolLabel                 = "kubernetes.azure.com/agentpool"
 	defaultSpotLabelValue            = "spot"
 	AzureStorageUpdateType           = "AzureStorage"
 )
