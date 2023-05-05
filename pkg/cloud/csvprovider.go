@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,6 +25,10 @@ import (
 )
 
 const refreshMinutes = 60
+
+var (
+	provIdRx = regexp.MustCompile("aws:///([^/]+)/([^/]+)")
+)
 
 type CSVProvider struct {
 	*CustomProvider

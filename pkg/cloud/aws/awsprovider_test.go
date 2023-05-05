@@ -1,4 +1,4 @@
-package cloud
+package aws
 
 import (
 	"bytes"
@@ -64,7 +64,7 @@ func Test_awsKey_getUsageType(t *testing.T) {
 			name: "Karpenter label with a capacityType set to empty string should return empty string",
 			args: args{
 				labels: map[string]string{
-					KarpenterCapacityTypeLabel: "",
+					aws.KarpenterCapacityTypeLabel: "",
 				},
 			},
 			want: "",
@@ -73,7 +73,7 @@ func Test_awsKey_getUsageType(t *testing.T) {
 			name: "Karpenter label with capacityType set to a random value should return empty string",
 			args: args{
 				labels: map[string]string{
-					KarpenterCapacityTypeLabel: "TEST_ME",
+					aws.KarpenterCapacityTypeLabel: "TEST_ME",
 				},
 			},
 			want: "",
@@ -82,7 +82,7 @@ func Test_awsKey_getUsageType(t *testing.T) {
 			name: "Karpenter label with capacityType set to spot should return spot",
 			args: args{
 				labels: map[string]string{
-					KarpenterCapacityTypeLabel: KarpenterCapacitySpotTypeValue,
+					aws.KarpenterCapacityTypeLabel: aws.KarpenterCapacitySpotTypeValue,
 				},
 			},
 			want: PreemptibleType,
