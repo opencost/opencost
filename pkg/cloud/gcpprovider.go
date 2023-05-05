@@ -1630,7 +1630,3 @@ func getUsageType(labels map[string]string) string {
 func (gcp *GCP) PricingSourceSummary() interface{} {
 	return gcp.Pricing
 }
-
-func (gcp *GCP) GetNodePoolLabel() string {
-	return GKENodePoolLabel
-}

@@ -429,7 +429,3 @@ func (c *CSVProvider) Regions() []string {
 func (c *CSVProvider) PricingSourceSummary() interface{} {
 	return c.Pricing
 }
-
-func (c *CSVProvider) GetNodePoolLabel() string {
-	return ""
-}

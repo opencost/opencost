@@ -2317,7 +2317,3 @@ func (aws *AWS) PricingSourceSummary() interface{} {
 	// encode the pricing source summary as a JSON string
 	return aws.Pricing
 }
-
-func (aws *AWS) GetNodePoolLabel() string {
-	return EKSNodepoolLabel
-}

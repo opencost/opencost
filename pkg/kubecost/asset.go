@@ -4,9 +4,12 @@ import (
 	"encoding"
 	"fmt"
 	"math"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util/json"
 	"github.com/opencost/opencost/pkg/util/timeutil"
@@ -3792,4 +3795,29 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+func GetNodePoolName(provider string, labels map[string]string) string {
+
+	switch provider {
+	case AzureProvider:
+		return getPoolNameHelper(azure.AKSNodepoolLabel, labels)
+	case AWSProvider:
+		return getPoolNameHelper(cloud.EKSNodepoolLabel, labels)
+	case GCPProvider:
+		return getPoolNameHelper(cloud.GKENodePoolLabel, labels)
+	default:
+		log.Warnf("node pool name not supported for this provider")
+		return ""
+	}
+}
+
+func getPoolNameHelper(label string, labels map[string]string) string {
+	sanitizedLabel := regexp.MustCompile(`[^a-zA-Z0-9 ]+`).ReplaceAllString(label, "_")
+	if poolName, found := labels[fmt.Sprintf("label_%s", sanitizedLabel)]; found {
+		return poolName
+	} else {
+		log.Warnf("unable to derive node pool name from node labels")
+		return ""
+	}
 }

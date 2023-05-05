@@ -418,10 +418,6 @@ func (az *Azure) PricingSourceSummary() interface{} {
 	return az.Pricing
 }
 
-func (az *Azure) GetNodePoolLabel() string {
-	return AKSNodepoolLabel
-}
-
 type azureKey struct {
 	Labels        map[string]string
 	GPULabel      string

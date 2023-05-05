@@ -45,10 +45,6 @@ func (cp *CustomProvider) PricingSourceSummary() interface{} {
 	return cp.Pricing
 }
 
-func (cp *CustomProvider) GetNodePoolLabel() string {
-	return ""
-}
-
 type customProviderKey struct {
 	SpotLabel      string
 	SpotLabelValue string

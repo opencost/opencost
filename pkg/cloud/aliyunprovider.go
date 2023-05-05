@@ -1395,8 +1395,3 @@ func determinePVRegion(pv *v1.PersistentVolume) string {
 func (a *Alibaba) PricingSourceSummary() interface{} {
 	return a.Pricing
 }
-
-func (a *Alibaba) GetNodePoolLabel() string {
-
-	return ""
-}

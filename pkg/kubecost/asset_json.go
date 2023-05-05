@@ -477,7 +477,7 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 	jsonEncodeString(buffer, "end", n.End.Format(time.RFC3339), ",")
 	jsonEncodeFloat64(buffer, "minutes", n.Minutes(), ",")
 	jsonEncodeString(buffer, "nodeType", n.NodeType, ",")
-	if n.Pool != "" {
+	if poolName := GetNodePoolName(n.Properties.Provider, n.Labels); poolName != "" {
 		jsonEncodeString(buffer, "pool", n.Pool, ",")
 	}
 	jsonEncodeFloat64(buffer, "cpuCores", n.CPUCores(), ",")
