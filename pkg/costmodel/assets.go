@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
 )
@@ -139,7 +139,7 @@ func (cm *CostModel) ComputeAssets(start, end time.Time) (*kubecost.AssetSet, er
 			node.Preemptible = 1.0
 		}
 		node.SetLabels(kubecost.AssetLabels(n.Labels))
-		node.Pool = cloud.GetNodePoolName(cm.Provider, n.Labels)
+		node.Pool = models.GetNodePoolName(cm.Provider, n.Labels)
 		assetSet.Insert(node, nil)
 	}
 

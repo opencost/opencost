@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -299,4 +300,20 @@ type ProviderConfig interface {
 	GetCustomPricingData() (*CustomPricing, error)
 	Update(func(*CustomPricing) error) (*CustomPricing, error)
 	UpdateFromMap(map[string]string) (*CustomPricing, error)
+}
+
+func GetNodePoolName(p Provider, labels map[string]string) string {
+	providerLabel := p.GetNodePoolLabel()
+	if providerLabel == "" {
+		log.Warnf("node pool name not supported for this provider")
+		return ""
+	}
+	sanitizedLabel := regexp.MustCompile(`[^a-zA-Z0-9 ]+`).ReplaceAllString(providerLabel, "_")
+	if poolName, found := labels[fmt.Sprintf("label_%s", sanitizedLabel)]; found {
+		return poolName
+	} else {
+		log.Warnf("unable to derive node pool name from node labels")
+		return ""
+	}
+
 }
