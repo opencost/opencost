@@ -1,10 +1,12 @@
-package cloud
+package azure
 
 import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/services/preview/commerce/mgmt/2015-06-01-preview/commerce"
 	"github.com/stretchr/testify/require"
+
+	"github.com/opencost/opencost/pkg/cloud/models"
 )
 
 func TestParseAzureSubscriptionID(t *testing.T) {
@@ -31,7 +33,7 @@ func TestParseAzureSubscriptionID(t *testing.T) {
 	}
 
 	for _, test := range cases {
-		result := parseAzureSubscriptionID(test.input)
+		result := ParseAzureSubscriptionID(test.input)
 		if result != test.expected {
 			t.Errorf("Input: %s, Expected: %s, Actual: %s", test.input, test.expected, result)
 		}
@@ -71,7 +73,7 @@ func TestConvertMeterToPricings(t *testing.T) {
 
 		expected := map[string]*AzurePricing{
 			"useast,premium_ssd": {
-				PV: &PV{Cost: "0.085616", Region: "useast"},
+				PV: &models.PV{Cost: "0.085616", Region: "useast"},
 			},
 		}
 		require.Equal(t, expected, results)
@@ -84,10 +86,10 @@ func TestConvertMeterToPricings(t *testing.T) {
 
 		expected := map[string]*AzurePricing{
 			"japanwest,Standard_E96a_v4,preemptible": {
-				Node: &Node{Cost: "10.000000", BaseCPUPrice: "0.30000", UsageType: "preemptible"},
+				Node: &models.Node{Cost: "10.000000", BaseCPUPrice: "0.30000", UsageType: "preemptible"},
 			},
 			"japanwest,Standard_E96as_v4,preemptible": {
-				Node: &Node{Cost: "10.000000", BaseCPUPrice: "0.30000", UsageType: "preemptible"},
+				Node: &models.Node{Cost: "10.000000", BaseCPUPrice: "0.30000", UsageType: "preemptible"},
 			},
 		}
 		require.Equal(t, expected, results)

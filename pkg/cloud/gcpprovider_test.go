@@ -5,6 +5,8 @@ import (
 	"io/ioutil"
 	"reflect"
 	"testing"
+
+	"github.com/opencost/opencost/pkg/cloud/models"
 )
 
 func TestParseGCPInstanceTypeLabel(t *testing.T) {
@@ -282,7 +284,7 @@ func TestParsePage(t *testing.T) {
 
 	testGcp := &GCP{}
 
-	inputKeys := map[string]Key{
+	inputKeys := map[string]models.Key{
 		"us-central1,a2highgpu,ondemand,gpu": &gcpKey{
 			Labels: map[string]string{
 				"node.kubernetes.io/instance-type": "a2-highgpu-1g",
@@ -293,7 +295,7 @@ func TestParsePage(t *testing.T) {
 		},
 	}
 
-	pvKeys := map[string]PVKey{}
+	pvKeys := map[string]models.PVKey{}
 
 	actualPrices, token, err := testGcp.parsePage(reader, inputKeys, pvKeys)
 	if err != nil {
@@ -342,7 +344,7 @@ func TestParsePage(t *testing.T) {
 				},
 			},
 			ServiceProviderName: "Google",
-			Node: &Node{
+			Node: &models.Node{
 				VCPUCost:         "0.031611",
 				RAMCost:          "0.004237",
 				UsesBaseCPUPrice: false,
@@ -352,7 +354,7 @@ func TestParsePage(t *testing.T) {
 			},
 		},
 		"us-central1,a2highgpu,ondemand": &GCPPricing{
-			Node: &Node{
+			Node: &models.Node{
 				VCPUCost:         "0.031611",
 				RAMCost:          "0.004237",
 				UsesBaseCPUPrice: false,
