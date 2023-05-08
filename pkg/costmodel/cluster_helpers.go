@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/models"
 
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/log"
@@ -30,7 +31,7 @@ func mergeTypeMaps(clusterAndNameToType1, clusterAndNameToType2 map[nodeIdentifi
 
 func buildCPUCostMap(
 	resNodeCPUCost []*prom.QueryResult,
-	cp cloud.Provider,
+	cp models.Provider,
 	preemptible map[NodeIdentifier]bool,
 ) (
 	map[NodeIdentifier]float64,
@@ -104,7 +105,7 @@ func buildCPUCostMap(
 
 func buildRAMCostMap(
 	resNodeRAMCost []*prom.QueryResult,
-	cp cloud.Provider,
+	cp models.Provider,
 	preemptible map[NodeIdentifier]bool,
 ) (
 	map[NodeIdentifier]float64,
@@ -179,7 +180,7 @@ func buildRAMCostMap(
 func buildGPUCostMap(
 	resNodeGPUCost []*prom.QueryResult,
 	gpuCountMap map[NodeIdentifier]float64,
-	cp cloud.Provider,
+	cp models.Provider,
 	preemptible map[NodeIdentifier]bool,
 ) (
 	map[NodeIdentifier]float64,
