@@ -1642,7 +1642,10 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*nodePricing, nodeKey no
 		if nodeKey.Node != "" {
 			log.DedupedWarningf(5, "CostModel: failed to find node for %s", nodeKey)
 		}
-		return cm.getCustomNodePricing(false, "")
+		// since the node pricing data is not found, and this won't change for the duration of the allocation
+		// build process, we can update the node map with the defaults to prevent future failed lookups
+		nodeMap[nodeKey] = cm.getCustomNodePricing(false, "")
+		return nodeMap[nodeKey]
 	}
 
 	// If custom pricing is enabled and can be retrieved, override detected
