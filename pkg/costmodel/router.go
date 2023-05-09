@@ -33,6 +33,9 @@ import (
 	sentry "github.com/getsentry/sentry-go"
 
 	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/azure"
+	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/costmodel/clusters"
 	"github.com/opencost/opencost/pkg/env"
@@ -83,7 +86,7 @@ type Accesses struct {
 	KubeClientSet       kubernetes.Interface
 	ClusterCache        clustercache.ClusterCache
 	ClusterMap          clusters.ClusterMap
-	CloudProvider       cloud.Provider
+	CloudProvider       models.Provider
 	ConfigFileManager   *config.ConfigFileManager
 	ClusterInfoProvider clusters.ClusterInfoProvider
 	Model               *CostModel
@@ -622,7 +625,7 @@ func (a *Accesses) UpdateBigQueryInfoConfigs(w http.ResponseWriter, r *http.Requ
 func (a *Accesses) UpdateAzureStorageConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := a.CloudProvider.UpdateConfig(r.Body, cloud.AzureStorageUpdateType)
+	data, err := a.CloudProvider.UpdateConfig(r.Body, azure.AzureStorageUpdateType)
 	if err != nil {
 		w.Write(WrapData(data, err))
 		return
@@ -1620,7 +1623,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		if err != nil {
 			log.Infof("Error saving cluster id %s", err.Error())
 		}
-		_, _, err = cloud.GetOrCreateClusterMeta(info["id"], info["name"])
+		_, _, err = utils.GetOrCreateClusterMeta(info["id"], info["name"])
 		if err != nil {
 			log.Infof("Unable to set cluster id '%s' for cluster '%s', %s", info["id"], info["name"], err.Error())
 		}

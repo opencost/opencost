@@ -115,7 +115,8 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 
 	// If the duration is short enough, compute the AllocationSet directly
 	if end.Sub(start) <= cm.MaxPrometheusQueryDuration {
-		return cm.computeAllocation(start, end, resolution)
+		as, _, err := cm.computeAllocation(start, end, resolution)
+		return as, err
 	}
 
 	// If the duration exceeds the configured MaxPrometheusQueryDuration, then
@@ -142,7 +143,7 @@ func (cm *CostModel) ComputeAllocation(start, end time.Time, resolution time.Dur
 		e = s.Add(duration)
 
 		// Compute the individual AllocationSet for just (s, e)
-		as, err := cm.computeAllocation(s, e, resolution)
+		as, _, err := cm.computeAllocation(s, e, resolution)
 		if err != nil {
 			return kubecost.NewAllocationSet(start, end), fmt.Errorf("error computing allocation for %s: %s", kubecost.NewClosedWindow(s, e), err)
 		}
@@ -307,7 +308,7 @@ func (cm *CostModel) DateRange() (time.Time, time.Time, error) {
 	return oldest, newest, nil
 }
 
-func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Duration) (*kubecost.AllocationSet, error) {
+func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Duration) (*kubecost.AllocationSet, map[nodeKey]*nodePricing, error) {
 	// 1. Build out Pod map from resolution-tuned, batched Pod start/end query
 	// 2. Run and apply the results of the remaining queries to
 	// 3. Build out AllocationSet from completed Pod map
@@ -364,7 +365,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	// Query for the duration between start and end
 	durStr := timeutil.DurationString(end.Sub(start))
 	if durStr == "" {
-		return allocSet, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
+		return allocSet, nil, fmt.Errorf("illegal duration value for %s", kubecost.NewClosedWindow(start, end))
 	}
 
 	// Convert resolution duration to a query-ready string
@@ -536,6 +537,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	resNodeCostPerRAMGiBHr, _ := resChNodeCostPerRAMGiBHr.Await()
 	resNodeCostPerGPUHr, _ := resChNodeCostPerGPUHr.Await()
 	resNodeIsSpot, _ := resChNodeIsSpot.Await()
+	nodeExtendedData, _ := queryExtendedNodeData(ctx, start, end, durStr, resStr)
 
 	resPVActiveMins, _ := resChPVActiveMins.Await()
 	resPVBytes, _ := resChPVBytes.Await()
@@ -580,7 +582,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 			log.Errorf("CostModel.ComputeAllocation: query context error %s", err)
 		}
 
-		return allocSet, ctx.ErrorCollection()
+		return allocSet, nil, ctx.ErrorCollection()
 	}
 
 	// We choose to apply allocation before requests in the cases of RAM and
@@ -681,6 +683,7 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 	applyNodeCostPerGPUHr(nodeMap, resNodeCostPerGPUHr)
 	applyNodeSpot(nodeMap, resNodeIsSpot)
 	applyNodeDiscount(nodeMap, cm)
+	applyExtendedNodeData(nodeMap, nodeExtendedData)
 	cm.applyNodesToPod(podMap, nodeMap)
 
 	// (3) Build out AllocationSet from Pod map
@@ -699,5 +702,5 @@ func (cm *CostModel) computeAllocation(start, end time.Time, resolution time.Dur
 		}
 	}
 
-	return allocSet, nil
+	return allocSet, nodeMap, nil
 }
