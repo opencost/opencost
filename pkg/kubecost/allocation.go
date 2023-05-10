@@ -1917,26 +1917,26 @@ func deriveProportionalAssetResourceCostsFromIdleCoefficients(idleCoeffs map[str
 		GPUPercentage:              gpuPct,
 		RAMPercentage:              ramPct,
 		NodeResourceCostPercentage: nodeResourceCostPercentage,
+		CPUComponents: []ParcsComponent{
+			{
+				TotalCost:       totals[idleId]["cpu"],
+				UsageProportion: idleCoeffs[idleId][allocation.Name]["cpu"],
+			},
+		},
+		GPUComponents: []ParcsComponent{
+			{
+				TotalCost:       totals[idleId]["gpu"],
+				UsageProportion: idleCoeffs[idleId][allocation.Name]["gpu"],
+			},
+		},
+		RAMComponents: []ParcsComponent{
+			{
+				TotalCost:       totals[idleId]["ram"],
+				UsageProportion: idleCoeffs[idleId][allocation.Name]["ram"],
+			},
+		},
 	}
 
-	parc.CPUComponents = []ParcsComponent{
-		{
-			TotalCost:       totals[idleId]["cpu"],
-			UsageProportion: idleCoeffs[idleId][allocation.Name]["cpu"],
-		},
-	}
-	parc.GPUComponents = []ParcsComponent{
-		{
-			TotalCost:       totals[idleId]["gpu"],
-			UsageProportion: idleCoeffs[idleId][allocation.Name]["gpu"],
-		},
-	}
-	parc.RAMComponents = []ParcsComponent{
-		{
-			TotalCost:       totals[idleId]["ram"],
-			UsageProportion: idleCoeffs[idleId][allocation.Name]["ram"],
-		},
-	}
 	return parc, nil
 }
 

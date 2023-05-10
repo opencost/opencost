@@ -2282,7 +2282,8 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	if accumulateBy != kubecost.AccumulateOptionNone {
 		asr, err = asr.Accumulate(accumulateBy)
 		if err != nil {
-			WriteError(w, InternalServerError(err.Error()))
+			log.Errorf("error accumulating by %v: %s", accumulateBy, err)
+			WriteError(w, InternalServerError(fmt.Errorf("error accumulating by %v: %s", accumulateBy, err).Error()))
 			return
 		}
 	}
