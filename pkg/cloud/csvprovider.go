@@ -303,7 +303,7 @@ func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
 		if mf[1] == "name" {
 			return toReturn + n.Name
 		} else if mf[1] == "labels" {
-			lkey := strings.Join(mf[2:len(mf)], "")
+			lkey := strings.Join(mf[2:len(mf)], ".")
 			return toReturn + n.Labels[lkey]
 		} else if mf[1] == "annotations" {
 			akey := strings.Join(mf[2:len(mf)], "")

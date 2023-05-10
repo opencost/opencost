@@ -20,9 +20,10 @@ import (
 )
 
 const (
-	providerIDMap = "spec.providerID"
-	nameMap       = "metadata.name"
-	labelMapFoo   = "metadata.labels.foo"
+	providerIDMap  = "spec.providerID"
+	nameMap        = "metadata.name"
+	labelMapFoo    = "metadata.labels.foo"
+	labelMapFooBar = "metadata.labels.foo.bar"
 )
 
 func TestRegionValueFromMapField(t *testing.T) {
@@ -192,6 +193,39 @@ func TestNodePriceFromCSVWithGPU(t *testing.T) {
 
 	}
 
+}
+
+func TestNodePriceFromCSVSpecialChar(t *testing.T) {
+	nameWant := "gke-standard-cluster-1-pool-1-91dc432d-cg69"
+
+	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		LocalConfigPath: "./",
+	})
+
+	n := &v1.Node{}
+	n.Name = nameWant
+	n.Labels = make(map[string]string)
+	n.Labels["foo.bar"] = nameWant
+
+	wantPrice := "0.133700"
+
+	c := &cloud.CSVProvider{
+		CSVLocation: "../configs/pricing_schema_special_char.csv",
+		CustomProvider: &cloud.CustomProvider{
+			Config: cloud.NewProviderConfig(confMan, "../configs/default.json"),
+		},
+	}
+	c.DownloadPricingData()
+	k := c.GetKey(n.Labels, n)
+	resN, err := c.NodePricing(k)
+	if err != nil {
+		t.Errorf("Error in NodePricing: %s", err.Error())
+	} else {
+		gotPrice := resN.Cost
+		if gotPrice != wantPrice {
+			t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+		}
+	}
 }
 
 func TestNodePriceFromCSV(t *testing.T) {
