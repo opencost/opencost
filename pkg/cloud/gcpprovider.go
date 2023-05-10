@@ -46,7 +46,6 @@ const (
 
 	GKEPreemptibleLabel = "cloud.google.com/gke-preemptible"
 	GKESpotLabel        = "cloud.google.com/gke-spot"
-	
 )
 
 // List obtained by installing the `gcloud` CLI tool,
@@ -1209,12 +1208,12 @@ func newReservedCounter(instance *GCPReservedInstance) *GCPReservedCounter {
 
 // Two available Reservation plans for GCP, 1-year and 3-year
 var gcpReservedInstancePlans map[string]*GCPReservedInstancePlan = map[string]*GCPReservedInstancePlan{
-	GCPReservedInstancePlanOneYear: &GCPReservedInstancePlan{
+	GCPReservedInstancePlanOneYear: {
 		Name:    GCPReservedInstancePlanOneYear,
 		CPUCost: 0.019915,
 		RAMCost: 0.002669,
 	},
-	GCPReservedInstancePlanThreeYear: &GCPReservedInstancePlan{
+	GCPReservedInstancePlanThreeYear: {
 		Name:    GCPReservedInstancePlanThreeYear,
 		CPUCost: 0.014225,
 		RAMCost: 0.001907,

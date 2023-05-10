@@ -18,28 +18,28 @@ func TestGetIntervalPointsFromWindows(t *testing.T) {
 			name: "four pods w/ various overlaps",
 			pvcIntervalMap: map[podKey]kubecost.Window{
 				// Pod running from 8 am to 9 am
-				podKey{
+				{
 					Pod: "Pod1",
 				}: kubecost.Window(kubecost.NewClosedWindow(
 					time.Date(2021, 2, 19, 8, 0, 0, 0, time.UTC),
 					time.Date(2021, 2, 19, 9, 0, 0, 0, time.UTC),
 				)),
 				// Pod running from 8:30 am to 9 am
-				podKey{
+				{
 					Pod: "Pod2",
 				}: kubecost.Window(kubecost.NewClosedWindow(
 					time.Date(2021, 2, 19, 8, 30, 0, 0, time.UTC),
 					time.Date(2021, 2, 19, 9, 0, 0, 0, time.UTC),
 				)),
 				// Pod running from 8:45 am to 9 am
-				podKey{
+				{
 					Pod: "Pod3",
 				}: kubecost.Window(kubecost.NewClosedWindow(
 					time.Date(2021, 2, 19, 8, 45, 0, 0, time.UTC),
 					time.Date(2021, 2, 19, 9, 0, 0, 0, time.UTC),
 				)),
 				// Pod running from 8 am to 8:15 am
-				podKey{
+				{
 					Pod: "Pod4",
 				}: kubecost.Window(kubecost.NewClosedWindow(
 					time.Date(2021, 2, 19, 8, 0, 0, 0, time.UTC),
@@ -61,14 +61,14 @@ func TestGetIntervalPointsFromWindows(t *testing.T) {
 			name: "two pods no overlap",
 			pvcIntervalMap: map[podKey]kubecost.Window{
 				// Pod running from 8 am to 8:30 am
-				podKey{
+				{
 					Pod: "Pod1",
 				}: kubecost.Window(kubecost.NewClosedWindow(
 					time.Date(2021, 2, 19, 8, 0, 0, 0, time.UTC),
 					time.Date(2021, 2, 19, 8, 30, 0, 0, time.UTC),
 				)),
 				// Pod running from 8:30 am to 9 am
-				podKey{
+				{
 					Pod: "Pod2",
 				}: kubecost.Window(kubecost.NewClosedWindow(
 					time.Date(2021, 2, 19, 8, 30, 0, 0, time.UTC),
@@ -86,14 +86,14 @@ func TestGetIntervalPointsFromWindows(t *testing.T) {
 			name: "two pods total overlap",
 			pvcIntervalMap: map[podKey]kubecost.Window{
 				// Pod running from 8:30 am to 9 am
-				podKey{
+				{
 					Pod: "Pod1",
 				}: kubecost.Window(kubecost.NewClosedWindow(
 					time.Date(2021, 2, 19, 8, 30, 0, 0, time.UTC),
 					time.Date(2021, 2, 19, 9, 0, 0, 0, time.UTC),
 				)),
 				// Pod running from 8:30 am to 9 am
-				podKey{
+				{
 					Pod: "Pod2",
 				}: kubecost.Window(kubecost.NewClosedWindow(
 					time.Date(2021, 2, 19, 8, 30, 0, 0, time.UTC),
@@ -111,7 +111,7 @@ func TestGetIntervalPointsFromWindows(t *testing.T) {
 			name: "one pod",
 			pvcIntervalMap: map[podKey]kubecost.Window{
 				// Pod running from 8 am to 9 am
-				podKey{
+				{
 					Pod: "Pod1",
 				}: kubecost.Window(kubecost.NewClosedWindow(
 					time.Date(2021, 2, 19, 8, 0, 0, 0, time.UTC),
@@ -185,21 +185,21 @@ func TestGetPVCCostCoefficients(t *testing.T) {
 				NewIntervalPoint(time.Date(2021, 2, 19, 9, 0, 0, 0, time.UTC), "end", pod1Key),
 			},
 			expected: map[podKey][]CoefficientComponent{
-				pod1Key: []CoefficientComponent{
-					CoefficientComponent{0.5, 0.25},
-					CoefficientComponent{1, 0.25},
-					CoefficientComponent{0.5, 0.25},
-					CoefficientComponent{1.0 / 3.0, 0.25},
+				pod1Key: {
+					{0.5, 0.25},
+					{1, 0.25},
+					{0.5, 0.25},
+					{1.0 / 3.0, 0.25},
 				},
-				pod2Key: []CoefficientComponent{
-					CoefficientComponent{0.5, 0.25},
-					CoefficientComponent{1.0 / 3.0, 0.25},
+				pod2Key: {
+					{0.5, 0.25},
+					{1.0 / 3.0, 0.25},
 				},
-				pod3Key: []CoefficientComponent{
-					CoefficientComponent{1.0 / 3.0, 0.25},
+				pod3Key: {
+					{1.0 / 3.0, 0.25},
 				},
-				pod4Key: []CoefficientComponent{
-					CoefficientComponent{0.5, 0.25},
+				pod4Key: {
+					{0.5, 0.25},
 				},
 			},
 		},
@@ -213,11 +213,11 @@ func TestGetPVCCostCoefficients(t *testing.T) {
 				NewIntervalPoint(time.Date(2021, 2, 19, 9, 0, 0, 0, time.UTC), "end", pod2Key),
 			},
 			expected: map[podKey][]CoefficientComponent{
-				pod1Key: []CoefficientComponent{
-					CoefficientComponent{1.0, 0.5},
+				pod1Key: {
+					{1.0, 0.5},
 				},
-				pod2Key: []CoefficientComponent{
-					CoefficientComponent{1.0, 0.5},
+				pod2Key: {
+					{1.0, 0.5},
 				},
 			},
 		},
@@ -231,14 +231,14 @@ func TestGetPVCCostCoefficients(t *testing.T) {
 				NewIntervalPoint(time.Date(2021, 2, 19, 9, 0, 0, 0, time.UTC), "end", pod2Key),
 			},
 			expected: map[podKey][]CoefficientComponent{
-				pod1Key: []CoefficientComponent{
-					CoefficientComponent{0.5, 0.5},
+				pod1Key: {
+					{0.5, 0.5},
 				},
-				pod2Key: []CoefficientComponent{
-					CoefficientComponent{0.5, 0.5},
+				pod2Key: {
+					{0.5, 0.5},
 				},
-				ummountedPodKey: []CoefficientComponent{
-					CoefficientComponent{1.0, 0.5},
+				ummountedPodKey: {
+					{1.0, 0.5},
 				},
 			},
 		},
@@ -250,8 +250,8 @@ func TestGetPVCCostCoefficients(t *testing.T) {
 				NewIntervalPoint(time.Date(2021, 2, 19, 9, 0, 0, 0, time.UTC), "end", pod1Key),
 			},
 			expected: map[podKey][]CoefficientComponent{
-				pod1Key: []CoefficientComponent{
-					CoefficientComponent{1.0, 1.0},
+				pod1Key: {
+					{1.0, 1.0},
 				},
 			},
 		},
@@ -265,14 +265,14 @@ func TestGetPVCCostCoefficients(t *testing.T) {
 				NewIntervalPoint(time.Date(2021, 2, 19, 9, 0, 0, 0, time.UTC), "end", pod2Key),
 			},
 			expected: map[podKey][]CoefficientComponent{
-				pod1Key: []CoefficientComponent{
-					CoefficientComponent{1.0, 0.25},
+				pod1Key: {
+					{1.0, 0.25},
 				},
-				pod2Key: []CoefficientComponent{
-					CoefficientComponent{1.0, 0.25},
+				pod2Key: {
+					{1.0, 0.25},
 				},
-				ummountedPodKey: []CoefficientComponent{
-					CoefficientComponent{1.0, 0.5},
+				ummountedPodKey: {
+					{1.0, 0.5},
 				},
 			},
 		},
@@ -284,12 +284,12 @@ func TestGetPVCCostCoefficients(t *testing.T) {
 				NewIntervalPoint(time.Date(2021, 2, 19, 8, 45, 0, 0, time.UTC), "end", pod1Key),
 			},
 			expected: map[podKey][]CoefficientComponent{
-				pod1Key: []CoefficientComponent{
-					CoefficientComponent{1.0, 0.5},
+				pod1Key: {
+					{1.0, 0.5},
 				},
-				ummountedPodKey: []CoefficientComponent{
-					CoefficientComponent{1.0, 0.25},
-					CoefficientComponent{1.0, 0.25},
+				ummountedPodKey: {
+					{1.0, 0.25},
+					{1.0, 0.25},
 				},
 			},
 		},

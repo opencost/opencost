@@ -564,7 +564,7 @@ func (n *Node) InterfaceToNode(itf interface{}) error {
 	if NodeType, err := getTypedVal(fmap["nodeType"]); err == nil {
 		n.NodeType = NodeType.(string)
 	}
-	
+
 	if CPUCoreHours, err := getTypedVal(fmap["cpuCoreHours"]); err == nil {
 		n.CPUCoreHours = CPUCoreHours.(float64)
 	}
