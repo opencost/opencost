@@ -15,11 +15,10 @@ import (
 // into a kubecost.AllocationFilter.
 //
 // Example queries:
-//
-//	namespace:"kubecost"
-//	label[app]:"cost-analyzer"
-//	node!:"node1","node2"
-//	cluster:"cluster-one"+namespace!:"kube-system"
+//   namespace:"kubecost"
+//   label[app]:"cost-analyzer"
+//   node!:"node1","node2"
+//   cluster:"cluster-one"+namespace!:"kube-system"
 //
 // The grammar is approximately as follows:
 //
@@ -29,20 +28,18 @@ import (
 // [1] https://docs.google.com/document/d/1HKkp2bv3mnvfQoBZlpHjfZwQ0FzDLOHKpnwV9gQ_KgU/edit?pli=1
 //
 // <filter> ::= <comparison> ('+' <comparison>)*
-//
-//	NOTE: Language can be extended to support ORs between
-//	comparisons by adding a '|' operator in between comparisons,
-//	though precedence will have to be carefully defined and it may
-//	require adding support for ()-enclosed statements to deal with
-//	precedence.
-//	This would allow for queries like:
-//	  namespace:"x"|label[app]="foo"
+//              NOTE: Language can be extended to support ORs between
+//              comparisons by adding a '|' operator in between comparisons,
+//              though precedence will have to be carefully defined and it may
+//              require adding support for ()-enclosed statements to deal with
+//              precedence.
+//              This would allow for queries like:
+//                namespace:"x"|label[app]="foo"
 //
 // <comparison> ::= <filter-key> <filter-op> <filter-value>
 //
 // <filter-key> ::= <filter-field-2> <keyed-access>
-//
-//	| <filter-field-1>
+//                | <filter-field-1>
 //
 // <filter-op> ::= ':' | '!:'
 //
@@ -51,9 +48,8 @@ import (
 // <filter-field-2> ::= 'label' | 'annotation'
 //
 // <filter-field-1> ::= 'cluster' | 'node' | 'namespace'
-//
-//	| 'controllerName' | 'controllerKind'
-//	| 'container' | 'pod' | 'services'
+//                    | 'controllerName' | 'controllerKind'
+//                    | 'container' | 'pod' | 'services'
 //
 // <keyed-access> ::= '[' <identifier> ']'
 //
