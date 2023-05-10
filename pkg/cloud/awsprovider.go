@@ -60,7 +60,6 @@ const (
 	AWSHourlyPublicIPCost    = 0.005
 	EKSCapacityTypeLabel     = "eks.amazonaws.com/capacityType"
 	EKSCapacitySpotTypeValue = "SPOT"
-	
 )
 
 var (
@@ -619,7 +618,7 @@ func (k *awsKey) ID() string {
 	return ""
 }
 
-// Features will return a comma seperated list of features for the given node
+// Features will return a comma separated list of features for the given node
 // If the node has a spot label, it will be included in the list
 // Otherwise, the list include instance type, operating system, and the region
 func (k *awsKey) Features() string {

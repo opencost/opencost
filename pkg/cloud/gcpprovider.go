@@ -46,7 +46,6 @@ const (
 
 	GKEPreemptibleLabel = "cloud.google.com/gke-preemptible"
 	GKESpotLabel        = "cloud.google.com/gke-spot"
-	
 )
 
 // List obtained by installing the `gcloud` CLI tool,
@@ -799,7 +798,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 				}
 
 				for _, candidateKey := range candidateKeys {
-					instanceType = strings.Split(candidateKey, ",")[1] // we may have overriden this while generating candidate keys
+					instanceType = strings.Split(candidateKey, ",")[1] // we may have overridden this while generating candidate keys
 					region := strings.Split(candidateKey, ",")[0]
 					candidateKeyGPU := candidateKey + ",gpu"
 					gcp.ValidPricingKeys[candidateKey] = true
@@ -1209,12 +1208,12 @@ func newReservedCounter(instance *GCPReservedInstance) *GCPReservedCounter {
 
 // Two available Reservation plans for GCP, 1-year and 3-year
 var gcpReservedInstancePlans map[string]*GCPReservedInstancePlan = map[string]*GCPReservedInstancePlan{
-	GCPReservedInstancePlanOneYear: &GCPReservedInstancePlan{
+	GCPReservedInstancePlanOneYear: {
 		Name:    GCPReservedInstancePlanOneYear,
 		CPUCost: 0.019915,
 		RAMCost: 0.002669,
 	},
-	GCPReservedInstancePlanThreeYear: &GCPReservedInstancePlan{
+	GCPReservedInstancePlanThreeYear: {
 		Name:    GCPReservedInstancePlanThreeYear,
 		CPUCost: 0.014225,
 		RAMCost: 0.001907,

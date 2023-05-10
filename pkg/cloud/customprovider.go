@@ -153,7 +153,7 @@ func (cp *CustomProvider) NodePricing(key models.Key) (*models.Node, error) {
 	k := key.Features()
 	var gpuCount string
 	if _, ok := cp.Pricing[k]; !ok {
-		// Default is saying that there is no pricing info for the cluster and we should fall back to the defualt values.
+		// Default is saying that there is no pricing info for the cluster and we should fall back to the default values.
 		// An interesting case is if the default values weren't loaded.
 		k = "default"
 	}

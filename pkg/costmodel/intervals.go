@@ -45,7 +45,7 @@ func NewIntervalPoint(time time.Time, pointType string, key podKey) IntervalPoin
 	}
 }
 
-// CoefficientComponent is a representitive struct holding two fields which describe an interval
+// CoefficientComponent is a representative struct holding two fields which describe an interval
 // as part of a single number cost coefficient calculation:
 // 1. Proportion: The division of cost based on how many pods were running between those points
 // 2. Time: The ratio of the time between those points to the total time that pod was running

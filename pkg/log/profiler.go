@@ -45,7 +45,7 @@ func (p *Profiler) LogAll() {
 		return
 	}
 
-	// Print profiles, largest to smallest. (Inefficienct, but shouldn't matter.)
+	// Print profiles, largest to smallest. (Inefficient, but shouldn't matter.)
 	print := map[string]time.Duration{}
 	for name, value := range p.profiles {
 		print[name] = value

@@ -594,10 +594,10 @@ func TestDetermineKeyForPricing(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			returnString, returnErr := determineKeyForPricing(c.testVar)
 			if c.expectedError == nil && returnErr != nil {
-				t.Fatalf("Case name %s: expected error was nil but recieved error %v", c.name, returnErr)
+				t.Fatalf("Case name %s: expected error was nil but received error %v", c.name, returnErr)
 			}
 			if returnString != c.expectedKey {
-				t.Fatalf("Case name %s: determineKeyForPricing recieved %s but expected %s", c.name, returnString, c.expectedKey)
+				t.Fatalf("Case name %s: determineKeyForPricing received %s but expected %s", c.name, returnString, c.expectedKey)
 			}
 		})
 	}
@@ -635,22 +635,22 @@ func TestGenerateSlimK8sNodeFromV1Node(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			returnSlimK8sNode := generateSlimK8sNodeFromV1Node(c.testNode)
 			if returnSlimK8sNode.InstanceType != c.expectedSlimNode.InstanceType {
-				t.Fatalf("unexpected conversion in function generateSlimK8sNodeFromV1Node expected InstanceType: %s , recieved InstanceType: %s", c.expectedSlimNode.InstanceType, returnSlimK8sNode.InstanceType)
+				t.Fatalf("unexpected conversion in function generateSlimK8sNodeFromV1Node expected InstanceType: %s , received InstanceType: %s", c.expectedSlimNode.InstanceType, returnSlimK8sNode.InstanceType)
 			}
 			if returnSlimK8sNode.RegionID != c.expectedSlimNode.RegionID {
-				t.Fatalf("unexpected conversion in function generateSlimK8sNodeFromV1Node expected RegionID: %s , recieved RegionID: %s", c.expectedSlimNode.RegionID, returnSlimK8sNode.RegionID)
+				t.Fatalf("unexpected conversion in function generateSlimK8sNodeFromV1Node expected RegionID: %s , received RegionID: %s", c.expectedSlimNode.RegionID, returnSlimK8sNode.RegionID)
 			}
 			if returnSlimK8sNode.PriceUnit != c.expectedSlimNode.PriceUnit {
-				t.Fatalf("unexpected conversion in function generateSlimK8sNodeFromV1Node expected PriceUnit: %s , recieved PriceUnit: %s", c.expectedSlimNode.PriceUnit, returnSlimK8sNode.PriceUnit)
+				t.Fatalf("unexpected conversion in function generateSlimK8sNodeFromV1Node expected PriceUnit: %s , received PriceUnit: %s", c.expectedSlimNode.PriceUnit, returnSlimK8sNode.PriceUnit)
 			}
 			if returnSlimK8sNode.MemorySizeInKiB != c.expectedSlimNode.MemorySizeInKiB {
-				t.Fatalf("unexpected conversion in function generateSlimK8sNodeFromV1Node expected MemorySizeInKiB: %s , recieved MemorySizeInKiB: %s", c.expectedSlimNode.MemorySizeInKiB, returnSlimK8sNode.MemorySizeInKiB)
+				t.Fatalf("unexpected conversion in function generateSlimK8sNodeFromV1Node expected MemorySizeInKiB: %s , received MemorySizeInKiB: %s", c.expectedSlimNode.MemorySizeInKiB, returnSlimK8sNode.MemorySizeInKiB)
 			}
 			if returnSlimK8sNode.OSType != c.expectedSlimNode.OSType {
-				t.Fatalf("unexpected conversion in function generateSlimK8sNodeFromV1Node expected OSType: %s , recieved OSType: %s", c.expectedSlimNode.OSType, returnSlimK8sNode.OSType)
+				t.Fatalf("unexpected conversion in function generateSlimK8sNodeFromV1Node expected OSType: %s , received OSType: %s", c.expectedSlimNode.OSType, returnSlimK8sNode.OSType)
 			}
 			if returnSlimK8sNode.InstanceTypeFamily != c.expectedSlimNode.InstanceTypeFamily {
-				t.Fatalf("unexpected conversion in function generateSlimK8sNodeFromV1Node expected InstanceTypeFamily: %s , recieved InstanceTypeFamily: %s", c.expectedSlimNode.InstanceTypeFamily, returnSlimK8sNode.InstanceTypeFamily)
+				t.Fatalf("unexpected conversion in function generateSlimK8sNodeFromV1Node expected InstanceTypeFamily: %s , received InstanceTypeFamily: %s", c.expectedSlimNode.InstanceTypeFamily, returnSlimK8sNode.InstanceTypeFamily)
 			}
 		})
 	}
@@ -695,28 +695,28 @@ func TestGenerateSlimK8sDiskFromV1PV(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			returnSlimK8sDisk := generateSlimK8sDiskFromV1PV(c.testPV, c.inpRegionID)
 			if returnSlimK8sDisk.DiskType != c.expectedSlimDisk.DiskType {
-				t.Fatalf("unexpected conversion in function generateSlimK8sDiskFromV1PV expected DiskType: %s , recieved DiskType: %s", c.expectedSlimDisk.DiskType, returnSlimK8sDisk.DiskType)
+				t.Fatalf("unexpected conversion in function generateSlimK8sDiskFromV1PV expected DiskType: %s , received DiskType: %s", c.expectedSlimDisk.DiskType, returnSlimK8sDisk.DiskType)
 			}
 			if returnSlimK8sDisk.RegionID != c.expectedSlimDisk.RegionID {
-				t.Fatalf("unexpected conversion in function generateSlimK8sDiskFromV1PV expected RegionID: %s , recieved RegionID Type: %s", c.expectedSlimDisk.RegionID, returnSlimK8sDisk.RegionID)
+				t.Fatalf("unexpected conversion in function generateSlimK8sDiskFromV1PV expected RegionID: %s , received RegionID Type: %s", c.expectedSlimDisk.RegionID, returnSlimK8sDisk.RegionID)
 			}
 			if returnSlimK8sDisk.PriceUnit != c.expectedSlimDisk.PriceUnit {
-				t.Fatalf("unexpected conversion in function generateSlimK8sDiskFromV1PV expected PriceUnit: %s , recieved PriceUnit Type: %s", c.expectedSlimDisk.PriceUnit, returnSlimK8sDisk.PriceUnit)
+				t.Fatalf("unexpected conversion in function generateSlimK8sDiskFromV1PV expected PriceUnit: %s , received PriceUnit Type: %s", c.expectedSlimDisk.PriceUnit, returnSlimK8sDisk.PriceUnit)
 			}
 			if returnSlimK8sDisk.SizeInGiB != c.expectedSlimDisk.SizeInGiB {
-				t.Fatalf("unexpected conversion in function generateSlimK8sDiskFromV1PV expected SizeInGiB: %s , recieved SizeInGiB Type: %s", c.expectedSlimDisk.SizeInGiB, returnSlimK8sDisk.SizeInGiB)
+				t.Fatalf("unexpected conversion in function generateSlimK8sDiskFromV1PV expected SizeInGiB: %s , received SizeInGiB Type: %s", c.expectedSlimDisk.SizeInGiB, returnSlimK8sDisk.SizeInGiB)
 			}
 			if returnSlimK8sDisk.DiskCategory != c.expectedSlimDisk.DiskCategory {
-				t.Fatalf("unexpected conversion in function generateSlimK8sDiskFromV1PV expected DiskCategory: %s , recieved DiskCategory Type: %s", c.expectedSlimDisk.DiskCategory, returnSlimK8sDisk.DiskCategory)
+				t.Fatalf("unexpected conversion in function generateSlimK8sDiskFromV1PV expected DiskCategory: %s , received DiskCategory Type: %s", c.expectedSlimDisk.DiskCategory, returnSlimK8sDisk.DiskCategory)
 			}
 			if returnSlimK8sDisk.PerformanceLevel != c.expectedSlimDisk.PerformanceLevel {
-				t.Fatalf("unexpected conversion in function generateSlimK8sDiskFromV1PV expected PerformanceLevel: %s , recieved PerformanceLevel Type: %s", c.expectedSlimDisk.PerformanceLevel, returnSlimK8sDisk.PerformanceLevel)
+				t.Fatalf("unexpected conversion in function generateSlimK8sDiskFromV1PV expected PerformanceLevel: %s , received PerformanceLevel Type: %s", c.expectedSlimDisk.PerformanceLevel, returnSlimK8sDisk.PerformanceLevel)
 			}
 			if returnSlimK8sDisk.ProviderID != c.expectedSlimDisk.ProviderID {
-				t.Fatalf("unexpected conversion in function generateSlimK8sDiskFromV1PV expected ProviderID: %s , recieved ProviderID Type: %s", c.expectedSlimDisk.ProviderID, returnSlimK8sDisk.ProviderID)
+				t.Fatalf("unexpected conversion in function generateSlimK8sDiskFromV1PV expected ProviderID: %s , received ProviderID Type: %s", c.expectedSlimDisk.ProviderID, returnSlimK8sDisk.ProviderID)
 			}
 			if returnSlimK8sDisk.StorageClass != c.expectedSlimDisk.StorageClass {
-				t.Fatalf("unexpected conversion in function generateSlimK8sDiskFromV1PV expected StorageClass: %s , recieved StorageClass Type: %s", c.expectedSlimDisk.StorageClass, returnSlimK8sDisk.StorageClass)
+				t.Fatalf("unexpected conversion in function generateSlimK8sDiskFromV1PV expected StorageClass: %s , received StorageClass Type: %s", c.expectedSlimDisk.StorageClass, returnSlimK8sDisk.StorageClass)
 			}
 		})
 	}
@@ -753,7 +753,7 @@ func TestGetNumericalValueFromResourceQuantity(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			returnValue := getNumericalValueFromResourceQuantity(c.inputResourceQuanity)
 			if c.expectedValue != returnValue {
-				t.Fatalf("Case name %s: getNumericalValueFromResourceQuantity recieved %s but expected %s", c.name, returnValue, c.expectedValue)
+				t.Fatalf("Case name %s: getNumericalValueFromResourceQuantity received %s but expected %s", c.name, returnValue, c.expectedValue)
 			}
 		})
 	}
@@ -831,7 +831,7 @@ func TestDeterminePVRegion(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			returnRegion := determinePVRegion(c.inputPV)
 			if c.expectedRegion != returnRegion {
-				t.Fatalf("Case name %s: determinePVRegion recieved region :%s but expected region: %s", c.name, returnRegion, c.expectedRegion)
+				t.Fatalf("Case name %s: determinePVRegion received region :%s but expected region: %s", c.name, returnRegion, c.expectedRegion)
 			}
 		})
 	}
