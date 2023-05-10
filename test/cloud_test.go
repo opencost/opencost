@@ -205,7 +205,7 @@ func TestNodePriceFromCSVSpecialChar(t *testing.T) {
 	n := &v1.Node{}
 	n.Name = nameWant
 	n.Labels = make(map[string]string)
-	n.Labels["foo.bar"] = nameWant
+	n.Labels["<http://metadata.label.servers.com/label|metadata.label.servers.com/label>"] = nameWant
 
 	wantPrice := "0.133700"
 
