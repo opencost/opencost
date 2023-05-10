@@ -43,6 +43,7 @@ func Execute(opts *CostModelOpts) error {
 	a.Router.GET("/healthz", Healthz)
 	a.Router.GET("/allocation", a.ComputeAllocationHandler)
 	a.Router.GET("/allocation/summary", a.ComputeAllocationHandlerSummary)
+	a.Router.GET("/assets", a.ComputeAssetsHandler)
 	rootMux.Handle("/", a.Router)
 	rootMux.Handle("/metrics", promhttp.Handler())
 	telemetryHandler := metrics.ResponseMetricMiddleware(rootMux)

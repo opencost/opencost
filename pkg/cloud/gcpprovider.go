@@ -46,6 +46,7 @@ const (
 
 	GKEPreemptibleLabel = "cloud.google.com/gke-preemptible"
 	GKESpotLabel        = "cloud.google.com/gke-spot"
+	
 )
 
 // List obtained by installing the `gcloud` CLI tool,

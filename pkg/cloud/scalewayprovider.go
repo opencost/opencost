@@ -49,7 +49,6 @@ type Scaleway struct {
 func (c *Scaleway) PricingSourceSummary() interface{} {
 	return c.Pricing
 }
-
 func (c *Scaleway) DownloadPricingData() error {
 	c.DownloadPricingDataLock.Lock()
 	defer c.DownloadPricingDataLock.Unlock()
