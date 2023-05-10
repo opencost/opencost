@@ -460,7 +460,7 @@ func (alibaba *Alibaba) DownloadPricingData() error {
 		alibaba.Pricing[lookupKey] = pricingObj
 	}
 
-	// set the first occurence of region from the node
+	// set the first occurrence of region from the node
 	if alibaba.clusterRegion == "" {
 		for _, node := range nodeList {
 			if regionID, ok := node.Labels["topology.kubernetes.io/region"]; ok {
