@@ -93,7 +93,7 @@ type PrimitiveMapReader interface {
 	// is empty or fails to parse, the defaultValue parameter is returned.
 	GetBool(key string, defaultValue bool) bool
 
-	// GetDuration parses a time.Duration from the map key paramter. If the
+	// GetDuration parses a time.Duration from the map key parameter. If the
 	// value is empty to fails to parse, the defaultValue is returned.
 	GetDuration(key string, defaultValue time.Duration) time.Duration
 
@@ -161,7 +161,7 @@ type PrimitiveMap interface {
 //  Go Map Implementation
 //--------------------------------------------------------------------------
 
-// GoMap is an implementatino of mapper.Map for map[string]string
+// GoMap is an implementation of mapper.Map for map[string]string
 type GoMap struct {
 	m map[string]string
 }

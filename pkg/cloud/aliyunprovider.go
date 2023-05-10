@@ -460,7 +460,7 @@ func (alibaba *Alibaba) DownloadPricingData() error {
 		alibaba.Pricing[lookupKey] = pricingObj
 	}
 
-	// set the first occurance of region from the node
+	// set the first occurence of region from the node
 	if alibaba.clusterRegion == "" {
 		for _, node := range nodeList {
 			if regionID, ok := node.Labels["topology.kubernetes.io/region"]; ok {
@@ -947,7 +947,7 @@ func (alibabaPVKey *AlibabaPVKey) GetStorageClass() string {
 // When supporting subscription and Premptible resources this HTTP call needs to be modified with PriceUnit information
 // When supporting different new type of instances like Compute Optimized, Memory Optimized etc make sure you add the instance type
 // in unit test and check if it works or not to create the ack request and processDescribePriceAndCreateAlibabaPricing function
-// else more paramters need to be pulled from kubernetes node response or gather infromation from elsewhere and function modified.
+// else more parameters need to be pulled from kubernetes node response or gather information from elsewhere and function modified.
 func createDescribePriceACSRequest(i interface{}) (*requests.CommonRequest, error) {
 	request := requests.NewCommonRequest()
 	request.Method = requests.GET
@@ -1315,7 +1315,7 @@ func generateSlimK8sDiskFromV1PV(pv *v1.PersistentVolume, regionID string) *Slim
 		}
 	}
 
-	// Highly unlikely that label pv.Spec.CSI.VolumeAttributes["type"] doesn't exist but if occured default to cloud (most basic disk type)
+	// Highly unlikely that label pv.Spec.CSI.VolumeAttributes["type"] doesn't exist but if occurred default to cloud (most basic disk type)
 	if diskCategory == "" {
 		diskCategory = ALIBABA_DISK_CLOUD_CATEGORY
 	}

@@ -392,7 +392,7 @@ func bytesToString(b []byte) string {
 	// this, we are pinning the byte slice's underlying array in memory, preventing it from
 	// being garbage collected while the string is still in use. If we are using the Bank()
 	// functionality to cache new strings, we risk keeping the pinned array alive. To avoid this,
-	// we will use the BankFunc() call which uses the casted string to check for existance of a
+	// we will use the BankFunc() call which uses the casted string to check for existence of a
 	// cached string. If it exists, then we drop the pinned reference immediately and use the
 	// cached string. If it does _not_ exist, then we use the passed func() string to allocate a new
 	// string and cache it. This will prevent us from allocating throw-away strings just to

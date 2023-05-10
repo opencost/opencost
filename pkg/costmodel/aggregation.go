@@ -452,7 +452,7 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 		agg.PVAllocationHourlyAverage = totalVectors(agg.PVAllocationVectors) / agg.TotalHours(resolutionHours)
 
 		// TODO niko/etl does this check out for GPU data? Do we need to rewrite GPU queries to be
-		// culumative?
+		// cumulative?
 		agg.CPUAllocationTotal = totalVectors(agg.CPUAllocationVectors)
 		agg.GPUAllocationTotal = totalVectors(agg.GPUAllocationVectors)
 		agg.PVAllocationTotal = totalVectors(agg.PVAllocationVectors)

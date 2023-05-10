@@ -798,7 +798,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 				}
 
 				for _, candidateKey := range candidateKeys {
-					instanceType = strings.Split(candidateKey, ",")[1] // we may have overriden this while generating candidate keys
+					instanceType = strings.Split(candidateKey, ",")[1] // we may have overridden this while generating candidate keys
 					region := strings.Split(candidateKey, ",")[0]
 					candidateKeyGPU := candidateKey + ",gpu"
 					gcp.ValidPricingKeys[candidateKey] = true

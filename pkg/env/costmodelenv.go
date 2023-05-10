@@ -165,7 +165,7 @@ func GetPrometheusRetryOnRateLimitDefaultWait() time.Duration {
 // data arriving in the target prom db. For example, if supplying a thanos or cortex querier for the prometheus server, using
 // a 3h offset will ensure that current time = current time - 3h.
 //
-// This offset is NOT the same as the GetThanosOffset() option, as that is only applied to queries made specifically targetting
+// This offset is NOT the same as the GetThanosOffset() option, as that is only applied to queries made specifically targeting
 // thanos. This offset is applied globally.
 func GetPrometheusQueryOffset() time.Duration {
 	offset := Get(PrometheusQueryOffsetEnvVar, "")
@@ -441,12 +441,12 @@ func GetDBBearerToken() string {
 	return Get(DBBearerToken, "")
 }
 
-// GetMultiClusterBasicAuthUsername returns the environemnt variable value for MultiClusterBasicAuthUsername
+// GetMultiClusterBasicAuthUsername returns the environment variable value for MultiClusterBasicAuthUsername
 func GetMultiClusterBasicAuthUsername() string {
 	return Get(MultiClusterBasicAuthUsername, "")
 }
 
-// GetMultiClusterBasicAuthPassword returns the environemnt variable value for MultiClusterBasicAuthPassword
+// GetMultiClusterBasicAuthPassword returns the environment variable value for MultiClusterBasicAuthPassword
 func GetMultiClusterBasicAuthPassword() string {
 	return Get(MultiClusterBasicAuthPassword, "")
 }
@@ -460,7 +460,7 @@ func GetKubeConfigPath() string {
 	return Get(KubeConfigPathEnvVar, "")
 }
 
-// GetUTCOffset returns the environemnt variable value for UTCOffset
+// GetUTCOffset returns the environment variable value for UTCOffset
 func GetUTCOffset() string {
 	return Get(UTCOffsetEnvVar, "")
 }
@@ -526,7 +526,7 @@ func LegacyExternalCostsAPIDisabled() bool {
 	return GetBool(LegacyExternalAPIDisabledVar, false)
 }
 
-// GetPromClusterLabel returns the environemnt variable value for PromClusterIDLabel
+// GetPromClusterLabel returns the environment variable value for PromClusterIDLabel
 func GetPromClusterLabel() string {
 	return Get(PromClusterIDLabelEnvVar, "cluster_id")
 }
