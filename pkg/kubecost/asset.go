@@ -1753,6 +1753,13 @@ func (n *Network) String() string {
 	return toString(n)
 }
 
+// NodeOverhead represents the delta between the allocatable resources
+// of the node and the node nameplate capacity
+type NodeOverhead struct {
+	CpuOverheadPercentage float64
+	RamOverheadPercentage float64
+}
+
 // Node is an Asset representing a single node in a cluster
 type Node struct {
 	Properties   *AssetProperties
@@ -1773,6 +1780,7 @@ type Node struct {
 	RAMCost      float64
 	Discount     float64
 	Preemptible  float64
+	Overhead     *NodeOverhead // @bingen:field[version=19]
 }
 
 // NewNode creates and returns a new Node Asset
@@ -1991,6 +1999,11 @@ func (n *Node) add(that *Node) {
 		n.RAMBreakdown.Other = (n.RAMBreakdown.Other*n.RAMCost + that.RAMBreakdown.Other*that.RAMCost) / totalRAMCost
 		n.RAMBreakdown.System = (n.RAMBreakdown.System*n.RAMCost + that.RAMBreakdown.System*that.RAMCost) / totalRAMCost
 		n.RAMBreakdown.User = (n.RAMBreakdown.User*n.RAMCost + that.RAMBreakdown.User*that.RAMCost) / totalRAMCost
+	}
+
+	if n.Overhead != nil && that.Overhead != nil {
+		n.Overhead.RamOverheadPercentage = (n.Overhead.RamOverheadPercentage*n.RAMCost + that.Overhead.RamOverheadPercentage*that.RAMCost) / totalRAMCost
+		n.Overhead.CpuOverheadPercentage = (n.Overhead.CpuOverheadPercentage*n.CPUCost + that.Overhead.CpuOverheadPercentage*that.CPUCost) / totalCPUCost
 	}
 
 	n.CPUCoreHours += that.CPUCoreHours

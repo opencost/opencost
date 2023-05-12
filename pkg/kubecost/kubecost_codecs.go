@@ -37,7 +37,7 @@ const (
 	DefaultCodecVersion uint8 = 17
 
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
-	AssetsCodecVersion uint8 = 18
+	AssetsCodecVersion uint8 = 19
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
 	AllocationCodecVersion uint8 = 16
@@ -7712,6 +7712,21 @@ func (target *Node) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 	buff.WriteFloat64(target.RAMCost)     // write float64
 	buff.WriteFloat64(target.Discount)    // write float64
 	buff.WriteFloat64(target.Preemptible) // write float64
+	if target.Overhead == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][reference](NodeOverhead) ---
+		f, errG := target.Overhead.MarshalBinary()
+		if errG != nil {
+			return errG
+		}
+		buff.WriteInt(len(f))
+		buff.WriteBytes(f)
+		// --- [end][write][reference](NodeOverhead) ---
+
+	}
 	return nil
 }
 
@@ -7922,6 +7937,28 @@ func (target *Node) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 
 	ll := buff.ReadFloat64() // read float64
 	target.Preemptible = ll
+
+	// field version check
+	if uint8(19) <= version {
+		if buff.ReadUInt8() == uint8(0) {
+			target.Overhead = nil
+		} else {
+			// --- [begin][read][reference](NodeOverhead) ---
+			mm := &NodeOverhead{}
+			nn := buff.ReadInt()     // byte array length
+			oo := buff.ReadBytes(nn) // byte array
+			errG := mm.UnmarshalBinary(oo)
+			if errG != nil {
+				return errG
+			}
+			target.Overhead = mm
+			// --- [end][read][reference](NodeOverhead) ---
+
+		}
+	} else {
+		target.Overhead = nil
+
+	}
 
 	return nil
 }
