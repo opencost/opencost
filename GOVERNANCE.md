@@ -1,6 +1,7 @@
 # OpenCost Governance
 
-**Note**: OpenCost community governance is a work in progress as we expand beyond the initial Kubecost stewardship. Expanding the committers and maintainers to additional organizations will allow the project to become more self-managing.
+> **Note**
+> OpenCost community governance is a work in progress as we expand beyond the initial Kubecost stewardship. Expanding the committers and maintainers to additional organizations will allow the project to become more self-managing.
 
 This document attempts to clarify how the [OpenCost](https://github.com/opencost/) projects are maintained. Anyone interested in improving the project may join the community, contribute to the project, and participate in shaping future releases. This document attempts to outline the general participation structure and set expectations within the project community.
 
@@ -25,11 +26,11 @@ Contributors are community members who contribute in concrete ways to the projec
 - Promote the project in public
 - Help other users
 
-For first-time contributors, it’s recommended to start by going through [Contributing to OpenCost](https://github.com/opencost/opencost/blob/develop/CONTRIBUTING.md) and joining our community Slack channel.
+For first-time contributors, it’s recommended to start by going through [Contributing to OpenCost](CONTRIBUTING.md) and joining our community Slack channel.
 
 ### Member
 
-Members](https://github.com/orgs/opencost/people) are continuously active contributors in the community. There are multiple ways to stay "active" and engaged with us - contributing to codes, raising issues, writing tutorials and case studies, and even answering questions.
+[Members](https://github.com/orgs/opencost/people) are continuously active contributors in the community. There are multiple ways to stay "active" and engaged with us - contributing to codes, raising issues, writing tutorials and case studies, and even answering questions.
 
 To become an OpenCost member, you are expected to:
 
@@ -37,7 +38,7 @@ To become an OpenCost member, you are expected to:
     - Authored PRs on GitHub.
     - Filed, or commented on Issues on GitHub.
     - Join community discussions (e.g. community meetings, Slack).
-- Sponsored by at least 1 OpenCost [maintainer or committer](https://github.com/opencost/opencost/blob/develop/MAINTAINERS.md).
+- Sponsored by at least 1 OpenCost [maintainer or committer](MAINTAINERS.md)
 
 Contributors that meet the above requirements will then be invited to the GitHub organization "OpenCost" by a sponsor, and there would be an announcement published in the slack channel [(#opencost)](https://slack.cncf.io/).
 
@@ -45,7 +46,9 @@ Members are expected to respond to issues and PRs assigned to them, and be the o
 
 ### Committer
 
-Committers are active community members who have shown that they are committed to the success of the project through ongoing engagement with the community. Committership allows contributors to more easily carry on with their project-related activities by giving them direct access to the project’s resources. Committers are granted `Triage` permissions for the OpenCost repository.
+Committers are active community members who have shown that they are committed to the success of the project through ongoing engagement with the community. Committership allows contributors to more easily carry on with their project-related activities by giving them direct access to the project’s resources.
+
+Committers are granted `Triage` permissions for the OpenCost repository.
 
 Typically, a potential committer needs to show that they have a sufficient understanding of the project, its objectives, and its strategy. To become a committer, you are expected to:
 
@@ -62,6 +65,8 @@ Committers are expected to review issues and PRs. While committership indicates 
 
 Maintainers are first and foremost committers that have shown they are committed to the long term success of a project. They are the planners and designers of the OpenCost project. Maintainership is about building trust with the current maintainers of the project and being a person that they can depend on to make decisions in the best interest of the project in a consistent manner.
 
+Maintainers are granted `Write` permissions for the OpenCost repository.
+
 Committers wanting to become maintainers are expected to:
 
 - Enable adoptions or ecosystems.
@@ -69,7 +74,7 @@ Committers wanting to become maintainers are expected to:
 - Demonstrate a deep and comprehensive understanding of OpenCost's architecture, technical goals, and directions.
 - Actively engage with major OpenCost feature proposals and implementations.
 
-A new maintainer must be nominated by an existing maintainer. The nominating maintainer will create a PR to update the [Maintainers List](https://github.com/opencost/opencost/blob/develop/MAINTAINERS.md). It is recommended to describe the reasons for the nomination and the contribution of the nominee in the PR. Upon consensus of incumbent maintainers, the PR will be approved and the new maintainer becomes active.
+A new maintainer must be nominated by an existing maintainer. The nominating maintainer will create a PR to update the [Maintainers List](MAINTAINERS.md). It is recommended to describe the reasons for the nomination and the contribution of the nominee in the PR. Upon consensus of incumbent maintainers, the PR will be approved and the new maintainer becomes active.
 
 ## Policies and Procedures
 
@@ -105,7 +110,8 @@ In all cases in this document where voting is mentioned, the voting process is a
 
 ### Proposal process
 
-We intend to use a Request for Comments (RFC) process for any substantial changes to OpenCost, but this has yet to be developed.
+> **Note**
+> We intend to use a Request for Comments (RFC) process for any substantial changes to OpenCost, but this has yet to be developed.
 
 ### Inactivity
 
@@ -132,4 +138,4 @@ Involuntary removal or demotion is handled through a vote by a majority of the c
 
 If and when Contributors' commitment levels change, Contributors can consider stepping down (moving down the Contributor ladder) vs moving to emeritus status (completely stepping away from the project).
 
-Contact the Maintainers about changing to Emeritus status, or reducing your contributor level. An Emeritus list will be added to the <MAINTAINERS.md>
+Contact the Maintainers about changing to Emeritus status, or reducing your contributor level. An Emeritus list will be added to the [MAINTAINERS.md](MAINTAINERS.md)
