@@ -4,8 +4,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloud/provider"
 
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/log"
@@ -41,7 +41,7 @@ func buildCPUCostMap(
 	cpuCostMap := make(map[NodeIdentifier]float64)
 	clusterAndNameToType := make(map[nodeIdentifierNoProviderID]string)
 
-	customPricingEnabled := cloud.CustomPricesEnabled(cp)
+	customPricingEnabled := provider.CustomPricesEnabled(cp)
 	customPricingConfig, err := cp.GetConfig()
 	if err != nil {
 		log.Warnf("ClusterNodes: failed to load custom pricing: %s", err)
@@ -65,7 +65,7 @@ func buildCPUCostMap(
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       name,
-			ProviderID: cloud.ParseID(providerID),
+			ProviderID: provider.ParseID(providerID),
 		}
 		keyNon := nodeIdentifierNoProviderID{
 			Cluster: cluster,
@@ -115,7 +115,7 @@ func buildRAMCostMap(
 	ramCostMap := make(map[NodeIdentifier]float64)
 	clusterAndNameToType := make(map[nodeIdentifierNoProviderID]string)
 
-	customPricingEnabled := cloud.CustomPricesEnabled(cp)
+	customPricingEnabled := provider.CustomPricesEnabled(cp)
 	customPricingConfig, err := cp.GetConfig()
 	if err != nil {
 		log.Warnf("ClusterNodes: failed to load custom pricing: %s", err)
@@ -139,7 +139,7 @@ func buildRAMCostMap(
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       name,
-			ProviderID: cloud.ParseID(providerID),
+			ProviderID: provider.ParseID(providerID),
 		}
 		keyNon := nodeIdentifierNoProviderID{
 			Cluster: cluster,
@@ -190,7 +190,7 @@ func buildGPUCostMap(
 	gpuCostMap := make(map[NodeIdentifier]float64)
 	clusterAndNameToType := make(map[nodeIdentifierNoProviderID]string)
 
-	customPricingEnabled := cloud.CustomPricesEnabled(cp)
+	customPricingEnabled := provider.CustomPricesEnabled(cp)
 	customPricingConfig, err := cp.GetConfig()
 	if err != nil {
 		log.Warnf("ClusterNodes: failed to load custom pricing: %s", err)
@@ -214,7 +214,7 @@ func buildGPUCostMap(
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       name,
-			ProviderID: cloud.ParseID(providerID),
+			ProviderID: provider.ParseID(providerID),
 		}
 		keyNon := nodeIdentifierNoProviderID{
 			Cluster: cluster,
@@ -282,7 +282,7 @@ func buildGPUCountMap(
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       name,
-			ProviderID: cloud.ParseID(providerID),
+			ProviderID: provider.ParseID(providerID),
 		}
 		gpuCountMap[key] = gpuCount
 	}
@@ -511,7 +511,7 @@ func buildActiveDataMap(resActiveMins []*prom.QueryResult, resolution time.Durat
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       name,
-			ProviderID: cloud.ParseID(providerID),
+			ProviderID: provider.ParseID(providerID),
 		}
 
 		if len(result.Values) == 0 {
@@ -560,7 +560,7 @@ func buildPreemptibleMap(
 		key := NodeIdentifier{
 			Cluster:    cluster,
 			Name:       nodeName,
-			ProviderID: cloud.ParseID(providerID),
+			ProviderID: provider.ParseID(providerID),
 		}
 
 		// TODO(michaelmdresser): check this condition at merge time?

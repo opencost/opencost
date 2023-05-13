@@ -1,4 +1,4 @@
-package cloud
+package alibaba
 
 import (
 	"errors"
@@ -122,8 +122,9 @@ var alibabaInstanceFamilies = []string{
 }
 
 // AlibabaInfo contains configuration for Alibaba's CUR integration
+// Deprecated: v1.104 Use BOAConfiguration instead
 type AlibabaInfo struct {
-	AlibabaClusterRegion    string `json:"clusterRegion"`
+	AlibabaClusterRegion    string `json:"ClusterRegion"`
 	AlibabaServiceKeyName   string `json:"serviceKeyName"`
 	AlibabaServiceKeySecret string `json:"serviceKeySecret"`
 	AlibabaAccountID        string `json:"accountID"`
@@ -138,6 +139,7 @@ func (ai *AlibabaInfo) IsEmpty() bool {
 }
 
 // AlibabaAccessKey holds Alibaba credentials parsing from the service-key.json file.
+// Deprecated: v1.104 Use AccessKey instead
 type AlibabaAccessKey struct {
 	AccessKeyID     string `json:"alibaba_access_key_id"`
 	SecretAccessKey string `json:"alibaba_secret_access_key"`
@@ -323,15 +325,14 @@ type Alibaba struct {
 	// Lock Needed to provide thread safe
 	DownloadPricingDataLock sync.RWMutex
 	Clientset               clustercache.ClusterCache
-	Config                  *ProviderConfig
-	*CustomProvider
+	Config                  models.ProviderConfig
+	ServiceAccountChecks    *models.ServiceAccountChecks
+	ClusterAccountId        string
+	ClusterRegion           string
 
 	// The following fields are unexported because of avoiding any leak of secrets of these keys.
 	// Alibaba Access key used specifically in signer interface used to sign API calls
-	serviceAccountChecks *models.ServiceAccountChecks
-	clusterAccountId     string
-	clusterRegion        string
-	accessKey            *credentials.AccessKeyCredential
+	accessKey *credentials.AccessKeyCredential
 	// Map of regionID to sdk.client to call API for that region
 	clients map[string]*sdk.Client
 }
@@ -461,10 +462,10 @@ func (alibaba *Alibaba) DownloadPricingData() error {
 	}
 
 	// set the first occurrence of region from the node
-	if alibaba.clusterRegion == "" {
+	if alibaba.ClusterRegion == "" {
 		for _, node := range nodeList {
 			if regionID, ok := node.Labels["topology.kubernetes.io/region"]; ok {
-				alibaba.clusterRegion = regionID
+				alibaba.ClusterRegion = regionID
 				break
 			}
 		}
@@ -478,7 +479,7 @@ func (alibaba *Alibaba) DownloadPricingData() error {
 	for _, pv := range pvList {
 		pvRegion := determinePVRegion(pv)
 		if pvRegion == "" {
-			pvRegion = alibaba.clusterRegion
+			pvRegion = alibaba.ClusterRegion
 		}
 		pricingObj := &AlibabaPricing{}
 		slimK8sDisk := generateSlimK8sDiskFromV1PV(pv, pvRegion)
@@ -685,8 +686,8 @@ func (alibaba *Alibaba) ClusterInfo() (map[string]string, error) {
 	m := make(map[string]string)
 	m["name"] = clusterName
 	m["provider"] = kubecost.AlibabaProvider
-	m["project"] = alibaba.clusterAccountId
-	m["region"] = alibaba.clusterRegion
+	m["project"] = alibaba.ClusterAccountId
+	m["region"] = alibaba.ClusterRegion
 	m["id"] = env.GetClusterID()
 	return m, nil
 }
@@ -912,7 +913,7 @@ func (alibaba *Alibaba) GetPVKey(pv *v1.PersistentVolume, parameters map[string]
 	regionID := defaultRegion
 	// If default Region is not passed default it to cluster region ID.
 	if defaultRegion == "" {
-		regionID = alibaba.clusterRegion
+		regionID = alibaba.ClusterRegion
 	}
 	slimK8sDisk := generateSlimK8sDiskFromV1PV(pv, defaultRegion)
 	return &AlibabaPVKey{
@@ -1356,7 +1357,7 @@ func determinePVRegion(pv *v1.PersistentVolume) string {
 
 	if pvZone == "" {
 		// zone and regionID labels are optional in Alibaba PV creation, while PV through UI creation put's a zone PV is associated with and the region
-		// can be determined from this information. If pv is provision via yaml and the block is missing that's the only time it gets defaulted to clusterRegion.
+		// can be determined from this information. If pv is provision via yaml and the block is missing that's the only time it gets defaulted to ClusterRegion.
 		if pv.Spec.NodeAffinity != nil {
 			nodeAffinity := pv.Spec.NodeAffinity
 			if nodeAffinity.Required != nil && nodeAffinity.Required.NodeSelectorTerms != nil {
