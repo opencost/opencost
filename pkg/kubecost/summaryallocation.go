@@ -465,7 +465,7 @@ func (sas *SummaryAllocationSet) Clone() *SummaryAllocationSet {
 }
 
 // Add sums two SummaryAllocationSets, which Adds all SummaryAllocations in the
-// given SummaryAllocationSet to thier counterparts in the receiving set. Add
+// given SummaryAllocationSet to their counterparts in the receiving set. Add
 // also expands the Window to include both constituent Windows, in the case
 // that Add is being used from accumulating (as opposed to aggregating). For
 // performance reasons, the function may return either a new set, or an
@@ -985,7 +985,7 @@ func (sas *SummaryAllocationSet) AggregateBy(aggregateBy []string, options *Allo
 		}
 
 		// Do not include the unmounted costs when determining sharing
-		// coefficients becuase they do not receive shared costs.
+		// coefficients because they do not receive shared costs.
 		sharingCoeffDenominator -= totalUnmountedCost
 
 		if sharingCoeffDenominator <= 0.0 {

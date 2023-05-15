@@ -370,7 +370,7 @@ func (scw *Scaleway) GetManagementPlatform() (string, error) {
 
 func (c *Scaleway) PricingSourceStatus() map[string]*models.PricingSource {
 	return map[string]*models.PricingSource{
-		InstanceAPIPricing: &models.PricingSource{
+		InstanceAPIPricing: {
 			Name:      InstanceAPIPricing,
 			Enabled:   true,
 			Available: true,

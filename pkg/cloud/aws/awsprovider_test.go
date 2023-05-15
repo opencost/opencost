@@ -1,4 +1,4 @@
-package cloud
+package aws
 
 import (
 	"bytes"
@@ -64,7 +64,7 @@ func Test_awsKey_getUsageType(t *testing.T) {
 			name: "Karpenter label with a capacityType set to empty string should return empty string",
 			args: args{
 				labels: map[string]string{
-					KarpenterCapacityTypeLabel: "",
+					models.KarpenterCapacityTypeLabel: "",
 				},
 			},
 			want: "",
@@ -73,7 +73,7 @@ func Test_awsKey_getUsageType(t *testing.T) {
 			name: "Karpenter label with capacityType set to a random value should return empty string",
 			args: args{
 				labels: map[string]string{
-					KarpenterCapacityTypeLabel: "TEST_ME",
+					models.KarpenterCapacityTypeLabel: "TEST_ME",
 				},
 			},
 			want: "",
@@ -82,7 +82,7 @@ func Test_awsKey_getUsageType(t *testing.T) {
 			name: "Karpenter label with capacityType set to spot should return spot",
 			args: args{
 				labels: map[string]string{
-					KarpenterCapacityTypeLabel: KarpenterCapacitySpotTypeValue,
+					models.KarpenterCapacityTypeLabel: models.KarpenterCapacitySpotTypeValue,
 				},
 			},
 			want: PreemptibleType,
@@ -326,7 +326,7 @@ func Test_populate_pricing(t *testing.T) {
 			Sku:           "M6UGCCQ3CDJQAA37",
 			OfferTermCode: "JRTCKXETXF",
 			PriceDimensions: map[string]*AWSRateCode{
-				"M6UGCCQ3CDJQAA37.JRTCKXETXF.6YS6EN2CT7": &AWSRateCode{
+				"M6UGCCQ3CDJQAA37.JRTCKXETXF.6YS6EN2CT7": {
 					Unit: "GB-Mo",
 					PricePerUnit: AWSCurrencyCode{
 						USD: "0.0800000000",
@@ -465,7 +465,7 @@ func Test_populate_pricing(t *testing.T) {
 			Sku:           "R83VXG9NAPDASEGN",
 			OfferTermCode: "5Y9WH78GDR",
 			PriceDimensions: map[string]*AWSRateCode{
-				"R83VXG9NAPDASEGN.5Y9WH78GDR.Q7UJUT2CE6": &AWSRateCode{
+				"R83VXG9NAPDASEGN.5Y9WH78GDR.Q7UJUT2CE6": {
 					Unit: "GB-Mo",
 					PricePerUnit: AWSCurrencyCode{
 						USD: "",

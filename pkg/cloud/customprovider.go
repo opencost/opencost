@@ -14,6 +14,7 @@ import (
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/json"
 
 	v1 "k8s.io/api/core/v1"
@@ -36,6 +37,31 @@ type CustomProvider struct {
 	clusterAccountID        string
 	DownloadPricingDataLock sync.RWMutex
 	Config                  *ProviderConfig
+}
+
+var volTypes = map[string]string{
+	"EBS:VolumeUsage.gp2":    "gp2",
+	"EBS:VolumeUsage.gp3":    "gp3",
+	"EBS:VolumeUsage":        "standard",
+	"EBS:VolumeUsage.sc1":    "sc1",
+	"EBS:VolumeP-IOPS.piops": "io1",
+	"EBS:VolumeUsage.st1":    "st1",
+	"EBS:VolumeUsage.piops":  "io1",
+	"gp2":                    "EBS:VolumeUsage.gp2",
+	"gp3":                    "EBS:VolumeUsage.gp3",
+	"standard":               "EBS:VolumeUsage",
+	"sc1":                    "EBS:VolumeUsage.sc1",
+	"io1":                    "EBS:VolumeUsage.piops",
+	"st1":                    "EBS:VolumeUsage.st1",
+}
+
+type customPVKey struct {
+	Labels                 map[string]string
+	StorageClassParameters map[string]string
+	StorageClassName       string
+	Name                   string
+	DefaultRegion          string
+	ProviderID             string
 }
 
 // PricingSourceSummary returns the pricing source summary for the provider.
@@ -153,7 +179,7 @@ func (cp *CustomProvider) NodePricing(key models.Key) (*models.Node, error) {
 	k := key.Features()
 	var gpuCount string
 	if _, ok := cp.Pricing[k]; !ok {
-		// Default is saying that there is no pricing info for the cluster and we should fall back to the defualt values.
+		// Default is saying that there is no pricing info for the cluster and we should fall back to the default values.
 		// An interesting case is if the default values weren't loaded.
 		k = "default"
 	}
@@ -302,12 +328,41 @@ func (cp *CustomProvider) LoadBalancerPricing() (*models.LoadBalancer, error) {
 }
 
 func (*CustomProvider) GetPVKey(pv *v1.PersistentVolume, parameters map[string]string, defaultRegion string) models.PVKey {
-	return &awsPVKey{
+	return &customPVKey{
 		Labels:                 pv.Labels,
 		StorageClassName:       pv.Spec.StorageClassName,
 		StorageClassParameters: parameters,
 		DefaultRegion:          defaultRegion,
 	}
+}
+
+func (key *customPVKey) ID() string {
+	return key.ProviderID
+}
+
+func (key *customPVKey) GetStorageClass() string {
+	return key.StorageClassName
+}
+
+// Features returns a comma separated string of features for a given PV
+// (@pokom): This was imported from aws which caused a cyclical dependency. This _should_ be refactored to be specific to a custom pvkey
+func (key *customPVKey) Features() string {
+	storageClass := key.StorageClassParameters["type"]
+	if storageClass == "standard" {
+		storageClass = "gp2"
+	}
+	// Storage class names are generally EBS volume types (gp2)
+	// Keys in Pricing are based on UsageTypes (EBS:VolumeType.gp2)
+	// Converts between the 2
+	region, ok := util.GetRegion(key.Labels)
+	if !ok {
+		region = key.DefaultRegion
+	}
+	class, ok := volTypes[storageClass]
+	if !ok {
+		log.Debugf("No voltype mapping for %s's storageClass: %s", key.Name, storageClass)
+	}
+	return region + "," + class
 }
 
 func (k *customProviderKey) GPUCount() int {

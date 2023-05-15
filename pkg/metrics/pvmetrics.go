@@ -174,9 +174,11 @@ func (kpcrr KubePVStatusPhaseMetric) Write(m *dto.Metric) error {
 	return nil
 }
 
-//--------------------------------------------------------------------------
-//  KubecostPVInfoMetric
-//--------------------------------------------------------------------------
+// --------------------------------------------------------------------------
+//
+//	KubecostPVInfoMetric
+//
+// --------------------------------------------------------------------------
 // KubecostPVInfoMetric is a prometheus.Metric
 type KubecostPVInfoMetric struct {
 	fqName       string

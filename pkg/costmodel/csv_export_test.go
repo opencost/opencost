@@ -40,7 +40,7 @@ func Test_UpdateCSV(t *testing.T) {
 							NetworkTransferBytes:   10,
 							NetworkReceiveBytes:    11,
 							PVs: map[kubecost.PVKey]*kubecost.PVAllocation{
-								kubecost.PVKey{
+								{
 									Cluster: "test-cluster",
 									Name:    "test-pv",
 								}: {

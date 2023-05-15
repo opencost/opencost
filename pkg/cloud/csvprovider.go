@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,6 +25,10 @@ import (
 )
 
 const refreshMinutes = 60
+
+var (
+	provIdRx = regexp.MustCompile("aws:///([^/]+)/([^/]+)")
+)
 
 type CSVProvider struct {
 	*CustomProvider
@@ -303,10 +308,10 @@ func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
 		if mf[1] == "name" {
 			return toReturn + n.Name
 		} else if mf[1] == "labels" {
-			lkey := strings.Join(mf[2:len(mf)], "")
+			lkey := strings.Join(mf[2:], "")
 			return toReturn + n.Labels[lkey]
 		} else if mf[1] == "annotations" {
-			akey := strings.Join(mf[2:len(mf)], "")
+			akey := strings.Join(mf[2:], "")
 			return toReturn + n.Annotations[akey]
 		} else {
 			log.Errorf("Unsupported InstanceIDField %s in CSV For Node", m)
@@ -324,10 +329,10 @@ func PVValueFromMapField(m string, n *v1.PersistentVolume) string {
 		if mf[1] == "name" {
 			return n.Name
 		} else if mf[1] == "labels" {
-			lkey := strings.Join(mf[2:len(mf)], "")
+			lkey := strings.Join(mf[2:], "")
 			return n.Labels[lkey]
 		} else if mf[1] == "annotations" {
-			akey := strings.Join(mf[2:len(mf)], "")
+			akey := strings.Join(mf[2:], "")
 			return n.Annotations[akey]
 		} else {
 			log.Errorf("Unsupported InstanceIDField %s in CSV For PV", m)
