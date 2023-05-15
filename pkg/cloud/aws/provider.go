@@ -187,6 +187,7 @@ type AWS struct {
 }
 
 // AWSAccessKey holds AWS credentials and fulfils the awsV2.CredentialsProvider interface
+// Deprecated: v1.104 Use AccessKey instead
 type AWSAccessKey struct {
 	AccessKeyID     string `json:"aws_access_key_id"`
 	SecretAccessKey string `json:"aws_secret_access_key"`
@@ -393,6 +394,7 @@ type AwsSpotFeedInfo struct {
 }
 
 // AwsAthenaInfo contains configuration for CUR integration
+// Deprecated: v1.104 Use AthenaConfiguration instead
 type AwsAthenaInfo struct {
 	AthenaBucketName string `json:"athenaBucketName"`
 	AthenaRegion     string `json:"athenaRegion"`
@@ -1844,28 +1846,6 @@ func (aws *AWS) QueryAthenaPaginated(ctx context.Context, query string, fn func(
 			continue
 		}
 		fn(pg)
-	}
-	return nil
-}
-
-func waitForQueryToComplete(ctx context.Context, client *athena.Client, queryExecutionID *string) error {
-	inp := &athena.GetQueryExecutionInput{
-		QueryExecutionId: queryExecutionID,
-	}
-	isQueryStillRunning := true
-	for isQueryStillRunning {
-		qe, err := client.GetQueryExecution(ctx, inp)
-		if err != nil {
-			return err
-		}
-		if qe.QueryExecution.Status.State == "SUCCEEDED" {
-			isQueryStillRunning = false
-			continue
-		}
-		if qe.QueryExecution.Status.State != "RUNNING" && qe.QueryExecution.Status.State != "QUEUED" {
-			return fmt.Errorf("no query results available for query %s", *queryExecutionID)
-		}
-		time.Sleep(2 * time.Second)
 	}
 	return nil
 }
