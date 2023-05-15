@@ -517,27 +517,11 @@ func assertParcResults(t *testing.T, as *AllocationSet, msg string, exps map[str
 	for allocKey, a := range as.Allocations {
 		for key, actualParc := range a.ProportionalAssetResourceCosts {
 			expectedParcs := exps[allocKey]
-			sortParcsComponent(actualParc.RAMComponents)
-			sortParcsComponent(actualParc.CPUComponents)
-			sortParcsComponent(actualParc.GPUComponents)
 			if !reflect.DeepEqual(expectedParcs[key], actualParc) {
 				t.Fatalf("actual PARC %v did not match expected PARC %v", actualParc, expectedParcs[key])
 			}
 		}
 
-	}
-}
-
-func sortParcsComponent(parcs []ParcsComponent) {
-	var n = len(parcs)
-	for i := 1; i < n; i++ {
-		j := i
-		for j > 0 {
-			if parcs[j-1].UsageProportion > parcs[j].UsageProportion {
-				parcs[j-1], parcs[j] = parcs[j], parcs[j-1]
-			}
-			j = j - 1
-		}
 	}
 }
 
@@ -1095,52 +1079,16 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						Cluster:                    "cluster1",
 						Node:                       "",
 						ProviderID:                 "",
-						CPUPercentage:              0.5,
-						GPUPercentage:              0.5,
-						RAMPercentage:              0.8125,
-						NodeResourceCostPercentage: 0.6785714285714285,
-						GPUComponents: []ParcsComponent{
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-						},
-						CPUComponents: []ParcsComponent{
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-						},
-						RAMComponents: []ParcsComponent{
-							{
-								TotalCost:       16,
-								UsageProportion: 0.0625,
-							},
-							{
-								TotalCost:       16,
-								UsageProportion: 0.0625,
-							},
-							{
-								TotalCost:       16,
-								UsageProportion: 0.6875,
-							},
-						},
+						CPUPercentage:              0.16666666666666666,
+						GPUPercentage:              0.16666666666666666,
+						RAMPercentage:              0.2708333333333333,
+						NodeResourceCostPercentage: 0.22619047619047614,
+						GPUTotalCost:               18,
+						GPUProportionalCost:        3,
+						CPUTotalCost:               18,
+						CPUProportionalCost:        3,
+						RAMTotalCost:               48,
+						RAMProportionalCost:        13,
 					},
 				},
 				"namespace2": {
@@ -1148,103 +1096,31 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						Cluster:                    "cluster1",
 						Node:                       "",
 						ProviderID:                 "",
-						CPUPercentage:              0.5,
-						GPUPercentage:              0.5,
-						RAMPercentage:              0.1875,
-						NodeResourceCostPercentage: 0.3214285714285714,
-						GPUComponents: []ParcsComponent{
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-						},
-						CPUComponents: []ParcsComponent{
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-						},
-						RAMComponents: []ParcsComponent{
-							{
-								TotalCost:       16,
-								UsageProportion: 0.0625,
-							},
-							{
-								TotalCost:       16,
-								UsageProportion: 0.0625,
-							},
-							{
-								TotalCost:       16,
-								UsageProportion: 0.0625,
-							},
-						},
+						CPUPercentage:              0.16666666666666666,
+						GPUPercentage:              0.16666666666666666,
+						RAMPercentage:              0.0625,
+						NodeResourceCostPercentage: 0.10714285714285714,
+						GPUTotalCost:               18,
+						GPUProportionalCost:        3,
+						CPUTotalCost:               18,
+						CPUProportionalCost:        3,
+						RAMTotalCost:               48,
+						RAMProportionalCost:        3,
 					},
 					"cluster2": ProportionalAssetResourceCost{
 						Cluster:                    "cluster2",
 						Node:                       "",
 						ProviderID:                 "",
-						CPUPercentage:              0.5,
-						GPUPercentage:              0.5,
-						RAMPercentage:              0.5,
-						NodeResourceCostPercentage: 0.5,
-						GPUComponents: []ParcsComponent{
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-						},
-						CPUComponents: []ParcsComponent{
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-						},
-						RAMComponents: []ParcsComponent{
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-						},
+						CPUPercentage:              0.16666666666666666,
+						GPUPercentage:              0.16666666666666666,
+						RAMPercentage:              0.16666666666666666,
+						NodeResourceCostPercentage: 0.16666666666666666,
+						GPUTotalCost:               18,
+						GPUProportionalCost:        3,
+						CPUTotalCost:               18,
+						CPUProportionalCost:        3,
+						RAMTotalCost:               18,
+						RAMProportionalCost:        3,
 					},
 				},
 			},
@@ -1663,48 +1539,6 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						GPUPercentage:              0.5,
 						RAMPercentage:              0.8125,
 						NodeResourceCostPercentage: 0.6785714285714285,
-						GPUComponents: []ParcsComponent{
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-						},
-						CPUComponents: []ParcsComponent{
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-						},
-						RAMComponents: []ParcsComponent{
-							{
-								TotalCost:       16,
-								UsageProportion: 0.0625,
-							},
-							{
-								TotalCost:       16,
-								UsageProportion: 0.0625,
-							},
-							{
-								TotalCost:       16,
-								UsageProportion: 0.6875,
-							},
-						},
 					},
 					"cluster2,node2": ProportionalAssetResourceCost{
 						Cluster:                    "cluster2",
@@ -1725,48 +1559,6 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						GPUPercentage:              0.5,
 						RAMPercentage:              0.1875,
 						NodeResourceCostPercentage: 0.3214285714285714,
-						GPUComponents: []ParcsComponent{
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-						},
-						CPUComponents: []ParcsComponent{
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-							{
-								TotalCost:       6,
-								UsageProportion: 0.16666666666666666,
-							},
-						},
-						RAMComponents: []ParcsComponent{
-							{
-								TotalCost:       16,
-								UsageProportion: 0.0625,
-							},
-							{
-								TotalCost:       16,
-								UsageProportion: 0.0625,
-							},
-							{
-								TotalCost:       16,
-								UsageProportion: 0.0625,
-							},
-						},
 					},
 					"cluster2,node1": ProportionalAssetResourceCost{
 						Cluster:                    "cluster2",
@@ -1776,36 +1568,6 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						GPUPercentage:              1,
 						RAMPercentage:              1,
 						NodeResourceCostPercentage: 1,
-						GPUComponents: []ParcsComponent{
-							{
-								TotalCost:       2,
-								UsageProportion: 0.5,
-							},
-							{
-								TotalCost:       2,
-								UsageProportion: 0.5,
-							},
-						},
-						CPUComponents: []ParcsComponent{
-							{
-								TotalCost:       2,
-								UsageProportion: 0.5,
-							},
-							{
-								TotalCost:       2,
-								UsageProportion: 0.5,
-							},
-						},
-						RAMComponents: []ParcsComponent{
-							{
-								TotalCost:       2,
-								UsageProportion: 0.5,
-							},
-							{
-								TotalCost:       2,
-								UsageProportion: 0.5,
-							},
-						},
 					},
 					"cluster2,node2": ProportionalAssetResourceCost{
 						Cluster:                    "cluster2",
@@ -1815,24 +1577,6 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						GPUPercentage:              0.5,
 						RAMPercentage:              0.5,
 						NodeResourceCostPercentage: 0.5,
-						GPUComponents: []ParcsComponent{
-							{
-								TotalCost:       2,
-								UsageProportion: 0.5,
-							},
-						},
-						CPUComponents: []ParcsComponent{
-							{
-								TotalCost:       2,
-								UsageProportion: 0.5,
-							},
-						},
-						RAMComponents: []ParcsComponent{
-							{
-								TotalCost:       2,
-								UsageProportion: 0.5,
-							},
-						},
 					},
 				},
 				"namespace3": {
@@ -1844,36 +1588,6 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						GPUPercentage:              1,
 						RAMPercentage:              1,
 						NodeResourceCostPercentage: 1,
-						GPUComponents: []ParcsComponent{
-							{
-								TotalCost:       2,
-								UsageProportion: 0.5,
-							},
-							{
-								TotalCost:       2,
-								UsageProportion: 0.5,
-							},
-						},
-						CPUComponents: []ParcsComponent{
-							{
-								TotalCost:       2,
-								UsageProportion: 0.5,
-							},
-							{
-								TotalCost:       2,
-								UsageProportion: 0.5,
-							},
-						},
-						RAMComponents: []ParcsComponent{
-							{
-								TotalCost:       2,
-								UsageProportion: 0.5,
-							},
-							{
-								TotalCost:       2,
-								UsageProportion: 0.5,
-							},
-						},
 					},
 					"cluster2,node2": ProportionalAssetResourceCost{
 						Cluster:                    "cluster2",
@@ -1883,24 +1597,12 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						GPUPercentage:              0.5,
 						RAMPercentage:              0.5,
 						NodeResourceCostPercentage: 0.5,
-						GPUComponents: []ParcsComponent{
-							{
-								TotalCost:       2,
-								UsageProportion: 0.5,
-							},
-						},
-						CPUComponents: []ParcsComponent{
-							{
-								TotalCost:       2,
-								UsageProportion: 0.5,
-							},
-						},
-						RAMComponents: []ParcsComponent{
-							{
-								TotalCost:       2,
-								UsageProportion: 0.5,
-							},
-						},
+						GPUTotalCost:               2,
+						GPUProportionalCost:        1,
+						CPUTotalCost:               2,
+						CPUProportionalCost:        1,
+						RAMTotalCost:               2,
+						RAMProportionalCost:        1,
 					},
 				},
 			},
@@ -2065,24 +1767,8 @@ func TestParcInsert(t *testing.T) {
 		GPUPercentage:              0,
 		RAMPercentage:              0,
 		NodeResourceCostPercentage: 0,
-		CPUComponents: []ParcsComponent{
-			{
-				TotalCost:       4,
-				UsageProportion: 0.125,
-			},
-		},
-		GPUComponents: []ParcsComponent{
-			{
-				TotalCost:       0,
-				UsageProportion: 0.0,
-			},
-		},
-		RAMComponents: []ParcsComponent{
-			{
-				TotalCost:       0,
-				UsageProportion: 0.0,
-			},
-		},
+		CPUTotalCost:               4,
+		CPUProportionalCost:        0.5,
 	}
 
 	pod1_hour2 := ProportionalAssetResourceCost{
@@ -2093,24 +1779,7 @@ func TestParcInsert(t *testing.T) {
 		GPUPercentage:              0,
 		RAMPercentage:              0,
 		NodeResourceCostPercentage: 0,
-		CPUComponents: []ParcsComponent{
-			{
-				TotalCost:       4,
-				UsageProportion: 0.0,
-			},
-		},
-		GPUComponents: []ParcsComponent{
-			{
-				TotalCost:       0,
-				UsageProportion: 0.0,
-			},
-		},
-		RAMComponents: []ParcsComponent{
-			{
-				TotalCost:       0,
-				UsageProportion: 0.0,
-			},
-		},
+		CPUTotalCost:               4,
 	}
 
 	pod1_hour3 := ProportionalAssetResourceCost{
@@ -2121,24 +1790,7 @@ func TestParcInsert(t *testing.T) {
 		GPUPercentage:              0,
 		RAMPercentage:              0,
 		NodeResourceCostPercentage: 0,
-		CPUComponents: []ParcsComponent{
-			{
-				TotalCost:       4,
-				UsageProportion: 0.0,
-			},
-		},
-		GPUComponents: []ParcsComponent{
-			{
-				TotalCost:       0,
-				UsageProportion: 0.0,
-			},
-		},
-		RAMComponents: []ParcsComponent{
-			{
-				TotalCost:       0,
-				UsageProportion: 0.0,
-			},
-		},
+		CPUTotalCost:               4,
 	}
 
 	pod2_hour1 := ProportionalAssetResourceCost{
@@ -2149,24 +1801,8 @@ func TestParcInsert(t *testing.T) {
 		GPUPercentage:              0,
 		RAMPercentage:              0,
 		NodeResourceCostPercentage: 0,
-		CPUComponents: []ParcsComponent{
-			{
-				TotalCost:       4,
-				UsageProportion: 0.5,
-			},
-		},
-		GPUComponents: []ParcsComponent{
-			{
-				TotalCost:       0,
-				UsageProportion: 0.0,
-			},
-		},
-		RAMComponents: []ParcsComponent{
-			{
-				TotalCost:       0,
-				UsageProportion: 0.0,
-			},
-		},
+		CPUTotalCost:               4,
+		CPUProportionalCost:        2,
 	}
 
 	pod2_hour2 := ProportionalAssetResourceCost{
@@ -2177,24 +1813,8 @@ func TestParcInsert(t *testing.T) {
 		GPUPercentage:              0,
 		RAMPercentage:              0,
 		NodeResourceCostPercentage: 0,
-		CPUComponents: []ParcsComponent{
-			{
-				TotalCost:       4,
-				UsageProportion: 0.25,
-			},
-		},
-		GPUComponents: []ParcsComponent{
-			{
-				TotalCost:       0,
-				UsageProportion: 0.0,
-			},
-		},
-		RAMComponents: []ParcsComponent{
-			{
-				TotalCost:       0,
-				UsageProportion: 0.0,
-			},
-		},
+		CPUTotalCost:               4,
+		CPUProportionalCost:        1,
 	}
 
 	pod2_hour3 := ProportionalAssetResourceCost{
@@ -2205,24 +1825,8 @@ func TestParcInsert(t *testing.T) {
 		GPUPercentage:              0,
 		RAMPercentage:              0,
 		NodeResourceCostPercentage: 0,
-		CPUComponents: []ParcsComponent{
-			{
-				TotalCost:       4,
-				UsageProportion: 0.375,
-			},
-		},
-		GPUComponents: []ParcsComponent{
-			{
-				TotalCost:       0,
-				UsageProportion: 0.0,
-			},
-		},
-		RAMComponents: []ParcsComponent{
-			{
-				TotalCost:       0,
-				UsageProportion: 0.0,
-			},
-		},
+		CPUTotalCost:               4,
+		CPUProportionalCost:        1.5,
 	}
 
 	pod3_hour1 := ProportionalAssetResourceCost{
@@ -2233,24 +1837,8 @@ func TestParcInsert(t *testing.T) {
 		GPUPercentage:              0,
 		RAMPercentage:              0,
 		NodeResourceCostPercentage: 0,
-		CPUComponents: []ParcsComponent{
-			{
-				TotalCost:       4,
-				UsageProportion: 0.25,
-			},
-		},
-		GPUComponents: []ParcsComponent{
-			{
-				TotalCost:       0,
-				UsageProportion: 0.0,
-			},
-		},
-		RAMComponents: []ParcsComponent{
-			{
-				TotalCost:       0,
-				UsageProportion: 0.0,
-			},
-		},
+		CPUTotalCost:               4,
+		CPUProportionalCost:        1,
 	}
 
 	pod3_hour2 := ProportionalAssetResourceCost{
@@ -2261,24 +1849,8 @@ func TestParcInsert(t *testing.T) {
 		GPUPercentage:              0,
 		RAMPercentage:              0,
 		NodeResourceCostPercentage: 0,
-		CPUComponents: []ParcsComponent{
-			{
-				TotalCost:       4,
-				UsageProportion: 0.25,
-			},
-		},
-		GPUComponents: []ParcsComponent{
-			{
-				TotalCost:       0,
-				UsageProportion: 0.0,
-			},
-		},
-		RAMComponents: []ParcsComponent{
-			{
-				TotalCost:       0,
-				UsageProportion: 0.0,
-			},
-		},
+		CPUTotalCost:               4,
+		CPUProportionalCost:        1,
 	}
 
 	pod3_hour3 := ProportionalAssetResourceCost{
@@ -2289,36 +1861,20 @@ func TestParcInsert(t *testing.T) {
 		GPUPercentage:              0,
 		RAMPercentage:              0,
 		NodeResourceCostPercentage: 0,
-		CPUComponents: []ParcsComponent{
-			{
-				TotalCost:       4,
-				UsageProportion: 0.25,
-			},
-		},
-		GPUComponents: []ParcsComponent{
-			{
-				TotalCost:       0,
-				UsageProportion: 0.0,
-			},
-		},
-		RAMComponents: []ParcsComponent{
-			{
-				TotalCost:       0,
-				UsageProportion: 0.0,
-			},
-		},
+		CPUTotalCost:               4,
+		CPUProportionalCost:        1,
 	}
 
 	parcs := ProportionalAssetResourceCosts{}
-	parcs.Insert(pod1_hour1, true, true)
-	parcs.Insert(pod1_hour2, true, true)
-	parcs.Insert(pod1_hour3, true, true)
-	parcs.Insert(pod2_hour1, true, true)
-	parcs.Insert(pod2_hour2, true, true)
-	parcs.Insert(pod2_hour3, true, true)
-	parcs.Insert(pod3_hour1, true, true)
-	parcs.Insert(pod3_hour2, true, true)
-	parcs.Insert(pod3_hour3, true, true)
+	parcs.Insert(pod1_hour1, true)
+	parcs.Insert(pod1_hour2, true)
+	parcs.Insert(pod1_hour3, true)
+	parcs.Insert(pod2_hour1, true)
+	parcs.Insert(pod2_hour2, true)
+	parcs.Insert(pod2_hour3, true)
+	parcs.Insert(pod3_hour1, true)
+	parcs.Insert(pod3_hour2, true)
+	parcs.Insert(pod3_hour3, true)
 	log.Debug("added all parcs")
 
 	expectedParcs := ProportionalAssetResourceCosts{

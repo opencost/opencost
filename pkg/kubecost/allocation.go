@@ -246,49 +246,24 @@ func (pva *PVAllocation) Equal(that *PVAllocation) bool {
 		util.IsApproximately(pva.Cost, that.Cost)
 }
 
-// used to compute the average of 2 PARCs. A PARC is a dimensonless
-// percentage that loses information needed when finding an average
-// to that end, we track the percentage and resource usage of the
-// component used to make the parc, to allow us to average two PARCs
-type ParcsComponent struct {
-	TotalCost       float64
-	UsageProportion float64
-}
-
-func (p *ParcsComponent) Clone() ParcsComponent {
-	return ParcsComponent{
-		TotalCost:       p.TotalCost,
-		UsageProportion: p.UsageProportion,
-	}
-}
-
 type ProportionalAssetResourceCost struct {
-	Cluster                    string           `json:"cluster"`
-	Node                       string           `json:"node,omitempty"`
-	ProviderID                 string           `json:"providerID,omitempty"`
-	CPUPercentage              float64          `json:"cpuPercentage"`
-	GPUPercentage              float64          `json:"gpuPercentage"`
-	RAMPercentage              float64          `json:"ramPercentage"`
-	NodeResourceCostPercentage float64          `json:"nodeResourceCostPercentage"`
-	GPUComponents              []ParcsComponent `json:"-"`
-	CPUComponents              []ParcsComponent `json:"-"`
-	RAMComponents              []ParcsComponent `json:"-"`
+	Cluster                    string  `json:"cluster"`
+	Node                       string  `json:"node,omitempty"`
+	ProviderID                 string  `json:"providerID,omitempty"`
+	CPUPercentage              float64 `json:"cpuPercentage"`
+	GPUPercentage              float64 `json:"gpuPercentage"`
+	RAMPercentage              float64 `json:"ramPercentage"`
+	NodeResourceCostPercentage float64 `json:"nodeResourceCostPercentage"`
+	GPUTotalCost               float64 `json:"-"`
+	GPUProportionalCost        float64 `json:"-"`
+	CPUTotalCost               float64 `json:"-"`
+	CPUProportionalCost        float64 `json:"-"`
+	RAMTotalCost               float64 `json:"-"`
+	RAMProportionalCost        float64 `json:"-"`
 }
 
 func (parc ProportionalAssetResourceCost) Clone() ProportionalAssetResourceCost {
-	gpuComps := []ParcsComponent{}
-	cpuComps := []ParcsComponent{}
-	ramComps := []ParcsComponent{}
 
-	for _, gpuComp := range parc.GPUComponents {
-		gpuComps = append(gpuComps, gpuComp.Clone())
-	}
-	for _, cpuComp := range parc.CPUComponents {
-		cpuComps = append(cpuComps, cpuComp.Clone())
-	}
-	for _, ramComp := range parc.RAMComponents {
-		ramComps = append(ramComps, ramComp.Clone())
-	}
 	return ProportionalAssetResourceCost{
 		Cluster:                    parc.Cluster,
 		Node:                       parc.Node,
@@ -297,9 +272,12 @@ func (parc ProportionalAssetResourceCost) Clone() ProportionalAssetResourceCost 
 		GPUPercentage:              parc.GPUPercentage,
 		RAMPercentage:              parc.RAMPercentage,
 		NodeResourceCostPercentage: parc.NodeResourceCostPercentage,
-		RAMComponents:              ramComps,
-		CPUComponents:              cpuComps,
-		GPUComponents:              gpuComps,
+		RAMTotalCost:               parc.RAMTotalCost,
+		CPUTotalCost:               parc.CPUTotalCost,
+		GPUTotalCost:               parc.GPUTotalCost,
+		RAMProportionalCost:        parc.RAMProportionalCost,
+		CPUProportionalCost:        parc.CPUTotalCost,
+		GPUProportionalCost:        parc.GPUProportionalCost,
 	}
 }
 func (parc ProportionalAssetResourceCost) Key(insertByNode bool) string {
@@ -322,91 +300,66 @@ func (parcs ProportionalAssetResourceCosts) Clone() ProportionalAssetResourceCos
 	return cloned
 }
 
-func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourceCost, insertByNode, isAccumulation bool) {
+func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourceCost, insertByNode bool) {
 	if !insertByNode {
 		parc.Node = ""
 		parc.ProviderID = ""
 	}
 	if curr, ok := parcs[parc.Key(insertByNode)]; ok {
 
-		CPUPercentage := curr.CPUPercentage + parc.CPUPercentage
-		GPUPercentage := curr.GPUPercentage + parc.GPUPercentage
-		RAMPercentage := curr.RAMPercentage + parc.RAMPercentage
-
 		toInsert := ProportionalAssetResourceCost{
-			Node:                       curr.Node,
-			Cluster:                    curr.Cluster,
-			ProviderID:                 curr.ProviderID,
-			CPUPercentage:              CPUPercentage,
-			GPUPercentage:              GPUPercentage,
-			RAMPercentage:              RAMPercentage,
-			NodeResourceCostPercentage: curr.NodeResourceCostPercentage + parc.NodeResourceCostPercentage,
-			CPUComponents:              append(curr.CPUComponents, parc.CPUComponents...),
-			GPUComponents:              append(curr.GPUComponents, parc.GPUComponents...),
-			RAMComponents:              append(curr.RAMComponents, parc.RAMComponents...),
+			Node:                curr.Node,
+			Cluster:             curr.Cluster,
+			ProviderID:          curr.ProviderID,
+			CPUTotalCost:        curr.CPUTotalCost + parc.CPUTotalCost,
+			CPUProportionalCost: curr.CPUProportionalCost + parc.CPUProportionalCost,
+			RAMTotalCost:        curr.RAMTotalCost + parc.RAMTotalCost,
+			RAMProportionalCost: curr.RAMProportionalCost + parc.RAMProportionalCost,
+			GPUProportionalCost: curr.GPUProportionalCost + parc.GPUProportionalCost,
+			GPUTotalCost:        curr.GPUTotalCost + parc.GPUTotalCost,
 		}
 
-		if isAccumulation {
-			// when accumulating, use the usage hours to perform a weighted average
-			toInsert.CPUPercentage = weightedParcComponentsAverage(toInsert.CPUComponents)
-			toInsert.GPUPercentage = weightedParcComponentsAverage(toInsert.GPUComponents)
-			toInsert.RAMPercentage = weightedParcComponentsAverage(toInsert.RAMComponents)
-			toInsert.NodeResourceCostPercentage = weightedNodeTotalCostAverage(toInsert.CPUComponents, toInsert.GPUComponents, toInsert.RAMComponents)
-		}
-
+		computePercentages(&toInsert)
 		parcs[parc.Key(insertByNode)] = toInsert
 	} else {
+		computePercentages(&parc)
 		parcs[parc.Key(insertByNode)] = parc
 	}
 }
 
-func weightedNodeTotalCostAverage(cpuComponents, gpuComponents, ramComponents []ParcsComponent) float64 {
+func computePercentages(toInsert *ProportionalAssetResourceCost) {
+	// compute percentages
+	totalCost := toInsert.RAMTotalCost + toInsert.CPUTotalCost + toInsert.GPUTotalCost
 
-	totalRamCost := 0.0
-	for _, ramComponent := range ramComponents {
-		totalRamCost += ramComponent.TotalCost
+	if toInsert.CPUTotalCost > 0 {
+		toInsert.CPUPercentage = toInsert.CPUProportionalCost / toInsert.CPUTotalCost
 	}
 
-	totalCPUCost := 0.0
-	for _, cpuComponent := range cpuComponents {
-		totalCPUCost += cpuComponent.TotalCost
+	if toInsert.GPUTotalCost > 0 {
+		toInsert.GPUPercentage = toInsert.GPUProportionalCost / toInsert.GPUTotalCost
 	}
 
-	totalGPUCost := 0.0
-	for _, gpuComponent := range gpuComponents {
-		totalGPUCost += gpuComponent.TotalCost
+	if toInsert.RAMTotalCost > 0 {
+		toInsert.RAMPercentage = toInsert.RAMProportionalCost / toInsert.RAMTotalCost
 	}
 
-	totalCost := totalCPUCost + totalGPUCost + totalRamCost
-
-	var ramFraction, cpuFraction, gpuFraction float64
-
-	// only compute fraction if totalCost is nonzero, otherwise returns in NaN
-	if totalCost > 0 {
-		ramFraction = totalRamCost / totalCost
-		cpuFraction = totalCPUCost / totalCost
-		gpuFraction = totalGPUCost / totalCost
+	ramFraction := toInsert.RAMTotalCost / totalCost
+	if ramFraction != ramFraction || ramFraction < 0 {
+		ramFraction = 0
 	}
 
-	// compute the resource usage percentage based on the weighted fractions
-	nodeResourceCostPercentage := (weightedParcComponentsAverage(ramComponents) * ramFraction) + (weightedParcComponentsAverage(cpuComponents) * cpuFraction) + (weightedParcComponentsAverage(gpuComponents) * gpuFraction)
-
-	return nodeResourceCostPercentage
-}
-func weightedParcComponentsAverage(components []ParcsComponent) float64 {
-	totalResourceCosts := 0.0
-	costOfResource := 0.0
-	for _, component := range components {
-		totalResourceCosts += component.TotalCost
-
-		costOfResource += component.TotalCost * component.UsageProportion
-
+	cpuFraction := toInsert.CPUTotalCost / totalCost
+	if cpuFraction != cpuFraction || cpuFraction < 0 {
+		cpuFraction = 0
 	}
 
-	if totalResourceCosts <= 0 {
-		return 0
+	gpuFraction := toInsert.GPUTotalCost / totalCost
+	if gpuFraction != gpuFraction || gpuFraction < 0 {
+		gpuFraction = 0
 	}
-	return costOfResource / totalResourceCosts
+
+	toInsert.NodeResourceCostPercentage = (toInsert.RAMPercentage * ramFraction) +
+		(toInsert.CPUPercentage * cpuFraction) + (toInsert.GPUPercentage * gpuFraction)
 }
 
 func (parcs ProportionalAssetResourceCosts) Add(that ProportionalAssetResourceCosts, isAccumulation bool) {
@@ -417,7 +370,7 @@ func (parcs ProportionalAssetResourceCosts) Add(that ProportionalAssetResourceCo
 		if parc.Node == "" {
 			insertByNode = false
 		}
-		parcs.Insert(parc, insertByNode, isAccumulation)
+		parcs.Insert(parc, insertByNode)
 	}
 }
 
@@ -1278,35 +1231,13 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		}
 	}
 
-	// (2b) If proportional asset resource costs are to be included, derive them
-	// from idle coefficients and add them to the allocations.
+	// (2b) If proportional asset resource costs are to be included, compute them
+	// and add them to the allocations.
 	if options.IncludeProportionalAssetResourceCosts {
-		var parcCoefficients map[string]map[string]map[string]float64
-		if parcSet.Length() > 0 {
-			parcCoefficients, allocatedTotalsMap, err = computeIdleCoeffs(options, as, shareSet)
-			if err != nil {
-				log.Warnf("AllocationSet.AggregateBy: compute parc idle coeff: %s", err)
-				return fmt.Errorf("error computing parc coefficients: %s", err)
-			}
-		}
-		if parcCoefficients == nil {
-			return fmt.Errorf("cannot include proportional resource costs because parc coefficients are nil")
-		}
-
-		for _, alloc := range as.Allocations {
-			// Create an empty set of proportional asset resource costs,
-			// regardless of whether or not we're successful in deriving them.
-			alloc.ProportionalAssetResourceCosts = ProportionalAssetResourceCosts{}
-
-			// Attempt to derive proportional asset resource costs from idle
-			// coefficients, and insert them into the set if successful.
-			parc, err := deriveProportionalAssetResourceCostsFromIdleCoefficients(parcCoefficients, allocatedTotalsMap, alloc, options)
-			if err != nil {
-				log.Debugf("AggregateBy: failed to derive proportional asset resource costs from idle coefficients for %s: %s", alloc.Name, err)
-				continue
-			}
-
-			alloc.ProportionalAssetResourceCosts.Insert(parc, options.IdleByNode, false)
+		err := deriveProportionalAssetResourceCosts(options, as, shareSet)
+		if err != nil {
+			log.Debugf("AggregateBy: failed to derive proportional asset resource costs from idle coefficients: %s", err)
+			return fmt.Errorf("AggregateBy: failed to derive proportional asset resource costs from idle coefficients: %s", err)
 		}
 	}
 
@@ -1876,68 +1807,111 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 	return coeffs, totals, nil
 }
 
-func deriveProportionalAssetResourceCostsFromIdleCoefficients(idleCoeffs map[string]map[string]map[string]float64, totals map[string]map[string]float64, allocation *Allocation, options *AllocationAggregationOptions) (ProportionalAssetResourceCost, error) {
-	idleId, err := allocation.getIdleId(options)
-	if err != nil {
-		return ProportionalAssetResourceCost{}, fmt.Errorf("failed to get idle ID for allocation %s", allocation.Name)
+func deriveProportionalAssetResourceCosts(options *AllocationAggregationOptions, as *AllocationSet, shareSet *AllocationSet) error {
+
+	// Compute idle coefficients, then save them in AllocationAggregationOptions
+	// [idle_id][allocation name][resource] = [coeff]
+	coeffs := map[string]map[string]map[string]float64{}
+
+	// Compute totals per resource for CPU, GPU, RAM, and PV
+	// [idle_id][resource] = [total]
+	totals := map[string]map[string]float64{}
+
+	// Record allocation values first, then normalize by totals to get percentages
+	for _, alloc := range as.Allocations {
+		if alloc.IsIdle() {
+			// Skip idle allocations in coefficient calculation
+			continue
+		}
+
+		idleId, err := alloc.getIdleId(options)
+		if err != nil {
+			log.DedupedWarningf(3, "Missing Idle Key for %s", alloc.Name)
+		}
+
+		// get the name key for the allocation
+		name := alloc.Name
+
+		// Create key based tables if they don't exist
+		if _, ok := coeffs[idleId]; !ok {
+			coeffs[idleId] = map[string]map[string]float64{}
+		}
+		if _, ok := totals[idleId]; !ok {
+			totals[idleId] = map[string]float64{}
+		}
+
+		if _, ok := coeffs[idleId][name]; !ok {
+			coeffs[idleId][name] = map[string]float64{}
+		}
+
+		coeffs[idleId][name]["cpu"] += alloc.CPUTotalCost()
+		coeffs[idleId][name]["gpu"] += alloc.GPUTotalCost()
+		coeffs[idleId][name]["ram"] += alloc.RAMTotalCost()
+
+		totals[idleId]["cpu"] += alloc.CPUTotalCost()
+		totals[idleId]["gpu"] += alloc.GPUTotalCost()
+		totals[idleId]["ram"] += alloc.RAMTotalCost()
 	}
 
-	if _, ok := idleCoeffs[idleId]; !ok {
-		return ProportionalAssetResourceCost{}, fmt.Errorf("failed to find idle coeffs for idle ID %s", idleId)
+	// Do the same for shared allocations
+	for _, alloc := range shareSet.Allocations {
+		if alloc.IsIdle() {
+			// Skip idle allocations in coefficient calculation
+			continue
+		}
+
+		// idleId will be providerId or cluster
+		idleId, err := alloc.getIdleId(options)
+		if err != nil {
+			log.DedupedWarningf(3, "Missing Idle Key in share set for %s", alloc.Name)
+		}
+
+		// get the name key for the allocation
+		name := alloc.Name
+
+		// Create idleId based tables if they don't exist
+		if _, ok := coeffs[idleId]; !ok {
+			coeffs[idleId] = map[string]map[string]float64{}
+		}
+		if _, ok := totals[idleId]; !ok {
+			totals[idleId] = map[string]float64{}
+		}
+
+		if _, ok := coeffs[idleId][name]; !ok {
+			coeffs[idleId][name] = map[string]float64{}
+		}
+
+		coeffs[idleId][name]["cpu"] += alloc.CPUTotalCost()
+		coeffs[idleId][name]["gpu"] += alloc.GPUTotalCost()
+		coeffs[idleId][name]["ram"] += alloc.RAMTotalCost()
+
+		totals[idleId]["cpu"] += alloc.CPUTotalCost()
+		totals[idleId]["gpu"] += alloc.GPUTotalCost()
+		totals[idleId]["ram"] += alloc.RAMTotalCost()
 	}
 
-	if _, ok := idleCoeffs[idleId][allocation.Name]; !ok {
-		return ProportionalAssetResourceCost{}, fmt.Errorf("failed to find idle coeffs for allocation %s", allocation.Name)
+	// after totals are computed, loop through and set parcs on allocations
+	for _, alloc := range as.Allocations {
+		idleId, err := alloc.getIdleId(options)
+		if err != nil {
+			log.DedupedWarningf(3, "Missing Idle Key in share set for %s", alloc.Name)
+		}
+
+		alloc.ProportionalAssetResourceCosts = ProportionalAssetResourceCosts{}
+		alloc.ProportionalAssetResourceCosts.Insert(ProportionalAssetResourceCost{
+			Cluster:             alloc.Properties.Cluster,
+			Node:                alloc.Properties.Node,
+			ProviderID:          alloc.Properties.ProviderID,
+			GPUTotalCost:        totals[idleId]["gpu"],
+			CPUTotalCost:        totals[idleId]["cpu"],
+			RAMTotalCost:        totals[idleId]["ram"],
+			GPUProportionalCost: coeffs[idleId][alloc.Name]["gpu"],
+			CPUProportionalCost: coeffs[idleId][alloc.Name]["cpu"],
+			RAMProportionalCost: coeffs[idleId][alloc.Name]["ram"],
+		}, options.IdleByNode)
 	}
 
-	cpuPct := idleCoeffs[idleId][allocation.Name]["cpu"]
-	gpuPct := idleCoeffs[idleId][allocation.Name]["gpu"]
-	ramPct := idleCoeffs[idleId][allocation.Name]["ram"]
-
-	// compute how much each component (cpu, gpu, ram) contributes to the overall price
-	totalCost := totals[idleId]["ram"] + totals[idleId]["gpu"] + totals[idleId]["cpu"]
-
-	var ramFraction, cpuFraction, gpuFraction float64
-
-	// only compute fraction if totalCost is nonzero, otherwise returns in NaN
-	if totalCost > 0 {
-		ramFraction = totals[idleId]["ram"] / totalCost
-		cpuFraction = totals[idleId]["cpu"] / totalCost
-		gpuFraction = totals[idleId]["gpu"] / totalCost
-	}
-
-	// compute the resource usage percentage based on the weighted fractions
-	nodeResourceCostPercentage := (ramPct * ramFraction) + (cpuPct * cpuFraction) + (gpuPct * gpuFraction)
-
-	parc := ProportionalAssetResourceCost{
-		Cluster:                    allocation.Properties.Cluster,
-		Node:                       allocation.Properties.Node,
-		ProviderID:                 allocation.Properties.ProviderID,
-		CPUPercentage:              cpuPct,
-		GPUPercentage:              gpuPct,
-		RAMPercentage:              ramPct,
-		NodeResourceCostPercentage: nodeResourceCostPercentage,
-		CPUComponents: []ParcsComponent{
-			{
-				TotalCost:       totals[idleId]["cpu"],
-				UsageProportion: idleCoeffs[idleId][allocation.Name]["cpu"],
-			},
-		},
-		GPUComponents: []ParcsComponent{
-			{
-				TotalCost:       totals[idleId]["gpu"],
-				UsageProportion: idleCoeffs[idleId][allocation.Name]["gpu"],
-			},
-		},
-		RAMComponents: []ParcsComponent{
-			{
-				TotalCost:       totals[idleId]["ram"],
-				UsageProportion: idleCoeffs[idleId][allocation.Name]["ram"],
-			},
-		},
-	}
-
-	return parc, nil
+	return nil
 }
 
 // getIdleId returns the providerId or cluster of an Allocation depending on the IdleByNode
