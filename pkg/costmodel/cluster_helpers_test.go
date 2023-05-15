@@ -150,6 +150,7 @@ func TestBuildNodeMap(t *testing.T) {
 		labelsMap            map[nodeIdentifierNoProviderID]map[string]string
 		clusterAndNameToType map[nodeIdentifierNoProviderID]string
 		expected             map[NodeIdentifier]*Node
+		overheadMap          map[nodeIdentifierNoProviderID]*NodeOverhead
 	}{
 		{
 			name:     "empty",
@@ -657,6 +658,15 @@ func TestBuildNodeMap(t *testing.T) {
 					Name:    "node1",
 				}: "e2-medium", // for this node type
 			},
+			overheadMap: map[nodeIdentifierNoProviderID]*NodeOverhead{
+				{
+					Cluster: "cluster1",
+					Name:    "node1",
+				}: {
+					CpuOverheadFraction: 0.5,
+					RamOverheadFraction: 0.25,
+				}, // for this node type
+			},
 			expected: map[NodeIdentifier]*Node{
 				{
 					Cluster:    "cluster1",
@@ -671,6 +681,10 @@ func TestBuildNodeMap(t *testing.T) {
 					CPUCores:     partialCPUMap["e2-medium"],
 					CPUBreakdown: &ClusterCostsBreakdown{},
 					RAMBreakdown: &ClusterCostsBreakdown{},
+					Overhead: &NodeOverhead{
+						CpuOverheadFraction: 0.5,
+						RamOverheadFraction: 0.25,
+					},
 				},
 			},
 		},
@@ -688,6 +702,7 @@ func TestBuildNodeMap(t *testing.T) {
 				testCase.labelsMap,
 				testCase.clusterAndNameToType,
 				time.Minute,
+				testCase.overheadMap,
 			)
 
 			if !reflect.DeepEqual(result, testCase.expected) {
