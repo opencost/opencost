@@ -473,8 +473,8 @@ func ClusterDisks(client prometheus.Client, provider models.Provider, start, end
 }
 
 type NodeOverhead struct {
-	CpuOverheadPercentage float64
-	RamOverheadPercentage float64
+	CpuOverheadFraction float64
+	RamOverheadFraction float64
 }
 type Node struct {
 	Cluster         string

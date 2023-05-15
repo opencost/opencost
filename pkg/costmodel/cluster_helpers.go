@@ -438,7 +438,7 @@ func buildOverheadMap(capRam, allocRam, capCPU, allocCPU map[nodeIdentifierNoPro
 		}
 		overheadBytes := ramCapacity - allocatableRam
 		m[identifier] = &NodeOverhead{
-			RamOverheadPercentage: overheadBytes / ramCapacity,
+			RamOverheadFraction: overheadBytes / ramCapacity,
 		}
 	}
 
@@ -452,10 +452,10 @@ func buildOverheadMap(capRam, allocRam, capCPU, allocCPU map[nodeIdentifierNoPro
 		overhead := cpuCapacity - allocatableCPU
 
 		if _, found := m[identifier]; found {
-			m[identifier].CpuOverheadPercentage = overhead / cpuCapacity
+			m[identifier].CpuOverheadFraction = overhead / cpuCapacity
 		} else {
 			m[identifier] = &NodeOverhead{
-				CpuOverheadPercentage: overhead / cpuCapacity,
+				CpuOverheadFraction: overhead / cpuCapacity,
 			}
 		}
 

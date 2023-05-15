@@ -1756,8 +1756,9 @@ func (n *Network) String() string {
 // NodeOverhead represents the delta between the allocatable resources
 // of the node and the node nameplate capacity
 type NodeOverhead struct {
-	CpuOverheadPercentage float64
-	RamOverheadPercentage float64
+	CpuOverheadFraction  float64
+	RamOverheadFraction  float64
+	OverheadCostFraction float64
 }
 
 // Node is an Asset representing a single node in a cluster
@@ -2002,8 +2003,11 @@ func (n *Node) add(that *Node) {
 	}
 
 	if n.Overhead != nil && that.Overhead != nil {
-		n.Overhead.RamOverheadPercentage = (n.Overhead.RamOverheadPercentage*n.RAMCost + that.Overhead.RamOverheadPercentage*that.RAMCost) / totalRAMCost
-		n.Overhead.CpuOverheadPercentage = (n.Overhead.CpuOverheadPercentage*n.CPUCost + that.Overhead.CpuOverheadPercentage*that.CPUCost) / totalCPUCost
+
+		n.Overhead.RamOverheadFraction = (n.Overhead.RamOverheadFraction*n.RAMCost + that.Overhead.RamOverheadFraction*that.RAMCost) / totalRAMCost
+		n.Overhead.CpuOverheadFraction = (n.Overhead.CpuOverheadFraction*n.CPUCost + that.Overhead.CpuOverheadFraction*that.CPUCost) / totalCPUCost
+		combinedRamCPUCost := n.RAMCost + n.CPUCost
+		n.Overhead.OverheadCostFraction = (n.Overhead.CpuOverheadFraction * (n.CPUCost / combinedRamCPUCost)) + (n.Overhead.RamOverheadFraction * (n.RAMCost / combinedRamCPUCost))
 	}
 
 	n.CPUCoreHours += that.CPUCoreHours

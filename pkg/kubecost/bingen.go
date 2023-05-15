@@ -41,6 +41,7 @@ package kubecost
 // @bingen:generate:LoadBalancer
 // @bingen:generate:Network
 // @bingen:generate:Node
+// @bingen:generate:NodeOverhead
 // @bingen:generate:SharedAsset
 // @bingen:end
 
