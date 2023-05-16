@@ -517,12 +517,22 @@ func assertParcResults(t *testing.T, as *AllocationSet, msg string, exps map[str
 	for allocKey, a := range as.Allocations {
 		for key, actualParc := range a.ProportionalAssetResourceCosts {
 			expectedParcs := exps[allocKey]
+
+			// round to prevent floating point issues from failing tests at ultra high precision
+			actualParc.NodeResourceCostPercentage = roundFloat(actualParc.NodeResourceCostPercentage)
+			actualParc.CPUPercentage = roundFloat(actualParc.CPUPercentage)
+			actualParc.RAMPercentage = roundFloat(actualParc.RAMPercentage)
+			actualParc.GPUPercentage = roundFloat(actualParc.GPUPercentage)
 			if !reflect.DeepEqual(expectedParcs[key], actualParc) {
 				t.Fatalf("actual PARC %v did not match expected PARC %v", actualParc, expectedParcs[key])
 			}
 		}
 
 	}
+}
+func roundFloat(val float64) float64 {
+	ratio := math.Pow(10, float64(5))
+	return math.Round(val*ratio) / ratio
 }
 
 func assertAllocationTotals(t *testing.T, as *AllocationSet, msg string, exps map[string]float64) {
@@ -1079,10 +1089,10 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						Cluster:                    "cluster1",
 						Node:                       "",
 						ProviderID:                 "",
-						CPUPercentage:              0.16666666666666666,
-						GPUPercentage:              0.16666666666666666,
-						RAMPercentage:              0.2708333333333333,
-						NodeResourceCostPercentage: 0.22619047619047614,
+						CPUPercentage:              0.16667,
+						GPUPercentage:              0.16667,
+						RAMPercentage:              0.27083,
+						NodeResourceCostPercentage: 0.22619,
 						GPUTotalCost:               18,
 						GPUProportionalCost:        3,
 						CPUTotalCost:               18,
@@ -1096,10 +1106,10 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						Cluster:                    "cluster1",
 						Node:                       "",
 						ProviderID:                 "",
-						CPUPercentage:              0.16666666666666666,
-						GPUPercentage:              0.16666666666666666,
+						CPUPercentage:              0.16667,
+						GPUPercentage:              0.16667,
 						RAMPercentage:              0.0625,
-						NodeResourceCostPercentage: 0.10714285714285714,
+						NodeResourceCostPercentage: 0.10714,
 						GPUTotalCost:               18,
 						GPUProportionalCost:        3,
 						CPUTotalCost:               18,
@@ -1111,10 +1121,10 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						Cluster:                    "cluster2",
 						Node:                       "",
 						ProviderID:                 "",
-						CPUPercentage:              0.16666666666666666,
-						GPUPercentage:              0.16666666666666666,
-						RAMPercentage:              0.16666666666666666,
-						NodeResourceCostPercentage: 0.16666666666666666,
+						CPUPercentage:              0.16667,
+						GPUPercentage:              0.16667,
+						RAMPercentage:              0.16667,
+						NodeResourceCostPercentage: 0.16667,
 						GPUTotalCost:               18,
 						GPUProportionalCost:        3,
 						CPUTotalCost:               18,
@@ -1535,10 +1545,10 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						Cluster:                    "cluster1",
 						Node:                       "c1nodes",
 						ProviderID:                 "c1nodes",
-						CPUPercentage:              0.16666666666666666,
-						GPUPercentage:              0.16666666666666666,
-						RAMPercentage:              0.2708333333333333,
-						NodeResourceCostPercentage: 0.22619047619047614,
+						CPUPercentage:              0.16667,
+						GPUPercentage:              0.16667,
+						RAMPercentage:              0.27083,
+						NodeResourceCostPercentage: 0.22619,
 						GPUTotalCost:               18,
 						GPUProportionalCost:        3,
 						CPUTotalCost:               18,
@@ -1550,10 +1560,10 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						Cluster:                    "cluster2",
 						Node:                       "node2",
 						ProviderID:                 "node2",
-						CPUPercentage:              0.16666666666666666,
-						GPUPercentage:              0.16666666666666666,
+						CPUPercentage:              0.16667,
+						GPUPercentage:              0.16667,
 						RAMPercentage:              0.0625,
-						NodeResourceCostPercentage: 0.10714285714285714,
+						NodeResourceCostPercentage: 0.10714,
 						GPUTotalCost:               18,
 						GPUProportionalCost:        3,
 						CPUTotalCost:               18,
@@ -1567,10 +1577,10 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						Cluster:                    "cluster1",
 						Node:                       "c1nodes",
 						ProviderID:                 "c1nodes",
-						CPUPercentage:              0.16666666666666666,
-						GPUPercentage:              0.16666666666666666,
+						CPUPercentage:              0.16667,
+						GPUPercentage:              0.16667,
 						RAMPercentage:              0.0625,
-						NodeResourceCostPercentage: 0.10714285714285714,
+						NodeResourceCostPercentage: 0.10714,
 						GPUTotalCost:               18,
 						GPUProportionalCost:        3,
 						CPUTotalCost:               18,
