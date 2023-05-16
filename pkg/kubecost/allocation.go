@@ -262,24 +262,6 @@ type ProportionalAssetResourceCost struct {
 	RAMProportionalCost        float64 `json:"-"`
 }
 
-func (parc ProportionalAssetResourceCost) Clone() ProportionalAssetResourceCost {
-
-	return ProportionalAssetResourceCost{
-		Cluster:                    parc.Cluster,
-		Node:                       parc.Node,
-		ProviderID:                 parc.ProviderID,
-		CPUPercentage:              parc.CPUPercentage,
-		GPUPercentage:              parc.GPUPercentage,
-		RAMPercentage:              parc.RAMPercentage,
-		NodeResourceCostPercentage: parc.NodeResourceCostPercentage,
-		RAMTotalCost:               parc.RAMTotalCost,
-		CPUTotalCost:               parc.CPUTotalCost,
-		GPUTotalCost:               parc.GPUTotalCost,
-		RAMProportionalCost:        parc.RAMProportionalCost,
-		CPUProportionalCost:        parc.CPUProportionalCost,
-		GPUProportionalCost:        parc.GPUProportionalCost,
-	}
-}
 func (parc ProportionalAssetResourceCost) Key(insertByNode bool) string {
 	if insertByNode {
 		return parc.Cluster + "," + parc.Node
@@ -295,7 +277,7 @@ func (parcs ProportionalAssetResourceCosts) Clone() ProportionalAssetResourceCos
 	cloned := ProportionalAssetResourceCosts{}
 
 	for key, parc := range parcs {
-		cloned[key] = parc.Clone()
+		cloned[key] = parc
 	}
 	return cloned
 }
