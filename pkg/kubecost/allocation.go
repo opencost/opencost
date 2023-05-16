@@ -362,7 +362,7 @@ func computePercentages(toInsert *ProportionalAssetResourceCost) {
 		(toInsert.CPUPercentage * cpuFraction) + (toInsert.GPUPercentage * gpuFraction)
 }
 
-func (parcs ProportionalAssetResourceCosts) Add(that ProportionalAssetResourceCosts, isAccumulation bool) {
+func (parcs ProportionalAssetResourceCosts) Add(that ProportionalAssetResourceCosts) {
 
 	for _, parc := range that {
 		// if node field is empty, we know this is a cluster level PARC aggregation
@@ -833,10 +833,6 @@ func (a *Allocation) String() string {
 }
 
 func (a *Allocation) add(that *Allocation) {
-	a.addWithAccum(that, false)
-}
-
-func (a *Allocation) addWithAccum(that *Allocation, isAccumulation bool) {
 	if a == nil {
 		log.Warnf("Allocation.AggregateBy: trying to add a nil receiver")
 		return
@@ -863,7 +859,7 @@ func (a *Allocation) addWithAccum(that *Allocation, isAccumulation bool) {
 		if that.ProportionalAssetResourceCosts == nil {
 			that.ProportionalAssetResourceCosts = ProportionalAssetResourceCosts{}
 		}
-		a.ProportionalAssetResourceCosts.Add(that.ProportionalAssetResourceCosts, isAccumulation)
+		a.ProportionalAssetResourceCosts.Add(that.ProportionalAssetResourceCosts)
 	}
 
 	// Overwrite regular intersection logic for the controller name property in the
@@ -2154,10 +2150,6 @@ func (as *AllocationSet) IdleAllocations() map[string]*Allocation {
 // but only if the Allocation is valid, i.e. matches the AllocationSet's window. If
 // there is no existing entry, one is created. Nil error response indicates success.
 func (as *AllocationSet) Insert(that *Allocation) error {
-	return as.InsertWithAccum(that, false)
-}
-
-func (as *AllocationSet) InsertWithAccum(that *Allocation, isAccumulation bool) error {
 	if as == nil {
 		return fmt.Errorf("cannot insert into nil AllocationSet")
 	}
@@ -2179,7 +2171,7 @@ func (as *AllocationSet) InsertWithAccum(that *Allocation, isAccumulation bool) 
 	if _, ok := as.Allocations[that.Name]; !ok {
 		as.Allocations[that.Name] = that
 	} else {
-		as.Allocations[that.Name].addWithAccum(that, isAccumulation)
+		as.Allocations[that.Name].add(that)
 	}
 
 	// If the given Allocation is an external one, record that
@@ -2330,14 +2322,14 @@ func (as *AllocationSet) Accumulate(that *AllocationSet) (*AllocationSet, error)
 	acc := NewAllocationSet(start, end)
 
 	for _, alloc := range as.Allocations {
-		err := acc.InsertWithAccum(alloc, true)
+		err := acc.Insert(alloc)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	for _, alloc := range that.Allocations {
-		err := acc.InsertWithAccum(alloc, true)
+		err := acc.Insert(alloc)
 		if err != nil {
 			return nil, err
 		}
