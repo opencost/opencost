@@ -276,7 +276,7 @@ func (parc ProportionalAssetResourceCost) Clone() ProportionalAssetResourceCost 
 		CPUTotalCost:               parc.CPUTotalCost,
 		GPUTotalCost:               parc.GPUTotalCost,
 		RAMProportionalCost:        parc.RAMProportionalCost,
-		CPUProportionalCost:        parc.CPUTotalCost,
+		CPUProportionalCost:        parc.CPUProportionalCost,
 		GPUProportionalCost:        parc.GPUProportionalCost,
 	}
 }
