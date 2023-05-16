@@ -2002,14 +2002,6 @@ func (n *Node) add(that *Node) {
 		n.RAMBreakdown.User = (n.RAMBreakdown.User*n.RAMCost + that.RAMBreakdown.User*that.RAMCost) / totalRAMCost
 	}
 
-	if n.Overhead != nil && that.Overhead != nil {
-
-		n.Overhead.RamOverheadFraction = (n.Overhead.RamOverheadFraction*n.RAMCost + that.Overhead.RamOverheadFraction*that.RAMCost) / totalRAMCost
-		n.Overhead.CpuOverheadFraction = (n.Overhead.CpuOverheadFraction*n.CPUCost + that.Overhead.CpuOverheadFraction*that.CPUCost) / totalCPUCost
-		combinedRamCPUCost := n.RAMCost + n.CPUCost
-		n.Overhead.OverheadCostFraction = (n.Overhead.CpuOverheadFraction * (n.CPUCost / combinedRamCPUCost)) + (n.Overhead.RamOverheadFraction * (n.RAMCost / combinedRamCPUCost))
-	}
-
 	n.CPUCoreHours += that.CPUCoreHours
 	n.RAMByteHours += that.RAMByteHours
 	n.GPUHours += that.GPUHours
@@ -2018,6 +2010,13 @@ func (n *Node) add(that *Node) {
 	n.GPUCost += that.GPUCost
 	n.RAMCost += that.RAMCost
 	n.Adjustment += that.Adjustment
+
+	if n.Overhead != nil && that.Overhead != nil {
+
+		n.Overhead.RamOverheadFraction = (n.Overhead.RamOverheadFraction*n.RAMCost + that.Overhead.RamOverheadFraction*that.RAMCost) / totalRAMCost
+		n.Overhead.CpuOverheadFraction = (n.Overhead.CpuOverheadFraction*n.CPUCost + that.Overhead.CpuOverheadFraction*that.CPUCost) / totalCPUCost
+		n.Overhead.OverheadCostFraction = ((n.Overhead.CpuOverheadFraction * n.CPUCost) + (n.Overhead.RamOverheadFraction * n.RAMCost)) / n.TotalCost()
+	}
 }
 
 // Clone returns a deep copy of the given Node
