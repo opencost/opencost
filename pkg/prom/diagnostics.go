@@ -88,7 +88,7 @@ var diagnosticDefinitions map[string]*diagnosticDefinition = map[string]*diagnos
 	CAdvisorLabelDiagnosticMetricID: {
 		ID:          CAdvisorLabelDiagnosticMetricID,
 		QueryFmt:    `absent_over_time(container_cpu_usage_seconds_total{container!="",pod!="",%s}[5m] %s)`,
-		Label:       "Expected cAdvsior labels available",
+		Label:       "Expected cAdvisor labels available",
 		Description: "Determine if expected cAdvisor labels are present during last 5 minutes.",
 		DocLink:     fmt.Sprintf("%s#cadvisor-metrics-available", DocumentationBaseURL),
 	},
