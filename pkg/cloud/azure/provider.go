@@ -489,6 +489,7 @@ func (k *azureKey) GetGPUCount() string {
 }
 
 // AzureStorageConfig Represents an azure storage config
+// Deprecated: v1.104 Use StorageConfiguration instead
 type AzureStorageConfig struct {
 	SubscriptionId string `json:"azureSubscriptionID"`
 	AccountName    string `json:"azureStorageAccount"`
@@ -517,7 +518,8 @@ type AzureAppKey struct {
 	Tenant      string `json:"tenant"`
 }
 
-// Azure service key for a specific subscription
+// AzureServiceKey service key for a specific subscription
+// Deprecated: v1.104 Use ServiceKey instead
 type AzureServiceKey struct {
 	SubscriptionID string       `json:"subscriptionId"`
 	ServiceKey     *AzureAppKey `json:"serviceKey"`
