@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
@@ -1432,7 +1432,7 @@ func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerCPUHr
 			nodeMap[key] = &nodePricing{
 				Name:       node,
 				NodeType:   instanceType,
-				ProviderID: cloud.ParseID(providerID),
+				ProviderID: provider.ParseID(providerID),
 			}
 		}
 
@@ -1470,7 +1470,7 @@ func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerRA
 			nodeMap[key] = &nodePricing{
 				Name:       node,
 				NodeType:   instanceType,
-				ProviderID: cloud.ParseID(providerID),
+				ProviderID: provider.ParseID(providerID),
 			}
 		}
 
@@ -1508,7 +1508,7 @@ func applyNodeCostPerGPUHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerGPUHr
 			nodeMap[key] = &nodePricing{
 				Name:       node,
 				NodeType:   instanceType,
-				ProviderID: cloud.ParseID(providerID),
+				ProviderID: provider.ParseID(providerID),
 			}
 		}
 
@@ -1654,7 +1654,7 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*nodePricing, nodeKey no
 	if err != nil {
 		log.Warnf("CostModel: failed to load custom pricing: %s", err)
 	}
-	if cloud.CustomPricesEnabled(cm.Provider) && customPricingConfig != nil {
+	if provider.CustomPricesEnabled(cm.Provider) && customPricingConfig != nil {
 		return cm.getCustomNodePricing(node.Preemptible, node.ProviderID)
 	}
 

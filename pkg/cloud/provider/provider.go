@@ -1,4 +1,4 @@
-package cloud
+package provider
 
 import (
 	"errors"
@@ -8,8 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opencost/opencost/pkg/cloud/alibaba"
+	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/azure"
+	"github.com/opencost/opencost/pkg/cloud/gcp"
 	"github.com/opencost/opencost/pkg/cloud/models"
+	"github.com/opencost/opencost/pkg/cloud/scaleway"
 	"github.com/opencost/opencost/pkg/kubecost"
 
 	"github.com/opencost/opencost/pkg/util"
@@ -25,9 +29,6 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 )
-
-const KarpenterCapacityTypeLabel = "karpenter.sh/capacity-type"
-const KarpenterCapacitySpotTypeValue = "spot"
 
 // ClusterName returns the name defined in cluster info, defaulting to the
 // CLUSTER_ID environment variable
@@ -168,8 +169,8 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 			CSVLocation: env.GetCSVPath(),
 			CustomProvider: &CustomProvider{
 				Clientset:        cache,
-				clusterRegion:    cp.region,
-				clusterAccountID: cp.accountID,
+				ClusterRegion:    cp.region,
+				ClusterAccountID: cp.accountID,
 				Config:           NewProviderConfig(config, cp.configFileName),
 			},
 		}, nil
@@ -178,14 +179,14 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 		if apiKey == "" {
 			return nil, errors.New("Supply a GCP Key to start getting data")
 		}
-		return &GCP{
+		return &gcp.GCP{
 			Clientset:        cache,
 			APIKey:           apiKey,
 			Config:           NewProviderConfig(config, cp.configFileName),
-			clusterRegion:    cp.region,
-			clusterAccountID: cp.accountID,
-			clusterProjectID: cp.projectID,
-			metadataClient: metadata.NewClient(
+			ClusterRegion:    cp.region,
+			ClusterAccountID: cp.accountID,
+			ClusterProjectID: cp.projectID,
+			MetadataClient: metadata.NewClient(
 				&http.Client{
 					Transport: httputil.NewUserAgentTransport("kubecost", &http.Transport{
 						Dial: (&net.Dialer{
@@ -198,12 +199,12 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 		}, nil
 	case kubecost.AWSProvider:
 		log.Info("Found ProviderID starting with \"aws\", using AWS Provider")
-		return &AWS{
+		return &aws.AWS{
 			Clientset:            cache,
 			Config:               NewProviderConfig(config, cp.configFileName),
-			clusterRegion:        cp.region,
-			clusterAccountID:     cp.accountID,
-			serviceAccountChecks: models.NewServiceAccountChecks(),
+			ClusterRegion:        cp.region,
+			ClusterAccountID:     cp.accountID,
+			ServiceAccountChecks: models.NewServiceAccountChecks(),
 		}, nil
 	case kubecost.AzureProvider:
 		log.Info("Found ProviderID starting with \"azure\", using Azure Provider")
@@ -216,19 +217,19 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 		}, nil
 	case kubecost.AlibabaProvider:
 		log.Info("Found ProviderID starting with \"alibaba\", using Alibaba Cloud Provider")
-		return &Alibaba{
+		return &alibaba.Alibaba{
 			Clientset:            cache,
 			Config:               NewProviderConfig(config, cp.configFileName),
-			clusterRegion:        cp.region,
-			clusterAccountId:     cp.accountID,
-			serviceAccountChecks: models.NewServiceAccountChecks(),
+			ClusterRegion:        cp.region,
+			ClusterAccountId:     cp.accountID,
+			ServiceAccountChecks: models.NewServiceAccountChecks(),
 		}, nil
 	case kubecost.ScalewayProvider:
 		log.Info("Found ProviderID starting with \"scaleway\", using Scaleway Provider")
-		return &Scaleway{
+		return &scaleway.Scaleway{
 			Clientset:        cache,
-			clusterRegion:    cp.region,
-			clusterAccountID: cp.accountID,
+			ClusterRegion:    cp.region,
+			ClusterAccountID: cp.accountID,
 			Config:           NewProviderConfig(config, cp.configFileName),
 		}, nil
 
@@ -236,8 +237,8 @@ func NewProvider(cache clustercache.ClusterCache, apiKey string, config *config.
 		log.Info("Unsupported provider, falling back to default")
 		return &CustomProvider{
 			Clientset:        cache,
-			clusterRegion:    cp.region,
-			clusterAccountID: cp.accountID,
+			ClusterRegion:    cp.region,
+			ClusterAccountID: cp.accountID,
 			Config:           NewProviderConfig(config, cp.configFileName),
 		}, nil
 	}
@@ -265,7 +266,7 @@ func getClusterProperties(node *v1.Node) clusterProperties {
 	if metadata.OnGCE() || strings.HasPrefix(providerID, "gce") {
 		cp.provider = kubecost.GCPProvider
 		cp.configFileName = "gcp.json"
-		cp.projectID = parseGCPProjectID(providerID)
+		cp.projectID = gcp.ParseGCPProjectID(providerID)
 	} else if strings.HasPrefix(providerID, "aws") {
 		cp.provider = kubecost.AWSProvider
 		cp.configFileName = "aws.json"

@@ -69,7 +69,7 @@ type Asset interface {
 // the Properties to use to aggregate, and the mapping from Allocation property
 // to Asset label. For example, consider this asset:
 //
-// CURRENT: Asset ETL stores its data ALREADY MAPPED from label to k8s concept. This isn't ideal-- see the TOOD.
+// CURRENT: Asset ETL stores its data ALREADY MAPPED from label to k8s concept. This isn't ideal-- see the TODO.
 //
 //	  Cloud {
 //		   TotalCost: 10.00,

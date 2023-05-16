@@ -84,7 +84,7 @@ const (
 // expect to receive these benefits. Passing a custom implementation to a
 // handler may in errors.
 type AllocationFilter interface {
-	// Matches is the canonical in-Go function for determing if an Allocation
+	// Matches is the canonical in-Go function for determining if an Allocation
 	// matches a filter.
 	Matches(a *Allocation) bool
 

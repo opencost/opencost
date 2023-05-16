@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/patrickmn/go-cache"
 	prometheusClient "github.com/prometheus/client_golang/api"
 
-	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/errors"
@@ -452,7 +452,7 @@ func AggregateCostData(costData map[string]*CostData, field string, subfields []
 		agg.PVAllocationHourlyAverage = totalVectors(agg.PVAllocationVectors) / agg.TotalHours(resolutionHours)
 
 		// TODO niko/etl does this check out for GPU data? Do we need to rewrite GPU queries to be
-		// culumative?
+		// cumulative?
 		agg.CPUAllocationTotal = totalVectors(agg.CPUAllocationVectors)
 		agg.GPUAllocationTotal = totalVectors(agg.GPUAllocationVectors)
 		agg.PVAllocationTotal = totalVectors(agg.PVAllocationVectors)
@@ -761,7 +761,7 @@ func getPriceVectors(cp models.Provider, costDatum *CostData, rate string, disco
 	if err != nil {
 		log.Errorf("failed to load custom pricing: %s", err)
 	}
-	if cloud.CustomPricesEnabled(cp) && err == nil {
+	if provider.CustomPricesEnabled(cp) && err == nil {
 		var cpuCostStr string
 		var ramCostStr string
 		var gpuCostStr string
@@ -839,7 +839,7 @@ func getPriceVectors(cp models.Provider, costDatum *CostData, rate string, disco
 			cost, _ := strconv.ParseFloat(pvcData.Volume.Cost, 64)
 
 			// override with custom pricing if enabled
-			if cloud.CustomPricesEnabled(cp) {
+			if provider.CustomPricesEnabled(cp) {
 				cost = pvCost
 			}
 
@@ -1768,10 +1768,10 @@ func (a *Accesses) warmAggregateCostModelCache() {
 		aggOpts.NoExpireCache = false
 		aggOpts.ShareSplit = SplitTypeWeighted
 		aggOpts.RemoteEnabled = env.IsRemoteEnabled()
-		aggOpts.AllocateIdle = cloud.AllocateIdleByDefault(a.CloudProvider)
+		aggOpts.AllocateIdle = provider.AllocateIdleByDefault(a.CloudProvider)
 
-		sharedNamespaces := cloud.SharedNamespaces(a.CloudProvider)
-		sharedLabelNames, sharedLabelValues := cloud.SharedLabels(a.CloudProvider)
+		sharedNamespaces := provider.SharedNamespaces(a.CloudProvider)
+		sharedLabelNames, sharedLabelValues := provider.SharedLabels(a.CloudProvider)
 
 		if len(sharedNamespaces) > 0 || len(sharedLabelNames) > 0 {
 			aggOpts.SharedResources = NewSharedResourceInfo(true, sharedNamespaces, sharedLabelNames, sharedLabelValues)

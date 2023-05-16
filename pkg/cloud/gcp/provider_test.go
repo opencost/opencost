@@ -1,4 +1,4 @@
-package cloud
+package gcp
 
 import (
 	"bytes"
@@ -68,7 +68,7 @@ func TestParseGCPProjectID(t *testing.T) {
 	}
 
 	for _, test := range cases {
-		result := parseGCPProjectID(test.input)
+		result := ParseGCPProjectID(test.input)
 		if result != test.expected {
 			t.Errorf("Input: %s, Expected: %s, Actual: %s", test.input, test.expected, result)
 		}
@@ -94,7 +94,7 @@ func TestGetUsageType(t *testing.T) {
 		},
 		{
 			input: map[string]string{
-				KarpenterCapacityTypeLabel: KarpenterCapacitySpotTypeValue,
+				models.KarpenterCapacityTypeLabel: models.KarpenterCapacitySpotTypeValue,
 			},
 			expected: "preemptible",
 		},
@@ -308,7 +308,7 @@ func TestParsePage(t *testing.T) {
 	}
 
 	expectedActualPrices := map[string]*GCPPricing{
-		"us-central1,a2highgpu,ondemand,gpu": &GCPPricing{
+		"us-central1,a2highgpu,ondemand,gpu": {
 			Name:        "services/6F81-5844-456A/skus/039F-D0DA-4055",
 			SKUID:       "039F-D0DA-4055",
 			Description: "Nvidia Tesla A100 GPU running in Americas",
@@ -320,7 +320,7 @@ func TestParsePage(t *testing.T) {
 			},
 			ServiceRegions: []string{"us-central1", "us-east1", "us-west1"},
 			PricingInfo: []*PricingInfo{
-				&PricingInfo{
+				{
 					Summary: "",
 					PricingExpression: &PricingExpression{
 						UsageUnit:                "h",
@@ -329,7 +329,7 @@ func TestParsePage(t *testing.T) {
 						BaseUnitConversionFactor: 0,
 						DisplayQuantity:          1,
 						TieredRates: []*TieredRates{
-							&TieredRates{
+							{
 								StartUsageAmount: 0,
 								UnitPrice: &UnitPriceInfo{
 									CurrencyCode: "USD",
@@ -353,7 +353,7 @@ func TestParsePage(t *testing.T) {
 				GPUCost:          "2.933908",
 			},
 		},
-		"us-central1,a2highgpu,ondemand": &GCPPricing{
+		"us-central1,a2highgpu,ondemand": {
 			Node: &models.Node{
 				VCPUCost:         "0.031611",
 				RAMCost:          "0.004237",

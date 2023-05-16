@@ -1434,7 +1434,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 
 	// groupingIdleFiltrationCoeffs is used to track per-resource idle
 	// coefficients on a cluster-by-cluster or node-by-node basis depending
-	// on the IdleByNode option. It is, essentailly, an aggregation of
+	// on the IdleByNode option. It is, essentially, an aggregation of
 	// idleFiltrationCoefficients after they have been
 	// filtered above (in step 3)
 	var groupingIdleFiltrationCoeffs map[string]map[string]float64
@@ -1486,7 +1486,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 			for _, sharedAlloc := range shareSet.Allocations {
 				if _, ok := shareCoefficients[alloc.Name]; !ok {
 					if !alloc.IsIdle() && !alloc.IsUnmounted() {
-						log.Warnf("AllocationSet.AggregateBy: error getting share coefficienct for '%s'", alloc.Name)
+						log.Warnf("AllocationSet.AggregateBy: error getting share coefficient for '%s'", alloc.Name)
 					}
 					continue
 				}

@@ -260,7 +260,7 @@ func CostDataRangeFromSQL(field string, value string, window string, start strin
 	rawResult := make([][]byte, len(cols))
 	result := make([]string, len(cols))
 	dest := make([]interface{}, len(cols)) // A temporary interface{} slice
-	for i, _ := range rawResult {
+	for i := range rawResult {
 		dest[i] = &rawResult[i] // Put pointers to each string in the interface slice
 	}
 	nsToLabels := make(map[string]map[string]string)

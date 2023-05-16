@@ -20,9 +20,11 @@ var (
 )
 
 const (
-	AuthSecretPath          = "/var/secrets/service-key.json"
-	StorageConfigSecretPath = "/var/azure-storage-config/azure-storage-config.json"
-	DefaultShareTenancyCost = "true"
+	AuthSecretPath                 = "/var/secrets/service-key.json"
+	StorageConfigSecretPath        = "/var/azure-storage-config/azure-storage-config.json"
+	DefaultShareTenancyCost        = "true"
+	KarpenterCapacityTypeLabel     = "karpenter.sh/capacity-type"
+	KarpenterCapacitySpotTypeValue = "spot"
 )
 
 // ReservedInstanceData keeps record of resources on a node should be

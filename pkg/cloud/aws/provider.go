@@ -1,4 +1,4 @@
-package cloud
+package aws
 
 import (
 	"bytes"
@@ -60,7 +60,6 @@ const (
 	AWSHourlyPublicIPCost    = 0.005
 	EKSCapacityTypeLabel     = "eks.amazonaws.com/capacityType"
 	EKSCapacitySpotTypeValue = "SPOT"
-	
 )
 
 var (
@@ -179,16 +178,16 @@ type AWS struct {
 	SpotDataPrefix              string
 	ProjectID                   string
 	DownloadPricingDataLock     sync.RWMutex
-	Config                      *ProviderConfig
-	serviceAccountChecks        *models.ServiceAccountChecks
+	Config                      models.ProviderConfig
+	ServiceAccountChecks        *models.ServiceAccountChecks
 	clusterManagementPrice      float64
-	clusterRegion               string
-	clusterAccountID            string
+	ClusterRegion               string
+	ClusterAccountID            string
 	clusterProvisioner          string
-	*CustomProvider
 }
 
 // AWSAccessKey holds AWS credentials and fulfils the awsV2.CredentialsProvider interface
+// Deprecated: v1.104 Use AccessKey instead
 type AWSAccessKey struct {
 	AccessKeyID     string `json:"aws_access_key_id"`
 	SecretAccessKey string `json:"aws_secret_access_key"`
@@ -395,6 +394,7 @@ type AwsSpotFeedInfo struct {
 }
 
 // AwsAthenaInfo contains configuration for CUR integration
+// Deprecated: v1.104 Use AthenaConfiguration instead
 type AwsAthenaInfo struct {
 	AthenaBucketName string `json:"athenaBucketName"`
 	AthenaRegion     string `json:"athenaRegion"`
@@ -619,7 +619,7 @@ func (k *awsKey) ID() string {
 	return ""
 }
 
-// Features will return a comma seperated list of features for the given node
+// Features will return a comma separated list of features for the given node
 // If the node has a spot label, it will be included in the list
 // Otherwise, the list include instance type, operating system, and the region
 func (k *awsKey) Features() string {
@@ -651,7 +651,7 @@ func (k *awsKey) getUsageType(labels map[string]string) string {
 		// We currently write out spot instances as "preemptible" in the pricing data, so these need to match
 		return PreemptibleType
 	}
-	if kLabel, ok := labels[KarpenterCapacityTypeLabel]; ok && kLabel == KarpenterCapacitySpotTypeValue {
+	if kLabel, ok := labels[models.KarpenterCapacityTypeLabel]; ok && kLabel == models.KarpenterCapacitySpotTypeValue {
 		return PreemptibleType
 	}
 	return ""
@@ -1367,7 +1367,7 @@ func (awsProvider *AWS) ClusterInfo() (map[string]string, error) {
 	m["name"] = clusterName
 	m["provider"] = kubecost.AWSProvider
 	m["account"] = clusterAccountID
-	m["region"] = awsProvider.clusterRegion
+	m["region"] = awsProvider.ClusterRegion
 	m["id"] = env.GetClusterID()
 	m["remoteReadEnabled"] = strconv.FormatBool(env.IsRemoteEnabled())
 	m["provisioner"] = awsProvider.clusterProvisioner
@@ -1404,7 +1404,7 @@ func (aws *AWS) getAWSAuth(forceReload bool, cp *models.CustomPricing) (string, 
 
 	// 1. Check config values first (set from frontend UI)
 	if cp.ServiceKeyName != "" && cp.ServiceKeySecret != "" {
-		aws.serviceAccountChecks.Set("hasKey", &models.ServiceAccountCheck{
+		aws.ServiceAccountChecks.Set("hasKey", &models.ServiceAccountCheck{
 			Message: "AWS ServiceKey exists",
 			Status:  true,
 		})
@@ -1414,7 +1414,7 @@ func (aws *AWS) getAWSAuth(forceReload bool, cp *models.CustomPricing) (string, 
 	// 2. Check for secret
 	s, _ := aws.loadAWSAuthSecret(forceReload)
 	if s != nil && s.AccessKeyID != "" && s.SecretAccessKey != "" {
-		aws.serviceAccountChecks.Set("hasKey", &models.ServiceAccountCheck{
+		aws.ServiceAccountChecks.Set("hasKey", &models.ServiceAccountCheck{
 			Message: "AWS ServiceKey exists",
 			Status:  true,
 		})
@@ -1423,12 +1423,12 @@ func (aws *AWS) getAWSAuth(forceReload bool, cp *models.CustomPricing) (string, 
 
 	// 3. Fall back to env vars
 	if env.GetAWSAccessKeyID() == "" || env.GetAWSAccessKeySecret() == "" {
-		aws.serviceAccountChecks.Set("hasKey", &models.ServiceAccountCheck{
+		aws.ServiceAccountChecks.Set("hasKey", &models.ServiceAccountCheck{
 			Message: "AWS ServiceKey exists",
 			Status:  false,
 		})
 	} else {
-		aws.serviceAccountChecks.Set("hasKey", &models.ServiceAccountCheck{
+		aws.ServiceAccountChecks.Set("hasKey", &models.ServiceAccountCheck{
 			Message: "AWS ServiceKey exists",
 			Status:  true,
 		})
@@ -1850,28 +1850,6 @@ func (aws *AWS) QueryAthenaPaginated(ctx context.Context, query string, fn func(
 	return nil
 }
 
-func waitForQueryToComplete(ctx context.Context, client *athena.Client, queryExecutionID *string) error {
-	inp := &athena.GetQueryExecutionInput{
-		QueryExecutionId: queryExecutionID,
-	}
-	isQueryStillRunning := true
-	for isQueryStillRunning {
-		qe, err := client.GetQueryExecution(ctx, inp)
-		if err != nil {
-			return err
-		}
-		if qe.QueryExecution.Status.State == "SUCCEEDED" {
-			isQueryStillRunning = false
-			continue
-		}
-		if qe.QueryExecution.Status.State != "RUNNING" && qe.QueryExecution.Status.State != "QUEUED" {
-			return fmt.Errorf("no query results available for query %s", *queryExecutionID)
-		}
-		time.Sleep(2 * time.Second)
-	}
-	return nil
-}
-
 type SavingsPlanData struct {
 	ResourceID     string
 	EffectiveCost  float64
@@ -2155,14 +2133,14 @@ func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, re
 	}
 	lso, err := cli.ListObjects(context.TODO(), ls)
 	if err != nil {
-		aws.serviceAccountChecks.Set("bucketList", &models.ServiceAccountCheck{
+		aws.ServiceAccountChecks.Set("bucketList", &models.ServiceAccountCheck{
 			Message:        "Bucket List Permissions Available",
 			Status:         false,
 			AdditionalInfo: err.Error(),
 		})
 		return nil, err
 	} else {
-		aws.serviceAccountChecks.Set("bucketList", &models.ServiceAccountCheck{
+		aws.ServiceAccountChecks.Set("bucketList", &models.ServiceAccountCheck{
 			Message: "Bucket List Permissions Available",
 			Status:  true,
 		})
@@ -2207,14 +2185,14 @@ func (aws *AWS) parseSpotData(bucket string, prefix string, projectID string, re
 		buf := manager.NewWriteAtBuffer([]byte{})
 		_, err := downloader.Download(context.TODO(), buf, getObj)
 		if err != nil {
-			aws.serviceAccountChecks.Set("objectList", &models.ServiceAccountCheck{
+			aws.ServiceAccountChecks.Set("objectList", &models.ServiceAccountCheck{
 				Message:        "Object Get Permissions Available",
 				Status:         false,
 				AdditionalInfo: err.Error(),
 			})
 			return nil, err
 		} else {
-			aws.serviceAccountChecks.Set("objectList", &models.ServiceAccountCheck{
+			aws.ServiceAccountChecks.Set("objectList", &models.ServiceAccountCheck{
 				Message: "Object Get Permissions Available",
 				Status:  true,
 			})
@@ -2290,7 +2268,7 @@ func (aws *AWS) ApplyReservedInstancePricing(nodes map[string]*models.Node) {
 }
 
 func (aws *AWS) ServiceAccountStatus() *models.ServiceAccountStatus {
-	return aws.serviceAccountChecks.GetStatus()
+	return aws.ServiceAccountChecks.GetStatus()
 }
 
 func (aws *AWS) CombinedDiscountForNode(instanceType string, isPreemptible bool, defaultDiscount, negotiatedDiscount float64) float64 {
