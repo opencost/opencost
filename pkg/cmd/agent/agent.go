@@ -7,7 +7,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/clustercache"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/costmodel"
@@ -157,13 +157,13 @@ func Execute(opts *AgentOpts) error {
 	})
 
 	cloudProviderKey := env.GetCloudProviderAPIKey()
-	cloudProvider, err := cloud.NewProvider(clusterCache, cloudProviderKey, confManager)
+	cloudProvider, err := provider.NewProvider(clusterCache, cloudProviderKey, confManager)
 	if err != nil {
 		panic(err.Error())
 	}
 
 	// Append the pricing config watcher
-	configWatchers.AddWatcher(cloud.ConfigWatcherFor(cloudProvider))
+	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))
 	watchConfigFunc := configWatchers.ToWatchFunc()
 	watchedConfigs := configWatchers.GetWatchedConfigs()
 

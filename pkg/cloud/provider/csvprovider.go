@@ -1,4 +1,4 @@
-package cloud
+package provider
 
 import (
 	"encoding/csv"

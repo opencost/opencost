@@ -1,4 +1,4 @@
-package cloud
+package provider
 
 import (
 	"errors"
@@ -33,10 +33,10 @@ type CustomProvider struct {
 	SpotLabelValue          string
 	GPULabel                string
 	GPULabelValue           string
-	clusterRegion           string
-	clusterAccountID        string
+	ClusterRegion           string
+	ClusterAccountID        string
 	DownloadPricingDataLock sync.RWMutex
-	Config                  *ProviderConfig
+	Config                  models.ProviderConfig
 }
 
 var volTypes = map[string]string{
@@ -147,8 +147,8 @@ func (cp *CustomProvider) ClusterInfo() (map[string]string, error) {
 		m["name"] = conf.ClusterName
 	}
 	m["provider"] = kubecost.CustomProvider
-	m["region"] = cp.clusterRegion
-	m["account"] = cp.clusterAccountID
+	m["region"] = cp.ClusterRegion
+	m["account"] = cp.ClusterAccountID
 	m["id"] = env.GetClusterID()
 	return m, nil
 }

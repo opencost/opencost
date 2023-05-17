@@ -176,6 +176,7 @@ func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
 }
 
 // BigQueryConfig contain the required config and credentials to access OOC resources for GCP
+// Deprecated: v1.104 Use BigQueryConfiguration instead
 type BigQueryConfig struct {
 	ProjectID          string            `json:"projectID"`
 	BillingDataDataset string            `json:"billingDataDataset"`

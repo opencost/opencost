@@ -5,10 +5,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/opencost/opencost/pkg/cloud/provider"
 	prometheus "github.com/prometheus/client_golang/api"
 	"golang.org/x/exp/slices"
 
-	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/kubecost"
@@ -779,7 +779,7 @@ func ClusterLoadBalancers(client prometheus.Client, start, end time.Time) (map[L
 				Cluster:    cluster,
 				Namespace:  namespace,
 				Name:       fmt.Sprintf("%s/%s", namespace, name), // TODO:ETL this is kept for backwards-compatibility, but not good
-				ProviderID: cloud.ParseLBID(providerID),
+				ProviderID: provider.ParseLBID(providerID),
 			}
 		}
 
@@ -1360,7 +1360,7 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 		diskMap[key].Bytes = bytes
 	}
 
-	customPricingEnabled := cloud.CustomPricesEnabled(cp)
+	customPricingEnabled := provider.CustomPricesEnabled(cp)
 	customPricingConfig, err := cp.GetConfig()
 	if err != nil {
 		log.Warnf("ClusterDisks: failed to load custom pricing: %s", err)
@@ -1405,7 +1405,7 @@ func pvCosts(diskMap map[DiskIdentifier]*Disk, resolution time.Duration, resActi
 		diskMap[key].Cost = cost * (diskMap[key].Bytes / 1024 / 1024 / 1024) * (diskMap[key].Minutes / 60)
 		providerID, _ := result.GetString("provider_id") // just put the providerID set up here, it's the simplest query.
 		if providerID != "" {
-			diskMap[key].ProviderID = cloud.ParsePVID(providerID)
+			diskMap[key].ProviderID = provider.ParsePVID(providerID)
 		}
 	}
 
