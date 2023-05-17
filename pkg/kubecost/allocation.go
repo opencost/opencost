@@ -373,6 +373,15 @@ type SharedCostBreakdown struct {
 
 type SharedCostBreakdowns map[string]SharedCostBreakdown
 
+func (scbs SharedCostBreakdowns) Clone() SharedCostBreakdowns {
+	cloned := SharedCostBreakdowns{}
+
+	for key, scb := range scbs {
+		cloned[key] = scb
+	}
+	return cloned
+}
+
 func (scbs SharedCostBreakdowns) Insert(scb SharedCostBreakdown) {
 	if curr, ok := scbs[scb.Name]; ok {
 		scbs[scb.Name] = SharedCostBreakdown{
@@ -464,6 +473,7 @@ func (a *Allocation) Clone() *Allocation {
 		ExternalCost:                   a.ExternalCost,
 		RawAllocationOnly:              a.RawAllocationOnly.Clone(),
 		ProportionalAssetResourceCosts: a.ProportionalAssetResourceCosts.Clone(),
+		SharedCostBreakdown:            a.SharedCostBreakdown.Clone(),
 	}
 }
 
