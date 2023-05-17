@@ -87,6 +87,7 @@ type Allocation struct {
 	// asset on which the allocation was run. It is optionally computed
 	// and appended to an Allocation, and so by default is is nil.
 	ProportionalAssetResourceCosts ProportionalAssetResourceCosts `json:"proportionalAssetResourceCosts"` //@bingen:field[ignore]
+	LoadBalancers                  LbAllocations                  `json:"LoadBalancers"`
 }
 
 // RawAllocationOnlyData is information that only belong in "raw" Allocations,
@@ -145,6 +146,8 @@ func (r *RawAllocationOnlyData) Equal(that *RawAllocationOnlyData) bool {
 // PVAllocations is a map of Disk Asset Identifiers to the
 // usage of them by an Allocation as recorded in a PVAllocation
 type PVAllocations map[PVKey]*PVAllocation
+
+type LbAllocations map[string]*LbAllocation
 
 // Clone creates a deep copy of a PVAllocations
 func (pv PVAllocations) Clone() PVAllocations {
@@ -233,6 +236,11 @@ type PVAllocation struct {
 	Cost      float64 `json:"cost"`
 }
 
+type LbAllocation struct {
+	Service string  `json:"service"`
+	Cost    float64 `json:"cost"`
+}
+
 // Equal returns true if the two PVAllocation instances contain approximately the same
 // values.
 func (pva *PVAllocation) Equal(that *PVAllocation) bool {
@@ -247,24 +255,28 @@ func (pva *PVAllocation) Equal(that *PVAllocation) bool {
 }
 
 type ProportionalAssetResourceCost struct {
-	Cluster                    string  `json:"cluster"`
-	Node                       string  `json:"node,omitempty"`
-	ProviderID                 string  `json:"providerID,omitempty"`
-	CPUPercentage              float64 `json:"cpuPercentage"`
-	GPUPercentage              float64 `json:"gpuPercentage"`
-	RAMPercentage              float64 `json:"ramPercentage"`
-	NodeResourceCostPercentage float64 `json:"nodeResourceCostPercentage"`
-	GPUTotalCost               float64 `json:"-"`
-	GPUProportionalCost        float64 `json:"-"`
-	CPUTotalCost               float64 `json:"-"`
-	CPUProportionalCost        float64 `json:"-"`
-	RAMTotalCost               float64 `json:"-"`
-	RAMProportionalCost        float64 `json:"-"`
+	Cluster                      string  `json:"cluster"`
+	Name                         string  `json:"name,omitempty"`
+	Type                         string  `json:"type,omitempty"`
+	ProviderID                   string  `json:"providerID,omitempty"`
+	CPUPercentage                float64 `json:"cpuPercentage"`
+	GPUPercentage                float64 `json:"gpuPercentage"`
+	RAMPercentage                float64 `json:"ramPercentage"`
+	LoadBalancerPercentage       float64 `json:"loadBalancerPercentage"`
+	NodeResourceCostPercentage   float64 `json:"nodeResourceCostPercentage"`
+	GPUTotalCost                 float64 `json:"-"`
+	GPUProportionalCost          float64 `json:"-"`
+	CPUTotalCost                 float64 `json:"-"`
+	CPUProportionalCost          float64 `json:"-"`
+	RAMTotalCost                 float64 `json:"-"`
+	RAMProportionalCost          float64 `json:"-"`
+	LoadBalancerProportionalCost float64 `json:"-"`
+	LoadBalancerTotalCost        float64 `json:"-"`
 }
 
-func (parc ProportionalAssetResourceCost) Key(insertByNode bool) string {
-	if insertByNode {
-		return parc.Cluster + "," + parc.Node
+func (parc ProportionalAssetResourceCost) Key(insertByName bool) string {
+	if insertByName {
+		return parc.Cluster + "," + parc.Name
 	} else {
 		return parc.Cluster
 	}
@@ -282,36 +294,40 @@ func (parcs ProportionalAssetResourceCosts) Clone() ProportionalAssetResourceCos
 	return cloned
 }
 
-func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourceCost, insertByNode bool) {
-	if !insertByNode {
-		parc.Node = ""
+func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourceCost, insertByName bool) {
+	if !insertByName {
+		parc.Name = ""
+		parc.Type = ""
 		parc.ProviderID = ""
 	}
-	if curr, ok := parcs[parc.Key(insertByNode)]; ok {
+	if curr, ok := parcs[parc.Key(insertByName)]; ok {
 
 		toInsert := ProportionalAssetResourceCost{
-			Node:                curr.Node,
-			Cluster:             curr.Cluster,
-			ProviderID:          curr.ProviderID,
-			CPUTotalCost:        curr.CPUTotalCost + parc.CPUTotalCost,
-			CPUProportionalCost: curr.CPUProportionalCost + parc.CPUProportionalCost,
-			RAMTotalCost:        curr.RAMTotalCost + parc.RAMTotalCost,
-			RAMProportionalCost: curr.RAMProportionalCost + parc.RAMProportionalCost,
-			GPUProportionalCost: curr.GPUProportionalCost + parc.GPUProportionalCost,
-			GPUTotalCost:        curr.GPUTotalCost + parc.GPUTotalCost,
+			Name:                         curr.Name,
+			Type:                         curr.Type,
+			Cluster:                      curr.Cluster,
+			ProviderID:                   curr.ProviderID,
+			CPUTotalCost:                 curr.CPUTotalCost + parc.CPUTotalCost,
+			CPUProportionalCost:          curr.CPUProportionalCost + parc.CPUProportionalCost,
+			RAMTotalCost:                 curr.RAMTotalCost + parc.RAMTotalCost,
+			RAMProportionalCost:          curr.RAMProportionalCost + parc.RAMProportionalCost,
+			GPUProportionalCost:          curr.GPUProportionalCost + parc.GPUProportionalCost,
+			GPUTotalCost:                 curr.GPUTotalCost + parc.GPUTotalCost,
+			LoadBalancerTotalCost:        curr.LoadBalancerTotalCost + parc.LoadBalancerTotalCost,
+			LoadBalancerProportionalCost: curr.LoadBalancerProportionalCost + parc.LoadBalancerProportionalCost,
 		}
 
 		computePercentages(&toInsert)
-		parcs[parc.Key(insertByNode)] = toInsert
+		parcs[parc.Key(insertByName)] = toInsert
 	} else {
 		computePercentages(&parc)
-		parcs[parc.Key(insertByNode)] = parc
+		parcs[parc.Key(insertByName)] = parc
 	}
 }
 
 func computePercentages(toInsert *ProportionalAssetResourceCost) {
 	// compute percentages
-	totalCost := toInsert.RAMTotalCost + toInsert.CPUTotalCost + toInsert.GPUTotalCost
+	totalNodeCost := toInsert.RAMTotalCost + toInsert.CPUTotalCost + toInsert.GPUTotalCost
 
 	if toInsert.CPUTotalCost > 0 {
 		toInsert.CPUPercentage = toInsert.CPUProportionalCost / toInsert.CPUTotalCost
@@ -325,17 +341,21 @@ func computePercentages(toInsert *ProportionalAssetResourceCost) {
 		toInsert.RAMPercentage = toInsert.RAMProportionalCost / toInsert.RAMTotalCost
 	}
 
-	ramFraction := toInsert.RAMTotalCost / totalCost
+	if toInsert.LoadBalancerTotalCost > 0 {
+		toInsert.LoadBalancerPercentage = toInsert.LoadBalancerProportionalCost / toInsert.LoadBalancerTotalCost
+	}
+
+	ramFraction := toInsert.RAMTotalCost / totalNodeCost
 	if ramFraction != ramFraction || ramFraction < 0 {
 		ramFraction = 0
 	}
 
-	cpuFraction := toInsert.CPUTotalCost / totalCost
+	cpuFraction := toInsert.CPUTotalCost / totalNodeCost
 	if cpuFraction != cpuFraction || cpuFraction < 0 {
 		cpuFraction = 0
 	}
 
-	gpuFraction := toInsert.GPUTotalCost / totalCost
+	gpuFraction := toInsert.GPUTotalCost / totalNodeCost
 	if gpuFraction != gpuFraction || gpuFraction < 0 {
 		gpuFraction = 0
 	}
@@ -348,11 +368,11 @@ func (parcs ProportionalAssetResourceCosts) Add(that ProportionalAssetResourceCo
 
 	for _, parc := range that {
 		// if node field is empty, we know this is a cluster level PARC aggregation
-		insertByNode := true
-		if parc.Node == "" {
-			insertByNode = false
+		insertByName := true
+		if parc.Name == "" {
+			insertByName = false
 		}
-		parcs.Insert(parc, insertByNode)
+		parcs.Insert(parc, insertByName)
 	}
 }
 
@@ -1687,6 +1707,11 @@ func computeShareCoeffs(aggregateBy []string, options *AllocationAggregationOpti
 	return coeffs, nil
 }
 
+//  compute load balancer coefficients in a similar way?
+//  - loop through all the allocations, including unmounted
+//  - sum load balancer costs to get total back
+//  - divide each alloc by total to get percentage
+
 func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet, shareSet *AllocationSet) (map[string]map[string]map[string]float64, map[string]map[string]float64, error) {
 	types := []string{"cpu", "gpu", "ram"}
 
@@ -1826,9 +1851,27 @@ func deriveProportionalAssetResourceCosts(options *AllocationAggregationOptions,
 		coeffs[idleId][name]["gpu"] += alloc.GPUTotalCost()
 		coeffs[idleId][name]["ram"] += alloc.RAMTotalCost()
 
+		// idle IDs for load balancers are their services
+		for key := range alloc.LoadBalancers {
+			if _, ok := totals[key]; !ok {
+				totals[key] = map[string]float64{}
+			}
+
+			if _, ok := coeffs[key]; !ok {
+				coeffs[key] = map[string]map[string]float64{}
+			}
+			if _, ok := coeffs[key][name]; !ok {
+				coeffs[key][name] = map[string]float64{}
+			}
+
+			coeffs[key][name]["loadbalancer"] += alloc.LoadBalancerTotalCost()
+			totals[key]["loadbalancer"] += alloc.LoadBalancerTotalCost()
+		}
+
 		totals[idleId]["cpu"] += alloc.CPUTotalCost()
 		totals[idleId]["gpu"] += alloc.GPUTotalCost()
 		totals[idleId]["ram"] += alloc.RAMTotalCost()
+
 	}
 
 	// Do the same for shared allocations
@@ -1866,6 +1909,22 @@ func deriveProportionalAssetResourceCosts(options *AllocationAggregationOptions,
 		totals[idleId]["cpu"] += alloc.CPUTotalCost()
 		totals[idleId]["gpu"] += alloc.GPUTotalCost()
 		totals[idleId]["ram"] += alloc.RAMTotalCost()
+
+		// idle IDs for load balancers are their services
+		for key := range alloc.LoadBalancers {
+			if _, ok := totals[key]; !ok {
+				totals[key] = map[string]float64{}
+			}
+
+			if _, ok := coeffs[key]; !ok {
+				coeffs[key] = map[string]map[string]float64{}
+			}
+			if _, ok := coeffs[key][name]; !ok {
+				coeffs[key][name] = map[string]float64{}
+			}
+			coeffs[key][name]["loadbalancer"] += alloc.LoadBalancerTotalCost()
+			totals[key]["loadbalancer"] += alloc.LoadBalancerTotalCost()
+		}
 	}
 
 	// after totals are computed, loop through and set parcs on allocations
@@ -1878,7 +1937,8 @@ func deriveProportionalAssetResourceCosts(options *AllocationAggregationOptions,
 		alloc.ProportionalAssetResourceCosts = ProportionalAssetResourceCosts{}
 		alloc.ProportionalAssetResourceCosts.Insert(ProportionalAssetResourceCost{
 			Cluster:             alloc.Properties.Cluster,
-			Node:                alloc.Properties.Node,
+			Name:                alloc.Properties.Node,
+			Type:                "Node",
 			ProviderID:          alloc.Properties.ProviderID,
 			GPUTotalCost:        totals[idleId]["gpu"],
 			CPUTotalCost:        totals[idleId]["cpu"],
@@ -1887,6 +1947,23 @@ func deriveProportionalAssetResourceCosts(options *AllocationAggregationOptions,
 			CPUProportionalCost: coeffs[idleId][alloc.Name]["cpu"],
 			RAMProportionalCost: coeffs[idleId][alloc.Name]["ram"],
 		}, options.IdleByNode)
+
+		if strings.Contains(alloc.Name, "5pg") {
+			log.Debug("break")
+		}
+		// insert a separate PARC for the load balancer
+		if alloc.LoadBalancerCost != 0 {
+			for key, svc := range alloc.LoadBalancers {
+
+				alloc.ProportionalAssetResourceCosts.Insert(ProportionalAssetResourceCost{
+					Cluster:                      alloc.Properties.Cluster,
+					Name:                         svc.Service,
+					Type:                         "LoadBalancer",
+					LoadBalancerTotalCost:        totals[key]["loadbalancer"],
+					LoadBalancerProportionalCost: coeffs[key][alloc.Name]["loadbalancer"],
+				}, options.IdleByNode)
+			}
+		}
 	}
 
 	return nil

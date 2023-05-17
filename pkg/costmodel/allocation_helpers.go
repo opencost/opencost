@@ -1391,6 +1391,21 @@ func applyLoadBalancersToPods(window kubecost.Window, podMap map[podKey]*pod, lb
 			alloc.LoadBalancerCost += lb.TotalCost * hours / totalHours
 		}
 
+		for _, alloc := range allocs {
+			if alloc.LoadBalancers == nil {
+				alloc.LoadBalancers = kubecost.LbAllocations{}
+			}
+
+			if _, found := alloc.LoadBalancers[sKey.String()]; found {
+				alloc.LoadBalancers[sKey.String()].Cost += alloc.LoadBalancerCost
+			} else {
+				alloc.LoadBalancers[sKey.String()] = &kubecost.LbAllocation{
+					Service: sKey.Service,
+					Cost:    alloc.LoadBalancerCost,
+				}
+			}
+		}
+
 		// If there was no overlap apply to Unmounted pod
 		if len(allocHours) == 0 {
 			pod := getUnmountedPodForCluster(window, podMap, sKey.Cluster)
