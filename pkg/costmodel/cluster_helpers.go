@@ -427,8 +427,7 @@ func buildCPUBreakdownMap(resNodeCPUModeTotal []*prom.QueryResult) map[nodeIdent
 }
 
 func buildOverheadMap(capRam, allocRam, capCPU, allocCPU map[nodeIdentifierNoProviderID]float64) map[nodeIdentifierNoProviderID]*NodeOverhead {
-
-	m := make(map[nodeIdentifierNoProviderID]*NodeOverhead)
+	m := make(map[nodeIdentifierNoProviderID]*NodeOverhead, len(capRam))
 
 	for identifier, ramCapacity := range capRam {
 		allocatableRam, ok := allocRam[identifier]
