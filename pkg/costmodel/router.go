@@ -1535,6 +1535,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		},
 		QueryConcurrency: queryConcurrency,
 		QueryLogFile:     "",
+		MimirHeaderOrgId: env.GetMimirHeaderOrgId(),
 	})
 	if err != nil {
 		log.Fatalf("Failed to create prometheus client, Error: %v", err)
