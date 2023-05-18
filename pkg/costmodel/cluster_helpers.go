@@ -426,6 +426,43 @@ func buildCPUBreakdownMap(resNodeCPUModeTotal []*prom.QueryResult) map[nodeIdent
 	return cpuBreakdownMap
 }
 
+func buildOverheadMap(capRam, allocRam, capCPU, allocCPU map[nodeIdentifierNoProviderID]float64) map[nodeIdentifierNoProviderID]*NodeOverhead {
+	m := make(map[nodeIdentifierNoProviderID]*NodeOverhead, len(capRam))
+
+	for identifier, ramCapacity := range capRam {
+		allocatableRam, ok := allocRam[identifier]
+		if !ok {
+			log.Warnf("Could not find allocatable ram for node %s", identifier.Name)
+			continue
+		}
+		overheadBytes := ramCapacity - allocatableRam
+		m[identifier] = &NodeOverhead{
+			RamOverheadFraction: overheadBytes / ramCapacity,
+		}
+	}
+
+	for identifier, cpuCapacity := range capCPU {
+		allocatableCPU, ok := allocCPU[identifier]
+		if !ok {
+			log.Warnf("Could not find allocatable cpu for node %s", identifier.Name)
+			continue
+		}
+
+		overhead := cpuCapacity - allocatableCPU
+
+		if _, found := m[identifier]; found {
+			m[identifier].CpuOverheadFraction = overhead / cpuCapacity
+		} else {
+			m[identifier] = &NodeOverhead{
+				CpuOverheadFraction: overhead / cpuCapacity,
+			}
+		}
+
+	}
+
+	return m
+}
+
 func buildRAMUserPctMap(resNodeRAMUserPct []*prom.QueryResult) map[nodeIdentifierNoProviderID]float64 {
 
 	m := make(map[nodeIdentifierNoProviderID]float64)
@@ -707,6 +744,7 @@ func buildNodeMap(
 	labelsMap map[nodeIdentifierNoProviderID]map[string]string,
 	clusterAndNameToType map[nodeIdentifierNoProviderID]string,
 	res time.Duration,
+	overheadMap map[nodeIdentifierNoProviderID]*NodeOverhead,
 ) map[NodeIdentifier]*Node {
 
 	nodeMap := make(map[NodeIdentifier]*Node)
@@ -784,6 +822,11 @@ func buildNodeMap(
 		if labels, ok := labelsMap[clusterAndNameID]; ok {
 			nodePtr.Labels = labels
 		}
+
+		if overhead, ok := overheadMap[clusterAndNameID]; ok {
+			nodePtr.Overhead = overhead
+		}
+
 	}
 
 	return nodeMap
