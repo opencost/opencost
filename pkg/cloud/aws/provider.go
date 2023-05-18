@@ -753,7 +753,9 @@ func (key *awsPVKey) Features() string {
 	return region + "," + class
 }
 
+// getStorageClassTypeFrom returns the default ebs volume type for a provider provisioner
 func getStorageClassTypeFrom(provisioner string) string {
+	// if there isn't any provided provisioner, return empty volume type
 	if provisioner == "" {
 		return ""
 	}
