@@ -87,7 +87,7 @@ type Allocation struct {
 	// asset on which the allocation was run. It is optionally computed
 	// and appended to an Allocation, and so by default is is nil.
 	ProportionalAssetResourceCosts ProportionalAssetResourceCosts `json:"proportionalAssetResourceCosts"` //@bingen:field[ignore]
-	LoadBalancers                  LbAllocations                  `json:"LoadBalancers"`
+	LoadBalancers                  LbAllocations                  `json:"LoadBalancers"` // @bingen:field[version=17]
 }
 
 // RawAllocationOnlyData is information that only belong in "raw" Allocations,

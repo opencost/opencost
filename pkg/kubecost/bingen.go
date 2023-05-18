@@ -45,7 +45,7 @@ package kubecost
 // @bingen:end
 
 // Allocation Version Set: Includes Allocation pipeline specific resources
-// @bingen:set[name=Allocation,version=16]
+// @bingen:set[name=Allocation,version=17]
 // @bingen:generate:Allocation
 // @bingen:generate[stringtable]:AllocationSet
 // @bingen:generate:AllocationSetRange
@@ -57,6 +57,8 @@ package kubecost
 // @bingen:generate:PVAllocations
 // @bingen:generate:PVKey
 // @bingen:generate:PVAllocation
+// @bingen:generate:LbAllocations
+// @bingen:generate:LbAllocation
 // @bingen:end
 
 // @bingen:set[name=Audit,version=1]
