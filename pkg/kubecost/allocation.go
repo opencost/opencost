@@ -149,6 +149,22 @@ type PVAllocations map[PVKey]*PVAllocation
 
 type LbAllocations map[string]*LbAllocation
 
+func (orig LbAllocations) Clone() LbAllocations {
+	if orig == nil {
+		return nil
+	}
+
+	newAllocs := LbAllocations{}
+
+	for key, lbAlloc := range orig {
+		newAllocs[key] = &LbAllocation{
+			Service: lbAlloc.Service,
+			Cost:    lbAlloc.Cost,
+		}
+	}
+	return newAllocs
+}
+
 // Clone creates a deep copy of a PVAllocations
 func (pv PVAllocations) Clone() PVAllocations {
 	if pv == nil {
@@ -300,6 +316,7 @@ func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourc
 		parc.Type = ""
 		parc.ProviderID = ""
 	}
+
 	if curr, ok := parcs[parc.Key(insertByName)]; ok {
 
 		toInsert := ProportionalAssetResourceCost{
@@ -307,13 +324,13 @@ func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourc
 			Type:                         curr.Type,
 			Cluster:                      curr.Cluster,
 			ProviderID:                   curr.ProviderID,
-			CPUTotalCost:                 curr.CPUTotalCost + parc.CPUTotalCost,
+			CPUTotalCost:                 curr.CPUTotalCost,
 			CPUProportionalCost:          curr.CPUProportionalCost + parc.CPUProportionalCost,
-			RAMTotalCost:                 curr.RAMTotalCost + parc.RAMTotalCost,
+			RAMTotalCost:                 curr.RAMTotalCost,
 			RAMProportionalCost:          curr.RAMProportionalCost + parc.RAMProportionalCost,
 			GPUProportionalCost:          curr.GPUProportionalCost + parc.GPUProportionalCost,
-			GPUTotalCost:                 curr.GPUTotalCost + parc.GPUTotalCost,
-			LoadBalancerTotalCost:        curr.LoadBalancerTotalCost + parc.LoadBalancerTotalCost,
+			GPUTotalCost:                 curr.GPUTotalCost,
+			LoadBalancerTotalCost:        curr.LoadBalancerTotalCost,
 			LoadBalancerProportionalCost: curr.LoadBalancerProportionalCost + parc.LoadBalancerProportionalCost,
 		}
 
@@ -444,6 +461,7 @@ func (a *Allocation) Clone() *Allocation {
 		ExternalCost:                   a.ExternalCost,
 		RawAllocationOnly:              a.RawAllocationOnly.Clone(),
 		ProportionalAssetResourceCosts: a.ProportionalAssetResourceCosts.Clone(),
+		LoadBalancers:                  a.LoadBalancers.Clone(),
 	}
 }
 
@@ -954,9 +972,36 @@ func (a *Allocation) add(that *Allocation) {
 	a.NetworkCostAdjustment += that.NetworkCostAdjustment
 	a.LoadBalancerCostAdjustment += that.LoadBalancerCostAdjustment
 
+	// Sum LoadBalancer Allocations
+	a.LoadBalancers = a.LoadBalancers.Add(that.LoadBalancers)
+
 	// Any data that is in a "raw allocation only" is not valid in any
 	// sort of cumulative Allocation (like one that is added).
 	a.RawAllocationOnly = nil
+}
+
+func (thisLbAllocs LbAllocations) Add(thatLbAllocs LbAllocations) LbAllocations {
+	// loop through both sets of LB allocations, building a new LBAllocations that has the summed set
+	mergedLbAllocs := thisLbAllocs.Clone()
+	if thatLbAllocs != nil {
+		if mergedLbAllocs == nil {
+			mergedLbAllocs = LbAllocations{}
+		}
+		for lbKey, thatlbAlloc := range thatLbAllocs {
+			thisLbAlloc, ok := mergedLbAllocs[lbKey]
+			if !ok {
+				thisLbAlloc = &LbAllocation{
+					Service: thatlbAlloc.Service,
+					Cost:    thatlbAlloc.Cost,
+				}
+				mergedLbAllocs[lbKey] = thisLbAlloc
+			} else {
+				thisLbAlloc.Cost += thatlbAlloc.Cost
+			}
+
+		}
+	}
+	return mergedLbAllocs
 }
 
 // AllocationSet stores a set of Allocations, each with a unique name, that share
@@ -1132,7 +1177,11 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 		// if the user does not want any aggregated labels/annotations returned
 		// set the properties accordingly
 		alloc.Properties.AggregatedMetadata = options.IncludeAggregatedMetadata
-
+		// build a parallel set of allocations to only be used
+		// for computing PARCs
+		if options.IncludeProportionalAssetResourceCosts {
+			parcSet.Insert(alloc.Clone())
+		}
 		// External allocations get aggregated post-hoc (see step 6) and do
 		// not necessarily contain complete sets of properties, so they are
 		// moved to a separate AllocationSet.
@@ -1154,12 +1203,6 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 				idleSet.Insert(alloc)
 			} else {
 				aggSet.Insert(alloc)
-			}
-
-			// build a parallel set of allocations to only be used
-			// for computing PARCs
-			if options.IncludeProportionalAssetResourceCosts {
-				parcSet.Insert(alloc.Clone())
 			}
 
 			continue
@@ -1232,7 +1275,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// (2b) If proportional asset resource costs are to be included, compute them
 	// and add them to the allocations.
 	if options.IncludeProportionalAssetResourceCosts {
-		err := deriveProportionalAssetResourceCosts(options, as, shareSet)
+		err := deriveProportionalAssetResourceCosts(options, as, shareSet, parcSet)
 		if err != nil {
 			log.Debugf("AggregateBy: failed to derive proportional asset resource costs from idle coefficients: %s", err)
 			return fmt.Errorf("AggregateBy: failed to derive proportional asset resource costs from idle coefficients: %s", err)
@@ -1810,7 +1853,7 @@ func computeIdleCoeffs(options *AllocationAggregationOptions, as *AllocationSet,
 	return coeffs, totals, nil
 }
 
-func deriveProportionalAssetResourceCosts(options *AllocationAggregationOptions, as *AllocationSet, shareSet *AllocationSet) error {
+func deriveProportionalAssetResourceCosts(options *AllocationAggregationOptions, as *AllocationSet, shareSet, parcsSet *AllocationSet) error {
 
 	// Compute idle coefficients, then save them in AllocationAggregationOptions
 	// [idle_id][allocation name][resource] = [coeff]
@@ -1821,11 +1864,7 @@ func deriveProportionalAssetResourceCosts(options *AllocationAggregationOptions,
 	totals := map[string]map[string]float64{}
 
 	// Record allocation values first, then normalize by totals to get percentages
-	for _, alloc := range as.Allocations {
-		if alloc.IsIdle() {
-			// Skip idle allocations in coefficient calculation
-			continue
-		}
+	for _, alloc := range parcsSet.Allocations {
 
 		idleId, err := alloc.getIdleId(options)
 		if err != nil {
