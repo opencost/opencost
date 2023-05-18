@@ -108,6 +108,9 @@ func InitKubeMetrics(clusterCache clustercache.ClusterCache, metricsConfig *Metr
 				metricsConfig:    *metricsConfig,
 			})
 		} else if opts.EmitKubeStateMetricsV1Only {
+			// We still need the kubecost_pv_info metric to look up storageclass on legacy clusters.
+			forceDisabled := []string{"kube_persistentvolume_capacity_bytes", "kube_persistentvolume_status_phase"}
+			metricsConfig.DisabledMetrics = append(metricsConfig.DisabledMetrics, forceDisabled...)
 			prometheus.MustRegister(KubeNodeCollector{
 				KubeClusterCache: clusterCache,
 				metricsConfig:    *metricsConfig,
@@ -117,6 +120,18 @@ func InitKubeMetrics(clusterCache clustercache.ClusterCache, metricsConfig *Metr
 				metricsConfig:    *metricsConfig,
 			})
 			prometheus.MustRegister(KubePodLabelsCollector{
+				KubeClusterCache: clusterCache,
+				metricsConfig:    *metricsConfig,
+			})
+			prometheus.MustRegister(KubePVCollector{
+				KubeClusterCache: clusterCache,
+				metricsConfig:    *metricsConfig,
+			})
+		} else {
+			// We still need the kubecost_pv_info metric to look up storageclass on legacy clusters.
+			forceDisabled := []string{"kube_persistentvolume_capacity_bytes", "kube_persistentvolume_status_phase"}
+			metricsConfig.DisabledMetrics = append(metricsConfig.DisabledMetrics, forceDisabled...)
+			prometheus.MustRegister(KubePVCollector{
 				KubeClusterCache: clusterCache,
 				metricsConfig:    *metricsConfig,
 			})
