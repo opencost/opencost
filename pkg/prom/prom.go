@@ -68,6 +68,9 @@ func (auth *ClientAuth) Apply(req *http.Request) {
 // during a retry. This is to prevent starvation on the request threads
 const MaxRetryAfterDuration = 10 * time.Second
 
+// Default header key for Mimir API requests
+const MimirHeader = "X-Scope-OrgID"
+
 // RateLimitRetryOpts contains retry options
 type RateLimitRetryOpts struct {
 	MaxRetries       int
@@ -122,6 +125,7 @@ type RateLimitedPrometheusClient struct {
 	rateLimitRetry *RateLimitRetryOpts
 	outbound       atomic.Int32
 	fileLogger     *golog.Logger
+	mimirOrgId     string
 }
 
 // requestCounter is used to determine if the prometheus client keeps track of
@@ -140,7 +144,8 @@ func NewRateLimitedClient(
 	auth *ClientAuth,
 	decorator QueryParamsDecorator,
 	rateLimitRetryOpts *RateLimitRetryOpts,
-	queryLogFile string) (prometheus.Client, error) {
+	queryLogFile string,
+	mimirHeaderOrgId string) (prometheus.Client, error) {
 
 	queue := collections.NewBlockingQueue[*workRequest]()
 
@@ -176,6 +181,7 @@ func NewRateLimitedClient(
 		rateLimitRetry: rateLimitRetryOpts,
 		auth:           auth,
 		fileLogger:     logger,
+		mimirOrgId:     mimirHeaderOrgId,
 	}
 
 	// Start concurrent request processing
@@ -313,6 +319,10 @@ func (rlpc *RateLimitedPrometheusClient) worker() {
 
 // Rate limit and passthrough to prometheus client API
 func (rlpc *RateLimitedPrometheusClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
+	if rlpc.mimirOrgId != "" {
+		req.Header.Set(MimirHeader, rlpc.mimirOrgId)
+	}
+
 	rlpc.auth.Apply(req)
 
 	respChan := make(chan *workResponse)
@@ -353,6 +363,7 @@ type PrometheusClientConfig struct {
 	Auth                  *ClientAuth
 	QueryConcurrency      int
 	QueryLogFile          string
+	MimirHeaderOrgId      string
 }
 
 // NewPrometheusClient creates a new rate limited client which limits by outbound concurrent requests.
@@ -387,6 +398,7 @@ func NewPrometheusClient(address string, config *PrometheusClientConfig) (promet
 		nil,
 		config.RateLimitRetryOpts,
 		config.QueryLogFile,
+		config.MimirHeaderOrgId,
 	)
 }
 

@@ -90,6 +90,8 @@ const (
 	PrometheusRetryOnRateLimitMaxRetriesEnvVar  = "PROMETHEUS_RETRY_ON_RATE_LIMIT_MAX_RETRIES"
 	PrometheusRetryOnRateLimitDefaultWaitEnvVar = "PROMETHEUS_RETRY_ON_RATE_LIMIT_DEFAULT_WAIT"
 
+	MimirHeaderOrgIdEnvVar = "MIMIR_HEADER_ORG_ID"
+
 	IngestPodUIDEnvVar = "INGEST_POD_UID"
 
 	ETLReadOnlyMode = "ETL_READ_ONLY"
@@ -158,6 +160,11 @@ func GetPrometheusRetryOnRateLimitMaxRetries() int {
 // Retry-After header.
 func GetPrometheusRetryOnRateLimitDefaultWait() time.Duration {
 	return GetDuration(PrometheusRetryOnRateLimitDefaultWaitEnvVar, 100*time.Millisecond)
+}
+
+// GetMimirOrgIdHeader returns the default value for X-Scope-OrgID header used for requests in Mimir API.
+func GetMimirHeaderOrgId() string {
+	return Get(MimirHeaderOrgIdEnvVar, "")
 }
 
 // GetPrometheusQueryOffset returns the time.Duration to offset all prometheus queries by. NOTE: This env var is applied
