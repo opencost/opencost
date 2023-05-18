@@ -1523,7 +1523,6 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// (8) Distribute shared allocations according to the share coefficients.
 	if shareSet.Length() > 0 {
 		for _, alloc := range aggSet.Allocations {
-			scBreakdown := SharedCostBreakdowns{}
 			for _, sharedAlloc := range shareSet.Allocations {
 				if _, ok := shareCoefficients[alloc.Name]; !ok {
 					if !alloc.IsIdle() && !alloc.IsUnmounted() {
@@ -1550,14 +1549,10 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 						LBCost:       sharedAlloc.LBTotalCost() * shareCoefficients[alloc.Name],
 						ExternalCost: sharedAlloc.ExternalCost * shareCoefficients[alloc.Name],
 					}
-					scBreakdown.Insert(scb)
+					alloc.SharedCostBreakdown.Insert(scb)
 				}
 
 				alloc.SharedCost += sharedAlloc.TotalCost() * shareCoefficients[alloc.Name]
-			}
-			if options.IncludeSharedCostBreakdown {
-				alloc.SharedCostBreakdown = scBreakdown
-				// log.Warnf("[NICK] - breakdown on allocation %s: %s", alloc.Name, spew.Sdump(alloc.SharedCostBreakdown))
 			}
 		}
 	}
