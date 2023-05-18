@@ -33,6 +33,12 @@ const (
 )
 
 const (
+	// AuditCodecVersion is used for any resources listed in the Audit version set
+	AuditCodecVersion uint8 = 1
+
+	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
+	CloudCostCodecVersion uint8 = 1
+
 	// DefaultCodecVersion is used for any resources listed in the Default version set
 	DefaultCodecVersion uint8 = 19
 
@@ -41,12 +47,6 @@ const (
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
 	AllocationCodecVersion uint8 = 16
-
-	// AuditCodecVersion is used for any resources listed in the Audit version set
-	AuditCodecVersion uint8 = 1
-
-	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
-	CloudCostCodecVersion uint8 = 1
 )
 
 //--------------------------------------------------------------------------
@@ -4754,6 +4754,14 @@ func (target *CloudCost) MarshalBinaryWithContext(ctx *EncodingContext) (err err
 	}
 	// --- [end][write][struct](CostMetric) ---
 
+	// --- [begin][write][struct](CostMetric) ---
+	buff.WriteInt(0) // [compatibility, unused]
+	errG := target.AmortizedCost.MarshalBinaryWithContext(ctx)
+	if errG != nil {
+		return errG
+	}
+	// --- [end][write][struct](CostMetric) ---
+
 	return nil
 }
 
@@ -4873,6 +4881,16 @@ func (target *CloudCost) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 		return errF
 	}
 	target.InvoicedCost = *f
+	// --- [end][read][struct](CostMetric) ---
+
+	// --- [begin][read][struct](CostMetric) ---
+	g := &CostMetric{}
+	buff.ReadInt() // [compatibility, unused]
+	errG := g.UnmarshalBinaryWithContext(ctx)
+	if errG != nil {
+		return errG
+	}
+	target.AmortizedCost = *g
 	// --- [end][read][struct](CostMetric) ---
 
 	return nil
