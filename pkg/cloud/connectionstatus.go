@@ -40,3 +40,8 @@ const (
 func (cs ConnectionStatus) String() string {
 	return string(cs)
 }
+
+// EmptyChecker provides an interface for to check if a result is empty which can be useful for setting a MissingData status
+type EmptyChecker interface {
+	IsEmpty() bool
+}
