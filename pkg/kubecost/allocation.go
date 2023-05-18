@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/timeutil"
@@ -360,6 +359,7 @@ func (parcs ProportionalAssetResourceCosts) Add(that ProportionalAssetResourceCo
 
 type SharedCostBreakdown struct {
 	Name        string  `json:"name"`
+	TotalCost   float64 `json:"totalCost"`
 	CPUCost     float64 `json:"cpuCost,omitempty"`
 	GPUCost     float64 `json:"gpuCost,omitempty"`
 	RAMCost     float64 `json:"ramCost,omitempty"`
@@ -386,6 +386,7 @@ func (scbs SharedCostBreakdowns) Insert(scb SharedCostBreakdown) {
 	if curr, ok := scbs[scb.Name]; ok {
 		scbs[scb.Name] = SharedCostBreakdown{
 			Name:         curr.Name,
+			TotalCost:    curr.TotalCost + scb.TotalCost,
 			CPUCost:      curr.CPUCost + scb.CPUCost,
 			GPUCost:      curr.GPUCost + scb.GPUCost,
 			RAMCost:      curr.RAMCost + scb.RAMCost,
@@ -1521,8 +1522,8 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 
 	// (8) Distribute shared allocations according to the share coefficients.
 	if shareSet.Length() > 0 {
-		scBreakdown := SharedCostBreakdowns{}
 		for _, alloc := range aggSet.Allocations {
+			scBreakdown := SharedCostBreakdowns{}
 			for _, sharedAlloc := range shareSet.Allocations {
 				if _, ok := shareCoefficients[alloc.Name]; !ok {
 					if !alloc.IsIdle() && !alloc.IsUnmounted() {
@@ -1532,10 +1533,15 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 				}
 
 				if options.IncludeSharedCostBreakdown {
-					log.DedupedWarningf(5, "[NICK] generating shared cost breakdown")
+					sharedCostName := sharedAlloc.generateKey(aggregateBy, options.LabelConfig)
+					// check if current allocation is a shared flat overhead cost
+					if strings.Contains(sharedAlloc.Name, SharedSuffix) {
+						sharedCostName = "overheadCost"
+					}
 
 					scb := SharedCostBreakdown{
-						Name:         sharedAlloc.Name,
+						Name:         sharedCostName,
+						TotalCost:    sharedAlloc.TotalCost() * shareCoefficients[alloc.Name],
 						CPUCost:      sharedAlloc.CPUTotalCost() * shareCoefficients[alloc.Name],
 						GPUCost:      sharedAlloc.GPUTotalCost() * shareCoefficients[alloc.Name],
 						RAMCost:      sharedAlloc.RAMTotalCost() * shareCoefficients[alloc.Name],
@@ -1544,17 +1550,14 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 						LBCost:       sharedAlloc.LBTotalCost() * shareCoefficients[alloc.Name],
 						ExternalCost: sharedAlloc.ExternalCost * shareCoefficients[alloc.Name],
 					}
-					log.DedupedWarningf(5, "[NICK] - single breakdown: %s", spew.Sdump(scb))
 					scBreakdown.Insert(scb)
-					log.DedupedWarningf(5, "[NICK] - all breakdowns: %s", spew.Sdump(scBreakdown))
 				}
 
 				alloc.SharedCost += sharedAlloc.TotalCost() * shareCoefficients[alloc.Name]
 			}
 			if options.IncludeSharedCostBreakdown {
-				log.Warnf("[NICK] assigning shared cost breakdown")
 				alloc.SharedCostBreakdown = scBreakdown
-				log.Warnf("[NICK] - breakdown on allocation %s: %s", alloc.Name, spew.Sdump(alloc.SharedCostBreakdown))
+				// log.Warnf("[NICK] - breakdown on allocation %s: %s", alloc.Name, spew.Sdump(alloc.SharedCostBreakdown))
 			}
 		}
 	}
