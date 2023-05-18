@@ -87,7 +87,7 @@ type Allocation struct {
 	// asset on which the allocation was run. It is optionally computed
 	// and appended to an Allocation, and so by default is is nil.
 	ProportionalAssetResourceCosts ProportionalAssetResourceCosts `json:"proportionalAssetResourceCosts"` //@bingen:field[ignore]
-	LoadBalancers                  LbAllocations                  `json:"LoadBalancers"` // @bingen:field[version=17]
+	LoadBalancers                  LbAllocations                  `json:"LoadBalancers"`                  // @bingen:field[version=17]
 }
 
 // RawAllocationOnlyData is information that only belong in "raw" Allocations,
@@ -1987,9 +1987,6 @@ func deriveProportionalAssetResourceCosts(options *AllocationAggregationOptions,
 			RAMProportionalCost: coeffs[idleId][alloc.Name]["ram"],
 		}, options.IdleByNode)
 
-		if strings.Contains(alloc.Name, "5pg") {
-			log.Debug("break")
-		}
 		// insert a separate PARC for the load balancer
 		if alloc.LoadBalancerCost != 0 {
 			for key, svc := range alloc.LoadBalancers {
