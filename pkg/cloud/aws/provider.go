@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencost/opencost/pkg/cloud/aws/pricing"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/kubecost"
@@ -60,6 +61,10 @@ const (
 	AWSHourlyPublicIPCost    = 0.005
 	EKSCapacityTypeLabel     = "eks.amazonaws.com/capacityType"
 	EKSCapacitySpotTypeValue = "SPOT"
+)
+
+const (
+	AmazonEC2 = "AmazonEC2"
 )
 
 var (
@@ -221,96 +226,6 @@ func (accessKey AWSAccessKey) CreateConfig(region string) (awsSDK.Config, error)
 	}
 
 	return cfg, nil
-}
-
-// AWSPricing maps a k8s node to an AWS Pricing "product"
-type AWSPricing struct {
-	Products map[string]*AWSProduct `json:"products"`
-	Terms    AWSPricingTerms        `json:"terms"`
-}
-
-// AWSProduct represents a purchased SKU
-type AWSProduct struct {
-	Sku        string               `json:"sku"`
-	Attributes AWSProductAttributes `json:"attributes"`
-}
-
-// AWSProductAttributes represents metadata about the product used to map to a node.
-type AWSProductAttributes struct {
-	Location        string `json:"location"`
-	InstanceType    string `json:"instanceType"`
-	Memory          string `json:"memory"`
-	Storage         string `json:"storage"`
-	VCpu            string `json:"vcpu"`
-	UsageType       string `json:"usagetype"`
-	OperatingSystem string `json:"operatingSystem"`
-	PreInstalledSw  string `json:"preInstalledSw"`
-	InstanceFamily  string `json:"instanceFamily"`
-	CapacityStatus  string `json:"capacitystatus"`
-	GPU             string `json:"gpu"` // GPU represents the number of GPU on the instance
-}
-
-// AWSPricingTerms are how you pay for the node: OnDemand, Reserved, or (TODO) Spot
-type AWSPricingTerms struct {
-	OnDemand map[string]map[string]*AWSOfferTerm `json:"OnDemand"`
-	Reserved map[string]map[string]*AWSOfferTerm `json:"Reserved"`
-}
-
-// AWSOfferTerm is a sku extension used to pay for the node.
-type AWSOfferTerm struct {
-	Sku             string                  `json:"sku"`
-	OfferTermCode   string                  `json:"offerTermCode"`
-	PriceDimensions map[string]*AWSRateCode `json:"priceDimensions"`
-}
-
-func (ot *AWSOfferTerm) String() string {
-	var strs []string
-	for k, rc := range ot.PriceDimensions {
-		strs = append(strs, fmt.Sprintf("%s:%s", k, rc.String()))
-	}
-	return fmt.Sprintf("%s:%s", ot.Sku, strings.Join(strs, ","))
-}
-
-// AWSRateCode encodes data about the price of a product
-type AWSRateCode struct {
-	Unit         string          `json:"unit"`
-	PricePerUnit AWSCurrencyCode `json:"pricePerUnit"`
-}
-
-func (rc *AWSRateCode) String() string {
-	return fmt.Sprintf("{unit: %s, pricePerUnit: %v", rc.Unit, rc.PricePerUnit)
-}
-
-// AWSCurrencyCode is the localized currency. (TODO: support non-USD)
-type AWSCurrencyCode struct {
-	USD string `json:"USD,omitempty"`
-	CNY string `json:"CNY,omitempty"`
-}
-
-// AWSProductTerms represents the full terms of the product
-type AWSProductTerms struct {
-	Sku      string        `json:"sku"`
-	OnDemand *AWSOfferTerm `json:"OnDemand"`
-	Reserved *AWSOfferTerm `json:"Reserved"`
-	Memory   string        `json:"memory"`
-	Storage  string        `json:"storage"`
-	VCpu     string        `json:"vcpu"`
-	GPU      string        `json:"gpu"` // GPU represents the number of GPU on the instance
-	PV       *models.PV    `json:"pv"`
-}
-
-// ClusterIdEnvVar is the environment variable in which one can manually set the ClusterId
-const ClusterIdEnvVar = "AWS_CLUSTER_ID"
-
-// OnDemandRateCodes is are sets of identifiers for offerTermCodes matching 'On Demand' rates
-var OnDemandRateCodes = map[string]struct{}{
-	"JRTCKXETXF": {},
-}
-
-var OnDemandRateCodesCn = map[string]struct{}{
-	"99YE2YK9UR": {},
-	"5Y9WH78GDR": {},
-	"KW44MY7SZN": {},
 }
 
 // HourlyRateCode is appended to a node sku
@@ -741,53 +656,6 @@ func (aws *AWS) ClusterManagementPricing() (string, float64, error) {
 	return aws.clusterProvisioner, aws.clusterManagementPrice, nil
 }
 
-// Use the pricing data from the current region. Fall back to using all region data if needed.
-func (aws *AWS) getRegionPricing(nodeList []*v1.Node) (*http.Response, string, error) {
-
-	pricingURL := "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/"
-	region := ""
-	multiregion := false
-	for _, n := range nodeList {
-		labels := n.GetLabels()
-		currentNodeRegion := ""
-		if r, ok := util.GetRegion(labels); ok {
-			currentNodeRegion = r
-			// Switch to Chinese endpoint for regions with the Chinese prefix
-			if strings.HasPrefix(currentNodeRegion, "cn-") {
-				pricingURL = "https://pricing.cn-north-1.amazonaws.com.cn/offers/v1.0/cn/AmazonEC2/current/"
-			}
-		} else {
-			multiregion = true // We weren't able to detect the node's region, so pull all data.
-			break
-		}
-		if region == "" { // We haven't set a region yet
-			region = currentNodeRegion
-		} else if region != "" && currentNodeRegion != region { // If two nodes have different regions here, we'll need to fetch all pricing data.
-			multiregion = true
-			break
-		}
-	}
-
-	// Chinese multiregion endpoint only contains data for Chinese regions and Chinese regions are excluded from other endpoint
-	if region != "" && !multiregion {
-		pricingURL += region + "/"
-	}
-
-	pricingURL += "index.json"
-
-	if env.GetAWSPricingURL() != "" { // Allow override of pricing URL
-		pricingURL = env.GetAWSPricingURL()
-	}
-
-	log.Infof("starting download of \"%s\", which is quite large ...", pricingURL)
-	resp, err := http.Get(pricingURL)
-	if err != nil {
-		log.Errorf("Bogus fetch of \"%s\": %v", pricingURL, err)
-		return nil, pricingURL, err
-	}
-	return resp, pricingURL, err
-}
-
 // SpotRefreshEnabled determines whether the required configs to run the spot feed query have been set up
 func (aws *AWS) SpotRefreshEnabled() bool {
 	// Need a valid value for at least one of these fields to consider spot pricing as enabled
@@ -821,21 +689,6 @@ func (aws *AWS) DownloadPricingData() error {
 		log.Warnf("using SpotDataBucket \"%s\" without ProjectID will not end well", aws.SpotDataBucket)
 	}
 	nodeList := aws.Clientset.GetAllNodes()
-
-	inputkeys := make(map[string]bool)
-	for _, n := range nodeList {
-
-		if _, ok := n.Labels["eks.amazonaws.com/nodegroup"]; ok {
-			aws.clusterManagementPrice = 0.10
-			aws.clusterProvisioner = "EKS"
-		} else if _, ok := n.Labels["kops.k8s.io/instancegroup"]; ok {
-			aws.clusterProvisioner = "KOPS"
-		}
-
-		labels := n.GetObjectMeta().GetLabels()
-		key := aws.GetKey(labels, n)
-		inputkeys[key.Features()] = true
-	}
 
 	pvList := aws.Clientset.GetAllPersistentVolumes()
 
@@ -903,17 +756,10 @@ func (aws *AWS) DownloadPricingData() error {
 		}
 	}
 
-	aws.ValidPricingKeys = make(map[string]bool)
-
-	resp, pricingURL, err := aws.getRegionPricing(nodeList)
+	err = aws.getListPricing(nodeList)
 	if err != nil {
 		return err
 	}
-	err = aws.populatePricing(resp, inputkeys)
-	if err != nil {
-		return err
-	}
-	log.Infof("Finished downloading \"%s\"", pricingURL)
 
 	if !aws.SpotRefreshEnabled() {
 		return nil
@@ -942,7 +788,72 @@ func (aws *AWS) DownloadPricingData() error {
 	return nil
 }
 
+// AWSProductTerms represents the full terms of the product
+type AWSProductTerms struct {
+	Sku      string        `json:"sku"`
+	OnDemand *pricing.Term `json:"OnDemand"`
+	Reserved *pricing.Term `json:"Reserved"`
+	Memory   string        `json:"memory"`
+	Storage  string        `json:"storage"`
+	VCpu     string        `json:"vcpu"`
+	GPU      string        `json:"gpu"` // GPU represents the number of GPU on the instance
+	PV       *models.PV    `json:"pv"`
+}
+
+func (aws *AWS) getListPricing(nodeList []*v1.Node) error {
+	inputkeys := make(map[string]bool)
+	nodeRegions := make(map[string]struct{})
+	for _, n := range nodeList {
+
+		if _, ok := n.Labels["eks.amazonaws.com/nodegroup"]; ok {
+			aws.clusterManagementPrice = 0.10
+			aws.clusterProvisioner = "EKS"
+		} else if _, ok := n.Labels["kops.k8s.io/instancegroup"]; ok {
+			aws.clusterProvisioner = "KOPS"
+		}
+
+		labels := n.GetObjectMeta().GetLabels()
+		key := aws.GetKey(labels, n)
+		inputkeys[key.Features()] = true
+
+		region, _ := util.GetRegion(labels)
+		if region != "" {
+			nodeRegions[region] = struct{}{}
+		}
+
+	}
+
+	aws.ValidPricingKeys = make(map[string]bool)
+
+	if env.GetAWSPricingURL() != "" { // Allow override of pricing URL
+		pricingURL := env.GetAWSPricingURL()
+		resp, err := pricing.FetchPricing(pricingURL)
+		if err != nil {
+			return err
+		}
+		err = aws.populatePricing(resp, inputkeys)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	for region, _ := range nodeRegions {
+		pricingURL := pricing.GetPricingURL(region, AmazonEC2)
+		resp, err := pricing.FetchPricing(pricingURL)
+		if err != nil {
+			return err
+		}
+		err = aws.populatePricing(resp, inputkeys)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) error {
+
 	aws.Pricing = make(map[string]*AWSProductTerms)
 	skusToKeys := make(map[string]string)
 	dec := json.NewDecoder(resp.Body)
@@ -965,7 +876,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 				if err != nil {
 					return err
 				}
-				product := &AWSProduct{}
+				product := &pricing.Product[pricing.EC2ProductAttributes]{}
 
 				err = dec.Decode(&product)
 				if err != nil {
@@ -983,7 +894,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 							Sku:     product.Sku,
 							Memory:  product.Attributes.Memory,
 							Storage: product.Attributes.Storage,
-							VCpu:    product.Attributes.VCpu,
+							VCpu:    product.Attributes.VCPU,
 							GPU:     product.Attributes.GPU,
 						}
 						aws.Pricing[key] = productTerms
@@ -1043,7 +954,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 					if err != nil {
 						return err
 					}
-					offerTerm := &AWSOfferTerm{}
+					offerTerm := &pricing.Term{}
 					err = dec.Decode(&offerTerm)
 					if err != nil {
 						log.Errorf("Error decoding AWS Offer Term: " + err.Error())
@@ -1055,9 +966,9 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 						aws.Pricing[key].OnDemand = offerTerm
 						aws.Pricing[spotKey].OnDemand = offerTerm
 						var cost string
-						if _, isMatch := OnDemandRateCodes[offerTerm.OfferTermCode]; isMatch {
+						if _, isMatch := pricing.OnDemandRateCodes[offerTerm.OfferTermCode]; isMatch {
 							cost = offerTerm.PriceDimensions[strings.Join([]string{sku.(string), offerTerm.OfferTermCode, HourlyRateCode}, ".")].PricePerUnit.USD
-						} else if _, isMatch := OnDemandRateCodesCn[offerTerm.OfferTermCode]; isMatch {
+						} else if _, isMatch := pricing.OnDemandRateCodesCn[offerTerm.OfferTermCode]; isMatch {
 							cost = offerTerm.PriceDimensions[strings.Join([]string{sku.(string), offerTerm.OfferTermCode, HourlyRateCodeCn}, ".")].PricePerUnit.CNY
 						}
 						if strings.Contains(key, "EBS:VolumeP-IOPS.piops") {
@@ -1087,6 +998,7 @@ func (aws *AWS) populatePricing(resp *http.Response, inputkeys map[string]bool) 
 			}
 		}
 	}
+	log.Infof("Finished downloading \"%s\"", resp.Request.URL)
 	return nil
 }
 

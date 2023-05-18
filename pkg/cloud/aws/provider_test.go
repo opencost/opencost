@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/opencost/opencost/pkg/cloud/aws/pricing"
 	"github.com/opencost/opencost/pkg/cloud/models"
 )
 
@@ -322,13 +323,13 @@ func Test_populate_pricing(t *testing.T) {
 		Storage: "",
 		VCpu:    "",
 		GPU:     "",
-		OnDemand: &AWSOfferTerm{
+		OnDemand: &pricing.Term{
 			Sku:           "M6UGCCQ3CDJQAA37",
 			OfferTermCode: "JRTCKXETXF",
-			PriceDimensions: map[string]*AWSRateCode{
+			PriceDimensions: map[string]*pricing.PriceDimension{
 				"M6UGCCQ3CDJQAA37.JRTCKXETXF.6YS6EN2CT7": {
 					Unit: "GB-Mo",
-					PricePerUnit: AWSCurrencyCode{
+					PricePerUnit: pricing.PricePerUnit{
 						USD: "0.0800000000",
 						CNY: "",
 					},
@@ -351,7 +352,7 @@ func Test_populate_pricing(t *testing.T) {
 		Storage: "EBS only",
 		VCpu:    "2",
 		GPU:     "",
-		OnDemand: &AWSOfferTerm{
+		OnDemand: &pricing.Term{
 			Sku:             "",
 			OfferTermCode:   "",
 			PriceDimensions: nil,
@@ -364,7 +365,7 @@ func Test_populate_pricing(t *testing.T) {
 		Storage: "EBS only",
 		VCpu:    "2",
 		GPU:     "",
-		OnDemand: &AWSOfferTerm{
+		OnDemand: &pricing.Term{
 			Sku:             "",
 			OfferTermCode:   "",
 			PriceDimensions: nil,
@@ -461,13 +462,13 @@ func Test_populate_pricing(t *testing.T) {
 		Storage: "",
 		VCpu:    "",
 		GPU:     "",
-		OnDemand: &AWSOfferTerm{
+		OnDemand: &pricing.Term{
 			Sku:           "R83VXG9NAPDASEGN",
 			OfferTermCode: "5Y9WH78GDR",
-			PriceDimensions: map[string]*AWSRateCode{
+			PriceDimensions: map[string]*pricing.PriceDimension{
 				"R83VXG9NAPDASEGN.5Y9WH78GDR.Q7UJUT2CE6": {
 					Unit: "GB-Mo",
-					PricePerUnit: AWSCurrencyCode{
+					PricePerUnit: pricing.PricePerUnit{
 						USD: "",
 						CNY: "0.5312000000",
 					},
