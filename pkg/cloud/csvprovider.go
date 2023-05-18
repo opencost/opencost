@@ -341,6 +341,13 @@ func PVValueFromMapField(m string, n *v1.PersistentVolume) string {
 			log.Infof("[ERROR] Unsupported InstanceIDField %s in CSV For PV", m)
 			return ""
 		}
+	} else if len(mf) > 1 && mf[0] == "spec" {
+		if mf[1] == "storageClassName" {
+			return n.Spec.StorageClassName
+		} else {
+			log.Infof("[ERROR] Unsupported InstanceIDField %s in CSV For PV", m)
+			return ""
+		}
 	} else {
 		log.Errorf("Unsupported InstanceIDField %s in CSV For PV", m)
 		return ""
