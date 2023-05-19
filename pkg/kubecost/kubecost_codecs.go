@@ -33,20 +33,20 @@ const (
 )
 
 const (
-	// AuditCodecVersion is used for any resources listed in the Audit version set
-	AuditCodecVersion uint8 = 1
-
-	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
-	CloudCostCodecVersion uint8 = 1
-
 	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 19
+	DefaultCodecVersion uint8 = 17
 
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
 	AssetsCodecVersion uint8 = 19
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
 	AllocationCodecVersion uint8 = 16
+
+	// AuditCodecVersion is used for any resources listed in the Audit version set
+	AuditCodecVersion uint8 = 1
+
+	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
+	CloudCostCodecVersion uint8 = 2
 )
 
 //--------------------------------------------------------------------------

@@ -74,7 +74,7 @@ package kubecost
 // @bingen:generate:AuditSetRange
 // @bingen:end
 
-// @bingen:set[name=CloudCost,version=1]
+// @bingen:set[name=CloudCost,version=2]
 // @bingen:generate:CloudCost
 // @bingen:generate:CostMetric
 // @bingen:generate[stringtable]:CloudCostSet
