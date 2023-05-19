@@ -429,6 +429,7 @@ func buildCPUBreakdownMap(resNodeCPUModeTotal []*prom.QueryResult) map[nodeIdent
 func buildOverheadMap(capRam, allocRam, capCPU, allocCPU map[nodeIdentifierNoProviderID]float64) map[nodeIdentifierNoProviderID]*NodeOverhead {
 	m := make(map[nodeIdentifierNoProviderID]*NodeOverhead, len(capRam))
 
+	// initialize node overhead so that by default, we assume overhead is 0
 	for identifier, ramCapacity := range capRam {
 		allocatableRam, ok := allocRam[identifier]
 		if !ok {
@@ -825,6 +826,11 @@ func buildNodeMap(
 
 		if overhead, ok := overheadMap[clusterAndNameID]; ok {
 			nodePtr.Overhead = overhead
+		} else {
+			// we were unable to compute overhead for this node
+			// assume default case of no overhead
+			nodePtr.Overhead = &NodeOverhead{}
+			log.Warnf("unable to compute overhead for node " + clusterAndNameID.Name + " - defaulting to no overhead")
 		}
 
 	}
