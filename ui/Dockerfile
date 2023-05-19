@@ -11,15 +11,15 @@ COPY default.nginx.conf /etc/nginx/conf.d/
 COPY nginx.conf /etc/nginx/
 RUN rm -rf /etc/nginx/conf.d/default.conf
 
-RUN adduser 101 -g 1000 -D
-RUN chown 101:1000 -R /var/www
-RUN chown 101:1000 -R /etc/nginx
+RUN adduser 1001 -g 1000 -D
+RUN chown 1001:1000 -R /var/www
+RUN chown 1001:1000 -R /etc/nginx
 
 ENV BASE_URL=/model
 
 COPY ./docker-entrypoint.sh /usr/local/bin/
 
-USER 101
+USER 1001
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["nginx", "-g", "daemon off;"]
