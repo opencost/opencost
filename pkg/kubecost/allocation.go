@@ -358,16 +358,14 @@ func (parcs ProportionalAssetResourceCosts) Add(that ProportionalAssetResourceCo
 }
 
 type SharedCostBreakdown struct {
-	Name        string  `json:"name"`
-	TotalCost   float64 `json:"totalCost"`
-	CPUCost     float64 `json:"cpuCost,omitempty"`
-	GPUCost     float64 `json:"gpuCost,omitempty"`
-	RAMCost     float64 `json:"ramCost,omitempty"`
-	PVCost      float64 `json:"pvCost,omitempty"`
-	NetworkCost float64 `json:"networkCost,omitempty"`
-	LBCost      float64 `json:"loadBalancerCost,omitempty"`
-	//todo: what do we do if the shared allocation has a shared cost?
-	// SharedCost float64 `json:"sharedCost"`
+	Name         string  `json:"name"`
+	TotalCost    float64 `json:"totalCost"`
+	CPUCost      float64 `json:"cpuCost,omitempty"`
+	GPUCost      float64 `json:"gpuCost,omitempty"`
+	RAMCost      float64 `json:"ramCost,omitempty"`
+	PVCost       float64 `json:"pvCost,omitempty"`
+	NetworkCost  float64 `json:"networkCost,omitempty"`
+	LBCost       float64 `json:"loadBalancerCost,omitempty"`
 	ExternalCost float64 `json:"externalCost,omitempty"`
 }
 
@@ -897,7 +895,13 @@ func (a *Allocation) add(that *Allocation) {
 
 	// If both Allocations have SharedCostBreakdowns, then
 	// add those from the given Allocation into the receiver.
-	if a.SharedCostBreakdown != nil && that.SharedCostBreakdown != nil {
+	if a.SharedCostBreakdown != nil || that.SharedCostBreakdown != nil {
+		if a.SharedCostBreakdown == nil {
+			a.SharedCostBreakdown = SharedCostBreakdowns{}
+		}
+		if that.SharedCostBreakdown == nil {
+			that.SharedCostBreakdown = SharedCostBreakdowns{}
+		}
 		a.SharedCostBreakdown.Add(that.SharedCostBreakdown)
 	}
 
