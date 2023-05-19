@@ -825,6 +825,11 @@ func buildNodeMap(
 
 		if overhead, ok := overheadMap[clusterAndNameID]; ok {
 			nodePtr.Overhead = overhead
+		} else {
+			// we were unable to compute overhead for this node
+			// assume default case of no overhead
+			nodePtr.Overhead = &NodeOverhead{}
+			log.Warnf("unable to compute overhead for node %s - defaulting to no overhead", clusterAndNameID.Name)
 		}
 
 	}
