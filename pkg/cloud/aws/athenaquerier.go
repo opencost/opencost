@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opencost/opencost/pkg/cloud"
 	cloudconfig "github.com/opencost/opencost/pkg/cloud/config"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -20,6 +21,7 @@ import (
 
 type AthenaQuerier struct {
 	AthenaConfiguration
+	ConnectionStatus cloud.ConnectionStatus
 }
 
 func (aq *AthenaQuerier) Equals(config cloudconfig.Config) bool {
@@ -31,9 +33,58 @@ func (aq *AthenaQuerier) Equals(config cloudconfig.Config) bool {
 	return aq.AthenaConfiguration.Equals(&thatConfig.AthenaConfiguration)
 }
 
+// GetColumns returns a list of the names of all columns in the configured
+// Athena table
+func (aq *AthenaQuerier) GetColumns() (map[string]bool, error) {
+	columnSet := map[string]bool{}
+
+	// This Query is supported by Athena tables and views
+	q := `SELECT column_name FROM information_schema.columns WHERE table_schema = '%s' AND table_name = '%s'`
+	query := fmt.Sprintf(q, aq.Database, aq.Table)
+
+	athenaErr := aq.Query(context.TODO(), query, GetAthenaQueryFunc(func(row types.Row) {
+		columnSet[*row.Data[0].VarCharValue] = true
+	}))
+
+	if athenaErr != nil {
+		return columnSet, athenaErr
+	}
+
+	if len(columnSet) == 0 {
+		log.Infof("No columns retrieved from Athena")
+	}
+
+	return columnSet, nil
+}
+
+func (aq *AthenaQuerier) Query(ctx context.Context, query string, fn func(*athena.GetQueryResultsOutput) bool) error {
+	err := aq.Validate()
+	if err != nil {
+		aq.ConnectionStatus = cloud.InvalidConfiguration
+		return err
+	}
+
+	log.Debugf("AthenaQuerier[%s]: Performing Query: %s", aq.Key(), query)
+	err = aq.queryAthenaPaginated(ctx, query, fn)
+	if err != nil {
+		aq.ConnectionStatus = cloud.FailedConnection
+		return err
+	}
+	return nil
+}
+
+func (aq *AthenaQuerier) GetAthenaClient() (*athena.Client, error) {
+	cfg, err := aq.Authorizer.CreateAWSConfig(aq.Region)
+	if err != nil {
+		return nil, err
+	}
+	cli := athena.NewFromConfig(cfg)
+	return cli, nil
+}
+
 // QueryAthenaPaginated executes athena query and processes results. An error from this method indicates a
 // FAILED_CONNECTION CloudConnectionStatus and should immediately stop the caller to maintain the correct CloudConnectionStatus
-func (aq *AthenaQuerier) QueryAthenaPaginated(ctx context.Context, query string, fn func(*athena.GetQueryResultsOutput) bool) error {
+func (aq *AthenaQuerier) queryAthenaPaginated(ctx context.Context, query string, fn func(*athena.GetQueryResultsOutput) bool) error {
 
 	queryExecutionCtx := &types.QueryExecutionContext{
 		Database: aws.String(aq.Database),
@@ -54,7 +105,7 @@ func (aq *AthenaQuerier) QueryAthenaPaginated(ctx context.Context, query string,
 	}
 
 	// Create Athena Client
-	cli, err := aq.AthenaConfiguration.GetAthenaClient()
+	cli, err := aq.GetAthenaClient()
 
 	// Query Athena
 	startQueryExecutionOutput, err := cli.StartQueryExecution(ctx, startQueryExecutionInput)
