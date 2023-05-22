@@ -41,7 +41,7 @@ Dependencies:
 3. Set [this environment variable](https://github.com/opencost/opencost/blob/develop/kubernetes/opencost.yaml#L155) to the address of your Prometheus server
 
 ### Build the frontend
-1. `just build-ui "<repo>/opencost-ui:<tag>"`
+1. `cd ui && just build-ui "<repo>/opencost-ui:<tag>"`
 2. Edit the [pulled image](https://github.com/opencost/opencost/blob/develop/kubernetes/opencost.yaml#L162) in the `kubernetes/opencost.yaml` to `<repo>/opencost-ui:<tag>`
 
 ### Deploy to a cluster
