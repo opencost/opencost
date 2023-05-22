@@ -24,7 +24,7 @@ build-binary VERSION=version:
            -X github.com/opencost/opencost/pkg/version.GitCommit={{commit}}" \
         -o ./costmodel-arm64
 
-build IMAGETAG VERSION=version: (build-binary VERSION)
+build IMAGETAG VERSION=version: test (build-binary VERSION)
     docker buildx build \
         --rm \
         --platform "linux/amd64" \
