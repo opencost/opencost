@@ -1536,6 +1536,9 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 				}
 
 				if options.IncludeSharedCostBreakdown {
+					if alloc.SharedCostBreakdown == nil {
+						alloc.SharedCostBreakdown = map[string]SharedCostBreakdown{}
+					}
 					sharedCostName := sharedAlloc.generateKey(aggregateBy, options.LabelConfig)
 					// check if current allocation is a shared flat overhead cost
 					if strings.Contains(sharedAlloc.Name, SharedSuffix) {
@@ -1553,6 +1556,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 						LBCost:       sharedAlloc.LBTotalCost() * shareCoefficients[alloc.Name],
 						ExternalCost: sharedAlloc.ExternalCost * shareCoefficients[alloc.Name],
 					}
+					// fmt.Printf("shared cost: %+v", scb)
 					alloc.SharedCostBreakdown.Insert(scb)
 				}
 
