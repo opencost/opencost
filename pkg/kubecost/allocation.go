@@ -87,6 +87,7 @@ type Allocation struct {
 	// asset on which the allocation was run. It is optionally computed
 	// and appended to an Allocation, and so by default is is nil.
 	ProportionalAssetResourceCosts ProportionalAssetResourceCosts `json:"proportionalAssetResourceCosts"` //@bingen:field[ignore]
+	SharedCostBreakdown            SharedCostBreakdowns           `json:"sharedCostBreakdown"`            //@bingen:field[ignore]
 }
 
 // RawAllocationOnlyData is information that only belong in "raw" Allocations,
@@ -356,6 +357,53 @@ func (parcs ProportionalAssetResourceCosts) Add(that ProportionalAssetResourceCo
 	}
 }
 
+type SharedCostBreakdown struct {
+	Name         string  `json:"name"`
+	TotalCost    float64 `json:"totalCost"`
+	CPUCost      float64 `json:"cpuCost,omitempty"`
+	GPUCost      float64 `json:"gpuCost,omitempty"`
+	RAMCost      float64 `json:"ramCost,omitempty"`
+	PVCost       float64 `json:"pvCost,omitempty"`
+	NetworkCost  float64 `json:"networkCost,omitempty"`
+	LBCost       float64 `json:"loadBalancerCost,omitempty"`
+	ExternalCost float64 `json:"externalCost,omitempty"`
+}
+
+type SharedCostBreakdowns map[string]SharedCostBreakdown
+
+func (scbs SharedCostBreakdowns) Clone() SharedCostBreakdowns {
+	cloned := SharedCostBreakdowns{}
+
+	for key, scb := range scbs {
+		cloned[key] = scb
+	}
+	return cloned
+}
+
+func (scbs SharedCostBreakdowns) Insert(scb SharedCostBreakdown) {
+	if curr, ok := scbs[scb.Name]; ok {
+		scbs[scb.Name] = SharedCostBreakdown{
+			Name:         curr.Name,
+			TotalCost:    curr.TotalCost + scb.TotalCost,
+			CPUCost:      curr.CPUCost + scb.CPUCost,
+			GPUCost:      curr.GPUCost + scb.GPUCost,
+			RAMCost:      curr.RAMCost + scb.RAMCost,
+			PVCost:       curr.PVCost + scb.PVCost,
+			NetworkCost:  curr.NetworkCost + scb.NetworkCost,
+			LBCost:       curr.LBCost + scb.LBCost,
+			ExternalCost: curr.ExternalCost + scb.ExternalCost,
+		}
+	} else {
+		scbs[scb.Name] = scb
+	}
+}
+
+func (scbs SharedCostBreakdowns) Add(that SharedCostBreakdowns) {
+	for _, scb := range that {
+		scbs.Insert(scb)
+	}
+}
+
 // GetWindow returns the window of the struct
 func (a *Allocation) GetWindow() Window {
 	return a.Window
@@ -424,6 +472,7 @@ func (a *Allocation) Clone() *Allocation {
 		ExternalCost:                   a.ExternalCost,
 		RawAllocationOnly:              a.RawAllocationOnly.Clone(),
 		ProportionalAssetResourceCosts: a.ProportionalAssetResourceCosts.Clone(),
+		SharedCostBreakdown:            a.SharedCostBreakdown.Clone(),
 	}
 }
 
@@ -844,6 +893,18 @@ func (a *Allocation) add(that *Allocation) {
 		a.ProportionalAssetResourceCosts.Add(that.ProportionalAssetResourceCosts)
 	}
 
+	// If both Allocations have SharedCostBreakdowns, then
+	// add those from the given Allocation into the receiver.
+	if a.SharedCostBreakdown != nil || that.SharedCostBreakdown != nil {
+		if a.SharedCostBreakdown == nil {
+			a.SharedCostBreakdown = SharedCostBreakdowns{}
+		}
+		if that.SharedCostBreakdown == nil {
+			that.SharedCostBreakdown = SharedCostBreakdowns{}
+		}
+		a.SharedCostBreakdown.Add(that.SharedCostBreakdown)
+	}
+
 	// Overwrite regular intersection logic for the controller name property in the
 	// case that the Allocation keys are the same but the controllers are not.
 	if leftKey == rightKey &&
@@ -987,6 +1048,7 @@ type AllocationAggregationOptions struct {
 	ShareIdle                             string
 	ShareSplit                            string
 	SharedHourlyCosts                     map[string]float64
+	IncludeSharedCostBreakdown            bool
 	SplitIdle                             bool
 	IncludeAggregatedMetadata             bool
 }
@@ -1471,6 +1533,31 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 						log.Warnf("AllocationSet.AggregateBy: error getting share coefficient for '%s'", alloc.Name)
 					}
 					continue
+				}
+
+				if options.IncludeSharedCostBreakdown {
+					if alloc.SharedCostBreakdown == nil {
+						alloc.SharedCostBreakdown = map[string]SharedCostBreakdown{}
+					}
+					sharedCostName := sharedAlloc.generateKey(aggregateBy, options.LabelConfig)
+					// check if current allocation is a shared flat overhead cost
+					if strings.Contains(sharedAlloc.Name, SharedSuffix) {
+						sharedCostName = "overheadCost"
+					}
+
+					scb := SharedCostBreakdown{
+						Name:         sharedCostName,
+						TotalCost:    sharedAlloc.TotalCost() * shareCoefficients[alloc.Name],
+						CPUCost:      sharedAlloc.CPUTotalCost() * shareCoefficients[alloc.Name],
+						GPUCost:      sharedAlloc.GPUTotalCost() * shareCoefficients[alloc.Name],
+						RAMCost:      sharedAlloc.RAMTotalCost() * shareCoefficients[alloc.Name],
+						PVCost:       sharedAlloc.PVCost() * shareCoefficients[alloc.Name],
+						NetworkCost:  sharedAlloc.NetworkTotalCost() * shareCoefficients[alloc.Name],
+						LBCost:       sharedAlloc.LBTotalCost() * shareCoefficients[alloc.Name],
+						ExternalCost: sharedAlloc.ExternalCost * shareCoefficients[alloc.Name],
+					}
+					// fmt.Printf("shared cost: %+v", scb)
+					alloc.SharedCostBreakdown.Insert(scb)
 				}
 
 				alloc.SharedCost += sharedAlloc.TotalCost() * shareCoefficients[alloc.Name]
