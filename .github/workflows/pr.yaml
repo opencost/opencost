@@ -23,6 +23,15 @@ jobs:
         with:
           go-version: '1.19'
 
+      # Saves us from having to redownload all modules
+      - name: Go Mod cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+
       -
         name: Test
         run: |
