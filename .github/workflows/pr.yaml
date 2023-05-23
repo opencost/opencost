@@ -31,7 +31,7 @@ jobs:
       -
         name: Build
         run: |
-          just build-binary
+          just build-local
 
   frontend:
     runs-on: ubuntu-latest

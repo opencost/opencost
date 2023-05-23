@@ -1,4 +1,4 @@
-commonenv := "CGO_ENABLED=0 GOOS=linux"
+commonenv := "CGO_ENABLED=0"
 
 version := "dev"
 commit := `git rev-parse --short HEAD`
@@ -6,24 +6,36 @@ commit := `git rev-parse --short HEAD`
 default:
     just --list
 
+# Run unit tests
 test:
     {{commonenv}} go test ./...
 
+# Compile a local binary
+build-local:
+    cd ./cmd/costmodel && \
+        {{commonenv}} go build \
+        -ldflags \
+          "-X github.com/opencost/opencost/pkg/version.Version={{version}} \
+           -X github.com/opencost/opencost/pkg/version.GitCommit={{commit}}" \
+        -o ./costmodel
+
+# Build multiarch binaries
 build-binary VERSION=version:
     cd ./cmd/costmodel && \
-        {{commonenv}} GOARCH=amd64 go build \
+        {{commonenv}} GOOS=linux GOARCH=amd64 go build \
         -ldflags \
           "-X github.com/opencost/opencost/pkg/version.Version={{VERSION}} \
            -X github.com/opencost/opencost/pkg/version.GitCommit={{commit}}" \
         -o ./costmodel-amd64
 
     cd ./cmd/costmodel && \
-        {{commonenv}} GOARCH=arm64 go build \
+        {{commonenv}} GOOS=linux GOARCH=arm64 go build \
         -ldflags \
           "-X github.com/opencost/opencost/pkg/version.Version={{VERSION}} \
            -X github.com/opencost/opencost/pkg/version.GitCommit={{commit}}" \
         -o ./costmodel-arm64
 
+# Build and push a multi-arch Docker image
 build IMAGETAG VERSION=version: test (build-binary VERSION)
     docker buildx build \
         --rm \
