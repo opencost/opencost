@@ -11,6 +11,7 @@ build IMAGETAG: build-local
         --rm \
         --platform "linux/amd64" \
         -f 'Dockerfile.cross' \
+        --provenance=false \
         -t {{IMAGETAG}}-amd64 \
         --push \
         .
@@ -19,6 +20,7 @@ build IMAGETAG: build-local
         --rm \
         --platform "linux/arm64" \
         -f 'Dockerfile.cross' \
+        --provenance=false \
         -t {{IMAGETAG}}-arm64 \
         --push \
         .
