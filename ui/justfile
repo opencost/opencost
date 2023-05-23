@@ -3,27 +3,18 @@ default:
 
 build-local:
     npm install
-
     npx parcel build src/index.html
 
 build IMAGETAG: build-local
-    docker buildx build \
-        --rm \
-        --platform "linux/amd64" \
-        -f 'Dockerfile.cross' \
-        -t {{IMAGETAG}}-amd64 \
-        --push \
-        .
+    # Building a multi-arch image with manifest-tool is not necessary for the UI
+    # container because the base container is nginx:alpine which is already
+    # multi-arch.
 
     docker buildx build \
         --rm \
-        --platform "linux/arm64" \
         -f 'Dockerfile.cross' \
-        -t {{IMAGETAG}}-arm64 \
-        --push \
+        -t {{IMAGETAG}} \
         .
 
-    manifest-tool push from-args \
-        --platforms "linux/amd64,linux/arm64" \
-        --template {{IMAGETAG}}-ARCH \
-        --target {{IMAGETAG}}
+build-push IMAGETAG: (build IMAGETAG)
+    docker push {{IMAGETAG}}
