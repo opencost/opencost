@@ -26,7 +26,7 @@ package kubecost
 // @bingen:generate:CoverageSet
 
 // Asset Version Set: Includes Asset pipeline specific resources
-// @bingen:set[name=Assets,version=18]
+// @bingen:set[name=Assets,version=19]
 // @bingen:generate:Any
 // @bingen:generate:Asset
 // @bingen:generate:AssetLabels
@@ -41,6 +41,7 @@ package kubecost
 // @bingen:generate:LoadBalancer
 // @bingen:generate:Network
 // @bingen:generate:Node
+// @bingen:generate:NodeOverhead
 // @bingen:generate:SharedAsset
 // @bingen:end
 
@@ -73,7 +74,7 @@ package kubecost
 // @bingen:generate:AuditSetRange
 // @bingen:end
 
-// @bingen:set[name=CloudCost,version=1]
+// @bingen:set[name=CloudCost,version=2]
 // @bingen:generate:CloudCost
 // @bingen:generate:CostMetric
 // @bingen:generate[stringtable]:CloudCostSet

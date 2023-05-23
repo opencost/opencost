@@ -1,4 +1,4 @@
-package cloud
+package alibaba
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/signers"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	v1 "k8s.io/api/core/v1"
-	resource "k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func TestCreateDescribePriceACSRequest(t *testing.T) {
