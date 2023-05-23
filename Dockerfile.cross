@@ -1,0 +1,18 @@
+FROM alpine:latest
+
+# The prebuilt binary path. This Dockerfile assumes the binary will be built
+# outside of Docker.
+ARG binarypath
+
+RUN apk add --update --no-cache ca-certificates
+
+ADD --chmod=644 ./configs/default.json /models/default.json
+ADD --chmod=644 ./configs/azure.json /models/azure.json
+ADD --chmod=644 ./configs/aws.json /models/aws.json
+ADD --chmod=644 ./configs/gcp.json /models/gcp.json
+ADD --chmod=644 ./configs/alibaba.json /models/alibaba.json
+
+COPY ${binarypath} /go/bin/app
+
+USER 1001
+ENTRYPOINT ["/go/bin/app"]
