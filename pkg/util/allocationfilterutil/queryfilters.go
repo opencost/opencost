@@ -1,6 +1,7 @@
 package allocationfilterutil
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/opencost/opencost/pkg/costmodel/clusters"
@@ -29,6 +30,31 @@ const (
 	ParamFilterLabels      = "filterLabels"
 	ParamFilterServices    = "filterServices"
 )
+
+var allocationFilterFieldMap = map[string]string{
+	kubecost.AllocationClusterProp:        ParamFilterClusters,
+	kubecost.FilterNode:                   ParamFilterNodes,
+	kubecost.AllocationNamespaceProp:      ParamFilterNamespaces,
+	kubecost.AllocationControllerKindProp: ParamFilterControllerKinds,
+	kubecost.AllocationControllerProp:     ParamFilterControllers,
+	kubecost.AllocationPodProp:            ParamFilterPods,
+	kubecost.AllocationContainerProp:      ParamFilterContainers,
+	kubecost.AllocationDepartmentProp:     ParamFilterDepartments,
+	kubecost.AllocationEnvironmentProp:    ParamFilterEnvironments,
+	kubecost.AllocationOwnerProp:          ParamFilterOwners,
+	kubecost.AllocationProductProp:        ParamFilterProducts,
+	kubecost.AllocationTeamProp:           ParamFilterTeams,
+	kubecost.AllocationAnnotationProp:     ParamFilterAnnotations,
+	kubecost.AllocationLabelProp:          ParamFilterLabels,
+	kubecost.AllocationServiceProp:        ParamFilterServices,
+}
+
+func GetAllocationFilterForTheAllocationProperty(allocationProp string) (string, error) {
+	if _, ok := allocationFilterFieldMap[allocationProp]; !ok {
+		return "", fmt.Errorf("unknown allocation property %s", allocationProp)
+	}
+	return allocationFilterFieldMap[allocationProp], nil
+}
 
 // AllHTTPParamKeys returns all HTTP GET parameters used for v1 filters. It is
 // intended to help validate HTTP queries in handlers to help avoid e.g.
