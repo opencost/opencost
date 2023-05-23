@@ -7,4 +7,6 @@ ui/.cache
 ui/dist
 ui/node_modules/
 cmd/costmodel/costmodel
+cmd/costmodel/costmodel-amd64
+cmd/costmodel/costmodel-arm64
 pkg/cloud/azureorphan_test.go
