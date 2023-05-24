@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/env"
 	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/log"
@@ -1448,7 +1448,7 @@ func applyNodeCostPerCPUHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerCPUHr
 			nodeMap[key] = &nodePricing{
 				Name:       node,
 				NodeType:   instanceType,
-				ProviderID: cloud.ParseID(providerID),
+				ProviderID: provider.ParseID(providerID),
 			}
 		}
 
@@ -1486,7 +1486,7 @@ func applyNodeCostPerRAMGiBHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerRA
 			nodeMap[key] = &nodePricing{
 				Name:       node,
 				NodeType:   instanceType,
-				ProviderID: cloud.ParseID(providerID),
+				ProviderID: provider.ParseID(providerID),
 			}
 		}
 
@@ -1524,7 +1524,7 @@ func applyNodeCostPerGPUHr(nodeMap map[nodeKey]*nodePricing, resNodeCostPerGPUHr
 			nodeMap[key] = &nodePricing{
 				Name:       node,
 				NodeType:   instanceType,
-				ProviderID: cloud.ParseID(providerID),
+				ProviderID: provider.ParseID(providerID),
 			}
 		}
 
@@ -1658,7 +1658,10 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*nodePricing, nodeKey no
 		if nodeKey.Node != "" {
 			log.DedupedWarningf(5, "CostModel: failed to find node for %s", nodeKey)
 		}
-		return cm.getCustomNodePricing(false, "")
+		// since the node pricing data is not found, and this won't change for the duration of the allocation
+		// build process, we can update the node map with the defaults to prevent future failed lookups
+		nodeMap[nodeKey] = cm.getCustomNodePricing(false, "")
+		return nodeMap[nodeKey]
 	}
 
 	// If custom pricing is enabled and can be retrieved, override detected
@@ -1667,7 +1670,7 @@ func (cm *CostModel) getNodePricing(nodeMap map[nodeKey]*nodePricing, nodeKey no
 	if err != nil {
 		log.Warnf("CostModel: failed to load custom pricing: %s", err)
 	}
-	if cloud.CustomPricesEnabled(cm.Provider) && customPricingConfig != nil {
+	if provider.CustomPricesEnabled(cm.Provider) && customPricingConfig != nil {
 		return cm.getCustomNodePricing(node.Preemptible, node.ProviderID)
 	}
 

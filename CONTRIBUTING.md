@@ -24,18 +24,31 @@ This repository's contribution workflow follows a typical open-source model:
 
 ## Building OpenCost
 
-Follow these steps to build the OpenCost cost-model and UI from source and deploy:
+Follow these steps to build the OpenCost cost-model and UI from source and
+deploy. The provided build tooling is natively multi-architecture (built images
+will run on both AMD64 and ARM64 clusters).
 
-1. `docker build --rm -f "Dockerfile" -t <repo>/opencost:<tag> .`
+Dependencies:
+1. Docker (with `buildx`)
+2. [just](https://github.com/casey/just) (if you don't want to install Just, read the `justfile` and run the commands manually)
+3. Multi-arch `buildx` builders set up via https://github.com/tonistiigi/binfmt
+4. `npm` (if you want to build the UI)
+
+### Build the backend
+
+1. `just build "<repo>/opencost:<tag>"`
 2. Edit the [pulled image](https://github.com/opencost/opencost/blob/develop/kubernetes/opencost.yaml#L145) in the `kubernetes/opencost.yaml` to `<repo>/opencost:<tag>`
 3. Set [this environment variable](https://github.com/opencost/opencost/blob/develop/kubernetes/opencost.yaml#L155) to the address of your Prometheus server
-4. `cd ui`
-5. `docker build --rm -f "Dockerfile" -t <repo>/opencost-ui:<tag> .`
-6. `cd ..`
-7. Edit the [pulled image](https://github.com/opencost/opencost/blob/develop/kubernetes/opencost.yaml#L162) in the `kubernetes/opencost.yaml` to `<repo>/opencost-ui:<tag>`
-8. `kubectl create namespace opencost`
-9. `kubectl apply -f kubernetes/opencost --namespace opencost`
-10. `kubectl -n opencost port-forward service/opencost 9090 9003`
+
+### Build the frontend
+1. `cd ui && just build-ui "<repo>/opencost-ui:<tag>"`
+2. Edit the [pulled image](https://github.com/opencost/opencost/blob/develop/kubernetes/opencost.yaml#L162) in the `kubernetes/opencost.yaml` to `<repo>/opencost-ui:<tag>`
+
+### Deploy to a cluster
+
+1. `kubectl create namespace opencost`
+2. `kubectl apply -f kubernetes/opencost --namespace opencost`
+3. `kubectl -n opencost port-forward service/opencost 9090 9003`
 
 To test, build the OpenCost containers and then push them to a Kubernetes cluster with a running Prometheus.
 

@@ -1,10 +1,11 @@
-package cloud
+package provider
 
 import (
 	"encoding/csv"
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,6 +25,10 @@ import (
 )
 
 const refreshMinutes = 60
+
+var (
+	provIdRx = regexp.MustCompile("aws:///([^/]+)/([^/]+)")
+)
 
 type CSVProvider struct {
 	*CustomProvider
@@ -303,10 +308,10 @@ func NodeValueFromMapField(m string, n *v1.Node, useRegion bool) string {
 		if mf[1] == "name" {
 			return toReturn + n.Name
 		} else if mf[1] == "labels" {
-			lkey := strings.Join(mf[2:len(mf)], "")
+			lkey := strings.Join(mf[2:len(mf)], ".")
 			return toReturn + n.Labels[lkey]
 		} else if mf[1] == "annotations" {
-			akey := strings.Join(mf[2:len(mf)], "")
+			akey := strings.Join(mf[2:len(mf)], ".")
 			return toReturn + n.Annotations[akey]
 		} else {
 			log.Errorf("Unsupported InstanceIDField %s in CSV For Node", m)
@@ -337,6 +342,13 @@ func PVValueFromMapField(m string, n *v1.PersistentVolume) string {
 		if mf[1] == "capacity" && mf[2] == "storage" {
 			skey := n.Spec.Capacity["storage"]
 			return skey.String()
+		} else {
+			log.Infof("[ERROR] Unsupported InstanceIDField %s in CSV For PV", m)
+			return ""
+		}
+	} else if len(mf) > 1 && mf[0] == "spec" {
+		if mf[1] == "storageClassName" {
+			return n.Spec.StorageClassName
 		} else {
 			log.Infof("[ERROR] Unsupported InstanceIDField %s in CSV For PV", m)
 			return ""

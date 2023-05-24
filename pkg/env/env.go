@@ -128,7 +128,7 @@ func GetDuration(key string, defaultValue time.Duration) time.Duration {
 	return envMapper.GetDuration(key, defaultValue)
 }
 
-// GetList parses a []string from the enviroment variable key parameter.  If the environment
+// GetList parses a []string from the environment variable key parameter.  If the environment
 // // variable is empty or fails to parse, nil is returned.
 func GetList(key, delimiter string) []string {
 	return envMapper.GetList(key, delimiter)

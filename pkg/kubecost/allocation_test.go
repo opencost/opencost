@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/opencost/opencost/pkg/log"
 	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
 func TestAllocation_Add(t *testing.T) {
@@ -517,12 +519,21 @@ func assertParcResults(t *testing.T, as *AllocationSet, msg string, exps map[str
 		for key, actualParc := range a.ProportionalAssetResourceCosts {
 			expectedParcs := exps[allocKey]
 
+			// round to prevent floating point issues from failing tests at ultra high precision
+			actualParc.NodeResourceCostPercentage = roundFloat(actualParc.NodeResourceCostPercentage)
+			actualParc.CPUPercentage = roundFloat(actualParc.CPUPercentage)
+			actualParc.RAMPercentage = roundFloat(actualParc.RAMPercentage)
+			actualParc.GPUPercentage = roundFloat(actualParc.GPUPercentage)
 			if !reflect.DeepEqual(expectedParcs[key], actualParc) {
 				t.Fatalf("actual PARC %v did not match expected PARC %v", actualParc, expectedParcs[key])
 			}
 		}
 
 	}
+}
+func roundFloat(val float64) float64 {
+	ratio := math.Pow(10, float64(5))
+	return math.Round(val*ratio) / ratio
 }
 
 func assertAllocationTotals(t *testing.T, as *AllocationSet, msg string, exps map[string]float64) {
@@ -1074,35 +1085,53 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 			windowEnd:   endYesterday,
 			expMinutes:  1440.0,
 			expectedParcResults: map[string]ProportionalAssetResourceCosts{
-				"namespace1": ProportionalAssetResourceCosts{
+				"namespace1": {
 					"cluster1": ProportionalAssetResourceCost{
 						Cluster:                    "cluster1",
 						Node:                       "",
 						ProviderID:                 "",
-						CPUPercentage:              0.5,
-						GPUPercentage:              0.5,
-						RAMPercentage:              0.8125,
-						NodeResourceCostPercentage: 0.6785714285714285,
+						CPUPercentage:              0.16667,
+						GPUPercentage:              0.16667,
+						RAMPercentage:              0.27083,
+						NodeResourceCostPercentage: 0.22619,
+						GPUTotalCost:               18,
+						GPUProportionalCost:        3,
+						CPUTotalCost:               18,
+						CPUProportionalCost:        3,
+						RAMTotalCost:               48,
+						RAMProportionalCost:        13,
 					},
 				},
-				"namespace2": ProportionalAssetResourceCosts{
+				"namespace2": {
 					"cluster1": ProportionalAssetResourceCost{
 						Cluster:                    "cluster1",
 						Node:                       "",
 						ProviderID:                 "",
-						CPUPercentage:              0.5,
-						GPUPercentage:              0.5,
-						RAMPercentage:              0.1875,
-						NodeResourceCostPercentage: 0.3214285714285714,
+						CPUPercentage:              0.16667,
+						GPUPercentage:              0.16667,
+						RAMPercentage:              0.0625,
+						NodeResourceCostPercentage: 0.10714,
+						GPUTotalCost:               18,
+						GPUProportionalCost:        3,
+						CPUTotalCost:               18,
+						CPUProportionalCost:        3,
+						RAMTotalCost:               48,
+						RAMProportionalCost:        3,
 					},
 					"cluster2": ProportionalAssetResourceCost{
 						Cluster:                    "cluster2",
 						Node:                       "",
 						ProviderID:                 "",
-						CPUPercentage:              0.5,
-						GPUPercentage:              0.5,
-						RAMPercentage:              0.5,
-						NodeResourceCostPercentage: 0.5,
+						CPUPercentage:              0.16667,
+						GPUPercentage:              0.16667,
+						RAMPercentage:              0.16667,
+						NodeResourceCostPercentage: 0.16667,
+						GPUTotalCost:               18,
+						GPUProportionalCost:        3,
+						CPUTotalCost:               18,
+						CPUProportionalCost:        3,
+						RAMTotalCost:               18,
+						RAMProportionalCost:        3,
 					},
 				},
 			},
@@ -1517,19 +1546,31 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						Cluster:                    "cluster1",
 						Node:                       "c1nodes",
 						ProviderID:                 "c1nodes",
-						CPUPercentage:              0.5,
-						GPUPercentage:              0.5,
-						RAMPercentage:              0.8125,
-						NodeResourceCostPercentage: 0.6785714285714285,
+						CPUPercentage:              0.16667,
+						GPUPercentage:              0.16667,
+						RAMPercentage:              0.27083,
+						NodeResourceCostPercentage: 0.22619,
+						GPUTotalCost:               18,
+						GPUProportionalCost:        3,
+						CPUTotalCost:               18,
+						CPUProportionalCost:        3,
+						RAMTotalCost:               48,
+						RAMProportionalCost:        13,
 					},
 					"cluster2,node2": ProportionalAssetResourceCost{
 						Cluster:                    "cluster2",
 						Node:                       "node2",
 						ProviderID:                 "node2",
-						CPUPercentage:              0.5,
-						GPUPercentage:              0.5,
-						RAMPercentage:              0.5,
-						NodeResourceCostPercentage: 0.5,
+						CPUPercentage:              0.16667,
+						GPUPercentage:              0.16667,
+						RAMPercentage:              0.0625,
+						NodeResourceCostPercentage: 0.10714,
+						GPUTotalCost:               18,
+						GPUProportionalCost:        3,
+						CPUTotalCost:               18,
+						CPUProportionalCost:        3,
+						RAMTotalCost:               48,
+						RAMProportionalCost:        3,
 					},
 				},
 				"namespace2": {
@@ -1537,19 +1578,31 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						Cluster:                    "cluster1",
 						Node:                       "c1nodes",
 						ProviderID:                 "c1nodes",
-						CPUPercentage:              0.5,
-						GPUPercentage:              0.5,
-						RAMPercentage:              0.1875,
-						NodeResourceCostPercentage: 0.3214285714285714,
+						CPUPercentage:              0.16667,
+						GPUPercentage:              0.16667,
+						RAMPercentage:              0.0625,
+						NodeResourceCostPercentage: 0.10714,
+						GPUTotalCost:               18,
+						GPUProportionalCost:        3,
+						CPUTotalCost:               18,
+						CPUProportionalCost:        3,
+						RAMTotalCost:               48,
+						RAMProportionalCost:        3,
 					},
 					"cluster2,node1": ProportionalAssetResourceCost{
 						Cluster:                    "cluster2",
 						Node:                       "node1",
 						ProviderID:                 "node1",
-						CPUPercentage:              1,
-						GPUPercentage:              1,
-						RAMPercentage:              1,
-						NodeResourceCostPercentage: 1,
+						CPUPercentage:              0.5,
+						GPUPercentage:              0.5,
+						RAMPercentage:              0.5,
+						NodeResourceCostPercentage: 0.5,
+						GPUTotalCost:               4,
+						GPUProportionalCost:        2,
+						CPUTotalCost:               4,
+						CPUProportionalCost:        2,
+						RAMTotalCost:               4,
+						RAMProportionalCost:        2,
 					},
 					"cluster2,node2": ProportionalAssetResourceCost{
 						Cluster:                    "cluster2",
@@ -1559,6 +1612,12 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						GPUPercentage:              0.5,
 						RAMPercentage:              0.5,
 						NodeResourceCostPercentage: 0.5,
+						GPUTotalCost:               2,
+						GPUProportionalCost:        1,
+						CPUTotalCost:               2,
+						CPUProportionalCost:        1,
+						RAMTotalCost:               2,
+						RAMProportionalCost:        1,
 					},
 				},
 				"namespace3": {
@@ -1566,10 +1625,16 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						Cluster:                    "cluster2",
 						Node:                       "node3",
 						ProviderID:                 "node3",
-						CPUPercentage:              1,
-						GPUPercentage:              1,
-						RAMPercentage:              1,
-						NodeResourceCostPercentage: 1,
+						CPUPercentage:              0.5,
+						GPUPercentage:              0.5,
+						RAMPercentage:              0.5,
+						NodeResourceCostPercentage: 0.5,
+						GPUTotalCost:               4,
+						GPUProportionalCost:        2,
+						CPUTotalCost:               4,
+						CPUProportionalCost:        2,
+						RAMTotalCost:               4,
+						RAMProportionalCost:        2,
 					},
 					"cluster2,node2": ProportionalAssetResourceCost{
 						Cluster:                    "cluster2",
@@ -1579,6 +1644,12 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 						GPUPercentage:              0.5,
 						RAMPercentage:              0.5,
 						NodeResourceCostPercentage: 0.5,
+						GPUTotalCost:               2,
+						GPUProportionalCost:        1,
+						CPUTotalCost:               2,
+						CPUProportionalCost:        1,
+						RAMTotalCost:               2,
+						RAMProportionalCost:        1,
 					},
 				},
 			},
@@ -1653,6 +1724,126 @@ func TestAllocationSet_AggregateBy(t *testing.T) {
 	}
 }
 
+func TestAllocationSet_AggregateBy_SharedCostBreakdown(t *testing.T) {
+	// Set generated by GenerateMockAllocationSet
+	// | Hierarchy                              | Cost |  CPU |  RAM |  GPU |   PV |  Net |  LB  |
+	// +----------------------------------------+------+------+------+------+------+------+------+
+	//   cluster1:
+	//     idle:                                  20.00   5.00  15.00   0.00   0.00   0.00   0.00
+	//     namespace1:
+	//       pod1:
+	//         container1: [app1, env1]   16.00   1.00  11.00   1.00   1.00   1.00   1.00
+	//       pod-abc: (deployment1)
+	//         container2:                         6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//       pod-def: (deployment1)
+	//         container3:                         6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//     namespace2:
+	//       pod-ghi: (deployment2)
+	//         container4: [app2, env2]    6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//         container5: [app2, env2]    6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//       pod-jkl: (daemonset1)
+	//         container6: {service1}              6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	// +-----------------------------------------+------+------+------+------+------+------+------+
+	//   cluster1 subtotal                        66.00  11.00  31.00   6.00   6.00   6.00   6.00
+	// +-----------------------------------------+------+------+------+------+------+------+------+
+	//   cluster2:
+	//     idle:                                  10.00   5.00   5.00   0.00   0.00   0.00   0.00
+	//     namespace2:
+	//       pod-mno: (deployment2)
+	//         container4: [app2]              6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//         container5: [app2]              6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//       pod-pqr: (daemonset1)
+	//         container6: {service1}              6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//     namespace3:
+	//       pod-stu: (deployment3)
+	//         container7: an[team1]          6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//       pod-vwx: (statefulset1)
+	//         container8: an[team2]          6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	//         container9: an[team1]          6.00   1.00   1.00   1.00   1.00   1.00   1.00
+	// +----------------------------------------+------+------+------+------+------+------+------+
+	//   cluster2 subtotal                        46.00  11.00  11.00   6.00   6.00   6.00   6.00
+	// +----------------------------------------+------+------+------+------+------+------+------+
+	//   total                                   112.00  22.00  42.00  12.00  12.00  12.00  12.00
+	// +----------------------------------------+------+------+------+------+------+------+------+
+	end := time.Now().UTC().Truncate(day)
+	start := end.Add(-day)
+
+	isNamespace1 := func(a *Allocation) bool {
+		ns := a.Properties.Namespace
+		return ns == "namespace1"
+	}
+
+	isNamespace3 := func(a *Allocation) bool {
+		ns := a.Properties.Namespace
+		return ns == "namespace3"
+	}
+
+	cases := map[string]struct {
+		start   time.Time
+		aggBy   []string
+		aggOpts *AllocationAggregationOptions
+	}{
+		"agg cluster, flat shared cost": {
+			start: start,
+			aggBy: []string{"cluster"},
+			aggOpts: &AllocationAggregationOptions{
+				SharedHourlyCosts:          map[string]float64{"share_hourly": 10.0 / timeutil.HoursPerDay},
+				IncludeSharedCostBreakdown: true,
+			},
+		},
+		"agg namespace, shared namespace: namespace1": {
+			start: start,
+			aggBy: []string{"namespace"},
+			aggOpts: &AllocationAggregationOptions{
+				ShareFuncs: []AllocationMatchFunc{
+					isNamespace1,
+				},
+				IncludeSharedCostBreakdown: true,
+			},
+		},
+		"agg namespace, shared namespace: namespace3": {
+			start: start,
+			aggBy: []string{"namespace"},
+			aggOpts: &AllocationAggregationOptions{
+				ShareFuncs: []AllocationMatchFunc{
+					isNamespace3,
+				},
+				IncludeSharedCostBreakdown: true,
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			as := GenerateMockAllocationSetClusterIdle(tc.start)
+			err := as.AggregateBy(tc.aggBy, tc.aggOpts)
+			if err != nil {
+				t.Fatalf("error aggregating: %s", err)
+			}
+			for _, alloc := range as.Allocations {
+				var breakdownTotal float64
+				// ignore idle since it should never have shared costs
+				if strings.Contains(alloc.Name, IdleSuffix) {
+					continue
+				}
+				for _, sharedAlloc := range alloc.SharedCostBreakdown {
+					breakdownTotal += sharedAlloc.TotalCost
+					totalInternal := sharedAlloc.CPUCost + sharedAlloc.GPUCost + sharedAlloc.RAMCost + sharedAlloc.NetworkCost + sharedAlloc.LBCost + sharedAlloc.PVCost + sharedAlloc.ExternalCost
+					// check that the total cost of a single item in the breakdown equals the sum of its parts
+					// we can ignore the overheadCost breakdown since it only has a total
+					if totalInternal != sharedAlloc.TotalCost && sharedAlloc.Name != "overheadCost" {
+						t.Errorf("expected internal total: %f; got %f", sharedAlloc.TotalCost, totalInternal)
+					}
+				}
+				// check that the totals of all shared cost breakdowns equal the allocation's SharedCost
+				if breakdownTotal != alloc.SharedCost {
+					t.Errorf("expected breakdown total: %f; got %f", alloc.SharedCost, breakdownTotal)
+				}
+			}
+		})
+	}
+}
+
 // TODO niko/etl
 //func TestAllocationSet_Clone(t *testing.T) {}
 
@@ -1704,6 +1895,181 @@ func TestAllocationSet_insertMatchingWindow(t *testing.T) {
 		}
 		if !(*a.Window.End()).Equal(setEnd) {
 			t.Errorf("Allocation %s window end is %s, expected %s", a.Name, *a.Window.End(), setEnd)
+		}
+	}
+}
+
+// This tests PARC accumulation. Assuming Node cost is $1 per core per hour
+// From https://github.com/opencost/opencost/pull/1867#discussion_r1174109388:
+// Over the span of hour 1:
+
+//     Pod 1 runs for 30 minutes, consuming 1 CPU while alive. PARC: 12.5% (0.5 core-hours / 4 available core-hours)
+//     Pod 2 runs for 1 hour, consuming 2 CPU while alive. PARC: 50% (2 core-hours)
+//     Pod 3 runs for 1 hour, consuming 1 CPU while alive. PARC: 25% (1 core-hour)
+
+// Over the span of hour 2:
+
+//     Pod 1 does not run. PARC: 0% (0 core-hours / 4 available core-hours)
+//     Pod 2 runs for 30 minutes, consuming 2 CPU while active. PARC: 25% (1 core-hour)
+//     Pod 3 runs for 1 hour, consuming 1 CPU while active. PARC: 25% (1 core-hour)
+
+// Over the span of hour 3:
+
+//     Pod 1 does not run. PARC: 0% (0 core-hours / 4 available)
+//     Pod 2 runs for 30 minutes, consuming 3 CPU while active. PARC: 37.5% (1.5 core-hours)
+//     Pod 3 runs for 1 hour, consuming 1 CPU while active. PARC: 25% (1 core-hour)
+
+// We expect the following accumulated PARC:
+
+//     Pod 1: (0.5 + 0 + 0) core-hours used / (4 + 4 + 4) core-hours available = 0.5/12 = 4.16%
+//     Pod 2: (2 + 1 + 1.5) / (4 + 4 + 4) = 4.5/12 = 37.5%
+//     Pod 3: (1 + 1 + 1) / (4 + 4 + 4) = 3/12 = 25%
+
+func TestParcInsert(t *testing.T) {
+	pod1_hour1 := ProportionalAssetResourceCost{
+		Cluster:                    "cluster1",
+		Node:                       "node1",
+		ProviderID:                 "i-1234",
+		CPUPercentage:              0.125,
+		GPUPercentage:              0,
+		RAMPercentage:              0,
+		NodeResourceCostPercentage: 0,
+		CPUTotalCost:               4,
+		CPUProportionalCost:        0.5,
+	}
+
+	pod1_hour2 := ProportionalAssetResourceCost{
+		Cluster:                    "cluster1",
+		Node:                       "node1",
+		ProviderID:                 "i-1234",
+		CPUPercentage:              0.0,
+		GPUPercentage:              0,
+		RAMPercentage:              0,
+		NodeResourceCostPercentage: 0,
+		CPUTotalCost:               4,
+	}
+
+	pod1_hour3 := ProportionalAssetResourceCost{
+		Cluster:                    "cluster1",
+		Node:                       "node1",
+		ProviderID:                 "i-1234",
+		CPUPercentage:              0.0,
+		GPUPercentage:              0,
+		RAMPercentage:              0,
+		NodeResourceCostPercentage: 0,
+		CPUTotalCost:               4,
+	}
+
+	pod2_hour1 := ProportionalAssetResourceCost{
+		Cluster:                    "cluster1",
+		Node:                       "node2",
+		ProviderID:                 "i-1234",
+		CPUPercentage:              0.0,
+		GPUPercentage:              0,
+		RAMPercentage:              0,
+		NodeResourceCostPercentage: 0,
+		CPUTotalCost:               4,
+		CPUProportionalCost:        2,
+	}
+
+	pod2_hour2 := ProportionalAssetResourceCost{
+		Cluster:                    "cluster1",
+		Node:                       "node2",
+		ProviderID:                 "i-1234",
+		CPUPercentage:              0.0,
+		GPUPercentage:              0,
+		RAMPercentage:              0,
+		NodeResourceCostPercentage: 0,
+		CPUTotalCost:               4,
+		CPUProportionalCost:        1,
+	}
+
+	pod2_hour3 := ProportionalAssetResourceCost{
+		Cluster:                    "cluster1",
+		Node:                       "node2",
+		ProviderID:                 "i-1234",
+		CPUPercentage:              0.0,
+		GPUPercentage:              0,
+		RAMPercentage:              0,
+		NodeResourceCostPercentage: 0,
+		CPUTotalCost:               4,
+		CPUProportionalCost:        1.5,
+	}
+
+	pod3_hour1 := ProportionalAssetResourceCost{
+		Cluster:                    "cluster1",
+		Node:                       "node3",
+		ProviderID:                 "i-1234",
+		CPUPercentage:              0.0,
+		GPUPercentage:              0,
+		RAMPercentage:              0,
+		NodeResourceCostPercentage: 0,
+		CPUTotalCost:               4,
+		CPUProportionalCost:        1,
+	}
+
+	pod3_hour2 := ProportionalAssetResourceCost{
+		Cluster:                    "cluster1",
+		Node:                       "node3",
+		ProviderID:                 "i-1234",
+		CPUPercentage:              0.0,
+		GPUPercentage:              0,
+		RAMPercentage:              0,
+		NodeResourceCostPercentage: 0,
+		CPUTotalCost:               4,
+		CPUProportionalCost:        1,
+	}
+
+	pod3_hour3 := ProportionalAssetResourceCost{
+		Cluster:                    "cluster1",
+		Node:                       "node3",
+		ProviderID:                 "i-1234",
+		CPUPercentage:              0.0,
+		GPUPercentage:              0,
+		RAMPercentage:              0,
+		NodeResourceCostPercentage: 0,
+		CPUTotalCost:               4,
+		CPUProportionalCost:        1,
+	}
+
+	parcs := ProportionalAssetResourceCosts{}
+	parcs.Insert(pod1_hour1, true)
+	parcs.Insert(pod1_hour2, true)
+	parcs.Insert(pod1_hour3, true)
+	parcs.Insert(pod2_hour1, true)
+	parcs.Insert(pod2_hour2, true)
+	parcs.Insert(pod2_hour3, true)
+	parcs.Insert(pod3_hour1, true)
+	parcs.Insert(pod3_hour2, true)
+	parcs.Insert(pod3_hour3, true)
+	log.Debug("added all parcs")
+
+	expectedParcs := ProportionalAssetResourceCosts{
+		"cluster1,node1": ProportionalAssetResourceCost{
+			CPUPercentage:              0.041666666666666664,
+			NodeResourceCostPercentage: 0.041666666666666664,
+		},
+		"cluster1,node2": ProportionalAssetResourceCost{
+			CPUPercentage:              0.375,
+			NodeResourceCostPercentage: 0.375,
+		},
+		"cluster1,node3": ProportionalAssetResourceCost{
+			CPUPercentage:              0.25,
+			NodeResourceCostPercentage: 0.25,
+		},
+	}
+
+	for key, expectedParc := range expectedParcs {
+		actualParc, ok := parcs[key]
+		if !ok {
+			t.Fatalf("did not find expected PARC: %s", key)
+		}
+
+		if actualParc.CPUPercentage != expectedParc.CPUPercentage {
+			t.Fatalf("actual parc cpu percentage: %f did not match expected: %f", actualParc.CPUPercentage, expectedParc.CPUPercentage)
+		}
+		if actualParc.NodeResourceCostPercentage != expectedParc.NodeResourceCostPercentage {
+			t.Fatalf("actual parc node percentage: %f did not match expected: %f", actualParc.NodeResourceCostPercentage, expectedParc.NodeResourceCostPercentage)
 		}
 	}
 }

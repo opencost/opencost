@@ -1,8 +1,7 @@
-package cloud
+package provider
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	gopath "path"
 	"strconv"
@@ -277,7 +276,7 @@ func ReturnPricingFromConfigs(filename string) (*models.CustomPricing, error) {
 	if _, err := os.Stat(providerConfigFile); err != nil {
 		return &models.CustomPricing{}, fmt.Errorf("ReturnPricingFromConfigs: unable to find file %s with err: %v", providerConfigFile, err)
 	}
-	configFile, err := ioutil.ReadFile(providerConfigFile)
+	configFile, err := os.ReadFile(providerConfigFile)
 	if err != nil {
 		return &models.CustomPricing{}, fmt.Errorf("ReturnPricingFromConfigs: unable to open file %s with err: %v", providerConfigFile, err)
 	}

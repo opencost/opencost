@@ -16,6 +16,9 @@ import (
 	"time"
 
 	"github.com/microcosm-cc/bluemonday"
+	"github.com/opencost/opencost/pkg/cloud/aws"
+	"github.com/opencost/opencost/pkg/cloud/gcp"
+	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/kubeconfig"
 	"github.com/opencost/opencost/pkg/metrics"
@@ -30,9 +33,8 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 
-	sentry "github.com/getsentry/sentry-go"
+	"github.com/getsentry/sentry-go"
 
-	"github.com/opencost/opencost/pkg/cloud"
 	"github.com/opencost/opencost/pkg/cloud/azure"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
@@ -585,7 +587,7 @@ func (a *Accesses) GetConfigs(w http.ResponseWriter, r *http.Request, ps httprou
 func (a *Accesses) UpdateSpotInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := a.CloudProvider.UpdateConfig(r.Body, cloud.SpotInfoUpdateType)
+	data, err := a.CloudProvider.UpdateConfig(r.Body, aws.SpotInfoUpdateType)
 	if err != nil {
 		w.Write(WrapData(data, err))
 		return
@@ -601,7 +603,7 @@ func (a *Accesses) UpdateSpotInfoConfigs(w http.ResponseWriter, r *http.Request,
 func (a *Accesses) UpdateAthenaInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := a.CloudProvider.UpdateConfig(r.Body, cloud.AthenaInfoUpdateType)
+	data, err := a.CloudProvider.UpdateConfig(r.Body, aws.AthenaInfoUpdateType)
 	if err != nil {
 		w.Write(WrapData(data, err))
 		return
@@ -613,7 +615,7 @@ func (a *Accesses) UpdateAthenaInfoConfigs(w http.ResponseWriter, r *http.Reques
 func (a *Accesses) UpdateBigQueryInfoConfigs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	data, err := a.CloudProvider.UpdateConfig(r.Body, cloud.BigqueryUpdateType)
+	data, err := a.CloudProvider.UpdateConfig(r.Body, gcp.BigqueryUpdateType)
 	if err != nil {
 		w.Write(WrapData(data, err))
 		return
@@ -1590,13 +1592,13 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 	k8sCache.Run()
 
 	cloudProviderKey := env.GetCloudProviderAPIKey()
-	cloudProvider, err := cloud.NewProvider(k8sCache, cloudProviderKey, confManager)
+	cloudProvider, err := provider.NewProvider(k8sCache, cloudProviderKey, confManager)
 	if err != nil {
 		panic(err.Error())
 	}
 
 	// Append the pricing config watcher
-	configWatchers.AddWatcher(cloud.ConfigWatcherFor(cloudProvider))
+	configWatchers.AddWatcher(provider.ConfigWatcherFor(cloudProvider))
 	configWatchers.AddWatcher(metrics.GetMetricsConfigWatcher())
 
 	watchConfigFunc := configWatchers.ToWatchFunc()

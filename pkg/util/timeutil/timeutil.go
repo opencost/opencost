@@ -229,7 +229,7 @@ func CleanDurationString(duration string) string {
 // ParseTimeRange returns a start and end time, respectively, which are converted from
 // a duration and offset, defined as strings with Prometheus-style syntax.
 func ParseTimeRange(duration, offset time.Duration) (time.Time, time.Time) {
-	// endTime defaults to the current time, unless an offset is explicity declared,
+	// endTime defaults to the current time, unless an offset is explicitly declared,
 	// in which case it shifts endTime back by given duration
 	endTime := time.Now()
 	if offset > 0 {

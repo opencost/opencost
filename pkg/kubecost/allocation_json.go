@@ -55,6 +55,7 @@ type AllocationJSON struct {
 	TotalEfficiency                *float64                        `json:"totalEfficiency"`
 	RawAllocationOnly              *RawAllocationOnlyData          `json:"rawAllocationOnly,omitempty"`
 	ProportionalAssetResourceCosts *ProportionalAssetResourceCosts `json:"proportionalAssetResourceCosts,omitempty"`
+	SharedCostBreakdown            *SharedCostBreakdowns           `json:"sharedCostBreakdown,omitempty"`
 }
 
 func (aj *AllocationJSON) BuildFromAllocation(a *Allocation) {
@@ -105,6 +106,7 @@ func (aj *AllocationJSON) BuildFromAllocation(a *Allocation) {
 	aj.TotalEfficiency = formatFloat64ForResponse(a.TotalEfficiency())
 	aj.RawAllocationOnly = a.RawAllocationOnly
 	aj.ProportionalAssetResourceCosts = &a.ProportionalAssetResourceCosts
+	aj.SharedCostBreakdown = &a.SharedCostBreakdown
 
 }
 

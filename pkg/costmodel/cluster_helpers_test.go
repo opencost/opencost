@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opencost/opencost/pkg/cloud"
+	"github.com/opencost/opencost/pkg/cloud/provider"
 	"github.com/opencost/opencost/pkg/config"
 	"github.com/opencost/opencost/pkg/prom"
 	"github.com/opencost/opencost/pkg/util"
@@ -29,14 +29,14 @@ func TestMergeTypeMaps(t *testing.T) {
 		{
 			name: "map2 empty",
 			map1: map[nodeIdentifierNoProviderID]string{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: "type1",
 			},
 			map2: map[nodeIdentifierNoProviderID]string{},
 			expected: map[nodeIdentifierNoProviderID]string{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: "type1",
@@ -46,13 +46,13 @@ func TestMergeTypeMaps(t *testing.T) {
 			name: "map1 empty",
 			map1: map[nodeIdentifierNoProviderID]string{},
 			map2: map[nodeIdentifierNoProviderID]string{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: "type1",
 			},
 			expected: map[nodeIdentifierNoProviderID]string{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: "type1",
@@ -61,31 +61,31 @@ func TestMergeTypeMaps(t *testing.T) {
 		{
 			name: "no overlap",
 			map1: map[nodeIdentifierNoProviderID]string{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: "type1",
 			},
 			map2: map[nodeIdentifierNoProviderID]string{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node2",
 				}: "type2",
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node4",
 				}: "type4",
 			},
 			expected: map[nodeIdentifierNoProviderID]string{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: "type1",
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node2",
 				}: "type2",
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node4",
 				}: "type4",
@@ -94,27 +94,27 @@ func TestMergeTypeMaps(t *testing.T) {
 		{
 			name: "with overlap",
 			map1: map[nodeIdentifierNoProviderID]string{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: "type1",
 			},
 			map2: map[nodeIdentifierNoProviderID]string{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node2",
 				}: "type2",
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: "type4",
 			},
 			expected: map[nodeIdentifierNoProviderID]string{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: "type1",
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node2",
 				}: "type2",
@@ -150,6 +150,7 @@ func TestBuildNodeMap(t *testing.T) {
 		labelsMap            map[nodeIdentifierNoProviderID]map[string]string
 		clusterAndNameToType map[nodeIdentifierNoProviderID]string
 		expected             map[NodeIdentifier]*Node
+		overheadMap          map[nodeIdentifierNoProviderID]*NodeOverhead
 	}{
 		{
 			name:     "empty",
@@ -158,24 +159,24 @@ func TestBuildNodeMap(t *testing.T) {
 		{
 			name: "just cpu cost",
 			cpuCostMap: map[NodeIdentifier]float64{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1",
 				}: 0.048,
 			},
 			clusterAndNameToType: map[nodeIdentifierNoProviderID]string{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: "type1",
 			},
 			expected: map[NodeIdentifier]*Node{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1",
-				}: &Node{
+				}: {
 					Cluster:      "cluster1",
 					Name:         "node1",
 					ProviderID:   "prov_node1",
@@ -183,63 +184,65 @@ func TestBuildNodeMap(t *testing.T) {
 					CPUCost:      0.048,
 					CPUBreakdown: &ClusterCostsBreakdown{},
 					RAMBreakdown: &ClusterCostsBreakdown{},
+					Overhead:     &NodeOverhead{},
 				},
 			},
 		},
 		{
 			name: "just cpu cost with empty provider ID",
 			cpuCostMap: map[NodeIdentifier]float64{
-				NodeIdentifier{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: 0.048,
 			},
 			clusterAndNameToType: map[nodeIdentifierNoProviderID]string{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: "type1",
 			},
 			expected: map[NodeIdentifier]*Node{
-				NodeIdentifier{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
-				}: &Node{
+				}: {
 					Cluster:      "cluster1",
 					Name:         "node1",
 					NodeType:     "type1",
 					CPUCost:      0.048,
 					CPUBreakdown: &ClusterCostsBreakdown{},
 					RAMBreakdown: &ClusterCostsBreakdown{},
+					Overhead:     &NodeOverhead{},
 				},
 			},
 		},
 		{
 			name: "cpu cost with overlapping node names",
 			cpuCostMap: map[NodeIdentifier]float64{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1_A",
 				}: 0.048,
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1_B",
 				}: 0.087,
 			},
 			clusterAndNameToType: map[nodeIdentifierNoProviderID]string{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: "type1",
 			},
 			expected: map[NodeIdentifier]*Node{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1_A",
-				}: &Node{
+				}: {
 					Cluster:      "cluster1",
 					Name:         "node1",
 					ProviderID:   "prov_node1_A",
@@ -247,12 +250,13 @@ func TestBuildNodeMap(t *testing.T) {
 					CPUCost:      0.048,
 					CPUBreakdown: &ClusterCostsBreakdown{},
 					RAMBreakdown: &ClusterCostsBreakdown{},
+					Overhead:     &NodeOverhead{},
 				},
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1_B",
-				}: &Node{
+				}: {
 					Cluster:      "cluster1",
 					Name:         "node1",
 					ProviderID:   "prov_node1_B",
@@ -260,213 +264,214 @@ func TestBuildNodeMap(t *testing.T) {
 					CPUCost:      0.087,
 					CPUBreakdown: &ClusterCostsBreakdown{},
 					RAMBreakdown: &ClusterCostsBreakdown{},
+					Overhead:     &NodeOverhead{},
 				},
 			},
 		},
 		{
 			name: "all fields + overlapping node names",
 			cpuCostMap: map[NodeIdentifier]float64{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1_A",
 				}: 0.048,
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1_B",
 				}: 0.087,
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node2",
 					ProviderID: "prov_node2_A",
 				}: 0.033,
 			},
 			ramCostMap: map[NodeIdentifier]float64{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1_A",
 				}: 0.09,
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1_B",
 				}: 0.3,
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node2",
 					ProviderID: "prov_node2_A",
 				}: 0.024,
 			},
 			gpuCostMap: map[NodeIdentifier]float64{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1_A",
 				}: 0.8,
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1_B",
 				}: 1.4,
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node2",
 					ProviderID: "prov_node2_A",
 				}: 3.1,
 			},
 			gpuCountMap: map[NodeIdentifier]float64{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1_A",
 				}: 1.0,
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1_B",
 				}: 1.0,
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node2",
 					ProviderID: "prov_node2_A",
 				}: 2.0,
 			},
 			cpuCoresMap: map[nodeIdentifierNoProviderID]float64{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: 2.0,
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node2",
 				}: 5.0,
 			},
 			ramBytesMap: map[nodeIdentifierNoProviderID]float64{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: 2048.0,
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node2",
 				}: 6303.0,
 			},
 			ramUserPctMap: map[nodeIdentifierNoProviderID]float64{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: 30.0,
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node2",
 				}: 42.6,
 			},
 			ramSystemPctMap: map[nodeIdentifierNoProviderID]float64{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: 15.0,
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node2",
 				}: 20.1,
 			},
 			cpuBreakdownMap: map[nodeIdentifierNoProviderID]*ClusterCostsBreakdown{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
-				}: &ClusterCostsBreakdown{
+				}: {
 					System: 20.2,
 					User:   68.0,
 				},
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node2",
-				}: &ClusterCostsBreakdown{
+				}: {
 					System: 28.9,
 					User:   34.0,
 				},
 			},
 			activeDataMap: map[NodeIdentifier]activeData{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1_A",
-				}: activeData{
+				}: {
 					start:   time.Date(2020, 6, 16, 3, 45, 28, 0, time.UTC),
 					end:     time.Date(2020, 6, 16, 9, 20, 39, 0, time.UTC),
 					minutes: 5*60 + 35 + (11.0 / 60.0),
 				},
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1_B",
-				}: activeData{
+				}: {
 					start:   time.Date(2020, 6, 16, 3, 45, 28, 0, time.UTC),
 					end:     time.Date(2020, 6, 16, 9, 21, 39, 0, time.UTC),
 					minutes: 5*60 + 36 + (11.0 / 60.0),
 				},
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node2",
 					ProviderID: "prov_node2_A",
-				}: activeData{
+				}: {
 					start:   time.Date(2020, 6, 16, 3, 45, 28, 0, time.UTC),
 					end:     time.Date(2020, 6, 16, 9, 10, 39, 0, time.UTC),
 					minutes: 5*60 + 25 + (11.0 / 60.0),
 				},
 			},
 			preemptibleMap: map[NodeIdentifier]bool{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1_A",
 				}: true,
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1_B",
 				}: false,
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node2",
 					ProviderID: "prov_node2_A",
 				}: false,
 			},
 			labelsMap: map[nodeIdentifierNoProviderID]map[string]string{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
-				}: map[string]string{
+				}: {
 					"labelname1_A": "labelvalue1_A",
 					"labelname1_B": "labelvalue1_B",
 				},
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node2",
-				}: map[string]string{
+				}: {
 					"labelname2_A": "labelvalue2_A",
 					"labelname2_B": "labelvalue2_B",
 				},
 			},
 			clusterAndNameToType: map[nodeIdentifierNoProviderID]string{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: "type1",
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node2",
 				}: "type2",
 			},
 			expected: map[NodeIdentifier]*Node{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1_A",
-				}: &Node{
+				}: {
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1_A",
@@ -489,16 +494,17 @@ func TestBuildNodeMap(t *testing.T) {
 					End:         time.Date(2020, 6, 16, 9, 20, 39, 0, time.UTC),
 					Minutes:     5*60 + 35 + (11.0 / 60.0),
 					Preemptible: true,
+					Overhead:    &NodeOverhead{},
 					Labels: map[string]string{
 						"labelname1_A": "labelvalue1_A",
 						"labelname1_B": "labelvalue1_B",
 					},
 				},
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1_B",
-				}: &Node{
+				}: {
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1_B",
@@ -525,12 +531,13 @@ func TestBuildNodeMap(t *testing.T) {
 						"labelname1_A": "labelvalue1_A",
 						"labelname1_B": "labelvalue1_B",
 					},
+					Overhead: &NodeOverhead{},
 				},
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node2",
 					ProviderID: "prov_node2_A",
-				}: &Node{
+				}: {
 					Cluster:    "cluster1",
 					Name:       "node2",
 					ProviderID: "prov_node2_A",
@@ -557,36 +564,37 @@ func TestBuildNodeMap(t *testing.T) {
 						"labelname2_A": "labelvalue2_A",
 						"labelname2_B": "labelvalue2_B",
 					},
+					Overhead: &NodeOverhead{},
 				},
 			},
 		},
 		{
 			name: "e2-micro cpu cost adjustment",
 			cpuCostMap: map[NodeIdentifier]float64{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1",
 				}: 0.048,
 			},
 			cpuCoresMap: map[nodeIdentifierNoProviderID]float64{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: 6.0, // GKE lies about number of cores
 			},
 			clusterAndNameToType: map[nodeIdentifierNoProviderID]string{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: "e2-micro", // for this node type
 			},
 			expected: map[NodeIdentifier]*Node{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1",
-				}: &Node{
+				}: {
 					Cluster:      "cluster1",
 					Name:         "node1",
 					ProviderID:   "prov_node1",
@@ -595,36 +603,37 @@ func TestBuildNodeMap(t *testing.T) {
 					CPUCores:     partialCPUMap["e2-micro"],
 					CPUBreakdown: &ClusterCostsBreakdown{},
 					RAMBreakdown: &ClusterCostsBreakdown{},
+					Overhead:     &NodeOverhead{},
 				},
 			},
 		},
 		{
 			name: "e2-small cpu cost adjustment",
 			cpuCostMap: map[NodeIdentifier]float64{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1",
 				}: 0.048,
 			},
 			cpuCoresMap: map[nodeIdentifierNoProviderID]float64{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: 6.0, // GKE lies about number of cores
 			},
 			clusterAndNameToType: map[nodeIdentifierNoProviderID]string{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: "e2-small", // for this node type
 			},
 			expected: map[NodeIdentifier]*Node{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1",
-				}: &Node{
+				}: {
 					Cluster:      "cluster1",
 					Name:         "node1",
 					ProviderID:   "prov_node1",
@@ -633,36 +642,46 @@ func TestBuildNodeMap(t *testing.T) {
 					CPUCores:     partialCPUMap["e2-small"],
 					CPUBreakdown: &ClusterCostsBreakdown{},
 					RAMBreakdown: &ClusterCostsBreakdown{},
+					Overhead:     &NodeOverhead{},
 				},
 			},
 		},
 		{
 			name: "e2-medium cpu cost adjustment",
 			cpuCostMap: map[NodeIdentifier]float64{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1",
 				}: 0.048,
 			},
 			cpuCoresMap: map[nodeIdentifierNoProviderID]float64{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: 6.0, // GKE lies about number of cores
 			},
 			clusterAndNameToType: map[nodeIdentifierNoProviderID]string{
-				nodeIdentifierNoProviderID{
+				{
 					Cluster: "cluster1",
 					Name:    "node1",
 				}: "e2-medium", // for this node type
 			},
+			overheadMap: map[nodeIdentifierNoProviderID]*NodeOverhead{
+				{
+					Cluster: "cluster1",
+					Name:    "node1",
+				}: {
+					CpuOverheadFraction: 0.5,
+					RamOverheadFraction: 0.25,
+				}, // for this node type
+			},
 			expected: map[NodeIdentifier]*Node{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "prov_node1",
-				}: &Node{
+				}: {
 					Cluster:      "cluster1",
 					Name:         "node1",
 					ProviderID:   "prov_node1",
@@ -671,6 +690,10 @@ func TestBuildNodeMap(t *testing.T) {
 					CPUCores:     partialCPUMap["e2-medium"],
 					CPUBreakdown: &ClusterCostsBreakdown{},
 					RAMBreakdown: &ClusterCostsBreakdown{},
+					Overhead: &NodeOverhead{
+						CpuOverheadFraction: 0.5,
+						RamOverheadFraction: 0.25,
+					},
 				},
 			},
 		},
@@ -688,6 +711,7 @@ func TestBuildNodeMap(t *testing.T) {
 				testCase.labelsMap,
 				testCase.clusterAndNameToType,
 				time.Minute,
+				testCase.overheadMap,
 			)
 
 			if !reflect.DeepEqual(result, testCase.expected) {
@@ -720,7 +744,7 @@ func TestBuildGPUCostMap(t *testing.T) {
 						"provider_id":   "provider1",
 					},
 					Values: []*util.Vector{
-						&util.Vector{
+						{
 							Timestamp: 0,
 							Value:     0,
 						},
@@ -728,14 +752,14 @@ func TestBuildGPUCostMap(t *testing.T) {
 				},
 			},
 			countMap: map[NodeIdentifier]float64{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "provider1",
 				}: 0,
 			},
 			expected: map[NodeIdentifier]float64{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "provider1",
@@ -753,7 +777,7 @@ func TestBuildGPUCostMap(t *testing.T) {
 						"provider_id":   "provider1",
 					},
 					Values: []*util.Vector{
-						&util.Vector{
+						{
 							Timestamp: 0,
 							Value:     2,
 						},
@@ -761,14 +785,14 @@ func TestBuildGPUCostMap(t *testing.T) {
 				},
 			},
 			countMap: map[NodeIdentifier]float64{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "provider1",
 				}: 0,
 			},
 			expected: map[NodeIdentifier]float64{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "provider1",
@@ -786,7 +810,7 @@ func TestBuildGPUCostMap(t *testing.T) {
 						"provider_id":   "provider1",
 					},
 					Values: []*util.Vector{
-						&util.Vector{
+						{
 							Timestamp: 0,
 							Value:     2,
 						},
@@ -795,7 +819,7 @@ func TestBuildGPUCostMap(t *testing.T) {
 			},
 			countMap: map[NodeIdentifier]float64{},
 			expected: map[NodeIdentifier]float64{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "provider1",
@@ -808,7 +832,7 @@ func TestBuildGPUCostMap(t *testing.T) {
 				{},
 			},
 			countMap: map[NodeIdentifier]float64{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "provider1",
@@ -827,7 +851,7 @@ func TestBuildGPUCostMap(t *testing.T) {
 						"provider_id":   "provider1",
 					},
 					Values: []*util.Vector{
-						&util.Vector{
+						{
 							Timestamp: 0,
 							Value:     2,
 						},
@@ -835,14 +859,14 @@ func TestBuildGPUCostMap(t *testing.T) {
 				},
 			},
 			countMap: map[NodeIdentifier]float64{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "provider1",
 				}: 2,
 			},
 			expected: map[NodeIdentifier]float64{
-				NodeIdentifier{
+				{
 					Cluster:    "cluster1",
 					Name:       "node1",
 					ProviderID: "provider1",
@@ -853,8 +877,8 @@ func TestBuildGPUCostMap(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			testProvider := &cloud.CustomProvider{
-				Config: cloud.NewProviderConfig(config.NewConfigFileManager(nil), "fakeFile"),
+			testProvider := &provider.CustomProvider{
+				Config: provider.NewProviderConfig(config.NewConfigFileManager(nil), "fakeFile"),
 			}
 			testPreemptible := make(map[NodeIdentifier]bool)
 			result, _ := buildGPUCostMap(testCase.promResult, testCase.countMap, testProvider, testPreemptible)
@@ -876,7 +900,7 @@ func TestAssetCustompricing(t *testing.T) {
 				"provider_id":   "provider1",
 			},
 			Values: []*util.Vector{
-				&util.Vector{
+				{
 					Timestamp: 0,
 					Value:     0.5,
 				},
@@ -892,7 +916,7 @@ func TestAssetCustompricing(t *testing.T) {
 				"provider_id":      "provider1",
 			},
 			Values: []*util.Vector{
-				&util.Vector{
+				{
 					Timestamp: 0,
 					Value:     1.0,
 				},
@@ -908,7 +932,7 @@ func TestAssetCustompricing(t *testing.T) {
 				"provider_id":      "provider1",
 			},
 			Values: []*util.Vector{
-				&util.Vector{
+				{
 					Timestamp: 0,
 					Value:     1073741824.0,
 				},
@@ -924,11 +948,11 @@ func TestAssetCustompricing(t *testing.T) {
 				"provider_id":      "provider1",
 			},
 			Values: []*util.Vector{
-				&util.Vector{
+				{
 					Timestamp: 0,
 					Value:     1.0,
 				},
-				&util.Vector{
+				{
 					Timestamp: 3600.0,
 					Value:     1.0,
 				},
@@ -944,11 +968,11 @@ func TestAssetCustompricing(t *testing.T) {
 				"namespace":             "ns1",
 			},
 			Values: []*util.Vector{
-				&util.Vector{
+				{
 					Timestamp: 0,
 					Value:     1.0,
 				},
-				&util.Vector{
+				{
 					Timestamp: 3600.0,
 					Value:     1.0,
 				},
@@ -964,11 +988,11 @@ func TestAssetCustompricing(t *testing.T) {
 				"namespace":             "ns1",
 			},
 			Values: []*util.Vector{
-				&util.Vector{
+				{
 					Timestamp: 0,
 					Value:     1.0,
 				},
-				&util.Vector{
+				{
 					Timestamp: 3600.0,
 					Value:     1.0,
 				},
@@ -985,7 +1009,7 @@ func TestAssetCustompricing(t *testing.T) {
 				"namespace":             "ns1",
 			},
 			Values: []*util.Vector{
-				&util.Vector{
+				{
 					Timestamp: 0,
 					Value:     1.0,
 				},
@@ -994,7 +1018,7 @@ func TestAssetCustompricing(t *testing.T) {
 	}
 
 	gpuCountMap := map[NodeIdentifier]float64{
-		NodeIdentifier{
+		{
 			Cluster:    "cluster1",
 			Name:       "node1",
 			ProviderID: "provider1",
@@ -1042,8 +1066,8 @@ func TestAssetCustompricing(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			testProvider := &cloud.CustomProvider{
-				Config: cloud.NewProviderConfig(config.NewConfigFileManager(nil), ""),
+			testProvider := &provider.CustomProvider{
+				Config: provider.NewProviderConfig(config.NewConfigFileManager(nil), ""),
 			}
 			testProvider.UpdateConfigFromConfigMap(testCase.customPricingMap)
 

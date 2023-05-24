@@ -17,7 +17,7 @@ var (
 )
 
 func DataFieldFormatErr(query string) error {
-	return fmt.Errorf("Data field improperly formatted in prometheus repsonse fetching query '%s'", query)
+	return fmt.Errorf("Data field improperly formatted in prometheus response fetching query '%s'", query)
 }
 
 func DataPointFormatErr(query string) error {

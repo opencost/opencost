@@ -1,4 +1,4 @@
-package cloud
+package gcp
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencost/opencost/pkg/cloud/aws"
 	"github.com/opencost/opencost/pkg/cloud/models"
 	"github.com/opencost/opencost/pkg/cloud/utils"
 	"github.com/opencost/opencost/pkg/kubecost"
@@ -46,7 +47,6 @@ const (
 
 	GKEPreemptibleLabel = "cloud.google.com/gke-preemptible"
 	GKESpotLabel        = "cloud.google.com/gke-spot"
-	
 )
 
 // List obtained by installing the `gcloud` CLI tool,
@@ -100,16 +100,15 @@ type GCP struct {
 	BillingDataDataset      string
 	DownloadPricingDataLock sync.RWMutex
 	ReservedInstances       []*GCPReservedInstance
-	Config                  *ProviderConfig
+	Config                  models.ProviderConfig
 	ServiceKeyProvided      bool
 	ValidPricingKeys        map[string]bool
-	metadataClient          *metadata.Client
+	MetadataClient          *metadata.Client
 	clusterManagementPrice  float64
-	clusterRegion           string
-	clusterAccountID        string
-	clusterProjectID        string
+	ClusterRegion           string
+	ClusterAccountID        string
+	ClusterProjectID        string
 	clusterProvisioner      string
-	*CustomProvider
 }
 
 type gcpAllocation struct {
@@ -177,6 +176,7 @@ func (gcp *GCP) GetConfig() (*models.CustomPricing, error) {
 }
 
 // BigQueryConfig contain the required config and credentials to access OOC resources for GCP
+// Deprecated: v1.104 Use BigQueryConfiguration instead
 type BigQueryConfig struct {
 	ProjectID          string            `json:"projectID"`
 	BillingDataDataset string            `json:"billingDataDataset"`
@@ -267,8 +267,8 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 				}
 				gcp.ServiceKeyProvided = true
 			}
-		} else if updateType == AthenaInfoUpdateType {
-			a := AwsAthenaInfo{}
+		} else if updateType == aws.AthenaInfoUpdateType {
+			a := aws.AwsAthenaInfo{}
 			err := json.NewDecoder(r).Decode(&a)
 			if err != nil {
 				return err
@@ -316,7 +316,7 @@ func (gcp *GCP) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	remoteEnabled := env.IsRemoteEnabled()
 
-	attribute, err := gcp.metadataClient.InstanceAttributeValue("cluster-name")
+	attribute, err := gcp.MetadataClient.InstanceAttributeValue("cluster-name")
 	if err != nil {
 		log.Infof("Error loading metadata cluster-name: %s", err.Error())
 	}
@@ -337,9 +337,9 @@ func (gcp *GCP) ClusterInfo() (map[string]string, error) {
 	m := make(map[string]string)
 	m["name"] = attribute
 	m["provider"] = kubecost.GCPProvider
-	m["region"] = gcp.clusterRegion
-	m["account"] = gcp.clusterAccountID
-	m["project"] = gcp.clusterProjectID
+	m["region"] = gcp.ClusterRegion
+	m["account"] = gcp.ClusterAccountID
+	m["project"] = gcp.ClusterProjectID
 	m["provisioner"] = gcp.clusterProvisioner
 	m["id"] = env.GetClusterID()
 	m["remoteReadEnabled"] = strconv.FormatBool(remoteEnabled)
@@ -351,7 +351,7 @@ func (gcp *GCP) ClusterManagementPricing() (string, float64, error) {
 }
 
 func (gcp *GCP) getAllAddresses() (*compute.AddressAggregatedList, error) {
-	projID, err := gcp.metadataClient.ProjectID()
+	projID, err := gcp.MetadataClient.ProjectID()
 	if err != nil {
 		return nil, err
 	}
@@ -391,7 +391,7 @@ func (gcp *GCP) isAddressOrphaned(address *compute.Address) bool {
 }
 
 func (gcp *GCP) getAllDisks() (*compute.DiskAggregatedList, error) {
-	projID, err := gcp.metadataClient.ProjectID()
+	projID, err := gcp.MetadataClient.ProjectID()
 	if err != nil {
 		return nil, err
 	}
@@ -799,7 +799,7 @@ func (gcp *GCP) parsePage(r io.Reader, inputKeys map[string]models.Key, pvKeys m
 				}
 
 				for _, candidateKey := range candidateKeys {
-					instanceType = strings.Split(candidateKey, ",")[1] // we may have overriden this while generating candidate keys
+					instanceType = strings.Split(candidateKey, ",")[1] // we may have overridden this while generating candidate keys
 					region := strings.Split(candidateKey, ",")[0]
 					candidateKeyGPU := candidateKey + ",gpu"
 					gcp.ValidPricingKeys[candidateKey] = true
@@ -1209,12 +1209,12 @@ func newReservedCounter(instance *GCPReservedInstance) *GCPReservedCounter {
 
 // Two available Reservation plans for GCP, 1-year and 3-year
 var gcpReservedInstancePlans map[string]*GCPReservedInstancePlan = map[string]*GCPReservedInstancePlan{
-	GCPReservedInstancePlanOneYear: &GCPReservedInstancePlan{
+	GCPReservedInstancePlanOneYear: {
 		Name:    GCPReservedInstancePlanOneYear,
 		CPUCost: 0.019915,
 		RAMCost: 0.002669,
 	},
-	GCPReservedInstancePlanThreeYear: &GCPReservedInstancePlan{
+	GCPReservedInstancePlanThreeYear: {
 		Name:    GCPReservedInstancePlanThreeYear,
 		CPUCost: 0.014225,
 		RAMCost: 0.001907,
@@ -1601,7 +1601,7 @@ func sustainedUseDiscount(class string, defaultDiscount float64, isPreemptible b
 	return discount
 }
 
-func parseGCPProjectID(id string) string {
+func ParseGCPProjectID(id string) string {
 	// gce://guestbook-12345/...
 	//  => guestbook-12345
 	match := gceRegex.FindStringSubmatch(id)
@@ -1618,7 +1618,7 @@ func getUsageType(labels map[string]string) string {
 	} else if t, ok := labels[GKESpotLabel]; ok && t == "true" {
 		// https://cloud.google.com/kubernetes-engine/docs/concepts/spot-vms
 		return "preemptible"
-	} else if t, ok := labels[KarpenterCapacityTypeLabel]; ok && t == KarpenterCapacitySpotTypeValue {
+	} else if t, ok := labels[models.KarpenterCapacityTypeLabel]; ok && t == models.KarpenterCapacitySpotTypeValue {
 		return "preemptible"
 	}
 	return "ondemand"
