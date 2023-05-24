@@ -1,6 +1,7 @@
 package util
 
 import (
+	"reflect"
 	"strings"
 
 	"github.com/opencost/opencost/pkg/filter"
@@ -9,48 +10,83 @@ import (
 	"github.com/opencost/opencost/pkg/util/mapper"
 )
 
+type CloudCostFilter struct {
+	AccountIDs       []string `json:"accountIDs"`
+	Categories       []string `json:"categories"`
+	InvoiceEntityIDs []string `json:"invoiceEntityIDs"`
+	Labels           []string `json:"labels"`
+	Providers        []string `json:"providers"`
+	ProviderIDs      []string `json:"providerIDs"`
+	Services         []string `json:"services"`
+}
+
+func (g *CloudCostFilter) Equals(that CloudCostFilter) bool {
+	return reflect.DeepEqual(g.AccountIDs, that.AccountIDs) &&
+		reflect.DeepEqual(g.Categories, that.Categories) &&
+		reflect.DeepEqual(g.InvoiceEntityIDs, that.InvoiceEntityIDs) &&
+		reflect.DeepEqual(g.Labels, that.Labels) &&
+		reflect.DeepEqual(g.Providers, that.Providers) &&
+		reflect.DeepEqual(g.ProviderIDs, that.ProviderIDs) &&
+		reflect.DeepEqual(g.Services, that.Services)
+}
 func parseWildcardEnd(rawFilterValue string) (string, bool) {
 	return strings.TrimSuffix(rawFilterValue, "*"), strings.HasSuffix(rawFilterValue, "*")
 }
 
 func CloudCostFilterFromParams(pmr mapper.PrimitiveMapReader) filter.Filter[*kubecost.CloudCost] {
-	filter := filter.And[*kubecost.CloudCost]{
+	ccFilter := convertFilterQueryParams(pmr)
+	return ParseCloudCostFilter(ccFilter)
+}
+
+func convertFilterQueryParams(pmr mapper.PrimitiveMapReader) CloudCostFilter {
+	return CloudCostFilter{
+		AccountIDs:       pmr.GetList("filterAccountIDs", ","),
+		Categories:       pmr.GetList("filterCategories", ","),
+		InvoiceEntityIDs: pmr.GetList("filterInvoiceEntityIDs", ","),
+		Labels:           pmr.GetList("filterLabels", ","),
+		Providers:        pmr.GetList("filterProviders", ","),
+		ProviderIDs:      pmr.GetList("filterProviderIDs", ","),
+		Services:         pmr.GetList("filterServices", ","),
+	}
+}
+func ParseCloudCostFilter(filters CloudCostFilter) filter.Filter[*kubecost.CloudCost] {
+	result := filter.And[*kubecost.CloudCost]{
 		Filters: []filter.Filter[*kubecost.CloudCost]{},
 	}
 
-	if raw := pmr.GetList("filterInvoiceEntityIDs", ","); len(raw) > 0 {
-		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.CloudCostInvoiceEntityIDProp))
+	if len(filters.InvoiceEntityIDs) > 0 {
+		result.Filters = append(result.Filters, filterV1SingleValueFromList(filters.InvoiceEntityIDs, kubecost.CloudCostInvoiceEntityIDProp))
 	}
 
-	if raw := pmr.GetList("filterAccountIDs", ","); len(raw) > 0 {
-		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.CloudCostAccountIDProp))
+	if len(filters.AccountIDs) > 0 {
+		result.Filters = append(result.Filters, filterV1SingleValueFromList(filters.AccountIDs, kubecost.CloudCostAccountIDProp))
 	}
 
-	if raw := pmr.GetList("filterProviders", ","); len(raw) > 0 {
-		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.CloudCostProviderProp))
+	if len(filters.Providers) > 0 {
+		result.Filters = append(result.Filters, filterV1SingleValueFromList(filters.Providers, kubecost.CloudCostProviderProp))
 	}
 
-	if raw := pmr.GetList("filterProviderIDs", ","); len(raw) > 0 {
-		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.CloudCostProviderIDProp))
+	if len(filters.ProviderIDs) > 0 {
+		result.Filters = append(result.Filters, filterV1SingleValueFromList(filters.ProviderIDs, kubecost.CloudCostProviderIDProp))
 	}
 
-	if raw := pmr.GetList("filterServices", ","); len(raw) > 0 {
-		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.CloudCostServiceProp))
+	if len(filters.Services) > 0 {
+		result.Filters = append(result.Filters, filterV1SingleValueFromList(filters.Services, kubecost.CloudCostServiceProp))
 	}
 
-	if raw := pmr.GetList("filterCategories", ","); len(raw) > 0 {
-		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.CloudCostCategoryProp))
+	if len(filters.Categories) > 0 {
+		result.Filters = append(result.Filters, filterV1SingleValueFromList(filters.Categories, kubecost.CloudCostCategoryProp))
 	}
 
-	if raw := pmr.GetList("filterLabels", ","); len(raw) > 0 {
-		filter.Filters = append(filter.Filters, filterV1DoubleValueFromList(raw, kubecost.CloudCostLabelProp))
+	if len(filters.Labels) > 0 {
+		result.Filters = append(result.Filters, filterV1DoubleValueFromList(filters.Labels, kubecost.CloudCostLabelProp))
 	}
 
-	if len(filter.Filters) == 0 {
+	if len(result.Filters) == 0 {
 		return nil
 	}
 
-	return filter
+	return result
 }
 
 func filterV1SingleValueFromList(rawFilterValues []string, field string) filter.Filter[*kubecost.CloudCost] {
