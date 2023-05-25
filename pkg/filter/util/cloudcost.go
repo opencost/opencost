@@ -11,13 +11,13 @@ import (
 )
 
 type CloudCostFilter struct {
-	AccountIDs       []string `json:"accountIDs"`
-	Categories       []string `json:"categories"`
-	InvoiceEntityIDs []string `json:"invoiceEntityIDs"`
-	Labels           []string `json:"labels"`
-	Providers        []string `json:"providers"`
-	ProviderIDs      []string `json:"providerIDs"`
-	Services         []string `json:"services"`
+	AccountIDs       []string `json:"accountIDs,omitempty"`
+	Categories       []string `json:"categories,omitempty"`
+	InvoiceEntityIDs []string `json:"invoiceEntityIDs,omitempty"`
+	Labels           []string `json:"labels,omitempty"`
+	Providers        []string `json:"providers,omitempty"`
+	ProviderIDs      []string `json:"providerIDs,omitempty"`
+	Services         []string `json:"services,omitempty"`
 }
 
 func (g *CloudCostFilter) Equals(that CloudCostFilter) bool {
