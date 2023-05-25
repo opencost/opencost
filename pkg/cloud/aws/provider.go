@@ -1779,7 +1779,17 @@ func (aws *AWS) findCostForDisk(disk *ec2Types.Volume) (*float64, error) {
 
 	key := "us-east-2" + "," + class
 
-	priceStr := aws.Pricing[key].PV.Cost
+	pricing, ok := aws.Pricing[key]
+	if !ok {
+		return nil, fmt.Errorf("no pricing data for key '%s'", key)
+	}
+	if pricing == nil {
+		return nil, fmt.Errorf("nil pricing data for key '%s'", key)
+	}
+	if pricing.PV == nil {
+		return nil, fmt.Errorf("pricing for key '%s' has nil PV", key)
+	}
+	priceStr := pricing.PV.Cost
 
 	price, err := strconv.ParseFloat(priceStr, 64)
 	if err != nil {
