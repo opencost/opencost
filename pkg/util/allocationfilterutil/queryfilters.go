@@ -83,21 +83,21 @@ func AllHTTPParamKeys() []string {
 }
 
 type FilterV1 struct {
-	Annotations     []string `json:"annotations"`
-	Containers      []string `json:"containers"`
-	Controllers     []string `json:"controllers"`
-	ControllerKinds []string `json:"controllerKinds"`
-	Clusters        []string `json:"clusters"`
-	Departments     []string `json:"departments"`
-	Environments    []string `json:"environments"`
-	Labels          []string `json:"labels"`
-	Namespaces      []string `json:"namespaces"`
-	Nodes           []string `json:"nodes"`
-	Owners          []string `json:"owners"`
-	Pods            []string `json:"pods"`
-	Products        []string `json:"products"`
-	Services        []string `json:"services"`
-	Teams           []string `json:"teams"`
+	Annotations     []string `json:"annotations,omitempty"`
+	Containers      []string `json:"containers,omitempty"`
+	Controllers     []string `json:"controllers,omitempty"`
+	ControllerKinds []string `json:"controllerKinds,omitempty"`
+	Clusters        []string `json:"clusters,omitempty"`
+	Departments     []string `json:"departments,omitempty"`
+	Environments    []string `json:"environments,omitempty"`
+	Labels          []string `json:"labels,omitempty"`
+	Namespaces      []string `json:"namespaces,omitempty"`
+	Nodes           []string `json:"nodes,omitempty"`
+	Owners          []string `json:"owners,omitempty"`
+	Pods            []string `json:"pods,omitempty"`
+	Products        []string `json:"products,omitempty"`
+	Services        []string `json:"services,omitempty"`
+	Teams           []string `json:"teams,omitempty"`
 }
 
 func (f FilterV1) Equals(that FilterV1) bool {
