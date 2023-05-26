@@ -60,6 +60,7 @@ type Node struct {
 	Reserved         *ReservedInstanceData `json:"reserved,omitempty"`
 	ProviderID       string                `json:"providerID,omitempty"`
 	PricingType      PricingType           `json:"pricingType,omitempty"`
+	ArchType         string                `json:"archType,omitempty"`
 }
 
 // IsSpot determines whether or not a Node uses spot by usage type

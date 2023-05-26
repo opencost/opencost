@@ -1002,6 +1002,10 @@ func (cm *CostModel) GetNodeCost(cp costAnalyzerCloud.Provider) (map[string]*cos
 			region, _ := util.GetRegion(n.Labels)
 			newCnode.Region = region
 		}
+		if newCnode.ArchType == "" {
+			arch, _ := util.GetArchType(n.Labels)
+			newCnode.ArchType = arch
+		}
 		newCnode.ProviderID = n.Spec.ProviderID
 
 		var cpu float64
