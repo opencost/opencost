@@ -147,7 +147,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 		cpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_cpu_hourly_cost",
 			Help: "node_cpu_hourly_cost hourly cost for each cpu on this node",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
 		if _, disabled := disabledMetrics["node_cpu_hourly_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, cpuGv)
 		}
@@ -155,7 +155,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 		ramGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_ram_hourly_cost",
 			Help: "node_ram_hourly_cost hourly cost for each gb of ram on this node",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
 		if _, disabled := disabledMetrics["node_ram_hourly_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, ramGv)
 		}
@@ -163,7 +163,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 		gpuGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_gpu_hourly_cost",
 			Help: "node_gpu_hourly_cost hourly cost for each gpu on this node",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
 		if _, disabled := disabledMetrics["node_gpu_hourly_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, gpuGv)
 		}
@@ -171,7 +171,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 		gpuCountGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_gpu_count",
 			Help: "node_gpu_count count of gpu on this node",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
 		if _, disabled := disabledMetrics["node_gpu_count"]; !disabled {
 			toRegisterGV = append(toRegisterGV, gpuCountGv)
 		}
@@ -195,7 +195,7 @@ func initCostModelMetrics(clusterCache clustercache.ClusterCache, provider model
 		totalGv = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "node_total_hourly_cost",
 			Help: "node_total_hourly_cost Total node cost per hour",
-		}, []string{"instance", "node", "instance_type", "region", "provider_id"})
+		}, []string{"instance", "node", "instance_type", "region", "provider_id", "arch"})
 		if _, disabled := disabledMetrics["node_total_hourly_cost"]; !disabled {
 			toRegisterGV = append(toRegisterGV, totalGv)
 		}
@@ -528,22 +528,22 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 					nodeCostAverages[labelKey] = avgCosts
 				}
 
-				cmme.GPUCountRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(gpu)
-				cmme.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(gpuCost)
+				cmme.GPUCountRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(gpu)
+				cmme.GPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(gpuCost)
 
 				const outlierFactor float64 = 30
 				// don't record cpuCost, ramCost, or gpuCost in the case of wild outliers
 				// k8s api sometimes causes cost spikes as described here:
 				// https://github.com/opencost/opencost/issues/927
 				if cpuCost < outlierFactor*avgCosts.CpuCostAverage {
-					cmme.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(cpuCost)
+					cmme.CPUPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(cpuCost)
 					avgCosts.CpuCostAverage = (avgCosts.CpuCostAverage*avgCosts.NumCpuDataPoints + cpuCost) / (avgCosts.NumCpuDataPoints + 1)
 					avgCosts.NumCpuDataPoints += 1
 				} else {
 					log.Warnf("CPU cost outlier detected; skipping data point.")
 				}
 				if ramCost < outlierFactor*avgCosts.RamCostAverage {
-					cmme.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(ramCost)
+					cmme.RAMPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(ramCost)
 					avgCosts.RamCostAverage = (avgCosts.RamCostAverage*avgCosts.NumRamDataPoints + ramCost) / (avgCosts.NumRamDataPoints + 1)
 					avgCosts.NumRamDataPoints += 1
 				} else {
@@ -552,7 +552,7 @@ func (cmme *CostModelMetricsEmitter) Start() bool {
 				// skip redording totalCost if any constituent costs were outliers
 				if cpuCost < outlierFactor*avgCosts.CpuCostAverage &&
 					ramCost < outlierFactor*avgCosts.RamCostAverage {
-					cmme.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID).Set(totalCost)
+					cmme.NodeTotalPriceRecorder.WithLabelValues(nodeName, nodeName, nodeType, nodeRegion, node.ProviderID, node.ArchType).Set(totalCost)
 				}
 
 				nodeCostAverages[labelKey] = avgCosts

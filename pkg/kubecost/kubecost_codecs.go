@@ -37,16 +37,16 @@ const (
 	DefaultCodecVersion uint8 = 17
 
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
-	AssetsCodecVersion uint8 = 18
+	AssetsCodecVersion uint8 = 19
 
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
-	AllocationCodecVersion uint8 = 17
+	AllocationCodecVersion uint8 = 16
 
 	// AuditCodecVersion is used for any resources listed in the Audit version set
 	AuditCodecVersion uint8 = 1
 
 	// CloudCostCodecVersion is used for any resources listed in the CloudCost version set
-	CloudCostCodecVersion uint8 = 1
+	CloudCostCodecVersion uint8 = 2
 )
 
 //--------------------------------------------------------------------------
@@ -83,10 +83,10 @@ var typeMap map[string]reflect.Type = map[string]reflect.Type{
 	"CoverageSet":                   reflect.TypeOf((*CoverageSet)(nil)).Elem(),
 	"Disk":                          reflect.TypeOf((*Disk)(nil)).Elem(),
 	"EqualityAudit":                 reflect.TypeOf((*EqualityAudit)(nil)).Elem(),
-	"LbAllocation":                  reflect.TypeOf((*LbAllocation)(nil)).Elem(),
 	"LoadBalancer":                  reflect.TypeOf((*LoadBalancer)(nil)).Elem(),
 	"Network":                       reflect.TypeOf((*Network)(nil)).Elem(),
 	"Node":                          reflect.TypeOf((*Node)(nil)).Elem(),
+	"NodeOverhead":                  reflect.TypeOf((*NodeOverhead)(nil)).Elem(),
 	"PVAllocation":                  reflect.TypeOf((*PVAllocation)(nil)).Elem(),
 	"PVKey":                         reflect.TypeOf((*PVKey)(nil)).Elem(),
 	"RawAllocationOnlyData":         reflect.TypeOf((*RawAllocationOnlyData)(nil)).Elem(),
@@ -760,41 +760,6 @@ func (target *Allocation) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 		// --- [end][write][struct](RawAllocationOnlyData) ---
 
 	}
-	// --- [begin][write][alias](LbAllocations) ---
-	if map[string]*LbAllocation(target.LoadBalancers) == nil {
-		buff.WriteUInt8(uint8(0)) // write nil byte
-	} else {
-		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
-		// --- [begin][write][map](map[string]*LbAllocation) ---
-		buff.WriteInt(len(map[string]*LbAllocation(target.LoadBalancers))) // map length
-		for vv, zz := range map[string]*LbAllocation(target.LoadBalancers) {
-			if ctx.IsStringTable() {
-				d := ctx.Table.AddOrGet(vv)
-				buff.WriteInt(d) // write table index
-			} else {
-				buff.WriteString(vv) // write string
-			}
-			if zz == nil {
-				buff.WriteUInt8(uint8(0)) // write nil byte
-			} else {
-				buff.WriteUInt8(uint8(1)) // write non-nil byte
-
-				// --- [begin][write][struct](LbAllocation) ---
-				buff.WriteInt(0) // [compatibility, unused]
-				errH := zz.MarshalBinaryWithContext(ctx)
-				if errH != nil {
-					return errH
-				}
-				// --- [end][write][struct](LbAllocation) ---
-
-			}
-		}
-		// --- [end][write][map](map[string]*LbAllocation) ---
-
-	}
-	// --- [end][write][alias](LbAllocations) ---
-
 	return nil
 }
 
@@ -1058,55 +1023,6 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 		// --- [end][read][struct](RawAllocationOnlyData) ---
 
 	}
-	// field version check
-	if uint8(17) <= version {
-		// --- [begin][read][alias](LbAllocations) ---
-		var xx map[string]*LbAllocation
-		if buff.ReadUInt8() == uint8(0) {
-			xx = nil
-		} else {
-			// --- [begin][read][map](map[string]*LbAllocation) ---
-			aaa := buff.ReadInt() // map len
-			yy := make(map[string]*LbAllocation, aaa)
-			for j := 0; j < aaa; j++ {
-				var vv string
-				var ccc string
-				if ctx.IsStringTable() {
-					ddd := buff.ReadInt() // read string index
-					ccc = ctx.Table[ddd]
-				} else {
-					ccc = buff.ReadString() // read string
-				}
-				bbb := ccc
-				vv = bbb
-
-				var zz *LbAllocation
-				if buff.ReadUInt8() == uint8(0) {
-					zz = nil
-				} else {
-					// --- [begin][read][struct](LbAllocation) ---
-					eee := &LbAllocation{}
-					buff.ReadInt() // [compatibility, unused]
-					errH := eee.UnmarshalBinaryWithContext(ctx)
-					if errH != nil {
-						return errH
-					}
-					zz = eee
-					// --- [end][read][struct](LbAllocation) ---
-
-				}
-				yy[vv] = zz
-			}
-			xx = yy
-			// --- [end][read][map](map[string]*LbAllocation) ---
-
-		}
-		target.LoadBalancers = LbAllocations(xx)
-		// --- [end][read][alias](LbAllocations) ---
-
-	} else {
-	}
-
 	return nil
 }
 
@@ -7143,126 +7059,6 @@ func (target *EqualityAudit) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 }
 
 //--------------------------------------------------------------------------
-//  LbAllocation
-//--------------------------------------------------------------------------
-
-// MarshalBinary serializes the internal properties of this LbAllocation instance
-// into a byte array
-func (target *LbAllocation) MarshalBinary() (data []byte, err error) {
-	ctx := &EncodingContext{
-		Buffer: util.NewBuffer(),
-		Table:  nil,
-	}
-
-	e := target.MarshalBinaryWithContext(ctx)
-	if e != nil {
-		return nil, e
-	}
-
-	encBytes := ctx.Buffer.Bytes()
-	return encBytes, nil
-}
-
-// MarshalBinaryWithContext serializes the internal properties of this LbAllocation instance
-// into a byte array leveraging a predefined context.
-func (target *LbAllocation) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	buff.WriteUInt8(AllocationCodecVersion) // version
-
-	if ctx.IsStringTable() {
-		a := ctx.Table.AddOrGet(target.Service)
-		buff.WriteInt(a) // write table index
-	} else {
-		buff.WriteString(target.Service) // write string
-	}
-	buff.WriteFloat64(target.Cost) // write float64
-	return nil
-}
-
-// UnmarshalBinary uses the data passed byte array to set all the internal properties of
-// the LbAllocation type
-func (target *LbAllocation) UnmarshalBinary(data []byte) error {
-	var table []string
-	buff := util.NewBufferFromBytes(data)
-
-	// string table header validation
-	if isBinaryTag(data, BinaryTagStringTable) {
-		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
-		tl := buff.ReadInt()                      // table length
-		if tl > 0 {
-			table = make([]string, tl, tl)
-			for i := 0; i < tl; i++ {
-				table[i] = buff.ReadString()
-			}
-		}
-	}
-
-	ctx := &DecodingContext{
-		Buffer: buff,
-		Table:  table,
-	}
-
-	err := target.UnmarshalBinaryWithContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
-// the LbAllocation type
-func (target *LbAllocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	version := buff.ReadUInt8()
-
-	if version > AllocationCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling LbAllocation. Expected %d or less, got %d", AllocationCodecVersion, version)
-	}
-
-	var b string
-	if ctx.IsStringTable() {
-		c := buff.ReadInt() // read string index
-		b = ctx.Table[c]
-	} else {
-		b = buff.ReadString() // read string
-	}
-	a := b
-	target.Service = a
-
-	d := buff.ReadFloat64() // read float64
-	target.Cost = d
-
-	return nil
-}
-
-//--------------------------------------------------------------------------
 //  LoadBalancer
 //--------------------------------------------------------------------------
 
@@ -7935,6 +7731,20 @@ func (target *Node) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 	buff.WriteFloat64(target.RAMCost)     // write float64
 	buff.WriteFloat64(target.Discount)    // write float64
 	buff.WriteFloat64(target.Preemptible) // write float64
+	if target.Overhead == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][struct](NodeOverhead) ---
+		buff.WriteInt(0) // [compatibility, unused]
+		errG := target.Overhead.MarshalBinaryWithContext(ctx)
+		if errG != nil {
+			return errG
+		}
+		// --- [end][write][struct](NodeOverhead) ---
+
+	}
 	return nil
 }
 
@@ -8145,6 +7955,139 @@ func (target *Node) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 
 	ll := buff.ReadFloat64() // read float64
 	target.Preemptible = ll
+
+	// field version check
+	if uint8(19) <= version {
+		if buff.ReadUInt8() == uint8(0) {
+			target.Overhead = nil
+		} else {
+			// --- [begin][read][struct](NodeOverhead) ---
+			mm := &NodeOverhead{}
+			buff.ReadInt() // [compatibility, unused]
+			errG := mm.UnmarshalBinaryWithContext(ctx)
+			if errG != nil {
+				return errG
+			}
+			target.Overhead = mm
+			// --- [end][read][struct](NodeOverhead) ---
+
+		}
+	} else {
+		target.Overhead = nil
+
+	}
+
+	return nil
+}
+
+//--------------------------------------------------------------------------
+//  NodeOverhead
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this NodeOverhead instance
+// into a byte array
+func (target *NodeOverhead) MarshalBinary() (data []byte, err error) {
+	ctx := &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  nil,
+	}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	encBytes := ctx.Buffer.Bytes()
+	return encBytes, nil
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this NodeOverhead instance
+// into a byte array leveraging a predefined context.
+func (target *NodeOverhead) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8(AssetsCodecVersion) // version
+
+	buff.WriteFloat64(target.CpuOverheadFraction)  // write float64
+	buff.WriteFloat64(target.RamOverheadFraction)  // write float64
+	buff.WriteFloat64(target.OverheadCostFraction) // write float64
+	return nil
+}
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the NodeOverhead type
+func (target *NodeOverhead) UnmarshalBinary(data []byte) error {
+	var table []string
+	buff := util.NewBufferFromBytes(data)
+
+	// string table header validation
+	if isBinaryTag(data, BinaryTagStringTable) {
+		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
+		tl := buff.ReadInt()                      // table length
+		if tl > 0 {
+			table = make([]string, tl, tl)
+			for i := 0; i < tl; i++ {
+				table[i] = buff.ReadString()
+			}
+		}
+	}
+
+	ctx := &DecodingContext{
+		Buffer: buff,
+		Table:  table,
+	}
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the NodeOverhead type
+func (target *NodeOverhead) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else if s, ok := r.(string); ok {
+				err = fmt.Errorf("Unexpected panic: %s", s)
+			} else {
+				err = fmt.Errorf("Unexpected panic: %+v", r)
+			}
+		}
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > AssetsCodecVersion {
+		return fmt.Errorf("Invalid Version Unmarshaling NodeOverhead. Expected %d or less, got %d", AssetsCodecVersion, version)
+	}
+
+	a := buff.ReadFloat64() // read float64
+	target.CpuOverheadFraction = a
+
+	b := buff.ReadFloat64() // read float64
+	target.RamOverheadFraction = b
+
+	c := buff.ReadFloat64() // read float64
+	target.OverheadCostFraction = c
 
 	return nil
 }

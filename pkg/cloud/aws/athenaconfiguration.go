@@ -3,7 +3,6 @@ package aws
 import (
 	"fmt"
 
-	"github.com/aws/aws-sdk-go-v2/service/athena"
 	"github.com/opencost/opencost/pkg/cloud/config"
 	"github.com/opencost/opencost/pkg/util/json"
 )
@@ -173,15 +172,6 @@ func (ac *AthenaConfiguration) UnmarshalJSON(b []byte) error {
 	ac.Authorizer = authorizer
 
 	return nil
-}
-
-func (ac *AthenaConfiguration) GetAthenaClient() (*athena.Client, error) {
-	cfg, err := ac.Authorizer.CreateAWSConfig(ac.Region)
-	if err != nil {
-		return nil, err
-	}
-	cli := athena.NewFromConfig(cfg)
-	return cli, nil
 }
 
 // ConvertAwsAthenaInfoToConfig takes a legacy config and generates a Config based on the presence of properties to match

@@ -20,9 +20,10 @@ import (
 )
 
 const (
-	providerIDMap = "spec.providerID"
-	nameMap       = "metadata.name"
-	labelMapFoo   = "metadata.labels.foo"
+	providerIDMap  = "spec.providerID"
+	nameMap        = "metadata.name"
+	labelMapFoo    = "metadata.labels.foo"
+	labelMapFooBar = "metadata.labels.foo.bar"
 )
 
 func TestRegionValueFromMapField(t *testing.T) {
@@ -124,6 +125,38 @@ func TestPVPriceFromCSV(t *testing.T) {
 
 }
 
+func TestPVPriceFromCSVStorageClass(t *testing.T) {
+	nameWant := "pvc-08e1f205-d7a9-4430-90fc-7b3965a18c4d"
+	storageClassWant := "storageclass0"
+	pv := &v1.PersistentVolume{}
+	pv.Name = nameWant
+	pv.Spec.StorageClassName = storageClassWant
+
+	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		LocalConfigPath: "./",
+	})
+
+	wantPrice := "0.1338"
+	c := &provider.CSVProvider{
+		CSVLocation: "../configs/pricing_schema_pv_storageclass.csv",
+		CustomProvider: &provider.CustomProvider{
+			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
+		},
+	}
+	c.DownloadPricingData()
+	k := c.GetPVKey(pv, make(map[string]string), "")
+	resPV, err := c.PVPricing(k)
+	if err != nil {
+		t.Errorf("Error in NodePricing: %s", err.Error())
+	} else {
+		gotPrice := resPV.Cost
+		if gotPrice != wantPrice {
+			t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+		}
+	}
+
+}
+
 func TestNodePriceFromCSVWithGPU(t *testing.T) {
 	providerIDWant := "providerid"
 	nameWant := "gke-standard-cluster-1-pool-1-91dc432d-cg69"
@@ -192,6 +225,39 @@ func TestNodePriceFromCSVWithGPU(t *testing.T) {
 
 	}
 
+}
+
+func TestNodePriceFromCSVSpecialChar(t *testing.T) {
+	nameWant := "gke-standard-cluster-1-pool-1-91dc432d-cg69"
+
+	confMan := config.NewConfigFileManager(&config.ConfigFileManagerOpts{
+		LocalConfigPath: "./",
+	})
+
+	n := &v1.Node{}
+	n.Name = nameWant
+	n.Labels = make(map[string]string)
+	n.Labels["<http://metadata.label.servers.com/label|metadata.label.servers.com/label>"] = nameWant
+
+	wantPrice := "0.133700"
+
+	c := &provider.CSVProvider{
+		CSVLocation: "../configs/pricing_schema_special_char.csv",
+		CustomProvider: &provider.CustomProvider{
+			Config: provider.NewProviderConfig(confMan, "../configs/default.json"),
+		},
+	}
+	c.DownloadPricingData()
+	k := c.GetKey(n.Labels, n)
+	resN, err := c.NodePricing(k)
+	if err != nil {
+		t.Errorf("Error in NodePricing: %s", err.Error())
+	} else {
+		gotPrice := resN.Cost
+		if gotPrice != wantPrice {
+			t.Errorf("Wanted price '%s' got price '%s'", wantPrice, gotPrice)
+		}
+	}
 }
 
 func TestNodePriceFromCSV(t *testing.T) {
