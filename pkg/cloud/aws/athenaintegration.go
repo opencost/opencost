@@ -69,7 +69,7 @@ type AthenaIntegration struct {
 
 // Query Athena for CUR data and build a new CloudCostSetRange containing the info
 func (ai *AthenaIntegration) GetCloudCost(start, end time.Time) (*kubecost.CloudCostSetRange, error) {
-	log.Infof("AthenaIntegration[%s]: StoreCloudCost: %s", ai.Key(), kubecost.NewWindow(&start, &end).String())
+	log.Infof("AthenaIntegration[%s]: GetCloudCost: %s", ai.Key(), kubecost.NewWindow(&start, &end).String())
 	// Query for all column names
 	allColumns, err := ai.GetColumns()
 	if err != nil {
@@ -185,31 +185,30 @@ func (ai *AthenaIntegration) GetCloudCost(start, end time.Time) (*kubecost.Cloud
 	`
 	aqi.Query = fmt.Sprintf(queryStr, columnStr, ai.Table, whereClause, groupByStr)
 
-	CCSR, err := kubecost.NewCloudCostSetRange(start, end, timeutil.Day, ai.Key())
+	ccsr, err := kubecost.NewCloudCostSetRange(start, end, timeutil.Day, ai.Key())
 	if err != nil {
 		return nil, err
 	}
 
 	// Generate row handling function.
 	rowHandler := func(row types.Row) {
-		err2 := ai.RowToCloudCost(row, aqi, CCSR)
+		err2 := ai.RowToCloudCost(row, aqi, ccsr)
 		if err2 != nil {
-			log.Errorf("AthenaIntegration: queryCloudCostCompute: error while parsing row: %s", err2.Error())
+			log.Errorf("AthenaIntegration: GetCloudCost: error while parsing row: %s", err2.Error())
 		}
 	}
-	log.Debugf("AthenaIntegration[%s]: queryCloudCostCompute: querying: %s", ai.Key(), aqi.Query)
+	log.Debugf("AthenaIntegration[%s]: GetCloudCost: querying: %s", ai.Key(), aqi.Query)
 	// Query CUR data and fill out CCSR
 	err = ai.Query(context.TODO(), aqi.Query, GetAthenaQueryFunc(rowHandler))
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: May not be needed anymore?
-	for _, ccs := range CCSR.CloudCostSets {
-		log.Debugf("AthenaIntegration[%s]: queryCloudCostCompute: writing compute items for window %s: %d", ai.Key(), ccs.Window, len(ccs.CloudCosts))
+	for _, ccs := range ccsr.CloudCostSets {
+		log.Debugf("AthenaIntegration[%s]: GetCloudCost: writing compute items for window %s: %d", ai.Key(), ccs.Window, len(ccs.CloudCosts))
 		ai.ConnectionStatus = ai.GetConnectionStatusFromResult(ccs, ai.ConnectionStatus)
 	}
-	return CCSR, nil
+	return ccsr, nil
 
 }
 
