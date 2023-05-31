@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/pkg/log"
+	"github.com/opencost/opencost/pkg/util"
 	"github.com/opencost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/util/stringutil"
 	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
@@ -1936,8 +1938,51 @@ func (n *Node) Add(a Asset) Asset {
 
 func (n *Node) add(that *Node) {
 	if n == nil {
-		n = that
 		return
+	}
+
+	// If we detect that we are accumulating a unique node, then we can make
+	// stronger assumptions later on that may allow us to correct for inaccuracies
+	// in accumulated data (e.g. cascading data pipelines) by interpolating
+	// correct data where it was briefly lost.
+	// For more detail, see ELV-102 https://kubecost.atlassian.net/browse/ELV-102
+	accumulatingUniqueNode := false
+	var thisCPUCores, thisRAMBytes float64
+	var thatCPUCores, thatRAMBytes float64
+	if n.Properties.ProviderID != "" && n.Properties.ProviderID == that.Properties.ProviderID {
+		accumulatingUniqueNode = true
+
+		// CPU cores and RAM bytes for each should match. If not, log a debug
+		// statement. If these values match, but the node resulting from the
+		// addition does not match, then we are missing data and can fix that
+		// by interpolation.
+		//
+		// e.g. if we are accumulating two hours of data, for the same node,
+		// which has 2 CPU cores and 8 GiB RAM, but Kubecost was down for the
+		// final 20m and the first 30m of the back-to-back hours, then without
+		// correction we would yield:
+		//  - (end-start) = 2 hours
+		//  - CPU = 1.3333 + 1 = 2.3333 core-hours == 1.16667 cores (58%)
+		//  - RAM = 5.3333 + 4 = 9.3333 gib-hours  == 4.66667 GiB (58%)
+		//
+		// We will also end up having only 58% of the actual RAM and CPU costs.
+		// No good! But we can detect this (by comparing capacities for these,
+		// before and after, which should never change) and scaling costs and
+		// capacities up to 100%.
+
+		thisCPUCores = n.CPUCores()
+		thisRAMBytes = n.RAMBytes()
+
+		thatCPUCores = that.CPUCores()
+		thatRAMBytes = that.RAMBytes()
+
+		if !util.IsApproximately(thisCPUCores, thatCPUCores) {
+			log.Debugf("Node.add: same node has different CPU core values: %s = %f and %f", n.Properties.Name, thisCPUCores, thatCPUCores)
+		}
+
+		if !util.IsApproximately(thisRAMBytes, thatRAMBytes) {
+			log.Debugf("Node.add: same node has different RAM GiB values: %s = %f and %f", n.Properties.Name, thisRAMBytes/stringutil.GiB, thatRAMBytes/stringutil.GiB)
+		}
 	}
 
 	props := n.Properties.Merge(that.Properties)
@@ -2012,10 +2057,43 @@ func (n *Node) add(that *Node) {
 	n.Adjustment += that.Adjustment
 
 	if n.Overhead != nil && that.Overhead != nil {
-
 		n.Overhead.RamOverheadFraction = (n.Overhead.RamOverheadFraction*n.RAMCost + that.Overhead.RamOverheadFraction*that.RAMCost) / totalRAMCost
 		n.Overhead.CpuOverheadFraction = (n.Overhead.CpuOverheadFraction*n.CPUCost + that.Overhead.CpuOverheadFraction*that.CPUCost) / totalCPUCost
 		n.Overhead.OverheadCostFraction = ((n.Overhead.CpuOverheadFraction * n.CPUCost) + (n.Overhead.RamOverheadFraction * n.RAMCost)) / n.TotalCost()
+	}
+
+	// Check and correct values by interpolation.
+	// For more detail, see ELV-102 https://kubecost.atlassian.net/browse/ELV-102
+	if accumulatingUniqueNode {
+		// After accumulating this unique node, the CPU cores have changed
+		// significantly, which is a sign that there was data missing, e.g.
+		// from a downtime, in which CPU-Hours were lost but the Hours are
+		// correct. Correct CPU-Hours (and thus CPU and CPU Cost) by
+		// interpolating those values where they are missing.
+		if !util.IsApproximately(n.CPUCores(), thisCPUCores) {
+			// Scale both CPU-Hours and CPU Cost up or down (almost certainly
+			// up) by the amount missing
+			factor := thisCPUCores / n.CPUCores()
+			n.CPUCoreHours *= factor
+			n.CPUCost *= factor
+
+			log.Debugf("Node.add: corrected CPU cost and capacity by interpolation for %s by %f", n.Properties.Name, factor)
+		}
+
+		// After accumulating this unique node, the RAM bytes have changed
+		// significantly, which is a sign that there was data missing, e.g.
+		// from a downtime, in which RAM-Bytes-Hours were lost but the Hours
+		// are correct. Correct RAM-Byte-Hours (and thus RAM Bytes and RAM
+		// Cost) by interpolating those values where they are missing.
+		if !util.IsApproximately(n.RAMBytes(), thisRAMBytes) {
+			// Scale both RAM-Byte-Hours and RAM Cost up or down (almost
+			// certainly up) by the amount missing
+			factor := thisRAMBytes / n.RAMBytes()
+			n.RAMByteHours *= factor
+			n.RAMCost *= factor
+
+			log.Debugf("Node.add: corrected RAM cost and capacity by interpolation for %s by %f", n.Properties.Name, factor)
+		}
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/opencost/opencost/pkg/util"
+	"github.com/opencost/opencost/pkg/util/stringutil"
 )
 
 var start1 = time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)
@@ -543,6 +544,87 @@ func TestNode_Add(t *testing.T) {
 	}
 	if nodeA2.Adjustment != 1.0 {
 		t.Fatalf("Node.Add: expected %f; got %f", 1.0, nodeA2.Adjustment)
+	}
+}
+
+func TestNode_Add_AccumulationInterpolation(t *testing.T) {
+	// One unique node, back-to-back hour long windows, and with data missing
+	// from the back half of the first hour and from the first half of the
+	// second hour.
+	//
+	//   |
+	//   |------      |  ----------|  => 30m + 50m = measured 80m out of expected 120m
+	//   |
+	// __|____________|____________|
+	//  0|           1|           2|
+
+	w1Start := time.Date(2023, time.May, 30, 12, 0, 0, 0, time.UTC)
+	w1End := w1Start.Add(time.Hour)
+	w2Start := w1End
+	w2End := w2Start.Add(time.Hour)
+
+	w1 := NewClosedWindow(w1Start, w1End)
+	w2 := NewClosedWindow(w2Start, w2End)
+
+	nodeW1Start := w1Start
+	nodeW1End := w1Start.Add(30 * time.Minute)
+
+	nodeW2End := w2End
+	nodeW2Start := w2End.Add(-50 * time.Minute)
+
+	// Provider ID has to match to identify the nodes as being one and the same
+	providerID := "i-04d7a8ef23ea33a2b"
+	nodeName := "node-1"
+	clusterName := "cluster-1"
+	cpuCores := 2.0
+	ramBytes := 8.0 * stringutil.GiB
+	cpuPrice := 0.03
+	ramPrice := 0.004
+
+	nodeW1 := NewNode(nodeName, clusterName, providerID, nodeW1Start, nodeW1End, w1)
+	nodeW1.CPUCoreHours = cpuCores * nodeW1End.Sub(nodeW1Start).Hours()
+	nodeW1.RAMByteHours = ramBytes * nodeW1End.Sub(nodeW1Start).Hours()
+	nodeW1.CPUCost = nodeW1.CPUCoreHours * cpuPrice
+	nodeW1.RAMCost = nodeW1.RAMByteHours * ramPrice
+
+	nodeW2 := NewNode(nodeName, clusterName, providerID, nodeW2Start, nodeW2End, w2)
+	nodeW2.CPUCoreHours = cpuCores * nodeW2End.Sub(nodeW2Start).Hours()
+	nodeW2.RAMByteHours = ramBytes * nodeW2End.Sub(nodeW2Start).Hours()
+	nodeW2.CPUCost = nodeW2.CPUCoreHours * cpuPrice
+	nodeW2.RAMCost = nodeW2.RAMByteHours * ramPrice
+
+	// Expect the full, correct values, as if the node data had not disappeared
+	// in the middle of the two hours for 40m.
+	expHours := w1.Hours() + w2.Hours()
+	expMinutes := expHours * 60.0
+	expCPUCores := cpuCores
+	expCPUCoreHours := cpuCores * expHours
+	expCPUCost := expCPUCoreHours * cpuPrice
+	expRAMBytes := ramBytes
+	expRAMByteHours := ramBytes * expHours
+	expRAMCost := expRAMByteHours * ramPrice
+
+	result := nodeW1.Add(nodeW2).(*Node)
+	if result.Minutes() != expMinutes {
+		t.Fatalf("Minutes: expected %f, actual %f", expMinutes, result.Minutes())
+	}
+	if !util.IsApproximately(result.CPUCores(), expCPUCores) {
+		t.Fatalf("CPUCores: expected %f, actual %f", expCPUCores, result.CPUCores())
+	}
+	if !util.IsApproximately(result.CPUCoreHours, expCPUCoreHours) {
+		t.Fatalf("CPUCoreHours: expected %f, actual %f", expCPUCoreHours, result.CPUCoreHours)
+	}
+	if !util.IsApproximately(result.CPUCost, expCPUCost) {
+		t.Fatalf("CPUCost: expected %f, actual %f", expCPUCost, result.CPUCost)
+	}
+	if !util.IsApproximately(result.RAMBytes(), expRAMBytes) {
+		t.Fatalf("RAMBytes: expected %f, actual %f", expRAMBytes, result.RAMBytes())
+	}
+	if !util.IsApproximately(result.RAMByteHours, expRAMByteHours) {
+		t.Fatalf("RAMByteHours: expected %f, actual %f", expRAMByteHours, result.RAMByteHours)
+	}
+	if !util.IsApproximately(result.RAMCost, expRAMCost) {
+		t.Fatalf("RAMCost: expected %f, actual %f", expRAMCost, result.RAMCost)
 	}
 }
 
