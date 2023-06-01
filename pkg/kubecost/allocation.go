@@ -325,25 +325,18 @@ func (parcs ProportionalAssetResourceCosts) Insert(parc ProportionalAssetResourc
 			Type:                         curr.Type,
 			Cluster:                      curr.Cluster,
 			ProviderID:                   curr.ProviderID,
-			CPUTotalCost:                 curr.CPUTotalCost,
 			CPUProportionalCost:          curr.CPUProportionalCost + parc.CPUProportionalCost,
-			RAMTotalCost:                 curr.RAMTotalCost,
 			RAMProportionalCost:          curr.RAMProportionalCost + parc.RAMProportionalCost,
 			GPUProportionalCost:          curr.GPUProportionalCost + parc.GPUProportionalCost,
-			GPUTotalCost:                 curr.GPUTotalCost,
-			LoadBalancerTotalCost:        curr.LoadBalancerTotalCost,
 			LoadBalancerProportionalCost: curr.LoadBalancerProportionalCost + parc.LoadBalancerProportionalCost,
 		}
-
-		computePercentages(&toInsert)
 		parcs[parc.Key(insertByName)] = toInsert
 	} else {
-		computePercentages(&parc)
 		parcs[parc.Key(insertByName)] = parc
 	}
 }
 
-func computePercentages(toInsert *ProportionalAssetResourceCost) {
+func ComputePercentages(toInsert *ProportionalAssetResourceCost) {
 	// compute percentages
 	totalNodeCost := toInsert.RAMTotalCost + toInsert.CPUTotalCost + toInsert.GPUTotalCost
 

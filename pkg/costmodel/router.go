@@ -107,6 +107,7 @@ type Accesses struct {
 	settingsMutex       sync.Mutex
 	// registered http service instances
 	httpServices services.HTTPServices
+	totalsStore  kubecost.TotalsStore
 }
 
 // GetPrometheusClient decides whether the default Prometheus client or the Thanos client
@@ -1731,6 +1732,7 @@ func Initialize(additionalConfigWatchers ...*watcher.ConfigMapWatcher) *Accesses
 		SettingsCache:       settingsCache,
 		CacheExpiration:     cacheExpiration,
 		httpServices:        services.NewCostModelServices(),
+		totalsStore:         kubecost.NewMemoryTotalsStore(),
 	}
 	// Use the Accesses instance, itself, as the CostModelAggregator. This is
 	// confusing and unconventional, but necessary so that we can swap it
