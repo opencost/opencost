@@ -133,6 +133,17 @@ func (cm *CostModel) ComputeAssets(start, end time.Time) (*kubecost.AssetSet, er
 		node.GPUCost = n.GPUCost
 		node.GPUCount = n.GPUCount
 		node.RAMCost = n.RAMCost
+
+		if n.Overhead != nil {
+			node.Overhead = &kubecost.NodeOverhead{
+				RamOverheadFraction: n.Overhead.RamOverheadFraction,
+				CpuOverheadFraction: n.Overhead.CpuOverheadFraction,
+				OverheadCostFraction: ((n.Overhead.CpuOverheadFraction * n.CPUCost) +
+					(n.Overhead.RamOverheadFraction * n.RAMCost)) / node.TotalCost(),
+			}
+		} else {
+			node.Overhead = &kubecost.NodeOverhead{}
+		}
 		node.Discount = n.Discount
 		if n.Preemptible {
 			node.Preemptible = 1.0

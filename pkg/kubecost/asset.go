@@ -1753,6 +1753,14 @@ func (n *Network) String() string {
 	return toString(n)
 }
 
+// NodeOverhead represents the delta between the allocatable resources
+// of the node and the node nameplate capacity
+type NodeOverhead struct {
+	CpuOverheadFraction  float64
+	RamOverheadFraction  float64
+	OverheadCostFraction float64
+}
+
 // Node is an Asset representing a single node in a cluster
 type Node struct {
 	Properties   *AssetProperties
@@ -1773,6 +1781,7 @@ type Node struct {
 	RAMCost      float64
 	Discount     float64
 	Preemptible  float64
+	Overhead     *NodeOverhead // @bingen:field[version=19]
 }
 
 // NewNode creates and returns a new Node Asset
@@ -2001,6 +2010,13 @@ func (n *Node) add(that *Node) {
 	n.GPUCost += that.GPUCost
 	n.RAMCost += that.RAMCost
 	n.Adjustment += that.Adjustment
+
+	if n.Overhead != nil && that.Overhead != nil {
+
+		n.Overhead.RamOverheadFraction = (n.Overhead.RamOverheadFraction*n.RAMCost + that.Overhead.RamOverheadFraction*that.RAMCost) / totalRAMCost
+		n.Overhead.CpuOverheadFraction = (n.Overhead.CpuOverheadFraction*n.CPUCost + that.Overhead.CpuOverheadFraction*that.CPUCost) / totalCPUCost
+		n.Overhead.OverheadCostFraction = ((n.Overhead.CpuOverheadFraction * n.CPUCost) + (n.Overhead.RamOverheadFraction * n.RAMCost)) / n.TotalCost()
+	}
 }
 
 // Clone returns a deep copy of the given Node

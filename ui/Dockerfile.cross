@@ -1,0 +1,10 @@
+FROM nginx:alpine
+COPY ./dist /var/www
+COPY default.nginx.conf /etc/nginx/conf.d/
+COPY nginx.conf /etc/nginx/
+
+ENV BASE_URL=/model
+
+COPY ./docker-entrypoint.sh /usr/local/bin/
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["nginx", "-g", "daemon off;"]

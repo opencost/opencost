@@ -1,6 +1,8 @@
 package allocationfilterutil
 
 import (
+	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/opencost/opencost/pkg/costmodel/clusters"
@@ -30,6 +32,31 @@ const (
 	ParamFilterServices    = "filterServices"
 )
 
+var allocationFilterFieldMap = map[string]string{
+	kubecost.AllocationClusterProp:        ParamFilterClusters,
+	kubecost.FilterNode:                   ParamFilterNodes,
+	kubecost.AllocationNamespaceProp:      ParamFilterNamespaces,
+	kubecost.AllocationControllerKindProp: ParamFilterControllerKinds,
+	kubecost.AllocationControllerProp:     ParamFilterControllers,
+	kubecost.AllocationPodProp:            ParamFilterPods,
+	kubecost.AllocationContainerProp:      ParamFilterContainers,
+	kubecost.AllocationDepartmentProp:     ParamFilterDepartments,
+	kubecost.AllocationEnvironmentProp:    ParamFilterEnvironments,
+	kubecost.AllocationOwnerProp:          ParamFilterOwners,
+	kubecost.AllocationProductProp:        ParamFilterProducts,
+	kubecost.AllocationTeamProp:           ParamFilterTeams,
+	kubecost.AllocationAnnotationProp:     ParamFilterAnnotations,
+	kubecost.AllocationLabelProp:          ParamFilterLabels,
+	kubecost.AllocationServiceProp:        ParamFilterServices,
+}
+
+func GetAllocationFilterForTheAllocationProperty(allocationProp string) (string, error) {
+	if _, ok := allocationFilterFieldMap[allocationProp]; !ok {
+		return "", fmt.Errorf("unknown allocation property %s", allocationProp)
+	}
+	return allocationFilterFieldMap[allocationProp], nil
+}
+
 // AllHTTPParamKeys returns all HTTP GET parameters used for v1 filters. It is
 // intended to help validate HTTP queries in handlers to help avoid e.g.
 // spelling errors.
@@ -55,6 +82,42 @@ func AllHTTPParamKeys() []string {
 	}
 }
 
+type FilterV1 struct {
+	Annotations     []string `json:"annotations,omitempty"`
+	Containers      []string `json:"containers,omitempty"`
+	Controllers     []string `json:"controllers,omitempty"`
+	ControllerKinds []string `json:"controllerKinds,omitempty"`
+	Clusters        []string `json:"clusters,omitempty"`
+	Departments     []string `json:"departments,omitempty"`
+	Environments    []string `json:"environments,omitempty"`
+	Labels          []string `json:"labels,omitempty"`
+	Namespaces      []string `json:"namespaces,omitempty"`
+	Nodes           []string `json:"nodes,omitempty"`
+	Owners          []string `json:"owners,omitempty"`
+	Pods            []string `json:"pods,omitempty"`
+	Products        []string `json:"products,omitempty"`
+	Services        []string `json:"services,omitempty"`
+	Teams           []string `json:"teams,omitempty"`
+}
+
+func (f FilterV1) Equals(that FilterV1) bool {
+	return reflect.DeepEqual(f.Annotations, that.Annotations) &&
+		reflect.DeepEqual(f.Containers, that.Containers) &&
+		reflect.DeepEqual(f.Controllers, that.Controllers) &&
+		reflect.DeepEqual(f.ControllerKinds, that.ControllerKinds) &&
+		reflect.DeepEqual(f.Clusters, that.Clusters) &&
+		reflect.DeepEqual(f.Departments, that.Departments) &&
+		reflect.DeepEqual(f.Environments, that.Environments) &&
+		reflect.DeepEqual(f.Labels, that.Labels) &&
+		reflect.DeepEqual(f.Namespaces, that.Namespaces) &&
+		reflect.DeepEqual(f.Nodes, that.Nodes) &&
+		reflect.DeepEqual(f.Owners, that.Owners) &&
+		reflect.DeepEqual(f.Pods, that.Pods) &&
+		reflect.DeepEqual(f.Products, that.Products) &&
+		reflect.DeepEqual(f.Services, that.Services) &&
+		reflect.DeepEqual(f.Teams, that.Teams)
+}
+
 // ============================================================================
 // This file contains:
 // Parsing (HTTP query params -> AllocationFilter) for V1 of filters
@@ -72,7 +135,7 @@ func parseWildcardEnd(rawFilterValue string) (string, bool) {
 	return strings.TrimSuffix(rawFilterValue, "*"), strings.HasSuffix(rawFilterValue, "*")
 }
 
-// AllocationFilterFromParamsV1 takes a set of HTTP query parameters and
+// ParseAllocationFilterV1 takes a FilterV1 struct and
 // converts them to an AllocationFilter, which is a structured in-Go
 // representation of a set of filters.
 //
@@ -85,12 +148,7 @@ func parseWildcardEnd(rawFilterValue string) (string, bool) {
 // It takes an optional ClusterMap, which if provided enables cluster name
 // filtering. This turns all `filterClusters=foo` arguments into the equivalent
 // of `clusterID = "foo" OR clusterName = "foo"`.
-func AllocationFilterFromParamsV1(
-	qp mapper.PrimitiveMapReader,
-	labelConfig *kubecost.LabelConfig,
-	clusterMap clusters.ClusterMap,
-) kubecost.AllocationFilter {
-
+func ParseAllocationFilterV1(filters FilterV1, labelConfig *kubecost.LabelConfig, clusterMap clusters.ClusterMap) kubecost.AllocationFilter {
 	filter := kubecost.AllocationFilterAnd{
 		Filters: []kubecost.AllocationFilter{},
 	}
@@ -128,15 +186,15 @@ func AllocationFilterFromParamsV1(
 	// filter structs (they evaluate to true always) there could be overhead
 	// when calling Matches() repeatedly for no purpose.
 
-	if filterClusters := qp.GetList(ParamFilterClusters, ","); len(filterClusters) > 0 {
+	if len(filters.Clusters) > 0 {
 		clustersOr := kubecost.AllocationFilterOr{
 			Filters: []kubecost.AllocationFilter{},
 		}
 
-		if idFilters := filterV1SingleValueFromList(filterClusters, kubecost.FilterClusterID); len(idFilters.Filters) > 0 {
+		if idFilters := filterV1SingleValueFromList(filters.Clusters, kubecost.FilterClusterID); len(idFilters.Filters) > 0 {
 			clustersOr.Filters = append(clustersOr.Filters, idFilters)
 		}
-		for _, rawFilterValue := range filterClusters {
+		for _, rawFilterValue := range filters.Clusters {
 			clusterNameFilter, wildcard := parseWildcardEnd(rawFilterValue)
 
 			clusterIDsToFilter := []string{}
@@ -161,27 +219,27 @@ func AllocationFilterFromParamsV1(
 		filter.Filters = append(filter.Filters, clustersOr)
 	}
 
-	if raw := qp.GetList(ParamFilterNodes, ","); len(raw) > 0 {
-		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.FilterNode))
+	if len(filters.Nodes) > 0 {
+		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(filters.Nodes, kubecost.FilterNode))
 	}
 
-	if raw := qp.GetList(ParamFilterNamespaces, ","); len(raw) > 0 {
-		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.FilterNamespace))
+	if len(filters.Namespaces) > 0 {
+		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(filters.Namespaces, kubecost.FilterNamespace))
 	}
 
-	if raw := qp.GetList(ParamFilterControllerKinds, ","); len(raw) > 0 {
-		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.FilterControllerKind))
+	if len(filters.ControllerKinds) > 0 {
+		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(filters.ControllerKinds, kubecost.FilterControllerKind))
 	}
 
 	// filterControllers= accepts controllerkind:controllername filters, e.g.
 	// "deployment:kubecost-cost-analyzer"
 	//
 	// Thus, we have to make a custom OR filter for this condition.
-	if filterControllers := qp.GetList(ParamFilterControllers, ","); len(filterControllers) > 0 {
+	if len(filters.Controllers) > 0 {
 		controllersOr := kubecost.AllocationFilterOr{
 			Filters: []kubecost.AllocationFilter{},
 		}
-		for _, rawFilterValue := range filterControllers {
+		for _, rawFilterValue := range filters.Controllers {
 			split := strings.Split(rawFilterValue, ":")
 			if len(split) == 1 {
 				filterValue, wildcard := parseWildcardEnd(split[0])
@@ -228,49 +286,49 @@ func AllocationFilterFromParamsV1(
 		}
 	}
 
-	if raw := qp.GetList(ParamFilterPods, ","); len(raw) > 0 {
-		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.FilterPod))
+	if len(filters.Pods) > 0 {
+		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(filters.Pods, kubecost.FilterPod))
 	}
 
-	if raw := qp.GetList(ParamFilterContainers, ","); len(raw) > 0 {
-		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(raw, kubecost.FilterContainer))
+	if len(filters.Containers) > 0 {
+		filter.Filters = append(filter.Filters, filterV1SingleValueFromList(filters.Containers, kubecost.FilterContainer))
 	}
 
 	// Label-mapped queries require a label config to be present.
 	if labelConfig != nil {
-		if raw := qp.GetList(ParamFilterDepartments, ","); len(raw) > 0 {
-			filter.Filters = append(filter.Filters, filterV1LabelAliasMappedFromList(raw, labelConfig.DepartmentLabel))
+		if len(filters.Departments) > 0 {
+			filter.Filters = append(filter.Filters, filterV1LabelAliasMappedFromList(filters.Departments, labelConfig.DepartmentLabel))
 		}
-		if raw := qp.GetList(ParamFilterEnvironments, ","); len(raw) > 0 {
-			filter.Filters = append(filter.Filters, filterV1LabelAliasMappedFromList(raw, labelConfig.EnvironmentLabel))
+		if len(filters.Environments) > 0 {
+			filter.Filters = append(filter.Filters, filterV1LabelAliasMappedFromList(filters.Environments, labelConfig.EnvironmentLabel))
 		}
-		if raw := qp.GetList(ParamFilterOwners, ","); len(raw) > 0 {
-			filter.Filters = append(filter.Filters, filterV1LabelAliasMappedFromList(raw, labelConfig.OwnerLabel))
+		if len(filters.Owners) > 0 {
+			filter.Filters = append(filter.Filters, filterV1LabelAliasMappedFromList(filters.Owners, labelConfig.OwnerLabel))
 		}
-		if raw := qp.GetList(ParamFilterProducts, ","); len(raw) > 0 {
-			filter.Filters = append(filter.Filters, filterV1LabelAliasMappedFromList(raw, labelConfig.ProductLabel))
+		if len(filters.Products) > 0 {
+			filter.Filters = append(filter.Filters, filterV1LabelAliasMappedFromList(filters.Products, labelConfig.ProductLabel))
 		}
-		if raw := qp.GetList(ParamFilterTeams, ","); len(raw) > 0 {
-			filter.Filters = append(filter.Filters, filterV1LabelAliasMappedFromList(raw, labelConfig.TeamLabel))
+		if len(filters.Teams) > 0 {
+			filter.Filters = append(filter.Filters, filterV1LabelAliasMappedFromList(filters.Teams, labelConfig.TeamLabel))
 		}
 	} else {
 		log.Debugf("No label config is available. Not creating filters for label-mapped 'fields'.")
 	}
 
-	if raw := qp.GetList(ParamFilterAnnotations, ","); len(raw) > 0 {
-		filter.Filters = append(filter.Filters, filterV1DoubleValueFromList(raw, kubecost.FilterAnnotation))
+	if len(filters.Annotations) > 0 {
+		filter.Filters = append(filter.Filters, filterV1DoubleValueFromList(filters.Annotations, kubecost.FilterAnnotation))
 	}
 
-	if raw := qp.GetList(ParamFilterLabels, ","); len(raw) > 0 {
-		filter.Filters = append(filter.Filters, filterV1DoubleValueFromList(raw, kubecost.FilterLabel))
+	if len(filters.Labels) > 0 {
+		filter.Filters = append(filter.Filters, filterV1DoubleValueFromList(filters.Labels, kubecost.FilterLabel))
 	}
 
-	if filterServices := qp.GetList(ParamFilterServices, ","); len(filterServices) > 0 {
+	if len(filters.Services) > 0 {
 		// filterServices= is the only filter that uses the "contains" operator.
 		servicesFilter := kubecost.AllocationFilterOr{
 			Filters: []kubecost.AllocationFilter{},
 		}
-		for _, filterValue := range filterServices {
+		for _, filterValue := range filters.Services {
 			// TODO: wildcard support
 			filterValue, wildcard := parseWildcardEnd(filterValue)
 			subFilter := kubecost.AllocationFilterCondition{
@@ -287,6 +345,28 @@ func AllocationFilterFromParamsV1(
 	}
 
 	return filter
+}
+
+// AllocationFilterFromParamsV1 takes a set of HTTP query parameters and
+// converts them to an AllocationFilter, which is a structured in-Go
+// representation of a set of filters.
+//
+// The HTTP query parameters are the "v1" filters attached to the Allocation
+// API: "filterNamespaces=", "filterNodes=", etc.
+//
+// It takes an optional LabelConfig, which if provided enables "label-mapped"
+// filters like "filterDepartments".
+//
+// It takes an optional ClusterMap, which if provided enables cluster name
+// filtering. This turns all `filterClusters=foo` arguments into the equivalent
+// of `clusterID = "foo" OR clusterName = "foo"`.
+func AllocationFilterFromParamsV1(
+	qp mapper.PrimitiveMapReader,
+	labelConfig *kubecost.LabelConfig,
+	clusterMap clusters.ClusterMap,
+) kubecost.AllocationFilter {
+	filter := ConvertFilterQueryParams(qp, labelConfig)
+	return ParseAllocationFilterV1(filter, labelConfig, clusterMap)
 }
 
 // filterV1SingleValueFromList creates an OR of equality filters for a given
@@ -315,6 +395,33 @@ func filterV1SingleValueFromList(rawFilterValues []string, filterField kubecost.
 		}
 
 		filter.Filters = append(filter.Filters, subFilter)
+	}
+
+	return filter
+}
+
+func ConvertFilterQueryParams(qp mapper.PrimitiveMapReader, labelConfig *kubecost.LabelConfig) FilterV1 {
+	filter := FilterV1{
+		Annotations:     qp.GetList(ParamFilterAnnotations, ","),
+		Containers:      qp.GetList(ParamFilterContainers, ","),
+		Controllers:     qp.GetList(ParamFilterControllers, ","),
+		ControllerKinds: qp.GetList(ParamFilterControllerKinds, ","),
+		Clusters:        qp.GetList(ParamFilterClusters, ","),
+		Labels:          qp.GetList(ParamFilterLabels, ","),
+		Namespaces:      qp.GetList(ParamFilterNamespaces, ","),
+		Nodes:           qp.GetList(ParamFilterNodes, ","),
+		Pods:            qp.GetList(ParamFilterPods, ","),
+		Services:        qp.GetList(ParamFilterServices, ","),
+	}
+
+	if labelConfig != nil {
+		filter.Departments = qp.GetList(ParamFilterDepartments, ",")
+		filter.Environments = qp.GetList(ParamFilterEnvironments, ",")
+		filter.Owners = qp.GetList(ParamFilterOwners, ",")
+		filter.Products = qp.GetList(ParamFilterProducts, ",")
+		filter.Teams = qp.GetList(ParamFilterTeams, ",")
+	} else {
+		log.Debugf("No label config is available. Not creating filters for label-mapped 'fields'.")
 	}
 
 	return filter

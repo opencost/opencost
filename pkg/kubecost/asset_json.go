@@ -494,7 +494,11 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 	jsonEncodeFloat64(buffer, "gpuCount", n.GPUs(), ",")
 	jsonEncodeFloat64(buffer, "ramCost", n.RAMCost, ",")
 	jsonEncodeFloat64(buffer, "adjustment", n.Adjustment, ",")
+	if n.Overhead != nil {
+		jsonEncode(buffer, "overhead", n.Overhead, ",")
+	}
 	jsonEncodeFloat64(buffer, "totalCost", n.TotalCost(), "")
+
 	buffer.WriteString("}")
 	return buffer.Bytes(), nil
 }
