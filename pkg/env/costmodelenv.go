@@ -165,6 +165,10 @@ func GetPrometheusRetryOnRateLimitDefaultWait() time.Duration {
 }
 
 // GetPrometheusHeaderXScopeOrgId returns the default value for X-Scope-OrgID header used for requests in Mimir API.
+// To use Mimir instead of Prometheus add variable from Mimir settings:
+// "PROMETHEUS_HEADER_X_SCOPE_ORGID": "my-cluster-name"
+// Then set Prometheus URL to Mimir prometheus API endpoint:
+// "PROMETHEUS_SERVER_ENDPOINT": "http://mimir-url/prometheus/"
 func GetPrometheusHeaderXScopeOrgId() string {
 	return Get(PrometheusHeaderXScopeOrgIdEnvVar, "")
 }
