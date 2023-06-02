@@ -69,7 +69,7 @@ func (auth *ClientAuth) Apply(req *http.Request) {
 const MaxRetryAfterDuration = 10 * time.Second
 
 // Default header key for Mimir API requests
-const MimirHeader = "X-Scope-OrgID"
+const HeaderXScopeOrgId = "X-Scope-OrgID"
 
 // RateLimitRetryOpts contains retry options
 type RateLimitRetryOpts struct {
@@ -117,15 +117,15 @@ func (rlre *RateLimitedResponseError) Error() string {
 // RateLimitedPrometheusClient is a prometheus client which limits the total number of
 // concurrent outbound requests allowed at a given moment.
 type RateLimitedPrometheusClient struct {
-	id             string
-	client         prometheus.Client
-	auth           *ClientAuth
-	queue          collections.BlockingQueue[*workRequest]
-	decorator      QueryParamsDecorator
-	rateLimitRetry *RateLimitRetryOpts
-	outbound       atomic.Int32
-	fileLogger     *golog.Logger
-	mimirOrgId     string
+	id                string
+	client            prometheus.Client
+	auth              *ClientAuth
+	queue             collections.BlockingQueue[*workRequest]
+	decorator         QueryParamsDecorator
+	rateLimitRetry    *RateLimitRetryOpts
+	outbound          atomic.Int32
+	fileLogger        *golog.Logger
+	headerXScopeOrgId string
 }
 
 // requestCounter is used to determine if the prometheus client keeps track of
@@ -145,7 +145,7 @@ func NewRateLimitedClient(
 	decorator QueryParamsDecorator,
 	rateLimitRetryOpts *RateLimitRetryOpts,
 	queryLogFile string,
-	mimirHeaderOrgId string) (prometheus.Client, error) {
+	headerXScopeOrgId string) (prometheus.Client, error) {
 
 	queue := collections.NewBlockingQueue[*workRequest]()
 
@@ -174,14 +174,14 @@ func NewRateLimitedClient(
 	}
 
 	rlpc := &RateLimitedPrometheusClient{
-		id:             id,
-		client:         client,
-		queue:          queue,
-		decorator:      decorator,
-		rateLimitRetry: rateLimitRetryOpts,
-		auth:           auth,
-		fileLogger:     logger,
-		mimirOrgId:     mimirHeaderOrgId,
+		id:                id,
+		client:            client,
+		queue:             queue,
+		decorator:         decorator,
+		rateLimitRetry:    rateLimitRetryOpts,
+		auth:              auth,
+		fileLogger:        logger,
+		headerXScopeOrgId: headerXScopeOrgId,
 	}
 
 	// Start concurrent request processing
@@ -319,8 +319,8 @@ func (rlpc *RateLimitedPrometheusClient) worker() {
 
 // Rate limit and passthrough to prometheus client API
 func (rlpc *RateLimitedPrometheusClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
-	if rlpc.mimirOrgId != "" {
-		req.Header.Set(MimirHeader, rlpc.mimirOrgId)
+	if rlpc.headerXScopeOrgId != "" {
+		req.Header.Set(HeaderXScopeOrgId, rlpc.headerXScopeOrgId)
 	}
 
 	rlpc.auth.Apply(req)
@@ -363,7 +363,7 @@ type PrometheusClientConfig struct {
 	Auth                  *ClientAuth
 	QueryConcurrency      int
 	QueryLogFile          string
-	MimirHeaderOrgId      string
+	HeaderXScopeOrgId     string
 }
 
 // NewPrometheusClient creates a new rate limited client which limits by outbound concurrent requests.
@@ -398,7 +398,7 @@ func NewPrometheusClient(address string, config *PrometheusClientConfig) (promet
 		nil,
 		config.RateLimitRetryOpts,
 		config.QueryLogFile,
-		config.MimirHeaderOrgId,
+		config.HeaderXScopeOrgId,
 	)
 }
 

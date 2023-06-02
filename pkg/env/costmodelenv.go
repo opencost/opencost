@@ -92,7 +92,7 @@ const (
 	PrometheusRetryOnRateLimitMaxRetriesEnvVar  = "PROMETHEUS_RETRY_ON_RATE_LIMIT_MAX_RETRIES"
 	PrometheusRetryOnRateLimitDefaultWaitEnvVar = "PROMETHEUS_RETRY_ON_RATE_LIMIT_DEFAULT_WAIT"
 
-	MimirHeaderOrgIdEnvVar = "MIMIR_HEADER_ORG_ID"
+	PrometheusHeaderXScopeOrgIdEnvVar = "PROMETHEUS_HEADER_X_SCOPE_ORGID"
 
 	IngestPodUIDEnvVar = "INGEST_POD_UID"
 
@@ -164,9 +164,9 @@ func GetPrometheusRetryOnRateLimitDefaultWait() time.Duration {
 	return GetDuration(PrometheusRetryOnRateLimitDefaultWaitEnvVar, 100*time.Millisecond)
 }
 
-// GetMimirOrgIdHeader returns the default value for X-Scope-OrgID header used for requests in Mimir API.
-func GetMimirHeaderOrgId() string {
-	return Get(MimirHeaderOrgIdEnvVar, "")
+// GetPrometheusHeaderXScopeOrgId returns the default value for X-Scope-OrgID header used for requests in Mimir API.
+func GetPrometheusHeaderXScopeOrgId() string {
+	return Get(PrometheusHeaderXScopeOrgIdEnvVar, "")
 }
 
 // GetPrometheusQueryOffset returns the time.Duration to offset all prometheus queries by. NOTE: This env var is applied
