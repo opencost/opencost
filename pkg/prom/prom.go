@@ -68,7 +68,7 @@ func (auth *ClientAuth) Apply(req *http.Request) {
 // during a retry. This is to prevent starvation on the request threads
 const MaxRetryAfterDuration = 10 * time.Second
 
-// Default header key for Mimir API requests
+// Default header key for Mimir/Cortex-Tenant API requests
 const HeaderXScopeOrgId = "X-Scope-OrgID"
 
 // RateLimitRetryOpts contains retry options
