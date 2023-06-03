@@ -1,4 +1,4 @@
-package aws
+package azure
 
 import (
 	"os"
@@ -9,31 +9,33 @@ import (
 	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
-func TestAthenaIntegration_GetCloudCost(t *testing.T) {
-	athenaConfigPath := os.Getenv("ATHENA_CONFIGURATION")
-	if athenaConfigPath == "" {
-		t.Skip("skipping integration test, set environment variable ATHENA_CONFIGURATION")
+func GetCloudCost_Test(t *testing.T) {
+	azureConfigPath := os.Getenv("AZURE_CONFIGURATION")
+	if azureConfigPath == "" {
+		t.Skip("skipping integration test, set environment variable AZURE_CONFIGURATION")
 	}
-	athenaConfigBin, err := os.ReadFile(athenaConfigPath)
+	azureConfigBin, err := os.ReadFile(azureConfigPath)
 	if err != nil {
 		t.Fatalf("failed to read config file: %s", err.Error())
 	}
-	var athenaConfig AthenaConfiguration
-	err = json.Unmarshal(athenaConfigBin, &athenaConfig)
+	var azureConfig StorageConfiguration
+	err = json.Unmarshal(azureConfigBin, &azureConfig)
 	if err != nil {
 		t.Fatalf("failed to unmarshal config from JSON: %s", err.Error())
 	}
 	testCases := map[string]struct {
-		integration *AthenaIntegration
+		integration *AzureStorageIntegration
 		start       time.Time
 		end         time.Time
 		expected    bool
 	}{
 		// No CUR data is expected within 2 days of now
 		"too_recent_window": {
-			integration: &AthenaIntegration{
-				AthenaQuerier: AthenaQuerier{
-					AthenaConfiguration: athenaConfig,
+			integration: &AzureStorageIntegration{
+				AzureStorageBillingParser: AzureStorageBillingParser{
+					StorageConnection: StorageConnection{
+						StorageConfiguration: azureConfig,
+					},
 				},
 			},
 			end:      time.Now(),
@@ -42,9 +44,11 @@ func TestAthenaIntegration_GetCloudCost(t *testing.T) {
 		},
 		// CUR data should be available
 		"last week window": {
-			integration: &AthenaIntegration{
-				AthenaQuerier: AthenaQuerier{
-					AthenaConfiguration: athenaConfig,
+			integration: &AzureStorageIntegration{
+				AzureStorageBillingParser: AzureStorageBillingParser{
+					StorageConnection: StorageConnection{
+						StorageConfiguration: azureConfig,
+					},
 				},
 			},
 			end:      time.Now().Add(-7 * timeutil.Day),

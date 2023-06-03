@@ -1,54 +1,47 @@
-package aws
+package gcp
 
 import (
+	"encoding/json"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/opencost/opencost/pkg/util/json"
+	"github.com/opencost/opencost/pkg/kubecost"
 	"github.com/opencost/opencost/pkg/util/timeutil"
 )
 
-func TestAthenaIntegration_GetCloudCost(t *testing.T) {
-	athenaConfigPath := os.Getenv("ATHENA_CONFIGURATION")
-	if athenaConfigPath == "" {
+func TestBigQueryIntegration_GetCloudCost(t *testing.T) {
+	bigQueryConfigPath := os.Getenv("BIGQUERY_CONFIGURATION")
+	if bigQueryConfigPath == "" {
 		t.Skip("skipping integration test, set environment variable ATHENA_CONFIGURATION")
 	}
-	athenaConfigBin, err := os.ReadFile(athenaConfigPath)
+	bigQueryConfigBin, err := os.ReadFile(bigQueryConfigPath)
 	if err != nil {
 		t.Fatalf("failed to read config file: %s", err.Error())
 	}
-	var athenaConfig AthenaConfiguration
-	err = json.Unmarshal(athenaConfigBin, &athenaConfig)
+	var bigQueryConfig BigQueryConfiguration
+	err = json.Unmarshal(bigQueryConfigBin, &bigQueryConfig)
 	if err != nil {
 		t.Fatalf("failed to unmarshal config from JSON: %s", err.Error())
 	}
+
+	today := kubecost.RoundBack(time.Now().UTC(), timeutil.Day)
+
 	testCases := map[string]struct {
-		integration *AthenaIntegration
+		integration *BigQueryIntegration
 		start       time.Time
 		end         time.Time
 		expected    bool
 	}{
-		// No CUR data is expected within 2 days of now
-		"too_recent_window": {
-			integration: &AthenaIntegration{
-				AthenaQuerier: AthenaQuerier{
-					AthenaConfiguration: athenaConfig,
-				},
-			},
-			end:      time.Now(),
-			start:    time.Now().Add(-timeutil.Day),
-			expected: true,
-		},
-		// CUR data should be available
+
 		"last week window": {
-			integration: &AthenaIntegration{
-				AthenaQuerier: AthenaQuerier{
-					AthenaConfiguration: athenaConfig,
+			integration: &BigQueryIntegration{
+				BigQueryQuerier: BigQueryQuerier{
+					BigQueryConfiguration: bigQueryConfig,
 				},
 			},
-			end:      time.Now().Add(-7 * timeutil.Day),
-			start:    time.Now().Add(-8 * timeutil.Day),
+			end:      today.Add(-7 * timeutil.Day),
+			start:    today.Add(-8 * timeutil.Day),
 			expected: false,
 		},
 	}
