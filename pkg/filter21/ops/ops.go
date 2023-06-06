@@ -11,7 +11,7 @@ import (
 
 	"github.com/opencost/opencost/pkg/filter21/allocation"
 	"github.com/opencost/opencost/pkg/filter21/ast"
-	"github.com/opencost/opencost/pkg/filter21/util/typeutil"
+	"github.com/opencost/opencost/pkg/util/typeutil"
 )
 
 // keyFieldType is used to extract field, key, and field type
