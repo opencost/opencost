@@ -19,6 +19,15 @@ type Field struct {
 	fieldType FieldType
 }
 
+// Field equivalence is determined by name and type.
+func (f *Field) Equal(other *Field) bool {
+	if f == nil || other == nil {
+		return false
+	}
+
+	return f.Name == other.Name && f.fieldType == other.fieldType
+}
+
 // IsSlice returns true if the field is a slice. This instructs the lexer that the field
 // should allow contains operations.
 func (f *Field) IsSlice() bool {

@@ -44,8 +44,8 @@ func DefaultFieldByName(field AllocationField) *ast.Field {
 	return nil
 }
 
-// NewAllocationParser creates a new `ast.FilterParser` implementation
+// NewAllocationFilterParser creates a new `ast.FilterParser` implementation
 // which uses allocation specific fields
-func NewAllocationParser() ast.FilterParser {
+func NewAllocationFilterParser() ast.FilterParser {
 	return ast.NewFilterParser(allocationFilterFields)
 }

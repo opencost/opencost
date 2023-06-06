@@ -23,6 +23,11 @@ type Identifier struct {
 	Key   string
 }
 
+// Equal returns true if the identifiers are equal
+func (id *Identifier) Equal(ident Identifier) bool {
+	return id.Field.Equal(ident.Field) && id.Key == ident.Key
+}
+
 // String returns the string representation for the Identifier
 func (id *Identifier) String() string {
 	s := id.Field.Name
