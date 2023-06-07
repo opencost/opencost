@@ -2295,6 +2295,12 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 			WriteError(w, InternalServerError(fmt.Errorf("error accumulating by %v: %s", accumulateBy, err).Error()))
 			return
 		}
+		for _, as := range asr.Allocations {
+			_, err := kubecost.UpdateAllocationTotalsStore(a.totalsStore, as)
+			if err != nil {
+				log.Errorf("ETL: error updating allocation resource totals during accumulation for %s: %s", as.Window, err)
+			}
+		}
 	}
 
 	if includeProportionalAssetResourceCosts {
