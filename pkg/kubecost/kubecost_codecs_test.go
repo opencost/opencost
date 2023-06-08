@@ -480,6 +480,14 @@ func TestProperties_BinaryEncoding(t *testing.T) {
 	p0.Controller = "daemonset-abc"
 	p0.ControllerKind = "daemonset"
 	p0.Namespace = "namespace1"
+	p0.NamespaceLabels = map[string]string{
+		"app":                "cost-analyzer-namespace",
+		"kubernetes.io/name": "cost-analyzer",
+	}
+	p0.NamespaceAnnotations = map[string]string{
+		"com.kubernetes.io/managed-by":             "helm",
+		"kubernetes.io/last-applied-configuration": "cost-analyzer",
+	}
 	p0.Node = "node1"
 	p0.Pod = "daemonset-abc-123"
 	p0.Labels = map[string]string{
@@ -508,6 +516,10 @@ func TestProperties_BinaryEncoding(t *testing.T) {
 	p0.Controller = "daemonset-abc"
 	p0.ControllerKind = "daemonset"
 	p0.Namespace = "namespace1"
+	p0.NamespaceAnnotations = map[string]string{
+		"com.kubernetes.io/managed-by":             "helm",
+		"kubernetes.io/last-applied-configuration": "cost-analyzer",
+	}
 	p0.Services = []string{}
 	bs, err = p0.MarshalBinary()
 	if err != nil {
