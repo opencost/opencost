@@ -2264,7 +2264,8 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 	// IncludeProportionalAssetResourceCosts, if true,
 	includeProportionalAssetResourceCosts := qp.GetBool("includeProportionalAssetResourceCosts", false)
 
-	includeAggregatedMetadata := qp.GetBool("includeAggregatedMetadata", true)
+	// include aggregated labels/annotations if true
+	includeAggregatedMetadata := qp.GetBool("includeAggregatedMetadata", false)
 
 	asr, err := a.Model.QueryAllocation(window, resolution, step, aggregateBy, includeIdle, idleByNode, includeProportionalAssetResourceCosts, includeAggregatedMetadata)
 	if err != nil {
