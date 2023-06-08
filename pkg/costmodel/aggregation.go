@@ -2312,7 +2312,7 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 				return
 			}
 
-			totalStoreByCluster, ok := a.totalsStore.GetAllocationTotalsByNode(as.Start(), as.End())
+			totalStoreByCluster, ok := a.totalsStore.GetAllocationTotalsByCluster(as.Start(), as.End())
 			if !ok {
 				log.Errorf("unable to locate allocation totals for cluster")
 				WriteError(w, InternalServerError(fmt.Errorf("error getting clusterallocation totals").Error()))
@@ -2321,7 +2321,8 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 
 			// loop through each allocation set, using total cost from totals store
 			for _, alloc := range as.Allocations {
-				for key, parc := range alloc.ProportionalAssetResourceCosts {
+				for rawKey, parc := range alloc.ProportionalAssetResourceCosts {
+					key := strings.ReplaceAll(rawKey, ",", "/")
 					// for each parc , check the totals store for each
 					// on a totals hit, set the corresponding total and calculate percentage
 					var totals *kubecost.AllocationTotals
@@ -2343,7 +2344,9 @@ func (a *Accesses) ComputeAllocationHandler(w http.ResponseWriter, r *http.Reque
 					parc.GPUTotalCost = totals.GPUCost
 					parc.RAMTotalCost = totals.RAMCost
 					parc.LoadBalancerTotalCost = totals.LoadBalancerCost
-
+					if parc.LoadBalancerProportionalCost > 0 {
+						log.Debug("break")
+					}
 					kubecost.ComputePercentages(&parc)
 					alloc.ProportionalAssetResourceCosts[key] = parc
 				}
