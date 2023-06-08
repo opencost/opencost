@@ -1050,6 +1050,7 @@ type AllocationAggregationOptions struct {
 	SharedHourlyCosts                     map[string]float64
 	IncludeSharedCostBreakdown            bool
 	SplitIdle                             bool
+	IncludeAggregatedMetadata             bool
 }
 
 // AggregateBy aggregates the Allocations in the given AllocationSet by the given
@@ -1171,6 +1172,7 @@ func (as *AllocationSet) AggregateBy(aggregateBy []string, options *AllocationAg
 	// to aggregate.
 	for _, alloc := range as.Allocations {
 
+		alloc.Properties.AggregatedMetadata = options.IncludeAggregatedMetadata
 		// External allocations get aggregated post-hoc (see step 6) and do
 		// not necessarily contain complete sets of properties, so they are
 		// moved to a separate AllocationSet.

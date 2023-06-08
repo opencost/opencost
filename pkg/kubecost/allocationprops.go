@@ -105,6 +105,9 @@ type AllocationProperties struct {
 	Annotations          AllocationAnnotations `json:"annotations,omitempty"`
 	NamespaceLabels      AllocationLabels      `json:"namespaceLabels,omitempty"`      // @bingen:field[version=17]
 	NamespaceAnnotations AllocationAnnotations `json:"namespaceAnnotations,omitempty"` // @bingen:field[version=17]
+	// When set to true, maintain the intersection of all labels + annotations
+	// in the aggregated AllocationProperties object
+	AggregatedMetadata bool `json:"-"` //@bingen:field[ignore]
 }
 
 // AllocationLabels is a schema-free mapping of key/value pairs that can be
@@ -502,6 +505,30 @@ func (p *AllocationProperties) Intersection(that *AllocationProperties) *Allocat
 			intersectionProps.NamespaceLabels = copyStringMap(p.NamespaceLabels)
 			intersectionProps.NamespaceAnnotations = copyStringMap(p.NamespaceAnnotations)
 		}
+
+		// ignore the incoming labels from unallocated or unmounted special case pods
+		if p.AggregatedMetadata || that.AggregatedMetadata {
+			intersectionProps.AggregatedMetadata = true
+
+			// When aggregating by metadata, we maintain the intersection of the labels/annotations
+			// of the two AllocationProperties objects being intersected here.
+			// Special case unallocated/unmounted Allocations never have any labels or annotations.
+			// As a result, they have the effect of always clearing out the intersection,
+			// regardless if all the other actual allocations/etc have them.
+			// This logic is designed to effectively ignore the unmounted/unallocated objects
+			// and just copy over the labels from the other object - we only take the intersection
+			// of 'legitimate' allocations.
+			if p.Container == UnmountedSuffix {
+				intersectionProps.Annotations = that.Annotations
+				intersectionProps.Labels = that.Labels
+			} else if that.Container == UnmountedSuffix {
+				intersectionProps.Annotations = p.Annotations
+				intersectionProps.Labels = p.Labels
+			} else {
+				intersectionProps.Annotations = mapIntersection(p.Annotations, that.Annotations)
+				intersectionProps.Labels = mapIntersection(p.Labels, that.Labels)
+			}
+		}
 	}
 
 	if p.Pod == that.Pod {
@@ -521,6 +548,20 @@ func copyStringMap(original map[string]string) map[string]string {
 	}
 
 	return copy
+}
+
+func mapIntersection(map1, map2 map[string]string) map[string]string {
+	result := make(map[string]string)
+	for key, value := range map1 {
+		if value2, ok := map2[key]; ok {
+			if value2 == value {
+				result[key] = value
+			}
+		}
+
+	}
+
+	return result
 }
 
 func (p *AllocationProperties) String() string {
