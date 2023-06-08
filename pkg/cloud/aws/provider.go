@@ -534,6 +534,12 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 				return err
 			}
 
+			// If the sample nil service key name is set, zero it out so that it is not
+			// misinterpreted as a real service key.
+			if asfi.ServiceKeyName == "AKIXXX" {
+				asfi.ServiceKeyName = ""
+			}
+
 			c.ServiceKeyName = asfi.ServiceKeyName
 			if asfi.ServiceKeySecret != "" {
 				c.ServiceKeySecret = asfi.ServiceKeySecret
@@ -551,6 +557,13 @@ func (aws *AWS) UpdateConfig(r io.Reader, updateType string) (*models.CustomPric
 			if err != nil {
 				return err
 			}
+
+			// If the sample nil service key name is set, zero it out so that it is not
+			// misinterpreted as a real service key.
+			if aai.ServiceKeyName == "AKIXXX" {
+				aai.ServiceKeyName = ""
+			}
+
 			c.AthenaBucketName = aai.AthenaBucketName
 			c.AthenaRegion = aai.AthenaRegion
 			c.AthenaDatabase = aai.AthenaDatabase
@@ -1401,7 +1414,6 @@ func (aws *AWS) ConfigureAuthWith(config *models.CustomPricing) error {
 
 // Gets the aws key id and secret
 func (aws *AWS) getAWSAuth(forceReload bool, cp *models.CustomPricing) (string, string) {
-
 	// 1. Check config values first (set from frontend UI)
 	if cp.ServiceKeyName != "" && cp.ServiceKeySecret != "" {
 		aws.ServiceAccountChecks.Set("hasKey", &models.ServiceAccountCheck{
@@ -1459,6 +1471,12 @@ func (aws *AWS) loadAWSAuthSecret(force bool) (*AWSAccessKey, error) {
 	err = json.Unmarshal(result, &ak)
 	if err != nil {
 		return nil, err
+	}
+
+	// If the sample nil service key name is set, zero it out so that it is not
+	// misinterpreted as a real service key.
+	if ak.AccessKeyID == "AKIXXX" {
+		ak.AccessKeyID = ""
 	}
 
 	awsSecret = &ak
